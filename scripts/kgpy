@@ -1,0 +1,130 @@
+#!/usr/bin/python3
+
+import argparse
+
+from colorama import Fore, init
+
+from klongpy import KlongInterpreter
+
+
+def info() -> None:
+    print()
+    print(f"{Fore.GREEN}Welcome to KlongPy REPL")
+    print(f"{Fore.BLUE}author: Brian Guarraci")
+    print(f"{Fore.BLUE}repo  : https://github.com/briangu/klongpy")
+    print(f"{Fore.YELLOW}crtl-c to quit")
+    print()
+
+
+init(autoreset=True)
+
+
+success = lambda input: f"{Fore.GREEN}{input}"
+failure = lambda input: f"{Fore.RED}{input}"
+
+# https://dev.to/amal/building-the-python-repl-3468
+def repl(klong=None):
+    info()
+    try:
+        klong = klong or KlongInterpreter()
+        while True:
+            try:
+                p = input("?> ")
+                r = klong(p)
+                print(success(r))
+            except Exception as e:
+                print(failure(f"Error: {e}"))
+                import traceback
+                traceback.print_exc(e)
+                raise e
+    except KeyboardInterrupt:
+        print("\nExiting...")
+
+
+# TODO: add [ metacommands
+"""
+
+    See https://t3x.org/klong/klong-ref.txt.html for additional details.
+
+    ----------------------------------------------------------------
+    INTERACTION
+    ----------------------------------------------------------------
+
+    ]! command                                               [Shell]
+
+    Pass the given command to the Unix shell.
+    ................................................................
+
+    ]a topic                                               [Apropos]
+    ]h topic                                                  [Help]
+
+    ]htopic is short for help("topic"). In addition, ]hall will
+    list all available help texts. The "topic" must be an operator
+    symbol or operator name (e.g. :: or Define).
+    ................................................................
+
+    ]i dir                                               [Inventory]
+
+    List all *.kg files (Klong source programs) in the given
+    directory. When no directory is given, it defaults to the first
+    element of the KLONGPATH variable. The ]i command depends on a
+    Unix shell and the "ls" utility (it does "cd dir; ls *.kg").
+    ................................................................
+
+    it                                                          [It]
+
+    This variable holds the result of the most recent successful
+    computation, so you do not have to re-type or copy-paste the
+    previous result. E.g.:
+
+            {(x+2%x)%2}:~2
+    1.41421356237309504
+            it^2
+    1.99999999999999997
+    ................................................................
+
+    ]l file                                                   [Load]
+
+    ]lfile is short for .l("file").
+    ................................................................
+
+    ]q                                                        [Exit]
+
+    ]q is short for .x(0). However, end-of-file (control-D on Unix)
+    typically also works.
+    ................................................................
+
+    ]t file                                             [Transcript]
+
+    Start appending user input and computed values to the given file.
+    When no file is given, stop transcript. Input will be prefixed
+    with a TAB (HT) character in the transcript file.
+
+"""
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        prog = 'KlongPy',
+        description = 'KlongPy REPL',
+        epilog = 'For help, go to https://github.com/briangu/klongpy"')
+    parser.add_argument('-e', '--expr', help='evaluate expression, no interactive mode')
+    parser.add_argument('-l', '--load', help='load program from file')
+    parser.add_argument('-p', '--run', help='run program from file')
+
+    args = parser.parse_args()
+    if args.expr:
+        print(KlongInterpreter()(args.expr))
+        exit()
+
+    klong = KlongInterpreter()
+    if args.load:
+        print(f"Loading: {args.load}")
+        with open(args.load, "r") as f:
+            klong(f.read())
+        repl(klong)
+    elif args.run:
+        print(f"Running: {args.run}")
+        with open(args.run, "r") as f:
+            klong(f.read())
+    else:
+        repl()

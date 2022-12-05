@@ -1,0 +1,57 @@
+:"Eigenvalue and Eigenvector Function (using the Jacobi method)"
+:"by Alexander Shendi"
+
+:"To the extent possible under law, the author"
+:"has waived all copyright and related"
+:"or neighboring rights to this program."
+:"This work is published from: Germany"
+
+.comment("*****")
+
+eigen(x;y) computes the eigenvalues and eigenvectors of the matrix M
+with a precision of y fractional digits. It returns a vector [e E]
+where e is a vector of eigenvalues and E is a vector of corresponding
+eigenvectors. For example,
+
+eigenv([[3.0 2.0 4.0] [2.0 0.0 2.0] [4.0 2.0 3.0]];2)
+
+gives
+
+[[ 8.0  -1.0  -1.0]
+ [[0.67  0.11 -0.74]
+  [0.33  0.84  0.42]
+  [0.67 -0.53  0.53]]]
+
+************************************************************************
+
+.module(:eigenv)
+eye::{(x,x):^(1,x:^0)}
+diag::{[n];n::*(^x);{+/x}'(x*eye(n))}
+msum::{{#(x)+y}/(,/x)}
+msum1::{[a1;neq];neq::*(^x);a1::#'(,/(x-(x*eye(neq))));+/((a1>y)*a1)}
+termq::{[s];s::0.5*msum1(x;z);(s%y)>z}
+mkvals::{(,x),(,y)}
+next::{[w;v;neq;m;j;k;res];v::x@1;w::*x;neq::*(^w);j::1;m::0;k::0;
+       {x<neq}{j::x;{x<j}{[aa;co;si;xx;yy];m::x;xx::(w:@(m,m))-(w:@(j,j));
+         yy::2.0*(w:@(m,j));aa::atan2(xx;yy)%2.0;co::cos(aa);si::sin(aa);
+         {x<neq}{[tt];k::x;tt::w:@(k,m);
+           w::w:-(((co*tt)+(si*(w:@(k,j)))),(k,m));
+           w::w:-(((co*(w:@(k,j)))-(si*tt)),(k,j));tt::v:@(k,m);
+           v::v:-((co*tt)+(si*(v:@(k,j)))),(k,m);
+           v::v:-((co*(v:@(k,j)))-(si*tt)),(k,j);k+1}:~0;
+         w::w:-(((co*(w:@(m,m)))+si*(w:@(j,m))),(m,m));
+         w::w:-(((co*(w:@(j,j)))-si*(w:@(m,j))),(j,j));w::w:-(0.0,(m,j));
+         {x<neq}{k::x;w::w:-((w:@(k,m)),(m,k));
+                      w::w:-((w:@(k,j)),(j,k));k+1}:~0;
+           m+1}:~0;j+1}:~1;mkvals(w;v)}
+eigenv::{[tol;neq;v1;w1;sum;count;maxcnt;z1;nd];maxcnt::50;count::0;
+         neq::*(^x);v1::eye(neq);tol::0.1^y;w1::{{x}'x}'x;
+         sum::msum(x);
+         z1::{count::count+1;termq((*x);sum;tol)}{next(x)}:~mkvals(w1;v1);
+         nd::y;all(rndn(;nd);mkvals(diag(*z1);(z1@1)))}
+.module(0)
+
+help.add([
+ ["eigenv(x;y)"
+  "eigenvalues and eigenvectors of matrix x with y digits of precision"]
+])

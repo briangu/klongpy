@@ -1,0 +1,16 @@
+:"Huffman encoder/decoder by Niplav"
+
+:"Using 'encode' on a text terminal may mess up your TTY settings!"
+
+frq::{[t];t::x;{(t@*x),#x}'=x}
+treewalk::{:[2=#x;,(,y),x@1;.f(x@1;y,0),.f(x@2;y,1)]}
+combsmallest::{{,(+/*'x),x}:(2#x),2_x}
+gencode::{|'treewalk(*{1<#x}{combsmallest(x@<*'x)}:~|'x;[])}
+bin::{(-x)#(&x),{:[x;.f(x:%2),x!2;0]}:(y)}
+comp::{,/:#{+/x*'2^|!8}'(8*1+!(#x):%8):_x}
+decomp::{,/{bin(8;x)}'#'x}
+encode::{[c f b];f::frq(x);c::gencode(f);b::,/{*|c@*(x=*'c)?1}'x;
+         (#b),(,f),,comp(b)}
+decode::{[r o];o::gencode(x@1);r::"";{x}{[p];
+         p::*(x{:[&/y=(#y)#x;1;0]}:\*'|'o)?1;
+	 r::r,*o@p;(#*|o@p)_x}:~(*x)#decomp(x@2);r}

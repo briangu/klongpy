@@ -1,0 +1,40 @@
+:"comma separated value (CSV) conversion"
+
+.comment("*****")
+
+CSV format as supported by this module is as follows:
+
+- records end with a LF or CR,LF character
+- the last record in a file may omit the LF or CR,LF
+- fields are separated by commas
+- fields may or may not be delimited by quotes (")
+- a field delimited by quotes may contain a comma
+- a field delimited by quotes may contain a literal " as \"
+- two adjacent commas denote an empty field
+
+The following functions convert between CSV and vector forms:
+
+csv.split(x)   split CSV record in string x into a vector of fields
+csv.read()     read and split record from From channel
+csv.make(x)    create csv record (string) from fields in vector x
+csv.write(x)   create csv record and write to To channel
+csv.load()     read file of csv records from From channel, returning
+               a vector of vectors of fields (csv.split each line)
+
+*****
+
+.module(:csv)
+ctlm:::#(#0cM)-#0c@
+unesc::{[f];:[~[]~f::x?0c\;,/(*f),{1_x}'1_f::f:_x;x]}
+escape::{[f];:[~[]~f::x?0c";1_,/{0c\,x}'f:_x;x]}
+unquote::{:[0c"~*x;1_(-1)_x;x]}
+csv.split::{[c f i k q s];q::0;k::#x;f::[];s::x;
+            {x<k}{i::1;:[0c\~c::s@x;i::2
+                       :|0c"~c;q::~q
+                       :|(~q)&0c,~c;f::f,x;0];x+i}:~0;
+            unesc'unquote'(*f),{1_x}'1_f::f:_x}
+csv.read::{[r];csv.split(:[ctlm~*|r::.rl();(-1)_r;r])}
+csv.make::{{x,",",y}/{"""",($x),""""}'escape'$'x}
+csv.write::{.p(csv.make(x))}
+csv.load::{|1_.mi{(,csv.read()),x}:~,csv.read()}
+.module(0)

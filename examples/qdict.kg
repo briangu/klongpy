@@ -1,0 +1,12 @@
+:"decode a CGI query string and return a dictionary containing variable"
+:"names (strings) as keys and variable values (also strings) as payload"
+.module(:qstr)
+hex::{[a];a::(#x)-#0c0;:[a>48;a-39:|a>9;a-7;a]}
+char::{:#hex(x@2)+16*hex(x@1)}
+hexchr::{,/{:[0c%~*x;char(x),3_x;x]}'(x?0c%):_x}
+killcr::{,/{:[(:#13)~*x;1_x;x]}'(x?:#13):_x}
+decode::{killcr(hexchr(x:=(:#32),x?0c+))}
+split::{[a];(*a),{1_x}'1_a::(x?y):_x}
+mkdict::{:{},/{[a];a::split(x;0c=);(*a),,decode(a@1)}'split(x;0c&)}
+qdict::{:[x?0c=;mkdict(x);[]]}
+.module(0)
