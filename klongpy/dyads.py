@@ -499,8 +499,7 @@ def eval_dyad_join(a, b):
     aa = a if isinstance(a, list) else ([a[0]] if len(a.shape) > 1 and a.shape[0] == 1 else a.tolist() if len(a.shape) == 1 else [a]) if isinstance(a, np.ndarray) else [a]
     bb = b if isinstance(b, list) else ([b[0]] if len(b.shape) > 1 and b.shape[0] == 1 else b.tolist() if len(b.shape) == 1 else [b]) if isinstance(b, np.ndarray) else [b]
 
-    r = np.asarray([*aa,*bb])
-    return r
+    return np.asarray([*aa,*bb])
 
 
 def eval_dyad_less(a, b):

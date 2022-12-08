@@ -10,6 +10,11 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    def test_cond_arr_predicate(self):
+        klong = KlongInterpreter()
+        r = klong(':["XYZ"?"X";1;0]')
+        self.assertTrue(r,1)
+
     def test_avg_mixed(self):
         data = np.random.rand(10**5)
         klong = KlongInterpreter()

@@ -314,6 +314,8 @@ def kg_truth(x):
     return x*1
 
 
+# TODO: can we just transform chars to ints so that CuPy works?
+#       we'll need to reassemble the strinsg, so pros/cons.
 def str_to_chr_arr(s):
     return np.asarray([KGChar(x) for x in s],dtype=object)
 

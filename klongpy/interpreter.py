@@ -517,7 +517,7 @@ class KlongInterpreter():
                 return x
         elif isinstance(x, KGCond):
             q = self.call(x[0])
-            p = not (((q == 0).all() if isinstance(q, np.ndarray) else q == 0) or is_empty(q))
+            p = not ((is_number(q) and q == 0) or is_empty(q))
             return self.call(x[1]) if p else self.call(x[2])
         elif isinstance(x, KGCall) and not (x.is_op() or x.is_adverb_chain()):
             return self._eval_fn(KGFn(x.a,x.args,x.arity))
@@ -551,8 +551,7 @@ class KlongInterpreter():
         assert 2 == KlongInterpreter()("1+1")
 
         """
-        r = self.exec(x)
-        return r[-1]
+        return self.exec(x)[-1]
 
     def exec(self, x):
         """
