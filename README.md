@@ -19,29 +19,31 @@ KlongPy brings together the Klong terse array language notation with the perform
 
 Here's simple example of mixing Python and KlongPy to compute average of a 1B entry array.
 
-    import time
-    from klongpy.backend as np
-    from klongpy import KlongInterpreter
+```python
+import time
+from klongpy.backend as np
+from klongpy import KlongInterpreter
 
-    # instantiate the KlongPy interpeter
-    klong = KlongInterpreter()
+# instantiate the KlongPy interpeter
+klong = KlongInterpreter()
 
-    # create a billion random uniform values [0,1)
-    data = np.random.rand(10**9)
+# create a billion random uniform values [0,1)
+data = np.random.rand(10**9)
 
-    # define average function in Klong
-    # Note the '+/' (sum over) uses np.add.reduce under the hood
-    klong('avg::{(+/x)%#x}')
+# define average function in Klong
+# Note the '+/' (sum over) uses np.add.reduce under the hood
+klong('avg::{(+/x)%#x}')
 
-    # make generated data available in KlongPy as the 'data' variable
-    klong['data'] = data
+# make generated data available in KlongPy as the 'data' variable
+klong['data'] = data
 
-    # run Klong average function and return the result back to Python
-    start = time.perf_counter_ns()
-    r = klong('mu::avg(data)')
-    stop = time.perf_counter_ns()
-    seconds = (stop - start) / (10**9)
-    print(f"avg={np.round(r,6)} in {round(seconds,6)} seconds")
+# run Klong average function and return the result back to Python
+start = time.perf_counter_ns()
+r = klong('mu::avg(data)')
+stop = time.perf_counter_ns()
+seconds = (stop - start) / (10**9)
+print(f"avg={np.round(r,6)} in {round(seconds,6)} seconds")
+```
 
 Run (CPU)
 
@@ -63,24 +65,29 @@ Data generated elsewhere can be set in KlongPy and seamlessly accessed and proce
 
 ## Function example
 
-    klong = KlongInterpreter()
-    klong['f'] = lambda x, y, z: x*1000 + y - z
-    r = klong.exec('f(3; 10; 20)')
-    assert r[0] == 2990
+```python
+klong = KlongInterpreter()
+klong['f'] = lambda x, y, z: x*1000 + y - z
+r = klong.exec('f(3; 10; 20)')
+assert r[0] == 2990
+```
 
 ## Data example
 
-    data = np.arange(10*9)
-    klong['data'] = data
-    r = klong.exec('1+data')
-    assert r[0] == 1 + data
+```python
+data = np.arange(10*9)
+klong['data'] = data
+r = klong.exec('1+data')
+assert r[0] == 1 + data
+```
 
 Variables may be directly retrieved from KlongPy context:
 
-    r = klong.exec('Q::1+data')
-    Q = klong['Q']
-    print(Q)
-
+```python
+r = klong.exec('Q::1+data')
+Q = klong['Q']
+print(Q)
+```
 
 # Performance
 
@@ -92,23 +99,29 @@ Here's a contrived rough benchmark to show the magnitude differences between Pyt
 
 ### Python
 
-    def python_vec(number=100):
-        r = timeit.timeit(lambda: [2 * (1 + x) for x in range(10000000)], number=number)
-        return r/number
+```python
+def python_vec(number=100):
+    r = timeit.timeit(lambda: [2 * (1 + x) for x in range(10000000)], number=number)
+    return r/number
+```
 
 ### KlongPy
 
-    # NumPy and CuPy (CuPy is enabled via USE_GPU=1 environment variable
-    def klong_vec(number=100):
-        klong = KlongInterpreter()
-        r = timeit.timeit(lambda: klong.exec("2*1+!10000000"), number=number)
-        return r/number
+```python
+# NumPy and CuPy (CuPy is enabled via USE_GPU=1 environment variable
+def klong_vec(number=100):
+    klong = KlongInterpreter()
+    r = timeit.timeit(lambda: klong.exec("2*1+!10000000"), number=number)
+    return r/number
+```
 
 ### NumPy (explicit usage)
 
-    def NumPy_vec(number=100):
-        r = timeit.timeit(lambda: np.multiply(np.add(np.arange(10000000), 1), 2), number=number)
-        return r/number
+```python
+def NumPy_vec(number=100):
+    r = timeit.timeit(lambda: np.multiply(np.add(np.arange(10000000), 1), 2), number=number)
+    return r/number
+```
 
 ## Results
 
