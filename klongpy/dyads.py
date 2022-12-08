@@ -444,7 +444,10 @@ def eval_dyad_integer_divide(a, b):
                   10:%8  -->  1
 
     """
-    return vec_fn2(a, b, lambda x,y: np.trunc(np.divide(x, y)))
+    def _e(x,y):
+        a = np.trunc(np.divide(x, y))
+        return np.asarray(a,dtype=int) if isinstance(a,np.ndarray) else int(a)
+    return vec_fn2(a, b, _e)
 
 
 def eval_dyad_join(a, b):

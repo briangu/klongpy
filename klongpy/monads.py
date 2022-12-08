@@ -46,7 +46,9 @@ def eval_monad_enumerate(a):
                   !10  -->  [0 1 2 3 4 5 6 7 8 9]
 
     """
-    return np.arange(a)
+    if not is_integer(a):
+        raise RuntimeError("enumerate: invalid type error: {a}")
+    return np.arange(int(a))
 
 
 def eval_monad_expand_where(a):

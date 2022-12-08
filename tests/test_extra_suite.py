@@ -1,6 +1,6 @@
 import unittest
 from klongpy import KlongInterpreter
-from klongpy.core import rec_flatten, rec_fn2, KGChar
+from klongpy.core import rec_flatten, rec_fn2, KGChar, is_integer
 from utils import *
 import time
 
@@ -9,6 +9,21 @@ class TestExtraCoreSuite(unittest.TestCase):
 
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
+
+    def test_integer_divide_clamp_to_int(self):
+        klong = KlongInterpreter()
+        r = klong("24:%2")
+        self.assertTrue(is_integer(r))
+        r = klong("[12 24]:%2")
+        self.assertTrue(is_integer(r[0]))
+        self.assertTrue(is_integer(r[1]))
+
+    def test_enumerate_float(self):
+        klong = KlongInterpreter()
+        with self.assertRaises(RuntimeError):
+            klong("!(24%2)")
+        r = klong("!(24:%2)")
+        self.assertEqual(len(r), 12)
 
     def test_at_index_single_index(self):
         klong = KlongInterpreter()
