@@ -39,7 +39,7 @@ klong['data'] = data
 
 # run Klong average function and return the result back to Python
 start = time.perf_counter_ns()
-r = klong('mu::avg(data)')
+r = klong('avg(data)')
 stop = time.perf_counter_ns()
 seconds = (stop - start) / (10**9)
 print(f"avg={np.round(r,6)} in {round(seconds,6)} seconds")
@@ -68,8 +68,8 @@ Data generated elsewhere can be set in KlongPy and seamlessly accessed and proce
 ```python
 klong = KlongInterpreter()
 klong['f'] = lambda x, y, z: x*1000 + y - z
-r = klong.exec('f(3; 10; 20)')
-assert r[0] == 2990
+r = klong('f(3; 10; 20)')
+assert r == 2990
 ```
 
 ## Data example
@@ -77,14 +77,14 @@ assert r[0] == 2990
 ```python
 data = np.arange(10*9)
 klong['data'] = data
-r = klong.exec('1+data')
-assert r[0] == 1 + data
+r = klong('1+data')
+assert r == 1 + data
 ```
 
 Variables may be directly retrieved from KlongPy context:
 
 ```python
-r = klong.exec('Q::1+data')
+klong('Q::1+data')
 Q = klong['Q']
 print(Q)
 ```
@@ -111,7 +111,7 @@ def python_vec(number=100):
 # NumPy and CuPy (CuPy is enabled via USE_GPU=1 environment variable
 def klong_vec(number=100):
     klong = KlongInterpreter()
-    r = timeit.timeit(lambda: klong.exec("2*1+!10000000"), number=number)
+    r = timeit.timeit(lambda: klong("2*1+!10000000"), number=number)
     return r/number
 ```
 
