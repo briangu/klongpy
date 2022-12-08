@@ -1,6 +1,6 @@
 import unittest
 from klongpy import KlongInterpreter
-from klongpy.core import rec_flatten, rec_fn2
+from klongpy.core import rec_flatten, rec_fn2, KGChar
 from utils import *
 import time
 
@@ -9,6 +9,23 @@ class TestExtraCoreSuite(unittest.TestCase):
 
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
+
+    def test_at_index_single_index(self):
+        klong = KlongInterpreter()
+        def _char_test(x):
+            if not isinstance(x,KGChar):
+                raise RuntimeError("should be char")
+        klong['ischar'] = _char_test
+        klong('ischar("hello"@2)')
+
+    def test_at_index_array_index(self):
+        klong = KlongInterpreter()
+        def _str_test(x):
+            if isinstance(x,KGChar):
+                raise RuntimeError("should be string")
+        klong['isstr'] = _str_test
+        klong('isstr("hello"@[2])')
+        klong('isstr("hello"@[1 2 2])')
 
     def test_cond_arr_predicate(self):
         klong = KlongInterpreter()

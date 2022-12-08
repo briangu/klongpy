@@ -182,6 +182,7 @@ def eval_dyad_at_index(klong, a, b):
             r = np.asarray([a[x] for x in b])
     elif is_integer(b):
         r = a[b]
+        j = False
     else:
         r = a
     return "".join(r) if j else r
