@@ -47,7 +47,7 @@ def eval_monad_enumerate(a):
 
     """
     if not is_integer(a):
-        raise RuntimeError("enumerate: invalid type error: {a}")
+        raise RuntimeError(f"enumerate: invalid type error: {a}")
     return np.arange(int(a))
 
 

@@ -36,7 +36,7 @@ def repl(klong=None):
                 print(failure(f"Error: {e}"))
                 import traceback
                 traceback.print_exc(e)
-                raise e
+                # raise e
     except KeyboardInterrupt:
         print("\nExiting...")
 

@@ -700,7 +700,9 @@ def kg_argsort(a, descending=False):
     """
     if not is_iterable(a) or len(a) == 0:
         return a
-    return np.asarray(sorted(range(len(a)), key=lambda x: (np.max(a[x]),x) if is_list(a[x]) else (a[x],x), reverse=descending))
+    def _e(x):
+        return (-np.inf,x) if is_empty(a[x]) else (np.max(a[x]),x) if is_list(a[x]) else (a[x],x)
+    return np.asarray(sorted(range(len(a)), key=_e, reverse=descending))
 
 
 def peek_adverb(t,i=0):
