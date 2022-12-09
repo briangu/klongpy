@@ -10,6 +10,14 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    @unittest.skip
+    def test_x_exposure_should_not_collide(self):
+        klong = KlongInterpreter()
+        klong("I::{{#x}'x}")
+        r = klong('I("hello"')
+        self.assertTrue(array_equal(r,[104,101,108,108,111]))
+
+
     def test_grade_down_with_empty_subarrays(self):
         klong = KlongInterpreter()
         klong("P::{q::y;#x@*>{q?x}'x}")
