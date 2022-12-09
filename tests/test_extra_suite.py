@@ -11,6 +11,21 @@ class TestExtraCoreSuite(unittest.TestCase):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
     @unittest.skip
+    def test_wrap_fn(self):
+        klong = KlongInterpreter()
+        klong('L::{(*(x?y))#x};A::L(;",");LL::{.rs(L(x;"-"))}')
+        r = klong('A("20-45,13-44")')
+        self.assertEqual(r,"20-45")
+        r = klong('L(A("20-45,13-44");"-")')
+        self.assertEqual(r,"20")
+        r = klong('.rs(L(A("20-45,13-44");"-"))')
+        self.assertEqual(r,20)
+        r = klong('q::L(A("20-45,13-44");"-");.rs(q)')
+        self.assertEqual(r,20)
+        r = klong('LL(A("20-45,13-44"))')
+        self.assertEqual(r,20)
+
+    @unittest.skip
     def test_x_exposure_should_not_collide(self):
         klong = KlongInterpreter()
         klong("I::{{#x}'x}")
