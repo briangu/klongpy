@@ -352,19 +352,11 @@ def eval_adverb_scan_converging(f, a):
                                             "abc"]
 
     """
-    def _e(p,q):
-        if is_number(p) and is_number(q):
-            return np.isclose(p,q)
-        if not isinstance(p, type(q)):
-            return False
-        if isinstance(p,np.ndarray):
-            return (p.dtype == q.dtype) and (p.shape == q.shape) and (np.isclose(p,q)).all()
-        return p == q
     r = [a]
     x = a
     xx = f(a)
     r.append(xx)
-    while not _e(x,xx):
+    while not array_equal(x,xx):
         x = xx
         xx = f(x)
         r.append(xx)

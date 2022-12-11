@@ -2,32 +2,10 @@ import numpy as np
 import os
 
 from klongpy import KlongInterpreter
-from klongpy.core import is_list, is_number
+from klongpy.core import array_equal
 
 def die(m=None):
     raise RuntimeError(m)
-
-
-def array_equal(a,b):
-    """
-    Recursively determine if two values or arrays are equal.
-
-    NumPy ops (e.g. array_equal) are not sufficiently general purpose for this, so we need our own.
-    """
-    if is_list(a):
-        if is_list(b):
-            if len(a) != len(b):
-                return False
-        else:
-            return False
-    else:
-        if is_list(b):
-            return False
-        else:
-            return np.isclose(a,b) if is_number(a) and is_number(b) else a == b
-
-    r = np.asarray([array_equal(x,y) for x,y in zip(a,b)])
-    return not r[np.where(r == False)].any()
 
 
 def eval_cmp(expr_str, expected_str, klong=None):

@@ -20,6 +20,8 @@ class TestAccelerate(unittest.TestCase):
     Verify that we are actually running the adverb_over accelerated paths for cases that we can.
     """
 
+    # TODO: this is not parallel test safe
+    #       add ability to intercept calls in interpeter
     def test_over_add(self):
         klong = KlongInterpreter()
         e = Executed(np.sum)

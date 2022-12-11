@@ -1,6 +1,6 @@
 import unittest
 from klongpy import KlongInterpreter
-from klongpy.core import rec_flatten, rec_fn2, KGChar, is_integer
+from klongpy.core import rec_flatten, rec_fn2, KGChar, KGSym, is_integer
 from utils import *
 import time
 
@@ -9,6 +9,33 @@ class TestExtraCoreSuite(unittest.TestCase):
 
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
+
+    # TODO: should this be supported?
+    # ["1234","5678"]:@[0 1]
+
+    # TODO: why isn't this supported in Klong language?
+    # [[1 2 3 4] [5 6 7]]:=[3 4],0
+    # the right hand side is interpreter as a join, making it
+    # [[1 2 3 4] [5 6 7]]:=[3 4 0]
+    # which means 4 becomes the position and 0 is ignored
+    # this works:
+    # [[1 2 3 4] [5 6 7]]:=[[3 4]],0
+
+    def test_join_sym_int(self):
+        klong = KlongInterpreter()
+        r = klong(":p,43")
+        self.assertTrue(isinstance(r[0],KGSym))
+        self.assertTrue(isinstance(r[1],int))
+
+    def test_symbol_dict_key(self):
+        klong = KlongInterpreter()
+        klong("D:::{[:s 42]}")
+        r = klong("D?:s")
+        self.assertEqual(r, 42)
+        klong("N::{d:::{[:s 0]};d,:p,x;d}")
+        klong('P::N(43)')
+        r = klong('P?:p')
+        self.assertEqual(r,43)
 
     @unittest.skip
     def test_wrap_fn(self):

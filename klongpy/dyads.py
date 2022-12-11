@@ -66,18 +66,14 @@ def eval_dyad_amend(a, b):
                 else:
                     r[i] = b[0]
         return "".join(["".join(x) for x in r])
-    r = np.array(a)
-    if is_list(b[0]):
-        if len(b[0]) > 1:
-            r = r.tolist()
-            for i in b[1:]:
-                r[i] = b[0]
-            r = np.asarray(r)
-        else:
-            r = r.astype(dtype=object)
-            r[np.asarray(b[1:],dtype=int)] = b[0]
+    r = np.array(a) # clone
+    if is_list(b[0]): # TOOD: use np.put if we can
+        r = r.tolist()
+        for i in b[1:]:
+            r[i] = b[0]
+        r = np.asarray(r)
     else:
-        r[np.asarray(b[1:],dtype=int)] = b[0]
+        np.put(r, np.asarray(b[1:],dtype=int), b[0])
     return r
 
 
@@ -503,7 +499,10 @@ def eval_dyad_join(a, b):
     aa = a if isinstance(a, list) else ([a[0]] if len(a.shape) > 1 and a.shape[0] == 1 else a.tolist() if len(a.shape) == 1 else [a]) if isinstance(a, np.ndarray) else [a]
     bb = b if isinstance(b, list) else ([b[0]] if len(b.shape) > 1 and b.shape[0] == 1 else b.tolist() if len(b.shape) == 1 else [b]) if isinstance(b, np.ndarray) else [b]
 
-    return np.asarray([*aa,*bb])
+    r = [*aa,*bb]
+    nr = np.asarray(r)
+    t = nr.dtype.type
+    return nr if issubclass(t, np.integer) or issubclass(t, np.floating) else np.asarray(r,dtype=object)
 
 
 def eval_dyad_less(a, b):
