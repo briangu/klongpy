@@ -30,12 +30,14 @@ def repl(klong=None):
         while True:
             try:
                 p = input("?> ")
+                if len(p) == 0:
+                    continue
                 r = klong(p)
                 print(success(r))
             except Exception as e:
                 print(failure(f"Error: {e}"))
                 import traceback
-                traceback.print_exc(e)
+                traceback.print_stack(e)
                 # raise e
     except KeyboardInterrupt:
         print("\nExiting...")

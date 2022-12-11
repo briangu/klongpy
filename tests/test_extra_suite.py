@@ -21,6 +21,15 @@ class TestExtraCoreSuite(unittest.TestCase):
     # this works:
     # [[1 2 3 4] [5 6 7]]:=[[3 4]],0
 
+    def test_join_array_dict(self):
+        klong = KlongInterpreter()
+        klong("""
+N::{d:::{[:s 0] [:c []]};d,:p,x;d,:n,y}
+D::N(1%0;"/")
+n::N(D;"x")
+        """)
+        klong('(D?:c),n')
+
     def test_dict_find_zero_value(self):
         klong = KlongInterpreter()
         klong('D:::{[:s 0]}')

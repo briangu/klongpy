@@ -483,11 +483,13 @@ class KlongInterpreter():
                 f = f[1:]
 
         self._context.push(ctx)
-        # TODO: more testing on whether this is actualy the correct f
-        ctx[KGSym('.f')] = f
-        r = f(self, self._context) if isinstance(f, KGLambda) else self.call(f)
-        self._context.pop()
-        return r
+        try:
+            # TODO: more testing on whether this is actualy the correct f
+            ctx[KGSym('.f')] = f
+            return f(self, self._context) if isinstance(f, KGLambda) else self.call(f)
+        finally:
+            # always pop because if we don't, then when a function has an exception in debugging it will leave the stack corrupted
+            self._context.pop()
 
     def call(self, x):
         """
