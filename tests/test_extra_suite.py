@@ -21,6 +21,36 @@ class TestExtraCoreSuite(unittest.TestCase):
     # this works:
     # [[1 2 3 4] [5 6 7]]:=[[3 4]],0
 
+    def test_dict_find_zero_value(self):
+        klong = KlongInterpreter()
+        klong('D:::{[:s 0]}')
+        self.assertEqual(klong('D?:s'), 0)
+
+    def test_join_sym_string(self):
+        klong = KlongInterpreter()
+        r = klong(':p,"hello"')
+        self.assertTrue(isinstance(r[0],KGSym))
+        self.assertEqual(r[1],"hello")
+
+    def test_join_sym_dict(self):
+        klong = KlongInterpreter()
+        klong("D:::{[1 2]}")
+        r = klong(":p,D")
+        self.assertTrue(isinstance(r[0],KGSym))
+        self.assertTrue(isinstance(r[1],dict))
+
+    def test_complex_join_dict_create(self):
+        klong = KlongInterpreter()
+        klong("""
+N::{d:::{[:s 0] [:c []]};d,:p,x;d,:n,y}
+D::N(1%0;"/")
+        """)
+        r = klong('q::N(D;"hello")')
+        self.assertEqual(klong("q?:s"), 0)
+        self.assertTrue(array_equal(klong("q?:c"), []))
+        self.assertEqual(klong("q?:n"), "hello")
+        self.assertTrue(isinstance(klong("q?:p"), dict))
+
     def test_join_sym_int(self):
         klong = KlongInterpreter()
         r = klong(":p,43")

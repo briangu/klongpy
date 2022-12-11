@@ -309,7 +309,8 @@ def eval_dyad_find(a, b):
     if isinstance(a,str):
         return np.asarray([m.start() for m in re.finditer(f"(?={b})", a)])
     elif is_dict(a):
-        return a.get(b) or np.inf # TODO: use undefined type
+        # NOTE: we don't use get or np.inf because value may be 0 or None
+        return a[b] if b in a else np.inf # TODO: use undefined type
     return np.where(np.asarray(a) == b)[0]
 
 
@@ -488,12 +489,12 @@ def eval_dyad_join(a, b):
                     :{[1 0]},[1 2]  -->  :{[1 2]}
 
     """
-    if isinstance(a,str) and isinstance(b,str):
+    if (isinstance(a,str) and not isinstance(a,KGSym)) and (isinstance(b,str) and not isinstance(b,KGSym)):
         return a+b
     if isinstance(a,dict):
         a[b[0]] = b[1]
         return a
-    if isinstance(b,dict):
+    if isinstance(b,dict) and is_list(a) and len(a) == 2:
         b[a[0]] = a[1]
         return b
     aa = a if isinstance(a, list) else ([a[0]] if len(a.shape) > 1 and a.shape[0] == 1 else a.tolist() if len(a.shape) == 1 else [a]) if isinstance(a, np.ndarray) else [a]
