@@ -1,6 +1,6 @@
 import unittest
 from klongpy import KlongInterpreter
-from klongpy.core import rec_flatten, rec_fn2, KGChar, KGSym, is_integer
+from klongpy.core import rec_flatten, rec_fn2, KGChar, KGSym, is_integer, is_float
 from utils import *
 import time
 
@@ -20,6 +20,16 @@ class TestExtraCoreSuite(unittest.TestCase):
     # which means 4 becomes the position and 0 is ignored
     # this works:
     # [[1 2 3 4] [5 6 7]]:=[[3 4]],0
+
+    # read 123456 from "123456 hello" requires parsing by space
+    # append dict to array value in a dict
+
+    def test_power_preserve_type(self):
+        klong = KlongInterpreter()
+        r = klong("10^5")
+        self.assertTrue(is_integer(r))
+        r = klong("10.5^5")
+        self.assertTrue(is_float(r))
 
     def test_join_array_dict(self):
         klong = KlongInterpreter()
