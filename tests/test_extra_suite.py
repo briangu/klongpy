@@ -24,6 +24,16 @@ class TestExtraCoreSuite(unittest.TestCase):
     # read 123456 from "123456 hello" requires parsing by space
     # append dict to array value in a dict
 
+    # @unittest.skip
+    def test_sum_over_nested_arrays(self):
+        """
+        sum over nested arrays should reduce
+        """
+        self.assert_eval_cmp('+/[1 2 3]', '6')
+        self.assert_eval_cmp('+/[[1 2 3]]', '[1 2 3]')
+        self.assert_eval_cmp('+/[[1 2 3] [4 5 6]]', '[5 7 9]')
+        self.assert_eval_cmp('+/[[1 2 3] [4 5 6] [7 8 9]]', '[12 15 18]')
+
     def test_power_preserve_type(self):
         klong = KlongInterpreter()
         r = klong("10^5")
