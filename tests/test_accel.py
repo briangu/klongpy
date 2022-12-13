@@ -93,3 +93,14 @@ class TestAccelerate(unittest.TestCase):
             np.max = e.fn
         self.assertEqual(r, 4)
         self.assertTrue(e.executed)
+
+    def test_over_join(self):
+        klong = KlongInterpreter()
+        e = Executed(np.hstack)
+        try:
+            np.hstack = e
+            r = klong(',/:~[[1] [[2]] [3]]')
+        finally:
+            np.hstack = e.fn
+        self.assertTrue(array_equal(r, [0]))
+        self.assertTrue(e.executed)

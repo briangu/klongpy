@@ -238,6 +238,16 @@ def eval_adverb_over(f, a):
             return np.min(a)
         elif safe_eq(wrapped.a, '|'):
             return np.max(a)
+        elif safe_eq(wrapped.a, ','):
+            if isinstance(a,str):
+                return a
+            r = np.hstack(a)
+            if a.dtype == np.dtype('O') and len(r) > 0 and is_float(r[0]):
+                try:
+                    r = r.astype(type(r[0]))
+                except ValueError:
+                    pass
+            return r
     return functools.reduce(f, a)
 
 
