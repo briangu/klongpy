@@ -227,7 +227,7 @@ def eval_adverb_over(f, a):
     # TODO: can we use NumPy reduce when CuPy backend primary?
     if isinstance(wrapped, KGOp):
         if safe_eq(wrapped.a,'+') and hasattr(np.add,'reduce'):
-            return np.add.reduce(a)
+            return np.add.reduce(a) if len(a.shape) > 1 else np.sum(a)
         elif safe_eq(wrapped.a, '-') and hasattr(np.subtract,'reduce'):
             return np.subtract.reduce(a)
         elif safe_eq(wrapped.a, '*') and hasattr(np.multiply,'reduce'):
