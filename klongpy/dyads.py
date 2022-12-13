@@ -685,7 +685,10 @@ def eval_dyad_power(a, b):
                   2^0.5  -->  1.41421356237309504
 
     """
-    return vec_fn2(a, b, lambda x,y: int(np.power(float(x),y)) if is_integer(x) else np.power(x, y))
+    def _e(a,b):
+        r = np.power(float(a) if is_integer(a) else a, b)
+        return np.dtype('int').type(r) if np.trunc(r) == r else r
+    return vec_fn2(a, b, _e)
 
 
 def eval_dyad_remainder(a, b):
