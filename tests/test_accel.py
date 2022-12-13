@@ -85,6 +85,17 @@ class TestAccelerate(unittest.TestCase):
         self.assertEqual(r, numpy.divide.reduce([1,2,3,4]))
         self.assertTrue(e.executed)
 
+    def test_over_min_nested_arrays(self):
+        klong = KlongInterpreter()
+        e = Executed(np.min)
+        try:
+            np.min = e
+            r = klong('&/[[1 2 3] [4 5 6]]')
+        finally:
+            np.min = e.fn
+        self.assertTrue(array_equal(r, [1,2,3]))
+        self.assertFalse(e.executed)
+
     def test_over_min(self):
         klong = KlongInterpreter()
         e = Executed(np.min)
@@ -95,6 +106,17 @@ class TestAccelerate(unittest.TestCase):
             np.min = e.fn
         self.assertEqual(r, 1)
         self.assertTrue(e.executed)
+
+    def test_over_max_nested_arrays(self):
+        klong = KlongInterpreter()
+        e = Executed(np.max)
+        try:
+            np.max = e
+            r = klong('|/[[1 2 3] [4 5 6]]')
+        finally:
+            np.max = e.fn
+        self.assertTrue(array_equal(r, [4,5,6]))
+        self.assertFalse(e.executed)
 
     def test_over_max(self):
         klong = KlongInterpreter()

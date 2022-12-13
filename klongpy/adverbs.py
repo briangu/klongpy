@@ -234,9 +234,9 @@ def eval_adverb_over(f, a):
             return np.multiply.reduce(a)
         elif safe_eq(wrapped.a, '%') and hasattr(np.divide,'reduce'):
             return np.divide.reduce(a)
-        elif safe_eq(wrapped.a, '&'):
+        elif safe_eq(wrapped.a, '&') and len(a.shape) == 1:
             return np.min(a)
-        elif safe_eq(wrapped.a, '|'):
+        elif safe_eq(wrapped.a, '|') and len(a.shape) == 1:
             return np.max(a)
         elif safe_eq(wrapped.a, ','):
             if isinstance(a,str):
