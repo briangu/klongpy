@@ -102,5 +102,5 @@ class TestAccelerate(unittest.TestCase):
             r = klong(',/:~[[1] [[2]] [3]]')
         finally:
             np.hstack = e.fn
-        self.assertTrue(array_equal(r, [0]))
+        self.assertTrue(array_equal(r, [1,2,3]))
         self.assertTrue(e.executed)
