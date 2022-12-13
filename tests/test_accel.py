@@ -24,12 +24,12 @@ class TestAccelerate(unittest.TestCase):
     #       add ability to intercept calls in interpeter
     def test_over_add(self):
         klong = KlongInterpreter()
-        e = Executed(np.sum)
+        e = Executed(np.add.reduce)
         try:
-            np.sum = e
+            np.add.reduce = e
             r = klong('+/[1 2 3 4]')
         finally:
-            np.sum = e.fn
+            np.add.reduce = e.fn
         self.assertEqual(r, 10)
         self.assertTrue(e.executed)
 
