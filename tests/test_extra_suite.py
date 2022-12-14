@@ -24,7 +24,13 @@ class TestExtraCoreSuite(unittest.TestCase):
     # read 123456 from "123456 hello" requires parsing by space
     # append dict to array value in a dict
 
-    # @unittest.skip
+    def test_range_over_nested_arrays(self):
+        self.assert_eval_cmp('?[[0 0] [1 1] 3 3]', '[[0 0] [1 1] 3]')
+        self.assert_eval_cmp('?[[0 0] [1 1] [1 1]]', '[[0 0] [1 1]]')
+        self.assert_eval_cmp('?[[0 0] [1 1] [1 1] 3 3]', '[[0 0] [1 1] 3]')
+        self.assert_eval_cmp('?[[[0 0] [0 0] [1 1]] [1 1] [1 1]]', '[[[0 0] [0 0] [1 1]] [1 1]]')
+        self.assert_eval_cmp('?[[[0 0] [0 0] [1 1]] [1 1] [1 1] 3 3]', '[[[0 0] [0 0] [1 1]] [1 1] 3]')
+
     def test_sum_over_nested_arrays(self):
         """
         sum over nested arrays should reduce
@@ -111,13 +117,11 @@ D::N(1%0;"/")
         r = klong('LL(A("20-45,13-44"))')
         self.assertEqual(r,20)
 
-    @unittest.skip
     def test_x_exposure_should_not_collide(self):
         klong = KlongInterpreter()
         klong("I::{{#x}'x}")
-        r = klong('I("hello"')
+        r = klong('I("hello")')
         self.assertTrue(array_equal(r,[104,101,108,108,111]))
-
 
     def test_grade_down_with_empty_subarrays(self):
         klong = KlongInterpreter()

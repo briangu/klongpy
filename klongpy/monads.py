@@ -267,7 +267,23 @@ def eval_monad_range(a):
                   ?"aaabbcccd"  -->  "abcd"
 
     """
-    return ''.join(np.unique(str_to_chr_arr(a))) if isinstance(a, str) else np.unique(a)
+    if isinstance(a, str):
+        return ''.join(np.unique(str_to_chr_arr(a)))
+    elif isinstance(a, np.ndarray):
+        if a.dtype != 'O' and len(a.shape) > 1:
+            return np.unique(a,axis=0)
+        # handle the jagged / mixed array case
+        class Wrapper:
+            def __init__(self, x):
+                self.x = x
+            def __eq__(self,o):
+                return array_equal(self.x, o.x)
+            def __lt__(self, other):
+                u = self.x < other.x
+                return u.all() if isinstance(self.x,np.ndarray) else u
+        _, ids = np.unique([Wrapper(x) for x in a], return_index=True)
+        a = a[ids]
+    return a
 
 
 def eval_monad_reciprocal(a):

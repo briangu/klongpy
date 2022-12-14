@@ -462,8 +462,7 @@ def read_list(t, delim, i=0, module=None):
     obj_arr = False
     i = skip(t,i,ignore_newline=True)
     while not cmatch(t,i,delim) and i < len(t):
-        # TODO: make cleaner: kind of a hack to pass in read_neg but
-        #       we can knowingly read neg numbers in list context
+        # we can knowingly read neg numbers in list context
         i, q = kg_read(t, i, read_neg=True, ignore_newline=True, module=module)
         if q is None:
             break
@@ -475,7 +474,14 @@ def read_list(t, delim, i=0, module=None):
     if cmatch(t,i,delim):
         i += 1
     try:
-        return i, np.asarray(arr,dtype=object) if obj_arr else np.asarray(arr)
+        if obj_arr:
+            aa = np.asarray(arr,dtype=object)
+            # see if we can cast the array to a real type
+            if len(aa.shape) > 1: #jagged array is 1D (x,)
+                aa = np.asarray(arr)
+        else:
+            aa = np.asarray(arr)
+        return i, aa
     except ValueError:
         return i,cast_malformed_array(arr)
 
