@@ -13,7 +13,7 @@ class TestExtraCoreSuite(unittest.TestCase):
     # TODO: should this be supported?
     # ["1234","5678"]:@[0 1]
 
-    # TODO: why isn't this supported in Klong language?
+    # NOTE: why isn't this supported in Klong language?
     # [[1 2 3 4] [5 6 7]]:=[3 4],0
     # the right hand side is interpreter as a join, making it
     # [[1 2 3 4] [5 6 7]]:=[3 4 0]
@@ -24,12 +24,17 @@ class TestExtraCoreSuite(unittest.TestCase):
     # read 123456 from "123456 hello" requires parsing by space
     # append dict to array value in a dict
 
+    def test_join_nested_arrays(self):
+        self.assert_eval_cmp('[[0 0] [1 1]],,2,2', '[[0 0] [1 1] [2 2]]')
+
+
     def test_range_over_nested_arrays(self):
         self.assert_eval_cmp('?[[0 0] [1 1] 3 3]', '[[0 0] [1 1] 3]')
         self.assert_eval_cmp('?[[0 0] [1 1] [1 1]]', '[[0 0] [1 1]]')
         self.assert_eval_cmp('?[[0 0] [1 1] [1 1] 3 3]', '[[0 0] [1 1] 3]')
         self.assert_eval_cmp('?[[[0 0] [0 0] [1 1]] [1 1] [1 1]]', '[[[0 0] [0 0] [1 1]] [1 1]]')
         self.assert_eval_cmp('?[[[0 0] [0 0] [1 1]] [1 1] [1 1] 3 3]', '[[[0 0] [0 0] [1 1]] [1 1] 3]')
+        self.assert_eval_cmp('?[[0 0] [1 0] [2 0] [3 0] [4 1] [4 2] [4 3] [3 4] [2 4] [3 3] [4 3] [3 2] [2 2] [1 2]]', '[[0 0] [1 0] [2 0] [3 0] [4 1] [4 2] [4 3] [3 4] [2 4] [3 3] [3 2] [2 2] [1 2]]')
 
     def test_sum_over_nested_arrays(self):
         """

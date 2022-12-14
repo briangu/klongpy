@@ -497,6 +497,10 @@ def eval_dyad_join(a, b):
     if isinstance(b,dict) and is_list(a) and len(a) == 2:
         b[a[0]] = a[1]
         return b
+
+    if isinstance(a,np.ndarray) and isinstance(b,np.ndarray) and len(a.shape) == len(b.shape) and a.shape[-1] == b.shape[-1]:
+        return np.concatenate((a,b))
+
     aa = a if isinstance(a, list) else ([a[0]] if len(a.shape) > 1 and a.shape[0] == 1 else a.tolist() if len(a.shape) == 1 else [a]) if isinstance(a, np.ndarray) else [a]
     bb = b if isinstance(b, list) else ([b[0]] if len(b.shape) > 1 and b.shape[0] == 1 else b.tolist() if len(b.shape) == 1 else [b]) if isinstance(b, np.ndarray) else [b]
 
