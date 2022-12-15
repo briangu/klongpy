@@ -278,15 +278,30 @@ def eval_monad_range(a):
             _,ids = np.unique(a,axis=0,return_index=True)
         else:
             # handle the jagged / mixed array case
-            class Wrapper:
-                def __init__(self, x):
-                    self.x = x
-                def __eq__(self,o):
-                    return array_equal(self.x, o.x)
-                def __lt__(self, other):
-                    u = self.x < other.x
-                    return u.all() if isinstance(self.x,np.ndarray) else u
-            _,ids = np.unique([Wrapper(x) for x in a], return_index=True)
+            # from functools import total_ordering
+            # @total_ordering
+            # class Wrapper:
+            #     def __init__(self, x):
+            #         self.x = x
+            #     def __eq__(self,o):
+            #         print("eq")
+            #         return array_equal(self.x, o.x)
+            #     def __ne__(self,o):
+            #         return not array_equal(self.x, o.x)
+            #     def __lt__(self, o):
+            #         u = np.sort(np.asarray([self.x, o.x]))
+            #         return u[0] == self.x
+            #         # return u[0] if isinstance(u,np.ndarray) else u
+            # _,ids = np.unique([Wrapper(x) for x in a], return_index=True)
+            # TODO: Make UNIQUE work. this feels so dirty.
+            s = set()
+            arr = []
+            for x in a:
+                sx = str(x)
+                if sx not in s:
+                    s.add(sx)
+                    arr.append(x)
+            return np.asarray(arr, dtype=object)
         ids.sort()
         a = a[ids]
     return a

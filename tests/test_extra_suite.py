@@ -24,9 +24,18 @@ class TestExtraCoreSuite(unittest.TestCase):
     # read 123456 from "123456 hello" requires parsing by space
     # append dict to array value in a dict
 
+    def test_amend_in_depth_params(self):
+        klong = KlongInterpreter()
+        klong("""
+PATH::[[0 0] [0 0]];V::[[0 0]]
+SP::{PATH::PATH:-z,x,y}
+        """)
+        klong("SP(0;0;1)")
+        r = klong("(PATH@0)@0")
+        self.assertEqual(r,1)
+
     def test_join_nested_arrays(self):
         self.assert_eval_cmp('[[0 0] [1 1]],,2,2', '[[0 0] [1 1] [2 2]]')
-
 
     def test_range_over_nested_arrays(self):
         self.assert_eval_cmp('?[[0 0] [1 1] 3 3]', '[[0 0] [1 1] 3]')
