@@ -309,7 +309,7 @@ def eval_sys_read_string(klong, x):
         forms.
 
     """
-    return kg_read(x, i=0, module=klong.current_module())[1]
+    return kg_read(x, i=0, module=klong.current_module(), read_neg=True)[1]
 
 
 def eval_sys_system(x):

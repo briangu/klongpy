@@ -24,6 +24,11 @@ class TestExtraCoreSuite(unittest.TestCase):
     # read 123456 from "123456 hello" requires parsing by space
     # append dict to array value in a dict
 
+    def test_read_string_neg_number(self):
+        klong = KlongInterpreter()
+        r = klong('.rs("-5")')
+        self.assertEqual(r,-5)
+
     def test_amend_in_depth_params(self):
         klong = KlongInterpreter()
         klong("""
