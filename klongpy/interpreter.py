@@ -446,18 +446,16 @@ class KlongInterpreter():
 
         resolve = True
         while resolve:
-            if (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)):
-                if f.args is not None:
-                    f_args.append((f.args if isinstance(f.args, list) else [f.args]))
-                f_arity = f.arity
-                f = f.a
-            f = self.eval(f) if isinstance(f,KGSym) else f
+            if isinstance(f,KGSym) and not in_map(f, reserved_fn_symbols):
+                f = self.eval(f)
             if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()):
                 if f.args is not None:
                     f_args.append((f.args if isinstance(f.args, list) else [f.args]))
                 f_arity = f.arity
                 f = f.a
-            resolve = self._context.is_defined_sym(f) or (isinstance(f,KGFn) and self._context.is_defined_sym(f.a))
+            # don't resolve further if the underlying fn isn't a projection of greater arity
+            sub_resolve = (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)) and (f.arity > f_arity)
+            resolve = sub_resolve or (self._context.is_defined_sym(f)  and not in_map(f, reserved_fn_symbols))
 
         f_args.reverse()
         f_args = merge_projections(f_args)

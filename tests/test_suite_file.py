@@ -20,15 +20,10 @@ class TestSuiteFile(unittest.TestCase):
             klong.exec('t("fail";0;1)')
 
     def test_call_lambda(self):
-        t = """
-foo::{die(x;y)}
-foo("a","b")
-        """
         klong = KlongInterpreter()
         klong['die'] = die
         with self.assertRaises(FailedUnitTest):
-            klong.exec(t)
-
+            klong.exec('foo::{die(x;y)};foo("a";"b")')
 
     def test_simple_script(self):
         t = """

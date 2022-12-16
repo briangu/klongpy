@@ -42,10 +42,21 @@ class TestExtraCoreSuite(unittest.TestCase):
         r = klong('[[[1 2] [3 4]] [[5 6] [7 8]]]?[[5 6] [7 8]]')
         self.assertEqual(r, [1])
 
-    @unittest.skip
     def test_nested_x_scope(self):
         klong = KlongInterpreter()
         klong('UM::{x};F::{UM(4_x)}')
+        r = klong('F("hello")')
+        self.assertEqual(r, "o")
+
+    def test_nested_x_scope_projection(self):
+        klong = KlongInterpreter()
+        klong('UM::{x};G::UM;F::{G(4_x)}')
+        r = klong('F("hello")')
+        self.assertEqual(r, "o")
+
+    def test_nested_x_scope_dyad_projection(self):
+        klong = KlongInterpreter()
+        klong('UM::{x;y};G::UM("A";);F::{G(4_x)}')
         r = klong('F("hello")')
         self.assertEqual(r, "o")
 
