@@ -444,27 +444,22 @@ class KlongInterpreter():
         f_arity = x.arity
         f_args = [(x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else x.args]
 
-        if self._context.is_defined_sym(f) or (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)):
-            while self._context.is_defined_sym(f) or (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)):
-                if (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)):
-                    f_args.append(f.args)
-                    f_arity = f.arity
-                    f = f.a
-                f = self.eval(f)
-                if isinstance(f,KGFn):
-                    if f.args is not None:
-                        f_args.append((f.args if isinstance(f.args, list) else [f.args]))
-                    f_arity = f.arity
-                    f = f.a
-            f_args.reverse()
-        elif isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()):
-            # TODO: should this be recursive towards convergence?
-            if f.args is not None:
-                f_args.append(f.args)
-            f_args.reverse()
-            f_arity = f.arity
-            f = f.a
+        resolve = True
+        while resolve:
+            if (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)):
+                if f.args is not None:
+                    f_args.append((f.args if isinstance(f.args, list) else [f.args]))
+                f_arity = f.arity
+                f = f.a
+            f = self.eval(f) if isinstance(f,KGSym) else f
+            if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()):
+                if f.args is not None:
+                    f_args.append((f.args if isinstance(f.args, list) else [f.args]))
+                f_arity = f.arity
+                f = f.a
+            resolve = self._context.is_defined_sym(f) or (isinstance(f,KGFn) and self._context.is_defined_sym(f.a))
 
+        f_args.reverse()
         f_args = merge_projections(f_args)
         if (f_args is None and f_arity > 0) or (is_list(f_args) and len(f_args) < f_arity) or has_none(f_args):
             return x
