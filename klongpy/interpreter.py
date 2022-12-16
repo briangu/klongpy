@@ -455,7 +455,7 @@ class KlongInterpreter():
                 f = f.a
             # don't resolve further if the underlying fn isn't a projection of greater arity
             sub_resolve = (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)) and (f.arity > f_arity)
-            resolve = sub_resolve or (self._context.is_defined_sym(f)  and not in_map(f, reserved_fn_symbols))
+            resolve = sub_resolve or (self._context.is_defined_sym(f) and not in_map(f, reserved_fn_symbols))
 
         f_args.reverse()
         f_args = merge_projections(f_args)

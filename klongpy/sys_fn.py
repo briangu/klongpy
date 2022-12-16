@@ -244,7 +244,9 @@ def eval_sys_print(klong, x):
         newline sequence. .p("") will just print a newline.
 
     """
-    klong['.sys.cout'].raw.write(str(x)+"\n")
+    o = str(x)
+    klong['.sys.cout'].raw.write(o+"\n")
+    return o
 
 
 def eval_sys_random_number():

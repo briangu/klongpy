@@ -176,7 +176,8 @@ class TestSysFn(unittest.TestCase):
             fname = os.path.join(td, "data.txt")
             with eval_sys_output_channel(fname) as f:
                 eval_sys_to_channel(klong, f)
-                eval_sys_print(klong, "hello")
+                o = eval_sys_print(klong, "hello")
+                self.assertEqual(o, "hello")
             with eval_sys_input_channel(fname) as f:
                 r = f.raw.read()
                 self.assertEqual(r, "hello\n")

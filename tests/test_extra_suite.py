@@ -10,6 +10,12 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    @unittest.skip
+    def test_fall_call_undefined_fn(self):
+        klong = KlongInterpreter()
+        with self.assertRaises(RuntimeError):
+            klong('R(1)')
+
     # read 123456 from "123456 hello" requires parsing by space
     def test_read_number_from_various_strings(self):
         klong = KlongInterpreter()
@@ -43,6 +49,12 @@ class TestExtraCoreSuite(unittest.TestCase):
         self.assertEqual(r, [1])
 
     def test_nested_x_scope(self):
+        klong = KlongInterpreter()
+        klong("FL:::{};FL,0,{.p(,x@0)};F::{f::FL?0;f(x)}")
+        r = klong('F("hello")')
+        self.assertEqual(r, "h")
+
+    def test_nested_x_scope_2(self):
         klong = KlongInterpreter()
         klong('UM::{x};F::{UM(4_x)}')
         r = klong('F("hello")')
