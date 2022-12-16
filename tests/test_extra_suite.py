@@ -10,32 +10,54 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
-    # TODO: should this be supported?
-    # ["1234","5678"]:@[0 1]
-
-    # NOTE: why isn't this supported in Klong language?
-    # [[1 2 3 4] [5 6 7]]:=[3 4],0
-    # the right hand side is interpreter as a join, making it
-    # [[1 2 3 4] [5 6 7]]:=[3 4 0]
-    # which means 4 becomes the position and 0 is ignored
-    # this works:
-    # [[1 2 3 4] [5 6 7]]:=[[3 4]],0
-
     # read 123456 from "123456 hello" requires parsing by space
-    # append dict to array value in a dict
+    def test_read_number_from_various_strings(self):
+        klong = KlongInterpreter()
+        r = klong('.rs("123456")')
+        self.assertEqual(r, 123456)
+        # DIFF: Klong will puke on this with undefined
+        r = klong('.rs("123456 hello")')
+        self.assertEqual(r, 123456)
+
+    @unittest.skip
+    def test_at_in_depth_strings(self):
+        # DIFF: this isn't yet supported in Klong
+        klong = KlongInterpreter()
+        r = klong('["1234","5678"]:@[0 1]')
+        self.assertEqual(r,KGChar('2'))
+
+    @unittest.skip
+    def test_find_with_array_arg(self):
+        klong = KlongInterpreter()
+        r = klong('[1 2 3 4]?[1]')
+        self.assertEqual(r, [])
+        r = klong('[1 2 3 4]?[1]')
+        self.assertEqual(r, [])
+        r = klong('[[1] 2 3 4]?[1]')
+        self.assertEqual(r, [0])
+        r = klong('[ 1 2  3 4]?[1 2]')
+        self.assertEqual(r, [])
+        r = klong('[[1 2] 3 4]?[1 2]')
+        self.assertEqual(r, [0])
+        r = klong('[[[1 2] [3 4]] [[5 6] [7 8]]]?[[5 6] [7 8]]')
+        self.assertEqual(r, [1])
+
+    @unittest.skip
+    def test_nested_x_scope(self):
+        klong = KlongInterpreter()
+        klong('UM::{x};F::{UM(4_x)}')
+        r = klong('F("hello")')
+        self.assertEqual(r, "o")
 
     def test_read_string_neg_number(self):
         klong = KlongInterpreter()
+        # DIFF: Klong reads this as positive 5
         r = klong('.rs("-5")')
         self.assertEqual(r,-5)
 
     def test_amend_in_depth_params(self):
         klong = KlongInterpreter()
-        klong("""
-PATH::[[0 0] [0 0]];V::[[0 0]]
-SP::{PATH::PATH:-z,x,y}
-        """)
-        klong("SP(0;0;1)")
+        klong("PATH::[[0 0] [0 0]];V::[[0 0]];SP::{PATH::PATH:-z,x,y};SP(0;0;1)")
         r = klong("(PATH@0)@0")
         self.assertEqual(r,1)
 
