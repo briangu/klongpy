@@ -12,7 +12,10 @@ class TestExtraCoreSuite(unittest.TestCase):
 
     def test_drop_string(self):
         klong = KlongInterpreter()
-        klong("NAMES:::{};AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
+        klong("""
+NAMES:::{}
+AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
+        """)
         r = klong('S::\"""John"",""boy""\"')
         self.assertEqual(r,'"John","boy"')
         r = klong('AN(S);NAMES')
@@ -58,15 +61,28 @@ class TestExtraCoreSuite(unittest.TestCase):
 
     def test_nested_x_scope(self):
         klong = KlongInterpreter()
-        klong("FL:::{};FL,0,{.p(,x@0)};F::{f::FL?0;f(x)}")
+        klong("FL:::{};FL,0,{.p(,x@1)};F::{f::FL?0;f(x)}")
         r = klong('F("hello")')
-        self.assertEqual(r, "h")
+        self.assertEqual(r, "e")
 
     def test_nested_x_scope_2(self):
         klong = KlongInterpreter()
         klong('UM::{x};F::{UM(4_x)}')
         r = klong('F("hello")')
         self.assertEqual(r, "o")
+
+    @unittest.skip
+    def test_nested_x_scope_3(self):
+        klong = KlongInterpreter()
+        klong("F::{{.p(,x@0)}(7_x)}")
+        r = klong('F("Monkey 0:")')
+        self.assertEqual(r, "0")
+
+    @unittest.skip
+    def test_nested_x_scope_4(self):
+        klong = KlongInterpreter()
+        r = klong('{.p(,x@0)}(7_"Monkey 0:")')
+        self.assertEqual(r, "0")
 
     def test_nested_x_scope_projection(self):
         klong = KlongInterpreter()
