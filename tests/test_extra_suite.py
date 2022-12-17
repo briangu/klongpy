@@ -10,6 +10,14 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    def test_drop_string(self):
+        klong = KlongInterpreter()
+        klong("NAMES:::{};AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
+        r = klong('S::\"""John"",""boy""\"')
+        self.assertEqual(r,'"John","boy"')
+        r = klong('AN(S);NAMES')
+        self.assertEqual(r['John'], "boy")
+
     @unittest.skip
     def test_fall_call_undefined_fn(self):
         klong = KlongInterpreter()
