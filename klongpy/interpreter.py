@@ -458,7 +458,7 @@ class KlongInterpreter():
             if resolve:
                 if isinstance(f,KGSym) and not in_map(f, reserved_fn_symbols):
                     f = self.eval(f)
-                if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()):
+                if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()) and ((f.args is None) or has_none(f.args) or (f_arity == 1 and has_none(f_args))):
                     if f.args is not None:
                         f_args.append((f.args if isinstance(f.args, list) else [f.args]))
                     f_arity = f.arity
@@ -469,7 +469,7 @@ class KlongInterpreter():
                 if resolve:
                     if isinstance(f,KGSym) and not in_map(f, reserved_fn_symbols):
                         f = self.eval(f)
-                    if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()):
+                    if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()) and ((f.args is None) or has_none(f.args) or (f_arity == 1 and has_none(f_args))):
                         if f.args is not None:
                             f_args.append((f.args if isinstance(f.args, list) else [f.args]))
                         f_arity = f.arity
