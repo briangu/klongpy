@@ -849,25 +849,28 @@ def merge_projections(arr):
     return sparse_fa
 
 
-def get_fn_arity(f, level=0):
+def get_fn_arity(f):
     """
     Examine a function AST and infer arity by looking for x,y and z.
     This arity is needed to populate the KGFn.
 
     NOTE: TODO: it maybe easier / better to do this at parse time vs late.
     """
-    if isinstance(f,KGFn):
-        x = get_fn_arity(f.a, level=1)
-        if is_list(f.args):
-            for q in f.args:
-                x.update(get_fn_arity(q,level=1))
-    elif is_list(f):
-        x = set()
-        for q in f:
-            x.update(get_fn_arity(q,level=1))
-    elif isinstance(f,KGSym):
-        x = set([f]) if f in reserved_fn_symbols else set()
-    else:
-        x = set()
-    return x if level else len(x)
-
+    if isinstance(f,KGFn) and isinstance(f.a,KGSym) and not in_map(f.a,reserved_fn_symbols):
+        return f.arity
+    def _e(f, level=0):
+        if isinstance(f,KGFn):
+            x = _e(f.a, level=1)
+            if is_list(f.args):
+                for q in f.args:
+                    x.update(_e(q,level=1))
+        elif is_list(f):
+            x = set()
+            for q in f:
+                x.update(_e(q,level=1))
+        elif isinstance(f,KGSym):
+            x = set([f]) if f in reserved_fn_symbols else set()
+        else:
+            x = set()
+        return x if level else len(x)
+    return _e(f)
