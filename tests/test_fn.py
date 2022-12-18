@@ -40,6 +40,11 @@ class TestExtraCoreSuite(unittest.TestCase):
         r = klong('F(1)')
         self.assertEqual(r, 1)
 
+    def test_fn_nilad_then_nested_monad(self):
+        klong = KlongInterpreter()
+        r = klong('bar::{x};foo::{bar("+")};foo()')
+        self.assertEqual(r,'+')
+
     def test_fn_nested_monad_w_xform(self):
         klong = KlongInterpreter()
         klong('G::{x};F::{G(4_x)}')

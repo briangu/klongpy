@@ -446,18 +446,8 @@ class KlongInterpreter():
 
         if isinstance(f,KGSym) and not in_map(f, reserved_fn_symbols):
             f = self.eval(f)
-        if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()) and ((f.args is None) or has_none(f.args)):
-            if f.args is not None:
-                f_args.append((f.args if isinstance(f.args, list) else [f.args]))
-            f_arity = f.arity
-            f = f.a
-        # don't resolve further if the underlying fn isn't a projection of greater arity
-        sub_resolve = (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)) and (f.arity > f_arity) and f.args is not None
-        resolve = sub_resolve or (self._context.is_defined_sym(f) and not in_map(f, reserved_fn_symbols))
-        if resolve:
-            if isinstance(f,KGSym) and not in_map(f, reserved_fn_symbols):
-                f = self.eval(f)
-            if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()):
+        if f_arity > 0:
+            if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()) and ((f.args is None) or has_none(f.args) or (f_arity == 1 and has_none(f_args))):
                 if f.args is not None:
                     f_args.append((f.args if isinstance(f.args, list) else [f.args]))
                 f_arity = f.arity
@@ -474,8 +464,19 @@ class KlongInterpreter():
                     f_arity = f.arity
                     f = f.a
                 # don't resolve further if the underlying fn isn't a projection of greater arity
-                # sub_resolve = (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)) and (f.arity > f_arity)
-                # resolve = sub_resolve or (self._context.is_defined_sym(f) and not in_map(f, reserved_fn_symbols))
+                sub_resolve = (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)) and (f.arity > f_arity) and f.args is not None
+                resolve = sub_resolve or (self._context.is_defined_sym(f) and not in_map(f, reserved_fn_symbols))
+                if resolve:
+                    if isinstance(f,KGSym) and not in_map(f, reserved_fn_symbols):
+                        f = self.eval(f)
+                    if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()):
+                        if f.args is not None:
+                            f_args.append((f.args if isinstance(f.args, list) else [f.args]))
+                        f_arity = f.arity
+                        f = f.a
+                    # don't resolve further if the underlying fn isn't a projection of greater arity
+                    # sub_resolve = (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)) and (f.arity > f_arity)
+                    # resolve = sub_resolve or (self._context.is_defined_sym(f) and not in_map(f, reserved_fn_symbols))
 
 
         f_args.reverse()
