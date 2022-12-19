@@ -9,7 +9,7 @@ with open(os.path.join(directory, 'README.md'), encoding='utf-8') as f:
 setup(
     name='klongpy',
     packages=['klongpy'],
-    version='0.3.60',
+    version='0.3.61',
     description='Python implementation of Klong language.',
     author='Brian Guarraci',
     license='MIT',
@@ -19,7 +19,7 @@ setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License"
     ],
-    install_requires=['numpy'],
+    install_requires=['numpy~=1.23.0'],
     python_requires='>=3.8',
     extras_require={
         'gpu': ["cupy"],
