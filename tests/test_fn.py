@@ -80,6 +80,17 @@ def wrap_lambda(arity, fn, fn_dict):
             return lambda x,y,z,t=fn_dict['t']: fn(x,y,z,t=t)
 
 
+class SymbolGenerator:
+    def __init__(self):
+        self.a = [n for n in list(string.ascii_lowercase) if not in_map(n, ['x','y','z','m','d','t'])]
+    def __iter__(self):
+        for n in self.a:
+            yield n
+        for n in self.a:
+            for m in self.a:
+                yield n+m
+
+
 class TestFunctionsSuite(unittest.TestCase):
 
     def assert_eval_cmp(self, a, b, klong=None):
@@ -170,21 +181,13 @@ class TestFunctionsSuite(unittest.TestCase):
         r = klong('F("hello")')
         self.assertEqual(r, "o")
 
-
-
+    # @unittest.skip
     def test_fn_gen(self):
         def create_symbols():
-            arr = set()
-            a = [n for n in list(string.ascii_lowercase) if not in_map(n, ['x','y','z','m','d','t'])]
-            arr.update({''.join(random.choices(string.ascii_lowercase, k=3)) for _ in range(100)})
-            arr.update({''.join(random.choices(string.ascii_lowercase, k=2)) for _ in range(100)})
-            arr.update({p+p for p in a})
-            arr.update(a)
-            arr = list(reversed(sorted(arr,key=lambda x: (len(x),x))))
-            return arr
+            return iter(SymbolGenerator())
 
         def gensym(symbols):
-            return symbols.pop() if len(symbols) > 0 else None
+            return next(symbols)
 
         def fns(e,n,s):
             return e.replace(n,s)
@@ -233,7 +236,7 @@ class TestFunctionsSuite(unittest.TestCase):
             choices = fn_map[arity]
             q = choices[random.randint(0,len(choices)-1)]
             fnd = q[0]
-            print(fnd)
+            # print(fnd)
             fn_name = fn_name or gensym(symbols)
             if fn_name is None:
                 return arr
@@ -265,25 +268,30 @@ class TestFunctionsSuite(unittest.TestCase):
             return fn_name,arr,wrap_lambda(arity,q[1],fn_dict)
 
         random.seed(0)
+        seen = set()
         for arity in range(4):
-            for i in range(100):
-                print()
+            for _ in range(100):
+                # print()
                 fn_name, arr, fn = gen_fn(arity,create_symbols())
                 klong = KlongInterpreter()
-                # stmt = "; ".join(arr)
-                # print(stmt,end=' ==> ')
-                # print(klong(stmt))
-                [print(x, klong(x)) for x in arr]
+                stmt = "; ".join(arr)
+                if stmt in seen:
+                    continue
+                seen.add(stmt)
+                print(stmt,end=' ==> ')
+                klong(stmt)
+                # [print(x, klong(x)) for x in arr]
                 if arity == 0:
                     fr = fn()
                     stmt = f"{fn_name}()"
-                    print(stmt)
+                    # print(stmt)
                     kr = klong(stmt)
                 else:
                     args = [1,2,3][:arity]
                     fr = fn(*args)
                     stmt = f"{fn_name}({';'.join([str(x) for x in args])})"
-                    print(stmt)
+                    # print(stmt)
                     kr = klong(stmt)
                 print(kr,fr)
                 self.assertEqual(kr,fr)
+        print(f"ran {len(seen)} tests.")
