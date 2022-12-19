@@ -857,7 +857,7 @@ def get_fn_arity(f):
     NOTE: TODO: it maybe easier / better to do this at parse time vs late.
     """
     if isinstance(f,KGFn) and isinstance(f.a,KGSym) and not in_map(f.a,reserved_fn_symbols):
-        return f.arity
+        return f.arity - sum([1 for x in f.args if (x is not None) and not in_map(x,reserved_fn_symbols)])
     def _e(f, level=0):
         if isinstance(f,KGFn):
             x = _e(f.a, level=1)
