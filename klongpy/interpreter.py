@@ -444,6 +444,8 @@ class KlongInterpreter():
         f_arity = x.arity
         f_args = [(x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else x.args]
 
+        # NOTE: we unroll this loop 3-deep since triads are as wide as we can go
+        #       this can likely be optimized further if we can isolate what conditions are needed
         if isinstance(f,KGSym) and not in_map(f, reserved_fn_symbols):
             f = self.eval(f)
         if f_arity > 0:
@@ -474,10 +476,6 @@ class KlongInterpreter():
                             f_args.append((f.args if isinstance(f.args, list) else [f.args]))
                         f_arity = f.arity
                         f = f.a
-                    # don't resolve further if the underlying fn isn't a projection of greater arity
-                    # sub_resolve = (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)) and (f.arity > f_arity)
-                    # resolve = sub_resolve or (self._context.is_defined_sym(f) and not in_map(f, reserved_fn_symbols))
-
 
         f_args.reverse()
         f_args = merge_projections(f_args)
