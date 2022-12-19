@@ -112,6 +112,7 @@ if __name__ == "__main__":
     parser.add_argument('-e', '--expr', help='evaluate expression, no interactive mode')
     parser.add_argument('-l', '--load', help='load program from file')
     parser.add_argument('-p', '--run', help='run program from file')
+    parser.add_argument('-t', '--test', help='test program from file')
 
     args = parser.parse_args()
     if args.expr:
@@ -128,5 +129,14 @@ if __name__ == "__main__":
         print(f"Running: {args.run}")
         with open(args.run, "r") as f:
             klong(f.read())
+    elif args.test:
+        print(f"Test: {args.test}")
+        with open(args.test, "r") as f:
+            for x in f.readlines():
+                x = x.strip()
+                if len(x) == 0 or x.startswith(":"):
+                    continue
+                print(x)
+                klong(x)
     else:
         repl()
