@@ -89,6 +89,15 @@ class SymbolGenerator:
         for n in self.a:
             for m in self.a:
                 yield n+m
+        for n in self.a:
+            for m in self.a:
+                for o in self.a:
+                    yield n+m+o
+        for n in self.a:
+            for m in self.a:
+                for o in self.a:
+                    for p in self.a:
+                        yield n+m+o+p
 
 
 class TestFunctionsSuite(unittest.TestCase):
@@ -181,7 +190,6 @@ class TestFunctionsSuite(unittest.TestCase):
         r = klong('F("hello")')
         self.assertEqual(r, "o")
 
-    # @unittest.skip
     def test_fn_gen(self):
         def create_symbols():
             return iter(SymbolGenerator())
@@ -199,23 +207,39 @@ class TestFunctionsSuite(unittest.TestCase):
                 # ("{d}", lambda d: d, 2),
                 # ("{d(1;)}", lambda d: lambda x: d(1,x), 1),
                 ("{d(1;2)}", lambda d: d(1,2), 0),
+                ("{d(1;m(2))}", lambda m,d: d(1,m(2)), 0),
+                ("{d(m(2);1)}", lambda m,d: d(m(2),1), 0),
                 # ("{t}", lambda t: t, 3),
                 # ("{t(1;)}", lambda t: lambda x,y: t(1,x,y), 2),
                 # ("{t(1;2;)}", lambda t: lambda x: t(1,2,x), 1),
                 ("{t(1;2;3)}", lambda t: t(1,2,3), 0),
+                ("{t(1;2;m(3))}", lambda m,t: t(1,2,m(3)), 0),
+                ("{t(1;d(1;2);m(3))}", lambda m,d,t: t(1,d(1,2),m(3)), 0),
             ],
             1: [
                 ("{x}", lambda x: x, 0),
+                ("{m(x)}", lambda x,m: m(x), 0),
+                ("{x;m(x)}", lambda x,m: m(x), 0),
+                ("{x;m(2*x)}", lambda x,m: m(2*x), 0),
                 # ("{.p(x)}", lambda x: str(x), 0),
                 # ("{d(x;)}", lambda d,x: lambda x1: d(x, x1), 1),
                 ("{d(x;x)}", lambda x,d: d(x,x), 0),
                 ("{d(1;x)}", lambda x,d: d(1, x), 0),
                 ("{d(x;1)}", lambda x,d: d(x, 1), 0),
+                ("{d(x;m(x))}", lambda x,m,d: d(x, m(x)), 0),
+                ("{d(m(x);x)}", lambda x,m,d: d(m(x), x), 0),
                 # ("{t(x;;)}", lambda t,x: lambda x1,y: t(x,x1,y), 2),
                 # ("{t(x;x;)}", lambda t,x: lambda x1: t(x,x,x1), 1),
                 ("{t(x;x;x)}", lambda x,t: t(x,x,x), 0),
                 ("{t(1;x;x)}", lambda x,t: t(1,x,x), 0),
-                ("{t(1;1;x)}", lambda x,t: t(1,1,x), 0),
+                ("{t(x;1;x)}", lambda x,t: t(x,1,x), 0),
+                ("{t(x;x;1)}", lambda x,t: t(x,x,1), 0),
+                ("{t(x;1;x)}", lambda x,t: t(x,1,x), 0),
+                ("{t(1;2;x)}", lambda x,t: t(1,2,x), 0),
+                ("{t(1;x;2)}", lambda x,t: t(1,x,2), 0),
+                ("{t(2;x;1)}", lambda x,t: t(2,x,1), 0),
+                ("{t(x;1;2)}", lambda x,t: t(x,1,2), 0),
+                ("{t(x;2;1)}", lambda x,t: t(x,2,1), 0),
             ],
             2: [
                 ("{x+y}", lambda x,y: x+y),
@@ -227,11 +251,15 @@ class TestFunctionsSuite(unittest.TestCase):
             3: [
                 ("{x+y+z}", lambda x,y,z: x+y+z, 0),
                 ("{m(x)+d(y;z)}", lambda x,y,z,m,d: m(x) + d(y,z), 0),
+                ("{d(x;y)+m(z)}", lambda x,y,z,m,d: d(x,y) + m(z), 0),
+                ("{d(x;y)+d(x;z)}", lambda x,y,z,d: d(x,y) + d(x,z), 0),
                 # ("{d(m(x+y+z);)}", lambda x,y,z,m,d: lambda x1: d(m(x)+y+z,x1), 1)
             ]
         }
 
-        def gen_fn(arity,symbols,fn_name=None):
+        def gen_fn(arity,symbols,fn_name=None,level=0,max_level=100):
+            if level > max_level:
+                raise RecursionError()
             arr = []
             choices = fn_map[arity]
             q = choices[random.randint(0,len(choices)-1)]
@@ -248,19 +276,19 @@ class TestFunctionsSuite(unittest.TestCase):
                 if 'm' in args:
                     s = gensym(symbols)
                     fnd = fns(fnd,'m',s)
-                    _,aa,ff = gen_fn(1,symbols,fn_name=s)
+                    _,aa,ff = gen_fn(1,symbols,fn_name=s,level=level+1)
                     fn_dict['m'] = ff
                     arr.extend(aa)
                 if 'd' in args:
                     s = gensym(symbols)
                     fnd = fns(fnd,'d',s)
-                    _,aa,ff = gen_fn(2,symbols,fn_name=s)
+                    _,aa,ff = gen_fn(2,symbols,fn_name=s,level=level+1)
                     fn_dict['d'] = ff
                     arr.extend(aa)
                 if 't' in args:
                     s = gensym(symbols)
                     fnd = fns(fnd,'t',s)
-                    _,aa,ff = gen_fn(3,symbols,fn_name=s)
+                    _,aa,ff = gen_fn(3,symbols,fn_name=s,level=level+1)
                     fn_dict['t'] = ff
                     arr.extend(aa)
             fn = f"{fn_name}::{fnd}"
@@ -270,12 +298,15 @@ class TestFunctionsSuite(unittest.TestCase):
         random.seed(0)
         seen = set()
         for arity in range(4):
-            for _ in range(100):
+            for _ in range(1000):
                 # print()
-                fn_name, arr, fn = gen_fn(arity,create_symbols())
+                try:
+                    fn_name, arr, fn = gen_fn(arity,create_symbols(), max_level=200)
+                except RecursionError as e:
+                    continue
                 klong = KlongInterpreter()
                 stmt = "; ".join(arr)
-                if stmt in seen:
+                if stmt in seen or len(arr) > 10: # filter out redundant and too complex (slow) calcs
                     continue
                 seen.add(stmt)
                 print(stmt,end=' ==> ')
