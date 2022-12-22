@@ -154,16 +154,12 @@ def to_list(a):
     return a if isinstance(a, list) else a.tolist() if isinstance(a, np.ndarray) else [a]
 
 
-def is_float(x):
-    if is_list(x):
-        return False
-    return isinstance(x, (np.floating, float, int))
-
-
 def is_integer(x):
-    if is_list(x):
-        return False
-    return isinstance(x, (np.integer, int))
+    return issubclass(type(x), (int,np.integer))
+
+
+def is_float(x):
+    return issubclass(type(x), (float, np.floating, int))
 
 
 def is_number(a):

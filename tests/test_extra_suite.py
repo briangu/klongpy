@@ -10,6 +10,44 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    @unittest.skip
+    def test_monad_not_getting_called(self):
+        klong = KlongInterpreter()
+        klong("""
+BESTF::10^9;RESETF::{BESTF::10^9}
+ITER::{1};
+RUNX::{{x;ITER()}{x}:~ITER()}
+SCAN::{RESETF();RUNX();BESTF}
+        """)
+        r = klong("SCAN()")
+        self.assertEqual(r,99)
+
+    @unittest.skip
+    def test_take_nested_array(self):
+        klong = KlongInterpreter()
+        r = klong("(4)#[[0 0]]")
+        self.assertTrue(array_equal(r,[[0,0],[0,0],[0,0],[0,0]]))
+
+    def test_join_monad(self):
+        klong = KlongInterpreter()
+        r = klong(",[1 2 3 4]")
+        self.assertTrue(array_equal(r,[[1,2,3,4]]))
+
+    def test_join_empty(self):
+        klong = KlongInterpreter()
+        r = klong("[],[1 2 3 4]")
+        self.assertTrue(array_equal(r,[1,2,3,4]))
+
+    def test_join_pair(self):
+        klong = KlongInterpreter()
+        r = klong("[1],[2]")
+        self.assertTrue(array_equal(r,[1,2]))
+
+    def test_join_scalar_pair(self):
+        klong = KlongInterpreter()
+        r = klong("99,[1],[2]")
+        self.assertTrue(array_equal(r,[99,1,2]))
+
     def test_drop_string(self):
         klong = KlongInterpreter()
         klong("""

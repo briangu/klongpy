@@ -95,11 +95,11 @@ def eval_dyad_amend_in_depth(a, b):
     def _e(p, q, v):
         if isinstance(q,np.ndarray) and len(q) > 1:
             r = _e(p[q[0]], q[1:] if len(q) > 2 else q[1], v)
-            p = np.array(p, dtype=r.dtype)
+            p = np.asarray(p, dtype=r.dtype)
             p[q[0]] = r
             return p
         else:
-            p = np.array(p, dtype=object) if isinstance(v, (str, KGSym)) else np.array(p)
+            p = np.array(p, dtype=object) if isinstance(v, (str, KGSym)) else np.asarray(p)
             p[q] = v
             return p
     return _e(a, b[1:], b[0])
@@ -498,8 +498,16 @@ def eval_dyad_join(a, b):
         b[a[0]] = a[1]
         return b
 
-    if isinstance(a,np.ndarray) and isinstance(b,np.ndarray) and len(a.shape) == len(b.shape) and a.shape[-1] == b.shape[-1]:
-        return np.concatenate((a,b))
+    # TODO: this code in general needs a lot more optimization
+    if isinstance(a,np.ndarray) and isinstance(b,np.ndarray):
+        if len(a) == 0:
+            return b
+        elif len(a) == 1 and len(b) == 1:
+            return np.asarray([a[0], b[0]])
+        if len(a.shape) == len(b.shape) and a.shape[-1] == b.shape[-1]:
+            return np.concatenate((a,b))
+    # elif is_number(a) and isinstance(b,np.ndarray):
+        # return np.asarray([a,b], dtype=object)
 
     aa = a if isinstance(a, list) else ([a[0]] if len(a.shape) > 1 and a.shape[0] == 1 else a.tolist() if len(a.shape) == 1 else [a]) if isinstance(a, np.ndarray) else [a]
     bb = b if isinstance(b, list) else ([b[0]] if len(b.shape) > 1 and b.shape[0] == 1 else b.tolist() if len(b.shape) == 1 else [b]) if isinstance(b, np.ndarray) else [b]
