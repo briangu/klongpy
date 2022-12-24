@@ -35,9 +35,9 @@ def repl(klong=None):
                 r = klong(p)
                 print(success(r))
             except Exception as e:
-                print(failure(f"Error: {e}"))
-                import traceback
-                traceback.print_stack(e)
+                print(failure(f"Error: {e.args}"))
+                # import traceback
+                # traceback.print_stack(e)
                 # raise e
     except KeyboardInterrupt:
         print("\nExiting...")

@@ -95,11 +95,11 @@ def eval_dyad_amend_in_depth(a, b):
     def _e(p, q, v):
         if isinstance(q,np.ndarray) and len(q) > 1:
             r = _e(p[q[0]], q[1:] if len(q) > 2 else q[1], v)
-            p = np.asarray(p, dtype=r.dtype)
+            p = np.array(p, dtype=r.dtype)
             p[q[0]] = r
             return p
         else:
-            p = np.array(p, dtype=object) if isinstance(v, (str, KGSym)) else np.asarray(p)
+            p = np.array(p, dtype=object) if isinstance(v, (str, KGSym)) else np.array(p)
             p[q] = v
             return p
     return _e(a, b[1:], b[0])
@@ -311,6 +311,8 @@ def eval_dyad_find(a, b):
     elif is_dict(a):
         # NOTE: we don't use get or np.inf because value may be 0 or None
         return a[b] if b in a else np.inf # TODO: use undefined type
+    if is_list(b):
+        return np.asarray([i for i,x in enumerate(a) if array_equal(x,b)])
     return np.where(np.asarray(a) == b)[0]
 
 
@@ -929,7 +931,7 @@ def eval_dyad_take(a, b):
 
     """
     j = isinstance(b,str)
-    b = str_to_chr_arr(b) if j else b
+    b = str_to_chr_arr(b) if j else np.asarray(b)
     aa = np.abs(a)
     if aa > b.size:
         b = np.tile(b,aa // len(b))

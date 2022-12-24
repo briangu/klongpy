@@ -17,6 +17,8 @@ Klong was created by Nils M Holm and he has also written a [Klong Book](https://
 
 See some "real" KlongPy usage for [Advent Of Code '22](https://github.com/briangu/aoc/tree/main/22).
 
+
+
 # Overview
 
 KlongPy brings together the Klong terse array language notation with the performance of NumPy.  I wanted to use Klong but I also wanted it to be a fast as possible.  Bonus is the ability to mix Klong with Python libraries making it easy to pick and choose the tools as appropriate.
@@ -174,7 +176,7 @@ def NumPy_vec(number=100):
 KlongPy has a REPL similar to Klong.
 
     $ pip3 install klongpy[repl]
-    $ kgpy
+    $ rlwrap kgpy
 
     Welcome to KlongPy REPL
     author: Brian Guarraci
@@ -218,6 +220,14 @@ The main difference between Klong and KlongPy is that KlongPy doesn't infinite p
 
 ```bash
 python3 -m unittest
+```
+
+# Unused operators
+
+The following operators are yet to be used:
+
+```
+:! :& :, :< :> :?
 ```
 
 # Acknowledgement

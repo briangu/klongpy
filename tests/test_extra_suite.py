@@ -10,6 +10,50 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    def test_amend_does_not_mutate(self):
+        klong = KlongInterpreter()
+        klong("A::[1 2 3 4];AA::[[1 2 3 4] [5 6 7 8]]")
+        klong("B::A:=0,0")
+        r = klong("A")
+        self.assertTrue(array_equal(r,[1,2,3,4]))
+        r = klong("B")
+        self.assertTrue(array_equal(r,[0,2,3,4]))
+        klong("C::AA:-99,0,0")
+        r = klong("AA")
+        self.assertTrue(array_equal(r,[[1,2,3,4],[5,6,7,8]]))
+        r = klong("C")
+        self.assertTrue(array_equal(r,[[99,2,3,4],[5,6,7,8]]))
+
+    @unittest.skip
+    def test_read_empty_string(self):
+        klong = KlongInterpreter()
+        r = klong('.rs("")')
+        self.assertEqual(r,'""')
+
+    def test_range_nested_empty(self):
+        klong = KlongInterpreter()
+        r = klong('?[[]]')
+        self.assertTrue(array_equal(r,[[]]))
+
+    @unittest.skip
+    def test_match_nested_array(self):
+        klong = KlongInterpreter()
+        r = klong('[7,7,7]~[7,7,7]')
+        self.assertEqual(r,1)
+
+    @unittest.skip
+    def test_match_array(self):
+        klong = KlongInterpreter()
+        r = klong('(^[1])~0')
+        self.assertFalse(r is False)
+        self.assertEqual(r,0)
+
+    # NOTE: different than Klong due to numpy shape
+    def test_shape_empty_nested(self):
+        klong = KlongInterpreter()
+        r = klong("^[[[]]]")
+        self.assertTrue(array_equal(r,[1,1,0]))
+
     @unittest.skip
     def test_monad_not_getting_called(self):
         klong = KlongInterpreter()
@@ -81,21 +125,20 @@ AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
         r = klong('["1234","5678"]:@[0 1]')
         self.assertEqual(r,KGChar('2'))
 
-    @unittest.skip
     def test_find_with_array_arg(self):
         klong = KlongInterpreter()
         r = klong('[1 2 3 4]?[1]')
-        self.assertEqual(r, [])
+        self.assertTrue(array_equal(r, []))
         r = klong('[1 2 3 4]?[1]')
-        self.assertEqual(r, [])
+        self.assertTrue(array_equal(r, []))
         r = klong('[[1] 2 3 4]?[1]')
-        self.assertEqual(r, [0])
+        self.assertTrue(array_equal(r, [0]))
         r = klong('[ 1 2  3 4]?[1 2]')
-        self.assertEqual(r, [])
+        self.assertTrue(array_equal(r, []))
         r = klong('[[1 2] 3 4]?[1 2]')
-        self.assertEqual(r, [0])
+        self.assertTrue(array_equal(r, [0]))
         r = klong('[[[1 2] [3 4]] [[5 6] [7 8]]]?[[5 6] [7 8]]')
-        self.assertEqual(r, [1])
+        self.assertTrue(array_equal(r, [1]))
 
     def test_read_string_neg_number(self):
         klong = KlongInterpreter()
