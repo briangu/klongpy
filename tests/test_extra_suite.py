@@ -10,6 +10,20 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    @unittest.skip
+    def test_dict_inner_create_syntax(self):
+        klong = KlongInterpreter()
+        with self.assertRaises(RuntimeError):
+            # should fail to parse
+            r = klong(":{[1 :{[2 3]}}")
+
+    @unittest.skip
+    def test_dict_inner_create(self):
+        # this creates a KGCall to wrap the inner dict, which is generally correct for
+        klong = KlongInterpreter()
+        r = klong(":{[1 :{[2 3]}]}")
+        self.assertEqual(r[1], {2: 3})
+
     def test_amend_does_not_mutate(self):
         klong = KlongInterpreter()
         klong("A::[1 2 3 4];AA::[[1 2 3 4] [5 6 7 8]]")

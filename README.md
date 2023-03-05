@@ -158,7 +158,18 @@ def NumPy_vec(number=100):
 
 ### GPU support
 
-    $ pip3 install klongpy[gpu]
+    Choose your CuPy prebuilt binary or from source:
+
+    'cupy' => build from source
+    'cuda12x' => "cupy-cuda12x"
+    'cuda11x' => "cupy-cuda11x"
+    'cuda111' => "cupy-cuda111"
+    'cuda110' => "cupy-cuda110"
+    'cuda102' => "cupy-cuda102"
+    'rocm-5-0' => "cupy-rocm-5-0"
+    'rocm-4-3' => "cupy-rocm-4-3"
+
+    $ pip3 install klongpy[cupy]
 
 ### Everything
 
