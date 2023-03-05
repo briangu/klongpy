@@ -25,6 +25,36 @@ KlongPy brings together the Klong terse array language notation with the perform
 
 Here's simple example of mixing Python and KlongPy to compute average of a 1B entry array.
 
+First, let's look at how average is computed in Klong:
+
+```
+{(+/x)%#x}
+```
+
+which directly translates to (right to left): length of x divides sum over x.
+
+Now, with that in hand, we can try it in the REPL:
+
+```
+    Welcome to KlongPy REPL
+    author: Brian Guarraci
+    repo  : https://github.com/briangu/klongpy
+    crtl-c to quit
+
+    ?> avg::{(+/x)%#x}
+    :monad
+    ?> avg(100)
+    49.5
+```
+Now let's time it.  First we'll run it once and see it takes about 374us, then we'll run it 100 times.
+    ?> \t avg(!100)
+    0.0003741057589650154
+    >? \t:100 avg(!100)
+    0.007682837080210447
+```
+
+Let's compare CPU vs GPU backends:
+
 ```python
 import time
 from klongpy.backend as np
@@ -204,6 +234,7 @@ KlongPy has a REPL similar to Klong.
     0
     ?> prime(251)
     1
+    ?> \t prime(251)
 
 Read about the [prime example here](https://t3x.org/klong/prime.html).
 

@@ -62,6 +62,12 @@ class TestExtraCoreSuite(unittest.TestCase):
         self.assertFalse(r is False)
         self.assertEqual(r,0)
 
+    def test_floor_as_int(self):
+        klong = KlongInterpreter()
+        r = klong('_30%2')
+        self.assertTrue(is_integer(r))
+        self.assertEqual(r, 15)
+
     # NOTE: different than Klong due to numpy shape
     def test_shape_empty_nested(self):
         klong = KlongInterpreter()

@@ -5,9 +5,34 @@ import argparse
 from colorama import Fore, init
 
 from klongpy import KlongInterpreter
+import timeit
 
 
-def info() -> None:
+success = lambda input: f"{Fore.GREEN}{input}"
+failure = lambda input: f"{Fore.RED}{input}"
+
+
+def repl_eval(klong, p):
+    try:
+        r = success(klong(p))
+    except Exception as e:
+        r = failure(f"Error: {e.args}")
+        import traceback
+        traceback.print_exc(e)
+    return r
+
+
+def repl_system_command(klong, p):
+    if p.startswith("\\t"):
+        parts = p[:p.index(" ")].split(":")
+        number = 1 if len(parts) == 1 else int(parts[1])
+        return timeit.timeit(lambda k=klong,p=p[p.index(" "):]: k(p), number=number)
+    return repl_eval(klong, p)
+
+
+# https://dev.to/amal/building-the-python-repl-3468
+def repl(klong=None):
+
     print()
     print(f"{Fore.GREEN}Welcome to KlongPy REPL")
     print(f"{Fore.BLUE}author: Brian Guarraci")
@@ -15,30 +40,15 @@ def info() -> None:
     print(f"{Fore.YELLOW}crtl-c to quit")
     print()
 
+    init(autoreset=True)
 
-init(autoreset=True)
-
-
-success = lambda input: f"{Fore.GREEN}{input}"
-failure = lambda input: f"{Fore.RED}{input}"
-
-# https://dev.to/amal/building-the-python-repl-3468
-def repl(klong=None):
-    info()
     try:
         klong = klong or KlongInterpreter()
         while True:
-            try:
-                p = input("?> ")
-                if len(p) == 0:
-                    continue
-                r = klong(p)
-                print(success(r))
-            except Exception as e:
-                print(failure(f"Error: {e.args}"))
-                # import traceback
-                # traceback.print_stack(e)
-                # raise e
+            p = input("?> ")
+            if len(p) == 0:
+                continue
+            print(repl_system_command(klong, p))
     except KeyboardInterrupt:
         print("\nExiting...")
 

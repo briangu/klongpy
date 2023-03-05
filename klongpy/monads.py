@@ -114,7 +114,7 @@ def eval_monad_floor(a):
                   _1e100  -->  1.0e+100  :"if precision < 100 digits"
 
     """
-    return vec_fn(a, lambda x: np.floor(np.asarray(x, dtype=float)))
+    return vec_fn(a, lambda x: np.floor(np.asarray(x, dtype=float)).astype(int))
 
 
 def eval_monad_format(a):
