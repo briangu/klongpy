@@ -62,11 +62,22 @@ class TestExtraCoreSuite(unittest.TestCase):
         self.assertFalse(r is False)
         self.assertEqual(r,0)
 
+    def test_prime(self):
+        klong = KlongInterpreter()
+        klong('prime::{&/x!:\\2+!_x^1%2}') # note \\ ==> \
+        r = klong("prime(251)")
+        self.assertTrue(is_integer(r))
+        self.assertEqual(r, 1)
+
     def test_floor_as_int(self):
         klong = KlongInterpreter()
         r = klong('_30%2')
         self.assertTrue(is_integer(r))
         self.assertEqual(r, 15)
+        r = klong('_[30 20]%2')
+        for x in r:
+            self.assertTrue(is_integer(x))
+        self.assertTrue(array_equal(r, [15, 10]))
 
     # NOTE: different than Klong due to numpy shape
     def test_shape_empty_nested(self):
