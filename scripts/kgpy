@@ -22,7 +22,7 @@ def repl_eval(klong, p):
     return r
 
 
-def repl_system_command(klong, p):
+def repl_handle_input(klong, p):
     if p.startswith("\\t"):
         parts = p[:p.index(" ")].split(":")
         number = 1 if len(parts) == 1 else int(parts[1])
@@ -48,7 +48,7 @@ def repl(klong=None):
             p = input("?> ")
             if len(p) == 0:
                 continue
-            print(repl_system_command(klong, p))
+            print(repl_handle_input(klong, p))
     except KeyboardInterrupt:
         print("\nExiting...")
 

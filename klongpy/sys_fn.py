@@ -317,7 +317,7 @@ def eval_sys_read_string(klong, x):
 def eval_sys_system(x):
     """
 
-        .sys(a)                                                 [System]
+        .sys(x)                                                 [System]
 
         Pass the command in the string "x" to the operating system for
         execution and return the exit code of the command. On a Unix
