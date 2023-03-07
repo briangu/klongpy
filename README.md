@@ -47,9 +47,9 @@ Now, with that in hand, we can try it in the REPL:
     49.5
 ```
 Now let's time it.  First we'll run it once and see it takes about 374us, then we'll run it 100 times.
-    ?> \t avg(!100)
+    ?> ]T avg(!100)
     0.0003741057589650154
-    >? \t:100 avg(!100)
+    >? ]T:100 avg(!100)
     0.007682837080210447
 ```
 
@@ -234,7 +234,8 @@ KlongPy has a REPL similar to Klong.
     0
     ?> prime(251)
     1
-    ?> \t prime(251)
+    ?> ]T prime(251)
+    0.0005430681630969048
 
 Read about the [prime example here](https://t3x.org/klong/prime.html).
 
