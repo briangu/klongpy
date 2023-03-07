@@ -203,7 +203,7 @@ def NumPy_vec(number=100):
 
 ### Everything
 
-    $ pip3 install klongpy[gpu,repl]
+    $ pip3 install klongpy[cupy,repl]
 
 ### Develop
 
