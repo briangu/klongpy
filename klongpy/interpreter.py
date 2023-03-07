@@ -31,6 +31,24 @@ class KGModule(dict):
 
 
 class KlongContext():
+    """
+
+    Maintains current symbol and module context for the interpeter.
+
+    TODO: Support 'it' system variable
+
+        it                                                          [It]
+
+    This variable holds the result of the most recent successful
+    computation, so you do not have to re-type or copy-paste the
+    previous result. E.g.:
+
+            {(x+2%x)%2}:~2
+    1.41421356237309504
+            it^2
+    1.99999999999999997
+
+    """
 
     def __init__(self, system_contexts):
         self._context = deque([{}, *system_contexts])
