@@ -39,6 +39,7 @@ def sys_cmd_apropos(klong, cmd):
         symbol or operator name (e.g. :: or Define).
 
     """
+    # TODO
     return None
 
 
@@ -52,6 +53,7 @@ def sys_cmd_help(klong, cmd):
         symbol or operator name (e.g. :: or Define).
 
     """
+    # TODO
     return None
 
 
@@ -95,7 +97,6 @@ def sys_cmd_exit(klong, cmd):
     """
     print("bye!")
     sys.exit(0)
-    return None
 
 
 def sys_cmd_transcript(klong, cmd):
@@ -107,6 +108,7 @@ def sys_cmd_transcript(klong, cmd):
         with a TAB (HT) character in the transcript file.
 
     """
+    # TODO
     return None
 
 
