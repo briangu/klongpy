@@ -28,7 +28,7 @@ Here's simple example of mixing Python and KlongPy to compute average of a 1B en
 To get an idea of what the following examples are about, let's first look at how average is computed in Klong. Assume 'a' represents an array, and we want to compute the average of 'a'.
 
 ```
-+/a%#a
+(+/a)%#a
 ```
 
 This directly translates into (from right to left): length of x (#a) divides sum over x (+/a).
@@ -41,7 +41,7 @@ author: Brian Guarraci
 repo  : https://github.com/briangu/klongpy
 crtl-c to quit
 
-?> avg::{+/x%#x}
+?> avg::{(+/x)%#x}
 :monad
 ?> avg(!100)
 49.49999999999999
@@ -65,7 +65,7 @@ from klongpy import KlongInterpreter
 klong = KlongInterpreter()
 
 # define average function in Klong (Note the '+/' (sum over) uses np.add.reduce under the hood)
-klong('avg::{+/x%#x}')
+klong('avg::{(+/x)%#x}')
 
 # create a billion random uniform values [0,1)
 data = np.random.rand(10**9)
@@ -84,7 +84,7 @@ from klongpy.backend import np
 from klongpy import KlongInterpreter
 
 klong = KlongInterpreter()
-klong('avg::{+/x%#x}')
+klong('avg::{(+/x)%#x}')
 
 data = np.random.rand(10**9)
 

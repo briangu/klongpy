@@ -5,7 +5,7 @@ from klongpy import KlongInterpreter
 klong = KlongInterpreter()
 
 # define average function in Klong. Note, the '+/' (sum over) uses np.add.reduce under the hood
-klong('avg::{+/x%#x}')
+klong('avg::{(+/x)%#x}')
 
 # create a billion random ints
 data = np.random.rand(10**9)
