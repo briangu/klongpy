@@ -33,8 +33,6 @@ class TestAccelerate(unittest.TestCase):
     # TODO: this is not parallel test safe
     #       add ability to intercept calls in interpeter
     def test_over_add_nested_array(self):
-        if not hasattr(np.add,'reduce'):
-            return
         klong = KlongInterpreter()
         e = ExecutedReduce(np.add)
         try:
@@ -57,8 +55,6 @@ class TestAccelerate(unittest.TestCase):
         self.assertTrue(e.executed)
 
     def test_over_subtract_nested_array(self):
-        if not hasattr(np.subtract,'reduce'):
-            return
         klong = KlongInterpreter()
         e = ExecutedReduce(np.subtract)
         try:
@@ -70,21 +66,18 @@ class TestAccelerate(unittest.TestCase):
         self.assertTrue(e.executed)
 
     def test_over_subtract(self):
-        if not hasattr(np.subtract,'reduce'):
-            return
+        # NOTE: subtract reduction over an array is a sum of negative values
         klong = KlongInterpreter()
-        e = ExecutedReduce(np.subtract)
+        e = Executed(np.sum)
         try:
-            np.subtract = e
+            np.sum = e
             r = klong('-/[1 2 3 4]')
         finally:
-            np.subtract = e.fn
+            np.sum = e.fn
         self.assertEqual(r, numpy.subtract.reduce([1,2,3,4]))
         self.assertTrue(e.executed)
 
     def test_over_multipy(self):
-        if not hasattr(np.multiply,'reduce'):
-            return
         klong = KlongInterpreter()
         e = ExecutedReduce(np.multiply)
         try:
@@ -96,8 +89,6 @@ class TestAccelerate(unittest.TestCase):
         self.assertTrue(e.executed)
 
     def test_over_divide(self):
-        if not hasattr(np.divide,'reduce'):
-            return
         klong = KlongInterpreter()
         e = ExecutedReduce(np.divide)
         try:
