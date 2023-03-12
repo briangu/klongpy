@@ -125,6 +125,50 @@ Q = klong['Q']
 print(Q)
 ```
 
+In order to simplify Klong development, Python functions can be easily added to support common operations:
+
+```Python
+from datetime import datetime
+from klongpy import KlongInterpreter
+klong = KlongInterpreter()
+klong['strptime'] = lambda x: datetime.strptime(x, "%d %B, %Y")
+klong("""
+    a::strptime("21 June, 2018")
+    .p(a)
+    d:::{};d,"timestamp",a
+    .p(d)
+""")
+```
+
+prints the following dictionary to the console:
+
+```
+2018-06-21 00:00:00
+{'timestamp': datetime.datetime(2018, 6, 21, 0, 0)}
+```
+
+You can go one step further and call back into Python from Klong with the result:
+
+```Python
+from datetime import datetime
+from klongpy import KlongInterpreter
+klong = KlongInterpreter()
+klong['strptime'] = lambda x: datetime.strptime(x, "%d %B, %Y")
+klong['myprint'] = lambda x: print(f"called from KlongPy: {x}")
+klong("""
+    a::strptime("21 June, 2018")
+    myprint(a)
+    d:::{};d,"timestamp",a
+    myprint(d)
+""")
+```
+outputs
+```
+called from KlongPy: 2018-06-21 00:00:00
+called from KlongPy: {'timestamp': datetime.datetime(2018, 6, 21, 0, 0)}
+```
+
+
 # Performance
 
 The Klong language is simple, so the overhead is low.  The bulk of the compute time will likely be spent in NumPy doing actual work.
