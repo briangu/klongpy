@@ -41,10 +41,10 @@ author: Brian Guarraci
 repo  : https://github.com/briangu/klongpy
 crtl-c to quit
 
-?> avg::{(+/x)%#x}
+?> avg::{+/x%#x}
 :monad
 ?> avg(!100)
-49.5
+49.49999999999999
 ```
 
 Now let's time it using the REPL system command ]T, which uses the Python timeit facility.  First, we'll run it once and see it takes about 374us, then we'll run it 100 times.
@@ -53,7 +53,7 @@ Now let's time it using the REPL system command ]T, which uses the Python timeit
 ?> ]T avg(!100)
 0.0003741057589650154
 ?> ]T:100 avg(!100)
-0.007682837080210447
+0.01385202500387095
 ```
 
 Let's compare CPU vs GPU backends:
@@ -71,7 +71,7 @@ data = np.random.rand(10**9)
 
 # define average function in Klong
 # Note the '+/' (sum over) uses np.add.reduce under the hood
-klong('avg::{(+/x)%#x}')
+klong('avg::{+/x%#x}')
 
 # make generated data available in KlongPy as the 'data' variable
 klong['data'] = data
