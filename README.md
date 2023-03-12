@@ -86,8 +86,10 @@ from klongpy import KlongInterpreter
 klong = KlongInterpreter()
 klong('avg::{+/x%#x}')
 
+data = np.random.rand(10**9)
+
 start = time.perf_counter_ns()
-r = klong['avg'](np.random.rand(10**9))
+r = klong['avg'](data)
 stop = time.perf_counter_ns()
 
 print(f"avg={np.round(r,6)} in {round((stop - start) / (10**9), 6)} seconds")
