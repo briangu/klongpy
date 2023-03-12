@@ -15,6 +15,16 @@ class Executed:
         return self.fn(*args, **kwargs)
 
 
+class ExecutedReduce:
+    def __init__(self, fn):
+        self.fn = fn
+        self.executed = False
+
+    def reduce(self, *args, **kwargs):
+        self.executed = True
+        return self.fn.reduce(*args, **kwargs)
+
+
 class TestAccelerate(unittest.TestCase):
     """
     Verify that we are actually running the adverb_over accelerated paths for cases that we can.
@@ -26,7 +36,7 @@ class TestAccelerate(unittest.TestCase):
         if not hasattr(np.add,'reduce'):
             return
         klong = KlongInterpreter()
-        e = Executed(np.add)
+        e = ExecutedReduce(np.add)
         try:
             np.add = e
             r = klong('+/[[1 2 3 4] [5 6 7 8]]')
@@ -50,7 +60,7 @@ class TestAccelerate(unittest.TestCase):
         if not hasattr(np.subtract,'reduce'):
             return
         klong = KlongInterpreter()
-        e = Executed(np.subtract)
+        e = ExecutedReduce(np.subtract)
         try:
             np.subtract = e
             r = klong('-/[1 2 3 4]')
@@ -63,7 +73,7 @@ class TestAccelerate(unittest.TestCase):
         if not hasattr(np.multiply,'reduce'):
             return
         klong = KlongInterpreter()
-        e = Executed(np.multiply)
+        e = ExecutedReduce(np.multiply)
         try:
             np.multiply = e
             r = klong('*/[1 2 3 4]')
@@ -76,7 +86,7 @@ class TestAccelerate(unittest.TestCase):
         if not hasattr(np.divide,'reduce'):
             return
         klong = KlongInterpreter()
-        e = Executed(np.divide)
+        e = ExecutedReduce(np.divide)
         try:
             np.divide = e
             r = klong('%/[1 2 3 4]')
