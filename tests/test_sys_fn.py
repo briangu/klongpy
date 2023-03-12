@@ -40,10 +40,10 @@ class TestSysFn(unittest.TestCase):
                 r = eval_sys_read_line(klong)
                 self.assertEqual(r, data)
                 a = eval_sys_read_string(klong, r)
-                self.assertEqual(a, klong.exec(data)[0])
+                self.assertEqual(a, klong(data))
                 f.raw.seek(0,0)
                 r = eval_sys_read(klong)
-                self.assertEqual(r, klong.exec(data)[0])
+                self.assertEqual(r, klong(data))
 
     def test_eval_sys_append_channel(self):
         with tempfile.TemporaryDirectory() as td:
@@ -122,19 +122,37 @@ class TestSysFn(unittest.TestCase):
             with eval_sys_input_channel(fname) as f:
                 r = f.raw.read()
                 self.assertEqual(r, data)
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(FileNotFoundError):
             with eval_sys_input_channel("doesntexist"):
                 pass
 
     def test_eval_sys_load(self):
         data = '1+1'
-        klong = KlongInterpreter()
         with tempfile.TemporaryDirectory() as td:
             fname = os.path.join(td, "data.txt")
             with open(fname, "w") as f:
                 f.write(data)
+            klong = KlongInterpreter()
             r = eval_sys_load(klong, fname)
-            self.assertEqual(r, klong.exec(data)[0])
+            self.assertEqual(r, 2)
+            klong = KlongInterpreter()
+            r = klong(f'.l("{fname}")')
+            self.assertEqual(r, 2)
+
+    def test_eval_sys_load_fn(self):
+        data = 'fn::{1+1};fn()'
+        with tempfile.TemporaryDirectory() as td:
+            fname = os.path.join(td, "data.txt")
+            with open(fname, "w") as f:
+                f.write(data)
+            klong = KlongInterpreter()
+            r = eval_sys_load(klong, fname)
+            self.assertEqual(r, 2)
+            self.assertEqual(klong('fn()'), 2)
+            klong = KlongInterpreter()
+            r = klong(f'.l("{fname}")')
+            self.assertEqual(r, 2)
+            self.assertEqual(klong('fn()'), 2)
 
     def test_eval_sys_more_input(self):
         data = ' ' * 100
@@ -270,16 +288,16 @@ class TestSysFn(unittest.TestCase):
         bar::{.fc(T::.ic(x));R::.rl();.cc(T);R}
         """
         klong = KlongInterpreter()
-        klong.exec(t)
+        klong(t)
         with tempfile.TemporaryDirectory() as td:
             fname = os.path.join(td, "data.txt")
             klong['fname'] = fname
-            klong.exec('foo(fname)')
+            klong('foo(fname)')
             with open(fname, 'r') as f:
                 r = f.read()
                 self.assertEqual(r, 'hello!\n')
-            r = klong.exec('bar(fname)')
-            self.assertEqual(r[0], 'hello!')
+            r = klong('bar(fname)')
+            self.assertEqual(r, 'hello!')
 
     def test_simple_cat(self):
         t = """
@@ -288,7 +306,7 @@ class TestSysFn(unittest.TestCase):
         copy::{[of];.tc(of::.oc(y));type(x);.cc(of)}
         """
         klong = KlongInterpreter()
-        klong.exec(t)
+        klong(t)
         with tempfile.TemporaryDirectory() as td:
             fname_src = os.path.join(td, "source.txt")
             fname_dest = os.path.join(td, "dest.txt")
@@ -297,7 +315,7 @@ class TestSysFn(unittest.TestCase):
             data = "this is a test"
             with open(fname_src, 'w') as f:
                 f.write(data)
-            klong.exec('copy(src;dest)')
+            klong('copy(src;dest)')
             with open(fname_dest, 'r') as f:
                 r = f.read()
                 self.assertEqual(r, "this is a test\n")

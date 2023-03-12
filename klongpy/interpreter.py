@@ -513,11 +513,15 @@ class KlongInterpreter():
                     ctx[q] = q
                 f = f[1:]
 
+        # TODO: more testing on whether this is actualy the correct f
+        ctx[reserved_dot_f_symbol] = f
+
+        # if isinstance(f, KGLambda) and f.keep_context:
+        #     return f(self)
+        # else:
         self._context.push(ctx)
         try:
-            # TODO: more testing on whether this is actualy the correct f
-            ctx[KGSym('.f')] = f
-            return f(self, self._context) if isinstance(f, KGLambda) else self.call(f)
+            return f(self) if isinstance(f, KGLambda) else self.call(f)
         finally:
             # always pop because if we don't, then when a function has an exception in debugging it will leave the stack corrupted
             self._context.pop()

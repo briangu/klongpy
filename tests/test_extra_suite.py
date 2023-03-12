@@ -406,7 +406,10 @@ zop([
             """
         klong = KlongInterpreter()
         r = klong.exec(t)
+        # verify that we are returning both A::1 and A operation results
         self.assertTrue(array_equal(r,[1,1]))
+        r = klong(t)
+        self.assertEqual(r, 1)
 
     def test_read_sym_f0(self):
         klong = KlongInterpreter()

@@ -79,16 +79,17 @@ class KGLambda:
     e.g.
 
     lambda x,y: x + y
-    lambda klong, x: klong.exec(x)
+    lambda klong, x: klong(x)
 
     """
     def __init__(self, fn):
         self.fn = fn
         self.args = inspect.getfullargspec(self.fn)[0]
         self.provide_klong = 'klong' in self.args
+        # self.keep_context = 'keep_context' in self.args
 
-    def __call__(self, klong, ctx):
-        params = [ctx[reserved_fn_symbol_map[x]] for x in reserved_fn_args if x in self.args]
+    def __call__(self, klong):
+        params = [klong[reserved_fn_symbol_map[x]] for x in reserved_fn_args if x in self.args]
         return self.fn(klong, *params) if self.provide_klong else self.fn(*params)
 
     def get_arity(self):
@@ -132,6 +133,7 @@ class RangeError(Exception):
 reserved_fn_args = ['x','y','z']
 reserved_fn_symbols = {KGSym(n) for n in reserved_fn_args}
 reserved_fn_symbol_map = {n:KGSym(n) for n in reserved_fn_args}
+reserved_dot_f_symbol = KGSym('.f')
 
 
 def is_list(x):

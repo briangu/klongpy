@@ -45,14 +45,14 @@ def create_test_klong():
     but modified to fail with die()
     """
     klong = KlongInterpreter()
-    klong.exec('err::0;')
+    klong('err::0;')
     def fail(x,y,z):
         print(x,y,z)
         die()
     klong['fail'] = fail
-    klong.exec('t::{:[~y~z;fail(x;y;z);[]]}')
-    klong.exec('rnd::{:[x<0;-1;1]*_0.5+#x}')
-    klong.exec('rndn::{rnd(x*10^y)%10^y}')
+    klong('t::{:[~y~z;fail(x;y;z);[]]}')
+    klong('rnd::{:[x<0;-1;1]*_0.5+#x}')
+    klong('rndn::{rnd(x*10^y)%10^y}')
     return klong
 
 

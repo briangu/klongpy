@@ -13,7 +13,7 @@ def numpy_vec(number=100):
 
 def klong_vec(number=100):
     klong = KlongInterpreter()
-    r = timeit.timeit(lambda: klong.exec("2*1+!10000000"), number=number)
+    r = timeit.timeit(lambda: klong("2*1+!10000000"), number=number)
     return r/number
 
 

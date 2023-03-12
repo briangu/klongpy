@@ -15,15 +15,15 @@ class TestSuiteFile(unittest.TestCase):
 
     def test_fail(self):
         klong = create_test_klong()
-        klong.exec('t("success";1;1)')
+        klong('t("success";1;1)')
         with self.assertRaises(RuntimeError):
-            klong.exec('t("fail";0;1)')
+            klong('t("fail";0;1)')
 
     def test_call_lambda(self):
         klong = KlongInterpreter()
         klong['die'] = die
         with self.assertRaises(FailedUnitTest):
-            klong.exec('foo::{die(x;y)};foo("a";"b")')
+            klong('foo::{die(x;y)};foo("a";"b")')
 
     def test_simple_script(self):
         t = """
@@ -31,8 +31,8 @@ wl::{.w(x);.p("");x}
 wl("hello")
         """
         klong = KlongInterpreter()
-        r = klong.exec(t)
-        self.assertEqual(r[-1], 'hello')
+        r = klong(t)
+        self.assertEqual(r, 'hello')
 
     def test_suite_head(self):
         t = """
@@ -63,7 +63,7 @@ t("@1e5"        ; @1e5      ; 1)
         """
         klong = KlongInterpreter()
         klong['die'] = die
-        klong.exec(t)
+        klong(t)
 
     def test_dict_in_situ_mutation(self):
         klong = create_test_klong()
@@ -73,7 +73,7 @@ s::!100
 D:::{};{D,x,x}'!5
 t("D:::{};{D,x,x}'!5;D" ; s@<s::*'D ; [0 1 2 3 4])
         """
-        klong.exec(t)
+        klong(t)
 
     def test_dyad_contexts(self):
         """
@@ -94,7 +94,7 @@ t("9f:/[1 2 3]"           ; 9f:/[1 2 3]           ; [[1 9] [2 9] [3 9]])
 t("[1 2 3]g(;0;)[4 5 6]"  ; [1 2 3]g(;0;)[4 5 6]  ; [1 2 3 0 4 5 6])
 t("[1 2 3]g(;0;)'[4 5 6]" ; [1 2 3]g(;0;)'[4 5 6] ; [[1 0 4] [2 0 5] [3 0 6]])
         """
-        klong.exec(t)
+        klong(t)
 
     def test_module(self):
         t = """
@@ -114,7 +114,7 @@ a::0 ; t("g()"  ; g()  ; 2)
 g::0 ; t("f()"  ; f()  ; 2)
         """
         klong = create_test_klong()
-        klong.exec(t)
+        klong(t)
 
     def test_file_by_lines(self):
         """
@@ -146,7 +146,7 @@ g::0 ; t("f()"  ; f()  ; 2)
             r = f.read()
             i = r.index('rnd::')
             r = r[i:]
-            klong.exec(r)
+            klong(r)
 
     def test_file(self):
         """
@@ -154,9 +154,11 @@ g::0 ; t("f()"  ; f()  ; 2)
         """
         klong = KlongInterpreter()
         with open("tests/klong_suite.kg", "r") as f:
-            klong.exec(f.read())
-            r = klong.exec('err')
-            self.assertEqual(r[0], 0)
+            klong(f.read())
+            r = klong('err')
+            self.assertEqual(r, 0)
+            r = klong['err']
+            self.assertEqual(r, 0)
 
 
 if __name__ == '__main__':

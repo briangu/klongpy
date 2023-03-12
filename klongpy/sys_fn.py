@@ -77,7 +77,7 @@ def eval_sys_evaluate(klong, x):
         system, e.g. .E("a::123");a will yield 123.
 
     """
-    return klong.exec(x)[-1]
+    return klong(x)
 
 
 def eval_sys_from_channel(klong, x):
@@ -134,7 +134,7 @@ def eval_sys_input_channel(x):
         except IOError:
             raise RuntimeError("file could not be opened: {x}")
     else:
-        raise RuntimeError("file does not exist: {x}")
+        raise FileNotFoundError("file does not exist: {x}")
 
 
 def eval_sys_load(klong, x):
@@ -163,11 +163,20 @@ def eval_sys_load(klong, x):
         try:
             # TODO: support path defaults as mentioned above
             with open(x, "r") as f:
-                return klong.exec(f.read())[-1]
+                # This is a "hack" to keep the load operation in the same context it was called in
+                #   The interpeter pushes a context when it calls a function, so here
+                #   we pop it, run the load in the original context, and push the context back on
+                #   so that the interpreter can pop it's temporary context off as normal.
+                ctx = klong._context.pop()
+                try:
+                    r = klong(f.read())
+                finally:
+                    klong._context.push(ctx)
+                return r
         except IOError:
             raise RuntimeError("file could not be opened: {x}")
     else:
-        raise RuntimeError("file does not exist: {x}")
+        raise FileNotFoundError("file does not exist: {x}")
 
 
 def eval_sys_more_input(klong):

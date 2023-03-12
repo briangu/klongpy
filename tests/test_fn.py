@@ -67,6 +67,6 @@ class TestFunctionsSuite(unittest.TestCase):
         """
         klong = KlongInterpreter()
         with open("tests/klong_fn.kg", "r") as f:
-            klong.exec(f.read())
-            r = klong.exec('err')
-            self.assertEqual(r[0], 0)
+            klong(f.read())
+            r = klong('err')
+            self.assertEqual(r, 0)

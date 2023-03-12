@@ -52,7 +52,7 @@ def get_tests():
                 if not have_interp:
                     have_interp = True
                     print(f"        klong = create_test_klong()")
-                print(f"        klong.exec({quote_expr(s)})")
+                print(f"        klong({quote_expr(s)})")
 
 
 if __name__ == '__main__':

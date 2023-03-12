@@ -64,7 +64,7 @@ lin2(1)
         self.assertEqual(len(r[0][2][0][1]), 3)
         self.assertEqual(len(r[1]), 2)
         self.assertEqual(len(r[1][1]), 3)
-        r = klong.exec('fv::{[a];a::1;a} ; fv()')
+        r = klong('fv::{[a];a::1;a} ; fv()')
         self.assertEqual(r[1], 1)
 
     @unittest.skip
