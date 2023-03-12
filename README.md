@@ -15,7 +15,7 @@ Klong was created by Nils M Holm and he has also written a [Klong Book](https://
 
 # Related
 
- * [Advent Of Code '22](https://github.com/briangu/aoc/tree/main/22).
+ * [Advent Of Code '22](https://github.com/briangu/aoc/tree/main/22)a
  * [Example Ticker Plant with streaming and dataframes](https://github.com/briangu/kdfs)
 
 
@@ -25,15 +25,15 @@ KlongPy brings together the Klong terse array language notation with the perform
 
 Here's simple example of mixing Python and KlongPy to compute average of a 1B entry array.
 
-First, let's look at how average is computed in Klong:
+To get an idea of what the following examples are about, let's first look at how average is computed in Klong. Assume 'a' represents an array, and we want to compute the average of 'a'.
 
 ```
-{(+/x)%#x}
++/a%#a
 ```
 
-which directly translates to (right to left): length of x divides sum over x.
+This directly translates into (from right to left): length of x (#a) divides sum over x (+/a).
 
-Now, with that in hand, we can try it in the REPL:
+Now, with that in hand, we can try it in the REPL.  First we'll make a function called 'avg' and then find the average over the range 0..99 inclusive (!100).  Note, functions in Klong require the parameter names to be x, y, and z.
 
 ```
 Welcome to KlongPy REPL
@@ -43,17 +43,17 @@ crtl-c to quit
 
 ?> avg::{(+/x)%#x}
 :monad
-?> avg(100)
+?> avg(!100)
 49.5
 ```
 
-Now let's time it.  First we'll run it once and see it takes about 374us, then we'll run it 100 times.
+Now let's time it using the REPL system command ]T, which uses the Python timeit facility.  First, we'll run it once and see it takes about 374us, then we'll run it 100 times.
 
 ```
-    ?> ]T avg(!100)
-    0.0003741057589650154
-    >? ]T:100 avg(!100)
-    0.007682837080210447
+?> ]T avg(!100)
+0.0003741057589650154
+?> ]T:100 avg(!100)
+0.007682837080210447
 ```
 
 Let's compare CPU vs GPU backends:
@@ -171,7 +171,7 @@ called from KlongPy: 2018-06-21 00:00:00
 called from KlongPy: {'timestamp': datetime.datetime(2018, 6, 21, 0, 0)}
 ```
 
-# Pandas dataframe integration
+# Pandas DataFrame integration
 
 This a work in progress, but it's very interesting to think about what DataFrames look like in Klong since they are basically a dictionary of columns.
 
@@ -191,7 +191,6 @@ klong['df'] = {col: np.array(df[col]) for col in df.columns}
 klong('df?"Name"') # ==> ['Alice', 'Bob', 'Charlie', 'David']
 klong('df?"Age"')  # ==> [25, 30, 35, 40]
 ```
-
 
 # Performance
 
@@ -256,7 +255,7 @@ def NumPy_vec(number=100):
 
 ### GPU support
 
-    Choose your CuPy prebuilt binary or from source:
+    Choose your CuPy prebuilt binary or from source.  Note, the ROCM support for CuPy is experimental and likely will have issues.
 
     'cupy' => build from source
     'cuda12x' => "cupy-cuda12x"
@@ -282,7 +281,7 @@ def NumPy_vec(number=100):
 
 # REPL
 
-KlongPy has a REPL similar to Klong.
+KlongPy has a REPL similar to Klong's REPL.
 
     $ pip3 install klongpy[repl]
     $ rlwrap kgpy
