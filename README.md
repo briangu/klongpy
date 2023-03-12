@@ -168,6 +168,27 @@ called from KlongPy: 2018-06-21 00:00:00
 called from KlongPy: {'timestamp': datetime.datetime(2018, 6, 21, 0, 0)}
 ```
 
+# Pandas dataframe integration
+
+This a work in progress, but it's very interesting to think about what DataFrames look like in Klong since they are basically a dictionary of columns.
+
+For now, the following works where we convert a DataFrame into a dictionary of columns:
+
+```Python
+from klongpy import KlongInterpreter
+import pandas as pd
+import numpy as np
+
+data = {'Name': ['Alice', 'Bob', 'Charlie', 'David'],
+        'Age': [25, 30, 35, 40]}
+df = pd.DataFrame(data)
+
+klong = KlongInterpreter()
+klong['df'] = {col: np.array(df[col]) for col in df.columns}
+klong('df?"Name"') # ==> ['Alice', 'Bob', 'Charlie', 'David']
+klong('df?"Age"')  # ==> [25, 30, 35, 40]
+```
+
 
 # Performance
 

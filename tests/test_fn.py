@@ -1,12 +1,8 @@
-import inspect
-import random
-import string
 import unittest
 
 from utils import *
 
 from klongpy import KlongInterpreter
-from klongpy.core import in_map, reserved_fn_symbol_map
 
 
 class TestFunctionsSuite(unittest.TestCase):
