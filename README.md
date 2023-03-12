@@ -13,10 +13,10 @@ Using NumPy also means that, via [CuPy](https://github.com/cupy/cupy), both CPU 
 Klong was created by Nils M Holm and he has also written a [Klong Book](https://t3x.org/klong/book.html).
 
 
-# Advent of Code
+# Related
 
-See some "real" KlongPy usage for [Advent Of Code '22](https://github.com/briangu/aoc/tree/main/22).
-
+ * [Advent Of Code '22](https://github.com/briangu/aoc/tree/main/22).
+ * [Example Ticker Plant with streaming and dataframes](https://github.com/briangu/kdfs)
 
 
 # Overview
