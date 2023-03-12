@@ -42,7 +42,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('+/[[1 2 3 4] [5 6 7 8]]')
         finally:
             np.add = e.fn
-        self.assertTrue(array_equal(r, np.array([6,8,10,12])))
+        self.assertTrue(array_equal(r, np.add.reduce([[1,2,3,4],[5,6,7,8]])))
         self.assertTrue(e.executed)
 
     def test_over_add_array(self):
@@ -54,6 +54,19 @@ class TestAccelerate(unittest.TestCase):
         finally:
             np.sum = e.fn
         self.assertEqual(r, 10)
+        self.assertTrue(e.executed)
+
+    def test_over_subtract_nested_array(self):
+        if not hasattr(np.subtract,'reduce'):
+            return
+        klong = KlongInterpreter()
+        e = ExecutedReduce(np.subtract)
+        try:
+            np.subtract = e
+            r = klong('-/[[1 2 3 4] [5 6 7 8]]')
+        finally:
+            np.subtract = e.fn
+        self.assertTrue(array_equal(r, np.subtract.reduce([[1,2,3,4],[5,6,7,8]])))
         self.assertTrue(e.executed)
 
     def test_over_subtract(self):
