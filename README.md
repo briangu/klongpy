@@ -36,17 +36,20 @@ which directly translates to (right to left): length of x divides sum over x.
 Now, with that in hand, we can try it in the REPL:
 
 ```
-    Welcome to KlongPy REPL
-    author: Brian Guarraci
-    repo  : https://github.com/briangu/klongpy
-    crtl-c to quit
+Welcome to KlongPy REPL
+author: Brian Guarraci
+repo  : https://github.com/briangu/klongpy
+crtl-c to quit
 
-    ?> avg::{(+/x)%#x}
-    :monad
-    ?> avg(100)
-    49.5
+?> avg::{(+/x)%#x}
+:monad
+?> avg(100)
+49.5
 ```
+
 Now let's time it.  First we'll run it once and see it takes about 374us, then we'll run it 100 times.
+
+```
     ?> ]T avg(!100)
     0.0003741057589650154
     >? ]T:100 avg(!100)
