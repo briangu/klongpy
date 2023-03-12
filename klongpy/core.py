@@ -38,6 +38,16 @@ class KGFn:
         return (isinstance(self.a,list) and isinstance(self.a[0], KGAdverb))
 
 
+class KGFnWrapper:
+    def __init__(self, klong, fn):
+        self.klong = klong
+        self.fn = fn
+
+    def __call__(self, *args, **kwargs):
+        fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
+        return self.klong.call(KGCall(self.fn.a, [*fn_args], self.fn.arity))
+
+
 class KGCall(KGFn):
     pass
 
@@ -88,8 +98,8 @@ class KGLambda:
         self.provide_klong = 'klong' in self.args
         # self.keep_context = 'keep_context' in self.args
 
-    def __call__(self, klong):
-        params = [klong[reserved_fn_symbol_map[x]] for x in reserved_fn_args if x in self.args]
+    def __call__(self, klong, ctx):
+        params = [ctx[reserved_fn_symbol_map[x]] for x in reserved_fn_args if x in self.args]
         return self.fn(klong, *params) if self.provide_klong else self.fn(*params)
 
     def get_arity(self):

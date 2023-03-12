@@ -202,7 +202,8 @@ class KlongInterpreter():
 
     def __getitem__(self, k):
         k = k if isinstance(k, KGSym) else KGSym(k)
-        return self._context[k]
+        r = self._context[k]
+        return KGFnWrapper(self, r) if isinstance(r, KGFn) and not isinstance(r, KGCall) else r
 
     def _get_op_fn(self, s, arity):
         return self._vm[s] if arity == 1 else self._vd[s]
@@ -521,7 +522,7 @@ class KlongInterpreter():
         # else:
         self._context.push(ctx)
         try:
-            return f(self) if isinstance(f, KGLambda) else self.call(f)
+            return f(self, self._context) if isinstance(f, KGLambda) else self.call(f)
         finally:
             # always pop because if we don't, then when a function has an exception in debugging it will leave the stack corrupted
             self._context.pop()
@@ -547,10 +548,10 @@ class KlongInterpreter():
 
         if isinstance(x, KGSym):
             try:
-                return self[x]
+                return self._context[x]
             except KeyError:
                 if x not in reserved_fn_symbols:
-                    self[x] = x
+                    self._context[x] = x
                 return x
         elif isinstance(x, KGCond):
             q = self.call(x[0])

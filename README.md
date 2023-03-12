@@ -56,32 +56,41 @@ Now let's time it using the REPL system command ]T, which uses the Python timeit
 0.01385202500387095
 ```
 
-Let's compare CPU vs GPU backends:
+Let's use Klong from Python:
 
 ```python
-import time
-from klongpy.backend as np
 from klongpy import KlongInterpreter
 
 # instantiate the KlongPy interpeter
 klong = KlongInterpreter()
 
+# define average function in Klong (Note the '+/' (sum over) uses np.add.reduce under the hood)
+klong('avg::{+/x%#x}')
+
 # create a billion random uniform values [0,1)
 data = np.random.rand(10**9)
 
-# define average function in Klong
-# Note the '+/' (sum over) uses np.add.reduce under the hood
+# reference the 'avg' function in Klong interpeter and call it directly from Python.
+r = klong['avg'](data)
+
+print(f"avg={np.round(r,6)}")
+```
+
+Let's compare CPU vs GPU backends:
+
+```python
+import time
+from klongpy.backend import np
+from klongpy import KlongInterpreter
+
+klong = KlongInterpreter()
 klong('avg::{+/x%#x}')
 
-# make generated data available in KlongPy as the 'data' variable
-klong['data'] = data
-
-# run Klong average function and return the result back to Python
 start = time.perf_counter_ns()
-r = klong('avg(data)')
+r = klong['avg'](np.random.rand(10**9))
 stop = time.perf_counter_ns()
-seconds = (stop - start) / (10**9)
-print(f"avg={np.round(r,6)} in {round(seconds,6)} seconds")
+
+print(f"avg={np.round(r,6)} in {round((stop - start) / (10**9), 6)} seconds")
 ```
 
 Run (CPU)
@@ -104,14 +113,31 @@ Data generated elsewhere can be set in KlongPy and seamlessly accessed and proce
 
 ## Function example
 
+Call a Python function from Klong:
+
 ```python
+from klongpy import KlongInterpreter
 klong = KlongInterpreter()
 klong['f'] = lambda x, y, z: x*1000 + y - z
 r = klong('f(3; 10; 20)')
 assert r == 2990
 ```
 
+and vice versa, you can call a Klong function from Python:
+
+```python
+from klongpy import KlongInterpreter
+klong = KlongInterpreter()
+klong("f::{(x*1000) + y - z}")
+r = klong['f'](3, 10, 20)
+assert r == 2990
+```
+
+As you can see, it's easy to interop with Python and Klong allowing the best tool for the job.
+
 ## Data example
+
+Since the Klong interpreter context is basically a dictionary, you can store values there for access in Klong:
 
 ```python
 data = np.arange(10*9)
@@ -127,6 +153,8 @@ klong('Q::1+data')
 Q = klong['Q']
 print(Q)
 ```
+
+## Python library access
 
 In order to simplify Klong development, Python functions can be easily added to support common operations:
 

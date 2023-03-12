@@ -37,15 +37,20 @@ class TestPythonInterop(unittest.TestCase):
     def test_call_klong_fn_with_scalar(self):
         klong = KlongInterpreter()
         klong('fn::{x+10}')
-        fn = klong['fn']
-        r = klong.call(KGCall(fn.a, [2], fn.arity))
+        r = klong['fn'](2)
         self.assertEqual(r, 12)
+
+    def test_call_klong_fn_with_multiple_scalars(self):
+        klong = KlongInterpreter()
+        klong = KlongInterpreter()
+        klong("fn::{(x*1000) + y - z}")
+        r = klong['fn'](3, 10, 20)
+        self.assertEqual(r, 2990)
 
     def test_call_klong_fn_with_array(self):
         klong = KlongInterpreter()
         klong("fn::{{x+10}'x}")
-        fn = klong['fn']
-        r = klong.call(KGCall(fn.a, [np.array([2])], fn.arity))
+        r = klong['fn']([2])
         self.assertTrue(array_equal(r, [12]))
 
     def test_datetime_parsing_example(self):
