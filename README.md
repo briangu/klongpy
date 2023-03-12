@@ -15,7 +15,7 @@ Klong was created by Nils M Holm and he has also written a [Klong Book](https://
 
 # Related
 
- * [Advent Of Code '22](https://github.com/briangu/aoc/tree/main/22)a
+ * [Advent Of Code '22](https://github.com/briangu/aoc/tree/main/22)
  * [Example Ticker Plant with streaming and dataframes](https://github.com/briangu/kdfs)
 
 
