@@ -57,7 +57,7 @@ if use_gpu:
                 'x',
                 'a * b',
                 'y = a',
-                '0',
+                '1',
                 'multiply_reduce_1'
              )
     multiply_reduce_2 = np.ElementwiseKernel(
