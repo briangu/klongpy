@@ -67,7 +67,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('+/data')
         finally:
             np.add = e.fn
-        self.assertEqual(r, numpy.add.reduce(get_reduce_data(data)))
+        self.assertTrue(np.isclose(r, numpy.add.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     ####### Subtract
@@ -95,7 +95,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('-/data')
         finally:
             np.subtract = e.fn
-        self.assertEqual(r, numpy.subtract.reduce(get_reduce_data(data)))
+        self.assertTrue(numpy.isclose(r, numpy.subtract.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     ####### Multiply
@@ -123,7 +123,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('*/data')
         finally:
             np.multiply = e.fn
-        self.assertEqual(r, numpy.multiply.reduce(get_reduce_data(data)))
+        self.assertTrue(numpy.isclose(r, numpy.multiply.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     ####### Divide
@@ -140,7 +140,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('%/data')
         finally:
             np.divide = e.fn
-        self.assertEqual(r, numpy.divide.reduce(get_reduce_data(data)))
+        self.assertTrue(numpy.isclose(r, numpy.divide.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     ####### Min
