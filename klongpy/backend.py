@@ -25,31 +25,29 @@ if use_gpu:
                 'a + b',
                 'y = a',
                 '0',
-                'add_reduce'
+                'add_reduce_1'
              )
     add_reduce_2 = np.ElementwiseKernel(
-            'float32 x, float32 y',
-            'float32 z',
+            'T x, T y',
+            'T z',
             'z = (x + y)',
-            'squared_diff')
+            'add_reduce_2')
     np.add = CuPyReductionKernelWrapper(np.add, add_reduce_1, add_reduce_2)
 
-    subtract_reduce_1_kernel = np.ReductionKernel(
+    subtract_reduce_1 = np.ReductionKernel(
                 'T x',
                 'T y',
                 'x',
                 'a - b',
                 'y = a',
                 '0',
-                'subtract_reduce'
+                'subtract_reduce_1'
              )
-    def subtract_reduce_1(x):
-        return 2*x[0] + subtract_reduce_1_kernel(x)
     subtract_reduce_2 = np.ElementwiseKernel(
-            'float32 x, float32 y',
-            'float32 z',
+            'T x, T y',
+            'T z',
             'z = (x - y)',
-            'squared_diff')
+            'subtract_reduce_2')
     np.subtract = CuPyReductionKernelWrapper(np.subtract, subtract_reduce_1, subtract_reduce_2)
 else:
     import numpy as np
