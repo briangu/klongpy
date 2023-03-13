@@ -32,9 +32,9 @@ def eval_test(a, klong=None):
         return False
     a = klong.call(p[1])
     b = klong.call(p[2])
-    if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+    if np.isarray(a) and np.isarray(b):
         c = a == b
-        return not c[np.where(c == False)].any() if isinstance(c,np.ndarray) else c
+        return not c[np.where(c == False)].any() if np.isarray(c) else c
     else:
         return array_equal(a,b)
 

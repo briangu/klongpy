@@ -5,6 +5,7 @@ use_gpu = bool(os.environ.get('USE_GPU') == '1')
 
 if use_gpu:
     import cupy as np
+    import numpy
 
     class CuPyReductionKernelWrapper:
         def __init__(self, fn, reduce_fn_1, reduce_fn_2):
@@ -49,9 +50,12 @@ if use_gpu:
             'z = (x - y)',
             'subtract_reduce_2')
     np.subtract = CuPyReductionKernelWrapper(np.subtract, subtract_reduce_1, subtract_reduce_2)
+
+    np.isarray = lambda x: isinstance(x, (numpy.ndarray, np.ndarray))
 else:
     import numpy as np
     np.seterr(divide='ignore')
     warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
+    np.isarray = lambda x: isinstance(x, np.ndarray)
 
 np

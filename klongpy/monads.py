@@ -273,7 +273,7 @@ def eval_monad_range(a):
     """
     if isinstance(a, str):
         return ''.join(np.unique(str_to_chr_arr(a)))
-    elif isinstance(a, np.ndarray):
+    elif np.isarray(a):
         if a.dtype != 'O' and len(a.shape) > 1:
             _,ids = np.unique(a,axis=0,return_index=True)
         else:

@@ -5,6 +5,7 @@ from enum import Enum
 import sys
 
 from .backend import np
+import numpy
 
 
 class KGSym(str):
@@ -147,7 +148,7 @@ reserved_dot_f_symbol = KGSym('.f')
 
 
 def is_list(x):
-    return isinstance(x,list) or (isinstance(x, np.ndarray) and len(x.shape) > 0)
+    return isinstance(x,list) or (np.isarray(x) and len(x.shape) > 0)
 
 
 def is_iterable(x):
@@ -163,7 +164,7 @@ def is_dict(x):
 
 
 def to_list(a):
-    return a if isinstance(a, list) else a.tolist() if isinstance(a, np.ndarray) else [a]
+    return a if isinstance(a, list) else a.tolist() if np.isarray(a) else [a]
 
 
 def is_integer(x):
@@ -265,7 +266,7 @@ def safe_eq(a,b):
 def rec_flatten(a):
     if not is_list(a) or len(a) == 0:
         return a
-    r = np.asarray([(rec_flatten(x) if isinstance(x,np.ndarray) else x) for x in a]).flatten()
+    r = np.asarray([(rec_flatten(x) if np.isarray(x) else x) for x in a]).flatten()
     return np.hstack(r) if len(r) > 1 else r
 
 
@@ -276,7 +277,7 @@ def rec_fn(a,f):
 def vec_fn(a, f):
     """apply vector function to array with nested array support"""
     # dtype == O for heterogeneous (nested) arrays otherwise apply the function directly for vectorization perf
-    if isinstance(a, np.ndarray) and a.dtype == 'O':
+    if np.isarray(a) and a.dtype == 'O':
         return np.asarray([((vec_fn(x, f)) if is_list(x) else f(x)) for x in a] if is_list(a) else f(a), dtype=object)
     return f(a)
 
@@ -293,9 +294,9 @@ def rec_fn2(a,b,f):
 # 7 scalar[A],obj_vec[B]
 # 8 scalar[A],scalar[B]
 def vec_fn2(a, b, f):
-    if isinstance(a,np.ndarray):
+    if np.isarray(a):
         if a.dtype != 'O':
-            if isinstance(b,np.ndarray):
+            if np.isarray(b):
                 if b.dtype != 'O':
                     # 1
                     return f(a,b)
@@ -307,7 +308,7 @@ def vec_fn2(a, b, f):
                 # 3
                 return f(a,b)
         else:
-            if isinstance(b,np.ndarray):
+            if np.isarray(b):
                 # 4
                 assert len(a) == len(b)
                 return np.asarray([vec_fn2(x, y, f) for x,y in zip(a,b)], dtype=object)
@@ -315,7 +316,7 @@ def vec_fn2(a, b, f):
                 # 5
                 return np.asarray([vec_fn2(x,b,f) for x in a], dtype=object)
     else:
-        if isinstance(b,np.ndarray):
+        if np.isarray(b):
             if b.dtype != 'O':
                 # 6
                 return f(a,b)
@@ -453,7 +454,7 @@ def cast_malformed_array(arr):
     """
     def _e(a,f):
         return [_e(x, f) for x in a] if is_list(a) else f(a)
-    r = _e(arr, lambda x: x.tolist() if isinstance(x,np.ndarray) else x)
+    r = _e(arr, lambda x: x.tolist() if np.isarray(x) else x)
     return np.asarray(r,dtype=object)
 
 

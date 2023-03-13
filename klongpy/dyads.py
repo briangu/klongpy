@@ -47,7 +47,7 @@ def eval_dyad_amend(a, b):
                          "abc":="def",3  -->  "abcdef"
 
     """
-    if not isinstance(a, (str,list,np.ndarray)):
+    if not (isinstance(a, (str,list)) or np.isarray(a)):
         raise RuntimeError(f"a must be list or str: {a}")
     if len(b) <= 1:
         return a
@@ -93,7 +93,7 @@ def eval_dyad_amend_in_depth(a, b):
 
     """
     def _e(p, q, v):
-        if isinstance(q,np.ndarray) and len(q) > 1:
+        if np.isarray(q) and len(q) > 1:
             r = _e(p[q[0]], q[1:] if len(q) > 2 else q[1], v)
             p = np.array(p, dtype=r.dtype)
             p[q[0]] = r
@@ -128,7 +128,7 @@ def eval_dyad_cut(a, b):
     """
     j = isinstance(b, str)
     b = np.asarray(str_to_chr_arr(b) if j else b)
-    a = a if isinstance(a,np.ndarray) else [a]
+    a = a if np.isarray(a) else [a]
     r = np.array_split(b, a)
     if len(b) == 0 and len(a) > 0:
         r = r[1:]
@@ -167,7 +167,7 @@ def eval_dyad_at_index(klong, a, b):
     """
     if isinstance(a, (KGFn, KGSym)):
         # TODO: fix arity
-        return klong.eval(KGCall(a, b.tolist() if isinstance(b,np.ndarray) else b, arity=2))
+        return klong.eval(KGCall(a, b.tolist() if np.isarray(b) else b, arity=2))
     j = isinstance(a,str)
     a = str_to_chr_arr(a) if j else a
     if is_list(b):
@@ -445,7 +445,7 @@ def eval_dyad_integer_divide(a, b):
     """
     def _e(x,y):
         a = np.trunc(np.divide(x, y))
-        return np.asarray(a,dtype=int) if isinstance(a,np.ndarray) else int(a)
+        return np.asarray(a,dtype=int) if np.isarray(a) else int(a)
     return vec_fn2(a, b, _e)
 
 
@@ -501,7 +501,7 @@ def eval_dyad_join(a, b):
         return b
 
     # TODO: this code in general needs a lot more optimization
-    if isinstance(a,np.ndarray) and isinstance(b,np.ndarray):
+    if np.isarray(a) and np.isarray(b):
         if len(a) == 0:
             return b
         elif len(a) == 1 and len(b) == 1:
@@ -511,8 +511,8 @@ def eval_dyad_join(a, b):
     # elif is_number(a) and isinstance(b,np.ndarray):
         # return np.asarray([a,b], dtype=object)
 
-    aa = a if isinstance(a, list) else ([a[0]] if len(a.shape) > 1 and a.shape[0] == 1 else a.tolist() if len(a.shape) == 1 else [a]) if isinstance(a, np.ndarray) else [a]
-    bb = b if isinstance(b, list) else ([b[0]] if len(b.shape) > 1 and b.shape[0] == 1 else b.tolist() if len(b.shape) == 1 else [b]) if isinstance(b, np.ndarray) else [b]
+    aa = a if isinstance(a, list) else ([a[0]] if len(a.shape) > 1 and a.shape[0] == 1 else a.tolist() if len(a.shape) == 1 else [a]) if np.isarray(a) else [a]
+    bb = b if isinstance(b, list) else ([b[0]] if len(b.shape) > 1 and b.shape[0] == 1 else b.tolist() if len(b.shape) == 1 else [b]) if np.isarray(b) else [b]
 
     r = [*aa,*bb]
     nr = np.asarray(r)
@@ -775,8 +775,8 @@ def eval_dyad_reshape(a, b):
     """
     j = isinstance(b, str)
     b = str_to_chr_arr(b) if j else b
-    if isinstance(a, np.ndarray):
-        if isinstance(b, np.ndarray):
+    if np.isarray(a):
+        if np.isarray(b):
             y = np.where(a < 0)[0]
             if len(y) > 0:
                 a = np.copy(a)
@@ -799,7 +799,7 @@ def eval_dyad_reshape(a, b):
     else:
         if a == 0:
             r = b
-        elif isinstance(b, np.ndarray):
+        elif np.isarray(b):
             if a < b.shape[0]:
                 r = np.resize(b, (a,))
             else:
@@ -867,7 +867,7 @@ def eval_dyad_split(a, b):
     j = isinstance(b, str)
     b = str_to_chr_arr(b) if j else b
 
-    a = a if isinstance(a,np.ndarray) else [a]
+    a = a if np.isarray(a) else [a]
     if len(a) == 1:
         if a[0] >= len(b):
             r = [b]
