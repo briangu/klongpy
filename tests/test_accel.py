@@ -77,6 +77,8 @@ class TestAccelerate(unittest.TestCase):
         self.assertTrue(e.executed)
 
     def test_over_multipy(self):
+        if not hasattr(np.multiply, "reduce"):
+            return
         klong = KlongInterpreter()
         e = ExecutedReduce(np.multiply)
         try:
@@ -88,6 +90,8 @@ class TestAccelerate(unittest.TestCase):
         self.assertTrue(e.executed)
 
     def test_over_divide(self):
+        if not hasattr(np.multiply, "reduce"):
+            return
         klong = KlongInterpreter()
         e = ExecutedReduce(np.divide)
         try:
@@ -143,6 +147,8 @@ class TestAccelerate(unittest.TestCase):
         self.assertTrue(e.executed)
 
     def test_over_join(self):
+        if not hasattr(np.multiply, "reduce"):
+            return
         klong = KlongInterpreter()
         e = Executed(np.hstack)
         try:
