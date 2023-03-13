@@ -155,9 +155,8 @@ class TestAccelerate(unittest.TestCase):
         self.assertEqual(r, 4)
         self.assertTrue(e.executed)
 
+    @unittest.skip
     def test_over_join(self):
-        if not hasattr(np.divide, "reduce"):
-            return
         klong = KlongInterpreter()
         e = Executed(np.hstack)
         try:

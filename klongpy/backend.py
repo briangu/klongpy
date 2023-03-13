@@ -67,6 +67,22 @@ if use_gpu:
             'multiply_reduce_2')
     np.multiply = CuPyReductionKernelWrapper(np.multiply, multiply_reduce_1, multiply_reduce_2)
 
+    divide_reduce_1 = np.ReductionKernel(
+                'T x',
+                'T y',
+                'x',
+                'a / b',
+                'y = a',
+                '1',
+                'divide_reduce_1'
+             )
+    divide_reduce_2 = np.ElementwiseKernel(
+            'T x, T y',
+            'T z',
+            'z = (x / y)',
+            'divide_reduce_2')
+    np.divide = CuPyReductionKernelWrapper(np.divide, divide_reduce_1, divide_reduce_2)
+
     np.isarray = lambda x: isinstance(x, (numpy.ndarray, np.ndarray))
 else:
     import numpy as np
