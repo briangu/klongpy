@@ -346,6 +346,7 @@ Since CuPy is [not 100% compatible with NumPy](https://docs.cupy.dev/en/stable/u
 Primary ongoing work includes:
 
 * Actively switch between CuPy and NumPy when incompatibilities are present
+    * Work on CuPy kernels is in this branch: _cupy_reduce_kernels
 * Additional syntax error help
 * Additional tests to
     * ensure proper vectorization
