@@ -77,8 +77,6 @@ class TestAccelerate(unittest.TestCase):
         self.assertTrue(e.executed)
 
     def test_over_multipy(self):
-        if not hasattr(np.multiply, "reduce"):
-            return
         klong = KlongInterpreter()
         e = ExecutedReduce(np.multiply)
         try:
@@ -87,6 +85,17 @@ class TestAccelerate(unittest.TestCase):
         finally:
             np.multiply = e.fn
         self.assertEqual(r, numpy.multiply.reduce([1,2,3,4]))
+        self.assertTrue(e.executed)
+
+    def test_over_multiply_nested_array(self):
+        klong = KlongInterpreter()
+        e = ExecutedReduce(np.multiply)
+        try:
+            np.multiply = e
+            r = klong('*/[[1 2 3 4] [5 6 7 8]]')
+        finally:
+            np.multiply = e.fn
+        self.assertTrue(array_equal(r, numpy.multiply.reduce([[1,2,3,4],[5,6,7,8]])))
         self.assertTrue(e.executed)
 
     def test_over_divide(self):
