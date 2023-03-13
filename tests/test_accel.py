@@ -67,7 +67,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('+/data')
         finally:
             np.add = e.fn
-        self.assertEqual(r, np.add.reduce(get_reduce_data(data)))
+        self.assertEqual(r, numpy.add.reduce(get_reduce_data(data)))
         self.assertTrue(e.executed)
 
     ####### Subtract
