@@ -45,12 +45,12 @@ class TestAccelerate(unittest.TestCase):
 
     def test_over_add_array(self):
         klong = KlongInterpreter()
-        e = Executed(np.sum)
+        e = ExecutedReduce(np.add)
         try:
-            np.sum = e
+            np.add = e
             r = klong('+/[1 2 3 4]')
         finally:
-            np.sum = e.fn
+            np.add = e.fn
         self.assertEqual(r, 10)
         self.assertTrue(e.executed)
 
@@ -66,14 +66,13 @@ class TestAccelerate(unittest.TestCase):
         self.assertTrue(e.executed)
 
     def test_over_subtract(self):
-        # NOTE: subtract reduction over an array is a sum of negative values
         klong = KlongInterpreter()
-        e = Executed(np.sum)
+        e = ExecutedReduce(np.subtract)
         try:
-            np.sum = e
+            np.subtract = e
             r = klong('-/[1 2 3 4]')
         finally:
-            np.sum = e.fn
+            np.subtract = e.fn
         self.assertEqual(r, numpy.subtract.reduce([1,2,3,4]))
         self.assertTrue(e.executed)
 
