@@ -35,81 +35,103 @@ class TestAccelerate(unittest.TestCase):
     def test_over_add_nested_array(self):
         klong = KlongInterpreter()
         e = ExecutedReduce(np.add)
+        data = [np.random.rand(100), np.random.rand(100)]
         try:
             np.add = e
-            r = klong('+/[[1 2 3 4] [5 6 7 8]]')
+            klong['data'] = data
+            r = klong('+/data')
         finally:
             np.add = e.fn
-        self.assertTrue(array_equal(r, numpy.add.reduce([[1,2,3,4],[5,6,7,8]])))
+        self.assertTrue(array_equal(r, numpy.add.reduce(data)))
         self.assertTrue(e.executed)
 
     def test_over_add_array(self):
         klong = KlongInterpreter()
         e = ExecutedReduce(np.add)
+        data = np.random.rand(100)
         try:
             np.add = e
-            r = klong('+/[1 2 3 4]')
+            klong['data'] = data
+            r = klong('+/data')
         finally:
             np.add = e.fn
-        self.assertEqual(r, 10)
+        self.assertEqual(r, np.add.reduce(data))
         self.assertTrue(e.executed)
+
+    ####### Subtract
 
     def test_over_subtract_nested_array(self):
         klong = KlongInterpreter()
         e = ExecutedReduce(np.subtract)
+        data = [np.random.rand(100), np.random.rand(100)]
         try:
             np.subtract = e
-            r = klong('-/[[1 2 3 4] [5 6 7 8]]')
+            klong['data'] = data
+            r = klong('-/data')
         finally:
             np.subtract = e.fn
-        self.assertTrue(array_equal(r, numpy.subtract.reduce([[1,2,3,4],[5,6,7,8]])))
+        self.assertTrue(array_equal(r, numpy.subtract.reduce(data)))
         self.assertTrue(e.executed)
 
     def test_over_subtract(self):
         klong = KlongInterpreter()
         e = ExecutedReduce(np.subtract)
+        data = np.random.rand(100)
         try:
             np.subtract = e
-            r = klong('-/[1 2 3 4]')
+            klong['data'] = data
+            r = klong('-/data')
         finally:
             np.subtract = e.fn
-        self.assertEqual(r, numpy.subtract.reduce([1,2,3,4]))
+        self.assertEqual(r, numpy.subtract.reduce(data))
+        self.assertTrue(e.executed)
+
+    ####### Multiply
+
+    def test_over_multiply_nested_array(self):
+        klong = KlongInterpreter()
+        e = ExecutedReduce(np.multiply)
+        data = [np.random.rand(100), np.random.rand(100)]
+        try:
+            np.multiply = e
+            klong['data'] = data
+            r = klong('*/data')
+        finally:
+            np.multiply = e.fn
+        self.assertTrue(array_equal(r, numpy.multiply.reduce(data)))
         self.assertTrue(e.executed)
 
     def test_over_multipy(self):
         klong = KlongInterpreter()
         e = ExecutedReduce(np.multiply)
+        data = np.random.rand(100)
         try:
             np.multiply = e
-            r = klong('*/[1 2 3 4]')
+            klong['data'] = data
+            r = klong('*/data')
         finally:
             np.multiply = e.fn
-        self.assertEqual(r, numpy.multiply.reduce([1,2,3,4]))
+        self.assertEqual(r, numpy.multiply.reduce(data))
         self.assertTrue(e.executed)
 
-    def test_over_multiply_nested_array(self):
-        klong = KlongInterpreter()
-        e = ExecutedReduce(np.multiply)
-        try:
-            np.multiply = e
-            r = klong('*/[[1 2 3 4] [5 6 7 8]]')
-        finally:
-            np.multiply = e.fn
-        self.assertTrue(array_equal(r, numpy.multiply.reduce([[1,2,3,4],[5,6,7,8]])))
-        self.assertTrue(e.executed)
+    ####### Divide
 
     def test_over_divide(self):
         if not hasattr(np.divide, "reduce"):
             return
         klong = KlongInterpreter()
         e = ExecutedReduce(np.divide)
+        data = np.random.rand(100)
         try:
             np.divide = e
-            r = klong('%/[1 2 3 4]')
+            klong['data'] = data
+            r = klong('%/data')
         finally:
             np.divide = e.fn
-        self.assertEqual(r, numpy.divide.reduce([1,2,3,4]))
+        self.assertEqual(r, numpy.divide.reduce(data))
         self.assertTrue(e.executed)
+
+    ####### Min
 
     def test_over_min_nested_arrays(self):
         klong = KlongInterpreter()
@@ -133,6 +155,8 @@ class TestAccelerate(unittest.TestCase):
         self.assertEqual(r, 1)
         self.assertTrue(e.executed)
 
+    ####### Max
+
     def test_over_max_nested_arrays(self):
         klong = KlongInterpreter()
         e = Executed(np.max)
@@ -154,6 +178,8 @@ class TestAccelerate(unittest.TestCase):
             np.max = e.fn
         self.assertEqual(r, 4)
         self.assertTrue(e.executed)
+
+    ####### Join
 
     @unittest.skip
     def test_over_join(self):
