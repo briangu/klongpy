@@ -99,7 +99,7 @@ class TestAccelerate(unittest.TestCase):
         self.assertTrue(e.executed)
 
     def test_over_divide(self):
-        if not hasattr(np.multiply, "reduce"):
+        if not hasattr(np.divide, "reduce"):
             return
         klong = KlongInterpreter()
         e = ExecutedReduce(np.divide)
