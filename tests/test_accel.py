@@ -25,6 +25,18 @@ class ExecutedReduce:
         return self.fn.reduce(*args, **kwargs)
 
 
+def get_rnd_nested_array():
+    return np.asarray([np.random.rand(100), np.random.rand(100)])
+
+
+def get_rnd_array():
+    return np.random.rand(100)
+
+
+def get_reduce_data(data):
+    return data if isinstance(data, numpy.ndarray) else data.get()
+
+
 class TestAccelerate(unittest.TestCase):
     """
     Verify that we are actually running the adverb_over accelerated paths for cases that we can.
@@ -35,27 +47,27 @@ class TestAccelerate(unittest.TestCase):
     def test_over_add_nested_array(self):
         klong = KlongInterpreter()
         e = ExecutedReduce(np.add)
-        data = [np.random.rand(100), np.random.rand(100)]
+        data = get_rnd_nested_array()
         try:
             np.add = e
             klong['data'] = data
             r = klong('+/data')
         finally:
             np.add = e.fn
-        self.assertTrue(array_equal(r, numpy.add.reduce(data)))
+        self.assertTrue(array_equal(r, numpy.add.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     def test_over_add_array(self):
         klong = KlongInterpreter()
         e = ExecutedReduce(np.add)
-        data = np.random.rand(100)
+        data = get_rnd_array()
         try:
             np.add = e
             klong['data'] = data
             r = klong('+/data')
         finally:
             np.add = e.fn
-        self.assertEqual(r, np.add.reduce(data))
+        self.assertEqual(r, np.add.reduce(get_reduce_data(data)))
         self.assertTrue(e.executed)
 
     ####### Subtract
@@ -63,27 +75,27 @@ class TestAccelerate(unittest.TestCase):
     def test_over_subtract_nested_array(self):
         klong = KlongInterpreter()
         e = ExecutedReduce(np.subtract)
-        data = [np.random.rand(100), np.random.rand(100)]
+        data = get_rnd_nested_array()
         try:
             np.subtract = e
             klong['data'] = data
             r = klong('-/data')
         finally:
             np.subtract = e.fn
-        self.assertTrue(array_equal(r, numpy.subtract.reduce(data)))
+        self.assertTrue(array_equal(r, numpy.subtract.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     def test_over_subtract(self):
         klong = KlongInterpreter()
         e = ExecutedReduce(np.subtract)
-        data = np.random.rand(100)
+        data = get_rnd_array()
         try:
             np.subtract = e
             klong['data'] = data
             r = klong('-/data')
         finally:
             np.subtract = e.fn
-        self.assertEqual(r, numpy.subtract.reduce(data))
+        self.assertEqual(r, numpy.subtract.reduce(get_reduce_data(data)))
         self.assertTrue(e.executed)
 
     ####### Multiply
@@ -91,27 +103,27 @@ class TestAccelerate(unittest.TestCase):
     def test_over_multiply_nested_array(self):
         klong = KlongInterpreter()
         e = ExecutedReduce(np.multiply)
-        data = [np.random.rand(100), np.random.rand(100)]
+        data = get_rnd_nested_array()
         try:
             np.multiply = e
             klong['data'] = data
             r = klong('*/data')
         finally:
             np.multiply = e.fn
-        self.assertTrue(array_equal(r, numpy.multiply.reduce(data)))
+        self.assertTrue(array_equal(r, numpy.multiply.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     def test_over_multipy(self):
         klong = KlongInterpreter()
         e = ExecutedReduce(np.multiply)
-        data = np.random.rand(100)
+        data = get_rnd_array()
         try:
             np.multiply = e
             klong['data'] = data
             r = klong('*/data')
         finally:
             np.multiply = e.fn
-        self.assertEqual(r, numpy.multiply.reduce(data))
+        self.assertEqual(r, numpy.multiply.reduce(get_reduce_data(data)))
         self.assertTrue(e.executed)
 
     ####### Divide
@@ -121,14 +133,14 @@ class TestAccelerate(unittest.TestCase):
             return
         klong = KlongInterpreter()
         e = ExecutedReduce(np.divide)
-        data = np.random.rand(100)
+        data = get_rnd_array()
         try:
             np.divide = e
             klong['data'] = data
             r = klong('%/data')
         finally:
             np.divide = e.fn
-        self.assertEqual(r, numpy.divide.reduce(data))
+        self.assertEqual(r, numpy.divide.reduce(get_reduce_data(data)))
         self.assertTrue(e.executed)
 
     ####### Min
