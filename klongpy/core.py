@@ -483,10 +483,12 @@ def read_list(t, delim, i=0, module=None):
         i += 1
     try:
         if obj_arr:
-            aa = np.asarray(arr,dtype=object)
+            aa = np.asarray(arr)
+            if aa.dtype.kind != 'i' and aa.dtype.kind != 'f':
+                aa = np.asarray(arr, dtype=object)
             # see if we can cast the array to a real type
-            if len(aa.shape) > 1: #jagged array is 1D (x,)
-                aa = np.asarray(arr)
+            # if len(aa.shape) > 1: #jagged array is 1D (x,)
+            #     aa = np.asarray(arr)
         else:
             aa = np.asarray(arr)
         return i, aa
