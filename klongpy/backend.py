@@ -35,6 +35,8 @@ if use_gpu:
             'add_reduce_2')
     np.add = CuPyReductionKernelWrapper(np.add, add_reduce_1, add_reduce_2)
 
+    # TOD: write a complete self-contained kernel, as
+    #      this is probably still suboptimal with movement of x[0] from GPU out
     def subtract_reduce_1(x):
         return 2*x[0] - add_reduce_1(x)
 
