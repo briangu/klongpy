@@ -35,7 +35,7 @@ if use_gpu:
             'add_reduce_2')
     np.add = CuPyReductionKernelWrapper(np.add, add_reduce_1, add_reduce_2)
 
-    subtract_reduce_1 = np.ReductionKernel(
+    subtract_reduce_1_kernel = np.ReductionKernel(
                 'T x',
                 'T y',
                 'x',
@@ -44,6 +44,8 @@ if use_gpu:
                 '0',
                 'subtract_reduce_1'
              )
+    def subtract_reduce_1(x):
+        return 2*x[0] + subtract_reduce_1_kernel(x)
     subtract_reduce_2 = np.ElementwiseKernel(
             'T x, T y',
             'T z',
