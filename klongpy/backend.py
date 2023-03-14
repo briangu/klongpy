@@ -68,7 +68,7 @@ __global__ void subtract_reduce_kernel_1d_generic(const T* input, T* output, con
         atomic_subtract(output, sdata[0]);
     }
 }
-    """)
+    """, "subtract_reduce_kernel_1d")
 
     def subtract_reduce_1(arr):
         input_arr = cp.asarray(arr)
