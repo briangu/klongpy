@@ -42,43 +42,86 @@ if use_gpu:
         }
         ''', 'subtract_reduce_kernel_1d')
 
-    subtract_reduce_kernel_1d = cp.RawKernel(r"""
-template<typename T>
-__global__ void subtract_reduce_kernel_1d(const T* input, T* output, const int length) {
-    extern __shared__ T sdata[];
-    unsigned int tid = threadIdx.x;
-    unsigned int i = blockIdx.x * blockDim.x * 2 + threadIdx.x;
+#     subtract_reduce_kernel_1d = cp.RawKernel(r"""
+# template<typename T>
+# __global__ void subtract_reduce_kernel_1d(const T* input, T* output, const int length) {
+#     extern __shared__ T sdata[];
+#     unsigned int tid = threadIdx.x;
+#     unsigned int i = blockIdx.x * blockDim.x * 2 + threadIdx.x;
 
-    T subtraction = 0;
-    if (i < length) {
-        subtraction = (i + blockDim.x < length) ? input[i] - input[i + blockDim.x] : input[i];
-    }
+#     T subtraction = 0;
+#     if (i < length) {
+#         subtraction = (i + blockDim.x < length) ? input[i] - input[i + blockDim.x] : input[i];
+#     }
 
-    sdata[tid] = subtraction;
-    __syncthreads();
+#     sdata[tid] = subtraction;
+#     __syncthreads();
 
-    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
-        if (tid < s) {
-            sdata[tid] -= sdata[tid + s];
-        }
-        __syncthreads();
-    }
+#     for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
+#         if (tid < s) {
+#             sdata[tid] -= sdata[tid + s];
+#         }
+#         __syncthreads();
+#     }
 
-    if (tid == 0) {
-        atomicAdd(output, -sdata[0]);
-    }
-}
-    """, "subtract_reduce_kernel_1d")
+#     if (tid == 0) {
+#         atomicAdd(output, -sdata[0]);
+#     }
+# }
+#     """, "subtract_reduce_kernel_1d")
+
+#     def subtract_reduce_1(arr):
+#         input_arr = cp.asarray(arr)
+#         length = input_arr.size
+#         output_arr = cp.zeros(1, dtype=input_arr.dtype)
+
+#         threads_per_block = 256
+#         blocks_per_grid = (length + threads_per_block - 1) // threads_per_block
+
+#         subtract_reduce_kernel_1d((blocks_per_grid,), (threads_per_block,), (input_arr, output_arr, length))
+
+#         return output_arr
 
     def subtract_reduce_1(arr):
         input_arr = cp.asarray(arr)
         length = input_arr.size
         output_arr = cp.zeros(1, dtype=input_arr.dtype)
 
-        threads_per_block = 256
-        blocks_per_grid = (length + threads_per_block - 1) // threads_per_block
+        kernel_name = "subtract_reduce_kernel_1d<{}>".format(input_arr.dtype.name)
 
-        subtract_reduce_kernel_1d((blocks_per_grid,), (threads_per_block,), (input_arr, output_arr, length))
+        subtract_reduce_kernel_1d = cp.RawKernel(r"""
+        template<typename T>
+        __global__ void subtract_reduce_kernel_1d(const T* input, T* output, const int length) {
+            extern __shared__ T sdata[];
+            unsigned int tid = threadIdx.x;
+            unsigned int i = blockIdx.x * blockDim.x * 2 + threadIdx.x;
+
+            T subtraction = 0;
+            if (i < length) {
+                subtraction = (i + blockDim.x < length) ? input[i] - input[i + blockDim.x] : input[i];
+            }
+
+            sdata[tid] = subtraction;
+            __syncthreads();
+
+            for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
+                if (tid < s) {
+                    sdata[tid] -= sdata[tid + s];
+                }
+                __syncthreads();
+            }
+
+            if (tid == 0) {
+                atomicAdd(output, -sdata[0]);
+            }
+        }
+        """, kernel_name)
+
+        threads_per_block = 256
+        blocks_per_grid = (length + 2 * threads_per_block - 1) // (2 * threads_per_block)
+        shared_memory_size = threads_per_block * arr.dtype.itemsize
+
+        subtract_reduce_kernel_1d((blocks_per_grid,), (threads_per_block,), (input_arr, output_arr, length), shared_mem=shared_memory_size)
 
         return output_arr
 
