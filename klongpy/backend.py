@@ -65,7 +65,7 @@ __global__ void subtract_reduce_kernel_1d(const T* input, T* output, const int l
     }
 
     if (tid == 0) {
-        atomic_subtract(output, sdata[0]);
+        atomicAdd(output, -sdata[0]);
     }
 }
     """, "subtract_reduce_kernel_1d")
