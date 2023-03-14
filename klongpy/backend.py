@@ -44,7 +44,7 @@ if use_gpu:
 
     subtract_reduce_kernel_1d = cp.RawKernel(r"""
 template<typename T>
-__global__ void subtract_reduce_kernel_1d_generic(const T* input, T* output, const int length) {
+__global__ void subtract_reduce_kernel_1d(const T* input, T* output, const int length) {
     extern __shared__ T sdata[];
     unsigned int tid = threadIdx.x;
     unsigned int i = blockIdx.x * blockDim.x * 2 + threadIdx.x;
@@ -68,28 +68,30 @@ __global__ void subtract_reduce_kernel_1d_generic(const T* input, T* output, con
         atomicAdd(output, -sdata[0]);
     }
 }
-
-extern "C" void subtract_reduce_kernel_1d(const void* input, void* output, int length) {
-    // cast input and output to the correct type
-    const float* input_cast = static_cast<const float*>(input);
-    float* output_cast = static_cast<float*>(output);
-
-    // call the kernel function with the correct template type
-    dim3 blocks_per_grid(1);
-    dim3 threads_per_block(256);
-    subtract_reduce_kernel_1d_generic<float><<<blocks_per_grid, threads_per_block, threads_per_block*sizeof(float)>>>(input_cast, output_cast, length);
-}
+template __global__ void subtract_reduce_kernel_1d<float>(const float* input, float* output, const int length);
+template __global__ void subtract_reduce_kernel_1d<double>(const double* input, double* output, const int length);
     """, "subtract_reduce_kernel_1d")
+
+    kernel_name_map = {
+        "float32": "subtract_reduce_kernel_1d<float>",
+        "float64": "subtract_reduce_kernel_1d<double>"
+    }
 
     def subtract_reduce_1(arr):
         input_arr = cp.asarray(arr)
         length = input_arr.size
         output_arr = cp.zeros(1, dtype=input_arr.dtype)
 
-        threads_per_block = 256
-        blocks_per_grid = (length + threads_per_block - 1) // threads_per_block
+        kernel_name = kernel_name_map[input_arr.dtype.name]
 
-        subtract_reduce_kernel_1d((blocks_per_grid,), (threads_per_block,), (input_arr, output_arr, length))
+        # subtract_reduce_kernel_1d = cp.RawKernel(r"""
+        # """, kernel_name)
+
+        threads_per_block = 256
+        blocks_per_grid = (length + 2 * threads_per_block - 1) // (2 * threads_per_block)
+        shared_memory_size = threads_per_block * arr.dtype.itemsize
+
+        subtract_reduce_kernel_1d((blocks_per_grid,), (threads_per_block,), (input_arr, output_arr, length), shared_mem=shared_memory_size)
 
         return output_arr
 
