@@ -19,26 +19,15 @@ if use_gpu:
         def reduce(self, x):
             return self.reduce_fn_1(x) if len(x.shape) == 1 else self.reduce_fn_2(x[0], x[1])
 
-    add_reduce_1 = np.ReductionKernel(
-                'T x',
-                'T y',
-                'x',
-                'a + b',
-                'y = a',
-                '0',
-                'add_reduce_1'
-             )
     add_reduce_2 = np.ElementwiseKernel(
             'T x, T y',
             'T z',
             'z = (x + y)',
             'add_reduce_2')
-    np.add = CuPyReductionKernelWrapper(np.add, add_reduce_1, add_reduce_2)
+    np.add = CuPyReductionKernelWrapper(np.add, np.sum, add_reduce_2)
 
-    # TOD: write a complete self-contained kernel, as
-    #      this is probably still suboptimal with movement of x[0] from GPU out
     def subtract_reduce_1(x):
-        return 2*x[0] - add_reduce_1(x)
+        return 2*x[0] - np.sum(x)
 
     subtract_reduce_2 = np.ElementwiseKernel(
             'T x, T y',
