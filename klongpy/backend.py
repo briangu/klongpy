@@ -44,7 +44,7 @@ if use_gpu:
 
     subtract_reduce_kernel_1d = cp.RawKernel(r"""
 template<typename T>
-__global__ void subtract_reduce_kernel_1d_generic(const T* input, T* output, const int length) {
+__global__ void subtract_reduce_kernel_1d(const T* input, T* output, const int length) {
     extern __shared__ T sdata[];
     unsigned int tid = threadIdx.x;
     unsigned int i = blockIdx.x * blockDim.x * 2 + threadIdx.x;
