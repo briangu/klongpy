@@ -30,21 +30,21 @@ if use_gpu:
     # def subtract_reduce_1(x):
     #     return 2*x[0] - cp.sum(x)
 
-    subtract_reduce_kernel_1d = cp.RawKernel(r'''
-        extern "C" __global__
-        void subtract_reduce_kernel_1d(const float* input, float* output, const int length) {
-            int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    # subtract_reduce_kernel_1d = cp.RawKernel(r'''
+    #     extern "C" __global__
+    #     void subtract_reduce_kernel_1d(const float* input, float* output, const int length) {
+    #         int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-            if (idx < length) {
-                float value = (idx == 0) ? input[idx] : -input[idx];
-                atomicAdd(output, value);
-            }
-        }
-        ''', 'subtract_reduce_kernel_1d')
+    #         if (idx < length) {
+    #             float value = (idx == 0) ? input[idx] : -input[idx];
+    #             atomicAdd(output, value);
+    #         }
+    #     }
+    #     ''', 'subtract_reduce_kernel_1d')
 
     subtract_reduce_kernel_1d = cp.RawKernel(r"""
 template<typename T>
-__global__ void subtract_reduce_kernel_1d(const T* input, T* output, const int length) {
+__global__ void subtract_reduce_kernel_1d_generic(const T* input, T* output, const int length) {
     extern __shared__ T sdata[];
     unsigned int tid = threadIdx.x;
     unsigned int i = blockIdx.x * blockDim.x * 2 + threadIdx.x;
@@ -67,6 +67,17 @@ __global__ void subtract_reduce_kernel_1d(const T* input, T* output, const int l
     if (tid == 0) {
         atomicAdd(output, -sdata[0]);
     }
+}
+
+extern "C" void subtract_reduce_kernel_1d(const void* input, void* output, int length) {
+    // cast input and output to the correct type
+    const float* input_cast = static_cast<const float*>(input);
+    float* output_cast = static_cast<float*>(output);
+
+    // call the kernel function with the correct template type
+    dim3 blocks_per_grid(1);
+    dim3 threads_per_block(256);
+    subtract_reduce_kernel_1d_generic<float><<<blocks_per_grid, threads_per_block, threads_per_block*sizeof(float)>>>(input_cast, output_cast, length);
 }
     """, "subtract_reduce_kernel_1d")
 
