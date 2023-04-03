@@ -435,6 +435,35 @@ class KlongInterpreter():
             i = ii
         return i, arr
 
+    def _resolve_fn(self, f, f_args, f_arity):
+        """
+        Resolve a Klong function to its final form and update its arguments and arity.
+
+        This helper function is used to resolve function references, projections, and invocations
+        while considering the complexities involved, such as:
+
+        * Functions may contain references to symbols which need to be resolved.
+        * Functions may be projections or an invocation of a projection, and arguments
+        need to be "flattened".
+
+        Args:
+            f (KGFn or KGSym): The Klong function or symbol to resolve.
+            f_args (list): The list of arguments associated with the function.
+            f_arity (int): The arity of the function.
+
+        Returns:
+            tuple: A tuple containing the resolved function, updated arguments list, and updated arity.
+        """
+        if isinstance(f, KGSym) and not in_map(f, reserved_fn_symbols):
+            f = self.eval(f)
+        if f_arity > 0:
+            if isinstance(f, KGFn) and not (f.is_op() or f.is_adverb_chain()) and ((f.args is None) or has_none(f.args) or (f_arity == 1 and has_none(f_args))):
+                if f.args is not None:
+                    f_args.append((f.args if isinstance(f.args, list) else [f.args]))
+                f_arity = f.arity
+                f = f.a
+        return f, f_args, f_arity
+
     def _eval_fn(self, x):
         """
 
@@ -463,38 +492,10 @@ class KlongInterpreter():
         f_arity = x.arity
         f_args = [(x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else x.args]
 
-        # NOTE: we unroll this loop 3-deep since triads are as wide as we can go
-        #       this can likely be optimized further if we can isolate what conditions are needed
-        if isinstance(f,KGSym) and not in_map(f, reserved_fn_symbols):
-            f = self.eval(f)
-        if f_arity > 0:
-            if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()) and ((f.args is None) or has_none(f.args) or (f_arity == 1 and has_none(f_args))):
-                if f.args is not None:
-                    f_args.append((f.args if isinstance(f.args, list) else [f.args]))
-                f_arity = f.arity
-                f = f.a
-            # don't resolve further if the underlying fn isn't a projection of greater arity
-            sub_resolve = (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)) and (f.arity > f_arity) and f.args is not None
-            resolve = sub_resolve or (self._context.is_defined_sym(f) and not in_map(f, reserved_fn_symbols))
-            if resolve:
-                if isinstance(f,KGSym) and not in_map(f, reserved_fn_symbols):
-                    f = self.eval(f)
-                if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()) and ((f.args is None) or has_none(f.args) or (f_arity == 1 and has_none(f_args))):
-                    if f.args is not None:
-                        f_args.append((f.args if isinstance(f.args, list) else [f.args]))
-                    f_arity = f.arity
-                    f = f.a
-                # don't resolve further if the underlying fn isn't a projection of greater arity
-                sub_resolve = (isinstance(f,KGFn) and self._context.is_defined_sym(f.a)) and (f.arity > f_arity) and f.args is not None
-                resolve = sub_resolve or (self._context.is_defined_sym(f) and not in_map(f, reserved_fn_symbols))
-                if resolve:
-                    if isinstance(f,KGSym) and not in_map(f, reserved_fn_symbols):
-                        f = self.eval(f)
-                    if isinstance(f,KGFn) and not (f.is_op() or f.is_adverb_chain()) and ((f.args is None) or has_none(f.args) or (f_arity == 1 and has_none(f_args))):
-                        if f.args is not None:
-                            f_args.append((f.args if isinstance(f.args, list) else [f.args]))
-                        f_arity = f.arity
-                        f = f.a
+        # three passes as there are max three argumentes: x,y, and z
+        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
 
         f_args.reverse()
         f_args = merge_projections(f_args)
@@ -514,17 +515,12 @@ class KlongInterpreter():
                     ctx[q] = q
                 f = f[1:]
 
-        # TODO: more testing on whether this is actualy the correct f
         ctx[reserved_dot_f_symbol] = f
 
-        # if isinstance(f, KGLambda) and f.keep_context:
-        #     return f(self)
-        # else:
         self._context.push(ctx)
         try:
             return f(self, self._context) if isinstance(f, KGLambda) else self.call(f)
         finally:
-            # always pop because if we don't, then when a function has an exception in debugging it will leave the stack corrupted
             self._context.pop()
 
     def call(self, x):
@@ -559,15 +555,15 @@ class KlongInterpreter():
             return self.call(x[1]) if p else self.call(x[2])
         elif isinstance(x, KGCall) and not (x.is_op() or x.is_adverb_chain()):
             return self._eval_fn(KGFn(x.a,x.args,x.arity))
-        elif isinstance(x, KGFn) and x.is_op():
-            f = self._get_op_fn(x.a.a, x.a.arity)
-            fa = (x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else x.args
-            # eval y before x to preserve right to left semantics
-            _y = self.eval(fa[1]) if x.a.arity == 2 else None
-            _x = fa[0] if x.a.a == '::' else self.eval(fa[0])
-            return f(_x) if x.a.arity == 1 else f(_x, _y)
-        elif isinstance(x, KGFn) and x.is_adverb_chain():
-            return chain_adverbs(self, x.a)()
+        elif isinstance(x, KGFn):
+            if x.is_op():
+                f = self._get_op_fn(x.a.a, x.a.arity)
+                fa = (x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else x.args
+                _y = self.eval(fa[1]) if x.a.arity == 2 else None
+                _x = fa[0] if x.a.a == '::' else self.eval(fa[0])
+                return f(_x) if x.a.arity == 1 else f(_x, _y)
+            elif x.is_adverb_chain():
+                return chain_adverbs(self, x.a)()
         elif isinstance(x,list) and len(x) > 0:
             return [self.call(y) for y in x][-1]
         return x
