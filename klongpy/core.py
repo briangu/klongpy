@@ -5,7 +5,6 @@ from enum import Enum
 import sys
 
 from .backend import np
-import numpy
 
 
 class KGSym(str):
