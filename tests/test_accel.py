@@ -193,8 +193,9 @@ class TestAccelerate(unittest.TestCase):
 
     ####### Join
 
-    @unittest.skip
     def test_over_join(self):
+        if np != numpy:
+            return
         klong = KlongInterpreter()
         e = Executed(np.hstack)
         try:
@@ -204,3 +205,5 @@ class TestAccelerate(unittest.TestCase):
             np.hstack = e.fn
         self.assertTrue(array_equal(r, [1,2,3]))
         self.assertTrue(e.executed)
+
+
