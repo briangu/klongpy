@@ -194,8 +194,6 @@ class TestAccelerate(unittest.TestCase):
     ####### Join
 
     def test_over_join(self):
-        if np != numpy:
-            return
         klong = KlongInterpreter()
         e = Executed(np.hstack)
         try:
