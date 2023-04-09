@@ -1,10 +1,39 @@
 import os
 import warnings
 
+# Attempt to import CuPy. If not available, set use_gpu to False.
 use_gpu = bool(os.environ.get('USE_GPU') == '1')
+if use_gpu:
+    try:
+        import cupy as cp
+        use_gpu = True
+    except ImportError:
+        use_gpu = False
+
+# # Define a wrapper function for addition.
+# def add(x, y):
+#     if use_gpu and is_supported_type(x) and is_supported_type(y):
+#         return cupy.add(x, y)
+#     else:
+#         return np.add(x, y)
+
+# Define a function to check if the input type is supported by CuPy.
+def is_supported_type(x):
+    # CuPy does not support strings or jagged arrays.
+    # Add any other unsupported types here.
+    if isinstance(x, str) or is_jagged_array(x):
+        return False
+    return True
+
+# Define a function to check if an array is jagged.
+def is_jagged_array(x):
+    if isinstance(x, list):
+        # If the lengths of sublists vary, it's a jagged array.
+        return len(set(map(len, x))) > 1
+    return False
 
 if use_gpu:
-    import cupy as cp
+    import cupy
     import cupy as np
     import numpy
 
@@ -20,24 +49,24 @@ if use_gpu:
         def reduce(self, x):
             return self.reduce_fn_1(x) if len(x.shape) == 1 else self.reduce_fn_2(x[0], x[1])
 
-    add_reduce_2 = cp.ElementwiseKernel(
+    add_reduce_2 = cupy.ElementwiseKernel(
             'T x, T y',
             'T z',
             'z = (x + y)',
             'add_reduce_2')
-    cp.add = CuPyReductionKernelWrapper(cp.add, cp.sum, add_reduce_2)
+    np.add = CuPyReductionKernelWrapper(cupy.add, cupy.sum, add_reduce_2)
 
     def subtract_reduce_1(x):
-        return 2*x[0] - cp.sum(x)
+        return 2*x[0] - cupy.sum(x)
 
-    subtract_reduce_2 = cp.ElementwiseKernel(
+    subtract_reduce_2 = cupy.ElementwiseKernel(
             'T x, T y',
             'T z',
             'z = (x - y)',
             'subtract_reduce_2')
-    np.subtract = CuPyReductionKernelWrapper(cp.subtract, subtract_reduce_1, subtract_reduce_2)
+    np.subtract = CuPyReductionKernelWrapper(cupy.subtract, subtract_reduce_1, subtract_reduce_2)
 
-    multiply_reduce_1 = cp.ReductionKernel(
+    multiply_reduce_1 = cupy.ReductionKernel(
                 'T x',
                 'T y',
                 'x',
@@ -46,14 +75,14 @@ if use_gpu:
                 '1',
                 'multiply_reduce_1'
              )
-    multiply_reduce_2 = cp.ElementwiseKernel(
+    multiply_reduce_2 = cupy.ElementwiseKernel(
             'T x, T y',
             'T z',
             'z = (x * y)',
             'multiply_reduce_2')
-    np.multiply = CuPyReductionKernelWrapper(cp.multiply, multiply_reduce_1, multiply_reduce_2)
+    np.multiply = CuPyReductionKernelWrapper(cupy.multiply, multiply_reduce_1, multiply_reduce_2)
 
-    divide_reduce_1 = cp.ReductionKernel(
+    divide_reduce_1 = cupy.ReductionKernel(
                 'T x',
                 'T y',
                 'x',
@@ -62,14 +91,16 @@ if use_gpu:
                 '1',
                 'divide_reduce_1'
              )
-    divide_reduce_2 = cp.ElementwiseKernel(
+    divide_reduce_2 = cupy.ElementwiseKernel(
             'T x, T y',
             'T z',
             'z = (x / y)',
             'divide_reduce_2')
-    np.divide = CuPyReductionKernelWrapper(cp.divide, divide_reduce_1, divide_reduce_2)
+    np.divide = CuPyReductionKernelWrapper(cupy.divide, divide_reduce_1, divide_reduce_2)
 
-    np.isarray = lambda x: isinstance(x, (numpy.ndarray, cp.ndarray))
+    np.isarray = lambda x: isinstance(x, (numpy.ndarray, cupy.ndarray))
+
+    np.hstack = lambda x: cupy.hstack(x) if use_gpu and is_supported_type(x) else numpy.hstack(x)
 else:
     import numpy as np
     np.seterr(divide='ignore')
