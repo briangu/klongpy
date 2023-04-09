@@ -10,23 +10,21 @@ if use_gpu:
     except ImportError:
         use_gpu = False
 
-# # Define a wrapper function for addition.
-# def add(x, y):
-#     if use_gpu and is_supported_type(x) and is_supported_type(y):
-#         return cupy.add(x, y)
-#     else:
-#         return np.add(x, y)
 
-# Define a function to check if the input type is supported by CuPy.
 def is_supported_type(x):
-    # CuPy does not support strings or jagged arrays.
-    # Add any other unsupported types here.
+    """
+    CuPy does not support strings or jagged arrays.
+    Note: add any other unsupported types here.
+    """
     if isinstance(x, str) or is_jagged_array(x):
         return False
     return True
 
-# Define a function to check if an array is jagged.
+
 def is_jagged_array(x):
+    """
+    Check if an array is jagged.
+    """
     if isinstance(x, list):
         # If the lengths of sublists vary, it's a jagged array.
         return len(set(map(len, x))) > 1
