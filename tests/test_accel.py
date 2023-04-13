@@ -128,7 +128,22 @@ class TestAccelerate(unittest.TestCase):
 
     ####### Divide
 
+    def test_over_divide_nested_array(self):
+        klong = KlongInterpreter()
+        e = ExecutedReduce(np.divide)
+        data = get_rnd_nested_array()
+        try:
+            np.divide = e
+            klong['data'] = data
+            r = klong('%/data')
+        finally:
+            np.divide = e.fn
+        self.assertTrue(array_equal(r, numpy.divide.reduce(get_reduce_data(data))))
+        self.assertTrue(e.executed)
+
     def test_over_divide(self):
+        if np != numpy:
+            return
         if not hasattr(np.divide, "reduce"):
             return
         klong = KlongInterpreter()

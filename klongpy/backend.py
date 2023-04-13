@@ -82,15 +82,9 @@ if use_gpu:
             'multiply_reduce_2')
     np.multiply = CuPyReductionKernelWrapper(cupy.multiply, multiply_reduce_1, multiply_reduce_2)
 
-    divide_reduce_1 = cupy.ReductionKernel(
-                'T x',
-                'T y',
-                'x',
-                'a / b',
-                'y = a',
-                '1',
-                'divide_reduce_1'
-             )
+    def divide_reduce_1(x):
+        raise NotImplementedError()
+
     divide_reduce_2 = cupy.ElementwiseKernel(
             'T x, T y',
             'T z',
