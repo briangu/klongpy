@@ -5,10 +5,13 @@ import warnings
 use_gpu = bool(os.environ.get('USE_GPU') == '1')
 if use_gpu:
     try:
-        import cupy as cp
+        import cupy as np
         use_gpu = True
     except ImportError:
+        import numpy as np
         use_gpu = False
+else:
+    import numpy as np
 
 
 def is_supported_type(x):
@@ -32,7 +35,6 @@ def is_jagged_array(x):
 
 if use_gpu:
     import cupy
-    import cupy as np
     import numpy
 
     class CuPyReductionKernelWrapper:
@@ -98,9 +100,8 @@ if use_gpu:
 
     np.isarray = lambda x: isinstance(x, (numpy.ndarray, cupy.ndarray))
 
-    np.hstack = lambda x: cupy.hstack(x) if use_gpu and is_supported_type(x) else numpy.hstack(x)
+#    np.hstack = lambda x: cupy.hstack(x) if use_gpu and is_supported_type(x) else numpy.hstack(x)
 else:
-    import numpy as np
     np.seterr(divide='ignore')
     warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
     np.isarray = lambda x: isinstance(x, np.ndarray)
