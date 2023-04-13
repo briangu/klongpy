@@ -6,6 +6,9 @@ import sys
 
 from .backend import np
 
+# python3.11 support
+if not hasattr(inspect, 'getargspec'):
+    inspect.getargspec = inspect.getfullargspec
 
 class KGSym(str):
     def __repr__(self):
