@@ -10,6 +10,12 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    def test_join_over_inside_out(self):
+        klong = KlongInterpreter()
+        r = klong(",/[[[1 2] [3 4]] [[5 6] [7 8]]]")
+        print(r)
+        self.assertTrue(array_equal(r, np.array([[1,2],[3,4],[5,6],[7,8]])))
+
     @unittest.skip
     def test_dict_inner_create_syntax(self):
         klong = KlongInterpreter()

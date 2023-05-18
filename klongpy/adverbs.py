@@ -241,7 +241,7 @@ def eval_adverb_over(f, a):
         elif safe_eq(wrapped.a, ','):
             if isinstance(a,str):
                 return a
-            r = np.hstack(a)
+            r = np.vstack(a) if len(a.shape) > 1 and a.shape[-1] > 1 else np.hstack(a)
             if a.dtype == np.dtype('O') and len(r) > 0 and is_float(r[0]):
                 try:
                     r = r.astype(type(r[0]))
