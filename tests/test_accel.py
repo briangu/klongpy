@@ -212,12 +212,12 @@ class TestAccelerate(unittest.TestCase):
         if np != numpy:
             return
         klong = KlongInterpreter()
-        e = Executed(np.hstack)
+        e = Executed(np.concatenate)
         try:
-            np.hstack = e
+            np.concatenate = e
             r = klong(',/:~[[1] [[2]] [3]]')
         finally:
-            np.hstack = e.fn
+            np.concatenate = e.fn
         self.assertTrue(array_equal(r, [1,2,3]))
         self.assertTrue(e.executed)
 

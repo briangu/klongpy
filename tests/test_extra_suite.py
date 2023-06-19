@@ -10,11 +10,32 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
-    def test_join_over_inside_out(self):
+    def test_join_over(self):
         klong = KlongInterpreter()
+
+        # Test with 2D arrays
         r = klong(",/[[[1 2] [3 4]] [[5 6] [7 8]]]")
-        print(r)
         self.assertTrue(array_equal(r, np.array([[1,2],[3,4],[5,6],[7,8]])))
+
+        # Test with 1D arrays
+        r = klong(",/[[1 2 3] [4 5 6] [7 8 9]]")
+        self.assertTrue(array_equal(r, np.array([1,2,3,4,5,6,7,8,9])))
+
+        # Test with 3D arrays
+        r = klong(",/[[[[1 2] [3 4]] [[5 6] [7 8]]] [[[9 10] [11 12]] [[13 14] [15 16]]]]")
+        self.assertTrue(array_equal(r, np.array([[[1,2],[3,4]], [[5,6],[7,8]], [[9,10],[11,12]], [[13,14],[15,16]]])))
+
+        # Test with empty arrays
+        r = klong(",/[[] []]")
+        self.assertTrue(array_equal(r, np.array([])))
+
+        # Test with arrays of different lengths
+        r = klong(",/[[[1 2] [3 4]] [[5 6] [7]]]")
+        self.assertTrue(array_equal(r, np.array([[1,2],[3,4],[5,6],[7]])))
+
+        # Test with non-nested arrays (should return the original array)
+        r = klong(",/[1 2 3 4 5 6 7 8 9]")
+        self.assertTrue(array_equal(r, np.array([1,2,3,4,5,6,7,8,9])))
 
     @unittest.skip
     def test_dict_inner_create_syntax(self):
