@@ -525,7 +525,7 @@ def eval_dyad_join(a, b):
         if len(a) == 0:
             return b
         elif a.size == 1 and b.size == 1:
-           return np.asarray([a[0], b[0]])
+           return np.asarray([a[0], b[0]], dtype=common_dtype(a[0],b[0]))
             # return np.asarray([a[0], b[0]], dtype=np.result_type(a,b))
         if len(a.shape) == len(b.shape) and a.shape[-1] == b.shape[-1]:
             return np.concatenate((a,b))

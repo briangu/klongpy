@@ -64,7 +64,7 @@ class TestJoinOver(unittest.TestCase):
         r = klong(',/[["a" "b"] ["c" "d"]]')
         self.assertTrue(array_equal(r, np.array(['a', 'b', 'c', 'd'])))
 
-    @unittest.skip
+    # @unittest.skip
     def test_mixed_elements(self):
         klong = KlongInterpreter()
         r = klong(',/[[1 "a"] ["b" 2]]')
@@ -74,13 +74,14 @@ class TestJoinOver(unittest.TestCase):
         r = klong(',/["a" [1]]')
         self.assertTrue(array_equal(r, np.array(['a', 1], dtype='object')))
 
-    #  @unittest.skip
     def test_failure(self):
         klong = KlongInterpreter()
         r = klong(',/[0 []]')
         self.assertTrue(array_equal(r, np.array([0])))
         r = klong(',/[0 [[1] [2]]]')
         self.assertTrue(array_equal(r, np.array([0,[1],[2]])))
+        r = klong('[[0]],[1]')
+        self.assertTrue(array_equal(r, np.array([[0],1])))
 
     @unittest.skip
     def test_file_by_lines(self):
