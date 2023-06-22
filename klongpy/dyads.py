@@ -464,7 +464,7 @@ def dyad_to_list(a):
             return a #.tolist()
         elif a.shape[0] == 1:
             return [a.flatten()] #[a[0]] 
-        elif a.shape[-1] == 1:
+        elif a.shape[0] > 1:
             return a
     return [a]
 

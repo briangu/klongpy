@@ -64,7 +64,6 @@ class TestJoinOver(unittest.TestCase):
         r = klong(',/[["a" "b"] ["c" "d"]]')
         self.assertTrue(array_equal(r, np.array(['a', 'b', 'c', 'd'])))
 
-    # @unittest.skip
     def test_mixed_elements(self):
         klong = KlongInterpreter()
         r = klong(',/[[1 "a"] ["b" 2]]')
@@ -82,8 +81,10 @@ class TestJoinOver(unittest.TestCase):
         self.assertTrue(array_equal(r, np.array([0,[1],[2]])))
         r = klong('[[0]],[1]')
         self.assertTrue(array_equal(r, np.array([[0],1])))
+        r = klong(',/[0 [[1 2] [3 4]]]')
+        self.assertTrue(array_equal(r, np.array([0,[1,2],[3,4]])))
 
-    @unittest.skip
+
     def test_file_by_lines(self):
         """
         Test the suite file line by line using our own t()
@@ -101,11 +102,10 @@ class TestJoinOver(unittest.TestCase):
                 if len(r) == 0:
                     continue
                 i += 1
-                print(i,r)
                 klong.exec(r)
             print(f"executed {i} lines")
 
-    @unittest.skip
+
     def test_gen_file(self):
         """
         Test the entire suite file.
