@@ -18,7 +18,6 @@ class TestExtraCoreSuite(unittest.TestCase):
         r = klong(',/["a" [1]]')
         self.assertTrue(array_equal(r, np.array(['a', 1], dtype='object')))
 
-    @unittest.skip
     def test_dyad_join_nested_array(self):
         klong = KlongInterpreter()
         r = klong('[1],[[2 3]]')
