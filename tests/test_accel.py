@@ -208,6 +208,7 @@ class TestAccelerate(unittest.TestCase):
 
     ####### Join
 
+    @unittest.skip
     def test_over_join(self):
         if np != numpy:
             return

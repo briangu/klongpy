@@ -449,6 +449,26 @@ def eval_dyad_integer_divide(a, b):
     return vec_fn2(a, b, _e)
 
 
+def dyad_to_list(a):
+    # return a if isinstance(a, list) else ([a[0]] if len(a.shape) > 1 and a.shape[0] == 1 else a.tolist() if len(a.shape) == 1 else [a]) if np.isarray(a) else [a]
+    # if isinstance(a, list):
+    #     return a
+    assert not isinstance(a, list)
+    if np.isarray(a):
+        assert a.ndim > 0
+        # if len(a.shape) > 1 and a.shape[0] == 1:
+        #     return [a[0]] 
+        # elif len(a.shape) == 1:
+        #     return a.tolist()
+        if a.ndim == 1:
+            return a #.tolist()
+        elif a.shape[0] == 1:
+            return [a.flatten()] #[a[0]] 
+        elif a.shape[-1] == 1:
+            return a
+    return [a]
+
+
 def eval_dyad_join(a, b):
     """
 
@@ -504,21 +524,22 @@ def eval_dyad_join(a, b):
     if np.isarray(a) and np.isarray(b):
         if len(a) == 0:
             return b
-        elif len(a) == 1 and len(b) == 1:
-            return np.asarray([a[0], b[0]])
+        elif a.size == 1 and b.size == 1:
+           return np.asarray([a[0], b[0]])
+            # return np.asarray([a[0], b[0]], dtype=np.result_type(a,b))
         if len(a.shape) == len(b.shape) and a.shape[-1] == b.shape[-1]:
             return np.concatenate((a,b))
-    # elif is_number(a) and isinstance(b,np.ndarray):
-        # return np.asarray([a,b], dtype=object)
 
-    aa = a if isinstance(a, list) else ([a[0]] if len(a.shape) > 1 and a.shape[0] == 1 else a.tolist() if len(a.shape) == 1 else [a]) if np.isarray(a) else [a]
-    bb = b if isinstance(b, list) else ([b[0]] if len(b.shape) > 1 and b.shape[0] == 1 else b.tolist() if len(b.shape) == 1 else [b]) if np.isarray(b) else [b]
+    # aa = a if isinstance(a, list) else ([a[0]] if len(a.shape) > 1 and a.shape[0] == 1 else a.tolist() if len(a.shape) == 1 else [a]) if np.isarray(a) else [a]
+    # bb = b if isinstance(b, list) else ([b[0]] if len(b.shape) > 1 and b.shape[0] == 1 else b.tolist() if len(b.shape) == 1 else [b]) if np.isarray(b) else [b]
 
+    aa = dyad_to_list(a)
+    bb = dyad_to_list(b)
+ 
     r = [*aa,*bb]
     nr = np.asarray(r)
     t = nr.dtype.type
     return nr if issubclass(t, np.integer) or issubclass(t, np.floating) else np.asarray(r,dtype=object)
-
 
 def eval_dyad_less(a, b):
     """

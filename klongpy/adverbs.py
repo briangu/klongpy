@@ -201,6 +201,33 @@ def eval_dyad_adverb_iterate(f, a, b):
     return b
 
 
+def my_reduce(function, sequence):
+    """
+    reduce(function, iterable[, initial]) -> value
+
+    Apply a function of two arguments cumulatively to the items of a sequence
+    or iterable, from left to right, so as to reduce the iterable to a single
+    value.  For example, reduce(lambda x, y: x+y, [1, 2, 3, 4, 5]) calculates
+    ((((1+2)+3)+4)+5).  If initial is present, it is placed before the items
+    of the iterable in the calculation, and serves as a default when the
+    iterable is empty.
+    """
+
+    it = iter(sequence)
+    # it = sequence
+
+    try:
+        value = next(it)
+    except StopIteration:
+        raise TypeError(
+            "reduce() of empty iterable with no initial value") from None
+
+    for element in it:
+        value = function(value, element)
+
+    return value
+
+
 def eval_adverb_over(f, a):
     """
         f/a                                                       [Over]
@@ -241,13 +268,22 @@ def eval_adverb_over(f, a):
         elif safe_eq(wrapped.a, ','):
             if isinstance(a,str):
                 return a
-            r = a if len(a.shape) <= 1 else np.concatenate(a, axis=0)
-            if a.dtype == np.dtype('O') and len(r) > 0 and is_float(r[0]):
-                try:
-                    r = r.astype(type(r[0]))
-                except ValueError:
-                    pass
+            r = my_reduce(f, a)
             return r
+            # r = np.hstack(a) if len(a.shape) <= 1 else np.concatenate(a, axis=0)
+            # attempt to de-object the joined arrays
+            # if a.dtype == np.dtype('O') and len(r) > 0:
+            #     try:
+            #         r = r.astype(type(r[0]))
+            #     except ValueError:
+            #         pass
+            # foo = np.array(r)
+            # try:
+            #     if foo.dtype.char not in 'VO':
+            #         r = foo
+            # except:
+            #     pass
+            # return r
     return functools.reduce(f, a)
 
 

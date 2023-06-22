@@ -10,6 +10,7 @@ from .backend import np
 if not hasattr(inspect, 'getargspec'):
     inspect.getargspec = inspect.getfullargspec
 
+
 class KGSym(str):
     def __repr__(self):
         return f":{super().__str__()}"
@@ -208,6 +209,14 @@ def array_equal(a,b):
 
     r = np.asarray([array_equal(x,y) for x,y in zip(a,b)])
     return r.all()
+
+
+def common_dtype(a,b):
+    if a.dtype == b.dtype:
+        return a.dtype
+    if a.dtype == 'O' or b.dtype == 'O':
+        return 'O'
+    return np.result_type(a, b).char
 
 
 def has_none(a):
