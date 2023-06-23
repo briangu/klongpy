@@ -525,6 +525,7 @@ def eval_dyad_join(a, b):
     t = nr.dtype.type
     return nr if issubclass(t, np.integer) or issubclass(t, np.floating) else np.asarray(r,dtype=object)
 
+
 def eval_dyad_less(a, b):
     """
 

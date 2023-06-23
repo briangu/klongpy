@@ -238,7 +238,7 @@ def eval_adverb_over(f, a):
             return np.min(a)
         elif safe_eq(wrapped.a, '|') and len(a.shape) == 1:
             return np.max(a)
-        elif safe_eq(wrapped.a, ',') and isinstance(a,np.ndarray) and a.dtype != 'O':
+        elif safe_eq(wrapped.a, ',') and np.isarray(a) and a.dtype != 'O':
             return a if a.ndim == 1 else np.concatenate(a, axis=0)
     return functools.reduce(f, a)
 
