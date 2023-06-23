@@ -71,3 +71,12 @@ def load_lib_file(x):
             raise e
     finally:
         os.chdir(cwd)
+
+
+def run_suite_file(fname):
+    klong = KlongInterpreter()
+    with open(f"tests/{fname}", "r") as f:
+        klong(f.read())
+        r = klong('err')
+        return r
+

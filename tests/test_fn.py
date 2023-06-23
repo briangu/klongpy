@@ -1,7 +1,6 @@
 import unittest
 
 from utils import *
-
 from klongpy import KlongInterpreter
 
 
@@ -66,3 +65,7 @@ class TestFunctionsSuite(unittest.TestCase):
             klong(f.read())
             r = klong('err')
             self.assertEqual(r, 0)
+
+if __name__ == "__main__":
+    run_suite_file("klong_join_over.kg")
+

@@ -28,7 +28,7 @@ def get_adverb_fn(klong, s, arity):
     raise RuntimeError(f"unknown adverb: {s}")
 
 
-def eval_adverb_converge(f, a):
+def eval_adverb_converge(f, a, op):
     """
         f:~a                                                  [Converge]
 
@@ -67,7 +67,7 @@ def eval_adverb_converge(f, a):
     return x
 
 
-def eval_adverb_each(f, a):
+def eval_adverb_each(f, a, op):
     """
 
         f'a                                                       [Each]
@@ -159,7 +159,7 @@ def eval_adverb_each_right(f, a, b):
 
 
 
-def eval_adverb_each_pair(f, a):
+def eval_adverb_each_pair(f, a, op):
     """
 
         f:'a                                                 [Each-Pair]
@@ -201,7 +201,7 @@ def eval_dyad_adverb_iterate(f, a, b):
     return b
 
 
-def eval_adverb_over(f, a):
+def eval_adverb_over(f, a, op):
     """
         f/a                                                       [Over]
 
@@ -220,25 +220,22 @@ def eval_adverb_over(f, a):
         return a
     if len(a) == 1:
         return a[0]
-    # introspect into the wrapped operation and determine if we can optimize
-    spec = inspect.getargspec(f)
-    wrapped = spec.defaults[-1]
     # https://docs.cupy.dev/en/stable/reference/ufunc.html
     # TODO: can we use NumPy reduce when CuPy backend primary?
-    if isinstance(wrapped, KGOp):
-        if safe_eq(wrapped.a,'+'):
+    if isinstance(op, KGOp):
+        if safe_eq(op.a,'+'):
             return np.add.reduce(a)
-        elif safe_eq(wrapped.a, '-'):
+        elif safe_eq(op.a, '-'):
             return np.subtract.reduce(a)
-        elif safe_eq(wrapped.a, '*') and hasattr(np.multiply,'reduce'):
+        elif safe_eq(op.a, '*') and hasattr(np.multiply,'reduce'):
             return np.multiply.reduce(a)
-        elif safe_eq(wrapped.a, '%') and hasattr(np.divide,'reduce'):
+        elif safe_eq(op.a, '%') and hasattr(np.divide,'reduce'):
             return np.divide.reduce(a)
-        elif safe_eq(wrapped.a, '&') and len(a.shape) == 1:
+        elif safe_eq(op.a, '&') and len(a.shape) == 1:
             return np.min(a)
-        elif safe_eq(wrapped.a, '|') and len(a.shape) == 1:
+        elif safe_eq(op.a, '|') and len(a.shape) == 1:
             return np.max(a)
-        elif safe_eq(wrapped.a, ',') and np.isarray(a) and a.dtype != 'O':
+        elif safe_eq(op.a, ',') and np.isarray(a) and a.dtype != 'O':
             return a if a.ndim == 1 else np.concatenate(a, axis=0)
     return functools.reduce(f, a)
 
@@ -312,7 +309,7 @@ def eval_adverb_scan_over_neutral(f, a, b):
         return cast_malformed_array(r)
 
 
-def eval_adverb_scan_over(f, a):
+def eval_adverb_scan_over(f, a, op):
     """
         see eval_adverb_scan_over_neutral
     """
@@ -334,7 +331,7 @@ def eval_adverb_scan_over(f, a):
         return cast_malformed_array(r)
 
 
-def eval_adverb_scan_converging(f, a):
+def eval_adverb_scan_converging(f, a, op):
     """
 
         f\~a                                           [Scan-Converging]

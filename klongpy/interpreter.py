@@ -177,7 +177,7 @@ def chain_adverbs(klong, arr):
     for i in range(1,len(arr)-1):
         o = get_adverb_fn(klong, arr[i].a, arity=arr[i].arity)
         if arr[i].arity == 1:
-            f = lambda x,f=f,o=o: o(f,x)
+            f = lambda x,f=f,o=o: o(f,x,op=arr[0].a)
         else:
             f = lambda x,y,f=f,o=o: o(f,x,y)
     if arr[-2].arity == 1:
@@ -549,10 +549,6 @@ class KlongInterpreter():
                 if x not in reserved_fn_symbols:
                     self._context[x] = x
                 return x
-        elif isinstance(x, KGCond):
-            q = self.call(x[0])
-            p = not ((is_number(q) and q == 0) or is_empty(q))
-            return self.call(x[1]) if p else self.call(x[2])
         elif isinstance(x, KGCall) and not (x.is_op() or x.is_adverb_chain()):
             return self._eval_fn(KGFn(x.a,x.args,x.arity))
         elif isinstance(x, KGFn):
@@ -564,6 +560,10 @@ class KlongInterpreter():
                 return f(_x) if x.a.arity == 1 else f(_x, _y)
             elif x.is_adverb_chain():
                 return chain_adverbs(self, x.a)()
+        elif isinstance(x, KGCond):
+            q = self.call(x[0])
+            p = not ((is_number(q) and q == 0) or is_empty(q))
+            return self.call(x[1]) if p else self.call(x[2])
         elif isinstance(x,list) and len(x) > 0:
             return [self.call(y) for y in x][-1]
         return x

@@ -3,14 +3,6 @@ from klongpy import KlongInterpreter
 from utils import *
 
 
-def run_suite_file():
-    klong = KlongInterpreter()
-    with open("tests/klong_join_over.kg", "r") as f:
-        klong(f.read())
-        r = klong('err')
-        return r 
-
-
 class TestJoinOver(unittest.TestCase):
 
     def assert_eval_cmp(self, a, b, klong=None):
@@ -106,10 +98,10 @@ class TestJoinOver(unittest.TestCase):
         """
         Test the entire suite file.
         """
-        self.assertEqual(run_suite_file(), 0)
+        self.assertEqual(run_suite_file('klong_join_over.kg'), 0)
 
 
 if __name__ == "__main__":
-    run_suite_file()
+    run_suite_file("klong_join_over.kg")
 
 

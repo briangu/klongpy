@@ -39,7 +39,7 @@ class KGFn:
         return isinstance(self.a,KGOp)
 
     def is_adverb_chain(self):
-        return (isinstance(self.a,list) and isinstance(self.a[0], KGAdverb))
+        return isinstance(self.a,list) and isinstance(self.a[0],KGAdverb)
 
 
 class KGFnWrapper:
@@ -98,7 +98,7 @@ class KGLambda:
     """
     def __init__(self, fn):
         self.fn = fn
-        self.args = inspect.getfullargspec(self.fn)[0]
+        self.args = inspect.signature(self.fn, follow_wrapped=True).parameters
         self.provide_klong = 'klong' in self.args
 
     def __call__(self, klong, ctx):
@@ -631,6 +631,8 @@ def read_string(t, i=0):
     return i,"".join(r)
 
 
+copy_lambda = KGLambda(lambda x: copy.deepcopy(x))
+
 def read_cond(klong, t, i=0):
     """
 
@@ -732,7 +734,7 @@ def kg_read(t, i=0, read_neg=False, ignore_newline=False, module=None):
         elif aa == '{':
             i, d = read_list(t, '}', i=i+2, module=module)
             d = list_to_dict(d)
-            return i, KGCall(KGLambda(lambda x: copy.deepcopy(x)),args=d,arity=0)
+            return i, KGCall(copy_lambda,args=d,arity=0)
         elif aa == '[':
             return i+2,':['
         elif aa == '|':
