@@ -450,9 +450,7 @@ def eval_dyad_integer_divide(a, b):
 
 
 def dyad_join_to_list(a):
-    assert not isinstance(a, list)
     if np.isarray(a):
-        assert a.ndim > 0
         if a.ndim == 1:
             return a
         elif a.shape[0] == 1:
