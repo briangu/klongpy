@@ -329,7 +329,6 @@ def vec_fn2(a, b, f):
                     return f(a,b)
                 else:
                     # 2
-                    assert len(a) == len(b)
                     return np.asarray([vec_fn2(x, y, f) for x,y in zip(a,b)], dtype=object)
             else:
                 # 3
@@ -337,7 +336,6 @@ def vec_fn2(a, b, f):
         else:
             if np.isarray(b):
                 # 4
-                assert len(a) == len(b)
                 return np.asarray([vec_fn2(x, y, f) for x,y in zip(a,b)], dtype=object)
             else:
                 # 5

@@ -701,7 +701,7 @@ def eval_dyad_power(a, b):
     """
     def _e(a,b):
         r = np.power(float(a) if is_integer(a) else a, b)
-        return np.dtype('int').type(r) if np.trunc(r) == r else r
+        return np.dtype('int').type(r) if np.all(np.trunc(r) == r) else r
     return vec_fn2(a, b, _e)
 
 

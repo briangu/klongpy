@@ -13,6 +13,11 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    def test_power(self):
+        klong = KlongInterpreter()
+        r = klong('[1 2 3]^2')
+        self.assertTrue(array_equal(r, np.array([1,4,9])))
+
     def test_dyad_join_mixed_types(self):
         klong = KlongInterpreter()
         r = klong(',/["a" [1]]')
