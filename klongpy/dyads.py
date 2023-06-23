@@ -584,8 +584,8 @@ def eval_dyad_match(a,b):
                    [1 [2] 3]~[1 [4] 3]  -->  0
 
     """
-    def _e(x,y):
-        return np.isclose(x,y) if (is_number(x) and is_number(y)) else np.all(np.asarray(x,dtype=object) == np.asarray(y,dtype=object))
+    def _e(x, y):
+        return np.isclose(x, y) if is_number(x) and is_number(y) else np.all(x == y)
     return kg_truth(all_fn2(a, b, _e))
 
 
