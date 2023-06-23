@@ -37,6 +37,8 @@ def get_reduce_data(data):
     return data if isinstance(data, numpy.ndarray) else data.get()
 
 
+# This approach isn't great because any usage of the thunked method will pass
+# We need a way to intercept the real call
 class TestAccelerate(unittest.TestCase):
     """
     Verify that we are actually running the adverb_over accelerated paths for cases that we can.
@@ -216,7 +218,7 @@ class TestAccelerate(unittest.TestCase):
         e = Executed(np.concatenate)
         try:
             np.concatenate = e
-            r = klong(',/:~[[1] [[2]] [3]]')
+            r = klong(',/:~[[1] [2] [3]]')
         finally:
             np.concatenate = e.fn
         self.assertTrue(array_equal(r, [1,2,3]))
