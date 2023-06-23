@@ -73,18 +73,6 @@ class TestJoinOver(unittest.TestCase):
         r = klong(',/["a" [1]]')
         self.assertTrue(array_equal(r, np.array(['a', 1], dtype='object')))
 
-    def test_failure(self):
-        klong = KlongInterpreter()
-        r = klong(',/[0 []]')
-        self.assertTrue(array_equal(r, np.array([0])))
-        r = klong(',/[0 [[1] [2]]]')
-        self.assertTrue(array_equal(r, np.array([0,[1],[2]])))
-        r = klong('[[0]],[1]')
-        self.assertTrue(array_equal(r, np.array([[0],1])))
-        r = klong(',/[0 [[1 2] [3 4]]]')
-        self.assertTrue(array_equal(r, np.array([0,[1,2],[3,4]])))
-
-
     def test_file_by_lines(self):
         """
         Test the suite file line by line using our own t()

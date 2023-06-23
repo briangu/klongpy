@@ -513,12 +513,9 @@ def eval_dyad_join(a, b):
         b[a[0]] = a[1]
         return b
 
-    # TODO: this code in general needs a lot more optimization
     if np.isarray(a) and np.isarray(b):
         if len(a) == 0:
             return b
-        elif a.size == 1 and b.size == 1:
-           return np.asarray([a[0], b[0]], dtype=common_dtype(a[0],b[0]))
         if len(a.shape) == len(b.shape) and a.shape[-1] == b.shape[-1]:
             return np.concatenate((a,b))
 

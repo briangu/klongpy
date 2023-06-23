@@ -211,20 +211,6 @@ def array_equal(a,b):
     return r.all()
 
 
-def common_dtype(a,b):
-    if isinstance(a,str) or isinstance(b,str) or is_list(a) or is_list(b):
-        return 'O'
-    if (not isinstance(a,np.ndarray)) or (not isinstance(b,np.ndarray)): 
-        return np.result_type(a, b).char
-    if a.dtype == b.dtype:
-        return a.dtype
-    if a.dtype == 'O' or b.dtype == 'O':
-        return 'O'
-    if (a.dtype != 'i' and a.dtype != 'f') or (b.dtype != i and b.dtype != 'f'):
-        return '0'
-    return np.result_type(a, b).char
-
-
 def has_none(a):
     if safe_eq(a, None) or not isinstance(a,list):
         return False
