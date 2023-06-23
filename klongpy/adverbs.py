@@ -57,7 +57,7 @@ def eval_adverb_converge(f, a):
         if is_number(p):
             return np.isclose(p,q)
         elif np.isarray(p):
-            return (p.shape == q.shape) and (np.isclose(p,q)).all()
+            return (p.shape == q.shape) and np.allclose(p,q)
         return p == q
     x = f(a)
     xx = f(x)

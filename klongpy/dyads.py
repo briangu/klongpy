@@ -586,12 +586,7 @@ def eval_dyad_match(a,b):
     """
     def _e(x,y):
         return np.isclose(x,y) if (is_number(x) and is_number(y)) else np.all(np.asarray(x,dtype=object) == np.asarray(y,dtype=object))
-    if is_list(a):
-        if is_list(b):
-            return kg_truth(rec_flatten(vec_fn2(a, b, _e)).all() if len(a) == len(b) else 0)
-    elif not is_list(b):
-        return kg_truth(_e(a,b))
-    return False
+    return kg_truth(all_fn2(a, b, _e))
 
 
 def eval_dyad_maximum(a, b):

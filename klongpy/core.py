@@ -189,16 +189,18 @@ def in_map(x, v):
         return False
 
 
-def array_equal(a,b):
+def array_equal(a, b):
     """
     Recursively determine if two values or arrays are equal.
 
     NumPy ops (e.g. array_equal) are not sufficiently general purpose for this, so we need our own.
     """
     if is_list(a):
-        if is_list(b):
-            if len(a) != len(b):
-                return False
+        if is_list(b) and len(a) == len(b):
+            for x, y in zip(a, b):
+                if not array_equal(x, y):
+                    return False
+            return True
         else:
             return False
     else:
@@ -206,9 +208,6 @@ def array_equal(a,b):
             return False
         else:
             return np.isclose(a,b) if is_number(a) and is_number(b) else a == b
-
-    r = np.asarray([array_equal(x,y) for x,y in zip(a,b)])
-    return r.all()
 
 
 def has_none(a):
@@ -269,8 +268,7 @@ def safe_eq(a,b):
 def rec_flatten(a):
     if not is_list(a) or len(a) == 0:
         return a
-    r = np.asarray([(rec_flatten(x) if np.isarray(x) else x) for x in a]).flatten()
-    return np.hstack(r) if len(r) > 1 else r
+    return np.concatenate([rec_flatten(x) if is_list(x) else np.array([x]) for x in a]).ravel()
 
 
 def rec_fn(a,f):
@@ -288,15 +286,43 @@ def vec_fn(a, f):
 def rec_fn2(a,b,f):
     return np.asarray([rec_fn2(x, y, f) for x,y in zip(a,b)], dtype=object) if is_list(a) and is_list(b) else f(a,b)
 
-# 1 vec[A],vec[B]
-# 2 vec[A],obj_vec[B]
-# 3 vec[A],scalar[B]
-# 4 obj_vec[A],vec[B] (may either be vec[B] or obj_vec[B])
-# 5 obj_vec[A],scalar[B]
-# 6 scalar[A],vec[B]
-# 7 scalar[A],obj_vec[B]
-# 8 scalar[A],scalar[B]
+
 def vec_fn2(a, b, f):
+    """
+    Apply function `f` recursively to the elements of `a` and `b`, which can be scalar values, vectors, or nested vectors.
+
+    This function distinguishes 8 cases based on the types and dimensions of `a` and `b`:
+
+    1. vec[A],vec[B]: `f` is applied directly to `a` and `b`.
+    2. vec[A],obj_vec[B]: `f` is applied recursively to pairs of elements in `a` and `b`.
+    3. vec[A],scalar[B]: `f` is applied directly to `a` and `b`.
+    4. obj_vec[A],vec[B]: `f` is applied recursively to pairs of elements in `a` and `b`.
+    5. obj_vec[A],scalar[B]: `f` is applied recursively to the elements in `a` and the scalar `b`.
+    6. scalar[A],vec[B]: `f` is applied directly to `a` and `b`.
+    7. scalar[A],obj_vec[B]: `f` is applied recursively to the scalar `a` and the elements in `b`.
+    8. scalar[A],scalar[B]: `f` is applied directly to `a` and `b`.
+
+    Parameters
+    ----------
+    a, b : numpy.array or any type
+        The inputs to `f`. They can be numpy arrays of any data type. If they are arrays, they should have the same shape. 
+        Non-array inputs can be of any type that `f` can accept.
+
+    f : callable
+        A function that takes two arguments and can handle the types and dimensions of `a` and `b`.
+
+    Returns
+    -------
+    numpy.array or any type
+        The result of applying `f` to `a` and `b`, which can be a scalar, a vector, or a nested vector depending on 
+        the inputs and `f`.
+
+    Notes
+    -----
+    This function assumes that `f` can handle the types and dimensions of `a` and `b`, and that `a` and `b` have the same 
+    shape if they are arrays. It does not check these conditions, so unexpected results or errors may occur if they are 
+    not satisfied.
+    """
     if np.isarray(a):
         if a.dtype != 'O':
             if np.isarray(b):
@@ -327,6 +353,92 @@ def vec_fn2(a, b, f):
                 # 7
                 return np.asarray([vec_fn2(a,x,f) for x in b], dtype=object)
         else:
+            # 8
+            return f(a,b)
+
+
+def all_fn2(a, b, f):
+    """
+    Apply function `f` recursively to the elements of `a` and `b`, returning `False` immediately if `f` returns `False`.
+
+    This function distinguishes 8 cases based on the types and dimensions of `a` and `b`:
+
+    1. vec[A],vec[B]: `f` is applied directly to `a` and `b`.
+    2. vec[A],obj_vec[B]: `f` is applied recursively to pairs of elements in `a` and `b`.
+    3. vec[A],scalar[B]: `f` is applied directly to `a` and `b`.
+    4. obj_vec[A],vec[B]: `f` is applied recursively to pairs of elements in `a` and `b`.
+    5. obj_vec[A],scalar[B]: `f` is applied recursively to the elements in `a` and the scalar `b`.
+    6. scalar[A],vec[B]: `f` is applied directly to `a` and `b`.
+    7. scalar[A],obj_vec[B]: `f` is applied recursively to the scalar `a` and the elements in `b`.
+    8. scalar[A],scalar[B]: `f` is applied directly to `a` and `b`.
+
+    If at any point `f` returns `False`, the function returns `False` immediately ("short-circuits"). If `f` returns `True` 
+    for all pairs of elements, the function returns `True`.
+
+    Parameters
+    ----------
+    a, b : numpy.array or any type
+        The inputs to `f`. They can be numpy arrays of any data type. If they are arrays, they should have the same shape. 
+        Non-array inputs can be of any type that `f` can accept.
+
+    f : callable
+        A function that takes two arguments and returns a boolean. It should return `True` when the condition it checks is 
+        satisfied, and `False` otherwise.
+
+    Returns
+    -------
+    bool
+        `True` if all applications of `f` return `True`, `False` otherwise.
+
+    Notes
+    -----
+    This function assumes that `f` is a function that returns a boolean, and that `a` and `b` have the same shape if they 
+    are arrays. It does not check these conditions, so unexpected results or errors may occur if they are not satisfied.
+    """
+    if np.isarray(a):
+        if a.dtype != 'O':
+            if np.isarray(b):
+                if b.dtype != 'O':
+                    # 1
+                    return f(a,b)
+                else:
+                    # 2
+                    for x, y in zip(a, b):
+                        res = all_fn2(x, y, f)
+                        if not res:
+                            return False
+                    return True
+            else:
+                # 3
+                return f(a,b)
+        else:
+            if np.isarray(b):
+                # 4
+                for x, y in zip(a, b):
+                    res = all_fn2(x, y, f)
+                    if not res:
+                        return False
+                return True
+            else:
+                # 5
+                for x in a:
+                    res = all_fn2(x, b, f)
+                    if not res:
+                        return False
+                return True
+    else:
+        if np.isarray(b):
+            if b.dtype != 'O':
+                # 6
+                return f(a,b)
+            else:
+                # 7
+                for x in b:
+                    res = all_fn2(a, x, f)
+                    if not res:
+                        return False
+                return True
+        else: 
             # 8
             return f(a,b)
 
