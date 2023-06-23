@@ -100,7 +100,6 @@ class KGLambda:
         self.fn = fn
         self.args = inspect.getfullargspec(self.fn)[0]
         self.provide_klong = 'klong' in self.args
-        # self.keep_context = 'keep_context' in self.args
 
     def __call__(self, klong, ctx):
         params = [ctx[reserved_fn_symbol_map[x]] for x in reserved_fn_args if x in self.args]
@@ -135,7 +134,6 @@ class KGChannel:
 
     def __exit__(self, ext_type, exc_value, traceback):
         self._fh.close()
-
 
 
 class RangeError(Exception):
