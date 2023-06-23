@@ -593,6 +593,7 @@ def eval_dyad_match(a,b):
         return kg_truth(_e(a,b))
     return False
 
+
 def eval_dyad_maximum(a, b):
     """
 
