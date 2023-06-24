@@ -208,22 +208,30 @@ def repl(klong=None):
             traceback.print_exc(e)
 
 
+def run_file(fname):
+    with open(fname, "r") as f:
+        return klong(f.read())
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        prog = 'KlongPy',
-        description = 'KlongPy REPL',
-        epilog = 'For help, go to https://github.com/briangu/klongpy"')
+        prog='KlongPy',
+        description='KlongPy REPL',
+        epilog='For help, go to https://github.com/briangu/klongpy')
     parser.add_argument('-e', '--expr', help='evaluate expression, no interactive mode')
     parser.add_argument('-l', '--load', help='load program from file')
     parser.add_argument('-p', '--run', help='run program from file')
     parser.add_argument('-t', '--test', help='test program from file')
+    parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
 
     args = parser.parse_args()
+
     if args.expr:
         print(KlongInterpreter()(args.expr))
         exit()
 
     klong = KlongInterpreter()
+
     if args.load:
         print(f"Loading: {args.load}")
         with open(args.load, "r") as f:
@@ -242,5 +250,7 @@ if __name__ == "__main__":
                     continue
                 print(x)
                 klong(x)
+    elif args.filename:
+        run_file(args.filename)
     else:
         repl()
