@@ -886,7 +886,7 @@ def eval_dyad_split(a, b):
             if p >= len(a):
                 p = 0
 
-    return np.asarray(["".join(x) for x in r]) if j else np.asarray(r)
+    return np.asarray(["".join(x) for x in r],dtype=object) if j else np.asarray(r)
 
 
 def eval_dyad_subtract(a, b):

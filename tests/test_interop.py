@@ -57,9 +57,9 @@ class TestPythonInterop(unittest.TestCase):
         klong = KlongInterpreter()
         klong['strptime'] = lambda x: datetime.strptime(x, "%d %B, %Y")
         r = klong('a::strptime("21 June, 2018")')
-        self.assertEquals(r, datetime(2018, 6, 21, 0, 0))
+        self.assertEqual(r, datetime(2018, 6, 21, 0, 0))
         r = klong['a']
-        self.assertEquals(r, datetime(2018, 6, 21, 0, 0))
+        self.assertEqual(r, datetime(2018, 6, 21, 0, 0))
         r = klong('d:::{};d,"timestamp",a')
         self.assertEqual(r, {'timestamp': datetime(2018, 6, 21, 0, 0)})
 
@@ -70,7 +70,7 @@ class TestPythonInterop(unittest.TestCase):
         r = klong("""a::strptime("21 June, 2018");d:::{};d,"timestamp",a""")
         self.assertEqual(r, {'timestamp': datetime(2018, 6, 21, 0, 0)})
         r = klong['a']
-        self.assertEquals(r, datetime(2018, 6, 21, 0, 0))
+        self.assertEqual(r, datetime(2018, 6, 21, 0, 0))
 
     def test_callback_into_assertion(self):
         def assert_date(x):
@@ -80,4 +80,4 @@ class TestPythonInterop(unittest.TestCase):
         klong['strptime'] = lambda x: datetime.strptime(x, "%d %B, %Y")
         klong['assert'] = assert_date
         r = klong("""a::strptime("21 June, 2018");d:::{};d,"timestamp",a;assert(d)""")
-        self.assertEquals(r, 42)
+        self.assertEqual(r, 42)

@@ -21,14 +21,14 @@ class TestExtraCoreSuite(unittest.TestCase):
     def test_dyad_join_mixed_types(self):
         klong = KlongInterpreter()
         r = klong(',/["a" [1]]')
-        self.assertTrue(array_equal(r, np.array(['a', 1], dtype='object')))
+        self.assertTrue(array_equal(r, np.array(['a', 1], dtype=object)))
 
     def test_dyad_join_nested_array(self):
         klong = KlongInterpreter()
         r = klong('[1],[[2 3]]')
-        self.assertTrue(array_equal(r, np.array([1,[2,3]])))
+        self.assertTrue(array_equal(r, np.array([1,[2,3]],dtype=object)))
         r = klong(',/[0 [[1] [2]]]')
-        self.assertTrue(array_equal(r, np.array([0,[1],[2]])))
+        self.assertTrue(array_equal(r, np.array([0,[1],[2]],dtype=object)))
 
     @unittest.skip
     def test_dict_inner_create_syntax(self):
@@ -641,7 +641,7 @@ zop([
         self.assertTrue(np.isclose(r,e).all())
 
         r = klong(',/\~["a" ["b"] "c"]')
-        e = np.asarray([["a",["b"],"c"],["a","b","c"],"abc"])
+        e = np.asarray([["a",["b"],"c"],["a","b","c"],"abc"],dtype=object)
         x = r
         self.assertTrue(rec_flatten(rec_fn2(e,x, lambda a,b: a == b)).all())
 

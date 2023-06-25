@@ -51,11 +51,11 @@ class TestJoinOver(unittest.TestCase):
     def test_mixed_dim_arrays(self):
         klong = KlongInterpreter()
         r = klong(",/[[[1 2] [3 4]] [[5 6] [7]]]")
-        self.assertTrue(array_equal(r, np.array([[1,2],[3,4],[5,6],[7]])))
+        self.assertTrue(array_equal(r, np.array([[1,2],[3,4],[5,6],[7]],dtype=object)))
         r = klong(",/[[[1] [2] [3 4]] [[5] [6] [7]]]")
-        self.assertTrue(array_equal(r, np.array([[1],[2],[3,4],[5],[6],[7]])))
+        self.assertTrue(array_equal(r, np.array([[1],[2],[3,4],[5],[6],[7]],dtype=object)))
         r = klong(",/[[1] [[2 3]] 4]")
-        self.assertTrue(array_equal(r, np.array([1, [2, 3], 4], dtype='object')))
+        self.assertTrue(array_equal(r, np.array([1, [2, 3], 4], dtype=object)))
         r = klong(",/[[] [] [[]]]")
         self.assertTrue(array_equal(r, np.array([[]])))
 
@@ -67,11 +67,11 @@ class TestJoinOver(unittest.TestCase):
     def test_mixed_elements(self):
         klong = KlongInterpreter()
         r = klong(',/[[1 "a"] ["b" 2]]')
-        self.assertTrue(array_equal(r, np.array([1, 'a', 'b', 2], dtype='object')))
+        self.assertTrue(array_equal(r, np.array([1, 'a', 'b', 2], dtype=object)))
         r = klong(',/[["a"] [1]]')
-        self.assertTrue(array_equal(r, np.array(['a', 1], dtype='object')))
+        self.assertTrue(array_equal(r, np.array(['a', 1], dtype=object)))
         r = klong(',/["a" [1]]')
-        self.assertTrue(array_equal(r, np.array(['a', 1], dtype='object')))
+        self.assertTrue(array_equal(r, np.array(['a', 1], dtype=object)))
 
     def test_file_by_lines(self):
         """
