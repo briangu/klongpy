@@ -2,7 +2,6 @@ from .core import *
 import re
 import sys
 
-
 def eval_dyad_add(a, b):
     """
 
@@ -424,7 +423,9 @@ def eval_dyad_index_in_depth(a, b):
                         {y+x*x}:@[2 3]  -->  7
 
     """
-    return np.asarray(a)[tuple(b) if is_list(b) else b] if not is_empty(b) else b
+    def _e(x) -> tuple():
+        return tuple((slice(None,None) if is_empty(y) else y) for y in x)
+    return np.asarray(a)[_e(b)] if not is_empty(b) else b
 
 
 def eval_dyad_integer_divide(a, b):
@@ -777,10 +778,18 @@ def eval_dyad_reshape(a, b):
     b = str_to_chr_arr(b) if j else b
     if np.isarray(a):
         if np.isarray(b):
-            y = np.where(a < 0)[0]
+            y = np.where(a == -1)[0]
             if len(y) > 0:
                 a = np.copy(a)
                 a[y] = b.size // 2
+            else:
+                if [] in a:
+                # y = np.argwhere([is_empty(x) for x in np.ravel(a)]).tolist()
+                # if len(y) > 0:
+                #     a = np.copy(a)
+                #     a[y] = -1
+                    a = [-1 if is_empty(x) else x for x in a]
+                    return np.reshape(b, a)
             b_s = b.size
             a_s = np.prod(a)
             if a_s > b_s:
@@ -792,6 +801,8 @@ def eval_dyad_reshape(a, b):
                 j = False
             elif a_s == b_s:
                 r = b.reshape(a)
+            # elif -1 in a:
+            #     r = np.reshape(b, a)
             else:
                 r = np.resize(b, a)
         else:
