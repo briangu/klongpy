@@ -96,13 +96,13 @@ def eval_adverb_each(f, a, op):
             u = f(x)
             has_str |= isinstance(u,str)
             r.append(u)
-        return ''.join(r) if has_str else np.asarray(r,dtype=object if is_jagged(r) else None)
+        return ''.join(r) if has_str else np.asarray(r,dtype=jagged_dtype(r))
     if is_iterable(a):
         r = [f(x) for x in a]
-        return a if is_empty(a) else np.asarray(r,dtype=object if is_jagged(r) else None)
+        return a if is_empty(a) else np.asarray(r,dtype=jagged_dtype(r))
     elif is_dict(a):
         r = [f(np.asarray(x)) for x in a.items()]
-        return np.asarray(r,dtype=object if is_jagged(r) else None)
+        return np.asarray(r,dtype=jagged_dtype(r))
     return f(a)
 
 
@@ -309,10 +309,10 @@ def eval_adverb_scan_over_neutral(f, a, b):
         b = [b]
     b = [f(a,b[0]), *b[1:]]
     r = list(itertools.accumulate(b,f))
-    q = np.asarray(r,dtype=object if is_jagged(r) else None)
+    q = np.asarray(r,dtype=jagged_dtype(r))
     r = [a, *q]
     try:
-        return np.asarray(r,dtype=object if is_jagged(r) else None)
+        return np.asarray(r,dtype=jagged_dtype(r))
     except ValueError:
         return cast_malformed_array(r)
 
@@ -334,7 +334,7 @@ def eval_adverb_scan_over(f, a, op):
         return np.divide.accumulate(a)
     r = list(itertools.accumulate(a, f))
     try:
-        return np.asarray(r,dtype=object if is_jagged(r) else None)
+        return np.asarray(r,dtype=jagged_dtype(r))
     except ValueError:
         return cast_malformed_array(r)
 
@@ -368,7 +368,7 @@ def eval_adverb_scan_converging(f, a, op):
         r.append(xx)
     r.pop()
     try:
-        return np.asarray(r,dtype=object if is_jagged(r) else None)
+        return np.asarray(r,dtype=jagged_dtype(r))
     except ValueError:
         return cast_malformed_array(r)
 
@@ -399,7 +399,7 @@ def eval_adverb_scan_while(klong, f, a, b):
         r.append(b)
     r.pop()
     try:
-        return np.asarray(r,dtype=object if is_jagged(r) else None)
+        return np.asarray(r,dtype=jagged_dtype(r))
     except ValueError:
         return cast_malformed_array(r)
 
@@ -423,7 +423,7 @@ def eval_adverb_scan_iterating(f, a, b):
         r.append(b)
         a = a - 1
     try:
-        return np.asarray(r,dtype=object if is_jagged(r) else None)
+        return np.asarray(r,dtype=jagged_dtype(r))
     except ValueError:
         return cast_malformed_array(r)
 

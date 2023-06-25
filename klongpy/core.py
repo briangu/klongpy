@@ -188,8 +188,32 @@ def in_map(x, v):
 
 
 def is_jagged(a):
-    return len({np.asarray(x).shape if is_list(x) else () for x in a}) > 1
+    if len(a) == 0:
+        return False
+    u = None
+    for x in a:
+        q = np.asarray(x).shape if is_list(x) else ()
+        if u is None:
+            u = q
+        elif u != q:
+            return True
+    return False
+    # q = np.asarray(a[0]).shape if is_list(a[0]) else ()
+    # return not all(q == (np.asarray(x).shape if is_list(x) else ()) for x in a[1:])
 
+def jagged_dtype(a):
+    return object if is_jagged(a) else None
+
+
+def safe_asarray(a):
+    old_settings = np.seterr(all='raise')  # Turn on error on warnings
+    try:
+        arr = np.asarray(a)
+    except ValueError:
+        arr = np.asarray(a,dtype=object)
+    finally:
+        np.seterr(**old_settings)  # Restore original error settings
+    return arr
 
 def array_equal(a, b):
     """

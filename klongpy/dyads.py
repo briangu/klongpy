@@ -71,7 +71,7 @@ def eval_dyad_amend(a, b):
         r = r.tolist()
         for i in b[1:]:
             r[i] = b[0]
-        r = np.asarray(r,dtype=object if is_jagged(r) else None)
+        r = np.asarray(r,dtype=jagged_dtype(r))
     else:
         np.put(r, np.asarray(b[1:],dtype=int), b[0])
     return r
@@ -132,7 +132,7 @@ def eval_dyad_cut(a, b):
     r = np.array_split(b, a)
     if len(b) == 0 and len(a) > 0:
         r = r[1:]
-    return np.asarray(["".join(x) for x in r]) if j else np.asarray(r,dtype=object if is_jagged(r) else None)
+    return np.asarray(["".join(x) for x in r]) if j else np.asarray(r,dtype=jagged_dtype(r))
 
 
 def eval_dyad_at_index(klong, a, b):
@@ -521,7 +521,7 @@ def eval_dyad_join(a, b):
     bb = dyad_join_to_list(b)
  
     r = [*aa,*bb]
-    nr = np.asarray(r,dtype=object if is_jagged(r) else None)
+    nr = np.asarray(r,dtype=jagged_dtype(r))
     t = nr.dtype.type
     return nr if issubclass(t, np.integer) or issubclass(t, np.floating) else np.asarray(r,dtype=object)
 
@@ -886,7 +886,7 @@ def eval_dyad_split(a, b):
             if p >= len(a):
                 p = 0
 
-    return np.asarray(["".join(x) for x in r],dtype=object) if j else np.asarray(r,dtype=object if is_jagged(r) else None)
+    return np.asarray(["".join(x) for x in r],dtype=object) if j else np.asarray(r,dtype=jagged_dtype(r))
 
 
 def eval_dyad_subtract(a, b):

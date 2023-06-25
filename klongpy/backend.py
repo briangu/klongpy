@@ -97,7 +97,7 @@ if use_gpu:
 #    np.hstack = lambda x: cupy.hstack(x) if use_gpu and is_supported_type(x) else numpy.hstack(x)
 else:
     np.seterr(divide='ignore')
-    warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
+    warnings.filterwarnings("error", category=np.VisibleDeprecationWarning)
     np.isarray = lambda x: isinstance(x, np.ndarray)
 
 np
