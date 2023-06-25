@@ -795,7 +795,7 @@ def eval_dyad_reshape(a, b):
             else:
                 r = np.resize(b, a)
         else:
-            r = np.ones(a)*b
+            r = np.full(a, b)
     else:
         if a == 0:
             r = b
@@ -807,7 +807,7 @@ def eval_dyad_reshape(a, b):
                 ns[0] = a // b.shape[0]
                 r = np.concatenate((np.tile(b,ns), b[:a - b.shape[0]*ns[0]]))
         else:
-            r = np.ones((a,))*b
+            r = np.full((a,), b)
     return "".join(r) if j else r
 
 
