@@ -187,6 +187,10 @@ def in_map(x, v):
         return False
 
 
+def is_jagged(a):
+    return len({np.asarray(x).shape if is_list(x) else () for x in a}) > 1
+
+
 def array_equal(a, b):
     """
     Recursively determine if two values or arrays are equal.
@@ -592,8 +596,8 @@ def read_list(t, delim, i=0, module=None):
     if cmatch(t,i,delim):
         i += 1
     try:
-        aa = np.asarray(arr)
-        if aa.dtype.kind != 'i' and aa.dtype.kind != 'f':
+        aa = np.asarray(arr,dtype=object if is_jagged(arr) else None)
+        if aa.dtype.kind not in ['O','i','f']:
             aa = np.asarray(arr, dtype=object)
         return i, aa
     except ValueError:
