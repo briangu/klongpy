@@ -3,8 +3,6 @@ from klongpy import KlongInterpreter
 from klongpy.core import rec_flatten, rec_fn2, KGChar, KGSym, is_integer, is_float, is_list
 from utils import *
 import time
-import random
-import string
 
 
 # add tests not included in the original kg suite
