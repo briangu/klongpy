@@ -57,7 +57,7 @@ def eval_adverb_converge(f, a, op):
         if is_number(p):
             return np.isclose(p,q)
         elif np.isarray(p):
-            return (p.shape == q.shape) and np.allclose(p,q)
+            return array_equal(p,q)
         return p == q
     x = f(a)
     xx = f(x)
@@ -367,10 +367,7 @@ def eval_adverb_scan_converging(f, a, op):
         xx = f(x)
         r.append(xx)
     r.pop()
-    try:
-        return safe_asarray(r)
-    except ValueError:
-        return cast_malformed_array(r)
+    return safe_asarray(r)
 
 
 def eval_adverb_scan_while(klong, f, a, b):

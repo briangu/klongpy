@@ -196,8 +196,13 @@ def safe_asarray(a):
     """
     try:
         arr = np.asarray(a)
-    except (np.VisibleDeprecationWarning, ValueError):
-        arr = np.asarray(a,dtype=object)
+        if arr.dtype.kind not in ['O','i','f']:
+            arr = np.asarray(a,dtype=object)
+    except (np.VisibleDeprecationWarning, ValueError) as e:
+        arr = [x.tolist() if np.isarray(x) else x for x in a]
+        arr = np.array(arr,dtype=object) #,copy=False)
+#        arr = np.asarray([np.asarray(x,dtype=object) if isinstance(x,list) else x for x in arr],dtype=object)
+        arr = np.asarray([safe_asarray(x) if isinstance(x,list) else x for x in arr],dtype=object)
     return arr
 
 
@@ -220,7 +225,33 @@ def array_equal(a, b):
             return False
         else:
             return np.isclose(a,b) if is_number(a) and is_number(b) else a == b
+# def array_equal(a, b):
+#     """
+#     Recursively determine if two values or arrays are equal.
 
+#     NumPy ops (e.g. array_equal) are not sufficiently general purpose for this, so we need our own.
+#     """
+#     assert(isinstance(a,np.ndarray) or isinstance(a,list) or is_number(a) or isinstance(a,str) or isinstance(a,dict))
+#     assert(isinstance(b,np.ndarray) or isinstance(b,list) or is_number(b) or isinstance(b,str) or isinstance(b,dict))
+#     if is_number(a) and is_number(b):
+#         return np.isclose(a,b)
+#     if isinstance(a,(str,KGSym,dict)) and isinstance(b,(str,KGSym,dict)):
+#         return a == b
+#     # if isinstance(a,list):
+#     #     a = safe_asarray(a)
+#     # if isinstance(b,list):
+#     #     b = safe_asarray(b)
+#     # if type(a) != type(b):
+#     #     return False
+#     if np.isarray(a) and np.isarray(b):
+#         if a.dtype == b.dtype and a.dtype != 'O':
+#             return np.array_equal(a,b)
+#     if is_list(a) and is_list(b) and len(a) == len(b):
+#         for x, y in zip(a, b):
+#             if not array_equal(x, y):
+#                 return False
+#         return True
+#     return False
 
 def has_none(a):
     if safe_eq(a, None) or not isinstance(a,list):
@@ -577,13 +608,19 @@ def cast_malformed_array(arr):
     all the internal arrays to lists and then wrap the entire thing as as
     an object array.
     """
-    def _e(a,f):
-        return [_e(x, f) for x in a] if is_list(a) else f(a)
-    r = _e(arr, lambda x: x.tolist() if np.isarray(x) else x)
+    def _e(a):
+        # return [_e(x) for x in a] if is_list(a) else a.tolist() if np.isarray(a) else a
+        if is_list(a):
+            return [_e(x) for x in a]
+        if np.isarray(a):
+            return a.tolist()
+        return a
+    r = _e(arr)
+    r = [np.asarray(x,dtype=object) if isinstance(x,list) else x for x in r]
     return np.asarray(r,dtype=object)
 
 
-def read_list(t, delim, i=0, module=None):
+def read_list(t, delim, i=0, module=None, level=1):
     """
 
         # A list is any number of class lexemes (or lists) delimited by
@@ -596,19 +633,22 @@ def read_list(t, delim, i=0, module=None):
     i = skip(t,i,ignore_newline=True)
     while not cmatch(t,i,delim) and i < len(t):
         # we can knowingly read neg numbers in list context
-        i, q = kg_read(t, i, read_neg=True, ignore_newline=True, module=module)
+        i, q = kg_read(t, i, read_neg=True, ignore_newline=True, module=module, list_level=level+1)
         if q is None:
             break
         if safe_eq(q, '['):
-            i,q = read_list(t, ']', i=i, module=module)
+            i,q = read_list(t, ']', i=i, module=module, level=level+1)
         arr.append(q)
         i = skip(t,i,ignore_newline=True)
     if cmatch(t,i,delim):
         i += 1
     try:
-        aa = safe_asarray(arr)
-        if aa.dtype.kind not in ['O','i','f']:
-            aa = np.asarray(arr, dtype=object)
+        if level == 1:
+            aa = safe_asarray(arr)
+            if aa.dtype.kind not in ['O','i','f']:
+                aa = np.asarray(arr, dtype=object)
+        else:
+            aa = arr
         return i, aa
     except ValueError:
         return i,cast_malformed_array(arr)
@@ -679,7 +719,7 @@ def list_to_dict(a):
     return {x[0]:x[1] for x in a}
 
 
-def kg_read(t, i=0, read_neg=False, ignore_newline=False, module=None):
+def kg_read(t, i=0, read_neg=False, ignore_newline=False, module=None, list_level=0):
     """
 
         # Lexeme classes are the sets of the lexemes specified in the
@@ -744,7 +784,7 @@ def kg_read(t, i=0, read_neg=False, ignore_newline=False, module=None):
         elif aa.isnumeric() or aa == '"':
             return kg_read(t, i+1, ignore_newline=ignore_newline, module=module)
         elif aa == '{':
-            i, d = read_list(t, '}', i=i+2, module=module)
+            i, d = read_list(t, '}', i=i+2, module=module, level=list_level+1)
             d = list_to_dict(d)
             return i, KGCall(copy_lambda,args=d,arity=0)
         elif aa == '[':
@@ -753,7 +793,7 @@ def kg_read(t, i=0, read_neg=False, ignore_newline=False, module=None):
             return i+2,':|'
         return i+2,KGOp(f":{aa}",arity=0)
     elif safe_eq(a, '['):
-        return read_list(t, ']', i=i+1, module=module)
+        return read_list(t, ']', i=i+1, module=module, level=list_level+1)
     elif is_symbolic(a):
         return read_sym(t, i, module=module)
     return read_op(t,i)
