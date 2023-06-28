@@ -311,10 +311,7 @@ def eval_adverb_scan_over_neutral(f, a, b):
     r = list(itertools.accumulate(b,f))
     q = safe_asarray(r)
     r = [a, *q]
-    try:
-        return safe_asarray(r)
-    except ValueError:
-        return cast_malformed_array(r)
+    return safe_asarray(r)
 
 
 def eval_adverb_scan_over(f, a, op):
@@ -333,10 +330,7 @@ def eval_adverb_scan_over(f, a, op):
     elif safe_eq(f, eval_dyad_divide) and hasattr(np.divide, 'accumulate'):
         return np.divide.accumulate(a)
     r = list(itertools.accumulate(a, f))
-    try:
-        return safe_asarray(r)
-    except ValueError:
-        return cast_malformed_array(r)
+    return safe_asarray(r)
 
 
 def eval_adverb_scan_converging(f, a, op):
@@ -395,10 +389,7 @@ def eval_adverb_scan_while(klong, f, a, b):
         b = f(b)
         r.append(b)
     r.pop()
-    try:
-        return safe_asarray(r)
-    except ValueError:
-        return cast_malformed_array(r)
+    return safe_asarray(r)
 
 
 def eval_adverb_scan_iterating(f, a, b):
@@ -419,10 +410,7 @@ def eval_adverb_scan_iterating(f, a, b):
         b = f(b)
         r.append(b)
         a = a - 1
-    try:
-        return safe_asarray(r)
-    except ValueError:
-        return cast_malformed_array(r)
+    return safe_asarray(r)
 
 
 def eval_adverb_while(klong, f, a, b):

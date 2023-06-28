@@ -503,25 +503,6 @@ def skip(t, i=0, ignore_newline=False):
     return i
 
 
-def cast_malformed_array(arr):
-    """
-    This is basically a hack to cast lists into numpy arrays when they are
-    shaped in such that they cannot be broadcast directly.  Here, we recast
-    all the internal arrays to lists and then wrap the entire thing as as
-    an object array.
-    """
-    def _e(a):
-        # return [_e(x) for x in a] if is_list(a) else a.tolist() if np.isarray(a) else a
-        if is_list(a):
-            return [_e(x) for x in a]
-        if np.isarray(a):
-            return a.tolist()
-        return a
-    r = _e(arr)
-    r = [np.asarray(x,dtype=object) if isinstance(x,list) else x for x in r]
-    return np.asarray(r,dtype=object)
-
-
 def read_list(t, delim, i=0, module=None, level=1):
     """
 
@@ -544,16 +525,13 @@ def read_list(t, delim, i=0, module=None, level=1):
         i = skip(t,i,ignore_newline=True)
     if cmatch(t,i,delim):
         i += 1
-    try:
-        if level == 1:
-            aa = safe_asarray(arr)
-            if aa.dtype.kind not in ['O','i','f']:
-                aa = np.asarray(arr, dtype=object)
-        else:
-            aa = arr
-        return i, aa
-    except ValueError:
-        return i,cast_malformed_array(arr)
+    if level == 1:
+        aa = safe_asarray(arr)
+        if aa.dtype.kind not in ['O','i','f']:
+            aa = np.asarray(arr, dtype=object)
+    else:
+        aa = arr
+    return i, aa
 
 
 def read_string(t, i=0):
