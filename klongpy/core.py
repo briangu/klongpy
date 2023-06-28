@@ -198,7 +198,7 @@ def safe_asarray(a):
         arr = np.asarray(a)
         if arr.dtype.kind not in ['O','i','f']:
             arr = np.asarray(a,dtype=object)
-    except (np.VisibleDeprecationWarning, ValueError) as e:
+    except (np.VisibleDeprecationWarning, ValueError):
         try:
             arr = np.asarray(a,dtype=object)
         except ValueError:
