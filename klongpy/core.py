@@ -199,9 +199,11 @@ def safe_asarray(a):
         if arr.dtype.kind not in ['O','i','f']:
             arr = np.asarray(a,dtype=object)
     except (np.VisibleDeprecationWarning, ValueError) as e:
-        arr = [x.tolist() if np.isarray(x) else x for x in a]
-        arr = np.array(arr,dtype=object) #,copy=False)
-#        arr = np.asarray([np.asarray(x,dtype=object) if isinstance(x,list) else x for x in arr],dtype=object)
+        try:
+            arr = np.asarray(a,dtype=object)
+        except ValueError:
+            arr = [x.tolist() if np.isarray(x) else x for x in a]
+            arr = np.asarray(arr,dtype=object)
         arr = np.asarray([safe_asarray(x) if isinstance(x,list) else x for x in arr],dtype=object)
     return arr
 
@@ -214,44 +216,30 @@ def array_equal(a, b):
     """
     if is_list(a):
         if is_list(b) and len(a) == len(b):
+            if np.isarray(a) and np.isarray(b) and a.dtype == b.dtype and a.dtype != 'O':
+                return np.array_equal(a,b)
             for x, y in zip(a, b):
                 if not array_equal(x, y):
                     return False
             return True
-        else:
-            return False
+        return False
     else:
         if is_list(b):
             return False
-        else:
-            return np.isclose(a,b) if is_number(a) and is_number(b) else a == b
-# def array_equal(a, b):
-#     """
-#     Recursively determine if two values or arrays are equal.
+        return np.isclose(a,b) if is_number(a) and is_number(b) else a == b
 
-#     NumPy ops (e.g. array_equal) are not sufficiently general purpose for this, so we need our own.
-#     """
-#     assert(isinstance(a,np.ndarray) or isinstance(a,list) or is_number(a) or isinstance(a,str) or isinstance(a,dict))
-#     assert(isinstance(b,np.ndarray) or isinstance(b,list) or is_number(b) or isinstance(b,str) or isinstance(b,dict))
-#     if is_number(a) and is_number(b):
-#         return np.isclose(a,b)
-#     if isinstance(a,(str,KGSym,dict)) and isinstance(b,(str,KGSym,dict)):
-#         return a == b
-#     # if isinstance(a,list):
-#     #     a = safe_asarray(a)
-#     # if isinstance(b,list):
-#     #     b = safe_asarray(b)
-#     # if type(a) != type(b):
-#     #     return False
-#     if np.isarray(a) and np.isarray(b):
-#         if a.dtype == b.dtype and a.dtype != 'O':
-#             return np.array_equal(a,b)
-#     if is_list(a) and is_list(b) and len(a) == len(b):
-#         for x, y in zip(a, b):
-#             if not array_equal(x, y):
-#                 return False
-#         return True
-#     return False
+    # assert(isinstance(a,np.ndarray) or isinstance(a,list) or is_number(a) or isinstance(a,str) or isinstance(a,dict))
+    # assert(isinstance(b,np.ndarray) or isinstance(b,list) or is_number(b) or isinstance(b,str) or isinstance(b,dict))
+    # if is_number(a) and is_number(b):
+    #     return np.isclose(a,b)
+    # if isinstance(a,(str,KGSym,dict)) and isinstance(b,(str,KGSym,dict)):
+    #     return a == b
+    # if np.isarray(a) and np.isarray(b) and a.dtype == b.dtype and a.dtype != 'O':
+    #     return np.array_equal(a,b)
+    # if is_list(a) and is_list(b) and len(a) == len(b):
+    #     return all(array_equal(x, y) for x, y in zip(a, b))
+    # return False
+
 
 def has_none(a):
     if safe_eq(a, None) or not isinstance(a,list):
@@ -394,92 +382,6 @@ def vec_fn2(a, b, f):
                 # 7
                 return np.asarray([vec_fn2(a,x,f) for x in b], dtype=object)
         else:
-            # 8
-            return f(a,b)
-
-
-def all_fn2(a, b, f):
-    """
-    Apply function `f` recursively to the elements of `a` and `b`, returning `False` immediately if `f` returns `False`.
-
-    This function distinguishes 8 cases based on the types and dimensions of `a` and `b`:
-
-    1. vec[A],vec[B]: `f` is applied directly to `a` and `b`.
-    2. vec[A],obj_vec[B]: `f` is applied recursively to pairs of elements in `a` and `b`.
-    3. vec[A],scalar[B]: `f` is applied directly to `a` and `b`.
-    4. obj_vec[A],vec[B]: `f` is applied recursively to pairs of elements in `a` and `b`.
-    5. obj_vec[A],scalar[B]: `f` is applied recursively to the elements in `a` and the scalar `b`.
-    6. scalar[A],vec[B]: `f` is applied directly to `a` and `b`.
-    7. scalar[A],obj_vec[B]: `f` is applied recursively to the scalar `a` and the elements in `b`.
-    8. scalar[A],scalar[B]: `f` is applied directly to `a` and `b`.
-
-    If at any point `f` returns `False`, the function returns `False` immediately ("short-circuits"). If `f` returns `True` 
-    for all pairs of elements, the function returns `True`.
-
-    Parameters
-    ----------
-    a, b : numpy.array or any type
-        The inputs to `f`. They can be numpy arrays of any data type. If they are arrays, they should have the same shape. 
-        Non-array inputs can be of any type that `f` can accept.
-
-    f : callable
-        A function that takes two arguments and returns a boolean. It should return `True` when the condition it checks is 
-        satisfied, and `False` otherwise.
-
-    Returns
-    -------
-    bool
-        `True` if all applications of `f` return `True`, `False` otherwise.
-
-    Notes
-    -----
-    This function assumes that `f` is a function that returns a boolean, and that `a` and `b` have the same shape if they 
-    are arrays. It does not check these conditions, so unexpected results or errors may occur if they are not satisfied.
-    """
-    if np.isarray(a):
-        if a.dtype != 'O':
-            if np.isarray(b):
-                if b.dtype != 'O':
-                    # 1
-                    return f(a,b)
-                else:
-                    # 2
-                    for x, y in zip(a, b):
-                        res = all_fn2(x, y, f)
-                        if not res:
-                            return False
-                    return True
-            else:
-                # 3
-                return f(a,b)
-        else:
-            if np.isarray(b):
-                # 4
-                for x, y in zip(a, b):
-                    res = all_fn2(x, y, f)
-                    if not res:
-                        return False
-                return True
-            else:
-                # 5
-                for x in a:
-                    res = all_fn2(x, b, f)
-                    if not res:
-                        return False
-                return True
-    else:
-        if np.isarray(b):
-            if b.dtype != 'O':
-                # 6
-                return f(a,b)
-            else:
-                # 7
-                for x in b:
-                    res = all_fn2(a, x, f)
-                    if not res:
-                        return False
-                return True
-        else: 
             # 8
             return f(a,b)
 
