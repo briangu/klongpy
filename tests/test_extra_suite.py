@@ -13,14 +13,39 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    def test_array_identity(self):
+        klong = KlongInterpreter()
+        r = klong('[]')
+        self.assertTrue(array_equal(r, np.array([],dtype=object)))
+        r = klong('[1]')
+        self.assertTrue(array_equal(r, np.array([1],dtype=object)))
+        r = klong('[[1]]')
+        self.assertTrue(array_equal(r, np.array([[1]],dtype=object)))
+        r = klong('[[1] [2]]')
+        self.assertTrue(array_equal(r, np.array([[1],[2]],dtype=object)))
+        r = klong('[[1] [2 3]]')
+        self.assertTrue(array_equal(r, np.array([[1],[2,3]],dtype=object)))
+        r = klong('[[[1]] [2 3]]')
+        self.assertTrue(array_equal(r, np.array([[[1]],[2,3]],dtype=object)))
+        r = klong('[[1] [[2 3]]]')
+        self.assertTrue(array_equal(r, np.array([[1],[[2,3]]],dtype=object)))
+        r = klong('[[[1]] [[2 3]]]')
+        self.assertTrue(array_equal(r, np.array([[[1]],[[2,3]]],dtype=object)))
+
+    def test_jagged_array_identity(self):
+        klong = KlongInterpreter()
+        r = klong('[[0] [[1]]]')
+        q = np.array([[0],[[1]]],dtype=object)
+        self.assertTrue(array_equal(r, q))
+
     def test_jagged_array_each(self):
         klong = KlongInterpreter()
-        r = klong("""{:[x!2;[1];[1 2]]}'[1 2 3]""")
+        r = klong("{:[x!2;[1];[1 2]]}'[1 2 3]")
         self.assertTrue(array_equal(r, np.array([[1],[1,2],[1]],dtype=object)))
 
     def test_jagged_dict_each(self):
         klong = KlongInterpreter()
-        r = klong("""{:[(x@0)!2;[1];[1 2]]}':{[1 2] [2 3] [3 4]}""")
+        r = klong("{:[(x@0)!2;[1];[1 2]]}':{[1 2] [2 3] [3 4]}")
         self.assertTrue(array_equal(r, np.array([[1],[1,2],[1]],dtype=object)))
 
     def test_power(self):
@@ -37,7 +62,14 @@ class TestExtraCoreSuite(unittest.TestCase):
         klong = KlongInterpreter()
         r = klong('[1],[[2 3]]')
         self.assertTrue(array_equal(r, np.array([1,[2,3]],dtype=object)))
+
+    def test_dyad_join_over_nested_array(self):
+        klong = KlongInterpreter()
+        r = klong(",/[[0] [[1]]]")
+        self.assertTrue(array_equal(r, np.array([0,[1]],dtype=object)))
         r = klong(',/[0 [[1] [2]]]')
+        self.assertTrue(array_equal(r, np.array([0,[1],[2]],dtype=object)))
+        r = klong(',/[[0] [[1] [2]]]')
         self.assertTrue(array_equal(r, np.array([0,[1],[2]],dtype=object)))
 
     @unittest.skip
