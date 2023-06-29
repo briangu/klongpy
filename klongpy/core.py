@@ -254,12 +254,12 @@ def kg_equal(a, b):
     bool
         True if the two inputs are equal, False otherwise.
     """
-    na = np.isarray(a)
-    nb = np.isarray(b)
+    na = isinstance(a,np.ndarray)
+    nb = isinstance(b,np.ndarray)
     la = isinstance(a,list)
     lb = isinstance(b,list)
     if na or la:
-        if (nb or lb) and len(a) == len(b):
+        if (nb or lb) and (len(a) == len(b)):
             if na and nb and a.dtype == b.dtype and a.dtype != 'O':
                 return np.array_equal(a,b)
             for x, y in zip(a, b):
