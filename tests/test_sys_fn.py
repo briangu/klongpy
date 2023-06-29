@@ -68,12 +68,18 @@ class TestSysFn(unittest.TestCase):
         klong = KlongInterpreter()
         with tempfile.TemporaryDirectory() as td:
             fname = os.path.join(td, "data.txt")
+            r = "hello"
             with eval_sys_output_channel(fname) as f:
                 eval_sys_to_channel(klong, f)
-                eval_sys_display(klong, "hello")
+                self.assertEqual(eval_sys_display(klong, r), r)
             with eval_sys_input_channel(fname) as f:
                 r = f.raw.read()
                 self.assertEqual(r, "hello")
+
+    def test_sys_display_result(self):
+        klong = KlongInterpreter()
+        r = klong(".d(1)")
+        self.assertEqual(r,"1")
 
     def test_eval_sys_delete_file(self):
         klong = KlongInterpreter()
@@ -192,13 +198,18 @@ class TestSysFn(unittest.TestCase):
         klong = KlongInterpreter()
         with tempfile.TemporaryDirectory() as td:
             fname = os.path.join(td, "data.txt")
+            expected = "hello"
             with eval_sys_output_channel(fname) as f:
                 eval_sys_to_channel(klong, f)
-                o = eval_sys_print(klong, "hello")
-                self.assertEqual(o, "hello")
+                self.assertEqual(eval_sys_print(klong, expected), expected)
             with eval_sys_input_channel(fname) as f:
                 r = f.raw.read()
-                self.assertEqual(r, "hello\n")
+                self.assertEqual(r, f"{expected}\n")
+
+    def test_sys_print_result(self):
+        klong = KlongInterpreter()
+        r = klong(".p(1)")
+        self.assertEqual(r,"1")
 
     def test_eval_sys_random_number(self):
         r = eval_sys_random_number()

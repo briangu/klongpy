@@ -43,7 +43,9 @@ def eval_sys_display(klong, x):
         See [Write].
 
     """
-    klong['.sys.cout'].raw.write(kg_write(x, display=True))
+    r = kg_write(x, display=True)
+    klong['.sys.cout'].raw.write(r)
+    return r
 
 
 def eval_sys_delete_file(x):
