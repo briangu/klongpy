@@ -330,9 +330,7 @@ class KlongInterpreter():
         i,a = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())
         if a is None:
             return i,a
-        if isinstance(a,KGChar) or is_number(a):
-            pass
-        elif safe_eq(a, '{'): # read fn
+        if safe_eq(a, '{'): # read fn
             i,a = self.prog(t, i, ignore_newline=True)
             a = a[0] if len(a) == 1 else a
             i = cexpect(t, i, '}')

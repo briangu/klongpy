@@ -918,14 +918,14 @@ def get_fn_arity(f):
     NOTE: TODO: it maybe easier / better to do this at parse time vs late.
     """
     if isinstance(f,KGFn) and isinstance(f.a,KGSym) and not in_map(f.a,reserved_fn_symbols):
-        return len({x for x in f.args if in_map(x, reserved_fn_symbols)}) + sum([1 for x in f.args if (x is None)])
+       return sum(1 for x in set(f.args) if in_map(x, reserved_fn_symbols) or (x is None))
     def _e(f, level=0):
         if isinstance(f,KGFn):
             x = _e(f.a, level=1)
-            if is_list(f.args):
+            if isinstance(f.args,list):
                 for q in f.args:
                     x.update(_e(q,level=1))
-        elif is_list(f):
+        elif isinstance(f,list):
             x = set()
             for q in f:
                 x.update(_e(q,level=1))
