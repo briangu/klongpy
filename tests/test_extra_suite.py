@@ -1,6 +1,6 @@
 import unittest
 from klongpy import KlongInterpreter
-from klongpy.core import rec_flatten, rec_fn2, KGChar, KGSym, is_integer, is_float, is_list
+from klongpy.core import rec_flatten, KGChar, KGSym, is_integer, is_float
 from utils import *
 import time
 

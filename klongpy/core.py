@@ -149,7 +149,7 @@ reserved_dot_f_symbol = KGSym('.f')
 
 
 def is_list(x):
-    return isinstance(x,list) or (np.isarray(x) and len(x.shape) > 0)
+    return isinstance(x,list) or (np.isarray(x) and x.ndim > 0)
 
 
 def is_iterable(x):
@@ -177,7 +177,7 @@ def is_float(x):
 
 
 def is_number(a):
-    return is_integer(a) or is_float(a)
+    return is_float(a) or is_integer(a)
 
 
 def in_map(x, v):
@@ -254,27 +254,26 @@ def kg_equal(a, b):
     bool
         True if the two inputs are equal, False otherwise.
     """
-    if is_list(a):
-        if is_list(b) and len(a) == len(b):
-            if np.isarray(a) and np.isarray(b) and a.dtype == b.dtype and a.dtype != 'O':
+    na = np.isarray(a)
+    nb = np.isarray(b)
+    la = isinstance(a,list)
+    lb = isinstance(b,list)
+    if na or la:
+        if (nb or lb) and len(a) == len(b):
+            if na and nb and a.dtype == b.dtype and a.dtype != 'O':
                 return np.array_equal(a,b)
-            for x, y in zip(a, b):
-                if not kg_equal(x, y):
-                    return False
-            return True
+            return all(kg_equal(x, y) for x, y in zip(a, b))
         return False
-    else:
-        if is_list(b):
-            return False
-        return np.isclose(a,b) if is_number(a) and is_number(b) else a == b
+    if nb or lb:
+        return False
+    return np.isclose(a,b) if is_number(a) and is_number(b) else a == b
 
 
 def has_none(a):
-    if safe_eq(a, None) or not isinstance(a,list):
-        return False
-    for q in a:
-        if q is None:
-            return True
+    if isinstance(a,list):
+        for q in a:
+            if q is None:
+                return True
     return False
 
 
@@ -307,17 +306,15 @@ class UnexpectedEOF(Exception):
 
 
 def cexpect(t, i, c):
-    if not cmatch(t, i, c):
-        raise UnexpectedChar(t, i, c)
-    return i + 1
+    if cmatch(t, i, c):
+        return i + 1
+    raise UnexpectedChar(t, i, c)
 
 
 def cexpect2(t, i, a, b):
-    if not cmatch(t, i, a):
-        raise UnexpectedChar(t, i, a)
-    if not cmatch(t, i+1, b):
-        raise UnexpectedChar(t, i, b)
-    return i + 2
+    if cmatch(t, i, a) and cmatch(t, i+1, b):
+        return i + 2
+    raise UnexpectedChar(t, i, b)
 
 
 def safe_eq(a,b):
@@ -325,9 +322,9 @@ def safe_eq(a,b):
 
 
 def rec_flatten(a):
-    if not is_list(a) or len(a) == 0:
-        return a
-    return np.concatenate([rec_flatten(x) if is_list(x) else np.array([x]) for x in a]).ravel()
+    if is_list(a) and len(a) > 0:
+        return np.concatenate([rec_flatten(x) if is_list(x) else np.array([x]) for x in a]).ravel()
+    return a
 
 
 def rec_fn(a,f):
@@ -340,10 +337,6 @@ def vec_fn(a, f):
     if np.isarray(a) and a.dtype == 'O':
         return np.asarray([((vec_fn(x, f)) if is_list(x) else f(x)) for x in a] if is_list(a) else f(a), dtype=object)
     return f(a)
-
-
-def rec_fn2(a,b,f):
-    return np.asarray([rec_fn2(x, y, f) for x,y in zip(a,b)], dtype=object) if is_list(a) and is_list(b) else f(a,b)
 
 
 def vec_fn2(a, b, f):
@@ -936,7 +929,6 @@ def get_fn_arity(f):
     NOTE: TODO: it maybe easier / better to do this at parse time vs late.
     """
     if isinstance(f,KGFn) and isinstance(f.a,KGSym) and not in_map(f.a,reserved_fn_symbols):
-        # return f.arity - sum([1 for x in f.args if (x is not None) and not in_map(x,reserved_fn_symbols)])
         return len({x for x in f.args if in_map(x, reserved_fn_symbols)}) + sum([1 for x in f.args if (x is None)])
     def _e(f, level=0):
         if isinstance(f,KGFn):

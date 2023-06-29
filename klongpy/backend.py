@@ -47,7 +47,7 @@ if use_gpu:
             return self.fn(*args, **kwargs)
 
         def reduce(self, x):
-            return self.reduce_fn_1(x) if len(x.shape) == 1 else self.reduce_fn_2(x[0], x[1])
+            return self.reduce_fn_1(x) if x.ndim == 1 else self.reduce_fn_2(x[0], x[1])
 
     add_reduce_2 = cupy.ElementwiseKernel(
             'T x, T y',

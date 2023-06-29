@@ -238,9 +238,9 @@ def eval_adverb_over(f, a, op):
             return np.multiply.reduce(a)
         elif safe_eq(op.a, '%') and hasattr(np.divide,'reduce'):
             return np.divide.reduce(a)
-        elif safe_eq(op.a, '&') and len(a.shape) == 1:
+        elif safe_eq(op.a, '&') and a.ndim == 1:
             return np.min(a)
-        elif safe_eq(op.a, '|') and len(a.shape) == 1:
+        elif safe_eq(op.a, '|') and a.ndim == 1:
             return np.max(a)
         elif safe_eq(op.a, ',') and np.isarray(a) and a.dtype != 'O':
             return a if a.ndim == 1 else np.concatenate(a, axis=0)

@@ -2,7 +2,7 @@ import numpy as np
 import os
 
 from klongpy import KlongInterpreter
-from klongpy.core import kg_equal
+from klongpy.core import kg_equal, is_list
 
 def die(m=None):
     raise RuntimeError(m)
@@ -79,4 +79,9 @@ def run_suite_file(fname):
         klong(f.read())
         r = klong('err')
         return r
+
+
+def rec_fn2(a,b,f):
+    return np.asarray([rec_fn2(x, y, f) for x,y in zip(a,b)], dtype=object) if is_list(a) and is_list(b) else f(a,b)
+
 
