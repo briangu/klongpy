@@ -283,12 +283,18 @@ class TestSysFn(unittest.TestCase):
         klong = KlongInterpreter()
         with tempfile.TemporaryDirectory() as td:
             fname = os.path.join(td, "data.txt")
+            expected = "hello"
             with eval_sys_output_channel(fname) as f:
                 eval_sys_to_channel(klong, f)
-                eval_sys_write(klong, "hello")
+                self.assertEqual(eval_sys_write(klong, expected), f'"{expected}"')
             with eval_sys_input_channel(fname) as f:
                 r = f.raw.read()
-                self.assertEqual(r, '"hello"')
+                self.assertEqual(r, f'"{expected}"')
+
+    def test_sys_write_result(self):
+        klong = KlongInterpreter()
+        r = klong(".w(1)")
+        self.assertEqual(r,"1")
 
     def test_eval_sys_exit(self):
         pass

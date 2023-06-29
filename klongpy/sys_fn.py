@@ -388,7 +388,9 @@ def eval_sys_write(klong, x):
         sequence. Use .p (Print) to do so.
 
     """
-    klong['.sys.cout'].raw.write(kg_write(x))
+    r = kg_write(x)
+    klong['.sys.cout'].raw.write(r)
+    return r
 
 
 def eval_sys_exit(x):
