@@ -296,6 +296,11 @@ class TestSysFn(unittest.TestCase):
         r = klong(".w(1)")
         self.assertEqual(r,"1")
 
+    def test_sys_write_dict(self):
+        klong = KlongInterpreter()
+        r = klong(".w(:{[1 2]})")
+        self.assertEqual(r,":{[1 2]}")
+    
     def test_eval_sys_exit(self):
         pass
 

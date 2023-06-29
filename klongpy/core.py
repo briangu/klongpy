@@ -739,19 +739,13 @@ def kg_write_dict(d, display=False):
         if not first:
             arr.append(' ')
             first = False
-        arr.append(kg_write(e))
+        arr.append(kg_write(list(e)))
     arr.append('}')
     return ''.join(arr)
 
 
 def kg_write_list(x, display=False):
-    arr = ['[']
-    for i in range(len(x)):
-        arr.append(kg_write(x[i], display=display))
-        if i < len(x):
-            arr.append(' ')
-    arr.append(']')
-    return ''.join(arr)
+    return ''.join(['[', ' '.join([kg_write(q, display=display) for q in x]), ']'])
 
 
 def kg_write_fn(x, display=False):
