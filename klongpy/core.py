@@ -187,7 +187,7 @@ def in_map(x, v):
         return False
 
 
-def safe_asarray(a):
+def kg_asarray(a):
     """
     Converts input data into a NumPy array, ensuring all sub-arrays are also NumPy arrays, to meet the requirements of KlongPy.
 
@@ -224,7 +224,7 @@ def safe_asarray(a):
         except ValueError:
             arr = [x.tolist() if np.isarray(x) else x for x in a]
             arr = np.asarray(arr,dtype=object)
-        arr = np.asarray([safe_asarray(x) if isinstance(x,list) else x for x in arr],dtype=object)
+        arr = np.asarray([kg_asarray(x) if isinstance(x,list) else x for x in arr],dtype=object)
     return arr
 
 
@@ -546,7 +546,7 @@ def read_list(t, delim, i=0, module=None, level=1):
     if cmatch(t,i,delim):
         i += 1
     if level == 1:
-        aa = safe_asarray(arr)
+        aa = kg_asarray(arr)
         if aa.dtype.kind not in ['O','i','f']:
             aa = np.asarray(arr, dtype=object)
     else:

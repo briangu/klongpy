@@ -96,13 +96,13 @@ def eval_adverb_each(f, a, op):
             u = f(x)
             has_str |= isinstance(u,str)
             r.append(u)
-        return ''.join(r) if has_str else safe_asarray(r)
+        return ''.join(r) if has_str else kg_asarray(r)
     if is_iterable(a):
         r = [f(x) for x in a]
-        return a if is_empty(a) else safe_asarray(r)
+        return a if is_empty(a) else kg_asarray(r)
     elif is_dict(a):
         r = [f(np.asarray(x)) for x in a.items()]
-        return safe_asarray(r)
+        return kg_asarray(r)
     return f(a)
 
 
@@ -309,9 +309,9 @@ def eval_adverb_scan_over_neutral(f, a, b):
         b = [b]
     b = [f(a,b[0]), *b[1:]]
     r = list(itertools.accumulate(b,f))
-    q = safe_asarray(r)
+    q = kg_asarray(r)
     r = [a, *q]
-    return safe_asarray(r)
+    return kg_asarray(r)
 
 
 def eval_adverb_scan_over(f, a, op):
@@ -330,7 +330,7 @@ def eval_adverb_scan_over(f, a, op):
     elif safe_eq(f, eval_dyad_divide) and hasattr(np.divide, 'accumulate'):
         return np.divide.accumulate(a)
     r = list(itertools.accumulate(a, f))
-    return safe_asarray(r)
+    return kg_asarray(r)
 
 
 def eval_adverb_scan_converging(f, a, op):
@@ -361,7 +361,7 @@ def eval_adverb_scan_converging(f, a, op):
         xx = f(x)
         r.append(xx)
     r.pop()
-    return safe_asarray(r)
+    return kg_asarray(r)
 
 
 def eval_adverb_scan_while(klong, f, a, b):
@@ -389,7 +389,7 @@ def eval_adverb_scan_while(klong, f, a, b):
         b = f(b)
         r.append(b)
     r.pop()
-    return safe_asarray(r)
+    return kg_asarray(r)
 
 
 def eval_adverb_scan_iterating(f, a, b):
@@ -410,7 +410,7 @@ def eval_adverb_scan_iterating(f, a, b):
         b = f(b)
         r.append(b)
         a = a - 1
-    return safe_asarray(r)
+    return kg_asarray(r)
 
 
 def eval_adverb_while(klong, f, a, b):
