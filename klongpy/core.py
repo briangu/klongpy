@@ -262,7 +262,10 @@ def kg_equal(a, b):
         if (nb or lb) and len(a) == len(b):
             if na and nb and a.dtype == b.dtype and a.dtype != 'O':
                 return np.array_equal(a,b)
-            return all(kg_equal(x, y) for x, y in zip(a, b))
+            for x, y in zip(a, b):
+                if not kg_equal(x, y):
+                    return False
+            return True
         return False
     if nb or lb:
         return False
