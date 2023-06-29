@@ -379,35 +379,16 @@ def vec_fn2(a, b, f):
     not satisfied.
     """
     if np.isarray(a):
-        if a.dtype != 'O':
+        if a.dtype == 'O':
             if np.isarray(b):
-                if b.dtype != 'O':
-                    # 1
-                    return f(a,b)
-                else:
-                    # 2
-                    return np.asarray([vec_fn2(x, y, f) for x,y in zip(a,b)], dtype=object)
+                return kg_asarray([vec_fn2(x, y, f) for x,y in zip(a,b)])
             else:
-                # 3
-                return f(a,b)
-        else:
-            if np.isarray(b):
-                # 4
-                return np.asarray([vec_fn2(x, y, f) for x,y in zip(a,b)], dtype=object)
-            else:
-                # 5
-                return np.asarray([vec_fn2(x,b,f) for x in a], dtype=object)
-    else:
-        if np.isarray(b):
-            if b.dtype != 'O':
-                # 6
-                return f(a,b)
-            else:
-                # 7
-                return np.asarray([vec_fn2(a,x,f) for x in b], dtype=object)
-        else:
-            # 8
-            return f(a,b)
+                return kg_asarray([vec_fn2(x, b, f) for x in a])
+        elif np.isarray(b) and b.dtype == 'O':
+            return kg_asarray([vec_fn2(x, y, f) for x,y in zip(a,b)])
+    elif np.isarray(b) and b.dtype == 'O':
+        return kg_asarray([vec_fn2(a, x, f) for x in b])
+    return f(a,b)
 
 
 def is_symbolic(c):
