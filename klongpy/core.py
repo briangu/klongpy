@@ -733,15 +733,7 @@ def kg_write_string(s, display=False):
 
 
 def kg_write_dict(d, display=False):
-    arr = [':{']
-    first = True
-    for e in d.items():
-        if not first:
-            arr.append(' ')
-            first = False
-        arr.append(kg_write(list(e)))
-    arr.append('}')
-    return ''.join(arr)
+    return ''.join([':{', ' '.join([kg_write(list(e), display=display) for e in d.items()]), '}'])
 
 
 def kg_write_list(x, display=False):
