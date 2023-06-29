@@ -228,18 +228,38 @@ def kg_asarray(a):
     return arr
 
 
-def array_equal(a, b):
+def kg_equal(a, b):
     """
-    Recursively determine if two values or arrays are equal.
+    Compares two values or arrays (including nested arrays) for equality.
 
-    NumPy ops (e.g. array_equal) are not sufficiently general purpose for this, so we need our own.
+    This function recursively checks if two values or arrays are equal. It can handle
+    nested arrays and is more general-purpose than standard NumPy functions such as
+    np.array_equal.
+
+    If the inputs are lists, the function checks that their lengths are equal, and 
+    then compares each element pair for equality. If the inputs are NumPy arrays with 
+    the same dtype (excluding object dtype), it uses the np.array_equal function for 
+    comparison.
+
+    For non-list inputs, the function compares the two values directly. If they are 
+    both numbers, it uses np.isclose to allow for minor floating-point differences.
+
+    Parameters
+    ----------
+    a, b : Any
+        The two inputs to compare. These can be any type of values or arrays.
+
+    Returns
+    -------
+    bool
+        True if the two inputs are equal, False otherwise.
     """
     if is_list(a):
         if is_list(b) and len(a) == len(b):
             if np.isarray(a) and np.isarray(b) and a.dtype == b.dtype and a.dtype != 'O':
                 return np.array_equal(a,b)
             for x, y in zip(a, b):
-                if not array_equal(x, y):
+                if not kg_equal(x, y):
                     return False
             return True
         return False
@@ -247,18 +267,6 @@ def array_equal(a, b):
         if is_list(b):
             return False
         return np.isclose(a,b) if is_number(a) and is_number(b) else a == b
-
-    # assert(isinstance(a,np.ndarray) or isinstance(a,list) or is_number(a) or isinstance(a,str) or isinstance(a,dict))
-    # assert(isinstance(b,np.ndarray) or isinstance(b,list) or is_number(b) or isinstance(b,str) or isinstance(b,dict))
-    # if is_number(a) and is_number(b):
-    #     return np.isclose(a,b)
-    # if isinstance(a,(str,KGSym,dict)) and isinstance(b,(str,KGSym,dict)):
-    #     return a == b
-    # if np.isarray(a) and np.isarray(b) and a.dtype == b.dtype and a.dtype != 'O':
-    #     return np.array_equal(a,b)
-    # if is_list(a) and is_list(b) and len(a) == len(b):
-    #     return all(array_equal(x, y) for x, y in zip(a, b))
-    # return False
 
 
 def has_none(a):
@@ -504,6 +512,7 @@ def read_sys_comment(t,i,a):
     except ValueError:
         return RuntimeError("end of comment not found")
 
+
 def skip_space(t, i=0, ignore_newline=False):
     """
         NOTE: a newline character translates to a semicolon in Klong,
@@ -583,8 +592,6 @@ def read_string(t, i=0):
     return i,"".join(r)
 
 
-copy_lambda = KGLambda(lambda x: copy.deepcopy(x))
-
 def read_cond(klong, t, i=0):
     """
 
@@ -618,6 +625,8 @@ def read_cond(klong, t, i=0):
 def list_to_dict(a):
     return {x[0]:x[1] for x in a}
 
+
+copy_lambda = KGLambda(lambda x: copy.deepcopy(x))
 
 def kg_read(t, i=0, read_neg=False, ignore_newline=False, module=None, list_level=0):
     """

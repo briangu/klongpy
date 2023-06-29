@@ -56,7 +56,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('+/data')
         finally:
             np.add = e.fn
-        self.assertTrue(array_equal(r, numpy.add.reduce(get_reduce_data(data))))
+        self.assertTrue(kg_equal(r, numpy.add.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     def test_over_add_array(self):
@@ -84,7 +84,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('-/data')
         finally:
             np.subtract = e.fn
-        self.assertTrue(array_equal(r, numpy.subtract.reduce(get_reduce_data(data))))
+        self.assertTrue(kg_equal(r, numpy.subtract.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     def test_over_subtract(self):
@@ -112,7 +112,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('*/data')
         finally:
             np.multiply = e.fn
-        self.assertTrue(array_equal(r, numpy.multiply.reduce(get_reduce_data(data))))
+        self.assertTrue(kg_equal(r, numpy.multiply.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     def test_over_multipy(self):
@@ -140,7 +140,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('%/data')
         finally:
             np.divide = e.fn
-        self.assertTrue(array_equal(r, numpy.divide.reduce(get_reduce_data(data))))
+        self.assertTrue(kg_equal(r, numpy.divide.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     def test_over_divide(self):
@@ -170,7 +170,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('&/[[1 2 3] [4 5 6]]')
         finally:
             np.min = e.fn
-        self.assertTrue(array_equal(r, [1,2,3]))
+        self.assertTrue(kg_equal(r, [1,2,3]))
         self.assertFalse(e.executed)
 
     def test_over_min(self):
@@ -194,7 +194,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('|/[[1 2 3] [4 5 6]]')
         finally:
             np.max = e.fn
-        self.assertTrue(array_equal(r, [4,5,6]))
+        self.assertTrue(kg_equal(r, [4,5,6]))
         self.assertFalse(e.executed)
 
     def test_over_max(self):
@@ -221,7 +221,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong(',/:~[[1] [2] [3]]')
         finally:
             np.concatenate = e.fn
-        self.assertTrue(array_equal(r, [1,2,3]))
+        self.assertTrue(kg_equal(r, [1,2,3]))
         self.assertTrue(e.executed)
 
 

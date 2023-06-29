@@ -312,7 +312,7 @@ def eval_dyad_find(a, b):
         # NOTE: we don't use get or np.inf because value may be 0 or None
         return a[b] if b in a else np.inf # TODO: use undefined type
     if is_list(b):
-        return np.asarray([i for i,x in enumerate(a) if array_equal(x,b)])
+        return np.asarray([i for i,x in enumerate(a) if kg_equal(x,b)])
     return np.where(np.asarray(a) == b)[0]
 
 
@@ -584,7 +584,7 @@ def eval_dyad_match(a,b):
                    [1 [2] 3]~[1 [4] 3]  -->  0
 
     """
-    return kg_truth(array_equal(a,b))
+    return kg_truth(kg_equal(a,b))
 
 
 def eval_dyad_maximum(a, b):

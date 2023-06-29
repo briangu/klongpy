@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 
-from utils import array_equal
+from utils import kg_equal
 
 from klongpy import KlongInterpreter
 from klongpy.sys_fn import *
@@ -220,7 +220,7 @@ class TestSysFn(unittest.TestCase):
             with eval_sys_input_channel(fname) as f:
                 eval_sys_from_channel(klong, f)
                 r = eval_sys_read(klong)
-                self.assertTrue(array_equal(r, [1,2,3,4]))
+                self.assertTrue(kg_equal(r, [1,2,3,4]))
                 c = f.raw.read(1)
                 self.assertEqual(c,';')
 
@@ -249,7 +249,7 @@ class TestSysFn(unittest.TestCase):
         # TODO:
         data = '[1 2 3 4]'
         klong = KlongInterpreter()
-        self.assertTrue(array_equal(eval_sys_read_string(klong, data), [1,2,3,4]))
+        self.assertTrue(kg_equal(eval_sys_read_string(klong, data), [1,2,3,4]))
 
     def test_eval_sys_system(self):
         pass

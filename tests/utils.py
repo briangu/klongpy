@@ -2,7 +2,7 @@ import numpy as np
 import os
 
 from klongpy import KlongInterpreter
-from klongpy.core import array_equal
+from klongpy.core import kg_equal
 
 def die(m=None):
     raise RuntimeError(m)
@@ -17,7 +17,7 @@ def eval_cmp(expr_str, expected_str, klong=None):
     expected = klong.prog(expected_str)[1][0]
     a = klong.call(expr)
     b = klong.call(expected)
-    return array_equal(a,b)
+    return kg_equal(a,b)
 
 
 def eval_test(a, klong=None):
@@ -36,7 +36,7 @@ def eval_test(a, klong=None):
         c = a == b
         return not c[np.where(c == False)].any() if np.isarray(c) else c
     else:
-        return array_equal(a,b)
+        return kg_equal(a,b)
 
 
 def create_test_klong():

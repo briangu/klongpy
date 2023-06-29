@@ -1,6 +1,6 @@
 import unittest
 from klongpy.core import *
-from utils import die, array_equal
+from utils import die, kg_equal
 
 class TestUtil(unittest.TestCase):
 
@@ -223,10 +223,10 @@ class TestUtil(unittest.TestCase):
 
     def test_argsort(self):
         a = [1,3,4,2]
-        self.assertTrue(array_equal(kg_argsort(a), [0, 3, 1, 2]))
-        self.assertTrue(array_equal(kg_argsort(a,descending=True), [2, 1, 3, 0]))
+        self.assertTrue(kg_equal(kg_argsort(a), [0, 3, 1, 2]))
+        self.assertTrue(kg_equal(kg_argsort(a,descending=True), [2, 1, 3, 0]))
         a = [[1],[2],[],[3]]
-        self.assertTrue(array_equal(kg_argsort(a,descending=True), [3, 1, 0, 2]))
+        self.assertTrue(kg_equal(kg_argsort(a,descending=True), [3, 1, 0, 2]))
 
 
 if __name__ == '__main__':

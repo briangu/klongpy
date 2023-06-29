@@ -17,7 +17,7 @@ class TestPythonInterop(unittest.TestCase):
         self.assertEqual(klong['foo'],x)
         x = [x]
         klong['foo'] = x
-        self.assertTrue(array_equal(klong['foo'],x))
+        self.assertTrue(kg_equal(klong['foo'],x))
 
     @unittest.skip
     def test_del_var(self):
@@ -51,7 +51,7 @@ class TestPythonInterop(unittest.TestCase):
         klong = KlongInterpreter()
         klong("fn::{{x+10}'x}")
         r = klong['fn']([2])
-        self.assertTrue(array_equal(r, [12]))
+        self.assertTrue(kg_equal(r, [12]))
 
     def test_datetime_parsing_example(self):
         klong = KlongInterpreter()

@@ -14,61 +14,61 @@ class TestExtraCoreSuite(unittest.TestCase):
     def test_array_identity(self):
         klong = KlongInterpreter()
         r = klong('[]')
-        self.assertTrue(array_equal(r, np.array([],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([],dtype=object)))
         r = klong('[1]')
-        self.assertTrue(array_equal(r, np.array([1],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([1],dtype=object)))
         r = klong('[[1]]')
-        self.assertTrue(array_equal(r, np.array([[1]],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([[1]],dtype=object)))
         r = klong('[[1] [2]]')
-        self.assertTrue(array_equal(r, np.array([[1],[2]],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([[1],[2]],dtype=object)))
         r = klong('[[1] [2 3]]')
-        self.assertTrue(array_equal(r, np.array([[1],[2,3]],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([[1],[2,3]],dtype=object)))
         r = klong('[[[1]] [2 3]]')
-        self.assertTrue(array_equal(r, np.array([[[1]],[2,3]],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([[[1]],[2,3]],dtype=object)))
         r = klong('[[1] [[2 3]]]')
-        self.assertTrue(array_equal(r, np.array([[1],[[2,3]]],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([[1],[[2,3]]],dtype=object)))
         r = klong('[[[1]] [[2 3]]]')
-        self.assertTrue(array_equal(r, np.array([[[1]],[[2,3]]],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([[[1]],[[2,3]]],dtype=object)))
 
     def test_jagged_array_identity(self):
         klong = KlongInterpreter()
         r = klong('[[0] [[1]]]')
         q = np.array([[0],[[1]]],dtype=object)
-        self.assertTrue(array_equal(r, q))
+        self.assertTrue(kg_equal(r, q))
 
     def test_jagged_array_each(self):
         klong = KlongInterpreter()
         r = klong("{:[x!2;[1];[1 2]]}'[1 2 3]")
-        self.assertTrue(array_equal(r, np.array([[1],[1,2],[1]],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([[1],[1,2],[1]],dtype=object)))
 
     def test_jagged_dict_each(self):
         klong = KlongInterpreter()
         r = klong("{:[(x@0)!2;[1];[1 2]]}':{[1 2] [2 3] [3 4]}")
-        self.assertTrue(array_equal(r, np.array([[1],[1,2],[1]],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([[1],[1,2],[1]],dtype=object)))
 
     def test_power(self):
         klong = KlongInterpreter()
         r = klong('[1 2 3]^2')
-        self.assertTrue(array_equal(r, np.array([1,4,9])))
+        self.assertTrue(kg_equal(r, np.array([1,4,9])))
 
     def test_dyad_join_mixed_types(self):
         klong = KlongInterpreter()
         r = klong(',/["a" [1]]')
-        self.assertTrue(array_equal(r, np.array(['a', 1], dtype=object)))
+        self.assertTrue(kg_equal(r, np.array(['a', 1], dtype=object)))
 
     def test_dyad_join_nested_array(self):
         klong = KlongInterpreter()
         r = klong('[1],[[2 3]]')
-        self.assertTrue(array_equal(r, np.array([1,[2,3]],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([1,[2,3]],dtype=object)))
 
     def test_dyad_join_over_nested_array(self):
         klong = KlongInterpreter()
         r = klong(",/[[0] [[1]]]")
-        self.assertTrue(array_equal(r, np.array([0,[1]],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([0,[1]],dtype=object)))
         r = klong(',/[0 [[1] [2]]]')
-        self.assertTrue(array_equal(r, np.array([0,[1],[2]],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([0,[1],[2]],dtype=object)))
         r = klong(',/[[0] [[1] [2]]]')
-        self.assertTrue(array_equal(r, np.array([0,[1],[2]],dtype=object)))
+        self.assertTrue(kg_equal(r, np.array([0,[1],[2]],dtype=object)))
 
     @unittest.skip
     def test_dict_inner_create_syntax(self):
@@ -89,14 +89,14 @@ class TestExtraCoreSuite(unittest.TestCase):
         klong("A::[1 2 3 4];AA::[[1 2 3 4] [5 6 7 8]]")
         klong("B::A:=0,0")
         r = klong("A")
-        self.assertTrue(array_equal(r,[1,2,3,4]))
+        self.assertTrue(kg_equal(r,[1,2,3,4]))
         r = klong("B")
-        self.assertTrue(array_equal(r,[0,2,3,4]))
+        self.assertTrue(kg_equal(r,[0,2,3,4]))
         klong("C::AA:-99,0,0")
         r = klong("AA")
-        self.assertTrue(array_equal(r,[[1,2,3,4],[5,6,7,8]]))
+        self.assertTrue(kg_equal(r,[[1,2,3,4],[5,6,7,8]]))
         r = klong("C")
-        self.assertTrue(array_equal(r,[[99,2,3,4],[5,6,7,8]]))
+        self.assertTrue(kg_equal(r,[[99,2,3,4],[5,6,7,8]]))
 
     @unittest.skip
     def test_read_empty_string(self):
@@ -107,7 +107,7 @@ class TestExtraCoreSuite(unittest.TestCase):
     def test_range_nested_empty(self):
         klong = KlongInterpreter()
         r = klong('?[[]]')
-        self.assertTrue(array_equal(r,[[]]))
+        self.assertTrue(kg_equal(r,[[]]))
 
     @unittest.skip
     def test_match_nested_array(self):
@@ -137,13 +137,13 @@ class TestExtraCoreSuite(unittest.TestCase):
         r = klong('_[30 20]%2')
         for x in r:
             self.assertTrue(is_integer(x))
-        self.assertTrue(array_equal(r, [15, 10]))
+        self.assertTrue(kg_equal(r, [15, 10]))
 
     # NOTE: different than Klong due to numpy shape
     def test_shape_empty_nested(self):
         klong = KlongInterpreter()
         r = klong("^[[[]]]")
-        self.assertTrue(array_equal(r,[1,1,0]))
+        self.assertTrue(kg_equal(r,[1,1,0]))
 
     @unittest.skip
     def test_monad_not_getting_called(self):
@@ -161,27 +161,27 @@ SCAN::{RESETF();RUNX();BESTF}
     def test_take_nested_array(self):
         klong = KlongInterpreter()
         r = klong("(4)#[[0 0]]")
-        self.assertTrue(array_equal(r,[[0,0],[0,0],[0,0],[0,0]]))
+        self.assertTrue(kg_equal(r,[[0,0],[0,0],[0,0],[0,0]]))
 
     def test_join_monad(self):
         klong = KlongInterpreter()
         r = klong(",[1 2 3 4]")
-        self.assertTrue(array_equal(r,[[1,2,3,4]]))
+        self.assertTrue(kg_equal(r,[[1,2,3,4]]))
 
     def test_join_empty(self):
         klong = KlongInterpreter()
         r = klong("[],[1 2 3 4]")
-        self.assertTrue(array_equal(r,[1,2,3,4]))
+        self.assertTrue(kg_equal(r,[1,2,3,4]))
 
     def test_join_pair(self):
         klong = KlongInterpreter()
         r = klong("[1],[2]")
-        self.assertTrue(array_equal(r,[1,2]))
+        self.assertTrue(kg_equal(r,[1,2]))
 
     def test_join_scalar_pair(self):
         klong = KlongInterpreter()
         r = klong("99,[1],[2]")
-        self.assertTrue(array_equal(r,[99,1,2]))
+        self.assertTrue(kg_equal(r,[99,1,2]))
 
     def test_drop_string(self):
         klong = KlongInterpreter()
@@ -219,17 +219,17 @@ AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
     def test_find_with_array_arg(self):
         klong = KlongInterpreter()
         r = klong('[1 2 3 4]?[1]')
-        self.assertTrue(array_equal(r, []))
+        self.assertTrue(kg_equal(r, []))
         r = klong('[1 2 3 4]?[1]')
-        self.assertTrue(array_equal(r, []))
+        self.assertTrue(kg_equal(r, []))
         r = klong('[[1] 2 3 4]?[1]')
-        self.assertTrue(array_equal(r, [0]))
+        self.assertTrue(kg_equal(r, [0]))
         r = klong('[ 1 2  3 4]?[1 2]')
-        self.assertTrue(array_equal(r, []))
+        self.assertTrue(kg_equal(r, []))
         r = klong('[[1 2] 3 4]?[1 2]')
-        self.assertTrue(array_equal(r, [0]))
+        self.assertTrue(kg_equal(r, [0]))
         r = klong('[[[1 2] [3 4]] [[5 6] [7 8]]]?[[5 6] [7 8]]')
-        self.assertTrue(array_equal(r, [1]))
+        self.assertTrue(kg_equal(r, [1]))
 
     def test_read_string_neg_number(self):
         klong = KlongInterpreter()
@@ -305,7 +305,7 @@ D::N(1%0;"/")
         """)
         r = klong('q::N(D;"hello")')
         self.assertEqual(klong("q?:s"), 0)
-        self.assertTrue(array_equal(klong("q?:c"), []))
+        self.assertTrue(kg_equal(klong("q?:c"), []))
         self.assertEqual(klong("q?:n"), "hello")
         self.assertTrue(isinstance(klong("q?:p"), dict))
 
@@ -344,7 +344,7 @@ D::N(1%0;"/")
         klong = KlongInterpreter()
         klong("I::{{#x}'x}")
         r = klong('I("hello")')
-        self.assertTrue(array_equal(r,[104,101,108,108,111]))
+        self.assertTrue(kg_equal(r,[104,101,108,108,111]))
 
     def test_grade_down_with_empty_subarrays(self):
         klong = KlongInterpreter()
@@ -428,13 +428,13 @@ D::N(1%0;"/")
     def test_read_list(self):
         klong = KlongInterpreter()
         r = klong('[]')
-        self.assertTrue(array_equal(r,[]))
+        self.assertTrue(kg_equal(r,[]))
         klong = KlongInterpreter()
         r = klong('[1 2 3 4]')
-        self.assertTrue(array_equal(r,[1,2,3,4]))
+        self.assertTrue(kg_equal(r,[1,2,3,4]))
         klong = KlongInterpreter()
         r = klong('[1 2 3 4 ]') # add spaces as found in suite
-        self.assertTrue(array_equal(r,[1,2,3,4]))
+        self.assertTrue(kg_equal(r,[1,2,3,4]))
 
     def test_read_list_as_arg(self):
         """
@@ -449,9 +449,9 @@ zop([
         klong = KlongInterpreter()
         klong('zap::{x}')
         r = klong('zap([])')
-        self.assertTrue(array_equal(r,[]))
+        self.assertTrue(kg_equal(r,[]))
         r = klong(t)
-        self.assertTrue(array_equal(r,[["hello"]]))
+        self.assertTrue(kg_equal(r,[["hello"]]))
 
     def test_sys_comment(self):
         t = """.comment("end-of-comment")
@@ -467,7 +467,7 @@ zop([
         klong = KlongInterpreter()
         r = klong.exec(t)
         # verify that we are returning both A::1 and A operation results
-        self.assertTrue(array_equal(r,[1,1]))
+        self.assertTrue(kg_equal(r,[1,1]))
         r = klong(t)
         self.assertEqual(r, 1)
 
@@ -479,7 +479,7 @@ zop([
     def test_eval_array(self):
         klong = KlongInterpreter()
         r = klong('[[[1] [2] [3]] [1 2 3]]')
-        self.assertTrue(array_equal(r,[[[1],[2],[3]],[1,2,3]]))
+        self.assertTrue(kg_equal(r,[[[1],[2],[3]],[1,2,3]]))
 
     def test_atom(self):
         self.assert_eval_cmp('@0c0', '1')

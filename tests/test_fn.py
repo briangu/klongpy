@@ -13,7 +13,7 @@ class TestFunctionsSuite(unittest.TestCase):
         klong = KlongInterpreter()
         klong("F::{x,x}")
         r = klong('F(1)')
-        self.assertTrue(array_equal(r, [1,1]))
+        self.assertTrue(kg_equal(r, [1,1]))
 
     def test_fn_nested_monad_w_xform(self):
         klong = KlongInterpreter()
