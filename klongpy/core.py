@@ -189,15 +189,35 @@ def in_map(x, v):
 
 def safe_asarray(a):
     """
-    Attempt to create a NumPy array, but if it's jagged then we default to object dtype
-    
-    Note: it is way faster to do it this way vs checking in advance since the detection
-    happens in NumPy vs Python.
+    Converts input data into a NumPy array, ensuring all sub-arrays are also NumPy arrays, to meet the requirements of KlongPy.
+
+    KlongPy treats NumPy arrays as data and Python lists as "programs". Therefore, it is crucial that all elements and 
+    sub-arrays of the input data are converted into NumPy arrays. This function attempts to achieve this, while handling 
+    unpredictable and complex data structures that may result from prior manipulations to the data.
+
+    The function first tries to convert the input data into a NumPy array. In the case of a jagged structure 
+    (i.e., irregularly-shaped sub-arrays), it defaults to the object data type. If the initial conversion is unsuccessful, 
+    it tries to convert the input data to an object dtype array. If all these attempts fail, it converts each element to 
+    a list, if it is a NumPy array, or keeps the original element if it is not, and then attempts to convert the whole 
+    structure into an object dtype array again.
+
+    Detecting the type in NumPy directly, as opposed to checking it in Python, significantly enhances 
+    performance, hence the approach adopted in this function.
+
+    Parameters
+    ----------
+    a : list or array-like
+        The input data to be converted into a NumPy array.
+
+    Returns
+    -------
+    arr : ndarray
+        The converted input data as a NumPy array, where all elements and sub-arrays are also NumPy arrays.
     """
     try:
         arr = np.asarray(a)
         if arr.dtype.kind not in ['O','i','f']:
-            arr = np.asarray(a,dtype=object)
+            raise ValueError
     except (np.VisibleDeprecationWarning, ValueError):
         try:
             arr = np.asarray(a,dtype=object)
