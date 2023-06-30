@@ -18,7 +18,7 @@ def eval_dyad_add(a, b):
                   1+0.3  -->  1.3
 
     """
-    return vec_fn2(a, b, np.add)
+    return np.add(a, b)
 
 
 def eval_dyad_amend(a, b):
@@ -218,7 +218,7 @@ def eval_dyad_divide(a, b):
                   10%8  -->  1.25
 
     """
-    return vec_fn2(a, b, np.divide)
+    return np.divide(a, b)
 
 
 def eval_dyad_drop(a, b):
@@ -444,8 +444,9 @@ def eval_dyad_integer_divide(a, b):
 
     """
     def _e(x,y):
-        a = np.trunc(np.divide(x, y))
-        return np.asarray(a,dtype=int) if np.isarray(a) else int(a)
+        a = np.divide(x, y)
+        a = kg_asarray(rec_fn(a,np.trunc)) if np.isarray(a) else a
+        return np.asarray(a,dtype='int') if np.isarray(a) else int(a)
     return vec_fn2(a, b, _e)
 
 
@@ -611,7 +612,7 @@ def eval_dyad_maximum(a, b):
                     1.0|1.1  -->  1.1
 
     """
-    return vec_fn2(a, b, np.maximum)
+    return np.maximum(a, b)
 
 
 def eval_dyad_minimum(a, b):
@@ -638,7 +639,7 @@ def eval_dyad_minimum(a, b):
                     1.0&1.1  -->  1.0
 
     """
-    return vec_fn2(a, b, np.minimum)
+    return np.minimum(a, b)
 
 
 def eval_dyad_more(a, b):
@@ -677,7 +678,7 @@ def eval_dyad_multiply(a, b):
                   0.3*7  -->  2.1
 
     """
-    return vec_fn2(a, b, np.multiply)
+    return np.multiply(a, b)
 
 
 def eval_dyad_power(a, b):
@@ -701,7 +702,8 @@ def eval_dyad_power(a, b):
     """
     def _e(a,b):
         r = np.power(float(a) if is_integer(a) else a, b)
-        return np.dtype('int').type(r) if np.all(np.trunc(r) == r) else r
+        br = all([np.trunc(x) == x for x in r]) if is_list(r) else np.trunc(r) == r
+        return np.dtype('int').type(r) if br else r
     return vec_fn2(a, b, _e)
 
 
@@ -723,7 +725,7 @@ def eval_dyad_remainder(a, b):
                    -7!-5  --> -2
 
     """
-    return vec_fn2(a, b, np.fmod)
+    return np.fmod(a, b)
 
 
 def eval_dyad_reshape(a, b):
@@ -904,7 +906,7 @@ def eval_dyad_subtract(a, b):
                   1-0.3  -->  0.7
 
     """
-    return vec_fn2(a, b, np.subtract)
+    return np.subtract(a, b)
 
 
 def eval_dyad_take(a, b):

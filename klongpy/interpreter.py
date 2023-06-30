@@ -116,7 +116,7 @@ def add_system_functions(d, system_functions):
         set_context_var(d, KGSym(k), fn)
 
 
-def create_system_contexts(klong):
+def create_system_contexts():
     cin = eval_sys_var_cin()
     cout = eval_sys_var_cout()
     cerr = eval_sys_var_cerr()
@@ -190,7 +190,7 @@ def chain_adverbs(klong, arr):
 class KlongInterpreter():
 
     def __init__(self):
-        self._context = KlongContext(create_system_contexts(self))
+        self._context = KlongContext(create_system_contexts())
         self._vd = create_dyad_functions(self)
         self._vm = create_monad_functions(self)
         self._start_time = time.time()
