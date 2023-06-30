@@ -335,11 +335,10 @@ def rec_fn(a,f):
 
 
 def vec_fn(a, f):
-    """apply vector function to array with nested array support"""
-    # dtype == O for heterogeneous (nested) arrays otherwise apply the function directly for vectorization perf
-    if np.isarray(a) and a.dtype == 'O':
-        return kg_asarray([((vec_fn(x, f)) if is_list(x) else f(x)) for x in a])
-    return f(a)
+    """
+    Apply a function `f` to an array `a`, with support for both nested arrays and direct vectorized operation.
+    """
+    return kg_asarray([((vec_fn(x, f)) if is_list(x) else f(x)) for x in a]) if np.isarray(a) and a.dtype == 'O' else f(a)
 
 
 def vec_fn2(a, b, f):
@@ -381,10 +380,12 @@ def vec_fn2(a, b, f):
     if np.isarray(a):
         if a.dtype == 'O':
             if np.isarray(b):
+                assert len(a) == len(b)
                 return kg_asarray([vec_fn2(x, y, f) for x,y in zip(a,b)])
             else:
                 return kg_asarray([vec_fn2(x, b, f) for x in a])
         elif np.isarray(b) and b.dtype == 'O':
+            assert len(a) == len(b)
             return kg_asarray([vec_fn2(x, y, f) for x,y in zip(a,b)])
     elif np.isarray(b) and b.dtype == 'O':
         return kg_asarray([vec_fn2(a, x, f) for x in b])
