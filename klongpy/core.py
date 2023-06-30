@@ -331,14 +331,14 @@ def rec_flatten(a):
 
 
 def rec_fn(a,f):
-    return np.asarray([rec_fn(x, f) for x in a], dtype=object) if is_list(a) else f(a)
+    return kg_asarray([rec_fn(x, f) for x in a]) if is_list(a) else f(a)
 
 
 def vec_fn(a, f):
     """apply vector function to array with nested array support"""
     # dtype == O for heterogeneous (nested) arrays otherwise apply the function directly for vectorization perf
     if np.isarray(a) and a.dtype == 'O':
-        return np.asarray([((vec_fn(x, f)) if is_list(x) else f(x)) for x in a] if is_list(a) else f(a), dtype=object)
+        return kg_asarray([((vec_fn(x, f)) if is_list(x) else f(x)) for x in a])
     return f(a)
 
 
