@@ -1,5 +1,6 @@
 
 import errno
+import importlib.util
 import os
 import random
 import subprocess
@@ -258,6 +259,61 @@ def eval_sys_print(klong, x):
     o = str(x)
     klong['.sys.cout'].raw.write(o+"\n")
     return o
+
+
+def eval_sys_python(klong, x):
+    """
+    
+        .py(x)                                                    [Python]
+
+        Import a python module in to the current context.
+    
+        Load the content of the file specified in the string "x" as if
+        typed in at the interpreter prompt.
+
+        Klong will try the names "x", and a,".kg", in all directories
+        specified in the KLONGPATH environment variable. Directory names
+        in KLONGPATH are separated by colons.
+
+        When KLONGPATH is undefined, it defaults to ".:lib".
+
+        A program can be loaded from an absolute or relative path
+        (without a prefix from KLONGPATH) by starting "x" with a "/"
+        or "." character.
+
+        .l will return the last expression evaluated, i.e. it can be
+        used to load the value of a single expression from a file.
+
+    
+    """
+    if os.path.isdir(x):
+        x = os.path.join(x,"__init__.py")
+
+    if x.endswith("__init__.py"):
+        if os.path.exists(x):
+            spec = importlib.util.spec_from_file_location('tmp', x)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        else:
+            raise FileNotFoundError("Not a valid Python module (missing __init__.py): {x}")
+    else:
+        if (spec := importlib.util.find_spec(x)) is not None:
+            module = importlib.util.module_from_spec(spec)
+            try:
+                spec.loader.exec_module(module)
+            except:
+                raise RuntimeError("module could not be imported: {x}")
+    if hasattr(module, "klong_export"):
+        try:
+            ctx = klong._context.pop()
+            try:
+                for p,q in module.klong_export().items():
+                    klong[p] = q
+            finally:
+                klong._context.push(ctx)
+            return 1
+        except:
+            raise RuntimeError("failed to load module: {x}")
 
 
 def eval_sys_random_number():
