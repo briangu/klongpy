@@ -213,17 +213,19 @@ class TestSysFn(unittest.TestCase):
     def test_sys_python(self):
         tests_dir = os.path.dirname(os.path.abspath(__file__))
         plugins_dir = os.path.join(tests_dir, "plugins")
-        d1 = os.path.join(plugins_dir, "hello_world")
-        d2 = os.path.join(plugins_dir, "hello_world/__init__.py")
-        d3 = "hello_world"
+        tests = []
+        tests.append(os.path.join(plugins_dir, "hello_world"))
+        tests.append(os.path.join(plugins_dir, "hello_world/__init__.py"))
+        tests.append(os.path.join(plugins_dir, "hello_world/hello_world.py"))
+        tests.append("hello_world")
         try:
             sys.path.append(plugins_dir)
-            for fpath in [d1,d2,d3]:
+            for fpath in tests:
                 klong = KlongInterpreter()
                 r = klong(f'.py("{fpath}")')
                 self.assertEqual(r,1)
                 r = klong('hello()')
-                self.assertEqual(r,"world")
+                self.assertEqual(r,"world!")
         finally:
             sys.path.pop()
 

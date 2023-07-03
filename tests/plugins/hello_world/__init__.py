@@ -1,4 +1,5 @@
+from .hello_world import hello
 
-def klong_export():
-    return {'hello': lambda: 'world'}
+#def klongpy_export():
+#    return {'hello': hello_world} 
 

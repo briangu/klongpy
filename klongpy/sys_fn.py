@@ -287,11 +287,14 @@ def eval_sys_python(klong, x):
     
     """
     if os.path.isdir(x):
-        x = os.path.join(x,"__init__.py")
+        tx = os.path.join(x,"__init__.py")
+        if os.path.exists(tx):
+            x = tx
 
-    if x.endswith("__init__.py"):
+    if x.endswith(".py"):
         if os.path.exists(x):
-            spec = importlib.util.spec_from_file_location('tmp', x)
+            module_name = os.path.basename(os.path.dirname(x))
+            spec = importlib.util.spec_from_file_location(module_name, x)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
         else:
@@ -303,17 +306,22 @@ def eval_sys_python(klong, x):
                 spec.loader.exec_module(module)
             except:
                 raise RuntimeError("module could not be imported: {x}")
-    if hasattr(module, "klong_export"):
-        try:
+    try:
+        import_items = None
+        if hasattr(module, "klongpy_export"):
+            import_items = module.klongpy_export().items()
+        else:
+            import_items = filter(lambda p: not p[0].startswith("__"), module.__dict__.items())
+        if import_items is not None:
             ctx = klong._context.pop()
             try:
-                for p,q in module.klong_export().items():
+                for p,q in import_items:
                     klong[p] = q
             finally:
                 klong._context.push(ctx)
             return 1
-        except:
-            raise RuntimeError("failed to load module: {x}")
+    except:
+        raise RuntimeError("failed to load module: {x}")
 
 
 def eval_sys_random_number():
