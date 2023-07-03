@@ -226,6 +226,12 @@ class TestSysFn(unittest.TestCase):
                 self.assertEqual(r,1)
                 r = klong('hello()')
                 self.assertEqual(r,"world!")
+                if fpath.endswith("hello_world.py"):
+                    r = klong['not_exported']
+                    self.assertTrue(r is not None)
+                else:
+                    with self.assertRaises(KeyError):
+                        klong['not_exported']
         finally:
             sys.path.pop()
 
