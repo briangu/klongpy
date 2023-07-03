@@ -583,7 +583,8 @@ class KlongInterpreter():
         assert 2 == KlongInterpreter()("1+1")
 
         """
-        return self.exec(x)[-1]
+        r = self.exec(x)
+        return r[-1] if r else None
 
     def exec(self, x):
         """
