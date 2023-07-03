@@ -162,7 +162,7 @@ def eval_sys_load(klong, x):
         used to load the value of a single expression from a file.
 
     """
-    if os.path.exists(x):
+    if os.path.isfile(x):
         try:
             # TODO: support path defaults as mentioned above
             with open(x, "r") as f:
