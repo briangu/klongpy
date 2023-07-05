@@ -133,7 +133,9 @@ def sys_cmd_timeit(klong, cmd):
 
     """
     n = int(cmd[3:cmd.index(" ")]) if cmd[2] == ":" else 1
-    return timeit.timeit(lambda k=klong,p=cmd[cmd.index(" "):]: k(p), number=n)
+    prog = klong.prog(cmd[cmd.index(" "):])
+    r = timeit.timeit(lambda k=klong,p=prog: k.eval(p), number=n)
+    return f"total: {r} per: {r/n}"
 
 
 def create_sys_cmd_functions():
