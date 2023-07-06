@@ -13,9 +13,7 @@ The project builds upon the work of [Nils M Holm](https://t3x.org), the creator 
 
 # Overview
 
-Want to supercharge your data manipulation with the brevity of Klong and the might of Python libraries? Enter KlongPy.
-
-At its heart, KlongPy is about infusing Python's flexibility with the compact Klong array language, allowing you to tap into the performance of NumPy while writing code that's concise and powerful. Here's an example that computes the average of a 1 billion-entry array in Klong:
+At its heart, KlongPy is about infusing Python's flexibility with the compact Klong array language, allowing you to tap into the performance of NumPy while writing code that's concise and powerful. 
 
 Consider this simple Klong expression that computes an array's average: (+/a)%#a. Decoded, it means "sum of 'a' divided by the length of 'a'", from right to left.
 
