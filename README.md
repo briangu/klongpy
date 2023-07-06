@@ -24,6 +24,8 @@ Below, we define the function 'avg' and apply it to the array of integers from 0
 Let's try this in the KlongPy REPL:
 
 ```Bash
+$ rlwrap kgpy
+
 Welcome to KlongPy REPL v0.3.78
 author: Brian Guarraci
 repo  : https://github.com/briangu/klongpy
@@ -48,7 +50,7 @@ Here we import the standard Python math library and redefine avg to use 'fsum':
 49.5
 ```
 
-Now let's time it:
+Now let's time it (first, right it once, then 100 times):
 
 ```
 ?> ]T avg(!100)
@@ -382,26 +384,26 @@ def NumPy_vec(number=100):
 KlongPy has a REPL similar to Klong's REPL.
 
 ```bash
-    $ pip3 install klongpy[repl]
-    $ rlwrap kgpy
+$ pip3 install klongpy[repl]
+$ rlwrap kgpy
 
-    Welcome to KlongPy REPL
-    author: Brian Guarraci
-    repo  : https://github.com/briangu/klongpy
-    crtl-c to quit
+Welcome to KlongPy REPL
+author: Brian Guarraci
+repo  : https://github.com/briangu/klongpy
+crtl-c to quit
 
-    ?> 1+1
-    2
-    >? "hello, world!"
-    hello, world!
-    ?> prime::{&/x!:\2+!_x^1%2}
-    :monad
-    ?> prime(4)
-    0
-    ?> prime(251)
-    1
-    ?> ]T prime(251)
-    0.0005430681630969048
+?> 1+1
+2
+>? "hello, world!"
+hello, world!
+?> prime::{&/x!:\2+!_x^1%2}
+:monad
+?> prime(4)
+0
+?> prime(251)
+1
+?> ]T prime(251)
+0.0005430681630969048
 ```
 
 Read about the [prime example here](https://t3x.org/klong/prime.html).
