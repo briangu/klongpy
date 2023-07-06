@@ -210,14 +210,22 @@ class TestSysFn(unittest.TestCase):
         r = klong(".p(1)")
         self.assertEqual(r,"1")
 
-    def test_sys_python(self):
+    def test_sys_python_load_module(self):
+        klong = KlongInterpreter()
+        r = klong(f'.py("math")')
+        self.assertEqual(r,1)
+        r = klong('sqrt(64)')
+        self.assertEqual(r,8)
+
+    def test_sys_python_load_custom_module(self):
         tests_dir = os.path.dirname(os.path.abspath(__file__))
         plugins_dir = os.path.join(tests_dir, "plugins")
         tests = []
-        tests.append(os.path.join(plugins_dir, "hello_world"))
-        tests.append(os.path.join(plugins_dir, "hello_world/__init__.py"))
-        tests.append(os.path.join(plugins_dir, "hello_world/hello_world.py"))
-        tests.append("hello_world")
+        tests.append(os.path.join("tests", os.path.join("plugins", "greetings")))
+        tests.append(os.path.join(plugins_dir, "greetings"))
+        tests.append(os.path.join(plugins_dir, "greetings/__init__.py"))
+        tests.append(os.path.join(plugins_dir, "greetings/hello_world.py"))
+        tests.append("greetings")
         try:
             sys.path.append(plugins_dir)
             for fpath in tests:

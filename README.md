@@ -202,6 +202,66 @@ called from KlongPy: 2018-06-21 00:00:00
 called from KlongPy: {'timestamp': datetime.datetime(2018, 6, 21, 0, 0)}
 ```
 
+## Loading Python Modules directly into KlongPy
+
+KlongPy has the powerful ability to load Python modules directly. This can be extremely useful when you want to utilize the functionality offered by various Python libraries, and seamlessly integrate them into your KlongPy programs.
+
+Here is an example of how you can load a Python module into KlongPy:
+
+```bash
+$ rlwrap kgpy
+
+Welcome to KlongPy REPL v0.3.76
+author: Brian Guarraci
+repo  : https://github.com/briangu/klongpy
+crtl-d or ]q to quit
+
+?> .py("math")
+1
+?> sqrt(64)
+8.0
+```
+
+## Loading Custom Python Modules
+
+Custom modules can be written for KlongPy in the same way as any Python module, the main
+difference is that they don't need to be installed (e.g. via pip).
+
+Simply create a directory with a __init__.py and appropriate files, as in:
+
+
+```Python
+# __init__.py
+from .hello_world import hello
+```
+
+```Python
+# hello_world.py
+
+def hello():
+    return "world!"
+
+def not_exported():
+    raise RuntimeError()
+```
+
+Now, you can import the module with the .py command and run the "hello" function.
+
+```bash
+$ rlwrap kgpy
+
+Welcome to KlongPy REPL v0.3.76
+author: Brian Guarraci
+repo  : https://github.com/briangu/klongpy
+crtl-d or ]q to quit
+
+?> .py("tests/plugins/greetings")
+1
+?> hello()
+world!
+```
+
+
 # Pandas DataFrame integration
 
 This a work in progress, but it's very interesting to think about what DataFrames look like in Klong since they are basically a dictionary of columns.

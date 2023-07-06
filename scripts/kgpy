@@ -150,7 +150,7 @@ def create_sys_cmd_functions():
     for x in filter(lambda n: n.startswith("sys_cmd_"), dir(m)):
         fn = getattr(m,x)
         name = _get_name(fn.__doc__)
-        registry[name] = fn
+        registry[name] = fn 
 
     return registry
 

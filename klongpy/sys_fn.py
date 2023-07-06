@@ -162,24 +162,35 @@ def eval_sys_load(klong, x):
         used to load the value of a single expression from a file.
 
     """
-    if os.path.isfile(x):
-        try:
-            # TODO: support path defaults as mentioned above
-            with open(x, "r") as f:
-                # This is a "hack" to keep the load operation in the same context it was called in
-                #   The interpeter pushes a context when it calls a function, so here
-                #   we pop it, run the load in the original context, and push the context back on
-                #   so that the interpreter can pop it's temporary context off as normal.
-                ctx = klong._context.pop()
-                try:
-                    r = klong(f.read())
-                finally:
-                    klong._context.push(ctx)
-                return r
-        except IOError:
-            raise RuntimeError("file could not be opened: {x}")
-    else:
+    # if not (os.path.isfile(x) or os.path.isfile(os.path.join(x,".kg"))):
+    alt_dirs = str((os.environ.get('KLONGPATH') or ".:lib")).split(':')
+    for ad in alt_dirs:
+        adx = os.path.join(ad,x)
+        if os.path.isfile(adx):
+            x = adx
+            break
+        adx = os.path.join(adx,".kg")
+        if os.path.isfile(adx):
+            x = adx
+            break
+
+    if not os.path.isfile(x):
         raise FileNotFoundError("file does not exist: {x}")
+
+    try:
+        with open(x, "r") as f:
+            # This is a "hack" to keep the load operation in the same context it was called in
+            #   The interpeter pushes a context when it calls a function, so here
+            #   we pop it, run the load in the original context, and push the context back on
+            #   so that the interpreter can pop it's temporary context off as normal.
+            ctx = klong._context.pop()
+            try:
+                r = klong(f.read())
+            finally:
+                klong._context.push(ctx)
+            return r
+    except IOError:
+        raise RuntimeError("file could not be opened: {x}")
 
 
 def eval_sys_more_input(klong):
@@ -266,45 +277,69 @@ def eval_sys_python(klong, x):
     
         .py(x)                                                    [Python]
 
-        Import a python module in to the current context.
+        Import a python module in to the current context.  All methods exposed in the module
+        are loaded into the current context space and callable from within KlongPy.
     
-        Load the content of the file specified in the string "x" as if
-        typed in at the interpreter prompt.
+        If the string "x" refers to a directory, KlongPy will append __init__.py 
+        to determine if the directory is a Python module and attempt to load the module.
+          
+        If the string "x" ends with a .py, then KlongPy will attempt to load this file
+        as a Python module.
 
-        Klong will try the names "x", and a,".kg", in all directories
-        specified in the KLONGPATH environment variable. Directory names
-        in KLONGPATH are separated by colons.
+        Example:
 
-        When KLONGPATH is undefined, it defaults to ".:lib".
+            Consider a python module called Greetings that exports the "hello" method such as:
 
-        A program can be loaded from an absolute or relative path
-        (without a prefix from KLONGPATH) by starting "x" with a "/"
-        or "." character.
+                def hello():
+                    print("Hello, World!")
 
-        .l will return the last expression evaluated, i.e. it can be
-        used to load the value of a single expression from a file.
+            The following will load the "greetings" module from the Python modules in the same 
+            way that 'import hello' would do.  Then we can call 'hello'
 
-    
+                .py("greetings")
+                hello() --> "Hello, World!"
+             
+            Additionally, a full path to a module can be specified.  This can be useful for 
+            when creating custom modules that don't need to be installed into Python modules.
+
+                .py("<path>/<to>/greetings")            
+
     """
-    if os.path.isdir(x):
-        tx = os.path.join(x,"__init__.py")
-        if os.path.exists(tx):
-            x = tx
-
-    if x.endswith(".py"):
-        if os.path.exists(x):
-            module_name = os.path.basename(os.path.dirname(x))
-            spec = importlib.util.spec_from_file_location(module_name, x)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+    if os.path.isdir(x) or x.endswith("__init__.py"):
+        x = os.path.realpath(x)
+        if x.endswith("__init__.py"):
+            x = os.path.dirname(x)
+        if os.path.isfile(os.path.join(x,"__init__.py")):
+            module = None
+            try:
+                pardir = os.path.dirname(x)
+                sys.path.insert(0,pardir)
+                module_name = os.path.basename(os.path.normpath(x))
+                module = importlib.import_module(module_name)
+            except Exception as e:
+                print(e)
+                raise e
+            finally:
+                sys.path.pop(0)
         else:
             raise FileNotFoundError("Not a valid Python module (missing __init__.py): {x}")
+    elif os.path.isfile(x):
+        module_name = os.path.dirname(x)
+        location = x
+        spec = importlib.util.spec_from_file_location(module_name, location=location)
+        module = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(module)
+        except Exception as e:
+            print(e)
+            raise RuntimeError("module could not be imported: {x}")
     else:
         if (spec := importlib.util.find_spec(x)) is not None:
             module = importlib.util.module_from_spec(spec)
             try:
                 spec.loader.exec_module(module)
-            except:
+            except Exception as e:
+                print(e)
                 raise RuntimeError("module could not be imported: {x}")
     try:
         import_items = filter(lambda p: not p[0].startswith("__"), module.__dict__.items())
@@ -312,7 +347,10 @@ def eval_sys_python(klong, x):
             ctx = klong._context.pop()
             try:
                 for p,q in import_items:
-                    klong[p] = q
+                    try:
+                        klong[p] = q
+                    except Exception as e:
+                        print(e)
             finally:
                 klong._context.push(ctx)
             return 1
