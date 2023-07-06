@@ -354,7 +354,8 @@ def eval_sys_python(klong, x):
             finally:
                 klong._context.push(ctx)
             return 1
-    except:
+    except Exception as e:
+        print(e)
         raise RuntimeError("failed to load module: {x}")
 
 
