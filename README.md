@@ -19,6 +19,8 @@ At its heart, KlongPy is about infusing Python's flexibility with the compact Kl
 
 Consider this simple Klong expression that computes an array's average: (+/a)%#a. Decoded, it means "sum of 'a' divided by the length of 'a'", from right to left.
 
+Below, we define the function 'avg' and apply it to the array of integers from 0 -> 99 (as defined by !100)
+
 Let's try this in the KlongPy REPL:
 
 ```Bash
