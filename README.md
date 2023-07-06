@@ -416,7 +416,12 @@ Primary ongoing work includes:
 
 # Differences from Klong
 
-The main difference between Klong and KlongPy is that KlongPy doesn't infinite precision because it's backed by NumPy which is restricted to doubles.
+While KlongPy aims to be 100% compatible with Klong language, the KlongPy system has different goals:
+
+    * Infinite precision: The main difference in this implementation of Klong is the lack of infinite precision.  By using NumPy we are restricted to doubles.
+    * Python integration: Most notably, the ".py" command allows direct import of Python modules into the current Klong context.
+    * IPC - KlongPy will support IPC between KlongPy processes, allowing one KlongPy process to interact with other KlongPy processes over the network.
+
 
 # Running tests
 
