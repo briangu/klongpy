@@ -3,44 +3,29 @@
 
 # KlongPy
 
-KlongPy is a vectorized port of [Klong](https://t3x.org/klong), making it a blazingly fast [array language](https://en.wikipedia.org/wiki/Array_programming) that supports direct Python integration.
+If you're intrigued by the world of [array languages](https://en.wikipedia.org/wiki/Array_programming) and love Python's versatility, meet KlongPy. This project marries the two, bringing Klong's elegant, terse syntax and the computational power of array programming to Python.
 
-[NumPy](https://numpy.org/) is used as the runtime target because it itself is an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/), or rather a descendent of APL, making the mapping from Klong to NumPy *relatively* straightforward.
+Born from the lineage of the [Klong](https://t3x.org/klong) array language, KlongPy leverages [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) that traces its roots back to APL, as its runtime target. This paves a relatively seamless path for mapping Klong constructs to NumPy, unleashing the performance benefits of this efficient, data-crunching Python library.
 
-Using NumPy also means that, via [CuPy](https://github.com/cupy/cupy), both CPU and GPU backends are supported (where possible, see Status section).
+The charm of KlongPy? It integrates Python's extensive library ecosystem right into the Klong language. Whether it's feeding your machine learning model with Klong-processed data or mixing and matching Klong with other Python libraries for your data analysis workflow, KlongPy has you covered. And, with [CuPy](https://github.com/cupy/cupy) in play, you have the flexibility of both CPU and GPU backends at your disposal.
 
-
-Klong was created by Nils M Holm and he has also written a [Klong Book](https://t3x.org/klong/book.html).
-
-
-# Related
-
- * [Klupyter - KlongPy in Jupyter Notebooks](https://github.com/briangu/klupyter)
- * [Advent Of Code '22](https://github.com/briangu/aoc/tree/main/22)
- * [Example Ticker Plant with streaming and dataframes](https://github.com/briangu/kdfs)
-
+The project builds upon the genius of [Nils M Holm](https://t3x.org), the creator of the Klong language, who has written a comprehensive [Klong Book](https://t3x.org/klong/book.html) for anyone interested in diving deeper. In short, if you're a data scientist, researcher, or just a programming language enthusiast, KlongPy may just be the next thing you want to check out.
 
 # Overview
 
-KlongPy brings together the Klong terse array language notation with the performance of NumPy.  I wanted to use Klong but I also wanted it to be a fast as possible.  Bonus is the ability to mix Klong with Python libraries making it easy to pick and choose the tools as appropriate.
+Want to supercharge your data manipulation with the brevity of Klong and the might of Python libraries? Enter KlongPy.
 
-Here's simple example of mixing Python and KlongPy to compute average of a 1B entry array.
+At its heart, KlongPy is about infusing Python's flexibility with the compact Klong array language, allowing you to tap into the performance of NumPy while writing code that's concise and powerful. Here's an example that computes the average of a 1 billion-entry array in Klong:
 
-To get an idea of what the following examples are about, let's first look at how average is computed in Klong. Assume 'a' represents an array, and we want to compute the average of 'a'.
+Consider this simple Klong expression that computes an array's average: (+/a)%#a. Decoded, it means "sum of 'a' divided by the length of 'a'", from right to left.
 
-```
-(+/a)%#a
-```
+Let's try this in the KlongPy REPL:
 
-This directly translates into (from right to left): length of x (#a) divides sum over x (+/a).
-
-Now, with that in hand, we can try it in the REPL.  First we'll make a function called 'avg' and then find the average over the range 0..99 inclusive (!100).  Note, functions in Klong require the parameter names to be x, y, and z.
-
-```
-Welcome to KlongPy REPL
+```Bash
+Welcome to KlongPy REPL v0.3.78
 author: Brian Guarraci
 repo  : https://github.com/briangu/klongpy
-crtl-c to quit
+crtl-d or ]q to quit
 
 ?> avg::{(+/x)%#x}
 :monad
@@ -48,16 +33,29 @@ crtl-c to quit
 49.49999999999999
 ```
 
-Now let's time it using the REPL system command ]T, which uses the Python timeit facility.  First, we'll run it once and see it takes about 374us, then we'll run it 100 times.
+We can also import Python modules to use directly in Klong language.  
+
+Here we import the standard Python math library and redefine avg to use 'fsum':
+
+```Bash
+?> .py('math')
+1
+?> avg::{fsum(x)%#x}
+:monad
+?> avg(!100)
+49.5
+```
+
+Now let's time it:
 
 ```
 ?> ]T avg(!100)
-0.0003741057589650154
+total: 2.710003172978759e-06 per: 2.710003172978759e-06
 ?> ]T:100 avg(!100)
-0.01385202500387095
+total: 4.0871003875508904e-05 per: 4.0871003875508905e-07
 ```
 
-Let's use Klong from Python:
+To use KlongPy within Python, here's a basic outline:
 
 ```python
 from klongpy import KlongInterpreter
@@ -77,7 +75,7 @@ r = klong['avg'](data)
 print(f"avg={np.round(r,6)}")
 ```
 
-Let's compare CPU vs GPU backends:
+And let's run a performance comparison between CPU and GPU backends:
 
 ```python
 import time
@@ -108,11 +106,13 @@ Run (GPU)
 
 # Python integration
 
-KlongPy supports direct Python integration, making it easy to mix Klong with Python and use it in the most suitable scenarios.  For example, KlongPy can be part of an ML/Pandas workflow or be part of the website backend.
+Seamlessly blending Klong and Python is the cornerstone of KlongPy, enabling you to utilize each language where it shines brightest. For instance, you can integrate KlongPy into your ML/Pandas workflows, or deploy it as a powerhouse driving your website backend.
 
-Extending KlongPy with custom functions and moving data in / out of the KlongPy interpeter is easy since the interpreter operates as a dictionary. The dictionary contents are the current KlongPy state.
+The charm of KlongPy lies in its dictionary-like interpreter that hosts the current KlongPy state, making it incredibly simple to extend KlongPy with custom functions and shuttle data in and out of the interpreter.
 
-Data generated elsewhere can be set in KlongPy and seamlessly accessed and processed via Klong language.  Also, Python lambdas or functions may be exposed directly as Klong functions, allowing easy extensions to the Klong language.
+Imagine your data processed elsewhere, just set it into KlongPy and watch as the Klong language works its magic, accessing and manipulating your data with effortless ease. Even more, Python lambdas or functions can directly be exposed as Klong functions, adding an array of powerful tools to your Klong arsenal.
+
+KlongPy indeed is a force multiplier, amplifying the power of your data operations.
 
 ## Function example
 
@@ -136,11 +136,9 @@ r = klong['f'](3, 10, 20)
 assert r == 2990
 ```
 
-As you can see, it's easy to interop with Python and Klong allowing the best tool for the job.
-
 ## Data example
 
-Since the Klong interpreter context is basically a dictionary, you can store values there for access in Klong:
+Since the Klong interpreter context is dictionary-like, you can store values there for access in Klong:
 
 ```python
 data = np.arange(10*9)
@@ -159,7 +157,9 @@ print(Q)
 
 ## Python library access
 
-In order to simplify Klong development, Python functions can be easily added to support common operations:
+Python functions, including lambdas, can be easily added to support common operations.  
+
+In order to be consistent with Klong language, the paramters of Python functions may have at most three paramters and they must be x, y, and z.
 
 ```Python
 from datetime import datetime
@@ -204,7 +204,7 @@ called from KlongPy: {'timestamp': datetime.datetime(2018, 6, 21, 0, 0)}
 
 ## Loading Python Modules directly into KlongPy
 
-KlongPy has the powerful ability to load Python modules directly. This can be extremely useful when you want to utilize the functionality offered by various Python libraries, and seamlessly integrate them into your KlongPy programs.
+KlongPy has the powerful ability to load Python modules directly. This can be extremely useful when you want to utilize the functionality offered by various Python libraries, and seamlessly integrate them into your KlongPy programs.  
 
 Here is an example of how you can load a Python module into KlongPy:
 
@@ -220,7 +220,12 @@ crtl-d or ]q to quit
 1
 ?> sqrt(64)
 8.0
+?> fsum(!100)
+4950.0
 ```
+
+In order to keep consistency with Klong 3-parameter function rules, KlongPy will attempt to remap loaded functions to use the x,y and z convention.  For example, in the Python math module, fsum is defined as fsum(seq), so KlongPy remaps this to fsum(x) so that it works within the runtime.
+
 
 ## Loading Custom Python Modules
 
@@ -374,6 +379,7 @@ def NumPy_vec(number=100):
 
 KlongPy has a REPL similar to Klong's REPL.
 
+```bash
     $ pip3 install klongpy[repl]
     $ rlwrap kgpy
 
@@ -394,6 +400,7 @@ KlongPy has a REPL similar to Klong's REPL.
     1
     ?> ]T prime(251)
     0.0005430681630969048
+```
 
 Read about the [prime example here](https://t3x.org/klong/prime.html).
 
@@ -414,13 +421,20 @@ Primary ongoing work includes:
     * increase Klong grammar coverage
 * Make REPL (kgpy) compatible with original Klong (kg) REPL
 
+
 # Differences from Klong
 
-While KlongPy aims to be 100% compatible with Klong language, the KlongPy system has different goals:
+While KlongPy aims to be 100% compatible with Klong language, the KlongPy system has some differences:
 
     * Infinite precision: The main difference in this implementation of Klong is the lack of infinite precision.  By using NumPy we are restricted to doubles.
     * Python integration: Most notably, the ".py" command allows direct import of Python modules into the current Klong context.
     * IPC - KlongPy will support IPC between KlongPy processes, allowing one KlongPy process to interact with other KlongPy processes over the network.
+
+# Related
+
+ * [Klupyter - KlongPy in Jupyter Notebooks](https://github.com/briangu/klupyter)
+ * [Advent Of Code '22](https://github.com/briangu/aoc/tree/main/22)
+ * [Example Ticker Plant with streaming and dataframes](https://github.com/briangu/kdfs)
 
 
 # Running tests

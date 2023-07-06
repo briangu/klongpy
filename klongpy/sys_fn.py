@@ -1,6 +1,7 @@
 
 import errno
 import importlib.util
+import inspect
 import os
 import random
 import subprocess
@@ -317,7 +318,7 @@ def eval_sys_python(klong, x):
                 module_name = os.path.basename(os.path.normpath(x))
                 module = importlib.import_module(module_name)
             except Exception as e:
-                print(e)
+                print(f".py: {e}")
                 raise e
             finally:
                 sys.path.pop(0)
@@ -331,7 +332,7 @@ def eval_sys_python(klong, x):
         try:
             spec.loader.exec_module(module)
         except Exception as e:
-            print(e)
+            print(f".py: {e}")
             raise RuntimeError("module could not be imported: {x}")
     else:
         if (spec := importlib.util.find_spec(x)) is not None:
@@ -339,23 +340,23 @@ def eval_sys_python(klong, x):
             try:
                 spec.loader.exec_module(module)
             except Exception as e:
-                print(e)
+                print(f".py: {e}")
                 raise RuntimeError("module could not be imported: {x}")
     try:
-        import_items = filter(lambda p: not p[0].startswith("__"), module.__dict__.items())
+        import_items = filter(lambda p: not (p[0].startswith("__")), module.__dict__.items())
         if import_items is not None:
             ctx = klong._context.pop()
             try:
-                import inspect
-
                 for p,q in import_items:
+                    if not callable(q):
+                        continue
                     try:
                         args = inspect.signature(q, follow_wrapped=True).parameters
-                        if len(args) > len(reserved_fn_args):
-                            print("skipping {p} - too many paramters {len(args)}")
-                        if reserved_fn_args[0] not in args:
-                            print("remapping {p} using reserved parameter names")
-                            n_args = len(args)
+                        n_args = len(args)
+                        if n_args > len(reserved_fn_args):
+                            print(f".py: skipping {p} - too many paramters: {n_args}")
+                        if n_args > 0 and reserved_fn_args[0] not in args:
+                            print(f".py: remapping {p} using reserved parameter names")
                             if n_args == 3:
                                 q = lambda x,y,z,f=q: f(x,y,z)
                             elif n_args == 2:
@@ -364,12 +365,12 @@ def eval_sys_python(klong, x):
                                 q = lambda x,f=q: f(x)
                         klong[p] = q
                     except Exception as e:
-                        print(e)
+                        print(f".py: {e}")
             finally:
                 klong._context.push(ctx)
             return 1
     except Exception as e:
-        print(e)
+        print(f".py: {e}")
         raise RuntimeError("failed to load module: {x}")
 
 
