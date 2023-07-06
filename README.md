@@ -410,7 +410,7 @@ hello, world!
 ?> prime(251)
 1
 ?> ]T prime(251)
-0.0005430681630969048
+total: 0.0004914579913020134 per: 0.0004914579913020134
 ```
 
 Read about the [prime example here](https://t3x.org/klong/prime.html).
@@ -418,12 +418,13 @@ Read about the [prime example here](https://t3x.org/klong/prime.html).
 
 # Status
 
-KlongPy aims to be a complete implementation of klong.  It currently passes all of the integration tests provided by klong.
+KlongPy aims to be a complete implementation of klong.  It currently passes all of the integration tests provided by klong as well as additional suites.
 
 Since CuPy is [not 100% compatible with NumPy](https://docs.cupy.dev/en/stable/user_guide/difference.html), there are currently some gaps in KlongPy between the two backends.  Notably, strings are supported in CuPy arrays so KlongPy GPU support currently is limited to math.
 
 Primary ongoing work includes:
 
+* Add IPC capabilities so to enable inter-KlongPy commoncation
 * Actively switch between CuPy and NumPy when incompatibilities are present
     * Work on CuPy kernels is in this branch: _cupy_reduce_kernels
 * Additional syntax error help
