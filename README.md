@@ -15,9 +15,9 @@ The project builds upon the work of [Nils M Holm](https://t3x.org), the creator 
 
 At its heart, KlongPy is about infusing Python's flexibility with the compact Klong array language, allowing you to tap into the performance of NumPy while writing code that's concise and powerful. 
 
-Consider this simple Klong expression that computes an array's average: (+/a)%#a. Decoded, it means "sum of 'a' divided by the length of 'a'", from right to left.
+Consider this simple Klong expression that computes an array's average: (+/a)%#a. Decoded, it means "sum of 'a' divided by the length of 'a'", as read from right to left.
 
-Below, we define the function 'avg' and apply it to the array of integers from 0 -> 99 (as defined by !100)
+Below, we define the function 'avg' and apply it to the array of 1 million integers (as defined by !1000000)
 
 Let's try this in the KlongPy REPL:
 
@@ -31,30 +31,39 @@ crtl-d or ]q to quit
 
 ?> avg::{(+/x)%#x}
 :monad
-?> avg(!100)
-49.49999999999999
+?> avg(!1000000)
+499999.5
+```
+
+Now let's time it (first, right it once, then 100 times):
+
+```
+?> ]T avg(!1000000)
+total: 0.0032962500117719173 per: 0.0032962500117719173
+?> ]T:100 avg(!1000000)
+total: 0.10882879211567342 per: 0.0010882879211567343
 ```
 
 We can also import Python modules to use directly in Klong language.  
 
 Here we import the standard Python math library and redefine avg to use 'fsum':
 
-```Bash
-?> .py('math')
+```
+?> .py("math")
 1
-?> avg::{fsum(x)%#x}
+?> favg::{fsum(x)%#x}
 :monad
-?> avg(!100)
-49.5
+?> favg(!1000000)
+499999.5
 ```
 
-Now let's time it (first, right it once, then 100 times):
+Notice that using fsum is slower than using Klong '+/'.  This is because the '+/' operation is vectorized while fsum is not.
 
 ```
-?> ]T avg(!100)
-total: 2.710003172978759e-06 per: 2.710003172978759e-06
-?> ]T:100 avg(!100)
-total: 4.0871003875508904e-05 per: 4.0871003875508905e-07
+?> ]T favg(!1000000)
+total: 0.050078875152394176 per: 0.050078875152394176
+?> ]T:100 favg(!1000000)
+total: 2.93945804098621 per: 0.029394580409862103
 ```
 
 To use KlongPy within Python, here's a basic outline:
