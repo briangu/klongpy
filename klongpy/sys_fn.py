@@ -7,7 +7,7 @@ import subprocess
 import sys
 import time
 
-from .core import KGChannel, KGChannelDir, is_empty, kg_read, kg_write, safe_eq
+from .core import KGChannel, KGChannelDir, is_empty, kg_read, kg_write, safe_eq, reserved_fn_args
 
 
 def eval_sys_append_channel(x):
@@ -346,8 +346,22 @@ def eval_sys_python(klong, x):
         if import_items is not None:
             ctx = klong._context.pop()
             try:
+                import inspect
+
                 for p,q in import_items:
                     try:
+                        args = inspect.signature(q, follow_wrapped=True).parameters
+                        if len(args) > len(reserved_fn_args):
+                            print("skipping {p} - too many paramters {len(args)}")
+                        if reserved_fn_args[0] not in args:
+                            print("remapping {p} using reserved parameter names")
+                            n_args = len(args)
+                            if n_args == 3:
+                                q = lambda x,y,z,f=q: f(x,y,z)
+                            elif n_args == 2:
+                                q = lambda x,y,f=q: f(x,y)
+                            elif n_args == 1:
+                                q = lambda x,f=q: f(x)
                         klong[p] = q
                     except Exception as e:
                         print(e)

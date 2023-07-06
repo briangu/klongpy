@@ -216,6 +216,8 @@ class TestSysFn(unittest.TestCase):
         self.assertEqual(r,1)
         r = klong('sqrt(64)')
         self.assertEqual(r,8)
+        r = klong('fsum(1+!10)')
+        self.assertEqual(r,55)
 
     def test_sys_python_load_custom_module(self):
         tests_dir = os.path.dirname(os.path.abspath(__file__))

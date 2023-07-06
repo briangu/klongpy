@@ -98,15 +98,16 @@ class KGLambda:
     """
     def __init__(self, fn):
         self.fn = fn
-        self.args = inspect.signature(self.fn, follow_wrapped=True).parameters
-        self.provide_klong = 'klong' in self.args
+        params = inspect.signature(self.fn, follow_wrapped=True).parameters
+        self.args = [x for x in params if x in reserved_fn_args]
+        self.provide_klong = 'klong' in params
 
     def __call__(self, klong, ctx):
-        params = [ctx[reserved_fn_symbol_map[x]] for x in reserved_fn_args if x in self.args]
+        params = [ctx[reserved_fn_symbol_map[x]] for x in reserved_fn_args[:len(self.args)]]
         return self.fn(klong, *params) if self.provide_klong else self.fn(*params)
 
     def get_arity(self):
-        return len(self.args) - 1 if self.provide_klong else len(self.args)
+        return len(self.args)
 
 
 class KGChannelDir(Enum):
