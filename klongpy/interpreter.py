@@ -6,6 +6,7 @@ from .core import *
 from .dyads import create_dyad_functions
 from .monads import create_monad_functions
 from .sys_fn import create_system_functions
+from .sys_fn_ipc import create_system_functions_ipc
 from .sys_var import *
 from .utils import ReadonlyDict
 
@@ -123,6 +124,7 @@ def create_system_contexts():
 
     sys_d = {}
     add_system_functions(sys_d, create_system_functions())
+    add_system_functions(sys_d, create_system_functions_ipc())
     set_context_var(sys_d, KGSym('.e'), eval_sys_var_epsilon()) # TODO: this is probably a bug that this can't be a lambda
     set_context_var(sys_d, KGSym('.cin'), cin)
     set_context_var(sys_d, KGSym('.cout'), cout)

@@ -1,15 +1,16 @@
 #!/usr/bin/python3
 
 import argparse
+import asyncio
 import os
 import sys
+import threading
 import timeit
 
 import pkg_resources
 from colorama import Fore, init
 
 from klongpy import KlongInterpreter
-
 
 """
 
@@ -170,45 +171,49 @@ def repl_eval(klong, p, verbose=False):
     return r
 
 
-# https://dev.to/amal/building-the-python-repl-3468
-def repl(klong=None):
 
-    print()
-    print(f"{Fore.GREEN}Welcome to KlongPy REPL v{pkg_resources.get_distribution('klongpy').version}")
-    print(f"{Fore.BLUE}author: Brian Guarraci")
-    print(f"{Fore.BLUE}repo  : https://github.com/briangu/klongpy")
-    print(f"{Fore.YELLOW}crtl-d or ]q to quit")
-    print()
+def get_input():
+    return input("?> ")
 
-    init(autoreset=True)
 
-    sys_cmds = create_sys_cmd_functions()
+class ConsoleInputHandler:
+    async def input_producer(self, loop, klong):
+        print()
+        print(f"{Fore.GREEN}Welcome to KlongPy REPL v{pkg_resources.get_distribution('klongpy').version}")
+        print(f"{Fore.BLUE}author: Brian Guarraci")
+        print(f"{Fore.BLUE}repo  : https://github.com/briangu/klongpy")
+        print(f"{Fore.YELLOW}crtl-d or ]q to quit")
+        print()
 
-    klong = klong or KlongInterpreter()
-    while True:
-        try:
-            s = input("?> ")
-            if len(s) == 0:
-                continue
-            if s.startswith("]"):
-                if s[1] in sys_cmds:
-                    r = sys_cmds[s[1]](klong, s)
-                else:
-                    print(f"unkown system command: ]{s[1]}")
+        init(autoreset=True)
+
+        sys_cmds = create_sys_cmd_functions()
+
+        while True:
+            try:
+                s = await loop.run_in_executor(None, get_input)
+                if len(s) == 0:
                     continue
-            else:
-                r = repl_eval(klong, s)
-            if r is not None:
-                print(r)
-        except EOFError:
-            print("\rbye!")
-            break
-        except KeyboardInterrupt:
-            print(failure("\nkg: error: interrupted"))
-        except Exception as e:
-            print(failure(f"Error: {e.args}"))
-            import traceback
-            traceback.print_exc(e)
+                if s.startswith("]"):
+                    if s[1] in sys_cmds:
+                        r = sys_cmds[s[1]](klong, s)
+                    else:
+                        print(f"unkown system command: ]{s[1]}")
+                        continue
+                else:
+                    r = repl_eval(klong, s)
+                if r is not None:
+                    print(r)
+            except EOFError:
+                print("\rbye!")
+                loop.stop()
+                break
+            except KeyboardInterrupt:
+                print(failure("\nkg: error: interrupted"))
+            except Exception as e:
+                print(failure(f"Error: {e.args}"))
+                import traceback
+                traceback.print_exc(e)
 
 
 def run_file(fname):
@@ -223,7 +228,7 @@ if __name__ == "__main__":
         epilog='For help, go to https://github.com/briangu/klongpy')
     parser.add_argument('-e', '--expr', help='evaluate expression, no interactive mode')
     parser.add_argument('-l', '--load', help='load program from file')
-    parser.add_argument('-p', '--run', help='run program from file')
+    # parser.add_argument('-p', '--run', help='run program from file')
     parser.add_argument('-t', '--test', help='test program from file')
     parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
 
@@ -234,16 +239,18 @@ if __name__ == "__main__":
         exit()
 
     klong = KlongInterpreter()
+    loop = asyncio.get_event_loop()
+    run_repl = False
 
     if args.load:
         print(f"Loading: {args.load}")
         with open(args.load, "r") as f:
             klong(f.read())
-        repl(klong)
-    elif args.run:
-        print(f"Running: {args.run}")
-        with open(args.run, "r") as f:
-            klong(f.read())
+        run_repl = True
+    # elif args.run:
+    #     print(f"Running: {args.run}")
+    #     with open(args.run, "r") as f:
+    #         klong(f.read())
     elif args.test:
         print(f"Test: {args.test}")
         with open(args.test, "r") as f:
@@ -256,4 +263,9 @@ if __name__ == "__main__":
     elif args.filename:
         run_file(args.filename)
     else:
-        repl()
+        run_repl = True
+
+    if run_repl:
+        console_input_handler = ConsoleInputHandler()
+        loop.create_task(console_input_handler.input_producer(loop, klong))
+        loop.run_forever()
