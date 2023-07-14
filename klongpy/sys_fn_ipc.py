@@ -4,7 +4,7 @@ import sys
 import threading
 from asyncio import StreamReader, StreamWriter
 
-from klongpy.core import KGCall, KGFn, KGFnWrapper, KGLambda
+from klongpy.core import KGCall, KGLambda
 
 
 _main_loop = asyncio.get_event_loop()
@@ -94,7 +94,6 @@ def eval_sys_fn_create_client(x):
         .cli(x)                                      [Create IPC client]
 
     """
-    print("connecting to: ", x)
     x = str(x)
     parts = x.split(":")
     host = parts[0] if len(parts) > 1 else "localhost"
@@ -130,6 +129,8 @@ def eval_sys_create_ipc_server(klong, x):
     parts = x.split(":")
     bind = parts[0] if len(parts) > 1 else None
     port = int(parts[0] if len(parts) == 1 else parts[1])
+    if len(parts) == 1 and port == 0:
+        return eval_sys_shutdown_ipc_server()
     return _ipc_tcp_server.create_server(klong, bind, port)
 
 
