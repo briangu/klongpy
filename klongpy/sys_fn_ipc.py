@@ -1,11 +1,15 @@
 import asyncio
+import logging
 import socket
+import struct
 import sys
 import threading
 from asyncio import StreamReader, StreamWriter
+from typing import Optional
+
+import dill
 
 from klongpy.core import KGCall, KGLambda
-
 
 _main_loop = asyncio.get_event_loop()
 _main_tid = threading.current_thread().ident
@@ -16,18 +20,81 @@ def run_klong(klong, cmd):
     return klong(cmd)
 
 
+async def stream_send_msg(writer: StreamWriter, msg):
+    data = dill.dumps(msg)
+    writer.write(struct.pack('>I', len(data)) + data)
+    await writer.drain()
+
+
+async def stream_recv_all(reader: StreamReader, n: int) -> Optional[bytes]:
+    data = bytearray()
+    remaining = n
+
+    while remaining > 0:
+        packet = await reader.read(remaining)
+        if not packet:
+            return None
+        data.extend(packet)
+        remaining -= len(packet)
+
+    return bytes(data)
+
+
+async def stream_recv_msg(reader: StreamReader):
+    raw_msglen = await stream_recv_all(reader, 4)
+    if not raw_msglen:
+        logging.error("stream_recv_msg: remote server error => received empty message")
+        return None
+    msglen = struct.unpack('>I', raw_msglen)[0]
+    data = await stream_recv_all(reader, msglen)
+    return dill.loads(data)
+
+
+def socket_send_msg(conn: socket.socket, msg: bytes):
+    data = dill.dumps(msg)
+    conn.sendall(struct.pack('>I', len(data)) + data)
+
+
+def socket_recv_all(conn: socket.socket, n: int) -> Optional[bytes]:
+    data = bytearray()
+    remaining = n
+
+    while remaining > 0:
+        packet = conn.recv(remaining)
+        if not packet:
+            return None
+        data.extend(packet)
+        remaining -= len(packet)
+
+    return bytes(data)
+
+
+def socket_recv_msg(conn: socket.socket):
+    raw_msglen = socket_recv_all(conn, 4)
+    if not raw_msglen:
+        logging.error("socket_recv_msg: remote server error => received empty message")
+        return None
+    msglen = struct.unpack('>I', raw_msglen)[0]
+    data = socket_recv_all(conn, msglen)
+    return dill.loads(data)
+
+
 class TcpClientHandler:
     def __init__(self, klong):
         self.klong = klong
 
     async def handle_client(self, reader: StreamReader, writer: StreamWriter):
         while True:
-            data = await reader.readline()
-            command = data.decode().strip()
+            command = await stream_recv_msg(reader)
             if command:
-                response = run_klong(self.klong, command)
-                writer.write((str(response) + "\n").encode())
-                await writer.drain()
+                try:
+                    response = run_klong(self.klong, command)
+                except Exception as e:
+                    response = "internal error"
+                    logging.error(f"TcpClientHandler::handle_client: Klong error {e}")
+                    import traceback
+                    traceback.print_exception(type(e), e, e.__traceback__)
+                await stream_send_msg(writer, response)
             else:
                 break
 
@@ -40,11 +107,11 @@ class TcpServerHandler:
         self.client_handler = None
         self.task = None
 
-    def create_server(self, klong, bind, port):
+    def create_server(self, loop, klong, bind, port):
         if self.task is not None:
             return 0
         self.client_handler = TcpClientHandler(klong)
-        self.task = _main_loop.create_task(self.tcp_producer(bind, port))
+        self.task = loop.create_task(self.tcp_producer(bind, port))
         return 1
 
     def shutdown_server(self):
@@ -56,12 +123,10 @@ class TcpServerHandler:
         return 1
 
     async def tcp_producer(self, bind, port):
-        server = await asyncio.start_server(
-            self.client_handler.handle_client, bind, port
-        )
+        server = await asyncio.start_server(self.client_handler.handle_client, bind, port)
 
         addr = server.sockets[0].getsockname()
-        # print(f'Serving on {addr}')
+        logging.info(f'Serving on {addr}')
 
         async with server:
             await server.serve_forever()
@@ -73,9 +138,8 @@ class NetworkClientHandle():
         self.sock.connect((host, port))
 
     def __call__(self, x):
-        self.sock.sendall((str(x) + "\n").encode("utf-8"))
-        response = self.sock.recv(1024).decode("utf-8")
-        return response
+        socket_send_msg(self.sock, x)
+        return socket_recv_msg(self.sock)
 
     def close(self):
         self.sock.close()
@@ -84,8 +148,8 @@ class NetworkClientHandle():
     def is_open(self):
         return self.sock is not None
     
-    # def __str__(self):
-    #     return ":monad"
+    def __str__(self):
+        return ":ipc"
 
 
 def eval_sys_fn_create_client(x):
@@ -110,7 +174,6 @@ def eval_sys_fn_shutdown_client(x):
     if isinstance(x, KGCall) and isinstance(x.a, KGLambda):
         x = x.a.fn
         if isinstance(x, NetworkClientHandle) and x.is_open():
-            print("shutting down client")
             x.close()
             return 1
     return 0
@@ -125,13 +188,15 @@ def eval_sys_create_ipc_server(klong, x):
         .srv(x)                                       [Start IPC server]
 
     """
+    global _main_loop
+    global _ipc_tcp_server
     x = str(x)
     parts = x.split(":")
     bind = parts[0] if len(parts) > 1 else None
     port = int(parts[0] if len(parts) == 1 else parts[1])
     if len(parts) == 1 and port == 0:
         return eval_sys_shutdown_ipc_server()
-    return _ipc_tcp_server.create_server(klong, bind, port)
+    return _ipc_tcp_server.create_server(_main_loop, klong, bind, port)
 
 
 def eval_sys_shutdown_ipc_server():
@@ -140,6 +205,7 @@ def eval_sys_shutdown_ipc_server():
         .srvc()                                        [Stop IPC server]
 
     """
+    global _ipc_tcp_server
     return _ipc_tcp_server.shutdown_server()
 
 
