@@ -4,11 +4,10 @@ import argparse
 import asyncio
 import os
 import sys
-import threading
 import timeit
 
+import colorama
 import pkg_resources
-from colorama import Fore, init
 
 from klongpy import KlongInterpreter
 
@@ -155,8 +154,8 @@ def create_sys_cmd_functions():
     return registry
 
 
-success = lambda input: f"{Fore.GREEN}{input}"
-failure = lambda input: f"{Fore.RED}{input}"
+success = lambda input: f"{colorama.Fore.GREEN}{input}"
+failure = lambda input: f"{colorama.Fore.RED}{input}"
 
 
 def repl_eval(klong, p, verbose=True):
@@ -172,22 +171,25 @@ def repl_eval(klong, p, verbose=True):
     return r
 
 
+def show_repl_header(ipc_addr=None):
+    print()
+    print(f"{colorama.Fore.GREEN}Welcome to KlongPy REPL v{pkg_resources.get_distribution('klongpy').version}")
+    print(f"{colorama.Fore.GREEN}author: Brian Guarraci")
+    print(f"{colorama.Fore.GREEN}repo  : https://github.com/briangu/klongpy")
+    print(f"{colorama.Fore.YELLOW}crtl-d or ]q to quit")
+    print()
+    if ipc_addr:
+        print(f"{colorama.Fore.RED}Running IPC server at {ipc_addr}")
+        print()
+
 
 def get_input():
     return input("?> ")
 
 
 class ConsoleInputHandler:
-    async def input_producer(self, loop, klong):
-        print()
-        print(f"{Fore.GREEN}Welcome to KlongPy REPL v{pkg_resources.get_distribution('klongpy').version}")
-        print(f"{Fore.BLUE}author: Brian Guarraci")
-        print(f"{Fore.BLUE}repo  : https://github.com/briangu/klongpy")
-        print(f"{Fore.YELLOW}crtl-d or ]q to quit")
-        print()
-
-        init(autoreset=True)
-
+    @staticmethod
+    async def input_producer(loop, klong):
         sys_cmds = create_sys_cmd_functions()
 
         while True:
@@ -244,7 +246,6 @@ if __name__ == "__main__":
     run_repl = False
 
     if args.server:
-        print(f"Starting server: {args.server}")
         r = klong(f".srv({args.server})")
         if r == 0:
             print(f"Failed to start server")
@@ -268,6 +269,7 @@ if __name__ == "__main__":
             print(f"Loading: {args.load}")
             with open(args.load, "r") as f:
                 klong(f.read())
-        console_input_handler = ConsoleInputHandler()
-        loop.create_task(console_input_handler.input_producer(loop, klong))
+        colorama.init(autoreset=True)
+        show_repl_header(args.server)
+        loop.create_task(ConsoleInputHandler.input_producer(loop, klong))
         loop.run_forever()
