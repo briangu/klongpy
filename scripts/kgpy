@@ -229,7 +229,7 @@ if __name__ == "__main__":
         epilog='For help, go to https://github.com/briangu/klongpy')
     parser.add_argument('-e', '--expr', help='evaluate expression, no interactive mode')
     parser.add_argument('-l', '--load', help='load program from file')
-    # parser.add_argument('-p', '--run', help='run program from file')
+    parser.add_argument('-s', '--server', help='start the IPC server', type=str)
     parser.add_argument('-t', '--test', help='test program from file')
     parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
 
@@ -243,15 +243,11 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     run_repl = False
 
-    if args.load:
-        print(f"Loading: {args.load}")
-        with open(args.load, "r") as f:
-            klong(f.read())
-        run_repl = True
-    # elif args.run:
-    #     print(f"Running: {args.run}")
-    #     with open(args.run, "r") as f:
-    #         klong(f.read())
+    if args.server:
+        print(f"Starting server: {args.server}")
+        r = klong(f".srv({args.server})")
+        if r == 0:
+            print(f"Failed to start server")
     elif args.test:
         print(f"Test: {args.test}")
         with open(args.test, "r") as f:
@@ -261,12 +257,17 @@ if __name__ == "__main__":
                     continue
                 print(x)
                 klong(x)
-    elif args.filename:
+    
+    if args.filename:
         run_file(args.filename)
     else:
         run_repl = True
 
     if run_repl:
+        if args.load:
+            print(f"Loading: {args.load}")
+            with open(args.load, "r") as f:
+                klong(f.read())
         console_input_handler = ConsoleInputHandler()
         loop.create_task(console_input_handler.input_producer(loop, klong))
         loop.run_forever()

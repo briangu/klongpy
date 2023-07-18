@@ -136,7 +136,6 @@ class TcpClientHandler:
                 try:
                     assert threading.current_thread().ident == _main_tid
                     if isinstance(command, KGRemoteFnCall):
-                        # TODO use .get()
                         response = self.klong[command.sym](*command.params)
                     else:
                         response = self.klong(command)
