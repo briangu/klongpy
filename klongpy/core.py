@@ -20,6 +20,16 @@ class KGSym(str):
         return super().__hash__()
 
 
+def get_fn_arity_str(arity):
+    if arity == 0:
+        return ":nilad"
+    elif arity == 1:
+        return ":monad"
+    elif arity == 2:
+        return ":dyad"
+    return ":triad"    
+
+
 class KGFn:
     def __init__(self, a, args, arity):
         self.a = a
@@ -27,13 +37,7 @@ class KGFn:
         self.arity = arity
 
     def __str__(self):
-        if self.arity == 0:
-            return ":nilad"
-        elif self.arity == 1:
-            return ":monad"
-        elif self.arity == 2:
-            return ":dyad"
-        return ":triad"
+        return get_fn_arity_str(self.arity)
 
     def is_op(self):
         return isinstance(self.a,KGOp)
@@ -53,7 +57,8 @@ class KGFnWrapper:
 
 
 class KGCall(KGFn):
-    pass
+    def __str__(self):
+        return self.a.__str__() if issubclass(type(self.a), KGLambda) else super().__str__()
 
 
 class KGOp:
@@ -109,6 +114,9 @@ class KGLambda:
     def get_arity(self):
         return len(self.args)
 
+    def __str__(self):
+        return get_fn_arity_str(self.get_arity())
+    
 
 class KGChannelDir(Enum):
     INPUT=1

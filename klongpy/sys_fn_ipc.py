@@ -7,17 +7,63 @@ import threading
 from asyncio import StreamReader, StreamWriter
 from typing import Optional
 
-import dill
+import pickle as dill
 
-from klongpy.core import KGCall, KGLambda
+from klongpy.core import KGCall, KGFn, KGLambda, KGSym, get_fn_arity_str, reserved_fn_args, reserved_fn_symbol_map
 
 _main_loop = asyncio.get_event_loop()
 _main_tid = threading.current_thread().ident
 
 
-def run_klong(klong, cmd):
-    assert threading.current_thread().ident == _main_tid
-    return klong(cmd)
+class NetworkClient:
+    def __init__(self, host, port, sock):
+        self.host = host
+        self.port = port
+        self.sock = sock
+
+    def call(self, msg):
+        socket_send_msg(self.sock, msg)
+        return socket_recv_msg(self.sock)
+
+    def close(self):
+        self.sock.close()
+        self.sock = None
+
+    def is_open(self):
+        return self.sock is not None
+    
+    def __str__(self):
+        return f":remote_fn[{self.host}:{self.port}]"
+
+
+class KGRemoteFnRef:
+    def __init__(self, arity):
+        self.arity = arity
+
+    def __str__(self):
+        return get_fn_arity_str(self.arity)
+
+
+class KGRemoteFnCall:
+    def __init__(self, sym: KGSym, params):
+        self.sym = sym
+        self.params = params
+
+
+class KGRemoteFnProxy(KGLambda):
+
+    def __init__(self, nc: NetworkClient, sym: KGSym, arity):
+        self.nc = nc
+        self.sym = sym
+        self.args = reserved_fn_args[:arity]
+        self.provide_klong = False
+
+    def __call__(self, _, ctx):
+        params = [ctx[reserved_fn_symbol_map[x]] for x in reserved_fn_args[:len(self.args)]]
+        return self.nc.call(KGRemoteFnCall(self.sym, params))
+
+    def __str__(self):
+        return f"remote[{self.nc.host}:{self.nc.port}]{super().__str__()}"
 
 
 async def stream_send_msg(writer: StreamWriter, msg):
@@ -88,7 +134,14 @@ class TcpClientHandler:
             command = await stream_recv_msg(reader)
             if command:
                 try:
-                    response = run_klong(self.klong, command)
+                    assert threading.current_thread().ident == _main_tid
+                    if isinstance(command, KGRemoteFnCall):
+                        # TODO use .get()
+                        response = self.klong[command.sym](*command.params)
+                    else:
+                        response = self.klong(command)
+                    if isinstance(response, KGFn):
+                        response = KGRemoteFnRef(response.arity)
                 except Exception as e:
                     response = "internal error"
                     logging.error(f"TcpClientHandler::handle_client: Klong error {e}")
@@ -132,24 +185,37 @@ class TcpServerHandler:
             await server.serve_forever()
 
 
-class NetworkClientHandle():
-    def __init__(self, host, port):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.connect((host, port))
+class NetworkClientHandle:
+    def __init__(self, nc: NetworkClient):
+        self.nc = nc
 
     def __call__(self, x):
-        socket_send_msg(self.sock, x)
-        return socket_recv_msg(self.sock)
+        try:
+            response = self.nc.call(str(x))
+            if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
+                response = KGRemoteFnProxy(self.nc, x, response.arity)
+            return response
+        except Exception as e:
+            import traceback
+            traceback.print_exception(type(e), e, e.__traceback__)
+            raise e
 
     def close(self):
-        self.sock.close()
-        self.sock = None
+        if self.nc is not None:
+            self.nc.close()
+            self.nc = None
 
     def is_open(self):
-        return self.sock is not None
+        return self.nc is not None
     
     def __str__(self):
-        return ":ipc"
+        return f":cli[{self.nc.host}:{self.nc.port}]"
+
+    @staticmethod
+    def create(host, port):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((host, port))
+        return NetworkClientHandle(NetworkClient(host, port, sock))
 
 
 def eval_sys_fn_create_client(x):
@@ -162,7 +228,7 @@ def eval_sys_fn_create_client(x):
     parts = x.split(":")
     host = parts[0] if len(parts) > 1 else "localhost"
     port = int(parts[0] if len(parts) == 1 else parts[1])
-    return NetworkClientHandle(host, port)
+    return NetworkClientHandle.create(host, port)
 
 
 def eval_sys_fn_shutdown_client(x):
@@ -171,7 +237,7 @@ def eval_sys_fn_shutdown_client(x):
         .clic(x)                                      [Close IPC client]
 
     """
-    if isinstance(x, KGCall) and isinstance(x.a, KGLambda):
+    if isinstance(x, KGCall) and issubclass(type(x.a), KGLambda):
         x = x.a.fn
         if isinstance(x, NetworkClientHandle) and x.is_open():
             x.close()

@@ -17,7 +17,7 @@ def set_context_var(d, sym, v):
     """
     assert isinstance(sym, KGSym)
     if callable(v):
-        x = KGLambda(v)
+        x = v if issubclass(type(v), KGLambda) else KGLambda(v)
         v = KGCall(x,args=None,arity=x.get_arity())
     d[sym] = v
 
@@ -519,7 +519,7 @@ class KlongInterpreter():
 
         self._context.push(ctx)
         try:
-            return f(self, self._context) if isinstance(f, KGLambda) else self.call(f)
+            return f(self, self._context) if issubclass(type(f), KGLambda) else self.call(f)
         finally:
             self._context.pop()
 

@@ -138,7 +138,7 @@ def eval_sys_fn_create_client(hostname, port):
 
 
 def eval_sys_fn_shutdown_client(x):
-    if isinstance(x, KGCall) and isinstance(x.a, KGLambda):
+    if isinstance(x, KGCall) and issubclass(type(x.a), KGLambda):
         x = x.a.fn
         if isinstance(x, NetworkClientHandle) and x.is_open():
             print("shutting down client")
@@ -219,7 +219,7 @@ def eval_sys_fn_create_web_server(loop, klong, route_to_function_map):
 
 
 def eval_sys_fn_shutdown_web_server(x):
-    if isinstance(x, KGCall) and isinstance(x.a, KGLambda):
+    if isinstance(x, KGCall) and issubclass(type(x.a), KGLambda):
         x = x.a.fn
         if isinstance(x, WebServerHandle) and x.runner is not None:
             print("shutting down web server")
