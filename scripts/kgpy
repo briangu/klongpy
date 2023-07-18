@@ -159,7 +159,7 @@ success = lambda input: f"{Fore.GREEN}{input}"
 failure = lambda input: f"{Fore.RED}{input}"
 
 
-def repl_eval(klong, p, verbose=False):
+def repl_eval(klong, p, verbose=True):
     try:
         r = klong(p)
         r = r if r is None else success(r)
@@ -167,7 +167,8 @@ def repl_eval(klong, p, verbose=False):
         r = failure(f"Error: {e.args}")
         if verbose:
             import traceback
-            traceback.print_exc(e)
+            traceback.print_exception(type(e), e, e.__traceback__)
+
     return r
 
 
