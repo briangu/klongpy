@@ -189,7 +189,7 @@ def get_input():
 
 class ConsoleInputHandler:
     @staticmethod
-    async def input_producer(loop, klong):
+    async def input_producer(loop, klong, verbose=False):
         sys_cmds = create_sys_cmd_functions()
 
         while True:
@@ -204,7 +204,7 @@ class ConsoleInputHandler:
                         print(f"unkown system command: ]{s[1]}")
                         continue
                 else:
-                    r = repl_eval(klong, s)
+                    r = repl_eval(klong, s, verbose=verbose)
                 if r is not None:
                     print(r)
             except EOFError:
@@ -233,6 +233,7 @@ if __name__ == "__main__":
     parser.add_argument('-l', '--load', help='load program from file')
     parser.add_argument('-s', '--server', help='start the IPC server', type=str)
     parser.add_argument('-t', '--test', help='test program from file')
+    parser.add_argument('-v', '--verbose', help='enable verbose output', action="store_true")
     parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
 
     args = parser.parse_args()
@@ -271,5 +272,5 @@ if __name__ == "__main__":
                 klong(f.read())
         colorama.init(autoreset=True)
         show_repl_header(args.server)
-        loop.create_task(ConsoleInputHandler.input_producer(loop, klong))
+        loop.create_task(ConsoleInputHandler.input_producer(loop, klong, args.verbose))
         loop.run_forever()
