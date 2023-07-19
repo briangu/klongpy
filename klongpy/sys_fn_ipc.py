@@ -23,7 +23,7 @@ class NetworkClient:
 
     def call(self, msg):
         if not self.is_open():
-            return "connection closed"
+            return f"connection closed to IPC server [{self.host}:{self.port}]"
         socket_send_msg(self.sock, msg)
         return socket_recv_msg(self.sock)
 
@@ -167,6 +167,8 @@ class TcpServerHandler:
     def __init__(self):
         self.client_handler = None
         self.task = None
+        self.server = None
+        self.connections = []
 
     def create_server(self, loop, klong, bind, port):
         if self.task is not None:
@@ -178,19 +180,38 @@ class TcpServerHandler:
     def shutdown_server(self):
         if self.task is None:
             return 0
+        for writer in self.connections:
+            if not writer.is_closing():
+                writer.close()
+        self.connections.clear()
+
+        self.server.close()
+        self.server = None
         self.task.cancel()
         self.task = None
         self.client_handler = None
         return 1
 
-    async def tcp_producer(self, bind, port):
-        server = await asyncio.start_server(self.client_handler.handle_client, bind, port)
+    async def handle_client(self, reader, writer):
+        self.connections.append(writer)
 
-        addr = server.sockets[0].getsockname()
+        try:
+            await self.client_handler.handle_client(reader, writer)
+        finally:
+            if not writer.is_closing():
+                writer.close()
+            await writer.wait_closed()
+            if writer in self.connections:
+                self.connections.remove(writer)
+
+    async def tcp_producer(self, bind, port):
+        self.server = await asyncio.start_server(self.handle_client, bind, port)
+
+        addr = self.server.sockets[0].getsockname()
         logging.info(f'Serving on {addr}')
 
-        async with server:
-            await server.serve_forever()
+        async with self.server:
+            await self.server.serve_forever()
 
 
 class NetworkClientHandle(KGLambda):
