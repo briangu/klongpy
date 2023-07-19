@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import pickle as dill
 import socket
 import struct
 import sys
@@ -7,10 +8,8 @@ import threading
 from asyncio import StreamReader, StreamWriter
 from typing import Optional
 
-import pickle as dill
-
-from klongpy.core import KGCall, KGFn, KGLambda, KGSym, get_fn_arity_str, reserved_fn_args, reserved_fn_symbol_map, is_list
-
+from klongpy.core import (KGCall, KGFn, KGLambda, KGSym, get_fn_arity_str,
+                          is_list, reserved_fn_args, reserved_fn_symbol_map)
 
 _main_loop = asyncio.get_event_loop()
 _main_tid = threading.current_thread().ident
@@ -23,10 +22,13 @@ class NetworkClient:
         self.sock = sock
 
     def call(self, msg):
+        if not self.is_open():
+            return "connection closed"
         socket_send_msg(self.sock, msg)
         return socket_recv_msg(self.sock)
 
     def close(self):
+        logging.info("closing network client: {self.host}:{self.port}")
         self.sock.close()
         self.sock = None
 
@@ -251,7 +253,7 @@ def eval_sys_fn_shutdown_client(x):
 
     """
     if isinstance(x, KGCall) and issubclass(type(x.a), KGLambda):
-        x = x.a.fn
+        x = x.a
         if isinstance(x, NetworkClientHandle) and x.is_open():
             x.close()
             return 1
