@@ -165,7 +165,7 @@ def eval_dyad_at_index(klong, a, b):
                          {y+x*x}@[2 3]   -->  7
 
     """
-    if isinstance(a, (KGFn, KGSym)):
+    if isinstance(a, (KGFn, KGSym)) or issubclass(type(a), KGLambda):
         # TODO: fix arity
         return klong.eval(KGCall(a, b.tolist() if np.isarray(b) else b, arity=2))
     j = isinstance(a,str)

@@ -63,7 +63,7 @@ class KGRemoteFnProxy(KGLambda):
         return self.nc.call(KGRemoteFnCall(self.sym, params))
 
     def __str__(self):
-        return f"remote[{self.nc.host}:{self.nc.port}]{super().__str__()}"
+        return f"{self.sym}[{self.nc.host}:{self.nc.port}]{super().__str__()}"
 
 
 async def stream_send_msg(writer: StreamWriter, msg):
