@@ -9,7 +9,8 @@ from typing import Optional
 
 import pickle as dill
 
-from klongpy.core import KGCall, KGFn, KGLambda, KGSym, get_fn_arity_str, reserved_fn_args, reserved_fn_symbol_map
+from klongpy.core import KGCall, KGFn, KGLambda, KGSym, get_fn_arity_str, reserved_fn_args, reserved_fn_symbol_map, is_list
+
 
 _main_loop = asyncio.get_event_loop()
 _main_tid = threading.current_thread().ident
@@ -136,11 +137,17 @@ class TcpClientHandler:
                 try:
                     assert threading.current_thread().ident == _main_tid
                     if isinstance(command, KGRemoteFnCall):
-                        response = self.klong[command.sym](*command.params)
+                        r = self.klong[command.sym]
+                        if callable(r):
+                            response = r(*command.params)
+                        else:
+                            response = f"not callable: {command.sym}"
                     else:
                         response = self.klong(command)
                     if isinstance(response, KGFn):
                         response = KGRemoteFnRef(response.arity)
+                except KeyError as e:
+                    response = f"symbol not found: {e}"
                 except Exception as e:
                     response = "internal error"
                     logging.error(f"TcpClientHandler::handle_client: Klong error {e}")
@@ -184,13 +191,17 @@ class TcpServerHandler:
             await server.serve_forever()
 
 
-class NetworkClientHandle:
+class NetworkClientHandle(KGLambda):
     def __init__(self, nc: NetworkClient):
         self.nc = nc
 
-    def __call__(self, x):
+    def __call__(self, _, ctx):
+        x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
         try:
-            response = self.nc.call(str(x))
+            if is_list(x) and len(x) > 0 and isinstance(x[0],KGSym):
+                response = self.nc.call(KGRemoteFnCall(x[0], x[1:]))
+            else:
+                response = self.nc.call(str(x))
             if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
                 response = KGRemoteFnProxy(self.nc, x, response.arity)
             return response
@@ -207,6 +218,9 @@ class NetworkClientHandle:
     def is_open(self):
         return self.nc is not None
     
+    def get_arity(self):
+        return 1
+
     def __str__(self):
         return f":cli[{self.nc.host}:{self.nc.port}]"
 
