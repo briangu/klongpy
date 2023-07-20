@@ -389,7 +389,7 @@ Closing remote connections is done with the .clic() command.  Once it is closed,
 
 ## Synchronization
 
-Since KlongPy is a single-threaded interpreter, all remote operations are synchronous to keep runtime mechanics consistent.  This allows for remote operations to be a natural part of a computation and avoids potential race conditions in the interpreter.  Of course, when calling over to another KlongPy instance, you have no idea what state that instance is in, but within the calling instance operations will be sequential.
+While the IPC server I/O is async, the KlongPy interpreter is single-threaded.  All remote operations are synchronous to make it easy to use remote operations as part of a normal workflow.  Of course, when calling over to another KlongPy instance, you have no idea what state that instance is in, but within the calling instance operations will be sequential.
 
 
 # Performance
