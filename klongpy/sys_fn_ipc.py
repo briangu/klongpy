@@ -279,13 +279,7 @@ class NetworkClientDictHandle(dict):
         return self.get(x)
 
     def __setitem__(self, x, y):
-        try:
-            self.nc.call(KGRemoteDictSetCall(x, y))
-            return self
-        except Exception as e:
-            import traceback
-            traceback.print_exception(type(e), e, e.__traceback__)
-            raise e
+        return self.set(x, y)
 
     def __contains__(self, x):
         raise NotImplementedError()
@@ -296,6 +290,15 @@ class NetworkClientDictHandle(dict):
             if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
                 response = KGRemoteFnProxy(self.nc, x, response.arity)
             return response
+        except Exception as e:
+            import traceback
+            traceback.print_exception(type(e), e, e.__traceback__)
+            raise e
+
+    def set(self, x, y):
+        try:
+            self.nc.call(KGRemoteDictSetCall(x, y))
+            return self
         except Exception as e:
             import traceback
             traceback.print_exception(type(e), e, e.__traceback__)
