@@ -8,7 +8,7 @@ import threading
 from asyncio import StreamReader, StreamWriter
 from typing import Optional
 
-from klongpy.core import (KGCall, KGFn, KGLambda, KGSym, get_fn_arity_str,
+from klongpy.core import (KGCall, KGFn, KGLambda, KGFnWrapper, KGSym, get_fn_arity_str,
                           is_list, reserved_fn_args, reserved_fn_symbol_map)
 
 _main_loop = asyncio.get_event_loop()
@@ -124,7 +124,7 @@ async def stream_recv_msg(reader: StreamReader):
     return pickle.loads(data)
 
 
-def socket_send_msg(conn: socket.socket, msg: bytes):
+def socket_send_msg(conn: socket.socket, msg):
     data = pickle.dumps(msg)
     conn.sendall(struct.pack('>I', len(data)) + data)
 
@@ -170,7 +170,9 @@ class TcpClientHandler:
                         self.klong[command.key] = command.value
                         response = None
                     elif isinstance(command, KGRemoteDictGetCall):
-                        return self.klong[command.key]
+                        response = self.klong[command.key]
+                        if isinstance(response, KGFnWrapper):
+                            response = response.fn
                     else:
                         response = self.klong(command)
                     if isinstance(response, KGFn):
