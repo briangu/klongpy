@@ -377,7 +377,7 @@ In this example, KlongPy will execute each function with the range 0-99 as a par
 
 This makes it easy to perform multiple operations on the same data set, or to compare the results of different functions. It's another way that KlongPy's IPC capabilities can enhance your data analysis and distributed computing tasks.
 
-## Remote Function Proxies and Enumeration
+## Closing Remote Function Proxies
 
 Closing remote connections is done with the .clic() command.  Once it is closed, all proxies that shared that connection are now disconnected as well.
 
@@ -386,6 +386,11 @@ Closing remote connections is done with the .clic() command.  Once it is closed,
 ?> .clic(f)
 1
 ```
+
+## Synchronization
+
+Since KlongPy is a single-threaded interpreter, all remote operations are synchronous to keep runtime mechanics consistent.  This allows for remote operations to be a natural part of a computation and avoids potential race conditions in the interpreter.  Of course, when calling over to another KlongPy instance, you have no idea what state that instance is in, but within the calling instance operations will be sequential.
+
 
 # Performance
 
