@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import pickle as dill
+import pickle
 import socket
 import struct
 import sys
@@ -90,7 +90,7 @@ class KGRemoteFnProxy(KGLambda):
 
 
 async def stream_send_msg(writer: StreamWriter, msg):
-    data = dill.dumps(msg)
+    data = pickle.dumps(msg)
     writer.write(struct.pack('>I', len(data)) + data)
     await writer.drain()
 
@@ -116,11 +116,11 @@ async def stream_recv_msg(reader: StreamReader):
         return None
     msglen = struct.unpack('>I', raw_msglen)[0]
     data = await stream_recv_all(reader, msglen)
-    return dill.loads(data)
+    return pickle.loads(data)
 
 
 def socket_send_msg(conn: socket.socket, msg: bytes):
-    data = dill.dumps(msg)
+    data = pickle.dumps(msg)
     conn.sendall(struct.pack('>I', len(data)) + data)
 
 
@@ -145,7 +145,7 @@ def socket_recv_msg(conn: socket.socket):
         return None
     msglen = struct.unpack('>I', raw_msglen)[0]
     data = socket_recv_all(conn, msglen)
-    return dill.loads(data)
+    return pickle.loads(data)
 
 
 class TcpClientHandler:
