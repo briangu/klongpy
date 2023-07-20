@@ -427,6 +427,13 @@ def eval_sys_fn_shutdown_client(x):
 
         .clic(x)                                      [Close IPC client]
 
+        Close a remote dictionary or function opened by .cli or .clid.
+
+        Returns 1 if closed, 0 if already closed.
+
+        When a connection is closed, all remote proxies / functions tied to this connection
+        will also close and will fail if called.
+
     """
     if isinstance(x, KGCall) and issubclass(type(x.a), KGLambda):
         x = x.a
@@ -444,6 +451,13 @@ def eval_sys_create_ipc_server(klong, x):
 
         .srv(x)                                       [Start IPC server]
 
+        Open a server port to accept IPC connections.
+
+        If "x" is an integer, then it is interpreted as a port in "<all>:<port>".
+        if "x" is a string, then it is interpreted as a bind address "<bind>:<port>"
+
+        if "x" is 0, then the server is closed and existing client connections are dropped.
+
     """
     global _main_loop
     global _ipc_tcp_server
@@ -452,18 +466,8 @@ def eval_sys_create_ipc_server(klong, x):
     bind = parts[0] if len(parts) > 1 else None
     port = int(parts[0] if len(parts) == 1 else parts[1])
     if len(parts) == 1 and port == 0:
-        return eval_sys_shutdown_ipc_server()
+        return _ipc_tcp_server.shutdown_server()
     return _ipc_tcp_server.create_server(_main_loop, klong, bind, port)
-
-
-def eval_sys_shutdown_ipc_server():
-    """
-
-        .srvc()                                        [Stop IPC server]
-
-    """
-    global _ipc_tcp_server
-    return _ipc_tcp_server.shutdown_server()
 
 
 def create_system_functions_ipc():
