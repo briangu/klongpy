@@ -344,6 +344,7 @@ def eval_sys_fn_create_client(x):
                    f(:avg,,!100)          --> 49.5
                 
             Similary:
+
                    b::!100
                    f(:avg,,b)             --> 49.5
         
@@ -351,10 +352,11 @@ def eval_sys_fn_create_client(x):
             For functions, a remote function proxy is returned.
 
             Example: retrieve a function proxy to :avg and then call it as if it were a local function.
+
                    q::f(:avg)
                    q(!100)                --> 49.5
 
-            Example: retrieve a remote array.
+            Example: retrieve a copy of a remote array.
 
                    f("b::!100")
                    p::f(:b)               --> "p: now holds a copy of the remote array "b"
@@ -383,6 +385,34 @@ def eval_sys_fn_create_dict_client(x):
         Examples:  .cli(8888)             --> remote function to localhost:8888
                    .cli("localhost:8888") --> remote function to localhost:8888
                    .cli(d)                --> remote function to same connection as d
+        
+        Connection examples:  
+      
+                   .cli(8888)            --> remote function to localhost:8888
+                   .cli("localhost:8888") --> remote function to localhost:8888
+                   
+                   f::.cli(8888)
+                   .cli(f)                --> remote function to same connection as f
+
+        Evaluation examples:
+
+                   d::.cli(8888)
+
+            Set a remote key/value pair :foo -> 2 on the remote server.
+
+                   d,[:foo 2]             --> sets :foo to 2
+                   d,[:bar "hello"]       --> sets :bar to "hello"
+                   d,:fn,{x+1}            --> sets :fn to the monad {x+1)
+
+            Get a remote value:
+
+                   d?:foo                 --> 2
+                   d?:bar                 --> hello
+                   d?:fn                 --> remote function proxy to :avg
+
+            To use the remote function proxy:
+                   q::d?:fn
+                   q(2)               --> 3 (remotely executed after passing 2)
 
     """
     x = x.a if isinstance(x,KGCall) else x
