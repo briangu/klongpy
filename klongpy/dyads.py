@@ -309,9 +309,8 @@ def eval_dyad_find(a, b):
     if isinstance(a,str):
         return np.asarray([m.start() for m in re.finditer(f"(?={b})", a)])
     elif is_dict(a):
-        print("getting dict key", b, type(b))
         v = a.get(b)
-        return np.inf if v is None else v # TODO: use undefined type
+        return np.inf if v is None else v
     if is_list(b):
         return np.asarray([i for i,x in enumerate(a) if kg_equal(x,b)])
     return np.where(np.asarray(a) == b)[0]
