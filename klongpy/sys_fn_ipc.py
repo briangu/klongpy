@@ -36,7 +36,21 @@ class NetworkClient:
         return self.sock is not None
     
     def __str__(self):
-        return f":remote_fn[{self.host}:{self.port}]"
+        return f"remote[{self.host}:{self.port}]"
+
+    @staticmethod
+    def create(host, port):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((host, port))
+        return NetworkClient(host, port, sock)
+
+    @staticmethod
+    def create_from_addr(addr):
+        addr = str(addr)
+        parts = addr.split(":")
+        host = parts[0] if len(parts) > 1 else "localhost"
+        port = int(parts[0] if len(parts) == 1 else parts[1])
+        return NetworkClient.create(host, port)
 
 
 class KGRemoteFnRef:
@@ -66,7 +80,7 @@ class KGRemoteFnProxy(KGLambda):
         return self.nc.call(KGRemoteFnCall(self.sym, params))
 
     def __str__(self):
-        return f"{self.sym}[{self.nc.host}:{self.nc.port}]{super().__str__()}"
+        return f"{self.nc.__str__()}:{self.sym}{super().__str__()}"
 
 
 async def stream_send_msg(writer: StreamWriter, msg):
@@ -214,43 +228,15 @@ class TcpServerHandler:
             await self.server.serve_forever()
 
 
-class NetworkClientHandle(dict):
+class NetworkClientHandle(KGLambda):
     def __init__(self, nc: NetworkClient):
         self.nc = nc
 
-    # def __call__(self, _, ctx):
-    #     x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
-    #     try:
-    #         if is_list(x) and len(x) > 0 and isinstance(x[0],KGSym):
-    #             response = self.nc.call(KGRemoteFnCall(x[0], x[1:]))
-    #         else:
-    #             response = self.nc.call(str(x))
-    #         if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
-    #             response = KGRemoteFnProxy(self.nc, x, response.arity)
-    #         return response
-    #     except Exception as e:
-    #         import traceback
-    #         traceback.print_exception(type(e), e, e.__traceback__)
-    #         raise e
-
-    def __getitem__(self, x):
-        print("remote __get__", x)
-        return self.get(x)
-
-    def __setitem__(self, x, y):
-        print("remote set", x,y)
-        return self.nc.call(x)
-
-    def __contains__(self, x):
-        raise NotImplementedError()
-
-    def get(self, x):
-        print("remote get", x)
+    def __call__(self, _, ctx):
+        x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
         try:
-            # if is_list(x) and len(x) > 0 and isinstance(x[0],KGSym):
-            #     response = self.nc.call(KGRemoteFnCall(x[0], x[1:]))
-            # else:
-            response = self.nc.call(str(x))
+            msg = KGRemoteFnCall(x[0], x[1:]) if is_list(x) and len(x) > 0 and isinstance(x[0],KGSym) else x
+            response = self.nc.call(msg)
             if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
                 response = KGRemoteFnProxy(self.nc, x, response.arity)
             return response
@@ -260,37 +246,68 @@ class NetworkClientHandle(dict):
             raise e
 
     def close(self):
-        if self.nc is not None:
-            self.nc.close()
-            self.nc = None
+        return self.nc.close()
 
     def is_open(self):
-        return self.nc is not None
+        return self.nc.is_open()
     
     def get_arity(self):
         return 1
 
     def __str__(self):
-        return f":cli[{self.nc.host}:{self.nc.port}]"
+        return f"{self.nc.__str__()}:fn"
 
-    @staticmethod
-    def create(host, port):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((host, port))
-        return NetworkClientHandle(NetworkClient(host, port, sock))
+
+class NetworkClientDictHandle(dict):
+    def __init__(self, nc: NetworkClient):
+        self.nc = nc
+
+    def __getitem__(self, x):
+        return self.get(x)
+
+    def __setitem__(self, x, y):
+        return self.nc.call(x)
+
+    def __contains__(self, x):
+        raise NotImplementedError()
+
+    def get(self, x):
+        try:
+            response = self.nc.call(x)
+            if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
+                response = KGRemoteFnProxy(self.nc, x, response.arity)
+            return response
+        except Exception as e:
+            import traceback
+            traceback.print_exception(type(e), e, e.__traceback__)
+            raise e
+
+    def close(self):
+        return self.nc.close()
+
+    def is_open(self):
+        return self.nc.is_open()
+    
+    def __str__(self):
+        return f"{self.nc.__str__()}:dict"
 
 
 def eval_sys_fn_create_client(x):
     """
 
-        .cli(x)                                      [Create IPC client]
+        .cli(x)                                       [Create IPC client]
 
     """
-    x = str(x)
-    parts = x.split(":")
-    host = parts[0] if len(parts) > 1 else "localhost"
-    port = int(parts[0] if len(parts) == 1 else parts[1])
-    return NetworkClientHandle.create(host, port)
+    return NetworkClientHandle(NetworkClient.create_from_addr(x))
+
+
+def eval_sys_fn_create_dict_client(x):
+    """
+
+        .clid(x)                                 [Create IPC dict client]
+
+    """
+    return NetworkClientDictHandle(NetworkClient.create_from_addr(x))
 
 
 def eval_sys_fn_shutdown_client(x):
@@ -301,7 +318,7 @@ def eval_sys_fn_shutdown_client(x):
     """
     if isinstance(x, KGCall) and issubclass(type(x.a), KGLambda):
         x = x.a
-        if isinstance(x, NetworkClientHandle) and x.is_open():
+        if isinstance(x, (NetworkClientHandle, NetworkClientDictHandle)) and x.is_open():
             x.close()
             return 1
     return 0
