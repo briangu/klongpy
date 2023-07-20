@@ -166,8 +166,8 @@ def eval_dyad_at_index(klong, a, b):
 
     """
     if isinstance(a, (KGFn, KGSym)) or issubclass(type(a), KGLambda):
-        # TODO: fix arity
-        return klong.eval(KGCall(a, b.tolist() if np.isarray(b) else b, arity=2))
+        b = [x for x in b] if np.isarray(b) else b
+        return klong.eval(KGCall(a, b, arity=1))
     j = isinstance(a,str)
     a = str_to_chr_arr(a) if j else a
     if is_list(b):
