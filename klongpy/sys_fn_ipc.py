@@ -309,6 +309,56 @@ def eval_sys_fn_create_client(x):
 
         .cli(x)                                       [Create IPC client]
 
+        Return a function which evaluates commands on a remote KlongPy server.
+
+        If "x" is an integer, then it is interpreted as a port in "localhost:<port>".
+        if "x" is a string, then it is interpreted as a host address "<host>:<port>"
+
+        If "x" is a remote dictionary, the underlying network connection 
+        is shared and a remote function is returned.
+        
+        Connection examples:  
+      
+                   .cli(8888)            --> remote function to localhost:8888
+                   .cli("localhost:8888") --> remote function to localhost:8888
+                   
+                   d::.clid(8888)
+                   .cli(d)                --> remote function to same connection as d
+
+        Evaluation examples:
+
+                   f::.cli(8888)
+
+            A string is passed it is evaluated remotely:
+
+                   f("hello")             --> "hello" is evaluated remotely
+                   f("avg::{(+/x)%#x}")   --> "avg" function is defined remotely
+                   f("avg(!100)")         --> 49.5 (computed remotely)
+
+            Remote functions may be evaluated by passing an array with the first element 
+            being the symbol of the remote function to execute.  The remaining elements
+            are supplied as parameters:
+
+            Example: call :avg with a locally generated !100 range which is passed to the remote server.
+
+                   f(:avg,,!100)          --> 49.5
+                
+            Similary:
+                   b::!100
+                   f(:avg,,b)             --> 49.5
+        
+            When a symbol is applied, the remote value is returned.  
+            For functions, a remote function proxy is returned.
+
+            Example: retrieve a function proxy to :avg and then call it as if it were a local function.
+                   q::f(:avg)
+                   q(!100)                --> 49.5
+
+            Example: retrieve a remote array.
+
+                   f("b::!100")
+                   p::f(:b)               --> "p: now holds a copy of the remote array "b"
+                   
     """
     x = x.a if isinstance(x,KGCall) else x
     if isinstance(x,NetworkClientHandle):
@@ -321,6 +371,18 @@ def eval_sys_fn_create_dict_client(x):
     """
 
         .clid(x)                                 [Create IPC dict client]
+
+        Return a dictionary which evaluates set/get operations on a remote KlongPy server.
+
+        If "x" is an integer, then it is interpreted as a port in "localhost:<port>".
+        if "x" is a string, then it is interpreted as a host address "<host>:<port>"
+
+        If "x" is a remote function, the underlying network connection 
+        is shared and a remote function is returned.
+        
+        Examples:  .cli(8888)             --> remote function to localhost:8888
+                   .cli("localhost:8888") --> remote function to localhost:8888
+                   .cli(d)                --> remote function to same connection as d
 
     """
     x = x.a if isinstance(x,KGCall) else x
