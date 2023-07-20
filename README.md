@@ -349,16 +349,20 @@ One of the most powerful aspects of these remote function proxies is that they c
 For example, suppose you have created three remote function proxies:
 
 ```
-d::.clid(8888)
-a = d?:avg
-b = d?:sum
-c = d?:max
+?> d::.clid(8888)
+?> d,:avg,{(+/x)%#x}
+?> d,:sum,{(+/x)}
+?> d,:max,{(x@>x)@0}
+?> a = d?:avg
+?> b = d?:sum
+?> c = d?:max
 ```
 
 You can then call each of these functions with the same parameter by using enumeration:
 
 ```
-{x(!100)}'[a b c]
+?> {x@,!100}'[a b c]
+[  49.5 4950.    99. ]
 ```
 
 In this example, KlongPy will execute each function with the range 0-99 as a parameter, and then store the results in the results array. The :avg function will calculate the average of the numbers, the :sum function will add them up, and the :max function will return the largest number in the range.
