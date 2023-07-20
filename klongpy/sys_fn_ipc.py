@@ -67,6 +67,12 @@ class KGRemoteFnCall:
         self.params = params
 
 
+class KGRemoteDictSetCall:
+    def __init__(self, key, value):
+        self.key = key
+        self.value = value
+
+
 class KGRemoteFnProxy(KGLambda):
 
     def __init__(self, nc: NetworkClient, sym: KGSym, arity):
@@ -154,10 +160,10 @@ class TcpClientHandler:
                     assert threading.current_thread().ident == _main_tid
                     if isinstance(command, KGRemoteFnCall):
                         r = self.klong[command.sym]
-                        if callable(r):
-                            response = r(*command.params)
-                        else:
-                            response = f"not callable: {command.sym}"
+                        response = r(*command.params) if callable(r) else f"not callable: {command.sym}"
+                    elif isinstance(command, KGRemoteDictSetCall):
+                        self.klong[command.key] = command.value
+                        response = None
                     else:
                         response = self.klong(command)
                     if isinstance(response, KGFn):
@@ -266,7 +272,13 @@ class NetworkClientDictHandle(dict):
         return self.get(x)
 
     def __setitem__(self, x, y):
-        return self.nc.call(x)
+        try:
+            self.nc.call(KGRemoteDictSetCall(x, y))
+            return self
+        except Exception as e:
+            import traceback
+            traceback.print_exception(type(e), e, e.__traceback__)
+            raise e
 
     def __contains__(self, x):
         raise NotImplementedError()

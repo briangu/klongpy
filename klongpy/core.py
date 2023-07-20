@@ -27,7 +27,7 @@ def get_fn_arity_str(arity):
         return ":monad"
     elif arity == 2:
         return ":dyad"
-    return ":triad"    
+    return ":triad"
 
 
 class KGFn:
@@ -116,7 +116,7 @@ class KGLambda:
 
     def __str__(self):
         return get_fn_arity_str(self.get_arity())
-    
+
 
 class KGChannelDir(Enum):
     INPUT=1
