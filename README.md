@@ -320,22 +320,30 @@ Use .cli() to evaluate commands on a remote KlongPy server, define functions, pe
 Here are some examples:
 
 ```
-f = .cli(8888)
-f("avg::{(+/x)%#x}")   # Defines the "avg" function remotely
-f("avg(!100)")         # Computes the average of the range 0-99 remotely
+?> f = .cli(8888)
+?> f("avg::{(+/x)%#x}")   
+?> f("avg(!100)")        
+```
+
+Using remote function proxies, you can reference a remotely defined function and call it as if it were local:
+
+```
+?> q::f(:avg)
+?> q(!100)
+49.5 
 ```
 
 ## The .clid() Function
-The .clid() function creates an IPC client that works with dictionaries. You can pass it an integer, a string, or a remote function. You can use this function to set or get key/value pairs on the remote server.
 
-Passing a symbol to .clid() will return the corresponding value from the remote dictionary or a proxy to a remote function.
+As seen in Python interop examples, the KlongPy context is effectively a dictionary.  The .clid() function creates an IPC client that treats the remote KlongPy context as a dictionary, allowing you to set/get values on the remote instance.  Combined with the remote function capabilities, the remote dictionary makes it easy to interact with remote KlongPy instances.
 
 Here are some examples:
+
 ```
-d = .clid(8888)
-d,[:foo 2]             # Sets :foo to 2 on the remote server
-d,[:bar "hello"]       # Sets :bar to "hello" on the remote server
-d,:fn,{x+1}            # Sets :fn to the monad {x+1) on the remote server
+?> d = .clid(8888)
+?> d,[:foo 2]             
+?> d,[:bar "hello"]       
+?> d,:fn,{x+1}            
 ```
 
 These powerful capabilities allow for more effective use of distributed computing resources. Please be aware of potential security issues, as you are allowing a remote server to execute potentially arbitrary commands from your client. Always secure your connections and validate your commands to avoid potential attacks.
@@ -368,6 +376,16 @@ You can then call each of these functions with the same parameter by using enume
 In this example, KlongPy will execute each function with the range 0-99 as a parameter, and then store the results in the results array. The :avg function will calculate the average of the numbers, the :sum function will add them up, and the :max function will return the largest number in the range.
 
 This makes it easy to perform multiple operations on the same data set, or to compare the results of different functions. It's another way that KlongPy's IPC capabilities can enhance your data analysis and distributed computing tasks.
+
+## Remote Function Proxies and Enumeration
+
+Closing remote connections is done with the .clic() command.  Once it is closed, all proxies that shared that connection are now disconnected as well.
+
+```
+?> f::.cli(8888)
+?> .clic(f)
+1
+```
 
 # Performance
 
