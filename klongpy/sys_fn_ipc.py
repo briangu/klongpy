@@ -310,7 +310,11 @@ def eval_sys_fn_create_client(x):
         .cli(x)                                       [Create IPC client]
 
     """
-    return NetworkClientHandle(NetworkClient.create_from_addr(x))
+    x = x.a if isinstance(x,KGCall) else x
+    if isinstance(x,NetworkClientHandle):
+        return x
+    nc = x.nc if isinstance(x,NetworkClientDictHandle) else NetworkClient.create_from_addr(x)
+    return NetworkClientHandle(nc)
 
 
 def eval_sys_fn_create_dict_client(x):
@@ -319,7 +323,11 @@ def eval_sys_fn_create_dict_client(x):
         .clid(x)                                 [Create IPC dict client]
 
     """
-    return NetworkClientDictHandle(NetworkClient.create_from_addr(x))
+    x = x.a if isinstance(x,KGCall) else x
+    if isinstance(x,NetworkClientDictHandle):
+        return x
+    nc = x.nc if isinstance(x,NetworkClientHandle) else NetworkClient.create_from_addr(x)
+    return NetworkClientDictHandle(nc)
 
 
 def eval_sys_fn_shutdown_client(x):
