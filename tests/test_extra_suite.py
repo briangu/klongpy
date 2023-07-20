@@ -11,6 +11,13 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    @unittest.skip
+    def test_apply_range(self):
+        klong = KlongInterpreter()
+        klong("avg::{(+/x)%#x}")
+        r = klong("avg@,!100")
+        self.assertEqual(r,49.5)
+
     def test_eval_quote_string(self):
         klong = KlongInterpreter()
         r = klong(':"hello"')
