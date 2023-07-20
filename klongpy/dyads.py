@@ -306,11 +306,13 @@ def eval_dyad_find(a, b):
                       :{[1 []]}?1  -->  []
 
     """
+    print("type(a)", type(a), is_dict(a))
     if isinstance(a,str):
         return np.asarray([m.start() for m in re.finditer(f"(?={b})", a)])
     elif is_dict(a):
-        # NOTE: we don't use get or np.inf because value may be 0 or None
-        return a[b] if b in a else np.inf # TODO: use undefined type
+        print("getting dict key", b, type(b))
+        v = a.get(b)
+        return np.inf if v is None else v # TODO: use undefined type
     if is_list(b):
         return np.asarray([i for i,x in enumerate(a) if kg_equal(x,b)])
     return np.where(np.asarray(a) == b)[0]
@@ -503,8 +505,13 @@ def eval_dyad_join(a, b):
                     :{[1 0]},[1 2]  -->  :{[1 2]}
 
     """
+    print("type(a): ", type(a))
     if (isinstance(a,str) and not isinstance(a,KGSym)) and (isinstance(b,str) and not isinstance(b,KGSym)):
         return a+b
+    if isinstance(a,KGCall):
+        a = a.a
+        a[b[0]] = b[1]
+        return a
     if isinstance(a,dict):
         a[b[0]] = b[1]
         return a

@@ -214,17 +214,43 @@ class TcpServerHandler:
             await self.server.serve_forever()
 
 
-class NetworkClientHandle(KGLambda):
+class NetworkClientHandle(dict):
     def __init__(self, nc: NetworkClient):
         self.nc = nc
 
-    def __call__(self, _, ctx):
-        x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
+    # def __call__(self, _, ctx):
+    #     x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
+    #     try:
+    #         if is_list(x) and len(x) > 0 and isinstance(x[0],KGSym):
+    #             response = self.nc.call(KGRemoteFnCall(x[0], x[1:]))
+    #         else:
+    #             response = self.nc.call(str(x))
+    #         if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
+    #             response = KGRemoteFnProxy(self.nc, x, response.arity)
+    #         return response
+    #     except Exception as e:
+    #         import traceback
+    #         traceback.print_exception(type(e), e, e.__traceback__)
+    #         raise e
+
+    def __getitem__(self, x):
+        print("remote __get__", x)
+        return self.get(x)
+
+    def __setitem__(self, x, y):
+        print("remote set", x,y)
+        return self.nc.call(x)
+
+    def __contains__(self, x):
+        raise NotImplementedError()
+
+    def get(self, x):
+        print("remote get", x)
         try:
-            if is_list(x) and len(x) > 0 and isinstance(x[0],KGSym):
-                response = self.nc.call(KGRemoteFnCall(x[0], x[1:]))
-            else:
-                response = self.nc.call(str(x))
+            # if is_list(x) and len(x) > 0 and isinstance(x[0],KGSym):
+            #     response = self.nc.call(KGRemoteFnCall(x[0], x[1:]))
+            # else:
+            response = self.nc.call(str(x))
             if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
                 response = KGRemoteFnProxy(self.nc, x, response.arity)
             return response
