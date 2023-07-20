@@ -13,6 +13,14 @@ The project builds upon the work of [Nils M Holm](https://t3x.org), the creator 
 
 # Overview
 
+KlongPy is a powerful language for high performance data analysis and distributed computing. Some of its main features include:
+
+* Simplicity: KlongPy is based on Klong, a concise, expressive, and easy-to-understand array programming language. Its simple syntax and rich feature set make it an excellent tool for data scientists and engineers.
+* Speed: KlongPy is designed for high-speed computing, enabling you to process large data sets quickly and efficiently. Its efficient internal mechanisms allow for rapid execution of operations on arrays of data.
+* Inter-Process Communication (IPC): KlongPy has built-in support for IPC, enabling easy communication between different processes and systems. You can create remote function proxies, allowing you to execute functions on a remote server as if they were local functions. This powerful feature facilitates distributed computing tasks.
+* Array Programming: KlongPy supports array programming, which makes it a great tool for mathematical and scientific computing. You can manipulate entire arrays of data at once, enabling efficient data analysis and manipulation.
+* Compatibility: KlongPy is designed to be compatible with Python, allowing you to leverage existing Python libraries and frameworks in conjunction with KlongPy. This seamless integration enhances KlongPy's usability and adaptability.
+
 At its heart, KlongPy is about infusing Python's flexibility with the compact Klong array language, allowing you to tap into the performance of NumPy while writing code that's concise and powerful. 
 
 Consider this simple Klong expression that computes an array's average: (+/a)%#a. Decoded, it means "sum of 'a' divided by the length of 'a'", as read from right to left.
@@ -298,6 +306,64 @@ klong['df'] = {col: np.array(df[col]) for col in df.columns}
 klong('df?"Name"') # ==> ['Alice', 'Bob', 'Charlie', 'David']
 klong('df?"Age"')  # ==> [25, 30, 35, 40]
 ```
+
+# Inter-Process Communication (IPC) Capabilities
+
+KlongPy has powerful Inter-Process Communication (IPC) features that enable it to connect and interact with remote KlongPy instances. This includes executing commands, retrieving or storing data, and even defining functions remotely. These new capabilities are available via two new functions: .cli() and .clid().
+
+## The .cli() Function
+
+The .cli() function creates an IPC client. You can pass it either an integer (interpreted as a port on "localhost:<port>"), a string (interpreted as a host address "<host>:<port>"), or a remote dictionary (which shares the network connection and returns a remote function).
+
+Use .cli() to evaluate commands on a remote KlongPy server, define functions, perform calculations, or retrieve values. You can also pass it a symbol to retrieve a value or a function from the remote server.
+
+Here are some examples:
+
+```
+f = .cli(8888)
+f("avg::{(+/x)%#x}")   # Defines the "avg" function remotely
+f("avg(!100)")         # Computes the average of the range 0-99 remotely
+```
+
+## The .clid() Function
+The .clid() function creates an IPC client that works with dictionaries. You can pass it an integer, a string, or a remote function. You can use this function to set or get key/value pairs on the remote server.
+
+Passing a symbol to .clid() will return the corresponding value from the remote dictionary or a proxy to a remote function.
+
+Here are some examples:
+```
+d = .clid(8888)
+d,[:foo 2]             # Sets :foo to 2 on the remote server
+d,[:bar "hello"]       # Sets :bar to "hello" on the remote server
+d,:fn,{x+1}            # Sets :fn to the monad {x+1) on the remote server
+```
+
+These powerful capabilities allow for more effective use of distributed computing resources. Please be aware of potential security issues, as you are allowing a remote server to execute potentially arbitrary commands from your client. Always secure your connections and validate your commands to avoid potential attacks.
+
+## Remote Function Proxies and Enumeration
+
+Another powerful feature of KlongPy's IPC capabilities is the use of remote function proxies. These function proxies behave as if they were local functions, but are actually executed on a remote server. You can easily create these function proxies using .cli() or .clid(), and then use them as you would any other function.
+
+One of the most powerful aspects of these remote function proxies is that they can be stored in an array and then enumerated. When you do this, KlongPy will execute each function in turn with the specified parameters.
+
+For example, suppose you have created three remote function proxies:
+
+```
+f::.cli(8888)
+a = f(:avg)
+b = f(:sum)
+c = f(:max)
+```
+
+You can then call each of these functions with the same parameter by using enumeration:
+
+```
+{x(!100)}'[a b c]
+```
+
+In this example, KlongPy will execute each function with the range 0-99 as a parameter, and then store the results in the results array. The :avg function will calculate the average of the numbers, the :sum function will add them up, and the :max function will return the largest number in the range.
+
+This makes it easy to perform multiple operations on the same data set, or to compare the results of different functions. It's another way that KlongPy's IPC capabilities can enhance your data analysis and distributed computing tasks.
 
 # Performance
 

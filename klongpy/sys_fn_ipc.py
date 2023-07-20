@@ -73,6 +73,11 @@ class KGRemoteDictSetCall:
         self.value = value
 
 
+class KGRemoteDictGetCall:
+    def __init__(self, key):
+        self.key = key
+
+
 class KGRemoteFnProxy(KGLambda):
 
     def __init__(self, nc: NetworkClient, sym: KGSym, arity):
@@ -164,6 +169,8 @@ class TcpClientHandler:
                     elif isinstance(command, KGRemoteDictSetCall):
                         self.klong[command.key] = command.value
                         response = None
+                    elif isinstance(command, KGRemoteDictGetCall):
+                        return self.klong[command.key]
                     else:
                         response = self.klong(command)
                     if isinstance(response, KGFn):
@@ -285,7 +292,7 @@ class NetworkClientDictHandle(dict):
 
     def get(self, x):
         try:
-            response = self.nc.call(x)
+            response = self.nc.call(KGRemoteDictGetCall(x))
             if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
                 response = KGRemoteFnProxy(self.nc, x, response.arity)
             return response
