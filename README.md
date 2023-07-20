@@ -349,10 +349,10 @@ One of the most powerful aspects of these remote function proxies is that they c
 For example, suppose you have created three remote function proxies:
 
 ```
-f::.cli(8888)
-a = f(:avg)
-b = f(:sum)
-c = f(:max)
+d::.clid(8888)
+a = d?:avg
+b = d?:sum
+c = d?:max
 ```
 
 You can then call each of these functions with the same parameter by using enumeration:
