@@ -1,22 +1,22 @@
 import asyncio
+import logging
 import sys
 import threading
 
 from aiohttp import web
 
-from klongpy.core import KGCall, KGFn, KGFnWrapper, KGLambda, reserved_fn_args
+from klongpy.core import KGCall, KGFn, KGFnWrapper, KGLambda
 
 _main_loop = asyncio.get_event_loop()
 _main_tid = threading.current_thread().ident
 
 
 class WebServerHandle:
-    def __init__(self, runner, task):
+    def __init__(self, bind, port, runner, task):
+        self.bind = bind
+        self.port = port
         self.runner = runner
         self.task = task
-
-    # def __call__(self):
-    #     return 1
 
     async def shutdown(self):
         self.task.cancel()
@@ -25,7 +25,7 @@ class WebServerHandle:
         self.task = None
 
     def __str__(self):
-        return "web server"
+        return f"web[{self.bind or '0.0.0.0'}:{self.port}]"
 
 
 def eval_sys_fn_create_web_server(klong, x, y):
@@ -39,38 +39,34 @@ def eval_sys_fn_create_web_server(klong, x, y):
     route_get_map = y
     app = web.Application()
     assert threading.current_thread().ident == _main_tid
-    for route, function in route_get_map.items():
-        # r = klong(function)
-        r = function
-        arity = r.arity if isinstance(r, KGFn) else r.get_arity() if issubclass(type(r), KGLambda) else 0
+    for route, fn in route_get_map.items():
+        arity = fn.arity if isinstance(fn, KGFn) else fn.get_arity() if issubclass(type(fn), KGLambda) else 0
         if arity != 1:
-            print(f"route {route} handler function requires arity 1, got {arity}")
+            logging.info(f"route {route} handler function requires arity 1, got {arity}")
             continue
-        fn = r if isinstance(r, KGCall) else KGFnWrapper(klong, r) if isinstance(r, KGFn) else r
+        fn = fn if isinstance(fn, KGCall) else KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
 
-        async def _runit(request: web.Request, fn=fn):
+        async def _get(request: web.Request, fn=fn, route=route):
             try:
-                # print(request, fn)
                 assert request.method == "GET"
-                parameters = dict(request.rel_url.query)
-                # if request.method == "GET":
-                #     parameters = request.rel_url.query
-                # # elif request.method == "POST":
-                # #     parameters = await request.post()
-                # else:
-                #     return web.Response(text="Invalid method", status=405)
-
-                # fn_params = [parameters[x] for x in reserved_fn_args[:arity]]
-                response = fn(parameters)
-                # print(response)
-                return web.Response(text=str(response))
-            # except KeyError as e:
-            #     return web.Response(text=f"Missing parameter: {e}", status=400)
+                return web.Response(text=str(fn(dict(request.rel_url.query))))
             except Exception as e:
-                print(e)
+                logging.info(f"failed web request: {route} with error {e}")
                 return web.Response(text="Invalid request", status=400)
 
-        app.router.add_get(route, _runit)
+        app.router.add_get(route, _get)
+
+        # async def _post(request: web.Request, fn=fn):
+        #     try:
+        #         assert request.method == "POST"
+        #         parameters = await request.post()
+        #         response = fn(parameters)
+        #         return web.Response(text=str(response))
+        #     except Exception as e:
+        #         print(e)
+        #         return web.Response(text="Invalid request", status=400)
+
+        # app.router.add_get(route, _get)
 
     runner = web.AppRunner(app)
 
@@ -79,15 +75,13 @@ def eval_sys_fn_create_web_server(klong, x, y):
     bind = parts[0] if len(parts) > 1 else None
     port = int(parts[0] if len(parts) == 1 else parts[1])
 
-    print(f"starting web server at: {bind}:{port}")
-
     async def start_server():
         await runner.setup()
         site = web.TCPSite(runner, bind, port)
         await site.start()
 
     server_task = _main_loop.create_task(start_server())
-    return WebServerHandle(runner, server_task)
+    return WebServerHandle(bind, port, runner, server_task)
 
 
 def eval_sys_fn_shutdown_web_server(x):
