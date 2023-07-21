@@ -37,11 +37,16 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
 
         The web server is started at the address specifed by "x":
 
-        If "x" is an integer, then it is interpreted as a port in "localhost:<port>".
-        if "x" is a string, then it is interpreted as a host address "<host>:<port>"
+        If "x" is an integer, then it is interpreted as a port in "0.0.0.0:<port>".
+        if "x" is a string, then it is interpreted as a bind address "<bind>:<port>"
 
         GET routes are specified in a dictionary provided by "y".
         POST routes are specified in a dictionary provided by "z".
+
+        Handler callbacks are called with a dictionary of parameters:
+
+        GET handlers are provided a dictionary of query parameters.
+        POST handlers are provided a dictionary of post body parameters.
 
         Example:
 
