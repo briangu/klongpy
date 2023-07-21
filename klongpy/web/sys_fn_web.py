@@ -33,6 +33,28 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
     
         .web(x, y, z)                                 [Start Web server]
 
+        Start a web server and return its handle.
+
+        The web server is started at the address specifed by "x":
+
+        If "x" is an integer, then it is interpreted as a port in "localhost:<port>".
+        if "x" is a string, then it is interpreted as a host address "<host>:<port>"
+
+        GET routes are specified in a dictionary provided by "y".
+        POST routes are specified in a dictionary provided by "z".
+
+        Example:
+
+            .py("klongpy.web")
+            get:::{}
+            get,"/",{x;"hello, world!"}
+            wh::.web(8080;get;:{})
+
+            You should now be able to run:
+
+            > curl http://localhost:8080/
+            hello, world!
+
     """
     global _main_loop
     global _main_tid
@@ -94,6 +116,8 @@ def eval_sys_fn_shutdown_web_server(x):
     
             .webc(x)                                      [Stop Web server]
     
+            Stop and close the web server referenced by "x".
+
     """
     global _main_loop
     global _main_tid
