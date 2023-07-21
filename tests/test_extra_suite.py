@@ -11,6 +11,13 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    @unittest.skip
+    def test_nested_dict(self):
+        klong = KlongInterpreter()
+        klong('c:::{["GET" :{["/" 2]}]}')
+        r = klong('(c?"GET")?"/"')
+        self.assertEqual(r, 2)
+
     def test_apply_range(self):
         klong = KlongInterpreter()
         r = klong("{x}@,!100")
