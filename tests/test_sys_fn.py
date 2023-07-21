@@ -232,10 +232,17 @@ class TestSysFn(unittest.TestCase):
             sys.path.append(plugins_dir)
             for fpath in tests:
                 klong = KlongInterpreter()
-                r = klong(f'.py("{fpath}")')
-                self.assertEqual(r,1)
-                r = klong('hello()')
-                self.assertEqual(r,"world!")
+                self.assertEqual(klong(f'.py("{fpath}")'),1)
+
+                self.assertEqual(klong('nilad()'),"hello, world!")
+                self.assertEqual(klong('monad(1)'),"1+1")
+                self.assertEqual(klong('dyad(1;2)'),"1*2+1")
+                self.assertEqual(klong('triad(1;2;3)'),"1*2+3+1")
+                self.assertEqual(klong('knilad()'),4)
+                self.assertEqual(klong('kmonad(1)'),2)
+                self.assertEqual(klong('kdyad(1;2)'),1*2+1)
+                self.assertEqual(klong('ktriad(1;2;3)'),1*2+3+1)
+
                 if fpath.endswith("hello_world.py"):
                     r = klong['not_exported']
                     self.assertTrue(r is not None)

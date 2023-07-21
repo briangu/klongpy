@@ -353,6 +353,8 @@ def eval_sys_python(klong, x):
                     try:
                         args = inspect.signature(q, follow_wrapped=True).parameters
                         n_args = len(args)
+                        provide_klong = 'klong' in args
+                        n_args = n_args - (1 if provide_klong else 0)
                         if n_args > len(reserved_fn_args):
                             print(f".py: skipping {p} - too many paramters: {n_args}")
                         if n_args > 0 and reserved_fn_args[0] not in args:
