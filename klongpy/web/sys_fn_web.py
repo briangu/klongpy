@@ -28,21 +28,20 @@ class WebServerHandle:
         return f"web[{self.bind or '0.0.0.0'}:{self.port}]"
 
 
-def eval_sys_fn_create_web_server(klong, x, y):
+def eval_sys_fn_create_web_server(klong, x, y, z):
     """
     
-            .web(x, y)                                     [Start Web server]
+        .web(x, y, z)                                 [Start Web server]
 
     """
     global _main_loop
     global _main_tid
-    route_get_map = y
     app = web.Application()
     assert threading.current_thread().ident == _main_tid
-    for route, fn in route_get_map.items():
+    for route, fn in y.items():
         arity = fn.arity if isinstance(fn, KGFn) else fn.get_arity() if issubclass(type(fn), KGLambda) else 0
         if arity != 1:
-            logging.info(f"route {route} handler function requires arity 1, got {arity}")
+            logging.info(f"GET route {route} handler function requires arity 1, got {arity}")
             continue
         fn = fn if isinstance(fn, KGCall) else KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
 
@@ -56,17 +55,23 @@ def eval_sys_fn_create_web_server(klong, x, y):
 
         app.router.add_get(route, _get)
 
-        # async def _post(request: web.Request, fn=fn):
-        #     try:
-        #         assert request.method == "POST"
-        #         parameters = await request.post()
-        #         response = fn(parameters)
-        #         return web.Response(text=str(response))
-        #     except Exception as e:
-        #         print(e)
-        #         return web.Response(text="Invalid request", status=400)
+    for route, fn in z.items():
+        arity = fn.arity if isinstance(fn, KGFn) else fn.get_arity() if issubclass(type(fn), KGLambda) else 0
+        if arity != 1:
+            logging.info(f"POST route {route} handler function requires arity 1, got {arity}")
+            continue
+        fn = fn if isinstance(fn, KGCall) else KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
 
-        # app.router.add_get(route, _get)
+        async def _post(request: web.Request, fn=fn):
+            try:
+                assert request.method == "POST"
+                parameters = await request.post()
+                return web.Response(text=str(fn(parameters)))
+            except Exception as e:
+                print(e)
+                return web.Response(text="Invalid request", status=400)
+
+        app.router.add_post(route, _post)
 
     runner = web.AppRunner(app)
 

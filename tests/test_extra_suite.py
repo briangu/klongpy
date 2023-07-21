@@ -18,7 +18,6 @@ class TestExtraCoreSuite(unittest.TestCase):
         klong("c:::{[3 4]}")
         r = klong("b,c")
         self.assertEqual(r, {1: 2, 3: 4})
-        
 
     @unittest.skip
     def test_nested_dict(self):

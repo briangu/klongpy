@@ -357,7 +357,8 @@ def eval_sys_python(klong, x):
                     try:
                         args = inspect.signature(q, follow_wrapped=True).parameters
                         n_args = len(args)
-                        if n_args > len(reserved_fn_args):
+                        max_args = len(reserved_fn_args) + (1 if f'klong' in args else 0)
+                        if n_args > max_args:
                             print(f".py: skipping {p} - too many paramters: {n_args}")
                         if n_args > 0 and reserved_fn_args[0] not in args:
                             print(f".py: remapping {p} using reserved parameter names")
