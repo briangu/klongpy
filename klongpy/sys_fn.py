@@ -343,7 +343,11 @@ def eval_sys_python(klong, x):
                 print(f".py: {e}")
                 raise RuntimeError("module could not be imported: {x}")
     try:
-        import_items = filter(lambda p: not (p[0].startswith("__")), module.__dict__.items())
+        klong_exports = module.__dict__.get("klong_exports")
+        if klong_exports is None:
+            import_items = filter(lambda p: not (p[0].startswith("__")), module.__dict__.items())
+        else:
+            import_items = klong_exports.items()
         if import_items is not None:
             ctx = klong._context.pop()
             try:

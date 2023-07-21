@@ -2,7 +2,6 @@ import asyncio
 import sys
 import threading
 
-import aiohttp
 from aiohttp import web
 
 from klongpy.core import KGCall, KGFn, KGFnWrapper, KGLambda, reserved_fn_args
