@@ -252,6 +252,14 @@ class TestSysFn(unittest.TestCase):
         finally:
             sys.path.pop()
 
+    def test_sys_python_load_custom_export(self):
+        tests_dir = os.path.dirname(os.path.abspath(__file__))
+        plugins_dir = os.path.join(tests_dir, "plugins")
+        fpath = os.path.join(plugins_dir, "custom_export")
+        klong = KlongInterpreter()
+        self.assertEqual(klong(f'.py("{fpath}")'),1)
+        self.assertEqual(klong('.hello()'),"hello, world!")
+
     def test_eval_sys_random_number(self):
         r = eval_sys_random_number()
         r2 = eval_sys_random_number()
