@@ -12,6 +12,15 @@ class TestExtraCoreSuite(unittest.TestCase):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
     @unittest.skip
+    def test_join_two_dict(self):
+        klong = KlongInterpreter()
+        klong("b:::{[1 2]}")
+        klong("c:::{[3 4]}")
+        r = klong("b,c")
+        self.assertEqual(r, {1: 2, 3: 4})
+        
+
+    @unittest.skip
     def test_nested_dict(self):
         klong = KlongInterpreter()
         klong('c:::{["GET" :{["/" 2]}]}')
