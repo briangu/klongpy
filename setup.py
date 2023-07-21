@@ -31,6 +31,7 @@ setup(
         'rocm-5-0': ["cupy-rocm-5-0"],
         'rocm-4-3': ["cupy-rocm-4-3"],
         'repl': ["colorama"],
+        'web': ["aiohttp"]
     },
     include_package_data=True,
     test_suite='tests',
