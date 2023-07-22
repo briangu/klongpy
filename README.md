@@ -317,18 +317,47 @@ The .cli() function creates an IPC client. You can pass it either an integer (in
 
 Use .cli() to evaluate commands on a remote KlongPy server, define functions, perform calculations, or retrieve values. You can also pass it a symbol to retrieve a value or a function from the remote server.
 
-Here are some examples:
+Start the IPC server:
 
+```bash
+$ kgpy -s 8888
+Welcome to KlongPy REPL v0.4.0
+author: Brian Guarraci
+repo  : https://github.com/briangu/klongpy
+crtl-d or ]q to quit
+
+Running IPC server at 8888
+
+?>
 ```
-?> f = .cli(8888)
-?> f("avg::{(+/x)%#x}")   
-?> f("avg(!100)")        
+
+In a different terminal:
+
+```bash
+$ kgpy
+
+?> f::.cli(8888)
+remote[localhost:8888]:fn
+?> f("avg::{(+/x)%#x}")
+:monad
+?> f("avg(!100)")
+49.5
+?> :" Call a remote function and pass a local value (!100)
+?> data::!100
+[ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
+ 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71
+ 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95
+ 96 97 98 99]
+?> f(:avg,,data)
+49.5
 ```
 
 Using remote function proxies, you can reference a remotely defined function and call it as if it were local:
 
 ```
 ?> q::f(:avg)
+remote[localhost:8888]:avg:monad
 ?> q(!100)
 49.5 
 ```
@@ -340,10 +369,23 @@ As seen in Python interop examples, the KlongPy context is effectively a diction
 Here are some examples:
 
 ```
-?> d = .clid(8888)
-?> d,[:foo 2]             
-?> d,[:bar "hello"]       
-?> d,:fn,{x+1}            
+?> :" Open a remote dictionary using the same connection as f "
+?> d::.clid(f)
+remote[localhost:8888]:dict
+?> :" Add key/value pair :foo -> 2 to remote context "
+?> d,[:foo 2]
+?> :" Get the value for :foo key from the remote context "
+?> d?:foo
+2
+?> d,[:bar "hello"]
+?> d?:bar
+hello
+?> :" Assign a remote function to :fn "
+?> d,:fn,{x+1}
+?> t::d?:fn
+remote[localhost:8888]:fn:monad
+?> t(10)
+11
 ```
 
 These powerful capabilities allow for more effective use of distributed computing resources. Please be aware of potential security issues, as you are allowing a remote server to execute potentially arbitrary commands from your client. Always secure your connections and validate your commands to avoid potential attacks.
