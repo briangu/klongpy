@@ -64,7 +64,13 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
     global _main_loop
     global _main_tid
     app = web.Application()
+
+    logging.info("web server start @ ", x)
+    logging.info("GET: ", y)
+    logging.info("POST: ", z)
+
     assert threading.current_thread().ident == _main_tid
+    
     for route, fn in y.items():
         arity = fn.arity if isinstance(fn, KGFn) else fn.get_arity() if issubclass(type(fn), KGLambda) else 0
         if arity != 1:
@@ -80,6 +86,8 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
                 logging.info(f"failed web request: {route} with error {e}")
                 return web.Response(text="Invalid request", status=400)
 
+        logging.info("adding GET route: ", route)
+
         app.router.add_get(route, _get)
 
     for route, fn in z.items():
@@ -92,11 +100,13 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
         async def _post(request: web.Request, fn=fn):
             try:
                 assert request.method == "POST"
-                parameters = await request.post()
+                parameters = dict(await request.post())
                 return web.Response(text=str(fn(parameters)))
             except Exception as e:
-                print(e)
+                logging.error(e)
                 return web.Response(text="Invalid request", status=400)
+
+        logging.info("adding POST route: ", route)
 
         app.router.add_post(route, _post)
 
