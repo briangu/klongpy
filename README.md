@@ -477,6 +477,17 @@ post,"/p",update
 data
 ```
 
+Test it out:
+
+```bash
+$ curl "http://localhost:8888"
+[]
+$ curl -X POST -d"p=100" "http://localhost:8888/p"
+[100]
+$ curl "http://localhost:8888"
+[100]
+```
+
 
 # Performance
 
