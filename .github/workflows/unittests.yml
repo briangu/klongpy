@@ -45,6 +45,6 @@ jobs:
       with:
         python-version: 3.8
     - name: Install Dependencies
-      run: pip3 install -e .
+      run: pip install -e ".[web]"
     - name: Run unittest
       run: python3 -m unittest -v
