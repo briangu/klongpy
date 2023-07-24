@@ -9,7 +9,7 @@ with open(os.path.join(directory, 'README.md'), encoding='utf-8') as f:
 setup(
     name='klongpy',
     packages=['klongpy', 'klongpy.web'],
-    version='0.4.0',
+    version='0.4.1',
     description='Python implementation of Klong language.',
     author='Brian Guarraci',
     license='MIT',

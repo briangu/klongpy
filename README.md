@@ -21,6 +21,7 @@ KlongPy is a powerful language for high performance data analysis and distribute
 * __Array Programming__: KlongPy supports array programming, which makes it a great tool for mathematical and scientific computing. You can manipulate entire arrays of data at once, enabling efficient data analysis and manipulation.
 * __Compatibility__: KlongPy is designed to be compatible with Python, allowing you to leverage existing Python libraries and frameworks in conjunction with KlongPy. This seamless integration enhances KlongPy's usability and adaptability.
 * __Web server__: Includes a web server, making it easy to build sites backed by KlongPy capabilities.
+* __Timers__: Includes periodic timer facility to periodically perform tasks.
 
 At its heart, KlongPy is about infusing Python's flexibility with the compact Klong array language, allowing you to tap into the performance of NumPy while writing code that's concise and powerful. 
 
@@ -487,6 +488,43 @@ $ curl -X POST -d"p=100" "http://localhost:8888/p"
 $ curl "http://localhost:8888"
 [100]
 ```
+
+# Timer
+
+KlongPy includes periodic timer capabilities:
+
+```
+cb::{.p("hello")}
+th::.timer("greeting";1;cb)
+```
+
+To stop the timer, it can be closed via:
+
+```
+.timerc(th)
+```
+
+The following example will create a timer which counts to 5 and then 
+terminates the timer by return 0 from the callback.
+
+```
+counter::0
+u::{counter::counter+1;.p(counter);1}
+c::{.p("stopping timer");0}
+cb::{:[counter<5;u();c()]}
+th::.timer("count";1;cb)
+```
+
+which displays:
+
+```
+1
+2
+3
+4
+5
+stopping timer
+``
 
 
 # Performance
