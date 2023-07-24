@@ -319,7 +319,7 @@ class NetworkClientDictHandle(dict):
 def eval_sys_fn_create_client(x):
     """
 
-        .cli(x)                                       [Create IPC client]
+        .cli(x)                                      [Create-IPC-client]
 
         Return a function which evaluates commands on a remote KlongPy server.
 
@@ -384,7 +384,7 @@ def eval_sys_fn_create_client(x):
 def eval_sys_fn_create_dict_client(x):
     """
 
-        .clid(x)                                 [Create IPC dict client]
+        .clid(x)                                [Create-IPC-dict-client]
 
         Return a dictionary which evaluates set/get operations on a remote KlongPy server.
 
@@ -437,7 +437,7 @@ def eval_sys_fn_create_dict_client(x):
 def eval_sys_fn_shutdown_client(x):
     """
 
-        .clic(x)                                      [Close IPC client]
+        .clic(x)                                      [Close-IPC-client]
 
         Close a remote dictionary or function opened by .cli or .clid.
 
@@ -458,10 +458,10 @@ def eval_sys_fn_shutdown_client(x):
 _ipc_tcp_server = TcpServerHandler()
 
 
-def eval_sys_create_ipc_server(klong, x):
+def eval_sys_fn_create_ipc_server(klong, x):
     """
 
-        .srv(x)                                       [Start IPC server]
+        .srv(x)                                       [Start-IPC-server]
 
         Open a server port to accept IPC connections.
 
