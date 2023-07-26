@@ -25,7 +25,7 @@ class KGTimerHandler:
         return f"timer:{self.name}:{self.interval}"
 
 
-def _call_periodic(loop, name, interval, callback):
+def _call_periodic(loop: asyncio.BaseEventLoop, name, interval, callback):
     start = loop.time()
 
     def run(handle, fn=callback):
@@ -33,12 +33,18 @@ def _call_periodic(loop, name, interval, callback):
         assert threading.current_thread().ident == _main_tid
         r = fn()
         if r:
-            handle.delegate = loop.call_later(interval - ((loop.time() - start) % interval), run, handle)
+            if interval == 0:
+                handle.delegate = loop.call_soon(run, handle)
+            else:
+                handle.delegate = loop.call_later(interval - ((loop.time() - start) % interval), run, handle)
         else:
             handle.cancel()
 
     periodic = KGTimerHandler(name, interval)
-    periodic.delegate = loop.call_at(start + interval, run, periodic)
+    if interval == 0:
+        periodic.delegate = loop.call_soon(run, periodic)
+    else:
+        periodic.delegate = loop.call_at(start + interval, run, periodic)
 
     return periodic
 
@@ -73,8 +79,8 @@ def eval_sys_fn_timer(klong, x, y, z):
     """
     global _main_loop
     y= int(y)
-    if y <= 0:
-        return "x must be non-zero integer"
+    if y < 0:
+        return "x must be a non-negative integer"
     z = z if isinstance(z, KGCall) else KGFnWrapper(klong, z) if isinstance(z, KGFn) else z
     if not callable(z):
         return "z must be a function"
