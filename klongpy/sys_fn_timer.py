@@ -56,6 +56,8 @@ def eval_sys_fn_timer(klong, x, y, z):
 
         Create a timer named by "x" that repeats every "y" seconds and calls function "z".
 
+        An interval value of 0 indicates immediately callback (async).
+
         The callback function returns 1 to continue, 0 to stop time timer.
 
         Example:
