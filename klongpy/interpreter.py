@@ -207,7 +207,7 @@ class KlongInterpreter():
     def __getitem__(self, k):
         k = k if isinstance(k, KGSym) else KGSym(k)
         r = self._context[k]
-        return KGFnWrapper(self, r) if isinstance(r, KGFn) and not isinstance(r, KGCall) else r
+        return KGFnWrapper(self, r) if issubclass(type(r), KGFn) else r
 
     def _get_op_fn(self, s, arity):
         return self._vm[s] if arity == 1 else self._vd[s]

@@ -481,7 +481,6 @@ def eval_sys_fn_create_ipc_server(klong, x):
     return _ipc_tcp_server.create_server(_main_loop, klong, bind, port)
 
 
-
 class KGAsyncCall(KGLambda):
     def __init__(self, loop, fn, cb):
         self.loop = loop
@@ -512,11 +511,11 @@ def eval_sys_fn_create_async_wrapper(klong, x, y):
 
     """
     global _main_loop
-    # TODO: support KGLambda
-    assert not issubclass(type(x),KGLambda)
-    assert not issubclass(type(y),KGLambda)
-    y = KGFnWrapper(klong, y) if issubclass(type(y), KGFn) else y
-    return KGAsyncCall(_main_loop, x, y)
+    if not issubclass(type(x),KGFn):
+        return "x must be a function"
+    if not issubclass(type(y),KGFn):
+        return "y must be a function"
+    return KGAsyncCall(_main_loop, x, KGFnWrapper(klong, y))
 
 
 def create_system_functions_ipc():

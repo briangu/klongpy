@@ -34,6 +34,19 @@ class TestPythonInterop(unittest.TestCase):
         klong['fn'] = lambda x: x+10
         self.assertEqual(klong('fn(2)'), 12)
 
+    def test_call_klong_python_lambda(self):
+        klong = KlongInterpreter()
+        klong['fn'] = lambda x: x+10
+        fn = klong['fn']
+        self.assertEqual(fn(1),11)
+
+    def test_invalid_call_klong_python_lambda(self):
+        klong = KlongInterpreter()
+        klong['fn'] = lambda x: x+10
+        fn = klong['fn']
+        with self.assertRaises(RuntimeError):
+            self.assertEqual(fn(1,2),11)
+
     def test_call_klong_fn_with_scalar(self):
         klong = KlongInterpreter()
         klong('fn::{x+10}')

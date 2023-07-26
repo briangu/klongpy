@@ -52,6 +52,8 @@ class KGFnWrapper:
         self.fn = fn
 
     def __call__(self, *args, **kwargs):
+        if len(args) != self.fn.arity:
+            raise RuntimeError(f"Klong function called with {len(args)} but expected {self.fn.arity}")
         fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
         return self.klong.call(KGCall(self.fn.a, [*fn_args], self.fn.arity))
 
