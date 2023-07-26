@@ -431,6 +431,28 @@ Closing remote connections is done with the .clic() command.  Once it is closed,
 1
 ```
 
+## Async function calls
+
+KlongPy supports async function calls.  While it works for local functions, its primarily for remote functions.
+
+To indicate a function call should be async, the .async() function wraps the function and the supplied callback is called when complete.
+
+Calling an async function results in 1, indicating it was executed.
+
+```
+?> fn::f(:avg)
+remote[localhost:8888]:avg:monad
+?> cb::{.d("remote done: ");.p(x)}
+:monad
+?> afn::.async(fn;cb)
+async:monad
+?> afn(!100)
+1
+?> remote done: 49.5
+```
+
+Note, the result of .async() is a function, so it's possible to reuse these.
+
 ## Synchronization
 
 While the IPC server I/O is async, the KlongPy interpreter is single-threaded.  All remote operations are synchronous to make it easy to use remote operations as part of a normal workflow.  Of course, when calling over to another KlongPy instance, you have no idea what state that instance is in, but within the calling instance operations will be sequential.
