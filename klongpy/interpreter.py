@@ -543,7 +543,6 @@ class KlongInterpreter():
         * Functions (KGFn) are not invoked unless they are KGCall instances, allowing for function definitions to be differentiated from invocations.
 
         """
-
         if isinstance(x, KGSym):
             try:
                 return self._context[x]
@@ -551,8 +550,6 @@ class KlongInterpreter():
                 if x not in reserved_fn_symbols:
                     self._context[x] = x
                 return x
-        elif isinstance(x, KGCall) and not (x.is_op() or x.is_adverb_chain()):
-            return self._eval_fn(KGFn(x.a,x.args,x.arity))
         elif isinstance(x, KGFn):
             if x.is_op():
                 f = self._get_op_fn(x.a.a, x.a.arity)
@@ -562,6 +559,8 @@ class KlongInterpreter():
                 return f(_x) if x.a.arity == 1 else f(_x, _y)
             elif x.is_adverb_chain():
                 return chain_adverbs(self, x.a)()
+            elif isinstance(x, KGCall):
+                return self._eval_fn(x)
         elif isinstance(x, KGCond):
             q = self.call(x[0])
             p = not ((is_number(q) and q == 0) or is_empty(q))
