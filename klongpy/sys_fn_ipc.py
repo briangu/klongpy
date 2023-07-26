@@ -84,7 +84,6 @@ class KGRemoteFnProxy(KGLambda):
         self.nc = nc
         self.sym = sym
         self.args = reserved_fn_args[:arity]
-        self.provide_klong = False
 
     def __call__(self, _, ctx):
         params = [ctx[reserved_fn_symbol_map[x]] for x in reserved_fn_args[:len(self.args)]]
@@ -480,6 +479,44 @@ def eval_sys_fn_create_ipc_server(klong, x):
     if len(parts) == 1 and port == 0:
         return _ipc_tcp_server.shutdown_server()
     return _ipc_tcp_server.create_server(_main_loop, klong, bind, port)
+
+
+
+class KGAsyncCall(KGLambda):
+    def __init__(self, loop, fn, cb):
+        self.loop = loop
+        self.cb = cb
+        self.fn = fn
+        self.args = [reserved_fn_symbol_map[x] for x in reserved_fn_args[:fn.arity]]
+   
+    async def acall(self, klong, params):
+        r = klong.call(KGCall(self.fn.a, [*params], self.fn.arity))
+        self.cb(r)
+
+    def __call__(self, klong, ctx):
+        params = [ctx[x] for x in self.args]
+        self.loop.create_task(self.acall(klong, params))
+        return 1
+
+    def __str__(self):
+        return f"async:{super().__str__()}"
+
+
+def eval_sys_fn_create_async_wrapper(klong, x, y):
+    """
+
+        .async(x,y)                             [Async-function-wrapper]
+
+        Returns an async callable wrapper for the function "x" and calls "y"
+        when completed.
+
+    """
+    global _main_loop
+    # TODO: support KGLambda
+    assert not issubclass(type(x),KGLambda)
+    assert not issubclass(type(y),KGLambda)
+    y = KGFnWrapper(klong, y) if issubclass(type(y), KGFn) else y
+    return KGAsyncCall(_main_loop, x, y)
 
 
 def create_system_functions_ipc():

@@ -105,11 +105,11 @@ class KGLambda:
         self.fn = fn
         params = inspect.signature(self.fn, follow_wrapped=True).parameters
         self.args = [reserved_fn_symbol_map[x] for x in reserved_fn_args if x in params]
-        self.provide_klong = 'klong' in params
+        self._provide_klong = 'klong' in params
 
     def __call__(self, klong, ctx):
         params = [ctx[x] for x in self.args]
-        return self.fn(klong, *params) if self.provide_klong else self.fn(*params)
+        return self.fn(klong, *params) if self._provide_klong else self.fn(*params)
 
     def get_arity(self):
         return len(self.args)
