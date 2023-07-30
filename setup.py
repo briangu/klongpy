@@ -8,7 +8,7 @@ with open(os.path.join(directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='klongpy',
-    packages=['klongpy', 'klongpy.web'],
+    packages=['klongpy', 'klongpy.web', 'klongpy.db'],
     version='0.4.2',
     description='Python implementation of Klong language.',
     author='Brian Guarraci',
@@ -31,7 +31,8 @@ setup(
         'rocm-5-0': ["cupy-rocm-5-0"],
         'rocm-4-3': ["cupy-rocm-4-3"],
         'repl': ["colorama"],
-        'web': ["aiohttp"]
+        'web': ["aiohttp"],
+        'db': ["pandas","duckdb"],
     },
     include_package_data=True,
     test_suite='tests',
