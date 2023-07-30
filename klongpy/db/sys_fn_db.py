@@ -79,7 +79,8 @@ class Database(KGLambda):
 
         print(locals())
         try:
-            return self.con.execute(x).fetchdf().values
+            df = self.con.execute(x).fetchdf()
+            return df.values
         except Exception as e:
             print(e)
         finally:
