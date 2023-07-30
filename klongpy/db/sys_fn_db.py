@@ -73,14 +73,12 @@ class Database(KGLambda):
 
     def __call__(self, _, ctx):
         x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
-        print("sql: ", x, "tables", self.tables)
         for k,v in self.tables.items():
             locals()[k] = v.df
 
-        print(locals())
         try:
             df = self.con.execute(x).fetchdf()
-            return df.values
+            return df.values.squeeze()
         except Exception as e:
             print(e)
         finally:

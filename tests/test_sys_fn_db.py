@@ -6,6 +6,39 @@ from klongpy import KlongInterpreter
 
 class TestSysFnDb(unittest.TestCase):
 
+    def test_create_empty_table(self):
+        s = """
+.py("klongpy.db")
+t::.table(:{})
+t,"c",,[]
+q:::{}
+q,"T",,t
+db::.db(q)
+db("select * from T")
+"""
+        klong = KlongInterpreter()
+        r = klong(s)
+        self.assertTrue(kg_equal(r, np.array([])))
+
+    def test_create_table(self):
+        s = """
+.py("klongpy.db")
+a::[1 2 3]
+b::[2 3 4]
+c::[3 4 5]
+t::.table(:{})
+t,"a",,a
+t,"b",,b
+t,"c",,c
+q:::{}
+q,"T",,t
+db::.db(q)
+db("select * from T")
+"""
+        klong = KlongInterpreter()
+        r = klong(s)
+        self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5]])))
+
     def test_initial_prototype(self):
         s = """
 .py("klongpy.db")
@@ -53,6 +86,6 @@ db::.db(q)
         r = klong('db("select * from T")')
         self.assertTrue(kg_equal(r, np.array([[1,2],[2,3],[3,4]])))
         r = klong('db("select * from G")')
-        self.assertTrue(kg_equal(r, np.array([[3],[4],[5]])))
+        self.assertTrue(kg_equal(r, np.array([3,4,5])))
         r = klong('db("select * from T join G on G.c = T.b")')
         self.assertTrue(kg_equal(r, np.array([[2,3,3],[3,4,4]])))
