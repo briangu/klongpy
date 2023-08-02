@@ -24,6 +24,7 @@ class Table(dict):
     def __init__(self, d, columns):
         self.df = pd.DataFrame(d, columns=columns, copy=False)
         self.idx_cols = None
+        self.idx_cols_loc = None
         self.columns = columns
 
     def __getitem__(self, x):
@@ -53,22 +54,21 @@ class Table(dict):
             iic.append(k)
         self.df.set_index(iic, inplace=True)
         self.idx_cols = idx_cols
+        self.idx_cols_loc = np.where(np.isin(np.asarray(self.columns), np.asarray(self.idx_cols)))[0]
 
     def reset_index(self):
         self.df = self.df.reset_index()
         iic = [f"{ic}_idx" for ic in self.idx_cols]
         self.df.drop(columns=iic, inplace=True)
         self.idx_cols = None
+        self.idx_cols_loc = None
 
     def has_index(self):
         return self.idx_cols is not None
 
     def insert(self, y):
         if self.has_index():
-            idx_vals = []
-            for i,v in enumerate(y):
-                if self.columns[i] in self.idx_cols:
-                    idx_vals.append(v)
+            idx_vals = y[self.idx_cols_loc]
             if len(self.idx_cols) == 1:
                 if len(self.columns) == 1:
                     self.df.at[idx_vals[0], self.columns[0]] = y[0]
