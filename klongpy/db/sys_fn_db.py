@@ -21,9 +21,9 @@ class KlongDbException(KlongException):
 class Table(dict):
     def __init__(self, d, columns):
         self.df = pd.DataFrame(d, columns=columns)
-        self.index = None
+        self.idx_cols = None
         self.columns = columns
-        self.val_cols = columns
+        # self.val_cols = columns
 
     def __getitem__(self, x):
         return self.get(x)
@@ -44,28 +44,49 @@ class Table(dict):
     def schema(self):
         return np.array(self.df.columns, dtype=object)
 
-    def set_index(self, columns):
-        self.df.set_index(columns, inplace=True)
-        self.index = columns
-        self.val_cols = [k for k in self.columns if k not in self.index]
+    def set_index(self, idx_cols):
+        iic = []
+        for ic in idx_cols:
+            k = f"{ic}_idx"
+            self.df[k] = self.df[ic]
+            iic.append(k)
+        self.df.set_index(iic, inplace=True)
+        self.idx_cols = idx_cols
 
     def reset_index(self):
-        self.df.reset_index()
-        self.index = None
-        self.val_cols = self.columns
+        self.df = self.df.reset_index()
+        iic = [f"{ic}_idx" for ic in self.idx_cols]
+        self.df.drop(columns=iic, inplace=True)
+        self.idx_cols = None
 
-    # def close(self):
-    #     return self.nc.close()
+    def has_index(self):
+        return self.idx_cols is not None
 
-    # def is_open(self):
-    #     return self.nc.is_open()
+    def insert(self, y):
+        if not self.has_index():
+            self.df.loc[len(self.df)] = y
+        elif len(self.idx_cols) == 1:
+            idx_val = None
+            values = []
+            for k,v in zip(self.columns, y):
+                if k in self.idx_cols:
+                    idx_val = v
+                values.append(v)
+            self.df.loc[idx_val] = values
+        else:
+            idx_vals = []
+            values = []
+            for k,v in zip(self.columns, y):
+                if k in self.idx_cols:
+                    idx_vals.append(v)
+                values.append(v)
+            self.df.loc[tuple(idx_vals), self.columns] = values
 
     def __len__(self):
         return len(self.df.columns)
     
     def __str__(self):
-#        return f":table"
-        return str(self.df)
+        return f"{self.idx_cols or ''}:{self.columns}:table"
 
 
 class Database(KGLambda):
@@ -117,7 +138,7 @@ def eval_sys_fn_index(x, y):
     """
     if not isinstance(x, Table):
         raise KlongDbException(x, "An index may only be created on a table.")
-    if x.index is not None:
+    if x.has_index():
         raise KlongDbException(x, "Table already has an index.")
     if not np.isarray(y):
         raise KlongDbException(x, "An index must be a list of column names")
@@ -135,7 +156,10 @@ def eval_sys_fn_reset_index(x):
     """
     if not isinstance(x, Table):
         raise KlongDbException(x, "An index may only be created on a table.")
-    return x.reset_index(x)
+    if x.has_index():
+        x.reset_index()
+        return 1
+    return 0
 
 
 def eval_sys_fn_schema(x):
@@ -168,27 +192,8 @@ def eval_sys_fn_insert_table(x, y):
         raise KlongDbException(x, f"Values to insert must be a list")
     if len(y) != len(x.columns):
         raise KlongDbException(x, f"Expected {len(x.columns)} values, received {len(y)}")
-    if x.index is None:
-        x.df.loc[len(x.df)] = y
-    elif len(x.index) == 1:
-        idx_val = None
-        values = []
-        for k,v in zip(x.columns, y):
-            if k in x.index:
-                idx_val = v
-            else:
-                values.append(v)
-        x.df.loc[idx_val] = values
-    else:
-        idx_vals = []
-        values = []
-        for k,v in zip(x.columns, y):
-            if k in x.index:
-                idx_vals.append(v)
-            else:
-                values.append(v)
-        x.df.loc[tuple(idx_vals), *x.val_cols] = values
-    return 
+    x.insert(y)
+    return x
 
 
 def eval_sys_fn_create_db(x):
