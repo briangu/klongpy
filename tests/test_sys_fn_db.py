@@ -144,3 +144,84 @@ db::.db(q)
         self.assertTrue("G" in r)
         self.assertTrue(kg_equal(r["T"], np.array(["a", "b"], dtype=object)))
         self.assertTrue(kg_equal(r["G"], np.array(["c"], dtype=object)))
+
+    def test_insert_no_index(self):
+        s = """
+.py("klongpy.db")
+a::[1 2 3]
+b::[2 3 4]
+c::[3 4 5]
+
+e::[]
+e::e,,"a",,a
+e::e,,"b",,b
+e::e,,"c",,c
+t::.table(e)
+
+q:::{}
+q,"T",,t
+db::.db(q)
+"""
+        klong = KlongInterpreter()
+        klong(s)
+        r = klong('db("select * from T")')
+        self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5]])))
+        klong(".insert(t; [4 5 6])")
+        r = klong('db("select * from T")')
+        self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5],[4,5,6]])))
+
+    def test_insert_with_single_index(self):
+        s = """
+.py("klongpy.db")
+a::[1 2 3]
+b::[2 3 4]
+c::[3 4 5]
+
+e::[]
+e::e,,"a",,a
+e::e,,"b",,b
+e::e,,"c",,c
+t::.table(e)
+
+q:::{}
+q,"T",,t
+db::.db(q)
+"""
+        klong = KlongInterpreter()
+        klong(s)
+        r = klong('db("select * from T")')
+        self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5]])))
+        klong('.index(t;["a"])')
+        r = klong('db("select * from T")')
+        self.assertTrue(kg_equal(r, np.array([[2,3],[3,4],[4,5]])))
+        klong(".insert(t; [4 5 6])")
+        r = klong('db("select * from T")')
+        self.assertTrue(kg_equal(r, np.array([[2,3],[3,4],[4,5],[5,6]])))
+
+    def test_insert_with_multi_index(self):
+        s = """
+.py("klongpy.db")
+a::[1 2 3]
+b::[2 3 4]
+c::[3 4 5]
+
+e::[]
+e::e,,"a",,a
+e::e,,"b",,b
+e::e,,"c",,c
+t::.table(e)
+
+q:::{}
+q,"T",,t
+db::.db(q)
+"""
+        klong = KlongInterpreter()
+        klong(s)
+        r = klong('db("select * from T")')
+        self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5]])))
+        klong('.index(t;["a" "b"])')
+        r = klong('db("select * from T")')
+        self.assertTrue(kg_equal(r, np.array([3,4,5])))
+        klong(".insert(t; [4 5 6])")
+        r = klong('db("select * from T")')
+        self.assertTrue(kg_equal(r, np.array([3,4,5,6])))

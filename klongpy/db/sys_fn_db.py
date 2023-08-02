@@ -21,6 +21,9 @@ class KlongDbException(KlongException):
 class Table(dict):
     def __init__(self, d, columns):
         self.df = pd.DataFrame(d, columns=columns)
+        self.index = None
+        self.columns = columns
+        self.val_cols = columns
 
     def __getitem__(self, x):
         return self.get(x)
@@ -40,6 +43,16 @@ class Table(dict):
 
     def schema(self):
         return np.array(self.df.columns, dtype=object)
+
+    def set_index(self, columns):
+        self.df.set_index(columns, inplace=True)
+        self.index = columns
+        self.val_cols = [k for k in self.columns if k not in self.index]
+
+    def reset_index(self):
+        self.df.reset_index()
+        self.index = None
+        self.val_cols = self.columns
 
     # def close(self):
     #     return self.nc.close()
@@ -96,6 +109,35 @@ def eval_sys_fn_create_table(x):
     return Table({k:v for k,v in x}, columns=[k for k,_ in x])
 
 
+def eval_sys_fn_index(x, y):
+    """
+
+        .index(x)                                   [Create-Table-Index]
+
+    """
+    if not isinstance(x, Table):
+        raise KlongDbException(x, "An index may only be created on a table.")
+    if x.index is not None:
+        raise KlongDbException(x, "Table already has an index.")
+    if not np.isarray(y):
+        raise KlongDbException(x, "An index must be a list of column names")
+    for q in y:
+        if q not in x.columns:
+            raise KlongDbException(x, f"An index column {q} not found in table")
+    return x.set_index(list(y))
+
+
+def eval_sys_fn_reset_index(x):
+    """
+
+        .rindex(x)                                  [Reset-Table-Index]
+
+    """
+    if not isinstance(x, Table):
+        raise KlongDbException(x, "An index may only be created on a table.")
+    return x.reset_index(x)
+
+
 def eval_sys_fn_schema(x):
     """
 
@@ -109,7 +151,7 @@ def eval_sys_fn_schema(x):
     return x.schema()
 
 
-def eval_sys_fn_insert_table(x):
+def eval_sys_fn_insert_table(x, y):
     """
 
         .insert(x, y)                                     [Table-Insert]
@@ -121,8 +163,32 @@ def eval_sys_fn_insert_table(x):
 
     """
     if not isinstance(x,Table):
-        return "a db must be created from a dict"
-    return Database(x)
+        raise KlongDbException(x, "Inserts must be applied to a table")
+    if not np.isarray(y):
+        raise KlongDbException(x, f"Values to insert must be a list")
+    if len(y) != len(x.columns):
+        raise KlongDbException(x, f"Expected {len(x.columns)} values, received {len(y)}")
+    if x.index is None:
+        x.df.loc[len(x.df)] = y
+    elif len(x.index) == 1:
+        idx_val = None
+        values = []
+        for k,v in zip(x.columns, y):
+            if k in x.index:
+                idx_val = v
+            else:
+                values.append(v)
+        x.df.loc[idx_val] = values
+    else:
+        idx_vals = []
+        values = []
+        for k,v in zip(x.columns, y):
+            if k in x.index:
+                idx_vals.append(v)
+            else:
+                values.append(v)
+        x.df.loc[tuple(idx_vals), *x.val_cols] = values
+    return 
 
 
 def eval_sys_fn_create_db(x):
