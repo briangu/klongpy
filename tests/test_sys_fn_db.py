@@ -233,3 +233,146 @@ db::.db(q)
         klong(".rindex(t)")
         r = klong('db("select * from T")')
         self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5],[4,5,6]])))
+
+
+def perf_single_col_no_pre_alloc():
+    s = """
+.py("klongpy.db")
+a::[]
+
+e::[]
+e::e,,"a",,a
+t::.table(e)
+
+q:::{}
+q,"T",,t
+db::.db(q)
+"""
+    klong = KlongInterpreter()
+    klong(s)
+    klong("tfn::{[t0];t0::.pc();x@[];.pc()-t0}")
+    klong("afn::{{.insert(t; x)}'!10000}")
+    r = klong("tfn(afn)")
+    pr = r / 10000
+    print("single col (no index) (no pre alloc)", r, pr)
+    r = klong('db("select count(*) from T")')
+    assert r == 10000
+
+
+def perf_single_index_no_pre_alloc():
+    s = """
+.py("klongpy.db")
+a::[]
+
+e::[]
+e::e,,"a",,a
+t::.table(e)
+
+.index(t;["a"])
+
+q:::{}
+q,"T",,t
+db::.db(q)
+"""
+    klong = KlongInterpreter()
+    klong(s)
+    klong("tfn::{[t0];t0::.pc();x@[];.pc()-t0}")
+    klong("afn::{{.insert(t; x)}'!10000}")
+    r = klong("tfn(afn)")
+    pr = r / 10000
+    print("single col (index) (no pre alloc)", r, pr)
+    r = klong('db("select count(*) from T")')
+    assert r == 10000
+
+
+def perf_single_col_index_pre_alloc():
+    s = """
+.py("klongpy.db")
+a::!10000
+
+e::[]
+e::e,,"a",,a
+t::.table(e)
+
+.index(t;["a"])
+
+q:::{}
+q,"T",,t
+db::.db(q)
+"""
+    klong = KlongInterpreter()
+    klong(s)
+    klong("tfn::{[t0];t0::.pc();x@[];.pc()-t0}")
+    klong("afn::{{.insert(t; x)}'!10000}")
+    r = klong("tfn(afn)")
+    pr = r / 10000
+    print("single col (index) (pre alloc)", r, pr)
+    r = klong('db("select count(*) from T")')
+    assert r == 10000
+
+
+def perf_multi_col_pre_alloc():
+    s = """
+.py("klongpy.db")
+a::[1 2 3]
+b::[2 3 4]
+c::[3 4 5]
+
+e::[]
+e::e,,"a",,a
+e::e,,"b",,b
+e::e,,"c",,c
+t::.table(e)
+
+q:::{}
+q,"T",,t
+db::.db(q)
+"""
+    klong = KlongInterpreter()
+    klong(s)
+    klong("tfn::{[t0];t0::.pc();x@[];.pc()-t0}")
+    klong("afn::{{.insert(t; x,(x+1),(x+2))}'!10000}")
+    r = klong("tfn(afn)")
+    pr = r / 10000
+    print("multi col (no index) (pre alloc)", r, pr)
+    r = klong('db("select count(*) from T")')
+    assert r == 10003
+
+
+
+def perf_multi_col_single_index_pre_alloc():
+    s = """
+.py("klongpy.db")
+a::[1 2 3]
+b::[2 3 4]
+c::[3 4 5]
+
+e::[]
+e::e,,"a",,a
+e::e,,"b",,b
+e::e,,"c",,c
+t::.table(e)
+
+.index(t;["a"])
+
+q:::{}
+q,"T",,t
+db::.db(q)
+"""
+    klong = KlongInterpreter()
+    klong(s)
+    klong("tfn::{[t0];t0::.pc();x@[];.pc()-t0}")
+    klong("afn::{{.insert(t; x,(x+1),(x+2))}'!10000}")
+    r = klong("tfn(afn)")
+    pr = r / 10000
+    print("multi col (single index) (pre alloc)", r, pr)
+    r = klong('db("select count(*) from T")')
+    assert r == 10000
+
+
+if __name__ == "__main__":
+    perf_single_col_no_pre_alloc()
+    perf_single_index_no_pre_alloc()
+    perf_single_col_index_pre_alloc()
+    perf_multi_col_pre_alloc()
+    perf_multi_col_single_index_pre_alloc()

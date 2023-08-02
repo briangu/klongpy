@@ -8,8 +8,10 @@ import pandas as pd
 
 from klongpy.core import KlongException, KGCall, KGLambda, reserved_fn_args, reserved_fn_symbol_map
 
-_main_loop = asyncio.get_event_loop()
-_main_tid = threading.current_thread().ident
+import time
+
+# _main_loop = asyncio.get_event_loop()
+# _main_tid = threading.current_thread().ident
 
 
 class KlongDbException(KlongException):
@@ -20,10 +22,9 @@ class KlongDbException(KlongException):
 
 class Table(dict):
     def __init__(self, d, columns):
-        self.df = pd.DataFrame(d, columns=columns)
+        self.df = pd.DataFrame(d, columns=columns, copy=False)
         self.idx_cols = None
         self.columns = columns
-        # self.val_cols = columns
 
     def __getitem__(self, x):
         return self.get(x)
@@ -63,24 +64,21 @@ class Table(dict):
         return self.idx_cols is not None
 
     def insert(self, y):
-        if not self.has_index():
-            self.df.loc[len(self.df)] = y
-        elif len(self.idx_cols) == 1:
-            idx_val = None
-            values = []
-            for k,v in zip(self.columns, y):
-                if k in self.idx_cols:
-                    idx_val = v
-                values.append(v)
-            self.df.loc[idx_val] = values
-        else:
+        if self.has_index():
             idx_vals = []
-            values = []
-            for k,v in zip(self.columns, y):
-                if k in self.idx_cols:
+            for i,v in enumerate(y):
+                if self.columns[i] in self.idx_cols:
                     idx_vals.append(v)
-                values.append(v)
-            self.df.loc[tuple(idx_vals), self.columns] = values
+            if len(self.idx_cols) == 1:
+                if len(self.columns) == 1:
+                    self.df.at[idx_vals[0], self.columns[0]] = y[0]
+                else:
+                    self.df.loc[idx_vals[0]] = y
+            else:
+                self.df.loc[tuple(idx_vals), self.columns] = y
+        else:
+            values = np.concatenate([self.df.values, y.reshape(1, -1)])
+            self.df = pd.DataFrame(values, columns=self.columns, copy=False)
 
     def __len__(self):
         return len(self.df.columns)
@@ -188,8 +186,11 @@ def eval_sys_fn_insert_table(x, y):
     """
     if not isinstance(x,Table):
         raise KlongDbException(x, "Inserts must be applied to a table")
-    if not np.isarray(y):
-        raise KlongDbException(x, f"Values to insert must be a list")
+    if len(x.columns) > 1:
+        if not np.isarray(y):
+            raise KlongDbException(x, f"Values to insert must be a list")
+    elif not np.isarray(y):
+            y = np.array([y])
     if len(y) != len(x.columns):
         raise KlongDbException(x, f"Expected {len(x.columns)} values, received {len(y)}")
     x.insert(y)
