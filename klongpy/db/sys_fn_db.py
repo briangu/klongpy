@@ -73,7 +73,7 @@ class Table(dict):
                 if len(self.columns) == 1:
                     self.df.at[idx_vals[0], self.columns[0]] = y[0]
                 else:
-                    self.df.loc[idx_vals[0]] = y
+                    self.df.loc[idx_vals[0], self.columns] = y
             else:
                 self.df.loc[tuple(idx_vals), self.columns] = y
         else:
