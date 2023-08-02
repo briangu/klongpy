@@ -1,28 +1,26 @@
 import asyncio
-import logging
-import pickle
-import socket
-import struct
 import sys
 import threading
-from asyncio import StreamReader, StreamWriter
-from typing import Optional
 
 import duckdb
 import numpy as np
 import pandas as pd
 
-from klongpy.core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
-                          get_fn_arity_str, is_list, reserved_fn_args,
-                          reserved_fn_symbol_map)
+from klongpy.core import KlongException, KGCall, KGLambda, reserved_fn_args, reserved_fn_symbol_map
 
 _main_loop = asyncio.get_event_loop()
 _main_tid = threading.current_thread().ident
 
 
+class KlongDbException(KlongException):
+    def __init__(self, x, e):
+        self.x = x
+        super().__init__(e)
+
+
 class Table(dict):
-    def __init__(self, d):
-        self.df = pd.DataFrame(d)
+    def __init__(self, d, columns):
+        self.df = pd.DataFrame(d, columns=columns)
 
     def __getitem__(self, x):
         return self.get(x)
@@ -40,6 +38,9 @@ class Table(dict):
     def set(self, x, y):
         self.df[x] = y
 
+    def schema(self):
+        return np.array(self.df.columns, dtype=object)
+
     # def close(self):
     #     return self.nc.close()
 
@@ -54,17 +55,6 @@ class Table(dict):
         return str(self.df)
 
 
-def eval_sys_fn_create_table(x):
-    """
-
-        .table(x)                                         [Create-table]
-
-    """
-    if not isinstance(x,dict):
-        return "tables must be created from a dict"
-    return Table(x)
-
-
 class Database(KGLambda):
 
     def __init__(self, tables):
@@ -73,6 +63,8 @@ class Database(KGLambda):
 
     def __call__(self, _, ctx):
         x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
+
+        # add the table column -> dataframe into local scope so DuckDB can reference them by name in the SQL.
         for k,v in self.tables.items():
             locals()[k] = v.df
 
@@ -80,16 +72,58 @@ class Database(KGLambda):
             df = self.con.execute(x).fetchdf()
             return df.values.squeeze()
         except Exception as e:
-            print(e)
-        finally:
-            for k in self.tables.keys():
-                del locals()[k]
+            # TODO: we need to expose the sql errors in an actionable way
+            raise KlongDbException(x, e)
+
+    def schema(self):
+        return {k: v.schema() for k,v in self.tables.items()}
 
     def get_arity(self):
         return 1
 
     def __str__(self):
         return ":db"
+
+
+def eval_sys_fn_create_table(x):
+    """
+
+        .table(x)                                         [Table-Create]
+
+    """
+    if not np.isarray(x):
+        raise KlongDbException(x, "tables must be created from an array of column data map")
+    return Table({k:v for k,v in x}, columns=[k for k,_ in x])
+
+
+def eval_sys_fn_schema(x):
+    """
+
+        .schema(x)                                        [Table-Schema]
+
+    """
+    if isinstance(x, KGCall):
+        x = x.a
+    if not isinstance(x, (Database, Table)):
+        raise KlongDbException(x, "A schema is available only for a table or database.")
+    return x.schema()
+
+
+def eval_sys_fn_insert_table(x):
+    """
+
+        .insert(x, y)                                     [Table-Insert]
+
+        Examples:
+
+            t::.table(d)
+            it::.insert(t, [1;2;3;4])
+
+    """
+    if not isinstance(x,Table):
+        return "a db must be created from a dict"
+    return Database(x)
+
 
 def eval_sys_fn_create_db(x):
     """

@@ -11,6 +11,10 @@ if not hasattr(inspect, 'getargspec'):
     inspect.getargspec = inspect.getfullargspec
 
 
+class KlongException(Exception):
+    pass
+
+
 class KGSym(str):
     def __repr__(self):
         return f":{super().__str__()}"
