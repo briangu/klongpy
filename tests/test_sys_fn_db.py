@@ -109,7 +109,7 @@ db("select * from T")
         self.assertTrue(kg_equal(r["T"], np.array(["a", "b", "c"], dtype=object)))
 
 
-    def test_multi_table_db(self):
+    def test_multi_table_join(self):
         s = """
 .py("klongpy.db")
 a::[1 2 3]
@@ -145,7 +145,7 @@ db::.db(q)
         self.assertTrue(kg_equal(r["T"], np.array(["a", "b"], dtype=object)))
         self.assertTrue(kg_equal(r["G"], np.array(["c"], dtype=object)))
 
-    def test_insert_no_index(self):
+    def test_multi_insert_no_index(self):
         s = """
 .py("klongpy.db")
 a::[1 2 3]
@@ -170,7 +170,7 @@ db::.db(q)
         r = klong('db("select * from T")')
         self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5],[4,5,6]])))
 
-    def test_insert_with_single_index(self):
+    def test_multi_insert_with_single_index(self):
         s = """
 .py("klongpy.db")
 a::[1 2 3]
@@ -201,7 +201,7 @@ db::.db(q)
         r = klong('db("select * from T")')
         self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5],[4,5,6]])))
 
-    def test_insert_with_multi_index(self):
+    def test_multi_insert_with_multi_index(self):
         s = """
 .py("klongpy.db")
 a::[1 2 3]

@@ -72,9 +72,21 @@ class Table(dict):
                 if len(self.columns) == 1:
                     self.df.at[y[self.idx_cols_loc[0]], self.columns[0]] = y[0]
                 else:
-                    self.df.loc[y[self.idx_cols_loc[0]], self.columns] = y
+                    index_value = y[self.idx_cols_loc[0]]
+                    if index_value in self.df.index:
+                        # TODO: add unit test for update
+                        index_pos = self.df.index.get_loc(index_value)
+                        self.df.values[index_pos] = y
+                    else:
+                        self.df.loc[index_value, self.columns] = y
             else:
-                self.df.loc[tuple(y[self.idx_cols_loc]), self.columns] = y
+                index_value = tuple(y[self.idx_cols_loc])
+                if index_value in self.df.index:
+                    # TODO: add unit test for update
+                    index_pos = self.df.index.get_loc(index_value)
+                    self.df.values[index_pos] = y
+                else:
+                    self.df.loc[index_value, self.columns] = y
         else:
             values = np.concatenate([self.df.values, y.reshape(1, -1)])
             self.df = pd.DataFrame(values, columns=self.columns, copy=False)
