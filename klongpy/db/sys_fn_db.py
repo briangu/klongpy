@@ -85,15 +85,14 @@ class Table(dict):
         if not self.buffer:
             return
         if self.has_index():
-            # Create a DataFrame from the buffer with the same index and columns
             buffer_df = pd.DataFrame(self.buffer, columns=self.columns)
-            # buffer_df.set_index(self.idx_cols, inplace=True)
             buffer_df = self._create_index_from_cols(buffer_df, self.idx_cols)
 
             # Update existing rows and append new rows
             common_idx = self._df.index.intersection(buffer_df.index)
             self._df.loc[common_idx] = buffer_df.loc[common_idx]
             self._df = pd.concat([self._df, buffer_df.loc[~buffer_df.index.isin(common_idx)]])
+            self._df.sort_index(inplace=True)
         else:
             values = np.concatenate([self._df.values] + [y.reshape(1, -1) for y in self.buffer])
             self._df = pd.DataFrame(values, columns=self.columns, copy=False)
