@@ -85,31 +85,20 @@ class Table(dict):
         if not self.buffer:
             return
         if self.has_index():
-            for y in self.buffer:
-                if len(self.idx_cols) == 1:
-                    if len(self.columns) == 1:
-                        self._df.at[y[self.idx_cols_loc[0]], self.columns[0]] = y[0]
-                    else:
-                        index_value = y[self.idx_cols_loc[0]]
-                        if index_value in self._df.index:
-                            # TODO: add unit test for update
-                            index_pos = self._df.index.get_loc(index_value)
-                            self._df.values[index_pos] = y
-                        else:
-                            self._df.loc[index_value, self.columns] = y
-                else:
-                    index_value = tuple(y[self.idx_cols_loc])
-                    if index_value in self._df.index:
-                        # TODO: add unit test for update
-                        index_pos = self._df.index.get_loc(index_value)
-                        self._df.values[index_pos] = y
-                    else:
-                        self._df.loc[index_value, self.columns] = y
+            # Create a DataFrame from the buffer with the same index and columns
+            buffer_df = pd.DataFrame(self.buffer, columns=self.columns)
+            # buffer_df.set_index(self.idx_cols, inplace=True)
+            buffer_df = self._create_index_from_cols(buffer_df, self.idx_cols)
+
+            # Update existing rows and append new rows
+            common_idx = self._df.index.intersection(buffer_df.index)
+            self._df.loc[common_idx] = buffer_df.loc[common_idx]
+            self._df = pd.concat([self._df, buffer_df.loc[~buffer_df.index.isin(common_idx)]])
         else:
             values = np.concatenate([self._df.values] + [y.reshape(1, -1) for y in self.buffer])
             self._df = pd.DataFrame(values, columns=self.columns, copy=False)
-        self.buffer = []    
-
+        self.buffer = []
+    
     def __len__(self):
         return len(self._df.columns)
     
