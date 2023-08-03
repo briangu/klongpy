@@ -183,15 +183,14 @@ e::e,,"b",,b
 e::e,,"c",,c
 t::.table(e)
 
+.index(t;["a"])
+
 q:::{}
 q,"T",,t
 db::.db(q)
 """
         klong = KlongInterpreter()
         klong(s)
-        r = klong('db("select * from T")')
-        self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5]])))
-        klong('.index(t;["a"])')
         r = klong('db("select * from T")')
         self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5]])))
         klong(".insert(t; [4 5 6])")
@@ -215,15 +214,14 @@ e::e,,"b",,b
 e::e,,"c",,c
 t::.table(e)
 
+.index(t;["a" "b"])
+
 q:::{}
 q,"T",,t
 db::.db(q)
 """
         klong = KlongInterpreter()
         klong(s)
-        r = klong('db("select * from T")')
-        self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5]])))
-        klong('.index(t;["a" "b"])')
         r = klong('db("select * from T")')
         self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5]])))
         klong(".insert(t; [4 5 6])")

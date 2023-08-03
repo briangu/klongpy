@@ -68,14 +68,13 @@ class Table(dict):
 
     def insert(self, y):
         if self.has_index():
-            idx_vals = y[self.idx_cols_loc]
             if len(self.idx_cols) == 1:
                 if len(self.columns) == 1:
-                    self.df.at[idx_vals[0], self.columns[0]] = y[0]
+                    self.df.at[y[self.idx_cols_loc[0]], self.columns[0]] = y[0]
                 else:
-                    self.df.loc[idx_vals[0], self.columns] = y
+                    self.df.loc[y[self.idx_cols_loc[0]], self.columns] = y
             else:
-                self.df.loc[tuple(idx_vals), self.columns] = y
+                self.df.loc[tuple(y[self.idx_cols_loc]), self.columns] = y
         else:
             values = np.concatenate([self.df.values, y.reshape(1, -1)])
             self.df = pd.DataFrame(values, columns=self.columns, copy=False)
