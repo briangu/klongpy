@@ -194,7 +194,7 @@ def eval_sys_fn_insert_table(x, y):
         Examples:
 
             t::.table(d)
-            it::.insert(t, [1;2;3;4])
+            .insert(t, [1;2;3;4])
 
     """
     if not isinstance(x,Table):
