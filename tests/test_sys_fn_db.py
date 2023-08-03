@@ -1,6 +1,8 @@
+import time
 import unittest
 
 from utils import *
+
 from klongpy import KlongInterpreter
 
 
@@ -233,6 +235,14 @@ db::.db(q)
         self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5],[4,5,6]])))
 
 
+def time_sql(klong, sql):
+    start_t = time.time()
+    try:
+        return klong(sql)
+    finally:
+        print(sql, " : ", time.time() - start_t)
+
+
 def perf_single_col_no_pre_alloc():
     s = """
 .py("klongpy.db")
@@ -253,7 +263,7 @@ db::.db(q)
     r = klong("tfn(afn)")
     pr = r / 10000
     print("single col (no index) (no pre alloc)", r, pr, int(1/pr))
-    r = klong('db("select count(*) from T")')
+    r = time_sql(klong, 'db("select count(*) from T")')
     assert r == 10000
 
 
@@ -279,7 +289,7 @@ db::.db(q)
     r = klong("tfn(afn)")
     pr = r / 10000
     print("single col (index) (no pre alloc)", r, pr, int(1/pr))
-    r = klong('db("select count(*) from T")')
+    r = time_sql(klong, 'db("select count(*) from T")')
     assert r == 10000
 
 
@@ -305,7 +315,7 @@ db::.db(q)
     r = klong("tfn(afn)")
     pr = r / 10000
     print("single col (index) (pre alloc)", r, pr, int(1/pr))
-    r = klong('db("select count(*) from T")')
+    r = time_sql(klong, 'db("select count(*) from T")')
     assert r == 10000
 
 
@@ -333,7 +343,7 @@ db::.db(q)
     r = klong("tfn(afn)")
     pr = r / 10000
     print("multi col (no index) (no pre alloc)", r, pr, int(1/pr))
-    r = klong('db("select count(*) from T")')
+    r = time_sql(klong, 'db("select count(*) from T")')
     assert r == 10000
 
 
@@ -360,11 +370,18 @@ db::.db(q)
     klong(s)
     klong("tfn::{[t0];t0::.pc();x@[];.pc()-t0}")
     klong("afn::{{.insert(t; x,x,x)}'!10000}")
+    klong("bfn::{{.insert(t; x,x,x)}'10000+!10}")
     r = klong("tfn(afn)")
     pr = r / 10000
     print("multi col (single index) (no pre alloc)", r, pr, int(1/pr))
-    r = klong('db("select count(*) from T")')
+    r = time_sql(klong, 'db("select count(*) from T")')
     assert r == 10000
+    r = klong("tfn(bfn)")
+    pr = r / 10
+    print("multi col (single index) (no pre alloc) [10]", r, pr, int(1/pr))
+    r = time_sql(klong, 'db("select count(*) from T")')
+    assert r == 10010
+
 
 
 def perf_multi_col_single_index_pre_alloc():
@@ -393,7 +410,7 @@ db::.db(q)
     r = klong("tfn(afn)")
     pr = r / 10000
     print("multi col (single index) (pre alloc)", r, pr, int(1/pr))
-    r = klong('db("select count(*) from T")')
+    r = time_sql(klong, 'db("select count(*) from T")')
     assert r == 10000
 
 
@@ -423,7 +440,7 @@ db::.db(q)
     r = klong("tfn(afn)")
     pr = r / 10000
     print("multi col (multi index) (no pre alloc)", r, pr, int(1/pr))
-    r = klong('db("select count(*) from T")')
+    r = time_sql(klong, 'db("select count(*) from T")')
     assert r == 10000
 
 
@@ -453,7 +470,7 @@ db::.db(q)
     r = klong("tfn(afn)")
     pr = r / 10000
     print("multi col (multi index) (pre alloc)", r, pr, int(1/pr))
-    r = klong('db("select count(*) from T")')
+    r = time_sql(klong, 'db("select count(*) from T")')
     assert r == 10000
 
 

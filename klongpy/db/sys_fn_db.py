@@ -72,10 +72,8 @@ class Table(dict):
     def has_index(self):
         return self.idx_cols is not None
 
-    def get_dataframe(self):  # Method to access the DataFrame
-        start_t = time.time()
-        self.commit()  # Commit changes before returning the DataFrame
-        print(time.time() - start_t)
+    def get_dataframe(self):
+        self.commit()
         return self._df
     
     def insert(self, y):
