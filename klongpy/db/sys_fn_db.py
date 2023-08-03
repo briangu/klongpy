@@ -22,10 +22,11 @@ class KlongDbException(KlongException):
 
 class Table(dict):
     def __init__(self, d, columns):
-        self.df = pd.DataFrame(d, columns=columns, copy=False)
+        self._df = pd.DataFrame(d, columns=columns, copy=False)
         self.idx_cols = None
         self.idx_cols_loc = None
         self.columns = columns
+        self.buffer = []
 
     def __getitem__(self, x):
         return self.get(x)
@@ -37,62 +38,80 @@ class Table(dict):
         raise NotImplementedError()
 
     def get(self, x):
-        v = self.df.get(x)
+        v = self._df.get(x)
         return np.inf if v is None else v.values
 
     def set(self, x, y):
-        self.df[x] = y
+        self._df[x] = y
 
     def schema(self):
-        return np.array(self.df.columns, dtype=object)
+        return np.array(self._df.columns, dtype=object)
 
-    def set_index(self, idx_cols):
+    @staticmethod
+    def _create_index_from_cols(df, idx_cols):
         iic = []
         for ic in idx_cols:
             k = f"{ic}_idx"
-            self.df[k] = self.df[ic]
+            df[k] = df[ic]
             iic.append(k)
-        self.df.set_index(iic, inplace=True)
+        df.set_index(iic, inplace=True)
+        return df
+
+    def set_index(self, idx_cols):
+        self._df = self._create_index_from_cols(self._df, idx_cols)
         self.idx_cols = idx_cols
         self.idx_cols_loc = np.where(np.isin(np.asarray(self.columns), np.asarray(self.idx_cols)))[0]
 
     def reset_index(self):
-        self.df = self.df.reset_index()
+        self._df = self._df.reset_index()
         iic = [f"{ic}_idx" for ic in self.idx_cols]
-        self.df.drop(columns=iic, inplace=True)
+        self._df.drop(columns=iic, inplace=True)
         self.idx_cols = None
         self.idx_cols_loc = None
 
     def has_index(self):
         return self.idx_cols is not None
 
+    def get_dataframe(self):  # Method to access the DataFrame
+        start_t = time.time()
+        self.commit()  # Commit changes before returning the DataFrame
+        print(time.time() - start_t)
+        return self._df
+    
     def insert(self, y):
+        self.buffer.append(y)
+
+    def commit(self):
+        if not self.buffer:
+            return
         if self.has_index():
-            if len(self.idx_cols) == 1:
-                if len(self.columns) == 1:
-                    self.df.at[y[self.idx_cols_loc[0]], self.columns[0]] = y[0]
-                else:
-                    index_value = y[self.idx_cols_loc[0]]
-                    if index_value in self.df.index:
-                        # TODO: add unit test for update
-                        index_pos = self.df.index.get_loc(index_value)
-                        self.df.values[index_pos] = y
+            for y in self.buffer:
+                if len(self.idx_cols) == 1:
+                    if len(self.columns) == 1:
+                        self._df.at[y[self.idx_cols_loc[0]], self.columns[0]] = y[0]
                     else:
-                        self.df.loc[index_value, self.columns] = y
-            else:
-                index_value = tuple(y[self.idx_cols_loc])
-                if index_value in self.df.index:
-                    # TODO: add unit test for update
-                    index_pos = self.df.index.get_loc(index_value)
-                    self.df.values[index_pos] = y
+                        index_value = y[self.idx_cols_loc[0]]
+                        if index_value in self._df.index:
+                            # TODO: add unit test for update
+                            index_pos = self._df.index.get_loc(index_value)
+                            self._df.values[index_pos] = y
+                        else:
+                            self._df.loc[index_value, self.columns] = y
                 else:
-                    self.df.loc[index_value, self.columns] = y
+                    index_value = tuple(y[self.idx_cols_loc])
+                    if index_value in self._df.index:
+                        # TODO: add unit test for update
+                        index_pos = self._df.index.get_loc(index_value)
+                        self._df.values[index_pos] = y
+                    else:
+                        self._df.loc[index_value, self.columns] = y
         else:
-            values = np.concatenate([self.df.values, y.reshape(1, -1)])
-            self.df = pd.DataFrame(values, columns=self.columns, copy=False)
+            values = np.concatenate([self._df.values] + [y.reshape(1, -1) for y in self.buffer])
+            self._df = pd.DataFrame(values, columns=self.columns, copy=False)
+        self.buffer = []    
 
     def __len__(self):
-        return len(self.df.columns)
+        return len(self._df.columns)
     
     def __str__(self):
         return f"{self.idx_cols or ''}:{self.columns}:table"
@@ -109,7 +128,7 @@ class Database(KGLambda):
 
         # add the table column -> dataframe into local scope so DuckDB can reference them by name in the SQL.
         for k,v in self.tables.items():
-            locals()[k] = v.df
+            locals()[k] = v.get_dataframe()
 
         try:
             df = self.con.execute(x).fetchdf()
