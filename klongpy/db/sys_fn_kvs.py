@@ -32,7 +32,8 @@ class TableStorage(dict):
     def get(self, x):
         if not isinstance(x,str):
             raise KlongKvsException(x, "key must be a str")
-        return Table(self.cache.get_dataframe(key_to_file_path(x)))
+        df = self.cache.get_dataframe(key_to_file_path(x), default_empty=False)
+        return np.inf if df is None else Table(df)
 
     def set(self, x, y):
         if not isinstance(x,str):

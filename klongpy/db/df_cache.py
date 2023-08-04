@@ -31,7 +31,7 @@ class PandasDataFrameCache(FileCache):
         df = pd.DataFrame() if len(contents) == 0 else deserialize_df(contents)
         return df, df_memory_usage(df)
 
-    def get_dataframe(self, file_name, range_start=None, range_end=None, range_type="timestamp"):
+    def get_dataframe(self, file_name, range_start=None, range_end=None, range_type="timestamp", default_empty=True):
         """
         Retrieve a DataFrame from the cache.
 
@@ -47,7 +47,7 @@ class PandasDataFrameCache(FileCache):
         try:
             df = self.get_file(file_name)
         except FileNotFoundError:
-            df = pd.DataFrame()
+            return pd.DataFrame() if default_empty else None
         if range_start is None:
             if range_end is None:
                 return df

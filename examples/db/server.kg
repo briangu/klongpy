@@ -2,11 +2,13 @@
 .py("klongpy.web")
 .py("klongpy.db")
 
-d::[]
-d::d,,"t",,[]
-d::d,,"p",,[]
-d::d,,"v",,[]
-prices::.table(d)
+tbs::.tables("/tmp/tables")
+
+newt::{d::[];d::d,,"t",,[];d::d,,"p",,[];d::d,,"v",,[];.table(d)}
+
+:" Attempt to load the prices table from disk "
+prices::tbs?"prices"
+prices:::[:_prices;newt();prices]
 
 q:::{}
 q,"prices",,prices
@@ -24,9 +26,14 @@ upd::{.insert(prices;x)}
 :" Append the query param q value to data"
 update::{[t p v d];t::1:$x?"t";p::1.0:$x?"p";v::1.0:$x?"v";d::t,p,v;upd(d);d}
 
+:" Flush the prices table every minute "
+store::{.p("flushing prices table");tbs,"prices",prices;1}
+th::.timer("store";60;store)
+
 :" Create the POST route handlers"
 post:::{}
 post,"/p",update
+post,"/s",store
 
 :" Start the web server with the GET and POST handlers"
 .web(8080;get;post)
