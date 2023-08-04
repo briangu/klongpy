@@ -4,7 +4,8 @@
 
 tbs::.tables("/tmp/tables")
 
-newt::{d::[];d::d,,"t",,[];d::d,,"p",,[];d::d,,"v",,[];.table(d)}
+:" Create a new table with time, price, volume columns "
+newt::{[c];c::[["t" []] ["p" []] ["v" []]];.table(c)}
 
 :" Attempt to load the prices table from disk "
 prices::tbs?"prices"
