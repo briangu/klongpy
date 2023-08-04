@@ -1,0 +1,34 @@
+:" Import the Klongpy web module.  Requires pip3 install klongpy[web] first"
+.py("klongpy.web")
+.py("klongpy.db")
+
+d::[]
+d::d,,"t",,[]
+d::d,,"p",,[]
+d::d,,"v",,[]
+prices::.table(d)
+
+q:::{}
+q,"prices",,prices
+db::.db(q)
+
+:" Return the data for a GET method at /"
+index::{x;db("select * from prices")}
+
+:" Create the GET route handlers"
+get:::{}
+get,"/",index
+
+:" Append the query param q value to data"
+update::{[t p v d];t::1:$x?"t";p::1.0:$x?"p";v::1.0:$x?"v";d::t,p,v;.insert(prices;t,p,v);d}
+
+:" Create the POST route handlers"
+post:::{}
+post,"/p",update
+
+:" Start the web server with the GET and POST handlers"
+.web(8080;get;post)
+
+.p("curl -X POST -d""t=1691111164807793000&p=100&v=10000"" ""http://localhost:8080/p""")
+.p("curl ""http://localhost:8080""")
+

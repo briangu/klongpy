@@ -135,6 +135,24 @@ def eval_sys_fn_create_table(x):
 
         .table(x)                                         [Table-Create]
 
+        Creates a table created from a sequence of tuples where each tuple
+        describes a column and it's associated values.  Column order is
+        determined by the order in the tuple sequence.
+
+        The resulting table treatable as a dict and key/value updates are
+        column operations.
+
+        Examples:
+
+            a::[1 2 3]
+            b::[2 3 4]
+            c::[3 4 5]
+            d::[]
+            d::d,,"a",,a
+            d::d,,"b",,b
+            t::.table(d)
+            t,"c",,c
+            
     """
     if not np.isarray(x):
         raise KlongDbException(x, "tables must be created from an array of column data map")
@@ -145,6 +163,12 @@ def eval_sys_fn_index(x, y):
     """
 
         .index(x)                                   [Create-Table-Index]
+
+        Creates an index on a table as specified by the columns in array "x".  
+        An index may be one or more columns.
+
+        t::.table(d)
+        .index(t, ["a"])
 
     """
     if not isinstance(x, Table):
@@ -164,6 +188,8 @@ def eval_sys_fn_reset_index(x):
 
         .rindex(x)                                  [Reset-Table-Index]
 
+        Removes indexes from a table.
+
     """
     if not isinstance(x, Table):
         raise KlongDbException(x, "An index may only be created on a table.")
@@ -178,6 +204,10 @@ def eval_sys_fn_schema(x):
 
         .schema(x)                                        [Table-Schema]
 
+        Returns the schema of either a table or dictionary "x".  If "x" is a table,
+        then the columns are returned.  If "x" is a database, then a dict of 
+        table name to table is returned.
+
     """
     if isinstance(x, KGCall):
         x = x.a
@@ -191,10 +221,15 @@ def eval_sys_fn_insert_table(x, y):
 
         .insert(x, y)                                     [Table-Insert]
 
+        Insert values "y" into a table "x".  The values provided by "y" must be in the 
+        corrensponding column position as specified when the table was created.
+        If the table is indexed, then the appropriate columns will be used as keys when
+        inserting values.  If the table is unindexed, then the values are appended.
+
         Examples:
 
             t::.table(d)
-            .insert(t, [1;2;3;4])
+            .insert(t, [1;2;3])
 
     """
     if not isinstance(x,Table):
@@ -215,6 +250,11 @@ def eval_sys_fn_create_db(x):
 
         .db(x)                                               [Create-db]
 
+        Create a database from a map of tables "x".  
+        The keys are table names and values are the tables.
+
+        
+        
     """
     if not isinstance(x,dict):
         return "a db must be created from a dict"

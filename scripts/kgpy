@@ -265,6 +265,8 @@ if __name__ == "__main__":
     else:
         run_repl = True
 
+    tasks = asyncio.all_tasks(loop=loop)
+
     if run_repl:
         if args.load:
             print(f"Loading: {args.load}")
@@ -273,4 +275,6 @@ if __name__ == "__main__":
         colorama.init(autoreset=True)
         show_repl_header(args.server)
         loop.create_task(ConsoleInputHandler.input_producer(loop, klong, args.verbose))
+
+    if asyncio.all_tasks(loop=loop):
         loop.run_forever()
