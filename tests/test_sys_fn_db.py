@@ -95,14 +95,21 @@ d::[]
 d::d,,"a",,a
 d::d,,"b",,b
 t::.table(d)
-t,"c",,c
 q:::{}
 q,"T",,t
 db::.db(q)
-db("select * from T")
 """
         klong = KlongInterpreter()
-        r = run_lines(s, klong)
+        klong(s)
+        r = klong('db("select * from T")')
+        self.assertTrue(kg_equal(r, np.array([[1,2],[2,3],[3,4]])))
+        r = klong(".schema(db)")
+        self.assertEqual(len(r), 1)
+        self.assertTrue("T" in r)
+        self.assertTrue(kg_equal(r["T"], np.array(["a", "b"], dtype=object)))
+
+        klong('t,"c",,c')
+        r = klong('db("select * from T")')
         self.assertTrue(kg_equal(r, np.array([[1,2,3],[2,3,4],[3,4,5]])))
         r = klong(".schema(db)")
         self.assertEqual(len(r), 1)

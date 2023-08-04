@@ -17,6 +17,8 @@ KlongPy is a powerful language for high performance data analysis and distribute
 
 * __Simplicity__: KlongPy is based on Klong, a concise, expressive, and easy-to-understand array programming language. Its simple syntax and rich feature set make it an excellent tool for data scientists and engineers.
 * __Speed__: KlongPy is designed for high-speed computing, enabling you to process large data sets quickly and efficiently. Its efficient internal mechanisms allow for rapid execution of operations on arrays of data.
+* __Fast Columnar Database__: Includes integration with DuckDb, a super fast in-process columnar store that can operate directly on NumPy arrays w/ zero-copy.
+* __File-backed Key-Value Store__: Includes a simple file-backed key value store that can be used to store database tables or raw key/value pairs.
 * __Inter-Process Communication (IPC)__: KlongPy has built-in support for IPC, enabling easy communication between different processes and systems. You can create remote function proxies, allowing you to execute functions on a remote server as if they were local functions. This powerful feature facilitates distributed computing tasks.
 * __Array Programming__: KlongPy supports array programming, which makes it a great tool for mathematical and scientific computing. You can manipulate entire arrays of data at once, enabling efficient data analysis and manipulation.
 * __Compatibility__: KlongPy is designed to be compatible with Python, allowing you to leverage existing Python libraries and frameworks in conjunction with KlongPy. This seamless integration enhances KlongPy's usability and adaptability.
@@ -287,27 +289,43 @@ crtl-d or ]q to quit
 world!
 ```
 
+# Fast Columnar Database 
 
-# Pandas DataFrame integration
+KlongPy provides a module "klongpy.db" that includes DuckDb integration.  DuckDb can operate directly on NumPy arrays, which allows for zero-copy SQL execution over pre-existing NumPy data.
 
-This a work in progress, but it's very interesting to think about what DataFrames look like in Klong since they are basically a dictionary of columns.
+```
+?> .py("klongpy.db")
+?> t::.table([["a" [1 2 3]] ["b" [2 3 4]]])
+:['a', 'b']:table
+?> t,"c",,[3 4 5]
+```
 
-For now, the following works where we convert a DataFrame into a dictionary of columns:
+
+## Pandas DataFrame integration
+
+Tables are backed by Pandas DataFrames, so it's easy to integrate Pandas directly into KlongPy via DuckDb.
 
 ```Python
 from klongpy import KlongInterpreter
 import pandas as pd
-import numpy as np
 
 data = {'Name': ['Alice', 'Bob', 'Charlie', 'David'],
         'Age': [25, 30, 35, 40]}
 df = pd.DataFrame(data)
 
 klong = KlongInterpreter()
-klong['df'] = {col: np.array(df[col]) for col in df.columns}
-klong('df?"Name"') # ==> ['Alice', 'Bob', 'Charlie', 'David']
-klong('df?"Age"')  # ==> [25, 30, 35, 40]
+klong['df'] = df
+r = klong("""
+.py("klongpy.db")
+t::.table(df)
+db::.db(:{},"people",t)
+db("select Age from people")
+""")
 ```
+
+# File-backed Key-Value Store
+
+
 
 # Inter-Process Communication (IPC) Capabilities
 

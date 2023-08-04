@@ -45,6 +45,7 @@ class Table(dict):
 
     def set(self, x, y):
         self._df[x] = y
+        self.columns = self._df.columns
 
     def schema(self):
         return np.array(self._df.columns, dtype=object)
@@ -157,9 +158,11 @@ def eval_sys_fn_create_table(x):
             t,"c",,c
             
     """
-    if not np.isarray(x):
-        raise KlongDbException(x, "tables must be created from an array of column data map")
-    return Table({k:v for k,v in x}, columns=[k for k,_ in x])
+    if np.isarray(x):
+        return Table({k:v for k,v in x}, columns=[k for k,_ in x])
+    elif isinstance(x, pd.DataFrame):
+        return Table(x)
+    raise KlongDbException(x, "tables must be created from an array of column data map or a Pandas DataFrame.")
 
 
 def eval_sys_fn_index(x, y):
