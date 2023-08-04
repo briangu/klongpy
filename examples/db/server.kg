@@ -1,4 +1,4 @@
-:" Import the Klongpy web module.  Requires pip3 install klongpy[web] first"
+:" Import the Klongpy web and db modules.  Requires pip3 install klongpy[db, web] first"
 .py("klongpy.web")
 .py("klongpy.db")
 
@@ -19,8 +19,10 @@ index::{x;db("select * from prices")}
 get:::{}
 get,"/",index
 
+upd::{.insert(prices;x)}
+
 :" Append the query param q value to data"
-update::{[t p v d];t::1:$x?"t";p::1.0:$x?"p";v::1.0:$x?"v";d::t,p,v;.insert(prices;t,p,v);d}
+update::{[t p v d];t::1:$x?"t";p::1.0:$x?"p";v::1.0:$x?"v";d::t,p,v;upd(d);d}
 
 :" Create the POST route handlers"
 post:::{}
@@ -29,6 +31,24 @@ post,"/p",update
 :" Start the web server with the GET and POST handlers"
 .web(8080;get;post)
 
-.p("curl -X POST -d""t=1691111164807793000&p=100&v=10000"" ""http://localhost:8080/p""")
-.p("curl ""http://localhost:8080""")
+.p("running web server")
 
+.comment("****")
+
+To call the web server to create data and fetch it:
+
+curl -X POST -d "t=1691111164807793000&p=100&v=10000" "http://localhost:8080/p"
+curl "http://localhost:8080"
+
+To call the server via IPC and operate on the prices table:
+
+start the web server with kgpy -s 8888 server.kg
+
+and on a client repl:
+
+?> c::.cli(8888)
+?> upd::c(:upd)
+?> upd([1691111164807793000 100 10000])
+?> c("db(""select * from prices"")")
+
+*****
