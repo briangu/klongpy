@@ -15,8 +15,8 @@ def file_path_to_key_path(file_path):
     return file_path.split(os.sep)
 
 
-def key_to_file_path(*args):
-    return os.path.join(*args)
+def key_to_file_path(key):
+    return key
 
 
 def save_df(file_path, df):
