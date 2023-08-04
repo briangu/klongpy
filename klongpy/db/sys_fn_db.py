@@ -1,17 +1,11 @@
-import asyncio
 import sys
-import threading
 
 import duckdb
 import numpy as np
 import pandas as pd
 
-from klongpy.core import KlongException, KGCall, KGLambda, reserved_fn_args, reserved_fn_symbol_map
-
-import time
-
-# _main_loop = asyncio.get_event_loop()
-# _main_tid = threading.current_thread().ident
+from klongpy.core import (KGCall, KGLambda, KlongException, reserved_fn_args,
+                          reserved_fn_symbol_map)
 
 
 class KlongDbException(KlongException):
@@ -21,10 +15,19 @@ class KlongDbException(KlongException):
 
 
 class Table(dict):
-    def __init__(self, d, columns):
-        self._df = pd.DataFrame(d, columns=columns, copy=False)
+    def __init__(self, data, columns=None):
+        # If the input is a pandas DataFrame, use it directly
+        if isinstance(data, pd.DataFrame):
+            self._df = data.copy()
+            self.columns = data.columns.tolist()
+        # If the input is a dictionary, create a DataFrame using the provided columns
+        elif isinstance(data, dict) and columns is not None:
+            self._df = pd.DataFrame(data, columns=columns, copy=False)
+            self.columns = columns
+        else:
+            raise ValueError("Input must be either a dictionary with columns or a pandas DataFrame.")
+
         self.idx_cols = None
-        self.columns = columns
         self.buffer = []
 
     def __getitem__(self, x):

@@ -1,10 +1,12 @@
-import unittest
-import pandas as pd
 import os
-import threading
-from dfs.df_cache import PandasDataFrameCache
-import tempfile
 import platform
+import tempfile
+import threading
+import unittest
+
+import pandas as pd
+
+from klongpy.db.df_cache import PandasDataFrameCache
 
 # TODO: add MacOS RAM disk
 # hdiutil attach -nomount ram://$((2 * 1024 * 100))

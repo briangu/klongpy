@@ -1,22 +1,16 @@
-import asyncio
 import sys
-import threading
 
-import duckdb
 import numpy as np
-import pandas as pd
 
-from klongpy.core import KlongException, KGCall, KGLambda, reserved_fn_args, reserved_fn_symbol_map
+from klongpy.core import KlongException
 
-import time
-
-from sys_fn_db import Table
-
-from df_cache import PandasDataFrameCache
-from file_cache import FileCache
+from .df_cache import PandasDataFrameCache
+from .file_cache import FileCache
+from .helpers import *
+from .sys_fn_db import Table
 
 
-class KlongDfsException(KlongException):
+class KlongKvsException(KlongException):
     def __init__(self, x, e):
         self.x = x
         super().__init__(e)
@@ -36,25 +30,28 @@ class TableStorage(dict):
         raise NotImplementedError()
 
     def get(self, x):
-        v = self._df.get(x)
-        return np.inf if v is None else v.values
+        if not isinstance(x, str):
+            raise KlongKvsException(x, "key must be a string")
+        return Table(self.cache.get_dataframe(x))
 
     def set(self, x, y):
-        if isinstance(y, Table):
-            pass
-        else:
-            pass
-    
+        if not isinstance(x, str):
+            raise KlongKvsException(y, "key must be a string")
+        if not isinstance(y, Table):
+            raise KlongKvsException(y, "value must be a Table")
+        file_path = key_to_file_path(x)
+        self.cache.update(file_path, y.get_dataframe())
+
     def __len__(self):
-        return len(self._df.columns)
+        raise NotImplementedError("len not implemented")
     
     def __str__(self):
-        return f"{self.idx_cols or ''}:{self.columns}:table"
+        return f"{self.root_path}:tables"
 
 
 class KeyValueStorage(dict):
     def __init__(self, filepath, max_memory=None):
-        self.cache = PandasDataFrameCache(root_path=filepath, max_memory=max_memory)
+        self.cache = FileCache(root_path=filepath, max_memory=max_memory)
 
     def __getitem__(self, x):
         return self.get(x)
@@ -66,20 +63,22 @@ class KeyValueStorage(dict):
         raise NotImplementedError()
 
     def get(self, x):
-        v = self._df.get(x)
-        return np.inf if v is None else v.values
+        if not isinstance(x, str):
+            raise KlongKvsException(x, "key must be a string")
+        return deserialize_obj(self.cache.get_file(key_to_file_path(x)))
 
     def set(self, x, y):
-        if hasattr(y, "get_dataframe"):
-            pass
-        else:
-            pass
+        if not isinstance(x, str):
+            raise KlongKvsException(y, "key must be a string")
+        if not isinstance(y, Table):
+            raise KlongKvsException(y, "value must be a Table")
+        self.cache.update_file(key_to_file_path(x), serialize_obj(y), use_fsync=True)
     
     def __len__(self):
-        return len(self._df.columns)
+        raise NotImplementedError("len not implemented")
     
     def __str__(self):
-        return f"{self.idx_cols or ''}:{self.columns}:table"
+        return f"{self.root_path}:kvs"
 
 
 def eval_sys_fn_create_table_storage(x):
@@ -102,7 +101,7 @@ def eval_sys_fn_create_table_storage(x):
 
     """
     if not np.isarray(x):
-        raise KlongDfsException(x, "tables must be created from an array of column data map")
+        raise KlongKvsException(x, "tables must be created from an array of column data map")
     return TableStorage(x)
 
 
@@ -124,7 +123,7 @@ def eval_sys_fn_create_kvs(x):
 
     """
     if not np.isarray(x):
-        raise KlongDfsException(x, "tables must be created from an array of column data map")
+        raise KlongKvsException(x, "tables must be created from an array of column data map")
     return KeyValueStorage(x)
 
 

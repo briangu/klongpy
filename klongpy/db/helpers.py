@@ -1,7 +1,22 @@
 import gzip
+import logging
+import os
+import pickle
+import threading
 from io import BytesIO
 
 import pandas as pd
+
+
+def tinfo(msg):
+    logging.info(f"tid: {threading.current_thread().ident}: " + msg)
+
+def file_path_to_key_path(file_path):
+    return file_path.split(os.sep)
+
+
+def key_to_file_path(*args):
+    return os.path.join(*args)
 
 
 def save_df(file_path, df):
@@ -31,6 +46,17 @@ def deserialize_gzip_df(data):
     bio = BytesIO(data)
     with gzip.open(bio, "rb") as gzf:
         return pd.read_pickle(gzf)
+
+
+def serialize_obj(o):
+    bio = BytesIO()
+    pickle.dump(o, bio)
+    return bio.getvalue()
+
+
+def deserialize_obj(data):
+    bio = BytesIO(data)
+    return pickle.load(bio)
 
 
 def serialize_df(df):

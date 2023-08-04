@@ -7,7 +7,7 @@ import time
 import unittest
 from multiprocessing.pool import ThreadPool
 
-from dfs.file_cache import FileCache
+from klongpy.db.file_cache import FileCache
 
 # TODO: add MacOS RAM disk
 # hdiutil attach -nomount ram://$((2 * 1024 * 100))
