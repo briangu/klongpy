@@ -52,4 +52,10 @@ and on a client repl:
 ?> upd([1691111164807793000 100 10000])
 ?> db("select * from prices")
 
+Fun fact: you can copy the table locally via:
+
+?> prices::c(:prices)
+
+You now have a local copy of the table.
+
 *****
