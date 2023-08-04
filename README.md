@@ -298,6 +298,15 @@ KlongPy provides a module "klongpy.db" that includes DuckDb integration.  DuckDb
 ?> t::.table([["a" [1 2 3]] ["b" [2 3 4]]])
 :['a', 'b']:table
 ?> t,"c",,[3 4 5]
+:['a', 'b', 'c']:table
+```
+
+Indexes (one or more columns) can be created on a table.  The current indexes can be seen in the table discription prefix.
+
+```
+?> .index(t; ["a"])
+['a']:['a', 'b', 'c']:table
+?> 
 ```
 
 

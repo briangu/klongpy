@@ -45,7 +45,7 @@ class Table(dict):
 
     def set(self, x, y):
         self._df[x] = y
-        self.columns = self._df.columns
+        self.columns = list(self._df.columns)
 
     def schema(self):
         return np.array(self._df.columns, dtype=object)
@@ -61,11 +61,13 @@ class Table(dict):
         return df
 
     def set_index(self, idx_cols):
-        self._df = self._create_index_from_cols(self._df, idx_cols)
+        df = self.get_dataframe()
+        self._df = self._create_index_from_cols(df, idx_cols)
         self.idx_cols = idx_cols
 
     def reset_index(self):
-        self._df = self._df.reset_index()
+        df = self.get_dataframe()
+        self._df = df.reset_index()
         iic = [f"{ic}_idx" for ic in self.idx_cols]
         self._df.drop(columns=iic, inplace=True)
         self.idx_cols = None
@@ -98,10 +100,13 @@ class Table(dict):
         self.buffer = []
     
     def __len__(self):
-        return len(self._df.columns)
+        return len(self.get_dataframe())
     
     def __str__(self):
-        return f"{self.idx_cols or ''}:{self.columns}:table"
+        df = self.get_dataframe()
+        idx_cols = self.idx_cols or []
+        header = [f"{k}{'*' if k in idx_cols else ''}" for k in df.columns]
+        return df.to_string(header=header, index=False)
 
 
 class Database(KGLambda):
@@ -186,7 +191,8 @@ def eval_sys_fn_index(x, y):
     for q in y:
         if q not in x.columns:
             raise KlongDbException(x, f"An index column {q} not found in table")
-    return x.set_index(list(y))
+    x.set_index(list(y))
+    return x.idx_cols or []
 
 
 def eval_sys_fn_reset_index(x):
