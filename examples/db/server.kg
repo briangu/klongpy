@@ -48,7 +48,8 @@ and on a client repl:
 
 ?> c::.cli(8888)
 ?> upd::c(:upd)
+?> db::c(:db)
 ?> upd([1691111164807793000 100 10000])
-?> c("db(""select * from prices"")")
+?> db("select * from prices")
 
 *****
