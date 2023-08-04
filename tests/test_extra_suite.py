@@ -12,6 +12,12 @@ class TestExtraCoreSuite(unittest.TestCase):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
     @unittest.skip
+    def test_define_nilad_with_subcall(self):
+        klong = KlongInterpreter()
+        klong("nt::{x}")
+        klong('newt::{nt([["1" 2] ["3" 4] ["5" 6]])}')
+
+    @unittest.skip
     def test_join_two_dict(self):
         klong = KlongInterpreter()
         klong("b:::{[1 2]}")
