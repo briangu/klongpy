@@ -345,7 +345,46 @@ Indexes may be reset via .rindex().  True is returned if the index was reset.
 
 ## Database
 
-Databases are created from a set of 
+Databases are created from a map of table names to table instances.  A database instance is a function which accepts SQL and runs it over the underlying tables.  SQL results are NumPy arrays and can be directly used in normal KlongPy operations.
+
+```
+?> T::.table(,"a",,[1 2 3])
+a
+1
+2
+3
+?> db::.db(:{},"T",,T)
+:db
+?> db("select * from T")
+[1 2 3]
+```
+
+Since KlongPy uses DuckDb under the hood, you can perform sophisticated SQL over the underlying NumPy arrays.  
+
+For example, it's easy to use JOIN with this setup:
+
+```
+d::[]
+d::d,,"a",,[1 2 3]
+d::d,,"b",,[2 3 4]
+T::.table(d)
+
+e::,"c",,[3 4 5]
+G::.table(e)
+
+q:::{}
+q,"T",,T
+q,"G",,G
+db::.db(q)
+```
+
+We can now issue a JOIN SQL:
+
+```
+?> db("select * from T join G on G.c = T.b")
+[[2 3 3]
+ [3 4 4]]
+```
 
 ## Pandas DataFrame integration
 
