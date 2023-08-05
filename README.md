@@ -408,7 +408,7 @@ db("select Age from people")
 """)
 ```
 
-# File-backed Key-Value Store
+# Table and Key-Value Stores
 
 To support the KlongPy database cababilities, the klongpy.db module includes a key-value store capability that allows for saving and retreiving tables from disk.  There is a more generic key-value store as well as a TableStore.  The TableStore merges tables when writing to disk, while the generic key-value store writes raw serialized data and doesn't consider the contents.
 
