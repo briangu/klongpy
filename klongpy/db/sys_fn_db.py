@@ -51,13 +51,15 @@ class Table(dict):
         return np.array(self._df.columns, dtype=object)
 
     @staticmethod
-    def _create_index_from_cols(df, idx_cols):
+    def _create_index_from_cols(df: pd.DataFrame, idx_cols):
         iic = []
         for ic in idx_cols:
             k = f"{ic}_idx"
             df[k] = df[ic]
             iic.append(k)
         df.set_index(iic, inplace=True)
+        df.sort_index(inplace=True)
+        df.drop_duplicates(inplace=True)
         return df
 
     def set_index(self, idx_cols):
@@ -106,6 +108,7 @@ class Table(dict):
         df = self.get_dataframe()
         idx_cols = self.idx_cols or []
         header = [f"{k}{'*' if k in idx_cols else ''}" for k in df.columns]
+        col_space = [len(x) for x in header]
         return df.to_string(header=header, index=False)
 
 
