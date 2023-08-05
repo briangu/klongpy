@@ -108,8 +108,10 @@ class Table(dict):
         df = self.get_dataframe()
         idx_cols = self.idx_cols or []
         header = [f"{k}{'*' if k in idx_cols else ''}" for k in df.columns]
+        if df.empty:
+            return str(" ".join(header))
         col_space = [len(x) for x in header]
-        return df.to_string(header=header, index=False)
+        return df.to_string(header=header, index=False, col_space=col_space)
 
 
 class Database(KGLambda):

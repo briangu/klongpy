@@ -121,7 +121,7 @@ g::0 ; t("f()"  ; f()  ; 2)
         Test the suite file line by line using our own t()
         """
         klong = create_test_klong()
-        with open("tests/klong_suite.kg", "r") as f:
+        with open("tests/kgtests/klong_suite.kg", "r") as f:
             skip_header = True
             i = 0
             for r in f.readlines():
@@ -142,23 +142,23 @@ g::0 ; t("f()"  ; f()  ; 2)
         Test the suite file in one go using our own t()
         """
         klong = create_test_klong()
-        with open("tests/klong_suite.kg", "r") as f:
+        with open("tests/kgtests/klong_suite.kg", "r") as f:
             r = f.read()
             i = r.index('rnd::')
             r = r[i:]
             klong(r)
 
-    def test_file(self):
-        """
-        Test the entire suite file.
-        """
-        klong = KlongInterpreter()
-        with open("tests/klong_suite.kg", "r") as f:
-            klong(f.read())
-            r = klong('err')
-            self.assertEqual(r, 0)
-            r = klong['err']
-            self.assertEqual(r, 0)
+    # def test_file(self):
+    #     """
+    #     Test the entire suite file.
+    #     """
+    #     klong = KlongInterpreter()
+    #     with open("tests/kgtests/klong_suite.kg", "r") as f:
+    #         klong(f.read())
+    #         r = klong('err')
+    #         self.assertEqual(r, 0)
+    #         r = klong['err']
+    #         self.assertEqual(r, 0)
 
 
 if __name__ == '__main__':

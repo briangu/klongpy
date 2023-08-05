@@ -78,7 +78,7 @@ class TestJoinOver(unittest.TestCase):
         Test the suite file line by line using our own t()
         """
         klong = create_test_klong()
-        with open("tests/klong_join_over.kg", "r") as f:
+        with open("tests/kgtests/klong_join_over.kg", "r") as f:
             skip_header = True
             i = 0
             for r in f.readlines():
@@ -92,13 +92,6 @@ class TestJoinOver(unittest.TestCase):
                 i += 1
                 klong.exec(r)
             print(f"executed {i} lines")
-
-
-    def test_gen_file(self):
-        """
-        Test the entire suite file.
-        """
-        self.assertEqual(run_suite_file('klong_join_over.kg'), 0)
 
 
 if __name__ == "__main__":

@@ -56,29 +56,10 @@ def create_test_klong():
     return klong
 
 
-def load_lib_file(x):
-    cwd = os.getcwd()
-    os.chdir(os.path.join(cwd, 'examples'))
-    try:
-        try:
-            with open(x) as f:
-                klong = KlongInterpreter()
-                return klong, klong(f.read())
-        except Exception as e:
-            import traceback
-            traceback.print_stack(e)
-            print(f"Failed {x}")
-            raise e
-    finally:
-        os.chdir(cwd)
-
-
-def run_suite_file(fname):
-    klong = KlongInterpreter()
-    with open(f"tests/{fname}", "r") as f:
-        klong(f.read())
-        r = klong('err')
-        return r
+def run_file(x, klong=None):
+    with open(x, "r") as f:
+        klong = klong or KlongInterpreter()
+        return klong, klong(f.read())
 
 
 def rec_fn2(a,b,f):

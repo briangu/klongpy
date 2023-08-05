@@ -293,22 +293,59 @@ world!
 
 KlongPy provides a module "klongpy.db" that includes DuckDb integration.  DuckDb can operate directly on NumPy arrays, which allows for zero-copy SQL execution over pre-existing NumPy data.
 
+## Tables
+
 ```
 ?> .py("klongpy.db")
 ?> t::.table([["a" [1 2 3]] ["b" [2 3 4]]])
-:['a', 'b']:table
+a b
+1 2
+2 3
+3 4
 ?> t,"c",,[3 4 5]
-:['a', 'b', 'c']:table
+a b c
+1 2 3
+2 3 4
+3 4 5
 ```
 
 Indexes (one or more columns) can be created on a table.  The current indexes can be seen in the table discription prefix.
 
 ```
 ?> .index(t; ["a"])
-['a']:['a', 'b', 'c']:table
-?> 
+['a']
 ```
 
+When a column is indexed, it appears with an asterisk in the pretty-print format:
+
+```
+?> t
+a* b
+ 1 2
+ 2 3
+ 3 5
+```
+
+Inserting a row with a pre-existing value at an index results in an update:
+
+```
+?> .insert(t, [3 5 6])
+a* b c
+ 1 2 3
+ 2 3 4
+ 3 5 6
+```
+
+Indexes may be reset via .rindex().  True is returned if the index was reset.
+
+```
+?> .rindex(t)
+1
+```
+
+## Database
+
+Databases are created from a set of 
 
 ## Pandas DataFrame integration
 

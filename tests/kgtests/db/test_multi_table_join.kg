@@ -1,0 +1,29 @@
+err::0
+wl::{.w(x);.p("")}
+fail::{err::1;.d("failed: ");.p(x);.d("expected: ");wl(z);.d("got: ");wl(y);[]}
+t::{:[~y~z;fail(x;y;z);[]]}
+
+.py("klongpy.db")
+
+d::[]
+d::d,,"a",,[1 2 3]
+d::d,,"b",,[2 3 4]
+T::.table(d)
+
+e::,"c",,[3 4 5]
+G::.table(e)
+
+q:::{}
+q,"T",,T
+q,"G",,G
+db::.db(q)
+
+t("db(""select * from T"")"; db("select * from T"); [[1 2] [2 3] [3 4]])
+t("db(""select * from G"")"; db("select * from G"); [3 4 5])
+t("db(""select * from T join G on G.c = T.b"")"; db("select * from T join G on G.c = T.b"); [[2 3 3] [3 4 4]])
+
+t("#.schema(db)"; #.schema(db); 2)
+t(".schema(db)?""T"""; .schema(db)?"T"; ["a" "b"])
+t(".schema(db)?""G"""; .schema(db)?"G"; ["c"])
+
+:[err;[];.p("ok!")]

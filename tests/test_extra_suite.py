@@ -12,6 +12,12 @@ class TestExtraCoreSuite(unittest.TestCase):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
     @unittest.skip
+    def test_fail_non_terminated_string(self):
+        klong = KlongInterpreter()
+        with self.assertRaises(Exception):
+            klong('a::"T')
+
+    @unittest.skip
     def test_define_nilad_with_subcall(self):
         klong = KlongInterpreter()
         klong("nt::{x}")

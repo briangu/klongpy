@@ -1,0 +1,27 @@
+err::0
+wl::{.w(x);.p("")}
+fail::{err::1;.d("failed: ");.p(x);.d("expected: ");wl(z);.d("got: ");wl(y);[]}
+t::{:[~y~z;fail(x;y;z);[]]}
+
+.py("klongpy.db")
+
+a::[1 2 3]
+b::[2 3 4]
+c::[3 4 5]
+
+e::[]
+e::e,,"a",,a
+e::e,,"b",,b
+e::e,,"c",,c
+
+db::.db(:{},"T",,.table(e))
+
+:" arrays are modified after database is built, doesn't affect the database "
+
+a::a,4
+b::b,5
+c::c,6
+
+t("db(""select a from T"")"; db("select a from T"); [1 2 3])
+
+:[err;[];.p("ok!")]

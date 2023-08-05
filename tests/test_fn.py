@@ -56,16 +56,6 @@ class TestFunctionsSuite(unittest.TestCase):
         r = klong('F("hello")')
         self.assertEqual(r, "o")
 
-    def test_fn_gen(self):
-        """
-        Test the entire suite file.
-        """
-        klong = KlongInterpreter()
-        with open("tests/klong_fn.kg", "r") as f:
-            klong(f.read())
-            r = klong('err')
-            self.assertEqual(r, 0)
-
 if __name__ == "__main__":
     import timeit
     print(timeit.timeit('run_suite_file("klong_fn.kg")', number=10, globals=locals()) / 10)

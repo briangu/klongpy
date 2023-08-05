@@ -12,16 +12,19 @@ class TestExamples(unittest.TestCase):
         """
         Verify we can at least load the example libs.
         """
-        for x in glob.glob(os.path.join(os.getcwd(), "*.kg")):
-            print(f"loading {x}")
-            load_lib_file(x)
+        ran_nstat = False
+        try:
+            cwd = os.getcwd()
+            os.chdir(os.path.join(cwd, 'examples'))
+            for x in glob.glob("*.kg"):
+                fname = os.path.basename(x)
+                print(f"loading {fname}")
+                klong, _ = run_file(x)
+                if fname == "nstat.kg":
+                    ran_nstat = True
+                    r = klong("sqr2pi(2)")
+                    self.assertTrue(np.isclose(r, math.sqrt(math.pi*2)))
+        finally:
+            os.chdir(cwd)
+        self.assertTrue(ran_nstat)
 
-    def test_load_nstats(self):
-        """
-        Test that
-        1) we can load the very complex nstat.kg
-        2) we can fallback to math.kg for pi
-        """
-        klong, _ = load_lib_file('nstat.kg')
-        r = klong("sqr2pi(2)")
-        self.assertTrue(np.isclose(r, math.sqrt(math.pi*2)))

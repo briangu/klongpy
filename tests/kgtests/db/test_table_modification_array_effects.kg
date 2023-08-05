@@ -1,0 +1,31 @@
+err::0
+wl::{.w(x);.p("")}
+fail::{err::1;.d("failed: ");.p(x);.d("expected: ");wl(z);.d("got: ");wl(y);[]}
+t::{:[~y~z;fail(x;y;z);[]]}
+
+.py("klongpy.db")
+
+a::[1 2 3]
+b::[2 3 4]
+c::[3 4 5]
+
+e::[]
+e::e,,"a",,a
+e::e,,"b",,b
+e::e,,"c",,c
+T::.table(e)
+
+db::.db(:{},"T",,T)
+
+:" Appending to a table does not affect the original arrays. "
+
+t("db(""select * from T"")"; db("select * from T"); [[1 2 3] [2 3 4] [3 4 5]])
+
+.insert(T; [4 5 6])
+t("db(""select a from T"")"; db("select a from T"); [1 2 3 4])
+
+t("a"; a; [1 2 3])
+t("b"; b; [2 3 4])
+t("c"; c; [3 4 5])
+
+:[err;[];.p("ok!")]
