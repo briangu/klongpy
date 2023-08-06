@@ -16,14 +16,14 @@ The project builds upon the work of [Nils M Holm](https://t3x.org), the creator 
 KlongPy is a powerful language for high performance data analysis and distributed computing. Some of its main features include:
 
 * __Simplicity__: KlongPy is based on Klong, a concise, expressive, and easy-to-understand array programming language. Its simple syntax and rich feature set make it an excellent tool for data scientists and engineers.
-* __Speed__: KlongPy is designed for high-speed computing, enabling you to process large data sets quickly and efficiently. Its efficient internal mechanisms allow for rapid execution of operations on arrays of data.
-* __Fast Columnar Database__: Includes integration with DuckDb, a super fast in-process columnar store that can operate directly on NumPy arrays w/ zero-copy.
-* __File-backed Key-Value Store__: Includes a simple file-backed key value store that can be used to store database tables or raw key/value pairs.
-* __Inter-Process Communication (IPC)__: KlongPy has built-in support for IPC, enabling easy communication between different processes and systems. You can create remote function proxies, allowing you to execute functions on a remote server as if they were local functions. This powerful feature facilitates distributed computing tasks.
 * __Array Programming__: KlongPy supports array programming, which makes it a great tool for mathematical and scientific computing. You can manipulate entire arrays of data at once, enabling efficient data analysis and manipulation.
-* __Compatibility__: KlongPy is designed to be compatible with Python, allowing you to leverage existing Python libraries and frameworks in conjunction with KlongPy. This seamless integration enhances KlongPy's usability and adaptability.
-* __Web server__: Includes a web server, making it easy to build sites backed by KlongPy capabilities.
-* __Timers__: Includes periodic timer facility to periodically perform tasks.
+* [__Speed__](#performance): KlongPy is designed for high-speed computing, enabling you to process large data sets quickly and efficiently. Its efficient internal mechanisms allow for rapid execution of operations on arrays of data.
+* [__Fast Columnar Database__](#fast-columnar-database): Includes integration with DuckDb, a super fast in-process columnar store that can operate directly on NumPy arrays w/ zero-copy.
+* [__Table and Key-Value Store__](#table-and-key-value-stores): Includes a simple file-backed key value store that can be used to store database tables or raw key/value pairs.
+* [__Inter-Process Communication (IPC)__](#inter-process-communication-ipc-capabilities): KlongPy has built-in support for IPC, enabling easy communication between different processes and systems. You can create remote function proxies, allowing you to execute functions on a remote server as if they were local functions. This powerful feature facilitates distributed computing tasks.
+* [__Compatibility__](#python-integration): KlongPy is designed to be compatible with Python, allowing you to leverage existing Python libraries and frameworks in conjunction with KlongPy. This seamless integration enhances KlongPy's usability and adaptability.
+* [__Web server__](#web-server): Includes a web server, making it easy to build sites backed by KlongPy capabilities.
+* [__Timers__](#timer): Includes periodic timer facility to periodically perform tasks.
 
 At its heart, KlongPy is about infusing Python's flexibility with the compact Klong array language, allowing you to tap into the performance of NumPy while writing code that's concise and powerful. 
 
