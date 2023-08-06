@@ -18,7 +18,7 @@ KlongPy is a powerful language for high performance data analysis and distribute
 * __Simplicity__: KlongPy is based on Klong, a concise, expressive, and easy-to-understand array programming language. Its simple syntax and rich feature set make it an excellent tool for data scientists and engineers.
 * __Array Programming__: KlongPy supports array programming, which makes it a great tool for mathematical and scientific computing. You can manipulate entire arrays of data at once, enabling efficient data analysis and manipulation.
 * [__Speed__](#performance): KlongPy is designed for high-speed computing, enabling you to process large data sets quickly and efficiently. Its efficient internal mechanisms allow for rapid execution of operations on arrays of data.
-* [__Fast Columnar Database__](#fast-columnar-database): Includes integration with DuckDb, a super fast in-process columnar store that can operate directly on NumPy arrays w/ zero-copy.
+* [__Fast Columnar Database__](#fast-columnar-database): Includes integration with [DuckDb](http://duckdb.org), a super fast in-process columnar store that can operate directly on NumPy arrays with zero-copy.
 * [__Table and Key-Value Store__](#table-and-key-value-stores): Includes a simple file-backed key value store that can be used to store database tables or raw key/value pairs.
 * [__Inter-Process Communication (IPC)__](#inter-process-communication-ipc-capabilities): KlongPy has built-in support for IPC, enabling easy communication between different processes and systems. You can create remote function proxies, allowing you to execute functions on a remote server as if they were local functions. This powerful feature facilitates distributed computing tasks.
 * [__Python Integration__](#python-integration): KlongPy is designed to be compatible with Python, allowing you to leverage existing Python libraries and frameworks in conjunction with KlongPy. This seamless integration enhances KlongPy's usability and adaptability.
@@ -738,7 +738,7 @@ def NumPy_vec(number=100):
     Python / KlongPy => 20.568334
     Numpy / KlongPy => 0.997245
 
-### GPU (Same CPU w/ NVIDIA GeForce RTX 3090)
+### GPU (Same CPU with NVIDIA GeForce RTX 3090)
 
     $ USE_GPU=1 python3 tests/perf_vector.py
     Python: 0.364893s
