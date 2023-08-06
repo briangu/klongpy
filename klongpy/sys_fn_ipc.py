@@ -8,8 +8,10 @@ import threading
 from asyncio import StreamReader, StreamWriter
 from typing import Optional
 
-from klongpy.core import (KGCall, KGFn, KGLambda, KGFnWrapper, KGSym, get_fn_arity_str,
-                          is_list, reserved_fn_args, reserved_fn_symbol_map)
+from klongpy.core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
+                          KlongException, get_fn_arity_str, is_list,
+                          reserved_fn_args, reserved_fn_symbol_map)
+
 
 _main_loop = asyncio.get_event_loop()
 _main_tid = threading.current_thread().ident
@@ -506,15 +508,15 @@ def eval_sys_fn_create_async_wrapper(klong, x, y):
 
         .async(x,y)                             [Async-function-wrapper]
 
-        Returns an async callable wrapper for the function "x" and calls "y"
-        when completed.
+        Returns an async functional wrapper for the function "x" and calls "y"
+        when completed. The wrapper has the same arity as the wrapped function.
 
     """
     global _main_loop
     if not issubclass(type(x),KGFn):
-        return "x must be a function"
+        raise KlongException("x must be a function")
     if not issubclass(type(y),KGFn):
-        return "y must be a function"
+        raise KlongException("y must be a function")
     return KGAsyncCall(_main_loop, x, KGFnWrapper(klong, y))
 
 
