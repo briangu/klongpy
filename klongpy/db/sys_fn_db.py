@@ -253,7 +253,7 @@ def eval_sys_fn_insert_table(x, y):
         raise KlongDbException(x, "Inserts must be applied to a table")
     if len(x.columns) > 1:
         if not np.isarray(y):
-            raise KlongDbException(x, f"Values to insert must be a list")
+            raise KlongDbException(x, "Values to insert must be a list")
     elif not np.isarray(y):
             y = np.array([y])
     if len(y) != len(x.columns):
