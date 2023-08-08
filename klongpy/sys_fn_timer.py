@@ -1,11 +1,7 @@
 import asyncio
 import sys
-import threading
 
 from klongpy.core import KGCall, KGFn, KGFnWrapper
-
-_main_loop = asyncio.get_event_loop()
-_main_tid = threading.current_thread().ident
 
 
 class KGTimerHandler:
@@ -29,8 +25,6 @@ def _call_periodic(loop: asyncio.BaseEventLoop, name, interval, callback):
     start = loop.time()
 
     def run(handle, fn=callback):
-        global _main_tid
-        assert threading.current_thread().ident == _main_tid
         r = fn()
         if r:
             if interval == 0:
@@ -79,14 +73,13 @@ def eval_sys_fn_timer(klong, x, y, z):
             th::.timer("count";1;cb)
 
     """
-    global _main_loop
     y= int(y)
     if y < 0:
         return "x must be a non-negative integer"
     z = z if isinstance(z, KGCall) else KGFnWrapper(klong, z) if isinstance(z, KGFn) else z
     if not callable(z):
         return "z must be a function"
-    return _call_periodic(_main_loop, x, y, z)
+    return _call_periodic(klong['.mainloop'], x, y, z)
 
 
 def eval_sys_fn_cancel_timer(x):

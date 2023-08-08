@@ -7,9 +7,6 @@ from aiohttp import web
 
 from klongpy.core import KGCall, KGFn, KGFnWrapper, KGLambda
 
-_main_loop = asyncio.get_event_loop()
-_main_tid = threading.current_thread().ident
-
 
 class WebServerHandle:
     def __init__(self, bind, port, runner, task):
@@ -61,16 +58,12 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
             hello, world!
 
     """
-    global _main_loop
-    global _main_tid
     app = web.Application()
 
     logging.info("web server start @ ", x)
     logging.info("GET: ", y)
     logging.info("POST: ", z)
 
-    assert threading.current_thread().ident == _main_tid
-    
     for route, fn in y.items():
         arity = fn.arity if isinstance(fn, KGFn) else fn.get_arity() if issubclass(type(fn), KGLambda) else 0
         if arity != 1:
@@ -122,11 +115,11 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
         site = web.TCPSite(runner, bind, port)
         await site.start()
 
-    server_task = _main_loop.create_task(start_server())
+    server_task = klong['.ioloop'].create_task(start_server())
     return WebServerHandle(bind, port, runner, server_task)
 
 
-def eval_sys_fn_shutdown_web_server(x):
+def eval_sys_fn_shutdown_web_server(klong, x):
     """
     
             .webc(x)                                      [Stop Web server]
@@ -134,13 +127,11 @@ def eval_sys_fn_shutdown_web_server(x):
             Stop and close the web server referenced by "x".
 
     """
-    global _main_loop
-    global _main_tid
     if isinstance(x, KGCall) and issubclass(type(x.a), KGLambda):
         x = x.a.fn
         if isinstance(x, WebServerHandle) and x.runner is not None:
             print("shutting down web server")
-            _main_loop.run_until_complete(x.shutdown())
+            klong['.ioloop'].run_until_complete(x.shutdown())
             return 1
     return 0
 

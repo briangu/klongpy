@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import os
 import sys
+import threading
 import timeit
 
 import colorama
@@ -224,6 +225,11 @@ def run_file(fname):
         return klong(f.read())
 
 
+def start_io_loop(ioloop):
+    asyncio.set_event_loop(ioloop)
+    ioloop.run_forever()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog='KlongPy',
@@ -243,7 +249,18 @@ if __name__ == "__main__":
         exit()
 
     klong = KlongInterpreter()
-    loop = asyncio.get_event_loop()
+
+    # Create and start the I/O loop on a separate thread
+    io_loop = asyncio.new_event_loop()
+    io_thread = threading.Thread(target=start_io_loop, args=(io_loop,), daemon=True)
+    io_thread.start()
+
+    main_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(main_loop)
+
+    klong['.ioloop'] = io_loop
+    klong['.mainloop'] = main_loop
+
     run_repl = False
 
     if args.server:
@@ -265,8 +282,6 @@ if __name__ == "__main__":
     else:
         run_repl = True
 
-    tasks = asyncio.all_tasks(loop=loop)
-
     if run_repl:
         if args.load:
             print(f"Loading: {args.load}")
@@ -274,7 +289,9 @@ if __name__ == "__main__":
                 klong(f.read())
         colorama.init(autoreset=True)
         show_repl_header(args.server)
-        loop.create_task(ConsoleInputHandler.input_producer(loop, klong, args.verbose))
+        main_loop.create_task(ConsoleInputHandler.input_producer(main_loop, klong, args.verbose))
 
-    if asyncio.all_tasks(loop=loop):
-        loop.run_forever()
+    if asyncio.all_tasks(loop=main_loop):
+        main_loop.run_forever()
+    if asyncio.all_tasks(loop=io_loop):
+        io_loop.run_forever()
