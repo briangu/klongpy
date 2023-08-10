@@ -42,8 +42,9 @@ async def stream_recv_msg(reader: StreamReader):
     return decode_message(raw_msg_id, data)
 
 
-async def execute_server_command(result_queue, klong, command):
+async def execute_server_command(result_queue, klong, command, nc):
     try:
+        klong._context.push({'.clih': nc})
         if isinstance(command, KGRemoteFnCall):
             r = klong[command.sym]
             if callable(r):
@@ -68,18 +69,20 @@ async def execute_server_command(result_queue, klong, command):
         logging.error(f"TcpClientHandler::handle_client: Klong error {e}")
         import traceback
         traceback.print_exception(type(e), e, e.__traceback__)
+    finally:
+        klong._context.pop()
     result_queue.put(response)
 
 
-async def run_command_on_mainloop(mainloop, klong, command):
+async def run_command_on_klongloop(klongloop, klong, command, nc):
     result_queue = queue.Queue()
-    mainloop.call_soon_threadsafe(asyncio.create_task, execute_server_command(result_queue, klong, command))
+    klongloop.call_soon_threadsafe(asyncio.create_task, execute_server_command(result_queue, klong, command, nc))
     result = await asyncio.get_event_loop().run_in_executor(None, result_queue.get)
     return result
 
 
-class NetworkClient:
-    def __init__(self, klong, host, port, max_retries=5, retry_delay=5.0):
+class NetworkClient(KGLambda):
+    def __init__(self, ioloop, klongloop, klong, host, port, max_retries=5, retry_delay=5.0):
         self.klong = klong
         self.host = host
         self.port = port
@@ -87,11 +90,14 @@ class NetworkClient:
         self.running = True
         self.max_retries = max_retries
         self.retry_delay = retry_delay
-        self.mainloop = klong['.mainloop']
-        self.ioloop = klong['.ioloop']
+        self.klongloop = klongloop
+        self.ioloop = ioloop
         self.connect_task = self.ioloop.call_soon_threadsafe(asyncio.create_task, self.connect())
         self.reader = None
         self.writer = None
+
+    async def _open_connection(self):
+        return await asyncio.open_connection(self.host, self.port)
 
     async def connect(self, after_connect=None):
         current_delay = self.retry_delay
@@ -99,11 +105,12 @@ class NetworkClient:
         while self.running and retries < self.max_retries:
             try:
                 logging.info(f"connecting to {self.host}:{self.port}")
-                self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
+                self.reader, self.writer = await self._open_connection()
                 logging.info(f"connected to {self.host}:{self.port}")
                 retries = 0
                 await (after_connect or self.listen)()
             except (OSError, ConnectionResetError, ConnectionRefusedError):
+                self._handle_connection_failure()
                 self.writer = None
                 self.reader = None
                 retries += 1
@@ -115,6 +122,15 @@ class NetworkClient:
             logging.info(f"Max retries reached: {self.max_retries} {self.host}:{self.port}")
         logging.info(f"Stopping client: {self.host}:{self.port}")
 
+    def _handle_connection_failure(self):
+        failure_result = KlongException(f"connection lost: {self.host}:{self.port}")
+        for future in self.pending_responses.values():
+            future.set_exception(failure_result)
+        self.pending_responses.clear()
+
+    async def _run_server_command(self, msg):
+        return await run_command_on_klongloop(self.klongloop, self.klong, msg, self)
+
     async def listen(self):
         while self.running:
             msg_id, msg = await stream_recv_msg(self.reader)
@@ -122,29 +138,39 @@ class NetworkClient:
                 future = self.pending_responses.pop(msg_id)
                 future.set_result(msg)
                 continue
-            response = await run_command_on_mainloop(self.mainloop, self.klong, msg)
+            response = await self._run_server_command(msg)
             await stream_send_msg(self.writer, msg_id, response)
+        print("done listening")
 
     def call(self, msg):
         if self.writer is None:
             raise KlongException(f"connection not established: {self.host}:{self.port}")
+
         msg_id = uuid.uuid4()
         future = self.ioloop.create_future()
         self.pending_responses[msg_id] = future
 
-        result_event = threading.Event()
-        result_container = [None]
-
-        async def send_message_on_ioloop():
+        async def send_message_and_get_result():
             await stream_send_msg(self.writer, msg_id, msg)
-            result_container[0] = await future
-            result_event.set()
+            return await future
+        
+        fut = asyncio.run_coroutine_threadsafe(send_message_and_get_result(), self.ioloop)
 
-        asyncio.run_coroutine_threadsafe(send_message_on_ioloop(), self.ioloop)
-        result_event.wait()
+        return fut.result()
 
-        return result_container[0]
-    
+    def __call__(self, _, ctx):
+        x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
+        try:
+            msg = KGRemoteFnCall(x[0], x[1:]) if is_list(x) and len(x) > 0 and isinstance(x[0],KGSym) else x
+            response = self.call(msg)
+            if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
+                response = KGRemoteFnProxy(self.nc, x, response.arity)
+            return response
+        except Exception as e:
+            import traceback
+            traceback.print_exception(type(e), e, e.__traceback__)
+            raise e
+
     async def _close_async(self):
         if self.writer:
             self.writer.close()
@@ -153,25 +179,30 @@ class NetworkClient:
     def close(self):
         self.running = False
         self.connect_task.cancel()
-        self.ioloop.run_until_complete(self._close_async())
+        fut = asyncio.run_coroutine_threadsafe(self._close_async(), self.ioloop)
+        fut.result()
+        print("closed")
 
     def is_open(self):
         return self.writer is not None and not self.writer.is_closing()
-    
+
+    def get_arity(self):
+        return 1
+        
     def __str__(self):
-        return f"remote[{self.host}:{self.port}]"
+        return f"remote[{self.host}:{self.port}]:fn"
 
     @staticmethod
-    def create(klong, host, port):
-        return NetworkClient(klong, host, port)
+    def create(ioloop, klongloop, klong, host, port):
+        return NetworkClient(ioloop, klongloop, klong, host, port)
 
     @staticmethod
-    def create_from_addr(klong, addr):
+    def create_from_addr(ioloop, klongloop, klong, addr):
         addr = str(addr)
         parts = addr.split(":")
         host = parts[0] if len(parts) > 1 else "localhost"
         port = int(parts[0] if len(parts) == 1 else parts[1])
-        return NetworkClient.create(klong, host, port)
+        return NetworkClient.create(ioloop, klongloop, klong, host, port)
 
 
 class KGRemoteFnRef:
@@ -215,9 +246,9 @@ class KGRemoteFnProxy(KGLambda):
 
 
 class TcpClientHandler:
-    def __init__(self, klong):
+    def __init__(self, klongloop, klong):
         self.klong = klong
-        self.mainloop = self.klong['.mainloop']
+        self.klongloop = klongloop
 
     async def handle_client(self, reader: StreamReader, writer: StreamWriter):
         while True:
@@ -227,9 +258,7 @@ class TcpClientHandler:
                     break
             except EOFError as e:
                 break
-            print("running command: ", command)
-            response = await run_command_on_mainloop(self.mainloop, self.klong, command)
-            print("response: ", response)
+            response = await run_command_on_klongloop(self.klongloop, self.klong, command, None)
             await stream_send_msg(writer, msg_id, response)
         writer.close()
         await writer.wait_closed()
@@ -242,10 +271,10 @@ class TcpServerHandler:
         self.server = None
         self.connections = []
 
-    def create_server(self, ioloop, klong, bind, port):
+    def create_server(self, ioloop, klongloop, klong, bind, port):
         if self.task is not None:
             return 0
-        self.client_handler = TcpClientHandler(klong)
+        self.client_handler = TcpClientHandler(klongloop, klong)
         self.task = ioloop.call_soon_threadsafe(asyncio.create_task, self.tcp_producer(bind, port))
         return 1
 
@@ -284,36 +313,6 @@ class TcpServerHandler:
 
         async with self.server:
             await self.server.serve_forever()
-
-
-class NetworkClientHandle(KGLambda):
-    def __init__(self, nc: NetworkClient):
-        self.nc = nc
-
-    def __call__(self, _, ctx):
-        x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
-        try:
-            msg = KGRemoteFnCall(x[0], x[1:]) if is_list(x) and len(x) > 0 and isinstance(x[0],KGSym) else x
-            response = self.nc.call(msg)
-            if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
-                response = KGRemoteFnProxy(self.nc, x, response.arity)
-            return response
-        except Exception as e:
-            import traceback
-            traceback.print_exception(type(e), e, e.__traceback__)
-            raise e
-
-    def close(self):
-        return self.nc.close()
-
-    def is_open(self):
-        return self.nc.is_open()
-    
-    def get_arity(self):
-        return 1
-
-    def __str__(self):
-        return f"{self.nc.__str__()}:fn"
 
 
 class NetworkClientDictHandle(dict):
@@ -356,7 +355,7 @@ class NetworkClientDictHandle(dict):
         return self.nc.is_open()
     
     def __str__(self):
-        return f"{self.nc.__str__()}:dict"
+        return f"remote[{self.nc.host}:{self.nc.port}]:dict"
 
 
 def eval_sys_fn_create_client(klong, x):
@@ -418,10 +417,13 @@ def eval_sys_fn_create_client(klong, x):
                    
     """
     x = x.a if isinstance(x,KGCall) else x
-    if isinstance(x,NetworkClientHandle):
+    if isinstance(x,NetworkClient):
         return x
-    nc = x.nc if isinstance(x,NetworkClientDictHandle) else NetworkClient.create_from_addr(klong, x)
-    return NetworkClientHandle(nc)
+    system = klong['.system']
+    ioloop = system['ioloop']
+    klongloop = system['klongloop']
+    nc = x.nc if isinstance(x,NetworkClientDictHandle) else NetworkClient.create_from_addr(ioloop, klongloop, klong, x)
+    return nc
 
 
 def eval_sys_fn_create_dict_client(klong, x):
@@ -473,7 +475,10 @@ def eval_sys_fn_create_dict_client(klong, x):
     x = x.a if isinstance(x,KGCall) else x
     if isinstance(x,NetworkClientDictHandle):
         return x
-    nc = x.nc if isinstance(x,NetworkClientHandle) else NetworkClient.create_from_addr(klong, x)
+    system = klong['.system']
+    ioloop = system['ioloop']
+    klongloop = system['klongloop']
+    nc = x.nc if isinstance(x,NetworkClient) else NetworkClient.create_from_addr(ioloop, klongloop, klong, x)
     return NetworkClientDictHandle(nc)
 
 
@@ -492,7 +497,7 @@ def eval_sys_fn_shutdown_client(x):
     """
     if isinstance(x, KGCall) and issubclass(type(x.a), KGLambda):
         x = x.a
-        if isinstance(x, (NetworkClientHandle, NetworkClientDictHandle)) and x.is_open():
+        if isinstance(x, (NetworkClient, NetworkClientDictHandle)) and x.is_open():
             x.close()
             return 1
     return 0
@@ -521,12 +526,15 @@ def eval_sys_fn_create_ipc_server(klong, x):
     port = int(parts[0] if len(parts) == 1 else parts[1])
     if len(parts) == 1 and port == 0:
         return _ipc_tcp_server.shutdown_server()
-    return _ipc_tcp_server.create_server(klong['.ioloop'], klong, bind, port)
+    system = klong['.system']
+    ioloop = system['ioloop']
+    klongloop = system['klongloop']
+    return _ipc_tcp_server.create_server(ioloop, klongloop, klong, bind, port)
 
 
 class KGAsyncCall(KGLambda):
-    def __init__(self, loop, fn, cb):
-        self.loop = loop
+    def __init__(self, klongloop, fn, cb):
+        self.klongloop = klongloop
         self.cb = cb
         self.fn = fn
         self.args = [reserved_fn_symbol_map[x] for x in reserved_fn_args[:fn.arity]]
@@ -537,7 +545,7 @@ class KGAsyncCall(KGLambda):
 
     def __call__(self, klong, ctx):
         params = [ctx[x] for x in self.args]
-        self.loop.create_task(self.acall(klong, params))
+        self.klongloop.create_task(self.acall(klong, params))
         return 1
 
     def __str__(self):
@@ -557,7 +565,9 @@ def eval_sys_fn_create_async_wrapper(klong, x, y):
         raise KlongException("x must be a function")
     if not issubclass(type(y),KGFn):
         raise KlongException("y must be a function")
-    return KGAsyncCall(klong['.mainloop'], x, KGFnWrapper(klong, y))
+    system = klong['.system']
+    klongloop = system['klongloop']
+    return KGAsyncCall(klongloop, x, KGFnWrapper(klong, y))
 
 
 def create_system_functions_ipc():

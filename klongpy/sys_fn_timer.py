@@ -79,7 +79,9 @@ def eval_sys_fn_timer(klong, x, y, z):
     z = z if isinstance(z, KGCall) else KGFnWrapper(klong, z) if isinstance(z, KGFn) else z
     if not callable(z):
         return "z must be a function"
-    return _call_periodic(klong['.mainloop'], x, y, z)
+    system = klong['.system']
+    klongloop = system['klongloop']
+    return _call_periodic(klongloop, x, y, z)
 
 
 def eval_sys_fn_cancel_timer(x):

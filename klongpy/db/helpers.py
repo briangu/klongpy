@@ -19,16 +19,24 @@ def key_to_file_path(key):
     return key
 
 
-def save_df(file_path, df):
+def save_gzip_df_file(file_path, df):
     with open(file_path, "wb") as f:
         with gzip.open(f, "wb", compresslevel=9) as gzf:
             df.to_pickle(gzf)
 
 
-def read_df(file_path):
+def read_gzip_df_file(file_path):
     with open(file_path, "rb") as f:
         with gzip.open(f, "rb") as gzf:
             return pd.read_pickle(gzf)
+
+
+def save_df_file(file_path, df):
+    return df.to_pickle(file_path)
+
+
+def read_df_file(file_path):
+    return pd.read_pickle(file_path)
 
 
 def df_memory_usage(df):

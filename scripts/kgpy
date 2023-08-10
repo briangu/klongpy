@@ -255,11 +255,11 @@ if __name__ == "__main__":
     io_thread = threading.Thread(target=start_io_loop, args=(io_loop,), daemon=True)
     io_thread.start()
 
-    main_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(main_loop)
+    klong_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(klong_loop)
 
-    klong['.ioloop'] = io_loop
-    klong['.mainloop'] = main_loop
+    klong['.system'] = {'ioloop': io_loop, 'klongloop': klong_loop}
+    klong['.os'] = {'environ': os.environ, 'argv': sys.argv}
 
     run_repl = False
 
@@ -289,9 +289,9 @@ if __name__ == "__main__":
                 klong(f.read())
         colorama.init(autoreset=True)
         show_repl_header(args.server)
-        main_loop.create_task(ConsoleInputHandler.input_producer(main_loop, klong, args.verbose))
+        klong_loop.create_task(ConsoleInputHandler.input_producer(klong_loop, klong, args.verbose))
 
-    if asyncio.all_tasks(loop=main_loop):
-        main_loop.run_forever()
+    if asyncio.all_tasks(loop=klong_loop):
+        klong_loop.run_forever()
     if asyncio.all_tasks(loop=io_loop):
         io_loop.run_forever()
