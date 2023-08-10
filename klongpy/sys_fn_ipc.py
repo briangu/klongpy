@@ -82,7 +82,7 @@ async def run_command_on_klongloop(klongloop, klong, command, nc):
 
 
 class NetworkClient(KGLambda):
-    def __init__(self, ioloop, klongloop, klong, host, port, max_retries=5, retry_delay=5.0):
+    def __init__(self, ioloop, klongloop, klong, host, port, max_retries=5, retry_delay=5.0, after_connect=None):
         self.klong = klong
         self.host = host
         self.port = port
@@ -92,7 +92,7 @@ class NetworkClient(KGLambda):
         self.retry_delay = retry_delay
         self.klongloop = klongloop
         self.ioloop = ioloop
-        self.connect_task = self.ioloop.call_soon_threadsafe(asyncio.create_task, self.connect())
+        self.connect_task = self.ioloop.call_soon_threadsafe(asyncio.create_task, self.connect(after_connect=after_connect))
         self.reader = None
         self.writer = None
 
@@ -140,7 +140,6 @@ class NetworkClient(KGLambda):
                 continue
             response = await self._run_server_command(msg)
             await stream_send_msg(self.writer, msg_id, response)
-        print("done listening")
 
     def call(self, msg):
         if self.writer is None:
@@ -181,7 +180,6 @@ class NetworkClient(KGLambda):
         self.connect_task.cancel()
         fut = asyncio.run_coroutine_threadsafe(self._close_async(), self.ioloop)
         fut.result()
-        print("closed")
 
     def is_open(self):
         return self.writer is not None and not self.writer.is_closing()
