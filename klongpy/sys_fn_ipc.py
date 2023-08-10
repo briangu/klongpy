@@ -118,6 +118,7 @@ class ConnectionProvider:
         return f"remote[{self.host}:{self.port}]:fn"
 
 
+# TODO: add onconnect and onclose handlers
 class NetworkClient(KGLambda):
     def __init__(self, ioloop, klongloop, klong, conn_provider=None, reader=None, writer=None, after_connect=None):
         self.klong = klong
@@ -130,7 +131,7 @@ class NetworkClient(KGLambda):
         self.reader = reader
         self.writer = writer
 
-    def _handle_connection_failure(self):
+    def _handle_connection_close(self):
         failure_result = KlongException(f"connection lost: {self.host}:{self.port}")
         for future in self.pending_responses.values():
             future.set_exception(failure_result)
@@ -142,22 +143,16 @@ class NetworkClient(KGLambda):
                 try:
                     await (after_connect or self.listen)()
                 except (OSError, ConnectionResetError, ConnectionRefusedError):
+                    logging.info(f"connection error to {self.host}:{self.port}")
+                finally:
                     self.writer = None
                     self.reader = None
-                    retries += 1
-                    logging.info(f"connection error to {self.host}:{self.port} retries: {retries} delay: {current_delay}")
-                    await asyncio.sleep(current_delay)
-                    current_delay *= 2
-                finally:
-                    self._handle_connection_failure()
+                    self._handle_connection_close()
             elif self.conn_provider:
                 self.reader, self.writer = await self.conn_provider.connect()
             else:
                 break
         logging.info(f"Stopping client: {self.host}:{self.port}")
-
-    async def _run_server_command(self, msg):
-        return await run_command_on_klongloop(self.klongloop, self.klong, msg, self)
 
     async def listen(self):
         while self.running:
@@ -166,7 +161,7 @@ class NetworkClient(KGLambda):
                 future = self.pending_responses.pop(msg_id)
                 future.set_result(msg)
                 continue
-            response = await self._run_server_command(msg)
+            response = await run_command_on_klongloop(self.klongloop, self.klong, msg, self)
             await stream_send_msg(self.writer, msg_id, response)
 
     def call(self, msg):
