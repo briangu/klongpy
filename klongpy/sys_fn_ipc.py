@@ -42,7 +42,7 @@ async def stream_recv_msg(reader: StreamReader):
     return decode_message(raw_msg_id, data)
 
 
-async def execute_server_command(result_queue, klong, command, nc):
+async def execute_server_command(ioloop, result_future, klong, command, nc):
     try:
         klong._context.push({'.clih': nc})
         if isinstance(command, KGRemoteFnCall):
@@ -62,22 +62,24 @@ async def execute_server_command(result_queue, klong, command, nc):
             response = klong(command)
         if isinstance(response, KGFn):
             response = KGRemoteFnRef(response.arity)
+        ioloop.call_soon_threadsafe(result_future.set_result, response)
     except KeyError as e:
-        response = f"symbol not found: {e}"
+        ioloop.call_soon_threadsafe(result_future.set_exception, KlongException(f"symbol not found: {e}"))
     except Exception as e:
-        response = "internal error"
+        ioloop.call_soon_threadsafe(result_future.set_exception, KlongException("internal error"))
         logging.error(f"TcpClientHandler::handle_client: Klong error {e}")
         import traceback
         traceback.print_exception(type(e), e, e.__traceback__)
     finally:
         klong._context.pop()
-    result_queue.put(response)
 
 
 async def run_command_on_klongloop(klongloop, klong, command, nc):
-    result_queue = queue.Queue()
-    klongloop.call_soon_threadsafe(asyncio.create_task, execute_server_command(result_queue, klong, command, nc))
-    result = await asyncio.get_event_loop().run_in_executor(None, result_queue.get)
+    result_future = asyncio.Future()
+    assert asyncio.get_event_loop() != klongloop
+    ioloop = asyncio.get_event_loop()
+    klongloop.call_soon_threadsafe(asyncio.create_task, execute_server_command(ioloop, result_future, klong, command, nc))
+    result = await result_future
     return result
 
 
