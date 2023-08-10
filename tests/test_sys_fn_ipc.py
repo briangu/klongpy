@@ -232,16 +232,15 @@ class TestNetworkClient(unittest.TestCase):
         # mock_stream_send_msg.assert_called_once_with(client.writer, msg_id, msg)
 
     async def mock_stream_recv_msg(reader):
-        reader._client.running = False
         return None, "2+2"
     
     async def mock_stream_send_msg(writer, msg_id, msg):
+        writer._client.running = False
         writer.write(msg)
     
     @patch("klongpy.sys_fn_ipc.stream_recv_msg", mock_stream_recv_msg)
     @patch("klongpy.sys_fn_ipc.stream_send_msg", mock_stream_send_msg)
     @patch("klongpy.sys_fn_ipc.asyncio.open_connection", new_callable=AsyncMock)
-    @unittest.skip
     def test_listen(self, mock_open_connection):
         writer = AsyncMock()
         writer.write = MagicMock()
@@ -253,7 +252,7 @@ class TestNetworkClient(unittest.TestCase):
         klong = KlongInterpreter()
         client = NetworkClient(self.ioloop, self.klongloop, klong, '127.0.0.1', 8888)
 
-        reader._client = client
+        writer._client = client
 
         while(client.writer is None):
             time.sleep(0)
