@@ -42,7 +42,7 @@ async def stream_recv_msg(reader: StreamReader):
     return decode_message(raw_msg_id, data)
 
 
-async def execute_server_command(ioloop, result_future, klong, command, nc):
+async def execute_server_command(future_loop, result_future, klong, command, nc):
     try:
         klong._context.push({'.clih': nc})
         if isinstance(command, KGRemoteFnCall):
@@ -62,11 +62,11 @@ async def execute_server_command(ioloop, result_future, klong, command, nc):
             response = klong(command)
         if isinstance(response, KGFn):
             response = KGRemoteFnRef(response.arity)
-        ioloop.call_soon_threadsafe(result_future.set_result, response)
+        future_loop.call_soon_threadsafe(result_future.set_result, response)
     except KeyError as e:
-        ioloop.call_soon_threadsafe(result_future.set_exception, KlongException(f"symbol not found: {e}"))
+        future_loop.call_soon_threadsafe(result_future.set_exception, KlongException(f"symbol not found: {e}"))
     except Exception as e:
-        ioloop.call_soon_threadsafe(result_future.set_exception, KlongException("internal error"))
+        future_loop.call_soon_threadsafe(result_future.set_exception, KlongException("internal error"))
         logging.error(f"TcpClientHandler::handle_client: Klong error {e}")
         import traceback
         traceback.print_exception(type(e), e, e.__traceback__)
@@ -76,9 +76,10 @@ async def execute_server_command(ioloop, result_future, klong, command, nc):
 
 async def run_command_on_klongloop(klongloop, klong, command, nc):
     result_future = asyncio.Future()
-    assert asyncio.get_event_loop() != klongloop
-    ioloop = asyncio.get_event_loop()
-    klongloop.call_soon_threadsafe(asyncio.create_task, execute_server_command(ioloop, result_future, klong, command, nc))
+    current_loop = asyncio.get_event_loop()
+    assert current_loop != klongloop
+    coroutine = execute_server_command(current_loop, result_future, klong, command, nc)
+    klongloop.call_soon_threadsafe(asyncio.create_task, coroutine)
     result = await result_future
     return result
 
