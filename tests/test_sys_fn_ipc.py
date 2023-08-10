@@ -167,7 +167,7 @@ class TestNetworkClient(unittest.TestCase):
             async def mock_after_connect():
                 self.called_after_connect = True
             client = NetworkClient(self.ioloop, self.klongloop, "klong", "localhost", 1234, retry_delay=0, after_connect=mock_after_connect)
-            asyncio.run(client.connect(after_connect=mock_after_connect))
+            asyncio.run(client.run(after_connect=mock_after_connect))
             self.assertFalse(self.called_after_connect)
             self.assertEqual(client.reader, None)
             self.assertEqual(client.writer, None)

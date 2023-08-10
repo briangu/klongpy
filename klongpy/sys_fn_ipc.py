@@ -84,38 +84,26 @@ async def run_command_on_klongloop(klongloop, klong, command, nc):
     return result
 
 
-class NetworkClient(KGLambda):
-    def __init__(self, ioloop, klongloop, klong, host, port, max_retries=5, retry_delay=5.0, after_connect=None):
-        self.klong = klong
+class ConnectionProvider:
+    def __init__(self, ioloop, host, port, max_retries=5, retry_delay=5.0):
         self.host = host
         self.port = port
-        self.pending_responses = {}
         self.running = True
         self.max_retries = max_retries
         self.retry_delay = retry_delay
-        self.klongloop = klongloop
         self.ioloop = ioloop
-        self.connect_task = self.ioloop.call_soon_threadsafe(asyncio.create_task, self.connect(after_connect=after_connect))
-        self.reader = None
-        self.writer = None
 
-    async def _open_connection(self):
-        return await asyncio.open_connection(self.host, self.port)
-
-    async def connect(self, after_connect=None):
+    async def connect(self):
         current_delay = self.retry_delay
         retries = 0
         while self.running and retries < self.max_retries:
             try:
                 logging.info(f"connecting to {self.host}:{self.port}")
-                self.reader, self.writer = await self._open_connection()
+                reader, writer = await asyncio.open_connection(self.host, self.port)
                 logging.info(f"connected to {self.host}:{self.port}")
                 retries = 0
-                await (after_connect or self.listen)()
+                return reader, writer
             except (OSError, ConnectionResetError, ConnectionRefusedError):
-                self._handle_connection_failure()
-                self.writer = None
-                self.reader = None
                 retries += 1
                 logging.info(f"connection error to {self.host}:{self.port} retries: {retries} delay: {current_delay}")
                 await asyncio.sleep(current_delay)
@@ -124,12 +112,49 @@ class NetworkClient(KGLambda):
         if retries >= self.max_retries:
             logging.info(f"Max retries reached: {self.max_retries} {self.host}:{self.port}")
         logging.info(f"Stopping client: {self.host}:{self.port}")
+        return None, None
+
+    def __str__(self):
+        return f"remote[{self.host}:{self.port}]:fn"
+
+
+class NetworkClient(KGLambda):
+    def __init__(self, ioloop, klongloop, klong, conn_provider=None, reader=None, writer=None, after_connect=None):
+        self.klong = klong
+        self.pending_responses = {}
+        self.running = True
+        self.klongloop = klongloop
+        self.ioloop = ioloop
+        self.conn_provider = conn_provider
+        self.run_task = self.ioloop.call_soon_threadsafe(asyncio.create_task, self.run(after_connect=after_connect))
+        self.reader = reader
+        self.writer = writer
 
     def _handle_connection_failure(self):
         failure_result = KlongException(f"connection lost: {self.host}:{self.port}")
         for future in self.pending_responses.values():
             future.set_exception(failure_result)
         self.pending_responses.clear()
+
+    async def run(self, after_connect=None):
+        while self.running:
+            if self.reader and self.writer:
+                try:
+                    await (after_connect or self.listen)()
+                except (OSError, ConnectionResetError, ConnectionRefusedError):
+                    self.writer = None
+                    self.reader = None
+                    retries += 1
+                    logging.info(f"connection error to {self.host}:{self.port} retries: {retries} delay: {current_delay}")
+                    await asyncio.sleep(current_delay)
+                    current_delay *= 2
+                finally:
+                    self._handle_connection_failure()
+            elif self.conn_provider:
+                self.reader, self.writer = await self.conn_provider.connect()
+            else:
+                break
+        logging.info(f"Stopping client: {self.host}:{self.port}")
 
     async def _run_server_command(self, msg):
         return await run_command_on_klongloop(self.klongloop, self.klong, msg, self)
@@ -178,9 +203,12 @@ class NetworkClient(KGLambda):
             self.writer.close()
             await self.writer.wait_closed()
 
-    def close(self):
+    def stop(self):
         self.running = False
-        self.connect_task.cancel()
+        self.run_task.cancel()
+
+    def close(self):
+        self.stop()
         fut = asyncio.run_coroutine_threadsafe(self._close_async(), self.ioloop)
         fut.result()
 
@@ -246,28 +274,33 @@ class KGRemoteFnProxy(KGLambda):
         return f"{self.nc.__str__()}:{self.sym}{super().__str__()}"
 
 
-class TcpClientHandler:
-    def __init__(self, klongloop, klong):
+class TcpServerConnectionHandler:
+    def __init__(self, ioloop, klongloop, klong):
+        self.ioloop = ioloop
         self.klong = klong
         self.klongloop = klongloop
 
     async def handle_client(self, reader: StreamReader, writer: StreamWriter):
-        while True:
-            try:
-                msg_id, command = await stream_recv_msg(reader)
-                if not command:
+        nc = NetworkClient(self.ioloop, self.klongloop, self.klong, reader=reader, writer=writer)
+        try:
+            while True:
+                try:
+                    msg_id, command = await stream_recv_msg(reader)
+                    if not command:
+                        break
+                except EOFError as e:
                     break
-            except EOFError as e:
-                break
-            response = await run_command_on_klongloop(self.klongloop, self.klong, command, None)
-            await stream_send_msg(writer, msg_id, response)
-        writer.close()
-        await writer.wait_closed()
+                response = await run_command_on_klongloop(self.klongloop, self.klong, command, nc)
+                await stream_send_msg(writer, msg_id, response)
+        finally:
+            writer.close()
+            nc.stop()
+            await writer.wait_closed()
 
 
 class TcpServerHandler:
     def __init__(self):
-        self.client_handler = None
+        self.connection_handler = None
         self.task = None
         self.server = None
         self.connections = []
@@ -275,8 +308,8 @@ class TcpServerHandler:
     def create_server(self, ioloop, klongloop, klong, bind, port):
         if self.task is not None:
             return 0
-        self.client_handler = TcpClientHandler(klongloop, klong)
-        self.task = ioloop.call_soon_threadsafe(asyncio.create_task, self.tcp_producer(bind, port))
+        self.connection_handler = TcpServerConnectionHandler(ioloop, klongloop, klong)
+        self.task = ioloop.call_soon_threadsafe(asyncio.create_task, self.run_server(bind, port))
         return 1
 
     def shutdown_server(self):
@@ -291,22 +324,19 @@ class TcpServerHandler:
         self.server = None
         self.task.cancel()
         self.task = None
-        self.client_handler = None
+        self.connection_handler = None
         return 1
 
     async def handle_client(self, reader, writer):
         self.connections.append(writer)
 
         try:
-            await self.client_handler.handle_client(reader, writer)
+            await self.connection_handler.handle_client(reader, writer)
         finally:
-            if not writer.is_closing():
-                writer.close()
-            await writer.wait_closed()
             if writer in self.connections:
                 self.connections.remove(writer)
 
-    async def tcp_producer(self, bind, port):
+    async def run_server(self, bind, port):
         self.server = await asyncio.start_server(self.handle_client, bind, port, reuse_address=True)
 
         addr = self.server.sockets[0].getsockname()
