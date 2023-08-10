@@ -140,6 +140,7 @@ class TestNetworkClient(unittest.TestCase):
     def test_connect(self, mock_open_connection):
         reader = AsyncMock()
         writer = AsyncMock()
+        writer.close = MagicMock()
         mock_open_connection.return_value = (reader, writer)
 
         self.called_after_connect = False
