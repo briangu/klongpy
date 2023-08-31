@@ -325,7 +325,6 @@ class NetworkClient(KGLambda):
                 break
             except KGRemoteCloseConnectionException as e:
                 logging.info(f"Remote client closing connection: {str(self.conn_provider)}")
-                print("Remote client closing connection")
                 close_exception = e
                 break
             except Exception as e:
@@ -359,12 +358,10 @@ class NetworkClient(KGLambda):
                 future = self.pending_responses.pop(msg_id)
                 future.set_result(msg)
                 if isinstance(msg, KGRemoteCloseConnection):
-                    # logging.info(f"Recieved close connection ack: {str(self.conn_provider)}")
-                    print("recieved close connection ack")
+                    logging.info(f"Recieved close connection ack: {str(self.conn_provider)}")
                     raise KGRemoteCloseConnectionException()
             elif isinstance(msg, KGRemoteCloseConnection):
-                logging.info(f"Remote close connection: {str(self.conn_provider)}")
-                print("replying to close connection")
+                logging.info(f"Received remote close connection request: {str(self.conn_provider)}")
                 await stream_send_msg(self.writer, msg_id, msg)
                 raise KGRemoteCloseConnectionException()
             else:
@@ -424,13 +421,9 @@ class NetworkClient(KGLambda):
         """
         if not self.running:
             return
-        print("sending remote connection stop message")
         self.call(KGRemoteCloseConnection())
-        print("closed remote connection, stopping")
         self.running = False
         self._run_exit_event.wait()
-        print("client task completed, canceling")
-        # self.run_task.cancel()
         self.run_task = None
 
     def close(self):
