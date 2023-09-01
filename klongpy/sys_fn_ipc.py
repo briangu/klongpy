@@ -217,12 +217,13 @@ class ReaderWriterConnectionProvider(ConnectionProvider):
     
     async def close(self):
         assert threading.current_thread().ident == self._thread_ident
-        if not self.is_open():
-            return
-        self.writer.close()
-        await self.writer.wait_closed()
-        self.writer = None
-        self.reader = None
+        # if not self.is_open():
+        #     return
+        # self.writer.close()
+        # await self.writer.wait_closed()
+        # self.writer = None
+        # self.reader = None
+        # print("closing reader/writer")
 
     def is_open(self):
         return self.writer is not None and not self.writer.is_closing()
@@ -275,9 +276,17 @@ class NetworkClient(KGLambda):
         
         Start the network client as initiatiated by the Klong interpreter.
         
+        How do i modify this code to block until the connection is made?
+        
         """
         self.running = True
-        self.ioloop.call_soon_threadsafe(asyncio.create_task, self._run(self.on_connect, self.on_close, self.on_error))
+        connect_event = threading.Event()
+        async def _on_connect(*args, **kwargs):
+            connect_event.set()
+            if self.on_connect is not None:
+                self.on_connect(self)
+        self.run_task = self.ioloop.call_soon_threadsafe(asyncio.create_task, self._run(_on_connect, self.on_close, self.on_error))
+        connect_event.wait()
         return self
 
     def run_server(self):
@@ -318,6 +327,7 @@ class NetworkClient(KGLambda):
                     await on_connect(self)
                 while self.running:
                     await self._listen()
+                raise RuntimeError("should not get here")
             except (KlongIPCConnectionFailureException, KlongIPCCreateConnectionException) as e:
                 close_exception = e
                 if on_error:
@@ -325,6 +335,8 @@ class NetworkClient(KGLambda):
                 break
             except KGRemoteCloseConnectionException as e:
                 logging.info(f"Remote client closing connection: {str(self.conn_provider)}")
+                # print("Remote client closing connection")
+                self.running = False
                 close_exception = e
                 break
             except Exception as e:
@@ -359,9 +371,11 @@ class NetworkClient(KGLambda):
                 future.set_result(msg)
                 if isinstance(msg, KGRemoteCloseConnection):
                     logging.info(f"Recieved close connection ack: {str(self.conn_provider)}")
+                    # print("Recieved close connection ack")
                     raise KGRemoteCloseConnectionException()
             elif isinstance(msg, KGRemoteCloseConnection):
                 logging.info(f"Received remote close connection request: {str(self.conn_provider)}")
+                # print("Received remote close connection request")
                 await stream_send_msg(self.writer, msg_id, msg)
                 raise KGRemoteCloseConnectionException()
             else:
@@ -419,20 +433,31 @@ class NetworkClient(KGLambda):
         First send the KGRemoteCloseConnection message to the server to tell it to close the connection.
         
         """
-        if not self.running:
-            return
-        self.call(KGRemoteCloseConnection())
         self.running = False
         self._run_exit_event.wait()
         self.run_task = None
+
+    def cleanup(self):
+        """
+        Cleanup the network client and the underlying connection.
+        """
+        if not self.running:
+            return
+        # print("cleaning up")
+        self._stop()
+        fut = asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop)
+        fut.result()
+        # print("cleaning up: done")
 
     def close(self):
         """
         Close the network client and the underlying connection.
         """
-        self._stop()
-        fut = asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop)
-        fut.result()
+        if not self.running:
+            return
+        # print("closing")
+        self.call(KGRemoteCloseConnection())
+        self.cleanup()
 
     def is_open(self):
         return self.conn_provider.is_open()
@@ -552,19 +577,9 @@ class TcpServerConnectionHandler:
         conn_provider = ReaderWriterConnectionProvider(reader, writer)
         nc = NetworkClient.create_from_conn_provider(self.ioloop, self.klongloop, self.klong, conn_provider)
         try:
-            # while True:
-            #     try:
-            #         msg_id, command = await stream_recv_msg(reader)
-            #         if not command:
-            #             break
-            #     except EOFError as e:
-            #         break
-            #     response = await run_command_on_klongloop(self.klongloop, self.klong, command, nc)
-            #     await stream_send_msg(writer, msg_id, response)
             await nc.run_server()
         finally:
-            await conn_provider.close()
-            nc.close()
+            nc.cleanup()
 
 
 class TcpServerHandler:
@@ -795,11 +810,9 @@ def eval_sys_fn_shutdown_client(x):
         will also close and will fail if called.
 
     """
-    if isinstance(x, KGCall) and issubclass(type(x.a), KGLambda):
-        x = x.a
-        if isinstance(x, (NetworkClient, NetworkClientDictHandle)) and x.is_open():
-            x.close()
-            return 1
+    if isinstance(x, (NetworkClient, NetworkClientDictHandle)) and x.is_open():
+        x.close()
+        return 1
     return 0
 
 
