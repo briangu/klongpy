@@ -180,6 +180,7 @@ class HostPortConnectionProvider(ConnectionProvider):
         assert threading.current_thread().ident == self._thread_ident
         if not self.is_open():
             return
+        self.running = False
         if self.writer is not None:
             self.writer.close()
             await self.writer.wait_closed()
@@ -284,10 +285,15 @@ class NetworkClient(KGLambda):
         self.running = True
         connect_event = threading.Event()
         async def _on_connect(client, **kwargs):
-            connect_event.set()
             if client.on_connect is not None:
                 await client.on_connect(self)
-        self.run_task = self.ioloop.call_soon_threadsafe(asyncio.create_task, self._run(_on_connect, self.on_close, self.on_error))
+            connect_event.set()
+        async def _on_error(client, e):
+            if client.on_error is not None:
+                await client.on_error(self, e)
+            connect_event.set()
+
+        self.run_task = self.ioloop.call_soon_threadsafe(asyncio.create_task, self._run(_on_connect, self.on_close, _on_error))
         connect_event.wait()
         return self
 
@@ -330,7 +336,7 @@ class NetworkClient(KGLambda):
                     await on_connect(self)
                 while self.running:
                     await self._listen()
-                raise RuntimeError("should not get here")
+                close_exception = None
             except (KlongIPCConnectionFailureException, KlongIPCCreateConnectionException) as e:
                 close_exception = e
                 if on_error is not None:

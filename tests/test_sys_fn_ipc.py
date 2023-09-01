@@ -211,8 +211,6 @@ class TestReaderWriterConnectionProvider(unittest.TestCase):
     def test_readerwriter_connection_provider_successful_connection(self):
         mock_reader = MagicMock()
         mock_writer = MagicMock(is_closing=MagicMock(return_value=False))
-        host = "localhost"
-        port = 1234
         conn = ReaderWriterConnectionProvider(mock_reader, mock_writer, "localhost", 1234)
         reader, writer = asyncio.run(conn.connect())
         self.assertEqual(reader, mock_reader)
@@ -372,24 +370,58 @@ class TestNetworkClient(unittest.TestCase):
     def test_max_retries(self, mock_open_connection):
         mock_open_connection.side_effect = ConnectionResetError()  # Simulate a connection error
 
-        self.called_after_connect = False
+        called_after_connect = False
         error_event = threading.Event()
 
         async def _test_on_connect(*args, **kwargs):
-            self.called_after_connect = True
+            nonlocal called_after_connect
+            called_after_connect = True
 
-        async def _test_on_error(*args, **kwargs):
+        async def _test_on_error(client, e):
+            nonlocal error_event
             error_event.set()
+            client.running = False
 
         conn_provider = HostPortConnectionProvider(self.ioloop, "localhost", 1234, max_retries=3, retry_delay=0)
         client = NetworkClient(self.ioloop, self.klongloop, "klong", conn_provider, on_connect=_test_on_connect, on_error=_test_on_error)
+        client.run_client()
 
+        client._run_exit_event.wait()
         error_event.wait()
 
-        self.assertFalse(self.called_after_connect)  # after_connect should never be called
+        self.assertFalse(called_after_connect)  # after_connect should never be called
         self.assertEqual(client.reader, None)
         self.assertEqual(client.writer, None)
         self.assertEqual(mock_open_connection.call_count, 3)  # Check if the retries were called 3 times
+
+    @patch("klongpy.sys_fn_ipc.asyncio.open_connection", new_callable=AsyncMock)
+    def test_connect_after_failure(self, mock_open_connection):
+        mock_open_connection.side_effect = [OSError(), OSError(), (MagicMock(), MagicMock())]
+
+        called_after_error = False
+        called_after_connect = False
+
+        async def _test_on_connect(client, **kwargs):
+            nonlocal called_after_connect
+            called_after_connect = True
+            client.running = False
+
+        async def _test_on_error(client, e):
+            nonlocal called_after_error
+            called_after_error = True
+
+        conn_provider = HostPortConnectionProvider(self.ioloop, "localhost", 1234, max_retries=3, retry_delay=0)
+        client = NetworkClient(self.ioloop, self.klongloop, "klong", conn_provider, on_connect=_test_on_connect, on_error=_test_on_error)
+        client.run_client()
+
+        client._run_exit_event.wait()
+
+        self.assertTrue(called_after_connect)
+        self.assertFalse(called_after_error)
+        self.assertEqual(client.reader, None)
+        self.assertEqual(client.writer, None)
+        self.assertEqual(mock_open_connection.call_count, 3)  # Check if the retries were called 3 times
+
 
     @patch("klongpy.sys_fn_ipc.stream_send_msg")
     @patch("klongpy.sys_fn_ipc.stream_recv_msg")
@@ -456,6 +488,7 @@ class TestNetworkClient(unittest.TestCase):
 
         writer = AsyncMock()
         writer.is_closing = MagicMock(return_value=False)
+        writer.close = MagicMock()
         reader = AsyncMock()
 
         msg_id = uuid.uuid4()
