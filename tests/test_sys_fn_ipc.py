@@ -193,24 +193,36 @@ class TestHostPortConnectionProvider(unittest.TestCase):
 
         self.assertFalse(provider.is_open())
 
+    def test_str(self):
+        host = "localhost"
+        port = 1234
+        conn = HostPortConnectionProvider(None, host, port)
+        self.assertEqual(str(conn), f"remote[{host}:{port}]")
 
 class TestReaderWriterConnectionProvider(unittest.TestCase):
 
     def test_readerwriter_connection_provider_at_eof(self):
         mock_reader = MagicMock(at_eof=MagicMock(return_value=True))
         mock_writer = MagicMock()
-        conn = ReaderWriterConnectionProvider(mock_reader, mock_writer)
+        conn = ReaderWriterConnectionProvider(mock_reader, mock_writer, "localhost", 1234)
         with self.assertRaises(KlongIPCCreateConnectionException):
             asyncio.run(conn.connect())
 
     def test_readerwriter_connection_provider_successful_connection(self):
-        mock_reader = MagicMock(at_eof=MagicMock(return_value=False))
-        mock_writer = MagicMock()
-        conn = ReaderWriterConnectionProvider(mock_reader, mock_writer)
+        mock_reader = MagicMock()
+        mock_writer = MagicMock(is_closing=MagicMock(return_value=False))
+        host = "localhost"
+        port = 1234
+        conn = ReaderWriterConnectionProvider(mock_reader, mock_writer, "localhost", 1234)
         reader, writer = asyncio.run(conn.connect())
         self.assertEqual(reader, mock_reader)
         self.assertEqual(writer, mock_writer)
 
+    def test_str(self):
+        host = "localhost"
+        port = 1234
+        conn = ReaderWriterConnectionProvider(None, None, host, port)
+        self.assertEqual(str(conn), f"remote[{host}:{port}]")
 
 class TestNetworkClient(unittest.TestCase):
 
@@ -247,6 +259,12 @@ class TestNetworkClient(unittest.TestCase):
         self.assertEqual(client.klong, klong)
         self.assertEqual(client.conn_provider, conn_provider)
         self.assertTrue(client.running)
+
+    def test_str(self):
+        klong = KlongInterpreter()
+        conn_provider = HostPortConnectionProvider(self.ioloop, "localhost", 1234)
+        client = NetworkClient(self.ioloop, self.klongloop, klong, conn_provider)
+        self.assertEqual(str(client), f"remote[{str(conn_provider)}]:fn")
 
     @patch("klongpy.sys_fn_ipc.asyncio.open_connection", new_callable=AsyncMock)
     def test_connect(self, mock_open_connection):

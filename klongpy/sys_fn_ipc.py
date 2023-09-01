@@ -191,7 +191,7 @@ class HostPortConnectionProvider(ConnectionProvider):
         return self.writer is not None and not self.writer.is_closing()
     
     def __str__(self):
-        return f"remote[{self.host}:{self.port}]:fn"
+        return f"remote[{self.host}:{self.port}]"
 
 
 class ReaderWriterConnectionProvider(ConnectionProvider):
@@ -209,7 +209,7 @@ class ReaderWriterConnectionProvider(ConnectionProvider):
 
     async def connect(self):
         self._thread_ident = threading.current_thread().ident
-        if self.writer is None or not self.is_open():
+        if not self.is_open():
             raise KlongIPCCreateConnectionException()
         return self.reader, self.writer
     
@@ -227,7 +227,7 @@ class ReaderWriterConnectionProvider(ConnectionProvider):
         return self.writer is not None and not self.writer.is_closing()
 
     def __str__(self):
-        return f"remote[{self.host}:{self.port}]:fn"
+        return f"remote[{self.host}:{self.port}]"
 
 
 class NetworkClient(KGLambda):
@@ -669,7 +669,7 @@ class NetworkClientDictHandle(dict):
         return self.nc.is_open()
     
     def __str__(self):
-        return f"remote[{self.nc.host}:{self.nc.port}]:dict"
+        return f"remote[{str(self.nc.conn_provider)}]:dict"
 
 
 def eval_sys_fn_create_client(klong, x):
