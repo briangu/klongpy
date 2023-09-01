@@ -258,10 +258,12 @@ class NetworkClient(KGLambda):
         self.writer: StreamWriter = None
         self._run_exit_event = threading.Event()
 
-    def _handle_connection_close(self, close_exception):
+    def _cleanup_pending_responses(self, close_exception):
         """
-        
-        Handle a connection close.  All pending responses are cleared and exceptions are returned to the callers.
+
+        Cleanup the pending responses and set the exception on the futures.
+
+        From the KlongPy perspective, any outstanding remote calls will fail with the close_exception.
         
         """
         for future in self.pending_responses.values():
@@ -281,10 +283,10 @@ class NetworkClient(KGLambda):
         """
         self.running = True
         connect_event = threading.Event()
-        async def _on_connect(*args, **kwargs):
+        async def _on_connect(client, **kwargs):
             connect_event.set()
-            if self.on_connect is not None:
-                self.on_connect(self)
+            if client.on_connect is not None:
+                await client.on_connect(self)
         self.run_task = self.ioloop.call_soon_threadsafe(asyncio.create_task, self._run(_on_connect, self.on_close, self.on_error))
         connect_event.wait()
         return self
@@ -331,7 +333,7 @@ class NetworkClient(KGLambda):
                 raise RuntimeError("should not get here")
             except (KlongIPCConnectionFailureException, KlongIPCCreateConnectionException) as e:
                 close_exception = e
-                if on_error:
+                if on_error is not None:
                     await on_error(self, e)
                 break
             except KGRemoteCloseConnectionException as e:
@@ -348,7 +350,7 @@ class NetworkClient(KGLambda):
             finally:
                 self.writer = None
                 self.reader = None
-                self._handle_connection_close(close_exception)
+                self._cleanup_pending_responses(close_exception)
                 if on_close is not None:
                     await on_close(self)
         logging.info(f"Stopping client: {str(self.conn_provider)}")
@@ -441,7 +443,6 @@ class NetworkClient(KGLambda):
         if not self.running:
             return
         self._stop()
-        # block until the connection is closed
         asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result()
 
     def close(self):
