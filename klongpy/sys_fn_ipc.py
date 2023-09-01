@@ -200,37 +200,34 @@ class ReaderWriterConnectionProvider(ConnectionProvider):
     This connection provider is used to create a NetworkClient from an existing reader/writer pair.
     
     """
-    def __init__(self, reader: StreamReader, writer: StreamWriter):
+    def __init__(self, reader: StreamReader, writer: StreamWriter, host, port):
         self.reader = reader
         self.writer = writer
+        self.host = host
+        self.port = port
         self._thread_ident = None
 
     async def connect(self):
         self._thread_ident = threading.current_thread().ident
-        if self.writer is None:
+        if self.writer is None or not self.is_open():
             raise KlongIPCCreateConnectionException()
-        r = self.reader
-        w = self.writer
-        self.reader = None
-        self.writer = None
-        return r, w
+        return self.reader, self.writer
     
     async def close(self):
-        assert threading.current_thread().ident == self._thread_ident
-        # if not self.is_open():
-        #     return
-        # self.writer.close()
-        # await self.writer.wait_closed()
-        # self.writer = None
-        # self.reader = None
-        # print("closing reader/writer")
+        if threading.current_thread().ident != self._thread_ident:
+            raise RuntimeError("close called from different thread")
+        if not self.is_open():
+            return
+        self.writer.close()
+        await self.writer.wait_closed()
+        self.writer = None
+        self.reader = None
 
     def is_open(self):
         return self.writer is not None and not self.writer.is_closing()
 
     def __str__(self):
-        # TODO: get the remote connecting info?
-        return f"remote[server]"
+        return f"remote[{self.host}:{self.port}]:fn"
 
 
 class NetworkClient(KGLambda):
@@ -335,7 +332,6 @@ class NetworkClient(KGLambda):
                 break
             except KGRemoteCloseConnectionException as e:
                 logging.info(f"Remote client closing connection: {str(self.conn_provider)}")
-                # print("Remote client closing connection")
                 self.running = False
                 close_exception = e
                 break
@@ -371,11 +367,9 @@ class NetworkClient(KGLambda):
                 future.set_result(msg)
                 if isinstance(msg, KGRemoteCloseConnection):
                     logging.info(f"Recieved close connection ack: {str(self.conn_provider)}")
-                    # print("Recieved close connection ack")
                     raise KGRemoteCloseConnectionException()
             elif isinstance(msg, KGRemoteCloseConnection):
                 logging.info(f"Received remote close connection request: {str(self.conn_provider)}")
-                # print("Received remote close connection request")
                 await stream_send_msg(self.writer, msg_id, msg)
                 raise KGRemoteCloseConnectionException()
             else:
@@ -443,11 +437,9 @@ class NetworkClient(KGLambda):
         """
         if not self.running:
             return
-        # print("cleaning up")
         self._stop()
         fut = asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop)
         fut.result()
-        # print("cleaning up: done")
 
     def close(self):
         """
@@ -455,7 +447,6 @@ class NetworkClient(KGLambda):
         """
         if not self.running:
             return
-        # print("closing")
         self.call(KGRemoteCloseConnection())
         self.cleanup()
 
@@ -574,7 +565,8 @@ class TcpServerConnectionHandler:
         Handle a client connection.  Messages are read from the client and executed on the klong loop.
         
         """
-        conn_provider = ReaderWriterConnectionProvider(reader, writer)
+        host, port = writer.get_extra_info('peername')
+        conn_provider = ReaderWriterConnectionProvider(reader, writer, host, port)
         nc = NetworkClient.create_from_conn_provider(self.ioloop, self.klongloop, self.klong, conn_provider)
         try:
             await nc.run_server()
