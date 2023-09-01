@@ -6,7 +6,7 @@ from .core import *
 from .dyads import create_dyad_functions
 from .monads import create_monad_functions
 from .sys_fn import create_system_functions
-from .sys_fn_ipc import create_system_functions_ipc
+from .sys_fn_ipc import create_system_functions_ipc, create_system_var_ipc
 from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
 from .utils import ReadonlyDict
@@ -113,8 +113,8 @@ class KlongContext():
         return False
 
 
-def add_system_functions(d, system_functions):
-    for k,fn in system_functions.items():
+def add_context_key_values(d, context):
+    for k,fn in context.items():
         set_context_var(d, KGSym(k), fn)
 
 
@@ -124,15 +124,16 @@ def create_system_contexts():
     cerr = eval_sys_var_cerr()
 
     sys_d = {}
-    add_system_functions(sys_d, create_system_functions())
-    add_system_functions(sys_d, create_system_functions_ipc())
-    add_system_functions(sys_d, create_system_functions_timer())
+    add_context_key_values(sys_d, create_system_functions())
+    add_context_key_values(sys_d, create_system_functions_ipc())
+    add_context_key_values(sys_d, create_system_functions_timer())
     set_context_var(sys_d, KGSym('.e'), eval_sys_var_epsilon()) # TODO: this is probably a bug that this can't be a lambda
     set_context_var(sys_d, KGSym('.cin'), cin)
     set_context_var(sys_d, KGSym('.cout'), cout)
     set_context_var(sys_d, KGSym('.cerr'), cerr)
 
     sys_var = {}
+    add_context_key_values(sys_var, create_system_var_ipc())
     set_context_var(sys_var, KGSym('.sys.cin'), cin)
     set_context_var(sys_var, KGSym('.sys.cout'), cout)
     set_context_var(sys_var, KGSym('.sys.cerr'), cerr)

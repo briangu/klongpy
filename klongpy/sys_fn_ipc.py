@@ -7,6 +7,8 @@ import threading
 import uuid
 from asyncio import StreamReader, StreamWriter
 
+import numpy as np
+
 from klongpy.core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
                           KlongException, get_fn_arity_str, is_list,
                           reserved_fn_args, reserved_fn_symbol_map)
@@ -474,7 +476,7 @@ class NetworkClient(KGLambda):
         return f"remote[{str(self.conn_provider)}]:fn"
 
     @staticmethod
-    def create_from_conn_provider(ioloop, klongloop, klong, conn_provider):
+    def create_from_conn_provider(ioloop, klongloop, klong, conn_provider, on_connect=None, on_close=None, on_error=None):
         """
         
         Create a network client to connect to a remote server.
@@ -487,10 +489,10 @@ class NetworkClient(KGLambda):
         :return: a network client
 
         """
-        return NetworkClient(ioloop, klongloop, klong, conn_provider)
+        return NetworkClient(ioloop, klongloop, klong, conn_provider, on_connect=on_connect, on_close=on_close, on_error=on_error)
 
     @staticmethod
-    def create_from_host_port(ioloop, klongloop, klong, host, port):
+    def create_from_host_port(ioloop, klongloop, klong, host, port, on_connect=None, on_close=None, on_error=None):
         """
         
         Create a network client to connect to a remote server.
@@ -504,10 +506,10 @@ class NetworkClient(KGLambda):
 
         """
         conn_provider = HostPortConnectionProvider(ioloop, host, port)
-        return NetworkClient.create_from_conn_provider(ioloop, klongloop, klong, conn_provider)
+        return NetworkClient.create_from_conn_provider(ioloop, klongloop, klong, conn_provider, on_connect=on_connect, on_close=on_close, on_error=on_error)
 
     @staticmethod
-    def create_from_addr(ioloop, klongloop, klong, addr):
+    def create_from_addr(ioloop, klongloop, klong, addr, on_connect=None, on_close=None, on_error=None):
         """
         
         Create a network client to connect to a remote server.
@@ -524,7 +526,7 @@ class NetworkClient(KGLambda):
         parts = addr.split(":")
         host = parts[0] if len(parts) > 1 else "localhost"
         port = int(parts[0] if len(parts) == 1 else parts[1])
-        return NetworkClient.create_from_host_port(ioloop, klongloop, klong, host, port)
+        return NetworkClient.create_from_host_port(ioloop, klongloop, klong, host, port, on_connect=on_connect, on_close=on_close, on_error=on_error)
 
 
 class KGRemoteFnRef:
@@ -573,15 +575,35 @@ class TcpServerConnectionHandler:
         self.klong = klong
         self.klongloop = klongloop
 
+    async def _on_connect(self, nc):
+        logging.info(f"New connection from {str(nc.conn_provider)}")
+        fn = self.klong['.srv.o']
+        if callable(fn):
+            fn(nc)
+
+    async def _on_close(self, nc):
+        logging.info(f"Connection closed from {str(nc.conn_provider)}")
+        fn = self.klong['.srv.c']
+        if callable(fn):
+            fn(nc)
+
+    async def _on_error(self, nc, e):
+        logging.info(f"Connection error from {str(nc.conn_provider)}")
+        fn = self.klong['.srv.e']
+        if callable(fn):
+            fn(nc, e)
+
     async def handle_client(self, reader: StreamReader, writer: StreamWriter):
         """
         
         Handle a client connection.  Messages are read from the client and executed on the klong loop.
         
         """
-        host, port = writer.get_extra_info('peername')
+        host, port, _, _ = writer.get_extra_info('peername')
+        if host == "::1":
+            host = "localhost"
         conn_provider = ReaderWriterConnectionProvider(reader, writer, host, port)
-        nc = NetworkClient.create_from_conn_provider(self.ioloop, self.klongloop, self.klong, conn_provider)
+        nc = NetworkClient.create_from_conn_provider(self.ioloop, self.klongloop, self.klong, conn_provider, on_connect=self._on_connect, on_close=self._on_close, on_error=self._on_error)
         try:
             await nc.run_server()
         finally:
@@ -889,8 +911,6 @@ def eval_sys_fn_create_async_wrapper(klong, x, y):
     return KGAsyncCall(klongloop, x, KGFnWrapper(klong, y))
 
 
-# TODO: add placeholder for .cli.open, .cli.close, .cli.error callbacks so that the server
-#           can take the appropriate action when a client connects, disconnects, or has an error.
 def create_system_functions_ipc():
     def _get_name(s):
         i = s.index(".")
@@ -904,3 +924,16 @@ def create_system_functions_ipc():
         registry[_get_name(fn.__doc__)] = fn
 
     return registry
+
+
+def create_system_var_ipc():
+    # populate the .srv.* handlers with undefined values
+    # TODO: use real undefined value instead of np.inf
+    registry = {
+        ".srv.o": np.inf,
+        ".srv.c": np.inf,
+        ".srv.e": np.inf,
+    }
+    return registry
+
+

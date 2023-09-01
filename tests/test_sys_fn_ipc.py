@@ -311,6 +311,38 @@ class TestNetworkClient(unittest.TestCase):
         self.assertEqual(client.reader, None)
         self.assertEqual(client.writer, None)
 
+    @patch("klongpy.sys_fn_ipc.uuid.uuid4", new_callable=MagicMock)
+    @patch("klongpy.sys_fn_ipc.stream_send_msg")
+    @patch("klongpy.sys_fn_ipc.stream_recv_msg")
+    def test_close(self, mock_stream_recv_msg, mock_stream_send_msg, mock_uuid):
+        reader = AsyncMock()
+        writer = AsyncMock()
+        writer.write = MagicMock()
+        writer.is_closing = MagicMock(return_value=False)
+
+        msg_id = uuid.uuid4()
+        msg = KGRemoteCloseConnection()
+
+        mock_uuid.return_value = msg_id
+        mock_stream_recv_msg.return_value = (msg_id, msg)
+
+        async def _test_on_connect(client):
+            self.assertEqual(threading.current_thread().ident, self.ioloop_thread.ident)
+            self.assertEqual(client.reader, reader)
+            self.assertEqual(client.writer, writer)
+
+        conn_provider = ReaderWriterConnectionProvider(reader, writer, "localhost", 1234)
+        client = NetworkClient(self.ioloop, self.klongloop, "klong", conn_provider, on_connect=_test_on_connect)
+        client.run_client()
+
+        client.close()
+
+        mock_stream_send_msg.assert_called_once_with(writer, msg_id, msg)
+
+        self.assertFalse(client.running)
+        self.assertEqual(client.reader, None)
+        self.assertEqual(client.writer, None)
+
     def test_on_error(self):
         reader = AsyncMock()
         writer = AsyncMock()
@@ -420,8 +452,7 @@ class TestNetworkClient(unittest.TestCase):
         self.assertFalse(called_after_error)
         self.assertEqual(client.reader, None)
         self.assertEqual(client.writer, None)
-        self.assertEqual(mock_open_connection.call_count, 3)  # Check if the retries were called 3 times
-
+        self.assertEqual(mock_open_connection.call_count, 3)
 
     @patch("klongpy.sys_fn_ipc.stream_send_msg")
     @patch("klongpy.sys_fn_ipc.stream_recv_msg")
@@ -507,40 +538,55 @@ class TestNetworkClient(unittest.TestCase):
 
         client.close()
 
+    # test that when the server closes the connection in the middle of a call, the client raises an exception        
+    def test_call_server_fail(self):
+        pass
 
-    async def mock_stream_recv_msg(reader):
-        return None, "2+2"
+    # test that when the server has a KlongException, the client raises an exception
+    def test_call_server_exception(self):
+        pass
+
+    # test wrapping the NetworkClient in a NetworkClientDictHandle
+    def test_network_client_dict_handler(self):
+        pass
     
-    async def mock_stream_send_msg(writer, msg_id, msg):
-        writer._client.running = False
-        writer.write(msg)
-    
-    # @patch("klongpy.sys_fn_ipc.stream_recv_msg", mock_stream_recv_msg)
-    # @patch("klongpy.sys_fn_ipc.stream_send_msg", mock_stream_send_msg)
-    # @patch("klongpy.sys_fn_ipc.asyncio.open_connection", new_callable=AsyncMock)
-    # def test_listen(self, mock_open_connection):
-    #     writer = AsyncMock()
-    #     writer.write = MagicMock()
-    #     writer.close = MagicMock()
-    #     reader = AsyncMock()
+    # test client reconnect on connection failure
+    def test_client_reconnect(self):
+        pass
 
-    #     mock_open_connection.return_value = (reader, writer)
+    # test client reconnect on connection failure with pending requests
+    def test_client_reconnect_with_pending_requests(self):
+        pass
 
-    #     klong = KlongInterpreter()
-    #     conn_provider = HostPortConnectionProvider(self.ioloop, "127.0.0.1", 8888)
-    #     client = NetworkClient(self.ioloop, self.klongloop, klong, conn_provider)
 
-    #     writer._client = client
 
-    #     while(client.writer is None):
-    #         time.sleep(0)
+# class TestServerNetworkClient(unittest):
 
-    #     while client.running:
-    #         time.sleep(0)
+#     def setUp(self):
+#         self.ioloop = asyncio.new_event_loop()
+#         self.ioloop_thread = threading.Thread(target=self.start_ioloop)
+#         self.ioloop_thread.start()
 
-    #     client.close()
+#         self.klongloop = asyncio.new_event_loop()
+#         self.klongloop_thread = threading.Thread(target=self.start_klongloop)
+#         self.klongloop_thread.start()
 
-    #     client.writer.write.assert_called_with(4)
+#     def tearDown(self):
+#         self.ioloop.call_soon_threadsafe(self.ioloop.stop)
+#         self.ioloop_thread.join()
+
+#         self.klongloop.call_soon_threadsafe(self.klongloop.stop)
+#         self.klongloop_thread.join()
+
+#     def start_ioloop(self):
+#         asyncio.set_event_loop(self.ioloop)
+#         self.ioloop.run_forever()
+
+#     def start_klongloop(self):
+#         asyncio.set_event_loop(self.klongloop)
+#         self.klongloop.run_forever()
+
+#     def test_initialization(self):            
 
 
 if __name__ == '__main__':
