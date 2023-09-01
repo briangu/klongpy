@@ -273,7 +273,10 @@ class NetworkClient(KGLambda):
         
         Start the network client as initiatiated by the Klong interpreter.
         
-        How do i modify this code to block until the connection is made?
+        The network client will connect to the remote server and handle server push-requests by
+        running messages in the Klong interpreter.
+
+        When the .clic function is called, the network client is stopped and the connection is closed.
         
         """
         self.running = True
@@ -289,7 +292,9 @@ class NetworkClient(KGLambda):
     def run_server(self):
         """
         
-        Start the network client for the server.
+        Start the network client for a client connected to the server.
+
+        The network client will handle server requests and shutdown when the connection is closed.
         
         """
         self.running = True
@@ -314,7 +319,6 @@ class NetworkClient(KGLambda):
         :param on_connect: called when a connection is established
         :param on_close: called when a connection is closed
         :param on_error: called when a connection error occurs
-        :return:
 
         """
         while self.running:
@@ -397,9 +401,7 @@ class NetworkClient(KGLambda):
             await stream_send_msg(self.writer, msg_id, msg)
             return await future
         
-        fut = asyncio.run_coroutine_threadsafe(send_message_and_get_result(), self.ioloop)
-
-        return fut.result()
+        return asyncio.run_coroutine_threadsafe(send_message_and_get_result(), self.ioloop).result()
 
     def __call__(self, _, ctx):
         """
@@ -407,7 +409,6 @@ class NetworkClient(KGLambda):
         Evaluate a remote function call.
         
         """
-
         x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
         try:
             msg = KGRemoteFnCall(x[0], x[1:]) if is_list(x) and len(x) > 0 and isinstance(x[0],KGSym) else x
@@ -433,17 +434,23 @@ class NetworkClient(KGLambda):
 
     def cleanup(self):
         """
+
         Cleanup the network client and the underlying connection.
+
         """
         if not self.running:
             return
         self._stop()
-        fut = asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop)
-        fut.result()
+        # block until the connection is closed
+        asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result()
 
     def close(self):
         """
+
         Close the network client and the underlying connection.
+
+        Sends a message to the server to tell it to gracefully close the connection.
+
         """
         if not self.running:
             return
@@ -875,6 +882,8 @@ def eval_sys_fn_create_async_wrapper(klong, x, y):
     return KGAsyncCall(klongloop, x, KGFnWrapper(klong, y))
 
 
+# TODO: add placeholder for .cli.open, .cli.close, .cli.error callbacks so that the server
+#           can take the appropriate action when a client connects, disconnects, or has an error.
 def create_system_functions_ipc():
     def _get_name(s):
         i = s.index(".")
