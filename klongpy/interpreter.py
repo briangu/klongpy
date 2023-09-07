@@ -440,39 +440,73 @@ class KlongInterpreter():
 
     def _resolve_fn(self, f, f_args, f_arity):
         """
+        
         Resolve a Klong function to its final form and update its arguments and arity.
 
         This helper function is used to resolve function references, projections, and invocations
         while considering the complexities involved, such as:
-
         * Functions may contain references to symbols which need to be resolved.
         * Functions may be projections or an invocation of a projection, and arguments
         need to be "flattened".
 
         Args:
             f (KGFn or KGSym): The Klong function or symbol to resolve.
-            f_args (list): The list of arguments associated with the function.
+            f_args (list): The list of arguments currently being associated with the function for its evaluation.
             f_arity (int): The arity of the function.
 
         Returns:
             tuple: A tuple containing the resolved function, updated arguments list, and updated arity.
+
+        Details:
+        - f_args is the list of arguments provided to the function during the current invocation.
+        - f.args (if f is an instance of KGFn) represents predefined arguments associated with the function.
+        These are arguments that are already set by virtue of the function being a projection of another function.
+        - During the resolution process, if the function f is a KGFn with predefined arguments (projections), 
+        these arguments are appended to the f_args list.
+        - The resolution process ensures that if there are placeholders in the predefined arguments, they are 
+        filled in with values from the provided arguments. However, if the function itself is being projected,
+        f_args can still contain a None indicating an empty projection slot.
+        - By the end of the resolution, f_args contains the arguments that will be passed to the function for 
+        evaluation. It is possible for f_args to finally contain None if the function is itself being projected.
+        - If `f.a` (the main function or symbol) resolves to another function `_f`, it might indicate a higher-order function scenario.
+        - In such a case, `f_args` supplies a function as an argument to `f.a`.
+        - The `f.args` are then arguments for the function provided by `f_args`.
+        - Even if this function (`_f`) corresponds to a reserved symbol, it should still undergo the projection flattening process in subsequent recursive calls.
+
         """
-        if isinstance(f, KGSym) and not in_map(f, reserved_fn_symbols):
-            f = self.eval(f)
-        if f_arity > 0:
-            if isinstance(f, KGFn) and not (f.is_op() or f.is_adverb_chain()) and ((f.args is None) or has_none(f.args) or (f_arity == 1 and has_none(f_args))):
-                if f.args is not None:
-                    f_args.append((f.args if isinstance(f.args, list) else [f.args]))
-                f_arity = f.arity
-                f = f.a
+        if isinstance(f, KGSym):
+            try:
+                _f = self._context[f]
+                if isinstance(_f, KGFn) or not in_map(f, reserved_fn_symbols):
+                    # if f is a symbol and it resolves to a function, then we resolve f as the function.
+                    # In this case, the f_args are meant for the resolved function.
+                    f = _f
+                else:
+                    return f, f_args, f_arity
+            except KeyError:
+                if not in_map(f, reserved_fn_symbols):
+                    raise KlongException(f"undefined: {f}")
+        if f_arity > 0 and isinstance(f, KGFn) and not f.is_op() and not f.is_adverb_chain():
+            if f.args is None:
+                # if f.args is None, then there are no projections in place and we use f_args entirely for the function.
+                return f.a, f_args, f.arity
+            elif has_none(f.args):
+                f_args.append(f.args if isinstance(f.args, list) else [f.args])
+                return f.a, f_args, f.arity
         return f, f_args, f_arity
 
-    def _eval_fn(self, x):
+    def _eval_fn(self, x: KGFn):
         """
 
         Evaluate a Klong function.
 
-        The basic idea is the prepare a local context for the function so that
+        The incoming "x" argument is the description of the function to be evaluated.
+
+        x.a may be a symbol or an actual function. If it's a symbol and a reserved symbol, then it should be resolved to a function.
+        x.args contains the arguments to be passed to the function.
+        x.arity contains the arity of the function.
+
+        Processing before function execution is to build the local context for the function so that
         when it references x,y and z it retreives the arguments provided to the function.
 
         In practice, its often way more complex to derived these arguemnts because:
@@ -488,12 +522,15 @@ class KlongInterpreter():
         * Locals are populated with identity first in the local context.
         * The system var .f is populated in the local context and made available to the function.
 
-        Frankly, the best way to understand this code is to step through it with examples.
+        Notes:
+
+            In higher-order function scenarios, the x.args contains the function referenced by the symbol in by x.a.
+            Subsequent processing will then use the arguments attached to the referenced function as the basis for projection flattening.
 
         """
         f = x.a
         f_arity = x.arity
-        f_args = [(x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else x.args]
+        f_args = [None] if x.args is None else [x.args if isinstance(x.args, list) else [x.args]]
 
         # three passes as there are max three argumentes: x,y, and z
         f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
@@ -502,7 +539,7 @@ class KlongInterpreter():
 
         f_args.reverse()
         f_args = merge_projections(f_args)
-        if (f_args is None and f_arity > 0) or (is_list(f_args) and len(f_args) < f_arity) or has_none(f_args):
+        if (0 if f_args is None else len(f_args)) < f_arity or has_none(f_args):
             return x
 
         ctx = {} if f_args is None else {reserved_fn_symbol_map[p]: self.call(q) for p,q in zip(reserved_fn_args,f_args)}
@@ -536,6 +573,7 @@ class KlongInterpreter():
 
     def eval(self, x):
         """
+
         Evaluate a Klong program.
 
         The fundamental design ideas include:
@@ -572,6 +610,7 @@ class KlongInterpreter():
 
     def __call__(self, x, *args, **kwds):
         """
+
         Convience method for executing Klong programs.
 
         If the result only contains one entry, it's directly returned for convenience.
@@ -592,8 +631,10 @@ class KlongInterpreter():
 
     def exec(self, x):
         """
+
         Execute a Klong program.
 
         Each subprogram is executed in order and the resulting array contains the resulst of each sub-program.
+
         """
         return [self.call(y) for y in self.prog(x)[1]]

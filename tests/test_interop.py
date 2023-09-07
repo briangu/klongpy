@@ -10,6 +10,16 @@ from klongpy.core import KGCall
 
 class TestPythonInterop(unittest.TestCase):
 
+    def test_python_lambda_as_argument(self):
+        """
+        Test that a python lambda can be passed as an argument to a klong function.
+        """
+        klong = KlongInterpreter()
+        klong['fn'] = lambda x: x+10
+        klong('foo::{x(2)}')
+        r = klong('foo(fn)')
+        self.assertEqual(r, 12)
+
     def test_ext_var(self):
         klong = KlongInterpreter()
         x = random.random()

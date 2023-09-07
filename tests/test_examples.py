@@ -19,7 +19,10 @@ class TestExamples(unittest.TestCase):
             for x in glob.glob("*.kg"):
                 fname = os.path.basename(x)
                 print(f"loading {fname}")
-                klong, _ = run_file(x)
+                klong = None
+                if fname != "help.kg":
+                    klong, _ = run_file("help.kg")
+                klong, _ = run_file(x, klong=klong)
                 if fname == "nstat.kg":
                     ran_nstat = True
                     r = klong("sqr2pi(2)")

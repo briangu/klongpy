@@ -11,6 +11,93 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    def test_nilad_as_argument(self):
+        """
+        Test that a nilad lambda can be passed as an argument to a klong function.
+        """
+        klong = KlongInterpreter()
+        klong('fn::{10}')
+        klong('foo::{x()}')
+        r = klong('foo(fn)')
+        self.assertEqual(r, 10)
+
+    def test_monad_as_argument(self):
+        """
+        Test that a monadic lambda can be passed as an argument to a klong function.
+        """
+        klong = KlongInterpreter()
+        klong('fn::{x+10}')
+        klong('foo::{x(2)}')
+        r = klong('foo(fn)')
+        self.assertEqual(r, 12)
+
+    def test_dyad_as_argument(self):
+        """
+        Test that a dyad lambda can be passed as an argument to a klong function.
+        """
+        klong = KlongInterpreter()
+        klong('fn::{x+10*y}')
+        klong('foo::{x(2;3)}')
+        r = klong('foo(fn)')
+        self.assertEqual(r, 32)
+
+    def test_triad_as_argument(self):
+        """
+        Test that a triad lambda can be passed as an argument to a klong function.
+        """
+        klong = KlongInterpreter()
+        klong('fn::{x+10*y+z}')
+        klong('foo::{x(2;3;5)}')
+        r = klong('foo(fn)')
+        self.assertEqual(r, 82)
+
+    def test_dyad_with_monad_as_argument(self):
+        """
+        Test that a monadic lambda can be passed as an argument to a klong function.
+        """
+        klong = KlongInterpreter()
+        klong('fn::{x+10}')
+        klong('foo::{x(y)}')
+        r = klong('foo(fn;2)')
+        self.assertEqual(r, 12)
+
+    @unittest.skip
+    def test_monad_argument_returned(self):
+        """
+        Test that a monadic lambda can be passed as an argument, returned, and then called.
+        """
+        klong = KlongInterpreter()
+        klong('fn::{x+10}')
+        klong('foo::{x}')
+        r = klong('foo(fn)(2)')
+        self.assertEqual(r, 12)
+
+    def test_dual_monad_as_arguments(self):
+        """
+        Test that two monads can be passed as arguments to a klong function.
+        """
+        klong = KlongInterpreter()
+        klong('fn::{x+10}')
+        klong('fn2::{x*10}')
+        klong('foo::{x(2)+y(6)}')
+        r = klong('foo(fn;fn2)')
+        self.assertEqual(r, 12+60)
+
+    @unittest.skip
+    def test_triad_as_arguments_with_currying(self):
+        """
+        Test that two monads can be passed as arguments to a klong function.
+        """
+        klong = KlongInterpreter()
+        klong('fn::{x+10+y*z}')
+        klong('foo::{x(2;;)}')
+        # r = klong('q::fn(2;;)')
+        # r = klong('q(3;5)')
+        # self.assertEqual(r, 2+10+3*5)
+        r = klong('w::foo(fn;;)')
+        r = klong('w(;3;5)')
+        self.assertEqual(r, 2+10+3*5)
+
     @unittest.skip
     def test_fail_non_terminated_string(self):
         klong = KlongInterpreter()
@@ -365,7 +452,6 @@ D::N(1%0;"/")
         r = klong('P?:p')
         self.assertEqual(r,43)
 
-    @unittest.skip
     def test_wrap_fn(self):
         klong = KlongInterpreter()
         klong('L::{(*(x?y))#x};A::L(;",");LL::{.rs(L(x;"-"))}')
