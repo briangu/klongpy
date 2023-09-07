@@ -1,4 +1,18 @@
-:"broadcast a hello message to all connected clients"
+.comment("---")
+
+broadcast a hello message to all connected clients
+
+clients should connect via:
+
+> cli::.cli(8888)
+
+<the client will now see the message repeated every second>
+
+and disconnect via
+> .clic(cli)
+
+---
+
 
 clients:::{}
 
