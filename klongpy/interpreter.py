@@ -440,7 +440,7 @@ class KlongInterpreter():
 
     def _resolve_fn(self, f, f_args, f_arity):
         """
-        
+
         Resolve a Klong function to its final form and update its arguments and arity.
 
         This helper function is used to resolve function references, projections, and invocations
@@ -477,7 +477,7 @@ class KlongInterpreter():
         if isinstance(f, KGSym):
             try:
                 _f = self._context[f]
-                if isinstance(_f, KGFn) or not in_map(f, reserved_fn_symbols):
+                if isinstance(_f, (KGFn,KGLambda)) or not in_map(f, reserved_fn_symbols):
                     # if f is a symbol and it resolves to a function, then we resolve f as the function.
                     # In this case, the f_args are meant for the resolved function.
                     f = _f

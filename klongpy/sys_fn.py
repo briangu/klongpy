@@ -8,7 +8,7 @@ import subprocess
 import sys
 import time
 
-from .core import KGChannel, KGChannelDir, is_empty, kg_read, kg_write, safe_eq, reserved_fn_args
+from .core import KGChannel, KGChannelDir, is_empty, is_list, kg_read, kg_write, safe_eq, reserved_fn_args
 
 
 def eval_sys_append_channel(x):
@@ -268,7 +268,7 @@ def eval_sys_print(klong, x):
         newline sequence. .p("") will just print a newline.
 
     """
-    o = str(x)
+    o = kg_write(x, display=True)
     klong['.sys.cout'].raw.write(o+"\n")
     return o
 

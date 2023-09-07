@@ -11,6 +11,7 @@ import colorama
 import pkg_resources
 
 from klongpy import KlongInterpreter
+from klongpy.core import kg_write
 
 """
 
@@ -162,7 +163,7 @@ failure = lambda input: f"{colorama.Fore.RED}{input}"
 def repl_eval(klong, p, verbose=True):
     try:
         r = klong(p)
-        r = r if r is None else success(r)
+        r = r if r is None else success(kg_write(r, display=True))
     except Exception as e:
         r = failure(f"Error: {e.args}")
         if verbose:

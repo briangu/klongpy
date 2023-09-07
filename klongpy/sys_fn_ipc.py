@@ -473,7 +473,7 @@ class NetworkClient(KGLambda):
         return 1
         
     def __str__(self):
-        return f"remote[{str(self.conn_provider)}]:fn"
+        return f"{str(self.conn_provider)}:fn"
 
     @staticmethod
     def create_from_conn_provider(ioloop, klongloop, klong, conn_provider, on_connect=None, on_close=None, on_error=None):
@@ -698,7 +698,7 @@ class NetworkClientDictHandle(dict):
         return self.nc.is_open()
     
     def __str__(self):
-        return f"remote[{str(self.nc.conn_provider)}]:dict"
+        return f"{str(self.nc.conn_provider)}:dict"
 
 
 def eval_sys_fn_create_client(klong, x):

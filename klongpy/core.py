@@ -762,7 +762,7 @@ def kg_write(a, display=False):
         return kg_write_dict(a,display=display)
     elif is_list(a):
         return kg_write_list(a,display=display)
-    elif isinstance(a,KGFn):
+    elif isinstance(a,(KGFn, KGLambda)):
         return kg_write_fn(a,display=display)
     elif isinstance(a,KGChannel):
         return kg_write_channel(a,display=display)
