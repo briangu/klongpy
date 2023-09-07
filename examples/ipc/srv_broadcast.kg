@@ -1,0 +1,12 @@
+:"broadcast a hello message to all connected clients"
+
+clients:::{}
+
+send::{x(".p(""hello from server"")")}
+broadcast::{.p("sending messages to clients");{send(x@0)}'clients}
+cb::{:[(#clients)>0;broadcast();.p("no clients connected")]}
+th::.timer("greeting";1;cb)
+
+.srv.o::{.d("adding client: ");.p(x);clients::clients,x,1}
+.srv.c::{.d("removing client: ");.p(x);clients::x_clients}
+.srv.e::{.d("error: ");.p(x)}

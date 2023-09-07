@@ -221,7 +221,7 @@ class ConsoleInputHandler:
                 traceback.print_exc(e)
 
 
-def run_file(fname):
+def run_file(klong, fname):
     with open(fname, "r") as f:
         return klong(f.read())
 
@@ -279,7 +279,7 @@ if __name__ == "__main__":
                 klong(x)
     
     if args.filename:
-        run_file(args.filename)
+        run_file(klong, args.filename)
     else:
         run_repl = True
 
