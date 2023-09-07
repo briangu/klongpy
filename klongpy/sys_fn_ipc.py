@@ -838,6 +838,8 @@ def eval_sys_fn_shutdown_client(x):
         will also close and will fail if called.
 
     """
+    if isinstance(x, KGCall):
+        x = x.a
     if isinstance(x, (NetworkClient, NetworkClientDictHandle)) and x.is_open():
         x.close()
         return 1

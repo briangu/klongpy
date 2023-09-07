@@ -1,0 +1,10 @@
+:"Connect to the broadcast server"
+
+.p("connecting to server on port 8888")
+
+cli::.cli(8888)
+.p(cli)
+
+cb::{.p("hanging up");.p(cli);.p(th);.clic(cli);0}
+th::.timer("hangup";10;cb)
+.p(th)

@@ -226,9 +226,10 @@ def run_file(klong, fname):
         return klong(f.read())
 
 
-def start_io_loop(ioloop):
+def start_io_loop(ioloop, exit_event):
     asyncio.set_event_loop(ioloop)
     ioloop.run_forever()
+    exit_event.set()
 
 
 if __name__ == "__main__":
@@ -253,7 +254,8 @@ if __name__ == "__main__":
 
     # Create and start the I/O loop on a separate thread
     io_loop = asyncio.new_event_loop()
-    io_thread = threading.Thread(target=start_io_loop, args=(io_loop,), daemon=True)
+    exit_event = threading.Event()
+    io_thread = threading.Thread(target=start_io_loop, args=(io_loop,exit_event), daemon=True)
     io_thread.start()
 
     klong_loop = asyncio.new_event_loop()
@@ -292,7 +294,10 @@ if __name__ == "__main__":
         show_repl_header(args.server)
         klong_loop.create_task(ConsoleInputHandler.input_producer(klong_loop, klong, args.verbose))
 
-    if asyncio.all_tasks(loop=klong_loop):
-        klong_loop.run_forever()
+    # TODO: we need to gracefully exit here if there are no more tasks
+    #    running in the event loop.
+    klong_loop.run_forever()
+    # if asyncio.all_tasks(loop=klong_loop):
+    #     klong_loop.run_forever()
     if asyncio.all_tasks(loop=io_loop):
-        io_loop.run_forever()
+        exit_event.wait()
