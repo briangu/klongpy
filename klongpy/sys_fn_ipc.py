@@ -68,7 +68,7 @@ async def execute_server_command(future_loop, result_future, klong, command, nc)
     
     Execute a command on the klong loop and return the result via the result_future.
 
-    The network connection that initiated the command is pushed onto the context stack as ".clih"
+    The network connection that initiated the command is pushed onto the context stack as ".cli.h"
     so that it can be used by the command.
 
     :param future_loop: the loop to run the result_future on
@@ -79,7 +79,7 @@ async def execute_server_command(future_loop, result_future, klong, command, nc)
     
     """
     try:
-        klong._context.push({'.clih': nc})
+        klong._context.push({KGSym('.cli.h'): nc})
         if isinstance(command, KGRemoteFnCall):
             r = klong[command.sym]
             if callable(r):

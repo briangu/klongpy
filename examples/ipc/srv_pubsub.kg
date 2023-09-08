@@ -1,0 +1,19 @@
+:"broadcast a fake stock data to all subscribed clients"
+
+clients:::{}
+
+subscribe::{.d("subscribing client: ");.p(x);clients,.cli.h,,(clients?.cli.h),,x;.p(clients)}
+
+addclient::{.d("client connected: ");.p(x);clients,x,,[]}
+rmclient::{.d("client disconnected: ");.p(x);x_clients;.d("clients left: ");.p(#clients)}
+
+send::{.d("sending to client");.p(x);x(:update,,{x,.rn()*50}'y)}
+broadcast::{.p("sending messages to clients");{send(x@0;x@1)}'clients}
+
+cb::{:[(#clients)>0;broadcast();.p("no clients to broadcast to")];1}
+th::.timer("greeting";1;cb)
+
+.srv(8888)
+.srv.o::addclient
+.srv.c::rmclient
+.srv.e::{.d("error: ");.p(x)}

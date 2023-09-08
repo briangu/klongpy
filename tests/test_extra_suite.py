@@ -11,6 +11,12 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    def test_each_dict_with_mixed_types(self):
+        klong = KlongInterpreter()
+        klong["D"] = {object: [1, 2, 3]}
+        klong(".p'D")
+        
+
     def test_nilad_as_argument(self):
         """
         Test that a nilad lambda can be passed as an argument to a klong function.

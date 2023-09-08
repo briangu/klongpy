@@ -101,7 +101,7 @@ def eval_adverb_each(f, a, op):
         r = [f(x) for x in a]
         return a if is_empty(a) else kg_asarray(r)
     elif is_dict(a):
-        r = [f(np.asarray(x)) for x in a.items()]
+        r = [f(kg_asarray(x)) for x in a.items()]
         return kg_asarray(r)
     return f(a)
 
