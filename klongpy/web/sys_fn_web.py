@@ -1,7 +1,5 @@
-import asyncio
 import logging
 import sys
-import threading
 
 from aiohttp import web
 
