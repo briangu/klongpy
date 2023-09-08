@@ -126,7 +126,7 @@ class ConnectionProvider:
     async def connect(self):
         raise KlongIPCCreateConnectionException()
 
-    async def close():
+    async def close(self):
         raise NotImplementedError()
 
 
@@ -171,7 +171,7 @@ class HostPortConnectionProvider(ConnectionProvider):
                 await asyncio.sleep(current_delay)
                 current_delay *= 2
             except Exception as e:
-                logging.warn(f"unexpeced connection error {e} to {self.host}:{self.port}")
+                logging.warning(f"unexpeced connection error {e} to {self.host}:{self.port}")
                 break
         if retries >= self.max_retries:
             logging.info(f"Max retries reached: {self.max_retries} {self.host}:{self.port}")
@@ -344,7 +344,7 @@ class NetworkClient(KGLambda):
                     try:
                         await on_connect(self)
                     except Exception as e:
-                        logging.warn(f"error while running on_connect handler: {e}")
+                        logging.warning(f"error while running on_connect handler: {e}")
                 while self.running:
                     await self._listen()
                 close_exception = None
@@ -355,7 +355,7 @@ class NetworkClient(KGLambda):
                     try:
                         await on_error(self, e)
                     except Exception as e:
-                        logging.warn(f"error while running on_error handler: {e}")
+                        logging.warning(f"error while running on_error handler: {e}")
                 break
             except KGRemoteCloseConnectionException as e:
                 logging.info(f"Remote client closing connection: {str(self.conn_provider)}")
@@ -364,11 +364,11 @@ class NetworkClient(KGLambda):
                 break
             except Exception as e:
                 close_exception = KlongIPCConnectionFailureException("unknown error")
-                logging.warn(f"Unexepected error {e}.")
+                logging.warning(f"Unexepected error {e}.")
                 try:
                     await on_error(self, e)
                 except Exception as e:
-                    logging.warn(f"error while running on_error handler: {e}")
+                    logging.warning(f"error while running on_error handler: {e}")
                 break
             finally:
                 self.writer = None
@@ -410,7 +410,7 @@ class NetworkClient(KGLambda):
             print(f"Connection error {e}")
             raise KlongIPCConnectionFailureException(f"connection lost: {str(self.conn_provider)}")
         except Exception as e:
-            logging.warn("unexpected error: {type(e)} {e}")
+            logging.warning(f"unexpected error: {type(e)} {e}")
             raise e
 
     def call(self, msg):
@@ -471,7 +471,7 @@ class NetworkClient(KGLambda):
             return
         self._stop()
         # run close in the delayed task to avoid deadlock
-        self.ioloop.call_soon(self.conn_provider.close())
+        self.ioloop.call_soon_threadsafe(asyncio.create_task, self.conn_provider.close())
 
     def close(self):
         """

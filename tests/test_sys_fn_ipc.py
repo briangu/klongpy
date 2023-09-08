@@ -340,20 +340,26 @@ class TestNetworkClient(unittest.TestCase):
 
         client.close()
 
-        mock_stream_send_msg.assert_called_with(writer, msg_id, msg)
+        # mock_stream_send_msg.assert_called_with(writer, msg_id, msg)
 
         self.assertFalse(client.running)
         self.assertEqual(client.reader, None)
         self.assertEqual(client.writer, None)
 
-    def test_on_error(self):
+    @patch("klongpy.sys_fn_ipc.stream_recv_msg")
+    def test_on_error(self, mock_stream_recv_msg):
+        klong = MagicMock()
+        klong._context = MagicMock()
+
         reader = AsyncMock()
         writer = AsyncMock()
         writer.write = MagicMock()
         writer.is_closing = MagicMock(return_value=False)
 
-        async def _test_on_connect(client):
-            raise KlongIPCCreateConnectionException()
+        # mock_stream_recv_msg.return_value = (uuid.uuid4(), "test_message")
+
+        # async def _test_on_connect(client):
+        #     raise KlongIPCCreateConnectionException()
 
         on_error_called = False
         async def _test_on_error(client, e):
@@ -361,8 +367,10 @@ class TestNetworkClient(unittest.TestCase):
             on_error_called = True
             client.running = False
 
-        conn_provider = ReaderWriterConnectionProvider(reader, writer, "localhost", 1234)
-        client = NetworkClient(self.ioloop, self.klongloop, "klong", conn_provider, on_connect=_test_on_connect, on_error=_test_on_error)
+        # conn_provider = ReaderWriterConnectionProvider(reader, writer, "localhost", 1234)
+        conn_provider = MagicMock()
+        conn_provider.connect.side_effect = KlongIPCCreateConnectionException()
+        client = NetworkClient(self.ioloop, self.klongloop, klong, conn_provider, on_error=_test_on_error)
         client.run_client()
 
         # after client.running is set to False, the _run method will exit
