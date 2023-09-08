@@ -1,4 +1,4 @@
-:"broadcast a fake stock data to all subscribed clients"
+:"broadcast fake stock data to all subscribed clients"
 
 clients:::{}
 
