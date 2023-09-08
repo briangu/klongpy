@@ -171,7 +171,7 @@ class HostPortConnectionProvider(ConnectionProvider):
                 await asyncio.sleep(current_delay)
                 current_delay *= 2
             except Exception as e:
-                logging.warn(f"unexpeced connection error to {self.host}:{self.port}")
+                logging.warn(f"unexpeced connection error {e} to {self.host}:{self.port}")
                 break
         if retries >= self.max_retries:
             logging.info(f"Max retries reached: {self.max_retries} {self.host}:{self.port}")
@@ -420,7 +420,7 @@ class NetworkClient(KGLambda):
         
         """
         if not self.is_open():
-            raise KlongException(f"connection not established")
+            raise KlongException("connection not established")
 
         msg_id = uuid.uuid4()
         future = self.ioloop.create_future()

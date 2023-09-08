@@ -314,7 +314,7 @@ class TestNetworkClient(unittest.TestCase):
     @patch("klongpy.sys_fn_ipc.uuid.uuid4", new_callable=MagicMock)
     @patch("klongpy.sys_fn_ipc.stream_send_msg")
     @patch("klongpy.sys_fn_ipc.stream_recv_msg")
-    def test_close(self, mock_stream_recv_msg, mock_stream_send_msg, mock_uuid):
+    def test_close(self, mock_stream_recv_msg, mock_stream_send_msg: MagicMock, mock_uuid):
         klong = MagicMock()
 
         reader = AsyncMock()
@@ -340,7 +340,7 @@ class TestNetworkClient(unittest.TestCase):
 
         client.close()
 
-        # mock_stream_send_msg.assert_called_once_with(writer, msg_id, msg)
+        mock_stream_send_msg.assert_called_with(writer, msg_id, msg)
 
         self.assertFalse(client.running)
         self.assertEqual(client.reader, None)
