@@ -3,31 +3,31 @@
 
 # KlongPy
 
-If you're intrigued by the world of [array languages](https://en.wikipedia.org/wiki/Array_programming) and love Python's versatility, meet KlongPy. This project marries the two, bringing Klong's elegant, terse syntax and the computational power of array programming to Python.
+KlongPy is a vectorized Python port of the [Klong](https://t3x.org/klong) [array language](https://en.wikipedia.org/wiki/Array_programming) and emphasizes Python interop making it easy to integrate Python's rich ecosystem while getting the succinctness of Klong.  
 
-Born from the lineage of the [Klong](https://t3x.org/klong) array language, KlongPy leverages [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) that traces its roots back to APL, as its runtime target. This paves a relatively seamless path for mapping Klong constructs to NumPy, unleashing the performance benefits of this efficient, data-crunching Python library.
+Using [CuPy](https://github.com/cupy/cupy), you have the flexibility of both CPU and GPU backends.
 
-The charm of KlongPy? It integrates Python's extensive library ecosystem right into the Klong language. Whether it's feeding your machine learning model with Klong-processed data or mixing and matching Klong with other Python libraries for your data analysis workflow, KlongPy has you covered. And, with [CuPy](https://github.com/cupy/cupy) in play, you have the flexibility of both CPU and GPU backends at your disposal.
+Leveraging [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) that traces its roots back to APL, as its runtime target the runtime may target either GPU ([CuPy](https://github.com/cupy/cupy)) or CPU backends.
 
 The project builds upon the work of [Nils M Holm](https://t3x.org), the creator of the Klong language, who has written a comprehensive [Klong Book](https://t3x.org/klong/book.html) for anyone interested in diving deeper. In short, if you're a data scientist, researcher, or just a programming language enthusiast, KlongPy may just be the next thing you want to check out.
 
 # Overview
 
-KlongPy is a powerful language for high performance data analysis and distributed computing. Some of its main features include:
+KlongPy is both an Array Language runtime and a set of powerful tools for building high performance data analysis and distributed computing applications.  Some of the features include: 
 
-* __Simplicity__: KlongPy is based on Klong, a concise, expressive, and easy-to-understand array programming language. Its simple syntax and rich feature set make it an excellent tool for data scientists and engineers.
-* __Array Programming__: KlongPy supports array programming, which makes it a great tool for mathematical and scientific computing. You can manipulate entire arrays of data at once, enabling efficient data analysis and manipulation.
-* [__Speed__](#performance): KlongPy is designed for high-speed computing, enabling you to process large data sets quickly and efficiently. Its efficient internal mechanisms allow for rapid execution of operations on arrays of data.
+* [__Array Programming__](https://en.wikipedia.org/wiki/Array_programming): Based on [Klong](https://t3x.org/klong), a concise, expressive, and easy-to-understand array programming language. Its simple syntax and rich feature set make it an excellent tool for data scientists and engineers.
+* [__Speed__](#performance): Designed for high-speed vectorized computing, enabling you to process large data sets quickly and efficiently on either CPU or GPU.
 * [__Fast Columnar Database__](#fast-columnar-database): Includes integration with [DuckDb](http://duckdb.org), a super fast in-process columnar store that can operate directly on NumPy arrays with zero-copy.
+* [__Inter-Process Communication (IPC)__](#inter-process-communication-ipc-capabilities): Includes built-in support for IPC, enabling easy communication between different processes and systems. Ticker plants and similar pipelines are easy to build.
 * [__Table and Key-Value Store__](#table-and-key-value-stores): Includes a simple file-backed key value store that can be used to store database tables or raw key/value pairs.
-* [__Inter-Process Communication (IPC)__](#inter-process-communication-ipc-capabilities): KlongPy has built-in support for IPC, enabling easy communication between different processes and systems. You can create remote function proxies, allowing you to execute functions on a remote server as if they were local functions. This powerful feature facilitates distributed computing tasks.
-* [__Python Integration__](#python-integration): KlongPy is designed to be compatible with Python, allowing you to leverage existing Python libraries and frameworks in conjunction with KlongPy. This seamless integration enhances KlongPy's usability and adaptability.
+* [__Python Integration__](#python-integration): Seamlessly compatible with Python and modules, allowing you to leverage existing Python libraries and frameworks.
 * [__Web server__](#web-server): Includes a web server, making it easy to build sites backed by KlongPy capabilities.
 * [__Timers__](#timer): Includes periodic timer facility to periodically perform tasks.
 
-At its heart, KlongPy is about infusing Python's flexibility with the compact Klong array language, allowing you to tap into the performance of NumPy while writing code that's concise and powerful. 
 
-Consider this simple Klong expression that computes an array's average: (+/a)%#a. Decoded, it means "sum of 'a' divided by the length of 'a'", as read from right to left.
+# Examples
+
+Consider this simple Klong expression that computes an array's average: `(+/a)%#a`. Decoded, it means "sum of 'a' divided by the length of 'a'", as read from right to left.
 
 Below, we define the function 'avg' and apply it to the array of 1 million integers (as defined by !1000000)
 
@@ -601,6 +601,97 @@ Note, the result of .async() is a function, so it's possible to reuse these.
 
 While the IPC server I/O is async, the KlongPy interpreter is single-threaded.  All remote operations are synchronous to make it easy to use remote operations as part of a normal workflow.  Of course, when calling over to another KlongPy instance, you have no idea what state that instance is in, but within the calling instance operations will be sequential.
 
+## Server Callbacks
+
+The KlongPy IPC server has 3 connection related callbacks that can be assigned to pre-defined symbols:
+
+### Client connection open: `.srv.o`
+
+Called when a new client connection is established.  The argument passed is the remote connection handle (fn) to the connecting client.  Note, handler functions should not call back to the client when called as it will produce a deadlock - the client is in the process of connecting to the server and not servicing requests.
+
+```
+.src.o::{.d("client has connected: ");.p(x)}
+```
+
+### Client connection close: `.srv.c`
+
+Called when a client disconnects or drops the connection due to an error.  The passed argument is the client handle similar to `.srv.o`.
+
+```
+.src.e::{.d("client has disconnected: ");.p(x)}
+```
+
+### Client conncetion error: `.srv.e`
+
+Called when there is a client error condition.  Arguments are the client handle and the exception that caused the error.
+
+```
+.src.e::{.d("client has had an error: ");.d(x);.d(" ");.p(y)}
+```
+
+## Building a pub-sub example
+
+Using the server callbacks, it's easy to setup a pub-sub example where a client connects and then subscribes to a server. Periodically the server will call the update method on the client with new data.
+
+Server:
+
+```
+:"broadcast fake stock data to all subscribed clients"
+
+:" Map of clients handles to their subscribed tickers "
+clients:::{}
+
+:" Called by clients to subscribe to ticker updates "
+subscribe::{.d("subscribing client: ");.p(x);clients,.cli.h,,(clients?.cli.h),,x;.p(clients)}
+
+:" Periodically called to broadcast updates to all subscribed clients "
+send::{.d("sending to client");.p(x);x(:update,,{x,.rn()*50}'y)}
+broadcast::{.p("sending messages to clients");{send(x@0;x@1)}'clients}
+cb::{:[(#clients)>0;broadcast();.p("no clients to broadcast to")];1}
+th::.timer("ticker";1;cb)
+
+:" Setup the IPC server and callbacks "
+.srv(8888)
+.srv.o::{.d("client connected: ");.p(x);clients,x,,[]}
+.srv.c::{.d("client disconnected: ");.p(x);x_clients;.d("clients left: ");.p(#clients)}
+.srv.e::{.d("error: ");.p(x);.p(y)}
+```
+
+Client
+
+```
+:"Connect to the broadcast server"
+
+.p("connecting to server on port 8888")
+
+cli::.cli(8888)
+.p(cli)
+
+:" Called by server when there is a subscription update."
+update::{.d("subscription update: ");.p(x)}
+
+cli(:subscribe,,["MSFT" "GOOG" "AAPL"])
+```
+
+Running these is easy:
+
+```bash
+$ kgpy examples/ipc/srv_pubsub.kg
+no clients to broadcast to
+no clients to broadcast to
+...
+```
+
+One we run the client, the server will begin to send updates to the client:
+
+```bash
+$ kgpy examples/ipc/cli_pubsub.kg
+connecting to server on port 8888
+remote[localhost:8888]:fn
+subscription update: [MSFT 16.310530573710896 GOOG 27.199690444331594 AAPL 35.81725374157503]
+subscription update: [MSFT 43.28567690091258 GOOG 32.06719233158067 AAPL 47.306031721530864]
+```
+
 # Web server
 
 KlongPy includes a simple web server module.  It's optional so you need to install the dependencies:
@@ -771,7 +862,7 @@ def NumPy_vec(number=100):
 
 ### Everything
 
-    $ pip3 install klongpy[cupy,repl]
+    $ pip3 install klongpy[full]
 
 ### Develop
 
@@ -818,29 +909,23 @@ Since CuPy is [not 100% compatible with NumPy](https://docs.cupy.dev/en/stable/u
 
 Primary ongoing work includes:
 
-* Add IPC capabilities so to enable inter-KlongPy commoncation
+* Additional tools to make KlongPy applications more capable.
+* Additional syntax error help
 * Actively switch between CuPy and NumPy when incompatibilities are present
     * Work on CuPy kernels is in this branch: _cupy_reduce_kernels
-* Additional syntax error help
-* Additional tests to
-    * ensure proper vectorization
-    * increase Klong grammar coverage
-* Make REPL (kgpy) compatible with original Klong (kg) REPL
-
 
 # Differences from Klong
 
-While KlongPy aims to be 100% compatible with Klong language, the KlongPy system has some differences:
+KlongPy is effectively a superset of the Klong language, but has some key differences:
 
     * Infinite precision: The main difference in this implementation of Klong is the lack of infinite precision.  By using NumPy we are restricted to doubles.
     * Python integration: Most notably, the ".py" command allows direct import of Python modules into the current Klong context.
-    * IPC - KlongPy will support IPC between KlongPy processes, allowing one KlongPy process to interact with other KlongPy processes over the network.
+    * IPC - KlongPy supports IPC between KlongPy processes.
 
 # Related
 
  * [Klupyter - KlongPy in Jupyter Notebooks](https://github.com/briangu/klupyter)
  * [Advent Of Code '22](https://github.com/briangu/aoc/tree/main/22)
- * [Example Ticker Plant with streaming and dataframes](https://github.com/briangu/kdfs)
 
 
 # Running tests
