@@ -10,4 +10,4 @@ th::.timer("greeting";1;cb)
 .srv(8888)
 .srv.o::{.d("adding client: ");.p(x);clients,x,1}
 .srv.c::{.d("removing client: ");.p(x);x_clients;.d("clients left: ");.p(#clients)}
-.srv.e::{.d("error: ");.p(x)}
+.srv.e::{.d("error: ");.p(x);.p(y)}

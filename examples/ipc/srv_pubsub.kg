@@ -16,4 +16,4 @@ th::.timer("greeting";1;cb)
 .srv(8888)
 .srv.o::addclient
 .srv.c::rmclient
-.srv.e::{.d("error: ");.p(x)}
+.srv.e::{.d("error: ");.p(x);.p(y)}
