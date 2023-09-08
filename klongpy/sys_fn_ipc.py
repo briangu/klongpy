@@ -6,6 +6,7 @@ import sys
 import threading
 import uuid
 from asyncio import StreamReader, StreamWriter
+from asyncio.exceptions import IncompleteReadError
 
 import numpy as np
 
@@ -122,6 +123,9 @@ async def run_command_on_klongloop(klongloop, klong, command, nc):
 class ConnectionProvider:
     async def connect(self):
         raise KlongIPCCreateConnectionException()
+
+    async def close():
+        raise NotImplementedError()
 
 
 class HostPortConnectionProvider(ConnectionProvider):
@@ -340,9 +344,16 @@ class NetworkClient(KGLambda):
                     await self._listen()
                 close_exception = None
             except (KlongIPCConnectionFailureException, KlongIPCCreateConnectionException) as e:
+                print(f"connection failure: {e}")
                 close_exception = e
                 if on_error is not None:
-                    await on_error(self, e)
+                    print("running error handler")
+                    try:
+                        await on_error(self, e)
+                    except Exception as e:
+                        print(f"error whiel running error handler: {e}")
+                    print("running error handler: done")
+                print("breaking running loop")
                 break
             except KGRemoteCloseConnectionException as e:
                 logging.info(f"Remote client closing connection: {str(self.conn_provider)}")
@@ -389,10 +400,14 @@ class NetworkClient(KGLambda):
             else:
                 response = await run_command_on_klongloop(self.klongloop, self.klong, msg, self)
                 await stream_send_msg(self.writer, msg_id, response)
-        except (OSError, ConnectionResetError, ConnectionRefusedError) as e:
-            if self.running:
-                logging.info(f"Connection error {e}")
-                raise KlongIPCConnectionFailureException(f"connection lost: {str(self.conn_provider)}")
+        except (OSError, ConnectionResetError, ConnectionRefusedError, IncompleteReadError) as e:
+            # if self.running:
+            logging.info(f"Connection error {e}")
+            print(f"Connection error {e}")
+            raise KlongIPCConnectionFailureException(f"connection lost: {str(self.conn_provider)}")
+        except Exception as e:
+            logging.warn("unexpected error: {type(e)} {e}")
+            raise e
 
     def call(self, msg):
         """
@@ -451,7 +466,11 @@ class NetworkClient(KGLambda):
         if not self.running:
             return
         self._stop()
-        asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result()
+        # Check if the current event loop is the same as self.ioloop to avoid potential deadlock
+        if asyncio.get_event_loop() == self.ioloop:
+            self.ioloop.create_task(self.conn_provider.close())
+        else:
+            asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result()
 
     def close(self):
         """
@@ -645,6 +664,7 @@ class TcpServerHandler:
         try:
             await self.connection_handler.handle_client(reader, writer)
         finally:
+            writer.close()
             if writer in self.connections:
                 self.connections.remove(writer)
 
@@ -656,7 +676,6 @@ class TcpServerHandler:
 
         async with self.server:
             await self.server.serve_forever()
-
 
 class NetworkClientDictHandle(dict):
     def __init__(self, nc: NetworkClient):
