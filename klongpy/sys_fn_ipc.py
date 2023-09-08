@@ -339,7 +339,10 @@ class NetworkClient(KGLambda):
             try:
                 self.reader, self.writer = await self.conn_provider.connect()
                 if on_connect is not None:
-                    await on_connect(self)
+                    try:
+                        await on_connect(self)
+                    except Exception as e:
+                        logging.warn(f"error while running on_connect handler: {e}")
                 while self.running:
                     await self._listen()
                 close_exception = None
@@ -347,13 +350,10 @@ class NetworkClient(KGLambda):
                 print(f"connection failure: {e}")
                 close_exception = e
                 if on_error is not None:
-                    print("running error handler")
                     try:
                         await on_error(self, e)
                     except Exception as e:
-                        print(f"error whiel running error handler: {e}")
-                    print("running error handler: done")
-                print("breaking running loop")
+                        logging.warn(f"error while running on_error handler: {e}")
                 break
             except KGRemoteCloseConnectionException as e:
                 logging.info(f"Remote client closing connection: {str(self.conn_provider)}")
@@ -363,8 +363,10 @@ class NetworkClient(KGLambda):
             except Exception as e:
                 close_exception = KlongIPCConnectionFailureException("unknown error")
                 logging.warn(f"Unexepected error {e}.")
-                if on_error:
+                try:
                     await on_error(self, e)
+                except Exception as e:
+                    logging.warn(f"error while running on_error handler: {e}")
                 break
             finally:
                 self.writer = None
@@ -466,11 +468,8 @@ class NetworkClient(KGLambda):
         if not self.running:
             return
         self._stop()
-        # Check if the current event loop is the same as self.ioloop to avoid potential deadlock
-        if asyncio.get_event_loop() == self.ioloop:
-            self.ioloop.create_task(self.conn_provider.close())
-        else:
-            asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result()
+        # run close in the delayed task to avoid deadlock
+        self.ioloop.call_soon(self.conn_provider.close())
 
     def close(self):
         """
