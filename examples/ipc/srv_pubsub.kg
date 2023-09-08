@@ -1,19 +1,19 @@
 :"broadcast fake stock data to all subscribed clients"
 
+:" Map of clients handles to their subscribed tickers "
 clients:::{}
 
+:" Called by clients to subscribe to ticker updates "
 subscribe::{.d("subscribing client: ");.p(x);clients,.cli.h,,(clients?.cli.h),,x;.p(clients)}
 
-addclient::{.d("client connected: ");.p(x);clients,x,,[]}
-rmclient::{.d("client disconnected: ");.p(x);x_clients;.d("clients left: ");.p(#clients)}
-
+:" Periodically called to broadcast updates to all subscribed clients "
 send::{.d("sending to client");.p(x);x(:update,,{x,.rn()*50}'y)}
 broadcast::{.p("sending messages to clients");{send(x@0;x@1)}'clients}
-
 cb::{:[(#clients)>0;broadcast();.p("no clients to broadcast to")];1}
-th::.timer("greeting";1;cb)
+th::.timer("ticker";1;cb)
 
+:" Setup the IPC server and callbacks "
 .srv(8888)
-.srv.o::addclient
-.srv.c::rmclient
+.srv.o::{.d("client connected: ");.p(x);clients,x,,[]}
+.srv.c::{.d("client disconnected: ");.p(x);x_clients;.d("clients left: ");.p(#clients)}
 .srv.e::{.d("error: ");.p(x);.p(y)}
