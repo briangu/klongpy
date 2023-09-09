@@ -1,0 +1,17 @@
+.py("klongpy.ws")
+
+.ws.m::{.p(x);.p(y)}
+
+.comment("----")
+
+msg::msg,"params",(.os?"env")?"POLYGON_KEY"
+----
+
+auth:::{["action" "auth"]}
+KEY::(.os?"environ")?"POLYGON_API_KEY"
+.p(KEY)
+auth::auth,"params",,KEY
+
+c::.ws("wss://delayed.polygon.io/stocks")
+c(auth)
+

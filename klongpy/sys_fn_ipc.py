@@ -364,17 +364,21 @@ class NetworkClient(KGLambda):
             except Exception as e:
                 close_exception = KlongIPCConnectionFailureException("unknown error")
                 logging.warning(f"Unexepected error {e}.")
-                try:
-                    await on_error(self, e)
-                except Exception as e:
-                    logging.warning(f"error while running on_error handler: {e}")
+                if on_error is not None:
+                    try:
+                        await on_error(self, e)
+                    except Exception as e:
+                        logging.warning(f"error while running on_error handler: {e}")
                 break
             finally:
                 self.writer = None
                 self.reader = None
                 self._cleanup_pending_responses(close_exception)
                 if on_close is not None:
-                    await on_close(self)
+                    try:
+                        await on_close(self)
+                    except Exception as e:
+                        logging.warning(f"error while running on_close handler: {e}")
         logging.info(f"Stopping client: {str(self.conn_provider)}")
         self._run_exit_event.set()
 

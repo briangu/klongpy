@@ -262,7 +262,7 @@ if __name__ == "__main__":
     asyncio.set_event_loop(klong_loop)
 
     klong['.system'] = {'ioloop': io_loop, 'klongloop': klong_loop}
-    klong['.os'] = {'environ': os.environ, 'argv': sys.argv}
+    klong['.os'] = {'environ': dict(os.environ), 'argv': list(sys.argv)}
 
     run_repl = False
 

@@ -17,10 +17,11 @@ extra_requires = {
         'repl': ["colorama"],
         'web': ["aiohttp"],
         'db': ["pandas","duckdb"],
+        'ws': ["websockets"],
     }
 
 # full feature set extras
-extra_requires['full'] = extra_requires['repl'] + extra_requires['web'] + extra_requires['db']
+extra_requires['full'] = extra_requires['repl'] + extra_requires['web'] + extra_requires['db'] + extra_requires['ws']
 
 setup(
     name='klongpy',
