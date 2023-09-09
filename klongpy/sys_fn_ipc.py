@@ -477,7 +477,7 @@ class NetworkClient(KGLambda):
             else:
                 raise RuntimeError()
         except RuntimeError:
-            return asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result()
+            asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result()
 
     def close(self):
         """
