@@ -473,7 +473,7 @@ class NetworkClient(KGLambda):
         try:
             loop = asyncio.get_running_loop()
             if loop == self.ioloop:
-                self.conn_provider.close()
+                self.ioloop.call_soon(asyncio.create_task, self.conn_provider.close())
             else:
                 raise RuntimeError()
         except RuntimeError:

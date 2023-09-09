@@ -8,23 +8,6 @@ from utils import LoopsBase
 from klongpy import KlongInterpreter
 from klongpy.sys_fn_ipc import *
 
-# import traceback
-
-# import tracemalloc
-
-# tracemalloc.start()
-
-# _original_new_event_loop = asyncio.new_event_loop
-
-# def debug_new_event_loop():
-#     print("Event loop created at:")
-#     traceback.print_stack()
-#     return _original_new_event_loop()
-
-# # asyncio.new_event_loop = debug_new_event_loop
-
-# import logging
-# logging.basicConfig(level=logging.DEBUG)
 
 def run_coroutine_threadsafe(coro, loop):
     future = asyncio.run_coroutine_threadsafe(coro, loop)
