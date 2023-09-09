@@ -226,14 +226,15 @@ class NetworkClient(KGLambda):
     async def _listen(self, on_message):
         try:
             msg = await self.websocket.recv()
+            msg = decode_message(msg)
             if on_message is not None:
                 try:
                     await on_message(self, msg)
                 except Exception as e:
                     logging.warning(f"error while running on_message handler: {e}")
             response = await run_command_on_klongloop(self.klongloop, self.klong, ".ws.m", msg, self)
-            if response is not None and response != np.inf:
-                await self.websocket.send(encode_message(response))
+            # if response is not None and response != np.inf:
+            #     await self.websocket.send(encode_message(response))
         except websockets.exceptions.ConnectionClosed:
             logging.info(f"Connection error")
             print(f"Connection error")
@@ -245,19 +246,20 @@ class NetworkClient(KGLambda):
         if not self.is_open():
             raise KlongException("connection not established")
 
-        msg = encode_message(msg)
+        try:
+            msg = encode_message(msg)
+        except Exception as e:
+            print("error encoding message", e, msg)
 
-        return asyncio.run_coroutine_threadsafe(self.websocket.send(msg), self.ioloop).result()
+#        return asyncio.run_coroutine_threadsafe(self.websocket.send(msg), self.ioloop).result()
+        self.ioloop.call_soon_threadsafe(asyncio.create_task, self.websocket.send(msg))
 
     def __call__(self, _, ctx):
         """
         """
         x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
         try:
-            response = self.call(x)
-            # if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
-            #     response = KGRemoteFnProxy(self.nc, x, response.arity)
-            return response
+            return self.call(x)
         except Exception as e:
             import traceback
             traceback.print_exception(type(e), e, e.__traceback__)

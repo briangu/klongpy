@@ -1,17 +1,14 @@
 .py("klongpy.ws")
 
-.ws.m::{.p(x);.p(y)}
-
-.comment("----")
-
-msg::msg,"params",(.os?"env")?"POLYGON_KEY"
-----
-
 auth:::{["action" "auth"]}
 KEY::(.os?"environ")?"POLYGON_API_KEY"
-.p(KEY)
 auth::auth,"params",,KEY
 
-c::.ws("wss://delayed.polygon.io/stocks")
-c(auth)
+sendauth::{.p("sending auth");x(auth)}
+handleAuthFailure::{.p("failed to auth")}
+handleLogin::{.p("logged in")}
+handleStatus::{[q];q::(y?"status");:[q="connected";sendauth(x);:[q="auth_success";handleLogin(x;y);handleAuthFailure(x;y)]]}
+handleMsg::{[q];:[(y?"ev")="status";handleStatus(x;y);0]}
+.ws.m::{[c];c::x;.p(x,y);{handleMsg(c;x)}'y}
 
+c::.ws("wss://delayed.polygon.io/stocks")
