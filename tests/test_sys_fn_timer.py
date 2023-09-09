@@ -2,41 +2,13 @@ import asyncio
 import threading
 import unittest
 
-from utils import kg_equal
+from utils import kg_equal, LoopsBase
 
 from klongpy import KlongInterpreter
 from klongpy.sys_fn import *
 
 
-class TestSysFnTimer(unittest.TestCase):
-
-    # add test for N counts
-    #   return 0
-    #   rely on cancel
-    # add test for interval 0 and 1
-    def setUp(self):
-        self.ioloop = asyncio.new_event_loop()
-        self.ioloop_thread = threading.Thread(target=self.start_ioloop)
-        self.ioloop_thread.start()
-
-        self.klongloop = asyncio.new_event_loop()
-        self.klongloop_thread = threading.Thread(target=self.start_klongloop)
-        self.klongloop_thread.start()
-
-    def tearDown(self):
-        self.ioloop.call_soon_threadsafe(self.ioloop.stop)
-        self.ioloop_thread.join()
-
-        self.klongloop.call_soon_threadsafe(self.klongloop.stop)
-        self.klongloop_thread.join()
-
-    def start_ioloop(self):
-        asyncio.set_event_loop(self.ioloop)
-        self.ioloop.run_forever()
-
-    def start_klongloop(self):
-        asyncio.set_event_loop(self.klongloop)
-        self.klongloop.run_forever()
+class TestSysFnTimer(LoopsBase, unittest.TestCase):
 
     def test_timer_return_0(self):
         klong = KlongInterpreter()

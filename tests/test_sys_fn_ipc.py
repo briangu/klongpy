@@ -1,12 +1,30 @@
 import asyncio
 import threading
-import time
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+from utils import LoopsBase
 
 from klongpy import KlongInterpreter
 from klongpy.sys_fn_ipc import *
 
+# import traceback
+
+# import tracemalloc
+
+# tracemalloc.start()
+
+# _original_new_event_loop = asyncio.new_event_loop
+
+# def debug_new_event_loop():
+#     print("Event loop created at:")
+#     traceback.print_stack()
+#     return _original_new_event_loop()
+
+# # asyncio.new_event_loop = debug_new_event_loop
+
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
 
 def run_coroutine_threadsafe(coro, loop):
     future = asyncio.run_coroutine_threadsafe(coro, loop)
@@ -34,6 +52,7 @@ class TestStreamSendRecv(unittest.IsolatedAsyncioTestCase):
         # Mock writer
         writer = AsyncMock()
         writer.write = MagicMock()
+        writer.close = MagicMock()
 
         # Mock reader
         reader = AsyncMock()
@@ -55,17 +74,12 @@ class TestStreamSendRecv(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(received_message, msg)
 
 
-class TestAsync(unittest.TestCase):
-
-    def setUp(self) -> None:
-        return super().setUp()
-
+class TestAsync(LoopsBase, unittest.TestCase):
 
     def test_async_fn(self):
         klong = KlongInterpreter()
 
-        loop = asyncio.get_event_loop()
-        klong['.system'] = {'ioloop': None, 'klongloop': loop}
+        klong['.system'] = {'ioloop': self.ioloop, 'klongloop': self.klongloop}
 
         async def _test():
             klong("fn::{x+1}")
@@ -79,13 +93,12 @@ class TestAsync(unittest.TestCase):
             r = klong("result")
             self.assertEqual(r,3)
 
-        loop.run_until_complete(_test())
-        loop.run_until_complete(_test_result())
+        run_coroutine_threadsafe(_test(), self.klongloop)
+        run_coroutine_threadsafe(_test_result(), self.klongloop)
 
     def test_async_python_lambda_fn(self):
         klong = KlongInterpreter()
-        loop = asyncio.get_event_loop()
-        klong['.system'] = {'ioloop': None, 'klongloop': loop}
+        klong['.system'] = {'ioloop': self.ioloop, 'klongloop': self.klongloop}
 
         async def _test():
             klong["fn"] = lambda x: x+1
@@ -99,9 +112,8 @@ class TestAsync(unittest.TestCase):
             r = klong("result")
             self.assertEqual(r,3)
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(_test())
-        loop.run_until_complete(_test_result())
+        run_coroutine_threadsafe(_test(), self.klongloop)
+        run_coroutine_threadsafe(_test_result(), self.klongloop)
 
 
 class TestConnectionProvider(unittest.TestCase):
@@ -112,28 +124,7 @@ class TestConnectionProvider(unittest.TestCase):
             asyncio.run(conn.connect())
 
 
-class TestHostPortConnectionProvider(unittest.TestCase):
-
-    def setUp(self):
-        self.ioloop = asyncio.new_event_loop()
-        self.ioloop_thread = threading.Thread(target=self.start_ioloop)
-        self.ioloop_thread.start()
-        self.finished_event = threading.Event()
-
-    def tearDown(self):
-        self.ioloop.call_soon_threadsafe(self.ioloop.stop)
-        self.ioloop_thread.join()
-
-    def start_ioloop(self):
-        asyncio.set_event_loop(self.ioloop)
-        self.ioloop.run_forever()
-
-    def run_coroutine_in_ioloop(self, coro):
-        async def wrapper():
-            await coro
-            self.finished_event.set()  # Signal that the coroutine has finished
-        
-        self.ioloop.call_soon_threadsafe(asyncio.create_task, wrapper())
+class TestHostPortConnectionProvider(LoopsBase, unittest.TestCase):
 
     @patch('klongpy.sys_fn_ipc.asyncio.open_connection')
     def test_successful_connection(self, mock_open_connection):
@@ -141,7 +132,7 @@ class TestHostPortConnectionProvider(unittest.TestCase):
         mock_writer = MagicMock()
         mock_open_connection.return_value = mock_reader, mock_writer
 
-        provider = HostPortConnectionProvider(None, "localhost", 8080)
+        provider = HostPortConnectionProvider("localhost", 8080)
         reader, writer = run_coroutine_threadsafe(provider.connect(), self.ioloop)
 
         self.assertEqual(reader, mock_reader)
@@ -149,18 +140,19 @@ class TestHostPortConnectionProvider(unittest.TestCase):
 
     @patch('klongpy.sys_fn_ipc.asyncio.open_connection', new_callable=AsyncMock)
     def test_retry_logic(self, mock_open_connection):
+        print("were2")
         mock_open_connection.side_effect = [OSError(), OSError(), (MagicMock(), MagicMock())]  # Fail twice, then succeed
 
-        provider = HostPortConnectionProvider(None, "localhost", 8080, max_retries=5, retry_delay=0)
-        self.run_coroutine_in_ioloop(provider.connect())
-        self.finished_event.wait()
+        print("were")
+        provider = HostPortConnectionProvider("localhost", 8080, max_retries=5, retry_delay=0)
+        run_coroutine_threadsafe(provider.connect(), self.ioloop)
 
         self.assertEqual(mock_open_connection.call_count, 3)
         self.assertIsNotNone(provider.reader)
         self.assertIsNotNone(provider.writer)
 
     def test_is_open(self):
-        provider = HostPortConnectionProvider(None, "localhost", 8080)
+        provider = HostPortConnectionProvider("localhost", 8080)
         self.assertFalse(provider.is_open())
 
         provider.writer = MagicMock()
@@ -171,7 +163,7 @@ class TestHostPortConnectionProvider(unittest.TestCase):
         self.assertFalse(provider.is_open())
 
     def test_close(self):
-        provider = HostPortConnectionProvider(None, "localhost", 8080)
+        provider = HostPortConnectionProvider("localhost", 8080)
         reader = MagicMock()
         writer = MagicMock()
         provider.reader = reader
@@ -183,8 +175,7 @@ class TestHostPortConnectionProvider(unittest.TestCase):
         self.assertTrue(provider.is_open())
 
         # Run the close method in the ioloop thread without waiting for its completion
-        self.run_coroutine_in_ioloop(provider.close())
-        self.finished_event.wait()
+        run_coroutine_threadsafe(provider.close(), self.ioloop)
 
         self.assertIsNone(provider.reader)
         self.assertIsNone(provider.writer)
@@ -196,8 +187,9 @@ class TestHostPortConnectionProvider(unittest.TestCase):
     def test_str(self):
         host = "localhost"
         port = 1234
-        conn = HostPortConnectionProvider(None, host, port)
+        conn = HostPortConnectionProvider(host, port)
         self.assertEqual(str(conn), f"remote[{host}:{port}]")
+
 
 class TestReaderWriterConnectionProvider(unittest.TestCase):
 
@@ -222,35 +214,12 @@ class TestReaderWriterConnectionProvider(unittest.TestCase):
         conn = ReaderWriterConnectionProvider(None, None, host, port)
         self.assertEqual(str(conn), f"remote[{host}:{port}]")
 
-class TestNetworkClient(unittest.TestCase):
 
-    def setUp(self):
-        self.ioloop = asyncio.new_event_loop()
-        self.ioloop_thread = threading.Thread(target=self.start_ioloop)
-        self.ioloop_thread.start()
-
-        self.klongloop = asyncio.new_event_loop()
-        self.klongloop_thread = threading.Thread(target=self.start_klongloop)
-        self.klongloop_thread.start()
-
-    def tearDown(self):
-        self.ioloop.call_soon_threadsafe(self.ioloop.stop)
-        self.ioloop_thread.join()
-
-        self.klongloop.call_soon_threadsafe(self.klongloop.stop)
-        self.klongloop_thread.join()
-
-    def start_ioloop(self):
-        asyncio.set_event_loop(self.ioloop)
-        self.ioloop.run_forever()
-
-    def start_klongloop(self):
-        asyncio.set_event_loop(self.klongloop)
-        self.klongloop.run_forever()
+class TestNetworkClient(LoopsBase, unittest.TestCase):
 
     def test_initialization(self):
         klong = KlongInterpreter()
-        conn_provider = HostPortConnectionProvider(self.ioloop, "localhost", 1234)
+        conn_provider = HostPortConnectionProvider("localhost", 1234)
         client = NetworkClient(self.ioloop, self.klongloop, klong, conn_provider)
         self.assertEqual(client.ioloop, self.ioloop)
         self.assertEqual(client.klongloop, self.klongloop)
@@ -263,7 +232,7 @@ class TestNetworkClient(unittest.TestCase):
 
     def test_initialization_with_callbacks(self):
         klong = KlongInterpreter()
-        conn_provider = HostPortConnectionProvider(self.ioloop, "localhost", 1234)
+        conn_provider = HostPortConnectionProvider("localhost", 1234)
         on_connect = lambda x: x
         on_error = lambda x: x
         on_close = lambda x: x
@@ -283,7 +252,7 @@ class TestNetworkClient(unittest.TestCase):
 
     def test_str(self):
         klong = KlongInterpreter()
-        conn_provider = HostPortConnectionProvider(self.ioloop, "localhost", 1234)
+        conn_provider = HostPortConnectionProvider("localhost", 1234)
         client = NetworkClient(self.ioloop, self.klongloop, klong, conn_provider)
         self.assertEqual(str(client), f"{str(conn_provider)}:fn")
 
@@ -291,6 +260,7 @@ class TestNetworkClient(unittest.TestCase):
         reader = AsyncMock()
         writer = AsyncMock()
         writer.write = MagicMock()
+        writer.close = MagicMock()
         writer.is_closing = MagicMock(return_value=False)
 
         async def _test_on_connect(client):
@@ -320,6 +290,7 @@ class TestNetworkClient(unittest.TestCase):
         reader = AsyncMock()
         writer = AsyncMock()
         writer.write = MagicMock()
+        writer.close = MagicMock()
         writer.is_closing = MagicMock(return_value=False)
 
         msg_id = uuid.uuid4()
@@ -351,9 +322,10 @@ class TestNetworkClient(unittest.TestCase):
         klong = MagicMock()
         klong._context = MagicMock()
 
-        reader = AsyncMock()
+        # reader = AsyncMock()
         writer = AsyncMock()
         writer.write = MagicMock()
+        writer.close = MagicMock()
         writer.is_closing = MagicMock(return_value=False)
 
         # mock_stream_recv_msg.return_value = (uuid.uuid4(), "test_message")
@@ -385,6 +357,7 @@ class TestNetworkClient(unittest.TestCase):
     def test_on_close(self):
         reader = AsyncMock()
         writer = AsyncMock()
+        writer.close = MagicMock()
         writer.write = MagicMock()
         writer.is_closing = MagicMock(return_value=False)
 
@@ -425,7 +398,7 @@ class TestNetworkClient(unittest.TestCase):
             error_event.set()
             client.running = False
 
-        conn_provider = HostPortConnectionProvider(self.ioloop, "localhost", 1234, max_retries=3, retry_delay=0)
+        conn_provider = HostPortConnectionProvider("localhost", 1234, max_retries=3, retry_delay=0)
         client = NetworkClient(self.ioloop, self.klongloop, "klong", conn_provider, on_connect=_test_on_connect, on_error=_test_on_error)
         client.run_client()
 
@@ -453,7 +426,7 @@ class TestNetworkClient(unittest.TestCase):
             nonlocal called_after_error
             called_after_error = True
 
-        conn_provider = HostPortConnectionProvider(self.ioloop, "localhost", 1234, max_retries=3, retry_delay=0)
+        conn_provider = HostPortConnectionProvider("localhost", 1234, max_retries=3, retry_delay=0)
         client = NetworkClient(self.ioloop, self.klongloop, "klong", conn_provider, on_connect=_test_on_connect, on_error=_test_on_error)
         client.run_client()
 
@@ -512,7 +485,7 @@ class TestNetworkClient(unittest.TestCase):
         # Create a mock Klong object
         klong = MagicMock()
 
-        conn_provider = HostPortConnectionProvider(self.ioloop, "localhost", 1234)
+        conn_provider = HostPortConnectionProvider("localhost", 1234)
         client = NetworkClient(self.ioloop, self.klongloop, klong, conn_provider)
 
         with self.assertRaises(KlongException) as context:

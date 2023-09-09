@@ -136,13 +136,12 @@ class HostPortConnectionProvider(ConnectionProvider):
     This connection provider is used to create a NetworkClient from a host/port pair.
     
     """
-    def __init__(self, ioloop, host, port, max_retries=5, retry_delay=5.0):
+    def __init__(self, host, port, max_retries=5, retry_delay=5.0):
         self.host = host
         self.port = port
         self.running = True
         self.max_retries = max_retries
         self.retry_delay = retry_delay
-        self.ioloop = ioloop
         self.reader = None
         self.writer = None
         self._thread_ident = None
@@ -470,8 +469,15 @@ class NetworkClient(KGLambda):
         if not self.running:
             return
         self._stop()
-        # run close in the delayed task to avoid deadlock
-        self.ioloop.call_soon_threadsafe(asyncio.create_task, self.conn_provider.close())
+        # run close in the appropriate context task to avoid deadlock
+        try:
+            loop = asyncio.get_running_loop()
+            if loop == self.ioloop:
+                self.conn_provider.close()
+            else:
+                raise RuntimeError()
+        except RuntimeError:
+            return asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result()
 
     def close(self):
         """
@@ -525,7 +531,7 @@ class NetworkClient(KGLambda):
         :return: a network client
 
         """
-        conn_provider = HostPortConnectionProvider(ioloop, host, port)
+        conn_provider = HostPortConnectionProvider(host, port)
         return NetworkClient.create_from_conn_provider(ioloop, klongloop, klong, conn_provider, on_connect=on_connect, on_close=on_close, on_error=on_error)
 
     @staticmethod
@@ -599,19 +605,28 @@ class TcpServerConnectionHandler:
         logging.info(f"New connection from {str(nc.conn_provider)}")
         fn = self.klong['.srv.o']
         if callable(fn):
-            fn(nc)
+            try:
+                fn(nc)
+            except Exception as e:
+                logging.warning(f"Server: error while running on_connect handler: {e}")
 
     async def _on_close(self, nc):
         logging.info(f"Connection closed from {str(nc.conn_provider)}")
         fn = self.klong['.srv.c']
         if callable(fn):
-            fn(nc)
+            try:
+                fn(nc)
+            except Exception as e:
+                logging.warning(f"Server: error while running on_close handler: {e}")
 
     async def _on_error(self, nc, e):
         logging.info(f"Connection error from {str(nc.conn_provider)}")
         fn = self.klong['.srv.e']
         if callable(fn):
-            fn(nc, e)
+            try:
+                fn(nc, e)
+            except Exception as e:
+                logging.warning(f"Server: error while running on_error handler: {e}")
 
     async def handle_client(self, reader: StreamReader, writer: StreamWriter):
         """

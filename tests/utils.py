@@ -1,8 +1,12 @@
+import asyncio
+import threading
+import time
+
 import numpy as np
-import os
 
 from klongpy import KlongInterpreter
-from klongpy.core import kg_equal, is_list
+from klongpy.core import is_list, kg_equal
+
 
 def die(m=None):
     raise RuntimeError(m)
@@ -66,3 +70,57 @@ def rec_fn2(a,b,f):
     return np.asarray([rec_fn2(x, y, f) for x,y in zip(a,b)], dtype=object) if is_list(a) and is_list(b) else f(a,b)
 
 
+class LoopsBase:
+    def setUp(self):
+        # print("\nRunning test:", self._testMethodName)
+
+        self.ioloop = asyncio.new_event_loop()
+        self.ioloop.set_debug(True)
+        self.ioloop_started = threading.Event()
+
+        self.ioloop_thread = threading.Thread(target=self.start_ioloop)
+        self.ioloop_thread.start()
+        self.ioloop_started.wait()
+        self.assertTrue(self.ioloop.is_running())
+
+        self.klongloop = asyncio.new_event_loop()
+        self.klongloop.set_debug(True)
+        self.klongloop_started = threading.Event()
+
+        self.klongloop_thread = threading.Thread(target=self.start_klongloop)
+        self.klongloop_thread.start()
+        self.klongloop_started.wait()
+        self.assertTrue(self.klongloop.is_running())
+
+    def tearDown(self):
+        while len(asyncio.all_tasks(loop=self.ioloop)) > 0:
+            time.sleep(0.1)
+        self.ioloop.call_soon_threadsafe(self.ioloop.stop)
+        self.ioloop_thread.join()
+        self.ioloop.close()
+
+        while len(asyncio.all_tasks(loop=self.klongloop)) > 0:
+            time.sleep(0.1)
+        self.klongloop.call_soon_threadsafe(self.klongloop.stop)
+        self.klongloop_thread.join()
+        self.klongloop.close()
+
+    def start_ioloop(self):
+        asyncio.set_event_loop(self.ioloop)
+        self.ioloop.call_soon(self.ioloop_start_signal) 
+        self.ioloop.run_forever()
+
+    def ioloop_start_signal(self):
+        """Coroutine to set the event once the loop has started."""
+        self.assertTrue(self.ioloop.is_running())
+        self.ioloop_started.set()
+
+    def start_klongloop(self):
+        asyncio.set_event_loop(self.klongloop)
+        self.klongloop.call_soon(self.klongloop_start_signal) 
+        self.klongloop.run_forever()
+
+    def klongloop_start_signal(self):
+        """Coroutine to set the event once the loop has started."""
+        self.assertTrue(self.klongloop.is_running())
+        self.klongloop_started.set()
