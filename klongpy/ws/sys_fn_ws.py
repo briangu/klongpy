@@ -200,7 +200,7 @@ class NetworkClient(KGLambda):
                     except Exception as e:
                         logging.warning(f"error while running on_error handler: {e}")
                 break
-            except KGRemoteCloseConnectionException as e:
+            except KGRemoteCloseConnectionException:
                 logging.info(f"Remote client closing connection: {str(self.conn_provider)}")
                 self.running = False
                 break
@@ -235,7 +235,7 @@ class NetworkClient(KGLambda):
             # if response is not None and response != np.inf:
             #     await self.websocket.send(encode_message(response))
         except websockets.exceptions.ConnectionClosed:
-            logging.info(f"Connection error")
+            logging.info("Connection error")
             raise KlongWSConnectionFailureException()
         
     def call(self, msg):
