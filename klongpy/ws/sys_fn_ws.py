@@ -191,7 +191,6 @@ class NetworkClient(KGLambda):
                     await self._listen(on_message)
                 close_exception = None
             except (KlongWSConnectionFailureException, KlongWSCreateConnectionException) as e:
-                print(f"connection failure: {e}")
                 close_exception = e
                 if on_error is not None:
                     try:
@@ -237,7 +236,6 @@ class NetworkClient(KGLambda):
             #     await self.websocket.send(encode_message(response))
         except websockets.exceptions.ConnectionClosed:
             logging.info(f"Connection error")
-            print(f"Connection error")
             raise KlongWSConnectionFailureException()
         
     def call(self, msg):
@@ -284,7 +282,6 @@ class NetworkClient(KGLambda):
         """
         if not self.running:
             return
-        self._stop()
         # run close in the appropriate context task to avoid deadlock
         try:
             loop = asyncio.get_running_loop()
@@ -294,6 +291,7 @@ class NetworkClient(KGLambda):
                 raise RuntimeError()
         except RuntimeError:
             asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result()
+        self._stop()
 
     def close(self):
         """

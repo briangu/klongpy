@@ -11,7 +11,7 @@ import colorama
 import pkg_resources
 
 from klongpy import KlongInterpreter
-from klongpy.core import kg_write
+from klongpy.core import kg_write, KGFn
 
 """
 
@@ -194,31 +194,35 @@ class ConsoleInputHandler:
     async def input_producer(loop, klong, verbose=False):
         sys_cmds = create_sys_cmd_functions()
 
-        while True:
-            try:
-                s = await loop.run_in_executor(None, get_input)
-                if len(s) == 0:
-                    continue
-                if s.startswith("]"):
-                    if s[1] in sys_cmds:
-                        r = sys_cmds[s[1]](klong, s)
-                    else:
-                        print(f"unkown system command: ]{s[1]}")
+        try:
+            while True:
+                try:
+                    s = await loop.run_in_executor(None, get_input)
+                    if len(s) == 0:
                         continue
-                else:
-                    r = repl_eval(klong, s, verbose=verbose)
-                if r is not None:
-                    print(r)
-            except EOFError:
-                print("\rbye!")
-                loop.stop()
-                break
-            except KeyboardInterrupt:
-                print(failure("\nkg: error: interrupted"))
-            except Exception as e:
-                print(failure(f"Error: {e.args}"))
-                import traceback
-                traceback.print_exc()
+                    if s.startswith("]"):
+                        if s[1] in sys_cmds:
+                            r = sys_cmds[s[1]](klong, s)
+                        else:
+                            print(f"unkown system command: ]{s[1]}")
+                            continue
+                    else:
+                        r = repl_eval(klong, s, verbose=verbose)
+                    if r is not None:
+                        print(r)
+                except EOFError:
+                    print("\rbye!")
+                    break
+                except KeyboardInterrupt:
+                    print(failure("\nkg: error: interrupted"))
+                except Exception as e:
+                    print(failure(f"Error: {e.args}"))
+                    import traceback
+                    traceback.print_exc()
+        finally:
+            for task in asyncio.all_tasks(loop=loop):
+                task.cancel()
+            loop.stop()
 
 
 def run_file(klong, fname):
@@ -305,5 +309,17 @@ if __name__ == "__main__":
     klong_loop.run_forever()
     # if asyncio.all_tasks(loop=klong_loop):
     #     klong_loop.run_forever()
-    if asyncio.all_tasks(loop=io_loop):
-        exit_event.wait()
+    for k,v in klong._context:
+        if isinstance(v, KGFn):
+            v = v.a
+        if hasattr(v, "close"):
+            v.close()
+
+    for task in asyncio.all_tasks(loop=io_loop):
+        io_loop.call_soon_threadsafe(task.cancel)
+    import time
+    while len(asyncio.all_tasks(loop=io_loop)) > 0:
+        print(asyncio.all_tasks(loop=io_loop))
+        time.sleep(0.1)
+    io_loop.call_soon_threadsafe(io_loop.stop)
+    exit_event.wait()

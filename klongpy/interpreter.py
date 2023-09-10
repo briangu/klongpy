@@ -111,6 +111,14 @@ class KlongContext():
                         if dk.startswith(tk):
                             return True
         return False
+    
+    def __iter__(self):
+        seen = set()
+        for d in self._context:
+            for x in d.items():
+                if x[0] not in seen:
+                    yield x
+                    seen.add(x[0])
 
 
 def add_context_key_values(d, context):

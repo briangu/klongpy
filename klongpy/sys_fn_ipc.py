@@ -348,7 +348,6 @@ class NetworkClient(KGLambda):
                 while self.running:
                     await self._listen()
             except (KlongIPCConnectionFailureException, KlongIPCCreateConnectionException) as e:
-                print(f"connection failure: {e}")
                 close_exception = e
                 if on_error is not None:
                     try:
@@ -410,8 +409,9 @@ class NetworkClient(KGLambda):
         except (OSError, ConnectionResetError, ConnectionRefusedError, IncompleteReadError) as e:
             # if self.running:
             logging.info(f"Connection error {e}")
-            print(f"Connection error {e}")
             raise KlongIPCConnectionFailureException(f"connection lost: {str(self.conn_provider)}")
+        except KGRemoteCloseConnectionException as e:
+            raise e
         except Exception as e:
             logging.warning(f"unexpected error: {type(e)} {e}")
             raise e
