@@ -337,6 +337,7 @@ class NetworkClient(KGLambda):
 
         """
         while self.running:
+            close_exception = None
             try:
                 self.reader, self.writer = await self.conn_provider.connect()
                 if on_connect is not None:
@@ -346,7 +347,6 @@ class NetworkClient(KGLambda):
                         logging.warning(f"error while running on_connect handler: {e}")
                 while self.running:
                     await self._listen()
-                close_exception = None
             except (KlongIPCConnectionFailureException, KlongIPCCreateConnectionException) as e:
                 print(f"connection failure: {e}")
                 close_exception = e
