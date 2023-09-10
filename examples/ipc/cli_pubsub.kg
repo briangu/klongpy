@@ -8,4 +8,4 @@ cli::.cli(8888)
 :" Called by server when there is a subscription update."
 update::{.d("subscription update: ");.p(x)}
 
-cli(:subscribe,,["MSFT" "GOOG" "AAPL"])
+cli(:subscribe,,["AM.MSFT" "AM.GOOG" "AM.AAPL"])

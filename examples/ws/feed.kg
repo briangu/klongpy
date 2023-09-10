@@ -1,0 +1,37 @@
+.py("klongpy.ws")
+
+auth:::{["action" "auth"]}
+KEY::.os.env?"POLYGON_API_KEY"
+auth::auth,"params",,KEY
+
+:" Map of clients handles to their subscribed tickers "
+clients:::{}
+
+:" Handle server auth request "
+sendAuth::{.p("sending auth");x(auth)}
+handleAuthFailure::{.p("failed to auth")}
+handleLogin::{.p("logged in")}
+handleStatus::{[q];q::(y?"status");:[q="connected";sendAuth(x);:[q="auth_success";handleLogin(x;y);handleAuthFailure(x;y)]]}
+
+:" send the message to all subscribed clients "
+send::{.d("sending ");.d(k);.d(" to client ");.p(y);y(:update,,z)}
+broadcast::{[k data];k::x;data::y;{:[#(x@1)?k;send(k;x@0;data);0]}'clients}
+handleData::{[ev sym k];ev::(y?"ev");sym::(y?"sym");k::ev,".",sym;broadcast(k;y)}
+
+handleMsg::{[q];q::y?"ev";:[q="status";handleStatus(x;y);handleData(x;y)]}
+
+.ws.m::{[c];c::x;{handleMsg(c;x)}'y}
+
+.comment("----")
+c::.ws("wss://delayed.polygon.io/stocks")
+-----
+c::.ws("ws://localhost:8500")
+
+:" Called by clients to subscribe to ticker updates "
+subscribe::{.d("subscribing client: ");.p(x);clients,.cli.h,,(clients?.cli.h),,x;.p(clients)}
+
+:" Setup the IPC server and callbacks "
+.srv(8888)
+.srv.o::{.d("client connected: ");.p(x);clients,x,,[]}
+.srv.c::{.d("client disconnected: ");.p(x);x_clients;.d("clients left: ");.p(#clients)}
+.srv.e::{.d("error: ");.p(x);.p(y)}
