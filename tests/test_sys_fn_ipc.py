@@ -124,10 +124,8 @@ class TestHostPortConnectionProvider(LoopsBase, unittest.TestCase):
 
     @patch('klongpy.sys_fn_ipc.asyncio.open_connection', new_callable=AsyncMock)
     def test_retry_logic(self, mock_open_connection):
-        print("were2")
         mock_open_connection.side_effect = [OSError(), OSError(), (MagicMock(), MagicMock())]  # Fail twice, then succeed
 
-        print("were")
         provider = HostPortConnectionProvider("localhost", 8080, max_retries=5, retry_delay=0)
         run_coroutine_threadsafe(provider.connect(), self.ioloop)
 
