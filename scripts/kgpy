@@ -218,7 +218,7 @@ class ConsoleInputHandler:
             except Exception as e:
                 print(failure(f"Error: {e.args}"))
                 import traceback
-                traceback.print_exc(e)
+                traceback.print_exc()
 
 
 def run_file(klong, fname):
@@ -242,6 +242,7 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--server', help='start the IPC server', type=str)
     parser.add_argument('-t', '--test', help='test program from file')
     parser.add_argument('-v', '--verbose', help='enable verbose output', action="store_true")
+    parser.add_argument('-d', '--debug', help='enable debug mode', action="store_false")
     parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
 
     args = parser.parse_args()
@@ -254,15 +255,20 @@ if __name__ == "__main__":
 
     # Create and start the I/O loop on a separate thread
     io_loop = asyncio.new_event_loop()
+    if args.debug:
+        io_loop.set_debug(True)
     exit_event = threading.Event()
     io_thread = threading.Thread(target=start_io_loop, args=(io_loop,exit_event), daemon=True)
     io_thread.start()
 
     klong_loop = asyncio.new_event_loop()
+    if args.debug:
+        klong_loop.set_debug(True)
     asyncio.set_event_loop(klong_loop)
 
     klong['.system'] = {'ioloop': io_loop, 'klongloop': klong_loop}
-    klong['.os'] = {'environ': dict(os.environ), 'argv': list(sys.argv)}
+    klong['.os.env'] = dict(os.environ)
+    klong['.os.argv'] = list(sys.argv)
 
     run_repl = False
 

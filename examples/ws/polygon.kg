@@ -1,14 +1,14 @@
 .py("klongpy.ws")
 
 auth:::{["action" "auth"]}
-KEY::(.os?"environ")?"POLYGON_API_KEY"
+KEY::.os.env?"POLYGON_API_KEY"
 auth::auth,"params",,KEY
 
-sendauth::{.p("sending auth");x(auth)}
+sendAuth::{.p("sending auth");x(auth)}
 handleAuthFailure::{.p("failed to auth")}
 handleLogin::{.p("logged in")}
-handleStatus::{[q];q::(y?"status");:[q="connected";sendauth(x);:[q="auth_success";handleLogin(x;y);handleAuthFailure(x;y)]]}
+handleStatus::{[q];q::(y?"status");:[q="connected";sendAuth(x);:[q="auth_success";handleLogin(x;y);handleAuthFailure(x;y)]]}
 handleMsg::{[q];:[(y?"ev")="status";handleStatus(x;y);0]}
-.ws.m::{[c];c::x;.p(x,y);{handleMsg(c;x)}'y}
+.ws.m::{[c];c::x;{handleMsg(c;x)}'y}
 
 c::.ws("wss://delayed.polygon.io/stocks")
