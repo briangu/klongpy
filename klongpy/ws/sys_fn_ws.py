@@ -193,9 +193,7 @@ class NetworkClient(KGLambda):
                         logging.warning(f"error while running on_connect handler: {e}")
                 while self.running:
                     await self._listen(on_message)
-                close_exception = None
             except (KlongWSConnectionFailureException, KlongWSCreateConnectionException) as e:
-                close_exception = e
                 if on_error is not None:
                     try:
                         await on_error(self, e)
@@ -205,10 +203,8 @@ class NetworkClient(KGLambda):
             except KGRemoteCloseConnectionException as e:
                 logging.info(f"Remote client closing connection: {str(self.conn_provider)}")
                 self.running = False
-                close_exception = e
                 break
             except Exception as e:
-                close_exception = KlongWSConnectionFailureException("unknown error")
                 logging.warning(f"Unexepected error {e}.")
                 if on_error is not None:
                     try:
@@ -235,7 +231,7 @@ class NetworkClient(KGLambda):
                     await on_message(self, msg)
                 except Exception as e:
                     logging.warning(f"error while running on_message handler: {e}")
-            response = await run_command_on_klongloop(self.klongloop, self.klong, ".ws.m", msg, self)
+            await run_command_on_klongloop(self.klongloop, self.klong, ".ws.m", msg, self)
             # if response is not None and response != np.inf:
             #     await self.websocket.send(encode_message(response))
         except websockets.exceptions.ConnectionClosed:
