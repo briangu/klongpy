@@ -140,7 +140,7 @@ class ExistingConnectionProvider(ConnectionProvider):
 class NetworkClient(KGLambda):
     """
     """
-    def __init__(self, ioloop, klongloop, klong, shutdown_event, conn_provider, on_connect=None, on_close=None, on_error=None, on_message=None):
+    def __init__(self, ioloop, klongloop, klong, conn_provider, shutdown_event=None, on_connect=None, on_close=None, on_error=None, on_message=None):
         self.ioloop = ioloop
         self.klongloop = klongloop
         self.klong = klong
@@ -155,7 +155,8 @@ class NetworkClient(KGLambda):
         self.websocket = None
         self._run_exit_event = threading.Event()
 
-        self.shutdown_event.subscribe(self.close)
+        if shutdown_event is not None:
+            self.shutdown_event.subscribe(self.close)
 
     def run_client(self):
         """        
@@ -286,7 +287,8 @@ class NetworkClient(KGLambda):
         if not self.running:
             return
 
-        self.shutdown_event.unsubscribe(self.close)
+        if self.shutdown_event is not None:
+            self.shutdown_event.unsubscribe(self.close)
 
         # run close in the appropriate context task to avoid deadlock
         try:
@@ -323,7 +325,7 @@ class NetworkClient(KGLambda):
         return f"{str(self.conn_provider)}:fn"
 
     @staticmethod
-    def create_from_conn_provider(ioloop, klongloop, klong, shutdown_event, conn_provider, on_connect=None, on_close=None, on_error=None, on_message=None):
+    def create_from_conn_provider(ioloop, klongloop, klong, conn_provider, shutdown_event=None, on_connect=None, on_close=None, on_error=None, on_message=None):
         """
         
         Create a network client to connect to a remote server.
@@ -336,10 +338,10 @@ class NetworkClient(KGLambda):
         :return: a network client
 
         """
-        return NetworkClient(ioloop, klongloop, klong, shutdown_event, conn_provider, on_connect=on_connect, on_close=on_close, on_error=on_error, on_message=on_message)
+        return NetworkClient(ioloop, klongloop, klong, conn_provider, shutdown_event=shutdown_event, on_connect=on_connect, on_close=on_close, on_error=on_error, on_message=on_message)
 
     @staticmethod
-    def create_from_uri(ioloop, klongloop, klong, shutdown_event, uri, on_connect=None, on_close=None, on_error=None, on_message=None):
+    def create_from_uri(ioloop, klongloop, klong, uri, shutdown_event=None, on_connect=None, on_close=None, on_error=None, on_message=None):
         """
         
         Create a network client to connect to a remote server.
@@ -353,7 +355,7 @@ class NetworkClient(KGLambda):
                 
         """
         conn_provider = ClientConnectionProvider(uri)
-        return NetworkClient.create_from_conn_provider(ioloop, klongloop, klong, shutdown_event, conn_provider, on_connect=on_connect, on_close=on_close, on_error=on_error, on_message=on_message)
+        return NetworkClient.create_from_conn_provider(ioloop, klongloop, klong, conn_provider, shutdown_event=shutdown_event, on_connect=on_connect, on_close=on_close, on_error=on_error, on_message=on_message)
 
 
 # class WebsocketServerConnectionHandler:
@@ -468,7 +470,7 @@ def eval_sys_fn_create_client(klong, x):
     ioloop = system['ioloop']
     klongloop = system['klongloop']
     shutdown_event = system['closeEvent']
-    nc = NetworkClient.create_from_uri(ioloop, klongloop, klong, shutdown_event, x).run_client()
+    nc = NetworkClient.create_from_uri(ioloop, klongloop, klong, x, shutdown_event=shutdown_event).run_client()
     return nc
 
 
