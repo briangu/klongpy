@@ -243,6 +243,14 @@ def start_io_loop(ioloop):
 
 
 if __name__ == "__main__":
+    if '--' in sys.argv:
+        index = sys.argv.index('--')
+        main_args = sys.argv[:index]
+        extras = sys.argv[index+1:]
+    else:
+        main_args = sys.argv
+        extras = []
+
     parser = argparse.ArgumentParser(
         prog='KlongPy',
         description='KlongPy REPL',
@@ -255,7 +263,7 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--debug', help='enable debug mode', action="store_false")
     parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
 
-    args = parser.parse_args()
+    args = parser.parse_args(main_args[1:])
 
     if args.expr:
         print(KlongInterpreter()(args.expr))
@@ -279,7 +287,7 @@ if __name__ == "__main__":
 
     klong['.system'] = {'ioloop': io_loop, 'klongloop': klong_loop, 'closeEvent': shutdown_event}
     klong['.os.env'] = dict(os.environ)
-    klong['.os.argv'] = list(sys.argv)
+    klong['.os.argv'] = extras if extras else []
 
     run_repl = False
 

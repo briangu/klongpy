@@ -22,10 +22,9 @@ handleMsg::{[q];q::y?"ev";:[q="status";handleStatus(x;y);handleData(x;y)]}
 
 .ws.m::{[c];c::x;{handleMsg(c;x)}'y}
 
-.comment("----")
-c::.ws("wss://delayed.polygon.io/stocks")
------
-c::.ws("ws://localhost:8500")
+wsuri:::[(#.os.argv);.os.argv@0;"wss://delayed.polygon.io/stocks"]
+.d("connecting to ");.p(wsuri)
+c::.ws(wsuri)
 
 :" Called by clients to subscribe to ticker updates "
 subscribe::{.d("subscribing client: ");.p(x);clients,.cli.h,,(clients?.cli.h),,x;.p(clients)}
