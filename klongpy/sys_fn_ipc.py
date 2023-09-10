@@ -251,13 +251,14 @@ class NetworkClient(KGLambda):
     can be used in KlongPy as a remote dictionary or a remote function.
     
     """
-    def __init__(self, ioloop, klongloop, klong, conn_provider, on_connect=None, on_close=None, on_error=None):
+    def __init__(self, ioloop, klongloop, klong, conn_provider, shutdown_event=None, on_connect=None, on_close=None, on_error=None):
+        self.ioloop = ioloop
+        self.klongloop = klongloop
         self.klong = klong
+        self.shutdown_event = shutdown_event
+        self.conn_provider = conn_provider
         self.pending_responses = {}
         self.running = False
-        self.klongloop = klongloop
-        self.ioloop = ioloop
-        self.conn_provider = conn_provider
         self.run_task = None
         self.on_connect = on_connect
         self.on_close = on_close
@@ -265,6 +266,9 @@ class NetworkClient(KGLambda):
         self.reader: StreamReader = None
         self.writer: StreamWriter = None
         self._run_exit_event = threading.Event()
+
+        if shutdown_event is not None:
+            self.shutdown_event.subscribe(self.close)
 
     def _cleanup_pending_responses(self, close_exception):
         """
@@ -300,7 +304,7 @@ class NetworkClient(KGLambda):
                 await client.on_error(self, e)
             connect_event.set()
 
-        self.run_task = self.ioloop.call_soon_threadsafe(asyncio.create_task, self._run(_on_connect, self.on_close, _on_error))
+        self.ioloop.call_soon_threadsafe(asyncio.create_task, self._run(_on_connect, self.on_close, _on_error))
         connect_event.wait()
         return self
 
@@ -462,7 +466,7 @@ class NetworkClient(KGLambda):
         """
         self.running = False
         self._run_exit_event.wait()
-        self.run_task = None
+        self._run_exit_event.clear()
 
     def cleanup(self):
         """
@@ -472,15 +476,20 @@ class NetworkClient(KGLambda):
         """
         if not self.running:
             return
-        self._stop()
+
+        if self.shutdown_event is not None:
+            self.shutdown_event.unsubscribe(self.close)
+
         # run close in the appropriate context task to avoid deadlock
         try:
             loop = asyncio.get_running_loop()
             if loop == self.ioloop:
                 self.ioloop.call_soon(asyncio.create_task, self.conn_provider.close())
+                self._stop()
             else:
                 raise RuntimeError()
         except RuntimeError:
+            self._stop()
             asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result()
 
     def close(self):
@@ -506,7 +515,7 @@ class NetworkClient(KGLambda):
         return f"{str(self.conn_provider)}:fn"
 
     @staticmethod
-    def create_from_conn_provider(ioloop, klongloop, klong, conn_provider, on_connect=None, on_close=None, on_error=None):
+    def create_from_conn_provider(ioloop, klongloop, klong, conn_provider, shutdown_event=None, on_connect=None, on_close=None, on_error=None):
         """
         
         Create a network client to connect to a remote server.
@@ -519,10 +528,10 @@ class NetworkClient(KGLambda):
         :return: a network client
 
         """
-        return NetworkClient(ioloop, klongloop, klong, conn_provider, on_connect=on_connect, on_close=on_close, on_error=on_error)
+        return NetworkClient(ioloop, klongloop, klong, conn_provider, shutdown_event=shutdown_event, on_connect=on_connect, on_close=on_close, on_error=on_error)
 
     @staticmethod
-    def create_from_host_port(ioloop, klongloop, klong, host, port, on_connect=None, on_close=None, on_error=None):
+    def create_from_host_port(ioloop, klongloop, klong, host, port, shutdown_event=None, on_connect=None, on_close=None, on_error=None):
         """
         
         Create a network client to connect to a remote server.
@@ -536,10 +545,10 @@ class NetworkClient(KGLambda):
 
         """
         conn_provider = HostPortConnectionProvider(host, port)
-        return NetworkClient.create_from_conn_provider(ioloop, klongloop, klong, conn_provider, on_connect=on_connect, on_close=on_close, on_error=on_error)
+        return NetworkClient.create_from_conn_provider(ioloop, klongloop, klong, conn_provider, shutdown_event=shutdown_event, on_connect=on_connect, on_close=on_close, on_error=on_error)
 
     @staticmethod
-    def create_from_addr(ioloop, klongloop, klong, addr, on_connect=None, on_close=None, on_error=None):
+    def create_from_addr(ioloop, klongloop, klong, shutdown_event, addr, on_connect=None, on_close=None, on_error=None):
         """
         
         Create a network client to connect to a remote server.
@@ -556,7 +565,7 @@ class NetworkClient(KGLambda):
         parts = addr.split(":")
         host = parts[0] if len(parts) > 1 else "localhost"
         port = int(parts[0] if len(parts) == 1 else parts[1])
-        return NetworkClient.create_from_host_port(ioloop, klongloop, klong, host, port, on_connect=on_connect, on_close=on_close, on_error=on_error)
+        return NetworkClient.create_from_host_port(ioloop, klongloop, klong, host, port, shutdown_event=shutdown_event, on_connect=on_connect, on_close=on_close, on_error=on_error)
 
 
 class KGRemoteFnRef:
@@ -804,7 +813,8 @@ def eval_sys_fn_create_client(klong, x):
     system = klong['.system']
     ioloop = system['ioloop']
     klongloop = system['klongloop']
-    nc = x.nc if isinstance(x,NetworkClientDictHandle) else NetworkClient.create_from_addr(ioloop, klongloop, klong, x).run_client()
+    shutdown_event = system['closeEvent']
+    nc = x.nc if isinstance(x,NetworkClientDictHandle) else NetworkClient.create_from_addr(ioloop, klongloop, klong, shutdown_event, x).run_client()
     return nc
 
 
@@ -860,7 +870,8 @@ def eval_sys_fn_create_dict_client(klong, x):
     system = klong['.system']
     ioloop = system['ioloop']
     klongloop = system['klongloop']
-    nc = x.nc if isinstance(x,NetworkClient) else NetworkClient.create_from_addr(ioloop, klongloop, klong, x).run_client()
+    shutdown_event = system['closeEvent']
+    nc = x.nc if isinstance(x,NetworkClient) else NetworkClient.create_from_addr(ioloop, klongloop, klong, shutdown_event, x).run_client()
     return NetworkClientDictHandle(nc)
 
 

@@ -7,6 +7,7 @@ from utils import LoopsBase
 
 from klongpy import KlongInterpreter
 from klongpy.sys_fn_ipc import *
+from klongpy.utils import CallbackEvent
 
 
 def run_coroutine_threadsafe(coro, loop):
@@ -240,6 +241,7 @@ class TestNetworkClient(LoopsBase, unittest.TestCase):
         self.assertEqual(str(client), f"{str(conn_provider)}:fn")
 
     def test_connect(self):
+        klong = KlongInterpreter()
         reader = AsyncMock()
         writer = AsyncMock()
         writer.write = MagicMock()
@@ -253,7 +255,7 @@ class TestNetworkClient(LoopsBase, unittest.TestCase):
             client.running = False
 
         conn_provider = ReaderWriterConnectionProvider(reader, writer, "localhost", 1234)
-        client = NetworkClient(self.ioloop, self.klongloop, "klong", conn_provider, on_connect=_test_on_connect)
+        client = NetworkClient(self.ioloop, self.klongloop, klong, conn_provider, on_connect=_test_on_connect)
         client.run_client()
 
         # after client.running is set to False, the _run method will exit

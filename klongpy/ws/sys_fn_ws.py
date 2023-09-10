@@ -140,12 +140,13 @@ class ExistingConnectionProvider(ConnectionProvider):
 class NetworkClient(KGLambda):
     """
     """
-    def __init__(self, ioloop, klongloop, klong, conn_provider, on_connect=None, on_close=None, on_error=None, on_message=None):
-        self.klong = klong
-        self.running = False
-        self.klongloop = klongloop
+    def __init__(self, ioloop, klongloop, klong, shutdown_event, conn_provider, on_connect=None, on_close=None, on_error=None, on_message=None):
         self.ioloop = ioloop
+        self.klongloop = klongloop
+        self.klong = klong
+        self.shutdown_event = shutdown_event
         self.conn_provider = conn_provider
+        self.running = False
         self.run_task = None
         self.on_connect = on_connect
         self.on_close = on_close
@@ -153,6 +154,8 @@ class NetworkClient(KGLambda):
         self.on_message = on_message
         self.websocket = None
         self._run_exit_event = threading.Event()
+
+        self.shutdown_event.subscribe(self.close)
 
     def run_client(self):
         """        
@@ -282,6 +285,9 @@ class NetworkClient(KGLambda):
         """
         if not self.running:
             return
+
+        self.shutdown_event.unsubscribe(self.close)
+
         # run close in the appropriate context task to avoid deadlock
         try:
             loop = asyncio.get_running_loop()
@@ -289,9 +295,11 @@ class NetworkClient(KGLambda):
                 self.ioloop.call_soon(asyncio.create_task, self.conn_provider.close())
             else:
                 raise RuntimeError()
+            self._stop()
         except RuntimeError:
             asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result()
-        self._stop()
+            self._stop()
+
 
     def close(self):
         """
@@ -315,7 +323,7 @@ class NetworkClient(KGLambda):
         return f"{str(self.conn_provider)}:fn"
 
     @staticmethod
-    def create_from_conn_provider(ioloop, klongloop, klong, conn_provider, on_connect=None, on_close=None, on_error=None, on_message=None):
+    def create_from_conn_provider(ioloop, klongloop, klong, shutdown_event, conn_provider, on_connect=None, on_close=None, on_error=None, on_message=None):
         """
         
         Create a network client to connect to a remote server.
@@ -328,10 +336,10 @@ class NetworkClient(KGLambda):
         :return: a network client
 
         """
-        return NetworkClient(ioloop, klongloop, klong, conn_provider, on_connect=on_connect, on_close=on_close, on_error=on_error, on_message=on_message)
+        return NetworkClient(ioloop, klongloop, klong, shutdown_event, conn_provider, on_connect=on_connect, on_close=on_close, on_error=on_error, on_message=on_message)
 
     @staticmethod
-    def create_from_uri(ioloop, klongloop, klong, uri, on_connect=None, on_close=None, on_error=None, on_message=None):
+    def create_from_uri(ioloop, klongloop, klong, shutdown_event, uri, on_connect=None, on_close=None, on_error=None, on_message=None):
         """
         
         Create a network client to connect to a remote server.
@@ -345,106 +353,106 @@ class NetworkClient(KGLambda):
                 
         """
         conn_provider = ClientConnectionProvider(uri)
-        return NetworkClient.create_from_conn_provider(ioloop, klongloop, klong, conn_provider, on_connect=on_connect, on_close=on_close, on_error=on_error, on_message=on_message)
+        return NetworkClient.create_from_conn_provider(ioloop, klongloop, klong, shutdown_event, conn_provider, on_connect=on_connect, on_close=on_close, on_error=on_error, on_message=on_message)
 
 
-class WebsocketServerConnectionHandler:
-    def __init__(self, ioloop, klongloop, klong):
-        self.ioloop = ioloop
-        self.klong = klong
-        self.klongloop = klongloop
+# class WebsocketServerConnectionHandler:
+#     def __init__(self, ioloop, klongloop, klong):
+#         self.ioloop = ioloop
+#         self.klong = klong
+#         self.klongloop = klongloop
 
-    async def _on_connect(self, nc):
-        logging.info(f"New connection from {str(nc.conn_provider)}")
-        fn = self.klong['.srv.o']
-        if callable(fn):
-            try:
-                fn(nc)
-            except Exception as e:
-                logging.warning(f"Server: error while running on_connect handler: {e}")
+#     async def _on_connect(self, nc):
+#         logging.info(f"New connection from {str(nc.conn_provider)}")
+#         fn = self.klong['.srv.o']
+#         if callable(fn):
+#             try:
+#                 fn(nc)
+#             except Exception as e:
+#                 logging.warning(f"Server: error while running on_connect handler: {e}")
 
-    async def _on_close(self, nc):
-        logging.info(f"Connection closed from {str(nc.conn_provider)}")
-        fn = self.klong['.srv.c']
-        if callable(fn):
-            try:
-                fn(nc)
-            except Exception as e:
-                logging.warning(f"Server: error while running on_close handler: {e}")
+#     async def _on_close(self, nc):
+#         logging.info(f"Connection closed from {str(nc.conn_provider)}")
+#         fn = self.klong['.srv.c']
+#         if callable(fn):
+#             try:
+#                 fn(nc)
+#             except Exception as e:
+#                 logging.warning(f"Server: error while running on_close handler: {e}")
 
-    async def _on_error(self, nc, e):
-        logging.info(f"Connection error from {str(nc.conn_provider)}")
-        fn = self.klong['.srv.e']
-        if callable(fn):
-            try:
-                fn(nc, e)
-            except Exception as e:
-                logging.warning(f"Server: error while running on_error handler: {e}")
+#     async def _on_error(self, nc, e):
+#         logging.info(f"Connection error from {str(nc.conn_provider)}")
+#         fn = self.klong['.srv.e']
+#         if callable(fn):
+#             try:
+#                 fn(nc, e)
+#             except Exception as e:
+#                 logging.warning(f"Server: error while running on_error handler: {e}")
 
-    async def handle_client(self, websocket):
-        """
+#     async def handle_client(self, websocket):
+#         """
         
-        Handle a client connection.  Messages are read from the client and executed on the klong loop.
+#         Handle a client connection.  Messages are read from the client and executed on the klong loop.
         
-        """
-        # host, port, _, _ = writer.get_extra_info('peername')
-        # if host == "::1":
-        #     host = "localhost"
-        conn_provider = ExistingConnectionProvider(websocket, "")
-        nc = NetworkClient.create_from_conn_provider(self.ioloop, self.klongloop, self.klong, conn_provider, on_connect=self._on_connect, on_close=self._on_close, on_error=self._on_error)
-        try:
-            await nc.run_server()
-        finally:
-            nc.cleanup()
+#         """
+#         # host, port, _, _ = writer.get_extra_info('peername')
+#         # if host == "::1":
+#         #     host = "localhost"
+#         conn_provider = ExistingConnectionProvider(websocket, "")
+#         nc = NetworkClient.create_from_conn_provider(self.ioloop, self.klongloop, self.klong, shutdown_event, conn_provider, on_connect=self._on_connect, on_close=self._on_close, on_error=self._on_error)
+#         try:
+#             await nc.run_server()
+#         finally:
+#             nc.cleanup()
 
 
-class WebsocketServerHandler:
-    def __init__(self):
-        self.connection_handler = None
-        self.task = None
-        self.server = None
-        self.connections = []
+# class WebsocketServerHandler:
+#     def __init__(self):
+#         self.connection_handler = None
+#         self.task = None
+#         self.server = None
+#         self.connections = []
 
-    def create_server(self, ioloop, klongloop, klong, bind, port):
-        if self.task is not None:
-            return 0
-        self.connection_handler = WebsocketServerConnectionHandler(ioloop, klongloop, klong)
-        self.task = ioloop.call_soon_threadsafe(asyncio.create_task, self.run_server(bind, port))
-        return 1
+#     def create_server(self, ioloop, klongloop, klong, bind, port):
+#         if self.task is not None:
+#             return 0
+#         self.connection_handler = WebsocketServerConnectionHandler(ioloop, klongloop, klong)
+#         self.task = ioloop.call_soon_threadsafe(asyncio.create_task, self.run_server(bind, port))
+#         return 1
 
-    def shutdown_server(self):
-        if self.task is None:
-            return 0
-        for writer in self.connections:
-            if not writer.is_closing():
-                writer.close()
-        self.connections.clear()
+#     def shutdown_server(self):
+#         if self.task is None:
+#             return 0
+#         for writer in self.connections:
+#             if not writer.is_closing():
+#                 writer.close()
+#         self.connections.clear()
 
-        self.server.close()
-        self.server = None
-        self.task.cancel()
-        self.task = None
-        self.connection_handler = None
-        return 1
+#         self.server.close()
+#         self.server = None
+#         self.task.cancel()
+#         self.task = None
+#         self.connection_handler = None
+#         return 1
 
-    async def handle_client(self, reader, writer):
-        self.connections.append(writer)
+#     async def handle_client(self, reader, writer):
+#         self.connections.append(writer)
 
-        try:
-            await self.connection_handler.handle_client(reader, writer)
-        finally:
-            writer.close()
-            if writer in self.connections:
-                self.connections.remove(writer)
+#         try:
+#             await self.connection_handler.handle_client(reader, writer)
+#         finally:
+#             writer.close()
+#             if writer in self.connections:
+#                 self.connections.remove(writer)
 
-    async def run_server(self, bind, port):
-        self.server = await asyncio.start_server(self.handle_client, bind, port, reuse_address=True)
+#     async def run_server(self, bind, port):
+#         self.server = await asyncio.start_server(self.handle_client, bind, port, reuse_address=True)
 
-        addr = self.server.sockets[0].getsockname()
-        logging.info(f'Serving on {addr}')
+#         addr = self.server.sockets[0].getsockname()
+#         logging.info(f'Serving on {addr}')
 
-        async with self.server:
-            await self.server.serve_forever()
+#         async with self.server:
+#             await self.server.serve_forever()
 
 
 def eval_sys_fn_create_client(klong, x):
@@ -459,7 +467,8 @@ def eval_sys_fn_create_client(klong, x):
     system = klong['.system']
     ioloop = system['ioloop']
     klongloop = system['klongloop']
-    nc = NetworkClient.create_from_uri(ioloop, klongloop, klong, x).run_client()
+    shutdown_event = system['closeEvent']
+    nc = NetworkClient.create_from_uri(ioloop, klongloop, klong, shutdown_event, x).run_client()
     return nc
 
 
@@ -484,33 +493,33 @@ def eval_sys_fn_shutdown_client(x):
     return 0
 
 
-_ws_server = WebsocketServerHandler()
+# _ws_server = WebsocketServerHandler()
 
 
-def eval_sys_fn_create_websocket_server(klong, x):
-    """
+# def eval_sys_fn_create_websocket_server(klong, x):
+#     """
 
-        .wsrv(x)                                       [Start-IPC-server]
+#         .wsrv(x)                                       [Start-IPC-server]
 
-        Open a server port to accept IPC connections.
+#         Open a server port to accept IPC connections.
 
-        If "x" is an integer, then it is interpreted as a port in "<all>:<port>".
-        if "x" is a string, then it is interpreted as a bind address "<bind>:<port>"
+#         If "x" is an integer, then it is interpreted as a port in "<all>:<port>".
+#         if "x" is a string, then it is interpreted as a bind address "<bind>:<port>"
 
-        if "x" is 0, then the server is closed and existing client connections are dropped.
+#         if "x" is 0, then the server is closed and existing client connections are dropped.
 
-    """
-    global _ws_server
-    x = str(x)
-    parts = x.split(":")
-    bind = parts[0] if len(parts) > 1 else None
-    port = int(parts[0] if len(parts) == 1 else parts[1])
-    if len(parts) == 1 and port == 0:
-        return _ws_server.shutdown_server()
-    system = klong['.system']
-    ioloop = system['ioloop']
-    klongloop = system['klongloop']
-    return _ws_server.create_server(ioloop, klongloop, klong, bind, port)
+#     """
+#     global _ws_server
+#     x = str(x)
+#     parts = x.split(":")
+#     bind = parts[0] if len(parts) > 1 else None
+#     port = int(parts[0] if len(parts) == 1 else parts[1])
+#     if len(parts) == 1 and port == 0:
+#         return _ws_server.shutdown_server()
+#     system = klong['.system']
+#     ioloop = system['ioloop']
+#     klongloop = system['klongloop']
+#     return _ws_server.create_server(ioloop, klongloop, klong, bind, port)
 
 
 def create_system_functions_websockets():
