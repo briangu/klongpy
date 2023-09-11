@@ -4,14 +4,26 @@ auth:::{["action" "auth"]}
 KEY::.os.env?"POLYGON_API_KEY"
 auth::auth,"params",,KEY
 
+:" polygon subscription handler "
+psmsg::{:{["action" "subscribe"]},"params",,x}
+unionValues::{[q];q:::{};{{q,x,1}'x@1}'x;{x@0}'q}
+join::{[q];q::"";{q::q,x}'((x@0),",",:\1_x);q}
+updPolygonSub::{[v q];.d("subscribing to polygon: ");v::unionValues(x);.p(v);v::join(v);.p(v);polygon(psmsg(v))}
+
 :" Map of clients handles to their subscribed tickers "
 clients:::{}
 
 :" Handle server auth request "
 sendAuth::{.p("sending auth");x(auth)}
-handleAuthFailure::{.p("failed to auth")}
+handleUnknown::{.d("unhandled");.p(y)}
 handleLogin::{.p("logged in")}
-handleStatus::{[q];q::(y?"status");:[q="connected";sendAuth(x);:[q="auth_success";handleLogin(x;y);handleAuthFailure(x;y)]]}
+handleSuccess::{.p("success");.p(y)}
+
+handlers:::{}
+handlers,"connected",sendAuth
+handlers,"auth_success",handleLogin
+handlers,"success",handleSuccess
+handleStatus::{h::handlers?(y?"status");:[h;h(x;y);handleUnknown(x;y)]}
 
 :" send the message to all subscribed clients "
 send::{.d("sending ");.d(k);.d(" to client ");.p(y);y(:update,,z)}
@@ -25,13 +37,14 @@ handleMsg::{[q];q::y?"ev";:[q="status";handleStatus(x;y);handleData(x;y)]}
 
 wsuri:::[(#.os.argv);.os.argv@0;"wss://delayed.polygon.io/stocks"]
 .d("connecting to ");.p(wsuri)
-c::.ws(wsuri)
+polygon::.ws(wsuri)
 
 :" Called by clients to subscribe to ticker updates "
-subscribe::{.d("subscribing client: ");.p(x);clients,.cli.h,,(clients?.cli.h),,x;.p(clients)}
+updClientSub::{clients,x,,(clients?x),,y;.p(clients)}
+subscribe::{.d("subscribing client: ");.p(.cli.h,,x);updClientSub(.cli.h;x);updPolygonSub(clients);x}
 
 :" Setup the IPC server and callbacks "
 .srv(8888)
 .srv.o::{.d("client connected: ");.p(x);clients,x,,[]}
-.srv.c::{.d("client disconnected: ");.p(x);x_clients;.d("clients left: ");.p(#clients)}
+.srv.c::{.d("client disconnected: ");.p(x);x_clients;updPolygonSub();.d("clients left: ");.p(#clients)}
 .srv.e::{.d("error: ");.p(x);.p(y)}
