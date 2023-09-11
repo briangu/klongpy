@@ -35,7 +35,7 @@ store::{.p("");stats();tbs,"prices",prices;1}
 .p("connecting to server on port 8888")
 cli::.cli(8888)
 
-cli(:subscribe,,["AM.MSFT" "AM.GOOG" "AM.AAPL"])
+cli(:subscribe,,["AM.MSFT"])
 
 :" A basic bollinger band strategy "
 mean::{(+/x)%#x}
