@@ -1,5 +1,7 @@
 .py("klongpy.db")
 
+time::{[t0];t0::.pc();x@[];.pc()-t0}
+
 tbs::.tables("/tmp/tables/consumer")
 
 :" Create a new table with appropriate columns for the Polygon AM.* data "
@@ -26,7 +28,8 @@ stats()
 
 :" Flush the prices table every minute "
 store::{.p("");stats();tbs,"prices",prices;1}
-.timer("store";60;store)
+timeStore::{[r];r::time(store());.d("store ms: ");.p(r)}
+.timer("store";60;timeStore)
 
 :"Connect to the broadcast server"
 .p("connecting to server on port 8888")
@@ -40,7 +43,6 @@ std::{((+/((x-y)^2))%#x)^0.5}
 bollinger::{[m s];m::mean(x);s::std(x;mean(x));(m+2*s),(m-2*s)}
 signal::{[upper lower p];upper::x@0;lower::x@1;p::y@0;:[p<lower;"buy";:[p>upper;"sell";"hold"]]}
 
-time::{[t0];t0::.pc();x@[];.pc()-t0}
 analyze::{[b c];c::db("select c from prices order by s desc limit 20");.p(c);b::bollinger(c);.p(signal(b;c))}
 timeAnalyze::{time(analyze)}
 analyzeComplete::{.d("analyze ms: ");.p(x)}
