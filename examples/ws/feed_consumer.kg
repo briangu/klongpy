@@ -24,9 +24,6 @@ stats::{.d("rows: ");.p(db("select count(*) from prices"))}
 
 stats()
 
-:" Called by server when there is a subscription update."
-update::{[u d];u::x;d::{u?x}'cols;.insert(prices;d)}
-
 :" Flush the prices table every minute "
 store::{.p("");stats();tbs,"prices",prices;1}
 .timer("store";60;store)
@@ -41,7 +38,13 @@ cli(:subscribe,,["AM.MSFT"])
 mean::{(+/x)%#x}
 std::{((+/((x-y)^2))%#x)^0.5}
 bollinger::{[m s];m::mean(x);s::std(x;mean(x));(m+2*s),(m-2*s)}
-signal::{[upper lower p];upper::x@0;lower::x@1;p::y@-1;:[p<lower;"buy";:[p>upper;"sell";"hold"]]}
+signal::{[upper lower p];upper::x@0;lower::x@1;p::y@0;:[p<lower;"buy";:[p>upper;"sell";"hold"]]}
 
+time::{[t0];t0::.pc();x@[];.pc()-t0}
 analyze::{[b c];c::db("select c from prices order by s desc limit 20");.p(c);b::bollinger(c);.p(signal(b;c))}
-.timer("analyze";10;analyze)
+timeAnalyze::{time(analyze)}
+analyzeComplete::{.p(x)}
+asyncAnalyze::.async(timeAnalyze;analyzeComplete)
+
+:" Called by server when there is a subscription update."
+update::{[u d];u::x;d::{u?x}'cols;.insert(prices;d);asyncAnalyze()}
