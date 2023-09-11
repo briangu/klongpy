@@ -43,8 +43,12 @@ signal::{[upper lower p];upper::x@0;lower::x@1;p::y@0;:[p<lower;"buy";:[p>upper;
 time::{[t0];t0::.pc();x@[];.pc()-t0}
 analyze::{[b c];c::db("select c from prices order by s desc limit 20");.p(c);b::bollinger(c);.p(signal(b;c))}
 timeAnalyze::{time(analyze)}
-analyzeComplete::{.p(x)}
+analyzeComplete::{.d("analyze ms: ");.p(x)}
 asyncAnalyze::.async(timeAnalyze;analyzeComplete)
 
+updateDb::{[u d];u::x;d::{u?x}'cols;.insert(prices;d)}
+timeUpdateDb::{.d("update db ms: ");.p(time(updateDb))}
+
 :" Called by server when there is a subscription update."
-update::{[u d];u::x;d::{u?x}'cols;.insert(prices;d);asyncAnalyze()}
+update::{timeUpdateDb(x);asyncAnalyze()}
+
