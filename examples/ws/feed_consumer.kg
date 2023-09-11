@@ -1,0 +1,32 @@
+.py("klongpy.db")
+
+tbs::.tables("/tmp/tables")
+
+:" Create a new table with appropriate columns for the Polygon AM.* data "
+cols::["ev" "sym" "v" "av" "op" "vw" "o" "c" "h" "l" "a" "z" "s" "e"]
+cols::["s" "c" "v"]
+colsFromData::{{(x@0),,[]}'x}
+colsFromNames::{{x,,[]}'x}
+newt::{.table(colsFromNames(cols))}
+
+:" Attempt to load the prices table from disk "
+prices::tbs?"prices"
+prices:::[:_prices;newt();prices]
+
+:" Create a database so we can inspect the data "
+q:::{}
+q,"prices",,prices
+db::.db(q)
+
+:" Called by server when there is a subscription update."
+update::{[u d];u::x;d::{u?x}'cols;.insert(prices;d)}
+
+:" Flush the prices table every minute "
+store::{.p("");.p(db("select * from prices limit 5"));tbs,"prices",prices;1}
+th::.timer("store";60;store)
+
+:"Connect to the broadcast server"
+.p("connecting to server on port 8888")
+cli::.cli(8888)
+
+cli(:subscribe,,["AM.MSFT" "AM.GOOG" "AM.AAPL"])
