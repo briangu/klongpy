@@ -40,7 +40,6 @@ cli(:subscribe,,["AM.MSFT" "AM.GOOG" "AM.AAPL"])
 :" A basic bollinger band strategy "
 mean::{(+/x)%#x}
 std::{((+/((x-y)^2))%#x)^0.5}
-closes::{{x@1}'x}
 bollinger::{[m s];m::mean(x);s::std(x;mean(x));(m+2*s),(m-2*s)}
 signal::{[upper lower p];upper::x@0;lower::x@1;p::y@-1;:[p<lower;"buy";:[p>upper;"sell";"hold"]]}
 
