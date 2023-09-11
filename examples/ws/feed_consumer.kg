@@ -1,6 +1,6 @@
 .py("klongpy.db")
 
-tbs::.tables("/tmp/tables")
+tbs::.tables("/tmp/tables/consumer")
 
 :" Create a new table with appropriate columns for the Polygon AM.* data "
 cols::["ev" "sym" "v" "av" "op" "vw" "o" "c" "h" "l" "a" "z" "s" "e"]
@@ -13,20 +13,36 @@ newt::{.table(colsFromNames(cols))}
 prices::tbs?"prices"
 prices:::[:_prices;newt();prices]
 
+:" TODO: add delta sync against feed server "
+
 :" Create a database so we can inspect the data "
 q:::{}
 q,"prices",,prices
 db::.db(q)
 
+stats::{.d("rows: ");.p(db("select count(*) from prices"))}
+
+stats()
+
 :" Called by server when there is a subscription update."
 update::{[u d];u::x;d::{u?x}'cols;.insert(prices;d)}
 
 :" Flush the prices table every minute "
-store::{.p("");.p(db("select * from prices limit 5"));tbs,"prices",prices;1}
-th::.timer("store";60;store)
+store::{.p("");stats();tbs,"prices",prices;1}
+.timer("store";60;store)
 
 :"Connect to the broadcast server"
 .p("connecting to server on port 8888")
 cli::.cli(8888)
 
 cli(:subscribe,,["AM.MSFT" "AM.GOOG" "AM.AAPL"])
+
+:" A basic bollinger band strategy "
+mean::{(+/x)%#x}
+std::{((+/((x-y)^2))%#x)^0.5}
+closes::{{x@1}'x}
+bollinger::{[m s];m::mean(x);s::std(x;mean(x));(m+2*s),(m-2*s)}
+signal::{[upper lower p];upper::x@0;lower::x@1;p::y@-1;:[p<lower;"buy";:[p>upper;"sell";"hold"]]}
+
+analyze::{[b c];c::db("select c from prices order by s desc limit 20");.p(c);b::bollinger(c);.p(signal(b;c))}
+.timer("analyze";10;analyze)
