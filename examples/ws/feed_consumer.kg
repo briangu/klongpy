@@ -22,12 +22,11 @@ q:::{}
 q,"prices",,prices
 db::.db(q)
 
-stats::{.d("rows: ");.p(db("select count(*) from prices"))}
-
-stats()
+stats::{[q];q::db("select count(*) from prices");.d("rows: ");.p(q);q}
+lastCnt::stats()
 
 :" Flush the prices table every minute "
-store::{.p("");stats();tbs,"prices",prices;1}
+store::{[q];.p("");q::stats();:[q>lastCnt;tbs,"prices",prices;.p("no change")];lastCnt::q;1}
 timeStore::{[r];r::time(store());.d("store ms: ");.p(r)}
 .timer("store";60;timeStore)
 
