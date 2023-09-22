@@ -9,7 +9,7 @@ import time
 import timeit
 
 import colorama
-import pkg_resources
+import importlib.metadata
 
 from klongpy import KlongInterpreter
 from klongpy.core import kg_write
@@ -177,7 +177,10 @@ def repl_eval(klong, p, verbose=True):
 
 def show_repl_header(ipc_addr=None):
     print()
-    print(f"{colorama.Fore.GREEN}Welcome to KlongPy REPL v{pkg_resources.get_distribution('klongpy').version}")
+
+    distribution = importlib.metadata.distribution('klongpy')
+    version = distribution.version
+    print(f"{colorama.Fore.GREEN}Welcome to KlongPy REPL v{version}")
     print(f"{colorama.Fore.GREEN}author: Brian Guarraci")
     print(f"{colorama.Fore.GREEN}repo  : https://github.com/briangu/klongpy")
     print(f"{colorama.Fore.YELLOW}crtl-d or ]q to quit")
