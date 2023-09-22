@@ -1,5 +1,8 @@
 import unittest
 
+from klongpy import KlongInterpreter
+
+
 def add_to_local_scope(d):
     for k,v in d.items():
         locals()[k] = v
@@ -12,3 +15,13 @@ class TestSysFnDb(unittest.TestCase):
         d = {'hello': "world"}
         add_to_local_scope(d)
         self.assertTrue(locals().get("hello") is None)
+
+    def test_table_print(self):
+        s = """
+        .py("klongpy.db")
+        T::.table(,"a",,[1 2 3])
+        .p(T)
+        """
+        klong = KlongInterpreter()
+        r = klong(s)
+        self.assertEqual(r, "a\n1\n2\n3")
