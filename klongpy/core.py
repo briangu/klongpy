@@ -730,6 +730,10 @@ def kg_write_string(s, display=False):
 
 
 def kg_write_dict(d, display=False):
+    # determine if the object d has overwritten the default __str__ and call it
+    # if so, otherwise use the default dict str
+    if issubclass(type(d),dict):
+        return str(d)
     return ''.join([':{', ' '.join([kg_write(list(e), display=display) for e in d.items()]), '}'])
 
 
