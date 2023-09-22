@@ -95,7 +95,7 @@ async def execute_server_command(future_loop, result_future, klong, command, nc)
             if isinstance(response, KGFnWrapper):
                 response = response.fn
         else:
-            response = klong(command if isinstance(command,str) else str(command))
+            response = klong(str(command))
         if isinstance(response, KGFn):
             response = KGRemoteFnRef(response.arity)
         future_loop.call_soon_threadsafe(result_future.set_result, response)
@@ -106,8 +106,6 @@ async def execute_server_command(future_loop, result_future, klong, command, nc)
         traceback.print_exception(type(e), e, e.__traceback__)
         future_loop.call_soon_threadsafe(result_future.set_exception, KlongException("internal error"))
         logging.error(f"TcpClientHandler::handle_client: Klong error {e}")
-        # import traceback
-        # traceback.print_exception(type(e), e, e.__traceback__)
     finally:
         klong._context.pop()
 

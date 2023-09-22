@@ -169,6 +169,8 @@ async def repl_eval(klong, p, verbose=True):
         r = r if r is None else success(kg_write(r, display=True))
     except Exception as e:
         r = failure(f"Error: {e.args}")
+        import traceback
+        traceback.print_exception(type(e), e, e.__traceback__)
         if verbose:
             import traceback
             traceback.print_exception(type(e), e, e.__traceback__)
@@ -226,7 +228,7 @@ class ConsoleInputHandler:
                 except Exception as e:
                     print(failure(f"Error: {e.args}"))
                     import traceback
-                    traceback.print_exc()
+                    traceback.print_exception(type(e), e, e.__traceback__)
         finally:
             console_loop.stop()
 

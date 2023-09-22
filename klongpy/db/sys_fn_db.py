@@ -105,13 +105,18 @@ class Table(dict):
         return len(self.get_dataframe())
     
     def __str__(self):
-        df = self.get_dataframe()
+        full_df = self.get_dataframe()
+        df = full_df.head(10)
         idx_cols = self.idx_cols or []
         header = [f"{k}{'*' if k in idx_cols else ''}" for k in df.columns]
         if df.empty:
             return str(" ".join(header))
         col_space = [len(x) for x in header]
-        return df.to_string(header=header, index=False, col_space=col_space)
+        s = df.to_string(header=header, index=False, col_space=col_space)
+        if len(full_df) > len(df):
+            s += "\n...\n"
+            s += f"rows={len(full_df)}\n"
+        return s
 
 
 class Database(KGLambda):

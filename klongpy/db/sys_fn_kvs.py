@@ -112,7 +112,7 @@ def eval_sys_fn_create_table_storage(x):
     """
     if not isinstance(x,str):
         raise KlongKvsException(x, "root path must be a string")
-    return TableStorage(x)
+    return TableStorage(x, max_memory=1024*1024*1024*10)
 
 
 def eval_sys_fn_create_kvs(x):

@@ -25,3 +25,15 @@ class TestSysFnDb(unittest.TestCase):
         klong = KlongInterpreter()
         r = klong(s)
         self.assertEqual(r, "a\n1\n2\n3")
+
+
+    def test_long_table_print(self):
+        s = """
+        .py("klongpy.db")
+        T::.table(,"a",,!100)
+        .p(T)
+        """
+        klong = KlongInterpreter()
+        r = klong(s)
+        seq = "".join([str(x)+"\n" for x in range(10)])
+        self.assertEqual(r, f"""a\n{seq}...\nrows=100\n""")
