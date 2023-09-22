@@ -14,10 +14,10 @@ extra_requires = {
         'cuda102': ["cupy-cuda102"],
         'rocm-5-0': ["cupy-rocm-5-0"],
         'rocm-4-3': ["cupy-rocm-4-3"],
-        'repl': ["colorama"],
-        'web': ["aiohttp"],
-        'db': ["pandas","duckdb"],
-        'ws': ["websockets"],
+        'repl': ["colorama==0.4.6"],
+        'web': ["aiohttp==3.8.5"],
+        'db': ["pandas==2.0.3","duckdb==0.8.1"],
+        'ws': ["websockets==11.0.3"],
     }
 
 # full feature set extras
@@ -26,7 +26,7 @@ extra_requires['full'] = extra_requires['repl'] + extra_requires['web'] + extra_
 setup(
     name='klongpy',
     packages=['klongpy', 'klongpy.web', 'klongpy.db'],
-    version='0.5.2',
+    version='0.5.3',
     description='Python implementation of Klong language.',
     author='Brian Guarraci',
     license='MIT',

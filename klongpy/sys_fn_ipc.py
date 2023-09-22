@@ -871,7 +871,7 @@ def eval_sys_fn_create_dict_client(klong, x):
     ioloop = system['ioloop']
     klongloop = system['klongloop']
     shutdown_event = system['closeEvent']
-    nc = x.nc if isinstance(x,NetworkClient) else NetworkClient.create_from_addr(ioloop, klongloop, klong, shutdown_event, x).run_client()
+    nc = x if isinstance(x,NetworkClient) else NetworkClient.create_from_addr(ioloop, klongloop, klong, shutdown_event, x).run_client()
     return NetworkClientDictHandle(nc)
 
 

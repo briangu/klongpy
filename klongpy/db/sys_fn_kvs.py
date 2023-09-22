@@ -92,10 +92,22 @@ def eval_sys_fn_create_table_storage(x):
         Examples:
 
             ts::.tables("/tmp/tables")
-            prices::.table(d)
+
+            cols::["s" "c" "v"]
+            colsFromNames::{{x,,[]}'x}
+            prices:::.table(colsFromNames(cols))
             ts,"tables/prices",prices
 
-            prices::ts?"tables/prices"
+            .p(ts?"tables/prices")
+
+            updateDb::{[u d];u::x;d::{u?x}'cols;.p(d);.insert(prices;d)}
+            updateDb(:{["s" 1] ["c" 2] ["v" 3]})
+
+            .p(prices)
+
+            ts,"tables/prices",prices
+
+            .p(ts?"tables/prices")
 
     """
     if not isinstance(x,str):
