@@ -2,14 +2,15 @@
 
 import argparse
 import asyncio
+import importlib.metadata
 import os
 import sys
 import threading
 import time
 import timeit
+from typing import Optional
 
 import colorama
-import importlib.metadata
 
 from klongpy import KlongInterpreter
 from klongpy.core import kg_write
@@ -162,7 +163,7 @@ success = lambda input: f"{colorama.Fore.GREEN}{input}"
 failure = lambda input: f"{colorama.Fore.RED}{input}"
 
 
-def repl_eval(klong, p, verbose=True):
+async def repl_eval(klong, p, verbose=True):
     try:
         r = klong(p)
         r = r if r is None else success(kg_write(r, display=True))
@@ -177,10 +178,7 @@ def repl_eval(klong, p, verbose=True):
 
 def show_repl_header(ipc_addr=None):
     print()
-
-    distribution = importlib.metadata.distribution('klongpy')
-    version = distribution.version
-    print(f"{colorama.Fore.GREEN}Welcome to KlongPy REPL v{version}")
+    print(f"{colorama.Fore.GREEN}Welcome to KlongPy REPL v{importlib.metadata.distribution('klongpy').version}")
     print(f"{colorama.Fore.GREEN}author: Brian Guarraci")
     print(f"{colorama.Fore.GREEN}repo  : https://github.com/briangu/klongpy")
     print(f"{colorama.Fore.YELLOW}crtl-d or ]q to quit")
@@ -194,15 +192,20 @@ def get_input():
     return input("?> ")
 
 
+def run_in_klong_loop(klong_loop, klong, s, verbose=False):
+    future = asyncio.run_coroutine_threadsafe(repl_eval(klong, s, verbose=verbose), klong_loop)
+    return future.result()
+
+
 class ConsoleInputHandler:
     @staticmethod
-    async def input_producer(loop, klong, verbose=False):
+    async def input_producer(console_loop, klong_loop, klong, verbose=False):
         sys_cmds = create_sys_cmd_functions()
 
         try:
             while True:
                 try:
-                    s = await loop.run_in_executor(None, get_input)
+                    s = await console_loop.run_in_executor(None, get_input)
                     if len(s) == 0:
                         continue
                     if s.startswith("]"):
@@ -212,7 +215,7 @@ class ConsoleInputHandler:
                             print(f"unkown system command: ]{s[1]}")
                             continue
                     else:
-                        r = repl_eval(klong, s, verbose=verbose)
+                        r = run_in_klong_loop(klong_loop, klong, s, verbose=verbose)
                     if r is not None:
                         print(r)
                 except EOFError:
@@ -225,14 +228,7 @@ class ConsoleInputHandler:
                     import traceback
                     traceback.print_exc()
         finally:
-            while len(asyncio.all_tasks(loop=klong_loop)) > 1:
-                print(asyncio.all_tasks(loop=klong_loop))
-                time.sleep(0.1)
-
-            for task in asyncio.all_tasks(loop=loop):
-                task.cancel()
-                
-            loop.stop()
+            console_loop.stop()
 
 
 def run_file(klong, fname):
@@ -243,6 +239,36 @@ def run_file(klong, fname):
 def start_io_loop(ioloop):
     asyncio.set_event_loop(ioloop)
     ioloop.run_forever()
+
+
+def start_klong_loop(klong_loop):
+    asyncio.set_event_loop(klong_loop)
+    klong_loop.run_forever()
+
+
+def setup_async_loop(start_loop_func, debug: bool = False) -> asyncio.AbstractEventLoop:
+    loop = asyncio.new_event_loop()
+    if debug:
+        loop.set_debug(True)
+    thread = threading.Thread(target=start_loop_func, args=(loop,), daemon=True)
+    thread.start()
+    return loop
+
+
+def cleanup_async_loop(loop: Optional[asyncio.AbstractEventLoop] = None, debug: bool = False) -> None:
+    if loop is None:
+        loop = asyncio.get_event_loop()
+
+    while len(asyncio.all_tasks(loop=loop)) > 0:
+        if debug:
+            print(asyncio.all_tasks(loop=loop))
+        time.sleep(0.1)
+
+    for task in asyncio.all_tasks(loop=loop):
+        loop.call_soon_threadsafe(task.cancel)
+
+    loop.call_soon_threadsafe(loop.stop)
+    loop.close()
 
 
 if __name__ == "__main__":
@@ -274,17 +300,12 @@ if __name__ == "__main__":
 
     klong = KlongInterpreter()
 
-    # Create and start the I/O loop on a separate thread
-    io_loop = asyncio.new_event_loop()
-    if args.debug:
-        io_loop.set_debug(True)
-    io_thread = threading.Thread(target=start_io_loop, args=(io_loop,), daemon=True)
-    io_thread.start()
+    io_loop = loop = setup_async_loop(start_io_loop, debug=True)
+    klong_loop = loop = setup_async_loop(start_klong_loop, debug=True)
+    klong_loop.slow_callback_duration = 2  # Set threshold to 2 seconds
 
-    klong_loop = asyncio.new_event_loop()
-    if args.debug:
-        klong_loop.set_debug(True)
-    asyncio.set_event_loop(klong_loop)
+    console_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(console_loop)
 
     shutdown_event = CallbackEvent()
 
@@ -320,21 +341,12 @@ if __name__ == "__main__":
                 klong(f.read())
         colorama.init(autoreset=True)
         show_repl_header(args.server)
-        klong_loop.create_task(ConsoleInputHandler.input_producer(klong_loop, klong, args.verbose))
+        console_loop.create_task(ConsoleInputHandler.input_producer(console_loop,   klong_loop, klong, args.verbose))
 
-    klong_loop.run_forever()
-    klong_loop.close()
+    console_loop.run_forever()
+    console_loop.close()
 
     shutdown_event.trigger()
 
-    while len(asyncio.all_tasks(loop=io_loop)) > 0:
-        if args.debug:
-            print(asyncio.all_tasks(loop=io_loop))
-        time.sleep(0.1)
-        
-    for task in asyncio.all_tasks(loop=io_loop):
-        io_loop.call_soon_threadsafe(task.cancel)
-
-    io_loop.call_soon_threadsafe(io_loop.stop)
-    io_thread.join()
-    io_loop.close()
+    cleanup_async_loop(loop=klong_loop, debug=args.debug)
+    cleanup_async_loop(loop=io_loop, debug=args.debug)

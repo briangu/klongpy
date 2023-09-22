@@ -95,7 +95,7 @@ async def execute_server_command(future_loop, result_future, klong, command, nc)
             if isinstance(response, KGFnWrapper):
                 response = response.fn
         else:
-            response = klong(command)
+            response = klong(command if isinstance(command,str) else str(command))
         if isinstance(response, KGFn):
             response = KGRemoteFnRef(response.arity)
         future_loop.call_soon_threadsafe(result_future.set_result, response)
