@@ -5,7 +5,6 @@ from datetime import datetime
 from utils import *
 
 from klongpy import KlongInterpreter
-from klongpy.core import KGCall
 
 
 class TestPythonInterop(unittest.TestCase):
@@ -25,6 +24,8 @@ class TestPythonInterop(unittest.TestCase):
         x = random.random()
         klong['foo'] = x
         self.assertEqual(klong['foo'],x)
+        # test reassignment
+        x = random.random()
         x = [x]
         klong['foo'] = x
         self.assertTrue(kg_equal(klong['foo'],x))

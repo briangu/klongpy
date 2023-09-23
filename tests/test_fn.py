@@ -58,6 +58,6 @@ class TestFunctionsSuite(unittest.TestCase):
 
 if __name__ == "__main__":
     import timeit
-    print(timeit.timeit('run_suite_file("klong_fn.kg")', number=10, globals=locals()) / 10)
+    print(timeit.timeit('run_file("kgtests/klong_fn.kg")', number=10, globals=locals()) / 10)
 
 

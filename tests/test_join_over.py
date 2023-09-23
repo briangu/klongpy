@@ -97,5 +97,5 @@ class TestJoinOver(unittest.TestCase):
 if __name__ == "__main__":
     import timeit
     number = 20
-    print(timeit.timeit('run_suite_file("klong_join_over.kg")', number=number, globals=locals()) / number)
+    print(timeit.timeit('run_file("kgtests/klong_join_over.kg")', number=number, globals=locals()) / number)
 
