@@ -20,7 +20,7 @@ def get_tests():
     have_interp = False
     in_header = True
     test_names = set()
-    with open("kgtests/test_suite.kg", "r") as f:
+    with open("kgtests/language/test_suite.kg", "r") as f:
         for s in f:
             s = s.strip()
             if in_header:

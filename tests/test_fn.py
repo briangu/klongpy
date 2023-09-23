@@ -3,7 +3,9 @@ import unittest
 from utils import *
 from klongpy import KlongInterpreter
 
-
+#
+# Deprecated: now in test_fn.kg
+#
 class TestFunctionsSuite(unittest.TestCase):
 
     def assert_eval_cmp(self, a, b, klong=None):
