@@ -8,6 +8,13 @@ from utils import *
 
 class TestKgTests(unittest.TestCase):
 
+    def test_known_failure(self):
+        klong = KlongInterpreter()
+        klong['fullpath'] = "tests/kgtests/known_failure.kg"
+        klong('.l("tests/kgtests/runner.kg")')
+        self.assertEqual(klong['err'], 1)
+
+
     def test_kgtests(self):
         """
         Recursively run all tests under the kgtests folder that begin with "test" and end with ".kg".
@@ -19,9 +26,9 @@ class TestKgTests(unittest.TestCase):
             for fname in filenames:
                 if fname.startswith("test") and fname.endswith(".kg"):
                     ran_tests = True
-                    full_path = os.path.join(dirpath, fname)
-                    print(f"TESTING: {fname}")
-                    klong, _ = run_file(full_path)
+                    klong = KlongInterpreter()
+                    klong['fullpath'] = os.path.join(dirpath, fname)
+                    klong('.l("tests/kgtests/runner.kg")')
                     self.assertEqual(klong['err'], 0)
 
         self.assertTrue(ran_tests)

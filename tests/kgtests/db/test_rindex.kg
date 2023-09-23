@@ -1,8 +1,3 @@
-err::0
-wl::{.w(x);.p("")}
-fail::{err::1;.d("failed: ");.p(x);.d("expected: ");wl(z);.d("got: ");wl(y);[]}
-t::{:[~y~z;fail(x;y;z);[]]}
-
 .py("klongpy.db")
 
 T::.table(,"a",,[1 2 3])
@@ -11,5 +6,3 @@ t(".index(T;[""a""])"; .index(T;["a"]); ["a"])
 
 t(".rindex(T) 1"; .rindex(T); 1)
 t(".rindex(T) 0"; .rindex(T); 0)
-
-:[err;[];.p("ok!")]

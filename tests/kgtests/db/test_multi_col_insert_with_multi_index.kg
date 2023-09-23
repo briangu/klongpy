@@ -1,8 +1,3 @@
-err::0
-wl::{.w(x);.p("")}
-fail::{err::1;.d("failed: ");.p(x);.d("expected: ");wl(z);.d("got: ");wl(y);[]}
-t::{:[~y~z;fail(x;y;z);[]]}
-
 .py("klongpy.db")
 
 e::[]
@@ -19,10 +14,10 @@ db::.db(:{},"T",,T)
 t("db(""select * from T"")"; db("select * from T"); [[1 2 3] [2 3 4] [3 4 5]])
 
 .insert(T; [4 5 6])
-t("db(""select * from T"")"; db("select * from T"); [[1 2 3] [2 3 4] [3 4 5] [4 5 6]]) 
+t("db(""select * from T"")"; db("select * from T"); [[1 2 3] [2 3 4] [3 4 5] [4 5 6]])
 
 .insert(T; [4 5 6])
-t("db(""select * from T"")"; db("select * from T"); [[1 2 3] [2 3 4] [3 4 5] [4 5 6]]) 
+t("db(""select * from T"")"; db("select * from T"); [[1 2 3] [2 3 4] [3 4 5] [4 5 6]])
 
 .insert(T; [4 6 7])
 t("db(""select * from T"")"; db("select * from T"); [[1 2 3] [2 3 4] [3 4 5] [4 5 6] [4 6 7]])
@@ -30,5 +25,3 @@ t("db(""select * from T"")"; db("select * from T"); [[1 2 3] [2 3 4] [3 4 5] [4 
 .rindex(T)
 .insert(T; [4 6 7])
 t("db(""select * from T"")"; db("select * from T"); [[1 2 3] [2 3 4] [3 4 5] [4 5 6] [4 6 7] [4 6 7]])
-
-:[err;[];.p("ok!")]
