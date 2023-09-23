@@ -356,7 +356,7 @@ def _import_module(klong, x, from_list=None):
                         if n_args > len(reserved_fn_args):
                             print(f".py: skipping {p} - too many paramters: {n_args}")
                         if n_args > 0 and reserved_fn_args[0] not in args:
-                            print(f".py: remapping {p} using reserved parameter names")
+                            # print(f".py: remapping {p} using reserved parameter names")
                             if n_args == 3:
                                 q = lambda x,y,z,f=q: f(x,y,z)
                             elif n_args == 2:
@@ -364,9 +364,8 @@ def _import_module(klong, x, from_list=None):
                             elif n_args == 1:
                                 q = lambda x,f=q: f(x)
                         klong[p] = q
-                    except Exception as e:
-                        import traceback
-                        traceback.print_exc()
+                    except Exception:
+                        print(f".py: skipping {p} - could not be imported")
             finally:
                 klong._context.push(ctx)
             return 1

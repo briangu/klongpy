@@ -7,7 +7,7 @@ KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array lang
 
 # Overview
 
-KlongPy is both an Array Language runtime and a set of powerful tools for building high performance data analysis and distributed computing applications.  Some of the features include: 
+KlongPy is both an Array Language runtime and a set of powerful tools for building high performance data analysis and distributed computing applications.  Some of the features include:
 
 * [__Array Programming__](https://en.wikipedia.org/wiki/Array_programming): Based on [Klong](https://t3x.org/klong), a concise, expressive, and easy-to-understand array programming language. Its simple syntax and rich feature set make it an excellent tool for data scientists and engineers.
 * [__Speed__](docs/performance.md): Designed for high-speed vectorized computing, enabling you to process large data sets quickly and efficiently on either CPU or GPU.
@@ -49,12 +49,12 @@ total: 0.0032962500117719173 per: 0.0032962500117719173
 total: 0.10882879211567342 per: 0.0010882879211567343
 ```
 
-We can also import Python modules to use directly in Klong language.  
+We can also import Python custom or standard modules to use directly in Klong language.
 
-Here we import the standard Python math library and redefine avg to use 'fsum':
+Here we import the fsum function from standard Python math library and redefine avg to use 'fsum':
 
 ```
-?> .py("math")
+?> .pyf("math";"fsum")
 1
 ?> favg::{fsum(x)%#x}
 :monad

@@ -219,6 +219,26 @@ class TestSysFn(unittest.TestCase):
         r = klong('fsum(1+!10)')
         self.assertEqual(r,55)
 
+    def test_sys_python_load_sub_module(self):
+        klong = KlongInterpreter()
+        r = klong(f'.pyf("math";"sqrt")')
+        self.assertEqual(r,1)
+        r = klong('sqrt(64)')
+        self.assertEqual(r,8)
+        r = klong(f'.pyf("math";"fsum")')
+        self.assertEqual(r,1)
+        r = klong('fsum(1+!10)')
+        self.assertEqual(r,55)
+
+    def test_sys_python_load_multiple_sub_modules(self):
+        klong = KlongInterpreter()
+        r = klong(f'.pyf("math";["sqrt" "fsum"])')
+        self.assertEqual(r,1)
+        r = klong('sqrt(64)')
+        self.assertEqual(r,8)
+        r = klong('fsum(1+!10)')
+        self.assertEqual(r,55)
+
     def test_sys_python_load_custom_module(self):
         tests_dir = os.path.dirname(os.path.abspath(__file__))
         plugins_dir = os.path.join(tests_dir, "plugins")
@@ -349,7 +369,7 @@ class TestSysFn(unittest.TestCase):
         klong = KlongInterpreter()
         r = klong(".w(:{[1 2]})")
         self.assertEqual(r,":{[1 2]}")
-    
+
     def test_eval_sys_exit(self):
         pass
 
