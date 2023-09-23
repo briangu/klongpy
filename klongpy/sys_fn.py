@@ -7,8 +7,12 @@ import random
 import subprocess
 import sys
 import time
+from inspect import Parameter
 
-from .core import KGChannel, KGChannelDir, is_empty, kg_read, kg_write, safe_eq, reserved_fn_args
+import numpy
+
+from .core import (KGChannel, KGChannelDir, KGLambda, is_empty, is_list, kg_read,
+                   kg_write, reserved_fn_args, safe_eq)
 
 
 def eval_sys_append_channel(x):
@@ -273,37 +277,19 @@ def eval_sys_print(klong, x):
     return o
 
 
-def eval_sys_python(klong, x):
+def _import_module(klong, x, from_list=None):
     """
-    
-        .py(x)                                                    [Python]
+    Import a python module in to the current context.  All methods exposed in the module
+    are loaded into the current context space and callable from within KlongPy.
 
-        Import a python module in to the current context.  All methods exposed in the module
-        are loaded into the current context space and callable from within KlongPy.
-    
-        If the string "x" refers to a directory, KlongPy will append __init__.py 
-        to determine if the directory is a Python module and attempt to load the module.
-          
-        If the string "x" ends with a .py, then KlongPy will attempt to load this file
-        as a Python module.
+    If the string "x" refers to a directory, KlongPy will append __init__.py
+    to determine if the directory is a Python module and attempt to load the module.
 
-        Example:
+    If the string "x" ends with a .py, then KlongPy will attempt to load this file
+    as a Python module.
 
-            Consider a python module called Greetings that exports the "hello" method such as:
-
-                def hello():
-                    print("Hello, World!")
-
-            The following will load the "greetings" module from the Python modules in the same 
-            way that 'import hello' would do.  Then we can call 'hello'
-
-                .py("greetings")
-                hello() --> "Hello, World!"
-             
-            Additionally, a full path to a module can be specified.  This can be useful for 
-            when creating custom modules that don't need to be installed into Python modules.
-
-                .py("<path>/<to>/greetings")            
+    from_list is a list of methods to import from the module.  If from_list is None,
+    then all methods are imported.
 
     """
     if os.path.isdir(x) or x.endswith("__init__.py"):
@@ -335,9 +321,10 @@ def eval_sys_python(klong, x):
             print(f".py: {e}")
             raise RuntimeError("module could not be imported: {x}")
     else:
-        if (spec := importlib.util.find_spec(x)) is not None:
-            module = importlib.util.module_from_spec(spec)
+        spec = importlib.util.find_spec(x)
+        if spec is not None:
             try:
+                module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
             except Exception as e:
                 print(f".py: {e}")
@@ -349,13 +336,20 @@ def eval_sys_python(klong, x):
         else:
             import_items = klong_exports.items()
         if import_items is not None:
+            if from_list is not None:
+                import_items = filter(lambda p: p[0] in from_list, import_items)
             ctx = klong._context.pop()
             try:
                 for p,q in import_items:
                     if not callable(q):
                         continue
                     try:
-                        args = inspect.signature(q, follow_wrapped=True).parameters
+                        if isinstance(q, numpy.ufunc):
+                            args = reserved_fn_args[:q.nin]
+                            q = KGLambda(q)
+                        else:
+                            args = inspect.signature(q, follow_wrapped=True).parameters
+                            args = [k for k,v in args.items() if v.kind == Parameter.POSITIONAL_ONLY]
                         n_args = len(args)
                         provide_klong = 'klong' in args
                         n_args = n_args - (1 if provide_klong else 0)
@@ -371,13 +365,85 @@ def eval_sys_python(klong, x):
                                 q = lambda x,f=q: f(x)
                         klong[p] = q
                     except Exception as e:
-                        print(f".py: {e}")
+                        import traceback
+                        traceback.print_exc()
             finally:
                 klong._context.push(ctx)
             return 1
     except Exception as e:
         print(f".py: {e}")
         raise RuntimeError("failed to load module: {x}")
+
+
+def eval_sys_python(klong, x):
+    """
+
+        .py(x)                                                    [Python]
+
+        Import a python module in to the current context.  All methods exposed in the module
+        are loaded into the current context space and callable from within KlongPy.
+
+        If the string "x" refers to a directory, KlongPy will append __init__.py
+        to determine if the directory is a Python module and attempt to load the module.
+
+        If the string "x" ends with a .py, then KlongPy will attempt to load this file
+        as a Python module.
+
+        Example:
+
+            Consider a python module called Greetings that exports the "hello" method such as:
+
+                def hello():
+                    print("Hello, World!")
+
+            The following will load the "greetings" module from the Python modules in the same
+            way that 'import hello' would do.  Then we can call 'hello'
+
+                .py("greetings")
+                hello() --> "Hello, World!"
+
+            Additionally, a full path to a module can be specified.  This can be useful for
+            when creating custom modules that don't need to be installed into Python modules.
+
+                .py("<path>/<to>/greetings")
+
+    """
+    if not isinstance(x,str):
+        raise RuntimeError("module name must be a string")
+    return _import_module(klong, x, from_list=None)
+
+
+
+def eval_sys_python_from(klong, x, y):
+    """
+
+        .pyf(x, y)                                         [Python-From]
+
+        Import selected sub-modules from a python module in to the current context.
+
+        [See .py() for detials on importing python modules]
+
+        Example:
+
+            To import a single sub-module:
+
+            .pyf("numpy"; "sqrt")
+            sqrt(4) --> 2.0
+
+            Multiple sub-modules can be imported at once:
+
+            .pyf("numpy"; ["sqrt";"sin"])
+            sqrt(4) --> 2.0
+            sin(1) --> 0.8414709848078965
+
+    """
+    if not isinstance(x,str):
+        raise RuntimeError("module name must be a string")
+    if isinstance(y,str):
+        y = [y]
+    if not (is_list(y) and all(map(lambda p: isinstance(p,str), y))) or isinstance(y,str):
+        raise RuntimeError("from list must be a string")
+    return _import_module(klong, x, from_list=y)
 
 
 def eval_sys_random_number():

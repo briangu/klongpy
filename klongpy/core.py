@@ -109,7 +109,13 @@ class KGLambda:
     """
     def __init__(self, fn):
         self.fn = fn
-        params = inspect.signature(self.fn, follow_wrapped=True).parameters
+        try:
+            params = inspect.signature(self.fn, follow_wrapped=True).parameters
+        except ValueError as e:
+            if isinstance(fn, np.ufunc):
+                params = reserved_fn_args[:fn.nin]
+            else:
+                raise e
         self.args = [reserved_fn_symbol_map[x] for x in reserved_fn_args if x in params]
         self._provide_klong = 'klong' in params
 
