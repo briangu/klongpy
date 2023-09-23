@@ -94,7 +94,6 @@ class KlongContext():
                             return d[dk]
         raise KeyError(k)
 
-    # remove an item from the context
     def __delitem__(self, k):
         assert isinstance(k, KGSym)
         for d in self._context:
@@ -226,6 +225,10 @@ class KlongInterpreter():
         k = k if isinstance(k, KGSym) else KGSym(k)
         r = self._context[k]
         return KGFnWrapper(self, r) if issubclass(type(r), KGFn) else r
+
+    def __delitem__(self, k):
+        k = k if isinstance(k, KGSym) else KGSym(k)
+        del self._context[k]
 
     def _get_op_fn(self, s, arity):
         return self._vm[s] if arity == 1 else self._vd[s]

@@ -29,7 +29,6 @@ class TestPythonInterop(unittest.TestCase):
         klong['foo'] = x
         self.assertTrue(kg_equal(klong['foo'],x))
 
-    @unittest.skip
     def test_del_var(self):
         klong = KlongInterpreter()
         with self.assertRaises(KeyError):
