@@ -169,8 +169,6 @@ async def repl_eval(klong, p, verbose=True):
         r = r if r is None else success(kg_write(r, display=True))
     except Exception as e:
         r = failure(f"Error: {e.args}")
-        import traceback
-        traceback.print_exception(type(e), e, e.__traceback__)
         if verbose:
             import traceback
             traceback.print_exception(type(e), e, e.__traceback__)
@@ -233,9 +231,9 @@ class ConsoleInputHandler:
             console_loop.stop()
 
 
-def run_file(klong, fname):
+def run_file(klong_loop, klong, fname, verbose=False):
     with open(fname, "r") as f:
-        return klong(f.read())
+        run_in_klong_loop(klong_loop, klong, f.read(), verbose=verbose)
 
 
 def start_io_loop(ioloop):
@@ -332,15 +330,17 @@ if __name__ == "__main__":
                 klong(x)
     
     if args.filename:
-        run_file(klong, args.filename)
+        if args.verbose:
+            print(f"Running: {args.filename}")
+        run_file(klong_loop, klong, args.filename, verbose=args.verbose)
     else:
         run_repl = True
 
     if run_repl:
         if args.load:
-            print(f"Loading: {args.load}")
-            with open(args.load, "r") as f:
-                klong(f.read())
+            if args.verbose:
+                print(f"Loading: {args.load}")
+            run_file(klong_loop, klong, args.load, verbose=args.verbose)
         colorama.init(autoreset=True)
         show_repl_header(args.server)
         console_loop.create_task(ConsoleInputHandler.input_producer(console_loop,   klong_loop, klong, args.verbose))

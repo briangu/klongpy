@@ -8,7 +8,7 @@ auth::auth,"params",,KEY
 psmsg::{:{["action" "subscribe"]},"params",,x}
 unionValues::{[q];q:::{};{{q,x,1}'x@1}'x;{x@0}'q}
 join::{[q];q::"";{q::q,x}'((x@0),",",:\1_x);q}
-updPolygonSub::{[v q];.d("subscribing to polygon: ");v::unionValues(x);.p(v);v::join(v);.p(v);polygon(psmsg(v))}
+updPolygonSub::{[v q];.d("subscribing to polygon: ");v::unionValues(x);v::join(v);.p(v);polygon(psmsg(v))}
 
 :" Map of clients handles to their subscribed tickers "
 clients:::{}
@@ -17,7 +17,7 @@ clients:::{}
 sendAuth::{.p("sending auth");x(auth)}
 handleUnknown::{.d("unhandled");.p(y)}
 handleLogin::{.p("logged in")}
-handleSuccess::{.p("success");.p(y)}
+handleSuccess::{.d("status [success]: ");.p(y)}
 
 handlers:::{}
 handlers,"connected",sendAuth
@@ -40,7 +40,7 @@ wsuri:::[(#.os.argv);.os.argv@0;"wss://delayed.polygon.io/stocks"]
 polygon::.ws(wsuri)
 
 :" Called by clients to subscribe to ticker updates "
-updClientSub::{clients,x,,(clients?x),,y;.p(clients)}
+updClientSub::{clients,x,,(clients?x),,y;.d("clients: ");.p(clients)}
 subscribe::{.d("subscribing client: ");.p(.cli.h,,x);updClientSub(.cli.h;x);updPolygonSub(clients);x}
 
 :" Setup the IPC server and callbacks "

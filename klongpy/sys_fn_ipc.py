@@ -80,7 +80,8 @@ async def execute_server_command(future_loop, result_future, klong, command, nc)
     
     """
     try:
-        klong._context.push({KGSym('.cli.h'): nc})
+        handle_sym = KGSym('.cli.h')
+        klong._context[handle_sym] = nc
         if isinstance(command, KGRemoteFnCall):
             r = klong[command.sym]
             if callable(r):
@@ -107,7 +108,7 @@ async def execute_server_command(future_loop, result_future, klong, command, nc)
         future_loop.call_soon_threadsafe(result_future.set_exception, KlongException("internal error"))
         logging.error(f"TcpClientHandler::handle_client: Klong error {e}")
     finally:
-        klong._context.pop()
+        del klong._context[handle_sym]
 
 
 async def run_command_on_klongloop(klongloop, klong, command, nc):

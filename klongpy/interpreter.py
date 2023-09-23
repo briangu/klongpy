@@ -17,8 +17,8 @@ def set_context_var(d, sym, v):
     Sets a context variable, wrapping Python lambda/functions as appropriate.
     """
     assert isinstance(sym, KGSym)
-    if callable(v):
-        x = v if issubclass(type(v), KGLambda) else KGLambda(v)
+    if callable(v) and not issubclass(type(v), KGLambda) :
+        x = KGLambda(v)
         v = KGCall(x,args=None,arity=x.get_arity())
     d[sym] = v
 
@@ -94,6 +94,15 @@ class KlongContext():
                             return d[dk]
         raise KeyError(k)
 
+    # remove an item from the context
+    def __delitem__(self, k):
+        assert isinstance(k, KGSym)
+        for d in self._context:
+            if in_map(k, d) and not isinstance(d,ReadonlyDict):
+                del d[k]
+                return
+        raise KeyError(k)
+
     def push(self, d):
         self._context.appendleft(d)
 
@@ -135,7 +144,7 @@ def create_system_contexts():
     add_context_key_values(sys_d, create_system_functions())
     add_context_key_values(sys_d, create_system_functions_ipc())
     add_context_key_values(sys_d, create_system_functions_timer())
-    set_context_var(sys_d, KGSym('.e'), eval_sys_var_epsilon()) # TODO: this is probably a bug that this can't be a lambda
+    set_context_var(sys_d, KGSym('.e'), eval_sys_var_epsilon()) # TODO: support lambda
     set_context_var(sys_d, KGSym('.cin'), cin)
     set_context_var(sys_d, KGSym('.cout'), cout)
     set_context_var(sys_d, KGSym('.cerr'), cerr)
