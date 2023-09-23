@@ -56,8 +56,3 @@ class TestFunctionsSuite(unittest.TestCase):
         r = klong('F("hello")')
         self.assertEqual(r, "o")
 
-if __name__ == "__main__":
-    import timeit
-    print(timeit.timeit('run_file("kgtests/klong_fn.kg")', number=10, globals=locals()) / 10)
-
-

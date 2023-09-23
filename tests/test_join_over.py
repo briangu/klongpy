@@ -32,7 +32,7 @@ class TestJoinOver(unittest.TestCase):
         klong = KlongInterpreter()
         r = klong(",/[1 2 3 4 5 6 7 8 9]")
         self.assertTrue(kg_equal(r, np.array([1,2,3,4,5,6,7,8,9])))
-    
+
     def test_1D_arrays(self):
         klong = KlongInterpreter()
         r = klong(",/[[1 2 3] [4 5 6] [7 8 9]]")
@@ -59,7 +59,7 @@ class TestJoinOver(unittest.TestCase):
         r = klong(",/[[] [] [[]]]")
         self.assertTrue(kg_equal(r, np.array([[]])))
 
-    def test_string_elements(self): 
+    def test_string_elements(self):
         klong = KlongInterpreter()
         r = klong(',/[["a" "b"] ["c" "d"]]')
         self.assertTrue(kg_equal(r, np.array(['a', 'b', 'c', 'd'])))
@@ -78,7 +78,7 @@ class TestJoinOver(unittest.TestCase):
         Test the suite file line by line using our own t()
         """
         klong = create_test_klong()
-        with open("tests/kgtests/klong_join_over.kg", "r") as f:
+        with open("tests/kgtests/test_join_over.kg", "r") as f:
             skip_header = True
             i = 0
             for r in f.readlines():
@@ -92,10 +92,3 @@ class TestJoinOver(unittest.TestCase):
                 i += 1
                 klong.exec(r)
             print(f"executed {i} lines")
-
-
-if __name__ == "__main__":
-    import timeit
-    number = 20
-    print(timeit.timeit('run_file("kgtests/klong_join_over.kg")', number=number, globals=locals()) / number)
-

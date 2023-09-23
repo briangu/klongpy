@@ -1,2 +1,2 @@
-from .interpreter import KlongInterpreter
-__all__ = ["KlongInterpreter"]
+from .interpreter import KlongInterpreter, KlongException
+__all__ = ["KlongInterpreter", "KlongException"]

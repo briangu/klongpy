@@ -1,0 +1,10 @@
+err::0
+wl::{.w(x);.p("")}
+fail::{err::1;.d("failed: ");.p(x);.d("expected: ");wl(z);.d("got: ");wl(y);[]}
+t::{:[~y~z;fail(x;y;z);[]]}
+
+t(".py(""math"";[""sqrt"" ""fsum""])"; .py("math";["sqrt" "fsum"]); 1)
+t("sqrt(4)"; sqrt(4); 2)
+t("fsum(!100)"; fsum(!100); +/!100)
+
+:[err;[];.p("ok!")]

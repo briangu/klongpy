@@ -10,13 +10,18 @@ class TestKgTests(unittest.TestCase):
 
     def test_kgtests(self):
         """
-        Run all tests under the kgtests folder.
+        Recursively run all tests under the kgtests folder that begin with "test" and end with ".kg".
         """
         ran_tests = False
-        for x in glob.glob(os.path.join(os.getcwd(), os.path.join("tests", os.path.join("kgtests", "*.kg")))):
-            ran_tests = True
-            fname = os.path.basename(x)
-            print(f"testing: {fname}")
-            klong, _ = run_file(x)
-            self.assertEqual(klong['err'], 0)
+        root_dir = os.path.join(os.getcwd(), "tests", "kgtests")
+
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            for fname in filenames:
+                if fname.startswith("test") and fname.endswith(".kg"):
+                    ran_tests = True
+                    full_path = os.path.join(dirpath, fname)
+                    print(f"TESTING: {fname}")
+                    klong, _ = run_file(full_path)
+                    self.assertEqual(klong['err'], 0)
+
         self.assertTrue(ran_tests)

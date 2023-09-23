@@ -4,7 +4,7 @@ import unittest
 
 from utils import kg_equal
 
-from klongpy import KlongInterpreter
+from klongpy import KlongInterpreter, KlongException
 from klongpy.sys_fn import *
 
 
@@ -221,10 +221,14 @@ class TestSysFn(unittest.TestCase):
 
     def test_sys_python_load_sub_module(self):
         klong = KlongInterpreter()
+        with self.assertRaises(KlongException):
+            r = klong('sqrt(64)')
         r = klong(f'.pyf("math";"sqrt")')
         self.assertEqual(r,1)
         r = klong('sqrt(64)')
         self.assertEqual(r,8)
+        with self.assertRaises(KlongException):
+            r = klong('fsum(1+!10)')
         r = klong(f'.pyf("math";"fsum")')
         self.assertEqual(r,1)
         r = klong('fsum(1+!10)')
@@ -232,6 +236,10 @@ class TestSysFn(unittest.TestCase):
 
     def test_sys_python_load_multiple_sub_modules(self):
         klong = KlongInterpreter()
+        with self.assertRaises(KlongException):
+            r = klong('sqrt(64)')
+        with self.assertRaises(KlongException):
+            r = klong('fsum(1+!10)')
         r = klong(f'.pyf("math";["sqrt" "fsum"])')
         self.assertEqual(r,1)
         r = klong('sqrt(64)')
