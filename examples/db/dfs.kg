@@ -1,0 +1,43 @@
+.comment("****")
+
+server:
+
+$ kgpy dfs.kg -- /tmp/tables
+serving the following tables:/tmp/tables
+dfs server at port 8888
+
+client:
+
+$ rlwrap kgpy
+?> .py("klongpy.db")
+1
+?> cli::.cli(8888)
+remote[localhost:8888]:fn
+?> T::.table(,"a",,[1 2 3])
+a
+1
+2
+3
+?> cli(:write,"T",T)
+1
+?> cli(:read,"T")
+a
+1
+2
+3
+
+****
+
+.py("klongpy.db")
+
+.d("serving the following tables:");.p(.os.argv@0)
+
+tbs::.tables(.os.argv@0)
+
+:" TODO: we need this because we don't yet proxy tbs to the client "
+read::{tbs?x}
+write::{tbs,x,y;1}
+
+.srv(8888)
+
+.p("dfs server at port 8888")
