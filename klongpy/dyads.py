@@ -455,10 +455,10 @@ def dyad_join_to_list(a):
         if a.ndim == 1:
             return a
         elif a.shape[0] == 1:
-            return [a.flatten()]
+            return [a.flatten()] # TODO: test squeeze
         elif a.shape[0] > 1:
             return a
-    return [a]
+    return [a] if not is_list(a) else a
 
 
 def eval_dyad_join(a, b):
@@ -520,7 +520,7 @@ def eval_dyad_join(a, b):
 
     aa = dyad_join_to_list(a)
     bb = dyad_join_to_list(b)
- 
+
     r = [*aa,*bb]
     nr = kg_asarray(r)
     t = nr.dtype.type

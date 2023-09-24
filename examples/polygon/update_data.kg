@@ -11,10 +11,11 @@ tickers::{x;.pyc(x,"ticker";[];:{})}'symbols
 callpoly::{[r];x;.p(x);r::get(x,"&apiKey=",.os.env?"POLYGON_API_KEY");:[.pyc([r "status_code"];[];:{})=200;.pyc([r "json"];[];:{});0]}
 paginate::{[a];a::[];{:[x;{a::a,(x?"results");~:_x?"next_url"}(x);x]}{callpoly(x?"next_url")}:~callpoly(x);a}
 
-aggsurl::{"https://api.polygon.io/v2/aggs/ticker/",(x?"symbol"),"/range/1/",(x?"timespan"),"/",(x?"from"),"/",(x?"to"),"?adjusted=true&sort=asc&limit=",(x?"limit"),"&apiKey=",y}
-u::aggsurl(:{["symbol" "AAPL"] ["timespan" "hour"] ["from" "2022-09-09"] ["to" "2023-09-09"] ["limit" "50000"]};.os.env?"POLYGON_API_KEY")
-paginate(u)
+aggsurl::{"https://api.polygon.io/v2/aggs/ticker/",(x?"symbol"),"/range/1/",(x?"timespan"),"/",(x?"from"),"/",(x?"to"),"?adjusted=true&sort=asc&limit=",(x?"limit")}
+u::aggsurl(:{["symbol" "AAPL"] ["timespan" "hour"] ["from" "2022-09-09"] ["to" "2023-09-09"] ["limit" "50000"]})
+aapl::paginate(u)
 
+closes::{x?"c"}'aapl
 
 .comment("****")
 
@@ -22,13 +23,13 @@ for each ticker, get the latest stored time from the dfs and use that as the sta
 map the new ticker data to the columns of the dfs
 append the new data to the dfs
 
-****
-
 aggs::{[a];a:::{["multiplier" 1] ["from_" "2023-01-09"] ["to" "2023-09-09"] ["raw" 1]};a::a,"ticker",,x;a::a,"timespan",,y}
 data::.pyc([rc "list_aggs"];[];aggs("AAPL";"day"))
 .p(#data)
 
 closes::{x;.pyc(x,"close";[];:{})}'data
+
+****
 
 .d("avg close prices");.p(mean(closes))
 

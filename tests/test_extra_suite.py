@@ -14,6 +14,19 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    @unittest.skip
+    def test_append_empty_dictionaries(self):
+        klong = KlongInterpreter()
+        r = klong("A::[];A::A,:{};A::A,:{};A::A,:{};A")
+        self.assertTrue(kg_equal(r, [{}, {}, {}]))
+
+    def test_join_np_array_and_list(self):
+        klong = KlongInterpreter()
+        klong("A::[];A::A,:{};A::A,:{}")
+        klong['B'] = [{}, {}, {}]
+        r = klong("A,B")
+        self.assertTrue(kg_equal(r, [{}, {}, {}, {}, {}]))
+
     # This is different behavior than Klong, which doesn't allow at/index on dictionaries.
     def test_dict_at_index(self):
         klong = KlongInterpreter()
