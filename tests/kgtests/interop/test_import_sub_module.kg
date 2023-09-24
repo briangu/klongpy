@@ -1,2 +1,2 @@
-t(".py(""math"";""sqrt"")"; .py("math";"sqrt"); 1)
+t(".pyf(""math"";""sqrt"")"; .pyf("math";"sqrt"); 1)
 t("sqrt(4)"; sqrt(4); 2)
