@@ -448,7 +448,7 @@ def eval_sys_python_call(klong, x, y, z):
     """
     if is_list(x):
         if not isinstance(x[0],object):
-            raise KlongException(f"x must be a list of [object;function]")
+            raise KlongException("x must be a list of [object;function]")
         if not isinstance(x[1],str):
             raise KlongException("function name must be a string")
         klazz = klong[x[0]] if isinstance(x[0],KGSym) else x[0]
