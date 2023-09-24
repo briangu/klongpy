@@ -51,6 +51,13 @@ total: 0.10882879211567342 per: 0.0010882879211567343
 
 We can also import Python custom or standard modules to use directly in Klong language.
 
+```
+?> .pyf("math";"pi")
+1
+?> pi
+3.141592653589793
+```
+
 Here we import the fsum function from standard Python math library and redefine avg to use 'fsum':
 
 ```

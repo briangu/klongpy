@@ -368,7 +368,6 @@ def _import_module(klong, x, from_list=None):
                                 signature_line = q.__doc__.split("\n")[0]
                                 args = signature_line.split("[")[0].split("(")[1].split(",")
                                 n_args = len(args)
-                                # map first three positional args to reserved_fn_args
                                 if n_args <= len(reserved_fn_args):
                                     q = KGLambda(q, args=reserved_fn_args[:n_args])
                             else:
