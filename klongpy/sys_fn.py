@@ -357,7 +357,7 @@ def _import_module(klong, x, from_list=None):
                                 args = inspect.signature(q, follow_wrapped=True).parameters
                                 args = [k for k,v in args.items() if v.kind == Parameter.POSITIONAL_ONLY or v.default == Parameter.empty]
                                 n_args = len(args)
-                                print(n_args, args)
+                                # if there are kwargs, then .pyc() must be used to call this function to override them
                                 if 'klong' in args:
                                     n_args -= 1
                                     assert n_args <= len(reserved_fn_args)
@@ -366,8 +366,10 @@ def _import_module(klong, x, from_list=None):
                                     q = KGLambda(q, args=reserved_fn_args[:n_args])
                         except Exception as e:
                             if hasattr(q, "__class__") and hasattr(q.__class__, '__module__') and q.__class__.__module__ == "builtins":
+                                # LOOK AWAY. You didn't see this.
                                 # example: datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])
                                 # be sure to count the args before the first optional args starting with "["
+                                # if there are kwargs, then .pyc() must be used to call this function to override them
                                 signature_line = q.__doc__.split("\n")[0]
                                 args = signature_line.split("[")[0].split("(")[1].split(",")
                                 n_args = len(args)
