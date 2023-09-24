@@ -26,8 +26,8 @@ extra_requires['full'] = extra_requires['repl'] + extra_requires['web'] + extra_
 setup(
     name='klongpy',
     packages=['klongpy', 'klongpy.web', 'klongpy.db'],
-    version='0.5.3',
-    description='Python implementation of Klong language.',
+    version='0.5.4',
+    description='Vectorized implementation of Klong language.',
     author='Brian Guarraci',
     license='MIT',
     long_description=long_description,
