@@ -1,8 +1,11 @@
-import unittest
-from klongpy import KlongInterpreter
-from klongpy.core import rec_flatten, KGChar, KGSym, is_integer, is_float
-from utils import *
 import time
+import unittest
+
+from utils import *
+
+from klongpy import KlongInterpreter
+from klongpy.core import (KGChar, KGSym, KlongException, is_float, is_integer,
+                          rec_flatten)
 
 
 # add tests not included in the original kg suite
@@ -10,6 +13,15 @@ class TestExtraCoreSuite(unittest.TestCase):
 
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
+
+    # This is different behavior than Klong, which doesn't allow at/index on dictionaries.
+    def test_dict_at_index(self):
+        klong = KlongInterpreter()
+        klong("D:::{[1 2]}")
+        r = klong("D@1")
+        self.assertEqual(r, 2)
+        with self.assertRaises(KeyError):
+            klong("D@2")
 
     @unittest.skip
     def test_extra_chars_ignored(self):

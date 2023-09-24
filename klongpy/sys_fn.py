@@ -347,15 +347,13 @@ def _import_module(klong, x, from_list=None):
 
                     try:
                         try:
-                            print(p,q, callable(q), type(q), isinstance(q, numpy.ufunc))
-
                             if isinstance(q, numpy.ufunc):
                                 n_args = q.nin
                                 if n_args <= len(reserved_fn_args):
                                     q = KGLambda(q, args=reserved_fn_args[:n_args])
                             else:
                                 args = inspect.signature(q, follow_wrapped=True).parameters
-                                args = [k for k,v in args.items() if v.kind == Parameter.POSITIONAL_ONLY or v.default == Parameter.empty]
+                                args = [k for k,v in args.items() if (v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default == Parameter.empty) or (v.kind == Parameter.POSITIONAL_ONLY)]
                                 n_args = len(args)
                                 # if there are kwargs, then .pyc() must be used to call this function to override them
                                 if 'klong' in args:

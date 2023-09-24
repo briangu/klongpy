@@ -1,2 +1,6 @@
 t(".pyf(""math"";""sqrt"")"; .pyf("math";"sqrt"); 1)
 t("sqrt(4)"; sqrt(4); 2)
+
+:" importing fsum requires use of POSITIONAL_ONLY arguments "
+t(".pyf(""math"";""fsum"")"; .pyf("math";"fsum"); 1)
+t("fsum([1 2 3])"; fsum([1 2 3]); 6)

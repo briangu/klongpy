@@ -1,10 +1,24 @@
 .pyf("polygon";"RESTClient")
 .pyf("numpy";"mean")
+.py("json")
 
 rc::RESTClient()
 
-symbols::.pyc([rc "list_tickers"];[];:{["market" "stocks"] ["limit" 1000]});1
-tickers::{x;.pyc(x,"ticker";[];:{})}'symbols;1
+symbols::.pyc([rc "list_tickers"];[];:{["market" "stocks"] ["limit" 1000]})
+
+tickers::{x;.pyc(x,"ticker";[];:{})}'symbols
+
+ld::{[d];d::loads(x);.pwc([d "resultsCount"];[];:{})=0;:{};.pwc([d "results"];[];:{})}
+gad::{[r];r::.pyc([rc "get_aggs"];x;:{["raw" 1] ["limit" 50000]});:[.pyc([r "status"];[];:{})=200;ld(.pyc([r "data"];[];:{}));:{}]}
+
+
+.comment("****")
+
+for each ticker, get the latest stored time from the dfs and use that as the start time for the next request
+map the new ticker data to the columns of the dfs
+append the new data to the dfs
+
+****
 
 aggs::{[a];a:::{["multiplier" 1] ["from_" "2023-01-09"] ["to" "2023-09-09"]};a::a,"ticker",,x;a::a,"timespan",,y}
 data::.pyc([rc "list_aggs"];[];aggs("AAPL";"day"))
