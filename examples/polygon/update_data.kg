@@ -1,15 +1,19 @@
 .pyf("polygon";"RESTClient")
+.pyf("requests";"get")
 .pyf("numpy";"mean")
 .py("json")
 
 rc::RESTClient()
 
 symbols::.pyc([rc "list_tickers"];[];:{["market" "stocks"] ["limit" 1000]})
-
 tickers::{x;.pyc(x,"ticker";[];:{})}'symbols
 
-ld::{[d];d::loads(x);.pwc([d "resultsCount"];[];:{})=0;:{};.pwc([d "results"];[];:{})}
-gad::{[r];r::.pyc([rc "get_aggs"];x;:{["raw" 1] ["limit" 50000]});:[.pyc([r "status"];[];:{})=200;ld(.pyc([r "data"];[];:{}));:{}]}
+callpoly::{[r];x;.p(x);r::get(x,"&apiKey=",.os.env?"POLYGON_API_KEY");:[.pyc([r "status_code"];[];:{})=200;.pyc([r "json"];[];:{});0]}
+paginate::{[a];a::[];{:[x;{a::a,(x?"results");~:_x?"next_url"}(x);x]}{callpoly(x?"next_url")}:~callpoly(x);a}
+
+aggsurl::{"https://api.polygon.io/v2/aggs/ticker/",(x?"symbol"),"/range/1/",(x?"timespan"),"/",(x?"from"),"/",(x?"to"),"?adjusted=true&sort=asc&limit=",(x?"limit"),"&apiKey=",y}
+u::aggsurl(:{["symbol" "AAPL"] ["timespan" "hour"] ["from" "2022-09-09"] ["to" "2023-09-09"] ["limit" "50000"]};.os.env?"POLYGON_API_KEY")
+paginate(u)
 
 
 .comment("****")
@@ -20,7 +24,7 @@ append the new data to the dfs
 
 ****
 
-aggs::{[a];a:::{["multiplier" 1] ["from_" "2023-01-09"] ["to" "2023-09-09"]};a::a,"ticker",,x;a::a,"timespan",,y}
+aggs::{[a];a:::{["multiplier" 1] ["from_" "2023-01-09"] ["to" "2023-09-09"] ["raw" 1]};a::a,"ticker",,x;a::a,"timespan",,y}
 data::.pyc([rc "list_aggs"];[];aggs("AAPL";"day"))
 .p(#data)
 
