@@ -70,17 +70,20 @@ class Table(dict):
     def reset_index(self):
         df = self.get_dataframe()
         self._df = df.reset_index()
-        iic = [f"{ic}_idx" for ic in self.idx_cols]
-        self._df.drop(columns=iic, inplace=True)
-        self.idx_cols = None
+        if self.idx_cols is not None:
+            iic = [f"{ic}_idx" for ic in self.idx_cols]
+            self._df.drop(columns=iic, inplace=True)
+            self.idx_cols = None
 
     def has_index(self):
+        # TODO: add tests for loading pandas dataframes with indexes but no idx_cols
+        # return (not isinstance(self._df.index, pd.RangeIndex)) or self.idx_cols is not None
         return self.idx_cols is not None
 
     def get_dataframe(self):
         self.commit()
         return self._df
-    
+
     def insert(self, y):
         self.buffer.append(y)
 
@@ -100,10 +103,10 @@ class Table(dict):
             values = np.concatenate([self._df.values] + [y.reshape(1, -1) for y in self.buffer])
             self._df = pd.DataFrame(values, columns=self.columns, copy=False)
         self.buffer = []
-    
+
     def __len__(self):
         return len(self.get_dataframe())
-    
+
     def __str__(self):
         full_df = self.get_dataframe()
         df = full_df.head(10)
@@ -171,7 +174,7 @@ def eval_sys_fn_create_table(x):
             d::d,,"b",,b
             t::.table(d)
             t,"c",,c
-            
+
     """
     if np.isarray(x):
         return Table({k:v for k,v in x}, columns=[k for k,_ in x])
@@ -185,7 +188,7 @@ def eval_sys_fn_index(x, y):
 
         .index(x)                                   [Create-Table-Index]
 
-        Creates an index on a table as specified by the columns in array "x".  
+        Creates an index on a table as specified by the columns in array "x".
         An index may be one or more columns.
 
         t::.table(d)
@@ -227,7 +230,7 @@ def eval_sys_fn_schema(x):
         .schema(x)                                        [Table-Schema]
 
         Returns the schema of either a table or dictionary "x".  If "x" is a table,
-        then the columns are returned.  If "x" is a database, then a dict of 
+        then the columns are returned.  If "x" is a database, then a dict of
         table name to table is returned.
 
     """
@@ -243,7 +246,7 @@ def eval_sys_fn_insert_table(x, y):
 
         .insert(x, y)                                     [Table-Insert]
 
-        Insert values "y" into a table "x".  The values provided by "y" must be in the 
+        Insert values "y" into a table "x".  The values provided by "y" must be in the
         corrensponding column position as specified when the table was created.
         If the table is indexed, then the appropriate columns will be used as keys when
         inserting values.  If the table is unindexed, then the values are appended.
@@ -272,11 +275,11 @@ def eval_sys_fn_create_db(x):
 
         .db(x)                                               [Create-db]
 
-        Create a database from a map of tables "x".  
+        Create a database from a map of tables "x".
         The keys are table names and values are the tables.
 
-        
-        
+
+
     """
     if not isinstance(x,dict):
         return "a db must be created from a dict"

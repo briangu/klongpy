@@ -35,9 +35,11 @@ a
 tbs::.tables(.os.argv@0)
 
 :" TODO: we need this because we don't yet proxy tbs to the client "
+:" read::{[d];d::tbs?x;:[:_d;d;.rindex(d)];d} "
 read::{tbs?x}
-write::{tbs,x,y;1}
+write::{:[(#x)>0;tbs,x,y;0];1}
 
 .srv(8888)
 
 .p("dfs server at port 8888")
+

@@ -1,35 +1,42 @@
-.pyf("polygon";"RESTClient")
-.pyf("requests";"get")
-.pyf("numpy";"mean")
-.py("json")
-
-rc::RESTClient()
-
-symbols::.pyc([rc "list_tickers"];[];:{["market" "stocks"] ["limit" 1000]})
-tickers::{x;.pyc(x,"ticker";[];:{})}'symbols
-
-callpoly::{[r];x;.p(x);r::get(x,"&apiKey=",.os.env?"POLYGON_API_KEY");:[.pyc([r "status_code"];[];:{})=200;.pyc([r "json"];[];:{});0]}
-paginate::{[a];a::[];{:[x;{a::a,(x?"results");~:_x?"next_url"}(x);x]}{callpoly(x?"next_url")}:~callpoly(x);a}
-
-aggsurl::{"https://api.polygon.io/v2/aggs/ticker/",(x?"symbol"),"/range/1/",(x?"timespan"),"/",(x?"from"),"/",(x?"to"),"?adjusted=true&sort=asc&limit=",(x?"limit")}
-u::aggsurl(:{["symbol" "AAPL"] ["timespan" "hour"] ["from" "2022-09-09"] ["to" "2023-09-09"] ["limit" "50000"]})
-aapl::paginate(u)
-
-closes::{x?"c"}'aapl
-
 .comment("****")
 
-for each ticker, get the latest stored time from the dfs and use that as the start time for the next request
+Get a list of all tickers from Polygon.
+For each ticker, get the latest stored time from the dfs and use that as the start time for the next request
 map the new ticker data to the columns of the dfs
 append the new data to the dfs
-
-aggs::{[a];a:::{["multiplier" 1] ["from_" "2023-01-09"] ["to" "2023-09-09"] ["raw" 1]};a::a,"ticker",,x;a::a,"timespan",,y}
-data::.pyc([rc "list_aggs"];[];aggs("AAPL";"day"))
-.p(#data)
-
-closes::{x;.pyc(x,"close";[];:{})}'data
+write the data back to the dfs
 
 ****
 
-.d("avg close prices");.p(mean(closes))
+.py("klongpy.db")
+.pyf("polygon";"RESTClient")
+.pyf("requests";"get")
+
+callpoly::{[r];x;.p(x);r::get(x,"&apiKey=",.os.env?"POLYGON_API_KEY");:[.pyc([r "status_code"];[];:{})=200;.pyc([r "json"];[];:{});0]}
+getresults::{:[(x?"resultsCount")>0;x?"results";[]]}
+paginate::{[a];a::[];{:[x;{a::a,getresults(x);~:_x?"next_url"}(x);x]}{callpoly(x?"next_url")}:~callpoly(x);a}
+
+aggsurl::{"https://api.polygon.io/v2/aggs/ticker/",(x?"symbol"),"/range/1/",(x?"timespan"),"/",(x?"from"),"/",(x?"to"),"?adjusted=true&sort=asc&limit=",(x?"limit")}
+
+:" open connection to the dfs "
+cols::["t" "c" "h" "l" "n" "o" "v" "vw"]
+colsFromNames::{{x,,[]}'x}
+newt::{.table(colsFromNames(cols))}
+
+:" open connection to the dfs server "
+cli::.cli(8888)
+
+latest::{:[:_x;"2022-09-09";:[(#x)>0;0$((x?"t")@-1);"2022-09-09"]]}
+mkd::{[d];d:::{};d,"symbol",,x;d,"timespan",,y;d,"from",,z;d,"to",,"2023-09-09";d,"limit",,"50000";d}
+readtbl::{[dfs sym tbl];dfs::x;sym::y;tbl::dfs(:read,sym);:[:_tbl;newt();tbl]}
+extract::{[d];d::x;{d?x}'cols}
+updtbl::{[tbl];tbl::x;{.insert(tbl;extract(x))}'y}
+update::{[dfs sym ts path tbl d];dfs::x;sym::y;ts::z;path::ts,"/",sym;tbl::readtbl(dfs;path);d::paginate(aggsurl(mkd(sym;ts;latest(tbl))));.d("retrieved: ");updtbl(tbl;d);:[(#d)>0;dfs(:write,path,tbl);"skipping"]}
+
+:" Get the list of tickers from polygon "
+rc::RESTClient()
+symbols::.pyc([rc "list_tickers"];[];:{["market" "stocks"] ["limit" 1000]});1
+tickers::{x;.pyc(x,"ticker";[];:{})}'symbols;1
+
+{.d("updating: ");.p(x);update(cli;x;"hour")}'tickers
 
