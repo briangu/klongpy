@@ -1,0 +1,16 @@
+.pyf("polygon";"RESTClient")
+.pyf("numpy";"mean")
+
+rc::RESTClient()
+
+symbols::.pyc([rc "list_tickers"];[];:{["market" "stocks"] ["limit" 1000]});1
+tickers::{x;.pyc(x,"ticker";[];:{})}'symbols;1
+
+aggs::{[a];a:::{["multiplier" 1] ["from_" "2023-01-09"] ["to" "2023-09-09"]};a::a,"ticker",,x;a::a,"timespan",,y}
+data::.pyc([rc "list_aggs"];[];aggs("AAPL";"day"))
+.p(#data)
+
+closes::{x;.pyc(x,"close";[];:{})}'data
+
+.d("avg close prices");.p(mean(closes))
+

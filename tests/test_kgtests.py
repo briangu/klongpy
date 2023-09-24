@@ -26,9 +26,15 @@ class TestKgTests(unittest.TestCase):
             for fname in filenames:
                 if fname.startswith("test") and fname.endswith(".kg"):
                     ran_tests = True
+                    print(f"Running {fname}...")
                     klong = KlongInterpreter()
                     klong['fullpath'] = os.path.join(dirpath, fname)
-                    klong('.l("tests/kgtests/runner.kg")')
-                    self.assertEqual(klong['err'], 0)
+                    try:
+                        klong('.l("tests/kgtests/runner.kg")')
+                    except Exception as e:
+                        print(e)
+                        self.assertEqual(klong['err'], 1)
+                    finally:
+                        self.assertEqual(klong['err'], 0)
 
         self.assertTrue(ran_tests)

@@ -11,11 +11,21 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    @unittest.skip
+    def test_extra_chars_ignored(self):
+        # aggs::{[a];a:::{}}}}
+        pass
+
+    @unittest.skip
+    def test_tested_arity(self):
+        # inner x is not seen in arity calculation
+        #        {.pyc(x,"ticker";[];:{})}'1#symbols
+        pass
+
     def test_each_dict_with_mixed_types(self):
         klong = KlongInterpreter()
         klong["D"] = {object: [1, 2, 3]}
         klong(".p'D")
-        
 
     def test_nilad_as_argument(self):
         """

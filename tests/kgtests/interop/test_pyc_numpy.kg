@@ -1,0 +1,4 @@
+t(".pyf(""numpy"";""mean"")"; .pyf("numpy";"mean"); 1)
+
+:" this should fail "
+t("mean(!100)"; mean(!100); 60)
