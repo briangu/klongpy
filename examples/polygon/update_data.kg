@@ -31,7 +31,7 @@ mkd::{[d];d:::{};d,"symbol",,x;d,"timespan",,y;d,"from",,z;d,"to",,"2023-09-09";
 readtbl::{[dfs sym tbl];dfs::x;sym::y;tbl::dfs(:read,sym);:[:_tbl;newt();tbl]}
 extract::{[d];d::x;{d?x}'cols}
 updtbl::{[tbl];tbl::x;{.insert(tbl;extract(x))}'y}
-update::{[dfs sym ts path tbl d];dfs::x;sym::y;ts::z;path::ts,"/",sym;tbl::readtbl(dfs;path);d::paginate(aggsurl(mkd(sym;ts;latest(tbl))));.d("retrieved: ");updtbl(tbl;d);:[(#d)>0;dfs(:write,path,tbl);"skipping"]}
+update::{[dfs sym ts path tbl d];dfs::x;sym::y;ts::z;path::ts,"/",sym;tbl::readtbl(dfs;path);d::paginate(aggsurl(mkd(sym;ts;latest(tbl))));updtbl(tbl;d);:[(#d)>0;dfs(:write,path,tbl);"skipping"]}
 
 :" Get the list of tickers from polygon "
 rc::RESTClient()
