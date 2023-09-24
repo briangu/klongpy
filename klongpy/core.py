@@ -107,21 +107,19 @@ class KGLambda:
     lambda klong, x: klong(x)
 
     """
-    def __init__(self, fn):
+    def __init__(self, fn, args=None, provide_klong=False):
         self.fn = fn
-        try:
-            params = inspect.signature(self.fn, follow_wrapped=True).parameters
-        except ValueError as e:
-            if isinstance(fn, np.ufunc):
-                params = reserved_fn_args[:fn.nin]
-            else:
-                raise e
+        params = args or inspect.signature(self.fn, follow_wrapped=True).parameters
         self.args = [reserved_fn_symbol_map[x] for x in reserved_fn_args if x in params]
-        self._provide_klong = 'klong' in params
+        self._provide_klong = provide_klong or 'klong' in params
 
     def __call__(self, klong, ctx):
-        params = [ctx[x] for x in self.args]
-        return self.fn(klong, *params) if self._provide_klong else self.fn(*params)
+        pos_args = [ctx[x] for x in self.args]
+        return self.fn(klong, *pos_args) if self._provide_klong else self.fn(*pos_args)
+
+    def call_with_kwargs(self, klong, ctx, kwargs):
+        pos_args = [ctx[x] for x in self.args]
+        return self.fn(klong, *pos_args, **kwargs) if self._provide_klong else self.fn(*pos_args, **kwargs)
 
     def get_arity(self):
         return len(self.args)
@@ -212,17 +210,17 @@ def kg_asarray(a):
     """
     Converts input data into a NumPy array, ensuring all sub-arrays are also NumPy arrays, to meet the requirements of KlongPy.
 
-    KlongPy treats NumPy arrays as data and Python lists as "programs". Therefore, it is crucial that all elements and 
-    sub-arrays of the input data are converted into NumPy arrays. This function attempts to achieve this, while handling 
+    KlongPy treats NumPy arrays as data and Python lists as "programs". Therefore, it is crucial that all elements and
+    sub-arrays of the input data are converted into NumPy arrays. This function attempts to achieve this, while handling
     unpredictable and complex data structures that may result from prior manipulations to the data.
 
-    The function first tries to convert the input data into a NumPy array. In the case of a jagged structure 
-    (i.e., irregularly-shaped sub-arrays), it defaults to the object data type. If the initial conversion is unsuccessful, 
-    it tries to convert the input data to an object dtype array. If all these attempts fail, it converts each element to 
-    a list, if it is a NumPy array, or keeps the original element if it is not, and then attempts to convert the whole 
+    The function first tries to convert the input data into a NumPy array. In the case of a jagged structure
+    (i.e., irregularly-shaped sub-arrays), it defaults to the object data type. If the initial conversion is unsuccessful,
+    it tries to convert the input data to an object dtype array. If all these attempts fail, it converts each element to
+    a list, if it is a NumPy array, or keeps the original element if it is not, and then attempts to convert the whole
     structure into an object dtype array again.
 
-    Detecting the type in NumPy directly, as opposed to checking it in Python, significantly enhances 
+    Detecting the type in NumPy directly, as opposed to checking it in Python, significantly enhances
     performance, hence the approach adopted in this function.
 
     Parameters
@@ -257,12 +255,12 @@ def kg_equal(a, b):
     nested arrays and is more general-purpose than standard NumPy functions such as
     np.array_equal.
 
-    If the inputs are lists, the function checks that their lengths are equal, and 
-    then compares each element pair for equality. If the inputs are NumPy arrays with 
-    the same dtype (excluding object dtype), it uses the np.array_equal function for 
+    If the inputs are lists, the function checks that their lengths are equal, and
+    then compares each element pair for equality. If the inputs are NumPy arrays with
+    the same dtype (excluding object dtype), it uses the np.array_equal function for
     comparison.
 
-    For non-list inputs, the function compares the two values directly. If they are 
+    For non-list inputs, the function compares the two values directly. If they are
     both numbers, it uses np.isclose to allow for minor floating-point differences.
 
     Parameters
@@ -380,7 +378,7 @@ def vec_fn2(a, b, f):
     Parameters
     ----------
     a, b : numpy.array or any type
-        The inputs to `f`. They can be numpy arrays of any data type. If they are arrays, they should have the same shape. 
+        The inputs to `f`. They can be numpy arrays of any data type. If they are arrays, they should have the same shape.
         Non-array inputs can be of any type that `f` can accept.
 
     f : callable
@@ -389,13 +387,13 @@ def vec_fn2(a, b, f):
     Returns
     -------
     numpy.array or any type
-        The result of applying `f` to `a` and `b`, which can be a scalar, a vector, or a nested vector depending on 
+        The result of applying `f` to `a` and `b`, which can be a scalar, a vector, or a nested vector depending on
         the inputs and `f`.
 
     Notes
     -----
-    This function assumes that `f` can handle the types and dimensions of `a` and `b`, and that `a` and `b` have the same 
-    shape if they are arrays. It does not check these conditions, so unexpected results or errors may occur if they are 
+    This function assumes that `f` can handle the types and dimensions of `a` and `b`, and that `a` and `b` have the same
+    shape if they are arrays. It does not check these conditions, so unexpected results or errors may occur if they are
     not satisfied.
     """
     if np.isarray(a):

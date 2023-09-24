@@ -1,0 +1,8 @@
+:" Test the ability to call a python function with args"
+t(".pyf(""math"";""pow"")"; .pyf("math";"pow"); 1)
+t(".pyc(pow;[2 3];:{})"; .pyc(pow;[2 3];:{}); 8.0)
+
+:" Test the ability to call a python function with args and kwargs "
+:" use a good example object that has both args and kwargs "
+t(".pyf(""datetime"";""datetime"""); .pyf("datetime";"datetime"); 1)
+t(".pyc(datetime;[2012 1 1];:{[""hour"" 12] [""minute"" 30]})"; .p(.pyc(datetime;[2012 1 1];:{["hour" 12] ["minute" 30]})); "2012-01-01 12:30:00")

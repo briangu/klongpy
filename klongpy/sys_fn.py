@@ -11,8 +11,8 @@ from inspect import Parameter
 
 import numpy
 
-from .core import (KGChannel, KGChannelDir, KGLambda, is_empty, is_list, kg_read,
-                   kg_write, reserved_fn_args, safe_eq)
+from .core import (KGChannel, KGChannelDir, KGSym, KGLambda, KlongException, is_empty,
+                   is_list, is_dict, kg_read, kg_write, reserved_fn_args, reserved_fn_symbol_map, safe_eq)
 
 
 def eval_sys_append_channel(x):
@@ -342,30 +342,45 @@ def _import_module(klong, x, from_list=None):
             try:
                 for p,q in import_items:
                     if not callable(q):
-                        continue
-                    try:
-                        if isinstance(q, numpy.ufunc):
-                            args = reserved_fn_args[:q.nin]
-                            q = KGLambda(q)
-                        else:
-                            args = inspect.signature(q, follow_wrapped=True).parameters
-                            args = [k for k,v in args.items() if v.kind == Parameter.POSITIONAL_ONLY]
-                        n_args = len(args)
-                        provide_klong = 'klong' in args
-                        n_args = n_args - (1 if provide_klong else 0)
-                        if n_args > len(reserved_fn_args):
-                            print(f".py: skipping {p} - too many paramters: {n_args}")
-                        if n_args > 0 and reserved_fn_args[0] not in args:
-                            # print(f".py: remapping {p} using reserved parameter names")
-                            if n_args == 3:
-                                q = lambda x,y,z,f=q: f(x,y,z)
-                            elif n_args == 2:
-                                q = lambda x,y,f=q: f(x,y)
-                            elif n_args == 1:
-                                q = lambda x,f=q: f(x)
                         klong[p] = q
-                    except Exception:
-                        print(f".py: skipping {p} - could not be imported")
+                        continue
+
+                    try:
+                        try:
+                            if isinstance(q, numpy.ufunc):
+                                n_args = q.nin
+                                if n_args <= len(reserved_fn_args):
+                                    q = KGLambda(q, args=reserved_fn_args[:n_args])
+                            else:
+                                args = inspect.signature(q, follow_wrapped=True).parameters
+                                args = [k for k,v in args.items() if v.kind == Parameter.POSITIONAL_ONLY]
+                                n_args = len(args)
+                                if 'klong' in args:
+                                    n_args -= 1
+                                    assert n_args <= len(reserved_fn_args)
+                                    q = KGLambda(q, args=reserved_fn_args[:n_args], provide_klong=True)
+                                elif n_args <= len(reserved_fn_args):
+                                    q = KGLambda(q, args=reserved_fn_args[:n_args])
+                        except Exception as e:
+                            if hasattr(q, "__class__") and hasattr(q.__class__, '__module__') and q.__class__.__module__ == "builtins":
+                                # example: datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])
+                                # be sure to count the args before the first optional args starting with "["
+                                signature_line = q.__doc__.split("\n")[0]
+                                args = signature_line.split("[")[0].split("(")[1].split(",")
+                                n_args = len(args)
+                                # map first three positional args to reserved_fn_args
+                                if n_args <= len(reserved_fn_args):
+                                    q = KGLambda(q, args=reserved_fn_args[:n_args])
+                            else:
+                                raise e
+
+                        if n_args > len(reserved_fn_args):
+                            print(f".py: {p} - too many paramters: use .pyc() to call this function")
+                            klong[p] = lambda x,y: q(*x,**y)
+                        else:
+                            klong[p] = q
+                    except Exception as e:
+                        print(f"failed to import function: {p}", e)
             finally:
                 klong._context.push(ctx)
             return 1
@@ -411,6 +426,53 @@ def eval_sys_python(klong, x):
         raise RuntimeError("module name must be a string")
     return _import_module(klong, x, from_list=None)
 
+
+def eval_sys_python_call(klong, x, y, z):
+    """
+
+        .pyc(x, y, z)                                      [Python-Call]
+
+        Call a python function or class function with args and kwargs.
+
+        This is a utility function to allow for Klong programs to call Python classes,
+        or functions, with positional and keyword arguments.
+
+        x may be a list with the first element reference the object symbol and the second reference the function name to call.
+        x may also be a symbol that references the function name to call.
+
+        y is either a list of or a single positional arguments to pass to the function.
+        z is a dictionary of keyword arguments to pass to the function.
+
+    """
+    if is_list(x):
+        if not isinstance(x[0],object):
+            raise KlongException(f"x must be a list of [object;function]")
+        if not isinstance(x[1],str):
+            raise KlongException("function name must be a string")
+        klazz = klong[x[0]] if isinstance(x[0],KGSym) else x[0]
+        if not hasattr(klazz, x[1]):
+            raise KlongException(f"function {x[1]} not found")
+        f = getattr(klazz, x[1])
+        if not callable(f):
+            return f
+    else:
+        f = x
+        if not callable(f):
+            return f
+    if not is_list(y):
+        y = [y]
+    if not is_dict(z):
+        raise KlongException("z must be a dictionary")
+    if isinstance(f, KGLambda):
+        ctx = {reserved_fn_symbol_map[k]:v for k,v in zip(reserved_fn_args[:f.get_arity()], y)}
+        r = f.call_with_kwargs(klong, ctx, kwargs=z)
+    else:
+        r = f(*y, **z)
+    # TODO: hack to convert generators into lists - until we can handle generators in Klong
+    # determine if the result is a generator and if it is then convert it to a list
+    if inspect.isgenerator(r):
+        r = list(r)
+    return r
 
 
 def eval_sys_python_from(klong, x, y):

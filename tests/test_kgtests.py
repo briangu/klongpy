@@ -22,7 +22,7 @@ class TestKgTests(unittest.TestCase):
         ran_tests = False
         root_dir = os.path.join(os.getcwd(), "tests", "kgtests")
 
-        for dirpath, dirnames, filenames in os.walk(root_dir):
+        for dirpath, _, filenames in os.walk(root_dir):
             for fname in filenames:
                 if fname.startswith("test") and fname.endswith(".kg"):
                     ran_tests = True
