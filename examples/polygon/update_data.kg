@@ -12,6 +12,9 @@ write the data back to the dfs
 .pyf("polygon";"RESTClient")
 .pyf("requests";"get")
 
+timespan:::[(#.os.argv)>0;.os.argv@0;"hour"]
+dfsport:::[(#.os.argv)>1;0$#.os.argv@1;8888]
+
 callpoly::{[r];x;.p(x);r::get(x,"&apiKey=",.os.env?"POLYGON_API_KEY");:[.pyc([r "status_code"];[];:{})=200;.pyc([r "json"];[];:{});0]}
 getresults::{:[(x?"resultsCount")>0;x?"results";[]]}
 paginate::{[a];a::[];{:[x;{a::a,getresults(x);~:_x?"next_url"}(x);x]}{callpoly(x?"next_url")}:~callpoly(x);a}
@@ -24,10 +27,13 @@ colsFromNames::{{x,,[]}'x}
 newt::{.table(colsFromNames(cols))}
 
 :" open connection to the dfs server "
-cli::.cli(8888)
+cli::.cli(dfsport)
+
+:" default start date "
+startdate::"2022-09-09"
 
 :" read the latest time from the table "
-latest::{:[:_x;"2022-09-09";:[(#x)>0;0$(((x?"t")@-1):%1);"2022-09-09"]]}
+latest::{:[:_x;startdate;:[(#x)>0;0$(((x?"t")@-1):%1);startdate]]}
 readtbl::{[dfs sym tbl];dfs::x;sym::y;tbl::dfs(:read,sym);:[:_tbl;newt();tbl]}
 
 :" prepare the request data "
@@ -42,9 +48,7 @@ rc::RESTClient()
 symbols::.pyc([rc "list_tickers"];[];:{["market" "stocks"] ["limit" 1000]});1
 tickers::{x;.pyc(x,"ticker";[];:{})}'symbols;1
 
-{.d("updating: ");.p(x);update(cli;x;"hour")}'1#tickers
+{.d("updating: ");.p(x);update(cli;x;timespan)}'tickers
 
 :" close connection to the dfs server "
 .clic(cli)
-
-:" TODO: use command line args to specify the dfs server, timeframe, etc. "
