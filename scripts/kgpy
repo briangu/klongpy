@@ -192,16 +192,22 @@ def get_input():
     return input("?> ")
 
 
-def run_in_klong_loop(klong_loop, klong, s, verbose=False):
-    future = asyncio.run_coroutine_threadsafe(repl_eval(klong, s, verbose=verbose), klong_loop)
-    return future.result()
+def run_in_klong_loop(klong_loop, coro, event: Optional[threading.Event] = None):
+    event = event or threading.Event()
+    event.clear()
+    def wrapper():
+        asyncio.run(coro)
+        event.set()
+
+    klong_loop.run_in_executor(None, wrapper)
+    event.wait()
 
 
 class ConsoleInputHandler:
     @staticmethod
     async def input_producer(console_loop, klong_loop, klong, verbose=False):
         sys_cmds = create_sys_cmd_functions()
-
+        completion_event = threading.Event()
         try:
             while True:
                 try:
@@ -215,7 +221,7 @@ class ConsoleInputHandler:
                             print(f"unkown system command: ]{s[1]}")
                             continue
                     else:
-                        r = run_in_klong_loop(klong_loop, klong, s, verbose=verbose)
+                        r = run_in_klong_loop(klong_loop, repl_eval(klong, s, verbose=verbose), event=completion_event)
                     if r is not None:
                         print(r)
                 except EOFError:
@@ -231,13 +237,13 @@ class ConsoleInputHandler:
             console_loop.stop()
 
 
+async def run_in_klong(klong, s):
+    return klong(s)
+
+
 def run_file(klong_loop, klong, fname, verbose=False):
     with open(fname, "r") as f:
-        run_in_klong_loop(klong_loop, klong, f.read(), verbose=verbose)
-
-
-klong_stop_event = asyncio.Event()
-io_stop_event = asyncio.Event()
+        run_in_klong_loop(klong_loop, run_in_klong(klong, f.read()))
 
 
 def start_loop(loop, stop_event):
@@ -307,11 +313,11 @@ if __name__ == "__main__":
 
     klong = KlongInterpreter()
 
+    klong_stop_event = asyncio.Event()
+    io_stop_event = asyncio.Event()
+
     io_loop, io_loop_thread = setup_async_loop(lambda loop: start_loop(loop, io_stop_event), debug=True, slow_callback_duration=2)
     klong_loop, klong_loop_thread = setup_async_loop(lambda loop: start_loop(loop, klong_stop_event), debug=True, slow_callback_duration=2)
-
-    console_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(console_loop)
 
     shutdown_event = CallbackEvent()
 
@@ -336,13 +342,20 @@ if __name__ == "__main__":
                 klong(x)
 
     if args.filename:
+        print(f"Running: {args.filename}")
         if args.verbose:
             print(f"Running: {args.filename}")
         run_file(klong_loop, klong, args.filename, verbose=args.verbose)
+        # block while there are running io tasks (e.g. IPC server)
+        # is there a better way to do this?
+        while len(asyncio.all_tasks(loop=io_loop)) > 1:
+            time.sleep(0.1)
     else:
         run_repl = True
 
     if run_repl:
+        console_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(console_loop)
         if args.load:
             if args.verbose:
                 print(f"Loading: {args.load}")
@@ -350,9 +363,8 @@ if __name__ == "__main__":
         colorama.init(autoreset=True)
         show_repl_header(args.server)
         console_loop.create_task(ConsoleInputHandler.input_producer(console_loop,   klong_loop, klong, args.verbose))
-
-    console_loop.run_forever()
-    console_loop.close()
+        console_loop.run_forever()
+        console_loop.close()
 
     shutdown_event.trigger()
 

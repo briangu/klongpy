@@ -27,22 +27,22 @@ newt::{.table(colsFromNames(cols))}
 cli::.cli(8888)
 
 :" read the latest time from the table "
-latest::{:[:_x;"2022-09-09";:[(#x)>0;0$((x?"t")@-1);"2022-09-09"]]}
+latest::{:[:_x;"2022-09-09";:[(#x)>0;0$(((x?"t")@-1):%1);"2022-09-09"]]}
 readtbl::{[dfs sym tbl];dfs::x;sym::y;tbl::dfs(:read,sym);:[:_tbl;newt();tbl]}
 
 :" prepare the request data "
-mkd::{[d];d:::{};d,"symbol",,x;d,"timespan",,y;d,"from",,z;d,"to",,"2023-09-09";d,"limit",,"50000";d}
+mkd::{[d];d:::{};d,"symbol",,x;d,"timespan",,y;d,"from",,z;d,"to",,"2023-09-25";d,"limit",,"50000";d}
 
 extract::{[d];d::x;{d?x}'cols}
 updtbl::{[tbl];tbl::x;{.insert(tbl;extract(x))}'y}
-update::{[dfs sym ts path tbl d];dfs::x;sym::y;ts::z;path::ts,"/",sym;tbl::readtbl(dfs;path);d::paginate(aggsurl(mkd(sym;ts;latest(tbl))));updtbl(tbl;d);:[(#d)>0;dfs(:write,path,tbl);"skipping"]}
+update::{[dfs sym ts path tbl d];dfs::x;sym::y;ts::z;path::ts,"/",sym;tbl::readtbl(dfs;path);d::paginate(aggsurl(mkd(sym;ts;latest(tbl))));updtbl(tbl;d);.d("records: ");.p(#d);:[(#d)>0;dfs(:write,path,tbl);"skipping"]}
 
 :" Get the list of tickers from polygon "
 rc::RESTClient()
 symbols::.pyc([rc "list_tickers"];[];:{["market" "stocks"] ["limit" 1000]});1
 tickers::{x;.pyc(x,"ticker";[];:{})}'symbols;1
 
-{.d("updating: ");.p(x);update(cli;x;"hour")}'tickers
+{.d("updating: ");.p(x);update(cli;x;"hour")}'1#tickers
 
 :" close connection to the dfs server "
 .clic(cli)
