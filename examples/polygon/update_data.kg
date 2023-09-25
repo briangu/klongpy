@@ -18,7 +18,7 @@ paginate::{[a];a::[];{:[x;{a::a,getresults(x);~:_x?"next_url"}(x);x]}{callpoly(x
 
 aggsurl::{"https://api.polygon.io/v2/aggs/ticker/",(x?"symbol"),"/range/1/",(x?"timespan"),"/",(x?"from"),"/",(x?"to"),"?adjusted=true&sort=asc&limit=",(x?"limit")}
 
-:" open connection to the dfs "
+:" create a table with the same columns as the polygon data "
 cols::["t" "c" "h" "l" "n" "o" "v" "vw"]
 colsFromNames::{{x,,[]}'x}
 newt::{.table(colsFromNames(cols))}
