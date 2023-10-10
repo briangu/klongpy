@@ -66,7 +66,7 @@ async def stream_recv_msg(reader: StreamReader):
 
 async def execute_server_command(future_loop, result_future, klong, command, nc):
     """
-    
+
     Execute a command on the klong loop and return the result via the result_future.
 
     The network connection that initiated the command is pushed onto the context stack as ".cli.h"
@@ -77,7 +77,7 @@ async def execute_server_command(future_loop, result_future, klong, command, nc)
     :param klong: the klong interpreter
     :param command: the command to execute
     :param nc: the network client
-    
+
     """
     try:
         handle_sym = KGSym('.cli.h')
@@ -131,9 +131,9 @@ class ConnectionProvider:
 
 class HostPortConnectionProvider(ConnectionProvider):
     """
-    
+
     This connection provider is used to create a NetworkClient from a host/port pair.
-    
+
     """
     def __init__(self, host, port, max_retries=5, retry_delay=5.0):
         self.host = host
@@ -147,9 +147,9 @@ class HostPortConnectionProvider(ConnectionProvider):
 
     async def connect(self):
         """"
-        
+
         Attempt to connect to the remote server.  If the connection fails, retry up to max_retries times.
-        
+
         """
         self._thread_ident = threading.current_thread().ident
         current_delay = self.retry_delay
@@ -179,9 +179,9 @@ class HostPortConnectionProvider(ConnectionProvider):
 
     async def close(self):
         """
-        
+
         Close the connection.  This is called when the client is stopped.
-        
+
         """
         assert threading.current_thread().ident == self._thread_ident
         if not self.is_open():
@@ -192,20 +192,20 @@ class HostPortConnectionProvider(ConnectionProvider):
             await self.writer.wait_closed()
         self.reader = None
         self.writer = None
-    
+
     def is_open(self):
         # TODO: are there threading access risks here?
         return self.writer is not None and not self.writer.is_closing()
-    
+
     def __str__(self):
         return f"remote[{self.host}:{self.port}]"
 
 
 class ReaderWriterConnectionProvider(ConnectionProvider):
     """
-    
+
     This connection provider is used to create a NetworkClient from an existing reader/writer pair.
-    
+
     """
     def __init__(self, reader: StreamReader, writer: StreamWriter, host, port):
         self.reader = reader
@@ -219,7 +219,7 @@ class ReaderWriterConnectionProvider(ConnectionProvider):
         if not self.is_open():
             raise KlongIPCCreateConnectionException()
         return self.reader, self.writer
-    
+
     async def close(self):
         if threading.current_thread().ident != self._thread_ident:
             raise RuntimeError("close called from different thread")
@@ -239,16 +239,16 @@ class ReaderWriterConnectionProvider(ConnectionProvider):
 
 class NetworkClient(KGLambda):
     """
-    
+
     This network client is used to either connect to a remote server or to handle a connection by a remote client.
     The network connection may be used in KlongPy as a remote dictionary or a remote function.
 
-    If the remote client connects to the server, the server will create a NetworkClient so that it can be used 
+    If the remote client connects to the server, the server will create a NetworkClient so that it can be used
     in KlongPy as a remote dictionary or a remote function.
 
     Similarly, if a KlongPy client connects to a remote server, the client will create a NetworkClient so that it
     can be used in KlongPy as a remote dictionary or a remote function.
-    
+
     """
     def __init__(self, ioloop, klongloop, klong, conn_provider, shutdown_event=None, on_connect=None, on_close=None, on_error=None):
         self.ioloop = ioloop
@@ -275,7 +275,7 @@ class NetworkClient(KGLambda):
         Cleanup the pending responses and set the exception on the futures.
 
         From the KlongPy perspective, any outstanding remote calls will fail with the close_exception.
-        
+
         """
         for future in self.pending_responses.values():
             future.set_exception(close_exception)
@@ -283,14 +283,14 @@ class NetworkClient(KGLambda):
 
     def run_client(self):
         """
-        
+
         Start the network client as initiatiated by the Klong interpreter.
-        
+
         The network client will connect to the remote server and handle server push-requests by
         running messages in the Klong interpreter.
 
         When the .clic function is called, the network client is stopped and the connection is closed.
-        
+
         """
         self.running = True
         connect_event = threading.Event()
@@ -309,11 +309,11 @@ class NetworkClient(KGLambda):
 
     def run_server(self):
         """
-        
+
         Start the network client for a client connected to the server.
 
         The network client will handle server requests and shutdown when the connection is closed.
-        
+
         """
         self.running = True
         return self._run(self.on_connect, self.on_close, self.on_error)
@@ -323,7 +323,7 @@ class NetworkClient(KGLambda):
 
         Get the connection and start listening for messages.
 
-        If a connection drops or an error occurs, the pending responses are 
+        If a connection drops or an error occurs, the pending responses are
         cleared and exceptions are returned to the KlongPy callers.
 
         In order to notify KlongPy applications of network activity:
@@ -421,9 +421,9 @@ class NetworkClient(KGLambda):
 
     def call(self, msg):
         """
-        
+
         Send a message to the remote server and wait for the response.
-        
+
         """
         if not self.is_open():
             raise KlongException("connection not established")
@@ -435,14 +435,14 @@ class NetworkClient(KGLambda):
         async def send_message_and_get_result():
             await stream_send_msg(self.writer, msg_id, msg)
             return await future
-        
+
         return asyncio.run_coroutine_threadsafe(send_message_and_get_result(), self.ioloop).result()
 
     def __call__(self, _, ctx):
         """
-        
+
         Evaluate a remote function call.
-        
+
         """
         x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
         try:
@@ -461,7 +461,7 @@ class NetworkClient(KGLambda):
 
         Stop the network client.
         First send the KGRemoteCloseConnection message to the server to tell it to close the connection.
-        
+
         """
         self.running = False
         self._run_exit_event.wait()
@@ -509,16 +509,16 @@ class NetworkClient(KGLambda):
 
     def get_arity(self):
         return 1
-        
+
     def __str__(self):
         return f"{str(self.conn_provider)}:fn"
 
     @staticmethod
     def create_from_conn_provider(ioloop, klongloop, klong, conn_provider, shutdown_event=None, on_connect=None, on_close=None, on_error=None):
         """
-        
+
         Create a network client to connect to a remote server.
-        
+
         :param ioloop: the asyncio ioloop
         :param klongloop: the klong loop
         :param klong: the klong interpreter
@@ -532,9 +532,9 @@ class NetworkClient(KGLambda):
     @staticmethod
     def create_from_host_port(ioloop, klongloop, klong, host, port, shutdown_event=None, on_connect=None, on_close=None, on_error=None):
         """
-        
+
         Create a network client to connect to a remote server.
-        
+
         :param ioloop: the asyncio ioloop
         :param klongloop: the klong loop
         :param klong: the klong interpreter
@@ -549,7 +549,7 @@ class NetworkClient(KGLambda):
     @staticmethod
     def create_from_addr(ioloop, klongloop, klong, shutdown_event, addr, on_connect=None, on_close=None, on_error=None):
         """
-        
+
         Create a network client to connect to a remote server.
 
         :param ioloop: the asyncio ioloop
@@ -558,7 +558,7 @@ class NetworkClient(KGLambda):
         :param addr: the address to connect to.  If the address is an integer, it is interpreted as a port in "localhost:<port>".
 
         :return: a network client
-                
+
         """
         addr = str(addr)
         parts = addr.split(":")
@@ -642,11 +642,15 @@ class TcpServerConnectionHandler:
 
     async def handle_client(self, reader: StreamReader, writer: StreamWriter):
         """
-        
+
         Handle a client connection.  Messages are read from the client and executed on the klong loop.
-        
+
         """
-        host, port, _, _ = writer.get_extra_info('peername')
+        results = writer.get_extra_info('peername')
+        if results is None:
+            logging.warning(f"Connection closed before peername could be retrieved")
+            return
+        host, port = results[0], results[1]
         if host == "::1":
             host = "localhost"
         conn_provider = ReaderWriterConnectionProvider(reader, writer, host, port)
@@ -743,7 +747,7 @@ class NetworkClientDictHandle(dict):
 
     def is_open(self):
         return self.nc.is_open()
-    
+
     def __str__(self):
         return f"{str(self.nc.conn_provider)}:dict"
 
@@ -758,14 +762,14 @@ def eval_sys_fn_create_client(klong, x):
         If "x" is an integer, then it is interpreted as a port in "localhost:<port>".
         if "x" is a string, then it is interpreted as a host address "<host>:<port>"
 
-        If "x" is a remote dictionary, the underlying network connection 
+        If "x" is a remote dictionary, the underlying network connection
         is shared and a remote function is returned.
-        
-        Connection examples:  
-      
+
+        Connection examples:
+
                    .cli(8888)            --> remote function to localhost:8888
                    .cli("localhost:8888") --> remote function to localhost:8888
-                   
+
                    d::.clid(8888)
                    .cli(d)                --> remote function to same connection as d
 
@@ -779,20 +783,20 @@ def eval_sys_fn_create_client(klong, x):
                    f("avg::{(+/x)%#x}")   --> "avg" function is defined remotely
                    f("avg(!100)")         --> 49.5 (computed remotely)
 
-            Remote functions may be evaluated by passing an array with the first element 
+            Remote functions may be evaluated by passing an array with the first element
             being the symbol of the remote function to execute.  The remaining elements
             are supplied as parameters:
 
             Example: call :avg with a locally generated !100 range which is passed to the remote server.
 
                    f(:avg,,!100)          --> 49.5
-                
+
             Similary:
 
                    b::!100
                    f(:avg,,b)             --> 49.5
-        
-            When a symbol is applied, the remote value is returned.  
+
+            When a symbol is applied, the remote value is returned.
             For functions, a remote function proxy is returned.
 
             Example: retrieve a function proxy to :avg and then call it as if it were a local function.
@@ -804,7 +808,7 @@ def eval_sys_fn_create_client(klong, x):
 
                    f("b::!100")
                    p::f(:b)               --> "p: now holds a copy of the remote array "b"
-                   
+
     """
     x = x.a if isinstance(x,KGCall) else x
     if isinstance(x,NetworkClient):
@@ -827,18 +831,18 @@ def eval_sys_fn_create_dict_client(klong, x):
         If "x" is an integer, then it is interpreted as a port in "localhost:<port>".
         if "x" is a string, then it is interpreted as a host address "<host>:<port>"
 
-        If "x" is a remote function, the underlying network connection 
+        If "x" is a remote function, the underlying network connection
         is shared and a remote function is returned.
-        
+
         Examples:  .cli(8888)             --> remote function to localhost:8888
                    .cli("localhost:8888") --> remote function to localhost:8888
                    .cli(d)                --> remote function to same connection as d
-        
-        Connection examples:  
-      
+
+        Connection examples:
+
                    .cli(8888)            --> remote function to localhost:8888
                    .cli("localhost:8888") --> remote function to localhost:8888
-                   
+
                    f::.cli(8888)
                    .cli(f)                --> remote function to same connection as f
 
@@ -930,7 +934,7 @@ class KGAsyncCall(KGLambda):
         self.cb = cb
         self.fn = fn
         self.args = [reserved_fn_symbol_map[x] for x in reserved_fn_args[:fn.arity]]
-   
+
     async def acall(self, klong, params):
         r = klong.call(KGCall(self.fn.a, [*params], self.fn.arity))
         self.cb(r)
