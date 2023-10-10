@@ -647,10 +647,12 @@ class TcpServerConnectionHandler:
 
         """
         results = writer.get_extra_info('peername')
+        print(results)
         if results is None:
             logging.warning("Connection closed before peername could be retrieved")
             return
         host, port = results[0], results[1]
+        print("host: ", host, "port: ", port)
         if host == "::1":
             host = "localhost"
         conn_provider = ReaderWriterConnectionProvider(reader, writer, host, port)
