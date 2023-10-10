@@ -648,7 +648,7 @@ class TcpServerConnectionHandler:
         """
         results = writer.get_extra_info('peername')
         if results is None:
-            logging.warning(f"Connection closed before peername could be retrieved")
+            logging.warning("Connection closed before peername could be retrieved")
             return
         host, port = results[0], results[1]
         if host == "::1":
