@@ -1,5 +1,10 @@
 
 ![Unit Tests](https://github.com/briangu/klongpy/workflows/Unit%20Tests/badge.svg)
+<img alt="GitHub Last Commit" src="https://img.shields.io/github/last-commit/briangu/klongpy" />
+<img alt="" src="https://img.shields.io/github/repo-size/briangu/klongpy" />
+<img alt="GitHub Issues" src="https://img.shields.io/github/issues/briangu/klongpy" />
+<img alt="GitHub Pull Requests" src="https://img.shields.io/github/issues-pr/briangu/klongpy" />
+<img alt="Github License" src="https://img.shields.io/github/license/briangu/klongpy" />
 
 # KlongPy
 
