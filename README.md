@@ -1,10 +1,16 @@
 
 ![Unit Tests](https://github.com/briangu/klongpy/workflows/Unit%20Tests/badge.svg)
-<img alt="GitHub Last Commit" src="https://img.shields.io/github/last-commit/briangu/klongpy" />
-<img alt="" src="https://img.shields.io/github/repo-size/briangu/klongpy" />
-<img alt="GitHub Issues" src="https://img.shields.io/github/issues/briangu/klongpy" />
-<img alt="GitHub Pull Requests" src="https://img.shields.io/github/issues-pr/briangu/klongpy" />
-<img alt="Github License" src="https://img.shields.io/github/license/briangu/klongpy" />
+[![Last Commit](https://img.shields.io/github/last-commit/briangu/klongpy)](https://img.shields.io/github/last-commit/briangu/klongpy)
+[![Dependency Status](https://img.shields.io/librariesio/github/briangu/klongpy)](https://libraries.io/github/briangu/klongpy)
+[![Open Issues](https://img.shields.io/github/issues-raw/briangu/klongpy)](https://github.com/briangu/klongpy/issues)
+[![Repo Size](https://img.shields.io/github/repo-size/briangu/klongpy)](https://img.shields.io/github/repo-size/briangu/klongpy)
+[![GitHub star chart](https://img.shields.io/github/stars/briangu/klongpy?style=social)](https://star-history.com/#briangu/klongpy)
+
+[![Release Notes](https://img.shields.io/github/release/briangu/klongpy)](https://github.com/briangu/klongpy/releases)
+[![Downloads](https://static.pepy.tech/badge/klongpy/month)](https://pepy.tech/project/klongpy)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+
 
 # KlongPy
 
