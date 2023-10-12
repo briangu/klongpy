@@ -9,13 +9,18 @@
 [![Release Notes](https://img.shields.io/github/release/briangu/klongpy)](https://github.com/briangu/klongpy/releases)
 [![Downloads](https://static.pepy.tech/badge/klongpy/month)](https://pepy.tech/project/klongpy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Twitter](https://img.shields.io/twitter/url/https/twitter.com/klongpy.svg?style=social&label=Follow%20%40KlongPy)](https://twitter.com/klongpy)
 
+[![Twitter](https://img.shields.io/twitter/url/https/twitter.com/klongpy.svg?style=social&label=Follow%20%40KlongPy)](https://twitter.com/klongpy)
+[![](https://dcbadge.vercel.app/api/server/6adMQxSpJS?compact=true&style=flat)](https://discord.gg/z2vvTvxa)
 
 
 # KlongPy
 
 KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array language](https://en.wikipedia.org/wiki/Array_programming), offering high-performance vectorized operations. It prioritizes compatibility with Python, thus allowing seamless integration of Python's expansive ecosystem while retaining Klong's succinctness. With the inclusion of [CuPy](https://github.com/cupy/cupy), KlongPy can operate using both CPU and GPU backends. It utilizes [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) descendant from APL, as its core. This means its runtime can target either GPU or CPU backends. The framework's foundation lies in [Nils M Holm](https://t3x.org)'s work, the original developer of Klong, who has authored a [Klong Book](https://t3x.org/klong/book.html). KlongPy is especially useful for data scientists, quantitative analysts, researchers, and programming language aficionados.
+
+# Quick install
+
+`pip3 install klongpy[all]`
 
 # Overview
 
@@ -162,7 +167,7 @@ Run (GPU)
 
 ### All application tools (db, web, REPL, etc.)
 
-    $ pip3 install klongpy[full]
+    $ pip3 install klongpy[all]
 
 
 # REPL
