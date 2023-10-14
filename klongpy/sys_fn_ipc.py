@@ -683,7 +683,8 @@ class TcpServerHandler:
             if not writer.is_closing():
                 writer.close()
         self.connections.clear()
-        self.server.close()
+        if self.server:
+            self.server.close()
         self.server = None
         self.task.cancel()
         self.task = None
