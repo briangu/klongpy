@@ -192,15 +192,8 @@ def get_input():
     return input("?> ")
 
 
-def run_in_klong_loop(klong_loop, coro, event: Optional[threading.Event] = None):
-    event = event or threading.Event()
-    event.clear()
-    def wrapper():
-        asyncio.run(coro)
-        event.set()
-
-    klong_loop.run_in_executor(None, wrapper)
-    event.wait()
+def run_in_loop(klong_loop, coro):
+    return asyncio.run_coroutine_threadsafe(coro, klong_loop).result()
 
 
 class ConsoleInputHandler:
@@ -221,7 +214,7 @@ class ConsoleInputHandler:
                             print(f"unkown system command: ]{s[1]}")
                             continue
                     else:
-                        r = run_in_klong_loop(klong_loop, repl_eval(klong, s, verbose=verbose), event=completion_event)
+                        r = run_in_loop(klong_loop, repl_eval(klong, s, verbose=verbose))
                     if r is not None:
                         print(r)
                 except EOFError:
@@ -243,7 +236,8 @@ async def run_in_klong(klong, s):
 
 def run_file(klong_loop, klong, fname, verbose=False):
     with open(fname, "r") as f:
-        run_in_klong_loop(klong_loop, run_in_klong(klong, f.read()))
+        content = f.read()
+    run_in_loop(klong_loop, run_in_klong(klong, content))
 
 
 def start_loop(loop, stop_event):
@@ -251,17 +245,18 @@ def start_loop(loop, stop_event):
     loop.run_until_complete(stop_event.wait())
 
 
-def setup_async_loop(start_loop_func, debug=False, slow_callback_duration=2) -> asyncio.AbstractEventLoop:
+def setup_async_loop(start_loop_func, debug=False, slow_callback_duration=86400) -> asyncio.AbstractEventLoop:
     loop = asyncio.new_event_loop()
     loop.slow_callback_duration = slow_callback_duration
     if debug:
         loop.set_debug(True)
-    thread = threading.Thread(target=start_loop_func, args=(loop,), daemon=True)
+    stop_event = asyncio.Event()
+    thread = threading.Thread(target=lambda l=loop,e=stop_event: start_loop_func(l,e), args=(loop,), daemon=True)
     thread.start()
-    return loop, thread
+    return loop, thread, stop_event
 
 
-def cleanup_async_loop(loop: asyncio.AbstractEventLoop, loop_thread, stop_event, debug=True) -> None:
+def cleanup_async_loop(loop: asyncio.AbstractEventLoop, loop_thread, stop_event, debug=True, name=None) -> None:
 
     if loop.is_closed():
         return
@@ -271,6 +266,8 @@ def cleanup_async_loop(loop: asyncio.AbstractEventLoop, loop_thread, stop_event,
 
     pending_tasks = asyncio.all_tasks(loop=loop)
     if len(pending_tasks) > 0:
+        if name:
+            print(f"WARNING: pending tasks in {name} loop")
         print(f"cancelling {len(pending_tasks)} pending tasks...")
         for task in pending_tasks:
             loop.call_soon_threadsafe(task.cancel)
@@ -313,11 +310,8 @@ if __name__ == "__main__":
 
     klong = KlongInterpreter()
 
-    klong_stop_event = asyncio.Event()
-    io_stop_event = asyncio.Event()
-
-    io_loop, io_loop_thread = setup_async_loop(lambda loop: start_loop(loop, io_stop_event), debug=True, slow_callback_duration=2)
-    klong_loop, klong_loop_thread = setup_async_loop(lambda loop: start_loop(loop, klong_stop_event), debug=True, slow_callback_duration=2)
+    io_loop, io_loop_thread, io_stop_event = setup_async_loop(start_loop, debug=args.debug)
+    klong_loop, klong_loop_thread, klong_stop_event = setup_async_loop(start_loop, debug=args.debug)
 
     shutdown_event = CallbackEvent()
 
@@ -368,5 +362,5 @@ if __name__ == "__main__":
 
     shutdown_event.trigger()
 
-    cleanup_async_loop(io_loop, io_loop_thread, stop_event=io_stop_event, debug=args.debug)
-    cleanup_async_loop(klong_loop, klong_loop_thread, stop_event=klong_stop_event, debug=args.debug)
+    cleanup_async_loop(io_loop, io_loop_thread, stop_event=io_stop_event, debug=args.debug, name="io_loop")
+    cleanup_async_loop(klong_loop, klong_loop_thread, stop_event=klong_stop_event, debug=args.debug, name="klong_loop")
