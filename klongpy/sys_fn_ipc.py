@@ -608,10 +608,11 @@ class KGRemoteFnProxy(KGLambda):
 
 
 class TcpServerConnectionHandler:
-    def __init__(self, ioloop, klongloop, klong):
+    def __init__(self, ioloop, klongloop, klong, shutdown_event=None):
         self.ioloop = ioloop
         self.klong = klong
         self.klongloop = klongloop
+        self.shutdown_event = shutdown_event
 
     async def _on_connect(self, nc):
         logging.info(f"New connection from {str(nc.conn_provider)}")
@@ -654,7 +655,7 @@ class TcpServerConnectionHandler:
         if host == "::1":
             host = "localhost"
         conn_provider = ReaderWriterConnectionProvider(reader, writer, host, port)
-        nc = NetworkClient.create_from_conn_provider(self.ioloop, self.klongloop, self.klong, conn_provider, on_connect=self._on_connect, on_close=self._on_close, on_error=self._on_error)
+        nc = NetworkClient.create_from_conn_provider(self.ioloop, self.klongloop, self.klong, conn_provider, shutdown_event=self.shutdown_event, on_connect=self._on_connect, on_close=self._on_close, on_error=self._on_error)
         try:
             await nc.run_server()
         finally:
@@ -668,10 +669,10 @@ class TcpServerHandler:
         self.server = None
         self.connections = []
 
-    def create_server(self, ioloop, klongloop, klong, bind, port):
+    def create_server(self, ioloop, klongloop, klong, bind, port, shutdown_event=None):
         if self.task is not None:
             return 0
-        self.connection_handler = TcpServerConnectionHandler(ioloop, klongloop, klong)
+        self.connection_handler = TcpServerConnectionHandler(ioloop, klongloop, klong, shutdown_event=shutdown_event)
         self.task = ioloop.call_soon_threadsafe(asyncio.create_task, self.run_server(bind, port))
         return 1
 
@@ -682,7 +683,6 @@ class TcpServerHandler:
             if not writer.is_closing():
                 writer.close()
         self.connections.clear()
-
         self.server.close()
         self.server = None
         self.task.cancel()
@@ -701,13 +701,9 @@ class TcpServerHandler:
                 self.connections.remove(writer)
 
     async def run_server(self, bind, port):
-        self.server = await asyncio.start_server(self.handle_client, bind, port, reuse_address=True)
-
+        self.server = await asyncio.start_server(self.handle_client, bind, port, reuse_address=True, start_serving=True)
         addr = self.server.sockets[0].getsockname()
-        logging.info(f'Serving on {addr}')
-
-        async with self.server:
-            await self.server.serve_forever()
+        logging.info(f'Serving IPC on {addr}')
 
 class NetworkClientDictHandle(dict):
     def __init__(self, nc: NetworkClient):
@@ -920,12 +916,20 @@ def eval_sys_fn_create_ipc_server(klong, x):
     parts = x.split(":")
     bind = parts[0] if len(parts) > 1 else None
     port = int(parts[0] if len(parts) == 1 else parts[1])
-    if len(parts) == 1 and port == 0:
-        return _ipc_tcp_server.shutdown_server()
     system = klong['.system']
+    shutdown_event = system['closeEvent']
+    if len(parts) == 1 and port == 0:
+        shutdown_event.unsubscribe(_ipc_tcp_server.shutdown_server)
+        return _ipc_tcp_server.shutdown_server()
     ioloop = system['ioloop']
     klongloop = system['klongloop']
-    return _ipc_tcp_server.create_server(ioloop, klongloop, klong, bind, port)
+    # subscribe to the shutdown event and run shutdown_server in the klong loop
+    async def async_shutdown_in_klongloop():
+        _ipc_tcp_server.shutdown_server()
+    def shutdown_in_klongloop():
+        klongloop.call_soon_threadsafe(asyncio.create_task, async_shutdown_in_klongloop())
+    shutdown_event.subscribe(shutdown_in_klongloop)
+    return _ipc_tcp_server.create_server(ioloop, klongloop, klong, bind, port, shutdown_event=shutdown_event)
 
 
 class KGAsyncCall(KGLambda):

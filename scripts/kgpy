@@ -342,7 +342,7 @@ if __name__ == "__main__":
         run_file(klong_loop, klong, args.filename, verbose=args.verbose)
         # block while there are running io tasks (e.g. IPC server)
         # is there a better way to do this?
-        while len(asyncio.all_tasks(loop=io_loop)) > 1:
+        while len(asyncio.all_tasks(loop=io_loop)) > 0:
             time.sleep(0.1)
     else:
         run_repl = True

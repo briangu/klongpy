@@ -18,14 +18,14 @@ class ReadonlyDict(collections.abc.Mapping):
 
 class CallbackEvent:
     def __init__(self):
-        self.subscribers = []
+        self.subscribers = set()
 
     def subscribe(self, callback):
-        self.subscribers.append(callback)
+        self.subscribers.add(callback)
 
     def unsubscribe(self, callback):
         try:
-            self.subscribers.remove(callback)
+            self.subscribers.discard(callback)
         except ValueError:
             # Callback was not found in the list of subscribers
             pass
