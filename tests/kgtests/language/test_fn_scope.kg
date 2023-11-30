@@ -1,0 +1,30 @@
+:" test_fn_monad_2 "
+F::{x,x}
+t("F(1)"; F(1); [1 1])
+
+:" test_fn_nested_monad_w_xform "
+G::{x};F::{G(4_x)}
+t("F(""hello"")"; F("hello"); "o")
+
+:" test_fn_nested_x_scope "
+FL:::{};FL,0,{.p(,x@1)};F::{f::FL?0;f(x)}
+t("F(""hello"")"; F("hello"); "e")
+
+:" test_nested_x_scope_3 "
+G::{.p(,x@0)};F::{G(7_x)}
+t("F(""Monkey 0:"")"; F("Monkey 0:"); "0")
+
+:" test_nested_x_scope_compact "
+F::{{.p(,x@0)}(7_x)}
+t("F(""Monkey 0:"")"; F("Monkey 0:"); "0")
+
+:" test_nested_x_scope_4 "
+t("{.p(,x@0)}(7_""Monkey 0:"")"; {.p(,x@0)}(7_"Monkey 0:"); "0")
+
+:" test_nested_x_scope_projection "
+UM::{x};G::UM;F::{G(4_x)}
+t("F(""hello"")"; F("hello"); "o")
+
+:" test_nested_x_scope_dyad_projection "
+UM::{x;y};G::UM("A";);F::{G(4_x)}
+t("F(""hello"")"; F("hello"); "o")

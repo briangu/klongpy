@@ -15,6 +15,12 @@ class TestExtraCoreSuite(unittest.TestCase):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
     @unittest.skip
+    def test_format2_broadcasting(self):
+        klong = KlongInterpreter()
+        r = klong("[1]$[1]")
+        self.assertTrue(kg_equal(r, ["1"]))
+
+    @unittest.skip
     def test_append_empty_dictionaries(self):
         klong = KlongInterpreter()
         r = klong("A::[];A::A,:{};A::A,:{};A::A,:{};A")
@@ -38,8 +44,9 @@ class TestExtraCoreSuite(unittest.TestCase):
 
     @unittest.skip
     def test_extra_chars_ignored(self):
-        # aggs::{[a];a:::{}}}}
-        pass
+        klong = KlongInterpreter()
+        with self.assertRaises(Exception):
+            klong("aggs::{[a];a:::{}}}}")
 
     @unittest.skip
     def test_tested_arity(self):
