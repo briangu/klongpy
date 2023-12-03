@@ -299,10 +299,13 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--server', help='start the IPC server', type=str)
     parser.add_argument('-t', '--test', help='test program from file')
     parser.add_argument('-v', '--verbose', help='enable verbose output', action="store_true")
-    parser.add_argument('-d', '--debug', help='enable debug mode', action="store_false")
+    parser.add_argument('-d', '--debug', help='enable debug mode', action="store_true")
     parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
 
     args = parser.parse_args(main_args[1:])
+
+    if args.debug:
+        print("args: ", args)
 
     if args.expr:
         print(KlongInterpreter()(args.expr))
@@ -356,6 +359,9 @@ if __name__ == "__main__":
         gather_io_tasks(io_loop).wait()
     else:
         run_repl = True
+
+    if args.debug:
+        print("run_repl: ", run_repl)
 
     if run_repl:
         console_loop = asyncio.new_event_loop()
