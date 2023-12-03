@@ -293,7 +293,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog='KlongPy',
         description='KlongPy REPL',
-        epilog='For help, go to https://github.com/briangu/klongpy')
+        epilog='For help, go to http://klongpy.org')
     parser.add_argument('-e', '--expr', help='evaluate expression, no interactive mode')
     parser.add_argument('-l', '--load', help='load program from file')
     parser.add_argument('-s', '--server', help='start the IPC server', type=str)
