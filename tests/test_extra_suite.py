@@ -15,6 +15,15 @@ class TestExtraCoreSuite(unittest.TestCase):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
     @unittest.skip
+    def test_wrap_join(self):
+        klong = KlongInterpreter()
+        klong("q::[3 8]")
+        r = klong("q[0],q[-1]")
+        self.assertTrue(kg_equal(r, [3,8]))
+        r = klong("(q[0],q[-1])")
+        self.assertTrue(kg_equal(r, [3,8]))
+
+    @unittest.skip
     def test_format2_broadcasting(self):
         klong = KlongInterpreter()
         r = klong("[1]$[1]")
