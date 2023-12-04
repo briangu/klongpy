@@ -15,6 +15,13 @@ class TestExtraCoreSuite(unittest.TestCase):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
     @unittest.skip
+    def test_semicolon_string_arg(self):
+        klong = KlongInterpreter()
+        klong('f::{x,y}')
+        r = klong('f("hello";";")')
+        self.assertEqual(r, "hello;")
+
+    @unittest.skip
     def test_wrap_join(self):
         klong = KlongInterpreter()
         klong("q::[3 8]")
