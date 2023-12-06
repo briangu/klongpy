@@ -1,5 +1,4 @@
 from .core import *
-import re
 import sys
 
 

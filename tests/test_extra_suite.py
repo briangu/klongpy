@@ -4,8 +4,7 @@ import unittest
 from utils import *
 
 from klongpy import KlongInterpreter
-from klongpy.core import (KGChar, KGSym, KlongException, is_float, is_integer,
-                          rec_flatten)
+from klongpy.core import (KGChar, KGSym, is_float, is_integer, rec_flatten)
 
 
 # add tests not included in the original kg suite
