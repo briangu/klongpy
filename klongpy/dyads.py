@@ -278,6 +278,16 @@ def eval_dyad_equal(a, b):
     return vec_fn2(a, b, lambda x, y: kg_truth(np.asarray(x,dtype=object) == np.asarray(y,dtype=object)))
 
 
+def finditer(s, sub):
+    i = 0
+    while True:
+        i = s.find(sub, i)
+        if i == -1:
+            break
+        yield i
+        i += 1
+
+
 def eval_dyad_find(a, b):
     """
 
@@ -307,7 +317,7 @@ def eval_dyad_find(a, b):
 
     """
     if isinstance(a,str):
-        return np.asarray([m.start() for m in re.finditer(f"(?={b})", a)])
+        return np.asarray(list(finditer(a,str(b))))
     elif is_dict(a):
         v = a.get(b)
         return np.inf if v is None else v
