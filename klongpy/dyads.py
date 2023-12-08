@@ -174,7 +174,7 @@ def eval_dyad_at_index(klong, a, b):
             r = np.asarray([])
         else:
             # TODO: return None for missing keys? or raise?
-            r = np.asarray([a[x] for x in b])
+            r = kg_asarray([a[x] for x in b])
     elif is_integer(b):
         r = a[b]
         j = False
