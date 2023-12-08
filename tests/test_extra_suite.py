@@ -13,6 +13,13 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    def test_power_type(self):
+        klong = KlongInterpreter()
+        r = klong("2^3")
+        self.assertTrue(is_integer(r))
+        r = klong("2.1^3")
+        self.assertTrue(is_float(r))
+
     def test_find_splat(self):
         klong = KlongInterpreter()
         r = klong('s::"abc|def";s?"|"')

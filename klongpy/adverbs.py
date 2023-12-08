@@ -186,7 +186,7 @@ def eval_adverb_each_pair(f, a, op):
         return a
     j = isinstance(a, str)
     a = str_to_chr_arr(a) if j else a
-    return np.asarray([f(x,y) for x,y in zip(a[::],a[1::])])
+    return kg_asarray([f(x,y) for x,y in zip(a[::],a[1::])])
 
 
 def eval_dyad_adverb_iterate(f, a, b):
