@@ -162,7 +162,7 @@ class RangeError(Exception):
 
 
 reserved_fn_args = ['x','y','z']
-reserved_fn_symbols = {KGSym(n) for n in reserved_fn_args}
+reserved_fn_symbols = [KGSym(n) for n in reserved_fn_args]
 reserved_fn_symbol_map = {n:KGSym(n) for n in reserved_fn_args}
 reserved_dot_f_symbol = KGSym('.f')
 

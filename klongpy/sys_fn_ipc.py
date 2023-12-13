@@ -12,7 +12,7 @@ import numpy as np
 
 from klongpy.core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
                           KlongException, get_fn_arity_str, is_list,
-                          reserved_fn_args, reserved_fn_symbol_map)
+                          reserved_fn_args, reserved_fn_symbols, reserved_fn_symbol_map)
 
 
 class KlongIPCException(Exception):
@@ -85,7 +85,11 @@ async def execute_server_command(future_loop, result_future, klong, command, nc)
         if isinstance(command, KGRemoteFnCall):
             r = klong[command.sym]
             if callable(r):
-                response = r(*command.params)
+                if isinstance(r,KGLambda):
+                    ctx = {reserved_fn_symbols[i]:command.params[i] for i in range(min(len(reserved_fn_args),len(command.params)))}
+                    response = r(klong, ctx)
+                else:
+                    response = r(*command.params)
             else:
                 raise KlongException(f"not callable: {command.sym}")
         elif isinstance(command, KGRemoteDictSetCall):
@@ -99,6 +103,9 @@ async def execute_server_command(future_loop, result_future, klong, command, nc)
             response = klong(str(command))
         if isinstance(response, KGFn):
             response = KGRemoteFnRef(response.arity)
+        elif isinstance(response, KGLambda):
+            # TODO: move to using .arity for KGLambda
+            response = KGRemoteFnRef(response.get_arity())
         future_loop.call_soon_threadsafe(result_future.set_result, response)
     except KeyError as e:
         future_loop.call_soon_threadsafe(result_future.set_exception, KlongException(f"symbol not found: {e}"))
@@ -449,7 +456,7 @@ class NetworkClient(KGLambda):
             msg = KGRemoteFnCall(x[0], x[1:]) if is_list(x) and len(x) > 0 and isinstance(x[0],KGSym) else x
             response = self.call(msg)
             if isinstance(x,KGSym) and isinstance(response, KGRemoteFnRef):
-                response = KGRemoteFnProxy(self.nc, x, response.arity)
+                response = KGRemoteFnProxy(self, x, response.arity)
             return response
         except Exception as e:
             import traceback

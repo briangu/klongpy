@@ -50,7 +50,9 @@ curl "http://localhost:8080"
 
 To call the server via IPC and operate on the prices table:
 
-start the web server with kgpy -s 8888 server.kg
+start the web server:
+
+$ kgpy -s 8888 server.kg
 
 and on a client repl:
 
@@ -65,5 +67,7 @@ Fun fact: you can copy the table locally via:
 ?> prices::c(:prices)
 
 You now have a local copy of the table.
+
+<TODO Example>
 
 ****
