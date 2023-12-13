@@ -25,7 +25,7 @@ class WebServerHandle:
 
 def eval_sys_fn_create_web_server(klong, x, y, z):
     """
-    
+
         .web(x, y, z)                                 [Start Web server]
 
         Start a web server and return its handle.
@@ -113,15 +113,15 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
         site = web.TCPSite(runner, bind, port)
         await site.start()
 
-    server_task = klong['.ioloop'].create_task(start_server())
+    server_task = klong['.system']['ioloop'].create_task(start_server())
     return WebServerHandle(bind, port, runner, server_task)
 
 
 def eval_sys_fn_shutdown_web_server(klong, x):
     """
-    
+
             .webc(x)                                      [Stop Web server]
-    
+
             Stop and close the web server referenced by "x".
 
     """
@@ -129,7 +129,7 @@ def eval_sys_fn_shutdown_web_server(klong, x):
         x = x.a.fn
         if isinstance(x, WebServerHandle) and x.runner is not None:
             print("shutting down web server")
-            klong['.ioloop'].run_until_complete(x.shutdown())
+            klong['.system']['ioloop'].run_until_complete(x.shutdown())
             return 1
     return 0
 
