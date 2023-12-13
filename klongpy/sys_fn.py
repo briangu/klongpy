@@ -69,10 +69,10 @@ def eval_sys_delete_file(x):
             os.remove(x)
         except OSError as e:
             if e.errno != errno.ENOENT:
-                raise RuntimeError("file could not be deleted: {x}")
+                raise RuntimeError(f"file could not be deleted: {x}")
             raise e
     else:
-        raise RuntimeError("file does not exist: {x}")
+        raise RuntimeError(f"file does not exist: {x}")
 
 
 def eval_sys_evaluate(klong, x):
@@ -140,9 +140,9 @@ def eval_sys_input_channel(x):
         try:
             return KGChannel(open(x, 'r'), KGChannelDir.INPUT)
         except IOError:
-            raise RuntimeError("file could not be opened: {x}")
+            raise RuntimeError(f"file could not be opened: {x}")
     else:
-        raise FileNotFoundError("file does not exist: {x}")
+        raise FileNotFoundError(f"file does not exist: {x}")
 
 
 def eval_sys_load(klong, x):
@@ -180,7 +180,7 @@ def eval_sys_load(klong, x):
             break
 
     if not os.path.isfile(x):
-        raise FileNotFoundError("file does not exist: {x}")
+        raise FileNotFoundError(f"file does not exist: {x}")
 
     try:
         with open(x, "r") as f:
@@ -194,8 +194,9 @@ def eval_sys_load(klong, x):
             finally:
                 klong._context.push(ctx)
             return r
-    except IOError:
-        raise RuntimeError("file could not be opened: {x}")
+    except IOError as e:
+        print(e)
+        raise RuntimeError(f"file could not be opened: {x}")
 
 
 def eval_sys_more_input(klong):
@@ -309,7 +310,7 @@ def _import_module(klong, x, from_list=None):
             finally:
                 sys.path.pop(0)
         else:
-            raise FileNotFoundError("Not a valid Python module (missing __init__.py): {x}")
+            raise FileNotFoundError(f"Not a valid Python module (missing __init__.py): {x}")
     elif os.path.isfile(x):
         module_name = os.path.dirname(x)
         location = x
@@ -319,7 +320,7 @@ def _import_module(klong, x, from_list=None):
             spec.loader.exec_module(module)
         except Exception as e:
             print(f".py: {e}")
-            raise RuntimeError("module could not be imported: {x}")
+            raise RuntimeError(f"module could not be imported: {x}")
     else:
         spec = importlib.util.find_spec(x)
         if spec is not None:
@@ -328,7 +329,7 @@ def _import_module(klong, x, from_list=None):
                 spec.loader.exec_module(module)
             except Exception as e:
                 print(f".py: {e}")
-                raise RuntimeError("module could not be imported: {x}")
+                raise RuntimeError(f"module could not be imported: {x}")
     try:
         klong_exports = module.__dict__.get("klong_exports")
         if klong_exports is None:
@@ -388,7 +389,7 @@ def _import_module(klong, x, from_list=None):
             return 1
     except Exception as e:
         print(f".py: {e}")
-        raise RuntimeError("failed to load module: {x}")
+        raise RuntimeError(f"failed to load module: {x}")
 
 
 def eval_sys_python(klong, x):
