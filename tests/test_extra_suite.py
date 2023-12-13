@@ -19,6 +19,11 @@ class TestExtraCoreSuite(unittest.TestCase):
         r = klong("a::{ 1 + 1 };a()")
         self.assertEqual(r, 2)
 
+    def test_vectorized(self):
+        klong = KlongInterpreter()
+        r = klong("2*!1000")
+        self.assertTrue(kg_equal(r, np.arange(1000)*2))
+
     def test_power_type(self):
         klong = KlongInterpreter()
         r = klong("2^3")
