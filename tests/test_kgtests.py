@@ -14,6 +14,28 @@ class TestKgTests(unittest.TestCase):
         klong('.l("tests/kgtests/runner.kg")')
         self.assertEqual(klong['err'], 1)
 
+    def eval_file_by_lines(self, fname):
+        """
+        Test the suite file line by line using our own t()
+        """
+        klong = create_test_klong()
+        with open(fname, "r") as f:
+            skip_header = True
+            i = 0
+            for r in f.readlines():
+                if skip_header:
+                    if r.startswith("t::"):
+                        skip_header = False
+                    else:
+                        continue
+                r = r.strip()
+                if len(r) == 0:
+                    continue
+                i += 1
+                klong.exec(r)
+                self.assertEqual(klong['err'],0)
+            print(f"executed {i} lines")
+
 
     def test_kgtests(self):
         """
@@ -24,13 +46,16 @@ class TestKgTests(unittest.TestCase):
 
         for dirpath, _, filenames in os.walk(root_dir):
             for fname in filenames:
-                if fname.startswith("test") and fname.endswith(".kg"):
+                if (fname.startswith("test") or fname.startswith("gen")) and fname.endswith(".kg"):
                     ran_tests = True
-                    print(f"Running {fname}...")
                     klong = KlongInterpreter()
-                    klong['fullpath'] = os.path.join(dirpath, fname)
+                    fullpath = os.path.join(dirpath, fname)
+                    klong['fullpath'] = fullpath
                     try:
                         klong('.l("tests/kgtests/runner.kg")')
+                        if fname.startswith("gen"):
+                            print(f"testing (line by line) {fname}...")
+                            self.eval_file_by_lines(fullpath)
                     except Exception as e:
                         print(e)
                         self.assertEqual(klong['err'], 1)
