@@ -5,6 +5,7 @@ from datetime import datetime
 from utils import *
 
 from klongpy import KlongInterpreter
+from klongpy.core import KGChar
 
 
 class TestPythonInterop(unittest.TestCase):
@@ -104,3 +105,77 @@ class TestPythonInterop(unittest.TestCase):
         klong['assert'] = assert_date
         r = klong("""a::strptime("21 June, 2018");d:::{};d,"timestamp",a;assert(d)""")
         self.assertEqual(r, 42)
+
+    def test_lambda_nilad(self):
+        klong = KlongInterpreter()
+        klong['f'] = lambda: 1000
+        r = klong('f()')
+        self.assertEqual(r, 1000)
+
+    def test_lambda_monad(self):
+        klong = KlongInterpreter()
+        klong['f'] = lambda x: x*1000
+        r = klong('f(3)')
+        self.assertEqual(r, 3000)
+
+    def test_lambda_dyad(self):
+        klong = KlongInterpreter()
+        klong['f'] = lambda x, y: x*1000 + y
+        r = klong('f(3;10)')
+        self.assertEqual(r, 3 * 1000 + 10)
+
+    def test_lambda_triad(self):
+        klong = KlongInterpreter()
+        klong['f'] = lambda x, y, z: x*1000 + y - z
+        r = klong('f(3; 10; 20)')
+        self.assertEqual(r, 3 * 1000 + 10 - 20)
+
+    def test_lambda_projection(self):
+        klong = KlongInterpreter()
+        klong['f'] = lambda x, y, z: ((x*1000) + y) - z
+        klong("g::f(3;;)") # TODO: can we make the y and z vals implied None?
+        r = klong('g(10;20)')
+        self.assertEqual(r, ((3 * 1000) + 10) - 20)
+        klong("h::g(10;)")
+        r = klong('h(20)')
+        self.assertEqual(r, ((3 * 1000) + 10) - 20)
+
+    def test_setitem(self):
+        klong = KlongInterpreter()
+        klong['A'] = 1
+        r = klong("A")
+        self.assertEqual(r, 1)
+        self.assertEqual(klong['A'], 1)
+
+    def test_define_simple(self):
+        klong = KlongInterpreter()
+        r = klong("A::1; A")
+        self.assertEqual(r, 1)
+        self.assertEqual(klong['A'], 1)
+
+    def test_define_reassign(self):
+        klong = KlongInterpreter()
+        klong('A::1')
+        r = klong('A')
+        self.assertEqual(r, 1)
+        klong('A::2')
+        r = klong('A')
+        self.assertEqual(r, 2)
+
+    def test_avg_mixed(self):
+        data = np.random.rand(10**5)
+        klong = KlongInterpreter()
+        klong('avg::{(+/x)%#x}')
+        klong['data'] = data
+        start = time.perf_counter_ns()
+        r = klong('avg(data)')
+        stop = time.perf_counter_ns()
+        # print((stop - start) / (10**9))
+        self.assertEqual(r, np.average(data))
+
+    def test_join_np_array_and_list(self):
+        klong = KlongInterpreter()
+        klong("A::[];A::A,:{};A::A,:{}")
+        klong['B'] = [{}, {}, {}]
+        r = klong("A,B")
+        self.assertTrue(kg_equal(r, [{}, {}, {}, {}, {}]))

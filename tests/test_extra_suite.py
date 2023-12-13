@@ -1,4 +1,3 @@
-import time
 import unittest
 
 from utils import *
@@ -23,20 +22,6 @@ class TestExtraCoreSuite(unittest.TestCase):
         klong = KlongInterpreter()
         r = klong("2*!1000")
         self.assertTrue(kg_equal(r, np.arange(1000)*2))
-
-    def test_power_type(self):
-        klong = KlongInterpreter()
-        r = klong("2^3")
-        self.assertTrue(is_integer(r))
-        r = klong("2.1^3")
-        self.assertTrue(is_float(r))
-
-    def test_find_splat(self):
-        klong = KlongInterpreter()
-        r = klong('s::"abc|def";s?"|"')
-        self.assertTrue(kg_equal(r, [3]))
-        r = klong('s::"abc[]def";s?"[]"')
-        self.assertTrue(kg_equal(r, [3]))
 
     @unittest.skip
     def test_semicolon_string_arg(self):
@@ -66,13 +51,6 @@ class TestExtraCoreSuite(unittest.TestCase):
         r = klong("A::[];A::A,:{};A::A,:{};A::A,:{};A")
         self.assertTrue(kg_equal(r, [{}, {}, {}]))
 
-    def test_join_np_array_and_list(self):
-        klong = KlongInterpreter()
-        klong("A::[];A::A,:{};A::A,:{}")
-        klong['B'] = [{}, {}, {}]
-        r = klong("A,B")
-        self.assertTrue(kg_equal(r, [{}, {}, {}, {}, {}]))
-
     # This is different behavior than Klong, which doesn't allow at/index on dictionaries.
     def test_dict_at_index(self):
         klong = KlongInterpreter()
@@ -99,56 +77,6 @@ class TestExtraCoreSuite(unittest.TestCase):
         klong["D"] = {object: [1, 2, 3]}
         klong(".p'D")
 
-    def test_nilad_as_argument(self):
-        """
-        Test that a nilad lambda can be passed as an argument to a klong function.
-        """
-        klong = KlongInterpreter()
-        klong('fn::{10}')
-        klong('foo::{x()}')
-        r = klong('foo(fn)')
-        self.assertEqual(r, 10)
-
-    def test_monad_as_argument(self):
-        """
-        Test that a monadic lambda can be passed as an argument to a klong function.
-        """
-        klong = KlongInterpreter()
-        klong('fn::{x+10}')
-        klong('foo::{x(2)}')
-        r = klong('foo(fn)')
-        self.assertEqual(r, 12)
-
-    def test_dyad_as_argument(self):
-        """
-        Test that a dyad lambda can be passed as an argument to a klong function.
-        """
-        klong = KlongInterpreter()
-        klong('fn::{x+10*y}')
-        klong('foo::{x(2;3)}')
-        r = klong('foo(fn)')
-        self.assertEqual(r, 32)
-
-    def test_triad_as_argument(self):
-        """
-        Test that a triad lambda can be passed as an argument to a klong function.
-        """
-        klong = KlongInterpreter()
-        klong('fn::{x+10*y+z}')
-        klong('foo::{x(2;3;5)}')
-        r = klong('foo(fn)')
-        self.assertEqual(r, 82)
-
-    def test_dyad_with_monad_as_argument(self):
-        """
-        Test that a monadic lambda can be passed as an argument to a klong function.
-        """
-        klong = KlongInterpreter()
-        klong('fn::{x+10}')
-        klong('foo::{x(y)}')
-        r = klong('foo(fn;2)')
-        self.assertEqual(r, 12)
-
     @unittest.skip
     def test_monad_argument_returned(self):
         """
@@ -160,17 +88,6 @@ class TestExtraCoreSuite(unittest.TestCase):
         r = klong('foo(fn)(2)')
         self.assertEqual(r, 12)
 
-    def test_dual_monad_as_arguments(self):
-        """
-        Test that two monads can be passed as arguments to a klong function.
-        """
-        klong = KlongInterpreter()
-        klong('fn::{x+10}')
-        klong('fn2::{x*10}')
-        klong('foo::{x(2)+y(6)}')
-        r = klong('foo(fn;fn2)')
-        self.assertEqual(r, 12+60)
-
     @unittest.skip
     def test_triad_as_arguments_with_currying(self):
         """
@@ -179,9 +96,6 @@ class TestExtraCoreSuite(unittest.TestCase):
         klong = KlongInterpreter()
         klong('fn::{x+10+y*z}')
         klong('foo::{x(2;;)}')
-        # r = klong('q::fn(2;;)')
-        # r = klong('q(3;5)')
-        # self.assertEqual(r, 2+10+3*5)
         r = klong('w::foo(fn;;)')
         r = klong('w(;3;5)')
         self.assertEqual(r, 2+10+3*5)
@@ -251,40 +165,6 @@ class TestExtraCoreSuite(unittest.TestCase):
         q = np.array([[0],[[1]]],dtype=object)
         self.assertTrue(kg_equal(r, q))
 
-    def test_jagged_array_each(self):
-        klong = KlongInterpreter()
-        r = klong("{:[x!2;[1];[1 2]]}'[1 2 3]")
-        self.assertTrue(kg_equal(r, np.array([[1],[1,2],[1]],dtype=object)))
-
-    def test_jagged_dict_each(self):
-        klong = KlongInterpreter()
-        r = klong("{:[(x@0)!2;[1];[1 2]]}':{[1 2] [2 3] [3 4]}")
-        self.assertTrue(kg_equal(r, np.array([[1],[1,2],[1]],dtype=object)))
-
-    def test_power(self):
-        klong = KlongInterpreter()
-        r = klong('[1 2 3]^2')
-        self.assertTrue(kg_equal(r, np.array([1,4,9])))
-
-    def test_dyad_join_mixed_types(self):
-        klong = KlongInterpreter()
-        r = klong(',/["a" [1]]')
-        self.assertTrue(kg_equal(r, np.array(['a', 1], dtype=object)))
-
-    def test_dyad_join_nested_array(self):
-        klong = KlongInterpreter()
-        r = klong('[1],[[2 3]]')
-        self.assertTrue(kg_equal(r, np.array([1,[2,3]],dtype=object)))
-
-    def test_dyad_join_over_nested_array(self):
-        klong = KlongInterpreter()
-        r = klong(",/[[0] [[1]]]")
-        self.assertTrue(kg_equal(r, np.array([0,[1]],dtype=object)))
-        r = klong(',/[0 [[1] [2]]]')
-        self.assertTrue(kg_equal(r, np.array([0,[1],[2]],dtype=object)))
-        r = klong(',/[[0] [[1] [2]]]')
-        self.assertTrue(kg_equal(r, np.array([0,[1],[2]],dtype=object)))
-
     @unittest.skip
     def test_dict_inner_create_syntax(self):
         klong = KlongInterpreter()
@@ -299,38 +179,12 @@ class TestExtraCoreSuite(unittest.TestCase):
         r = klong(":{[1 :{[2 3]}]}")
         self.assertEqual(r[1], {2: 3})
 
-    def test_amend_does_not_mutate(self):
-        klong = KlongInterpreter()
-        klong("A::[1 2 3 4];AA::[[1 2 3 4] [5 6 7 8]]")
-        klong("B::A:=0,0")
-        r = klong("A")
-        self.assertTrue(kg_equal(r,[1,2,3,4]))
-        r = klong("B")
-        self.assertTrue(kg_equal(r,[0,2,3,4]))
-        klong("C::AA:-99,0,0")
-        r = klong("AA")
-        self.assertTrue(kg_equal(r,[[1,2,3,4],[5,6,7,8]]))
-        r = klong("C")
-        self.assertTrue(kg_equal(r,[[99,2,3,4],[5,6,7,8]]))
-
-    @unittest.skip
-    def test_read_empty_string(self):
-        klong = KlongInterpreter()
-        r = klong('.rs("")')
-        self.assertEqual(r,'""')
-
-    def test_range_nested_empty(self):
-        klong = KlongInterpreter()
-        r = klong('?[[]]')
-        self.assertTrue(kg_equal(r,[[]]))
-
     @unittest.skip
     def test_match_nested_array(self):
         klong = KlongInterpreter()
         r = klong('[7,7,7]~[7,7,7]')
         self.assertEqual(r,1)
 
-    @unittest.skip
     def test_match_array(self):
         klong = KlongInterpreter()
         r = klong('(^[1])~0')
@@ -354,12 +208,6 @@ class TestExtraCoreSuite(unittest.TestCase):
             self.assertTrue(is_integer(x))
         self.assertTrue(kg_equal(r, [15, 10]))
 
-    # NOTE: different than Klong due to numpy shape
-    def test_shape_empty_nested(self):
-        klong = KlongInterpreter()
-        r = klong("^[[[]]]")
-        self.assertTrue(kg_equal(r,[1,1,0]))
-
     @unittest.skip
     def test_monad_not_getting_called(self):
         klong = KlongInterpreter()
@@ -377,26 +225,6 @@ SCAN::{RESETF();RUNX();BESTF}
         klong = KlongInterpreter()
         r = klong("(4)#[[0 0]]")
         self.assertTrue(kg_equal(r,[[0,0],[0,0],[0,0],[0,0]]))
-
-    def test_join_monad(self):
-        klong = KlongInterpreter()
-        r = klong(",[1 2 3 4]")
-        self.assertTrue(kg_equal(r,[[1,2,3,4]]))
-
-    def test_join_empty(self):
-        klong = KlongInterpreter()
-        r = klong("[],[1 2 3 4]")
-        self.assertTrue(kg_equal(r,[1,2,3,4]))
-
-    def test_join_pair(self):
-        klong = KlongInterpreter()
-        r = klong("[1],[2]")
-        self.assertTrue(kg_equal(r,[1,2]))
-
-    def test_join_scalar_pair(self):
-        klong = KlongInterpreter()
-        r = klong("99,[1],[2]")
-        self.assertTrue(kg_equal(r,[99,1,2]))
 
     def test_drop_string(self):
         klong = KlongInterpreter()
@@ -418,8 +246,6 @@ AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
     # read 123456 from "123456 hello" requires parsing by space
     def test_read_number_from_various_strings(self):
         klong = KlongInterpreter()
-        r = klong('.rs("123456")')
-        self.assertEqual(r, 123456)
         # DIFF: Klong will puke on this with undefined
         r = klong('.rs("123456 hello")')
         self.assertEqual(r, 123456)
@@ -430,33 +256,6 @@ AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
         klong = KlongInterpreter()
         r = klong('["1234","5678"]:@[0 1]')
         self.assertEqual(r,KGChar('2'))
-
-    def test_find_with_array_arg(self):
-        klong = KlongInterpreter()
-        r = klong('[1 2 3 4]?[1]')
-        self.assertTrue(kg_equal(r, []))
-        r = klong('[1 2 3 4]?[1]')
-        self.assertTrue(kg_equal(r, []))
-        r = klong('[[1] 2 3 4]?[1]')
-        self.assertTrue(kg_equal(r, [0]))
-        r = klong('[ 1 2  3 4]?[1 2]')
-        self.assertTrue(kg_equal(r, []))
-        r = klong('[[1 2] 3 4]?[1 2]')
-        self.assertTrue(kg_equal(r, [0]))
-        r = klong('[[[1 2] [3 4]] [[5 6] [7 8]]]?[[5 6] [7 8]]')
-        self.assertTrue(kg_equal(r, [1]))
-
-    def test_read_string_neg_number(self):
-        klong = KlongInterpreter()
-        # DIFF: Klong reads this as positive 5
-        r = klong('.rs("-5")')
-        self.assertEqual(r,-5)
-
-    def test_amend_in_depth_params(self):
-        klong = KlongInterpreter()
-        klong("PATH::[[0 0] [0 0]];V::[[0 0]];SP::{PATH::PATH:-z,x,y};SP(0;0;1)")
-        r = klong("(PATH@0)@0")
-        self.assertEqual(r,1)
 
     def test_join_nested_arrays(self):
         self.assert_eval_cmp('[[0 0] [1 1]],,2,2', '[[0 0] [1 1] [2 2]]')
@@ -494,11 +293,6 @@ n::N(D;"x")
         """)
         klong('(D?:c),n')
 
-    def test_dict_find_zero_value(self):
-        klong = KlongInterpreter()
-        klong('D:::{[:s 0]}')
-        self.assertEqual(klong('D?:s'), 0)
-
     def test_join_sym_string(self):
         klong = KlongInterpreter()
         r = klong(':p,"hello"')
@@ -529,42 +323,6 @@ D::N(1%0;"/")
         r = klong(":p,43")
         self.assertTrue(isinstance(r[0],KGSym))
         self.assertTrue(isinstance(r[1],int))
-
-    def test_symbol_dict_key(self):
-        klong = KlongInterpreter()
-        klong("D:::{[:s 42]}")
-        r = klong("D?:s")
-        self.assertEqual(r, 42)
-        klong("N::{d:::{[:s 0]};d,:p,x;d}")
-        klong('P::N(43)')
-        r = klong('P?:p')
-        self.assertEqual(r,43)
-
-    def test_wrap_fn(self):
-        klong = KlongInterpreter()
-        klong('L::{(*(x?y))#x};A::L(;",");LL::{.rs(L(x;"-"))}')
-        r = klong('A("20-45,13-44")')
-        self.assertEqual(r,"20-45")
-        r = klong('L(A("20-45,13-44");"-")')
-        self.assertEqual(r,"20")
-        r = klong('.rs(L(A("20-45,13-44");"-"))')
-        self.assertEqual(r,20)
-        r = klong('q::L(A("20-45,13-44");"-");.rs(q)')
-        self.assertEqual(r,20)
-        r = klong('LL(A("20-45,13-44"))')
-        self.assertEqual(r,20)
-
-    def test_x_exposure_should_not_collide(self):
-        klong = KlongInterpreter()
-        klong("I::{{#x}'x}")
-        r = klong('I("hello")')
-        self.assertTrue(kg_equal(r,[104,101,108,108,111]))
-
-    def test_grade_down_with_empty_subarrays(self):
-        klong = KlongInterpreter()
-        klong("P::{q::y;#x@*>{q?x}'x}")
-        r = klong('P("vJrwpWtwJgWr";"hcsFMMfFFhFp")')
-        self.assertEqual(r,112)
 
     def test_integer_divide_clamp_to_int(self):
         klong = KlongInterpreter()
@@ -598,22 +356,6 @@ D::N(1%0;"/")
         klong('isstr("hello"@[2])')
         klong('isstr("hello"@[1 2 2])')
 
-    def test_cond_arr_predicate(self):
-        klong = KlongInterpreter()
-        r = klong(':["XYZ"?"X";1;0]')
-        self.assertTrue(r,1)
-
-    def test_avg_mixed(self):
-        data = np.random.rand(10**5)
-        klong = KlongInterpreter()
-        klong('avg::{(+/x)%#x}')
-        klong['data'] = data
-        start = time.perf_counter_ns()
-        r = klong('avg(data)')
-        stop = time.perf_counter_ns()
-        print((stop - start) / (10**9))
-        self.assertEqual(r, np.average(data))
-
     def test_module_fallback(self):
         klong = KlongInterpreter()
         r = klong("""
@@ -624,13 +366,6 @@ D::N(1%0;"/")
         foo
         """)
         self.assertTrue(r,3.14)
-
-    def test_dyad_uneven_match(self):
-        klong = KlongInterpreter()
-        r = klong('[]~[1 2 3]')
-        self.assertEqual(r,0)
-        r = klong('1~[1 2 3]')
-        self.assertEqual(r,0)
 
     def test_read_enotation(self):
         klong = KlongInterpreter()
@@ -685,120 +420,10 @@ zop([
         r = klong(t)
         self.assertEqual(r, 1)
 
-    def test_read_sym_f0(self):
-        klong = KlongInterpreter()
-        r = klong("f0::1; f0")
-        self.assertEqual(r, 1)
-
     def test_eval_array(self):
         klong = KlongInterpreter()
         r = klong('[[[1] [2] [3]] [1 2 3]]')
         self.assertTrue(kg_equal(r,[[[1],[2],[3]],[1,2,3]]))
-
-    def test_atom(self):
-        self.assert_eval_cmp('@0c0', '1')
-
-    def test_join(self):
-        self.assert_eval_cmp('[1 2],:{[1 0]}', ':{[1 2]}')
-        self.assert_eval_cmp(':{[1 0]},[1 2]', ':{[1 2]}')
-
-    def test_builtin_rn(self):
-        klong = KlongInterpreter()
-        r = klong(".rn()")
-        self.assertTrue(r >= 0 and r <= 1.0)
-        r2 = klong(".rn()")
-        self.assertTrue(r2 >= 0 and r2 <= 1.0)
-        self.assertTrue(r != r2)
-
-    def test_setitem(self):
-        klong = KlongInterpreter()
-        klong['A'] = 1
-        r = klong("A")
-        self.assertEqual(r, 1)
-        self.assertEqual(klong['A'], 1)
-
-    def test_define_simple(self):
-        klong = KlongInterpreter()
-        r = klong("A::1; A")
-        self.assertEqual(r, 1)
-        self.assertEqual(klong['A'], 1)
-
-    def test_define_reassign(self):
-        klong = KlongInterpreter()
-        klong('A::1')
-        r = klong('A')
-        self.assertEqual(r, 1)
-        klong('A::2')
-        r = klong('A')
-        self.assertEqual(r, 2)
-
-    def test_fn_nilad(self):
-        klong = KlongInterpreter()
-        klong("f::{1000}")
-        r = klong('f()')
-        self.assertEqual(r, 1000)
-
-    def test_fn_monad(self):
-        klong = KlongInterpreter()
-        klong("f::{x*1000}")
-        r = klong('f(3)')
-        self.assertEqual(r, 3000)
-
-    def test_fn_dyad(self):
-        klong = KlongInterpreter()
-        klong("f::{(x*1000) + y}")
-        r = klong('f(3;10)')
-        self.assertEqual(r, (3 * 1000) + 10)
-
-    def test_fn_triad(self):
-        klong = KlongInterpreter()
-        klong("f::{((x*1000) + y) - z}")
-        r = klong('f(3; 10; 20)')
-        self.assertEqual(r, ((3 * 1000) + 10) - 20)
-
-    def test_fn_projection(self):
-        klong = KlongInterpreter()
-        klong("f::{((x*1000) + y) - z}")
-        klong("g::f(3;;)")
-        r = klong('g(10; 20)')
-        self.assertEqual(r, ((3 * 1000) + 10) - 20)
-        klong("h::g(10;)")
-        r = klong('h(20)')
-        self.assertEqual(r, ((3 * 1000) + 10) - 20)
-
-    def test_lambda_nilad(self):
-        klong = KlongInterpreter()
-        klong['f'] = lambda: 1000
-        r = klong('f()')
-        self.assertEqual(r, 1000)
-
-    def test_lambda_monad(self):
-        klong = KlongInterpreter()
-        klong['f'] = lambda x: x*1000
-        r = klong('f(3)')
-        self.assertEqual(r, 3000)
-
-    def test_lambda_dyad(self):
-        klong = KlongInterpreter()
-        klong['f'] = lambda x, y: x*1000 + y
-        r = klong('f(3;10)')
-        self.assertEqual(r, 3 * 1000 + 10)
-
-    def test_lambda_triad(self):
-        klong = KlongInterpreter()
-        klong['f'] = lambda x, y, z: x*1000 + y - z
-        r = klong('f(3; 10; 20)')
-        self.assertEqual(r, 3 * 1000 + 10 - 20)
-
-    def test_lambda_projection(self):
-        klong = KlongInterpreter()
-        klong['f'] = lambda x, y, z: ((x*1000) + y) - z
-        klong("g::f(3;;)") # TODO: can we make the y and z vals implied None?
-        r = klong('g(10;20)')
-        self.assertEqual(r, ((3 * 1000) + 10) - 20)
-        klong("h::g(10;)")
-        r = klong('h(20)')
-        self.assertEqual(r, ((3 * 1000) + 10) - 20)
 
     def test_dot_f(self):
         klong = KlongInterpreter()
@@ -875,13 +500,6 @@ zop([
         r = klong("(1+!10)!5")
         x = np.fmod(np.add(np.arange(10), 1), 5)
         self.assertTrue(np.equal(x, r).all())
-
-    def test_over(self):
-        klong = KlongInterpreter()
-        self.assertEqual(klong('+/!5'), np.add.reduce(np.arange(5)))
-        self.assertEqual(klong('-/!5'), np.subtract.reduce(np.arange(5)))
-        self.assertEqual(klong('*/1+!5'), np.multiply.reduce(1+np.arange(5)))
-        self.assertEqual(klong('%/[1 2 3]'), np.divide.reduce([1,2,3]))
 
     def test_converge(self):
         klong = KlongInterpreter()

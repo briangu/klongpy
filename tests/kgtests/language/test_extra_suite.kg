@@ -1,0 +1,245 @@
+:" Define string and find character "
+s::"abc|def"
+t("s?""|"" returns [3]"; s?"|"; [3])
+
+:" Define string and find substring "
+s::"abc[]def"
+t("s?""[]"" returns [3]"; s?"[]"; [3])
+
+:" Define functions "
+fn::{10}
+foo::{x()}
+
+:" test_nilad_as_argument "
+t("foo(fn) returns 10"; foo(fn); 10)
+
+:" Define functions "
+fn::{x+10}
+foo::{x(2)}
+
+:" test_monad_as_argument "
+t("foo(fn) returns 12"; foo(fn); 12)
+
+:" Define functions "
+fn::{x+10*y}
+foo::{x(2;3)}
+
+:" test_dyad_as_argument "
+t("foo(fn) returns 32"; foo(fn); 32)
+
+:" Define functions "
+fn::{x+10*y+z}
+foo::{x(2;3;5)}
+
+:" test_triad_as_argument "
+t("foo(fn) returns 82"; foo(fn); 82)
+
+:" Define functions "
+fn::{x+10}
+foo::{x(y)}
+
+:" test_dyad_with_monad_as_argument "
+t("foo(fn;2) returns 12"; foo(fn;2); 12)
+
+:" Define functions "
+fn::{x+10}
+fn2::{x*10}
+foo::{x(2)+y(6)}
+
+:" test_dual_monad_as_arguments "
+t("foo(fn;fn2) returns 12+60"; foo(fn;fn2); 12+60)
+
+:" test_jagged_dict_each "
+t("{:[(x@0)!2;[1];[1 2]]}':{[1 2] [2 3] [3 4]} returns [[1] [1 2] [1]]"; {:[(x@0)!2;[1];[1 2]]}':{[1 2] [2 3] [3 4]}; [[1] [1 2] [1]])
+
+:" test_jagged_array_each "
+t("{:[x!2;[1];[1 2]]}'[1 2 3] returns [[1] [1 2] [1]]"; {:[x!2;[1];[1 2]]}'[1 2 3]; [[1] [1 2] [1]])
+
+:" test_dyad_join_over_nested_array_case_1 "
+t(",/[[0] [[1]]] returns [0 [1]]"; ,/[[0] [[1]]]; [0 [1]])
+
+:" test_dyad_join_over_nested_array_case_2 "
+t(",/[0 [[1] [2]]] returns [0 [1] [2]]"; ,/[0 [[1] [2]]]; [0 [1] [2]])
+
+:" test_dyad_join_over_nested_array_case_3 "
+t(",/[[0] [[1] [2]]] returns [0 [1] [2]]"; ,/[[0] [[1] [2]]]; [0 [1] [2]])
+
+:" test_dyad_join_nested_array "
+t("[1],[[2 3]] returns [1 [2 3]]"; [1],[[2 3]]; [1 [2 3]])
+
+:" test_dyad_join_mixed_types "
+t(",/[""a"" [1]] returns [""a"" 1]"; ,/["a" [1]]; ["a" 1])
+
+:" test_power "
+t("[1 2 3]^2 returns [1 4 9]"; [1 2 3]^2; [1 4 9])
+
+:" Define arrays "
+A::[1 2 3 4]
+AA::[[1 2 3 4] [5 6 7 8]]
+
+:" Perform amendments "
+B::A:=0,0
+C::AA:-99,0,0
+
+:" test_amend_does_not_mutate_on_A "
+t("A remains unchanged"; A; [1 2 3 4])
+
+:" test_amend_does_not_mutate_on_B "
+t("B shows amendment"; B; [0 2 3 4])
+
+:" test_amend_does_not_mutate_on_AA "
+t("AA remains unchanged"; AA; [[1 2 3 4] [5 6 7 8]])
+
+:" test_amend_does_not_mutate_on_C "
+t("C shows amendment"; C; [[99 2 3 4] [5 6 7 8]])
+
+:" test_read_empty_string "
+t(".rs("""") returns """; .rs(""""); "")
+
+:" test_range_nested_empty "
+t("?[[]] returns [[]]"; ?[[]]; [[]])
+
+:" test_shape_empty_nested "
+:" DIFF: different than Klong due to numpy shape "
+t("^[[[]]] returns [1 1 0]"; ^[[[]]]; [1 1 0])
+
+:" test_join_monad "
+t(",[1 2 3 4] returns [[1 2 3 4]]"; ,[1 2 3 4]; [[1 2 3 4]])
+
+:" test_join_empty "
+t("[],[1 2 3 4] returns [1 2 3 4]"; [],[1 2 3 4]; [1 2 3 4])
+
+:" test_join_pair "
+t("[1],[2] returns [1 2]"; [1],[2]; [1 2])
+
+:" test_join_scalar_pair "
+t("99,[1],[2] returns [99 1 2]"; 99,[1],[2]; [99 1 2])
+
+:" test_read_number_from_various_strings "
+t(".rs(""123456"") returns 123456"; .rs("123456"); 123456)
+
+:" test_find_with_array_arg_single_element "
+t("[1 2 3 4]?[1] returns []"; [1 2 3 4]?[1]; [])
+
+:" test_find_with_array_arg_single_element_nested "
+t("[[1] 2 3 4]?[1] returns [0]"; [[1] 2 3 4]?[1]; [0])
+
+:" test_find_with_array_arg_multiple_elements "
+t("[1 2 3 4]?[1 2] returns []"; [1 2 3 4]?[1 2]; [])
+
+:" test_find_with_array_arg_multiple_elements_nested "
+t("[[1 2] 3 4]?[1 2] returns [0]"; [[1 2] 3 4]?[1 2]; [0])
+
+:" test_find_with_array_arg_complex_nested "
+t("[[[1 2] [3 4]] [[5 6] [7 8]]]?[[5 6] [7 8]] returns [1]"; [[[1 2] [3 4]] [[5 6] [7 8]]]?[[5 6] [7 8]]; [1])
+
+:" test_read_string_neg_number "
+:" DIFF: Klong reads this as 5 "
+t('.rs("-5") returns -5'; .rs("-5"); -5)
+
+:" test_amend_in_depth_params "
+PATH::[[0 0] [0 0]]
+V::[[0 0]]
+SP::{PATH::PATH:-z,x,y}
+SP(0;0;1)
+t("(PATH@0)@0 returns 1"; (PATH@0)@0; 1)
+
+:" test_dict_find_zero_value "
+D:::{[:sym 0]}
+t("D?:sym returns 0"; D?:sym; 0)
+
+:" test_symbol_dict_key_D_function "
+D:::{[:sym 42]}
+t("D?:sym returns 42"; D?:sym; 42)
+
+:" test_symbol_dict_key_N_P_functions "
+N::{d:::{[:sym 0]};d,:p,x;d}
+P::N(43)
+t("P?:p returns 43"; P?:p; 43)
+
+:" Define functions "
+L::{(*(x?y))#x}
+A::L(;",")
+LL::{.rs(L(x;"-"))}
+
+:" test_wrap_fn_A_function "
+t("A(""20-45,13-44"") returns ""20-45"""; A("20-45,13-44"); "20-45")
+
+:" test_wrap_fn_L_function "
+t("L(A(""20-45,13-44"");""-"") returns ""20"""; L(A("20-45,13-44");"-"); "20")
+
+:" test_wrap_fn_rs_L_function "
+t(".rs(L(A(""20-45,13-44"");""-"")) returns 20"; .rs(L(A("20-45,13-44");"-")); 20)
+
+:" test_wrap_fn_rs_q_variable "
+q::L(A("20-45,13-44");"-")
+t(".rs(q) returns 20"; .rs(q); 20)
+
+:" test_wrap_fn_LL_function "
+t("LL(A(""20-45,13-44"")) returns 20"; LL(A("20-45,13-44")); 20)
+
+:" test_x_exposure_should_not_collide "
+I::{{#x}'x}
+t("I(""hello"")"; I("hello"); [104 101 108 108 111])
+
+:" test_grade_down_with_empty_subarrays "
+P::{q::y;#x@*>{q?x}'x}
+t("P(""vJrwpWtwJgWr"";""hcsFMMfFFhFp"")"; P("vJrwpWtwJgWr";"hcsFMMfFFhFp"); 112)
+
+:" test_cond_arr_predicate "
+t(":[""XYZ""?""X"";1;0]"; :["XYZ"?"X";1;0]; 1)
+
+:" test_dyad_uneven_match_empty_list "
+t("[]~[1 2 3]"; []~[1 2 3]; 0)
+
+:" test_dyad_uneven_match_single_element "
+t("1~[1 2 3]"; 1~[1 2 3]; 0)
+
+:" test_read_list_numbers_with_spaces "
+t("Read list '[1 2 3 4 ]' with space"; [1 2 3 4 ]; [1 2 3 4])
+
+:" test_read_sym_f0 "
+f0::1
+t("f0"; f0; 1)
+
+:" test_atom "
+t("'@0c0' is atom?"; @0c0; 1)
+
+:" test_join "
+t("[1 2],:{[1 0]}"; [1 2],:{[1 0]}; :{[1 2]})
+t(":{[1 0]},[1 2]"; :{[1 0]},[1 2]; :{[1 2]})
+
+:" test random "
+rn::.rn()
+t("0<=.rn()<=1"; ((rn=0)|(rn>0))&((rn<1)|(rn=1)); 1)
+rn2::.rn()
+{x=rn}{rn2::.rn();rn2}:~rn2
+t("~rn2=rn"; ~rn2=rn; 1)
+
+:" test_fn_nilad "
+f::{1000}
+t("f()"; f(); 1000)
+
+:" test_fn_monad "
+f::{x*1000}
+t("f(3)"; f(3); 3000)
+
+:" test_fn_dyad "
+f::{(x*1000) + y}
+t("f(3;10)"; f(3;10); 3010)
+
+:" test_fn_triad "
+f::{((x*1000) + y) - z}
+t("f(3;10;20)"; f(3;10;20); 2990)
+
+:" test_fn_projection "
+f::{((x*1000) + y) - z}; g::f(3;;); h::g(10;)
+t("g(10;20)"; g(10;20); 2990)
+t("h(20)"; h(20); 2990)
+
+:" test_over "
+t("+/!5"; +/!5; 10)
+t("-/!5"; -/!5; -10)
+t("*/1+!5"; */1+!5; 120)
+t("%/[1 2 3]"; %/[1 2 3]; 0.16666666666666666)
+
