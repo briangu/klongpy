@@ -15,7 +15,8 @@ class TestExamples(unittest.TestCase):
         """
         ran_nstat = False
         try:
-            os.chdir("lib")
+            cwd = os.getcwd()
+            os.chdir(os.path.join("klongpy","lib"))
             for x in glob.glob("./**/*.kg", recursive=True):
                 fname = os.path.basename(x)
                 print(f"loading {fname}")
@@ -28,7 +29,7 @@ class TestExamples(unittest.TestCase):
                     r = klong("sqr2pi(2)")
                     self.assertTrue(np.isclose(r, math.sqrt(math.pi*2)))
         finally:
-            os.chdir("..")
+            os.chdir(cwd)
         self.assertTrue(ran_nstat)
 
     @unittest.skip("TODO: need to mock out the web server")
@@ -38,6 +39,7 @@ class TestExamples(unittest.TestCase):
         """
         ran_dfs = False
         try:
+            cwd = os.getcwd()
             os.chdir("examples")
             for x in glob.glob("./**/*.kg", recursive=True):
                 fname = os.path.basename(x)
@@ -58,5 +60,5 @@ class TestExamples(unittest.TestCase):
                 if fname == "dfs.kg":
                     ran_dfs = True
         finally:
-            os.chdir("..")
+            os.chdir(cwd)
         self.assertTrue(ran_dfs)

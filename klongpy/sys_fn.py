@@ -168,16 +168,19 @@ def eval_sys_load(klong, x):
 
     """
     # if not (os.path.isfile(x) or os.path.isfile(os.path.join(x,".kg"))):
-    alt_dirs = str((os.environ.get('KLONGPATH') or ".:lib")).split(':')
+    alt_dirs = [x for x in str((os.environ.get('KLONGPATH') or ".:lib")).split(':') if x]
     for ad in alt_dirs:
         adx = os.path.join(ad,x)
         if os.path.isfile(adx):
             x = adx
             break
-        adx = os.path.join(adx,".kg")
-        if os.path.isfile(adx):
-            x = adx
-            break
+        if not adx.endswith(".kg"):
+            adx = os.path.join(adx + ".kg")
+            if os.path.isfile(adx):
+                x = adx
+                break
+
+    print(x)
 
     if not os.path.isfile(x):
         raise FileNotFoundError(f"file does not exist: {x}")

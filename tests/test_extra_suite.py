@@ -12,6 +12,12 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    def test_match_empty_array_to_undefined_symbol(self):
+        """ symbol is undefined so does not match the empty array """
+        klong = KlongInterpreter()
+        r = klong('[]~.a')
+        self.assertEqual(r, 0)
+
     def test_vectorized(self):
         klong = KlongInterpreter()
         r = klong("2*!1000")

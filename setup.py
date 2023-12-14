@@ -1,9 +1,10 @@
 import os
-from setuptools import setup
+from setuptools import setup, find_packages
 
 directory = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(directory, 'README.md'), encoding='utf-8') as f:
   long_description = f.read()
+
 
 extra_requires = {
         'cupy': ["cupy"],
@@ -26,9 +27,9 @@ extra_requires['all'] = extra_requires['full']
 
 setup(
     name='klongpy',
-    packages=['klongpy', 'klongpy.web', 'klongpy.db', 'klongpy.ws'],
-    version='0.5.10',
-    description='Vectorized implementation of Klong array language.',
+    packages=find_packages(),
+    version='0.5.11',
+    description='High-Performance Klong array language with rich Python integration.',
     author='Brian Guarraci',
     license='MIT',
     long_description=long_description,

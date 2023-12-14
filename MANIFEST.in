@@ -1,2 +1,2 @@
 README.md
-graft lib
+recursive-include klongpy/lib *.kg

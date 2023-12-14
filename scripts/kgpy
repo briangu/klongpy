@@ -8,13 +8,14 @@ import sys
 import threading
 import time
 import timeit
-from typing import Optional
 
 import colorama
 
 from klongpy import KlongInterpreter
 from klongpy.core import kg_write
 from klongpy.utils import CallbackEvent
+
+import importlib.resources
 
 """
 
@@ -58,7 +59,12 @@ def sys_cmd_help(klong, cmd):
         symbol or operator name (e.g. :: or Define).
 
     """
-    # klong(".p'.help")
+    try:
+        klong['help']
+    except KeyError:
+        klong('.l("help.kg")')
+    topic = cmd[2:].strip() if len(cmd) > 2 else ""
+    klong(f'help("{topic}")')
     return None
 
 
@@ -75,7 +81,13 @@ def sys_cmd_dir(klong, cmd):
     """
     cmd = cmd[2:].strip()
     dir = cmd if cmd else (os.environ.get("KLONGPATH") or "./").split(":")[0]
-    os.system(f"cd {dir}; ls *.kg")
+    found = False
+    for x in os.listdir(dir):
+        if x.endswith(".kg"):
+            print(x)
+            found = True
+    if not found:
+        print(f"no .kg files found in {dir}")
     return None
 
 
@@ -87,8 +99,7 @@ def sys_cmd_load(klong, cmd):
         ]lfile is short for .l("file").
 
     """
-    klong(f'.l("{cmd[2:]}")')
-    return None
+    return klong(f'.l("{cmd[2:]}")') or 1
 
 
 def sys_cmd_exit(klong, cmd):
@@ -181,6 +192,7 @@ def show_repl_header(ipc_addr=None):
     print(f"{colorama.Fore.GREEN}Welcome to KlongPy REPL v{importlib.metadata.distribution('klongpy').version}")
     print(f"{colorama.Fore.GREEN}author: Brian Guarraci")
     print(f"{colorama.Fore.GREEN}web   : http://klongpy.org")
+    print(f"{colorama.Fore.YELLOW}]h for help")
     print(f"{colorama.Fore.YELLOW}crtl-d or ]q to quit")
     print()
     if ipc_addr:
@@ -281,6 +293,13 @@ def cleanup_async_loop(loop: asyncio.AbstractEventLoop, loop_thread, stop_event,
         loop.close()
 
 
+def append_pkg_resource_path_KLONGPATH():
+    with importlib.resources.as_file(importlib.resources.files('klongpy')) as pkg_lib_path:
+        klongpath = os.environ.get("KLONGPATH", ".:lib")
+        klongpath = f"{klongpath}:{pkg_lib_path}" if klongpath else str(pkg_lib_path)
+        os.environ["KLONGPATH"] = klongpath
+
+
 if __name__ == "__main__":
     if '--' in sys.argv:
         index = sys.argv.index('--')
@@ -318,6 +337,9 @@ if __name__ == "__main__":
 
     shutdown_event = CallbackEvent()
 
+    append_pkg_resource_path_KLONGPATH()
+
+    klong['.helpdb'] = []
     klong['.system'] = {'ioloop': io_loop, 'klongloop': klong_loop, 'closeEvent': shutdown_event}
     klong['.os.env'] = dict(os.environ)
     klong['.os.argv'] = extras if extras else []
