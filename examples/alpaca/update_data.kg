@@ -1,0 +1,30 @@
+.comment("****")
+
+Get a list of all tickers from Alpaca.
+For each ticker, get the latest stored time from the dfs and use that as the start time for the next request
+map the new ticker data to the columns of the dfs
+append the new data to the dfs
+write the data back to the dfs
+
+****
+
+.py("klongpy.db")
+.pyf("alpaca.trading.client";"TradingClient")
+.pyf("alpaca.data.historical";"StockHistoricalDataClient")
+.pyf("alpaca.data.requests";"StockLatestTradeRequest")
+
+keys:::{}
+keys,"api_key",,.os.env?"ALPACA_API_KEY"
+keys,"secret_key",,.os.env?"ALPACA_SECRET_KEY"
+
+args:::{};{args,x,,y}'keys
+
+tc::.pyc(TradingClient;[];args)
+account::.pyc(tc,"get_account";[];:{})
+
+.d("cash: ");.p(.pyc(account,"cash";[];:{}))
+
+dc::.pyc(StockHistoricalDataClient;[];keys)
+tr::.pyc(StockLatestTradeRequest;[];:{["symbol_or_symbols" ["MSFT"]]})
+prices::.pyc(dc,"get_stock_latest_trade";,tr;:{})
+.d("prices: ");.p(prices)

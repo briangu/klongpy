@@ -31,8 +31,15 @@ class KGRemoteCloseConnectionException(KlongException):
     pass
 
 
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
+
+
 def encode_message(msg):
-    return json.dumps(msg)
+    return json.dumps(msg, cls=NumpyEncoder)
 
 
 def decode_message(data):
@@ -159,7 +166,7 @@ class NetworkClient(KGLambda):
             self.shutdown_event.subscribe(self.close)
 
     def run_client(self):
-        """        
+        """
         """
         self.running = True
         connect_event = threading.Event()
@@ -181,7 +188,7 @@ class NetworkClient(KGLambda):
         """
         self.running = True
         return self._run(self.on_connect, self.on_close, self.on_error, self.on_message)
-    
+
     async def _run(self, on_connect, on_close, on_error, on_message):
         while self.running:
             try:
@@ -237,7 +244,7 @@ class NetworkClient(KGLambda):
         except websockets.exceptions.ConnectionClosed:
             logging.info("Connection error")
             raise KlongWSConnectionFailureException()
-        
+
     def call(self, msg):
         """
         """
@@ -268,7 +275,7 @@ class NetworkClient(KGLambda):
 
         Stop the network client.
         First send the KGRemoteCloseConnection message to the server to tell it to close the connection.
-        
+
         """
         self.running = False
         self._run_exit_event.wait()
@@ -316,16 +323,16 @@ class NetworkClient(KGLambda):
 
     def get_arity(self):
         return 1
-        
+
     def __str__(self):
         return f"{str(self.conn_provider)}:fn"
 
     @staticmethod
     def create_from_conn_provider(ioloop, klongloop, klong, conn_provider, shutdown_event=None, on_connect=None, on_close=None, on_error=None, on_message=None):
         """
-        
+
         Create a network client to connect to a remote server.
-        
+
         :param ioloop: the asyncio ioloop
         :param klongloop: the klong loop
         :param klong: the klong interpreter
@@ -339,7 +346,7 @@ class NetworkClient(KGLambda):
     @staticmethod
     def create_from_uri(ioloop, klongloop, klong, uri, shutdown_event=None, on_connect=None, on_close=None, on_error=None, on_message=None):
         """
-        
+
         Create a network client to connect to a remote server.
 
         :param ioloop: the asyncio ioloop
@@ -348,7 +355,7 @@ class NetworkClient(KGLambda):
         :param addr: the address to connect to.  If the address is an integer, it is interpreted as a port in "localhost:<port>".
 
         :return: a network client
-                
+
         """
         conn_provider = ClientConnectionProvider(uri)
         return NetworkClient.create_from_conn_provider(ioloop, klongloop, klong, conn_provider, shutdown_event=shutdown_event, on_connect=on_connect, on_close=on_close, on_error=on_error, on_message=on_message)
@@ -389,9 +396,9 @@ class NetworkClient(KGLambda):
 
 #     async def handle_client(self, websocket):
 #         """
-        
+
 #         Handle a client connection.  Messages are read from the client and executed on the klong loop.
-        
+
 #         """
 #         # host, port, _, _ = writer.get_extra_info('peername')
 #         # if host == "::1":

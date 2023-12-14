@@ -449,6 +449,11 @@ def eval_sys_python_call(klong, x, y, z):
         y is either a list of or a single positional arguments to pass to the function.
         z is a dictionary of keyword arguments to pass to the function.
 
+        Example:
+
+            .pyc(obj;[1 2 3];:{"a":1,"b":2,"c":3})
+            .pyc(obj,"method";[1 2 3];:{"a":1,"b":2,"c":3})
+
     """
     if is_list(x):
         if not isinstance(x[0],object):

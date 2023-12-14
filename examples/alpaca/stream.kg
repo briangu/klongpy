@@ -1,0 +1,48 @@
+.py("klongpy.ws")
+
+.comment("****")
+Auth Volley:
+
+receive: [{"T":"success","msg":"connected"}]
+send: {"action": "auth", "key": "{KEY_ID}", "secret": "{SECRET}"}
+receive: [{"T":"success","msg":"authenticated"}]
+
+send: {"action":"subscribe","trades":["AAPL"],"quotes":["AMD","CLDR"],"bars":["*"]}
+confirmation: [{"T":"subscription","trades":["AAPL"],"quotes":["AMD","CLDR"],"bars":["*"],"updatedBars":[],"dailyBars":["VOO"],"statuses":["*"],"lulds":[],"corrections":["AAPL"],"cancelErrors":["AAPL"]}]
+
+{"action": "unsubscribe", "bars": ["*"]}
+
+{
+  "T": "t",
+  "i": 96921,
+  "S": "AAPL",
+  "x": "D",
+  "p": 126.55,
+  "s": 1,
+  "t": "2021-02-22T15:51:44.208Z",
+  "c": ["@", "I"],
+  "z": "C"
+}
+****
+
+auth:::{["action" "auth"]}
+auth,"key",,.os.env?"ALPACA_API_KEY"
+auth,"secret",,.os.env?"ALPACA_SECRET_KEY"
+
+subscription:::{["action" "subscribe"]}
+subscription,"trades",,["AAPL"]
+.p(subscription)
+subscribe::{x(subscription)}
+
+handleData::{.p(y)}
+
+handleError::{.d("error: ");.p(y)}
+
+sendAuth::{.p("sending auth");x(auth)}
+handleAuthFailure::{.p("failed to auth")}
+handleLogin::{.p("logged in");subscribe(x)}
+handleControl::{[msg];msg::y?"msg";:[msg="connected";sendAuth(x);:[msg="authenticated";handleLogin(x;y);handleAuthFailure(x;y)]]}
+handleMsg::{[q T];.p(y);T::y?"T";:[T="success";handleControl(x;y);:[T="error";handleError(x;y);handleData(x;y)]]}
+.ws.m::{[c];c::x;{handleMsg(c;x)}'y}
+
+c::.ws("wss://stream.data.alpaca.markets/v2/sip")
