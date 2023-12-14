@@ -1,0 +1,43 @@
+:"spline interpolation"
+.comment("*****")
+
+spline(x)  generates a spline that goes through all x/y tuples in x
+sp(x;s)    interpolates "y" at "x" using the spline "s"
+sp2(x;s)   like "sp", but returns min/max instead of :undefined for 
+           out-of-range values
+
+Example: :"save to file foo and then plot with 'kg -l spline foo | gv -'"
+         .l("nplot")
+         s::spline([[-10 0.2] [-7.5 -1.9] [-4.5 3.5] [-1.5 -9.0] [0 0]
+                    [1.5 9.0] [4.5 -3.5] [7.5 1.9] [10 -0.2]])
+         frame([-10 10 2];[-10 10 2])
+         plot({sp(x;s)})
+
+*****
+
+.l("math.kg")
+.module(:spline)
+f::{:[2=#x;(*x),(((*x)+x@1)%2),(x@1);x]}
+spline::{[xx yy m r u zz];xx::f(*'x);yy::f({x@1}'x);r::#xx;m::((r-2),r-1):^0;
+         u::{y-x}:'xx;zz::{(((yy@x+1)-yy@x)%(xx@x+1)-xx@x)};
+         {x<r-2}{m::(m:-((u@x),x,x-1)):-(u@x),(x-1),x;x+1}:~1;
+         {x<r-2}{m::m:-(2*(xx@x+2)-xx@x),x,x;x+1}:~0;
+         {x<r-2}{m::m:-(zz(x+1)-zz(x)),x,r-2;x+1}:~0;
+         +(,xx),(,yy),(,u,0),,0,gauss(m),0}
+
+xx::{*x}
+xy::{x@1}
+xu::{x@2}
+xp::{x@3}
+spev::{[t f];t::(x-xx(y))%xu(y);f::{(x*x*x)-x};
+       ((t*xy(z))+(1-t)*xy(y))+(xu(y)^2)*((f(t)*xp(z))+f(1-t)*xp(y))}
+sp::{[xx i];xx::x;i::&{(~xx<x)&~xx>y}:'*'y;:[[]~i;%0;spev(x;y@*i;y@*i+1)]}
+sp2::{:[x<**y;sp(**y;y):|x>**|y;sp(**|y;y);sp(x;y)]}
+.module(0)
+
+.comment("*test*")
+.l("pt.kg")
+pt0(s::spline([[1 2.0] [2 1.5] [4 1.25] [5 1.2] [8 1.125] [10 1.1]]))
+.p({rndn(1+1%x;4)}'1+!10)
+.p({rndn(sp(x;s);4)}'1+!10)
+*test*

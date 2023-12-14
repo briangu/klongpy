@@ -1,0 +1,252 @@
+:"various math functions"
+:"atan2 function contributed by Alexander Shendi"
+
+.comment("*****")
+
+.fastpow     when set, x^y compiles to .pow(x;y)
+.md          number of mantissa digits
+pow(x;y)     power function (faster than the Klong primitive)
+e            Euler's number
+pi           ratio of a circle's circumference to its diamater
+sgn(x)       sign of x
+rnd(x)       round half toward zero
+rndn(x;y)    round half toward zero after y decimal places
+rn(0)        random number (argument ignored)
+ri(n)        random integer in the range [0,n-1]
+th(x)        return a string representing x with decimal marks (1000's)
+gcd(x;y)     greatest common divisor
+lcm(x;y)     least common multiple
+exp(x)       exponential function
+ln(x)        natural logarithm
+log(n;x)     logarithm of x to base n
+sin(x)       sine function
+cos(x)       cosine function
+tan(x)       tangent function
+atan2(x;y)   arctangent (angle of x+yi)
+sqr(x)       square root
+nrt(n;x)     n'th root of x
+cadd(a,b;c,d) sum of complex numbers a+bi and c+di
+csub(a,b;c,d) difference of complex numbers a+bi and c+di
+cmul(a,b;c,d) product of complex numbers a+bi and c+di
+cdiv(a,b;c,d) quotient of complex numbers a+bi and c+di
+cexp(a,b)    e to the complex number a+bi
+cabs(a,b)    magnitude of the complex number a+bi
+fft(x)       (not so) fast Fourier transform of the real vector x
+gamln(x)     ln of Gamma function
+gam(x)       Gamma function
+gamp(a;x)    regularized incomplete gamma function P(a,x)
+gamq(a;x)    regularized incomplete gamma function Q(a,x)
+lgam(a;x)    lower incomplete gamma function gamma(a,x)
+ugam(a;x)    upper incomplete gamma function Gamma(a,x)
+beta(a;b)    Beta function
+ibeta(x;a;b) incomplete Beta function Beta(x;a,b), max error: 1e-6
+rbeta(x;a;b) regularized incomplete Beta function I_x(a,b), max error: 1e-6
+matp(x;y)    product of matrixes x and y
+elim(x)      reduce augmented matrix to upper triangular form
+subst(x)     substitute values in reduced matrix, return vector of variables
+gauss(x)     solve system of linear equations; x = augmented matrix
+             e.g. gauss([[1 3 -4 8] [0 2 -2 6] [-1 -2 5 -1]])
+primes(x)    return all primes up to and including x
+prime(x)     test whether x is prime
+bisect(fn)   find root of function by bisection
+regf(fn;x0;x1) find root of function using regula falsi method
+
+************************************************************************
+
+.l("help.kg")
+
+.module(:math.bisect)
+F::{1}
+x0::0
+x1::0
+B::0
+fx::0
+findint::{{F(x)<0}{x*2}:~1}
+iter::{x;B::(x0+x1)%2;fx::F(B);x0:::[fx<0;B;x0];x1:::[fx<0;x1;B];x1-x0}
+bisect::{F::x;x0::0;x1::findint();iter:~0;x0}
+.module(0)
+
+.module(:math.regf)
+F::{1}
+q::0
+x1::0
+x2::0
+y1::0
+y2::0
+iter::{x1::x@0;x2::x@1;y1::F(x1);y2::F(x2);
+       q:::[0~y1-y2;x2;((x1*y2)-(x2*y1))%y2-y1];x2,q}
+regf::{F::x;(iter:~y,z)@0}
+.module(0)
+
+.module(:math)
+e::2.71828182845904523536028747135266249775724709369995
+pi::3.14159265358979323846264338327950288419716939937510
+.md::{[i];i::0;{x<1}{i::i+1;x*10}:~.e;i}()
+pi2::pi+pi
+pi0.5::pi%2
+pi1.5::1.5*pi
+sgn::{:[0=x;0:|x<0;-1;1]}
+rn::{x;.rn()}
+ri::{_x*.rn()}
+rnd::{:[x<0;-1;1]*_0.5+#x}
+rndn::{rnd(x*10^y)%10^y}
+th::{{x,",",y}/|'|3:#|$_x}
+gcd::{:[0~y;x:|0~x;y:|x<y;gcd(x;y!x);gcd(y;x!y)]}
+lcm::{_(x*y)%gcd(x;y)}
+sqr::{[a];a::x;:[0=x;0;{(x+a%x)%2}:~a]}
+nrt::{[n a];n::x;a::y;:[0=y;0;{(%n)*(x*n-1)+a%x^n-1}:~1]}
+e.tlr::{[f p xx i r];f::i::1;p::xx::x;
+        {r::x+p%f;p::p*xx;i::i+1;f::f*i;r}:~1}
+exp::{:[x<0;%exp(-x):|~x<2;exp(x%2)^2;e.tlr(x)]}
+ln.tlr::{[xx yy xpy r];xx::(x-1)%x+1;yy::1;xpy::xx;
+         2*{r::x+xpy%yy;xpy::xpy*xx*xx;yy::2+yy;r}:~0.0}
+ln.apx::{[xx yy xpy r];xx::(x-1)%x+1;yy::1;xpy::xx;
+         2*y{r::x+xpy%yy;xpy::xpy*xx*xx;yy::2+yy;r}:*0.0}
+ln.big::{[a];a+ln(x%exp(a::ln.apx(x;5)))}
+ln::{:[~x>0;%0:|(0.1<x)&x<5;ln.tlr(x);ln.big(x)]}
+ln10::ln(10)
+ln2::ln(2)
+log::{ln(y)%:[10=x;ln10:|2=x;ln2;ln(x)]}
+.pow::{[sq ex t];ex::{:[0=y;1:|(_t)=t::y%2;sq(ex(x;y:%2));x*sq(ex(x;y:%2))]};
+      sq::{x*x};:[~(@x)&@y;all2(.pow;x;y):|y<0;%.pow(x;-y):|(0=x);:[y>0;0;%0]
+      :|y=_y;ex(x;_y);exp(y*ln(x))]}
+pow::.pow
+.fastpow::1
+uc::{:[x<0;-uc(-x);x-pi2*_(#x)%pi2]}
+sin.tlr::{[xx yy r d a];xx::x;yy::3;a::0;
+          {d::(xx^yy)%*/1+!yy;r:::[a;x+d;x-d];a::~a;yy::2+yy;r}:~x}
+sin::{[xx];xx::uc(x);
+      xx:::[(~0>xx)&~xx>pi0.5;xx
+               :|(~pi0.5>xx)&~xx>pi1.5;pi-xx
+               :|(~pi>xx)&~xx>pi1.5;xx-pi
+               ;xx-pi2];
+     :[xx>pi;-sin.tlr(xx);sin.tlr(xx)]}
+cos::{sin(pi0.5-x)}
+tan::{sin(x)%cos(x)}
+:" Taylor series takes forever for big (>0.999) values "
+asin::{[a b aa bb v vv xx r];a::1;b::2;aa::3;bb::4;xx::3;v::x^3;vv::x*x;
+         {r::x+(a%b)*v%xx;
+          v::v*vv;a::a*aa;b::b*bb;aa::aa+2;bb::bb+2;xx::xx+2;r}:~x}
+:" so use regula falsi instead "
+asin::{[y];y::x;regf({sin(x)-y};0;1-.e)}
+acos::{[y];y::x;regf({cos(x)-y};0;1-.e)}
+atan::{[y];y::x;regf({tan(x)-y};0;1-.e)}
+azeroq::{[t];t::1.0e-8;((#x)<t)}
+atanh1::{(0.785398163397448307*x)+0.273*x*(1.0 - (#x))}
+atanh2::{1.0%(1.0 + (0.28086*x*x))}
+atanh3::{[a];a::#x;((0.785398163397448307*x)-(x*(a-1.0)*(0.2447+0.0663*a)))}
+atanh4::{[x1;y1];x1::#x;y1::0.0;x1::{x>1}{y1::y1+(pi%4);(x-1)%(x+1)}:~x1;
+         y1+atanh3(x1)}
+atanh5::{x-((x*x*x)%3.0)}
+atanh6::{(atanh5(x),atanh4(x))@(x>0.1)}
+atan21::{[idx;ww];idx::(x<0)+(y<0)*2;ww::atanh6((#y)%(#x));
+         (ww,(pi-ww),(-ww),(ww-pi))@idx}
+atan2::{[fnl];fnl::{atan21(x;y)},{(((-0.5)*pi),(0.5*pi))@(y>0)};
+        (fnl@azeroq(x))@(x,y)}
+cadd::{((*x)+*y),(x@1)+y@1}
+csub::{((*x)-*y),(x@1)-y@1}
+cmul::{(((*x)**y)-(x@1)*y@1),((x@1)**y)+(*x)*y@1}
+cdiv::{[d];d::((*y)^2)+(y@1)^2;((((*x)^2)+(^*y)^2)%d),(((x@1)**y)-(*x)*y@1)%d}
+cexp::{(exp(*x)*cos(x@1)),exp(*x)*sin(x@1)}
+cabs::{sqr(((*x)^2)+(x@1)^2)}
+fft::{ff2::{[n e o p t k];n::#x;
+            f::{p::2:#x;e::ff2(*'p);o::ff2({x@1}'p);k::-1;
+                t::{k::k+1;cmul(cexp(cdiv(cmul([0 -2];(k*pi),0);n,0));x)}'o;
+                (e cadd't),e csub't};
+            :[n<2;x;f(x)]};
+      n::#x;k::{(2^x)<n}{1+x}:~1;n#ff2({x,0}'x,&(2^k)-n)}
+gln.c::[76.18009173 -86.50532033 24.01409822
+        -1.231739516 0.00120858003 -0.00000536382]
+gamln::{[xx t i];xx::x-1;t::xx+5.5;t::((xx+0.5)*ln(t))-t;i::0;
+        t+ln(2.50662827465*6{xx::xx+1;s::x+(gln.c@i)%xx;i::i+1;s}:*1)}
+gam::{exp(gamln(x))}
+beta::{exp((gamln(x)+gamln(y))-gamln(x+y))}
+gser::{[gln a ap d xx];gln::gamln(x);a::ap::x;d::%x;xx::y;
+       ({ap::1+ap;d::(d*xx)%ap;x+d}:~d)*exp(((-xx)+a*ln(xx))-gln)}
+gcf::{[gln g a xx a0 a1 an ana anf b0 b1 fac n eps];a::x;xx::y;
+      gln::gamln(a);a0::1;a1::xx;b0::0;b1::1;fac::1;n::1;eps::(#$.e)-3;
+      g::{x;an::n;ana::an-a;a0::(a1+a0*ana)*fac;b0::(b1+b0*ana)*fac;
+          anf::an*fac;a1::(xx*a0)+anf*a1;b1::(xx*b0)+anf*b1;n::n+1;
+          fac:::[0~a1;fac;%a1];b1*fac}:~0;
+      g*exp(((-xx)+a*ln(xx))-gln)}
+gamp::{:[y<x+1;:[y~0;0;gser(x;y)];1-gcf(x;y)]}
+gamq::{1-gamp(x;y)}
+lgam::{gamp(x;y)*gam(x)}
+ugam::{gamq(x;y)*gam(x)}
+bcf::{[a b xx d am ap app bm bp bpp bz em m qab qap qam tem];
+      xx::x;a::y;b::z;am::1;bm::1;qab::a+b;qap::a+1;qam::a-1;
+      bz::1-(qab*xx)%qap;m::1;
+      {em::m;tem::em+em;d::((em*b-m)*xx)%(qam+tem)*a+tem;ap::x+d*am;
+       bp::bz+d*bm;d::-((a+em)*(qab+em))*xx%(a+tem)*qap+tem;
+       app::ap+d*x;bpp::bp+d*bz;am::ap%bpp;bm::bp%bpp;bz::1;m::m+1;
+       rndn(app%bpp;6)}:~1}
+rbeta::{[bt a b xx];xx::x;a::y;b::z;
+        bt:::[(0~xx)|1~xx;0
+              ;exp(((gamln(a+b)-gamln(a))-gamln(b))+(a*ln(xx))+b*ln(1-xx))];
+        :[xx<(a+1)%a+b+2;bt*bcf(xx;a;b)%a;
+                       1-bt*bcf(1-xx;b;a)%b]}
+ibeta::{rbeta(x;y;z)*beta(y;z)}
+
+matp::{[b];b::y;{+/x*b}'x}
+
+elim::{[h m d];h::*m::x@>*'#''x;d::*(~h)?0;
+       :[2>#x;x;(,h),0,:\.f({1_x}'{:[d~[];x;x-h*(x@d)%h@d]}'1_m)]} 
+subst::{[v];v::[];{v::v,((*x)-/:[[]~v;[];v*x@1+!#v])%x@1+#v}'||'x;|v}
+gauss::{subst(elim(x))}
+
+primes::{[n p];n::x;p::[2];{~x>n}{:[&/x!p;p::p,x;0];x+2}:~3;:[x<2;[];p]}
+prime::{:[x<2;0:|[2 3 5]?x;1;&/(x!2,3+2*!_sqr(x)%2)]}
+
+.module(0)
+
+help.add([
+ [".fastpow" "when set, x^y compiles to .pow(x;y)"]
+ [".md" "number of mantissa digits"]
+ ["acos(x)" "inverse cosine"]
+ ["asin(x)" "inverse sine"]
+ ["atan(x)" "inverse tangent"]
+ ["beta(a;b)" "Beta function"]
+ ["bisect(fn)" "find root of function by bisection"]
+ ["cos(x)" "cosine"]
+ ["cadd(a,b;c,d)" "sum of complex numbers a+bi and c+di"]
+ ["csub(a,b;c,d)" "difference of complex numbers a+bi and c+di"]
+ ["cmul(a,b;c,d)" "product of complex numbers a+bi and c+di"]
+ ["cdiv(a,b;c,d)" "quotient of complex numbers a+bi and c+di"]
+ ["cexp(a,b)" "e to the complex number a+bi"]
+ ["cabs(a,b)" "magnitude of the complex number a+bi"]
+ ["e" "Euler's number"]
+ ["elim(x)" "reduce augmented matrix to upper triangular form"]
+ ["exp(x)" "exponential function"]
+ ["fft(x)" "fast Fourier transform of the real vector x"]
+ ["gam(x)" "Gamma function"]
+ ["gamln(x)" "ln of Gamma function"]
+ ["gamp(a;x)" "regularized incomplete gamma function P(a,x)"]
+ ["gamq(a;x)" "regularized incomplete gamma function Q(a,x)"]
+ ["gauss(x)" "solve system of linear equations; x = augmented matrix"]
+ ["gcd(x;y)" "greatest common divisor"]
+ ["ibeta(x;a;b)" "incomplete Beta function Beta(x;a,b)"]
+ ["lcm(x;y)" "least common multiple"]
+ ["lgam(a;x)" "lower incomplete gamma function gamma(a,x)"]
+ ["ln(x)" "natural logarithm"]
+ ["log(n;x)" "logarithm of x to base n"]
+ ["matp(A;B)" "matrix product"]
+ ["nrt(n;x)" "n'th root of x"]
+ ["pi" "ratio of a circle's circumference to its diamater"]
+ ["pow(x;y)" "x raised to the y'th power"]
+ ["prime(x)" "primality test"]
+ ["primes(x)" "prime numbers up to and including x"]
+ ["rbeta(x;a;b)" "regularized incomplete Beta function I_x(a,b)"]
+ ["regf(fn;x0;x1)" "find root of function using regula falsi method"]
+ ["ri(n)" "random integer in the range [0,n-1]"]
+ ["rn(0)" "random number (argument ignored)"]
+ ["rnd(x)" "round half toward zero"]
+ ["rndn(x;y)" "round half toward zero after y decimal places"]
+ ["sgn(x)" "sign"]
+ ["sin(x)" "sine"]
+ ["sqr(x)" "square root"]
+ ["subst(x)" "compute values of variables in triangular matrix"]
+ ["tan(x)" "tangent"]
+ ["atan2(x;y)" "arctangent (angle of x+yi)"]
+ ["th(x)" "return string representing x with decimal marks (1000's)"]
+ ["ugam(a;x)" "upper incomplete gamma function Gamma(a,x)"]
+])
