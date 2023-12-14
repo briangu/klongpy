@@ -294,10 +294,12 @@ def cleanup_async_loop(loop: asyncio.AbstractEventLoop, loop_thread, stop_event,
 
 
 def append_pkg_resource_path_KLONGPATH():
-    with importlib.resources.as_file(importlib.resources.files('klongpy')) as pkg_lib_path:
+    with importlib.resources.as_file(importlib.resources.files('klongpy')) as pkg_path:
+        pkg_lib_path = os.path.join(pkg_path, "lib")
         klongpath = os.environ.get("KLONGPATH", ".:lib")
         klongpath = f"{klongpath}:{pkg_lib_path}" if klongpath else str(pkg_lib_path)
         os.environ["KLONGPATH"] = klongpath
+        print(f"KLONGPATH: {klongpath}")
 
 
 if __name__ == "__main__":
