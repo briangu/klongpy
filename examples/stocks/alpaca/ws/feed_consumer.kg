@@ -68,8 +68,8 @@ timeAnalyze::{time(analyze)}
 analyzeComplete::{.d("analyze ms: ");.p(x)}
 asyncAnalyze::.async(timeAnalyze;analyzeComplete)
 
-updateDb::{[u d];u::x;d::{u?x}'cols;.d("insert: ");.d(d);.insert(prices;d)}
-timeUpdateDb::{[ms];ms::time1(updateDb;x);.d(" ");.d(ms);.p(" ms")}
+updateDb::{.insert(prices;x@cols)}
+timeUpdateDb::{.d("insert: ");.d(x@cols);.d(" ");.d(time1(updateDb;x));.p(" ms")}
 
 :" Called by server when there is a subscription update."
 update::{timeUpdateDb(x);asyncAnalyze()}
