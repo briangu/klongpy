@@ -2,6 +2,9 @@
 t(".pyf(""math"";""pow"")"; .pyf("math";"pow"); 1)
 t(".pyc(pow;[2 3];:{})"; .pyc(pow;[2 3];:{}); 8.0)
 
+:" Test the ability to call a function by string name "
+t(".pyc(""pow"";[2 3];:{})"; .pyc("pow";[2 3];:{}); 8.0)
+
 :" Test the ability to call a python function with args and kwargs "
 :" use a good example object that has both args and kwargs "
 t(".pyf(""datetime"";""datetime"""); .pyf("datetime";"datetime"); 1)
