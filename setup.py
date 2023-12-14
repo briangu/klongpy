@@ -26,9 +26,9 @@ extra_requires['all'] = extra_requires['full']
 
 setup(
     name='klongpy',
-    packages=['klongpy', 'klongpy.web', 'klongpy.db'],
+    packages=['klongpy', 'klongpy.web', 'klongpy.db', 'klongpy.ws'],
     version='0.5.10',
-    description='Vectorized implementation of Klong language.',
+    description='Vectorized implementation of Klong array language.',
     author='Brian Guarraci',
     license='MIT',
     long_description=long_description,
@@ -37,10 +37,11 @@ setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License"
     ],
-    install_requires=['numpy~=1.24.0'],
+    install_requires=['numpy~=1.26.2'],
     python_requires='>=3.8',
     extras_require=extra_requires,
     include_package_data=True,
+    zip_safe=False,
     test_suite='tests',
     scripts=['scripts/kgpy']
 )

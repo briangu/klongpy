@@ -58,7 +58,7 @@ def sys_cmd_help(klong, cmd):
         symbol or operator name (e.g. :: or Define).
 
     """
-    # TODO
+    # klong(".p'.help")
     return None
 
 
