@@ -299,7 +299,6 @@ def append_pkg_resource_path_KLONGPATH():
         klongpath = os.environ.get("KLONGPATH", ".:lib")
         klongpath = f"{klongpath}:{pkg_lib_path}" if klongpath else str(pkg_lib_path)
         os.environ["KLONGPATH"] = klongpath
-        print(f"KLONGPATH: {klongpath}")
 
 
 if __name__ == "__main__":
