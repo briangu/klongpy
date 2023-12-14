@@ -1,0 +1,76 @@
+.py("klongpy.ws")
+.pyf("iso8601";"parse_date")
+
+.comment("****")
+
+feed type:
+t trades (includes corrections and cancelErrors)
+q quotes
+b bars
+
+<feed type>.<symbol or *>
+
+e.g.
+
+b.MSFT minute bar for MSFT
+
+or
+
+b.* for all minute bars
+
+****
+
+auth:::{["action" "auth"]}
+auth,"key",,.os.env?"ALPACA_API_KEY"
+auth,"secret",,.os.env?"ALPACA_SECRET_KEY"
+
+:" subscription handler "
+mkbars::{{2_x}'x@&{#x?"b."}'x}
+mktrades::{[]}
+mkquotes::{[]}
+psmsg::{[d];d:::{["action" "subscribe"]};d,"bars",,mkbars(x);d,"trades",,mktrades(x);d,"quotes",,mkquotes(x)}
+unionValues::{[q];q:::{};{{q,x,1}'x@1}'x;{x@0}'q}
+updSubscription::{[v q];.d("subscribing: ");v::unionValues(x);v::psmsg(v);.p(v);wsc(v)}
+
+:" Map of clients handles to their subscribed tickers "
+clients:::{}
+rmclient::{x_clients}
+
+:" Handle server auth request "
+sendAuth::{.p("sending auth");.p(auth);x(auth)}
+handleUnknown::{.d("unhandled");.p(y)}
+handleLogin::{.p("logged in")}
+handleControl::{[msg];msg::y?"msg";:[msg="connected";sendAuth(x);:[msg="authenticated";handleLogin(x;y);handleAuthFailure(x;y)]]}
+handleSubscribed::{.p(y)}
+
+handlers:::{}
+handlers,"success",handleControl
+handlers,"subscription",handleSubscribed
+handleStatus::{[h];.p(y);h::handlers?(y?"T");:[h;h(x;y);handleUnknown(x;y)]}
+
+:" convert the RFC-3339 formatted timestamp "
+mkts::{[d ts];d::.pyc("parse_date";,x;:{});.pyc(d,,"timestamp";[];:{})}
+
+:" send the message to all subscribed clients "
+send::{.d("sending ");.d(k);.d(" to client ");.p(y);y(:update,,z)}
+match::{[ev k subscription];ev::x;k::y;subscription::z;all::ev,".*";:[subscription?all;1;:[subscription?k;1;0]]}
+broadcast::{[ev k data];ev::x;k::y;data::z;{:[match(ev;k;x@1);send(k;x@0;data);0]}'clients}
+handleData::{[ev sym k];.d("data: ");.p(y);ev::(y?"T");sym::(y?"S");y,"t",mkts(y?"t");k::ev,".",sym;broadcast(ev;k;y)}
+
+handleMsg::{:[(y?"T")="b";handleData(x;y);handleStatus(x;y)]}
+
+.ws.m::{[c];c::x;{handleMsg(c;x)}'y}
+
+wsuri:::[(#.os.argv);.os.argv@0;"wss://stream.data.alpaca.markets/v2/sip"]
+.d("connecting to ");.p(wsuri)
+wsc::.ws(wsuri)
+
+:" Called by clients to subscribe to ticker updates "
+updClientSub::{clients,x,,(clients?x),,y;.d("clients: ");.p(clients)}
+subscribe::{.d("subscribing client: ");.p(.cli.h,,x);updClientSub(.cli.h;x);updSubscription(clients);x}
+
+:" Setup the IPC server and callbacks "
+.srv(8888)
+.srv.o::{.d("client connected: ");.p(x);clients,x,,[]}
+.srv.c::{.d("client disconnected: ");.p(x);rmclient(x);updSubscription(clients);.d("clients left: ");.p(#clients)}
+.srv.e::{.d("error: ");.p(x);.p(y)}

@@ -451,8 +451,23 @@ def eval_sys_python_call(klong, x, y, z):
 
         Example:
 
-            .pyc(obj;[1 2 3];:{"a":1,"b":2,"c":3})
-            .pyc(obj,"method";[1 2 3];:{"a":1,"b":2,"c":3})
+            Python objects may be directly called:
+
+                .pyc(obj;[1 2 3];:{"a":1,"b":2,"c":3})
+
+            or a method on the object may be called:
+
+                .pyc(obj,"method";[1 2 3];:{"a":1,"b":2,"c":3})
+
+            if the python object name is snake case, then the quote is not needed:
+
+            Here, parse_date is a function in the iso8601 module:
+
+                .pyf("iso8601";"parse_date")
+
+            and it can be called via:
+
+                .pyc("parse_date";,"2020-01-01";:{})
 
     """
     if is_list(x):
@@ -467,7 +482,7 @@ def eval_sys_python_call(klong, x, y, z):
         if not callable(f):
             return f
     else:
-        f = x
+        f = klong[KGSym(x)] if isinstance(x,str) else x
         if not callable(f):
             return f
     if not is_list(y):

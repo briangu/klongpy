@@ -368,15 +368,16 @@ if __name__ == "__main__":
 
         def gather_io_tasks(io_loop):
             done_event = threading.Event()
-            tasks = asyncio.all_tasks(loop=io_loop)
-            async def main_task():
-                gathered_task = asyncio.gather(*tasks)
-                gathered_task.add_done_callback(lambda: done_event.set())
-                await gathered_task
-            if len(tasks) > 1:
-                io_loop.call_soon_threadsafe(asyncio.create_task, main_task())
-            else:
-                done_event.set()
+            # tasks = asyncio.all_tasks(loop=io_loop)
+            # print(tasks)
+            # async def main_task():
+            #     gathered_task = asyncio.gather(*tasks)
+            #     gathered_task.add_done_callback(lambda x: done_event.set())
+            #     await gathered_task
+            # if len(tasks) > 1:
+            #     io_loop.call_soon_threadsafe(asyncio.create_task, main_task())
+            # else:
+            #     done_event.set()
             return done_event
 
         gather_io_tasks(io_loop).wait()

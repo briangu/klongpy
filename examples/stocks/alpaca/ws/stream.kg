@@ -1,6 +1,9 @@
 .py("klongpy.ws")
 
 .comment("****")
+
+Simple example for connecting to Alpaca stock data websocket and subscribing to AAPL Trades.
+
 Auth Volley:
 
 receive: [{"T":"success","msg":"connected"}]
@@ -8,10 +11,9 @@ send: {"action": "auth", "key": "{KEY_ID}", "secret": "{SECRET}"}
 receive: [{"T":"success","msg":"authenticated"}]
 
 send: {"action":"subscribe","trades":["AAPL"],"quotes":["AMD","CLDR"],"bars":["*"]}
-confirmation: [{"T":"subscription","trades":["AAPL"],"quotes":["AMD","CLDR"],"bars":["*"],"updatedBars":[],"dailyBars":["VOO"],"statuses":["*"],"lulds":[],"corrections":["AAPL"],"cancelErrors":["AAPL"]}]
+receive: [{"T":"subscription","trades":["AAPL"],"quotes":["AMD","CLDR"],"bars":["*"],"updatedBars":[],"dailyBars":["VOO"],"statuses":["*"],"lulds":[],"corrections":["AAPL"],"cancelErrors":["AAPL"]}]
 
-{"action": "unsubscribe", "bars": ["*"]}
-
+Trade sample:
 {
   "T": "t",
   "i": 96921,
@@ -23,6 +25,9 @@ confirmation: [{"T":"subscription","trades":["AAPL"],"quotes":["AMD","CLDR"],"ba
   "c": ["@", "I"],
   "z": "C"
 }
+
+to unsubcribe: {"action": "unsubscribe", "bars": ["*"]}
+
 ****
 
 auth:::{["action" "auth"]}
@@ -31,7 +36,6 @@ auth,"secret",,.os.env?"ALPACA_SECRET_KEY"
 
 subscription:::{["action" "subscribe"]}
 subscription,"trades",,["AAPL"]
-.p(subscription)
 subscribe::{x(subscription)}
 
 handleData::{.p(y)}

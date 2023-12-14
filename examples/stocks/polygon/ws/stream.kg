@@ -1,5 +1,11 @@
 .py("klongpy.ws")
 
+.comment("****")
+
+Simple Stream example for connecting to Polygon stock data websocket.
+
+****
+
 auth:::{["action" "auth"]}
 KEY::.os.env?"POLYGON_API_KEY"
 auth::auth,"params",,KEY

@@ -1,0 +1,75 @@
+.py("klongpy.db")
+
+.comment("****")
+
+Feed consumer for listening to streaming stock bars from Alpaca.
+
+Data is received from the feed server (that's connected to Alpaca) and stored in the database.
+
+Sample bars data:
+
+{
+  "T": "b",
+  "S": "SPY",
+  "o": 388.985,
+  "h": 389.13,
+  "l": 388.975,
+  "c": 389.12,
+  "v": 49378,
+  "t": "2021-02-22T19:15:00Z" (converted to timestamp on server)
+}
+
+TODO: add delta sync against feed server
+
+****
+
+time::{[t0];t0::.pc();x();.pc()-t0}
+time1::{[t0];t0::.pc();x(y);.pc()-t0}
+
+tbs::.tables("/tmp/tables/consumer")
+
+:" Create a new table with appropriate columns for the Alpaca data "
+cols::["S" "o" "h" "l" "c" "v" "t"]
+colsFromData::{{(x@0),,[]}'x}
+colsFromNames::{{x,,[]}'x}
+newt::{.table(colsFromNames(cols))}
+
+:" Attempt to load the prices table from disk "
+prices::tbs?"prices"
+prices:::[:_prices;newt();prices]
+
+:" Create a database so we can inspect the data "
+q:::{}
+q,"prices",,prices
+db::.db(q)
+
+stats::{[q];q::db("select count(*) from prices");.d("rows: ");.p(q);q}
+lastCnt::stats()
+
+:" Flush the prices table every minute "
+store::{[q];.p("");q::stats();:[q>lastCnt;tbs,"prices",prices;.p("no change")];lastCnt::q;1}
+timeStore::{[r];r::time(store);.d("store ms: ");.p(r)}
+.timer("store";60;timeStore)
+
+:"Connect to the broadcast server"
+.p("connecting to server on port 8888")
+cli::.cli(8888)
+
+cli(:subscribe,,["b.MSFT" "b.AAPL" "b.GOOG"])
+
+:" A basic bollinger band strategy "
+mean::{(+/x)%#x}
+std::{((+/((x-y)^2))%#x)^0.5}
+bollinger::{[m s];m::mean(x);s::std(x;mean(x));(m+2*s),(m-2*s)}
+signal::{[upper lower p];upper::x@0;lower::x@1;p::y@0;:[p<lower;"buy";:[p>upper;"sell";"hold"]]}
+
+analyze::{[b c];c::db("select c from prices order by S desc limit 20");b::bollinger(c);.d("signal: ");.p(signal(b;c))}
+timeAnalyze::{time(analyze)}
+analyzeComplete::{.d("analyze ms: ");.p(x)}
+asyncAnalyze::.async(timeAnalyze;analyzeComplete)
+
+updateDb::{[u d];u::x;d::{u?x}'cols;.d("insert: ");.d(d);.insert(prices;d)}
+timeUpdateDb::{[ms];ms::time1(updateDb;x);.d(" ");.d(ms);.p(" ms")}
+
+:" Called by server when there is a subscription update."
+update::{timeUpdateDb(x);asyncAnalyze()}
