@@ -32,6 +32,10 @@ class KGRemoteCloseConnectionException(KlongException):
 
 
 class NumpyEncoder(json.JSONEncoder):
+    """
+    We need to translate NumPy objects into lists as needed:
+    https://stackoverflow.com/questions/26646362/numpy-array-is-not-json-serializable
+    """
     def default(self, obj):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
