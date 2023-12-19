@@ -25,9 +25,10 @@ auth,"key",,.os.env?"ALPACA_API_KEY"
 auth,"secret",,.os.env?"ALPACA_SECRET_KEY"
 
 :" subscription handler "
-mkbars::{{2_x}'x@&{#x?"b."}'x}
-mktrades::{[]}
-mkquotes::{[]}
+mkfilter::{[q];q::y;{2_x}'x@&{#x?q}'x}
+mkbars::{mkfilter(x;"b.")}
+mktrades::{mkfilter(x;"t.")}
+mkquotes::{mkfilter(x;"q.")}
 psmsg::{[d];d:::{["action" "subscribe"]};d,"bars",,mkbars(x);d,"trades",,mktrades(x);d,"quotes",,mkquotes(x)}
 unionValues::{[q];q:::{};{{q,x,1}'x@1}'x;{x@0}'q}
 updSubscription::{[v q];.d("subscribing: ");v::unionValues(x);v::psmsg(v);.p(v);wsc(v)}
