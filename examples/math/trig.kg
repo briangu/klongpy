@@ -1,0 +1,3 @@
+.pyf("numpy";"cos")
+
+.p(cos(30))

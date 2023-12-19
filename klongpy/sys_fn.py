@@ -325,14 +325,17 @@ def _import_module(klong, x, from_list=None):
             print(f".py: {e}")
             raise RuntimeError(f"module could not be imported: {x}")
     else:
-        spec = importlib.util.find_spec(x)
-        if spec is not None:
-            try:
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-            except Exception as e:
-                print(f".py: {e}")
-                raise RuntimeError(f"module could not be imported: {x}")
+        if x in sys.modules:
+            module = sys.modules[x]
+        else:
+            spec = importlib.util.find_spec(x)
+            if spec is not None:
+                try:
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                except Exception as e:
+                    print(f".py: {e}")
+                    raise RuntimeError(f"module could not be imported: {x}")
     try:
         klong_exports = module.__dict__.get("klong_exports")
         if klong_exports is None:
