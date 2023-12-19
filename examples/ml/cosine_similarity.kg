@@ -1,0 +1,36 @@
+.comment("****")
+
+cosine similarity experiments from https://ashvardanian.com/posts/python-c-assembly-comparison/
+
+def cosine_distance(a, b):
+    dot_product = sum(ai * bi for ai, bi in zip(a, b))
+    magnitude_a = math.sqrt(sum(ai * ai for ai in a))
+    magnitude_b = math.sqrt(sum(bi * bi for bi in b))
+    cosine_similarity = dot_product / (magnitude_a * magnitude_b)
+    return 1 - cosine_similarity
+
+****
+
+time::{[t0];t0::.pc();x();.pc()-t0}
+
+
+:" dot product of x and y "
+dot::{+/x*y}
+
+:" magnitude of x "
+mag::{(+/x*x)^0.5}
+
+:" cosine similarity of x and y "
+cossim::{dot(x;y)/mag(x)*mag(y)}
+
+:" cosine distance "
+cd::{1-cossim(x;y)}
+
+a::{.rn()}'!1536
+b::{.rn()}'!1536
+
+r::10000
+t::time({{cd(a;b)}'!r})
+.d("time (s) per pass: ");.p(t%r)
+.d("iter per second: ");.p(1%(t%r))
+
