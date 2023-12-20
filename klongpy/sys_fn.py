@@ -3,7 +3,6 @@ import errno
 import importlib.util
 import inspect
 import os
-import random
 import subprocess
 import sys
 import time
@@ -11,8 +10,8 @@ from inspect import Parameter
 
 import numpy
 
-from .core import (KGChannel, KGChannelDir, KGSym, KGLambda, KlongException, is_empty,
-                   is_list, is_dict, kg_read, kg_write, reserved_fn_args, reserved_fn_symbol_map, safe_eq)
+from .core import (np, KGChannel, KGChannelDir, KGSym, KGLambda, KlongException, is_empty,
+                   is_list, is_dict, is_number, kg_read, kg_write, reserved_fn_args, reserved_fn_symbol_map, safe_eq)
 
 
 def eval_sys_append_channel(x):
@@ -360,15 +359,18 @@ def _import_module(klong, x, from_list=None):
                                     q = KGLambda(q, args=reserved_fn_args[:n_args])
                             else:
                                 args = inspect.signature(q, follow_wrapped=True).parameters
-                                args = [k for k,v in args.items() if (v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default == Parameter.empty) or (v.kind == Parameter.POSITIONAL_ONLY)]
-                                n_args = len(args)
-                                # if there are kwargs, then .pyc() must be used to call this function to override them
-                                if 'klong' in args:
-                                    n_args -= 1
-                                    assert n_args <= len(reserved_fn_args)
-                                    q = KGLambda(q, args=reserved_fn_args[:n_args], provide_klong=True)
-                                elif n_args <= len(reserved_fn_args):
-                                    q = KGLambda(q, args=reserved_fn_args[:n_args])
+                                if 'args' in args:
+                                    q = KGLambda(q, args=None, wildcard=True)
+                                else:
+                                    args = [k for k,v in args.items() if (v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default == Parameter.empty) or (v.kind == Parameter.POSITIONAL_ONLY)]
+                                    n_args = len(args)
+                                    # if there are kwargs, then .pyc() must be used to call this function to override them
+                                    if 'klong' in args:
+                                        n_args -= 1
+                                        assert n_args <= len(reserved_fn_args)
+                                        q = KGLambda(q, args=reserved_fn_args[:n_args], provide_klong=True)
+                                    elif n_args <= len(reserved_fn_args):
+                                        q = KGLambda(q, args=reserved_fn_args[:n_args])
                         except Exception as e:
                             if hasattr(q, "__class__") and hasattr(q.__class__, '__module__') and q.__class__.__module__ == "builtins":
                                 # LOOK AWAY. You didn't see this.
@@ -544,7 +546,31 @@ def eval_sys_random_number():
         Return a random number x, such that 0 <= x < 1.
 
     """
-    return random.random()
+    return np.random.random()
+
+
+def eval_sys_random_array(x):
+    """
+
+        .rna(x)                                           [Random-Array]
+
+        Return a random range with the provided array size x.
+
+    """
+    if not is_number(x):
+        raise KlongException("array length x must be a number")
+    return np.random.random((x,))
+
+
+def eval_sys_random_seed(x):
+    """
+
+        .rns(x)                                            [Random-Seed]
+
+        Set the random seed to x.
+
+    """
+    return np.random.seed(x)
 
 
 def eval_sys_read(klong):

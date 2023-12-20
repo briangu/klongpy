@@ -1,0 +1,25 @@
+:" KlongPy varaint of 1-flat.py "
+
+d::64       :" dimension "
+nb::100000  :" database size "
+nq::10000   :" nb of queries "
+.rns(1234)  :" make reproducible "
+
+xb::(nb,d):^.rna(nb*d);1;
+xq::(nq,d):^.rna(nq*d);1;
+.d("#xq: ");.p(#xq)
+
+.pyf("faiss";"IndexFlatL2")
+index::IndexFlatL2(d)
+.d("d: ");.p(.pyc(index,"d";[];:{}))
+.p(.pyc(index,"is_trained";[];:{}))
+
+.pyc(index,"add";,xb;:{})
+.p(.pyc(index,"ntotal";[];:{}))
+
+k::4
+q::(,,1#xq),k
+.p("hello")
+.p(q)
+DI::.pyc(index,"search";q;:{})
+.d("DI: ");.p(DI)

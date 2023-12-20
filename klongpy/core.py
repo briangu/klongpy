@@ -107,18 +107,31 @@ class KGLambda:
     lambda klong, x: klong(x)
 
     """
-    def __init__(self, fn, args=None, provide_klong=False):
+    def __init__(self, fn, args=None, provide_klong=False, wildcard=False):
         self.fn = fn
         params = args or inspect.signature(self.fn, follow_wrapped=True).parameters
         self.args = [reserved_fn_symbol_map[x] for x in reserved_fn_args if x in params]
         self._provide_klong = provide_klong or 'klong' in params
+        self._wildcard = wildcard
+
+    def _get_pos_args(self, ctx):
+        if self._wildcard:
+            pos_args = []
+            for sym in reserved_fn_symbols:
+                try:
+                    pos_args.append(ctx[sym])
+                except KeyError:
+                    break
+        else:
+            pos_args = [ctx[x] for x in self.args]
+        return pos_args
 
     def __call__(self, klong, ctx):
-        pos_args = [ctx[x] for x in self.args]
+        pos_args = self._get_pos_args(ctx)
         return self.fn(klong, *pos_args) if self._provide_klong else self.fn(*pos_args)
 
     def call_with_kwargs(self, klong, ctx, kwargs):
-        pos_args = [ctx[x] for x in self.args]
+        pos_args = self._get_pos_args(ctx)
         return self.fn(klong, *pos_args, **kwargs) if self._provide_klong else self.fn(*pos_args, **kwargs)
 
     def get_arity(self):
