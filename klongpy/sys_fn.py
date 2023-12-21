@@ -13,6 +13,12 @@ import numpy
 from .core import (np, KGChannel, KGChannelDir, KGSym, KGLambda, KlongException, is_empty,
                    is_list, is_dict, is_number, kg_read, kg_write, reserved_fn_args, reserved_fn_symbol_map, safe_eq)
 
+import os
+import sys
+import importlib
+from importlib.util import spec_from_file_location, module_from_spec
+from inspect import signature, Parameter
+
 
 def eval_sys_append_channel(x):
     """
@@ -280,6 +286,98 @@ def eval_sys_print(klong, x):
     return o
 
 
+def import_directory_module(x):
+    """
+    Import a module from a directory path.
+    """
+    x = os.path.realpath(x)
+    if x.endswith("__init__.py"):
+        x = os.path.dirname(x)
+    if os.path.isfile(os.path.join(x, "__init__.py")):
+        pardir = os.path.dirname(x)
+        sys.path.insert(0, pardir)
+        module_name = os.path.basename(os.path.normpath(x))
+        try:
+            return importlib.import_module(module_name)
+        finally:
+            sys.path.pop(0)
+    else:
+        raise FileNotFoundError(f"Not a valid Python module (missing __init__.py): {x}")
+
+
+def import_file_module(x):
+    """
+    Import a module from a file path.
+    """
+    module_name = os.path.dirname(x)
+    spec = spec_from_file_location(module_name, location=x)
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def import_module_from_sys(x):
+    """
+    Import a module already present in sys.modules.
+    """
+    spec = importlib.util.find_spec(x)
+    if spec is not None:
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    raise RuntimeError(f"module could not be imported: {x}")
+
+
+def handle_import(klong, name, item):
+    """
+    Handles the import of a single item into KlongPy.
+    """
+    if not callable(item):
+        klong[name] = item
+        return
+
+    try:
+        if isinstance(item, numpy.ufunc):
+            n_args = item.nin
+            if n_args <= len(reserved_fn_args):
+                item = KGLambda(item, args=reserved_fn_args[:n_args])
+        else:
+            args = inspect.signature(item, follow_wrapped=True).parameters
+            if 'args' in args:
+                item = KGLambda(item, args=None, wildcard=True)
+                n_args = 3
+            else:
+                args = [k for k,v in args.items() if (v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default == Parameter.empty) or (v.kind == Parameter.POSITIONAL_ONLY)]
+                n_args = len(args)
+                # if there are kwargs, then .pyc() must be used to call this function to override them
+                if 'klong' in args:
+                    n_args -= 1
+                    assert n_args <= len(reserved_fn_args)
+                    item = KGLambda(item, args=reserved_fn_args[:n_args], provide_klong=True)
+                elif n_args <= len(reserved_fn_args):
+                    item = KGLambda(item, args=reserved_fn_args[:n_args])
+    except Exception as e:
+        if hasattr(item, "__class__") and hasattr(item.__class__, '__module__') and item.__class__.__module__ == "builtins":
+            # LOOK AWAY. You didn't see this.
+            # example: datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])
+            # be sure to count the args before the first optional args starting with "["
+            # if there are kwargs, then .pyc() must be used to call this function to override them
+            signature_line = item.__doc__.split("\n")[0]
+            args = signature_line.split("[")[0].split("(")[1].split(",")
+            n_args = len(args)
+            if n_args <= len(reserved_fn_args):
+                item = KGLambda(item, args=reserved_fn_args[:n_args])
+        else:
+            raise
+
+    if n_args > len(reserved_fn_args):
+        # TODO: this should be logged
+        print(f".py: {name} - too many paramters: use .pyc() to call this function")
+        klong[name] = lambda x,y: item(*x,**y)
+    else:
+        klong[name] = item
+
+
 def _import_module(klong, x, from_list=None):
     """
     Import a python module in to the current context.  All methods exposed in the module
@@ -295,106 +393,31 @@ def _import_module(klong, x, from_list=None):
     then all methods are imported.
 
     """
-    if os.path.isdir(x) or x.endswith("__init__.py"):
-        x = os.path.realpath(x)
-        if x.endswith("__init__.py"):
-            x = os.path.dirname(x)
-        if os.path.isfile(os.path.join(x,"__init__.py")):
-            module = None
-            try:
-                pardir = os.path.dirname(x)
-                sys.path.insert(0,pardir)
-                module_name = os.path.basename(os.path.normpath(x))
-                module = importlib.import_module(module_name)
-            except Exception as e:
-                print(f".py: {e}")
-                raise e
-            finally:
-                sys.path.pop(0)
-        else:
-            raise FileNotFoundError(f"Not a valid Python module (missing __init__.py): {x}")
-    elif os.path.isfile(x):
-        module_name = os.path.dirname(x)
-        location = x
-        spec = importlib.util.spec_from_file_location(module_name, location=location)
-        module = importlib.util.module_from_spec(spec)
-        try:
-            spec.loader.exec_module(module)
-        except Exception as e:
-            print(f".py: {e}")
-            raise RuntimeError(f"module could not be imported: {x}")
-    else:
-        if x in sys.modules:
+    try:
+        if os.path.isdir(x) or x.endswith("__init__.py"):
+            module = import_directory_module(x)
+        elif os.path.isfile(x):
+            module = import_file_module(x)
+        elif x in sys.modules:
             module = sys.modules[x]
         else:
-            spec = importlib.util.find_spec(x)
-            if spec is not None:
+            module = import_module_from_sys(x)
+
+        export_items = module.__dict__.get("klong_exports") or module.__dict__
+        ffn = lambda p: p[0] in from_list if from_list is not None else lambda p: not p[0].startswith("__")
+
+        ctx = klong._context.pop()
+        try:
+            for name, item in filter(ffn, export_items.items()):
                 try:
-                    module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(module)
+                    handle_import(klong, name, item)
                 except Exception as e:
-                    print(f".py: {e}")
-                    raise RuntimeError(f"module could not be imported: {x}")
-    try:
-        klong_exports = module.__dict__.get("klong_exports")
-        if klong_exports is None:
-            import_items = filter(lambda p: not (p[0].startswith("__")), module.__dict__.items())
-        else:
-            import_items = klong_exports.items()
-        if import_items is not None:
-            if from_list is not None:
-                import_items = filter(lambda p: p[0] in from_list, import_items)
-            ctx = klong._context.pop()
-            try:
-                for p,q in import_items:
-                    if not callable(q):
-                        klong[p] = q
-                        continue
+                    # TODO: this should be logged
+                    print(f"failed to import function: {name}", e)
+        finally:
+            klong._context.push(ctx)
 
-                    try:
-                        try:
-                            if isinstance(q, numpy.ufunc):
-                                n_args = q.nin
-                                if n_args <= len(reserved_fn_args):
-                                    q = KGLambda(q, args=reserved_fn_args[:n_args])
-                            else:
-                                args = inspect.signature(q, follow_wrapped=True).parameters
-                                if 'args' in args:
-                                    q = KGLambda(q, args=None, wildcard=True)
-                                else:
-                                    args = [k for k,v in args.items() if (v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default == Parameter.empty) or (v.kind == Parameter.POSITIONAL_ONLY)]
-                                    n_args = len(args)
-                                    # if there are kwargs, then .pyc() must be used to call this function to override them
-                                    if 'klong' in args:
-                                        n_args -= 1
-                                        assert n_args <= len(reserved_fn_args)
-                                        q = KGLambda(q, args=reserved_fn_args[:n_args], provide_klong=True)
-                                    elif n_args <= len(reserved_fn_args):
-                                        q = KGLambda(q, args=reserved_fn_args[:n_args])
-                        except Exception as e:
-                            if hasattr(q, "__class__") and hasattr(q.__class__, '__module__') and q.__class__.__module__ == "builtins":
-                                # LOOK AWAY. You didn't see this.
-                                # example: datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])
-                                # be sure to count the args before the first optional args starting with "["
-                                # if there are kwargs, then .pyc() must be used to call this function to override them
-                                signature_line = q.__doc__.split("\n")[0]
-                                args = signature_line.split("[")[0].split("(")[1].split(",")
-                                n_args = len(args)
-                                if n_args <= len(reserved_fn_args):
-                                    q = KGLambda(q, args=reserved_fn_args[:n_args])
-                            else:
-                                raise e
-
-                        if n_args > len(reserved_fn_args):
-                            print(f".py: {p} - too many paramters: use .pyc() to call this function")
-                            klong[p] = lambda x,y: q(*x,**y)
-                        else:
-                            klong[p] = q
-                    except Exception as e:
-                        print(f"failed to import function: {p}", e)
-            finally:
-                klong._context.push(ctx)
-            return 1
+        return 1
     except Exception as e:
         print(f".py: {e}")
         raise RuntimeError(f"failed to load module: {x}")

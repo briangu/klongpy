@@ -18,7 +18,8 @@ index::IndexFlatL2(d)
 .p(.pyc(index,"ntotal";[];:{}))
 
 k::4
-q::(,,1#xq),k
+q::(,,1#xq)
+q::(,q),,k
 .p("hello")
 .p(q)
 DI::.pyc(index,"search";q;:{})
