@@ -558,7 +558,7 @@ def eval_sys_python_from(klong, x, y):
         y = [y]
     if not (is_list(y) and all(map(lambda p: isinstance(p,str), y))) or isinstance(y,str):
         raise RuntimeError("from list entry must be a string")
-    return _import_module(klong, x, from_list=y)
+    return _import_module(klong, x, from_list=set(y))
 
 
 def eval_sys_random_number():
