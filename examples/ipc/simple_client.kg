@@ -16,4 +16,5 @@ sq2::d?:square
 .p("calling square function")
 .p(sq2(5))
 
+:" close the connection to the server "
 .clic(cli)
