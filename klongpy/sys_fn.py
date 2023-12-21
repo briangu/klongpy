@@ -378,7 +378,7 @@ def handle_import(klong, name, item):
         klong[name] = item
 
 
-def _import_module(klong, x, from_list=None):
+def _import_module(klong, x, from_set=None):
     """
     Import a python module in to the current context.  All methods exposed in the module
     are loaded into the current context space and callable from within KlongPy.
@@ -389,8 +389,8 @@ def _import_module(klong, x, from_list=None):
     If the string "x" ends with a .py, then KlongPy will attempt to load this file
     as a Python module.
 
-    from_list is a list of methods to import from the module.  If from_list is None,
-    then all methods are imported.
+    from_set is a set of symbols to import from the module.
+    If from_set is None, then all methods are imported.
 
     """
     try:
@@ -404,7 +404,7 @@ def _import_module(klong, x, from_list=None):
             module = import_module_from_sys(x)
 
         export_items = module.__dict__.get("klong_exports") or module.__dict__
-        ffn = lambda p: p[0] in from_list if from_list is not None else lambda p: not p[0].startswith("__")
+        ffn = lambda p: p[0] in from_set if from_set is not None else lambda p: not p[0].startswith("__")
 
         ctx = klong._context.pop()
         try:
@@ -458,7 +458,7 @@ def eval_sys_python(klong, x):
     """
     if not isinstance(x,str):
         raise RuntimeError("module name must be a string")
-    return _import_module(klong, x, from_list=None)
+    return _import_module(klong, x, from_set=None)
 
 
 def eval_sys_python_call(klong, x, y, z):
@@ -558,7 +558,7 @@ def eval_sys_python_from(klong, x, y):
         y = [y]
     if not (is_list(y) and all(map(lambda p: isinstance(p,str), y))) or isinstance(y,str):
         raise RuntimeError("from list entry must be a string")
-    return _import_module(klong, x, from_list=set(y))
+    return _import_module(klong, x, from_set=set(y))
 
 
 def eval_sys_random_number():
