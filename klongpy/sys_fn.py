@@ -557,7 +557,7 @@ def eval_sys_python_from(klong, x, y):
     if isinstance(y,str):
         y = [y]
     if not (is_list(y) and all(map(lambda p: isinstance(p,str), y))) or isinstance(y,str):
-        raise RuntimeError("from list must be a string")
+        raise RuntimeError("from list entry must be a string")
     return _import_module(klong, x, from_list=y)
 
 
