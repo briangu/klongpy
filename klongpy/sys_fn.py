@@ -351,15 +351,14 @@ def _handle_import(item):
                     item = KGLambda(item, args=reserved_fn_args[:n_args], provide_klong=True)
                 elif n_args <= len(reserved_fn_args):
                     item = KGLambda(item, args=reserved_fn_args[:n_args])
-    except Exception as e:
+    except Exception:
         if hasattr(item, "__class__") and hasattr(item.__class__, '__module__') and item.__class__.__module__ == "builtins":
             # LOOK AWAY. You didn't see this.
             # example: datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])
             # be sure to count the args before the first optional args starting with "["
             # if there are kwargs, then .pyc() must be used to call this function to override them
-            lines = [x.strip() for x in item.__doc__.split("\n") if x.strip()]
-            if lines:
-                signature_line = lines[0]
+            signature_line = next((x.strip() for x in item.__doc__.split("\n") if x.strip()), None)
+            if signature_line:
                 args = signature_line.split("[")[0].split("(")[1].split(",")
                 n_args = len(args)
                 if n_args <= len(reserved_fn_args):
