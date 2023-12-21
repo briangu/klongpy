@@ -1,0 +1,6 @@
+:" create the IPC server at port 8888 "
+.srv(8888)
+
+:" add the square function so it can be called by the client "
+square::{x*x}
+

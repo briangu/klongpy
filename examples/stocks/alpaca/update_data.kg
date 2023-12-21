@@ -22,7 +22,7 @@ args:::{};{args,x,,y}'keys
 tc::.pyc(TradingClient;[];args)
 account::.pyc(tc,"get_account";[];:{})
 
-.d("cash: ");.p(.pyc(account,"cash";[];:{}))
+.d("cash: ");.p(.pya(account;"cash"))
 
 dc::.pyc(StockHistoricalDataClient;[];keys)
 tr::.pyc(StockLatestTradeRequest;[];:{["symbol_or_symbols" ["MSFT"]]})

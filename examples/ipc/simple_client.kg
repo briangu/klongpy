@@ -1,0 +1,19 @@
+:" create the IPC server at port 8888 "
+cli::.cli(8888)
+
+:" get a reference to the server square function "
+sq::cli(:square)
+
+:" add the square function so it can be called by the client "
+.p("calling square function")
+.p(sq(5))
+
+:" get the dictionary reference to the server so we can call the square function directly "
+.p("getting dictionary client")
+d::.clid(cli)
+.p("retrieving square function from dictionary")
+sq2::d?:square
+.p("calling square function")
+.p(sq2(5))
+
+.clic(cli)
