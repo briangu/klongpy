@@ -11,16 +11,14 @@ xq::(nq,d):^.rna(nq*d);1;
 
 .pyf("faiss";"IndexFlatL2")
 index::IndexFlatL2(d)
-.d("d: ");.p(.pyc(index,"d";[];:{}))
-.p(.pyc(index,"is_trained";[];:{}))
+add::.pya(index;"add")
+search::.pya(index;"search")
 
-.pyc(index,"add";,xb;:{})
-.p(.pyc(index,"ntotal";[];:{}))
+.p(.pya(index,"is_trained"))
+
+add(xb)
+.pya(index;"ntotal")
 
 k::4
-q::(,,1#xq)
-q::(,q),,k
-.p("hello")
-.p(q)
-DI::.pyc(index,"search";q;:{})
+DI::search(xq;k)
 .d("DI: ");.p(DI)

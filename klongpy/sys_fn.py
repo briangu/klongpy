@@ -328,13 +328,12 @@ def import_module_from_sys(x):
     raise RuntimeError(f"module could not be imported: {x}")
 
 
-def handle_import(klong, name, item):
+def _handle_import(item):
     """
     Handles the import of a single item into KlongPy.
     """
     if not callable(item):
-        klong[name] = item
-        return
+        return item
 
     try:
         if isinstance(item, numpy.ufunc):
@@ -370,12 +369,17 @@ def handle_import(klong, name, item):
         else:
             raise
 
+    # if n_args > len(reserved_fn_args):
+    #     # TODO: this should be logged
+    #     print(f".py: {name} - too many paramters: use .pyc() to call this function")
+    #     klong[name] = lambda x,y: item(*x,**y)
+    # else:
+    #     klong[name] = item
     if n_args > len(reserved_fn_args):
         # TODO: this should be logged
-        print(f".py: {name} - too many paramters: use .pyc() to call this function")
-        klong[name] = lambda x,y: item(*x,**y)
-    else:
-        klong[name] = item
+        # print(f".py: {name} - too many paramters: use .pyc() to call this function")
+        return lambda x,y: item(*x,**y)
+    return item
 
 
 def _import_module(klong, x, from_set=None):
@@ -410,7 +414,7 @@ def _import_module(klong, x, from_set=None):
         try:
             for name, item in filter(ffn, export_items.items()):
                 try:
-                    handle_import(klong, name, item)
+                    klong[name] = _handle_import(item)
                 except Exception as e:
                     # TODO: this should be logged
                     print(f"failed to import function: {name}", e)
@@ -527,6 +531,22 @@ def eval_sys_python_call(klong, x, y, z):
     if inspect.isgenerator(r):
         r = list(r)
     return r
+
+
+def eval_sys_python_attribute(klong, x, y):
+    """
+
+        .pya(x, y)                                    [Python-Attribute]
+
+    """
+    if not isinstance(x,object):
+        raise KlongException("x must be a Python object")
+    if not isinstance(y,str):
+        raise KlongException("attribute name must be a string")
+    klazz = klong[x] if isinstance(x,KGSym) else x
+    if not hasattr(klazz, y):
+        raise KlongException(f"attribute {y} not found")
+    return _handle_import(getattr(klazz, y))
 
 
 def eval_sys_python_from(klong, x, y):
