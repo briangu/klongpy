@@ -361,20 +361,18 @@ def _handle_import(item):
             # example: datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])
             # be sure to count the args before the first optional args starting with "["
             # if there are kwargs, then .pyc() must be used to call this function to override them
-            signature_line = item.__doc__.split("\n")[0]
-            args = signature_line.split("[")[0].split("(")[1].split(",")
-            n_args = len(args)
-            if n_args <= len(reserved_fn_args):
-                item = KGLambda(item, args=reserved_fn_args[:n_args])
+            lines = [x.strip() for x in item.__doc__.split("\n") if x.strip()]
+            if lines:
+                signature_line = lines[0]
+                args = signature_line.split("[")[0].split("(")[1].split(",")
+                n_args = len(args)
+                if n_args <= len(reserved_fn_args):
+                    item = KGLambda(item, args=reserved_fn_args[:n_args])
+            else:
+                raise
         else:
             raise
 
-    # if n_args > len(reserved_fn_args):
-    #     # TODO: this should be logged
-    #     print(f".py: {name} - too many paramters: use .pyc() to call this function")
-    #     klong[name] = lambda x,y: item(*x,**y)
-    # else:
-    #     klong[name] = item
     if n_args > len(reserved_fn_args):
         # TODO: this should be logged
         # print(f".py: {name} - too many paramters: use .pyc() to call this function")

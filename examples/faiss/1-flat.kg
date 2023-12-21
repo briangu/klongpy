@@ -1,14 +1,15 @@
 :" KlongPy varaint of 1-flat.py "
 
 .pyf("faiss";"IndexFlatL2")
+.pyf("numpy";"random");rna::.pya(random;"random")
 
 d::64       :" dimension "
 nb::100000  :" database size "
 nq::10000   :" nb of queries "
 .rns(1234)  :" make reproducible "
 
-xb::.rna(nb,d)
-xq::.rna(nq,d)
+xb::rna(nb,d)
+xq::rna(nq,d)
 
 index::IndexFlatL2(d);add::.pya(index;"add");search::.pya(index;"search")
 .p(.pya(index,"is_trained"))
