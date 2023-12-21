@@ -597,12 +597,16 @@ def eval_sys_random_array(x):
 
         .rna(x)                                           [Random-Array]
 
-        Return a random range with the provided array size x.
+        Return a random array with shape specified by x.
+
+        x may be a number (shape of size 1) or a shape array.
 
     """
-    if not is_number(x):
-        raise KlongException("array length x must be a number")
-    return np.random.random((x,))
+    if not is_number(x) and not is_list(x):
+        raise KlongException("array length x must be a number or a shape array")
+    if is_number(x):
+        x = np.asarray([x])
+    return np.random.random(x)
 
 
 def eval_sys_random_seed(x):
