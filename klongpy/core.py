@@ -201,7 +201,7 @@ def to_list(a):
 
 
 def is_integer(x):
-    return issubclass(type(x), (int,np.integer))
+    return issubclass(type(x), (int, np.integer))
 
 
 def is_float(x):
@@ -286,23 +286,23 @@ def kg_equal(a, b):
     bool
         True if the two inputs are equal, False otherwise.
     """
-    na = isinstance(a,np.ndarray)
-    nb = isinstance(b,np.ndarray)
-    la = isinstance(a,list)
-    lb = isinstance(b,list)
-    if na or la:
-        if (nb or lb) and (len(a) == len(b)):
-            if na and nb and a.dtype == b.dtype and a.dtype != 'O':
-                return np.array_equal(a,b)
-            for x, y in zip(a, b):
-                if not kg_equal(x, y):
-                    return False
-            return True
-        return False
-    if nb or lb:
-        return False
-    return np.isclose(a,b) if is_number(a) and is_number(b) else a == b
+    if a is b:
+        return True
 
+    na, nb = isinstance(a,np.ndarray), isinstance(b,np.ndarray)
+
+    if na and nb and a.dtype == b.dtype and a.dtype != 'O':
+        return np.array_equal(a,b)
+
+    na, nb = na or isinstance(a,list), nb or isinstance(b,list)
+
+    if na != nb:
+        return False
+
+    if na:
+        return len(a) == len(b) and all(kg_equal(x, y) for x, y in zip(a, b))
+
+    return np.isclose(a,b) if is_number(a) and is_number(b) else a == b
 
 def has_none(a):
     if isinstance(a,list):

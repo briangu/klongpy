@@ -1,4 +1,4 @@
 t(".pyf(""numpy"";""mean"")"; .pyf("numpy";"mean"); 1)
 
-:" this should fail "
+:" use the numpy mean function "
 t("mean(!100)"; mean(!100); 49.5)

@@ -1,0 +1,10 @@
+:" import the numpy.random module "
+t(".pyf(""numpy"";""random"")"; .pyf("numpy";"random"); 1)
+
+rns::.pya(random;"seed")
+rns(0)
+rnd::.pya(random;"random")
+
+expected::[[0.5488135039273248 0.7151893663724195] [0.6027633760716439 0.5448831829968969] [0.4236547993389047 0.6458941130666561] [0.4375872112626925 0.8917730007820798]]
+
+t("rnd([4 2])=expected"; rnd([4 2]); expected)

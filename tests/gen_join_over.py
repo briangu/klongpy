@@ -1,27 +1,27 @@
 import numpy as np
 import subprocess
-import os 
+import os
 import itertools
 import numpy as np
 
 
-def _generate_arrays(depth, max_size, max_scalar):
-    arr = []
-    if depth == 0:
-        # Generate both scalars and arrays at leaf level
-        if max_size > 0: 
-            arr.append(list(range(max_size)))
-        if max_scalar > 0: 
-            arr.extend(list(range(max_scalar)))
-    else:
-        # Generate both scalars and arrays at each level
-        for sizes in itertools.product(range(max_size), repeat=max_size):
-            for sub_arrays in itertools.product(*[generate_arrays(depth - 1, size, max_scalar) for size in sizes]):
-                arr.append(list(sub_arrays)) # array
-        if max_scalar > 0: 
-            arr.extend(list(range(max_scalar)))
-    for p in itertools.permutations(arr):
-        yield list(p)
+# def _generate_arrays(depth, max_size, max_scalar):
+#     arr = []
+#     if depth == 0:
+#         # Generate both scalars and arrays at leaf level
+#         if max_size > 0:
+#             arr.append(list(range(max_size)))
+#         if max_scalar > 0:
+#             arr.extend(list(range(max_scalar)))
+#     else:
+#         # Generate both scalars and arrays at each level
+#         for sizes in itertools.product(range(max_size), repeat=max_size):
+#             for sub_arrays in itertools.product(*[generate_arrays(depth - 1, size, max_scalar) for size in sizes]):
+#                 arr.append(list(sub_arrays)) # array
+#         if max_scalar > 0:
+#             arr.extend(list(range(max_scalar)))
+#     for p in itertools.permutations(arr):
+#         yield list(p)
 
 
 def generate_random_arrays(depth, max_size, max_scalar, scalar_types=['%d','%s']):
@@ -45,10 +45,10 @@ def generate_random_arrays(depth, max_size, max_scalar, scalar_types=['%d','%s']
 def run_test(test_case):
     # Prepare the command and the input
     cmd = [os.environ['KG_PATH'], "-e", test_case]
-    
+
     # Run the command with the input and capture the output
     result = subprocess.run(cmd, text=True, capture_output=True)
-    
+
     # Return the result
     return result.stdout
 
@@ -57,7 +57,7 @@ def fill_template(s):
     params = []
     i = 0
     d = 0
-    while(i < len(s)): 
+    while(i < len(s)):
         if s[i] == '%':
            i += 1
            if s[i] == 'd':
@@ -65,7 +65,7 @@ def fill_template(s):
            elif s[i] == 's':
                params.append('"'+chr(ord('a')+(d % 26))+'"')
            d += 1
-        i += 1 
+        i += 1
     s = s % tuple(params)
     return s
 
@@ -73,7 +73,7 @@ def fill_template(s):
 def gen_tests(max_test_cases=10000, max_depth=3, max_size=3, max_scalar=3):
     # Prepare all possible test cases
     seen = set()
-    while len(seen) < max_test_cases: 
+    while len(seen) < max_test_cases:
         array = generate_random_arrays(np.random.randint(max_depth), max_size, max_scalar)
         # Convert numpy array to Klong array string representation
         array_str = (array if isinstance(array, str) else str(array)).replace(",","").replace("'",'"').replace('"%d"', '%d').replace('"%s"','%s')

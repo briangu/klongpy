@@ -24,6 +24,9 @@ def perf_read_string(s, number=1000):
     return kr
 
 
+"""
+some basic perf test for python join operator.
+"""
 
 if __name__ == "__main__":
     perf_join(100,10000)

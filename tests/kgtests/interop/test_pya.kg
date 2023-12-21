@@ -1,0 +1,8 @@
+:" access the len function of the Python object "
+
+a:::{[1 2]}
+len::.pya(a;"__len__")
+
+t("a.__len__ == 1"; len(); 1)
+
+t("a.__doc__ starts with dict"; 4#.pya(a;"__doc__"); "dict")

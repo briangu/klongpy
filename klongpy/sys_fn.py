@@ -1,5 +1,6 @@
 
 import errno
+import importlib
 import importlib.util
 import inspect
 import os
@@ -10,14 +11,9 @@ from inspect import Parameter
 
 import numpy
 
-from .core import (np, KGChannel, KGChannelDir, KGSym, KGLambda, KlongException, is_empty,
-                   is_list, is_dict, is_number, kg_read, kg_write, reserved_fn_args, reserved_fn_symbol_map, safe_eq)
-
-import os
-import sys
-import importlib
-from importlib.util import spec_from_file_location, module_from_spec
-from inspect import signature, Parameter
+from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
+                   is_dict, is_empty, is_list, kg_read, kg_write, np,
+                   reserved_fn_args, reserved_fn_symbol_map, safe_eq)
 
 
 def eval_sys_append_channel(x):
@@ -310,8 +306,8 @@ def import_file_module(x):
     Import a module from a file path.
     """
     module_name = os.path.dirname(x)
-    spec = spec_from_file_location(module_name, location=x)
-    module = module_from_spec(spec)
+    spec = importlib.util.spec_from_file_location(module_name, location=x)
+    module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
@@ -322,7 +318,7 @@ def import_module_from_sys(x):
     """
     spec = importlib.util.find_spec(x)
     if spec is not None:
-        module = module_from_spec(spec)
+        module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
     raise RuntimeError(f"module could not be imported: {x}")
