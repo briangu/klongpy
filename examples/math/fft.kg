@@ -1,10 +1,10 @@
 :" use NumPy for FFT "
-.pyf("numpy";"fft")
+.pyf("numpy";"fft");fft::.pya(fft;"fft")
 
 :" Example simple signal "
 signal::[0.0 1.0 0.0 -1.0]
 
-result::.pyc([fft "fft"];,signal;:{})
+result::fft(signal)
 
 :" Display the FFT result "
 .d("FFT Result: ");.p(result)
