@@ -15,3 +15,7 @@ t("a()=math.pi"; a(); pi)
 
 a::{2*pi}
 t("a()=math.pi"; a(); 2*pi)
+
+fn::{a::2*pi}
+fn()
+t("fn();a=2*pi"; a; 2*pi)
