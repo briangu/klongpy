@@ -1,0 +1,17 @@
+
+a::10
+t("a=10"; a; 10)
+
+a::12
+t("a=12"; a; 12)
+
+.pyf("math";"pi")
+
+a::pi
+t("a=math.pi"; a; pi)
+
+a::{pi}
+t("a()=math.pi"; a(); pi)
+
+a::{2*pi}
+t("a()=math.pi"; a(); 2*pi)
