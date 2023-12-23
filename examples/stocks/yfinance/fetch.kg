@@ -4,18 +4,17 @@
 
 ;" pip3 install yfinance "
 .pyf("yfinance";"download")
+fetch::{[args];args:::{};args,"tickers",,x;args,"start",,y;args,"end",,z;.pyc(download;[];args)}
 
 :" yfinance returns a pandas dataframe so we need to convert it to a KlongPy table "
-data::.pyc(download;[];:{["tickers" "MSFT"] ["start" "2020-01-01"] ["end" "2023-01-01"]})
+data::fetch("MSFT";"2020-01-01"; "2023-01-01"])
 T::.table(data)
 
 :" get close prices "
 close::T?"Close"
 
-:" compute the average close price "
-ac::mean(close)
-.d("average close");.p(ac)
-
+:" compute close price stats "
+.d("average close");.p(mean(close))
 .d("standard deviation");.p(std(close))
 
 :" break the close array up intow windows of size k "
