@@ -1,20 +1,29 @@
 import unittest
 
+import numpy as np
+import pandas as pd
+
 from klongpy import KlongInterpreter
+from klongpy.core import kg_equal
 
 
-def add_to_local_scope(d):
-    for k,v in d.items():
-        locals()[k] = v
+class TestLocalScopeBehavior(unittest.TestCase):
+    """
+    KlongPy uses the DuckDb's ability to scope in dataframes into table space.
+    """
 
-
-class TestSysFnDb(unittest.TestCase):
+    @staticmethod
+    def add_to_local_scope(d):
+        for k,v in d.items():
+            locals()[k] = v
 
     def test_locals_scope_behavior(self):
-        """ KlongPy uses the DuckDb's ability to scope in dataframes into table space. """
         d = {'hello': "world"}
-        add_to_local_scope(d)
+        TestLocalScopeBehavior.add_to_local_scope(d)
         self.assertTrue(locals().get("hello") is None)
+
+
+class TestTablePrint(unittest.TestCase):
 
     def test_table_print(self):
         s = """
@@ -26,7 +35,6 @@ class TestSysFnDb(unittest.TestCase):
         r = klong(s)
         self.assertEqual(r, "a\n1\n2\n3")
 
-
     def test_long_table_print(self):
         s = """
         .py("klongpy.db")
@@ -37,3 +45,45 @@ class TestSysFnDb(unittest.TestCase):
         r = klong(s)
         seq = "".join([str(x)+"\n" for x in range(10)])
         self.assertEqual(r, f"""a\n{seq}...\nrows=100\n""")
+
+
+class TestTableDataFrame(unittest.TestCase):
+
+    def test_table_from_empty_df(self):
+        df = pd.DataFrame()
+        klong = KlongInterpreter()
+        klong['df'] = df
+        klong('.py("klongpy.db")')
+        klong('T::.table(df)')
+        r = klong('#T')
+        self.assertEqual(r, 0)
+
+    def test_table_from_a_df_with_single_row_and_two_columns(self):
+        data = {'col1': [1], 'col2': [3]}
+        df = pd.DataFrame(data)
+        klong = KlongInterpreter()
+        klong['df'] = df
+        klong('.py("klongpy.db")')
+        klong('T::.table(df)')
+        klong('.p(T)')
+        r = klong('#T')
+        self.assertEqual(r, 1)
+        r = klong('.schema(T)')
+        self.assertTrue(kg_equal(r, ["col1", "col2"]))
+
+    def test_table_from_a_df_with_one_column_many_rows(self):
+        data = {'col1': np.arange(10)}
+        df = pd.DataFrame(data)
+        klong = KlongInterpreter()
+        klong['df'] = df
+        klong('.py("klongpy.db")')
+        klong('T::.table(df)')
+        klong('.p(T)')
+        r = klong('#T')
+        self.assertEqual(r, 10)
+        r = klong('.schema(T)')
+        self.assertTrue(kg_equal(r, ["col1"]))
+        r = klong('T?"col1"')
+        self.assertTrue(kg_equal(r, data['col1']))
+        r = klong('T@"col1"')
+        self.assertTrue(kg_equal(r, data['col1']))
