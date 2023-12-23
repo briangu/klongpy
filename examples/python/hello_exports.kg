@@ -1,0 +1,3 @@
+.py("hello_exports.py")
+
+hello("world")
