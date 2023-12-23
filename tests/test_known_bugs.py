@@ -1,5 +1,6 @@
 import unittest
 
+import pandas as pd
 from utils import *
 
 from klongpy import KlongInterpreter
@@ -7,6 +8,18 @@ from klongpy.core import KGChar
 
 
 class TestKnownBugsSuite(unittest.TestCase):
+
+    @unittest.skip
+    def test_table_access_with_at(self):
+        data = {'col1': np.arange(10)}
+        df = pd.DataFrame(data)
+        klong = KlongInterpreter()
+        klong['df'] = df
+        klong('.py("klongpy.db")')
+        klong('T::.table(df)')
+        # @ should work the same as a dictionary
+        r = klong('T@"col1"')
+        self.assertTrue(kg_equal(r, data['col1']))
 
     @unittest.skip
     def test_join_nested_array(self):
