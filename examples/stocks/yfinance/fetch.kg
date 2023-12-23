@@ -1,0 +1,30 @@
+.py("klongpy.db")
+.pyf("numpy";"std")
+.pyf("numpy";"mean")
+
+;" pip3 install yfinance "
+.pyf("yfinance";"download")
+
+data::.pyc(download;[];:{["tickers" "MSFT"] ["start" "2020-01-01"] ["end" "2023-01-01"]})
+T::.table(data)
+
+:" get close prices "
+close::T?"Close"
+
+:" compute the average close price "
+ac::mean(close)
+.d("average close");.p(ac)
+
+.d("standard deviation");.p(std(close))
+
+:" break the close array up intow windows of size k "
+.py("mkwindows.py")
+k::10
+windows::mkwindows(close;k)
+.d("windows");.p(5#windows)
+
+:" compute the average close price for each window "
+acw::mean'windows
+.d("average close windows");.p(5#acw)
+
+
