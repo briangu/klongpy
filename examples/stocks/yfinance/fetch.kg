@@ -5,6 +5,7 @@
 ;" pip3 install yfinance "
 .pyf("yfinance";"download")
 
+:" yfinance returns a pandas dataframe so we need to convert it to a KlongPy table "
 data::.pyc(download;[];:{["tickers" "MSFT"] ["start" "2020-01-01"] ["end" "2023-01-01"]})
 T::.table(data)
 
