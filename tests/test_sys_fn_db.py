@@ -65,7 +65,6 @@ class TestTableDataFrame(unittest.TestCase):
         klong['df'] = df
         klong('.py("klongpy.db")')
         klong('T::.table(df)')
-        klong('.p(T)')
         r = klong('#T')
         self.assertEqual(r, 1)
         r = klong('.schema(T)')
@@ -78,7 +77,6 @@ class TestTableDataFrame(unittest.TestCase):
         klong['df'] = df
         klong('.py("klongpy.db")')
         klong('T::.table(df)')
-        klong('.p(T)')
         r = klong('#T')
         self.assertEqual(r, 10)
         r = klong('.schema(T)')

@@ -1,0 +1,8 @@
+.py("klongpy.db")
+.py("tests/kgtests/db/mkdf.py")
+df::mkdf(10)
+T::.table(df)
+
+t("#T=10";#T;10)
+t(".schema(T)=[""col1""]";.schema(T);["col1"])
+t("T?""col1""=!10";T?"col1";!10)
