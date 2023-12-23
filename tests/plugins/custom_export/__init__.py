@@ -1,4 +1,4 @@
 from .exports import command_map
 
-klong_exports = command_map()
+klongpy_exports = command_map()
 

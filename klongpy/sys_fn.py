@@ -400,7 +400,7 @@ def _import_module(klong, x, from_set=None):
         else:
             module = import_module_from_sys(x)
 
-        export_items = module.__dict__.get("klong_exports") or module.__dict__
+        export_items = module.__dict__.get("klongpy_exports") or module.__dict__
         ffn = lambda p: p[0] in from_set if from_set is not None else lambda p: not p[0].startswith("__")
 
         ctx = klong._context.pop()

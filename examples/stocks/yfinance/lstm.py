@@ -47,4 +47,4 @@ def load(filename):
     return model
 
 
-klong_exports = {"load": load, "create": create_model}
+klongpy_exports = {"load": load, "create": create_model}
