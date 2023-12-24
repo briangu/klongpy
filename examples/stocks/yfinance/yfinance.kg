@@ -1,0 +1,5 @@
+;" pip3 install yfinance "
+.pyf("yfinance";"download")
+
+:" yfinance returns a pandas dataframe so we need to convert it to a KlongPy table "
+fetch::{[args];args:::{};args,"tickers",,x;args,"start",,y;args,"end",,z;.table(.pyc(download;[];args))}

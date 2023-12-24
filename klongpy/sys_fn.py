@@ -181,8 +181,6 @@ def eval_sys_load(klong, x):
                 x = adx
                 break
 
-    print(x)
-
     if not os.path.isfile(x):
         raise FileNotFoundError(f"file does not exist: {x}")
 

@@ -1,14 +1,10 @@
 .py("klongpy.db")
 .py("../../ml/lstm/lstm.py")
 .py("mkwindows.py")
+.l("yfinance.kg")
 
-;" pip3 install yfinance "
-.pyf("yfinance";"download")
-fetch::{[args];args:::{};args,"tickers",,x;args,"start",,y;args,"end",,z;.pyc(download;[];args)}
 
-:" yfinance returns a pandas dataframe so we need to convert it to a KlongPy table "
-data::fetch("MSFT";"2020-01-01"; "2023-01-01"])
-T::.table(data)
+T::fetch("MSFT";"2020-01-01"; "2023-01-01"])
 
 :" get close prices "
 close::T?"Close"

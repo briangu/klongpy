@@ -1,8 +1,6 @@
-.py("klongpy.db");.py("../../ml/lstm/lstm.py");.py("mkwindows.py");.pyf("yfinance";"download")
+.py("klongpy.db");.py("../../ml/lstm/lstm.py");.py("mkwindows.py");.l("yfinance.kg")
 
-fetch::{[args];args:::{};args,"tickers",,x;args,"start",,y;args,"end",,z;.pyc(download;[];args)}
-
-T::.table(fetch("MSFT";"2020-01-01"; "2023-01-01"]))
+T::fetch("MSFT";"2020-01-01"; "2023-01-01"])
 close::T?"Close";k::10;windows::mkwindows(close;k)
 windows::mkwindows(close;k);labels::{x@-1}'1_windows;windows::(-1)_windows
 wmax::{(x@>x)@0}'windows;windows::wmax{y%x}'windows;labels::wmax{y%x}'labels
