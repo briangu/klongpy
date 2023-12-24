@@ -33,6 +33,7 @@ wmax::{(x@>x)@0}'windows
 windows::wmax{y%x}'windows
 labels::wmax{y%x}'labels
 
+:" split data into training and test sets "
 trainx::(-1)_windows;trainy::(-1)_labels
 testx::windows@-1;testy::labels@-1
 
