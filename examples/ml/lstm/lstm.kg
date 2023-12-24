@@ -1,0 +1,25 @@
+.py("lstm.py")
+.py("mkwindows.py")
+
+:" window size "
+k::10
+
+:" create the model wrapper "
+m::model(1;100;1)
+
+:" create fake data to train the model on "
+data::!k*10
+
+:" create windowed data "
+windows::mkwindows(data;k)%100
+labels::(k+!#windows)%100
+.p(1#windows)
+.p(1#labels)
+
+:" create the stateful model trainer "
+t::trainer(m)
+
+:" train the model "
+loss::windows t'labels
+
+.d("training loss: ");.d(loss@0);.d(" --> ");.p(loss@-1)
