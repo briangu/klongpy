@@ -12,15 +12,20 @@ class LSTMModel(nn.Module):
     def forward(self, input_seq):
         lstm_out, _ = self.lstm(input_seq.view(len(input_seq), 1, -1))
         predictions = self.linear(lstm_out.view(len(input_seq), -1))
-        return predictions[-1]
+        return predictions
 
-    def train(model, input_seq, label_seq, epochs):
+class LSTMWrapper:
+
+    def __init__(self, model):
+        self.model = model
+
+    def train(self, input_seq, label_seq, epochs):
         epoch_losses = []
         loss_function = nn.MSELoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         for i in range(epochs):
             optimizer.zero_grad()
-            y_pred = model(input_seq)
+            y_pred = self.model(input_seq)
             single_loss = loss_function(y_pred, label_seq)
             single_loss.backward()
             optimizer.step()
@@ -31,20 +36,20 @@ class LSTMModel(nn.Module):
         return epoch_losses
 
     def save(self, filename):
-        torch.save(self, filename)
+        torch.save(self.model, filename)
 
     def predict(self, input_seq):
-        return self(input_seq)
+        return self.model(input_seq)
 
 
 def create_model(input_size, hidden_layer_size, output_size):
-    return LSTMModel(input_size, hidden_layer_size, output_size)
-
+    return LSTMWrapper(LSTMModel(input_size, hidden_layer_size, output_size))
 
 def load(filename):
     model =torch.load(filename)
     model.eval()
-    return model
+    return LSTMWrapper(model)
 
 
 klongpy_exports = {"load": load, "create": create_model}
+
