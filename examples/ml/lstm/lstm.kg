@@ -10,16 +10,17 @@ m::model(1;100;1)
 :" create fake data to train the model on "
 data::!k*10
 
-:" create windowed data "
+:" create normalized fake windowed data "
 windows::mkwindows(data;k)%100
 labels::(k+!#windows)%100
-.p(1#windows)
-.p(1#labels)
+
+:" print the first window and label "
+.d("series ");.d(1#windows);.d(" predicts ");.p(1#labels)
 
 :" create the stateful model trainer "
 t::trainer(m)
 
-:" train the model "
+:" train the model using the Each-2 operator which calls t(x;y) for each window and label "
 loss::windows t'labels
 
 .d("training loss: ");.d(loss@0);.d(" --> ");.p(loss@-1)
