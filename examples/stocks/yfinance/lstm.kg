@@ -9,13 +9,16 @@ T::fetch("MSFT";"2020-01-01"; "2023-01-01"])
 :" get close prices "
 close::T?"Close"
 
+:" window size of 10 "
 k::10
+
+:" create windows "
 windows::mkwindows(close;k)
 
 :" create the model wrapper "
 m::model(1;10;1)
 
-:" create windowed data "
+:" create windowed data and labels "
 windows::mkwindows(close;k)
 labels::{x@-1}'1_windows
 
@@ -25,7 +28,7 @@ windows::(-1)_windows
 :" show unnormalized windows and labels "
 .d("series ");.d(1#windows);.d(" predicts ");.p(1#labels)
 
-:" normalize windows and labels "
+:" normalize windows and labels to the corresponding window max"
 wmax::{(x@>x)@0}'windows
 windows::wmax{y%x}'windows
 labels::wmax{y%x}'labels
