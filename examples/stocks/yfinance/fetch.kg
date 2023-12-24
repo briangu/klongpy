@@ -1,6 +1,5 @@
 .py("klongpy.db")
-.pyf("numpy";"std")
-.pyf("numpy";"mean")
+.pyf("numpy";["std" "mean"])
 
 ;" pip3 install yfinance "
 .pyf("yfinance";"download")

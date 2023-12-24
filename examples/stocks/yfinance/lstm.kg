@@ -1,0 +1,51 @@
+.py("klongpy.db")
+.py("lstm.py")
+.py("mkwindows.py")
+
+;" pip3 install yfinance "
+.pyf("yfinance";"download")
+fetch::{[args];args:::{};args,"tickers",,x;args,"start",,y;args,"end",,z;.pyc(download;[];args)}
+
+:" yfinance returns a pandas dataframe so we need to convert it to a KlongPy table "
+data::fetch("MSFT";"2020-01-01"; "2023-01-01"])
+T::.table(data)
+
+:" get close prices "
+close::T?"Close"
+
+k::10
+windows::mkwindows(close;k)
+
+:" create the model wrapper "
+m::model(1;100;1)
+
+:" create windowed data "
+windows::mkwindows(close;k)
+labels::{x@0}'1_windows
+windows::(-1)_windows
+
+.d("series ");.d(1#windows);.d(" predicts ");.p(1#labels)
+
+:" normalize windows and labels "
+wmax::{(x@>x)@0}'windows
+windows::wmax{y%x}'windows
+labels::wmax{y%x}'labels
+
+trainx::(-1)_windows;trainy::(-1)_labels
+testx::windows@-1;testy::labels@-1
+
+:" print the first window and label "
+.d("series ");.d(1#trainx);.d(" predicts ");.p(1#trainy)
+
+:" create the stateful model trainer "
+t::trainer(m)
+
+:" train the model using the Each-2 operator which calls t(x;y) for each window and label "
+loss::trainx t'trainy
+
+:" show that the training loss decreases "
+.d("training loss: ");.d(loss@0);.d(" --> ");.p(loss@-1)
+
+:" predict using the model "
+p::predictor(m)
+.d("prediction: ");.d((wmax@-1)*p(testx));.d(" should be close to ");.p((wmax@-1)*testy)

@@ -18,7 +18,7 @@ trainx::((#windows)-1)#windows;trainy::((#labels)-1)#labels
 testx::windows@-1;testy::labels@-1
 
 :" print the first window and label "
-.d("series ");.d(1#trainw);.d(" predicts ");.p(1#trainl)
+.d("series ");.d(1#trainx);.d(" predicts ");.p(1#trainy)
 
 :" create the stateful model trainer "
 t::trainer(m)
