@@ -17,13 +17,16 @@ k::10
 windows::mkwindows(close;k)
 
 :" create the model wrapper "
-m::model(1;100;1)
+m::model(1;10;1)
 
 :" create windowed data "
 windows::mkwindows(close;k)
-labels::{x@0}'1_windows
+labels::{x@-1}'1_windows
+
+:" truncate the windows to the same length as the labels "
 windows::(-1)_windows
 
+:" show unnormalized windows and labels "
 .d("series ");.d(1#windows);.d(" predicts ");.p(1#labels)
 
 :" normalize windows and labels "
