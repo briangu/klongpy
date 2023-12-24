@@ -14,13 +14,22 @@ data::!k*10
 windows::mkwindows(data;k)%100
 labels::(k+!#windows)%100
 
+trainw::((#windows)-1)#windows
+trainl::((#labels)-1)#labels
+testw::windows@-1
+testl::labels@-1
+
 :" print the first window and label "
-.d("series ");.d(1#windows);.d(" predicts ");.p(1#labels)
+.d("series ");.d(1#trainw);.d(" predicts ");.p(1#trainl)
 
 :" create the stateful model trainer "
 t::trainer(m)
 
 :" train the model using the Each-2 operator which calls t(x;y) for each window and label "
-loss::windows t'labels
+loss::trainw t'trainl
 
 .d("training loss: ");.d(loss@0);.d(" --> ");.p(loss@-1)
+
+:" predict usign the model "
+p::predictor(m)
+.d("prediction: ");.d(p(testw));.d(" should be close to ");.p(testl)

@@ -5,7 +5,6 @@ import numpy as np
 class LSTMModel(nn.Module):
     def __init__(self, input_size, hidden_layer_size, output_size):
         super(LSTMModel, self).__init__()
-        # self.hidden_layer_size = hidden_layer_size
         self.lstm = nn.LSTM(input_size, hidden_layer_size)
         self.linear = nn.Linear(hidden_layer_size, output_size)
 
@@ -13,12 +12,14 @@ class LSTMModel(nn.Module):
         # Reshape input_seq to (seq_len, batch, input_size)
         input_seq = input_seq.view(len(input_seq), 1, -1)
         lstm_out, _ = self.lstm(input_seq)
-        # predictions = self.linear(lstm_out.view(len(input_seq), -1))
         predictions = self.linear(lstm_out[-1].view(1, -1))
         return predictions[:, 0]
 
 
 class LSTMWrapper:
+    """
+    Use a wrapper class to prevent KlongPy from converting the callable model to a Klong function.
+    """
     def __init__(self, input_size, hidden_layer_size, output_size):
         self.model = LSTMModel(input_size, hidden_layer_size, output_size)
 
@@ -40,6 +41,14 @@ class Trainer:
         self.optimizer.step()
         return single_loss.item()
 
+class Predictor:
+    def __init__(self, wrapper):
+        self.model = wrapper.model
+
+    def __call__(self, x):
+        x = torch.tensor(x).float()
+        with torch.no_grad():
+            return self.model(x).item()
 
 def load(filename):
     model =torch.load(filename)
@@ -50,4 +59,4 @@ def save(filename, model):
     torch.save(model, filename)
 
 
-klongpy_exports = {"load": load, "model": LSTMWrapper, "trainer": Trainer}
+klongpy_exports = {"load": load, "model": LSTMWrapper, "trainer": Trainer, "predictor": Predictor}
