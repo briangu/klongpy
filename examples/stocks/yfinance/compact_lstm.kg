@@ -1,4 +1,4 @@
-.py("klongpy.db");.py("lstm.py");.py("mkwindows.py");.pyf("yfinance";"download")
+.py("klongpy.db");.py("../../ml/lstm/lstm.py");.py("mkwindows.py");.pyf("yfinance";"download")
 
 fetch::{[args];args:::{};args,"tickers",,x;args,"start",,y;args,"end",,z;.pyc(download;[];args)}
 

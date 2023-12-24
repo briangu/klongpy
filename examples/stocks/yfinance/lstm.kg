@@ -1,5 +1,5 @@
 .py("klongpy.db")
-.py("lstm.py")
+.py("../../ml/lstm/lstm.py")
 .py("mkwindows.py")
 
 ;" pip3 install yfinance "
