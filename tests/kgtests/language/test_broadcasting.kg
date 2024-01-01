@@ -22,7 +22,7 @@ t("[[1]]|[2]";[[1]]|[2];[[2]])
 t("[[[1]]]|[2]";[[[1]]]|[2];[[[2]]])
 
 
-:" somewhat redudant tests "
+:" somewhat redundant tests "
 
 :" a+b addition tests "
 t("[1]+[2]";[1]+[2];[3])
