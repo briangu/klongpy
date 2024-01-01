@@ -326,6 +326,34 @@ def eval_dyad_find(a, b):
     return np.where(np.asarray(a) == b)[0]
 
 
+def __e_dyad_form(a, b):
+    if isinstance(a,KGSym):
+        if is_empty(b):
+            return np.inf
+        return KGSym(b[1:] if isinstance(b,str) and b.startswith(":") else b)
+    if is_integer(a):
+        if is_float(b) or is_empty(b) or ('.' in b and str_is_float(b)):
+            return np.inf
+        return int(b)
+    if is_float(a):
+        if is_empty(b):
+            return np.inf
+        return float(b)
+    if isinstance(a,KGChar):
+        b = str(b)
+        if len(b) != 1:
+            return np.inf
+        return KGChar(str(b)[0])
+    return b
+
+def _e_dyad_form(a, b):
+    """
+    Unravel the broadcasting of a and b and apply __e_dyad_form
+    """
+    if np.isarray(a) and np.isarray(b):
+        return np.asarray([vec_fn2(x,y,_e_dyad_form) for x,y in zip(a,b)])
+    return __e_dyad_form(a,b)
+
 def eval_dyad_form(a, b):
     """
 
@@ -353,24 +381,7 @@ def eval_dyad_form(a, b):
                   :x:$":symbol"  -->  :symbol
 
     """
-    if isinstance(a,KGSym):
-        if is_empty(b):
-            return np.inf
-        return KGSym(b[1:] if isinstance(b,str) and b.startswith(":") else b)
-    if is_integer(a):
-        if is_float(b) or is_empty(b) or ('.' in b and str_is_float(b)):
-            return np.inf
-        return int(b)
-    if is_float(a):
-        if is_empty(b):
-            return np.inf
-        return float(b)
-    if isinstance(a,KGChar):
-        b = str(b)
-        if len(b) != 1:
-            return np.inf
-        return KGChar(str(b)[0])
-    return b
+    return vec_fn2(a, b, _e_dyad_form)
 
 
 def __e_dyad_format2(a, b):

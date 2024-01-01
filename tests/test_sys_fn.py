@@ -363,7 +363,7 @@ class TestSysFn(unittest.TestCase):
             expected = "hello"
             with eval_sys_output_channel(fname) as f:
                 eval_sys_to_channel(klong, f)
-                self.assertEqual(eval_sys_write(klong, expected), f'"{expected}"')
+                self.assertEqual(eval_sys_write(klong, expected), expected)
             with eval_sys_input_channel(fname) as f:
                 r = f.raw.read()
                 self.assertEqual(r, f'"{expected}"')
@@ -371,12 +371,12 @@ class TestSysFn(unittest.TestCase):
     def test_sys_write_result(self):
         klong = KlongInterpreter()
         r = klong(".w(1)")
-        self.assertEqual(r,"1")
+        self.assertEqual(r,1)
 
     def test_sys_write_dict(self):
         klong = KlongInterpreter()
         r = klong(".w(:{[1 2]})")
-        self.assertEqual(r,":{[1 2]}")
+        self.assertEqual(r,{1:2})
 
     def test_eval_sys_exit(self):
         pass

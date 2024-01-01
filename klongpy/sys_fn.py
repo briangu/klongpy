@@ -702,7 +702,7 @@ def eval_sys_write(klong, x):
     """
     r = kg_write(x)
     klong['.sys.cout'].raw.write(r)
-    return r
+    return x
 
 
 def eval_sys_exit(x):
