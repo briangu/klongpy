@@ -212,6 +212,13 @@ def is_number(a):
     return is_float(a) or is_integer(a)
 
 
+def str_is_float(b):
+    try:
+        float(b)
+        return True
+    except ValueError:
+        return False
+
 def in_map(x, v):
     try:
         return x in v
@@ -408,6 +415,7 @@ def vec_fn2(a, b, f):
     This function assumes that `f` can handle the types and dimensions of `a` and `b`, and that `a` and `b` have the same
     shape if they are arrays. It does not check these conditions, so unexpected results or errors may occur if they are
     not satisfied.
+
     """
     if np.isarray(a):
         if a.dtype == 'O':

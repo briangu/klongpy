@@ -51,13 +51,6 @@ class TestKnownBugsSuite(unittest.TestCase):
         self.assertTrue(kg_equal(r, [3,8]))
 
     @unittest.skip
-    # https://github.com/briangu/klongpy/issues/7
-    def test_format2_broadcasting(self):
-        klong = KlongInterpreter()
-        r = klong("[1]$[1]")
-        self.assertTrue(kg_equal(r, ["1"]))
-
-    @unittest.skip
     def test_append_empty_dictionaries(self):
         klong = KlongInterpreter()
         r = klong("A::[];A::A,:{};A::A,:{};A::A,:{};A")

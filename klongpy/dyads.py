@@ -358,13 +358,7 @@ def eval_dyad_form(a, b):
             return np.inf
         return KGSym(b[1:] if isinstance(b,str) and b.startswith(":") else b)
     if is_integer(a):
-        def _is_float(b):
-            try:
-                float(b)
-                return True
-            except ValueError:
-                return False
-        if is_float(b) or is_empty(b) or ('.' in b and _is_float(b)):
+        if is_float(b) or is_empty(b) or ('.' in b and str_is_float(b)):
             return np.inf
         return int(b)
     if is_float(a):
@@ -378,6 +372,27 @@ def eval_dyad_form(a, b):
         return KGChar(str(b)[0])
     return b
 
+
+def __e_dyad_format2(a, b):
+    if safe_eq(int(a), 0):
+        return str(b)
+    if (is_float(b) and not isinstance(b,int)) and (is_float(a) and not isinstance(a,int)):
+        b = "{:Xf}".replace("X",str(a)).format(b)
+        p = b.split('.')
+        p[0] = p[0].rjust(int(a))
+        b = ".".join(p)
+        return b
+    b = f":{b}" if isinstance(b, KGSym) else b
+    r = str(b).ljust(abs(a)) if a >= 0 else str(b).rjust(abs(a))
+    return r
+
+def _e_dyad_format2(a, b):
+    """
+    Unravel the broadcasting of a and b and apply __e_dyad_format2
+    """
+    if np.isarray(a) and np.isarray(b):
+        return np.asarray([vec_fn2(x,y,_e_dyad_format2) for x,y in zip(a,b)])
+    return __e_dyad_format2(a,b)
 
 def eval_dyad_format2(a, b):
     """
@@ -404,17 +419,7 @@ def eval_dyad_format2(a, b):
                  5.3$123.45  -->  "  123.450"
 
     """
-    if safe_eq(int(a), 0):
-        return str(b)
-    if (is_float(b) and not isinstance(b,int)) and (is_float(a) and not isinstance(a,int)):
-        b = "{:Xf}".replace("X",str(a)).format(b)
-        p = b.split('.')
-        p[0] = p[0].rjust(int(a))
-        b = ".".join(p)
-        return b
-    b = f":{b}" if isinstance(b, KGSym) else b
-    r = str(b).ljust(abs(a)) if a >= 0 else str(b).rjust(abs(a))
-    return r
+    return vec_fn2(a, b, _e_dyad_format2)
 
 
 def eval_dyad_index_in_depth(a, b):
