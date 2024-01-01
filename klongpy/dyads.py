@@ -466,7 +466,7 @@ def eval_dyad_integer_divide(a, b):
     return vec_fn2(a, b, _e_dyad_integer_divide)
 
 
-def dyad_join_to_list(a):
+def _arr_to_list(a):
     if np.isarray(a):
         if a.ndim == 1:
             return a
@@ -534,8 +534,8 @@ def eval_dyad_join(a, b):
         if len(a.shape) == len(b.shape) and a.shape[-1] == b.shape[-1]:
             return np.concatenate((a,b))
 
-    aa = dyad_join_to_list(a)
-    bb = dyad_join_to_list(b)
+    aa = _arr_to_list(a)
+    bb = _arr_to_list(b)
 
     r = [*aa,*bb]
     nr = kg_asarray(r)
