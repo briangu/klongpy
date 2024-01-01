@@ -20,7 +20,7 @@ KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array lang
 
 # Quick install
 
-`pip3 install klongpy[all]`
+`pip3 install "klongpy[full]"`
 
 # Overview
 
@@ -167,7 +167,7 @@ Run (GPU)
 
 ### All application tools (db, web, REPL, etc.)
 
-    $ pip3 install klongpy[all]
+    $ pip3 install "klongpy[full]"
 
 
 # REPL

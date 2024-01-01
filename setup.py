@@ -23,7 +23,6 @@ extra_requires = {
 
 # full feature set extras
 extra_requires['full'] = extra_requires['repl'] + extra_requires['web'] + extra_requires['db'] + extra_requires['ws']
-extra_requires['all'] = extra_requires['full']
 
 setup(
     name='klongpy',
