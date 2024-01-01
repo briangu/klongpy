@@ -76,6 +76,17 @@ def eval_dyad_amend(a, b):
     return r
 
 
+def _e_dyad_amend_in_depth(p, q, v):
+    if np.isarray(q) and len(q) > 1:
+        r = _e_dyad_amend_in_depth(p[q[0]], q[1:] if len(q) > 2 else q[1], v)
+        p = np.array(p, dtype=r.dtype)
+        p[q[0]] = r
+        return p
+    else:
+        p = np.array(p, dtype=object) if isinstance(v, (str, KGSym)) else np.array(p)
+        p[q] = v
+        return p
+
 def eval_dyad_amend_in_depth(a, b):
     """
 
@@ -91,17 +102,7 @@ def eval_dyad_amend_in_depth(a, b):
                       [[[0]]]:-1,[0 0 0]  -->  [[[1]]]
 
     """
-    def _e(p, q, v):
-        if np.isarray(q) and len(q) > 1:
-            r = _e(p[q[0]], q[1:] if len(q) > 2 else q[1], v)
-            p = np.array(p, dtype=r.dtype)
-            p[q[0]] = r
-            return p
-        else:
-            p = np.array(p, dtype=object) if isinstance(v, (str, KGSym)) else np.array(p)
-            p[q] = v
-            return p
-    return _e(a, b[1:], b[0])
+    return _e_dyad_amend_in_depth(a, b[1:], b[0])
 
 
 def eval_dyad_cut(a, b):
@@ -436,6 +437,11 @@ def eval_dyad_index_in_depth(a, b):
     return np.asarray(a)[tuple(b) if is_list(b) else b] if not is_empty(b) else b
 
 
+def _e_dyad_integer_divide(x,y):
+    a = np.divide(x, y)
+    a = kg_asarray(rec_fn(a,np.trunc)) if np.isarray(a) else a
+    return np.asarray(a,dtype='int') if np.isarray(a) else int(a)
+
 def eval_dyad_integer_divide(a, b):
     """
 
@@ -452,11 +458,7 @@ def eval_dyad_integer_divide(a, b):
                   10:%8  -->  1
 
     """
-    def _e(x,y):
-        a = np.divide(x, y)
-        a = kg_asarray(rec_fn(a,np.trunc)) if np.isarray(a) else a
-        return np.asarray(a,dtype='int') if np.isarray(a) else int(a)
-    return vec_fn2(a, b, _e)
+    return vec_fn2(a, b, _e_dyad_integer_divide)
 
 
 def dyad_join_to_list(a):
@@ -690,6 +692,11 @@ def eval_dyad_multiply(a, b):
     return np.multiply(a, b)
 
 
+def _e_dyad_power(a,b):
+    r = np.power(float(a) if is_integer(a) else a, b)
+    br = all([np.trunc(x) == x for x in r]) if is_list(r) else np.trunc(r) == r
+    return np.dtype('int').type(r) if br else r
+
 def eval_dyad_power(a, b):
     """
 
@@ -709,11 +716,7 @@ def eval_dyad_power(a, b):
                   2^0.5  -->  1.41421356237309504
 
     """
-    def _e(a,b):
-        r = np.power(float(a) if is_integer(a) else a, b)
-        br = all([np.trunc(x) == x for x in r]) if is_list(r) else np.trunc(r) == r
-        return np.dtype('int').type(r) if br else r
-    return vec_fn2(a, b, _e)
+    return vec_fn2(a, b, _e_dyad_power)
 
 
 def eval_dyad_remainder(a, b):
