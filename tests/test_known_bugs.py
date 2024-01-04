@@ -10,6 +10,16 @@ from klongpy.core import KGChar
 class TestKnownBugsSuite(unittest.TestCase):
 
     @unittest.skip
+    def test_calling_time_with_lambda(self):
+        """
+        .l("time")
+        a::!1000;#a
+        time({{{x*x}'a}'!1000})
+        """
+        # time will evaluate the lambda in such a way that the gap between the first .pc() and the second .pc() is
+        # very small, so the time will be close to 0.
+
+    @unittest.skip
     def test_table_access_with_at(self):
         data = {'col1': np.arange(10)}
         df = pd.DataFrame(data)
