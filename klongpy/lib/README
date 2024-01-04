@@ -1,8 +1,0 @@
-These example lib files are included from the Klong lib files in the original distribution:
-
-https://t3x.org/klong/index.html
-
-The plotting libs were removed due to lack of support (so far).
-
-There are some small modifications to deal with Unicode, but otherwise should be the same.
-
