@@ -16,10 +16,10 @@ extra_files:
 nav:
   - Home: 'index.md'
   - Quick Start: 'quick-start.md'
+  - Examples: 'examples.md'
   - Guides:
       - Overview: 'overview.md'
       - Installation: 'installation.md'
-      - Examples: 'examples.md'
   - Reference:
       - Language Reference: 'language-reference.md'
       - REPL: 'repl.md'

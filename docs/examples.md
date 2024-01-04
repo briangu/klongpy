@@ -1,10 +1,16 @@
-# Klong Language Examples
+# KlongPy Examples
 
-Explore the power and simplicity of Klong with these engaging examples. Each snippet highlights a unique aspect of Klong, demonstrating its versatility in various programming scenarios.
+Explore the power and simplicity of KlongPy with these engaging examples. Each snippet highlights a unique aspect of Klong, demonstrating its versatility in various programming scenarios.
 
-Before we get started, you may be wondering: Why is Klong syntax so terse?  The answer is that it's based on the APL style array language programming and there's a good reason why compact nature is actually helpful.
+Before we get started, you may be wondering: *Why is the syntax so terse?*
+
+The answer is that it's based on the APL style array language programming and there's a good reason why its compact nature is actually helpful.
 
 Array language style lets you describe WHAT you want the computer to do and it lets the computer figure out HOW to do it.  This frees you up from the details while letting the computer figure out how to go as fast as possible.
+
+Less code to write and faster execution.
+
+---
 
 Just so the following examples make more sense when you see the REPL outputs, there are a few quick rules about Klong functions.  Functions only take up to 3 parameters and they are ALWAYS called x,y and z.
 
@@ -17,12 +23,14 @@ A function with
 
 The reason that Klong functions only take up to 3 parameters AND name them for you is both convience and compactness.
 
+---
+
 ## 1. Basic Arithmetic
 
 Let's get started with the basics and build up to some more interesting math.
 
 ```kgpy
-?> 5+3*2 :" Klong expressions are evaluated from right to left: first 3*2 and then + 5
+?> 5+3*2 :" Expressions are evaluated from right to left: 3*2 and then + 5
 11
 ```
 

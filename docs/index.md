@@ -4,7 +4,9 @@ KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array lang
 
 # Quick install
 
-`pip3 install "klongpy[full]"`
+```bash
+pip3 install "klongpy[full]"
+```
 
 # Overview
 
