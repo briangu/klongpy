@@ -2,12 +2,31 @@
 
 Explore the power and simplicity of Klong with these engaging examples. Each snippet highlights a unique aspect of Klong, demonstrating its versatility in various programming scenarios.
 
+Before we get started, you may be wondering: Why is Klong syntax so terse?  The answer is that it's based on the APL style array language programming and there's a good reason why compact nature is actually helpful.
+
+Array language style lets you describe WHAT you want the computer to do and it lets the computer figure out HOW to do it.  This frees you up from the details while letting the computer figure out how to go as fast as possible.
+
+Just so the following examples make more sense when you see the REPL outputs, there are a few quick rules about Klong functions.  Functions only take up to 3 parameters and they are ALWAYS called x,y and z.
+
+A function with
+
+* no parameters is called a nilad
+* one parameter is called a monad (x)
+* two parameters: dyad (x and y)
+* three parameters: a triad (x, y and z)
+
+The reason that Klong functions only take up to 3 parameters AND name them for you is both convience and compactness.
+
 ## 1. Basic Arithmetic
 
+Let's get started with the basics and build up to some more interesting math.
+
 ```kgpy
-?> 5 + 3 * 2
+?> 5+3*2 :" Klong expressions are evaluated from right to left: first 3*2 and then + 5
 11
 ```
+
+KlongPy is more about arrays of things, so let's define sum and count functions over an array:
 
 ```kgpy
 ?> sum::{+/x}  :" sum + over / the array x
@@ -20,6 +39,8 @@ Explore the power and simplicity of Klong with these engaging examples. Each sni
 3
 ```
 
+Now that we know the sum and number of elements we can compute the average:
+
 ```kgpy
 ?> avg::{sum(x)%count(x)} :" average is the sum divided by the number of elements
 :monad
@@ -29,21 +50,23 @@ Explore the power and simplicity of Klong with these engaging examples. Each sni
 
 ## 2. Math on arrays
 
-Squaring numbers in a list
+Let's dig into more interesting operations over array elements.  There's really big performance differences in how you approach the problem and it's important to see the difference.
+
+For the simple case of squaring numbers in a list, let's try a couple solutions:
 
 ```kgpy
 ?> {x*x}'[1 2 3 4 5] :" square each element as we iterate over the array
 [1 4 9 16 25]
 ```
 
-Vectorized approach will do an element-wise multiplication in bulk:
+The vectorized approach will do an element-wise multiplication in bulk:
 
 ```kgpy
 ?> a::[1 2 3 4 5];a*a  :" a*a multiplies the arrays
 [1 4 9 16 25]
 ```
 
-If you really want to see the performance difference, let's crank up the size of the array and time it:
+The vectorized approach is going to be MUCH faster.  Let's crank up the size of the array and time it:
 
 ```kgpy
 $> .l("time")
@@ -64,11 +87,13 @@ Vectors win by 182x!  Why?  Because when you perform a bulk vector operation the
 
 KlongPy aims to give you tools that let you conveniently exploit this vectorization property - and go FAST!
 
-Less code, but faster.
+Less code to write AND faster to compute.
 
 ## 3. Data Analysis with Python Integration
 
-Integrating Klong with Python's NumPy for data analysis
+KlongPy integrates seamlessly with Python so that the strenghts of both can be combined.  It's easy to use KlongPy from Python and vice versa.
+
+For example, let's say we have some data in Python that we want to operate on in KlongPy.  We can just directly use the interpreter in Python and run functions on data we put into the KlongPy context:
 
 ```python
 from klongpy import KlongInterpreter
@@ -76,10 +101,17 @@ import numpy as np
 
 data = np.array([1, 2, 3, 4, 5])
 klong = KlongInterpreter()
+# make the data NumPy array available to KlongPy code by passing it into the interpreter
+# we are creating a symbol in KlongPy called 'data' and assigning the external NumPy array value
 klong['data'] = data
+# define the average function in KlongPY
 klong('avg::{(+/x)%#x}')
-klong('avg(data)')
+# call the average function with the external data and return the result.
+r = klong('avg(data)')
+print(r) # expected value: 3
 ```
+
+It doesn't make sense to write code in Klong that already exists in other libraries.  We can directly access them via the python inport functions (.py and .pyf).
 
 How about we use the NumPy FFT?
 
@@ -94,9 +126,11 @@ How about we use the NumPy FFT?
 
 Now you can use NumPy or other libraries to provide complex functions while KlongPy lets you quickly prepare and process the vectors.
 
+There's a lot more we can do with interop but let's move on for now!
+
 ## 4. Database Functionality
 
-KlongPy leverages a high-performance columnar store called DuckDb and uses zero-copy NumPy array operations, allowing you to quickly create arrays in KlongPy and then perform SQL on the data for deeper insights.
+KlongPy leverages a high-performance columnar store called DuckDb that uses zero-copy NumPy array operations behind the scenes.   This database allows fast interop between KlongPy and DuckDb (the arrays are not copied) so that applications can manage arrays in KlongPy and then instantly perform SQL on the data for deeper insights.
 
 It's easy to create a table and a db to query:
 
@@ -112,10 +146,15 @@ name age
 Bob 30
 ```
 
-## 5. Asynchronous and Remote Function Calls
+## 5. IPC, Remote Function Calls and Asynchronous operations
 
-Demonstrating IPC and async remote function calls
-Execute on remote server with input 0-99
+Inter Process Communication (IPC) lets you build distributed and interconnected KlongPy programs and services.
+
+KlongPy treats IPC connections to servers as functions.  These functions let you call the server and ask for things it has in it's memory - they can be other functions or values, etc.  For example you can ask for a reference to a remote function and you will get a local function that when you call it runs on teh server with your arguemnts.  This general "remote proxy" approach allows you to write your client code in the same way as if all the code were running locally.
+
+To see this in action, let's setup a simple scenario where the server has an "avg" function and the client wants to call it.
+
+Start a server in one terminal:
 
 ```kgpy
 ?> avg::{(+/x)%#x}
@@ -124,14 +163,28 @@ Execute on remote server with input 0-99
 1
 ```
 
+Start the client and make the connection to the server as 'f'.  In order to pass parameters to a remote function we form an array of the function symbol followed by the parameters (e.g. :avg,,!100)
+
 ```kgpy
-?> f::.cli(8888)
+?> f::.cli(8888) :" connect to the server
 remote[localhost:8888]:fn
-?> f(:avg,,!100)
+?> f(:avg,,!100) : call the remote function "avg" directly with the paramter !100
 49.5
-?> avg::f(:avg)
+```
+
+Let's get fancy and make a local proxy to the remote function:
+
+```kgpy
+?> myavg::f(:avg) :" reference the remote function by it's symbol :avg and assign to a local variable called myavg
 remote[localhost:8888]:fn:avg:monad
-?> afn::.async(avg;{.d("Avg calculated: ");.p(x)})
+?> myavg(!100) :" this runs on the server with !100 array passed to it as a parameter
+49.5
+```
+
+Since remote functions may take a while we can wrap them with an async wrapper and have it call our callback when completed:
+
+```kgpy
+?> afn::.async(myavg;{.d("Avg calculated: ");.p(x)})
 async::monad
 ?> afn(!100)
 Avg calculated: 49.5
@@ -142,7 +195,7 @@ Avg calculated: 49.5
 
 Implementing a basic web server
 
-create a file called web.kg with the following code that adds one index handler:
+Create a file called web.kg with the following code that adds one index handler:
 
 ```text
 .py("klongpy.web")
