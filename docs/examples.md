@@ -193,9 +193,9 @@ Avg calculated: 49.5
 
 ## 6. Web Server Implementation
 
-Implementing a basic web server
+In addition to IPC we can also expose data via a standard web server.  This capability lets you have other ways of serving content that can be either exposing interesting details about some computation or just a simple web server for other reasons.
 
-Create a file called web.kg with the following code that adds one index handler:
+Let's create a file called web.kg with the following code that adds one index handler:
 
 ```text
 .py("klongpy.web")
@@ -204,6 +204,8 @@ index::{x; "Hello, Klong World! ",data}
 .web(8888;:{},"/",index;:{})
 .p("ready at http://localhost:8888")
 ```
+
+We can run this web server as follows:
 
 ```bash
 $ kgpy web.kg
@@ -217,6 +219,8 @@ $ curl http://localhost:8888
 ['Hello, Klong World! ' 0 1 2 3 4 5 6 7 8 9]
 ```
 
-## Notes
+## Conclusion
 
 These examples are designed to illustrate the ease of use and diverse applications of Klong, making it a versatile choice for various programming needs.
+
+Check out the references for details and deep dives on specific functionality.
