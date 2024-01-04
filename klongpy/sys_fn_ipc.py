@@ -945,10 +945,15 @@ class KGAsyncCall(KGLambda):
         self.klongloop = klongloop
         self.cb = cb
         self.fn = fn
-        self.args = [reserved_fn_symbol_map[x] for x in reserved_fn_args[:fn.arity]]
+        arity = fn.get_arity() if issubclass(type(self.fn), KGLambda) else fn.arity
+        self.args = [reserved_fn_symbol_map[x] for x in reserved_fn_args[:arity]]
 
     async def acall(self, klong, params):
-        r = klong.call(KGCall(self.fn.a, [*params], self.fn.arity))
+        if issubclass(type(self.fn), KGLambda):
+            ctx = {reserved_fn_symbols[i]:params[i] for i in range(min(len(reserved_fn_args),len(params)))}
+            r = self.fn(klong, ctx)
+        else:
+            r = klong.call(KGCall(self.fn.a, [*params], self.fn.arity))
         self.cb(r)
 
     def __call__(self, klong, ctx):
@@ -969,9 +974,9 @@ def eval_sys_fn_create_async_wrapper(klong, x, y):
         when completed. The wrapper has the same arity as the wrapped function.
 
     """
-    if not issubclass(type(x),KGFn):
+    if not (issubclass(type(x),KGFn) or issubclass(type(x),KGLambda)):
         raise KlongException("x must be a function")
-    if not issubclass(type(y),KGFn):
+    if not (issubclass(type(y),KGFn) or issubclass(type(x),KGLambda)):
         raise KlongException("y must be a function")
     system = klong['.system']
     klongloop = system['klongloop']

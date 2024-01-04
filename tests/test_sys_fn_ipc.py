@@ -22,7 +22,7 @@ class TestEncodeDecode(unittest.TestCase):
         encoded_message = encode_message(msg_id, msg)
         decoded_msglen = decode_message_len(encoded_message[16:20])
         decoded_msg_id, decoded_message = decode_message(encoded_message[:16], encoded_message[20:])
-        
+
         self.assertEqual(decoded_msglen, len(pickle.dumps(msg)))
         self.assertEqual(decoded_msg_id, msg_id)
         self.assertEqual(decoded_message, msg)
@@ -98,6 +98,33 @@ class TestAsync(LoopsBase, unittest.TestCase):
 
         run_coroutine_threadsafe(_test(), self.klongloop)
         run_coroutine_threadsafe(_test_result(), self.klongloop)
+
+    def test_async_python_remote_fn(self):
+        klong = KlongInterpreter()
+        klong['.system'] = {'ioloop': self.ioloop, 'klongloop': self.klongloop}
+
+        # create a fake remote network client that mimics the remote execution of lambda x: x+1
+        nc = NetworkClient(self.ioloop, self.klongloop, klong, None)
+        nc.call = MagicMock(return_value=3)
+
+        async def _test():
+            klong["fn"] = nc
+            klong("result::0")
+            klong("cb::{result::x}")
+            klong("afn::.async(fn;cb)")
+            r = klong("afn(2)")
+            self.assertEqual(r,1)
+
+        async def _test_result():
+            r = klong("result")
+            self.assertEqual(r,3)
+
+        run_coroutine_threadsafe(_test(), self.klongloop)
+        run_coroutine_threadsafe(_test_result(), self.klongloop)
+
+        # ensure that the nc was called with the correct arguments
+        nc.call.assert_called_once_with(2)
+
 
 
 class TestConnectionProvider(unittest.TestCase):
@@ -505,7 +532,7 @@ class TestNetworkClient(LoopsBase, unittest.TestCase):
 
         client.close()
 
-    # test that when the server closes the connection in the middle of a call, the client raises an exception        
+    # test that when the server closes the connection in the middle of a call, the client raises an exception
     def test_call_server_fail(self):
         pass
 
@@ -516,7 +543,7 @@ class TestNetworkClient(LoopsBase, unittest.TestCase):
     # test wrapping the NetworkClient in a NetworkClientDictHandle
     def test_network_client_dict_handler(self):
         pass
-    
+
     # test client reconnect on connection failure
     def test_client_reconnect(self):
         pass
@@ -553,7 +580,7 @@ class TestNetworkClient(LoopsBase, unittest.TestCase):
 #         asyncio.set_event_loop(self.klongloop)
 #         self.klongloop.run_forever()
 
-#     def test_initialization(self):            
+#     def test_initialization(self):
 
 
 if __name__ == '__main__':
