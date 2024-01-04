@@ -1,0 +1,71 @@
+site_name: KlongPy
+site_url: https://your-site-url.com
+
+# Define the source directory for Markdown files
+docs_dir: 'docs'
+
+# Define the directory for the built HTML files
+site_dir: 'site'
+
+# Specify any extra files to include in the built site
+# like 'robots.txt' or 'favicon.ico'
+extra_files:
+  - 'robots.txt'
+
+# Navigation structure
+nav:
+  - Home: 'index.md'
+  - Quick Start: 'quick-start.md'
+  - Guides:
+      - Overview: 'overview.md'
+      - Installation: 'installation.md'
+      - Examples: 'examples.md'
+  - Reference:
+      - Language Reference: 'language-reference.md'
+      - REPL: 'repl.md'
+      - Status: 'status.md'
+      - Differences from Klong: 'differences-from-klong.md'
+  - Additional Resources:
+      - Related Projects: 'related-projects.md'
+      - Contributing: 'contribute.md'
+      - Acknowledgements: 'acknowledgement.md'
+
+# Theme configuration
+theme:
+  name: 'material'  # or 'mkdocs' for the default theme
+  # Specify theme customizations such as colors and logo
+  logo: 'assets/images/klongpy_logo.jpg'
+  favicon: 'assets/images/favicon.ico'
+  # Customization of the theme's colors and fonts
+  palette:
+    primary: 'indigo'
+    accent: 'indigo'
+  font:
+    text: 'Roboto'
+    code: 'Roboto Mono'
+
+# Plugins configuration (if any plugins are used)
+plugins:
+  - search
+  - minify:
+      minify_html: true
+
+# Extensions configuration (if any Markdown extensions are used)
+markdown_extensions:
+  - toc:
+      permalink: true
+  - admonition
+  - codehilite:
+      guess_lang: false
+
+# Specify custom CSS and JavaScript if you have any
+extra_css:
+  - 'assets/css/custom.css'
+extra_javascript:
+  - 'assets/js/custom.js'
+
+# Google Analytics or other tracking (if you want to add tracking)
+# google_analytics:
+#   - 'UA-XXXXX-X'
+#   - 'auto'
+
