@@ -9,19 +9,37 @@ Explore the power and simplicity of Klong with these engaging examples. Each sni
 11
 ```
 
+```kgpy
+?> sum::{+/x}  :" sum + over / the array x
+:monad
+?> sum([1 2 3])
+6
+?> count::{#x}
+:monad
+?> count([1 2 3])
+3
+```
+
+```kgpy
+?> avg::{sum(x)%count(x)} :" average is the sum divided by the number of elements
+:monad
+?> avg([1 2 3])
+2
+```
+
 ## 2. Math on arrays
 
 Squaring numbers in a list
 
 ```kgpy
-?> {x*x}'[1 2 3 4 5]
+?> {x*x}'[1 2 3 4 5] :" square each element as we iterate over the array
 [1 4 9 16 25]
 ```
 
 Vectorized approach will do an element-wise multiplication in bulk:
 
 ```kgpy
-?> a::[1 2 3 4 5];a*a
+?> a::[1 2 3 4 5];a*a  :" a*a multiplies the arrays
 [1 4 9 16 25]
 ```
 
@@ -42,7 +60,11 @@ $> time(slow)
 2.8987138271331787
 ```
 
-Vectors win by 182x!
+Vectors win by 182x!  Why?  Because when you perform a bulk vector operation the CPU can perform the math with much less overhead and do many more operations at a time because it has the entire computation presented to it at once.
+
+KlongPy aims to give you tools that let you conveniently exploit this vectorization property - and go FAST!
+
+Less code, but faster.
 
 ## 3. Data Analysis with Python Integration
 
@@ -59,9 +81,24 @@ klong('avg::{(+/x)%#x}')
 klong('avg(data)')
 ```
 
+How about we use the NumPy FFT?
+
+```kgpy
+?> .pyf("numpy";"fft");fft::.pya(fft;"fft")
+:monad
+?> signal::[0.0 1.0 0.0 -1.0] :" Example simple signal
+[0.0 1.0 0.0 -1.0]
+?> result::fft(signal)
+[0j -2j 0j 2j]
+```
+
+Now you can use NumPy or other libraries to provide complex functions while KlongPy lets you quickly prepare and process the vectors.
+
 ## 4. Database Functionality
 
-Database operation: creating and querying a table.
+KlongPy leverages a high-performance columnar store called DuckDb and uses zero-copy NumPy array operations, allowing you to quickly create arrays in KlongPy and then perform SQL on the data for deeper insights.
+
+It's easy to create a table and a db to query:
 
 ```kgpy
 ?> .py("klongpy.db")
