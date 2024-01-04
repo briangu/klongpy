@@ -68,7 +68,7 @@ a
 [1 2 3]
 ```
 
-Since KlongPy uses DuckDb under the hood, you can perform sophisticated SQL over the underlying NumPy arrays.  
+Since KlongPy uses DuckDb under the hood, you can perform sophisticated SQL over the underlying NumPy arrays.
 
 For example, it's easy to use JOIN with this setup:
 
