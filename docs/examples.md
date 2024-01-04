@@ -4,7 +4,7 @@ Explore the power and simplicity of Klong with these engaging examples. Each sni
 
 ## 1. Basic Arithmetic
 
-```klong
+```kgpy
 ?> 5 + 3 * 2
 11
 ```
@@ -13,17 +13,36 @@ Explore the power and simplicity of Klong with these engaging examples. Each sni
 
 Squaring numbers in a list
 
-```bash
+```kgpy
 ?> {x*x}'[1 2 3 4 5]
 [1 4 9 16 25]
 ```
 
 Vectorized approach will do an element-wise multiplication in bulk:
 
-```bash
+```kgpy
 ?> a::[1 2 3 4 5];a*a
 [1 4 9 16 25]
 ```
+
+If you really want to see the performance difference, let's crank up the size of the array and time it:
+
+```kgpy
+$> .l("time")
+:monad
+$> a::!1000;#a
+1
+$> fast::{{a*a}'!1000}
+:nilad
+$> slow::{{{x*x}'a}'!1000}
+:nilad
+$> time(fast)
+0.015867948532104492
+$> time(slow)
+2.8987138271331787
+```
+
+Vectors win!
 
 ## 3. Data Analysis with Python Integration
 
@@ -44,7 +63,7 @@ klong('avg(data)')
 
 Database operation: creating and querying a table.
 
-```bash
+```kgpy
 ?> .py("klongpy.db")
 ?> t::.table([["name" ["Alice" "Bob"]] ["age" [25 30]]])
 name age
@@ -61,14 +80,14 @@ Bob 30
 Demonstrating IPC and async remote function calls
 Execute on remote server with input 0-99
 
-```bash
+```kgpy
 ?> avg::{(+/x)%#x}
 :monad
 ?> .srv(8888)
 1
 ```
 
-```bash
+```kgpy
 ?> f::.cli(8888)
 remote[localhost:8888]:fn
 ?> f(:avg,,!100)
