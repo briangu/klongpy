@@ -9,7 +9,7 @@ Explore the power and simplicity of Klong with these engaging examples. Each sni
 11
 ```
 
-## 2. Manipulating lists
+## 2. Math on arrays
 
 Squaring numbers in a list
 
@@ -42,7 +42,7 @@ $> time(slow)
 2.8987138271331787
 ```
 
-Vectors win!
+Vectors win by 182x!
 
 ## 3. Data Analysis with Python Integration
 
