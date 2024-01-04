@@ -13,14 +13,15 @@
 [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/klongpy.svg?style=social&label=Follow%20%40KlongPy)](https://twitter.com/klongpy)
 <!-- [![Discord]](https://discord.gg/z2vvTvxa) -->
 
-
 # KlongPy
 
 KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array language](https://en.wikipedia.org/wiki/Array_programming), offering high-performance vectorized operations. It prioritizes compatibility with Python, thus allowing seamless integration of Python's expansive ecosystem while retaining Klong's succinctness. With the inclusion of [CuPy](https://github.com/cupy/cupy), KlongPy can operate using both CPU and GPU backends. It utilizes [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) descendant from APL, as its core. This means its runtime can target either GPU or CPU backends. The framework's foundation lies in [Nils M Holm](https://t3x.org)'s work, the original developer of Klong, who has authored a [Klong Book](https://t3x.org/klong/book.html). KlongPy is especially useful for data scientists, quantitative analysts, researchers, and programming language aficionados.
 
 # Quick install
 
-`pip3 install "klongpy[full]"`
+```bash
+pip3 install "klongpy[full]"
+```
 
 # Overview
 
@@ -37,6 +38,10 @@ KlongPy is both an Array Language runtime and a set of powerful tools for buildi
 
 # Examples
 
+```
+
+```
+
 Consider this simple Klong expression that computes an array's average: `(+/a)%#a`. Decoded, it means "sum of 'a' divided by the length of 'a'", as read from right to left.
 
 Below, we define the function 'avg' and apply it to the array of 1 million integers (as defined by !1000000)
@@ -46,10 +51,10 @@ Let's try this in the KlongPy REPL:
 ```Bash
 $ rlwrap kgpy
 
-Welcome to KlongPy REPL v0.3.78
-author: Brian Guarraci
-repo  : https://github.com/briangu/klongpy
-crtl-d or ]q to quit
+Welcome to KlongPy REPL v0.6.0
+Author: Brian Guarraci
+Web: http://klongpy.org
+]h for help; crtl-d or ]q to quit
 
 ?> avg::{(+/x)%#x}
 :monad
