@@ -198,8 +198,7 @@ def eval_monad_groupby(a):
     if len(q) == 0:
         return q
     a = q.argsort()
-    u = np.unique(q[a], return_index=True)
-    r = np.split(a, u[1][1:])
+    r = np.split(a, np.where(q[a][1:] != q[a][:-1])[0] + 1)
     return np.asarray(r, dtype=object)
 
 
