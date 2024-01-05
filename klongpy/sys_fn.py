@@ -12,7 +12,7 @@ from inspect import Parameter
 import numpy
 
 from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
-                   is_dict, is_empty, is_list, kg_read, kg_write, np,
+                   is_dict, is_empty, is_list, kg_asarray, kg_read, kg_write, np,
                    reserved_fn_args, reserved_fn_symbol_map, safe_eq)
 
 
@@ -303,10 +303,16 @@ def import_file_module(x):
     """
     Import a module from a file path.
     """
-    module_name = os.path.dirname(x)
-    spec = importlib.util.spec_from_file_location(module_name, location=x)
+    location = os.path.abspath(x)
+    module_name = os.path.splitext(os.path.basename(x))[0]
+    spec = importlib.util.spec_from_file_location(module_name, location=location)
     module = importlib.util.module_from_spec(spec)
+    module.__file__ = location
+    module.__package__ = None
+    module.__name__ = module_name
     spec.loader.exec_module(module)
+    sys.modules[module.__name__] = module
+    sys.path.insert(0, os.path.dirname(x))
     return module
 
 
@@ -621,6 +627,22 @@ def eval_sys_read_line(klong):
     if r == '':
         f.at_eof = True
     return r.rstrip()
+
+
+def eval_sys_read_lines(klong):
+    """
+
+        .rls()                                              [Read-Lines]
+
+        Read all lines from the From Channel and return it as an array.
+        If there is a line separator at the end of the line, it will
+        be stripped from the string.
+
+    """
+    f = klong['.sys.cin']
+    r = f.raw.readlines()
+    f.at_eof = True
+    return kg_asarray(r)
 
 
 def eval_sys_read_string(klong, x):

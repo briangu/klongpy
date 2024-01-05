@@ -1,0 +1,3 @@
+.py("tests/kgtests/interop/pool.py")
+
+t("multiprocessing runit(!10)"; runit(!10); (!10)*(!10))

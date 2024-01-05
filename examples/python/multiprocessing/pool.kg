@@ -1,0 +1,3 @@
+.py("pool.py")
+
+runit(!10)
