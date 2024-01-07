@@ -1,0 +1,5 @@
+.py("par.py")
+
+.p("running workers in parallel processes: ")
+.p(runit(!10;"worker.kg";"worker"))
+

@@ -1,3 +1,3 @@
 .py("pool.py")
 
-runit(!10)
+.d("parallel squared numbers: ");.p(runit(!10))
