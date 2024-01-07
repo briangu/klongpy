@@ -104,6 +104,6 @@ def process(
 
 def load(fname):
     cpu_count, start_end = chunks(fname)
-    return process(cpu_count, start_end)
+    return process(cpu_count, start_end)[0]
 
 
