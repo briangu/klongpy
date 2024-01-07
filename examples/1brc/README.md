@@ -9,3 +9,10 @@ So for this example, we should a few neat things you can do with KlongPy.
 3. Results are aggregated in the primary process and reported.
 
 
+To run:
+
+```bash
+$ kgpy par.kg -- measurements.txt
+```
+
+
