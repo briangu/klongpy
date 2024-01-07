@@ -1,0 +1,4 @@
+.py("par.py")
+
+r::load(.os.argv@0)
+.p(r)

@@ -1,0 +1,7 @@
+.pyf("numpy";["min" "max" "mean"])
+
+collect::{min(x),max(x),(+/x),#x}
+merge::{:[:_x;y;((x@0)&(y@0)),((x@1)|(y@1)),((x@2)+(y@2)),((x@3)+(y@3))]}
+stats::{[m s t g];m::x;s::y@0;t::y@1;{[q];q::s@(x@0);m,q,,merge(m?q;collect(t@x))}'=s;m}
+
+
