@@ -5,6 +5,4 @@ stations::{[s];s::{x@0}'x;s@<s}
 result::{(1.1$x@0),"/",(1.1$(:[x@3;(x@2)%x@3;0])),"/",(1.1$x@1)}
 stats::{[m r];m::x;r:::{};{r,x,,result(m?x)}'stations(m);r}
 
-r::load(.os.argv@0)
-.p(r)
-.p(stats(r))
+.p(stats(load(.os.argv@0)))
