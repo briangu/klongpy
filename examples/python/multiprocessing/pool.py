@@ -1,4 +1,4 @@
-import multiprocessing
+import multiprocessing as mp
 
 def square(n):
     """Function to square a number."""
@@ -6,6 +6,6 @@ def square(n):
 
 def runit(numbers):
     """Apply the square function in parallel to a list of numbers."""
-    with multiprocessing.Pool(1) as pool:
+    with mp.Pool() as pool:
         results = pool.map(square, numbers)
     return results
