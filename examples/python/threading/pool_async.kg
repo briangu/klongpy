@@ -1,0 +1,11 @@
+.py("pool.py")
+
+.p("async parallel squared numbers: ");
+
+:" create an async wrapper for the parallel task "
+cb::{.d("done: ");.p(x)}
+fn::{x*x}
+arunit::.async(runit; cb)
+
+arunit(!10;fn)
+.d("doing other work: ");.p(24*24)

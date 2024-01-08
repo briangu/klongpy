@@ -1,0 +1,14 @@
+.py("callback_async.py")
+
+cb::{.d("callback called: ");.p(x)}
+fn::{x*x}
+
+t::0
+.tcb::{.d("counter: ");.p(t);t::t+1}
+th::.timer("counter";0.25;tcb)
+
+.p("running callback in parallel processes: ")
+runit(!10;fn;cb)
+.d("doing other work: ");.p(24*24)
+
+wait()

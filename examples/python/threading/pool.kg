@@ -1,0 +1,3 @@
+.py("pool.py")
+
+.d("parallel squared numbers: ");.p(runit(!10))
