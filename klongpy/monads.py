@@ -234,7 +234,7 @@ def eval_monad_negate(a):
                   -1.23  -->  -1.23
 
     """
-    return vec_fn(a, lambda x: np.negative(np.asarray(x, dtype=object)))
+    return vec_fn(a, lambda x: np.negative(kg_asarray(x)))
 
 
 def eval_monad_not(a):

@@ -1,12 +1,15 @@
-.pyf("math";["erf" "sqrt"]);.pyf("numpy";["log" "sqrt" "exp"])
+.pyf("numpy";["log" "sqrt" "exp" "pi"])
 
 :" normal cdf "
+erf::{(2%sqrt(pi))*(x-((x^3)%3)+((x^5)%10)-((x^7)%42)+((x^9)%216))}
 ncdf::{(1+erf(x%sqrt(2)))%2}
 
 :" Option delta computed via Black-Scholes "
 optiondelta::{[s k r t iv];s::x@0;k::x@1;r::x@2;t::x@3;iv::x@4;ncdf((log(s%k)+(r+0.5*iv^2)*t)%(iv*sqrt(t)))}
 
 :" test the option delta "
+d::optiondelta([100 100 0.05 1 0.2])
+.d("expecting: 0.6368306511756191 computed: ");.p(d)
 d::optiondelta([[100] [100] [0.05] [1] [0.2]])
 .d("expecting: 0.6368306511756191 computed: ");.p(d)
 
@@ -16,5 +19,8 @@ optionprice::{[s k r t iv];s::x@0;k::x@1;r::x@2;t::x@3;iv::x@4;pricefn()}
 
 :" test the option price "
 d::optionprice([100 100 0.05 1 0.2])
+.d("expecting: 10.4506 computed: ");.p(d)
+
+d::optionprice([[100] [100] [0.05] [1] [0.2]])
 .d("expecting: 10.4506 computed: ");.p(d)
 
