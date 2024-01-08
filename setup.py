@@ -27,7 +27,7 @@ extra_requires['full'] = extra_requires['repl'] + extra_requires['web'] + extra_
 setup(
     name='klongpy',
     packages=find_packages(),
-    version='0.6.0',
+    version='0.6.1',
     description='High-Performance Klong array language with rich Python integration.',
     author='Brian Guarraci',
     license='MIT',
