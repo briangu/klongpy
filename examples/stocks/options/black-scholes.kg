@@ -6,15 +6,15 @@ ncdf::{(1+erf(x%sqrt(2)))%2}
 :" Option delta computed via Black-Scholes "
 optiondelta::{[s k r t iv];s::x@0;k::x@1;r::x@2;t::x@3;iv::x@4;ncdf((log(s%k)+(r+0.5*iv^2)*t)%(iv*sqrt(t)))}
 
-:" Option price computed via Black-Scholes "
+:" test the option delta "
 d::optiondelta([[100] [100] [0.05] [1] [0.2]])
 .d("expecting: 0.6368306511756191 computed: ");.p(d)
 
-d1fn::{(log(s%k)+(r+0.5*iv^2)*t)%(iv*sqrt(t))}
-d2fn::{d1-iv*sqrt(t)}
-pricefn::{(s*ncdf(d1))-(k*exp((-r)*t)*ncdf(d2))}
-optionprice::{[s k r t iv d1 d2];s::x@0;k::x@1;r::x@2;t::x@3;iv::x@4;d1::d1fn();d2::d2fn();pricefn()}
+:" Option price computed via Black-Scholes "
+pricefn::{[d1 d2];d1::(log(s%k)+(r+0.5*iv^2)*t)%(iv*sqrt(t));d2::d1-iv*sqrt(t);(s*ncdf(d1))-(k*exp((-r)*t)*ncdf(d2))}
+optionprice::{[s k r t iv];s::x@0;k::x@1;r::x@2;t::x@3;iv::x@4;pricefn()}
 
+:" test the option price "
 d::optionprice([100 100 0.05 1 0.2])
 .d("expecting: 10.4506 computed: ");.p(d)
 
