@@ -12,6 +12,18 @@ class TestExtraCoreSuite(unittest.TestCase):
     def assert_eval_cmp(self, a, b, klong=None):
         self.assertTrue(eval_cmp(a, b, klong=klong))
 
+    def test_negate_array_result_type(self):
+        """ ensure the result type of negating an array is correct """
+        klong = KlongInterpreter()
+        r = klong("-1]")
+        self.assertTrue(is_integer(r))
+        r = klong("-1.0]")
+        self.assertTrue(is_float(r))
+        r = klong("-[1 2 3]")
+        self.assertTrue(r.dtype == int)
+        r = klong("-[1.0 2.0 3.0]")
+        self.assertTrue(r.dtype == float) 
+
     def test_match_empty_array_to_undefined_symbol(self):
         """ symbol is undefined so does not match the empty array """
         klong = KlongInterpreter()
