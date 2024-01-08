@@ -10,6 +10,14 @@ from klongpy.core import KGChar
 class TestKnownBugsSuite(unittest.TestCase):
 
     @unittest.skip
+    def test_should_fail_parsing(self):
+        """
+           this is a bug in both original Klong and KlongPy:
+           fn::{[a b c]::1;a::1;b::2;c::3} the :: after variable declaration is a syntax error
+        """
+        pass
+
+    @unittest.skip
     def test_calling_time_with_lambda(self):
         """
         .l("time")
