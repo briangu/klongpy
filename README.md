@@ -294,7 +294,7 @@ $ curl http://localhost:8888
 
 These examples are designed to illustrate the "batteries included" approach, ease of use and diverse applications of KlongPy, making it a versatile choice for various programming needs.
 
-Check out the references for details and deep dives on specific functionality.
+[Check out the examples folder for more](https://github.com/briangu/klongpy/tree/main/examples).
 
 # Installation
 
