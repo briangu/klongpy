@@ -11,11 +11,23 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/klongpy.svg?style=social&label=Follow%20%40KlongPy)](https://twitter.com/klongpy)
-<!-- [![Discord]](https://discord.gg/z2vvTvxa) -->
 
-# KlongPy
+# KlongPy: High-Performance Array Programming in Python
 
-KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array language](https://en.wikipedia.org/wiki/Array_programming), offering high-performance vectorized operations. It prioritizes compatibility with Python, thus allowing seamless integration of Python's expansive ecosystem while retaining Klong's succinctness. With the inclusion of [CuPy](https://github.com/cupy/cupy), KlongPy can operate using both CPU and GPU backends. It utilizes [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) descendant from APL, as its core. This means its runtime can target either GPU or CPU backends. The framework's foundation lies in [Nils M Holm](https://t3x.org)'s work, the original developer of Klong, who has authored a [Klong Book](https://t3x.org/klong/book.html). KlongPy is especially useful for data scientists, quantitative analysts, researchers, and programming language aficionados.
+KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array language](https://en.wikipedia.org/wiki/Array_programming), known for its high-performance vectorized operations that leverage the power of NumPy. Embracing a "batteries included" philosophy, KlongPy combines built-in modules with Python's expansive ecosystem, facilitating rapid application development with Klong's succinct syntax.
+
+## Core Features
+
+- **Vectorized Operations with NumPy:** At its core, KlongPy uses [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) descendant from APL, for high-efficiency array manipulations.
+- **CPU and GPU Backend Support:** Incorporating [CuPy](https://github.com/cupy/cupy), KlongPy extends its capabilities to operate on both CPU and GPU backends, ensuring versatile and powerful computing options.
+- **Seamless Integration with Python Ecosystem:** The combination of KlongPy's built-in features with Python's wide-ranging libraries enables developers to build complex applications effortlessly.
+
+## KlongPy's Foundation and Applications
+
+- **Inspired by Nils M Holm:** KlongPy is grounded in the work of [Nils M Holm](https://t3x.org), the original creator of Klong, and is further enriched by his [Klong Book](https://t3x.org/klong/book.html).
+- **Ideal for Diverse Fields:** Data scientists, quantitative analysts, researchers, and programming language enthusiasts will find KlongPy especially beneficial for its versatility and performance.
+
+KlongPy thus stands as a robust tool, blending the simplicity of Klong with the extensive capabilities of Python, suitable for a wide range of computational tasks.
 
 # Quick install
 
@@ -23,7 +35,7 @@ KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array lang
 pip3 install "klongpy[full]"
 ```
 
-# Overview
+# Feature Overview
 
 KlongPy is both an Array Language runtime and a set of powerful tools for building high performance data analysis and distributed computing applications.  Some of the features include:
 
@@ -36,17 +48,34 @@ KlongPy is both an Array Language runtime and a set of powerful tools for buildi
 * [__Web server__](docs/web_server.md): Includes a web server, making it easy to build sites backed by KlongPy capabilities.
 * [__Timers__](docs/timer.md): Includes periodic timer facility to periodically perform tasks.
 
-# Examples
+# KlongPy Examples
 
-```
+Explore KlongPy with these examples. Each snippet highlights a unique aspect of Klong, demonstrating its versatility in various programming scenarios.
 
-```
+Before we get started, you may be wondering: *Why is the syntax so terse?*
 
-Consider this simple Klong expression that computes an array's average: `(+/a)%#a`. Decoded, it means "sum of 'a' divided by the length of 'a'", as read from right to left.
+The answer is that it's based on the APL style array language programming and there's a good reason why its compact nature is actually helpful.
 
-Below, we define the function 'avg' and apply it to the array of 1 million integers (as defined by !1000000)
+Array language style lets you describe WHAT you want the computer to do and it lets the computer figure out HOW to do it.  This frees you up from the details while letting the computer figure out how to go as fast as possible.
 
-Let's try this in the KlongPy REPL:
+Less code to write and faster execution.
+
+---
+
+Just so the following examples make more sense when you see the REPL outputs, there are a few quick rules about Klong functions.  Functions only take up to 3 parameters and they are ALWAYS called x,y and z.
+
+A function with
+
+* no parameters is called a nilad
+* one parameter is called a monad (x)
+* two parameters: dyad (x and y)
+* three parameters: a triad (x, y and z)
+
+The reason that Klong functions only take up to 3 parameters AND name them for you is both convience and compactness.
+
+---
+
+## 0. Start the REPL
 
 ```Bash
 $ rlwrap kgpy
@@ -56,158 +85,251 @@ Author: Brian Guarraci
 Web: http://klongpy.org
 ]h for help; crtl-d or ]q to quit
 
+?>
+```
+
+## 1. Basic Arithmetic
+
+Let's get started with the basics and build up to some more interesting math.  Expressions are evaluated from right to left: 3*2 and then + 5
+
+```kgpy
+?> 5+3*2
+11
+```
+
+KlongPy is more about arrays of things, so let's define sum and count functions over an array:
+
+```kgpy
+?> sum::{+/x}  :" sum + over / the array x
+:monad
+?> sum([1 2 3])
+6
+?> count::{#x}
+:monad
+?> count([1 2 3])
+3
+```
+
+Now that we know the sum and number of elements we can compute the average:
+
+```kgpy
+?> avg::{sum(x)%count(x)} :" average is the sum divided by the number of elements
+:monad
+?> avg([1 2 3])
+2
+```
+
+## 2. Math on arrays
+
+Let's dig into more interesting operations over array elements.  There's really big performance differences in how you approach the problem and it's important to see the difference.
+
+For the simple case of squaring numbers in a list, let's try a couple solutions:
+
+```kgpy
+?> {x*x}'[1 2 3 4 5] :" square each element as we iterate over the array
+[1 4 9 16 25]
+```
+
+The vectorized approach will do an element-wise multiplication in bulk:
+
+```kgpy
+?> a::[1 2 3 4 5];a*a  :" a*a multiplies the arrays
+[1 4 9 16 25]
+```
+
+The vectorized approach is going to be MUCH faster.  Let's crank up the size of the array and time it:
+
+```kgpy
+$> .l("time")
+:monad
+$> a::!1000;#a
+1
+$> fast::{{a*a}'!1000}
+:nilad
+$> slow::{{{x*x}'a}'!1000}
+:nilad
+$> time(fast)
+0.015867948532104492
+$> time(slow)
+2.8987138271331787
+```
+
+Vectors win by 182x!  Why?  Because when you perform a bulk vector operation the CPU can perform the math with much less overhead and do many more operations at a time because it has the entire computation presented to it at once.
+
+KlongPy aims to give you tools that let you conveniently exploit this vectorization property - and go FAST!
+
+Less code to write AND faster to compute.
+
+## 3. Data Analysis with Python Integration
+
+KlongPy integrates seamlessly with Python so that the strenghts of both can be combined.  It's easy to use KlongPy from Python and vice versa.
+
+For example, let's say we have some data in Python that we want to operate on in KlongPy.  We can just directly use the interpreter in Python and run functions on data we put into the KlongPy context:
+
+```python
+from klongpy import KlongInterpreter
+import numpy as np
+
+data = np.array([1, 2, 3, 4, 5])
+klong = KlongInterpreter()
+# make the data NumPy array available to KlongPy code by passing it into the interpreter
+# we are creating a symbol in KlongPy called 'data' and assigning the external NumPy array value
+klong['data'] = data
+# define the average function in KlongPY
+klong('avg::{(+/x)%#x}')
+# call the average function with the external data and return the result.
+r = klong('avg(data)')
+print(r) # expected value: 3
+```
+
+It doesn't make sense to write code in Klong that already exists in other libraries.  We can directly access them via the python inport functions (.py and .pyf).
+
+How about we use the NumPy FFT?
+
+```kgpy
+?> .pyf("numpy";"fft");fft::.pya(fft;"fft")
+:monad
+?> signal::[0.0 1.0 0.0 -1.0] :" Example simple signal
+[0.0 1.0 0.0 -1.0]
+?> result::fft(signal)
+[0j -2j 0j 2j]
+```
+
+Now you can use NumPy or other libraries to provide complex functions while KlongPy lets you quickly prepare and process the vectors.
+
+There's a lot more we can do with interop but let's move on for now!
+
+## 4. Database Functionality
+
+KlongPy leverages a high-performance columnar store called DuckDb that uses zero-copy NumPy array operations behind the scenes.   This database allows fast interop between KlongPy and DuckDb (the arrays are not copied) so that applications can manage arrays in KlongPy and then instantly perform SQL on the data for deeper insights.
+
+It's easy to create a table and a db to query:
+
+```kgpy
+?> .py("klongpy.db")
+?> t::.table([["name" ["Alice" "Bob"]] ["age" [25 30]]])
+name age
+Alice 25
+Bob 30
+?> db::.db(:{},"T",t)
+?> db("select * from T where age > 27")
+name age
+Bob 30
+```
+
+## 5. IPC, Remote Function Calls and Asynchronous operations
+
+Inter Process Communication (IPC) lets you build distributed and interconnected KlongPy programs and services.
+
+KlongPy treats IPC connections to servers as functions.  These functions let you call the server and ask for things it has in it's memory - they can be other functions or values, etc.  For example you can ask for a reference to a remote function and you will get a local function that when you call it runs on teh server with your arguemnts.  This general "remote proxy" approach allows you to write your client code in the same way as if all the code were running locally.
+
+To see this in action, let's setup a simple scenario where the server has an "avg" function and the client wants to call it.
+
+Start a server in one terminal:
+
+```kgpy
 ?> avg::{(+/x)%#x}
 :monad
-?> avg(!1000000)
-499999.5
-```
-
-Now let's time it (first, right it once, then 100 times):
-
-```
-?> ]T avg(!1000000)
-total: 0.0032962500117719173 per: 0.0032962500117719173
-?> ]T:100 avg(!1000000)
-total: 0.10882879211567342 per: 0.0010882879211567343
-```
-
-We can also import Python custom or standard modules to use directly in Klong language.
-
-```
-?> .pyf("math";"pi")
+?> .srv(8888)
 1
-?> pi
-3.141592653589793
 ```
 
-Here we import the fsum function from standard Python math library and redefine avg to use 'fsum':
+Start the client and make the connection to the server as 'f'.  In order to pass parameters to a remote function we form an array of the function symbol followed by the parameters (e.g. :avg,,!100)
 
+```kgpy
+?> f::.cli(8888) :" connect to the server
+remote[localhost:8888]:fn
+?> f(:avg,,!100) : call the remote function "avg" directly with the paramter !100
+49.5
 ```
-?> .pyf("math";"fsum")
+
+Let's get fancy and make a local proxy to the remote function:
+
+```kgpy
+?> myavg::f(:avg) :" reference the remote function by it's symbol :avg and assign to a local variable called myavg
+remote[localhost:8888]:fn:avg:monad
+?> myavg(!100) :" this runs on the server with !100 array passed to it as a parameter
+49.5
+```
+
+Since remote functions may take a while we can wrap them with an async wrapper and have it call our callback when completed:
+
+```kgpy
+?> afn::.async(myavg;{.d("Avg calculated: ");.p(x)})
+async::monad
+?> afn(!100)
+Avg calculated: 49.5
 1
-?> favg::{fsum(x)%#x}
-:monad
-?> favg(!1000000)
-499999.5
 ```
 
-Notice that using fsum is slower than using Klong '+/'.  This is because the '+/' operation is vectorized while fsum is not.
+## 6. Web Server Implementation
 
-```
-?> ]T favg(!1000000)
-total: 0.050078875152394176 per: 0.050078875152394176
-?> ]T:100 favg(!1000000)
-total: 2.93945804098621 per: 0.029394580409862103
-```
+In addition to IPC we can also expose data via a standard web server.  This capability lets you have other ways of serving content that can be either exposing interesting details about some computation or just a simple web server for other reasons.
 
-To use KlongPy within Python, here's a basic outline:
+Let's create a file called web.kg with the following code that adds one index handler:
 
-```python
-from klongpy import KlongInterpreter
-
-# instantiate the KlongPy interpeter
-klong = KlongInterpreter()
-
-# define average function in Klong (Note the '+/' (sum over) uses np.add.reduce under the hood)
-klong('avg::{(+/x)%#x}')
-
-# create a billion random uniform values [0,1)
-data = np.random.rand(10**9)
-
-# reference the 'avg' function in Klong interpeter and call it directly from Python.
-r = klong['avg'](data)
-
-print(f"avg={np.round(r,6)}")
+```text
+.py("klongpy.web")
+data::!10
+index::{x; "Hello, Klong World! ",data}
+.web(8888;:{},"/",index;:{})
+.p("ready at http://localhost:8888")
 ```
 
-And let's run a performance comparison between CPU and GPU backends:
+We can run this web server as follows:
 
-```python
-import time
-from klongpy.backend import np
-from klongpy import KlongInterpreter
-
-klong = KlongInterpreter()
-klong('avg::{(+/x)%#x}')
-
-data = np.random.rand(10**9)
-
-start = time.perf_counter_ns()
-r = klong['avg'](data)
-stop = time.perf_counter_ns()
-
-print(f"avg={np.round(r,6)} in {round((stop - start) / (10**9), 6)} seconds")
+```bash
+$ kgpy web.kg
+ready at http://localhost:8888
 ```
 
-Run (CPU)
+In another terminal:
 
-    $ python3 tests/perf_avg.py
-    avg=0.5 in 0.16936 seconds
+```bash
+$ curl http://localhost:8888
+['Hello, Klong World! ' 0 1 2 3 4 5 6 7 8 9]
+```
 
-Run (GPU)
+## Conclusion
 
-    $ USE_GPU=1 python3 tests/perf_avg.py
-    avg=0.500015 in 0.027818 seconds
+These examples are designed to illustrate the "batteries included" approach, ease of use and diverse applications of KlongPy, making it a versatile choice for various programming needs.
+
+Check out the references for details and deep dives on specific functionality.
 
 # Installation
 
 ### CPU
 
-    $ pip3 install klongpy
+```bash
+pip3 install klongpy
+```
 
 ### GPU support
 
-    Choose your CuPy prebuilt binary or from source.  Note, the [ROCM](docs/ROCM.md) support for CuPy is experimental and likely will have issues.
+Choose your CuPy prebuilt binary or from source.  Note, the [ROCM](docs/ROCM.md) support for CuPy is experimental and likely will have issues.
 
-    'cupy' => build from source
-    'cuda12x' => "cupy-cuda12x"
-    'cuda11x' => "cupy-cuda11x"
-    'cuda111' => "cupy-cuda111"
-    'cuda110' => "cupy-cuda110"
-    'cuda102' => "cupy-cuda102"
-    'rocm-5-0' => "cupy-rocm-5-0"
-    'rocm-4-3' => "cupy-rocm-4-3"
+'cupy' => build from source
+'cuda12x' => "cupy-cuda12x"
+'cuda11x' => "cupy-cuda11x"
+'cuda111' => "cupy-cuda111"
+'cuda110' => "cupy-cuda110"
+'cuda102' => "cupy-cuda102"
+'rocm-5-0' => "cupy-rocm-5-0"
+'rocm-4-3' => "cupy-rocm-4-3"
 
-    $ pip3 install klongpy[cupy]
+```bash
+pip3 install "klongpy[cupy]"
+```
 
 ### All application tools (db, web, REPL, etc.)
 
-    $ pip3 install "klongpy[full]"
-
-
-# REPL
-
-KlongPy has a REPL similar to Klong's REPL.
-
 ```bash
-$ pip3 install klongpy[repl]
-$ rlwrap kgpy
-
-Welcome to KlongPy REPL
-author: Brian Guarraci
-repo  : https://github.com/briangu/klongpy
-crtl-c to quit
-
-?> 1+1
-2
->? "hello, world!"
-hello, world!
-?> prime::{&/x!:\2+!_x^1%2}
-:monad
-?> prime(4)
-0
-?> prime(251)
-1
-?> ]T prime(251)
-total: 0.0004914579913020134 per: 0.0004914579913020134
+pip3 install "klongpy[full]"
 ```
-
-Read about the [prime example here](https://t3x.org/klong/prime.html).
-
 
 # Status
 
-KlongPy aims to be a complete implementation of klong.  It currently passes all of the integration tests provided by klong as well as additional suites.
+KlongPy is a superset of the Klong array language.  It currently passes all of the integration tests provided by klong as well as additional suites.
 
 Since CuPy is [not 100% compatible with NumPy](https://docs.cupy.dev/en/stable/user_guide/difference.html), there are currently some gaps in KlongPy between the two backends.  Notably, strings are supported in CuPy arrays so KlongPy GPU support currently is limited to math.
 
@@ -216,37 +338,26 @@ Primary ongoing work includes:
 * Additional tools to make KlongPy applications more capable.
 * Additional syntax error help
 * Actively switch between CuPy and NumPy when incompatibilities are present
-    * Work on CuPy kernels is in this branch: _cupy_reduce_kernels
 
 # Differences from Klong
 
 KlongPy is effectively a superset of the Klong language, but has some key differences:
 
-    * Infinite precision: The main difference in this implementation of Klong is the lack of infinite precision.  By using NumPy we are restricted to doubles.
-    * Python integration: Most notably, the ".py" command allows direct import of Python modules into the current Klong context.
-    * IPC - KlongPy supports IPC between KlongPy processes.
+* Infinite precision: The main difference in this implementation of Klong is the lack of infinite precision.  By using NumPy we are restricted to doubles.
+* Python integration: Most notably, the ".py" command allows direct import of Python modules into the current Klong context.
+* KlongPy aims to be more "batteries included" approach to modules and contains additional features such as IPC, Web service, Websockets, etc.
 
 # Related
 
- * [Klupyter - KlongPy in Jupyter Notebooks](https://github.com/briangu/klupyter)
- * [Advent Of Code '22](https://github.com/briangu/aoc/tree/main/22)
+* [Klupyter - KlongPy in Jupyter Notebooks](https://github.com/briangu/klupyter)
+* [Visual Studio Code Syntax Highlighting](https://github.com/briangu/klongpy-vscode)
+* [Advent Of Code in KlongPy](https://github.com/briangu/aoc)
 
+## Develop
 
-# Unused operators
-
-The following operators are yet to be used:
-
-```
-:! :& :, :< :> :?
-```
-
-# Contribute
-
-### Develop
-
-    $ git clone https://github.com/briangu/klongpy.git
-    $ cd klongpy
-    $ python3 setup.py develop
+git clone https://github.com/briangu/klongpy.git
+cd klongpy
+python3 setup.py develop
 
 ### Running tests
 
@@ -254,8 +365,6 @@ The following operators are yet to be used:
 python3 -m unittest
 ```
 
-
 # Acknowledgement
 
 HUGE thanks to Nils M Holm for his work on Klong and providing the foundations for this interesting project.
-
