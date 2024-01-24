@@ -1,0 +1,10 @@
+:" test that we can create new arrays with nested arrays and the result has the right shape "
+
+data::{!3}
+t("1,,{data()}'!2";1,,{data()}'!2;[1 [[0 1 2] [0 1 2]]])
+
+
+a::!10
+k::3
+c::(,,,1#a),k
+t("c::(,,,1#a),k";c::(,,,1#a),k;[[[[0]]] 3])

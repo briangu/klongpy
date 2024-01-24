@@ -6,7 +6,7 @@ Here's a contrived rough benchmark to show the magnitude differences between Pyt
 
 **Spoiler**: GPU-backed KlongPy is about 790x faster than naive Python and 36x faster than NumPy-backed KlongPy.
 
-### Python
+## Python
 
 ```python
 def python_vec(number=100):
@@ -14,7 +14,7 @@ def python_vec(number=100):
     return r/number
 ```
 
-### KlongPy
+## KlongPy
 
 ```python
 # NumPy and CuPy (CuPy is enabled via USE_GPU=1 environment variable
@@ -24,7 +24,7 @@ def klong_vec(number=100):
     return r/number
 ```
 
-### NumPy (explicit usage)
+## NumPy (explicit usage)
 
 ```python
 def NumPy_vec(number=100):
@@ -36,19 +36,22 @@ def NumPy_vec(number=100):
 
 ### CPU (AMD Ryzen 9 7950x)
 
-    $ python3 tests/perf_vector.py
-    Python: 0.369111s
-    KlongPy USE_GPU=None: 0.017946s
-    Numpy: 0.017896s
-    Python / KlongPy => 20.568334
-    Numpy / KlongPy => 0.997245
+```bash
+$ python3 tests/perf_vector.py
+Python: 0.369111s
+KlongPy USE_GPU=None: 0.017946s
+Numpy: 0.017896s
+Python / KlongPy => 20.568334
+Numpy / KlongPy => 0.997245
+```
 
 ### GPU (Same CPU with NVIDIA GeForce RTX 3090)
 
-    $ USE_GPU=1 python3 tests/perf_vector.py
-    Python: 0.364893s
-    KlongPy USE_GPU=1: 0.000461s
-    NumPy: 0.017053s
-    Python / KlongPy => 790.678069
-    Numpy / KlongPy => 36.951443
-
+```bash
+$ USE_GPU=1 python3 tests/perf_vector.py
+Python: 0.364893s
+KlongPy USE_GPU=1: 0.000461s
+NumPy: 0.017053s
+Python / KlongPy => 790.678069
+Numpy / KlongPy => 36.951443
+```

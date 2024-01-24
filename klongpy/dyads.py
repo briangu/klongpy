@@ -478,14 +478,8 @@ def eval_dyad_integer_divide(a, b):
 
 
 def _arr_to_list(a):
-    if np.isarray(a):
-        if a.ndim == 1:
-            return a
-        elif a.shape[0] == 1:
-            return [a.flatten()] # TODO: test squeeze
-        elif a.shape[0] > 1:
-            return a
-    return [a] if not is_list(a) else a
+    """ Convert a to a list if it is not already one """
+    return a if is_list(a) else [a]# if not is_list(a) else a
 
 
 def eval_dyad_join(a, b):

@@ -40,13 +40,6 @@ class TestKnownBugsSuite(unittest.TestCase):
         self.assertTrue(kg_equal(r, data['col1']))
 
     @unittest.skip
-    def test_join_nested_array(self):
-        klong = KlongInterpreter()
-        r = klong("a::!10;k::3;c::(,,,1#a),k")
-        # currently this flattens to [[0], 3]
-        self.assertTrue(kg_equal(r,[[[[0]]],3]))
-
-    @unittest.skip
     def test_extra_spaces(self):
         klong = KlongInterpreter()
         r = klong("a::{ 1 + 1 };a()")
