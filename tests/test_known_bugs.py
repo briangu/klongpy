@@ -4,10 +4,20 @@ import pandas as pd
 from utils import *
 
 from klongpy import KlongInterpreter
-from klongpy.core import KGChar
+from klongpy.core import KGChar, KGSym
 
 
 class TestKnownBugsSuite(unittest.TestCase):
+
+    # @unittest.skip
+    def test_array_substitution(self):
+        # [!10] should eval to [:! 10] but it doesn't
+        klong = KlongInterpreter()
+        r = klong('[!10]')
+        self.assertTrue(kg_equal(r, [KGSym('!'), 10]))
+        # [3*a^2] should eval to [3 :* :a :^ 2] but it doesn't
+        r = klong('[3*a^2]')
+        self.assertTrue(kg_equal(r, [3, KGSym('*'), KGSym('a'), KGSym('^'), 2]))
 
     @unittest.skip
     def test_should_fail_parsing(self):
