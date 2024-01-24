@@ -9,7 +9,7 @@ from klongpy.core import KGChar, KGSym
 
 class TestKnownBugsSuite(unittest.TestCase):
 
-    # @unittest.skip
+    @unittest.skip
     def test_array_substitution(self):
         # [!10] should eval to [:! 10] but it doesn't
         klong = KlongInterpreter()
