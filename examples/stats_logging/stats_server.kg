@@ -1,0 +1,51 @@
+.comment("****")
+
+A simple stats server that collects stats from clients.
+
+
+
+The database is flushed to disk periodically.
+
+****
+
+.py("klongpy.db")
+
+:" function timing utility "
+time0::{[t0];t0::.pc();x@[];.pc()-t0}
+
+:" open the tables key-value store "
+tbs::.tables("/tmp/tables/stats")
+
+:" Load or create a new table with stats columns "
+cols::["t" "n" "v"]
+colsFromData::{{(x@0),,[]}'x}
+colsFromNames::{{x,,[]}'x}
+statsT:::[:_(tbs?"stats");.table(colsFromNames(cols));tbs?"stats"]
+
+:" Create a database so we can inspect the data "
+db::.db(:{},"stats",,statsT)
+
+syncDb::{db("select 1 from stats")}
+tableSize::{[q];q::db("select count(*) from stats");.d("rows: ");.p(q);q}
+tableSize()
+
+lastTime::.pc()
+lastSize::0
+batchSize::0
+writeStats::{[n];n::.pc();.d("writes/sec: ");.p((batchSize-lastSize)%(n-lastTime));lastTime::n;lastSize::batchSize}
+.timer("write stats";60;writeStats)
+
+flushTable::{tbs,"stats",statsT}
+store::{:[batchSize;flushTable();0];batchSize::0;1}
+timeStore::{[r];r::time0(store());.d("store ms: ");.p(r)}
+flush::{tableSize();timeStore();1}
+.timer("flush";300;flush)
+
+:" Called by clients to add new data to the server "
+update::{{[u];u::x;.insert(statsT;{u?x}'cols)}'x}
+
+:" Raw bulk update (without column mapping) "
+rupdate::{.insert(statsT;x);batchSize::batchSize+#x}
+
+:" Start the IPC server so clients can connect and add data (via update) "
+.srv(8888)

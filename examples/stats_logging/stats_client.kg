@@ -1,0 +1,19 @@
+.comment("****")
+
+
+****
+
+.py("util.py")
+
+cli::.cli(8888)
+
+:" create a dictionary mapped sensor udpate "
+dsensor::{[d];d:::{};d,"t",now();d,"n",,"temp";d,"v",(.rn()*100)}
+
+:" create a raw sensor update "
+sensor::{now(),1,(.rn()*100)}
+
+:" send a batch of sensor updates "
+send::{cli(:rupdate,,({sensor()}'!100000));1}
+
+.timer("update";0;send)

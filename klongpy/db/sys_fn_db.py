@@ -87,6 +87,9 @@ class Table(dict):
     def insert(self, y):
         self.buffer.append(y)
 
+    def insertb(self, y):
+        self.buffer.extend(y)
+
     def commit(self):
         if not self.buffer:
             return
@@ -254,19 +257,25 @@ def eval_sys_fn_insert_table(x, y):
         Examples:
 
             t::.table(d)
-            .insert(t, [1;2;3])
+            .insert(t, [1 2 3])
+
+            for batch inserts supply an array of arrays:
+
+            .insert(t, [[1 2 3] [4 5 6]])
 
     """
     if not isinstance(x,Table):
         raise KlongDbException(x, "Inserts must be applied to a table")
-    if len(x.columns) > 1:
-        if not np.isarray(y):
-            raise KlongDbException(x, "Values to insert must be a list")
-    elif not np.isarray(y):
-            y = np.array([y])
-    if len(y) != len(x.columns):
+    if not np.isarray(y):
+        raise KlongDbException(x, "Values to insert must be a list")
+    batch = len(y.shape) > 1
+    y_cols = len(y[0]) if batch else len(y)
+    if y_cols != len(x.columns):
         raise KlongDbException(x, f"Expected {len(x.columns)} values, received {len(y)}")
-    x.insert(y)
+    if batch:
+        x.insertb(y)
+    else:
+        x.insert(y)
     return x
 
 
