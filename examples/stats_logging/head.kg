@@ -1,4 +1,4 @@
-
+:" Connect to the server and report the last 10 stats. "
 cli::.cli(8888)
 r::cli(:db,,"select t,v from stats order by t DESC limit 10")
 .p'r
