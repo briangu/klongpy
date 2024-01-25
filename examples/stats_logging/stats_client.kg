@@ -1,5 +1,10 @@
 .comment("****")
 
+A simple fake stats generator client that tries to send 100k stats as fast as possible.
+
+The server displays writes per second, so if multiple clients are running it will be a naive benchmark.
+
+On a fast machine, each client can hit around 50k inserts per second.
 
 ****
 
@@ -7,10 +12,7 @@
 
 cli::.cli(8888)
 
-:" create a dictionary mapped sensor udpate "
-dsensor::{[d];d:::{};d,"t",now();d,"n",,"temp";d,"v",(.rn()*100)}
-
-:" create a raw sensor update "
+:" create a raw sensor update in the columns: t,n,v "
 sensor::{now(),1,(.rn()*100)}
 
 :" send a batch of sensor updates "
