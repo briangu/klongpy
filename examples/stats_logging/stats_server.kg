@@ -29,17 +29,12 @@ statsT:::[:_(tbs?"stats");.table(colsFromNames(cols));tbs?"stats"]
 :" Create a database so we can inspect the data "
 db::.db(:{},"stats",,statsT)
 
-:" Reading from the db will cause buffered inserts to flush into the underlying table "
-syncDb::{db("select 1 from stats")}
-
 :" Read and print the table size "
 tableSize::{[q];q::db("select count(*) from stats");.d("rows: ");.p(q);q}
 tableSize()
 
 :" Periodically report write stats "
-lastTime::.pc()
-lastSize::0
-batchSize::0
+lastTime::.pc();lastSize::0;batchSize::0
 writeStats::{[n];n::.pc();.d("writes/sec: ");.p((batchSize-lastSize)%(n-lastTime));lastTime::n;lastSize::batchSize;1}
 .timer("write stats";60;writeStats)
 
