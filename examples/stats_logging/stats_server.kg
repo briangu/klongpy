@@ -2,9 +2,13 @@
 
 A simple stats server that collects stats from clients.
 
+Periodically (every 1 minute), the write stats are printed.
+Periodically (every 5 minutes), the database is flushed to disk.
 
+Multiple clients can connect and write stats.
+On a fast machine, each client can write about 40-50k data points per second.
 
-The database is flushed to disk periodically.
+A 'head.kg' client can be run to query the server and see the latest data.
 
 ****
 
