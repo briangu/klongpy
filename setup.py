@@ -27,7 +27,7 @@ extra_requires['full'] = extra_requires['repl'] + extra_requires['web'] + extra_
 setup(
     name='klongpy',
     packages=find_packages(),
-    version='0.6.4',
+    version='0.6.5',
     description='High-Performance Klong array language with rich Python integration.',
     author='Brian Guarraci',
     license='MIT',
@@ -38,7 +38,7 @@ setup(
         "License :: OSI Approved :: MIT License"
     ],
     install_requires=['numpy~=1.26.4'],
-    python_requires='<3.12,>=3.8',
+    python_requires='<3.12,>=3.9',
     extras_require=extra_requires,
     include_package_data=True,
     zip_safe=False,
