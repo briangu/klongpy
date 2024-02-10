@@ -38,7 +38,7 @@ setup(
         "License :: OSI Approved :: MIT License"
     ],
     install_requires=['numpy~=1.24.4'],
-    python_requires='<3.12,>=3.9',
+    python_requires='<3.12,>=3.8',
     extras_require=extra_requires,
     include_package_data=True,
     zip_safe=False,
