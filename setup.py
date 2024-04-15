@@ -16,9 +16,9 @@ extra_requires = {
         'rocm-5-0': ["cupy-rocm-5-0"],
         'rocm-4-3': ["cupy-rocm-4-3"],
         'repl': ["colorama==0.4.6"],
-        'web': ["aiohttp==3.8.5"],
-        'db': ["pandas==2.2.0","duckdb==0.9.2"],
-        'ws': ["websockets==11.0.3"],
+        'web': ["aiohttp==3.9.4"],
+        'db': ["pandas==2.2.2","duckdb==0.10.1"],
+        'ws': ["websockets==12.0"],
     }
 
 # full feature set extras
@@ -27,7 +27,7 @@ extra_requires['full'] = extra_requires['repl'] + extra_requires['web'] + extra_
 setup(
     name='klongpy',
     packages=find_packages(),
-    version='0.6.6',
+    version='0.6.7',
     description='High-Performance Klong array language with rich Python integration.',
     author='Brian Guarraci',
     license='MIT',
@@ -38,7 +38,7 @@ setup(
         "License :: OSI Approved :: MIT License"
     ],
     install_requires=['numpy~=1.26.4'],
-    python_requires='<3.12,>=3.9',
+    python_requires='<3.13,>=3.9',
     extras_require=extra_requires,
     include_package_data=True,
     zip_safe=False,
