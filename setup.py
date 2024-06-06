@@ -17,7 +17,7 @@ extra_requires = {
         'rocm-4-3': ["cupy-rocm-4-3"],
         'repl': ["colorama==0.4.6"],
         'web': ["aiohttp==3.9.4"],
-        'db': ["pandas==2.2.2","duckdb==0.10.1"],
+        'db': ["pandas==2.2.2","duckdb==1.0.0"],
         'ws': ["websockets==12.0"],
     }
 
