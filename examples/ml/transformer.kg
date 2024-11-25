@@ -1,0 +1,74 @@
+:" Transformer implementation in pure Klong
+.pyf("numpy";["exp" "max")
+
+:"Define the softmax function"
+softmax::{ex::exp(x - max(x)); ex % (+/ex)}
+
+:"Define matrix multiplication (already defined in examples)"
+matp::{[b]; b::y; {+/x*b}'x}
+
+:"Define mean function"
+mu::{(+/ x) % # x}
+
+:"Define variance function"
+var::{((+/ x * x) % # x) - mu(x)^2}
+
+:"Square root"
+sqr::{[a];a::x;:[0=x;0;{(x+a%x)%2}:~a]}
+
+:"Define standard deviation function"
+sd::{sqr(var(x))}
+
+:"Define layer normalization"
+layernorm::{(x - mu(x)) % (sd(x) + 1e-6)}
+
+:"Define the ReLU activation function"
+relu::{(x > 0) * x}
+
+:"Define the scaled dot-product attention"
+attention::{[Q K V dk scores P]; dk::#K@1; scores::matp(Q;+K) % sqr(dk); P::softmax(scores); matp(P; V)}
+
+:"Define the feed-forward network"
+feedforward::{[W1 b1 W2 b2];matp(relu(matp(x; W1) + b1); W2) + b2}
+
+:"Define the Transformer block"
+transformer_block::{[WQ WK WV WO W1 b1 W2 b2 attnoutput x1 ffoutput];Q::matp(x; W_Q);K::matp(x; W_K);V::matp(x; W_V);attnoutput::attention(Q; K; V);x1::layernorm(x + matp(attnoutput; WO)); ffoutput::feedforward(x1; W1; b1; W2; b2);layer_norm(x1 + ff_output)}
+
+:"Define the Transformer model"
+transformer::{
+    [x; parameters]
+
+    :"Unpack parameters"
+    W_Q::parameters @ 0
+    W_K::parameters @ 1
+    W_V::parameters @ 2
+    W_O::parameters @ 3
+    W1::parameters @ 4
+    b1::parameters @ 5
+    W2::parameters @ 6
+    b2::parameters @ 7
+
+    :"Apply Transformer block(s)"
+    x1::transformer_block(x; W_Q; W_K; W_V; W_O; W1; b1; W2; b2)
+
+    x1
+}
+
+:"Example usage"
+:"Assuming appropriate dimensions for weights and biases"
+parameters::[
+    W_Q;  :"Weight matrix for Q"
+    W_K;  :"Weight matrix for K"
+    W_V;  :"Weight matrix for V"
+    W_O;  :"Output weight matrix"
+    W1;   :"Weight matrix for feed-forward layer 1"
+    b1;   :"Bias vector for feed-forward layer 1"
+    W2;   :"Weight matrix for feed-forward layer 2"
+    b2    :"Bias vector for feed-forward layer 2"
+]
+
+:"Input data (e.g., word embeddings)"
+x::[...]; :"Your input data here"
+
+:"Compute the Transformer output"
+output::transformer(x; parameters)
