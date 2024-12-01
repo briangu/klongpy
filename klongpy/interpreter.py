@@ -119,7 +119,7 @@ class KlongContext():
                         if dk.startswith(tk):
                             return True
         return False
-    
+
     def __iter__(self):
         seen = set()
         for d in self._context:
@@ -358,6 +358,7 @@ class KlongInterpreter():
         if safe_eq(a, '{'): # read fn
             i,a = self.prog(t, i, ignore_newline=True)
             a = a[0] if len(a) == 1 else a
+            i = skip(t, i, ignore_newline=True)
             i = cexpect(t, i, '}')
             arity = get_fn_arity(a)
             if cmatch(t, i, '(') or cmatch2(t,i,':','('):
@@ -416,6 +417,7 @@ class KlongInterpreter():
             if safe_eq(aa, '{'): # read fn
                 i,aa = self.prog(t, i, ignore_newline=True)
                 aa = aa[0] if len(aa) == 1 else aa
+                i = skip(t, i, ignore_newline=True)
                 i = cexpect(t, i, '}')
                 arity = get_fn_arity(aa)
                 if cmatch(t, i, '(') or cmatch2(t,i,':','('):
@@ -433,6 +435,8 @@ class KlongInterpreter():
                 i, aaa = self._expr(t, i, ignore_newline=ignore_newline)
                 a = KGFn(aa, [a, aaa], arity=2)
             ii, aa = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())
+        if ignore_newline and safe_eq(a, '\n'):
+            i = skip(t, i, ignore_newline=True)
         return i, a
 
     def prog(self, t, i=0, ignore_newline=False):
@@ -481,12 +485,12 @@ class KlongInterpreter():
         - f_args is the list of arguments provided to the function during the current invocation.
         - f.args (if f is an instance of KGFn) represents predefined arguments associated with the function.
         These are arguments that are already set by virtue of the function being a projection of another function.
-        - During the resolution process, if the function f is a KGFn with predefined arguments (projections), 
+        - During the resolution process, if the function f is a KGFn with predefined arguments (projections),
         these arguments are appended to the f_args list.
-        - The resolution process ensures that if there are placeholders in the predefined arguments, they are 
+        - The resolution process ensures that if there are placeholders in the predefined arguments, they are
         filled in with values from the provided arguments. However, if the function itself is being projected,
         f_args can still contain a None indicating an empty projection slot.
-        - By the end of the resolution, f_args contains the arguments that will be passed to the function for 
+        - By the end of the resolution, f_args contains the arguments that will be passed to the function for
         evaluation. It is possible for f_args to finally contain None if the function is itself being projected.
         - If `f.a` (the main function or symbol) resolves to another function `_f`, it might indicate a higher-order function scenario.
         - In such a case, `f_args` supplies a function as an argument to `f.a`.

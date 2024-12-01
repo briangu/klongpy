@@ -636,6 +636,7 @@ def read_cond(klong, t, i=0):
         i = cexpect(t, i, ';')
         i,n = klong._expr(t, i, ignore_newline=True)
         r.append(n)
+        i = skip(t,i,ignore_newline=True)
         i = cexpect(t, i, ']')
     return i, KGCond(r)
 
