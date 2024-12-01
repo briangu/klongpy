@@ -14,17 +14,17 @@ class NumpyTransformer:
         self.W_k = k
         self.W_v = v
         self.W_o = o
-        
+
     def softmax(self, x):
         x = x - np.max(x, axis=-1, keepdims=True)  # for numerical stability
         return np.exp(x) / np.sum(np.exp(x), axis=-1, keepdims=True)
-    
+
     def attention(self, Q, K, V):
         d_k = Q.shape[-1]
         scores = np.dot(Q, K.T) / np.sqrt(d_k)
         weights = self.softmax(scores)
         return np.dot(weights, V)
-    
+
     def sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
 
@@ -34,7 +34,7 @@ class NumpyTransformer:
         V = np.dot(x, self.W_v)
         attended = self.attention(Q, K, V)
         output = np.dot(attended, self.W_o)
-        return self.sigmoid(output)
+        return output #self.sigmoid(output)
 
 # PyTorch implementation
 class PyTorchTransformer(nn.Module):
@@ -50,20 +50,20 @@ class PyTorchTransformer(nn.Module):
         self.W_k.weight = nn.Parameter(torch.tensor(k.T, dtype=torch.float32))
         self.W_v.weight = nn.Parameter(torch.tensor(v.T, dtype=torch.float32))
         self.W_o.weight = nn.Parameter(torch.tensor(o.T, dtype=torch.float32))
-    
+
     def attention(self, Q, K, V):
         d_k = Q.size(-1)
         scores = torch.matmul(Q, K.transpose(-2, -1)) / torch.sqrt(torch.tensor(d_k, dtype=torch.float32))
         weights = F.softmax(scores, dim=-1)
         return torch.matmul(weights, V)
-    
+
     def forward(self, x):
         Q = self.W_q(x)
         K = self.W_k(x)
         V = self.W_v(x)
         attended = self.attention(Q, K, V)
         output = self.W_o(attended)
-        return torch.sigmoid(output)
+        return output# torch.sigmoid(output)
 
 # Initialize parameters
 batch_size = 5
