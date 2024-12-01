@@ -694,9 +694,9 @@ def kg_read(t, i=0, read_neg=False, ignore_newline=False, module=None, list_leve
     if i >= len(t):
         return i, None
     a = t[i]
-    if a in ['\n', ';']:
-        return i+1,';'
-    elif a in ['(',')','{','}',']']:
+    if a == '\n':
+        a = ';' # convert newlines to semicolons
+    if a in [';','(',')','{','}',']']:
         return i+1,a
     elif cmatch2(t, i, '0', 'c'):
         return read_char(t, i)
