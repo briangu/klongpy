@@ -87,6 +87,12 @@ class KGCond(list):
     pass
 
 
+def safe_inspect(fn, follow_wrapped=True):
+    try:
+        return inspect.signature(fn, follow_wrapped=follow_wrapped).parameters
+    except ValueError:
+        return {"args":[]}
+
 class KGLambda:
     """
     KGLambda wraps a lambda and make it available to Klong, allowing for direct
@@ -109,7 +115,7 @@ class KGLambda:
     """
     def __init__(self, fn, args=None, provide_klong=False, wildcard=False):
         self.fn = fn
-        params = args or inspect.signature(self.fn, follow_wrapped=True).parameters
+        params = args or safe_inspect(fn)
         self.args = [reserved_fn_symbol_map[x] for x in reserved_fn_args if x in params]
         self._provide_klong = provide_klong or 'klong' in params
         self._wildcard = wildcard

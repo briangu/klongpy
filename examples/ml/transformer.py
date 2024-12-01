@@ -16,8 +16,8 @@ class NumpyTransformer:
         self.W_o = o
 
     def softmax(self, x):
-        x = x - np.max(x, axis=-1, keepdims=True)  # for numerical stability
-        return np.exp(x) / np.sum(np.exp(x), axis=-1, keepdims=True)
+        ex = np.exp(x - np.max(x, axis=-1, keepdims=True))  # for numerical stability
+        return ex / np.sum(ex, axis=-1, keepdims=True)
 
     def attention(self, Q, K, V):
         d_k = Q.shape[-1]

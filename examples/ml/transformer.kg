@@ -1,47 +1,59 @@
-:" Transformer implementation in pure Klong
-.pyf("numpy";["exp" "max")
+:" Transformer implementation in pure Klong "
+.pyf("numpy";["exp"])
+.pyf("numpy";"random");rns::.pya(random;"seed");rna::.pya(random;"rand")
+
+:" Set Numpy Random seed to 42 "
+rns(42)
+
+:" Define the dimension appropriate operations we need "
+max::{{,x@*>x}'x}
+sum::{{,+/x}'x}
 
 :"Define the softmax function"
-softmax::{ex::exp(x - max(x)); ex % (+/ex)}
+softmax::{[ex];
+    ex::exp(x - max(x));
+    ex % sum(ex)
+}
 
-:"Define matrix multiplication (already defined in examples)"
-matp::{[b]; b::y; {+/x*b}'x}
-
-:"Define mean function"
-mu::{(+/ x) % # x}
-
-:"Define variance function"
-var::{((+/ x * x) % # x) - mu(x)^2}
+:"Define dot product"
+dot::{[T];T::+y;{{+/x*y}(x;)'T}'x}
 
 :"Square root"
 sqr::{[a];a::x;:[0=x;0;{(x+a%x)%2}:~a]}
 
-:"Define standard deviation function"
-sd::{sqr(var(x))}
-
-:"Define layer normalization"
-layernorm::{(x - mu(x)) % (sd(x) + 1e-6)}
-
-:"Define the ReLU activation function"
-relu::{(x > 0) * x}
-
 :"Define the scaled dot-product attention"
-attention::{[Q K V dk scores P]; dk::#K@1; scores::matp(Q;+K) % sqr(dk); P::softmax(scores); matp(P; V)}
+attention::{[Q K V dk scores weights];
+    Q::x;K::y;V::z;
+    dk::#Q@1;
+    scores::dot(Q;+K)%sqr(dk);
+    weights::softmax(scores);
+    dot(weights; V)
+}
 
-:"Define the feed-forward network"
-feedforward::{[W1 b1 W2 b2];matp(relu(matp(x; W1) + b1); W2) + b2}
+:" Define a simple transformer "
+transformer::{[Q K V attended];
+    Q::dot(x; y@0);
+    K::dot(x; y@1);
+    V::dot(x; y@2);
+    attended::attention(Q; K; V);
+    dot(attended; y@3)
+}
 
-.comment("****")
-    W_Q;  :"Weight matrix for Q"
-    W_K;  :"Weight matrix for K"
-    W_V;  :"Weight matrix for V"
-    W_O;  :"Output weight matrix"
-    W1;   :"Weight matrix for feed-forward layer 1"
-    b1;   :"Bias vector for feed-forward layer 1"
-    W2;   :"Weight matrix for feed-forward layer 2"
-    b2    :"Bias vector for feed-forward layer 2"
-****
-transformer::{[WQ WK WV WO W1 b1 W2 b2 Q K V attnoutput x1 ffoutput]; Q::matp(x; WQ); K::matp(x; WK); V::matp(x; WV); attnoutput::attention(Q; K; V); x1::layernorm(x + matp(attnoutput; WO)); ffoutput::feedforward(x1; W1; b1; W2; b2); layernorm(x1 + ff_output)}
+:"Initialize parameters"
+batchsize::5
+inputdim::10
+hiddendim::20
 
-:"Compute the Transformer output"
-output::transformer(x; [])
+:"Define the weights q, k, v, o"
+q::rna(inputdim;hiddendim)
+k::rna(inputdim;hiddendim)
+v::rna(inputdim;hiddendim)
+o::rna(hiddendim;inputdim)
+
+:"Define the input data"
+inputdata::rna(batchsize;inputdim)
+
+:"Run the forward pass"
+output::transformer(inputdata; (,q),(,k),(,v),(,o))
+
+.d("output: ");.p(output)

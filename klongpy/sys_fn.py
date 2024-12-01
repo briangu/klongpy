@@ -13,7 +13,7 @@ import numpy
 
 from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
                    is_dict, is_empty, is_list, kg_asarray, kg_read, kg_write, np,
-                   reserved_fn_args, reserved_fn_symbol_map, safe_eq)
+                   reserved_fn_args, reserved_fn_symbol_map, safe_eq, safe_inspect)
 
 
 def eval_sys_append_channel(x):
@@ -341,7 +341,7 @@ def _handle_import(item):
             if n_args <= len(reserved_fn_args):
                 item = KGLambda(item, args=reserved_fn_args[:n_args])
         else:
-            args = inspect.signature(item, follow_wrapped=True).parameters
+            args = safe_inspect(item, follow_wrapped=True)
             if 'args' in args:
                 item = KGLambda(item, args=None, wildcard=True)
                 n_args = 3
