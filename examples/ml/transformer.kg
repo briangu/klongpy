@@ -31,32 +31,7 @@ attention::{[Q K V dk scores P]; dk::#K@1; scores::matp(Q;+K) % sqr(dk); P::soft
 :"Define the feed-forward network"
 feedforward::{[W1 b1 W2 b2];matp(relu(matp(x; W1) + b1); W2) + b2}
 
-:"Define the Transformer block"
-transformer_block::{[WQ WK WV WO W1 b1 W2 b2 attnoutput x1 ffoutput];Q::matp(x; W_Q);K::matp(x; W_K);V::matp(x; W_V);attnoutput::attention(Q; K; V);x1::layernorm(x + matp(attnoutput; WO)); ffoutput::feedforward(x1; W1; b1; W2; b2);layer_norm(x1 + ff_output)}
-
-:"Define the Transformer model"
-transformer::{
-    [x; parameters]
-
-    :"Unpack parameters"
-    W_Q::parameters @ 0
-    W_K::parameters @ 1
-    W_V::parameters @ 2
-    W_O::parameters @ 3
-    W1::parameters @ 4
-    b1::parameters @ 5
-    W2::parameters @ 6
-    b2::parameters @ 7
-
-    :"Apply Transformer block(s)"
-    x1::transformer_block(x; W_Q; W_K; W_V; W_O; W1; b1; W2; b2)
-
-    x1
-}
-
-:"Example usage"
-:"Assuming appropriate dimensions for weights and biases"
-parameters::[
+.comment("****")
     W_Q;  :"Weight matrix for Q"
     W_K;  :"Weight matrix for K"
     W_V;  :"Weight matrix for V"
@@ -65,10 +40,8 @@ parameters::[
     b1;   :"Bias vector for feed-forward layer 1"
     W2;   :"Weight matrix for feed-forward layer 2"
     b2    :"Bias vector for feed-forward layer 2"
-]
-
-:"Input data (e.g., word embeddings)"
-x::[...]; :"Your input data here"
+****
+transformer::{[WQ WK WV WO W1 b1 W2 b2 Q K V attnoutput x1 ffoutput]; Q::matp(x; WQ); K::matp(x; WK); V::matp(x; WV); attnoutput::attention(Q; K; V); x1::layernorm(x + matp(attnoutput; WO)); ffoutput::feedforward(x1; W1; b1; W2; b2); layernorm(x1 + ff_output)}
 
 :"Compute the Transformer output"
-output::transformer(x; parameters)
+output::transformer(x; [])
