@@ -62,3 +62,11 @@ nested::{[a b c fn];
     fn(a+b+c)
 }
 t("multiline nested function";nested(1;2;3);36)
+
+:" test multiline implicit function "
+nestedexpr::{
+    5{
+        (,x),y
+    }/[1]
+}
+t("nested 5{(,x),y}/[1]"   ; 5{(,x),y}/[1]   ; [5 1])
