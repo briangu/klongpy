@@ -1,0 +1,26 @@
+arr::[1
+      2
+      3]
+t("multiline: arr";arr;[1 2 3])
+
+ift:::[1;
+       "true";
+       "false"]
+t("multiline if true";ift;"true")
+
+iff:::[0;
+       "true";
+       "false"]
+t("multiline if true";iff;"false")
+
+fnv::{.d("hello ");
+      .p("world!");
+      [5 6 7]}
+t("multiline function (no vars)";fnv();[5 6 7])
+
+mlf::{[a b c];
+    a::x;
+    b::y;
+    c::z;
+    a+b+c}
+t("multiline function w/ vars";mlf(1;2;3);6)
