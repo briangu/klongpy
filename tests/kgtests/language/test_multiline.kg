@@ -1,0 +1,72 @@
+arr::[1
+      2
+      3]
+t("multiline: arr";arr;[1 2 3])
+
+arr::[
+     1
+     2
+     3
+     ]
+t("multiline 2: arr";arr;[1 2 3])
+
+ift:::[1;
+       "true";
+       "false"]
+t("multiline if true";ift;"true")
+
+ift2:::[1;
+       "true";
+       "false"
+       ]
+t("multiline 2 if true";ift;"true")
+
+iff:::[0;
+       "true";
+       "false"]
+t("multiline if true";iff;"false")
+
+fnv::{.d("hello ");
+      .p("world!");
+      [5 6 7]}
+t("multiline function (no vars)";fnv();[5 6 7])
+
+fnv::{.d("hello ");
+      .p("world!");
+      [5 6 7]
+      }
+t("multiline function (no vars) and new line after last";fnv();[5 6 7])
+
+mlf::{[a b c];
+    a::x;
+    b::y;
+    c::z;
+    a+b+c}
+t("multiline function w/ vars";mlf(1;2;3);6)
+
+mlf::{[a b c];
+    a::x;
+    b::y;
+    c::z;
+    a+b+c
+}
+t("multiline function w/ vars and new line after last";mlf(1;2;3);6)
+
+nested::{[a b c fn];
+    a::x;
+    b::y;
+    c::z;
+    fn::{
+        x*x
+    };
+    fn(a+b+c)
+}
+t("multiline nested function";nested(1;2;3);36)
+
+:" test multiline implicit function "
+nestedexpr::{
+    5{
+        (,x),y
+    }/[1]
+}
+t("nested 5{(,x),y}/[1]"; nestedexpr(); [5 1])
