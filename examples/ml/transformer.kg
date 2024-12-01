@@ -1,6 +1,8 @@
 :" Transformer implementation in pure Klong "
-.pyf("numpy";["exp"])
 .pyf("numpy";"random");rns::.pya(random;"seed");rna::.pya(random;"rand")
+
+:" TODO: implement Klong exp "
+.pyf("numpy";["exp"])
 
 :" Set Numpy Random seed to 42 "
 rns(42)
