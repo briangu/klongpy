@@ -10,8 +10,6 @@
 [![Downloads](https://static.pepy.tech/badge/klongpy/month)](https://pepy.tech/project/klongpy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[![Twitter](https://img.shields.io/twitter/url/https/twitter.com/klongpy.svg?style=social&label=Follow%20%40KlongPy)](https://twitter.com/klongpy)
-
 # KlongPy: High-Performance Array Programming in Python
 
 KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array language](https://en.wikipedia.org/wiki/Array_programming), known for its high-performance vectorized operations that leverage the power of NumPy. Embracing a "batteries included" philosophy, KlongPy combines built-in modules with Python's expansive ecosystem, facilitating rapid application development with Klong's succinct syntax.
