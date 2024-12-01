@@ -69,4 +69,4 @@ nestedexpr::{
         (,x),y
     }/[1]
 }
-t("nested 5{(,x),y}/[1]"   ; 5{(,x),y}/[1]   ; [5 1])
+t("nested 5{(,x),y}/[1]"; nestedexpr(); [5 1])
