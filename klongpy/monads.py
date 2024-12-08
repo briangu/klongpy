@@ -74,7 +74,8 @@ def eval_monad_expand_where(a):
                   &[0 1 0 1 0]  -->   [1 3]
 
     """
-    return np.concatenate([np.zeros(x, dtype=int) + i for i,x in enumerate(a if is_list(a) else [a])])
+    arr = a if is_list(a) else [a]
+    return np.repeat(np.arange(len(arr)), arr)
 
 
 def eval_monad_first(a):
