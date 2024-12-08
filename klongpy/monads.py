@@ -194,7 +194,7 @@ def eval_monad_groupby(a):
                   ="hello foo"  -->  [[0] [1] [2 3] [4 7 8] [5] [6]]
 
     """
-    q = np.asarray(str_to_chr_arr(a) if isinstance(a, str) else a)
+    q = str_to_chr_arr(a) if isinstance(a, str) else np.asarray(a)
     if len(q) == 0:
         return q
     a = q.argsort()
