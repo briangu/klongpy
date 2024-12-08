@@ -164,7 +164,7 @@ def eval_monad_grade_up(a):
                     >[[1] [2] [3]]  -->  [2 1 0]
 
     """
-    return kg_argsort(str_to_chr_arr(a) if isinstance(a,str) else a)
+    return kg_argsort(kg_asarray(a))
 
 
 def eval_monad_grade_down(a):
@@ -175,7 +175,7 @@ def eval_monad_grade_down(a):
         See [Grade-Up].
 
     """
-    return kg_argsort(str_to_chr_arr(a) if isinstance(a,str) else a, descending=True)
+    return kg_argsort(kg_asarray(a), descending=True)
 
 
 def eval_monad_groupby(a):
@@ -195,12 +195,12 @@ def eval_monad_groupby(a):
                   ="hello foo"  -->  [[0] [1] [2 3] [4 7 8] [5] [6]]
 
     """
-    q = str_to_chr_arr(a) if isinstance(a, str) else np.asarray(a)
-    if len(q) == 0:
-        return q
-    a = q.argsort()
-    r = np.split(a, np.where(q[a][1:] != q[a][:-1])[0] + 1)
-    return np.asarray(r, dtype=object)
+    arr = kg_asarray(a)
+    if arr.size == 0:
+        return arr
+    vals, inverse = np.unique(arr, return_inverse=True)
+    groups = [np.where(inverse == i)[0] for i in range(len(vals))]
+    return kg_asarray(groups)
 
 
 def eval_monad_list(a):

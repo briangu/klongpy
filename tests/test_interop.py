@@ -5,7 +5,6 @@ from datetime import datetime
 from utils import *
 
 from klongpy import KlongInterpreter
-from klongpy.core import KGChar
 
 
 class TestPythonInterop(unittest.TestCase):

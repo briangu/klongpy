@@ -259,17 +259,19 @@ def kg_asarray(a):
     arr : ndarray
         The converted input data as a NumPy array, where all elements and sub-arrays are also NumPy arrays.
     """
+    if isinstance(a, str):
+        return str_to_chr_arr(a)
     try:
         arr = np.asarray(a)
         if arr.dtype.kind not in ['O','i','f']:
             raise ValueError
     except (np.VisibleDeprecationWarning, ValueError):
         try:
-            arr = np.asarray(a,dtype=object)
+            arr = np.asarray(a, dtype=object)
         except ValueError:
             arr = [x.tolist() if np.isarray(x) else x for x in a]
-            arr = np.asarray(arr,dtype=object)
-        arr = np.asarray([kg_asarray(x) if isinstance(x,list) else x for x in arr],dtype=object)
+            arr = np.asarray(arr, dtype=object)
+        arr = np.asarray([kg_asarray(x) if isinstance(x, list) else x for x in arr], dtype=object)
     return arr
 
 
