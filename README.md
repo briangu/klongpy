@@ -344,6 +344,7 @@ KlongPy is effectively a superset of the Klong language, but has some key differ
 * Infinite precision: The main difference in this implementation of Klong is the lack of infinite precision.  By using NumPy we are restricted to doubles.
 * Python integration: Most notably, the ".py" command allows direct import of Python modules into the current Klong context.
 * KlongPy aims to be more "batteries included" approach to modules and contains additional features such as IPC, Web service, Websockets, etc.
+* For array operations, KlongPy matches the shape of array arguments differently. Compare the results of an expression like `[1 2]+[[3 4][5 6]]` which in Klong produces `[[4 5] [7 8]]` but in KlongPy produces `[[4 6] [6 8]]`.
 
 # Related
 
