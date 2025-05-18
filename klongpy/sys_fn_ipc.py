@@ -919,7 +919,6 @@ def eval_sys_fn_create_ipc_server(klong, x):
         if "x" is 0, then the server is closed and existing client connections are dropped.
 
     """
-    global _ipc_tcp_server
     x = str(x)
     parts = x.split(":")
     bind = parts[0] if len(parts) > 1 else None
