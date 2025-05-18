@@ -130,6 +130,10 @@ Run (GPU)
     $ USE_GPU=1 python3 tests/perf_avg.py
     avg=0.500015 in 0.027818 seconds
 
+Run (Torch)
+
+    $ USE_TORCH=1 python3 tests/perf_avg.py
+
 # Installation
 
 ### CPU
@@ -150,6 +154,10 @@ Run (GPU)
     'rocm-4-3' => "cupy-rocm-4-3"
 
     $ pip3 install klongpy[cupy]
+
+### Torch support
+
+    $ pip3 install torch
 
 ### All application tools (db, web, REPL, etc.)
 
