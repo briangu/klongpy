@@ -218,7 +218,7 @@ def eval_monad_list(a):
     if isinstance(a, KGChar):
         return str(a)
     if isinstance(a, KGSym):
-        np.asarray([a],dtype=object) # np interpets ':foo" as ':fo"
+        return np.asarray([a],dtype=object) # np interprets ':foo" as ':fo"
     return np.asarray([a])
 
 
