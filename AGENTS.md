@@ -1,12 +1,6 @@
 # Repo guidelines
 
-To run the test suite, first install dependencies:
-
-```
-pip3 install ".[full]"
-```
-
-Then run:
+To run the test suite, simply run:
 
 ```
 python3 -m unittest
