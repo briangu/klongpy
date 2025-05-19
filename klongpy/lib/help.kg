@@ -30,8 +30,8 @@ op.db::[
  [" a:$b" "Form"
   "b=string; convert 'b' to an object of the same form (type) as 'a'"]
  [" $a" "Format" "convert 'a' to a string representing the value of 'a'"]
- [" a$b" "Format2"
-  "a=real; Format 'b', pad with 'a' blanks or to align to x.y digits"]
+[" a$b" "Format2"
+ "a=real|list; when both operands are lists, apply pairwise. Format 'b', pad with 'a' blanks or to align to x.y digits"]
  [" >a" "Grade-Down"
   "a=vector; vector of indices of elements of 'a' in ascending order"]
  [" <a" "Grade-Up"

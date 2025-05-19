@@ -484,6 +484,7 @@ class TestCoreSuite(unittest.TestCase):
         self.assert_eval_cmp('5$1.23', '"1.23 "')
         self.assert_eval_cmp('5$-1.23', '"-1.23"')
         self.assert_eval_cmp('6$-1.23', '"-1.23 "')
+        self.assert_eval_cmp('[1]$[1]', '["1"]')
         self.assert_eval_cmp('(-10)$0', '"         0"')
         self.assert_eval_cmp('(-10)$123', '"       123"')
         self.assert_eval_cmp('(-10)$-123', '"      -123"')

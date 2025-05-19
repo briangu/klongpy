@@ -401,9 +401,11 @@ def _e_dyad_format2(a, b):
     """
     Unravel the broadcasting of a and b and apply __e_dyad_format2
     """
+    if is_list(a) and is_list(b):
+        return kg_asarray([vec_fn2(x, y, _e_dyad_format2) for x, y in zip(to_list(a), to_list(b))])
     if np.isarray(a) and np.isarray(b):
-        return np.asarray([vec_fn2(x,y,_e_dyad_format2) for x,y in zip(a,b)])
-    return __e_dyad_format2(a,b)
+        return np.asarray([vec_fn2(x, y, _e_dyad_format2) for x, y in zip(a, b)])
+    return __e_dyad_format2(a, b)
 
 def eval_dyad_format2(a, b):
     """
