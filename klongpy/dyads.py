@@ -450,6 +450,14 @@ def eval_dyad_index_in_depth(a, b):
                         {y+x*x}:@[2 3]  -->  7
 
     """
+    if is_list(b):
+        idx = []
+        for x in b:
+            if isinstance(x, list) and len(x) == 0:
+                idx.append(slice(None))
+            else:
+                idx.append(x)
+        b = idx
     return np.asarray(a)[tuple(b) if is_list(b) else b] if not is_empty(b) else b
 
 
@@ -801,6 +809,21 @@ def eval_dyad_reshape(a, b):
     b = str_to_chr_arr(b) if j else b
     if np.isarray(a):
         if np.isarray(b):
+            # allow one wildcard dimension specified as an empty list []
+            wc_idx = None
+            a_list = []
+            for idx, dim in enumerate(a):
+                if isinstance(dim, list) and len(dim) == 0:
+                    if wc_idx is not None:
+                        raise ValueError("multiple wildcard dimensions not supported")
+                    wc_idx = idx
+                    a_list.append(-1)
+                else:
+                    a_list.append(int(dim))
+            if wc_idx is not None:
+                prod_other = int(np.prod([d for d in a_list if d != -1]))
+                a_list[wc_idx] = b.size // prod_other if prod_other != 0 else b.size
+                a = np.asarray(a_list)
             y = np.where(a < 0)[0]
             if len(y) > 0:
                 a = np.copy(a)
