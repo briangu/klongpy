@@ -45,6 +45,7 @@ KlongPy is both an Array Language runtime and a set of powerful tools for buildi
 * [__Python Integration__](docs/python_integration.md): Seamlessly compatible with Python and modules, allowing you to leverage existing Python libraries and frameworks.
 * [__Web server__](docs/web_server.md): Includes a web server, making it easy to build sites backed by KlongPy capabilities.
 * [__Timers__](docs/timer.md): Includes periodic timer facility to periodically perform tasks.
+* [__Cointegration__](docs/cointegration.md): Wrapper for Johansen cointegration from statsmodels.
 
 # KlongPy Examples
 
