@@ -16,6 +16,7 @@ KlongPy is both an Array Language runtime and a set of powerful tools for buildi
 * [__Speed__](performance.md): Designed for high-speed vectorized computing, enabling you to process large data sets quickly and efficiently on either CPU or GPU.
 * [__Fast Columnar Database__](fast_columnar_database.md): Includes integration with [DuckDb](http://duckdb.org), a super fast in-process columnar store that can operate directly on NumPy arrays with zero-copy.
 * [__Inter-Process Communication (IPC)__](ipc_capabilities.md): Includes built-in support for IPC, enabling easy communication between different processes and systems. Ticker plants and similar pipelines are easy to build.
+* **kdb+ Integration via qpython:** Experimental support for communicating with kdb+ processes.
 * [__Table and Key-Value Store__](table_and_key_value_stores.md): Includes a simple file-backed key value store that can be used to store database tables or raw key/value pairs.
 * [__Python Integration__](python_integration.md): Seamlessly compatible with Python and modules, allowing you to leverage existing Python libraries and frameworks.
 * [__Web server__](web_server.md): Includes a web server, making it easy to build sites backed by KlongPy capabilities.
