@@ -181,7 +181,11 @@ def eval_dyad_at_index(klong, a, b):
         j = False
     else:
         r = a
-    return "".join(r) if j else r
+    if j:
+        if np.isarray(r) and r.ndim > 1:
+            return np.asarray(["".join(x) for x in r], dtype=object)
+        return "".join(r)
+    return r
 
 
 def eval_dyad_define(klong, n, v):
@@ -834,7 +838,11 @@ def eval_dyad_reshape(a, b):
                 r = np.concatenate((np.tile(b,ns), b[:a - b.shape[0]*ns[0]]))
         else:
             r = np.full((a,), b)
-    return "".join(r) if j else r
+    if j:
+        if np.isarray(r) and r.ndim > 1:
+            return np.asarray(["".join(x) for x in r], dtype=object)
+        return "".join(r)
+    return r
 
 
 def eval_dyad_rotate(a, b):
