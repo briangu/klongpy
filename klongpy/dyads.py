@@ -453,7 +453,7 @@ def eval_dyad_index_in_depth(a, b):
     if is_list(b):
         idx = []
         for x in b:
-            if isinstance(x, list) and len(x) == 0:
+            if is_list(x) and len(x) == 0:
                 idx.append(slice(None))
             else:
                 idx.append(x)
@@ -813,7 +813,7 @@ def eval_dyad_reshape(a, b):
             wc_idx = None
             a_list = []
             for idx, dim in enumerate(a):
-                if isinstance(dim, list) and len(dim) == 0:
+                if is_list(dim) and len(dim) == 0:
                     if wc_idx is not None:
                         raise ValueError("multiple wildcard dimensions not supported")
                     wc_idx = idx
