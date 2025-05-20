@@ -295,13 +295,13 @@ NumPy style slicing is supported via the empty list `[]` wildcard.  This makes r
 or indexing multi-dimensional arrays concise and familiar.
 
 ```kgpy
-?> [2 []]:^[1 2 3 4]  :" automatically infer second dimension"
+?> [2 []]:^[1 2 3 4]  :" automatically infer second dimension"  # np.reshape([1,2,3,4], (2,-1))
 [[1 2]
  [3 4]]
-?> m::[[1 2 3] [4 5 6]]
+?> m::[[1 2 3] [4 5 6]]                                # m = np.array([[1,2,3],[4,5,6]])
 [[1 2 3]
  [4 5 6]]
-?> m@[[] 2] :" get all rows from column 2"
+?> m@[[] 2] :" get all rows from column 2"                # m[:,2]
 [3 6]
 ```
 
