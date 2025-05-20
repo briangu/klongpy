@@ -19,6 +19,7 @@ KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array lang
 - **Vectorized Operations with NumPy:** At its core, KlongPy uses [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) descendant from APL, for high-efficiency array manipulations.
 - **CPU and GPU Backend Support:** Incorporating [CuPy](https://github.com/cupy/cupy), KlongPy extends its capabilities to operate on both CPU and GPU backends, ensuring versatile and powerful computing options.
 - **Seamless Integration with Python Ecosystem:** The combination of KlongPy's built-in features with Python's wide-ranging libraries enables developers to build complex applications effortlessly.
+- **NumPy-like Slicing:** Use an empty list (`[]`) as a wildcard when reshaping or indexing to mirror NumPy's slice behavior.
 
 ## KlongPy's Foundation and Applications
 
