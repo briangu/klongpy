@@ -20,6 +20,7 @@ nav:
   - Guides:
       - Overview: 'overview.md'
       - Installation: 'installation.md'
+      - KDB Users Guide: 'kdb_users_guide.md'
   - Reference:
       - Language Reference: 'language-reference.md'
       - REPL: 'repl.md'

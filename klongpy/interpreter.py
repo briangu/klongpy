@@ -7,6 +7,7 @@ from .dyads import create_dyad_functions
 from .monads import create_monad_functions
 from .sys_fn import create_system_functions
 from .sys_fn_ipc import create_system_functions_ipc, create_system_var_ipc
+from .sys_fn_kdb import create_system_functions_kdb
 from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
 from .utils import ReadonlyDict
@@ -142,6 +143,7 @@ def create_system_contexts():
     sys_d = {}
     add_context_key_values(sys_d, create_system_functions())
     add_context_key_values(sys_d, create_system_functions_ipc())
+    add_context_key_values(sys_d, create_system_functions_kdb())
     add_context_key_values(sys_d, create_system_functions_timer())
     set_context_var(sys_d, KGSym('.e'), eval_sys_var_epsilon()) # TODO: support lambda
     set_context_var(sys_d, KGSym('.cin'), cin)
