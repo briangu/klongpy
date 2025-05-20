@@ -1,5 +1,7 @@
 import logging
 import sys
+import asyncio
+import concurrent.futures
 
 from aiohttp import web
 
@@ -113,7 +115,17 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
         site = web.TCPSite(runner, bind, port)
         await site.start()
 
-    server_task = klong['.system']['ioloop'].create_task(start_server())
+    # create the server task in the ioloop thread and capture the task handle
+    server_loop = klong['.system']['ioloop']
+    task_future = concurrent.futures.Future()
+
+    def _start():
+        task = asyncio.create_task(start_server())
+        task_future.set_result(task)
+
+    server_loop.call_soon_threadsafe(_start)
+    server_task = task_future.result()
+
     return WebServerHandle(bind, port, runner, server_task)
 
 
@@ -129,7 +141,7 @@ def eval_sys_fn_shutdown_web_server(klong, x):
         x = x.a.fn
         if isinstance(x, WebServerHandle) and x.runner is not None:
             print("shutting down web server")
-            klong['.system']['ioloop'].run_until_complete(x.shutdown())
+            asyncio.run_coroutine_threadsafe(x.shutdown(), klong['.system']['ioloop']).result()
             return 1
     return 0
 
