@@ -772,6 +772,8 @@ def kg_write_dict(d, display=False):
 
 
 def kg_write_list(x, display=False):
+    """Serialize a list or array for display in the REPL."""
+    x = to_list(x)
     return ''.join(['[', ' '.join([kg_write(q, display=display) for q in x]), ']'])
 
 
