@@ -42,8 +42,12 @@ def is_jagged_array(x):
     Check if an array is jagged.
     """
     if isinstance(x, list):
+        try:
+            lengths = [len(i) for i in x]
+        except TypeError:
+            return False
         # If the lengths of sublists vary, it's a jagged array.
-        return len(set(map(len, x))) > 1
+        return len(set(lengths)) > 1
     return False
 
 if use_torch:
@@ -72,24 +76,53 @@ if use_torch:
                 res.append(r)
             return torch.stack(res)
 
+    class TorchTensor(torch.Tensor):
+        def __new__(cls, data, dtype=None):
+            if isinstance(data, torch.Tensor):
+                t = data.clone()
+                if dtype is not None:
+                    t = t.to(dtype)
+            else:
+                t = torch.tensor(data, dtype=dtype)
+            return torch.Tensor._make_subclass(cls, t, t.requires_grad)
+
+        def get(self):
+            return self.detach().cpu().numpy()
+
     class TorchModule:
-        ndarray = torch.Tensor
+        ndarray = TorchTensor
         integer = numpy.integer
         floating = numpy.floating
         dtype = numpy.dtype
         inf = numpy.inf
+        VisibleDeprecationWarning = numpy.VisibleDeprecationWarning
 
         def __init__(self):
             self.add = TorchReductionWrapper(torch.add)
             self.subtract = TorchReductionWrapper(torch.subtract)
             self.multiply = TorchReductionWrapper(torch.multiply)
             self.divide = TorchReductionWrapper(torch.divide)
-            self.random = torch.random
+            class Random:
+                @staticmethod
+                def rand(*shape):
+                    return TorchTensor(torch.rand(*shape))
+
+                @staticmethod
+                def randint(low, high=None, size=None):
+                    if size is None:
+                        size = ()
+                    return TorchTensor(torch.randint(low, high, size))
+
+                @staticmethod
+                def randn(*shape):
+                    return TorchTensor(torch.randn(*shape))
+
+            self.random = Random()
 
         def asarray(self, obj, dtype=None):
             if dtype is object or isinstance(obj, str) or is_jagged_array(obj):
                 return numpy.asarray(obj, dtype=dtype)
-            return torch.tensor(obj, dtype=self._torch_dtype(dtype))
+            return TorchTensor(obj, dtype=self._torch_dtype(dtype))
 
         array = asarray
 
@@ -114,6 +147,85 @@ if use_torch:
             if all(isinstance(x, torch.Tensor) for x in seq):
                 return torch.cat(seq, dim=axis)
             return numpy.concatenate([x.cpu().numpy() if isinstance(x, torch.Tensor) else x for x in seq], axis=axis)
+
+        def less(self, a, b, *args, **kwargs):
+            if not isinstance(a, torch.Tensor):
+                a = torch.tensor(a)
+            if not isinstance(b, torch.Tensor):
+                b = torch.tensor(b)
+            return torch.lt(a, b)
+
+        def greater(self, a, b, *args, **kwargs):
+            if not isinstance(a, torch.Tensor):
+                a = torch.tensor(a)
+            if not isinstance(b, torch.Tensor):
+                b = torch.tensor(b)
+            return torch.gt(a, b)
+
+        def equal(self, a, b, *args, **kwargs):
+            if not isinstance(a, torch.Tensor):
+                a = torch.tensor(a)
+            if not isinstance(b, torch.Tensor):
+                b = torch.tensor(b)
+            return torch.eq(a, b)
+
+        def less_equal(self, a, b, *args, **kwargs):
+            if not isinstance(a, torch.Tensor):
+                a = torch.tensor(a)
+            if not isinstance(b, torch.Tensor):
+                b = torch.tensor(b)
+            return torch.le(a, b)
+
+        def greater_equal(self, a, b, *args, **kwargs):
+            if not isinstance(a, torch.Tensor):
+                a = torch.tensor(a)
+            if not isinstance(b, torch.Tensor):
+                b = torch.tensor(b)
+            return torch.ge(a, b)
+
+        def logical_not(self, a, *args, **kwargs):
+            return torch.logical_not(a)
+
+        def isclose(self, a, b, *args, **kwargs):
+            if not isinstance(a, torch.Tensor):
+                a = torch.tensor(a)
+            if not isinstance(b, torch.Tensor):
+                b = torch.tensor(b)
+            return torch.isclose(a, b, *args, **kwargs)
+
+        def negative(self, a, *args, **kwargs):
+            return torch.neg(a)
+
+        def transpose(self, a, *args, **kwargs):
+            if isinstance(a, torch.Tensor):
+                return torch.transpose(a, *args, **kwargs)
+            return numpy.transpose(a, *args, **kwargs)
+
+        def argsort(self, a, *args, **kwargs):
+            return torch.argsort(a, *args, **kwargs)
+
+        def abs(self, a, *args, **kwargs):
+            if isinstance(a, torch.Tensor):
+                r = torch.abs(a)
+            else:
+                r = torch.abs(torch.tensor(a))
+            return r.item() if r.ndim == 0 else TorchTensor(r)
+
+        def array_equal(self, a, b, *args, **kwargs):
+            if not isinstance(a, torch.Tensor):
+                a = torch.tensor(a)
+            if not isinstance(b, torch.Tensor):
+                b = torch.tensor(b)
+            return torch.equal(a, b)
+
+        def tile(self, a, reps):
+            if not isinstance(a, torch.Tensor):
+                if isinstance(a, numpy.ndarray) and a.dtype == object:
+                    return numpy.tile(a, reps)
+                a = torch.tensor(a)
+            if isinstance(reps, int):
+                reps = (reps,)
+            return TorchTensor(torch.tile(a, reps))
 
         def _torch_dtype(self, dtype):
             if dtype is None:
