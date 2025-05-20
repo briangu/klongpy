@@ -2,6 +2,7 @@ import glob
 import math
 import os
 import unittest
+import importlib
 
 from utils import *
 from unittest.mock import MagicMock
@@ -19,6 +20,9 @@ class TestExamples(unittest.TestCase):
             os.chdir(os.path.join("klongpy","lib"))
             for x in glob.glob("./**/*.kg", recursive=True):
                 fname = os.path.basename(x)
+                if fname == "cointegration.kg" and importlib.util.find_spec("statsmodels") is None:
+                    print("skipping cointegration.kg; statsmodels not available")
+                    continue
                 print(f"loading {fname}")
                 klong = None
                 if fname != "help.kg":
