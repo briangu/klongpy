@@ -52,3 +52,28 @@ $ curl -X POST -d"p=100" "http://localhost:8888/p"
 $ curl "http://localhost:8888"
 [100]
 ```
+
+You can also launch the same web server directly from the REPL:
+
+```kgpy
+?> .py("klongpy.web")
+?> data::!10
+?> index::{x; "Hello, Klong World! ", data}
+?> get:::{}; get,"/",index
+?> post:::{}
+?> h::.web(8888;get;post)
+```
+
+Now in another terminal:
+
+```bash
+$ curl http://localhost:8888
+['Hello, Klong World! ' 0 1 2 3 4 5 6 7 8 9]
+```
+
+Stop the server with:
+
+```kgpy
+?> .webc(h)
+1
+```

@@ -288,6 +288,31 @@ $ curl http://localhost:8888
 ['Hello, Klong World! ' 0 1 2 3 4 5 6 7 8 9]
 ```
 
+You can also spin up this server directly inside the REPL:
+
+```kgpy
+?> .py("klongpy.web")
+?> data::!10
+?> index::{x; "Hello, Klong World! ", data}
+?> get:::{}; get,"/",index
+?> post:::{}
+?> h::.web(8888;get;post)
+```
+
+And from another terminal:
+
+```bash
+$ curl http://localhost:8888
+['Hello, Klong World! ' 0 1 2 3 4 5 6 7 8 9]
+```
+
+Stop the server with:
+
+```kgpy
+?> .webc(h)
+1
+```
+
 ## Conclusion
 
 These examples are designed to illustrate the "batteries included" approach, ease of use and diverse applications of KlongPy, making it a versatile choice for various programming needs.
