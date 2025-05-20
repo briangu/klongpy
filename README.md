@@ -289,6 +289,22 @@ $ curl http://localhost:8888
 ['Hello, Klong World! ' 0 1 2 3 4 5 6 7 8 9]
 ```
 
+## 7. Expressive Array Slicing
+
+NumPy style slicing is supported via the empty list `[]` wildcard.  This makes reshaping
+or indexing multi-dimensional arrays concise and familiar.
+
+```kgpy
+?> [2 []]:^[1 2 3 4]  :" automatically infer second dimension"
+[[1 2]
+ [3 4]]
+?> m::[[1 2 3] [4 5 6]]
+[[1 2 3]
+ [4 5 6]]
+?> m@[[] 2] :" get all rows from column 2"
+[3 6]
+```
+
 ## Conclusion
 
 These examples are designed to illustrate the "batteries included" approach, ease of use and diverse applications of KlongPy, making it a versatile choice for various programming needs.
