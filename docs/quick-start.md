@@ -38,7 +38,7 @@ crtl-d or ]q to quit
 ?>
 ```
 
-See [REPL Reference](http://127.0.0.1:8000/repl.md) for more information on commands and operations.
+See the [REPL Reference](repl.md) for more information on commands and operations.
 
 ## Next Steps
 
