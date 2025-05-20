@@ -37,6 +37,10 @@ updSubscription::{[v q];.d("subscribing: ");v::unionValues(x);v::psmsg(v);.p(v);
 clients:::{}
 rmclient::{x_clients}
 
+:" Store recent bars for delta sync "
+history:::{}
+recordData::{[sym d];sym::d?"S";history,sym,,(history?sym),,[d]}
+
 :" Handle server auth request "
 sendAuth::{.p("sending auth");.p(auth);x(auth)}
 handleUnknown::{.d("unhandled");.p(y)}
@@ -56,19 +60,25 @@ mkts::{[d ts];d::.pyc("parse_date";,x;:{});.pyc(d,,"timestamp";[];:{})}
 send::{.d("sending ");.d(k);.d(" to client ");.p(y);y(:update,,z)}
 match::{[ev k subscription];ev::x;k::y;subscription::z;all::ev,".*";:[subscription?all;1;:[subscription?k;1;0]]}
 broadcast::{[ev k data];ev::x;k::y;data::z;{:[match(ev;k;x@1);send(k;x@0;data);0]}'clients}
-handleData::{[ev sym k];.d("data: ");.p(y);ev::(y?"T");sym::(y?"S");y,"t",mkts(y?"t");k::ev,".",sym;broadcast(ev;k;y)}
+handleData::{[ev sym k];.d("data: ");.p(y);ev::(y?"T");sym::(y?"S");y,"t",mkts(y?"t");recordData(sym;y);k::ev,".",sym;broadcast(ev;k;y)}
 
 handleMsg::{:[(y?"T")="b";handleData(x;y);handleStatus(x;y)]}
 
 .ws.m::{[c];c::x;{handleMsg(c;x)}'y}
 
 wsuri:::[(#.os.argv);.os.argv@0;"wss://stream.data.alpaca.markets/v2/sip"]
-.d("connecting to ");.p(wsuri)
-wsc::.ws(wsuri)
+connect::{.d("connecting to ");.p(wsuri);wsc::.ws(wsuri);sendAuth(wsc)}
+reconnect::{wsc::.ws(wsuri);sendAuth(wsc)}
+checkConn::{:[.pyc("is_open";wsc;[]);1;reconnect()]}
+.timer("reconnect";30;checkConn)
+connect()
 
 :" Called by clients to subscribe to ticker updates "
 updClientSub::{clients,x,,(clients?x),,y;.d("clients: ");.p(clients)}
 subscribe::{.d("subscribing client: ");.p(.cli.h,,x);updClientSub(.cli.h;x);updSubscription(clients);x}
+
+:" Return bars after the given timestamp for delta sync "
+delta::{[sym ts data k];sym::x@0;ts::x@1;data::history?sym;k::"b.",sym;{:[(y?"t")>ts;send(k;.cli.h;y);1;0]}'data;0}
 
 :" Setup the IPC server and callbacks "
 .srv(8888)

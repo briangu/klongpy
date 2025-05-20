@@ -19,7 +19,7 @@ Sample bars data:
   "t": "2021-02-22T19:15:00Z" (converted to timestamp on server)
 }
 
-TODO: add delta sync against feed server
+Delta sync against feed server via `deltaSync`
 
 ****
 
@@ -55,7 +55,12 @@ timeStore::{[r];r::time(store);.d("store ms: ");.p(r)}
 .p("connecting to server on port 8888")
 cli::.cli(8888)
 
-cli(:subscribe,,["b.MSFT" "b.AAPL" "b.GOOG"])
+symbols::["b.MSFT" "b.AAPL" "b.GOOG"]
+cli(:subscribe,,symbols)
+lastTs::0
+deltaSync::{cli(:delta,,[x;lastTs])}
+syncAll::{deltaSync'x}
+syncAll(symbols)
 
 :" A basic bollinger band strategy "
 mean::{(+/x)%#x}
@@ -68,7 +73,7 @@ timeAnalyze::{time(analyze)}
 analyzeComplete::{.d("analyze ms: ");.p(x)}
 asyncAnalyze::.async(timeAnalyze;analyzeComplete)
 
-updateDb::{.insert(prices;x@cols)}
+updateDb::{lastTs::x?"t";.insert(prices;x@cols)}
 timeUpdateDb::{.d("insert: ");.d(x@cols);.d(" ");.d(time1(updateDb;x));.p(" ms")}
 
 :" Called by server when there is a subscription update."

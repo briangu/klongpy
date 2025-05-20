@@ -1,0 +1,6 @@
+:"Johansen cointegration test"
+
+.pyf("statsmodels.tsa.vector_ar.vecm";"coint_johansen")
+
+johansen::{[data det k];.pyc(coint_johansen;data;det;k)}
+

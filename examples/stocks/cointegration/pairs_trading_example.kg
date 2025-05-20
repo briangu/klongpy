@@ -1,0 +1,9 @@
+.l("cointegration.kg")
+
+: "Example pairs trading signal using Johansen cointegration"
+
+prices1::[100 101 99 102 98 97 99 100 101 99]
+prices2::[50 50.5 49 51 48 47.5 49 49.5 50 48.5]
+
+result::johansen([prices1;prices2];0;1)
+.p(result)
