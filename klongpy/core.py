@@ -5,6 +5,7 @@ from enum import Enum
 import sys
 
 from .backend import np
+import numpy as _numpy
 
 # python3.11 support
 if not hasattr(inspect, 'getargspec'):
@@ -261,9 +262,12 @@ def kg_asarray(a):
     """
     if isinstance(a, str):
         return str_to_chr_arr(a)
+    if isinstance(a, _numpy.ndarray):
+        return a
     try:
         arr = np.asarray(a)
-        if arr.dtype.kind not in ['O','i','f']:
+        kind = getattr(getattr(arr, 'dtype', None), 'kind', None)
+        if kind is not None and kind not in ['O','i','f']:
             raise ValueError
     except (np.VisibleDeprecationWarning, ValueError):
         try:
@@ -582,7 +586,8 @@ def read_list(t, delim, i=0, module=None, level=1):
         i += 1
     if level == 1:
         aa = kg_asarray(arr)
-        if aa.dtype.kind not in ['O','i','f']:
+        kind = getattr(getattr(aa, 'dtype', None), 'kind', None)
+        if kind is not None and kind not in ['O','i','f']:
             aa = np.asarray(arr, dtype=object)
     else:
         aa = arr

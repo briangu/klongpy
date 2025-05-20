@@ -957,9 +957,14 @@ def eval_dyad_take(a, b):
     j = isinstance(b,str)
     b = str_to_chr_arr(b) if j else np.asarray(b)
     aa = np.abs(a)
-    if aa > b.size:
-        b = np.tile(b,aa // len(b))
-        b = np.concatenate((b, b[:aa-b.size]) if a > 0 else (b[-(aa-b.size):],b))
+    size = b.numel() if hasattr(b, 'numel') else b.size
+    if size == 0:
+        return "" if j else b[:0]
+    if aa > size:
+        b = np.tile(b, aa // len(b) if len(b) else 0)
+        size = b.numel() if hasattr(b, 'numel') else b.size
+        if aa > size:
+            b = np.concatenate((b, b[:aa-size]) if a > 0 else (b[-(aa-size):], b))
     r = b[a:] if a < 0 else b[:a]
     return "".join(r) if j else r
 
