@@ -18,6 +18,7 @@ def python_vec(number=100):
 
 ```python
 # NumPy and CuPy (CuPy is enabled via USE_GPU=1 environment variable
+# Torch can be enabled via USE_TORCH=1
 def klong_vec(number=100):
     klong = KlongInterpreter()
     r = timeit.timeit(lambda: klong("2*1+!10000000"), number=number)
