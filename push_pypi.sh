@@ -1,5 +1,5 @@
-#!/bin/bash -e
-rm -rf dist
-python3 setup.py sdist bdist_wheel
-twine upload dist/*
+#!/bin/sh
 
+rm -rf dist
+hatch build
+twine upload dist/*
