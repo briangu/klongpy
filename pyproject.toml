@@ -1,0 +1,78 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "klongpy"
+version = "0.6.9"
+description = "High-Performance Klong array language with rich Python integration."
+readme = "README.md"
+license = "MIT"
+requires-python = "<3.13,>=3.9"
+authors = [
+    { name = "Brian Guarraci" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "numpy~=1.26.4",
+]
+
+[project.optional-dependencies]
+cuda102 = [
+    "cupy-cuda102",
+]
+cuda110 = [
+    "cupy-cuda110",
+]
+cuda111 = [
+    "cupy-cuda111",
+]
+cuda11x = [
+    "cupy-cuda11x",
+]
+cuda12x = [
+    "cupy-cuda12x",
+]
+cupy = [
+    "cupy",
+]
+db = [
+    "duckdb==1.3.0",
+    "pandas==2.2.2",
+]
+full = [
+    "aiohttp==3.9.4",
+    "colorama==0.4.6",
+    "duckdb==1.0.0",
+    "pandas==2.2.2",
+    "websockets==12.0",
+]
+repl = [
+    "colorama==0.4.6",
+]
+rocm-4-3 = [
+    "cupy-rocm-4-3",
+]
+rocm-5-0 = [
+    "cupy-rocm-5-0",
+]
+web = [
+    "aiohttp==3.9.4",
+]
+ws = [
+    "websockets==12.0",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/klongpy",
+]
+
+[tool.hatch.envs.hatch-test]
+extra-dependencies = [
+    "aiohttp",
+    "duckdb",
+    "pandas",
+]
