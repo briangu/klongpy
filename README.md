@@ -389,6 +389,21 @@ python3 setup.py develop
 python3 -m unittest
 ```
 
+### Building and Publishing
+
+The project uses [cibuildwheel](https://github.com/pypa/cibuildwheel) to build
+wheels for multiple CPU architectures.  A GitHub Actions workflow automatically
+builds and uploads these artifacts to PyPI whenever a release is published.
+To build wheels locally, run:
+
+```bash
+python -m pip install build cibuildwheel
+python -m build --sdist -o dist
+python -m cibuildwheel --output-dir dist
+```
+
+You can then upload the contents of the `dist/` directory with `twine`.
+
 # Acknowledgement
 
 HUGE thanks to Nils M Holm for his work on Klong and providing the foundations for this interesting project.
