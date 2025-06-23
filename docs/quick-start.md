@@ -4,34 +4,42 @@ Welcome to KlongPy! Get up and running with KlongPy in just a few steps.
 
 ## Prerequisites
 
-Before you begin, ensure you have the following prerequisites installed:
+Before you begin, ensure you have the following installed:
 
 - Python 3.6 or higher (3.11 preferred)
-- pip (Python package installer)
+- `pip` for installing packages
 
-## Installation
+## Setup Steps
 
-To install KlongPy, open your terminal and run:
+It's a good idea to work inside a virtual environment so that the
+dependencies for KlongPy don't interfere with other Python projects:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+With the environment active, install KlongPy (and optionally `rlwrap`
+for a nicer REPL experience):
 
 ```bash
 pip install "klongpy[full]"
+pip install rlwrap  # optional
 ```
 
-This command will download and install the latest version of KlongPy along with its required dependencies.
 
 ## Setting Up Your First KlongPy Session
 
 After installing KlongPy, you can start using it right away. Here’s how to set up a basic session:
 
-(optional but recommended: install rlwrap)
 
 ```bash
-$> rlwap kgpy
+$> rlwrap kgpy
 Welcome to KlongPy REPL v0.6.0
 author: Brian Guarraci
 web   : http://klongpy.org
 ]h for help
-crtl-d or ]q to quit
+ctrl-d or ]q to quit
 
 ?> 1+1
 2
