@@ -26,6 +26,10 @@ KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array lang
 - **Ideal for Diverse Fields:** Data scientists, quantitative analysts, researchers, and programming language enthusiasts will find KlongPy especially beneficial for its versatility and performance.
 
 KlongPy thus stands as a robust tool, blending the simplicity of Klong with the extensive capabilities of Python, suitable for a wide range of computational tasks.
+## Documentation
+
+Full documentation is available at [https://briangu.github.io/klongpy](https://briangu.github.io/klongpy).
+
 
 # Quick install
 
