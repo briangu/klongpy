@@ -1,0 +1,19 @@
+[build-system]
+requires = ["maturin>=1.5"]
+build-backend = "maturin"
+
+[project]
+name = "klongpy"
+version = "0.8.0a1"
+authors = ["YOUR NAME <you@example.com>"]
+dependencies = [
+    "numpy>=1.25",
+    "pandas>=3.0",
+    "duckdb>=0.10",
+    "pyarrow>=15.0"
+]
+optional-dependencies = { duckdb = ["duckdb>=0.10"] }
+
+[tool.maturin]
+bindings = "pyo3"
+features = ["duckdb"]

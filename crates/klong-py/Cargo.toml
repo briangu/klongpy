@@ -1,0 +1,16 @@
+[package]
+name = "klong-py"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "klongpy_rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+klong-core = { path = "../klong-core" }
+pyo3 = { version = "0.21", features = ["extension-module"] }
+numpy = { version = "0.21", features = ["numpy"] }
+pyo3-ffi = "0.21"
+arrow = { package = "arrow", version = "51", features = ["ffi"] }
+rayon = "1"

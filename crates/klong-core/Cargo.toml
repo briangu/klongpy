@@ -1,0 +1,20 @@
+[package]
+name = "klong-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rayon = "1"
+
+[dependencies.duckdb]
+version = "0.10"
+optional = true
+
+[dependencies.arrow]
+version = "51"
+features = ["ffi"]
+optional = true
+
+[features]
+default = []
+duckdb = ["dep:duckdb", "dep:arrow"]

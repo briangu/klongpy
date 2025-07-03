@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "crates/klong-core",
+    "crates/klong-py"
+]
+resolver = "2"
