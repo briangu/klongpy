@@ -101,3 +101,13 @@ else:
     np.isarray = lambda x: isinstance(x, np.ndarray)
 
 np
+
+try:
+    from klongpy_rs import add as rust_add, subtract as rust_subtract, \
+        multiply as rust_multiply, divide as rust_divide
+    np.add = rust_add
+    np.subtract = rust_subtract
+    np.multiply = rust_multiply
+    np.divide = rust_divide
+except Exception:
+    pass
