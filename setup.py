@@ -20,7 +20,6 @@ extra_requires = {
         'db': ["pandas==2.2.2","duckdb==1.3.0"],
         'ws': ["websockets==12.0"],
         'torch': ["torch"],
-        'torch-cpu': ["torch"],
     }
 
 # full feature set extras
