@@ -1,103 +1,69 @@
-import os
-import warnings
+"""Backend selection utilities for klongpy."""
 
-# Attempt to import CuPy. If not available, set use_gpu to False.
-use_gpu = bool(os.environ.get('USE_GPU') == '1')
-if use_gpu:
-    try:
-        import cupy as np
-        use_gpu = True
-    except ImportError:
-        import numpy as np
-        use_gpu = False
-else:
-    import numpy as np
+from importlib import import_module
+from typing import Any
+import numpy as _np
+
+# default numpy compatibility shim for legacy modules
+_np.seterr(divide="ignore")
+_np.isarray = lambda x: isinstance(x, _np.ndarray)
+np = _np
+
+BACKEND = "numpy"
 
 
-def is_supported_type(x):
+def current():
+    """Return the currently selected backend module."""
+    return import_module(f"klongpy.backends.{BACKEND}_backend")
+
+
+def set_backend(name: str) -> None:
+    """Select the computation backend.
+
+    Parameters
+    ----------
+    name: str
+        Either ``"numpy"`` or ``"torch"``.
     """
-    CuPy does not support strings or jagged arrays.
-    Note: add any other unsupported types here.
-    """
-    if isinstance(x, str) or is_jagged_array(x):
-        return False
-    return True
+    global BACKEND
+    name = name.lower()
+    if name not in {"numpy", "torch"}:
+        raise ValueError(f"unknown backend '{name}'")
+    if name == "torch":
+        import_module("klongpy.backends.torch_backend")
+    BACKEND = name
 
 
-def is_jagged_array(x):
-    """
-    Check if an array is jagged.
-    """
-    if isinstance(x, list):
-        # If the lengths of sublists vary, it's a jagged array.
-        return len(set(map(len, x))) > 1
-    return False
+def array(obj: Any, *, dtype: Any | None = None, requires_grad: bool = False) -> Any:
+    """Create an array or tensor using the active backend."""
+    return current().array(obj, dtype=dtype, requires_grad=requires_grad)
 
-if use_gpu:
-    import cupy
-    import numpy
 
-    class CuPyReductionKernelWrapper:
-        def __init__(self, fn, reduce_fn_1, reduce_fn_2):
-            self.fn = fn
-            self.reduce_fn_1 = reduce_fn_1
-            self.reduce_fn_2 = reduce_fn_2
+def add(a: Any, b: Any) -> Any:
+    """Element-wise addition via the active backend."""
+    return current().add(a, b)
 
-        def __call__(self, *args, **kwargs):
-            return self.fn(*args, **kwargs)
 
-        def reduce(self, x):
-            return self.reduce_fn_1(x) if x.ndim == 1 else self.reduce_fn_2(x[0], x[1])
+def mul(a: Any, b: Any) -> Any:
+    """Element-wise multiplication via the active backend."""
+    return current().mul(a, b)
 
-    add_reduce_2 = cupy.ElementwiseKernel(
-            'T x, T y',
-            'T z',
-            'z = (x + y)',
-            'add_reduce_2')
-    np.add = CuPyReductionKernelWrapper(cupy.add, cupy.sum, add_reduce_2)
 
-    def subtract_reduce_1(x):
-        return 2*x[0] - cupy.sum(x)
+def matmul(a: Any, b: Any) -> Any:
+    """Matrix multiplication via the active backend."""
+    return current().matmul(a, b)
 
-    subtract_reduce_2 = cupy.ElementwiseKernel(
-            'T x, T y',
-            'T z',
-            'z = (x - y)',
-            'subtract_reduce_2')
-    np.subtract = CuPyReductionKernelWrapper(cupy.subtract, subtract_reduce_1, subtract_reduce_2)
 
-    multiply_reduce_1 = cupy.ReductionKernel(
-                'T x',
-                'T y',
-                'x',
-                'a * b',
-                'y = a',
-                '1',
-                'multiply_reduce_1'
-             )
-    multiply_reduce_2 = cupy.ElementwiseKernel(
-            'T x, T y',
-            'T z',
-            'z = (x * y)',
-            'multiply_reduce_2')
-    np.multiply = CuPyReductionKernelWrapper(cupy.multiply, multiply_reduce_1, multiply_reduce_2)
+def sum(a: Any, axis: int | None = None) -> Any:
+    """Sum elements of ``a`` via the active backend."""
+    return current().sum(a, axis=axis)
 
-    def divide_reduce_1(x):
-        raise NotImplementedError()
 
-    divide_reduce_2 = cupy.ElementwiseKernel(
-            'T x, T y',
-            'T z',
-            'z = (x / y)',
-            'divide_reduce_2')
-    np.divide = CuPyReductionKernelWrapper(cupy.divide, divide_reduce_1, divide_reduce_2)
+def grad(fn: Any, wrt: int = 0) -> Any:
+    """Return gradient function via the active backend."""
+    return current().grad(fn, wrt=wrt)
 
-    np.isarray = lambda x: isinstance(x, (numpy.ndarray, cupy.ndarray))
 
-#    np.hstack = lambda x: cupy.hstack(x) if use_gpu and is_supported_type(x) else numpy.hstack(x)
-else:
-    np.seterr(divide='ignore')
-    warnings.filterwarnings("error", category=np.VisibleDeprecationWarning)
-    np.isarray = lambda x: isinstance(x, np.ndarray)
-
-np
+def stop(x: Any) -> Any:
+    """Detach ``x`` from the autograd graph via the active backend."""
+    return current().stop(x)
