@@ -85,7 +85,10 @@ def grad(fn: Callable[..., Any], wrt: int = 0) -> Callable[..., Any]:
             else:
                 t = torch.tensor(a, dtype=torch.float64, requires_grad=(i == wrt))
             targs.append(t)
-        out = fn(*targs)
+        try:
+            out = fn(*targs)
+        except Exception as e:  # fallbacks may fail with type errors
+            raise RuntimeError("not differentiable") from e
         if not isinstance(out, torch.Tensor):
             raise RuntimeError("not differentiable")
         g, = torch.autograd.grad(out, targs[wrt])
