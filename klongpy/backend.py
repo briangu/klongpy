@@ -1,5 +1,6 @@
 """Backend selection utilities for klongpy."""
 
+import os
 from importlib import import_module
 from typing import Any
 import numpy as _np
@@ -9,7 +10,7 @@ _np.seterr(divide="ignore")
 _np.isarray = lambda x: isinstance(x, _np.ndarray)
 np = _np
 
-BACKEND = "numpy"
+BACKEND = os.environ.get("KLONGPY_BACKEND", "numpy").lower()
 
 
 def current():
