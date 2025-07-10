@@ -9,7 +9,6 @@ try:
 except Exception as e:  # pragma: no cover - optional dependency
     raise ImportError("torch backend requires the 'torch' package") from e
 
-import numpy as np
 from . import numpy_backend as npb
 
 def _to_numpy(x: Any) -> Any:
