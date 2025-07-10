@@ -1,4 +1,5 @@
 from .core import *
+from .autograd import grad_of_fn, numeric_grad
 import sys
 
 
@@ -972,6 +973,29 @@ def eval_dyad_take(a, b):
         b = np.concatenate((b, b[:aa-b.size]) if a > 0 else (b[-(aa-b.size):],b))
     r = b[a:] if a < 0 else b[:a]
     return "".join(r) if j else r
+
+
+def eval_dyad_grad(klong, a, b):
+    """
+
+        a∇b                                                    [Grad]
+
+        Compute the numeric gradient of the monadic function ``b`` at ``a``.
+
+    """
+    if isinstance(a, KGSym):
+        orig = klong[a]
+
+        def func(v):
+            klong[a] = v
+            try:
+                return klong.call(KGCall(b, [v], 1)) if isinstance(b, (KGSym, KGLambda, KGFn, KGCall)) else b(v)
+            finally:
+                klong[a] = orig
+
+        return numeric_grad(func, orig)
+    else:
+        return grad_of_fn(klong, b, a)
 
 
 def create_dyad_functions(klong):
