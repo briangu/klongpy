@@ -1,6 +1,12 @@
 import sys
-import logging
-from .core import KGLambda, KGCall, KGSym, KGFn, KlongException, reserved_fn_args, reserved_fn_symbol_map
+from .core import (
+    KGLambda,
+    KGCall,
+    KGSym,
+    KlongException,
+    reserved_fn_args,
+    reserved_fn_symbol_map,
+)
 
 try:
     from qpython import qconnection
