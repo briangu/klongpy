@@ -93,7 +93,11 @@ def grad(fn: Callable[..., Any], wrt: int = 0) -> Callable[..., Any]:
             raise RuntimeError("not differentiable") from e
         if not isinstance(out, torch.Tensor):
             raise RuntimeError("not differentiable")
-        g, = torch.autograd.grad(out, targs[wrt])
+        if out.ndim == 0:
+            grad_out = None
+        else:
+            grad_out = torch.ones_like(out)
+        g, = torch.autograd.grad(out, targs[wrt], grad_outputs=grad_out)
         return g
 
     return _grad_fn
