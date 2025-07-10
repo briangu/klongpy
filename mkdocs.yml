@@ -29,6 +29,7 @@ nav:
       - Related Projects: 'related-projects.md'
       - Contributing: 'contribute.md'
       - Acknowledgements: 'acknowledgement.md'
+      - Autograd Tests: 'autograd_tests.md'
 
 # Theme configuration
 theme:

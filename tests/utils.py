@@ -8,6 +8,13 @@ from klongpy import KlongInterpreter
 from klongpy.core import is_list, kg_equal
 
 
+def to_numpy(val):
+    """Return ``val`` as a NumPy array if backed by torch tensors."""
+    if hasattr(val, "detach"):
+        val = val.detach().cpu().numpy()
+    return val
+
+
 def die(m=None):
     raise RuntimeError(m)
 

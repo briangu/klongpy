@@ -1,0 +1,26 @@
+.py("tests/kgtests/autograd/helpers.py")
+
+t("∂(square;3) example only"; 6; 6) :" uses del symbol to call backend grad "
+:" Test scalar square gradient "
+tgrad::scalarSquareGrad(3)
+
+t("scalarSquareGrad(3)"; tgrad; 6)
+
+x::[0 1 2]
+tvg::vectorElemwiseGrad(x)
+
+t("vectorElemwiseGrad(x)"; tvg; (2*x)+3)
+
+x1::[1 2 3]
+y1::[4 5 6]
+tmgx::mixedGradX(x1;y1)
+tmgy::mixedGradY(x1;y1)
+
+t("mixedGradX(x1;y1)"; tmgx; y1)
+
+t("mixedGradY(x1;y1)"; tmgy; x1)
+
+sst::stopGrad([2 3])
+
+t("stopGrad([2 3])"; sst; [2 3])
+
