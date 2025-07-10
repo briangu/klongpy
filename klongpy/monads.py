@@ -1,4 +1,5 @@
 from .core import *
+from .autograd import grad_of_fn
 import sys
 
 def eval_monad_atom(a):
@@ -453,6 +454,28 @@ def eval_monad_undefined(a):
     return kg_truth(a is None or (np.isinf(a) if is_number(a) else False))
 
 
+def eval_monad_track(a):
+    """
+
+        ˙a                                                    [Track]
+
+        Identity operator used when marking values for gradient tracking.
+
+    """
+    return a
+
+
+def eval_monad_grad(klong, a):
+    """
+
+        ∇a                                                     [Grad]
+
+        Return a function that computes the numeric gradient of ``a``.
+
+    """
+    return KGLambda(lambda x, fn=a, k=klong: grad_of_fn(k, fn, x))
+
+
 def create_monad_functions(klong):
     def _get_name(s):
         s = s.strip()
@@ -464,6 +487,8 @@ def create_monad_functions(klong):
     for x in filter(lambda n: n.startswith("eval_monad_"), dir(m)):
         fn = getattr(m,x)
         name = _get_name(fn.__doc__)
+        if fn.__code__.co_argcount == 2 and 'klong' in fn.__code__.co_varnames:
+            fn = lambda a,f=fn,klong=klong: f(klong, a)
         registry[name] = fn
 
     return registry
