@@ -183,6 +183,9 @@ async def repl_eval(klong, p, verbose=True):
         if verbose:
             import traceback
             traceback.print_exception(type(e), e, e.__traceback__)
+    finally:
+        # Ensure interactive input continues to come from stdin
+        klong['.sys.cin'] = klong['.cin']
 
     return r
 
