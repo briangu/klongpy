@@ -401,7 +401,7 @@ class TestSysFn(unittest.TestCase):
     def test_simple_cat(self):
         t = """
         cat::{.mi{.p(x);.rl()}:~.rl()}
-        type::{.fc(.ic(x));cat()}
+        type::{[ic];ic::.ic(x);.fc(ic);cat();.cc(ic)}
         copy::{[of];.tc(of::.oc(y));type(x);.cc(of)}
         """
         klong = KlongInterpreter()
