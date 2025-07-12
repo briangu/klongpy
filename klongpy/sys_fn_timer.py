@@ -1,7 +1,7 @@
 import asyncio
 import sys
 
-from klongpy.core import KGCall, KGFn, KGFnWrapper
+from klongpy.core import KGSym, KGCall, KGFn, KGFnWrapper
 
 
 class KGTimerHandler:
@@ -73,15 +73,37 @@ def eval_sys_fn_timer(klong, x, y, z):
             th::.timer("count";1;cb)
 
     """
-    y= int(y)
+    y = int(y)
     if y < 0:
         return "x must be a non-negative integer"
-    z = z if isinstance(z, KGCall) else KGFnWrapper(klong, z) if isinstance(z, KGFn) else z
-    if not callable(z):
-        return "z must be a function"
+
+    sym = None
+    if isinstance(z, (KGFn, KGCall)):
+        for ctx in reversed(klong._context._context):
+            for k, v in ctx.items():
+                if v is z and k not in (KGSym('x'), KGSym('y'), KGSym('z')):
+                    sym = k
+                    break
+            if sym is not None:
+                break
+    elif isinstance(z, KGSym):
+        sym = z
+
+    if sym is not None:
+        def callback():
+            fn = klong[sym]
+            fn = fn if isinstance(fn, KGCall) else KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
+            if not callable(fn):
+                raise RuntimeError("z must be a function")
+            return fn()
+    else:
+        callback = z if isinstance(z, KGCall) else KGFnWrapper(klong, z) if isinstance(z, KGFn) else z
+        if not callable(callback):
+            return "z must be a function"
+
     system = klong['.system']
     klongloop = system['klongloop']
-    return _call_periodic(klongloop, x, y, z)
+    return _call_periodic(klongloop, x, y, callback)
 
 
 def eval_sys_fn_cancel_timer(x):

@@ -7,6 +7,10 @@ cb::{.p("hello")}
 th::.timer("greeting";1;cb)
 ```
 
+Timers look up the callback function each time they execute. Updating the
+function definition after creating the timer will change the behavior on the
+next tick.
+
 To stop the timer, it can be closed via:
 
 ```
