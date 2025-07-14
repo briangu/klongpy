@@ -1,4 +1,6 @@
 import os
+import sys
+import subprocess
 import tempfile
 import unittest
 
@@ -379,7 +381,17 @@ class TestSysFn(unittest.TestCase):
         self.assertEqual(r,{1:2})
 
     def test_eval_sys_exit(self):
-        pass
+        with tempfile.TemporaryDirectory() as td:
+            fname = os.path.join(td, "exit.kg")
+            with open(fname, "w") as f:
+                f.write(".x(0)")
+
+            root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            cmd = [sys.executable, os.path.join(root, "scripts", "kgpy"), fname]
+            env = os.environ.copy()
+            env["PYTHONPATH"] = root
+            result = subprocess.run(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_simple_io(self):
         t = """
