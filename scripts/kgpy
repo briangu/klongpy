@@ -204,7 +204,11 @@ def get_input():
 
 
 def run_in_loop(klong_loop, coro):
-    return asyncio.run_coroutine_threadsafe(coro, klong_loop).result()
+    fut = asyncio.run_coroutine_threadsafe(coro, klong_loop)
+    r = fut.result()
+    if isinstance(r, SystemExit):
+        raise r
+    return r
 
 
 class ConsoleInputHandler:
@@ -232,6 +236,9 @@ class ConsoleInputHandler:
                     break
                 except KeyboardInterrupt:
                     print(failure("\nkg: error: interrupted"))
+                except SystemExit as e:
+                    console_loop.stop()
+                    raise e
                 except Exception as e:
                     print(failure(f"Error: {e.args}"))
                     import traceback
@@ -241,7 +248,10 @@ class ConsoleInputHandler:
 
 
 async def run_in_klong(klong, s):
-    return klong(s)
+    try:
+        return klong(s)
+    except SystemExit as e:
+        return e
 
 
 def run_file(klong_loop, klong, fname, verbose=False):
@@ -344,6 +354,7 @@ if __name__ == "__main__":
     klong['.os.argv'] = extras if extras else []
 
     run_repl = False
+    exit_code = 0
 
     if args.server:
         r = klong(f".srv({args.server})")
@@ -362,7 +373,10 @@ if __name__ == "__main__":
     if args.filename:
         if args.verbose:
             print(f"Running: {args.filename}")
-        run_file(klong_loop, klong, args.filename, verbose=args.verbose)
+        try:
+            run_file(klong_loop, klong, args.filename, verbose=args.verbose)
+        except SystemExit as e:
+            exit_code = e.code
 
         def gather_io_tasks(io_loop):
             done_event = threading.Event()
@@ -394,10 +408,16 @@ if __name__ == "__main__":
         colorama.init(autoreset=True)
         show_repl_header(args.server)
         console_loop.create_task(ConsoleInputHandler.input_producer(console_loop,   klong_loop, klong, args.verbose))
-        console_loop.run_forever()
-        console_loop.close()
+        try:
+            console_loop.run_forever()
+        except SystemExit as e:
+            exit_code = e.code
+        finally:
+            console_loop.close()
 
     shutdown_event.trigger()
 
     cleanup_async_loop(io_loop, io_loop_thread, stop_event=io_stop_event, debug=args.debug, name="io_loop")
     cleanup_async_loop(klong_loop, klong_loop_thread, stop_event=klong_stop_event, debug=args.debug, name="klong_loop")
+
+    sys.exit(exit_code)
