@@ -18,6 +18,42 @@ class TestAutograd(unittest.TestCase):
         r = klong('g(3.14)')
         self.assertTrue(np.isclose(r, 2*3.14 + np.cos(3.14), atol=1e-3))
 
+    def test_scalar_grad_high_precision(self):
+        """autodiff should provide very accurate gradients for scalars."""
+        klong = KlongInterpreter()
+        klong['exp'] = lambda x: np.exp(x)
+        klong('g::∇{exp(x)}')
+        r = klong('g(50)')
+        self.assertTrue(np.isclose(r, np.exp(50.0), atol=1e-12))
+
+    def test_scalar_grad_extended_ufuncs(self):
+        klong = KlongInterpreter()
+        klong['log'] = lambda x: np.log(x)
+        klong['sqrt'] = lambda x: np.sqrt(x)
+        klong['tanh'] = lambda x: np.tanh(x)
+        klong('g::∇{log(x)+sqrt(x)+tanh(x)}')
+        value = 2.5
+        r = klong(f'g({value})')
+        expected = (1.0 / value) + (0.5 / np.sqrt(value)) + (1.0 / np.cosh(value) ** 2)
+        self.assertTrue(np.isclose(r, expected, atol=1e-9))
+
+    def test_scalar_grad_python_operators(self):
+        klong = KlongInterpreter()
+        klong('g::∇{(x*x*x) - 3*x + 5}')
+        value = 4.0
+        r = klong(f'g({value})')
+        expected = 3 * (value ** 2) - 3
+        self.assertTrue(np.isclose(r, expected, atol=1e-9))
+
+    def test_scalar_grad_numeric_fallback(self):
+        klong = KlongInterpreter()
+        klong['relu'] = lambda x: np.maximum(x, 0.0)
+        klong('g::∇{relu(x)}')
+        pos = klong('g(3.0)')
+        neg = klong('g(-3.0)')
+        self.assertTrue(np.isclose(pos, 1.0, atol=1e-6))
+        self.assertTrue(np.isclose(neg, 0.0, atol=1e-6))
+
     @unittest.skipUnless(TORCH_AVAILABLE, "torch required")
     def test_scalar_grad_torch(self):
         klong = KlongInterpreter()

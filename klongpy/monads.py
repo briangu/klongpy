@@ -273,39 +273,41 @@ def eval_monad_range(a):
 
     """
     if isinstance(a, str):
-        return ''.join(np.unique(str_to_chr_arr(a)))
-    elif np.isarray(a):
-        if a.dtype != 'O' and a.ndim > 1:
-            _,ids = np.unique(a,axis=0,return_index=True)
+        seen = set()
+        ordered = []
+        for ch in a:
+            if ch not in seen:
+                seen.add(ch)
+                ordered.append(ch)
+        return ''.join(ordered)
+
+    if np.isarray(a):
+        arr = a
+    elif is_list(a):
+        arr = kg_asarray(a)
+    else:
+        return a
+
+    if arr.ndim == 0:
+        return arr
+
+    if arr.dtype != 'O':
+        if arr.ndim == 1:
+            _, idx = np.unique(arr, return_index=True)
         else:
-            # handle the jagged / mixed array case
-            # from functools import total_ordering
-            # @total_ordering
-            # class Wrapper:
-            #     def __init__(self, x):
-            #         self.x = x
-            #     def __eq__(self,o):
-            #         print("eq")
-            #         return array_equal(self.x, o.x)
-            #     def __ne__(self,o):
-            #         return not array_equal(self.x, o.x)
-            #     def __lt__(self, o):
-            #         u = np.sort(np.asarray([self.x, o.x]))
-            #         return u[0] == self.x
-            #         # return u[0] if isinstance(u,np.ndarray) else u
-            # _,ids = np.unique([Wrapper(x) for x in a], return_index=True)
-            # TODO: Make UNIQUE work. this feels so dirty.
-            s = set()
-            arr = []
-            for x in a:
-                sx = str(x)
-                if sx not in s:
-                    s.add(sx)
-                    arr.append(x)
-            return np.asarray(arr, dtype=object)
-        ids.sort()
-        a = a[ids]
-    return a
+            _, idx = np.unique(arr, axis=0, return_index=True)
+        idx.sort()
+        return arr[idx]
+
+    unique_values = []
+    for item in arr:
+        if not any(kg_equal(item, existing) for existing in unique_values):
+            unique_values.append(item)
+
+    if len(unique_values) == len(arr):
+        return arr
+
+    return np.asarray(unique_values, dtype=object)
 
 
 def eval_monad_reciprocal(a):

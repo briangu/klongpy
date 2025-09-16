@@ -1,5 +1,5 @@
 from .core import *
-from .autograd import grad_of_fn, numeric_grad
+from .autograd import grad_of_fn
 import sys
 
 
@@ -993,7 +993,7 @@ def eval_dyad_grad(klong, a, b):
             finally:
                 klong[a] = orig
 
-        return numeric_grad(func, orig)
+        return grad_of_fn(klong, func, orig)
     else:
         return grad_of_fn(klong, b, a)
 
