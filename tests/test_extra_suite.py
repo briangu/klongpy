@@ -139,6 +139,10 @@ AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
         self.assert_eval_cmp('?[[[0 0] [0 0] [1 1]] [1 1] [1 1] 3 3]', '[[[0 0] [0 0] [1 1]] [1 1] 3]')
         self.assert_eval_cmp('?[[0 0] [1 0] [2 0] [3 0] [4 1] [4 2] [4 3] [3 4] [2 4] [3 3] [4 3] [3 2] [2 2] [1 2]]', '[[0 0] [1 0] [2 0] [3 0] [4 1] [4 2] [4 3] [3 4] [2 4] [3 3] [3 2] [2 2] [1 2]]')
 
+    def test_range_distinguishes_types(self):
+        self.assert_eval_cmp('?[10 "10"]', '[10 "10"]')
+        self.assert_eval_cmp('?[:foo ":foo"]', '[:foo ":foo"]')
+
     def test_sum_over_nested_arrays(self):
         """
         sum over nested arrays should reduce
