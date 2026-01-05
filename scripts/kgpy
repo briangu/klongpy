@@ -6,16 +6,13 @@ import importlib.metadata
 import os
 import sys
 import threading
-import time
 import timeit
 
 import colorama
 
 from klongpy import KlongInterpreter
 from klongpy.core import kg_write
-from klongpy.utils import CallbackEvent
-
-import importlib.resources
+from klongpy.repl import cleanup_repl, create_repl
 
 """
 
@@ -112,7 +109,7 @@ def sys_cmd_exit(klong, cmd):
 
     """
     print("bye!")
-    sys.exit(0)
+    return ExitRequest(0)
 
 
 def sys_cmd_transcript(klong, cmd):
@@ -174,10 +171,17 @@ success = lambda input: f"{colorama.Fore.GREEN}{input}"
 failure = lambda input: f"{colorama.Fore.RED}{input}"
 
 
+class ExitRequest:
+    def __init__(self, code=0):
+        self.code = 0 if code is None else code
+
+
 async def repl_eval(klong, p, verbose=True):
     try:
         r = klong(p)
         r = r if r is None else success(kg_write(r, display=False))
+    except SystemExit as exc:
+        return ExitRequest(exc.code)
     except Exception as e:
         r = failure(f"Error: {e.args}")
         if verbose:
@@ -209,7 +213,7 @@ def run_in_loop(klong_loop, coro):
 
 class ConsoleInputHandler:
     @staticmethod
-    async def input_producer(console_loop, klong_loop, klong, verbose=False):
+    async def input_producer(console_loop, klong_loop, klong, verbose=False, exit_state=None):
         sys_cmds = create_sys_cmd_functions()
         try:
             while True:
@@ -225,6 +229,10 @@ class ConsoleInputHandler:
                             continue
                     else:
                         r = run_in_loop(klong_loop, repl_eval(klong, s, verbose=verbose))
+                    if isinstance(r, ExitRequest):
+                        if exit_state is not None:
+                            exit_state["code"] = r.code
+                        break
                     if r is not None:
                         print(r)
                 except EOFError:
@@ -241,62 +249,16 @@ class ConsoleInputHandler:
 
 
 async def run_in_klong(klong, s):
-    return klong(s)
+    try:
+        return klong(s)
+    except SystemExit as exc:
+        return ExitRequest(exc.code)
 
 
 def run_file(klong_loop, klong, fname, verbose=False):
     with open(fname, "r") as f:
         content = f.read()
-    run_in_loop(klong_loop, run_in_klong(klong, content))
-
-
-def start_loop(loop, stop_event):
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(stop_event.wait())
-
-
-def setup_async_loop(start_loop_func, debug=False, slow_callback_duration=86400) -> asyncio.AbstractEventLoop:
-    loop = asyncio.new_event_loop()
-    loop.slow_callback_duration = slow_callback_duration
-    if debug:
-        loop.set_debug(True)
-    stop_event = asyncio.Event()
-    thread = threading.Thread(target=lambda l=loop,e=stop_event: start_loop_func(l,e), args=(loop,), daemon=True)
-    thread.start()
-    return loop, thread, stop_event
-
-
-def cleanup_async_loop(loop: asyncio.AbstractEventLoop, loop_thread, stop_event, debug=True, name=None) -> None:
-
-    if loop.is_closed():
-        return
-
-    loop.call_soon_threadsafe(stop_event.set)
-    loop_thread.join()
-
-    pending_tasks = asyncio.all_tasks(loop=loop)
-    if len(pending_tasks) > 0:
-        if name:
-            print(f"WARNING: pending tasks in {name} loop")
-        print(f"cancelling {len(pending_tasks)} pending tasks...")
-        for task in pending_tasks:
-            loop.call_soon_threadsafe(task.cancel)
-        # wait for all tasks to be cancelled but we can't use run_until_complete because the loop is already running
-        while len(asyncio.all_tasks(loop=loop)) > 0:
-            time.sleep(0)
-
-    loop.stop()
-
-    if not loop.is_closed():
-        loop.close()
-
-
-def append_pkg_resource_path_KLONGPATH():
-    with importlib.resources.as_file(importlib.resources.files('klongpy')) as pkg_path:
-        pkg_lib_path = os.path.join(pkg_path, "lib")
-        klongpath = os.environ.get("KLONGPATH", ".:lib")
-        klongpath = f"{klongpath}:{pkg_lib_path}" if klongpath else str(pkg_lib_path)
-        os.environ["KLONGPATH"] = klongpath
+    return run_in_loop(klong_loop, run_in_klong(klong, content))
 
 
 if __name__ == "__main__":
@@ -329,21 +291,16 @@ if __name__ == "__main__":
         print(KlongInterpreter()(args.expr))
         exit()
 
-    klong = KlongInterpreter()
-
-    io_loop, io_loop_thread, io_stop_event = setup_async_loop(start_loop, debug=args.debug)
-    klong_loop, klong_loop_thread, klong_stop_event = setup_async_loop(start_loop, debug=args.debug)
-
-    shutdown_event = CallbackEvent()
-
-    append_pkg_resource_path_KLONGPATH()
+    klong, loops = create_repl(debug=args.debug)
+    io_loop, _, _, klong_loop, _, _ = loops
+    shutdown_event = klong['.system']['closeEvent']
 
     klong['.helpdb'] = []
-    klong['.system'] = {'ioloop': io_loop, 'klongloop': klong_loop, 'closeEvent': shutdown_event}
     klong['.os.env'] = dict(os.environ)
     klong['.os.argv'] = extras if extras else []
 
     run_repl = False
+    exit_code = None
 
     if args.server:
         r = klong(f".srv({args.server})")
@@ -362,7 +319,9 @@ if __name__ == "__main__":
     if args.filename:
         if args.verbose:
             print(f"Running: {args.filename}")
-        run_file(klong_loop, klong, args.filename, verbose=args.verbose)
+        result = run_file(klong_loop, klong, args.filename, verbose=args.verbose)
+        if isinstance(result, ExitRequest):
+            exit_code = result.code
 
         def gather_io_tasks(io_loop):
             done_event = threading.Event()
@@ -377,7 +336,8 @@ if __name__ == "__main__":
                 done_event.set()
             return done_event
 
-        gather_io_tasks(io_loop).wait()
+        if exit_code is None:
+            gather_io_tasks(io_loop).wait()
     else:
         run_repl = True
 
@@ -390,14 +350,23 @@ if __name__ == "__main__":
         if args.load:
             if args.verbose:
                 print(f"Loading: {args.load}")
-            run_file(klong_loop, klong, args.load, verbose=args.verbose)
-        colorama.init(autoreset=True)
-        show_repl_header(args.server)
-        console_loop.create_task(ConsoleInputHandler.input_producer(console_loop,   klong_loop, klong, args.verbose))
-        console_loop.run_forever()
-        console_loop.close()
+            result = run_file(klong_loop, klong, args.load, verbose=args.verbose)
+            if isinstance(result, ExitRequest):
+                exit_code = result.code
+                run_repl = False
+        if run_repl:
+            exit_state = {"code": None}
+            colorama.init(autoreset=True)
+            show_repl_header(args.server)
+            console_loop.create_task(ConsoleInputHandler.input_producer(console_loop, klong_loop, klong, args.verbose, exit_state))
+            console_loop.run_forever()
+            console_loop.close()
+            if exit_state["code"] is not None:
+                exit_code = exit_state["code"]
 
     shutdown_event.trigger()
 
-    cleanup_async_loop(io_loop, io_loop_thread, stop_event=io_stop_event, debug=args.debug, name="io_loop")
-    cleanup_async_loop(klong_loop, klong_loop_thread, stop_event=klong_stop_event, debug=args.debug, name="klong_loop")
+    cleanup_repl(loops, debug=args.debug)
+
+    if exit_code is not None:
+        sys.exit(exit_code)

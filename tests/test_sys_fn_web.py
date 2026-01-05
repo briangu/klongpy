@@ -21,10 +21,13 @@ class TestSysFnWeb(unittest.TestCase):
 
     def _free_port(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(("", 0))
-        port = s.getsockname()[1]
-        s.close()
-        return port
+        try:
+            s.bind(("", 0))
+            return s.getsockname()[1]
+        except PermissionError as exc:
+            raise unittest.SkipTest("socket bind not permitted in this environment") from exc
+        finally:
+            s.close()
 
     def test_web_server_start_and_stop(self):
         klong = self.klong
@@ -47,4 +50,3 @@ class TestSysFnWeb(unittest.TestCase):
         self.assertEqual(response, "hello")
 
         asyncio.run_coroutine_threadsafe(handle.shutdown(), self.ioloop).result()
-
