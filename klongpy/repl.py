@@ -3,12 +3,30 @@ import threading
 import time
 import os
 import importlib.resources
+from typing import Optional
 
 from . import KlongInterpreter
 from .utils import CallbackEvent
 
 
-def start_loop(loop: asyncio.AbstractEventLoop, stop_event: asyncio.Event) -> None:
+class LoopStopper:
+    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
+        self._loop = loop
+        self._future = loop.create_future()
+
+    def set(self) -> None:
+        if self._future.done():
+            return
+        if self._loop.is_running():
+            self._loop.call_soon_threadsafe(self._future.set_result, None)
+        else:
+            self._future.set_result(None)
+
+    async def wait(self) -> None:
+        await self._future
+
+
+def start_loop(loop: asyncio.AbstractEventLoop, stop_event: LoopStopper) -> None:
     asyncio.set_event_loop(loop)
     loop.run_until_complete(stop_event.wait())
 
@@ -18,13 +36,13 @@ def setup_async_loop(debug: bool = False, slow_callback_duration: float = 86400.
     loop.slow_callback_duration = slow_callback_duration
     if debug:
         loop.set_debug(True)
-    stop_event = asyncio.Event()
+    stop_event = LoopStopper(loop)
     thread = threading.Thread(target=start_loop, args=(loop, stop_event), daemon=True)
     thread.start()
     return loop, thread, stop_event
 
 
-def cleanup_async_loop(loop: asyncio.AbstractEventLoop, loop_thread: threading.Thread, stop_event: asyncio.Event, debug: bool = False, name: str | None = None) -> None:
+def cleanup_async_loop(loop: asyncio.AbstractEventLoop, loop_thread: threading.Thread, stop_event: LoopStopper, debug: bool = False, name: Optional[str] = None) -> None:
     if loop.is_closed():
         return
 
