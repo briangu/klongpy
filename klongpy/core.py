@@ -75,14 +75,11 @@ class KGFnWrapper:
         if not isinstance(fn, KGFn) or isinstance(fn, KGCall):
             return None
 
-        # Reserved symbols that should be skipped (defined later in this file)
-        # We avoid them because x, y, z, .f are function parameters, not stored callbacks
-        reserved_names = {'x', 'y', 'z', '.f'}
-
         # Search the context for this function
+        # Skip reserved symbols (x, y, z, .f) which are function parameters, not stored callbacks
         for sym, value in self.klong._context:
-            # Skip reserved symbols
-            if str(sym) in reserved_names:
+            # Skip reserved symbols - use the module constants
+            if sym in reserved_fn_symbols or sym == reserved_dot_f_symbol:
                 continue
             if value is fn:
                 return sym
