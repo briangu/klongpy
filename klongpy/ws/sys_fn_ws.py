@@ -7,7 +7,7 @@ import threading
 import numpy as np
 import websockets
 
-from klongpy.core import (KGCall, KGLambda, KGSym, KlongException,
+from klongpy.core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym, KlongException,
                           reserved_fn_args, reserved_fn_symbol_map)
 
 
@@ -159,10 +159,13 @@ class NetworkClient(KGLambda):
         self.conn_provider = conn_provider
         self.running = False
         self.run_task = None
-        self.on_connect = on_connect
-        self.on_close = on_close
-        self.on_error = on_error
-        self.on_message = on_message
+
+        # Wrap callbacks - KGFnWrapper now handles dynamic resolution automatically
+        self.on_connect = KGFnWrapper(klong, on_connect) if isinstance(on_connect, KGFn) else on_connect
+        self.on_close = KGFnWrapper(klong, on_close) if isinstance(on_close, KGFn) else on_close
+        self.on_error = KGFnWrapper(klong, on_error) if isinstance(on_error, KGFn) else on_error
+        self.on_message = KGFnWrapper(klong, on_message) if isinstance(on_message, KGFn) else on_message
+
         self.websocket = None
         self._run_exit_event = threading.Event()
 
@@ -175,12 +178,12 @@ class NetworkClient(KGLambda):
         self.running = True
         connect_event = threading.Event()
         async def _on_connect(client, **kwargs):
-            if client.on_connect is not None:
-                await client.on_connect(self)
+            if self.on_connect is not None:
+                await self.on_connect(self)
             connect_event.set()
         async def _on_error(client, e):
-            if client.on_error is not None:
-                await client.on_error(self, e)
+            if self.on_error is not None:
+                await self.on_error(self, e)
             connect_event.set()
 
         self.run_task = self.ioloop.call_soon_threadsafe(asyncio.create_task, self._run(_on_connect, self.on_close, _on_error, self.on_message))

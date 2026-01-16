@@ -131,3 +131,31 @@ class TestSysFnTimer(LoopsBase, unittest.TestCase):
         task = self.klongloop.call_soon_threadsafe(asyncio.create_task, _test())
         asyncio.run_coroutine_threadsafe(_test_result(), self.klongloop).result()
         task.cancel()
+
+    def test_timer_resolves_latest_callback(self):
+        klong = KlongInterpreter()
+        klong['.system'] = {'ioloop': self.ioloop, 'klongloop': self.klongloop}
+
+        async def _test():
+            klong("result::0")
+            klong('cb::{result::1;1}')
+            klong('th::.timer("test";0;cb)')
+
+        async def _test_result():
+            for _ in range(1000):
+                if klong("result") == 1:
+                    break
+                await asyncio.sleep(0)
+            else:
+                self.fail("timer did not invoke initial callback")
+            klong('cb::{result::2;0}')
+            for _ in range(1000):
+                if klong("result") == 2:
+                    break
+                await asyncio.sleep(0)
+            self.assertEqual(klong("result"), 2)
+            klong(".timerc(th)")
+
+        task = self.klongloop.call_soon_threadsafe(asyncio.create_task, _test())
+        asyncio.run_coroutine_threadsafe(_test_result(), self.klongloop).result()
+        task.cancel()

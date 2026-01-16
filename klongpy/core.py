@@ -51,11 +51,59 @@ class KGFn:
 
 
 class KGFnWrapper:
+    """
+    Wrapper for KGFn that enables calling from Python with dynamic symbol resolution.
+
+    When a KGFn is stored and later invoked, this wrapper automatically re-resolves
+    the symbol to use the current function definition. This matches k4 behavior and
+    provides REPL-friendly semantics where function redefinitions take effect immediately.
+
+    Example:
+        fn = klong['callback']  # Returns KGFnWrapper
+        klong('callback::{new implementation}')
+        fn(args)  # Uses the NEW implementation
+    """
+
     def __init__(self, klong, fn):
         self.klong = klong
         self.fn = fn
+        # Find and store the symbol for dynamic resolution
+        self._sym = self._find_symbol(fn)
+
+    def _find_symbol(self, fn):
+        """Find which symbol this function is currently bound to"""
+        if not isinstance(fn, KGFn) or isinstance(fn, KGCall):
+            return None
+
+        # Reserved symbols that should be skipped (defined later in this file)
+        # We avoid them because x, y, z, .f are function parameters, not stored callbacks
+        reserved_names = {'x', 'y', 'z', '.f'}
+
+        # Search the context for this function
+        for sym, value in self.klong._context:
+            # Skip reserved symbols
+            if str(sym) in reserved_names:
+                continue
+            if value is fn:
+                return sym
+        return None
 
     def __call__(self, *args, **kwargs):
+        # Try to resolve dynamically first if we have a symbol
+        if self._sym is not None:
+            try:
+                current = self.klong._context[self._sym]
+                if isinstance(current, KGFn) and not isinstance(current, KGCall):
+                    # Use the current definition
+                    if len(args) != current.arity:
+                        raise RuntimeError(f"Klong function called with {len(args)} but expected {current.arity}")
+                    fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
+                    return self.klong.call(KGCall(current.a, [*fn_args], current.arity))
+            except KeyError:
+                # Symbol was deleted, fall through to original function
+                pass
+
+        # Fallback to original function
         if len(args) != self.fn.arity:
             raise RuntimeError(f"Klong function called with {len(args)} but expected {self.fn.arity}")
         fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
