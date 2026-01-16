@@ -64,11 +64,11 @@ class KGFnWrapper:
         fn(args)  # Uses the NEW implementation
     """
 
-    def __init__(self, klong, fn):
+    def __init__(self, klong, fn, sym=None):
         self.klong = klong
         self.fn = fn
-        # Find and store the symbol for dynamic resolution
-        self._sym = self._find_symbol(fn)
+        # Use provided symbol name (cached) or search for it
+        self._sym = sym if sym is not None else self._find_symbol(fn)
 
     def _find_symbol(self, fn):
         """Find which symbol this function is currently bound to"""

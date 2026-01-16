@@ -224,7 +224,8 @@ class KlongInterpreter():
     def __getitem__(self, k):
         k = k if isinstance(k, KGSym) else KGSym(k)
         r = self._context[k]
-        return KGFnWrapper(self, r) if issubclass(type(r), KGFn) else r
+        # Pass the symbol name to avoid O(n) context search
+        return KGFnWrapper(self, r, sym=k) if issubclass(type(r), KGFn) else r
 
     def __delitem__(self, k):
         k = k if isinstance(k, KGSym) else KGSym(k)
