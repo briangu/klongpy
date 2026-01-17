@@ -50,3 +50,34 @@ class TestSysFnWeb(unittest.TestCase):
         self.assertEqual(response, "hello")
 
         asyncio.run_coroutine_threadsafe(handle.shutdown(), self.ioloop).result()
+
+    def test_web_handler_resolves_latest_callback(self):
+        """Test that web handlers pick up function redefinitions"""
+        klong = self.klong
+        port = self._free_port()
+
+        klong('.py("klongpy.web")')
+        klong('handler::{x;"response1"}')
+        klong('get:::{}')
+        klong('get,"/test",handler')
+        klong('post:::{}')
+        handle = klong(f'h::.web({port};get;post)')
+        self.handle = handle
+
+        async def fetch():
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://localhost:{port}/test") as resp:
+                    return await resp.text()
+
+        # First request with original handler
+        response1 = asyncio.run_coroutine_threadsafe(fetch(), self.ioloop).result()
+        self.assertEqual(response1, "response1")
+
+        # Redefine the handler
+        klong('handler::{x;"response2"}')
+
+        # Second request should use new handler definition
+        response2 = asyncio.run_coroutine_threadsafe(fetch(), self.ioloop).result()
+        self.assertEqual(response2, "response2")
+
+        asyncio.run_coroutine_threadsafe(handle.shutdown(), self.ioloop).result()

@@ -125,6 +125,41 @@ class TestAsync(LoopsBase, unittest.TestCase):
         # ensure that the nc was called with the correct arguments
         nc.call.assert_called_once_with(2)
 
+    def test_async_callback_resolves_latest(self):
+        """Test that async wrapper picks up callback redefinitions"""
+        klong = KlongInterpreter()
+        klong['.system'] = {'ioloop': self.ioloop, 'klongloop': self.klongloop}
+
+        async def _test():
+            klong("fn::{x+1}")
+            klong("result::0")
+            klong("cb::{result::x}")  # First callback
+            klong("afn::.async(fn;cb)")
+            r = klong("afn(2)")
+            self.assertEqual(r, 1)
+
+        async def _test_result1():
+            # Wait for first callback to execute
+            await asyncio.sleep(0.1)
+            r = klong("result")
+            self.assertEqual(r, 3)  # fn(2) = 3, cb stores it
+
+        async def _test_redefine():
+            # Redefine callback
+            klong("cb::{result::x*10}")
+            r = klong("afn(3)")  # fn(3) = 4
+            self.assertEqual(r, 1)
+
+        async def _test_result2():
+            # Wait for second callback to execute
+            await asyncio.sleep(0.1)
+            r = klong("result")
+            self.assertEqual(r, 40)  # fn(3) = 4, new cb does 4*10 = 40
+
+        run_coroutine_threadsafe(_test(), self.klongloop)
+        run_coroutine_threadsafe(_test_result1(), self.klongloop)
+        run_coroutine_threadsafe(_test_redefine(), self.klongloop)
+        run_coroutine_threadsafe(_test_result2(), self.klongloop)
 
 
 class TestConnectionProvider(unittest.TestCase):
