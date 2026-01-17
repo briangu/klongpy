@@ -7,7 +7,7 @@ import threading
 import numpy as np
 import websockets
 
-from klongpy.core import (KGCall, KGFn, KGLambda, KGSym, KlongException,
+from klongpy.core import (KGCall, KGLambda, KGSym, KlongException,
                           reserved_fn_args, reserved_fn_symbol_map)
 
 
