@@ -1,11 +1,14 @@
 import asyncio
 import threading
 import unittest
+from unittest.mock import patch
 
 from utils import kg_equal, LoopsBase
 
 from klongpy import KlongInterpreter
+from klongpy.core import KGCall, KGSym
 from klongpy.sys_fn import *
+from klongpy.sys_fn_timer import eval_sys_fn_timer
 
 
 class TestSysFnTimer(LoopsBase, unittest.TestCase):
@@ -146,8 +149,7 @@ class TestSysFnTimer(LoopsBase, unittest.TestCase):
                 if klong("result") == 1:
                     break
                 await asyncio.sleep(0)
-            else:
-                self.fail("timer did not invoke initial callback")
+            self.assertEqual(klong("result"), 1)
             klong('cb::{result::2;0}')
             for _ in range(1000):
                 if klong("result") == 2:
@@ -159,3 +161,24 @@ class TestSysFnTimer(LoopsBase, unittest.TestCase):
         task = self.klongloop.call_soon_threadsafe(asyncio.create_task, _test())
         asyncio.run_coroutine_threadsafe(_test_result(), self.klongloop).result()
         task.cancel()
+
+    def test_timer_rejects_function_call(self):
+        klong = KlongInterpreter()
+        err = eval_sys_fn_timer(klong, "test", 0, KGCall(KGSym("cb"), [], 1))
+        self.assertEqual(err, "z must be a function (not a function call)")
+
+    def test_timer_rejects_non_callable(self):
+        klong = KlongInterpreter()
+        err = eval_sys_fn_timer(klong, "test", 0, 42)
+        self.assertEqual(err, "z must be a function")
+
+    def test_timer_accepts_python_callable(self):
+        klong = KlongInterpreter()
+        klong['.system'] = {'klongloop': object()}
+        callback = lambda: 1
+
+        with patch('klongpy.sys_fn_timer._call_periodic', return_value="ok") as mock_call:
+            result = eval_sys_fn_timer(klong, "test", 0, callback)
+
+        self.assertEqual(result, "ok")
+        self.assertIs(mock_call.call_args.args[3], callback)

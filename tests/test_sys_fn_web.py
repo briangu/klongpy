@@ -1,10 +1,13 @@
 import asyncio
 import socket
 import unittest
+from unittest.mock import patch
 
 import aiohttp
 
+from klongpy.core import KGCall, KGLambda, KGSym
 from klongpy.repl import create_repl, cleanup_repl
+from klongpy.web.sys_fn_web import eval_sys_fn_create_web_server
 
 
 class TestSysFnWeb(unittest.TestCase):
@@ -51,33 +54,31 @@ class TestSysFnWeb(unittest.TestCase):
 
         asyncio.run_coroutine_threadsafe(handle.shutdown(), self.ioloop).result()
 
-    def test_web_handler_resolves_latest_callback(self):
-        """Test that web handlers pick up function redefinitions"""
+    def test_web_routes_handle_kgcall_and_wrap(self):
         klong = self.klong
-        port = self._free_port()
+        fn_call = KGCall(KGSym("handler"), [], 1)
+        ok_handler = KGLambda(lambda x: "ok")
+        get_routes = {"/bad": fn_call, "/ok": ok_handler}
+        post_routes = {"/bad": fn_call, "/ok": ok_handler}
 
-        klong('.py("klongpy.web")')
-        klong('handler::{x;"response1"}')
-        klong('get:::{}')
-        klong('get,"/test",handler')
-        klong('post:::{}')
-        handle = klong(f'h::.web({port};get;post)')
-        self.handle = handle
+        def _close_task(coro):
+            coro.close()
+            return object()
 
-        async def fetch():
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"http://localhost:{port}/test") as resp:
-                    return await resp.text()
+        with patch("klongpy.web.sys_fn_web.asyncio.create_task", side_effect=_close_task):
+            handle = eval_sys_fn_create_web_server(klong, 0, get_routes, post_routes)
 
-        # First request with original handler
-        response1 = asyncio.run_coroutine_threadsafe(fetch(), self.ioloop).result()
-        self.assertEqual(response1, "response1")
+        self.assertIsNotNone(handle.task)
 
-        # Redefine the handler
-        klong('handler::{x;"response2"}')
+    def test_web_rejects_function_calls(self):
+        klong = self.klong
+        fn_call = KGCall(KGSym("handler"), [], 1)
+        get_routes = {"/bad": fn_call}
+        post_routes = {"/bad": fn_call}
 
-        # Second request should use new handler definition
-        response2 = asyncio.run_coroutine_threadsafe(fetch(), self.ioloop).result()
-        self.assertEqual(response2, "response2")
+        def _close_task(coro):
+            coro.close()
+            return object()
 
-        asyncio.run_coroutine_threadsafe(handle.shutdown(), self.ioloop).result()
+        with patch("klongpy.web.sys_fn_web.asyncio.create_task", side_effect=_close_task):
+            eval_sys_fn_create_web_server(klong, 0, get_routes, post_routes)

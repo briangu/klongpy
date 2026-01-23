@@ -162,6 +162,25 @@ class TestAsync(LoopsBase, unittest.TestCase):
         run_coroutine_threadsafe(_test_result2(), self.klongloop)
 
 
+class CallableWithArity:
+    arity = 1
+
+    def __call__(self, x):
+        return x + 1
+
+
+class TestAsyncCall(unittest.IsolatedAsyncioTestCase):
+    async def test_async_call_python_callable(self):
+        klong = KlongInterpreter()
+        fn = CallableWithArity()
+        cb = MagicMock()
+
+        async_call = KGAsyncCall(None, fn, cb, klong)
+        await async_call.acall(klong, [2])
+
+        cb.assert_called_once_with(3)
+
+
 class TestConnectionProvider(unittest.TestCase):
 
     def test_connection_provider_raises_exception(self):
