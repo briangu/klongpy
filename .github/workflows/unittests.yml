@@ -45,6 +45,16 @@ jobs:
       with:
         python-version: 3.11
     - name: Install Dependencies
-      run: pip install -e ".[full]"
-    - name: Run unittest
-      run: python3 -m unittest -v
+      run: |
+        pip install -e ".[full]"
+        pip install coverage diff-cover
+    - name: Run tests with coverage
+      run: |
+        coverage run -m unittest -v
+        coverage report --include='klongpy/*'
+        coverage xml --include='klongpy/*'
+    - name: Check coverage on new code
+      if: github.event_name == 'pull_request'
+      run: |
+        git fetch origin ${{ github.base_ref }} --depth=1
+        diff-cover coverage.xml --compare-branch=origin/${{ github.base_ref }} --fail-under=80
