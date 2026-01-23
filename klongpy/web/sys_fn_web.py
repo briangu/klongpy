@@ -69,9 +69,14 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
         if arity != 1:
             logging.info(f"GET route {route} handler function requires arity 1, got {arity}")
             continue
-        fn = fn if isinstance(fn, KGCall) else KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
 
-        async def _get(request: web.Request, fn=fn, route=route):
+        # Wrap function - KGFnWrapper now handles dynamic resolution automatically
+        if isinstance(fn, KGCall):
+            logging.info(f"GET route {route} handler cannot be a function call")
+            continue
+        fn_wrapped = KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
+
+        async def _get(request: web.Request, fn=fn_wrapped, route=route):
             try:
                 assert request.method == "GET"
                 return web.Response(text=str(fn(dict(request.rel_url.query))))
@@ -88,9 +93,14 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
         if arity != 1:
             logging.info(f"POST route {route} handler function requires arity 1, got {arity}")
             continue
-        fn = fn if isinstance(fn, KGCall) else KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
 
-        async def _post(request: web.Request, fn=fn):
+        # Wrap function - KGFnWrapper now handles dynamic resolution automatically
+        if isinstance(fn, KGCall):
+            logging.info(f"POST route {route} handler cannot be a function call")
+            continue
+        fn_wrapped = KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
+
+        async def _post(request: web.Request, fn=fn_wrapped, route=route):
             try:
                 assert request.method == "POST"
                 parameters = dict(await request.post())

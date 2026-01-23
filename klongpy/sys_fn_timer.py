@@ -54,6 +54,8 @@ def eval_sys_fn_timer(klong, x, y, z):
 
         The callback function returns 1 to continue, 0 to stop time timer.
 
+        If "z" is a named function, the timer re-resolves it on each tick so redefinitions take effect.
+
         Example:
 
             cb::{.p("hello")}
@@ -76,12 +78,20 @@ def eval_sys_fn_timer(klong, x, y, z):
     y= int(y)
     if y < 0:
         return "x must be a non-negative integer"
-    z = z if isinstance(z, KGCall) else KGFnWrapper(klong, z) if isinstance(z, KGFn) else z
-    if not callable(z):
+
+    # Wrap the callback - KGFnWrapper now handles dynamic resolution automatically
+    if isinstance(z, KGCall):
+        return "z must be a function (not a function call)"
+    if isinstance(z, KGFn):
+        callback = KGFnWrapper(klong, z)
+    elif callable(z):
+        callback = z
+    else:
         return "z must be a function"
+
     system = klong['.system']
     klongloop = system['klongloop']
-    return _call_periodic(klongloop, x, y, z)
+    return _call_periodic(klongloop, x, y, callback)
 
 
 def eval_sys_fn_cancel_timer(x):
