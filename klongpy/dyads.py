@@ -1,5 +1,5 @@
 from .core import *
-from .autograd import grad_of_fn, numeric_grad
+from .autograd import grad_of_fn, numeric_grad, autograd_of_fn
 import sys
 
 
@@ -996,6 +996,29 @@ def eval_dyad_grad(klong, a, b):
         return numeric_grad(func, orig)
     else:
         return grad_of_fn(klong, b, a)
+
+
+def eval_dyad_autograd(klong, a, b):
+    """
+
+        a:>b                                                 [Autograd]
+
+        Compute the gradient of the monadic function ``a`` at ``b`` using
+        automatic differentiation (PyTorch autograd) when USE_TORCH=1,
+        otherwise falls back to numeric gradient computation.
+
+        This operator is similar to ∇ but leverages PyTorch's autograd
+        for exact gradients when running with the PyTorch backend.
+
+        The function ``a`` must be a scalar-valued function (returns a single number).
+
+        Examples:
+            {x^2}:>3.0       -->  6.0      (derivative of x^2 at x=3)
+            {x^3}:>2.0       -->  12.0     (derivative of x^3 at x=2)
+            {+/x^2}:>[1 2 3] -->  [2 4 6]  (gradient of sum of squares)
+
+    """
+    return autograd_of_fn(klong, a, b)
 
 
 def create_dyad_functions(klong):

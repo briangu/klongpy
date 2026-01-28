@@ -7,14 +7,7 @@ with open(os.path.join(directory, 'README.md'), encoding='utf-8') as f:
 
 
 extra_requires = {
-        'cupy': ["cupy"],
-        'cuda12x': ["cupy-cuda12x"],
-        'cuda11x': ["cupy-cuda11x"],
-        'cuda111': ["cupy-cuda111"],
-        'cuda110': ["cupy-cuda110"],
-        'cuda102': ["cupy-cuda102"],
-        'rocm-5-0': ["cupy-rocm-5-0"],
-        'rocm-4-3': ["cupy-rocm-4-3"],
+        'torch': ["torch"],
         'repl': ["colorama==0.4.6"],
         'web': ["aiohttp==3.9.4"],
         'db': ["pandas==2.2.2","duckdb==1.3.0"],

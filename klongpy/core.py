@@ -4,7 +4,7 @@ import weakref
 from enum import Enum
 import sys
 
-from .backend import np
+from .backend import np, use_torch, TorchUnsupportedDtypeError
 
 # python3.11 support
 if not hasattr(inspect, 'getargspec'):
@@ -294,6 +294,9 @@ def kg_asarray(a):
     Detecting the type in NumPy directly, as opposed to checking it in Python, significantly enhances
     performance, hence the approach adopted in this function.
 
+    When using the PyTorch backend (USE_TORCH=1), this function will raise TorchUnsupportedDtypeError
+    if the data requires object dtype, which is not supported by PyTorch.
+
     Parameters
     ----------
     a : list or array-like
@@ -303,20 +306,43 @@ def kg_asarray(a):
     -------
     arr : ndarray
         The converted input data as a NumPy array, where all elements and sub-arrays are also NumPy arrays.
+
+    Raises
+    ------
+    TorchUnsupportedDtypeError
+        If using the PyTorch backend and the data requires object dtype.
     """
     if isinstance(a, str):
+        if use_torch:
+            raise TorchUnsupportedDtypeError(
+                "PyTorch backend does not support string conversion to character arrays."
+            )
         return str_to_chr_arr(a)
     try:
         arr = np.asarray(a)
-        if arr.dtype.kind not in ['O','i','f']:
-            raise ValueError
+        if hasattr(arr, 'dtype'):
+            # For torch tensors, dtype doesn't have .kind attribute
+            if hasattr(arr.dtype, 'kind'):
+                if arr.dtype.kind not in ['O','i','f']:
+                    raise ValueError
+            # For torch tensors, we got a valid tensor if we reach here
+            elif use_torch:
+                return arr
     except (np.VisibleDeprecationWarning, ValueError):
+        if use_torch:
+            raise TorchUnsupportedDtypeError(
+                "PyTorch backend does not support object dtype. "
+                "This data contains heterogeneous types or jagged arrays."
+            )
         try:
             arr = np.asarray(a, dtype=object)
         except ValueError:
             arr = [x.tolist() if np.isarray(x) else x for x in a]
             arr = np.asarray(arr, dtype=object)
         arr = np.asarray([kg_asarray(x) if isinstance(x, list) else x for x in arr], dtype=object)
+    except TorchUnsupportedDtypeError:
+        # Re-raise torch errors without wrapping
+        raise
     return arr
 
 
@@ -502,9 +528,13 @@ def kg_truth(x):
     return x*1
 
 
-# TODO: can we just transform chars to ints so that CuPy works?
-#       we'll need to reassemble the strinsg, so pros/cons.
+# TODO: can we just transform chars to ints so that PyTorch works?
+#       we'll need to reassemble the strings, so pros/cons.
 def str_to_chr_arr(s):
+    if use_torch:
+        raise TorchUnsupportedDtypeError(
+            "PyTorch backend does not support string-to-character array conversion."
+        )
     return np.asarray([KGChar(x) for x in s],dtype=object)
 
 

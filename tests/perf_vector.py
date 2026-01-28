@@ -28,7 +28,7 @@ if __name__ == "__main__":
     pr = python_vec(number=number)
     print(f"{round(pr,6)}s")
 
-    print(f"KlongPy USE_GPU={os.environ.get('USE_GPU')}: ", end='')
+    print(f"KlongPy USE_TORCH={os.environ.get('USE_TORCH')}: ", end='')
     kr = klong_vec(number=number)
     print(f"{round(kr,6)}s")
 

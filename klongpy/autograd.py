@@ -1,5 +1,9 @@
 import numpy as np
 from .core import KGLambda, KGCall, KGSym, KGFn
+from .backend import use_torch, TorchUnsupportedDtypeError
+
+if use_torch:
+    import torch
 
 
 def numeric_grad(func, x, eps=1e-6):
@@ -20,6 +24,46 @@ def numeric_grad(func, x, eps=1e-6):
     return grad
 
 
+def torch_autograd(func, x):
+    """
+    Compute gradient using PyTorch autograd.
+
+    Parameters
+    ----------
+    func : callable
+        A function that takes a tensor and returns a scalar tensor.
+    x : array-like
+        The point at which to compute the gradient.
+
+    Returns
+    -------
+    torch.Tensor
+        The gradient of func at x.
+    """
+    if not use_torch:
+        raise RuntimeError("PyTorch autograd requires USE_TORCH=1")
+
+    # Convert input to torch tensor with gradient tracking
+    if isinstance(x, torch.Tensor):
+        x_tensor = x.clone().detach().float().requires_grad_(True)
+    elif isinstance(x, np.ndarray):
+        x_tensor = torch.from_numpy(x.astype(np.float64)).float().requires_grad_(True)
+    else:
+        x_tensor = torch.tensor(x, dtype=torch.float32, requires_grad=True)
+
+    # Compute the function value
+    y = func(x_tensor)
+
+    # Ensure y is a scalar
+    if y.numel() != 1:
+        raise ValueError(f"Function must return a scalar, got shape {y.shape}")
+
+    # Compute gradient
+    y.backward()
+
+    return x_tensor.grad
+
+
 def grad_of_fn(klong, fn, x):
     """Return gradient of Klong or Python function ``fn`` at ``x``."""
     def call_fn(v):
@@ -32,3 +76,40 @@ def grad_of_fn(klong, fn, x):
         else:
             return fn(v)
     return numeric_grad(call_fn, x)
+
+
+def autograd_of_fn(klong, fn, x):
+    """
+    Compute gradient using PyTorch autograd when available.
+
+    This function uses PyTorch's automatic differentiation when USE_TORCH=1,
+    otherwise falls back to numeric gradient computation.
+
+    Parameters
+    ----------
+    klong : KlongInterpreter
+        The Klong interpreter instance.
+    fn : KGFn, KGLambda, KGSym, or callable
+        The function to differentiate.
+    x : array-like
+        The point at which to compute the gradient.
+
+    Returns
+    -------
+    array-like
+        The gradient of fn at x.
+    """
+    def call_fn(v):
+        if isinstance(fn, (KGSym, KGLambda)):
+            return klong.call(KGCall(fn, [v], 1))
+        elif isinstance(fn, KGCall):
+            return klong.call(KGCall(fn.a, [v], fn.arity))
+        elif isinstance(fn, KGFn):
+            return klong.call(KGCall(fn.a, [v], fn.arity))
+        else:
+            return fn(v)
+
+    if use_torch:
+        return torch_autograd(call_fn, x)
+    else:
+        return numeric_grad(call_fn, x)

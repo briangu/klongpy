@@ -227,8 +227,7 @@ def eval_adverb_over(f, a, op):
         return a
     if len(a) == 1:
         return a[0]
-    # https://docs.cupy.dev/en/stable/reference/ufunc.html
-    # TODO: can we use NumPy reduce when CuPy backend primary?
+    # Use NumPy/PyTorch ufunc reduce when available for better performance
     if isinstance(op, KGOp):
         if safe_eq(op.a,'+'):
             return np.add.reduce(a)
@@ -320,7 +319,7 @@ def eval_adverb_scan_over(f, a, op):
     """
     if is_atom(a):
         return a
-    # https://docs.cupy.dev/en/stable/reference/ufunc.html
+    # Use NumPy/PyTorch ufunc accumulate when available for better performance
     if safe_eq(f, eval_dyad_add) and hasattr(np.add, 'accumulate'):
         return np.add.accumulate(a)
     elif safe_eq(f, eval_dyad_subtract) and hasattr(np.subtract, 'accumulate'):

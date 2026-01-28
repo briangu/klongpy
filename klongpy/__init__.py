@@ -1,2 +1,3 @@
 from .interpreter import KlongInterpreter, KlongException
-__all__ = ["KlongInterpreter", "KlongException"]
+from .backend import TorchUnsupportedDtypeError
+__all__ = ["KlongInterpreter", "KlongException", "TorchUnsupportedDtypeError"]
