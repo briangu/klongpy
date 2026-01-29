@@ -4,7 +4,7 @@ import weakref
 from enum import Enum
 import sys
 
-from .backend import np, use_torch, TorchUnsupportedDtypeError
+from .backend import np, use_torch, TorchUnsupportedDtypeError, get_default_backend
 
 # python3.11 support
 if not hasattr(inspect, 'getargspec'):
@@ -277,73 +277,33 @@ def in_map(x, v):
         return False
 
 
-def kg_asarray(a):
+def kg_asarray(a, backend=None):
     """
-    Converts input data into a NumPy array, ensuring all sub-arrays are also NumPy arrays, to meet the requirements of KlongPy.
+    Converts input data into an array for KlongPy.
 
-    KlongPy treats NumPy arrays as data and Python lists as "programs". Therefore, it is crucial that all elements and
-    sub-arrays of the input data are converted into NumPy arrays. This function attempts to achieve this, while handling
-    unpredictable and complex data structures that may result from prior manipulations to the data.
-
-    The function first tries to convert the input data into a NumPy array. In the case of a jagged structure
-    (i.e., irregularly-shaped sub-arrays), it defaults to the object data type. If the initial conversion is unsuccessful,
-    it tries to convert the input data to an object dtype array. If all these attempts fail, it converts each element to
-    a list, if it is a NumPy array, or keeps the original element if it is not, and then attempts to convert the whole
-    structure into an object dtype array again.
-
-    Detecting the type in NumPy directly, as opposed to checking it in Python, significantly enhances
-    performance, hence the approach adopted in this function.
-
-    When using the PyTorch backend (USE_TORCH=1), this function will raise TorchUnsupportedDtypeError
-    if the data requires object dtype, which is not supported by PyTorch.
+    This function delegates to the backend provider's kg_asarray method,
+    which handles backend-specific array conversion.
 
     Parameters
     ----------
     a : list or array-like
-        The input data to be converted into a NumPy array.
+        The input data to be converted into an array.
+    backend : BackendProvider, optional
+        The backend to use. If None, uses the default backend.
 
     Returns
     -------
-    arr : ndarray
-        The converted input data as a NumPy array, where all elements and sub-arrays are also NumPy arrays.
+    arr : ndarray or tensor
+        The converted input data as an array.
 
     Raises
     ------
-    TorchUnsupportedDtypeError
-        If using the PyTorch backend and the data requires object dtype.
+    UnsupportedDtypeError
+        If the backend doesn't support the required dtype.
     """
-    if isinstance(a, str):
-        if use_torch:
-            raise TorchUnsupportedDtypeError(
-                "PyTorch backend does not support string conversion to character arrays."
-            )
-        return str_to_chr_arr(a)
-    try:
-        arr = np.asarray(a)
-        if hasattr(arr, 'dtype'):
-            # For torch tensors, dtype doesn't have .kind attribute
-            if hasattr(arr.dtype, 'kind'):
-                if arr.dtype.kind not in ['O','i','f']:
-                    raise ValueError
-            # For torch tensors, we got a valid tensor if we reach here
-            elif use_torch:
-                return arr
-    except (np.VisibleDeprecationWarning, ValueError):
-        if use_torch:
-            raise TorchUnsupportedDtypeError(
-                "PyTorch backend does not support object dtype. "
-                "This data contains heterogeneous types or jagged arrays."
-            )
-        try:
-            arr = np.asarray(a, dtype=object)
-        except ValueError:
-            arr = [x.tolist() if np.isarray(x) else x for x in a]
-            arr = np.asarray(arr, dtype=object)
-        arr = np.asarray([kg_asarray(x) if isinstance(x, list) else x for x in arr], dtype=object)
-    except TorchUnsupportedDtypeError:
-        # Re-raise torch errors without wrapping
-        raise
-    return arr
+    if backend is None:
+        backend = get_default_backend()
+    return backend.kg_asarray(a)
 
 
 def kg_equal(a, b):
@@ -528,14 +488,30 @@ def kg_truth(x):
     return x*1
 
 
-# TODO: can we just transform chars to ints so that PyTorch works?
-#       we'll need to reassemble the strings, so pros/cons.
-def str_to_chr_arr(s):
-    if use_torch:
-        raise TorchUnsupportedDtypeError(
-            "PyTorch backend does not support string-to-character array conversion."
-        )
-    return np.asarray([KGChar(x) for x in s],dtype=object)
+def str_to_chr_arr(s, backend=None):
+    """
+    Convert string to character array.
+
+    Parameters
+    ----------
+    s : str
+        The string to convert.
+    backend : BackendProvider, optional
+        The backend to use. If None, uses the default backend.
+
+    Returns
+    -------
+    array
+        Array of KGChar objects.
+
+    Raises
+    ------
+    UnsupportedDtypeError
+        If the backend doesn't support string operations.
+    """
+    if backend is None:
+        backend = get_default_backend()
+    return backend.str_to_char_array(s)
 
 
 def read_num(t, i=0):

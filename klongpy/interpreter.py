@@ -2,6 +2,7 @@ import time
 from collections import deque
 
 from .adverbs import get_adverb_fn
+from .backends import get_backend
 from .core import *
 from .dyads import create_dyad_functions
 from .monads import create_monad_functions
@@ -210,12 +211,35 @@ def chain_adverbs(klong, arr):
 
 class KlongInterpreter():
 
-    def __init__(self):
+    def __init__(self, backend=None, device=None):
+        """
+        Initialize a Klong interpreter.
+
+        Parameters
+        ----------
+        backend : str, optional
+            Backend name ('numpy' or 'torch'). If None, uses the default
+            backend (numpy, unless KLONG_BACKEND or USE_TORCH env vars are set).
+        device : str, optional
+            Device for torch backend ('cpu', 'cuda', 'mps'). Only applies
+            when backend='torch'. If None, auto-selects best available device.
+        """
+        self._backend = get_backend(backend, device=device)
         self._context = KlongContext(create_system_contexts())
         self._vd = create_dyad_functions(self)
         self._vm = create_monad_functions(self)
         self._start_time = time.time()
         self._module = None
+
+    @property
+    def backend(self):
+        """Return the backend provider for this interpreter."""
+        return self._backend
+
+    @property
+    def np(self):
+        """Return the numpy-compatible array module for this interpreter."""
+        return self._backend.np
 
     def __setitem__(self, k, v):
         k = k if isinstance(k, KGSym) else KGSym(k)
