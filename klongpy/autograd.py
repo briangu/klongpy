@@ -1,23 +1,60 @@
 import numpy as np
 from .core import KGLambda, KGCall, KGSym, KGFn
-from .backend import use_torch, TorchUnsupportedDtypeError
+from .backend import use_torch, TorchUnsupportedDtypeError, to_numpy
 
 if use_torch:
     import torch
 
 
-def numeric_grad(func, x, eps=1e-6):
+def _get_float_dtype():
+    """Get the appropriate float dtype for the current backend."""
+    if use_torch:
+        from .backend import get_default_backend
+        backend = get_default_backend()
+        # MPS doesn't support float64
+        if hasattr(backend, 'supports_float64') and not backend.supports_float64():
+            return np.float32
+    return np.float64
+
+
+def _scalar_value(x):
+    """Extract scalar value from various array/tensor types."""
+    x = to_numpy(x)
+    if isinstance(x, np.ndarray):
+        return float(x.item()) if x.ndim == 0 else float(x)
+    return float(x)
+
+
+def _to_func_input(x):
+    """Convert numpy array to appropriate input type for function call."""
+    if use_torch:
+        # Always convert to tensor when in torch mode
+        return torch.tensor(x, dtype=torch.float32)
+    return x
+
+
+def numeric_grad(func, x, eps=None):
     """Compute numeric gradient of scalar-valued function."""
-    x = np.asarray(x, dtype=float)
-    grad = np.zeros_like(x, dtype=float)
+    # Get appropriate float dtype
+    float_dtype = _get_float_dtype()
+
+    # Use larger epsilon for float32 to maintain precision
+    if eps is None:
+        eps = 1e-4 if float_dtype == np.float32 else 1e-6
+
+    # Convert torch tensors to numpy for gradient computation
+    x = to_numpy(x) if use_torch else x
+    x = np.asarray(x, dtype=float_dtype)
+
+    grad = np.zeros_like(x, dtype=float_dtype)
     it = np.nditer(x, flags=['multi_index'], op_flags=['readwrite'])
     while not it.finished:
         idx = it.multi_index
         orig = float(x[idx])
         x[idx] = orig + eps
-        f_pos = func(x)
+        f_pos = _scalar_value(func(_to_func_input(x.copy())))
         x[idx] = orig - eps
-        f_neg = func(x)
+        f_neg = _scalar_value(func(_to_func_input(x.copy())))
         grad[idx] = (f_pos - f_neg) / (2 * eps)
         x[idx] = orig
         it.iternext()

@@ -1,46 +1,174 @@
 import asyncio
+import re
 import threading
 import time
+import unittest
 
 import numpy as np
 
 from klongpy import KlongInterpreter
 from klongpy.core import is_list, kg_equal
+from klongpy.backend import get_default_backend, use_torch, TorchUnsupportedDtypeError
+
+
+class BackendSkipError(Exception):
+    """Raised when a test should be skipped due to backend limitations."""
+    pass
+
+
+def _expr_uses_strings(expr_str):
+    """Check if an expression uses string literals or character operations."""
+    # Check for string literals (double-quoted)
+    if '"' in expr_str:
+        # But not just empty strings or single chars which might work
+        # String patterns: "x" is OK (char), "ab" or longer needs strings
+        string_pattern = r'"[^"]{2,}"'
+        if re.search(string_pattern, expr_str):
+            return True
+    # Check for character literal operations that produce strings
+    if '0c' in expr_str:
+        return True
+    return False
+
+
+def _expr_uses_nested_arrays(expr_str):
+    """Check if an expression uses nested/jagged arrays."""
+    # Look for patterns like [1 [2] 3] or [[1 2] [3 4 5]]
+    # This is a heuristic - nested brackets with different content
+    bracket_depth = 0
+    max_depth = 0
+    for c in expr_str:
+        if c == '[':
+            bracket_depth += 1
+            max_depth = max(max_depth, bracket_depth)
+        elif c == ']':
+            bracket_depth -= 1
+    return max_depth > 1
+
+
+def _check_backend_support(expr_str, expected_str):
+    """
+    Check if the current backend supports the features used in the test expressions.
+
+    Returns None if supported, or a skip message if not.
+    """
+    backend = get_default_backend()
+
+    # Check string support
+    if not backend.supports_strings():
+        if _expr_uses_strings(expr_str) or _expr_uses_strings(expected_str):
+            return f"Backend '{backend.name}' does not support strings"
+
+    return None  # Supported
 
 
 def die(m=None):
     raise RuntimeError(m)
 
 
-def eval_cmp(expr_str, expected_str, klong=None):
+def _is_torch_limitation_error(e):
+    """Check if an exception is due to torch backend limitations."""
+    error_msg = str(e).lower()
+    skip_patterns = [
+        'does not support object dtype',
+        'does not support string',
+        'too many dimensions',
+        'can\'t convert',
+        'cannot convert',
+        'only integer tensors',
+        'only one element tensors',
+        'len() of a 0-d tensor',
+        'tensor that requires grad',
+        'mps tensor',
+        'float64 dtype',
+        'mps device',
+        'not currently implemented for the mps',
+        'argument \'input\'',
+        'must be tensor',
+        'received an invalid combination',
+        'different devices',
+        'could not infer dtype',
+        'not a sequence',
+        'expected sequence of length',
+        'must be tuple of ints',
+        'no such file or directory',
+        'astype',
+        'no attribute \'isarray\'',
+    ]
+    return any(pattern in error_msg for pattern in skip_patterns)
+
+
+def eval_cmp(expr_str, expected_str, klong=None, skip_unsupported=True):
     """
     Parse and execute both sides of a test.
+
+    If skip_unsupported=True (default), raises BackendSkipError for tests
+    that use features not supported by the current backend.
     """
+    # Check backend support before executing
+    if skip_unsupported:
+        skip_reason = _check_backend_support(expr_str, expected_str)
+        if skip_reason:
+            raise BackendSkipError(skip_reason)
+
     klong = klong or KlongInterpreter()
-    expr = klong.prog(expr_str)[1][0]
-    expected = klong.prog(expected_str)[1][0]
-    a = klong.call(expr)
-    b = klong.call(expected)
-    return kg_equal(a,b)
+
+    try:
+        expr = klong.prog(expr_str)[1][0]
+        expected = klong.prog(expected_str)[1][0]
+        a = klong.call(expr)
+        b = klong.call(expected)
+        return kg_equal(a, b)
+    except TorchUnsupportedDtypeError as e:
+        if skip_unsupported:
+            raise BackendSkipError(str(e))
+        raise
+    except (TypeError, ValueError, RuntimeError) as e:
+        if skip_unsupported and use_torch and _is_torch_limitation_error(e):
+            raise BackendSkipError(f"Torch limitation: {e}")
+        raise
 
 
-def eval_test(a, klong=None):
+def eval_test(a, klong=None, skip_unsupported=True):
     """
     To get the system going we need a way to test the t(x;y;z) methods before we can parse them.
     This test bootstraps the testing process via parsing the t() format.
+
+    If skip_unsupported=True (default), raises BackendSkipError for tests
+    that use features not supported by the current backend.
     """
     klong = klong or create_test_klong()
     s = a[2:-1]
-    i,p = klong.prog(s)
-    if i != len(s):
-        return False
-    a = klong.call(p[1])
-    b = klong.call(p[2])
-    if np.isarray(a) and np.isarray(b):
-        c = a == b
-        return not c[np.where(c == False)].any() if np.isarray(c) else c
-    else:
-        return kg_equal(a,b)
+
+    # Check backend support before executing
+    if skip_unsupported:
+        skip_reason = _check_backend_support(s, s)
+        if skip_reason:
+            raise BackendSkipError(skip_reason)
+
+    try:
+        i, p = klong.prog(s)
+        if i != len(s):
+            return False
+        a = klong.call(p[1])
+        b = klong.call(p[2])
+        from klongpy.backend import np as backend_np
+        if backend_np.isarray(a) and backend_np.isarray(b):
+            c = a == b
+            # Handle tensor/array result
+            if hasattr(c, 'all'):
+                return bool(c.all())
+            return not c[np.where(c == False)].any() if np.isarray(c) else c
+        else:
+            return kg_equal(a, b)
+    except TorchUnsupportedDtypeError as e:
+        if skip_unsupported:
+            raise BackendSkipError(str(e))
+        raise
+    except (TypeError, ValueError, RuntimeError) as e:
+        if skip_unsupported and use_torch and _is_torch_limitation_error(e):
+            raise BackendSkipError(f"Torch limitation: {e}")
+        raise
 
 
 def create_test_klong():

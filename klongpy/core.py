@@ -11,6 +11,44 @@ if not hasattr(inspect, 'getargspec'):
     inspect.getargspec = inspect.getfullargspec
 
 
+def get_dtype_kind(arr):
+    """
+    Get the dtype 'kind' character for an array (numpy or torch).
+
+    Returns:
+        'O' for object dtype
+        'i' for integer types
+        'f' for float types
+        'u' for unsigned integer
+        'b' for boolean
+        'c' for complex
+    """
+    if hasattr(arr, 'dtype'):
+        dtype = arr.dtype
+        # numpy arrays have dtype.kind
+        if hasattr(dtype, 'kind'):
+            return dtype.kind
+        # torch tensors need manual mapping
+        if use_torch:
+            import torch
+            kind_map = {
+                torch.float16: 'f',
+                torch.float32: 'f',
+                torch.float64: 'f',
+                torch.bfloat16: 'f',
+                torch.int8: 'i',
+                torch.int16: 'i',
+                torch.int32: 'i',
+                torch.int64: 'i',
+                torch.uint8: 'u',
+                torch.bool: 'b',
+                torch.complex64: 'c',
+                torch.complex128: 'c',
+            }
+            return kind_map.get(dtype, 'f')
+    return None
+
+
 class KlongException(Exception):
     pass
 
@@ -243,6 +281,19 @@ def is_empty(a):
     return is_iterable(a) and len(a) == 0
 
 
+def array_size(a):
+    """
+    Get the total number of elements in an array/tensor.
+    Works with both numpy arrays and torch tensors.
+    """
+    if hasattr(a, 'numel'):  # torch tensor
+        return a.numel()
+    if hasattr(a, 'size'):
+        size = a.size
+        return size if isinstance(size, int) else size()  # numpy vs torch
+    return len(a) if hasattr(a, '__len__') else 1
+
+
 def is_dict(x):
     return isinstance(x, dict)
 
@@ -252,15 +303,46 @@ def to_list(a):
 
 
 def is_integer(x):
-    return issubclass(type(x), (int, np.integer))
+    import numpy
+    if issubclass(type(x), (int, numpy.integer)):
+        return True
+    # Handle 0-dim numpy arrays
+    if isinstance(x, numpy.ndarray) and x.ndim == 0:
+        return numpy.issubdtype(x.dtype, numpy.integer)
+    if use_torch:
+        import torch
+        if isinstance(x, torch.Tensor) and x.ndim == 0:
+            return x.dtype in (torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8)
+    return False
 
 
 def is_float(x):
-    return issubclass(type(x), (float, np.floating, int))
+    import numpy
+    if issubclass(type(x), (float, numpy.floating, int)):
+        return True
+    # Handle 0-dim numpy arrays
+    if isinstance(x, numpy.ndarray) and x.ndim == 0:
+        return numpy.issubdtype(x.dtype, numpy.floating)
+    if use_torch:
+        import torch
+        if isinstance(x, torch.Tensor) and x.ndim == 0:
+            return x.dtype in (torch.float16, torch.float32, torch.float64, torch.bfloat16)
+    return False
 
 
 def is_number(a):
-    return is_float(a) or is_integer(a)
+    import numpy
+    if is_float(a) or is_integer(a):
+        return True
+    # Handle 0-dim numpy arrays
+    if isinstance(a, numpy.ndarray) and a.ndim == 0:
+        return numpy.issubdtype(a.dtype, numpy.number)
+    # Handle 0-dim tensors as numbers
+    if use_torch:
+        import torch
+        if isinstance(a, torch.Tensor) and a.ndim == 0:
+            return True
+    return False
 
 
 def str_is_float(b):
@@ -335,20 +417,75 @@ def kg_equal(a, b):
     if a is b:
         return True
 
-    na, nb = isinstance(a,np.ndarray), isinstance(b,np.ndarray)
+    # Check for arrays (numpy or torch)
+    import numpy
+    is_numpy_a = isinstance(a, numpy.ndarray)
+    is_numpy_b = isinstance(b, numpy.ndarray)
+    is_tensor_a = False
+    is_tensor_b = False
+    if use_torch:
+        import torch
+        is_tensor_a = isinstance(a, torch.Tensor)
+        is_tensor_b = isinstance(b, torch.Tensor)
 
-    if na and nb and a.dtype == b.dtype and a.dtype != 'O':
-        return np.array_equal(a,b)
+    na, nb = is_numpy_a or is_tensor_a, is_numpy_b or is_tensor_b
 
-    na, nb = na or isinstance(a,list), nb or isinstance(b,list)
+    # Handle arrays with same dtype
+    if na and nb:
+        a_dtype = get_dtype_kind(a)
+        b_dtype = get_dtype_kind(b)
+        if a_dtype == b_dtype and a_dtype != 'O':
+            return bool(np.array_equal(a, b))
+
+    na, nb = na or isinstance(a, list), nb or isinstance(b, list)
 
     if na != nb:
+        # One is array/list, the other is not - could be scalar tensor/array vs scalar
+        # Handle comparing 0-dim arrays/tensors with scalars
+        if is_numpy_a and isinstance(a, numpy.ndarray) and a.ndim == 0 and not nb:
+            return kg_equal(a.item(), b)
+        if is_numpy_b and isinstance(b, numpy.ndarray) and b.ndim == 0 and not na:
+            return kg_equal(a, b.item())
+        if use_torch:
+            import torch
+            if is_tensor_a and isinstance(a, torch.Tensor) and a.ndim == 0 and not nb:
+                return kg_equal(a.item(), b)
+            if is_tensor_b and isinstance(b, torch.Tensor) and b.ndim == 0 and not na:
+                return kg_equal(a, b.item())
         return False
 
     if na:
+        # Handle 0-dim arrays/tensors - compare as scalars
+        a_is_0d = hasattr(a, 'ndim') and a.ndim == 0
+        b_is_0d = hasattr(b, 'ndim') and b.ndim == 0
+        if a_is_0d or b_is_0d:
+            a_val = a.item() if a_is_0d else a
+            b_val = b.item() if b_is_0d else b
+            return kg_equal(a_val, b_val)
         return len(a) == len(b) and all(kg_equal(x, y) for x, y in zip(a, b))
 
-    return np.isclose(a,b) if is_number(a) and is_number(b) else a == b
+    if is_number(a) and is_number(b):
+        # Convert tensors to Python scalars for comparison
+        if use_torch:
+            import torch
+            if isinstance(a, torch.Tensor):
+                a = a.item()
+            if isinstance(b, torch.Tensor):
+                b = b.item()
+        result = np.isclose(a, b)
+        # np.isclose might return an array/tensor, ensure we return bool
+        if hasattr(result, 'item'):
+            return bool(result.item())
+        return bool(result)
+
+    result = a == b
+    # Handle tensor/array result from comparison
+    if hasattr(result, 'all'):
+        # For arrays, check if all elements are equal
+        return bool(result.all())
+    if hasattr(result, 'item'):
+        return bool(result.item())
+    return bool(result)
 
 def has_none(a):
     if isinstance(a,list):
@@ -416,7 +553,16 @@ def vec_fn(a, f):
     """
     Apply a function `f` to an array `a`, with support for both nested arrays and direct vectorized operation.
     """
-    return kg_asarray([((vec_fn(x, f)) if is_list(x) else f(x)) for x in a]) if np.isarray(a) and a.dtype == 'O' else f(a)
+    if np.isarray(a) and a.dtype == 'O':
+        # For object arrays, process each element and preserve structure
+        result = [((vec_fn(x, f)) if is_list(x) else f(x)) for x in a]
+        # Convert torch tensors to numpy for object array creation
+        import numpy
+        if use_torch:
+            import torch
+            result = [x.cpu().numpy() if isinstance(x, torch.Tensor) else x for x in result]
+        return numpy.asarray(result, dtype=object)
+    return f(a)
 
 
 def vec_fn2(a, b, f):
@@ -476,7 +622,11 @@ def is_symbolic(c):
 
 
 def is_char(x):
-    return isinstance(x, KGChar)
+    # Check for both core and backend KGChar classes
+    if isinstance(x, KGChar):
+        return True
+    # Also check for backend KGChar (in case they're different classes)
+    return type(x).__name__ == 'KGChar' and isinstance(x, str)
 
 
 def is_atom(x):
@@ -632,9 +782,32 @@ def read_list(t, delim, i=0, module=None, level=1):
     if cmatch(t,i,delim):
         i += 1
     if level == 1:
-        aa = kg_asarray(arr)
-        if aa.dtype.kind not in ['O','i','f']:
-            aa = np.asarray(arr, dtype=object)
+        try:
+            aa = kg_asarray(arr)
+            if get_dtype_kind(aa) not in ['O','i','f']:
+                import numpy
+                aa = numpy.asarray(arr, dtype=object)
+        except TorchUnsupportedDtypeError:
+            # Torch backend can't handle this data - fall back to numpy object array
+            # Recursively convert inner lists to arrays
+            import numpy
+            if use_torch:
+                import torch
+            def convert_inner(x):
+                if isinstance(x, list):
+                    try:
+                        result = kg_asarray(x)
+                        # Convert torch tensor to numpy for inclusion in object array
+                        if use_torch and isinstance(result, torch.Tensor):
+                            return result.cpu().numpy()
+                        return result
+                    except TorchUnsupportedDtypeError:
+                        return numpy.asarray([convert_inner(e) for e in x], dtype=object)
+                # Convert torch tensor to numpy
+                if use_torch and isinstance(x, torch.Tensor):
+                    return x.cpu().numpy()
+                return x
+            aa = numpy.asarray([convert_inner(x) for x in arr], dtype=object)
     else:
         aa = arr
     return i, aa

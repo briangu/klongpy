@@ -33,6 +33,11 @@ class BackendProvider(ABC):
         pass
 
     @abstractmethod
+    def supports_float64(self) -> bool:
+        """Whether this backend supports float64 (double precision)."""
+        pass
+
+    @abstractmethod
     def str_to_char_array(self, s):
         """Convert string to character array."""
         pass

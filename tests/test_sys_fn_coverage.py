@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 from klongpy import KlongInterpreter, KlongException
+from tests.backend_compat import requires_strings
 from klongpy.core import KGChannel, KGChannelDir, KGSym, KGLambda
 from klongpy.sys_fn import (
     eval_sys_delete_file,
@@ -230,6 +231,7 @@ class TestPythonAttribute(unittest.TestCase):
 
 
 class TestReadLines(unittest.TestCase):
+    @requires_strings
     def test_read_lines(self):
         klong = KlongInterpreter()
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:

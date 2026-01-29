@@ -100,8 +100,12 @@ class TestTorchBackendOperations(unittest.TestCase):
             backend_np.asarray(obj_arr)
 
     def test_asarray_with_tensor(self):
-        """Test asarray with existing tensor returns it."""
-        t = torch.tensor([1, 2, 3])
+        """Test asarray with existing tensor on same device returns it."""
+        from klongpy.backend import get_default_backend
+        # Create tensor on the same device as backend
+        backend = get_default_backend()
+        device = backend.device
+        t = torch.tensor([1, 2, 3], device=device)
         result = backend_np.asarray(t)
         self.assertIs(result, t)
 

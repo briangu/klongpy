@@ -5,6 +5,7 @@ import pandas as pd
 
 from klongpy import KlongInterpreter
 from klongpy.core import kg_equal
+from tests.backend_compat import requires_strings
 
 
 class TestLocalScopeBehavior(unittest.TestCase):
@@ -25,6 +26,7 @@ class TestLocalScopeBehavior(unittest.TestCase):
 
 class TestTablePrint(unittest.TestCase):
 
+    @requires_strings
     def test_table_print(self):
         s = """
         .py("klongpy.db")
@@ -35,6 +37,7 @@ class TestTablePrint(unittest.TestCase):
         r = klong(s)
         self.assertEqual(r, "a\n1\n2\n3")
 
+    @requires_strings
     def test_long_table_print(self):
         s = """
         .py("klongpy.db")

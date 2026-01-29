@@ -40,6 +40,9 @@ class NumpyBackendProvider(BackendProvider):
     def supports_strings(self) -> bool:
         return True
 
+    def supports_float64(self) -> bool:
+        return True
+
     def is_array(self, x) -> bool:
         return isinstance(x, np.ndarray)
 

@@ -5,10 +5,12 @@ import unittest
 
 from utils import *
 from unittest.mock import MagicMock
+from backend_compat import requires_object_dtype
 
 
 class TestExamples(unittest.TestCase):
 
+    @requires_object_dtype
     def test_load_lib(self):
         """
         Verify we can at least load the library.

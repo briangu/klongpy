@@ -1,8 +1,18 @@
 import unittest
 from klongpy import KlongInterpreter
 from utils import *
-from klongpy.backend import np
+from klongpy.backend import np, use_torch
 import numpy
+
+
+def skip_if_torch(test_method):
+    """Decorator to skip tests that don't work with torch backend."""
+    def wrapper(self):
+        if use_torch:
+            self.skipTest("Test requires numpy backend (uses ufunc monkey-patching)")
+        return test_method(self)
+    wrapper.__name__ = test_method.__name__
+    return wrapper
 
 
 class Executed:
@@ -39,6 +49,7 @@ def get_reduce_data(data):
 
 # This approach isn't great because any usage of the thunked method will pass
 # We need a way to intercept the real call
+@unittest.skipIf(use_torch, "Test class requires numpy backend (uses ufunc monkey-patching)")
 class TestAccelerate(unittest.TestCase):
     """
     Verify that we are actually running the adverb_over accelerated paths for cases that we can.

@@ -2,9 +2,11 @@ import unittest
 from klongpy import KlongInterpreter
 from klongpy.core import KGSym, read_sys_comment
 from utils import *
+from backend_compat import requires_strings
 
 class TestProg(unittest.TestCase):
 
+    @requires_strings
     def test_read_string_vs_op(self):
         """
         This test makes sure that we can parse a string that's the same character string as an operation.
@@ -17,6 +19,7 @@ lin2()
         """)
         self.assertEqual(r,'+')
 
+    @requires_strings
     def test_read_string_arg(self):
         """
         This test makes sure that we can parse a string that's the same character string as an operation.

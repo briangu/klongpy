@@ -8,6 +8,7 @@ import aiohttp
 from klongpy.core import KGCall, KGLambda, KGSym
 from klongpy.repl import create_repl, cleanup_repl
 from klongpy.web.sys_fn_web import eval_sys_fn_create_web_server
+from tests.backend_compat import requires_strings
 
 
 class TestSysFnWeb(unittest.TestCase):
@@ -32,6 +33,7 @@ class TestSysFnWeb(unittest.TestCase):
         finally:
             s.close()
 
+    @requires_strings
     def test_web_server_start_and_stop(self):
         klong = self.klong
         port = self._free_port()

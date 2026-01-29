@@ -3,6 +3,7 @@ import unittest
 from datetime import datetime
 
 from utils import *
+from backend_compat import requires_strings, requires_object_dtype
 
 from klongpy import KlongInterpreter
 
@@ -76,6 +77,7 @@ class TestPythonInterop(unittest.TestCase):
         r = klong['fn']([2])
         self.assertTrue(kg_equal(r, [12]))
 
+    @requires_strings
     def test_datetime_parsing_example(self):
         klong = KlongInterpreter()
         klong['strptime'] = lambda x: datetime.strptime(x, "%d %B, %Y")
@@ -86,6 +88,7 @@ class TestPythonInterop(unittest.TestCase):
         r = klong('d:::{};d,"timestamp",a')
         self.assertEqual(r, {'timestamp': datetime(2018, 6, 21, 0, 0)})
 
+    @requires_strings
     def test_datetime_parsing_example_one_call(self):
         # run everything in one go
         klong = KlongInterpreter()
@@ -95,6 +98,7 @@ class TestPythonInterop(unittest.TestCase):
         r = klong['a']
         self.assertEqual(r, datetime(2018, 6, 21, 0, 0))
 
+    @requires_strings
     def test_callback_into_assertion(self):
         def assert_date(x):
             self.assertEqual(x, {'timestamp': datetime(2018, 6, 21, 0, 0)})
@@ -129,6 +133,7 @@ class TestPythonInterop(unittest.TestCase):
         r = klong('f(3; 10; 20)')
         self.assertEqual(r, 3 * 1000 + 10 - 20)
 
+    @requires_object_dtype
     def test_lambda_projection(self):
         klong = KlongInterpreter()
         klong['f'] = lambda x, y, z: ((x*1000) + y) - z
@@ -170,8 +175,11 @@ class TestPythonInterop(unittest.TestCase):
         r = klong('avg(data)')
         stop = time.perf_counter_ns()
         # print((stop - start) / (10**9))
-        self.assertEqual(r, np.average(data))
+        # Use tolerance-based comparison for float32 precision
+        r_val = r.item() if hasattr(r, 'item') else r
+        self.assertTrue(abs(r_val - np.average(data)) < 1e-3)
 
+    @requires_object_dtype
     def test_join_np_array_and_list(self):
         klong = KlongInterpreter()
         klong("A::[];A::A,:{};A::A,:{}")

@@ -4,10 +4,12 @@ import os
 import unittest
 
 from utils import *
+from backend_compat import requires_object_dtype
 
 
 class TestKgTests(unittest.TestCase):
 
+    @requires_object_dtype
     def test_known_failure(self):
         klong = KlongInterpreter()
         klong['fullpath'] = "tests/kgtests/known_failure.kg"
@@ -37,6 +39,7 @@ class TestKgTests(unittest.TestCase):
             print(f"executed {i} lines")
 
 
+    @requires_object_dtype
     def test_kgtests(self):
         """
         Recursively run all tests under the kgtests folder that begin with "test" and end with ".kg".

@@ -463,6 +463,9 @@ def eval_dyad_index_in_depth(a, b):
 def _e_dyad_integer_divide(x,y):
     a = np.divide(x, y)
     a = kg_asarray(rec_fn(a,np.trunc)) if np.isarray(a) else a
+    # Handle torch tensors
+    if hasattr(a, 'to'):  # torch tensor
+        return a.to(int)
     return np.asarray(a,dtype='int') if np.isarray(a) else int(a)
 
 def eval_dyad_integer_divide(a, b):
@@ -551,8 +554,9 @@ def eval_dyad_join(a, b):
 
     r = [*aa,*bb]
     nr = kg_asarray(r)
-    t = nr.dtype.type
-    return nr if issubclass(t, np.integer) or issubclass(t, np.floating) else np.asarray(r,dtype=object)
+    # Check dtype kind for compatibility with both numpy and torch
+    dtype_kind = get_dtype_kind(nr)
+    return nr if dtype_kind in ('i', 'f', 'u') else np.asarray(r,dtype=object)
 
 
 def eval_dyad_less(a, b):
@@ -709,10 +713,43 @@ def eval_dyad_multiply(a, b):
     return np.multiply(a, b)
 
 
+def _detach_if_needed(x):
+    """Detach tensor if it requires grad, to allow type conversions."""
+    if hasattr(x, 'requires_grad') and x.requires_grad:
+        return x.detach()
+    return x
+
+
 def _e_dyad_power(a,b):
-    r = np.power(float(a) if is_integer(a) else a, b)
-    br = all([np.trunc(x) == x for x in r]) if is_list(r) else np.trunc(r) == r
-    return np.dtype('int').type(r) if br else r
+    import numpy
+    # Check if input requires grad - if so, preserve float for autograd
+    has_grad = hasattr(a, 'requires_grad') and a.requires_grad
+    # Detach tensors that require grad for safe conversion (for checking only)
+    a_val = _detach_if_needed(a)
+    b_val = _detach_if_needed(b)
+    # Use torch.pow for tensors to maintain gradients when possible
+    if hasattr(a, 'pow') and hasattr(a, 'requires_grad'):
+        r = a.pow(b)  # Use original b to maintain gradient chain
+    else:
+        r = np.power(float(a_val) if is_integer(a_val) else a_val, b_val)
+    # If input had gradients, keep result as float to preserve autograd
+    if has_grad:
+        return r
+    # Check if result is integer - handle both numpy and torch
+    r_val = _detach_if_needed(r)
+    if is_list(r_val):
+        # Convert to Python floats for comparison
+        vals = [float(_detach_if_needed(x)) if hasattr(x, 'item') else x for x in r_val]
+        br = all([numpy.trunc(x) == x for x in vals])
+    else:
+        val = float(r_val) if hasattr(r_val, 'item') else r_val
+        br = numpy.trunc(val) == val
+    if br:
+        # Convert to int type
+        if hasattr(r, 'to'):  # torch tensor
+            return r.to(int)
+        return numpy.asarray(r, dtype=int) if is_list(r) else int(r)
+    return r
 
 def eval_dyad_power(a, b):
     """
@@ -811,20 +848,22 @@ def eval_dyad_reshape(a, b):
             y = np.where(a < 0)[0]
             if len(y) > 0:
                 a = np.copy(a)
-                a[y] = b.size // 2
-            b_s = b.size
-            a_s = np.prod(a)
+                a[y] = array_size(b) // 2
+            b_s = array_size(b)
+            a_s = int(np.prod(a))  # Ensure it's a Python int for comparison
+            # Convert shape to tuple of ints for torch compatibility
+            a_shape = tuple(int(x) for x in (a.tolist() if hasattr(a, 'tolist') else a))
             if a_s > b_s:
                 b = np.tile(b.flatten(), (a_s // b_s))
-                b = np.concatenate((b, b[:a_s - b.size]))
-                b_s = b.size
-                r = b.reshape(a)
+                b = np.concatenate((b, b[:a_s - array_size(b)]))
+                b_s = array_size(b)
+                r = b.reshape(a_shape)
                 r = np.asarray(["".join(x) for x in r]) if j else r
                 j = False
             elif a_s == b_s:
-                r = b.reshape(a)
+                r = b.reshape(a_shape)
             else:
-                r = np.resize(b, a)
+                r = np.resize(b, a_shape)
         else:
             r = np.full(a, b)
     else:
@@ -967,11 +1006,17 @@ def eval_dyad_take(a, b):
     """
     j = isinstance(b,str)
     b = str_to_chr_arr(b) if j else np.asarray(b)
-    aa = np.abs(a)
-    if aa > b.size:
-        b = np.tile(b,aa // len(b))
-        b = np.concatenate((b, b[:aa-b.size]) if a > 0 else (b[-(aa-b.size):],b))
-    r = b[a:] if a < 0 else b[:a]
+    aa = int(np.abs(a)) if hasattr(np.abs(a), 'item') else np.abs(a)  # Convert tensor to int
+    b_size = array_size(b)
+    if b_size == 0:
+        # Handle empty array/string case
+        r = b
+    elif aa > b_size:
+        b = np.tile(b, aa // len(b))
+        b = np.concatenate((b, b[:aa-array_size(b)]) if a > 0 else (b[-(aa-array_size(b)):], b))
+        r = b[a:] if a < 0 else b[:a]
+    else:
+        r = b[a:] if a < 0 else b[:a]
     return "".join(r) if j else r
 
 

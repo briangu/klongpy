@@ -1,9 +1,10 @@
 import unittest
 
 from utils import *
+from backend_compat import requires_strings, requires_object_dtype
 
 from klongpy import KlongInterpreter
-from klongpy.core import (KGChar, KGSym, is_float, is_integer, rec_flatten)
+from klongpy.core import (KGChar, KGSym, is_float, is_integer, rec_flatten, is_char)
 
 
 # add tests not included in the original kg suite
@@ -20,9 +21,12 @@ class TestExtraCoreSuite(unittest.TestCase):
         r = klong("-1.0]")
         self.assertTrue(is_float(r))
         r = klong("-[1 2 3]")
-        self.assertTrue(r.dtype == int)
+        # Check for integer dtype (works for both numpy and torch)
+        dtype_str = str(r.dtype).lower()
+        self.assertTrue('int' in dtype_str, f"Expected int dtype, got {r.dtype}")
         r = klong("-[1.0 2.0 3.0]")
-        self.assertTrue(r.dtype == float) 
+        dtype_str = str(r.dtype).lower()
+        self.assertTrue('float' in dtype_str, f"Expected float dtype, got {r.dtype}") 
 
     def test_match_empty_array_to_undefined_symbol(self):
         """ symbol is undefined so does not match the empty array """
@@ -36,6 +40,7 @@ class TestExtraCoreSuite(unittest.TestCase):
         self.assertTrue(kg_equal(r, np.arange(1000)*2))
 
     # This is different behavior than Klong, which doesn't allow at/index on dictionaries.
+    @requires_object_dtype
     def test_dict_at_index(self):
         klong = KlongInterpreter()
         klong("D:::{[1 2]}")
@@ -44,11 +49,13 @@ class TestExtraCoreSuite(unittest.TestCase):
         with self.assertRaises(KeyError):
             klong("D@2")
 
+    @requires_object_dtype
     def test_each_dict_with_mixed_types(self):
         klong = KlongInterpreter()
         klong["D"] = {object: [1, 2, 3]}
         klong(".p'D")
 
+    @requires_object_dtype
     def test_apply_range(self):
         klong = KlongInterpreter()
         r = klong("{x}@,!100")
@@ -57,11 +64,13 @@ class TestExtraCoreSuite(unittest.TestCase):
         r = klong("avg@,!100")
         self.assertEqual(r,49.5)
 
+    @requires_strings
     def test_eval_quote_string(self):
         klong = KlongInterpreter()
         r = klong(':"hello"')
         self.assertTrue(r is None)
 
+    @requires_object_dtype
     def test_array_identity(self):
         klong = KlongInterpreter()
         r = klong('[]')
@@ -81,6 +90,7 @@ class TestExtraCoreSuite(unittest.TestCase):
         r = klong('[[[1]] [[2 3]]]')
         self.assertTrue(kg_equal(r, np.array([[[1]],[[2,3]]],dtype=object)))
 
+    @requires_object_dtype
     def test_jagged_array_identity(self):
         klong = KlongInterpreter()
         r = klong('[[0] [[1]]]')
@@ -93,6 +103,7 @@ class TestExtraCoreSuite(unittest.TestCase):
         self.assertFalse(r is False)
         self.assertEqual(r,0)
 
+    @requires_object_dtype
     def test_prime(self):
         klong = KlongInterpreter()
         klong('prime::{&/x!:\\2+!_x^1%2}') # note \\ ==> \
@@ -110,6 +121,7 @@ class TestExtraCoreSuite(unittest.TestCase):
             self.assertTrue(is_integer(x))
         self.assertTrue(kg_equal(r, [15, 10]))
 
+    @requires_strings
     def test_drop_string(self):
         klong = KlongInterpreter()
         klong("""
@@ -128,9 +140,11 @@ AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
         r = klong('.rs("123456 hello")')
         self.assertEqual(r, 123456)
 
+    @requires_object_dtype
     def test_join_nested_arrays(self):
         self.assert_eval_cmp('[[0 0] [1 1]],,2,2', '[[0 0] [1 1] [2 2]]')
 
+    @requires_object_dtype
     def test_range_over_nested_arrays(self):
         self.assert_eval_cmp('?[[0 0] [1 1] 3 3]', '[[0 0] [1 1] 3]')
         self.assert_eval_cmp('?[[0 0] [1 1] [1 1]]', '[[0 0] [1 1]]')
@@ -139,6 +153,7 @@ AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
         self.assert_eval_cmp('?[[[0 0] [0 0] [1 1]] [1 1] [1 1] 3 3]', '[[[0 0] [0 0] [1 1]] [1 1] 3]')
         self.assert_eval_cmp('?[[0 0] [1 0] [2 0] [3 0] [4 1] [4 2] [4 3] [3 4] [2 4] [3 3] [4 3] [3 2] [2 2] [1 2]]', '[[0 0] [1 0] [2 0] [3 0] [4 1] [4 2] [4 3] [3 4] [2 4] [3 3] [3 2] [2 2] [1 2]]')
 
+    @requires_object_dtype
     def test_sum_over_nested_arrays(self):
         """
         sum over nested arrays should reduce
@@ -155,6 +170,7 @@ AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
         r = klong("10.5^5")
         self.assertTrue(is_float(r))
 
+    @requires_object_dtype
     def test_join_array_dict(self):
         klong = KlongInterpreter()
         klong("""
@@ -164,12 +180,14 @@ n::N(D;"x")
         """)
         klong('(D?:c),n')
 
+    @requires_strings
     def test_join_sym_string(self):
         klong = KlongInterpreter()
         r = klong(':p,"hello"')
         self.assertTrue(isinstance(r[0],KGSym))
         self.assertEqual(r[1],"hello")
 
+    @requires_object_dtype
     def test_join_sym_dict(self):
         klong = KlongInterpreter()
         klong("D:::{[1 2]}")
@@ -177,6 +195,7 @@ n::N(D;"x")
         self.assertTrue(isinstance(r[0],KGSym))
         self.assertTrue(isinstance(r[1],dict))
 
+    @requires_strings
     def test_complex_join_dict_create(self):
         klong = KlongInterpreter()
         klong("""
@@ -189,6 +208,7 @@ D::N(1%0;"/")
         self.assertEqual(klong("q?:n"), "hello")
         self.assertTrue(isinstance(klong("q?:p"), dict))
 
+    @requires_object_dtype
     def test_join_sym_int(self):
         klong = KlongInterpreter()
         r = klong(":p,43")
@@ -210,18 +230,20 @@ D::N(1%0;"/")
         r = klong("!(24:%2)")
         self.assertEqual(len(r), 12)
 
+    @requires_strings
     def test_at_index_single_index(self):
         klong = KlongInterpreter()
         def _char_test(x):
-            if not isinstance(x,KGChar):
+            if not is_char(x):
                 raise RuntimeError("should be char")
         klong['ischar'] = _char_test
         klong('ischar("hello"@2)')
 
+    @requires_strings
     def test_at_index_array_index(self):
         klong = KlongInterpreter()
         def _str_test(x):
-            if isinstance(x,KGChar):
+            if is_char(x):
                 raise RuntimeError("should be string")
         klong['isstr'] = _str_test
         klong('isstr("hello"@[2])')
@@ -291,11 +313,13 @@ zop([
         r = klong(t)
         self.assertEqual(r, 1)
 
+    @requires_object_dtype
     def test_eval_array(self):
         klong = KlongInterpreter()
         r = klong('[[[1] [2] [3]] [1 2 3]]')
         self.assertTrue(kg_equal(r,[[[1],[2],[3]],[1,2,3]]))
 
+    @requires_strings
     def test_dot_f(self):
         klong = KlongInterpreter()
         klong('fr::{:[x;"hello";.f(1)]}')
@@ -311,6 +335,7 @@ zop([
         self.assert_eval_cmp('fr(2)', '[1 1]', klong=klong)
         self.assert_eval_cmp('fr(3)', '[1 1 1]', klong=klong)
 
+    @requires_strings
     def test_harness(self):
         klong = KlongInterpreter()
         klong('err::0;')
@@ -327,6 +352,7 @@ zop([
         r = klong("err")
         self.assertEqual(r, 1)
 
+    @requires_object_dtype
     def test_vector_math(self):
         klong = KlongInterpreter()
         r = klong("!10000000")
@@ -357,11 +383,13 @@ zop([
         x = np.fmod(np.add(np.arange(10), 1), 5)
         self.assertTrue(np.equal(x, r).all())
 
+    @requires_object_dtype
     def test_converge(self):
         klong = KlongInterpreter()
         r = klong('{(x+2%x)%2}:~2')
         self.assertTrue(np.isclose(r,1.41421356237309504))
 
+    @requires_strings
     def test_scan_converge(self):
         klong = KlongInterpreter()
         r = klong('{(x+2%x)%2}\~2')
@@ -373,6 +401,7 @@ zop([
         x = r
         self.assertTrue(rec_flatten(rec_fn2(e,x, lambda a,b: a == b)).all())
 
+    @requires_object_dtype
     def test_converge_as_fn(self):
         klong = KlongInterpreter()
         klong('s::{(x+2%x)%2}:~2')

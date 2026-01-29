@@ -116,7 +116,16 @@ def eval_monad_floor(a):
                   _1e100  -->  1.0e+100  :"if precision < 100 digits"
 
     """
-    return vec_fn(a, lambda x: np.floor(np.asarray(x, dtype=float)).astype(int))
+    def _floor_to_int(x):
+        result = np.floor(np.asarray(x, dtype=float))
+        # Handle both numpy arrays and torch tensors
+        if hasattr(result, 'astype'):
+            return result.astype(int)
+        elif hasattr(result, 'to'):  # torch tensor
+            import torch
+            return result.to(torch.int64)
+        return int(result)
+    return vec_fn(a, _floor_to_int)
 
 
 def eval_monad_format(a):
@@ -197,7 +206,7 @@ def eval_monad_groupby(a):
 
     """
     arr = kg_asarray(a)
-    if arr.size == 0:
+    if array_size(arr) == 0:
         return arr
     vals, inverse = np.unique(arr, return_inverse=True)
     groups = [np.where(inverse == i)[0] for i in range(len(vals))]
@@ -216,7 +225,7 @@ def eval_monad_list(a):
                   ,"xyz" -->  ["xyz"]
                    ,[1]  -->  [[1]]
     """
-    if isinstance(a, KGChar):
+    if is_char(a):
         return str(a)
     if isinstance(a, KGSym):
         return np.asarray([a],dtype=object) # np interprets ':foo" as ':fo"

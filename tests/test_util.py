@@ -1,6 +1,7 @@
 import unittest
 from klongpy.core import *
 from utils import die, kg_equal
+from backend_compat import requires_object_dtype, requires_strings
 
 class TestUtil(unittest.TestCase):
 
@@ -124,7 +125,7 @@ class TestUtil(unittest.TestCase):
         self.assertTrue(isinstance(to_list(np.array([])), list))
         self.assertEqual(to_list(np.array([])), [])
         self.assertTrue(isinstance(to_list(np.array([1])), list))
-        self.assertEqual(to_list(np.array([1])), np.array([1]))
+        self.assertEqual(to_list(np.array([1])), [1])  # Compare to list, not array
 
     def test_is_float(self, fn=is_float):
         self.assertFalse(fn(None))
@@ -207,12 +208,20 @@ class TestUtil(unittest.TestCase):
         self.assertFalse(safe_eq(1,[]))
         self.assertTrue(safe_eq(1,1))
 
+    @requires_object_dtype
     def test_merge_projections(self):
+        import numpy as real_np  # Use real numpy for comparison
         self.assertEqual(merge_projections([]), [])
         self.assertEqual(merge_projections([[1]]), [1])
-        self.assertTrue(np.equal(merge_projections([[10,20,30]]), [10,20,30]).all())
-        self.assertTrue(np.equal(merge_projections([[10,None,None],[20,30]]), np.array([10,20,30])).all())
-        self.assertTrue(np.equal(merge_projections([[10,None,None],[20,None],[30]]), np.array([10,20,30])).all())
+        r = merge_projections([[10,20,30]])
+        r = r.cpu().numpy() if hasattr(r, 'cpu') else r
+        self.assertTrue(real_np.array_equal(r, [10,20,30]))
+        r = merge_projections([[10,None,None],[20,30]])
+        r = r.cpu().numpy() if hasattr(r, 'cpu') else r
+        self.assertTrue(real_np.array_equal(r, [10,20,30]))
+        r = merge_projections([[10,None,None],[20,None],[30]])
+        r = r.cpu().numpy() if hasattr(r, 'cpu') else r
+        self.assertTrue(real_np.array_equal(r, [10,20,30]))
 
     def test_is_adverb(self):
         a = ["'",':\\',":'",':/','/',':~',':*','\\','\\~','\\*']
