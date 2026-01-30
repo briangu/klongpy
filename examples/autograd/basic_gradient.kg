@@ -71,9 +71,9 @@ poly::{((3*x^4)-(2*x^2))+x}
 .p("Example 5: Chain rule - derivative of sin(x^2)")
 .p("----------------------------------------")
 
-:" Import sin and cos from Python math module"
-.pyf("math";"sin")
-.pyf("math";"cos")
+:" Import sin and cos from current backend (works with numpy and torch)"
+.bkf("sin")
+.bkf("cos")
 
 :" f(x) = sin(x^2)"
 :" f'(x) = 2x * cos(x^2)"

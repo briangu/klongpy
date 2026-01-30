@@ -637,6 +637,15 @@ class TorchBackendProvider(BackendProvider):
         # Compute the function value
         y = func(x_tensor)
 
+        # Convert result to tensor if needed (e.g., if function used numpy/python math)
+        if not isinstance(y, torch.Tensor):
+            # Function broke the autograd chain - result is not a tensor
+            # This happens when using numpy or math functions instead of torch
+            raise ValueError(
+                f"Function returned {type(y).__name__} instead of Tensor. "
+                "For autograd, use torch-compatible functions (e.g., .bkf('sin') instead of .pyf('math';'sin'))"
+            )
+
         # Ensure y is a scalar
         if y.numel() != 1:
             raise ValueError(f"Function must return a scalar, got shape {y.shape}")

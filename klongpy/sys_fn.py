@@ -14,6 +14,22 @@ import numpy
 from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
                    is_dict, is_empty, is_list, kg_asarray, kg_read, kg_write, np,
                    reserved_fn_args, reserved_fn_symbol_map, safe_eq, safe_inspect)
+from .backend import to_numpy, get_default_backend
+
+
+def _to_display_value(x):
+    """Convert backend tensors to numpy for cleaner display."""
+    backend = get_default_backend()
+    # Convert backend arrays (tensors) to numpy
+    if backend.is_backend_array(x):
+        return to_numpy(x)
+    # Handle numpy arrays with tensors inside (object arrays)
+    if isinstance(x, numpy.ndarray) and x.dtype == object:
+        return numpy.array([_to_display_value(item) for item in x], dtype=object)
+    # Handle lists with tensors
+    if isinstance(x, list):
+        return [_to_display_value(item) for item in x]
+    return x
 
 
 def eval_sys_append_channel(x):
@@ -47,7 +63,22 @@ def eval_sys_display(klong, x):
 
         .d(x)                                                  [Display]
 
-        See [Write].
+        Display the object "x". Tensors are converted to numpy for cleaner output.
+        Use .bkd() for raw backend-specific display.
+
+    """
+    x = _to_display_value(x)
+    r = kg_write(x, display=True)
+    klong['.sys.cout'].raw.write(r)
+    return r
+
+
+def eval_sys_backend_display(klong, x):
+    """
+
+        .bkd(x)                                        [Backend-Display]
+
+        Display the object "x" in raw backend format (tensors shown as-is).
 
     """
     r = kg_write(x, display=True)
@@ -272,7 +303,23 @@ def eval_sys_print(klong, x):
         .p(x)                                                    [Print]
 
         Pretty-print the object "x" (like Display) and then print a
-        newline sequence. .p("") will just print a newline.
+        newline sequence. Tensors are converted to numpy for cleaner output.
+        Use .bkp() for raw backend-specific print.
+
+    """
+    x = _to_display_value(x)
+    o = kg_write(x, display=True)
+    klong['.sys.cout'].raw.write(o+"\n")
+    return o
+
+
+def eval_sys_backend_print(klong, x):
+    """
+
+        .bkp(x)                                          [Backend-Print]
+
+        Pretty-print the object "x" in raw backend format (tensors shown as-is)
+        and then print a newline sequence.
 
     """
     o = kg_write(x, display=True)
