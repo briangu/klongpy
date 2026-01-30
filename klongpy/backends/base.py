@@ -109,6 +109,18 @@ class BackendProvider(ABC):
         """Return indices that would sort the array."""
         pass
 
+    def supports_autograd(self) -> bool:
+        """Whether this backend supports automatic differentiation."""
+        return False
+
+    def create_grad_tensor(self, x):
+        """Create a tensor that tracks gradients. Raises if not supported."""
+        raise NotImplementedError("This backend does not support autograd")
+
+    def compute_autograd(self, func, x):
+        """Compute gradient using automatic differentiation. Raises if not supported."""
+        raise NotImplementedError("This backend does not support autograd")
+
 
 class UnsupportedDtypeError(Exception):
     """Raised when an operation requires a dtype not supported by the backend."""

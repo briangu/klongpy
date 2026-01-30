@@ -598,6 +598,35 @@ class TorchBackendProvider(BackendProvider):
             a = self._torch_backend.asarray(a)
         return torch.argsort(a, descending=descending)
 
+    def supports_autograd(self) -> bool:
+        """Torch backend supports automatic differentiation."""
+        return True
+
+    def create_grad_tensor(self, x):
+        """Create a tensor that tracks gradients."""
+        if isinstance(x, torch.Tensor):
+            return x.clone().detach().float().requires_grad_(True)
+        elif isinstance(x, numpy.ndarray):
+            return torch.from_numpy(x.astype(numpy.float64)).float().requires_grad_(True)
+        else:
+            return torch.tensor(x, dtype=torch.float32, requires_grad=True)
+
+    def compute_autograd(self, func, x):
+        """Compute gradient using PyTorch automatic differentiation."""
+        x_tensor = self.create_grad_tensor(x)
+
+        # Compute the function value
+        y = func(x_tensor)
+
+        # Ensure y is a scalar
+        if y.numel() != 1:
+            raise ValueError(f"Function must return a scalar, got shape {y.shape}")
+
+        # Compute gradient
+        y.backward()
+
+        return x_tensor.grad
+
     def str_to_char_array(self, s):
         """Not supported in torch backend."""
         raise TorchUnsupportedDtypeError(
