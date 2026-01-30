@@ -1,6 +1,6 @@
 # KlongPy
 
-KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array language](https://en.wikipedia.org/wiki/Array_programming), offering high-performance vectorized operations. It prioritizes compatibility with Python, thus allowing seamless integration of Python's expansive ecosystem while retaining Klong's succinctness. With the inclusion of [CuPy](https://github.com/cupy/cupy), KlongPy can operate using both CPU and GPU backends. It utilizes [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) descendant from APL, as its core. This means its runtime can target either GPU or CPU backends. The framework's foundation lies in [Nils M Holm](https://t3x.org)'s work, the original developer of Klong, who has authored a [Klong Book](https://t3x.org/klong/book.html). KlongPy is especially useful for data scientists, quantitative analysts, researchers, and programming language aficionados.
+KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array language](https://en.wikipedia.org/wiki/Array_programming), offering high-performance vectorized operations. It prioritizes compatibility with Python, thus allowing seamless integration of Python's expansive ecosystem while retaining Klong's succinctness. With the optional [PyTorch](https://pytorch.org/) backend, KlongPy can operate using both CPU and GPU backends with automatic differentiation support. It utilizes [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) descendant from APL, as its core. The framework's foundation lies in [Nils M Holm](https://t3x.org)'s work, the original developer of Klong, who has authored a [Klong Book](https://t3x.org/klong/book.html). KlongPy is especially useful for data scientists, quantitative analysts, researchers, and programming language aficionados.
 
 # Quick install
 
@@ -17,6 +17,7 @@ KlongPy is both an Array Language runtime and a set of powerful tools for buildi
 
 * [__Array Programming__](https://en.wikipedia.org/wiki/Array_programming): Based on [Klong](https://t3x.org/klong), a concise, expressive, and easy-to-understand array programming language. Its simple syntax and rich feature set make it an excellent tool for data scientists and engineers.
 * [__Speed__](performance.md): Designed for high-speed vectorized computing, enabling you to process large data sets quickly and efficiently on either CPU or GPU.
+* [__PyTorch Backend & Autograd__](torch_backend.md): Optional PyTorch backend with automatic differentiation for gradient computation, enabling machine learning and optimization workflows.
 * [__Fast Columnar Database__](fast_columnar_database.md): Includes integration with [DuckDb](http://duckdb.org), a super fast in-process columnar store that can operate directly on NumPy arrays with zero-copy.
 * [__Inter-Process Communication (IPC)__](ipc_capabilities.md): Includes built-in support for IPC, enabling easy communication between different processes and systems. Ticker plants and similar pipelines are easy to build.
 * [__Table and Key-Value Store__](table_and_key_value_stores.md): Includes a simple file-backed key value store that can be used to store database tables or raw key/value pairs.
@@ -105,34 +106,35 @@ r = klong['avg'](data)
 print(f"avg={np.round(r,6)}")
 ```
 
-And let's run a performance comparison between CPU and GPU backends:
+And let's run a performance comparison between NumPy and PyTorch backends:
 
 ```python
 import time
-from klongpy.backend import np
+import os
 from klongpy import KlongInterpreter
+
+# Use torch backend
+os.environ['USE_TORCH'] = '1'
 
 klong = KlongInterpreter()
 klong('avg::{(+/x)%#x}')
 
-data = np.random.rand(10**9)
+# Create large array
+data = klong('!1000000')
 
 start = time.perf_counter_ns()
 r = klong['avg'](data)
 stop = time.perf_counter_ns()
 
-print(f"avg={np.round(r,6)} in {round((stop - start) / (10**9), 6)} seconds")
+print(f"avg={float(r):.6f} in {round((stop - start) / (10**9), 6)} seconds")
+print(f"Backend: {klong._backend.name}, Device: {klong._backend.device}")
 ```
 
-Run (CPU)
+Run with PyTorch:
 
-    $ python3 tests/perf_avg.py
-    avg=0.5 in 0.16936 seconds
-
-Run (GPU)
-
-    $ USE_GPU=1 python3 tests/perf_avg.py
-    avg=0.500015 in 0.027818 seconds
+    $ USE_TORCH=1 python3 example.py
+    avg=499999.5 in 0.001234 seconds
+    Backend: torch, Device: mps:0
 
 # Installation
 
@@ -140,20 +142,14 @@ Run (GPU)
 
     $ pip3 install klongpy
 
-### GPU support
+### PyTorch Backend (recommended for autograd and GPU)
 
-    Choose your CuPy prebuilt binary or from source.  Note, the [ROCM](ROCM.md) support for CuPy is experimental and likely will have issues.
+    $ pip3 install klongpy torch
 
-    'cupy' => build from source
-    'cuda12x' => "cupy-cuda12x"
-    'cuda11x' => "cupy-cuda11x"
-    'cuda111' => "cupy-cuda111"
-    'cuda110' => "cupy-cuda110"
-    'cuda102' => "cupy-cuda102"
-    'rocm-5-0' => "cupy-rocm-5-0"
-    'rocm-4-3' => "cupy-rocm-4-3"
+Then enable with `USE_TORCH=1`:
 
-    $ pip3 install klongpy[cupy]
+    $ USE_TORCH=1 python your_script.py
+    $ USE_TORCH=1 kgpy
 
 ### All application tools (db, web, REPL, etc.)
 
@@ -194,14 +190,13 @@ Read about the [prime example here](https://t3x.org/klong/prime.html).
 
 KlongPy aims to be a complete implementation of klong.  It currently passes all of the integration tests provided by klong as well as additional suites.
 
-Since CuPy is [not 100% compatible with NumPy](https://docs.cupy.dev/en/stable/user_guide/difference.html), there are currently some gaps in KlongPy between the two backends.  Notably, strings are supported in CuPy arrays so KlongPy GPU support currently is limited to math.
+The PyTorch backend provides GPU acceleration (CUDA, MPS) and automatic differentiation. Note that the torch backend does not support object dtype arrays or string operations - use the numpy backend for these.
 
 Primary ongoing work includes:
 
 * Additional tools to make KlongPy applications more capable.
 * Additional syntax error help
-* Actively switch between CuPy and NumPy when incompatibilities are present
-    * Work on CuPy kernels is in this branch: _cupy_reduce_kernels
+* Expanded torch backend coverage
 
 # Differences from Klong
 

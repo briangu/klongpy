@@ -17,7 +17,8 @@ KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array lang
 ## Core Features
 
 - **Vectorized Operations with NumPy:** At its core, KlongPy uses [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) descendant from APL, for high-efficiency array manipulations.
-- **CPU and GPU Backend Support:** Incorporating [CuPy](https://github.com/cupy/cupy), KlongPy extends its capabilities to operate on both CPU and GPU backends, ensuring versatile and powerful computing options.
+- **PyTorch Backend with Autograd:** Optional [PyTorch](https://pytorch.org/) backend enables GPU acceleration and automatic differentiation for gradient-based computations and machine learning.
+- **CPU and GPU Backend Support:** With PyTorch, KlongPy operates on both CPU and GPU backends (CUDA, MPS), ensuring versatile and powerful computing options.
 - **Seamless Integration with Python Ecosystem:** The combination of KlongPy's built-in features with Python's wide-ranging libraries enables developers to build complex applications effortlessly.
 
 ## KlongPy's Foundation and Applications
@@ -43,6 +44,7 @@ KlongPy is both an Array Language runtime and a set of powerful tools for buildi
 
 * [__Array Programming__](https://en.wikipedia.org/wiki/Array_programming): Based on [Klong](https://t3x.org/klong), a concise, expressive, and easy-to-understand array programming language. Its simple syntax and rich feature set make it an excellent tool for data scientists and engineers.
 * [__Speed__](docs/performance.md): Designed for high-speed vectorized computing, enabling you to process large data sets quickly and efficiently on either CPU or GPU.
+* [__PyTorch Backend & Autograd__](docs/torch_backend.md): Optional PyTorch backend with automatic differentiation for gradient computation, enabling machine learning and optimization workflows.
 * [__Fast Columnar Database__](docs/fast_columnar_database.md): Includes integration with [DuckDb](http://duckdb.org), a super fast in-process columnar store that can operate directly on NumPy arrays with zero-copy.
 * [__Inter-Process Communication (IPC)__](docs/ipc_capabilities.md): Includes built-in support for IPC, enabling easy communication between different processes and systems. Ticker plants and similar pipelines are easy to build.
 * [__Table and Key-Value Store__](docs/table_and_key_value_stores.md): Includes a simple file-backed key value store that can be used to store database tables or raw key/value pairs.
@@ -317,6 +319,66 @@ Stop the server with:
 1
 ```
 
+## 7. Automatic Differentiation (Autograd)
+
+KlongPy supports automatic differentiation using the PyTorch backend, enabling gradient-based optimization and machine learning workflows.
+
+First, enable the torch backend:
+
+```bash
+$ USE_TORCH=1 kgpy
+```
+
+Now use the gradient operator `∇` to compute derivatives:
+
+```kgpy
+?> f::{x^2}        :" Define f(x) = x^2
+:monad
+?> grad_f::∇f      :" Create the gradient function
+:monad
+?> grad_f(3)       :" Compute f'(3) = 2*3 = 6
+6.0
+```
+
+For more complex functions:
+
+```kgpy
+?> g::{(x^3)+(2*x^2)-(5*x)}  :" g(x) = x^3 + 2x^2 - 5x
+:monad
+?> grad_g::∇g
+:monad
+?> grad_g(2)       :" g'(2) = 3*4 + 4*2 - 5 = 15
+15.0
+```
+
+Gradients work with array inputs too:
+
+```kgpy
+?> h::{+/x^2}      :" h(x) = sum of squares
+:monad
+?> grad_h::∇h
+:monad
+?> grad_h([1 2 3]) :" Gradient: [2*1, 2*2, 2*3]
+[2.0 4.0 6.0]
+```
+
+Simple gradient descent to minimize x^2:
+
+```kgpy
+?> f::{x^2}
+:monad
+?> grad_f::∇f
+:monad
+?> x::5.0; lr::0.1
+0.1
+?> x::x - lr * grad_f(x); x  :" One step
+4.0
+?> x::x - lr * grad_f(x); x  :" Another step
+3.2
+```
+
+See the [autograd examples](examples/autograd/) for more, including linear regression with gradient descent.
+
 ## Conclusion
 
 These examples are designed to illustrate the "batteries included" approach, ease of use and diverse applications of KlongPy, making it a versatile choice for various programming needs.
@@ -331,21 +393,17 @@ These examples are designed to illustrate the "batteries included" approach, eas
 pip3 install klongpy
 ```
 
-### GPU support
-
-Choose your CuPy prebuilt binary or from source.  Note, the [ROCM](docs/ROCM.md) support for CuPy is experimental and likely will have issues.
-
-'cupy' => build from source
-'cuda12x' => "cupy-cuda12x"
-'cuda11x' => "cupy-cuda11x"
-'cuda111' => "cupy-cuda111"
-'cuda110' => "cupy-cuda110"
-'cuda102' => "cupy-cuda102"
-'rocm-5-0' => "cupy-rocm-5-0"
-'rocm-4-3' => "cupy-rocm-4-3"
+### PyTorch Backend (recommended for autograd and GPU)
 
 ```bash
-pip3 install "klongpy[cupy]"
+pip3 install klongpy torch
+```
+
+Then enable with `USE_TORCH=1`:
+
+```bash
+USE_TORCH=1 python your_script.py
+USE_TORCH=1 kgpy
 ```
 
 ### All application tools (db, web, REPL, etc.)
@@ -358,13 +416,13 @@ pip3 install "klongpy[full]"
 
 KlongPy is a superset of the Klong array language.  It currently passes all of the integration tests provided by klong as well as additional suites.
 
-Since CuPy is [not 100% compatible with NumPy](https://docs.cupy.dev/en/stable/user_guide/difference.html), there are currently some gaps in KlongPy between the two backends.  Notably, strings are supported in CuPy arrays so KlongPy GPU support currently is limited to math.
+The PyTorch backend provides GPU acceleration (CUDA, MPS) and automatic differentiation. Note that the torch backend does not support object dtype arrays or string operations - use the numpy backend for these.
 
 Primary ongoing work includes:
 
 * Additional tools to make KlongPy applications more capable.
 * Additional syntax error help
-* Actively switch between CuPy and NumPy when incompatibilities are present
+* Expanded torch backend coverage
 
 # Differences from Klong
 
