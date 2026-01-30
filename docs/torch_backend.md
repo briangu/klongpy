@@ -54,7 +54,11 @@ For small arrays (<100K elements), NumPy is slightly faster due to lower dispatc
 
 ## Automatic Differentiation
 
-The autograd operator `:>` computes the gradient of a function at a point:
+KlongPy provides two gradient operators:
+
+### `:>` Autograd Operator (Recommended)
+
+The `:>` operator uses PyTorch autograd for exact gradients:
 
 ```klong
 f::{x^2}         :" Define f(x) = x^2
@@ -65,17 +69,29 @@ The syntax is `function:>point` where:
 - `function` is a scalar-valued function (must return a single number)
 - `point` is the input at which to compute the gradient
 
-### How It Works
+### `∇` Numeric Gradient Operator
 
-With the torch backend (`USE_TORCH=1`):
-- Uses PyTorch's native autograd for exact gradients
-- Supports complex computational graphs
-- Efficient for large arrays
+The `∇` operator uses numeric differentiation (finite differences):
 
-Without torch (numpy backend):
-- Falls back to numeric differentiation
-- Uses finite differences: f'(x) ≈ (f(x+ε) - f(x-ε)) / 2ε
-- Works but less precise for complex functions
+```klong
+f::{x^2}         :" Define f(x) = x^2
+3∇f              :" Compute f'(3) ≈ 6.0
+```
+
+The syntax is `point∇function` (note: reversed order from `:>`).
+
+### How They Work
+
+| Operator | Method | Precision | Speed |
+|----------|--------|-----------|-------|
+| `:>` with torch | PyTorch autograd | Exact | Fast |
+| `:>` without torch | Numeric | ~1e-6 error | Slower |
+| `∇` | Numeric | ~1e-6 error | Slower |
+
+With the torch backend (`USE_TORCH=1`), prefer `:>` for:
+- Exact gradients (no floating-point approximation error)
+- Complex computational graphs
+- Better performance on large arrays
 
 ### Examples
 

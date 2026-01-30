@@ -15,30 +15,66 @@ pip install klongpy torch
 All autograd examples require the PyTorch backend. Set the `USE_TORCH=1` environment variable:
 
 ```bash
+# Klong language examples
+USE_TORCH=1 kgpy basic_gradient.kg
+USE_TORCH=1 kgpy gradient_descent.kg
+USE_TORCH=1 kgpy linear_regression.kg
+USE_TORCH=1 kgpy portfolio_opt.kg
+USE_TORCH=1 kgpy neural_net.kg
+
 # Python examples
 USE_TORCH=1 python basic_gradient.py
 USE_TORCH=1 python linear_regression.py
-
-# Klong language examples
-USE_TORCH=1 kgpy basic_gradient.kg
-USE_TORCH=1 kgpy linear_regression.kg
 ```
 
-## Examples
+## Klong Examples
 
-### basic_gradient.py / basic_gradient.kg
+### numeric_vs_autograd.kg
+Comparison of the two gradient operators:
+- `∇` (nabla): Numeric differentiation
+- `:>`: PyTorch autograd
+- Precision and syntax differences
+- Works with any backend (no torch required)
 
-Demonstrates fundamental gradient computation:
-- Computing gradients of simple functions (x^2, polynomials)
+### basic_gradient.kg
+Fundamental gradient computation:
+- Gradients of simple functions (x^2, polynomials)
 - Gradients with array inputs
 - Chain rule with composed functions
 
-### linear_regression.py / linear_regression.kg
+### gradient_descent.kg
+Core gradient descent concepts:
+- Minimizing simple functions
+- Rosenbrock function optimization
+- Linear regression fitting
+- Quadratic curve fitting
 
-Shows a practical machine learning example:
+### linear_regression.kg
+Complete machine learning example:
 - Training a linear regression model
-- Using gradients for parameter optimization
+- Gradient descent optimization
 - Comparing learned vs true parameters
+
+### portfolio_opt.kg
+Finance application:
+- Mean-variance portfolio optimization
+- Sharpe ratio maximization
+- Constraint handling with penalties
+- Multi-asset allocation
+
+### neural_net.kg
+Neural network fundamentals:
+- Single neuron (perceptron) learning AND gate
+- Function approximation with hidden layer
+- Learning sin(x) with a 2-layer network
+
+## Python Examples
+
+### basic_gradient.py
+Python version of gradient computations with interpreter integration.
+
+### linear_regression.py
+Python version with NumPy integration for data generation.
 
 ## Using Autograd in KlongPy
 
@@ -53,44 +89,73 @@ The syntax is `function:>point` where:
 - `function` is a scalar-valued function (must return a single number)
 - `point` is the input at which to compute the gradient
 
-For functions with array inputs, the gradient is computed element-wise:
+### Gradient Descent Pattern
 
 ```klong
-g::{+/x^2}           :" Sum of squares: g(x) = x1^2 + x2^2 + ...
-g:>[1.0 2.0 3.0]     :" Returns [2 4 6] = [2*x1, 2*x2, 2*x3]
-```
+:" Define loss function
+loss::{(x-target)^2}
 
-## Examples
-
-### Scalar function gradient
-```klong
-f::{x^3}         :" f(x) = x^3
-f:>2             :" f'(2) = 3*4 = 12.0
-```
-
-### Polynomial gradient
-```klong
-p::{((3*x^4)-(2*x^2))+x}   :" p(x) = 3x^4 - 2x^2 + x
-p:>1                        :" p'(1) = 12 - 4 + 1 = 9.0
-```
-
-### Gradient descent
-```klong
-f::{x^2}
-w::5.0
+:" Initialize parameter
+theta::10.0
 lr::0.1
-:" Update step: w = w - lr * gradient
-w::w-(lr*f:>w)
+
+:" Training step
+step::{
+    grad::loss:>theta
+    theta::theta-(lr*grad)
+}
+
+:" Train for N epochs
+step'!100
+```
+
+### Multi-Parameter Optimization
+
+For functions with multiple parameters, define separate loss functions:
+
+```klong
+:" Parameters
+w::0.0
+b::0.0
+
+:" Loss as function of each parameter (holding others constant)
+lossW::{mse(x;b)}
+lossB::{mse(w;x)}
+
+:" Update each parameter
+step::{
+    gw::lossW:>w
+    gb::lossB:>b
+    w::w-(lr*gw)
+    b::b-(lr*gb)
+}
 ```
 
 ## Performance
 
 When using the torch backend with `USE_TORCH=1`:
-- Automatic differentiation is computed using PyTorch's autograd
-- GPU acceleration is available when CUDA or MPS is present
+- Automatic differentiation uses PyTorch's autograd
+- GPU acceleration available (CUDA/MPS)
 - Large array operations benefit from torch's optimized kernels
 
 Without torch (numpy backend):
-- The `:>` operator falls back to numeric differentiation
+- Falls back to numeric differentiation
 - Uses finite differences: f'(x) ≈ (f(x+ε) - f(x-ε)) / 2ε
-- Still functional but slower and less precise for complex functions
+- Functional but slower and less precise
+
+## Tips
+
+1. **Start simple**: Test gradients on simple functions first
+2. **Check dimensions**: Ensure loss function returns a scalar
+3. **Learning rate**: Start with small values (0.001-0.1)
+4. **Constraints**: Use penalty terms or project after each step
+5. **Debugging**: Print loss every N steps to verify convergence
+
+## Advanced Examples
+
+For more advanced examples including trading strategies with autograd, see the `klongpy-trading-autograd.zip` archive which includes:
+- Differentiable parameter optimization
+- Learned signal combination
+- Statistical arbitrage with learned hedge ratios
+- Portfolio optimization with constraints
+- Neural network price prediction

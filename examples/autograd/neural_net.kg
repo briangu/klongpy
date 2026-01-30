@@ -1,0 +1,199 @@
+:" ============================================================
+:" Simple Neural Network with Autograd
+:" ============================================================
+:"
+:" Demonstrates a simple neural network (MLP) using autograd:
+:" - Single hidden layer
+:" - Non-linear activation (tanh)
+:" - Learning XOR function
+:"
+:" Run with: USE_TORCH=1 kgpy neural_net.kg
+:" ============================================================
+
+.p("Simple Neural Network with KlongPy Autograd")
+.p("============================================")
+.p("")
+
+:" ============================================================
+:" Example 1: Single Neuron (Perceptron)
+:" ============================================================
+
+.p("Example 1: Single Neuron Learning AND gate")
+.p("-------------------------------------------")
+.p("")
+
+:" AND gate truth table
+xAnd::[[0 0] [0 1] [1 0] [1 1]]
+yAnd::[0 0 0 1]
+
+:" Weights and bias for single neuron
+w1::0.5
+w2::0.5
+bias::0.0
+
+:" Sigmoid activation
+sigmoid::{1%(1+exp(0-x))}
+
+:" Single neuron forward pass
+neuron::{[inp];
+    inp::x;
+    sigmoid(((w1**inp)+(w2*inp@1))+bias)}
+
+:" Loss: MSE over all examples
+andLoss::{[preds err];
+    preds::neuron'xAnd;
+    err::{(x-y)^2};
+    (+/err'[preds yAnd])%4}
+
+:" Train single neuron
+lr::1.0
+
+.d("Initial weights: w1=";w1;", w2=";w2;", bias=";bias)
+.d("Initial loss: ";andLoss())
+.p("")
+
+:" Gradient functions for each parameter
+lossW1::{[w1old preds];
+    w1old::w1;
+    w1::x;
+    preds::neuron'xAnd;
+    err::{(x-y)^2};
+    r::(+/err'[preds yAnd])%4;
+    w1::w1old;
+    r}
+
+lossW2::{[w2old preds];
+    w2old::w2;
+    w2::x;
+    preds::neuron'xAnd;
+    err::{(x-y)^2};
+    r::(+/err'[preds yAnd])%4;
+    w2::w2old;
+    r}
+
+lossBias::{[biasold preds];
+    biasold::bias;
+    bias::x;
+    preds::neuron'xAnd;
+    err::{(x-y)^2};
+    r::(+/err'[preds yAnd])%4;
+    bias::biasold;
+    r}
+
+trainAnd::{
+    g1::lossW1:>w1
+    g2::lossW2:>w2
+    gb::lossBias:>bias
+    w1::w1-(lr*g1)
+    w2::w2-(lr*g2)
+    bias::bias-(lr*gb)
+    .if(0=(y!20);{.d("Step ";y;": loss=";andLoss())};{})
+}
+
+trainAnd'1+!100
+
+.p("")
+.p("Trained AND gate:")
+.d("Weights: w1=";w1;", w2=";w2;", bias=";bias)
+.p("Predictions:")
+{.d("  Input: ";x;" -> ";neuron(x);" (expected: ";yAnd@y;")")}'xAnd
+.p("")
+
+:" ============================================================
+:" Example 2: Function Approximation with Hidden Layer
+:" ============================================================
+
+.p("Example 2: Approximate sin(x) with Neural Network")
+.p("--------------------------------------------------")
+.p("")
+
+:" Generate training data: sin(x) for x in [0, 2*pi]
+npoints::20
+.pyf("math";"pi")
+.pyf("math";"sin")
+xTrain::(2*pi*((!npoints)%npoints))
+yTrain::sin'xTrain
+
+:" Simple 2-layer network: input -> 4 hidden -> 1 output
+:" Hidden layer weights
+h1::0.5
+h2::0.3
+h3::0.0-0.2
+h4::0.1
+
+:" Hidden biases
+bh1::0.0
+bh2::0.0
+bh3::0.0
+bh4::0.0
+
+:" Output layer weights
+o1::0.25
+o2::0.25
+o3::0.25
+o4::0.25
+bo::0.0
+
+:" Forward pass for single input
+forward::{[x a1 a2 a3 a4 out];
+    :" Hidden layer (with tanh activation)
+    a1::tanh((h1*x)+bh1);
+    a2::tanh((h2*x)+bh2);
+    a3::tanh((h3*x)+bh3);
+    a4::tanh((h4*x)+bh4);
+    :" Output layer (linear)
+    ((o1*a1)+(o2*a2)+(o3*a3)+(o4*a4))+bo}
+
+:" MSE loss over training data
+nnLoss::{[preds];
+    preds::forward'xTrain;
+    (+/(preds-yTrain)^2)%npoints}
+
+.d("Initial loss: ";nnLoss())
+.p("")
+
+:" For simplicity, train only output weights
+:" (full backprop would require computing all gradients)
+
+lossO1::{[o1old r];o1old::o1;o1::x;r::nnLoss();o1::o1old;r}
+lossO2::{[o2old r];o2old::o2;o2::x;r::nnLoss();o2::o2old;r}
+lossO3::{[o3old r];o3old::o3;o3::x;r::nnLoss();o3::o3old;r}
+lossO4::{[o4old r];o4old::o4;o4::x;r::nnLoss();o4::o4old;r}
+lossBo::{[boold r];boold::bo;bo::x;r::nnLoss();bo::boold;r}
+
+lr::0.5
+
+trainNN::{
+    g1::lossO1:>o1
+    g2::lossO2:>o2
+    g3::lossO3:>o3
+    g4::lossO4:>o4
+    gb::lossBo:>bo
+    o1::o1-(lr*g1)
+    o2::o2-(lr*g2)
+    o3::o3-(lr*g3)
+    o4::o4-(lr*g4)
+    bo::bo-(lr*gb)
+    .if(0=(y!50);{.d("Step ";y;": loss=";nnLoss())};{})
+}
+
+.p("Training output layer weights...")
+trainNN'1+!200
+
+.p("")
+.d("Final loss: ";nnLoss())
+.p("")
+
+:" Show some predictions
+.p("Sample predictions vs actual sin(x):")
+showPred::{[xv pred actual];
+    xv::xTrain@x;
+    pred::forward(xv);
+    actual::yTrain@x;
+    .d("  x=";xv;": pred=";pred;", actual=";actual)}
+
+showPred'[0 5 10 15 19]
+.p("")
+
+.p("Note: For better approximation, train all weights")
+.p("using full backpropagation through the network.")

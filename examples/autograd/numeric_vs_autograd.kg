@@ -1,0 +1,130 @@
+:" ============================================================
+:" Numeric Gradient (∇) vs PyTorch Autograd (:>)
+:" ============================================================
+:"
+:" This example compares the two gradient operators:
+:" - ∇ (nabla): Numeric differentiation using finite differences
+:" - :> : PyTorch autograd (exact gradients when USE_TORCH=1)
+:"
+:" The ∇ operator works with any backend.
+:" The :> operator uses torch autograd when available.
+:"
+:" Run with: kgpy numeric_vs_autograd.kg
+:" Or with torch: USE_TORCH=1 kgpy numeric_vs_autograd.kg
+:" ============================================================
+
+.p("Comparing Gradient Operators")
+.p("============================")
+.p("")
+
+:" Define test functions
+f::{x^2}
+g::{(x^3)+(2*x^2)-(5*x)}
+h::{+/x^2}
+
+:" ============================================================
+:" Example 1: Simple scalar function f(x) = x^2
+:" ============================================================
+
+.p("Example 1: f(x) = x^2, f'(x) = 2x")
+.p("----------------------------------")
+
+:" Using ∇ (numeric gradient): syntax is point∇function
+numGrad1::3∇f
+.d("  3∇f (numeric) = ";numGrad1)
+
+:" Using :> (autograd): syntax is function:>point
+autoGrad1::f:>3
+.d("  f:>3 (autograd) = ";autoGrad1)
+
+.d("  Expected: 6.0")
+.p("")
+
+:" ============================================================
+:" Example 2: Polynomial g(x) = x^3 + 2x^2 - 5x
+:" g'(x) = 3x^2 + 4x - 5
+:" At x=2: g'(2) = 12 + 8 - 5 = 15
+:" ============================================================
+
+.p("Example 2: g(x) = x^3 + 2x^2 - 5x, g'(x) = 3x^2 + 4x - 5")
+.p("----------------------------------------------------------")
+
+numGrad2::2∇g
+.d("  2∇g (numeric) = ";numGrad2)
+
+autoGrad2::g:>2
+.d("  g:>2 (autograd) = ";autoGrad2)
+
+.d("  Expected: 15.0")
+.p("")
+
+:" ============================================================
+:" Example 3: Vector function h(x) = sum(x^2)
+:" Gradient: [2*x1, 2*x2, 2*x3]
+:" ============================================================
+
+.p("Example 3: h(x) = sum(x^2), gradient = 2x")
+.p("------------------------------------------")
+
+numGrad3::[1 2 3]∇h
+.d("  [1 2 3]∇h (numeric) = ";numGrad3)
+
+autoGrad3::h:>[1 2 3]
+.d("  h:>[1 2 3] (autograd) = ";autoGrad3)
+
+.d("  Expected: [2 4 6]")
+.p("")
+
+:" ============================================================
+:" Example 4: Precision comparison
+:" ============================================================
+
+.p("Example 4: Precision comparison")
+.p("--------------------------------")
+
+:" f(x) = x^10 at x=2
+:" f'(x) = 10*x^9
+:" f'(2) = 10 * 512 = 5120
+p::{x^10}
+
+numGradP::2∇p
+.d("  2∇{x^10} (numeric) = ";numGradP)
+
+autoGradP::p:>2
+.d("  {x^10}:>2 (autograd) = ";autoGradP)
+
+.d("  Expected: 5120.0")
+.p("")
+
+:" ============================================================
+:" Example 5: Using ∇ monad to create gradient function
+:" ============================================================
+
+.p("Example 5: Creating a gradient function with ∇ monad")
+.p("-----------------------------------------------------")
+
+:" ∇f returns a function that computes the gradient
+gradF::∇f
+
+:" Now we can call it at different points
+.d("  gradF(1) = ";gradF(1))
+.d("  gradF(2) = ";gradF(2))
+.d("  gradF(3) = ";gradF(3))
+.p("  (These are derivatives of x^2 at x=1,2,3)")
+.p("")
+
+:" ============================================================
+:" Summary
+:" ============================================================
+
+.p("Summary")
+.p("-------")
+.p("  ∇ (nabla):")
+.p("    - Syntax: point∇function")
+.p("    - Method: Numeric (finite differences)")
+.p("    - Works with any backend")
+.p("")
+.p("  :> (autograd):")
+.p("    - Syntax: function:>point")
+.p("    - Method: PyTorch autograd (when USE_TORCH=1)")
+.p("    - Exact gradients, faster for complex functions")

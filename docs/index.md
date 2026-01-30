@@ -136,6 +136,23 @@ Run with PyTorch:
     avg=499999.5 in 0.001234 seconds
     Backend: torch, Device: mps:0
 
+## Automatic Differentiation
+
+With the PyTorch backend, use the `:>` operator for automatic differentiation:
+
+```klong
+?> f::{x^2}        :" Define f(x) = x^2
+:monad
+?> f:>3            :" Compute gradient at x=3
+6.0
+?> g::{+/x^2}      :" Sum of squares
+:monad
+?> g:>[1 2 3]      :" Gradient: [2*x1, 2*x2, 2*x3]
+[2.0 4.0 6.0]
+```
+
+See [PyTorch Backend & Autograd](torch_backend.md) for more details and the [autograd examples](https://github.com/briangu/klongpy/tree/main/examples/autograd) for complete examples including gradient descent and neural networks.
+
 # Installation
 
 ### CPU
@@ -217,7 +234,7 @@ KlongPy is effectively a superset of the Klong language, but has some key differ
 The following operators are yet to be used:
 
 ```
-:! :& :, :< :> :?
+:! :& :, :< :?
 ```
 
 # Contribute

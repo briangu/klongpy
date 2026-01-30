@@ -27,6 +27,20 @@ pip install "klongpy[full]"
 pip install rlwrap  # optional
 ```
 
+### PyTorch Backend (Optional)
+
+For GPU acceleration and automatic differentiation, install PyTorch:
+
+```bash
+pip install torch
+```
+
+Then enable the torch backend when running:
+
+```bash
+USE_TORCH=1 kgpy
+```
+
 
 ## Setting Up Your First KlongPy Session
 

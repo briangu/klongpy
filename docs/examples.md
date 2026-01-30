@@ -227,6 +227,62 @@ $ curl http://localhost:8888
 ['Hello, Klong World! ' 0 1 2 3 4 5 6 7 8 9]
 ```
 
+## 7. Automatic Differentiation (Autograd)
+
+KlongPy supports automatic differentiation, enabling gradient-based optimization and machine learning workflows.
+
+### Numeric Gradient with `∇` (works with any backend)
+
+The `∇` operator computes gradients using numeric differentiation:
+
+```kgpy
+?> f::{x^2}        :" Define f(x) = x^2
+:monad
+?> 3∇f             :" Compute f'(3) ≈ 6.0
+6.0
+```
+
+### PyTorch Autograd with `:>` (recommended with torch backend)
+
+Enable the torch backend for exact gradients:
+
+```bash
+$ USE_TORCH=1 kgpy
+```
+
+Use the `:>` operator for PyTorch autograd. The syntax is `function:>point`:
+
+```kgpy
+?> f::{x^2}        :" Define f(x) = x^2
+:monad
+?> f:>3            :" Compute f'(3) = 2*3 = 6
+6.0
+```
+
+For vector-valued inputs, the gradient is computed element-wise:
+
+```kgpy
+?> h::{+/x^2}      :" h(x) = sum of squares
+:monad
+?> h:>[1.0 2.0 3.0]   :" Gradient: [2*1, 2*2, 2*3]
+[2.0 4.0 6.0]
+```
+
+Simple gradient descent to minimize x^2:
+
+```kgpy
+?> f::{x^2}
+:monad
+?> x::5.0; lr::0.1
+0.1
+?> x::x-(lr*f:>x); x  :" One gradient step
+4.0
+?> x::x-(lr*f:>x); x  :" Another step
+3.2
+```
+
+For complete examples including linear regression and neural networks, see the [autograd examples](https://github.com/briangu/klongpy/tree/main/examples/autograd).
+
 ## Conclusion
 
 These examples are designed to illustrate the ease of use and diverse applications of Klong, making it a versatile choice for various programming needs.

@@ -1,0 +1,124 @@
+:" ============================================================
+:" Portfolio Optimization with Autograd
+:" ============================================================
+:"
+:" Demonstrates using gradient descent to find optimal portfolio
+:" weights that maximize Sharpe ratio subject to constraints.
+:"
+:" Run with: USE_TORCH=1 kgpy portfolio_opt.kg
+:" ============================================================
+
+.p("Portfolio Optimization with KlongPy Autograd")
+.p("==============================================")
+.p("")
+
+:" --- Generate Synthetic Return Data ---
+:" 4 assets with different risk/return profiles
+
+nassets::4
+ndays::100
+
+:" Generate random daily returns for each asset
+:" Asset 0: low vol, low return
+:" Asset 1: med vol, med return
+:" Asset 2: high vol, high return
+:" Asset 3: med vol, negative correlation
+
+idx::!ndays
+
+:" Use simple pseudo-random based on index
+genReturns::{[a];a::x;((sin(idx*a)+cos(idx*(a+1)))%100)+((a-1.5)%400)}
+
+r0::genReturns(1)
+r1::genReturns(2)
+r2::genReturns(3)
+r3::genReturns(4)
+
+:" Stack into matrix [ndays, nassets]
+returns::[r0 r1 r2 r3]
+
+.p("Generated synthetic returns for 4 assets over 100 days")
+.p("")
+
+:" --- Compute Statistics ---
+
+:" Mean return per asset (annualized)
+mu::252*{avg(x)}'[r0 r1 r2 r3]
+
+:" Simple variance per asset
+vars::{+/((x-avg(x))^2)%#x}'[r0 r1 r2 r3]
+vols::{x^0.5}'vars
+
+.d("Expected returns: ");.p(mu)
+.d("Volatilities: ");.p(vols)
+.p("")
+
+:" --- Portfolio Functions ---
+
+:" Portfolio weights (learnable)
+w::[0.25 0.25 0.25 0.25]
+
+:" Portfolio return
+portReturn::{+/x*mu}
+
+:" Portfolio variance (simplified - assumes uncorrelated)
+portVar::{+/((x^2)*vars)}
+
+:" Portfolio volatility
+portVol::{(portVar(x))^0.5}
+
+:" Sharpe ratio (higher is better)
+sharpe::{portReturn(x)%((portVol(x))+0.0001)}
+
+.d("Initial weights: ");.p(w)
+.d("Initial Sharpe: ");.p(sharpe(w))
+.p("")
+
+:" --- Constraint Penalties ---
+
+:" Weights must sum to 1
+sumPenalty::{100*((1-+/x)^2)}
+
+:" Weights must be non-negative (long only)
+longPenalty::{100*+/((0|0-x)^2)}
+
+:" Combined loss (negative Sharpe + penalties)
+loss::{(0-sharpe(x))+sumPenalty(x)+longPenalty(x)}
+
+:" --- Optimization ---
+
+lr::0.1
+epochs::50
+
+.d("Training for ";epochs;" epochs with lr=";lr)
+.p("--------------------------------------------------")
+
+step::{
+    :" Compute gradient
+    grad::loss:>w
+
+    :" Update weights
+    w::w-(lr*grad)
+
+    :" Project to valid range
+    w::0|w
+    w::w%(+/w)
+
+    :" Print progress
+    .if(0=(x!10);{.d("Epoch ";x;": Sharpe=";sharpe(w);", weights=";w)};{})
+}
+
+step'!epochs
+
+.p("")
+.p("Optimization complete!")
+.d("Final weights: ");.p(w)
+.d("Final Sharpe: ");.p(sharpe(w))
+.d("Sum of weights: ");.p(+/w)
+.p("")
+
+:" --- Analysis ---
+.p("Weight allocation:")
+names::["LowVol" "MedVol" "HighVol" "Uncorr"]
+showWeight::{.d("  ";names@x;": ";100**w@x;"% (mu=";mu@x;", vol=";vols@x;")")}
+showWeight'!nassets

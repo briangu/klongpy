@@ -321,22 +321,33 @@ Stop the server with:
 
 ## 7. Automatic Differentiation (Autograd)
 
-KlongPy supports automatic differentiation using the PyTorch backend, enabling gradient-based optimization and machine learning workflows.
+KlongPy supports automatic differentiation, enabling gradient-based optimization and machine learning workflows.
 
-First, enable the torch backend:
+### Numeric Gradient with `∇` (works with any backend)
+
+The `∇` operator computes gradients using numeric differentiation:
+
+```kgpy
+?> f::{x^2}        :" Define f(x) = x^2
+:monad
+?> 3∇f             :" Compute f'(3) using numeric differentiation
+6.0
+```
+
+### PyTorch Autograd with `:>` (recommended with torch backend)
+
+Enable the torch backend for exact gradients:
 
 ```bash
 $ USE_TORCH=1 kgpy
 ```
 
-Now use the gradient operator `∇` to compute derivatives:
+Use the `:>` operator for PyTorch autograd. The syntax is `function:>point`:
 
 ```kgpy
 ?> f::{x^2}        :" Define f(x) = x^2
 :monad
-?> grad_f::∇f      :" Create the gradient function
-:monad
-?> grad_f(3)       :" Compute f'(3) = 2*3 = 6
+?> f:>3            :" Compute f'(3) = 2*3 = 6
 6.0
 ```
 
@@ -345,9 +356,7 @@ For more complex functions:
 ```kgpy
 ?> g::{(x^3)+(2*x^2)-(5*x)}  :" g(x) = x^3 + 2x^2 - 5x
 :monad
-?> grad_g::∇g
-:monad
-?> grad_g(2)       :" g'(2) = 3*4 + 4*2 - 5 = 15
+?> g:>2            :" g'(2) = 3*4 + 4*2 - 5 = 15
 15.0
 ```
 
@@ -356,9 +365,7 @@ Gradients work with array inputs too:
 ```kgpy
 ?> h::{+/x^2}      :" h(x) = sum of squares
 :monad
-?> grad_h::∇h
-:monad
-?> grad_h([1 2 3]) :" Gradient: [2*1, 2*2, 2*3]
+?> h:>[1.0 2.0 3.0]   :" Gradient: [2*1, 2*2, 2*3]
 [2.0 4.0 6.0]
 ```
 
@@ -367,17 +374,15 @@ Simple gradient descent to minimize x^2:
 ```kgpy
 ?> f::{x^2}
 :monad
-?> grad_f::∇f
-:monad
 ?> x::5.0; lr::0.1
 0.1
-?> x::x - lr * grad_f(x); x  :" One step
+?> x::x-(lr*f:>x); x  :" One gradient step
 4.0
-?> x::x - lr * grad_f(x); x  :" Another step
+?> x::x-(lr*f:>x); x  :" Another step
 3.2
 ```
 
-See the [autograd examples](examples/autograd/) for more, including linear regression with gradient descent.
+See the [autograd examples](examples/autograd/) for more, including linear regression and neural networks.
 
 ## Conclusion
 
