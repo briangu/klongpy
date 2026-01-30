@@ -10,452 +10,333 @@
 [![Downloads](https://static.pepy.tech/badge/klongpy/month)](https://pepy.tech/project/klongpy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-# KlongPy: High-Performance Array Programming in Python
+# KlongPy: A High-Performance Array Language with Autograd
 
-KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array language](https://en.wikipedia.org/wiki/Array_programming), known for its high-performance vectorized operations that leverage the power of NumPy. Embracing a "batteries included" philosophy, KlongPy combines built-in modules with Python's expansive ecosystem, facilitating rapid application development with Klong's succinct syntax.
+KlongPy brings automatic differentiation to array programming. Write gradient-based optimization in 2 lines instead of 20. Build self-learning trading systems, neural networks, and scientific computing applications with unprecedented conciseness.
 
-## Core Features
+**PyTorch gradient descent (10+ lines):**
+```python
+import torch
+x = torch.tensor(5.0, requires_grad=True)
+optimizer = torch.optim.SGD([x], lr=0.1)
+for _ in range(100):
+    loss = x ** 2
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+print(x)  # ~0
+```
 
-- **Vectorized Operations with NumPy:** At its core, KlongPy uses [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) descendant from APL, for high-efficiency array manipulations.
-- **PyTorch Backend with Autograd:** Optional [PyTorch](https://pytorch.org/) backend enables GPU acceleration and automatic differentiation for gradient-based computations and machine learning.
-- **CPU and GPU Backend Support:** With PyTorch, KlongPy operates on both CPU and GPU backends (CUDA, MPS), ensuring versatile and powerful computing options.
-- **Seamless Integration with Python Ecosystem:** The combination of KlongPy's built-in features with Python's wide-ranging libraries enables developers to build complex applications effortlessly.
+**KlongPy gradient descent (2 lines):**
+```klong
+f::{x^2}; x::5.0
+{x::x-(0.1*f:>x)}'!100   :" x -> 0
+```
 
-## KlongPy's Foundation and Applications
+This isn't just shorter—it's a fundamentally different way to express computation. Array languages like APL, K, and Q revolutionized finance and data analysis with their concise vectorized operations. KlongPy adds native autograd, making gradients first-class citizens in an array language.
 
-- **Inspired by Nils M Holm:** KlongPy is grounded in the work of [Nils M Holm](https://t3x.org), the original creator of Klong, and is further enriched by his [Klong Book](https://t3x.org/klong/book.html).
-- **Ideal for Diverse Fields:** Data scientists, quantitative analysts, researchers, and programming language enthusiasts will find KlongPy especially beneficial for its versatility and performance.
-
-KlongPy thus stands as a robust tool, blending the simplicity of Klong with the extensive capabilities of Python, suitable for a wide range of computational tasks.
-## Documentation
-
-Full documentation is available at [https://briangu.github.io/klongpy](https://briangu.github.io/klongpy).
-
-
-# Quick install
+## Quick Install
 
 ```bash
-pip3 install "klongpy[full]"
+pip install klongpy torch   # Full install with autograd
+USE_TORCH=1 kgpy            # Start REPL with autograd
 ```
 
-# Feature Overview
+## Why KlongPy?
 
-KlongPy is both an Array Language runtime and a set of powerful tools for building high performance data analysis and distributed computing applications.  Some of the features include:
+### For Quants and Traders
 
-* [__Array Programming__](https://en.wikipedia.org/wiki/Array_programming): Based on [Klong](https://t3x.org/klong), a concise, expressive, and easy-to-understand array programming language. Its simple syntax and rich feature set make it an excellent tool for data scientists and engineers.
-* [__Speed__](docs/performance.md): Designed for high-speed vectorized computing, enabling you to process large data sets quickly and efficiently on either CPU or GPU.
-* [__PyTorch Backend & Autograd__](docs/torch_backend.md): Optional PyTorch backend with automatic differentiation for gradient computation, enabling machine learning and optimization workflows.
-* [__Fast Columnar Database__](docs/fast_columnar_database.md): Includes integration with [DuckDb](http://duckdb.org), a super fast in-process columnar store that can operate directly on NumPy arrays with zero-copy.
-* [__Inter-Process Communication (IPC)__](docs/ipc_capabilities.md): Includes built-in support for IPC, enabling easy communication between different processes and systems. Ticker plants and similar pipelines are easy to build.
-* [__Table and Key-Value Store__](docs/table_and_key_value_stores.md): Includes a simple file-backed key value store that can be used to store database tables or raw key/value pairs.
-* [__Python Integration__](docs/python_integration.md): Seamlessly compatible with Python and modules, allowing you to leverage existing Python libraries and frameworks.
-* [__Web server__](docs/web_server.md): Includes a web server, making it easy to build sites backed by KlongPy capabilities.
-* [__Timers__](docs/timer.md): Includes periodic timer facility to periodically perform tasks.
+Build self-learning trading strategies in a language designed for time series:
 
-# KlongPy Examples
+```klong
+:" Moving average crossover with learned parameters
+sma::{(+/x)%#x}
+signal::{(sma(n#x))-(sma(m#x))}  :" Difference of moving averages
+loss::{+/(signal(prices)-returns)^2}
 
-Explore KlongPy with these examples. Each snippet highlights a unique aspect of Klong, demonstrating its versatility in various programming scenarios.
-
-Before we get started, you may be wondering: *Why is the syntax so terse?*
-
-The answer is that it's based on the APL style array language programming and there's a good reason why its compact nature is actually helpful.
-
-Array language style lets you describe WHAT you want the computer to do and it lets the computer figure out HOW to do it.  This frees you up from the details while letting the computer figure out how to go as fast as possible.
-
-Less code to write and faster execution.
-
----
-
-Just so the following examples make more sense when you see the REPL outputs, there are a few quick rules about Klong functions.  Functions only take up to 3 parameters and they are ALWAYS called x,y and z.
-
-A function with
-
-* no parameters is called a nilad
-* one parameter is called a monad (x)
-* two parameters: dyad (x and y)
-* three parameters: a triad (x, y and z)
-
-The reason that Klong functions only take up to 3 parameters AND name them for you is both convience and compactness.
-
----
-
-## 0. Start the REPL
-
-```Bash
-$ rlwrap kgpy
-
-Welcome to KlongPy REPL v0.6.0
-Author: Brian Guarraci
-Web: http://klongpy.org
-]h for help; crtl-d or ]q to quit
-
-?>
+:" Learn optimal window sizes via gradient descent
+loss:>n                           :" Gradient w.r.t. short window
+loss:>m                           :" Gradient w.r.t. long window
 ```
 
-## 1. Basic Arithmetic
+### For ML Researchers
 
-Let's get started with the basics and build up to some more interesting math.  Expressions are evaluated from right to left: 3*2 and then + 5
+Neural networks in pure array notation:
 
-```kgpy
-?> 5+3*2
-11
+```klong
+:" Single layer: sigmoid(W*x + b)
+sigmoid::{1%(1+exp(0-x))}
+forward::{sigmoid((w1*x)+b1)}
+loss::{+/(forward'X - Y)^2}
+
+:" Train with gradient descent
+{w1::w1-(lr*lossW1:>w1); b1::b1-(lr*lossB1:>b1)}'!1000
 ```
 
-KlongPy is more about arrays of things, so let's define sum and count functions over an array:
+### For Scientists
 
-```kgpy
-?> sum::{+/x}  :" sum + over / the array x
-:monad
-?> sum([1 2 3])
-6
-?> count::{#x}
-:monad
-?> count([1 2 3])
-3
+Express mathematics directly:
+
+```klong
+:" Gradient of f(x,y,z) = x^2 + y^2 + z^2 at [1,2,3]
+f::{+/x^2}
+f:>[1 2 3]    :" [2 4 6] - exact gradient via autograd
 ```
 
-Now that we know the sum and number of elements we can compute the average:
+## The Array Language Advantage
 
-```kgpy
-?> avg::{sum(x)%count(x)} :" average is the sum divided by the number of elements
-:monad
-?> avg([1 2 3])
-2
+Array languages express *what* you want, not *how* to compute it. This enables automatic optimization:
+
+| Operation | Python | KlongPy |
+|-----------|--------|---------|
+| Sum an array | `sum(a)` | `+/a` |
+| Running sum | `np.cumsum(a)` | `+\a` |
+| Dot product | `np.dot(a,b)` | `+/a*b` |
+| Average | `sum(a)/len(a)` | `(+/a)%#a` |
+| Gradient | *10+ lines* | `f:>x` |
+
+KlongPy inherits from the [APL](https://en.wikipedia.org/wiki/APL_(programming_language)) family tree (APL → J → K/Q → Klong), adding Python integration and automatic differentiation.
+
+## Performance: NumPy vs PyTorch Backend
+
+The PyTorch backend provides significant speedups for large arrays with GPU acceleration:
+
+```
+Benchmark                   NumPy (ms)   Torch (ms)      Speedup
+----------------------------------------------------------------------
+vector_add_1M                    0.327        0.065    5.02x (torch)
+compound_expr_1M                 0.633        0.070    9.00x (torch)
+sum_1M                           0.246        0.087    2.84x (torch)
+grade_up_100K                    0.588        0.199    2.96x (torch)
+enumerate_1M                     0.141        0.050    2.83x (torch)
 ```
 
-## 2. Math on arrays
+*Benchmarks on Apple M1 with MPS. Run `python tests/perf_backend.py --compare` for your system.*
 
-Let's dig into more interesting operations over array elements.  There's really big performance differences in how you approach the problem and it's important to see the difference.
+## Complete Feature Set
 
-For the simple case of squaring numbers in a list, let's try a couple solutions:
+KlongPy isn't just an autograd experiment—it's a production-ready platform with kdb+/Q-inspired features:
 
-```kgpy
-?> {x*x}'[1 2 3 4 5] :" square each element as we iterate over the array
+### Core Language
+- **Vectorized Operations**: NumPy/PyTorch-powered bulk array operations
+- **Automatic Differentiation**: Native `:>` operator for exact gradients
+- **GPU Acceleration**: CUDA and Apple MPS support via PyTorch
+- **Python Integration**: Import any Python library with `.py()` and `.pyf()`
+
+### Data Infrastructure (kdb+/Q-like)
+- **[Fast Columnar Database](docs/fast_columnar_database.md)**: Zero-copy DuckDB integration for SQL on arrays
+- **[Inter-Process Communication](docs/ipc_capabilities.md)**: Build ticker plants and distributed systems
+- **[Table & Key-Value Store](docs/table_and_key_value_stores.md)**: Persistent storage for tables and data
+- **[Web Server](docs/web_server.md)**: Built-in HTTP server for APIs and dashboards
+- **[Timers](docs/timer.md)**: Scheduled execution for periodic tasks
+
+### Documentation
+- **[Quick Start Guide](docs/quick-start.md)**: Get running in 5 minutes
+- **[PyTorch Backend & Autograd](docs/torch_backend.md)**: Complete autograd reference
+- **[Operator Reference](docs/operators.md)**: All language operators
+- **[Performance Guide](docs/performance.md)**: Optimization tips
+
+Full documentation: [https://briangu.github.io/klongpy](https://briangu.github.io/klongpy)
+
+## Syntax Cheat Sheet
+
+Functions take up to 3 parameters, always named `x`, `y`, `z`:
+
+```klong
+:" Operators (right to left evaluation)
+5+3*2           :" 11 (3*2 first, then +5)
++/[1 2 3]       :" 6  (sum: + over /)
+*/[1 2 3]       :" 6  (product: * over /)
+#[1 2 3]        :" 3  (length)
+|[3 1 2]        :" [1 2 3] (sort)
+&[1 0 1]        :" [0 2] (where/indices of true)
+
+:" Functions
+avg::{(+/x)%#x}         :" Monad (1 arg)
+dot::{+/x*y}            :" Dyad (2 args)
+clip::{x|y&z}           :" Triad (3 args): min(max(x,y),z)
+
+:" Adverbs (modifiers)
+f'[1 2 3]               :" Each: apply f to each element
+1 2 3 +'[10 20 30]      :" Each-pair: [11 22 33]
++/[1 2 3]               :" Over: fold/reduce
++\[1 2 3]               :" Scan: running fold [1 3 6]
+
+:" Autograd
+f::{x^2}
+3∇f                     :" Numeric gradient at x=3 -> 6.0
+f:>3                    :" Autograd gradient at x=3 -> 6.0
+```
+
+## Examples
+
+### 1. Basic Array Operations
+
+```klong
+?> a::[1 2 3 4 5]
+[1 2 3 4 5]
+?> a*a                    :" Element-wise square
 [1 4 9 16 25]
-```
-
-The vectorized approach will do an element-wise multiplication in bulk:
-
-```kgpy
-?> a::[1 2 3 4 5];a*a  :" a*a multiplies the arrays
-[1 4 9 16 25]
-```
-
-The vectorized approach is going to be MUCH faster.  Let's crank up the size of the array and time it:
-
-```kgpy
-$> .l("time")
+?> +/a                    :" Sum
+15
+?> (*/a)                  :" Product
+120
+?> avg::{(+/x)%#x}        :" Define average
 :monad
-$> a::!1000;#a
-1
-$> fast::{{a*a}'!1000}
-:nilad
-$> slow::{{{x*x}'a}'!1000}
-:nilad
-$> time(fast)
-0.015867948532104492
-$> time(slow)
-2.8987138271331787
+?> avg(a)
+3.0
 ```
 
-Vectors win by 182x!  Why?  Because when you perform a bulk vector operation the CPU can perform the math with much less overhead and do many more operations at a time because it has the entire computation presented to it at once.
+### 2. Gradient Descent
 
-KlongPy aims to give you tools that let you conveniently exploit this vectorization property - and go FAST!
-
-Less code to write AND faster to compute.
-
-## 3. Data Analysis with Python Integration
-
-KlongPy integrates seamlessly with Python so that the strenghts of both can be combined.  It's easy to use KlongPy from Python and vice versa.
-
-For example, let's say we have some data in Python that we want to operate on in KlongPy.  We can just directly use the interpreter in Python and run functions on data we put into the KlongPy context:
-
-```python
-from klongpy import KlongInterpreter
-import numpy as np
-
-data = np.array([1, 2, 3, 4, 5])
-klong = KlongInterpreter()
-# make the data NumPy array available to KlongPy code by passing it into the interpreter
-# we are creating a symbol in KlongPy called 'data' and assigning the external NumPy array value
-klong['data'] = data
-# define the average function in KlongPY
-klong('avg::{(+/x)%#x}')
-# call the average function with the external data and return the result.
-r = klong('avg(data)')
-print(r) # expected value: 3
-```
-
-It doesn't make sense to write code in Klong that already exists in other libraries.  We can directly access them via the python inport functions (.py and .pyf).
-
-How about we use the NumPy FFT?
-
-```kgpy
-?> .pyf("numpy";"fft");fft::.pya(fft;"fft")
+```klong
+:" Minimize f(x) = (x-3)^2
+?> f::{(x-3)^2}
 :monad
-?> signal::[0.0 1.0 0.0 -1.0] :" Example simple signal
-[0.0 1.0 0.0 -1.0]
-?> result::fft(signal)
-[0j -2j 0j 2j]
+?> x::10.0; lr::0.1
+0.1
+?> {x::x-(lr*f:>x); x}'!10    :" 10 gradient steps
+[8.6 7.48 6.584 5.867 5.294 4.835 4.468 4.175 3.940 3.752]
 ```
 
-Now you can use NumPy or other libraries to provide complex functions while KlongPy lets you quickly prepare and process the vectors.
+### 3. Linear Regression
 
-There's a lot more we can do with interop but let's move on for now!
+```klong
+:" Data: y = 2*x + 3 + noise
+X::[1 2 3 4 5]
+Y::[5.1 6.9 9.2 10.8 13.1]
 
-## 4. Database Functionality
+:" Model parameters
+w::0.0; b::0.0
 
-KlongPy leverages a high-performance columnar store called DuckDb that uses zero-copy NumPy array operations behind the scenes.   This database allows fast interop between KlongPy and DuckDb (the arrays are not copied) so that applications can manage arrays in KlongPy and then instantly perform SQL on the data for deeper insights.
+:" Loss function
+mse::{(+/(((w*X)+b)-Y)^2)%#X}
 
-It's easy to create a table and a db to query:
+:" Train
+lossW::{[wold r];wold::w;w::x;r::mse();w::wold;r}
+lossB::{[bold r];bold::b;b::x;r::mse();b::bold;r}
 
-```kgpy
+lr::0.01
+{w::w-(lr*lossW:>w); b::b-(lr*lossB:>b)}'!1000
+
+.d("Learned: w="); .d(w); .d(" b="); .p(b)
+:" Output: Learned: w=2.02 b=2.94
+```
+
+### 4. Database Operations
+
+```klong
 ?> .py("klongpy.db")
-?> t::.table([["name" ["Alice" "Bob"]] ["age" [25 30]]])
-name age
-Alice 25
-Bob 30
-?> db::.db(:{},"T",t)
-?> db("select * from T where age > 27")
-name age
-Bob 30
+?> t::.table([[\"name\" [\"Alice\" \"Bob\" \"Carol\"]] [\"age\" [25 30 35]]])
+name  age
+Alice  25
+Bob    30
+Carol  35
+?> db::.db(:{},\"T\",t)
+?> db(\"SELECT * FROM T WHERE age > 27\")
+name  age
+Bob    30
+Carol  35
 ```
 
-## 5. IPC, Remote Function Calls and Asynchronous operations
+### 5. IPC: Distributed Computing
 
-Inter Process Communication (IPC) lets you build distributed and interconnected KlongPy programs and services.
-
-KlongPy treats IPC connections to servers as functions.  These functions let you call the server and ask for things it has in it's memory - they can be other functions or values, etc.  For example you can ask for a reference to a remote function and you will get a local function that when you call it runs on teh server with your arguemnts.  This general "remote proxy" approach allows you to write your client code in the same way as if all the code were running locally.
-
-To see this in action, let's setup a simple scenario where the server has an "avg" function and the client wants to call it.
-
-Start a server in one terminal:
-
-```kgpy
+**Server:**
+```klong
 ?> avg::{(+/x)%#x}
 :monad
 ?> .srv(8888)
 1
 ```
 
-Start the client and make the connection to the server as 'f'.  In order to pass parameters to a remote function we form an array of the function symbol followed by the parameters (e.g. :avg,,!100)
-
-```kgpy
-?> f::.cli(8888) :" connect to the server
+**Client:**
+```klong
+?> f::.cli(8888)              :" Connect to server
 remote[localhost:8888]:fn
-?> f(:avg,,!100) : call the remote function "avg" directly with the paramter !100
-49.5
-```
-
-Let's get fancy and make a local proxy to the remote function:
-
-```kgpy
-?> myavg::f(:avg) :" reference the remote function by it's symbol :avg and assign to a local variable called myavg
+?> myavg::f(:avg)             :" Get remote function reference
 remote[localhost:8888]:fn:avg:monad
-?> myavg(!100) :" this runs on the server with !100 array passed to it as a parameter
-49.5
+?> myavg(!1000000)            :" Execute on server
+499999.5
 ```
 
-Since remote functions may take a while we can wrap them with an async wrapper and have it call our callback when completed:
+### 6. Web Server
 
-```kgpy
-?> afn::.async(myavg;{.d("Avg calculated: ");.p(x)})
-async::monad
-?> afn(!100)
-Avg calculated: 49.5
-1
-```
-
-## 6. Web Server Implementation
-
-In addition to IPC we can also expose data via a standard web server.  This capability lets you have other ways of serving content that can be either exposing interesting details about some computation or just a simple web server for other reasons.
-
-Let's create a file called web.kg with the following code that adds one index handler:
-
-```text
+```klong
 .py("klongpy.web")
 data::!10
-index::{x; "Hello, Klong World! ",data}
+index::{x; "Hello from KlongPy! Data: ",data}
 .web(8888;:{},"/",index;:{})
-.p("ready at http://localhost:8888")
+.p("Server ready at http://localhost:8888")
 ```
-
-We can run this web server as follows:
-
-```bash
-$ kgpy web.kg
-ready at http://localhost:8888
-```
-
-In another terminal:
 
 ```bash
 $ curl http://localhost:8888
-['Hello, Klong World! ' 0 1 2 3 4 5 6 7 8 9]
+['Hello from KlongPy! Data: ' 0 1 2 3 4 5 6 7 8 9]
 ```
 
-You can also spin up this server directly inside the REPL:
+## Installation Options
 
-```kgpy
-?> .py("klongpy.web")
-?> data::!10
-?> index::{x; "Hello, Klong World! ", data}
-?> get:::{}; get,"/",index
-?> post:::{}
-?> h::.web(8888;get;post)
+### Basic (NumPy only)
+```bash
+pip install klongpy
 ```
 
-And from another terminal:
+### With PyTorch Autograd (Recommended)
+```bash
+pip install klongpy torch
+USE_TORCH=1 kgpy              # Enable torch backend
+```
+
+### Full Installation (Database, Web, IPC)
+```bash
+pip install "klongpy[full]"
+```
+
+## Lineage and Inspiration
+
+KlongPy stands on the shoulders of giants:
+
+- **[APL](https://en.wikipedia.org/wiki/APL_(programming_language))** (1966): Ken Iverson's revolutionary notation
+- **[J](https://www.jsoftware.com/)**: ASCII-friendly APL successor
+- **[K/Q/kdb+](https://code.kx.com/)**: High-performance time series and trading systems
+- **[Klong](https://t3x.org/klong)**: Nils M Holm's elegant, accessible array language
+- **[NumPy](https://numpy.org/)**: The "Iverson Ghost" in Python's scientific stack
+- **[PyTorch](https://pytorch.org/)**: Automatic differentiation and GPU acceleration
+
+KlongPy combines Klong's simplicity with Python's ecosystem and PyTorch's autograd—creating something new: an array language where gradients are first-class citizens.
+
+## Use Cases
+
+- **Quantitative Finance**: Self-optimizing trading strategies, risk models, portfolio optimization
+- **Machine Learning**: Neural networks, gradient descent, optimization in minimal code
+- **Scientific Computing**: Physics simulations, numerical methods, data analysis
+- **Time Series Analysis**: Signal processing, feature engineering, streaming data
+- **Rapid Prototyping**: Express complex algorithms in few lines, then optimize
+
+## Status
+
+KlongPy is a superset of the Klong array language, passing all Klong integration tests plus additional test suites. The PyTorch backend provides GPU acceleration (CUDA, MPS) and automatic differentiation.
+
+Ongoing development:
+- Expanded torch backend coverage
+- Additional built-in tools and integrations
+- Improved error messages and debugging
+
+## Related Projects
+
+- [Klupyter](https://github.com/briangu/klupyter) - KlongPy in Jupyter Notebooks
+- [VS Code Syntax Highlighting](https://github.com/briangu/klongpy-vscode)
+- [Advent of Code Solutions](https://github.com/briangu/aoc)
+
+## Development
 
 ```bash
-$ curl http://localhost:8888
-['Hello, Klong World! ' 0 1 2 3 4 5 6 7 8 9]
-```
-
-Stop the server with:
-
-```kgpy
-?> .webc(h)
-1
-```
-
-## 7. Automatic Differentiation (Autograd)
-
-KlongPy supports automatic differentiation, enabling gradient-based optimization and machine learning workflows.
-
-### Numeric Gradient with `∇` (works with any backend)
-
-The `∇` operator computes gradients using numeric differentiation:
-
-```kgpy
-?> f::{x^2}        :" Define f(x) = x^2
-:monad
-?> 3∇f             :" Compute f'(3) using numeric differentiation
-6.0
-```
-
-### PyTorch Autograd with `:>` (recommended with torch backend)
-
-Enable the torch backend for exact gradients:
-
-```bash
-$ USE_TORCH=1 kgpy
-```
-
-Use the `:>` operator for PyTorch autograd. The syntax is `function:>point`:
-
-```kgpy
-?> f::{x^2}        :" Define f(x) = x^2
-:monad
-?> f:>3            :" Compute f'(3) = 2*3 = 6
-6.0
-```
-
-For more complex functions:
-
-```kgpy
-?> g::{(x^3)+(2*x^2)-(5*x)}  :" g(x) = x^3 + 2x^2 - 5x
-:monad
-?> g:>2            :" g'(2) = 3*4 + 4*2 - 5 = 15
-15.0
-```
-
-Gradients work with array inputs too:
-
-```kgpy
-?> h::{+/x^2}      :" h(x) = sum of squares
-:monad
-?> h:>[1.0 2.0 3.0]   :" Gradient: [2*1, 2*2, 2*3]
-[2.0 4.0 6.0]
-```
-
-Simple gradient descent to minimize x^2:
-
-```kgpy
-?> f::{x^2}
-:monad
-?> x::5.0; lr::0.1
-0.1
-?> x::x-(lr*f:>x); x  :" One gradient step
-4.0
-?> x::x-(lr*f:>x); x  :" Another step
-3.2
-```
-
-See the [autograd examples](examples/autograd/) for more, including linear regression and neural networks.
-
-## Conclusion
-
-These examples are designed to illustrate the "batteries included" approach, ease of use and diverse applications of KlongPy, making it a versatile choice for various programming needs.
-
-[Check out the examples folder for more](https://github.com/briangu/klongpy/tree/main/examples).
-
-# Installation
-
-### CPU
-
-```bash
-pip3 install klongpy
-```
-
-### PyTorch Backend (recommended for autograd and GPU)
-
-```bash
-pip3 install klongpy torch
-```
-
-Then enable with `USE_TORCH=1`:
-
-```bash
-USE_TORCH=1 python your_script.py
-USE_TORCH=1 kgpy
-```
-
-### All application tools (db, web, REPL, etc.)
-
-```bash
-pip3 install "klongpy[full]"
-```
-
-# Status
-
-KlongPy is a superset of the Klong array language.  It currently passes all of the integration tests provided by klong as well as additional suites.
-
-The PyTorch backend provides GPU acceleration (CUDA, MPS) and automatic differentiation. Note that the torch backend does not support object dtype arrays or string operations - use the numpy backend for these.
-
-Primary ongoing work includes:
-
-* Additional tools to make KlongPy applications more capable.
-* Additional syntax error help
-* Expanded torch backend coverage
-
-# Differences from Klong
-
-KlongPy is effectively a superset of the Klong language, but has some key differences:
-
-* Infinite precision: The main difference in this implementation of Klong is the lack of infinite precision.  By using NumPy we are restricted to doubles.
-* Python integration: Most notably, the ".py" command allows direct import of Python modules into the current Klong context.
-* KlongPy aims to be more "batteries included" approach to modules and contains additional features such as IPC, Web service, Websockets, etc.
-* For array operations, KlongPy matches the shape of array arguments differently. Compare the results of an expression like `[1 2]+[[3 4][5 6]]` which in Klong produces `[[4 5] [7 8]]` but in KlongPy produces `[[4 6] [6 8]]`.
-
-# Related
-
-* [Klupyter - KlongPy in Jupyter Notebooks](https://github.com/briangu/klupyter)
-* [Visual Studio Code Syntax Highlighting](https://github.com/briangu/klongpy-vscode)
-* [Advent Of Code in KlongPy](https://github.com/briangu/aoc)
-
-## Develop
-
 git clone https://github.com/briangu/klongpy.git
 cd klongpy
 python3 setup.py develop
-
-### Running tests
-
-```bash
-python3 -m unittest
+python3 -m pytest tests/  # Run tests
 ```
 
-# Acknowledgement
+## Acknowledgements
 
-HUGE thanks to Nils M Holm for his work on Klong and providing the foundations for this interesting project.
+Huge thanks to [Nils M Holm](https://t3x.org) for creating Klong and writing the [Klong Book](https://t3x.org/klong/book.html), which made this project possible.

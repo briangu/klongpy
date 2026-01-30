@@ -24,7 +24,7 @@ class TestWebServerHandle(unittest.TestCase):
 
     def test_shutdown(self):
         mock_runner = AsyncMock()
-        mock_task = AsyncMock()
+        mock_task = MagicMock()  # cancel() is sync, not async
         handle = WebServerHandle("localhost", 8080, mock_runner, mock_task)
         asyncio.run(handle.shutdown())
         mock_task.cancel.assert_called_once()
