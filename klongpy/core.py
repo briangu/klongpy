@@ -5,7 +5,7 @@ from enum import Enum
 import sys
 import numpy
 
-from .backend import np, use_torch, TorchUnsupportedDtypeError, get_default_backend
+from .backend import np, use_torch, TorchUnsupportedDtypeError, get_default_backend, to_numpy
 
 # python3.11 support
 if not hasattr(inspect, 'getargspec'):
@@ -756,14 +756,17 @@ def read_list(t, delim, i=0, module=None, level=1, backend=None):
                 aa = numpy.asarray(arr, dtype=object)
         except TorchUnsupportedDtypeError:
             # Backend can't handle this data - fall back to numpy object array
-            # Recursively convert inner lists to arrays, keeping backend tensors where possible
+            # Recursively convert inner lists to arrays, converting tensors to numpy
             def convert_inner(x):
                 if isinstance(x, list):
                     try:
-                        return kg_asarray(x, backend)
+                        result = kg_asarray(x, backend)
+                        # Convert tensor to numpy for object array compatibility
+                        return to_numpy(result)
                     except TorchUnsupportedDtypeError:
                         return numpy.asarray([convert_inner(e) for e in x], dtype=object)
-                return x
+                # Convert any tensors to numpy
+                return to_numpy(x)
             aa = numpy.asarray([convert_inner(x) for x in arr], dtype=object)
     else:
         aa = arr

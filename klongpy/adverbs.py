@@ -154,7 +154,7 @@ def eval_adverb_each_left(f, a, b):
                   1,:/[2 3 4]  -->  [[2 1] [3 1] [4 1]]
     """
     b = str_to_chr_arr(b) if isinstance(b,str) else b
-    return np.asarray([f(a,x) for x in b])
+    return kg_asarray([f(a,x) for x in b])
 
 
 def eval_adverb_each_right(f, a, b):
@@ -162,7 +162,7 @@ def eval_adverb_each_right(f, a, b):
     see: eval_dyad_adverb_each_left
     """
     b = str_to_chr_arr(b) if isinstance(b,str) else b
-    return np.asarray([f(x,a) for x in b])
+    return kg_asarray([f(x,a) for x in b])
 
 
 

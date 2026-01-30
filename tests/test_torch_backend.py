@@ -253,20 +253,25 @@ class TestTorchBackendOperations(unittest.TestCase):
 class TestTorchCoreIntegration(unittest.TestCase):
     """Tests for core.py torch integration."""
 
-    def test_kg_asarray_string_fails(self):
-        """Test that kg_asarray fails for strings."""
-        with self.assertRaises(TorchUnsupportedDtypeError):
-            kg_asarray("hello")
+    def test_kg_asarray_string_returns_char_array(self):
+        """Test that kg_asarray converts strings to char arrays."""
+        result = kg_asarray("hello")
+        # Strings are converted to numpy char arrays for Klong compatibility
+        self.assertEqual(len(result), 5)
+        self.assertEqual(list(result), ['h', 'e', 'l', 'l', 'o'])
 
     def test_str_to_chr_arr_fails(self):
         """Test that str_to_chr_arr fails."""
         with self.assertRaises(TorchUnsupportedDtypeError):
             str_to_chr_arr("hello")
 
-    def test_kg_asarray_jagged_fails(self):
-        """Test that kg_asarray fails for jagged arrays."""
-        with self.assertRaises(TorchUnsupportedDtypeError):
-            kg_asarray([[1, 2], [3]])
+    def test_kg_asarray_jagged_returns_object_array(self):
+        """Test that kg_asarray falls back to numpy object array for jagged arrays."""
+        import numpy as np
+        result = kg_asarray([[1, 2], [3]])
+        # Jagged arrays fall back to numpy object arrays
+        self.assertEqual(result.dtype, object)
+        self.assertEqual(len(result), 2)
 
     def test_kg_asarray_numeric_works(self):
         """Test that kg_asarray works for numeric data."""

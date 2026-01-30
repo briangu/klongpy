@@ -243,6 +243,15 @@ class TorchBackend:
             if result.dtype == torch.float64 and self.device.type == 'mps':
                 result = result.to(torch.float32)
             return result
+        # Check if input contains any arrays/tensors mixed with non-arrays - these need object dtype
+        if isinstance(a, (list, tuple)) and len(a) > 0:
+            has_array = any(isinstance(x, (torch.Tensor, numpy.ndarray, list)) for x in a)
+            has_scalar = any(isinstance(x, (int, float)) and not isinstance(x, bool) for x in a)
+            if has_array and has_scalar:
+                # Mixed array/scalar list - can't represent in torch without losing structure
+                raise TorchUnsupportedDtypeError(
+                    "PyTorch backend cannot convert mixed array/scalar lists without losing structure."
+                )
         try:
             t = torch.tensor(a, device=self.device)
             # Handle float64 on MPS
@@ -655,6 +664,9 @@ class TorchBackendProvider(BackendProvider):
             # Strings become numpy character arrays like in numpy backend
             return numpy.array(list(a))
         try:
+            # Check for jagged arrays early - torch converts them incorrectly
+            if is_jagged_array(a):
+                raise TorchUnsupportedDtypeError("Jagged arrays not supported")
             arr = self._torch_backend.asarray(a)
             if hasattr(arr, 'dtype'):
                 # For torch tensors, dtype doesn't have .kind attribute
@@ -664,8 +676,21 @@ class TorchBackendProvider(BackendProvider):
             return arr
         except (numpy.VisibleDeprecationWarning, ValueError, TypeError, RuntimeError, TorchUnsupportedDtypeError):
             # Fall back to numpy object array for heterogeneous/unsupported data
+            # Use numpy for inner conversions to avoid MPS tensor issues
+            def _numpy_convert(x):
+                if isinstance(x, list):
+                    try:
+                        return numpy.asarray(x)
+                    except (ValueError, TypeError):
+                        return numpy.asarray([_numpy_convert(i) for i in x], dtype=object)
+                return x
             try:
                 arr = numpy.asarray(a, dtype=object)
+                # Recursively convert inner lists to numpy arrays
+                arr = numpy.asarray(
+                    [_numpy_convert(x) if isinstance(x, list) else x for x in arr],
+                    dtype=object
+                )
                 return arr
             except (ValueError, TypeError):
                 # Last resort: keep as list

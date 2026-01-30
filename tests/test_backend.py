@@ -332,11 +332,13 @@ class TestCoreWithTorch(unittest.TestCase):
     """Tests for core.py torch-related code."""
 
     @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
-    def test_kg_asarray_string_fails(self):
-        """Test that kg_asarray fails for strings in torch mode."""
+    def test_kg_asarray_string_returns_char_array(self):
+        """Test that kg_asarray converts strings to char arrays in torch mode."""
         from klongpy.core import kg_asarray
-        with self.assertRaises(TorchUnsupportedDtypeError):
-            kg_asarray("hello")
+        result = kg_asarray("hello")
+        # Strings are converted to numpy char arrays for Klong compatibility
+        self.assertEqual(len(result), 5)
+        self.assertEqual(list(result), ['h', 'e', 'l', 'l', 'o'])
 
     @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
     def test_str_to_chr_arr_fails(self):
@@ -346,11 +348,14 @@ class TestCoreWithTorch(unittest.TestCase):
             str_to_chr_arr("hello")
 
     @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
-    def test_kg_asarray_jagged_fails(self):
-        """Test that kg_asarray fails for jagged arrays in torch mode."""
+    def test_kg_asarray_jagged_returns_object_array(self):
+        """Test that kg_asarray falls back to object array for jagged arrays."""
+        import numpy as np
         from klongpy.core import kg_asarray
-        with self.assertRaises(TorchUnsupportedDtypeError):
-            kg_asarray([[1, 2], [3]])
+        result = kg_asarray([[1, 2], [3]])
+        # Jagged arrays fall back to numpy object arrays
+        self.assertEqual(result.dtype, object)
+        self.assertEqual(len(result), 2)
 
     @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
     def test_kg_asarray_numeric_works(self):

@@ -23,11 +23,18 @@ def _scalar_value(x, backend=None):
     return float(x)
 
 
-def _to_func_input(x, backend=None):
-    """Convert numpy array to appropriate input type for function call."""
+def _to_func_input(x, backend=None, require_grad=False):
+    """Convert numpy array to appropriate input type for function call.
+
+    Args:
+        x: Input array (numpy)
+        backend: Backend provider
+        require_grad: If True and backend supports autograd, create grad tensor.
+                      For numeric gradient, this should be False.
+    """
     if backend is None:
         backend = get_default_backend()
-    if backend.supports_autograd():
+    if require_grad and backend.supports_autograd():
         return backend.create_grad_tensor(x)
     return x
 

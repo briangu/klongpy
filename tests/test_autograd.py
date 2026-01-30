@@ -163,8 +163,8 @@ class TestAutograd(unittest.TestCase):
 
     def test_scalar_grad(self):
         klong = KlongInterpreter()
-        klong['sin'] = lambda x: np.sin(to_numpy(x))
-        klong['cos'] = lambda x: np.cos(to_numpy(x))
+        # Use backend-aware sin function for compatibility with both numpy and torch
+        klong('.bkf("sin")')
         klong('g::∇{sin(x)+x*x}')
         r = _as_numpy(klong('g(3.14)'))
         self.assertTrue(np.isclose(r, 2*3.14 + np.cos(3.14), atol=GRAD_ATOL))
@@ -172,8 +172,8 @@ class TestAutograd(unittest.TestCase):
     @unittest.skipUnless(TORCH_AVAILABLE, "torch required")
     def test_scalar_grad_torch(self):
         klong = KlongInterpreter()
-        klong['sin'] = lambda x: np.sin(to_numpy(x))
-        klong['cos'] = lambda x: np.cos(to_numpy(x))
+        # Use backend-aware sin function for compatibility with both numpy and torch
+        klong('.bkf("sin")')
         klong('g::∇{sin(x)+x*x}')
         r = _as_numpy(klong('g(3.14)'))
         x = torch.tensor(3.14, dtype=torch.float32, requires_grad=True)

@@ -1,5 +1,6 @@
 from .core import *
 from .autograd import grad_of_fn, numeric_grad, autograd_of_fn
+from .backend import to_numpy
 import sys
 import numpy
 
@@ -563,10 +564,14 @@ def eval_dyad_join(a, b):
         return b
 
     if np.isarray(a) and np.isarray(b):
-        if len(a) == 0:
-            return b
-        if len(a.shape) == len(b.shape) and a.shape[-1] == b.shape[-1]:
-            return np.concatenate((a,b))
+        # Only use fast path for 1D+ arrays (not 0D scalars)
+        a_is_1d_plus = hasattr(a, 'ndim') and a.ndim >= 1
+        b_is_1d_plus = hasattr(b, 'ndim') and b.ndim >= 1
+        if a_is_1d_plus and b_is_1d_plus:
+            if len(a) == 0:
+                return b
+            if len(a.shape) == len(b.shape) and a.shape[-1] == b.shape[-1]:
+                return np.concatenate((a,b))
 
     aa = _arr_to_list(a)
     bb = _arr_to_list(b)
@@ -575,7 +580,12 @@ def eval_dyad_join(a, b):
     nr = kg_asarray(r)
     # Check dtype kind for compatibility with both numpy and torch
     dtype_kind = get_dtype_kind(nr)
-    return nr if dtype_kind in ('i', 'f', 'u') else np.asarray(r,dtype=object)
+    if dtype_kind in ('i', 'f', 'u'):
+        return nr
+    # Use numpy directly for object arrays (torch backend doesn't support object dtype)
+    # Convert any torch tensors to numpy first (needed for MPS tensors)
+    r_numpy = [to_numpy(x) if np.isarray(x) else x for x in r]
+    return numpy.asarray(r_numpy, dtype=object)
 
 
 def eval_dyad_less(a, b):
