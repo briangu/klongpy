@@ -2,6 +2,9 @@ from .core import *
 from .autograd import grad_of_fn
 import sys
 
+if use_torch:
+    import torch
+
 def eval_monad_atom(a):
     """
 
@@ -122,7 +125,6 @@ def eval_monad_floor(a):
         if hasattr(result, 'astype'):
             return result.astype(int)
         elif hasattr(result, 'to'):  # torch tensor
-            import torch
             return result.to(torch.int64)
         return int(result)
     return vec_fn(a, _floor_to_int)

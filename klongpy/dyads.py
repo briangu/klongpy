@@ -1,6 +1,7 @@
 from .core import *
 from .autograd import grad_of_fn, numeric_grad, autograd_of_fn
 import sys
+import numpy
 
 
 def eval_dyad_add(a, b):
@@ -721,7 +722,6 @@ def _detach_if_needed(x):
 
 
 def _e_dyad_power(a,b):
-    import numpy
     # Check if input requires grad - if so, preserve float for autograd
     has_grad = hasattr(a, 'requires_grad') and a.requires_grad
     # Detach tensors that require grad for safe conversion (for checking only)
@@ -735,12 +735,12 @@ def _e_dyad_power(a,b):
     # If input had gradients, keep result as float to preserve autograd
     if has_grad:
         return r
-    # Check if result is integer - handle both numpy and torch
+    # Check if result is integer using vectorized operations
     r_val = _detach_if_needed(r)
     if is_list(r_val):
-        # Convert to Python floats for comparison
-        vals = [float(_detach_if_needed(x)) if hasattr(x, 'item') else x for x in r_val]
-        br = all([numpy.trunc(x) == x for x in vals])
+        # Vectorized check: trunc(r) == r for all elements
+        trunc_r = numpy.trunc(r_val) if isinstance(r_val, numpy.ndarray) else r_val.trunc()
+        br = bool((trunc_r == r_val).all())
     else:
         val = float(r_val) if hasattr(r_val, 'item') else r_val
         br = numpy.trunc(val) == val

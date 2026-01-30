@@ -46,6 +46,37 @@ class NumpyBackendProvider(BackendProvider):
     def is_array(self, x) -> bool:
         return isinstance(x, np.ndarray)
 
+    def is_backend_array(self, x) -> bool:
+        # For numpy backend, this is the same as is_array
+        # (no separate tensor type like torch)
+        return False  # numpy arrays are handled as the base case
+
+    def get_dtype_kind(self, arr) -> str:
+        if hasattr(arr, 'dtype') and hasattr(arr.dtype, 'kind'):
+            return arr.dtype.kind
+        return None
+
+    def to_numpy(self, x):
+        # Already numpy, just return as-is
+        return x
+
+    def is_scalar_integer(self, x) -> bool:
+        if isinstance(x, np.ndarray) and x.ndim == 0:
+            return np.issubdtype(x.dtype, np.integer)
+        return False
+
+    def is_scalar_float(self, x) -> bool:
+        if isinstance(x, np.ndarray) and x.ndim == 0:
+            return np.issubdtype(x.dtype, np.floating)
+        return False
+
+    def argsort(self, a, descending=False):
+        """Return indices that would sort the array."""
+        indices = np.argsort(a)
+        if descending:
+            indices = indices[::-1].copy()
+        return indices
+
     def str_to_char_array(self, s):
         """Convert string to character array."""
         return self._np.asarray([KGChar(x) for x in s], dtype=object)

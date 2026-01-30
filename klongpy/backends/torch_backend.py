@@ -4,7 +4,9 @@ PyTorch backend provider for KlongPy.
 This backend uses PyTorch tensors for array operations, enabling GPU acceleration.
 It does not support object dtype or string operations.
 """
+import math
 import numpy
+import torch
 
 from .base import BackendProvider, UnsupportedDtypeError
 
@@ -42,7 +44,6 @@ class TorchRandomModule:
 
     def random(self, size=None):
         """Return random floats in the half-open interval [0.0, 1.0)."""
-        import torch
         if size is None:
             return torch.rand(1, device=self._backend.device).item()
         if isinstance(size, int):
@@ -50,19 +51,16 @@ class TorchRandomModule:
         return torch.rand(*size, device=self._backend.device)
 
     def rand(self, *shape):
-        import torch
         if len(shape) == 0:
             return torch.rand(1, device=self._backend.device).item()
         return torch.rand(*shape, device=self._backend.device)
 
     def randn(self, *shape):
-        import torch
         if len(shape) == 0:
             return torch.randn(1, device=self._backend.device).item()
         return torch.randn(*shape, device=self._backend.device)
 
     def randint(self, low, high=None, size=None):
-        import torch
         if high is None:
             high = low
             low = 0
@@ -73,7 +71,6 @@ class TorchRandomModule:
         return torch.randint(low, high, size, device=self._backend.device)
 
     def choice(self, a, size=None, replace=True):
-        import torch
         if isinstance(a, int):
             a = torch.arange(a, device=self._backend.device)
         elif not isinstance(a, torch.Tensor):
@@ -94,7 +91,6 @@ class TorchRandomModule:
         return a[indices].reshape(size)
 
     def seed(self, seed):
-        import torch
         torch.manual_seed(seed)
 
 
@@ -103,7 +99,6 @@ class TorchDtype:
     A wrapper around torch dtype that provides numpy-compatible attributes.
     """
     def __init__(self, torch_dtype):
-        import torch
         self._dtype = torch_dtype
         # Map torch dtypes to numpy dtype kinds
         kind_map = {
@@ -148,10 +143,14 @@ class TorchBackend:
     A wrapper that provides a NumPy-compatible interface using PyTorch tensors.
     """
     def __init__(self, device=None):
-        import torch
         self._numpy = numpy
         self._torch = torch
         self._random = None  # Lazy init
+        # Cached ufuncs - initialized lazily
+        self._add = None
+        self._subtract = None
+        self._multiply = None
+        self._divide = None
 
         # Determine the best available device
         if device is not None:
@@ -170,7 +169,6 @@ class TorchBackend:
         return self._random
 
     def __getattr__(self, name):
-        import torch
         # First check if torch has this attribute
         if hasattr(self._torch, name):
             attr = getattr(self._torch, name)
@@ -183,7 +181,6 @@ class TorchBackend:
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     def _wrap_torch_func(self, func, name):
-        import torch
         # Functions that require tensor inputs (not Python scalars)
         tensor_required_funcs = {
             'abs', 'trunc', 'floor', 'ceil', 'round', 'sign',
@@ -218,7 +215,6 @@ class TorchBackend:
 
     def asarray(self, a, dtype=None):
         """Convert input to a torch tensor."""
-        import torch
         if dtype is not None and (dtype == object or (hasattr(dtype, 'kind') and dtype.kind == 'O')):
             raise TorchUnsupportedDtypeError(
                 "PyTorch backend does not support object dtype."
@@ -254,45 +250,36 @@ class TorchBackend:
 
     def isarray(self, x):
         """Check if x is an array (numpy or torch tensor)."""
-        import torch
         return isinstance(x, (numpy.ndarray, torch.Tensor))
 
     def zeros(self, shape, dtype=None):
-        import torch
         return torch.zeros(shape, device=self.device)
 
     def ones(self, shape, dtype=None):
-        import torch
         return torch.ones(shape, device=self.device)
 
     def arange(self, *args, **kwargs):
-        import torch
         return torch.arange(*args, device=self.device, **kwargs)
 
     def concatenate(self, arrays, axis=0):
-        import torch
         tensors = [self.asarray(a) for a in arrays]
         return torch.cat(tensors, dim=axis)
 
     def hstack(self, arrays):
-        import torch
         tensors = [self.asarray(a) for a in arrays]
         return torch.hstack(tensors)
 
     def vstack(self, arrays):
-        import torch
         tensors = [self.asarray(a) for a in arrays]
         return torch.vstack(tensors)
 
     def stack(self, arrays, axis=0):
-        import torch
         tensors = [self.asarray(a) for a in arrays]
         return torch.stack(tensors, dim=axis)
 
     @property
     def ndarray(self):
         """Return the tensor class for isinstance checks."""
-        import torch
         return torch.Tensor
 
     @property
@@ -304,13 +291,11 @@ class TorchBackend:
         return numpy.floating
 
     def copy(self, a):
-        import torch
         if isinstance(a, torch.Tensor):
             return a.clone()
         return self.asarray(a).clone()
 
     def isclose(self, a, b, rtol=1e-05, atol=1e-08):
-        import torch
         # For scalars, use numpy's isclose to avoid tensor conversion issues
         if not hasattr(a, '__len__') and not hasattr(b, '__len__'):
             return self._numpy.isclose(float(a), float(b), rtol=rtol, atol=atol)
@@ -324,13 +309,11 @@ class TorchBackend:
         return torch.isclose(a_t, b_t, rtol=rtol, atol=atol)
 
     def array_equal(self, a, b):
-        import torch
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         b_t = self.asarray(b) if not isinstance(b, torch.Tensor) else b
         return torch.equal(a_t, b_t)
 
     def take(self, a, indices, axis=None):
-        import torch
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         indices_t = self.asarray(indices) if not isinstance(indices, torch.Tensor) else indices
         if axis is None:
@@ -339,7 +322,6 @@ class TorchBackend:
 
     def transpose(self, a, axes=None):
         """Transpose a tensor."""
-        import torch
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         if axes is None:
             return a_t.T if a_t.ndim >= 2 else a_t
@@ -347,7 +329,6 @@ class TorchBackend:
 
     def sum(self, a, axis=None, dtype=None, out=None, keepdims=False):
         """Sum array elements."""
-        import torch
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         if axis is None:
             return a_t.sum()
@@ -355,7 +336,6 @@ class TorchBackend:
 
     def abs(self, a):
         """Absolute value."""
-        import torch
         if isinstance(a, (int, float)):
             return abs(a)
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
@@ -363,66 +343,53 @@ class TorchBackend:
 
     def minimum(self, a, b):
         """Element-wise minimum."""
-        import torch
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         b_t = self.asarray(b) if not isinstance(b, torch.Tensor) else b
         return torch.minimum(a_t, b_t)
 
     def maximum(self, a, b):
         """Element-wise maximum."""
-        import torch
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         b_t = self.asarray(b) if not isinstance(b, torch.Tensor) else b
         return torch.maximum(a_t, b_t)
 
     def floor(self, a):
         """Floor of input."""
-        import torch
         if isinstance(a, (int, float)):
-            import math
             return math.floor(a)
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         return torch.floor(a_t)
 
     def ceil(self, a):
         """Ceiling of input."""
-        import torch
         if isinstance(a, (int, float)):
-            import math
             return math.ceil(a)
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         return torch.ceil(a_t)
 
     def trunc(self, a):
         """Truncate to integer."""
-        import torch
         if isinstance(a, (int, float)):
-            import math
             return math.trunc(a)
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         return torch.trunc(a_t)
 
     def isinf(self, a):
         """Check for infinity."""
-        import torch
         if isinstance(a, (int, float)):
-            import math
             return math.isinf(a)
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         return torch.isinf(a_t)
 
     def isnan(self, a):
         """Check for NaN."""
-        import torch
         if isinstance(a, (int, float)):
-            import math
             return math.isnan(a)
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         return torch.isnan(a_t)
 
     def sign(self, a):
         """Sign of elements."""
-        import torch
         if isinstance(a, (int, float)):
             return (a > 0) - (a < 0)
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
@@ -431,7 +398,6 @@ class TorchBackend:
     # Ufunc-like wrapper for operations that need .reduce and .accumulate
     class TorchUfunc:
         def __init__(self, backend, op, reduce_op, accumulate_op=None, numpy_ufunc=None):
-            import torch
             self._backend = backend
             self._op = op
             self._reduce_op = reduce_op
@@ -452,6 +418,16 @@ class TorchBackend:
             return x
 
         def __call__(self, a, b):
+            # Fast path: both are tensors on the same device, or tensor + scalar
+            a_is_tensor = isinstance(a, self._torch.Tensor)
+            b_is_tensor = isinstance(b, self._torch.Tensor)
+            if a_is_tensor and b_is_tensor:
+                if a.device == b.device:
+                    return self._op(a, b)
+            elif a_is_tensor and isinstance(b, (int, float)):
+                return self._op(a, b)
+            elif b_is_tensor and isinstance(a, (int, float)):
+                return self._op(a, b)
             # Fall back to numpy for object arrays
             if self._numpy_ufunc and (self._is_object_array(a) or self._is_object_array(b)):
                 return self._numpy_ufunc(self._to_numpy(a), self._to_numpy(b))
@@ -493,12 +469,12 @@ class TorchBackend:
 
     @property
     def add(self):
-        import torch
-        return self.TorchUfunc(self, torch.add, torch.sum, torch.cumsum, numpy.add)
+        if self._add is None:
+            self._add = self.TorchUfunc(self, torch.add, torch.sum, torch.cumsum, numpy.add)
+        return self._add
 
     @property
     def subtract(self):
-        import torch
         def cumulative_subtract(a, dim=0):
             result = [a[0]]
             for i in range(1, a.shape[dim]):
@@ -513,12 +489,12 @@ class TorchBackend:
 
     @property
     def multiply(self):
-        import torch
-        return self.TorchUfunc(self, torch.multiply, torch.prod, torch.cumprod, numpy.multiply)
+        if self._multiply is None:
+            self._multiply = self.TorchUfunc(self, torch.multiply, torch.prod, torch.cumprod, numpy.multiply)
+        return self._multiply
 
     @property
     def divide(self):
-        import torch
         def reduce_divide(a, dim=None):
             if dim is None:
                 result = a.flatten()[0]
@@ -570,8 +546,57 @@ class TorchBackendProvider(BackendProvider):
         return 'mps' not in str(self.device).lower()
 
     def is_array(self, x) -> bool:
-        import torch
         return isinstance(x, (numpy.ndarray, torch.Tensor))
+
+    def is_backend_array(self, x) -> bool:
+        """Check if x is specifically a torch tensor (not numpy)."""
+        return isinstance(x, torch.Tensor)
+
+    def get_dtype_kind(self, arr) -> str:
+        if hasattr(arr, 'dtype'):
+            dtype = arr.dtype
+            # numpy arrays have dtype.kind
+            if hasattr(dtype, 'kind'):
+                return dtype.kind
+            # torch tensors need manual mapping
+            kind_map = {
+                torch.float16: 'f',
+                torch.float32: 'f',
+                torch.float64: 'f',
+                torch.bfloat16: 'f',
+                torch.int8: 'i',
+                torch.int16: 'i',
+                torch.int32: 'i',
+                torch.int64: 'i',
+                torch.uint8: 'u',
+                torch.bool: 'b',
+                torch.complex64: 'c',
+                torch.complex128: 'c',
+            }
+            return kind_map.get(dtype, 'f')
+        return None
+
+    def to_numpy(self, x):
+        """Convert torch tensor to numpy array."""
+        if isinstance(x, torch.Tensor):
+            return x.detach().cpu().numpy()
+        return x
+
+    def is_scalar_integer(self, x) -> bool:
+        if isinstance(x, torch.Tensor) and x.ndim == 0:
+            return x.dtype in (torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8)
+        return False
+
+    def is_scalar_float(self, x) -> bool:
+        if isinstance(x, torch.Tensor) and x.ndim == 0:
+            return x.dtype in (torch.float16, torch.float32, torch.float64, torch.bfloat16)
+        return False
+
+    def argsort(self, a, descending=False):
+        """Return indices that would sort the array."""
+        if not isinstance(a, torch.Tensor):
+            a = self._torch_backend.asarray(a)
+        return torch.argsort(a, descending=descending)
 
     def str_to_char_array(self, s):
         """Not supported in torch backend."""
@@ -586,7 +611,6 @@ class TorchBackendProvider(BackendProvider):
         Raises TorchUnsupportedDtypeError for strings, jagged arrays,
         or any data requiring object dtype.
         """
-        import torch
         if isinstance(a, str):
             raise TorchUnsupportedDtypeError(
                 "PyTorch backend does not support string conversion."

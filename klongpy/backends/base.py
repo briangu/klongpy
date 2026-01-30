@@ -58,6 +58,57 @@ class BackendProvider(ABC):
         """Check if x is an array type for this backend."""
         pass
 
+    @abstractmethod
+    def is_backend_array(self, x) -> bool:
+        """Check if x is specifically this backend's array type (not numpy)."""
+        pass
+
+    @abstractmethod
+    def get_dtype_kind(self, arr) -> str:
+        """
+        Get the dtype 'kind' character for an array.
+
+        Returns:
+            'O' for object dtype
+            'i' for integer types
+            'f' for float types
+            'u' for unsigned integer
+            'b' for boolean
+            'c' for complex
+            None if not an array
+        """
+        pass
+
+    @abstractmethod
+    def to_numpy(self, x):
+        """
+        Convert backend array to numpy array.
+
+        Handles device transfers (e.g., GPU to CPU) and gradient detachment.
+        """
+        pass
+
+    @abstractmethod
+    def is_scalar_integer(self, x) -> bool:
+        """Check if x is a 0-dim integer array/tensor."""
+        pass
+
+    @abstractmethod
+    def is_scalar_float(self, x) -> bool:
+        """Check if x is a 0-dim float array/tensor."""
+        pass
+
+    def scalar_to_python(self, x):
+        """Convert a 0-dim array/tensor to Python scalar."""
+        if hasattr(x, 'item'):
+            return x.item()
+        return x
+
+    @abstractmethod
+    def argsort(self, a, descending=False):
+        """Return indices that would sort the array."""
+        pass
+
 
 class UnsupportedDtypeError(Exception):
     """Raised when an operation requires a dtype not supported by the backend."""

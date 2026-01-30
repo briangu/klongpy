@@ -11,6 +11,7 @@ For per-interpreter backends, use:
     klong = KlongInterpreter(backend='torch')
 """
 import os
+import numpy as real_np
 
 from .backends import (
     get_backend,
@@ -84,19 +85,11 @@ def to_numpy(x):
     >>> to_numpy(torch.tensor(5.0, requires_grad=True))
     5.0
     """
-    import numpy as real_np
-    if use_torch:
-        import torch
-        if isinstance(x, torch.Tensor):
-            x = x.detach().cpu()
-            if x.ndim == 0:
-                return x.item()
-            return x.numpy()
-    if isinstance(x, real_np.ndarray):
-        if x.ndim == 0:
-            return x.item()
-        return x
-    return x
+    result = _default_backend.to_numpy(x)
+    # Handle 0-dim arrays
+    if isinstance(result, real_np.ndarray) and result.ndim == 0:
+        return result.item()
+    return result
 
 
 __all__ = [
