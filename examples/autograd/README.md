@@ -1,10 +1,16 @@
 # KlongPy Autograd Examples
 
-These examples demonstrate KlongPy's automatic differentiation capabilities using the PyTorch backend.
+These examples demonstrate KlongPy's automatic differentiation capabilities.
 
 ## Prerequisites
 
-Install KlongPy with PyTorch support:
+Install KlongPy:
+
+```bash
+pip install klongpy
+```
+
+For PyTorch autograd support (optional, for exact gradients):
 
 ```bash
 pip install klongpy torch
@@ -12,17 +18,21 @@ pip install klongpy torch
 
 ## Running Examples
 
-All autograd examples require the PyTorch backend. Set the `USE_TORCH=1` environment variable:
+All examples work with any backend. The `:>` operator falls back to numeric differentiation when torch is not available:
 
 ```bash
-# Klong language examples
-USE_TORCH=1 kgpy basic_gradient.kg
-USE_TORCH=1 kgpy gradient_descent.kg
-USE_TORCH=1 kgpy linear_regression.kg
-USE_TORCH=1 kgpy portfolio_opt.kg
-USE_TORCH=1 kgpy neural_net.kg
+# Klong language examples (work without torch)
+kgpy basic_gradient.kg
+kgpy numeric_vs_autograd.kg
+kgpy gradient_descent.kg
+kgpy linear_regression.kg
+kgpy portfolio_opt.kg
+kgpy neural_net.kg
 
-# Python examples
+# With PyTorch backend for exact gradients (optional)
+USE_TORCH=1 kgpy basic_gradient.kg
+
+# Python examples (require torch for autograd)
 USE_TORCH=1 python basic_gradient.py
 USE_TORCH=1 python linear_regression.py
 ```
@@ -31,10 +41,9 @@ USE_TORCH=1 python linear_regression.py
 
 ### numeric_vs_autograd.kg
 Comparison of the two gradient operators:
-- `∇` (nabla): Numeric differentiation
-- `:>`: PyTorch autograd
-- Precision and syntax differences
-- Works with any backend (no torch required)
+- `∇` (nabla): Numeric differentiation (syntax: `point∇function`)
+- `:>`: Autograd (syntax: `function:>point`)
+- Both work with any backend; `:>` uses PyTorch autograd when available
 
 ### basic_gradient.kg
 Fundamental gradient computation:
@@ -78,16 +87,25 @@ Python version with NumPy integration for data generation.
 
 ## Using Autograd in KlongPy
 
-The autograd operator `:>` computes the gradient of a function at a point:
+Two gradient operators are available:
+
+### `∇` (nabla) - Numeric Differentiation
+
+```klong
+f::{x^2}        :" Define a function
+3∇f             :" Compute gradient at x=3 -> 6.0
+```
+
+The syntax is `point∇function`.
+
+### `:>` - Autograd
 
 ```klong
 f::{x^2}        :" Define a function
 f:>3            :" Compute gradient at x=3 -> 6.0
 ```
 
-The syntax is `function:>point` where:
-- `function` is a scalar-valued function (must return a single number)
-- `point` is the input at which to compute the gradient
+The syntax is `function:>point`. Uses PyTorch autograd when `USE_TORCH=1`, otherwise falls back to numeric differentiation.
 
 ### Gradient Descent Pattern
 
@@ -100,10 +118,7 @@ theta::10.0
 lr::0.1
 
 :" Training step
-step::{
-    grad::loss:>theta
-    theta::theta-(lr*grad)
-}
+step::{grad::loss:>theta;theta::theta-(lr*grad)}
 
 :" Train for N epochs
 step'!100
@@ -123,12 +138,7 @@ lossW::{mse(x;b)}
 lossB::{mse(w;x)}
 
 :" Update each parameter
-step::{
-    gw::lossW:>w
-    gb::lossB:>b
-    w::w-(lr*gw)
-    b::b-(lr*gb)
-}
+step::{gw::lossW:>w;gb::lossB:>b;w::w-(lr*gw);b::b-(lr*gb)}
 ```
 
 ## Performance
@@ -139,9 +149,9 @@ When using the torch backend with `USE_TORCH=1`:
 - Large array operations benefit from torch's optimized kernels
 
 Without torch (numpy backend):
-- Falls back to numeric differentiation
+- Both `∇` and `:>` use numeric differentiation
 - Uses finite differences: f'(x) ≈ (f(x+ε) - f(x-ε)) / 2ε
-- Functional but slower and less precise
+- Functional but slower and less precise than exact gradients
 
 ## Tips
 
@@ -150,12 +160,3 @@ Without torch (numpy backend):
 3. **Learning rate**: Start with small values (0.001-0.1)
 4. **Constraints**: Use penalty terms or project after each step
 5. **Debugging**: Print loss every N steps to verify convergence
-
-## Advanced Examples
-
-For more advanced examples including trading strategies with autograd, see the `klongpy-trading-autograd.zip` archive which includes:
-- Differentiable parameter optimization
-- Learned signal combination
-- Statistical arbitrage with learned hedge ratios
-- Portfolio optimization with constraints
-- Neural network price prediction

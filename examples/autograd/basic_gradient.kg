@@ -1,6 +1,7 @@
 :" Basic Gradient Computation with KlongPy"
-:" Run with: USE_TORCH=1 kgpy basic_gradient.kg"
-:" The :> operator uses PyTorch autograd for gradient computation"
+:" Run with: kgpy basic_gradient.kg"
+:" Or with torch: USE_TORCH=1 kgpy basic_gradient.kg"
+:" The :> operator uses PyTorch autograd when available, else falls back to numeric"
 
 .p("KlongPy Autograd Examples")
 .p("==================================================")
@@ -11,11 +12,12 @@
 .p("Example 1: Gradient of x^2 at x=3")
 .p("----------------------------------------")
 
-f::{x^2}          :" Define f(x) = x^2"
+f::{x^2}
 
 .p("f(x) = x^2")
 .p("f'(x) = 2x")
-.d("f'(3) = ";f:>3)
+.d("f'(3) = ")
+.p(f:>3)
 .p("Expected: 6.0")
 .p("")
 
@@ -29,21 +31,24 @@ g::{(x^3)+(2*x^2)-(5*x)}
 
 .p("g(x) = x^3 + 2x^2 - 5x")
 .p("g'(x) = 3x^2 + 4x - 5")
-.d("g'(2) = ";g:>2)
-.p("Expected: 3*4 + 4*2 - 5 = 15.0")
+.d("g'(2) = ")
+.p(g:>2)
+.p("Expected: 15.0")
 .p("")
 
 :" Example 3: Gradient with array input"
 .p("Example 3: Gradient of sum of squares")
 .p("----------------------------------------")
 
-h::{+/x^2}        :" h(x) = sum(x^2)"
+h::{+/x^2}
 
 :" For h(x) = x1^2 + x2^2 + x3^2, gradient is [2*x1, 2*x2, 2*x3]"
 .p("h(x) = sum(x^2) = x1^2 + x2^2 + x3^2")
 .p("grad h(x) = [2*x1, 2*x2, 2*x3]")
-.d("x = ";[1.0 2.0 3.0])
-.d("grad h(x) = ";h:>[1.0 2.0 3.0])
+.d("x = ")
+.p([1.0 2.0 3.0])
+.d("grad h(x) = ")
+.p(h:>[1.0 2.0 3.0])
 .p("Expected: [2.0, 4.0, 6.0]")
 .p("")
 
@@ -53,20 +58,20 @@ h::{+/x^2}        :" h(x) = sum(x^2)"
 
 :" p(x) = 3*x^4 - 2*x^2 + x"
 :" p'(x) = 12*x^3 - 4*x + 1"
-:" Note: Klong is right-associative, so we need extra parens"
-p::{((3*x^4)-(2*x^2))+x}
+poly::{((3*x^4)-(2*x^2))+x}
 
 .p("p(x) = 3x^4 - 2x^2 + x")
 .p("p'(x) = 12x^3 - 4x + 1")
-.d("p'(1) = ";p:>1)
-.p("Expected: 12 - 4 + 1 = 9.0")
+.d("p'(1) = ")
+.p(poly:>1)
+.p("Expected: 9.0")
 .p("")
 
 :" Example 5: Chain rule"
 .p("Example 5: Chain rule - derivative of sin(x^2)")
 .p("----------------------------------------")
 
-:" Import sin from Python math module"
+:" Import sin and cos from Python math module"
 .pyf("math";"sin")
 .pyf("math";"cos")
 
@@ -76,6 +81,7 @@ sinx2::{sin(x^2)}
 
 .p("f(x) = sin(x^2)")
 .p("f'(x) = 2x * cos(x^2)")
-x::1.0
-.d("f'(1) = ";sinx2:>1.0)
-.d("Expected: 2 * cos(1) = ";2*cos(1))
+.d("f'(1) = ")
+.p(sinx2:>1.0)
+.d("Expected: 2 * cos(1) = ")
+.p(2*cos(1))

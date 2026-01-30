@@ -578,6 +578,49 @@ def eval_sys_python_from(klong, x, y):
     return _import_module(klong, x, from_set=set(y))
 
 
+def eval_sys_backend_fn(klong, x):
+    """
+
+        .bkf(x)                                           [Backend-Function]
+
+        Import functions from the current backend's array module.
+        This is similar to .pyf() but uses backend-aware functions that
+        work with both numpy and torch backends.
+
+        When using the torch backend, these functions preserve gradient
+        tracking for autograd.
+
+        Example:
+
+            .bkf("exp")
+            exp(1.0) --> 2.718...
+
+            .bkf(["exp";"sin";"cos"])
+            sin(1.0) --> 0.841...
+
+        Common functions available: exp, sin, cos, tan, tanh, sqrt, abs,
+        log, log10, floor, ceil, round
+
+    """
+    if isinstance(x, str):
+        x = [x]
+    if not (is_list(x) and all(map(lambda p: isinstance(p, str), x))):
+        raise RuntimeError("function name(s) must be a string or list of strings")
+
+    backend = klong._backend
+    ctx = klong._context.pop()
+    try:
+        for fn_name in x:
+            if hasattr(backend.np, fn_name):
+                fn = getattr(backend.np, fn_name)
+                klong[fn_name] = _handle_import(fn)
+            else:
+                raise RuntimeError(f"Backend does not have function: {fn_name}")
+    finally:
+        klong._context.push(ctx)
+    return None
+
+
 def eval_sys_random_number():
     """
 

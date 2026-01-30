@@ -256,6 +256,24 @@ def eval_dyad_drop(a, b):
     return b[a:] if a >= 0 else b[:a]
 
 
+def _safe_equal(x, y):
+    """Compare two values, handling torch tensors correctly."""
+    # Check if either is a torch tensor
+    try:
+        import torch
+        if isinstance(x, torch.Tensor) or isinstance(y, torch.Tensor):
+            # Convert scalars to tensors for comparison
+            if isinstance(x, torch.Tensor) and x.dim() == 0:
+                x = x.item()
+            if isinstance(y, torch.Tensor) and y.dim() == 0:
+                y = y.item()
+            return kg_truth(x == y)
+    except ImportError:
+        pass
+    # Default numpy comparison
+    return kg_truth(numpy.asarray(x, dtype=object) == numpy.asarray(y, dtype=object))
+
+
 def eval_dyad_equal(a, b):
     """
 
@@ -281,7 +299,7 @@ def eval_dyad_equal(a, b):
                   [1 2 3]=[1 4 3]  -->  [1 0 1]
 
     """
-    return vec_fn2(a, b, lambda x, y: kg_truth(np.asarray(x,dtype=object) == np.asarray(y,dtype=object)))
+    return vec_fn2(a, b, _safe_equal)
 
 
 def finditer(s, sub):
@@ -1025,7 +1043,10 @@ def eval_dyad_grad(klong, a, b):
 
         a∇b                                                    [Grad]
 
-        Compute the numeric gradient of the monadic function ``b`` at ``a``.
+        Compute the gradient of the monadic function ``b`` at ``a``.
+
+        Uses PyTorch autograd when available (USE_TORCH=1), otherwise
+        falls back to numeric differentiation.
 
     """
     if isinstance(a, KGSym):

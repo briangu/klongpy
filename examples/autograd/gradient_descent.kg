@@ -1,180 +1,190 @@
-:" ============================================================
-:" Gradient Descent Fundamentals
-:" ============================================================
-:"
-:" Demonstrates core gradient descent concepts using autograd:
-:" 1. Finding minimum of a function
-:" 2. Learning rate effects
-:" 3. Momentum optimization
-:" 4. Fitting a quadratic to data
-:"
-:" Run with: USE_TORCH=1 kgpy gradient_descent.kg
-:" ============================================================
+:" ============================================================"
+:" Gradient Descent Fundamentals"
+:" ============================================================"
+:" Demonstrates core gradient descent concepts using autograd:"
+:" 1. Finding minimum of a function"
+:" 2. Rosenbrock function optimization"
+:" 3. Linear regression fitting"
+:" 4. Quadratic curve fitting"
+:" Run with: kgpy gradient_descent.kg"
+:" Or with torch: USE_TORCH=1 kgpy gradient_descent.kg"
+:" ============================================================"
 
 .p("Gradient Descent with KlongPy Autograd")
 .p("=======================================")
 .p("")
 
-:" ============================================================
-:" Example 1: Minimize f(x) = (x-3)^2
-:" ============================================================
+:" ============================================================"
+:" Example 1: Minimize f(t) = (t-3)^2"
+:" ============================================================"
 
-.p("Example 1: Minimize f(x) = (x-3)^2")
+.p("Example 1: Minimize f(t) = (t-3)^2")
 .p("-----------------------------------")
-.p("Minimum should be at x = 3")
+.p("Minimum should be at t = 3")
 .p("")
 
 f1::{(x-3)^2}
 
-x::10.0
-lr::0.1
+t::10.0
+lr1::0.1
 
-.d("Starting x = ";x)
-.d("Learning rate = ";lr)
+.d("Starting t = ")
+.p(t)
+.d("Learning rate = ")
+.p(lr1)
 .p("")
 
-step1::{
-    grad::f1:>x
-    x::x-(lr*grad)
-    .if(0=(y!2);{.d("Step ";y;": x=";x;", f(x)=";f1(x);", grad=";grad)};{})
-}
+print1::{.d("Step ");.d(x);.d(": t=");.d(t);.d(", f(t)=");.d(f1(t));.d(", grad=");.p(y)}
+step1::{grad1::f1:>t;t::t-(lr1*grad1);:[0=(x!2);print1(x;grad1);0]}
 
 step1'1+!10
 
 .p("")
-.d("Final x = ";x;" (target: 3.0)")
+.d("Final t = ")
+.d(t)
+.p(" (target: 3.0)")
 .p("")
 
-:" ============================================================
-:" Example 2: Rosenbrock Function (challenging optimization)
-:" ============================================================
+:" ============================================================"
+:" Example 2: Rosenbrock Function (challenging optimization)"
+:" ============================================================"
 
 .p("Example 2: Rosenbrock Function")
 .p("-------------------------------")
-.p("f(x,y) = (1-x)^2 + 100*(y-x^2)^2")
+.p("f(a,b) = (1-a)^2 + 100*(b-a^2)^2")
 .p("Minimum at (1, 1)")
 .p("")
 
-:" Rosenbrock as function of parameter vector p = [x, y]
-rosenbrock::{[px py];
-    px::*x;
-    py::x@1;
-    ((1-px)^2)+100*((py-(px^2))^2)}
+rosenbrock::{[pa pb];pa::*x;pb::x@1;((1-pa)^2)+100*((pb-(pa^2))^2)}
 
-p::[0.0 0.0]
-lr::0.001
+pt::[0.0 0.0]
+lr2::0.001
 
-.d("Starting point: ";p)
-.d("Learning rate: ";lr)
+.d("Starting point: ")
+.p(pt)
+.d("Learning rate: ")
+.p(lr2)
 .p("")
 
-step2::{
-    grad::rosenbrock:>p
-    p::p-(lr*grad)
-    .if(0=(y!20);{.d("Step ";y;": p=";p;", f(p)=";rosenbrock(p))};{})
-}
+print2::{.d("Step ");.d(x);.d(": pt=");.d(pt);.d(", f(pt)=");.p(rosenbrock(pt))}
+step2::{grad2::rosenbrock:>pt;pt::pt-(lr2*grad2);:[0=(x!20);print2(x);0]}
 
 step2'1+!100
 
 .p("")
-.d("Final point: ";p;" (target: [1, 1])")
+.d("Final point: ")
+.d(pt)
+.p(" (target: [1, 1])")
 .p("")
 
-:" ============================================================
-:" Example 3: Fitting a Line to Data
-:" ============================================================
+:" ============================================================"
+:" Example 3: Fitting a Line to Data"
+:" ============================================================"
 
 .p("Example 3: Linear Regression")
 .p("-----------------------------")
 .p("Fit y = w*x + b to synthetic data")
 .p("")
 
-:" Generate synthetic data: y = 2*x + 3 + noise
 N::20
 idx::!N
-X::(4*(idx%N))-2
+Xd::(4*(idx%N))-2
 
 wTrue::2.0
 bTrue::3.0
-yTrue::(wTrue*X)+bTrue
+yTrue::(wTrue*Xd)+bTrue
 
-.d("True parameters: w=";wTrue;", b=";bTrue)
+.d("True parameters: w=")
+.d(wTrue)
+.d(", b=")
+.p(bTrue)
 
-:" Initialize parameters
-w::0.0
-b::0.0
+w3::0.0
+b3::0.0
 
-:" Loss functions for each parameter
-lossW::{((+/((x*X)+b-yTrue)^2))%N}
-lossB::{((+/((w*X)+x-yTrue)^2))%N}
+lossW3::{((+/((x*Xd)+b3-yTrue)^2))%N}
+lossB3::{((+/((w3*Xd)+x-yTrue)^2))%N}
 
-lr::0.1
+lr3::0.1
 
-.d("Initial: w=";w;", b=";b)
+.d("Initial: w=")
+.d(w3)
+.d(", b=")
+.p(b3)
 .p("")
 
-step3::{
-    gw::lossW:>w
-    gb::lossB:>b
-    w::w-(lr*gw)
-    b::b-(lr*gb)
-    .if(0=(y!5);{.d("Step ";y;": w=";w;", b=";b;", loss=";lossW(w))};{})
-}
+print3::{.d("Step ");.d(x);.d(": w=");.d(w3);.d(", b=");.d(b3);.d(", loss=");.p(lossW3(w3))}
+step3::{gw3::lossW3:>w3;gb3::lossB3:>b3;w3::w3-(lr3*gw3);b3::b3-(lr3*gb3);:[0=(x!5);print3(x);0]}
 
 step3'1+!30
 
 .p("")
-.d("Learned: w=";w;", b=";b)
-.d("True:    w=";wTrue;", b=";bTrue)
+.d("Learned: w=")
+.d(w3)
+.d(", b=")
+.p(b3)
+.d("True:    w=")
+.d(wTrue)
+.d(", b=")
+.p(bTrue)
 .p("")
 
-:" ============================================================
-:" Example 4: Quadratic Curve Fitting
-:" ============================================================
+:" ============================================================"
+:" Example 4: Quadratic Curve Fitting"
+:" ============================================================"
 
 .p("Example 4: Quadratic Curve Fitting")
 .p("-----------------------------------")
 .p("Fit y = a*x^2 + b*x + c to parabola")
 .p("")
 
-:" Generate data from y = 0.5*x^2 - 2*x + 1
 aTrue::0.5
 bTrue2::0-2.0
 cTrue::1.0
-yQuad::((aTrue*(X^2))+(bTrue2*X))+cTrue
+yQuad::((aTrue*(Xd^2))+(bTrue2*Xd))+cTrue
 
-:" Initialize coefficients
-a::0.0
-b2::0.0
-c::0.0
+a4::0.0
+b4::0.0
+c4::0.0
 
-:" Loss for quadratic
-quadPred::{((a*(X^2))+(b2*X))+c}
+quadPred::{((a4*(Xd^2))+(b4*Xd))+c4}
 quadLoss::{(+/(quadPred()-yQuad)^2)%N}
 
-:" Separate loss for each coefficient
-lossA::{((+/((((x*(X^2))+(b2*X))+c)-yQuad)^2))%N}
-lossB2::{((+/(((a*(X^2))+(x*X))+c-yQuad)^2))%N}
-lossC::{((+/(((a*(X^2))+(b2*X))+x-yQuad)^2))%N}
+lossA::{((+/((((x*(Xd^2))+(b4*Xd))+c4)-yQuad)^2))%N}
+lossB4::{((+/(((a4*(Xd^2))+(x*Xd))+c4-yQuad)^2))%N}
+lossC::{((+/(((a4*(Xd^2))+(b4*Xd))+x-yQuad)^2))%N}
 
-lr::0.01
+lr4::0.01
 
-.d("True: a=";aTrue;", b=";bTrue2;", c=";cTrue)
-.d("Initial: a=";a;", b=";b2;", c=";c)
+.d("True: a=")
+.d(aTrue)
+.d(", b=")
+.d(bTrue2)
+.d(", c=")
+.p(cTrue)
+.d("Initial: a=")
+.d(a4)
+.d(", b=")
+.d(b4)
+.d(", c=")
+.p(c4)
 .p("")
 
-step4::{
-    ga::lossA:>a
-    gb::lossB2:>b2
-    gc::lossC:>c
-    a::a-(lr*ga)
-    b2::b2-(lr*gb)
-    c::c-(lr*gc)
-    .if(0=(y!20);{.d("Step ";y;": a=";a;", b=";b2;", c=";c)};{})
-}
+print4::{.d("Step ");.d(x);.d(": a=");.d(a4);.d(", b=");.d(b4);.d(", c=");.p(c4)}
+step4::{ga4::lossA:>a4;gb4::lossB4:>b4;gc4::lossC:>c4;a4::a4-(lr4*ga4);b4::b4-(lr4*gb4);c4::c4-(lr4*gc4);:[0=(x!20);print4(x);0]}
 
 step4'1+!100
 
 .p("")
-.d("Learned: a=";a;", b=";b2;", c=";c)
-.d("True:    a=";aTrue;", b=";bTrue2;", c=";cTrue)
+.d("Learned: a=")
+.d(a4)
+.d(", b=")
+.d(b4)
+.d(", c=")
+.p(c4)
+.d("True:    a=")
+.d(aTrue)
+.d(", b=")
+.d(bTrue2)
+.d(", c=")
+.p(cTrue)

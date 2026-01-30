@@ -1,13 +1,13 @@
 :" Linear Regression with Gradient Descent using KlongPy"
-:" Run with: USE_TORCH=1 kgpy linear_regression.kg"
-:" Uses the :> operator for PyTorch autograd gradient computation"
+:" Run with: kgpy linear_regression.kg"
+:" Or with torch: USE_TORCH=1 kgpy linear_regression.kg"
+:" Uses the :> operator which falls back to numeric gradient without torch"
 
 .p("Linear Regression with KlongPy Autograd")
 .p("==================================================")
 .p("")
 
 :" Generate synthetic data: y = 2*x + 3"
-:" X is evenly spaced from -2 to 2"
 N::20
 idx::!N
 X::(4*(idx%N))-2
@@ -16,7 +16,7 @@ X::(4*(idx%N))-2
 wTrue::2.0
 bTrue::3.0
 
-:" Generate y = w*x + b (no noise for cleaner demo)"
+:" Generate y = w*x + b"
 yTrue::(wTrue*X)+bTrue
 
 .p("True parameters: w=2.0, b=3.0")
@@ -25,43 +25,46 @@ yTrue::(wTrue*X)+bTrue
 w::0.0
 b::0.0
 
-.d("Initial parameters: w=";w;", b=";b)
-.p("")
+.d("Initial parameters: w=")
+.d(w)
+.d(", b=")
+.p(b)
 
 :" Define separate loss functions for gradient computation"
-:" Each takes a single parameter to differentiate"
 lossW::{((+/((x*X)+b-yTrue)^2))%N}
 lossB::{((+/((w*X)+x-yTrue)^2))%N}
 
 :" Compute initial loss"
-.d("Initial loss: ";lossW(w))
+.d("Initial loss: ")
+.p(lossW(w))
 .p("")
 
 :" Training parameters"
 lr::0.1
 epochs::30
 
-.d("Training for ";epochs;" epochs with learning_rate=";lr)
+.d("Training for ")
+.d(epochs)
+.d(" epochs with learning_rate=")
+.p(lr)
 .p("--------------------------------------------------")
 
+:" Helper to print epoch info"
+printEpoch::{.d("Epoch ");.d(x);.d(": loss=");.d(lossW(w));.d(", w=");.d(w);.d(", b=");.p(b)}
+
 :" Training step function"
-step::{
-    :" Compute gradients using autograd"
-    gw::lossW:>w
-    gb::lossB:>b
-
-    :" Update parameters"
-    w::w-(lr*gw)
-    b::b-(lr*gb)
-
-    :" Print progress every 5 epochs"
-    .if(0=(x!5);{.d("Epoch ";x;": loss=";lossW(w);", w=";w;", b=";b)};{})
-}
+step::{gw::lossW:>w;gb::lossB:>b;w::w-(lr*gw);b::b-(lr*gb);:[0=(x!5);printEpoch(x);0]}
 
 :" Run training"
 step'!epochs
 
 .p("")
 .p("Final parameters:")
-.d("  Learned: w=";w;", b=";b)
-.d("  True:    w=";wTrue;", b=";bTrue)
+.d("  Learned: w=")
+.d(w)
+.d(", b=")
+.p(b)
+.d("  True:    w=")
+.d(wTrue)
+.d(", b=")
+.p(bTrue)

@@ -65,7 +65,14 @@ def numeric_grad(func, x, eps=None, backend=None):
 
 
 def grad_of_fn(klong, fn, x):
-    """Return gradient of Klong or Python function ``fn`` at ``x``."""
+    """
+    Return gradient of Klong or Python function ``fn`` at ``x``.
+
+    Uses PyTorch autograd when available (USE_TORCH=1), otherwise
+    falls back to numeric differentiation.
+    """
+    backend = klong._backend
+
     def call_fn(v):
         if isinstance(fn, (KGSym, KGLambda)):
             return klong.call(KGCall(fn, [v], 1))
@@ -75,7 +82,11 @@ def grad_of_fn(klong, fn, x):
             return klong.call(KGCall(fn.a, [v], fn.arity))
         else:
             return fn(v)
-    return numeric_grad(call_fn, x)
+
+    if backend.supports_autograd():
+        return backend.compute_autograd(call_fn, x)
+    else:
+        return numeric_grad(call_fn, x, backend=backend)
 
 
 def torch_autograd(func, x):

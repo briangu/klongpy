@@ -233,6 +233,16 @@ class TorchBackend:
             if a.dtype == numpy.float64 and self.device.type == 'mps':
                 a = a.astype(numpy.float32)
             return torch.from_numpy(a).to(self.device)
+        # Check if input is a list/tuple of tensors - use stack to preserve gradients
+        if isinstance(a, (list, tuple)) and len(a) > 0 and all(isinstance(x, torch.Tensor) for x in a):
+            # torch.stack preserves requires_grad, torch.tensor does not
+            result = torch.stack(a)
+            if result.device != self.device:
+                result = result.to(self.device)
+            # Handle float64 on MPS
+            if result.dtype == torch.float64 and self.device.type == 'mps':
+                result = result.to(torch.float32)
+            return result
         try:
             t = torch.tensor(a, device=self.device)
             # Handle float64 on MPS
@@ -637,13 +647,13 @@ class TorchBackendProvider(BackendProvider):
         """
         Converts input data into a PyTorch tensor for KlongPy.
 
-        Raises TorchUnsupportedDtypeError for strings, jagged arrays,
-        or any data requiring object dtype.
+        For data that can't be converted to tensors (strings, heterogeneous
+        types, jagged arrays), falls back to numpy object arrays to maintain
+        compatibility with Klong's list semantics.
         """
         if isinstance(a, str):
-            raise TorchUnsupportedDtypeError(
-                "PyTorch backend does not support string conversion."
-            )
+            # Strings become numpy character arrays like in numpy backend
+            return numpy.array(list(a))
         try:
             arr = self._torch_backend.asarray(a)
             if hasattr(arr, 'dtype'):
@@ -652,10 +662,11 @@ class TorchBackendProvider(BackendProvider):
                     if arr.dtype.kind not in ['O', 'i', 'f']:
                         raise ValueError
             return arr
-        except (numpy.VisibleDeprecationWarning, ValueError):
-            raise TorchUnsupportedDtypeError(
-                "PyTorch backend does not support object dtype. "
-                "This data contains heterogeneous types or jagged arrays."
-            )
-        except TorchUnsupportedDtypeError:
-            raise
+        except (numpy.VisibleDeprecationWarning, ValueError, TypeError, RuntimeError, TorchUnsupportedDtypeError):
+            # Fall back to numpy object array for heterogeneous/unsupported data
+            try:
+                arr = numpy.asarray(a, dtype=object)
+                return arr
+            except (ValueError, TypeError):
+                # Last resort: keep as list
+                return a
