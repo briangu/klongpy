@@ -8,25 +8,12 @@ import math
 import numpy
 import torch
 
-from .base import BackendProvider, UnsupportedDtypeError
+from .base import BackendProvider, UnsupportedDtypeError, is_jagged_array, is_supported_type
 
 
 class TorchUnsupportedDtypeError(UnsupportedDtypeError):
     """Raised when an operation requires object dtype which is not supported by PyTorch."""
     pass
-
-
-def is_supported_type(x):
-    """Check if type is supported by PyTorch (not strings or jagged arrays)."""
-    return not (isinstance(x, str) or is_jagged_array(x))
-
-
-def is_jagged_array(x):
-    """Check if x is a jagged array (nested lists with varying lengths)."""
-    if isinstance(x, list) and len(x) > 0:
-        if all(isinstance(item, (list, tuple)) for item in x):
-            return len(set(map(len, x))) > 1
-    return False
 
 
 class TorchRandomModule:

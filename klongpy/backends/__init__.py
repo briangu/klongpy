@@ -6,7 +6,7 @@ The default backend is 'numpy'.
 """
 import os
 
-from .base import BackendProvider, UnsupportedDtypeError
+from .base import BackendProvider, UnsupportedDtypeError, is_jagged_array, is_supported_type
 from .numpy_backend import NumpyBackendProvider, KGChar
 
 # Registry of available backends
@@ -89,4 +89,6 @@ __all__ = [
     'register_backend',
     'list_backends',
     'set_default_backend',
+    'is_jagged_array',
+    'is_supported_type',
 ]

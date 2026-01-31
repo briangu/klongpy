@@ -7,6 +7,22 @@ consistent behavior across numpy, torch, and any future backends.
 from abc import ABC, abstractmethod
 
 
+def is_jagged_array(x):
+    """Check if x is a jagged (ragged) array - a list of lists with different lengths."""
+    if isinstance(x, list) and len(x) > 0:
+        if all(isinstance(item, (list, tuple)) for item in x):
+            return len(set(map(len, x))) > 1
+    return False
+
+
+def is_supported_type(x):
+    """Check if x can be converted to a tensor/array by the current backend.
+
+    Default implementation returns True for everything except strings and jagged arrays.
+    """
+    return not (isinstance(x, str) or is_jagged_array(x))
+
+
 class BackendProvider(ABC):
     """Abstract interface for array backends."""
 

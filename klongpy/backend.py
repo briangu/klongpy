@@ -19,31 +19,13 @@ from .backends import (
     list_backends,
     BackendProvider,
     UnsupportedDtypeError,
+    TorchUnsupportedDtypeError,
     NumpyBackendProvider,
+    TorchBackendProvider,
     KGChar,
+    is_jagged_array,
+    is_supported_type,
 )
-
-# Try to import torch-specific items
-try:
-    from .backends.torch_backend import (
-        TorchBackendProvider,
-        TorchUnsupportedDtypeError,
-        TorchBackend,
-        is_supported_type,
-        is_jagged_array,
-    )
-except ImportError:
-    TorchBackendProvider = None
-    TorchUnsupportedDtypeError = UnsupportedDtypeError
-
-    def is_supported_type(x):
-        return True
-
-    def is_jagged_array(x):
-        if isinstance(x, list) and len(x) > 0:
-            if all(isinstance(item, (list, tuple)) for item in x):
-                return len(set(map(len, x))) > 1
-        return False
 
 
 # Global backend state for backward compatibility
