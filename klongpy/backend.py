@@ -59,6 +59,31 @@ def array_size(a):
     return _default_backend.array_size(a)
 
 
+def safe_equal(x, y):
+    """Compare two values for equality, handling backend-specific array types."""
+    return _default_backend.safe_equal(x, y)
+
+
+def detach_if_needed(x):
+    """Detach array from computation graph if needed."""
+    return _default_backend.detach_if_needed(x)
+
+
+def to_int_array(a):
+    """Convert array to integer type."""
+    return _default_backend.to_int_array(a)
+
+
+def power(a, b):
+    """Compute a^b, handling gradient tracking if applicable."""
+    return _default_backend.power(a, b)
+
+
+def has_gradient(x):
+    """Check if x is tracking gradients (for autograd)."""
+    return _default_backend.has_gradient(x)
+
+
 __all__ = [
     'np',
     'use_torch',
@@ -76,4 +101,9 @@ __all__ = [
     'is_jagged_array',
     'to_numpy',
     'array_size',
+    'safe_equal',
+    'detach_if_needed',
+    'to_int_array',
+    'power',
+    'has_gradient',
 ]

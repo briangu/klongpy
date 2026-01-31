@@ -137,6 +137,44 @@ class BackendProvider(ABC):
         """
         pass
 
+    def safe_equal(self, x, y):
+        """
+        Compare two values for equality, handling backend-specific array types.
+
+        Returns a truth value (0 or 1) suitable for Klong.
+        """
+        import numpy as np
+        return np.asarray(x, dtype=object) == np.asarray(y, dtype=object)
+
+    def detach_if_needed(self, x):
+        """
+        Detach array from computation graph if needed.
+
+        For backends without autograd, this is a no-op.
+        """
+        return x
+
+    def to_int_array(self, a):
+        """
+        Convert array to integer type.
+        """
+        import numpy as np
+        return np.asarray(a, dtype=int) if self.is_array(a) else int(a)
+
+    def power(self, a, b):
+        """
+        Compute a^b, handling gradient tracking if applicable.
+
+        Returns integer result if the result is a whole number.
+        """
+        import numpy as np
+        r = np.power(float(a) if isinstance(a, (int, np.integer)) else a, b)
+        return r
+
+    def has_gradient(self, x) -> bool:
+        """Check if x is tracking gradients (for autograd)."""
+        return False
+
     def supports_autograd(self) -> bool:
         """Whether this backend supports automatic differentiation."""
         return False

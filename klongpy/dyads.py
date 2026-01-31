@@ -1,6 +1,6 @@
 from .core import *
 from .autograd import grad_of_fn, numeric_grad
-from .backend import to_numpy
+from .backend import to_numpy, safe_equal, detach_if_needed, to_int_array, power as backend_power, has_gradient
 import sys
 import numpy
 
@@ -259,20 +259,7 @@ def eval_dyad_drop(a, b):
 
 def _safe_equal(x, y):
     """Compare two values, handling torch tensors correctly."""
-    # Check if either is a torch tensor
-    try:
-        import torch
-        if isinstance(x, torch.Tensor) or isinstance(y, torch.Tensor):
-            # Convert scalars to tensors for comparison
-            if isinstance(x, torch.Tensor) and x.dim() == 0:
-                x = x.item()
-            if isinstance(y, torch.Tensor) and y.dim() == 0:
-                y = y.item()
-            return kg_truth(x == y)
-    except ImportError:
-        pass
-    # Default numpy comparison
-    return kg_truth(numpy.asarray(x, dtype=object) == numpy.asarray(y, dtype=object))
+    return kg_truth(safe_equal(x, y))
 
 
 def eval_dyad_equal(a, b):
@@ -480,13 +467,10 @@ def eval_dyad_index_in_depth(a, b):
     return np.asarray(a)[tuple(b) if is_list(b) else b] if not is_empty(b) else b
 
 
-def _e_dyad_integer_divide(x,y):
+def _e_dyad_integer_divide(x, y):
     a = np.divide(x, y)
-    a = kg_asarray(rec_fn(a,np.trunc)) if np.isarray(a) else a
-    # Handle torch tensors
-    if hasattr(a, 'to'):  # torch tensor
-        return a.to(int)
-    return np.asarray(a,dtype='int') if np.isarray(a) else int(a)
+    a = kg_asarray(rec_fn(a, np.trunc)) if np.isarray(a) else a
+    return to_int_array(a)
 
 def eval_dyad_integer_divide(a, b):
     """
@@ -742,29 +726,16 @@ def eval_dyad_multiply(a, b):
     return np.multiply(a, b)
 
 
-def _detach_if_needed(x):
-    """Detach tensor if it requires grad, to allow type conversions."""
-    if hasattr(x, 'requires_grad') and x.requires_grad:
-        return x.detach()
-    return x
-
-
-def _e_dyad_power(a,b):
+def _e_dyad_power(a, b):
     # Check if input requires grad - if so, preserve float for autograd
-    has_grad = hasattr(a, 'requires_grad') and a.requires_grad
-    # Detach tensors that require grad for safe conversion (for checking only)
-    a_val = _detach_if_needed(a)
-    b_val = _detach_if_needed(b)
-    # Use torch.pow for tensors to maintain gradients when possible
-    if hasattr(a, 'pow') and hasattr(a, 'requires_grad'):
-        r = a.pow(b)  # Use original b to maintain gradient chain
-    else:
-        r = np.power(float(a_val) if is_integer(a_val) else a_val, b_val)
+    input_has_grad = has_gradient(a)
+    # Use backend power function which handles torch.pow for gradients
+    r = backend_power(a, b)
     # If input had gradients, keep result as float to preserve autograd
-    if has_grad:
+    if input_has_grad:
         return r
     # Check if result is integer using vectorized operations
-    r_val = _detach_if_needed(r)
+    r_val = detach_if_needed(r)
     if is_list(r_val):
         # Vectorized check: trunc(r) == r for all elements
         trunc_r = numpy.trunc(r_val) if isinstance(r_val, numpy.ndarray) else r_val.trunc()
@@ -773,10 +744,7 @@ def _e_dyad_power(a,b):
         val = float(r_val) if hasattr(r_val, 'item') else r_val
         br = numpy.trunc(val) == val
     if br:
-        # Convert to int type
-        if hasattr(r, 'to'):  # torch tensor
-            return r.to(int)
-        return numpy.asarray(r, dtype=int) if is_list(r) else int(r)
+        return to_int_array(r)
     return r
 
 def eval_dyad_power(a, b):
@@ -928,7 +896,7 @@ def eval_dyad_rotate(a, b):
         rotated will be a!#b.
 
         Note that n:+M rotates the rows of a matrix M (i.e. it rotates
-        it vertically); to rotate its columns (horizontally), use n:+:\M
+        it vertically); to rotate its columns (horizontally), use n:+:\\M
         (Rotate-Each-Left).
 
         Examples:           1:+[1 2 3 4 5]     -->  [5 1 2 3 4]

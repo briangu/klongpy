@@ -596,6 +596,43 @@ class TorchBackendProvider(BackendProvider):
             return size if isinstance(size, int) else size()
         return len(a) if hasattr(a, '__len__') else 1
 
+    def safe_equal(self, x, y):
+        """Compare two values, handling torch tensors correctly."""
+        if isinstance(x, torch.Tensor) or isinstance(y, torch.Tensor):
+            # Convert scalars to tensors for comparison
+            if isinstance(x, torch.Tensor) and x.dim() == 0:
+                x = x.item()
+            if isinstance(y, torch.Tensor) and y.dim() == 0:
+                y = y.item()
+            return x == y
+        # Default numpy comparison
+        return numpy.asarray(x, dtype=object) == numpy.asarray(y, dtype=object)
+
+    def detach_if_needed(self, x):
+        """Detach tensor if it requires grad, to allow type conversions."""
+        if isinstance(x, torch.Tensor) and x.requires_grad:
+            return x.detach()
+        return x
+
+    def to_int_array(self, a):
+        """Convert array/tensor to integer type."""
+        if isinstance(a, torch.Tensor):
+            return a.to(int)
+        return numpy.asarray(a, dtype=int) if isinstance(a, numpy.ndarray) else int(a)
+
+    def power(self, a, b):
+        """Compute a^b, handling gradient tracking for torch tensors."""
+        # Use torch.pow for tensors to maintain gradients when possible
+        if isinstance(a, torch.Tensor):
+            return a.pow(b)
+        # For numpy arrays or scalars
+        a_val = float(a) if isinstance(a, (int, numpy.integer)) else a
+        return numpy.power(a_val, b)
+
+    def has_gradient(self, x) -> bool:
+        """Check if x is tracking gradients."""
+        return isinstance(x, torch.Tensor) and x.requires_grad
+
     def supports_autograd(self) -> bool:
         """Torch backend supports automatic differentiation."""
         return True

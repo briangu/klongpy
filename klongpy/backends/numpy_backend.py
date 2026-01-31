@@ -84,6 +84,19 @@ class NumpyBackendProvider(BackendProvider):
             return a.size
         return len(a) if hasattr(a, '__len__') else 1
 
+    def safe_equal(self, x, y):
+        """Compare two values for equality."""
+        return np.asarray(x, dtype=object) == np.asarray(y, dtype=object)
+
+    def to_int_array(self, a):
+        """Convert array to integer type."""
+        return np.asarray(a, dtype=int) if self.is_array(a) else int(a)
+
+    def power(self, a, b):
+        """Compute a^b, returning integer if result is whole number."""
+        r = np.power(float(a) if isinstance(a, (int, np.integer)) else a, b)
+        return r
+
     def str_to_char_array(self, s):
         """Convert string to character array."""
         return self._np.asarray([KGChar(x) for x in s], dtype=object)
