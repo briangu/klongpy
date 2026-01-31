@@ -5,16 +5,6 @@ from klongpy.backend import np, use_torch
 import numpy
 
 
-def skip_if_torch(test_method):
-    """Decorator to skip tests that don't work with torch backend."""
-    def wrapper(self):
-        if use_torch:
-            self.skipTest("Test requires numpy backend (uses ufunc monkey-patching)")
-        return test_method(self)
-    wrapper.__name__ = test_method.__name__
-    return wrapper
-
-
 class Executed:
     def __init__(self, fn):
         self.fn = fn
