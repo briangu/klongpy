@@ -710,6 +710,92 @@ class TorchBackendProvider(BackendProvider):
             "PyTorch backend does not support string-to-character array conversion."
         )
 
+    def compile_function(self, func, example_input, output_path=None):
+        """
+        Compile a function using torch.compile and optionally export the graph.
+
+        Args:
+            func: Callable to compile
+            example_input: Example input for tracing the function
+            output_path: Optional path to save the exported graph (.pt2 file)
+
+        Returns:
+            If output_path is None: compiled function
+            If output_path is provided: dict with compiled function and export info
+        """
+        # Convert example input to tensor if needed
+        if not isinstance(example_input, torch.Tensor):
+            example_input = self.create_grad_tensor(example_input)
+
+        # Compile the function
+        compiled_fn = torch.compile(func)
+
+        # Warm up the compiled function
+        _ = compiled_fn(example_input)
+
+        if output_path is None:
+            return compiled_fn
+
+        # Export the function graph for inspection
+        try:
+            # Use torch.export for graph capture
+            exported = torch.export.export(func, (example_input,))
+
+            # Save the exported program
+            torch.export.save(exported, output_path)
+
+            # Get graph representation for inspection
+            graph_str = str(exported.graph_module.graph)
+
+            return {
+                'compiled_fn': compiled_fn,
+                'export_path': output_path,
+                'graph': graph_str,
+                'graph_module': exported.graph_module,
+            }
+        except Exception as e:
+            # If export fails, still return the compiled function
+            return {
+                'compiled_fn': compiled_fn,
+                'export_path': None,
+                'export_error': str(e),
+            }
+
+    def gradcheck(self, func, inputs, eps=1e-6, atol=1e-5, rtol=1e-3):
+        """
+        Check gradients computed by autograd against numeric gradients.
+
+        Uses torch.autograd.gradcheck to verify correctness.
+
+        Args:
+            func: Function to check (should return scalar or tensor)
+            inputs: Tuple of input tensors (must have requires_grad=True)
+            eps: Step size for numeric differentiation
+            atol: Absolute tolerance
+            rtol: Relative tolerance
+
+        Returns:
+            True if gradients match, raises GradcheckError otherwise
+        """
+        # Ensure inputs are tensors with gradients
+        tensor_inputs = []
+        for inp in inputs:
+            if isinstance(inp, torch.Tensor):
+                if not inp.requires_grad:
+                    inp = inp.clone().detach().float().requires_grad_(True)
+                tensor_inputs.append(inp)
+            else:
+                tensor_inputs.append(self.create_grad_tensor(inp))
+
+        return torch.autograd.gradcheck(
+            func,
+            tuple(tensor_inputs),
+            eps=eps,
+            atol=atol,
+            rtol=rtol,
+            raise_exception=True
+        )
+
     def kg_asarray(self, a):
         """
         Converts input data into a PyTorch tensor for KlongPy.

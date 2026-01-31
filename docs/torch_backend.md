@@ -317,6 +317,64 @@ np_result = result.cpu().numpy()
 
 4. **Use autograd for gradients**: Native autograd is faster and more accurate than numeric differentiation
 
+## Function Compilation
+
+The torch backend supports compiling Klong functions for optimized execution using `torch.compile`:
+
+### `.compile(fn;input)` - Compile Function
+
+Compiles a function for faster execution:
+
+```klong
+f::{x^2}
+cf::.compile(f;3.0)      :" Returns compiled function
+cf(5.0)                   :" 25.0 (optimized)
+```
+
+The compiled function runs significantly faster for complex computations.
+
+### `.export(fn;input;path)` - Export Computation Graph
+
+Exports the function's computation graph to a file for inspection:
+
+```klong
+f::{(x^3)+(2*x^2)+x}
+info::.export(f;2.0;"model.pt2")
+.p(info@"graph")         :" Print computation graph
+```
+
+Returns a dictionary with:
+- `"compiled_fn"` - The compiled function
+- `"export_path"` - Path where graph was saved
+- `"graph"` - String representation of computation graph
+
+The exported `.pt2` file can be loaded with `torch.export.load()` in Python.
+
+**Note:** Compilation requires a C++ compiler on your system. If compilation fails, an error message will indicate the issue.
+
+## Gradient Verification
+
+Use `.gradcheck()` to verify that autograd gradients are correct:
+
+### `.gradcheck(fn;inputs)` - Verify Gradients
+
+Verifies autograd gradients against numeric gradients:
+
+```klong
+f::{x^2}
+.gradcheck(f;3.0)        :" Returns 1 if correct
+
+g::{+/x^2}
+.gradcheck(g;[1.0 2.0 3.0])  :" Returns 1
+```
+
+This uses `torch.autograd.gradcheck` internally for rigorous verification.
+
+**Use cases:**
+- Verifying custom gradient implementations
+- Debugging gradient computation issues
+- Ensuring numerical stability
+
 ## Troubleshooting
 
 ### "PyTorch backend does not support object dtype"
@@ -330,3 +388,9 @@ MPS doesn't support float64. The backend automatically converts to float32, but 
 ### Slow small array operations
 
 For arrays <10K elements, numpy may be faster. Consider using numpy backend for small array workloads or batching small operations together.
+
+### torch.compile errors
+
+If `.compile()` fails with C++ errors, ensure you have:
+- A C++ compiler installed (clang++ or g++)
+- The required header files (may need Xcode Command Line Tools on macOS)

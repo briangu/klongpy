@@ -40,6 +40,8 @@ USE_TORCH=1 kgpy <example>.kg
 | `black_scholes_greeks.kg` | Option Greeks via autograd | torch |
 | `black_scholes_live.kg` | Live market verification | torch, yfinance |
 | `differentiable_physics.kg` | Projectile targeting | torch |
+| `gradcheck_demo.kg` | Verify gradient correctness | torch |
+| `compile_demo.kg` | Function compilation for speed | torch |
 
 ---
 
@@ -479,6 +481,107 @@ Without torch:
 
 ---
 
+### gradcheck_demo.kg
+
+**What it does:** Demonstrates gradient verification using `.gradcheck()` to ensure autograd computes mathematically correct gradients.
+
+**Run:**
+```bash
+USE_TORCH=1 kgpy gradcheck_demo.kg
+```
+
+**Expected output:**
+```
+Gradient Verification Demo
+==========================
+
+Example 1: Verifying f(x) = x^2
+--------------------------------
+  Function: f(x) = x^2
+  .gradcheck(f;3.0) = 1
+  PASSED: Gradient is correct!
+
+Example 2: Verifying p(x) = x^3 + 2x^2 - 5x + 3
+...
+All gradient checks passed!
+```
+
+**Key concepts:**
+- `.gradcheck(fn;input)` returns 1 if gradients are correct
+- Uses `torch.autograd.gradcheck` internally
+- Compares autograd vs numeric differentiation
+- Essential for verifying custom functions
+
+---
+
+### compile_demo.kg
+
+**What it does:** Shows how to compile Klong functions for optimized execution using `torch.compile`.
+
+**Run:**
+```bash
+USE_TORCH=1 kgpy compile_demo.kg
+```
+
+**Expected output:**
+```
+Function Compilation Demo
+=========================
+
+Example 1: Compiling a simple function
+---------------------------------------
+  Original function: f(x) = x^2
+  Compiled with: .compile(f;3.0)
+
+  f(5.0) = 25.0
+  cf(5.0) = 25.0
+  Both give the same result!
+...
+```
+
+**Key concepts:**
+- `.compile(fn;input)` returns an optimized function
+- Compiled functions run faster for complex computations
+- First call has compilation overhead
+- Best for functions called many times (training loops)
+
+---
+
+## Gradient Verification
+
+Use `.gradcheck()` to verify your gradients are correct:
+
+```klong
+f::{x^2}
+.gradcheck(f;3.0)            :" Returns 1 if correct
+
+g::{+/x^2}
+.gradcheck(g;[1.0 2.0 3.0])  :" Verifies vector gradients
+```
+
+This compares autograd gradients against numeric gradients using `torch.autograd.gradcheck`.
+
+---
+
+## Function Compilation
+
+Compile functions for optimized execution:
+
+```klong
+f::{(x^3)+(2*x^2)+x}
+cf::.compile(f;2.0)          :" Returns compiled function
+cf(5.0)                       :" Faster execution
+```
+
+Export computation graphs for inspection:
+
+```klong
+info::.export(f;2.0;"model.pt2")
+.p(info@"graph")              :" Print graph structure
+```
+
+---
+
 ## Troubleshooting
 
 **"undefined: ..."** - Variable name conflicts with Klong reserved words. Rename variables to avoid `x`, `y`, `z` in outer scopes.
@@ -488,3 +591,5 @@ Without torch:
 **yfinance errors** - Market may be closed or data unavailable. Try again during market hours.
 
 **Gradient is NaN** - Learning rate too high or loss function has issues. Try smaller learning rate.
+
+**torch.compile errors** - Requires C++ compiler. On macOS, install Xcode Command Line Tools.

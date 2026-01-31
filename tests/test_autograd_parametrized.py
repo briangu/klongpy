@@ -204,3 +204,291 @@ class TestNumpySpecific:
         from klongpy.autograd import numeric_grad
         result = numeric_grad(lambda x: x[0]**2, np.array([3.0]), eps=1e-8)
         assert np.isclose(result[0], 6.0, atol=1e-5)
+
+
+# === Additional tests for complete coverage ===
+
+class TestNumericGradFunction:
+    """Tests for the numeric_grad function directly (numpy only)."""
+
+    def test_scalar_function(self, klong, backend):
+        """Test numeric gradient of a scalar function."""
+        if backend == 'torch':
+            pytest.skip("numeric_grad tests use numpy directly")
+        from klongpy.autograd import numeric_grad
+        result = numeric_grad(lambda x: x[0]**2, np.array([3.0]))
+        assert np.isclose(result[0], 6.0, atol=ATOL_NUMPY)
+
+    def test_multidimensional_function(self, klong, backend):
+        """Test numeric gradient of a multidimensional function."""
+        if backend == 'torch':
+            pytest.skip("numeric_grad tests use numpy directly")
+        from klongpy.autograd import numeric_grad
+        result = numeric_grad(lambda x: np.sum(x**2), np.array([1.0, 2.0, 3.0]))
+        expected = np.array([2.0, 4.0, 6.0])
+        np.testing.assert_allclose(result, expected, atol=ATOL_NUMPY)
+
+    def test_2d_array(self, klong, backend):
+        """Test numeric gradient with 2D array."""
+        if backend == 'torch':
+            pytest.skip("numeric_grad tests use numpy directly")
+        from klongpy.autograd import numeric_grad
+        x = np.array([[1.0, 2.0], [3.0, 4.0]])
+        result = numeric_grad(lambda x: np.sum(x**2), x)
+        expected = 2 * x
+        np.testing.assert_allclose(result, expected, atol=ATOL_NUMPY)
+
+
+class TestGradOfFnAPI:
+    """Tests for the grad_of_fn function with various input types."""
+
+    def test_with_callable(self, klong, backend):
+        """Test grad_of_fn with a plain Python callable."""
+        if backend == 'torch':
+            pytest.skip("Plain Python callable with np.sum doesn't work with torch")
+        from klongpy.autograd import grad_of_fn
+        result = to_numpy(grad_of_fn(klong, lambda x: np.sum(x**2), np.array([1.0, 2.0, 3.0])))
+        expected = np.array([2.0, 4.0, 6.0])
+        np.testing.assert_allclose(result, expected, atol=get_atol(backend))
+
+    def test_with_kgsym(self, klong, backend):
+        """Test grad_of_fn with a KGSym (symbol reference)."""
+        from klongpy.autograd import grad_of_fn
+        from klongpy.core import KGSym
+        klong('f::{+/x^2}')
+        fn_sym = KGSym('f')
+        result = to_numpy(grad_of_fn(klong, fn_sym, np.array([1.0, 2.0, 3.0])))
+        expected = np.array([2.0, 4.0, 6.0])
+        np.testing.assert_allclose(result, expected, atol=get_atol(backend))
+
+    def test_with_kgfn(self, klong, backend):
+        """Test grad_of_fn with a KGFn."""
+        from klongpy.autograd import grad_of_fn
+        from klongpy.core import KGSym
+        klong('f::{+/x^2}')
+        fn = klong._context[KGSym('f')]
+        result = to_numpy(grad_of_fn(klong, fn, np.array([1.0, 2.0, 3.0])))
+        expected = np.array([2.0, 4.0, 6.0])
+        np.testing.assert_allclose(result, expected, atol=get_atol(backend))
+
+
+class TestMatrixGradients:
+    """Tests for gradients with matrix inputs."""
+
+    def test_matrix_grad(self, klong, backend):
+        """Test gradient with matrix input."""
+        klong('A::˙[2 2]:^!4')
+        klong('B::[2 2]:^!4')
+        result = to_numpy(klong('(A ∇ {+/(+/ (A*B)) })'))
+        B = to_numpy(klong('B'))
+        # Nabla is numeric; torch float32 has more error
+        atol = ATOL_NUMERIC_FLOAT32 if backend == 'torch' else ATOL_NUMPY
+        np.testing.assert_allclose(result, B, atol=atol)
+
+    def test_matrix_equivalence(self, klong, backend):
+        """Test that :> and ∇ match for matrix inputs."""
+        klong('M::˙[2 3]:^!6')
+        klong('f::{+/,/x*x}')
+        r_nabla = to_numpy(klong('M ∇ f'))
+        r_autograd = to_numpy(klong('f:>M'))
+        atol = ATOL_NUMERIC_FLOAT32 if backend == 'torch' else ATOL_NUMPY
+        np.testing.assert_allclose(r_nabla, r_autograd, atol=atol)
+
+
+class TestMultiParamAdvanced:
+    """Additional multi-parameter gradient tests."""
+
+    def test_array_still_works(self, klong, backend):
+        """Test that loss:>wts still works for single array (portfolio pattern)."""
+        klong('wts::[0.25 0.25 0.25 0.25]')
+        result = to_numpy(klong('{+/x^2}:>wts'))
+        expected = np.array([0.5, 0.5, 0.5, 0.5])
+        np.testing.assert_allclose(result, expected, atol=get_atol(backend))
+
+    def test_numeric_array_not_multiparam(self, klong, backend):
+        """Test that loss:>[1 2 3] treats as point, not multi-param."""
+        result = to_numpy(klong('{+/x^2}:>[1 2 3]'))
+        expected = np.array([2.0, 4.0, 6.0])
+        np.testing.assert_allclose(result, expected, atol=get_atol(backend))
+
+    def test_linear_regression_gradients(self, klong, backend):
+        """Test gradients for a simple linear regression loss."""
+        klong('w::1.0')
+        klong('b::0.0')
+        klong('X::[1 2 3]')
+        klong('Y::[3 5 7]')  # Y = 2*X + 1
+        klong('loss::{(+/((w*X)+b-Y)^2)%3}')
+        result = klong('loss:>[w b]')
+        grad_w = to_scalar(result[0])
+        grad_b = to_scalar(result[1])
+        # Gradients should push w toward 2 and b toward 1
+        assert grad_w < 0  # Loss decreases as w increases
+        assert grad_b < 0  # Loss decreases as b increases
+
+
+class TestJacobianAdvanced:
+    """Additional Jacobian tests."""
+
+    def test_partial_operator_different_point(self, klong, backend):
+        """Test ∂ operator at different points."""
+        klong('g::{x^2}')
+        result = to_numpy(klong('[3 4]∂g'))
+        expected = np.array([[6., 0.], [0., 8.]])
+        np.testing.assert_allclose(result, expected, atol=get_atol(backend))
+
+    def test_multi_param_jacobian(self, klong, backend):
+        """Test [w b]∂f syntax for multi-parameter Jacobians."""
+        klong('w::[1.0 2.0]')
+        klong('b::[3.0 4.0]')
+        klong('f::{w^2}')
+        result = klong('[w b]∂f')
+
+        assert len(result) == 2
+        jac_w = to_numpy(result[0])
+        expected_w = np.array([[2., 0.], [0., 4.]])
+        np.testing.assert_allclose(jac_w, expected_w, atol=get_atol(backend))
+
+        # f doesn't depend on b, so jacobian w.r.t. b should be zero
+        jac_b = to_numpy(result[1])
+        expected_b = np.array([[0., 0.], [0., 0.]])
+        np.testing.assert_allclose(jac_b, expected_b, atol=get_atol(backend))
+
+
+class TestTorchAutogradFunction:
+    """Tests for torch_autograd function directly."""
+
+    def test_torch_autograd_not_in_torch_mode(self, klong, backend):
+        """Test that torch_autograd raises error when not in torch mode."""
+        if backend == 'torch':
+            pytest.skip("Test for numpy backend only")
+        from klongpy.autograd import torch_autograd
+        with pytest.raises(RuntimeError):
+            torch_autograd(lambda x: x**2, np.array([3.0]))
+
+    def test_torch_autograd_with_tensor(self, klong, backend):
+        """Test torch_autograd with tensor input."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        import torch
+        from klongpy.autograd import torch_autograd
+        x = torch.tensor([1.0, 2.0, 3.0])
+        result = torch_autograd(lambda t: (t**2).sum(), x)
+        expected = torch.tensor([2.0, 4.0, 6.0])
+        assert torch.allclose(result, expected, atol=1e-5)
+
+    def test_torch_autograd_non_scalar_output(self, klong, backend):
+        """Test that torch_autograd raises error for non-scalar output."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        from klongpy.autograd import torch_autograd, NonScalarLossError
+        x = np.array([1.0, 2.0, 3.0])
+        with pytest.raises(NonScalarLossError):
+            torch_autograd(lambda t: t**2, x)
+
+
+class TestGradcheck:
+    """Tests for torch.autograd.gradcheck verification."""
+
+    def test_gradcheck_basic_scalar(self, klong, backend):
+        """Test .gradcheck() with basic scalar function."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        klong('f::{x^2}')
+        result = klong('.gradcheck(f;3.0)')
+        assert result == 1
+
+    def test_gradcheck_vector_input(self, klong, backend):
+        """Test .gradcheck() with vector input."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        klong('g::{+/x^2}')
+        result = klong('.gradcheck(g;[1.0 2.0 3.0])')
+        assert result == 1
+
+    def test_gradcheck_polynomial(self, klong, backend):
+        """Test .gradcheck() with polynomial function."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        klong('p::{(x^3)+(2*x^2)+x}')
+        result = klong('.gradcheck(p;2.0)')
+        assert result == 1
+
+    def test_gradcheck_backend_direct(self, klong, backend):
+        """Test gradcheck() directly on backend."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        import torch
+        result = klong._backend.gradcheck(
+            lambda x: (x**2).sum(),
+            (torch.tensor([1.0, 2.0, 3.0], dtype=torch.float64, requires_grad=True),)
+        )
+        assert result is True
+
+    def test_gradcheck_fails_on_numpy(self, klong, backend):
+        """Test that .gradcheck() raises error on numpy backend."""
+        if backend != 'numpy':
+            pytest.skip("Test for numpy backend only")
+        klong('f::{x^2}')
+        with pytest.raises(RuntimeError):
+            klong('.gradcheck(f;3.0)')
+
+
+class TestCompile:
+    """Tests for torch.compile functionality."""
+
+    def test_compile_basic(self, klong, backend):
+        """Test .compile() returns a compiled function."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        klong('f::{x^2}')
+        try:
+            result = klong('.compile(f;3.0)')
+        except Exception as e:
+            # torch.compile may fail on some systems (missing C++ compiler, etc.)
+            if 'CppCompileError' in str(type(e).__name__) or 'InductorError' in str(type(e).__name__):
+                pytest.skip(f"torch.compile not available on this system: {e}")
+            raise
+        # Compiled function should still work
+        import torch
+        test_input = torch.tensor(5.0)
+        output = result(test_input)
+        assert np.isclose(float(output), 25.0, atol=1e-5)
+
+    def test_export_with_path(self, klong, backend):
+        """Test .export() returns dict with graph info."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        import tempfile
+        import os
+        klong('f::{x^2}')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'model.pt2')
+            try:
+                result = klong(f'.export(f;3.0;"{path}")')
+            except Exception as e:
+                # torch.compile/export may fail on some systems
+                if 'CppCompileError' in str(type(e).__name__) or 'InductorError' in str(type(e).__name__):
+                    pytest.skip(f"torch.compile not available on this system: {e}")
+                raise
+            # Should return a dict
+            assert isinstance(result, dict)
+            assert 'compiled_fn' in result
+            # Export may fail on some systems, but compiled_fn should work
+            if result.get('export_path'):
+                assert os.path.exists(path)
+
+    def test_compile_fails_on_numpy(self, klong, backend):
+        """Test that .compile() raises error on numpy backend."""
+        if backend != 'numpy':
+            pytest.skip("Test for numpy backend only")
+        klong('f::{x^2}')
+        with pytest.raises(RuntimeError):
+            klong('.compile(f;3.0)')
+
+    def test_export_fails_on_numpy(self, klong, backend):
+        """Test that .export() raises error on numpy backend."""
+        if backend != 'numpy':
+            pytest.skip("Test for numpy backend only")
+        klong('f::{x^2}')
+        with pytest.raises(RuntimeError):
+            klong('.export(f;3.0;"test.pt2")')

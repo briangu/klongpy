@@ -163,6 +163,36 @@ class BackendProvider(ABC):
         """
         raise NotImplementedError("This backend does not support Jacobian computation")
 
+    def compile_function(self, func, example_input, output_path=None):
+        """
+        Compile a function for optimized execution and optionally export for inspection.
+
+        Args:
+            func: Callable to compile
+            example_input: Example input for tracing the function
+            output_path: Optional path to export the compiled graph
+
+        Returns:
+            Compiled function or export info dict
+        """
+        raise NotImplementedError("This backend does not support function compilation")
+
+    def gradcheck(self, func, inputs, eps=1e-6, atol=1e-5, rtol=1e-3):
+        """
+        Check gradients computed by autograd against numeric gradients.
+
+        Args:
+            func: Function to check
+            inputs: Tuple of input tensors
+            eps: Step size for numeric differentiation
+            atol: Absolute tolerance
+            rtol: Relative tolerance
+
+        Returns:
+            True if gradients match, raises error otherwise
+        """
+        raise NotImplementedError("This backend does not support gradcheck")
+
 
 class UnsupportedDtypeError(Exception):
     """Raised when an operation requires a dtype not supported by the backend."""

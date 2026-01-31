@@ -155,6 +155,35 @@ f::{w^2}              :" Returns [w0^2, w1^2]
 | Syntax | `point∇function` | `function:>point` | `point∂function` |
 | Multi-param | No | `f:>[w b]` | `[w b]∂f` |
 
+### Autograd System Functions
+
+Additional system functions for autograd (require PyTorch backend):
+
+| Function | Description |
+|----------|-------------|
+| `.gradcheck(fn;input)` | Verify gradients against numeric computation |
+| `.compile(fn;input)` | Compile function for optimized execution |
+| `.export(fn;input;path)` | Export computation graph to file |
+
+**Gradient Verification:**
+```klong
+f::{x^2}
+.gradcheck(f;3.0)     :" Returns 1 if gradients are correct
+```
+
+**Function Compilation:**
+```klong
+f::{(x^3)+(2*x^2)+x}
+cf::.compile(f;2.0)   :" Returns compiled (faster) function
+cf(5.0)               :" Execute compiled function
+```
+
+**Graph Export:**
+```klong
+info::.export(f;2.0;"model.pt2")
+.p(info@"graph")      :" Print computation graph
+```
+
 ## Adverbs
 
 | Adverb | Name | Description |

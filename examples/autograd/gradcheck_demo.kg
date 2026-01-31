@@ -1,0 +1,108 @@
+:" ============================================================"
+:" Gradient Verification with .gradcheck()"
+:" ============================================================"
+:" This example demonstrates how to verify that your autograd"
+:" gradients are mathematically correct using torch.autograd.gradcheck."
+:" Run with: USE_TORCH=1 kgpy gradcheck_demo.kg"
+:" ============================================================"
+
+.p("Gradient Verification Demo")
+.p("==========================")
+.p("")
+
+:" ============================================================"
+:" Example 1: Basic scalar function"
+:" ============================================================"
+
+.p("Example 1: Verifying f(x) = x^2")
+.p("--------------------------------")
+
+f1::{x^2}
+.p("  Function: f(x) = x^2")
+
+:" Verify at x = 3.0"
+r1::.gradcheck(f1;3.0)
+.d("  .gradcheck(f;3.0) = ");.p(r1)
+
+.p("")
+
+:" ============================================================"
+:" Example 2: Polynomial function"
+:" ============================================================"
+
+.p("Example 2: Verifying p(x) = x^3 + 2x^2 - 5x + 3")
+.p("------------------------------------------------")
+
+poly::{(x^3)+(2*x^2)-(5*x)+3}
+.p("  Function: p(x) = x^3 + 2x^2 - 5x + 3")
+.p("  Analytical: p'(x) = 3x^2 + 4x - 5")
+.p("  At x=2: p'(2) = 12 + 8 - 5 = 15")
+
+r2::.gradcheck(poly;2.0)
+.d("  .gradcheck(poly;2.0) = ");.p(r2)
+
+.p("")
+
+:" ============================================================"
+:" Example 3: Vector function (sum of squares)"
+:" ============================================================"
+
+.p("Example 3: Verifying g(x) = sum(x^2)")
+.p("-------------------------------------")
+
+sumSq::{+/x^2}
+.p("  Function: g(x) = sum(x_i^2)")
+.p("  Gradient should be 2*x")
+
+r3::.gradcheck(sumSq;[1.0 2.0 3.0])
+.d("  .gradcheck(sumSq;[1.0 2.0 3.0]) = ");.p(r3)
+
+.p("")
+
+:" ============================================================"
+:" Example 4: Higher-order polynomial"
+:" ============================================================"
+
+.p("Example 4: Verifying quartic polynomial")
+.p("----------------------------------------")
+
+quartic::{(x^4)-(2*x^3)+(x^2)-x+1}
+.p("  Function: q(x) = x^4 - 2x^3 + x^2 - x + 1")
+.p("  Analytical: q'(x) = 4x^3 - 6x^2 + 2x - 1")
+
+r4::.gradcheck(quartic;1.5)
+.d("  .gradcheck(quartic;1.5) = ");.p(r4)
+
+.p("")
+
+:" ============================================================"
+:" Example 5: MSE loss function"
+:" ============================================================"
+
+.p("Example 5: Mean Squared Error loss")
+.p("-----------------------------------")
+
+targets::[3.0 5.0 7.0]
+mseLoss::{(+/(x-targets)^2)%3}
+.p("  Function: MSE(pred) = mean((pred - target)^2)")
+.d("  Targets: ");.p(targets)
+
+preds::[2.5 5.2 6.8]
+r5::.gradcheck(mseLoss;preds)
+.d("  .gradcheck(mseLoss;preds) = ");.p(r5)
+
+.p("")
+
+:" ============================================================"
+:" Summary"
+:" ============================================================"
+
+.p("============================================================")
+.p("All gradient checks returned 1 (passed)!")
+.p("")
+.p("Why use .gradcheck()?")
+.p("  - Verify custom gradient implementations")
+.p("  - Debug gradient computation issues")
+.p("  - Ensure numerical stability")
+.p("  - Validate complex composed functions")
+.p("============================================================")
