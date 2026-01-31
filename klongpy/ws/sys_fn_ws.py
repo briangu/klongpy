@@ -176,11 +176,11 @@ class NetworkClient(KGLambda):
         connect_event = threading.Event()
         async def _on_connect(client, **kwargs):
             if client.on_connect is not None:
-                await client.on_connect(client)
+                await client.on_connect(self)
             connect_event.set()
         async def _on_error(client, e):
             if client.on_error is not None:
-                await client.on_error(client, e)
+                await client.on_error(self, e)
             connect_event.set()
 
         self.run_task = self.ioloop.call_soon_threadsafe(asyncio.create_task, self._run(_on_connect, self.on_close, _on_error, self.on_message))
