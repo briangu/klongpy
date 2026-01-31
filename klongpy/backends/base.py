@@ -125,6 +125,18 @@ class BackendProvider(ABC):
         """Return indices that would sort the array."""
         pass
 
+    @abstractmethod
+    def array_size(self, a):
+        """
+        Get the total number of elements in an array/tensor.
+
+        Works with both numpy arrays and torch tensors.
+
+        Returns:
+            int: Total element count (product of all dimensions)
+        """
+        pass
+
     def supports_autograd(self) -> bool:
         """Whether this backend supports automatic differentiation."""
         return False

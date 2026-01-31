@@ -50,6 +50,15 @@ def to_numpy(x):
     return result
 
 
+def array_size(a):
+    """
+    Get the total number of elements in an array/tensor.
+
+    Works with both numpy arrays and torch tensors.
+    """
+    return _default_backend.array_size(a)
+
+
 __all__ = [
     'np',
     'use_torch',
@@ -66,4 +75,5 @@ __all__ = [
     'is_supported_type',
     'is_jagged_array',
     'to_numpy',
+    'array_size',
 ]

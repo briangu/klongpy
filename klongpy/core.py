@@ -5,7 +5,7 @@ from enum import Enum
 import sys
 import numpy
 
-from .backend import np, use_torch, TorchUnsupportedDtypeError, get_default_backend, to_numpy
+from .backend import np, use_torch, TorchUnsupportedDtypeError, get_default_backend, to_numpy, array_size
 
 # python3.11 support
 if not hasattr(inspect, 'getargspec'):
@@ -118,7 +118,6 @@ class KGFnWrapper:
                 # Symbol was deleted, fall through to original function
                 pass
 
-        # Fallback to original function
         if len(args) != self.fn.arity:
             raise RuntimeError(f"Klong function called with {len(args)} but expected {self.fn.arity}")
         fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
@@ -259,19 +258,6 @@ def is_iterable(x):
 
 def is_empty(a):
     return is_iterable(a) and len(a) == 0
-
-
-def array_size(a):
-    """
-    Get the total number of elements in an array/tensor.
-    Works with both numpy arrays and torch tensors.
-    """
-    if hasattr(a, 'numel'):  # torch tensor
-        return a.numel()
-    if hasattr(a, 'size'):
-        size = a.size
-        return size if isinstance(size, int) else size()  # numpy vs torch
-    return len(a) if hasattr(a, '__len__') else 1
 
 
 def is_dict(x):

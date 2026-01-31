@@ -78,6 +78,12 @@ class NumpyBackendProvider(BackendProvider):
             indices = indices[::-1].copy()
         return indices
 
+    def array_size(self, a):
+        """Get the total number of elements in an array."""
+        if hasattr(a, 'size'):
+            return a.size
+        return len(a) if hasattr(a, '__len__') else 1
+
     def str_to_char_array(self, s):
         """Convert string to character array."""
         return self._np.asarray([KGChar(x) for x in s], dtype=object)

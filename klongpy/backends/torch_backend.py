@@ -587,6 +587,15 @@ class TorchBackendProvider(BackendProvider):
             a = self._torch_backend.asarray(a)
         return torch.argsort(a, descending=descending)
 
+    def array_size(self, a):
+        """Get the total number of elements in an array/tensor."""
+        if isinstance(a, torch.Tensor):
+            return a.numel()
+        if hasattr(a, 'size'):
+            size = a.size
+            return size if isinstance(size, int) else size()
+        return len(a) if hasattr(a, '__len__') else 1
+
     def supports_autograd(self) -> bool:
         """Torch backend supports automatic differentiation."""
         return True
