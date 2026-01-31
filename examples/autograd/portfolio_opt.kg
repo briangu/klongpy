@@ -40,10 +40,12 @@ returns::[r0 r1 r2 r3]
 
 :" --- Compute Statistics ---"
 
+:" Annualize returns (252 trading days)"
 mu::252*{avg(x)}'[r0 r1 r2 r3]
 
+:" Annualize volatility (multiply daily vol by sqrt(252))"
 vars::{+/((x-avg(x))^2)%#x}'[r0 r1 r2 r3]
-vols::{x^0.5}'vars
+vols::15.87*{x^0.5}'vars
 
 .d("Expected returns: ")
 .p(mu)
@@ -55,8 +57,11 @@ vols::{x^0.5}'vars
 
 wts::[0.25 0.25 0.25 0.25]
 
+:" Annualized variance (daily var * 252)"
+annVars::252*vars
+
 portReturn::{+/x*mu}
-portVar::{+/((x^2)*vars)}
+portVar::{+/((x^2)*annVars)}
 portVol::{(portVar(x))^0.5}
 sharpe::{portReturn(x)%((portVol(x))+0.0001)}
 

@@ -292,11 +292,12 @@ def multi_grad_of_fn(klong, fn, param_syms):
         List of gradients, one per parameter
     """
     backend = klong._backend
-    param_values = [klong[sym] for sym in param_syms]
+    # Access context directly to avoid KGFnWrapper wrapping
+    param_values = [klong._context[sym] for sym in param_syms]
 
     def call_fn_with_tensors(tensors):
         """Call the loss function with tensor values temporarily bound to symbols."""
-        originals = {sym: klong[sym] for sym in param_syms}
+        originals = {sym: klong._context[sym] for sym in param_syms}
         try:
             for sym, tensor in zip(param_syms, tensors):
                 klong[sym] = tensor

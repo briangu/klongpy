@@ -5,7 +5,7 @@ Copy this file to your project and customize as needed.
 
 Usage in Klong:
     .pyf("optimizers";"SGDOptimizer")
-    opt::SGDOptimizer(klong;[w b];:{["lr" 0.1]})
+    opt::SGDOptimizer(["w" "b"];:{["lr" 0.1]})
     {opt(loss)}'!100
 
 Or from Python:
@@ -15,10 +15,31 @@ Or from Python:
         opt(klong['loss'])
 """
 import numpy as np
-from klongpy.core import KGSym, KGFn, KGCall
+from klongpy.core import KGSym, KGFn, KGCall, KGLambda
 
 
-class SGDOptimizer:
+def SGDOptimizer(klong, params, config):
+    """
+    Create an SGD optimizer step function.
+
+    Args:
+        klong: KlongInterpreter instance
+        params: List of parameter symbols ['w', 'b'] or [KGSym('w'), KGSym('b')]
+        config: Dict with 'lr' (learning rate, default 0.01) and
+                'momentum' (default 0.0)
+
+    Returns:
+        A monadic function that performs one optimization step when called with a loss function.
+
+    Example:
+        opt = SGDOptimizer(klong, ['w', 'b'], {'lr': 0.1, 'momentum': 0.9})
+        opt(loss_fn)  # Computes gradients and updates parameters
+    """
+    optimizer = _SGDOptimizer(klong, params, config)
+    return KGLambda(optimizer.step, args=['x'])
+
+
+class _SGDOptimizer:
     """
     Stochastic Gradient Descent with optional momentum.
 
@@ -28,21 +49,24 @@ class SGDOptimizer:
         config: Dict with 'lr' (learning rate, default 0.01) and
                 'momentum' (default 0.0)
 
+    Note:
+        Avoid using 'x', 'y', or 'z' as parameter names since these are
+        reserved Klong argument symbols and will be shadowed during function calls.
+
     Example:
         opt = SGDOptimizer(klong, ['w', 'b'], {'lr': 0.1, 'momentum': 0.9})
         opt(loss_fn)  # Computes gradients and updates parameters
     """
 
-    def __init__(self, klong, params, config=None):
+    def __init__(self, klong, params, config):
         self.klong = klong
         # Convert string params to KGSym
         self.params = [KGSym(p) if isinstance(p, str) else p for p in params]
-        config = config if config is not None else {}
-        self.lr = config.get('lr', 0.01)
+        self.lr = config.get('lr', 0.01) if config else 0.01
         self.momentum = config.get('momentum', 0.0)
         self.velocities = {p: 0.0 for p in self.params}
 
-    def __call__(self, loss_fn):
+    def step(self, loss_fn):
         """
         Perform one optimization step.
 
@@ -78,7 +102,7 @@ class SGDOptimizer:
             self.velocities[param] = v
 
             # Update parameter: param = param - lr * v
-            current = self.klong[param]
+            current = self.klong._context[param]
             if backend.is_backend_array(current):
                 current = backend.to_numpy(current)
             new_val = current - self.lr * v
@@ -86,16 +110,10 @@ class SGDOptimizer:
 
         return loss
 
-    def __str__(self):
-        return f"SGDOptimizer(lr={self.lr}, momentum={self.momentum})"
 
-    def __repr__(self):
-        return str(self)
-
-
-class AdamOptimizer:
+def AdamOptimizer(klong, params, config):
     """
-    Adam optimizer with adaptive learning rates.
+    Create an Adam optimizer step function.
 
     Args:
         klong: KlongInterpreter instance
@@ -106,15 +124,30 @@ class AdamOptimizer:
             - 'beta2': second moment decay (default 0.999)
             - 'eps': numerical stability (default 1e-8)
 
+    Returns:
+        A monadic function that performs one optimization step when called with a loss function.
+
     Example:
         opt = AdamOptimizer(klong, ['w', 'b'], {'lr': 0.001})
         opt(loss_fn)  # Computes gradients and updates parameters
     """
+    optimizer = _AdamOptimizer(klong, params, config)
+    return KGLambda(optimizer.step, args=['x'])
 
-    def __init__(self, klong, params, config=None):
+
+class _AdamOptimizer:
+    """
+    Adam optimizer with adaptive learning rates.
+
+    Note:
+        Avoid using 'x', 'y', or 'z' as parameter names since these are
+        reserved Klong argument symbols and will be shadowed during function calls.
+    """
+
+    def __init__(self, klong, params, config):
         self.klong = klong
         self.params = [KGSym(p) if isinstance(p, str) else p for p in params]
-        config = config if config is not None else {}
+        config = config if config else {}
         self.lr = config.get('lr', 0.001)
         self.beta1 = config.get('beta1', 0.9)
         self.beta2 = config.get('beta2', 0.999)
@@ -123,7 +156,7 @@ class AdamOptimizer:
         self.m = {p: 0.0 for p in self.params}  # First moment estimates
         self.v = {p: 0.0 for p in self.params}  # Second moment estimates
 
-    def __call__(self, loss_fn):
+    def step(self, loss_fn):
         """
         Perform one optimization step.
 
@@ -165,16 +198,10 @@ class AdamOptimizer:
             v_hat = self.v[param] / (1 - self.beta2 ** self.t)
 
             # Update parameter
-            current = self.klong[param]
+            current = self.klong._context[param]
             if backend.is_backend_array(current):
                 current = backend.to_numpy(current)
             new_val = current - self.lr * m_hat / (np.sqrt(v_hat) + self.eps)
             self.klong[param] = float(new_val) if np.ndim(new_val) == 0 else new_val
 
         return loss
-
-    def __str__(self):
-        return f"AdamOptimizer(lr={self.lr}, beta1={self.beta1}, beta2={self.beta2})"
-
-    def __repr__(self):
-        return str(self)
