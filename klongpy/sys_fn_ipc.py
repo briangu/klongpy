@@ -956,11 +956,7 @@ class KGAsyncCall(KGLambda):
         if issubclass(type(self.fn), KGLambda):
             ctx = {reserved_fn_symbols[i]:params[i] for i in range(min(len(reserved_fn_args),len(params)))}
             r = self.fn(klong, ctx)
-        elif isinstance(self.fn, KGFnWrapper):
-            # KGFnWrapper handles dynamic resolution automatically
-            r = self.fn(*params)
         elif callable(self.fn):
-            # Python callable (lambda, function, etc.)
             r = self.fn(*params)
         else:
             # Shouldn't reach here, but handle it
