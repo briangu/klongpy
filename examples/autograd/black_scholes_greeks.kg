@@ -12,12 +12,10 @@
 .p("")
 
 :" Import math functions from backend"
-.bkf(["log" "sqrt" "exp"])
+.bkf(["log" "sqrt" "exp" "erf"])
 
-:" Approximate normal CDF using Taylor series"
-pi::3.141592653589793
-erf::{(2%sqrt(pi))*(x-((x^3)%3)+((x^5)%10)-((x^7)%42)+((x^9)%216))}
-ncdf::{(1+erf(x%sqrt(2)))%2}
+:" Normal CDF using backend erf (exact for autograd)"
+ncdf::{(1+erf(x%1.4142135623730951))%2}
 
 :" Test parameters"
 spot::100.0    :" Spot price"
@@ -89,6 +87,7 @@ analyticDelta::ncdf(d1Ana)
 .d("  Delta: ");.p(analyticDelta)
 
 :" Analytical vega"
+pi::3.141592653589793
 npdf::{exp(0-0.5*x^2)%sqrt(2*pi)}
 analyticVega::spot*npdf(d1Ana)*sqrt(time)
 .d("  Vega: ");.p(analyticVega)
