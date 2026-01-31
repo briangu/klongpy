@@ -54,7 +54,16 @@ For small arrays (<100K elements), NumPy is slightly faster due to lower dispatc
 
 ## Automatic Differentiation
 
-KlongPy provides two gradient operators:
+KlongPy provides several gradient and differentiation operators:
+
+### Typing Special Characters
+
+| Symbol | Name | Mac | Windows |
+|--------|------|-----|---------|
+| `∇` | Nabla | Character Viewer (Ctrl+Cmd+Space) | Alt+8711 |
+| `∂` | Partial | **Option + d** | Alt+8706 |
+
+On Mac, `∂` can be typed directly with **Option + d**. For `∇`, use the Character Viewer or copy-paste.
 
 ### `:>` Autograd Operator (Recommended)
 
@@ -71,7 +80,7 @@ The syntax is `function:>point` where:
 
 ### `∇` Numeric Gradient Operator
 
-The `∇` operator uses numeric differentiation (finite differences):
+The `∇` operator **always** uses numeric differentiation (finite differences), regardless of backend:
 
 ```klong
 f::{x^2}         :" Define f(x) = x^2
@@ -86,7 +95,7 @@ The syntax is `point∇function` (note: reversed order from `:>`).
 |----------|--------|-----------|-------|
 | `:>` with torch | PyTorch autograd | Exact | Fast |
 | `:>` without torch | Numeric | ~1e-6 error | Slower |
-| `∇` | Numeric | ~1e-6 error | Slower |
+| `∇` (any backend) | Always numeric | ~1e-6 error | Slower |
 
 With the torch backend (`USE_TORCH=1`), prefer `:>` for:
 - Exact gradients (no floating-point approximation error)
@@ -122,6 +131,134 @@ lr::0.1
 :" Update rule: x = x - lr * grad
 x::x-(lr*f:>x)
 ```
+
+### Multi-Parameter Gradients
+
+Compute gradients for multiple parameters simultaneously using a list of symbols:
+
+```klong
+w::2.0
+b::3.0
+loss::{(w^2)+(b^2)}
+
+:" Compute gradients for both w and b
+grads::loss:>[w b]    :" [4.0 6.0] = [2w, 2b]
+```
+
+This is especially useful for neural network training:
+
+```klong
+w::1.0
+b::0.0
+X::[1 2 3]
+Y::[3 5 7]
+
+:" MSE loss
+loss::{(+/((w*X)+b-Y)^2)%3}
+
+:" Compute both gradients in one call
+grads::loss:>[w b]
+```
+
+### Jacobian Computation
+
+Compute the Jacobian matrix (matrix of partial derivatives) using the `∂` operator or `.jacobian()` function:
+
+```klong
+f::{x^2}                 :" Element-wise square
+
+:" Using ∂ operator (point∂function)
+[1 2]∂f                  :" [[2 0] [0 4]] diagonal matrix
+
+:" Using .jacobian() function
+.jacobian(f;[1 2])       :" Same result
+```
+
+For vector-valued functions f: R^n -> R^m, the Jacobian is an m x n matrix where J[i,j] = df_i/dx_j.
+
+### Multi-Parameter Jacobians
+
+Just like gradients, you can compute Jacobians with respect to multiple parameters using a list of symbols:
+
+```klong
+w::[1.0 2.0]
+b::[3.0 4.0]
+f::{w^2}                 :" Returns [w0^2, w1^2]
+
+:" Compute Jacobians for both w and b
+jacobians::[w b]∂f       :" Returns [J_w, J_b]
+```
+
+This returns a list of Jacobian matrices, one per parameter. Useful for analyzing how vector-valued functions depend on multiple parameter sets.
+
+### Custom Optimizers
+
+KlongPy provides the gradient primitives (`:>`, `∂`, `.jacobian()`). For optimizers, use the example classes in `examples/autograd/optimizers.py` which you can copy to your project and customize.
+
+**Manual gradient descent (no optimizer needed):**
+```klong
+w::10.0
+loss::{w^2}
+lr::0.1
+
+:" Update rule: w = w - lr * gradient
+{w::w-(lr*loss:>w)}'!50
+w                        :" Close to 0
+```
+
+**Using a custom optimizer class:**
+
+1. Copy `examples/autograd/optimizers.py` to your project directory
+2. Import with `.pyf()`:
+
+```klong
+:" Import the optimizer class
+.pyf("optimizers";"SGDOptimizer")
+
+:" Setup parameters and loss
+w::10.0
+loss::{w^2}
+
+:" Create optimizer with learning rate 0.1
+opt::SGDOptimizer(klong;["w"];:{["lr" 0.1]})
+
+:" Run optimization steps
+{opt(loss)}'!50
+w                        :" Close to 0
+```
+
+**Available example optimizers:**
+- `SGDOptimizer` - Stochastic Gradient Descent with optional momentum
+- `AdamOptimizer` - Adam optimizer with adaptive learning rates
+
+**SGD with momentum:**
+```klong
+.pyf("optimizers";"SGDOptimizer")
+opt::SGDOptimizer(klong;["w"];:{["lr" 0.01 "momentum" 0.9]})
+```
+
+**Adam optimizer:**
+```klong
+.pyf("optimizers";"AdamOptimizer")
+opt::AdamOptimizer(klong;["w" "b"];:{["lr" 0.001]})
+```
+
+**Training loop example:**
+```klong
+.pyf("optimizers";"AdamOptimizer")
+
+w::1.0;b::0.0
+X::[1 2 3];Y::[3 5 7]
+loss::{(+/((w*X)+b-Y)^2)%3}
+opt::AdamOptimizer(klong;["w" "b"];:{["lr" 0.1]})
+
+:" Train for 500 steps
+{opt(loss)}'!500
+```
+
+**Creating your own optimizer:**
+
+The example optimizers use `multi_grad_of_fn` from `klongpy.autograd` to compute gradients for multiple parameters. Copy and modify the optimizer classes to implement custom update rules (RMSprop, AdaGrad, learning rate schedules, etc.).
 
 ## GPU Acceleration
 

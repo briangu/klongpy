@@ -67,7 +67,7 @@ KlongPy provides two gradient operators:
 
 ### Numeric Gradient: `∇` (nabla)
 
-The `∇` operator computes gradients using numeric differentiation (finite differences). Works with any backend.
+The `∇` operator **always** computes gradients using numeric differentiation (finite differences), regardless of which backend is active.
 
 **Dyad syntax:** `point∇function`
 
@@ -101,15 +101,59 @@ g::{+/x^2}
 g:>[1 2 3]        :" Returns [2 4 6] (gradient of sum of squares)
 ```
 
+### Multi-Parameter Gradients
+
+The `:>` operator can compute gradients for multiple parameters simultaneously when given a list of symbols:
+
+```klong
+w::2.0;b::3.0
+loss::{(w^2)+(b^2)}
+
+:" Single parameter (returns gradient)
+loss:>w               :" Returns 4.0
+
+:" Multiple parameters (returns list of gradients)
+loss:>[w b]           :" Returns [4.0 6.0]
+```
+
+### Jacobian Operator: `∂`
+
+The `∂` (partial derivative) operator computes the Jacobian matrix:
+
+**Syntax:** `point∂function`
+
+```klong
+f::{x^2}              :" Element-wise square
+[1 2]∂f               :" [[2 0] [0 4]] - diagonal Jacobian
+
+g::{+/x^2}            :" Sum of squares (scalar output)
+[1 2 3]∂g             :" [2 4 6] - gradient vector
+```
+
+Also available as `.jacobian(function;point)`.
+
+### Multi-Parameter Jacobians
+
+Like gradients, Jacobians can be computed for multiple parameters using a list of symbols:
+
+```klong
+w::[1.0 2.0]
+b::[3.0 4.0]
+f::{w^2}              :" Returns [w0^2, w1^2]
+
+:" Compute Jacobians for both w and b
+[w b]∂f               :" Returns [J_w, J_b]
+```
+
 ### Comparison
 
-| Feature | `∇` (nabla) | `:>` (autograd) |
-|---------|-------------|-----------------|
-| Method | Numeric (finite differences) | PyTorch autograd |
-| Precision | Approximate (~1e-6 error) | Exact |
-| Backend | Any | Torch preferred |
-| Speed | Slower for complex functions | Faster |
-| Syntax | `point∇function` | `function:>point` |
+| Feature | `∇` (nabla) | `:>` (autograd) | `∂` (jacobian) |
+|---------|-------------|-----------------|----------------|
+| Method | Numeric | PyTorch autograd | PyTorch/numeric |
+| Precision | Approximate | Exact | Exact |
+| Output | Scalar functions | Scalar functions | Vector functions |
+| Syntax | `point∇function` | `function:>point` | `point∂function` |
+| Multi-param | No | `f:>[w b]` | `[w b]∂f` |
 
 ## Adverbs
 

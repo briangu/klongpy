@@ -335,62 +335,14 @@ def in_map(x, v):
 
 
 def kg_asarray(a, backend=None):
-    """
-    Converts input data into an array for KlongPy.
-
-    This function delegates to the backend provider's kg_asarray method,
-    which handles backend-specific array conversion.
-
-    Parameters
-    ----------
-    a : list or array-like
-        The input data to be converted into an array.
-    backend : BackendProvider, optional
-        The backend to use. If None, uses the default backend.
-
-    Returns
-    -------
-    arr : ndarray or tensor
-        The converted input data as an array.
-
-    Raises
-    ------
-    UnsupportedDtypeError
-        If the backend doesn't support the required dtype.
-    """
+    """Convert input to array using the backend's kg_asarray method."""
     if backend is None:
         backend = get_default_backend()
     return backend.kg_asarray(a)
 
 
 def kg_equal(a, b, backend=None):
-    """
-    Compares two values or arrays (including nested arrays) for equality.
-
-    This function recursively checks if two values or arrays are equal. It can handle
-    nested arrays and is more general-purpose than standard NumPy functions such as
-    np.array_equal.
-
-    If the inputs are lists, the function checks that their lengths are equal, and
-    then compares each element pair for equality. If the inputs are NumPy arrays with
-    the same dtype (excluding object dtype), it uses the np.array_equal function for
-    comparison.
-
-    For non-list inputs, the function compares the two values directly. If they are
-    both numbers, it uses np.isclose to allow for minor floating-point differences.
-
-    Parameters
-    ----------
-    a, b : Any
-        The two inputs to compare. These can be any type of values or arrays.
-    backend : BackendProvider, optional
-        The backend to use for array operations.
-
-    Returns
-    -------
-    bool
-        True if the two inputs are equal, False otherwise.
-    """
+    """Compare two values or arrays for equality, handling nested arrays and tensors."""
     if a is b:
         return True
 

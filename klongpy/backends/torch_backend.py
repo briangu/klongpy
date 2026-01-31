@@ -17,18 +17,12 @@ class TorchUnsupportedDtypeError(UnsupportedDtypeError):
 
 
 def is_supported_type(x):
-    """
-    PyTorch does not support strings or jagged arrays.
-    """
-    if isinstance(x, str) or is_jagged_array(x):
-        return False
-    return True
+    """Check if type is supported by PyTorch (not strings or jagged arrays)."""
+    return not (isinstance(x, str) or is_jagged_array(x))
 
 
 def is_jagged_array(x):
-    """
-    Check if an array is jagged (nested lists with varying lengths).
-    """
+    """Check if x is a jagged array (nested lists with varying lengths)."""
     if isinstance(x, list) and len(x) > 0:
         if all(isinstance(item, (list, tuple)) for item in x):
             return len(set(map(len, x))) > 1
@@ -36,9 +30,7 @@ def is_jagged_array(x):
 
 
 class TorchRandomModule:
-    """
-    A NumPy-compatible random module using PyTorch.
-    """
+    """NumPy-compatible random module using PyTorch tensors."""
     def __init__(self, backend):
         self._backend = backend
 
@@ -95,12 +87,10 @@ class TorchRandomModule:
 
 
 class TorchDtype:
-    """
-    A wrapper around torch dtype that provides numpy-compatible attributes.
-    """
+    """Wrapper for torch dtype providing numpy-compatible 'kind' attribute."""
+
     def __init__(self, torch_dtype):
         self._dtype = torch_dtype
-        # Map torch dtypes to numpy dtype kinds
         kind_map = {
             torch.float16: 'f',
             torch.float32: 'f',
@@ -131,28 +121,19 @@ class TorchDtype:
         return repr(self._dtype)
 
 
-class TorchTensor:
-    """
-    A wrapper around torch.Tensor that provides numpy-compatible dtype attribute.
-    """
-    pass  # We'll use monkey-patching instead for simplicity
-
-
 class TorchBackend:
-    """
-    A wrapper that provides a NumPy-compatible interface using PyTorch tensors.
-    """
+    """NumPy-compatible interface using PyTorch tensors for GPU acceleration."""
+
     def __init__(self, device=None):
         self._numpy = numpy
         self._torch = torch
-        self._random = None  # Lazy init
-        # Cached ufuncs - initialized lazily
+        self._random = None
         self._add = None
         self._subtract = None
         self._multiply = None
         self._divide = None
 
-        # Determine the best available device
+        # Device priority: explicit > CUDA > MPS (Apple Silicon) > CPU
         if device is not None:
             self.device = torch.device(device)
         elif torch.cuda.is_available():
@@ -214,13 +195,16 @@ class TorchBackend:
         return wrapper
 
     def asarray(self, a, dtype=None):
-        """Convert input to a torch tensor."""
+        """Convert input to a torch tensor.
+
+        Note: MPS (Apple Silicon) doesn't support float64, so we convert to float32.
+        Object dtypes are not supported - use numpy backend for heterogeneous data.
+        """
         if dtype is not None and (dtype == object or (hasattr(dtype, 'kind') and dtype.kind == 'O')):
             raise TorchUnsupportedDtypeError(
                 "PyTorch backend does not support object dtype."
             )
         if isinstance(a, torch.Tensor):
-            # Move to correct device if needed
             if a.device != self.device:
                 return a.to(self.device)
             return a
@@ -229,7 +213,6 @@ class TorchBackend:
                 raise TorchUnsupportedDtypeError(
                     "PyTorch backend does not support object dtype arrays."
                 )
-            # Handle float64 on MPS by converting to float32
             if a.dtype == numpy.float64 and self.device.type == 'mps':
                 a = a.astype(numpy.float32)
             return torch.from_numpy(a).to(self.device)
@@ -414,40 +397,37 @@ class TorchBackend:
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         return torch.sign(a_t)
 
-    # Ufunc-like wrapper for operations that need .reduce and .accumulate
     class TorchUfunc:
+        """Wraps torch ops to support numpy ufunc interface (reduce, accumulate).
+
+        Falls back to numpy for object arrays since torch doesn't support them.
+        """
         def __init__(self, backend, op, reduce_op, accumulate_op=None, numpy_ufunc=None):
             self._backend = backend
             self._op = op
             self._reduce_op = reduce_op
             self._accumulate_op = accumulate_op
             self._torch = torch
-            self._numpy_ufunc = numpy_ufunc  # Fallback for object arrays
+            self._numpy_ufunc = numpy_ufunc
 
         def _is_object_array(self, x):
-            """Check if x is a numpy object array that torch can't handle."""
-            if isinstance(x, numpy.ndarray) and x.dtype == object:
-                return True
-            return False
+            return isinstance(x, numpy.ndarray) and x.dtype == object
 
         def _to_numpy(self, x):
-            """Convert tensor to numpy array for fallback operations."""
             if isinstance(x, self._torch.Tensor):
                 return x.detach().cpu().numpy()
             return x
 
         def __call__(self, a, b):
-            # Fast path: both are tensors on the same device, or tensor + scalar
             a_is_tensor = isinstance(a, self._torch.Tensor)
             b_is_tensor = isinstance(b, self._torch.Tensor)
-            if a_is_tensor and b_is_tensor:
-                if a.device == b.device:
-                    return self._op(a, b)
-            elif a_is_tensor and isinstance(b, (int, float)):
+            # Fast path for tensor operations
+            if a_is_tensor and b_is_tensor and a.device == b.device:
                 return self._op(a, b)
-            elif b_is_tensor and isinstance(a, (int, float)):
+            if (a_is_tensor and isinstance(b, (int, float))) or \
+               (b_is_tensor and isinstance(a, (int, float))):
                 return self._op(a, b)
-            # Fall back to numpy for object arrays
+            # Numpy fallback for object arrays
             if self._numpy_ufunc and (self._is_object_array(a) or self._is_object_array(b)):
                 return self._numpy_ufunc(self._to_numpy(a), self._to_numpy(b))
             try:
@@ -632,28 +612,110 @@ class TorchBackendProvider(BackendProvider):
 
     def compute_autograd(self, func, x):
         """Compute gradient using PyTorch automatic differentiation."""
+        from ..autograd import AutogradChainBrokenError, NonScalarLossError
+
         x_tensor = self.create_grad_tensor(x)
 
         # Compute the function value
         y = func(x_tensor)
 
-        # Convert result to tensor if needed (e.g., if function used numpy/python math)
+        # Check result type - must be a tensor for autograd to work
         if not isinstance(y, torch.Tensor):
-            # Function broke the autograd chain - result is not a tensor
-            # This happens when using numpy or math functions instead of torch
-            raise ValueError(
-                f"Function returned {type(y).__name__} instead of Tensor. "
-                "For autograd, use torch-compatible functions (e.g., .bkf('sin') instead of .pyf('math';'sin'))"
+            if isinstance(y, numpy.ndarray):
+                raise AutogradChainBrokenError(
+                    "function output",
+                    "torch.Tensor",
+                    "numpy.ndarray",
+                    "Avoid numpy operations. Use torch-compatible functions."
+                )
+            raise AutogradChainBrokenError(
+                "function output",
+                "torch.Tensor",
+                type(y).__name__,
+                "For autograd, use torch-compatible operations."
             )
 
         # Ensure y is a scalar
         if y.numel() != 1:
-            raise ValueError(f"Function must return a scalar, got shape {y.shape}")
+            raise NonScalarLossError(tuple(y.shape))
+
+        # Check requires_grad
+        if not y.requires_grad:
+            raise AutogradChainBrokenError(
+                "gradient computation",
+                "requires_grad=True",
+                "requires_grad=False",
+                "Output lost gradient tracking. Avoid .item(), .numpy(), or Python float()."
+            )
 
         # Compute gradient
         y.backward()
 
         return x_tensor.grad
+
+    def compute_multi_autograd(self, func, params):
+        """
+        Compute gradients for multiple parameters using torch.autograd.grad().
+
+        Args:
+            func: Callable that takes a list of tensors and returns a scalar loss
+            params: List of parameter values to compute gradients for
+
+        Returns:
+            List of gradients, one per parameter
+        """
+        from ..autograd import AutogradChainBrokenError, NonScalarLossError
+
+        # Create grad tensors for all parameters
+        grad_tensors = [self.create_grad_tensor(p) for p in params]
+
+        # Compute the function value (loss)
+        y = func(grad_tensors)
+
+        # Validate output is a tensor
+        if not isinstance(y, torch.Tensor):
+            if isinstance(y, numpy.ndarray):
+                raise AutogradChainBrokenError(
+                    "loss computation",
+                    "torch.Tensor",
+                    "numpy.ndarray",
+                    "Avoid numpy operations in the loss function."
+                )
+            raise AutogradChainBrokenError(
+                "loss computation",
+                "torch.Tensor",
+                type(y).__name__,
+                "For autograd, use torch-compatible operations."
+            )
+
+        # Ensure y is a scalar
+        if y.numel() != 1:
+            raise NonScalarLossError(tuple(y.shape))
+
+        # Compute all gradients in one backward pass using torch.autograd.grad
+        grads = torch.autograd.grad(y, grad_tensors, create_graph=False)
+
+        return list(grads)
+
+    def compute_jacobian(self, func, x):
+        """
+        Compute Jacobian matrix using torch.autograd.functional.jacobian().
+
+        Args:
+            func: Callable that takes x and returns a vector
+            x: Input point
+
+        Returns:
+            Jacobian matrix J where J[i,j] = df_i/dx_j
+        """
+        import torch.autograd.functional as F
+
+        x_tensor = self.create_grad_tensor(x)
+
+        # torch.autograd.functional.jacobian expects func(inputs) -> outputs
+        jacobian = F.jacobian(func, x_tensor)
+
+        return jacobian
 
     def str_to_char_array(self, s):
         """Not supported in torch backend."""

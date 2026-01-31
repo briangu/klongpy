@@ -3,6 +3,36 @@ from .core import KGLambda, KGCall, KGSym, KGFn
 from .backend import get_default_backend, to_numpy
 
 
+class AutogradError(Exception):
+    """Base class for autograd-related errors."""
+    pass
+
+
+class AutogradChainBrokenError(AutogradError):
+    """Raised when the gradient computation chain is broken."""
+
+    def __init__(self, context, expected, actual, suggestion=None):
+        self.context = context
+        self.expected = expected
+        self.actual = actual
+        self.suggestion = suggestion
+        msg = f"Autograd chain broken at {context}: expected {expected}, got {actual}."
+        if suggestion:
+            msg += f" {suggestion}"
+        super().__init__(msg)
+
+
+class NonScalarLossError(AutogradError):
+    """Raised when the loss function returns a non-scalar value."""
+
+    def __init__(self, shape):
+        self.shape = shape
+        super().__init__(
+            f"Loss function must return a scalar, got shape {shape}. "
+            "Use sum (+/) or mean (%#) to reduce to a scalar."
+        )
+
+
 def _get_float_dtype(backend=None):
     """Get the appropriate float dtype for the current backend."""
     if backend is None:
@@ -14,12 +44,21 @@ def _get_float_dtype(backend=None):
 
 
 def _scalar_value(x, backend=None):
-    """Extract scalar value from various array/tensor types."""
+    """Extract scalar value from various array/tensor types.
+
+    Raises:
+        NonScalarLossError: If x is not a scalar value.
+    """
     if backend is None:
         backend = get_default_backend()
     x = backend.to_numpy(x) if backend.is_backend_array(x) else x
     if isinstance(x, np.ndarray):
-        return float(x.item()) if x.ndim == 0 else float(x)
+        if x.ndim == 0:
+            return float(x.item())
+        elif x.size == 1:
+            return float(x.flat[0])
+        else:
+            raise NonScalarLossError(tuple(x.shape))
     return float(x)
 
 
@@ -97,49 +136,85 @@ def grad_of_fn(klong, fn, x):
 
 
 def torch_autograd(func, x):
-    """
-    Compute gradient using PyTorch autograd.
-
-    This is a convenience wrapper around the backend's compute_autograd method.
-
-    Parameters
-    ----------
-    func : callable
-        A function that takes a tensor and returns a scalar tensor.
-    x : array-like
-        The point at which to compute the gradient.
-
-    Returns
-    -------
-    Tensor
-        The gradient of func at x.
-    """
+    """Compute gradient using PyTorch autograd (requires torch backend)."""
     backend = get_default_backend()
     if not backend.supports_autograd():
         raise RuntimeError("PyTorch autograd requires torch backend (USE_TORCH=1)")
     return backend.compute_autograd(func, x)
 
 
-def autograd_of_fn(klong, fn, x):
+def numeric_jacobian(func, x, eps=None, backend=None):
     """
-    Compute gradient using PyTorch autograd when available.
+    Compute Jacobian matrix of func at point x using finite differences.
 
-    This function uses PyTorch's automatic differentiation when available,
-    otherwise falls back to numeric gradient computation.
+    For f: R^n -> R^m, returns m x n matrix where J[i,j] = df_i/dx_j.
 
-    Parameters
-    ----------
-    klong : KlongInterpreter
-        The Klong interpreter instance.
-    fn : KGFn, KGLambda, KGSym, or callable
-        The function to differentiate.
-    x : array-like
-        The point at which to compute the gradient.
+    Args:
+        func: Callable that takes an array and returns an array
+        x: Input point (array)
+        eps: Step size for finite differences (default: 1e-6 or 1e-4 for float32)
+        backend: Backend provider
 
-    Returns
-    -------
-    array-like
-        The gradient of fn at x.
+    Returns:
+        Jacobian matrix as numpy array
+    """
+    if backend is None:
+        backend = get_default_backend()
+
+    float_dtype = _get_float_dtype(backend)
+    if eps is None:
+        eps = 1e-4 if float_dtype == np.float32 else 1e-6
+
+    # Convert to numpy
+    if backend.is_backend_array(x):
+        x = backend.to_numpy(x)
+    x = np.asarray(x, dtype=float_dtype).flatten()
+
+    # Evaluate function at x to get output shape
+    f0 = func(_to_func_input(x.copy(), backend))
+    if backend.is_backend_array(f0):
+        f0 = backend.to_numpy(f0)
+    f0 = np.asarray(f0, dtype=float_dtype).flatten()
+
+    n = len(x)  # Input dimension
+    m = len(f0)  # Output dimension
+    jacobian = np.zeros((m, n), dtype=float_dtype)
+
+    for j in range(n):
+        x_plus = x.copy()
+        x_plus[j] += eps
+        x_minus = x.copy()
+        x_minus[j] -= eps
+
+        f_plus = func(_to_func_input(x_plus, backend))
+        f_minus = func(_to_func_input(x_minus, backend))
+
+        if backend.is_backend_array(f_plus):
+            f_plus = backend.to_numpy(f_plus)
+        if backend.is_backend_array(f_minus):
+            f_minus = backend.to_numpy(f_minus)
+
+        f_plus = np.asarray(f_plus, dtype=float_dtype).flatten()
+        f_minus = np.asarray(f_minus, dtype=float_dtype).flatten()
+
+        jacobian[:, j] = (f_plus - f_minus) / (2 * eps)
+
+    return jacobian
+
+
+def jacobian_of_fn(klong, fn, x):
+    """
+    Compute Jacobian matrix of Klong function fn at point x.
+
+    For f: R^n -> R^m, returns m x n matrix where J[i,j] = df_i/dx_j.
+
+    Args:
+        klong: KlongInterpreter instance
+        fn: Function (KGSym, KGLambda, KGFn, KGCall, or callable)
+        x: Input point
+
+    Returns:
+        Jacobian matrix
     """
     backend = klong._backend
 
@@ -154,6 +229,124 @@ def autograd_of_fn(klong, fn, x):
             return fn(v)
 
     if backend.supports_autograd():
-        return backend.compute_autograd(call_fn, x)
+        try:
+            return backend.compute_jacobian(call_fn, x)
+        except Exception:
+            # Fall back to numeric if torch jacobian fails
+            return numeric_jacobian(call_fn, x, backend=backend)
     else:
-        return numeric_grad(call_fn, x, backend=backend)
+        return numeric_jacobian(call_fn, x, backend=backend)
+
+
+def multi_jacobian_of_fn(klong, fn, param_syms):
+    """
+    Compute Jacobians for multiple parameters in one call.
+
+    Args:
+        klong: KlongInterpreter instance
+        fn: Function (KGSym, KGLambda, KGFn, KGCall, or callable)
+             Should be a niladic function that references the parameters
+        param_syms: List of KGSym parameter symbols to differentiate with respect to
+
+    Returns:
+        List of Jacobian matrices, one per parameter
+    """
+    backend = klong._backend
+
+    # Get current parameter values
+    param_values = [klong[sym] for sym in param_syms]
+
+    def call_fn():
+        """Call the niladic function."""
+        if isinstance(fn, (KGSym, KGLambda)):
+            return klong.call(KGCall(fn, [], 0))
+        elif isinstance(fn, KGCall):
+            return klong.call(KGCall(fn.a, [], 0))
+        elif isinstance(fn, KGFn):
+            return klong.call(fn)
+        else:
+            return fn()
+
+    jacobians = []
+    for sym, val in zip(param_syms, param_values):
+        original = klong[sym]
+
+        def single_param_fn(v, s=sym, orig=original):
+            """Wrapper that sets param to v, calls fn, restores param."""
+            klong[s] = v
+            try:
+                return call_fn()
+            finally:
+                klong[s] = orig
+
+        if backend.supports_autograd():
+            try:
+                jac = backend.compute_jacobian(single_param_fn, val)
+            except Exception:
+                jac = numeric_jacobian(single_param_fn, val, backend=backend)
+        else:
+            jac = numeric_jacobian(single_param_fn, val, backend=backend)
+
+        # Restore original value after jacobian computation
+        klong[sym] = original
+        jacobians.append(jac)
+
+    return jacobians
+
+
+def multi_grad_of_fn(klong, fn, param_syms):
+    """
+    Compute gradients for multiple parameters in one call.
+
+    Args:
+        klong: KlongInterpreter instance
+        fn: Loss function (KGSym, KGLambda, KGFn, KGCall, or callable)
+             Should be a niladic function that references the parameters
+        param_syms: List of KGSym parameter symbols to differentiate with respect to
+
+    Returns:
+        List of gradients, one per parameter
+    """
+    backend = klong._backend
+
+    # Get current parameter values
+    param_values = [klong[sym] for sym in param_syms]
+
+    def call_fn_with_tensors(tensors):
+        """Call the loss function with tensor values temporarily bound to symbols."""
+        # Save original values
+        originals = {sym: klong[sym] for sym in param_syms}
+        try:
+            # Temporarily update context with tensor values
+            for sym, tensor in zip(param_syms, tensors):
+                klong[sym] = tensor
+            # Call the loss function (niladic - takes no arguments)
+            if isinstance(fn, (KGSym, KGLambda)):
+                return klong.call(KGCall(fn, [], 0))
+            elif isinstance(fn, KGCall):
+                return klong.call(KGCall(fn.a, [], 0))
+            elif isinstance(fn, KGFn):
+                # Call KGFn directly - klong.call handles it correctly
+                return klong.call(fn)
+            else:
+                # For KGFnWrapper and other callables
+                return fn()
+        finally:
+            # Restore original values
+            for sym, orig in originals.items():
+                klong[sym] = orig
+
+    if backend.supports_autograd():
+        return backend.compute_multi_autograd(call_fn_with_tensors, param_values)
+    else:
+        # Fallback: compute numeric gradients one at a time
+        # This is less efficient but maintains compatibility
+        grads = []
+        for i, sym in enumerate(param_syms):
+            def single_param_fn(v, idx=i):
+                # Create a list with the original values but replace one with v
+                vals = list(param_values)
+                vals[idx] = v
+                return call_fn_with_tensors(vals)
+            grads.append(numeric_grad(single_param_fn, param_values[i], backend=backend))
+        return grads

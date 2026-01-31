@@ -47,9 +47,7 @@ class NumpyBackendProvider(BackendProvider):
         return isinstance(x, np.ndarray)
 
     def is_backend_array(self, x) -> bool:
-        # For numpy backend, this is the same as is_array
-        # (no separate tensor type like torch)
-        return False  # numpy arrays are handled as the base case
+        return False  # numpy arrays are the base case, not a "backend" type
 
     def get_dtype_kind(self, arr) -> str:
         if hasattr(arr, 'dtype') and hasattr(arr.dtype, 'kind'):
@@ -82,13 +80,7 @@ class NumpyBackendProvider(BackendProvider):
         return self._np.asarray([KGChar(x) for x in s], dtype=object)
 
     def kg_asarray(self, a):
-        """
-        Converts input data into a NumPy array for KlongPy.
-
-        KlongPy treats NumPy arrays as data and Python lists as "programs".
-        This function ensures all elements and sub-arrays are converted into
-        NumPy arrays, handling complex and jagged data structures.
-        """
+        """Convert input to numpy array, handling strings and jagged/nested data."""
         if isinstance(a, str):
             return self.str_to_char_array(a)
         try:

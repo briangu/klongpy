@@ -231,9 +231,9 @@ $ curl http://localhost:8888
 
 KlongPy supports automatic differentiation, enabling gradient-based optimization and machine learning workflows.
 
-### Numeric Gradient with `∇` (works with any backend)
+### Numeric Gradient with `∇` (always numeric, any backend)
 
-The `∇` operator computes gradients using numeric differentiation:
+The `∇` operator **always** computes gradients using numeric differentiation:
 
 ```kgpy
 ?> f::{x^2}        :" Define f(x) = x^2

@@ -121,6 +121,32 @@ class BackendProvider(ABC):
         """Compute gradient using automatic differentiation. Raises if not supported."""
         raise NotImplementedError("This backend does not support autograd")
 
+    def compute_multi_autograd(self, func, params):
+        """
+        Compute gradients for multiple parameters in one backward pass.
+
+        Args:
+            func: Callable that takes a list of tensors and returns a scalar loss
+            params: List of parameter values to compute gradients for
+
+        Returns:
+            List of gradients, one per parameter
+        """
+        raise NotImplementedError("This backend does not support multi-parameter autograd")
+
+    def compute_jacobian(self, func, x):
+        """
+        Compute Jacobian matrix of func at point x.
+
+        Args:
+            func: Callable that takes x and returns a vector
+            x: Input point (tensor/array)
+
+        Returns:
+            Jacobian matrix J where J[i,j] = df_i/dx_j
+        """
+        raise NotImplementedError("This backend does not support Jacobian computation")
+
 
 class UnsupportedDtypeError(Exception):
     """Raised when an operation requires a dtype not supported by the backend."""

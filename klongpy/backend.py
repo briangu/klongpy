@@ -61,32 +61,8 @@ def get_default_backend():
 
 
 def to_numpy(x):
-    """
-    Convert a tensor or array to numpy array.
-
-    This is a convenience function that handles the common pattern of
-    converting torch tensors to numpy arrays, including handling
-    gradients and device transfers.
-
-    Parameters
-    ----------
-    x : array-like, torch.Tensor, or scalar
-        The value to convert.
-
-    Returns
-    -------
-    numpy.ndarray or scalar
-        The converted value as a numpy array or Python scalar.
-
-    Examples
-    --------
-    >>> to_numpy(torch.tensor([1, 2, 3]))
-    array([1, 2, 3])
-    >>> to_numpy(torch.tensor(5.0, requires_grad=True))
-    5.0
-    """
+    """Convert tensor/array to numpy, handling device transfers and 0-dim arrays."""
     result = _default_backend.to_numpy(x)
-    # Handle 0-dim arrays
     if isinstance(result, real_np.ndarray) and result.ndim == 0:
         return result.item()
     return result

@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from klongpy import KlongInterpreter
 from klongpy.backend import use_torch, to_numpy
-from klongpy.autograd import numeric_grad, grad_of_fn, autograd_of_fn
+from klongpy.autograd import numeric_grad, grad_of_fn
 from klongpy.core import KGLambda, KGCall, KGSym, KGFn
 from tests.backend_compat import skip_mps_autograd
 
@@ -112,48 +112,48 @@ class TestGradOfFn(unittest.TestCase):
 
 
 class TestAutogradOfFn(unittest.TestCase):
-    """Tests for the autograd_of_fn function (numpy mode)."""
+    """Additional tests for grad_of_fn (formerly autograd_of_fn)."""
 
     def test_with_callable(self):
-        """Test autograd_of_fn with a plain Python callable."""
+        """Test grad_of_fn with a plain Python callable."""
         klong = KlongInterpreter()
-        result = _as_numpy(autograd_of_fn(klong, lambda x: _sum(x**2), np.array([1.0, 2.0, 3.0])))
+        result = _as_numpy(grad_of_fn(klong, lambda x: _sum(x**2), np.array([1.0, 2.0, 3.0])))
         expected = np.array([2.0, 4.0, 6.0])
         self.assertTrue(np.allclose(result, expected, atol=GRAD_ATOL))
 
     def test_with_kgsym(self):
-        """Test autograd_of_fn with a KGSym."""
+        """Test grad_of_fn with a KGSym."""
         klong = KlongInterpreter()
         klong('f::{+/x^2}')
         fn_sym = KGSym('f')
-        result = _as_numpy(autograd_of_fn(klong, fn_sym, np.array([1.0, 2.0, 3.0])))
+        result = _as_numpy(grad_of_fn(klong, fn_sym, np.array([1.0, 2.0, 3.0])))
         expected = np.array([2.0, 4.0, 6.0])
         self.assertTrue(np.allclose(result, expected, atol=GRAD_ATOL))
 
     def test_with_kglambda(self):
-        """Test autograd_of_fn with a KGLambda."""
+        """Test grad_of_fn with a KGLambda."""
         klong = KlongInterpreter()
         fn = KGLambda(lambda x: _sum(x**2))
-        result = _as_numpy(autograd_of_fn(klong, fn, np.array([1.0, 2.0, 3.0])))
+        result = _as_numpy(grad_of_fn(klong, fn, np.array([1.0, 2.0, 3.0])))
         expected = np.array([2.0, 4.0, 6.0])
         self.assertTrue(np.allclose(result, expected, atol=GRAD_ATOL))
 
     def test_with_kgfn(self):
-        """Test autograd_of_fn with a KGFn."""
+        """Test grad_of_fn with a KGFn."""
         klong = KlongInterpreter()
         klong('f::{+/x^2}')
         fn = klong._context[KGSym('f')]
-        result = autograd_of_fn(klong, fn, np.array([1.0, 2.0, 3.0]))
+        result = grad_of_fn(klong, fn, np.array([1.0, 2.0, 3.0]))
         expected = np.array([2.0, 4.0, 6.0])
         self.assertTrue(np.allclose(result, expected, atol=GRAD_ATOL))
 
     def test_with_kgcall(self):
-        """Test autograd_of_fn with a KGCall."""
+        """Test grad_of_fn with a KGCall."""
         klong = KlongInterpreter()
         klong('f::{+/x^2}')
         fn = klong._context[KGSym('f')]
         fn_call = KGCall(fn.a, [], fn.arity)
-        result = autograd_of_fn(klong, fn_call, np.array([1.0, 2.0, 3.0]))
+        result = grad_of_fn(klong, fn_call, np.array([1.0, 2.0, 3.0]))
         expected = np.array([2.0, 4.0, 6.0])
         self.assertTrue(np.allclose(result, expected, atol=GRAD_ATOL))
 
@@ -375,9 +375,9 @@ class TestTorchAutograd(unittest.TestCase):
     @unittest.skipUnless(TORCH_AVAILABLE and use_torch, "torch backend required")
     def test_torch_autograd_non_scalar_output(self):
         """Test that torch_autograd raises error for non-scalar output."""
-        from klongpy.autograd import torch_autograd
+        from klongpy.autograd import torch_autograd, NonScalarLossError
         x = np.array([1.0, 2.0, 3.0])
-        with self.assertRaises(ValueError):
+        with self.assertRaises(NonScalarLossError):
             torch_autograd(lambda t: t**2, x)  # Returns vector, not scalar
 
 

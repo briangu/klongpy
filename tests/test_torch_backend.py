@@ -20,7 +20,7 @@ if USE_TORCH:
         import numpy as np
         from klongpy import KlongInterpreter
         from klongpy.backend import np as backend_np, use_torch, TorchUnsupportedDtypeError
-        from klongpy.autograd import torch_autograd, autograd_of_fn
+        from klongpy.autograd import torch_autograd, grad_of_fn
         from klongpy.core import kg_asarray, str_to_chr_arr, KGLambda, KGSym
         TORCH_AVAILABLE = True
     except ImportError:
@@ -55,9 +55,10 @@ class TestTorchAutogradFunction(unittest.TestCase):
         self.assertTrue(np.allclose(result.cpu().numpy(), expected, atol=1e-5))
 
     def test_non_scalar_output_raises(self):
-        """Test that non-scalar output raises ValueError."""
+        """Test that non-scalar output raises NonScalarLossError."""
+        from klongpy.autograd import NonScalarLossError
         x = np.array([1.0, 2.0, 3.0])
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(NonScalarLossError) as ctx:
             torch_autograd(lambda t: t**2, x)  # Returns vector, not scalar
         self.assertIn("scalar", str(ctx.exception))
 
@@ -290,18 +291,18 @@ class TestTorchAutogradOperator(unittest.TestCase):
         # Should use torch autograd for exact gradient
         self.assertTrue(np.isclose(float(r), 6.0, atol=1e-5))
 
-    def test_autograd_of_fn_with_kglambda(self):
-        """Test autograd_of_fn with KGLambda."""
+    def test_grad_of_fn_with_kglambda(self):
+        """Test grad_of_fn with KGLambda."""
         klong = KlongInterpreter()
         fn = KGLambda(lambda x: torch.sum(x**2))
-        result = autograd_of_fn(klong, fn, np.array([1.0, 2.0, 3.0]))
+        result = grad_of_fn(klong, fn, np.array([1.0, 2.0, 3.0]))
         expected = np.array([2.0, 4.0, 6.0])
         self.assertTrue(np.allclose(result.cpu().numpy(), expected, atol=1e-5))
 
-    def test_autograd_of_fn_with_callable(self):
-        """Test autograd_of_fn with plain callable."""
+    def test_grad_of_fn_with_callable(self):
+        """Test grad_of_fn with plain callable."""
         klong = KlongInterpreter()
-        result = autograd_of_fn(klong, lambda x: torch.sum(x**2), np.array([1.0, 2.0, 3.0]))
+        result = grad_of_fn(klong, lambda x: torch.sum(x**2), np.array([1.0, 2.0, 3.0]))
         expected = np.array([2.0, 4.0, 6.0])
         self.assertTrue(np.allclose(result.cpu().numpy(), expected, atol=1e-5))
 

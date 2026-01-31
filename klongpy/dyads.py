@@ -1,5 +1,5 @@
 from .core import *
-from .autograd import grad_of_fn, numeric_grad, autograd_of_fn
+from .autograd import grad_of_fn, numeric_grad
 from .backend import to_numpy
 import sys
 import numpy
@@ -1053,25 +1053,59 @@ def eval_dyad_grad(klong, a, b):
 
         a∇b                                                    [Grad]
 
-        Compute the gradient of the monadic function ``b`` at ``a``.
+        Compute the numeric gradient of the monadic function ``b`` at ``a``
+        using finite differences. Always uses numeric differentiation.
 
-        Uses PyTorch autograd when available (USE_TORCH=1), otherwise
-        falls back to numeric differentiation.
+        For automatic differentiation, use the :> operator instead.
 
     """
+    def call_fn(v):
+        if isinstance(b, (KGSym, KGLambda, KGFn, KGCall)):
+            return klong.call(KGCall(b, [v], 1))
+        return b(v)
+
     if isinstance(a, KGSym):
         orig = klong[a]
 
         def func(v):
             klong[a] = v
             try:
-                return klong.call(KGCall(b, [v], 1)) if isinstance(b, (KGSym, KGLambda, KGFn, KGCall)) else b(v)
+                return call_fn(v)
             finally:
                 klong[a] = orig
 
-        return numeric_grad(func, orig)
+        return numeric_grad(func, orig, backend=klong._backend)
     else:
-        return grad_of_fn(klong, b, a)
+        return numeric_grad(call_fn, a, backend=klong._backend)
+
+
+def eval_dyad_jacobian(klong, a, b):
+    """
+
+        a∂b                                                  [Jacobian]
+
+        Compute Jacobian matrix of function ``b`` at point ``a``.
+        For f: R^n -> R^m, returns m x n matrix where J[i,j] = df_i/dx_j.
+
+        Two modes based on what ``a`` contains:
+        1. Single point: [1 2]∂f -> Jacobian at that point
+        2. List of symbols: [w b]∂f -> [J_w J_b] (multi-param mode)
+
+        In multi-param mode, ``b`` should be a niladic function
+        that references the parameter symbols.
+
+        Examples:
+            [1 2]∂{[x@0^2 x@1^2]}  -->  [[2 0] [0 4]]
+            [w b]∂f               -->  [J_w J_b] (multi-param mode)
+
+    """
+    from .autograd import jacobian_of_fn, multi_jacobian_of_fn
+
+    # Check if a is a list of symbols (multi-param mode)
+    if is_list(a) and len(a) > 0 and all(isinstance(p, KGSym) for p in a):
+        return multi_jacobian_of_fn(klong, b, list(a))
+    else:
+        return jacobian_of_fn(klong, b, a)  # Note: a is point, b is function
 
 
 def eval_dyad_autograd(klong, a, b):
@@ -1079,22 +1113,29 @@ def eval_dyad_autograd(klong, a, b):
 
         a:>b                                                 [Autograd]
 
-        Compute the gradient of the monadic function ``a`` at ``b`` using
-        automatic differentiation (PyTorch autograd) when USE_TORCH=1,
-        otherwise falls back to numeric gradient computation.
+        Compute gradient of function ``a`` with respect to ``b``.
 
-        This operator is similar to ∇ but leverages PyTorch's autograd
-        for exact gradients when running with the PyTorch backend.
+        Two modes based on what ``b`` contains:
+        1. Single param/point: a:>x or a:>[1 2 3] -> gradient at that point
+        2. List of symbols: a:>[w b] -> [grad_w grad_b] (multi-param mode)
 
-        The function ``a`` must be a scalar-valued function (returns a single number).
+        In multi-param mode, ``a`` should be a niladic function (loss)
+        that references the parameter symbols.
 
         Examples:
             {x^2}:>3.0       -->  6.0      (derivative of x^2 at x=3)
             {x^3}:>2.0       -->  12.0     (derivative of x^3 at x=2)
             {+/x^2}:>[1 2 3] -->  [2 4 6]  (gradient of sum of squares)
+            loss:>[w b]      -->  [grad_w grad_b]  (multi-param mode)
 
     """
-    return autograd_of_fn(klong, a, b)
+    from .autograd import multi_grad_of_fn
+
+    # Check if b is a list of symbols (multi-param mode)
+    if is_list(b) and len(b) > 0 and all(isinstance(p, KGSym) for p in b):
+        return multi_grad_of_fn(klong, a, list(b))
+    else:
+        return grad_of_fn(klong, a, b)
 
 
 def create_dyad_functions(klong):

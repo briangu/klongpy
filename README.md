@@ -33,6 +33,13 @@ f::{x^2}; x::5.0
 {x::x-(0.1*f:>x)}'!100   :" x -> 0
 ```
 
+**Or with custom optimizer (copy from examples/):**
+```klong
+.pyf("optimizers";"SGDOptimizer")
+x::5.0; opt::SGDOptimizer(klong;["x"];:{["lr" 0.1]})
+{opt({x^2})}'!100        :" x -> 0
+```
+
 This isn't just shorter—it's a fundamentally different way to express computation. Array languages like APL, K, and Q revolutionized finance and data analysis with their concise vectorized operations. KlongPy adds native autograd, making gradients first-class citizens in an array language.
 
 ## Quick Install
@@ -69,8 +76,8 @@ sigmoid::{1%(1+exp(0-x))}
 forward::{sigmoid((w1*x)+b1)}
 loss::{+/(forward'X - Y)^2}
 
-:" Train with gradient descent
-{w1::w1-(lr*lossW1:>w1); b1::b1-(lr*lossB1:>b1)}'!1000
+:" Train with multi-param gradients
+{grads::loss:>[w1 b1]; w1::w1-(lr*grads@0); b1::b1-(lr*grads@1)}'!1000
 ```
 
 ### For Scientists
@@ -94,6 +101,9 @@ Array languages express *what* you want, not *how* to compute it. This enables a
 | Dot product | `np.dot(a,b)` | `+/a*b` |
 | Average | `sum(a)/len(a)` | `(+/a)%#a` |
 | Gradient | *10+ lines* | `f:>x` |
+| Multi-param grad | *20+ lines* | `loss:>[w b]` |
+| Jacobian | *15+ lines* | `x∂f` |
+| Optimizer | *10+ lines* | `{w::w-(lr*f:>w)}` |
 
 KlongPy inherits from the [APL](https://en.wikipedia.org/wiki/APL_(programming_language)) family tree (APL → J → K/Q → Klong), adding Python integration and automatic differentiation.
 
@@ -138,6 +148,26 @@ KlongPy isn't just an autograd experiment—it's a production-ready platform wit
 
 Full documentation: [https://briangu.github.io/klongpy](https://briangu.github.io/klongpy)
 
+## Typing Special Characters
+
+KlongPy uses Unicode operators for mathematical notation. Here's how to type them:
+
+| Symbol | Name | Mac | Windows | Description |
+|--------|------|-----|---------|-------------|
+| `∇` | Nabla | `Option + v` then select, or Character Viewer | `Alt + 8711` (numpad) | Numeric gradient |
+| `∂` | Partial | `Option + d` | `Alt + 8706` (numpad) | Jacobian operator |
+
+**Mac Tips:**
+- **Option + d** types `∂` directly
+- For `∇`, open Character Viewer with **Ctrl + Cmd + Space**, search "nabla"
+- Or simply copy-paste: `∇` `∂`
+
+**Alternative:** Use the function equivalents that don't require special characters:
+```klong
+3∇f           :" Using nabla
+.jacobian(f;x) :" Instead of x∂f
+```
+
 ## Syntax Cheat Sheet
 
 Functions take up to 3 parameters, always named `x`, `y`, `z`:
@@ -164,8 +194,18 @@ f'[1 2 3]               :" Each: apply f to each element
 
 :" Autograd
 f::{x^2}
-3∇f                     :" Numeric gradient at x=3 -> 6.0
-f:>3                    :" Autograd gradient at x=3 -> 6.0
+3∇f                     :" Numeric gradient at x=3 -> ~6.0
+f:>3                    :" Autograd (exact with torch) at x=3 -> 6.0
+f:>[1 2 3]              :" Gradient of sum-of-squares -> [2 4 6]
+
+:" Multi-parameter gradients
+w::2.0; b::3.0
+loss::{(w^2)+(b^2)}
+loss:>[w b]             :" Gradients for both -> [4.0 6.0]
+
+:" Jacobian (for vector functions)
+g::{x^2}                :" Element-wise square
+[1 2]∂g                 :" Jacobian matrix -> [[2 0] [0 4]]
 ```
 
 ## Examples
@@ -212,15 +252,20 @@ w::0.0; b::0.0
 :" Loss function
 mse::{(+/(((w*X)+b)-Y)^2)%#X}
 
-:" Train
-lossW::{[wold r];wold::w;w::x;r::mse();w::wold;r}
-lossB::{[bold r];bold::b;b::x;r::mse();b::bold;r}
-
+:" Train with multi-parameter gradients
 lr::0.01
-{w::w-(lr*lossW:>w); b::b-(lr*lossB:>b)}'!1000
+{grads::mse:>[w b]; w::w-(lr*grads@0); b::b-(lr*grads@1)}'!1000
 
 .d("Learned: w="); .d(w); .d(" b="); .p(b)
 :" Output: Learned: w=2.02 b=2.94
+```
+
+**Or with custom optimizer (copy from examples/autograd/optimizers.py):**
+```klong
+.pyf("optimizers";"AdamOptimizer")
+w::0.0; b::0.0
+opt::AdamOptimizer(klong;["w" "b"];:{["lr" 0.01]})
+{opt(mse)}'!1000         :" Optimizer handles gradient computation
 ```
 
 ### 4. Database Operations
