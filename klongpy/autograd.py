@@ -78,6 +78,20 @@ def _to_func_input(x, backend=None, require_grad=False):
     return x
 
 
+def _invoke_fn(klong, fn, args):
+    """Invoke a Klong function with the given arguments.
+
+    Handles all function types uniformly:
+    - KGSym, KGLambda: wrap in KGCall with args
+    - KGFn, KGCall: extract inner function, wrap in KGCall with args
+    - callable: call directly with args
+    """
+    if callable(fn) and not isinstance(fn, (KGSym, KGLambda, KGFn)):
+        return fn(*args)
+    inner = fn.a if isinstance(fn, KGFn) else fn
+    return klong.call(KGCall(inner, list(args), len(args)))
+
+
 def numeric_grad(func, x, eps=None, backend=None):
     """Compute numeric gradient of scalar-valued function."""
     if backend is None:
@@ -118,16 +132,7 @@ def grad_of_fn(klong, fn, x):
     falls back to numeric differentiation.
     """
     backend = klong._backend
-
-    def call_fn(v):
-        if isinstance(fn, (KGSym, KGLambda)):
-            return klong.call(KGCall(fn, [v], 1))
-        elif isinstance(fn, KGCall):
-            return klong.call(KGCall(fn.a, [v], fn.arity))
-        elif isinstance(fn, KGFn):
-            return klong.call(KGCall(fn.a, [v], fn.arity))
-        else:
-            return fn(v)
+    call_fn = lambda v: _invoke_fn(klong, fn, [v])
 
     if backend.supports_autograd():
         return backend.compute_autograd(call_fn, x)
@@ -217,16 +222,7 @@ def jacobian_of_fn(klong, fn, x):
         Jacobian matrix
     """
     backend = klong._backend
-
-    def call_fn(v):
-        if isinstance(fn, (KGSym, KGLambda)):
-            return klong.call(KGCall(fn, [v], 1))
-        elif isinstance(fn, KGCall):
-            return klong.call(KGCall(fn.a, [v], fn.arity))
-        elif isinstance(fn, KGFn):
-            return klong.call(KGCall(fn.a, [v], fn.arity))
-        else:
-            return fn(v)
+    call_fn = lambda v: _invoke_fn(klong, fn, [v])
 
     if backend.supports_autograd():
         try:
@@ -252,20 +248,8 @@ def multi_jacobian_of_fn(klong, fn, param_syms):
         List of Jacobian matrices, one per parameter
     """
     backend = klong._backend
-
-    # Get current parameter values
     param_values = [klong[sym] for sym in param_syms]
-
-    def call_fn():
-        """Call the niladic function."""
-        if isinstance(fn, (KGSym, KGLambda)):
-            return klong.call(KGCall(fn, [], 0))
-        elif isinstance(fn, KGCall):
-            return klong.call(KGCall(fn.a, [], 0))
-        elif isinstance(fn, KGFn):
-            return klong.call(fn)
-        else:
-            return fn()
+    call_fn = lambda: _invoke_fn(klong, fn, [])
 
     jacobians = []
     for sym, val in zip(param_syms, param_values):
@@ -308,31 +292,16 @@ def multi_grad_of_fn(klong, fn, param_syms):
         List of gradients, one per parameter
     """
     backend = klong._backend
-
-    # Get current parameter values
     param_values = [klong[sym] for sym in param_syms]
 
     def call_fn_with_tensors(tensors):
         """Call the loss function with tensor values temporarily bound to symbols."""
-        # Save original values
         originals = {sym: klong[sym] for sym in param_syms}
         try:
-            # Temporarily update context with tensor values
             for sym, tensor in zip(param_syms, tensors):
                 klong[sym] = tensor
-            # Call the loss function (niladic - takes no arguments)
-            if isinstance(fn, (KGSym, KGLambda)):
-                return klong.call(KGCall(fn, [], 0))
-            elif isinstance(fn, KGCall):
-                return klong.call(KGCall(fn.a, [], 0))
-            elif isinstance(fn, KGFn):
-                # Call KGFn directly - klong.call handles it correctly
-                return klong.call(fn)
-            else:
-                # For KGFnWrapper and other callables
-                return fn()
+            return _invoke_fn(klong, fn, [])
         finally:
-            # Restore original values
             for sym, orig in originals.items():
                 klong[sym] = orig
 
@@ -340,11 +309,9 @@ def multi_grad_of_fn(klong, fn, param_syms):
         return backend.compute_multi_autograd(call_fn_with_tensors, param_values)
     else:
         # Fallback: compute numeric gradients one at a time
-        # This is less efficient but maintains compatibility
         grads = []
         for i, sym in enumerate(param_syms):
             def single_param_fn(v, idx=i):
-                # Create a list with the original values but replace one with v
                 vals = list(param_values)
                 vals[idx] = v
                 return call_fn_with_tensors(vals)
