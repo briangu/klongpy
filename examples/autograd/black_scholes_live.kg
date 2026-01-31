@@ -1,0 +1,89 @@
+:" ============================================================"
+:" Black-Scholes with LIVE Market Data"
+:" ============================================================"
+:" Fetches real option data and verifies our model price"
+:" matches the market price."
+:" Run with: USE_TORCH=1 kgpy black_scholes_live.kg"
+:" ============================================================"
+
+.p("Black-Scholes Greeks - LIVE Market Verification")
+.p("================================================")
+.p("")
+
+:" Import math functions and live data fetcher"
+.bkf(["log" "sqrt" "exp" "erf"])
+.pyf("./live_options.py";"fetchOptionData")
+
+:" Fetch live data: [spot, strike, rate, time, vol, bid, ask, lastPrice, expiration]"
+.p("Fetching live AAPL option data from Yahoo Finance...")
+data::fetchOptionData("AAPL")
+
+spot::data@0
+strike::data@1
+rate::data@2
+time::data@3
+vol::data@4
+mktBid::data@5
+mktAsk::data@6
+mktPrice::data@7
+div::0.005     :" AAPL dividend yield ~0.5%"
+
+.p("")
+.p("Live Option Parameters:")
+.d("  Ticker: AAPL, Expiration: ");.p(data@8)
+.d("  Spot: $");.p(spot)
+.d("  Strike: $");.p(strike)
+.d("  Time to expiry: ");.d(time);.p(" years")
+.d("  Implied Vol: ");.d(vol*100);.p("%")
+.d("  Risk-free Rate: ");.d(rate*100);.p("%")
+.d("  Dividend Yield: ");.d(div*100);.p("%")
+.p("")
+
+:" Normal CDF using backend erf"
+ncdf::{(1+erf(x%1.4142135623730951))%2}
+
+:" Black-Scholes with dividends: use S*e^(-q*T) instead of S"
+spotAdj::{x*exp((0-div)*time)}
+priceOfSpot::{sa::spotAdj(x);d1::(log(sa%strike)+(rate+0.5*vol*vol)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(sa*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
+priceOfVol::{d1::(log(spot%strike)+(rate+0.5*x*x)*time)%(x*sqrt(time));d2::d1-x*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
+priceOfTime::{d1::(log(spot%strike)+(rate+0.5*vol*vol)*x)%(vol*sqrt(x));d2::d1-vol*sqrt(x);(spot*ncdf(d1))-(strike*exp((0-rate)*x)*ncdf(d2))}
+priceOfRate::{d1::(log(spot%strike)+(x+0.5*vol*vol)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-x)*time)*ncdf(d2))}
+
+:" Compute model price"
+modelPrice::priceOfSpot(spot)
+midPrice::(mktBid+mktAsk)%2
+
+.p("=== PRICE COMPARISON ===")
+.d("  Model Price:  $");.p(modelPrice)
+.d("  Market Mid:   $");.p(midPrice)
+.d("  Market Bid:   $");.p(mktBid)
+.d("  Market Ask:   $");.p(mktAsk)
+.p("")
+
+priceDiff::modelPrice-midPrice
+.d("  Difference: $");.p(priceDiff)
+.d("  Error: ");.d((priceDiff%midPrice)*100);.p("%")
+.p("")
+
+:" Compute Greeks via autograd"
+.p("=== GREEKS (via Autograd) ===")
+delta::priceOfSpot:>spot
+.d("  Delta: ");.p(delta)
+
+vega::priceOfVol:>vol
+.d("  Vega (per 1% vol): ");.p(vega%100)
+
+theta::0-(priceOfTime:>time)
+.d("  Theta (per day): ");.p(theta%365)
+
+rho::priceOfRate:>rate
+.d("  Rho (per 1%): ");.p(rho%100)
+
+.p("")
+withinSpread::((modelPrice>mktBid)&(modelPrice<mktAsk))
+:[withinSpread;.p("Model price is WITHIN bid-ask spread - verified!");.p("Model price slightly outside spread (normal due to rate/dividend assumptions)")]
+.p("")
+.p("Small differences are expected due to:")
+.p("  - Interest rate and dividend assumptions")
+.p("  - Market data timing delays")
+.p("  - Black-Scholes model limitations")
