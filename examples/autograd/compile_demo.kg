@@ -1,0 +1,114 @@
+:" ============================================================"
+:" Function Compilation with .compile() and .compilex()"
+:" ============================================================"
+:" This example documents the API for compiling Klong functions"
+:" for optimized execution using torch.compile."
+:" "
+:" NOTE: torch.compile requires a C++ compiler (clang++ or g++)."
+:" On macOS, install Xcode Command Line Tools: xcode-select --install"
+:" On Linux, install build-essential: apt-get install build-essential"
+:" "
+:" Run with: USE_TORCH=1 kgpy compile_demo.kg"
+:" ============================================================"
+
+.p("Function Compilation Demo")
+.p("=========================")
+.p("")
+.p("The .compile() function uses torch.compile to optimize functions.")
+.p("The .compilex() function provides extended options for modes.")
+.p("The .cmodes() function shows available compilation options.")
+.p("")
+
+:" ============================================================"
+:" API Overview"
+:" ============================================================"
+
+.p("API Syntax:")
+.p("-----------")
+.p("")
+.p("  .compile(fn;input)       - Basic compilation")
+.p("  .compilex(fn;input;opts) - Extended compilation with options")
+.p("  .export(fn;input;path)   - Export computation graph to file")
+.p("  .cmodes()                - Query available modes and backends")
+.p("")
+
+.p("Example usage:")
+.p("")
+.p("  f::{x^2}")
+.p("  cf::.compile(f;3.0)      -> Compiled function")
+.p("  cf(5.0)                  -> 25.0 (optimized)")
+.p("")
+
+:" ============================================================"
+:" Compilation modes"
+:" ============================================================"
+
+.p("Compilation Modes:")
+.p("------------------")
+.p("")
+.p("  | Mode            | Compile Time | Runtime | Best For    |")
+.p("  |-----------------|--------------|---------|-------------|")
+.p("  | default         | Medium       | Good    | General use |")
+.p("  | reduce-overhead | Fast         | OK      | Development |")
+.p("  | max-autotune    | Slow         | Best    | Production  |")
+.p("")
+
+:" ============================================================"
+:" Backends"
+:" ============================================================"
+
+.p("Compilation Backends:")
+.p("---------------------")
+.p("")
+.p("  | Backend    | Description                              |")
+.p("  |------------|------------------------------------------|")
+.p("  | inductor   | Default - C++/Triton code generation     |")
+.p("  | eager      | No compilation - for debugging           |")
+.p("  | cudagraphs | CUDA graphs - reduces GPU launch overhead|")
+.p("")
+
+:" ============================================================"
+:" Live demonstration"
+:" ============================================================"
+
+.p("Live Demo - Basic Functions:")
+.p("----------------------------")
+
+f1::{x^2}
+.d("  f(x) = x^2, f(5) = ");.p(f1(5.0))
+
+poly::{(x^4)-(3*x^3)+(2*x^2)-x+1}
+.d("  poly(x), poly(3) = ");.p(poly(3.0))
+
+.p("")
+.p("To compile these functions:")
+.p("  cf::.compile(f1;3.0)")
+.p("  cpoly::.compile(poly;2.0)")
+.p("")
+
+:" ============================================================"
+:" When to use compilation"
+:" ============================================================"
+
+.p("============================================================")
+.p("When to Use Compilation:")
+.p("  - Functions called many times in training loops")
+.p("  - Complex computations like neural networks")
+.p("  - Performance-critical code paths")
+.p("")
+.p("Mode Recommendations:")
+.p("  - Development: use reduce-overhead or eager")
+.p("  - General use: use default")
+.p("  - Production: use max-autotune")
+.p("")
+.p("Performance Notes:")
+.p("  - First call has compilation overhead")
+.p("  - Subsequent calls are much faster")
+.p("  - Works best with tensor operations")
+.p("")
+.p("Requirements:")
+.p("  - PyTorch backend (USE_TORCH=1)")
+.p("  - C++ compiler for inductor backend (clang++ or g++)")
+.p("  - Use eager backend to bypass C++ requirement")
+.p("  - On macOS: xcode-select --install")
+.p("============================================================")

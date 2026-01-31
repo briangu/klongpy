@@ -350,7 +350,57 @@ Returns a dictionary with:
 
 The exported `.pt2` file can be loaded with `torch.export.load()` in Python.
 
-**Note:** Compilation requires a C++ compiler on your system. If compilation fails, an error message will indicate the issue.
+### `.compilex(fn;input;options)` - Extended Compilation
+
+Compile with advanced options for mode and backend:
+
+```klong
+f::{x^2}
+
+:" Fast compilation for development
+cf::.compilex(f;3.0;:{["mode" "reduce-overhead"]})
+
+:" Maximum optimization for production
+cf::.compilex(f;3.0;:{["mode" "max-autotune"]})
+
+:" Debug mode (no compilation)
+cf::.compilex(f;3.0;:{["backend" "eager"]})
+```
+
+**Options dictionary:**
+- `"mode"` - Compilation mode (see table below)
+- `"backend"` - Compilation backend (see table below)
+- `"fullgraph"` - Set to 1 to require full graph compilation
+- `"dynamic"` - Set to 1 for dynamic shapes, 0 for static
+
+### `.cmodes()` - Query Compilation Modes
+
+Get information about available modes and backends:
+
+```klong
+info::.cmodes()
+.p(info@"modes")          :" Available compilation modes
+.p(info@"backends")       :" Available backends
+.p(info@"recommendations") :" Suggested settings
+```
+
+### Compilation Mode Comparison
+
+| Mode              | Compile Time | Runtime Speed | Best For           |
+|-------------------|--------------|---------------|---------------------|
+| `default`         | Medium       | Good          | General use         |
+| `reduce-overhead` | Fast         | Moderate      | Development/testing |
+| `max-autotune`    | Slow         | Best          | Production          |
+
+### Backend Comparison
+
+| Backend      | Description                                      |
+|--------------|--------------------------------------------------|
+| `inductor`   | Default - C++/Triton code generation (fastest)   |
+| `eager`      | No compilation - runs original Python (debugging)|
+| `cudagraphs` | CUDA graphs - reduces GPU kernel launch overhead |
+
+**Note:** Compilation requires a C++ compiler on your system. Use `"backend" "eager"` to bypass compilation for debugging. If compilation fails, an error message will indicate the issue.
 
 ## Gradient Verification
 

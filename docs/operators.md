@@ -163,6 +163,8 @@ Additional system functions for autograd (require PyTorch backend):
 |----------|-------------|
 | `.gradcheck(fn;input)` | Verify gradients against numeric computation |
 | `.compile(fn;input)` | Compile function for optimized execution |
+| `.compilex(fn;input;opts)` | Compile with extended options (mode, backend) |
+| `.cmodes()` | Query available compilation modes and backends |
 | `.export(fn;input;path)` | Export computation graph to file |
 
 **Gradient Verification:**
@@ -176,6 +178,21 @@ f::{x^2}
 f::{(x^3)+(2*x^2)+x}
 cf::.compile(f;2.0)   :" Returns compiled (faster) function
 cf(5.0)               :" Execute compiled function
+```
+
+**Extended Compilation:**
+```klong
+:" Fast compile for development
+cf::.compilex(f;2.0;:{["mode" "reduce-overhead"]})
+
+:" Maximum optimization for production
+cf::.compilex(f;2.0;:{["mode" "max-autotune"]})
+
+:" Debug mode (no C++ compiler needed)
+cf::.compilex(f;2.0;:{["backend" "eager"]})
+
+:" Query available options
+info::.cmodes()
 ```
 
 **Graph Export:**

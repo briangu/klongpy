@@ -492,3 +492,64 @@ class TestCompile:
         klong('f::{x^2}')
         with pytest.raises(RuntimeError):
             klong('.export(f;3.0;"test.pt2")')
+
+
+class TestCompileModes:
+    """Tests for extended compile options."""
+
+    def test_cmodes_returns_dict(self, klong, backend):
+        """Test .cmodes() returns mode information."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        result = klong('.cmodes()')
+        assert isinstance(result, dict)
+        assert 'modes' in result
+        assert 'backends' in result
+        assert 'recommendations' in result
+
+    def test_cmodes_has_expected_modes(self, klong, backend):
+        """Test .cmodes() includes standard modes."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        result = klong('.cmodes()')
+        modes = result['modes']
+        assert 'default' in modes
+        assert 'reduce-overhead' in modes
+        assert 'max-autotune' in modes
+
+    def test_cmodes_has_expected_backends(self, klong, backend):
+        """Test .cmodes() includes standard backends."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        result = klong('.cmodes()')
+        backends = result['backends']
+        assert 'inductor' in backends
+        assert 'eager' in backends
+
+    def test_compilex_eager_backend(self, klong, backend):
+        """Test .compilex() with eager backend (no actual compilation)."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        klong('f::{x^2}')
+        # Eager backend should work without C++ compiler
+        result = klong('.compilex(f;3.0;:{["backend" "eager"]})')
+        # Should return a callable
+        import torch
+        test_input = torch.tensor(5.0)
+        output = result(test_input)
+        assert np.isclose(float(output), 25.0, atol=1e-5)
+
+    def test_compilex_fails_on_numpy(self, klong, backend):
+        """Test that .compilex() raises error on numpy backend."""
+        if backend != 'numpy':
+            pytest.skip("Test for numpy backend only")
+        klong('f::{x^2}')
+        with pytest.raises(RuntimeError):
+            klong('.compilex(f;3.0;:{["mode" "default"]})')
+
+    def test_cmodes_fails_on_numpy(self, klong, backend):
+        """Test that .cmodes() raises error on numpy backend."""
+        if backend != 'numpy':
+            pytest.skip("Test for numpy backend only")
+        with pytest.raises(RuntimeError):
+            klong('.cmodes()')

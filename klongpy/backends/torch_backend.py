@@ -710,27 +710,56 @@ class TorchBackendProvider(BackendProvider):
             "PyTorch backend does not support string-to-character array conversion."
         )
 
-    def compile_function(self, func, example_input, output_path=None):
+    def compile_function(self, func, example_input, output_path=None, mode="default",
+                         backend="inductor", fullgraph=False, dynamic=None):
         """
-        Compile a function using torch.compile and optionally export the graph.
+        Compile a function using torch.compile with configurable options.
 
         Args:
             func: Callable to compile
             example_input: Example input for tracing the function
             output_path: Optional path to save the exported graph (.pt2 file)
+            mode: Compilation mode - affects speed/quality tradeoff
+                - "default": Balanced compilation (default)
+                - "reduce-overhead": Faster compile, less optimization
+                - "max-autotune": Slower compile, maximum runtime performance
+            backend: Compilation backend
+                - "inductor": Default backend with C++/Triton codegen
+                - "eager": No compilation (for debugging)
+                - "aot_eager": Ahead-of-time eager (debugging with autograd)
+                - "cudagraphs": CUDA graphs for GPU (reduces launch overhead)
+            fullgraph: If True, requires entire function to compile as one graph
+            dynamic: If True, enables dynamic shapes; if False, assumes static shapes
 
         Returns:
             If output_path is None: compiled function
             If output_path is provided: dict with compiled function and export info
+
+        Compilation Modes Comparison:
+            | Mode            | Compile Time | Runtime Speed | Best For           |
+            |-----------------|--------------|---------------|---------------------|
+            | default         | Medium       | Good          | General use         |
+            | reduce-overhead | Fast         | Moderate      | Quick iteration     |
+            | max-autotune    | Slow         | Best          | Production/training |
+            | (eager backend) | None         | Baseline      | Debugging           |
         """
         # Convert example input to tensor if needed
         if not isinstance(example_input, torch.Tensor):
             example_input = self.create_grad_tensor(example_input)
 
-        # Compile the function
-        compiled_fn = torch.compile(func)
+        # Build compile options
+        compile_kwargs = {
+            'mode': mode,
+            'backend': backend,
+            'fullgraph': fullgraph,
+        }
+        if dynamic is not None:
+            compile_kwargs['dynamic'] = dynamic
 
-        # Warm up the compiled function
+        # Compile the function with specified options
+        compiled_fn = torch.compile(func, **compile_kwargs)
+
+        # Warm up the compiled function (triggers actual compilation)
         _ = compiled_fn(example_input)
 
         if output_path is None:
@@ -752,6 +781,8 @@ class TorchBackendProvider(BackendProvider):
                 'export_path': output_path,
                 'graph': graph_str,
                 'graph_module': exported.graph_module,
+                'mode': mode,
+                'backend': backend,
             }
         except Exception as e:
             # If export fails, still return the compiled function
@@ -759,7 +790,36 @@ class TorchBackendProvider(BackendProvider):
                 'compiled_fn': compiled_fn,
                 'export_path': None,
                 'export_error': str(e),
+                'mode': mode,
+                'backend': backend,
             }
+
+    def get_compile_modes(self):
+        """
+        Return information about available compilation modes.
+
+        Returns:
+            Dict with mode descriptions and recommendations
+        """
+        return {
+            'modes': {
+                'default': 'Balanced compilation - good for most cases',
+                'reduce-overhead': 'Faster compile time, less optimization - good for development',
+                'max-autotune': 'Maximum optimization - best for production/training loops',
+            },
+            'backends': {
+                'inductor': 'Default backend with C++/Triton code generation',
+                'eager': 'No compilation - runs original Python (for debugging)',
+                'aot_eager': 'Ahead-of-time eager - captures autograd graph (debugging)',
+                'cudagraphs': 'CUDA graphs - reduces kernel launch overhead (GPU only)',
+            },
+            'recommendations': {
+                'development': {'mode': 'reduce-overhead', 'backend': 'inductor'},
+                'production': {'mode': 'max-autotune', 'backend': 'inductor'},
+                'debugging': {'mode': 'default', 'backend': 'eager'},
+                'gpu_inference': {'mode': 'max-autotune', 'backend': 'cudagraphs'},
+            }
+        }
 
     def gradcheck(self, func, inputs, eps=1e-6, atol=1e-5, rtol=1e-3):
         """

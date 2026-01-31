@@ -120,6 +120,132 @@ def eval_sys_export(klong, x, y, z):
     return backend.compile_function(wrapped_fn, example_input, output_path)
 
 
+def eval_sys_compilex(klong, x, y, z):
+    """
+
+        .compilex(x;y;z)                                        [Compile-Extended]
+
+        Compile a function with extended options for mode and backend.
+        Requires PyTorch backend (USE_TORCH=1).
+
+        Arguments:
+            x           - Function to compile
+            y           - Example input for tracing the computation graph
+            z           - Options dictionary with compile settings
+
+        Options (z):
+            "mode"      - Compilation mode:
+                          "default"         - Balanced (default)
+                          "reduce-overhead" - Faster compile, less optimization
+                          "max-autotune"    - Slower compile, best runtime
+            "backend"   - Compilation backend:
+                          "inductor"   - Default with C++/Triton codegen
+                          "eager"      - No compilation (debugging)
+                          "cudagraphs" - CUDA graphs (GPU only)
+            "fullgraph" - 1 to require full graph compilation
+            "dynamic"   - 1 for dynamic shapes, 0 for static
+
+        Mode Comparison:
+            | Mode            | Compile | Runtime | Use Case          |
+            |-----------------|---------|---------|-------------------|
+            | default         | Medium  | Good    | General use       |
+            | reduce-overhead | Fast    | OK      | Development       |
+            | max-autotune    | Slow    | Best    | Production        |
+
+        Returns:
+            Compiled function
+
+        Examples:
+            f::{x^2}
+
+            :" Fast compilation for development
+            cf::.compilex(f;3.0;:{["mode" "reduce-overhead"]})
+
+            :" Maximum optimization for production
+            cf::.compilex(f;3.0;:{["mode" "max-autotune"]})
+
+            :" Debug mode (no compilation)
+            cf::.compilex(f;3.0;:{["backend" "eager"]})
+
+        Notes:
+            - Only supported with PyTorch backend
+            - Requires C++ compiler for inductor backend
+            - Use .cmodes() to see all available options
+
+    """
+    from .autograd import _invoke_fn
+
+    fn, example_input, options = x, y, z
+
+    backend = klong._backend
+    if not backend.supports_autograd():
+        raise RuntimeError(
+            ".compilex() requires PyTorch backend. "
+            "Run with USE_TORCH=1 environment variable."
+        )
+
+    # Extract options from dictionary
+    mode = options.get("mode", "default") if isinstance(options, dict) else "default"
+    compile_backend = options.get("backend", "inductor") if isinstance(options, dict) else "inductor"
+    fullgraph = bool(options.get("fullgraph", 0)) if isinstance(options, dict) else False
+    dynamic = None
+    if isinstance(options, dict) and "dynamic" in options:
+        dynamic = bool(options["dynamic"])
+
+    # Wrap the Klong function for torch
+    def wrapped_fn(v):
+        return _invoke_fn(klong, fn, [v])
+
+    return backend.compile_function(
+        wrapped_fn, example_input, None,
+        mode=mode, backend=compile_backend, fullgraph=fullgraph, dynamic=dynamic
+    )
+
+
+def eval_sys_cmodes(klong):
+    """
+
+        .cmodes()                                               [Compile-Modes]
+
+        Get information about available torch.compile modes and backends.
+        Requires PyTorch backend (USE_TORCH=1).
+
+        Returns:
+            Dictionary with:
+                "modes"           - Available compilation modes
+                "backends"        - Available compilation backends
+                "recommendations" - Suggested settings for common use cases
+
+        Examples:
+            info::.cmodes()
+            .p(info@"modes")          :" Print available modes
+            .p(info@"recommendations") :" Print recommended settings
+
+        Mode Comparison:
+            | Mode            | Compile Time | Runtime Speed | Best For     |
+            |-----------------|--------------|---------------|--------------|
+            | default         | Medium       | Good          | General use  |
+            | reduce-overhead | Fast         | Moderate      | Development  |
+            | max-autotune    | Slow         | Best          | Production   |
+
+        Backend Comparison:
+            | Backend    | Description                              |
+            |------------|------------------------------------------|
+            | inductor   | Default - C++/Triton code generation     |
+            | eager      | No compilation - for debugging           |
+            | cudagraphs | CUDA graphs - reduces GPU launch overhead|
+
+    """
+    backend = klong._backend
+    if not backend.supports_autograd():
+        raise RuntimeError(
+            ".cmodes() requires PyTorch backend. "
+            "Run with USE_TORCH=1 environment variable."
+        )
+
+    return backend.get_compile_modes()
+
+
 def eval_sys_gradcheck(klong, x, y):
     """
 
