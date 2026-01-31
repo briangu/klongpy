@@ -1,0 +1,98 @@
+:" ============================================================"
+:" Black-Scholes Greeks via Autograd"
+:" ============================================================"
+:" Instead of deriving Greek formulas by hand, we compute them"
+:" automatically by differentiating the price function!"
+:" This works for ANY pricing model, not just Black-Scholes."
+:" Run with: USE_TORCH=1 kgpy black_scholes_greeks.kg"
+:" ============================================================"
+
+.p("Black-Scholes Greeks via Autograd")
+.p("==================================")
+.p("")
+
+:" Import math functions from backend"
+.bkf(["log" "sqrt" "exp"])
+
+:" Approximate normal CDF using Taylor series"
+pi::3.141592653589793
+erf::{(2%sqrt(pi))*(x-((x^3)%3)+((x^5)%10)-((x^7)%42)+((x^9)%216))}
+ncdf::{(1+erf(x%sqrt(2)))%2}
+
+:" Test parameters"
+spot::100.0    :" Spot price"
+strike::100.0  :" Strike price"
+rate::0.05     :" Risk-free rate"
+time::1.0      :" Time to expiry (years)"
+vol::0.2       :" Volatility"
+
+.p("Option parameters:")
+.d("  Spot: ");.p(spot)
+.d("  Strike: ");.p(strike)
+.d("  Rate: ");.p(rate)
+.d("  Time: ");.p(time)
+.d("  Vol: ");.p(vol)
+.p("")
+
+:" Black-Scholes price as function of spot (for delta)"
+priceOfSpot::{d1::(log(x%strike)+(rate+0.5*vol^2)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(x*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
+
+:" Black-Scholes price as function of vol (for vega)"
+priceOfVol::{d1::(log(spot%strike)+(rate+0.5*x^2)*time)%(x*sqrt(time));d2::d1-x*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
+
+:" Black-Scholes price as function of time (for theta)"
+priceOfTime::{d1::(log(spot%strike)+(rate+0.5*vol^2)*x)%(vol*sqrt(x));d2::d1-vol*sqrt(x);(spot*ncdf(d1))-(strike*exp((0-rate)*x)*ncdf(d2))}
+
+:" Black-Scholes price as function of rate (for rho)"
+priceOfRate::{d1::(log(spot%strike)+(x+0.5*vol^2)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-x)*time)*ncdf(d2))}
+
+:" Compute price"
+price::priceOfSpot(spot)
+.d("Option Price: ");.p(price)
+.p("")
+
+:" ============================================"
+:" GREEKS VIA AUTOGRAD - No formulas needed!"
+:" ============================================"
+
+.p("Greeks computed via autograd:")
+.p("(No manual derivation required!)")
+.p("")
+
+:" Delta = dPrice/dSpot"
+delta::priceOfSpot:>spot
+.d("  Delta (dP/dS): ");.p(delta)
+
+:" Vega = dPrice/dVol"
+vega::priceOfVol:>vol
+.d("  Vega (dP/dVol): ");.p(vega)
+
+:" Theta = -dPrice/dTime"
+theta::0-(priceOfTime:>time)
+.d("  Theta (-dP/dT): ");.p(theta)
+
+:" Rho = dPrice/dRate"
+rho::priceOfRate:>rate
+.d("  Rho (dP/dR): ");.p(rho)
+
+.p("")
+
+:" ============================================"
+:" Verify against analytical formulas"
+:" ============================================"
+
+.p("Analytical values (for verification):")
+
+:" Analytical delta"
+d1Ana::(log(spot%strike)+(rate+0.5*vol^2)*time)%(vol*sqrt(time))
+analyticDelta::ncdf(d1Ana)
+.d("  Delta: ");.p(analyticDelta)
+
+:" Analytical vega"
+npdf::{exp(0-0.5*x^2)%sqrt(2*pi)}
+analyticVega::spot*npdf(d1Ana)*sqrt(time)
+.d("  Vega: ");.p(analyticVega)
+
+.p("")
+.p("Autograd computes exact derivatives automatically!")
+.p("This works for ANY pricing model - exotic options, stochastic vol, etc.")
