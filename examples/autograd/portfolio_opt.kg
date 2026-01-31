@@ -3,53 +3,52 @@
 :" ============================================================"
 :" Demonstrates using gradient descent to find optimal portfolio"
 :" weights that maximize Sharpe ratio subject to constraints."
-:" Run with: kgpy portfolio_opt.kg"
-:" Or with torch: USE_TORCH=1 kgpy portfolio_opt.kg"
+:" Requires: pip install yfinance"
+:" Run with: USE_TORCH=1 kgpy portfolio_opt.kg"
 :" ============================================================"
 
 .p("Portfolio Optimization with KlongPy Autograd")
 .p("==============================================")
 .p("")
 
-:" Import sin/cos from current backend (works with numpy and torch)"
-.bkf("sin")
-.bkf("cos")
+:" --- Fetch Real Stock Data from Yahoo Finance ---"
 
-:" Define average function"
-avg::{(+/x)%#x}
+.pyf("./stock_data.py";"fetchStockData")
 
-:" --- Generate Synthetic Return Data ---"
-
+:" Define stocks to optimize"
 nassets::4
-ndays::100
 
-idx::!ndays
+.p("Fetching stock data from Yahoo Finance (AAPL, MSFT, GOOGL, JPM)...")
 
-:" Use simple pseudo-random based on index"
-genReturns::{[a];a::x;((sin(idx*a)+cos(idx*(a+1)))%100)+((a-1.5)%400)}
+:" Fetch returns for all 4 stocks"
+allReturns::fetchStockData("2023-01-01";"2025-01-01")
 
-r0::genReturns(1)
-r1::genReturns(2)
-r2::genReturns(3)
-r3::genReturns(4)
+r0::allReturns@0
+r1::allReturns@1
+r2::allReturns@2
+r3::allReturns@3
 
-returns::[r0 r1 r2 r3]
+rets::[r0 r1 r2 r3]
 
-.p("Generated synthetic returns for 4 assets over 100 days")
+ndays::#r0
+.d("Loaded ");.d(ndays);.p(" days of returns")
 .p("")
 
 :" --- Compute Statistics ---"
 
+:" Define average function"
+avg::{(+/x)%#x}
+
 :" Annualize returns (252 trading days)"
-mu::252*{avg(x)}'[r0 r1 r2 r3]
+mu::252*{avg(x)}'rets
 
 :" Annualize volatility (multiply daily vol by sqrt(252))"
-vars::{+/((x-avg(x))^2)%#x}'[r0 r1 r2 r3]
+vars::{+/((x-avg(x))^2)%#x}'rets
 vols::15.87*{x^0.5}'vars
 
-.d("Expected returns: ")
+.d("Expected annual returns: ")
 .p(mu)
-.d("Volatilities: ")
+.d("Annual volatilities: ")
 .p(vols)
 .p("")
 
@@ -79,8 +78,8 @@ loss::{(0-sharpe(x))+sumPenalty(x)+longPenalty(x)}
 
 :" --- Optimization ---"
 
-:" Round to 1 decimal place: multiply by 10, floor, divide by 10"
-round1::{(_x*10)%10}
+:" Round to 2 decimal places"
+round2::{(_x*100)%100}
 
 lrp::0.01
 epochs::200
@@ -92,11 +91,10 @@ epochs::200
 .p("--------------------------------------------------")
 
 :" Training step - update weights using gradient descent"
-:" Returns 0 (scalar) to avoid tensor collection issues with each adverb"
 step::{wts::wts-(lrp*(loss:>wts));wts::0|wts;wts::wts%(+/wts);0}
 
 :" Progress printing function"
-printProg::{.d("Epoch ");.d(x);.d(": Sharpe=");.d(round1(sharpe(wts)));.d(", weights=");.p(wts)}
+printProg::{.d("Epoch ");.d(x);.d(": Sharpe=");.d(round2(sharpe(wts)));.d(", weights=");.p(wts)}
 
 :" Run optimization loop - step with progress every 50 epochs"
 trainStep::{step();:[0=(x!50);printProg(x);0]}
@@ -114,6 +112,7 @@ trainStep'!epochs
 
 :" --- Analysis ---"
 .p("Weight allocation:")
-names::["LowVol" "MedVol" "HighVol" "Uncorr"]
-showWeight::{pct::round1(100*(wts@x));.d("  ");.d(names@x);.d(": ");.d(pct);.p("%")}
-showWeight'!nassets
+.d("  AAPL: ");.d(round2(100*(wts@0)));.p("%")
+.d("  MSFT: ");.d(round2(100*(wts@1)));.p("%")
+.d("  GOOGL: ");.d(round2(100*(wts@2)));.p("%")
+.d("  JPM: ");.d(round2(100*(wts@3)));.p("%")
