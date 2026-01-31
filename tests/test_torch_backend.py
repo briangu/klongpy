@@ -22,6 +22,8 @@ if USE_TORCH:
         from klongpy.backend import np as backend_np, use_torch, TorchUnsupportedDtypeError
         from klongpy.autograd import torch_autograd, grad_of_fn
         from klongpy.core import kg_asarray, str_to_chr_arr, KGLambda, KGSym
+        # numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
+        from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
         TORCH_AVAILABLE = True
     except ImportError:
         TORCH_AVAILABLE = False
@@ -227,7 +229,7 @@ class TestTorchBackendOperations(unittest.TestCase):
 
     def test_getattr_falls_back_to_numpy(self):
         """Test that __getattr__ falls back to numpy."""
-        self.assertEqual(backend_np.VisibleDeprecationWarning, np.VisibleDeprecationWarning)
+        self.assertEqual(backend_np.VisibleDeprecationWarning, NumpyVisibleDeprecationWarning)
 
     def test_getattr_raises_for_missing(self):
         """Test that __getattr__ raises AttributeError for missing attrs."""

@@ -30,7 +30,7 @@ setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License"
     ],
-    install_requires=['numpy~=1.26.4'],
+    install_requires=['numpy>=2.0'],
     python_requires='<3.13,>=3.9',
     extras_require=extra_requires,
     include_package_data=True,

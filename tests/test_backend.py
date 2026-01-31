@@ -3,6 +3,9 @@ import numpy
 
 from klongpy.backend import is_supported_type, is_jagged_array, np, use_torch, TorchUnsupportedDtypeError
 
+# numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
+from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
+
 
 class TestIsSupportedType(unittest.TestCase):
     def test_string_not_supported(self):
@@ -296,8 +299,8 @@ class TestTorchBackend(unittest.TestCase):
     @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
     def test_getattr_numpy_fallback(self):
         """Test __getattr__ falls back to numpy for missing torch attrs."""
-        # VisibleDeprecationWarning is a numpy attribute
-        self.assertEqual(np.VisibleDeprecationWarning, numpy.VisibleDeprecationWarning)
+        # VisibleDeprecationWarning is a numpy attribute (moved to numpy.exceptions in 2.x)
+        self.assertEqual(np.VisibleDeprecationWarning, NumpyVisibleDeprecationWarning)
 
     @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
     def test_getattr_missing(self):

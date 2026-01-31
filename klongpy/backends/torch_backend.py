@@ -10,6 +10,9 @@ import torch
 
 from .base import BackendProvider, UnsupportedDtypeError, is_jagged_array, is_supported_type
 
+# numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
+from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
+
 
 class TorchUnsupportedDtypeError(UnsupportedDtypeError):
     """Raised when an operation requires object dtype which is not supported by PyTorch."""
@@ -499,7 +502,7 @@ class TorchBackend:
 
     @property
     def VisibleDeprecationWarning(self):
-        return numpy.VisibleDeprecationWarning
+        return NumpyVisibleDeprecationWarning
 
 
 class TorchBackendProvider(BackendProvider):
@@ -878,7 +881,7 @@ class TorchBackendProvider(BackendProvider):
                     if arr.dtype.kind not in ['O', 'i', 'f']:
                         raise ValueError
             return arr
-        except (numpy.VisibleDeprecationWarning, ValueError, TypeError, RuntimeError, TorchUnsupportedDtypeError):
+        except (NumpyVisibleDeprecationWarning, ValueError, TypeError, RuntimeError, TorchUnsupportedDtypeError):
             # Fall back to numpy object array for heterogeneous/unsupported data
             # Use numpy for inner conversions to avoid MPS tensor issues
             def _numpy_convert(x):

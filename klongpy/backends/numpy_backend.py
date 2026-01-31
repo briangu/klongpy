@@ -9,6 +9,9 @@ import numpy as np
 
 from .base import BackendProvider
 
+# numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
+from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
+
 
 class KGChar(str):
     """Character type for Klong."""
@@ -22,7 +25,7 @@ class NumpyBackendProvider(BackendProvider):
         # device parameter is ignored for numpy backend (accepted for API consistency)
         self._np = np
         np.seterr(divide='ignore')
-        warnings.filterwarnings("error", category=np.VisibleDeprecationWarning)
+        warnings.filterwarnings("error", category=NumpyVisibleDeprecationWarning)
         # Add isarray method to numpy module reference
         self._np.isarray = lambda x: isinstance(x, np.ndarray)
 
@@ -87,7 +90,7 @@ class NumpyBackendProvider(BackendProvider):
             arr = self._np.asarray(a)
             if arr.dtype.kind not in ['O', 'i', 'f']:
                 raise ValueError
-        except (np.VisibleDeprecationWarning, ValueError):
+        except (NumpyVisibleDeprecationWarning, ValueError):
             try:
                 arr = self._np.asarray(a, dtype=object)
             except ValueError:

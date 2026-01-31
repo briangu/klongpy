@@ -388,20 +388,30 @@ def _handle_import(item):
             if n_args <= len(reserved_fn_args):
                 item = KGLambda(item, args=reserved_fn_args[:n_args])
         else:
-            args = safe_inspect(item, follow_wrapped=True)
-            if 'args' in args:
+            sig_args = safe_inspect(item, follow_wrapped=True)
+            if 'args' in sig_args:
                 item = KGLambda(item, args=None, wildcard=True)
                 n_args = 3
             else:
-                args = [k for k,v in args.items() if (v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default == Parameter.empty) or (v.kind == Parameter.POSITIONAL_ONLY)]
-                n_args = len(args)
-                # if there are kwargs, then .pyc() must be used to call this function to override them
-                if 'klong' in args:
-                    n_args -= 1
-                    assert n_args <= len(reserved_fn_args)
-                    item = KGLambda(item, args=reserved_fn_args[:n_args], provide_klong=True)
-                elif n_args <= len(reserved_fn_args):
-                    item = KGLambda(item, args=reserved_fn_args[:n_args])
+                # Get required args (no default)
+                required_args = [k for k,v in sig_args.items() if (v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default == Parameter.empty) or (v.kind == Parameter.POSITIONAL_ONLY)]
+                # Get optional args (have default)
+                optional_args = [k for k,v in sig_args.items() if v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default != Parameter.empty]
+                # Use required args count, but if there are optional args and no required args,
+                # use wildcard mode so the function can accept 0-3 args
+                if not required_args and optional_args:
+                    item = KGLambda(item, args=None, wildcard=True)
+                    n_args = 3
+                else:
+                    args = required_args
+                    n_args = len(args)
+                    # if there are kwargs, then .pyc() must be used to call this function to override them
+                    if 'klong' in args:
+                        n_args -= 1
+                        assert n_args <= len(reserved_fn_args)
+                        item = KGLambda(item, args=reserved_fn_args[:n_args], provide_klong=True)
+                    elif n_args <= len(reserved_fn_args):
+                        item = KGLambda(item, args=reserved_fn_args[:n_args])
     except Exception:
         if hasattr(item, "__class__") and hasattr(item.__class__, '__module__') and item.__class__.__module__ == "builtins":
             # LOOK AWAY. You didn't see this.
@@ -462,6 +472,17 @@ def _import_module(klong, x, from_set=None):
                 except Exception as e:
                     # TODO: this should be logged
                     print(f"failed to import function: {name}", e)
+
+            # For from_set imports, also check for lazy-loaded attributes not in __dict__
+            # (e.g., numpy.random in numpy 2.x)
+            if from_set is not None:
+                for name in from_set:
+                    if name not in export_items and hasattr(module, name):
+                        try:
+                            item = getattr(module, name)
+                            klong[name] = _handle_import(item)
+                        except Exception as e:
+                            print(f"failed to import function: {name}", e)
         finally:
             klong._context.push(ctx)
 
