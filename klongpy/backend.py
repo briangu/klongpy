@@ -10,7 +10,6 @@ For per-interpreter backends, use:
 
     klong = KlongInterpreter(backend='torch')
 """
-import os
 import numpy as real_np
 
 from .backends import (

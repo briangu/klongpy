@@ -2,7 +2,7 @@ from .core import *
 from .autograd import grad_of_fn, numeric_grad, jacobian_of_fn, multi_jacobian_of_fn, multi_grad_of_fn
 from .backend import (
     to_numpy, safe_equal, detach_if_needed, to_int_array, power as backend_power, has_gradient,
-    kg_asarray, str_to_chr_arr, kg_equal, is_number, is_integer, is_float, vec_fn, get_dtype_kind
+    kg_asarray, str_to_chr_arr, kg_equal, is_number, is_integer, is_float, get_dtype_kind, array_size
 )
 import sys
 import numpy

@@ -306,7 +306,7 @@ def main():
     if args.server:
         r = klong(f".srv({args.server})")
         if r == 0:
-            print(f"Failed to start server")
+            print("Failed to start server")
     elif args.test:
         print(f"Test: {args.test}")
         with open(args.test, "r") as f:

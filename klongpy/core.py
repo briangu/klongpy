@@ -5,7 +5,7 @@ from enum import Enum
 import sys
 import numpy
 
-from .backend import np, use_torch, TorchUnsupportedDtypeError, get_default_backend, to_numpy, array_size
+from .backend import np, TorchUnsupportedDtypeError, get_default_backend, to_numpy
 
 # python3.11 support
 if not hasattr(inspect, 'getargspec'):

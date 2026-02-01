@@ -1,6 +1,6 @@
 import numpy as np
 from .core import KGLambda, KGCall, KGSym, KGFn
-from .backend import get_default_backend, to_numpy
+from .backend import get_default_backend
 
 
 class AutogradError(Exception):

@@ -8,7 +8,6 @@ import unittest
 class TestCliExit(unittest.TestCase):
     def test_exit_from_file(self):
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-        script = os.path.join(repo_root, "scripts", "kgpy")
         with tempfile.TemporaryDirectory() as tmp:
             exit_path = os.path.join(tmp, "exit.kg")
             with open(exit_path, "w", encoding="utf-8") as f:
@@ -35,7 +34,7 @@ class TestCliExit(unittest.TestCase):
             env["PYTHONPYCACHEPREFIX"] = os.path.join(tmp, "pycache")
 
             result = subprocess.run(
-                [sys.executable, script, "-d", exit_path],
+                [sys.executable, "-m", "klongpy.cli", "-d", exit_path],
                 cwd=repo_root,
                 env=env,
                 stdout=subprocess.PIPE,

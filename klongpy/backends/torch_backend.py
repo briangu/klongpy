@@ -8,7 +8,7 @@ import math
 import numpy
 import torch
 
-from .base import BackendProvider, UnsupportedDtypeError, is_jagged_array, is_supported_type
+from .base import BackendProvider, UnsupportedDtypeError, is_jagged_array
 
 # numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
 from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
