@@ -849,7 +849,7 @@ def kg_write_symbol(x, display=False):
 
 
 def kg_write_integer(x, display=False):
-    return str(x)
+    return str(int(x))
 
 
 def kg_write_float(x, display=False):
@@ -872,16 +872,16 @@ def kg_write_string(s, display=False):
     return ''.join(arr)
 
 
-def kg_write_dict(d, display=False):
+def kg_write_dict(d, backend, display=False):
     # determine if the object d has overwritten the default __str__ and call it
     # if so, otherwise use the default dict str
     if d.__class__.__name__ != 'dict':
         return str(d)
-    return ''.join([':{', ' '.join([kg_write(list(e), display=display) for e in d.items()]), '}'])
+    return ''.join([':{', ' '.join([kg_write(list(e), backend, display=display) for e in d.items()]), '}'])
 
 
-def kg_write_list(x, display=False):
-    return ''.join(['[', ' '.join([kg_write(q, display=display) for q in x]), ']'])
+def kg_write_list(x, backend, display=False):
+    return ''.join(['[', ' '.join([kg_write(q, backend, display=display) for q in x]), ']'])
 
 
 def kg_write_fn(x, display=False):
@@ -894,8 +894,10 @@ def kg_write_channel(x, display=False):
     return f":outchan.{2 if x.raw == sys.stderr else 1}"
 
 
-def kg_write(a, display=False):
-    _backend = get_default_backend()
+def kg_write(a, backend, display=False):
+    _backend = backend
+    # Convert backend arrays (e.g., torch tensors) to display-friendly format
+    a = _backend.to_display(a)
     if isinstance(a,KGSym):
         return kg_write_symbol(a, display=display)
     elif is_integer(a, _backend):
@@ -907,9 +909,9 @@ def kg_write(a, display=False):
     elif isinstance(a, str):
         return kg_write_string(a,display=display)
     elif isinstance(a,dict):
-        return kg_write_dict(a,display=display)
+        return kg_write_dict(a, _backend, display=display)
     elif is_list(a):
-        return kg_write_list(a,display=display)
+        return kg_write_list(a, _backend, display=display)
     elif isinstance(a,KGFn):
         return kg_write_fn(a,display=display)
     elif isinstance(a,KGChannel):

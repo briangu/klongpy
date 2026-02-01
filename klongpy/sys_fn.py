@@ -68,7 +68,7 @@ def eval_sys_display(klong, x):
 
     """
     x = _to_display_value(x)
-    r = kg_write(x, display=True)
+    r = kg_write(x, klong._backend, display=True)
     klong['.sys.cout'].raw.write(r)
     return r
 
@@ -81,7 +81,7 @@ def eval_sys_backend_display(klong, x):
         Display the object "x" in raw backend format (tensors shown as-is).
 
     """
-    r = kg_write(x, display=True)
+    r = kg_write(x, klong._backend, display=True)
     klong['.sys.cout'].raw.write(r)
     return r
 
@@ -308,7 +308,7 @@ def eval_sys_print(klong, x):
 
     """
     x = _to_display_value(x)
-    o = kg_write(x, display=True)
+    o = kg_write(x, klong._backend, display=True)
     klong['.sys.cout'].raw.write(o+"\n")
     return o
 
@@ -322,7 +322,7 @@ def eval_sys_backend_print(klong, x):
         and then print a newline sequence.
 
     """
-    o = kg_write(x, display=True)
+    o = kg_write(x, klong._backend, display=True)
     klong['.sys.cout'].raw.write(o+"\n")
     return o
 
@@ -833,7 +833,7 @@ def eval_sys_write(klong, x):
         sequence. Use .p (Print) to do so.
 
     """
-    r = kg_write(x)
+    r = kg_write(x, klong._backend)
     klong['.sys.cout'].raw.write(r)
     return x
 

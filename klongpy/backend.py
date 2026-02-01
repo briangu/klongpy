@@ -49,6 +49,11 @@ def to_numpy(x):
     return result
 
 
+def to_display(x):
+    """Convert value to display-friendly format."""
+    return _default_backend.to_display(x)
+
+
 def array_size(a):
     """
     Get the total number of elements in an array/tensor.
@@ -147,6 +152,7 @@ __all__ = [
     'is_supported_type',
     'is_jagged_array',
     'to_numpy',
+    'to_display',
     'array_size',
     'safe_equal',
     'detach_if_needed',

@@ -104,6 +104,21 @@ class BackendProvider(ABC):
         """
         pass
 
+    def to_display(self, x):
+        """
+        Convert backend array to display-friendly format.
+
+        For display purposes, converts arrays to numpy for consistent formatting.
+        0-dim arrays are converted to Python scalars.
+        Override in subclasses if different behavior is needed.
+        """
+        if self.is_backend_array(x):
+            x = self.to_numpy(x)
+        # Convert 0-dim arrays to Python scalars
+        if hasattr(x, 'item') and hasattr(x, 'ndim') and x.ndim == 0:
+            return x.item()
+        return x
+
     @abstractmethod
     def is_scalar_integer(self, x) -> bool:
         """Check if x is a 0-dim integer array/tensor."""

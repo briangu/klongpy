@@ -179,7 +179,7 @@ class ExitRequest:
 async def repl_eval(klong, p, verbose=True):
     try:
         r = klong(p)
-        r = r if r is None else success(kg_write(r, display=False))
+        r = r if r is None else success(kg_write(r, klong._backend, display=False))
     except SystemExit as exc:
         return ExitRequest(exc.code)
     except Exception as e:
@@ -289,7 +289,10 @@ def main():
         print("args: ", args)
 
     if args.expr:
-        print(KlongInterpreter()(args.expr))
+        klong = KlongInterpreter()
+        result = klong(args.expr)
+        if result is not None:
+            print(kg_write(result, klong._backend, display=False))
         return
 
     klong, loops = create_repl(debug=args.debug)
