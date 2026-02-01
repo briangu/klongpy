@@ -51,7 +51,7 @@ kgpy
 
 # Enable torch backend (autograd + GPU)
 pip install "klongpy[torch]"
-USE_TORCH=1 kgpy            # or KLONG_BACKEND=torch
+USE_TORCH=1 kgpy            # or KLONGPY_BACKEND=torch
 
 # Everything (web, db, websockets, torch, repl)
 pip install "klongpy[all]"
@@ -345,7 +345,7 @@ pip install "klongpy[repl]"
 ### With PyTorch Autograd (Recommended)
 ```bash
 pip install "klongpy[torch]"
-USE_TORCH=1 kgpy              # Enable torch backend (or KLONG_BACKEND=torch)
+USE_TORCH=1 kgpy              # Enable torch backend (or KLONGPY_BACKEND=torch)
 ```
 
 ### Web / DB / WebSockets Extras

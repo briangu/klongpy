@@ -155,7 +155,7 @@ With the PyTorch backend, use the `:>` operator for automatic differentiation:
 [2.0 4.0 6.0]
 ```
 
-Enable the PyTorch backend with `USE_TORCH=1` or `KLONG_BACKEND=torch`, or
+Enable the PyTorch backend with `USE_TORCH=1` or `KLONGPY_BACKEND=torch`, or
 programmatically via `KlongInterpreter(backend="torch", device="cuda")`.
 
 See [PyTorch Backend & Autograd](torch_backend.md) for more details and the [autograd examples](https://github.com/briangu/klongpy/tree/main/examples/autograd) for complete examples including gradient descent and neural networks.

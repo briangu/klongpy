@@ -17,7 +17,7 @@ USE_TORCH=1 kgpy
 You can also set:
 
 ```bash
-KLONG_BACKEND=torch
+KLONGPY_BACKEND=torch
 ```
 
 Or programmatically:
@@ -42,7 +42,7 @@ klong = KlongInterpreter(backend="torch", device="cuda")
 
 | Feature | NumPy Backend | PyTorch Backend |
 |---------|---------------|-----------------|
-| Default | Yes | No (requires USE_TORCH=1 or KLONG_BACKEND=torch) |
+| Default | Yes | No (requires USE_TORCH=1 or KLONGPY_BACKEND=torch) |
 | Object dtype | Yes | No |
 | String operations | Yes | Not supported |
 | GPU acceleration | No | Yes (CUDA/MPS) |
@@ -110,7 +110,7 @@ The syntax is `point∇function` (note: reversed order from `:>`).
 | `:>` without torch | Numeric | ~1e-6 error | Slower |
 | `∇` (any backend) | Always numeric | ~1e-6 error | Slower |
 
-With the torch backend (`USE_TORCH=1` or `KLONG_BACKEND=torch`), prefer `:>` for:
+With the torch backend (`USE_TORCH=1` or `KLONGPY_BACKEND=torch`), prefer `:>` for:
 - Exact gradients (no floating-point approximation error)
 - Complex computational graphs
 - Better performance on large arrays

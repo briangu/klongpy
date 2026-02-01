@@ -222,7 +222,7 @@ class KlongInterpreter():
         ----------
         backend : str, optional
             Backend name ('numpy' or 'torch'). If None, uses the default
-            backend (numpy, unless KLONG_BACKEND or USE_TORCH env vars are set).
+            backend (numpy, unless KLONGPY_BACKEND or USE_TORCH env vars are set).
         device : str, optional
             Device for torch backend ('cpu', 'cuda', 'mps'). Only applies
             when backend='torch'. If None, auto-selects best available device.

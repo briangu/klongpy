@@ -39,7 +39,7 @@ def get_backend(name: str = None, **kwargs) -> BackendProvider:
     """
     if name is None:
         # Check environment variable for default
-        env_backend = os.environ.get('KLONG_BACKEND', '').lower()
+        env_backend = os.environ.get('KLONGPY_BACKEND', '').lower()
         if env_backend == 'torch' or os.environ.get('USE_TORCH') == '1':
             name = 'torch'
         else:

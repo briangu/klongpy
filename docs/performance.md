@@ -6,7 +6,7 @@ Here's a rough benchmark showing magnitude differences between Python, KlongPy (
 
 **Spoiler**: GPU-backed KlongPy with PyTorch is significantly faster than naive Python and CPU-bound KlongPy.
 
-Results will vary by machine. Use `USE_TORCH=1` or `KLONG_BACKEND=torch` to enable the PyTorch backend.
+Results will vary by machine. Use `USE_TORCH=1` or `KLONGPY_BACKEND=torch` to enable the PyTorch backend.
 
 ## Python
 
@@ -65,6 +65,11 @@ With PyTorch on Apple Silicon:
 ```bash
 $ USE_TORCH=1 python3 tests/perf_vector.py
 Backend: torch, Device: mps:0
+Python: 0.500573s
+KlongPy USE_TORCH=1: 0.000565s
+Numpy: 0.007417s
+Python / KlongPy => 885.407268
+Numpy / KlongPy => 13.118929
 ```
 
 See [torch_backend.md](torch_backend.md) for more details on the PyTorch backend and performance characteristics.
