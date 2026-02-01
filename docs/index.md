@@ -5,11 +5,14 @@ KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array lang
 # Quick install
 
 ```bash
-pip3 install "klongpy[all]"
+pip3 install "klongpy[repl]"   # REPL + NumPy backend
+# or
+pip3 install "klongpy[all]"    # All extras (torch, web, db, websockets)
 ```
 
 New users may want to read the [Quick Start](quick-start.md) guide and the
 [REPL Reference](repl.md) to get familiar with the interactive environment.
+Note: the REPL (`kgpy`) requires the `klongpy[repl]` extra (or `klongpy[all]`).
 
 # Overview
 
@@ -18,11 +21,12 @@ KlongPy is both an Array Language runtime and a set of powerful tools for buildi
 * [__Array Programming__](https://en.wikipedia.org/wiki/Array_programming): Based on [Klong](https://t3x.org/klong), a concise, expressive, and easy-to-understand array programming language. Its simple syntax and rich feature set make it an excellent tool for data scientists and engineers.
 * [__Speed__](performance.md): Designed for high-speed vectorized computing, enabling you to process large data sets quickly and efficiently on either CPU or GPU.
 * [__PyTorch Backend & Autograd__](torch_backend.md): Optional PyTorch backend with automatic differentiation for gradient computation, enabling machine learning and optimization workflows.
-* [__Fast Columnar Database__](fast_columnar_database.md): Includes integration with [DuckDb](http://duckdb.org), a super fast in-process columnar store that can operate directly on NumPy arrays with zero-copy.
+* [__Fast Columnar Database__](fast_columnar_database.md): Includes integration with [DuckDB](http://duckdb.org), a super fast in-process columnar store that can operate directly on NumPy arrays with zero-copy.
 * [__Inter-Process Communication (IPC)__](ipc_capabilities.md): Includes built-in support for IPC, enabling easy communication between different processes and systems. Ticker plants and similar pipelines are easy to build.
 * [__Table and Key-Value Store__](table_and_key_value_stores.md): Includes a simple file-backed key value store that can be used to store database tables or raw key/value pairs.
 * [__Python Integration__](python_integration.md): Seamlessly compatible with Python and modules, allowing you to leverage existing Python libraries and frameworks.
 * [__Web server__](web_server.md): Includes a web server, making it easy to build sites backed by KlongPy capabilities.
+* [__WebSockets__](websockets.md): Connect to WebSocket servers and handle messages in KlongPy.
 * [__Timers__](timer.md): Includes periodic timer facility to periodically perform tasks.
 * [__Operator Reference__](operators.md): Quick lookup for language operators.
 
@@ -37,10 +41,10 @@ Let's try this in the KlongPy REPL:
 ```Bash
 $ rlwrap kgpy
 
-Welcome to KlongPy REPL v0.3.78
+Welcome to KlongPy REPL v0.6.9
 author: Brian Guarraci
 repo  : https://github.com/briangu/klongpy
-crtl-d or ]q to quit
+Ctrl-D or ]q to quit
 
 ?> avg::{(+/x)%#x}
 :monad
@@ -48,7 +52,7 @@ crtl-d or ]q to quit
 499999.5
 ```
 
-Now let's time it (first, right it once, then 100 times):
+Now let's time it (first, run it once, then 100 times):
 
 ```
 ?> ]T avg(!1000000)
@@ -91,7 +95,7 @@ To use KlongPy within Python, here's a basic outline:
 ```python
 from klongpy import KlongInterpreter
 
-# instantiate the KlongPy interpeter
+# instantiate the KlongPy interpreter
 klong = KlongInterpreter()
 
 # define average function in Klong (Note the '+/' (sum over) uses np.add.reduce under the hood)
@@ -100,7 +104,7 @@ klong('avg::{(+/x)%#x}')
 # create a billion random uniform values [0,1)
 data = np.random.rand(10**9)
 
-# reference the 'avg' function in Klong interpeter and call it directly from Python.
+# reference the 'avg' function in Klong interpreter and call it directly from Python.
 r = klong['avg'](data)
 
 print(f"avg={np.round(r,6)}")
@@ -151,6 +155,9 @@ With the PyTorch backend, use the `:>` operator for automatic differentiation:
 [2.0 4.0 6.0]
 ```
 
+Enable the PyTorch backend with `USE_TORCH=1` or `KLONG_BACKEND=torch`, or
+programmatically via `KlongInterpreter(backend="torch", device="cuda")`.
+
 See [PyTorch Backend & Autograd](torch_backend.md) for more details and the [autograd examples](https://github.com/briangu/klongpy/tree/main/examples/autograd) for complete examples including gradient descent and neural networks.
 
 # Installation
@@ -161,14 +168,14 @@ See [PyTorch Backend & Autograd](torch_backend.md) for more details and the [aut
 
 ### PyTorch Backend (recommended for autograd and GPU)
 
-    $ pip3 install klongpy torch
+    $ pip3 install "klongpy[torch]"
 
 Then enable with `USE_TORCH=1`:
 
     $ USE_TORCH=1 python your_script.py
     $ USE_TORCH=1 kgpy
 
-### All application tools (db, web, REPL, etc.)
+### All application tools (db, web, REPL, websockets, etc.)
 
     $ pip3 install "klongpy[all]"
 
@@ -184,7 +191,7 @@ $ rlwrap kgpy
 Welcome to KlongPy REPL
 author: Brian Guarraci
 repo  : https://github.com/briangu/klongpy
-crtl-c to quit
+Ctrl-C to quit
 
 ?> 1+1
 2
@@ -255,4 +262,3 @@ python3 -m pytest tests/
 # Acknowledgement
 
 HUGE thanks to Nils M Holm for his work on Klong and providing the foundations for this interesting project.
-

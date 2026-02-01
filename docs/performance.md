@@ -6,6 +6,8 @@ Here's a rough benchmark showing magnitude differences between Python, KlongPy (
 
 **Spoiler**: GPU-backed KlongPy with PyTorch is significantly faster than naive Python and CPU-bound KlongPy.
 
+Results will vary by machine. Use `USE_TORCH=1` or `KLONG_BACKEND=torch` to enable the PyTorch backend.
+
 ## Python
 
 ```python

@@ -196,7 +196,7 @@ def show_repl_header(ipc_addr=None):
     print(f"{colorama.Fore.GREEN}Welcome to KlongPy REPL v{importlib.metadata.distribution('klongpy').version}")
     print(f"{colorama.Fore.GREEN}Author: Brian Guarraci")
     print(f"{colorama.Fore.GREEN}Web: http://klongpy.org")
-    print(f"{colorama.Fore.YELLOW}]h for help; crtl-d or ]q to quit")
+    print(f"{colorama.Fore.YELLOW}]h for help; Ctrl-D or ]q to quit")
     print()
     if ipc_addr:
         print(f"{colorama.Fore.RED}Running IPC server at {ipc_addr}")

@@ -45,8 +45,16 @@ This isn't just shorter—it's a fundamentally different way to express computat
 ## Quick Install
 
 ```bash
-pip install klongpy torch   # Full install with autograd
-USE_TORCH=1 kgpy            # Start REPL with autograd
+# REPL + NumPy backend (pick one option below)
+pip install "klongpy[repl]"
+kgpy
+
+# Enable torch backend (autograd + GPU)
+pip install "klongpy[torch]"
+USE_TORCH=1 kgpy            # or KLONG_BACKEND=torch
+
+# Everything (web, db, websockets, torch, repl)
+pip install "klongpy[all]"
 ```
 
 ## Why KlongPy?
@@ -138,6 +146,7 @@ KlongPy isn't just an autograd experiment—it's a production-ready platform wit
 - **[Inter-Process Communication](docs/ipc_capabilities.md)**: Build ticker plants and distributed systems
 - **[Table & Key-Value Store](docs/table_and_key_value_stores.md)**: Persistent storage for tables and data
 - **[Web Server](docs/web_server.md)**: Built-in HTTP server for APIs and dashboards
+- **[WebSockets](docs/websockets.md)**: Connect to WebSocket servers and handle messages in KlongPy
 - **[Timers](docs/timer.md)**: Scheduled execution for periodic tasks
 
 ### Documentation
@@ -310,7 +319,9 @@ remote[localhost:8888]:fn:avg:monad
 .py("klongpy.web")
 data::!10
 index::{x; "Hello from KlongPy! Data: ",data}
-.web(8888;:{},"/",index;:{})
+get:::{}; get,"/",index
+post:::{}
+h::.web(8888;get;post)
 .p("Server ready at http://localhost:8888")
 ```
 
@@ -321,18 +332,30 @@ $ curl http://localhost:8888
 
 ## Installation Options
 
-### Basic (NumPy only)
+### Basic Runtime (NumPy only)
 ```bash
 pip install klongpy
 ```
 
-### With PyTorch Autograd (Recommended)
+### REPL Support
 ```bash
-pip install klongpy torch
-USE_TORCH=1 kgpy              # Enable torch backend
+pip install "klongpy[repl]"
 ```
 
-### Full Installation (Database, Web, IPC, Torch)
+### With PyTorch Autograd (Recommended)
+```bash
+pip install "klongpy[torch]"
+USE_TORCH=1 kgpy              # Enable torch backend (or KLONG_BACKEND=torch)
+```
+
+### Web / DB / WebSockets Extras
+```bash
+pip install "klongpy[web]"
+pip install "klongpy[db]"
+pip install "klongpy[ws]"
+```
+
+### Full Installation (REPL, DB, Web, WebSockets, Torch)
 ```bash
 pip install "klongpy[all]"
 ```
@@ -380,6 +403,19 @@ git clone https://github.com/briangu/klongpy.git
 cd klongpy
 pip install -e ".[dev]"   # Install in editable mode with dev dependencies
 python3 -m pytest tests/  # Run tests
+```
+
+## Documentation
+
+```bash
+# Install docs tooling
+pip install -e ".[docs]"
+
+# Build the site into ./site
+mkdocs build
+
+# Serve locally with live reload
+mkdocs serve
 ```
 
 ## Acknowledgements

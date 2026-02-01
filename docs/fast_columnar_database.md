@@ -1,6 +1,12 @@
 # Fast Columnar Database
 
-KlongPy provides a module "klongpy.db" that includes DuckDb integration.  DuckDb can operate directly on NumPy arrays, which allows for zero-copy SQL execution over pre-existing NumPy data.
+KlongPy provides a module `klongpy.db` that includes DuckDB integration. DuckDB can operate directly on NumPy arrays, which allows for zero-copy SQL execution over pre-existing NumPy data.
+
+Install the database extras first:
+
+```bash
+pip install "klongpy[db]"
+```
 
 ## Tables
 
@@ -18,7 +24,9 @@ a b c
 3 4 5
 ```
 
-Indexes (one or more columns) can be created on a table.  The current indexes can be seen in the table discription prefix.
+You can also create a table directly from a Pandas DataFrame.
+
+Indexes (one or more columns) can be created on a table. The current indexes can be seen in the table description prefix.
 
 ```
 ?> .index(t; ["a"])
@@ -68,7 +76,7 @@ a
 [1 2 3]
 ```
 
-Since KlongPy uses DuckDb under the hood, you can perform sophisticated SQL over the underlying NumPy arrays.
+Since KlongPy uses DuckDB under the hood, you can perform sophisticated SQL over the underlying NumPy arrays.
 
 For example, it's easy to use JOIN with this setup:
 
@@ -97,7 +105,7 @@ We can now issue a JOIN SQL:
 
 ## Pandas DataFrame integration
 
-Tables are backed by Pandas DataFrames, so it's easy to integrate Pandas directly into KlongPy via DuckDb.
+Tables are backed by Pandas DataFrames, so it's easy to integrate Pandas directly into KlongPy via DuckDB.
 
 ```Python
 from klongpy import KlongInterpreter
