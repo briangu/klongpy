@@ -4,7 +4,7 @@ from collections import deque
 from .adverbs import get_adverb_fn
 from .backends import get_backend
 from .core import *
-from .backend import is_number, get_dtype_kind
+from .backend import is_number
 from .dyads import create_dyad_functions
 from .monads import create_monad_functions
 from .sys_fn import create_system_functions
