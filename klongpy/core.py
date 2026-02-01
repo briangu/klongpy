@@ -12,7 +12,7 @@ if not hasattr(inspect, 'getargspec'):
     inspect.getargspec = inspect.getfullargspec
 
 
-def get_dtype_kind(arr, backend=None):
+def get_dtype_kind(arr, backend):
     """
     Get the dtype 'kind' character for an array (numpy or torch).
 
@@ -24,8 +24,6 @@ def get_dtype_kind(arr, backend=None):
         'b' for boolean
         'c' for complex
     """
-    if backend is None:
-        backend = get_default_backend()
     return backend.get_dtype_kind(arr)
 
 
@@ -268,39 +266,33 @@ def to_list(a):
     return a if isinstance(a, list) else a.tolist() if np.isarray(a) else [a]
 
 
-def is_integer(x, backend=None):
+def is_integer(x, backend):
     if issubclass(type(x), (int, numpy.integer)):
         return True
     # Handle 0-dim numpy arrays
     if isinstance(x, numpy.ndarray) and x.ndim == 0:
         return numpy.issubdtype(x.dtype, numpy.integer)
     # Handle backend-specific scalar integers (e.g., torch tensors)
-    if backend is None:
-        backend = get_default_backend()
     return backend.is_scalar_integer(x)
 
 
-def is_float(x, backend=None):
+def is_float(x, backend):
     if issubclass(type(x), (float, numpy.floating, int)):
         return True
     # Handle 0-dim numpy arrays
     if isinstance(x, numpy.ndarray) and x.ndim == 0:
         return numpy.issubdtype(x.dtype, numpy.floating)
     # Handle backend-specific scalar floats (e.g., torch tensors)
-    if backend is None:
-        backend = get_default_backend()
     return backend.is_scalar_float(x)
 
 
-def is_number(a, backend=None):
+def is_number(a, backend):
     if is_float(a, backend) or is_integer(a, backend):
         return True
     # Handle 0-dim numpy arrays
     if isinstance(a, numpy.ndarray) and a.ndim == 0:
         return numpy.issubdtype(a.dtype, numpy.number)
     # Handle 0-dim backend tensors as numbers
-    if backend is None:
-        backend = get_default_backend()
     if backend.is_backend_array(a) and hasattr(a, 'ndim') and a.ndim == 0:
         return True
     return False
@@ -320,20 +312,15 @@ def in_map(x, v):
         return False
 
 
-def kg_asarray(a, backend=None):
+def kg_asarray(a, backend):
     """Convert input to array using the backend's kg_asarray method."""
-    if backend is None:
-        backend = get_default_backend()
     return backend.kg_asarray(a)
 
 
-def kg_equal(a, b, backend=None):
+def kg_equal(a, b, backend):
     """Compare two values or arrays for equality, handling nested arrays and tensors."""
     if a is b:
         return True
-
-    if backend is None:
-        backend = get_default_backend()
 
     # Check for arrays (numpy or backend-specific)
     is_numpy_a = isinstance(a, numpy.ndarray)
@@ -455,10 +442,11 @@ def rec_flatten(a):
 
 
 def rec_fn(a,f):
-    return kg_asarray([rec_fn(x, f) for x in a]) if is_list(a) else f(a)
+    _backend = get_default_backend()
+    return _backend.kg_asarray([rec_fn(x, f) for x in a]) if is_list(a) else f(a)
 
 
-def vec_fn(a, f, backend=None):
+def vec_fn(a, f, backend):
     """
     Apply a function `f` to an array `a`, with support for both nested arrays and direct vectorized operation.
     """
@@ -506,18 +494,20 @@ def vec_fn2(a, b, f):
     not satisfied.
 
     """
+    _backend = get_default_backend()
+    _kg_asarray = _backend.kg_asarray
     if np.isarray(a):
         if a.dtype == 'O':
             if np.isarray(b):
                 assert len(a) == len(b)
-                return kg_asarray([vec_fn2(x, y, f) for x,y in zip(a,b)])
+                return _kg_asarray([vec_fn2(x, y, f) for x,y in zip(a,b)])
             else:
-                return kg_asarray([vec_fn2(x, b, f) for x in a])
+                return _kg_asarray([vec_fn2(x, b, f) for x in a])
         elif np.isarray(b) and b.dtype == 'O':
             assert len(a) == len(b)
-            return kg_asarray([vec_fn2(x, y, f) for x,y in zip(a,b)])
+            return _kg_asarray([vec_fn2(x, y, f) for x,y in zip(a,b)])
     elif np.isarray(b) and b.dtype == 'O':
-        return kg_asarray([vec_fn2(a, x, f) for x in b])
+        return _kg_asarray([vec_fn2(a, x, f) for x in b])
     return f(a,b)
 
 
@@ -542,7 +532,7 @@ def kg_truth(x):
     return x*1
 
 
-def str_to_chr_arr(s, backend=None):
+def str_to_chr_arr(s, backend):
     """
     Convert string to character array.
 
@@ -550,8 +540,8 @@ def str_to_chr_arr(s, backend=None):
     ----------
     s : str
         The string to convert.
-    backend : BackendProvider, optional
-        The backend to use. If None, uses the default backend.
+    backend : BackendProvider
+        The backend to use.
 
     Returns
     -------
@@ -563,8 +553,6 @@ def str_to_chr_arr(s, backend=None):
     UnsupportedDtypeError
         If the backend doesn't support string operations.
     """
-    if backend is None:
-        backend = get_default_backend()
     return backend.str_to_char_array(s)
 
 
@@ -663,7 +651,7 @@ def skip(t, i=0, ignore_newline=False):
     return i
 
 
-def read_list(t, delim, i=0, module=None, level=1, backend=None):
+def read_list(t, delim, i=0, module=None, level=1):
     """
 
         # A list is any number of class lexemes (or lists) delimited by
@@ -672,6 +660,7 @@ def read_list(t, delim, i=0, module=None, level=1, backend=None):
         L := '[' (C|L)* ']'
 
     """
+    backend = get_default_backend()
     arr = []
     i = skip(t,i,ignore_newline=True)
     while not cmatch(t,i,delim) and i < len(t):
@@ -680,14 +669,12 @@ def read_list(t, delim, i=0, module=None, level=1, backend=None):
         if q is None:
             break
         if safe_eq(q, '['):
-            i,q = read_list(t, ']', i=i, module=module, level=level+1, backend=backend)
+            i,q = read_list(t, ']', i=i, module=module, level=level+1)
         arr.append(q)
         i = skip(t,i,ignore_newline=True)
     if cmatch(t,i,delim):
         i += 1
     if level == 1:
-        if backend is None:
-            backend = get_default_backend()
         try:
             aa = kg_asarray(arr, backend)
             if get_dtype_kind(aa, backend) not in ['O','i','f']:
@@ -908,11 +895,12 @@ def kg_write_channel(x, display=False):
 
 
 def kg_write(a, display=False):
+    _backend = get_default_backend()
     if isinstance(a,KGSym):
         return kg_write_symbol(a, display=display)
-    elif is_integer(a):
+    elif is_integer(a, _backend):
         return kg_write_integer(a,display=display)
-    elif is_float(a):
+    elif is_float(a, _backend):
         return kg_write_float(a,display=display)
     elif isinstance(a,KGChar):
         return kg_write_char(a,display=display)
@@ -932,7 +920,7 @@ def kg_write(a, display=False):
         return ":undefined"
 
 
-def kg_argsort(a, descending=False, backend=None):
+def kg_argsort(a, backend, descending=False):
     """
 
     Return the indices of the sorted array (may be nested) or a string.  Duplicate elements are disambiguated by their position in the array.
@@ -948,9 +936,6 @@ def kg_argsort(a, descending=False, backend=None):
     """
     if not is_iterable(a) or len(a) == 0:
         return a
-
-    if backend is None:
-        backend = get_default_backend()
 
     # Fast path: for simple 1D numeric arrays, use native argsort
     if hasattr(a, 'ndim') and a.ndim == 1:

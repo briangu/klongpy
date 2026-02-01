@@ -12,9 +12,9 @@ from inspect import Parameter
 import numpy
 
 from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
-                   is_dict, is_empty, is_list, kg_asarray, kg_read, kg_write, np,
+                   is_dict, is_empty, is_list, kg_read, kg_write, np,
                    reserved_fn_args, reserved_fn_symbol_map, safe_eq, safe_inspect)
-from .backend import to_numpy, get_default_backend
+from .backend import to_numpy, get_default_backend, kg_asarray
 
 
 def _to_display_value(x):

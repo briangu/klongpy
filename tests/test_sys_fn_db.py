@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from klongpy import KlongInterpreter
-from klongpy.core import kg_equal
+from klongpy.backend import kg_equal
 from tests.backend_compat import requires_strings
 
 

@@ -7,8 +7,8 @@ import unittest
 import numpy as np
 
 from klongpy import KlongInterpreter
-from klongpy.core import is_list, kg_equal
-from klongpy.backend import get_default_backend, use_torch, TorchUnsupportedDtypeError
+from klongpy.core import is_list
+from klongpy.backend import get_default_backend, use_torch, TorchUnsupportedDtypeError, kg_equal
 
 
 class BackendSkipError(Exception):

@@ -1,6 +1,7 @@
 import unittest
 from klongpy.core import *
-from utils import die, kg_equal
+from klongpy.backend import kg_equal, kg_argsort, is_integer, is_float, is_number
+from utils import die
 from backend_compat import requires_object_dtype, requires_strings
 
 class TestUtil(unittest.TestCase):

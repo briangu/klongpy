@@ -905,6 +905,51 @@ class TorchBackendProvider(BackendProvider):
             raise_exception=True
         )
 
+    def klong_gradcheck(self, klong, fn, inputs):
+        """
+        Check gradients for a Klong function.
+
+        Handles wrapping the Klong function, dtype selection based on device,
+        and tolerance adjustment for float32 (MPS).
+
+        Args:
+            klong: KlongInterpreter instance
+            fn: Klong function to check
+            inputs: Input value or list of inputs
+
+        Returns:
+            1 if gradients are correct, raises error otherwise
+        """
+        from ..autograd import _invoke_fn
+
+        # Determine dtype based on device support
+        use_float32 = self.device.type == 'mps'  # MPS doesn't support float64
+        dtype = torch.float32 if use_float32 else torch.float64
+
+        # Wrap the Klong function
+        def wrapped_fn(v):
+            result = _invoke_fn(klong, fn, [v])
+            # Ensure result is a scalar tensor for gradcheck
+            if isinstance(result, torch.Tensor) and result.numel() > 1:
+                result = result.sum()
+            return result
+
+        # Convert inputs to tensor on CPU for gradcheck (avoids MPS float64 issues)
+        if isinstance(inputs, (list, tuple)) and not isinstance(inputs[0], torch.Tensor):
+            tensor_inputs = torch.tensor(inputs, dtype=dtype, device='cpu', requires_grad=True)
+        elif not isinstance(inputs, torch.Tensor):
+            tensor_inputs = torch.tensor([inputs], dtype=dtype, device='cpu', requires_grad=True)
+        else:
+            tensor_inputs = inputs.to(dtype=dtype, device='cpu').requires_grad_(True)
+
+        # Run gradcheck with adjusted tolerances for float32
+        if use_float32:
+            result = self.gradcheck(wrapped_fn, (tensor_inputs,), eps=1e-4, atol=1e-3, rtol=1e-2)
+        else:
+            result = self.gradcheck(wrapped_fn, (tensor_inputs,))
+
+        return 1 if result else 0
+
     def kg_asarray(self, a):
         """
         Converts input data into a PyTorch tensor for KlongPy.

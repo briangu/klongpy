@@ -337,7 +337,7 @@ class TestCoreWithTorch(unittest.TestCase):
     @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
     def test_kg_asarray_string_returns_char_array(self):
         """Test that kg_asarray converts strings to char arrays in torch mode."""
-        from klongpy.core import kg_asarray
+        from klongpy.backend import kg_asarray
         result = kg_asarray("hello")
         # Strings are converted to numpy char arrays for Klong compatibility
         self.assertEqual(len(result), 5)
@@ -346,7 +346,7 @@ class TestCoreWithTorch(unittest.TestCase):
     @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
     def test_str_to_chr_arr_fails(self):
         """Test that str_to_chr_arr fails in torch mode."""
-        from klongpy.core import str_to_chr_arr
+        from klongpy.backend import str_to_chr_arr
         with self.assertRaises(TorchUnsupportedDtypeError):
             str_to_chr_arr("hello")
 
@@ -354,7 +354,7 @@ class TestCoreWithTorch(unittest.TestCase):
     def test_kg_asarray_jagged_returns_object_array(self):
         """Test that kg_asarray falls back to object array for jagged arrays."""
         import numpy as np
-        from klongpy.core import kg_asarray
+        from klongpy.backend import kg_asarray
         result = kg_asarray([[1, 2], [3]])
         # Jagged arrays fall back to numpy object arrays
         self.assertEqual(result.dtype, object)
@@ -363,28 +363,28 @@ class TestCoreWithTorch(unittest.TestCase):
     @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
     def test_kg_asarray_numeric_works(self):
         """Test that kg_asarray works for numeric arrays in torch mode."""
-        from klongpy.core import kg_asarray
+        from klongpy.backend import kg_asarray
         result = kg_asarray([1, 2, 3])
         self.assertEqual(len(result), 3)
 
     @unittest.skipUnless(not use_torch, "NumPy backend required")
     def test_kg_asarray_string_works_numpy(self):
         """Test that kg_asarray works for strings in numpy mode."""
-        from klongpy.core import kg_asarray
+        from klongpy.backend import kg_asarray
         result = kg_asarray("hi")
         self.assertEqual(len(result), 2)
 
     @unittest.skipUnless(not use_torch, "NumPy backend required")
     def test_kg_asarray_jagged_works_numpy(self):
         """Test that kg_asarray works for jagged arrays in numpy mode."""
-        from klongpy.core import kg_asarray
+        from klongpy.backend import kg_asarray
         result = kg_asarray([[1, 2], [3]])
         self.assertEqual(len(result), 2)
 
     @unittest.skipUnless(not use_torch, "NumPy backend required")
     def test_kg_asarray_object_dtype_numpy(self):
         """Test that kg_asarray handles object dtype in numpy mode."""
-        from klongpy.core import kg_asarray
+        from klongpy.backend import kg_asarray
         result = kg_asarray([1, "a", 2])
         self.assertEqual(len(result), 3)
 

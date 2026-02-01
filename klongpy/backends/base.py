@@ -125,6 +125,28 @@ class BackendProvider(ABC):
         """Return indices that would sort the array."""
         pass
 
+    def is_integer(self, x) -> bool:
+        """Check if x is an integer type (scalar, numpy integer, or 0-dim integer tensor)."""
+        import numpy as np
+        if issubclass(type(x), (int, np.integer)):
+            return True
+        return self.is_scalar_integer(x)
+
+    def is_float(self, x) -> bool:
+        """Check if x is a float type (scalar, numpy float, int, or 0-dim float tensor)."""
+        import numpy as np
+        if issubclass(type(x), (float, np.floating, int)):
+            return True
+        return self.is_scalar_float(x) or self.is_scalar_integer(x)
+
+    def is_number(self, a) -> bool:
+        """Check if a is a number (integer or float)."""
+        return self.is_float(a) or self.is_integer(a)
+
+    def str_to_chr_arr(self, s):
+        """Convert string to character array (alias for str_to_char_array)."""
+        return self.str_to_char_array(s)
+
     @abstractmethod
     def array_size(self, a):
         """
@@ -256,6 +278,26 @@ class BackendProvider(ABC):
             True if gradients match, raises error otherwise
         """
         raise NotImplementedError("This backend does not support gradcheck")
+
+    def klong_gradcheck(self, klong, fn, inputs):
+        """
+        Check gradients for a Klong function.
+
+        This is a higher-level interface that handles wrapping the Klong function
+        and converting inputs appropriately for the backend.
+
+        Args:
+            klong: KlongInterpreter instance
+            fn: Klong function to check
+            inputs: Input value or list of inputs
+
+        Returns:
+            1 if gradients are correct, raises error otherwise
+        """
+        raise RuntimeError(
+            ".gradcheck() requires PyTorch backend. "
+            "Run with USE_TORCH=1 environment variable."
+        )
 
 
 class UnsupportedDtypeError(Exception):

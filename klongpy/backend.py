@@ -84,6 +84,54 @@ def has_gradient(x):
     return _default_backend.has_gradient(x)
 
 
+def kg_asarray(a):
+    """Convert input to array using the default backend's kg_asarray method."""
+    return _default_backend.kg_asarray(a)
+
+
+def is_integer(x):
+    """Check if x is an integer type using the default backend."""
+    return _default_backend.is_integer(x)
+
+
+def is_float(x):
+    """Check if x is a float type using the default backend."""
+    return _default_backend.is_float(x)
+
+
+def is_number(a):
+    """Check if a is a number (integer or float) using the default backend."""
+    return _default_backend.is_number(a)
+
+
+def get_dtype_kind(arr):
+    """Get the dtype 'kind' character for an array using the default backend."""
+    return _default_backend.get_dtype_kind(arr)
+
+
+def str_to_chr_arr(s):
+    """Convert string to character array using the default backend."""
+    return _default_backend.str_to_chr_arr(s)
+
+
+def kg_argsort(a, descending=False):
+    """Argsort array using the default backend."""
+    from .core import kg_argsort as core_kg_argsort
+    return core_kg_argsort(a, _default_backend, descending=descending)
+
+
+def vec_fn(a, f):
+    """Apply a function f to an array a, with support for nested arrays."""
+    from .core import vec_fn as core_vec_fn
+    return core_vec_fn(a, f, _default_backend)
+
+
+def kg_equal(a, b):
+    """Compare two values or arrays for equality using the default backend."""
+    from .core import kg_equal as core_kg_equal
+    return core_kg_equal(a, b, _default_backend)
+
+
 __all__ = [
     'np',
     'use_torch',
@@ -106,4 +154,13 @@ __all__ = [
     'to_int_array',
     'power',
     'has_gradient',
+    'kg_asarray',
+    'is_integer',
+    'is_float',
+    'is_number',
+    'get_dtype_kind',
+    'str_to_chr_arr',
+    'kg_argsort',
+    'vec_fn',
+    'kg_equal',
 ]

@@ -4,7 +4,8 @@ from utils import *
 from backend_compat import requires_strings, requires_object_dtype
 
 from klongpy import KlongInterpreter
-from klongpy.core import (KGChar, KGSym, is_float, is_integer, rec_flatten, is_char)
+from klongpy.core import KGChar, KGSym, rec_flatten, is_char
+from klongpy.backend import is_float, is_integer
 
 
 # add tests not included in the original kg suite

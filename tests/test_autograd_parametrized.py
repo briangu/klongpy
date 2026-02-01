@@ -202,7 +202,9 @@ class TestNumpySpecific:
             pytest.skip("Requires numpy backend (run without USE_TORCH)")
 
         from klongpy.autograd import numeric_grad
-        result = numeric_grad(lambda x: x[0]**2, np.array([3.0]), eps=1e-8)
+        from klongpy.backend import get_default_backend
+        _backend = get_default_backend()
+        result = numeric_grad(lambda x: x[0]**2, np.array([3.0]), _backend, eps=1e-8)
         assert np.isclose(result[0], 6.0, atol=1e-5)
 
 
@@ -216,7 +218,9 @@ class TestNumericGradFunction:
         if backend == 'torch':
             pytest.skip("numeric_grad tests use numpy directly")
         from klongpy.autograd import numeric_grad
-        result = numeric_grad(lambda x: x[0]**2, np.array([3.0]))
+        from klongpy.backend import get_default_backend
+        _backend = get_default_backend()
+        result = numeric_grad(lambda x: x[0]**2, np.array([3.0]), _backend)
         assert np.isclose(result[0], 6.0, atol=ATOL_NUMPY)
 
     def test_multidimensional_function(self, klong, backend):
@@ -224,7 +228,9 @@ class TestNumericGradFunction:
         if backend == 'torch':
             pytest.skip("numeric_grad tests use numpy directly")
         from klongpy.autograd import numeric_grad
-        result = numeric_grad(lambda x: np.sum(x**2), np.array([1.0, 2.0, 3.0]))
+        from klongpy.backend import get_default_backend
+        _backend = get_default_backend()
+        result = numeric_grad(lambda x: np.sum(x**2), np.array([1.0, 2.0, 3.0]), _backend)
         expected = np.array([2.0, 4.0, 6.0])
         np.testing.assert_allclose(result, expected, atol=ATOL_NUMPY)
 
@@ -233,8 +239,10 @@ class TestNumericGradFunction:
         if backend == 'torch':
             pytest.skip("numeric_grad tests use numpy directly")
         from klongpy.autograd import numeric_grad
+        from klongpy.backend import get_default_backend
+        _backend = get_default_backend()
         x = np.array([[1.0, 2.0], [3.0, 4.0]])
-        result = numeric_grad(lambda x: np.sum(x**2), x)
+        result = numeric_grad(lambda x: np.sum(x**2), x, _backend)
         expected = 2 * x
         np.testing.assert_allclose(result, expected, atol=ATOL_NUMPY)
 

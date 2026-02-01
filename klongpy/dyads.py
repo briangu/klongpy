@@ -1,6 +1,9 @@
 from .core import *
-from .autograd import grad_of_fn, numeric_grad
-from .backend import to_numpy, safe_equal, detach_if_needed, to_int_array, power as backend_power, has_gradient
+from .autograd import grad_of_fn, numeric_grad, jacobian_of_fn, multi_jacobian_of_fn, multi_grad_of_fn
+from .backend import (
+    to_numpy, safe_equal, detach_if_needed, to_int_array, power as backend_power, has_gradient,
+    kg_asarray, str_to_chr_arr, kg_equal, is_number, is_integer, is_float, vec_fn, get_dtype_kind
+)
 import sys
 import numpy
 
@@ -1042,9 +1045,9 @@ def eval_dyad_grad(klong, a, b):
             finally:
                 klong[a] = orig
 
-        return numeric_grad(func, orig, backend=klong._backend)
+        return numeric_grad(func, orig, klong._backend)
     else:
-        return numeric_grad(call_fn, a, backend=klong._backend)
+        return numeric_grad(call_fn, a, klong._backend)
 
 
 def eval_dyad_jacobian(klong, a, b):
@@ -1067,8 +1070,6 @@ def eval_dyad_jacobian(klong, a, b):
             [w b]∂f               -->  [J_w J_b] (multi-param mode)
 
     """
-    from .autograd import jacobian_of_fn, multi_jacobian_of_fn
-
     # Check if a is a list of symbols (multi-param mode)
     if is_list(a) and len(a) > 0 and all(isinstance(p, KGSym) for p in a):
         return multi_jacobian_of_fn(klong, b, list(a))
@@ -1097,8 +1098,6 @@ def eval_dyad_autograd(klong, a, b):
             loss:>[w b]      -->  [grad_w grad_b]  (multi-param mode)
 
     """
-    from .autograd import multi_grad_of_fn
-
     # Check if b is a list of symbols (multi-param mode)
     if is_list(b) and len(b) > 0 and all(isinstance(p, KGSym) for p in b):
         return multi_grad_of_fn(klong, a, list(b))

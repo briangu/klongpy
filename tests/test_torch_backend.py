@@ -19,9 +19,9 @@ if USE_TORCH:
         import torch
         import numpy as np
         from klongpy import KlongInterpreter
-        from klongpy.backend import np as backend_np, use_torch, TorchUnsupportedDtypeError
+        from klongpy.backend import np as backend_np, use_torch, TorchUnsupportedDtypeError, kg_asarray, str_to_chr_arr
         from klongpy.autograd import torch_autograd, grad_of_fn
-        from klongpy.core import kg_asarray, str_to_chr_arr, KGLambda, KGSym
+        from klongpy.core import KGLambda, KGSym
         # numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
         from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
         TORCH_AVAILABLE = True

@@ -1,5 +1,8 @@
 from .core import *
 from .autograd import grad_of_fn
+from .backend import (
+    kg_asarray, is_integer, is_number, str_to_chr_arr, kg_argsort, array_size, vec_fn
+)
 import sys
 
 def eval_monad_atom(a):

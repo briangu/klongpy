@@ -1,5 +1,6 @@
 from .core import *
 from .dyads import eval_dyad_add, eval_dyad_subtract, eval_dyad_multiply, eval_dyad_divide
+from .backend import kg_asarray, is_number, str_to_chr_arr, kg_equal
 import functools
 import itertools
 

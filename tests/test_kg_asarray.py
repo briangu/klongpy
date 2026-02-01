@@ -1,15 +1,18 @@
 import unittest
 
 import numpy as np
-from klongpy.backend import np as backend_np, use_torch
+from klongpy.backend import np as backend_np, use_torch, get_default_backend, kg_asarray, array_size
 
-from klongpy.core import kg_asarray, KGChar, KGSym, array_size
+from klongpy.core import KGChar, KGSym
 from tests.backend_compat import requires_strings, requires_object_dtype
 
 
 # Use backend's isarray for torch compatibility
 def isarray(x):
     return backend_np.isarray(x)
+
+# Get the default backend for tests
+_backend = get_default_backend()
 
 
 class TestKGAsArray(unittest.TestCase):

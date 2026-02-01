@@ -9,6 +9,8 @@ which can be copied to your project and customized.
 """
 import sys
 
+from .autograd import jacobian_of_fn, _invoke_fn
+
 
 def eval_sys_jacobian(klong, x, y):
     """
@@ -24,7 +26,6 @@ def eval_sys_jacobian(klong, x, y):
             .jacobian(f;[1 2])   -->  [[2 0] [0 4]]
 
     """
-    from .autograd import jacobian_of_fn
     return jacobian_of_fn(klong, x, y)
 
 
@@ -54,8 +55,6 @@ def eval_sys_compile(klong, x, y):
             - See .export() for saving graphs to files
 
     """
-    from .autograd import _invoke_fn
-
     fn, example_input = x, y
 
     backend = klong._backend
@@ -102,8 +101,6 @@ def eval_sys_export(klong, x, y, z):
             - Use .compile() for just compiling without export
 
     """
-    from .autograd import _invoke_fn
-
     fn, example_input, output_path = x, y, z
 
     backend = klong._backend
@@ -173,8 +170,6 @@ def eval_sys_compilex(klong, x, y, z):
             - Use .cmodes() to see all available options
 
     """
-    from .autograd import _invoke_fn
-
     fn, example_input, options = x, y, z
 
     backend = klong._backend
@@ -277,45 +272,7 @@ def eval_sys_gradcheck(klong, x, y):
             - Useful for verifying custom gradient implementations
 
     """
-    from .autograd import _invoke_fn
-    import torch
-
-    fn, inputs = x, y
-
-    backend = klong._backend
-    if not backend.supports_autograd():
-        raise RuntimeError(
-            ".gradcheck() requires PyTorch backend. "
-            "Run with USE_TORCH=1 environment variable."
-        )
-
-    # Determine dtype based on device support
-    device = backend.device
-    use_float32 = device.type == 'mps'  # MPS doesn't support float64
-    dtype = torch.float32 if use_float32 else torch.float64
-
-    # Wrap the Klong function
-    def wrapped_fn(v):
-        result = _invoke_fn(klong, fn, [v])
-        # Ensure result is a scalar tensor for gradcheck
-        if isinstance(result, torch.Tensor) and result.numel() > 1:
-            result = result.sum()
-        return result
-
-    # Convert inputs to tensor on CPU for gradcheck (avoids MPS float64 issues)
-    if isinstance(inputs, (list, tuple)) and not isinstance(inputs[0], torch.Tensor):
-        inputs = torch.tensor(inputs, dtype=dtype, device='cpu', requires_grad=True)
-    elif not isinstance(inputs, torch.Tensor):
-        inputs = torch.tensor([inputs], dtype=dtype, device='cpu', requires_grad=True)
-    else:
-        inputs = inputs.to(dtype=dtype, device='cpu').requires_grad_(True)
-
-    # Run gradcheck with adjusted tolerances for float32
-    if use_float32:
-        result = backend.gradcheck(wrapped_fn, (inputs,), eps=1e-4, atol=1e-3, rtol=1e-2)
-    else:
-        result = backend.gradcheck(wrapped_fn, (inputs,))
-    return 1 if result else 0
+    return klong._backend.klong_gradcheck(klong, x, y)
 
 
 def create_system_functions_autograd():

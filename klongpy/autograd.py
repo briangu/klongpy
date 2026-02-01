@@ -33,24 +33,20 @@ class NonScalarLossError(AutogradError):
         )
 
 
-def _get_float_dtype(backend=None):
+def _get_float_dtype(backend):
     """Get the appropriate float dtype for the current backend."""
-    if backend is None:
-        backend = get_default_backend()
     # MPS doesn't support float64
     if hasattr(backend, 'supports_float64') and not backend.supports_float64():
         return np.float32
     return np.float64
 
 
-def _scalar_value(x, backend=None):
+def _scalar_value(x, backend):
     """Extract scalar value from various array/tensor types.
 
     Raises:
         NonScalarLossError: If x is not a scalar value.
     """
-    if backend is None:
-        backend = get_default_backend()
     x = backend.to_numpy(x) if backend.is_backend_array(x) else x
     if isinstance(x, np.ndarray):
         if x.ndim == 0:
@@ -62,7 +58,7 @@ def _scalar_value(x, backend=None):
     return float(x)
 
 
-def _to_func_input(x, backend=None, require_grad=False):
+def _to_func_input(x, backend, require_grad=False):
     """Convert numpy array to appropriate input type for function call.
 
     Args:
@@ -71,8 +67,6 @@ def _to_func_input(x, backend=None, require_grad=False):
         require_grad: If True and backend supports autograd, create grad tensor.
                       For numeric gradient, this should be False.
     """
-    if backend is None:
-        backend = get_default_backend()
     if require_grad and backend.supports_autograd():
         return backend.create_grad_tensor(x)
     return x
@@ -92,11 +86,8 @@ def _invoke_fn(klong, fn, args):
     return klong.call(KGCall(inner, list(args), len(args)))
 
 
-def numeric_grad(func, x, eps=None, backend=None):
+def numeric_grad(func, x, backend, eps=None):
     """Compute numeric gradient of scalar-valued function."""
-    if backend is None:
-        backend = get_default_backend()
-
     # Get appropriate float dtype
     float_dtype = _get_float_dtype(backend)
 
@@ -137,7 +128,7 @@ def grad_of_fn(klong, fn, x):
     if backend.supports_autograd():
         return backend.compute_autograd(call_fn, x)
     else:
-        return numeric_grad(call_fn, x, backend=backend)
+        return numeric_grad(call_fn, x, backend)
 
 
 def torch_autograd(func, x):
@@ -148,7 +139,7 @@ def torch_autograd(func, x):
     return backend.compute_autograd(func, x)
 
 
-def numeric_jacobian(func, x, eps=None, backend=None):
+def numeric_jacobian(func, x, backend, eps=None):
     """
     Compute Jacobian matrix of func at point x using finite differences.
 
@@ -157,15 +148,12 @@ def numeric_jacobian(func, x, eps=None, backend=None):
     Args:
         func: Callable that takes an array and returns an array
         x: Input point (array)
-        eps: Step size for finite differences (default: 1e-6 or 1e-4 for float32)
         backend: Backend provider
+        eps: Step size for finite differences (default: 1e-6 or 1e-4 for float32)
 
     Returns:
         Jacobian matrix as numpy array
     """
-    if backend is None:
-        backend = get_default_backend()
-
     float_dtype = _get_float_dtype(backend)
     if eps is None:
         eps = 1e-4 if float_dtype == np.float32 else 1e-6
@@ -316,5 +304,5 @@ def multi_grad_of_fn(klong, fn, param_syms):
                 vals = list(param_values)
                 vals[idx] = v
                 return call_fn_with_tensors(vals)
-            grads.append(numeric_grad(single_param_fn, param_values[i], backend=backend))
+            grads.append(numeric_grad(single_param_fn, param_values[i], backend))
         return grads
