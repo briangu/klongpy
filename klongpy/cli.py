@@ -1,4 +1,9 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
+"""
+KlongPy REPL command-line interface.
+
+See https://t3x.org/klong/klong-ref.txt.html for additional details.
+"""
 
 import argparse
 import asyncio
@@ -14,11 +19,6 @@ from klongpy import KlongInterpreter
 from klongpy.core import kg_write
 from klongpy.repl import cleanup_repl, create_repl
 
-"""
-
-    KlongPy REPL: See https://t3x.org/klong/klong-ref.txt.html for additional details.
-
-"""
 
 def sys_cmd_shell(klong, cmd):
     """
@@ -261,7 +261,8 @@ def run_file(klong_loop, klong, fname, verbose=False):
     return run_in_loop(klong_loop, run_in_klong(klong, content))
 
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the KlongPy REPL."""
     if '--' in sys.argv:
         index = sys.argv.index('--')
         main_args = sys.argv[:index]
@@ -289,7 +290,7 @@ if __name__ == "__main__":
 
     if args.expr:
         print(KlongInterpreter()(args.expr))
-        exit()
+        return
 
     klong, loops = create_repl(debug=args.debug)
     io_loop, _, _, klong_loop, _, _ = loops
@@ -370,3 +371,7 @@ if __name__ == "__main__":
 
     if exit_code is not None:
         sys.exit(exit_code)
+
+
+if __name__ == "__main__":
+    main()

@@ -3,11 +3,11 @@
 ## Development setup
 
 ```bash
-python3 setup.py develop
+pip install -e ".[dev]"
 ```
 
 ## Running tests
 
 ```bash
-python3 -m unittest
+python3 -m pytest tests/
 ```

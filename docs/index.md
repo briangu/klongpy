@@ -5,7 +5,7 @@ KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array lang
 # Quick install
 
 ```bash
-pip3 install "klongpy[full]"
+pip3 install "klongpy[all]"
 ```
 
 New users may want to read the [Quick Start](quick-start.md) guide and the
@@ -170,7 +170,7 @@ Then enable with `USE_TORCH=1`:
 
 ### All application tools (db, web, REPL, etc.)
 
-    $ pip3 install "klongpy[full]"
+    $ pip3 install "klongpy[all]"
 
 
 # REPL
@@ -243,12 +243,12 @@ The following operators are yet to be used:
 
     $ git clone https://github.com/briangu/klongpy.git
     $ cd klongpy
-    $ python3 setup.py develop
+    $ pip install -e ".[dev]"
 
 ### Running tests
 
 ```bash
-python3 -m unittest
+python3 -m pytest tests/
 ```
 
 

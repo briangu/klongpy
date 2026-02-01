@@ -5,7 +5,7 @@ FROM python:3.11.7-slim
 WORKDIR /usr/src/app
 
 # Install KlongPy
-RUN pip install "klongpy[full]"
+RUN pip install "klongpy[all]"
 
 # Make port available to the world outside this container (adjust if needed)
 EXPOSE 8000

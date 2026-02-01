@@ -332,9 +332,9 @@ pip install klongpy torch
 USE_TORCH=1 kgpy              # Enable torch backend
 ```
 
-### Full Installation (Database, Web, IPC)
+### Full Installation (Database, Web, IPC, Torch)
 ```bash
-pip install "klongpy[full]"
+pip install "klongpy[all]"
 ```
 
 ## Lineage and Inspiration
@@ -378,7 +378,7 @@ Ongoing development:
 ```bash
 git clone https://github.com/briangu/klongpy.git
 cd klongpy
-python3 setup.py develop
+pip install -e ".[dev]"   # Install in editable mode with dev dependencies
 python3 -m pytest tests/  # Run tests
 ```
 

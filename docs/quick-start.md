@@ -6,7 +6,7 @@ Welcome to KlongPy! Get up and running with KlongPy in just a few steps.
 
 Before you begin, ensure you have the following installed:
 
-- Python 3.6 or higher (3.11 preferred)
+- Python 3.9 or higher (3.11 or 3.12 recommended)
 - `pip` for installing packages
 
 ## Setup Steps
@@ -23,7 +23,7 @@ With the environment active, install KlongPy (and optionally `rlwrap`
 for a nicer REPL experience):
 
 ```bash
-pip install "klongpy[full]"
+pip install "klongpy[all]"
 pip install rlwrap  # optional
 ```
 
