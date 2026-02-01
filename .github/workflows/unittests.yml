@@ -78,4 +78,4 @@ jobs:
       env:
         USE_TORCH: "1"
       run: |
-        python -m pytest tests/test_torch_backend.py tests/test_backend.py tests/test_autograd.py -v
+        python -m pytest tests/test_torch_backend.py tests/test_backend.py tests/test_autograd_parametrized.py -v
