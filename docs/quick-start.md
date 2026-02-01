@@ -6,7 +6,7 @@ Welcome to KlongPy! Get up and running with KlongPy in just a few steps.
 
 Before you begin, ensure you have the following installed:
 
-- Python 3.6 or higher (3.11 preferred)
+- Python 3.9 or higher (3.11 or 3.12 recommended)
 - `pip` for installing packages
 
 ## Setup Steps
@@ -19,12 +19,36 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-With the environment active, install KlongPy (and optionally `rlwrap`
-for a nicer REPL experience):
+With the environment active, choose one of the install options below
+(and optionally `rlwrap` for a nicer REPL experience):
 
 ```bash
-pip install "klongpy[full]"
-pip install rlwrap  # optional
+# Base runtime only (NumPy backend)
+pip install klongpy
+
+# REPL support (required for `kgpy`)
+pip install "klongpy[repl]"
+
+# Full feature set (REPL, torch, web, db, websockets)
+pip install "klongpy[all]"
+```
+
+### PyTorch Backend (Optional)
+
+For GPU acceleration and automatic differentiation, install PyTorch:
+
+```bash
+pip install "klongpy[torch]"
+```
+
+For nicer line editing, install `rlwrap` via your OS package manager (optional).
+
+Then enable the torch backend when running:
+
+```bash
+USE_TORCH=1 kgpy
+# or
+KLONG_BACKEND=torch kgpy
 ```
 
 
@@ -35,16 +59,18 @@ After installing KlongPy, you can start using it right away. Here’s how to set
 
 ```bash
 $> rlwrap kgpy
-Welcome to KlongPy REPL v0.6.0
+Welcome to KlongPy REPL v0.6.9
 author: Brian Guarraci
 web   : http://klongpy.org
 ]h for help
-ctrl-d or ]q to quit
+Ctrl-D or ]q to quit
 
 ?> 1+1
 2
 ?>
 ```
+
+Version numbers may differ depending on the release you installed.
 
 See the [REPL Reference](repl.md) for more information on commands and operations.
 
@@ -52,9 +78,11 @@ See the [REPL Reference](repl.md) for more information on commands and operation
 
 Now that you've installed KlongPy and run a simple session, you're ready to dive deeper. Check out the following resources:
 
-- [Examples](examples.md) - for more hands-on code examples.
-- [API Reference](api-reference.md) - for detailed documentation on KlongPy functions and classes.
-- [Contribute](contribute.md) - for guidelines on how to contribute to KlongPy.
+- [Examples](examples.md) - hands-on code examples.
+- [Python Integration](python_integration.md) - interop with Python modules and data.
+- [PyTorch Backend & Autograd](torch_backend.md) - gradients, Jacobians, and compilation.
+- [Operators](operators.md) - language operator reference.
+- [Performance](performance.md) - benchmarking and backend tips.
 
 For any issues or questions, visit our [Issues](https://github.com/briangu/klongpy/issues) page on GitHub.
 

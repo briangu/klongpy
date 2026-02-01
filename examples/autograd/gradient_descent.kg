@@ -1,0 +1,190 @@
+:" ============================================================"
+:" Gradient Descent Fundamentals"
+:" ============================================================"
+:" Demonstrates core gradient descent concepts using autograd:"
+:" 1. Finding minimum of a function"
+:" 2. Rosenbrock function optimization"
+:" 3. Linear regression fitting"
+:" 4. Quadratic curve fitting"
+:" Run with: kgpy gradient_descent.kg"
+:" Or with torch: USE_TORCH=1 kgpy gradient_descent.kg"
+:" ============================================================"
+
+.p("Gradient Descent with KlongPy Autograd")
+.p("=======================================")
+.p("")
+
+:" ============================================================"
+:" Example 1: Minimize f(t) = (t-3)^2"
+:" ============================================================"
+
+.p("Example 1: Minimize f(t) = (t-3)^2")
+.p("-----------------------------------")
+.p("Minimum should be at t = 3")
+.p("")
+
+f1::{(x-3)^2}
+
+t::10.0
+lr1::0.1
+
+.d("Starting t = ")
+.p(t)
+.d("Learning rate = ")
+.p(lr1)
+.p("")
+
+print1::{.d("Step ");.d(x);.d(": t=");.d(t);.d(", f(t)=");.d(f1(t));.d(", grad=");.p(y)}
+step1::{grad1::f1:>t;t::t-(lr1*grad1);:[0=(x!2);print1(x;grad1);0]}
+
+step1'1+!10
+
+.p("")
+.d("Final t = ")
+.d(t)
+.p(" (target: 3.0)")
+.p("")
+
+:" ============================================================"
+:" Example 2: Rosenbrock Function (challenging optimization)"
+:" ============================================================"
+
+.p("Example 2: Rosenbrock Function")
+.p("-------------------------------")
+.p("f(a,b) = (1-a)^2 + 100*(b-a^2)^2")
+.p("Minimum at (1, 1)")
+.p("")
+
+rosenbrock::{[pa pb];pa::*x;pb::x@1;((1-pa)^2)+100*((pb-(pa^2))^2)}
+
+pt::[0.0 0.0]
+lr2::0.001
+
+.d("Starting point: ")
+.p(pt)
+.d("Learning rate: ")
+.p(lr2)
+.p("")
+
+print2::{.d("Step ");.d(x);.d(": pt=");.d(pt);.d(", f(pt)=");.p(rosenbrock(pt))}
+step2::{grad2::rosenbrock:>pt;pt::pt-(lr2*grad2);:[0=(x!20);print2(x);0]}
+
+step2'1+!100
+
+.p("")
+.d("Final point: ")
+.d(pt)
+.p(" (target: [1, 1])")
+.p("")
+
+:" ============================================================"
+:" Example 3: Fitting a Line to Data"
+:" ============================================================"
+
+.p("Example 3: Linear Regression")
+.p("-----------------------------")
+.p("Fit y = w*x + b to synthetic data")
+.p("")
+
+N::20
+idx::!N
+Xd::(4*(idx%N))-2
+
+wTrue::2.0
+bTrue::3.0
+yTrue::(wTrue*Xd)+bTrue
+
+.d("True parameters: w=")
+.d(wTrue)
+.d(", b=")
+.p(bTrue)
+
+w3::0.0
+b3::0.0
+
+lossW3::{((+/((x*Xd)+b3-yTrue)^2))%N}
+lossB3::{((+/((w3*Xd)+x-yTrue)^2))%N}
+
+lr3::0.1
+
+.d("Initial: w=")
+.d(w3)
+.d(", b=")
+.p(b3)
+.p("")
+
+print3::{.d("Step ");.d(x);.d(": w=");.d(w3);.d(", b=");.d(b3);.d(", loss=");.p(lossW3(w3))}
+step3::{gw3::lossW3:>w3;gb3::lossB3:>b3;w3::w3-(lr3*gw3);b3::b3-(lr3*gb3);:[0=(x!5);print3(x);0]}
+
+step3'1+!30
+
+.p("")
+.d("Learned: w=")
+.d(w3)
+.d(", b=")
+.p(b3)
+.d("True:    w=")
+.d(wTrue)
+.d(", b=")
+.p(bTrue)
+.p("")
+
+:" ============================================================"
+:" Example 4: Quadratic Curve Fitting"
+:" ============================================================"
+
+.p("Example 4: Quadratic Curve Fitting")
+.p("-----------------------------------")
+.p("Fit y = a*x^2 + b*x + c to parabola")
+.p("")
+
+aTrue::0.5
+bTrue2::0-2.0
+cTrue::1.0
+yQuad::((aTrue*(Xd^2))+(bTrue2*Xd))+cTrue
+
+a4::0.0
+b4::0.0
+c4::0.0
+
+quadPred::{((a4*(Xd^2))+(b4*Xd))+c4}
+quadLoss::{(+/(quadPred()-yQuad)^2)%N}
+
+lossA::{((+/((((x*(Xd^2))+(b4*Xd))+c4)-yQuad)^2))%N}
+lossB4::{((+/(((a4*(Xd^2))+(x*Xd))+c4-yQuad)^2))%N}
+lossC::{((+/(((a4*(Xd^2))+(b4*Xd))+x-yQuad)^2))%N}
+
+lr4::0.01
+
+.d("True: a=")
+.d(aTrue)
+.d(", b=")
+.d(bTrue2)
+.d(", c=")
+.p(cTrue)
+.d("Initial: a=")
+.d(a4)
+.d(", b=")
+.d(b4)
+.d(", c=")
+.p(c4)
+.p("")
+
+print4::{.d("Step ");.d(x);.d(": a=");.d(a4);.d(", b=");.d(b4);.d(", c=");.p(c4)}
+step4::{ga4::lossA:>a4;gb4::lossB4:>b4;gc4::lossC:>c4;a4::a4-(lr4*ga4);b4::b4-(lr4*gb4);c4::c4-(lr4*gc4);:[0=(x!20);print4(x);0]}
+
+step4'1+!100
+
+.p("")
+.d("Learned: a=")
+.d(a4)
+.d(", b=")
+.d(b4)
+.d(", c=")
+.p(c4)
+.d("True:    a=")
+.d(aTrue)
+.d(", b=")
+.d(bTrue2)
+.d(", c=")
+.p(cTrue)

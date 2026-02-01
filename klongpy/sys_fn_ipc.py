@@ -940,20 +940,31 @@ def eval_sys_fn_create_ipc_server(klong, x):
 
 
 class KGAsyncCall(KGLambda):
-    def __init__(self, klongloop, fn, cb):
+    def __init__(self, klongloop, fn, cb, klong):
         self.klongloop = klongloop
-        self.cb = cb
-        self.fn = fn
-        arity = fn.get_arity() if issubclass(type(self.fn), KGLambda) else fn.arity
+        self.klong = klong
+
+        # Wrap callbacks - KGFnWrapper now handles dynamic resolution automatically
+        self.fn = KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
+        self.cb = KGFnWrapper(klong, cb) if isinstance(cb, KGFn) else cb
+
+        arity = fn.get_arity() if issubclass(type(fn), KGLambda) else fn.arity
         self.args = [reserved_fn_symbol_map[x] for x in reserved_fn_args[:arity]]
 
     async def acall(self, klong, params):
+        # Execute the function based on its type
         if issubclass(type(self.fn), KGLambda):
             ctx = {reserved_fn_symbols[i]:params[i] for i in range(min(len(reserved_fn_args),len(params)))}
             r = self.fn(klong, ctx)
+        elif callable(self.fn):
+            r = self.fn(*params)
         else:
+            # Shouldn't reach here, but handle it
             r = klong.call(KGCall(self.fn.a, [*params], self.fn.arity))
-        self.cb(r)
+
+        # Invoke callback - KGFnWrapper handles dynamic resolution automatically
+        if self.cb is not None:
+            self.cb(r)
 
     def __call__(self, klong, ctx):
         params = [ctx[x] for x in self.args]
@@ -979,7 +990,8 @@ def eval_sys_fn_create_async_wrapper(klong, x, y):
         raise KlongException("y must be a function")
     system = klong['.system']
     klongloop = system['klongloop']
-    return KGAsyncCall(klongloop, x, KGFnWrapper(klong, y))
+    # KGAsyncCall will wrap the callbacks automatically
+    return KGAsyncCall(klongloop, x, y, klong)
 
 
 def create_system_functions_ipc():

@@ -1,6 +1,11 @@
 from .core import *
-from .autograd import grad_of_fn, numeric_grad
+from .autograd import grad_of_fn, numeric_grad, jacobian_of_fn, multi_jacobian_of_fn, multi_grad_of_fn
+from .backend import (
+    to_numpy, safe_equal, detach_if_needed, to_int_array, power as backend_power, has_gradient,
+    kg_asarray, str_to_chr_arr, kg_equal, is_integer, is_float, get_dtype_kind, array_size
+)
 import sys
+import numpy
 
 
 def eval_dyad_add(a, b):
@@ -255,6 +260,11 @@ def eval_dyad_drop(a, b):
     return b[a:] if a >= 0 else b[:a]
 
 
+def _safe_equal(x, y):
+    """Compare two values, handling torch tensors correctly."""
+    return kg_truth(safe_equal(x, y))
+
+
 def eval_dyad_equal(a, b):
     """
 
@@ -280,7 +290,7 @@ def eval_dyad_equal(a, b):
                   [1 2 3]=[1 4 3]  -->  [1 0 1]
 
     """
-    return vec_fn2(a, b, lambda x, y: kg_truth(np.asarray(x,dtype=object) == np.asarray(y,dtype=object)))
+    return vec_fn2(a, b, _safe_equal)
 
 
 def finditer(s, sub):
@@ -460,10 +470,10 @@ def eval_dyad_index_in_depth(a, b):
     return np.asarray(a)[tuple(b) if is_list(b) else b] if not is_empty(b) else b
 
 
-def _e_dyad_integer_divide(x,y):
+def _e_dyad_integer_divide(x, y):
     a = np.divide(x, y)
-    a = kg_asarray(rec_fn(a,np.trunc)) if np.isarray(a) else a
-    return np.asarray(a,dtype='int') if np.isarray(a) else int(a)
+    a = kg_asarray(rec_fn(a, np.trunc)) if np.isarray(a) else a
+    return to_int_array(a)
 
 def eval_dyad_integer_divide(a, b):
     """
@@ -541,18 +551,28 @@ def eval_dyad_join(a, b):
         return b
 
     if np.isarray(a) and np.isarray(b):
-        if len(a) == 0:
-            return b
-        if len(a.shape) == len(b.shape) and a.shape[-1] == b.shape[-1]:
-            return np.concatenate((a,b))
+        # Only use fast path for 1D+ arrays (not 0D scalars)
+        a_is_1d_plus = hasattr(a, 'ndim') and a.ndim >= 1
+        b_is_1d_plus = hasattr(b, 'ndim') and b.ndim >= 1
+        if a_is_1d_plus and b_is_1d_plus:
+            if len(a) == 0:
+                return b
+            if len(a.shape) == len(b.shape) and a.shape[-1] == b.shape[-1]:
+                return np.concatenate((a,b))
 
     aa = _arr_to_list(a)
     bb = _arr_to_list(b)
 
     r = [*aa,*bb]
     nr = kg_asarray(r)
-    t = nr.dtype.type
-    return nr if issubclass(t, np.integer) or issubclass(t, np.floating) else np.asarray(r,dtype=object)
+    # Check dtype kind for compatibility with both numpy and torch
+    dtype_kind = get_dtype_kind(nr)
+    if dtype_kind in ('i', 'f', 'u'):
+        return nr
+    # Use numpy directly for object arrays (torch backend doesn't support object dtype)
+    # Convert any torch tensors to numpy first (needed for MPS tensors)
+    r_numpy = [to_numpy(x) if np.isarray(x) else x for x in r]
+    return numpy.asarray(r_numpy, dtype=object)
 
 
 def eval_dyad_less(a, b):
@@ -709,10 +729,26 @@ def eval_dyad_multiply(a, b):
     return np.multiply(a, b)
 
 
-def _e_dyad_power(a,b):
-    r = np.power(float(a) if is_integer(a) else a, b)
-    br = all([np.trunc(x) == x for x in r]) if is_list(r) else np.trunc(r) == r
-    return np.dtype('int').type(r) if br else r
+def _e_dyad_power(a, b):
+    # Check if input requires grad - if so, preserve float for autograd
+    input_has_grad = has_gradient(a)
+    # Use backend power function which handles torch.pow for gradients
+    r = backend_power(a, b)
+    # If input had gradients, keep result as float to preserve autograd
+    if input_has_grad:
+        return r
+    # Check if result is integer using vectorized operations
+    r_val = detach_if_needed(r)
+    if is_list(r_val):
+        # Vectorized check: trunc(r) == r for all elements
+        trunc_r = numpy.trunc(r_val) if isinstance(r_val, numpy.ndarray) else r_val.trunc()
+        br = bool((trunc_r == r_val).all())
+    else:
+        val = float(r_val) if hasattr(r_val, 'item') else r_val
+        br = numpy.trunc(val) == val
+    if br:
+        return to_int_array(r)
+    return r
 
 def eval_dyad_power(a, b):
     """
@@ -811,20 +847,22 @@ def eval_dyad_reshape(a, b):
             y = np.where(a < 0)[0]
             if len(y) > 0:
                 a = np.copy(a)
-                a[y] = b.size // 2
-            b_s = b.size
-            a_s = np.prod(a)
+                a[y] = array_size(b) // 2
+            b_s = array_size(b)
+            a_s = int(np.prod(a))  # Ensure it's a Python int for comparison
+            # Convert shape to tuple of ints for torch compatibility
+            a_shape = tuple(int(x) for x in (a.tolist() if hasattr(a, 'tolist') else a))
             if a_s > b_s:
                 b = np.tile(b.flatten(), (a_s // b_s))
-                b = np.concatenate((b, b[:a_s - b.size]))
-                b_s = b.size
-                r = b.reshape(a)
+                b = np.concatenate((b, b[:a_s - array_size(b)]))
+                b_s = array_size(b)
+                r = b.reshape(a_shape)
                 r = np.asarray(["".join(x) for x in r]) if j else r
                 j = False
             elif a_s == b_s:
-                r = b.reshape(a)
+                r = b.reshape(a_shape)
             else:
-                r = np.resize(b, a)
+                r = np.resize(b, a_shape)
         else:
             r = np.full(a, b)
     else:
@@ -861,7 +899,7 @@ def eval_dyad_rotate(a, b):
         rotated will be a!#b.
 
         Note that n:+M rotates the rows of a matrix M (i.e. it rotates
-        it vertically); to rotate its columns (horizontally), use n:+:\M
+        it vertically); to rotate its columns (horizontally), use n:+:\\M
         (Rotate-Each-Left).
 
         Examples:           1:+[1 2 3 4 5]     -->  [5 1 2 3 4]
@@ -967,11 +1005,17 @@ def eval_dyad_take(a, b):
     """
     j = isinstance(b,str)
     b = str_to_chr_arr(b) if j else np.asarray(b)
-    aa = np.abs(a)
-    if aa > b.size:
-        b = np.tile(b,aa // len(b))
-        b = np.concatenate((b, b[:aa-b.size]) if a > 0 else (b[-(aa-b.size):],b))
-    r = b[a:] if a < 0 else b[:a]
+    aa = int(np.abs(a)) if hasattr(np.abs(a), 'item') else np.abs(a)  # Convert tensor to int
+    b_size = array_size(b)
+    if b_size == 0:
+        # Handle empty array/string case
+        r = b
+    elif aa > b_size:
+        b = np.tile(b, aa // len(b))
+        b = np.concatenate((b, b[:aa-array_size(b)]) if a > 0 else (b[-(aa-array_size(b)):], b))
+        r = b[a:] if a < 0 else b[:a]
+    else:
+        r = b[a:] if a < 0 else b[:a]
     return "".join(r) if j else r
 
 
@@ -980,22 +1024,85 @@ def eval_dyad_grad(klong, a, b):
 
         a∇b                                                    [Grad]
 
-        Compute the numeric gradient of the monadic function ``b`` at ``a``.
+        Compute the numeric gradient of the monadic function ``b`` at ``a``
+        using finite differences. Always uses numeric differentiation.
+
+        For automatic differentiation, use the :> operator instead.
 
     """
+    def call_fn(v):
+        if isinstance(b, (KGSym, KGLambda, KGFn, KGCall)):
+            return klong.call(KGCall(b, [v], 1))
+        return b(v)
+
     if isinstance(a, KGSym):
         orig = klong[a]
 
         def func(v):
             klong[a] = v
             try:
-                return klong.call(KGCall(b, [v], 1)) if isinstance(b, (KGSym, KGLambda, KGFn, KGCall)) else b(v)
+                return call_fn(v)
             finally:
                 klong[a] = orig
 
-        return numeric_grad(func, orig)
+        return numeric_grad(func, orig, klong._backend)
     else:
-        return grad_of_fn(klong, b, a)
+        return numeric_grad(call_fn, a, klong._backend)
+
+
+def eval_dyad_jacobian(klong, a, b):
+    """
+
+        a∂b                                                  [Jacobian]
+
+        Compute Jacobian matrix of function ``b`` at point ``a``.
+        For f: R^n -> R^m, returns m x n matrix where J[i,j] = df_i/dx_j.
+
+        Two modes based on what ``a`` contains:
+        1. Single point: [1 2]∂f -> Jacobian at that point
+        2. List of symbols: [w b]∂f -> [J_w J_b] (multi-param mode)
+
+        In multi-param mode, ``b`` should be a niladic function
+        that references the parameter symbols.
+
+        Examples:
+            [1 2]∂{[x@0^2 x@1^2]}  -->  [[2 0] [0 4]]
+            [w b]∂f               -->  [J_w J_b] (multi-param mode)
+
+    """
+    # Check if a is a list of symbols (multi-param mode)
+    if is_list(a) and len(a) > 0 and all(isinstance(p, KGSym) for p in a):
+        return multi_jacobian_of_fn(klong, b, list(a))
+    else:
+        return jacobian_of_fn(klong, b, a)  # Note: a is point, b is function
+
+
+def eval_dyad_autograd(klong, a, b):
+    """
+
+        a:>b                                                 [Autograd]
+
+        Compute gradient of function ``a`` with respect to ``b``.
+
+        Two modes based on what ``b`` contains:
+        1. Single param/point: a:>x or a:>[1 2 3] -> gradient at that point
+        2. List of symbols: a:>[w b] -> [grad_w grad_b] (multi-param mode)
+
+        In multi-param mode, ``a`` should be a niladic function (loss)
+        that references the parameter symbols.
+
+        Examples:
+            {x^2}:>3.0       -->  6.0      (derivative of x^2 at x=3)
+            {x^3}:>2.0       -->  12.0     (derivative of x^3 at x=2)
+            {+/x^2}:>[1 2 3] -->  [2 4 6]  (gradient of sum of squares)
+            loss:>[w b]      -->  [grad_w grad_b]  (multi-param mode)
+
+    """
+    # Check if b is a list of symbols (multi-param mode)
+    if is_list(b) and len(b) > 0 and all(isinstance(p, KGSym) for p in b):
+        return multi_grad_of_fn(klong, a, list(b))
+    else:
+        return grad_of_fn(klong, a, b)
 
 
 def create_dyad_functions(klong):

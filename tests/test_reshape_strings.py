@@ -3,7 +3,9 @@ import numpy as np
 
 from klongpy import KlongInterpreter
 from tests.utils import kg_equal
+from tests.backend_compat import requires_strings
 
+@requires_strings
 class TestReshapeStrings(unittest.TestCase):
     def setUp(self):
         self.klong = KlongInterpreter()

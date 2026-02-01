@@ -1,4 +1,9 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
+"""
+KlongPy REPL command-line interface.
+
+See https://t3x.org/klong/klong-ref.txt.html for additional details.
+"""
 
 import argparse
 import asyncio
@@ -14,11 +19,6 @@ from klongpy import KlongInterpreter
 from klongpy.core import kg_write
 from klongpy.repl import cleanup_repl, create_repl
 
-"""
-
-    KlongPy REPL: See https://t3x.org/klong/klong-ref.txt.html for additional details.
-
-"""
 
 def sys_cmd_shell(klong, cmd):
     """
@@ -196,7 +196,7 @@ def show_repl_header(ipc_addr=None):
     print(f"{colorama.Fore.GREEN}Welcome to KlongPy REPL v{importlib.metadata.distribution('klongpy').version}")
     print(f"{colorama.Fore.GREEN}Author: Brian Guarraci")
     print(f"{colorama.Fore.GREEN}Web: http://klongpy.org")
-    print(f"{colorama.Fore.YELLOW}]h for help; crtl-d or ]q to quit")
+    print(f"{colorama.Fore.YELLOW}]h for help; Ctrl-D or ]q to quit")
     print()
     if ipc_addr:
         print(f"{colorama.Fore.RED}Running IPC server at {ipc_addr}")
@@ -261,7 +261,8 @@ def run_file(klong_loop, klong, fname, verbose=False):
     return run_in_loop(klong_loop, run_in_klong(klong, content))
 
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the KlongPy REPL."""
     if '--' in sys.argv:
         index = sys.argv.index('--')
         main_args = sys.argv[:index]
@@ -289,7 +290,7 @@ if __name__ == "__main__":
 
     if args.expr:
         print(KlongInterpreter()(args.expr))
-        exit()
+        return
 
     klong, loops = create_repl(debug=args.debug)
     io_loop, _, _, klong_loop, _, _ = loops
@@ -305,7 +306,7 @@ if __name__ == "__main__":
     if args.server:
         r = klong(f".srv({args.server})")
         if r == 0:
-            print(f"Failed to start server")
+            print("Failed to start server")
     elif args.test:
         print(f"Test: {args.test}")
         with open(args.test, "r") as f:
@@ -370,3 +371,7 @@ if __name__ == "__main__":
 
     if exit_code is not None:
         sys.exit(exit_code)
+
+
+if __name__ == "__main__":
+    main()

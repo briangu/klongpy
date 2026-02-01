@@ -1,5 +1,6 @@
 from .core import *
 from .dyads import eval_dyad_add, eval_dyad_subtract, eval_dyad_multiply, eval_dyad_divide
+from .backend import kg_asarray, is_number, str_to_chr_arr, kg_equal
 import functools
 import itertools
 
@@ -154,7 +155,7 @@ def eval_adverb_each_left(f, a, b):
                   1,:/[2 3 4]  -->  [[2 1] [3 1] [4 1]]
     """
     b = str_to_chr_arr(b) if isinstance(b,str) else b
-    return np.asarray([f(a,x) for x in b])
+    return kg_asarray([f(a,x) for x in b])
 
 
 def eval_adverb_each_right(f, a, b):
@@ -162,7 +163,7 @@ def eval_adverb_each_right(f, a, b):
     see: eval_dyad_adverb_each_left
     """
     b = str_to_chr_arr(b) if isinstance(b,str) else b
-    return np.asarray([f(x,a) for x in b])
+    return kg_asarray([f(x,a) for x in b])
 
 
 
@@ -227,8 +228,7 @@ def eval_adverb_over(f, a, op):
         return a
     if len(a) == 1:
         return a[0]
-    # https://docs.cupy.dev/en/stable/reference/ufunc.html
-    # TODO: can we use NumPy reduce when CuPy backend primary?
+    # Use NumPy/PyTorch ufunc reduce when available for better performance
     if isinstance(op, KGOp):
         if safe_eq(op.a,'+'):
             return np.add.reduce(a)
@@ -320,7 +320,7 @@ def eval_adverb_scan_over(f, a, op):
     """
     if is_atom(a):
         return a
-    # https://docs.cupy.dev/en/stable/reference/ufunc.html
+    # Use NumPy/PyTorch ufunc accumulate when available for better performance
     if safe_eq(f, eval_dyad_add) and hasattr(np.add, 'accumulate'):
         return np.add.accumulate(a)
     elif safe_eq(f, eval_dyad_subtract) and hasattr(np.subtract, 'accumulate'):

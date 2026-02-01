@@ -1,0 +1,79 @@
+:" Optimizer Demo - Using Custom Optimizers in KlongPy"
+:""
+:" This example shows how to use the optimizer classes from optimizers.py"
+:" Run with: USE_TORCH=1 kgpy optimizer_demo.kg"
+
+:" Import the optimizer class"
+.pyf("./optimizers.py";"SGDOptimizer")
+
+:" ============================================"
+:" Example 1: Simple quadratic minimization"
+:" ============================================"
+
+.p("Example 1: Minimize f(theta) = theta^2")
+.p("Starting at theta = 10.0")
+
+theta::10.0
+loss::{theta^2}
+
+:" Create optimizer with learning rate 0.1"
+opt::SGDOptimizer(["theta"];:{["lr" 0.1]})
+
+:" Run 50 optimization steps"
+.p("Running 50 steps...")
+{opt(loss)}'!50
+
+.p("Final theta: ")
+.p(theta)
+.p("")
+
+:" ============================================"
+:" Example 2: Linear regression"
+:" ============================================"
+
+.p("Example 2: Linear regression (y = 2x + 1)")
+
+:" Training data"
+X::[1 2 3 4 5]
+Y::[3.1 4.9 7.2 8.8 11.1]  :" Approximately y = 2x + 1"
+
+:" Parameters to learn"
+w::0.0
+b::0.0
+
+:" Mean squared error loss"
+mse::{(+/(((w*X)+b)-Y)^2)%#X}
+
+:" Import Adam optimizer"
+.pyf("./optimizers.py";"AdamOptimizer")
+opt2::AdamOptimizer(["w" "b"];:{["lr" 0.1]})
+
+:" Train for 500 steps"
+.p("Training for 500 steps...")
+{opt2(mse)}'!500
+
+.p("Learned parameters:")
+.d("  w = ");.p(w)
+.d("  b = ");.p(b)
+.p("Expected: w ~ 2.0, b ~ 1.0")
+.p("")
+
+:" ============================================"
+:" Example 3: Using multi-param gradients directly"
+:" ============================================"
+
+.p("Example 3: Manual gradient descent with multi-param gradients")
+
+a::5.0
+c::3.0
+f::{(a^2)+(c^2)}
+
+lr::0.1
+.p("Minimizing f(a,c) = a^2 + c^2")
+.d("Initial: a=");.d(a);.d(", c=");.p(c)
+
+:" Manual gradient descent using :>[a c] syntax"
+{grads::f:>[a c]; a::a-(lr*grads@0); c::c-(lr*grads@1)}'!50
+
+.d("Final: a=");.d(a);.d(", c=");.p(c)
+.p("Expected: both close to 0")

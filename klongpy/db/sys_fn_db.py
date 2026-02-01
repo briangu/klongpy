@@ -6,6 +6,7 @@ import pandas as pd
 
 from klongpy.core import (KGCall, KGLambda, KlongException, reserved_fn_args,
                           reserved_fn_symbol_map)
+from klongpy.backend import np as backend_np
 
 
 class KlongDbException(KlongException):
@@ -179,7 +180,7 @@ def eval_sys_fn_create_table(x):
             t,"c",,c
 
     """
-    if np.isarray(x):
+    if backend_np.isarray(x):
         return Table({k:v for k,v in x}, columns=[k for k,_ in x])
     elif isinstance(x, pd.DataFrame):
         return Table(x)
@@ -202,7 +203,7 @@ def eval_sys_fn_index(x, y):
         raise KlongDbException(x, "An index may only be created on a table.")
     if x.has_index():
         raise KlongDbException(x, "Table already has an index.")
-    if not np.isarray(y):
+    if not backend_np.isarray(y):
         raise KlongDbException(x, "An index must be a list of column names")
     for q in y:
         if q not in x.columns:
@@ -266,7 +267,7 @@ def eval_sys_fn_insert_table(x, y):
     """
     if not isinstance(x,Table):
         raise KlongDbException(x, "Inserts must be applied to a table")
-    if not np.isarray(y):
+    if not backend_np.isarray(y):
         raise KlongDbException(x, "Values to insert must be a list")
     batch = len(y.shape) > 1
     y_cols = len(y[0]) if batch else len(y)

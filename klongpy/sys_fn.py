@@ -12,8 +12,24 @@ from inspect import Parameter
 import numpy
 
 from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
-                   is_dict, is_empty, is_list, kg_asarray, kg_read, kg_write, np,
+                   is_dict, is_empty, is_list, kg_read, kg_write, np,
                    reserved_fn_args, reserved_fn_symbol_map, safe_eq, safe_inspect)
+from .backend import to_numpy, get_default_backend, kg_asarray
+
+
+def _to_display_value(x):
+    """Convert backend tensors to numpy for cleaner display."""
+    backend = get_default_backend()
+    # Convert backend arrays (tensors) to numpy
+    if backend.is_backend_array(x):
+        return to_numpy(x)
+    # Handle numpy arrays with tensors inside (object arrays)
+    if isinstance(x, numpy.ndarray) and x.dtype == object:
+        return numpy.array([_to_display_value(item) for item in x], dtype=object)
+    # Handle lists with tensors
+    if isinstance(x, list):
+        return [_to_display_value(item) for item in x]
+    return x
 
 
 def eval_sys_append_channel(x):
@@ -47,7 +63,22 @@ def eval_sys_display(klong, x):
 
         .d(x)                                                  [Display]
 
-        See [Write].
+        Display the object "x". Tensors are converted to numpy for cleaner output.
+        Use .bkd() for raw backend-specific display.
+
+    """
+    x = _to_display_value(x)
+    r = kg_write(x, display=True)
+    klong['.sys.cout'].raw.write(r)
+    return r
+
+
+def eval_sys_backend_display(klong, x):
+    """
+
+        .bkd(x)                                        [Backend-Display]
+
+        Display the object "x" in raw backend format (tensors shown as-is).
 
     """
     r = kg_write(x, display=True)
@@ -272,7 +303,23 @@ def eval_sys_print(klong, x):
         .p(x)                                                    [Print]
 
         Pretty-print the object "x" (like Display) and then print a
-        newline sequence. .p("") will just print a newline.
+        newline sequence. Tensors are converted to numpy for cleaner output.
+        Use .bkp() for raw backend-specific print.
+
+    """
+    x = _to_display_value(x)
+    o = kg_write(x, display=True)
+    klong['.sys.cout'].raw.write(o+"\n")
+    return o
+
+
+def eval_sys_backend_print(klong, x):
+    """
+
+        .bkp(x)                                          [Backend-Print]
+
+        Pretty-print the object "x" in raw backend format (tensors shown as-is)
+        and then print a newline sequence.
 
     """
     o = kg_write(x, display=True)
@@ -341,20 +388,30 @@ def _handle_import(item):
             if n_args <= len(reserved_fn_args):
                 item = KGLambda(item, args=reserved_fn_args[:n_args])
         else:
-            args = safe_inspect(item, follow_wrapped=True)
-            if 'args' in args:
+            sig_args = safe_inspect(item, follow_wrapped=True)
+            if 'args' in sig_args:
                 item = KGLambda(item, args=None, wildcard=True)
                 n_args = 3
             else:
-                args = [k for k,v in args.items() if (v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default == Parameter.empty) or (v.kind == Parameter.POSITIONAL_ONLY)]
-                n_args = len(args)
-                # if there are kwargs, then .pyc() must be used to call this function to override them
-                if 'klong' in args:
-                    n_args -= 1
-                    assert n_args <= len(reserved_fn_args)
-                    item = KGLambda(item, args=reserved_fn_args[:n_args], provide_klong=True)
-                elif n_args <= len(reserved_fn_args):
-                    item = KGLambda(item, args=reserved_fn_args[:n_args])
+                # Get required args (no default)
+                required_args = [k for k,v in sig_args.items() if (v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default == Parameter.empty) or (v.kind == Parameter.POSITIONAL_ONLY)]
+                # Get optional args (have default)
+                optional_args = [k for k,v in sig_args.items() if v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default != Parameter.empty]
+                # Use required args count, but if there are optional args and no required args,
+                # use wildcard mode so the function can accept 0-3 args
+                if not required_args and optional_args:
+                    item = KGLambda(item, args=None, wildcard=True)
+                    n_args = 3
+                else:
+                    args = required_args
+                    n_args = len(args)
+                    # if there are kwargs, then .pyc() must be used to call this function to override them
+                    if 'klong' in args:
+                        n_args -= 1
+                        assert n_args <= len(reserved_fn_args)
+                        item = KGLambda(item, args=reserved_fn_args[:n_args], provide_klong=True)
+                    elif n_args <= len(reserved_fn_args):
+                        item = KGLambda(item, args=reserved_fn_args[:n_args])
     except Exception:
         if hasattr(item, "__class__") and hasattr(item.__class__, '__module__') and item.__class__.__module__ == "builtins":
             # LOOK AWAY. You didn't see this.
@@ -415,6 +472,17 @@ def _import_module(klong, x, from_set=None):
                 except Exception as e:
                     # TODO: this should be logged
                     print(f"failed to import function: {name}", e)
+
+            # For from_set imports, also check for lazy-loaded attributes not in __dict__
+            # (e.g., numpy.random in numpy 2.x)
+            if from_set is not None:
+                for name in from_set:
+                    if name not in export_items and hasattr(module, name):
+                        try:
+                            item = getattr(module, name)
+                            klong[name] = _handle_import(item)
+                        except Exception as e:
+                            print(f"failed to import function: {name}", e)
         finally:
             klong._context.push(ctx)
 
@@ -576,6 +644,49 @@ def eval_sys_python_from(klong, x, y):
     if not (is_list(y) and all(map(lambda p: isinstance(p,str), y))) or isinstance(y,str):
         raise RuntimeError("from list entry must be a string")
     return _import_module(klong, x, from_set=set(y))
+
+
+def eval_sys_backend_fn(klong, x):
+    """
+
+        .bkf(x)                                           [Backend-Function]
+
+        Import functions from the current backend's array module.
+        This is similar to .pyf() but uses backend-aware functions that
+        work with both numpy and torch backends.
+
+        When using the torch backend, these functions preserve gradient
+        tracking for autograd.
+
+        Example:
+
+            .bkf("exp")
+            exp(1.0) --> 2.718...
+
+            .bkf(["exp";"sin";"cos"])
+            sin(1.0) --> 0.841...
+
+        Common functions available: exp, sin, cos, tan, tanh, sqrt, abs,
+        log, log10, floor, ceil, round
+
+    """
+    if isinstance(x, str):
+        x = [x]
+    if not (is_list(x) and all(map(lambda p: isinstance(p, str), x))):
+        raise RuntimeError("function name(s) must be a string or list of strings")
+
+    backend = klong._backend
+    ctx = klong._context.pop()
+    try:
+        for fn_name in x:
+            if hasattr(backend.np, fn_name):
+                fn = getattr(backend.np, fn_name)
+                klong[fn_name] = _handle_import(fn)
+            else:
+                raise RuntimeError(f"Backend does not have function: {fn_name}")
+    finally:
+        klong._context.push(ctx)
+    return None
 
 
 def eval_sys_random_number():

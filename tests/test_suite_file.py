@@ -1,6 +1,7 @@
 import unittest
 from klongpy import KlongInterpreter
 from utils import create_test_klong
+from backend_compat import requires_strings
 
 
 class FailedUnitTest(Exception):
@@ -13,18 +14,21 @@ def die(x,y):
 
 class TestSuiteFile(unittest.TestCase):
 
+    @requires_strings
     def test_fail(self):
         klong = create_test_klong()
         klong('t("success";1;1)')
         with self.assertRaises(RuntimeError):
             klong('t("fail";0;1)')
 
+    @requires_strings
     def test_call_lambda(self):
         klong = KlongInterpreter()
         klong['die'] = die
         with self.assertRaises(FailedUnitTest):
             klong('foo::{die(x;y)};foo("a";"b")')
 
+    @requires_strings
     def test_simple_script(self):
         t = """
 wl::{.w(x);.p("");x}
@@ -34,6 +38,7 @@ wl("hello")
         r = klong(t)
         self.assertEqual(r, 'hello')
 
+    @requires_strings
     def test_suite_head(self):
         t = """
 :"Klong test suite; nmh 2015--2020; public domain"
@@ -65,6 +70,7 @@ t("@1e5"        ; @1e5      ; 1)
         klong['die'] = die
         klong(t)
 
+    @requires_strings
     def test_dict_in_situ_mutation(self):
         klong = create_test_klong()
         t = """
@@ -75,6 +81,7 @@ t("D:::{};{D,x,x}'!5;D" ; s@<s::*'D ; [0 1 2 3 4])
         """
         klong(t)
 
+    @requires_strings
     def test_dyad_contexts(self):
         """
         Verify that we properly evaluate (KGCall) the dyadic function
@@ -96,6 +103,7 @@ t("[1 2 3]g(;0;)'[4 5 6]" ; [1 2 3]g(;0;)'[4 5 6] ; [[1 0 4] [2 0 5] [3 0 6]])
         """
         klong(t)
 
+    @requires_strings
     def test_module(self):
         t = """
 :" Modules "
@@ -116,6 +124,7 @@ g::0 ; t("f()"  ; f()  ; 2)
         klong = create_test_klong()
         klong(t)
 
+    @requires_strings
     def test_file_by_lines(self):
         """
         Test the suite file line by line using our own t()
@@ -137,6 +146,7 @@ g::0 ; t("f()"  ; f()  ; 2)
                 klong.exec(r)
             print(f"executed {i} lines")
 
+    @requires_strings
     def test_file_custom_test(self):
         """
         Test the suite file in one go using our own t()

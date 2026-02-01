@@ -376,7 +376,13 @@ class TestSysFn(unittest.TestCase):
     def test_sys_write_dict(self):
         klong = KlongInterpreter()
         r = klong(".w(:{[1 2]})")
-        self.assertEqual(r,{1:2})
+        # Convert to comparable values (handles both numpy and torch backends)
+        keys = list(r.keys())
+        values = list(r.values())
+        key = keys[0].item() if hasattr(keys[0], 'item') else keys[0]
+        value = values[0].item() if hasattr(values[0], 'item') else values[0]
+        self.assertEqual(key, 1)
+        self.assertEqual(value, 2)
 
     def test_eval_sys_exit(self):
         pass

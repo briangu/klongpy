@@ -36,6 +36,10 @@ assert r == 2990
 Since the Klong interpreter context is dictionary-like, you can store values there for access in Klong:
 
 ```python
+import numpy as np
+from klongpy import KlongInterpreter
+
+klong = KlongInterpreter()
 data = np.arange(10*9)
 klong['data'] = data
 r = klong('1+data')
@@ -52,9 +56,9 @@ print(Q)
 
 ## Python library access
 
-Python functions, including lambdas, can be easily added to support common operations.  
+Python functions, including lambdas, can be easily added to support common operations.
 
-In order to be consistent with Klong language, the paramters of Python functions may have at most three paramters and they must be x, y, and z.
+In order to be consistent with the Klong language, the parameters of Python functions may have at most three parameters and they must be x, y, and z.
 
 ```Python
 from datetime import datetime
@@ -106,10 +110,10 @@ Here is an example of how you can load a Python module into KlongPy:
 ```bash
 $ rlwrap kgpy
 
-Welcome to KlongPy REPL v0.3.76
+Welcome to KlongPy REPL v0.6.9
 author: Brian Guarraci
 repo  : https://github.com/briangu/klongpy
-crtl-d or ]q to quit
+Ctrl-D or ]q to quit
 
 ?> .py("math")
 1
@@ -150,10 +154,10 @@ Now, you can import the module with the .py command and run the "hello" function
 ```bash
 $ rlwrap kgpy
 
-Welcome to KlongPy REPL v0.3.76
+Welcome to KlongPy REPL v0.6.9
 author: Brian Guarraci
 repo  : https://github.com/briangu/klongpy
-crtl-d or ]q to quit
+Ctrl-D or ]q to quit
 
 ?> .py("tests/plugins/greetings")
 1

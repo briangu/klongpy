@@ -13,10 +13,10 @@ Start the IPC server:
 
 ```bash
 $ kgpy -s 8888
-Welcome to KlongPy REPL v0.4.0
+Welcome to KlongPy REPL v0.6.9
 author: Brian Guarraci
 repo  : https://github.com/briangu/klongpy
-crtl-d or ]q to quit
+Ctrl-D or ]q to quit
 
 Running IPC server at 8888
 
@@ -123,7 +123,7 @@ Closing remote connections is done with the .clic() command.  Once it is closed,
 
 ## Async function calls
 
-KlongPy supports async function calls.  While it works for local functions, its primarily for remote functions.
+KlongPy supports async function calls. While it works for local functions, it's primarily for remote functions.
 
 To indicate a function call should be async, the .async() function wraps the function and the supplied callback is called when complete.
 
@@ -149,14 +149,14 @@ While the IPC server I/O is async, the KlongPy interpreter is single-threaded.  
 
 ## Server Callbacks
 
-The KlongPy IPC server has 3 connection related callbacks that can be assigned to pre-defined symbols:
+The KlongPy IPC server has 3 connection-related callbacks that can be assigned to pre-defined symbols:
 
 ### Client connection open: `.srv.o`
 
 Called when a new client connection is established.  The argument passed is the remote connection handle (fn) to the connecting client.  Note, handler functions should not call back to the client when called as it will produce a deadlock - the client is in the process of connecting to the server and not servicing requests.
 
 ```
-.src.o::{.d("client has connected: ");.p(x)}
+.srv.o::{.d("client has connected: ");.p(x)}
 ```
 
 ### Client connection close: `.srv.c`
@@ -164,20 +164,20 @@ Called when a new client connection is established.  The argument passed is the 
 Called when a client disconnects or drops the connection due to an error.  The passed argument is the client handle similar to `.srv.o`.
 
 ```
-.src.e::{.d("client has disconnected: ");.p(x)}
+.srv.c::{.d("client has disconnected: ");.p(x)}
 ```
 
-### Client conncetion error: `.srv.e`
+### Client connection error: `.srv.e`
 
 Called when there is a client error condition.  Arguments are the client handle and the exception that caused the error.
 
 ```
-.src.e::{.d("client has had an error: ");.d(x);.d(" ");.p(y)}
+.srv.e::{.d("client has had an error: ");.d(x);.d(" ");.p(y)}
 ```
 
 ## Building a pub-sub example
 
-Using the server callbacks, it's easy to setup a pub-sub example where a client connects and then subscribes to a server. Periodically the server will call the update method on the client with new data.
+Using the server callbacks, it's easy to set up a pub-sub example where a client connects and then subscribes to a server. Periodically the server will call the update method on the client with new data.
 
 Server:
 

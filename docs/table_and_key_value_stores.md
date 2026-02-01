@@ -1,7 +1,12 @@
 # Table and Key-Value Stores
 
+To support the KlongPy database capabilities, the `klongpy.db` module includes a key-value store capability that allows for saving and retrieving tables from disk. There is a more generic key-value store as well as a TableStore. The TableStore merges tables when writing to disk, while the generic key-value store writes raw serialized data and doesn't consider the contents.
 
-To support the KlongPy database cababilities, the klongpy.db module includes a key-value store capability that allows for saving and retreiving tables from disk.  There is a more generic key-value store as well as a TableStore.  The TableStore merges tables when writing to disk, while the generic key-value store writes raw serialized data and doesn't consider the contents.
+Install the database extras first:
+
+```bash
+pip install "klongpy[db]"
+```
 
 Key-value stores operate as dictionaries, so setting a value updates the contents on disk and reading a value retrieves it.  Similar to Klong dictionaries, if the value does not exist, then the undefined value is returned.
 
@@ -35,7 +40,7 @@ A simple key-value store backed by disk is available via the .kvs() command.
 /tmp/kvs:kvs
 ```
 
-Now a file /tmp/kvs/hello exists with a pickled instance of "hello".
+Now a file `/tmp/kvs/hello` exists with a pickled instance of "hello". Only unpickle data you trust.
 
 Retrieving a value is the same as reading from a dictionary:
 
@@ -43,4 +48,3 @@ Retrieving a value is the same as reading from a dictionary:
 ?> kvs?"hello"
 world
 ```
-

@@ -1,0 +1,94 @@
+:" ============================================================"
+:" Differentiable Physics: Learn to Hit the Target"
+:" ============================================================"
+:" This example demonstrates using autograd to BACKPROPAGATE"
+:" THROUGH A PHYSICS FORMULA to optimize initial conditions."
+:" The gradient flows through the physics equations!"
+:" "
+:" Problem: Find the launch angle to hit a target."
+:" Solution: Compute the landing position using physics,"
+:" compute the miss distance, and use autograd to find"
+:" the gradient with respect to launch angle."
+:" "
+:" Run with: USE_TORCH=1 kgpy differentiable_physics.kg"
+:" ============================================================"
+
+.p("Differentiable Physics: Projectile Targeting")
+.p("=============================================")
+.p("")
+.p("Goal: Find the launch angle to hit a target at x=50")
+.p("Method: Backpropagate through physics equations!")
+.p("")
+
+:" Import from backend"
+.bkf(["sin" "cos" "sqrt"])
+
+:" Physics constants"
+g::9.81          :" Gravity"
+v0::25.0         :" Initial velocity"
+v0sq::625.0      :" v0^2 precomputed"
+
+:" Target position"
+tgtX::50.0
+
+:" Launch angle (this is what we optimize)"
+angle::0.5       :" Initial guess: ~28 degrees"
+
+.d("Target x: ");.p(tgtX)
+.d("Initial velocity: ");.p(v0)
+.p("")
+
+:" Projectile range formula: R = (v0^2 * sin(2*angle)) / g"
+:" This computes where the projectile lands (y=0)"
+range::{(v0sq*sin(2*x))%g}
+
+:" Loss = squared distance from target"
+loss::{(range(x)-tgtX)^2}
+
+:" Initial state"
+.d("Initial angle (rad): ");.p(angle)
+.d("Initial angle (deg): ");.p(angle*57.3)
+.d("Initial range: ");.p(range(angle))
+.d("Initial miss: ");.p(sqrt(loss(angle)))
+.p("")
+
+:" ============================================"
+:" GRADIENT DESCENT THROUGH PHYSICS!"
+:" ============================================"
+
+.p("Optimizing launch angle via gradient descent...")
+.p("(Gradients computed through physics equations!)")
+.p("")
+
+lr::0.0001
+epochs::200
+
+:" Training step - update angle using gradient"
+:" Constrain angle to valid range (0.1 to 1.4 radians)"
+step::{grad::loss:>angle;angle::(0.1|(angle-(lr*grad)))&1.4;0}
+
+:" Progress printing"
+printProg::{.d("Epoch ");.d(x);.d(": angle=");.d(angle*57.3);.d(" deg, range=");.d(range(angle));.d(", miss=");.p(sqrt(loss(angle)))}
+
+:" Training loop"
+trainStep::{step();:[0=(x!20);printProg(x);0]}
+trainStep'!epochs
+
+.p("")
+.p("Optimization complete!")
+.d("Final angle (rad): ");.p(angle)
+.d("Final angle (deg): ");.p(angle*57.3)
+.d("Final range: ");.p(range(angle))
+.d("Final miss: ");.p(sqrt(loss(angle)))
+
+.p("")
+:" Analytical solution for verification"
+:" For range R = v0^2*sin(2*theta)/g = target"
+:" sin(2*theta) = target*g/v0^2"
+:" theta = 0.5*arcsin(target*g/v0^2)"
+optAngle::0.5*(1.5708-((1-((tgtX*g)%v0sq)^2)^0.5))
+.d("Analytical optimal angle (approx): ");.p(optAngle*57.3)
+
+.p("")
+.p("The gradient propagated through physics equations!")
+.p("This technique enables: robot control, game AI, scientific inverse problems")

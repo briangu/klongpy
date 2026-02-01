@@ -1,10 +1,14 @@
 import asyncio
 import socket
 import unittest
+from unittest.mock import patch
 
 import aiohttp
 
+from klongpy.core import KGCall, KGLambda, KGSym
 from klongpy.repl import create_repl, cleanup_repl
+from klongpy.web.sys_fn_web import eval_sys_fn_create_web_server
+from tests.backend_compat import requires_strings
 
 
 class TestSysFnWeb(unittest.TestCase):
@@ -29,6 +33,7 @@ class TestSysFnWeb(unittest.TestCase):
         finally:
             s.close()
 
+    @requires_strings
     def test_web_server_start_and_stop(self):
         klong = self.klong
         port = self._free_port()
@@ -50,3 +55,32 @@ class TestSysFnWeb(unittest.TestCase):
         self.assertEqual(response, "hello")
 
         asyncio.run_coroutine_threadsafe(handle.shutdown(), self.ioloop).result()
+
+    def test_web_routes_handle_kgcall_and_wrap(self):
+        klong = self.klong
+        fn_call = KGCall(KGSym("handler"), [], 1)
+        ok_handler = KGLambda(lambda x: "ok")
+        get_routes = {"/bad": fn_call, "/ok": ok_handler}
+        post_routes = {"/bad": fn_call, "/ok": ok_handler}
+
+        def _close_task(coro):
+            coro.close()
+            return object()
+
+        with patch("klongpy.web.sys_fn_web.asyncio.create_task", side_effect=_close_task):
+            handle = eval_sys_fn_create_web_server(klong, 0, get_routes, post_routes)
+
+        self.assertIsNotNone(handle.task)
+
+    def test_web_rejects_function_calls(self):
+        klong = self.klong
+        fn_call = KGCall(KGSym("handler"), [], 1)
+        get_routes = {"/bad": fn_call}
+        post_routes = {"/bad": fn_call}
+
+        def _close_task(coro):
+            coro.close()
+            return object()
+
+        with patch("klongpy.web.sys_fn_web.asyncio.create_task", side_effect=_close_task):
+            eval_sys_fn_create_web_server(klong, 0, get_routes, post_routes)

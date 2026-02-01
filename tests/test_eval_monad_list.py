@@ -4,6 +4,7 @@ import numpy as np
 from klongpy import KlongInterpreter
 from klongpy.core import KGSym
 from tests.utils import kg_equal
+from tests.backend_compat import requires_strings, requires_object_dtype
 
 
 class TestEvalMonadList(unittest.TestCase):
@@ -15,16 +16,19 @@ class TestEvalMonadList(unittest.TestCase):
         r = self.klong(',1')
         self.assertTrue(kg_equal(r, np.asarray([1])))
 
+    @requires_object_dtype
     def test_symbol(self):
         r = self.klong(',:foo')
         self.assertTrue(r.dtype == object)
         self.assertEqual(len(r), 1)
         self.assertEqual(r[0], KGSym('foo'))
 
+    @requires_strings
     def test_string(self):
         r = self.klong(',"xyz"')
         self.assertTrue(kg_equal(r, np.asarray(['xyz'], dtype=object)))
 
+    @requires_object_dtype
     def test_list(self):
         r = self.klong(',[1]')
         self.assertTrue(kg_equal(r, np.asarray([[1]], dtype=object)))

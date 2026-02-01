@@ -1,103 +1,165 @@
-import os
-import warnings
+"""
+Backend compatibility module for KlongPy.
 
-# Attempt to import CuPy. If not available, set use_gpu to False.
-use_gpu = bool(os.environ.get('USE_GPU') == '1')
-if use_gpu:
-    try:
-        import cupy as np
-        use_gpu = True
-    except ImportError:
-        import numpy as np
-        use_gpu = False
-else:
-    import numpy as np
+This module provides backward compatibility with the old global backend system.
+New code should use the backends package directly:
+
+    from klongpy.backends import get_backend, BackendProvider
+
+For per-interpreter backends, use:
+
+    klong = KlongInterpreter(backend='torch')
+"""
+import numpy as real_np
+
+from .backends import (
+    get_backend,
+    register_backend,
+    list_backends,
+    BackendProvider,
+    UnsupportedDtypeError,
+    TorchUnsupportedDtypeError,
+    NumpyBackendProvider,
+    TorchBackendProvider,
+    KGChar,
+    is_jagged_array,
+    is_supported_type,
+)
 
 
-def is_supported_type(x):
+# Global backend state for backward compatibility
+# This is used by modules that import `np` and `use_torch` directly
+_default_backend = get_backend()
+
+# Backward compatibility: expose np and use_torch at module level
+np = _default_backend.np
+use_torch = _default_backend.name == 'torch'
+
+
+def get_default_backend():
+    """Get the default backend provider."""
+    return _default_backend
+
+
+def to_numpy(x):
+    """Convert tensor/array to numpy, handling device transfers and 0-dim arrays."""
+    result = _default_backend.to_numpy(x)
+    if isinstance(result, real_np.ndarray) and result.ndim == 0:
+        return result.item()
+    return result
+
+
+def array_size(a):
     """
-    CuPy does not support strings or jagged arrays.
-    Note: add any other unsupported types here.
+    Get the total number of elements in an array/tensor.
+
+    Works with both numpy arrays and torch tensors.
     """
-    if isinstance(x, str) or is_jagged_array(x):
-        return False
-    return True
+    return _default_backend.array_size(a)
 
 
-def is_jagged_array(x):
-    """
-    Check if an array is jagged.
-    """
-    if isinstance(x, list):
-        # If the lengths of sublists vary, it's a jagged array.
-        return len(set(map(len, x))) > 1
-    return False
+def safe_equal(x, y):
+    """Compare two values for equality, handling backend-specific array types."""
+    return _default_backend.safe_equal(x, y)
 
-if use_gpu:
-    import cupy
-    import numpy
 
-    class CuPyReductionKernelWrapper:
-        def __init__(self, fn, reduce_fn_1, reduce_fn_2):
-            self.fn = fn
-            self.reduce_fn_1 = reduce_fn_1
-            self.reduce_fn_2 = reduce_fn_2
+def detach_if_needed(x):
+    """Detach array from computation graph if needed."""
+    return _default_backend.detach_if_needed(x)
 
-        def __call__(self, *args, **kwargs):
-            return self.fn(*args, **kwargs)
 
-        def reduce(self, x):
-            return self.reduce_fn_1(x) if x.ndim == 1 else self.reduce_fn_2(x[0], x[1])
+def to_int_array(a):
+    """Convert array to integer type."""
+    return _default_backend.to_int_array(a)
 
-    add_reduce_2 = cupy.ElementwiseKernel(
-            'T x, T y',
-            'T z',
-            'z = (x + y)',
-            'add_reduce_2')
-    np.add = CuPyReductionKernelWrapper(cupy.add, cupy.sum, add_reduce_2)
 
-    def subtract_reduce_1(x):
-        return 2*x[0] - cupy.sum(x)
+def power(a, b):
+    """Compute a^b, handling gradient tracking if applicable."""
+    return _default_backend.power(a, b)
 
-    subtract_reduce_2 = cupy.ElementwiseKernel(
-            'T x, T y',
-            'T z',
-            'z = (x - y)',
-            'subtract_reduce_2')
-    np.subtract = CuPyReductionKernelWrapper(cupy.subtract, subtract_reduce_1, subtract_reduce_2)
 
-    multiply_reduce_1 = cupy.ReductionKernel(
-                'T x',
-                'T y',
-                'x',
-                'a * b',
-                'y = a',
-                '1',
-                'multiply_reduce_1'
-             )
-    multiply_reduce_2 = cupy.ElementwiseKernel(
-            'T x, T y',
-            'T z',
-            'z = (x * y)',
-            'multiply_reduce_2')
-    np.multiply = CuPyReductionKernelWrapper(cupy.multiply, multiply_reduce_1, multiply_reduce_2)
+def has_gradient(x):
+    """Check if x is tracking gradients (for autograd)."""
+    return _default_backend.has_gradient(x)
 
-    def divide_reduce_1(x):
-        raise NotImplementedError()
 
-    divide_reduce_2 = cupy.ElementwiseKernel(
-            'T x, T y',
-            'T z',
-            'z = (x / y)',
-            'divide_reduce_2')
-    np.divide = CuPyReductionKernelWrapper(cupy.divide, divide_reduce_1, divide_reduce_2)
+def kg_asarray(a):
+    """Convert input to array using the default backend's kg_asarray method."""
+    return _default_backend.kg_asarray(a)
 
-    np.isarray = lambda x: isinstance(x, (numpy.ndarray, cupy.ndarray))
 
-#    np.hstack = lambda x: cupy.hstack(x) if use_gpu and is_supported_type(x) else numpy.hstack(x)
-else:
-    np.seterr(divide='ignore')
-    warnings.filterwarnings("error", category=np.VisibleDeprecationWarning)
-    np.isarray = lambda x: isinstance(x, np.ndarray)
+def is_integer(x):
+    """Check if x is an integer type using the default backend."""
+    return _default_backend.is_integer(x)
 
-np
+
+def is_float(x):
+    """Check if x is a float type using the default backend."""
+    return _default_backend.is_float(x)
+
+
+def is_number(a):
+    """Check if a is a number (integer or float) using the default backend."""
+    return _default_backend.is_number(a)
+
+
+def get_dtype_kind(arr):
+    """Get the dtype 'kind' character for an array using the default backend."""
+    return _default_backend.get_dtype_kind(arr)
+
+
+def str_to_chr_arr(s):
+    """Convert string to character array using the default backend."""
+    return _default_backend.str_to_chr_arr(s)
+
+
+def kg_argsort(a, descending=False):
+    """Argsort array using the default backend."""
+    from .core import kg_argsort as core_kg_argsort
+    return core_kg_argsort(a, _default_backend, descending=descending)
+
+
+def vec_fn(a, f):
+    """Apply a function f to an array a, with support for nested arrays."""
+    from .core import vec_fn as core_vec_fn
+    return core_vec_fn(a, f, _default_backend)
+
+
+def kg_equal(a, b):
+    """Compare two values or arrays for equality using the default backend."""
+    from .core import kg_equal as core_kg_equal
+    return core_kg_equal(a, b, _default_backend)
+
+
+__all__ = [
+    'np',
+    'use_torch',
+    'get_backend',
+    'get_default_backend',
+    'register_backend',
+    'list_backends',
+    'BackendProvider',
+    'UnsupportedDtypeError',
+    'TorchUnsupportedDtypeError',
+    'NumpyBackendProvider',
+    'TorchBackendProvider',
+    'KGChar',
+    'is_supported_type',
+    'is_jagged_array',
+    'to_numpy',
+    'array_size',
+    'safe_equal',
+    'detach_if_needed',
+    'to_int_array',
+    'power',
+    'has_gradient',
+    'kg_asarray',
+    'is_integer',
+    'is_float',
+    'is_number',
+    'get_dtype_kind',
+    'str_to_chr_arr',
+    'kg_argsort',
+    'vec_fn',
+    'kg_equal',
+]

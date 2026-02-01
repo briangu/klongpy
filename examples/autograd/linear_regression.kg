@@ -1,0 +1,70 @@
+:" Linear Regression with Gradient Descent using KlongPy"
+:" Run with: kgpy linear_regression.kg"
+:" Or with torch: USE_TORCH=1 kgpy linear_regression.kg"
+:" Uses the :> operator which falls back to numeric gradient without torch"
+
+.p("Linear Regression with KlongPy Autograd")
+.p("==================================================")
+.p("")
+
+:" Generate synthetic data: y = 2*x + 3"
+N::20
+idx::!N
+X::(4*(idx%N))-2
+
+:" True parameters"
+wTrue::2.0
+bTrue::3.0
+
+:" Generate y = w*x + b"
+yTrue::(wTrue*X)+bTrue
+
+.p("True parameters: w=2.0, b=3.0")
+
+:" Initialize parameters"
+w::0.0
+b::0.0
+
+.d("Initial parameters: w=")
+.d(w)
+.d(", b=")
+.p(b)
+
+:" Define separate loss functions for gradient computation"
+lossW::{((+/((x*X)+b-yTrue)^2))%N}
+lossB::{((+/((w*X)+x-yTrue)^2))%N}
+
+:" Compute initial loss"
+.d("Initial loss: ")
+.p(lossW(w))
+.p("")
+
+:" Training parameters"
+lr::0.1
+epochs::30
+
+.d("Training for ")
+.d(epochs)
+.d(" epochs with learning_rate=")
+.p(lr)
+.p("--------------------------------------------------")
+
+:" Helper to print epoch info"
+printEpoch::{.d("Epoch ");.d(x);.d(": loss=");.d(lossW(w));.d(", w=");.d(w);.d(", b=");.p(b)}
+
+:" Training step function"
+step::{gw::lossW:>w;gb::lossB:>b;w::w-(lr*gw);b::b-(lr*gb);:[0=(x!5);printEpoch(x);0]}
+
+:" Run training"
+step'!epochs
+
+.p("")
+.p("Final parameters:")
+.d("  Learned: w=")
+.d(w)
+.d(", b=")
+.p(b)
+.d("  True:    w=")
+.d(wTrue)
+.d(", b=")
+.p(bTrue)

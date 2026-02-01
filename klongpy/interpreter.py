@@ -2,10 +2,13 @@ import time
 from collections import deque
 
 from .adverbs import get_adverb_fn
+from .backends import get_backend
 from .core import *
+from .backend import is_number
 from .dyads import create_dyad_functions
 from .monads import create_monad_functions
 from .sys_fn import create_system_functions
+from .sys_fn_autograd import create_system_functions_autograd
 from .sys_fn_ipc import create_system_functions_ipc, create_system_var_ipc
 from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
@@ -141,6 +144,7 @@ def create_system_contexts():
 
     sys_d = {}
     add_context_key_values(sys_d, create_system_functions())
+    add_context_key_values(sys_d, create_system_functions_autograd())
     add_context_key_values(sys_d, create_system_functions_ipc())
     add_context_key_values(sys_d, create_system_functions_timer())
     set_context_var(sys_d, KGSym('.e'), eval_sys_var_epsilon()) # TODO: support lambda
@@ -210,12 +214,35 @@ def chain_adverbs(klong, arr):
 
 class KlongInterpreter():
 
-    def __init__(self):
+    def __init__(self, backend=None, device=None):
+        """
+        Initialize a Klong interpreter.
+
+        Parameters
+        ----------
+        backend : str, optional
+            Backend name ('numpy' or 'torch'). If None, uses the default
+            backend (numpy, unless KLONG_BACKEND or USE_TORCH env vars are set).
+        device : str, optional
+            Device for torch backend ('cpu', 'cuda', 'mps'). Only applies
+            when backend='torch'. If None, auto-selects best available device.
+        """
+        self._backend = get_backend(backend, device=device)
         self._context = KlongContext(create_system_contexts())
         self._vd = create_dyad_functions(self)
         self._vm = create_monad_functions(self)
         self._start_time = time.time()
         self._module = None
+
+    @property
+    def backend(self):
+        """Return the backend provider for this interpreter."""
+        return self._backend
+
+    @property
+    def np(self):
+        """Return the numpy-compatible array module for this interpreter."""
+        return self._backend.np
 
     def __setitem__(self, k, v):
         k = k if isinstance(k, KGSym) else KGSym(k)
@@ -224,7 +251,8 @@ class KlongInterpreter():
     def __getitem__(self, k):
         k = k if isinstance(k, KGSym) else KGSym(k)
         r = self._context[k]
-        return KGFnWrapper(self, r) if issubclass(type(r), KGFn) else r
+        # Pass the symbol name to avoid O(n) context search
+        return KGFnWrapper(self, r, sym=k) if issubclass(type(r), KGFn) else r
 
     def __delitem__(self, k):
         k = k if isinstance(k, KGSym) else KGSym(k)

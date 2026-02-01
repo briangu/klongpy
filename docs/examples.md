@@ -21,7 +21,7 @@ A function with
 * two parameters: dyad (x and y)
 * three parameters: a triad (x, y and z)
 
-The reason that Klong functions only take up to 3 parameters AND name them for you is both convience and compactness.
+The reason that Klong functions only take up to 3 parameters AND name them for you is both convenience and compactness.
 
 ---
 
@@ -99,7 +99,7 @@ Less code to write AND faster to compute.
 
 ## 3. Data Analysis with Python Integration
 
-KlongPy integrates seamlessly with Python so that the strenghts of both can be combined.  It's easy to use KlongPy from Python and vice versa.
+KlongPy integrates seamlessly with Python so that the strengths of both can be combined. It's easy to use KlongPy from Python and vice versa.
 
 For example, let's say we have some data in Python that we want to operate on in KlongPy.  We can just directly use the interpreter in Python and run functions on data we put into the KlongPy context:
 
@@ -119,7 +119,7 @@ r = klong('avg(data)')
 print(r) # expected value: 3
 ```
 
-It doesn't make sense to write code in Klong that already exists in other libraries.  We can directly access them via the python inport functions (.py and .pyf).
+It doesn't make sense to write code in Klong that already exists in other libraries. We can directly access them via the Python import functions (.py and .pyf).
 
 How about we use the NumPy FFT?
 
@@ -138,7 +138,7 @@ There's a lot more we can do with interop but let's move on for now!
 
 ## 4. Database Functionality
 
-KlongPy leverages a high-performance columnar store called DuckDb that uses zero-copy NumPy array operations behind the scenes.   This database allows fast interop between KlongPy and DuckDb (the arrays are not copied) so that applications can manage arrays in KlongPy and then instantly perform SQL on the data for deeper insights.
+KlongPy leverages a high-performance columnar store called DuckDB that uses zero-copy NumPy array operations behind the scenes. This database allows fast interop between KlongPy and DuckDB (the arrays are not copied) so that applications can manage arrays in KlongPy and then instantly perform SQL on the data for deeper insights.
 
 It's easy to create a table and a db to query:
 
@@ -158,7 +158,7 @@ Bob 30
 
 Inter Process Communication (IPC) lets you build distributed and interconnected KlongPy programs and services.
 
-KlongPy treats IPC connections to servers as functions.  These functions let you call the server and ask for things it has in it's memory - they can be other functions or values, etc.  For example you can ask for a reference to a remote function and you will get a local function that when you call it runs on teh server with your arguemnts.  This general "remote proxy" approach allows you to write your client code in the same way as if all the code were running locally.
+KlongPy treats IPC connections to servers as functions. These functions let you call the server and ask for things it has in its memory - they can be other functions or values, etc. For example you can ask for a reference to a remote function and you will get a local function that when you call it runs on the server with your arguments. This general "remote proxy" approach allows you to write your client code in the same way as if all the code were running locally.
 
 To see this in action, let's setup a simple scenario where the server has an "avg" function and the client wants to call it.
 
@@ -176,7 +176,7 @@ Start the client and make the connection to the server as 'f'.  In order to pass
 ```kgpy
 ?> f::.cli(8888) :" connect to the server
 remote[localhost:8888]:fn
-?> f(:avg,,!100) : call the remote function "avg" directly with the paramter !100
+?> f(:avg,,!100) :" call the remote function avg directly with the parameter !100
 49.5
 ```
 
@@ -226,6 +226,62 @@ In another terminal:
 $ curl http://localhost:8888
 ['Hello, Klong World! ' 0 1 2 3 4 5 6 7 8 9]
 ```
+
+## 7. Automatic Differentiation (Autograd)
+
+KlongPy supports automatic differentiation, enabling gradient-based optimization and machine learning workflows.
+
+### Numeric Gradient with `∇` (always numeric, any backend)
+
+The `∇` operator **always** computes gradients using numeric differentiation:
+
+```kgpy
+?> f::{x^2}        :" Define f(x) = x^2
+:monad
+?> 3∇f             :" Compute f'(3) ≈ 6.0
+6.0
+```
+
+### PyTorch Autograd with `:>` (recommended with torch backend)
+
+Enable the torch backend for exact gradients:
+
+```bash
+$ USE_TORCH=1 kgpy
+```
+
+Use the `:>` operator for PyTorch autograd. The syntax is `function:>point`:
+
+```kgpy
+?> f::{x^2}        :" Define f(x) = x^2
+:monad
+?> f:>3            :" Compute f'(3) = 2*3 = 6
+6.0
+```
+
+For vector-valued inputs, the gradient is computed element-wise:
+
+```kgpy
+?> h::{+/x^2}      :" h(x) = sum of squares
+:monad
+?> h:>[1.0 2.0 3.0]   :" Gradient: [2*1, 2*2, 2*3]
+[2.0 4.0 6.0]
+```
+
+Simple gradient descent to minimize x^2:
+
+```kgpy
+?> f::{x^2}
+:monad
+?> x::5.0; lr::0.1
+0.1
+?> x::x-(lr*f:>x); x  :" One gradient step
+4.0
+?> x::x-(lr*f:>x); x  :" Another step
+3.2
+```
+
+For complete examples including linear regression and neural networks, see the [autograd examples](https://github.com/briangu/klongpy/tree/main/examples/autograd).
 
 ## Conclusion
 

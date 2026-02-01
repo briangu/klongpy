@@ -3,12 +3,28 @@ import inspect
 import weakref
 from enum import Enum
 import sys
+import numpy
 
-from .backend import np
+from .backend import np, TorchUnsupportedDtypeError, get_default_backend, to_numpy
 
 # python3.11 support
 if not hasattr(inspect, 'getargspec'):
     inspect.getargspec = inspect.getfullargspec
+
+
+def get_dtype_kind(arr, backend):
+    """
+    Get the dtype 'kind' character for an array (numpy or torch).
+
+    Returns:
+        'O' for object dtype
+        'i' for integer types
+        'f' for float types
+        'u' for unsigned integer
+        'b' for boolean
+        'c' for complex
+    """
+    return backend.get_dtype_kind(arr)
 
 
 class KlongException(Exception):
@@ -51,11 +67,55 @@ class KGFn:
 
 
 class KGFnWrapper:
-    def __init__(self, klong, fn):
+    """
+    Wrapper for KGFn that enables calling from Python with dynamic symbol resolution.
+
+    When a KGFn is stored and later invoked, this wrapper automatically re-resolves
+    the symbol to use the current function definition. This matches k4 behavior and
+    provides REPL-friendly semantics where function redefinitions take effect immediately.
+
+    Example:
+        fn = klong['callback']  # Returns KGFnWrapper
+        klong('callback::{new implementation}')
+        fn(args)  # Uses the NEW implementation
+    """
+
+    def __init__(self, klong, fn, sym=None):
         self.klong = klong
         self.fn = fn
+        # Use provided symbol name (cached) or search for it
+        self._sym = sym if sym is not None else self._find_symbol(fn)
+
+    def _find_symbol(self, fn):
+        """Find which symbol this function is currently bound to"""
+        if not isinstance(fn, KGFn) or isinstance(fn, KGCall):
+            return None
+
+        # Search the context for this function
+        # Skip reserved symbols (x, y, z, .f) which are function parameters, not stored callbacks
+        for sym, value in self.klong._context:
+            # Skip reserved symbols - use the module constants
+            if sym in reserved_fn_symbols or sym == reserved_dot_f_symbol:
+                continue
+            if value is fn:
+                return sym
+        return None
 
     def __call__(self, *args, **kwargs):
+        # Try to resolve dynamically first if we have a symbol
+        if self._sym is not None:
+            try:
+                current = self.klong._context[self._sym]
+                if isinstance(current, KGFn) and not isinstance(current, KGCall):
+                    # Use the current definition
+                    if len(args) != current.arity:
+                        raise RuntimeError(f"Klong function called with {len(args)} but expected {current.arity}")
+                    fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
+                    return self.klong.call(KGCall(current.a, [*fn_args], current.arity))
+            except KeyError:
+                # Symbol was deleted, fall through to original function
+                pass
+
         if len(args) != self.fn.arity:
             raise RuntimeError(f"Klong function called with {len(args)} but expected {self.fn.arity}")
         fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
@@ -206,16 +266,36 @@ def to_list(a):
     return a if isinstance(a, list) else a.tolist() if np.isarray(a) else [a]
 
 
-def is_integer(x):
-    return issubclass(type(x), (int, np.integer))
+def is_integer(x, backend):
+    if issubclass(type(x), (int, numpy.integer)):
+        return True
+    # Handle 0-dim numpy arrays
+    if isinstance(x, numpy.ndarray) and x.ndim == 0:
+        return numpy.issubdtype(x.dtype, numpy.integer)
+    # Handle backend-specific scalar integers (e.g., torch tensors)
+    return backend.is_scalar_integer(x)
 
 
-def is_float(x):
-    return issubclass(type(x), (float, np.floating, int))
+def is_float(x, backend):
+    if issubclass(type(x), (float, numpy.floating, int)):
+        return True
+    # Handle 0-dim numpy arrays
+    if isinstance(x, numpy.ndarray) and x.ndim == 0:
+        return numpy.issubdtype(x.dtype, numpy.floating)
+    # Handle backend-specific scalar floats (e.g., torch tensors)
+    return backend.is_scalar_float(x)
 
 
-def is_number(a):
-    return is_float(a) or is_integer(a)
+def is_number(a, backend):
+    if is_float(a, backend) or is_integer(a, backend):
+        return True
+    # Handle 0-dim numpy arrays
+    if isinstance(a, numpy.ndarray) and a.ndim == 0:
+        return numpy.issubdtype(a.dtype, numpy.number)
+    # Handle 0-dim backend tensors as numbers
+    if backend.is_backend_array(a) and hasattr(a, 'ndim') and a.ndim == 0:
+        return True
+    return False
 
 
 def str_is_float(b):
@@ -232,92 +312,76 @@ def in_map(x, v):
         return False
 
 
-def kg_asarray(a):
-    """
-    Converts input data into a NumPy array, ensuring all sub-arrays are also NumPy arrays, to meet the requirements of KlongPy.
-
-    KlongPy treats NumPy arrays as data and Python lists as "programs". Therefore, it is crucial that all elements and
-    sub-arrays of the input data are converted into NumPy arrays. This function attempts to achieve this, while handling
-    unpredictable and complex data structures that may result from prior manipulations to the data.
-
-    The function first tries to convert the input data into a NumPy array. In the case of a jagged structure
-    (i.e., irregularly-shaped sub-arrays), it defaults to the object data type. If the initial conversion is unsuccessful,
-    it tries to convert the input data to an object dtype array. If all these attempts fail, it converts each element to
-    a list, if it is a NumPy array, or keeps the original element if it is not, and then attempts to convert the whole
-    structure into an object dtype array again.
-
-    Detecting the type in NumPy directly, as opposed to checking it in Python, significantly enhances
-    performance, hence the approach adopted in this function.
-
-    Parameters
-    ----------
-    a : list or array-like
-        The input data to be converted into a NumPy array.
-
-    Returns
-    -------
-    arr : ndarray
-        The converted input data as a NumPy array, where all elements and sub-arrays are also NumPy arrays.
-    """
-    if isinstance(a, str):
-        return str_to_chr_arr(a)
-    try:
-        arr = np.asarray(a)
-        if arr.dtype.kind not in ['O','i','f']:
-            raise ValueError
-    except (np.VisibleDeprecationWarning, ValueError):
-        try:
-            arr = np.asarray(a, dtype=object)
-        except ValueError:
-            arr = [x.tolist() if np.isarray(x) else x for x in a]
-            arr = np.asarray(arr, dtype=object)
-        arr = np.asarray([kg_asarray(x) if isinstance(x, list) else x for x in arr], dtype=object)
-    return arr
+def kg_asarray(a, backend):
+    """Convert input to array using the backend's kg_asarray method."""
+    return backend.kg_asarray(a)
 
 
-def kg_equal(a, b):
-    """
-    Compares two values or arrays (including nested arrays) for equality.
-
-    This function recursively checks if two values or arrays are equal. It can handle
-    nested arrays and is more general-purpose than standard NumPy functions such as
-    np.array_equal.
-
-    If the inputs are lists, the function checks that their lengths are equal, and
-    then compares each element pair for equality. If the inputs are NumPy arrays with
-    the same dtype (excluding object dtype), it uses the np.array_equal function for
-    comparison.
-
-    For non-list inputs, the function compares the two values directly. If they are
-    both numbers, it uses np.isclose to allow for minor floating-point differences.
-
-    Parameters
-    ----------
-    a, b : Any
-        The two inputs to compare. These can be any type of values or arrays.
-
-    Returns
-    -------
-    bool
-        True if the two inputs are equal, False otherwise.
-    """
+def kg_equal(a, b, backend):
+    """Compare two values or arrays for equality, handling nested arrays and tensors."""
     if a is b:
         return True
 
-    na, nb = isinstance(a,np.ndarray), isinstance(b,np.ndarray)
+    # Check for arrays (numpy or backend-specific)
+    is_numpy_a = isinstance(a, numpy.ndarray)
+    is_numpy_b = isinstance(b, numpy.ndarray)
+    is_backend_a = backend.is_backend_array(a)
+    is_backend_b = backend.is_backend_array(b)
 
-    if na and nb and a.dtype == b.dtype and a.dtype != 'O':
-        return np.array_equal(a,b)
+    na, nb = is_numpy_a or is_backend_a, is_numpy_b or is_backend_b
 
-    na, nb = na or isinstance(a,list), nb or isinstance(b,list)
+    # Handle arrays with same dtype
+    if na and nb:
+        a_dtype = get_dtype_kind(a, backend)
+        b_dtype = get_dtype_kind(b, backend)
+        if a_dtype == b_dtype and a_dtype != 'O':
+            return bool(np.array_equal(a, b))
+
+    na, nb = na or isinstance(a, list), nb or isinstance(b, list)
 
     if na != nb:
+        # One is array/list, the other is not - could be scalar tensor/array vs scalar
+        # Handle comparing 0-dim arrays/tensors with scalars
+        if is_numpy_a and a.ndim == 0 and not nb:
+            return kg_equal(a.item(), b, backend)
+        if is_numpy_b and b.ndim == 0 and not na:
+            return kg_equal(a, b.item(), backend)
+        if is_backend_a and hasattr(a, 'ndim') and a.ndim == 0 and not nb:
+            return kg_equal(backend.scalar_to_python(a), b, backend)
+        if is_backend_b and hasattr(b, 'ndim') and b.ndim == 0 and not na:
+            return kg_equal(a, backend.scalar_to_python(b), backend)
         return False
 
     if na:
-        return len(a) == len(b) and all(kg_equal(x, y) for x, y in zip(a, b))
+        # Handle 0-dim arrays/tensors - compare as scalars
+        a_is_0d = hasattr(a, 'ndim') and a.ndim == 0
+        b_is_0d = hasattr(b, 'ndim') and b.ndim == 0
+        if a_is_0d or b_is_0d:
+            a_val = backend.scalar_to_python(a) if a_is_0d else a
+            b_val = backend.scalar_to_python(b) if b_is_0d else b
+            return kg_equal(a_val, b_val, backend)
+        return len(a) == len(b) and all(kg_equal(x, y, backend) for x, y in zip(a, b))
 
-    return np.isclose(a,b) if is_number(a) and is_number(b) else a == b
+    if is_number(a, backend) and is_number(b, backend):
+        # Convert tensors to Python scalars for comparison
+        if backend.is_backend_array(a):
+            a = backend.scalar_to_python(a)
+        if backend.is_backend_array(b):
+            b = backend.scalar_to_python(b)
+        result = np.isclose(a, b)
+        # np.isclose might return an array/tensor, ensure we return bool
+        if hasattr(result, 'item'):
+            return bool(result.item())
+        return bool(result)
+
+    result = a == b
+    # Handle tensor/array result from comparison
+    if hasattr(result, 'all'):
+        # For arrays, check if all elements are equal
+        return bool(result.all())
+    if hasattr(result, 'item'):
+        return bool(result.item())
+    return bool(result)
 
 def has_none(a):
     if isinstance(a,list):
@@ -378,14 +442,19 @@ def rec_flatten(a):
 
 
 def rec_fn(a,f):
-    return kg_asarray([rec_fn(x, f) for x in a]) if is_list(a) else f(a)
+    _backend = get_default_backend()
+    return _backend.kg_asarray([rec_fn(x, f) for x in a]) if is_list(a) else f(a)
 
 
-def vec_fn(a, f):
+def vec_fn(a, f, backend):
     """
     Apply a function `f` to an array `a`, with support for both nested arrays and direct vectorized operation.
     """
-    return kg_asarray([((vec_fn(x, f)) if is_list(x) else f(x)) for x in a]) if np.isarray(a) and a.dtype == 'O' else f(a)
+    if np.isarray(a) and a.dtype == 'O':
+        # For object arrays, process each element and preserve structure
+        result = [((vec_fn(x, f, backend)) if is_list(x) else f(x)) for x in a]
+        return numpy.asarray(result, dtype=object)
+    return f(a)
 
 
 def vec_fn2(a, b, f):
@@ -425,18 +494,20 @@ def vec_fn2(a, b, f):
     not satisfied.
 
     """
+    _backend = get_default_backend()
+    _kg_asarray = _backend.kg_asarray
     if np.isarray(a):
         if a.dtype == 'O':
             if np.isarray(b):
                 assert len(a) == len(b)
-                return kg_asarray([vec_fn2(x, y, f) for x,y in zip(a,b)])
+                return _kg_asarray([vec_fn2(x, y, f) for x,y in zip(a,b)])
             else:
-                return kg_asarray([vec_fn2(x, b, f) for x in a])
+                return _kg_asarray([vec_fn2(x, b, f) for x in a])
         elif np.isarray(b) and b.dtype == 'O':
             assert len(a) == len(b)
-            return kg_asarray([vec_fn2(x, y, f) for x,y in zip(a,b)])
+            return _kg_asarray([vec_fn2(x, y, f) for x,y in zip(a,b)])
     elif np.isarray(b) and b.dtype == 'O':
-        return kg_asarray([vec_fn2(a, x, f) for x in b])
+        return _kg_asarray([vec_fn2(a, x, f) for x in b])
     return f(a,b)
 
 
@@ -445,7 +516,11 @@ def is_symbolic(c):
 
 
 def is_char(x):
-    return isinstance(x, KGChar)
+    # Check for both core and backend KGChar classes
+    if isinstance(x, KGChar):
+        return True
+    # Also check for backend KGChar (in case they're different classes)
+    return type(x).__name__ == 'KGChar' and isinstance(x, str)
 
 
 def is_atom(x):
@@ -457,10 +532,28 @@ def kg_truth(x):
     return x*1
 
 
-# TODO: can we just transform chars to ints so that CuPy works?
-#       we'll need to reassemble the strinsg, so pros/cons.
-def str_to_chr_arr(s):
-    return np.asarray([KGChar(x) for x in s],dtype=object)
+def str_to_chr_arr(s, backend):
+    """
+    Convert string to character array.
+
+    Parameters
+    ----------
+    s : str
+        The string to convert.
+    backend : BackendProvider
+        The backend to use.
+
+    Returns
+    -------
+    array
+        Array of KGChar objects.
+
+    Raises
+    ------
+    UnsupportedDtypeError
+        If the backend doesn't support string operations.
+    """
+    return backend.str_to_char_array(s)
 
 
 def read_num(t, i=0):
@@ -567,6 +660,7 @@ def read_list(t, delim, i=0, module=None, level=1):
         L := '[' (C|L)* ']'
 
     """
+    backend = get_default_backend()
     arr = []
     i = skip(t,i,ignore_newline=True)
     while not cmatch(t,i,delim) and i < len(t):
@@ -581,9 +675,24 @@ def read_list(t, delim, i=0, module=None, level=1):
     if cmatch(t,i,delim):
         i += 1
     if level == 1:
-        aa = kg_asarray(arr)
-        if aa.dtype.kind not in ['O','i','f']:
-            aa = np.asarray(arr, dtype=object)
+        try:
+            aa = kg_asarray(arr, backend)
+            if get_dtype_kind(aa, backend) not in ['O','i','f']:
+                aa = numpy.asarray(arr, dtype=object)
+        except TorchUnsupportedDtypeError:
+            # Backend can't handle this data - fall back to numpy object array
+            # Recursively convert inner lists to arrays, converting tensors to numpy
+            def convert_inner(x):
+                if isinstance(x, list):
+                    try:
+                        result = kg_asarray(x, backend)
+                        # Convert tensor to numpy for object array compatibility
+                        return to_numpy(result)
+                    except TorchUnsupportedDtypeError:
+                        return numpy.asarray([convert_inner(e) for e in x], dtype=object)
+                # Convert any tensors to numpy
+                return to_numpy(x)
+            aa = numpy.asarray([convert_inner(x) for x in arr], dtype=object)
     else:
         aa = arr
     return i, aa
@@ -786,11 +895,12 @@ def kg_write_channel(x, display=False):
 
 
 def kg_write(a, display=False):
+    _backend = get_default_backend()
     if isinstance(a,KGSym):
         return kg_write_symbol(a, display=display)
-    elif is_integer(a):
+    elif is_integer(a, _backend):
         return kg_write_integer(a,display=display)
-    elif is_float(a):
+    elif is_float(a, _backend):
         return kg_write_float(a,display=display)
     elif isinstance(a,KGChar):
         return kg_write_char(a,display=display)
@@ -810,7 +920,7 @@ def kg_write(a, display=False):
         return ":undefined"
 
 
-def kg_argsort(a, descending=False):
+def kg_argsort(a, backend, descending=False):
     """
 
     Return the indices of the sorted array (may be nested) or a string.  Duplicate elements are disambiguated by their position in the array.
@@ -826,6 +936,14 @@ def kg_argsort(a, descending=False):
     """
     if not is_iterable(a) or len(a) == 0:
         return a
+
+    # Fast path: for simple 1D numeric arrays, use native argsort
+    if hasattr(a, 'ndim') and a.ndim == 1:
+        dtype_kind = get_dtype_kind(a, backend)
+        if dtype_kind in ('i', 'f', 'u'):
+            return backend.argsort(a, descending=descending)
+
+    # Slow path: nested arrays or strings need element-by-element comparison
     def _e(x):
         return (-np.inf,x) if is_empty(a[x]) else (np.max(a[x]),x) if is_list(a[x]) else (a[x],x)
     return np.asarray(sorted(range(len(a)), key=_e, reverse=descending))

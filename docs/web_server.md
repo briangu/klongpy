@@ -1,13 +1,14 @@
 # Web Server
 
 
-KlongPy includes a simple web server module.  It's optional so you need to install the dependencies:
+KlongPy includes a simple web server module. It's optional so you need to install the dependencies:
 
 ```bash
-$ pip3 install klongpy[web]
+pip3 install "klongpy[web]"
 ```
 
 The web server allows you to implement KlongPy functions as GET/POST handlers for registered routes.
+Handlers must be monadic functions (arity 1).
 
 
 Here's a simple example that lets you fetch and update a data array:
@@ -36,8 +37,8 @@ post,"/p",update
 :" Start the web server with the GET and POST handlers"
 .web(8888;get;post)
 
-.p("curl -X POST -d""p=100"" ""http://localhost:8888/p""")
-.p("curl ""http://localhost:8888""")
+.p("curl -X POST -d\"p=100\" \"http://localhost:8888/p\"")
+.p("curl \"http://localhost:8888\"")
 
 data
 ```

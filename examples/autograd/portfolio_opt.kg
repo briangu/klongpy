@@ -1,0 +1,118 @@
+:" ============================================================"
+:" Portfolio Optimization with Autograd"
+:" ============================================================"
+:" Demonstrates using gradient descent to find optimal portfolio"
+:" weights that maximize Sharpe ratio subject to constraints."
+:" Requires: pip install yfinance"
+:" Run with: USE_TORCH=1 kgpy portfolio_opt.kg"
+:" ============================================================"
+
+.p("Portfolio Optimization with KlongPy Autograd")
+.p("==============================================")
+.p("")
+
+:" --- Fetch Real Stock Data from Yahoo Finance ---"
+
+.pyf("./stock_data.py";"fetchStockData")
+
+:" Define stocks to optimize"
+nassets::4
+
+.p("Fetching stock data from Yahoo Finance (AAPL, MSFT, GOOGL, JPM)...")
+
+:" Fetch returns for all 4 stocks"
+allReturns::fetchStockData("2023-01-01";"2025-01-01")
+
+r0::allReturns@0
+r1::allReturns@1
+r2::allReturns@2
+r3::allReturns@3
+
+rets::[r0 r1 r2 r3]
+
+ndays::#r0
+.d("Loaded ");.d(ndays);.p(" days of returns")
+.p("")
+
+:" --- Compute Statistics ---"
+
+:" Define average function"
+avg::{(+/x)%#x}
+
+:" Annualize returns (252 trading days)"
+mu::252*{avg(x)}'rets
+
+:" Annualize volatility (multiply daily vol by sqrt(252))"
+vars::{+/((x-avg(x))^2)%#x}'rets
+vols::15.87*{x^0.5}'vars
+
+.d("Expected annual returns: ")
+.p(mu)
+.d("Annual volatilities: ")
+.p(vols)
+.p("")
+
+:" --- Portfolio Functions ---"
+
+wts::[0.25 0.25 0.25 0.25]
+
+:" Annualized variance (daily var * 252)"
+annVars::252*vars
+
+portReturn::{+/x*mu}
+portVar::{+/((x^2)*annVars)}
+portVol::{(portVar(x))^0.5}
+sharpe::{portReturn(x)%((portVol(x))+0.0001)}
+
+.d("Initial weights: ")
+.p(wts)
+.d("Initial Sharpe: ")
+.p(sharpe(wts))
+.p("")
+
+:" --- Constraint Penalties ---"
+
+sumPenalty::{100*((1-+/x)^2)}
+longPenalty::{100*+/((0|0-x)^2)}
+loss::{(0-sharpe(x))+sumPenalty(x)+longPenalty(x)}
+
+:" --- Optimization ---"
+
+:" Round to 2 decimal places"
+round2::{(_x*100)%100}
+
+lrp::0.01
+epochs::200
+
+.d("Training for ")
+.d(epochs)
+.d(" epochs with lr=")
+.p(lrp)
+.p("--------------------------------------------------")
+
+:" Training step - update weights using gradient descent"
+step::{wts::wts-(lrp*(loss:>wts));wts::0|wts;wts::wts%(+/wts);0}
+
+:" Progress printing function"
+printProg::{.d("Epoch ");.d(x);.d(": Sharpe=");.d(round2(sharpe(wts)));.d(", weights=");.p(wts)}
+
+:" Run optimization loop - step with progress every 50 epochs"
+trainStep::{step();:[0=(x!50);printProg(x);0]}
+trainStep'!epochs
+
+.p("")
+.p("Optimization complete!")
+.d("Final weights: ")
+.p(wts)
+.d("Final Sharpe: ")
+.p(sharpe(wts))
+.d("Sum of weights: ")
+.p(+/wts)
+.p("")
+
+:" --- Analysis ---"
+.p("Weight allocation:")
+.d("  AAPL: ");.d(round2(100*(wts@0)));.p("%")
+.d("  MSFT: ");.d(round2(100*(wts@1)));.p("%")
+.d("  GOOGL: ");.d(round2(100*(wts@2)));.p("%")
+.d("  JPM: ");.d(round2(100*(wts@3)));.p("%")
