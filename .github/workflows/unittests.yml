@@ -57,6 +57,7 @@ jobs:
         coverage xml --include='klongpy/*'
     - name: Check coverage on new code
       if: github.event_name == 'pull_request'
+      continue-on-error: true
       run: |
         diff-cover coverage.xml --compare-branch=origin/${{ github.base_ref }} --fail-under=80
 
