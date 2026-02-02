@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "klongpy"
-version = "0.6.9"
+version = "0.7.0"
 description = "High-Performance Klong array language with rich Python integration."
 readme = "README.md"
 license = "MIT"

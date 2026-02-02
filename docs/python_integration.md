@@ -110,7 +110,7 @@ Here is an example of how you can load a Python module into KlongPy:
 ```bash
 $ rlwrap kgpy
 
-Welcome to KlongPy REPL v0.6.9
+Welcome to KlongPy REPL v0.7.0
 author: Brian Guarraci
 repo  : https://github.com/briangu/klongpy
 Ctrl-D or ]q to quit
@@ -154,7 +154,7 @@ Now, you can import the module with the .py command and run the "hello" function
 ```bash
 $ rlwrap kgpy
 
-Welcome to KlongPy REPL v0.6.9
+Welcome to KlongPy REPL v0.7.0
 author: Brian Guarraci
 repo  : https://github.com/briangu/klongpy
 Ctrl-D or ]q to quit

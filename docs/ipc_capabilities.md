@@ -13,7 +13,7 @@ Start the IPC server:
 
 ```bash
 $ kgpy -s 8888
-Welcome to KlongPy REPL v0.6.9
+Welcome to KlongPy REPL v0.7.0
 author: Brian Guarraci
 repo  : https://github.com/briangu/klongpy
 Ctrl-D or ]q to quit
