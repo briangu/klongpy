@@ -1,6 +1,9 @@
 # KlongPy
 
-KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array language](https://en.wikipedia.org/wiki/Array_programming), offering high-performance vectorized operations. It prioritizes compatibility with Python, thus allowing seamless integration of Python's expansive ecosystem while retaining Klong's succinctness. With the optional [PyTorch](https://pytorch.org/) backend, KlongPy can operate using both CPU and GPU backends with automatic differentiation support. It utilizes [NumPy](https://numpy.org/), an [Iverson Ghost](https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/) descendant from APL, as its core. The framework's foundation lies in [Nils M Holm](https://t3x.org)'s work, the original developer of Klong, who has authored a [Klong Book](https://t3x.org/klong/book.html). KlongPy is especially useful for data scientists, quantitative analysts, researchers, and programming language aficionados.
+KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array language](https://en.wikipedia.org/wiki/Array_programming), offering high-performance vectorized operations. It prioritizes compatibility with Python, thus allowing seamless integration of Python's expansive ecosystem while retaining Klong's succinctness.
+
+KlongPy backends include [NumPy](https://numpy.org/) and optional [PyTorch](https://pytorch.org/) (CPU, CUDA, and Apple MPS).
+When PyTorch is enabled, automatic differentiation (autograd) is supported; otherwise, numeric differentiation is the default.
 
 Source code on GitHub: [briangu/klongpy](https://github.com/briangu/klongpy)
 

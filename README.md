@@ -12,7 +12,9 @@
 
 # KlongPy: A High-Performance Array Language with Autograd
 
-KlongPy brings automatic differentiation to array programming. Write gradient-based optimization in 2 lines instead of 20. Build self-learning trading systems, neural networks, and scientific computing applications with unprecedented conciseness.
+KlongPy brings gradient-based programming to an already-succinct array language, so you can differentiate compact array expressions directly. It's also a batteries-included system with IPC, DuckDB-backed database tooling, web/websocket support, and other integrations exposed seamlessly from the language.
+
+Backends include NumPy and optional PyTorch (CPU, CUDA, and Apple MPS). When PyTorch is enabled, gradients use autograd; otherwise numeric differentiation is the default.
 
 **PyTorch gradient descent (10+ lines):**
 ```python
