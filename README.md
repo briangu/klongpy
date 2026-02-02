@@ -12,7 +12,14 @@
 
 # KlongPy: A High-Performance Array Language with Autograd
 
-KlongPy brings gradient-based programming to an already-succinct array language, so you can differentiate compact array expressions directly. It's also a batteries-included system with IPC, DuckDB-backed database tooling, web/websocket support, and other integrations exposed seamlessly from the language.
+KlongPy is a Python adaptation of the [Klong](https://t3x.org/klong) [array language](https://en.wikipedia.org/wiki/Array_programming), offering high-performance vectorized operations. It prioritizes compatibility with Python, thus allowing seamless integration of Python's expansive ecosystem while retaining Klong's succinctness.
+
+KlongPy backends include [NumPy](https://numpy.org/) and optional [PyTorch](https://pytorch.org/) (CPU, CUDA, and Apple MPS).
+When PyTorch is enabled, automatic differentiation (autograd) is supported; otherwise, numeric differentiation is the default.
+
+Full documentation: [https://klongpy.org](https://klongpy.org)
+
+New to v0.7.0, KlongPy now brings gradient-based programming to an already-succinct array language, so you can differentiate compact array expressions directly. It's also a batteries-included system with IPC, DuckDB-backed database tooling, web/websocket support, and other integrations exposed seamlessly from the language.
 
 Backends include NumPy and optional PyTorch (CPU, CUDA, and Apple MPS). When PyTorch is enabled, gradients use autograd; otherwise numeric differentiation is the default.
 
@@ -119,9 +126,33 @@ KlongPy inherits from the [APL](https://en.wikipedia.org/wiki/APL_(programming_l
 
 ## Performance: NumPy vs PyTorch Backend
 
-The PyTorch backend provides significant speedups for large arrays with GPU acceleration:
+The PyTorch backend provides significant speedups for large arrays with GPU acceleration (RTX 4090 in this case):
 
 ```
+$ python3 tests/perf_vector.py
+============================================================
+VECTOR OPS (element-wise, memory-bound)
+  Size: 10,000,000 elements, Iterations: 100
+============================================================
+NumPy (baseline)                    0.021854s
+KlongPy (numpy)                     0.001413s  (15.46x vs NumPy)
+KlongPy (torch, cpu)                0.000029s  (761.22x vs NumPy)
+KlongPy (torch, cuda)               0.000028s  (784.04x vs NumPy)
+
+============================================================
+MATRIX MULTIPLY (compute-bound, GPU advantage)
+  Size: 4000x4000, Iterations: 5
+============================================================
+NumPy (baseline)                    0.078615s
+KlongPy (numpy)                     0.075400s  (1.04x vs NumPy)
+KlongPy (torch, cpu)                0.077350s  (1.02x vs NumPy)
+KlongPy (torch, cuda)               0.002339s  (33.62x vs NumPy)
+```
+
+Also supporting Apple Silicon MPS (M1 Mac Studio) enables fast local work:
+
+```
+$ python tests/perf_backend.py --compare
 Benchmark                   NumPy (ms)   Torch (ms)      Speedup
 ----------------------------------------------------------------------
 vector_add_1M                    0.327        0.065    5.02x (torch)
@@ -130,8 +161,6 @@ sum_1M                           0.246        0.087    2.84x (torch)
 grade_up_100K                    0.588        0.199    2.96x (torch)
 enumerate_1M                     0.141        0.050    2.83x (torch)
 ```
-
-*Benchmarks on Apple M1 with MPS. Run `python tests/perf_backend.py --compare` for your system.*
 
 ## Complete Feature Set
 
@@ -240,14 +269,28 @@ g::{x^2}                :" Element-wise square
 
 ### 2. Gradient Descent
 
+Minimize f(x) = (x-3)^2
+
+(with PyTorch's autograd)
 ```klong
-:" Minimize f(x) = (x-3)^2
+$ USE_TORCH=1 rlwrap kgpy
 ?> f::{(x-3)^2}
 :monad
-?> x::10.0; lr::0.1
+?> s::10.0; lr::0.1
 0.1
-?> {x::x-(lr*f:>x); x}'!10    :" 10 gradient steps
-[8.6 7.48 6.584 5.867 5.294 4.835 4.468 4.175 3.940 3.752]
+?> {s::s-(lr*f:>s); s}'!10
+[8.600000381469727 7.4800004959106445 6.584000587463379 5.8672003746032715 5.293760299682617 4.835008144378662 4.468006610870361 4.174405097961426 3.9395241737365723 3.751619338989258]
+```
+
+(Numerical differentiation)
+```klong
+$ rlwrap kgpy
+?> f::{(x-3)^2}
+:monad
+?> s::10.0; lr::0.1
+0.1
+?> {s::s-(lr*f:>s); s}'!10
+[8.60000000104776 7.480000001637279 6.584000001220716 5.867200000887465 5.2937600006031005 4.835008000393373 4.4680064002611175 4.174405120173077 3.939524096109306 3.7516192768605094]
 ```
 
 ### 3. Linear Regression
@@ -267,8 +310,9 @@ mse::{(+/(((w*X)+b)-Y)^2)%#X}
 lr::0.01
 {grads::mse:>[w b]; w::w-(lr*grads@0); b::b-(lr*grads@1)}'!1000
 
-.d("Learned: w="); .d(w); .d(" b="); .p(b)
-:" Output: Learned: w=2.02 b=2.94
+?> .d("Learned: w="); .d(w); .d(" b="); .p(b)
+Learned: w=2.0117401555004686 b=2.971511140529206
+"2.971511140529206"
 ```
 
 **Or with custom optimizer (copy from examples/autograd/optimizers.py):**
@@ -411,7 +455,7 @@ python3 -m pytest tests/  # Run tests
 
 This project does not accept direct issue submissions.
 
-Please start with a GitHub Discussion.  
+Please start with a GitHub Discussion.
 Maintainers will promote validated discussions to Issues.
 
 Active contributors may be invited to open issues directly.
