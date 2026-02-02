@@ -405,6 +405,19 @@ pip install -e ".[dev]"   # Install in editable mode with dev dependencies
 python3 -m pytest tests/  # Run tests
 ```
 
+## Issues
+
+This project does not accept direct issue submissions.
+
+Please start with a GitHub Discussion.  
+Maintainers will promote validated discussions to Issues.
+
+Active contributors may be invited to open issues directly.
+
+## Contributors
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution workflow, discussion-first policy, and code standards.
+
 ## Documentation
 
 ```bash
