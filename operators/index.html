@@ -1,0 +1,1694 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://briangu.github.io/klongpy/operators/">
+      
+      
+        <link rel="prev" href="../performance/">
+      
+      
+        <link rel="next" href="../repl/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Operators - KlongPy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#operator-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="KlongPy" class="md-header__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KlongPy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Operators
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="KlongPy" class="md-nav__button md-logo" aria-label="KlongPy" data-md-component="logo">
+      
+  <img src="../assets/images/klongpy_logo.jpg" alt="logo">
+
+    </a>
+    KlongPy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/briangu/klongpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    briangu/klongpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torch_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Backend & Autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operators
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#monads-single-argument" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monads (Single Argument)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dyads-two-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dyads (Two Arguments)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gradient-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gradient Operators
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Gradient Operators">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#numeric-gradient-nabla" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Numeric Gradient: ∇ (nabla)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytorch-autograd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PyTorch Autograd: :&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-parameter-gradients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Parameter Gradients
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jacobian-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Jacobian Operator: ∂
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-parameter-jacobians" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Parameter Jacobians
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#autograd-system-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Autograd System Functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adverbs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adverbs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unused-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unused Operators
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../repl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REPL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data & Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fast_columnar_database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fast Columnar Database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../table_and_key_value_stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table & Key-Value Store
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ipc_capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPC Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../web_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#monads-single-argument" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monads (Single Argument)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dyads-two-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dyads (Two Arguments)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gradient-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gradient Operators
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Gradient Operators">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#numeric-gradient-nabla" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Numeric Gradient: ∇ (nabla)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytorch-autograd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PyTorch Autograd: :&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-parameter-gradients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Parameter Gradients
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jacobian-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Jacobian Operator: ∂
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-parameter-jacobians" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Parameter Jacobians
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#autograd-system-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Autograd System Functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adverbs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adverbs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unused-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unused Operators
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="operator-reference">Operator Reference<a class="headerlink" href="#operator-reference" title="Permanent link">&para;</a></h1>
+<h2 id="monads-single-argument">Monads (Single Argument)<a class="headerlink" href="#monads-single-argument" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>@a</code></td>
+<td>Atom</td>
+<td>Check if value is an atom</td>
+</tr>
+<tr>
+<td><code>:#a</code></td>
+<td>Char</td>
+<td>Convert to character</td>
+</tr>
+<tr>
+<td><code>!a</code></td>
+<td>Enumerate</td>
+<td>Generate sequence 0..a-1</td>
+</tr>
+<tr>
+<td><code>&amp;a</code></td>
+<td>Expand</td>
+<td>Expand boolean mask</td>
+</tr>
+<tr>
+<td><code>*a</code></td>
+<td>First</td>
+<td>First element</td>
+</tr>
+<tr>
+<td><code>_a</code></td>
+<td>Floor</td>
+<td>Floor/truncate</td>
+</tr>
+<tr>
+<td><code>$a</code></td>
+<td>Format</td>
+<td>Convert to string</td>
+</tr>
+<tr>
+<td><code>&gt;a</code></td>
+<td>Grade-Down</td>
+<td>Indices that would sort descending</td>
+</tr>
+<tr>
+<td><code>&lt;a</code></td>
+<td>Grade-Up</td>
+<td>Indices that would sort ascending</td>
+</tr>
+<tr>
+<td><code>=a</code></td>
+<td>Group</td>
+<td>Group equal elements</td>
+</tr>
+<tr>
+<td><code>,a</code></td>
+<td>List</td>
+<td>Wrap in list</td>
+</tr>
+<tr>
+<td><code>-a</code></td>
+<td>Negate</td>
+<td>Negate value</td>
+</tr>
+<tr>
+<td><code>~a</code></td>
+<td>Not</td>
+<td>Logical not</td>
+</tr>
+<tr>
+<td><code>%a</code></td>
+<td>Reciprocal</td>
+<td>1/a</td>
+</tr>
+<tr>
+<td><code>?a</code></td>
+<td>Range</td>
+<td>Random or range</td>
+</tr>
+<tr>
+<td><code>|a</code></td>
+<td>Reverse</td>
+<td>Reverse order</td>
+</tr>
+<tr>
+<td><code>^a</code></td>
+<td>Shape</td>
+<td>Array dimensions</td>
+</tr>
+<tr>
+<td><code>#a</code></td>
+<td>Size</td>
+<td>Length/count</td>
+</tr>
+<tr>
+<td><code>+a</code></td>
+<td>Transpose</td>
+<td>Transpose matrix</td>
+</tr>
+<tr>
+<td><code>:_a</code></td>
+<td>Undefined</td>
+<td>Check if undefined</td>
+</tr>
+<tr>
+<td><code>∇a</code></td>
+<td>Grad</td>
+<td>Numeric gradient function of a</td>
+</tr>
+</tbody>
+</table>
+<h2 id="dyads-two-arguments">Dyads (Two Arguments)<a class="headerlink" href="#dyads-two-arguments" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>a:=b</code></td>
+<td>Amend</td>
+<td>Amend array at index</td>
+</tr>
+<tr>
+<td><code>a:-b</code></td>
+<td>Amend-in-Depth</td>
+<td>Deep amend</td>
+</tr>
+<tr>
+<td><code>a:_b</code></td>
+<td>Cut</td>
+<td>Cut array at indices</td>
+</tr>
+<tr>
+<td><code>a::b</code></td>
+<td>Define</td>
+<td>Define variable</td>
+</tr>
+<tr>
+<td><code>a%b</code></td>
+<td>Divide</td>
+<td>Division</td>
+</tr>
+<tr>
+<td><code>a_b</code></td>
+<td>Drop</td>
+<td>Drop elements</td>
+</tr>
+<tr>
+<td><code>a=b</code></td>
+<td>Equal</td>
+<td>Equality test</td>
+</tr>
+<tr>
+<td><code>a?b</code></td>
+<td>Find</td>
+<td>Find element</td>
+</tr>
+<tr>
+<td><code>a:$b</code></td>
+<td>Form</td>
+<td>Format with precision</td>
+</tr>
+<tr>
+<td><code>a$b</code></td>
+<td>Format2</td>
+<td>Format with width</td>
+</tr>
+<tr>
+<td><code>a@b</code></td>
+<td>Index/Apply</td>
+<td>Index or apply function</td>
+</tr>
+<tr>
+<td><code>a:@b</code></td>
+<td>Index-in-Depth</td>
+<td>Deep indexing</td>
+</tr>
+<tr>
+<td><code>a:%b</code></td>
+<td>Integer-Divide</td>
+<td>Integer division</td>
+</tr>
+<tr>
+<td><code>a,b</code></td>
+<td>Join</td>
+<td>Concatenate</td>
+</tr>
+<tr>
+<td><code>a&lt;b</code></td>
+<td>Less</td>
+<td>Less than</td>
+</tr>
+<tr>
+<td><code>a~b</code></td>
+<td>Match</td>
+<td>Deep equality</td>
+</tr>
+<tr>
+<td><code>a\|b</code></td>
+<td>Max/Or</td>
+<td>Maximum or logical or</td>
+</tr>
+<tr>
+<td><code>a&amp;b</code></td>
+<td>Min/And</td>
+<td>Minimum or logical and</td>
+</tr>
+<tr>
+<td><code>a-b</code></td>
+<td>Minus</td>
+<td>Subtraction</td>
+</tr>
+<tr>
+<td><code>a&gt;b</code></td>
+<td>More</td>
+<td>Greater than</td>
+</tr>
+<tr>
+<td><code>a+b</code></td>
+<td>Plus</td>
+<td>Addition</td>
+</tr>
+<tr>
+<td><code>a^b</code></td>
+<td>Power</td>
+<td>Exponentiation</td>
+</tr>
+<tr>
+<td><code>a:^b</code></td>
+<td>Reshape</td>
+<td>Reshape array</td>
+</tr>
+<tr>
+<td><code>a!b</code></td>
+<td>Remainder</td>
+<td>Modulo</td>
+</tr>
+<tr>
+<td><code>a:+b</code></td>
+<td>Rotate</td>
+<td>Rotate elements</td>
+</tr>
+<tr>
+<td><code>a:#b</code></td>
+<td>Split</td>
+<td>Split at indices</td>
+</tr>
+<tr>
+<td><code>a#b</code></td>
+<td>Take</td>
+<td>Take elements</td>
+</tr>
+<tr>
+<td><code>a*b</code></td>
+<td>Times</td>
+<td>Multiplication</td>
+</tr>
+<tr>
+<td><code>a∇b</code></td>
+<td>Grad</td>
+<td>Numeric gradient of b at a</td>
+</tr>
+<tr>
+<td><code>a:&gt;b</code></td>
+<td>Autograd</td>
+<td>Gradient of a at b (PyTorch autograd)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="gradient-operators">Gradient Operators<a class="headerlink" href="#gradient-operators" title="Permanent link">&para;</a></h2>
+<p>KlongPy provides two gradient operators:</p>
+<h3 id="numeric-gradient-nabla">Numeric Gradient: <code>∇</code> (nabla)<a class="headerlink" href="#numeric-gradient-nabla" title="Permanent link">&para;</a></h3>
+<p>The <code>∇</code> operator <strong>always</strong> computes gradients using numeric differentiation (finite differences), regardless of which backend is active.</p>
+<p><strong>Dyad syntax:</strong> <code>point∇function</code></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>f::{x^2}
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>3∇f               :&quot; Returns ~6.0 (derivative of x^2 at x=3)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>g::{+/x^2}
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>[1 2 3]∇g         :&quot; Returns [2 4 6] (gradient of sum of squares)
+</code></pre></div>
+<p><strong>Monad syntax:</strong> <code>∇function</code> returns a gradient function</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>f::{x^2}
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>grad_f::∇f        :&quot; Create gradient function
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>grad_f(3)         :&quot; Compute gradient at x=3
+</code></pre></div>
+<h3 id="pytorch-autograd">PyTorch Autograd: <code>:&gt;</code><a class="headerlink" href="#pytorch-autograd" title="Permanent link">&para;</a></h3>
+<p>The <code>:&gt;</code> operator uses PyTorch's automatic differentiation when the torch backend is enabled (<code>USE_TORCH=1</code>). Falls back to numeric differentiation otherwise.</p>
+<p><strong>Syntax:</strong> <code>function:&gt;point</code></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>f::{x^2}
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>f:&gt;3              :&quot; Returns 6.0 (derivative of x^2 at x=3)
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>g::{+/x^2}
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>g:&gt;[1 2 3]        :&quot; Returns [2 4 6] (gradient of sum of squares)
+</code></pre></div>
+<h3 id="multi-parameter-gradients">Multi-Parameter Gradients<a class="headerlink" href="#multi-parameter-gradients" title="Permanent link">&para;</a></h3>
+<p>The <code>:&gt;</code> operator can compute gradients for multiple parameters simultaneously when given a list of symbols:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>w::2.0;b::3.0
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>loss::{(w^2)+(b^2)}
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>:&quot; Single parameter (returns gradient)
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>loss:&gt;w               :&quot; Returns 4.0
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>:&quot; Multiple parameters (returns list of gradients)
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>loss:&gt;[w b]           :&quot; Returns [4.0 6.0]
+</code></pre></div>
+<h3 id="jacobian-operator">Jacobian Operator: <code>∂</code><a class="headerlink" href="#jacobian-operator" title="Permanent link">&para;</a></h3>
+<p>The <code>∂</code> (partial derivative) operator computes the Jacobian matrix:</p>
+<p><strong>Syntax:</strong> <code>point∂function</code></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>f::{x^2}              :&quot; Element-wise square
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[1 2]∂f               :&quot; [[2 0] [0 4]] - diagonal Jacobian
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>g::{+/x^2}            :&quot; Sum of squares (scalar output)
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>[1 2 3]∂g             :&quot; [2 4 6] - gradient vector
+</code></pre></div>
+<p>Also available as <code>.jacobian(function;point)</code>.</p>
+<h3 id="multi-parameter-jacobians">Multi-Parameter Jacobians<a class="headerlink" href="#multi-parameter-jacobians" title="Permanent link">&para;</a></h3>
+<p>Like gradients, Jacobians can be computed for multiple parameters using a list of symbols:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>w::[1.0 2.0]
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>b::[3.0 4.0]
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>f::{w^2}              :&quot; Returns [w0^2, w1^2]
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>:&quot; Compute Jacobians for both w and b
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>[w b]∂f               :&quot; Returns [J_w, J_b]
+</code></pre></div>
+<h3 id="comparison">Comparison<a class="headerlink" href="#comparison" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th><code>∇</code> (nabla)</th>
+<th><code>:&gt;</code> (autograd)</th>
+<th><code>∂</code> (jacobian)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Method</td>
+<td>Numeric</td>
+<td>PyTorch autograd</td>
+<td>PyTorch/numeric</td>
+</tr>
+<tr>
+<td>Precision</td>
+<td>Approximate</td>
+<td>Exact</td>
+<td>Exact</td>
+</tr>
+<tr>
+<td>Output</td>
+<td>Scalar functions</td>
+<td>Scalar functions</td>
+<td>Vector functions</td>
+</tr>
+<tr>
+<td>Syntax</td>
+<td><code>point∇function</code></td>
+<td><code>function:&gt;point</code></td>
+<td><code>point∂function</code></td>
+</tr>
+<tr>
+<td>Multi-param</td>
+<td>No</td>
+<td><code>f:&gt;[w b]</code></td>
+<td><code>[w b]∂f</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="autograd-system-functions">Autograd System Functions<a class="headerlink" href="#autograd-system-functions" title="Permanent link">&para;</a></h3>
+<p>Additional system functions for autograd (require PyTorch backend):</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.gradcheck(fn;input)</code></td>
+<td>Verify gradients against numeric computation</td>
+</tr>
+<tr>
+<td><code>.compile(fn;input)</code></td>
+<td>Compile function for optimized execution</td>
+</tr>
+<tr>
+<td><code>.compilex(fn;input;opts)</code></td>
+<td>Compile with extended options (mode, backend)</td>
+</tr>
+<tr>
+<td><code>.cmodes()</code></td>
+<td>Query available compilation modes and backends</td>
+</tr>
+<tr>
+<td><code>.export(fn;input;path)</code></td>
+<td>Export computation graph to file</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Gradient Verification:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>f::{x^2}
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>.gradcheck(f;3.0)     :&quot; Returns 1 if gradients are correct
+</code></pre></div></p>
+<p><strong>Function Compilation:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>f::{(x^3)+(2*x^2)+x}
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>cf::.compile(f;2.0)   :&quot; Returns compiled (faster) function
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>cf(5.0)               :&quot; Execute compiled function
+</code></pre></div></p>
+<p><strong>Extended Compilation:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>:&quot; Fast compile for development
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>cf::.compilex(f;2.0;:{[&quot;mode&quot; &quot;reduce-overhead&quot;]})
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>:&quot; Maximum optimization for production
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>cf::.compilex(f;2.0;:{[&quot;mode&quot; &quot;max-autotune&quot;]})
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>:&quot; Debug mode (no C++ compiler needed)
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>cf::.compilex(f;2.0;:{[&quot;backend&quot; &quot;eager&quot;]})
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>:&quot; Query available options
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>info::.cmodes()
+</code></pre></div></p>
+<p><strong>Graph Export:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>info::.export(f;2.0;&quot;model.pt2&quot;)
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>.p(info@&quot;graph&quot;)      :&quot; Print computation graph
+</code></pre></div></p>
+<h2 id="adverbs">Adverbs<a class="headerlink" href="#adverbs" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Adverb</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>f'a</code></td>
+<td>Each</td>
+<td>Apply f to each element</td>
+</tr>
+<tr>
+<td><code>f/a</code></td>
+<td>Over</td>
+<td>Reduce with f</td>
+</tr>
+<tr>
+<td><code>f\a</code></td>
+<td>Scan</td>
+<td>Scan with f</td>
+</tr>
+<tr>
+<td><code>n f'a</code></td>
+<td>Each-n</td>
+<td>Apply f to groups of n</td>
+</tr>
+<tr>
+<td><code>a f'b</code></td>
+<td>Each-pair</td>
+<td>Apply f to pairs</td>
+</tr>
+<tr>
+<td><code>f:*a</code></td>
+<td>Iterate</td>
+<td>Iterate f until stable</td>
+</tr>
+<tr>
+<td><code>n f:*a</code></td>
+<td>Iterate-n</td>
+<td>Iterate f n times</td>
+</tr>
+<tr>
+<td><code>f:~a</code></td>
+<td>Converge</td>
+<td>Converge with condition</td>
+</tr>
+</tbody>
+</table>
+<h2 id="unused-operators">Unused Operators<a class="headerlink" href="#unused-operators" title="Permanent link">&para;</a></h2>
+<p>The following operator combinations are reserved for future use:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>:! :&amp; :, :&lt; :?
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
