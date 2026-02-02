@@ -1,24 +1,17 @@
+"""
+Performance benchmark comparing backends across different workloads.
+
+- Vector ops: Simple element-wise operations (memory-bound)
+- Matrix ops: Matrix multiplication (compute-bound, shows GPU advantage)
+
+Usage:
+    python tests/perf_vector.py
+"""
 import timeit
 
 import numpy as np
 
 from klongpy import KlongInterpreter
-
-
-def numpy_vec(number=100):
-    r = timeit.timeit(lambda: np.multiply(np.add(np.arange(10000000), 1), 2), number=number)
-    return r/number
-
-
-def klong_vec(number=100, backend=None, device=None):
-    klong = KlongInterpreter(backend=backend, device=device)
-    r = timeit.timeit(lambda: klong("2*1+!10000000"), number=number)
-    return r/number, klong._backend
-
-
-def python_vec(number=100):
-    r = timeit.timeit(lambda: [2 * (1 + x) for x in range(10000000)], number=number)
-    return r/number
 
 
 def get_torch_devices():
@@ -43,27 +36,128 @@ def has_torch():
         return False
 
 
-if __name__ == "__main__":
-    number = 1000
+def vector_benchmark(backend=None, device=None, size=10_000_000, number=100):
+    """
+    Element-wise vector operations (memory-bound).
+    GPU won't show much speedup here due to memory transfer overhead.
+    """
+    klong = KlongInterpreter(backend=backend, device=device)
+    expr = f"2*1+!{size}"
+    r = timeit.timeit(lambda: klong(expr), number=number)
+    return r / number, klong._backend
 
-    print("Python: ", end='')
-    pr = python_vec(number=number)
-    print(f"{round(pr,6)}s")
 
-    print("Numpy: ", end='')
-    nr = numpy_vec(number=number)
-    print(f"{round(nr,6)}s")
+def matrix_benchmark(backend=None, device=None, size=1000, number=10):
+    """
+    Matrix multiplication (compute-bound).
+    GPU shines here: O(n³) compute vs O(n²) memory transfer.
+    """
+    klong = KlongInterpreter(backend=backend, device=device)
+    # Create random matrices and convert to backend format
+    a_np = np.random.rand(size, size).astype(np.float32)
+    b_np = np.random.rand(size, size).astype(np.float32)
+    klong['a'] = klong._backend.kg_asarray(a_np)
+    klong['b'] = klong._backend.kg_asarray(b_np)
+    # Import matmul from backend's underlying library
+    if backend == 'torch':
+        import torch
+        klong('.pyf("torch";"matmul")')
+        # Warmup for GPU (compile kernels, etc.)
+        for _ in range(5):
+            klong("matmul(a;b)")
+        sync = (torch.mps.synchronize if device == 'mps' else
+                torch.cuda.synchronize if device == 'cuda' else lambda: None)
+        sync()
 
-    # NumPy backend
-    kr, klong_backend = klong_vec(number=number, backend='numpy')
-    print(f"KlongPy (backend={klong_backend.name}): {round(kr,6)}s")
-    print(f"  Python / KlongPy => {round(pr/kr,6)}")
-    print(f"  Numpy / KlongPy => {round(nr/kr,6)}")
+        def timed_matmul():
+            klong("matmul(a;b)")
+            sync()
+        r = timeit.timeit(timed_matmul, number=number)
+    else:
+        klong('.pyf("numpy";"matmul")')
+        r = timeit.timeit(lambda: klong("matmul(a;b)"), number=number)
+    return r / number, klong._backend
 
-    # Torch backend (all available devices)
+
+def numpy_vector(size=10_000_000, number=100):
+    """Baseline NumPy vector ops."""
+    r = timeit.timeit(
+        lambda: np.multiply(np.add(np.arange(size), 1), 2),
+        number=number
+    )
+    return r / number
+
+
+def numpy_matrix(size=1000, number=10):
+    """Baseline NumPy matrix multiply."""
+    a = np.random.rand(size, size).astype(np.float32)
+    b = np.random.rand(size, size).astype(np.float32)
+    r = timeit.timeit(lambda: np.matmul(a, b), number=number)
+    return r / number
+
+
+def run_benchmarks():
+    """Run all benchmarks and display results."""
+    vector_size = 10_000_000
+    vector_iters = 100
+    matrix_size = 4000  # Larger matrices show GPU advantage
+    matrix_iters = 5
+
+    print("=" * 60)
+    print("VECTOR OPS (element-wise, memory-bound)")
+    print(f"  Size: {vector_size:,} elements, Iterations: {vector_iters}")
+    print("=" * 60)
+
+    # NumPy baseline
+    np_vec = numpy_vector(size=vector_size, number=vector_iters)
+    print(f"{'NumPy (baseline)':<35} {np_vec:.6f}s")
+
+    # KlongPy with numpy backend
+    klong_vec, backend = vector_benchmark(
+        backend='numpy', size=vector_size, number=vector_iters
+    )
+    speedup = np_vec / klong_vec
+    print(f"{'KlongPy (numpy)':<35} {klong_vec:.6f}s  ({speedup:.2f}x vs NumPy)")
+
+    # Torch backends
     if has_torch():
         for device in get_torch_devices():
-            kr, klong_backend = klong_vec(number=number, backend='torch', device=device)
-            print(f"KlongPy (backend={klong_backend.name}, device={device}): {round(kr,6)}s")
-            print(f"  Python / KlongPy => {round(pr/kr,6)}")
-            print(f"  Numpy / KlongPy => {round(nr/kr,6)}")
+            klong_vec, backend = vector_benchmark(
+                backend='torch', device=device,
+                size=vector_size, number=vector_iters
+            )
+            speedup = np_vec / klong_vec
+            print(f"{'KlongPy (torch, ' + device + ')':<35} {klong_vec:.6f}s  ({speedup:.2f}x vs NumPy)")
+
+    print()
+    print("=" * 60)
+    print("MATRIX MULTIPLY (compute-bound, GPU advantage)")
+    print(f"  Size: {matrix_size}x{matrix_size}, Iterations: {matrix_iters}")
+    print("=" * 60)
+
+    # NumPy baseline
+    np_mat = numpy_matrix(size=matrix_size, number=matrix_iters)
+    print(f"{'NumPy (baseline)':<35} {np_mat:.6f}s")
+
+    # KlongPy with numpy backend
+    klong_mat, backend = matrix_benchmark(
+        backend='numpy', size=matrix_size, number=matrix_iters
+    )
+    speedup = np_mat / klong_mat
+    print(f"{'KlongPy (numpy)':<35} {klong_mat:.6f}s  ({speedup:.2f}x vs NumPy)")
+
+    # Torch backends
+    if has_torch():
+        for device in get_torch_devices():
+            klong_mat, backend = matrix_benchmark(
+                backend='torch', device=device,
+                size=matrix_size, number=matrix_iters
+            )
+            speedup = np_mat / klong_mat
+            print(f"{'KlongPy (torch, ' + device + ')':<35} {klong_mat:.6f}s  ({speedup:.2f}x vs NumPy)")
+
+    print()
+
+
+if __name__ == "__main__":
+    run_benchmarks()
