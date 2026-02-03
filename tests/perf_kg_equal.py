@@ -12,6 +12,8 @@ Notes:
 """
 import argparse
 import csv
+import importlib
+import importlib.util
 import time
 from pathlib import Path
 from typing import Callable, List, Tuple
@@ -20,10 +22,8 @@ import numpy as np
 
 from klongpy.backends import get_backend
 
-try:
-    import torch
-except Exception:  # pragma: no cover - torch optional
-    torch = None
+_TORCH_SPEC = importlib.util.find_spec("torch")
+torch = importlib.import_module("torch") if _TORCH_SPEC else None
 
 
 def _sync_if_needed(backend) -> None:

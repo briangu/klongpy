@@ -130,19 +130,6 @@ def grad_of_fn(klong, fn, x):
         return numeric_grad(call_fn, x, backend)
 
 
-def torch_autograd(func, x, backend):
-    """Compute gradient using PyTorch autograd (requires torch backend).
-
-    Args:
-        func: Function to differentiate
-        x: Input point
-        backend: Backend provider (must support autograd)
-    """
-    if not backend.supports_autograd():
-        raise RuntimeError("torch_autograd requires a backend that supports autograd")
-    return backend.compute_autograd(func, x)
-
-
 def numeric_jacobian(func, x, backend, eps=None):
     """
     Compute Jacobian matrix of func at point x using finite differences.

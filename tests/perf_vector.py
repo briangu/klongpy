@@ -9,31 +9,31 @@ Usage:
 """
 import timeit
 
+import importlib
+import importlib.util
 import numpy as np
 
 from klongpy import KlongInterpreter
 
+_TORCH_SPEC = importlib.util.find_spec("torch")
+torch = importlib.import_module("torch") if _TORCH_SPEC else None
+TORCH_AVAILABLE = torch is not None
+
 
 def get_torch_devices():
     """Get list of available devices for torch backend."""
-    devices = ["cpu"]
-    try:
-        import torch
-        if torch.cuda.is_available():
-            devices.append("cuda")
-        if torch.backends.mps.is_available():
-            devices.append("mps")
-    except ImportError:
+    if not TORCH_AVAILABLE:
         return []
+    devices = ["cpu"]
+    if torch.cuda.is_available():
+        devices.append("cuda")
+    if torch.backends.mps.is_available():
+        devices.append("mps")
     return devices
 
 
 def has_torch():
-    try:
-        import torch  # noqa: F401
-        return True
-    except ImportError:
-        return False
+    return TORCH_AVAILABLE
 
 
 def vector_benchmark(backend=None, device=None, size=10_000_000, number=100):
@@ -60,7 +60,8 @@ def matrix_benchmark(backend=None, device=None, size=1000, number=10):
     klong['b'] = klong._backend.kg_asarray(b_np)
     # Import matmul from backend's underlying library
     if backend == 'torch':
-        import torch
+        if not TORCH_AVAILABLE:
+            raise RuntimeError("Torch backend requested but torch is not available")
         klong('.pyf("torch";"matmul")')
         # Warmup for GPU (compile kernels, etc.)
         for _ in range(5):

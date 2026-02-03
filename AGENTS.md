@@ -12,6 +12,11 @@ pip install -e ".[dev]"
 python3 -m pytest tests/
 ```
 
+## Code guidelines
+
+1. Never use embedded imports (imports inside functions, methods, or conditional blocks) except for traceback.
+2. Don't reference torch outside of `klongpy/backends/torch_backend.py`.
+
 ## Architecture quick map
 
 - `klongpy/interpreter.py`: `KlongInterpreter` + `KlongContext`; main parse/eval loop (`prog` -> `call` -> `eval` -> `_eval_fn`).

@@ -7,8 +7,10 @@ It does not support object dtype or string operations.
 import math
 import numpy
 import torch
+import torch.autograd.functional as torch_autograd_functional
 
 from .base import BackendProvider, UnsupportedDtypeError, is_jagged_array
+from ..autograd import AutogradChainBrokenError, NonScalarLossError, _invoke_fn
 
 # numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
 from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
@@ -698,8 +700,6 @@ class TorchBackendProvider(BackendProvider):
 
     def compute_autograd(self, func, x):
         """Compute gradient using PyTorch automatic differentiation."""
-        from ..autograd import AutogradChainBrokenError, NonScalarLossError
-
         x_tensor = self.create_grad_tensor(x)
 
         # Compute the function value
@@ -750,8 +750,6 @@ class TorchBackendProvider(BackendProvider):
         Returns:
             List of gradients, one per parameter
         """
-        from ..autograd import AutogradChainBrokenError, NonScalarLossError
-
         # Create grad tensors for all parameters
         grad_tensors = [self.create_grad_tensor(p) for p in params]
 
@@ -794,12 +792,10 @@ class TorchBackendProvider(BackendProvider):
         Returns:
             Jacobian matrix J where J[i,j] = df_i/dx_j
         """
-        import torch.autograd.functional as F
-
         x_tensor = self.create_grad_tensor(x)
 
         # torch.autograd.functional.jacobian expects func(inputs) -> outputs
-        jacobian = F.jacobian(func, x_tensor)
+        jacobian = torch_autograd_functional.jacobian(func, x_tensor)
 
         return jacobian
 
@@ -970,8 +966,6 @@ class TorchBackendProvider(BackendProvider):
         Returns:
             1 if gradients are correct, raises error otherwise
         """
-        from ..autograd import _invoke_fn
-
         # Determine dtype based on device support
         use_float32 = self.device.type == 'mps'  # MPS doesn't support float64
         dtype = torch.float32 if use_float32 else torch.float64

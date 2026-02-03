@@ -9,12 +9,19 @@ import numpy as np
 from klongpy import KlongInterpreter
 from klongpy.core import is_list
 from klongpy.backends import get_backend
-from klongpy.backend import TorchUnsupportedDtypeError
+from klongpy.backend import UnsupportedDtypeError, np as backend_np
 
 
 def is_torch_backend(klong):
     """Check if klong interpreter is using torch backend."""
     return klong._backend.name == 'torch'
+
+
+def torch_autograd(func, x, backend):
+    """Compute gradient using PyTorch autograd (requires torch backend)."""
+    if not backend.supports_autograd():
+        raise RuntimeError("torch_autograd requires a backend that supports autograd")
+    return backend.compute_autograd(func, x)
 
 
 class BackendSkipError(Exception):
@@ -125,7 +132,7 @@ def eval_cmp(expr_str, expected_str, klong=None, skip_unsupported=True):
         a = klong.call(expr)
         b = klong.call(expected)
         return klong._backend.kg_equal(a, b)
-    except TorchUnsupportedDtypeError as e:
+    except UnsupportedDtypeError as e:
         if skip_unsupported:
             raise BackendSkipError(str(e))
         raise
@@ -158,7 +165,6 @@ def eval_test(a, klong=None, skip_unsupported=True):
             return False
         a = klong.call(p[1])
         b = klong.call(p[2])
-        from klongpy.backend import np as backend_np
         if backend_np.isarray(a) and backend_np.isarray(b):
             c = a == b
             # Handle tensor/array result
@@ -167,7 +173,7 @@ def eval_test(a, klong=None, skip_unsupported=True):
             return not c[np.where(c == False)].any() if np.isarray(c) else c
         else:
             return klong._backend.kg_equal(a, b)
-    except TorchUnsupportedDtypeError as e:
+    except UnsupportedDtypeError as e:
         if skip_unsupported:
             raise BackendSkipError(str(e))
         raise

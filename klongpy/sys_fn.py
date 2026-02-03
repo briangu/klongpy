@@ -12,7 +12,7 @@ from inspect import Parameter
 import numpy
 
 from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
-                   is_dict, is_empty, is_list, kg_read_array, kg_write, np,
+                   bknp, is_dict, is_empty, is_list, kg_read_array, kg_write,
                    reserved_fn_args, reserved_fn_symbol_map, safe_eq, safe_inspect)
 
 
@@ -695,7 +695,7 @@ def eval_sys_random_number():
         Return a random number x, such that 0 <= x < 1.
 
     """
-    return np.random.random()
+    return bknp.random.random()
 
 
 def eval_sys_read(klong):

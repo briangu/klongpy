@@ -1,4 +1,6 @@
 import unittest
+
+import numpy as real_np
 from klongpy.core import *
 from klongpy.core import kg_argsort
 from klongpy.backends import get_backend
@@ -103,7 +105,7 @@ class TestUtil(unittest.TestCase):
 
     def test_is_list(self):
         self.assertTrue(is_list([]))
-        self.assertTrue(is_list(np.array([])))
+        self.assertTrue(is_list(bknp.array([])))
         self.assertFalse(is_list(()))
         self.assertFalse(is_list(1))
         self.assertFalse(is_list(None))
@@ -119,8 +121,8 @@ class TestUtil(unittest.TestCase):
         self.assertTrue(is_empty(""))
         self.assertTrue(is_empty(''))
         self.assertTrue(is_empty([]))
-        self.assertTrue(is_empty(np.array([])))
-        self.assertFalse(is_empty(np.array([1])))
+        self.assertTrue(is_empty(bknp.array([])))
+        self.assertFalse(is_empty(bknp.array([1])))
         self.assertFalse(is_empty([1]))
         self.assertFalse(is_empty(None))
         self.assertFalse(is_empty(1))
@@ -130,10 +132,10 @@ class TestUtil(unittest.TestCase):
         self.assertEqual(to_list([]), [])
         self.assertTrue(isinstance(to_list(1), list))
         self.assertEqual(to_list([1]), [1])
-        self.assertTrue(isinstance(to_list(np.array([])), list))
-        self.assertEqual(to_list(np.array([])), [])
-        self.assertTrue(isinstance(to_list(np.array([1])), list))
-        self.assertEqual(to_list(np.array([1])), [1])  # Compare to list, not array
+        self.assertTrue(isinstance(to_list(bknp.array([])), list))
+        self.assertEqual(to_list(bknp.array([])), [])
+        self.assertTrue(isinstance(to_list(bknp.array([1])), list))
+        self.assertEqual(to_list(bknp.array([1])), [1])  # Compare to list, not array
 
     def test_is_float(self, fn=is_float):
         self.assertFalse(fn(None))
@@ -218,7 +220,6 @@ class TestUtil(unittest.TestCase):
 
     @requires_object_dtype
     def test_merge_projections(self):
-        import numpy as real_np  # Use real numpy for comparison
         self.assertEqual(merge_projections([]), [])
         self.assertEqual(merge_projections([[1]]), [1])
         r = merge_projections([[10,20,30]])

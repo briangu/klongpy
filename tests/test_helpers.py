@@ -1,7 +1,9 @@
 import os
+import shutil
 import tempfile
 import unittest
 
+import numpy as np
 import pandas as pd
 
 from klongpy.db.helpers import (
@@ -39,7 +41,6 @@ class TestDataFrameFileIO(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
 
     def tearDown(self):
-        import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_save_and_read_gzip_df_file(self):
@@ -55,7 +56,6 @@ class TestDataFrameFileIO(unittest.TestCase):
         pd.testing.assert_frame_equal(result, self.df)
 
     def test_df_memory_usage(self):
-        import numpy as np
         result = df_memory_usage(self.df)
         self.assertTrue(np.issubdtype(type(result), np.integer) or isinstance(result, (int, float)))
         self.assertGreater(result, 0)

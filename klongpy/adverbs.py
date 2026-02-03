@@ -99,10 +99,10 @@ def eval_adverb_each2(f, a, b):
 
     """
     if is_empty(a) or is_empty(b):
-        return np.asarray([]) if is_list(a) or is_list(b) else ""
+        return bknp.asarray([]) if is_list(a) or is_list(b) else ""
     if is_atom(a) and is_atom(b):
         return f(a,b)
-    r = np.asarray([f(x,y) for x,y in zip(a,b)])
+    r = bknp.asarray([f(x,y) for x,y in zip(a,b)])
     return ''.join(r) if r.dtype == '<U1' else r
 
 
