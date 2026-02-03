@@ -334,13 +334,13 @@ class BackendProvider(ABC):
             if a.dtype != object and b.dtype != object:
                 return bool(np.array_equal(a, b))
 
-        # Mixed backend array comparisons fall back to numpy for safety
+        # Convert backend arrays to numpy for mixed comparisons
         if self.is_backend_array(a):
             a = self.to_numpy(a)
         if self.is_backend_array(b):
             b = self.to_numpy(b)
 
-        # Fast path for numpy arrays after conversion
+        # Fast path for numpy arrays (after any conversion)
         if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
             if a.dtype != object and b.dtype != object:
                 return bool(np.array_equal(a, b))
