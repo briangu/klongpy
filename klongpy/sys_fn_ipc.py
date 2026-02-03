@@ -8,8 +8,6 @@ import uuid
 from asyncio import StreamReader, StreamWriter
 from asyncio.exceptions import IncompleteReadError
 
-import numpy as np
-
 from klongpy.core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
                           KlongException, KLONG_UNDEFINED, get_fn_arity_str, is_list,
                           reserved_fn_args, reserved_fn_symbols, reserved_fn_symbol_map)
@@ -1017,4 +1015,3 @@ def create_system_var_ipc():
         ".srv.e": KLONG_UNDEFINED,
     }
     return registry
-
