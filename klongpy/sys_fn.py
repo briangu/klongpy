@@ -12,7 +12,7 @@ from inspect import Parameter
 import numpy
 
 from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
-                   is_dict, is_empty, is_list, kg_read, kg_read_array, kg_write, np,
+                   is_dict, is_empty, is_list, kg_read_array, kg_write, np,
                    reserved_fn_args, reserved_fn_symbol_map, safe_eq, safe_inspect)
 
 

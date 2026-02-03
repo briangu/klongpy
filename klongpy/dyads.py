@@ -1,6 +1,5 @@
 from .core import *
 from .autograd import grad_of_fn, numeric_grad, jacobian_of_fn, multi_jacobian_of_fn, multi_grad_of_fn
-import sys
 import numpy
 
 

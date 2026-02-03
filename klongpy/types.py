@@ -13,7 +13,6 @@ This module contains all the core types used by the KlongPy interpreter:
 import inspect
 import weakref
 from enum import Enum
-import sys
 import numpy
 
 from .backend import np

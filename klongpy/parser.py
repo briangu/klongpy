@@ -11,7 +11,7 @@ import copy
 
 from .types import (
     KGSym, KGChar, KGOp, KGCond, KGCall, KGLambda,
-    reserved_fn_args, reserved_fn_symbol_map,
+    reserved_fn_symbol_map,
     safe_eq, is_symbolic
 )
 
