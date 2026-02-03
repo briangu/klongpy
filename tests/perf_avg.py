@@ -1,8 +1,8 @@
 import time
-from klongpy.backend import np
+import numpy as np
 from klongpy import KlongInterpreter
 
-klong = KlongInterpreter()
+klong = KlongInterpreter(backend='numpy')
 
 # define average function in Klong. Note, the '+/' (sum over) uses np.add.reduce under the hood
 klong('avg::{(+/x)%#x}')

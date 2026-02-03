@@ -8,7 +8,13 @@ import numpy as np
 
 from klongpy import KlongInterpreter
 from klongpy.core import is_list
-from klongpy.backend import get_default_backend, use_torch, TorchUnsupportedDtypeError, kg_equal
+from klongpy.backends import get_backend
+from klongpy.backend import TorchUnsupportedDtypeError
+
+
+def is_torch_backend(klong):
+    """Check if klong interpreter is using torch backend."""
+    return klong._backend.name == 'torch'
 
 
 class BackendSkipError(Exception):
@@ -52,7 +58,7 @@ def _check_backend_support(expr_str, expected_str):
 
     Returns None if supported, or a skip message if not.
     """
-    backend = get_default_backend()
+    backend = get_backend()
 
     # Check string support
     if not backend.supports_strings():
@@ -118,13 +124,13 @@ def eval_cmp(expr_str, expected_str, klong=None, skip_unsupported=True):
         expected = klong.prog(expected_str)[1][0]
         a = klong.call(expr)
         b = klong.call(expected)
-        return kg_equal(a, b)
+        return klong._backend.kg_equal(a, b)
     except TorchUnsupportedDtypeError as e:
         if skip_unsupported:
             raise BackendSkipError(str(e))
         raise
     except (TypeError, ValueError, RuntimeError) as e:
-        if skip_unsupported and use_torch and _is_torch_limitation_error(e):
+        if skip_unsupported and is_torch_backend(klong) and _is_torch_limitation_error(e):
             raise BackendSkipError(f"Torch limitation: {e}")
         raise
 
@@ -160,13 +166,13 @@ def eval_test(a, klong=None, skip_unsupported=True):
                 return bool(c.all())
             return not c[np.where(c == False)].any() if np.isarray(c) else c
         else:
-            return kg_equal(a, b)
+            return klong._backend.kg_equal(a, b)
     except TorchUnsupportedDtypeError as e:
         if skip_unsupported:
             raise BackendSkipError(str(e))
         raise
     except (TypeError, ValueError, RuntimeError) as e:
-        if skip_unsupported and use_torch and _is_torch_limitation_error(e):
+        if skip_unsupported and is_torch_backend(klong) and _is_torch_limitation_error(e):
             raise BackendSkipError(f"Torch limitation: {e}")
         raise
 

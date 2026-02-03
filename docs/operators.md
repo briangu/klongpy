@@ -89,7 +89,7 @@ grad_f(3)         :" Compute gradient at x=3
 
 ### PyTorch Autograd: `:>`
 
-The `:>` operator uses PyTorch's automatic differentiation when the torch backend is enabled (`USE_TORCH=1`). Falls back to numeric differentiation otherwise.
+The `:>` operator uses PyTorch's automatic differentiation when the torch backend is enabled (`--backend torch`). Falls back to numeric differentiation otherwise.
 
 **Syntax:** `function:>point`
 

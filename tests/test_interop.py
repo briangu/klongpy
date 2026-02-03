@@ -29,7 +29,7 @@ class TestPythonInterop(unittest.TestCase):
         x = random.random()
         x = [x]
         klong['foo'] = x
-        self.assertTrue(kg_equal(klong['foo'],x))
+        self.assertTrue(klong._backend.kg_equal(klong['foo'], x))
 
     def test_del_var(self):
         klong = KlongInterpreter()
@@ -75,7 +75,7 @@ class TestPythonInterop(unittest.TestCase):
         klong = KlongInterpreter()
         klong("fn::{{x+10}'x}")
         r = klong['fn']([2])
-        self.assertTrue(kg_equal(r, [12]))
+        self.assertTrue(klong._backend.kg_equal(r, [12]))
 
     @requires_strings
     def test_datetime_parsing_example(self):
@@ -185,4 +185,4 @@ class TestPythonInterop(unittest.TestCase):
         klong("A::[];A::A,:{};A::A,:{}")
         klong['B'] = [{}, {}, {}]
         r = klong("A,B")
-        self.assertTrue(kg_equal(r, [{}, {}, {}, {}, {}]))
+        self.assertTrue(klong._backend.kg_equal(r, [{}, {}, {}, {}, {}]))

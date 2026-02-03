@@ -46,9 +46,7 @@ For nicer line editing, install `rlwrap` via your OS package manager (optional).
 Then enable the torch backend when running:
 
 ```bash
-USE_TORCH=1 kgpy
-# or
-KLONGPY_BACKEND=torch kgpy
+kgpy --backend torch
 ```
 
 

@@ -1,9 +1,6 @@
 from .core import *
 from .autograd import grad_of_fn
-from .backend import (
-    kg_asarray, is_integer, is_number, str_to_chr_arr, kg_argsort, array_size, vec_fn
-)
-import sys
+
 
 def eval_monad_atom(a):
     """
@@ -22,7 +19,7 @@ def eval_monad_atom(a):
     return kg_truth(is_atom(a))
 
 
-def eval_monad_char(a):
+def eval_monad_char(a, backend):
     """
 
         :#a                                                       [Char]
@@ -35,10 +32,10 @@ def eval_monad_char(a):
                   :#10  -->  :"newline character"
 
     """
-    return rec_fn(a, lambda x: KGChar(chr(x))) if is_list(a) else KGChar(chr(a))
+    return backend.rec_fn(a, lambda x: KGChar(chr(x))) if is_list(a) else KGChar(chr(a))
 
 
-def eval_monad_enumerate(a):
+def eval_monad_enumerate(a, backend):
     """
 
         !a                                                   [Enumerate]
@@ -50,7 +47,7 @@ def eval_monad_enumerate(a):
                   !10  -->  [0 1 2 3 4 5 6 7 8 9]
 
     """
-    if not is_integer(a):
+    if not backend.is_integer(a):
         raise RuntimeError(f"enumerate: invalid type error: {a}")
     return np.arange(int(a))
 
@@ -101,7 +98,7 @@ def eval_monad_first(a):
     return a if is_empty(a) or not is_iterable(a) else a[0]
 
 
-def eval_monad_floor(a):
+def eval_monad_floor(a, backend):
     """
 
         _a                                                       [Floor]
@@ -127,10 +124,10 @@ def eval_monad_floor(a):
         elif hasattr(result, 'to'):  # torch tensor - .to(int) works
             return result.to(int)
         return int(result)
-    return vec_fn(a, _floor_to_int)
+    return backend.vec_fn(a, _floor_to_int)
 
 
-def eval_monad_format(a):
+def eval_monad_format(a, backend):
     """
 
         $a                                                      [Format]
@@ -148,10 +145,10 @@ def eval_monad_format(a):
                     $:foo  -->  ":foo"
 
     """
-    return f":{a}" if isinstance(a, KGSym) else vec_fn(a, eval_monad_format) if is_list(a) else str(a)
+    return f":{a}" if isinstance(a, KGSym) else backend.vec_fn(a, lambda x: eval_monad_format(x, backend)) if is_list(a) else str(a)
 
 
-def eval_monad_grade_up(a):
+def eval_monad_grade_up(a, backend):
     """
 
         <a                                                    [Grade-Up]
@@ -176,10 +173,10 @@ def eval_monad_grade_up(a):
                     >[[1] [2] [3]]  -->  [2 1 0]
 
     """
-    return kg_argsort(kg_asarray(a))
+    return kg_argsort(backend.kg_asarray(a), backend)
 
 
-def eval_monad_grade_down(a):
+def eval_monad_grade_down(a, backend):
     """
 
         >a                                                  [Grade-Down]
@@ -187,10 +184,10 @@ def eval_monad_grade_down(a):
         See [Grade-Up].
 
     """
-    return kg_argsort(kg_asarray(a), descending=True)
+    return kg_argsort(backend.kg_asarray(a), backend, descending=True)
 
 
-def eval_monad_groupby(a):
+def eval_monad_groupby(a, backend):
     """
 
         =a                                                       [Group]
@@ -207,15 +204,15 @@ def eval_monad_groupby(a):
                   ="hello foo"  -->  [[0] [1] [2 3] [4 7 8] [5] [6]]
 
     """
-    arr = kg_asarray(a)
-    if array_size(arr) == 0:
+    arr = backend.kg_asarray(a)
+    if backend.array_size(arr) == 0:
         return arr
     vals, inverse = np.unique(arr, return_inverse=True)
     groups = [np.where(inverse == i)[0] for i in range(len(vals))]
-    return kg_asarray(groups)
+    return backend.kg_asarray(groups)
 
 
-def eval_monad_list(a):
+def eval_monad_list(a, backend):
     """
 
         ,a                                                        [List]
@@ -229,12 +226,10 @@ def eval_monad_list(a):
     """
     if is_char(a):
         return str(a)
-    if isinstance(a, KGSym):
-        return np.asarray([a],dtype=object) # np interprets ':foo" as ':fo"
-    return np.asarray([a])
+    return backend.kg_asarray([a])
 
 
-def eval_monad_negate(a):
+def eval_monad_negate(a, backend):
     """
 
         -a                                                      [Negate]
@@ -247,10 +242,10 @@ def eval_monad_negate(a):
                   -1.23  -->  -1.23
 
     """
-    return vec_fn(a, lambda x: np.negative(kg_asarray(x)))
+    return backend.vec_fn(a, lambda x: backend.np.negative(backend.kg_asarray(x)))
 
 
-def eval_monad_not(a):
+def eval_monad_not(a, backend):
     """
 
         ~a                                                         [Not]
@@ -267,10 +262,10 @@ def eval_monad_not(a):
     """
     def _neg(x):
         return 1 if is_empty(x) else 0 if is_dict(x) or isinstance(x, (KGFn, KGSym)) else kg_truth(np.logical_not(np.asarray(x, dtype=object)))
-    return vec_fn(a, _neg) if not is_empty(a) else _neg(a)
+    return backend.vec_fn(a, _neg) if not is_empty(a) else _neg(a)
 
 
-def eval_monad_range(a):
+def eval_monad_range(a, backend):
     """
 
         ?a                                                       [Range]
@@ -283,28 +278,19 @@ def eval_monad_range(a):
                   ?"aaabbcccd"  -->  "abcd"
 
     """
+    np_backend = backend.np
     if isinstance(a, str):
-        return ''.join(np.unique(str_to_chr_arr(a)))
-    elif np.isarray(a):
-        if a.dtype != 'O' and a.ndim > 1:
-            _,ids = np.unique(a,axis=0,return_index=True)
+        return ''.join(np.unique(backend.str_to_chr_arr(a)))
+    elif np_backend.isarray(a):
+        dtype_kind = backend.get_dtype_kind(a)
+        if dtype_kind != 'O' and a.ndim > 1:
+            # For torch, use numpy for unique with return_index
+            a_np = backend.to_numpy(a) if backend.is_backend_array(a) else a
+            _, ids = np.unique(a_np, axis=0, return_index=True)
+            ids.sort()
+            return a[ids]
         else:
             # handle the jagged / mixed array case
-            # from functools import total_ordering
-            # @total_ordering
-            # class Wrapper:
-            #     def __init__(self, x):
-            #         self.x = x
-            #     def __eq__(self,o):
-            #         print("eq")
-            #         return array_equal(self.x, o.x)
-            #     def __ne__(self,o):
-            #         return not array_equal(self.x, o.x)
-            #     def __lt__(self, o):
-            #         u = np.sort(np.asarray([self.x, o.x]))
-            #         return u[0] == self.x
-            #         # return u[0] if isinstance(u,np.ndarray) else u
-            # _,ids = np.unique([Wrapper(x) for x in a], return_index=True)
             # TODO: Make UNIQUE work. this feels so dirty.
             s = set()
             arr = []
@@ -313,13 +299,11 @@ def eval_monad_range(a):
                 if sx not in s:
                     s.add(sx)
                     arr.append(x)
-            return np.asarray(arr, dtype=object)
-        ids.sort()
-        a = a[ids]
+            return backend.kg_asarray(arr)
     return a
 
 
-def eval_monad_reciprocal(a):
+def eval_monad_reciprocal(a, backend):
     """
 
         %a                                                  [Reciprocal]
@@ -333,7 +317,7 @@ def eval_monad_reciprocal(a):
                    %0.1  -->  10.0
 
     """
-    return vec_fn(a, lambda x: np.reciprocal(np.asarray(x,dtype=float)))
+    return backend.vec_fn(a, lambda x: np.reciprocal(np.asarray(x,dtype=float)))
 
 
 def eval_monad_reverse(a):
@@ -410,7 +394,7 @@ def eval_monad_shape(a):
     return 0 if is_atom(a) else np.asarray([len(a)]) if isinstance(a,str) else np.asarray(_a(a).shape)
 
 
-def eval_monad_size(a):
+def eval_monad_size(a, backend):
     """
 
         #a                                                        [Size]
@@ -429,7 +413,7 @@ def eval_monad_size(a):
                           #0cA  -->  65
 
     """
-    return np.abs(a) if is_number(a) else ord(a) if is_char(a) else len(a)
+    return backend.np.abs(a) if backend.is_number(a) else ord(a) if is_char(a) else len(a)
 
 
 def eval_monad_transpose(a):
@@ -447,7 +431,7 @@ def eval_monad_transpose(a):
     return np.transpose(np.asarray(a))
 
 
-def eval_monad_undefined(a):
+def eval_monad_undefined(a, backend):
     """
 
         :_a                                                  [Undefined]
@@ -462,7 +446,7 @@ def eval_monad_undefined(a):
                       :_:valid  -->  0
 
     """
-    return kg_truth(a is None or (np.isinf(a) if is_number(a) else False))
+    return kg_truth(a is None or (backend.np.isinf(a) if backend.is_number(a) else False))
 
 
 def eval_monad_track(a):
@@ -488,18 +472,40 @@ def eval_monad_grad(klong, a):
 
 
 def create_monad_functions(klong):
-    def _get_name(s):
-        s = s.strip()
-        return s[:s.index('a')]
+    backend = klong._backend
 
-    registry = {}
+    # Simple monads that don't need backend or klong
+    simple = {
+        '@': eval_monad_atom,
+        '&': eval_monad_expand_where,
+        '*': eval_monad_first,
+        '|': eval_monad_reverse,
+        '^': eval_monad_shape,
+        '+': eval_monad_transpose,
+        '˙': eval_monad_track,
+    }
 
-    m = sys.modules[__name__]
-    for x in filter(lambda n: n.startswith("eval_monad_"), dir(m)):
-        fn = getattr(m,x)
-        name = _get_name(fn.__doc__)
-        if fn.__code__.co_argcount == 2 and 'klong' in fn.__code__.co_varnames:
-            fn = lambda a,f=fn,klong=klong: f(klong, a)
-        registry[name] = fn
+    # Monads needing backend
+    backend_monads = {
+        ',': lambda a: eval_monad_list(a, backend),
+        ':#': lambda a: eval_monad_char(a, backend),
+        '!': lambda a: eval_monad_enumerate(a, backend),
+        '_': lambda a: eval_monad_floor(a, backend),
+        '$': lambda a: eval_monad_format(a, backend),
+        '<': lambda a: eval_monad_grade_up(a, backend),
+        '>': lambda a: eval_monad_grade_down(a, backend),
+        '=': lambda a: eval_monad_groupby(a, backend),
+        '-': lambda a: eval_monad_negate(a, backend),
+        '~': lambda a: eval_monad_not(a, backend),
+        '?': lambda a: eval_monad_range(a, backend),
+        '%': lambda a: eval_monad_reciprocal(a, backend),
+        '#': lambda a: eval_monad_size(a, backend),
+        ':_': lambda a: eval_monad_undefined(a, backend),
+    }
 
-    return registry
+    # Monads needing klong
+    klong_monads = {
+        '∇': lambda a: eval_monad_grad(klong, a),
+    }
+
+    return {**simple, **backend_monads, **klong_monads}

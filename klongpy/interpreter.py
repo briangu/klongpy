@@ -4,7 +4,6 @@ from collections import deque
 from .adverbs import get_adverb_fn
 from .backends import get_backend
 from .core import *
-from .backend import is_number
 from .dyads import create_dyad_functions
 from .monads import create_monad_functions
 from .sys_fn import create_system_functions
@@ -221,8 +220,7 @@ class KlongInterpreter():
         Parameters
         ----------
         backend : str, optional
-            Backend name ('numpy' or 'torch'). If None, uses the default
-            backend (numpy, unless KLONGPY_BACKEND or USE_TORCH env vars are set).
+            Backend name ('numpy' or 'torch'). Defaults to 'numpy'.
         device : str, optional
             Device for torch backend ('cpu', 'cuda', 'mps'). Only applies
             when backend='torch'. If None, auto-selects best available device.
@@ -332,7 +330,7 @@ class KlongInterpreter():
             return i+1,arr
         k = i
         while True:
-            ii,c = kg_read(t,i,ignore_newline=True,module=self.current_module())
+            ii,c = kg_read(t, i, ignore_newline=True, module=self.current_module())
             if safe_eq(c, ';'):
                 i = ii
                 if k == i - 1:
@@ -380,7 +378,7 @@ class KlongInterpreter():
            | V P
 
        """
-        i,a = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())
+        i,a = kg_read_array(t, i, self._backend, ignore_newline=ignore_newline, module=self.current_module())
         if a is None:
             return i,a
         if safe_eq(a, '{'): # read fn
@@ -654,7 +652,7 @@ class KlongInterpreter():
                 return self._eval_fn(x)
         elif isinstance(x, KGCond):
             q = self.call(x[0])
-            p = not ((is_number(q) and q == 0) or is_empty(q))
+            p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
             return self.call(x[1]) if p else self.call(x[2])
         elif isinstance(x,list) and len(x) > 0:
             return [self.call(y) for y in x][-1]

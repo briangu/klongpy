@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 
 from klongpy import KlongInterpreter
-from klongpy.backend import kg_equal
 from tests.backend_compat import requires_strings
 
 
@@ -71,7 +70,7 @@ class TestTableDataFrame(unittest.TestCase):
         r = klong('#T')
         self.assertEqual(r, 1)
         r = klong('.schema(T)')
-        self.assertTrue(kg_equal(r, ["col1", "col2"]))
+        self.assertTrue(klong._backend.kg_equal(r, ["col1", "col2"]))
 
     def test_table_from_a_df_with_one_column_many_rows(self):
         data = {'col1': np.arange(10)}
@@ -83,9 +82,9 @@ class TestTableDataFrame(unittest.TestCase):
         r = klong('#T')
         self.assertEqual(r, 10)
         r = klong('.schema(T)')
-        self.assertTrue(kg_equal(r, ["col1"]))
+        self.assertTrue(klong._backend.kg_equal(r, ["col1"]))
         r = klong('T?"col1"')
-        self.assertTrue(kg_equal(r, data['col1']))
+        self.assertTrue(klong._backend.kg_equal(r, data['col1']))
         # TODO: @ should work the same as a dictionary
         # r = klong('T@"col1"')
         # self.assertTrue(kg_equal(r, data['col1']))

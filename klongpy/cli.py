@@ -15,7 +15,7 @@ import timeit
 
 import colorama
 
-from klongpy import KlongInterpreter
+from klongpy import KlongInterpreter, list_backends
 from klongpy.core import kg_write
 from klongpy.repl import cleanup_repl, create_repl
 
@@ -239,7 +239,19 @@ class ConsoleInputHandler:
                     print("\rbye!")
                     break
                 except KeyboardInterrupt:
-                    print(failure("\nkg: error: interrupted"))
+                    buf = ""
+                    try:
+                        import readline
+                        buf = readline.get_line_buffer()
+                    except Exception:
+                        buf = ""
+                    if buf:
+                        print()
+                        continue
+                    print("\rbye!")
+                    if exit_state is not None:
+                        exit_state["code"] = 130
+                    break
                 except Exception as e:
                     print(failure(f"Error: {e.args}"))
                     import traceback
@@ -281,6 +293,8 @@ def main():
     parser.add_argument('-t', '--test', help='test program from file')
     parser.add_argument('-v', '--verbose', help='enable verbose output', action="store_true")
     parser.add_argument('-d', '--debug', help='enable debug mode', action="store_true")
+    parser.add_argument('--backend', help='set array backend', type=str.lower, choices=list_backends())
+    parser.add_argument('--device', help='set backend device (torch only)', type=str)
     parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
 
     args = parser.parse_args(main_args[1:])
@@ -289,13 +303,19 @@ def main():
         print("args: ", args)
 
     if args.expr:
-        klong = KlongInterpreter()
+        try:
+            klong = KlongInterpreter(backend=args.backend, device=args.device)
+        except ValueError as exc:
+            parser.error(str(exc))
         result = klong(args.expr)
         if result is not None:
             print(kg_write(result, klong._backend, display=False))
         return
 
-    klong, loops = create_repl(debug=args.debug)
+    try:
+        klong, loops = create_repl(debug=args.debug, backend=args.backend, device=args.device)
+    except ValueError as exc:
+        parser.error(str(exc))
     io_loop, _, _, klong_loop, _, _ = loops
     shutdown_event = klong['.system']['closeEvent']
 
@@ -363,7 +383,11 @@ def main():
             colorama.init(autoreset=True)
             show_repl_header(args.server)
             console_loop.create_task(ConsoleInputHandler.input_producer(console_loop, klong_loop, klong, args.verbose, exit_state))
-            console_loop.run_forever()
+            try:
+                console_loop.run_forever()
+            except KeyboardInterrupt:
+                exit_state["code"] = 130
+                console_loop.stop()
             console_loop.close()
             if exit_state["code"] is not None:
                 exit_code = exit_state["code"]

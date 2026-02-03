@@ -25,6 +25,22 @@ The reason that Klong functions only take up to 3 parameters AND name them for y
 
 ---
 
+## Example Projects
+
+Looking for full, runnable projects? These directories under `examples/` show end-to-end usage:
+
+- [1brc](../examples/1brc/README.md) — One Billion Row Challenge-style pipeline; parallel file reads in Python with vectorized KlongPy stats aggregation. Run: [README](../examples/1brc/README.md)
+- [autograd](../examples/autograd/README.md) — PyTorch-backed automatic differentiation; gradients, optimizers, neural nets, finance, and differentiable physics. Run: [README](../examples/autograd/README.md)
+- [db](../examples/db/README.md) — DuckDB/columnar table interop, persisted table store, and a web+db server for ingest/query. Run: [README](../examples/db/README.md)
+- [deploy](../examples/deploy/README.md) — Minimal Docker image that runs `kgpy` with a script path from `KG_FILE_PATH`. Run: [README](../examples/deploy/README.md)
+- [ipc](../examples/ipc/README.md) — IPC clients/servers, broadcast, and pub/sub patterns using `.srv`, `.cli`, and timers. Run: [README](../examples/ipc/README.md)
+- [math](../examples/math/README.md) — NumPy interop for FFT/trig; quick numeric examples using `.pyf`. Run: [README](../examples/math/README.md)
+- [ml](../examples/ml/README.md) — KNN, cosine similarity, transformer, and LSTM demos illustrating vectorized ML primitives. Run: [README](../examples/ml/README.md)
+- [python](../examples/python/README.md) — Calling Python from Klong and Klong from Python; multiprocessing/threading patterns. Run: [README](../examples/python/README.md)
+- [stats_logging](../examples/stats_logging/README.md) — High-throughput stats ingestion with IPC + table storage, periodic flush and reporting. Run: [README](../examples/stats_logging/README.md)
+- [stocks](../examples/stocks/README.md) — Market data ingestion (yfinance/Alpaca/Polygon), Black-Scholes, and LSTM forecasting. Run: [README](../examples/stocks/README.md)
+- [web](../examples/web/README.md) — Minimal HTTP server with GET/POST handlers using `klongpy.web`. Run: [README](../examples/web/README.md)
+
 ## 1. Basic Arithmetic
 
 Let's get started with the basics and build up to some more interesting math.
@@ -247,7 +263,7 @@ The `∇` operator **always** computes gradients using numeric differentiation:
 Enable the torch backend for exact gradients:
 
 ```bash
-$ USE_TORCH=1 kgpy
+$ kgpy --backend torch
 ```
 
 Use the `:>` operator for PyTorch autograd. The syntax is `function:>point`:

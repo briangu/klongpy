@@ -1,14 +1,10 @@
 from .core import *
 from .autograd import grad_of_fn, numeric_grad, jacobian_of_fn, multi_jacobian_of_fn, multi_grad_of_fn
-from .backend import (
-    to_numpy, safe_equal, detach_if_needed, to_int_array, power as backend_power, has_gradient,
-    kg_asarray, str_to_chr_arr, kg_equal, is_integer, is_float, get_dtype_kind, array_size
-)
 import sys
 import numpy
 
 
-def eval_dyad_add(a, b):
+def eval_dyad_add(a, b, backend):
     """
 
         a+b                                                       [Plus]
@@ -23,10 +19,10 @@ def eval_dyad_add(a, b):
                   1+0.3  -->  1.3
 
     """
-    return np.add(a, b)
+    return backend.np.add(a, b)
 
 
-def eval_dyad_amend(a, b):
+def eval_dyad_amend(a, b, backend):
     """
 
         a:=b                                                     [Amend]
@@ -52,13 +48,14 @@ def eval_dyad_amend(a, b):
                          "abc":="def",3  -->  "abcdef"
 
     """
-    if not (isinstance(a, (str,list)) or np.isarray(a)):
+    np_backend = backend.np
+    if not (isinstance(a, (str,list)) or np_backend.isarray(a)):
         raise RuntimeError(f"a must be list or str: {a}")
     if len(b) <= 1:
         return a
     if isinstance(a, str):
-        r = str_to_chr_arr(a)
-        q = str_to_chr_arr(b[0])
+        r = backend.str_to_chr_arr(a)
+        q = backend.str_to_chr_arr(b[0])
         for i in b[1:]:
             try:
                 r[i:i+len(q)] = q
@@ -67,18 +64,18 @@ def eval_dyad_amend(a, b):
                 if i > len(r):
                     RangeError(i)
                 elif i == len(r):
-                    r = np.append(r, b[0])
+                    r = numpy.append(r, b[0])
                 else:
                     r[i] = b[0]
         return "".join(["".join(x) for x in r])
-    r = np.array(a) # clone
+    r = np_backend.array(a) # clone
     if is_list(b[0]): # TOOD: use np.put if we can
         r = r.tolist()
         for i in b[1:]:
             r[i] = b[0]
-        r = kg_asarray(r)
+        r = backend.kg_asarray(r)
     else:
-        np.put(r, np.asarray(b[1:],dtype=int), b[0])
+        numpy.put(r, numpy.asarray(b[1:],dtype=int), b[0])
     return r
 
 
@@ -111,7 +108,7 @@ def eval_dyad_amend_in_depth(a, b):
     return _e_dyad_amend_in_depth(a, b[1:], b[0])
 
 
-def eval_dyad_cut(a, b):
+def eval_dyad_cut(a, b, backend):
     """
 
         a:_b                                                       [Cut]
@@ -133,12 +130,12 @@ def eval_dyad_cut(a, b):
 
     """
     j = isinstance(b, str)
-    b = np.asarray(str_to_chr_arr(b) if j else b)
+    b = np.asarray(backend.str_to_chr_arr(b) if j else b)
     a = a if np.isarray(a) else [a]
     r = np.array_split(b, a)
     if len(b) == 0 and len(a) > 0:
         r = r[1:]
-    return np.asarray(["".join(x) for x in r]) if j else kg_asarray(r)
+    return np.asarray(["".join(x) for x in r]) if j else backend.kg_asarray(r)
 
 
 def eval_dyad_at_index(klong, a, b):
@@ -172,17 +169,18 @@ def eval_dyad_at_index(klong, a, b):
 
     """
     if isinstance(a, (KGFn, KGSym)) or issubclass(type(a), KGLambda):
-        b = [x for x in b] if np.isarray(b) else b
+        b = [x for x in b] if klong._backend.is_array(b) else b
         return klong.eval(KGCall(a, b, arity=1))
+    backend = klong._backend
     j = isinstance(a,str)
-    a = str_to_chr_arr(a) if j else a
+    a = backend.str_to_chr_arr(a) if j else a
     if is_list(b):
         if is_empty(b):
             r = np.asarray([])
         else:
             # TODO: return None for missing keys? or raise?
-            r = kg_asarray([a[x] for x in b])
-    elif is_integer(b):
+            r = backend.kg_asarray([a[x] for x in b])
+    elif backend.is_integer(b):
         r = a[b]
         j = False
     else:
@@ -214,7 +212,7 @@ def eval_dyad_define(klong, n, v):
     return v
 
 
-def eval_dyad_divide(a, b):
+def eval_dyad_divide(a, b, backend):
     """
 
         a%b                                                     [Divide]
@@ -228,7 +226,7 @@ def eval_dyad_divide(a, b):
                   10%8  -->  1.25
 
     """
-    return np.divide(a, b)
+    return backend.np.divide(a, b)
 
 
 def eval_dyad_drop(a, b):
@@ -260,12 +258,12 @@ def eval_dyad_drop(a, b):
     return b[a:] if a >= 0 else b[:a]
 
 
-def _safe_equal(x, y):
+def _safe_equal(x, y, backend):
     """Compare two values, handling torch tensors correctly."""
-    return kg_truth(safe_equal(x, y))
+    return kg_truth(backend.safe_equal(x, y))
 
 
-def eval_dyad_equal(a, b):
+def eval_dyad_equal(a, b, backend):
     """
 
         a=b                                                      [Equal]
@@ -290,7 +288,7 @@ def eval_dyad_equal(a, b):
                   [1 2 3]=[1 4 3]  -->  [1 0 1]
 
     """
-    return vec_fn2(a, b, _safe_equal)
+    return backend.vec_fn2(a, b, lambda x, y: _safe_equal(x, y, backend))
 
 
 def finditer(s, sub):
@@ -303,7 +301,7 @@ def finditer(s, sub):
         i += 1
 
 
-def eval_dyad_find(a, b):
+def eval_dyad_find(a, b, backend):
     """
 
         a?b                                                       [Find]
@@ -337,20 +335,20 @@ def eval_dyad_find(a, b):
         v = a.get(b)
         return np.inf if v is None else v
     if is_list(b):
-        return np.asarray([i for i,x in enumerate(a) if kg_equal(x,b)])
+        return np.asarray([i for i,x in enumerate(a) if backend.kg_equal(x, b)])
     return np.where(np.asarray(a) == b)[0]
 
 
-def __e_dyad_form(a, b):
+def __e_dyad_form(a, b, backend):
     if isinstance(a,KGSym):
         if is_empty(b):
             return np.inf
         return KGSym(b[1:] if isinstance(b,str) and b.startswith(":") else b)
-    if is_integer(a):
-        if is_float(b) or is_empty(b) or ('.' in b and str_is_float(b)):
+    if backend.is_integer(a):
+        if backend.is_float(b) or is_empty(b) or ('.' in b and str_is_float(b)):
             return np.inf
         return int(b)
-    if is_float(a):
+    if backend.is_float(a):
         if is_empty(b):
             return np.inf
         return float(b)
@@ -361,15 +359,15 @@ def __e_dyad_form(a, b):
         return KGChar(str(b)[0])
     return b
 
-def _e_dyad_form(a, b):
+def _e_dyad_form(a, b, backend):
     """
     Unravel the broadcasting of a and b and apply __e_dyad_form
     """
     if np.isarray(a) and np.isarray(b):
-        return np.asarray([vec_fn2(x,y,_e_dyad_form) for x,y in zip(a,b)])
-    return __e_dyad_form(a,b)
+        return np.asarray([backend.vec_fn2(x, y, lambda x, y: _e_dyad_form(x, y, backend)) for x,y in zip(a,b)])
+    return __e_dyad_form(a, b, backend)
 
-def eval_dyad_form(a, b):
+def eval_dyad_form(a, b, backend):
     """
 
         a:$b                                                      [Form]
@@ -396,13 +394,13 @@ def eval_dyad_form(a, b):
                   :x:$":symbol"  -->  :symbol
 
     """
-    return vec_fn2(a, b, _e_dyad_form)
+    return backend.vec_fn2(a, b, lambda x, y: _e_dyad_form(x, y, backend))
 
 
-def __e_dyad_format2(a, b):
+def __e_dyad_format2(a, b, backend):
     if safe_eq(int(a), 0):
         return str(b)
-    if (is_float(b) and not isinstance(b,int)) and (is_float(a) and not isinstance(a,int)):
+    if (backend.is_float(b) and not isinstance(b,int)) and (backend.is_float(a) and not isinstance(a,int)):
         b = "{:Xf}".replace("X",str(a)).format(b)
         p = b.split('.')
         p[0] = p[0].rjust(int(a))
@@ -412,17 +410,17 @@ def __e_dyad_format2(a, b):
     r = str(b).ljust(abs(a)) if a >= 0 else str(b).rjust(abs(a))
     return r
 
-def _e_dyad_format2(a, b):
+def _e_dyad_format2(a, b, backend):
     """
     Unravel the broadcasting of a and b and apply __e_dyad_format2
     """
     if is_list(a) and is_list(b):
-        return kg_asarray([vec_fn2(x, y, _e_dyad_format2) for x, y in zip(to_list(a), to_list(b))])
+        return backend.kg_asarray([backend.vec_fn2(x, y, lambda x, y: _e_dyad_format2(x, y, backend)) for x, y in zip(to_list(a), to_list(b))])
     if np.isarray(a) and np.isarray(b):
-        return np.asarray([vec_fn2(x, y, _e_dyad_format2) for x, y in zip(a, b)])
-    return __e_dyad_format2(a, b)
+        return np.asarray([backend.vec_fn2(x, y, lambda x, y: _e_dyad_format2(x, y, backend)) for x, y in zip(a, b)])
+    return __e_dyad_format2(a, b, backend)
 
-def eval_dyad_format2(a, b):
+def eval_dyad_format2(a, b, backend):
     """
 
         a$b                                                    [Format2]
@@ -447,7 +445,7 @@ def eval_dyad_format2(a, b):
                  5.3$123.45  -->  "  123.450"
 
     """
-    return vec_fn2(a, b, _e_dyad_format2)
+    return backend.vec_fn2(a, b, lambda x, y: _e_dyad_format2(x, y, backend))
 
 
 def eval_dyad_index_in_depth(a, b):
@@ -470,12 +468,13 @@ def eval_dyad_index_in_depth(a, b):
     return np.asarray(a)[tuple(b) if is_list(b) else b] if not is_empty(b) else b
 
 
-def _e_dyad_integer_divide(x, y):
-    a = np.divide(x, y)
-    a = kg_asarray(rec_fn(a, np.trunc)) if np.isarray(a) else a
-    return to_int_array(a)
+def _e_dyad_integer_divide(x, y, backend):
+    np_backend = backend.np
+    a = np_backend.divide(x, y)
+    a = backend.kg_asarray(backend.rec_fn(a, np_backend.trunc)) if np_backend.isarray(a) else a
+    return backend.to_int_array(a)
 
-def eval_dyad_integer_divide(a, b):
+def eval_dyad_integer_divide(a, b, backend):
     """
 
         a:%b                                            [Integer-Divide]
@@ -491,7 +490,7 @@ def eval_dyad_integer_divide(a, b):
                   10:%8  -->  1
 
     """
-    return vec_fn2(a, b, _e_dyad_integer_divide)
+    return backend.vec_fn2(a, b, lambda x, y: _e_dyad_integer_divide(x, y, backend))
 
 
 def _arr_to_list(a):
@@ -499,7 +498,7 @@ def _arr_to_list(a):
     return a if is_list(a) else [a]# if not is_list(a) else a
 
 
-def eval_dyad_join(a, b):
+def eval_dyad_join(a, b, backend):
     """
 
         a,b                                                       [Join]
@@ -564,18 +563,18 @@ def eval_dyad_join(a, b):
     bb = _arr_to_list(b)
 
     r = [*aa,*bb]
-    nr = kg_asarray(r)
+    nr = backend.kg_asarray(r)
     # Check dtype kind for compatibility with both numpy and torch
-    dtype_kind = get_dtype_kind(nr)
+    dtype_kind = backend.get_dtype_kind(nr)
     if dtype_kind in ('i', 'f', 'u'):
         return nr
     # Use numpy directly for object arrays (torch backend doesn't support object dtype)
     # Convert any torch tensors to numpy first (needed for MPS tensors)
-    r_numpy = [to_numpy(x) if np.isarray(x) else x for x in r]
+    r_numpy = [backend.to_numpy(x) if np.isarray(x) else x for x in r]
     return numpy.asarray(r_numpy, dtype=object)
 
 
-def eval_dyad_less(a, b):
+def eval_dyad_less(a, b, backend):
     """
 
         a<b                                                       [Less]
@@ -596,10 +595,10 @@ def eval_dyad_less(a, b):
                    [1 2 3]<[1 4 3]  -->  [0 1 0]
 
     """
-    return kg_truth(vec_fn2(a, b, lambda x,y: x < y if (isinstance(x,str) and isinstance(y,str)) else np.less(x,y)))
+    return kg_truth(backend.vec_fn2(a, b, lambda x,y: x < y if (isinstance(x,str) and isinstance(y,str)) else backend.np.less(x,y)))
 
 
-def eval_dyad_match(a,b):
+def eval_dyad_match(a, b, backend):
     """
 
         a~b                                                      [Match]
@@ -633,10 +632,10 @@ def eval_dyad_match(a,b):
                    [1 [2] 3]~[1 [4] 3]  -->  0
 
     """
-    return kg_truth(kg_equal(a,b))
+    return kg_truth(backend.kg_equal(a, b))
 
 
-def eval_dyad_maximum(a, b):
+def eval_dyad_maximum(a, b, backend):
     """
 
         a|b                                                     [Max/Or]
@@ -660,10 +659,10 @@ def eval_dyad_maximum(a, b):
                     1.0|1.1  -->  1.1
 
     """
-    return np.maximum(a, b)
+    return backend.np.maximum(a, b)
 
 
-def eval_dyad_minimum(a, b):
+def eval_dyad_minimum(a, b, backend):
     """
 
         a&b                                                    [Min/And]
@@ -687,10 +686,10 @@ def eval_dyad_minimum(a, b):
                     1.0&1.1  -->  1.0
 
     """
-    return np.minimum(a, b)
+    return backend.np.minimum(a, b)
 
 
-def eval_dyad_more(a, b):
+def eval_dyad_more(a, b, backend):
     """
 
         a>b                                                       [More]
@@ -709,10 +708,10 @@ def eval_dyad_more(a, b):
                    [1 4 3]>[1 2 3]  -->  [0 1 0]
 
     """
-    return kg_truth(vec_fn2(a, b, lambda x,y: x > y if (isinstance(x,str) and isinstance(y,str)) else np.greater(x,y)))
+    return kg_truth(backend.vec_fn2(a, b, lambda x,y: x > y if (isinstance(x,str) and isinstance(y,str)) else backend.np.greater(x,y)))
 
 
-def eval_dyad_multiply(a, b):
+def eval_dyad_multiply(a, b, backend):
     """
 
         a*b                                                      [Times]
@@ -726,19 +725,19 @@ def eval_dyad_multiply(a, b):
                   0.3*7  -->  2.1
 
     """
-    return np.multiply(a, b)
+    return backend.np.multiply(a, b)
 
 
-def _e_dyad_power(a, b):
+def _e_dyad_power(a, b, backend):
     # Check if input requires grad - if so, preserve float for autograd
-    input_has_grad = has_gradient(a)
+    input_has_grad = backend.has_gradient(a)
     # Use backend power function which handles torch.pow for gradients
-    r = backend_power(a, b)
+    r = backend.power(a, b)
     # If input had gradients, keep result as float to preserve autograd
     if input_has_grad:
         return r
     # Check if result is integer using vectorized operations
-    r_val = detach_if_needed(r)
+    r_val = backend.detach_if_needed(r)
     if is_list(r_val):
         # Vectorized check: trunc(r) == r for all elements
         trunc_r = numpy.trunc(r_val) if isinstance(r_val, numpy.ndarray) else r_val.trunc()
@@ -747,10 +746,10 @@ def _e_dyad_power(a, b):
         val = float(r_val) if hasattr(r_val, 'item') else r_val
         br = numpy.trunc(val) == val
     if br:
-        return to_int_array(r)
+        return backend.to_int_array(r)
     return r
 
-def eval_dyad_power(a, b):
+def eval_dyad_power(a, b, backend):
     """
 
         a^b                                                      [Power]
@@ -769,10 +768,10 @@ def eval_dyad_power(a, b):
                   2^0.5  -->  1.41421356237309504
 
     """
-    return vec_fn2(a, b, _e_dyad_power)
+    return backend.vec_fn2(a, b, lambda x, y: _e_dyad_power(x, y, backend))
 
 
-def eval_dyad_remainder(a, b):
+def eval_dyad_remainder(a, b, backend):
     """
 
         a!b                                                  [Remainder]
@@ -790,10 +789,10 @@ def eval_dyad_remainder(a, b):
                    -7!-5  --> -2
 
     """
-    return np.fmod(a, b)
+    return backend.np.fmod(a, b)
 
 
-def eval_dyad_reshape(a, b):
+def eval_dyad_reshape(a, b, backend):
     """
 
         a:^b                                                   [Reshape]
@@ -840,51 +839,52 @@ def eval_dyad_reshape(a, b):
                     [2]:^[[1 2 3]] -->  [[1 2 3] [1 2 3]]
 
     """
+    np_backend = backend.np
     j = isinstance(b, str)
-    b = str_to_chr_arr(b) if j else b
-    if np.isarray(a):
-        if np.isarray(b):
-            y = np.where(a < 0)[0]
+    b = backend.str_to_chr_arr(b) if j else b
+    if np_backend.isarray(a):
+        if np_backend.isarray(b):
+            y = np_backend.where(a < 0)[0]
             if len(y) > 0:
-                a = np.copy(a)
-                a[y] = array_size(b) // 2
-            b_s = array_size(b)
-            a_s = int(np.prod(a))  # Ensure it's a Python int for comparison
+                a = np_backend.copy(a)
+                a[y] = backend.array_size(b) // 2
+            b_s = backend.array_size(b)
+            a_s = int(np_backend.prod(a))  # Ensure it's a Python int for comparison
             # Convert shape to tuple of ints for torch compatibility
             a_shape = tuple(int(x) for x in (a.tolist() if hasattr(a, 'tolist') else a))
             if a_s > b_s:
-                b = np.tile(b.flatten(), (a_s // b_s))
-                b = np.concatenate((b, b[:a_s - array_size(b)]))
-                b_s = array_size(b)
+                b = np_backend.tile(b.flatten(), (a_s // b_s))
+                b = np_backend.concatenate((b, b[:a_s - backend.array_size(b)]))
+                b_s = backend.array_size(b)
                 r = b.reshape(a_shape)
-                r = np.asarray(["".join(x) for x in r]) if j else r
+                r = np_backend.asarray(["".join(x) for x in r]) if j else r
                 j = False
             elif a_s == b_s:
                 r = b.reshape(a_shape)
             else:
-                r = np.resize(b, a_shape)
+                r = np_backend.resize(b, a_shape)
         else:
-            r = np.full(a, b)
+            r = np_backend.full(a, b)
     else:
         if a == 0:
             r = b
-        elif np.isarray(b):
+        elif np_backend.isarray(b):
             if a < b.shape[0]:
-                r = np.resize(b, (a,))
+                r = np_backend.resize(b, (a,))
             else:
-                ns = np.ones(len(b.shape),dtype=int)
+                ns = np_backend.ones(len(b.shape),dtype=int)
                 ns[0] = a // b.shape[0]
-                r = np.concatenate((np.tile(b,ns), b[:a - b.shape[0]*ns[0]]))
+                r = np_backend.concatenate((np_backend.tile(b,ns), b[:a - b.shape[0]*ns[0]]))
         else:
-            r = np.full((a,), b)
+            r = np_backend.full((a,), b)
     if j:
-        if np.isarray(r) and r.ndim > 1:
-            return np.asarray(["".join(x) for x in r], dtype=object)
+        if np_backend.isarray(r) and r.ndim > 1:
+            return np_backend.asarray(["".join(x) for x in r], dtype=object)
         return "".join(r)
     return r
 
 
-def eval_dyad_rotate(a, b):
+def eval_dyad_rotate(a, b, backend):
     """
 
         a:+b                                                    [Rotate]
@@ -911,12 +911,12 @@ def eval_dyad_rotate(a, b):
     if a == 0 or not is_iterable(b):
         return b
     j = isinstance(b, str)
-    b = str_to_chr_arr(b) if j else b
+    b = backend.str_to_chr_arr(b) if j else b
     r = np.roll(b, a)
     return "".join(r) if j else r
 
 
-def eval_dyad_split(a, b):
+def eval_dyad_split(a, b, backend):
     """
 
         a:#b                                                     [Split]
@@ -938,7 +938,7 @@ def eval_dyad_split(a, b):
         return np.asarray([])
 
     j = isinstance(b, str)
-    b = str_to_chr_arr(b) if j else b
+    b = backend.str_to_chr_arr(b) if j else b
 
     a = a if np.isarray(a) else [a]
     if len(a) == 1:
@@ -959,10 +959,10 @@ def eval_dyad_split(a, b):
             if p >= len(a):
                 p = 0
 
-    return np.asarray(["".join(x) for x in r],dtype=object) if j else kg_asarray(r)
+    return np.asarray(["".join(x) for x in r],dtype=object) if j else backend.kg_asarray(r)
 
 
-def eval_dyad_subtract(a, b):
+def eval_dyad_subtract(a, b, backend):
     """
 
         a-b                                                      [Minus]
@@ -977,10 +977,10 @@ def eval_dyad_subtract(a, b):
                   1-0.3  -->  0.7
 
     """
-    return np.subtract(a, b)
+    return backend.np.subtract(a, b)
 
 
-def eval_dyad_take(a, b):
+def eval_dyad_take(a, b, backend):
     """
 
         a#b                                                       [Take]
@@ -1003,16 +1003,18 @@ def eval_dyad_take(a, b):
                            0#""  -->  ""
 
     """
+    np_backend = backend.np
     j = isinstance(b,str)
-    b = str_to_chr_arr(b) if j else np.asarray(b)
-    aa = int(np.abs(a)) if hasattr(np.abs(a), 'item') else np.abs(a)  # Convert tensor to int
-    b_size = array_size(b)
+    b = backend.str_to_chr_arr(b) if j else np_backend.asarray(b)
+    abs_a = np_backend.abs(a)
+    aa = int(abs_a) if hasattr(abs_a, 'item') else abs_a  # Convert tensor to int
+    b_size = backend.array_size(b)
     if b_size == 0:
         # Handle empty array/string case
         r = b
     elif aa > b_size:
-        b = np.tile(b, aa // len(b))
-        b = np.concatenate((b, b[:aa-array_size(b)]) if a > 0 else (b[-(aa-array_size(b)):], b))
+        b = np_backend.tile(b, aa // len(b))
+        b = np_backend.concatenate((b, b[:aa-backend.array_size(b)]) if a > 0 else (b[-(aa-backend.array_size(b)):], b))
         r = b[a:] if a < 0 else b[:a]
     else:
         r = b[a:] if a < 0 else b[:a]
@@ -1106,21 +1108,49 @@ def eval_dyad_autograd(klong, a, b):
 
 
 def create_dyad_functions(klong):
-    def _get_name(s):
-        s = s.strip()
-        i = s.index("a")
-        return s[i+1:i+s.index('b')]
+    backend = klong._backend
 
-    registry = {}
+    # Simple dyads that don't need backend or klong
+    simple = {
+        ':-': eval_dyad_amend_in_depth,
+        '_': eval_dyad_drop,
+        ':@': eval_dyad_index_in_depth,
+    }
 
-    m = sys.modules[__name__]
-    for name in filter(lambda n: n.startswith("eval_dyad_"), dir(m)):
-        fn = getattr(m,name)
-        name = _get_name(fn.__doc__)
-        if fn.__code__.co_argcount == 3:
-            fn = lambda x,y,f=fn,klong=klong: f(klong, x, y)
-        elif fn.__code__.co_argcount == 2 and 'klong' in fn.__code__.co_varnames:
-            fn = lambda x,f=fn,klong=klong: f(klong, x)
-        registry[name] = fn
+    # Dyads needing backend
+    backend_dyads = {
+        '+': lambda a, b: eval_dyad_add(a, b, backend),
+        '|': lambda a, b: eval_dyad_maximum(a, b, backend),
+        '&': lambda a, b: eval_dyad_minimum(a, b, backend),
+        '!': lambda a, b: eval_dyad_remainder(a, b, backend),
+        '%': lambda a, b: eval_dyad_divide(a, b, backend),
+        '*': lambda a, b: eval_dyad_multiply(a, b, backend),
+        '-': lambda a, b: eval_dyad_subtract(a, b, backend),
+        ':=': lambda a, b: eval_dyad_amend(a, b, backend),
+        ':_': lambda a, b: eval_dyad_cut(a, b, backend),
+        '=': lambda a, b: eval_dyad_equal(a, b, backend),
+        '?': lambda a, b: eval_dyad_find(a, b, backend),
+        ':$': lambda a, b: eval_dyad_form(a, b, backend),
+        '$': lambda a, b: eval_dyad_format2(a, b, backend),
+        ':%': lambda a, b: eval_dyad_integer_divide(a, b, backend),
+        ',': lambda a, b: eval_dyad_join(a, b, backend),
+        '<': lambda a, b: eval_dyad_less(a, b, backend),
+        '~': lambda a, b: eval_dyad_match(a, b, backend),
+        '>': lambda a, b: eval_dyad_more(a, b, backend),
+        '^': lambda a, b: eval_dyad_power(a, b, backend),
+        ':^': lambda a, b: eval_dyad_reshape(a, b, backend),
+        ':+': lambda a, b: eval_dyad_rotate(a, b, backend),
+        ':#': lambda a, b: eval_dyad_split(a, b, backend),
+        '#': lambda a, b: eval_dyad_take(a, b, backend),
+    }
 
-    return registry
+    # Dyads needing klong
+    klong_dyads = {
+        '@': lambda a, b: eval_dyad_at_index(klong, a, b),
+        '::': lambda a, b: eval_dyad_define(klong, a, b),
+        '∇': lambda a, b: eval_dyad_grad(klong, a, b),
+        '∂': lambda a, b: eval_dyad_jacobian(klong, a, b),
+        ':>': lambda a, b: eval_dyad_autograd(klong, a, b),
+    }
+
+    return {**simple, **backend_dyads, **klong_dyads}

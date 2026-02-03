@@ -4,7 +4,7 @@ The Klong language is simple, so the overhead is low. The bulk of the compute ti
 
 **Key insight**: GPU acceleration shines for compute-bound operations (matrix multiply), not memory-bound operations (element-wise ops).
 
-Use `USE_TORCH=1` or `KLONGPY_BACKEND=torch` to enable the PyTorch backend.
+Use `kgpy --backend torch` to enable the PyTorch backend.
 
 ## Benchmark
 

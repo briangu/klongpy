@@ -208,26 +208,26 @@ class TorchBackend:
             return torch.from_numpy(a).to(self.device)
         # Check if input is a list/tuple of tensors - use stack to preserve gradients
         if isinstance(a, (list, tuple)) and len(a) > 0 and all(isinstance(x, torch.Tensor) for x in a):
-            # torch.stack preserves requires_grad, torch.tensor does not
             result = torch.stack(a)
             if result.device != self.device:
                 result = result.to(self.device)
-            # Handle float64 on MPS
             if result.dtype == torch.float64 and self.device.type == 'mps':
                 result = result.to(torch.float32)
             return result
-        # Check if input contains any arrays/tensors mixed with non-arrays - these need object dtype
-        if isinstance(a, (list, tuple)) and len(a) > 0:
-            has_array = any(isinstance(x, (torch.Tensor, numpy.ndarray, list)) for x in a)
-            has_scalar = any(isinstance(x, (int, float)) and not isinstance(x, bool) for x in a)
-            if has_array and has_scalar:
-                # Mixed array/scalar list - can't represent in torch without losing structure
+        # For all other lists/tuples, convert via numpy (faster than torch.tensor for nested/mixed data)
+        if isinstance(a, (list, tuple)):
+            arr = numpy.asarray(a)
+            if arr.dtype == object:
                 raise TorchUnsupportedDtypeError(
-                    "PyTorch backend cannot convert mixed array/scalar lists without losing structure."
+                    "PyTorch backend does not support object dtype arrays."
                 )
+            # Convert float64 to float32 to match torch.tensor's default behavior
+            if arr.dtype == numpy.float64:
+                arr = arr.astype(numpy.float32)
+            return torch.from_numpy(arr).to(self.device)
+        # Scalar or other type
         try:
             t = torch.tensor(a, device=self.device)
-            # Handle float64 on MPS
             if t.dtype == torch.float64 and self.device.type == 'mps':
                 t = t.to(torch.float32)
             return t
@@ -509,6 +509,21 @@ class TorchBackendProvider(BackendProvider):
     """PyTorch-based backend provider."""
 
     def __init__(self, device=None):
+        if device is not None:
+            try:
+                torch_device = torch.device(device)
+            except Exception as exc:
+                raise ValueError(f"Invalid torch device '{device}': {exc}")
+            if torch_device.type == 'cuda':
+                if not torch.cuda.is_available():
+                    raise ValueError(f"Torch device '{device}' is not available (cuda not available)")
+                if torch_device.index is not None and torch_device.index >= torch.cuda.device_count():
+                    raise ValueError(f"Torch device '{device}' is not available (device index out of range)")
+            if torch_device.type == 'mps':
+                if not (hasattr(torch.backends, 'mps') and torch.backends.mps.is_available()):
+                    raise ValueError(f"Torch device '{device}' is not available (mps not available)")
+            if torch_device.type not in {'cpu', 'cuda', 'mps'}:
+                raise ValueError(f"Torch device type '{torch_device.type}' is not supported")
         self._torch_backend = TorchBackend(device)
         self._device = device
 
@@ -523,6 +538,17 @@ class TorchBackendProvider(BackendProvider):
     @property
     def device(self):
         return self._torch_backend.device
+
+    def list_devices(self):
+        """List available torch devices (cpu, cuda, mps)."""
+        devices = ['cpu']
+        if torch.cuda.is_available():
+            devices.append('cuda')
+            for i in range(torch.cuda.device_count()):
+                devices.append(f'cuda:{i}')
+        if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            devices.append('mps')
+        return devices
 
     def supports_object_dtype(self) -> bool:
         return False
@@ -624,10 +650,15 @@ class TorchBackendProvider(BackendProvider):
         """Compute a^b, handling gradient tracking for torch tensors."""
         # Use torch.pow for tensors to maintain gradients when possible
         if isinstance(a, torch.Tensor):
+            # Convert to float if integer with negative exponent (torch doesn't support this)
+            b_val = b.item() if isinstance(b, torch.Tensor) and b.ndim == 0 else b
+            if a.dtype in (torch.int8, torch.int16, torch.int32, torch.int64) and b_val < 0:
+                a = a.float()
             return a.pow(b)
-        # For numpy arrays or scalars
+        # For numpy arrays or scalars - ensure b is also numpy-compatible
         a_val = float(a) if isinstance(a, (int, numpy.integer)) else a
-        return numpy.power(a_val, b)
+        b_val = b.item() if isinstance(b, torch.Tensor) and b.ndim == 0 else (b.cpu().numpy() if isinstance(b, torch.Tensor) else b)
+        return numpy.power(a_val, b_val)
 
     def has_gradient(self, x) -> bool:
         """Check if x is tracking gradients."""

@@ -4,8 +4,7 @@ from utils import *
 from backend_compat import requires_strings, requires_object_dtype
 
 from klongpy import KlongInterpreter
-from klongpy.core import KGChar, KGSym, rec_flatten, is_char
-from klongpy.backend import is_float, is_integer
+from klongpy.core import KGChar, KGSym, rec_flatten, is_char, is_float, is_integer
 
 
 # add tests not included in the original kg suite
@@ -18,9 +17,9 @@ class TestExtraCoreSuite(unittest.TestCase):
         """ ensure the result type of negating an array is correct """
         klong = KlongInterpreter()
         r = klong("-1]")
-        self.assertTrue(is_integer(r))
+        self.assertTrue(is_integer(r, klong._backend))
         r = klong("-1.0]")
-        self.assertTrue(is_float(r))
+        self.assertTrue(is_float(r, klong._backend))
         r = klong("-[1 2 3]")
         # Check for integer dtype (works for both numpy and torch)
         dtype_str = str(r.dtype).lower()
@@ -38,7 +37,7 @@ class TestExtraCoreSuite(unittest.TestCase):
     def test_vectorized(self):
         klong = KlongInterpreter()
         r = klong("2*!1000")
-        self.assertTrue(kg_equal(r, np.arange(1000)*2))
+        self.assertTrue(klong._backend.kg_equal(r, np.arange(1000)*2))
 
     # This is different behavior than Klong, which doesn't allow at/index on dictionaries.
     @requires_object_dtype
@@ -60,7 +59,7 @@ class TestExtraCoreSuite(unittest.TestCase):
     def test_apply_range(self):
         klong = KlongInterpreter()
         r = klong("{x}@,!100")
-        self.assertTrue(kg_equal(r, np.arange(100)))
+        self.assertTrue(klong._backend.kg_equal(r, np.arange(100)))
         klong("avg::{(+/x)%#x}")
         r = klong("avg@,!100")
         self.assertEqual(r,49.5)
@@ -75,28 +74,28 @@ class TestExtraCoreSuite(unittest.TestCase):
     def test_array_identity(self):
         klong = KlongInterpreter()
         r = klong('[]')
-        self.assertTrue(kg_equal(r, np.array([],dtype=object)))
+        self.assertTrue(klong._backend.kg_equal(r, np.array([],dtype=object)))
         r = klong('[1]')
-        self.assertTrue(kg_equal(r, np.array([1],dtype=object)))
+        self.assertTrue(klong._backend.kg_equal(r, np.array([1],dtype=object)))
         r = klong('[[1]]')
-        self.assertTrue(kg_equal(r, np.array([[1]],dtype=object)))
+        self.assertTrue(klong._backend.kg_equal(r, np.array([[1]],dtype=object)))
         r = klong('[[1] [2]]')
-        self.assertTrue(kg_equal(r, np.array([[1],[2]],dtype=object)))
+        self.assertTrue(klong._backend.kg_equal(r, np.array([[1],[2]],dtype=object)))
         r = klong('[[1] [2 3]]')
-        self.assertTrue(kg_equal(r, np.array([[1],[2,3]],dtype=object)))
+        self.assertTrue(klong._backend.kg_equal(r, np.array([[1],[2,3]],dtype=object)))
         r = klong('[[[1]] [2 3]]')
-        self.assertTrue(kg_equal(r, np.array([[[1]],[2,3]],dtype=object)))
+        self.assertTrue(klong._backend.kg_equal(r, np.array([[[1]],[2,3]],dtype=object)))
         r = klong('[[1] [[2 3]]]')
-        self.assertTrue(kg_equal(r, np.array([[1],[[2,3]]],dtype=object)))
+        self.assertTrue(klong._backend.kg_equal(r, np.array([[1],[[2,3]]],dtype=object)))
         r = klong('[[[1]] [[2 3]]]')
-        self.assertTrue(kg_equal(r, np.array([[[1]],[[2,3]]],dtype=object)))
+        self.assertTrue(klong._backend.kg_equal(r, np.array([[[1]],[[2,3]]],dtype=object)))
 
     @requires_object_dtype
     def test_jagged_array_identity(self):
         klong = KlongInterpreter()
         r = klong('[[0] [[1]]]')
         q = np.array([[0],[[1]]],dtype=object)
-        self.assertTrue(kg_equal(r, q))
+        self.assertTrue(klong._backend.kg_equal(r, q))
 
     def test_match_array(self):
         klong = KlongInterpreter()
@@ -109,18 +108,18 @@ class TestExtraCoreSuite(unittest.TestCase):
         klong = KlongInterpreter()
         klong('prime::{&/x!:\\2+!_x^1%2}') # note \\ ==> \
         r = klong("prime(251)")
-        self.assertTrue(is_integer(r))
+        self.assertTrue(is_integer(r, klong._backend))
         self.assertEqual(r, 1)
 
     def test_floor_as_int(self):
         klong = KlongInterpreter()
         r = klong('_30%2')
-        self.assertTrue(is_integer(r))
+        self.assertTrue(is_integer(r, klong._backend))
         self.assertEqual(r, 15)
         r = klong('_[30 20]%2')
         for x in r:
-            self.assertTrue(is_integer(x))
-        self.assertTrue(kg_equal(r, [15, 10]))
+            self.assertTrue(is_integer(x, klong._backend))
+        self.assertTrue(klong._backend.kg_equal(r, [15, 10]))
 
     @requires_strings
     def test_drop_string(self):
@@ -167,9 +166,9 @@ AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
     def test_power_preserve_type(self):
         klong = KlongInterpreter()
         r = klong("10^5")
-        self.assertTrue(is_integer(r))
+        self.assertTrue(is_integer(r, klong._backend))
         r = klong("10.5^5")
-        self.assertTrue(is_float(r))
+        self.assertTrue(is_float(r, klong._backend))
 
     @requires_object_dtype
     def test_join_array_dict(self):
@@ -205,7 +204,7 @@ D::N(1%0;"/")
         """)
         r = klong('q::N(D;"hello")')
         self.assertEqual(klong("q?:s"), 0)
-        self.assertTrue(kg_equal(klong("q?:c"), []))
+        self.assertTrue(klong._backend.kg_equal(klong("q?:c"), []))
         self.assertEqual(klong("q?:n"), "hello")
         self.assertTrue(isinstance(klong("q?:p"), dict))
 
@@ -219,10 +218,10 @@ D::N(1%0;"/")
     def test_integer_divide_clamp_to_int(self):
         klong = KlongInterpreter()
         r = klong("24:%2")
-        self.assertTrue(is_integer(r))
+        self.assertTrue(is_integer(r, klong._backend))
         r = klong("[12 24]:%2")
-        self.assertTrue(is_integer(r[0]))
-        self.assertTrue(is_integer(r[1]))
+        self.assertTrue(is_integer(r[0], klong._backend))
+        self.assertTrue(is_integer(r[1], klong._backend))
 
     def test_enumerate_float(self):
         klong = KlongInterpreter()
@@ -271,13 +270,13 @@ D::N(1%0;"/")
     def test_read_list(self):
         klong = KlongInterpreter()
         r = klong('[]')
-        self.assertTrue(kg_equal(r,[]))
+        self.assertTrue(klong._backend.kg_equal(r,[]))
         klong = KlongInterpreter()
         r = klong('[1 2 3 4]')
-        self.assertTrue(kg_equal(r,[1,2,3,4]))
+        self.assertTrue(klong._backend.kg_equal(r,[1,2,3,4]))
         klong = KlongInterpreter()
         r = klong('[1 2 3 4 ]') # add spaces as found in suite
-        self.assertTrue(kg_equal(r,[1,2,3,4]))
+        self.assertTrue(klong._backend.kg_equal(r,[1,2,3,4]))
 
     def test_read_list_as_arg(self):
         """
@@ -292,9 +291,9 @@ zop([
         klong = KlongInterpreter()
         klong('zap::{x}')
         r = klong('zap([])')
-        self.assertTrue(kg_equal(r,[]))
+        self.assertTrue(klong._backend.kg_equal(r,[]))
         r = klong(t)
-        self.assertTrue(kg_equal(r,[["hello"]]))
+        self.assertTrue(klong._backend.kg_equal(r,[["hello"]]))
 
     def test_sys_comment(self):
         t = """.comment("end-of-comment")
@@ -310,7 +309,7 @@ zop([
         klong = KlongInterpreter()
         r = klong.exec(t)
         # verify that we are returning both A::1 and A operation results
-        self.assertTrue(kg_equal(r,[1,1]))
+        self.assertTrue(klong._backend.kg_equal(r,[1,1]))
         r = klong(t)
         self.assertEqual(r, 1)
 
@@ -318,7 +317,7 @@ zop([
     def test_eval_array(self):
         klong = KlongInterpreter()
         r = klong('[[[1] [2] [3]] [1 2 3]]')
-        self.assertTrue(kg_equal(r,[[[1],[2],[3]],[1,2,3]]))
+        self.assertTrue(klong._backend.kg_equal(r,[[[1],[2],[3]],[1,2,3]]))
 
     @requires_strings
     def test_dot_f(self):

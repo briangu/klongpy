@@ -4,8 +4,6 @@ Backend registry for KlongPy.
 Provides a unified interface for registering and retrieving array backends.
 The default backend is 'numpy'.
 """
-import os
-
 from .base import BackendProvider, UnsupportedDtypeError, is_jagged_array, is_supported_type
 from .numpy_backend import NumpyBackendProvider, KGChar
 
@@ -38,12 +36,7 @@ def get_backend(name: str = None, **kwargs) -> BackendProvider:
         The backend provider instance.
     """
     if name is None:
-        # Check environment variable for default
-        env_backend = os.environ.get('KLONGPY_BACKEND', '').lower()
-        if env_backend == 'torch' or os.environ.get('USE_TORCH') == '1':
-            name = 'torch'
-        else:
-            name = _DEFAULT_BACKEND
+        name = _DEFAULT_BACKEND
 
     if name not in _BACKENDS:
         available = ', '.join(_BACKENDS.keys())
@@ -55,14 +48,6 @@ def get_backend(name: str = None, **kwargs) -> BackendProvider:
 def list_backends():
     """Return list of available backend names."""
     return list(_BACKENDS.keys())
-
-
-def set_default_backend(name: str):
-    """Set the default backend name."""
-    global _DEFAULT_BACKEND
-    if name not in _BACKENDS:
-        raise ValueError(f"Unknown backend: '{name}'")
-    _DEFAULT_BACKEND = name
 
 
 # Register built-in backends
@@ -88,7 +73,6 @@ __all__ = [
     'get_backend',
     'register_backend',
     'list_backends',
-    'set_default_backend',
     'is_jagged_array',
     'is_supported_type',
 ]

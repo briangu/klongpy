@@ -27,7 +27,7 @@ Usage:
 """
 import unittest
 import functools
-from klongpy.backend import get_default_backend, use_torch
+from klongpy.backends import get_backend
 
 # Try to import torch
 try:
@@ -38,12 +38,31 @@ except ImportError:
     TORCH_AVAILABLE = False
 
 
-def get_backend_info():
+def _get_test_backend_name():
+    """Get the backend name from pytest config (set in conftest.py via env var)."""
+    import os
+    return os.environ.get('_KLONGPY_TEST_BACKEND', 'numpy')
+
+
+def _get_test_backend():
+    """Get a backend instance for the current test configuration."""
+    return get_backend(_get_test_backend_name())
+
+
+def is_torch_backend(backend=None):
+    """Check if the given backend (or test default) is torch."""
+    if backend is None:
+        return _get_test_backend_name() == 'torch'
+    return backend.name == 'torch'
+
+
+def get_backend_info(backend=None):
     """Get information about the current backend configuration."""
-    backend = get_default_backend()
+    if backend is None:
+        backend = _get_test_backend()
     return {
         'name': backend.name,
-        'use_torch': use_torch,
+        'is_torch': is_torch_backend(backend),
         'torch_available': TORCH_AVAILABLE,
         'supports_object_dtype': backend.supports_object_dtype(),
         'supports_strings': backend.supports_strings(),
@@ -52,18 +71,19 @@ def get_backend_info():
     }
 
 
-def _is_mps_device():
+def _is_mps_device(backend=None):
     """Check if torch is using MPS device (Apple Silicon)."""
-    if not use_torch or not TORCH_AVAILABLE:
+    if backend is None:
+        backend = _get_test_backend()
+    if not is_torch_backend(backend) or not TORCH_AVAILABLE:
         return False
-    backend = get_default_backend()
     device = getattr(backend, 'device', None)
     return device is not None and 'mps' in str(device).lower()
 
 
 def _supports_float64():
     """Check if backend supports float64."""
-    backend = get_default_backend()
+    backend = _get_test_backend()
     if hasattr(backend, 'supports_float64'):
         return backend.supports_float64()
     # MPS doesn't support float64
@@ -144,8 +164,8 @@ def requires_object_dtype(test_item):
     - Arrays containing non-numeric types
     """
     return _make_skip_decorator(
-        lambda: not get_default_backend().supports_object_dtype(),
-        lambda: f"Backend '{get_default_backend().name}' does not support object dtype"
+        lambda: not _get_test_backend().supports_object_dtype(),
+        lambda: f"Backend '{_get_test_backend_name()}' does not support object dtype"
     )(test_item)
 
 
@@ -159,8 +179,8 @@ def requires_strings(test_item):
     - String comparison operations
     """
     return _make_skip_decorator(
-        lambda: not get_default_backend().supports_strings(),
-        lambda: f"Backend '{get_default_backend().name}' does not support strings"
+        lambda: not _get_test_backend().supports_strings(),
+        lambda: f"Backend '{_get_test_backend_name()}' does not support strings"
     )(test_item)
 
 
@@ -172,8 +192,8 @@ def requires_numpy_backend(test_item):
     or test numpy-specific features.
     """
     return _make_skip_decorator(
-        lambda: use_torch,
-        lambda: "Test requires numpy backend (USE_TORCH is set)"
+        lambda: is_torch_backend(),
+        lambda: "Test requires numpy backend"
     )(test_item)
 
 
@@ -184,8 +204,8 @@ def requires_torch_backend(test_item):
     Use this for tests that specifically test torch functionality.
     """
     return _make_skip_decorator(
-        lambda: not use_torch,
-        lambda: "Test requires torch backend (USE_TORCH not set)"
+        lambda: not is_torch_backend(),
+        lambda: "Test requires torch backend"
     )(test_item)
 
 
@@ -235,7 +255,7 @@ def requires_cpu_device(test_item):
     like certain numpy interop or operations not available on MPS/CUDA.
     """
     return _make_skip_decorator(
-        lambda: _is_mps_device() or (use_torch and TORCH_AVAILABLE and torch.cuda.is_available()),
+        lambda: _is_mps_device() or (is_torch_backend() and TORCH_AVAILABLE and torch.cuda.is_available()),
         lambda: "Test requires CPU device"
     )(test_item)
 
@@ -282,7 +302,7 @@ class BackendAwareTestCase(unittest.TestCase):
     @property
     def backend(self):
         """Get the current backend provider."""
-        return get_default_backend()
+        return get_backend()
 
     @property
     def backend_name(self):
@@ -290,16 +310,15 @@ class BackendAwareTestCase(unittest.TestCase):
         return self.backend.name
 
     @property
-    def is_torch_backend(self):
+    def uses_torch_backend(self):
         """Check if using torch backend."""
-        return use_torch
+        return is_torch_backend(self.backend)
 
     def assertArrayEqual(self, a, b, msg=None):
         """
         Assert two arrays are equal, handling both numpy and torch.
         """
-        from klongpy.core import kg_equal
-        if not kg_equal(a, b):
+        if not self.backend.kg_equal(a, b):
             self.fail(msg or f"Arrays not equal:\n  {a}\n  !=\n  {b}")
 
     def assertArrayClose(self, a, b, rtol=1e-5, atol=1e-8, msg=None):
@@ -380,6 +399,6 @@ __all__ = [
     'numeric_only',
     'BackendAwareTestCase',
     'TORCH_AVAILABLE',
-    'use_torch',
+    'is_torch_backend',
     'to_numpy',
 ]

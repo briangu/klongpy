@@ -1,35 +1,9 @@
 from .core import *
-from .dyads import eval_dyad_add, eval_dyad_subtract, eval_dyad_multiply, eval_dyad_divide
-from .backend import kg_asarray, is_number, str_to_chr_arr, kg_equal
 import functools
 import itertools
 
 
-def get_adverb_fn(klong, s, arity):
-    if s == "'":
-        return eval_adverb_each2 if arity == 2 else eval_adverb_each
-    elif s == '/':
-        return eval_adverb_over_neutral if arity == 2 else eval_adverb_over
-    elif s == '\\':
-        return eval_adverb_scan_over_neutral if arity == 2 else eval_adverb_scan_over
-    elif s == '\\~':
-        return (lambda f,a,b,k=klong: eval_adverb_scan_while(k,f,a,b)) if arity == 2 else eval_adverb_scan_converging
-    elif s == '\\*':
-        return eval_adverb_scan_iterating
-    elif s == ':\\':
-        return eval_adverb_each_left
-    elif s == ':\'':
-        return eval_adverb_each_pair
-    elif s == ':/':
-        return eval_adverb_each_right
-    elif s == ':*':
-        return eval_dyad_adverb_iterate
-    elif s == ':~':
-        return (lambda f,a,b,k=klong: eval_adverb_while(k,f,a,b)) if arity == 2 else eval_adverb_converge
-    raise RuntimeError(f"unknown adverb: {s}")
-
-
-def eval_adverb_converge(f, a, op):
+def eval_adverb_converge(f, a, op, backend):
     """
         f:~a                                                  [Converge]
 
@@ -55,10 +29,10 @@ def eval_adverb_converge(f, a, op):
     def _e(p,q):
         if not isinstance(p, type(q)):
             return False
-        if is_number(p):
-            return np.isclose(p,q)
-        elif np.isarray(p):
-            return kg_equal(p,q)
+        if backend.is_number(p):
+            return backend.np.isclose(p,q)
+        elif backend.is_array(p):
+            return backend.kg_equal(p, q)
         return p == q
     x = f(a)
     xx = f(x)
@@ -68,7 +42,7 @@ def eval_adverb_converge(f, a, op):
     return x
 
 
-def eval_adverb_each(f, a, op):
+def eval_adverb_each(f, a, op, backend):
     """
 
         f'a                                                       [Each]
@@ -93,17 +67,17 @@ def eval_adverb_each(f, a, op):
             return a
         has_str = False
         r = []
-        for x in str_to_chr_arr(a):
+        for x in backend.str_to_chr_arr(a):
             u = f(x)
             has_str |= isinstance(u,str)
             r.append(u)
-        return ''.join(r) if has_str else kg_asarray(r)
+        return ''.join(r) if has_str else backend.kg_asarray(r)
     if is_iterable(a):
         r = [f(x) for x in a]
-        return a if is_empty(a) else kg_asarray(r)
+        return a if is_empty(a) else backend.kg_asarray(r)
     elif is_dict(a):
-        r = [f(kg_asarray(x)) for x in a.items()]
-        return kg_asarray(r)
+        r = [f(backend.kg_asarray(x)) for x in a.items()]
+        return backend.kg_asarray(r)
     return f(a)
 
 
@@ -132,7 +106,7 @@ def eval_adverb_each2(f, a, b):
     return ''.join(r) if r.dtype == '<U1' else r
 
 
-def eval_adverb_each_left(f, a, b):
+def eval_adverb_each_left(f, a, b, backend):
     """
         a f:\b                                              [Each-Left]
         a f:/b                                              [Each-Right]
@@ -154,20 +128,19 @@ def eval_adverb_each_left(f, a, b):
         Examples: 1,:\[2 3 4]  -->  [[1 2] [1 3] [1 4]]
                   1,:/[2 3 4]  -->  [[2 1] [3 1] [4 1]]
     """
-    b = str_to_chr_arr(b) if isinstance(b,str) else b
-    return kg_asarray([f(a,x) for x in b])
+    b = backend.str_to_chr_arr(b) if isinstance(b,str) else b
+    return backend.kg_asarray([f(a,x) for x in b])
 
 
-def eval_adverb_each_right(f, a, b):
+def eval_adverb_each_right(f, a, b, backend):
     """
     see: eval_dyad_adverb_each_left
     """
-    b = str_to_chr_arr(b) if isinstance(b,str) else b
-    return kg_asarray([f(x,a) for x in b])
+    b = backend.str_to_chr_arr(b) if isinstance(b,str) else b
+    return backend.kg_asarray([f(x,a) for x in b])
 
 
-
-def eval_adverb_each_pair(f, a, op):
+def eval_adverb_each_pair(f, a, op, backend):
     """
 
         f:'a                                                 [Each-Pair]
@@ -186,8 +159,8 @@ def eval_adverb_each_pair(f, a, op):
     if is_atom(a) or (is_iterable(a) and len(a) == 1):
         return a
     j = isinstance(a, str)
-    a = str_to_chr_arr(a) if j else a
-    return kg_asarray([f(x,y) for x,y in zip(a[::],a[1::])])
+    a = backend.str_to_chr_arr(a) if j else a
+    return backend.kg_asarray([f(x,y) for x,y in zip(a[::],a[1::])])
 
 
 def eval_dyad_adverb_iterate(f, a, b):
@@ -209,7 +182,7 @@ def eval_dyad_adverb_iterate(f, a, b):
     return b
 
 
-def eval_adverb_over(f, a, op):
+def eval_adverb_over(f, a, op, backend):
     """
         f/a                                                       [Over]
 
@@ -228,22 +201,23 @@ def eval_adverb_over(f, a, op):
         return a
     if len(a) == 1:
         return a[0]
-    # Use NumPy/PyTorch ufunc reduce when available for better performance
+    # Use backend's ufunc reduce when available for better performance
+    np_backend = backend.np
     if isinstance(op, KGOp):
         if safe_eq(op.a,'+'):
-            return np.add.reduce(a)
+            return np_backend.add.reduce(a)
         elif safe_eq(op.a, '-'):
-            return np.subtract.reduce(a)
-        elif safe_eq(op.a, '*') and hasattr(np.multiply,'reduce'):
-            return np.multiply.reduce(a)
-        elif safe_eq(op.a, '%') and hasattr(np.divide,'reduce'):
-            return np.divide.reduce(a)
+            return np_backend.subtract.reduce(a)
+        elif safe_eq(op.a, '*') and hasattr(np_backend.multiply,'reduce'):
+            return np_backend.multiply.reduce(a)
+        elif safe_eq(op.a, '%') and hasattr(np_backend.divide,'reduce'):
+            return np_backend.divide.reduce(a)
         elif safe_eq(op.a, '&') and a.ndim == 1:
-            return np.min(a)
+            return np_backend.min(a)
         elif safe_eq(op.a, '|') and a.ndim == 1:
-            return np.max(a)
-        elif safe_eq(op.a, ',') and np.isarray(a) and a.dtype != 'O':
-            return a if a.ndim == 1 else np.concatenate(a, axis=0)
+            return np_backend.max(a)
+        elif safe_eq(op.a, ',') and np_backend.isarray(a) and a.dtype != 'O':
+            return a if a.ndim == 1 else np_backend.concatenate(a, axis=0)
     return functools.reduce(f, a)
 
 
@@ -280,7 +254,7 @@ def eval_adverb_over_neutral(f, a, b):
     return functools.reduce(f,b[1:],f(a,b[0]))
 
 
-def eval_adverb_scan_over_neutral(f, a, b):
+def eval_adverb_scan_over_neutral(f, a, b, backend):
     """
 
         f\a                                                  [Scan-Over]
@@ -309,31 +283,33 @@ def eval_adverb_scan_over_neutral(f, a, b):
         b = [b]
     b = [f(a,b[0]), *b[1:]]
     r = list(itertools.accumulate(b,f))
-    q = kg_asarray(r)
+    q = backend.kg_asarray(r)
     r = [a, *q]
-    return kg_asarray(r)
+    return backend.kg_asarray(r)
 
 
-def eval_adverb_scan_over(f, a, op):
+def eval_adverb_scan_over(f, a, op, backend):
     """
         see eval_adverb_scan_over_neutral
     """
     if is_atom(a):
         return a
-    # Use NumPy/PyTorch ufunc accumulate when available for better performance
-    if safe_eq(f, eval_dyad_add) and hasattr(np.add, 'accumulate'):
-        return np.add.accumulate(a)
-    elif safe_eq(f, eval_dyad_subtract) and hasattr(np.subtract, 'accumulate'):
-        return np.subtract.accumulate(a)
-    elif safe_eq(f, eval_dyad_multiply) and hasattr(np.multiple, 'accumulate'):
-        return np.multiple.accumulate(a)
-    elif safe_eq(f, eval_dyad_divide) and hasattr(np.divide, 'accumulate'):
-        return np.divide.accumulate(a)
+    # Use backend's ufunc accumulate when available for better performance
+    np_backend = backend.np
+    if isinstance(op, KGOp):
+        if safe_eq(op.a, '+') and hasattr(np_backend.add, 'accumulate'):
+            return np_backend.add.accumulate(a)
+        elif safe_eq(op.a, '-') and hasattr(np_backend.subtract, 'accumulate'):
+            return np_backend.subtract.accumulate(a)
+        elif safe_eq(op.a, '*') and hasattr(np_backend.multiply, 'accumulate'):
+            return np_backend.multiply.accumulate(a)
+        elif safe_eq(op.a, '%') and hasattr(np_backend.divide, 'accumulate'):
+            return np_backend.divide.accumulate(a)
     r = list(itertools.accumulate(a, f))
-    return kg_asarray(r)
+    return backend.kg_asarray(r)
 
 
-def eval_adverb_scan_converging(f, a, op):
+def eval_adverb_scan_converging(f, a, op, backend):
     """
 
         f\~a                                           [Scan-Converging]
@@ -356,15 +332,15 @@ def eval_adverb_scan_converging(f, a, op):
     x = a
     xx = f(a)
     r = [a, xx]
-    while not kg_equal(x,xx):
+    while not backend.kg_equal(x, xx):
         x = xx
         xx = f(x)
         r.append(xx)
     r.pop()
-    return kg_asarray(r)
+    return backend.kg_asarray(r)
 
 
-def eval_adverb_scan_while(klong, f, a, b):
+def eval_adverb_scan_while(klong, f, a, b, backend):
     """
 
         a f\~b                                              [Scan-While]
@@ -389,10 +365,10 @@ def eval_adverb_scan_while(klong, f, a, b):
         b = f(b)
         r.append(b)
     r.pop()
-    return kg_asarray(r)
+    return backend.kg_asarray(r)
 
 
-def eval_adverb_scan_iterating(f, a, b):
+def eval_adverb_scan_iterating(f, a, b, backend):
     """
 
         a f\*b                                          [Scan-Iterating]
@@ -410,7 +386,7 @@ def eval_adverb_scan_iterating(f, a, b):
         b = f(b)
         r.append(b)
         a = a - 1
-    return kg_asarray(r)
+    return backend.kg_asarray(r)
 
 
 def eval_adverb_while(klong, f, a, b):
@@ -429,3 +405,29 @@ def eval_adverb_while(klong, f, a, b):
     while klong.eval(KGCall(a, b, arity=1)):
         b = f(b)
     return b
+
+
+def get_adverb_fn(klong, s, arity):
+    backend = klong._backend
+
+    if s == "'":
+        return eval_adverb_each2 if arity == 2 else lambda f,a,op: eval_adverb_each(f,a,op,backend)
+    elif s == '/':
+        return eval_adverb_over_neutral if arity == 2 else lambda f,a,op: eval_adverb_over(f,a,op,backend)
+    elif s == '\\':
+        return (lambda f,a,b: eval_adverb_scan_over_neutral(f,a,b,backend)) if arity == 2 else lambda f,a,op: eval_adverb_scan_over(f,a,op,backend)
+    elif s == '\\~':
+        return (lambda f,a,b: eval_adverb_scan_while(klong,f,a,b,backend)) if arity == 2 else lambda f,a,op: eval_adverb_scan_converging(f,a,op,backend)
+    elif s == '\\*':
+        return lambda f,a,b: eval_adverb_scan_iterating(f,a,b,backend)
+    elif s == ':\\':
+        return lambda f,a,b: eval_adverb_each_left(f,a,b,backend)
+    elif s == ':\'':
+        return lambda f,a,op: eval_adverb_each_pair(f,a,op,backend)
+    elif s == ':/':
+        return lambda f,a,b: eval_adverb_each_right(f,a,b,backend)
+    elif s == ':*':
+        return eval_dyad_adverb_iterate
+    elif s == ':~':
+        return (lambda f,a,b: eval_adverb_while(klong,f,a,b)) if arity == 2 else lambda f,a,op: eval_adverb_converge(f,a,op,backend)
+    raise RuntimeError(f"unknown adverb: {s}")

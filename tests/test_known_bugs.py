@@ -14,10 +14,10 @@ class TestKnownBugsSuite(unittest.TestCase):
         # [!10] should eval to [:! 10] but it doesn't
         klong = KlongInterpreter()
         r = klong('[!10]')
-        self.assertTrue(kg_equal(r, [KGSym('!'), 10]))
+        self.assertTrue(klong._backend.kg_equal(r, [KGSym('!'), 10]))
         # [3*a^2] should eval to [3 :* :a :^ 2] but it doesn't
         r = klong('[3*a^2]')
-        self.assertTrue(kg_equal(r, [3, KGSym('*'), KGSym('a'), KGSym('^'), 2]))
+        self.assertTrue(klong._backend.kg_equal(r, [3, KGSym('*'), KGSym('a'), KGSym('^'), 2]))
 
     @unittest.skip
     def test_should_fail_parsing(self):
@@ -47,7 +47,7 @@ class TestKnownBugsSuite(unittest.TestCase):
         klong('T::.table(df)')
         # @ should work the same as a dictionary
         r = klong('T@"col1"')
-        self.assertTrue(kg_equal(r, data['col1']))
+        self.assertTrue(klong._backend.kg_equal(r, data['col1']))
 
     @unittest.skip
     def test_extra_spaces(self):
@@ -67,15 +67,15 @@ class TestKnownBugsSuite(unittest.TestCase):
         klong = KlongInterpreter()
         klong("q::[3 8]")
         r = klong("q[0],q[-1]")
-        self.assertTrue(kg_equal(r, [3,8]))
+        self.assertTrue(klong._backend.kg_equal(r, [3,8]))
         r = klong("(q[0],q[-1])")
-        self.assertTrue(kg_equal(r, [3,8]))
+        self.assertTrue(klong._backend.kg_equal(r, [3,8]))
 
     @unittest.skip
     def test_append_empty_dictionaries(self):
         klong = KlongInterpreter()
         r = klong("A::[];A::A,:{};A::A,:{};A::A,:{};A")
-        self.assertTrue(kg_equal(r, [{}, {}, {}]))
+        self.assertTrue(klong._backend.kg_equal(r, [{}, {}, {}]))
 
     @unittest.skip
     def test_extra_chars_ignored(self):
@@ -175,7 +175,7 @@ SCAN::{RESETF();RUNX();BESTF}
     def test_take_nested_array(self):
         klong = KlongInterpreter()
         r = klong("(4)#[[0 0]]")
-        self.assertTrue(kg_equal(r,[[0,0],[0,0],[0,0],[0,0]]))
+        self.assertTrue(klong._backend.kg_equal(r,[[0,0],[0,0],[0,0],[0,0]]))
 
     @unittest.skip
     def test_fall_call_undefined_fn(self):

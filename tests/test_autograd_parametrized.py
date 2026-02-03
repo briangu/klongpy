@@ -1,17 +1,16 @@
 """
 Autograd tests - unified test structure for both backends.
 
-These tests run against the GLOBAL backend (determined by USE_TORCH env var).
-Run tests twice to cover both backends:
-    python -m pytest tests/test_autograd_parametrized.py -v           # numpy
-    USE_TORCH=1 python -m pytest tests/test_autograd_parametrized.py -v  # torch
+Run with the --backend option:
+    pytest tests/test_autograd_parametrized.py -v               # numpy (default)
+    pytest tests/test_autograd_parametrized.py -v --backend torch  # torch
 
 The same test logic works for both numeric differentiation (numpy) and
 exact autograd (torch), with appropriate tolerances.
 """
 import pytest
 import numpy as np
-from conftest import to_numpy, to_scalar, TORCH_AVAILABLE, get_active_backend
+from conftest import to_numpy, to_scalar, TORCH_AVAILABLE
 
 # Tolerance varies by backend and operation
 ATOL_NUMPY = 1e-3   # Numeric differentiation with float64
@@ -19,10 +18,8 @@ ATOL_TORCH = 1e-5   # Exact autograd is precise
 ATOL_NUMERIC_FLOAT32 = 0.02  # Numeric diff with float32 (MPS) has more error
 
 
-def get_atol(backend=None):
+def get_atol(backend):
     """Get appropriate tolerance for backend."""
-    if backend is None:
-        backend = get_active_backend()
     return ATOL_TORCH if backend == 'torch' else ATOL_NUMPY
 
 
@@ -202,8 +199,8 @@ class TestNumpySpecific:
             pytest.skip("Requires numpy backend (run without USE_TORCH)")
 
         from klongpy.autograd import numeric_grad
-        from klongpy.backend import get_default_backend
-        _backend = get_default_backend()
+        from klongpy.backends import get_backend
+        _backend = get_backend()
         result = numeric_grad(lambda x: x[0]**2, np.array([3.0]), _backend, eps=1e-8)
         assert np.isclose(result[0], 6.0, atol=1e-5)
 
@@ -218,8 +215,8 @@ class TestNumericGradFunction:
         if backend == 'torch':
             pytest.skip("numeric_grad tests use numpy directly")
         from klongpy.autograd import numeric_grad
-        from klongpy.backend import get_default_backend
-        _backend = get_default_backend()
+        from klongpy.backends import get_backend
+        _backend = get_backend()
         result = numeric_grad(lambda x: x[0]**2, np.array([3.0]), _backend)
         assert np.isclose(result[0], 6.0, atol=ATOL_NUMPY)
 
@@ -228,8 +225,8 @@ class TestNumericGradFunction:
         if backend == 'torch':
             pytest.skip("numeric_grad tests use numpy directly")
         from klongpy.autograd import numeric_grad
-        from klongpy.backend import get_default_backend
-        _backend = get_default_backend()
+        from klongpy.backends import get_backend
+        _backend = get_backend()
         result = numeric_grad(lambda x: np.sum(x**2), np.array([1.0, 2.0, 3.0]), _backend)
         expected = np.array([2.0, 4.0, 6.0])
         np.testing.assert_allclose(result, expected, atol=ATOL_NUMPY)
@@ -239,8 +236,8 @@ class TestNumericGradFunction:
         if backend == 'torch':
             pytest.skip("numeric_grad tests use numpy directly")
         from klongpy.autograd import numeric_grad
-        from klongpy.backend import get_default_backend
-        _backend = get_default_backend()
+        from klongpy.backends import get_backend
+        _backend = get_backend()
         x = np.array([[1.0, 2.0], [3.0, 4.0]])
         result = numeric_grad(lambda x: np.sum(x**2), x, _backend)
         expected = 2 * x
@@ -371,7 +368,7 @@ class TestTorchAutogradFunction:
             pytest.skip("Test for numpy backend only")
         from klongpy.autograd import torch_autograd
         with pytest.raises(RuntimeError):
-            torch_autograd(lambda x: x**2, np.array([3.0]))
+            torch_autograd(lambda x: x**2, np.array([3.0]), klong._backend)
 
     def test_torch_autograd_with_tensor(self, klong, backend):
         """Test torch_autograd with tensor input."""
@@ -380,7 +377,7 @@ class TestTorchAutogradFunction:
         import torch
         from klongpy.autograd import torch_autograd
         x = torch.tensor([1.0, 2.0, 3.0])
-        result = torch_autograd(lambda t: (t**2).sum(), x)
+        result = torch_autograd(lambda t: (t**2).sum(), x, klong._backend)
         expected = torch.tensor([2.0, 4.0, 6.0])
         assert torch.allclose(result, expected, atol=1e-5)
 
@@ -391,7 +388,7 @@ class TestTorchAutogradFunction:
         from klongpy.autograd import torch_autograd, NonScalarLossError
         x = np.array([1.0, 2.0, 3.0])
         with pytest.raises(NonScalarLossError):
-            torch_autograd(lambda t: t**2, x)
+            torch_autograd(lambda t: t**2, x, klong._backend)
 
 
 class TestGradcheck:

@@ -7,36 +7,45 @@ Usage:
     python tests/perf_backend.py
 
     # Run with Torch backend
-    USE_TORCH=1 python tests/perf_backend.py
+    python tests/perf_backend.py --backend torch
 
     # Run with Torch + JIT compilation (requires C++ compiler)
-    USE_TORCH=1 python tests/perf_backend.py --jit
+    python tests/perf_backend.py --backend torch --jit
 
     # Run with Torch + JIT using eager backend (no C++ compiler needed)
-    USE_TORCH=1 python tests/perf_backend.py --jit --eager
+    python tests/perf_backend.py --backend torch --jit --eager
 
     # Run comparison (all backends)
     python tests/perf_backend.py --compare
 
     # Run JIT-specific benchmarks only
-    USE_TORCH=1 python tests/perf_backend.py --jit-only
+    python tests/perf_backend.py --backend torch --jit-only
 
     # Run JIT benchmarks with eager backend (no C++ compiler)
-    USE_TORCH=1 python tests/perf_backend.py --jit-only --eager
+    python tests/perf_backend.py --backend torch --jit-only --eager
 
     # Run JIT benchmarks with different modes
-    USE_TORCH=1 python tests/perf_backend.py --jit-only --jit-mode max-autotune
+    python tests/perf_backend.py --backend torch --jit-only --jit-mode max-autotune
 """
 import argparse
-import os
 import subprocess
 import sys
 import time
 
 
+# Global to store the backend name set via command line
+_current_backend = "numpy"
+
+
+def set_backend(name):
+    """Set the current backend name."""
+    global _current_backend
+    _current_backend = name
+
+
 def get_backend_name():
     """Get the current backend name."""
-    return "torch" if os.environ.get("USE_TORCH") else "numpy"
+    return _current_backend
 
 
 def benchmark(name, klong, expr, warmup=3, iterations=20):
@@ -151,8 +160,8 @@ def run_benchmarks(iterations=20):
     """Run all benchmarks and return results dict."""
     from klongpy import KlongInterpreter
 
-    klong = KlongInterpreter()
     backend = get_backend_name()
+    klong = KlongInterpreter(backend=backend)
 
     results = {}
     for name, expr in get_benchmarks():
@@ -170,12 +179,11 @@ def run_jit_benchmarks(iterations=20, mode="default", use_eager=False):
     import torch
     from klongpy import KlongInterpreter
 
-    klong = KlongInterpreter()
     backend = get_backend_name()
-
     if backend != "torch":
-        print("JIT benchmarks require torch backend (USE_TORCH=1)")
+        print("JIT benchmarks require torch backend (--backend torch)")
         return backend, {}, {}
+    klong = KlongInterpreter(backend=backend)
 
     results = {}
     results_nojit = {}
@@ -287,19 +295,17 @@ def run_comparison():
     """Run benchmarks for all backends and compare."""
     print("\nRunning NumPy backend benchmarks...")
     result = subprocess.run(
-        [sys.executable, __file__, "--json"],
+        [sys.executable, __file__, "--json", "--backend", "numpy"],
         capture_output=True,
         text=True,
-        env={**os.environ, "USE_TORCH": ""}
     )
     numpy_output = result.stdout.strip()
 
     print("Running Torch backend benchmarks...")
     result = subprocess.run(
-        [sys.executable, __file__, "--json"],
+        [sys.executable, __file__, "--json", "--backend", "torch"],
         capture_output=True,
         text=True,
-        env={**os.environ, "USE_TORCH": "1"}
     )
     torch_output = result.stdout.strip()
 
@@ -360,10 +366,9 @@ def run_full_comparison():
 
     try:
         result = subprocess.run(
-            [sys.executable, __file__, "--jit-only", "--json", "--eager"],
+            [sys.executable, __file__, "--jit-only", "--json", "--eager", "--backend", "torch"],
             capture_output=True,
             text=True,
-            env={**os.environ, "USE_TORCH": "1"},
             timeout=120
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -414,6 +419,8 @@ def run_full_comparison():
 
 def main():
     parser = argparse.ArgumentParser(description="KlongPy backend performance benchmarks")
+    parser.add_argument("--backend", choices=["numpy", "torch"], default="numpy",
+                        help="Backend to use: numpy (default) or torch")
     parser.add_argument("--compare", action="store_true", help="Compare all backends")
     parser.add_argument("--json", action="store_true", help="Output results as JSON")
     parser.add_argument("--jit", action="store_true", help="Include JIT benchmarks (torch only)")
@@ -424,6 +431,9 @@ def main():
                         help="Use eager backend for JIT (no C++ compiler needed)")
     parser.add_argument("--iterations", type=int, default=20, help="Number of iterations per benchmark")
     args = parser.parse_args()
+
+    # Set the backend from command line
+    set_backend(args.backend)
 
     if args.compare:
         run_full_comparison()

@@ -315,6 +315,150 @@ class BackendProvider(ABC):
         )
 
 
+    def kg_equal(self, a, b):
+        """Compare two values or arrays for equality, handling nested arrays and tensors."""
+        import numpy
+
+        if a is b:
+            return True
+
+        # Check for arrays (numpy or backend-specific)
+        is_numpy_a = isinstance(a, numpy.ndarray)
+        is_numpy_b = isinstance(b, numpy.ndarray)
+        is_backend_a = self.is_backend_array(a)
+        is_backend_b = self.is_backend_array(b)
+
+        na, nb = is_numpy_a or is_backend_a, is_numpy_b or is_backend_b
+
+        # Handle arrays with same dtype
+        if na and nb:
+            a_dtype = self.get_dtype_kind(a)
+            b_dtype = self.get_dtype_kind(b)
+            if a_dtype == b_dtype and a_dtype != 'O':
+                return bool(numpy.array_equal(a, b))
+
+        na, nb = na or isinstance(a, list), nb or isinstance(b, list)
+
+        if na != nb:
+            # One is array/list, the other is not - could be scalar tensor/array vs scalar
+            # Handle comparing 0-dim arrays/tensors with scalars
+            if is_numpy_a and a.ndim == 0 and not nb:
+                return self.kg_equal(a.item(), b)
+            if is_numpy_b and b.ndim == 0 and not na:
+                return self.kg_equal(a, b.item())
+            if is_backend_a and hasattr(a, 'ndim') and a.ndim == 0 and not nb:
+                return self.kg_equal(self.scalar_to_python(a), b)
+            if is_backend_b and hasattr(b, 'ndim') and b.ndim == 0 and not na:
+                return self.kg_equal(a, self.scalar_to_python(b))
+            return False
+
+        if na:
+            # Handle 0-dim arrays/tensors - compare as scalars
+            a_is_0d = hasattr(a, 'ndim') and a.ndim == 0
+            b_is_0d = hasattr(b, 'ndim') and b.ndim == 0
+            if a_is_0d or b_is_0d:
+                a_val = self.scalar_to_python(a) if a_is_0d else a
+                b_val = self.scalar_to_python(b) if b_is_0d else b
+                return self.kg_equal(a_val, b_val)
+            return len(a) == len(b) and all(self.kg_equal(x, y) for x, y in zip(a, b))
+
+        if self.is_number(a) and self.is_number(b):
+            # Convert tensors to Python scalars for comparison
+            if self.is_backend_array(a):
+                a = self.scalar_to_python(a)
+            if self.is_backend_array(b):
+                b = self.scalar_to_python(b)
+            result = numpy.isclose(a, b)
+            # np.isclose might return an array/tensor, ensure we return bool
+            if hasattr(result, 'item'):
+                return bool(result.item())
+            return bool(result)
+
+        result = a == b
+        # Handle tensor/array result from comparison
+        if hasattr(result, 'all'):
+            # For arrays, check if all elements are equal
+            return bool(result.all())
+        if hasattr(result, 'item'):
+            return bool(result.item())
+        return bool(result)
+
+    def vec_fn(self, a, f):
+        """
+        Apply function f to array a, with support for nested object arrays.
+        """
+        import numpy
+        if self.np.isarray(a) and a.dtype == 'O':
+            result = [self.vec_fn(x, f) if self._is_list(x) else f(x) for x in a]
+            return numpy.asarray(result, dtype=object)
+        return f(a)
+
+    def vec_fn2(self, a, b, f):
+        """
+        Apply function f to elements of a and b, handling nested structures.
+        """
+        if self.np.isarray(a):
+            if a.dtype == 'O':
+                if self.np.isarray(b):
+                    assert len(a) == len(b)
+                    return self.kg_asarray([self.vec_fn2(x, y, f) for x, y in zip(a, b)])
+                else:
+                    return self.kg_asarray([self.vec_fn2(x, b, f) for x in a])
+            elif self.np.isarray(b) and b.dtype == 'O':
+                assert len(a) == len(b)
+                return self.kg_asarray([self.vec_fn2(x, y, f) for x, y in zip(a, b)])
+        elif self.np.isarray(b) and b.dtype == 'O':
+            return self.kg_asarray([self.vec_fn2(a, x, f) for x in b])
+        return f(a, b)
+
+    def rec_fn(self, a, f):
+        """
+        Recursively apply function f to all elements of a nested structure.
+        """
+        return self.kg_asarray([self.rec_fn(x, f) for x in a]) if self._is_list(a) else f(a)
+
+    def _is_list(self, x):
+        """Check if x is a list-like structure (array or list, non-empty)."""
+        import numpy
+        if isinstance(x, numpy.ndarray):
+            return x.size > 0
+        if isinstance(x, (list, tuple)):
+            return len(x) > 0
+        return False
+
+    @property
+    def device(self):
+        """Return the current device for this backend (e.g., 'cpu', 'cuda:0', 'mps')."""
+        return 'cpu'
+
+    def list_devices(self):
+        """
+        List available devices for this backend.
+
+        Returns:
+            list: List of available device names (e.g., ['cpu'], ['cpu', 'cuda:0', 'mps'])
+        """
+        return ['cpu']
+
+    def get_info(self):
+        """
+        Get comprehensive information about this backend.
+
+        Returns:
+            dict: Dictionary with backend name, current device, available devices,
+                  and feature support flags.
+        """
+        return {
+            'name': self.name,
+            'device': self.device,
+            'devices': self.list_devices(),
+            'supports_float64': self.supports_float64(),
+            'supports_strings': self.supports_strings(),
+            'supports_object_dtype': self.supports_object_dtype(),
+            'supports_autograd': self.supports_autograd(),
+        }
+
+
 class UnsupportedDtypeError(Exception):
     """Raised when an operation requires a dtype not supported by the backend."""
     pass

@@ -77,7 +77,5 @@ jobs:
         pip install -e ".[all,dev]"
         pip install torch --index-url https://download.pytorch.org/whl/cpu
     - name: Run torch backend tests
-      env:
-        USE_TORCH: "1"
       run: |
-        python -m pytest tests/test_torch_backend.py tests/test_backend.py tests/test_autograd_parametrized.py -v
+        python -m pytest tests/ -v --backend torch --device cpu

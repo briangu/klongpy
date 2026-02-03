@@ -168,6 +168,7 @@ class TestCoreSuite(unittest.TestCase):
         self.assert_eval_cmp('~:{[1 2]}', '0')
         self.assert_eval_cmp('~[0 1 [] [2] "" "x"]', '[1 0 1 [0] 1 0]')
 
+    @requires_strings
     def test_format(self):
         self.assert_eval_cmp('$0', '"0"')
         self.assert_eval_cmp('$1', '"1"')
@@ -284,6 +285,7 @@ class TestCoreSuite(unittest.TestCase):
         self.assert_eval_cmp('"abx":=["cde" 2]', '"abcde"')
         self.assert_eval_cmp('"abc":=["def" 3]', '"abcdef"')
 
+    @requires_object_dtype
     def test_amend_in_depth(self):
         self.assert_eval_cmp('[1 2 3]:-[9 0]', '[9 2 3]')
         self.assert_eval_cmp('[1 2 3]:-[9 1]', '[1 9 3]')
@@ -476,6 +478,7 @@ class TestCoreSuite(unittest.TestCase):
         self.assert_eval_cmp(':{[:foo :bar]}?:bar', '1%0')
         self.assert_eval_cmp(':{[:foo :bar]}?123', '1%0')
 
+    @requires_strings
     def test_format2(self):
         self.assert_eval_cmp('0$0', '"0"')
         self.assert_eval_cmp('0$123', '"123"')
@@ -711,6 +714,7 @@ class TestCoreSuite(unittest.TestCase):
         self.assert_eval_cmp('"12"~:{[1 2]}', '0')
         self.assert_eval_cmp(':{[1 2]}~"12"', '0')
 
+    @requires_object_dtype
     def test_max(self):
         self.assert_eval_cmp('0|0', '0')
         self.assert_eval_cmp('0|1', '1')
@@ -739,6 +743,7 @@ class TestCoreSuite(unittest.TestCase):
         self.assert_eval_cmp('[1 5 3]|[4 2 6]', '[4 5 6]')
         self.assert_eval_cmp('[1 [2] 3]|2', '[2 [2] 3]')
 
+    @requires_object_dtype
     def test_min(self):
         self.assert_eval_cmp('0&0', '0')
         self.assert_eval_cmp('0&1', '0')
@@ -1403,7 +1408,6 @@ class TestCoreSuite(unittest.TestCase):
         self.assert_eval_test('t("f3(;2;)@[4 5]" ; f3(;2;)@[4 5] ; -6)', klong=klong )
         self.assert_eval_test('t("f3(;;3)@[4 5]" ; f3(;;3)@[4 5] ; -11)', klong=klong )
 
-    @requires_object_dtype
     def test_monad_contexts(self):
         klong = create_test_klong()
         klong('f::{,x}')

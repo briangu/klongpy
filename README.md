@@ -60,7 +60,7 @@ kgpy
 
 # Enable torch backend (autograd + GPU)
 pip install "klongpy[torch]"
-USE_TORCH=1 kgpy            # or KLONGPY_BACKEND=torch
+kgpy --backend torch
 
 # Everything (web, db, websockets, torch, repl)
 pip install "klongpy[all]"
@@ -273,7 +273,7 @@ Minimize f(x) = (x-3)^2
 
 (with PyTorch's autograd)
 ```klong
-$ USE_TORCH=1 rlwrap kgpy
+$ rlwrap kgpy --backend torch
 ?> f::{(x-3)^2}
 :monad
 ?> s::10.0; lr::0.1
@@ -391,7 +391,7 @@ pip install "klongpy[repl]"
 ### With PyTorch Autograd (Recommended)
 ```bash
 pip install "klongpy[torch]"
-USE_TORCH=1 kgpy              # Enable torch backend (or KLONGPY_BACKEND=torch)
+kgpy --backend torch          # Enable torch backend
 ```
 
 ### Web / DB / WebSockets Extras

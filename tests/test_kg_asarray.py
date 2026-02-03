@@ -1,18 +1,25 @@
 import unittest
 
 import numpy as np
-from klongpy.backend import np as backend_np, use_torch, get_default_backend, kg_asarray, array_size
+from klongpy.backends import get_backend
 
 from klongpy.core import KGChar, KGSym
 from tests.backend_compat import requires_strings, requires_object_dtype
 
+# Get the default backend for tests (numpy)
+_backend = get_backend('numpy')
+backend_np = _backend.np
 
 # Use backend's isarray for torch compatibility
 def isarray(x):
     return backend_np.isarray(x)
 
-# Get the default backend for tests
-_backend = get_default_backend()
+# Get kg_asarray and array_size from backend
+def kg_asarray(x):
+    return _backend.kg_asarray(x)
+
+def array_size(x):
+    return _backend.array_size(x)
 
 
 class TestKGAsArray(unittest.TestCase):
@@ -91,17 +98,8 @@ class TestKGAsArray(unittest.TestCase):
     def test_kg_asarray_already_array(self):
         x = np.array([1, 2, 3])
         arr = kg_asarray(x)
-        # For torch backend, it converts to tensor, for numpy it should return as-is
-        if use_torch:
-            # Check values are the same
-            if hasattr(arr, 'cpu'):
-                arr_np = arr.cpu().numpy()
-            else:
-                arr_np = arr
-            assert np.array_equal(arr_np, x)
-        else:
-            # Should return as-is because already suitable dtype
-            assert arr is x
+        # For numpy backend, should return as-is because already suitable dtype
+        assert arr is x
 
     @requires_object_dtype
     def test_kg_asarray_jagged_list(self):

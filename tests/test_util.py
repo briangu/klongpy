@@ -1,8 +1,15 @@
 import unittest
 from klongpy.core import *
-from klongpy.backend import kg_equal, kg_argsort, is_integer, is_float, is_number
+from klongpy.core import kg_argsort
+from klongpy.backends import get_backend
 from utils import die
 from backend_compat import requires_object_dtype, requires_strings
+
+# Get backend for type checking functions
+_backend = get_backend()
+is_integer = _backend.is_integer
+is_float = _backend.is_float
+is_number = _backend.is_number
 
 class TestUtil(unittest.TestCase):
 
@@ -233,10 +240,10 @@ class TestUtil(unittest.TestCase):
 
     def test_argsort(self):
         a = [1,3,4,2]
-        self.assertTrue(kg_equal(kg_argsort(a), [0, 3, 1, 2]))
-        self.assertTrue(kg_equal(kg_argsort(a,descending=True), [2, 1, 3, 0]))
+        self.assertTrue(_backend.kg_equal(kg_argsort(a, _backend), [0, 3, 1, 2]))
+        self.assertTrue(_backend.kg_equal(kg_argsort(a, _backend, descending=True), [2, 1, 3, 0]))
         a = [[1],[2],[],[3]]
-        self.assertTrue(kg_equal(kg_argsort(a,descending=True), [3, 1, 0, 2]))
+        self.assertTrue(_backend.kg_equal(kg_argsort(a, _backend, descending=True), [3, 1, 0, 2]))
 
 
 if __name__ == '__main__':

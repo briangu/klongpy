@@ -1,7 +1,15 @@
 import unittest
 import numpy
 
-from klongpy.backend import is_supported_type, is_jagged_array, np, use_torch, TorchUnsupportedDtypeError
+from klongpy.backend import is_supported_type, is_jagged_array, np, TorchUnsupportedDtypeError
+from klongpy.backends import get_backend
+
+# Check if torch is available
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 # numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
 from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
@@ -100,213 +108,223 @@ class TestNumpyBackend(unittest.TestCase):
 class TestTorchBackend(unittest.TestCase):
     """Tests specific to PyTorch backend behavior."""
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @classmethod
+    def setUpClass(cls):
+        """Get torch backend for testing."""
+        if TORCH_AVAILABLE:
+            cls.torch_backend = get_backend('torch')
+            cls.np = cls.torch_backend.np
+        else:
+            cls.torch_backend = None
+            cls.np = None
+
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_object_dtype_raises_error(self):
         """Test that object dtype raises TorchUnsupportedDtypeError."""
         with self.assertRaises(TorchUnsupportedDtypeError):
-            np.asarray([1, "string", 3], dtype=object)
+            self.np.asarray([1, "string", 3], dtype=object)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_numeric_array_works(self):
         """Test that numeric arrays work in torch mode."""
-        arr = np.asarray([1, 2, 3])
+        arr = self.np.asarray([1, 2, 3])
         self.assertEqual(len(arr), 3)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_isarray_with_tensor(self):
         """Test that isarray detects torch tensors."""
         import torch
         tensor = torch.tensor([1, 2, 3])
-        self.assertTrue(np.isarray(tensor))
+        self.assertTrue(self.np.isarray(tensor))
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_device_selection(self):
         """Test that a device is selected."""
-        self.assertIsNotNone(np.device)
+        self.assertIsNotNone(self.np.device)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_zeros(self):
         """Test zeros creation."""
-        arr = np.zeros((3, 3))
+        arr = self.np.zeros((3, 3))
         self.assertEqual(arr.shape, (3, 3))
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_ones(self):
         """Test ones creation."""
-        arr = np.ones((2, 2))
+        arr = self.np.ones((2, 2))
         self.assertEqual(arr.shape, (2, 2))
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_arange(self):
         """Test arange creation."""
-        arr = np.arange(5)
+        arr = self.np.arange(5)
         self.assertEqual(len(arr), 5)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_concatenate(self):
         """Test concatenate operation."""
-        a = np.asarray([1, 2, 3])
-        b = np.asarray([4, 5, 6])
-        result = np.concatenate([a, b])
+        a = self.np.asarray([1, 2, 3])
+        b = self.np.asarray([4, 5, 6])
+        result = self.np.concatenate([a, b])
         self.assertEqual(len(result), 6)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_hstack(self):
         """Test hstack operation."""
-        a = np.asarray([1, 2, 3])
-        b = np.asarray([4, 5, 6])
-        result = np.hstack([a, b])
+        a = self.np.asarray([1, 2, 3])
+        b = self.np.asarray([4, 5, 6])
+        result = self.np.hstack([a, b])
         self.assertEqual(len(result), 6)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_vstack(self):
         """Test vstack operation."""
-        a = np.asarray([[1, 2, 3]])
-        b = np.asarray([[4, 5, 6]])
-        result = np.vstack([a, b])
+        a = self.np.asarray([[1, 2, 3]])
+        b = self.np.asarray([[4, 5, 6]])
+        result = self.np.vstack([a, b])
         self.assertEqual(result.shape, (2, 3))
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_stack(self):
         """Test stack operation."""
-        a = np.asarray([1, 2, 3])
-        b = np.asarray([4, 5, 6])
-        result = np.stack([a, b])
+        a = self.np.asarray([1, 2, 3])
+        b = self.np.asarray([4, 5, 6])
+        result = self.np.stack([a, b])
         self.assertEqual(result.shape, (2, 3))
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_copy(self):
         """Test copy operation."""
-        a = np.asarray([1, 2, 3])
-        b = np.copy(a)
+        a = self.np.asarray([1, 2, 3])
+        b = self.np.copy(a)
         self.assertEqual(len(b), 3)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_isclose(self):
         """Test isclose operation."""
-        result = np.isclose(1.0, 1.0 + 1e-9)
+        result = self.np.isclose(1.0, 1.0 + 1e-9)
         self.assertTrue(result)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_array_equal(self):
         """Test array_equal operation."""
-        a = np.asarray([1, 2, 3])
-        b = np.asarray([1, 2, 3])
-        self.assertTrue(np.array_equal(a, b))
+        a = self.np.asarray([1, 2, 3])
+        b = self.np.asarray([1, 2, 3])
+        self.assertTrue(self.np.array_equal(a, b))
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_add(self):
         """Test add operation."""
-        a = np.asarray([1, 2, 3])
-        b = np.asarray([4, 5, 6])
-        result = np.add(a, b)
+        a = self.np.asarray([1, 2, 3])
+        b = self.np.asarray([4, 5, 6])
+        result = self.np.add(a, b)
         self.assertEqual(len(result), 3)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_subtract(self):
         """Test subtract operation."""
-        a = np.asarray([4, 5, 6])
-        b = np.asarray([1, 2, 3])
-        result = np.subtract(a, b)
+        a = self.np.asarray([4, 5, 6])
+        b = self.np.asarray([1, 2, 3])
+        result = self.np.subtract(a, b)
         self.assertEqual(len(result), 3)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_multiply(self):
         """Test multiply operation."""
-        a = np.asarray([1, 2, 3])
-        b = np.asarray([4, 5, 6])
-        result = np.multiply(a, b)
+        a = self.np.asarray([1, 2, 3])
+        b = self.np.asarray([4, 5, 6])
+        result = self.np.multiply(a, b)
         self.assertEqual(len(result), 3)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_divide(self):
         """Test divide operation."""
-        a = np.asarray([4.0, 6.0, 8.0])
-        b = np.asarray([2.0, 2.0, 2.0])
-        result = np.divide(a, b)
+        a = self.np.asarray([4.0, 6.0, 8.0])
+        b = self.np.asarray([2.0, 2.0, 2.0])
+        result = self.np.divide(a, b)
         self.assertEqual(len(result), 3)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_inf_property(self):
         """Test inf property."""
-        self.assertEqual(np.inf, float('inf'))
+        self.assertEqual(self.np.inf, float('inf'))
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_seterr(self):
         """Test seterr (should be no-op)."""
-        np.seterr(divide='ignore')  # Should not raise
+        self.np.seterr(divide='ignore')  # Should not raise
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_ndarray_property(self):
         """Test ndarray property returns Tensor class."""
         import torch
-        self.assertEqual(np.ndarray, torch.Tensor)
+        self.assertEqual(self.np.ndarray, torch.Tensor)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_integer_property(self):
         """Test integer property."""
-        self.assertEqual(np.integer, numpy.integer)
+        self.assertEqual(self.np.integer, numpy.integer)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_floating_property(self):
         """Test floating property."""
-        self.assertEqual(np.floating, numpy.floating)
+        self.assertEqual(self.np.floating, numpy.floating)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_asarray_with_object_dtype_kind(self):
         """Test asarray rejects dtype with kind 'O'."""
         class FakeDtype:
             kind = 'O'
         with self.assertRaises(TorchUnsupportedDtypeError):
-            np.asarray([1, 2, 3], dtype=FakeDtype())
+            self.np.asarray([1, 2, 3], dtype=FakeDtype())
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_asarray_with_numpy_object_array(self):
         """Test asarray rejects numpy object arrays."""
         obj_arr = numpy.array([1, "a", 2], dtype=object)
         with self.assertRaises(TorchUnsupportedDtypeError):
-            np.asarray(obj_arr)
+            self.np.asarray(obj_arr)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_array_method(self):
         """Test array method."""
-        arr = np.array([1, 2, 3])
+        arr = self.np.array([1, 2, 3])
         self.assertEqual(len(arr), 3)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_take(self):
         """Test take operation."""
-        a = np.asarray([1, 2, 3, 4, 5])
-        indices = np.asarray([0, 2, 4])
-        result = np.take(a, indices)
+        a = self.np.asarray([1, 2, 3, 4, 5])
+        indices = self.np.asarray([0, 2, 4])
+        result = self.np.take(a, indices)
         self.assertEqual(len(result), 3)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_take_with_axis(self):
         """Test take operation with axis."""
-        a = np.asarray([[1, 2], [3, 4], [5, 6]])
-        indices = np.asarray([0, 2])
-        result = np.take(a, indices, axis=0)
+        a = self.np.asarray([[1, 2], [3, 4], [5, 6]])
+        indices = self.np.asarray([0, 2])
+        result = self.np.take(a, indices, axis=0)
         self.assertEqual(result.shape, (2, 2))
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_getattr_torch_function(self):
         """Test __getattr__ delegates to torch."""
         # sin is a torch function
-        result = np.sin(np.asarray([0.0]))
+        result = self.np.sin(self.np.asarray([0.0]))
         self.assertEqual(len(result), 1)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_getattr_numpy_fallback(self):
         """Test __getattr__ falls back to numpy for missing torch attrs."""
         # VisibleDeprecationWarning is a numpy attribute (moved to numpy.exceptions in 2.x)
-        self.assertEqual(np.VisibleDeprecationWarning, NumpyVisibleDeprecationWarning)
+        self.assertEqual(self.np.VisibleDeprecationWarning, NumpyVisibleDeprecationWarning)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_getattr_missing(self):
         """Test __getattr__ raises AttributeError for missing attributes."""
         with self.assertRaises(AttributeError):
-            _ = np.nonexistent_attribute_xyz123
+            _ = self.np.nonexistent_attribute_xyz123
 
 
 class TestTorchUnsupportedDtypeError(unittest.TestCase):
@@ -334,58 +352,54 @@ class TestTorchUnsupportedDtypeError(unittest.TestCase):
 class TestCoreWithTorch(unittest.TestCase):
     """Tests for core.py torch-related code."""
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_kg_asarray_string_returns_char_array(self):
         """Test that kg_asarray converts strings to char arrays in torch mode."""
-        from klongpy.backend import kg_asarray
-        result = kg_asarray("hello")
+        backend = get_backend('torch')
+        result = backend.kg_asarray("hello")
         # Strings are converted to numpy char arrays for Klong compatibility
         self.assertEqual(len(result), 5)
         self.assertEqual(list(result), ['h', 'e', 'l', 'l', 'o'])
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_str_to_chr_arr_fails(self):
         """Test that str_to_chr_arr fails in torch mode."""
-        from klongpy.backend import str_to_chr_arr
+        backend = get_backend('torch')
         with self.assertRaises(TorchUnsupportedDtypeError):
-            str_to_chr_arr("hello")
+            backend.str_to_chr_arr("hello")
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_kg_asarray_jagged_returns_object_array(self):
         """Test that kg_asarray falls back to object array for jagged arrays."""
-        import numpy as np
-        from klongpy.backend import kg_asarray
-        result = kg_asarray([[1, 2], [3]])
+        backend = get_backend('torch')
+        result = backend.kg_asarray([[1, 2], [3]])
         # Jagged arrays fall back to numpy object arrays
         self.assertEqual(result.dtype, object)
         self.assertEqual(len(result), 2)
 
-    @unittest.skipUnless(use_torch, "PyTorch backend not enabled")
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_kg_asarray_numeric_works(self):
         """Test that kg_asarray works for numeric arrays in torch mode."""
-        from klongpy.backend import kg_asarray
-        result = kg_asarray([1, 2, 3])
+        backend = get_backend('torch')
+        result = backend.kg_asarray([1, 2, 3])
         self.assertEqual(len(result), 3)
 
-    @unittest.skipUnless(not use_torch, "NumPy backend required")
     def test_kg_asarray_string_works_numpy(self):
         """Test that kg_asarray works for strings in numpy mode."""
-        from klongpy.backend import kg_asarray
-        result = kg_asarray("hi")
+        backend = get_backend('numpy')
+        result = backend.kg_asarray("hi")
         self.assertEqual(len(result), 2)
 
-    @unittest.skipUnless(not use_torch, "NumPy backend required")
     def test_kg_asarray_jagged_works_numpy(self):
         """Test that kg_asarray works for jagged arrays in numpy mode."""
-        from klongpy.backend import kg_asarray
-        result = kg_asarray([[1, 2], [3]])
+        backend = get_backend('numpy')
+        result = backend.kg_asarray([[1, 2], [3]])
         self.assertEqual(len(result), 2)
 
-    @unittest.skipUnless(not use_torch, "NumPy backend required")
     def test_kg_asarray_object_dtype_numpy(self):
         """Test that kg_asarray handles object dtype in numpy mode."""
-        from klongpy.backend import kg_asarray
-        result = kg_asarray([1, "a", 2])
+        backend = get_backend('numpy')
+        result = backend.kg_asarray([1, "a", 2])
         self.assertEqual(len(result), 3)
 
 

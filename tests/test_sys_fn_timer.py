@@ -3,7 +3,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from utils import kg_equal, LoopsBase
+from utils import LoopsBase
 
 from klongpy import KlongInterpreter
 from klongpy.core import KGCall, KGSym

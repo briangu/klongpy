@@ -11,3 +11,13 @@ Note, any state that needs to be shared from the primary process can be serializ
 
 Future work: make the marshaling of state from the primary process to worker processes more seamless so that the Klong functions can be expressed in one place - the main code.  The tricky bit is mainly knowing which context to marshal to worker processes - currently this is done manually.
 
+## Run
+
+From this directory:
+
+```bash
+kgpy pool.kg
+kgpy pool_async.kg
+kgpy callback.kg
+kgpy worker/par.kg
+```

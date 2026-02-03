@@ -4,37 +4,26 @@ KlongPy supports multiple array backends. The PyTorch backend enables GPU accele
 
 ## Enabling the PyTorch Backend
 
-Set the `USE_TORCH` environment variable:
+### Command Line
 
 ```bash
-# Enable torch backend
-USE_TORCH=1 python your_script.py
+# Use --backend flag
+kgpy --backend torch
 
-# Or in the REPL
-USE_TORCH=1 kgpy
+# With GPU device selection
+kgpy --backend torch --device cuda
 ```
 
-You can also set:
-
-```bash
-KLONGPY_BACKEND=torch
-```
-
-Or programmatically:
+### Programmatically
 
 ```python
-import os
-os.environ['USE_TORCH'] = '1'
-
 from klongpy import KlongInterpreter
-klong = KlongInterpreter()
+
+# Create interpreter with torch backend
+klong = KlongInterpreter(backend="torch")
 print(klong._backend.name)  # 'torch'
-```
 
-You can also pass the backend directly:
-
-```python
-from klongpy import KlongInterpreter
+# With specific device
 klong = KlongInterpreter(backend="torch", device="cuda")
 ```
 
@@ -42,7 +31,7 @@ klong = KlongInterpreter(backend="torch", device="cuda")
 
 | Feature | NumPy Backend | PyTorch Backend |
 |---------|---------------|-----------------|
-| Default | Yes | No (requires USE_TORCH=1 or KLONGPY_BACKEND=torch) |
+| Default | Yes | No (use `--backend torch`) |
 | Object dtype | Yes | No |
 | String operations | Yes | Not supported |
 | GPU acceleration | No | Yes (CUDA/MPS) |
@@ -110,7 +99,7 @@ The syntax is `point∇function` (note: reversed order from `:>`).
 | `:>` without torch | Numeric | ~1e-6 error | Slower |
 | `∇` (any backend) | Always numeric | ~1e-6 error | Slower |
 
-With the torch backend (`USE_TORCH=1` or `KLONGPY_BACKEND=torch`), prefer `:>` for:
+With the torch backend (`--backend torch` or `backend='torch'`), prefer `:>` for:
 - Exact gradients (no floating-point approximation error)
 - Complex computational graphs
 - Better performance on large arrays
@@ -279,10 +268,8 @@ When CUDA or Apple MPS is available, tensors automatically use GPU:
 
 ```python
 from klongpy import KlongInterpreter
-import os
-os.environ['USE_TORCH'] = '1'
 
-klong = KlongInterpreter()
+klong = KlongInterpreter(backend='torch')
 print(klong._backend.device)  # 'cuda:0', 'mps:0', or 'cpu'
 ```
 
@@ -305,10 +292,8 @@ Access torch tensors directly:
 
 ```python
 from klongpy import KlongInterpreter
-import os
-os.environ['USE_TORCH'] = '1'
 
-klong = KlongInterpreter()
+klong = KlongInterpreter(backend='torch')
 
 # KlongPy operations return torch tensors
 result = klong('2*1+!1000000')

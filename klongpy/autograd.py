@@ -1,6 +1,5 @@
 import numpy as np
 from .core import KGLambda, KGCall, KGSym, KGFn
-from .backend import get_default_backend
 
 
 class AutogradError(Exception):
@@ -131,11 +130,16 @@ def grad_of_fn(klong, fn, x):
         return numeric_grad(call_fn, x, backend)
 
 
-def torch_autograd(func, x):
-    """Compute gradient using PyTorch autograd (requires torch backend)."""
-    backend = get_default_backend()
+def torch_autograd(func, x, backend):
+    """Compute gradient using PyTorch autograd (requires torch backend).
+
+    Args:
+        func: Function to differentiate
+        x: Input point
+        backend: Backend provider (must support autograd)
+    """
     if not backend.supports_autograd():
-        raise RuntimeError("PyTorch autograd requires torch backend (USE_TORCH=1)")
+        raise RuntimeError("torch_autograd requires a backend that supports autograd")
     return backend.compute_autograd(func, x)
 
 

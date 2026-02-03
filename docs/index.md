@@ -119,13 +119,10 @@ And let's run a performance comparison between NumPy and PyTorch backends:
 
 ```python
 import time
-import os
 from klongpy import KlongInterpreter
 
 # Use torch backend
-os.environ['USE_TORCH'] = '1'
-
-klong = KlongInterpreter()
+klong = KlongInterpreter(backend='torch')
 klong('avg::{(+/x)%#x}')
 
 # Create large array
@@ -141,7 +138,7 @@ print(f"Backend: {klong._backend.name}, Device: {klong._backend.device}")
 
 Run with PyTorch:
 
-    $ USE_TORCH=1 python3 example.py
+    $ python3 example.py
     avg=499999.5 in 0.001234 seconds
     Backend: torch, Device: mps:0
 
@@ -160,7 +157,7 @@ With the PyTorch backend, use the `:>` operator for automatic differentiation:
 [2.0 4.0 6.0]
 ```
 
-Enable the PyTorch backend with `USE_TORCH=1` or `KLONGPY_BACKEND=torch`, or
+Enable the PyTorch backend with `--backend torch` or
 programmatically via `KlongInterpreter(backend="torch", device="cuda")`.
 
 See [PyTorch Backend & Autograd](torch_backend.md) for more details and the [autograd examples](https://github.com/briangu/klongpy/tree/main/examples/autograd) for complete examples including gradient descent and neural networks.
@@ -175,10 +172,10 @@ See [PyTorch Backend & Autograd](torch_backend.md) for more details and the [aut
 
     $ pip3 install "klongpy[torch]"
 
-Then enable with `USE_TORCH=1`:
+Then use the `--backend` flag:
 
-    $ USE_TORCH=1 python your_script.py
-    $ USE_TORCH=1 kgpy
+    $ python your_script.py  # (with KlongInterpreter(backend='torch'))
+    $ kgpy --backend torch
 
 ### All application tools (db, web, REPL, websockets, etc.)
 

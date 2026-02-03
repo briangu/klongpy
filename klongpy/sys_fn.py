@@ -12,23 +12,21 @@ from inspect import Parameter
 import numpy
 
 from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
-                   is_dict, is_empty, is_list, kg_read, kg_write, np,
+                   is_dict, is_empty, is_list, kg_read, kg_read_array, kg_write, np,
                    reserved_fn_args, reserved_fn_symbol_map, safe_eq, safe_inspect)
-from .backend import to_numpy, get_default_backend, kg_asarray
 
 
-def _to_display_value(x):
+def _to_display_value(x, backend):
     """Convert backend tensors to numpy for cleaner display."""
-    backend = get_default_backend()
     # Convert backend arrays (tensors) to numpy
     if backend.is_backend_array(x):
-        return to_numpy(x)
+        return backend.to_numpy(x)
     # Handle numpy arrays with tensors inside (object arrays)
     if isinstance(x, numpy.ndarray) and x.dtype == object:
-        return numpy.array([_to_display_value(item) for item in x], dtype=object)
+        return numpy.array([_to_display_value(item, backend) for item in x], dtype=object)
     # Handle lists with tensors
     if isinstance(x, list):
-        return [_to_display_value(item) for item in x]
+        return [_to_display_value(item, backend) for item in x]
     return x
 
 
@@ -67,7 +65,7 @@ def eval_sys_display(klong, x):
         Use .bkd() for raw backend-specific display.
 
     """
-    x = _to_display_value(x)
+    x = _to_display_value(x, klong._backend)
     r = kg_write(x, klong._backend, display=True)
     klong['.sys.cout'].raw.write(r)
     return r
@@ -307,7 +305,7 @@ def eval_sys_print(klong, x):
         Use .bkp() for raw backend-specific print.
 
     """
-    x = _to_display_value(x)
+    x = _to_display_value(x, klong._backend)
     o = kg_write(x, klong._backend, display=True)
     klong['.sys.cout'].raw.write(o+"\n")
     return o
@@ -718,7 +716,7 @@ def eval_sys_read(klong):
         f.at_eof = True
         return None
     else:
-        i,a = kg_read(r,i=0,module=klong.current_module())
+        i,a = kg_read_array(r, 0, klong._backend, module=klong.current_module())
         f.raw.seek(k+i,0)
         return a
 
@@ -753,7 +751,7 @@ def eval_sys_read_lines(klong):
     f = klong['.sys.cin']
     r = f.raw.readlines()
     f.at_eof = True
-    return kg_asarray(r)
+    return klong._backend.kg_asarray(r)
 
 
 def eval_sys_read_string(klong, x):
@@ -767,7 +765,8 @@ def eval_sys_read_string(klong, x):
         forms.
 
     """
-    return kg_read(x, i=0, module=klong.current_module(), read_neg=True)[1]
+    _, a = kg_read_array(x, 0, klong._backend, module=klong.current_module(), read_neg=True)
+    return a
 
 
 def eval_sys_system(x):

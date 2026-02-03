@@ -21,7 +21,7 @@ pip install yfinance
 All examples require the torch backend for autograd:
 
 ```bash
-USE_TORCH=1 kgpy <example>.kg
+kgpy --backend torch <example>.kg
 ```
 
 ---
@@ -53,7 +53,7 @@ USE_TORCH=1 kgpy <example>.kg
 
 **Run:**
 ```bash
-USE_TORCH=1 kgpy basic_gradient.kg
+kgpy --backend torch basic_gradient.kg
 ```
 
 **Expected output:**
@@ -75,7 +75,7 @@ Gradient of x^3 at x=2: 12.0
 
 **Run:**
 ```bash
-USE_TORCH=1 kgpy numeric_vs_autograd.kg
+kgpy --backend torch numeric_vs_autograd.kg
 ```
 
 **Expected output:**
@@ -96,7 +96,7 @@ Autograd gradient (:>): 6.0
 
 **Run:**
 ```bash
-USE_TORCH=1 kgpy gradient_descent.kg
+kgpy --backend torch gradient_descent.kg
 ```
 
 **Expected output:**
@@ -119,7 +119,7 @@ After 100 steps: x = 4.999...
 
 **Run:**
 ```bash
-USE_TORCH=1 kgpy linear_regression.kg
+kgpy --backend torch linear_regression.kg
 ```
 
 **Expected output:**
@@ -142,7 +142,7 @@ Learned w: ~2.0, b: ~1.0
 
 **Run:**
 ```bash
-USE_TORCH=1 kgpy neural_net.kg
+kgpy --backend torch neural_net.kg
 ```
 
 **Expected output:**
@@ -167,7 +167,7 @@ Predictions vs actual sin values
 
 **Run:**
 ```bash
-USE_TORCH=1 kgpy portfolio_opt.kg
+kgpy --backend torch portfolio_opt.kg
 ```
 
 **Expected output:**
@@ -213,7 +213,7 @@ Weight allocation:
 
 **Run:**
 ```bash
-USE_TORCH=1 kgpy optimizer_demo.kg
+kgpy --backend torch optimizer_demo.kg
 ```
 
 **Expected output:**
@@ -246,7 +246,7 @@ Final: a=0.00007, c=0.00004
 
 **Run:**
 ```bash
-USE_TORCH=1 kgpy black_scholes_greeks.kg
+kgpy --backend torch black_scholes_greeks.kg
 ```
 
 **Expected output:**
@@ -296,7 +296,7 @@ Autograd computes exact derivatives automatically!
 
 **Run:**
 ```bash
-USE_TORCH=1 kgpy black_scholes_live.kg
+kgpy --backend torch black_scholes_live.kg
 ```
 
 **Expected output:**
@@ -352,7 +352,7 @@ Small differences are expected due to:
 
 **Run:**
 ```bash
-USE_TORCH=1 kgpy differentiable_physics.kg
+kgpy --backend torch differentiable_physics.kg
 ```
 
 **Expected output:**
@@ -469,7 +469,7 @@ b::b-(0.1*grads@1)
 
 ## Performance Notes
 
-With `USE_TORCH=1`:
+With `--backend torch`:
 - Exact gradients via PyTorch autograd
 - GPU acceleration (CUDA/MPS) for large arrays
 - Optimized tensor operations
@@ -487,7 +487,7 @@ Without torch:
 
 **Run:**
 ```bash
-USE_TORCH=1 kgpy gradcheck_demo.kg
+kgpy --backend torch gradcheck_demo.kg
 ```
 
 **Expected output:**
@@ -520,7 +520,7 @@ All gradient checks passed!
 
 **Run:**
 ```bash
-USE_TORCH=1 kgpy compile_demo.kg
+kgpy --backend torch compile_demo.kg
 ```
 
 **Expected output:**

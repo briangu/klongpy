@@ -1,8 +1,13 @@
 import unittest
 from klongpy import KlongInterpreter
 from utils import *
-from klongpy.backend import np, use_torch
+from klongpy.backend import np
+from klongpy.backends import get_backend
+from backend_compat import requires_numpy_backend
 import numpy
+
+# Get backend for kg_equal (always numpy for these tests)
+_backend = get_backend('numpy')
 
 
 class Executed:
@@ -39,7 +44,8 @@ def get_reduce_data(data):
 
 # This approach isn't great because any usage of the thunked method will pass
 # We need a way to intercept the real call
-@unittest.skipIf(use_torch, "Test class requires numpy backend (uses ufunc monkey-patching)")
+# Note: These tests use numpy ufunc monkey-patching, so only work with numpy backend
+@requires_numpy_backend
 class TestAccelerate(unittest.TestCase):
     """
     Verify that we are actually running the adverb_over accelerated paths for cases that we can.
@@ -57,7 +63,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('+/data')
         finally:
             np.add = e.fn
-        self.assertTrue(kg_equal(r, numpy.add.reduce(get_reduce_data(data))))
+        self.assertTrue(_backend.kg_equal(r, numpy.add.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     def test_over_add_array(self):
@@ -85,7 +91,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('-/data')
         finally:
             np.subtract = e.fn
-        self.assertTrue(kg_equal(r, numpy.subtract.reduce(get_reduce_data(data))))
+        self.assertTrue(_backend.kg_equal(r, numpy.subtract.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     def test_over_subtract(self):
@@ -113,7 +119,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('*/data')
         finally:
             np.multiply = e.fn
-        self.assertTrue(kg_equal(r, numpy.multiply.reduce(get_reduce_data(data))))
+        self.assertTrue(_backend.kg_equal(r, numpy.multiply.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     def test_over_multipy(self):
@@ -141,7 +147,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('%/data')
         finally:
             np.divide = e.fn
-        self.assertTrue(kg_equal(r, numpy.divide.reduce(get_reduce_data(data))))
+        self.assertTrue(_backend.kg_equal(r, numpy.divide.reduce(get_reduce_data(data))))
         self.assertTrue(e.executed)
 
     def test_over_divide(self):
@@ -171,7 +177,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('&/[[1 2 3] [4 5 6]]')
         finally:
             np.min = e.fn
-        self.assertTrue(kg_equal(r, [1,2,3]))
+        self.assertTrue(_backend.kg_equal(r, [1,2,3]))
         self.assertFalse(e.executed)
 
     def test_over_min(self):
@@ -195,7 +201,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong('|/[[1 2 3] [4 5 6]]')
         finally:
             np.max = e.fn
-        self.assertTrue(kg_equal(r, [4,5,6]))
+        self.assertTrue(_backend.kg_equal(r, [4,5,6]))
         self.assertFalse(e.executed)
 
     def test_over_max(self):
@@ -222,7 +228,7 @@ class TestAccelerate(unittest.TestCase):
             r = klong(',/:~[[1] [2] [3]]')
         finally:
             np.concatenate = e.fn
-        self.assertTrue(kg_equal(r, [1,2,3]))
+        self.assertTrue(_backend.kg_equal(r, [1,2,3]))
         self.assertTrue(e.executed)
 
 

@@ -22,7 +22,8 @@ class NumpyBackendProvider(BackendProvider):
     """NumPy-based backend provider."""
 
     def __init__(self, device=None):
-        # device parameter is ignored for numpy backend (accepted for API consistency)
+        if device is not None:
+            raise ValueError("Backend 'numpy' does not support device selection")
         self._np = np
         np.seterr(divide='ignore')
         warnings.filterwarnings("error", category=NumpyVisibleDeprecationWarning)
