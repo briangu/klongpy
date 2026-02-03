@@ -199,6 +199,14 @@ class BackendProvider(ABC):
         import numpy as np
         return np.asarray(a, dtype=int) if self.is_array(a) else int(a)
 
+    def floor_to_int(self, a):
+        """
+        Floor a value and convert to integer.
+        """
+        import numpy as np
+        result = np.floor(np.asarray(a, dtype=float))
+        return result.astype(int) if hasattr(result, 'astype') else int(result)
+
     def power(self, a, b):
         """
         Compute a^b, handling gradient tracking if applicable.

@@ -116,17 +116,7 @@ def eval_monad_floor(a, backend):
                   _1e100  -->  1.0e+100  :"if precision < 100 digits"
 
     """
-    def _floor_to_int(x):
-        if backend.is_backend_array(x):
-            x = backend.to_numpy(x)
-        result = np.floor(np.asarray(x, dtype=float))
-        # Handle both numpy arrays and torch tensors
-        if hasattr(result, 'astype'):
-            return result.astype(int)
-        elif hasattr(result, 'to'):  # torch tensor - .to(int) works
-            return result.to(int)
-        return int(result)
-    return backend.vec_fn(a, _floor_to_int)
+    return backend.vec_fn(a, backend.floor_to_int)
 
 
 def eval_monad_format(a, backend):

@@ -656,6 +656,12 @@ class TorchBackendProvider(BackendProvider):
             return a.to(int)
         return numpy.asarray(a, dtype=int) if isinstance(a, numpy.ndarray) else int(a)
 
+    def floor_to_int(self, a):
+        """Floor a value and convert to integer."""
+        if not isinstance(a, torch.Tensor):
+            a = self.kg_asarray(a)
+        return torch.floor(a.float()).to(int)
+
     def power(self, a, b):
         """Compute a^b, handling gradient tracking for torch tensors."""
         if isinstance(a, torch.Tensor):
