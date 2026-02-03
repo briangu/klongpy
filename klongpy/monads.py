@@ -49,7 +49,7 @@ def eval_monad_enumerate(a, backend):
     """
     if not backend.is_integer(a):
         raise RuntimeError(f"enumerate: invalid type error: {a}")
-    return np.arange(int(a))
+    return bknp.arange(int(a))
 
 
 def eval_monad_expand_where(a):
@@ -76,7 +76,7 @@ def eval_monad_expand_where(a):
 
     """
     arr = a if is_list(a) else [a]
-    return np.repeat(np.arange(len(arr)), arr)
+    return bknp.repeat(bknp.arange(len(arr)), arr)
 
 
 def eval_monad_first(a):
@@ -116,15 +116,7 @@ def eval_monad_floor(a, backend):
                   _1e100  -->  1.0e+100  :"if precision < 100 digits"
 
     """
-    def _floor_to_int(x):
-        result = np.floor(np.asarray(x, dtype=float))
-        # Handle both numpy arrays and torch tensors
-        if hasattr(result, 'astype'):
-            return result.astype(int)
-        elif hasattr(result, 'to'):  # torch tensor - .to(int) works
-            return result.to(int)
-        return int(result)
-    return backend.vec_fn(a, _floor_to_int)
+    return backend.vec_fn(a, backend.floor_to_int)
 
 
 def eval_monad_format(a, backend):
@@ -207,8 +199,8 @@ def eval_monad_groupby(a, backend):
     arr = backend.kg_asarray(a)
     if backend.array_size(arr) == 0:
         return arr
-    vals, inverse = np.unique(arr, return_inverse=True)
-    groups = [np.where(inverse == i)[0] for i in range(len(vals))]
+    vals, inverse = bknp.unique(arr, return_inverse=True)
+    groups = [bknp.where(inverse == i)[0] for i in range(len(vals))]
     return backend.kg_asarray(groups)
 
 
@@ -261,7 +253,7 @@ def eval_monad_not(a, backend):
 
     """
     def _neg(x):
-        return 1 if is_empty(x) else 0 if is_dict(x) or isinstance(x, (KGFn, KGSym)) else kg_truth(np.logical_not(np.asarray(x, dtype=object)))
+        return 1 if is_empty(x) else 0 if is_dict(x) or isinstance(x, (KGFn, KGSym)) else kg_truth(bknp.logical_not(bknp.asarray(x, dtype=object)))
     return backend.vec_fn(a, _neg) if not is_empty(a) else _neg(a)
 
 
@@ -280,13 +272,13 @@ def eval_monad_range(a, backend):
     """
     np_backend = backend.np
     if isinstance(a, str):
-        return ''.join(np.unique(backend.str_to_chr_arr(a)))
+        return ''.join(bknp.unique(backend.str_to_chr_arr(a)))
     elif np_backend.isarray(a):
         dtype_kind = backend.get_dtype_kind(a)
         if dtype_kind != 'O' and a.ndim > 1:
-            # For torch, use numpy for unique with return_index
+            # Use numpy for unique with return_index across backends
             a_np = backend.to_numpy(a) if backend.is_backend_array(a) else a
-            _, ids = np.unique(a_np, axis=0, return_index=True)
+            _, ids = bknp.unique(a_np, axis=0, return_index=True)
             ids.sort()
             return a[ids]
         else:
@@ -317,7 +309,11 @@ def eval_monad_reciprocal(a, backend):
                    %0.1  -->  10.0
 
     """
-    return backend.vec_fn(a, lambda x: np.reciprocal(np.asarray(x,dtype=float)))
+    if not is_list(a) and backend.is_number(a):
+        a_val = backend.scalar_to_python(a) if backend.is_backend_array(a) else a
+        if a_val == 0:
+            return KLONG_UNDEFINED
+    return backend.vec_fn(a, lambda x: bknp.reciprocal(bknp.asarray(x, dtype=float)))
 
 
 def eval_monad_reverse(a):
@@ -337,7 +333,7 @@ def eval_monad_reverse(a):
     return a[::-1]
 
 
-def eval_monad_shape(a):
+def eval_monad_shape(a, backend):
     """
 
         ^a                                                       [Shape]
@@ -389,9 +385,17 @@ def eval_monad_shape(a):
 
     """
 
+    def _normalize_backend_array(x):
+        return backend.to_numpy(x) if backend.is_backend_array(x) else x
+
     def _a(x): # use numpy's natural shape by replacing all strings with arrays
-        return np.asarray([np.empty(len(y)) if isinstance(y,str) else (_a(y) if is_list(y) else y) for y in x])
-    return 0 if is_atom(a) else np.asarray([len(a)]) if isinstance(a,str) else np.asarray(_a(a).shape)
+        x = _normalize_backend_array(x)
+        return bknp.asarray([
+            bknp.empty(len(y)) if isinstance(y, str) else (_a(y) if is_list(y) else _normalize_backend_array(y))
+            for y in x
+        ])
+    a = _normalize_backend_array(a)
+    return 0 if is_atom(a) else bknp.asarray([len(a)]) if isinstance(a, str) else bknp.asarray(_a(a).shape)
 
 
 def eval_monad_size(a, backend):
@@ -428,7 +432,7 @@ def eval_monad_transpose(a):
                                  +[]  -->  []
 
     """
-    return np.transpose(np.asarray(a))
+    return bknp.transpose(bknp.asarray(a))
 
 
 def eval_monad_undefined(a, backend):
@@ -446,7 +450,7 @@ def eval_monad_undefined(a, backend):
                       :_:valid  -->  0
 
     """
-    return kg_truth(a is None or (backend.np.isinf(a) if backend.is_number(a) else False))
+    return kg_truth(a is None or a is KLONG_UNDEFINED)
 
 
 def eval_monad_track(a):
@@ -480,7 +484,6 @@ def create_monad_functions(klong):
         '&': eval_monad_expand_where,
         '*': eval_monad_first,
         '|': eval_monad_reverse,
-        '^': eval_monad_shape,
         '+': eval_monad_transpose,
         '˙': eval_monad_track,
     }
@@ -501,6 +504,7 @@ def create_monad_functions(klong):
         '%': lambda a: eval_monad_reciprocal(a, backend),
         '#': lambda a: eval_monad_size(a, backend),
         ':_': lambda a: eval_monad_undefined(a, backend),
+        '^': lambda a: eval_monad_shape(a, backend),
     }
 
     # Monads needing klong

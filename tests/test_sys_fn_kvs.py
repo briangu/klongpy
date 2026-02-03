@@ -3,9 +3,9 @@ import shutil
 import tempfile
 import unittest
 
-import numpy as np
 import pandas as pd
 
+from klongpy.core import KLONG_UNDEFINED
 from klongpy.db.sys_fn_kvs import (
     TableStorage,
     KeyValueStorage,
@@ -41,9 +41,9 @@ class TestTableStorage(unittest.TestCase):
         self.assertIsInstance(result, Table)
         pd.testing.assert_frame_equal(result.get_dataframe(), df)
 
-    def test_get_nonexistent_returns_inf(self):
+    def test_get_nonexistent_returns_undefined(self):
         result = self.storage.get("nonexistent")
-        self.assertEqual(result, np.inf)
+        self.assertIs(result, KLONG_UNDEFINED)
 
     def test_set_non_string_key_raises(self):
         df = pd.DataFrame({'A': [1]})

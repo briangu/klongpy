@@ -1,3 +1,4 @@
+import timeit
 import unittest
 
 import numpy as np
@@ -116,7 +117,6 @@ class TestKGAsArray(unittest.TestCase):
 
 
     def benchmark_kg_asarray(self):
-        import timeit
         x = [[1, 2], [3, 4]]
         print(timeit.timeit(lambda: kg_asarray(x), number=100_000))
 

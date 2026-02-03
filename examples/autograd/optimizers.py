@@ -15,6 +15,8 @@ Or from Python:
         opt(klong['loss'])
 """
 import numpy as np
+
+from klongpy.autograd import multi_grad_of_fn
 from klongpy.core import KGSym, KGFn, KGCall, KGLambda
 
 
@@ -76,8 +78,6 @@ class _SGDOptimizer:
         Returns:
             Loss value before the update
         """
-        from klongpy.autograd import multi_grad_of_fn
-
         # Compute loss before update (for return value)
         if isinstance(loss_fn, KGFn):
             loss = self.klong.call(loss_fn)
@@ -166,8 +166,6 @@ class _AdamOptimizer:
         Returns:
             Loss value before the update
         """
-        from klongpy.autograd import multi_grad_of_fn
-
         self.t += 1
 
         # Compute loss before update

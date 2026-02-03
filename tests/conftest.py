@@ -4,21 +4,30 @@ Pytest configuration and fixtures for KlongPy tests.
 Provides fixtures for running tests against multiple backends.
 
 Usage:
-    pytest tests/                              # Run with numpy backend (default)
-    pytest tests/ --backend torch              # Run with torch backend
-    pytest tests/ --backend torch --device cpu # Run torch on CPU
-    pytest tests/ --backend torch --device cuda # Run torch on CUDA
+    pytest tests/                                   # Run with numpy backend (default)
+    pytest tests/ --backend torch                   # Run with torch backend
+    pytest tests/ --backend torch --device cpu      # Run torch on CPU
+    pytest tests/ --backend torch --device cuda     # Run torch on CUDA
+    pytest tests/ --backend test_backend            # Run with test backend
 """
-import pytest
-import numpy as np
+import importlib
+import importlib.util
 import os
 
-# Check torch availability once at module load
-try:
-    import torch
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
+import numpy as np
+import pytest
+
+import klongpy
+from klongpy import KlongInterpreter
+from klongpy.backends.registry import register_backend
+from tests.custom_backend import TestBackendProvider
+
+_TORCH_SPEC = importlib.util.find_spec("torch")
+torch = importlib.import_module("torch") if _TORCH_SPEC else None
+TORCH_AVAILABLE = torch is not None
+
+# Ensure the test backend is available for selection.
+register_backend('test_backend', TestBackendProvider)
 
 # Globals to store selected backend/device for monkeypatching
 _TEST_BACKEND = None
@@ -35,8 +44,8 @@ def pytest_addoption(parser):
         "--backend",
         action="store",
         default="numpy",
-        choices=["numpy", "torch"],
-        help="Backend to use for tests: numpy (default) or torch"
+        choices=["numpy", "torch", "test_backend"],
+        help="Backend to use for tests: numpy (default), torch, or test_backend"
     )
     parser.addoption(
         "--device",
@@ -58,7 +67,6 @@ def pytest_configure(config):
         os.environ[_ENV_VAR_DEVICE] = _TEST_DEVICE
 
     # Monkeypatch KlongInterpreter to use selected backend/device by default
-    import klongpy
     _original_init = klongpy.KlongInterpreter.__init__
 
     def _patched_init(self, *args, backend=None, device=None, **kwargs):
@@ -74,6 +82,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "numpy_only: test only runs with numpy backend")
     config.addinivalue_line("markers", "torch_only: test only runs with torch backend")
     config.addinivalue_line("markers", "slow: test is slow")
+
 
 
 def get_backend_name(config):
@@ -124,7 +133,6 @@ def klong(request):
             result = klong('1+2')
             assert result == 3
     """
-    from klongpy import KlongInterpreter
     backend_name = get_backend_name(request.config)
     device = get_device(request.config)
     return KlongInterpreter(backend=backend_name, device=device)
@@ -139,7 +147,6 @@ def klong_numpy(request):
     """
     if get_backend_name(request.config) == 'torch':
         pytest.skip("Requires numpy backend (run without --backend torch)")
-    from klongpy import KlongInterpreter
     return KlongInterpreter(backend='numpy')
 
 
@@ -154,7 +161,6 @@ def klong_torch(request):
         pytest.skip("Requires torch backend (run with --backend torch)")
     if not TORCH_AVAILABLE:
         pytest.skip("PyTorch not installed")
-    from klongpy import KlongInterpreter
     device = get_device(request.config)
     return KlongInterpreter(backend='torch', device=device)
 
@@ -174,5 +180,3 @@ def to_scalar(x):
     if isinstance(x, np.ndarray) and x.ndim == 0:
         return x.item()
     return float(x) if np.isscalar(x) else x
-
-

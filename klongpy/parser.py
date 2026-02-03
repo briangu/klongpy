@@ -12,7 +12,7 @@ import copy
 from .types import (
     KGSym, KGChar, KGOp, KGCond, KGCall, KGLambda,
     reserved_fn_symbol_map,
-    safe_eq, is_symbolic
+    safe_eq, is_symbolic, is_adverb
 )
 
 
@@ -319,7 +319,6 @@ def read_cond(klong, t, i=0):
 # Adverb peeking
 
 def peek_adverb(t, i=0):
-    from .types import is_adverb
     x = cpeek2(t, i)
     if is_adverb(x):
         return i+2, x

@@ -8,9 +8,20 @@ Run with the --backend option:
 The same test logic works for both numeric differentiation (numpy) and
 exact autograd (torch), with appropriate tolerances.
 """
-import pytest
+import importlib
+import os
+import tempfile
+
 import numpy as np
+import pytest
+
 from conftest import to_numpy, to_scalar, TORCH_AVAILABLE
+from klongpy.autograd import NonScalarLossError, grad_of_fn, numeric_grad
+from klongpy.backends import get_backend
+from klongpy.core import KGSym
+from utils import torch_autograd
+
+torch = importlib.import_module("torch") if TORCH_AVAILABLE else None
 
 # Tolerance varies by backend and operation
 ATOL_NUMPY = 1e-3   # Numeric differentiation with float64
@@ -163,7 +174,6 @@ class TestErrorHandling:
 
     def test_non_scalar_loss_error(self, klong, backend):
         """Test clear error when loss returns a vector."""
-        from klongpy.autograd import NonScalarLossError
         klong('f::{x^2}')  # Returns array, not scalar
         with pytest.raises(NonScalarLossError) as exc_info:
             klong('f:>[1 2 3]')
@@ -197,9 +207,6 @@ class TestNumpySpecific:
         """Test numeric gradient with custom epsilon."""
         if backend != 'numpy':
             pytest.skip("Requires numpy backend (run without USE_TORCH)")
-
-        from klongpy.autograd import numeric_grad
-        from klongpy.backends import get_backend
         _backend = get_backend()
         result = numeric_grad(lambda x: x[0]**2, np.array([3.0]), _backend, eps=1e-8)
         assert np.isclose(result[0], 6.0, atol=1e-5)
@@ -214,8 +221,6 @@ class TestNumericGradFunction:
         """Test numeric gradient of a scalar function."""
         if backend == 'torch':
             pytest.skip("numeric_grad tests use numpy directly")
-        from klongpy.autograd import numeric_grad
-        from klongpy.backends import get_backend
         _backend = get_backend()
         result = numeric_grad(lambda x: x[0]**2, np.array([3.0]), _backend)
         assert np.isclose(result[0], 6.0, atol=ATOL_NUMPY)
@@ -224,8 +229,6 @@ class TestNumericGradFunction:
         """Test numeric gradient of a multidimensional function."""
         if backend == 'torch':
             pytest.skip("numeric_grad tests use numpy directly")
-        from klongpy.autograd import numeric_grad
-        from klongpy.backends import get_backend
         _backend = get_backend()
         result = numeric_grad(lambda x: np.sum(x**2), np.array([1.0, 2.0, 3.0]), _backend)
         expected = np.array([2.0, 4.0, 6.0])
@@ -235,8 +238,6 @@ class TestNumericGradFunction:
         """Test numeric gradient with 2D array."""
         if backend == 'torch':
             pytest.skip("numeric_grad tests use numpy directly")
-        from klongpy.autograd import numeric_grad
-        from klongpy.backends import get_backend
         _backend = get_backend()
         x = np.array([[1.0, 2.0], [3.0, 4.0]])
         result = numeric_grad(lambda x: np.sum(x**2), x, _backend)
@@ -251,15 +252,12 @@ class TestGradOfFnAPI:
         """Test grad_of_fn with a plain Python callable."""
         if backend == 'torch':
             pytest.skip("Plain Python callable with np.sum doesn't work with torch")
-        from klongpy.autograd import grad_of_fn
         result = to_numpy(grad_of_fn(klong, lambda x: np.sum(x**2), np.array([1.0, 2.0, 3.0])))
         expected = np.array([2.0, 4.0, 6.0])
         np.testing.assert_allclose(result, expected, atol=get_atol(backend))
 
     def test_with_kgsym(self, klong, backend):
         """Test grad_of_fn with a KGSym (symbol reference)."""
-        from klongpy.autograd import grad_of_fn
-        from klongpy.core import KGSym
         klong('f::{+/x^2}')
         fn_sym = KGSym('f')
         result = to_numpy(grad_of_fn(klong, fn_sym, np.array([1.0, 2.0, 3.0])))
@@ -268,8 +266,6 @@ class TestGradOfFnAPI:
 
     def test_with_kgfn(self, klong, backend):
         """Test grad_of_fn with a KGFn."""
-        from klongpy.autograd import grad_of_fn
-        from klongpy.core import KGSym
         klong('f::{+/x^2}')
         fn = klong._context[KGSym('f')]
         result = to_numpy(grad_of_fn(klong, fn, np.array([1.0, 2.0, 3.0])))
@@ -366,7 +362,6 @@ class TestTorchAutogradFunction:
         """Test that torch_autograd raises error when not in torch mode."""
         if backend == 'torch':
             pytest.skip("Test for numpy backend only")
-        from klongpy.autograd import torch_autograd
         with pytest.raises(RuntimeError):
             torch_autograd(lambda x: x**2, np.array([3.0]), klong._backend)
 
@@ -374,8 +369,6 @@ class TestTorchAutogradFunction:
         """Test torch_autograd with tensor input."""
         if backend != 'torch':
             pytest.skip("Requires torch backend")
-        import torch
-        from klongpy.autograd import torch_autograd
         x = torch.tensor([1.0, 2.0, 3.0])
         result = torch_autograd(lambda t: (t**2).sum(), x, klong._backend)
         expected = torch.tensor([2.0, 4.0, 6.0])
@@ -385,7 +378,6 @@ class TestTorchAutogradFunction:
         """Test that torch_autograd raises error for non-scalar output."""
         if backend != 'torch':
             pytest.skip("Requires torch backend")
-        from klongpy.autograd import torch_autograd, NonScalarLossError
         x = np.array([1.0, 2.0, 3.0])
         with pytest.raises(NonScalarLossError):
             torch_autograd(lambda t: t**2, x, klong._backend)
@@ -422,7 +414,6 @@ class TestGradcheck:
         """Test gradcheck() directly on backend."""
         if backend != 'torch':
             pytest.skip("Requires torch backend")
-        import torch
         result = klong._backend.gradcheck(
             lambda x: (x**2).sum(),
             (torch.tensor([1.0, 2.0, 3.0], dtype=torch.float64, requires_grad=True),)
@@ -454,7 +445,6 @@ class TestCompile:
                 pytest.skip(f"torch.compile not available on this system: {e}")
             raise
         # Compiled function should still work
-        import torch
         test_input = torch.tensor(5.0)
         output = result(test_input)
         assert np.isclose(float(output), 25.0, atol=1e-5)
@@ -463,8 +453,6 @@ class TestCompile:
         """Test .export() returns dict with graph info."""
         if backend != 'torch':
             pytest.skip("Requires torch backend")
-        import tempfile
-        import os
         klong('f::{x^2}')
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, 'model.pt2')
@@ -539,7 +527,6 @@ class TestCompileModes:
         # Eager backend should work without C++ compiler
         result = klong('.compilex(f;3.0;:{["backend" "eager"]})')
         # Should return a callable
-        import torch
         test_input = torch.tensor(5.0)
         output = result(test_input)
         assert np.isclose(float(output), 25.0, atol=1e-5)
