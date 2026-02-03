@@ -143,14 +143,12 @@ class BackendProvider(ABC):
 
     def is_integer(self, x) -> bool:
         """Check if x is an integer type (scalar, numpy integer, or 0-dim integer tensor)."""
-        import numpy as np
         if issubclass(type(x), (int, np.integer)):
             return True
         return self.is_scalar_integer(x)
 
     def is_float(self, x) -> bool:
         """Check if x is a float type (scalar, numpy float, int, or 0-dim float tensor)."""
-        import numpy as np
         if issubclass(type(x), (float, np.floating, int)):
             return True
         return self.is_scalar_float(x) or self.is_scalar_integer(x)
@@ -181,7 +179,6 @@ class BackendProvider(ABC):
 
         Returns a truth value (0 or 1) suitable for Klong.
         """
-        import numpy as np
         return np.asarray(x, dtype=object) == np.asarray(y, dtype=object)
 
     def detach_if_needed(self, x):
@@ -196,14 +193,12 @@ class BackendProvider(ABC):
         """
         Convert array to integer type.
         """
-        import numpy as np
         return np.asarray(a, dtype=int) if self.is_array(a) else int(a)
 
     def floor_to_int(self, a):
         """
         Floor a value and convert to integer.
         """
-        import numpy as np
         result = np.floor(np.asarray(a, dtype=float))
         return result.astype(int) if hasattr(result, 'astype') else int(result)
 
@@ -213,7 +208,6 @@ class BackendProvider(ABC):
 
         Returns integer result if the result is a whole number.
         """
-        import numpy as np
         r = np.power(float(a) if isinstance(a, (int, np.integer)) else a, b)
         return r
 
@@ -400,10 +394,9 @@ class BackendProvider(ABC):
         """
         Apply function f to array a, with support for nested object arrays.
         """
-        import numpy
         if self.np.isarray(a) and a.dtype == 'O':
             result = [self.vec_fn(x, f) if self._is_list(x) else f(x) for x in a]
-            return numpy.asarray(result, dtype=object)
+            return np.asarray(result, dtype=object)
         return f(a)
 
     def vec_fn2(self, a, b, f):
@@ -432,8 +425,7 @@ class BackendProvider(ABC):
 
     def _is_list(self, x):
         """Check if x is a list-like structure (array or list, non-empty)."""
-        import numpy
-        if isinstance(x, numpy.ndarray):
+        if isinstance(x, np.ndarray):
             return x.size > 0
         if isinstance(x, (list, tuple)):
             return len(x) > 0
