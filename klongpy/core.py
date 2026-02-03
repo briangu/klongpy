@@ -27,6 +27,8 @@ __all__ = [
     'KGAdverb',
     'KGChar',
     'KGCond',
+    'KGUndefined',
+    'KLONG_UNDEFINED',
     'KGLambda',
     'KGChannel',
     'KGChannelDir',

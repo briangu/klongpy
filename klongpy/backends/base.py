@@ -5,6 +5,7 @@ All backends must implement the BackendProvider interface to ensure
 consistent behavior across numpy, torch, and any future backends.
 """
 from abc import ABC, abstractmethod
+import numpy as np
 
 
 def is_jagged_array(x):
@@ -216,6 +217,10 @@ class BackendProvider(ABC):
         """Whether this backend supports automatic differentiation."""
         return False
 
+    def array_equal(self, a, b) -> bool:
+        """Backend-native exact equality for arrays/tensors."""
+        return bool(np.array_equal(a, b))
+
     def create_grad_tensor(self, x):
         """Create a tensor that tracks gradients. Raises if not supported."""
         raise NotImplementedError("This backend does not support autograd")
@@ -317,67 +322,67 @@ class BackendProvider(ABC):
 
     def kg_equal(self, a, b):
         """Compare two values or arrays for equality, handling nested arrays and tensors."""
-        import numpy
-
         if a is b:
             return True
 
-        # Check for arrays (numpy or backend-specific)
-        is_numpy_a = isinstance(a, numpy.ndarray)
-        is_numpy_b = isinstance(b, numpy.ndarray)
-        is_backend_a = self.is_backend_array(a)
-        is_backend_b = self.is_backend_array(b)
+        # Backend-native comparison for backend arrays
+        if self.is_backend_array(a) and self.is_backend_array(b):
+            return self.array_equal(a, b)
 
-        na, nb = is_numpy_a or is_backend_a, is_numpy_b or is_backend_b
+        # Fast path for numpy arrays (non-object)
+        if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+            if a.dtype != object and b.dtype != object:
+                return bool(np.array_equal(a, b))
 
-        # Handle arrays with same dtype
-        if na and nb:
-            a_dtype = self.get_dtype_kind(a)
-            b_dtype = self.get_dtype_kind(b)
-            if a_dtype == b_dtype and a_dtype != 'O':
-                return bool(numpy.array_equal(a, b))
+        # Mixed backend array comparisons fall back to numpy for safety
+        if self.is_backend_array(a):
+            a = self.to_numpy(a)
+        if self.is_backend_array(b):
+            b = self.to_numpy(b)
 
-        na, nb = na or isinstance(a, list), nb or isinstance(b, list)
+        # Fast path for numpy arrays after conversion
+        if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+            if a.dtype != object and b.dtype != object:
+                return bool(np.array_equal(a, b))
 
-        if na != nb:
-            # One is array/list, the other is not - could be scalar tensor/array vs scalar
-            # Handle comparing 0-dim arrays/tensors with scalars
-            if is_numpy_a and a.ndim == 0 and not nb:
-                return self.kg_equal(a.item(), b)
-            if is_numpy_b and b.ndim == 0 and not na:
-                return self.kg_equal(a, b.item())
-            if is_backend_a and hasattr(a, 'ndim') and a.ndim == 0 and not nb:
-                return self.kg_equal(self.scalar_to_python(a), b)
-            if is_backend_b and hasattr(b, 'ndim') and b.ndim == 0 and not na:
-                return self.kg_equal(a, self.scalar_to_python(b))
-            return False
+        # Normalize 0-d numpy arrays to scalars for mixed comparisons
+        if isinstance(a, np.ndarray) and a.ndim == 0:
+            a = a.item()
+        if isinstance(b, np.ndarray) and b.ndim == 0:
+            b = b.item()
 
-        if na:
-            # Handle 0-dim arrays/tensors - compare as scalars
-            a_is_0d = hasattr(a, 'ndim') and a.ndim == 0
-            b_is_0d = hasattr(b, 'ndim') and b.ndim == 0
-            if a_is_0d or b_is_0d:
-                a_val = self.scalar_to_python(a) if a_is_0d else a
-                b_val = self.scalar_to_python(b) if b_is_0d else b
-                return self.kg_equal(a_val, b_val)
-            return len(a) == len(b) and all(self.kg_equal(x, y) for x, y in zip(a, b))
+        # List/sequence comparison
+        a_is_seq = isinstance(a, (list, tuple)) or (isinstance(a, np.ndarray) and a.ndim > 0)
+        b_is_seq = isinstance(b, (list, tuple)) or (isinstance(b, np.ndarray) and b.ndim > 0)
+        if a_is_seq or b_is_seq:
+            if not (a_is_seq and b_is_seq):
+                return False
+            if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+                def _is_int_scalar(x):
+                    return isinstance(x, (int, bool, np.integer))
+                if len(a) == len(b) and len(a) >= 32 and all(_is_int_scalar(x) for x in a) and all(_is_int_scalar(y) for y in b):
+                    return a == b
+            # Fast path for object numpy arrays when possible
+            if isinstance(a, np.ndarray) and isinstance(b, np.ndarray) and a.dtype == object and b.dtype == object:
+                if a.size >= 128:
+                    try:
+                        return bool(np.array_equal(a, b))
+                    except Exception:
+                        pass
+            if len(a) != len(b):
+                return False
+            return all(self.kg_equal(x, y) for x, y in zip(a, b))
 
+        # Numeric scalars: tolerant comparison
         if self.is_number(a) and self.is_number(b):
-            # Convert tensors to Python scalars for comparison
-            if self.is_backend_array(a):
-                a = self.scalar_to_python(a)
-            if self.is_backend_array(b):
-                b = self.scalar_to_python(b)
-            result = numpy.isclose(a, b)
-            # np.isclose might return an array/tensor, ensure we return bool
+            result = np.isclose(a, b)
             if hasattr(result, 'item'):
                 return bool(result.item())
             return bool(result)
 
+        # Fallback: direct equality
         result = a == b
-        # Handle tensor/array result from comparison
         if hasattr(result, 'all'):
-            # For arrays, check if all elements are equal
             return bool(result.all())
         if hasattr(result, 'item'):
             return bool(result.item())

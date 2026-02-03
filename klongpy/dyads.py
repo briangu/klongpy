@@ -225,6 +225,10 @@ def eval_dyad_divide(a, b, backend):
                   10%8  -->  1.25
 
     """
+    if not is_list(a) and not is_list(b) and backend.is_number(b):
+        b_val = backend.scalar_to_python(b) if backend.is_backend_array(b) or (hasattr(b, 'ndim') and b.ndim == 0) else b
+        if b_val == 0:
+            return KLONG_UNDEFINED
     return backend.np.divide(a, b)
 
 
@@ -332,7 +336,7 @@ def eval_dyad_find(a, b, backend):
         return np.asarray(list(finditer(a,str(b))))
     elif is_dict(a):
         v = a.get(b)
-        return np.inf if v is None else v
+        return KLONG_UNDEFINED if v is None else v
     if is_list(b):
         return np.asarray([i for i,x in enumerate(a) if backend.kg_equal(x, b)])
     return np.where(np.asarray(a) == b)[0]
@@ -341,20 +345,20 @@ def eval_dyad_find(a, b, backend):
 def __e_dyad_form(a, b, backend):
     if isinstance(a,KGSym):
         if is_empty(b):
-            return np.inf
+            return KLONG_UNDEFINED
         return KGSym(b[1:] if isinstance(b,str) and b.startswith(":") else b)
     if backend.is_integer(a):
         if backend.is_float(b) or is_empty(b) or ('.' in b and str_is_float(b)):
-            return np.inf
+            return KLONG_UNDEFINED
         return int(b)
     if backend.is_float(a):
         if is_empty(b):
-            return np.inf
+            return KLONG_UNDEFINED
         return float(b)
     if isinstance(a,KGChar):
         b = str(b)
         if len(b) != 1:
-            return np.inf
+            return KLONG_UNDEFINED
         return KGChar(str(b)[0])
     return b
 
@@ -489,6 +493,10 @@ def eval_dyad_integer_divide(a, b, backend):
                   10:%8  -->  1
 
     """
+    if not is_list(a) and not is_list(b) and backend.is_number(b):
+        b_val = backend.scalar_to_python(b) if backend.is_backend_array(b) or (hasattr(b, 'ndim') and b.ndim == 0) else b
+        if b_val == 0:
+            return KLONG_UNDEFINED
     return backend.vec_fn2(a, b, lambda x, y: _e_dyad_integer_divide(x, y, backend))
 
 

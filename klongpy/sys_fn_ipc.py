@@ -11,7 +11,7 @@ from asyncio.exceptions import IncompleteReadError
 import numpy as np
 
 from klongpy.core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
-                          KlongException, get_fn_arity_str, is_list,
+                          KlongException, KLONG_UNDEFINED, get_fn_arity_str, is_list,
                           reserved_fn_args, reserved_fn_symbols, reserved_fn_symbol_map)
 
 
@@ -1011,12 +1011,10 @@ def create_system_functions_ipc():
 
 def create_system_var_ipc():
     # populate the .srv.* handlers with undefined values
-    # TODO: use real undefined value instead of np.inf
     registry = {
-        ".srv.o": np.inf,
-        ".srv.c": np.inf,
-        ".srv.e": np.inf,
+        ".srv.o": KLONG_UNDEFINED,
+        ".srv.c": KLONG_UNDEFINED,
+        ".srv.e": KLONG_UNDEFINED,
     }
     return registry
-
 

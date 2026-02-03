@@ -10,9 +10,9 @@ import sys
 
 from .backend import np
 from .types import (
-    KGSym, KGChar, KGFn, KGChannel, KGChannelDir,
+    KGSym, KGChar, KGFn, KGChannel, KGChannelDir, KLONG_UNDEFINED,
     is_integer, is_float, is_list, is_iterable, is_empty,
-    get_dtype_kind, safe_eq
+    get_dtype_kind
 )
 
 
@@ -70,6 +70,17 @@ def kg_write(a, backend, display=False):
     _backend = backend
     # Convert backend arrays (e.g., torch tensors) to display-friendly format
     a = _backend.to_display(a)
+    if a is KLONG_UNDEFINED:
+        return ":undefined"
+    if _backend.is_number(a):
+        try:
+            is_inf = np.isinf(a)
+            if hasattr(is_inf, 'item'):
+                is_inf = is_inf.item()
+            if is_inf:
+                return ":undefined"
+        except Exception:
+            pass
     if isinstance(a, KGSym):
         return kg_write_symbol(a, display=display)
     elif is_integer(a, _backend):
@@ -90,8 +101,6 @@ def kg_write(a, backend, display=False):
         return kg_write_channel(a, display=display)
     elif hasattr(a, '__str__'):
         return str(a)
-    elif safe_eq(a, np.inf):
-        return ":undefined"
 
 
 def kg_argsort(a, backend, descending=False):

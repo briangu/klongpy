@@ -117,6 +117,8 @@ def eval_monad_floor(a, backend):
 
     """
     def _floor_to_int(x):
+        if backend.is_backend_array(x):
+            x = backend.to_numpy(x)
         result = np.floor(np.asarray(x, dtype=float))
         # Handle both numpy arrays and torch tensors
         if hasattr(result, 'astype'):
@@ -317,7 +319,11 @@ def eval_monad_reciprocal(a, backend):
                    %0.1  -->  10.0
 
     """
-    return backend.vec_fn(a, lambda x: np.reciprocal(np.asarray(x,dtype=float)))
+    if not is_list(a) and backend.is_number(a):
+        a_val = backend.scalar_to_python(a) if backend.is_backend_array(a) else a
+        if a_val == 0:
+            return KLONG_UNDEFINED
+    return backend.vec_fn(a, lambda x: np.reciprocal(np.asarray(x, dtype=float)))
 
 
 def eval_monad_reverse(a):
@@ -390,8 +396,25 @@ def eval_monad_shape(a):
     """
 
     def _a(x): # use numpy's natural shape by replacing all strings with arrays
-        return np.asarray([np.empty(len(y)) if isinstance(y,str) else (_a(y) if is_list(y) else y) for y in x])
-    return 0 if is_atom(a) else np.asarray([len(a)]) if isinstance(a,str) else np.asarray(_a(a).shape)
+        if hasattr(x, 'device'):
+            try:
+                import torch
+                if isinstance(x, torch.Tensor):
+                    x = x.detach().cpu().numpy()
+            except Exception:
+                pass
+        return np.asarray([
+            np.empty(len(y)) if isinstance(y, str) else (_a(y) if is_list(y) else y)
+            for y in x
+        ])
+    if hasattr(a, 'device'):
+        try:
+            import torch
+            if isinstance(a, torch.Tensor):
+                a = a.detach().cpu().numpy()
+        except Exception:
+            pass
+    return 0 if is_atom(a) else np.asarray([len(a)]) if isinstance(a, str) else np.asarray(_a(a).shape)
 
 
 def eval_monad_size(a, backend):
@@ -446,7 +469,16 @@ def eval_monad_undefined(a, backend):
                       :_:valid  -->  0
 
     """
-    return kg_truth(a is None or (backend.np.isinf(a) if backend.is_number(a) else False))
+    is_inf = False
+    if backend.is_number(a):
+        a_val = backend.to_numpy(a) if backend.is_backend_array(a) else a
+        try:
+            is_inf = np.isinf(a_val)
+            if hasattr(is_inf, 'item'):
+                is_inf = is_inf.item()
+        except Exception:
+            is_inf = False
+    return kg_truth(a is None or a is KLONG_UNDEFINED or is_inf)
 
 
 def eval_monad_track(a):

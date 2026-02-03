@@ -634,6 +634,16 @@ class TorchBackendProvider(BackendProvider):
         # Default numpy comparison
         return numpy.asarray(x, dtype=object) == numpy.asarray(y, dtype=object)
 
+    def array_equal(self, a, b) -> bool:
+        """Backend-native exact equality for torch tensors."""
+        if not isinstance(a, torch.Tensor) or not isinstance(b, torch.Tensor):
+            return False
+        try:
+            return bool(torch.equal(a, b))
+        except RuntimeError:
+            # Fall back to CPU comparison if devices mismatch
+            return bool(torch.equal(a.cpu(), b.cpu()))
+
     def detach_if_needed(self, x):
         """Detach tensor if it requires grad, to allow type conversions."""
         if isinstance(x, torch.Tensor) and x.requires_grad:
@@ -648,14 +658,17 @@ class TorchBackendProvider(BackendProvider):
 
     def power(self, a, b):
         """Compute a^b, handling gradient tracking for torch tensors."""
-        # Use torch.pow for tensors to maintain gradients when possible
         if isinstance(a, torch.Tensor):
-            # Convert to float if integer with negative exponent (torch doesn't support this)
+            # Handle negative exponents - torch doesn't support int^negative
+            if isinstance(b, torch.Tensor) and b.dtype in (torch.int8, torch.int16, torch.int32, torch.int64) and (b < 0).any():
+                base = a.float() if a.dtype in (torch.int8, torch.int16, torch.int32, torch.int64) else a
+                result = base.pow(b.abs()).float()
+                return torch.where(b < 0, 1.0 / result, result)
             b_val = b.item() if isinstance(b, torch.Tensor) and b.ndim == 0 else b
-            if a.dtype in (torch.int8, torch.int16, torch.int32, torch.int64) and b_val < 0:
+            if isinstance(b_val, (int, numpy.integer)) and b_val < 0:
                 a = a.float()
             return a.pow(b)
-        # For numpy arrays or scalars - ensure b is also numpy-compatible
+        # For numpy arrays or scalars
         a_val = float(a) if isinstance(a, (int, numpy.integer)) else a
         b_val = b.item() if isinstance(b, torch.Tensor) and b.ndim == 0 else (b.cpu().numpy() if isinstance(b, torch.Tensor) else b)
         return numpy.power(a_val, b_val)
