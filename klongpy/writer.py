@@ -72,15 +72,6 @@ def kg_write(a, backend, display=False):
     a = _backend.to_display(a)
     if a is KLONG_UNDEFINED:
         return ":undefined"
-    if _backend.is_number(a):
-        try:
-            is_inf = np.isinf(a)
-            if hasattr(is_inf, 'item'):
-                is_inf = is_inf.item()
-            if is_inf:
-                return ":undefined"
-        except Exception:
-            pass
     if isinstance(a, KGSym):
         return kg_write_symbol(a, display=display)
     elif is_integer(a, _backend):

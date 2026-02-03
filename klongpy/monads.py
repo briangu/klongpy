@@ -450,16 +450,7 @@ def eval_monad_undefined(a, backend):
                       :_:valid  -->  0
 
     """
-    is_inf = False
-    if backend.is_number(a):
-        a_val = backend.to_numpy(a) if backend.is_backend_array(a) else a
-        try:
-            is_inf = bknp.isinf(a_val)
-            if hasattr(is_inf, 'item'):
-                is_inf = is_inf.item()
-        except Exception:
-            is_inf = False
-    return kg_truth(a is None or a is KLONG_UNDEFINED or is_inf)
+    return kg_truth(a is None or a is KLONG_UNDEFINED)
 
 
 def eval_monad_track(a):
