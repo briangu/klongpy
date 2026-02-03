@@ -61,7 +61,7 @@ def eval_sys_display(klong, x):
 
         .d(x)                                                  [Display]
 
-        Display the object "x". Tensors are converted to numpy for cleaner output.
+        Display the object "x". Backend arrays are converted to numpy for cleaner output.
         Use .bkd() for raw backend-specific display.
 
     """
@@ -301,7 +301,7 @@ def eval_sys_print(klong, x):
         .p(x)                                                    [Print]
 
         Pretty-print the object "x" (like Display) and then print a
-        newline sequence. Tensors are converted to numpy for cleaner output.
+        newline sequence. Backend arrays are converted to numpy for cleaner output.
         Use .bkp() for raw backend-specific print.
 
     """
