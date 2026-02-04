@@ -73,6 +73,7 @@ w::[0.25 0.25 0.25 0.25]           :" Portfolio weights"
 
 sharpe::{(+/x*returns)%((+/((x^2)*(vols^2)))^0.5)}
 sharpe:>w                           :" Gradient of Sharpe ratio"
+[0.07257738709449768 0.032256484031677246 0.11693036556243896 -0.22176480293273926]
 ```
 
 ### For ML Researchers
@@ -90,6 +91,8 @@ loss::{+/((forward'X)-Y)^2}
 
 :" Train with multi-param gradients"
 {grads::loss:>[w1 b1]; w1::w1-(lr*grads@0); b1::b1-(lr*grads@1)}'!1000
+.d("w1="); .d(w1); .d(" b1="); .p(b1)
+w1=1.74 b1=-2.17
 ```
 
 ### For Scientists
@@ -99,7 +102,8 @@ Express mathematics directly:
 ```klong
 :" Gradient of f(x,y,z) = x^2 + y^2 + z^2 at [1,2,3]"
 f::{+/x^2}
-f:>[1 2 3]    :" [2 4 6] - exact gradient via autograd"
+f:>[1 2 3]
+[2.0 4.0 6.0]
 ```
 
 ## The Array Language Advantage
@@ -307,7 +311,7 @@ lr::0.01
 {grads::mse:>[w b]; w::w-(lr*grads@0); b::b-(lr*grads@1)}'!1000
 
 .d("Learned: w="); .d(w); .d(" b="); .p(b)
-:" Output: Learned: w=2.01 b=2.97"
+Learned: w=2.01 b=2.97
 ```
 
 ### 4. Database Operations
