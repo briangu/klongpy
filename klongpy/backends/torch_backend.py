@@ -966,9 +966,14 @@ class TorchBackendProvider(BackendProvider):
         Returns:
             1 if gradients are correct, raises error otherwise
         """
-        # Determine dtype based on device support
-        use_float32 = self.device.type == 'mps'  # MPS doesn't support float64
-        dtype = torch.float32 if use_float32 else torch.float64
+        # Gradcheck requires float64 which is only supported on CPU
+        if self.device.type != 'cpu':
+            raise RuntimeError(
+                f".gradcheck() requires CPU device, got '{self.device.type}'. "
+                "Run with: kgpy --backend torch --device cpu"
+            )
+
+        dtype = torch.float64
 
         # Wrap the Klong function
         def wrapped_fn(v):
@@ -978,19 +983,15 @@ class TorchBackendProvider(BackendProvider):
                 result = result.sum()
             return result
 
-        # Convert inputs to tensor on CPU for gradcheck (avoids MPS float64 issues)
+        # Convert inputs to tensor on CPU for gradcheck
         if isinstance(inputs, (list, tuple)) and not isinstance(inputs[0], torch.Tensor):
             tensor_inputs = torch.tensor(inputs, dtype=dtype, device='cpu', requires_grad=True)
         elif not isinstance(inputs, torch.Tensor):
             tensor_inputs = torch.tensor([inputs], dtype=dtype, device='cpu', requires_grad=True)
         else:
-            tensor_inputs = inputs.to(dtype=dtype, device='cpu').requires_grad_(True)
+            tensor_inputs = inputs.detach().cpu().to(dtype=dtype).requires_grad_(True)
 
-        # Run gradcheck with adjusted tolerances for float32
-        if use_float32:
-            result = self.gradcheck(wrapped_fn, (tensor_inputs,), eps=1e-4, atol=1e-3, rtol=1e-2)
-        else:
-            result = self.gradcheck(wrapped_fn, (tensor_inputs,))
+        result = self.gradcheck(wrapped_fn, (tensor_inputs,))
 
         return 1 if result else 0
 

@@ -68,7 +68,16 @@ def eval_sys_compile(klong, x, y):
     def wrapped_fn(v):
         return _invoke_fn(klong, fn, [v])
 
-    return backend.compile_function(wrapped_fn, example_input, None)
+    compiled_fn = backend.compile_function(wrapped_fn, example_input, None)
+
+    # Wrap with Klong-convention parameter name so KGLambda introspection works
+    import torch
+    def klong_compiled(x):
+        if not isinstance(x, torch.Tensor):
+            x = backend.create_grad_tensor(x)
+        return compiled_fn(x)
+
+    return klong_compiled
 
 
 def eval_sys_export(klong, x, y, z):
@@ -191,10 +200,19 @@ def eval_sys_compilex(klong, x, y, z):
     def wrapped_fn(v):
         return _invoke_fn(klong, fn, [v])
 
-    return backend.compile_function(
+    compiled_fn = backend.compile_function(
         wrapped_fn, example_input, None,
         mode=mode, backend=compile_backend, fullgraph=fullgraph, dynamic=dynamic
     )
+
+    # Wrap with Klong-convention parameter name so KGLambda introspection works
+    import torch
+    def klong_compiled(x):
+        if not isinstance(x, torch.Tensor):
+            x = backend.create_grad_tensor(x)
+        return compiled_fn(x)
+
+    return klong_compiled
 
 
 def eval_sys_cmodes(klong):
