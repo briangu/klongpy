@@ -1,8 +1,7 @@
 """
-Backend compatibility module for KlongPy.
+Backend module for KlongPy.
 
-This module provides backward compatibility with the old backend import style.
-New code should use the backends package directly:
+Prefer using the backends package directly:
 
     from klongpy.backends import get_backend, BackendProvider
 
@@ -10,35 +9,27 @@ For per-interpreter backends, use:
 
     klong = KlongInterpreter(backend='torch')
 """
-from .backends import (
-    get_backend,
-    register_backend,
-    list_backends,
+from .backends.base import (
     BackendProvider,
     UnsupportedDtypeError,
-    TorchUnsupportedDtypeError,
-    NumpyBackendProvider,
-    TorchBackendProvider,
-    KGChar,
     is_jagged_array,
     is_supported_type,
 )
+from .backends.numpy_backend import KGChar, NumpyBackendProvider
+from .backends.registry import get_backend, list_backends, register_backend, TorchBackendProvider
 
-# Module-level np for backward compatibility with existing imports
-# This uses the default numpy backend
 _default_np_backend = get_backend('numpy')
 np = _default_np_backend.np
-use_torch = False  # Deprecated: each interpreter has its own backend
+bknp = np
 
 __all__ = [
     'np',
-    'use_torch',
+    'bknp',
     'get_backend',
     'register_backend',
     'list_backends',
     'BackendProvider',
     'UnsupportedDtypeError',
-    'TorchUnsupportedDtypeError',
     'NumpyBackendProvider',
     'TorchBackendProvider',
     'KGChar',

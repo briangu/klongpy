@@ -7,8 +7,10 @@ It does not support object dtype or string operations.
 import math
 import numpy
 import torch
+import torch.autograd.functional as torch_autograd_functional
 
 from .base import BackendProvider, UnsupportedDtypeError, is_jagged_array
+from ..autograd import AutogradChainBrokenError, NonScalarLossError, _invoke_fn
 
 # numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
 from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
@@ -634,6 +636,16 @@ class TorchBackendProvider(BackendProvider):
         # Default numpy comparison
         return numpy.asarray(x, dtype=object) == numpy.asarray(y, dtype=object)
 
+    def array_equal(self, a, b) -> bool:
+        """Backend-native exact equality for torch tensors."""
+        if not isinstance(a, torch.Tensor) or not isinstance(b, torch.Tensor):
+            return False
+        try:
+            return bool(torch.equal(a, b))
+        except RuntimeError:
+            # Fall back to CPU comparison if devices mismatch
+            return bool(torch.equal(a.cpu(), b.cpu()))
+
     def detach_if_needed(self, x):
         """Detach tensor if it requires grad, to allow type conversions."""
         if isinstance(x, torch.Tensor) and x.requires_grad:
@@ -646,16 +658,25 @@ class TorchBackendProvider(BackendProvider):
             return a.to(int)
         return numpy.asarray(a, dtype=int) if isinstance(a, numpy.ndarray) else int(a)
 
+    def floor_to_int(self, a):
+        """Floor a value and convert to integer."""
+        if not isinstance(a, torch.Tensor):
+            a = self.kg_asarray(a)
+        return torch.floor(a.float()).to(int)
+
     def power(self, a, b):
         """Compute a^b, handling gradient tracking for torch tensors."""
-        # Use torch.pow for tensors to maintain gradients when possible
         if isinstance(a, torch.Tensor):
-            # Convert to float if integer with negative exponent (torch doesn't support this)
+            # Handle negative exponents - torch doesn't support int^negative
+            if isinstance(b, torch.Tensor) and b.dtype in (torch.int8, torch.int16, torch.int32, torch.int64) and (b < 0).any():
+                base = a.float() if a.dtype in (torch.int8, torch.int16, torch.int32, torch.int64) else a
+                result = base.pow(b.abs()).float()
+                return torch.where(b < 0, 1.0 / result, result)
             b_val = b.item() if isinstance(b, torch.Tensor) and b.ndim == 0 else b
-            if a.dtype in (torch.int8, torch.int16, torch.int32, torch.int64) and b_val < 0:
+            if isinstance(b_val, (int, numpy.integer)) and b_val < 0:
                 a = a.float()
             return a.pow(b)
-        # For numpy arrays or scalars - ensure b is also numpy-compatible
+        # For numpy arrays or scalars
         a_val = float(a) if isinstance(a, (int, numpy.integer)) else a
         b_val = b.item() if isinstance(b, torch.Tensor) and b.ndim == 0 else (b.cpu().numpy() if isinstance(b, torch.Tensor) else b)
         return numpy.power(a_val, b_val)
@@ -679,8 +700,6 @@ class TorchBackendProvider(BackendProvider):
 
     def compute_autograd(self, func, x):
         """Compute gradient using PyTorch automatic differentiation."""
-        from ..autograd import AutogradChainBrokenError, NonScalarLossError
-
         x_tensor = self.create_grad_tensor(x)
 
         # Compute the function value
@@ -731,8 +750,6 @@ class TorchBackendProvider(BackendProvider):
         Returns:
             List of gradients, one per parameter
         """
-        from ..autograd import AutogradChainBrokenError, NonScalarLossError
-
         # Create grad tensors for all parameters
         grad_tensors = [self.create_grad_tensor(p) for p in params]
 
@@ -775,12 +792,10 @@ class TorchBackendProvider(BackendProvider):
         Returns:
             Jacobian matrix J where J[i,j] = df_i/dx_j
         """
-        import torch.autograd.functional as F
-
         x_tensor = self.create_grad_tensor(x)
 
         # torch.autograd.functional.jacobian expects func(inputs) -> outputs
-        jacobian = F.jacobian(func, x_tensor)
+        jacobian = torch_autograd_functional.jacobian(func, x_tensor)
 
         return jacobian
 
@@ -843,7 +858,14 @@ class TorchBackendProvider(BackendProvider):
         _ = compiled_fn(example_input)
 
         if output_path is None:
-            return compiled_fn
+            # Wrap with Klong-convention parameter name (x) so that
+            # KGLambda introspection binds the argument correctly when
+            # the compiled function is stored via ::
+            def klong_compiled(x):
+                if not isinstance(x, torch.Tensor):
+                    x = self.create_grad_tensor(x)
+                return compiled_fn(x)
+            return klong_compiled
 
         # Export the function graph for inspection
         try:
@@ -951,11 +973,14 @@ class TorchBackendProvider(BackendProvider):
         Returns:
             1 if gradients are correct, raises error otherwise
         """
-        from ..autograd import _invoke_fn
+        # Gradcheck requires float64 which is only supported on CPU
+        if self.device.type != 'cpu':
+            raise RuntimeError(
+                f".gradcheck() requires CPU device, got '{self.device.type}'. "
+                "Run with: kgpy --backend torch --device cpu"
+            )
 
-        # Determine dtype based on device support
-        use_float32 = self.device.type == 'mps'  # MPS doesn't support float64
-        dtype = torch.float32 if use_float32 else torch.float64
+        dtype = torch.float64
 
         # Wrap the Klong function
         def wrapped_fn(v):
@@ -965,19 +990,15 @@ class TorchBackendProvider(BackendProvider):
                 result = result.sum()
             return result
 
-        # Convert inputs to tensor on CPU for gradcheck (avoids MPS float64 issues)
+        # Convert inputs to tensor on CPU for gradcheck
         if isinstance(inputs, (list, tuple)) and not isinstance(inputs[0], torch.Tensor):
             tensor_inputs = torch.tensor(inputs, dtype=dtype, device='cpu', requires_grad=True)
         elif not isinstance(inputs, torch.Tensor):
             tensor_inputs = torch.tensor([inputs], dtype=dtype, device='cpu', requires_grad=True)
         else:
-            tensor_inputs = inputs.to(dtype=dtype, device='cpu').requires_grad_(True)
+            tensor_inputs = inputs.detach().cpu().to(dtype=dtype).requires_grad_(True)
 
-        # Run gradcheck with adjusted tolerances for float32
-        if use_float32:
-            result = self.gradcheck(wrapped_fn, (tensor_inputs,), eps=1e-4, atol=1e-3, rtol=1e-2)
-        else:
-            result = self.gradcheck(wrapped_fn, (tensor_inputs,))
+        result = self.gradcheck(wrapped_fn, (tensor_inputs,))
 
         return 1 if result else 0
 

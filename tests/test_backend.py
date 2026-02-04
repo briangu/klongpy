@@ -1,15 +1,15 @@
+import importlib
+import importlib.util
 import unittest
+
 import numpy
 
-from klongpy.backend import is_supported_type, is_jagged_array, np, TorchUnsupportedDtypeError
+from klongpy.backend import is_supported_type, is_jagged_array, np, UnsupportedDtypeError
 from klongpy.backends import get_backend
 
-# Check if torch is available
-try:
-    import torch
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
+_TORCH_SPEC = importlib.util.find_spec("torch")
+torch = importlib.import_module("torch") if _TORCH_SPEC else None
+TORCH_AVAILABLE = torch is not None
 
 # numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
 from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
@@ -120,8 +120,8 @@ class TestTorchBackend(unittest.TestCase):
 
     @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_object_dtype_raises_error(self):
-        """Test that object dtype raises TorchUnsupportedDtypeError."""
-        with self.assertRaises(TorchUnsupportedDtypeError):
+        """Test that object dtype raises UnsupportedDtypeError."""
+        with self.assertRaises(UnsupportedDtypeError):
             self.np.asarray([1, "string", 3], dtype=object)
 
     @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
@@ -133,7 +133,6 @@ class TestTorchBackend(unittest.TestCase):
     @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_isarray_with_tensor(self):
         """Test that isarray detects torch tensors."""
-        import torch
         tensor = torch.tensor([1, 2, 3])
         self.assertTrue(self.np.isarray(tensor))
 
@@ -257,7 +256,6 @@ class TestTorchBackend(unittest.TestCase):
     @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_ndarray_property(self):
         """Test ndarray property returns Tensor class."""
-        import torch
         self.assertEqual(self.np.ndarray, torch.Tensor)
 
     @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
@@ -275,14 +273,14 @@ class TestTorchBackend(unittest.TestCase):
         """Test asarray rejects dtype with kind 'O'."""
         class FakeDtype:
             kind = 'O'
-        with self.assertRaises(TorchUnsupportedDtypeError):
+        with self.assertRaises(UnsupportedDtypeError):
             self.np.asarray([1, 2, 3], dtype=FakeDtype())
 
     @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_asarray_with_numpy_object_array(self):
         """Test asarray rejects numpy object arrays."""
         obj_arr = numpy.array([1, "a", 2], dtype=object)
-        with self.assertRaises(TorchUnsupportedDtypeError):
+        with self.assertRaises(UnsupportedDtypeError):
             self.np.asarray(obj_arr)
 
     @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
@@ -327,26 +325,26 @@ class TestTorchBackend(unittest.TestCase):
             _ = self.np.nonexistent_attribute_xyz123
 
 
-class TestTorchUnsupportedDtypeError(unittest.TestCase):
+class TestUnsupportedDtypeError(unittest.TestCase):
     def test_error_is_exception(self):
-        """Test that TorchUnsupportedDtypeError is a proper exception."""
-        self.assertTrue(issubclass(TorchUnsupportedDtypeError, Exception))
+        """Test that UnsupportedDtypeError is a proper exception."""
+        self.assertTrue(issubclass(UnsupportedDtypeError, Exception))
 
     def test_error_message(self):
         """Test that error message is preserved."""
         msg = "Test error message"
-        err = TorchUnsupportedDtypeError(msg)
+        err = UnsupportedDtypeError(msg)
         self.assertEqual(str(err), msg)
 
     def test_error_can_be_raised(self):
         """Test that the error can be raised and caught."""
-        with self.assertRaises(TorchUnsupportedDtypeError):
-            raise TorchUnsupportedDtypeError("test")
+        with self.assertRaises(UnsupportedDtypeError):
+            raise UnsupportedDtypeError("test")
 
     def test_error_inheritance(self):
         """Test that error can be caught as generic Exception."""
         with self.assertRaises(Exception):
-            raise TorchUnsupportedDtypeError("test")
+            raise UnsupportedDtypeError("test")
 
 
 class TestCoreWithTorch(unittest.TestCase):
@@ -365,7 +363,7 @@ class TestCoreWithTorch(unittest.TestCase):
     def test_str_to_chr_arr_fails(self):
         """Test that str_to_chr_arr fails in torch mode."""
         backend = get_backend('torch')
-        with self.assertRaises(TorchUnsupportedDtypeError):
+        with self.assertRaises(UnsupportedDtypeError):
             backend.str_to_chr_arr("hello")
 
     @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")

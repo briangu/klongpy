@@ -7,7 +7,7 @@ import threading
 import numpy as np
 import websockets
 
-from klongpy.core import (KGCall, KGLambda, KGSym, KlongException,
+from klongpy.core import (KGCall, KGLambda, KGSym, KlongException, KLONG_UNDEFINED,
                           reserved_fn_args, reserved_fn_symbol_map)
 
 
@@ -243,7 +243,7 @@ class NetworkClient(KGLambda):
                 except Exception as e:
                     logging.warning(f"error while running on_message handler: {e}")
             await run_command_on_klongloop(self.klongloop, self.klong, ".ws.m", msg, self)
-            # if response is not None and response != np.inf:
+            # if response is not None and response is not KLONG_UNDEFINED:
             #     await self.websocket.send(encode_message(response))
         except websockets.exceptions.ConnectionClosed:
             logging.info("Connection error")
@@ -548,12 +548,9 @@ def create_system_functions_websockets():
 
 def create_system_var_websockets():
     # populate the .srv.* handlers with undefined values
-    # TODO: use real undefined value instead of np.inf
     registry = {
-        ".srv.o": np.inf,
-        ".srv.c": np.inf,
-        ".srv.e": np.inf,
+        ".srv.o": KLONG_UNDEFINED,
+        ".srv.c": KLONG_UNDEFINED,
+        ".srv.e": KLONG_UNDEFINED,
     }
     return registry
-
-

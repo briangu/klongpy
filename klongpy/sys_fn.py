@@ -12,7 +12,7 @@ from inspect import Parameter
 import numpy
 
 from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
-                   is_dict, is_empty, is_list, kg_read_array, kg_write, np,
+                   bknp, is_dict, is_empty, is_list, kg_read_array, kg_write,
                    reserved_fn_args, reserved_fn_symbol_map, safe_eq, safe_inspect)
 
 
@@ -61,7 +61,7 @@ def eval_sys_display(klong, x):
 
         .d(x)                                                  [Display]
 
-        Display the object "x". Tensors are converted to numpy for cleaner output.
+        Display the object "x". Backend arrays are converted to numpy for cleaner output.
         Use .bkd() for raw backend-specific display.
 
     """
@@ -301,7 +301,7 @@ def eval_sys_print(klong, x):
         .p(x)                                                    [Print]
 
         Pretty-print the object "x" (like Display) and then print a
-        newline sequence. Tensors are converted to numpy for cleaner output.
+        newline sequence. Backend arrays are converted to numpy for cleaner output.
         Use .bkp() for raw backend-specific print.
 
     """
@@ -695,7 +695,7 @@ def eval_sys_random_number():
         Return a random number x, such that 0 <= x < 1.
 
     """
-    return np.random.random()
+    return bknp.random.random()
 
 
 def eval_sys_read(klong):

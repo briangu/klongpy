@@ -28,10 +28,18 @@ Usage:
     python tests/perf_backend.py --backend torch --jit-only --jit-mode max-autotune
 """
 import argparse
+import importlib
+import importlib.util
+import json
 import subprocess
 import sys
 import time
 
+from klongpy import KlongInterpreter
+
+_TORCH_SPEC = importlib.util.find_spec("torch")
+torch = importlib.import_module("torch") if _TORCH_SPEC else None
+TORCH_AVAILABLE = torch is not None
 
 # Global to store the backend name set via command line
 _current_backend = "numpy"
@@ -71,7 +79,8 @@ def benchmark(name, klong, expr, warmup=3, iterations=20):
 
 def benchmark_fn(name, fn, arg, warmup=3, iterations=20):
     """Run a benchmark on a compiled function."""
-    import torch
+    if not TORCH_AVAILABLE:
+        return None, "torch not available"
 
     # Ensure arg is a tensor
     if not isinstance(arg, torch.Tensor):
@@ -158,8 +167,6 @@ def get_jit_benchmarks():
 
 def run_benchmarks(iterations=20):
     """Run all benchmarks and return results dict."""
-    from klongpy import KlongInterpreter
-
     backend = get_backend_name()
     klong = KlongInterpreter(backend=backend)
 
@@ -176,12 +183,12 @@ def run_benchmarks(iterations=20):
 
 def run_jit_benchmarks(iterations=20, mode="default", use_eager=False):
     """Run JIT-compiled function benchmarks."""
-    import torch
-    from klongpy import KlongInterpreter
-
     backend = get_backend_name()
     if backend != "torch":
         print("JIT benchmarks require torch backend (--backend torch)")
+        return backend, {}, {}
+    if not TORCH_AVAILABLE:
+        print("Torch backend requested but torch is not available")
         return backend, {}, {}
     klong = KlongInterpreter(backend=backend)
 
@@ -310,7 +317,6 @@ def run_comparison():
     torch_output = result.stdout.strip()
 
     # Parse JSON results
-    import json
     try:
         numpy_results = json.loads(numpy_output)
         torch_results = json.loads(torch_output)
@@ -351,8 +357,6 @@ def run_comparison():
 
 def run_full_comparison():
     """Run comprehensive comparison including JIT."""
-    import json
-
     print("\n" + "=" * 80)
     print("COMPREHENSIVE BACKEND COMPARISON")
     print("=" * 80)
@@ -441,7 +445,6 @@ def main():
 
     if args.jit_only:
         if args.json:
-            import json
             backend, jit_results, nojit_results = run_jit_benchmarks(
                 iterations=args.iterations, mode=args.jit_mode, use_eager=args.eager
             )
@@ -461,7 +464,6 @@ def main():
         results["_nojit"] = nojit_results
 
     if args.json:
-        import json
         print(json.dumps(results))
     else:
         print_results(backend, results)

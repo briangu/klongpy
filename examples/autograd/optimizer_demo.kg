@@ -1,7 +1,7 @@
 :" Optimizer Demo - Using Custom Optimizers in KlongPy"
 :""
 :" This example shows how to use the optimizer classes from optimizers.py"
-:" Run with: USE_TORCH=1 kgpy optimizer_demo.kg"
+:" Run with: kgpy --backend torch optimizer_demo.kg"
 
 :" Import the optimizer class"
 .pyf("./optimizers.py";"SGDOptimizer")

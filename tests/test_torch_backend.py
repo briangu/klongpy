@@ -6,28 +6,37 @@ Run with: pytest tests/test_torch_backend.py -v
 
 This file tests the torch-specific code paths.
 """
-import unittest
+import importlib
+import importlib.util
 import sys
+import unittest
 
-# Check if torch is available
-try:
-    import torch
-    import numpy as np
-    from klongpy import KlongInterpreter
-    from klongpy.backend import TorchUnsupportedDtypeError
-    from klongpy.backends import get_backend
-    # Get torch backend and its methods
+import numpy as np
+
+from klongpy import KlongInterpreter
+from klongpy.autograd import grad_of_fn, NonScalarLossError
+from klongpy.backend import UnsupportedDtypeError
+from klongpy.backends import get_backend
+from klongpy.core import KGLambda, KGSym
+from utils import torch_autograd
+
+# numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
+from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
+
+_TORCH_SPEC = importlib.util.find_spec("torch")
+torch = importlib.import_module("torch") if _TORCH_SPEC else None
+TORCH_AVAILABLE = torch is not None
+
+if TORCH_AVAILABLE:
     _backend = get_backend('torch')
     backend_np = _backend.np
     kg_asarray = _backend.kg_asarray
     str_to_chr_arr = _backend.str_to_chr_arr
-    from klongpy.autograd import torch_autograd, grad_of_fn
-    from klongpy.core import KGLambda, KGSym
-    # numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
-    from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
+else:
+    _backend = None
+    backend_np = None
+    kg_asarray = None
+    str_to_chr_arr = None
 
 
 @unittest.skipUnless(TORCH_AVAILABLE, "Requires torch installed")
@@ -57,7 +66,6 @@ class TestTorchAutogradFunction(unittest.TestCase):
 
     def test_non_scalar_output_raises(self):
         """Test that non-scalar output raises NonScalarLossError."""
-        from klongpy.autograd import NonScalarLossError
         x = np.array([1.0, 2.0, 3.0])
         with self.assertRaises(NonScalarLossError) as ctx:
             torch_autograd(lambda t: t**2, x, _backend)  # Returns vector, not scalar
@@ -92,13 +100,13 @@ class TestTorchBackendOperations(unittest.TestCase):
 
     def test_asarray_rejects_object_dtype(self):
         """Test asarray rejects object dtype."""
-        with self.assertRaises(TorchUnsupportedDtypeError):
+        with self.assertRaises(UnsupportedDtypeError):
             backend_np.asarray([1, 2, 3], dtype=object)
 
     def test_asarray_rejects_numpy_object_array(self):
         """Test asarray rejects numpy object arrays."""
         obj_arr = np.array([1, "a", 2], dtype=object)
-        with self.assertRaises(TorchUnsupportedDtypeError):
+        with self.assertRaises(UnsupportedDtypeError):
             backend_np.asarray(obj_arr)
 
     def test_asarray_with_tensor(self):
@@ -262,12 +270,11 @@ class TestTorchCoreIntegration(unittest.TestCase):
 
     def test_str_to_chr_arr_fails(self):
         """Test that str_to_chr_arr fails."""
-        with self.assertRaises(TorchUnsupportedDtypeError):
+        with self.assertRaises(UnsupportedDtypeError):
             str_to_chr_arr("hello")
 
     def test_kg_asarray_jagged_returns_object_array(self):
         """Test that kg_asarray falls back to numpy object array for jagged arrays."""
-        import numpy as np
         result = kg_asarray([[1, 2], [3]])
         # Jagged arrays fall back to numpy object arrays
         self.assertEqual(result.dtype, object)

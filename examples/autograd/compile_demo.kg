@@ -8,7 +8,7 @@
 :" On macOS, install Xcode Command Line Tools: xcode-select --install"
 :" On Linux, install build-essential: apt-get install build-essential"
 :" "
-:" Run with: USE_TORCH=1 kgpy compile_demo.kg"
+:" Run with: kgpy --backend torch compile_demo.kg"
 :" ============================================================"
 
 .p("Function Compilation Demo")
@@ -87,6 +87,48 @@ poly::{(x^4)-(3*x^3)+(2*x^2)-x+1}
 .p("")
 
 :" ============================================================"
+:" Live compilation demo"
+:" ============================================================"
+
+.p("Live Demo - Compile and Run:")
+.p("----------------------------")
+.p("")
+
+:" Show available modes and backends"
+info::.cmodes()
+.d("  modes: ");.p(info?"modes")
+.d("  backends: ");.p(info?"backends")
+.p("")
+
+:" Choose backend/mode for the demo"
+:" Use compilebackend::inductor for real compilation (requires C++ toolchain)"
+compilebackend::"eager"
+compilemode::"default"
+
+.d("  demo backend: ");.p(compilebackend)
+.d("  demo mode: ");.p(compilemode)
+.p("")
+
+:" Compile with selectable options"
+compileopts:::{};compileopts,"mode",,compilemode;compileopts,"backend",,compilebackend
+cf::.compilex(f1;3.0;compileopts)
+cpoly::.compilex(poly;2.0;compileopts)
+
+.d("  f1(5)    = ");.p(f1(5.0))
+.d("  cf(5)    = ");.p(cf(5.0))
+.d("  poly(3)  = ");.p(poly(3.0))
+.d("  cpoly(3) = ");.p(cpoly(3.0))
+.p("")
+
+:" Extended compilation options (mode is ignored by eager backend)"
+fastcf::.compilex(f1;3.0;:{["backend" "eager"]})
+eagercf::.compilex(f1;3.0;:{["backend" "eager"]})
+
+.d("  fastcf(7) = ");.p(fastcf(7.0))
+.d("  eagercf(7)= ");.p(eagercf(7.0))
+.p("")
+
+:" ============================================================"
 :" When to use compilation"
 :" ============================================================"
 
@@ -107,7 +149,7 @@ poly::{(x^4)-(3*x^3)+(2*x^2)-x+1}
 .p("  - Works best with tensor operations")
 .p("")
 .p("Requirements:")
-.p("  - PyTorch backend (USE_TORCH=1)")
+.p("  - PyTorch backend (--backend torch)")
 .p("  - C++ compiler for inductor backend (clang++ or g++)")
 .p("  - Use eager backend to bypass C++ requirement")
 .p("  - On macOS: xcode-select --install")

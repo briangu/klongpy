@@ -2,10 +2,8 @@ import glob
 import math
 import os
 import unittest
-
 from utils import *
 from backend_compat import requires_object_dtype
-
 
 class TestKgTests(unittest.TestCase):
 

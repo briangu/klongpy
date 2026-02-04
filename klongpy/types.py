@@ -143,6 +143,17 @@ class KGCond(list):
     pass
 
 
+class KGUndefined:
+    def __repr__(self):
+        return ":undefined"
+
+    def __str__(self):
+        return ":undefined"
+
+
+KLONG_UNDEFINED = KGUndefined()
+
+
 def safe_inspect(fn, follow_wrapped=True):
     try:
         return inspect.signature(fn, follow_wrapped=follow_wrapped).parameters

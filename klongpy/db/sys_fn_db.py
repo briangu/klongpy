@@ -4,8 +4,8 @@ import duckdb
 import numpy as np
 import pandas as pd
 
-from klongpy.core import (KGCall, KGLambda, KlongException, reserved_fn_args,
-                          reserved_fn_symbol_map)
+from klongpy.core import (KGCall, KGLambda, KlongException, KLONG_UNDEFINED,
+                          reserved_fn_args, reserved_fn_symbol_map)
 from klongpy.backend import np as backend_np
 
 
@@ -42,7 +42,7 @@ class Table(dict):
 
     def get(self, x):
         v = self._df.get(x)
-        return np.inf if v is None else v.values
+        return KLONG_UNDEFINED if v is None else v.values
 
     def set(self, x, y):
         self._df[x] = y

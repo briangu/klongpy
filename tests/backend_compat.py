@@ -25,22 +25,23 @@ Usage:
             # This test should work on all backends
             ...
 """
-import unittest
 import functools
+import importlib
+import importlib.util
+import os
+import unittest
+
+import numpy as np
+
 from klongpy.backends import get_backend
 
-# Try to import torch
-try:
-    import torch
-    TORCH_AVAILABLE = True
-except ImportError:
-    torch = None
-    TORCH_AVAILABLE = False
+_TORCH_SPEC = importlib.util.find_spec("torch")
+torch = importlib.import_module("torch") if _TORCH_SPEC else None
+TORCH_AVAILABLE = torch is not None
 
 
 def _get_test_backend_name():
     """Get the backend name from pytest config (set in conftest.py via env var)."""
-    import os
     return os.environ.get('_KLONGPY_TEST_BACKEND', 'numpy')
 
 
@@ -117,7 +118,6 @@ def to_numpy(x):
     >>> to_numpy(torch.tensor(5.0, requires_grad=True))
     5.0
     """
-    import numpy as np
     if TORCH_AVAILABLE and torch is not None and isinstance(x, torch.Tensor):
         x = x.detach().cpu()
         if x.ndim == 0:
@@ -325,7 +325,6 @@ class BackendAwareTestCase(unittest.TestCase):
         """
         Assert two arrays are close, handling both numpy and torch.
         """
-        import numpy as np
         # Convert to numpy for comparison
         if TORCH_AVAILABLE and torch is not None:
             if isinstance(a, torch.Tensor):
@@ -345,7 +344,6 @@ class BackendAwareTestCase(unittest.TestCase):
 
         Useful for assertions that need Python types.
         """
-        import numpy as np
         if TORCH_AVAILABLE and torch is not None and isinstance(x, torch.Tensor):
             x = x.detach().cpu()
             if x.ndim == 0:

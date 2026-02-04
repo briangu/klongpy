@@ -7,6 +7,8 @@ See https://t3x.org/klong/klong-ref.txt.html for additional details.
 
 import argparse
 import asyncio
+import importlib
+import importlib.util
 import importlib.metadata
 import os
 import sys
@@ -18,6 +20,9 @@ import colorama
 from klongpy import KlongInterpreter, list_backends
 from klongpy.core import kg_write
 from klongpy.repl import cleanup_repl, create_repl
+
+_READLINE_SPEC = importlib.util.find_spec("readline")
+readline = importlib.import_module("readline") if _READLINE_SPEC else None
 
 
 def sys_cmd_shell(klong, cmd):
@@ -242,11 +247,11 @@ class ConsoleInputHandler:
                     break
                 except KeyboardInterrupt:
                     buf = ""
-                    try:
-                        import readline
-                        buf = readline.get_line_buffer()
-                    except Exception:
-                        buf = ""
+                    if readline is not None:
+                        try:
+                            buf = readline.get_line_buffer()
+                        except Exception:
+                            buf = ""
                     if buf:
                         print()
                         continue
@@ -270,6 +275,10 @@ async def run_in_klong(klong, s):
 
 
 def run_file(klong_loop, klong, fname, verbose=False):
+    # Add script directory to sys.path so .py/.pyf imports resolve sibling modules
+    script_dir = os.path.dirname(os.path.abspath(fname))
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
     with open(fname, "r") as f:
         content = f.read()
     return run_in_loop(klong_loop, run_in_klong(klong, content))

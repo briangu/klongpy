@@ -3,6 +3,8 @@ import json
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import numpy as np
+
 from utils import LoopsBase
 
 from klongpy import KlongInterpreter
@@ -24,13 +26,11 @@ from klongpy.ws.sys_fn_ws import (
 
 class TestNumpyEncoder(unittest.TestCase):
     def test_encode_numpy_array(self):
-        import numpy as np
         arr = np.array([1, 2, 3])
         result = json.dumps(arr, cls=NumpyEncoder)
         self.assertEqual(result, "[1, 2, 3]")
 
     def test_encode_nested_numpy(self):
-        import numpy as np
         data = {"arr": np.array([1, 2]), "val": 42}
         result = json.dumps(data, cls=NumpyEncoder)
         parsed = json.loads(result)

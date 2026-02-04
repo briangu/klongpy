@@ -1,8 +1,6 @@
 import sys
 
-import numpy as np
-
-from klongpy.core import KlongException
+from klongpy.core import KlongException, KLONG_UNDEFINED
 
 from .df_cache import PandasDataFrameCache
 from .file_cache import FileCache
@@ -33,7 +31,7 @@ class TableStorage(dict):
         if not isinstance(x,str):
             raise KlongKvsException(x, "key must be a str")
         df = self.cache.get_dataframe(key_to_file_path(x), default_empty=False)
-        return np.inf if df is None else Table(df)
+        return KLONG_UNDEFINED if df is None else Table(df)
 
     def set(self, x, y):
         if not isinstance(x,str):

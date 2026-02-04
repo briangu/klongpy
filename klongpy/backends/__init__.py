@@ -1,72 +1,20 @@
 """
-Backend registry for KlongPy.
+Backend public API for KlongPy.
 
-Provides a unified interface for registering and retrieving array backends.
-The default backend is 'numpy'.
+Re-exports registry helpers and core backend types.
 """
-from .base import BackendProvider, UnsupportedDtypeError, is_jagged_array, is_supported_type
+from .base import (
+    BackendProvider,
+    UnsupportedDtypeError,
+    is_jagged_array,
+    is_supported_type,
+)
 from .numpy_backend import NumpyBackendProvider, KGChar
-
-# Registry of available backends
-_BACKENDS = {}
-
-# Default backend name
-_DEFAULT_BACKEND = 'numpy'
-
-
-def register_backend(name: str, provider_class):
-    """Register a backend provider class."""
-    _BACKENDS[name] = provider_class
-
-
-def get_backend(name: str = None, **kwargs) -> BackendProvider:
-    """
-    Get a backend provider instance.
-
-    Parameters
-    ----------
-    name : str, optional
-        Backend name ('numpy' or 'torch'). If None, uses default.
-    **kwargs
-        Additional arguments passed to the backend provider constructor.
-
-    Returns
-    -------
-    BackendProvider
-        The backend provider instance.
-    """
-    if name is None:
-        name = _DEFAULT_BACKEND
-
-    if name not in _BACKENDS:
-        available = ', '.join(_BACKENDS.keys())
-        raise ValueError(f"Unknown backend: '{name}'. Available: {available}")
-
-    return _BACKENDS[name](**kwargs)
-
-
-def list_backends():
-    """Return list of available backend names."""
-    return list(_BACKENDS.keys())
-
-
-# Register built-in backends
-register_backend('numpy', NumpyBackendProvider)
-
-# Try to register torch backend if available
-try:
-    from .torch_backend import TorchBackendProvider, TorchUnsupportedDtypeError
-    register_backend('torch', TorchBackendProvider)
-except ImportError:
-    # Torch not available
-    TorchBackendProvider = None
-    TorchUnsupportedDtypeError = UnsupportedDtypeError
-
+from .registry import get_backend, list_backends, register_backend, TorchBackendProvider
 
 __all__ = [
     'BackendProvider',
     'UnsupportedDtypeError',
-    'TorchUnsupportedDtypeError',
     'NumpyBackendProvider',
     'TorchBackendProvider',
     'KGChar',

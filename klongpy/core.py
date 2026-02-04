@@ -1,7 +1,7 @@
 """
 KlongPy core module.
 
-This module re-exports all public symbols from the split modules for backward compatibility.
+This module re-exports public symbols from the split modules.
 New code should import directly from the specific modules:
 - klongpy.types: Type definitions and type checking
 - klongpy.parser: Parsing and lexing functions
@@ -13,8 +13,8 @@ from .types import *
 from .parser import *
 from .writer import *
 
-# Also re-export backend np for compatibility
-from .backend import np, TorchUnsupportedDtypeError
+# Re-export backend numpy-like module for shared array helpers
+from .backend import bknp
 
 __all__ = [
     # Types
@@ -27,6 +27,8 @@ __all__ = [
     'KGAdverb',
     'KGChar',
     'KGCond',
+    'KGUndefined',
+    'KLONG_UNDEFINED',
     'KGLambda',
     'KGChannel',
     'KGChannelDir',
@@ -107,6 +109,5 @@ __all__ = [
     'kg_write',
     'kg_argsort',
     # Backend re-exports
-    'np',
-    'TorchUnsupportedDtypeError',
+    'bknp',
 ]

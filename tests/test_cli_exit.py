@@ -1,8 +1,12 @@
+import importlib.util
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+
+_COLORAMA_SPEC = importlib.util.find_spec("colorama")
+COLORAMA_AVAILABLE = _COLORAMA_SPEC is not None
 
 
 class TestCliExit(unittest.TestCase):
@@ -15,9 +19,7 @@ class TestCliExit(unittest.TestCase):
 
             env = os.environ.copy()
             stub_dir = None
-            try:
-                import colorama  # noqa: F401
-            except ModuleNotFoundError:
+            if not COLORAMA_AVAILABLE:
                 stub_dir = os.path.join(tmp, "colorama_stub")
                 os.makedirs(stub_dir, exist_ok=True)
                 with open(os.path.join(stub_dir, "colorama.py"), "w", encoding="utf-8") as stub:

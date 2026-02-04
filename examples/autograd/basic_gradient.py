@@ -4,13 +4,36 @@ Basic Gradient Computation with KlongPy
 This example demonstrates computing gradients of simple functions
 using KlongPy's autograd capabilities with the PyTorch backend.
 
-Run with: USE_TORCH=1 python basic_gradient.py
+Run with: python basic_gradient.py --backend torch
 """
+import argparse
+
 from klongpy import KlongInterpreter
+from klongpy.backends import list_backends
 import numpy as np
 
-# Create interpreter (uses torch backend when USE_TORCH=1)
-klong = KlongInterpreter()
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="KlongPy autograd example using configurable backends."
+    )
+    parser.add_argument(
+        "--backend",
+        choices=list_backends(),
+        default=None,
+        help="Array backend to use (default: numpy).",
+    )
+    parser.add_argument(
+        "--device",
+        default=None,
+        help="Torch device override (cpu, cuda, mps). Only applies to torch backend.",
+    )
+    return parser.parse_args()
+
+
+args = parse_args()
+
+# Create interpreter (use --backend torch to enable PyTorch)
+klong = KlongInterpreter(backend=args.backend, device=args.device)
 
 print("KlongPy Autograd Examples")
 print("=" * 50)

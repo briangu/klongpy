@@ -1,3 +1,4 @@
+import math
 import os
 import sys
 import tempfile
@@ -14,6 +15,7 @@ from klongpy.sys_fn import (
     eval_sys_load,
     eval_sys_more_input,
     eval_sys_module,
+    eval_sys_output_channel,
     eval_sys_to_channel,
     eval_sys_process_clock,
     eval_sys_python,
@@ -43,7 +45,6 @@ class TestFromChannelErrorHandling(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
             fname = f.name
         try:
-            from klongpy.sys_fn import eval_sys_output_channel
             with eval_sys_output_channel(fname) as out_chan:
                 with self.assertRaises(RuntimeError) as ctx:
                     eval_sys_from_channel(klong, out_chan)
@@ -72,7 +73,6 @@ class TestMoreInputErrorHandling(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
             fname = f.name
         try:
-            from klongpy.sys_fn import eval_sys_output_channel
             with eval_sys_output_channel(fname) as out_chan:
                 klong['.sys.cin'] = out_chan
                 with self.assertRaises(RuntimeError) as ctx:
@@ -161,14 +161,12 @@ class TestPythonImport(unittest.TestCase):
 class TestPythonCall(unittest.TestCase):
     def test_python_call_list_form(self):
         klong = KlongInterpreter()
-        import math
         # Pass the actual object, not a string key
         result = eval_sys_python_call(klong, [math, "sqrt"], [64], {})
         self.assertEqual(result, 8.0)
 
     def test_python_call_list_form_with_symbol(self):
         klong = KlongInterpreter()
-        import math
         klong["math_mod"] = math
         # Use KGSym for lookup
         result = eval_sys_python_call(klong, [KGSym("math_mod"), "sqrt"], [64], {})
@@ -176,7 +174,6 @@ class TestPythonCall(unittest.TestCase):
 
     def test_python_call_invalid_function_raises(self):
         klong = KlongInterpreter()
-        import math
         with self.assertRaises(KlongException) as ctx:
             eval_sys_python_call(klong, [math, "nonexistent"], [1], {})
         self.assertIn("not found", str(ctx.exception))
@@ -202,7 +199,6 @@ class TestPythonCall(unittest.TestCase):
 
     def test_python_call_list_non_callable(self):
         klong = KlongInterpreter()
-        import math
         # Pass the actual object
         result = eval_sys_python_call(klong, [math, "pi"], [], {})
         self.assertAlmostEqual(result, 3.14159, places=4)
@@ -211,21 +207,18 @@ class TestPythonCall(unittest.TestCase):
 class TestPythonAttribute(unittest.TestCase):
     def test_python_attribute_non_string_name_raises(self):
         klong = KlongInterpreter()
-        import math
         with self.assertRaises(KlongException) as ctx:
             eval_sys_python_attribute(klong, math, 123)
         self.assertIn("attribute name must be a string", str(ctx.exception))
 
     def test_python_attribute_not_found_raises(self):
         klong = KlongInterpreter()
-        import math
         with self.assertRaises(KlongException) as ctx:
             eval_sys_python_attribute(klong, math, "nonexistent")
         self.assertIn("not found", str(ctx.exception))
 
     def test_python_attribute_success(self):
         klong = KlongInterpreter()
-        import math
         result = eval_sys_python_attribute(klong, math, "pi")
         self.assertAlmostEqual(result, 3.14159, places=4)
 
