@@ -17,8 +17,9 @@
 .pyf("stock_prices";"fetchStockReturns")
 .pyf("stock_prices";"rollingOptimize")
 
-syms::["AAPL" "MSFT" "NVDA" "GOOG"]
-start::"2024-01-01"
+:" Diversified portfolio across sectors"
+syms::["AAPL" "MSFT" "WMT" "PG" "JNJ" "JPM" "XOM" "CAT" "VZ"]
+start::"2020-01-01"
 end::"2024-12-31"
 
 .d("Fetching returns for "); .d(syms); .d(" from "); .d(start); .d(" to "); .p(end)
@@ -74,12 +75,16 @@ winrate::(wins%ntrading)*100
 .p("")
 
 :" --- Show performance evolution ---"
-.p("Performance samples (every ~50 days):")
-.d("Day 32 - Return: "); .d(cumrets@0); .d(" Sharpe: "); .p(sharpes@0)
-.d("Day 85 - Return: "); .d(cumrets@53); .d(" Sharpe: "); .p(sharpes@53)
-.d("Day 140 - Return: "); .d(cumrets@108); .d(" Sharpe: "); .p(sharpes@108)
-.d("Day 195 - Return: "); .d(cumrets@163); .d(" Sharpe: "); .p(sharpes@163)
-.d("Day 249 - Return: "); .d(cumrets@217); .d(" Sharpe: "); .p(sharpes@217)
+.p("Performance samples (yearly checkpoints):")
+quarter::ntrading%4
+half::ntrading%2
+threequarter::(3*ntrading)%4
+final::ntrading-1
+.d("Start (2020) - Return: "); .d(cumrets@0); .d(" Sharpe: "); .p(sharpes@0)
+.d("Year 1 (2021) - Return: "); .d(cumrets@quarter); .d(" Sharpe: "); .p(sharpes@quarter)
+.d("Year 2 (2022) - Return: "); .d(cumrets@half); .d(" Sharpe: "); .p(sharpes@half)
+.d("Year 3 (2023) - Return: "); .d(cumrets@threequarter); .d(" Sharpe: "); .p(sharpes@threequarter)
+.d("End (2024) - Return: "); .d(cumrets@final); .d(" Sharpe: "); .p(sharpes@final)
 
 .p("")
 
@@ -91,3 +96,8 @@ pct::100
 .d("  "); .d(syms@1); .d(": "); .d(pct*finalw@1); .p("%")
 .d("  "); .d(syms@2); .d(": "); .d(pct*finalw@2); .p("%")
 .d("  "); .d(syms@3); .d(": "); .d(pct*finalw@3); .p("%")
+.d("  "); .d(syms@4); .d(": "); .d(pct*finalw@4); .p("%")
+.d("  "); .d(syms@5); .d(": "); .d(pct*finalw@5); .p("%")
+.d("  "); .d(syms@6); .d(": "); .d(pct*finalw@6); .p("%")
+.d("  "); .d(syms@7); .d(": "); .d(pct*finalw@7); .p("%")
+.d("  "); .d(syms@8); .d(": "); .d(pct*finalw@8); .p("%")
