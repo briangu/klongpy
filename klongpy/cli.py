@@ -191,11 +191,13 @@ async def repl_eval(klong, p, verbose=True):
     return r
 
 
-def show_repl_header(ipc_addr=None):
+def show_repl_header(backend_name, device_name=None, ipc_addr=None):
     print()
     print(f"{colorama.Fore.GREEN}Welcome to KlongPy REPL v{importlib.metadata.distribution('klongpy').version}")
     print(f"{colorama.Fore.GREEN}Author: Brian Guarraci")
     print(f"{colorama.Fore.GREEN}Web: http://klongpy.org")
+    device_str = f" ({device_name})" if device_name else ""
+    print(f"{colorama.Fore.CYAN}Backend: {backend_name}{device_str}")
     print(f"{colorama.Fore.YELLOW}]h for help; Ctrl-D or ]q to quit")
     print()
     if ipc_addr:
@@ -299,6 +301,12 @@ def main():
 
     args = parser.parse_args(main_args[1:])
 
+    # Default to torch backend if available and not explicitly set
+    if args.backend is None:
+        available_backends = list_backends()
+        if 'torch' in available_backends:
+            args.backend = 'torch'
+
     if args.debug:
         print("args: ", args)
 
@@ -381,7 +389,9 @@ def main():
         if run_repl:
             exit_state = {"code": None}
             colorama.init(autoreset=True)
-            show_repl_header(args.server)
+            backend_name = klong._backend.name
+            device_name = str(klong._backend.device) if hasattr(klong._backend, 'device') else None
+            show_repl_header(backend_name, device_name, args.server)
             console_loop.create_task(ConsoleInputHandler.input_producer(console_loop, klong_loop, klong, args.verbose, exit_state))
             try:
                 console_loop.run_forever()
