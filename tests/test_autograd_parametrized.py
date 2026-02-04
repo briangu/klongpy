@@ -390,6 +390,8 @@ class TestGradcheck:
         """Test .gradcheck() with basic scalar function."""
         if backend != 'torch':
             pytest.skip("Requires torch backend")
+        if klong._backend.device.type != 'cpu':
+            pytest.skip("gradcheck requires CPU device (float64 support)")
         klong('f::{x^2}')
         result = klong('.gradcheck(f;3.0)')
         assert result == 1
@@ -398,6 +400,8 @@ class TestGradcheck:
         """Test .gradcheck() with vector input."""
         if backend != 'torch':
             pytest.skip("Requires torch backend")
+        if klong._backend.device.type != 'cpu':
+            pytest.skip("gradcheck requires CPU device (float64 support)")
         klong('g::{+/x^2}')
         result = klong('.gradcheck(g;[1.0 2.0 3.0])')
         assert result == 1
@@ -406,6 +410,8 @@ class TestGradcheck:
         """Test .gradcheck() with polynomial function."""
         if backend != 'torch':
             pytest.skip("Requires torch backend")
+        if klong._backend.device.type != 'cpu':
+            pytest.skip("gradcheck requires CPU device (float64 support)")
         klong('p::{(x^3)+(2*x^2)+x}')
         result = klong('.gradcheck(p;2.0)')
         assert result == 1
@@ -414,6 +420,8 @@ class TestGradcheck:
         """Test gradcheck() directly on backend."""
         if backend != 'torch':
             pytest.skip("Requires torch backend")
+        if klong._backend.device.type != 'cpu':
+            pytest.skip("gradcheck requires CPU device (float64 support)")
         result = klong._backend.gradcheck(
             lambda x: (x**2).sum(),
             (torch.tensor([1.0, 2.0, 3.0], dtype=torch.float64, requires_grad=True),)

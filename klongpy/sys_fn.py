@@ -852,6 +852,45 @@ def eval_sys_exit(x):
     sys.exit(1)
 
 
+def eval_sys_strict(klong):
+    """
+
+        .strict()                                                 [Strict]
+
+        Enable strict mode for variable assignment (level 1).
+        In strict mode, functions cannot create new global variables
+        unless they are explicitly declared with the global: prefix.
+
+        Example:
+            .strict()
+            counter::0
+            increment::{counter::counter+1}  :" ERROR"
+            increment::{[global:counter];counter::counter+1}  :" OK"
+
+    """
+    klong._context._strict_mode = 1
+    return 1
+
+
+def eval_sys_unsafe(klong):
+    """
+
+        .unsafe()                                                 [Unsafe]
+
+        Disable strict mode for variable assignment (level 0).
+        In unsafe mode, functions can create new global variables
+        without declaration (legacy behavior).
+
+        Example:
+            .unsafe()
+            f::{newvar::42}  :" OK - creates global newvar"
+            f()
+
+    """
+    klong._context._strict_mode = 0
+    return 0
+
+
 def create_system_functions():
     def _get_name(s):
         i = s.index('.')

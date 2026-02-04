@@ -1,103 +1,96 @@
-:" ============================================================"
-:" Rolling Portfolio Optimization with Walk-Forward Analysis"
-:" ============================================================"
-:" Demonstrates true rolling optimization where we:"
-:"   1. Use expanding window EWMA for mean/variance estimation"
-:"   2. Reoptimize portfolio daily using gradient ascent"
-:"   3. Track out-of-sample performance over time"
-:" Requires: pip install yfinance"
-:" Run with: kgpy rolling_portfolio_opt.kg"
-:" ============================================================"
+:" Rolling Portfolio Optimization - Walk-Forward Backtest"
+:" Uses Klong loops and autograd - all math in Klong"
 
-.p("Rolling Portfolio Optimization - Walk Forward Analysis")
-.p("========================================================")
+.p("Rolling Portfolio Optimization - Walk-Forward Backtest")
+.p("=======================================================")
 .p("")
 
-:" --- Fetch stock returns from Yahoo Finance ---"
-.pyf("stock_prices";"fetchStockReturns")
-.pyf("stock_prices";"rollingOptimize")
+.pyf("stock_prices";"fetchStockPrices")
 
-:" Diversified portfolio across sectors"
-syms::["AAPL" "MSFT" "WMT" "PG" "JNJ" "JPM" "XOM" "CAT" "VZ"]
-start::"2020-01-01"
-end::"2024-12-31"
+syms::["AAPL" "MSFT" "WMT" "JPM"]
+.p("Fetching stock data...")
+prices::fetchStockPrices(syms;"2024-01-01";"2024-12-31")
+.d("Stocks: "); .p(syms)
 
-.d("Fetching returns for "); .d(syms); .d(" from "); .d(start); .d(" to "); .p(end)
-rets::fetchStockReturns(syms;start;end)
+:" Compute returns from prices: (p[1:] - p[:-1]) / p[:-1]"
+calcReturns::{[n;prev;curr];n::#x;prev::(n-1)#x;curr::1_x;(curr-prev)%prev}
+rets::calcReturns'prices
+
 ndays::#(rets@0)
-.d("Loaded "); .d(ndays); .p(" days of returns")
+.d("Days: "); .p(ndays)
 .p("")
 
-:" --- Rolling optimization parameters ---"
-alpha::2%(1+32)
-lookback::32
-eta::0.1
-nsteps::5
+lookback::30
+lr::0.001
+optsteps::50
+minp::0.08
+maxp::0.15
 
-.d("EWMA alpha: "); .p(alpha)
-.d("Lookback window: "); .d(lookback); .p(" days")
-.d("Learning rate: "); .p(eta)
-.d("Optimization steps per day: "); .p(nsteps)
+avg::{(+/x)%#x}
+stddev::{r::x-avg(x);((+/r^2)%#x)^0.5}
+
+portReturn::{+/x*mu}
+portVol::{+/((x*vols)^2)^0.5}
+sharpe::{portReturn(x)%(portVol(x)+0.0001)}
+negSharpe::{0-sharpe(x)}
+minPenalty::{10*+/((minp-x)|(0*x))^2}
+maxPenalty::{10*+/((x-maxp)|(0*x))^2}
+sumPenalty::{10*((1-+/x)^2)}
+loss::{negSharpe(x)+minPenalty(x)+maxPenalty(x)+sumPenalty(x)}
+
+w::[0.25 0.25 0.25 0.25]
+mu::[0.0 0.0 0.0 0.0]
+vols::[0.01 0.01 0.01 0.01]
+portReturns::[]
+cumReturns::[]
+
+optim::{w::w-(lr*(loss:>w));w::0|w;w::w%(+/w);0}
+
+:" Simple version: compute stats for a specific day outside the loop"
+computeStats::{[day;r0;r1;r2;r3;win0;win1;win2;win3;m0;m1;m2;m3;v0;v1;v2;v3];
+    day::x;
+    r0::(rets@0)@(!day);
+    r1::(rets@1)@(!day);
+    r2::(rets@2)@(!day);
+    r3::(rets@3)@(!day);
+    win0::(0-lookback)#r0;
+    win1::(0-lookback)#r1;
+    win2::(0-lookback)#r2;
+    win3::(0-lookback)#r3;
+    m0::avg(win0);m1::avg(win1);m2::avg(win2);m3::avg(win3);
+    v0::stddev(win0);v1::stddev(win1);v2::stddev(win2);v3::stddev(win3);
+    mu::m0,m1,m2,m3;
+    vols::v0,v1,v2,v3;
+    0
+}
+
+processDay::{[dayrets;d0;d1;d2;d3];
+    computeStats(x);
+    optim'!optsteps;
+    d0::(rets@0)@x;d1::(rets@1)@x;d2::(rets@2)@x;d3::(rets@3)@x;
+    dayrets::d0,d1,d2,d3;
+    portReturns::portReturns,+/w*dayrets;
+    cumReturns::cumReturns,+/portReturns;
+    :[0=(x!50);{.d("Day ");.d(x);.d(": cumret=");.p(*|cumReturns)}@[];0];
+    0
+}
+
+.p("Running walk-forward optimization...")
+.d("Lookback: ");.d(lookback);.p(" days")
+.d("Limits: [");.d(100*minp);.d("%, ");.d(100*maxp);.p("%]")
 .p("")
 
-:" --- Run rolling walk-forward optimization ---"
-.p("Running rolling optimization (this may take a minute)...")
-results::rollingOptimize(rets;alpha;lookback;eta;nsteps)
-
-:" Extract results (returned as list)"
-dailyrets::results@0
-cumrets::results@1
-weights::results@2
-sharpes::results@3
-
-ntrading::#dailyrets
-.p("Optimization complete!")
-.p("")
-
-:" --- Performance metrics ---"
-.d("Trading days: "); .p(ntrading)
-
-:" Final cumulative return"
-finalcum::cumrets@(ntrading-1)
-.d("Cumulative return: "); .d(finalcum); .d(" ("); .d(100*finalcum); .p("%)")
-
-:" Annualized Sharpe ratio (assuming 252 trading days)"
-avgret::(+/dailyrets)%ntrading
-stdret::((+/((dailyrets-(avgret*ntrading))^2))%(ntrading-1))^0.5
-sharpe::(avgret%stdret)*(252^0.5)
-.d("Annualized Sharpe ratio: "); .p(sharpe)
-
-:" Win rate (days with positive returns)"
-wins::+/(dailyrets>0.0)
-winrate::(wins%ntrading)*100
-.d("Win rate: "); .d(wins); .d("/"); .d(ntrading); .d(" ("); .d(winrate); .p("%)")
+processDay'lookback+!ndays-lookback
 
 .p("")
-
-:" --- Show performance evolution ---"
-.p("Performance samples (yearly checkpoints):")
-quarter::ntrading%4
-half::ntrading%2
-threequarter::(3*ntrading)%4
-final::ntrading-1
-.d("Start (2020) - Return: "); .d(cumrets@0); .d(" Sharpe: "); .p(sharpes@0)
-.d("Year 1 (2021) - Return: "); .d(cumrets@quarter); .d(" Sharpe: "); .p(sharpes@quarter)
-.d("Year 2 (2022) - Return: "); .d(cumrets@half); .d(" Sharpe: "); .p(sharpes@half)
-.d("Year 3 (2023) - Return: "); .d(cumrets@threequarter); .d(" Sharpe: "); .p(sharpes@threequarter)
-.d("End (2024) - Return: "); .d(cumrets@final); .d(" Sharpe: "); .p(sharpes@final)
-
+.p("Complete!")
+.d("Trading days: ");.p(#portReturns)
+lastIdx::(#cumReturns)-1
+.d("Cumulative return: ");.p(cumReturns@lastIdx)
 .p("")
-
-:" --- Final allocation ---"
-.p("Final portfolio allocation:")
-finalw::weights@(ntrading-1)
+.p("Final allocation:")
 pct::100
-.d("  "); .d(syms@0); .d(": "); .d(pct*finalw@0); .p("%")
-.d("  "); .d(syms@1); .d(": "); .d(pct*finalw@1); .p("%")
-.d("  "); .d(syms@2); .d(": "); .d(pct*finalw@2); .p("%")
-.d("  "); .d(syms@3); .d(": "); .d(pct*finalw@3); .p("%")
-.d("  "); .d(syms@4); .d(": "); .d(pct*finalw@4); .p("%")
-.d("  "); .d(syms@5); .d(": "); .d(pct*finalw@5); .p("%")
-.d("  "); .d(syms@6); .d(": "); .d(pct*finalw@6); .p("%")
-.d("  "); .d(syms@7); .d(": "); .d(pct*finalw@7); .p("%")
-.d("  "); .d(syms@8); .d(": "); .d(pct*finalw@8); .p("%")
+.d("  ");.d(syms@0);.d(": ");.d(pct*w@0);.p("%")
+.d("  ");.d(syms@1);.d(": ");.d(pct*w@1);.p("%")
+.d("  ");.d(syms@2);.d(": ");.d(pct*w@2);.p("%")
+.d("  ");.d(syms@3);.d(": ");.d(pct*w@3);.p("%")

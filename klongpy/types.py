@@ -47,10 +47,11 @@ def get_fn_arity_str(arity):
 
 
 class KGFn:
-    def __init__(self, a, args, arity):
+    def __init__(self, a, args, arity, global_params=None):
         self.a = a
         self.args = args
         self.arity = arity
+        self.global_params = global_params or set()
 
     def __str__(self):
         return get_fn_arity_str(self.arity)
