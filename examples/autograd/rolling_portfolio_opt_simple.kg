@@ -1,0 +1,81 @@
+:" ============================================================"
+:" Rolling Portfolio Optimization - Demonstrating Klong Autograd"
+:" ============================================================"
+:" This shows portfolio optimization using Klong's autograd (`:>`)"
+:" with position constraints, all in pure Klong"
+:" ============================================================"
+
+.p("Rolling Portfolio Optimization - Klong Autograd Demo")
+.p("======================================================")
+.p("")
+
+:" Simple example with hardcoded returns and volatilities"
+syms::["AAPL" "MSFT" "WMT" "JPM"]
+mu::[0.0013 0.0007 0.0022 0.0015]     :" Mean returns (annual)"
+vols::[0.0141 0.0126 0.0111 0.0148]   :" Volatilities (annual)"
+
+.d("Stocks: "); .p(syms)
+.p("")
+
+.d("Estimated parameters:")
+.d("Means: "); .p(mu)
+.d("Vols:  "); .p(vols)
+.p("")
+
+:" --- Klong functions for portfolio optimization ---"
+
+:" Sharpe ratio: mean return / volatility (uses global mu, vols)"
+portReturn::{+/x*mu}
+portVol::{+/((x*vols)^2)^0.5}
+sharpe::{portReturn(x)%(portVol(x)+0.0001)}
+
+:" Negative Sharpe for minimization"
+negSharpe::{0-sharpe(x)}
+
+:" Position constraints as penalties"
+minp::0.08
+maxp::0.15
+minPenalty::{10*+/((minp-x)|(0*x))^2}   :" Penalty for weights below min"
+maxPenalty::{10*+/((x-maxp)|(0*x))^2}   :" Penalty for weights above max"
+sumPenalty::{10*((1-+/x)^2)}            :" Penalty if weights don't sum to 1"
+
+:" Combined loss function"
+loss::{negSharpe(x)+minPenalty(x)+maxPenalty(x)+sumPenalty(x)}
+
+:" --- Optimization ---"
+
+:" Start with equal weights"
+w::[0.25 0.25 0.25 0.25]
+lr::0.001
+epochs::200
+
+.d("Initial weights: "); .p(w)
+.d("Initial Sharpe:  "); .p(sharpe(w))
+.p("")
+
+:" Optimization step"
+step::{w::w-(lr*(loss:>w));w::0|w;w::w%(+/w);0}
+
+.p("Optimizing with constraints [8%, 15%]...")
+.p("Running 200 optimization steps...")
+
+:" Run optimization"
+step'!epochs
+
+.p("")
+.d("Final weights: "); .p(w)
+.d("Final Sharpe:  "); .p(sharpe(w))
+.p("")
+
+.p("Allocation:")
+pct::100
+.d("  "); .d(syms@0); .d(": "); .d(pct*w@0); .p("%")
+.d("  "); .d(syms@1); .d(": "); .d(pct*w@1); .p("%")
+.d("  "); .d(syms@2); .d(": "); .d(pct*w@2); .p("%")
+.d("  "); .d(syms@3); .d(": "); .d(pct*w@3); .p("%")
+
+.p("")
+.p("Key takeaways:")
+.p("1. Autograd (:>) computes exact gradients of loss function")
+.p("2. Constraints enforced via penalty functions (8-15% per stock)")
+.p("3. All optimization logic is pure Klong - no Python loops!")

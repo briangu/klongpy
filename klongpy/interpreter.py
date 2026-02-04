@@ -54,9 +54,10 @@ class KlongContext():
 
     """
 
-    def __init__(self, system_contexts):
+    def __init__(self, system_contexts, strict_mode=1):
         self._context = deque([{}, *system_contexts])
         self._min_ctx_count = len(system_contexts)
+        self._strict_mode = strict_mode
 
     def start_module(self, name):
         self.push(KGModule(name))
@@ -70,11 +71,28 @@ class KlongContext():
 
     def __setitem__(self, k, v):
         assert isinstance(k, KGSym)
+
         if k not in reserved_fn_symbols:
+            # Check if variable exists in any scope
             for d in self._context:
                 if in_map(k, d):
                     d[k] = v
                     return k
+
+        # Variable doesn't exist - check strict mode
+        if self._strict_mode >= 1:
+            # Check if we're inside a function (more than just global scope)
+            in_function = len(self._context) > self._min_ctx_count + 1
+
+            if in_function:
+                # Inside function - disallow creating new variables
+                raise KlongException(
+                    f"undefined variable: {k}\n"
+                    f"  To create a local variable, declare it in the parameter list: {{[{k}]; ...}}\n"
+                    f"  To modify an existing global, ensure it exists before calling the function"
+                )
+
+        # Create new variable in current scope
         set_context_var(self._context[0], k, v)
         return k
 
@@ -226,7 +244,8 @@ class KlongInterpreter():
             when backend='torch'. If None, auto-selects best available device.
         """
         self._backend = get_backend(backend, device=device)
-        self._context = KlongContext(create_system_contexts())
+        strict_mode = 0  # 0=unsafe (default for backward compat), 1=strict, 2=pedantic
+        self._context = KlongContext(create_system_contexts(), strict_mode=strict_mode)
         self._vd = create_dyad_functions(self)
         self._vm = create_monad_functions(self)
         self._start_time = time.time()
@@ -595,14 +614,14 @@ class KlongInterpreter():
         ctx = {} if f_args is None else {reserved_fn_symbol_map[p]: self.call(q) for p,q in zip(reserved_fn_args,f_args)}
 
         if is_list(f) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0:
-            have_locals = True
-            for q in f[0]:
-                if not isinstance(q, KGSym):
-                    have_locals = False
-                    break
+            # Filter out semicolons and check if all remaining elements are symbols
+            params = [q for q in f[0] if isinstance(q, KGSym)]
+            have_locals = len(params) > 0 and all(isinstance(q, KGSym) for q in params)
             if have_locals:
-                for q in f[0]:
-                    ctx[q] = q
+                for q in params:
+                    # Don't overwrite function parameters (x, y, z)
+                    if q not in ctx:
+                        ctx[q] = q
                 f = f[1:]
 
         ctx[reserved_dot_f_symbol] = f
