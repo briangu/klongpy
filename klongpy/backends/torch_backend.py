@@ -858,7 +858,14 @@ class TorchBackendProvider(BackendProvider):
         _ = compiled_fn(example_input)
 
         if output_path is None:
-            return compiled_fn
+            # Wrap with Klong-convention parameter name (x) so that
+            # KGLambda introspection binds the argument correctly when
+            # the compiled function is stored via ::
+            def klong_compiled(x):
+                if not isinstance(x, torch.Tensor):
+                    x = self.create_grad_tensor(x)
+                return compiled_fn(x)
+            return klong_compiled
 
         # Export the function graph for inspection
         try:
