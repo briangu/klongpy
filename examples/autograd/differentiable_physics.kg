@@ -10,7 +10,7 @@
 :" compute the miss distance, and use autograd to find"
 :" the gradient with respect to launch angle."
 :" "
-:" Run with: USE_TORCH=1 kgpy differentiable_physics.kg"
+:" Run with: kgpy --backend torch differentiable_physics.kg"
 :" ============================================================"
 
 .p("Differentiable Physics: Projectile Targeting")
@@ -32,7 +32,7 @@ v0sq::625.0      :" v0^2 precomputed"
 tgtX::50.0
 
 :" Launch angle (this is what we optimize)"
-angle::0.5       :" Initial guess: ~28 degrees"
+angle::1.2       :" Initial guess: ~69 degrees (way off!)"
 
 .d("Target x: ");.p(tgtX)
 .d("Initial velocity: ");.p(v0)
@@ -60,8 +60,8 @@ loss::{(range(x)-tgtX)^2}
 .p("(Gradients computed through physics equations!)")
 .p("")
 
-lr::0.0001
-epochs::200
+lr::0.000003
+epochs::300
 
 :" Training step - update angle using gradient"
 :" Constrain angle to valid range (0.1 to 1.4 radians)"
@@ -70,9 +70,9 @@ step::{grad::loss:>angle;angle::(0.1|(angle-(lr*grad)))&1.4;0}
 :" Progress printing"
 printProg::{.d("Epoch ");.d(x);.d(": angle=");.d(angle*57.3);.d(" deg, range=");.d(range(angle));.d(", miss=");.p(sqrt(loss(angle)))}
 
-:" Training loop"
-trainStep::{step();:[0=(x!20);printProg(x);0]}
-trainStep'!epochs
+:" Training loop (run in batches of 30, print progress between batches)"
+batch::{step'!30;printProg(x*30)}
+batch'!10
 
 .p("")
 .p("Optimization complete!")

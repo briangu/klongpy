@@ -3,10 +3,10 @@
 :" ============================================================"
 :" This example compares the two gradient operators:"
 :" - ∇ (nabla): Numeric differentiation using finite differences"
-:" - :> : Autograd (uses PyTorch when USE_TORCH=1, else numeric)"
+:" - :> : Autograd (uses PyTorch when backend is torch (--backend torch), else numeric)"
 :" Both operators work with any backend."
 :" Run with: kgpy numeric_vs_autograd.kg"
-:" Or with torch: USE_TORCH=1 kgpy numeric_vs_autograd.kg"
+:" Or with torch: kgpy --backend torch numeric_vs_autograd.kg"
 :" ============================================================"
 
 .p("Comparing Gradient Operators")
@@ -113,6 +113,6 @@ autoGradP::poly10:>2
 .p("")
 .p("  :> (autograd):")
 .p("    - Syntax: function:>point")
-.p("    - Method: PyTorch autograd when USE_TORCH=1")
+.p("    - Method: PyTorch autograd when backend is torch (--backend torch)")
 .p("    - Falls back to numeric without torch")
 .p("    - Exact gradients with torch, faster for complex functions")

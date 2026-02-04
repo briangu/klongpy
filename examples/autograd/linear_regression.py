@@ -4,13 +4,36 @@ Linear Regression with Gradient Descent using KlongPy
 This example demonstrates training a simple linear regression model
 using KlongPy's autograd capabilities with the PyTorch backend.
 
-Run with: USE_TORCH=1 python linear_regression.py
+Run with: python linear_regression.py --backend torch
 """
+import argparse
+
 from klongpy import KlongInterpreter
+from klongpy.backends import list_backends
 import numpy as np
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Linear regression with KlongPy autograd and selectable backends."
+    )
+    parser.add_argument(
+        "--backend",
+        choices=list_backends(),
+        default=None,
+        help="Array backend to use (default: numpy).",
+    )
+    parser.add_argument(
+        "--device",
+        default=None,
+        help="Torch device override (cpu, cuda, mps). Only applies to torch backend.",
+    )
+    return parser.parse_args()
+
+
+args = parse_args()
+
 # Create interpreter
-klong = KlongInterpreter()
+klong = KlongInterpreter(backend=args.backend, device=args.device)
 
 print("Linear Regression with KlongPy Autograd")
 print("=" * 50)
@@ -25,11 +48,12 @@ y_true = 2.0 * X + 3.0 + 0.1 * np.random.randn(n_samples).astype(np.float32)
 
 # Put data into klong context
 klong['X'] = X
-klong['y_true'] = y_true
+klong['ytrue'] = y_true
+klong['nsamples'] = float(n_samples)
 
 # Initialize parameters
-klong['w'] = np.array([0.0], dtype=np.float32)  # weight
-klong['b'] = np.array([0.0], dtype=np.float32)  # bias
+klong['w'] = 0.0  # weight
+klong['b'] = 0.0  # bias
 
 print("True parameters: w=2.0, b=3.0")
 print("Initial parameters: w=0.0, b=0.0")
@@ -39,55 +63,51 @@ print()
 # Mean squared error loss
 klong('''
     predict::{(w*x)+b}
-    mse::{+/((predict(X))-y_true)^2}
-    grad_mse::∇mse
+    mse::{(+/((predict(X))-ytrue)^2)%nsamples}
 ''')
 
 # Training parameters
 learning_rate = 0.01
-n_epochs = 100
+n_epochs = 500
 
 print(f"Training for {n_epochs} epochs with learning_rate={learning_rate}")
 print("-" * 50)
 
 for epoch in range(n_epochs):
     # Compute loss
-    loss = float(klong('mse([w b])'))
+    loss = float(klong('mse(0)'))
 
-    # Compute gradients with respect to [w, b]
-    params = np.array([float(klong('*w')), float(klong('*b'))], dtype=np.float32)
-    klong['params'] = params
-
-    # We need to compute gradient of loss w.r.t. parameters
-    # For simplicity, compute numerical gradients
+    # Compute numerical gradients
+    cur_w = float(klong('w'))
+    cur_b = float(klong('b'))
     eps = 1e-4
 
     # Gradient w.r.t. w
-    klong['w'] = np.array([params[0] + eps], dtype=np.float32)
-    loss_plus = float(klong('mse([w b])'))
-    klong['w'] = np.array([params[0] - eps], dtype=np.float32)
-    loss_minus = float(klong('mse([w b])'))
+    klong['w'] = cur_w + eps
+    loss_plus = float(klong('mse(0)'))
+    klong['w'] = cur_w - eps
+    loss_minus = float(klong('mse(0)'))
     grad_w = (loss_plus - loss_minus) / (2 * eps)
 
     # Gradient w.r.t. b
-    klong['w'] = np.array([params[0]], dtype=np.float32)
-    klong['b'] = np.array([params[1] + eps], dtype=np.float32)
-    loss_plus = float(klong('mse([w b])'))
-    klong['b'] = np.array([params[1] - eps], dtype=np.float32)
-    loss_minus = float(klong('mse([w b])'))
+    klong['w'] = cur_w
+    klong['b'] = cur_b + eps
+    loss_plus = float(klong('mse(0)'))
+    klong['b'] = cur_b - eps
+    loss_minus = float(klong('mse(0)'))
     grad_b = (loss_plus - loss_minus) / (2 * eps)
 
     # Update parameters
-    new_w = params[0] - learning_rate * grad_w
-    new_b = params[1] - learning_rate * grad_b
+    new_w = cur_w - learning_rate * grad_w
+    new_b = cur_b - learning_rate * grad_b
 
-    klong['w'] = np.array([new_w], dtype=np.float32)
-    klong['b'] = np.array([new_b], dtype=np.float32)
+    klong['w'] = new_w
+    klong['b'] = new_b
 
-    if epoch % 10 == 0 or epoch == n_epochs - 1:
+    if epoch % 50 == 0 or epoch == n_epochs - 1:
         print(f"Epoch {epoch:3d}: loss={loss:10.4f}, w={new_w:.4f}, b={new_b:.4f}")
 
 print()
 print("Final parameters:")
-print(f"  Learned: w={float(klong('*w')):.4f}, b={float(klong('*b')):.4f}")
+print(f"  Learned: w={float(klong('w')):.4f}, b={float(klong('b')):.4f}")
 print(f"  True:    w=2.0000, b=3.0000")

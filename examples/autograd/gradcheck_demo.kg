@@ -3,7 +3,7 @@
 :" ============================================================"
 :" This example demonstrates how to verify that your autograd"
 :" gradients are mathematically correct using torch.autograd.gradcheck."
-:" Run with: USE_TORCH=1 kgpy gradcheck_demo.kg"
+:" Run with: kgpy --backend torch gradcheck_demo.kg"
 :" ============================================================"
 
 .p("Gradient Verification Demo")

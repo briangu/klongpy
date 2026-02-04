@@ -4,7 +4,7 @@
 :" Instead of deriving Greek formulas by hand, we compute them"
 :" automatically by differentiating the price function!"
 :" This works for ANY pricing model, not just Black-Scholes."
-:" Run with: USE_TORCH=1 kgpy black_scholes_greeks.kg"
+:" Run with: kgpy --backend torch black_scholes_greeks.kg"
 :" ============================================================"
 
 .p("Black-Scholes Greeks via Autograd")

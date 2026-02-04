@@ -3,7 +3,7 @@
 :" ============================================================"
 :" Fetches real option data and verifies our model price"
 :" matches the market price."
-:" Run with: USE_TORCH=1 kgpy black_scholes_live.kg"
+:" Run with: kgpy --backend torch black_scholes_live.kg"
 :" ============================================================"
 
 .p("Black-Scholes Greeks - LIVE Market Verification")

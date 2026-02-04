@@ -7,7 +7,7 @@
 :" 3. Linear regression fitting"
 :" 4. Quadratic curve fitting"
 :" Run with: kgpy gradient_descent.kg"
-:" Or with torch: USE_TORCH=1 kgpy gradient_descent.kg"
+:" Or with torch: kgpy --backend torch gradient_descent.kg"
 :" ============================================================"
 
 .p("Gradient Descent with KlongPy Autograd")

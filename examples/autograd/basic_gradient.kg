@@ -1,6 +1,6 @@
 :" Basic Gradient Computation with KlongPy"
 :" Run with: kgpy basic_gradient.kg"
-:" Or with torch: USE_TORCH=1 kgpy basic_gradient.kg"
+:" Or with torch: kgpy --backend torch basic_gradient.kg"
 :" The :> operator uses PyTorch autograd when available, else falls back to numeric"
 
 .p("KlongPy Autograd Examples")

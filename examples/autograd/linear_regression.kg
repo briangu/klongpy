@@ -1,6 +1,6 @@
 :" Linear Regression with Gradient Descent using KlongPy"
 :" Run with: kgpy linear_regression.kg"
-:" Or with torch: USE_TORCH=1 kgpy linear_regression.kg"
+:" Or with torch: kgpy --backend torch linear_regression.kg"
 :" Uses the :> operator which falls back to numeric gradient without torch"
 
 .p("Linear Regression with KlongPy Autograd")
@@ -53,10 +53,11 @@ epochs::30
 printEpoch::{.d("Epoch ");.d(x);.d(": loss=");.d(lossW(w));.d(", w=");.d(w);.d(", b=");.p(b)}
 
 :" Training step function"
-step::{gw::lossW:>w;gb::lossB:>b;w::w-(lr*gw);b::b-(lr*gb);:[0=(x!5);printEpoch(x);0]}
+step::{gw::lossW:>w;gb::lossB:>b;w::w-(lr*gw);b::b-(lr*gb);0}
 
-:" Run training"
-step'!epochs
+:" Run training (batches of 5, print progress between batches)"
+batch::{step'!5;printEpoch(x*5)}
+batch'!6
 
 .p("")
 .p("Final parameters:")

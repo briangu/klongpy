@@ -273,6 +273,10 @@ async def run_in_klong(klong, s):
 
 
 def run_file(klong_loop, klong, fname, verbose=False):
+    # Add script directory to sys.path so .py/.pyf imports resolve sibling modules
+    script_dir = os.path.dirname(os.path.abspath(fname))
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
     with open(fname, "r") as f:
         content = f.read()
     return run_in_loop(klong_loop, run_in_klong(klong, content))

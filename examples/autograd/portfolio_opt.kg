@@ -4,7 +4,7 @@
 :" Demonstrates using gradient descent to find optimal portfolio"
 :" weights that maximize Sharpe ratio subject to constraints."
 :" Requires: pip install yfinance"
-:" Run with: USE_TORCH=1 kgpy portfolio_opt.kg"
+:" Run with: kgpy --backend torch portfolio_opt.kg"
 :" ============================================================"
 
 .p("Portfolio Optimization with KlongPy Autograd")
@@ -13,7 +13,7 @@
 
 :" --- Fetch Real Stock Data from Yahoo Finance ---"
 
-.pyf("./stock_data.py";"fetchStockData")
+.pyf("stock_data";"fetchStockData")
 
 :" Define stocks to optimize"
 nassets::4
@@ -96,9 +96,9 @@ step::{wts::wts-(lrp*(loss:>wts));wts::0|wts;wts::wts%(+/wts);0}
 :" Progress printing function"
 printProg::{.d("Epoch ");.d(x);.d(": Sharpe=");.d(round2(sharpe(wts)));.d(", weights=");.p(wts)}
 
-:" Run optimization loop - step with progress every 50 epochs"
-trainStep::{step();:[0=(x!50);printProg(x);0]}
-trainStep'!epochs
+:" Run optimization loop (batches of 50, print progress between batches)"
+batch::{step'!50;printProg(x*50)}
+batch'!4
 
 .p("")
 .p("Optimization complete!")
