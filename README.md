@@ -68,12 +68,13 @@ Optimize portfolios with gradients in a language designed for arrays:
 ```klong
 :" Portfolio optimization: gradient of Sharpe ratio"
 returns::[0.05 0.08 0.03 0.10]      :" Annual returns per asset"
-vols::[0.15 0.20 0.10 0.25]        :" Volatilities per asset"
-w::[0.25 0.25 0.25 0.25]           :" Portfolio weights"
+vols::[0.15 0.20 0.10 0.25]         :" Volatilities per asset"
+w::[0.25 0.25 0.25 0.25]            :" Portfolio weights"
 
 sharpe::{(+/x*returns)%((+/((x^2)*(vols^2)))^0.5)}
-sharpe:>w                           :" Gradient of Sharpe ratio"
-[0.07257738709449768 0.032256484031677246 0.11693036556243896 -0.22176480293273926]
+sg::sharpe:>w                       :" Gradient of Sharpe ratio"
+.d("sharpe gradient="); .p(sg)
+sharpe gradient=[0.07257738709449768 0.032256484031677246 0.11693036556243896 -0.22176480293273926]
 ```
 
 ### For ML Researchers
