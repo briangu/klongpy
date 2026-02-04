@@ -42,7 +42,7 @@ f::{x^2}; s::5.0
 {s::s-(0.1*f:>s)}'!100   :" s -> 0"
 ```
 
-This isn't just shorter—it's a fundamentally different way to express computation. Array languages like APL, K, and Q revolutionized finance and data analysis with their concise vectorized operations. KlongPy adds native autograd, making gradients first-class citizens in an array language.
+Array languages like APL, K, and Q revolutionized finance by treating operations as data transformations, not loops. KlongPy brings this philosophy to machine learning: gradients become expressions you compose, not boilerplate you maintain. The result is a succint mathematical-like notation that is automatically extended to machine learning.
 
 ## Quick Install
 
@@ -164,7 +164,7 @@ enumerate_1M                     0.141        0.050    2.83x (torch)
 
 ## Complete Feature Set
 
-KlongPy isn't just an autograd experiment—it's a production-ready platform with kdb+/Q-inspired features:
+KlongPy is a batteries-included platform with kdb+/Q-inspired features:
 
 ### Core Language
 - **Vectorized Operations**: NumPy/PyTorch-powered bulk array operations
@@ -409,7 +409,7 @@ KlongPy stands on the shoulders of giants:
 - **[NumPy](https://numpy.org/)**: The "Iverson Ghost" in Python's scientific stack
 - **[PyTorch](https://pytorch.org/)**: Automatic differentiation and GPU acceleration
 
-KlongPy combines Klong's simplicity with Python's ecosystem and PyTorch's autograd—creating something new: an array language where gradients are first-class citizens.
+KlongPy combines Klong's simplicity with Python's ecosystem and PyTorch's autograd creating something new: an array language where gradients are first-class citizens.
 
 ## Use Cases
 
