@@ -59,6 +59,19 @@ kgpy --backend torch
 pip install "klongpy[all]"
 ```
 
+## REPL
+
+```bash
+$ kgpy
+Welcome to KlongPy REPL v0.7.0
+Author: Brian Guarraci
+Web: http://klongpy.org
+Backend: torch (mps)
+]h for help; Ctrl-D or ]q to quit
+
+$>
+```
+
 ## Why KlongPy?
 
 ### For Quants and Traders
