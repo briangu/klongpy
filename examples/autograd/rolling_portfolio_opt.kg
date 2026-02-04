@@ -1,0 +1,86 @@
+:" ============================================================"
+:" Rolling Portfolio Optimization with EWMA and Sharpe Gradient"
+:" ============================================================"
+:" Demonstrates portfolio optimization using exponentially-weighted"
+:" moving averages for mean/variance estimation and gradient ascent"
+:" on the Sharpe ratio."
+:" Requires: pip install yfinance"
+:" Run with: kgpy rolling_portfolio_opt.kg"
+:" ============================================================"
+
+.p("Rolling Portfolio Optimization with KlongPy Autograd")
+.p("======================================================")
+.p("")
+
+:" --- Fetch stock returns from Yahoo Finance ---"
+.pyf("stock_prices";"fetchStockReturns")
+
+syms::["AAPL" "MSFT" "NVDA" "GOOG"]
+start::"2024-01-01"
+end::"2024-12-31"
+
+.d("Fetching returns for "); .d(syms); .d(" from "); .d(start); .d(" to "); .p(end)
+rets::fetchStockReturns(syms;start;end)
+ndays::#(rets@0)
+.d("Loaded "); .d(ndays); .p(" days of returns")
+.p("")
+
+
+:" --- EWMA mean and variance estimation ---"
+:" Import EWMA function from Python helper"
+.pyf("stock_prices";"ewma")
+.pyf("builtins";"len")
+last::{[n idx]; n::len(x); idx::n+neg1; x@idx}
+neg1::0-1
+
+alpha::2%(1+32)
+.d("Computing EWMA with alpha="); .p(alpha)
+
+:" Compute EWMA of returns and squared returns for each asset"
+r0::rets@0; r1::rets@1; r2::rets@2; r3::rets@3
+m10::ewma(alpha;r0); m11::ewma(alpha;r1); m12::ewma(alpha;r2); m13::ewma(alpha;r3)
+r0sq::r0^2; r1sq::r1^2; r2sq::r2^2; r3sq::r3^2
+m20::ewma(alpha;r0sq); m21::ewma(alpha;r1sq); m22::ewma(alpha;r2sq); m23::ewma(alpha;r3sq)
+
+:" Extract most recent estimates"
+mu::last(m10),last(m11),last(m12),last(m13)
+v2::last(m20),last(m21),last(m22),last(m23)
+var::v2-(mu*mu)
+vols::(0|var)^0.5
+
+.d("Estimated means: "); .p(mu)
+.d("Estimated vols:  "); .p(vols)
+.p("")
+
+:" --- Portfolio optimization via Sharpe gradient ---"
+sharpe::{(+/x*mu)%((+/((x^2)*(vols^2)))^0.5)}
+eta::0.05
+
+step::{[g w1 s]; g::sharpe:>x; w1::x+(eta*g); w1::0|w1; s::+/w1; :[0~s; x; w1%s]}
+
+:" Start with equal weights"
+w::[0.25 0.25 0.25 0.25]
+.d("Initial weights: "); .p(w)
+.d("Initial Sharpe:  "); .p(sharpe(w))
+.p("")
+
+:" Take optimization steps"
+.p("Taking 5 gradient ascent steps...")
+w::step(w)
+.d("Step 1: Sharpe="); .d(sharpe(w)); .d(" weights="); .p(w)
+w::step(w)
+.d("Step 2: Sharpe="); .d(sharpe(w)); .d(" weights="); .p(w)
+w::step(w)
+.d("Step 3: Sharpe="); .d(sharpe(w)); .d(" weights="); .p(w)
+w::step(w)
+.d("Step 4: Sharpe="); .d(sharpe(w)); .d(" weights="); .p(w)
+w::step(w)
+.d("Step 5: Sharpe="); .d(sharpe(w)); .d(" weights="); .p(w)
+.p("")
+
+.p("Final allocation:")
+pct::100
+.d("  "); .d(syms@0); .d(": "); .d(pct*w@0); .p("%")
+.d("  "); .d(syms@1); .d(": "); .d(pct*w@1); .p("%")
+.d("  "); .d(syms@2); .d(": "); .d(pct*w@2); .p("%")
+.d("  "); .d(syms@3); .d(": "); .d(pct*w@3); .p("%")
