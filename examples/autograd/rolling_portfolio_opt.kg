@@ -1,19 +1,21 @@
 :" ============================================================"
-:" Rolling Portfolio Optimization with EWMA and Sharpe Gradient"
+:" Rolling Portfolio Optimization with Walk-Forward Analysis"
 :" ============================================================"
-:" Demonstrates portfolio optimization using exponentially-weighted"
-:" moving averages for mean/variance estimation and gradient ascent"
-:" on the Sharpe ratio."
+:" Demonstrates true rolling optimization where we:"
+:"   1. Use expanding window EWMA for mean/variance estimation"
+:"   2. Reoptimize portfolio daily using gradient ascent"
+:"   3. Track out-of-sample performance over time"
 :" Requires: pip install yfinance"
 :" Run with: kgpy rolling_portfolio_opt.kg"
 :" ============================================================"
 
-.p("Rolling Portfolio Optimization with KlongPy Autograd")
-.p("======================================================")
+.p("Rolling Portfolio Optimization - Walk Forward Analysis")
+.p("========================================================")
 .p("")
 
 :" --- Fetch stock returns from Yahoo Finance ---"
 .pyf("stock_prices";"fetchStockReturns")
+.pyf("stock_prices";"rollingOptimize")
 
 syms::["AAPL" "MSFT" "NVDA" "GOOG"]
 start::"2024-01-01"
@@ -25,62 +27,67 @@ ndays::#(rets@0)
 .d("Loaded "); .d(ndays); .p(" days of returns")
 .p("")
 
-
-:" --- EWMA mean and variance estimation ---"
-:" Import EWMA function from Python helper"
-.pyf("stock_prices";"ewma")
-.pyf("builtins";"len")
-last::{[n idx]; n::len(x); idx::n+neg1; x@idx}
-neg1::0-1
-
+:" --- Rolling optimization parameters ---"
 alpha::2%(1+32)
-.d("Computing EWMA with alpha="); .p(alpha)
+lookback::32
+eta::0.1
+nsteps::5
 
-:" Compute EWMA of returns and squared returns for each asset"
-r0::rets@0; r1::rets@1; r2::rets@2; r3::rets@3
-m10::ewma(alpha;r0); m11::ewma(alpha;r1); m12::ewma(alpha;r2); m13::ewma(alpha;r3)
-r0sq::r0^2; r1sq::r1^2; r2sq::r2^2; r3sq::r3^2
-m20::ewma(alpha;r0sq); m21::ewma(alpha;r1sq); m22::ewma(alpha;r2sq); m23::ewma(alpha;r3sq)
-
-:" Extract most recent estimates"
-mu::last(m10),last(m11),last(m12),last(m13)
-v2::last(m20),last(m21),last(m22),last(m23)
-var::v2-(mu*mu)
-vols::(0|var)^0.5
-
-.d("Estimated means: "); .p(mu)
-.d("Estimated vols:  "); .p(vols)
+.d("EWMA alpha: "); .p(alpha)
+.d("Lookback window: "); .d(lookback); .p(" days")
+.d("Learning rate: "); .p(eta)
+.d("Optimization steps per day: "); .p(nsteps)
 .p("")
 
-:" --- Portfolio optimization via Sharpe gradient ---"
-sharpe::{(+/x*mu)%((+/((x^2)*(vols^2)))^0.5)}
-eta::0.05
+:" --- Run rolling walk-forward optimization ---"
+.p("Running rolling optimization (this may take a minute)...")
+results::rollingOptimize(rets;alpha;lookback;eta;nsteps)
 
-step::{[g w1 s]; g::sharpe:>x; w1::x+(eta*g); w1::0|w1; s::+/w1; :[0~s; x; w1%s]}
+:" Extract results (returned as list)"
+dailyrets::results@0
+cumrets::results@1
+weights::results@2
+sharpes::results@3
 
-:" Start with equal weights"
-w::[0.25 0.25 0.25 0.25]
-.d("Initial weights: "); .p(w)
-.d("Initial Sharpe:  "); .p(sharpe(w))
+ntrading::#dailyrets
+.p("Optimization complete!")
 .p("")
 
-:" Take optimization steps"
-.p("Taking 5 gradient ascent steps...")
-w::step(w)
-.d("Step 1: Sharpe="); .d(sharpe(w)); .d(" weights="); .p(w)
-w::step(w)
-.d("Step 2: Sharpe="); .d(sharpe(w)); .d(" weights="); .p(w)
-w::step(w)
-.d("Step 3: Sharpe="); .d(sharpe(w)); .d(" weights="); .p(w)
-w::step(w)
-.d("Step 4: Sharpe="); .d(sharpe(w)); .d(" weights="); .p(w)
-w::step(w)
-.d("Step 5: Sharpe="); .d(sharpe(w)); .d(" weights="); .p(w)
+:" --- Performance metrics ---"
+.d("Trading days: "); .p(ntrading)
+
+:" Final cumulative return"
+finalcum::cumrets@(ntrading-1)
+.d("Cumulative return: "); .d(finalcum); .d(" ("); .d(100*finalcum); .p("%)")
+
+:" Annualized Sharpe ratio (assuming 252 trading days)"
+avgret::(+/dailyrets)%ntrading
+stdret::((+/((dailyrets-(avgret*ntrading))^2))%(ntrading-1))^0.5
+sharpe::(avgret%stdret)*(252^0.5)
+.d("Annualized Sharpe ratio: "); .p(sharpe)
+
+:" Win rate (days with positive returns)"
+wins::+/(dailyrets>0.0)
+winrate::(wins%ntrading)*100
+.d("Win rate: "); .d(wins); .d("/"); .d(ntrading); .d(" ("); .d(winrate); .p("%)")
+
 .p("")
 
-.p("Final allocation:")
+:" --- Show performance evolution ---"
+.p("Performance samples (every ~50 days):")
+.d("Day 32 - Return: "); .d(cumrets@0); .d(" Sharpe: "); .p(sharpes@0)
+.d("Day 85 - Return: "); .d(cumrets@53); .d(" Sharpe: "); .p(sharpes@53)
+.d("Day 140 - Return: "); .d(cumrets@108); .d(" Sharpe: "); .p(sharpes@108)
+.d("Day 195 - Return: "); .d(cumrets@163); .d(" Sharpe: "); .p(sharpes@163)
+.d("Day 249 - Return: "); .d(cumrets@217); .d(" Sharpe: "); .p(sharpes@217)
+
+.p("")
+
+:" --- Final allocation ---"
+.p("Final portfolio allocation:")
+finalw::weights@(ntrading-1)
 pct::100
-.d("  "); .d(syms@0); .d(": "); .d(pct*w@0); .p("%")
-.d("  "); .d(syms@1); .d(": "); .d(pct*w@1); .p("%")
-.d("  "); .d(syms@2); .d(": "); .d(pct*w@2); .p("%")
-.d("  "); .d(syms@3); .d(": "); .d(pct*w@3); .p("%")
+.d("  "); .d(syms@0); .d(": "); .d(pct*finalw@0); .p("%")
+.d("  "); .d(syms@1); .d(": "); .d(pct*finalw@1); .p("%")
+.d("  "); .d(syms@2); .d(": "); .d(pct*finalw@2); .p("%")
+.d("  "); .d(syms@3); .d(": "); .d(pct*finalw@3); .p("%")
