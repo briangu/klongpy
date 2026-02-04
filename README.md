@@ -38,18 +38,11 @@ print(x)  # ~0
 
 **KlongPy gradient descent (2 lines):**
 ```klong
-f::{x^2}; x::5.0
-{x::x-(0.1*f:>x)}'!100   :" x -> 0
+f::{x^2}; s::5.0
+{s::s-(0.1*f:>s)}'!100   :" s -> 0"
 ```
 
-**Or with custom optimizer (copy from examples/):**
-```klong
-.pyf("optimizers";"SGDOptimizer")
-x::5.0; opt::SGDOptimizer(klong;["x"];:{["lr" 0.1]})
-{opt({x^2})}'!100        :" x -> 0
-```
-
-This isn't just shorter—it's a fundamentally different way to express computation. Array languages like APL, K, and Q revolutionized finance and data analysis with their concise vectorized operations. KlongPy adds native autograd, making gradients first-class citizens in an array language.
+Array languages like APL, K, and Q revolutionized finance by treating operations as data transformations, not loops. KlongPy brings this philosophy to machine learning: gradients become expressions you compose, not boilerplate you maintain. The result is a succint mathematical-like notation that is automatically extended to machine learning.
 
 ## Quick Install
 
@@ -70,17 +63,18 @@ pip install "klongpy[all]"
 
 ### For Quants and Traders
 
-Build self-learning trading strategies in a language designed for time series:
+Optimize portfolios with gradients in a language designed for arrays:
 
 ```klong
-:" Moving average crossover with learned parameters
-sma::{(+/x)%#x}
-signal::{(sma(n#x))-(sma(m#x))}  :" Difference of moving averages
-loss::{+/(signal(prices)-returns)^2}
+:" Portfolio optimization: gradient of Sharpe ratio"
+returns::[0.05 0.08 0.03 0.10]      :" Annual returns per asset"
+vols::[0.15 0.20 0.10 0.25]         :" Volatilities per asset"
+w::[0.25 0.25 0.25 0.25]            :" Portfolio weights"
 
-:" Learn optimal window sizes via gradient descent
-loss:>n                           :" Gradient w.r.t. short window
-loss:>m                           :" Gradient w.r.t. long window
+sharpe::{(+/x*returns)%((+/((x^2)*(vols^2)))^0.5)}
+sg::sharpe:>w                       :" Gradient of Sharpe ratio"
+.d("sharpe gradient="); .p(sg)
+sharpe gradient=[0.07257738709449768 0.032256484031677246 0.11693036556243896 -0.22176480293273926]
 ```
 
 ### For ML Researchers
@@ -88,13 +82,18 @@ loss:>m                           :" Gradient w.r.t. long window
 Neural networks in pure array notation:
 
 ```klong
-:" Single layer: sigmoid(W*x + b)
+:" Single-layer neural network with gradient descent"
+.bkf(["exp"])
 sigmoid::{1%(1+exp(0-x))}
 forward::{sigmoid((w1*x)+b1)}
-loss::{+/(forward'X - Y)^2}
+X::[0.5 1.0 1.5 2.0]; Y::[0.2 0.4 0.6 0.8]
+w1::0.1; b1::0.1; lr::0.1
+loss::{+/((forward'X)-Y)^2}
 
-:" Train with multi-param gradients
+:" Train with multi-param gradients"
 {grads::loss:>[w1 b1]; w1::w1-(lr*grads@0); b1::b1-(lr*grads@1)}'!1000
+.d("w1="); .d(w1); .d(" b1="); .p(b1)
+w1=1.74 b1=-2.17
 ```
 
 ### For Scientists
@@ -102,9 +101,10 @@ loss::{+/(forward'X - Y)^2}
 Express mathematics directly:
 
 ```klong
-:" Gradient of f(x,y,z) = x^2 + y^2 + z^2 at [1,2,3]
+:" Gradient of f(x,y,z) = x^2 + y^2 + z^2 at [1,2,3]"
 f::{+/x^2}
-f:>[1 2 3]    :" [2 4 6] - exact gradient via autograd
+f:>[1 2 3]
+[2.0 4.0 6.0]
 ```
 
 ## The Array Language Advantage
@@ -164,7 +164,7 @@ enumerate_1M                     0.141        0.050    2.83x (torch)
 
 ## Complete Feature Set
 
-KlongPy isn't just an autograd experiment—it's a production-ready platform with kdb+/Q-inspired features:
+KlongPy is a batteries-included platform with kdb+/Q-inspired features:
 
 ### Core Language
 - **Vectorized Operations**: NumPy/PyTorch-powered bulk array operations
@@ -204,8 +204,8 @@ KlongPy uses Unicode operators for mathematical notation. Here's how to type the
 
 **Alternative:** Use the function equivalents that don't require special characters:
 ```klong
-3∇f           :" Using nabla
-.jacobian(f;x) :" Instead of x∂f
+3∇f           :" Using nabla"
+.jacobian(f;x) :" Instead of x∂f"
 ```
 
 ## Syntax Cheat Sheet
@@ -213,39 +213,40 @@ KlongPy uses Unicode operators for mathematical notation. Here's how to type the
 Functions take up to 3 parameters, always named `x`, `y`, `z`:
 
 ```klong
-:" Operators (right to left evaluation)
-5+3*2           :" 11 (3*2 first, then +5)
-+/[1 2 3]       :" 6  (sum: + over /)
-*/[1 2 3]       :" 6  (product: * over /)
-#[1 2 3]        :" 3  (length)
-|[3 1 2]        :" [1 2 3] (sort)
-&[1 0 1]        :" [0 2] (where/indices of true)
+:" Operators (right to left evaluation)"
+5+3*2           :" 11 (3*2 first, then +5)"
++/[1 2 3]       :" 6  (sum: + over /)"
+*/[1 2 3]       :" 6  (product: * over /)"
+#[1 2 3]        :" 3  (length)"
+3|5             :" 5  (max)"
+3&5             :" 3  (min)"
 
-:" Functions
-avg::{(+/x)%#x}         :" Monad (1 arg)
-dot::{+/x*y}            :" Dyad (2 args)
-clip::{x|y&z}           :" Triad (3 args): min(max(x,y),z)
+:" Functions"
+avg::{(+/x)%#x}         :" Monad (1 arg)"
+dot::{+/x*y}            :" Dyad (2 args)"
+clip::{(x|y)&z}         :" Triad (3 args): min(max(x,y),z)"
 
-:" Adverbs (modifiers)
-f'[1 2 3]               :" Each: apply f to each element
-1 2 3 +'[10 20 30]      :" Each-pair: [11 22 33]
-+/[1 2 3]               :" Over: fold/reduce
-+\[1 2 3]               :" Scan: running fold [1 3 6]
-
-:" Autograd
+:" Adverbs (modifiers)"
 f::{x^2}
-3∇f                     :" Numeric gradient at x=3 -> ~6.0
-f:>3                    :" Autograd (exact with torch) at x=3 -> 6.0
-f:>[1 2 3]              :" Gradient of sum-of-squares -> [2 4 6]
+f'[1 2 3]               :" Each: apply f to each -> [1 4 9]"
++/[1 2 3]               :" Over: fold/reduce -> 6"
++\[1 2 3]               :" Scan: running fold -> [1 3 6]"
 
-:" Multi-parameter gradients
+:" Autograd"
+f::{x^2}
+3∇f                     :" Numeric gradient at x=3 -> ~6.0"
+f:>3                    :" Autograd (exact with torch) at x=3 -> 6.0"
+f::{+/x^2}             :" Redefine f as sum-of-squares"
+f:>[1 2 3]              :" Gradient -> [2 4 6]"
+
+:" Multi-parameter gradients"
 w::2.0; b::3.0
 loss::{(w^2)+(b^2)}
-loss:>[w b]             :" Gradients for both -> [4.0 6.0]
+loss:>[w b]             :" Gradients for both -> [4.0 6.0]"
 
-:" Jacobian (for vector functions)
-g::{x^2}                :" Element-wise square
-[1 2]∂g                 :" Jacobian matrix -> [[2 0] [0 4]]
+:" Jacobian (for vector functions)"
+g::{x^2}                :" Element-wise square"
+[1 2]∂g                 :" Jacobian matrix -> [[2 0] [0 4]]"
 ```
 
 ## Examples
@@ -255,13 +256,13 @@ g::{x^2}                :" Element-wise square
 ```klong
 ?> a::[1 2 3 4 5]
 [1 2 3 4 5]
-?> a*a                    :" Element-wise square
+?> a*a                    :" Element-wise square"
 [1 4 9 16 25]
-?> +/a                    :" Sum
+?> +/a                    :" Sum"
 15
-?> (*/a)                  :" Product
+?> (*/a)                  :" Product"
 120
-?> avg::{(+/x)%#x}        :" Define average
+?> avg::{(+/x)%#x}        :" Define average"
 :monad
 ?> avg(a)
 3.0
@@ -296,31 +297,22 @@ $ rlwrap kgpy
 ### 3. Linear Regression
 
 ```klong
-:" Data: y = 2*x + 3 + noise
+:" Data: y = 2*x + 3 + noise"
 X::[1 2 3 4 5]
 Y::[5.1 6.9 9.2 10.8 13.1]
 
-:" Model parameters
+:" Model parameters"
 w::0.0; b::0.0
 
-:" Loss function
+:" Loss function"
 mse::{(+/(((w*X)+b)-Y)^2)%#X}
 
-:" Train with multi-parameter gradients
+:" Train with multi-parameter gradients"
 lr::0.01
 {grads::mse:>[w b]; w::w-(lr*grads@0); b::b-(lr*grads@1)}'!1000
 
-?> .d("Learned: w="); .d(w); .d(" b="); .p(b)
-Learned: w=2.0117401555004686 b=2.971511140529206
-"2.971511140529206"
-```
-
-**Or with custom optimizer (copy from examples/autograd/optimizers.py):**
-```klong
-.pyf("optimizers";"AdamOptimizer")
-w::0.0; b::0.0
-opt::AdamOptimizer(klong;["w" "b"];:{["lr" 0.01]})
-{opt(mse)}'!1000         :" Optimizer handles gradient computation
+.d("Learned: w="); .d(w); .d(" b="); .p(b)
+Learned: w=2.01 b=2.97
 ```
 
 ### 4. Database Operations
@@ -351,11 +343,11 @@ Carol  35
 
 **Client:**
 ```klong
-?> f::.cli(8888)              :" Connect to server
+?> f::.cli(8888)              :" Connect to server"
 remote[localhost:8888]:fn
-?> myavg::f(:avg)             :" Get remote function reference
+?> myavg::f(:avg)             :" Get remote function reference"
 remote[localhost:8888]:fn:avg:monad
-?> myavg(!1000000)            :" Execute on server
+?> myavg(!1000000)            :" Execute on server"
 499999.5
 ```
 
@@ -417,7 +409,7 @@ KlongPy stands on the shoulders of giants:
 - **[NumPy](https://numpy.org/)**: The "Iverson Ghost" in Python's scientific stack
 - **[PyTorch](https://pytorch.org/)**: Automatic differentiation and GPU acceleration
 
-KlongPy combines Klong's simplicity with Python's ecosystem and PyTorch's autograd—creating something new: an array language where gradients are first-class citizens.
+KlongPy combines Klong's simplicity with Python's ecosystem and PyTorch's autograd creating something new: an array language where gradients are first-class citizens.
 
 ## Use Cases
 
