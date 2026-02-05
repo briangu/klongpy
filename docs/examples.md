@@ -113,7 +113,54 @@ KlongPy aims to give you tools that let you conveniently exploit this vectorizat
 
 Less code to write AND faster to compute.
 
-## 3. Data Analysis with Python Integration
+## 3. Each-Index and Evaluated Arrays
+
+Two powerful features for working with arrays:
+
+### Each-Index Adverb (`@'`)
+
+The `@'` adverb provides both the index and element to your function, similar to Python's `enumerate()`:
+
+```kgpy
+?> {x@0}@'[10 20 30]       :" Get indices
+[0 1 2]
+?> {x@1}@'[10 20 30]       :" Get values
+[10 20 30]
+?> {((x@0)*10)+(x@1)}@'[5 6 7]  :" Use both (note: Klong is right-to-left)
+[5 16 27]
+```
+
+Useful for operations that need position information:
+
+```kgpy
+?> :" Filter to keep only even-indexed elements"
+?> {:[0=(x@0)!2;x@1;0]}@'[10 20 30 40 50]
+[10 0 30 0 50]
+```
+
+### Evaluated Array Constructors (`[;...]`)
+
+Build arrays from expressions, not just literals:
+
+```kgpy
+?> avg::{(+/x)%#x}
+:monad
+?> arr::[1 2 3 4 5]
+[1 2 3 4 5]
+?> [;avg(arr);+/arr;#arr]  :" Array of computed values
+[3.0 15 5]
+```
+
+Works inside functions with deferred evaluation:
+
+```kgpy
+?> triple::{[;x;x*2;x*3]}
+:monad
+?> triple(5)
+[5 10 15]
+```
+
+## 4. Data Analysis with Python Integration
 
 KlongPy integrates seamlessly with Python so that the strengths of both can be combined. It's easy to use KlongPy from Python and vice versa.
 

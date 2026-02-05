@@ -326,3 +326,45 @@ def peek_adverb(t, i=0):
     if is_adverb(x):
         return i+1, x
     return i, None
+
+
+# Evaluated array parsing
+
+class KGExprArray(list):
+    """
+    Container for evaluated array constructors [;expr1;expr2;...]
+
+    Holds unevaluated expressions that are evaluated at runtime.
+    Similar to KGCond, this defers evaluation until the expressions
+    are actually needed (e.g., when a function is called).
+    """
+    pass
+
+
+def read_expr_array(klong, t, i=0):
+    """
+    Parse an evaluated array constructor: [;expr1;expr2;...]
+
+    Each element between semicolons is parsed as a full expression
+    and evaluated when the array is constructed.
+
+    Returns a list of expressions that will be evaluated to form the array.
+    """
+    r = []
+    i = skip(t, i, ignore_newline=True)
+
+    while i < len(t) and not cmatch(t, i, ']'):
+        i, expr = klong._expr(t, i, ignore_newline=True)
+        if expr is not None:
+            r.append(expr)
+        i = skip(t, i, ignore_newline=True)
+        if cmatch(t, i, ';'):
+            i += 1
+            i = skip(t, i, ignore_newline=True)
+        elif cmatch(t, i, ']'):
+            break
+
+    if cmatch(t, i, ']'):
+        i += 1
+
+    return i, r

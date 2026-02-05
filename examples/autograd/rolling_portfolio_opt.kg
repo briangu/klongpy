@@ -46,32 +46,24 @@ cumReturns::[]
 
 optim::{w::w-(lr*(loss:>w));w::0|w;w::w%(+/w);0}
 
-:" Simple version: compute stats for a specific day outside the loop"
-computeStats::{[day;r0;r1;r2;r3;win0;win1;win2;win3;m0;m1;m2;m3;v0;v1;v2;v3];
+:" Using evaluated arrays [;...] and each-index @' for cleaner code"
+getWindow::{[r;day];day::y;r::x@(!day);(0-lookback)#r}
+computeStats::{[day;wins];
     day::x;
-    r0::(rets@0)@(!day);
-    r1::(rets@1)@(!day);
-    r2::(rets@2)@(!day);
-    r3::(rets@3)@(!day);
-    win0::(0-lookback)#r0;
-    win1::(0-lookback)#r1;
-    win2::(0-lookback)#r2;
-    win3::(0-lookback)#r3;
-    m0::avg(win0);m1::avg(win1);m2::avg(win2);m3::avg(win3);
-    v0::stddev(win0);v1::stddev(win1);v2::stddev(win2);v3::stddev(win3);
-    mu::m0,m1,m2,m3;
-    vols::v0,v1,v2,v3;
+    wins::{getWindow(x;day)}'rets;
+    mu::avg'wins;
+    vols::stddev'wins;
     0
 }
 
-processDay::{[dayrets;d0;d1;d2;d3];
-    computeStats(x);
+processDay::{[dayrets;day];
+    day::x;
+    computeStats(day);
     optim'!optsteps;
-    d0::(rets@0)@x;d1::(rets@1)@x;d2::(rets@2)@x;d3::(rets@3)@x;
-    dayrets::d0,d1,d2,d3;
+    dayrets::{x@day}'rets;
     portReturns::portReturns,+/w*dayrets;
     cumReturns::cumReturns,+/portReturns;
-    :[0=(x!50);{.d("Day ");.d(x);.d(": cumret=");.p(*|cumReturns)}@[];0];
+    :[0=(day!50);{.d("Day ");.d(day);.d(": cumret=");.p(*|cumReturns)}@[];0];
     0
 }
 

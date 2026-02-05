@@ -316,7 +316,7 @@ def eval_monad_reciprocal(a, backend):
     return backend.vec_fn(a, lambda x: bknp.reciprocal(bknp.asarray(x, dtype=float)))
 
 
-def eval_monad_reverse(a):
+def eval_monad_reverse(a, backend):
     """
 
         |a                                                     [Reverse]
@@ -330,6 +330,17 @@ def eval_monad_reverse(a):
                               |1  -->  1
 
     """
+    if backend.is_backend_array(a):
+        # Use flip for backend arrays (torch doesn't support [::-1] negative step)
+        np_mod = backend.np
+        if hasattr(np_mod, 'flip'):
+            # Check if it's torch (uses dims) or numpy (uses axis)
+            try:
+                return np_mod.flip(a, dims=[0])  # torch style
+            except TypeError:
+                return np_mod.flip(a, axis=0)  # numpy style
+        # Fallback for backends without flip
+        return a[::-1]
     return a[::-1]
 
 
@@ -483,7 +494,6 @@ def create_monad_functions(klong):
         '@': eval_monad_atom,
         '&': eval_monad_expand_where,
         '*': eval_monad_first,
-        '|': eval_monad_reverse,
         '+': eval_monad_transpose,
         '˙': eval_monad_track,
     }
@@ -494,6 +504,7 @@ def create_monad_functions(klong):
         ':#': lambda a: eval_monad_char(a, backend),
         '!': lambda a: eval_monad_enumerate(a, backend),
         '_': lambda a: eval_monad_floor(a, backend),
+        '|': lambda a: eval_monad_reverse(a, backend),
         '$': lambda a: eval_monad_format(a, backend),
         '<': lambda a: eval_monad_grade_up(a, backend),
         '>': lambda a: eval_monad_grade_down(a, backend),

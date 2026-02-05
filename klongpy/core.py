@@ -93,6 +93,8 @@ __all__ = [
     'kg_read',
     'kg_read_array',
     'read_cond',
+    'read_expr_array',
+    'KGExprArray',
     'list_to_dict',
     'copy_lambda',
     'peek_adverb',

@@ -397,6 +397,13 @@ class KlongInterpreter():
            | V P
 
        """
+        # Check for evaluated array constructor [;expr1;expr2;...]
+        ii = skip(t, i, ignore_newline=ignore_newline)
+        if cmatch2(t, ii, '[', ';'):
+            i, exprs = read_expr_array(self, t, ii + 2)
+            # Return KGExprArray - evaluation happens later in eval()
+            return i, KGExprArray(exprs)
+
         i,a = kg_read_array(t, i, self._backend, ignore_newline=ignore_newline, module=self.current_module())
         if a is None:
             return i,a
@@ -673,6 +680,10 @@ class KlongInterpreter():
             q = self.call(x[0])
             p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
             return self.call(x[1]) if p else self.call(x[2])
+        elif isinstance(x, KGExprArray):
+            # Evaluated array constructor - evaluate each expression now
+            results = [self.call(e) for e in x]
+            return self._backend.kg_asarray(results)
         elif isinstance(x,list) and len(x) > 0:
             return [self.call(y) for y in x][-1]
         return x

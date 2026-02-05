@@ -1026,16 +1026,24 @@ class TorchBackendProvider(BackendProvider):
             return arr
         except (NumpyVisibleDeprecationWarning, ValueError, TypeError, RuntimeError, TorchUnsupportedDtypeError):
             # Fall back to numpy object array for heterogeneous/unsupported data
-            # Use numpy for inner conversions to avoid MPS tensor issues
+            # Convert torch tensors to CPU for numpy compatibility (MPS can't convert directly)
+            def _to_cpu_if_tensor(x):
+                if isinstance(x, self._torch_backend._torch.Tensor):
+                    return x.detach().cpu()
+                return x
+
             def _numpy_convert(x):
                 if isinstance(x, list):
                     try:
                         return numpy.asarray(x)
                     except (ValueError, TypeError):
                         return numpy.asarray([_numpy_convert(i) for i in x], dtype=object)
-                return x
+                return _to_cpu_if_tensor(x)
+
             try:
-                arr = numpy.asarray(a, dtype=object)
+                # Convert any tensors to CPU before creating object array
+                cpu_items = [_to_cpu_if_tensor(x) if not isinstance(x, list) else x for x in a]
+                arr = numpy.asarray(cpu_items, dtype=object)
                 # Recursively convert inner lists to numpy arrays
                 arr = numpy.asarray(
                     [_numpy_convert(x) if isinstance(x, list) else x for x in arr],
