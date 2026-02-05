@@ -1,0 +1,101 @@
+.comment("*****")
+
+Damped Oscillator Parameter Estimation
+======================================
+Fit a damping coefficient to match observed oscillation data.
+
+The system: x'' + 2*zeta*omega*x' + omega^2*x = 0
+Solution: x(t) = A * exp(-zeta*omega*t) * cos(omega_d*t)
+where omega_d = omega * sqrt(1 - zeta^2)
+
+We observe noisy measurements and use autograd to find zeta.
+
+Run with: kgpy --backend torch --device cpu examples/autograd/oscillator.kg
+
+*****
+
+.bkf("exp")
+.bkf("cos")
+.bkf("sin")
+.bkf("randn")
+
+.p("Damped Oscillator Parameter Estimation")
+.p("======================================")
+.p("")
+
+.comment("*****")
+True system parameters
+*****
+
+omega::2.0
+zetaTrue::0.15
+A::1.0
+
+.d("True damping ratio zeta: ");.p(zetaTrue)
+.p("")
+
+.comment("*****")
+Generate synthetic observations
+*****
+
+npoints::20
+dt::0.2
+times::dt*(!npoints)
+
+sqr::{[a];a::x;:[0=x;0;{(x+a%x)%2}:~a]}
+
+omegaD::omega*sqr(1-(zetaTrue*zetaTrue))
+observations::A*exp((0-zetaTrue)*omega*times)*cos(omegaD*times)
+observations::observations+(0.02*randn(npoints))
+
+.d("Generated ");.d(npoints);.p(" noisy observations")
+.p("")
+
+.comment("*****")
+Model prediction given zeta
+*****
+
+zeta::0.3
+
+predict::{[wd];
+    wd::omega*sqr(1-(zeta*zeta));
+    A*exp((0-zeta)*omega*times)*cos(wd*times)}
+
+.comment("*****")
+Loss function - MSE between prediction and observations
+*****
+
+mse::{+/(x-y)^2}
+loss::{mse(predict();observations)%npoints}
+
+lossFn::{[zetaOld r];zetaOld::zeta;zeta::x;r::loss();zeta::zetaOld;r}
+
+.d("Initial zeta: ");.p(zeta)
+.d("Initial loss: ");.p(loss())
+.p("")
+
+.comment("*****")
+Gradient descent
+*****
+
+lr::0.5
+
+trainStep::{[grad];
+    grad::lossFn:>zeta;
+    zeta::zeta-(lr*grad);
+    zeta::(zeta|0.01)&0.99;
+    x}
+
+printProgress::{.d("Step ");.d(x);.d(": zeta=");.d(zeta);.d(" loss=");.p(loss())}
+
+train::{trainStep(x);:[0=(x!10);printProgress(x);0]}
+
+.p("Optimizing damping coefficient...")
+train'1+!100
+
+.p("")
+.p("=== Results ===")
+.d("Estimated zeta: ");.p(zeta)
+.d("True zeta: ");.p(zetaTrue)
+.d("Error: ");.p(zeta-zetaTrue)
+.d("Final loss: ");.p(loss())

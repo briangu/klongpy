@@ -130,6 +130,7 @@ Array languages express *what* you want, not *how* to compute it. This enables a
 | Running sum | `np.cumsum(a)` | `+\a` |
 | Dot product | `np.dot(a,b)` | `+/a*b` |
 | Average | `sum(a)/len(a)` | `(+/a)%#a` |
+| Enumerate | `enumerate(a)` | `{x}@'a` |
 | Gradient | *10+ lines* | `f:>x` |
 | Multi-param grad | *20+ lines* | `loss:>[w b]` |
 | Jacobian | *15+ lines* | `x∂f` |
@@ -242,8 +243,16 @@ clip::{(x|y)&z}         :" Triad (3 args): min(max(x,y),z)"
 :" Adverbs (modifiers)"
 f::{x^2}
 f'[1 2 3]               :" Each: apply f to each -> [1 4 9]"
+{x@0}@'[10 20 30]       :" Each-Index: [0 1 2] (indices)"
+{x@1}@'[10 20 30]       :" Each-Index: [10 20 30] (values)"
 +/[1 2 3]               :" Over: fold/reduce -> 6"
 +\[1 2 3]               :" Scan: running fold -> [1 3 6]"
+
+:" Evaluated arrays [;expr1;expr2;...]"
+a::10; b::20
+[;a;b;a+b]              :" [10 20 30] - expressions evaluated"
+avg::{(+/x)%#x}
+[;avg([1 2 3]);+/[4 5]] :" [2.0 9] - function calls work"
 
 :" Autograd"
 f::{x^2}

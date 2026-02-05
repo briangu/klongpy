@@ -81,6 +81,53 @@ def eval_adverb_each(f, a, op, backend):
     return f(a)
 
 
+def eval_adverb_each_index(f, a, op, backend):
+    """
+
+        f@'a                                                 [Each-Index]
+
+        If "a" is a list, apply "f" to [index;element] pairs for each
+        member of "a":
+
+        f@'a  -->  f([0;a1]),f([1;a2]),...,f([N-1;aN])
+
+        The function receives a 2-element array where the first element
+        is the index (0-based) and the second is the value.
+
+        If "a" is an atom, return f([0;a]). If "a" is [], return [].
+
+        Examples: {x@0}@'["a" "b" "c"]  -->  [0 1 2]
+                  {x@1}@'["a" "b" "c"]  -->  ["a" "b" "c"]
+                  {(x@0)*(x@1)}@'[10 20 30]  -->  [0 20 60]
+
+    """
+    if isinstance(a, str):
+        if is_empty(a):
+            return a
+        r = []
+        for i, x in enumerate(backend.str_to_chr_arr(a)):
+            pair = backend.kg_asarray([i, x])
+            r.append(f(pair))
+        return backend.kg_asarray(r)
+    if is_iterable(a):
+        if is_empty(a):
+            return a
+        r = []
+        for i, x in enumerate(a):
+            pair = backend.kg_asarray([i, x])
+            r.append(f(pair))
+        return backend.kg_asarray(r)
+    elif is_dict(a):
+        r = []
+        for i, (k, v) in enumerate(a.items()):
+            pair = backend.kg_asarray([i, backend.kg_asarray([k, v])])
+            r.append(f(pair))
+        return backend.kg_asarray(r)
+    # atom case - return f([0;a])
+    pair = backend.kg_asarray([0, a])
+    return f(pair)
+
+
 def eval_adverb_each2(f, a, b):
     """
 
@@ -430,4 +477,6 @@ def get_adverb_fn(klong, s, arity):
         return eval_dyad_adverb_iterate
     elif s == ':~':
         return (lambda f,a,b: eval_adverb_while(klong,f,a,b)) if arity == 2 else lambda f,a,op: eval_adverb_converge(f,a,op,backend)
+    elif s == "@'":
+        return lambda f,a,op: eval_adverb_each_index(f,a,op,backend)
     raise RuntimeError(f"unknown adverb: {s}")

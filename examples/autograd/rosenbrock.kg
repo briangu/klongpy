@@ -1,0 +1,84 @@
+.comment("*****")
+
+Rosenbrock Function Optimization
+================================
+The Rosenbrock function is a classic optimization test:
+  f(x,y) = (a-x)^2 + b*(y-x^2)^2
+
+The global minimum is at (a, a^2) with f(a, a^2) = 0.
+For a=1, b=100, the minimum is at (1, 1).
+
+This is a challenging optimization problem due to the
+narrow curved valley leading to the minimum.
+
+Run with: kgpy --backend torch --device cpu examples/autograd/rosenbrock.kg
+
+*****
+
+.p("Rosenbrock Function Optimization")
+.p("=================================")
+.p("")
+
+.comment("*****")
+Rosenbrock parameters
+*****
+
+a::1.0
+b::100.0
+
+.d("Parameters: a=");.d(a);.d(" b=");.p(b)
+.d("Known minimum at: x=");.d(a);.d(" y=");.p(a*a)
+.p("")
+
+.comment("*****")
+Starting point - use px, py to avoid conflict with function args
+*****
+
+px::0-1.0
+py::1.0
+
+.d("Starting point: x=");.d(px);.d(" y=");.p(py)
+
+.comment("*****")
+Rosenbrock function using globals px, py
+*****
+
+rosenbrock::{((a-px)^2)+(b*(py-(px*px))^2)}
+
+.d("Initial f: ");.p(rosenbrock())
+.p("")
+
+.comment("*****")
+Loss functions for gradient computation
+*****
+
+lossPx::{[pxold r];pxold::px;px::x;r::rosenbrock();px::pxold;r}
+lossPy::{[pyold r];pyold::py;py::x;r::rosenbrock();py::pyold;r}
+
+.comment("*****")
+Gradient descent
+*****
+
+lr::0.001
+
+trainStep::{[gx gy];
+    gx::lossPx:>px;
+    gy::lossPy:>py;
+    px::px-(lr*gx);
+    py::py-(lr*gy);
+    x}
+
+printProgress::{.d("Step ");.d(x);.d(": pos=");.d(px);.d(",");.d(py);.d(" f=");.p(rosenbrock())}
+
+.p("Optimizing...")
+
+train::{trainStep(x);:[0=(x!500);printProgress(x);0]}
+
+train'1+!5000
+
+.p("")
+.p("=== Results ===")
+.d("Final position: x=");.d(px);.d(" y=");.p(py)
+.d("Expected minimum: x=");.d(a);.d(" y=");.p(a*a)
+.d("Final f: ");.p(rosenbrock())
+.d("Optimal f: ");.p(0)

@@ -419,7 +419,8 @@ def is_adverb(s):
         ':*',
         '\\',
         '\\~',
-        '\\*'
+        '\\*',
+        "@'"  # each-index adverb
     }
 
 
@@ -444,6 +445,8 @@ def get_adverb_arity(s, ctx):
         return 1
     elif s == '\\*':
         return 1
+    elif s == "@'":
+        return 1  # each-index is monadic
     raise RuntimeError(f"unknown adverb: {s}")
 
 

@@ -1,0 +1,91 @@
+.comment("*****")
+
+Projectile Optimization with Autograd
+=====================================
+Find the optimal launch angle to hit a target.
+
+Uses autograd to compute gradients and optimize the trajectory.
+
+Run with: kgpy --backend torch --device cpu examples/autograd/projectile.kg
+
+*****
+
+.bkf("sin")
+.bkf("cos")
+
+.p("Projectile Optimization")
+.p("=======================")
+.p("")
+
+.comment("*****")
+Physics constants
+*****
+
+g::9.81
+v0::20.0
+
+targetX::30.0
+targetY::5.0
+
+.d("Target: ");.d(targetX);.d(", ");.p(targetY)
+.d("Initial velocity: ");.p(v0)
+.p("")
+
+.comment("*****")
+Trajectory equations
+Given angle theta (radians):
+  x(t) = v0 * cos(theta) * t
+  y(t) = v0 * sin(theta) * t - 0.5 * g * t^2
+
+Time to reach targetX:
+  t = targetX / (v0 * cos(theta))
+
+Height at that time:
+  y = v0 * sin(theta) * t - 0.5 * g * t^2
+*****
+
+height::{[t];
+    t::targetX%(v0*cos(x));
+    (v0*sin(x)*t)-(0.5*g*t*t)}
+
+loss::{(height(theta)-targetY)^2}
+
+.comment("*****")
+Gradient descent to find optimal angle
+*****
+
+theta::0.5
+
+lossFn::{[thetaOld r];thetaOld::theta;theta::x;r::loss();theta::thetaOld;r}
+
+lr::0.001
+pi::3.14159
+
+.d("Initial angle: ");.d(theta);.d(" rad, ");.d(theta*180%pi);.p(" deg")
+.d("Initial height at target: ");.p(height(theta))
+.d("Initial loss: ");.p(loss())
+.p("")
+
+.p("Optimizing...")
+
+clip::{(x|0-1)&1}
+
+trainStep::{[grad];
+    grad::lossFn:>theta;
+    grad::clip(grad);
+    theta::theta-(lr*grad);
+    theta::(theta|0.1)&1.4;
+    x}
+
+printProgress::{.d("Step ");.d(x);.d(": theta=");.d(theta);.d(" loss=");.p(loss())}
+
+train::{trainStep(x);:[0=(x!20);printProgress(x);0]}
+
+train'1+!200
+
+.p("")
+.p("=== Results ===")
+.d("Optimal angle: ");.d(theta);.d(" rad, ");.d(theta*180%pi);.p(" deg")
+.d("Height at target: ");.p(height(theta))
+.d("Target height: ");.p(targetY)
+.d("Final loss: ");.p(loss())

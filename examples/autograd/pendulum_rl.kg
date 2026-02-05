@@ -1,0 +1,141 @@
+.comment("*****")
+
+Inverted Pendulum Balancing with Policy Gradient
+================================================
+Train a policy to balance an inverted pendulum using autograd.
+
+State: [theta, theta_dot] - angle from vertical, angular velocity
+Action: continuous torque
+Goal: Keep pendulum upright (theta near 0)
+
+Physics: theta'' = (g/L)*sin(theta) - friction*theta' + torque
+
+Run with: kgpy --backend torch --device cpu examples/autograd/pendulum_rl.kg
+
+*****
+
+.bkf("sin")
+.bkf("cos")
+.bkf("tanh")
+.bkf("randn")
+
+.p("Inverted Pendulum Policy Gradient")
+.p("==================================")
+.p("")
+
+.comment("*****")
+Physics parameters
+*****
+
+g::9.81
+L::1.0
+friction::0.1
+dt::0.02
+maxTorque::15.0
+pi::3.14159
+
+.comment("*****")
+Simple linear policy: torque = w1*theta + w2*thetaDot + w3*theta^2 + bias
+*****
+
+w1::0.1*randn(1)
+w2::0.1*randn(1)
+w3::0.1*randn(1)
+bias::0.0
+
+policy::{maxTorque*tanh(w1*theta + w2*thetaDot + w3*theta*theta + bias)}
+
+.comment("*****")
+Pendulum dynamics
+*****
+
+step::{[torque acc];
+    torque::policy();
+    acc::((g%L)*sin(theta)) - (friction*thetaDot) + torque;
+    thetaDot::thetaDot + (acc*dt);
+    theta::theta + (thetaDot*dt);
+    theta::((theta+pi)!(2*pi))-pi;
+    torque}
+
+.comment("*****")
+Reward: cos(theta) is max when upright
+*****
+
+reward::{cos(theta) - (0.01*thetaDot*thetaDot)}
+
+.comment("*****")
+Run episode from random start
+*****
+
+episodeLen::100
+gamma::0.98
+
+runEpisode::{[totalR t r];
+    theta::0.5*(1-(2*(.rn())));
+    thetaDot::0.5*(1-(2*(.rn())));
+    totalR::0.0;
+    t::0;
+    {t::t+1;step(0);r::reward();totalR::totalR+(r*(gamma^t));t<episodeLen}:~1;
+    totalR}
+
+.comment("*****")
+Loss functions
+*****
+
+lossW1::{[w1old r];w1old::w1;w1::x;r::0-runEpisode();w1::w1old;r}
+lossW2::{[w2old r];w2old::w2;w2::x;r::0-runEpisode();w2::w2old;r}
+lossW3::{[w3old r];w3old::w3;w3::x;r::0-runEpisode();w3::w3old;r}
+lossBias::{[biasold r];biasold::bias;bias::x;r::0-runEpisode();bias::biasold;r}
+
+.comment("*****")
+Training
+*****
+
+lr::0.1
+
+trainStep::{[g1 g2 g3 gb];
+    g1::lossW1:>w1;
+    g2::lossW2:>w2;
+    g3::lossW3:>w3;
+    gb::lossBias:>bias;
+    w1::w1-(lr*g1);
+    w2::w2-(lr*g2);
+    w3::w3-(lr*g3);
+    bias::bias-(lr*gb);
+    x}
+
+.p("Random policy test...")
+.d("Initial episode reward: ");.p(runEpisode())
+.p("")
+
+.p("Training for 150 episodes...")
+
+avgR::0
+printProgress::{[r];r::runEpisode();avgR::(0.9*avgR)+(0.1*r);.d("Ep ");.d(x);.d(": r=");.d(r);.d(" avg=");.p(avgR)}
+
+train::{trainStep(x);:[0=(x!15);printProgress(x);0]}
+
+train'1+!200
+
+.p("")
+.p("=== Trained Policy ===")
+.d("w1=");.d(w1);.d(" w2=");.d(w2);.d(" w3=");.d(w3);.d(" bias=");.p(bias)
+.p("")
+
+.p("5 test episodes:")
+testSum::0
+testEp::{[r];r::runEpisode();testSum::testSum+r;.d("  ");.p(r)}
+testEp'1+!5
+.d("Mean reward: ");.p(testSum%5)
+
+.p("")
+.p("=== Sample Trajectory ===")
+theta::0.3
+thetaDot::0.0
+
+.p("Starting from theta=0.3")
+showStep::{[u];u::step(0);.d("t=");.d(x*dt);.d(" th=");.d(theta);.d(" u=");.p(u)}
+showStep'!15
+
+.p("")
+.p("Done!")

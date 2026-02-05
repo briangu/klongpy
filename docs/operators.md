@@ -206,6 +206,7 @@ info::.export(f;2.0;"model.pt2")
 | Adverb | Name | Description |
 |--------|------|-------------|
 | `f'a` | Each | Apply f to each element |
+| `f@'a` | Each-Index | Apply f to [index;element] pairs |
 | `f/a` | Over | Reduce with f |
 | `f\a` | Scan | Scan with f |
 | `n f'a` | Each-n | Apply f to groups of n |
@@ -213,6 +214,80 @@ info::.export(f;2.0;"model.pt2")
 | `f:*a` | Iterate | Iterate f until stable |
 | `n f:*a` | Iterate-n | Iterate f n times |
 | `f:~a` | Converge | Converge with condition |
+
+### Each-Index Adverb: `@'`
+
+The `@'` adverb applies a function to `[index;element]` pairs, similar to Python's `enumerate()`:
+
+```klong
+:" Get indices"
+{x@0}@'[10 20 30]           :" [0 1 2]"
+
+:" Get values (same as regular each)"
+{x@1}@'[10 20 30]           :" [10 20 30]"
+
+:" Use both index and value"
+{((x@0)*10)+(x@1)}@'[5 6 7] :" [5 16 27]"
+
+:" Enumerate-like behavior"
+{x}@'["a" "b" "c"]          :" [[0 'a'] [1 'b'] [2 'c']]"
+
+:" Filter by index (keep even indices)"
+{:[0=(x@0)!2;x@1;0]}@'[10 20 30 40]  :" [10 0 30 0]"
+```
+
+## Evaluated Array Constructors
+
+The `[;expr1;expr2;...]` syntax creates arrays where each element is evaluated as a full expression. This is useful when you need to build arrays from computed values rather than literals.
+
+### Basic Syntax
+
+```klong
+:" Standard array (literal values only)"
+[1 2 3]
+
+:" Evaluated array (expressions are computed)"
+[;1+1;2+2;3+3]              :" [2 4 6]"
+```
+
+### Use Cases
+
+**Building arrays from variables:**
+```klong
+a::10; b::20
+[;a;b;a+b]                  :" [10 20 30]"
+```
+
+**Arrays from function results:**
+```klong
+avg::{(+/x)%#x}
+arr::[1 2 3 4 5]
+[;avg(arr);+/arr;#arr]      :" [3.0 15 5]"
+```
+
+**Inside functions (deferred evaluation):**
+```klong
+makeTriple::{[;x;x*2;x*3]}
+makeTriple(5)               :" [5 10 15]"
+```
+
+**Combining with other operations:**
+```klong
+[;|[1 2 3];+/[4 5 6]]       :" [[3 2 1] 15]"
+```
+
+### Why Use Evaluated Arrays?
+
+In standard Klong, array literals `[...]` only accept raw tokens, not expressions. This means `[avg(x) sum(x)]` would be parsed as separate tokens, not function calls.
+
+The `[;...]` syntax solves this by evaluating each semicolon-separated element:
+
+| Standard Array | Evaluated Array |
+|---------------|-----------------|
+| `[1 2 3]` | `[;1;2;3]` |
+| Literal values only | Expressions allowed |
+| Parsed at read time | Evaluated at runtime |
+| Fast for constants | Flexible for computed values |
 
 ## Unused Operators
 
