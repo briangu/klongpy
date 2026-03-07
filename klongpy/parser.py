@@ -186,8 +186,14 @@ def read_string(t, i=0):
 
 # Dictionary helper
 
+def _materialize_dict_literal(v):
+    if isinstance(v, KGCall) and v.a is copy_lambda and v.arity == 0 and isinstance(v.args, dict):
+        return {k: _materialize_dict_literal(q) for k, q in v.args.items()}
+    return v
+
+
 def list_to_dict(a):
-    return {x[0]:x[1] for x in a}
+    return {x[0]: _materialize_dict_literal(x[1]) for x in a}
 
 
 # Lambda for copy operations (used in dict parsing)

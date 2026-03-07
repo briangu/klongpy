@@ -346,26 +346,52 @@ class KlongInterpreter():
             raise UnexpectedChar(t,i,t[i])
         arr = []
         if cmatch(t, i, ')'): # nilad application
-            return i+1,arr
-        k = i
+            return i+1, arr
+
+        last_was_separator = False
         while True:
-            ii,c = kg_read(t, i, ignore_newline=True, module=self.current_module())
-            if safe_eq(c, ';'):
-                i = ii
-                if k == i - 1:
-                    arr.append(None)
-                k = i
+            i = skip(t, i, ignore_newline=True)
+            if cmatch(t, i, ';'):
+                arr.append(None)
+                i += 1
+                last_was_separator = True
                 continue
-            elif safe_eq(c,')'):
-                if k == ii - 1:
+            if cmatch(t, i, ')'):
+                if last_was_separator and len(arr) > 0:
                     arr.append(None)
-                break
-            i,a = self._expr(t,i,ignore_newline=True)
+                return i + 1, arr
+
+            i, a = self._expr(t, i, ignore_newline=True)
             if a is None:
                 break
             arr.append(a)
-        i = cexpect(t,i,')')
-        return i,arr
+            last_was_separator = False
+
+            i = skip(t, i, ignore_newline=True)
+            if cmatch(t, i, ';'):
+                i += 1
+                last_was_separator = True
+                continue
+            if cmatch(t, i, ')'):
+                return i + 1, arr
+            raise UnexpectedChar(t, i, t[i])
+
+        raise UnexpectedEOF(t, i)
+
+    def _read_index_args(self, t, i=0):
+        """
+        Parse postfix index syntax like a[0] and a[1 2].
+
+        A single index is returned as a scalar; multiple indices are returned
+        as a backend array so the existing @ operator semantics apply.
+        """
+        i, arr = read_list(t, ']', i=i+1, module=self.current_module())
+        if len(arr) == 0:
+            return i, self._backend.kg_asarray([])
+        if len(arr) == 1:
+            q = arr[0]
+            return i, self._backend.kg_asarray(q) if isinstance(q, list) else q
+        return i, self._backend.kg_asarray(arr)
 
 
     def _factor(self, t, i=0, ignore_newline=False):
@@ -439,6 +465,9 @@ class KlongInterpreter():
             i = cexpect(t, i, ')')
         elif safe_eq(a, ':['):
             return read_cond(self, t, i)
+        while cmatch(t, i, '['):
+            i, index = self._read_index_args(t, i)
+            a = KGFn(KGOp('@', arity=2), [a, index], arity=2)
         return i, a
 
     def _expr(self, t, i=0, ignore_newline=False):
@@ -706,4 +735,8 @@ class KlongInterpreter():
         Each subprogram is executed in order and the resulting array contains the resulst of each sub-program.
 
         """
-        return [self.call(y) for y in self.prog(x)[1]]
+        i, prog = self.prog(x)
+        i = skip(x, i)
+        if i < len(x) and x[i] == '}':
+            raise UnexpectedChar(x, i, x[i])
+        return [self.call(y) for y in prog]

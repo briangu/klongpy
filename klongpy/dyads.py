@@ -509,6 +509,14 @@ def _arr_to_list(a):
     return a if is_list(a) else [a]# if not is_list(a) else a
 
 
+def _is_hashable(x):
+    try:
+        hash(x)
+        return True
+    except TypeError:
+        return False
+
+
 def eval_dyad_join(a, b, backend):
     """
 
@@ -553,10 +561,13 @@ def eval_dyad_join(a, b, backend):
     """
     if (isinstance(a,str) and not isinstance(a,KGSym)) and (isinstance(b,str) and not isinstance(b,KGSym)):
         return a+b
-    if isinstance(a,dict):
+    if isinstance(a,dict) and isinstance(b,dict):
+        a.update(b)
+        return a
+    if isinstance(a,dict) and is_list(b) and len(b) == 2 and _is_hashable(b[0]):
         a[b[0]] = b[1]
         return a
-    if isinstance(b,dict) and is_list(a) and len(a) == 2:
+    if isinstance(b,dict) and is_list(a) and len(a) == 2 and _is_hashable(a[0]):
         b[a[0]] = a[1]
         return b
 
@@ -1014,22 +1025,18 @@ def eval_dyad_take(a, b, backend):
                            0#""  -->  ""
 
     """
-    np_backend = backend.np
     j = isinstance(b,str)
-    b = backend.str_to_chr_arr(b) if j else np_backend.asarray(b)
-    abs_a = np_backend.abs(a)
-    aa = int(abs_a) if hasattr(abs_a, 'item') else abs_a  # Convert tensor to int
-    b_size = backend.array_size(b)
-    if b_size == 0:
-        # Handle empty array/string case
-        r = b
-    elif aa > b_size:
-        b = np_backend.tile(b, aa // len(b))
-        b = np_backend.concatenate((b, b[:aa-backend.array_size(b)]) if a > 0 else (b[-(aa-backend.array_size(b)):], b))
-        r = b[a:] if a < 0 else b[:a]
+    items = list(b) if j else to_list(b)
+    aa = abs(int(a.item() if hasattr(a, 'item') else a))
+    if aa == 0 or len(items) == 0:
+        result = []
     else:
-        r = b[a:] if a < 0 else b[:a]
-    return "".join(r) if j else r
+        repeats = ((aa - 1) // len(items)) + 1
+        if a < 0:
+            repeats += 1
+        expanded = items * repeats
+        result = expanded[-aa:] if a < 0 else expanded[:aa]
+    return "".join(result) if j else backend.kg_asarray(result)
 
 
 def eval_dyad_grad(klong, a, b):

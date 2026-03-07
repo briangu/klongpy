@@ -31,5 +31,5 @@ class CallbackEvent:
             pass
 
     def trigger(self):
-        for callback in self.subscribers:
+        for callback in tuple(self.subscribers):
             callback()

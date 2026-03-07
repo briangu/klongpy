@@ -3,7 +3,10 @@ import sys
 import asyncio
 import concurrent.futures
 
-from aiohttp import web
+try:
+    from aiohttp import web
+except ImportError:
+    web = None
 
 from klongpy.core import KGCall, KGFn, KGFnWrapper, KGLambda
 
@@ -23,6 +26,12 @@ class WebServerHandle:
 
     def __str__(self):
         return f"web[{self.bind or '0.0.0.0'}:{self.port}]"
+
+
+def _require_aiohttp_web():
+    if web is None:
+        raise ImportError("aiohttp is required for klongpy.web")
+    return web
 
 
 def eval_sys_fn_create_web_server(klong, x, y, z):
@@ -58,11 +67,12 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
             hello, world!
 
     """
-    app = web.Application()
+    web_mod = _require_aiohttp_web()
+    app = web_mod.Application()
 
-    logging.info("web server start @ ", x)
-    logging.info("GET: ", y)
-    logging.info("POST: ", z)
+    logging.info("web server start @ %s", x)
+    logging.info("GET: %s", y)
+    logging.info("POST: %s", z)
 
     for route, fn in y.items():
         arity = fn.arity if isinstance(fn, KGFn) else fn.get_arity() if issubclass(type(fn), KGLambda) else 0
@@ -76,15 +86,15 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
             continue
         fn_wrapped = KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
 
-        async def _get(request: web.Request, fn=fn_wrapped, route=route):
+        async def _get(request, fn=fn_wrapped, route=route):
             try:
                 assert request.method == "GET"
-                return web.Response(text=str(fn(dict(request.rel_url.query))))
+                return web_mod.Response(text=str(fn(dict(request.rel_url.query))))
             except Exception as e:
                 logging.info(f"failed web request: {route} with error {e}")
-                return web.Response(text="Invalid request", status=400)
+                return web_mod.Response(text="Invalid request", status=400)
 
-        logging.info("adding GET route: ", route)
+        logging.info("adding GET route: %s", route)
 
         app.router.add_get(route, _get)
 
@@ -100,20 +110,20 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
             continue
         fn_wrapped = KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
 
-        async def _post(request: web.Request, fn=fn_wrapped, route=route):
+        async def _post(request, fn=fn_wrapped, route=route):
             try:
                 assert request.method == "POST"
                 parameters = dict(await request.post())
-                return web.Response(text=str(fn(parameters)))
+                return web_mod.Response(text=str(fn(parameters)))
             except Exception as e:
                 logging.error(e)
-                return web.Response(text="Invalid request", status=400)
+                return web_mod.Response(text="Invalid request", status=400)
 
-        logging.info("adding POST route: ", route)
+        logging.info("adding POST route: %s", route)
 
         app.router.add_post(route, _post)
 
-    runner = web.AppRunner(app)
+    runner = web_mod.AppRunner(app)
 
     x = str(x)
     parts = x.split(":")
@@ -122,7 +132,7 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
 
     async def start_server():
         await runner.setup()
-        site = web.TCPSite(runner, bind, port)
+        site = web_mod.TCPSite(runner, bind, port)
         await site.start()
 
     # create the server task in the ioloop thread and capture the task handle
@@ -149,10 +159,10 @@ def eval_sys_fn_shutdown_web_server(klong, x):
     """
     if isinstance(x, KGCall) and issubclass(type(x.a), KGLambda):
         x = x.a.fn
-        if isinstance(x, WebServerHandle) and x.runner is not None:
-            print("shutting down web server")
-            asyncio.run_coroutine_threadsafe(x.shutdown(), klong['.system']['ioloop']).result()
-            return 1
+    if isinstance(x, WebServerHandle) and x.runner is not None:
+        print("shutting down web server")
+        asyncio.run_coroutine_threadsafe(x.shutdown(), klong['.system']['ioloop']).result()
+        return 1
     return 0
 
 
