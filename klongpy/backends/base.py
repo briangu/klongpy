@@ -353,6 +353,10 @@ class BackendProvider(ABC):
         if isinstance(b, np.ndarray) and b.ndim == 0:
             b = b.item()
 
+        # Int/bool scalars do not need tolerant comparison.
+        if isinstance(a, (int, bool, np.integer)) and isinstance(b, (int, bool, np.integer)):
+            return a == b
+
         # List/sequence comparison
         a_is_seq = isinstance(a, (list, tuple)) or (isinstance(a, np.ndarray) and a.ndim > 0)
         b_is_seq = isinstance(b, (list, tuple)) or (isinstance(b, np.ndarray) and b.ndim > 0)
