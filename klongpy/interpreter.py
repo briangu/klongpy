@@ -694,7 +694,8 @@ class KlongInterpreter():
         * Functions (KGFn) are not invoked unless they are KGCall instances, allowing for function definitions to be differentiated from invocations.
 
         """
-        if isinstance(x, KGSym):
+        tx = type(x)
+        if tx is KGSym:
             try:
                 return self._context[x]
             except KeyError:
@@ -726,7 +727,7 @@ class KlongInterpreter():
                 return cached_fn()
             elif isinstance(x, KGCall):
                 return self._eval_fn(x)
-        elif isinstance(x, KGCond):
+        elif tx is KGCond:
             q = self.call(x[0])
             tq = type(q)
             if tq is int or tq is float:
@@ -734,7 +735,7 @@ class KlongInterpreter():
             else:
                 p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
             return self.call(x[1]) if p else self.call(x[2])
-        elif isinstance(x,list) and len(x) > 0:
+        elif tx is list and len(x) > 0:
             return [self.call(y) for y in x][-1]
         return x
 
