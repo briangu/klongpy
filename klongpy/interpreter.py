@@ -692,12 +692,19 @@ class KlongInterpreter():
                     self._context[x] = x
                 return x
         elif isinstance(x, KGFn):
-            if x.is_op():
-                f = self._get_op_fn(x.a.a, x.a.arity)
-                fa = (x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else x.args
-                _y = self.eval(fa[1]) if x.a.arity == 2 else None
-                _x = fa[0] if x.a.a in _UNEVALUATED_OPS else self.eval(fa[0])
-                return f(_x) if x.a.arity == 1 else f(_x, _y)
+            if x._is_op:
+                op = x.a
+                op_a = op.a
+                fa = x.args
+                if not isinstance(fa, list):
+                    fa = [fa] if fa is not None else fa
+                if op.arity == 2:
+                    _y = self.eval(fa[1])
+                    _x = fa[0] if op_a in _UNEVALUATED_OPS else self.eval(fa[0])
+                    return self._vd[op_a](_x, _y)
+                else:
+                    _x = fa[0] if op_a in _UNEVALUATED_OPS else self.eval(fa[0])
+                    return self._vm[op_a](_x)
             elif x.is_adverb_chain():
                 return chain_adverbs(self, x.a)()
             elif isinstance(x, KGCall):
