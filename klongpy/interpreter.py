@@ -75,12 +75,10 @@ class KlongContext():
         return self._module
 
     def __setitem__(self, k, v):
-        assert isinstance(k, KGSym)
-
         if k not in reserved_fn_symbols:
             # Check if variable exists in any scope
             for d in self._context:
-                if in_map(k, d):
+                if k in d:
                     d[k] = v
                     return k
 
@@ -102,7 +100,6 @@ class KlongContext():
         return k
 
     def __getitem__(self, k):
-        assert isinstance(k, KGSym)
         for d in self._context:
             v = d.get(k)
             if v is not None:
@@ -120,9 +117,8 @@ class KlongContext():
         raise KeyError(k)
 
     def __delitem__(self, k):
-        assert isinstance(k, KGSym)
         for d in self._context:
-            if in_map(k, d) and not isinstance(d,ReadonlyDict):
+            if k in d and not isinstance(d, ReadonlyDict):
                 del d[k]
                 return
         raise KeyError(k)
@@ -136,7 +132,7 @@ class KlongContext():
     def is_defined_sym(self, k):
         if isinstance(k, KGSym):
             for d in self._context:
-                if in_map(k, d):
+                if k in d:
                     return True
                 if isinstance(d,KGModule) and '`' not in k:
                     tk = k + '`'
