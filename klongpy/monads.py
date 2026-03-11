@@ -188,6 +188,8 @@ def eval_monad_grade_up(a, backend):
     return kg_argsort(arr, backend)
 
 
+_grade_down_cache = {}
+
 def eval_monad_grade_down(a, backend):
     """
 
@@ -196,7 +198,17 @@ def eval_monad_grade_down(a, backend):
         See [Grade-Up].
 
     """
-    return kg_argsort(backend.kg_asarray(a), backend, descending=True)
+    arr = backend.kg_asarray(a)
+    if hasattr(arr, 'flags') and not arr.flags.writeable:
+        a_id = id(arr)
+        cached = _grade_down_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = kg_argsort(arr, backend, descending=True)
+        result.flags.writeable = False
+        _grade_down_cache[a_id] = result
+        return result
+    return kg_argsort(arr, backend, descending=True)
 
 
 def eval_monad_groupby(a, backend):
