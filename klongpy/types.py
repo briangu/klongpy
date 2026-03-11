@@ -131,12 +131,16 @@ class KGCall(KGFn):
 
 
 class KGOp:
+    __slots__ = ('a', 'arity')
+
     def __init__(self, a, arity):
         self.a = a
         self.arity = arity
 
 
 class KGAdverb:
+    __slots__ = ('a', 'arity')
+
     def __init__(self, a, arity):
         self.a = a
         self.arity = arity
