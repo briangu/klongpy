@@ -764,9 +764,13 @@ class KlongInterpreter():
                 result = self.call(cached[0])
             else:
                 result = [self.call(y) for y in cached][-1]
-            # Only cache pure results (immutable arrays or scalars with no side effects)
-            if self._result_cache_ok and hasattr(result, 'flags') and not result.flags.writeable:
-                self._result_cache[x] = result
+            # Only cache pure results (immutable arrays, or Python/numpy scalars with no side effects)
+            if self._result_cache_ok:
+                rt = type(result)
+                if rt is int or rt is float:
+                    self._result_cache[x] = result
+                elif hasattr(result, 'flags') and not result.flags.writeable:
+                    self._result_cache[x] = result
             return result
         r = self.exec(x)
         return r[-1] if r else None
