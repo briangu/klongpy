@@ -279,10 +279,22 @@ def is_list(x):
 
 
 def is_iterable(x):
-    return is_list(x) or (isinstance(x, str) and not isinstance(x, (KGSym, KGChar)))
+    t = type(x)
+    if t is list:
+        return True
+    if t is str:
+        return True
+    if t is numpy.ndarray:
+        return x.ndim > 0
+    if isinstance(x, str) and not isinstance(x, (KGSym, KGChar)):
+        return True
+    return hasattr(x, 'ndim') and x.ndim > 0
 
 
 def is_empty(a):
+    t = type(a)
+    if t is list or t is str:
+        return len(a) == 0
     return is_iterable(a) and len(a) == 0
 
 
@@ -348,6 +360,11 @@ def is_char(x):
 
 def is_atom(x):
     """ All objects except for non-empty lists and non-empty strings are atoms. """
+    t = type(x)
+    if t is list or t is str:
+        return len(x) == 0
+    if t is numpy.ndarray:
+        return x.ndim == 0 or len(x) == 0
     return is_empty(x) if is_iterable(x) else True
 
 
