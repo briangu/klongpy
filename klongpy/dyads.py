@@ -1127,33 +1127,36 @@ def eval_dyad_autograd(klong, a, b):
 
 _dyad_cache = {}
 
-def _make_cached_ufunc(ufunc):
-    """Wrap a numpy ufunc to cache results when inputs are immutable."""
-    ufunc_id = id(ufunc)
-    def cached_ufunc(a, b):
-        # Determine cache keys for each arg
-        a_key = None
-        b_key = None
-        if isinstance(a, (int, float)):
-            a_key = a
-        elif hasattr(a, 'flags') and not a.flags.writeable:
-            a_key = id(a)
-        if isinstance(b, (int, float)):
-            b_key = b
-        elif hasattr(b, 'flags') and not b.flags.writeable:
-            b_key = id(b)
+def _immutable_key(x):
+    """Return a stable cache key for x, or None if not cacheable."""
+    if isinstance(x, (int, float)):
+        return x
+    tx = type(x)
+    if issubclass(tx, (numpy.integer, numpy.floating)):
+        return x.item()
+    if hasattr(x, 'flags') and not x.flags.writeable and hasattr(x, 'ndim') and x.ndim > 0:
+        return id(x)
+    return None
+
+
+def _make_cached_dyad(fn, fn_id=None):
+    """Wrap a dyad function to cache results when inputs are immutable."""
+    _fn_id = fn_id if fn_id is not None else id(fn)
+    def cached_fn(a, b):
+        a_key = _immutable_key(a)
+        b_key = _immutable_key(b)
         if a_key is not None and b_key is not None:
-            cache_key = (ufunc_id, a_key, b_key)
+            cache_key = (_fn_id, a_key, b_key)
             cached = _dyad_cache.get(cache_key)
             if cached is not None:
                 return cached
-            result = ufunc(a, b)
+            result = fn(a, b)
             if hasattr(result, 'flags') and hasattr(result, 'ndim') and result.ndim > 0:
                 result.flags.writeable = False
             _dyad_cache[cache_key] = result
             return result
-        return ufunc(a, b)
-    return cached_ufunc
+        return fn(a, b)
+    return cached_fn
 
 
 def create_dyad_functions(klong):
@@ -1169,9 +1172,9 @@ def create_dyad_functions(klong):
 
     # Dyads needing backend
     backend_dyads = {
-        '+': _make_cached_ufunc(bknp.add),
-        '*': _make_cached_ufunc(bknp.multiply),
-        '-': _make_cached_ufunc(bknp.subtract),
+        '+': _make_cached_dyad(bknp.add),
+        '*': _make_cached_dyad(bknp.multiply),
+        '-': _make_cached_dyad(bknp.subtract),
         '|': lambda a, b: eval_dyad_maximum(a, b, backend),
         '&': lambda a, b: eval_dyad_minimum(a, b, backend),
         '!': lambda a, b: eval_dyad_remainder(a, b, backend),
@@ -1187,7 +1190,7 @@ def create_dyad_functions(klong):
         '<': lambda a, b: eval_dyad_less(a, b, backend),
         '~': lambda a, b: eval_dyad_match(a, b, backend),
         '>': lambda a, b: eval_dyad_more(a, b, backend),
-        '^': lambda a, b: eval_dyad_power(a, b, backend),
+        '^': _make_cached_dyad(lambda a, b: eval_dyad_power(a, b, backend), fn_id='^'),
         ':^': lambda a, b: eval_dyad_reshape(a, b, backend),
         ':+': lambda a, b: eval_dyad_rotate(a, b, backend),
         ':#': lambda a, b: eval_dyad_split(a, b, backend),
