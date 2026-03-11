@@ -378,10 +378,11 @@ class BackendProvider(ABC):
             if not (a_is_seq and b_is_seq):
                 return False
             if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
-                def _is_int_scalar(x):
-                    return isinstance(x, (int, bool, np.integer))
-                if len(a) == len(b) and len(a) >= 32 and all(_is_int_scalar(x) for x in a) and all(_is_int_scalar(y) for y in b):
-                    return a == b
+                if len(a) == len(b) and len(a) > 0:
+                    # Fast path: if first elements are simple types, use direct ==
+                    t0 = type(a[0])
+                    if t0 is int or t0 is float or t0 is str or t0 is bool:
+                        return a == b
             # Fast path for object numpy arrays when possible
             if isinstance(a, np.ndarray) and isinstance(b, np.ndarray) and a.dtype == object and b.dtype == object:
                 if a.size >= 128:
