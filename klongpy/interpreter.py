@@ -253,6 +253,7 @@ class KlongInterpreter():
         self._vm = create_monad_functions(self)
         self._start_time = time.time()
         self._module = None
+        self._parse_cache = {}
 
     @property
     def backend(self):
@@ -738,8 +739,12 @@ class KlongInterpreter():
         Each subprogram is executed in order and the resulting array contains the resulst of each sub-program.
 
         """
+        cached = self._parse_cache.get(x)
+        if cached is not None:
+            return [self.call(y) for y in cached]
         i, prog = self.prog(x)
         i = skip(x, i)
         if i < len(x) and x[i] == '}':
             raise UnexpectedChar(x, i, x[i])
+        self._parse_cache[x] = prog
         return [self.call(y) for y in prog]
