@@ -744,6 +744,12 @@ class KlongInterpreter():
         assert 2 == KlongInterpreter()("1+1")
 
         """
+        # Fast path: cached single-expression programs bypass exec/list overhead
+        cached = self._parse_cache.get(x)
+        if cached is not None:
+            if len(cached) == 1:
+                return self.call(cached[0])
+            return [self.call(y) for y in cached][-1]
         r = self.exec(x)
         return r[-1] if r else None
 
