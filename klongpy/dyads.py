@@ -1125,6 +1125,37 @@ def eval_dyad_autograd(klong, a, b):
         return grad_of_fn(klong, a, b)
 
 
+_dyad_cache = {}
+
+def _make_cached_ufunc(ufunc):
+    """Wrap a numpy ufunc to cache results when inputs are immutable."""
+    ufunc_id = id(ufunc)
+    def cached_ufunc(a, b):
+        # Determine cache keys for each arg
+        a_key = None
+        b_key = None
+        if isinstance(a, (int, float)):
+            a_key = a
+        elif hasattr(a, 'flags') and not a.flags.writeable:
+            a_key = id(a)
+        if isinstance(b, (int, float)):
+            b_key = b
+        elif hasattr(b, 'flags') and not b.flags.writeable:
+            b_key = id(b)
+        if a_key is not None and b_key is not None:
+            cache_key = (ufunc_id, a_key, b_key)
+            cached = _dyad_cache.get(cache_key)
+            if cached is not None:
+                return cached
+            result = ufunc(a, b)
+            if hasattr(result, 'flags') and hasattr(result, 'ndim') and result.ndim > 0:
+                result.flags.writeable = False
+            _dyad_cache[cache_key] = result
+            return result
+        return ufunc(a, b)
+    return cached_ufunc
+
+
 def create_dyad_functions(klong):
     backend = klong._backend
     bknp = backend.np
@@ -1138,9 +1169,9 @@ def create_dyad_functions(klong):
 
     # Dyads needing backend
     backend_dyads = {
-        '+': bknp.add,
-        '*': bknp.multiply,
-        '-': bknp.subtract,
+        '+': _make_cached_ufunc(bknp.add),
+        '*': _make_cached_ufunc(bknp.multiply),
+        '-': _make_cached_ufunc(bknp.subtract),
         '|': lambda a, b: eval_dyad_maximum(a, b, backend),
         '&': lambda a, b: eval_dyad_minimum(a, b, backend),
         '!': lambda a, b: eval_dyad_remainder(a, b, backend),
