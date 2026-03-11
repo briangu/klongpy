@@ -288,10 +288,10 @@ class KlongInterpreter():
         return self._vm[s] if arity == 1 else self._vd[s]
 
     def _is_monad(self, s):
-        return isinstance(s,KGOp) and in_map(s.a, self._vm)
+        return isinstance(s, KGOp) and s.a in self._vm
 
     def _is_dyad(self, s):
-        return isinstance(s,KGOp) and in_map(s.a, self._vd)
+        return isinstance(s, KGOp) and s.a in self._vd
 
     def start_module(self, name):
         self._context.start_module(name)
