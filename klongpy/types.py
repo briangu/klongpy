@@ -47,20 +47,24 @@ def get_fn_arity_str(arity):
 
 
 class KGFn:
+    __slots__ = ('a', 'args', 'arity', 'global_params', '_is_op', '_is_adverb_chain')
+
     def __init__(self, a, args, arity, global_params=None):
         self.a = a
         self.args = args
         self.arity = arity
         self.global_params = global_params or set()
+        self._is_op = isinstance(a, KGOp)
+        self._is_adverb_chain = isinstance(a, list) and len(a) > 0 and isinstance(a[0], KGAdverb)
 
     def __str__(self):
         return get_fn_arity_str(self.arity)
 
     def is_op(self):
-        return isinstance(self.a, KGOp)
+        return self._is_op
 
     def is_adverb_chain(self):
-        return isinstance(self.a, list) and isinstance(self.a[0], KGAdverb)
+        return self._is_adverb_chain
 
 
 class KGFnWrapper:
@@ -120,6 +124,8 @@ class KGFnWrapper:
 
 
 class KGCall(KGFn):
+    __slots__ = ()
+
     def __str__(self):
         return self.a.__str__() if issubclass(type(self.a), KGLambda) else super().__str__()
 
