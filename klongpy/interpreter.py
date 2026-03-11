@@ -635,10 +635,13 @@ class KlongInterpreter():
         f_arity = x.arity
         f_args = [None] if x.args is None else [x.args if isinstance(x.args, list) else [x.args]]
 
-        # three passes as there are max three argumentes: x,y, and z
+        # Up to three passes as there are max three arguments: x, y, and z
+        # Early exit if f is not a symbol or KGFn (already fully resolved)
         f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
-        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
-        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+        if isinstance(f, (KGSym, KGFn)):
+            f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+            if isinstance(f, (KGSym, KGFn)):
+                f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
 
         f_args.reverse()
         f_args = merge_projections(f_args)
