@@ -428,10 +428,11 @@ def in_map(x, v):
 
 
 def has_none(a):
-    if isinstance(a, list):
-        for q in a:
-            if q is None:
-                return True
+    if a is None or type(a) is not list:
+        return False
+    for q in a:
+        if q is None:
+            return True
     return False
 
 
