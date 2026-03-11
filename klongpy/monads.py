@@ -148,6 +148,8 @@ def eval_monad_format(a, backend):
     return f":{a}" if isinstance(a, KGSym) else backend.vec_fn(a, lambda x: eval_monad_format(x, backend)) if is_list(a) else str(a)
 
 
+_grade_up_cache = {}
+
 def eval_monad_grade_up(a, backend):
     """
 
@@ -173,7 +175,17 @@ def eval_monad_grade_up(a, backend):
                     >[[1] [2] [3]]  -->  [2 1 0]
 
     """
-    return kg_argsort(backend.kg_asarray(a), backend)
+    arr = backend.kg_asarray(a)
+    if hasattr(arr, 'flags') and not arr.flags.writeable:
+        a_id = id(arr)
+        cached = _grade_up_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = kg_argsort(arr, backend)
+        result.flags.writeable = False
+        _grade_up_cache[a_id] = result
+        return result
+    return kg_argsort(arr, backend)
 
 
 def eval_monad_grade_down(a, backend):
