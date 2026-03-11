@@ -705,7 +705,7 @@ class KlongInterpreter():
                 else:
                     _x = fa[0] if op_a in _UNEVALUATED_OPS else self.eval(fa[0])
                     return self._vm[op_a](_x)
-            elif x.is_adverb_chain():
+            elif x._is_adverb_chain:
                 return chain_adverbs(self, x.a)()
             elif isinstance(x, KGCall):
                 return self._eval_fn(x)
