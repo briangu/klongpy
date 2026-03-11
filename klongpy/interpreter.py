@@ -254,6 +254,7 @@ class KlongInterpreter():
         self._start_time = time.time()
         self._module = None
         self._parse_cache = {}
+        self._adverb_cache = {}
 
     @property
     def backend(self):
@@ -706,7 +707,12 @@ class KlongInterpreter():
                     _x = fa[0] if op_a in _UNEVALUATED_OPS else self.eval(fa[0])
                     return self._vm[op_a](_x)
             elif x._is_adverb_chain:
-                return chain_adverbs(self, x.a)()
+                xa_id = id(x.a)
+                cached_fn = self._adverb_cache.get(xa_id)
+                if cached_fn is None:
+                    cached_fn = chain_adverbs(self, x.a)
+                    self._adverb_cache[xa_id] = cached_fn
+                return cached_fn()
             elif isinstance(x, KGCall):
                 return self._eval_fn(x)
         elif isinstance(x, KGCond):
