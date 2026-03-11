@@ -348,6 +348,8 @@ def eval_monad_reciprocal(a, backend):
     return backend.vec_fn(a, lambda x: bknp.reciprocal(bknp.asarray(x, dtype=float)))
 
 
+_reverse_cache = {}
+
 def eval_monad_reverse(a):
     """
 
@@ -362,6 +364,15 @@ def eval_monad_reverse(a):
                               |1  -->  1
 
     """
+    if hasattr(a, 'flags') and not a.flags.writeable:
+        a_id = id(a)
+        cached = _reverse_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = a[::-1]
+        result.flags.writeable = False
+        _reverse_cache[a_id] = result
+        return result
     return a[::-1]
 
 
