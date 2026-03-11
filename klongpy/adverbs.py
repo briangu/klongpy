@@ -204,19 +204,20 @@ def eval_adverb_over(f, a, op, backend):
     # Use backend's ufunc reduce when available for better performance
     np_backend = backend.np
     if isinstance(op, KGOp):
-        if safe_eq(op.a,'+'):
+        op_a = op.a
+        if op_a == '+':
             return np_backend.add.reduce(a)
-        elif safe_eq(op.a, '-'):
+        elif op_a == '-':
             return np_backend.subtract.reduce(a)
-        elif safe_eq(op.a, '*') and hasattr(np_backend.multiply,'reduce'):
+        elif op_a == '*' and hasattr(np_backend.multiply,'reduce'):
             return np_backend.multiply.reduce(a)
-        elif safe_eq(op.a, '%') and hasattr(np_backend.divide,'reduce'):
+        elif op_a == '%' and hasattr(np_backend.divide,'reduce'):
             return np_backend.divide.reduce(a)
-        elif safe_eq(op.a, '&') and a.ndim == 1:
+        elif op_a == '&' and a.ndim == 1:
             return np_backend.min(a)
-        elif safe_eq(op.a, '|') and a.ndim == 1:
+        elif op_a == '|' and a.ndim == 1:
             return np_backend.max(a)
-        elif safe_eq(op.a, ',') and np_backend.isarray(a) and a.dtype != 'O':
+        elif op_a == ',' and np_backend.isarray(a) and a.dtype != 'O':
             return a if a.ndim == 1 else np_backend.concatenate(a, axis=0)
     return functools.reduce(f, a)
 
@@ -297,13 +298,14 @@ def eval_adverb_scan_over(f, a, op, backend):
     # Use backend's ufunc accumulate when available for better performance
     np_backend = backend.np
     if isinstance(op, KGOp):
-        if safe_eq(op.a, '+') and hasattr(np_backend.add, 'accumulate'):
+        op_a = op.a
+        if op_a == '+' and hasattr(np_backend.add, 'accumulate'):
             return np_backend.add.accumulate(a)
-        elif safe_eq(op.a, '-') and hasattr(np_backend.subtract, 'accumulate'):
+        elif op_a == '-' and hasattr(np_backend.subtract, 'accumulate'):
             return np_backend.subtract.accumulate(a)
-        elif safe_eq(op.a, '*') and hasattr(np_backend.multiply, 'accumulate'):
+        elif op_a == '*' and hasattr(np_backend.multiply, 'accumulate'):
             return np_backend.multiply.accumulate(a)
-        elif safe_eq(op.a, '%') and hasattr(np_backend.divide, 'accumulate'):
+        elif op_a == '%' and hasattr(np_backend.divide, 'accumulate'):
             return np_backend.divide.accumulate(a)
     r = list(itertools.accumulate(a, f))
     return backend.kg_asarray(r)

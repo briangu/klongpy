@@ -14,6 +14,9 @@ from .sys_var import *
 from .utils import ReadonlyDict
 
 
+_UNEVALUATED_OPS = frozenset(['::','∇'])
+
+
 def set_context_var(d, sym, v):
     """
     Sets a context variable, wrapping Python lambda/functions as appropriate.
@@ -692,7 +695,7 @@ class KlongInterpreter():
                 f = self._get_op_fn(x.a.a, x.a.arity)
                 fa = (x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else x.args
                 _y = self.eval(fa[1]) if x.a.arity == 2 else None
-                _x = fa[0] if x.a.a in ['::','∇'] else self.eval(fa[0])
+                _x = fa[0] if x.a.a in _UNEVALUATED_OPS else self.eval(fa[0])
                 return f(_x) if x.a.arity == 1 else f(_x, _y)
             elif x.is_adverb_chain():
                 return chain_adverbs(self, x.a)()
