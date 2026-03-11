@@ -732,7 +732,7 @@ class KlongInterpreter():
             return [self.call(y) for y in x][-1]
         return x
 
-    def __call__(self, x, *args, **kwds):
+    def __call__(self, x):
         """
 
         Convience method for executing Klong programs.
