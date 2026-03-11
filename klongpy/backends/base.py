@@ -156,6 +156,9 @@ class BackendProvider(ABC):
 
     def is_number(self, a) -> bool:
         """Check if a is a number (integer or float)."""
+        t = type(a)
+        if t is int or t is float:
+            return True
         return self.is_float(a) or self.is_integer(a)
 
     def str_to_chr_arr(self, s):
