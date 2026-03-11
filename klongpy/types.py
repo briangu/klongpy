@@ -270,8 +270,11 @@ reserved_dot_f_symbol = KGSym('.f')
 
 def is_list(x):
     # Check for list or any array-like with ndim > 0 (works for numpy and torch)
-    if isinstance(x, (list, numpy.ndarray)):
-        return isinstance(x, list) or x.ndim > 0
+    t = type(x)
+    if t is list:
+        return True
+    if t is numpy.ndarray:
+        return x.ndim > 0
     return hasattr(x, 'ndim') and x.ndim > 0
 
 
