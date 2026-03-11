@@ -1129,10 +1129,12 @@ _dyad_cache = {}
 
 def _immutable_key(x):
     """Return a stable cache key for x, or None if not cacheable."""
-    if isinstance(x, (int, float)):
-        return x
     tx = type(x)
-    if issubclass(tx, (numpy.integer, numpy.floating)):
+    if tx is int or tx is float:
+        return x
+    if tx is numpy.ndarray:
+        return id(x) if not x.flags.writeable and x.ndim > 0 else None
+    if issubclass(tx, numpy.integer) or issubclass(tx, numpy.floating):
         return x.item()
     if hasattr(x, 'flags') and not x.flags.writeable and hasattr(x, 'ndim') and x.ndim > 0:
         return id(x)
