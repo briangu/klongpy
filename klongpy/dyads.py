@@ -1127,6 +1127,7 @@ def eval_dyad_autograd(klong, a, b):
 
 def create_dyad_functions(klong):
     backend = klong._backend
+    bknp = backend.np
 
     # Simple dyads that don't need backend or klong
     simple = {
@@ -1137,13 +1138,13 @@ def create_dyad_functions(klong):
 
     # Dyads needing backend
     backend_dyads = {
-        '+': lambda a, b: eval_dyad_add(a, b, backend),
+        '+': bknp.add,
+        '*': bknp.multiply,
+        '-': bknp.subtract,
         '|': lambda a, b: eval_dyad_maximum(a, b, backend),
         '&': lambda a, b: eval_dyad_minimum(a, b, backend),
         '!': lambda a, b: eval_dyad_remainder(a, b, backend),
         '%': lambda a, b: eval_dyad_divide(a, b, backend),
-        '*': lambda a, b: eval_dyad_multiply(a, b, backend),
-        '-': lambda a, b: eval_dyad_subtract(a, b, backend),
         ':=': lambda a, b: eval_dyad_amend(a, b, backend),
         ':_': lambda a, b: eval_dyad_cut(a, b, backend),
         '=': lambda a, b: eval_dyad_equal(a, b, backend),

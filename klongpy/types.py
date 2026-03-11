@@ -53,7 +53,7 @@ class KGFn:
         self.a = a
         self.args = args
         self.arity = arity
-        self.global_params = global_params or set()
+        self.global_params = global_params
         self._is_op = isinstance(a, KGOp)
         self._is_adverb_chain = isinstance(a, list) and len(a) > 0 and isinstance(a[0], KGAdverb)
 
