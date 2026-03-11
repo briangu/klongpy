@@ -15,6 +15,8 @@ from .types import (
     safe_eq, is_symbolic, is_adverb
 )
 
+_DELIMITERS = frozenset({';', '(', ')', '{', '}', ']'})
+
 
 # Character matching utilities
 
@@ -234,7 +236,7 @@ def kg_read(t, i, read_neg=False, ignore_newline=False, module=None):
     a = t[i]
     if a == '\n':
         a = ';'
-    if a in [';', '(', ')', '{', '}', ']']:
+    if a in _DELIMITERS:
         return i+1, a
     elif cmatch2(t, i, '0', 'c'):
         return read_char(t, i)
