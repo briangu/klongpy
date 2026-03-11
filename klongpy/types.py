@@ -348,7 +348,7 @@ def str_is_float(b):
 
 
 def is_symbolic(c):
-    return isinstance(c, str) and (c.isalpha() or c.isdigit() or c == '.')
+    return isinstance(c, str) and (c.isalnum() or c == '.')
 
 
 def is_char(x):
