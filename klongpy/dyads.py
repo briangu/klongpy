@@ -1153,7 +1153,7 @@ def _make_cached_dyad(fn, fn_id=None):
             if cached is not None:
                 return cached
             result = fn(a, b)
-            if hasattr(result, 'flags') and hasattr(result, 'ndim') and result.ndim > 0:
+            if type(result) is numpy.ndarray and result.ndim > 0:
                 result.flags.writeable = False
             _dyad_cache[cache_key] = result
             return result
