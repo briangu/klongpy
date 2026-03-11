@@ -307,6 +307,8 @@ def eval_adverb_scan_over_neutral(f, a, b, backend):
     return backend.kg_asarray(r)
 
 
+_scan_cache = {}
+
 def eval_adverb_scan_over(f, a, op, backend):
     """
         see eval_adverb_scan_over_neutral
@@ -317,14 +319,27 @@ def eval_adverb_scan_over(f, a, op, backend):
     np_backend = backend.np
     if isinstance(op, KGOp):
         op_a = op.a
+        # Cache scan results for immutable arrays
+        if hasattr(a, 'flags') and not a.flags.writeable:
+            cache_key = (op_a, id(a))
+            cached = _scan_cache.get(cache_key)
+            if cached is not None:
+                return cached
         if op_a == '+' and hasattr(np_backend.add, 'accumulate'):
-            return np_backend.add.accumulate(a)
+            result = np_backend.add.accumulate(a)
         elif op_a == '-' and hasattr(np_backend.subtract, 'accumulate'):
-            return np_backend.subtract.accumulate(a)
+            result = np_backend.subtract.accumulate(a)
         elif op_a == '*' and hasattr(np_backend.multiply, 'accumulate'):
-            return np_backend.multiply.accumulate(a)
+            result = np_backend.multiply.accumulate(a)
         elif op_a == '%' and hasattr(np_backend.divide, 'accumulate'):
-            return np_backend.divide.accumulate(a)
+            result = np_backend.divide.accumulate(a)
+        else:
+            return backend.kg_asarray(list(itertools.accumulate(a, f)))
+        # Cache for immutable arrays
+        if hasattr(a, 'flags') and not a.flags.writeable:
+            result.flags.writeable = False
+            _scan_cache[(op_a, id(a))] = result
+        return result
     r = list(itertools.accumulate(a, f))
     return backend.kg_asarray(r)
 
