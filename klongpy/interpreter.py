@@ -1,6 +1,8 @@
 import time
 from collections import deque
 
+import numpy
+
 from .adverbs import get_adverb_fn
 from .backends import get_backend
 from .core import *
@@ -768,6 +770,8 @@ class KlongInterpreter():
             if self._result_cache_ok:
                 rt = type(result)
                 if rt is int or rt is float:
+                    self._result_cache[x] = result
+                elif issubclass(rt, (numpy.integer, numpy.floating)):
                     self._result_cache[x] = result
                 elif hasattr(result, 'flags') and not result.flags.writeable:
                     self._result_cache[x] = result
