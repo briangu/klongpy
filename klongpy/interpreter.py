@@ -581,19 +581,20 @@ class KlongInterpreter():
         - Even if this function (`_f`) corresponds to a reserved symbol, it should still undergo the projection flattening process in subsequent recursive calls.
 
         """
-        if isinstance(f, KGSym):
+        tf = type(f)
+        if tf is KGSym:
             try:
                 _f = self._context[f]
-                if isinstance(_f, (KGFn,KGLambda)) or f not in reserved_fn_symbols_set:
-                    # if f is a symbol and it resolves to a function, then we resolve f as the function.
-                    # In this case, the f_args are meant for the resolved function.
+                t_f = type(_f)
+                if t_f is KGFn or t_f is KGCall or issubclass(t_f, KGLambda) or f not in reserved_fn_symbols_set:
                     f = _f
+                    tf = t_f
                 else:
                     return f, f_args, f_arity
             except KeyError:
                 if f not in reserved_fn_symbols_set:
                     raise KlongException(f"undefined: {f}")
-        if f_arity > 0 and isinstance(f, KGFn) and not f.is_op() and not f.is_adverb_chain():
+        if f_arity > 0 and (tf is KGFn or tf is KGCall) and not f.is_op() and not f.is_adverb_chain():
             if f.args is None:
                 # if f.args is None, then there are no projections in place and we use f_args entirely for the function.
                 return f.a, f_args, f.arity
@@ -642,9 +643,11 @@ class KlongInterpreter():
         # Up to three passes as there are max three arguments: x, y, and z
         # Early exit if f is not a symbol or KGFn (already fully resolved)
         f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
-        if isinstance(f, (KGSym, KGFn)):
+        tf = type(f)
+        if tf is KGSym or tf is KGFn or tf is KGCall:
             f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
-            if isinstance(f, (KGSym, KGFn)):
+            tf = type(f)
+            if tf is KGSym or tf is KGFn or tf is KGCall:
                 f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
 
         f_args.reverse()
