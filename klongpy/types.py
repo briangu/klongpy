@@ -382,7 +382,9 @@ def get_dtype_kind(arr, backend):
 # Utility functions
 
 def safe_eq(a, b):
-    return isinstance(a, type(b)) and a == b
+    if a is b:
+        return True
+    return type(a) is type(b) and a == b
 
 
 def in_map(x, v):
