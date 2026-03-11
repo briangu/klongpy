@@ -99,13 +99,17 @@ def read_sys_comment(t, i, a):
 
 # Whitespace handling
 
+_WHITESPACE = frozenset({' ', '\t', '\r', '\f', '\v', '\n'})
+_WHITESPACE_NO_NL = frozenset({' ', '\t', '\r', '\f', '\v'})
+
 def skip_space(t, i=0, ignore_newline=False):
     """
         NOTE: a newline character translates to a semicolon in Klong,
         except in functions, dictionaries, conditional expressions,
         and lists. So
     """
-    while i < len(t) and (t[i].isspace() and (ignore_newline or t[i] != '\n')):
+    ws = _WHITESPACE if ignore_newline else _WHITESPACE_NO_NL
+    while i < len(t) and t[i] in ws:
         i += 1
     return i
 
