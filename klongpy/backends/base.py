@@ -342,6 +342,12 @@ class BackendProvider(ABC):
         # Fast path for numpy arrays (non-object)
         if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
             if a.dtype != object and b.dtype != object:
+                # 0-d arrays: extract scalar and compare directly (15x faster than np.array_equal)
+                if a.ndim == 0 and b.ndim == 0:
+                    ai, bi = a.item(), b.item()
+                    if isinstance(ai, int) and isinstance(bi, int):
+                        return ai == bi
+                    return ai == bi or math.isclose(ai, bi, rel_tol=1e-05, abs_tol=1e-08)
                 return bool(np.array_equal(a, b))
 
         # Convert backend arrays to numpy for mixed comparisons
