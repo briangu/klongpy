@@ -182,6 +182,8 @@ def eval_dyad_adverb_iterate(f, a, b):
     return b
 
 
+_over_cache = {}
+
 def eval_adverb_over(f, a, op, backend):
     """
         f/a                                                       [Over]
@@ -205,20 +207,32 @@ def eval_adverb_over(f, a, op, backend):
     np_backend = backend.np
     if isinstance(op, KGOp):
         op_a = op.a
+        # Cache reduce results for immutable arrays
+        if hasattr(a, 'flags') and not a.flags.writeable:
+            cache_key = (op_a, id(a))
+            cached = _over_cache.get(cache_key)
+            if cached is not None:
+                return cached
         if op_a == '+':
-            return np_backend.add.reduce(a)
+            result = np_backend.add.reduce(a)
         elif op_a == '-':
-            return np_backend.subtract.reduce(a)
+            result = np_backend.subtract.reduce(a)
         elif op_a == '*' and hasattr(np_backend.multiply,'reduce'):
-            return np_backend.multiply.reduce(a)
+            result = np_backend.multiply.reduce(a)
         elif op_a == '%' and hasattr(np_backend.divide,'reduce'):
-            return np_backend.divide.reduce(a)
+            result = np_backend.divide.reduce(a)
         elif op_a == '&' and a.ndim == 1:
-            return np_backend.min(a)
+            result = np_backend.min(a)
         elif op_a == '|' and a.ndim == 1:
-            return np_backend.max(a)
+            result = np_backend.max(a)
         elif op_a == ',' and np_backend.isarray(a) and a.dtype != 'O':
-            return a if a.ndim == 1 else np_backend.concatenate(a, axis=0)
+            result = a if a.ndim == 1 else np_backend.concatenate(a, axis=0)
+        else:
+            return functools.reduce(f, a)
+        # Cache for immutable arrays
+        if hasattr(a, 'flags') and not a.flags.writeable:
+            _over_cache[(op_a, id(a))] = result
+        return result
     return functools.reduce(f, a)
 
 
