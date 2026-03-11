@@ -702,19 +702,19 @@ class KlongInterpreter():
                 if x not in reserved_fn_symbols_set:
                     self._context[x] = x
                 return x
-        elif isinstance(x, KGFn):
+        elif tx is KGCall or tx is KGFn:
             if x._is_op:
                 op = x.a
                 op_a = op.a
                 fa = x.args
                 if op.arity == 2:
-                    if not isinstance(fa, list):
+                    if type(fa) is not list:
                         fa = [fa] if fa is not None else fa
                     _y = self.eval(fa[1])
                     _x = fa[0] if op_a in _UNEVALUATED_OPS else self.eval(fa[0])
                     return self._vd[op_a](_x, _y)
                 else:
-                    _x = fa if not isinstance(fa, list) else fa[0]
+                    _x = fa if type(fa) is not list else fa[0]
                     if op_a not in _UNEVALUATED_OPS:
                         _x = self.eval(_x)
                     return self._vm[op_a](_x)
@@ -725,7 +725,7 @@ class KlongInterpreter():
                     cached_fn = chain_adverbs(self, x.a)
                     self._adverb_cache[xa_id] = cached_fn
                 return cached_fn()
-            elif isinstance(x, KGCall):
+            elif tx is KGCall:
                 return self._eval_fn(x)
         elif tx is KGCond:
             q = self.call(x[0])
