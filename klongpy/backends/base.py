@@ -5,6 +5,7 @@ All backends must implement the BackendProvider interface to ensure
 consistent behavior across numpy, torch, and any future backends.
 """
 from abc import ABC, abstractmethod
+import math
 import numpy as np
 
 
@@ -327,6 +328,13 @@ class BackendProvider(ABC):
         if a is b:
             return True
 
+        # Fast path for Python int/float scalars — skip all array checks
+        ta, tb = type(a), type(b)
+        if ta is int and tb is int:
+            return a == b
+        if (ta is int or ta is float) and (tb is int or tb is float):
+            return a == b or math.isclose(a, b, rel_tol=1e-05, abs_tol=1e-08)
+
         # Backend-native comparison for backend arrays
         if self.is_backend_array(a) and self.is_backend_array(b):
             return self.array_equal(a, b)
@@ -379,7 +387,7 @@ class BackendProvider(ABC):
                 return False
             return all(self.kg_equal(x, y) for x, y in zip(a, b))
 
-        # Numeric scalars: tolerant comparison
+        # Numeric scalars: tolerant comparison (Python int/float already handled above)
         if self.is_number(a) and self.is_number(b):
             result = np.isclose(a, b)
             if hasattr(result, 'item'):
