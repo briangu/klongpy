@@ -60,6 +60,8 @@ def eval_monad_enumerate(a, backend):
     return cached
 
 
+_expand_where_cache = {}
+
 def eval_monad_expand_where(a):
     """
 
@@ -83,6 +85,16 @@ def eval_monad_expand_where(a):
                   &[0 1 0 1 0]  -->   [1 3]
 
     """
+    if hasattr(a, 'flags') and not a.flags.writeable:
+        a_id = id(a)
+        cached = _expand_where_cache.get(a_id)
+        if cached is not None:
+            return cached
+        arr = a if is_list(a) else [a]
+        result = bknp.repeat(bknp.arange(len(arr)), arr)
+        result.flags.writeable = False
+        _expand_where_cache[a_id] = result
+        return result
     arr = a if is_list(a) else [a]
     return bknp.repeat(bknp.arange(len(arr)), arr)
 
