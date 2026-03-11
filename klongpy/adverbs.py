@@ -1,6 +1,7 @@
 from .core import *
 import functools
 import itertools
+import math
 
 
 def eval_adverb_converge(f, a, op, backend):
@@ -30,6 +31,9 @@ def eval_adverb_converge(f, a, op, backend):
         if not isinstance(p, type(q)):
             return False
         if backend.is_number(p):
+            # math.isclose is ~90x faster than np.isclose for Python scalars
+            if isinstance(p, (int, float)):
+                return p == q or math.isclose(p, q, rel_tol=1e-05, abs_tol=1e-08)
             return backend.np.isclose(p,q)
         elif backend.is_array(p):
             return backend.kg_equal(p, q)
