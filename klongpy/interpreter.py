@@ -598,7 +598,7 @@ class KlongInterpreter():
                 # if f.args is None, then there are no projections in place and we use f_args entirely for the function.
                 return f.a, f_args, f.arity
             elif has_none(f.args):
-                f_args.append(f.args if isinstance(f.args, list) else [f.args])
+                f_args.append(f.args if type(f.args) is list else [f.args])
                 return f.a, f_args, f.arity
         return f, f_args, f_arity
 
@@ -637,7 +637,7 @@ class KlongInterpreter():
         """
         f = x.a
         f_arity = x.arity
-        f_args = [None] if x.args is None else [x.args if isinstance(x.args, list) else [x.args]]
+        f_args = [None] if x.args is None else [x.args if type(x.args) is list else [x.args]]
 
         # Up to three passes as there are max three arguments: x, y, and z
         # Early exit if f is not a symbol or KGFn (already fully resolved)
