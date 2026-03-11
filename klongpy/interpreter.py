@@ -728,7 +728,11 @@ class KlongInterpreter():
                 return self._eval_fn(x)
         elif isinstance(x, KGCond):
             q = self.call(x[0])
-            p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
+            tq = type(q)
+            if tq is int or tq is float:
+                p = q != 0
+            else:
+                p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
             return self.call(x[1]) if p else self.call(x[2])
         elif isinstance(x,list) and len(x) > 0:
             return [self.call(y) for y in x][-1]
