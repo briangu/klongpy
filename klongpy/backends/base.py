@@ -144,13 +144,15 @@ class BackendProvider(ABC):
 
     def is_integer(self, x) -> bool:
         """Check if x is an integer type (scalar, numpy integer, or 0-dim integer tensor)."""
-        if issubclass(type(x), (int, np.integer)):
+        t = type(x)
+        if t is int or issubclass(t, np.integer):
             return True
         return self.is_scalar_integer(x)
 
     def is_float(self, x) -> bool:
         """Check if x is a float type (scalar, numpy float, int, or 0-dim float tensor)."""
-        if issubclass(type(x), (float, np.floating, int)):
+        t = type(x)
+        if t is float or t is int or issubclass(t, np.floating):
             return True
         return self.is_scalar_float(x) or self.is_scalar_integer(x)
 
