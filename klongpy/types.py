@@ -31,7 +31,7 @@ class KGSym(str):
     def __repr__(self):
         return f":{super().__str__()}"
     def __eq__(self, o):
-        return isinstance(o,KGSym) and self.__str__() == o.__str__()
+        return isinstance(o, KGSym) and str.__eq__(self, o)
     def __hash__(self):
         return super().__hash__()
 
