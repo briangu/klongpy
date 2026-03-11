@@ -35,6 +35,8 @@ def eval_monad_char(a, backend):
     return backend.rec_fn(a, lambda x: KGChar(chr(x))) if is_list(a) else KGChar(chr(a))
 
 
+_enumerate_cache = {}
+
 def eval_monad_enumerate(a, backend):
     """
 
@@ -49,7 +51,13 @@ def eval_monad_enumerate(a, backend):
     """
     if not backend.is_integer(a):
         raise RuntimeError(f"enumerate: invalid type error: {a}")
-    return bknp.arange(int(a))
+    n = int(a)
+    cached = _enumerate_cache.get(n)
+    if cached is None:
+        cached = bknp.arange(n)
+        cached.flags.writeable = False
+        _enumerate_cache[n] = cached
+    return cached
 
 
 def eval_monad_expand_where(a):
