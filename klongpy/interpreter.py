@@ -75,7 +75,7 @@ class KlongContext():
         return self._module
 
     def __setitem__(self, k, v):
-        if k not in reserved_fn_symbols:
+        if k not in reserved_fn_symbols_set:
             # Check if variable exists in any scope
             for d in self._context:
                 if k in d:
@@ -584,14 +584,14 @@ class KlongInterpreter():
         if isinstance(f, KGSym):
             try:
                 _f = self._context[f]
-                if isinstance(_f, (KGFn,KGLambda)) or not in_map(f, reserved_fn_symbols):
+                if isinstance(_f, (KGFn,KGLambda)) or f not in reserved_fn_symbols_set:
                     # if f is a symbol and it resolves to a function, then we resolve f as the function.
                     # In this case, the f_args are meant for the resolved function.
                     f = _f
                 else:
                     return f, f_args, f_arity
             except KeyError:
-                if not in_map(f, reserved_fn_symbols):
+                if f not in reserved_fn_symbols_set:
                     raise KlongException(f"undefined: {f}")
         if f_arity > 0 and isinstance(f, KGFn) and not f.is_op() and not f.is_adverb_chain():
             if f.args is None:
@@ -696,7 +696,7 @@ class KlongInterpreter():
             try:
                 return self._context[x]
             except KeyError:
-                if x not in reserved_fn_symbols:
+                if x not in reserved_fn_symbols_set:
                     self._context[x] = x
                 return x
         elif isinstance(x, KGFn):
