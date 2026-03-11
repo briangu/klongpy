@@ -390,11 +390,19 @@ class BackendProvider(ABC):
                         return a == b
             # Fast path for object numpy arrays when possible
             if isinstance(a, np.ndarray) and isinstance(b, np.ndarray) and a.dtype == object and b.dtype == object:
-                if a.size >= 128:
+                if len(a) != len(b):
+                    return False
+                # Small object arrays: try direct element comparison to avoid recursive overhead
+                if a.size <= 64:
                     try:
-                        return bool(np.array_equal(a, b))
-                    except Exception:
+                        return all(x == y or (type(x) in (int, float) and type(y) in (int, float) and math.isclose(x, y, rel_tol=1e-05, abs_tol=1e-08)) for x, y in zip(a, b))
+                    except (TypeError, ValueError):
                         pass
+                try:
+                    return bool(np.array_equal(a, b))
+                except Exception:
+                    pass
+                return all(self.kg_equal(x, y) for x, y in zip(a, b))
             if len(a) != len(b):
                 return False
             return all(self.kg_equal(x, y) for x, y in zip(a, b))
