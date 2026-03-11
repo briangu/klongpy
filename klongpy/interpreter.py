@@ -255,6 +255,8 @@ class KlongInterpreter():
         self._module = None
         self._parse_cache = {}
         self._adverb_cache = {}
+        self._result_cache = {}
+        self._result_cache_ok = True
 
     @property
     def backend(self):
@@ -269,6 +271,8 @@ class KlongInterpreter():
     def __setitem__(self, k, v):
         k = k if isinstance(k, KGSym) else KGSym(k)
         self._context[k] = v
+        self._result_cache.clear()
+        self._result_cache_ok = False
 
     def __getitem__(self, k):
         k = k if isinstance(k, KGSym) else KGSym(k)
@@ -279,6 +283,8 @@ class KlongInterpreter():
     def __delitem__(self, k):
         k = k if isinstance(k, KGSym) else KGSym(k)
         del self._context[k]
+        self._result_cache.clear()
+        self._result_cache_ok = False
 
     def _get_op_fn(self, s, arity):
         return self._vm[s] if arity == 1 else self._vd[s]
@@ -744,12 +750,21 @@ class KlongInterpreter():
         assert 2 == KlongInterpreter()("1+1")
 
         """
+        # Fast path: return cached result if available
+        result = self._result_cache.get(x)
+        if result is not None:
+            return result
         # Fast path: cached single-expression programs bypass exec/list overhead
         cached = self._parse_cache.get(x)
         if cached is not None:
+            self._result_cache_ok = True
             if len(cached) == 1:
-                return self.call(cached[0])
-            return [self.call(y) for y in cached][-1]
+                result = self.call(cached[0])
+            else:
+                result = [self.call(y) for y in cached][-1]
+            if self._result_cache_ok:
+                self._result_cache[x] = result
+            return result
         r = self.exec(x)
         return r[-1] if r else None
 
