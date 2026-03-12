@@ -437,7 +437,7 @@ class KlongInterpreter():
         i,a = kg_read_array(t, i, self._backend, ignore_newline=ignore_newline, module=self.current_module())
         if a is None:
             return i,a
-        if safe_eq(a, '{'): # read fn
+        if type(a) is str and a == '{': # read fn
             i,a = self.prog(t, i, ignore_newline=True)
             a = a[0] if len(a) == 1 else a
             i = skip(t, i, ignore_newline=True)
@@ -455,10 +455,10 @@ class KlongInterpreter():
             if cmatch(t,i,'(') or cmatch2(t,i,':','('):
                 i,fa = self._read_fn_args(t,i)
                 a = KGFn(a, fa, arity=len(fa)) if has_none(fa) else KGCall(a, fa, arity=len(fa))
-                if safe_eq(a.a, KGSym(".comment")):
+                if a.a == KGSym(".comment"):
                     i = read_sys_comment(t,i,a.args[0])
                     return self._factor(t,i, ignore_newline=ignore_newline)
-                elif safe_eq(a.a, KGSym('.module')):
+                elif a.a == KGSym('.module'):
                     self.parse_module(fa[0])
             ii, aa = peek_adverb(t, i)
             if aa:
@@ -471,10 +471,10 @@ class KlongInterpreter():
             else:
                 i, aa = self._expr(t, i, ignore_newline=ignore_newline)
                 a = KGFn(a, aa, arity=1)
-        elif safe_eq(a, '('):
+        elif type(a) is str and a == '(':
             i,a = self._expr(t, i, ignore_newline=ignore_newline)
             i = cexpect(t, i, ')')
-        elif safe_eq(a, ':['):
+        elif type(a) is str and a == ':[':
             return read_cond(self, t, i)
         while cmatch(t, i, '['):
             i, index = self._read_index_args(t, i)
@@ -492,14 +492,14 @@ class KlongInterpreter():
 
         """
         i, a = self._factor(t, i, ignore_newline=ignore_newline)
-        if a is None or safe_eq(a, ';'):
+        if a is None or (type(a) is str and a == ';'):
             return i,a
         ii, aa = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())
         if self._is_dyad(aa):
             aa.arity = 2
-        while isinstance(aa,(KGOp,KGSym)) or safe_eq(aa, '{'):
+        while isinstance(aa,(KGOp,KGSym)) or aa == '{':
             i = ii
-            if safe_eq(aa, '{'): # read fn
+            if aa == '{': # read fn
                 i,aa = self.prog(t, i, ignore_newline=True)
                 aa = aa[0] if len(aa) == 1 else aa
                 i = skip(t, i, ignore_newline=True)
@@ -520,7 +520,7 @@ class KlongInterpreter():
                 i, aaa = self._expr(t, i, ignore_newline=ignore_newline)
                 a = KGFn(aa, [a, aaa], arity=2)
             ii, aa = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())
-        if ignore_newline and safe_eq(a, '\n'):
+        if ignore_newline and type(a) is str and a == '\n':
             i = skip(t, i, ignore_newline=True)
         return i, a
 
@@ -538,7 +538,7 @@ class KlongInterpreter():
         arr = []
         while i < len(t):
             i, q = self._expr(t,i, ignore_newline=ignore_newline)
-            if q is None or safe_eq(q, ';'):
+            if q is None or (type(q) is str and q == ';'):
                 continue
             arr.append(q)
             ii, c = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())

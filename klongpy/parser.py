@@ -219,7 +219,7 @@ def read_list(t, delim, i=0, module=None):
         i, q = kg_read(t, i, read_neg=True, ignore_newline=True, module=module)
         if q is None:
             break
-        if safe_eq(q, '['):
+        if q == '[':
             i, q = read_list(t, ']', i=i, module=module)
         arr.append(q)
         i = skip(t, i, ignore_newline=True)
@@ -263,7 +263,7 @@ def kg_read(t, i, read_neg=False, ignore_newline=False, module=None):
         elif aa == '|':
             return i+2, ':|'
         return i+2, KGOp(f":{aa}", arity=0)
-    elif safe_eq(a, '['):
+    elif a == '[':
         return read_list(t, ']', i=i+1, module=module)
     elif is_symbolic(a):
         return read_sym(t, i, module=module)
