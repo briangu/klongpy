@@ -180,7 +180,7 @@ def eval_dyad_adverb_iterate(f, a, b):
         Example: 3{1,x}:*[]  -->  [1 1 1]
 
     """
-    while not safe_eq(a, 0):
+    while a != 0:
         b = f(b)
         a = a - 1
     return b
@@ -209,7 +209,7 @@ def eval_adverb_over(f, a, op, backend):
         return a[0]
     # Use backend's ufunc reduce when available for better performance
     np_backend = backend.np
-    if isinstance(op, KGOp):
+    if type(op) is KGOp:
         op_a = op.a
         # Cache reduce results for immutable arrays
         if hasattr(a, 'flags') and not a.flags.writeable:
@@ -317,7 +317,7 @@ def eval_adverb_scan_over(f, a, op, backend):
         return a
     # Use backend's ufunc accumulate when available for better performance
     np_backend = backend.np
-    if isinstance(op, KGOp):
+    if type(op) is KGOp:
         op_a = op.a
         # Cache scan results for immutable arrays
         if hasattr(a, 'flags') and not a.flags.writeable:
@@ -414,10 +414,10 @@ def eval_adverb_scan_iterating(f, a, b, backend):
         Example: 3{1,x}\*[]  -->  [[] [1] [1 1] [1 1 1]]
 
     """
-    if safe_eq(a,0):
+    if a == 0:
         return b
     r = [b]
-    while not safe_eq(a, 0):
+    while a != 0:
         b = f(b)
         r.append(b)
         a = a - 1
