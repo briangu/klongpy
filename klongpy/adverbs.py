@@ -1,7 +1,12 @@
-from .core import *
 import functools
 import itertools
 import math
+
+import numpy as _numpy
+
+from .core import *
+
+_ndarray = _numpy.ndarray
 
 
 def eval_adverb_converge(f, a, op, backend):
@@ -213,7 +218,7 @@ def eval_adverb_over(f, a, op, backend):
     if type(op) is KGOp:
         op_a = op.a
         # Cache reduce results for immutable arrays
-        if hasattr(a, 'flags') and not a.flags.writeable:
+        if type(a) is _ndarray and not a.flags.writeable:
             cache_key = (op_a, id(a))
             cached = _over_cache.get(cache_key)
             if cached is not None:
@@ -235,7 +240,7 @@ def eval_adverb_over(f, a, op, backend):
         else:
             return functools.reduce(f, a)
         # Cache for immutable arrays
-        if hasattr(a, 'flags') and not a.flags.writeable:
+        if type(a) is _ndarray and not a.flags.writeable:
             _over_cache[(op_a, id(a))] = result
         return result
     return functools.reduce(f, a)
@@ -321,7 +326,7 @@ def eval_adverb_scan_over(f, a, op, backend):
     if type(op) is KGOp:
         op_a = op.a
         # Cache scan results for immutable arrays
-        if hasattr(a, 'flags') and not a.flags.writeable:
+        if type(a) is _ndarray and not a.flags.writeable:
             cache_key = (op_a, id(a))
             cached = _scan_cache.get(cache_key)
             if cached is not None:
@@ -337,7 +342,7 @@ def eval_adverb_scan_over(f, a, op, backend):
         else:
             return backend.kg_asarray(list(itertools.accumulate(a, f)))
         # Cache for immutable arrays
-        if hasattr(a, 'flags') and not a.flags.writeable:
+        if type(a) is _ndarray and not a.flags.writeable:
             result.flags.writeable = False
             _scan_cache[(op_a, id(a))] = result
         return result
