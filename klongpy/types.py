@@ -528,19 +528,21 @@ def get_fn_arity(f):
 
     NOTE: TODO: it maybe easier / better to do this at parse time vs late.
     """
-    if isinstance(f, KGFn) and isinstance(f.a, KGSym) and f.a not in reserved_fn_symbols_set:
+    tf = type(f)
+    if (tf is KGFn or tf is KGCall) and type(f.a) is KGSym and f.a not in reserved_fn_symbols_set:
        return sum(1 for x in set(f.args) if x in reserved_fn_symbols_set or (x is None))
     def _e(f, level=0):
-        if isinstance(f, KGFn):
+        tf = type(f)
+        if tf is KGFn or tf is KGCall:
             x = _e(f.a, level=1)
-            if isinstance(f.args, list):
+            if type(f.args) is list:
                 for q in f.args:
                     x.update(_e(q, level=1))
-        elif isinstance(f, list):
+        elif tf is list:
             x = set()
             for q in f:
                 x.update(_e(q, level=1))
-        elif isinstance(f, KGSym):
+        elif tf is KGSym:
             x = set([f]) if f in reserved_fn_symbols_set else set()
         else:
             x = set()
