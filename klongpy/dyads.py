@@ -1135,7 +1135,9 @@ def _immutable_key(x):
     if tx is int or tx is float:
         return x
     if tx is numpy.ndarray:
-        return id(x) if not x.flags.writeable and x.ndim > 0 else None
+        if not x.flags.writeable:
+            return id(x) if x.ndim > 0 else x.item()
+        return None
     if issubclass(tx, numpy.integer) or issubclass(tx, numpy.floating):
         return x.item()
     if hasattr(x, 'flags') and not x.flags.writeable and hasattr(x, 'ndim') and x.ndim > 0:
