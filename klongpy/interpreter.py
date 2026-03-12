@@ -58,6 +58,7 @@ class KlongContext():
     1.99999999999999997
 
     """
+    __slots__ = ('_context', '_min_ctx_count', '_strict_mode')
 
     def __init__(self, system_contexts, strict_mode=1):
         self._context = deque([{}, *system_contexts])
