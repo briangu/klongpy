@@ -780,6 +780,9 @@ class KlongInterpreter():
                     self._result_cache[x] = result
                 elif issubclass(rt, (numpy.integer, numpy.floating)):
                     self._result_cache[x] = result
+                elif rt is numpy.ndarray:
+                    if result.ndim == 0 or not result.flags.writeable:
+                        self._result_cache[x] = result
                 elif hasattr(result, 'flags') and not result.flags.writeable:
                     self._result_cache[x] = result
             return result
