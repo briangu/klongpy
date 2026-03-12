@@ -1184,7 +1184,7 @@ def create_dyad_functions(klong):
         ':=': lambda a, b: eval_dyad_amend(a, b, backend),
         ':_': lambda a, b: eval_dyad_cut(a, b, backend),
         '=': _make_cached_dyad(lambda a, b: eval_dyad_equal(a, b, backend), fn_id='='),
-        '?': lambda a, b: eval_dyad_find(a, b, backend),
+        '?': _make_cached_dyad(lambda a, b: eval_dyad_find(a, b, backend), fn_id='?'),
         ':$': lambda a, b: eval_dyad_form(a, b, backend),
         '$': lambda a, b: eval_dyad_format2(a, b, backend),
         ':%': _make_cached_dyad(lambda a, b: eval_dyad_integer_divide(a, b, backend), fn_id=':%'),
