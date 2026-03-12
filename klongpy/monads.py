@@ -487,6 +487,8 @@ def eval_monad_size(a, backend):
     return backend.np.abs(a) if backend.is_number(a) else ord(a) if is_char(a) else len(a)
 
 
+_transpose_cache = {}
+
 def eval_monad_transpose(a):
     """
 
@@ -499,6 +501,16 @@ def eval_monad_transpose(a):
                                  +[]  -->  []
 
     """
+    if hasattr(a, 'flags') and not a.flags.writeable:
+        a_id = id(a)
+        cached = _transpose_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = bknp.transpose(bknp.asarray(a))
+        if hasattr(result, 'flags'):
+            result.flags.writeable = False
+            _transpose_cache[a_id] = result
+        return result
     return bknp.transpose(bknp.asarray(a))
 
 
