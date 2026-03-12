@@ -658,10 +658,9 @@ class KlongInterpreter():
         ctx = {} if f_args is None else {reserved_fn_symbol_map[p]: self.call(q) for p,q in zip(reserved_fn_args,f_args)}
 
         if is_list(f) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0:
-            # Filter out semicolons and check if all remaining elements are symbols
-            params = [q for q in f[0] if isinstance(q, KGSym)]
-            have_locals = len(params) > 0 and all(isinstance(q, KGSym) for q in params)
-            if have_locals:
+            # Filter out semicolons — remaining elements are local variable declarations
+            params = [q for q in f[0] if type(q) is KGSym]
+            if len(params) > 0:
                 for q in params:
                     # Don't overwrite function parameters (x, y, z)
                     if q not in ctx:
