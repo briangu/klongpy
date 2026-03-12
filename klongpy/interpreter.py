@@ -682,9 +682,10 @@ class KlongInterpreter():
         Invoke a Klong program (as produced by prog()), causing functions to be called and evaluated.
 
         """
-        if isinstance(x, KGCall):
+        tx = type(x)
+        if tx is KGCall:
             return self.eval(x)
-        return self.eval(KGCall(x.a, x.args, x.arity) if isinstance(x, KGFn) else x)
+        return self.eval(KGCall(x.a, x.args, x.arity) if tx is KGFn else x)
 
     def eval(self, x):
         """
