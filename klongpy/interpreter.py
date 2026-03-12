@@ -231,6 +231,8 @@ def chain_adverbs(klong, arr):
 
 
 class KlongInterpreter():
+    __slots__ = ('_backend', '_context', '_vd', '_vm', '_start_time', '_module',
+                 '_parse_cache', '_adverb_cache', '_result_cache', '_result_cache_ok')
 
     def __init__(self, backend=None, device=None):
         """
