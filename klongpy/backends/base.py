@@ -457,9 +457,10 @@ class BackendProvider(ABC):
 
     def _is_list(self, x):
         """Check if x is a list-like structure (array or list, non-empty)."""
-        if isinstance(x, np.ndarray):
+        t = type(x)
+        if t is np.ndarray:
             return x.size > 0
-        if isinstance(x, (list, tuple)):
+        if t is list or t is tuple:
             return len(x) > 0
         return False
 

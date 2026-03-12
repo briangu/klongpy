@@ -48,7 +48,7 @@ class NumpyBackendProvider(BackendProvider):
         return True
 
     def is_array(self, x) -> bool:
-        return isinstance(x, np.ndarray)
+        return type(x) is np.ndarray
 
     def is_backend_array(self, x) -> bool:
         return False  # numpy arrays are the base case, not a "backend" type
