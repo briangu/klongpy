@@ -1,5 +1,9 @@
+import numpy as _numpy
+
 from .core import *
 from .autograd import grad_of_fn
+
+_ndarray = _numpy.ndarray
 
 
 def eval_monad_atom(a):
@@ -85,7 +89,7 @@ def eval_monad_expand_where(a):
                   &[0 1 0 1 0]  -->   [1 3]
 
     """
-    if hasattr(a, 'flags') and not a.flags.writeable:
+    if type(a) is _ndarray and not a.flags.writeable:
         a_id = id(a)
         cached = _expand_where_cache.get(a_id)
         if cached is not None:
@@ -292,13 +296,13 @@ def eval_monad_negate(a, backend):
                   -1.23  -->  -1.23
 
     """
-    if hasattr(a, 'flags') and not a.flags.writeable:
+    if type(a) is _ndarray and not a.flags.writeable:
         a_id = id(a)
         cached = _negate_cache.get(a_id)
         if cached is not None:
             return cached
         result = backend.vec_fn(a, lambda x: backend.np.negative(backend.kg_asarray(x)))
-        if hasattr(result, 'flags'):
+        if type(result) is _ndarray:
             result.flags.writeable = False
             _negate_cache[a_id] = result
         return result
@@ -345,7 +349,7 @@ def eval_monad_range(a, backend):
         return ''.join(bknp.unique(backend.str_to_chr_arr(a)))
     elif np_backend.isarray(a):
         # Cache for immutable arrays
-        if hasattr(a, 'flags') and not a.flags.writeable:
+        if type(a) is _ndarray and not a.flags.writeable:
             a_id = id(a)
             cached = _range_cache.get(a_id)
             if cached is not None:
@@ -365,7 +369,7 @@ def eval_monad_range(a, backend):
                     s.add(sx)
                     arr.append(x)
             result = backend.kg_asarray(arr)
-        if hasattr(a, 'flags') and not a.flags.writeable:
+        if type(a) is _ndarray and not a.flags.writeable:
             _range_cache[id(a)] = result
         return result
     return a
@@ -408,7 +412,7 @@ def eval_monad_reverse(a):
                               |1  -->  1
 
     """
-    if hasattr(a, 'flags') and not a.flags.writeable:
+    if type(a) is _ndarray and not a.flags.writeable:
         a_id = id(a)
         cached = _reverse_cache.get(a_id)
         if cached is not None:
@@ -484,7 +488,7 @@ def eval_monad_shape(a, backend):
             for y in x
         ])
     a = _normalize_backend_array(a)
-    if hasattr(a, 'flags') and not a.flags.writeable:
+    if type(a) is _ndarray and not a.flags.writeable:
         a_id = id(a)
         cached = _shape_cache.get(a_id)
         if cached is not None:
@@ -531,13 +535,13 @@ def eval_monad_transpose(a):
                                  +[]  -->  []
 
     """
-    if hasattr(a, 'flags') and not a.flags.writeable:
+    if type(a) is _ndarray and not a.flags.writeable:
         a_id = id(a)
         cached = _transpose_cache.get(a_id)
         if cached is not None:
             return cached
         result = bknp.transpose(bknp.asarray(a))
-        if hasattr(result, 'flags'):
+        if type(result) is _ndarray:
             result.flags.writeable = False
             _transpose_cache[a_id] = result
         return result
