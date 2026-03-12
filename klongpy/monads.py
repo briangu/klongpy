@@ -192,7 +192,7 @@ def eval_monad_grade_up(a, backend):
 
     """
     arr = backend.kg_asarray(a)
-    if hasattr(arr, 'flags') and not arr.flags.writeable:
+    if type(arr) is _ndarray and not arr.flags.writeable:
         a_id = id(arr)
         cached = _grade_up_cache.get(a_id)
         if cached is not None:
@@ -215,7 +215,7 @@ def eval_monad_grade_down(a, backend):
 
     """
     arr = backend.kg_asarray(a)
-    if hasattr(arr, 'flags') and not arr.flags.writeable:
+    if type(arr) is _ndarray and not arr.flags.writeable:
         a_id = id(arr)
         cached = _grade_down_cache.get(a_id)
         if cached is not None:
@@ -249,7 +249,7 @@ def eval_monad_groupby(a, backend):
     arr = backend.kg_asarray(a)
     if backend.array_size(arr) == 0:
         return arr
-    if hasattr(arr, 'flags') and not arr.flags.writeable:
+    if type(arr) is _ndarray and not arr.flags.writeable:
         a_id = id(arr)
         cached = _groupby_cache.get(a_id)
         if cached is not None:
