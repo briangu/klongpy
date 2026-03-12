@@ -1129,6 +1129,18 @@ def eval_dyad_autograd(klong, a, b):
 
 _dyad_cache = {}
 
+# Cache which types are numpy scalar types to avoid repeated issubclass calls
+_numpy_scalar_types = set()
+
+def _is_numpy_scalar(tx):
+    """Check if tx is a numpy scalar type, with result caching."""
+    if tx in _numpy_scalar_types:
+        return True
+    if issubclass(tx, numpy.integer) or issubclass(tx, numpy.floating):
+        _numpy_scalar_types.add(tx)
+        return True
+    return False
+
 def _immutable_key(x):
     """Return a stable cache key for x, or None if not cacheable."""
     tx = type(x)
@@ -1138,7 +1150,7 @@ def _immutable_key(x):
         if not x.flags.writeable:
             return id(x) if x.ndim > 0 else x.item()
         return None
-    if issubclass(tx, numpy.integer) or issubclass(tx, numpy.floating):
+    if tx in _numpy_scalar_types or _is_numpy_scalar(tx):
         return x.item()
     if hasattr(x, 'flags') and not x.flags.writeable and hasattr(x, 'ndim') and x.ndim > 0:
         return id(x)
