@@ -63,12 +63,12 @@ class NumpyBackendProvider(BackendProvider):
         return x
 
     def is_scalar_integer(self, x) -> bool:
-        if isinstance(x, np.ndarray) and x.ndim == 0:
+        if type(x) is np.ndarray and x.ndim == 0:
             return np.issubdtype(x.dtype, np.integer)
         return False
 
     def is_scalar_float(self, x) -> bool:
-        if isinstance(x, np.ndarray) and x.ndim == 0:
+        if type(x) is np.ndarray and x.ndim == 0:
             return np.issubdtype(x.dtype, np.floating)
         return False
 
