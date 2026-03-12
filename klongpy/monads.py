@@ -265,6 +265,8 @@ def eval_monad_list(a, backend):
     return backend.kg_asarray([a])
 
 
+_negate_cache = {}
+
 def eval_monad_negate(a, backend):
     """
 
@@ -278,6 +280,16 @@ def eval_monad_negate(a, backend):
                   -1.23  -->  -1.23
 
     """
+    if hasattr(a, 'flags') and not a.flags.writeable:
+        a_id = id(a)
+        cached = _negate_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = backend.vec_fn(a, lambda x: backend.np.negative(backend.kg_asarray(x)))
+        if hasattr(result, 'flags'):
+            result.flags.writeable = False
+            _negate_cache[a_id] = result
+        return result
     return backend.vec_fn(a, lambda x: backend.np.negative(backend.kg_asarray(x)))
 
 
