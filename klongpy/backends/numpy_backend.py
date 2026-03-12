@@ -104,6 +104,8 @@ class NumpyBackendProvider(BackendProvider):
 
     def kg_asarray(self, a):
         """Convert input to numpy array, handling strings and jagged/nested data."""
+        if type(a) is np.ndarray:
+            return a
         if isinstance(a, str):
             return self.str_to_char_array(a)
         try:
