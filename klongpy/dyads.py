@@ -559,15 +559,17 @@ def eval_dyad_join(a, b, backend):
                     :{[1 0]},[1 2]  -->  :{[1 2]}
 
     """
-    if (isinstance(a,str) and not isinstance(a,KGSym)) and (isinstance(b,str) and not isinstance(b,KGSym)):
+    ta = type(a)
+    tb = type(b)
+    if isinstance(a, str) and ta is not KGSym and isinstance(b, str) and tb is not KGSym:
         return a+b
-    if isinstance(a,dict) and isinstance(b,dict):
+    if ta is dict and tb is dict:
         a.update(b)
         return a
-    if isinstance(a,dict) and is_list(b) and len(b) == 2 and _is_hashable(b[0]):
+    if ta is dict and is_list(b) and len(b) == 2 and _is_hashable(b[0]):
         a[b[0]] = b[1]
         return a
-    if isinstance(b,dict) and is_list(a) and len(a) == 2 and _is_hashable(a[0]):
+    if tb is dict and is_list(a) and len(a) == 2 and _is_hashable(a[0]):
         b[a[0]] = a[1]
         return b
 
