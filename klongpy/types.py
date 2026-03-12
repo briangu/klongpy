@@ -453,19 +453,21 @@ def rec_flatten(a):
 
 # Adverb utilities
 
+_ADVERBS = frozenset({
+    "'",
+    ':\\',
+    ":'",
+    ':/',
+    '/',
+    ':~',
+    ':*',
+    '\\',
+    '\\~',
+    '\\*'
+})
+
 def is_adverb(s):
-    return s in {
-        "'",
-        ':\\',
-        ":'",
-        ':/',
-        '/',
-        ':~',
-        ':*',
-        '\\',
-        '\\~',
-        '\\*'
-    }
+    return s in _ADVERBS
 
 
 def get_adverb_arity(s, ctx):
