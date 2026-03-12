@@ -470,27 +470,24 @@ def is_adverb(s):
     return s in _ADVERBS
 
 
+_ADVERB_ARITIES = {
+    ':\\': 2,
+    ":'": 2,
+    ':/': 2,
+    '/': 2,
+    ':~': 1,
+    ':*': 1,
+    '\\': 2,
+    '\\~': 1,
+    '\\*': 1,
+}
+
 def get_adverb_arity(s, ctx):
     if s == "'":
         return ctx
-    elif s == ':\\':
-        return 2
-    elif s == ':\'':
-        return 2
-    elif s == ':/':
-        return 2
-    elif s == '/':
-        return 2
-    elif s == ':~':
-        return 1
-    elif s == ':*':
-        return 1
-    elif s == '\\':
-        return 2
-    elif s == '\\~':
-        return 1
-    elif s == '\\*':
-        return 1
+    r = _ADVERB_ARITIES.get(s)
+    if r is not None:
+        return r
     raise RuntimeError(f"unknown adverb: {s}")
 
 
