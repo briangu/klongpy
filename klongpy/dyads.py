@@ -1193,10 +1193,10 @@ def create_dyad_functions(klong):
         '~': _make_cached_dyad(lambda a, b: eval_dyad_match(a, b, backend), fn_id='~'),
         '>': _make_cached_dyad(lambda a, b: eval_dyad_more(a, b, backend), fn_id='>'),
         '^': _make_cached_dyad(lambda a, b: eval_dyad_power(a, b, backend), fn_id='^'),
-        ':^': lambda a, b: eval_dyad_reshape(a, b, backend),
-        ':+': lambda a, b: eval_dyad_rotate(a, b, backend),
-        ':#': lambda a, b: eval_dyad_split(a, b, backend),
-        '#': lambda a, b: eval_dyad_take(a, b, backend),
+        ':^': _make_cached_dyad(lambda a, b: eval_dyad_reshape(a, b, backend), fn_id=':^'),
+        ':+': _make_cached_dyad(lambda a, b: eval_dyad_rotate(a, b, backend), fn_id=':+'),
+        ':#': _make_cached_dyad(lambda a, b: eval_dyad_split(a, b, backend), fn_id=':#'),
+        '#': _make_cached_dyad(lambda a, b: eval_dyad_take(a, b, backend), fn_id='#'),
     }
 
     # Dyads needing klong
