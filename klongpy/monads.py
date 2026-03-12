@@ -325,6 +325,8 @@ def eval_monad_not(a, backend):
     return backend.vec_fn(a, _neg) if not is_empty(a) else _neg(a)
 
 
+_range_cache = {}
+
 def eval_monad_range(a, backend):
     """
 
@@ -342,16 +344,19 @@ def eval_monad_range(a, backend):
     if isinstance(a, str):
         return ''.join(bknp.unique(backend.str_to_chr_arr(a)))
     elif np_backend.isarray(a):
+        # Cache for immutable arrays
+        if hasattr(a, 'flags') and not a.flags.writeable:
+            a_id = id(a)
+            cached = _range_cache.get(a_id)
+            if cached is not None:
+                return cached
         dtype_kind = backend.get_dtype_kind(a)
         if dtype_kind != 'O' and a.ndim > 1:
-            # Use numpy for unique with return_index across backends
             a_np = backend.to_numpy(a) if backend.is_backend_array(a) else a
             _, ids = bknp.unique(a_np, axis=0, return_index=True)
             ids.sort()
-            return a[ids]
+            result = a[ids]
         else:
-            # handle the jagged / mixed array case
-            # TODO: Make UNIQUE work. this feels so dirty.
             s = set()
             arr = []
             for x in a:
@@ -359,7 +364,10 @@ def eval_monad_range(a, backend):
                 if sx not in s:
                     s.add(sx)
                     arr.append(x)
-            return backend.kg_asarray(arr)
+            result = backend.kg_asarray(arr)
+        if hasattr(a, 'flags') and not a.flags.writeable:
+            _range_cache[id(a)] = result
+        return result
     return a
 
 
