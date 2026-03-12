@@ -426,7 +426,7 @@ class BackendProvider(ABC):
         """
         Apply function f to array a, with support for nested object arrays.
         """
-        if self.np.isarray(a) and a.dtype == 'O':
+        if type(a) is np.ndarray and a.dtype == 'O':
             result = [self.vec_fn(x, f) if self._is_list(x) else f(x) for x in a]
             return np.asarray(result, dtype=object)
         return f(a)
@@ -435,17 +435,17 @@ class BackendProvider(ABC):
         """
         Apply function f to elements of a and b, handling nested structures.
         """
-        if self.np.isarray(a):
+        ta = type(a)
+        tb = type(b)
+        if ta is np.ndarray:
             if a.dtype == 'O':
-                if self.np.isarray(b):
-                    assert len(a) == len(b)
+                if tb is np.ndarray:
                     return self.kg_asarray([self.vec_fn2(x, y, f) for x, y in zip(a, b)])
                 else:
                     return self.kg_asarray([self.vec_fn2(x, b, f) for x in a])
-            elif self.np.isarray(b) and b.dtype == 'O':
-                assert len(a) == len(b)
+            elif tb is np.ndarray and b.dtype == 'O':
                 return self.kg_asarray([self.vec_fn2(x, y, f) for x, y in zip(a, b)])
-        elif self.np.isarray(b) and b.dtype == 'O':
+        elif tb is np.ndarray and b.dtype == 'O':
             return self.kg_asarray([self.vec_fn2(a, x, f) for x in b])
         return f(a, b)
 
