@@ -223,6 +223,8 @@ def eval_monad_grade_down(a, backend):
     return kg_argsort(arr, backend, descending=True)
 
 
+_groupby_cache = {}
+
 def eval_monad_groupby(a, backend):
     """
 
@@ -243,6 +245,16 @@ def eval_monad_groupby(a, backend):
     arr = backend.kg_asarray(a)
     if backend.array_size(arr) == 0:
         return arr
+    if hasattr(arr, 'flags') and not arr.flags.writeable:
+        a_id = id(arr)
+        cached = _groupby_cache.get(a_id)
+        if cached is not None:
+            return cached
+        vals, inverse = bknp.unique(arr, return_inverse=True)
+        groups = [bknp.where(inverse == i)[0] for i in range(len(vals))]
+        result = backend.kg_asarray(groups)
+        _groupby_cache[a_id] = result
+        return result
     vals, inverse = bknp.unique(arr, return_inverse=True)
     groups = [bknp.where(inverse == i)[0] for i in range(len(vals))]
     return backend.kg_asarray(groups)
