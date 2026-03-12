@@ -104,7 +104,7 @@ class KlongContext():
             v = d.get(k)
             if v is not None:
                 return v
-            if isinstance(d,KGModule):
+            if type(d) is KGModule:
                 if  '`' in k:
                     p = k.split('`')
                     if KGSym(p[1]) == d.name:
@@ -134,7 +134,7 @@ class KlongContext():
             for d in self._context:
                 if k in d:
                     return True
-                if isinstance(d,KGModule) and '`' not in k:
+                if type(d) is KGModule and '`' not in k:
                     tk = k + '`'
                     for dk in d.keys():
                         if dk.startswith(tk):
@@ -312,7 +312,7 @@ class KlongInterpreter():
 
     def _apply_adverbs(self, t, i, a, aa, arity, dyad=False, dyad_value=None):
         aa_arity = get_adverb_arity(aa, arity)
-        if isinstance(a,KGOp):
+        if type(a) is KGOp:
             a.arity = aa_arity
         a = KGAdverb(a, aa_arity)
         arr = [a, KGAdverb(aa, arity)]
@@ -451,7 +451,7 @@ class KlongInterpreter():
             ii, aa = peek_adverb(t, i)
             if aa:
                 i,a = self._apply_adverbs(t, ii, a, aa, arity=1)
-        elif isinstance(a, KGSym):
+        elif type(a) is KGSym:
             if cmatch(t,i,'(') or cmatch2(t,i,':','('):
                 i,fa = self._read_fn_args(t,i)
                 a = KGFn(a, fa, arity=len(fa)) if has_none(fa) else KGCall(a, fa, arity=len(fa))
@@ -497,7 +497,7 @@ class KlongInterpreter():
         ii, aa = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())
         if self._is_dyad(aa):
             aa.arity = 2
-        while isinstance(aa,(KGOp,KGSym)) or aa == '{':
+        while type(aa) is KGOp or type(aa) is KGSym or aa == '{':
             i = ii
             if aa == '{': # read fn
                 i,aa = self.prog(t, i, ignore_newline=True)
@@ -510,7 +510,7 @@ class KlongInterpreter():
                     aa = KGFn(aa, fa, arity=arity) if has_none(fa) else KGCall(aa, fa, arity=arity)
                 else:
                     aa = KGFn(aa, args=None, arity=arity)
-            elif isinstance(aa,KGSym) and (cmatch(t, i, '(') or cmatch2(t,i,':','(')):
+            elif type(aa) is KGSym and (cmatch(t, i, '(') or cmatch2(t,i,':','(')):
                 i,fa = self._read_fn_args(t,i)
                 aa = KGFn(aa, fa, arity=len(fa)) if has_none(fa) else KGCall(aa, fa, arity=len(fa))
             ii, aaa = peek_adverb(t, i)
