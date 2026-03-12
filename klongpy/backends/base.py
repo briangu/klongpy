@@ -345,12 +345,12 @@ class BackendProvider(ABC):
             return self.array_equal(a, b)
 
         # Fast path for numpy arrays (non-object)
-        if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+        if ta is np.ndarray and tb is np.ndarray:
             if a.dtype != object and b.dtype != object:
                 # 0-d arrays: extract scalar and compare directly (15x faster than np.array_equal)
                 if a.ndim == 0 and b.ndim == 0:
                     ai, bi = a.item(), b.item()
-                    if isinstance(ai, int) and isinstance(bi, int):
+                    if type(ai) is int and type(bi) is int:
                         return ai == bi
                     return ai == bi or math.isclose(ai, bi, rel_tol=1e-05, abs_tol=1e-08)
                 return bool(np.array_equal(a, b))
@@ -358,38 +358,42 @@ class BackendProvider(ABC):
         # Convert backend arrays to numpy for mixed comparisons
         if self.is_backend_array(a):
             a = self.to_numpy(a)
+            ta = type(a)
         if self.is_backend_array(b):
             b = self.to_numpy(b)
+            tb = type(b)
 
         # Fast path for numpy arrays (after any conversion)
-        if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+        if ta is np.ndarray and tb is np.ndarray:
             if a.dtype != object and b.dtype != object:
                 return bool(np.array_equal(a, b))
 
         # Normalize 0-d numpy arrays to scalars for mixed comparisons
-        if isinstance(a, np.ndarray) and a.ndim == 0:
+        if ta is np.ndarray and a.ndim == 0:
             a = a.item()
-        if isinstance(b, np.ndarray) and b.ndim == 0:
+            ta = type(a)
+        if tb is np.ndarray and b.ndim == 0:
             b = b.item()
+            tb = type(b)
 
         # Int/bool scalars do not need tolerant comparison.
-        if isinstance(a, (int, bool, np.integer)) and isinstance(b, (int, bool, np.integer)):
+        if (ta is int or ta is bool or issubclass(ta, np.integer)) and (tb is int or tb is bool or issubclass(tb, np.integer)):
             return a == b
 
         # List/sequence comparison
-        a_is_seq = isinstance(a, (list, tuple)) or (isinstance(a, np.ndarray) and a.ndim > 0)
-        b_is_seq = isinstance(b, (list, tuple)) or (isinstance(b, np.ndarray) and b.ndim > 0)
+        a_is_seq = ta is list or ta is tuple or (ta is np.ndarray and a.ndim > 0)
+        b_is_seq = tb is list or tb is tuple or (tb is np.ndarray and b.ndim > 0)
         if a_is_seq or b_is_seq:
             if not (a_is_seq and b_is_seq):
                 return False
-            if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+            if (ta is list or ta is tuple) and (tb is list or tb is tuple):
                 if len(a) == len(b) and len(a) > 0:
                     # Fast path: if first elements are simple types, use direct ==
                     t0 = type(a[0])
                     if t0 is int or t0 is float or t0 is str or t0 is bool:
                         return a == b
             # Fast path for object numpy arrays when possible
-            if isinstance(a, np.ndarray) and isinstance(b, np.ndarray) and a.dtype == object and b.dtype == object:
+            if ta is np.ndarray and tb is np.ndarray and a.dtype == object and b.dtype == object:
                 if len(a) != len(b):
                     return False
                 # Small object arrays: try direct element comparison to avoid recursive overhead
