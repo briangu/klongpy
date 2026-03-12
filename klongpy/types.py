@@ -308,30 +308,39 @@ def to_list(a):
 
 
 def is_integer(x, backend):
-    if issubclass(type(x), (int, numpy.integer)):
+    tx = type(x)
+    if tx is int:
+        return True
+    if issubclass(tx, (int, numpy.integer)):
         return True
     # Handle 0-dim numpy arrays
-    if isinstance(x, numpy.ndarray) and x.ndim == 0:
+    if tx is numpy.ndarray and x.ndim == 0:
         return numpy.issubdtype(x.dtype, numpy.integer)
     # Handle backend-specific scalar integers (e.g., torch tensors)
     return backend.is_scalar_integer(x)
 
 
 def is_float(x, backend):
-    if issubclass(type(x), (float, numpy.floating, int)):
+    tx = type(x)
+    if tx is float or tx is int:
+        return True
+    if issubclass(tx, (float, numpy.floating)):
         return True
     # Handle 0-dim numpy arrays
-    if isinstance(x, numpy.ndarray) and x.ndim == 0:
+    if tx is numpy.ndarray and x.ndim == 0:
         return numpy.issubdtype(x.dtype, numpy.floating)
     # Handle backend-specific scalar floats (e.g., torch tensors)
     return backend.is_scalar_float(x)
 
 
 def is_number(a, backend):
+    ta = type(a)
+    if ta is int or ta is float:
+        return True
     if is_float(a, backend) or is_integer(a, backend):
         return True
     # Handle 0-dim numpy arrays
-    if isinstance(a, numpy.ndarray) and a.ndim == 0:
+    if ta is numpy.ndarray and a.ndim == 0:
         return numpy.issubdtype(a.dtype, numpy.number)
     # Handle 0-dim backend tensors as numbers
     if backend.is_backend_array(a) and hasattr(a, 'ndim') and a.ndim == 0:
