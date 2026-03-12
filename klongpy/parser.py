@@ -294,7 +294,7 @@ def kg_read_array(t, i, backend, **kwargs):
         (new_position, value) where value is converted to an array if it was a list.
     """
     i, a = kg_read(t, i, **kwargs)
-    if isinstance(a, list):
+    if type(a) is list:
         a = backend.kg_asarray(a)
     return i, a
 

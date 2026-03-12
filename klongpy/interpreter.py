@@ -131,7 +131,7 @@ class KlongContext():
         return self._context.popleft() if len(self._context) > self._min_ctx_count else None
 
     def is_defined_sym(self, k):
-        if isinstance(k, KGSym):
+        if type(k) is KGSym:
             for d in self._context:
                 if k in d:
                     return True
@@ -402,7 +402,7 @@ class KlongInterpreter():
             return i, self._backend.kg_asarray([])
         if len(arr) == 1:
             q = arr[0]
-            return i, self._backend.kg_asarray(q) if isinstance(q, list) else q
+            return i, self._backend.kg_asarray(q) if type(q) is list else q
         return i, self._backend.kg_asarray(arr)
 
 
