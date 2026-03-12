@@ -54,8 +54,8 @@ class KGFn:
         self.args = args
         self.arity = arity
         self.global_params = global_params
-        self._is_op = isinstance(a, KGOp)
-        self._is_adverb_chain = isinstance(a, list) and len(a) > 0 and isinstance(a[0], KGAdverb)
+        self._is_op = type(a) is KGOp
+        self._is_adverb_chain = type(a) is list and len(a) > 0 and type(a[0]) is KGAdverb
 
     def __str__(self):
         return get_fn_arity_str(self.arity)
