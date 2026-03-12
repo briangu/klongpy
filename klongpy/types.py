@@ -505,7 +505,7 @@ def merge_projections(arr):
             if sparse_fa[i] is None:
                 sparse_fa[i] = fa[j]
                 j += 1
-                while j < len(fa) and safe_eq(fa[j], None):
+                while j < len(fa) and fa[j] is None:
                     j += 1
             i += 1
         k += 1
