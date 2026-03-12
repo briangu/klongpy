@@ -420,6 +420,8 @@ def eval_monad_reverse(a):
     return a[::-1]
 
 
+_shape_cache = {}
+
 def eval_monad_shape(a, backend):
     """
 
@@ -482,6 +484,14 @@ def eval_monad_shape(a, backend):
             for y in x
         ])
     a = _normalize_backend_array(a)
+    if hasattr(a, 'flags') and not a.flags.writeable:
+        a_id = id(a)
+        cached = _shape_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = 0 if is_atom(a) else bknp.asarray([len(a)]) if isinstance(a, str) else bknp.asarray(_a(a).shape)
+        _shape_cache[a_id] = result
+        return result
     return 0 if is_atom(a) else bknp.asarray([len(a)]) if isinstance(a, str) else bknp.asarray(_a(a).shape)
 
 
