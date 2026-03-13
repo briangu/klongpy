@@ -63,9 +63,13 @@ def eval_monad_enumerate(a, backend):
                   !10  -->  [0 1 2 3 4 5 6 7 8 9]
 
     """
-    if not backend.is_integer(a):
+    ta = type(a)
+    if ta is int:
+        n = a
+    elif ta is not int and not backend.is_integer(a):
         raise RuntimeError(f"enumerate: invalid type error: {a}")
-    n = int(a)
+    else:
+        n = int(a)
     cached = _enumerate_cache.get(n)
     if cached is None:
         cached = bknp.arange(n)
