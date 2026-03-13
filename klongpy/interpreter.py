@@ -1039,7 +1039,9 @@ class KlongInterpreter():
         else:
             _ctx._context.append(ctx)
         try:
-            tf = type(f)
+            # Recompute tf only if has_locals modified f (f = f[1:] changes type)
+            if has_locals:
+                tf = type(f)
             # Most common case first: function body is an op (e.g., x+1)
             if (tf is KGCall or tf is KGFn) and f._is_op:
                 op_a = f._op_a
