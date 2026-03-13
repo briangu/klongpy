@@ -63,7 +63,7 @@ def _int_eq(a, b): return 1 if a == b else 0
 def _int_not(x): return 1 if x == 0 else 0
 def _fast_floor(x): return x if type(x) is int else _math.floor(x)
 
-_FAST_SCALAR_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '<': _int_lt, '>': _int_gt, '=': _int_eq, '|': max, '&': min}
+_FAST_SCALAR_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '^': _op.pow, '<': _int_lt, '>': _int_gt, '=': _int_eq, '|': max, '&': min}
 _FAST_SCALAR_MONADS = {'-': _op.neg, '~': _int_not, '_': _fast_floor}
 
 
