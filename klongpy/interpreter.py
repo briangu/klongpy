@@ -332,19 +332,19 @@ class KlongInterpreter():
         return self._backend.np
 
     def __setitem__(self, k, v):
-        k = k if isinstance(k, KGSym) else KGSym(k)
+        k = k if type(k) is KGSym else KGSym(k)
         self._context[k] = v
         self._result_cache.clear()
         self._result_cache_ok = False
 
     def __getitem__(self, k):
-        k = k if isinstance(k, KGSym) else KGSym(k)
+        k = k if type(k) is KGSym else KGSym(k)
         r = self._context[k]
         # Pass the symbol name to avoid O(n) context search
         return KGFnWrapper(self, r, sym=k) if issubclass(type(r), KGFn) else r
 
     def __delitem__(self, k):
-        k = k if isinstance(k, KGSym) else KGSym(k)
+        k = k if type(k) is KGSym else KGSym(k)
         del self._context[k]
         self._result_cache.clear()
         self._result_cache_ok = False
