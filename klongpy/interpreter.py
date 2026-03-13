@@ -1031,8 +1031,9 @@ class KlongInterpreter():
         cached = self._parse_cache.get(x)
         if cached is not None:
             self._result_cache_ok = True
-            if len(cached) == 1:
-                x0 = cached[0]
+            # Single-expression programs are stored unwrapped (not in a list)
+            if type(cached) is not list:
+                x0 = cached
                 tx0 = type(x0)
                 # Inline call dispatch for common cases to avoid function call overhead
                 if tx0 is int or tx0 is float:
@@ -1075,10 +1076,12 @@ class KlongInterpreter():
         """
         cached = self._parse_cache.get(x)
         if cached is not None:
-            return [self.call(y) for y in cached]
+            # Single-expression programs stored unwrapped
+            return [self.call(cached)] if type(cached) is not list else [self.call(y) for y in cached]
         i, prog = self.prog(x)
         i = skip(x, i)
         if i < len(x) and x[i] == '}':
             raise UnexpectedChar(x, i, x[i])
-        self._parse_cache[x] = prog
+        # Store single-expression programs unwrapped for fast __call__ dispatch
+        self._parse_cache[x] = prog[0] if len(prog) == 1 else prog
         return [self.call(y) for y in prog]
