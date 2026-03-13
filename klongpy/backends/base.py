@@ -387,7 +387,7 @@ class BackendProvider(ABC):
             tb = type(b)
 
         # Int/bool scalars do not need tolerant comparison.
-        if (ta is int or ta is bool or issubclass(ta, np.integer)) and (tb is int or tb is bool or issubclass(tb, np.integer)):
+        if (ta is int or ta is bool or ta in _np_integer_types or issubclass(ta, np.integer)) and (tb is int or tb is bool or tb in _np_integer_types or issubclass(tb, np.integer)):
             return a == b
 
         # List/sequence comparison
