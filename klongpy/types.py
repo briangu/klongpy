@@ -54,15 +54,22 @@ def get_fn_arity_str(arity):
 
 
 class KGFn:
-    __slots__ = ('a', 'args', 'arity', 'global_params', '_is_op', '_is_adverb_chain')
+    __slots__ = ('a', 'args', 'arity', 'global_params', '_is_op', '_is_adverb_chain', '_op_a', '_op_arity')
 
     def __init__(self, a, args, arity, global_params=None):
         self.a = a
         self.args = args
         self.arity = arity
         self.global_params = global_params
-        self._is_op = type(a) is KGOp
+        _is_op = type(a) is KGOp
+        self._is_op = _is_op
         self._is_adverb_chain = type(a) is list and len(a) > 0 and type(a[0]) is KGAdverb
+        if _is_op:
+            self._op_a = a.a
+            self._op_arity = a.arity
+        else:
+            self._op_a = None
+            self._op_arity = 0
 
     def __str__(self):
         return get_fn_arity_str(self.arity)

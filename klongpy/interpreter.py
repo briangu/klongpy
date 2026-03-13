@@ -879,10 +879,9 @@ class KlongInterpreter():
                 return x
         elif tx is KGCall or tx is KGFn:
             if x._is_op:
-                op = x.a
-                op_a = op.a
+                op_a = x._op_a
                 fa = x.args
-                if op.arity == 2:
+                if x._op_arity == 2:
                     if type(fa) is not list:
                         fa = [fa] if fa is not None else fa
                     fa1 = fa[1]
