@@ -958,11 +958,11 @@ class KlongInterpreter():
                 rt = type(result)
                 if rt is int or rt is float:
                     self._result_cache[x] = result
-                elif rt in _numpy_scalar_types or _is_numpy_scalar_type(rt):
-                    self._result_cache[x] = result
                 elif rt is numpy.ndarray:
                     if result.ndim > 0 and result.flags.writeable:
                         result.flags.writeable = False
+                    self._result_cache[x] = result
+                elif rt in _numpy_scalar_types or _is_numpy_scalar_type(rt):
                     self._result_cache[x] = result
                 elif hasattr(result, 'flags'):
                     if result.flags.writeable:
