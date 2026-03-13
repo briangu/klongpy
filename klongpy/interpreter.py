@@ -238,14 +238,16 @@ def chain_adverbs(klong, arr):
     """
     if arr[0].arity == 1:
         if type(arr[0].a) is KGOp:
-            # Direct dispatch for built-in operators — avoids KGCall allocation + eval overhead
-            f = lambda x,vm=klong._vm,op_a=arr[0].a.a: vm[op_a](x)
+            # Direct dispatch for built-in operators — pre-resolved function avoids dict lookup
+            _fn = klong._vm[arr[0].a.a]
+            f = lambda x,fn=_fn: fn(x)
         else:
             f = lambda x,k=klong,a=arr[0].a: k.eval(KGCall(a, [x], arity=1))
     else:
         if type(arr[0].a) is KGOp:
-            # Direct dispatch for built-in operators — avoids KGCall allocation + eval overhead
-            f = lambda x,y,vd=klong._vd,op_a=arr[0].a.a: vd[op_a](x,y)
+            # Direct dispatch for built-in operators — pre-resolved function avoids dict lookup
+            _fn = klong._vd[arr[0].a.a]
+            f = lambda x,y,fn=_fn: fn(x,y)
         else:
             f = lambda x,y,k=klong,a=arr[0].a: k.eval(KGCall(a, [x,y], arity=2))
     for i in range(1,len(arr)-1):
