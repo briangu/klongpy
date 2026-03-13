@@ -716,8 +716,11 @@ class KlongInterpreter():
             if tf is KGSym or tf is KGFn or tf is KGCall:
                 f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
 
-        f_args.reverse()
-        f_args = merge_projections(f_args)
+        if len(f_args) == 1:
+            f_args = f_args[0]
+        else:
+            f_args.reverse()
+            f_args = merge_projections(f_args)
         if (0 if f_args is None else len(f_args)) < f_arity or has_none(f_args):
             return x
 
