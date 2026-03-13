@@ -245,7 +245,7 @@ def kg_read(t, i, read_neg=False, ignore_newline=False, module=None):
         a = ';'
     if a in _DELIMITERS:
         return i+1, a
-    elif cmatch2(t, i, '0', 'c'):
+    elif a == '0' and (i+1) < len(t) and t[i+1] == 'c':
         return read_char(t, i)
     elif a.isnumeric() or (read_neg and (a == '-' and (i+1) < len(t) and t[i+1].isnumeric())):
         return read_num(t, i)
@@ -268,7 +268,7 @@ def kg_read(t, i, read_neg=False, ignore_newline=False, module=None):
         return i+2, KGOp(f":{aa}", arity=0)
     elif a == '[':
         return read_list(t, ']', i=i+1, module=module)
-    elif is_symbolic(a):
+    elif a.isalnum() or a == '.':
         return read_sym(t, i, module=module)
     return read_op(t, i)
 
