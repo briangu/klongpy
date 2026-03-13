@@ -201,6 +201,8 @@ class KGLambda:
     lambda klong, x: klong(x)
 
     """
+    __slots__ = ('fn', 'args', '_provide_klong', '_wildcard')
+
     def __init__(self, fn, args=None, provide_klong=False, wildcard=False):
         self.fn = fn
         params = args or safe_inspect(fn)
