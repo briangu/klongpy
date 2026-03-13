@@ -843,6 +843,8 @@ class KlongInterpreter():
 
         """
         tx = type(x)
+        if tx is int or tx is float:
+            return x
         if tx is KGCall:
             return self.eval(x)
         if tx is KGFn:
