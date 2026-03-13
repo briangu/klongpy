@@ -1018,7 +1018,7 @@ class KlongInterpreter():
                         fa0 = fa[0]
                         t0 = type(fa0)
                         if t0 is KGSym and fa0 in reserved_fn_symbols_set:
-                            _x = _ctx._context[-1].get(fa0)
+                            _x = ctx.get(fa0)
                             if _x is None:
                                 _x = self.eval(fa0)
                         elif t0 is int or t0 is float or t0 is numpy.ndarray:
@@ -1035,7 +1035,7 @@ class KlongInterpreter():
                     if op_a not in _UNEVALUATED_OPS:
                         tx_x = type(_x)
                         if tx_x is KGSym and _x in reserved_fn_symbols_set:
-                            v = _ctx._context[-1].get(_x)
+                            v = ctx.get(_x)
                             if v is not None:
                                 _x = v
                             else:
@@ -1066,7 +1066,7 @@ class KlongInterpreter():
                     _cfa0 = _cfa[0]
                     _ct0 = type(_cfa0)
                     if _ct0 is KGSym and _cfa0 in reserved_fn_symbols_set:
-                        _cx = _ctx._context[-1].get(_cfa0)
+                        _cx = ctx.get(_cfa0)
                         if _cx is None:
                             _cx = self.eval(_cfa0)
                     elif _ct0 is int or _ct0 is float:
@@ -1094,7 +1094,7 @@ class KlongInterpreter():
                 if txb is KGSym:
                     # Inline reserved symbol resolution to avoid eval() call overhead
                     if xb in reserved_fn_symbols_set:
-                        _v = _ctx._context[-1].get(xb)
+                        _v = ctx.get(xb)
                         if _v is not None:
                             return _v
                     return self.eval(xb)
@@ -1108,7 +1108,7 @@ class KlongInterpreter():
                     if _bt1 is int or _bt1 is float:
                         _by = _bfa1
                     elif _bt1 is KGSym and _bfa1 in reserved_fn_symbols_set:
-                        _by = _ctx._context[-1].get(_bfa1)
+                        _by = ctx.get(_bfa1)
                         if _by is None:
                             _by = self.eval(_bfa1)
                     elif (_bt1 is KGFn or _bt1 is KGCall) and _bfa1._is_op:
@@ -1124,7 +1124,7 @@ class KlongInterpreter():
                         _bfa0 = _bfa[0]
                         _bt0 = type(_bfa0)
                         if _bt0 is KGSym and _bfa0 in reserved_fn_symbols_set:
-                            _bx = _ctx._context[-1].get(_bfa0)
+                            _bx = ctx.get(_bfa0)
                             if _bx is None:
                                 _bx = self.eval(_bfa0)
                         elif _bt0 is int or _bt0 is float:
