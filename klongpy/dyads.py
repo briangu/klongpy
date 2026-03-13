@@ -1190,7 +1190,7 @@ def create_dyad_functions(klong):
     # Simple dyads that don't need backend or klong
     simple = {
         ':-': eval_dyad_amend_in_depth,
-        '_': eval_dyad_drop,
+        '_': _make_cached_dyad(eval_dyad_drop, fn_id='_'),
         ':@': eval_dyad_index_in_depth,
     }
 
