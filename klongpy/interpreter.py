@@ -18,6 +18,17 @@ from .utils import ReadonlyDict
 
 _UNEVALUATED_OPS = frozenset(['::','∇'])
 
+# Cache which types are KGLambda subclasses to avoid repeated issubclass calls
+_kglambda_types = {KGLambda}
+
+def _is_kglambda_type(tx):
+    if tx in _kglambda_types:
+        return True
+    if issubclass(tx, KGLambda):
+        _kglambda_types.add(tx)
+        return True
+    return False
+
 # Cache which types are numpy scalar types to avoid repeated issubclass calls
 _numpy_scalar_types = set()
 
@@ -35,7 +46,7 @@ def set_context_var(d, sym, v):
     Sets a context variable, wrapping Python lambda/functions as appropriate.
     """
     assert isinstance(sym, KGSym)
-    if callable(v) and not issubclass(type(v), KGLambda) :
+    if callable(v) and type(v) not in _kglambda_types and not _is_kglambda_type(type(v)):
         x = KGLambda(v)
         v = KGCall(x,args=None,arity=x.get_arity())
     d[sym] = v
@@ -608,7 +619,7 @@ class KlongInterpreter():
             try:
                 _f = self._context[f]
                 t_f = type(_f)
-                if t_f is KGFn or t_f is KGCall or issubclass(t_f, KGLambda) or f not in reserved_fn_symbols_set:
+                if t_f is KGFn or t_f is KGCall or t_f in _kglambda_types or _is_kglambda_type(t_f) or f not in reserved_fn_symbols_set:
                     f = _f
                     tf = t_f
                 else:
@@ -693,7 +704,7 @@ class KlongInterpreter():
 
         self._context.push(ctx)
         try:
-            return f(self, self._context) if issubclass(type(f), KGLambda) else self.call(f)
+            return f(self, self._context) if type(f) in _kglambda_types or _is_kglambda_type(type(f)) else self.call(f)
         finally:
             self._context.pop()
 
