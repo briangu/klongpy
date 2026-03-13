@@ -909,6 +909,11 @@ class KlongInterpreter():
         """
         tx = type(x)
         if tx is KGSym:
+            # Fast path: reserved symbols (x, y, z) are always in innermost scope
+            if x in reserved_fn_symbols_set:
+                v = self._context._context[-1].get(x)
+                if v is not None:
+                    return v
             try:
                 return self._context[x]
             except KeyError:
