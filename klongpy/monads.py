@@ -103,6 +103,8 @@ def eval_monad_expand_where(a):
     return bknp.repeat(bknp.arange(len(arr)), arr)
 
 
+_first_cache = {}
+
 def eval_monad_first(a):
     """
 
@@ -119,6 +121,14 @@ def eval_monad_first(a):
                          *1  -->  1
 
     """
+    if type(a) is _ndarray and not a.flags.writeable and a.ndim > 0 and len(a) > 0:
+        a_id = id(a)
+        cached = _first_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = a[0]
+        _first_cache[a_id] = result
+        return result
     return a if is_empty(a) or not is_iterable(a) else a[0]
 
 
@@ -535,6 +545,8 @@ def eval_monad_shape(a, backend):
     return 0 if is_atom(a) else bknp.asarray([len(a)]) if isinstance(a, str) else bknp.asarray(_a(a).shape)
 
 
+_size_cache = {}
+
 def eval_monad_size(a, backend):
     """
 
@@ -554,6 +566,14 @@ def eval_monad_size(a, backend):
                           #0cA  -->  65
 
     """
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _size_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = len(a)
+        _size_cache[a_id] = result
+        return result
     return backend.np.abs(a) if backend.is_number(a) else ord(a) if is_char(a) else len(a)
 
 
