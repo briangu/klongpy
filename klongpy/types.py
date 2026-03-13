@@ -40,8 +40,7 @@ class KGSym(str):
         return f":{super().__str__()}"
     def __eq__(self, o):
         return self is o or (type(o) is KGSym and str.__eq__(self, o))
-    def __hash__(self):
-        return super().__hash__()
+    __hash__ = str.__hash__
 
 
 def get_fn_arity_str(arity):
