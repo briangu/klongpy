@@ -80,10 +80,11 @@ class KlongContext():
     1.99999999999999997
 
     """
-    __slots__ = ('_context', '_min_ctx_count', '_strict_mode')
+    __slots__ = ('_context', '_min_ctx_count', '_strict_mode', '_lookup_cache')
 
     def __init__(self, system_contexts, strict_mode=1):
         self._context = deque([{}, *system_contexts])
+        self._lookup_cache = {}
         self._min_ctx_count = len(system_contexts)
         self._strict_mode = strict_mode
 
@@ -103,6 +104,8 @@ class KlongContext():
             for d in self._context:
                 if k in d:
                     d[k] = v
+                    # Invalidate lookup cache for this key
+                    self._lookup_cache.pop(k, None)
                     return k
 
         # Variable doesn't exist - check strict mode
@@ -120,12 +123,18 @@ class KlongContext():
 
         # Create new variable in current scope
         set_context_var(self._context[0], k, v)
+        self._lookup_cache.pop(k, None)
         return k
 
     def __getitem__(self, k):
+        # Fast path: check lookup cache first
+        cached = self._lookup_cache.get(k)
+        if cached is not None:
+            return cached
         for d in self._context:
             v = d.get(k)
             if v is not None:
+                self._lookup_cache[k] = v
                 return v
             if type(d) is KGModule:
                 if  '`' in k:
@@ -143,14 +152,20 @@ class KlongContext():
         for d in self._context:
             if k in d and not isinstance(d, ReadonlyDict):
                 del d[k]
+                self._lookup_cache.pop(k, None)
                 return
         raise KeyError(k)
 
     def push(self, d):
         self._context.appendleft(d)
+        self._lookup_cache.clear()
 
     def pop(self):
-        return self._context.popleft() if len(self._context) > self._min_ctx_count else None
+        if len(self._context) > self._min_ctx_count:
+            r = self._context.popleft()
+            self._lookup_cache.clear()
+            return r
+        return None
 
     def is_defined_sym(self, k):
         if type(k) is KGSym:
