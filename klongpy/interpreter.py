@@ -20,7 +20,7 @@ _UNEVALUATED_OPS = frozenset(['::','∇'])
 # Direct Python operator functions for fast scalar dispatch in each-adverb.
 # These bypass cached_fn and numpy ufunc overhead (~62ns vs ~248ns per call).
 import operator as _op
-_FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub}
+_FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '%': _op.truediv, '^': _op.pow}
 
 # Pre-resolve individual reserved symbols to avoid list indexing in hot path
 _sym_x = reserved_fn_symbols[0]
