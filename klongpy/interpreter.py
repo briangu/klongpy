@@ -29,8 +29,10 @@ _FAST_SCALAR_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '<': _int_lt, '>':
 # Safe for numpy arrays (numpy handles div-by-zero via inf/nan)
 _FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '%': _op.truediv, '^': _op.pow}
 # Fast monad dispatch for Python scalars (bypasses vec_fn overhead)
+import math as _math
 def _int_not(x): return 1 if x == 0 else 0
-_FAST_SCALAR_MONADS = {'-': _op.neg, '~': _int_not}
+def _fast_floor(x): return x if type(x) is int else _math.floor(x)
+_FAST_SCALAR_MONADS = {'-': _op.neg, '~': _int_not, '_': _fast_floor}
 
 # Pre-resolve individual reserved symbols to avoid list indexing in hot path
 _sym_x = reserved_fn_symbols[0]
