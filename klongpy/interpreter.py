@@ -99,7 +99,7 @@ class KlongContext():
     1.99999999999999997
 
     """
-    __slots__ = ('_context', '_min_ctx_count', '_strict_mode', '_lookup_cache')
+    __slots__ = ('_context', '_min_ctx_count', '_strict_mode', '_lookup_cache', '_lookup_version')
 
     def __init__(self, system_contexts, strict_mode=1):
         # Use list instead of deque for better cache locality
@@ -108,6 +108,7 @@ class KlongContext():
         self._lookup_cache = {}
         self._min_ctx_count = len(system_contexts)
         self._strict_mode = strict_mode
+        self._lookup_version = 0
 
     def start_module(self, name):
         self.push(KGModule(name))
@@ -128,6 +129,7 @@ class KlongContext():
                     d[k] = v
                     # Invalidate lookup cache for this key
                     self._lookup_cache.pop(k, None)
+                    self._lookup_version += 1
                     return k
 
         # Variable doesn't exist - check strict mode
@@ -146,6 +148,7 @@ class KlongContext():
         # Create new variable in current scope (end of list = innermost)
         set_context_var(self._context[-1], k, v)
         self._lookup_cache.pop(k, None)
+        self._lookup_version += 1
         return k
 
     def __getitem__(self, k):
@@ -187,6 +190,7 @@ class KlongContext():
             if k in d and not isinstance(d, ReadonlyDict):
                 del d[k]
                 self._lookup_cache.pop(k, None)
+                self._lookup_version += 1
                 return
         raise KeyError(k)
 
@@ -197,12 +201,17 @@ class KlongContext():
             # KGModule uses wildcard matching — must clear entire cache
             if type(d) is KGModule:
                 cache.clear()
+                self._lookup_version += 1
             else:
                 # Skip reserved symbols (x, y, z, .f) — they're always in innermost scope
                 # and not worth caching since they change on every function call
+                _invalidated = False
                 for k in d:
                     if k not in reserved_fn_symbols_set and k is not reserved_dot_f_symbol:
                         cache.pop(k, None)
+                        _invalidated = True
+                if _invalidated:
+                    self._lookup_version += 1
 
     def push_fn_ctx(self, d):
         """Fast push for function contexts with only reserved symbols (x/y/z/.f)."""
@@ -220,10 +229,15 @@ class KlongContext():
             if cache:
                 if type(r) is KGModule:
                     cache.clear()
+                    self._lookup_version += 1
                 else:
+                    _invalidated = False
                     for k in r:
                         if k not in reserved_fn_symbols_set and k is not reserved_dot_f_symbol:
                             cache.pop(k, None)
+                            _invalidated = True
+                    if _invalidated:
+                        self._lookup_version += 1
             return r
         return None
 
@@ -872,51 +886,64 @@ class KlongInterpreter():
             Subsequent processing will then use the arguments attached to the referenced function as the basis for projection flattening.
 
         """
-        f = x.a
         f_arity = x.arity
         f_args = [None] if x.args is None else [x.args if type(x.args) is list else [x.args]]
 
-        # Fast path: inline first resolve for the common case
+        # Fast path: use cached resolution if available and still valid
         _ctx = self._context
-        tf = type(f)
-        if tf is KGSym:
-            try:
-                # Fast path: check lookup cache directly for non-reserved symbols
-                _f = _ctx._lookup_cache.get(f) if f not in reserved_fn_symbols_set else None
-                if _f is None:
-                    _f = _ctx[f]
-                t_f = type(_f)
-                if t_f is KGFn or t_f is KGCall or t_f in _kglambda_types or _is_kglambda_type(t_f) or f not in reserved_fn_symbols_set:
-                    f = _f
-                    tf = t_f
-                    # Check if we can unwrap the function directly
-                    if f_arity > 0 and (tf is KGFn or tf is KGCall) and not f._is_op and not f._is_adverb_chain:
-                        if f.args is None:
-                            f, f_arity = f.a, f.arity
-                            tf = type(f)
-                        elif has_none(f.args):
-                            f_args.append(f.args if type(f.args) is list else [f.args])
-                            f, f_arity = f.a, f.arity
-                            tf = type(f)
-            except KeyError:
-                if f not in reserved_fn_symbols_set:
-                    raise KlongException(f"undefined: {f}")
-        elif tf is KGFn or tf is KGCall:
-            if f_arity > 0 and not f._is_op and not f._is_adverb_chain:
-                if f.args is None:
-                    f, f_arity = f.a, f.arity
-                    tf = type(f)
-                elif has_none(f.args):
-                    f_args.append(f.args if type(f.args) is list else [f.args])
-                    f, f_arity = f.a, f.arity
-                    tf = type(f)
-        # Continue with remaining passes if needed (skip ops — they're already resolved)
-        if tf is KGSym or ((tf is KGFn or tf is KGCall) and not f._is_op):
-            f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+        _tx = type(x)
+        if _tx is KGCall and x._cached_body is not None and x._cached_version == _ctx._lookup_version:
+            f = x._cached_body
+            f_arity = x._cached_body_arity
+            tf = x._cached_body_type
+        else:
+            f = x.a
+            # Fast path: inline first resolve for the common case
             tf = type(f)
+            if tf is KGSym:
+                try:
+                    # Fast path: check lookup cache directly for non-reserved symbols
+                    _f = _ctx._lookup_cache.get(f) if f not in reserved_fn_symbols_set else None
+                    if _f is None:
+                        _f = _ctx[f]
+                    t_f = type(_f)
+                    if t_f is KGFn or t_f is KGCall or t_f in _kglambda_types or _is_kglambda_type(t_f) or f not in reserved_fn_symbols_set:
+                        f = _f
+                        tf = t_f
+                        # Check if we can unwrap the function directly
+                        if f_arity > 0 and (tf is KGFn or tf is KGCall) and not f._is_op and not f._is_adverb_chain:
+                            if f.args is None:
+                                f, f_arity = f.a, f.arity
+                                tf = type(f)
+                            elif has_none(f.args):
+                                f_args.append(f.args if type(f.args) is list else [f.args])
+                                f, f_arity = f.a, f.arity
+                                tf = type(f)
+                except KeyError:
+                    if f not in reserved_fn_symbols_set:
+                        raise KlongException(f"undefined: {f}")
+            elif tf is KGFn or tf is KGCall:
+                if f_arity > 0 and not f._is_op and not f._is_adverb_chain:
+                    if f.args is None:
+                        f, f_arity = f.a, f.arity
+                        tf = type(f)
+                    elif has_none(f.args):
+                        f_args.append(f.args if type(f.args) is list else [f.args])
+                        f, f_arity = f.a, f.arity
+                        tf = type(f)
+            # Continue with remaining passes if needed (skip ops — they're already resolved)
             if tf is KGSym or ((tf is KGFn or tf is KGCall) and not f._is_op):
                 f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
                 tf = type(f)
+                if tf is KGSym or ((tf is KGFn or tf is KGCall) and not f._is_op):
+                    f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+                    tf = type(f)
+            # Cache the resolution for next time (only when no projection merging occurred)
+            if _tx is KGCall and len(f_args) == 1:
+                x._cached_body = f
+                x._cached_body_arity = f_arity
+                x._cached_body_type = tf
+                x._cached_version = _ctx._lookup_version
 
         if len(f_args) == 1:
             f_args = f_args[0]

@@ -152,7 +152,14 @@ class KGFnWrapper:
 
 
 class KGCall(KGFn):
-    __slots__ = ()
+    __slots__ = ('_cached_body', '_cached_body_arity', '_cached_body_type', '_cached_version')
+
+    def __init__(self, a, args, arity, global_params=None):
+        super().__init__(a, args, arity, global_params)
+        self._cached_body = None
+        self._cached_body_arity = 0
+        self._cached_body_type = None
+        self._cached_version = -1
 
     def __str__(self):
         return self.a.__str__() if issubclass(type(self.a), KGLambda) else super().__str__()
