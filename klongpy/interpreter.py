@@ -23,13 +23,17 @@ _sym_y = reserved_fn_symbols[1]
 
 # Cache which types are KGLambda subclasses to avoid repeated issubclass calls
 _kglambda_types = {KGLambda}
+_non_kglambda_types = {int, float, str, list, KGFn, KGCall, KGOp, KGAdverb, KGSym, KGCond}
 
 def _is_kglambda_type(tx):
     if tx in _kglambda_types:
         return True
+    if tx in _non_kglambda_types:
+        return False
     if issubclass(tx, KGLambda):
         _kglambda_types.add(tx)
         return True
+    _non_kglambda_types.add(tx)
     return False
 
 # Cache which types are numpy scalar types to avoid repeated issubclass calls
@@ -789,11 +793,11 @@ class KlongInterpreter():
                     f_args.append(f.args if type(f.args) is list else [f.args])
                     f, f_arity = f.a, f.arity
                     tf = type(f)
-        # Continue with remaining passes if needed
-        if tf is KGSym or tf is KGFn or tf is KGCall:
+        # Continue with remaining passes if needed (skip ops — they're already resolved)
+        if tf is KGSym or ((tf is KGFn or tf is KGCall) and not f._is_op):
             f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
             tf = type(f)
-            if tf is KGSym or tf is KGFn or tf is KGCall:
+            if tf is KGSym or ((tf is KGFn or tf is KGCall) and not f._is_op):
                 f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
                 tf = type(f)
 
