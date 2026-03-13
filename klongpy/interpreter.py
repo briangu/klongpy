@@ -886,10 +886,10 @@ class KlongInterpreter():
             Subsequent processing will then use the arguments attached to the referenced function as the basis for projection flattening.
 
         """
-        f_arity = x.arity
 
         # Fast path: use cached resolution if available and still valid
         _ctx = self._context
+        _ctx_list = _ctx._context
         _tx = type(x)
         if _tx is KGCall and x._cached_body is not None and x._cached_version == _ctx._lookup_version:
             f = x._cached_body
@@ -901,6 +901,7 @@ class KlongInterpreter():
                 return x
             f_args = x._f_args
         else:
+            f_arity = x.arity
             f = x.a
             f_args = [None] if x.args is None else [x.args if type(x.args) is list else [x.args]]
             # Fast path: inline first resolve for the common case
@@ -982,7 +983,7 @@ class KlongInterpreter():
                     _afa0 = _afa[0]
                     _at0 = type(_afa0)
                     if _at0 is KGSym and _afa0 in reserved_fn_symbols_set:
-                        _ax = _ctx._context[-1].get(_afa0)
+                        _ax = _ctx_list[-1].get(_afa0)
                         if _ax is None:
                             _ax = self.eval(_afa0)
                     elif _at0 is int or _at0 is float:
@@ -1031,7 +1032,7 @@ class KlongInterpreter():
         if has_locals:
             _ctx.push(ctx)
         else:
-            _ctx._context.append(ctx)
+            _ctx_list.append(ctx)
         try:
             # Recompute tf only if has_locals modified f (f = f[1:] changes type)
             if has_locals:
@@ -1188,7 +1189,6 @@ class KlongInterpreter():
             if has_locals:
                 _ctx.pop()
             else:
-                _ctx_list = _ctx._context
                 if len(_ctx_list) > _ctx._min_ctx_count:
                     _ctx_list.pop()
 
