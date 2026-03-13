@@ -174,11 +174,21 @@ class KGUndefined:
 KLONG_UNDEFINED = KGUndefined()
 
 
+_inspect_cache = {}
+
 def safe_inspect(fn, follow_wrapped=True):
+    code = getattr(fn, '__code__', None)
+    if code is not None:
+        cached = _inspect_cache.get(id(code))
+        if cached is not None:
+            return cached
     try:
-        return inspect.signature(fn, follow_wrapped=follow_wrapped).parameters
+        result = inspect.signature(fn, follow_wrapped=follow_wrapped).parameters
     except ValueError:
-        return {"args":[]}
+        result = {"args":[]}
+    if code is not None:
+        _inspect_cache[id(code)] = result
+    return result
 
 
 class KGLambda:
