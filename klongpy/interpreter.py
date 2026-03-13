@@ -37,7 +37,13 @@ def _is_kglambda_type(tx):
     return False
 
 # Cache which types are numpy scalar types to avoid repeated issubclass calls
-_numpy_scalar_types = set()
+# Pre-populate with common numpy scalar types so each-adverb loops don't fall through to call()
+_numpy_scalar_types = {
+    numpy.int64, numpy.int32, numpy.int16, numpy.int8,
+    numpy.float64, numpy.float32, numpy.float16,
+    numpy.uint64, numpy.uint32, numpy.uint16, numpy.uint8,
+    numpy.intp,
+}
 
 def _is_numpy_scalar_type(tx):
     if tx in _numpy_scalar_types:
