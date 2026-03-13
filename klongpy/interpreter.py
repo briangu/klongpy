@@ -801,7 +801,8 @@ class KlongInterpreter():
 
         self._context.push(ctx)
         try:
-            return f(self, self._context) if type(f) in _kglambda_types or _is_kglambda_type(type(f)) else self.call(f)
+            tf = type(f)
+            return f(self, self._context) if tf in _kglambda_types or _is_kglambda_type(tf) else self.call(f)
         finally:
             self._context.pop()
 
