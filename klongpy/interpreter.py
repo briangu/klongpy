@@ -812,12 +812,15 @@ class KlongInterpreter():
 
         if len(f_args) == 1:
             f_args = f_args[0]
+            nargs = 0 if f_args is None else len(f_args)
+            if nargs < f_arity:
+                return x
         else:
             f_args.reverse()
             f_args = merge_projections(f_args)
-        nargs = 0 if f_args is None else len(f_args)
-        if nargs < f_arity or has_none(f_args):
-            return x
+            nargs = 0 if f_args is None else len(f_args)
+            if nargs < f_arity or has_none(f_args):
+                return x
 
         if f_args is None:
             ctx = {}
