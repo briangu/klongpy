@@ -854,7 +854,7 @@ class KlongInterpreter():
                 elif rt is numpy.ndarray:
                     if result.ndim == 0 or not result.flags.writeable:
                         self._result_cache[x] = result
-                elif self._backend.is_backend_array(result) and not result.flags.writeable:
+                elif hasattr(result, 'flags') and not result.flags.writeable:
                     self._result_cache[x] = result
             return result
         r = self.exec(x)
