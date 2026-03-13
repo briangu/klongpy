@@ -1150,8 +1150,10 @@ def _immutable_key(x):
         if not x.flags.writeable:
             return id(x) if x.ndim > 0 else x.item()
         return None
+    # numpy scalars (int64, float64, etc.) are hashable and compare equal to Python ints/floats
+    # so they can be used directly as dict keys — skip the expensive .item() call
     if tx in _numpy_scalar_types or _is_numpy_scalar(tx):
-        return x.item()
+        return x
     if hasattr(x, 'flags') and not x.flags.writeable and hasattr(x, 'ndim') and x.ndim > 0:
         return id(x)
     return None
@@ -1167,11 +1169,13 @@ def _make_cached_dyad(fn, fn_id=None):
         tb = type(b)
         if (ta is _ndarray and a.flags.writeable) or (tb is _ndarray and b.flags.writeable):
             return fn(a, b)
-        # Inline _immutable_key for common types (int, float, immutable ndarray)
+        # Inline _immutable_key for common types (int, float, numpy scalar, immutable ndarray)
         if ta is int or ta is float:
             a_key = a
         elif ta is _ndarray:
             a_key = id(a) if a.ndim > 0 else a.item()
+        elif ta in _numpy_scalar_types:
+            a_key = a
         else:
             a_key = _immutable_key(a)
             if a_key is None:
@@ -1180,6 +1184,8 @@ def _make_cached_dyad(fn, fn_id=None):
             b_key = b
         elif tb is _ndarray:
             b_key = id(b) if b.ndim > 0 else b.item()
+        elif tb in _numpy_scalar_types:
+            b_key = b
         else:
             b_key = _immutable_key(b)
             if b_key is None:
