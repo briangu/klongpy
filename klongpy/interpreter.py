@@ -344,6 +344,7 @@ def chain_adverbs(klong, arr):
 
     """
     _specialized = False
+    _vectorizable = False
     if arr[0].arity == 1:
         if type(arr[0].a) is KGOp:
             # Direct dispatch for built-in operators — pre-resolved function avoids dict lookup
@@ -385,15 +386,18 @@ def chain_adverbs(klong, arr):
                         _c = fa1
                         f = lambda x, fn=_op_fn, c=_c: fn(x, c)
                         _specialized = True
+                        _vectorizable = _fast_op is not None
                     # {literal op x}: e.g., {1+x}
                     elif t1 is KGSym and fa1 is _sym_x and (t0 is int or t0 is float):
                         _c = fa0
                         f = lambda x, fn=_op_fn, c=_c: fn(c, x)
                         _specialized = True
+                        _vectorizable = _fast_op is not None
                     # {x op x}: e.g., {x*x}
                     elif t0 is KGSym and fa0 is _sym_x and t1 is KGSym and fa1 is _sym_x:
                         f = lambda x, fn=_op_fn: fn(x, x)
                         _specialized = True
+                        _vectorizable = _fast_op is not None
                 elif body._op_arity == 1:
                     # {monad_op x}: e.g., {!x}, {-x}
                     fa = body.args
@@ -423,6 +427,23 @@ def chain_adverbs(klong, arr):
                 a[1] = y
                 return k._eval_fn(c)
     for i in range(1,len(arr)-1):
+        # For each-adverb (') with a vectorizable arithmetic function,
+        # apply directly to the array instead of iterating element by element.
+        # This is safe for +, *, - which are element-wise on numpy arrays.
+        if arr[i].a == "'" and _vectorizable and arr[i].arity == 1:
+            _prev_f = f
+            _be = klong._backend
+            def f(x, f=_prev_f, be=_be):
+                tx = type(x)
+                if tx is numpy.ndarray and x.ndim > 0:
+                    return f(x)
+                if tx is list:
+                    return be.kg_asarray([f(e) for e in x])
+                if isinstance(x, str):
+                    return be.kg_asarray([f(e) for e in be.str_to_char_array(x)])
+                return f(x)
+            _vectorizable = False  # Only vectorize the innermost each
+            continue
         o = get_adverb_fn(klong, arr[i].a, arity=arr[i].arity)
         if arr[i].arity == 1:
             f = lambda x,f=f,o=o: o(f,x,op=arr[0].a)
@@ -1071,10 +1092,13 @@ class KlongInterpreter():
                     return self._vm[op_a](_x)
             elif x._is_adverb_chain:
                 xa_id = id(x.a)
-                cached_fn = self._adverb_cache.get(xa_id)
-                if cached_fn is None:
+                cached = self._adverb_cache.get(xa_id)
+                if cached is None:
                     cached_fn = chain_adverbs(self, x.a)
-                    self._adverb_cache[xa_id] = cached_fn
+                    # Store both closure and chain list reference to prevent id reuse after GC
+                    self._adverb_cache[xa_id] = (cached_fn, x.a)
+                else:
+                    cached_fn = cached[0]
                 return cached_fn()
             elif tx is KGCall:
                 return self._eval_fn(x)
