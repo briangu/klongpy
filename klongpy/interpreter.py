@@ -226,9 +226,17 @@ def chain_adverbs(klong, arr):
 
     """
     if arr[0].arity == 1:
-        f = lambda x,k=klong,a=arr[0].a: k.eval(KGCall(a, [x], arity=1))
+        if type(arr[0].a) is KGOp:
+            # Direct dispatch for built-in operators — avoids KGCall allocation + eval overhead
+            f = lambda x,vm=klong._vm,op_a=arr[0].a.a: vm[op_a](x)
+        else:
+            f = lambda x,k=klong,a=arr[0].a: k.eval(KGCall(a, [x], arity=1))
     else:
-        f = lambda x,y,k=klong,a=arr[0].a: k.eval(KGCall(a, [x,y], arity=2))
+        if type(arr[0].a) is KGOp:
+            # Direct dispatch for built-in operators — avoids KGCall allocation + eval overhead
+            f = lambda x,y,vd=klong._vd,op_a=arr[0].a.a: vd[op_a](x,y)
+        else:
+            f = lambda x,y,k=klong,a=arr[0].a: k.eval(KGCall(a, [x,y], arity=2))
     for i in range(1,len(arr)-1):
         o = get_adverb_fn(klong, arr[i].a, arity=arr[i].arity)
         if arr[i].arity == 1:
