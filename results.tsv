@@ -150,3 +150,17 @@ e0d484b	0.000	pass	keep	reorder result type checks: ndarray before numpy scalar 
 f310c33	0.000	pass	keep	fast-path int type check in eval_monad_enumerate
 6f06441	0.000	pass	keep	inline _immutable_key for common types in cached_fn
 e2252af	0.000	pass	keep	eliminate KGCall alloc in call() + inline op dispatch in __call__
+f4bd84a	0.000	pass	keep	inline is_atom check for ndarray in eval_adverb_over
+969fd86	0.000	pass	keep	pre-cache op string and arity on KGFn for faster eval dispatch
+b6b0439	0.000	pass	keep	fast-path reserved symbol lookup via innermost scope direct access
+8841b73	0.000	pass	keep	skip _resolve_fn for ops in _eval_fn + negative type cache for _is_kglambda_type
+a9a87d9	0.000	pass	keep	short-circuit call() in __call__ and _eval_fn for direct dispatch
+56d7dde	0.000	pass	keep	fast push/pop for function contexts with only reserved symbols
+d878d60	0.000	pass	keep	reduce redundant len() calls in _eval_fn by computing nargs once
+d7d49e1	0.000	pass	keep	inline push/pop directly in _eval_fn for function contexts
+1b66511	0.000	pass	keep	inline reserved symbol lookup in eval for faster x/y/z resolution
+1d13609	0.000	pass	keep	inline op dispatch in _eval_fn for function body evaluation
+b1d7629	0.000	pass	keep	reorder _eval_fn body dispatch: op case first to skip kglambda check
+9f2bd05	0.000	pass	keep	skip has_none check for non-projection function calls
+dc76092	0.000	pass	keep	store single-expression programs unwrapped in parse cache
+5394da9	0.000	pass	keep	inline lookup cache check in _eval_fn for faster symbol resolution
