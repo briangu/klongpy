@@ -109,3 +109,35 @@ d6c5175	0.000	pass	keep	remove unused safe_eq import from parser
 1aeb83a	0.000	pass	keep	cache floor and reciprocal monad results for immutable arrays
 76e1dc8	0.000	pass	keep	add lookup cache to KlongContext for faster symbol resolution
 025951a	0.000	pass	keep	cache not monad results for immutable arrays
+cb5dd3a	0.000	pass	keep	selective cache invalidation in push/pop (preserve global lookups)
+5807901	0.000	pass	keep	use reserved_fn_symbols directly in _eval_fn context creation
+bfd3e5a	0.000	pass	keep	type identity in numpy backend get_dtype_kind and array_size
+208a4e7	0.000	pass	keep	cache drop dyad results for immutable arrays
+4d99ea1	0.000	pass	keep	type identity for KGSym in interpreter __getitem__/__setitem__/__delitem__
+331f0a5	0.000	pass	keep	cache first and size monad results for immutable arrays
+01c8e5b	0.000	pass	discard	replace hasattr with is_backend_array in __call__ result caching (broke torch)
+17c64b7	0.000	pass	keep	revert is_backend_array to hasattr in __call__ (torch fix)
+1676659	0.000	pass	keep	fast path for literal args in _eval_fn (skip call/eval for int/float/ndarray)
+03fb97e	0.000	pass	keep	type identity in adverb converge comparison
+767b71e	0.000	pass	keep	type identity for KGFn/KGCall in KlongInterpreter.__getitem__
+e29afcc	0.000	pass	keep	type identity for assert in set_context_var
+4250dc9	0.000	pass	keep	__slots__ on KGFnWrapper + type identity in _find_symbol/__call__
+49783df	0.000	pass	keep	remove redundant hasattr in eval_dyad_join
+4fe6b2b	0.000	pass	keep	__slots__ on KGLambda for faster attribute access
+b055f0c	0.000	pass	keep	fast path for arity-1 non-klong KGLambda calls
+1c59df2	0.000	pass	keep	inline eval for literal args in op dispatch (skip eval for int/float/ndarray)
+4acf8e8	0.000	pass	keep	skip KGCall allocation in call() for non-op non-adverb KGFn
+26a6791	0.000	pass	keep	fast-path skip merge_projections for single-arg case in _eval_fn
+bd5019b	0.000	pass	keep	cache list monad results for immutable arrays
+1798d94	0.000	pass	keep	cache atom monad results for immutable arrays
+6cf71ec	0.000	pass	keep	replace deque with list in KlongContext (better cache locality)
+938eedf	0.000	pass	keep	inline first _resolve_fn pass in _eval_fn for common case
+7e44d95	0.000	pass	keep	inline skip_space into skip in parser
+37f67c7	0.000	pass	keep	inline cmatch2 and is_symbolic in kg_read hot path
+01de52a	0.000	pass	keep	inline cpeek/cpeek2/is_adverb into peek_adverb
+cb7bba2	0.000	pass	keep	specialize _eval_fn context dict for arity 1 and 2
+0d6b7af	0.000	pass	keep	avoid redundant type(f) computation in _eval_fn lambda check
+b7efddf	0.000	pass	keep	direct attribute access for _is_op/_is_adverb_chain in _resolve_fn
+4e3154f	0.000	pass	keep	type identity for local var check + fix stale tf in _resolve_fn
+6ce7afc	0.000	pass	keep	cache inspect.signature by __code__ (init: 0.302ms -> 0.111ms)
+025e4ac	0.000	pass	keep	cache system contexts (init: 0.302ms -> 0.015ms warm)
