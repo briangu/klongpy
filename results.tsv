@@ -145,3 +145,8 @@ b7efddf	0.000	pass	keep	direct attribute access for _is_op/_is_adverb_chain in _
 9a124ae	0.000	pass	keep	fast-path int/float literals in call()
 9788b42	0.000	pass	keep	remove dead is_op()/is_adverb_chain() methods
 9536a2e	0.000	pass	keep	mark mutable ndarray results immutable in __call__ result cache
+32384e8	0.000	pass	keep	skip cache ops for reserved symbols in KlongContext push/pop/lookup
+e0d484b	0.000	pass	keep	reorder result type checks: ndarray before numpy scalar (eliminate issubclass)
+f310c33	0.000	pass	keep	fast-path int type check in eval_monad_enumerate
+6f06441	0.000	pass	keep	inline _immutable_key for common types in cached_fn
+e2252af	0.000	pass	keep	eliminate KGCall alloc in call() + inline op dispatch in __call__
