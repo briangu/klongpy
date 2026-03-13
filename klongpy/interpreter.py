@@ -852,9 +852,9 @@ class KlongInterpreter():
         if tx is KGCall:
             return self.eval(x)
         if tx is KGFn:
-            # Skip KGCall allocation for non-op, non-adverb functions
+            # eval already handles KGFn for ops/adverbs via (tx is KGCall or tx is KGFn)
             if x._is_op or x._is_adverb_chain:
-                return self.eval(KGCall(x.a, x.args, x.arity))
+                return self.eval(x)
             return self._eval_fn(x)
         return self.eval(x)
 
@@ -950,7 +950,15 @@ class KlongInterpreter():
         if cached is not None:
             self._result_cache_ok = True
             if len(cached) == 1:
-                result = self.call(cached[0])
+                x0 = cached[0]
+                tx0 = type(x0)
+                # Inline call dispatch for common cases to avoid function call overhead
+                if tx0 is int or tx0 is float:
+                    result = x0
+                elif (tx0 is KGFn or tx0 is KGCall) and x0._is_op:
+                    result = self.eval(x0)
+                else:
+                    result = self.call(x0)
             else:
                 result = [self.call(y) for y in cached][-1]
             # Cache pure results: mark mutable ndarrays as immutable for cascading cache benefits
