@@ -939,6 +939,29 @@ class KlongInterpreter():
                 tq = type(q)
                 if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types:
                     ctx = {_sym_x: q}
+                elif (tq is KGFn or tq is KGCall) and q._is_op and q._op_arity == 2:
+                    # Inline dyad op for single-arg function call (e.g., fib(x-1))
+                    _afa = q.args
+                    if type(_afa) is not list:
+                        _afa = [_afa] if _afa is not None else _afa
+                    _afa1 = _afa[1]
+                    _at1 = type(_afa1)
+                    _ay = _afa1 if _at1 is int or _at1 is float else self.eval(_afa1)
+                    _afa0 = _afa[0]
+                    _at0 = type(_afa0)
+                    if _at0 is KGSym and _afa0 in reserved_fn_symbols_set:
+                        _ax = _ctx._context[-1].get(_afa0)
+                        if _ax is None:
+                            _ax = self.eval(_afa0)
+                    elif _at0 is int or _at0 is float:
+                        _ax = _afa0
+                    else:
+                        _ax = self.eval(_afa0)
+                    _afast = q._fast_op
+                    if _afast is not None and (type(_ax) is int or type(_ax) is float) and (type(_ay) is int or type(_ay) is float):
+                        ctx = {_sym_x: _afast(_ax, _ay)}
+                    else:
+                        ctx = {_sym_x: self._vd[q._op_a](_ax, _ay)}
                 elif (tq is KGFn or tq is KGCall) and q._is_op:
                     ctx = {_sym_x: self.eval(q)}
                 elif tq is KGCall:
