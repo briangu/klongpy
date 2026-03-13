@@ -1108,11 +1108,23 @@ class KlongInterpreter():
                         _cx = _cfa0
                     else:
                         _cx = self.eval(_cfa0)
-                    _cfast = x0._fast_op
-                    if _cfast is not None and (type(_cx) is int or type(_cx) is float) and (type(_cy) is int or type(_cy) is float):
-                        q = _cfast(_cx, _cy)
+                    _cop_a = x0._op_a
+                    if type(_cx) is int and type(_cy) is int:
+                        if _cop_a == '<':
+                            q = 1 if _cx < _cy else 0
+                        elif _cop_a == '>':
+                            q = 1 if _cx > _cy else 0
+                        elif _cop_a == '=':
+                            q = 1 if _cx == _cy else 0
+                        else:
+                            _cfast = x0._fast_op
+                            q = _cfast(_cx, _cy) if _cfast is not None else self._vd[_cop_a](_cx, _cy)
                     else:
-                        q = self._vd[x0._op_a](_cx, _cy)
+                        _cfast = x0._fast_op
+                        if _cfast is not None and (type(_cx) is int or type(_cx) is float) and (type(_cy) is int or type(_cy) is float):
+                            q = _cfast(_cx, _cy)
+                        else:
+                            q = self._vd[_cop_a](_cx, _cy)
                 elif (tx0 is KGCall or tx0 is KGFn) and x0._is_op:
                     q = self.eval(x0)
                 else:
