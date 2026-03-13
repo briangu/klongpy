@@ -122,6 +122,8 @@ def eval_monad_first(a):
     return a if is_empty(a) or not is_iterable(a) else a[0]
 
 
+_floor_cache = {}
+
 def eval_monad_floor(a, backend):
     """
 
@@ -140,6 +142,16 @@ def eval_monad_floor(a, backend):
                   _1e100  -->  1.0e+100  :"if precision < 100 digits"
 
     """
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _floor_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = backend.vec_fn(a, backend.floor_to_int)
+        if type(result) is _ndarray:
+            result.flags.writeable = False
+            _floor_cache[a_id] = result
+        return result
     return backend.vec_fn(a, backend.floor_to_int)
 
 
@@ -375,6 +387,8 @@ def eval_monad_range(a, backend):
     return a
 
 
+_reciprocal_cache = {}
+
 def eval_monad_reciprocal(a, backend):
     """
 
@@ -393,6 +407,16 @@ def eval_monad_reciprocal(a, backend):
         a_val = backend.scalar_to_python(a) if backend.is_backend_array(a) else a
         if a_val == 0:
             return KLONG_UNDEFINED
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _reciprocal_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = backend.vec_fn(a, lambda x: bknp.reciprocal(bknp.asarray(x, dtype=float)))
+        if type(result) is _ndarray:
+            result.flags.writeable = False
+            _reciprocal_cache[a_id] = result
+        return result
     return backend.vec_fn(a, lambda x: bknp.reciprocal(bknp.asarray(x, dtype=float)))
 
 
