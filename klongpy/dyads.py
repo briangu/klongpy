@@ -1167,19 +1167,32 @@ def _make_cached_dyad(fn, fn_id=None):
         tb = type(b)
         if (ta is _ndarray and a.flags.writeable) or (tb is _ndarray and b.flags.writeable):
             return fn(a, b)
-        a_key = _immutable_key(a)
-        b_key = _immutable_key(b)
-        if a_key is not None and b_key is not None:
-            cache_key = (_fn_id, a_key, b_key)
-            cached = _dyad_cache.get(cache_key)
-            if cached is not None:
-                return cached
-            result = fn(a, b)
-            if type(result) is _ndarray and result.ndim > 0:
-                result.flags.writeable = False
-            _dyad_cache[cache_key] = result
-            return result
-        return fn(a, b)
+        # Inline _immutable_key for common types (int, float, immutable ndarray)
+        if ta is int or ta is float:
+            a_key = a
+        elif ta is _ndarray:
+            a_key = id(a) if a.ndim > 0 else a.item()
+        else:
+            a_key = _immutable_key(a)
+            if a_key is None:
+                return fn(a, b)
+        if tb is int or tb is float:
+            b_key = b
+        elif tb is _ndarray:
+            b_key = id(b) if b.ndim > 0 else b.item()
+        else:
+            b_key = _immutable_key(b)
+            if b_key is None:
+                return fn(a, b)
+        cache_key = (_fn_id, a_key, b_key)
+        cached = _dyad_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        result = fn(a, b)
+        if type(result) is _ndarray and result.ndim > 0:
+            result.flags.writeable = False
+        _dyad_cache[cache_key] = result
+        return result
     return cached_fn
 
 
