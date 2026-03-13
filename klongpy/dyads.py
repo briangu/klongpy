@@ -1160,7 +1160,13 @@ def _immutable_key(x):
 def _make_cached_dyad(fn, fn_id=None):
     """Wrap a dyad function to cache results when inputs are immutable."""
     _fn_id = fn_id if fn_id is not None else id(fn)
+    _ndarray = numpy.ndarray
     def cached_fn(a, b):
+        # Fast path: skip cache for mutable ndarrays (common case)
+        ta = type(a)
+        tb = type(b)
+        if (ta is _ndarray and a.flags.writeable) or (tb is _ndarray and b.flags.writeable):
+            return fn(a, b)
         a_key = _immutable_key(a)
         b_key = _immutable_key(b)
         if a_key is not None and b_key is not None:
@@ -1169,7 +1175,7 @@ def _make_cached_dyad(fn, fn_id=None):
             if cached is not None:
                 return cached
             result = fn(a, b)
-            if type(result) is numpy.ndarray and result.ndim > 0:
+            if type(result) is _ndarray and result.ndim > 0:
                 result.flags.writeable = False
             _dyad_cache[cache_key] = result
             return result
