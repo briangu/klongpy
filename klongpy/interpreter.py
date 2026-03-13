@@ -17,9 +17,12 @@ from .utils import ReadonlyDict
 
 _UNEVALUATED_OPS = frozenset(['::','∇'])
 
-# Direct Python operator functions for fast scalar dispatch in each-adverb.
+# Direct Python operator functions for fast dispatch.
 # These bypass cached_fn and numpy ufunc overhead (~62ns vs ~248ns per call).
 import operator as _op
+# Safe for Python scalars (no ZeroDivisionError edge cases)
+_FAST_SCALAR_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub}
+# Safe for numpy arrays (numpy handles div-by-zero via inf/nan)
 _FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '%': _op.truediv, '^': _op.pow}
 
 # Pre-resolve individual reserved symbols to avoid list indexing in hot path
@@ -994,6 +997,10 @@ class KlongInterpreter():
                             _x = fa0
                         else:
                             _x = self.eval(fa0)
+                    # Fast path: use Python operators for scalar int/float to skip cached_fn overhead
+                    _fast_op = _FAST_SCALAR_OPS.get(op_a)
+                    if _fast_op is not None and (type(_x) is int or type(_x) is float) and (type(_y) is int or type(_y) is float):
+                        return _fast_op(_x, _y)
                     return self._vd[op_a](_x, _y)
                 else:
                     _x = fa if type(fa) is not list else fa[0]
@@ -1082,6 +1089,10 @@ class KlongInterpreter():
                         fa0 = fa[0]
                         t0 = type(fa0)
                         _x = fa0 if t0 is int or t0 is float or t0 is numpy.ndarray else self.eval(fa0)
+                    # Fast path: use Python operators for scalar int/float to skip cached_fn overhead
+                    _fast_op = _FAST_SCALAR_OPS.get(op_a)
+                    if _fast_op is not None and (type(_x) is int or type(_x) is float) and (type(_y) is int or type(_y) is float):
+                        return _fast_op(_x, _y)
                     return self._vd[op_a](_x, _y)
                 else:
                     _x = fa if type(fa) is not list else fa[0]

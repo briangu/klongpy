@@ -1190,7 +1190,7 @@ def _make_cached_dyad(fn, fn_id=None):
             b_key = _immutable_key(b)
             if b_key is None:
                 return fn(a, b)
-        cache_key = (_fn_id, a_key, b_key)
+        cache_key = (_fn_id, ta, a_key, tb, b_key)
         cached = _dyad_cache.get(cache_key)
         if cached is not None:
             return cached
