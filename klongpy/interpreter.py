@@ -338,14 +338,25 @@ def chain_adverbs(klong, arr):
             _fn = klong._vm[arr[0].a.a]
             f = lambda x,fn=_fn: fn(x)
         else:
-            f = lambda x,k=klong,a=arr[0].a: k.eval(KGCall(a, [x], arity=1))
+            # Reuse a single KGCall to avoid allocation on each iteration
+            _call = KGCall(arr[0].a, [None], arity=1)
+            _args = _call.args
+            def f(x, k=klong, c=_call, a=_args):
+                a[0] = x
+                return k.eval(c)
     else:
         if type(arr[0].a) is KGOp:
             # Direct dispatch for built-in operators — pre-resolved function avoids dict lookup
             _fn = klong._vd[arr[0].a.a]
             f = lambda x,y,fn=_fn: fn(x,y)
         else:
-            f = lambda x,y,k=klong,a=arr[0].a: k.eval(KGCall(a, [x,y], arity=2))
+            # Reuse a single KGCall to avoid allocation on each iteration
+            _call = KGCall(arr[0].a, [None, None], arity=2)
+            _args = _call.args
+            def f(x, y, k=klong, c=_call, a=_args):
+                a[0] = x
+                a[1] = y
+                return k.eval(c)
     for i in range(1,len(arr)-1):
         o = get_adverb_fn(klong, arr[i].a, arity=arr[i].arity)
         if arr[i].arity == 1:
@@ -832,19 +843,19 @@ class KlongInterpreter():
             if nargs == 1:
                 q = f_args[0]
                 tq = type(q)
-                ctx = {_sym_x: q if tq is int or tq is float or tq is numpy.ndarray else self.call(q)}
+                ctx = {_sym_x: q if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types else self.call(q)}
             elif nargs == 2:
                 q0, q1 = f_args[0], f_args[1]
                 tq0, tq1 = type(q0), type(q1)
                 ctx = {
-                    _sym_x: q0 if tq0 is int or tq0 is float or tq0 is numpy.ndarray else self.call(q0),
-                    _sym_y: q1 if tq1 is int or tq1 is float or tq1 is numpy.ndarray else self.call(q1)
+                    _sym_x: q0 if tq0 is int or tq0 is float or tq0 is numpy.ndarray or tq0 in _numpy_scalar_types else self.call(q0),
+                    _sym_y: q1 if tq1 is int or tq1 is float or tq1 is numpy.ndarray or tq1 in _numpy_scalar_types else self.call(q1)
                 }
             else:
                 ctx = {}
                 for sym, q in zip(reserved_fn_symbols, f_args):
                     tq = type(q)
-                    ctx[sym] = q if tq is int or tq is float or tq is numpy.ndarray else self.call(q)
+                    ctx[sym] = q if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types else self.call(q)
 
         has_locals = (tf is list or (tf is numpy.ndarray and f.ndim > 0)) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0
         if has_locals:
