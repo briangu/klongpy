@@ -1124,9 +1124,13 @@ class KlongInterpreter():
                         fa = [fa] if fa is not None else fa
                     fa1 = fa[1]
                     t1 = type(fa1)
-                    # Inline dispatch: skip eval→_eval_fn chain for non-op non-adverb KGCall
+                    # Inline dispatch: skip eval overhead for common arg types
                     if t1 is int or t1 is float or t1 is numpy.ndarray:
                         _y = fa1
+                    elif t1 is KGSym and fa1 in reserved_fn_symbols_set:
+                        _y = self._context._context[-1].get(fa1)
+                        if _y is None:
+                            _y = self.eval(fa1)
                     elif t1 is KGCall and not fa1._is_op and not fa1._is_adverb_chain:
                         _y = self._eval_fn(fa1)
                     else:
@@ -1138,6 +1142,10 @@ class KlongInterpreter():
                         t0 = type(fa0)
                         if t0 is int or t0 is float or t0 is numpy.ndarray:
                             _x = fa0
+                        elif t0 is KGSym and fa0 in reserved_fn_symbols_set:
+                            _x = self._context._context[-1].get(fa0)
+                            if _x is None:
+                                _x = self.eval(fa0)
                         elif t0 is KGCall and not fa0._is_op and not fa0._is_adverb_chain:
                             _x = self._eval_fn(fa0)
                         else:
