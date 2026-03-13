@@ -1136,44 +1136,52 @@ class KlongInterpreter():
         result = self._result_cache.get(x)
         if result is not None:
             return result
-        # Fast path: cached single-expression programs bypass exec/list overhead
+        # Check parse cache; if miss, parse inline (avoids redundant exec→parse_cache check)
         cached = self._parse_cache.get(x)
-        if cached is not None:
-            self._result_cache_ok = True
-            # Single-expression programs are stored unwrapped (not in a list)
-            if type(cached) is not list:
-                x0 = cached
-                tx0 = type(x0)
-                # Inline call dispatch for common cases to avoid function call overhead
-                if tx0 is int or tx0 is float:
-                    result = x0
-                elif tx0 is KGCall:
-                    # KGCall: dispatch directly to avoid call() → eval() → _eval_fn() chain
-                    result = self.eval(x0) if x0._is_op or x0._is_adverb_chain else self._eval_fn(x0)
-                elif tx0 is KGFn and x0._is_op:
-                    result = self.eval(x0)
-                else:
-                    result = self.call(x0)
+        _was_cached = cached is not None
+        if not _was_cached:
+            i, prog = self.prog(x)
+            i = skip(x, i)
+            if i < len(x) and x[i] == '}':
+                raise UnexpectedChar(x, i, x[i])
+            cached = prog[0] if len(prog) == 1 else prog
+            self._parse_cache[x] = cached
+        # Eval the cached AST
+        self._result_cache_ok = True
+        if type(cached) is not list:
+            x0 = cached
+            tx0 = type(x0)
+            # Inline call dispatch for common cases to avoid function call overhead
+            if tx0 is int or tx0 is float:
+                result = x0
+            elif tx0 is KGCall:
+                # KGCall: dispatch directly to avoid call() → eval() → _eval_fn() chain
+                result = self.eval(x0) if x0._is_op or x0._is_adverb_chain else self._eval_fn(x0)
+            elif tx0 is KGFn and x0._is_op:
+                result = self.eval(x0)
             else:
-                result = [self.call(y) for y in cached][-1]
-            # Cache pure results: mark mutable ndarrays as immutable for cascading cache benefits
-            if self._result_cache_ok:
-                rt = type(result)
-                if rt is int or rt is float:
-                    self._result_cache[x] = result
-                elif rt is numpy.ndarray:
-                    if result.ndim > 0 and result.flags.writeable:
-                        result.flags.writeable = False
-                    self._result_cache[x] = result
-                elif rt in _numpy_scalar_types or _is_numpy_scalar_type(rt):
-                    self._result_cache[x] = result
-                elif hasattr(result, 'flags'):
-                    if result.flags.writeable:
-                        result.flags.writeable = False
-                    self._result_cache[x] = result
-            return result
-        r = self.exec(x)
-        return r[-1] if r else None
+                result = self.call(x0)
+        else:
+            if not cached:
+                return None
+            result = [self.call(y) for y in cached][-1]
+        # Only cache results on warm path (parse cache hit) — cold path may contain
+        # side-effectful expressions whose results shouldn't be cached
+        if _was_cached and self._result_cache_ok:
+            rt = type(result)
+            if rt is int or rt is float:
+                self._result_cache[x] = result
+            elif rt is numpy.ndarray:
+                if result.ndim > 0 and result.flags.writeable:
+                    result.flags.writeable = False
+                self._result_cache[x] = result
+            elif rt in _numpy_scalar_types or _is_numpy_scalar_type(rt):
+                self._result_cache[x] = result
+            elif hasattr(result, 'flags'):
+                if result.flags.writeable:
+                    result.flags.writeable = False
+                self._result_cache[x] = result
+        return result
 
     def exec(self, x):
         """
