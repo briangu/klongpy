@@ -133,8 +133,13 @@ class KlongContext():
         return k
 
     def __getitem__(self, k):
-        # Fast path: check lookup cache first (skip reserved — they change per call)
-        if k not in reserved_fn_symbols_set and k is not reserved_dot_f_symbol:
+        # Fast path for reserved symbols (x, y, z, .f) — always in innermost scope
+        if k in reserved_fn_symbols_set or k is reserved_dot_f_symbol:
+            v = self._context[-1].get(k)
+            if v is not None:
+                return v
+        else:
+            # Fast path: check lookup cache for non-reserved symbols
             cached = self._lookup_cache.get(k)
             if cached is not None:
                 return cached
