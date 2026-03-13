@@ -192,6 +192,15 @@ class KlongContext():
                     if k not in reserved_fn_symbols_set and k is not reserved_dot_f_symbol:
                         cache.pop(k, None)
 
+    def push_fn_ctx(self, d):
+        """Fast push for function contexts with only reserved symbols (x/y/z/.f)."""
+        self._context.append(d)
+
+    def pop_fn_ctx(self):
+        """Fast pop for function contexts with only reserved symbols — skip cache invalidation."""
+        if len(self._context) > self._min_ctx_count:
+            self._context.pop()
+
     def pop(self):
         if len(self._context) > self._min_ctx_count:
             r = self._context.pop()
@@ -830,7 +839,8 @@ class KlongInterpreter():
                     tq = type(q)
                     ctx[sym] = q if tq is int or tq is float or tq is numpy.ndarray else self.call(q)
 
-        if (tf is list or (tf is numpy.ndarray and f.ndim > 0)) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0:
+        has_locals = (tf is list or (tf is numpy.ndarray and f.ndim > 0)) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0
+        if has_locals:
             # Filter out semicolons — remaining elements are local variable declarations
             params = [q for q in f[0] if type(q) is KGSym]
             if len(params) > 0:
@@ -839,10 +849,16 @@ class KlongInterpreter():
                     if q not in ctx:
                         ctx[q] = q
                 f = f[1:]
+            else:
+                has_locals = False
 
         ctx[reserved_dot_f_symbol] = f
 
-        self._context.push(ctx)
+        # Use fast push/pop when context only has reserved symbols (x/y/z/.f)
+        if has_locals:
+            self._context.push(ctx)
+        else:
+            self._context.push_fn_ctx(ctx)
         try:
             tf = type(f)
             if tf in _kglambda_types or _is_kglambda_type(tf):
@@ -854,7 +870,10 @@ class KlongInterpreter():
                 return self._eval_fn(f)
             return self.eval(f)
         finally:
-            self._context.pop()
+            if has_locals:
+                self._context.pop()
+            else:
+                self._context.pop_fn_ctx()
 
     def call(self, x):
         """
