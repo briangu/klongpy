@@ -21,7 +21,11 @@ _UNEVALUATED_OPS = frozenset(['::','∇'])
 # These bypass cached_fn and numpy ufunc overhead (~62ns vs ~248ns per call).
 import operator as _op
 # Safe for Python scalars (no ZeroDivisionError edge cases)
-_FAST_SCALAR_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub}
+# Comparison ops return int 0/1 to match Klong's kg_truth semantics
+def _int_lt(a, b): return 1 if a < b else 0
+def _int_gt(a, b): return 1 if a > b else 0
+def _int_eq(a, b): return 1 if a == b else 0
+_FAST_SCALAR_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '<': _int_lt, '>': _int_gt, '=': _int_eq}
 # Safe for numpy arrays (numpy handles div-by-zero via inf/nan)
 _FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '%': _op.truediv, '^': _op.pow}
 # Fast monad dispatch for Python scalars (bypasses vec_fn overhead)
