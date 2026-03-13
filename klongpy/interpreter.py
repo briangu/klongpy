@@ -17,6 +17,11 @@ from .utils import ReadonlyDict
 
 _UNEVALUATED_OPS = frozenset(['::','∇'])
 
+# Direct Python operator functions for fast scalar dispatch in each-adverb.
+# These bypass cached_fn and numpy ufunc overhead (~62ns vs ~248ns per call).
+import operator as _op
+_FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub}
+
 # Pre-resolve individual reserved symbols to avoid list indexing in hot path
 _sym_x = reserved_fn_symbols[0]
 _sym_y = reserved_fn_symbols[1]
@@ -367,7 +372,9 @@ def chain_adverbs(klong, arr):
             if (tb is KGCall or tb is KGFn) and body._is_op:
                 op_a = body._op_a
                 if body._op_arity == 2:
-                    _op_fn = klong._vd[op_a]
+                    # Use fast Python operators for common arithmetic, fall back to cached_fn
+                    _fast_op = _FAST_DYAD_OPS.get(op_a)
+                    _op_fn = _fast_op if _fast_op is not None else klong._vd[op_a]
                     fa = body.args
                     if type(fa) is not list:
                         fa = [fa] if fa is not None else fa
