@@ -1098,6 +1098,47 @@ class KlongInterpreter():
                         if _v is not None:
                             return _v
                     return self.eval(xb)
+                if (txb is KGCall or txb is KGFn) and xb._is_op and xb._op_arity == 2:
+                    # Inline dyad op for KGCond branch (e.g., (fib(x-1))+(fib(x-2)))
+                    _bfa = xb.args
+                    if type(_bfa) is not list:
+                        _bfa = [_bfa] if _bfa is not None else _bfa
+                    _bfa1 = _bfa[1]
+                    _bt1 = type(_bfa1)
+                    if _bt1 is int or _bt1 is float:
+                        _by = _bfa1
+                    elif _bt1 is KGSym and _bfa1 in reserved_fn_symbols_set:
+                        _by = _ctx._context[-1].get(_bfa1)
+                        if _by is None:
+                            _by = self.eval(_bfa1)
+                    elif (_bt1 is KGFn or _bt1 is KGCall) and _bfa1._is_op:
+                        _by = self.eval(_bfa1)
+                    elif _bt1 is KGCall and not _bfa1._is_adverb_chain:
+                        _by = self._eval_fn(_bfa1)
+                    else:
+                        _by = self.eval(_bfa1)
+                    _bop_a = xb._op_a
+                    if _bop_a in _UNEVALUATED_OPS:
+                        _bx = _bfa[0]
+                    else:
+                        _bfa0 = _bfa[0]
+                        _bt0 = type(_bfa0)
+                        if _bt0 is KGSym and _bfa0 in reserved_fn_symbols_set:
+                            _bx = _ctx._context[-1].get(_bfa0)
+                            if _bx is None:
+                                _bx = self.eval(_bfa0)
+                        elif _bt0 is int or _bt0 is float:
+                            _bx = _bfa0
+                        elif (_bt0 is KGFn or _bt0 is KGCall) and _bfa0._is_op:
+                            _bx = self.eval(_bfa0)
+                        elif _bt0 is KGCall and not _bfa0._is_adverb_chain:
+                            _bx = self._eval_fn(_bfa0)
+                        else:
+                            _bx = self.eval(_bfa0)
+                    _bfast = xb._fast_op
+                    if _bfast is not None and (type(_bx) is int or type(_bx) is float) and (type(_by) is int or type(_by) is float):
+                        return _bfast(_bx, _by)
+                    return self._vd[_bop_a](_bx, _by)
                 if (txb is KGCall or txb is KGFn) and xb._is_op:
                     return self.eval(xb)
                 if txb is KGCall and not xb._is_adverb_chain:
