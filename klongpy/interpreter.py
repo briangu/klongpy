@@ -949,7 +949,7 @@ class KlongInterpreter():
                 result = self.call(cached[0])
             else:
                 result = [self.call(y) for y in cached][-1]
-            # Only cache pure results (immutable arrays, or Python/numpy scalars with no side effects)
+            # Cache pure results: mark mutable ndarrays as immutable for cascading cache benefits
             if self._result_cache_ok:
                 rt = type(result)
                 if rt is int or rt is float:
@@ -957,9 +957,12 @@ class KlongInterpreter():
                 elif rt in _numpy_scalar_types or _is_numpy_scalar_type(rt):
                     self._result_cache[x] = result
                 elif rt is numpy.ndarray:
-                    if result.ndim == 0 or not result.flags.writeable:
-                        self._result_cache[x] = result
-                elif hasattr(result, 'flags') and not result.flags.writeable:
+                    if result.ndim > 0 and result.flags.writeable:
+                        result.flags.writeable = False
+                    self._result_cache[x] = result
+                elif hasattr(result, 'flags'):
+                    if result.flags.writeable:
+                        result.flags.writeable = False
                     self._result_cache[x] = result
             return result
         r = self.exec(x)
