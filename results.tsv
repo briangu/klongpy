@@ -164,3 +164,8 @@ b1d7629	0.000	pass	keep	reorder _eval_fn body dispatch: op case first to skip kg
 9f2bd05	0.000	pass	keep	skip has_none check for non-projection function calls
 dc76092	0.000	pass	keep	store single-expression programs unwrapped in parse cache
 5394da9	0.000	pass	keep	inline lookup cache check in _eval_fn for faster symbol resolution
+fb40e04	0.000	pass	keep	reuse KGCall in adverb chains + numpy scalar fast path in _eval_fn
+6c3cfb0	0.000	pass	keep	pre-populate _numpy_scalar_types with common numpy types
+5fc7e45	0.000	pass	keep	specialize chain_adverbs closures for simple op bodies (each: 1.53->0.65us)
+b67489e	0.000	pass	keep	skip item() for numpy scalars in cache keys (each: 0.65->0.35us)
+6d0ae1f	0.000	pass	keep	Python operator dispatch for +,*,- in each-adverb (each: 0.35->0.14us)
