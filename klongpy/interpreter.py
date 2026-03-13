@@ -1032,6 +1032,29 @@ class KlongInterpreter():
                 tx0 = type(x0)
                 if tx0 is int or tx0 is float:
                     q = x0
+                elif (tx0 is KGCall or tx0 is KGFn) and x0._is_op and x0._op_arity == 2:
+                    # Inline dyad op dispatch to avoid eval() call overhead
+                    _cfa = x0.args
+                    if type(_cfa) is not list:
+                        _cfa = [_cfa] if _cfa is not None else _cfa
+                    _cfa1 = _cfa[1]
+                    _ct1 = type(_cfa1)
+                    _cy = _cfa1 if _ct1 is int or _ct1 is float else self.eval(_cfa1)
+                    _cfa0 = _cfa[0]
+                    _ct0 = type(_cfa0)
+                    if _ct0 is KGSym and _cfa0 in reserved_fn_symbols_set:
+                        _cx = _ctx._context[-1].get(_cfa0)
+                        if _cx is None:
+                            _cx = self.eval(_cfa0)
+                    elif _ct0 is int or _ct0 is float:
+                        _cx = _cfa0
+                    else:
+                        _cx = self.eval(_cfa0)
+                    _cfast = x0._fast_op
+                    if _cfast is not None and (type(_cx) is int or type(_cx) is float) and (type(_cy) is int or type(_cy) is float):
+                        q = _cfast(_cx, _cy)
+                    else:
+                        q = self._vd[x0._op_a](_cx, _cy)
                 elif (tx0 is KGCall or tx0 is KGFn) and x0._is_op:
                     q = self.eval(x0)
                 else:
@@ -1046,9 +1069,16 @@ class KlongInterpreter():
                 if txb is int or txb is float:
                     return xb
                 if txb is KGSym:
+                    # Inline reserved symbol resolution to avoid eval() call overhead
+                    if xb in reserved_fn_symbols_set:
+                        _v = _ctx._context[-1].get(xb)
+                        if _v is not None:
+                            return _v
                     return self.eval(xb)
                 if (txb is KGCall or txb is KGFn) and xb._is_op:
                     return self.eval(xb)
+                if txb is KGCall and not xb._is_adverb_chain:
+                    return self._eval_fn(xb)
                 return self.call(xb)
             if tf in _kglambda_types or _is_kglambda_type(tf):
                 return f(self, _ctx)
