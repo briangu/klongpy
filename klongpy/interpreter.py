@@ -785,13 +785,22 @@ class KlongInterpreter():
                 if op.arity == 2:
                     if type(fa) is not list:
                         fa = [fa] if fa is not None else fa
-                    _y = self.eval(fa[1])
-                    _x = fa[0] if op_a in _UNEVALUATED_OPS else self.eval(fa[0])
+                    fa1 = fa[1]
+                    t1 = type(fa1)
+                    _y = fa1 if t1 is int or t1 is float or t1 is numpy.ndarray else self.eval(fa1)
+                    if op_a in _UNEVALUATED_OPS:
+                        _x = fa[0]
+                    else:
+                        fa0 = fa[0]
+                        t0 = type(fa0)
+                        _x = fa0 if t0 is int or t0 is float or t0 is numpy.ndarray else self.eval(fa0)
                     return self._vd[op_a](_x, _y)
                 else:
                     _x = fa if type(fa) is not list else fa[0]
                     if op_a not in _UNEVALUATED_OPS:
-                        _x = self.eval(_x)
+                        tx_x = type(_x)
+                        if tx_x is not int and tx_x is not float and tx_x is not numpy.ndarray:
+                            _x = self.eval(_x)
                     return self._vm[op_a](_x)
             elif x._is_adverb_chain:
                 xa_id = id(x.a)
