@@ -1036,6 +1036,30 @@ class KlongInterpreter():
                 return f(self, _ctx)
             if tf is int or tf is float:
                 return f
+            # Inline KGCond eval to avoid method call overhead (common for conditional function bodies)
+            if tf is KGCond:
+                x0 = f[0]
+                tx0 = type(x0)
+                if tx0 is int or tx0 is float:
+                    q = x0
+                elif (tx0 is KGCall or tx0 is KGFn) and x0._is_op:
+                    q = self.eval(x0)
+                else:
+                    q = self.call(x0)
+                tq = type(q)
+                if tq is int or tq is float:
+                    p = q != 0
+                else:
+                    p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
+                xb = f[1] if p else f[2]
+                txb = type(xb)
+                if txb is int or txb is float:
+                    return xb
+                if txb is KGSym:
+                    return self.eval(xb)
+                if (txb is KGCall or txb is KGFn) and xb._is_op:
+                    return self.eval(xb)
+                return self.call(xb)
             # Route KGFn (recursive function calls) through _eval_fn, everything else through eval directly
             if tf is KGFn and not f._is_op and not f._is_adverb_chain:
                 return self._eval_fn(f)
