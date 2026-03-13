@@ -88,6 +88,7 @@ class KGFnWrapper:
         klong('callback::{new implementation}')
         fn(args)  # Uses the NEW implementation
     """
+    __slots__ = ('klong', 'fn', '_sym')
 
     def __init__(self, klong, fn, sym=None):
         self.klong = klong
@@ -97,7 +98,7 @@ class KGFnWrapper:
 
     def _find_symbol(self, fn):
         """Find which symbol this function is currently bound to"""
-        if not isinstance(fn, KGFn) or isinstance(fn, KGCall):
+        if type(fn) is not KGFn:
             return None
 
         # Search the context for this function
@@ -115,7 +116,7 @@ class KGFnWrapper:
         if self._sym is not None:
             try:
                 current = self.klong._context[self._sym]
-                if isinstance(current, KGFn) and not isinstance(current, KGCall):
+                if type(current) is KGFn:
                     # Use the current definition
                     if len(args) != current.arity:
                         raise RuntimeError(f"Klong function called with {len(args)} but expected {current.arity}")
