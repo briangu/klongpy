@@ -133,17 +133,19 @@ class KlongContext():
         return k
 
     def __getitem__(self, k):
-        # Fast path: check lookup cache first
-        cached = self._lookup_cache.get(k)
-        if cached is not None:
-            return cached
+        # Fast path: check lookup cache first (skip reserved — they change per call)
+        if k not in reserved_fn_symbols_set and k is not reserved_dot_f_symbol:
+            cached = self._lookup_cache.get(k)
+            if cached is not None:
+                return cached
         # Iterate newest to oldest (end to start of list)
         ctx = self._context
         for i in range(len(ctx) - 1, -1, -1):
             d = ctx[i]
             v = d.get(k)
             if v is not None:
-                self._lookup_cache[k] = v
+                if k not in reserved_fn_symbols_set and k is not reserved_dot_f_symbol:
+                    self._lookup_cache[k] = v
                 return v
             if type(d) is KGModule:
                 if  '`' in k:
@@ -175,9 +177,11 @@ class KlongContext():
             if type(d) is KGModule:
                 cache.clear()
             else:
-                # Only invalidate keys that could be shadowed by the new context
+                # Skip reserved symbols (x, y, z, .f) — they're always in innermost scope
+                # and not worth caching since they change on every function call
                 for k in d:
-                    cache.pop(k, None)
+                    if k not in reserved_fn_symbols_set and k is not reserved_dot_f_symbol:
+                        cache.pop(k, None)
 
     def pop(self):
         if len(self._context) > self._min_ctx_count:
@@ -187,9 +191,9 @@ class KlongContext():
                 if type(r) is KGModule:
                     cache.clear()
                 else:
-                    # Only invalidate keys that were in the popped context
                     for k in r:
-                        cache.pop(k, None)
+                        if k not in reserved_fn_symbols_set and k is not reserved_dot_f_symbol:
+                            cache.pop(k, None)
             return r
         return None
 
