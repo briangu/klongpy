@@ -25,11 +25,12 @@ import operator as _op
 def _int_lt(a, b): return 1 if a < b else 0
 def _int_gt(a, b): return 1 if a > b else 0
 def _int_eq(a, b): return 1 if a == b else 0
-_FAST_SCALAR_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '<': _int_lt, '>': _int_gt, '=': _int_eq}
+_FAST_SCALAR_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '<': _int_lt, '>': _int_gt, '=': _int_eq, '|': max, '&': min}
 # Safe for numpy arrays (numpy handles div-by-zero via inf/nan)
 _FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '%': _op.truediv, '^': _op.pow}
 # Fast monad dispatch for Python scalars (bypasses vec_fn overhead)
-_FAST_SCALAR_MONADS = {'-': _op.neg}
+def _int_not(x): return 1 if x == 0 else 0
+_FAST_SCALAR_MONADS = {'-': _op.neg, '~': _int_not}
 
 # Pre-resolve individual reserved symbols to avoid list indexing in hot path
 _sym_x = reserved_fn_symbols[0]
