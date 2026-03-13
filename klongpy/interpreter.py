@@ -720,7 +720,13 @@ class KlongInterpreter():
         if (0 if f_args is None else len(f_args)) < f_arity or has_none(f_args):
             return x
 
-        ctx = {} if f_args is None else {sym: self.call(q) for sym, q in zip(reserved_fn_symbols, f_args)}
+        if f_args is None:
+            ctx = {}
+        else:
+            ctx = {}
+            for sym, q in zip(reserved_fn_symbols, f_args):
+                tq = type(q)
+                ctx[sym] = q if tq is int or tq is float or tq is numpy.ndarray else self.call(q)
 
         if is_list(f) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0:
             # Filter out semicolons — remaining elements are local variable declarations
