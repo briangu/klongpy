@@ -341,7 +341,8 @@ class KlongInterpreter():
         k = k if type(k) is KGSym else KGSym(k)
         r = self._context[k]
         # Pass the symbol name to avoid O(n) context search
-        return KGFnWrapper(self, r, sym=k) if issubclass(type(r), KGFn) else r
+        tr = type(r)
+        return KGFnWrapper(self, r, sym=k) if tr is KGFn or tr is KGCall else r
 
     def __delitem__(self, k):
         k = k if type(k) is KGSym else KGSym(k)
