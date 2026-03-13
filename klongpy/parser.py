@@ -12,7 +12,7 @@ import copy
 from .types import (
     KGSym, KGChar, KGOp, KGCond, KGCall, KGLambda,
     reserved_fn_symbol_map,
-    is_symbolic, is_adverb
+    is_symbolic, is_adverb, _ADVERBS
 )
 
 _DELIMITERS = frozenset({';', '(', ')', '{', '}', ']'})
@@ -334,10 +334,14 @@ def read_cond(klong, t, i=0):
 # Adverb peeking
 
 def peek_adverb(t, i=0):
-    x = cpeek2(t, i)
-    if is_adverb(x):
-        return i+2, x
-    x = cpeek(t, i)
-    if is_adverb(x):
-        return i+1, x
+    # Inline cpeek2/cpeek/is_adverb to avoid function call overhead
+    tlen = len(t)
+    if i < tlen:
+        if i + 1 < tlen:
+            x = t[i:i+2]
+            if x in _ADVERBS:
+                return i+2, x
+        x = t[i]
+        if x in _ADVERBS:
+            return i+1, x
     return i, None
