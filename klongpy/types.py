@@ -218,11 +218,14 @@ class KGLambda:
                     pos_args.append(ctx[sym])
                 except KeyError:
                     break
-        else:
-            pos_args = [ctx[x] for x in self.args]
-        return pos_args
+            return pos_args
+        return [ctx[x] for x in self.args]
 
     def __call__(self, klong, ctx):
+        # Fast path for common arity-1 non-klong case
+        args = self.args
+        if not self._wildcard and not self._provide_klong and len(args) == 1:
+            return self.fn(ctx[args[0]])
         pos_args = self._get_pos_args(ctx)
         return self.fn(klong, *pos_args) if self._provide_klong else self.fn(*pos_args)
 
