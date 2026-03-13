@@ -8,6 +8,21 @@ from .core import *
 
 _ndarray = _numpy.ndarray
 
+# Dispatch tables for ufunc reduce/accumulate — avoids if/elif chains and hasattr checks
+_reduce_dispatch = {
+    '+': lambda np, a: np.add.reduce(a),
+    '-': lambda np, a: np.subtract.reduce(a),
+    '*': lambda np, a: np.multiply.reduce(a),
+    '%': lambda np, a: np.divide.reduce(a),
+}
+
+_accumulate_dispatch = {
+    '+': lambda np, a: np.add.accumulate(a),
+    '-': lambda np, a: np.subtract.accumulate(a),
+    '*': lambda np, a: np.multiply.accumulate(a),
+    '%': lambda np, a: np.divide.accumulate(a),
+}
+
 
 def eval_adverb_converge(f, a, op, backend):
     """
@@ -223,14 +238,9 @@ def eval_adverb_over(f, a, op, backend):
             cached = _over_cache.get(cache_key)
             if cached is not None:
                 return cached
-        if op_a == '+':
-            result = np_backend.add.reduce(a)
-        elif op_a == '-':
-            result = np_backend.subtract.reduce(a)
-        elif op_a == '*' and hasattr(np_backend.multiply,'reduce'):
-            result = np_backend.multiply.reduce(a)
-        elif op_a == '%' and hasattr(np_backend.divide,'reduce'):
-            result = np_backend.divide.reduce(a)
+        _reduce_fn = _reduce_dispatch.get(op_a)
+        if _reduce_fn is not None:
+            result = _reduce_fn(np_backend, a)
         elif op_a == '&' and a.ndim == 1:
             result = np_backend.min(a)
         elif op_a == '|' and a.ndim == 1:
@@ -331,14 +341,9 @@ def eval_adverb_scan_over(f, a, op, backend):
             cached = _scan_cache.get(cache_key)
             if cached is not None:
                 return cached
-        if op_a == '+' and hasattr(np_backend.add, 'accumulate'):
-            result = np_backend.add.accumulate(a)
-        elif op_a == '-' and hasattr(np_backend.subtract, 'accumulate'):
-            result = np_backend.subtract.accumulate(a)
-        elif op_a == '*' and hasattr(np_backend.multiply, 'accumulate'):
-            result = np_backend.multiply.accumulate(a)
-        elif op_a == '%' and hasattr(np_backend.divide, 'accumulate'):
-            result = np_backend.divide.accumulate(a)
+        _accum_fn = _accumulate_dispatch.get(op_a)
+        if _accum_fn is not None:
+            result = _accum_fn(np_backend, a)
         else:
             return backend.kg_asarray(list(itertools.accumulate(a, f)))
         # Cache for immutable arrays
