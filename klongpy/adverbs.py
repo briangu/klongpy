@@ -48,7 +48,7 @@ def eval_adverb_converge(f, a, op, backend):
 
     """
     def _e(p,q):
-        if not isinstance(p, type(q)):
+        if type(p) is not type(q):
             return False
         if backend.is_number(p):
             # math.isclose is ~90x faster than np.isclose for Python scalars
