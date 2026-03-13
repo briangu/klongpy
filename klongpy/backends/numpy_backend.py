@@ -54,7 +54,7 @@ class NumpyBackendProvider(BackendProvider):
         return False  # numpy arrays are the base case, not a "backend" type
 
     def get_dtype_kind(self, arr) -> str:
-        if hasattr(arr, 'dtype') and hasattr(arr.dtype, 'kind'):
+        if type(arr) is np.ndarray:
             return arr.dtype.kind
         return None
 
@@ -81,9 +81,9 @@ class NumpyBackendProvider(BackendProvider):
 
     def array_size(self, a):
         """Get the total number of elements in an array."""
-        if hasattr(a, 'size'):
+        if type(a) is np.ndarray:
             return a.size
-        return len(a) if hasattr(a, '__len__') else 1
+        return len(a) if type(a) is list else 1
 
     def safe_equal(self, x, y):
         """Compare two values for equality."""
