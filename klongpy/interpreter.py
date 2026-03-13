@@ -756,7 +756,12 @@ class KlongInterpreter():
         tx = type(x)
         if tx is KGCall:
             return self.eval(x)
-        return self.eval(KGCall(x.a, x.args, x.arity) if tx is KGFn else x)
+        if tx is KGFn:
+            # Skip KGCall allocation for non-op, non-adverb functions
+            if x._is_op or x._is_adverb_chain:
+                return self.eval(KGCall(x.a, x.args, x.arity))
+            return self._eval_fn(x)
+        return self.eval(x)
 
     def eval(self, x):
         """
