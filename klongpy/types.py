@@ -28,10 +28,18 @@ class KlongException(Exception):
 
 
 class KGSym(str):
+    _intern = {}
+    def __new__(cls, s):
+        existing = cls._intern.get(s)
+        if existing is not None:
+            return existing
+        obj = str.__new__(cls, s)
+        cls._intern[s] = obj
+        return obj
     def __repr__(self):
         return f":{super().__str__()}"
     def __eq__(self, o):
-        return type(o) is KGSym and str.__eq__(self, o)
+        return self is o or (type(o) is KGSym and str.__eq__(self, o))
     def __hash__(self):
         return super().__hash__()
 
