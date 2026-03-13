@@ -866,6 +866,43 @@ class KlongInterpreter():
                 return f(self, _ctx)
             if tf is int or tf is float:
                 return f
+            # Inline op dispatch for function bodies to avoid eval() call overhead
+            if (tf is KGCall or tf is KGFn) and f._is_op:
+                op_a = f._op_a
+                fa = f.args
+                if f._op_arity == 2:
+                    if type(fa) is not list:
+                        fa = [fa] if fa is not None else fa
+                    fa1 = fa[1]
+                    t1 = type(fa1)
+                    _y = fa1 if t1 is int or t1 is float or t1 is numpy.ndarray else self.eval(fa1)
+                    if op_a in _UNEVALUATED_OPS:
+                        _x = fa[0]
+                    else:
+                        fa0 = fa[0]
+                        t0 = type(fa0)
+                        if t0 is KGSym and fa0 in reserved_fn_symbols_set:
+                            _x = _ctx._context[-1].get(fa0)
+                            if _x is None:
+                                _x = self.eval(fa0)
+                        elif t0 is int or t0 is float or t0 is numpy.ndarray:
+                            _x = fa0
+                        else:
+                            _x = self.eval(fa0)
+                    return self._vd[op_a](_x, _y)
+                else:
+                    _x = fa if type(fa) is not list else fa[0]
+                    if op_a not in _UNEVALUATED_OPS:
+                        tx_x = type(_x)
+                        if tx_x is KGSym and _x in reserved_fn_symbols_set:
+                            v = _ctx._context[-1].get(_x)
+                            if v is not None:
+                                _x = v
+                            else:
+                                _x = self.eval(_x)
+                        elif tx_x is not int and tx_x is not float and tx_x is not numpy.ndarray:
+                            _x = self.eval(_x)
+                    return self._vm[op_a](_x)
             # Route KGFn (recursive function calls) through _eval_fn, everything else through eval directly
             if tf is KGFn and not f._is_op and not f._is_adverb_chain:
                 return self._eval_fn(f)
