@@ -53,8 +53,22 @@ def get_fn_arity_str(arity):
     return ":triad"
 
 
+import operator as _op
+import math as _math
+
+# Fast scalar dispatch tables — pre-resolved on KGFn at construction time
+def _int_lt(a, b): return 1 if a < b else 0
+def _int_gt(a, b): return 1 if a > b else 0
+def _int_eq(a, b): return 1 if a == b else 0
+def _int_not(x): return 1 if x == 0 else 0
+def _fast_floor(x): return x if type(x) is int else _math.floor(x)
+
+_FAST_SCALAR_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '<': _int_lt, '>': _int_gt, '=': _int_eq, '|': max, '&': min}
+_FAST_SCALAR_MONADS = {'-': _op.neg, '~': _int_not, '_': _fast_floor}
+
+
 class KGFn:
-    __slots__ = ('a', 'args', 'arity', 'global_params', '_is_op', '_is_adverb_chain', '_op_a', '_op_arity')
+    __slots__ = ('a', 'args', 'arity', 'global_params', '_is_op', '_is_adverb_chain', '_op_a', '_op_arity', '_fast_op', '_fast_monad')
 
     def __init__(self, a, args, arity, global_params=None):
         self.a = a
@@ -65,11 +79,16 @@ class KGFn:
         self._is_op = _is_op
         self._is_adverb_chain = type(a) is list and len(a) > 0 and type(a[0]) is KGAdverb
         if _is_op:
-            self._op_a = a.a
+            _op_a = a.a
+            self._op_a = _op_a
             self._op_arity = a.arity
+            self._fast_op = _FAST_SCALAR_OPS.get(_op_a)
+            self._fast_monad = _FAST_SCALAR_MONADS.get(_op_a)
         else:
             self._op_a = None
             self._op_arity = 0
+            self._fast_op = None
+            self._fast_monad = None
 
     def __str__(self):
         return get_fn_arity_str(self.arity)

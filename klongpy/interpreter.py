@@ -17,22 +17,11 @@ from .utils import ReadonlyDict
 
 _UNEVALUATED_OPS = frozenset(['::','∇'])
 
-# Direct Python operator functions for fast dispatch.
-# These bypass cached_fn and numpy ufunc overhead (~62ns vs ~248ns per call).
+# Import fast dispatch tables from types (pre-resolved on KGFn at construction time)
+from .types import _FAST_SCALAR_OPS, _FAST_SCALAR_MONADS
 import operator as _op
-# Safe for Python scalars (no ZeroDivisionError edge cases)
-# Comparison ops return int 0/1 to match Klong's kg_truth semantics
-def _int_lt(a, b): return 1 if a < b else 0
-def _int_gt(a, b): return 1 if a > b else 0
-def _int_eq(a, b): return 1 if a == b else 0
-_FAST_SCALAR_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '<': _int_lt, '>': _int_gt, '=': _int_eq, '|': max, '&': min}
 # Safe for numpy arrays (numpy handles div-by-zero via inf/nan)
 _FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '%': _op.truediv, '^': _op.pow}
-# Fast monad dispatch for Python scalars (bypasses vec_fn overhead)
-import math as _math
-def _int_not(x): return 1 if x == 0 else 0
-def _fast_floor(x): return x if type(x) is int else _math.floor(x)
-_FAST_SCALAR_MONADS = {'-': _op.neg, '~': _int_not, '_': _fast_floor}
 
 # Pre-resolve individual reserved symbols to avoid list indexing in hot path
 _sym_x = reserved_fn_symbols[0]
@@ -1013,8 +1002,8 @@ class KlongInterpreter():
                             _x = fa0
                         else:
                             _x = self.eval(fa0)
-                    # Fast path: use Python operators for scalar int/float to skip cached_fn overhead
-                    _fast_op = _FAST_SCALAR_OPS.get(op_a)
+                    # Fast path: use pre-cached Python operators for scalar int/float
+                    _fast_op = f._fast_op
                     if _fast_op is not None and (type(_x) is int or type(_x) is float) and (type(_y) is int or type(_y) is float):
                         return _fast_op(_x, _y)
                     return self._vd[op_a](_x, _y)
@@ -1030,8 +1019,8 @@ class KlongInterpreter():
                                 _x = self.eval(_x)
                         elif tx_x is not int and tx_x is not float and tx_x is not numpy.ndarray:
                             _x = self.eval(_x)
-                    # Fast path: use Python operators for scalar int/float monad
-                    _fast_monad = _FAST_SCALAR_MONADS.get(op_a)
+                    # Fast path: use pre-cached Python operators for scalar int/float monad
+                    _fast_monad = f._fast_monad
                     if _fast_monad is not None and (type(_x) is int or type(_x) is float):
                         return _fast_monad(_x)
                     return self._vm[op_a](_x)
@@ -1152,8 +1141,8 @@ class KlongInterpreter():
                             _x = self._eval_fn(fa0)
                         else:
                             _x = self.eval(fa0)
-                    # Fast path: use Python operators for scalar int/float to skip cached_fn overhead
-                    _fast_op = _FAST_SCALAR_OPS.get(op_a)
+                    # Fast path: use pre-cached Python operators for scalar int/float
+                    _fast_op = x._fast_op
                     if _fast_op is not None and (type(_x) is int or type(_x) is float) and (type(_y) is int or type(_y) is float):
                         return _fast_op(_x, _y)
                     return self._vd[op_a](_x, _y)
@@ -1163,8 +1152,8 @@ class KlongInterpreter():
                         tx_x = type(_x)
                         if tx_x is not int and tx_x is not float and tx_x is not numpy.ndarray:
                             _x = self.eval(_x)
-                    # Fast path: use Python operators for scalar int/float monad
-                    _fast_monad = _FAST_SCALAR_MONADS.get(op_a)
+                    # Fast path: use pre-cached Python operators for scalar int/float monad
+                    _fast_monad = x._fast_monad
                     if _fast_monad is not None and (type(_x) is int or type(_x) is float):
                         return _fast_monad(_x)
                     return self._vm[op_a](_x)
