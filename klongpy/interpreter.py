@@ -941,17 +941,24 @@ class KlongInterpreter():
         if f_args is None:
             ctx = {}
         else:
+            # Inline call() dispatch for op args to skip method call overhead
             if nargs == 1:
                 q = f_args[0]
                 tq = type(q)
-                ctx = {_sym_x: q if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types else self.call(q)}
+                if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types:
+                    ctx = {_sym_x: q}
+                elif (tq is KGFn or tq is KGCall) and q._is_op:
+                    ctx = {_sym_x: self.eval(q)}
+                elif tq is KGCall:
+                    ctx = {_sym_x: self._eval_fn(q)}
+                else:
+                    ctx = {_sym_x: self.call(q)}
             elif nargs == 2:
                 q0, q1 = f_args[0], f_args[1]
                 tq0, tq1 = type(q0), type(q1)
-                ctx = {
-                    _sym_x: q0 if tq0 is int or tq0 is float or tq0 is numpy.ndarray or tq0 in _numpy_scalar_types else self.call(q0),
-                    _sym_y: q1 if tq1 is int or tq1 is float or tq1 is numpy.ndarray or tq1 in _numpy_scalar_types else self.call(q1)
-                }
+                v0 = q0 if tq0 is int or tq0 is float or tq0 is numpy.ndarray or tq0 in _numpy_scalar_types else (self.eval(q0) if (tq0 is KGFn or tq0 is KGCall) and q0._is_op else self.call(q0))
+                v1 = q1 if tq1 is int or tq1 is float or tq1 is numpy.ndarray or tq1 in _numpy_scalar_types else (self.eval(q1) if (tq1 is KGFn or tq1 is KGCall) and q1._is_op else self.call(q1))
+                ctx = {_sym_x: v0, _sym_y: v1}
             else:
                 ctx = {}
                 for sym, q in zip(reserved_fn_symbols, f_args):
