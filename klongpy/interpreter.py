@@ -158,12 +158,27 @@ class KlongContext():
 
     def push(self, d):
         self._context.appendleft(d)
-        self._lookup_cache.clear()
+        cache = self._lookup_cache
+        if cache:
+            # KGModule uses wildcard matching — must clear entire cache
+            if type(d) is KGModule:
+                cache.clear()
+            else:
+                # Only invalidate keys that could be shadowed by the new context
+                for k in d:
+                    cache.pop(k, None)
 
     def pop(self):
         if len(self._context) > self._min_ctx_count:
             r = self._context.popleft()
-            self._lookup_cache.clear()
+            cache = self._lookup_cache
+            if cache:
+                if type(r) is KGModule:
+                    cache.clear()
+                else:
+                    # Only invalidate keys that were in the popped context
+                    for k in r:
+                        cache.pop(k, None)
             return r
         return None
 
