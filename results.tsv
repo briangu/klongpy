@@ -141,3 +141,7 @@ b7efddf	0.000	pass	keep	direct attribute access for _is_op/_is_adverb_chain in _
 4e3154f	0.000	pass	keep	type identity for local var check + fix stale tf in _resolve_fn
 6ce7afc	0.000	pass	keep	cache inspect.signature by __code__ (init: 0.302ms -> 0.111ms)
 025e4ac	0.000	pass	keep	cache system contexts (init: 0.302ms -> 0.015ms warm)
+3335a44	0.000	pass	keep	cache backend/dyad/monad tables (init: 0.015ms -> 0.005ms warm)
+9a124ae	0.000	pass	keep	fast-path int/float literals in call()
+9788b42	0.000	pass	keep	remove dead is_op()/is_adverb_chain() methods
+9536a2e	0.000	pass	keep	mark mutable ndarray results immutable in __call__ result cache
