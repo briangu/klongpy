@@ -773,10 +773,14 @@ class KlongInterpreter():
         f_args = [None] if x.args is None else [x.args if type(x.args) is list else [x.args]]
 
         # Fast path: inline first resolve for the common case
+        _ctx = self._context
         tf = type(f)
         if tf is KGSym:
             try:
-                _f = self._context[f]
+                # Fast path: check lookup cache directly for non-reserved symbols
+                _f = _ctx._lookup_cache.get(f) if f not in reserved_fn_symbols_set else None
+                if _f is None:
+                    _f = _ctx[f]
                 t_f = type(_f)
                 if t_f is KGFn or t_f is KGCall or t_f in _kglambda_types or _is_kglambda_type(t_f) or f not in reserved_fn_symbols_set:
                     f = _f
@@ -858,7 +862,6 @@ class KlongInterpreter():
         ctx[reserved_dot_f_symbol] = f
 
         # Inline push/pop for speed — avoid method call overhead
-        _ctx = self._context
         if has_locals:
             _ctx.push(ctx)
         else:
