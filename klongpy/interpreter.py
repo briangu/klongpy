@@ -862,11 +862,7 @@ class KlongInterpreter():
             _ctx._context.append(ctx)
         try:
             tf = type(f)
-            if tf in _kglambda_types or _is_kglambda_type(tf):
-                return f(self, _ctx)
-            if tf is int or tf is float:
-                return f
-            # Inline op dispatch for function bodies to avoid eval() call overhead
+            # Most common case first: function body is an op (e.g., x+1)
             if (tf is KGCall or tf is KGFn) and f._is_op:
                 op_a = f._op_a
                 fa = f.args
@@ -903,6 +899,10 @@ class KlongInterpreter():
                         elif tx_x is not int and tx_x is not float and tx_x is not numpy.ndarray:
                             _x = self.eval(_x)
                     return self._vm[op_a](_x)
+            if tf in _kglambda_types or _is_kglambda_type(tf):
+                return f(self, _ctx)
+            if tf is int or tf is float:
+                return f
             # Route KGFn (recursive function calls) through _eval_fn, everything else through eval directly
             if tf is KGFn and not f._is_op and not f._is_adverb_chain:
                 return self._eval_fn(f)
