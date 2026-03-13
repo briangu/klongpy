@@ -717,10 +717,37 @@ class KlongInterpreter():
         f_arity = x.arity
         f_args = [None] if x.args is None else [x.args if type(x.args) is list else [x.args]]
 
-        # Up to three passes as there are max three arguments: x, y, and z
-        # Early exit if f is not a symbol or KGFn (already fully resolved)
-        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+        # Fast path: inline first resolve for the common case
         tf = type(f)
+        if tf is KGSym:
+            try:
+                _f = self._context[f]
+                t_f = type(_f)
+                if t_f is KGFn or t_f is KGCall or t_f in _kglambda_types or _is_kglambda_type(t_f) or f not in reserved_fn_symbols_set:
+                    f = _f
+                    tf = t_f
+                    # Check if we can unwrap the function directly
+                    if f_arity > 0 and (tf is KGFn or tf is KGCall) and not f._is_op and not f._is_adverb_chain:
+                        if f.args is None:
+                            f, f_arity = f.a, f.arity
+                            tf = type(f)
+                        elif has_none(f.args):
+                            f_args.append(f.args if type(f.args) is list else [f.args])
+                            f, f_arity = f.a, f.arity
+                            tf = type(f)
+            except KeyError:
+                if f not in reserved_fn_symbols_set:
+                    raise KlongException(f"undefined: {f}")
+        elif tf is KGFn or tf is KGCall:
+            if f_arity > 0 and not f._is_op and not f._is_adverb_chain:
+                if f.args is None:
+                    f, f_arity = f.a, f.arity
+                    tf = type(f)
+                elif has_none(f.args):
+                    f_args.append(f.args if type(f.args) is list else [f.args])
+                    f, f_arity = f.a, f.arity
+                    tf = type(f)
+        # Continue with remaining passes if needed
         if tf is KGSym or tf is KGFn or tf is KGCall:
             f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
             tf = type(f)
