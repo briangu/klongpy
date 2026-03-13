@@ -1128,13 +1128,30 @@ class KlongInterpreter():
             elif tx is KGCall:
                 return self._eval_fn(x)
         elif tx is KGCond:
-            q = self.call(x[0])
+            # Inline condition eval: skip call() overhead for common op case
+            x0 = x[0]
+            tx0 = type(x0)
+            if tx0 is int or tx0 is float:
+                q = x0
+            elif (tx0 is KGCall or tx0 is KGFn) and x0._is_op:
+                q = self.eval(x0)
+            else:
+                q = self.call(x0)
             tq = type(q)
             if tq is int or tq is float:
                 p = q != 0
             else:
                 p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
-            return self.call(x[1]) if p else self.call(x[2])
+            # Inline branch eval: skip call() overhead for common cases
+            xb = x[1] if p else x[2]
+            txb = type(xb)
+            if txb is int or txb is float:
+                return xb
+            if txb is KGSym:
+                return self.eval(xb)
+            if (txb is KGCall or txb is KGFn) and xb._is_op:
+                return self.eval(xb)
+            return self.call(xb)
         elif tx is list and len(x) > 0:
             return [self.call(y) for y in x][-1]
         return x
