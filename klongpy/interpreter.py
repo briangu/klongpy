@@ -895,17 +895,11 @@ class KlongInterpreter():
             f = x._cached_body
             f_arity = x._cached_body_arity
             tf = x._cached_body_type
-            # Directly extract args without wrapper list (cache guarantees no projection merging)
+            # Directly extract args (cache guarantees no projection merging)
             nargs = x._nargs
             if nargs < f_arity:
                 return x
-            _xargs = x.args
-            if _xargs is None:
-                f_args = None
-            elif type(_xargs) is list:
-                f_args = _xargs
-            else:
-                f_args = [_xargs]
+            f_args = x._f_args
         else:
             f = x.a
             f_args = [None] if x.args is None else [x.args if type(x.args) is list else [x.args]]
