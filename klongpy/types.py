@@ -269,6 +269,10 @@ reserved_dot_f_symbol = KGSym('.f')
 
 # Type checking functions
 
+# Cache which types are integer-like and float-like to avoid repeated issubclass
+_integer_types = set()
+_float_types = set()
+
 def is_list(x):
     # Check for list or any array-like with ndim > 0 (works for numpy and torch)
     t = type(x)
@@ -311,7 +315,10 @@ def is_integer(x, backend):
     tx = type(x)
     if tx is int:
         return True
+    if tx in _integer_types:
+        return True
     if issubclass(tx, (int, numpy.integer)):
+        _integer_types.add(tx)
         return True
     # Handle 0-dim numpy arrays
     if tx is numpy.ndarray and x.ndim == 0:
@@ -324,7 +331,10 @@ def is_float(x, backend):
     tx = type(x)
     if tx is float or tx is int:
         return True
+    if tx in _float_types:
+        return True
     if issubclass(tx, (float, numpy.floating)):
+        _float_types.add(tx)
         return True
     # Handle 0-dim numpy arrays
     if tx is numpy.ndarray and x.ndim == 0:
