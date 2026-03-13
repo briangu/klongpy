@@ -99,3 +99,10 @@ d1009c0	0.000	pass	keep	cache numpy scalar type checks in _immutable_key (avoid 
 8dc2349	0.000	pass	keep	cache numpy scalar type checks in __call__ result cache
 9e4fd06	0.000	pass	keep	cache issubclass results in is_integer/is_float type checks
 27a7d72	0.000	pass	keep	direct dispatch for KGOp in chain_adverbs (skip KGCall alloc + eval)
+fb52d7b	0.000	pass	keep	dict dispatch for ufunc reduce/accumulate in adverbs
+28dccdb	0.000	pass	keep	fast-path mutable ndarray bypass in cached_fn
+3533479	0.000	pass	keep	cache KGLambda subclass checks (avoid repeated issubclass)
+f31e220	0.000	pass	keep	pre-resolve operator functions in chain_adverbs
+d6c5175	0.000	pass	keep	remove unused safe_eq import from parser
+4d6b92f	0.000	pass	keep	replace safe_eq with direct int comparison in format2
+25b8cb6	0.000	pass	keep	cache issubclass results in backend is_integer/is_float
