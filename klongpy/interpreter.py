@@ -1124,13 +1124,24 @@ class KlongInterpreter():
                         fa = [fa] if fa is not None else fa
                     fa1 = fa[1]
                     t1 = type(fa1)
-                    _y = fa1 if t1 is int or t1 is float or t1 is numpy.ndarray else self.eval(fa1)
+                    # Inline dispatch: skip eval→_eval_fn chain for non-op non-adverb KGCall
+                    if t1 is int or t1 is float or t1 is numpy.ndarray:
+                        _y = fa1
+                    elif t1 is KGCall and not fa1._is_op and not fa1._is_adverb_chain:
+                        _y = self._eval_fn(fa1)
+                    else:
+                        _y = self.eval(fa1)
                     if op_a in _UNEVALUATED_OPS:
                         _x = fa[0]
                     else:
                         fa0 = fa[0]
                         t0 = type(fa0)
-                        _x = fa0 if t0 is int or t0 is float or t0 is numpy.ndarray else self.eval(fa0)
+                        if t0 is int or t0 is float or t0 is numpy.ndarray:
+                            _x = fa0
+                        elif t0 is KGCall and not fa0._is_op and not fa0._is_adverb_chain:
+                            _x = self._eval_fn(fa0)
+                        else:
+                            _x = self.eval(fa0)
                     # Fast path: use Python operators for scalar int/float to skip cached_fn overhead
                     _fast_op = _FAST_SCALAR_OPS.get(op_a)
                     if _fast_op is not None and (type(_x) is int or type(_x) is float) and (type(_y) is int or type(_y) is float):
