@@ -224,9 +224,16 @@ def eval_adverb_over(f, a, op, backend):
 
         Example: +/[1 2 3 4]  -->  10
     """
-    if is_atom(a):
+    # Inline is_atom + len check for common ndarray case
+    ta = type(a)
+    if ta is _ndarray:
+        if a.ndim == 0 or len(a) == 0:
+            return a
+        if len(a) == 1:
+            return a[0]
+    elif is_atom(a):
         return a
-    if len(a) == 1:
+    elif len(a) == 1:
         return a[0]
     # Use backend's ufunc reduce when available for better performance
     np_backend = backend.np
