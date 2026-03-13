@@ -24,6 +24,8 @@ import operator as _op
 _FAST_SCALAR_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub}
 # Safe for numpy arrays (numpy handles div-by-zero via inf/nan)
 _FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '%': _op.truediv, '^': _op.pow}
+# Fast monad dispatch for Python scalars (bypasses vec_fn overhead)
+_FAST_SCALAR_MONADS = {'-': _op.neg}
 
 # Pre-resolve individual reserved symbols to avoid list indexing in hot path
 _sym_x = reserved_fn_symbols[0]
@@ -1014,6 +1016,10 @@ class KlongInterpreter():
                                 _x = self.eval(_x)
                         elif tx_x is not int and tx_x is not float and tx_x is not numpy.ndarray:
                             _x = self.eval(_x)
+                    # Fast path: use Python operators for scalar int/float monad
+                    _fast_monad = _FAST_SCALAR_MONADS.get(op_a)
+                    if _fast_monad is not None and (type(_x) is int or type(_x) is float):
+                        return _fast_monad(_x)
                     return self._vm[op_a](_x)
             if tf in _kglambda_types or _is_kglambda_type(tf):
                 return f(self, _ctx)
@@ -1100,6 +1106,10 @@ class KlongInterpreter():
                         tx_x = type(_x)
                         if tx_x is not int and tx_x is not float and tx_x is not numpy.ndarray:
                             _x = self.eval(_x)
+                    # Fast path: use Python operators for scalar int/float monad
+                    _fast_monad = _FAST_SCALAR_MONADS.get(op_a)
+                    if _fast_monad is not None and (type(_x) is int or type(_x) is float):
+                        return _fast_monad(_x)
                     return self._vm[op_a](_x)
             elif x._is_adverb_chain:
                 xa_id = id(x.a)
