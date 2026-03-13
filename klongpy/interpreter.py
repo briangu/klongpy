@@ -1035,8 +1035,6 @@ class KlongInterpreter():
                     if _fast_monad is not None and (type(_x) is int or type(_x) is float):
                         return _fast_monad(_x)
                     return self._vm[op_a](_x)
-            if tf in _kglambda_types or _is_kglambda_type(tf):
-                return f(self, _ctx)
             if tf is int or tf is float:
                 return f
             # Inline KGCond eval to avoid method call overhead (common for conditional function bodies)
@@ -1063,6 +1061,8 @@ class KlongInterpreter():
                 if (txb is KGCall or txb is KGFn) and xb._is_op:
                     return self.eval(xb)
                 return self.call(xb)
+            if tf in _kglambda_types or _is_kglambda_type(tf):
+                return f(self, _ctx)
             # Route KGFn (recursive function calls) through _eval_fn, everything else through eval directly
             if tf is KGFn and not f._is_op and not f._is_adverb_chain:
                 return self._eval_fn(f)
