@@ -286,6 +286,8 @@ def eval_monad_groupby(a, backend):
     return backend.kg_asarray(groups)
 
 
+_list_cache = {}
+
 def eval_monad_list(a, backend):
     """
 
@@ -300,6 +302,14 @@ def eval_monad_list(a, backend):
     """
     if is_char(a):
         return str(a)
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _list_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = backend.kg_asarray([a])
+        _list_cache[a_id] = result
+        return result
     return backend.kg_asarray([a])
 
 
