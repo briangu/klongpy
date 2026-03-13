@@ -575,8 +575,8 @@ def eval_dyad_join(a, b, backend):
 
     if bknp.isarray(a) and bknp.isarray(b):
         # Only use fast path for 1D+ arrays (not 0D scalars)
-        a_is_1d_plus = hasattr(a, 'ndim') and a.ndim >= 1
-        b_is_1d_plus = hasattr(b, 'ndim') and b.ndim >= 1
+        a_is_1d_plus = a.ndim >= 1
+        b_is_1d_plus = b.ndim >= 1
         if a_is_1d_plus and b_is_1d_plus:
             if len(a) == 0:
                 return b
