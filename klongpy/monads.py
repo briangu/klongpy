@@ -664,41 +664,41 @@ def eval_monad_grad(klong, a):
     return KGLambda(lambda x, fn=a, k=klong: grad_of_fn(k, fn, x))
 
 
+_cached_monad_base = {}
+
 def create_monad_functions(klong):
     backend = klong._backend
+    backend_id = id(backend)
 
-    # Simple monads that don't need backend or klong
-    simple = {
-        '@': eval_monad_atom,
-        '&': eval_monad_expand_where,
-        '*': eval_monad_first,
-        '|': eval_monad_reverse,
-        '+': eval_monad_transpose,
-        '˙': eval_monad_track,
-    }
+    base = _cached_monad_base.get(backend_id)
+    if base is None:
+        base = {
+            '@': eval_monad_atom,
+            '&': eval_monad_expand_where,
+            '*': eval_monad_first,
+            '|': eval_monad_reverse,
+            '+': eval_monad_transpose,
+            '˙': eval_monad_track,
+            ',': lambda a: eval_monad_list(a, backend),
+            ':#': lambda a: eval_monad_char(a, backend),
+            '!': lambda a: eval_monad_enumerate(a, backend),
+            '_': lambda a: eval_monad_floor(a, backend),
+            '$': lambda a: eval_monad_format(a, backend),
+            '<': lambda a: eval_monad_grade_up(a, backend),
+            '>': lambda a: eval_monad_grade_down(a, backend),
+            '=': lambda a: eval_monad_groupby(a, backend),
+            '-': lambda a: eval_monad_negate(a, backend),
+            '~': lambda a: eval_monad_not(a, backend),
+            '?': lambda a: eval_monad_range(a, backend),
+            '%': lambda a: eval_monad_reciprocal(a, backend),
+            '#': lambda a: eval_monad_size(a, backend),
+            ':_': lambda a: eval_monad_undefined(a, backend),
+            '^': lambda a: eval_monad_shape(a, backend),
+        }
+        _cached_monad_base[backend_id] = base
 
-    # Monads needing backend
-    backend_monads = {
-        ',': lambda a: eval_monad_list(a, backend),
-        ':#': lambda a: eval_monad_char(a, backend),
-        '!': lambda a: eval_monad_enumerate(a, backend),
-        '_': lambda a: eval_monad_floor(a, backend),
-        '$': lambda a: eval_monad_format(a, backend),
-        '<': lambda a: eval_monad_grade_up(a, backend),
-        '>': lambda a: eval_monad_grade_down(a, backend),
-        '=': lambda a: eval_monad_groupby(a, backend),
-        '-': lambda a: eval_monad_negate(a, backend),
-        '~': lambda a: eval_monad_not(a, backend),
-        '?': lambda a: eval_monad_range(a, backend),
-        '%': lambda a: eval_monad_reciprocal(a, backend),
-        '#': lambda a: eval_monad_size(a, backend),
-        ':_': lambda a: eval_monad_undefined(a, backend),
-        '^': lambda a: eval_monad_shape(a, backend),
-    }
-
-    # Monads needing klong
-    klong_monads = {
+    # Monads needing klong (must be per-interpreter)
+    return {
+        **base,
         '∇': lambda a: eval_monad_grad(klong, a),
     }
-
-    return {**simple, **backend_monads, **klong_monads}

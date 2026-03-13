@@ -35,9 +35,11 @@ def _load_torch_backend():
     _TORCH_BACKEND_LOADED = True
 
 
+_backend_cache = {}
+
 def get_backend(name: str = None, **kwargs) -> BackendProvider:
     """
-    Get a backend provider instance.
+    Get a backend provider instance (cached per name+kwargs).
 
     Parameters
     ----------
@@ -54,6 +56,11 @@ def get_backend(name: str = None, **kwargs) -> BackendProvider:
     if name is None:
         name = _DEFAULT_BACKEND
 
+    cache_key = (name, tuple(sorted(kwargs.items())) if kwargs else ())
+    cached = _backend_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     if name == 'torch':
         _load_torch_backend()
 
@@ -61,7 +68,9 @@ def get_backend(name: str = None, **kwargs) -> BackendProvider:
         available = ', '.join(_BACKENDS.keys())
         raise ValueError(f"Unknown backend: '{name}'. Available: {available}")
 
-    return _BACKENDS[name](**kwargs)
+    result = _BACKENDS[name](**kwargs)
+    _backend_cache[cache_key] = result
+    return result
 
 
 def list_backends():

@@ -1183,51 +1183,51 @@ def _make_cached_dyad(fn, fn_id=None):
     return cached_fn
 
 
+_cached_dyad_base = {}
+
 def create_dyad_functions(klong):
     backend = klong._backend
-    bknp = backend.np
+    backend_id = id(backend)
 
-    # Simple dyads that don't need backend or klong
-    simple = {
-        ':-': eval_dyad_amend_in_depth,
-        '_': _make_cached_dyad(eval_dyad_drop, fn_id='_'),
-        ':@': eval_dyad_index_in_depth,
-    }
+    base = _cached_dyad_base.get(backend_id)
+    if base is None:
+        bknp = backend.np
+        base = {
+            ':-': eval_dyad_amend_in_depth,
+            '_': _make_cached_dyad(eval_dyad_drop, fn_id='_'),
+            ':@': eval_dyad_index_in_depth,
+            '+': _make_cached_dyad(bknp.add),
+            '*': _make_cached_dyad(bknp.multiply),
+            '-': _make_cached_dyad(bknp.subtract),
+            '|': _make_cached_dyad(lambda a, b: eval_dyad_maximum(a, b, backend), fn_id='|'),
+            '&': _make_cached_dyad(lambda a, b: eval_dyad_minimum(a, b, backend), fn_id='&'),
+            '!': _make_cached_dyad(lambda a, b: eval_dyad_remainder(a, b, backend), fn_id='!'),
+            '%': _make_cached_dyad(lambda a, b: eval_dyad_divide(a, b, backend), fn_id='%'),
+            ':=': lambda a, b: eval_dyad_amend(a, b, backend),
+            ':_': _make_cached_dyad(lambda a, b: eval_dyad_cut(a, b, backend), fn_id=':_'),
+            '=': _make_cached_dyad(lambda a, b: eval_dyad_equal(a, b, backend), fn_id='='),
+            '?': _make_cached_dyad(lambda a, b: eval_dyad_find(a, b, backend), fn_id='?'),
+            ':$': _make_cached_dyad(lambda a, b: eval_dyad_form(a, b, backend), fn_id=':$'),
+            '$': _make_cached_dyad(lambda a, b: eval_dyad_format2(a, b, backend), fn_id='$'),
+            ':%': _make_cached_dyad(lambda a, b: eval_dyad_integer_divide(a, b, backend), fn_id=':%'),
+            ',': _make_cached_dyad(lambda a, b: eval_dyad_join(a, b, backend), fn_id=','),
+            '<': _make_cached_dyad(lambda a, b: eval_dyad_less(a, b, backend), fn_id='<'),
+            '~': _make_cached_dyad(lambda a, b: eval_dyad_match(a, b, backend), fn_id='~'),
+            '>': _make_cached_dyad(lambda a, b: eval_dyad_more(a, b, backend), fn_id='>'),
+            '^': _make_cached_dyad(lambda a, b: eval_dyad_power(a, b, backend), fn_id='^'),
+            ':^': _make_cached_dyad(lambda a, b: eval_dyad_reshape(a, b, backend), fn_id=':^'),
+            ':+': _make_cached_dyad(lambda a, b: eval_dyad_rotate(a, b, backend), fn_id=':+'),
+            ':#': _make_cached_dyad(lambda a, b: eval_dyad_split(a, b, backend), fn_id=':#'),
+            '#': _make_cached_dyad(lambda a, b: eval_dyad_take(a, b, backend), fn_id='#'),
+        }
+        _cached_dyad_base[backend_id] = base
 
-    # Dyads needing backend
-    backend_dyads = {
-        '+': _make_cached_dyad(bknp.add),
-        '*': _make_cached_dyad(bknp.multiply),
-        '-': _make_cached_dyad(bknp.subtract),
-        '|': _make_cached_dyad(lambda a, b: eval_dyad_maximum(a, b, backend), fn_id='|'),
-        '&': _make_cached_dyad(lambda a, b: eval_dyad_minimum(a, b, backend), fn_id='&'),
-        '!': _make_cached_dyad(lambda a, b: eval_dyad_remainder(a, b, backend), fn_id='!'),
-        '%': _make_cached_dyad(lambda a, b: eval_dyad_divide(a, b, backend), fn_id='%'),
-        ':=': lambda a, b: eval_dyad_amend(a, b, backend),
-        ':_': _make_cached_dyad(lambda a, b: eval_dyad_cut(a, b, backend), fn_id=':_'),
-        '=': _make_cached_dyad(lambda a, b: eval_dyad_equal(a, b, backend), fn_id='='),
-        '?': _make_cached_dyad(lambda a, b: eval_dyad_find(a, b, backend), fn_id='?'),
-        ':$': _make_cached_dyad(lambda a, b: eval_dyad_form(a, b, backend), fn_id=':$'),
-        '$': _make_cached_dyad(lambda a, b: eval_dyad_format2(a, b, backend), fn_id='$'),
-        ':%': _make_cached_dyad(lambda a, b: eval_dyad_integer_divide(a, b, backend), fn_id=':%'),
-        ',': _make_cached_dyad(lambda a, b: eval_dyad_join(a, b, backend), fn_id=','),
-        '<': _make_cached_dyad(lambda a, b: eval_dyad_less(a, b, backend), fn_id='<'),
-        '~': _make_cached_dyad(lambda a, b: eval_dyad_match(a, b, backend), fn_id='~'),
-        '>': _make_cached_dyad(lambda a, b: eval_dyad_more(a, b, backend), fn_id='>'),
-        '^': _make_cached_dyad(lambda a, b: eval_dyad_power(a, b, backend), fn_id='^'),
-        ':^': _make_cached_dyad(lambda a, b: eval_dyad_reshape(a, b, backend), fn_id=':^'),
-        ':+': _make_cached_dyad(lambda a, b: eval_dyad_rotate(a, b, backend), fn_id=':+'),
-        ':#': _make_cached_dyad(lambda a, b: eval_dyad_split(a, b, backend), fn_id=':#'),
-        '#': _make_cached_dyad(lambda a, b: eval_dyad_take(a, b, backend), fn_id='#'),
-    }
-
-    # Dyads needing klong
-    klong_dyads = {
+    # Dyads needing klong (must be per-interpreter)
+    return {
+        **base,
         '@': lambda a, b: eval_dyad_at_index(klong, a, b),
         '::': lambda a, b: eval_dyad_define(klong, a, b),
         '∇': lambda a, b: eval_dyad_grad(klong, a, b),
         '∂': lambda a, b: eval_dyad_jacobian(klong, a, b),
         ':>': lambda a, b: eval_dyad_autograd(klong, a, b),
     }
-
-    return {**simple, **backend_dyads, **klong_dyads}
