@@ -106,3 +106,6 @@ f31e220	0.000	pass	keep	pre-resolve operator functions in chain_adverbs
 d6c5175	0.000	pass	keep	remove unused safe_eq import from parser
 4d6b92f	0.000	pass	keep	replace safe_eq with direct int comparison in format2
 25b8cb6	0.000	pass	keep	cache issubclass results in backend is_integer/is_float
+1aeb83a	0.000	pass	keep	cache floor and reciprocal monad results for immutable arrays
+76e1dc8	0.000	pass	keep	add lookup cache to KlongContext for faster symbol resolution
+025951a	0.000	pass	keep	cache not monad results for immutable arrays
