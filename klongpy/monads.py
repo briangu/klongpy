@@ -321,6 +321,8 @@ def eval_monad_negate(a, backend):
     return backend.vec_fn(a, lambda x: backend.np.negative(backend.kg_asarray(x)))
 
 
+_not_cache = {}
+
 def eval_monad_not(a, backend):
     """
 
@@ -338,6 +340,16 @@ def eval_monad_not(a, backend):
     """
     def _neg(x):
         return 1 if is_empty(x) else 0 if is_dict(x) or isinstance(x, (KGFn, KGSym)) else kg_truth(bknp.logical_not(bknp.asarray(x, dtype=object)))
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _not_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = backend.vec_fn(a, _neg) if not is_empty(a) else _neg(a)
+        if type(result) is _ndarray:
+            result.flags.writeable = False
+            _not_cache[a_id] = result
+        return result
     return backend.vec_fn(a, _neg) if not is_empty(a) else _neg(a)
 
 
