@@ -845,7 +845,14 @@ class KlongInterpreter():
         self._context.push(ctx)
         try:
             tf = type(f)
-            return f(self, self._context) if tf in _kglambda_types or _is_kglambda_type(tf) else self.call(f)
+            if tf in _kglambda_types or _is_kglambda_type(tf):
+                return f(self, self._context)
+            if tf is int or tf is float:
+                return f
+            # Route KGFn (recursive function calls) through _eval_fn, everything else through eval directly
+            if tf is KGFn and not f._is_op and not f._is_adverb_chain:
+                return self._eval_fn(f)
+            return self.eval(f)
         finally:
             self._context.pop()
 
@@ -963,7 +970,10 @@ class KlongInterpreter():
                 # Inline call dispatch for common cases to avoid function call overhead
                 if tx0 is int or tx0 is float:
                     result = x0
-                elif (tx0 is KGFn or tx0 is KGCall) and x0._is_op:
+                elif tx0 is KGCall:
+                    # KGCall: dispatch directly to avoid call() → eval() → _eval_fn() chain
+                    result = self.eval(x0) if x0._is_op or x0._is_adverb_chain else self._eval_fn(x0)
+                elif tx0 is KGFn and x0._is_op:
                     result = self.eval(x0)
                 else:
                     result = self.call(x0)
