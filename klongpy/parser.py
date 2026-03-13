@@ -12,7 +12,7 @@ import copy
 from .types import (
     KGSym, KGChar, KGOp, KGCond, KGCall, KGLambda,
     reserved_fn_symbol_map,
-    safe_eq, is_symbolic, is_adverb
+    is_symbolic, is_adverb
 )
 
 _DELIMITERS = frozenset({';', '(', ')', '{', '}', ']'})
