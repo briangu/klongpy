@@ -6,6 +6,8 @@ from .autograd import grad_of_fn
 _ndarray = _numpy.ndarray
 
 
+_atom_cache = {}
+
 def eval_monad_atom(a):
     """
 
@@ -20,6 +22,14 @@ def eval_monad_atom(a):
                   @[1 2 3]  -->  0
 
     """
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _atom_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = kg_truth(is_atom(a))
+        _atom_cache[a_id] = result
+        return result
     return kg_truth(is_atom(a))
 
 
