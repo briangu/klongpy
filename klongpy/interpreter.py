@@ -17,6 +17,10 @@ from .utils import ReadonlyDict
 
 _UNEVALUATED_OPS = frozenset(['::','∇'])
 
+# Pre-resolve individual reserved symbols to avoid list indexing in hot path
+_sym_x = reserved_fn_symbols[0]
+_sym_y = reserved_fn_symbols[1]
+
 # Cache which types are KGLambda subclasses to avoid repeated issubclass calls
 _kglambda_types = {KGLambda}
 
@@ -765,10 +769,23 @@ class KlongInterpreter():
         if f_args is None:
             ctx = {}
         else:
-            ctx = {}
-            for sym, q in zip(reserved_fn_symbols, f_args):
+            nargs = len(f_args)
+            if nargs == 1:
+                q = f_args[0]
                 tq = type(q)
-                ctx[sym] = q if tq is int or tq is float or tq is numpy.ndarray else self.call(q)
+                ctx = {_sym_x: q if tq is int or tq is float or tq is numpy.ndarray else self.call(q)}
+            elif nargs == 2:
+                q0, q1 = f_args[0], f_args[1]
+                tq0, tq1 = type(q0), type(q1)
+                ctx = {
+                    _sym_x: q0 if tq0 is int or tq0 is float or tq0 is numpy.ndarray else self.call(q0),
+                    _sym_y: q1 if tq1 is int or tq1 is float or tq1 is numpy.ndarray else self.call(q1)
+                }
+            else:
+                ctx = {}
+                for sym, q in zip(reserved_fn_symbols, f_args):
+                    tq = type(q)
+                    ctx[sym] = q if tq is int or tq is float or tq is numpy.ndarray else self.call(q)
 
         if is_list(f) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0:
             # Filter out semicolons — remaining elements are local variable declarations
