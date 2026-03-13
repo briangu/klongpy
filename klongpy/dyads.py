@@ -405,7 +405,7 @@ def __e_dyad_format2(a, b, backend):
         a = a.item()
     if hasattr(b, 'ndim') and b.ndim == 0:
         b = b.item()
-    if safe_eq(int(a), 0):
+    if int(a) == 0:
         return str(b)
     if (backend.is_float(b) and not isinstance(b,int)) and (backend.is_float(a) and not isinstance(a,int)):
         b = "{:Xf}".replace("X",str(a)).format(b)
