@@ -887,7 +887,6 @@ class KlongInterpreter():
 
         """
         f_arity = x.arity
-        f_args = [None] if x.args is None else [x.args if type(x.args) is list else [x.args]]
 
         # Fast path: use cached resolution if available and still valid
         _ctx = self._context
@@ -896,8 +895,22 @@ class KlongInterpreter():
             f = x._cached_body
             f_arity = x._cached_body_arity
             tf = x._cached_body_type
+            # Directly extract args without wrapper list (cache guarantees no projection merging)
+            _xargs = x.args
+            if _xargs is None:
+                f_args = None
+                nargs = 0
+            elif type(_xargs) is list:
+                f_args = _xargs
+                nargs = len(_xargs)
+            else:
+                f_args = [_xargs]
+                nargs = 1
+            if nargs < f_arity:
+                return x
         else:
             f = x.a
+            f_args = [None] if x.args is None else [x.args if type(x.args) is list else [x.args]]
             # Fast path: inline first resolve for the common case
             tf = type(f)
             if tf is KGSym:
@@ -945,17 +958,17 @@ class KlongInterpreter():
                 x._cached_body_type = tf
                 x._cached_version = _ctx._lookup_version
 
-        if len(f_args) == 1:
-            f_args = f_args[0]
-            nargs = 0 if f_args is None else len(f_args)
-            if nargs < f_arity:
-                return x
-        else:
-            f_args.reverse()
-            f_args = merge_projections(f_args)
-            nargs = 0 if f_args is None else len(f_args)
-            if nargs < f_arity or has_none(f_args):
-                return x
+            if len(f_args) == 1:
+                f_args = f_args[0]
+                nargs = 0 if f_args is None else len(f_args)
+                if nargs < f_arity:
+                    return x
+            else:
+                f_args.reverse()
+                f_args = merge_projections(f_args)
+                nargs = 0 if f_args is None else len(f_args)
+                if nargs < f_arity or has_none(f_args):
+                    return x
 
         if f_args is None:
             ctx = {}
