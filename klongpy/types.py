@@ -68,12 +68,6 @@ class KGFn:
     def __str__(self):
         return get_fn_arity_str(self.arity)
 
-    def is_op(self):
-        return self._is_op
-
-    def is_adverb_chain(self):
-        return self._is_adverb_chain
-
 
 class KGFnWrapper:
     """
