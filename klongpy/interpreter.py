@@ -223,10 +223,35 @@ def add_context_key_values(d, context):
         set_context_var(d, KGSym(k), fn)
 
 
+_cached_sys_d = None
+_cached_sys_var = None
+_io_sym_cin = KGSym('.cin')
+_io_sym_cout = KGSym('.cout')
+_io_sym_cerr = KGSym('.cerr')
+_io_sym_sys_cin = KGSym('.sys.cin')
+_io_sym_sys_cout = KGSym('.sys.cout')
+_io_sym_sys_cerr = KGSym('.sys.cerr')
+
 def create_system_contexts():
+    global _cached_sys_d, _cached_sys_var
+
     cin = eval_sys_var_cin()
     cout = eval_sys_var_cout()
     cerr = eval_sys_var_cerr()
+
+    if _cached_sys_d is not None:
+        # Reuse pre-built KGLambda/KGCall objects, just update I/O channels
+        sys_d = dict(_cached_sys_d)
+        sys_d[_io_sym_cin] = cin
+        sys_d[_io_sym_cout] = cout
+        sys_d[_io_sym_cerr] = cerr
+
+        sys_var = dict(_cached_sys_var)
+        sys_var[_io_sym_sys_cin] = cin
+        sys_var[_io_sym_sys_cout] = cout
+        sys_var[_io_sym_sys_cerr] = cerr
+
+        return [sys_var, ReadonlyDict(sys_d)]
 
     sys_d = {}
     add_context_key_values(sys_d, create_system_functions())
@@ -234,15 +259,19 @@ def create_system_contexts():
     add_context_key_values(sys_d, create_system_functions_ipc())
     add_context_key_values(sys_d, create_system_functions_timer())
     set_context_var(sys_d, KGSym('.e'), eval_sys_var_epsilon()) # TODO: support lambda
-    set_context_var(sys_d, KGSym('.cin'), cin)
-    set_context_var(sys_d, KGSym('.cout'), cout)
-    set_context_var(sys_d, KGSym('.cerr'), cerr)
+    set_context_var(sys_d, _io_sym_cin, cin)
+    set_context_var(sys_d, _io_sym_cout, cout)
+    set_context_var(sys_d, _io_sym_cerr, cerr)
 
     sys_var = {}
     add_context_key_values(sys_var, create_system_var_ipc())
-    set_context_var(sys_var, KGSym('.sys.cin'), cin)
-    set_context_var(sys_var, KGSym('.sys.cout'), cout)
-    set_context_var(sys_var, KGSym('.sys.cerr'), cerr)
+    set_context_var(sys_var, _io_sym_sys_cin, cin)
+    set_context_var(sys_var, _io_sym_sys_cout, cout)
+    set_context_var(sys_var, _io_sym_sys_cerr, cerr)
+
+    # Cache for subsequent interpreter creations
+    _cached_sys_d = dict(sys_d)
+    _cached_sys_var = dict(sys_var)
 
     return [sys_var, ReadonlyDict(sys_d)]
 
