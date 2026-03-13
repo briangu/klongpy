@@ -1,5 +1,4 @@
 import time
-from collections import deque
 
 import numpy
 
@@ -83,7 +82,9 @@ class KlongContext():
     __slots__ = ('_context', '_min_ctx_count', '_strict_mode', '_lookup_cache')
 
     def __init__(self, system_contexts, strict_mode=1):
-        self._context = deque([{}, *system_contexts])
+        # Use list instead of deque for better cache locality
+        # Convention: append = push (end is innermost scope), pop = pop from end
+        self._context = [*reversed(system_contexts), {}]
         self._lookup_cache = {}
         self._min_ctx_count = len(system_contexts)
         self._strict_mode = strict_mode
@@ -100,8 +101,9 @@ class KlongContext():
 
     def __setitem__(self, k, v):
         if k not in reserved_fn_symbols_set:
-            # Check if variable exists in any scope
-            for d in self._context:
+            # Check if variable exists in any scope (iterate newest to oldest)
+            for i in range(len(self._context) - 1, -1, -1):
+                d = self._context[i]
                 if k in d:
                     d[k] = v
                     # Invalidate lookup cache for this key
@@ -121,8 +123,8 @@ class KlongContext():
                     f"  To modify an existing global, ensure it exists before calling the function"
                 )
 
-        # Create new variable in current scope
-        set_context_var(self._context[0], k, v)
+        # Create new variable in current scope (end of list = innermost)
+        set_context_var(self._context[-1], k, v)
         self._lookup_cache.pop(k, None)
         return k
 
@@ -131,7 +133,10 @@ class KlongContext():
         cached = self._lookup_cache.get(k)
         if cached is not None:
             return cached
-        for d in self._context:
+        # Iterate newest to oldest (end to start of list)
+        ctx = self._context
+        for i in range(len(ctx) - 1, -1, -1):
+            d = ctx[i]
             v = d.get(k)
             if v is not None:
                 self._lookup_cache[k] = v
@@ -149,7 +154,9 @@ class KlongContext():
         raise KeyError(k)
 
     def __delitem__(self, k):
-        for d in self._context:
+        ctx = self._context
+        for i in range(len(ctx) - 1, -1, -1):
+            d = ctx[i]
             if k in d and not isinstance(d, ReadonlyDict):
                 del d[k]
                 self._lookup_cache.pop(k, None)
@@ -157,7 +164,7 @@ class KlongContext():
         raise KeyError(k)
 
     def push(self, d):
-        self._context.appendleft(d)
+        self._context.append(d)
         cache = self._lookup_cache
         if cache:
             # KGModule uses wildcard matching — must clear entire cache
@@ -170,7 +177,7 @@ class KlongContext():
 
     def pop(self):
         if len(self._context) > self._min_ctx_count:
-            r = self._context.popleft()
+            r = self._context.pop()
             cache = self._lookup_cache
             if cache:
                 if type(r) is KGModule:
@@ -184,7 +191,9 @@ class KlongContext():
 
     def is_defined_sym(self, k):
         if type(k) is KGSym:
-            for d in self._context:
+            ctx = self._context
+            for i in range(len(ctx) - 1, -1, -1):
+                d = ctx[i]
                 if k in d:
                     return True
                 if type(d) is KGModule and '`' not in k:
@@ -196,7 +205,9 @@ class KlongContext():
 
     def __iter__(self):
         seen = set()
-        for d in self._context:
+        ctx = self._context
+        for i in range(len(ctx) - 1, -1, -1):
+            d = ctx[i]
             for x in d.items():
                 if x[0] not in seen:
                     yield x
