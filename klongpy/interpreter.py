@@ -757,6 +757,7 @@ class KlongInterpreter():
             tf = type(f)
             if tf is KGSym or tf is KGFn or tf is KGCall:
                 f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+                tf = type(f)
 
         if len(f_args) == 1:
             f_args = f_args[0]
@@ -787,7 +788,7 @@ class KlongInterpreter():
                     tq = type(q)
                     ctx[sym] = q if tq is int or tq is float or tq is numpy.ndarray else self.call(q)
 
-        if is_list(f) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0:
+        if (tf is list or (tf is numpy.ndarray and f.ndim > 0)) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0:
             # Filter out semicolons — remaining elements are local variable declarations
             params = [q for q in f[0] if type(q) is KGSym]
             if len(params) > 0:
