@@ -854,15 +854,16 @@ class KlongInterpreter():
 
         ctx[reserved_dot_f_symbol] = f
 
-        # Use fast push/pop when context only has reserved symbols (x/y/z/.f)
+        # Inline push/pop for speed — avoid method call overhead
+        _ctx = self._context
         if has_locals:
-            self._context.push(ctx)
+            _ctx.push(ctx)
         else:
-            self._context.push_fn_ctx(ctx)
+            _ctx._context.append(ctx)
         try:
             tf = type(f)
             if tf in _kglambda_types or _is_kglambda_type(tf):
-                return f(self, self._context)
+                return f(self, _ctx)
             if tf is int or tf is float:
                 return f
             # Route KGFn (recursive function calls) through _eval_fn, everything else through eval directly
@@ -871,9 +872,11 @@ class KlongInterpreter():
             return self.eval(f)
         finally:
             if has_locals:
-                self._context.pop()
+                _ctx.pop()
             else:
-                self._context.pop_fn_ctx()
+                _ctx_list = _ctx._context
+                if len(_ctx_list) > _ctx._min_ctx_count:
+                    _ctx_list.pop()
 
     def call(self, x):
         """
