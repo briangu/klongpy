@@ -45,7 +45,7 @@ def set_context_var(d, sym, v):
     """
     Sets a context variable, wrapping Python lambda/functions as appropriate.
     """
-    assert isinstance(sym, KGSym)
+    assert type(sym) is KGSym
     if callable(v) and type(v) not in _kglambda_types and not _is_kglambda_type(type(v)):
         x = KGLambda(v)
         v = KGCall(x,args=None,arity=x.get_arity())
