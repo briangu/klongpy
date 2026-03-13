@@ -18,6 +18,17 @@ from .utils import ReadonlyDict
 
 _UNEVALUATED_OPS = frozenset(['::','∇'])
 
+# Cache which types are numpy scalar types to avoid repeated issubclass calls
+_numpy_scalar_types = set()
+
+def _is_numpy_scalar_type(tx):
+    if tx in _numpy_scalar_types:
+        return True
+    if issubclass(tx, (numpy.integer, numpy.floating)):
+        _numpy_scalar_types.add(tx)
+        return True
+    return False
+
 
 def set_context_var(d, sym, v):
     """
@@ -780,7 +791,7 @@ class KlongInterpreter():
                 rt = type(result)
                 if rt is int or rt is float:
                     self._result_cache[x] = result
-                elif issubclass(rt, (numpy.integer, numpy.floating)):
+                elif rt in _numpy_scalar_types or _is_numpy_scalar_type(rt):
                     self._result_cache[x] = result
                 elif rt is numpy.ndarray:
                     if result.ndim == 0 or not result.flags.writeable:
