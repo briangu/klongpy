@@ -675,7 +675,7 @@ class KlongInterpreter():
             except KeyError:
                 if f not in reserved_fn_symbols_set:
                     raise KlongException(f"undefined: {f}")
-        if f_arity > 0 and (tf is KGFn or tf is KGCall) and not f.is_op() and not f.is_adverb_chain():
+        if f_arity > 0 and (tf is KGFn or tf is KGCall) and not f._is_op and not f._is_adverb_chain:
             if f.args is None:
                 # if f.args is None, then there are no projections in place and we use f_args entirely for the function.
                 return f.a, f_args, f.arity
