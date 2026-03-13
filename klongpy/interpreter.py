@@ -338,6 +338,7 @@ def chain_adverbs(klong, arr):
                                             [1 2 3 4 5 6 7]]
 
     """
+    _specialized = False
     if arr[0].arity == 1:
         if type(arr[0].a) is KGOp:
             # Direct dispatch for built-in operators — pre-resolved function avoids dict lookup
