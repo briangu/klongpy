@@ -115,10 +115,13 @@ def skip_space(t, i=0, ignore_newline=False):
 
 
 def skip(t, i=0, ignore_newline=False):
-    i = skip_space(t, i, ignore_newline=ignore_newline)
+    # Inline skip_space to avoid function call overhead
+    ws = _WHITESPACE if ignore_newline else _WHITESPACE_NO_NL
+    while i < len(t) and t[i] in ws:
+        i += 1
     if cmatch2(t, i, ':', '"'):
         i = read_shifted_comment(t, i+2)
-        i = skip(t, i)
+        i = skip(t, i, ignore_newline)
     return i
 
 
