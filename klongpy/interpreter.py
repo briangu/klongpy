@@ -344,12 +344,63 @@ def chain_adverbs(klong, arr):
             _fn = klong._vm[arr[0].a.a]
             f = lambda x,fn=_fn: fn(x)
         else:
-            # Reuse a single KGCall to avoid allocation on each iteration
-            _call = KGCall(arr[0].a, [None], arity=1)
-            _args = _call.args
-            def f(x, k=klong, c=_call, a=_args):
-                a[0] = x
-                return k.eval(c)
+            # Try to specialize for simple op bodies (e.g., {x+1}, {x*2})
+            # This avoids context push/pop and _eval_fn overhead entirely
+            _specialized = False
+            verb = arr[0].a
+            # Resolve symbol to actual function at chain-creation time
+            if type(verb) is KGSym:
+                try:
+                    _resolved = klong._context[verb]
+                except KeyError:
+                    _resolved = None
+                if _resolved is not None and type(_resolved) is KGFn and not _resolved._is_op and not _resolved._is_adverb_chain and _resolved.args is None:
+                    body = _resolved.a
+                    tb = type(body)
+                else:
+                    body = verb
+                    tb = type(body)
+            else:
+                body = verb
+                tb = type(body)
+            if (tb is KGCall or tb is KGFn) and body._is_op:
+                op_a = body._op_a
+                if body._op_arity == 2:
+                    _op_fn = klong._vd[op_a]
+                    fa = body.args
+                    if type(fa) is not list:
+                        fa = [fa] if fa is not None else fa
+                    fa0, fa1 = fa[0], fa[1]
+                    t0, t1 = type(fa0), type(fa1)
+                    # {x op literal}: e.g., {x+1}, {x*2}
+                    if t0 is KGSym and fa0 is _sym_x and (t1 is int or t1 is float):
+                        _c = fa1
+                        f = lambda x, fn=_op_fn, c=_c: fn(x, c)
+                        _specialized = True
+                    # {literal op x}: e.g., {1+x}
+                    elif t1 is KGSym and fa1 is _sym_x and (t0 is int or t0 is float):
+                        _c = fa0
+                        f = lambda x, fn=_op_fn, c=_c: fn(c, x)
+                        _specialized = True
+                    # {x op x}: e.g., {x*x}
+                    elif t0 is KGSym and fa0 is _sym_x and t1 is KGSym and fa1 is _sym_x:
+                        f = lambda x, fn=_op_fn: fn(x, x)
+                        _specialized = True
+                elif body._op_arity == 1:
+                    # {monad_op x}: e.g., {!x}, {-x}
+                    fa = body.args
+                    _fa = fa if type(fa) is not list else fa[0]
+                    if type(_fa) is KGSym and _fa is _sym_x:
+                        _op_fn = klong._vm[op_a]
+                        f = lambda x, fn=_op_fn: fn(x)
+                        _specialized = True
+            if not _specialized:
+                # General case: use KGCall + _eval_fn (skip eval dispatch)
+                _call = KGCall(verb, [None], arity=1)
+                _args = _call.args
+                def f(x, k=klong, c=_call, a=_args):
+                    a[0] = x
+                    return k._eval_fn(c)
     else:
         if type(arr[0].a) is KGOp:
             # Direct dispatch for built-in operators — pre-resolved function avoids dict lookup
@@ -362,7 +413,7 @@ def chain_adverbs(klong, arr):
             def f(x, y, k=klong, c=_call, a=_args):
                 a[0] = x
                 a[1] = y
-                return k.eval(c)
+                return k._eval_fn(c)
     for i in range(1,len(arr)-1):
         o = get_adverb_fn(klong, arr[i].a, arity=arr[i].arity)
         if arr[i].arity == 1:
@@ -418,6 +469,11 @@ class KlongInterpreter():
         k = k if type(k) is KGSym else KGSym(k)
         self._context[k] = v
         self._result_cache.clear()
+        # Only clear adverb cache when assigning functions (not data)
+        # since specialized adverb closures capture resolved function bodies
+        tv = type(v)
+        if tv is KGFn or tv is KGCall:
+            self._adverb_cache.clear()
         self._result_cache_ok = False
 
     def __getitem__(self, k):
@@ -431,6 +487,7 @@ class KlongInterpreter():
         k = k if type(k) is KGSym else KGSym(k)
         del self._context[k]
         self._result_cache.clear()
+        self._adverb_cache.clear()
         self._result_cache_ok = False
 
     def _get_op_fn(self, s, arity):
