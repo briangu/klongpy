@@ -152,7 +152,7 @@ class KGFnWrapper:
 
 
 class KGCall(KGFn):
-    __slots__ = ('_cached_body', '_cached_body_arity', '_cached_body_type', '_cached_version', '_nargs', '_f_args')
+    __slots__ = ('_cached_body', '_cached_body_arity', '_cached_body_type', '_cached_version', '_nargs', '_f_args', '_arg0_is_dyad_op')
 
     def __init__(self, a, args, arity, global_params=None):
         super().__init__(a, args, arity, global_params)
@@ -161,7 +161,15 @@ class KGCall(KGFn):
         self._cached_body_type = None
         self._cached_version = -1
         self._nargs = 0 if args is None else (len(args) if type(args) is list else 1)
-        self._f_args = args if args is None or type(args) is list else [args]
+        _f_args = args if args is None or type(args) is list else [args]
+        self._f_args = _f_args
+        # Pre-compute arg dispatch strategy for nargs==1
+        if _f_args is not None and len(_f_args) == 1:
+            _a0 = _f_args[0]
+            _ta0 = type(_a0)
+            self._arg0_is_dyad_op = (_ta0 is KGFn or _ta0 is KGCall) and _a0._is_op and _a0._op_arity == 2
+        else:
+            self._arg0_is_dyad_op = False
 
     def __str__(self):
         return self.a.__str__() if issubclass(type(self.a), KGLambda) else super().__str__()

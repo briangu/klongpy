@@ -969,11 +969,8 @@ class KlongInterpreter():
             # Inline call() dispatch for op args to skip method call overhead
             if nargs == 1:
                 q = f_args[0]
-                tq = type(q)
-                if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types:
-                    ctx = {_sym_x: q}
-                elif (tq is KGFn or tq is KGCall) and q._is_op and q._op_arity == 2:
-                    # Inline dyad op for single-arg function call (e.g., fib(x-1))
+                if x._arg0_is_dyad_op:
+                    # Fast path: pre-computed dyad op arg (e.g., fib(x-1))
                     _afa = q.args
                     if type(_afa) is not list:
                         _afa = [_afa] if _afa is not None else _afa
@@ -1007,12 +1004,16 @@ class KlongInterpreter():
                             ctx = {_sym_x: _afast(_ax, _ay)}
                         else:
                             ctx = {_sym_x: self._vd[q._op_a](_ax, _ay)}
-                elif (tq is KGFn or tq is KGCall) and q._is_op:
-                    ctx = {_sym_x: self.eval(q)}
-                elif tq is KGCall:
-                    ctx = {_sym_x: self._eval_fn(q)}
                 else:
-                    ctx = {_sym_x: self.call(q)}
+                    tq = type(q)
+                    if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types:
+                        ctx = {_sym_x: q}
+                    elif (tq is KGFn or tq is KGCall) and q._is_op:
+                        ctx = {_sym_x: self.eval(q)}
+                    elif tq is KGCall:
+                        ctx = {_sym_x: self._eval_fn(q)}
+                    else:
+                        ctx = {_sym_x: self.call(q)}
             elif nargs == 2:
                 q0, q1 = f_args[0], f_args[1]
                 tq0, tq1 = type(q0), type(q1)
