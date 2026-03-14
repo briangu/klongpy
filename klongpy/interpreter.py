@@ -715,8 +715,27 @@ def _fused_filter(a, cmp_op, val):
     idx = numpy.flatnonzero(cmp_fn(a, val))
     return a[idx]
 
+def _fused_count_chunk(a, cmp_fn, val, s, e):
+    return numpy.count_nonzero(cmp_fn(a[s:e], val))
+
+def _fused_count(a, cmp_op, val):
+    """Fused parallel comparison + count_nonzero."""
+    cmp_fn = _CMP_FNS[cmp_op]
+    if type(a) is numpy.ndarray and len(a) >= 100_000:
+        n = len(a)
+        nchunks = 4
+        chunk = n // nchunks
+        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+        global _argsort_pool
+        if _argsort_pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            _argsort_pool = ThreadPoolExecutor(max_workers=16)
+        futures = [_argsort_pool.submit(_fused_count_chunk, a, cmp_fn, val, s, e) for s, e in slices]
+        return sum(f.result() for f in futures)
+    return int(numpy.count_nonzero(cmp_fn(a, val)))
+
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter, '_fused_count': _fused_count}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
@@ -861,6 +880,18 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                     if (ta is KGCall or ta is KGFn) and arg._is_op and arg._op_arity == 1 and arg._op_a == '&':
                         inner_arg = arg.args
                         inner = inner_arg[0] if type(inner_arg) is list else inner_arg
+                        # Detect #&(a CMP val) → _fused_count(a, cmp, val) for parallel count
+                        ti = type(inner)
+                        if (ti is KGCall or ti is KGFn) and inner._is_op and inner._op_arity == 2:
+                            cmp_op = inner._op_a
+                            if cmp_op in ('<', '>', '='):
+                                cmp_args = inner.args
+                                if type(cmp_args) is list and len(cmp_args) == 2:
+                                    s0 = _expr_to_source(cmp_args[0], klong, dyadic=dyadic, var_refs=var_refs)
+                                    s1 = _expr_to_source(cmp_args[1], klong, dyadic=dyadic, var_refs=var_refs)
+                                    if s0 is not None and s1 is not None:
+                                        py_cmp = {'<': '<', '>': '>', '=': '=='}[cmp_op]
+                                        return (f'_fused_count({s0[0]},{py_cmp!r},{s1[0]})', False)
                         s = _expr_to_source(inner, klong, dyadic=dyadic, var_refs=var_refs)
                         if s is not None:
                             return (f'_np.count_nonzero({s[0]})', False)
