@@ -99,7 +99,7 @@ class KlongContext():
     1.99999999999999997
 
     """
-    __slots__ = ('_context', '_min_ctx_count', '_strict_mode', '_lookup_cache', '_lookup_version')
+    __slots__ = ('_context', '_min_ctx_count', '_strict_mode', '_lookup_cache', '_lookup_version', '_fast_x')
 
     def __init__(self, system_contexts, strict_mode=1):
         # Use list instead of deque for better cache locality
@@ -109,6 +109,7 @@ class KlongContext():
         self._min_ctx_count = len(system_contexts)
         self._strict_mode = strict_mode
         self._lookup_version = 0
+        self._fast_x = None
 
     def start_module(self, name):
         self.push(KGModule(name))
@@ -157,6 +158,11 @@ class KlongContext():
             v = self._context[-1].get(k)
             if v is not None:
                 return v
+            # Fallback: specialized path stores x in _fast_x (no dict push)
+            if k is _sym_x:
+                v = self._fast_x
+                if v is not None:
+                    return v
         else:
             # Fast path: check lookup cache for non-reserved symbols
             cached = self._lookup_cache.get(k)
@@ -899,7 +905,7 @@ class KlongInterpreter():
                 if x._arg0_dyad_fast:
                     # Pre-cached: arg sym, literal, op_a
                     _ay = x._arg0_literal
-                    _ax = _ctx_list[-1].get(x._arg0_sym)
+                    _ax = _ctx._fast_x
                     if _ax is None:
                         _ax = self.eval(x._arg0_sym)
                     if type(_ax) is int:
@@ -925,7 +931,7 @@ class KlongInterpreter():
                     _afa0 = _afa[0]
                     _at0 = type(_afa0)
                     if _at0 is KGSym and _afa0 in reserved_fn_symbols_set:
-                        _ax = _ctx_list[-1].get(_afa0)
+                        _ax = _ctx._fast_x if _afa0 is _sym_x else _ctx_list[-1].get(_afa0)
                         if _ax is None:
                             _ax = self.eval(_afa0)
                     elif _at0 is int or _at0 is float:
@@ -960,8 +966,8 @@ class KlongInterpreter():
                         _xval = self._eval_fn(q)
                     else:
                         _xval = self.call(q)
-                ctx = {_sym_x: _xval}
-                _ctx_list.append(ctx)
+                _saved_x = _ctx._fast_x
+                _ctx._fast_x = _xval
                 try:
                     # Condition eval — pre-cached literal, op_a, fast_op
                     _cy = x._cond_literal
@@ -995,9 +1001,6 @@ class KlongInterpreter():
                         if x._cached_true_is_sym:
                             if xb is _sym_x:
                                 return _xval
-                            _v = ctx.get(xb)
-                            if _v is not None:
-                                return _v
                             return self.eval(xb)
                     else:
                         if x._cached_false_is_dyad_op:
@@ -1009,9 +1012,7 @@ class KlongInterpreter():
                             if _bt1 is int or _bt1 is float:
                                 _by = _bfa1
                             elif _bt1 is KGSym and _bfa1 in reserved_fn_symbols_set:
-                                _by = ctx.get(_bfa1)
-                                if _by is None:
-                                    _by = self.eval(_bfa1)
+                                _by = _xval if _bfa1 is _sym_x else self.eval(_bfa1)
                             elif (_bt1 is KGFn or _bt1 is KGCall) and _bfa1._is_op:
                                 _by = self.eval(_bfa1)
                             elif _bt1 is KGCall and not _bfa1._is_adverb_chain:
@@ -1025,9 +1026,7 @@ class KlongInterpreter():
                                 _bfa0 = _bfa[0]
                                 _bt0 = type(_bfa0)
                                 if _bt0 is KGSym and _bfa0 in reserved_fn_symbols_set:
-                                    _bx = ctx.get(_bfa0)
-                                    if _bx is None:
-                                        _bx = self.eval(_bfa0)
+                                    _bx = _xval if _bfa0 is _sym_x else self.eval(_bfa0)
                                 elif _bt0 is int or _bt0 is float:
                                     _bx = _bfa0
                                 elif (_bt0 is KGFn or _bt0 is KGCall) and _bfa0._is_op:
@@ -1058,9 +1057,8 @@ class KlongInterpreter():
                         return xb
                     if txb is KGSym:
                         if xb in reserved_fn_symbols_set:
-                            _v = ctx.get(xb)
-                            if _v is not None:
-                                return _v
+                            if xb is _sym_x:
+                                return _xval
                         return self.eval(xb)
                     if (txb is KGCall or txb is KGFn) and xb._is_op:
                         return self.eval(xb)
@@ -1068,8 +1066,7 @@ class KlongInterpreter():
                         return self._eval_fn(xb)
                     return self.call(xb)
                 finally:
-                    if len(_ctx_list) > _ctx._min_ctx_count:
-                        _ctx_list.pop()
+                    _ctx._fast_x = _saved_x
             if not x._cached_nargs_ok:
                 return x
             tf = x._cached_body_type
@@ -1688,6 +1685,11 @@ class KlongInterpreter():
                 v = self._context._context[-1].get(x)
                 if v is not None:
                     return v
+                # Fallback: specialized path stores x in _fast_x (no dict push)
+                if x is _sym_x:
+                    v = self._context._fast_x
+                    if v is not None:
+                        return v
             try:
                 return self._context[x]
             except KeyError:
