@@ -950,6 +950,13 @@ class KlongInterpreter():
                 x._cached_body_arity = f_arity
                 x._cached_body_type = tf
                 x._cached_version = _ctx._lookup_version
+                # Pre-compute whether KGCond body's condition is a dyad op
+                if tf is KGCond:
+                    _x0 = f[0]
+                    _tx0 = type(_x0)
+                    x._cached_cond_is_dyad_op = (_tx0 is KGCall or _tx0 is KGFn) and _x0._is_op and _x0._op_arity == 2
+                else:
+                    x._cached_cond_is_dyad_op = False
 
             if len(f_args) == 1:
                 f_args = f_args[0]
@@ -1053,11 +1060,8 @@ class KlongInterpreter():
             # KGCond first: most common for recursive/conditional function bodies
             if tf is KGCond:
                 x0 = f[0]
-                tx0 = type(x0)
-                if tx0 is int or tx0 is float:
-                    q = x0
-                elif (tx0 is KGCall or tx0 is KGFn) and x0._is_op and x0._op_arity == 2:
-                    # Inline dyad op dispatch to avoid eval() call overhead
+                if x._cached_cond_is_dyad_op:
+                    # Fast path: pre-computed condition is a dyad op (e.g., x<2)
                     _cfa = x0.args
                     if type(_cfa) is not list:
                         _cfa = [_cfa] if _cfa is not None else _cfa
@@ -1091,10 +1095,14 @@ class KlongInterpreter():
                             q = _cfast(_cx, _cy)
                         else:
                             q = self._vd[_cop_a](_cx, _cy)
-                elif (tx0 is KGCall or tx0 is KGFn) and x0._is_op:
-                    q = self.eval(x0)
                 else:
-                    q = self.call(x0)
+                    tx0 = type(x0)
+                    if tx0 is int or tx0 is float:
+                        q = x0
+                    elif (tx0 is KGCall or tx0 is KGFn) and x0._is_op:
+                        q = self.eval(x0)
+                    else:
+                        q = self.call(x0)
                 tq = type(q)
                 if tq is int or tq is float:
                     p = q != 0
