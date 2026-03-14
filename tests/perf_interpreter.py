@@ -78,6 +78,19 @@ def setup_ewma_data(klong, n=10_000, seed=42):
     klong['alpha'] = 0.06  # ~30-day half-life
 
 
+def setup_matrix_data(klong, rows=1000, cols=100, seed=42):
+    """Set up matrix (list of arrays) for row-wise operations."""
+    rng = np.random.default_rng(seed)
+    klong['mat'] = [rng.random(cols) for _ in range(rows)]
+
+
+def setup_multi_asset(klong, n_days=1000, n_assets=50, seed=42):
+    """Set up multi-asset time series for cross-sectional operations."""
+    rng = np.random.default_rng(seed)
+    klong['prices'] = [50.0 + rng.standard_normal(n_days).cumsum() * 0.5 for _ in range(n_assets)]
+    klong['volumes'] = [rng.integers(1000, 100000, size=n_days).astype(float) for _ in range(n_assets)]
+
+
 def get_benchmarks():
     """Return categorized benchmarks: (category, name, expr, setup_fn)."""
     return [
@@ -122,6 +135,16 @@ def get_benchmarks():
         ("scan", "scan_add_10K",        "{x+y}\\!10000",                   None),
         ("scan", "scan_compound_10K",   "{x+y*2}\\!10000",                 None),
         ("scan", "over_sum_10K",        "{x+y}/!10000",                    None),
+
+        # ── Row-wise / matrix operations ──
+        ("matrix", "row_sums_1Kx100",    "+/'mat",            lambda k: setup_matrix_data(k, 1000, 100)),
+        ("matrix", "row_means_1Kx100",   "{(+/x)%#x}'mat",   lambda k: setup_matrix_data(k, 1000, 100)),
+        ("matrix", "row_max_1Kx100",     "|/'mat",            lambda k: setup_matrix_data(k, 1000, 100)),
+        ("matrix", "row_normalize",      "{x%+/x}'mat",      lambda k: setup_matrix_data(k, 1000, 100)),
+
+        # ── Multi-asset cross-sectional ──
+        ("xsect", "returns_50assets",    "{-:'x}'prices",     lambda k: setup_multi_asset(k)),
+        ("xsect", "vwap_50assets",       "{(+/x*y)%+/y}'prices,'volumes",  None),
 
         # ── Recursive / interpreter-heavy ──
         ("interp", "fib_20",    "fib(20)",  None),

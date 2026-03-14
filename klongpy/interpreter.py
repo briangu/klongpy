@@ -595,6 +595,7 @@ def chain_adverbs(klong, arr):
             # Direct dispatch for built-in operators — pre-resolved function avoids dict lookup
             _fn = klong._vd[arr[0].a.a]
             f = lambda x,y,fn=_fn: fn(x,y)
+            _vectorizable = True
         else:
             # Try to unwrap inline lambda and resolve to direct op
             _dyad_verb = arr[0].a
@@ -654,6 +655,21 @@ def chain_adverbs(klong, arr):
                         a[0] = x
                         a[1] = y
                         return k._eval_fn(c)
+    # Axis-based reduction dispatch for over-each / scan-each on list of arrays
+    _AXIS_REDUCE = {
+        '+': lambda a: numpy.sum(a, axis=1),
+        '*': lambda a: numpy.prod(a, axis=1),
+        '|': lambda a: numpy.max(a, axis=1),
+        '&': lambda a: numpy.min(a, axis=1),
+        '-': lambda a: numpy.subtract.reduce(a, axis=1),
+        '%': lambda a: numpy.divide.reduce(a, axis=1),
+    }
+    _AXIS_SCAN = {
+        '+': lambda a: numpy.cumsum(a, axis=1),
+        '*': lambda a: numpy.cumprod(a, axis=1),
+        '-': lambda a: numpy.subtract.accumulate(a, axis=1),
+        '%': lambda a: numpy.divide.accumulate(a, axis=1),
+    }
     for i in range(1,len(arr)-1):
         # For each-adverb (') with a vectorizable arithmetic function,
         # apply directly to the array instead of iterating element by element.
@@ -661,11 +677,30 @@ def chain_adverbs(klong, arr):
         if arr[i].a == "'" and _vectorizable and arr[i].arity == 1:
             _prev_f = f
             _be = klong._backend
-            def f(x, f=_prev_f, be=_be):
+            # Check if previous adverb was over(/) or scan(\) for axis optimization
+            _verb_op = arr[0].a.a if type(arr[0].a) is KGOp else None
+            _prev_adv = arr[i-1].a if i > 1 else None
+            _axis_fn = None
+            if _verb_op is not None:
+                if _prev_adv == '/':
+                    _axis_fn = _AXIS_REDUCE.get(_verb_op)
+                elif _prev_adv == '\\':
+                    _axis_fn = _AXIS_SCAN.get(_verb_op)
+            def f(x, f=_prev_f, be=_be, axis_fn=_axis_fn):
                 tx = type(x)
                 if tx is numpy.ndarray and x.ndim > 0:
                     return f(x)
                 if tx is list:
+                    if axis_fn is not None and len(x) > 0 and type(x[0]) is numpy.ndarray:
+                        try:
+                            stacked = numpy.stack(x)
+                            result = axis_fn(stacked)
+                            # For reduce: return 1D array; for scan: return list of arrays
+                            if result.ndim == 1:
+                                return result
+                            return [result[i] for i in range(len(result))]
+                        except (ValueError, TypeError):
+                            pass
                     return be.kg_asarray([f(e) for e in x])
                 if isinstance(x, str):
                     return be.kg_asarray([f(e) for e in be.str_to_char_array(x)])
