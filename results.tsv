@@ -300,3 +300,4 @@ exp86	10.12	pass	keep	exp86: cffi fused reduce for */expr (compound_ret_100K: 0.
 exp87	10.12	pass	keep	exp87: extend cffi fused reduce to identity reduces (sum_1M: 0.196->0.131ms 33%)
 exp88	10.56	pass	keep	exp88: cffi fused reduce for 2-var + v1 remapping (vwap_100K: 0.042->0.035ms)
 exp89	10.23	pass	keep	exp89: add comparison ops to C converter + generic_visit safety
+exp90	10.36	pass	keep	exp90: fused running_max/min + expression — single-pass C loops for drawdown patterns (max_drawdown: 0.161->0.130ms 19%)

@@ -959,8 +959,10 @@ def _get_cffi():
             pass
     return _cffi_mod
 
-def _python_expr_to_c(src, nvars):
-    """Convert Python arithmetic expression to C with array indexing."""
+def _python_expr_to_c(src, nvars, scalars=None):
+    """Convert Python arithmetic expression to C with array indexing.
+    scalars: optional set of variable names to emit as-is (not array-indexed).
+    """
     import ast
     tree = ast.parse(src, mode='eval')
     class CGen(ast.NodeVisitor):
@@ -992,6 +994,8 @@ def _python_expr_to_c(src, nvars):
                 return f'(-{operand})'
             return operand
         def visit_Name(self, node):
+            if scalars and node.id in scalars:
+                return node.id
             if node.id.startswith('_v') and node.id[2:].isdigit():
                 return f'{node.id}[_i]'
             raise ValueError(node.id)
@@ -1100,6 +1104,117 @@ def _cffi_reduce_2(reduce_op, inner_src, a, b):
     fb_globals['_v0'] = a
     fb_globals['_v1'] = b
     inner_val = eval(inner_src, fb_globals)
+    return _REDUCE_NP_FALLBACK[reduce_op](inner_val)
+
+# Fused running_max/min + expression: single-pass C loop
+_RUNNING_PATTERNS = {
+    '_running_max(_v0)': ('>', '_v0[0]'),   # running max: update if x[i] > _rm
+    '_running_min(_v0)': ('<', '_v0[0]'),   # running min: update if x[i] < _rm
+}
+
+def _compile_cffi_fused_running(src, mode='expr'):
+    """Compile fused running_max/min + expression into single-pass C loop.
+    mode='expr' returns array output, mode='reduce_OP' returns scalar reduction.
+    """
+    cache_key = f'__fused_running_{mode}_{src}'
+    cached = _cffi_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    cffi = _get_cffi()
+    if cffi is None:
+        _cffi_cache[cache_key] = False
+        return False
+    # Detect which running pattern is in the source
+    pattern_found = None
+    for pat, (cmp_op, init) in _RUNNING_PATTERNS.items():
+        if pat in src:
+            pattern_found = (pat, cmp_op, init)
+            break
+    if pattern_found is None:
+        _cffi_cache[cache_key] = False
+        return False
+    pat, cmp_op, init = pattern_found
+    # Replace _running_max/_running_min with _rm in the expression
+    c_src_expr = src.replace(pat, '_rm')
+    # Convert the modified expression to C (with _rm as a scalar variable)
+    try:
+        c_expr = _python_expr_to_c(c_src_expr, 1, scalars={'_rm'})
+    except (ValueError, SyntaxError):
+        _cffi_cache[cache_key] = False
+        return False
+    ffi = cffi.FFI()
+    if mode == 'expr':
+        # Array output: out[i] = expr(_v0[i], _rm)
+        c_code = f'''#include <stdint.h>
+#include <math.h>
+void _fused(const double* _v0, double* _out, int64_t _n) {{
+    double _rm = _v0[0];
+    _out[0] = {c_expr.replace('_v0[_i]', '_v0[0]')};
+    for (int64_t _i = 1; _i < _n; _i++) {{
+        if (_v0[_i] {cmp_op} _rm) _rm = _v0[_i];
+        _out[_i] = {c_expr};
+    }}
+}}'''
+        ffi.cdef('void _fused(const double*, double*, int64_t);')
+    elif mode.startswith('reduce_'):
+        # Scalar reduction output
+        reduce_op = mode[7:]  # e.g., '|', '&', '+', '*'
+        op_info = _CFFI_REDUCE_OPS.get(reduce_op)
+        if op_info is None:
+            _cffi_cache[cache_key] = False
+            return False
+        identity, acc_tmpl = op_info
+        acc_stmt_0 = acc_tmpl % c_expr.replace('_v0[_i]', '_v0[0]')
+        acc_stmt = acc_tmpl % c_expr
+        c_code = f'''#include <stdint.h>
+#include <math.h>
+double _fused(const double* _v0, int64_t _n) {{
+    double _rm = _v0[0];
+    double _acc = {identity};
+    {acc_stmt_0}
+    for (int64_t _i = 1; _i < _n; _i++) {{
+        if (_v0[_i] {cmp_op} _rm) _rm = _v0[_i];
+        {acc_stmt}
+    }}
+    return _acc;
+}}'''
+        ffi.cdef('double _fused(const double*, int64_t);')
+    else:
+        _cffi_cache[cache_key] = False
+        return False
+    try:
+        lib = ffi.verify(c_code, extra_compile_args=['-O2'])
+    except Exception:
+        _cffi_cache[cache_key] = False
+        return False
+    _cffi_cache[cache_key] = (ffi, lib)
+    return (ffi, lib)
+
+def _fused_running_expr(src, a):
+    """Runtime: fused running_max/min + expression, single-pass C loop."""
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64 and len(a) > 0:
+        result = _compile_cffi_fused_running(src, mode='expr')
+        if result:
+            ffi, lib = result
+            out = numpy.empty(len(a), dtype=numpy.float64)
+            lib._fused(ffi.from_buffer('double[]', a), ffi.from_buffer('double[]', out), len(a))
+            return out
+    # Fallback: evaluate normally
+    fb_globals = dict(_EVAL_GLOBALS)
+    fb_globals['_v0'] = a
+    return eval(src, fb_globals)
+
+def _fused_running_reduce(reduce_op, src, a):
+    """Runtime: fused reduce + running_max/min + expression, single-pass C loop."""
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64 and len(a) > 0:
+        result = _compile_cffi_fused_running(src, mode=f'reduce_{reduce_op}')
+        if result:
+            ffi, lib = result
+            return lib._fused(ffi.from_buffer('double[]', a), len(a))
+    # Fallback: evaluate inner expression then reduce
+    fb_globals = dict(_EVAL_GLOBALS)
+    fb_globals['_v0'] = a
+    inner_val = eval(src, fb_globals)
     return _REDUCE_NP_FALLBACK[reduce_op](inner_val)
 
 # cffi utilities: running_max/min, count (lazy-compiled)
@@ -1261,7 +1376,7 @@ def _parallel_eval_2(fn, v0, v1):
     return result
 
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter, '_fused_count': _fused_count, '_unique': _unique, '_cffi_reduce_1': _cffi_reduce_1, '_cffi_reduce_2': _cffi_reduce_2}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter, '_fused_count': _fused_count, '_unique': _unique, '_cffi_reduce_1': _cffi_reduce_1, '_cffi_reduce_2': _cffi_reduce_2, '_fused_running_expr': _fused_running_expr, '_fused_running_reduce': _fused_running_reduce}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
@@ -3682,13 +3797,28 @@ class KlongInterpreter():
                 if src is not None and var_refs:
                     var_syms = list(var_refs.keys())
                     var_names = [var_refs[s] for s in var_syms]
-                    fn_src = f'lambda {",".join(var_names)}: {src[0]}'
+                    _src0 = src[0]
+                    # Detect fused running_max/min + expression patterns (single-var only)
+                    if len(var_syms) == 1 and ('_running_max(_v0)' in _src0 or '_running_min(_v0)' in _src0):
+                        _REDUCE_MAP = {'_np.max(': '|', '_np.min(': '&', '_np.sum(': '+', '_np.prod(': '*'}
+                        _reduce_rewrite = None
+                        for _prefix, _rop in _REDUCE_MAP.items():
+                            if _src0.startswith(_prefix) and _src0.endswith(')'):
+                                _inner = _src0[len(_prefix):-1]
+                                _reduce_rewrite = (_rop, _inner)
+                                break
+                        if _reduce_rewrite is not None:
+                            _rop, _inner = _reduce_rewrite
+                            _src0 = f"_fused_running_reduce({_rop!r},{_inner!r},_v0)"
+                        else:
+                            _src0 = f"_fused_running_expr({_src0!r},_v0)"
+                    fn_src = f'lambda {",".join(var_names)}: {_src0}'
                     try:
                         fn = eval(fn_src, _EVAL_GLOBALS)
                         # Tag element-wise functions for parallel chunked evaluation
-                        if _is_elementwise_source(src[0]):
+                        if _is_elementwise_source(_src0):
                             fn._parallel = True
-                            fn._source = src[0]
+                            fn._source = _src0
                         # Store (fn, sym0) for 1-var, (fn, sym0, sym1) for 2-var
                         # This avoids generator overhead in dispatch
                         if len(var_syms) == 1:
