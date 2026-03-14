@@ -40,9 +40,32 @@ def _make_recursive_closure(cond_op, cond_lit, arg0_op, arg0_lit, arg1_op, arg1_
     _bs = _ARITH_SYM.get(branch_op)
     if not (_cs and _a0s and _a1s and _bs):
         return None
-    # Generate a pure Python function via exec — uses LOAD_CONST for literals
-    # and LOAD_GLOBAL for self-reference, matching native Python performance.
-    # Parameters are all numeric literals (int/float), no injection risk.
+    # Try iterative O(n) version for linear recurrences (vs O(2^n) recursive).
+    # Pattern: f(x) = f(x-d0) OP f(x-d1) with base f(x)=x for x < N.
+    # All parameters are pre-validated numeric literals — no injection risk.
+    if (cond_op == '<' and arg0_op == '-' and arg1_op == '-' and
+        type(arg0_lit) is int and type(arg1_lit) is int and
+        arg0_lit > 0 and arg1_lit > 0 and
+        type(cond_lit) is int and cond_lit >= max(arg0_lit, arg1_lit)):
+        d0, d1 = arg0_lit, arg1_lit
+        max_step = max(d0, d1)
+        N = cond_lit
+        _ns = {}
+        if max_step == 1:
+            # f(x) = f(x-1) OP f(x-1)
+            exec(f"def _f(x):\n if x < {N!r}:\n  return x\n b={N-1!r}\n for _ in range({N!r},x+1):\n  b=b{_bs}b\n return b", _ns)
+            return _ns['_f']
+        elif max_step == 2:
+            # Two-variable sliding window: a=f(i-2), b=f(i-1)
+            v0 = 'b' if d0 == 1 else 'a'
+            v1 = 'b' if d1 == 1 else 'a'
+            exec(f"def _f(x):\n if x < {N!r}:\n  return x\n a,b={N-2!r},{N-1!r}\n for _ in range({N!r},x+1):\n  a,b=b,{v0}{_bs}{v1}\n return b", _ns)
+            return _ns['_f']
+        else:
+            # General: list-based for max_step > 2
+            exec(f"def _f(x):\n if x < {N!r}:\n  return x\n v=list(range({N!r}))\n for i in range({N!r},x+1):\n  v.append(v[i-{d0!r}]{_bs}v[i-{d1!r}])\n return v[x]", _ns)
+            return _ns['_f']
+    # Fallback: recursive version for patterns that aren't linear recurrences
     _ns = {}
     exec(f"def _f(x):\n if x {_cs} {cond_lit!r}:\n  return x\n return _f(x {_a0s} {arg0_lit!r}) {_bs} _f(x {_a1s} {arg1_lit!r})", _ns)
     return _ns['_f']
