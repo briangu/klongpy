@@ -109,11 +109,16 @@ def eval_monad_expand_where(a):
         if cached is not None:
             return cached
         arr = a if is_list(a) else [a]
-        result = bknp.repeat(bknp.arange(len(arr)), arr)
+        if arr.dtype.kind == 'b':
+            result = bknp.flatnonzero(arr)
+        else:
+            result = bknp.repeat(bknp.arange(len(arr)), arr)
         result.flags.writeable = False
         _expand_where_cache[a_id] = result
         return result
     arr = a if is_list(a) else [a]
+    if type(arr) is _ndarray and arr.dtype.kind == 'b':
+        return bknp.flatnonzero(arr)
     return bknp.repeat(bknp.arange(len(arr)), arr)
 
 
