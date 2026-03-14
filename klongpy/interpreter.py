@@ -666,6 +666,9 @@ def _cffi_cumsum_chunk(a_slice, out_slice, ffi, lib):
     lib.cffi_cumsum(ffi.from_buffer('double[]', a_slice),
                     ffi.from_buffer('double[]', out_slice), len(a_slice))
 
+def _add_scalar_chunk(out_slice, val):
+    out_slice += val
+
 def _cumsum(a):
     """Cumulative sum: hybrid cffi+parallel for large float64, cffi serial for small."""
     global _argsort_pool
@@ -676,7 +679,7 @@ def _cumsum(a):
                 ffi, lib = utils
                 n = len(a)
                 if n >= 250_000:
-                    # Hybrid: parallel cffi per chunk + sequential prefix propagation
+                    # Hybrid: parallel cffi per chunk + parallel prefix propagation
                     if _argsort_pool is None:
                         from concurrent.futures import ThreadPoolExecutor
                         _argsort_pool = ThreadPoolExecutor(max_workers=16)
@@ -686,9 +689,15 @@ def _cumsum(a):
                     out = numpy.empty(n, dtype=numpy.float64)
                     futures = [_argsort_pool.submit(_cffi_cumsum_chunk, a[s:e], out[s:e], ffi, lib) for s, e in slices]
                     for f in futures: f.result()
-                    for i in range(1, nchunks):
-                        s, e = slices[i]
-                        out[s:e] += out[slices[i][0] - 1]
+                    # Compute cumulative adjustments from local chunk sums (before propagation)
+                    running = 0.0
+                    adjs = []
+                    for i in range(nchunks - 1):
+                        running += out[slices[i][1] - 1]
+                        adjs.append(running)
+                    # Parallel propagation: each chunk adjustment is independent
+                    prop_futures = [_argsort_pool.submit(_add_scalar_chunk, out[slices[i+1][0]:slices[i+1][1]], adjs[i]) for i in range(nchunks - 1)]
+                    for f in prop_futures: f.result()
                     return out
                 out = numpy.empty(n, dtype=numpy.float64)
                 lib.cffi_cumsum(ffi.from_buffer('double[]', a),
