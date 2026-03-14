@@ -412,6 +412,7 @@ def _bucket_find_and_sort(a, bucket_ids, b, bucket_min, use_u16):
         return indices[numpy.argsort(rel_vals, kind='stable')]
     return indices[numpy.argsort(a[indices])]
 
+
 def _argsort(a):
     """Fast argsort: bucket sort for integers, parallel merge for floats."""
     if type(a) is numpy.ndarray:
@@ -592,7 +593,9 @@ def _running_min(a):
     return numpy.minimum.accumulate(a)
 
 def _flatnonzero_chunk(mask, s, e):
-    return numpy.flatnonzero(mask[s:e]) + s
+    idx = numpy.flatnonzero(mask[s:e])
+    idx += s  # in-place add avoids creating new array
+    return idx
 
 def _flatnonzero(a):
     """Parallel flatnonzero for large boolean/integer arrays."""
@@ -612,7 +615,9 @@ def _flatnonzero(a):
 _CMP_FNS = {'<': numpy.less, '>': numpy.greater, '==': numpy.equal}
 
 def _fused_where_chunk(a, cmp_fn, val, s, e):
-    return numpy.flatnonzero(cmp_fn(a[s:e], val)) + s
+    idx = numpy.flatnonzero(cmp_fn(a[s:e], val))
+    idx += s  # in-place add avoids creating new array
+    return idx
 
 def _fused_where(a, cmp_op, val):
     """Fused parallel comparison + flatnonzero."""
