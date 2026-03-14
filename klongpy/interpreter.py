@@ -441,7 +441,7 @@ def _bucket_find_and_sort(a, bucket_ids, b, bucket_min, use_u16):
         return indices[numpy.argsort(rel_vals, kind='stable')]
     return indices[numpy.argsort(a[indices])]
 
-def _bucket_sort_precomputed(low16, bucket_ids, b):
+def _bucket_sort_precomputed(low16, bucket_ids, b, buf_size=0):
     """Sort bucket b using pre-computed uint16 relative values."""
     nn = len(bucket_ids)
     # cffi branchless scan for large arrays (avoids intermediate bool array)
@@ -449,20 +449,27 @@ def _bucket_sort_precomputed(low16, bucket_ids, b):
         utils = _get_cffi_utils()
         if utils is not None:
             ffi, lib = utils
-            buf = numpy.empty(nn, dtype=numpy.int64)
+            # Use smaller buffer when estimated size is provided (avoids 8MB alloc per thread)
+            alloc_n = buf_size if buf_size > 0 else nn
+            buf = numpy.empty(alloc_n, dtype=numpy.int64)
             k = lib.cffi_find_bucket(
                 ffi.cast('const uint8_t*', bucket_ids.ctypes.data),
                 ffi.cast('int64_t*', buf.ctypes.data), nn, b)
+            if k >= alloc_n:
+                # Rare: bucket larger than estimate, retry with full buffer
+                buf = numpy.empty(nn, dtype=numpy.int64)
+                k = lib.cffi_find_bucket(
+                    ffi.cast('const uint8_t*', bucket_ids.ctypes.data),
+                    ffi.cast('int64_t*', buf.ctypes.data), nn, b)
             if k <= 1:
                 return buf[:k].copy()
             indices = buf[:k]
             keys = low16[indices]
             if k >= 5000:
-                idx64 = indices if indices.dtype == numpy.int64 else indices.astype(numpy.int64)
                 out = numpy.empty(k, dtype=numpy.int64)
                 lib.cffi_counting_argsort_u16(
                     ffi.cast('const uint16_t*', keys.ctypes.data), k,
-                    ffi.cast('const int64_t*', idx64.ctypes.data),
+                    ffi.cast('const int64_t*', indices.ctypes.data),
                     ffi.cast('int64_t*', out.ctypes.data))
                 return out
             return indices[numpy.argsort(keys, kind='stable')].copy()
@@ -554,7 +561,8 @@ def _argsort(a):
                                 ffi.cast('uint8_t*', bucket_ids.ctypes.data),
                                 ffi.cast('uint16_t*', low16.ctypes.data),
                                 n, mn, shift)
-                            futures = [_argsort_pool.submit(_bucket_sort_precomputed, low16, bucket_ids, b) for b in range(nbuckets)]
+                            est = 2 * n // nbuckets + 2
+                            futures = [_argsort_pool.submit(_bucket_sort_precomputed, low16, bucket_ids, b, est) for b in range(nbuckets)]
                             return numpy.concatenate([f.result() for f in futures])
                     # Numpy fallback (int32 or no cffi)
                     if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
@@ -565,7 +573,8 @@ def _argsort(a):
                         low16 = shifted.astype(numpy.uint16)
                     else:
                         low16 = (shifted & ((1 << shift) - 1)).astype(numpy.uint16)
-                    futures = [_argsort_pool.submit(_bucket_sort_precomputed, low16, bucket_ids, b) for b in range(nbuckets)]
+                    est = 2 * n // nbuckets + 2 if n >= 100_000 else 0
+                    futures = [_argsort_pool.submit(_bucket_sort_precomputed, low16, bucket_ids, b, est) for b in range(nbuckets)]
                 else:
                     if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
                         a = a.astype(numpy.int32)
