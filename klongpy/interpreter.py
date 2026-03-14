@@ -1075,6 +1075,21 @@ def _cffi_reduce_1(reduce_op, inner_src, a):
     inner_val = eval(inner_src, fb_globals)
     return _REDUCE_NP_FALLBACK[reduce_op](inner_val)
 
+def _cffi_reduce_2(reduce_op, inner_src, a, b):
+    """Runtime fused reduce for 2-variable expressions. Falls back to numpy."""
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64 and \
+       type(b) is numpy.ndarray and b.dtype == numpy.float64 and len(a) > 0:
+        result = _compile_cffi_reduce(inner_src, reduce_op, 2)
+        if result:
+            ffi, lib = result
+            return lib._reduce(ffi.from_buffer('double[]', a), ffi.from_buffer('double[]', b), len(a))
+    # Fallback: evaluate inner expression then numpy reduce
+    fb_globals = dict(_EVAL_GLOBALS)
+    fb_globals['_v0'] = a
+    fb_globals['_v1'] = b
+    inner_val = eval(inner_src, fb_globals)
+    return _REDUCE_NP_FALLBACK[reduce_op](inner_val)
+
 # cffi utilities: running_max/min, count (lazy-compiled)
 _cffi_utils = None
 _cffi_utils_checked = False
@@ -1234,7 +1249,7 @@ def _parallel_eval_2(fn, v0, v1):
     return result
 
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter, '_fused_count': _fused_count, '_unique': _unique, '_cffi_reduce_1': _cffi_reduce_1}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter, '_fused_count': _fused_count, '_unique': _unique, '_cffi_reduce_1': _cffi_reduce_1, '_cffi_reduce_2': _cffi_reduce_2}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
@@ -1471,6 +1486,12 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                                 try:
                                     _python_expr_to_c(inner, 1)
                                     return (f"_cffi_reduce_1({op_char!r},{inner!r},_v0)", False)
+                                except (ValueError, SyntaxError):
+                                    pass
+                            elif '_v0' in inner and '_v1' in inner:
+                                try:
+                                    _python_expr_to_c(inner, 2)
+                                    return (f"_cffi_reduce_2({op_char!r},{inner!r},_v0,_v1)", False)
                                 except (ValueError, SyntaxError):
                                     pass
                         return (f'{py_fn}({s[0]})', s[1])
