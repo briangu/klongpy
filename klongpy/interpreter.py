@@ -383,7 +383,7 @@ _KLONG_SCAN_TO_PY = {'+': '_np.cumsum', '*': '_np.cumprod', '|': '_np.maximum.ac
 
 # Efficient rank: argsort + inverse permutation (O(n) instead of O(n log n) for second argsort)
 def _rank(a):
-    idx = numpy.argsort(a)
+    idx = _argsort(a)
     rank = numpy.empty(len(idx), dtype=numpy.intp)
     rank[idx] = numpy.arange(len(idx))
     return rank
@@ -392,8 +392,16 @@ def _rank(a):
 def _dotsum(a, b):
     return numpy.dot(a, b) if a.ndim == 1 else numpy.sum(a * b)
 
+# Fast argsort: downcast int64→int32 for large arrays (int32 sort is ~5% faster)
+def _argsort(a):
+    if type(a) is numpy.ndarray and a.dtype == numpy.int64 and len(a) >= 100_000:
+        mn, mx = a.min(), a.max()
+        if mn >= -2147483648 and mx <= 2147483647:
+            return numpy.argsort(a.astype(numpy.int32))
+    return numpy.argsort(a)
+
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
@@ -459,7 +467,7 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                         s1 = _expr_to_source(fa[1], klong, dyadic=dyadic, var_refs=var_refs)
                         if s0 is not None and s1 is not None:
                             # Detect x@<x → np.sort(x) optimization
-                            if s1[0] == f'_np.argsort({s0[0]})':
+                            if s1[0] == f'_argsort({s0[0]})':
                                 return (f'_np.sort({s0[0]})', False)
                             return (f'{s0[0]}[{s1[0]}]', False)
                 # Special handling for # dyad (take): N#array → array[:N]
@@ -544,7 +552,7 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                     elif op_a == '#':
                         return (f'len({s[0]})', False)
                     elif op_a == '<':
-                        return (f'_np.argsort({s[0]})', False)
+                        return (f'_argsort({s[0]})', False)
                     else:  # '-' = negate
                         return (f'(-{s[0]})', False)
         # Monad ops (arity 1) handled by _compile_arg_fn for correct semantics
