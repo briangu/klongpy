@@ -793,13 +793,103 @@ def _is_elementwise_source(src):
     """Check if compiled expression source is purely element-wise (safe for parallel chunking)."""
     return '[' not in src and not _NON_ELEMENTWISE_RE.search(src)
 
+# cffi JIT for fused element-wise evaluation
+_cffi_cache = {}
+_cffi_mod = None
+_cffi_checked = False
+
+def _get_cffi():
+    global _cffi_mod, _cffi_checked
+    if not _cffi_checked:
+        _cffi_checked = True
+        try:
+            import cffi
+            _cffi_mod = cffi
+        except ImportError:
+            pass
+    return _cffi_mod
+
+def _python_expr_to_c(src, nvars):
+    """Convert Python arithmetic expression to C with array indexing."""
+    import ast
+    tree = ast.parse(src, mode='eval')
+    class CGen(ast.NodeVisitor):
+        def visit_Expression(self, node):
+            return self.visit(node.body)
+        def visit_BinOp(self, node):
+            left = self.visit(node.left)
+            right = self.visit(node.right)
+            if isinstance(node.op, ast.Pow):
+                return f'pow({left},{right})'
+            op_map = {ast.Add: '+', ast.Sub: '-', ast.Mult: '*', ast.Div: '/'}
+            op_str = op_map.get(type(node.op))
+            if op_str is None:
+                raise ValueError(type(node.op).__name__)
+            return f'({left}{op_str}{right})'
+        def visit_UnaryOp(self, node):
+            operand = self.visit(node.operand)
+            if isinstance(node.op, ast.USub):
+                return f'(-{operand})'
+            return operand
+        def visit_Name(self, node):
+            if node.id.startswith('_v') and node.id[2:].isdigit():
+                return f'{node.id}[_i]'
+            raise ValueError(node.id)
+        def visit_Constant(self, node):
+            if isinstance(node.value, (int, float)):
+                return f'{float(node.value)}'
+            raise ValueError(node.value)
+    return CGen().visit(tree)
+
+def _compile_cffi_fused(src, nvars):
+    """Compile elementwise expression to fused C function via cffi."""
+    cached = _cffi_cache.get(src)
+    if cached is not None:
+        return cached
+    cffi = _get_cffi()
+    if cffi is None:
+        _cffi_cache[src] = False
+        return False
+    try:
+        c_expr = _python_expr_to_c(src, nvars)
+    except (ValueError, SyntaxError):
+        _cffi_cache[src] = False
+        return False
+    params_c = ', '.join([f'const double* _v{i}' for i in range(nvars)] + ['double* _out', 'int64_t _n'])
+    params_cdef = ', '.join(['const double*'] * nvars + ['double*', 'int64_t'])
+    c_src = f'#include <stdint.h>\n#include <math.h>\nvoid _fused({params_c}) {{ for (int64_t _i = 0; _i < _n; _i++) {{ _out[_i] = {c_expr}; }} }}'
+    ffi = cffi.FFI()
+    ffi.cdef(f'void _fused({params_cdef});')
+    try:
+        lib = ffi.verify(c_src, extra_compile_args=['-O2'])
+    except Exception:
+        _cffi_cache[src] = False
+        return False
+    _cffi_cache[src] = (ffi, lib)
+    return (ffi, lib)
+
 def _parallel_eval_2(fn, v0, v1):
-    """Parallel evaluation of element-wise 2-arg function on chunked arrays."""
+    """Fused C eval for element-wise 2-arg expressions, numpy parallel fallback."""
+    n = len(v0)
+    # Try cffi fused eval (single-threaded C loop eliminates intermediate arrays)
+    src = getattr(fn, '_source', None)
+    if src is not None and v0.dtype == numpy.float64 and v1.dtype == numpy.float64:
+        cffi_result = _compile_cffi_fused(src, 2)
+        if cffi_result:
+            ffi, lib = cffi_result
+            result = numpy.empty(n, dtype=numpy.float64)
+            lib._fused(
+                ffi.from_buffer('double[]', v0),
+                ffi.from_buffer('double[]', v1),
+                ffi.from_buffer('double[]', result),
+                n
+            )
+            return result
+    # Fallback: numpy parallel chunked eval
     global _argsort_pool
     if _argsort_pool is None:
         from concurrent.futures import ThreadPoolExecutor
         _argsort_pool = ThreadPoolExecutor(max_workers=16)
-    n = len(v0)
     nchunks = 6
     chunk = n // nchunks
     result = numpy.empty(n, dtype=numpy.float64)
@@ -3214,6 +3304,7 @@ class KlongInterpreter():
                         # Tag element-wise functions for parallel chunked evaluation
                         if _is_elementwise_source(src[0]):
                             fn._parallel = True
+                            fn._source = src[0]
                         # Store (fn, sym0) for 1-var, (fn, sym0, sym1) for 2-var
                         # This avoids generator overhead in dispatch
                         if len(var_syms) == 1:
