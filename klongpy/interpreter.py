@@ -470,12 +470,18 @@ def _argsort(a):
                 val_range = mx - mn + 1
                 if val_range <= 2 * n:
                     ffi, lib = utils
-                    a32 = a.astype(numpy.int32) if a.dtype != numpy.int32 else a
                     out = numpy.empty(n, dtype=numpy.int64)
-                    lib.cffi_counting_argsort(
-                        ffi.cast('const int32_t*', a32.ctypes.data),
-                        ffi.cast('int64_t*', out.ctypes.data),
-                        n, numpy.int32(mn), val_range)
+                    if a.dtype == numpy.int64:
+                        lib.cffi_counting_argsort_i64(
+                            ffi.cast('const int64_t*', a.ctypes.data),
+                            ffi.cast('int64_t*', out.ctypes.data),
+                            n, mn, val_range)
+                    else:
+                        a32 = a.astype(numpy.int32) if a.dtype != numpy.int32 else a
+                        lib.cffi_counting_argsort(
+                            ffi.cast('const int32_t*', a32.ctypes.data),
+                            ffi.cast('int64_t*', out.ctypes.data),
+                            n, numpy.int32(mn), val_range)
                     return out
         if n >= 10_000:
             global _argsort_pool
@@ -1014,6 +1020,7 @@ int64_t cffi_count_lt(const double* a, double val, int64_t n);
 int64_t cffi_count_gt(const double* a, double val, int64_t n);
 int64_t cffi_count_eq(const double* a, double val, int64_t n);
 void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range);
+void cffi_counting_argsort_i64(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
 void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
 void cffi_inverse_perm(const int64_t* perm, int64_t* out, int64_t n);
 int64_t cffi_unique_int(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
@@ -1048,6 +1055,15 @@ int64_t cffi_count_eq(const double* a, double val, int64_t n) {
     int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] == val); return c;
 }
 void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range) {
+    int64_t* counts = (int64_t*)calloc(range, sizeof(int64_t));
+    for (int64_t i = 0; i < n; i++) counts[a[i] - mn]++;
+    int64_t* offsets = (int64_t*)calloc(range, sizeof(int64_t));
+    offsets[0] = 0;
+    for (int64_t i = 1; i < range; i++) offsets[i] = offsets[i-1] + counts[i-1];
+    for (int64_t i = 0; i < n; i++) out[offsets[a[i] - mn]++] = i;
+    free(counts); free(offsets);
+}
+void cffi_counting_argsort_i64(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
     int64_t* counts = (int64_t*)calloc(range, sizeof(int64_t));
     for (int64_t i = 0; i < n; i++) counts[a[i] - mn]++;
     int64_t* offsets = (int64_t*)calloc(range, sizeof(int64_t));
