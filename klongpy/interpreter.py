@@ -384,6 +384,25 @@ _KLONG_SCAN_TO_PY = {'+': '_cumsum', '*': '_cumprod', '|': '_running_max', '&': 
 
 # Efficient rank: argsort + inverse permutation (O(n) instead of O(n log n) for second argsort)
 def _rank(a):
+    # cffi counting rank: O(n+range) for integer arrays with bounded range
+    if type(a) is numpy.ndarray and a.ndim == 1:
+        dk = a.dtype.kind
+        if dk == 'i' or dk == 'u':
+            n = len(a)
+            if n >= 1000:
+                mn_i, mx_i = int(a.min()), int(a.max())
+                val_range = mx_i - mn_i + 1
+                if val_range <= 2 * n:
+                    utils = _get_cffi_utils()
+                    if utils is not None:
+                        ffi, lib = utils
+                        a64 = a if a.dtype == numpy.int64 else a.astype(numpy.int64)
+                        out = numpy.empty(n, dtype=numpy.int64)
+                        lib.cffi_counting_rank(
+                            ffi.cast('const int64_t*', a64.ctypes.data),
+                            ffi.cast('int64_t*', out.ctypes.data),
+                            n, mn_i, val_range)
+                        return out
     idx = _argsort(a)
     n = len(idx)
     # cffi inverse permutation is faster than numpy fancy indexing for large arrays
@@ -998,6 +1017,7 @@ void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn
 void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
 void cffi_inverse_perm(const int64_t* perm, int64_t* out, int64_t n);
 int64_t cffi_unique_int(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
+void cffi_counting_rank(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
 ''')
     try:
         lib = ffi.verify('''
@@ -1056,6 +1076,14 @@ int64_t cffi_unique_int(const int64_t* a, int64_t* out, int64_t n, int64_t mn, i
     }
     free(seen);
     return k;
+}
+void cffi_counting_rank(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
+    int64_t* counts = (int64_t*)calloc(range, sizeof(int64_t));
+    for (int64_t i = 0; i < n; i++) counts[a[i] - mn]++;
+    int64_t total = 0;
+    for (int64_t v = 0; v < range; v++) { int64_t c = counts[v]; counts[v] = total; total += c; }
+    for (int64_t i = 0; i < n; i++) out[i] = counts[a[i] - mn]++;
+    free(counts);
 }
 ''', extra_compile_args=['-O2'])
         _cffi_utils = (ffi, lib)
