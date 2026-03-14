@@ -117,8 +117,13 @@ def eval_monad_expand_where(a):
         _expand_where_cache[a_id] = result
         return result
     arr = a if is_list(a) else [a]
-    if type(arr) is _ndarray and arr.dtype.kind == 'b':
-        return bknp.flatnonzero(arr)
+    if type(arr) is _ndarray:
+        dk = arr.dtype.kind
+        if dk == 'b':
+            return bknp.flatnonzero(arr)
+        # Fast path for boolean-like integer arrays (comparison results: all 0/1)
+        if dk in ('i', 'u') and len(arr) > 0 and arr.max() <= 1:
+            return bknp.flatnonzero(arr.astype(bool))
     return bknp.repeat(bknp.arange(len(arr)), arr)
 
 
