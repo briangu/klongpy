@@ -443,6 +443,29 @@ def _bucket_find_and_sort(a, bucket_ids, b, bucket_min, use_u16):
 
 def _bucket_sort_precomputed(low16, bucket_ids, b):
     """Sort bucket b using pre-computed uint16 relative values."""
+    nn = len(bucket_ids)
+    # cffi branchless scan for large arrays (avoids intermediate bool array)
+    if nn >= 100_000:
+        utils = _get_cffi_utils()
+        if utils is not None:
+            ffi, lib = utils
+            buf = numpy.empty(nn, dtype=numpy.int64)
+            k = lib.cffi_find_bucket(
+                ffi.cast('const uint8_t*', bucket_ids.ctypes.data),
+                ffi.cast('int64_t*', buf.ctypes.data), nn, b)
+            if k <= 1:
+                return buf[:k].copy()
+            indices = buf[:k]
+            keys = low16[indices]
+            if k >= 5000:
+                idx64 = indices if indices.dtype == numpy.int64 else indices.astype(numpy.int64)
+                out = numpy.empty(k, dtype=numpy.int64)
+                lib.cffi_counting_argsort_u16(
+                    ffi.cast('const uint16_t*', keys.ctypes.data), k,
+                    ffi.cast('const int64_t*', idx64.ctypes.data),
+                    ffi.cast('int64_t*', out.ctypes.data))
+                return out
+            return indices[numpy.argsort(keys, kind='stable')].copy()
     indices = numpy.flatnonzero(bucket_ids == b)
     n = len(indices)
     if n <= 1:
@@ -1317,6 +1340,7 @@ int64_t cffi_where_lt(const double* a, int64_t* out, int64_t n, double val);
 int64_t cffi_where_eq(const double* a, int64_t* out, int64_t n, double val);
 void cffi_bucket_prep_i64(const int64_t* a, uint8_t* bucket_ids, uint16_t* low16,
                            int64_t n, int64_t mn, int32_t shift);
+int64_t cffi_find_bucket(const uint8_t* bucket_ids, int64_t* out, int64_t n, uint8_t target);
 ''')
     try:
         lib = ffi.verify('''
@@ -1443,6 +1467,11 @@ void cffi_bucket_prep_i64(const int64_t* a, uint8_t* bucket_ids, uint16_t* low16
         bucket_ids[i] = (uint8_t)(shifted >> shift);
         low16[i] = (uint16_t)(shifted & mask);
     }
+}
+int64_t cffi_find_bucket(const uint8_t* bucket_ids, int64_t* out, int64_t n, uint8_t target) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = i; k += (bucket_ids[i] == target); }
+    return k;
 }
 ''', extra_compile_args=['-O2'])
         _cffi_utils = (ffi, lib)
