@@ -419,6 +419,14 @@ def _bucket_sort_precomputed(low16, bucket_ids, b):
         return indices
     return indices[numpy.argsort(low16[indices], kind='stable')]
 
+def _bucket_sort_values(a, low16, bucket_ids, b):
+    """Sort bucket b and return sorted values directly (avoids index gather)."""
+    indices = numpy.flatnonzero(bucket_ids == b)
+    if len(indices) <= 1:
+        return a[indices]
+    order = numpy.argsort(low16[indices], kind='stable')
+    return a[indices[order]]
+
 
 def _argsort(a):
     """Fast argsort: bucket sort for integers, parallel merge for floats."""
@@ -503,9 +511,28 @@ def _fast_sort(a):
                 val_range = int(mx) - int(mn)
                 n = len(a)
                 if val_range <= 10 * n:
-                    # For large arrays with wide ranges, argsort+index beats counting sort
+                    # For large arrays with wide ranges, direct bucket value sort
                     if n >= 50_000 and val_range >= n // 2:
-                        return a[_argsort(a)]
+                        global _argsort_pool
+                        if _argsort_pool is None:
+                            from concurrent.futures import ThreadPoolExecutor
+                            _argsort_pool = ThreadPoolExecutor(max_workers=16)
+                        mn_i, mx_i = int(mn), int(mx)
+                        if a.dtype == numpy.int64 and mn_i >= -2147483648 and mx_i <= 2147483647:
+                            a = a.astype(numpy.int32)
+                        shifted = a - mn_i
+                        shift = 16
+                        nbuckets = (val_range >> shift) + 1
+                        while nbuckets < 4 and shift > 12:
+                            shift -= 1
+                            nbuckets = (val_range >> shift) + 1
+                        bucket_ids = (shifted >> shift).astype(numpy.uint8)
+                        if shift == 16:
+                            low16 = shifted.astype(numpy.uint16)
+                        else:
+                            low16 = (shifted & ((1 << shift) - 1)).astype(numpy.uint16)
+                        futures = [_argsort_pool.submit(_bucket_sort_values, a, low16, bucket_ids, b) for b in range(nbuckets)]
+                        return numpy.concatenate([f.result() for f in futures])
                     counts = numpy.bincount(a.ravel())
                     return numpy.repeat(numpy.arange(len(counts), dtype=a.dtype), counts)
     return numpy.sort(a)
