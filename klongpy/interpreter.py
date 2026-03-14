@@ -609,6 +609,22 @@ def _compile_arg_fn(expr, klong, dyadic=False):
                 fn._axis_fn = lambda a, op=_fast, g0=_af0, g1=_af1: op(g0(a), g1(a))
             else:
                 fn._axis_fn = None
+            # Tag constant*x pattern for matmul optimization in reduce
+            if not dyadic and op_a == '*':
+                if c0._is_const and not c1._is_const:
+                    try:
+                        _cv = c0(0)
+                        if type(_cv) is numpy.ndarray:
+                            fn._const_mul_val = _cv
+                    except Exception:
+                        pass
+                elif c1._is_const and not c0._is_const:
+                    try:
+                        _cv = c1(0)
+                        if type(_cv) is numpy.ndarray:
+                            fn._const_mul_val = _cv
+                    except Exception:
+                        pass
             return fn
     # Handle monad ops (arity 1): e.g., #x → count(x)
     if (te is KGCall or te is KGFn) and expr._is_op and expr._op_arity == 1:
@@ -664,7 +680,12 @@ def _compile_arg_fn(expr, klong, dyadic=False):
                         # Compose axis function if child supports it
                         _c_axis = getattr(c_arg, '_axis_fn', None)
                         if not dyadic and _axis_fn_2d is not None and _c_axis is not None:
-                            fn._axis_fn = lambda a, af=_axis_fn_2d, g=_c_axis: af(g(a))
+                            # Optimization: +/(constant*x) → matrix-vector multiply via BLAS
+                            _cmv = getattr(c_arg, '_const_mul_val', None)
+                            if op_char == '+' and _cmv is not None:
+                                fn._axis_fn = lambda a, c=_cmv: a @ c
+                            else:
+                                fn._axis_fn = lambda a, af=_axis_fn_2d, g=_c_axis: af(g(a))
                         else:
                             fn._axis_fn = None
                         return fn
