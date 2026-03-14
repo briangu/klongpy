@@ -219,3 +219,4 @@ db23b14	Ultra-fast cond eval for sym+literal	166.9	8.1% vs 181.7
 2026-03-14T02:51:25Z	scan_op_passthrough_constfold	132.614	521 pass	Pass _resolved_op to scan/over for numpy fast paths + constant folding in _compile_arg_fn
 2026-03-14T02:53:45Z	source_flattening	129.642	521 pass + 111 torch pass	Flatten nested lambda chains to direct Python lambdas via source compilation
 2026-03-14T03:02:54Z	axis_reduce_over_each	136.867	521 pass + 111 torch pass	Stack list-of-arrays and use numpy axis reduction for over/scan-each patterns; added matrix/xsect benchmarks
+2026-03-14T03:08:47Z	np_array_stacking	136.193	521 pass + 111 torch pass	Use np.array instead of np.stack for faster list-of-arrays conversion

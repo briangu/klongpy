@@ -693,7 +693,7 @@ def chain_adverbs(klong, arr):
                 if tx is list:
                     if axis_fn is not None and len(x) > 0 and type(x[0]) is numpy.ndarray:
                         try:
-                            stacked = numpy.stack(x)
+                            stacked = numpy.array(x)
                             result = axis_fn(stacked)
                             # For reduce: return 1D array; for scan: return list of arrays
                             if result.ndim == 1:
