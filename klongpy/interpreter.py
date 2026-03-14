@@ -583,23 +583,43 @@ def _prefix_scan_linear(x, c_x, c_y):
 def _add_prefix_out(ls, p, out, s, e):
     numpy.add(ls, p, out=out[s:e])
 
+def _cffi_cumsum_chunk(a_slice, out_slice, ffi, lib):
+    lib.cffi_cumsum(ffi.from_buffer('double[]', a_slice),
+                    ffi.from_buffer('double[]', out_slice), len(a_slice))
+
 def _cumsum(a):
-    """Cumulative sum: cffi for float64, parallel numpy fallback for large non-float64."""
+    """Cumulative sum: hybrid cffi+parallel for large float64, cffi serial for small."""
+    global _argsort_pool
     if type(a) is numpy.ndarray:
         if a.dtype == numpy.float64:
             utils = _get_cffi_utils()
             if utils is not None:
                 ffi, lib = utils
-                out = numpy.empty(len(a), dtype=numpy.float64)
+                n = len(a)
+                if n >= 250_000:
+                    # Hybrid: parallel cffi per chunk + sequential prefix propagation
+                    if _argsort_pool is None:
+                        from concurrent.futures import ThreadPoolExecutor
+                        _argsort_pool = ThreadPoolExecutor(max_workers=16)
+                    nchunks = 4
+                    chunk = n // nchunks
+                    slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+                    out = numpy.empty(n, dtype=numpy.float64)
+                    futures = [_argsort_pool.submit(_cffi_cumsum_chunk, a[s:e], out[s:e], ffi, lib) for s, e in slices]
+                    for f in futures: f.result()
+                    for i in range(1, nchunks):
+                        s, e = slices[i]
+                        out[s:e] += out[slices[i][0] - 1]
+                    return out
+                out = numpy.empty(n, dtype=numpy.float64)
                 lib.cffi_cumsum(ffi.from_buffer('double[]', a),
-                                ffi.from_buffer('double[]', out), len(a))
+                                ffi.from_buffer('double[]', out), n)
                 return out
         if len(a) >= 100_000:
             n = len(a)
             nchunks = 8
             chunk = n // nchunks
             slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
-            global _argsort_pool
             if _argsort_pool is None:
                 from concurrent.futures import ThreadPoolExecutor
                 _argsort_pool = ThreadPoolExecutor(max_workers=16)
