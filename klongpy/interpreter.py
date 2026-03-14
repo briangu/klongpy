@@ -405,9 +405,22 @@ def _expr_to_source(expr, klong, dyadic=False):
             s0 = _expr_to_source(fa[0], klong, dyadic=dyadic)
             s1 = _expr_to_source(fa[1], klong, dyadic=dyadic)
             if s0 is not None and s1 is not None:
-                src = f'({s0[0]}{py_op}{s1[0]})'
                 is_const = s0[1] and s1[1]
-                return (src, is_const)
+                if is_const:
+                    # Both const: pre-evaluate to avoid runtime computation
+                    try:
+                        val = eval(f'({s0[0]}{py_op}{s1[0]})')
+                        return (repr(val), True)
+                    except Exception:
+                        pass
+                # Pre-fold constant sub-expressions (e.g., (1-0.06) → 0.94)
+                if s0[1] and '(' in s0[0]:
+                    try: s0 = (repr(eval(s0[0])), True)
+                    except Exception: pass
+                if s1[1] and '(' in s1[0]:
+                    try: s1 = (repr(eval(s1[0])), True)
+                    except Exception: pass
+                return (f'({s0[0]}{py_op}{s1[0]})', is_const)
         # Monad ops (arity 1) handled by _compile_arg_fn for correct semantics
     # Handle simple adverb chains: op/x → _np.sum(x), op\x → _np.cumsum(x), etc.
     if te is KGCall and expr._is_adverb_chain:
@@ -826,7 +839,7 @@ def chain_adverbs(klong, arr):
                                 # 2D: keepdims scalar-per-row → ravel, else list of arrays
                                 if result.shape[1] == 1:
                                     return result.ravel()
-                                return [result[j] for j in range(len(result))]
+                                return list(result)
                             return result
                         except (ValueError, TypeError):
                             pass

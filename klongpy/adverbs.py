@@ -290,6 +290,9 @@ def eval_adverb_over(f, a, op, backend):
         if type(a) is _ndarray and not a.flags.writeable:
             _over_cache[(op_a, id(a))] = result
         return result
+    # Use Python list for numeric arrays to avoid numpy scalar overhead
+    if type(a) is _ndarray and a.dtype.kind in ('f', 'i', 'u'):
+        return functools.reduce(f, a.tolist())
     return functools.reduce(f, a)
 
 
@@ -388,7 +391,9 @@ def eval_adverb_scan_over(f, a, op, backend):
             result.flags.writeable = False
             _scan_cache[(op_a, id(a))] = result
         return result
-    r = list(itertools.accumulate(a, f))
+    # Use Python list for numeric arrays to avoid numpy scalar overhead
+    _a = a.tolist() if type(a) is _ndarray and a.dtype.kind in ('f', 'i', 'u') else a
+    r = list(itertools.accumulate(_a, f))
     return backend.kg_asarray(r)
 
 
