@@ -351,10 +351,31 @@ def create_system_contexts():
 
 _KLONG_OP_TO_PY = {'+': '+', '-': '-', '*': '*', '%': '/'}
 
+# Monad ops are handled in _compile_arg_fn (not source) to use correct klong semantics
+
+# Adverb reduction/scan ops that can be compiled to numpy source
+_KLONG_REDUCE_TO_PY = {'+': '_np.sum', '*': '_np.prod', '|': '_np.max', '&': '_np.min'}
+_KLONG_SCAN_TO_PY = {'+': '_np.cumsum', '*': '_np.cumprod'}
+
+# Globals dict for eval of compiled source that references numpy
+_EVAL_GLOBALS = {'_np': numpy}
+
+# Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
+_AXIS_REDUCE_KEEPDIMS = {
+    '+': lambda a: numpy.sum(a, axis=1, keepdims=True),
+    '*': lambda a: numpy.prod(a, axis=1, keepdims=True),
+    '|': lambda a: numpy.max(a, axis=1, keepdims=True),
+    '&': lambda a: numpy.min(a, axis=1, keepdims=True),
+}
+_AXIS_SCAN_2D = {
+    '+': lambda a: numpy.cumsum(a, axis=1),
+    '*': lambda a: numpy.cumprod(a, axis=1),
+}
+
 def _expr_to_source(expr, klong, dyadic=False):
     """Try to convert an expression tree to a Python source string.
     Returns (source_str, is_const) or None if not possible.
-    Only handles arithmetic ops (+, -, *, %) and variables x, y, constants.
+    Handles arithmetic ops, monad ops (#), and simple adverb chains (+/, */, etc.).
     """
     te = type(expr)
     if te is KGSym:
@@ -371,30 +392,52 @@ def _expr_to_source(expr, klong, dyadic=False):
         return None
     if te is int or te is float:
         return (repr(expr), True)
-    if (te is KGCall or te is KGFn) and expr._is_op and expr._op_arity == 2:
-        py_op = _KLONG_OP_TO_PY.get(expr._op_a)
-        if py_op is None:
-            return None
-        fa = expr.args
-        if type(fa) is not list:
-            fa = [fa] if fa is not None else fa
-        if fa is None or len(fa) != 2:
-            return None
-        s0 = _expr_to_source(fa[0], klong, dyadic=dyadic)
-        s1 = _expr_to_source(fa[1], klong, dyadic=dyadic)
-        if s0 is not None and s1 is not None:
-            src = f'({s0[0]}{py_op}{s1[0]})'
-            is_const = s0[1] and s1[1]
-            return (src, is_const)
+    if (te is KGCall or te is KGFn) and expr._is_op:
+        if expr._op_arity == 2:
+            py_op = _KLONG_OP_TO_PY.get(expr._op_a)
+            if py_op is None:
+                return None
+            fa = expr.args
+            if type(fa) is not list:
+                fa = [fa] if fa is not None else fa
+            if fa is None or len(fa) != 2:
+                return None
+            s0 = _expr_to_source(fa[0], klong, dyadic=dyadic)
+            s1 = _expr_to_source(fa[1], klong, dyadic=dyadic)
+            if s0 is not None and s1 is not None:
+                src = f'({s0[0]}{py_op}{s1[0]})'
+                is_const = s0[1] and s1[1]
+                return (src, is_const)
+        # Monad ops (arity 1) handled by _compile_arg_fn for correct semantics
+    # Handle simple adverb chains: op/x → _np.sum(x), op\x → _np.cumsum(x), etc.
+    if te is KGCall and expr._is_adverb_chain:
+        chain = expr.a
+        if type(chain) is list and len(chain) == 3:
+            verb_adv = chain[0]
+            adverb = chain[1]
+            arg = chain[2]
+            if type(verb_adv) is KGAdverb and type(verb_adv.a) is KGOp and type(adverb) is KGAdverb:
+                op_char = verb_adv.a.a
+                adv_char = adverb.a
+                py_fn = None
+                if adv_char == '/':
+                    py_fn = _KLONG_REDUCE_TO_PY.get(op_char)
+                elif adv_char == '\\':
+                    py_fn = _KLONG_SCAN_TO_PY.get(op_char)
+                if py_fn is not None:
+                    s = _expr_to_source(arg, klong, dyadic=dyadic)
+                    if s is not None:
+                        return (f'{py_fn}({s[0]})', s[1])
     return None
 
 
 def _compile_arg_fn(expr, klong, dyadic=False):
     """Try to compile a sub-expression to a fast Python function of x (or x,y if dyadic).
 
-    Returns a callable or None. The returned callable has a _vectorizable attribute
-    indicating if it can be applied to numpy arrays element-wise, and a _is_const
-    attribute indicating if the result is independent of x/y.
+    Returns a callable or None. The returned callable has:
+    - _vectorizable: if it can be applied to numpy arrays element-wise
+    - _is_const: if the result is independent of x/y
+    - _axis_fn: if set, can be called on a stacked 2D array for batch processing
     """
     te = type(expr)
     if te is KGSym:
@@ -402,11 +445,13 @@ def _compile_arg_fn(expr, klong, dyadic=False):
             fn = (lambda x, y: x) if dyadic else (lambda x: x)
             fn._vectorizable = True
             fn._is_const = False
+            fn._axis_fn = None if dyadic else (lambda a: a)
             return fn
         if dyadic and expr is _sym_y:
             fn = lambda x, y: y
             fn._vectorizable = True
             fn._is_const = False
+            fn._axis_fn = None
             return fn
         # Try to resolve global variable to a constant value
         try:
@@ -415,6 +460,7 @@ def _compile_arg_fn(expr, klong, dyadic=False):
                 fn = (lambda x, y, c=val: c) if dyadic else (lambda x, c=val: c)
                 fn._vectorizable = True
                 fn._is_const = True
+                fn._axis_fn = None if dyadic else (lambda a, c=val: c)
                 return fn
         except KeyError:
             pass
@@ -423,6 +469,7 @@ def _compile_arg_fn(expr, klong, dyadic=False):
         fn = (lambda x, y, c=expr: c) if dyadic else (lambda x, c=expr: c)
         fn._vectorizable = True
         fn._is_const = True
+        fn._axis_fn = None if dyadic else (lambda a, c=expr: c)
         return fn
     if (te is KGCall or te is KGFn) and expr._is_op and expr._op_arity == 2:
         op_a = expr._op_a
@@ -447,6 +494,7 @@ def _compile_arg_fn(expr, klong, dyadic=False):
                     fn = (lambda x, y, c=_const: c) if dyadic else (lambda x, c=_const: c)
                     fn._vectorizable = True
                     fn._is_const = True
+                    fn._axis_fn = None if dyadic else (lambda a, c=_const: c)
                     return fn
                 except Exception:
                     pass
@@ -456,7 +504,72 @@ def _compile_arg_fn(expr, klong, dyadic=False):
                 fn = lambda x, op=_op, g0=c0, g1=c1: op(g0(x), g1(x))
             fn._vectorizable = _fast is not None and c0._vectorizable and c1._vectorizable
             fn._is_const = False
+            # Compose axis functions if both children support it and op is a fast Python op
+            _af0 = getattr(c0, '_axis_fn', None)
+            _af1 = getattr(c1, '_axis_fn', None)
+            if not dyadic and _fast is not None and _af0 is not None and _af1 is not None:
+                fn._axis_fn = lambda a, op=_fast, g0=_af0, g1=_af1: op(g0(a), g1(a))
+            else:
+                fn._axis_fn = None
             return fn
+    # Handle monad ops (arity 1): e.g., #x → count(x)
+    if (te is KGCall or te is KGFn) and expr._is_op and expr._op_arity == 1:
+        op_a = expr._op_a
+        _op = klong._vm.get(op_a)
+        if _op is not None:
+            fa = expr.args
+            _fa = fa if type(fa) is not list else fa[0]
+            c = _compile_arg_fn(_fa, klong, dyadic=dyadic)
+            if c is not None:
+                if dyadic:
+                    fn = lambda x, y, op=_op, g=c: op(g(x, y))
+                else:
+                    fn = lambda x, op=_op, g=c: op(g(x))
+                fn._vectorizable = False
+                fn._is_const = c._is_const
+                # For count monad (#), axis version uses shape[-1]
+                _c_axis = getattr(c, '_axis_fn', None)
+                if not dyadic and op_a == '#' and _c_axis is not None:
+                    fn._axis_fn = lambda a, g=_c_axis: numpy.asarray(g(a)).shape[-1]
+                else:
+                    fn._axis_fn = None
+                return fn
+    # Handle simple adverb chains: op/x → reduce, op\x → accumulate
+    if te is KGCall and expr._is_adverb_chain:
+        chain = expr.a
+        if type(chain) is list and len(chain) == 3:
+            verb_adv = chain[0]
+            adverb = chain[1]
+            arg = chain[2]
+            if type(verb_adv) is KGAdverb and type(verb_adv.a) is KGOp and type(adverb) is KGAdverb:
+                op_char = verb_adv.a.a
+                adv_char = adverb.a
+                c_arg = _compile_arg_fn(arg, klong, dyadic=dyadic)
+                if c_arg is not None:
+                    np_fn = None
+                    _axis_fn_2d = None
+                    if adv_char == '/':
+                        np_fn = _KLONG_REDUCE_TO_PY.get(op_char)
+                        _axis_fn_2d = _AXIS_REDUCE_KEEPDIMS.get(op_char)
+                    elif adv_char == '\\':
+                        np_fn = _KLONG_SCAN_TO_PY.get(op_char)
+                        _axis_fn_2d = _AXIS_SCAN_2D.get(op_char)
+                    if np_fn is not None:
+                        # Resolve to actual numpy function
+                        _resolved = eval(np_fn, _EVAL_GLOBALS)
+                        if dyadic:
+                            fn = lambda x, y, rf=_resolved, g=c_arg: rf(g(x, y))
+                        else:
+                            fn = lambda x, rf=_resolved, g=c_arg: rf(g(x))
+                        fn._vectorizable = False
+                        fn._is_const = c_arg._is_const
+                        # Compose axis function if child supports it
+                        _c_axis = getattr(c_arg, '_axis_fn', None)
+                        if not dyadic and _axis_fn_2d is not None and _c_axis is not None:
+                            fn._axis_fn = lambda a, af=_axis_fn_2d, g=_c_axis: af(g(a))
+                        else:
+                            fn._axis_fn = None
+                        return fn
     return None
 
 
@@ -562,9 +675,13 @@ def chain_adverbs(klong, arr):
                             if not is_const:
                                 try:
                                     _code = compile(f'lambda x:{src_str}', '<klong>', 'eval')
-                                    f = eval(_code)
+                                    f = eval(_code, _EVAL_GLOBALS)
                                     _specialized = True
                                     _vectorizable = _fast_op is not None
+                                    # Get axis function for batch processing via _compile_arg_fn
+                                    _body_cf = _compile_arg_fn(body, klong, dyadic=False)
+                                    if _body_cf is not None and getattr(_body_cf, '_axis_fn', None) is not None:
+                                        f._axis_fn = _body_cf._axis_fn
                                 except Exception:
                                     pass
                         if not _specialized:
@@ -575,6 +692,11 @@ def chain_adverbs(klong, arr):
                                 f = lambda x, fn=_op_fn, g0=_cf0, g1=_cf1: fn(g0(x), g1(x))
                                 _specialized = True
                                 _vectorizable = _fast_op is not None and _cf0._vectorizable and _cf1._vectorizable
+                                # Compose axis functions for stacked batch processing
+                                _af0 = getattr(_cf0, '_axis_fn', None)
+                                _af1 = getattr(_cf1, '_axis_fn', None)
+                                if _fast_op is not None and _af0 is not None and _af1 is not None:
+                                    f._axis_fn = lambda a, op=_fast_op, g0=_af0, g1=_af1: op(g0(a), g1(a))
                 elif body._op_arity == 1:
                     # {monad_op x}: e.g., {!x}, {-x}
                     fa = body.args
@@ -639,7 +761,7 @@ def chain_adverbs(klong, arr):
                         else:
                             try:
                                 _code = compile(f'lambda x,y:{src_str}', '<klong>', 'eval')
-                                _compiled = eval(_code)
+                                _compiled = eval(_code, _EVAL_GLOBALS)
                             except Exception:
                                 pass
                     if _compiled is None:
@@ -686,6 +808,9 @@ def chain_adverbs(klong, arr):
                     _axis_fn = _AXIS_REDUCE.get(_verb_op)
                 elif _prev_adv == '\\':
                     _axis_fn = _AXIS_SCAN.get(_verb_op)
+            # Also check for compiled axis function from _compile_arg_fn
+            if _axis_fn is None:
+                _axis_fn = getattr(f, '_axis_fn', None)
             def f(x, f=_prev_f, be=_be, axis_fn=_axis_fn):
                 tx = type(x)
                 if tx is numpy.ndarray and x.ndim > 0:
@@ -695,10 +820,14 @@ def chain_adverbs(klong, arr):
                         try:
                             stacked = numpy.array(x)
                             result = axis_fn(stacked)
-                            # For reduce: return 1D array; for scan: return list of arrays
-                            if result.ndim == 1:
-                                return result
-                            return [result[i] for i in range(len(result))]
+                            if type(result) is numpy.ndarray:
+                                if result.ndim == 1:
+                                    return result
+                                # 2D: keepdims scalar-per-row → ravel, else list of arrays
+                                if result.shape[1] == 1:
+                                    return result.ravel()
+                                return [result[j] for j in range(len(result))]
+                            return result
                         except (ValueError, TypeError):
                             pass
                     return be.kg_asarray([f(e) for e in x])
@@ -707,6 +836,30 @@ def chain_adverbs(klong, arr):
                 return f(x)
             _vectorizable = False  # Only vectorize the innermost each
             continue
+        # Axis-fn fast path for compiled functions with _axis_fn on list of arrays
+        if arr[i].a == "'" and arr[i].arity == 1:
+            _af = getattr(f, '_axis_fn', None)
+            if _af is not None:
+                _prev_f = f
+                _be = klong._backend
+                def f(x, af=_af, pf=_prev_f, be=_be):
+                    if type(x) is list and len(x) > 0 and type(x[0]) is numpy.ndarray:
+                        try:
+                            stacked = numpy.array(x)
+                            if stacked.ndim == 2:
+                                r = af(stacked)
+                                if type(r) is numpy.ndarray:
+                                    if r.ndim == 2:
+                                        return r.ravel() if r.shape[1] == 1 else [r[j] for j in range(len(r))]
+                                    return r
+                                return r
+                        except (ValueError, TypeError):
+                            pass
+                    # Fallback to per-element
+                    if hasattr(x, '__iter__') and not isinstance(x, str):
+                        return be.kg_asarray([pf(e) for e in x])
+                    return pf(x)
+                continue
         o = get_adverb_fn(klong, arr[i].a, arity=arr[i].arity)
         if arr[i].arity == 1:
             _scan_op = _resolved_op if _resolved_op is not None else arr[0].a
