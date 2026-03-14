@@ -395,8 +395,14 @@ def _dotsum(a, b):
 # Persistent thread pool for parallel argsort (lazy-initialized)
 _argsort_pool = None
 
+def _merge_sorted_indices(a, idx1, idx2, pool):
+    """Merge two sorted index arrays using stable argsort."""
+    combined = numpy.concatenate([idx1, idx2])
+    order = numpy.argsort(a[combined], kind='stable')
+    return combined[order]
+
 def _argsort(a):
-    """Fast argsort with int32 downcast and 4-way parallel merge for large arrays."""
+    """Fast argsort with int32 downcast and parallel merge for large arrays."""
     if type(a) is numpy.ndarray:
         n = len(a)
         # Int64→int32 downcast for large arrays
@@ -404,7 +410,7 @@ def _argsort(a):
             mn, mx = a.min(), a.max()
             if mn >= -2147483648 and mx <= 2147483647:
                 a = a.astype(numpy.int32)
-        # Parallel merge sort: split into chunks, sort in threads, merge
+        # Parallel merge sort: split into chunks, sort in threads, hierarchical merge
         if n >= 10_000:
             global _argsort_pool
             if _argsort_pool is None:
@@ -414,10 +420,22 @@ def _argsort(a):
             chunk = n // nways
             slices = [(i * chunk, (i + 1) * chunk if i < nways - 1 else n) for i in range(nways)]
             futures = [_argsort_pool.submit(numpy.argsort, a[s:e]) for s, e in slices]
-            indices = [f.result() + s for f, (s, e) in zip(futures, slices)]
-            combined = numpy.concatenate(indices)
-            order = numpy.argsort(a[combined], kind='stable')
-            return combined[order]
+            sorted_indices = [f.result() + s for f, (s, e) in zip(futures, slices)]
+            # Hierarchical pair-wise merge (parallel at each level)
+            while len(sorted_indices) > 1:
+                next_level = []
+                merge_futures = []
+                for i in range(0, len(sorted_indices), 2):
+                    if i + 1 < len(sorted_indices):
+                        merge_futures.append((len(next_level), _argsort_pool.submit(
+                            _merge_sorted_indices, a, sorted_indices[i], sorted_indices[i + 1], _argsort_pool)))
+                        next_level.append(None)
+                    else:
+                        next_level.append(sorted_indices[i])
+                for pos, f in merge_futures:
+                    next_level[pos] = f.result()
+                sorted_indices = next_level
+            return sorted_indices[0]
     return numpy.argsort(a)
 
 # Fast sort: counting sort for bounded non-negative integers
