@@ -481,7 +481,7 @@ def _argsort(a):
             return sorted_indices[0]
     return numpy.argsort(a)
 
-# Fast sort: counting sort for bounded non-negative integers
+# Fast sort: counting sort for small ranges, argsort-based for large arrays
 def _fast_sort(a):
     if type(a) is numpy.ndarray and len(a) >= 1000:
         dk = a.dtype.kind
@@ -489,7 +489,12 @@ def _fast_sort(a):
             mn = a.min()
             if mn >= 0:
                 mx = a.max()
-                if mx <= 10 * len(a):
+                val_range = int(mx) - int(mn)
+                n = len(a)
+                if val_range <= 10 * n:
+                    # For large arrays with wide ranges, argsort+index beats counting sort
+                    if n >= 50_000 and val_range >= n // 2:
+                        return a[_argsort(a)]
                     counts = numpy.bincount(a.ravel())
                     return numpy.repeat(numpy.arange(len(counts), dtype=a.dtype), counts)
     return numpy.sort(a)
