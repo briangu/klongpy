@@ -741,8 +741,29 @@ def _fused_count(a, cmp_op, val):
         return sum(f.result() for f in futures)
     return int(numpy.count_nonzero(cmp_fn(a, val)))
 
+def _unique(a):
+    """Fast unique preserving first-occurrence order for integer arrays."""
+    if type(a) is numpy.ndarray and a.ndim == 1:
+        dk = a.dtype.kind
+        if dk == 'i' or dk == 'u':
+            n = len(a)
+            if n > 0:
+                mn, mx = int(a.min()), int(a.max())
+                val_range = mx - mn + 1
+                if val_range <= max(10 * n, 1_000_000):
+                    first_pos = numpy.full(val_range, n, dtype=numpy.intp)
+                    numpy.minimum.at(first_pos, a - mn, numpy.arange(n))
+                    appeared = first_pos < n
+                    unique_offsets = numpy.flatnonzero(appeared)
+                    order = numpy.argsort(first_pos[unique_offsets])
+                    return (unique_offsets[order] + mn).astype(a.dtype)
+        _, ids = numpy.unique(a, return_index=True)
+        ids.sort()
+        return a[ids]
+    return a
+
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter, '_fused_count': _fused_count}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter, '_fused_count': _fused_count, '_unique': _unique}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
@@ -869,7 +890,7 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
             # Note: #, <, & have type-dependent behavior (e.g., # = length for arrays, ordinal for chars)
             # so they require var_refs (top-level compilation where types are known).
             # Negate (-) is always -x regardless of type, so it's safe without var_refs.
-            if op_a == '-' or (var_refs is not None and op_a in ('&', '#', '<')):
+            if op_a == '-' or (var_refs is not None and op_a in ('&', '#', '<', '?')):
                 fa = expr.args
                 arg = fa[0] if type(fa) is list else fa
                 if op_a == '<':
@@ -923,6 +944,8 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                         return (f'len({s[0]})', False)
                     elif op_a == '<':
                         return (f'_argsort({s[0]})', False)
+                    elif op_a == '?':
+                        return (f'_unique({s[0]})', False)
                     else:  # '-' = negate
                         return (f'(-{s[0]})', False)
         # Monad ops (arity 1) handled by _compile_arg_fn for correct semantics
