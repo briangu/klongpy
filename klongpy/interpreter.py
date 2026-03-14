@@ -1467,7 +1467,7 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                         # For reduce (not scan), try cffi fused reduce on arithmetic expressions
                         if adv_char == '/' and not s[1] and var_refs is not None:
                             inner = s[0]
-                            if '_v0' in inner and '_v1' not in inner and inner != '_v0':
+                            if '_v0' in inner and '_v1' not in inner:
                                 try:
                                     _python_expr_to_c(inner, 1)
                                     return (f"_cffi_reduce_1({op_char!r},{inner!r},_v0)", False)
