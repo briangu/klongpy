@@ -400,8 +400,21 @@ def _argsort(a):
             return numpy.argsort(a.astype(numpy.int32))
     return numpy.argsort(a)
 
+# Fast sort: counting sort for bounded non-negative integers
+def _fast_sort(a):
+    if type(a) is numpy.ndarray and len(a) >= 1000:
+        dk = a.dtype.kind
+        if dk == 'i' or dk == 'u':
+            mn = a.min()
+            if mn >= 0:
+                mx = a.max()
+                if mx <= 10 * len(a):
+                    counts = numpy.bincount(a.ravel())
+                    return numpy.repeat(numpy.arange(len(counts), dtype=a.dtype), counts)
+    return numpy.sort(a)
+
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
@@ -468,7 +481,7 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                         if s0 is not None and s1 is not None:
                             # Detect x@<x → np.sort(x) optimization
                             if s1[0] == f'_argsort({s0[0]})':
-                                return (f'_np.sort({s0[0]})', False)
+                                return (f'_fast_sort({s0[0]})', False)
                             return (f'{s0[0]}[{s1[0]}]', False)
                 # Special handling for # dyad (take): N#array → array[:N]
                 if var_refs is not None and expr._op_a == '#':
