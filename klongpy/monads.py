@@ -432,10 +432,30 @@ def eval_monad_range(a, backend):
             a_np = backend.to_numpy(a) if backend.is_backend_array(a) else a
             if a.ndim > 1:
                 _, ids = bknp.unique(a_np, axis=0, return_index=True)
+                ids.sort()
+                result = a[ids]
+            elif a.ndim == 1 and dtype_kind in ('i', 'u') and len(a) > 0:
+                # Fast path for integer arrays: use minimum.at for first-occurrence tracking
+                _min_val = int(a_np.min())
+                _max_val = int(a_np.max())
+                _val_range = _max_val - _min_val + 1
+                _n = len(a_np)
+                # Only use fast path if value range is reasonable
+                if _val_range <= max(10 * _n, 1_000_000):
+                    _first_pos = bknp.full(_val_range, _n, dtype=bknp.intp)
+                    bknp.minimum.at(_first_pos, a_np - _min_val, bknp.arange(_n))
+                    _appeared = _first_pos < _n
+                    _unique_offsets = bknp.flatnonzero(_appeared)
+                    _order = bknp.argsort(_first_pos[_unique_offsets])
+                    result = (_unique_offsets[_order] + _min_val).astype(a.dtype)
+                else:
+                    _, ids = bknp.unique(a_np, return_index=True)
+                    ids.sort()
+                    result = a[ids]
             else:
                 _, ids = bknp.unique(a_np, return_index=True)
-            ids.sort()
-            result = a[ids]
+                ids.sort()
+                result = a[ids]
         else:
             s = set()
             arr = []
