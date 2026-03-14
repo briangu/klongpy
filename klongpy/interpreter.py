@@ -401,11 +401,15 @@ def _merge_sorted_indices(a, idx1, idx2, pool):
     order = numpy.argsort(a[combined], kind='stable')
     return combined[order]
 
-def _bucket_find_and_sort(a, bucket_ids, b):
+def _bucket_find_and_sort(a, bucket_ids, b, bucket_min, use_u16):
     """Find indices in bucket b and sort them by values in a."""
     indices = numpy.flatnonzero(bucket_ids == b)
     if len(indices) <= 1:
         return indices
+    if use_u16:
+        # uint16 triggers numpy's radix sort: O(n) instead of O(n log n)
+        rel_vals = (a[indices] - bucket_min).astype(numpy.uint16)
+        return indices[numpy.argsort(rel_vals, kind='stable')]
     return indices[numpy.argsort(a[indices])]
 
 def _argsort(a):
@@ -425,8 +429,10 @@ def _argsort(a):
                     a = a.astype(numpy.int32)
                 nbuckets = 16 if n >= 250_000 else 8
                 bucket_size = (mx - mn) // nbuckets + 1
+                # Use uint16 radix sort within buckets when values fit
+                use_u16 = bucket_size <= 65536
                 bucket_ids = ((a - mn) // bucket_size).astype(numpy.int32)
-                futures = [_argsort_pool.submit(_bucket_find_and_sort, a, bucket_ids, b) for b in range(nbuckets)]
+                futures = [_argsort_pool.submit(_bucket_find_and_sort, a, bucket_ids, b, mn + b * bucket_size, use_u16) for b in range(nbuckets)]
                 return numpy.concatenate([f.result() for f in futures])
             # Float/other: parallel merge sort with hierarchical merge
             nways = 8 if n >= 250_000 else 4
