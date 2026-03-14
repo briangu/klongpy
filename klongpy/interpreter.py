@@ -976,6 +976,16 @@ def _python_expr_to_c(src, nvars):
             if op_str is None:
                 raise ValueError(type(node.op).__name__)
             return f'({left}{op_str}{right})'
+        def visit_Compare(self, node):
+            if len(node.ops) != 1 or len(node.comparators) != 1:
+                raise ValueError('multi-compare')
+            left = self.visit(node.left)
+            right = self.visit(node.comparators[0])
+            cmp_map = {ast.Lt: '<', ast.Gt: '>', ast.LtE: '<=', ast.GtE: '>=', ast.Eq: '==', ast.NotEq: '!='}
+            op_str = cmp_map.get(type(node.ops[0]))
+            if op_str is None:
+                raise ValueError(type(node.ops[0]).__name__)
+            return f'({left}{op_str}{right})'
         def visit_UnaryOp(self, node):
             operand = self.visit(node.operand)
             if isinstance(node.op, ast.USub):
@@ -989,6 +999,8 @@ def _python_expr_to_c(src, nvars):
             if isinstance(node.value, (int, float)):
                 return f'{float(node.value)}'
             raise ValueError(node.value)
+        def generic_visit(self, node):
+            raise ValueError(type(node).__name__)
     return CGen().visit(tree)
 
 def _compile_cffi_fused(src, nvars):
