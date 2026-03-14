@@ -349,6 +349,41 @@ def create_system_contexts():
     return [sys_var, ReadonlyDict(sys_d)]
 
 
+def _compile_arg_fn(expr, klong):
+    """Try to compile a sub-expression to a fast Python function of x.
+
+    Returns a callable or None. The returned callable has a _vectorizable attribute
+    indicating if it can be applied to numpy arrays element-wise.
+    """
+    te = type(expr)
+    if te is KGSym and expr is _sym_x:
+        fn = lambda x: x
+        fn._vectorizable = True
+        return fn
+    if te is int or te is float:
+        fn = lambda x, c=expr: c
+        fn._vectorizable = True
+        return fn
+    if (te is KGCall or te is KGFn) and expr._is_op and expr._op_arity == 2:
+        op_a = expr._op_a
+        _fast = _FAST_DYAD_OPS.get(op_a)
+        _op = _fast if _fast is not None else klong._vd[op_a]
+        fa = expr.args
+        if type(fa) is not list:
+            fa = [fa] if fa is not None else fa
+        if fa is None or len(fa) != 2:
+            return None
+        a0, a1 = fa[0], fa[1]
+        # Recursively compile sub-args (allows deeper nesting)
+        c0 = _compile_arg_fn(a0, klong)
+        c1 = _compile_arg_fn(a1, klong)
+        if c0 is not None and c1 is not None:
+            fn = lambda x, op=_op, g0=c0, g1=c1: op(g0(x), g1(x))
+            fn._vectorizable = _fast is not None and c0._vectorizable and c1._vectorizable
+            return fn
+    return None
+
+
 def chain_adverbs(klong, arr):
     """
 
@@ -442,6 +477,14 @@ def chain_adverbs(klong, arr):
                         f = lambda x, fn=_op_fn: fn(x, x)
                         _specialized = True
                         _vectorizable = _fast_op is not None
+                    else:
+                        # Try nested compound: {x op (x op2 literal)}, {(x op2 literal) op x}, etc.
+                        _cf0 = _compile_arg_fn(fa0, klong)
+                        _cf1 = _compile_arg_fn(fa1, klong)
+                        if _cf0 is not None and _cf1 is not None:
+                            f = lambda x, fn=_op_fn, g0=_cf0, g1=_cf1: fn(g0(x), g1(x))
+                            _specialized = True
+                            _vectorizable = _fast_op is not None and _cf0._vectorizable and _cf1._vectorizable
                 elif body._op_arity == 1:
                     # {monad_op x}: e.g., {!x}, {-x}
                     fa = body.args
