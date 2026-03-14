@@ -893,11 +893,7 @@ class KlongInterpreter():
         _tx = type(x)
         if _tx is KGCall and x._cached_version == _ctx._lookup_version:
             f = x._cached_body
-            tf = x._cached_body_type
-            # Directly extract args (cache guarantees no projection merging)
-            if not x._cached_nargs_ok:
-                return x
-            # Specialized hot path: _cached_cond_fast implies KGCond body, nargs==1, _sym_x arg
+            # Specialized hot path: _cached_cond_fast implies nargs_ok, KGCond body, nargs==1
             if x._cached_cond_fast:
                 # Inline arg eval for nargs==1
                 if x._arg0_dyad_fast:
@@ -1074,6 +1070,9 @@ class KlongInterpreter():
                 finally:
                     if len(_ctx_list) > _ctx._min_ctx_count:
                         _ctx_list.pop()
+            if not x._cached_nargs_ok:
+                return x
+            tf = x._cached_body_type
             f_args = x._f_args
             nargs = x._nargs
         else:
