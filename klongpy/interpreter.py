@@ -28,39 +28,23 @@ _sym_x = reserved_fn_symbols[0]
 _sym_y = reserved_fn_symbols[1]
 
 # Specialized closure generators for fib-like recursive patterns
+_CMP_SYM = {'<': '<', '>': '>', '=': '=='}
+_ARITH_SYM = {'+': '+', '-': '-', '*': '*'}
+
 def _make_recursive_closure(cond_op, cond_lit, arg0_op, arg0_lit, arg1_op, arg1_lit, branch_op):
-    """Generate a specialized Python closure for {:[x OP N; x; self(x OP A) BOP self(x OP B)]}."""
-    # Most common case: x < N with subtraction args and addition branch
-    if cond_op == '<' and arg0_op == '-' and arg1_op == '-' and branch_op == '+':
-        def _fast(x_val):
-            if x_val < cond_lit:
-                return x_val
-            return _fast(x_val - arg0_lit) + _fast(x_val - arg1_lit)
-        return _fast
-    if cond_op == '<' and arg0_op == '-' and arg1_op == '-' and branch_op == '-':
-        def _fast(x_val):
-            if x_val < cond_lit:
-                return x_val
-            return _fast(x_val - arg0_lit) - _fast(x_val - arg1_lit)
-        return _fast
-    if cond_op == '<' and arg0_op == '-' and arg1_op == '-' and branch_op == '*':
-        def _fast(x_val):
-            if x_val < cond_lit:
-                return x_val
-            return _fast(x_val - arg0_lit) * _fast(x_val - arg1_lit)
-        return _fast
-    # General case with operator functions
-    _CMP = {'<': _op.lt, '>': _op.gt, '=': _op.eq}.get(cond_op)
-    _AOP0 = {'+': _op.add, '-': _op.sub, '*': _op.mul}.get(arg0_op)
-    _AOP1 = {'+': _op.add, '-': _op.sub, '*': _op.mul}.get(arg1_op)
-    _BOP = {'+': _op.add, '-': _op.sub, '*': _op.mul}.get(branch_op)
-    if _CMP and _AOP0 and _AOP1 and _BOP:
-        def _fast(x_val):
-            if _CMP(x_val, cond_lit):
-                return x_val
-            return _BOP(_fast(_AOP0(x_val, arg0_lit)), _fast(_AOP1(x_val, arg1_lit)))
-        return _fast
-    return None
+    """Generate a specialized Python function for {:[x OP N; x; self(x OP A) BOP self(x OP B)]}."""
+    _cs = _CMP_SYM.get(cond_op)
+    _a0s = _ARITH_SYM.get(arg0_op)
+    _a1s = _ARITH_SYM.get(arg1_op)
+    _bs = _ARITH_SYM.get(branch_op)
+    if not (_cs and _a0s and _a1s and _bs):
+        return None
+    # Generate a pure Python function via exec — uses LOAD_CONST for literals
+    # and LOAD_GLOBAL for self-reference, matching native Python performance.
+    # Parameters are all numeric literals (int/float), no injection risk.
+    _ns = {}
+    exec(f"def _f(x):\n if x {_cs} {cond_lit!r}:\n  return x\n return _f(x {_a0s} {arg0_lit!r}) {_bs} _f(x {_a1s} {arg1_lit!r})", _ns)
+    return _ns['_f']
 
 # Cache which types are KGLambda subclasses to avoid repeated issubclass calls
 _kglambda_types = {KGLambda}
