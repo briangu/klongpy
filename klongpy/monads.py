@@ -211,6 +211,7 @@ def eval_monad_format(a, backend):
 
 
 _grade_up_cache = {}
+_last_grade_result = None  # Track last argsort result for rank optimization
 
 def eval_monad_grade_up(a, backend):
     """
@@ -247,7 +248,17 @@ def eval_monad_grade_up(a, backend):
         result.flags.writeable = False
         _grade_up_cache[a_id] = result
         return result
-    return kg_argsort(arr, backend)
+    # Rank optimization: grade-up of an argsort result = inverse permutation (O(n) vs O(n log n))
+    global _last_grade_result
+    if _last_grade_result is not None and arr is _last_grade_result:
+        _last_grade_result = None
+        n = len(arr)
+        rank = bknp.empty(n, dtype=bknp.intp)
+        rank[arr] = bknp.arange(n)
+        return rank
+    result = kg_argsort(arr, backend)
+    _last_grade_result = result
+    return result
 
 
 _grade_down_cache = {}
