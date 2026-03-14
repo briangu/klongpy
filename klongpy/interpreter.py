@@ -863,6 +863,16 @@ def _unique(a):
                 mn, mx = int(a.min()), int(a.max())
                 val_range = mx - mn + 1
                 if val_range <= max(10 * n, 1_000_000):
+                    utils = _get_cffi_utils()
+                    if utils is not None:
+                        ffi, lib = utils
+                        a64 = a if a.dtype == numpy.int64 else a.astype(numpy.int64)
+                        out = numpy.empty(val_range, dtype=numpy.int64)
+                        k = lib.cffi_unique_int(
+                            ffi.cast('const int64_t*', a64.ctypes.data),
+                            ffi.cast('int64_t*', out.ctypes.data),
+                            n, mn, val_range)
+                        return out[:k].astype(a.dtype)
                     first_pos = numpy.full(val_range, n, dtype=numpy.intp)
                     numpy.minimum.at(first_pos, a - mn, numpy.arange(n))
                     appeared = first_pos < n
@@ -987,6 +997,7 @@ int64_t cffi_count_eq(const double* a, double val, int64_t n);
 void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range);
 void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
 void cffi_inverse_perm(const int64_t* perm, int64_t* out, int64_t n);
+int64_t cffi_unique_int(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
 ''')
     try:
         lib = ffi.verify('''
@@ -1035,6 +1046,16 @@ void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_
 }
 void cffi_inverse_perm(const int64_t* perm, int64_t* out, int64_t n) {
     for (int64_t i = 0; i < n; i++) out[perm[i]] = i;
+}
+int64_t cffi_unique_int(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
+    uint8_t* seen = (uint8_t*)calloc(range, sizeof(uint8_t));
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) {
+        int64_t v = a[i] - mn;
+        if (!seen[v]) { seen[v] = 1; out[k++] = a[i]; }
+    }
+    free(seen);
+    return k;
 }
 ''', extra_compile_args=['-O2'])
         _cffi_utils = (ffi, lib)
