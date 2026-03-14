@@ -1018,6 +1018,62 @@ def _compile_cffi_fused(src, nvars):
     _cffi_cache[src] = (ffi, lib)
     return (ffi, lib)
 
+# Reduce ops: identity values and C accumulator expressions
+_CFFI_REDUCE_OPS = {
+    '+': ('0.0', '_acc += %s;'),
+    '*': ('1.0', '_acc *= %s;'),
+    '|': ('-1.0/0.0', '{ double _v = %s; if (_v > _acc) _acc = _v; }'),  # -inf
+    '&': ('1.0/0.0', '{ double _v = %s; if (_v < _acc) _acc = _v; }'),    # +inf
+}
+
+def _compile_cffi_reduce(inner_src, reduce_op, nvars):
+    """Compile fused reduce: reduce_op / inner_expr(x) in a single C pass."""
+    cache_key = f'__reduce_{reduce_op}_{inner_src}'
+    cached = _cffi_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    cffi = _get_cffi()
+    if cffi is None:
+        _cffi_cache[cache_key] = False
+        return False
+    op_info = _CFFI_REDUCE_OPS.get(reduce_op)
+    if op_info is None:
+        _cffi_cache[cache_key] = False
+        return False
+    try:
+        c_expr = _python_expr_to_c(inner_src, nvars)
+    except (ValueError, SyntaxError):
+        _cffi_cache[cache_key] = False
+        return False
+    identity, acc_tmpl = op_info
+    acc_stmt = acc_tmpl % c_expr
+    params_c = ', '.join([f'const double* _v{i}' for i in range(nvars)] + ['int64_t _n'])
+    params_cdef = ', '.join(['const double*'] * nvars + ['int64_t'])
+    c_src = f'#include <stdint.h>\n#include <math.h>\ndouble _reduce({params_c}) {{ double _acc = {identity}; for (int64_t _i = 0; _i < _n; _i++) {{ {acc_stmt} }} return _acc; }}'
+    ffi = cffi.FFI()
+    ffi.cdef(f'double _reduce({params_cdef});')
+    try:
+        lib = ffi.verify(c_src, extra_compile_args=['-O2', '-ffast-math'])
+    except Exception:
+        _cffi_cache[cache_key] = False
+        return False
+    _cffi_cache[cache_key] = (ffi, lib)
+    return (ffi, lib)
+
+_REDUCE_NP_FALLBACK = {'+': numpy.sum, '*': numpy.prod, '|': numpy.max, '&': numpy.min}
+
+def _cffi_reduce_1(reduce_op, inner_src, a):
+    """Runtime fused reduce for 1-variable expressions. Falls back to numpy."""
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64 and len(a) > 0:
+        result = _compile_cffi_reduce(inner_src, reduce_op, 1)
+        if result:
+            ffi, lib = result
+            return lib._reduce(ffi.from_buffer('double[]', a), len(a))
+    # Fallback: evaluate inner expression then numpy reduce
+    _v0 = a
+    inner_val = eval(inner_src, {'_v0': _v0})
+    return _REDUCE_NP_FALLBACK[reduce_op](inner_val)
+
 # cffi utilities: running_max/min, count (lazy-compiled)
 _cffi_utils = None
 _cffi_utils_checked = False
@@ -1177,7 +1233,7 @@ def _parallel_eval_2(fn, v0, v1):
     return result
 
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter, '_fused_count': _fused_count, '_unique': _unique}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter, '_fused_count': _fused_count, '_unique': _unique, '_cffi_reduce_1': _cffi_reduce_1}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
@@ -1407,6 +1463,12 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                 if py_fn is not None:
                     s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
                     if s is not None:
+                        # For reduce (not scan), try cffi fused reduce on non-trivial expressions
+                        if adv_char == '/' and not s[1] and var_refs is not None:
+                            # Check if inner expr references exactly one variable
+                            inner = s[0]
+                            if '_v0' in inner and '_v1' not in inner and inner != '_v0':
+                                return (f"_cffi_reduce_1({op_char!r},{inner!r},_v0)", False)
                         return (f'{py_fn}({s[0]})', s[1])
     return None
 
