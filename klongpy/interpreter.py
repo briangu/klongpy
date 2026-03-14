@@ -546,7 +546,10 @@ def _prefix_scan_linear(x, c_x, c_y):
     Uses Hillis-Steele algorithm with affine transform composition.
     O(n log n) work but O(log n) span, vectorized via numpy.
     Pre-allocated temp buffers avoid per-iteration allocation overhead.
+    Early termination when |c_x| < 1: after ceil(log2(52/log2(1/|c_x|)))+1 passes,
+    c_x^(2^p) underflows to zero and further passes have no effect.
     """
+    import math
     n = len(x)
     # Initial transforms: z[0] = (0, x[0]), z[i>0] = (c_x, c_y * x[i])
     a_arr = numpy.full(n, c_x)
@@ -557,9 +560,16 @@ def _prefix_scan_linear(x, c_x, c_y):
     # Pre-allocate temp buffers to avoid allocation in inner loop
     _tmp_ab = numpy.empty(n)
     _tmp_aa = numpy.empty(n)
+    # Compute max useful passes: c_x^(2^p) < 2^-52 when |c_x| < 1
+    abs_cx = abs(c_x)
+    if 0 < abs_cx < 1.0:
+        max_passes = int(math.ceil(math.log2(max(1, 52 / (-math.log2(abs_cx)))))) + 1
+    else:
+        max_passes = 64  # no early termination
     # Hillis-Steele prefix scan with composition: (a2, b2) o (a1, b1) = (a2*a1, a2*b1 + b2)
     d = 1
-    while d < n:
+    pass_num = 0
+    while d < n and pass_num < max_passes:
         k = n - d
         # Compute both products into temps before modifying a_arr or b_arr
         numpy.multiply(a_arr[d:d+k], b_arr[:k], out=_tmp_ab[:k])
@@ -567,6 +577,7 @@ def _prefix_scan_linear(x, c_x, c_y):
         b_arr[d:d+k] += _tmp_ab[:k]
         a_arr[d:d+k] = _tmp_aa[:k]
         d *= 2
+        pass_num += 1
     return b_arr
 
 def _add_prefix_out(ls, p, out, s, e):

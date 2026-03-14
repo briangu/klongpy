@@ -233,3 +233,51 @@ exp18_comparison_ops_monads	2026-03-14T04:13:38Z	add >/</=/@/&/# to _expr_to_sou
 exp19_sort_rank_optimization	2026-03-14T04:20:27Z	detect x@<x->np.sort, <<x->_rank O(n) inverse perm, add </>/@/# monads to source	103.604	47	all pass	all pass
 exp20_blas_dot_product	2026-03-14T04:26:37Z	detect +/(x*y)->np.dot via BLAS, 2x dot product, 36-54% finance benchmarks	104.682	47	all pass	all pass
 exp21_count_nonzero	2026-03-14T04:29:39Z	detect #&(expr)->count_nonzero, avoids intermediate index array	103.994	47	all pass	all pass
+exp22_blas_matmul	2026-03-14T04:39:10Z	BLAS matmul for +/(constant*x) pattern: a@constant via BLAS gemv	103.024	47	all pass	all pass
+exp23_neg_compile_cache	2026-03-14T04:54:15Z	negative cache for failed compiled expr attempts	103.268	47	all pass	all pass
+exp24_each_pair_compile	2026-03-14T04:59:01Z	compile op:'var to var[:-1] op var[1:] in _expr_to_source	103.385	47	all pass	all pass
+exp25_signal_benchmarks	2026-03-14T05:07:16Z	add sharpe/demean/vol signal benchmarks (200 assets); klong 28-37% faster than numpy for sharpe/vol	103.863	50	all pass	all pass
+exp26_each_pair_axis	2026-03-14T05:15:30Z	compile each-pair (op:') in _compile_arg_fn with axis_fn for 2D batch; returns_50assets: 0.128->0.056ms	103.397	50	all pass	all pass
+exp27_fast_stack_unstack	2026-03-14T05:24:51Z	concatenate+reshape for stacking, list(r) for unstacking; row_sums: 0.138->0.123ms, demean: 0.185->0.172ms	102.908	50	all pass	all pass
+exp28_power_negate_compile	2026-03-14T05:35:33Z	add ^ to _KLONG_OP_TO_PY, - monad to _expr_to_source; fix vwap benchmark; vol: 0.145->0.137ms	103.350	50	all pass	all pass
+exp29_dispatch_specialize	2026-03-14T05:39:31Z	specialize compiled expr dispatch for 1/2-var; add ^ to _KLONG_OP_TO_PY, - monad compile	103.078	50	all pass	all pass
+exp30_max_min_dyad	a81b026	max/min dyad source compilation |/& to _expr_to_source	103.793	50	all pass	all pass
+exp31_scan_cumsum	0a3adb1	vectorize {x+g(y)}\array to cumsum: scan_compound 0.937->0.035ms	103.197	50	all pass	all pass
+exp32_fold_sum	498c2e2	vectorize {x+g(y)}/array to sum: over_custom 0.058->0.004ms	102.150	50	all pass	all pass
+exp33_fromiter	c4fc1b6	np.fromiter for float scan results: ewma 0.868->0.685ms	102.560	50	all pass	all pass
+exp34_batch_each2	4fcf1dc	dyadic axis fns for batch each-2: vwap_50assets 0.117->0.069ms	101.838	50	all pass	all pass
+exp35_take_compile	b7e0e01	# dyad (take) in _expr_to_source: enables *\100000#a compilation	101.967	50	all pass	all pass
+exp37_iterative_fib	927cd94	iterative O(n) closure for linear recurrences: fib_20 0.723->0.001ms, fib_25 7.999->0.001ms	93.475	50	all pass	all pass
+exp38_int32_argsort	bc3ae83	int64->int32 downcast for argsort on large arrays: grade_up_1M 67.1->66.1ms	92.456	50	all pass	all pass
+exp39_counting_sort	a4aa9a9	counting sort for bounded non-neg integers: sort_100K 2.42->0.77ms	90.503	50	all pass	all pass
+exp40_parallel_argsort	8054ef9	parallel merge argsort for arrays>=500K: grade_up_1M 66.1->38.4ms	62.982	50	all pass	all pass
+exp41_4way_argsort	2a91f53	4-way parallel argsort: grade_up_1M 38.4->26.9ms	51.596	50	all pass	all pass
+exp42_lower_threshold	e6b1205	parallel argsort threshold 500K->10K: grade_up_100K 5.3->2.4ms, rank_100K 5.4->2.5ms	45.797	50	all pass	all pass
+exp43_8way_argsort	1e21344	adaptive 8-way for >=250K, 4-way for >=10K: grade_up_1M 26.9->23.1ms	42.098	50	all pass	all pass
+exp44_hierarchical_merge	cb2222e	hierarchical pair-wise merge: grade_up_1M 23.1->20.8ms	39.712	50	all pass	all pass
+exp45_bucket_argsort	5761ea6	bucket argsort for integers: grade_up_1M 20.8->14.8ms, grade_up_100K 2.4->1.6ms	32.109	50	all pass	all pass
+exp46_fused_bucket	caab922	fused flatnonzero+sort per bucket: grade_up_1M 14.8->9.8ms	26.329	50	all pass	all pass
+exp47_16_workers_buckets	18ee157	16 workers + adaptive 16 buckets for >=250K: grade_up_1M 9.8->6.9ms	23.494	50	all pass	all pass
+exp48_parallel_cumsum	769901e	parallel prefix cumsum: running_sum_1M 3.5->1.3ms	21.329	50	all pass	all pass
+exp49_parallel_accum	9010dc7	parallel running max/min: 0.34->0.22ms, all drawdowns improved	20.881	50	all pass	all pass
+exp50_parallel_flatnonzero	7f03d52	parallel flatnonzero: where 1.03->0.86ms, filter 1.4->1.25ms	20.539	50	all pass	all pass
+exp51_parallel_cumprod	27370c7	parallel cumprod: cumul_product 0.35->0.23ms	20.278	50	all pass	all pass
+exp52_fused_where	733764e	fused comparison+where: where_50pct 0.86->0.57ms, filter_index 1.25->0.96ms	19.756	50	all pass	all pass
+exp53_uint16_radix	2bbf121	uint16 radix sort in bucket argsort: grade_up_1M 6.9->4.3ms, rank_100K 1.4->1.1ms	16.333	50	all pass	all pass
+exp54_shift_buckets	bf1477a	power-of-2 bucket size with >>16 shift: grade_up_100K 0.91->0.50ms, rank_100K 1.06->0.64ms	15.437	50	all pass	all pass
+exp55_prealloc_cumsum	4c2ea2d	pre-allocate output in parallel cumsum: running_sum_1M 1.31->1.07ms	15.200	50	all pass	all pass
+exp56_prealloc_accum	a30fea2	pre-allocate output in running max/min/cumprod: running_max 0.22->0.20ms	15.098	50	all pass	all pass
+exp57_uint8_buckets	5d71a25	uint8 bucket_ids (1MB vs 4MB) for faster flatnonzero scans	15.070	50	all pass	all pass
+exp58_prefix_scan_lr	3c70ade	prefix scan for affine recurrences: ewma_10K 0.68->0.30ms	14.700	50	all pass	all pass
+exp59_fused_filter	1f68e30	fused parallel filter a@&(a>val): filter_index_1M 0.97->0.69ms	14.388	50	all pass	all pass
+exp60_inplace_offset	cd51cde	in-place add for flatnonzero chunk offsets: where 0.60->0.53ms	14.278	50	all pass	all pass
+2d5556b	13.950	pass	keep	exp61: pre-compute uint16 sort keys in bucket argsort (grade_up_1M: 4.05->3.66ms)
+de4b509	13.803	pass	keep	exp62: adaptive shift for bucket argsort (grade_up_100K: 0.48->0.45ms, rank_100K: 0.63->0.58ms)
+7de94cf	13.616	pass	keep	exp63: argsort-based sort for large wide-range integers (sort_100K: 0.76->0.55ms)
+5eb9d1d	13.513	pass	keep	exp64: parallel pre-computation for large int argsort (grade_up_1M: 3.66->3.55ms)
+117e5ac	13.432	pass	keep	exp65: direct value bucket sort in _fast_sort (sort_100K: 0.56->0.44ms)
+a6994a8	13.339	pass	keep	exp66: parallel fused count_nonzero for #&(a>val) (count_filter_1M: 0.38->0.24ms)
+d9138e3	13.135	pass	keep	exp67: pre-allocated buffers in Hillis-Steele prefix scan (ewma_10K: 0.309->0.134ms)
+48cd8ca	13.161	pass	keep	exp68: compile ? (unique) monad, eliminates last negative cache entry
+7f1b6ac	13.154	pass	keep	exp70: fix parallel prefix accumulation bug in _cumprod, _running_max, _running_min
+exp71	13.076	pass	keep	exp71: early termination in _prefix_scan_linear for |c_x|<1 (ewma_10K: 0.132->0.060ms, 2.2x faster)
