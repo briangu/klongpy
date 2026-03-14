@@ -1387,28 +1387,25 @@ int64_t cffi_count_eq(const double* a, double val, int64_t n) {
 void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range) {
     int64_t* counts = (int64_t*)calloc(range, sizeof(int64_t));
     for (int64_t i = 0; i < n; i++) counts[a[i] - mn]++;
-    int64_t* offsets = (int64_t*)calloc(range, sizeof(int64_t));
-    offsets[0] = 0;
-    for (int64_t i = 1; i < range; i++) offsets[i] = offsets[i-1] + counts[i-1];
-    for (int64_t i = 0; i < n; i++) out[offsets[a[i] - mn]++] = i;
-    free(counts); free(offsets);
+    int64_t total = 0;
+    for (int64_t v = 0; v < range; v++) { int64_t c = counts[v]; counts[v] = total; total += c; }
+    for (int64_t i = 0; i < n; i++) out[counts[a[i] - mn]++] = i;
+    free(counts);
 }
 void cffi_counting_argsort_i64(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
     int64_t* counts = (int64_t*)calloc(range, sizeof(int64_t));
     for (int64_t i = 0; i < n; i++) counts[a[i] - mn]++;
-    int64_t* offsets = (int64_t*)calloc(range, sizeof(int64_t));
-    offsets[0] = 0;
-    for (int64_t i = 1; i < range; i++) offsets[i] = offsets[i-1] + counts[i-1];
-    for (int64_t i = 0; i < n; i++) out[offsets[a[i] - mn]++] = i;
-    free(counts); free(offsets);
+    int64_t total = 0;
+    for (int64_t v = 0; v < range; v++) { int64_t c = counts[v]; counts[v] = total; total += c; }
+    for (int64_t i = 0; i < n; i++) out[counts[a[i] - mn]++] = i;
+    free(counts);
 }
 void cffi_counting_argsort_u16(const uint16_t* keys, int64_t n, const int64_t* orig_idx, int64_t* out) {
     int64_t counts[65536] = {0};
     for (int64_t i = 0; i < n; i++) counts[keys[i]]++;
-    int64_t offsets[65536];
-    offsets[0] = 0;
-    for (int64_t i = 1; i < 65536; i++) offsets[i] = offsets[i-1] + counts[i-1];
-    for (int64_t i = 0; i < n; i++) out[offsets[keys[i]]++] = orig_idx[i];
+    int64_t total = 0;
+    for (int64_t v = 0; v < 65536; v++) { int64_t c = counts[v]; counts[v] = total; total += c; }
+    for (int64_t i = 0; i < n; i++) out[counts[keys[i]]++] = orig_idx[i];
 }
 void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
     int64_t* buf = (int64_t*)calloc(range, sizeof(int64_t));
