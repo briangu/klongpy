@@ -960,7 +960,7 @@ class KlongInterpreter():
                         _xval = self._eval_fn(q)
                     else:
                         _xval = self.call(q)
-                ctx = {_sym_x: _xval, reserved_dot_f_symbol: f}
+                ctx = {_sym_x: _xval}
                 _ctx_list.append(ctx)
                 try:
                     # Condition eval — pre-cached literal, op_a, fast_op
