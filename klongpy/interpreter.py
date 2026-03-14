@@ -891,15 +891,14 @@ class KlongInterpreter():
         _ctx = self._context
         _ctx_list = _ctx._context
         _tx = type(x)
-        if _tx is KGCall and x._cached_body is not None and x._cached_version == _ctx._lookup_version:
+        if _tx is KGCall and x._cached_version == _ctx._lookup_version:
             f = x._cached_body
             tf = x._cached_body_type
             # Directly extract args (cache guarantees no projection merging)
             if not x._cached_nargs_ok:
                 return x
-            # Specialized hot path: cached KGCond with nargs==1
-            # Eliminates: f_args-is-None, nargs checks, has_locals, tf-is-KGCond
-            if tf is KGCond and x._nargs == 1:
+            # Specialized hot path: _cached_cond_fast implies KGCond body, nargs==1, _sym_x arg
+            if x._cached_cond_fast:
                 q = x._f_args[0]
                 # Inline arg eval for nargs==1
                 if x._arg0_dyad_fast:
@@ -973,81 +972,29 @@ class KlongInterpreter():
                 _ctx_list.append(ctx)
                 try:
                     x0 = f[0]
-                    if x._cached_cond_fast:
-                        _cfa = x0.args
-                        _cy = _cfa[1]
-                        _cx = _xval
-                        if type(_cx) is int and type(_cy) is int:
-                            _cop_a = x0._op_a
-                            if _cop_a == '<':
-                                p = _cx < _cy
-                            elif _cop_a == '>':
-                                p = _cx > _cy
-                            elif _cop_a == '=':
-                                p = _cx == _cy
-                            else:
-                                _cfast = x0._fast_op
-                                q = _cfast(_cx, _cy) if _cfast is not None else self._vd[_cop_a](_cx, _cy)
-                                p = q != 0
-                        else:
-                            _cop_a = x0._op_a
-                            _cfast = x0._fast_op
-                            if _cfast is not None and (type(_cx) is int or type(_cx) is float) and (type(_cy) is int or type(_cy) is float):
-                                q = _cfast(_cx, _cy)
-                            else:
-                                q = self._vd[_cop_a](_cx, _cy)
-                            tq = type(q)
-                            if tq is int or tq is float:
-                                p = q != 0
-                            else:
-                                p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
-                    elif x._cached_cond_is_dyad_op:
-                        _cfa = x0.args
-                        if type(_cfa) is not list:
-                            _cfa = [_cfa] if _cfa is not None else _cfa
-                        _cfa1 = _cfa[1]
-                        _ct1 = type(_cfa1)
-                        _cy = _cfa1 if _ct1 is int or _ct1 is float else self.eval(_cfa1)
-                        _cfa0 = _cfa[0]
-                        _ct0 = type(_cfa0)
-                        if _ct0 is KGSym and _cfa0 in reserved_fn_symbols_set:
-                            _cx = ctx.get(_cfa0)
-                            if _cx is None:
-                                _cx = self.eval(_cfa0)
-                        elif _ct0 is int or _ct0 is float:
-                            _cx = _cfa0
-                        else:
-                            _cx = self.eval(_cfa0)
+                    # Condition eval — _cached_cond_fast guaranteed True
+                    _cfa = x0.args
+                    _cy = _cfa[1]
+                    _cx = _xval
+                    if type(_cx) is int and type(_cy) is int:
                         _cop_a = x0._op_a
-                        if type(_cx) is int and type(_cy) is int:
-                            if _cop_a == '<':
-                                q = 1 if _cx < _cy else 0
-                            elif _cop_a == '>':
-                                q = 1 if _cx > _cy else 0
-                            elif _cop_a == '=':
-                                q = 1 if _cx == _cy else 0
-                            else:
-                                _cfast = x0._fast_op
-                                q = _cfast(_cx, _cy) if _cfast is not None else self._vd[_cop_a](_cx, _cy)
+                        if _cop_a == '<':
+                            p = _cx < _cy
+                        elif _cop_a == '>':
+                            p = _cx > _cy
+                        elif _cop_a == '=':
+                            p = _cx == _cy
                         else:
                             _cfast = x0._fast_op
-                            if _cfast is not None and (type(_cx) is int or type(_cx) is float) and (type(_cy) is int or type(_cy) is float):
-                                q = _cfast(_cx, _cy)
-                            else:
-                                q = self._vd[_cop_a](_cx, _cy)
-                        tq = type(q)
-                        if tq is int or tq is float:
+                            q = _cfast(_cx, _cy) if _cfast is not None else self._vd[_cop_a](_cx, _cy)
                             p = q != 0
-                        else:
-                            p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
                     else:
-                        tx0 = type(x0)
-                        if tx0 is int or tx0 is float:
-                            q = x0
-                        elif (tx0 is KGCall or tx0 is KGFn) and x0._is_op:
-                            q = self.eval(x0)
+                        _cop_a = x0._op_a
+                        _cfast = x0._fast_op
+                        if _cfast is not None and (type(_cx) is int or type(_cx) is float) and (type(_cy) is int or type(_cy) is float):
+                            q = _cfast(_cx, _cy)
                         else:
-                            q = self.call(x0)
+                            q = self._vd[_cop_a](_cx, _cy)
                         tq = type(q)
                         if tq is int or tq is float:
                             p = q != 0
