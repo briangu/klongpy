@@ -629,49 +629,66 @@ def _cumprod(a):
     return numpy.cumprod(a)
 
 def _running_max(a):
-    """Parallel running max for large arrays."""
-    if type(a) is numpy.ndarray and len(a) >= 50_000:
-        n = len(a)
-        nchunks = 4
-        chunk = n // nchunks
-        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
-        global _argsort_pool
-        if _argsort_pool is None:
-            from concurrent.futures import ThreadPoolExecutor
-            _argsort_pool = ThreadPoolExecutor(max_workers=16)
-        futures = [_argsort_pool.submit(numpy.maximum.accumulate, a[s:e]) for s, e in slices]
-        local = [f.result() for f in futures]
-        out = numpy.empty(n, dtype=a.dtype)
-        out[slices[0][0]:slices[0][1]] = local[0]
-        # Cumulative prefix maxes: prefix[i] = max of all chunk tails 0..i
-        prefix_maxes = numpy.maximum.accumulate([ls[-1] for ls in local[:-1]])
-        for i in range(1, nchunks):
-            s, e = slices[i]
-            numpy.maximum(local[i], prefix_maxes[i - 1], out=out[s:e])
-        return out
+    """Running max: cffi for float64, parallel numpy fallback."""
+    if type(a) is numpy.ndarray:
+        # cffi path: single fused C loop (faster than parallel numpy for sequential deps)
+        if a.dtype == numpy.float64:
+            utils = _get_cffi_utils()
+            if utils is not None:
+                ffi, lib = utils
+                out = numpy.empty(len(a), dtype=numpy.float64)
+                lib.cffi_running_max(ffi.from_buffer('double[]', a),
+                                     ffi.from_buffer('double[]', out), len(a))
+                return out
+        if len(a) >= 50_000:
+            n = len(a)
+            nchunks = 4
+            chunk = n // nchunks
+            slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+            global _argsort_pool
+            if _argsort_pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _argsort_pool = ThreadPoolExecutor(max_workers=16)
+            futures = [_argsort_pool.submit(numpy.maximum.accumulate, a[s:e]) for s, e in slices]
+            local = [f.result() for f in futures]
+            out = numpy.empty(n, dtype=a.dtype)
+            out[slices[0][0]:slices[0][1]] = local[0]
+            prefix_maxes = numpy.maximum.accumulate([ls[-1] for ls in local[:-1]])
+            for i in range(1, nchunks):
+                s, e = slices[i]
+                numpy.maximum(local[i], prefix_maxes[i - 1], out=out[s:e])
+            return out
     return numpy.maximum.accumulate(a)
 
 def _running_min(a):
-    """Parallel running min for large arrays."""
-    if type(a) is numpy.ndarray and len(a) >= 50_000:
-        n = len(a)
-        nchunks = 4
-        chunk = n // nchunks
-        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
-        global _argsort_pool
-        if _argsort_pool is None:
-            from concurrent.futures import ThreadPoolExecutor
-            _argsort_pool = ThreadPoolExecutor(max_workers=16)
-        futures = [_argsort_pool.submit(numpy.minimum.accumulate, a[s:e]) for s, e in slices]
-        local = [f.result() for f in futures]
-        out = numpy.empty(n, dtype=a.dtype)
-        out[slices[0][0]:slices[0][1]] = local[0]
-        # Cumulative prefix mins: prefix[i] = min of all chunk tails 0..i
-        prefix_mins = numpy.minimum.accumulate([ls[-1] for ls in local[:-1]])
-        for i in range(1, nchunks):
-            s, e = slices[i]
-            numpy.minimum(local[i], prefix_mins[i - 1], out=out[s:e])
-        return out
+    """Running min: cffi for float64, parallel numpy fallback."""
+    if type(a) is numpy.ndarray:
+        if a.dtype == numpy.float64:
+            utils = _get_cffi_utils()
+            if utils is not None:
+                ffi, lib = utils
+                out = numpy.empty(len(a), dtype=numpy.float64)
+                lib.cffi_running_min(ffi.from_buffer('double[]', a),
+                                     ffi.from_buffer('double[]', out), len(a))
+                return out
+        if len(a) >= 50_000:
+            n = len(a)
+            nchunks = 4
+            chunk = n // nchunks
+            slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+            global _argsort_pool
+            if _argsort_pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _argsort_pool = ThreadPoolExecutor(max_workers=16)
+            futures = [_argsort_pool.submit(numpy.minimum.accumulate, a[s:e]) for s, e in slices]
+            local = [f.result() for f in futures]
+            out = numpy.empty(n, dtype=a.dtype)
+            out[slices[0][0]:slices[0][1]] = local[0]
+            prefix_mins = numpy.minimum.accumulate([ls[-1] for ls in local[:-1]])
+            for i in range(1, nchunks):
+                s, e = slices[i]
+                numpy.minimum(local[i], prefix_mins[i - 1], out=out[s:e])
+            return out
     return numpy.minimum.accumulate(a)
 
 def _flatnonzero_chunk(mask, s, e):
@@ -743,7 +760,15 @@ def _fused_count_chunk(a, cmp_fn, val, s, e):
     return numpy.count_nonzero(cmp_fn(a[s:e], val))
 
 def _fused_count(a, cmp_op, val):
-    """Fused parallel comparison + count_nonzero."""
+    """Fused comparison + count: cffi single-pass for float64, parallel numpy fallback."""
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64:
+        utils = _get_cffi_utils()
+        if utils is not None:
+            ffi, lib = utils
+            fn_name = _CFFI_COUNT_FNS.get(cmp_op)
+            if fn_name is not None:
+                cfn = getattr(lib, fn_name)
+                return cfn(ffi.from_buffer('double[]', a), float(val), len(a))
     cmp_fn = _CMP_FNS[cmp_op]
     if type(a) is numpy.ndarray and len(a) >= 100_000:
         n = len(a)
@@ -867,6 +892,54 @@ def _compile_cffi_fused(src, nvars):
         return False
     _cffi_cache[src] = (ffi, lib)
     return (ffi, lib)
+
+# cffi utilities: running_max/min, count (lazy-compiled)
+_cffi_utils = None
+_cffi_utils_checked = False
+
+def _get_cffi_utils():
+    global _cffi_utils, _cffi_utils_checked
+    if _cffi_utils_checked:
+        return _cffi_utils
+    _cffi_utils_checked = True
+    cffi = _get_cffi()
+    if cffi is None:
+        return None
+    ffi = cffi.FFI()
+    ffi.cdef('''
+void cffi_running_max(const double* a, double* out, int64_t n);
+void cffi_running_min(const double* a, double* out, int64_t n);
+int64_t cffi_count_lt(const double* a, double val, int64_t n);
+int64_t cffi_count_gt(const double* a, double val, int64_t n);
+int64_t cffi_count_eq(const double* a, double val, int64_t n);
+''')
+    try:
+        lib = ffi.verify('''
+#include <stdint.h>
+void cffi_running_max(const double* a, double* out, int64_t n) {
+    double mx = a[0]; out[0] = mx;
+    for (int64_t i = 1; i < n; i++) { if (a[i] > mx) mx = a[i]; out[i] = mx; }
+}
+void cffi_running_min(const double* a, double* out, int64_t n) {
+    double mn = a[0]; out[0] = mn;
+    for (int64_t i = 1; i < n; i++) { if (a[i] < mn) mn = a[i]; out[i] = mn; }
+}
+int64_t cffi_count_lt(const double* a, double val, int64_t n) {
+    int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] < val); return c;
+}
+int64_t cffi_count_gt(const double* a, double val, int64_t n) {
+    int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] > val); return c;
+}
+int64_t cffi_count_eq(const double* a, double val, int64_t n) {
+    int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] == val); return c;
+}
+''', extra_compile_args=['-O2'])
+        _cffi_utils = (ffi, lib)
+    except Exception:
+        pass
+    return _cffi_utils
+
+_CFFI_COUNT_FNS = {'<': 'cffi_count_lt', '>': 'cffi_count_gt', '==': 'cffi_count_eq'}
 
 def _parallel_eval_2(fn, v0, v1):
     """Fused C eval for element-wise 2-arg expressions, numpy parallel fallback."""
