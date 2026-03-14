@@ -584,48 +584,64 @@ def _add_prefix_out(ls, p, out, s, e):
     numpy.add(ls, p, out=out[s:e])
 
 def _cumsum(a):
-    """Parallel prefix sum for large arrays, serial for small."""
-    if type(a) is numpy.ndarray and len(a) >= 100_000:
-        n = len(a)
-        nchunks = 8
-        chunk = n // nchunks
-        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
-        global _argsort_pool
-        if _argsort_pool is None:
-            from concurrent.futures import ThreadPoolExecutor
-            _argsort_pool = ThreadPoolExecutor(max_workers=16)
-        futures = [_argsort_pool.submit(numpy.cumsum, a[s:e]) for s, e in slices]
-        local_sums = [f.result() for f in futures]
-        # Pre-allocate output and write chunks directly (avoids concatenate overhead)
-        out = numpy.empty(n, dtype=a.dtype)
-        out[slices[0][0]:slices[0][1]] = local_sums[0]
-        prefixes = numpy.cumsum([ls[-1] for ls in local_sums[:-1]])
-        add_futures = [_argsort_pool.submit(_add_prefix_out, local_sums[i + 1], prefixes[i], out, slices[i + 1][0], slices[i + 1][1]) for i in range(len(prefixes))]
-        for f in add_futures: f.result()
-        return out
+    """Cumulative sum: cffi for float64, parallel numpy fallback for large non-float64."""
+    if type(a) is numpy.ndarray:
+        if a.dtype == numpy.float64:
+            utils = _get_cffi_utils()
+            if utils is not None:
+                ffi, lib = utils
+                out = numpy.empty(len(a), dtype=numpy.float64)
+                lib.cffi_cumsum(ffi.from_buffer('double[]', a),
+                                ffi.from_buffer('double[]', out), len(a))
+                return out
+        if len(a) >= 100_000:
+            n = len(a)
+            nchunks = 8
+            chunk = n // nchunks
+            slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+            global _argsort_pool
+            if _argsort_pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _argsort_pool = ThreadPoolExecutor(max_workers=16)
+            futures = [_argsort_pool.submit(numpy.cumsum, a[s:e]) for s, e in slices]
+            local_sums = [f.result() for f in futures]
+            out = numpy.empty(n, dtype=a.dtype)
+            out[slices[0][0]:slices[0][1]] = local_sums[0]
+            prefixes = numpy.cumsum([ls[-1] for ls in local_sums[:-1]])
+            add_futures = [_argsort_pool.submit(_add_prefix_out, local_sums[i + 1], prefixes[i], out, slices[i + 1][0], slices[i + 1][1]) for i in range(len(prefixes))]
+            for f in add_futures: f.result()
+            return out
     return numpy.cumsum(a)
 
 def _cumprod(a):
-    """Parallel cumulative product for large arrays."""
-    if type(a) is numpy.ndarray and len(a) >= 50_000:
-        n = len(a)
-        nchunks = 4
-        chunk = n // nchunks
-        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
-        global _argsort_pool
-        if _argsort_pool is None:
-            from concurrent.futures import ThreadPoolExecutor
-            _argsort_pool = ThreadPoolExecutor(max_workers=16)
-        futures = [_argsort_pool.submit(numpy.cumprod, a[s:e]) for s, e in slices]
-        local = [f.result() for f in futures]
-        out = numpy.empty(n, dtype=a.dtype)
-        out[slices[0][0]:slices[0][1]] = local[0]
-        # Cumulative prefix products: prefix[i] = product of all chunks 0..i
-        prefixes = numpy.cumprod([ls[-1] for ls in local[:-1]])
-        for i in range(1, nchunks):
-            s, e = slices[i]
-            numpy.multiply(local[i], prefixes[i - 1], out=out[s:e])
-        return out
+    """Cumulative product: cffi for float64, parallel numpy fallback for large non-float64."""
+    if type(a) is numpy.ndarray:
+        if a.dtype == numpy.float64:
+            utils = _get_cffi_utils()
+            if utils is not None:
+                ffi, lib = utils
+                out = numpy.empty(len(a), dtype=numpy.float64)
+                lib.cffi_cumprod(ffi.from_buffer('double[]', a),
+                                 ffi.from_buffer('double[]', out), len(a))
+                return out
+        if len(a) >= 50_000:
+            n = len(a)
+            nchunks = 4
+            chunk = n // nchunks
+            slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+            global _argsort_pool
+            if _argsort_pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _argsort_pool = ThreadPoolExecutor(max_workers=16)
+            futures = [_argsort_pool.submit(numpy.cumprod, a[s:e]) for s, e in slices]
+            local = [f.result() for f in futures]
+            out = numpy.empty(n, dtype=a.dtype)
+            out[slices[0][0]:slices[0][1]] = local[0]
+            prefixes = numpy.cumprod([ls[-1] for ls in local[:-1]])
+            for i in range(1, nchunks):
+                s, e = slices[i]
+                numpy.multiply(local[i], prefixes[i - 1], out=out[s:e])
+            return out
     return numpy.cumprod(a)
 
 def _running_max(a):
@@ -909,6 +925,8 @@ def _get_cffi_utils():
     ffi.cdef('''
 void cffi_running_max(const double* a, double* out, int64_t n);
 void cffi_running_min(const double* a, double* out, int64_t n);
+void cffi_cumsum(const double* a, double* out, int64_t n);
+void cffi_cumprod(const double* a, double* out, int64_t n);
 int64_t cffi_count_lt(const double* a, double val, int64_t n);
 int64_t cffi_count_gt(const double* a, double val, int64_t n);
 int64_t cffi_count_eq(const double* a, double val, int64_t n);
@@ -923,6 +941,14 @@ void cffi_running_max(const double* a, double* out, int64_t n) {
 void cffi_running_min(const double* a, double* out, int64_t n) {
     double mn = a[0]; out[0] = mn;
     for (int64_t i = 1; i < n; i++) { if (a[i] < mn) mn = a[i]; out[i] = mn; }
+}
+void cffi_cumsum(const double* a, double* out, int64_t n) {
+    double s = 0.0;
+    for (int64_t i = 0; i < n; i++) { s += a[i]; out[i] = s; }
+}
+void cffi_cumprod(const double* a, double* out, int64_t n) {
+    double p = 1.0;
+    for (int64_t i = 0; i < n; i++) { p *= a[i]; out[i] = p; }
 }
 int64_t cffi_count_lt(const double* a, double val, int64_t n) {
     int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] < val); return c;

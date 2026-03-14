@@ -285,3 +285,4 @@ exp72	12.960	pass	keep	exp72: parallel chunked eval for element-wise 2-var compi
 exp73	12.998	pass	keep	exp73: adaptive chunk count for _fused_filter (6 chunks for n>=750K), move import math to module level
 exp74	12.461	pass	keep	exp74: cffi JIT for fused element-wise eval - compile Python expressions to C via cffi (vec_arith_chain_1M: 0.971->0.328ms, 2.96x faster)
 exp75	12.067	pass	keep	exp75: cffi running_max/min/count - fused C loops for sequential ops + count (running_max 1.63x, running_min 1.60x, count_filter 2.0x, risk benchmarks 1.5x)
+exp76	11.696	pass	keep	exp76: cffi cumsum/cumprod - fused C loops (running_sum_1M: 1.034->0.949ms, cumul_product_100K: 0.247->0.132ms 1.87x)
