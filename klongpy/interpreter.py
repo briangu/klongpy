@@ -461,6 +461,7 @@ def _bucket_sort_precomputed(low16, bucket_ids, b):
             return out
     return indices[numpy.argsort(keys, kind='stable')]
 
+
 def _bucket_sort_values(a, low16, bucket_ids, b):
     """Sort bucket b and return sorted values directly (avoids index gather)."""
     indices = numpy.flatnonzero(bucket_ids == b)
@@ -503,20 +504,12 @@ def _argsort(a):
                 _argsort_pool = ThreadPoolExecutor(max_workers=16)
             # Bucket argsort for integer arrays: fused flatnonzero+sort per bucket in parallel
             if dk == 'i' or dk == 'u':
-                if n >= 250_000 and a.dtype == numpy.int64:
-                    # Parallel pre-computation: min, max, int32 cast overlap
+                if n >= 250_000:
                     f_mn = _argsort_pool.submit(a.min)
                     f_mx = _argsort_pool.submit(a.max)
-                    f_a32 = _argsort_pool.submit(a.astype, numpy.int32)
                     mn, mx = int(f_mn.result()), int(f_mx.result())
-                    if mn >= -2147483648 and mx <= 2147483647:
-                        a = f_a32.result()
-                    else:
-                        f_a32.result()  # discard but wait to avoid dangling future
                 else:
                     mn, mx = int(a.min()), int(a.max())
-                    if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
-                        a = a.astype(numpy.int32)
                 val_range = mx - mn
                 # Adaptive shift: start at 16, decrease to get at least 4 buckets
                 shift = 16
@@ -526,15 +519,33 @@ def _argsort(a):
                     nbuckets = (val_range >> shift) + 1
                 # Cap buckets to avoid excessive overhead; fall back to division if too many
                 if nbuckets <= 32:
+                    # cffi fused bucket prep: single C pass for bucket_ids + low16 (no int32 cast)
+                    if a.dtype == numpy.int64:
+                        utils = _get_cffi_utils()
+                        if utils is not None:
+                            ffi, lib = utils
+                            bucket_ids = numpy.empty(n, dtype=numpy.uint8)
+                            low16 = numpy.empty(n, dtype=numpy.uint16)
+                            lib.cffi_bucket_prep_i64(
+                                ffi.cast('const int64_t*', a.ctypes.data),
+                                ffi.cast('uint8_t*', bucket_ids.ctypes.data),
+                                ffi.cast('uint16_t*', low16.ctypes.data),
+                                n, mn, shift)
+                            futures = [_argsort_pool.submit(_bucket_sort_precomputed, low16, bucket_ids, b) for b in range(nbuckets)]
+                            return numpy.concatenate([f.result() for f in futures])
+                    # Numpy fallback (int32 or no cffi)
+                    if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
+                        a = a.astype(numpy.int32)
                     shifted = a - mn
                     bucket_ids = (shifted >> shift).astype(numpy.uint8)
-                    # Pre-compute uint16 sort keys once (within-bucket offset via bit mask)
                     if shift == 16:
                         low16 = shifted.astype(numpy.uint16)
                     else:
                         low16 = (shifted & ((1 << shift) - 1)).astype(numpy.uint16)
                     futures = [_argsort_pool.submit(_bucket_sort_precomputed, low16, bucket_ids, b) for b in range(nbuckets)]
                 else:
+                    if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
+                        a = a.astype(numpy.int32)
                     nbuckets = 16 if n >= 250_000 else 8
                     bucket_size = val_range // nbuckets + 1
                     use_u16 = bucket_size <= 65536
@@ -1304,6 +1315,8 @@ int64_t cffi_filter_eq(const double* a, double* out, int64_t n, double val);
 int64_t cffi_where_gt(const double* a, int64_t* out, int64_t n, double val);
 int64_t cffi_where_lt(const double* a, int64_t* out, int64_t n, double val);
 int64_t cffi_where_eq(const double* a, int64_t* out, int64_t n, double val);
+void cffi_bucket_prep_i64(const int64_t* a, uint8_t* bucket_ids, uint16_t* low16,
+                           int64_t n, int64_t mn, int32_t shift);
 ''')
     try:
         lib = ffi.verify('''
@@ -1421,6 +1434,15 @@ int64_t cffi_where_eq(const double* a, int64_t* out, int64_t n, double val) {
     int64_t k = 0;
     for (int64_t i = 0; i < n; i++) { out[k] = i; k += (a[i] == val); }
     return k;
+}
+void cffi_bucket_prep_i64(const int64_t* a, uint8_t* bucket_ids, uint16_t* low16,
+                           int64_t n, int64_t mn, int32_t shift) {
+    uint32_t mask = (shift == 16) ? 0xFFFF : (uint32_t)((1 << shift) - 1);
+    for (int64_t i = 0; i < n; i++) {
+        uint32_t shifted = (uint32_t)((int32_t)(a[i] - mn));
+        bucket_ids[i] = (uint8_t)(shifted >> shift);
+        low16[i] = (uint16_t)(shifted & mask);
+    }
 }
 ''', extra_compile_args=['-O2'])
         _cffi_utils = (ffi, lib)
