@@ -1107,8 +1107,7 @@ def chain_adverbs(klong, arr):
             _csf = getattr(f, '_scan_cumsum_fn', None)
             _cpf = getattr(f, '_scan_cumprod_fn', None)
             if _csf is not None:
-                _be = klong._backend
-                def f(x, csf=_csf, be=_be):
+                def f(x, csf=_csf):
                     if type(x) is numpy.ndarray and len(x) > 0:
                         if len(x) == 1:
                             return x[0]
@@ -1117,8 +1116,7 @@ def chain_adverbs(klong, arr):
                     return reduce(lambda a, b, _csf=csf: a + _csf(b), x)
                 continue
             if _cpf is not None:
-                _be = klong._backend
-                def f(x, cpf=_cpf, be=_be):
+                def f(x, cpf=_cpf):
                     if type(x) is numpy.ndarray and len(x) > 0:
                         if len(x) == 1:
                             return x[0]
@@ -1131,7 +1129,6 @@ def chain_adverbs(klong, arr):
             _csf = getattr(f, '_scan_cumsum_fn', None)
             _cpf = getattr(f, '_scan_cumprod_fn', None)
             if _csf is not None:
-                _prev_f = f
                 _be = klong._backend
                 def f(x, csf=_csf, be=_be):
                     if type(x) is numpy.ndarray and len(x) > 0:
@@ -1148,7 +1145,6 @@ def chain_adverbs(klong, arr):
                     return be.kg_asarray(list(itertools.accumulate(x, lambda a, b, _csf=csf: a + _csf(b))))
                 continue
             if _cpf is not None:
-                _prev_f = f
                 _be = klong._backend
                 def f(x, cpf=_cpf, be=_be):
                     if type(x) is numpy.ndarray and len(x) > 0:
