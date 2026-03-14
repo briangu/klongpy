@@ -1085,23 +1085,108 @@ class KlongInterpreter():
                     _cx = ctx.get(_cfa[0])
                     if _cx is None:
                         _cx = self.eval(_cfa[0])
-                    _cop_a = x0._op_a
                     if type(_cx) is int and type(_cy) is int:
+                        _cop_a = x0._op_a
                         if _cop_a == '<':
-                            q = 1 if _cx < _cy else 0
+                            p = _cx < _cy
                         elif _cop_a == '>':
-                            q = 1 if _cx > _cy else 0
+                            p = _cx > _cy
                         elif _cop_a == '=':
-                            q = 1 if _cx == _cy else 0
+                            p = _cx == _cy
                         else:
                             _cfast = x0._fast_op
                             q = _cfast(_cx, _cy) if _cfast is not None else self._vd[_cop_a](_cx, _cy)
+                            p = q != 0
                     else:
+                        _cop_a = x0._op_a
                         _cfast = x0._fast_op
                         if _cfast is not None and (type(_cx) is int or type(_cx) is float) and (type(_cy) is int or type(_cy) is float):
                             q = _cfast(_cx, _cy)
                         else:
                             q = self._vd[_cop_a](_cx, _cy)
+                        tq = type(q)
+                        if tq is int or tq is float:
+                            p = q != 0
+                        else:
+                            p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
+                    xb = f[1] if p else f[2]
+                    # Pre-computed fast paths for branch dispatch
+                    if p:
+                        if x._cached_true_is_sym:
+                            _v = ctx.get(xb)
+                            if _v is not None:
+                                return _v
+                            return self.eval(xb)
+                    else:
+                        if x._cached_false_is_dyad_op:
+                            # Inline dyad op for KGCond branch (e.g., (fib(x-1))+(fib(x-2)))
+                            _bfa = xb.args
+                            if type(_bfa) is not list:
+                                _bfa = [_bfa] if _bfa is not None else _bfa
+                            _bfa1 = _bfa[1]
+                            _bt1 = type(_bfa1)
+                            if _bt1 is int or _bt1 is float:
+                                _by = _bfa1
+                            elif _bt1 is KGSym and _bfa1 in reserved_fn_symbols_set:
+                                _by = ctx.get(_bfa1)
+                                if _by is None:
+                                    _by = self.eval(_bfa1)
+                            elif (_bt1 is KGFn or _bt1 is KGCall) and _bfa1._is_op:
+                                _by = self.eval(_bfa1)
+                            elif _bt1 is KGCall and not _bfa1._is_adverb_chain:
+                                _by = self._eval_fn(_bfa1)
+                            else:
+                                _by = self.eval(_bfa1)
+                            _bop_a = xb._op_a
+                            if _bop_a in _UNEVALUATED_OPS:
+                                _bx = _bfa[0]
+                            else:
+                                _bfa0 = _bfa[0]
+                                _bt0 = type(_bfa0)
+                                if _bt0 is KGSym and _bfa0 in reserved_fn_symbols_set:
+                                    _bx = ctx.get(_bfa0)
+                                    if _bx is None:
+                                        _bx = self.eval(_bfa0)
+                                elif _bt0 is int or _bt0 is float:
+                                    _bx = _bfa0
+                                elif (_bt0 is KGFn or _bt0 is KGCall) and _bfa0._is_op:
+                                    _bx = self.eval(_bfa0)
+                                elif _bt0 is KGCall and not _bfa0._is_adverb_chain:
+                                    _bx = self._eval_fn(_bfa0)
+                                else:
+                                    _bx = self.eval(_bfa0)
+                            if type(_bx) is int and type(_by) is int:
+                                if _bop_a == '+':
+                                    return _bx + _by
+                                elif _bop_a == '-':
+                                    return _bx - _by
+                                elif _bop_a == '*':
+                                    return _bx * _by
+                                else:
+                                    _bfast = xb._fast_op
+                                    if _bfast is not None:
+                                        return _bfast(_bx, _by)
+                                    return self._vd[_bop_a](_bx, _by)
+                            else:
+                                _bfast = xb._fast_op
+                                if _bfast is not None and (type(_bx) is int or type(_bx) is float) and (type(_by) is int or type(_by) is float):
+                                    return _bfast(_bx, _by)
+                                return self._vd[_bop_a](_bx, _by)
+                    # General branch dispatch (fallback for ultra-fast path)
+                    txb = type(xb)
+                    if txb is int or txb is float:
+                        return xb
+                    if txb is KGSym:
+                        if xb in reserved_fn_symbols_set:
+                            _v = ctx.get(xb)
+                            if _v is not None:
+                                return _v
+                        return self.eval(xb)
+                    if (txb is KGCall or txb is KGFn) and xb._is_op:
+                        return self.eval(xb)
+                    if txb is KGCall and not xb._is_adverb_chain:
+                        return self._eval_fn(xb)
+                    return self.call(xb)
                 elif x._cached_cond_is_dyad_op:
                     # Medium path: condition is a dyad op but args need type checking
                     _cfa = x0.args
