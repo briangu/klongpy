@@ -1070,8 +1070,9 @@ def _cffi_reduce_1(reduce_op, inner_src, a):
             ffi, lib = result
             return lib._reduce(ffi.from_buffer('double[]', a), len(a))
     # Fallback: evaluate inner expression then numpy reduce
-    _v0 = a
-    inner_val = eval(inner_src, {'_v0': _v0})
+    fb_globals = dict(_EVAL_GLOBALS)
+    fb_globals['_v0'] = a
+    inner_val = eval(inner_src, fb_globals)
     return _REDUCE_NP_FALLBACK[reduce_op](inner_val)
 
 # cffi utilities: running_max/min, count (lazy-compiled)
@@ -1463,12 +1464,15 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                 if py_fn is not None:
                     s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
                     if s is not None:
-                        # For reduce (not scan), try cffi fused reduce on non-trivial expressions
+                        # For reduce (not scan), try cffi fused reduce on arithmetic expressions
                         if adv_char == '/' and not s[1] and var_refs is not None:
-                            # Check if inner expr references exactly one variable
                             inner = s[0]
                             if '_v0' in inner and '_v1' not in inner and inner != '_v0':
-                                return (f"_cffi_reduce_1({op_char!r},{inner!r},_v0)", False)
+                                try:
+                                    _python_expr_to_c(inner, 1)
+                                    return (f"_cffi_reduce_1({op_char!r},{inner!r},_v0)", False)
+                                except (ValueError, SyntaxError):
+                                    pass
                         return (f'{py_fn}({s[0]})', s[1])
     return None
 
