@@ -152,7 +152,7 @@ class KGFnWrapper:
 
 
 class KGCall(KGFn):
-    __slots__ = ('_cached_body', '_cached_body_arity', '_cached_body_type', '_cached_version', '_cached_nargs_ok', '_cached_cond_is_dyad_op', '_cached_cond_fast', '_cached_true_is_sym', '_cached_false_is_dyad_op', '_nargs', '_f_args', '_arg0_is_dyad_op', '_arg0_dyad_fast', '_arg0_sym', '_arg0_literal', '_arg0_op_a', '_cond_literal', '_cond_op_a', '_cond_fast_op')
+    __slots__ = ('_cached_body', '_cached_body_arity', '_cached_body_type', '_cached_version', '_cached_nargs_ok', '_cached_cond_is_dyad_op', '_cached_cond_fast', '_cached_true_is_sym', '_cached_false_is_dyad_op', '_nargs', '_f_args', '_arg0_is_dyad_op', '_arg0_dyad_fast', '_arg0_sym', '_arg0_literal', '_arg0_op_a', '_cond_literal', '_cond_op_a', '_cond_fast_op', '_cached_fb_call0', '_cached_fb_call1', '_cached_fb_op_a')
 
     def __init__(self, a, args, arity, global_params=None):
         super().__init__(a, args, arity, global_params)
@@ -168,6 +168,9 @@ class KGCall(KGFn):
         self._cond_literal = None
         self._cond_op_a = None
         self._cond_fast_op = None
+        self._cached_fb_call0 = None
+        self._cached_fb_call1 = None
+        self._cached_fb_op_a = None
         self._nargs = 0 if args is None else (len(args) if type(args) is list else 1)
         _f_args = args if args is None or type(args) is list else [args]
         self._f_args = _f_args

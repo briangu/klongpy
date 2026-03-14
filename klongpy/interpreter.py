@@ -1003,7 +1003,24 @@ class KlongInterpreter():
                                 return _xval
                             return self.eval(xb)
                     else:
-                        if x._cached_false_is_dyad_op:
+                        _fbc0 = x._cached_fb_call0
+                        if _fbc0 is not None:
+                            # Ultra-fast: both false branch args are KGCall
+                            _by = self._eval_fn(x._cached_fb_call1)
+                            _bx = self._eval_fn(_fbc0)
+                            _fbop = x._cached_fb_op_a
+                            if type(_bx) is int and type(_by) is int:
+                                if _fbop == '+':
+                                    return _bx + _by
+                                elif _fbop == '-':
+                                    return _bx - _by
+                                elif _fbop == '*':
+                                    return _bx * _by
+                                else:
+                                    return self._vd[_fbop](_bx, _by)
+                            else:
+                                return self._vd[_fbop](_bx, _by)
+                        elif x._cached_false_is_dyad_op:
                             _bfa = xb.args
                             if type(_bfa) is not list:
                                 _bfa = [_bfa] if _bfa is not None else _bfa
@@ -1147,7 +1164,19 @@ class KlongInterpreter():
                     _f2 = f[2]
                     x._cached_true_is_sym = type(_f1) is KGSym and _f1 in reserved_fn_symbols_set
                     _tf2 = type(_f2)
-                    x._cached_false_is_dyad_op = (_tf2 is KGCall or _tf2 is KGFn) and _f2._is_op and _f2._op_arity == 2
+                    _f2_is_dyad = (_tf2 is KGCall or _tf2 is KGFn) and _f2._is_op and _f2._op_arity == 2
+                    x._cached_false_is_dyad_op = _f2_is_dyad
+                    # Pre-cache false branch dual-call pattern: op(call0, call1)
+                    if _f2_is_dyad:
+                        _f2a = _f2.args
+                        if type(_f2a) is list and len(_f2a) == 2:
+                            _fb0, _fb1 = _f2a[0], _f2a[1]
+                            _tfb0, _tfb1 = type(_fb0), type(_fb1)
+                            if (_tfb0 is KGCall and not _fb0._is_op and not _fb0._is_adverb_chain and
+                                _tfb1 is KGCall and not _fb1._is_op and not _fb1._is_adverb_chain):
+                                x._cached_fb_call0 = _fb0
+                                x._cached_fb_call1 = _fb1
+                                x._cached_fb_op_a = _f2._op_a
                 else:
                     x._cached_cond_is_dyad_op = False
                     x._cached_cond_fast = False
@@ -1322,7 +1351,23 @@ class KlongInterpreter():
                                 return _v
                             return self.eval(xb)
                     else:
-                        if x._cached_false_is_dyad_op:
+                        _fbc0 = x._cached_fb_call0
+                        if _fbc0 is not None:
+                            _by = self._eval_fn(x._cached_fb_call1)
+                            _bx = self._eval_fn(_fbc0)
+                            _fbop = x._cached_fb_op_a
+                            if type(_bx) is int and type(_by) is int:
+                                if _fbop == '+':
+                                    return _bx + _by
+                                elif _fbop == '-':
+                                    return _bx - _by
+                                elif _fbop == '*':
+                                    return _bx * _by
+                                else:
+                                    return self._vd[_fbop](_bx, _by)
+                            else:
+                                return self._vd[_fbop](_bx, _by)
+                        elif x._cached_false_is_dyad_op:
                             # Inline dyad op for KGCond branch (e.g., (fib(x-1))+(fib(x-2)))
                             _bfa = xb.args
                             if type(_bfa) is not list:
@@ -1448,7 +1493,23 @@ class KlongInterpreter():
                             return _v
                         return self.eval(xb)
                 else:
-                    if x._cached_false_is_dyad_op:
+                    _fbc0 = x._cached_fb_call0
+                    if _fbc0 is not None:
+                        _by = self._eval_fn(x._cached_fb_call1)
+                        _bx = self._eval_fn(_fbc0)
+                        _fbop = x._cached_fb_op_a
+                        if type(_bx) is int and type(_by) is int:
+                            if _fbop == '+':
+                                return _bx + _by
+                            elif _fbop == '-':
+                                return _bx - _by
+                            elif _fbop == '*':
+                                return _bx * _by
+                            else:
+                                return self._vd[_fbop](_bx, _by)
+                        else:
+                            return self._vd[_fbop](_bx, _by)
+                    elif x._cached_false_is_dyad_op:
                         # Inline dyad op for KGCond branch (e.g., (fib(x-1))+(fib(x-2)))
                         _bfa = xb.args
                         if type(_bfa) is not list:
