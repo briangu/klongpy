@@ -463,35 +463,24 @@ def _bucket_find_and_sort(a, bucket_ids, b, bucket_min, use_u16):
 def _bucket_sort_precomputed(low16, bucket_ids, b, buf_size=0):
     """Sort bucket b using pre-computed uint16 relative values."""
     nn = len(bucket_ids)
-    # cffi branchless scan for large arrays (avoids intermediate bool array)
+    # cffi fused find+gather+sort for large arrays
     if nn >= 100_000:
         utils = _get_cffi_utils()
         if utils is not None:
             ffi, lib = utils
-            # Use smaller buffer when estimated size is provided (avoids 8MB alloc per thread)
             alloc_n = buf_size if buf_size > 0 else nn
             buf = numpy.empty(alloc_n, dtype=numpy.int64)
-            k = lib.cffi_find_bucket(
+            k = lib.cffi_bucket_argsort(
                 ffi.cast('const uint8_t*', bucket_ids.ctypes.data),
+                ffi.cast('const uint16_t*', low16.ctypes.data),
                 ffi.cast('int64_t*', buf.ctypes.data), nn, b)
             if k >= alloc_n:
-                # Rare: bucket larger than estimate, retry with full buffer
                 buf = numpy.empty(nn, dtype=numpy.int64)
-                k = lib.cffi_find_bucket(
+                k = lib.cffi_bucket_argsort(
                     ffi.cast('const uint8_t*', bucket_ids.ctypes.data),
+                    ffi.cast('const uint16_t*', low16.ctypes.data),
                     ffi.cast('int64_t*', buf.ctypes.data), nn, b)
-            if k <= 1:
-                return buf[:k].copy()
-            indices = buf[:k]
-            keys = low16[indices]
-            if k >= 5000:
-                out = numpy.empty(k, dtype=numpy.int64)
-                lib.cffi_counting_argsort_u16(
-                    ffi.cast('const uint16_t*', keys.ctypes.data), k,
-                    ffi.cast('const int64_t*', indices.ctypes.data),
-                    ffi.cast('int64_t*', out.ctypes.data))
-                return out
-            return indices[numpy.argsort(keys, kind='stable')].copy()
+            return buf[:k].copy()
     indices = numpy.flatnonzero(bucket_ids == b)
     n = len(indices)
     if n <= 1:
@@ -1374,6 +1363,8 @@ int64_t cffi_where_eq(const double* a, int64_t* out, int64_t n, double val);
 void cffi_bucket_prep_i64(const int64_t* a, uint8_t* bucket_ids, uint16_t* low16,
                            int64_t n, int64_t mn, int32_t shift);
 int64_t cffi_find_bucket(const uint8_t* bucket_ids, int64_t* out, int64_t n, uint8_t target);
+int64_t cffi_bucket_argsort(const uint8_t* bucket_ids, const uint16_t* low16,
+                             int64_t* out, int64_t n, uint8_t target);
 void cffi_add_scalar(double* a, int64_t n, double val);
 ''')
     try:
@@ -1528,6 +1519,42 @@ void cffi_bucket_prep_i64(const int64_t* a, uint8_t* bucket_ids, uint16_t* low16
 int64_t cffi_find_bucket(const uint8_t* bucket_ids, int64_t* out, int64_t n, uint8_t target) {
     int64_t k = 0;
     for (int64_t i = 0; i < n; i++) { out[k] = i; k += (bucket_ids[i] == target); }
+    return k;
+}
+int64_t cffi_bucket_argsort(const uint8_t* bucket_ids, const uint16_t* low16,
+                             int64_t* out, int64_t n, uint8_t target) {
+    /* Fused find + gather + radix sort: eliminates Python overhead between steps.
+       Phase 1: branchless scan to find indices for target bucket. */
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = i; k += (bucket_ids[i] == target); }
+    if (k <= 1) return k;
+    /* Phase 2: gather keys and radix sort in-place.
+       Two-pass radix on uint16 keys with 256-element L1-friendly count arrays. */
+    uint16_t* keys = (uint16_t*)malloc(k * sizeof(uint16_t));
+    for (int64_t i = 0; i < k; i++) keys[i] = low16[out[i]];
+    int64_t* temp_idx = (int64_t*)malloc(k * sizeof(int64_t));
+    uint16_t* temp_keys = (uint16_t*)malloc(k * sizeof(uint16_t));
+    /* Pass 1: sort by low byte */
+    int32_t c0[256];
+    memset(c0, 0, sizeof(c0));
+    for (int64_t i = 0; i < k; i++) c0[keys[i] & 0xFF]++;
+    int32_t t0 = 0;
+    for (int32_t v = 0; v < 256; v++) { int32_t c = c0[v]; c0[v] = t0; t0 += c; }
+    for (int64_t i = 0; i < k; i++) {
+        int32_t p = c0[keys[i] & 0xFF]++;
+        temp_idx[p] = out[i];
+        temp_keys[p] = keys[i];
+    }
+    /* Pass 2: sort by high byte */
+    int32_t c1[256];
+    memset(c1, 0, sizeof(c1));
+    for (int64_t i = 0; i < k; i++) c1[temp_keys[i] >> 8]++;
+    int32_t t1 = 0;
+    for (int32_t v = 0; v < 256; v++) { int32_t c = c1[v]; c1[v] = t1; t1 += c; }
+    for (int64_t i = 0; i < k; i++) out[c1[temp_keys[i] >> 8]++] = temp_idx[i];
+    free(keys);
+    free(temp_idx);
+    free(temp_keys);
     return k;
 }
 void cffi_add_scalar(double* a, int64_t n, double val) {
