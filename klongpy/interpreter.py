@@ -404,8 +404,8 @@ def _argsort(a):
             mn, mx = a.min(), a.max()
             if mn >= -2147483648 and mx <= 2147483647:
                 a = a.astype(numpy.int32)
-        # 4-way parallel merge sort for large arrays: split into quarters, sort in threads, merge
-        if n >= 500_000:
+        # 4-way parallel merge sort: split into quarters, sort in threads, merge
+        if n >= 10_000:
             global _argsort_pool
             if _argsort_pool is None:
                 from concurrent.futures import ThreadPoolExecutor
