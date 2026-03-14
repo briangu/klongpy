@@ -438,6 +438,18 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                             if s1[0] == f'_np.argsort({s0[0]})':
                                 return (f'_np.sort({s0[0]})', False)
                             return (f'{s0[0]}[{s1[0]}]', False)
+                # Special handling for |/& (max/min) dyads — no Python infix operator
+                if expr._op_a == '|' or expr._op_a == '&':
+                    _np_fn = '_np.maximum' if expr._op_a == '|' else '_np.minimum'
+                    fa = expr.args
+                    if type(fa) is not list:
+                        fa = [fa] if fa is not None else fa
+                    if fa is not None and len(fa) == 2:
+                        s0 = _expr_to_source(fa[0], klong, dyadic=dyadic, var_refs=var_refs)
+                        s1 = _expr_to_source(fa[1], klong, dyadic=dyadic, var_refs=var_refs)
+                        if s0 is not None and s1 is not None:
+                            is_const = s0[1] and s1[1]
+                            return (f'{_np_fn}({s0[0]},{s1[0]})', is_const)
                 return None
             fa = expr.args
             if type(fa) is not list:
