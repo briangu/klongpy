@@ -481,6 +481,9 @@ def _fast_sort(a):
 def _add_prefix(ls, p):
     return ls + p
 
+def _add_prefix_out(ls, p, out, s, e):
+    numpy.add(ls, p, out=out[s:e])
+
 def _cumsum(a):
     """Parallel prefix sum for large arrays, serial for small."""
     if type(a) is numpy.ndarray and len(a) >= 100_000:
@@ -494,12 +497,13 @@ def _cumsum(a):
             _argsort_pool = ThreadPoolExecutor(max_workers=16)
         futures = [_argsort_pool.submit(numpy.cumsum, a[s:e]) for s, e in slices]
         local_sums = [f.result() for f in futures]
-        # Parallel prefix addition
+        # Pre-allocate output and write chunks directly (avoids concatenate overhead)
+        out = numpy.empty(n, dtype=a.dtype)
+        out[slices[0][0]:slices[0][1]] = local_sums[0]
         prefixes = numpy.cumsum([ls[-1] for ls in local_sums[:-1]])
-        add_futures = [_argsort_pool.submit(_add_prefix, local_sums[i + 1], prefixes[i]) for i in range(len(prefixes))]
-        result = [local_sums[0]]
-        result.extend([f.result() for f in add_futures])
-        return numpy.concatenate(result)
+        add_futures = [_argsort_pool.submit(_add_prefix_out, local_sums[i + 1], prefixes[i], out, slices[i + 1][0], slices[i + 1][1]) for i in range(len(prefixes))]
+        for f in add_futures: f.result()
+        return out
     return numpy.cumsum(a)
 
 def _cumprod(a):
