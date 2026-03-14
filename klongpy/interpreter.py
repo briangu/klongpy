@@ -396,7 +396,7 @@ def _dotsum(a, b):
 _argsort_pool = None
 
 def _argsort(a):
-    """Fast argsort with int32 downcast and parallel merge for large arrays."""
+    """Fast argsort with int32 downcast and 4-way parallel merge for large arrays."""
     if type(a) is numpy.ndarray:
         n = len(a)
         # Int64→int32 downcast for large arrays
@@ -404,18 +404,17 @@ def _argsort(a):
             mn, mx = a.min(), a.max()
             if mn >= -2147483648 and mx <= 2147483647:
                 a = a.astype(numpy.int32)
-        # Parallel merge sort for large arrays: split, sort halves in threads, merge
+        # 4-way parallel merge sort for large arrays: split into quarters, sort in threads, merge
         if n >= 500_000:
             global _argsort_pool
             if _argsort_pool is None:
                 from concurrent.futures import ThreadPoolExecutor
-                _argsort_pool = ThreadPoolExecutor(max_workers=2)
-            mid = n >> 1
-            f1 = _argsort_pool.submit(numpy.argsort, a[:mid])
-            f2 = _argsort_pool.submit(numpy.argsort, a[mid:])
-            idx1 = f1.result()
-            idx2 = f2.result() + mid
-            combined = numpy.concatenate([idx1, idx2])
+                _argsort_pool = ThreadPoolExecutor(max_workers=4)
+            q = n >> 2
+            slices = [(0, q), (q, q*2), (q*2, q*3), (q*3, n)]
+            futures = [_argsort_pool.submit(numpy.argsort, a[s:e]) for s, e in slices]
+            indices = [f.result() + s for f, (s, e) in zip(futures, slices)]
+            combined = numpy.concatenate(indices)
             order = numpy.argsort(a[combined], kind='stable')
             return combined[order]
     return numpy.argsort(a)
