@@ -417,13 +417,13 @@ def _argsort(a):
             global _argsort_pool
             if _argsort_pool is None:
                 from concurrent.futures import ThreadPoolExecutor
-                _argsort_pool = ThreadPoolExecutor(max_workers=8)
+                _argsort_pool = ThreadPoolExecutor(max_workers=16)
             # Bucket argsort for integer arrays: fused flatnonzero+sort per bucket in parallel
             if dk == 'i' or dk == 'u':
                 mn, mx = int(a.min()), int(a.max())
                 if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
                     a = a.astype(numpy.int32)
-                nbuckets = 8
+                nbuckets = 16 if n >= 250_000 else 8
                 bucket_size = (mx - mn) // nbuckets + 1
                 bucket_ids = ((a - mn) // bucket_size).astype(numpy.int32)
                 futures = [_argsort_pool.submit(_bucket_find_and_sort, a, bucket_ids, b) for b in range(nbuckets)]
