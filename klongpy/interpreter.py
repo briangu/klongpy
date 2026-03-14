@@ -349,7 +349,7 @@ def create_system_contexts():
     return [sys_var, ReadonlyDict(sys_d)]
 
 
-_KLONG_OP_TO_PY = {'+': '+', '-': '-', '*': '*', '%': '/', '>': '>', '<': '<', '=': '=='}
+_KLONG_OP_TO_PY = {'+': '+', '-': '-', '*': '*', '%': '/', '>': '>', '<': '<', '=': '==', '^': '**'}
 
 # Monad ops are handled in _compile_arg_fn (not source) to use correct klong semantics
 
@@ -463,10 +463,13 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                     try: s1 = (repr(eval(s1[0])), True)
                     except Exception: pass
                 return (f'({s0[0]}{py_op}{s1[0]})', is_const)
-        if expr._op_arity == 1 and var_refs is not None:
-            # Top-level monad ops: & (where/flatnonzero), # (length), < (argsort)
+        if expr._op_arity == 1:
+            # Monad ops: & (where/flatnonzero), # (length), < (argsort), - (negate)
             op_a = expr._op_a
-            if op_a in ('&', '#', '<'):
+            # Note: #, <, & have type-dependent behavior (e.g., # = length for arrays, ordinal for chars)
+            # so they require var_refs (top-level compilation where types are known).
+            # Negate (-) is always -x regardless of type, so it's safe without var_refs.
+            if op_a == '-' or (var_refs is not None and op_a in ('&', '#', '<')):
                 fa = expr.args
                 arg = fa[0] if type(fa) is list else fa
                 if op_a == '<':
@@ -493,8 +496,10 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                         return (f'_np.flatnonzero({s[0]})', False)
                     elif op_a == '#':
                         return (f'len({s[0]})', False)
-                    else:  # '<' = grade-up/argsort
+                    elif op_a == '<':
                         return (f'_np.argsort({s[0]})', False)
+                    else:  # '-' = negate
+                        return (f'(-{s[0]})', False)
         # Monad ops (arity 1) handled by _compile_arg_fn for correct semantics
     # Handle simple adverb chains: op/x → _np.sum(x), op\x → _np.cumsum(x), etc.
     if te is KGCall and expr._is_adverb_chain:
