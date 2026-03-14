@@ -152,7 +152,7 @@ class KGFnWrapper:
 
 
 class KGCall(KGFn):
-    __slots__ = ('_cached_body', '_cached_body_arity', '_cached_body_type', '_cached_version', '_cached_cond_is_dyad_op', '_cached_cond_fast', '_cached_true_is_sym', '_cached_false_is_dyad_op', '_nargs', '_f_args', '_arg0_is_dyad_op')
+    __slots__ = ('_cached_body', '_cached_body_arity', '_cached_body_type', '_cached_version', '_cached_nargs_ok', '_cached_cond_is_dyad_op', '_cached_cond_fast', '_cached_true_is_sym', '_cached_false_is_dyad_op', '_nargs', '_f_args', '_arg0_is_dyad_op')
 
     def __init__(self, a, args, arity, global_params=None):
         super().__init__(a, args, arity, global_params)
@@ -160,6 +160,7 @@ class KGCall(KGFn):
         self._cached_body_arity = 0
         self._cached_body_type = None
         self._cached_version = -1
+        self._cached_nargs_ok = False
         self._cached_cond_is_dyad_op = False
         self._cached_cond_fast = False
         self._cached_true_is_sym = False

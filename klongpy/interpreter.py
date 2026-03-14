@@ -893,13 +893,12 @@ class KlongInterpreter():
         _tx = type(x)
         if _tx is KGCall and x._cached_body is not None and x._cached_version == _ctx._lookup_version:
             f = x._cached_body
-            f_arity = x._cached_body_arity
             tf = x._cached_body_type
             # Directly extract args (cache guarantees no projection merging)
-            nargs = x._nargs
-            if nargs < f_arity:
+            if not x._cached_nargs_ok:
                 return x
             f_args = x._f_args
+            nargs = x._nargs
         else:
             f_arity = x.arity
             f = x.a
@@ -950,6 +949,7 @@ class KlongInterpreter():
                 x._cached_body_arity = f_arity
                 x._cached_body_type = tf
                 x._cached_version = _ctx._lookup_version
+                x._cached_nargs_ok = x._nargs >= f_arity
                 # Pre-compute KGCond body dispatch hints
                 if tf is KGCond:
                     _x0 = f[0]
