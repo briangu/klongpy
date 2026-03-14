@@ -179,7 +179,7 @@ def get_benchmarks():
 
         # ── Multi-asset cross-sectional ──
         ("xsect", "returns_50assets",    "{-:'x}'prices",     lambda k: setup_multi_asset(k)),
-        ("xsect", "vwap_50assets",       "{(+/x*y)%+/y}'prices,'volumes",  None),
+        ("xsect", "vwap_50assets",       "prices{(+/x*y)%+/y}'volumes",  lambda k: setup_multi_asset(k)),
         ("xsect", "drawdown_50assets",   "{(|\\x)-x}'prices", lambda k: setup_multi_asset(k)),
 
         # ── Signal / cross-sectional analytics ──
