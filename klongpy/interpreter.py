@@ -432,9 +432,20 @@ def _argsort(a):
                 _argsort_pool = ThreadPoolExecutor(max_workers=16)
             # Bucket argsort for integer arrays: fused flatnonzero+sort per bucket in parallel
             if dk == 'i' or dk == 'u':
-                mn, mx = int(a.min()), int(a.max())
-                if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
-                    a = a.astype(numpy.int32)
+                if n >= 250_000 and a.dtype == numpy.int64:
+                    # Parallel pre-computation: min, max, int32 cast overlap
+                    f_mn = _argsort_pool.submit(a.min)
+                    f_mx = _argsort_pool.submit(a.max)
+                    f_a32 = _argsort_pool.submit(a.astype, numpy.int32)
+                    mn, mx = int(f_mn.result()), int(f_mx.result())
+                    if mn >= -2147483648 and mx <= 2147483647:
+                        a = f_a32.result()
+                    else:
+                        f_a32.result()  # discard but wait to avoid dangling future
+                else:
+                    mn, mx = int(a.min()), int(a.max())
+                    if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
+                        a = a.astype(numpy.int32)
                 val_range = mx - mn
                 # Adaptive shift: start at 16, decrease to get at least 4 buckets
                 shift = 16
