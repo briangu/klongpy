@@ -3169,7 +3169,7 @@ class KlongInterpreter():
                     _cfn = _compiled[0]
                     _cv0 = _ctx[_compiled[1]]
                     _cv1 = _ctx[_compiled[2]]
-                    if getattr(_cfn, '_parallel', False) and type(_cv0) is numpy.ndarray and type(_cv1) is numpy.ndarray and len(_cv0) >= 250_000:
+                    if getattr(_cfn, '_parallel', False) and type(_cv0) is numpy.ndarray and type(_cv1) is numpy.ndarray and len(_cv0) >= 500_000:
                         result = _parallel_eval_2(_cfn, _cv0, _cv1)
                     else:
                         result = _cfn(_cv0, _cv1)
