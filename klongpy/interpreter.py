@@ -614,15 +614,21 @@ def _add_prefix(ls, p):
     return ls + p
 
 def _prefix_scan_linear(x, c_x, c_y):
-    """Parallel prefix scan for affine recurrence y[n] = c_x * y[n-1] + c_y * x[n].
+    """Affine recurrence y[n] = c_x * y[n-1] + c_y * x[n].
 
-    Uses Hillis-Steele algorithm with affine transform composition.
-    O(n log n) work but O(log n) span, vectorized via numpy.
-    Pre-allocated temp buffers avoid per-iteration allocation overhead.
-    Early termination when |c_x| < 1: after ceil(log2(52/log2(1/|c_x|)))+1 passes,
-    c_x^(2^p) underflows to zero and further passes have no effect.
+    cffi sequential C loop when available (fastest for all sizes).
+    Fallback: Hillis-Steele parallel prefix with early termination.
     """
     n = len(x)
+    # cffi sequential scan: single fused C loop, O(n), no intermediate arrays
+    if x.dtype == numpy.float64:
+        utils = _get_cffi_utils()
+        if utils is not None:
+            ffi, lib = utils
+            out = numpy.empty(n, dtype=numpy.float64)
+            lib.cffi_linear_scan(ffi.from_buffer('double[]', x),
+                                 ffi.from_buffer('double[]', out), n, c_x, c_y)
+            return out
     # Initial transforms: z[0] = (0, x[0]), z[i>0] = (c_x, c_y * x[i])
     a_arr = numpy.full(n, c_x)
     a_arr[0] = 0.0
@@ -1039,6 +1045,7 @@ void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_
 void cffi_inverse_perm(const int64_t* perm, int64_t* out, int64_t n);
 int64_t cffi_unique_int(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
 void cffi_counting_rank(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
+void cffi_linear_scan(const double* x, double* out, int64_t n, double cx, double cy);
 ''')
     try:
         lib = ffi.verify('''
@@ -1122,6 +1129,10 @@ void cffi_counting_rank(const int64_t* a, int64_t* out, int64_t n, int64_t mn, i
     for (int64_t v = 0; v < range; v++) { int64_t c = counts[v]; counts[v] = total; total += c; }
     for (int64_t i = 0; i < n; i++) out[i] = counts[a[i] - mn]++;
     free(counts);
+}
+void cffi_linear_scan(const double* x, double* out, int64_t n, double cx, double cy) {
+    out[0] = x[0];
+    for (int64_t i = 1; i < n; i++) out[i] = cx * out[i-1] + cy * x[i];
 }
 ''', extra_compile_args=['-O2'])
         _cffi_utils = (ffi, lib)
