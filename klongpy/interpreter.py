@@ -995,7 +995,7 @@ def chain_adverbs(klong, arr):
                 if tx is list:
                     if axis_fn is not None and len(x) > 0 and type(x[0]) is numpy.ndarray:
                         try:
-                            stacked = numpy.array(x)
+                            stacked = numpy.concatenate(x).reshape(len(x), -1)
                             result = axis_fn(stacked)
                             if type(result) is numpy.ndarray:
                                 if result.ndim == 1:
@@ -1022,12 +1022,12 @@ def chain_adverbs(klong, arr):
                 def f(x, af=_af, pf=_prev_f, be=_be):
                     if type(x) is list and len(x) > 0 and type(x[0]) is numpy.ndarray:
                         try:
-                            stacked = numpy.array(x)
+                            stacked = numpy.concatenate(x).reshape(len(x), -1)
                             if stacked.ndim == 2:
                                 r = af(stacked)
                                 if type(r) is numpy.ndarray:
                                     if r.ndim == 2:
-                                        return r.ravel() if r.shape[1] == 1 else [r[j] for j in range(len(r))]
+                                        return r.ravel() if r.shape[1] == 1 else list(r)
                                     return r
                                 return r
                         except (ValueError, TypeError):
