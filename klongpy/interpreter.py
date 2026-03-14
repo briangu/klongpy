@@ -727,7 +727,7 @@ def _fused_filter(a, cmp_op, val):
     cmp_fn = _CMP_FNS[cmp_op]
     if type(a) is numpy.ndarray and len(a) >= 100_000:
         n = len(a)
-        nchunks = 4
+        nchunks = 6 if n >= 750_000 else 4
         chunk = n // nchunks
         slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
         global _argsort_pool

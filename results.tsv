@@ -282,3 +282,4 @@ d9138e3	13.135	pass	keep	exp67: pre-allocated buffers in Hillis-Steele prefix sc
 7f1b6ac	13.154	pass	keep	exp70: fix parallel prefix accumulation bug in _cumprod, _running_max, _running_min
 exp71	13.076	pass	keep	exp71: early termination in _prefix_scan_linear for |c_x|<1 (ewma_10K: 0.132->0.060ms, 2.2x faster)
 exp72	12.960	pass	keep	exp72: parallel chunked eval for element-wise 2-var compiled expressions (vec_arith_chain_1M: 0.939->0.722ms, 22% faster)
+exp73	12.998	pass	keep	exp73: adaptive chunk count for _fused_filter (6 chunks for n>=750K), move import math to module level
