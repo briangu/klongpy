@@ -1484,7 +1484,7 @@ int64_t cffi_find_bucket(const uint8_t* bucket_ids, int64_t* out, int64_t n, uin
     for (int64_t i = 0; i < n; i++) { out[k] = i; k += (bucket_ids[i] == target); }
     return k;
 }
-''', extra_compile_args=['-O2'])
+''', extra_compile_args=['-O3'])
         _cffi_utils = (ffi, lib)
     except Exception:
         pass
@@ -1870,6 +1870,9 @@ def _compile_arg_fn(expr, klong, dyadic=False):
                     fn._axis_fn = lambda X, Y, op=_fast, g0=_af0, g1=_af1: op(g0(X, Y), g1(X, Y))
                 else:
                     fn._axis_fn = lambda a, op=_fast, g0=_af0, g1=_af1: op(g0(a), g1(a))
+                # Propagate _uses_scan from children
+                if getattr(_af0, '_uses_scan', False) or getattr(_af1, '_uses_scan', False):
+                    fn._axis_fn._uses_scan = True
             else:
                 fn._axis_fn = None
             # Tag constant*x pattern for matmul optimization in reduce
@@ -1982,6 +1985,9 @@ def _compile_arg_fn(expr, klong, dyadic=False):
                                     fn._axis_fn = lambda a, c=_cmv: a @ c
                                 else:
                                     fn._axis_fn = lambda a, af=_axis_fn_2d, g=_c_axis: af(g(a))
+                            # Tag scan operations: per-element cffi may be faster than axis batch
+                            if adv_char == '\\':
+                                fn._axis_fn._uses_scan = True
                         else:
                             fn._axis_fn = None
                         return fn
@@ -2148,6 +2154,8 @@ def chain_adverbs(klong, arr):
                                 _af1 = getattr(_cf1, '_axis_fn', None)
                                 if _fast_op is not None and _af0 is not None and _af1 is not None:
                                     f._axis_fn = lambda a, op=_fast_op, g0=_af0, g1=_af1: op(g0(a), g1(a))
+                                    if getattr(_af0, '_uses_scan', False) or getattr(_af1, '_uses_scan', False):
+                                        f._axis_fn._uses_scan = True
                 elif body._op_arity == 1:
                     # {monad_op x}: e.g., {!x}, {-x}
                     fa = body.args
@@ -2302,11 +2310,15 @@ def chain_adverbs(klong, arr):
             # Also check for compiled axis function from _compile_arg_fn
             if _axis_fn is None:
                 _axis_fn = getattr(f, '_axis_fn', None)
-            def f(x, f=_prev_f, be=_be, axis_fn=_axis_fn):
+            _af_uses_scan = getattr(_axis_fn, '_uses_scan', False) if _axis_fn is not None else False
+            def f(x, f=_prev_f, be=_be, axis_fn=_axis_fn, uses_scan=_af_uses_scan):
                 tx = type(x)
                 if tx is numpy.ndarray and x.ndim > 0:
                     return f(x)
                 if tx is list:
+                    # For scan operations, per-element cffi is faster when arrays are long
+                    if uses_scan and len(x) > 0 and type(x[0]) is numpy.ndarray and len(x[0]) >= 300:
+                        return be.kg_asarray([f(e) for e in x])
                     if axis_fn is not None and len(x) > 0 and type(x[0]) is numpy.ndarray:
                         try:
                             stacked = numpy.concatenate(x).reshape(len(x), -1)
@@ -2333,8 +2345,12 @@ def chain_adverbs(klong, arr):
             if _af is not None:
                 _prev_f = f
                 _be = klong._backend
-                def f(x, af=_af, pf=_prev_f, be=_be):
+                _af_uses_scan = getattr(_af, '_uses_scan', False)
+                def f(x, af=_af, pf=_prev_f, be=_be, uses_scan=_af_uses_scan):
                     if type(x) is list and len(x) > 0 and type(x[0]) is numpy.ndarray:
+                        # For scan operations, per-element cffi is faster when arrays are long
+                        if uses_scan and len(x[0]) >= 300:
+                            return be.kg_asarray([pf(e) for e in x])
                         try:
                             stacked = numpy.concatenate(x).reshape(len(x), -1)
                             if stacked.ndim == 2:

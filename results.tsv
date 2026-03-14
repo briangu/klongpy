@@ -308,3 +308,6 @@ exp94	9.36	pass	keep	exp94: cffi fused bucket prep for large int argsort — gra
 exp95	8.55	pass	keep	exp95: cffi branchless bucket find for argsort — grade_up_1M: 3.27->2.40ms (26.5%)
 exp96	8.39	pass	keep	exp96: smaller buffer in bucket sort — grade_up_1M: 2.40->2.28ms
 exp97	8.35	pass	keep	exp97: cumprod early termination on zero — cumul_product_100K: 0.130->0.016ms (88%)
+exp98	8.387	pass	keep	exp98: single-array in-place prefix sum for counting argsort (4.5% faster isolated, ~marginal aggregate)
+exp99	8.278	pass	keep	exp99: selective -O3 for cffi_utils only (counting_argsort benefits ~8.7%, no running_max regression)
+exp100	8.189	pass	keep	exp100: per-element cffi for scan-each on long arrays — drawdown_50assets: 0.206->0.159ms (23%)
