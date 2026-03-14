@@ -395,6 +395,12 @@ def eval_adverb_scan_over(f, a, op, backend):
         return result
     # Use Python list for numeric arrays to avoid numpy scalar overhead
     _a = a.tolist() if type(a) is _ndarray and a.dtype.kind in ('f', 'i', 'u') else a
+    # Use fromiter for float arrays to avoid intermediate list + asarray overhead
+    if type(a) is _ndarray and a.dtype.kind == 'f':
+        try:
+            return _numpy.fromiter(itertools.accumulate(_a, f), dtype=_numpy.float64, count=len(_a))
+        except (TypeError, ValueError):
+            pass
     r = list(itertools.accumulate(_a, f))
     return backend.kg_asarray(r)
 
