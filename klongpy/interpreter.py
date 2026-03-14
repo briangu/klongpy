@@ -1368,7 +1368,12 @@ void cffi_cumsum(const double* a, double* out, int64_t n) {
 }
 void cffi_cumprod(const double* a, double* out, int64_t n) {
     double p = 1.0;
-    for (int64_t i = 0; i < n; i++) { p *= a[i]; out[i] = p; }
+    int64_t i;
+    for (i = 0; i < n; i++) {
+        p *= a[i]; out[i] = p;
+        if (p == 0.0) { i++; break; }
+    }
+    if (i < n) memset(out + i, 0, (n - i) * sizeof(double));
 }
 int64_t cffi_count_lt(const double* a, double val, int64_t n) {
     int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] < val); return c;

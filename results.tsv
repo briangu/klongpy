@@ -304,3 +304,7 @@ exp90	10.36	pass	keep	exp90: fused running_max/min + expression — single-pass 
 exp91	10.09	pass	keep	exp91: parallel propagation in cumsum + running_sum_1M: 0.508->0.495ms
 exp92	9.72	pass	keep	exp92: cffi branchless filter/where — bypass branch misprediction (filter_index: 0.664->0.369ms 44%, where: 0.521->0.442ms 15%)
 exp93	9.68	pass	keep	exp93: reduce filter/where chunk count to 4 — less thread overhead
+exp94	9.36	pass	keep	exp94: cffi fused bucket prep for large int argsort — grade_up_1M: 3.55->3.22ms (9.3%)
+exp95	8.55	pass	keep	exp95: cffi branchless bucket find for argsort — grade_up_1M: 3.27->2.40ms (26.5%)
+exp96	8.39	pass	keep	exp96: smaller buffer in bucket sort — grade_up_1M: 2.40->2.28ms
+exp97	8.35	pass	keep	exp97: cumprod early termination on zero — cumul_product_100K: 0.130->0.016ms (88%)
