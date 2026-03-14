@@ -420,6 +420,7 @@ def chain_adverbs(klong, arr):
     """
     _specialized = False
     _vectorizable = False
+    _resolved_op = None
     if arr[0].arity == 1:
         if type(arr[0].a) is KGOp:
             # Direct dispatch for built-in operators — pre-resolved function avoids dict lookup
@@ -506,13 +507,40 @@ def chain_adverbs(klong, arr):
             _fn = klong._vd[arr[0].a.a]
             f = lambda x,y,fn=_fn: fn(x,y)
         else:
-            # Reuse a single KGCall to avoid allocation on each iteration
-            _call = KGCall(arr[0].a, [None, None], arity=2)
-            _args = _call.args
-            def f(x, y, k=klong, c=_call, a=_args):
-                a[0] = x
-                a[1] = y
-                return k._eval_fn(c)
+            # Try to unwrap inline lambda and resolve to direct op
+            _dyad_verb = arr[0].a
+            _resolved_op = None  # Will be set to KGOp if we can vectorize each-2
+            _dtb = type(_dyad_verb)
+            # Unwrap KGFn wrapper: {x+y} → body is KGFn wrapping op KGCall
+            if _dtb is KGFn and not _dyad_verb._is_op and not _dyad_verb._is_adverb_chain and _dyad_verb.args is None:
+                _inner = _dyad_verb.a
+                _dit = type(_inner)
+                if (_dit is KGCall or _dit is KGFn) and _inner._is_op and _inner._op_arity == 2:
+                    _dop_a = _inner._op_a
+                    _dfast = _FAST_DYAD_OPS.get(_dop_a)
+                    _dop = _dfast if _dfast is not None else klong._vd[_dop_a]
+                    _dfa = _inner.args
+                    if type(_dfa) is not list:
+                        _dfa = [_dfa] if _dfa is not None else _dfa
+                    if _dfa is not None and len(_dfa) == 2:
+                        _da0, _da1 = _dfa[0], _dfa[1]
+                        # {x op y}: direct dyadic
+                        if type(_da0) is KGSym and _da0 is _sym_x and type(_da1) is KGSym and _da1 is _sym_y:
+                            f = lambda x,y,fn=_dop: fn(x,y)
+                            _resolved_op = KGOp(_dop_a, arity=2)
+                            _dyad_verb = None  # skip general case
+                        # {y op x}: swapped args
+                        elif type(_da0) is KGSym and _da0 is _sym_y and type(_da1) is KGSym and _da1 is _sym_x:
+                            f = lambda x,y,fn=_dop: fn(y,x)
+                            _dyad_verb = None
+            if _dyad_verb is not None:
+                # General case: use KGCall + _eval_fn
+                _call = KGCall(arr[0].a, [None, None], arity=2)
+                _args = _call.args
+                def f(x, y, k=klong, c=_call, a=_args):
+                    a[0] = x
+                    a[1] = y
+                    return k._eval_fn(c)
     for i in range(1,len(arr)-1):
         # For each-adverb (') with a vectorizable arithmetic function,
         # apply directly to the array instead of iterating element by element.
@@ -535,7 +563,11 @@ def chain_adverbs(klong, arr):
         if arr[i].arity == 1:
             f = lambda x,f=f,o=o: o(f,x,op=arr[0].a)
         else:
-            f = lambda x,y,f=f,o=o: o(f,x,y)
+            if arr[i].a == "'":
+                _each2_op = _resolved_op if _resolved_op is not None else arr[0].a
+                f = lambda x,y,f=f,o=o,_op=_each2_op: o(f,x,y,op=_op)
+            else:
+                f = lambda x,y,f=f,o=o: o(f,x,y)
     if arr[-2].arity == 1:
         f = lambda a=arr[-1],f=f,k=klong: f(k.eval(a))
     else:

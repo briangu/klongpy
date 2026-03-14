@@ -106,7 +106,7 @@ def eval_adverb_each(f, a, op, backend):
     return f(a)
 
 
-def eval_adverb_each2(f, a, b):
+def eval_adverb_each2(f, a, b, op=None):
     """
 
         a f'b                                                   [Each-2]
@@ -127,6 +127,21 @@ def eval_adverb_each2(f, a, b):
         return bknp.asarray([]) if is_list(a) or is_list(b) else ""
     if is_atom(a) and is_atom(b):
         return f(a,b)
+    # Vectorized fast path: for built-in dyadic ops on numpy arrays
+    if type(op) is KGOp and type(a) is _ndarray and type(b) is _ndarray:
+        op_a = op.a
+        if op_a == '+':
+            return a + b
+        elif op_a == '-':
+            return a - b
+        elif op_a == '*':
+            return a * b
+        elif op_a == '%':
+            return a / b
+        elif op_a == '|':
+            return _numpy.maximum(a, b)
+        elif op_a == '&':
+            return _numpy.minimum(a, b)
     r = bknp.asarray([f(x,y) for x,y in zip(a,b)])
     return ''.join(r) if r.dtype == '<U1' else r
 
