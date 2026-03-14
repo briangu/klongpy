@@ -994,8 +994,32 @@ class KlongInterpreter():
             # Inline call() dispatch for op args to skip method call overhead
             if nargs == 1:
                 q = f_args[0]
-                if x._arg0_is_dyad_op:
-                    # Fast path: pre-computed dyad op arg (e.g., fib(x-1))
+                if x._arg0_dyad_fast:
+                    # Ultra-fast: args is list, arg0 is reserved sym, arg1 is literal
+                    _afa = q.args
+                    _ay = _afa[1]
+                    _ax = _ctx_list[-1].get(_afa[0])
+                    if _ax is None:
+                        _ax = self.eval(_afa[0])
+                    if type(_ax) is int:
+                        _aop = q._op_a
+                        if _aop == '-':
+                            ctx = {_sym_x: _ax - _ay}
+                        elif _aop == '+':
+                            ctx = {_sym_x: _ax + _ay}
+                        elif _aop == '*':
+                            ctx = {_sym_x: _ax * _ay}
+                        else:
+                            _afast = q._fast_op
+                            ctx = {_sym_x: _afast(_ax, _ay) if _afast is not None else self._vd[_aop](_ax, _ay)}
+                    else:
+                        _afast = q._fast_op
+                        if _afast is not None and (type(_ax) is int or type(_ax) is float):
+                            ctx = {_sym_x: _afast(_ax, _ay)}
+                        else:
+                            ctx = {_sym_x: self._vd[q._op_a](_ax, _ay)}
+                elif x._arg0_is_dyad_op:
+                    # Medium path: dyad op but args need full type checking
                     _afa = q.args
                     if type(_afa) is not list:
                         _afa = [_afa] if _afa is not None else _afa
