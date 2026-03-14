@@ -430,10 +430,25 @@ def _bucket_sort_values(a, low16, bucket_ids, b):
 
 
 def _argsort(a):
-    """Fast argsort: bucket sort for integers, parallel merge for floats."""
+    """Fast argsort: cffi counting sort for small int, bucket sort for large int, parallel merge for floats."""
     if type(a) is numpy.ndarray:
         n = len(a)
         dk = a.dtype.kind
+        # cffi counting argsort for small/medium integer arrays with bounded range
+        if (dk == 'i' or dk == 'u') and n >= 1_000 and n <= 500_000:
+            utils = _get_cffi_utils()
+            if utils is not None:
+                mn, mx = int(a.min()), int(a.max())
+                val_range = mx - mn + 1
+                if val_range <= 2 * n:
+                    ffi, lib = utils
+                    a32 = a.astype(numpy.int32) if a.dtype != numpy.int32 else a
+                    out = numpy.empty(n, dtype=numpy.int64)
+                    lib.cffi_counting_argsort(
+                        ffi.cast('const int32_t*', a32.ctypes.data),
+                        ffi.cast('int64_t*', out.ctypes.data),
+                        n, numpy.int32(mn), val_range)
+                    return out
         if n >= 10_000:
             global _argsort_pool
             if _argsort_pool is None:
@@ -950,6 +965,7 @@ void cffi_cumprod(const double* a, double* out, int64_t n);
 int64_t cffi_count_lt(const double* a, double val, int64_t n);
 int64_t cffi_count_gt(const double* a, double val, int64_t n);
 int64_t cffi_count_eq(const double* a, double val, int64_t n);
+void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range);
 ''')
     try:
         lib = ffi.verify('''
@@ -978,6 +994,15 @@ int64_t cffi_count_gt(const double* a, double val, int64_t n) {
 }
 int64_t cffi_count_eq(const double* a, double val, int64_t n) {
     int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] == val); return c;
+}
+void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range) {
+    int64_t* counts = (int64_t*)calloc(range, sizeof(int64_t));
+    for (int64_t i = 0; i < n; i++) counts[a[i] - mn]++;
+    int64_t* offsets = (int64_t*)calloc(range, sizeof(int64_t));
+    offsets[0] = 0;
+    for (int64_t i = 1; i < range; i++) offsets[i] = offsets[i-1] + counts[i-1];
+    for (int64_t i = 0; i < n; i++) out[offsets[a[i] - mn]++] = i;
+    free(counts); free(offsets);
 }
 ''', extra_compile_args=['-O2'])
         _cffi_utils = (ffi, lib)
