@@ -954,7 +954,16 @@ class KlongInterpreter():
                 if tf is KGCond:
                     _x0 = f[0]
                     _tx0 = type(_x0)
-                    x._cached_cond_is_dyad_op = (_tx0 is KGCall or _tx0 is KGFn) and _x0._is_op and _x0._op_arity == 2
+                    _cond_is_dyad = (_tx0 is KGCall or _tx0 is KGFn) and _x0._is_op and _x0._op_arity == 2
+                    x._cached_cond_is_dyad_op = _cond_is_dyad
+                    # Pre-compute fast condition path: dyad op with list args, reserved-sym arg0, literal arg1
+                    if _cond_is_dyad:
+                        _cfa = _x0.args
+                        x._cached_cond_fast = (type(_cfa) is list and
+                            (type(_cfa[0]) is KGSym and _cfa[0] in reserved_fn_symbols_set) and
+                            (type(_cfa[1]) is int or type(_cfa[1]) is float))
+                    else:
+                        x._cached_cond_fast = False
                     # Pre-compute branch types
                     _f1 = f[1]
                     _f2 = f[2]
@@ -963,6 +972,7 @@ class KlongInterpreter():
                     x._cached_false_is_dyad_op = (_tf2 is KGCall or _tf2 is KGFn) and _f2._is_op and _f2._op_arity == 2
                 else:
                     x._cached_cond_is_dyad_op = False
+                    x._cached_cond_fast = False
                     x._cached_true_is_sym = False
                     x._cached_false_is_dyad_op = False
 
@@ -1068,8 +1078,32 @@ class KlongInterpreter():
             # KGCond first: most common for recursive/conditional function bodies
             if tf is KGCond:
                 x0 = f[0]
-                if x._cached_cond_is_dyad_op:
-                    # Fast path: pre-computed condition is a dyad op (e.g., x<2)
+                if x._cached_cond_fast:
+                    # Ultra-fast path: args is list, arg0 is reserved sym, arg1 is int/float literal
+                    _cfa = x0.args
+                    _cy = _cfa[1]
+                    _cx = ctx.get(_cfa[0])
+                    if _cx is None:
+                        _cx = self.eval(_cfa[0])
+                    _cop_a = x0._op_a
+                    if type(_cx) is int and type(_cy) is int:
+                        if _cop_a == '<':
+                            q = 1 if _cx < _cy else 0
+                        elif _cop_a == '>':
+                            q = 1 if _cx > _cy else 0
+                        elif _cop_a == '=':
+                            q = 1 if _cx == _cy else 0
+                        else:
+                            _cfast = x0._fast_op
+                            q = _cfast(_cx, _cy) if _cfast is not None else self._vd[_cop_a](_cx, _cy)
+                    else:
+                        _cfast = x0._fast_op
+                        if _cfast is not None and (type(_cx) is int or type(_cx) is float) and (type(_cy) is int or type(_cy) is float):
+                            q = _cfast(_cx, _cy)
+                        else:
+                            q = self._vd[_cop_a](_cx, _cy)
+                elif x._cached_cond_is_dyad_op:
+                    # Medium path: condition is a dyad op but args need type checking
                     _cfa = x0.args
                     if type(_cfa) is not list:
                         _cfa = [_cfa] if _cfa is not None else _cfa
