@@ -298,3 +298,4 @@ exp85	10.384	pass	keep	exp85: cffi linear scan for EWMA/affine recurrences (ewma
 exp85b	10.40	pass	keep	exp85b: cffi linear scan for bare x/y + scan reorder (scan_compound_10K: 0.033->0.020ms)
 exp86	10.12	pass	keep	exp86: cffi fused reduce for */expr (compound_ret_100K: 0.146->0.017ms 8.6x)
 exp87	10.12	pass	keep	exp87: extend cffi fused reduce to identity reduces (sum_1M: 0.196->0.131ms 33%)
+exp88	10.56	pass	keep	exp88: cffi fused reduce for 2-var + v1 remapping (vwap_100K: 0.042->0.035ms)

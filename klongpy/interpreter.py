@@ -1482,13 +1482,23 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                         # For reduce (not scan), try cffi fused reduce on arithmetic expressions
                         if adv_char == '/' and not s[1] and var_refs is not None:
                             inner = s[0]
-                            if '_v0' in inner and '_v1' not in inner:
+                            has_v0 = '_v0' in inner
+                            has_v1 = '_v1' in inner
+                            if has_v0 and not has_v1:
                                 try:
                                     _python_expr_to_c(inner, 1)
                                     return (f"_cffi_reduce_1({op_char!r},{inner!r},_v0)", False)
                                 except (ValueError, SyntaxError):
                                     pass
-                            elif '_v0' in inner and '_v1' in inner:
+                            elif not has_v0 and has_v1:
+                                # Remap _v1 → _v0 for the C function, pass _v1 at runtime
+                                remapped = inner.replace('_v1', '_v0')
+                                try:
+                                    _python_expr_to_c(remapped, 1)
+                                    return (f"_cffi_reduce_1({op_char!r},{remapped!r},_v1)", False)
+                                except (ValueError, SyntaxError):
+                                    pass
+                            elif has_v0 and has_v1:
                                 try:
                                     _python_expr_to_c(inner, 2)
                                     return (f"_cffi_reduce_2({op_char!r},{inner!r},_v0,_v1)", False)
