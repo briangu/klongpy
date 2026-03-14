@@ -990,11 +990,23 @@ class KlongInterpreter():
                         _ax = _afa0
                     else:
                         _ax = self.eval(_afa0)
-                    _afast = q._fast_op
-                    if _afast is not None and (type(_ax) is int or type(_ax) is float) and (type(_ay) is int or type(_ay) is float):
-                        ctx = {_sym_x: _afast(_ax, _ay)}
+                    if type(_ax) is int and type(_ay) is int:
+                        _aop = q._op_a
+                        if _aop == '-':
+                            ctx = {_sym_x: _ax - _ay}
+                        elif _aop == '+':
+                            ctx = {_sym_x: _ax + _ay}
+                        elif _aop == '*':
+                            ctx = {_sym_x: _ax * _ay}
+                        else:
+                            _afast = q._fast_op
+                            ctx = {_sym_x: _afast(_ax, _ay) if _afast is not None else self._vd[_aop](_ax, _ay)}
                     else:
-                        ctx = {_sym_x: self._vd[q._op_a](_ax, _ay)}
+                        _afast = q._fast_op
+                        if _afast is not None and (type(_ax) is int or type(_ax) is float) and (type(_ay) is int or type(_ay) is float):
+                            ctx = {_sym_x: _afast(_ax, _ay)}
+                        else:
+                            ctx = {_sym_x: self._vd[q._op_a](_ax, _ay)}
                 elif (tq is KGFn or tq is KGCall) and q._is_op:
                     ctx = {_sym_x: self.eval(q)}
                 elif tq is KGCall:
@@ -1060,11 +1072,30 @@ class KlongInterpreter():
                             _x = fa0
                         else:
                             _x = self.eval(fa0)
-                    # Fast path: use pre-cached Python operators for scalar int/float
-                    _fast_op = f._fast_op
-                    if _fast_op is not None and (type(_x) is int or type(_x) is float) and (type(_y) is int or type(_y) is float):
-                        return _fast_op(_x, _y)
-                    return self._vd[op_a](_x, _y)
+                    # Fast path: inline operators for int-int case
+                    if type(_x) is int and type(_y) is int:
+                        if op_a == '+':
+                            return _x + _y
+                        elif op_a == '-':
+                            return _x - _y
+                        elif op_a == '*':
+                            return _x * _y
+                        elif op_a == '<':
+                            return 1 if _x < _y else 0
+                        elif op_a == '>':
+                            return 1 if _x > _y else 0
+                        elif op_a == '=':
+                            return 1 if _x == _y else 0
+                        else:
+                            _fast_op = f._fast_op
+                            if _fast_op is not None:
+                                return _fast_op(_x, _y)
+                            return self._vd[op_a](_x, _y)
+                    else:
+                        _fast_op = f._fast_op
+                        if _fast_op is not None and (type(_x) is int or type(_x) is float) and (type(_y) is int or type(_y) is float):
+                            return _fast_op(_x, _y)
+                        return self._vd[op_a](_x, _y)
                 else:
                     _x = fa if type(fa) is not list else fa[0]
                     if op_a not in _UNEVALUATED_OPS:
@@ -1182,10 +1213,23 @@ class KlongInterpreter():
                             _bx = self._eval_fn(_bfa0)
                         else:
                             _bx = self.eval(_bfa0)
-                    _bfast = xb._fast_op
-                    if _bfast is not None and (type(_bx) is int or type(_bx) is float) and (type(_by) is int or type(_by) is float):
-                        return _bfast(_bx, _by)
-                    return self._vd[_bop_a](_bx, _by)
+                    if type(_bx) is int and type(_by) is int:
+                        if _bop_a == '+':
+                            return _bx + _by
+                        elif _bop_a == '-':
+                            return _bx - _by
+                        elif _bop_a == '*':
+                            return _bx * _by
+                        else:
+                            _bfast = xb._fast_op
+                            if _bfast is not None:
+                                return _bfast(_bx, _by)
+                            return self._vd[_bop_a](_bx, _by)
+                    else:
+                        _bfast = xb._fast_op
+                        if _bfast is not None and (type(_bx) is int or type(_bx) is float) and (type(_by) is int or type(_by) is float):
+                            return _bfast(_bx, _by)
+                        return self._vd[_bop_a](_bx, _by)
                 if (txb is KGCall or txb is KGFn) and xb._is_op:
                     return self.eval(xb)
                 if txb is KGCall and not xb._is_adverb_chain:
