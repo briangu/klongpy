@@ -20,6 +20,7 @@ _UNEVALUATED_OPS = frozenset(['::','∇'])
 # Import fast dispatch tables from types (pre-resolved on KGFn at construction time)
 from .types import _FAST_SCALAR_OPS, _FAST_SCALAR_MONADS
 import itertools
+import math
 import operator as _op
 # Safe for numpy arrays (numpy handles div-by-zero via inf/nan)
 _FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '%': _op.truediv, '^': _op.pow}
@@ -549,7 +550,6 @@ def _prefix_scan_linear(x, c_x, c_y):
     Early termination when |c_x| < 1: after ceil(log2(52/log2(1/|c_x|)))+1 passes,
     c_x^(2^p) underflows to zero and further passes have no effect.
     """
-    import math
     n = len(x)
     # Initial transforms: z[0] = (0, x[0]), z[i>0] = (c_x, c_y * x[i])
     a_arr = numpy.full(n, c_x)
@@ -778,6 +778,38 @@ def _unique(a):
         ids.sort()
         return a[ids]
     return a
+
+# Names of non-element-wise functions in compiled expressions
+_NON_ELEMENTWISE_NAMES = frozenset([
+    '_argsort', '_fast_sort', '_rank', '_cumsum', '_cumprod',
+    '_running_max', '_running_min', '_flatnonzero',
+    '_fused_where', '_fused_filter', '_fused_count', '_unique', '_dotsum',
+])
+
+import re
+_NON_ELEMENTWISE_RE = re.compile(r'_(?!v\d)')  # _ not followed by variable pattern
+
+def _is_elementwise_source(src):
+    """Check if compiled expression source is purely element-wise (safe for parallel chunking)."""
+    return '[' not in src and not _NON_ELEMENTWISE_RE.search(src)
+
+def _parallel_eval_2(fn, v0, v1):
+    """Parallel evaluation of element-wise 2-arg function on chunked arrays."""
+    global _argsort_pool
+    if _argsort_pool is None:
+        from concurrent.futures import ThreadPoolExecutor
+        _argsort_pool = ThreadPoolExecutor(max_workers=16)
+    n = len(v0)
+    nchunks = 6
+    chunk = n // nchunks
+    result = numpy.empty(n, dtype=numpy.float64)
+    def _chunk_fn(s, e, out=result, f=fn, a=v0, b=v1):
+        out[s:e] = f(a[s:e], b[s:e])
+    slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+    futures = [_argsort_pool.submit(_chunk_fn, s, e) for s, e in slices]
+    for f in futures:
+        f.result()
+    return result
 
 # Globals dict for eval of compiled source that references numpy
 _EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter, '_fused_count': _fused_count, '_unique': _unique}
@@ -3134,7 +3166,13 @@ class KlongInterpreter():
                 if _clen == 2:
                     result = _compiled[0](_ctx[_compiled[1]])
                 elif _clen == 3:
-                    result = _compiled[0](_ctx[_compiled[1]], _ctx[_compiled[2]])
+                    _cfn = _compiled[0]
+                    _cv0 = _ctx[_compiled[1]]
+                    _cv1 = _ctx[_compiled[2]]
+                    if getattr(_cfn, '_parallel', False) and type(_cv0) is numpy.ndarray and type(_cv1) is numpy.ndarray and len(_cv0) >= 250_000:
+                        result = _parallel_eval_2(_cfn, _cv0, _cv1)
+                    else:
+                        result = _cfn(_cv0, _cv1)
                 else:
                     _cfn, _cvar_syms = _compiled
                     result = _cfn(*(_ctx[s] for s in _cvar_syms))
@@ -3173,6 +3211,9 @@ class KlongInterpreter():
                     fn_src = f'lambda {",".join(var_names)}: {src[0]}'
                     try:
                         fn = eval(fn_src, _EVAL_GLOBALS)
+                        # Tag element-wise functions for parallel chunked evaluation
+                        if _is_elementwise_source(src[0]):
+                            fn._parallel = True
                         # Store (fn, sym0) for 1-var, (fn, sym0, sym1) for 2-var
                         # This avoids generator overhead in dispatch
                         if len(var_syms) == 1:
