@@ -2499,8 +2499,15 @@ class KlongInterpreter():
         _compiled = self._compiled_expr_cache.get(x)
         if _compiled is not None:
             if type(_compiled) is tuple:
-                _cfn, _cvar_syms = _compiled
-                result = _cfn(*(self._context[s] for s in _cvar_syms))
+                _clen = len(_compiled)
+                _ctx = self._context
+                if _clen == 2:
+                    result = _compiled[0](_ctx[_compiled[1]])
+                elif _clen == 3:
+                    result = _compiled[0](_ctx[_compiled[1]], _ctx[_compiled[2]])
+                else:
+                    _cfn, _cvar_syms = _compiled
+                    result = _cfn(*(_ctx[s] for s in _cvar_syms))
             else:
                 # Negative cache sentinel (False) — skip compilation, use normal eval
                 x0 = cached
@@ -2536,7 +2543,14 @@ class KlongInterpreter():
                     fn_src = f'lambda {",".join(var_names)}: {src[0]}'
                     try:
                         fn = eval(fn_src, _EVAL_GLOBALS)
-                        self._compiled_expr_cache[x] = (fn, var_syms)
+                        # Store (fn, sym0) for 1-var, (fn, sym0, sym1) for 2-var
+                        # This avoids generator overhead in dispatch
+                        if len(var_syms) == 1:
+                            self._compiled_expr_cache[x] = (fn, var_syms[0])
+                        elif len(var_syms) == 2:
+                            self._compiled_expr_cache[x] = (fn, var_syms[0], var_syms[1])
+                        else:
+                            self._compiled_expr_cache[x] = (fn, var_syms)
                     except Exception:
                         self._compiled_expr_cache[x] = False
                 else:
