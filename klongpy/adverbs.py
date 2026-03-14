@@ -21,6 +21,8 @@ _accumulate_dispatch = {
     '-': lambda np, a: np.subtract.accumulate(a),
     '*': lambda np, a: np.multiply.accumulate(a),
     '%': lambda np, a: np.divide.accumulate(a),
+    '|': lambda np, a: np.maximum.accumulate(a),
+    '&': lambda np, a: np.minimum.accumulate(a),
 }
 
 

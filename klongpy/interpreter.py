@@ -469,9 +469,10 @@ def _compile_arg_fn(expr, klong, dyadic=False):
         # Try to resolve global variable to a constant value
         try:
             val = klong._context[expr]
-            if type(val) is int or type(val) is float:
+            tv = type(val)
+            if tv is int or tv is float or tv is numpy.ndarray:
                 fn = (lambda x, y, c=val: c) if dyadic else (lambda x, c=val: c)
-                fn._vectorizable = True
+                fn._vectorizable = tv is not numpy.ndarray
                 fn._is_const = True
                 fn._axis_fn = None if dyadic else (lambda a, c=val: c)
                 return fn
@@ -718,6 +719,12 @@ def chain_adverbs(klong, arr):
                         _op_fn = klong._vm[op_a]
                         f = lambda x, fn=_op_fn: fn(x)
                         _specialized = True
+            if not _specialized:
+                # Try _compile_arg_fn on full body (handles adverb chains, monads, compositions)
+                _body_cf = _compile_arg_fn(body, klong, dyadic=False)
+                if _body_cf is not None:
+                    f = _body_cf
+                    _specialized = True
             if not _specialized:
                 # General case: use KGCall + _eval_fn (skip eval dispatch)
                 _call = KGCall(verb, [None], arity=1)

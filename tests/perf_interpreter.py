@@ -91,6 +91,20 @@ def setup_multi_asset(klong, n_days=1000, n_assets=50, seed=42):
     klong['volumes'] = [rng.integers(1000, 100000, size=n_days).astype(float) for _ in range(n_assets)]
 
 
+def setup_portfolio_data(klong, n_periods=1000, n_assets=100, seed=42):
+    """Set up portfolio data for weighted operations."""
+    rng = np.random.default_rng(seed)
+    w = rng.random(n_assets)
+    klong['w'] = w / w.sum()
+    klong['rets'] = [rng.standard_normal(n_assets) * 0.01 for _ in range(n_periods)]
+
+
+def setup_timeseries_data(klong, n=100_000, seed=42):
+    """Set up price series for running max/drawdown benchmarks."""
+    rng = np.random.default_rng(seed)
+    klong['ts'] = 100.0 + rng.standard_normal(n).cumsum() * 0.5
+
+
 def get_benchmarks():
     """Return categorized benchmarks: (category, name, expr, setup_fn)."""
     return [
@@ -141,6 +155,14 @@ def get_benchmarks():
         ("matrix", "row_means_1Kx100",   "{(+/x)%#x}'mat",   lambda k: setup_matrix_data(k, 1000, 100)),
         ("matrix", "row_max_1Kx100",     "|/'mat",            lambda k: setup_matrix_data(k, 1000, 100)),
         ("matrix", "row_normalize",      "{x%+/x}'mat",      lambda k: setup_matrix_data(k, 1000, 100)),
+
+        # ── Running / scan operations (critical for trading) ──
+        ("running", "running_max_100K",  "|\\ts",             lambda k: setup_timeseries_data(k, 100_000)),
+        ("running", "running_min_100K",  "&\\ts",             lambda k: setup_timeseries_data(k, 100_000)),
+        ("running", "compound_ret_100K", "*/1+a",             lambda k: setup_random_data(k, 100_000)),
+
+        # ── Portfolio operations ──
+        ("portfolio", "port_ret_1Kx100", "{+/w*x}'rets",      lambda k: setup_portfolio_data(k, 1000, 100)),
 
         # ── Multi-asset cross-sectional ──
         ("xsect", "returns_50assets",    "{-:'x}'prices",     lambda k: setup_multi_asset(k)),
