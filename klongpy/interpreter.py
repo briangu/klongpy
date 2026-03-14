@@ -349,6 +349,46 @@ def create_system_contexts():
     return [sys_var, ReadonlyDict(sys_d)]
 
 
+_KLONG_OP_TO_PY = {'+': '+', '-': '-', '*': '*', '%': '/'}
+
+def _expr_to_source(expr, klong, dyadic=False):
+    """Try to convert an expression tree to a Python source string.
+    Returns (source_str, is_const) or None if not possible.
+    Only handles arithmetic ops (+, -, *, %) and variables x, y, constants.
+    """
+    te = type(expr)
+    if te is KGSym:
+        if expr is _sym_x:
+            return ('x', False)
+        if dyadic and expr is _sym_y:
+            return ('y', False)
+        try:
+            val = klong._context[expr]
+            if type(val) is int or type(val) is float:
+                return (repr(val), True)
+        except KeyError:
+            pass
+        return None
+    if te is int or te is float:
+        return (repr(expr), True)
+    if (te is KGCall or te is KGFn) and expr._is_op and expr._op_arity == 2:
+        py_op = _KLONG_OP_TO_PY.get(expr._op_a)
+        if py_op is None:
+            return None
+        fa = expr.args
+        if type(fa) is not list:
+            fa = [fa] if fa is not None else fa
+        if fa is None or len(fa) != 2:
+            return None
+        s0 = _expr_to_source(fa[0], klong, dyadic=dyadic)
+        s1 = _expr_to_source(fa[1], klong, dyadic=dyadic)
+        if s0 is not None and s1 is not None:
+            src = f'({s0[0]}{py_op}{s1[0]})'
+            is_const = s0[1] and s1[1]
+            return (src, is_const)
+    return None
+
+
 def _compile_arg_fn(expr, klong, dyadic=False):
     """Try to compile a sub-expression to a fast Python function of x (or x,y if dyadic).
 
@@ -515,13 +555,26 @@ def chain_adverbs(klong, arr):
                         _specialized = True
                         _vectorizable = _fast_op is not None
                     else:
-                        # Try nested compound: {x op (x op2 literal)}, {(x op2 literal) op x}, etc.
-                        _cf0 = _compile_arg_fn(fa0, klong)
-                        _cf1 = _compile_arg_fn(fa1, klong)
-                        if _cf0 is not None and _cf1 is not None:
-                            f = lambda x, fn=_op_fn, g0=_cf0, g1=_cf1: fn(g0(x), g1(x))
-                            _specialized = True
-                            _vectorizable = _fast_op is not None and _cf0._vectorizable and _cf1._vectorizable
+                        # Try flat source compilation first (fastest)
+                        _src = _expr_to_source(body, klong, dyadic=False)
+                        if _src is not None:
+                            src_str, is_const = _src
+                            if not is_const:
+                                try:
+                                    _code = compile(f'lambda x:{src_str}', '<klong>', 'eval')
+                                    f = eval(_code)
+                                    _specialized = True
+                                    _vectorizable = _fast_op is not None
+                                except Exception:
+                                    pass
+                        if not _specialized:
+                            # Fallback: nested compound lambda chain
+                            _cf0 = _compile_arg_fn(fa0, klong)
+                            _cf1 = _compile_arg_fn(fa1, klong)
+                            if _cf0 is not None and _cf1 is not None:
+                                f = lambda x, fn=_op_fn, g0=_cf0, g1=_cf1: fn(g0(x), g1(x))
+                                _specialized = True
+                                _vectorizable = _fast_op is not None and _cf0._vectorizable and _cf1._vectorizable
                 elif body._op_arity == 1:
                     # {monad_op x}: e.g., {!x}, {-x}
                     fa = body.args
@@ -570,10 +623,26 @@ def chain_adverbs(klong, arr):
                             f = lambda x,y,fn=_dop: fn(y,x)
                             _dyad_verb = None
             if _dyad_verb is not None:
-                # Try to compile the full body as a dyadic function of (x, y)
+                # Try to compile the full body as a flat Python lambda (fastest)
                 _compiled = None
                 if _dtb is KGFn and not _dyad_verb._is_op and not _dyad_verb._is_adverb_chain and _dyad_verb.args is None:
-                    _compiled = _compile_arg_fn(_dyad_verb.a, klong, dyadic=True)
+                    _src = _expr_to_source(_dyad_verb.a, klong, dyadic=True)
+                    if _src is not None:
+                        src_str, is_const = _src
+                        if is_const:
+                            try:
+                                _const = eval(src_str)
+                                _compiled = lambda x, y, c=_const: c
+                            except Exception:
+                                pass
+                        else:
+                            try:
+                                _code = compile(f'lambda x,y:{src_str}', '<klong>', 'eval')
+                                _compiled = eval(_code)
+                            except Exception:
+                                pass
+                    if _compiled is None:
+                        _compiled = _compile_arg_fn(_dyad_verb.a, klong, dyadic=True)
                 if _compiled is not None:
                     f = _compiled
                     _dyad_verb = None
