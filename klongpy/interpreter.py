@@ -559,8 +559,29 @@ def _flatnonzero(a):
         return numpy.concatenate([f.result() for f in futures])
     return numpy.flatnonzero(a)
 
+_CMP_FNS = {'<': numpy.less, '>': numpy.greater, '==': numpy.equal}
+
+def _fused_where_chunk(a, cmp_fn, val, s, e):
+    return numpy.flatnonzero(cmp_fn(a[s:e], val)) + s
+
+def _fused_where(a, cmp_op, val):
+    """Fused parallel comparison + flatnonzero."""
+    cmp_fn = _CMP_FNS[cmp_op]
+    if type(a) is numpy.ndarray and len(a) >= 100_000:
+        n = len(a)
+        nchunks = 4
+        chunk = n // nchunks
+        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+        global _argsort_pool
+        if _argsort_pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            _argsort_pool = ThreadPoolExecutor(max_workers=16)
+        futures = [_argsort_pool.submit(_fused_where_chunk, a, cmp_fn, val, s, e) for s, e in slices]
+        return numpy.concatenate([f.result() for f in futures])
+    return numpy.flatnonzero(cmp_fn(a, val))
+
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
@@ -704,6 +725,19 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                         s = _expr_to_source(inner, klong, dyadic=dyadic, var_refs=var_refs)
                         if s is not None:
                             return (f'_np.count_nonzero({s[0]})', False)
+                if op_a == '&':
+                    # Detect &(x CMP literal) → fused parallel comparison+where
+                    ta = type(arg)
+                    if (ta is KGCall or ta is KGFn) and arg._is_op and arg._op_arity == 2:
+                        cmp_op = arg._op_a
+                        if cmp_op in ('<', '>', '='):
+                            cmp_args = arg.args
+                            if type(cmp_args) is list and len(cmp_args) == 2:
+                                s0 = _expr_to_source(cmp_args[0], klong, dyadic=dyadic, var_refs=var_refs)
+                                s1 = _expr_to_source(cmp_args[1], klong, dyadic=dyadic, var_refs=var_refs)
+                                if s0 is not None and s1 is not None:
+                                    py_cmp = {'<': '<', '>': '>', '=': '=='}[cmp_op]
+                                    return (f'_fused_where({s0[0]},{py_cmp!r},{s1[0]})', False)
                 s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
                 if s is not None:
                     if op_a == '&':
