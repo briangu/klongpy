@@ -609,9 +609,11 @@ def _cumprod(a):
         local = [f.result() for f in futures]
         out = numpy.empty(n, dtype=a.dtype)
         out[slices[0][0]:slices[0][1]] = local[0]
+        # Cumulative prefix products: prefix[i] = product of all chunks 0..i
+        prefixes = numpy.cumprod([ls[-1] for ls in local[:-1]])
         for i in range(1, nchunks):
             s, e = slices[i]
-            numpy.multiply(local[i], local[i - 1][-1], out=out[s:e])
+            numpy.multiply(local[i], prefixes[i - 1], out=out[s:e])
         return out
     return numpy.cumprod(a)
 
@@ -630,9 +632,11 @@ def _running_max(a):
         local = [f.result() for f in futures]
         out = numpy.empty(n, dtype=a.dtype)
         out[slices[0][0]:slices[0][1]] = local[0]
+        # Cumulative prefix maxes: prefix[i] = max of all chunk tails 0..i
+        prefix_maxes = numpy.maximum.accumulate([ls[-1] for ls in local[:-1]])
         for i in range(1, nchunks):
             s, e = slices[i]
-            numpy.maximum(local[i], local[i - 1][-1], out=out[s:e])
+            numpy.maximum(local[i], prefix_maxes[i - 1], out=out[s:e])
         return out
     return numpy.maximum.accumulate(a)
 
@@ -651,9 +655,11 @@ def _running_min(a):
         local = [f.result() for f in futures]
         out = numpy.empty(n, dtype=a.dtype)
         out[slices[0][0]:slices[0][1]] = local[0]
+        # Cumulative prefix mins: prefix[i] = min of all chunk tails 0..i
+        prefix_mins = numpy.minimum.accumulate([ls[-1] for ls in local[:-1]])
         for i in range(1, nchunks):
             s, e = slices[i]
-            numpy.minimum(local[i], local[i - 1][-1], out=out[s:e])
+            numpy.minimum(local[i], prefix_mins[i - 1], out=out[s:e])
         return out
     return numpy.minimum.accumulate(a)
 
