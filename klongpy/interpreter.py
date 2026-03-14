@@ -521,11 +521,22 @@ def _fast_sort(a):
     if type(a) is numpy.ndarray and len(a) >= 1000:
         dk = a.dtype.kind
         if dk == 'i' or dk == 'u':
-            mn = a.min()
-            if mn >= 0:
-                mx = a.max()
-                val_range = int(mx) - int(mn)
-                n = len(a)
+            n = len(a)
+            mn_i, mx_i = int(a.min()), int(a.max())
+            val_range = mx_i - mn_i + 1
+            # cffi counting sort for small/medium integer arrays with bounded range
+            if val_range <= 2 * n and n <= 500_000:
+                utils = _get_cffi_utils()
+                if utils is not None:
+                    ffi, lib = utils
+                    a64 = a if a.dtype == numpy.int64 else a.astype(numpy.int64)
+                    out = numpy.empty(n, dtype=numpy.int64)
+                    lib.cffi_counting_sort_values(
+                        ffi.cast('const int64_t*', a64.ctypes.data),
+                        ffi.cast('int64_t*', out.ctypes.data),
+                        n, mn_i, val_range)
+                    return out
+            if mn_i >= 0:
                 if val_range <= 10 * n:
                     # For large arrays with wide ranges, direct bucket value sort
                     if n >= 50_000 and val_range >= n // 2:
@@ -533,7 +544,6 @@ def _fast_sort(a):
                         if _argsort_pool is None:
                             from concurrent.futures import ThreadPoolExecutor
                             _argsort_pool = ThreadPoolExecutor(max_workers=16)
-                        mn_i, mx_i = int(mn), int(mx)
                         if a.dtype == numpy.int64 and mn_i >= -2147483648 and mx_i <= 2147483647:
                             a = a.astype(numpy.int32)
                         shifted = a - mn_i
@@ -966,6 +976,7 @@ int64_t cffi_count_lt(const double* a, double val, int64_t n);
 int64_t cffi_count_gt(const double* a, double val, int64_t n);
 int64_t cffi_count_eq(const double* a, double val, int64_t n);
 void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range);
+void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
 ''')
     try:
         lib = ffi.verify('''
@@ -1003,6 +1014,14 @@ void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn
     for (int64_t i = 1; i < range; i++) offsets[i] = offsets[i-1] + counts[i-1];
     for (int64_t i = 0; i < n; i++) out[offsets[a[i] - mn]++] = i;
     free(counts); free(offsets);
+}
+void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
+    int64_t* buf = (int64_t*)calloc(range, sizeof(int64_t));
+    for (int64_t i = 0; i < n; i++) buf[a[i] - mn]++;
+    int64_t total = 0;
+    for (int64_t v = 0; v < range; v++) { int64_t c = buf[v]; buf[v] = total; total += c; }
+    for (int64_t i = 0; i < n; i++) { int64_t v = a[i] - mn; out[buf[v]++] = a[i]; }
+    free(buf);
 }
 ''', extra_compile_args=['-O2'])
         _cffi_utils = (ffi, lib)
