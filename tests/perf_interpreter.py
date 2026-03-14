@@ -99,6 +99,13 @@ def setup_portfolio_data(klong, n_periods=1000, n_assets=100, seed=42):
     klong['rets'] = [rng.standard_normal(n_assets) * 0.01 for _ in range(n_periods)]
 
 
+def setup_signal_data(klong, n_assets=200, n_days=1000, seed=42):
+    """Set up data for cross-sectional signal benchmarks."""
+    rng = np.random.default_rng(seed)
+    klong['srets'] = [rng.standard_normal(n_days) * 0.01 for _ in range(n_assets)]
+    klong['n_assets'] = n_assets
+
+
 def setup_timeseries_data(klong, n=100_000, seed=42):
     """Set up price series for running max/drawdown benchmarks."""
     rng = np.random.default_rng(seed)
@@ -174,6 +181,11 @@ def get_benchmarks():
         ("xsect", "returns_50assets",    "{-:'x}'prices",     lambda k: setup_multi_asset(k)),
         ("xsect", "vwap_50assets",       "{(+/x*y)%+/y}'prices,'volumes",  None),
         ("xsect", "drawdown_50assets",   "{(|\\x)-x}'prices", lambda k: setup_multi_asset(k)),
+
+        # ── Signal / cross-sectional analytics ──
+        ("signal", "sharpe_200assets",   "{((+/x)%#x)%((+/x*x)%#x)^0.5}'srets", lambda k: setup_signal_data(k)),
+        ("signal", "demean_200assets",   "{x-(+/x)%#x}'srets",                   lambda k: setup_signal_data(k)),
+        ("signal", "vol_200assets",      "{((+/x*x)%#x)^0.5}'srets",             lambda k: setup_signal_data(k)),
 
         # ── Recursive / interpreter-heavy ──
         ("interp", "fib_20",    "fib(20)",  None),
