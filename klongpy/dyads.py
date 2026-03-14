@@ -176,8 +176,9 @@ def eval_dyad_at_index(klong, a, b):
     if is_list(b):
         if is_empty(b):
             r = bknp.asarray([])
+        elif type(a) is bknp.ndarray and type(b) is bknp.ndarray:
+            r = a[b.astype(int)] if b.dtype.kind == 'f' else a[b]
         else:
-            # TODO: return None for missing keys? or raise?
             r = backend.kg_asarray([a[x] for x in b])
     elif backend.is_integer(b):
         r = a[b]
