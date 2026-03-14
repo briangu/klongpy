@@ -401,27 +401,39 @@ def _merge_sorted_indices(a, idx1, idx2, pool):
     order = numpy.argsort(a[combined], kind='stable')
     return combined[order]
 
+def _bucket_sort_chunk(a, indices):
+    """Sort a bucket of indices by their values in a."""
+    if len(indices) <= 1:
+        return indices
+    return indices[numpy.argsort(a[indices])]
+
 def _argsort(a):
-    """Fast argsort with int32 downcast and parallel merge for large arrays."""
+    """Fast argsort: bucket sort for integers, parallel merge for floats."""
     if type(a) is numpy.ndarray:
         n = len(a)
-        # Int64→int32 downcast for large arrays
-        if a.dtype == numpy.int64 and n >= 100_000:
-            mn, mx = a.min(), a.max()
-            if mn >= -2147483648 and mx <= 2147483647:
-                a = a.astype(numpy.int32)
-        # Parallel merge sort: split into chunks, sort in threads, hierarchical merge
+        dk = a.dtype.kind
         if n >= 10_000:
             global _argsort_pool
             if _argsort_pool is None:
                 from concurrent.futures import ThreadPoolExecutor
                 _argsort_pool = ThreadPoolExecutor(max_workers=8)
+            # Bucket argsort for integer arrays (O(n) bucket assignment, parallel per-bucket sort)
+            if dk == 'i' or dk == 'u':
+                mn, mx = int(a.min()), int(a.max())
+                if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
+                    a = a.astype(numpy.int32)
+                nbuckets = 8
+                bucket_size = (mx - mn) // nbuckets + 1
+                bucket_ids = ((a - mn) // bucket_size).astype(numpy.int32)
+                bucket_indices = [numpy.flatnonzero(bucket_ids == b) for b in range(nbuckets)]
+                futures = [_argsort_pool.submit(_bucket_sort_chunk, a, bi) for bi in bucket_indices]
+                return numpy.concatenate([f.result() for f in futures])
+            # Float/other: parallel merge sort with hierarchical merge
             nways = 8 if n >= 250_000 else 4
             chunk = n // nways
             slices = [(i * chunk, (i + 1) * chunk if i < nways - 1 else n) for i in range(nways)]
             futures = [_argsort_pool.submit(numpy.argsort, a[s:e]) for s, e in slices]
             sorted_indices = [f.result() + s for f, (s, e) in zip(futures, slices)]
-            # Hierarchical pair-wise merge (parallel at each level)
             while len(sorted_indices) > 1:
                 next_level = []
                 merge_futures = []
