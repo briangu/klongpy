@@ -364,8 +364,12 @@ def _rank(a):
     rank[idx] = numpy.arange(len(idx))
     return rank
 
+# BLAS-optimized dot-sum: np.dot for 1D arrays, np.sum(a*b) fallback for higher dims
+def _dotsum(a, b):
+    return numpy.dot(a, b) if a.ndim == 1 else numpy.sum(a * b)
+
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
@@ -496,6 +500,16 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                 py_fn = None
                 if adv_char == '/':
                     py_fn = _KLONG_REDUCE_TO_PY.get(op_char)
+                    # Detect +/(x*y) → BLAS dot product
+                    if op_char == '+' and py_fn is not None:
+                        ta = type(arg)
+                        if (ta is KGCall or ta is KGFn) and arg._is_op and arg._op_arity == 2 and arg._op_a == '*':
+                            fa_arg = arg.args
+                            if type(fa_arg) is list and len(fa_arg) == 2:
+                                s0 = _expr_to_source(fa_arg[0], klong, dyadic=dyadic, var_refs=var_refs)
+                                s1 = _expr_to_source(fa_arg[1], klong, dyadic=dyadic, var_refs=var_refs)
+                                if s0 is not None and s1 is not None:
+                                    return (f'_dotsum({s0[0]},{s1[0]})', False)
                 elif adv_char == '\\':
                     py_fn = _KLONG_SCAN_TO_PY.get(op_char)
                 if py_fn is not None:
