@@ -29,6 +29,25 @@ _FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '%': _op.truediv, '^
 _sym_x = reserved_fn_symbols[0]
 _sym_y = reserved_fn_symbols[1]
 
+# Lazy torch detection — avoids importing torch at module level
+_torch_mod = None
+_torch_checked = False
+
+def _get_torch():
+    global _torch_mod, _torch_checked
+    if not _torch_checked:
+        try:
+            import torch
+            _torch_mod = torch
+        except ImportError:
+            _torch_mod = None
+        _torch_checked = True
+    return _torch_mod
+
+def _is_torch_tensor(a):
+    t = _get_torch()
+    return t is not None and isinstance(a, t.Tensor)
+
 # Specialized closure generators for fib-like recursive patterns
 _CMP_SYM = {'<': '<', '>': '>', '=': '=='}
 _ARITH_SYM = {'+': '+', '-': '-', '*': '*'}
@@ -563,7 +582,14 @@ def _argsort(a):
                                 n, mn, shift)
                             est = 2 * n // nbuckets + 2
                             futures = [_argsort_pool.submit(_bucket_sort_precomputed, low16, bucket_ids, b, est) for b in range(nbuckets)]
-                            return numpy.concatenate([f.result() for f in futures])
+                            result = numpy.empty(n, dtype=numpy.int64)
+                            pos = 0
+                            for f in futures:
+                                chunk = f.result()
+                                k = len(chunk)
+                                result[pos:pos + k] = chunk
+                                pos += k
+                            return result
                     # Numpy fallback (int32 or no cffi)
                     if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
                         a = a.astype(numpy.int32)
@@ -583,7 +609,14 @@ def _argsort(a):
                     use_u16 = bucket_size <= 65536
                     bucket_ids = ((a - mn) // bucket_size).astype(numpy.uint8)
                     futures = [_argsort_pool.submit(_bucket_find_and_sort, a, bucket_ids, b, mn + b * bucket_size, use_u16) for b in range(nbuckets)]
-                return numpy.concatenate([f.result() for f in futures])
+                result = numpy.empty(n, dtype=numpy.int64)
+                pos = 0
+                for f in futures:
+                    chunk = f.result()
+                    k = len(chunk)
+                    result[pos:pos + k] = chunk
+                    pos += k
+                return result
             # Float/other: parallel merge sort with hierarchical merge
             nways = 8 if n >= 250_000 else 4
             chunk = n // nways
@@ -702,15 +735,9 @@ def _prefix_scan_linear(x, c_x, c_y):
         pass_num += 1
     return b_arr
 
-def _add_prefix_out(ls, p, out, s, e):
-    numpy.add(ls, p, out=out[s:e])
-
 def _cffi_cumsum_chunk(a_slice, out_slice, ffi, lib):
     lib.cffi_cumsum(ffi.from_buffer('double[]', a_slice),
                     ffi.from_buffer('double[]', out_slice), len(a_slice))
-
-def _add_scalar_chunk(out_slice, val):
-    out_slice += val
 
 def _cumsum(a):
     """Cumulative sum: hybrid cffi+parallel for large float64, cffi serial for small."""
@@ -732,15 +759,14 @@ def _cumsum(a):
                     out = numpy.empty(n, dtype=numpy.float64)
                     futures = [_argsort_pool.submit(_cffi_cumsum_chunk, a[s:e], out[s:e], ffi, lib) for s, e in slices]
                     for f in futures: f.result()
-                    # Compute cumulative adjustments from local chunk sums (before propagation)
+                    # Compute cumulative adjustments and propagate sequentially
                     running = 0.0
                     adjs = []
                     for i in range(nchunks - 1):
                         running += out[slices[i][1] - 1]
                         adjs.append(running)
-                    # Parallel propagation: each chunk adjustment is independent
-                    prop_futures = [_argsort_pool.submit(_add_scalar_chunk, out[slices[i+1][0]:slices[i+1][1]], adjs[i]) for i in range(nchunks - 1)]
-                    for f in prop_futures: f.result()
+                    for i in range(nchunks - 1):
+                        out[slices[i+1][0]:slices[i+1][1]] += adjs[i]
                     return out
                 out = numpy.empty(n, dtype=numpy.float64)
                 lib.cffi_cumsum(ffi.from_buffer('double[]', a),
@@ -759,8 +785,8 @@ def _cumsum(a):
             out = numpy.empty(n, dtype=a.dtype)
             out[slices[0][0]:slices[0][1]] = local_sums[0]
             prefixes = numpy.cumsum([ls[-1] for ls in local_sums[:-1]])
-            add_futures = [_argsort_pool.submit(_add_prefix_out, local_sums[i + 1], prefixes[i], out, slices[i + 1][0], slices[i + 1][1]) for i in range(len(prefixes))]
-            for f in add_futures: f.result()
+            for i in range(len(prefixes)):
+                numpy.add(local_sums[i + 1], prefixes[i], out=out[slices[i + 1][0]:slices[i + 1][1]])
             return out
     return numpy.cumsum(a)
 
@@ -825,6 +851,8 @@ def _running_max(a):
                 s, e = slices[i]
                 numpy.maximum(local[i], prefix_maxes[i - 1], out=out[s:e])
             return out
+    if _is_torch_tensor(a):
+        return _get_torch().cummax(a, dim=0).values
     return numpy.maximum.accumulate(a)
 
 def _running_min(a):
@@ -856,6 +884,8 @@ def _running_min(a):
                 s, e = slices[i]
                 numpy.minimum(local[i], prefix_mins[i - 1], out=out[s:e])
             return out
+    if _is_torch_tensor(a):
+        return _get_torch().cummin(a, dim=0).values
     return numpy.minimum.accumulate(a)
 
 def _flatnonzero_chunk(mask, s, e):
@@ -876,19 +906,15 @@ def _flatnonzero(a):
             _argsort_pool = ThreadPoolExecutor(max_workers=16)
         futures = [_argsort_pool.submit(_flatnonzero_chunk, a, s, e) for s, e in slices]
         return numpy.concatenate([f.result() for f in futures])
+    if _is_torch_tensor(a):
+        return _get_torch().nonzero(a, as_tuple=False).flatten()
     return numpy.flatnonzero(a)
 
 _CMP_FNS = {'<': numpy.less, '>': numpy.greater, '==': numpy.equal}
+# Python operator versions work on both numpy arrays and torch tensors
+_OP_CMP_FNS = {'<': _op.lt, '>': _op.gt, '==': _op.eq}
 _CFFI_WHERE_FNS = {'>': 'cffi_where_gt', '<': 'cffi_where_lt', '==': 'cffi_where_eq'}
 _CFFI_FILTER_FNS = {'>': 'cffi_filter_gt', '<': 'cffi_filter_lt', '==': 'cffi_filter_eq'}
-
-def _cffi_where_chunk(a, cmp_op, val, s, e, ffi, lib):
-    n = e - s
-    out = numpy.empty(n, dtype=numpy.int64)
-    cfn = getattr(lib, _CFFI_WHERE_FNS[cmp_op])
-    k = cfn(ffi.from_buffer('double[]', a[s:]), ffi.cast('int64_t*', out.ctypes.data), n, float(val))
-    out[:k] += s  # adjust indices for chunk offset
-    return out[:k]
 
 def _fused_where_chunk(a, cmp_fn, val, s, e):
     idx = numpy.flatnonzero(cmp_fn(a[s:e], val))
@@ -896,21 +922,17 @@ def _fused_where_chunk(a, cmp_fn, val, s, e):
     return idx
 
 def _fused_where(a, cmp_op, val):
-    """Fused parallel comparison + flatnonzero: cffi branchless for float64."""
+    """Fused comparison + flatnonzero: single cffi for float64, parallel numpy fallback."""
     global _argsort_pool
     if type(a) is numpy.ndarray and a.dtype == numpy.float64 and len(a) >= 100_000:
         utils = _get_cffi_utils()
         if utils is not None and cmp_op in _CFFI_WHERE_FNS:
             ffi, lib = utils
             n = len(a)
-            nchunks = 4
-            chunk = n // nchunks
-            slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
-            if _argsort_pool is None:
-                from concurrent.futures import ThreadPoolExecutor
-                _argsort_pool = ThreadPoolExecutor(max_workers=16)
-            futures = [_argsort_pool.submit(_cffi_where_chunk, a, cmp_op, val, s, e, ffi, lib) for s, e in slices]
-            return numpy.concatenate([f.result() for f in futures])
+            out = numpy.empty(n, dtype=numpy.int64)
+            cfn = getattr(lib, _CFFI_WHERE_FNS[cmp_op])
+            k = cfn(ffi.from_buffer('double[]', a), ffi.cast('int64_t*', out.ctypes.data), n, float(val))
+            return out[:k]
     cmp_fn = _CMP_FNS[cmp_op]
     if type(a) is numpy.ndarray and len(a) >= 100_000:
         n = len(a)
@@ -922,14 +944,11 @@ def _fused_where(a, cmp_op, val):
             _argsort_pool = ThreadPoolExecutor(max_workers=16)
         futures = [_argsort_pool.submit(_fused_where_chunk, a, cmp_fn, val, s, e) for s, e in slices]
         return numpy.concatenate([f.result() for f in futures])
+    if _is_torch_tensor(a):
+        t = _get_torch()
+        op_cmp = _OP_CMP_FNS[cmp_op]
+        return t.nonzero(op_cmp(a, val), as_tuple=False).flatten()
     return numpy.flatnonzero(cmp_fn(a, val))
-
-def _cffi_filter_chunk(a, cmp_op, val, s, e, ffi, lib):
-    n = e - s
-    out = numpy.empty(n, dtype=numpy.float64)
-    cfn = getattr(lib, _CFFI_FILTER_FNS[cmp_op])
-    k = cfn(ffi.from_buffer('double[]', a[s:]), ffi.from_buffer('double[]', out), n, float(val))
-    return out[:k]
 
 def _fused_filter_chunk(a, cmp_fn, val, s, e):
     chunk = a[s:e]
@@ -937,21 +956,17 @@ def _fused_filter_chunk(a, cmp_fn, val, s, e):
     return chunk[idx]
 
 def _fused_filter(a, cmp_op, val):
-    """Fused parallel comparison + filter: cffi branchless for float64."""
+    """Fused comparison + filter: single cffi for float64, parallel numpy fallback."""
     global _argsort_pool
     if type(a) is numpy.ndarray and a.dtype == numpy.float64 and len(a) >= 100_000:
         utils = _get_cffi_utils()
         if utils is not None and cmp_op in _CFFI_FILTER_FNS:
             ffi, lib = utils
             n = len(a)
-            nchunks = 4
-            chunk = n // nchunks
-            slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
-            if _argsort_pool is None:
-                from concurrent.futures import ThreadPoolExecutor
-                _argsort_pool = ThreadPoolExecutor(max_workers=16)
-            futures = [_argsort_pool.submit(_cffi_filter_chunk, a, cmp_op, val, s, e, ffi, lib) for s, e in slices]
-            return numpy.concatenate([f.result() for f in futures])
+            out = numpy.empty(n, dtype=numpy.float64)
+            cfn = getattr(lib, _CFFI_FILTER_FNS[cmp_op])
+            k = cfn(ffi.from_buffer('double[]', a), ffi.from_buffer('double[]', out), n, float(val))
+            return out[:k]
     cmp_fn = _CMP_FNS[cmp_op]
     if type(a) is numpy.ndarray and len(a) >= 100_000:
         n = len(a)
@@ -963,6 +978,9 @@ def _fused_filter(a, cmp_op, val):
             _argsort_pool = ThreadPoolExecutor(max_workers=16)
         futures = [_argsort_pool.submit(_fused_filter_chunk, a, cmp_fn, val, s, e) for s, e in slices]
         return numpy.concatenate([f.result() for f in futures])
+    if _is_torch_tensor(a):
+        op_cmp = _OP_CMP_FNS[cmp_op]
+        return a[op_cmp(a, val)]
     idx = numpy.flatnonzero(cmp_fn(a, val))
     return a[idx]
 
@@ -991,10 +1009,16 @@ def _fused_count(a, cmp_op, val):
             _argsort_pool = ThreadPoolExecutor(max_workers=16)
         futures = [_argsort_pool.submit(_fused_count_chunk, a, cmp_fn, val, s, e) for s, e in slices]
         return sum(f.result() for f in futures)
+    if _is_torch_tensor(a):
+        op_cmp = _OP_CMP_FNS[cmp_op]
+        return int(op_cmp(a, val).sum().item())
     return int(numpy.count_nonzero(cmp_fn(a, val)))
 
 def _unique(a):
     """Fast unique preserving first-occurrence order for integer arrays."""
+    if _is_torch_tensor(a):
+        t = _get_torch()
+        return t.unique(a)
     if type(a) is numpy.ndarray and a.ndim == 1:
         dk = a.dtype.kind
         if dk == 'i' or dk == 'u':
@@ -1122,7 +1146,7 @@ def _compile_cffi_fused(src, nvars):
     ffi = cffi.FFI()
     ffi.cdef(f'void _fused({params_cdef});')
     try:
-        lib = ffi.verify(c_src, extra_compile_args=['-O2'])
+        lib = ffi.verify(c_src, extra_compile_args=['-O3'])
     except Exception:
         _cffi_cache[src] = False
         return False
@@ -1164,7 +1188,7 @@ def _compile_cffi_reduce(inner_src, reduce_op, nvars):
     ffi = cffi.FFI()
     ffi.cdef(f'double _reduce({params_cdef});')
     try:
-        lib = ffi.verify(c_src, extra_compile_args=['-O2', '-ffast-math'])
+        lib = ffi.verify(c_src, extra_compile_args=['-O3', '-ffast-math'])
     except Exception:
         _cffi_cache[cache_key] = False
         return False
@@ -1278,7 +1302,7 @@ double _fused(const double* _v0, int64_t _n) {{
         _cffi_cache[cache_key] = False
         return False
     try:
-        lib = ffi.verify(c_code, extra_compile_args=['-O2'])
+        lib = ffi.verify(c_code, extra_compile_args=['-O3'])
     except Exception:
         _cffi_cache[cache_key] = False
         return False
@@ -1350,10 +1374,13 @@ int64_t cffi_where_eq(const double* a, int64_t* out, int64_t n, double val);
 void cffi_bucket_prep_i64(const int64_t* a, uint8_t* bucket_ids, uint16_t* low16,
                            int64_t n, int64_t mn, int32_t shift);
 int64_t cffi_find_bucket(const uint8_t* bucket_ids, int64_t* out, int64_t n, uint8_t target);
+void cffi_add_scalar(double* a, int64_t n, double val);
 ''')
     try:
         lib = ffi.verify('''
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 void cffi_running_max(const double* a, double* out, int64_t n) {
     double mx = a[0]; out[0] = mx;
     for (int64_t i = 1; i < n; i++) { if (a[i] > mx) mx = a[i]; out[i] = mx; }
@@ -1385,33 +1412,52 @@ int64_t cffi_count_eq(const double* a, double val, int64_t n) {
     int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] == val); return c;
 }
 void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range) {
-    int64_t* counts = (int64_t*)calloc(range, sizeof(int64_t));
+    int32_t* counts = (int32_t*)calloc(range, sizeof(int32_t));
     for (int64_t i = 0; i < n; i++) counts[a[i] - mn]++;
-    int64_t total = 0;
-    for (int64_t v = 0; v < range; v++) { int64_t c = counts[v]; counts[v] = total; total += c; }
+    int32_t total = 0;
+    for (int64_t v = 0; v < range; v++) { int32_t c = counts[v]; counts[v] = total; total += c; }
     for (int64_t i = 0; i < n; i++) out[counts[a[i] - mn]++] = i;
     free(counts);
 }
 void cffi_counting_argsort_i64(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
-    int64_t* counts = (int64_t*)calloc(range, sizeof(int64_t));
+    int32_t* counts = (int32_t*)calloc(range, sizeof(int32_t));
     for (int64_t i = 0; i < n; i++) counts[a[i] - mn]++;
-    int64_t total = 0;
-    for (int64_t v = 0; v < range; v++) { int64_t c = counts[v]; counts[v] = total; total += c; }
+    int32_t total = 0;
+    for (int64_t v = 0; v < range; v++) { int32_t c = counts[v]; counts[v] = total; total += c; }
     for (int64_t i = 0; i < n; i++) out[counts[a[i] - mn]++] = i;
     free(counts);
 }
 void cffi_counting_argsort_u16(const uint16_t* keys, int64_t n, const int64_t* orig_idx, int64_t* out) {
-    int64_t counts[65536] = {0};
-    for (int64_t i = 0; i < n; i++) counts[keys[i]]++;
-    int64_t total = 0;
-    for (int64_t v = 0; v < 65536; v++) { int64_t c = counts[v]; counts[v] = total; total += c; }
-    for (int64_t i = 0; i < n; i++) out[counts[keys[i]]++] = orig_idx[i];
+    /* Two-pass radix sort: 256-element count arrays fit in L1 cache (1KB each)
+       vs original 65536-element array (512KB, causes L2 cache thrashing). */
+    int64_t* temp_idx = (int64_t*)malloc(n * sizeof(int64_t));
+    uint16_t* temp_keys = (uint16_t*)malloc(n * sizeof(uint16_t));
+    /* Pass 1: sort by low byte */
+    int32_t c0[256];
+    memset(c0, 0, sizeof(c0));
+    for (int64_t i = 0; i < n; i++) c0[keys[i] & 0xFF]++;
+    int32_t t0 = 0;
+    for (int32_t v = 0; v < 256; v++) { int32_t c = c0[v]; c0[v] = t0; t0 += c; }
+    for (int64_t i = 0; i < n; i++) {
+        int32_t p = c0[keys[i] & 0xFF]++;
+        temp_idx[p] = orig_idx[i];
+        temp_keys[p] = keys[i];
+    }
+    /* Pass 2: sort by high byte */
+    int32_t c1[256];
+    memset(c1, 0, sizeof(c1));
+    for (int64_t i = 0; i < n; i++) c1[temp_keys[i] >> 8]++;
+    int32_t t1 = 0;
+    for (int32_t v = 0; v < 256; v++) { int32_t c = c1[v]; c1[v] = t1; t1 += c; }
+    for (int64_t i = 0; i < n; i++) out[c1[temp_keys[i] >> 8]++] = temp_idx[i];
+    free(temp_idx);
+    free(temp_keys);
 }
 void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
-    int64_t* buf = (int64_t*)calloc(range, sizeof(int64_t));
+    int32_t* buf = (int32_t*)calloc(range, sizeof(int32_t));
     for (int64_t i = 0; i < n; i++) buf[a[i] - mn]++;
-    int64_t total = 0;
-    for (int64_t v = 0; v < range; v++) { int64_t c = buf[v]; buf[v] = total; total += c; }
+    int32_t total = 0;
+    for (int64_t v = 0; v < range; v++) { int32_t c = buf[v]; buf[v] = total; total += c; }
     for (int64_t i = 0; i < n; i++) { int64_t v = a[i] - mn; out[buf[v]++] = a[i]; }
     free(buf);
 }
@@ -1429,10 +1475,10 @@ int64_t cffi_unique_int(const int64_t* a, int64_t* out, int64_t n, int64_t mn, i
     return k;
 }
 void cffi_counting_rank(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
-    int64_t* counts = (int64_t*)calloc(range, sizeof(int64_t));
+    int32_t* counts = (int32_t*)calloc(range, sizeof(int32_t));
     for (int64_t i = 0; i < n; i++) counts[a[i] - mn]++;
-    int64_t total = 0;
-    for (int64_t v = 0; v < range; v++) { int64_t c = counts[v]; counts[v] = total; total += c; }
+    int32_t total = 0;
+    for (int64_t v = 0; v < range; v++) { int32_t c = counts[v]; counts[v] = total; total += c; }
     for (int64_t i = 0; i < n; i++) out[i] = counts[a[i] - mn]++;
     free(counts);
 }
@@ -1484,6 +1530,9 @@ int64_t cffi_find_bucket(const uint8_t* bucket_ids, int64_t* out, int64_t n, uin
     for (int64_t i = 0; i < n; i++) { out[k] = i; k += (bucket_ids[i] == target); }
     return k;
 }
+void cffi_add_scalar(double* a, int64_t n, double val) {
+    for (int64_t i = 0; i < n; i++) a[i] += val;
+}
 ''', extra_compile_args=['-O3'])
         _cffi_utils = (ffi, lib)
     except Exception:
@@ -1494,6 +1543,7 @@ _CFFI_COUNT_FNS = {'<': 'cffi_count_lt', '>': 'cffi_count_gt', '==': 'cffi_count
 
 def _parallel_eval_2(fn, v0, v1):
     """Fused C eval for element-wise 2-arg expressions, numpy parallel fallback."""
+    global _argsort_pool
     n = len(v0)
     # Try cffi fused eval (single-threaded C loop eliminates intermediate arrays)
     src = getattr(fn, '_source', None)
@@ -1510,7 +1560,6 @@ def _parallel_eval_2(fn, v0, v1):
             )
             return result
     # Fallback: numpy parallel chunked eval
-    global _argsort_pool
     if _argsort_pool is None:
         from concurrent.futures import ThreadPoolExecutor
         _argsort_pool = ThreadPoolExecutor(max_workers=16)

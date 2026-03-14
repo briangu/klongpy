@@ -314,6 +314,83 @@ class TestTorchAutogradOperator(unittest.TestCase):
         self.assertTrue(np.allclose(result.cpu().numpy(), expected, atol=1e-5))
 
 
+@unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not available")
+class TestTorchScanWhereUnique(unittest.TestCase):
+    """Tests for scan (running_max/min), where, expand, unique, and filter on torch tensors."""
+
+    def setUp(self):
+        self.klong = KlongInterpreter(backend='torch')
+
+    def test_running_max(self):
+        self.klong('a::[1 3 2 5 4]')
+        r = self.klong('|\\a')
+        self.assertEqual(r.cpu().tolist(), [1, 3, 3, 5, 5])
+
+    def test_running_min(self):
+        self.klong('a::[5 3 4 1 2]')
+        r = self.klong('&\\a')
+        self.assertEqual(r.cpu().tolist(), [5, 3, 3, 1, 1])
+
+    def test_running_max_float(self):
+        self.klong('a::[1.0 3.0 2.0 5.0 4.0]')
+        r = self.klong('|\\a')
+        self.assertEqual(r.cpu().tolist(), [1.0, 3.0, 3.0, 5.0, 5.0])
+
+    def test_running_min_float(self):
+        self.klong('a::[5.0 3.0 4.0 1.0 2.0]')
+        r = self.klong('&\\a')
+        self.assertEqual(r.cpu().tolist(), [5.0, 3.0, 3.0, 1.0, 1.0])
+
+    def test_where_boolean_like(self):
+        self.klong('a::[0 1 0 1 1]')
+        r = self.klong('&a')
+        self.assertEqual(r.cpu().tolist(), [1, 3, 4])
+
+    def test_expand(self):
+        self.klong('a::[1 2 3]')
+        r = self.klong('&a')
+        self.assertEqual(r.cpu().tolist(), [0, 1, 1, 2, 2, 2])
+
+    def test_unique(self):
+        self.klong('a::[1 2 2 3 1 3]')
+        r = self.klong('?a')
+        self.assertEqual(sorted(r.cpu().tolist()), [1, 2, 3])
+
+    def test_unique_float(self):
+        self.klong('a::[1.0 2.0 2.0 3.0]')
+        r = self.klong('?a')
+        self.assertEqual(sorted(r.cpu().tolist()), [1.0, 2.0, 3.0])
+
+    def test_fused_where_gt(self):
+        self.klong('a::[0.1 0.6 0.3 0.8 0.2]')
+        r = self.klong('&(a>0.5)')
+        self.assertEqual(r.cpu().tolist(), [1, 3])
+
+    def test_fused_where_lt(self):
+        self.klong('a::[0.1 0.6 0.3 0.8 0.2]')
+        r = self.klong('&(a<0.3)')
+        self.assertEqual(r.cpu().tolist(), [0, 4])
+
+    def test_cumsum(self):
+        self.klong('a::[1 2 3 4 5]')
+        r = self.klong('+\\a')
+        self.assertEqual(r.cpu().tolist(), [1, 3, 6, 10, 15])
+
+    def test_cumprod(self):
+        self.klong('a::[1 2 3 4 5]')
+        r = self.klong('*\\a')
+        self.assertEqual(r.cpu().tolist(), [1, 2, 6, 24, 120])
+
+    def test_drawdown_pattern(self):
+        """Test the running_max - current price pattern (drawdown)."""
+        self.klong('p::[100 102 99 105 103]')
+        r = self.klong('(|\\p)-p')
+        vals = r.cpu().tolist()
+        self.assertAlmostEqual(vals[0], 0.0, places=1)
+        self.assertAlmostEqual(vals[2], 3.0, places=1)
+        self.assertAlmostEqual(vals[4], 2.0, places=1)
+
+
 if __name__ == '__main__':
     if not TORCH_AVAILABLE:
         print("=" * 70)

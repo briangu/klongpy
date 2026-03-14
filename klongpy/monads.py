@@ -124,6 +124,17 @@ def eval_monad_expand_where(a):
         # Fast path for boolean-like integer arrays (comparison results: all 0/1)
         if dk in ('i', 'u') and len(arr) > 0 and arr.max() <= 1:
             return bknp.flatnonzero(arr.astype(bool))
+    # Torch tensor support
+    try:
+        import torch
+        if isinstance(arr, torch.Tensor):
+            if arr.dtype == torch.bool:
+                return torch.nonzero(arr, as_tuple=False).flatten()
+            if arr.max().item() <= 1:
+                return torch.nonzero(arr.bool(), as_tuple=False).flatten()
+            return torch.repeat_interleave(torch.arange(len(arr), device=arr.device), arr)
+    except ImportError:
+        pass
     return bknp.repeat(bknp.arange(len(arr)), arr)
 
 
@@ -437,6 +448,13 @@ def eval_monad_range(a, backend):
     if isinstance(a, str):
         return ''.join(bknp.unique(backend.str_to_chr_arr(a)))
     elif np_backend.isarray(a):
+        # Torch tensor fast path — avoid numpy dtype conversion issues
+        try:
+            import torch
+            if isinstance(a, torch.Tensor):
+                return torch.unique(a)
+        except ImportError:
+            pass
         # Cache for immutable arrays
         if type(a) is _ndarray and not a.flags.writeable:
             a_id = id(a)
