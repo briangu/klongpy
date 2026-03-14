@@ -222,3 +222,4 @@ db23b14	Ultra-fast cond eval for sym+literal	166.9	8.1% vs 181.7
 2026-03-14T03:08:47Z	np_array_stacking	136.193	521 pass + 111 torch pass	Use np.array instead of np.stack for faster list-of-arrays conversion
 2026-03-14T03:12:26Z	fast_int_unique	130.243	521 pass + 111 torch pass	np.minimum.at for integer unique preserving order: 37x faster
 2026-03-14T03:15:05Z	fast_bool_where	119.647	521 pass + 111 torch pass	Fast path for boolean-like int64 arrays in Where monad: convert to bool + flatnonzero
+2026-03-14T03:16:59Z	bool_comparison_results	117.647	521 pass + 111 torch pass	Keep numpy boolean arrays from comparisons instead of converting to int64

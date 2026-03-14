@@ -484,8 +484,17 @@ def is_atom(x):
     return is_empty(x) if is_iterable(x) else True
 
 
+_ndarray_type = None  # lazily populated
+
 def kg_truth(x):
-    return x*1
+    global _ndarray_type
+    if _ndarray_type is None:
+        import numpy
+        _ndarray_type = numpy.ndarray
+    # Keep numpy boolean arrays as-is for fast flatnonzero in Where monad
+    if type(x) is _ndarray_type:
+        return x
+    return x * 1
 
 
 def str_to_chr_arr(s, backend):
