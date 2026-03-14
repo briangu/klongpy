@@ -349,19 +349,34 @@ def create_system_contexts():
     return [sys_var, ReadonlyDict(sys_d)]
 
 
-def _compile_arg_fn(expr, klong):
-    """Try to compile a sub-expression to a fast Python function of x.
+def _compile_arg_fn(expr, klong, dyadic=False):
+    """Try to compile a sub-expression to a fast Python function of x (or x,y if dyadic).
 
     Returns a callable or None. The returned callable has a _vectorizable attribute
     indicating if it can be applied to numpy arrays element-wise.
     """
     te = type(expr)
-    if te is KGSym and expr is _sym_x:
-        fn = lambda x: x
-        fn._vectorizable = True
-        return fn
+    if te is KGSym:
+        if expr is _sym_x:
+            fn = (lambda x, y: x) if dyadic else (lambda x: x)
+            fn._vectorizable = True
+            return fn
+        if dyadic and expr is _sym_y:
+            fn = lambda x, y: y
+            fn._vectorizable = True
+            return fn
+        # Try to resolve global variable to a constant value
+        try:
+            val = klong._context[expr]
+            if type(val) is int or type(val) is float:
+                fn = (lambda x, y, c=val: c) if dyadic else (lambda x, c=val: c)
+                fn._vectorizable = True
+                return fn
+        except KeyError:
+            pass
+        return None
     if te is int or te is float:
-        fn = lambda x, c=expr: c
+        fn = (lambda x, y, c=expr: c) if dyadic else (lambda x, c=expr: c)
         fn._vectorizable = True
         return fn
     if (te is KGCall or te is KGFn) and expr._is_op and expr._op_arity == 2:
@@ -375,10 +390,13 @@ def _compile_arg_fn(expr, klong):
             return None
         a0, a1 = fa[0], fa[1]
         # Recursively compile sub-args (allows deeper nesting)
-        c0 = _compile_arg_fn(a0, klong)
-        c1 = _compile_arg_fn(a1, klong)
+        c0 = _compile_arg_fn(a0, klong, dyadic=dyadic)
+        c1 = _compile_arg_fn(a1, klong, dyadic=dyadic)
         if c0 is not None and c1 is not None:
-            fn = lambda x, op=_op, g0=c0, g1=c1: op(g0(x), g1(x))
+            if dyadic:
+                fn = lambda x, y, op=_op, g0=c0, g1=c1: op(g0(x, y), g1(x, y))
+            else:
+                fn = lambda x, op=_op, g0=c0, g1=c1: op(g0(x), g1(x))
             fn._vectorizable = _fast is not None and c0._vectorizable and c1._vectorizable
             return fn
     return None
@@ -534,13 +552,21 @@ def chain_adverbs(klong, arr):
                             f = lambda x,y,fn=_dop: fn(y,x)
                             _dyad_verb = None
             if _dyad_verb is not None:
-                # General case: use KGCall + _eval_fn
-                _call = KGCall(arr[0].a, [None, None], arity=2)
-                _args = _call.args
-                def f(x, y, k=klong, c=_call, a=_args):
-                    a[0] = x
-                    a[1] = y
-                    return k._eval_fn(c)
+                # Try to compile the full body as a dyadic function of (x, y)
+                _compiled = None
+                if _dtb is KGFn and not _dyad_verb._is_op and not _dyad_verb._is_adverb_chain and _dyad_verb.args is None:
+                    _compiled = _compile_arg_fn(_dyad_verb.a, klong, dyadic=True)
+                if _compiled is not None:
+                    f = _compiled
+                    _dyad_verb = None
+                else:
+                    # General case: use KGCall + _eval_fn
+                    _call = KGCall(arr[0].a, [None, None], arity=2)
+                    _args = _call.args
+                    def f(x, y, k=klong, c=_call, a=_args):
+                        a[0] = x
+                        a[1] = y
+                        return k._eval_fn(c)
     for i in range(1,len(arr)-1):
         # For each-adverb (') with a vectorizable arithmetic function,
         # apply directly to the array instead of iterating element by element.

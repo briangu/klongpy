@@ -169,3 +169,50 @@ fb40e04	0.000	pass	keep	reuse KGCall in adverb chains + numpy scalar fast path i
 5fc7e45	0.000	pass	keep	specialize chain_adverbs closures for simple op bodies (each: 1.53->0.65us)
 b67489e	0.000	pass	keep	skip item() for numpy scalars in cache keys (each: 0.65->0.35us)
 6d0ae1f	0.000	pass	keep	Python operator dispatch for +,*,- in each-adverb (each: 0.35->0.14us)
+b90308e	0.000	pass	keep	vectorize each-adverb for arithmetic ops + fix adverb cache id-reuse bug (each: 0.14->0.021us)
+45b8ca5	0.000	pass	keep	extend _FAST_DYAD_OPS with divide (%) and power (^) operators
+2285663	0.000	pass	keep	inline parse in __call__ cold path (cold: 8.61->8.46us)
+7395d00	0.000	pass	keep	fix dyad cache type collision + fast scalar dispatch (_eval_fn: 0.93->0.81us)
+325d0f9	0.000	pass	keep	fast scalar monad dispatch for negate (neg(5): 2.0->1.1us)
+48767dd	0.000	pass	keep	fast scalar comparison <,>,= (fib(10): 544->436us)
+815dadc	0.000	pass	keep	inline KGCond condition and branch eval
+c069a9f	0.000	pass	keep	inline call() dispatch for op args in _eval_fn (fib(10): 436->420us)
+11f7a22	0.000	pass	keep	inline KGCond eval in _eval_fn body dispatch (fib(10): 420->404us)
+0354695	0.000	pass	keep	fast scalar |,& (max/min) and ~ (not) monad
+db65262	0.000	pass	keep	skip eval dispatch for non-op KGCall args (fib(10): 404->393us)
+ad3cace	0.000	pass	keep	inline reserved symbol lookup in eval op handler (fib(10): 393->374us)
+619b0e3	0.000	pass	keep	fast scalar floor monad
+d7c37bd	0.000	pass	keep	reorder _eval_fn: KGCond before kglambda (fib(10): 374->350us)
+88a7e62	0.000	pass	keep	pre-cache fast op/monad on KGFn nodes (fib(10): 350->350us, eliminates dict.get)
+29e83b4	0.000	pass	keep	inline KGCond condition+branch dispatch in _eval_fn (fib(10): 350->319us)
+857f2fc	0.000	pass	keep	inline dyad op for single-arg fn calls (fib(10): 319->290us)
+b701ec0	0.000	pass	keep	inline dyad op for KGCond branch eval (fib(10): 290->282us)
+5490895	0.000	pass	keep	use local ctx dict for reserved symbol lookups (fib(10): 282->279us)
+b209f0d	0.000	pass	keep	cache function resolution on KGCall with version invalidation (fib(10): 279->254us)
+f3db40c	0.000	pass	keep	skip f_args wrapper on cached path (fib(10): 254->244us)
+e6d84ef	0.000	pass	keep	pre-compute nargs on KGCall (fib(10): 244->243us)
+286624b	0.000	pass	keep	skip redundant type(f) when has_locals is false (fib(10): 243->242us)
+cc09d96	0.000	pass	keep	add ^ (power) to fast scalar dispatch
+cb3a48b	Cache _ctx_list local + defer f_arity	234.5	3.5% vs 243.0
+decd294	Inline int cmp in KGCond condition	230.5	1.7% vs 234.5
+712c9df	Inline arithmetic ops for int-int	229.7	0.3% vs 230.5
+d389607	Reorder body dispatch: KGCond first	220.8	3.9% vs 229.7
+146abd7	Pre-compute arg0 dyad op flag	204.1	7.6% vs 220.8
+ba19223	Pre-compute cond dyad op flag	192.4	5.7% vs 204.1
+d8af299	Pre-compute branch types for dispatch	181.7	5.6% vs 192.4
+db23b14	Ultra-fast cond eval for sym+literal	166.9	8.1% vs 181.7
+2026-03-14T00:23:49Z	_cached_nargs_ok	164.9	pre-compute nargs>=f_arity check, skip loading f_arity on cached path
+2026-03-14T00:29:43Z	_xval_bypass_dict_get	167.1	REVERTED - extra branch bytecodes cost more than dict.get savings
+2026-03-14T00:36:04Z	direct_p_ultra_fast	160.5	compute p directly from comparison, skip q->p conversion in ultra-fast KGCond path
+2026-03-14T00:39:26Z	_arg0_dyad_fast	142.5	pre-compute arg0 dyad fast flag, skip type checks for reserved sym + literal args
+2026-03-14T00:42:31Z	_xval_cond_bypass	140.6	use _xval directly in condition and true branch, skip ctx.get for nargs==1 x-ref
+2026-03-14T00:46:21Z	specialized_hot_path	126.1	fully inlined cached KGCond nargs==1 path, skip has_locals/f_args-None/nargs checks
+2026-03-14T00:48:34Z	cache_check_simplify	119.5	eliminate redundant _cached_body-is-None check, use _cached_cond_fast as hot path entry
+2026-03-14T00:52:25Z	precache_operands	112.0	pre-cache arg and condition operands on KGCall, eliminate list indexing and intermediate loads
+2026-03-14T00:54:41Z	defer_tf_nargs_ok	109.3	defer tf and nargs_ok loads past specialized hot path
+2026-03-14T00:56:16Z	skip_dot_f	105.0	skip .f assignment in specialized hot path ctx (KGCond never references .f)
+2026-03-13 18:07:42	opt10_save_restore_fast_x	88.5
+2026-03-13 18:11:52	opt11_precache_false_branch_dual_call	69.5
+2026-03-13 18:19:54	opt12_specialized_closure_fib_like	9.0
+2026-03-13 18:22:33	opt13_exec_based_closure	6.3
+2026-03-14T02:46:41Z	dyadic_compile_arg_fn	125.845	521 pass	_compile_arg_fn dyadic extension for scan/over/each-2 compound fns
