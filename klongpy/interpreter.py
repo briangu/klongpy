@@ -19,6 +19,7 @@ _UNEVALUATED_OPS = frozenset(['::','∇'])
 
 # Import fast dispatch tables from types (pre-resolved on KGFn at construction time)
 from .types import _FAST_SCALAR_OPS, _FAST_SCALAR_MONADS
+import itertools
 import operator as _op
 # Safe for numpy arrays (numpy handles div-by-zero via inf/nan)
 _FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '%': _op.truediv, '^': _op.pow}
@@ -962,6 +963,31 @@ def chain_adverbs(klong, arr):
                         _compiled = _compile_arg_fn(_dyad_verb.a, klong, dyadic=True)
                 if _compiled is not None:
                     f = _compiled
+                    # Detect scan-vectorize pattern: {x + g(y)} → cumsum, {x * g(y)} → cumprod
+                    if _dtb is KGFn:
+                        _vbody = _dyad_verb.a
+                        _vbt = type(_vbody)
+                        if (_vbt is KGCall or _vbt is KGFn) and _vbody._is_op and _vbody._op_arity == 2:
+                            _vop = _vbody._op_a
+                            if _vop == '+' or _vop == '*':
+                                _vfa = _vbody.args
+                                if type(_vfa) is list and len(_vfa) == 2:
+                                    _y_dep = None
+                                    if type(_vfa[0]) is KGSym and _vfa[0] is _sym_x:
+                                        _y_dep = _vfa[1]
+                                    elif type(_vfa[1]) is KGSym and _vfa[1] is _sym_x:
+                                        _y_dep = _vfa[0]
+                                    if _y_dep is not None:
+                                        _gy_src = _expr_to_source(_y_dep, klong, dyadic=True)
+                                        if _gy_src is not None and 'x' not in _gy_src[0]:
+                                            try:
+                                                _gy_fn = eval(compile(f'lambda y:{_gy_src[0]}', '<klong>', 'eval'), _EVAL_GLOBALS)
+                                                if _vop == '+':
+                                                    f._scan_cumsum_fn = _gy_fn
+                                                else:
+                                                    f._scan_cumprod_fn = _gy_fn
+                                            except Exception:
+                                                pass
                     _dyad_verb = None
                 else:
                     # General case: use KGCall + _eval_fn
@@ -1053,6 +1079,44 @@ def chain_adverbs(klong, arr):
                     if hasattr(x, '__iter__') and not isinstance(x, str):
                         return be.kg_asarray([pf(e) for e in x])
                     return pf(x)
+                continue
+        # Vectorized scan: {x + g(y)}\array → a[0] + cumsum(g(a[1:]))
+        if arr[i].a == '\\' and arr[i].arity == 1:
+            _csf = getattr(f, '_scan_cumsum_fn', None)
+            _cpf = getattr(f, '_scan_cumprod_fn', None)
+            if _csf is not None:
+                _prev_f = f
+                _be = klong._backend
+                def f(x, csf=_csf, be=_be):
+                    if type(x) is numpy.ndarray and len(x) > 0:
+                        n = len(x)
+                        if n == 1:
+                            return x.copy()
+                        g = csf(x[1:])
+                        cs = numpy.cumsum(g)
+                        cs += x[0]
+                        result = numpy.empty(n, dtype=cs.dtype)
+                        result[0] = x[0]
+                        result[1:] = cs
+                        return result
+                    return be.kg_asarray(list(itertools.accumulate(x, lambda a, b, _csf=csf: a + _csf(b))))
+                continue
+            if _cpf is not None:
+                _prev_f = f
+                _be = klong._backend
+                def f(x, cpf=_cpf, be=_be):
+                    if type(x) is numpy.ndarray and len(x) > 0:
+                        n = len(x)
+                        if n == 1:
+                            return x.copy()
+                        g = cpf(x[1:])
+                        cp = numpy.cumprod(g)
+                        cp *= x[0]
+                        result = numpy.empty(n, dtype=cp.dtype)
+                        result[0] = x[0]
+                        result[1:] = cp
+                        return result
+                    return be.kg_asarray(list(itertools.accumulate(x, lambda a, b, _cpf=cpf: a * _cpf(b))))
                 continue
         o = get_adverb_fn(klong, arr[i].a, arity=arr[i].arity)
         if arr[i].arity == 1:
