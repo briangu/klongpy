@@ -630,8 +630,30 @@ def _fused_where(a, cmp_op, val):
         return numpy.concatenate([f.result() for f in futures])
     return numpy.flatnonzero(cmp_fn(a, val))
 
+def _fused_filter_chunk(a, cmp_fn, val, s, e):
+    chunk = a[s:e]
+    idx = numpy.flatnonzero(cmp_fn(chunk, val))
+    return chunk[idx]
+
+def _fused_filter(a, cmp_op, val):
+    """Fused parallel comparison + filter: a[flatnonzero(a cmp val)]."""
+    cmp_fn = _CMP_FNS[cmp_op]
+    if type(a) is numpy.ndarray and len(a) >= 100_000:
+        n = len(a)
+        nchunks = 4
+        chunk = n // nchunks
+        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+        global _argsort_pool
+        if _argsort_pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            _argsort_pool = ThreadPoolExecutor(max_workers=16)
+        futures = [_argsort_pool.submit(_fused_filter_chunk, a, cmp_fn, val, s, e) for s, e in slices]
+        return numpy.concatenate([f.result() for f in futures])
+    idx = numpy.flatnonzero(cmp_fn(a, val))
+    return a[idx]
+
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
@@ -699,6 +721,10 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                             # Detect x@<x → np.sort(x) optimization
                             if s1[0] == f'_argsort({s0[0]})':
                                 return (f'_fast_sort({s0[0]})', False)
+                            # Detect x@_fused_where(x,cmp,val) → _fused_filter(x,cmp,val)
+                            _s1str = s1[0]
+                            if _s1str.startswith(f'_fused_where({s0[0]},'):
+                                return (f'_fused_filter({_s1str[13:]}', False)
                             return (f'{s0[0]}[{s1[0]}]', False)
                 # Special handling for # dyad (take): N#array → array[:N]
                 if var_refs is not None and expr._op_a == '#':
