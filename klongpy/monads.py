@@ -413,9 +413,12 @@ def eval_monad_range(a, backend):
             if cached is not None:
                 return cached
         dtype_kind = backend.get_dtype_kind(a)
-        if dtype_kind != 'O' and a.ndim > 1:
+        if dtype_kind != 'O':
             a_np = backend.to_numpy(a) if backend.is_backend_array(a) else a
-            _, ids = bknp.unique(a_np, axis=0, return_index=True)
+            if a.ndim > 1:
+                _, ids = bknp.unique(a_np, axis=0, return_index=True)
+            else:
+                _, ids = bknp.unique(a_np, return_index=True)
             ids.sort()
             result = a[ids]
         else:
