@@ -1029,8 +1029,14 @@ def eval_dyad_take(a, b, backend):
 
     """
     j = isinstance(b,str)
-    items = list(b) if j else to_list(b)
     aa = abs(int(a.item() if hasattr(a, 'item') else a))
+    blen = len(b) if hasattr(b, '__len__') else 0
+    # Fast path: simple slice when no cycling needed
+    if not j and type(b) is bknp.ndarray and blen > 0 and aa <= blen:
+        if aa == 0:
+            return bknp.asarray([])
+        return b[-aa:] if a < 0 else b[:aa]
+    items = list(b) if j else to_list(b)
     if aa == 0 or len(items) == 0:
         result = []
     else:
