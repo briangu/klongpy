@@ -481,6 +481,28 @@ def _fast_sort(a):
 def _add_prefix(ls, p):
     return ls + p
 
+def _prefix_scan_linear(x, c_x, c_y):
+    """Parallel prefix scan for affine recurrence y[n] = c_x * y[n-1] + c_y * x[n].
+
+    Uses Hillis-Steele algorithm with affine transform composition.
+    O(n log n) work but O(log n) span, vectorized via numpy.
+    """
+    n = len(x)
+    # Initial transforms: z[0] = (0, x[0]), z[i>0] = (c_x, c_y * x[i])
+    a_arr = numpy.full(n, c_x)
+    a_arr[0] = 0.0
+    b_arr = numpy.empty(n)
+    b_arr[0] = x[0]
+    b_arr[1:] = c_y * x[1:]
+    # Hillis-Steele prefix scan with composition: (a2, b2) o (a1, b1) = (a2*a1, a2*b1 + b2)
+    d = 1
+    while d < n:
+        a_old = a_arr[d:].copy()
+        b_arr[d:] = a_old * b_arr[:-d] + b_arr[d:]
+        a_arr[d:] = a_old * a_arr[:-d]
+        d *= 2
+    return b_arr
+
 def _add_prefix_out(ls, p, out, s, e):
     numpy.add(ls, p, out=out[s:e])
 
@@ -840,12 +862,15 @@ def _compile_arg_fn(expr, klong, dyadic=False):
             fn._vectorizable = True
             fn._is_const = False
             fn._axis_fn = (lambda X, Y: X) if dyadic else (lambda a: a)
+            if dyadic:
+                fn._is_x = True
             return fn
         if dyadic and expr is _sym_y:
             fn = lambda x, y: y
             fn._vectorizable = True
             fn._is_const = False
             fn._axis_fn = lambda X, Y: Y
+            fn._is_y = True
             return fn
         # Try to resolve global variable to a constant value
         try:
@@ -925,6 +950,35 @@ def _compile_arg_fn(expr, klong, dyadic=False):
                             fn._const_mul_val = _cv
                     except Exception:
                         pass
+            # Tag linear coefficient patterns for affine recurrence detection in scan
+            if dyadic and op_a == '*':
+                # x * const or const * x → tag _x_coeff
+                _x0 = getattr(c0, '_is_x', False)
+                _x1 = getattr(c1, '_is_x', False)
+                _y0 = getattr(c0, '_is_y', False)
+                _y1 = getattr(c1, '_is_y', False)
+                if _x0 and c1._is_const:
+                    try: fn._x_coeff = c1(0, 0)
+                    except: pass
+                elif _x1 and c0._is_const:
+                    try: fn._x_coeff = c0(0, 0)
+                    except: pass
+                elif _y0 and c1._is_const:
+                    try: fn._y_coeff = c1(0, 0)
+                    except: pass
+                elif _y1 and c0._is_const:
+                    try: fn._y_coeff = c0(0, 0)
+                    except: pass
+            # Tag linear recurrence: c1*x + c2*y → _linear_recurrence = (c1, c2)
+            if dyadic and op_a == '+':
+                _xc0 = getattr(c0, '_x_coeff', None)
+                _xc1 = getattr(c1, '_x_coeff', None)
+                _yc0 = getattr(c0, '_y_coeff', None)
+                _yc1 = getattr(c1, '_y_coeff', None)
+                if _xc0 is not None and _yc1 is not None:
+                    fn._linear_recurrence = (float(_xc0), float(_yc1))
+                elif _xc1 is not None and _yc0 is not None:
+                    fn._linear_recurrence = (float(_xc1), float(_yc0))
             return fn
     # Handle monad ops (arity 1): e.g., #x → count(x)
     if (te is KGCall or te is KGFn) and expr._is_op and expr._op_arity == 1:
@@ -1232,11 +1286,15 @@ def chain_adverbs(klong, arr):
                         _compiled = _compile_arg_fn(_dyad_verb.a, klong, dyadic=True)
                 if _compiled is not None:
                     f = _compiled
-                    # Attach axis function for batch each-2 if source-compiled (no _axis_fn)
-                    if getattr(f, '_axis_fn', None) is None:
+                    # Attach axis function and linear recurrence from compiled-fn metadata
+                    if getattr(f, '_axis_fn', None) is None or getattr(f, '_linear_recurrence', None) is None:
                         _body_cf = _compile_arg_fn(_dyad_verb.a, klong, dyadic=True)
-                        if _body_cf is not None and getattr(_body_cf, '_axis_fn', None) is not None:
-                            f._axis_fn = _body_cf._axis_fn
+                        if _body_cf is not None:
+                            if getattr(f, '_axis_fn', None) is None and getattr(_body_cf, '_axis_fn', None) is not None:
+                                f._axis_fn = _body_cf._axis_fn
+                            _lr = getattr(_body_cf, '_linear_recurrence', None)
+                            if _lr is not None:
+                                f._linear_recurrence = _lr
                     # Detect scan-vectorize pattern: {x + g(y)} → cumsum, {x * g(y)} → cumprod
                     if _dtb is KGFn:
                         _vbody = _dyad_verb.a
@@ -1411,6 +1469,19 @@ def chain_adverbs(klong, arr):
                         result[1:] = cp
                         return result
                     return be.kg_asarray(list(itertools.accumulate(x, lambda a, b, _cpf=cpf: a * _cpf(b))))
+                continue
+            # Affine recurrence: {c1*x + c2*y}\array → prefix scan
+            _lr = getattr(f, '_linear_recurrence', None)
+            if _lr is not None:
+                _c_x, _c_y = _lr
+                def f(x, cx=_c_x, cy=_c_y):
+                    if type(x) is numpy.ndarray and x.dtype.kind == 'f' and len(x) > 100:
+                        return _prefix_scan_linear(x, cx, cy)
+                    # Fallback for small arrays or non-float
+                    return numpy.fromiter(itertools.accumulate(
+                        x.tolist() if type(x) is numpy.ndarray else x,
+                        lambda a, b, _cx=cx, _cy=cy: _cx * a + _cy * b
+                    ), dtype=numpy.float64, count=len(x))
                 continue
         o = get_adverb_fn(klong, arr[i].a, arity=arr[i].arity)
         if arr[i].arity == 1:
