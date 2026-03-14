@@ -385,8 +385,17 @@ _KLONG_SCAN_TO_PY = {'+': '_cumsum', '*': '_cumprod', '|': '_running_max', '&': 
 # Efficient rank: argsort + inverse permutation (O(n) instead of O(n log n) for second argsort)
 def _rank(a):
     idx = _argsort(a)
-    rank = numpy.empty(len(idx), dtype=numpy.intp)
-    rank[idx] = numpy.arange(len(idx))
+    n = len(idx)
+    # cffi inverse permutation is faster than numpy fancy indexing for large arrays
+    utils = _get_cffi_utils()
+    if utils is not None and idx.dtype == numpy.int64:
+        ffi, lib = utils
+        rank = numpy.empty(n, dtype=numpy.int64)
+        lib.cffi_inverse_perm(ffi.cast('const int64_t*', idx.ctypes.data),
+                              ffi.cast('int64_t*', rank.ctypes.data), n)
+        return rank
+    rank = numpy.empty(n, dtype=numpy.intp)
+    rank[idx] = numpy.arange(n)
     return rank
 
 # BLAS-optimized dot-sum: np.dot for 1D arrays, np.sum(a*b) fallback for higher dims
@@ -977,6 +986,7 @@ int64_t cffi_count_gt(const double* a, double val, int64_t n);
 int64_t cffi_count_eq(const double* a, double val, int64_t n);
 void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range);
 void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
+void cffi_inverse_perm(const int64_t* perm, int64_t* out, int64_t n);
 ''')
     try:
         lib = ffi.verify('''
@@ -1022,6 +1032,9 @@ void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_
     for (int64_t v = 0; v < range; v++) { int64_t c = buf[v]; buf[v] = total; total += c; }
     for (int64_t i = 0; i < n; i++) { int64_t v = a[i] - mn; out[buf[v]++] = a[i]; }
     free(buf);
+}
+void cffi_inverse_perm(const int64_t* perm, int64_t* out, int64_t n) {
+    for (int64_t i = 0; i < n; i++) out[perm[i]] = i;
 }
 ''', extra_compile_args=['-O2'])
         _cffi_utils = (ffi, lib)
