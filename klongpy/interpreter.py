@@ -478,6 +478,15 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                         s = _expr_to_source(inner, klong, dyadic=dyadic, var_refs=var_refs)
                         if s is not None:
                             return (f'_rank({s[0]})', False)
+                elif op_a == '#':
+                    # Detect #&(expr) → count_nonzero(expr) optimization
+                    ta = type(arg)
+                    if (ta is KGCall or ta is KGFn) and arg._is_op and arg._op_arity == 1 and arg._op_a == '&':
+                        inner_arg = arg.args
+                        inner = inner_arg[0] if type(inner_arg) is list else inner_arg
+                        s = _expr_to_source(inner, klong, dyadic=dyadic, var_refs=var_refs)
+                        if s is not None:
+                            return (f'_np.count_nonzero({s[0]})', False)
                 s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
                 if s is not None:
                     if op_a == '&':

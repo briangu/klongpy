@@ -232,3 +232,4 @@ exp17_compiled_expr_cache	2026-03-14T04:07:08Z	top-level expression compilation 
 exp18_comparison_ops_monads	2026-03-14T04:13:38Z	add >/</=/@/&/# to _expr_to_source for compiled expressions + risk benchmarks	107.940	47	all pass	all pass
 exp19_sort_rank_optimization	2026-03-14T04:20:27Z	detect x@<x->np.sort, <<x->_rank O(n) inverse perm, add </>/@/# monads to source	103.604	47	all pass	all pass
 exp20_blas_dot_product	2026-03-14T04:26:37Z	detect +/(x*y)->np.dot via BLAS, 2x dot product, 36-54% finance benchmarks	104.682	47	all pass	all pass
+exp21_count_nonzero	2026-03-14T04:29:39Z	detect #&(expr)->count_nonzero, avoids intermediate index array	103.994	47	all pass	all pass
