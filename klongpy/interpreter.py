@@ -392,12 +392,32 @@ def _rank(a):
 def _dotsum(a, b):
     return numpy.dot(a, b) if a.ndim == 1 else numpy.sum(a * b)
 
-# Fast argsort: downcast int64→int32 for large arrays (int32 sort is ~5% faster)
+# Persistent thread pool for parallel argsort (lazy-initialized)
+_argsort_pool = None
+
 def _argsort(a):
-    if type(a) is numpy.ndarray and a.dtype == numpy.int64 and len(a) >= 100_000:
-        mn, mx = a.min(), a.max()
-        if mn >= -2147483648 and mx <= 2147483647:
-            return numpy.argsort(a.astype(numpy.int32))
+    """Fast argsort with int32 downcast and parallel merge for large arrays."""
+    if type(a) is numpy.ndarray:
+        n = len(a)
+        # Int64→int32 downcast for large arrays
+        if a.dtype == numpy.int64 and n >= 100_000:
+            mn, mx = a.min(), a.max()
+            if mn >= -2147483648 and mx <= 2147483647:
+                a = a.astype(numpy.int32)
+        # Parallel merge sort for large arrays: split, sort halves in threads, merge
+        if n >= 500_000:
+            global _argsort_pool
+            if _argsort_pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _argsort_pool = ThreadPoolExecutor(max_workers=2)
+            mid = n >> 1
+            f1 = _argsort_pool.submit(numpy.argsort, a[:mid])
+            f2 = _argsort_pool.submit(numpy.argsort, a[mid:])
+            idx1 = f1.result()
+            idx2 = f2.result() + mid
+            combined = numpy.concatenate([idx1, idx2])
+            order = numpy.argsort(a[combined], kind='stable')
+            return combined[order]
     return numpy.argsort(a)
 
 # Fast sort: counting sort for bounded non-negative integers
