@@ -956,11 +956,11 @@ class KlongInterpreter():
                     _tx0 = type(_x0)
                     _cond_is_dyad = (_tx0 is KGCall or _tx0 is KGFn) and _x0._is_op and _x0._op_arity == 2
                     x._cached_cond_is_dyad_op = _cond_is_dyad
-                    # Pre-compute fast condition path: dyad op with list args, reserved-sym arg0, literal arg1
+                    # Pre-compute fast condition path: dyad op with list args, arg0 IS _sym_x, literal arg1, nargs==1
                     if _cond_is_dyad:
                         _cfa = _x0.args
-                        x._cached_cond_fast = (type(_cfa) is list and
-                            (type(_cfa[0]) is KGSym and _cfa[0] in reserved_fn_symbols_set) and
+                        x._cached_cond_fast = (x._nargs == 1 and type(_cfa) is list and
+                            _cfa[0] is _sym_x and
                             (type(_cfa[1]) is int or type(_cfa[1]) is float))
                     else:
                         x._cached_cond_fast = False
@@ -1004,20 +1004,20 @@ class KlongInterpreter():
                     if type(_ax) is int:
                         _aop = q._op_a
                         if _aop == '-':
-                            ctx = {_sym_x: _ax - _ay}
+                            _xval = _ax - _ay
                         elif _aop == '+':
-                            ctx = {_sym_x: _ax + _ay}
+                            _xval = _ax + _ay
                         elif _aop == '*':
-                            ctx = {_sym_x: _ax * _ay}
+                            _xval = _ax * _ay
                         else:
                             _afast = q._fast_op
-                            ctx = {_sym_x: _afast(_ax, _ay) if _afast is not None else self._vd[_aop](_ax, _ay)}
+                            _xval = _afast(_ax, _ay) if _afast is not None else self._vd[_aop](_ax, _ay)
                     else:
                         _afast = q._fast_op
                         if _afast is not None and (type(_ax) is int or type(_ax) is float):
-                            ctx = {_sym_x: _afast(_ax, _ay)}
+                            _xval = _afast(_ax, _ay)
                         else:
-                            ctx = {_sym_x: self._vd[q._op_a](_ax, _ay)}
+                            _xval = self._vd[q._op_a](_ax, _ay)
                 elif x._arg0_is_dyad_op:
                     # Medium path: dyad op but args need full type checking
                     _afa = q.args
@@ -1039,30 +1039,31 @@ class KlongInterpreter():
                     if type(_ax) is int and type(_ay) is int:
                         _aop = q._op_a
                         if _aop == '-':
-                            ctx = {_sym_x: _ax - _ay}
+                            _xval = _ax - _ay
                         elif _aop == '+':
-                            ctx = {_sym_x: _ax + _ay}
+                            _xval = _ax + _ay
                         elif _aop == '*':
-                            ctx = {_sym_x: _ax * _ay}
+                            _xval = _ax * _ay
                         else:
                             _afast = q._fast_op
-                            ctx = {_sym_x: _afast(_ax, _ay) if _afast is not None else self._vd[_aop](_ax, _ay)}
+                            _xval = _afast(_ax, _ay) if _afast is not None else self._vd[_aop](_ax, _ay)
                     else:
                         _afast = q._fast_op
                         if _afast is not None and (type(_ax) is int or type(_ax) is float) and (type(_ay) is int or type(_ay) is float):
-                            ctx = {_sym_x: _afast(_ax, _ay)}
+                            _xval = _afast(_ax, _ay)
                         else:
-                            ctx = {_sym_x: self._vd[q._op_a](_ax, _ay)}
+                            _xval = self._vd[q._op_a](_ax, _ay)
                 else:
                     tq = type(q)
                     if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types:
-                        ctx = {_sym_x: q}
+                        _xval = q
                     elif (tq is KGFn or tq is KGCall) and q._is_op:
-                        ctx = {_sym_x: self.eval(q)}
+                        _xval = self.eval(q)
                     elif tq is KGCall:
-                        ctx = {_sym_x: self._eval_fn(q)}
+                        _xval = self._eval_fn(q)
                     else:
-                        ctx = {_sym_x: self.call(q)}
+                        _xval = self.call(q)
+                ctx = {_sym_x: _xval}
             elif nargs == 2:
                 q0, q1 = f_args[0], f_args[1]
                 tq0, tq1 = type(q0), type(q1)
@@ -1103,12 +1104,11 @@ class KlongInterpreter():
             if tf is KGCond:
                 x0 = f[0]
                 if x._cached_cond_fast:
-                    # Ultra-fast path: args is list, arg0 is reserved sym, arg1 is int/float literal
+                    # Ultra-fast path: nargs==1, arg0 IS _sym_x, arg1 is literal
+                    # _xval is the computed x value — use it directly (no ctx.get)
                     _cfa = x0.args
                     _cy = _cfa[1]
-                    _cx = ctx.get(_cfa[0])
-                    if _cx is None:
-                        _cx = self.eval(_cfa[0])
+                    _cx = _xval
                     if type(_cx) is int and type(_cy) is int:
                         _cop_a = x0._op_a
                         if _cop_a == '<':
@@ -1137,6 +1137,8 @@ class KlongInterpreter():
                     # Pre-computed fast paths for branch dispatch
                     if p:
                         if x._cached_true_is_sym:
+                            if xb is _sym_x:
+                                return _xval
                             _v = ctx.get(xb)
                             if _v is not None:
                                 return _v
