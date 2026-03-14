@@ -353,17 +353,20 @@ def _compile_arg_fn(expr, klong, dyadic=False):
     """Try to compile a sub-expression to a fast Python function of x (or x,y if dyadic).
 
     Returns a callable or None. The returned callable has a _vectorizable attribute
-    indicating if it can be applied to numpy arrays element-wise.
+    indicating if it can be applied to numpy arrays element-wise, and a _is_const
+    attribute indicating if the result is independent of x/y.
     """
     te = type(expr)
     if te is KGSym:
         if expr is _sym_x:
             fn = (lambda x, y: x) if dyadic else (lambda x: x)
             fn._vectorizable = True
+            fn._is_const = False
             return fn
         if dyadic and expr is _sym_y:
             fn = lambda x, y: y
             fn._vectorizable = True
+            fn._is_const = False
             return fn
         # Try to resolve global variable to a constant value
         try:
@@ -371,6 +374,7 @@ def _compile_arg_fn(expr, klong, dyadic=False):
             if type(val) is int or type(val) is float:
                 fn = (lambda x, y, c=val: c) if dyadic else (lambda x, c=val: c)
                 fn._vectorizable = True
+                fn._is_const = True
                 return fn
         except KeyError:
             pass
@@ -378,6 +382,7 @@ def _compile_arg_fn(expr, klong, dyadic=False):
     if te is int or te is float:
         fn = (lambda x, y, c=expr: c) if dyadic else (lambda x, c=expr: c)
         fn._vectorizable = True
+        fn._is_const = True
         return fn
     if (te is KGCall or te is KGFn) and expr._is_op and expr._op_arity == 2:
         op_a = expr._op_a
@@ -393,11 +398,24 @@ def _compile_arg_fn(expr, klong, dyadic=False):
         c0 = _compile_arg_fn(a0, klong, dyadic=dyadic)
         c1 = _compile_arg_fn(a1, klong, dyadic=dyadic)
         if c0 is not None and c1 is not None:
+            # Constant folding: if both children are constants, pre-compute
+            if c0._is_const and c1._is_const:
+                try:
+                    _cv0 = c0(0, 0) if dyadic else c0(0)
+                    _cv1 = c1(0, 0) if dyadic else c1(0)
+                    _const = _op(_cv0, _cv1)
+                    fn = (lambda x, y, c=_const: c) if dyadic else (lambda x, c=_const: c)
+                    fn._vectorizable = True
+                    fn._is_const = True
+                    return fn
+                except Exception:
+                    pass
             if dyadic:
                 fn = lambda x, y, op=_op, g0=c0, g1=c1: op(g0(x, y), g1(x, y))
             else:
                 fn = lambda x, op=_op, g0=c0, g1=c1: op(g0(x), g1(x))
             fn._vectorizable = _fast is not None and c0._vectorizable and c1._vectorizable
+            fn._is_const = False
             return fn
     return None
 
@@ -587,7 +605,8 @@ def chain_adverbs(klong, arr):
             continue
         o = get_adverb_fn(klong, arr[i].a, arity=arr[i].arity)
         if arr[i].arity == 1:
-            f = lambda x,f=f,o=o: o(f,x,op=arr[0].a)
+            _scan_op = _resolved_op if _resolved_op is not None else arr[0].a
+            f = lambda x,f=f,o=o,_op=_scan_op: o(f,x,op=_op)
         else:
             if arr[i].a == "'":
                 _each2_op = _resolved_op if _resolved_op is not None else arr[0].a

@@ -71,6 +71,13 @@ def setup_int_data(klong, n=100_000, seed=42):
     klong['ig'] = rng.integers(0, 1000, size=n)  # 1000 groups
 
 
+def setup_ewma_data(klong, n=10_000, seed=42):
+    """Set up data for EWMA scan benchmark."""
+    rng = np.random.default_rng(seed)
+    klong['ret'] = rng.standard_normal(n) * 0.01  # daily returns
+    klong['alpha'] = 0.06  # ~30-day half-life
+
+
 def get_benchmarks():
     """Return categorized benchmarks: (category, name, expr, setup_fn)."""
     return [
@@ -109,6 +116,12 @@ def get_benchmarks():
         ("adverb", "each_fn_10K",       "{x*x+1}'!10000",          None),
         ("adverb", "each2_add_10K",     "(!10000){x+y}'(!10000)",  None),
         ("adverb", "over_custom_1K",    "{x+y*y}/!1000",           None),
+
+        # ── Scan / fold with custom functions ──
+        ("scan", "ewma_10K",            "{(x*alpha)+(y*(1-alpha))}\\ret",  lambda k: setup_ewma_data(k, 10_000)),
+        ("scan", "scan_add_10K",        "{x+y}\\!10000",                   None),
+        ("scan", "scan_compound_10K",   "{x+y*2}\\!10000",                 None),
+        ("scan", "over_sum_10K",        "{x+y}/!10000",                    None),
 
         # ── Recursive / interpreter-heavy ──
         ("interp", "fib_20",    "fib(20)",  None),
