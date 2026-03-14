@@ -379,7 +379,7 @@ _KLONG_OP_TO_PY = {'+': '+', '-': '-', '*': '*', '%': '/', '>': '>', '<': '<', '
 
 # Adverb reduction/scan ops that can be compiled to numpy source
 _KLONG_REDUCE_TO_PY = {'+': '_np.sum', '*': '_np.prod', '|': '_np.max', '&': '_np.min'}
-_KLONG_SCAN_TO_PY = {'+': '_cumsum', '*': '_np.cumprod', '|': '_running_max', '&': '_running_min'}
+_KLONG_SCAN_TO_PY = {'+': '_cumsum', '*': '_cumprod', '|': '_running_max', '&': '_running_min'}
 
 # Efficient rank: argsort + inverse permutation (O(n) instead of O(n log n) for second argsort)
 def _rank(a):
@@ -487,6 +487,24 @@ def _cumsum(a):
         return numpy.concatenate(result)
     return numpy.cumsum(a)
 
+def _cumprod(a):
+    """Parallel cumulative product for large arrays."""
+    if type(a) is numpy.ndarray and len(a) >= 50_000:
+        n = len(a)
+        nchunks = 4
+        chunk = n // nchunks
+        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+        global _argsort_pool
+        if _argsort_pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            _argsort_pool = ThreadPoolExecutor(max_workers=16)
+        futures = [_argsort_pool.submit(numpy.cumprod, a[s:e]) for s, e in slices]
+        local = [f.result() for f in futures]
+        for i in range(1, nchunks):
+            local[i] *= local[i - 1][-1]
+        return numpy.concatenate(local)
+    return numpy.cumprod(a)
+
 def _running_max(a):
     """Parallel running max for large arrays."""
     if type(a) is numpy.ndarray and len(a) >= 50_000:
@@ -542,7 +560,7 @@ def _flatnonzero(a):
     return numpy.flatnonzero(a)
 
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
