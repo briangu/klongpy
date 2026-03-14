@@ -621,12 +621,13 @@ def _prefix_scan_linear(x, c_x, c_y):
     """
     n = len(x)
     # cffi sequential scan: single fused C loop, O(n), no intermediate arrays
-    if x.dtype == numpy.float64:
+    if type(x) is numpy.ndarray:
         utils = _get_cffi_utils()
         if utils is not None:
             ffi, lib = utils
+            xf = x if x.dtype == numpy.float64 else x.astype(numpy.float64)
             out = numpy.empty(n, dtype=numpy.float64)
-            lib.cffi_linear_scan(ffi.from_buffer('double[]', x),
+            lib.cffi_linear_scan(ffi.from_buffer('double[]', xf),
                                  ffi.from_buffer('double[]', out), n, c_x, c_y)
             return out
     # Initial transforms: z[0] = (0, x[0]), z[i>0] = (c_x, c_y * x[i])
@@ -1533,11 +1534,12 @@ def _compile_arg_fn(expr, klong, dyadic=False):
                     try: fn._y_coeff = c0(0, 0)
                     except: pass
             # Tag linear recurrence: c1*x + c2*y → _linear_recurrence = (c1, c2)
+            # Bare x/y have implicit coeff of 1
             if dyadic and op_a == '+':
-                _xc0 = getattr(c0, '_x_coeff', None)
-                _xc1 = getattr(c1, '_x_coeff', None)
-                _yc0 = getattr(c0, '_y_coeff', None)
-                _yc1 = getattr(c1, '_y_coeff', None)
+                _xc0 = getattr(c0, '_x_coeff', 1.0 if getattr(c0, '_is_x', False) else None)
+                _xc1 = getattr(c1, '_x_coeff', 1.0 if getattr(c1, '_is_x', False) else None)
+                _yc0 = getattr(c0, '_y_coeff', 1.0 if getattr(c0, '_is_y', False) else None)
+                _yc1 = getattr(c1, '_y_coeff', 1.0 if getattr(c1, '_is_y', False) else None)
                 if _xc0 is not None and _yc1 is not None:
                     fn._linear_recurrence = (float(_xc0), float(_yc1))
                 elif _xc1 is not None and _yc0 is not None:
@@ -1999,6 +2001,18 @@ def chain_adverbs(klong, arr):
                 continue
         # Vectorized scan: {x + g(y)}\array → a[0] + cumsum(g(a[1:]))
         if arr[i].a == '\\' and arr[i].arity == 1:
+            # Affine recurrence first (cffi single-pass is fastest when available)
+            _lr = getattr(f, '_linear_recurrence', None)
+            if _lr is not None:
+                _c_x, _c_y = _lr
+                def f(x, cx=_c_x, cy=_c_y):
+                    if type(x) is numpy.ndarray:
+                        return _prefix_scan_linear(x, cx, cy)
+                    return numpy.fromiter(itertools.accumulate(
+                        x.tolist() if type(x) is numpy.ndarray else x,
+                        lambda a, b, _cx=cx, _cy=cy: _cx * a + _cy * b
+                    ), dtype=numpy.float64, count=len(x))
+                continue
             _csf = getattr(f, '_scan_cumsum_fn', None)
             _cpf = getattr(f, '_scan_cumprod_fn', None)
             if _csf is not None:
@@ -2032,19 +2046,6 @@ def chain_adverbs(klong, arr):
                         result[1:] = cp
                         return result
                     return be.kg_asarray(list(itertools.accumulate(x, lambda a, b, _cpf=cpf: a * _cpf(b))))
-                continue
-            # Affine recurrence: {c1*x + c2*y}\array → prefix scan
-            _lr = getattr(f, '_linear_recurrence', None)
-            if _lr is not None:
-                _c_x, _c_y = _lr
-                def f(x, cx=_c_x, cy=_c_y):
-                    if type(x) is numpy.ndarray and x.dtype.kind == 'f' and len(x) > 100:
-                        return _prefix_scan_linear(x, cx, cy)
-                    # Fallback for small arrays or non-float
-                    return numpy.fromiter(itertools.accumulate(
-                        x.tolist() if type(x) is numpy.ndarray else x,
-                        lambda a, b, _cx=cx, _cy=cy: _cx * a + _cy * b
-                    ), dtype=numpy.float64, count=len(x))
                 continue
         o = get_adverb_fn(klong, arr[i].a, arity=arr[i].arity)
         if arr[i].arity == 1:
