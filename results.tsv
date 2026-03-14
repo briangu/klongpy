@@ -224,3 +224,10 @@ db23b14	Ultra-fast cond eval for sym+literal	166.9	8.1% vs 181.7
 2026-03-14T03:15:05Z	fast_bool_where	119.647	521 pass + 111 torch pass	Fast path for boolean-like int64 arrays in Where monad: convert to bool + flatnonzero
 2026-03-14T03:16:59Z	bool_comparison_results	117.647	521 pass + 111 torch pass	Keep numpy boolean arrays from comparisons instead of converting to int64
 2026-03-14T03:20:45Z	rank_optimization	112.127	521 pass + 111 torch pass	Rank via inverse permutation instead of double argsort: 1.9x faster
+2026-03-14T03:41:40Z	compile_monad_adverb_axis	106.930	521 pass + 111 torch pass	Compile monad ops (#) and adverb chains (+/x) in _compile_arg_fn; axis-fn batch processing for custom-fn-each on list of arrays (row_means: 3.5->0.14ms, row_normalize: 3.0->0.27ms)
+2026-03-14T03:48:07Z	tolist_scan_constfold	104.520	521 pass + 111 torch pass	Convert numpy arrays to Python lists before itertools.accumulate/functools.reduce for custom fns; constant folding in _expr_to_source (ewma: 1.63->0.86ms, scan_compound: 1.46->0.93ms)
+2026-03-14T03:54:16Z	ufunc_accum_array_globals	105.994	521 pass + 111 torch pass	Add |/& to ufunc accumulate dispatch (running_max: 38.7->0.34ms); capture array globals in _compile_arg_fn; general body compilation fallback for adverb chains (port_ret: 2.93->0.17ms)
+exp16_scan_tables	2026-03-14T04:00:21Z	add |/& to _KLONG_SCAN_TO_PY and _AXIS_SCAN_2D for source/axis compilation of running max/min	105.609	42	all pass	all pass
+exp17_compiled_expr_cache	2026-03-14T04:07:08Z	top-level expression compilation cache - compiles AST to lambda with var refs	105.537	42	all pass	all pass
+exp18_comparison_ops_monads	2026-03-14T04:13:38Z	add >/</=/@/&/# to _expr_to_source for compiled expressions + risk benchmarks	107.940	47	all pass	all pass
+exp19_sort_rank_optimization	2026-03-14T04:20:27Z	detect x@<x->np.sort, <<x->_rank O(n) inverse perm, add </>/@/# monads to source	103.604	47	all pass	all pass

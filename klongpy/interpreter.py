@@ -349,16 +349,23 @@ def create_system_contexts():
     return [sys_var, ReadonlyDict(sys_d)]
 
 
-_KLONG_OP_TO_PY = {'+': '+', '-': '-', '*': '*', '%': '/'}
+_KLONG_OP_TO_PY = {'+': '+', '-': '-', '*': '*', '%': '/', '>': '>', '<': '<', '=': '=='}
 
 # Monad ops are handled in _compile_arg_fn (not source) to use correct klong semantics
 
 # Adverb reduction/scan ops that can be compiled to numpy source
 _KLONG_REDUCE_TO_PY = {'+': '_np.sum', '*': '_np.prod', '|': '_np.max', '&': '_np.min'}
-_KLONG_SCAN_TO_PY = {'+': '_np.cumsum', '*': '_np.cumprod'}
+_KLONG_SCAN_TO_PY = {'+': '_np.cumsum', '*': '_np.cumprod', '|': '_np.maximum.accumulate', '&': '_np.minimum.accumulate'}
+
+# Efficient rank: argsort + inverse permutation (O(n) instead of O(n log n) for second argsort)
+def _rank(a):
+    idx = numpy.argsort(a)
+    rank = numpy.empty(len(idx), dtype=numpy.intp)
+    rank[idx] = numpy.arange(len(idx))
+    return rank
 
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
@@ -370,12 +377,16 @@ _AXIS_REDUCE_KEEPDIMS = {
 _AXIS_SCAN_2D = {
     '+': lambda a: numpy.cumsum(a, axis=1),
     '*': lambda a: numpy.cumprod(a, axis=1),
+    '|': lambda a: numpy.maximum.accumulate(a, axis=1),
+    '&': lambda a: numpy.minimum.accumulate(a, axis=1),
 }
 
-def _expr_to_source(expr, klong, dyadic=False):
+def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
     """Try to convert an expression tree to a Python source string.
     Returns (source_str, is_const) or None if not possible.
     Handles arithmetic ops, monad ops (#), and simple adverb chains (+/, */, etc.).
+    If var_refs is a dict, collects variable references (KGSym -> var_name) for
+    top-level expression compilation instead of requiring variables to be constants.
     """
     te = type(expr)
     if te is KGSym:
@@ -385,8 +396,22 @@ def _expr_to_source(expr, klong, dyadic=False):
             return ('y', False)
         try:
             val = klong._context[expr]
-            if type(val) is int or type(val) is float:
+            tv = type(val)
+            if tv is int or tv is float:
+                if var_refs is not None:
+                    # Top-level mode: capture as var_ref so compiled fn always reads current values
+                    if expr in var_refs:
+                        return (var_refs[expr], False)
+                    var_name = f'_v{len(var_refs)}'
+                    var_refs[expr] = var_name
+                    return (var_name, False)
                 return (repr(val), True)
+            if var_refs is not None and tv is numpy.ndarray:
+                if expr in var_refs:
+                    return (var_refs[expr], False)
+                var_name = f'_v{len(var_refs)}'
+                var_refs[expr] = var_name
+                return (var_name, False)
         except KeyError:
             pass
         return None
@@ -396,14 +421,27 @@ def _expr_to_source(expr, klong, dyadic=False):
         if expr._op_arity == 2:
             py_op = _KLONG_OP_TO_PY.get(expr._op_a)
             if py_op is None:
+                # Special handling for @ (index-at) in top-level compilation
+                if var_refs is not None and expr._op_a == '@':
+                    fa = expr.args
+                    if type(fa) is not list:
+                        fa = [fa] if fa is not None else fa
+                    if fa is not None and len(fa) == 2:
+                        s0 = _expr_to_source(fa[0], klong, dyadic=dyadic, var_refs=var_refs)
+                        s1 = _expr_to_source(fa[1], klong, dyadic=dyadic, var_refs=var_refs)
+                        if s0 is not None and s1 is not None:
+                            # Detect x@<x → np.sort(x) optimization
+                            if s1[0] == f'_np.argsort({s0[0]})':
+                                return (f'_np.sort({s0[0]})', False)
+                            return (f'{s0[0]}[{s1[0]}]', False)
                 return None
             fa = expr.args
             if type(fa) is not list:
                 fa = [fa] if fa is not None else fa
             if fa is None or len(fa) != 2:
                 return None
-            s0 = _expr_to_source(fa[0], klong, dyadic=dyadic)
-            s1 = _expr_to_source(fa[1], klong, dyadic=dyadic)
+            s0 = _expr_to_source(fa[0], klong, dyadic=dyadic, var_refs=var_refs)
+            s1 = _expr_to_source(fa[1], klong, dyadic=dyadic, var_refs=var_refs)
             if s0 is not None and s1 is not None:
                 is_const = s0[1] and s1[1]
                 if is_const:
@@ -421,6 +459,29 @@ def _expr_to_source(expr, klong, dyadic=False):
                     try: s1 = (repr(eval(s1[0])), True)
                     except Exception: pass
                 return (f'({s0[0]}{py_op}{s1[0]})', is_const)
+        if expr._op_arity == 1 and var_refs is not None:
+            # Top-level monad ops: & (where/flatnonzero), # (length), < (argsort)
+            op_a = expr._op_a
+            if op_a in ('&', '#', '<'):
+                fa = expr.args
+                arg = fa[0] if type(fa) is list else fa
+                if op_a == '<':
+                    # Detect <<x (rank) pattern: use O(n) inverse permutation
+                    ta = type(arg)
+                    if (ta is KGCall or ta is KGFn) and arg._is_op and arg._op_arity == 1 and arg._op_a == '<':
+                        inner_arg = arg.args
+                        inner = inner_arg[0] if type(inner_arg) is list else inner_arg
+                        s = _expr_to_source(inner, klong, dyadic=dyadic, var_refs=var_refs)
+                        if s is not None:
+                            return (f'_rank({s[0]})', False)
+                s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
+                if s is not None:
+                    if op_a == '&':
+                        return (f'_np.flatnonzero({s[0]})', False)
+                    elif op_a == '#':
+                        return (f'len({s[0]})', False)
+                    else:  # '<' = grade-up/argsort
+                        return (f'_np.argsort({s[0]})', False)
         # Monad ops (arity 1) handled by _compile_arg_fn for correct semantics
     # Handle simple adverb chains: op/x → _np.sum(x), op\x → _np.cumsum(x), etc.
     if te is KGCall and expr._is_adverb_chain:
@@ -438,7 +499,7 @@ def _expr_to_source(expr, klong, dyadic=False):
                 elif adv_char == '\\':
                     py_fn = _KLONG_SCAN_TO_PY.get(op_char)
                 if py_fn is not None:
-                    s = _expr_to_source(arg, klong, dyadic=dyadic)
+                    s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
                     if s is not None:
                         return (f'{py_fn}({s[0]})', s[1])
     return None
@@ -899,7 +960,8 @@ def chain_adverbs(klong, arr):
 
 class KlongInterpreter():
     __slots__ = ('_backend', '_context', '_vd', '_vm', '_start_time', '_module',
-                 '_parse_cache', '_adverb_cache', '_result_cache', '_result_cache_ok')
+                 '_parse_cache', '_adverb_cache', '_result_cache', '_result_cache_ok',
+                 '_compiled_expr_cache')
 
     def __init__(self, backend=None, device=None):
         """
@@ -924,6 +986,7 @@ class KlongInterpreter():
         self._adverb_cache = {}
         self._result_cache = {}
         self._result_cache_ok = True
+        self._compiled_expr_cache = {}
 
     @property
     def backend(self):
@@ -2331,7 +2394,12 @@ class KlongInterpreter():
             self._parse_cache[x] = cached
         # Eval the cached AST
         self._result_cache_ok = True
-        if type(cached) is not list:
+        # Fast path: compiled expression cache (compiled lambda with variable lookups)
+        _compiled = self._compiled_expr_cache.get(x)
+        if _compiled is not None:
+            _cfn, _cvar_syms = _compiled
+            result = _cfn(*(self._context[s] for s in _cvar_syms))
+        elif type(cached) is not list:
             x0 = cached
             tx0 = type(x0)
             # Inline call dispatch for common cases to avoid function call overhead
@@ -2344,6 +2412,19 @@ class KlongInterpreter():
                 result = self.eval(x0)
             else:
                 result = self.call(x0)
+            # Try to compile top-level expression for future calls
+            if _was_cached and type(cached) is not list:
+                var_refs = {}
+                src = _expr_to_source(cached, self, var_refs=var_refs)
+                if src is not None and var_refs:
+                    var_syms = list(var_refs.keys())
+                    var_names = [var_refs[s] for s in var_syms]
+                    fn_src = f'lambda {",".join(var_names)}: {src[0]}'
+                    try:
+                        fn = eval(fn_src, _EVAL_GLOBALS)
+                        self._compiled_expr_cache[x] = (fn, var_syms)
+                    except Exception:
+                        pass
         else:
             if not cached:
                 return None

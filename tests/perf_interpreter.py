@@ -161,12 +161,19 @@ def get_benchmarks():
         ("running", "running_min_100K",  "&\\ts",             lambda k: setup_timeseries_data(k, 100_000)),
         ("running", "compound_ret_100K", "*/1+a",             lambda k: setup_random_data(k, 100_000)),
 
+        # ── Drawdown / risk analytics ──
+        ("risk", "drawdown_100K",        "(|\\ts)-ts",        lambda k: setup_timeseries_data(k, 100_000)),
+        ("risk", "pct_drawdown_100K",    "1-ts%|\\ts",        lambda k: setup_timeseries_data(k, 100_000)),
+        ("risk", "max_drawdown_100K",    "|/(|\\ts)-ts",      lambda k: setup_timeseries_data(k, 100_000)),
+        ("risk", "zscore_100K",          "(a-(+/a)%#a)",      lambda k: setup_random_data(k, 100_000)),
+
         # ── Portfolio operations ──
         ("portfolio", "port_ret_1Kx100", "{+/w*x}'rets",      lambda k: setup_portfolio_data(k, 1000, 100)),
 
         # ── Multi-asset cross-sectional ──
         ("xsect", "returns_50assets",    "{-:'x}'prices",     lambda k: setup_multi_asset(k)),
         ("xsect", "vwap_50assets",       "{(+/x*y)%+/y}'prices,'volumes",  None),
+        ("xsect", "drawdown_50assets",   "{(|\\x)-x}'prices", lambda k: setup_multi_asset(k)),
 
         # ── Recursive / interpreter-heavy ──
         ("interp", "fib_20",    "fib(20)",  None),
