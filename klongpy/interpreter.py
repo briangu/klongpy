@@ -401,8 +401,9 @@ def _merge_sorted_indices(a, idx1, idx2, pool):
     order = numpy.argsort(a[combined], kind='stable')
     return combined[order]
 
-def _bucket_sort_chunk(a, indices):
-    """Sort a bucket of indices by their values in a."""
+def _bucket_find_and_sort(a, bucket_ids, b):
+    """Find indices in bucket b and sort them by values in a."""
+    indices = numpy.flatnonzero(bucket_ids == b)
     if len(indices) <= 1:
         return indices
     return indices[numpy.argsort(a[indices])]
@@ -417,7 +418,7 @@ def _argsort(a):
             if _argsort_pool is None:
                 from concurrent.futures import ThreadPoolExecutor
                 _argsort_pool = ThreadPoolExecutor(max_workers=8)
-            # Bucket argsort for integer arrays (O(n) bucket assignment, parallel per-bucket sort)
+            # Bucket argsort for integer arrays: fused flatnonzero+sort per bucket in parallel
             if dk == 'i' or dk == 'u':
                 mn, mx = int(a.min()), int(a.max())
                 if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
@@ -425,8 +426,7 @@ def _argsort(a):
                 nbuckets = 8
                 bucket_size = (mx - mn) // nbuckets + 1
                 bucket_ids = ((a - mn) // bucket_size).astype(numpy.int32)
-                bucket_indices = [numpy.flatnonzero(bucket_ids == b) for b in range(nbuckets)]
-                futures = [_argsort_pool.submit(_bucket_sort_chunk, a, bi) for bi in bucket_indices]
+                futures = [_argsort_pool.submit(_bucket_find_and_sort, a, bucket_ids, b) for b in range(nbuckets)]
                 return numpy.concatenate([f.result() for f in futures])
             # Float/other: parallel merge sort with hierarchical merge
             nways = 8 if n >= 250_000 else 4
