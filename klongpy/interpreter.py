@@ -434,13 +434,13 @@ def _argsort(a):
                 nbuckets = (val_range >> shift) + 1
                 # Cap buckets to avoid excessive overhead; fall back to division if too many
                 if nbuckets <= 32:
-                    bucket_ids = ((a - mn) >> shift).astype(numpy.int32)
+                    bucket_ids = ((a - mn) >> shift).astype(numpy.uint8)
                     futures = [_argsort_pool.submit(_bucket_find_and_sort, a, bucket_ids, b, mn + (b << shift), True) for b in range(nbuckets)]
                 else:
                     nbuckets = 16 if n >= 250_000 else 8
                     bucket_size = val_range // nbuckets + 1
                     use_u16 = bucket_size <= 65536
-                    bucket_ids = ((a - mn) // bucket_size).astype(numpy.int32)
+                    bucket_ids = ((a - mn) // bucket_size).astype(numpy.uint8)
                     futures = [_argsort_pool.submit(_bucket_find_and_sort, a, bucket_ids, b, mn + b * bucket_size, use_u16) for b in range(nbuckets)]
                 return numpy.concatenate([f.result() for f in futures])
             # Float/other: parallel merge sort with hierarchical merge
