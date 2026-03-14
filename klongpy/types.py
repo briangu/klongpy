@@ -152,7 +152,7 @@ class KGFnWrapper:
 
 
 class KGCall(KGFn):
-    __slots__ = ('_cached_body', '_cached_body_arity', '_cached_body_type', '_cached_version', '_cached_nargs_ok', '_cached_cond_is_dyad_op', '_cached_cond_fast', '_cached_true_is_sym', '_cached_false_is_dyad_op', '_nargs', '_f_args', '_arg0_is_dyad_op', '_arg0_dyad_fast')
+    __slots__ = ('_cached_body', '_cached_body_arity', '_cached_body_type', '_cached_version', '_cached_nargs_ok', '_cached_cond_is_dyad_op', '_cached_cond_fast', '_cached_true_is_sym', '_cached_false_is_dyad_op', '_nargs', '_f_args', '_arg0_is_dyad_op', '_arg0_dyad_fast', '_arg0_sym', '_arg0_literal', '_arg0_op_a', '_cond_literal', '_cond_op_a', '_cond_fast_op')
 
     def __init__(self, a, args, arity, global_params=None):
         super().__init__(a, args, arity, global_params)
@@ -165,6 +165,9 @@ class KGCall(KGFn):
         self._cached_cond_fast = False
         self._cached_true_is_sym = False
         self._cached_false_is_dyad_op = False
+        self._cond_literal = None
+        self._cond_op_a = None
+        self._cond_fast_op = None
         self._nargs = 0 if args is None else (len(args) if type(args) is list else 1)
         _f_args = args if args is None or type(args) is list else [args]
         self._f_args = _f_args
@@ -176,14 +179,29 @@ class KGCall(KGFn):
             self._arg0_is_dyad_op = _is_dyad
             if _is_dyad:
                 _a0_args = _a0.args
-                self._arg0_dyad_fast = (type(_a0_args) is list and
+                _fast = (type(_a0_args) is list and
                     (type(_a0_args[0]) is KGSym and _a0_args[0] in reserved_fn_symbols_set) and
                     (type(_a0_args[1]) is int or type(_a0_args[1]) is float))
+                self._arg0_dyad_fast = _fast
+                if _fast:
+                    self._arg0_sym = _a0_args[0]
+                    self._arg0_literal = _a0_args[1]
+                    self._arg0_op_a = _a0._op_a
+                else:
+                    self._arg0_sym = None
+                    self._arg0_literal = None
+                    self._arg0_op_a = None
             else:
                 self._arg0_dyad_fast = False
+                self._arg0_sym = None
+                self._arg0_literal = None
+                self._arg0_op_a = None
         else:
             self._arg0_is_dyad_op = False
             self._arg0_dyad_fast = False
+            self._arg0_sym = None
+            self._arg0_literal = None
+            self._arg0_op_a = None
 
     def __str__(self):
         return self.a.__str__() if issubclass(type(self.a), KGLambda) else super().__str__()
