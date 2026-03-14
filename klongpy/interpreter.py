@@ -897,6 +897,242 @@ class KlongInterpreter():
             # Directly extract args (cache guarantees no projection merging)
             if not x._cached_nargs_ok:
                 return x
+            # Specialized hot path: cached KGCond with nargs==1
+            # Eliminates: f_args-is-None, nargs checks, has_locals, tf-is-KGCond
+            if tf is KGCond and x._nargs == 1:
+                q = x._f_args[0]
+                # Inline arg eval for nargs==1
+                if x._arg0_dyad_fast:
+                    _afa = q.args
+                    _ay = _afa[1]
+                    _ax = _ctx_list[-1].get(_afa[0])
+                    if _ax is None:
+                        _ax = self.eval(_afa[0])
+                    if type(_ax) is int:
+                        _aop = q._op_a
+                        if _aop == '-':
+                            _xval = _ax - _ay
+                        elif _aop == '+':
+                            _xval = _ax + _ay
+                        elif _aop == '*':
+                            _xval = _ax * _ay
+                        else:
+                            _afast = q._fast_op
+                            _xval = _afast(_ax, _ay) if _afast is not None else self._vd[_aop](_ax, _ay)
+                    else:
+                        _afast = q._fast_op
+                        if _afast is not None and (type(_ax) is int or type(_ax) is float):
+                            _xval = _afast(_ax, _ay)
+                        else:
+                            _xval = self._vd[q._op_a](_ax, _ay)
+                elif x._arg0_is_dyad_op:
+                    _afa = q.args
+                    if type(_afa) is not list:
+                        _afa = [_afa] if _afa is not None else _afa
+                    _afa1 = _afa[1]
+                    _at1 = type(_afa1)
+                    _ay = _afa1 if _at1 is int or _at1 is float else self.eval(_afa1)
+                    _afa0 = _afa[0]
+                    _at0 = type(_afa0)
+                    if _at0 is KGSym and _afa0 in reserved_fn_symbols_set:
+                        _ax = _ctx_list[-1].get(_afa0)
+                        if _ax is None:
+                            _ax = self.eval(_afa0)
+                    elif _at0 is int or _at0 is float:
+                        _ax = _afa0
+                    else:
+                        _ax = self.eval(_afa0)
+                    if type(_ax) is int and type(_ay) is int:
+                        _aop = q._op_a
+                        if _aop == '-':
+                            _xval = _ax - _ay
+                        elif _aop == '+':
+                            _xval = _ax + _ay
+                        elif _aop == '*':
+                            _xval = _ax * _ay
+                        else:
+                            _afast = q._fast_op
+                            _xval = _afast(_ax, _ay) if _afast is not None else self._vd[_aop](_ax, _ay)
+                    else:
+                        _afast = q._fast_op
+                        if _afast is not None and (type(_ax) is int or type(_ax) is float) and (type(_ay) is int or type(_ay) is float):
+                            _xval = _afast(_ax, _ay)
+                        else:
+                            _xval = self._vd[q._op_a](_ax, _ay)
+                else:
+                    tq = type(q)
+                    if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types:
+                        _xval = q
+                    elif (tq is KGFn or tq is KGCall) and q._is_op:
+                        _xval = self.eval(q)
+                    elif tq is KGCall:
+                        _xval = self._eval_fn(q)
+                    else:
+                        _xval = self.call(q)
+                ctx = {_sym_x: _xval, reserved_dot_f_symbol: f}
+                _ctx_list.append(ctx)
+                try:
+                    x0 = f[0]
+                    if x._cached_cond_fast:
+                        _cfa = x0.args
+                        _cy = _cfa[1]
+                        _cx = _xval
+                        if type(_cx) is int and type(_cy) is int:
+                            _cop_a = x0._op_a
+                            if _cop_a == '<':
+                                p = _cx < _cy
+                            elif _cop_a == '>':
+                                p = _cx > _cy
+                            elif _cop_a == '=':
+                                p = _cx == _cy
+                            else:
+                                _cfast = x0._fast_op
+                                q = _cfast(_cx, _cy) if _cfast is not None else self._vd[_cop_a](_cx, _cy)
+                                p = q != 0
+                        else:
+                            _cop_a = x0._op_a
+                            _cfast = x0._fast_op
+                            if _cfast is not None and (type(_cx) is int or type(_cx) is float) and (type(_cy) is int or type(_cy) is float):
+                                q = _cfast(_cx, _cy)
+                            else:
+                                q = self._vd[_cop_a](_cx, _cy)
+                            tq = type(q)
+                            if tq is int or tq is float:
+                                p = q != 0
+                            else:
+                                p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
+                    elif x._cached_cond_is_dyad_op:
+                        _cfa = x0.args
+                        if type(_cfa) is not list:
+                            _cfa = [_cfa] if _cfa is not None else _cfa
+                        _cfa1 = _cfa[1]
+                        _ct1 = type(_cfa1)
+                        _cy = _cfa1 if _ct1 is int or _ct1 is float else self.eval(_cfa1)
+                        _cfa0 = _cfa[0]
+                        _ct0 = type(_cfa0)
+                        if _ct0 is KGSym and _cfa0 in reserved_fn_symbols_set:
+                            _cx = ctx.get(_cfa0)
+                            if _cx is None:
+                                _cx = self.eval(_cfa0)
+                        elif _ct0 is int or _ct0 is float:
+                            _cx = _cfa0
+                        else:
+                            _cx = self.eval(_cfa0)
+                        _cop_a = x0._op_a
+                        if type(_cx) is int and type(_cy) is int:
+                            if _cop_a == '<':
+                                q = 1 if _cx < _cy else 0
+                            elif _cop_a == '>':
+                                q = 1 if _cx > _cy else 0
+                            elif _cop_a == '=':
+                                q = 1 if _cx == _cy else 0
+                            else:
+                                _cfast = x0._fast_op
+                                q = _cfast(_cx, _cy) if _cfast is not None else self._vd[_cop_a](_cx, _cy)
+                        else:
+                            _cfast = x0._fast_op
+                            if _cfast is not None and (type(_cx) is int or type(_cx) is float) and (type(_cy) is int or type(_cy) is float):
+                                q = _cfast(_cx, _cy)
+                            else:
+                                q = self._vd[_cop_a](_cx, _cy)
+                        tq = type(q)
+                        if tq is int or tq is float:
+                            p = q != 0
+                        else:
+                            p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
+                    else:
+                        tx0 = type(x0)
+                        if tx0 is int or tx0 is float:
+                            q = x0
+                        elif (tx0 is KGCall or tx0 is KGFn) and x0._is_op:
+                            q = self.eval(x0)
+                        else:
+                            q = self.call(x0)
+                        tq = type(q)
+                        if tq is int or tq is float:
+                            p = q != 0
+                        else:
+                            p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
+                    xb = f[1] if p else f[2]
+                    if p:
+                        if x._cached_true_is_sym:
+                            if xb is _sym_x:
+                                return _xval
+                            _v = ctx.get(xb)
+                            if _v is not None:
+                                return _v
+                            return self.eval(xb)
+                    else:
+                        if x._cached_false_is_dyad_op:
+                            _bfa = xb.args
+                            if type(_bfa) is not list:
+                                _bfa = [_bfa] if _bfa is not None else _bfa
+                            _bfa1 = _bfa[1]
+                            _bt1 = type(_bfa1)
+                            if _bt1 is int or _bt1 is float:
+                                _by = _bfa1
+                            elif _bt1 is KGSym and _bfa1 in reserved_fn_symbols_set:
+                                _by = ctx.get(_bfa1)
+                                if _by is None:
+                                    _by = self.eval(_bfa1)
+                            elif (_bt1 is KGFn or _bt1 is KGCall) and _bfa1._is_op:
+                                _by = self.eval(_bfa1)
+                            elif _bt1 is KGCall and not _bfa1._is_adverb_chain:
+                                _by = self._eval_fn(_bfa1)
+                            else:
+                                _by = self.eval(_bfa1)
+                            _bop_a = xb._op_a
+                            if _bop_a in _UNEVALUATED_OPS:
+                                _bx = _bfa[0]
+                            else:
+                                _bfa0 = _bfa[0]
+                                _bt0 = type(_bfa0)
+                                if _bt0 is KGSym and _bfa0 in reserved_fn_symbols_set:
+                                    _bx = ctx.get(_bfa0)
+                                    if _bx is None:
+                                        _bx = self.eval(_bfa0)
+                                elif _bt0 is int or _bt0 is float:
+                                    _bx = _bfa0
+                                elif (_bt0 is KGFn or _bt0 is KGCall) and _bfa0._is_op:
+                                    _bx = self.eval(_bfa0)
+                                elif _bt0 is KGCall and not _bfa0._is_adverb_chain:
+                                    _bx = self._eval_fn(_bfa0)
+                                else:
+                                    _bx = self.eval(_bfa0)
+                            if type(_bx) is int and type(_by) is int:
+                                if _bop_a == '+':
+                                    return _bx + _by
+                                elif _bop_a == '-':
+                                    return _bx - _by
+                                elif _bop_a == '*':
+                                    return _bx * _by
+                                else:
+                                    _bfast = xb._fast_op
+                                    if _bfast is not None:
+                                        return _bfast(_bx, _by)
+                                    return self._vd[_bop_a](_bx, _by)
+                            else:
+                                _bfast = xb._fast_op
+                                if _bfast is not None and (type(_bx) is int or type(_bx) is float) and (type(_by) is int or type(_by) is float):
+                                    return _bfast(_bx, _by)
+                                return self._vd[_bop_a](_bx, _by)
+                    txb = type(xb)
+                    if txb is int or txb is float:
+                        return xb
+                    if txb is KGSym:
+                        if xb in reserved_fn_symbols_set:
+                            _v = ctx.get(xb)
+                            if _v is not None:
+                                return _v
+                        return self.eval(xb)
+                    if (txb is KGCall or txb is KGFn) and xb._is_op:
+                        return self.eval(xb)
+                    if txb is KGCall and not xb._is_adverb_chain:
+                        return self._eval_fn(xb)
+                    return self.call(xb)
+                finally:
+                    if len(_ctx_list) > _ctx._min_ctx_count:
+                        _ctx_list.pop()
             f_args = x._f_args
             nargs = x._nargs
         else:
