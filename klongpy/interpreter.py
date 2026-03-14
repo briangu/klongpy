@@ -412,6 +412,13 @@ def _bucket_find_and_sort(a, bucket_ids, b, bucket_min, use_u16):
         return indices[numpy.argsort(rel_vals, kind='stable')]
     return indices[numpy.argsort(a[indices])]
 
+def _bucket_sort_precomputed(low16, bucket_ids, b):
+    """Sort bucket b using pre-computed uint16 relative values."""
+    indices = numpy.flatnonzero(bucket_ids == b)
+    if len(indices) <= 1:
+        return indices
+    return indices[numpy.argsort(low16[indices], kind='stable')]
+
 
 def _argsort(a):
     """Fast argsort: bucket sort for integers, parallel merge for floats."""
@@ -435,8 +442,11 @@ def _argsort(a):
                 nbuckets = (val_range >> shift) + 1
                 # Cap buckets to avoid excessive overhead; fall back to division if too many
                 if nbuckets <= 32:
-                    bucket_ids = ((a - mn) >> shift).astype(numpy.uint8)
-                    futures = [_argsort_pool.submit(_bucket_find_and_sort, a, bucket_ids, b, mn + (b << shift), True) for b in range(nbuckets)]
+                    shifted = a - mn
+                    bucket_ids = (shifted >> shift).astype(numpy.uint8)
+                    # Pre-compute uint16 relative values once (low 16 bits = within-bucket offset)
+                    low16 = shifted.astype(numpy.uint16)
+                    futures = [_argsort_pool.submit(_bucket_sort_precomputed, low16, bucket_ids, b) for b in range(nbuckets)]
                 else:
                     nbuckets = 16 if n >= 250_000 else 8
                     bucket_size = val_range // nbuckets + 1
