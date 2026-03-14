@@ -27,6 +27,41 @@ _FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '%': _op.truediv, '^
 _sym_x = reserved_fn_symbols[0]
 _sym_y = reserved_fn_symbols[1]
 
+# Specialized closure generators for fib-like recursive patterns
+def _make_recursive_closure(cond_op, cond_lit, arg0_op, arg0_lit, arg1_op, arg1_lit, branch_op):
+    """Generate a specialized Python closure for {:[x OP N; x; self(x OP A) BOP self(x OP B)]}."""
+    # Most common case: x < N with subtraction args and addition branch
+    if cond_op == '<' and arg0_op == '-' and arg1_op == '-' and branch_op == '+':
+        def _fast(x_val):
+            if x_val < cond_lit:
+                return x_val
+            return _fast(x_val - arg0_lit) + _fast(x_val - arg1_lit)
+        return _fast
+    if cond_op == '<' and arg0_op == '-' and arg1_op == '-' and branch_op == '-':
+        def _fast(x_val):
+            if x_val < cond_lit:
+                return x_val
+            return _fast(x_val - arg0_lit) - _fast(x_val - arg1_lit)
+        return _fast
+    if cond_op == '<' and arg0_op == '-' and arg1_op == '-' and branch_op == '*':
+        def _fast(x_val):
+            if x_val < cond_lit:
+                return x_val
+            return _fast(x_val - arg0_lit) * _fast(x_val - arg1_lit)
+        return _fast
+    # General case with operator functions
+    _CMP = {'<': _op.lt, '>': _op.gt, '=': _op.eq}.get(cond_op)
+    _AOP0 = {'+': _op.add, '-': _op.sub, '*': _op.mul}.get(arg0_op)
+    _AOP1 = {'+': _op.add, '-': _op.sub, '*': _op.mul}.get(arg1_op)
+    _BOP = {'+': _op.add, '-': _op.sub, '*': _op.mul}.get(branch_op)
+    if _CMP and _AOP0 and _AOP1 and _BOP:
+        def _fast(x_val):
+            if _CMP(x_val, cond_lit):
+                return x_val
+            return _BOP(_fast(_AOP0(x_val, arg0_lit)), _fast(_AOP1(x_val, arg1_lit)))
+        return _fast
+    return None
+
 # Cache which types are KGLambda subclasses to avoid repeated issubclass calls
 _kglambda_types = {KGLambda}
 _non_kglambda_types = {int, float, str, list, KGFn, KGCall, KGOp, KGAdverb, KGSym, KGCond}
@@ -966,6 +1001,10 @@ class KlongInterpreter():
                         _xval = self._eval_fn(q)
                     else:
                         _xval = self.call(q)
+                # Check for specialized closure (fib-like self-recursive pattern)
+                _sfn = x._specialized_fn
+                if _sfn is not None:
+                    return _sfn(_xval)
                 _saved_x = _ctx._fast_x
                 _ctx._fast_x = _xval
                 try:
@@ -1177,6 +1216,22 @@ class KlongInterpreter():
                                 x._cached_fb_call0 = _fb0
                                 x._cached_fb_call1 = _fb1
                                 x._cached_fb_op_a = _f2._op_a
+                                # Detect fib-like self-recursive pattern for closure generation
+                                # Pattern: {:[x OP N; x; self(x OP A) BOP self(x OP B)]}
+                                _xa = x.a
+                                if (_cond_fast and
+                                    type(_f1) is KGSym and _f1 is _sym_x and
+                                    type(_xa) is KGSym and
+                                    type(_fb0.a) is KGSym and _fb0.a is _xa and
+                                    type(_fb1.a) is KGSym and _fb1.a is _xa and
+                                    _fb0._arg0_dyad_fast and _fb1._arg0_dyad_fast):
+                                    _sfn = _make_recursive_closure(
+                                        _x0._op_a, _cfa[1],
+                                        _fb0._arg0_op_a, _fb0._arg0_literal,
+                                        _fb1._arg0_op_a, _fb1._arg0_literal,
+                                        _f2._op_a)
+                                    if _sfn is not None:
+                                        x._specialized_fn = _sfn
                 else:
                     x._cached_cond_is_dyad_op = False
                     x._cached_cond_fast = False
