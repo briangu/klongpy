@@ -295,14 +295,24 @@ def eval_monad_groupby(a, backend):
         cached = _groupby_cache.get(a_id)
         if cached is not None:
             return cached
+    if type(arr) is _ndarray:
+        # Sort indices by value, then split at group boundaries
+        order = bknp.argsort(arr, kind='stable')
+        sorted_arr = arr[order]
+        # Find where consecutive values differ
+        mask = bknp.empty(len(sorted_arr), dtype=bool)
+        mask[0] = True
+        mask[1:] = sorted_arr[1:] != sorted_arr[:-1]
+        boundaries = bknp.flatnonzero(mask)
+        groups = bknp.split(order, boundaries[1:])
+        result = backend.kg_asarray(groups)
+    else:
         vals, inverse = bknp.unique(arr, return_inverse=True)
         groups = [bknp.where(inverse == i)[0] for i in range(len(vals))]
         result = backend.kg_asarray(groups)
+    if type(arr) is _ndarray and not arr.flags.writeable:
         _groupby_cache[a_id] = result
-        return result
-    vals, inverse = bknp.unique(arr, return_inverse=True)
-    groups = [bknp.where(inverse == i)[0] for i in range(len(vals))]
-    return backend.kg_asarray(groups)
+    return result
 
 
 _list_cache = {}
