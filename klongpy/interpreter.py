@@ -523,8 +523,26 @@ def _running_min(a):
         return numpy.concatenate(local)
     return numpy.minimum.accumulate(a)
 
+def _flatnonzero_chunk(mask, s, e):
+    return numpy.flatnonzero(mask[s:e]) + s
+
+def _flatnonzero(a):
+    """Parallel flatnonzero for large boolean/integer arrays."""
+    if type(a) is numpy.ndarray and len(a) >= 100_000:
+        n = len(a)
+        nchunks = 4
+        chunk = n // nchunks
+        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+        global _argsort_pool
+        if _argsort_pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            _argsort_pool = ThreadPoolExecutor(max_workers=16)
+        futures = [_argsort_pool.submit(_flatnonzero_chunk, a, s, e) for s, e in slices]
+        return numpy.concatenate([f.result() for f in futures])
+    return numpy.flatnonzero(a)
+
 # Globals dict for eval of compiled source that references numpy
-_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_running_max': _running_max, '_running_min': _running_min}
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero}
 
 # Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
 _AXIS_REDUCE_KEEPDIMS = {
@@ -671,7 +689,7 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                 s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
                 if s is not None:
                     if op_a == '&':
-                        return (f'_np.flatnonzero({s[0]})', False)
+                        return (f'_flatnonzero({s[0]})', False)
                     elif op_a == '#':
                         return (f'len({s[0]})', False)
                     elif op_a == '<':
