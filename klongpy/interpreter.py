@@ -860,7 +860,7 @@ def _fused_where(a, cmp_op, val):
         if utils is not None and cmp_op in _CFFI_WHERE_FNS:
             ffi, lib = utils
             n = len(a)
-            nchunks = 6 if n >= 750_000 else 4
+            nchunks = 4
             chunk = n // nchunks
             slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
             if _argsort_pool is None:
@@ -901,7 +901,7 @@ def _fused_filter(a, cmp_op, val):
         if utils is not None and cmp_op in _CFFI_FILTER_FNS:
             ffi, lib = utils
             n = len(a)
-            nchunks = 6 if n >= 750_000 else 4
+            nchunks = 4
             chunk = n // nchunks
             slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
             if _argsort_pool is None:
