@@ -404,14 +404,15 @@ def _argsort(a):
             mn, mx = a.min(), a.max()
             if mn >= -2147483648 and mx <= 2147483647:
                 a = a.astype(numpy.int32)
-        # 4-way parallel merge sort: split into quarters, sort in threads, merge
+        # Parallel merge sort: split into chunks, sort in threads, merge
         if n >= 10_000:
             global _argsort_pool
             if _argsort_pool is None:
                 from concurrent.futures import ThreadPoolExecutor
-                _argsort_pool = ThreadPoolExecutor(max_workers=4)
-            q = n >> 2
-            slices = [(0, q), (q, q*2), (q*2, q*3), (q*3, n)]
+                _argsort_pool = ThreadPoolExecutor(max_workers=8)
+            nways = 8 if n >= 250_000 else 4
+            chunk = n // nways
+            slices = [(i * chunk, (i + 1) * chunk if i < nways - 1 else n) for i in range(nways)]
             futures = [_argsort_pool.submit(numpy.argsort, a[s:e]) for s, e in slices]
             indices = [f.result() + s for f, (s, e) in zip(futures, slices)]
             combined = numpy.concatenate(indices)
