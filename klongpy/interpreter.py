@@ -950,13 +950,21 @@ class KlongInterpreter():
                 x._cached_body_arity = f_arity
                 x._cached_body_type = tf
                 x._cached_version = _ctx._lookup_version
-                # Pre-compute whether KGCond body's condition is a dyad op
+                # Pre-compute KGCond body dispatch hints
                 if tf is KGCond:
                     _x0 = f[0]
                     _tx0 = type(_x0)
                     x._cached_cond_is_dyad_op = (_tx0 is KGCall or _tx0 is KGFn) and _x0._is_op and _x0._op_arity == 2
+                    # Pre-compute branch types
+                    _f1 = f[1]
+                    _f2 = f[2]
+                    x._cached_true_is_sym = type(_f1) is KGSym and _f1 in reserved_fn_symbols_set
+                    _tf2 = type(_f2)
+                    x._cached_false_is_dyad_op = (_tf2 is KGCall or _tf2 is KGFn) and _f2._is_op and _f2._op_arity == 2
                 else:
                     x._cached_cond_is_dyad_op = False
+                    x._cached_true_is_sym = False
+                    x._cached_false_is_dyad_op = False
 
             if len(f_args) == 1:
                 f_args = f_args[0]
@@ -1109,18 +1117,79 @@ class KlongInterpreter():
                 else:
                     p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
                 xb = f[1] if p else f[2]
+                # Pre-computed fast paths for branch dispatch
+                if p:
+                    if x._cached_true_is_sym:
+                        _v = ctx.get(xb)
+                        if _v is not None:
+                            return _v
+                        return self.eval(xb)
+                else:
+                    if x._cached_false_is_dyad_op:
+                        # Inline dyad op for KGCond branch (e.g., (fib(x-1))+(fib(x-2)))
+                        _bfa = xb.args
+                        if type(_bfa) is not list:
+                            _bfa = [_bfa] if _bfa is not None else _bfa
+                        _bfa1 = _bfa[1]
+                        _bt1 = type(_bfa1)
+                        if _bt1 is int or _bt1 is float:
+                            _by = _bfa1
+                        elif _bt1 is KGSym and _bfa1 in reserved_fn_symbols_set:
+                            _by = ctx.get(_bfa1)
+                            if _by is None:
+                                _by = self.eval(_bfa1)
+                        elif (_bt1 is KGFn or _bt1 is KGCall) and _bfa1._is_op:
+                            _by = self.eval(_bfa1)
+                        elif _bt1 is KGCall and not _bfa1._is_adverb_chain:
+                            _by = self._eval_fn(_bfa1)
+                        else:
+                            _by = self.eval(_bfa1)
+                        _bop_a = xb._op_a
+                        if _bop_a in _UNEVALUATED_OPS:
+                            _bx = _bfa[0]
+                        else:
+                            _bfa0 = _bfa[0]
+                            _bt0 = type(_bfa0)
+                            if _bt0 is KGSym and _bfa0 in reserved_fn_symbols_set:
+                                _bx = ctx.get(_bfa0)
+                                if _bx is None:
+                                    _bx = self.eval(_bfa0)
+                            elif _bt0 is int or _bt0 is float:
+                                _bx = _bfa0
+                            elif (_bt0 is KGFn or _bt0 is KGCall) and _bfa0._is_op:
+                                _bx = self.eval(_bfa0)
+                            elif _bt0 is KGCall and not _bfa0._is_adverb_chain:
+                                _bx = self._eval_fn(_bfa0)
+                            else:
+                                _bx = self.eval(_bfa0)
+                        if type(_bx) is int and type(_by) is int:
+                            if _bop_a == '+':
+                                return _bx + _by
+                            elif _bop_a == '-':
+                                return _bx - _by
+                            elif _bop_a == '*':
+                                return _bx * _by
+                            else:
+                                _bfast = xb._fast_op
+                                if _bfast is not None:
+                                    return _bfast(_bx, _by)
+                                return self._vd[_bop_a](_bx, _by)
+                        else:
+                            _bfast = xb._fast_op
+                            if _bfast is not None and (type(_bx) is int or type(_bx) is float) and (type(_by) is int or type(_by) is float):
+                                return _bfast(_bx, _by)
+                            return self._vd[_bop_a](_bx, _by)
+                # General branch dispatch (fallback when pre-computed flags are False)
                 txb = type(xb)
                 if txb is int or txb is float:
                     return xb
                 if txb is KGSym:
-                    # Inline reserved symbol resolution to avoid eval() call overhead
                     if xb in reserved_fn_symbols_set:
                         _v = ctx.get(xb)
                         if _v is not None:
                             return _v
                     return self.eval(xb)
                 if (txb is KGCall or txb is KGFn) and xb._is_op and xb._op_arity == 2:
-                    # Inline dyad op for KGCond branch (e.g., (fib(x-1))+(fib(x-2)))
                     _bfa = xb.args
                     if type(_bfa) is not list:
                         _bfa = [_bfa] if _bfa is not None else _bfa
