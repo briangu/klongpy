@@ -1303,6 +1303,14 @@ class KlongInterpreter():
                     tq = type(q)
                     if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types:
                         _xval = q
+                    elif tq is KGSym:
+                        # Fast path: skip call() overhead for symbol args
+                        if q in reserved_fn_symbols_set:
+                            _xval = _ctx_list[-1].get(q)
+                            if _xval is None:
+                                _xval = self.eval(q)
+                        else:
+                            _xval = self.eval(q)
                     elif (tq is KGFn or tq is KGCall) and q._is_op:
                         _xval = self.eval(q)
                     elif tq is KGCall:
