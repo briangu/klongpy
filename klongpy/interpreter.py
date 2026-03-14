@@ -576,13 +576,13 @@ def _compile_arg_fn(expr, klong, dyadic=False):
             fn = (lambda x, y: x) if dyadic else (lambda x: x)
             fn._vectorizable = True
             fn._is_const = False
-            fn._axis_fn = None if dyadic else (lambda a: a)
+            fn._axis_fn = (lambda X, Y: X) if dyadic else (lambda a: a)
             return fn
         if dyadic and expr is _sym_y:
             fn = lambda x, y: y
             fn._vectorizable = True
             fn._is_const = False
-            fn._axis_fn = None
+            fn._axis_fn = lambda X, Y: Y
             return fn
         # Try to resolve global variable to a constant value
         try:
@@ -592,7 +592,7 @@ def _compile_arg_fn(expr, klong, dyadic=False):
                 fn = (lambda x, y, c=val: c) if dyadic else (lambda x, c=val: c)
                 fn._vectorizable = tv is not numpy.ndarray
                 fn._is_const = True
-                fn._axis_fn = None if dyadic else (lambda a, c=val: c)
+                fn._axis_fn = (lambda X, Y, c=val: c) if dyadic else (lambda a, c=val: c)
                 return fn
         except KeyError:
             pass
@@ -601,7 +601,7 @@ def _compile_arg_fn(expr, klong, dyadic=False):
         fn = (lambda x, y, c=expr: c) if dyadic else (lambda x, c=expr: c)
         fn._vectorizable = True
         fn._is_const = True
-        fn._axis_fn = None if dyadic else (lambda a, c=expr: c)
+        fn._axis_fn = (lambda X, Y, c=expr: c) if dyadic else (lambda a, c=expr: c)
         return fn
     if (te is KGCall or te is KGFn) and expr._is_op and expr._op_arity == 2:
         op_a = expr._op_a
@@ -639,8 +639,11 @@ def _compile_arg_fn(expr, klong, dyadic=False):
             # Compose axis functions if both children support it and op is a fast Python op
             _af0 = getattr(c0, '_axis_fn', None)
             _af1 = getattr(c1, '_axis_fn', None)
-            if not dyadic and _fast is not None and _af0 is not None and _af1 is not None:
-                fn._axis_fn = lambda a, op=_fast, g0=_af0, g1=_af1: op(g0(a), g1(a))
+            if _fast is not None and _af0 is not None and _af1 is not None:
+                if dyadic:
+                    fn._axis_fn = lambda X, Y, op=_fast, g0=_af0, g1=_af1: op(g0(X, Y), g1(X, Y))
+                else:
+                    fn._axis_fn = lambda a, op=_fast, g0=_af0, g1=_af1: op(g0(a), g1(a))
             else:
                 fn._axis_fn = None
             # Tag constant*x pattern for matmul optimization in reduce
@@ -713,13 +716,16 @@ def _compile_arg_fn(expr, klong, dyadic=False):
                         fn._is_const = c_arg._is_const
                         # Compose axis function if child supports it
                         _c_axis = getattr(c_arg, '_axis_fn', None)
-                        if not dyadic and _axis_fn_2d is not None and _c_axis is not None:
-                            # Optimization: +/(constant*x) → matrix-vector multiply via BLAS
-                            _cmv = getattr(c_arg, '_const_mul_val', None)
-                            if op_char == '+' and _cmv is not None:
-                                fn._axis_fn = lambda a, c=_cmv: a @ c
+                        if _axis_fn_2d is not None and _c_axis is not None:
+                            if dyadic:
+                                fn._axis_fn = lambda X, Y, af=_axis_fn_2d, g=_c_axis: af(g(X, Y))
                             else:
-                                fn._axis_fn = lambda a, af=_axis_fn_2d, g=_c_axis: af(g(a))
+                                # Optimization: +/(constant*x) → matrix-vector multiply via BLAS
+                                _cmv = getattr(c_arg, '_const_mul_val', None)
+                                if op_char == '+' and _cmv is not None:
+                                    fn._axis_fn = lambda a, c=_cmv: a @ c
+                                else:
+                                    fn._axis_fn = lambda a, af=_axis_fn_2d, g=_c_axis: af(g(a))
                         else:
                             fn._axis_fn = None
                         return fn
@@ -963,6 +969,11 @@ def chain_adverbs(klong, arr):
                         _compiled = _compile_arg_fn(_dyad_verb.a, klong, dyadic=True)
                 if _compiled is not None:
                     f = _compiled
+                    # Attach axis function for batch each-2 if source-compiled (no _axis_fn)
+                    if getattr(f, '_axis_fn', None) is None:
+                        _body_cf = _compile_arg_fn(_dyad_verb.a, klong, dyadic=True)
+                        if _body_cf is not None and getattr(_body_cf, '_axis_fn', None) is not None:
+                            f._axis_fn = _body_cf._axis_fn
                     # Detect scan-vectorize pattern: {x + g(y)} → cumsum, {x * g(y)} → cumprod
                     if _dtb is KGFn:
                         _vbody = _dyad_verb.a
@@ -1148,8 +1159,30 @@ def chain_adverbs(klong, arr):
             f = lambda x,f=f,o=o,_op=_scan_op: o(f,x,op=_op)
         else:
             if arr[i].a == "'":
-                _each2_op = _resolved_op if _resolved_op is not None else arr[0].a
-                f = lambda x,y,f=f,o=o,_op=_each2_op: o(f,x,y,op=_op)
+                # Batch path for dyadic each-2 with axis function
+                _daf = getattr(f, '_axis_fn', None)
+                if _daf is not None:
+                    _prev_f = f
+                    _be = klong._backend
+                    _each2_op = _resolved_op if _resolved_op is not None else arr[0].a
+                    def f(x, y, daf=_daf, pf=_prev_f, be=_be, o=o, _op=_each2_op):
+                        if type(x) is list and type(y) is list and len(x) > 0 and type(x[0]) is numpy.ndarray:
+                            try:
+                                X = numpy.concatenate(x).reshape(len(x), -1)
+                                Y = numpy.concatenate(y).reshape(len(y), -1)
+                                result = daf(X, Y)
+                                if type(result) is numpy.ndarray:
+                                    if result.ndim == 1:
+                                        return result
+                                    if result.ndim == 2:
+                                        return result.ravel() if result.shape[1] == 1 else list(result)
+                                return result
+                            except (ValueError, TypeError):
+                                pass
+                        return o(pf, x, y, op=_op)
+                else:
+                    _each2_op = _resolved_op if _resolved_op is not None else arr[0].a
+                    f = lambda x,y,f=f,o=o,_op=_each2_op: o(f,x,y,op=_op)
             else:
                 f = lambda x,y,f=f,o=o: o(f,x,y)
     if arr[-2].arity == 1:
