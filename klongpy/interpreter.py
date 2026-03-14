@@ -436,16 +436,21 @@ def _argsort(a):
                 if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
                     a = a.astype(numpy.int32)
                 val_range = mx - mn
-                # Use power-of-2 bucket size with bit shift for fast assignment
-                # shift=16 gives bucket_size=65536, enabling uint16 radix sort
+                # Adaptive shift: start at 16, decrease to get at least 4 buckets
                 shift = 16
                 nbuckets = (val_range >> shift) + 1
+                while nbuckets < 4 and shift > 12:
+                    shift -= 1
+                    nbuckets = (val_range >> shift) + 1
                 # Cap buckets to avoid excessive overhead; fall back to division if too many
                 if nbuckets <= 32:
                     shifted = a - mn
                     bucket_ids = (shifted >> shift).astype(numpy.uint8)
-                    # Pre-compute uint16 relative values once (low 16 bits = within-bucket offset)
-                    low16 = shifted.astype(numpy.uint16)
+                    # Pre-compute uint16 sort keys once (within-bucket offset via bit mask)
+                    if shift == 16:
+                        low16 = shifted.astype(numpy.uint16)
+                    else:
+                        low16 = (shifted & ((1 << shift) - 1)).astype(numpy.uint16)
                     futures = [_argsort_pool.submit(_bucket_sort_precomputed, low16, bucket_ids, b) for b in range(nbuckets)]
                 else:
                     nbuckets = 16 if n >= 250_000 else 8
