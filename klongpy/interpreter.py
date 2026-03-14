@@ -1049,73 +1049,7 @@ class KlongInterpreter():
             # Recompute tf only if has_locals modified f (f = f[1:] changes type)
             if has_locals:
                 tf = type(f)
-            # Most common case first: function body is an op (e.g., x+1)
-            if (tf is KGCall or tf is KGFn) and f._is_op:
-                op_a = f._op_a
-                fa = f.args
-                if f._op_arity == 2:
-                    if type(fa) is not list:
-                        fa = [fa] if fa is not None else fa
-                    fa1 = fa[1]
-                    t1 = type(fa1)
-                    _y = fa1 if t1 is int or t1 is float or t1 is numpy.ndarray else self.eval(fa1)
-                    if op_a in _UNEVALUATED_OPS:
-                        _x = fa[0]
-                    else:
-                        fa0 = fa[0]
-                        t0 = type(fa0)
-                        if t0 is KGSym and fa0 in reserved_fn_symbols_set:
-                            _x = ctx.get(fa0)
-                            if _x is None:
-                                _x = self.eval(fa0)
-                        elif t0 is int or t0 is float or t0 is numpy.ndarray:
-                            _x = fa0
-                        else:
-                            _x = self.eval(fa0)
-                    # Fast path: inline operators for int-int case
-                    if type(_x) is int and type(_y) is int:
-                        if op_a == '+':
-                            return _x + _y
-                        elif op_a == '-':
-                            return _x - _y
-                        elif op_a == '*':
-                            return _x * _y
-                        elif op_a == '<':
-                            return 1 if _x < _y else 0
-                        elif op_a == '>':
-                            return 1 if _x > _y else 0
-                        elif op_a == '=':
-                            return 1 if _x == _y else 0
-                        else:
-                            _fast_op = f._fast_op
-                            if _fast_op is not None:
-                                return _fast_op(_x, _y)
-                            return self._vd[op_a](_x, _y)
-                    else:
-                        _fast_op = f._fast_op
-                        if _fast_op is not None and (type(_x) is int or type(_x) is float) and (type(_y) is int or type(_y) is float):
-                            return _fast_op(_x, _y)
-                        return self._vd[op_a](_x, _y)
-                else:
-                    _x = fa if type(fa) is not list else fa[0]
-                    if op_a not in _UNEVALUATED_OPS:
-                        tx_x = type(_x)
-                        if tx_x is KGSym and _x in reserved_fn_symbols_set:
-                            v = ctx.get(_x)
-                            if v is not None:
-                                _x = v
-                            else:
-                                _x = self.eval(_x)
-                        elif tx_x is not int and tx_x is not float and tx_x is not numpy.ndarray:
-                            _x = self.eval(_x)
-                    # Fast path: use pre-cached Python operators for scalar int/float monad
-                    _fast_monad = f._fast_monad
-                    if _fast_monad is not None and (type(_x) is int or type(_x) is float):
-                        return _fast_monad(_x)
-                    return self._vm[op_a](_x)
-            if tf is int or tf is float:
-                return f
-            # Inline KGCond eval to avoid method call overhead (common for conditional function bodies)
+            # KGCond first: most common for recursive/conditional function bodies
             if tf is KGCond:
                 x0 = f[0]
                 tx0 = type(x0)
@@ -1235,6 +1169,72 @@ class KlongInterpreter():
                 if txb is KGCall and not xb._is_adverb_chain:
                     return self._eval_fn(xb)
                 return self.call(xb)
+            # Op body (e.g., x+1)
+            if (tf is KGCall or tf is KGFn) and f._is_op:
+                op_a = f._op_a
+                fa = f.args
+                if f._op_arity == 2:
+                    if type(fa) is not list:
+                        fa = [fa] if fa is not None else fa
+                    fa1 = fa[1]
+                    t1 = type(fa1)
+                    _y = fa1 if t1 is int or t1 is float or t1 is numpy.ndarray else self.eval(fa1)
+                    if op_a in _UNEVALUATED_OPS:
+                        _x = fa[0]
+                    else:
+                        fa0 = fa[0]
+                        t0 = type(fa0)
+                        if t0 is KGSym and fa0 in reserved_fn_symbols_set:
+                            _x = ctx.get(fa0)
+                            if _x is None:
+                                _x = self.eval(fa0)
+                        elif t0 is int or t0 is float or t0 is numpy.ndarray:
+                            _x = fa0
+                        else:
+                            _x = self.eval(fa0)
+                    # Fast path: inline operators for int-int case
+                    if type(_x) is int and type(_y) is int:
+                        if op_a == '+':
+                            return _x + _y
+                        elif op_a == '-':
+                            return _x - _y
+                        elif op_a == '*':
+                            return _x * _y
+                        elif op_a == '<':
+                            return 1 if _x < _y else 0
+                        elif op_a == '>':
+                            return 1 if _x > _y else 0
+                        elif op_a == '=':
+                            return 1 if _x == _y else 0
+                        else:
+                            _fast_op = f._fast_op
+                            if _fast_op is not None:
+                                return _fast_op(_x, _y)
+                            return self._vd[op_a](_x, _y)
+                    else:
+                        _fast_op = f._fast_op
+                        if _fast_op is not None and (type(_x) is int or type(_x) is float) and (type(_y) is int or type(_y) is float):
+                            return _fast_op(_x, _y)
+                        return self._vd[op_a](_x, _y)
+                else:
+                    _x = fa if type(fa) is not list else fa[0]
+                    if op_a not in _UNEVALUATED_OPS:
+                        tx_x = type(_x)
+                        if tx_x is KGSym and _x in reserved_fn_symbols_set:
+                            v = ctx.get(_x)
+                            if v is not None:
+                                _x = v
+                            else:
+                                _x = self.eval(_x)
+                        elif tx_x is not int and tx_x is not float and tx_x is not numpy.ndarray:
+                            _x = self.eval(_x)
+                    # Fast path: use pre-cached Python operators for scalar int/float monad
+                    _fast_monad = f._fast_monad
+                    if _fast_monad is not None and (type(_x) is int or type(_x) is float):
+                        return _fast_monad(_x)
+                    return self._vm[op_a](_x)
+            if tf is int or tf is float:
+                return f
             if tf in _kglambda_types or _is_kglambda_type(tf):
                 return f(self, _ctx)
             # Route KGFn (recursive function calls) through _eval_fn, everything else through eval directly
