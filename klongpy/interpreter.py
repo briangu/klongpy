@@ -374,10 +374,10 @@ def chain_adverbs(klong, arr):
 
         ,/:~[1 [2 [3 [4] 5] 6] 7]  -->  [1 2 3 4 5 6 7]
 
-        ,/\~ (Flatten-Over-Scan-Converging) explains why ,/:~ flattens
+        ,/\\~ (Flatten-Over-Scan-Converging) explains why ,/:~ flattens
         any object:
 
-        ,/\~[1 [2 [3 [4] 5] 6] 7]  -->  [[1 [2 [3 [4] 5] 6] 7]
+        ,/\\~[1 [2 [3 [4] 5] 6] 7]  -->  [[1 [2 [3 [4] 5] 6] 7]
                                           [1 2 [3 [4] 5] 6 7]
                                            [1 2 3 [4] 5 6 7]
                                             [1 2 3 4 5 6 7]]
