@@ -410,6 +410,10 @@ def chain_adverbs(klong, arr):
             else:
                 body = verb
                 tb = type(body)
+            # Unwrap inline lambda KGFn: {x*x} → body is KGFn wrapping the op KGCall
+            if tb is KGFn and not body._is_op and not body._is_adverb_chain and body.args is None:
+                body = body.a
+                tb = type(body)
             if (tb is KGCall or tb is KGFn) and body._is_op:
                 op_a = body._op_a
                 if body._op_arity == 2:
