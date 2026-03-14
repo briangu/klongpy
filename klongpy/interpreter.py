@@ -2441,8 +2441,21 @@ class KlongInterpreter():
         # Fast path: compiled expression cache (compiled lambda with variable lookups)
         _compiled = self._compiled_expr_cache.get(x)
         if _compiled is not None:
-            _cfn, _cvar_syms = _compiled
-            result = _cfn(*(self._context[s] for s in _cvar_syms))
+            if type(_compiled) is tuple:
+                _cfn, _cvar_syms = _compiled
+                result = _cfn(*(self._context[s] for s in _cvar_syms))
+            else:
+                # Negative cache sentinel (False) — skip compilation, use normal eval
+                x0 = cached
+                tx0 = type(x0)
+                if tx0 is int or tx0 is float:
+                    result = x0
+                elif tx0 is KGCall:
+                    result = self.eval(x0) if x0._is_op or x0._is_adverb_chain else self._eval_fn(x0)
+                elif tx0 is KGFn and x0._is_op:
+                    result = self.eval(x0)
+                else:
+                    result = self.call(x0)
         elif type(cached) is not list:
             x0 = cached
             tx0 = type(x0)
@@ -2468,7 +2481,9 @@ class KlongInterpreter():
                         fn = eval(fn_src, _EVAL_GLOBALS)
                         self._compiled_expr_cache[x] = (fn, var_syms)
                     except Exception:
-                        pass
+                        self._compiled_expr_cache[x] = False
+                else:
+                    self._compiled_expr_cache[x] = False
         else:
             if not cached:
                 return None
