@@ -519,9 +519,12 @@ def _cumprod(a):
             _argsort_pool = ThreadPoolExecutor(max_workers=16)
         futures = [_argsort_pool.submit(numpy.cumprod, a[s:e]) for s, e in slices]
         local = [f.result() for f in futures]
+        out = numpy.empty(n, dtype=a.dtype)
+        out[slices[0][0]:slices[0][1]] = local[0]
         for i in range(1, nchunks):
-            local[i] *= local[i - 1][-1]
-        return numpy.concatenate(local)
+            s, e = slices[i]
+            numpy.multiply(local[i], local[i - 1][-1], out=out[s:e])
+        return out
     return numpy.cumprod(a)
 
 def _running_max(a):
@@ -537,9 +540,12 @@ def _running_max(a):
             _argsort_pool = ThreadPoolExecutor(max_workers=16)
         futures = [_argsort_pool.submit(numpy.maximum.accumulate, a[s:e]) for s, e in slices]
         local = [f.result() for f in futures]
+        out = numpy.empty(n, dtype=a.dtype)
+        out[slices[0][0]:slices[0][1]] = local[0]
         for i in range(1, nchunks):
-            numpy.maximum(local[i], local[i - 1][-1], out=local[i])
-        return numpy.concatenate(local)
+            s, e = slices[i]
+            numpy.maximum(local[i], local[i - 1][-1], out=out[s:e])
+        return out
     return numpy.maximum.accumulate(a)
 
 def _running_min(a):
@@ -555,9 +561,12 @@ def _running_min(a):
             _argsort_pool = ThreadPoolExecutor(max_workers=16)
         futures = [_argsort_pool.submit(numpy.minimum.accumulate, a[s:e]) for s, e in slices]
         local = [f.result() for f in futures]
+        out = numpy.empty(n, dtype=a.dtype)
+        out[slices[0][0]:slices[0][1]] = local[0]
         for i in range(1, nchunks):
-            numpy.minimum(local[i], local[i - 1][-1], out=local[i])
-        return numpy.concatenate(local)
+            s, e = slices[i]
+            numpy.minimum(local[i], local[i - 1][-1], out=out[s:e])
+        return out
     return numpy.minimum.accumulate(a)
 
 def _flatnonzero_chunk(mask, s, e):
