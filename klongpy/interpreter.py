@@ -1080,6 +1080,30 @@ def chain_adverbs(klong, arr):
                         return be.kg_asarray([pf(e) for e in x])
                     return pf(x)
                 continue
+        # Vectorized fold: {x + g(y)}/array → a[0] + sum(g(a[1:]))
+        if arr[i].a == '/' and arr[i].arity == 1:
+            _csf = getattr(f, '_scan_cumsum_fn', None)
+            _cpf = getattr(f, '_scan_cumprod_fn', None)
+            if _csf is not None:
+                _be = klong._backend
+                def f(x, csf=_csf, be=_be):
+                    if type(x) is numpy.ndarray and len(x) > 0:
+                        if len(x) == 1:
+                            return x[0]
+                        return x[0] + numpy.sum(csf(x[1:]))
+                    from functools import reduce
+                    return reduce(lambda a, b, _csf=csf: a + _csf(b), x)
+                continue
+            if _cpf is not None:
+                _be = klong._backend
+                def f(x, cpf=_cpf, be=_be):
+                    if type(x) is numpy.ndarray and len(x) > 0:
+                        if len(x) == 1:
+                            return x[0]
+                        return x[0] * numpy.prod(cpf(x[1:]))
+                    from functools import reduce
+                    return reduce(lambda a, b, _cpf=cpf: a * _cpf(b), x)
+                continue
         # Vectorized scan: {x + g(y)}\array → a[0] + cumsum(g(a[1:]))
         if arr[i].a == '\\' and arr[i].arity == 1:
             _csf = getattr(f, '_scan_cumsum_fn', None)
