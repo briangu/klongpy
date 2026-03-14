@@ -185,6 +185,21 @@ def eval_adverb_each_pair(f, a, op, backend):
         return a
     j = isinstance(a, str)
     a = backend.str_to_chr_arr(a) if j else a
+    # Vectorized fast path for built-in dyadic ops on numpy arrays
+    if type(a) is _ndarray and type(op) is KGOp:
+        op_a = op.a
+        if op_a == '-':
+            return a[:-1] - a[1:]
+        elif op_a == '+':
+            return a[:-1] + a[1:]
+        elif op_a == '*':
+            return a[:-1] * a[1:]
+        elif op_a == '%':
+            return a[:-1] / a[1:]
+        elif op_a == '|':
+            return backend.np.maximum(a[:-1], a[1:])
+        elif op_a == '&':
+            return backend.np.minimum(a[:-1], a[1:])
     return backend.kg_asarray([f(x,y) for x,y in zip(a[::],a[1::])])
 
 
