@@ -521,6 +521,22 @@ def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
                                     return (f'_dotsum({s0[0]},{s1[0]})', False)
                 elif adv_char == '\\':
                     py_fn = _KLONG_SCAN_TO_PY.get(op_char)
+                elif adv_char == ":'" and var_refs is not None:
+                    # Each-pair: op:'var → var[:-1] op var[1:]
+                    py_op = _KLONG_OP_TO_PY.get(op_char)
+                    if py_op is not None:
+                        s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
+                        if s is not None:
+                            return (f'({s[0]}[:-1]{py_op}{s[0]}[1:])', False)
+                    # Max/min each-pair: |:'var → np.maximum(var[:-1], var[1:])
+                    if op_char == '|':
+                        s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
+                        if s is not None:
+                            return (f'_np.maximum({s[0]}[:-1],{s[0]}[1:])', False)
+                    if op_char == '&':
+                        s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
+                        if s is not None:
+                            return (f'_np.minimum({s[0]}[:-1],{s[0]}[1:])', False)
                 if py_fn is not None:
                     s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
                     if s is not None:
