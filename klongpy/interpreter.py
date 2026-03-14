@@ -705,6 +705,42 @@ def _compile_arg_fn(expr, klong, dyadic=False):
                         else:
                             fn._axis_fn = None
                         return fn
+                    # Each-pair: op:'x → x[:-1] op x[1:]
+                    if adv_char == ":'" and not dyadic:
+                        _fast = _FAST_DYAD_OPS.get(op_char)
+                        _c_axis = getattr(c_arg, '_axis_fn', None)
+                        if _fast is not None:
+                            if c_arg._is_const:
+                                return None  # each-pair on constant makes no sense
+                            def _ep_fn(x, op=_fast, g=c_arg):
+                                v = g(x)
+                                return op(v[:-1], v[1:])
+                            _ep_fn._vectorizable = False
+                            _ep_fn._is_const = False
+                            if _c_axis is not None:
+                                def _ep_axis(a, op=_fast, g=_c_axis):
+                                    v = g(a)
+                                    return op(v[:, :-1], v[:, 1:])
+                                _ep_fn._axis_fn = _ep_axis
+                            else:
+                                _ep_fn._axis_fn = None
+                            return _ep_fn
+                        # Max/min each-pair: |:'x, &:'x
+                        if op_char == '|' or op_char == '&':
+                            _np_fn = numpy.maximum if op_char == '|' else numpy.minimum
+                            def _ep_fn(x, npf=_np_fn, g=c_arg):
+                                v = g(x)
+                                return npf(v[:-1], v[1:])
+                            _ep_fn._vectorizable = False
+                            _ep_fn._is_const = False
+                            if _c_axis is not None:
+                                def _ep_axis(a, npf=_np_fn, g=_c_axis):
+                                    v = g(a)
+                                    return npf(v[:, :-1], v[:, 1:])
+                                _ep_fn._axis_fn = _ep_axis
+                            else:
+                                _ep_fn._axis_fn = None
+                            return _ep_fn
     return None
 
 
