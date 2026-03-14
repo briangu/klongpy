@@ -836,6 +836,16 @@ def _flatnonzero(a):
     return numpy.flatnonzero(a)
 
 _CMP_FNS = {'<': numpy.less, '>': numpy.greater, '==': numpy.equal}
+_CFFI_WHERE_FNS = {'>': 'cffi_where_gt', '<': 'cffi_where_lt', '==': 'cffi_where_eq'}
+_CFFI_FILTER_FNS = {'>': 'cffi_filter_gt', '<': 'cffi_filter_lt', '==': 'cffi_filter_eq'}
+
+def _cffi_where_chunk(a, cmp_op, val, s, e, ffi, lib):
+    n = e - s
+    out = numpy.empty(n, dtype=numpy.int64)
+    cfn = getattr(lib, _CFFI_WHERE_FNS[cmp_op])
+    k = cfn(ffi.from_buffer('double[]', a[s:]), ffi.cast('int64_t*', out.ctypes.data), n, float(val))
+    out[:k] += s  # adjust indices for chunk offset
+    return out[:k]
 
 def _fused_where_chunk(a, cmp_fn, val, s, e):
     idx = numpy.flatnonzero(cmp_fn(a[s:e], val))
@@ -843,14 +853,27 @@ def _fused_where_chunk(a, cmp_fn, val, s, e):
     return idx
 
 def _fused_where(a, cmp_op, val):
-    """Fused parallel comparison + flatnonzero."""
+    """Fused parallel comparison + flatnonzero: cffi branchless for float64."""
+    global _argsort_pool
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64 and len(a) >= 100_000:
+        utils = _get_cffi_utils()
+        if utils is not None and cmp_op in _CFFI_WHERE_FNS:
+            ffi, lib = utils
+            n = len(a)
+            nchunks = 6 if n >= 750_000 else 4
+            chunk = n // nchunks
+            slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+            if _argsort_pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _argsort_pool = ThreadPoolExecutor(max_workers=16)
+            futures = [_argsort_pool.submit(_cffi_where_chunk, a, cmp_op, val, s, e, ffi, lib) for s, e in slices]
+            return numpy.concatenate([f.result() for f in futures])
     cmp_fn = _CMP_FNS[cmp_op]
     if type(a) is numpy.ndarray and len(a) >= 100_000:
         n = len(a)
         nchunks = 4
         chunk = n // nchunks
         slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
-        global _argsort_pool
         if _argsort_pool is None:
             from concurrent.futures import ThreadPoolExecutor
             _argsort_pool = ThreadPoolExecutor(max_workers=16)
@@ -858,20 +881,40 @@ def _fused_where(a, cmp_op, val):
         return numpy.concatenate([f.result() for f in futures])
     return numpy.flatnonzero(cmp_fn(a, val))
 
+def _cffi_filter_chunk(a, cmp_op, val, s, e, ffi, lib):
+    n = e - s
+    out = numpy.empty(n, dtype=numpy.float64)
+    cfn = getattr(lib, _CFFI_FILTER_FNS[cmp_op])
+    k = cfn(ffi.from_buffer('double[]', a[s:]), ffi.from_buffer('double[]', out), n, float(val))
+    return out[:k]
+
 def _fused_filter_chunk(a, cmp_fn, val, s, e):
     chunk = a[s:e]
     idx = numpy.flatnonzero(cmp_fn(chunk, val))
     return chunk[idx]
 
 def _fused_filter(a, cmp_op, val):
-    """Fused parallel comparison + filter: a[flatnonzero(a cmp val)]."""
+    """Fused parallel comparison + filter: cffi branchless for float64."""
+    global _argsort_pool
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64 and len(a) >= 100_000:
+        utils = _get_cffi_utils()
+        if utils is not None and cmp_op in _CFFI_FILTER_FNS:
+            ffi, lib = utils
+            n = len(a)
+            nchunks = 6 if n >= 750_000 else 4
+            chunk = n // nchunks
+            slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+            if _argsort_pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _argsort_pool = ThreadPoolExecutor(max_workers=16)
+            futures = [_argsort_pool.submit(_cffi_filter_chunk, a, cmp_op, val, s, e, ffi, lib) for s, e in slices]
+            return numpy.concatenate([f.result() for f in futures])
     cmp_fn = _CMP_FNS[cmp_op]
     if type(a) is numpy.ndarray and len(a) >= 100_000:
         n = len(a)
         nchunks = 6 if n >= 750_000 else 4
         chunk = n // nchunks
         slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
-        global _argsort_pool
         if _argsort_pool is None:
             from concurrent.futures import ThreadPoolExecutor
             _argsort_pool = ThreadPoolExecutor(max_workers=16)
@@ -1255,6 +1298,12 @@ void cffi_inverse_perm(const int64_t* perm, int64_t* out, int64_t n);
 int64_t cffi_unique_int(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
 void cffi_counting_rank(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
 void cffi_linear_scan(const double* x, double* out, int64_t n, double cx, double cy);
+int64_t cffi_filter_gt(const double* a, double* out, int64_t n, double val);
+int64_t cffi_filter_lt(const double* a, double* out, int64_t n, double val);
+int64_t cffi_filter_eq(const double* a, double* out, int64_t n, double val);
+int64_t cffi_where_gt(const double* a, int64_t* out, int64_t n, double val);
+int64_t cffi_where_lt(const double* a, int64_t* out, int64_t n, double val);
+int64_t cffi_where_eq(const double* a, int64_t* out, int64_t n, double val);
 ''')
     try:
         lib = ffi.verify('''
@@ -1342,6 +1391,36 @@ void cffi_counting_rank(const int64_t* a, int64_t* out, int64_t n, int64_t mn, i
 void cffi_linear_scan(const double* x, double* out, int64_t n, double cx, double cy) {
     out[0] = x[0];
     for (int64_t i = 1; i < n; i++) out[i] = cx * out[i-1] + cy * x[i];
+}
+int64_t cffi_filter_gt(const double* a, double* out, int64_t n, double val) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = a[i]; k += (a[i] > val); }
+    return k;
+}
+int64_t cffi_filter_lt(const double* a, double* out, int64_t n, double val) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = a[i]; k += (a[i] < val); }
+    return k;
+}
+int64_t cffi_filter_eq(const double* a, double* out, int64_t n, double val) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = a[i]; k += (a[i] == val); }
+    return k;
+}
+int64_t cffi_where_gt(const double* a, int64_t* out, int64_t n, double val) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = i; k += (a[i] > val); }
+    return k;
+}
+int64_t cffi_where_lt(const double* a, int64_t* out, int64_t n, double val) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = i; k += (a[i] < val); }
+    return k;
+}
+int64_t cffi_where_eq(const double* a, int64_t* out, int64_t n, double val) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = i; k += (a[i] == val); }
+    return k;
 }
 ''', extra_compile_args=['-O2'])
         _cffi_utils = (ffi, lib)

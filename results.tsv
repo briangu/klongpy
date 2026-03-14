@@ -302,3 +302,4 @@ exp88	10.56	pass	keep	exp88: cffi fused reduce for 2-var + v1 remapping (vwap_10
 exp89	10.23	pass	keep	exp89: add comparison ops to C converter + generic_visit safety
 exp90	10.36	pass	keep	exp90: fused running_max/min + expression — single-pass C loops for drawdown patterns (max_drawdown: 0.161->0.130ms 19%)
 exp91	10.09	pass	keep	exp91: parallel propagation in cumsum + running_sum_1M: 0.508->0.495ms
+exp92	9.72	pass	keep	exp92: cffi branchless filter/where — bypass branch misprediction (filter_index: 0.664->0.369ms 44%, where: 0.521->0.442ms 15%)
