@@ -2662,9 +2662,11 @@ class KlongInterpreter():
 
     def start_module(self, name):
         self._context.start_module(name)
+        self._module = name
 
     def stop_module(self):
         self._context.stop_module()
+        self._module = None
 
     def parse_module(self, name):
         self._module = None if safe_eq(name,0) or is_empty(name) else name

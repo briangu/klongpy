@@ -43,6 +43,7 @@ class TestKgTests(unittest.TestCase):
         Recursively run all tests under the kgtests folder that begin with "test" and end with ".kg".
         """
         ran_tests = False
+        failures = []
         root_dir = os.path.join(os.getcwd(), "tests", "kgtests")
 
         for dirpath, _, filenames in os.walk(root_dir):
@@ -58,9 +59,10 @@ class TestKgTests(unittest.TestCase):
                             print(f"testing (line by line) {fname}...")
                             self.eval_file_by_lines(fullpath)
                     except Exception as e:
-                        print(e)
-                        self.assertEqual(klong['err'], 1)
-                    finally:
-                        self.assertEqual(klong['err'], 0)
+                        failures.append(f"{fname}: exception: {e}")
+                    else:
+                        if klong['err'] != 0:
+                            failures.append(f"{fname}: err={klong['err']}")
 
         self.assertTrue(ran_tests)
+        self.assertEqual(failures, [], f"kg test failures:\n" + "\n".join(failures))

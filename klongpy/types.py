@@ -652,7 +652,7 @@ def get_fn_arity(f):
             if type(f.args) is list:
                 for q in f.args:
                     x.update(_e(q, level=1))
-        elif tf is list:
+        elif tf is list or tf is KGCond:
             x = set()
             for q in f:
                 x.update(_e(q, level=1))
