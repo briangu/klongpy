@@ -480,7 +480,7 @@ def _bucket_sort_precomputed(low16, bucket_ids, b, buf_size=0):
                     ffi.cast('const uint8_t*', bucket_ids.ctypes.data),
                     ffi.cast('const uint16_t*', low16.ctypes.data),
                     ffi.cast('int64_t*', buf.ctypes.data), nn, b)
-            return buf[:k].copy()
+            return buf[:k]
     indices = numpy.flatnonzero(bucket_ids == b)
     n = len(indices)
     if n <= 1:
