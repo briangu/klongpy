@@ -1354,7 +1354,7 @@ void cffi_cumprod(const double* a, double* out, int64_t n);
 int64_t cffi_count_lt(const double* a, double val, int64_t n);
 int64_t cffi_count_gt(const double* a, double val, int64_t n);
 int64_t cffi_count_eq(const double* a, double val, int64_t n);
-void cffi_minmax_i64(const int64_t* a, int64_t n, int64_t* mn_out, int64_t* mx_out);
+void cffi_minmax_i64(const int64_t* a, int64_t n, int64_t* out);
 void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range);
 void cffi_counting_argsort_i64(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
 void cffi_counting_argsort_u16(const uint16_t* keys, int64_t n, const int64_t* orig_idx, int64_t* out);
@@ -1411,15 +1411,15 @@ int64_t cffi_count_gt(const double* a, double val, int64_t n) {
 int64_t cffi_count_eq(const double* a, double val, int64_t n) {
     int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] == val); return c;
 }
-void cffi_minmax_i64(const int64_t* a, int64_t n, int64_t* mn_out, int64_t* mx_out) {
+void cffi_minmax_i64(const int64_t* a, int64_t n, int64_t* out) {
     int64_t mn = a[0], mx = a[0];
     for (int64_t i = 1; i < n; i++) {
         int64_t v = a[i];
         if (v < mn) mn = v;
         if (v > mx) mx = v;
     }
-    *mn_out = mn;
-    *mx_out = mx;
+    out[0] = mn;
+    out[1] = mx;
 }
 void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range) {
     int32_t* counts = (int32_t*)calloc(range, sizeof(int32_t));
@@ -1585,15 +1585,19 @@ void cffi_add_scalar(double* a, int64_t n, double val) {
         pass
     return _cffi_utils
 
+_minmax_out = None  # Lazy-initialized reusable output buffer for cffi_minmax_i64
+
 def _cffi_minmax_i64(a):
     """Combined min/max in single pass via cffi (saves one array scan vs separate min+max)."""
+    global _minmax_out
     utils = _get_cffi_utils()
     if utils is not None and a.dtype == numpy.int64:
         ffi, lib = utils
-        mn_buf = ffi.new('int64_t[1]')
-        mx_buf = ffi.new('int64_t[1]')
-        lib.cffi_minmax_i64(ffi.cast('const int64_t*', a.ctypes.data), len(a), mn_buf, mx_buf)
-        return int(mn_buf[0]), int(mx_buf[0])
+        if _minmax_out is None:
+            _minmax_out = numpy.empty(2, dtype=numpy.int64)
+        lib.cffi_minmax_i64(ffi.from_buffer('int64_t[]', a), len(a),
+                            ffi.from_buffer('int64_t[]', _minmax_out))
+        return int(_minmax_out[0]), int(_minmax_out[1])
     return int(a.min()), int(a.max())
 
 _CFFI_COUNT_FNS = {'<': 'cffi_count_lt', '>': 'cffi_count_gt', '==': 'cffi_count_eq'}
