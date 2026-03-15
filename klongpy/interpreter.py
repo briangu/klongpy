@@ -409,7 +409,7 @@ def _rank(a):
         if dk == 'i' or dk == 'u':
             n = len(a)
             if n >= 1000:
-                mn_i, mx_i = int(a.min()), int(a.max())
+                mn_i, mx_i = _cffi_minmax_i64(a) if a.dtype == numpy.int64 else (int(a.min()), int(a.max()))
                 val_range = mx_i - mn_i + 1
                 if val_range <= 2 * n:
                     utils = _get_cffi_utils()
@@ -514,13 +514,17 @@ def _argsort(a):
     if type(a) is numpy.ndarray:
         n = len(a)
         dk = a.dtype.kind
-        # cffi counting argsort for small/medium integer arrays with bounded range
-        if (dk == 'i' or dk == 'u') and n >= 1_000 and n <= 500_000:
+        # Pre-computed min/max from counting sort check (avoids redundant scan in bucket sort)
+        _pre_mn = _pre_mx = None
+        # cffi counting argsort for integer arrays with L1-friendly range
+        # Count array = range × 4 bytes; use counting sort only when it fits in L1 (~128KB → range ≤ 32K)
+        # Larger ranges use bucket sort below (parallel threads with L1-friendly per-bucket radix)
+        if (dk == 'i' or dk == 'u') and n >= 1_000:
             utils = _get_cffi_utils()
             if utils is not None:
-                mn, mx = int(a.min()), int(a.max())
+                mn, mx = _cffi_minmax_i64(a) if a.dtype == numpy.int64 else (int(a.min()), int(a.max()))
                 val_range = mx - mn + 1
-                if val_range <= 2 * n:
+                if val_range <= 2 * n and val_range <= 32_000:
                     ffi, lib = utils
                     out = numpy.empty(n, dtype=numpy.int64)
                     if a.dtype == numpy.int64:
@@ -535,6 +539,8 @@ def _argsort(a):
                             ffi.cast('int64_t*', out.ctypes.data),
                             n, numpy.int32(mn), val_range)
                     return out
+                # Save min/max for bucket sort to avoid redundant computation
+                _pre_mn, _pre_mx = mn, mx
         if n >= 10_000:
             global _argsort_pool
             if _argsort_pool is None:
@@ -542,7 +548,9 @@ def _argsort(a):
                 _argsort_pool = ThreadPoolExecutor(max_workers=16)
             # Bucket argsort for integer arrays: fused flatnonzero+sort per bucket in parallel
             if dk == 'i' or dk == 'u':
-                if n >= 250_000:
+                if _pre_mn is not None:
+                    mn, mx = _pre_mn, _pre_mx
+                elif n >= 250_000:
                     f_mn = _argsort_pool.submit(a.min)
                     f_mx = _argsort_pool.submit(a.max)
                     mn, mx = int(f_mn.result()), int(f_mx.result())
@@ -634,7 +642,7 @@ def _fast_sort(a):
         dk = a.dtype.kind
         if dk == 'i' or dk == 'u':
             n = len(a)
-            mn_i, mx_i = int(a.min()), int(a.max())
+            mn_i, mx_i = _cffi_minmax_i64(a) if a.dtype == numpy.int64 else (int(a.min()), int(a.max()))
             val_range = mx_i - mn_i + 1
             # cffi counting sort for small/medium integer arrays with bounded range
             if val_range <= 2 * n and n <= 500_000:
@@ -1013,7 +1021,7 @@ def _unique(a):
         if dk == 'i' or dk == 'u':
             n = len(a)
             if n > 0:
-                mn, mx = int(a.min()), int(a.max())
+                mn, mx = _cffi_minmax_i64(a) if a.dtype == numpy.int64 else (int(a.min()), int(a.max()))
                 val_range = mx - mn + 1
                 if val_range <= max(10 * n, 1_000_000):
                     utils = _get_cffi_utils()
@@ -1346,6 +1354,7 @@ void cffi_cumprod(const double* a, double* out, int64_t n);
 int64_t cffi_count_lt(const double* a, double val, int64_t n);
 int64_t cffi_count_gt(const double* a, double val, int64_t n);
 int64_t cffi_count_eq(const double* a, double val, int64_t n);
+void cffi_minmax_i64(const int64_t* a, int64_t n, int64_t* mn_out, int64_t* mx_out);
 void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range);
 void cffi_counting_argsort_i64(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
 void cffi_counting_argsort_u16(const uint16_t* keys, int64_t n, const int64_t* orig_idx, int64_t* out);
@@ -1401,6 +1410,16 @@ int64_t cffi_count_gt(const double* a, double val, int64_t n) {
 }
 int64_t cffi_count_eq(const double* a, double val, int64_t n) {
     int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] == val); return c;
+}
+void cffi_minmax_i64(const int64_t* a, int64_t n, int64_t* mn_out, int64_t* mx_out) {
+    int64_t mn = a[0], mx = a[0];
+    for (int64_t i = 1; i < n; i++) {
+        int64_t v = a[i];
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+    }
+    *mn_out = mn;
+    *mx_out = mx;
 }
 void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range) {
     int32_t* counts = (int32_t*)calloc(range, sizeof(int32_t));
@@ -1565,6 +1584,17 @@ void cffi_add_scalar(double* a, int64_t n, double val) {
     except Exception:
         pass
     return _cffi_utils
+
+def _cffi_minmax_i64(a):
+    """Combined min/max in single pass via cffi (saves one array scan vs separate min+max)."""
+    utils = _get_cffi_utils()
+    if utils is not None and a.dtype == numpy.int64:
+        ffi, lib = utils
+        mn_buf = ffi.new('int64_t[1]')
+        mx_buf = ffi.new('int64_t[1]')
+        lib.cffi_minmax_i64(ffi.cast('const int64_t*', a.ctypes.data), len(a), mn_buf, mx_buf)
+        return int(mn_buf[0]), int(mx_buf[0])
+    return int(a.min()), int(a.max())
 
 _CFFI_COUNT_FNS = {'<': 'cffi_count_lt', '>': 'cffi_count_gt', '==': 'cffi_count_eq'}
 
