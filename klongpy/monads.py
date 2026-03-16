@@ -1,6 +1,12 @@
+import numpy as _numpy
+
 from .core import *
 from .autograd import grad_of_fn
 
+_ndarray = _numpy.ndarray
+
+
+_atom_cache = {}
 
 def eval_monad_atom(a):
     """
@@ -16,6 +22,14 @@ def eval_monad_atom(a):
                   @[1 2 3]  -->  0
 
     """
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _atom_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = kg_truth(is_atom(a))
+        _atom_cache[a_id] = result
+        return result
     return kg_truth(is_atom(a))
 
 
@@ -35,6 +49,8 @@ def eval_monad_char(a, backend):
     return backend.rec_fn(a, lambda x: KGChar(chr(x))) if is_list(a) else KGChar(chr(a))
 
 
+_enumerate_cache = {}
+
 def eval_monad_enumerate(a, backend):
     """
 
@@ -47,10 +63,22 @@ def eval_monad_enumerate(a, backend):
                   !10  -->  [0 1 2 3 4 5 6 7 8 9]
 
     """
-    if not backend.is_integer(a):
+    ta = type(a)
+    if ta is int:
+        n = a
+    elif ta is not int and not backend.is_integer(a):
         raise RuntimeError(f"enumerate: invalid type error: {a}")
-    return bknp.arange(int(a))
+    else:
+        n = int(a)
+    cached = _enumerate_cache.get(n)
+    if cached is None:
+        cached = bknp.arange(n)
+        cached.flags.writeable = False
+        _enumerate_cache[n] = cached
+    return cached
 
+
+_expand_where_cache = {}
 
 def eval_monad_expand_where(a):
     """
@@ -75,9 +103,42 @@ def eval_monad_expand_where(a):
                   &[0 1 0 1 0]  -->   [1 3]
 
     """
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _expand_where_cache.get(a_id)
+        if cached is not None:
+            return cached
+        arr = a if is_list(a) else [a]
+        if arr.dtype.kind == 'b':
+            result = bknp.flatnonzero(arr)
+        else:
+            result = bknp.repeat(bknp.arange(len(arr)), arr)
+        result.flags.writeable = False
+        _expand_where_cache[a_id] = result
+        return result
     arr = a if is_list(a) else [a]
+    if type(arr) is _ndarray:
+        dk = arr.dtype.kind
+        if dk == 'b':
+            return bknp.flatnonzero(arr)
+        # Fast path for boolean-like integer arrays (comparison results: all 0/1)
+        if dk in ('i', 'u') and len(arr) > 0 and arr.max() <= 1:
+            return bknp.flatnonzero(arr.astype(bool))
+    # Torch tensor support
+    try:
+        import torch
+        if isinstance(arr, torch.Tensor):
+            if arr.dtype == torch.bool:
+                return torch.nonzero(arr, as_tuple=False).flatten()
+            if arr.max().item() <= 1:
+                return torch.nonzero(arr.bool(), as_tuple=False).flatten()
+            return torch.repeat_interleave(torch.arange(len(arr), device=arr.device), arr)
+    except ImportError:
+        pass
     return bknp.repeat(bknp.arange(len(arr)), arr)
 
+
+_first_cache = {}
 
 def eval_monad_first(a):
     """
@@ -95,8 +156,18 @@ def eval_monad_first(a):
                          *1  -->  1
 
     """
+    if type(a) is _ndarray and not a.flags.writeable and a.ndim > 0 and len(a) > 0:
+        a_id = id(a)
+        cached = _first_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = a[0]
+        _first_cache[a_id] = result
+        return result
     return a if is_empty(a) or not is_iterable(a) else a[0]
 
+
+_floor_cache = {}
 
 def eval_monad_floor(a, backend):
     """
@@ -116,6 +187,16 @@ def eval_monad_floor(a, backend):
                   _1e100  -->  1.0e+100  :"if precision < 100 digits"
 
     """
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _floor_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = backend.vec_fn(a, backend.floor_to_int)
+        if type(result) is _ndarray:
+            result.flags.writeable = False
+            _floor_cache[a_id] = result
+        return result
     return backend.vec_fn(a, backend.floor_to_int)
 
 
@@ -139,6 +220,9 @@ def eval_monad_format(a, backend):
     """
     return f":{a}" if isinstance(a, KGSym) else backend.vec_fn(a, lambda x: eval_monad_format(x, backend)) if is_list(a) else str(a)
 
+
+_grade_up_cache = {}
+_last_grade_result = None  # Track last argsort result for rank optimization
 
 def eval_monad_grade_up(a, backend):
     """
@@ -165,8 +249,36 @@ def eval_monad_grade_up(a, backend):
                     >[[1] [2] [3]]  -->  [2 1 0]
 
     """
-    return kg_argsort(backend.kg_asarray(a), backend)
+    arr = backend.kg_asarray(a)
+    if type(arr) is _ndarray and not arr.flags.writeable:
+        a_id = id(arr)
+        cached = _grade_up_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = kg_argsort(arr, backend)
+        result.flags.writeable = False
+        _grade_up_cache[a_id] = result
+        return result
+    # Rank optimization: grade-up of an argsort result = inverse permutation (O(n) vs O(n log n))
+    global _last_grade_result
+    if _last_grade_result is not None and arr is _last_grade_result:
+        _last_grade_result = None
+        n = len(arr)
+        if type(arr) is _ndarray:
+            rank = bknp.empty(n, dtype=bknp.intp)
+            rank[arr] = bknp.arange(n)
+        else:
+            np_arr = arr.cpu().numpy() if hasattr(arr, 'cpu') else bknp.asarray(arr)
+            rank = bknp.empty(n, dtype=bknp.intp)
+            rank[np_arr] = bknp.arange(n)
+            rank = backend.np.asarray(rank)
+        return rank
+    result = kg_argsort(arr, backend)
+    _last_grade_result = result
+    return result
 
+
+_grade_down_cache = {}
 
 def eval_monad_grade_down(a, backend):
     """
@@ -176,8 +288,20 @@ def eval_monad_grade_down(a, backend):
         See [Grade-Up].
 
     """
-    return kg_argsort(backend.kg_asarray(a), backend, descending=True)
+    arr = backend.kg_asarray(a)
+    if type(arr) is _ndarray and not arr.flags.writeable:
+        a_id = id(arr)
+        cached = _grade_down_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = kg_argsort(arr, backend, descending=True)
+        result.flags.writeable = False
+        _grade_down_cache[a_id] = result
+        return result
+    return kg_argsort(arr, backend, descending=True)
 
+
+_groupby_cache = {}
 
 def eval_monad_groupby(a, backend):
     """
@@ -199,10 +323,32 @@ def eval_monad_groupby(a, backend):
     arr = backend.kg_asarray(a)
     if backend.array_size(arr) == 0:
         return arr
-    vals, inverse = bknp.unique(arr, return_inverse=True)
-    groups = [bknp.where(inverse == i)[0] for i in range(len(vals))]
-    return backend.kg_asarray(groups)
+    if type(arr) is _ndarray and not arr.flags.writeable:
+        a_id = id(arr)
+        cached = _groupby_cache.get(a_id)
+        if cached is not None:
+            return cached
+    if type(arr) is _ndarray:
+        # Sort indices by value, then split at group boundaries
+        order = bknp.argsort(arr, kind='stable')
+        sorted_arr = arr[order]
+        # Find where consecutive values differ
+        mask = bknp.empty(len(sorted_arr), dtype=bool)
+        mask[0] = True
+        mask[1:] = sorted_arr[1:] != sorted_arr[:-1]
+        boundaries = bknp.flatnonzero(mask)
+        groups = bknp.split(order, boundaries[1:])
+        result = backend.kg_asarray(groups)
+    else:
+        vals, inverse = bknp.unique(arr, return_inverse=True)
+        groups = [bknp.where(inverse == i)[0] for i in range(len(vals))]
+        result = backend.kg_asarray(groups)
+    if type(arr) is _ndarray and not arr.flags.writeable:
+        _groupby_cache[a_id] = result
+    return result
 
+
+_list_cache = {}
 
 def eval_monad_list(a, backend):
     """
@@ -218,8 +364,18 @@ def eval_monad_list(a, backend):
     """
     if is_char(a):
         return str(a)
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _list_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = backend.kg_asarray([a])
+        _list_cache[a_id] = result
+        return result
     return backend.kg_asarray([a])
 
+
+_negate_cache = {}
 
 def eval_monad_negate(a, backend):
     """
@@ -234,8 +390,20 @@ def eval_monad_negate(a, backend):
                   -1.23  -->  -1.23
 
     """
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _negate_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = backend.vec_fn(a, lambda x: backend.np.negative(backend.kg_asarray(x)))
+        if type(result) is _ndarray:
+            result.flags.writeable = False
+            _negate_cache[a_id] = result
+        return result
     return backend.vec_fn(a, lambda x: backend.np.negative(backend.kg_asarray(x)))
 
+
+_not_cache = {}
 
 def eval_monad_not(a, backend):
     """
@@ -254,8 +422,20 @@ def eval_monad_not(a, backend):
     """
     def _neg(x):
         return 1 if is_empty(x) else 0 if is_dict(x) or isinstance(x, (KGFn, KGSym)) else kg_truth(bknp.logical_not(bknp.asarray(x, dtype=object)))
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _not_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = backend.vec_fn(a, _neg) if not is_empty(a) else _neg(a)
+        if type(result) is _ndarray:
+            result.flags.writeable = False
+            _not_cache[a_id] = result
+        return result
     return backend.vec_fn(a, _neg) if not is_empty(a) else _neg(a)
 
+
+_range_cache = {}
 
 def eval_monad_range(a, backend):
     """
@@ -274,16 +454,49 @@ def eval_monad_range(a, backend):
     if isinstance(a, str):
         return ''.join(bknp.unique(backend.str_to_chr_arr(a)))
     elif np_backend.isarray(a):
+        # Torch tensor fast path — avoid numpy dtype conversion issues
+        try:
+            import torch
+            if isinstance(a, torch.Tensor):
+                return torch.unique(a)
+        except ImportError:
+            pass
+        # Cache for immutable arrays
+        if type(a) is _ndarray and not a.flags.writeable:
+            a_id = id(a)
+            cached = _range_cache.get(a_id)
+            if cached is not None:
+                return cached
         dtype_kind = backend.get_dtype_kind(a)
-        if dtype_kind != 'O' and a.ndim > 1:
-            # Use numpy for unique with return_index across backends
+        if dtype_kind != 'O':
             a_np = backend.to_numpy(a) if backend.is_backend_array(a) else a
-            _, ids = bknp.unique(a_np, axis=0, return_index=True)
-            ids.sort()
-            return a[ids]
+            if a.ndim > 1:
+                _, ids = bknp.unique(a_np, axis=0, return_index=True)
+                ids.sort()
+                result = a[ids]
+            elif a.ndim == 1 and dtype_kind in ('i', 'u') and len(a) > 0:
+                # Fast path for integer arrays: use minimum.at for first-occurrence tracking
+                _min_val = int(a_np.min())
+                _max_val = int(a_np.max())
+                _val_range = _max_val - _min_val + 1
+                _n = len(a_np)
+                # Only use fast path if value range is reasonable
+                if _val_range <= max(10 * _n, 1_000_000):
+                    _first_pos = bknp.full(_val_range, _n, dtype=bknp.intp)
+                    bknp.minimum.at(_first_pos, a_np - _min_val, bknp.arange(_n))
+                    _appeared = _first_pos < _n
+                    _unique_offsets = bknp.flatnonzero(_appeared)
+                    _order = bknp.argsort(_first_pos[_unique_offsets])
+                    result = (_unique_offsets[_order] + _min_val).astype(a.dtype)
+                else:
+                    _, ids = bknp.unique(a_np, return_index=True)
+                    ids.sort()
+                    result = a[ids]
+            else:
+                _, ids = bknp.unique(a_np, return_index=True)
+                ids.sort()
+                result = a[ids]
         else:
-            # handle the jagged / mixed array case
-            # TODO: Make UNIQUE work. this feels so dirty.
             s = set()
             arr = []
             for x in a:
@@ -291,9 +504,14 @@ def eval_monad_range(a, backend):
                 if sx not in s:
                     s.add(sx)
                     arr.append(x)
-            return backend.kg_asarray(arr)
+            result = backend.kg_asarray(arr)
+        if type(a) is _ndarray and not a.flags.writeable:
+            _range_cache[id(a)] = result
+        return result
     return a
 
+
+_reciprocal_cache = {}
 
 def eval_monad_reciprocal(a, backend):
     """
@@ -313,8 +531,20 @@ def eval_monad_reciprocal(a, backend):
         a_val = backend.scalar_to_python(a) if backend.is_backend_array(a) else a
         if a_val == 0:
             return KLONG_UNDEFINED
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _reciprocal_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = backend.vec_fn(a, lambda x: bknp.reciprocal(bknp.asarray(x, dtype=float)))
+        if type(result) is _ndarray:
+            result.flags.writeable = False
+            _reciprocal_cache[a_id] = result
+        return result
     return backend.vec_fn(a, lambda x: bknp.reciprocal(bknp.asarray(x, dtype=float)))
 
+
+_reverse_cache = {}
 
 def eval_monad_reverse(a):
     """
@@ -330,8 +560,19 @@ def eval_monad_reverse(a):
                               |1  -->  1
 
     """
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _reverse_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = a[::-1]
+        result.flags.writeable = False
+        _reverse_cache[a_id] = result
+        return result
     return a[::-1]
 
+
+_shape_cache = {}
 
 def eval_monad_shape(a, backend):
     """
@@ -395,8 +636,18 @@ def eval_monad_shape(a, backend):
             for y in x
         ])
     a = _normalize_backend_array(a)
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _shape_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = 0 if is_atom(a) else bknp.asarray([len(a)]) if isinstance(a, str) else bknp.asarray(_a(a).shape)
+        _shape_cache[a_id] = result
+        return result
     return 0 if is_atom(a) else bknp.asarray([len(a)]) if isinstance(a, str) else bknp.asarray(_a(a).shape)
 
+
+_size_cache = {}
 
 def eval_monad_size(a, backend):
     """
@@ -417,8 +668,18 @@ def eval_monad_size(a, backend):
                           #0cA  -->  65
 
     """
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _size_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = len(a)
+        _size_cache[a_id] = result
+        return result
     return backend.np.abs(a) if backend.is_number(a) else ord(a) if is_char(a) else len(a)
 
+
+_transpose_cache = {}
 
 def eval_monad_transpose(a):
     """
@@ -432,6 +693,16 @@ def eval_monad_transpose(a):
                                  +[]  -->  []
 
     """
+    if type(a) is _ndarray and not a.flags.writeable:
+        a_id = id(a)
+        cached = _transpose_cache.get(a_id)
+        if cached is not None:
+            return cached
+        result = bknp.transpose(bknp.asarray(a))
+        if type(result) is _ndarray:
+            result.flags.writeable = False
+            _transpose_cache[a_id] = result
+        return result
     return bknp.transpose(bknp.asarray(a))
 
 
@@ -475,41 +746,41 @@ def eval_monad_grad(klong, a):
     return KGLambda(lambda x, fn=a, k=klong: grad_of_fn(k, fn, x))
 
 
+_cached_monad_base = {}
+
 def create_monad_functions(klong):
     backend = klong._backend
+    backend_id = id(backend)
 
-    # Simple monads that don't need backend or klong
-    simple = {
-        '@': eval_monad_atom,
-        '&': eval_monad_expand_where,
-        '*': eval_monad_first,
-        '|': eval_monad_reverse,
-        '+': eval_monad_transpose,
-        '˙': eval_monad_track,
-    }
+    base = _cached_monad_base.get(backend_id)
+    if base is None:
+        base = {
+            '@': eval_monad_atom,
+            '&': eval_monad_expand_where,
+            '*': eval_monad_first,
+            '|': eval_monad_reverse,
+            '+': eval_monad_transpose,
+            '˙': eval_monad_track,
+            ',': lambda a: eval_monad_list(a, backend),
+            ':#': lambda a: eval_monad_char(a, backend),
+            '!': lambda a: eval_monad_enumerate(a, backend),
+            '_': lambda a: eval_monad_floor(a, backend),
+            '$': lambda a: eval_monad_format(a, backend),
+            '<': lambda a: eval_monad_grade_up(a, backend),
+            '>': lambda a: eval_monad_grade_down(a, backend),
+            '=': lambda a: eval_monad_groupby(a, backend),
+            '-': lambda a: eval_monad_negate(a, backend),
+            '~': lambda a: eval_monad_not(a, backend),
+            '?': lambda a: eval_monad_range(a, backend),
+            '%': lambda a: eval_monad_reciprocal(a, backend),
+            '#': lambda a: eval_monad_size(a, backend),
+            ':_': lambda a: eval_monad_undefined(a, backend),
+            '^': lambda a: eval_monad_shape(a, backend),
+        }
+        _cached_monad_base[backend_id] = base
 
-    # Monads needing backend
-    backend_monads = {
-        ',': lambda a: eval_monad_list(a, backend),
-        ':#': lambda a: eval_monad_char(a, backend),
-        '!': lambda a: eval_monad_enumerate(a, backend),
-        '_': lambda a: eval_monad_floor(a, backend),
-        '$': lambda a: eval_monad_format(a, backend),
-        '<': lambda a: eval_monad_grade_up(a, backend),
-        '>': lambda a: eval_monad_grade_down(a, backend),
-        '=': lambda a: eval_monad_groupby(a, backend),
-        '-': lambda a: eval_monad_negate(a, backend),
-        '~': lambda a: eval_monad_not(a, backend),
-        '?': lambda a: eval_monad_range(a, backend),
-        '%': lambda a: eval_monad_reciprocal(a, backend),
-        '#': lambda a: eval_monad_size(a, backend),
-        ':_': lambda a: eval_monad_undefined(a, backend),
-        '^': lambda a: eval_monad_shape(a, backend),
-    }
-
-    # Monads needing klong
-    klong_monads = {
+    # Monads needing klong (must be per-interpreter)
+    return {
+        **base,
         '∇': lambda a: eval_monad_grad(klong, a),
     }
-
-    return {**simple, **backend_monads, **klong_monads}

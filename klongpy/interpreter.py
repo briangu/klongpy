@@ -1,5 +1,6 @@
 import time
-from collections import deque
+
+import numpy
 
 from .adverbs import get_adverb_fn
 from .backends import get_backend
@@ -14,12 +15,120 @@ from .sys_var import *
 from .utils import ReadonlyDict
 
 
+_UNEVALUATED_OPS = frozenset(['::','∇'])
+
+# Import fast dispatch tables from types (pre-resolved on KGFn at construction time)
+from .types import _FAST_SCALAR_OPS, _FAST_SCALAR_MONADS
+import itertools
+import math
+import operator as _op
+# Safe for numpy arrays (numpy handles div-by-zero via inf/nan)
+_FAST_DYAD_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '%': _op.truediv, '^': _op.pow}
+
+# Pre-resolve individual reserved symbols to avoid list indexing in hot path
+_sym_x = reserved_fn_symbols[0]
+_sym_y = reserved_fn_symbols[1]
+
+# Lazy torch detection — avoids importing torch at module level
+_torch_mod = None
+_torch_checked = False
+
+def _get_torch():
+    global _torch_mod, _torch_checked
+    if not _torch_checked:
+        try:
+            import torch
+            _torch_mod = torch
+        except ImportError:
+            _torch_mod = None
+        _torch_checked = True
+    return _torch_mod
+
+def _is_torch_tensor(a):
+    t = _get_torch()
+    return t is not None and isinstance(a, t.Tensor)
+
+# Specialized closure generators for fib-like recursive patterns
+_CMP_SYM = {'<': '<', '>': '>', '=': '=='}
+_ARITH_SYM = {'+': '+', '-': '-', '*': '*'}
+
+def _make_recursive_closure(cond_op, cond_lit, arg0_op, arg0_lit, arg1_op, arg1_lit, branch_op):
+    """Generate a specialized Python function for {:[x OP N; x; self(x OP A) BOP self(x OP B)]}."""
+    _cs = _CMP_SYM.get(cond_op)
+    _a0s = _ARITH_SYM.get(arg0_op)
+    _a1s = _ARITH_SYM.get(arg1_op)
+    _bs = _ARITH_SYM.get(branch_op)
+    if not (_cs and _a0s and _a1s and _bs):
+        return None
+    # Try iterative O(n) version for linear recurrences (vs O(2^n) recursive).
+    # Pattern: f(x) = f(x-d0) OP f(x-d1) with base f(x)=x for x < N.
+    # All parameters are pre-validated numeric literals — no injection risk.
+    if (cond_op == '<' and arg0_op == '-' and arg1_op == '-' and
+        type(arg0_lit) is int and type(arg1_lit) is int and
+        arg0_lit > 0 and arg1_lit > 0 and
+        type(cond_lit) is int and cond_lit >= max(arg0_lit, arg1_lit)):
+        d0, d1 = arg0_lit, arg1_lit
+        max_step = max(d0, d1)
+        N = cond_lit
+        _ns = {}
+        if max_step == 1:
+            # f(x) = f(x-1) OP f(x-1)
+            exec(f"def _f(x):\n if x < {N!r}:\n  return x\n b={N-1!r}\n for _ in range({N!r},x+1):\n  b=b{_bs}b\n return b", _ns)
+            return _ns['_f']
+        elif max_step == 2:
+            # Two-variable sliding window: a=f(i-2), b=f(i-1)
+            v0 = 'b' if d0 == 1 else 'a'
+            v1 = 'b' if d1 == 1 else 'a'
+            exec(f"def _f(x):\n if x < {N!r}:\n  return x\n a,b={N-2!r},{N-1!r}\n for _ in range({N!r},x+1):\n  a,b=b,{v0}{_bs}{v1}\n return b", _ns)
+            return _ns['_f']
+        else:
+            # General: list-based for max_step > 2
+            exec(f"def _f(x):\n if x < {N!r}:\n  return x\n v=list(range({N!r}))\n for i in range({N!r},x+1):\n  v.append(v[i-{d0!r}]{_bs}v[i-{d1!r}])\n return v[x]", _ns)
+            return _ns['_f']
+    # Fallback: recursive version for patterns that aren't linear recurrences
+    _ns = {}
+    exec(f"def _f(x):\n if x {_cs} {cond_lit!r}:\n  return x\n return _f(x {_a0s} {arg0_lit!r}) {_bs} _f(x {_a1s} {arg1_lit!r})", _ns)
+    return _ns['_f']
+
+# Cache which types are KGLambda subclasses to avoid repeated issubclass calls
+_kglambda_types = {KGLambda}
+_non_kglambda_types = {int, float, str, list, KGFn, KGCall, KGOp, KGAdverb, KGSym, KGCond}
+
+def _is_kglambda_type(tx):
+    if tx in _kglambda_types:
+        return True
+    if tx in _non_kglambda_types:
+        return False
+    if issubclass(tx, KGLambda):
+        _kglambda_types.add(tx)
+        return True
+    _non_kglambda_types.add(tx)
+    return False
+
+# Cache which types are numpy scalar types to avoid repeated issubclass calls
+# Pre-populate with common numpy scalar types so each-adverb loops don't fall through to call()
+_numpy_scalar_types = {
+    numpy.int64, numpy.int32, numpy.int16, numpy.int8,
+    numpy.float64, numpy.float32, numpy.float16,
+    numpy.uint64, numpy.uint32, numpy.uint16, numpy.uint8,
+    numpy.intp,
+}
+
+def _is_numpy_scalar_type(tx):
+    if tx in _numpy_scalar_types:
+        return True
+    if issubclass(tx, (numpy.integer, numpy.floating)):
+        _numpy_scalar_types.add(tx)
+        return True
+    return False
+
+
 def set_context_var(d, sym, v):
     """
     Sets a context variable, wrapping Python lambda/functions as appropriate.
     """
-    assert isinstance(sym, KGSym)
-    if callable(v) and not issubclass(type(v), KGLambda) :
+    assert type(sym) is KGSym
+    if callable(v) and type(v) not in _kglambda_types and not _is_kglambda_type(type(v)):
         x = KGLambda(v)
         v = KGCall(x,args=None,arity=x.get_arity())
     d[sym] = v
@@ -53,11 +162,17 @@ class KlongContext():
     1.99999999999999997
 
     """
+    __slots__ = ('_context', '_min_ctx_count', '_strict_mode', '_lookup_cache', '_lookup_version', '_fast_x')
 
     def __init__(self, system_contexts, strict_mode=1):
-        self._context = deque([{}, *system_contexts])
+        # Use list instead of deque for better cache locality
+        # Convention: append = push (end is innermost scope), pop = pop from end
+        self._context = [*reversed(system_contexts), {}]
+        self._lookup_cache = {}
         self._min_ctx_count = len(system_contexts)
         self._strict_mode = strict_mode
+        self._lookup_version = 0
+        self._fast_x = None
 
     def start_module(self, name):
         self.push(KGModule(name))
@@ -70,13 +185,15 @@ class KlongContext():
         return self._module
 
     def __setitem__(self, k, v):
-        assert isinstance(k, KGSym)
-
-        if k not in reserved_fn_symbols:
-            # Check if variable exists in any scope
-            for d in self._context:
-                if in_map(k, d):
+        if k not in reserved_fn_symbols_set:
+            # Check if variable exists in any scope (iterate newest to oldest)
+            for i in range(len(self._context) - 1, -1, -1):
+                d = self._context[i]
+                if k in d:
                     d[k] = v
+                    # Invalidate lookup cache for this key
+                    self._lookup_cache.pop(k, None)
+                    self._lookup_version += 1
                     return k
 
         # Variable doesn't exist - check strict mode
@@ -92,17 +209,38 @@ class KlongContext():
                     f"  To modify an existing global, ensure it exists before calling the function"
                 )
 
-        # Create new variable in current scope
-        set_context_var(self._context[0], k, v)
+        # Create new variable in current scope (end of list = innermost)
+        set_context_var(self._context[-1], k, v)
+        self._lookup_cache.pop(k, None)
+        self._lookup_version += 1
         return k
 
     def __getitem__(self, k):
-        assert isinstance(k, KGSym)
-        for d in self._context:
-            v = d.get(k)
+        # Fast path for reserved symbols (x, y, z, .f) — always in innermost scope
+        if k in reserved_fn_symbols_set or k is reserved_dot_f_symbol:
+            v = self._context[-1].get(k)
             if v is not None:
                 return v
-            if isinstance(d,KGModule):
+            # Fallback: specialized path stores x in _fast_x (no dict push)
+            if k is _sym_x:
+                v = self._fast_x
+                if v is not None:
+                    return v
+        else:
+            # Fast path: check lookup cache for non-reserved symbols
+            cached = self._lookup_cache.get(k)
+            if cached is not None:
+                return cached
+        # Iterate newest to oldest (end to start of list)
+        ctx = self._context
+        for i in range(len(ctx) - 1, -1, -1):
+            d = ctx[i]
+            v = d.get(k)
+            if v is not None:
+                if k not in reserved_fn_symbols_set and k is not reserved_dot_f_symbol:
+                    self._lookup_cache[k] = v
+                return v
+            if type(d) is KGModule:
                 if  '`' in k:
                     p = k.split('`')
                     if KGSym(p[1]) == d.name:
@@ -115,25 +253,71 @@ class KlongContext():
         raise KeyError(k)
 
     def __delitem__(self, k):
-        assert isinstance(k, KGSym)
-        for d in self._context:
-            if in_map(k, d) and not isinstance(d,ReadonlyDict):
+        ctx = self._context
+        for i in range(len(ctx) - 1, -1, -1):
+            d = ctx[i]
+            if k in d and not isinstance(d, ReadonlyDict):
                 del d[k]
+                self._lookup_cache.pop(k, None)
+                self._lookup_version += 1
                 return
         raise KeyError(k)
 
     def push(self, d):
-        self._context.appendleft(d)
+        self._context.append(d)
+        cache = self._lookup_cache
+        if cache:
+            # KGModule uses wildcard matching — must clear entire cache
+            if type(d) is KGModule:
+                cache.clear()
+                self._lookup_version += 1
+            else:
+                # Skip reserved symbols (x, y, z, .f) — they're always in innermost scope
+                # and not worth caching since they change on every function call
+                _invalidated = False
+                for k in d:
+                    if k not in reserved_fn_symbols_set and k is not reserved_dot_f_symbol:
+                        cache.pop(k, None)
+                        _invalidated = True
+                if _invalidated:
+                    self._lookup_version += 1
+
+    def push_fn_ctx(self, d):
+        """Fast push for function contexts with only reserved symbols (x/y/z/.f)."""
+        self._context.append(d)
+
+    def pop_fn_ctx(self):
+        """Fast pop for function contexts with only reserved symbols — skip cache invalidation."""
+        if len(self._context) > self._min_ctx_count:
+            self._context.pop()
 
     def pop(self):
-        return self._context.popleft() if len(self._context) > self._min_ctx_count else None
+        if len(self._context) > self._min_ctx_count:
+            r = self._context.pop()
+            cache = self._lookup_cache
+            if cache:
+                if type(r) is KGModule:
+                    cache.clear()
+                    self._lookup_version += 1
+                else:
+                    _invalidated = False
+                    for k in r:
+                        if k not in reserved_fn_symbols_set and k is not reserved_dot_f_symbol:
+                            cache.pop(k, None)
+                            _invalidated = True
+                    if _invalidated:
+                        self._lookup_version += 1
+            return r
+        return None
 
     def is_defined_sym(self, k):
-        if isinstance(k, KGSym):
-            for d in self._context:
-                if in_map(k, d):
+        if type(k) is KGSym:
+            ctx = self._context
+            for i in range(len(ctx) - 1, -1, -1):
+                d = ctx[i]
+                if k in d:
                     return True
-                if isinstance(d,KGModule) and '`' not in k:
+                if type(d) is KGModule and '`' not in k:
                     tk = k + '`'
                     for dk in d.keys():
                         if dk.startswith(tk):
@@ -142,7 +326,9 @@ class KlongContext():
 
     def __iter__(self):
         seen = set()
-        for d in self._context:
+        ctx = self._context
+        for i in range(len(ctx) - 1, -1, -1):
+            d = ctx[i]
             for x in d.items():
                 if x[0] not in seen:
                     yield x
@@ -154,10 +340,35 @@ def add_context_key_values(d, context):
         set_context_var(d, KGSym(k), fn)
 
 
+_cached_sys_d = None
+_cached_sys_var = None
+_io_sym_cin = KGSym('.cin')
+_io_sym_cout = KGSym('.cout')
+_io_sym_cerr = KGSym('.cerr')
+_io_sym_sys_cin = KGSym('.sys.cin')
+_io_sym_sys_cout = KGSym('.sys.cout')
+_io_sym_sys_cerr = KGSym('.sys.cerr')
+
 def create_system_contexts():
+    global _cached_sys_d, _cached_sys_var
+
     cin = eval_sys_var_cin()
     cout = eval_sys_var_cout()
     cerr = eval_sys_var_cerr()
+
+    if _cached_sys_d is not None:
+        # Reuse pre-built KGLambda/KGCall objects, just update I/O channels
+        sys_d = dict(_cached_sys_d)
+        sys_d[_io_sym_cin] = cin
+        sys_d[_io_sym_cout] = cout
+        sys_d[_io_sym_cerr] = cerr
+
+        sys_var = dict(_cached_sys_var)
+        sys_var[_io_sym_sys_cin] = cin
+        sys_var[_io_sym_sys_cout] = cout
+        sys_var[_io_sym_sys_cerr] = cerr
+
+        return [sys_var, ReadonlyDict(sys_d)]
 
     sys_d = {}
     add_context_key_values(sys_d, create_system_functions())
@@ -165,17 +376,1768 @@ def create_system_contexts():
     add_context_key_values(sys_d, create_system_functions_ipc())
     add_context_key_values(sys_d, create_system_functions_timer())
     set_context_var(sys_d, KGSym('.e'), eval_sys_var_epsilon()) # TODO: support lambda
-    set_context_var(sys_d, KGSym('.cin'), cin)
-    set_context_var(sys_d, KGSym('.cout'), cout)
-    set_context_var(sys_d, KGSym('.cerr'), cerr)
+    set_context_var(sys_d, _io_sym_cin, cin)
+    set_context_var(sys_d, _io_sym_cout, cout)
+    set_context_var(sys_d, _io_sym_cerr, cerr)
 
     sys_var = {}
     add_context_key_values(sys_var, create_system_var_ipc())
-    set_context_var(sys_var, KGSym('.sys.cin'), cin)
-    set_context_var(sys_var, KGSym('.sys.cout'), cout)
-    set_context_var(sys_var, KGSym('.sys.cerr'), cerr)
+    set_context_var(sys_var, _io_sym_sys_cin, cin)
+    set_context_var(sys_var, _io_sym_sys_cout, cout)
+    set_context_var(sys_var, _io_sym_sys_cerr, cerr)
+
+    # Cache for subsequent interpreter creations
+    _cached_sys_d = dict(sys_d)
+    _cached_sys_var = dict(sys_var)
 
     return [sys_var, ReadonlyDict(sys_d)]
+
+
+_KLONG_OP_TO_PY = {'+': '+', '-': '-', '*': '*', '%': '/', '>': '>', '<': '<', '=': '==', '^': '**'}
+
+# Monad ops are handled in _compile_arg_fn (not source) to use correct klong semantics
+
+# Adverb reduction/scan ops that can be compiled to numpy source
+_KLONG_REDUCE_TO_PY = {'+': '_np.sum', '*': '_np.prod', '|': '_np.max', '&': '_np.min'}
+_KLONG_SCAN_TO_PY = {'+': '_cumsum', '*': '_cumprod', '|': '_running_max', '&': '_running_min'}
+
+# Efficient rank: argsort + inverse permutation (O(n) instead of O(n log n) for second argsort)
+def _rank(a):
+    # cffi counting rank: O(n+range) for integer arrays with bounded range
+    if type(a) is numpy.ndarray and a.ndim == 1:
+        dk = a.dtype.kind
+        if dk == 'i' or dk == 'u':
+            n = len(a)
+            if n >= 1000:
+                mn_i, mx_i = _cffi_minmax_i64(a) if a.dtype == numpy.int64 else (int(a.min()), int(a.max()))
+                val_range = mx_i - mn_i + 1
+                if val_range <= 2 * n:
+                    utils = _get_cffi_utils()
+                    if utils is not None:
+                        ffi, lib = utils
+                        a64 = a if a.dtype == numpy.int64 else a.astype(numpy.int64)
+                        out = numpy.empty(n, dtype=numpy.int64)
+                        lib.cffi_counting_rank(
+                            ffi.cast('const int64_t*', a64.ctypes.data),
+                            ffi.cast('int64_t*', out.ctypes.data),
+                            n, mn_i, val_range)
+                        return out
+    idx = _argsort(a)
+    n = len(idx)
+    # cffi inverse permutation is faster than numpy fancy indexing for large arrays
+    utils = _get_cffi_utils()
+    if utils is not None and idx.dtype == numpy.int64:
+        ffi, lib = utils
+        rank = numpy.empty(n, dtype=numpy.int64)
+        lib.cffi_inverse_perm(ffi.cast('const int64_t*', idx.ctypes.data),
+                              ffi.cast('int64_t*', rank.ctypes.data), n)
+        return rank
+    rank = numpy.empty(n, dtype=numpy.intp)
+    rank[idx] = numpy.arange(n)
+    return rank
+
+# BLAS-optimized dot-sum: np.dot for 1D arrays, np.sum(a*b) fallback for higher dims
+def _dotsum(a, b):
+    return numpy.dot(a, b) if a.ndim == 1 else numpy.sum(a * b)
+
+# Persistent thread pool for parallel argsort (lazy-initialized)
+_argsort_pool = None
+
+def _merge_sorted_indices(a, idx1, idx2, pool):
+    """Merge two sorted index arrays using stable argsort."""
+    combined = numpy.concatenate([idx1, idx2])
+    order = numpy.argsort(a[combined], kind='stable')
+    return combined[order]
+
+def _bucket_find_and_sort(a, bucket_ids, b, bucket_min, use_u16):
+    """Find indices in bucket b and sort them by values in a."""
+    indices = numpy.flatnonzero(bucket_ids == b)
+    if len(indices) <= 1:
+        return indices
+    if use_u16:
+        # uint16 triggers numpy's radix sort: O(n) instead of O(n log n)
+        rel_vals = (a[indices] - bucket_min).astype(numpy.uint16)
+        return indices[numpy.argsort(rel_vals, kind='stable')]
+    return indices[numpy.argsort(a[indices])]
+
+def _bucket_sort_precomputed(low16, bucket_ids, b, buf_size=0):
+    """Sort bucket b using pre-computed uint16 relative values."""
+    nn = len(bucket_ids)
+    # cffi fused find+gather+sort for large arrays
+    if nn >= 100_000:
+        utils = _get_cffi_utils()
+        if utils is not None:
+            ffi, lib = utils
+            alloc_n = buf_size if buf_size > 0 else nn
+            buf = numpy.empty(alloc_n, dtype=numpy.int64)
+            k = lib.cffi_bucket_argsort(
+                ffi.cast('const uint8_t*', bucket_ids.ctypes.data),
+                ffi.cast('const uint16_t*', low16.ctypes.data),
+                ffi.cast('int64_t*', buf.ctypes.data), nn, b)
+            if k >= alloc_n:
+                buf = numpy.empty(nn, dtype=numpy.int64)
+                k = lib.cffi_bucket_argsort(
+                    ffi.cast('const uint8_t*', bucket_ids.ctypes.data),
+                    ffi.cast('const uint16_t*', low16.ctypes.data),
+                    ffi.cast('int64_t*', buf.ctypes.data), nn, b)
+            return buf[:k]
+    indices = numpy.flatnonzero(bucket_ids == b)
+    n = len(indices)
+    if n <= 1:
+        return indices
+    keys = low16[indices]
+    if n >= 5000:
+        utils = _get_cffi_utils()
+        if utils is not None:
+            ffi, lib = utils
+            idx64 = indices if indices.dtype == numpy.int64 else indices.astype(numpy.int64)
+            out = numpy.empty(n, dtype=numpy.int64)
+            lib.cffi_counting_argsort_u16(
+                ffi.cast('const uint16_t*', keys.ctypes.data), n,
+                ffi.cast('const int64_t*', idx64.ctypes.data),
+                ffi.cast('int64_t*', out.ctypes.data))
+            return out
+    return indices[numpy.argsort(keys, kind='stable')]
+
+
+def _bucket_sort_values(a, low16, bucket_ids, b):
+    """Sort bucket b and return sorted values directly (avoids index gather)."""
+    indices = numpy.flatnonzero(bucket_ids == b)
+    if len(indices) <= 1:
+        return a[indices]
+    order = numpy.argsort(low16[indices], kind='stable')
+    return a[indices[order]]
+
+
+def _argsort(a):
+    """Fast argsort: cffi counting sort for small int, bucket sort for large int, parallel merge for floats."""
+    if type(a) is numpy.ndarray:
+        n = len(a)
+        dk = a.dtype.kind
+        # Pre-computed min/max from counting sort check (avoids redundant scan in bucket sort)
+        _pre_mn = _pre_mx = None
+        # cffi counting argsort for integer arrays with L1-friendly range
+        # Count array = range × 4 bytes; use counting sort only when it fits in L1 (~128KB → range ≤ 32K)
+        # Larger ranges use bucket sort below (parallel threads with L1-friendly per-bucket radix)
+        if (dk == 'i' or dk == 'u') and n >= 1_000:
+            utils = _get_cffi_utils()
+            if utils is not None:
+                mn, mx = _cffi_minmax_i64(a) if a.dtype == numpy.int64 else (int(a.min()), int(a.max()))
+                val_range = mx - mn + 1
+                if val_range <= 2 * n and val_range <= 32_000:
+                    ffi, lib = utils
+                    out = numpy.empty(n, dtype=numpy.int64)
+                    if a.dtype == numpy.int64:
+                        lib.cffi_counting_argsort_i64(
+                            ffi.cast('const int64_t*', a.ctypes.data),
+                            ffi.cast('int64_t*', out.ctypes.data),
+                            n, mn, val_range)
+                    else:
+                        a32 = a.astype(numpy.int32) if a.dtype != numpy.int32 else a
+                        lib.cffi_counting_argsort(
+                            ffi.cast('const int32_t*', a32.ctypes.data),
+                            ffi.cast('int64_t*', out.ctypes.data),
+                            n, numpy.int32(mn), val_range)
+                    return out
+                # Save min/max for bucket sort to avoid redundant computation
+                _pre_mn, _pre_mx = mn, mx
+        if n >= 10_000:
+            global _argsort_pool
+            if _argsort_pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _argsort_pool = ThreadPoolExecutor(max_workers=16)
+            # Bucket argsort for integer arrays: fused flatnonzero+sort per bucket in parallel
+            if dk == 'i' or dk == 'u':
+                if _pre_mn is not None:
+                    mn, mx = _pre_mn, _pre_mx
+                elif n >= 250_000:
+                    f_mn = _argsort_pool.submit(a.min)
+                    f_mx = _argsort_pool.submit(a.max)
+                    mn, mx = int(f_mn.result()), int(f_mx.result())
+                else:
+                    mn, mx = int(a.min()), int(a.max())
+                val_range = mx - mn
+                # Adaptive shift: start at 16, decrease to get at least 4 buckets
+                shift = 16
+                nbuckets = (val_range >> shift) + 1
+                while nbuckets < 4 and shift > 12:
+                    shift -= 1
+                    nbuckets = (val_range >> shift) + 1
+                # Cap buckets to avoid excessive overhead; fall back to division if too many
+                if nbuckets <= 32:
+                    # cffi fused bucket prep: single C pass for bucket_ids + low16 (no int32 cast)
+                    if a.dtype == numpy.int64:
+                        utils = _get_cffi_utils()
+                        if utils is not None:
+                            ffi, lib = utils
+                            bucket_ids = numpy.empty(n, dtype=numpy.uint8)
+                            low16 = numpy.empty(n, dtype=numpy.uint16)
+                            lib.cffi_bucket_prep_i64(
+                                ffi.cast('const int64_t*', a.ctypes.data),
+                                ffi.cast('uint8_t*', bucket_ids.ctypes.data),
+                                ffi.cast('uint16_t*', low16.ctypes.data),
+                                n, mn, shift)
+                            est = 2 * n // nbuckets + 2
+                            futures = [_argsort_pool.submit(_bucket_sort_precomputed, low16, bucket_ids, b, est) for b in range(nbuckets)]
+                            result = numpy.empty(n, dtype=numpy.int64)
+                            pos = 0
+                            for f in futures:
+                                chunk = f.result()
+                                k = len(chunk)
+                                result[pos:pos + k] = chunk
+                                pos += k
+                            return result
+                    # Numpy fallback (int32 or no cffi)
+                    if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
+                        a = a.astype(numpy.int32)
+                    shifted = a - mn
+                    bucket_ids = (shifted >> shift).astype(numpy.uint8)
+                    if shift == 16:
+                        low16 = shifted.astype(numpy.uint16)
+                    else:
+                        low16 = (shifted & ((1 << shift) - 1)).astype(numpy.uint16)
+                    est = 2 * n // nbuckets + 2 if n >= 100_000 else 0
+                    futures = [_argsort_pool.submit(_bucket_sort_precomputed, low16, bucket_ids, b, est) for b in range(nbuckets)]
+                else:
+                    if a.dtype == numpy.int64 and mn >= -2147483648 and mx <= 2147483647:
+                        a = a.astype(numpy.int32)
+                    nbuckets = 16 if n >= 250_000 else 8
+                    bucket_size = val_range // nbuckets + 1
+                    use_u16 = bucket_size <= 65536
+                    bucket_ids = ((a - mn) // bucket_size).astype(numpy.uint8)
+                    futures = [_argsort_pool.submit(_bucket_find_and_sort, a, bucket_ids, b, mn + b * bucket_size, use_u16) for b in range(nbuckets)]
+                result = numpy.empty(n, dtype=numpy.int64)
+                pos = 0
+                for f in futures:
+                    chunk = f.result()
+                    k = len(chunk)
+                    result[pos:pos + k] = chunk
+                    pos += k
+                return result
+            # Float/other: parallel merge sort with hierarchical merge
+            nways = 8 if n >= 250_000 else 4
+            chunk = n // nways
+            slices = [(i * chunk, (i + 1) * chunk if i < nways - 1 else n) for i in range(nways)]
+            futures = [_argsort_pool.submit(numpy.argsort, a[s:e]) for s, e in slices]
+            sorted_indices = [f.result() + s for f, (s, e) in zip(futures, slices)]
+            while len(sorted_indices) > 1:
+                next_level = []
+                merge_futures = []
+                for i in range(0, len(sorted_indices), 2):
+                    if i + 1 < len(sorted_indices):
+                        merge_futures.append((len(next_level), _argsort_pool.submit(
+                            _merge_sorted_indices, a, sorted_indices[i], sorted_indices[i + 1], _argsort_pool)))
+                        next_level.append(None)
+                    else:
+                        next_level.append(sorted_indices[i])
+                for pos, f in merge_futures:
+                    next_level[pos] = f.result()
+                sorted_indices = next_level
+            return sorted_indices[0]
+    return numpy.argsort(a)
+
+# Fast sort: counting sort for small ranges, argsort-based for large arrays
+def _fast_sort(a):
+    if type(a) is numpy.ndarray and len(a) >= 1000:
+        dk = a.dtype.kind
+        if dk == 'i' or dk == 'u':
+            n = len(a)
+            mn_i, mx_i = _cffi_minmax_i64(a) if a.dtype == numpy.int64 else (int(a.min()), int(a.max()))
+            val_range = mx_i - mn_i + 1
+            # cffi counting sort for small/medium integer arrays with bounded range
+            if val_range <= 2 * n and n <= 500_000:
+                utils = _get_cffi_utils()
+                if utils is not None:
+                    ffi, lib = utils
+                    a64 = a if a.dtype == numpy.int64 else a.astype(numpy.int64)
+                    out = numpy.empty(n, dtype=numpy.int64)
+                    lib.cffi_counting_sort_values(
+                        ffi.cast('const int64_t*', a64.ctypes.data),
+                        ffi.cast('int64_t*', out.ctypes.data),
+                        n, mn_i, val_range)
+                    return out
+            if mn_i >= 0:
+                if val_range <= 10 * n:
+                    # For large arrays with wide ranges, direct bucket value sort
+                    if n >= 50_000 and val_range >= n // 2:
+                        global _argsort_pool
+                        if _argsort_pool is None:
+                            from concurrent.futures import ThreadPoolExecutor
+                            _argsort_pool = ThreadPoolExecutor(max_workers=16)
+                        if a.dtype == numpy.int64 and mn_i >= -2147483648 and mx_i <= 2147483647:
+                            a = a.astype(numpy.int32)
+                        shifted = a - mn_i
+                        shift = 16
+                        nbuckets = (val_range >> shift) + 1
+                        while nbuckets < 4 and shift > 12:
+                            shift -= 1
+                            nbuckets = (val_range >> shift) + 1
+                        bucket_ids = (shifted >> shift).astype(numpy.uint8)
+                        if shift == 16:
+                            low16 = shifted.astype(numpy.uint16)
+                        else:
+                            low16 = (shifted & ((1 << shift) - 1)).astype(numpy.uint16)
+                        futures = [_argsort_pool.submit(_bucket_sort_values, a, low16, bucket_ids, b) for b in range(nbuckets)]
+                        return numpy.concatenate([f.result() for f in futures])
+                    counts = numpy.bincount(a.ravel())
+                    return numpy.repeat(numpy.arange(len(counts), dtype=a.dtype), counts)
+    return numpy.sort(a)
+
+def _add_prefix(ls, p):
+    return ls + p
+
+def _prefix_scan_linear(x, c_x, c_y):
+    """Affine recurrence y[n] = c_x * y[n-1] + c_y * x[n].
+
+    cffi sequential C loop when available (fastest for all sizes).
+    Fallback: Hillis-Steele parallel prefix with early termination.
+    """
+    n = len(x)
+    # cffi sequential scan: single fused C loop, O(n), no intermediate arrays
+    if type(x) is numpy.ndarray:
+        utils = _get_cffi_utils()
+        if utils is not None:
+            ffi, lib = utils
+            xf = x if x.dtype == numpy.float64 else x.astype(numpy.float64)
+            out = numpy.empty(n, dtype=numpy.float64)
+            lib.cffi_linear_scan(ffi.from_buffer('double[]', xf),
+                                 ffi.from_buffer('double[]', out), n, c_x, c_y)
+            return out
+    # Initial transforms: z[0] = (0, x[0]), z[i>0] = (c_x, c_y * x[i])
+    a_arr = numpy.full(n, c_x)
+    a_arr[0] = 0.0
+    b_arr = numpy.empty(n)
+    b_arr[0] = x[0]
+    numpy.multiply(c_y, x[1:], out=b_arr[1:])
+    # Pre-allocate temp buffers to avoid allocation in inner loop
+    _tmp_ab = numpy.empty(n)
+    _tmp_aa = numpy.empty(n)
+    # Compute max useful passes: c_x^(2^p) < 2^-52 when |c_x| < 1
+    abs_cx = abs(c_x)
+    if 0 < abs_cx < 1.0:
+        max_passes = int(math.ceil(math.log2(max(1, 52 / (-math.log2(abs_cx)))))) + 1
+    else:
+        max_passes = 64  # no early termination
+    # Hillis-Steele prefix scan with composition: (a2, b2) o (a1, b1) = (a2*a1, a2*b1 + b2)
+    d = 1
+    pass_num = 0
+    while d < n and pass_num < max_passes:
+        k = n - d
+        # Compute both products into temps before modifying a_arr or b_arr
+        numpy.multiply(a_arr[d:d+k], b_arr[:k], out=_tmp_ab[:k])
+        numpy.multiply(a_arr[d:d+k], a_arr[:k], out=_tmp_aa[:k])
+        b_arr[d:d+k] += _tmp_ab[:k]
+        a_arr[d:d+k] = _tmp_aa[:k]
+        d *= 2
+        pass_num += 1
+    return b_arr
+
+def _cffi_cumsum_chunk(a_slice, out_slice, ffi, lib):
+    lib.cffi_cumsum(ffi.from_buffer('double[]', a_slice),
+                    ffi.from_buffer('double[]', out_slice), len(a_slice))
+
+def _cumsum(a):
+    """Cumulative sum: hybrid cffi+parallel for large float64, cffi serial for small."""
+    global _argsort_pool
+    if type(a) is numpy.ndarray:
+        if a.dtype == numpy.float64:
+            utils = _get_cffi_utils()
+            if utils is not None:
+                ffi, lib = utils
+                n = len(a)
+                if n >= 250_000:
+                    # Hybrid: parallel cffi per chunk + parallel prefix propagation
+                    if _argsort_pool is None:
+                        from concurrent.futures import ThreadPoolExecutor
+                        _argsort_pool = ThreadPoolExecutor(max_workers=16)
+                    nchunks = 4
+                    chunk = n // nchunks
+                    slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+                    out = numpy.empty(n, dtype=numpy.float64)
+                    futures = [_argsort_pool.submit(_cffi_cumsum_chunk, a[s:e], out[s:e], ffi, lib) for s, e in slices]
+                    for f in futures: f.result()
+                    # Compute cumulative adjustments and propagate sequentially
+                    running = 0.0
+                    adjs = []
+                    for i in range(nchunks - 1):
+                        running += out[slices[i][1] - 1]
+                        adjs.append(running)
+                    for i in range(nchunks - 1):
+                        out[slices[i+1][0]:slices[i+1][1]] += adjs[i]
+                    return out
+                out = numpy.empty(n, dtype=numpy.float64)
+                lib.cffi_cumsum(ffi.from_buffer('double[]', a),
+                                ffi.from_buffer('double[]', out), n)
+                return out
+        if len(a) >= 100_000:
+            n = len(a)
+            nchunks = 8
+            chunk = n // nchunks
+            slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+            if _argsort_pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _argsort_pool = ThreadPoolExecutor(max_workers=16)
+            futures = [_argsort_pool.submit(numpy.cumsum, a[s:e]) for s, e in slices]
+            local_sums = [f.result() for f in futures]
+            out = numpy.empty(n, dtype=a.dtype)
+            out[slices[0][0]:slices[0][1]] = local_sums[0]
+            prefixes = numpy.cumsum([ls[-1] for ls in local_sums[:-1]])
+            for i in range(len(prefixes)):
+                numpy.add(local_sums[i + 1], prefixes[i], out=out[slices[i + 1][0]:slices[i + 1][1]])
+            return out
+    return numpy.cumsum(a)
+
+def _cumprod(a):
+    """Cumulative product: cffi for float64, parallel numpy fallback for large non-float64."""
+    if type(a) is numpy.ndarray:
+        if a.dtype == numpy.float64:
+            utils = _get_cffi_utils()
+            if utils is not None:
+                ffi, lib = utils
+                out = numpy.empty(len(a), dtype=numpy.float64)
+                lib.cffi_cumprod(ffi.from_buffer('double[]', a),
+                                 ffi.from_buffer('double[]', out), len(a))
+                return out
+        if len(a) >= 50_000:
+            n = len(a)
+            nchunks = 4
+            chunk = n // nchunks
+            slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+            global _argsort_pool
+            if _argsort_pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _argsort_pool = ThreadPoolExecutor(max_workers=16)
+            futures = [_argsort_pool.submit(numpy.cumprod, a[s:e]) for s, e in slices]
+            local = [f.result() for f in futures]
+            out = numpy.empty(n, dtype=a.dtype)
+            out[slices[0][0]:slices[0][1]] = local[0]
+            prefixes = numpy.cumprod([ls[-1] for ls in local[:-1]])
+            for i in range(1, nchunks):
+                s, e = slices[i]
+                numpy.multiply(local[i], prefixes[i - 1], out=out[s:e])
+            return out
+    return numpy.cumprod(a)
+
+def _running_max(a):
+    """Running max: cffi for float64, parallel numpy fallback."""
+    if type(a) is numpy.ndarray:
+        # cffi path: single fused C loop (faster than parallel numpy for sequential deps)
+        if a.dtype == numpy.float64:
+            utils = _get_cffi_utils()
+            if utils is not None:
+                ffi, lib = utils
+                out = numpy.empty(len(a), dtype=numpy.float64)
+                lib.cffi_running_max(ffi.from_buffer('double[]', a),
+                                     ffi.from_buffer('double[]', out), len(a))
+                return out
+        if len(a) >= 50_000:
+            n = len(a)
+            nchunks = 4
+            chunk = n // nchunks
+            slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+            global _argsort_pool
+            if _argsort_pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _argsort_pool = ThreadPoolExecutor(max_workers=16)
+            futures = [_argsort_pool.submit(numpy.maximum.accumulate, a[s:e]) for s, e in slices]
+            local = [f.result() for f in futures]
+            out = numpy.empty(n, dtype=a.dtype)
+            out[slices[0][0]:slices[0][1]] = local[0]
+            prefix_maxes = numpy.maximum.accumulate([ls[-1] for ls in local[:-1]])
+            for i in range(1, nchunks):
+                s, e = slices[i]
+                numpy.maximum(local[i], prefix_maxes[i - 1], out=out[s:e])
+            return out
+    if _is_torch_tensor(a):
+        return _get_torch().cummax(a, dim=0).values
+    return numpy.maximum.accumulate(a)
+
+def _running_min(a):
+    """Running min: cffi for float64, parallel numpy fallback."""
+    if type(a) is numpy.ndarray:
+        if a.dtype == numpy.float64:
+            utils = _get_cffi_utils()
+            if utils is not None:
+                ffi, lib = utils
+                out = numpy.empty(len(a), dtype=numpy.float64)
+                lib.cffi_running_min(ffi.from_buffer('double[]', a),
+                                     ffi.from_buffer('double[]', out), len(a))
+                return out
+        if len(a) >= 50_000:
+            n = len(a)
+            nchunks = 4
+            chunk = n // nchunks
+            slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+            global _argsort_pool
+            if _argsort_pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                _argsort_pool = ThreadPoolExecutor(max_workers=16)
+            futures = [_argsort_pool.submit(numpy.minimum.accumulate, a[s:e]) for s, e in slices]
+            local = [f.result() for f in futures]
+            out = numpy.empty(n, dtype=a.dtype)
+            out[slices[0][0]:slices[0][1]] = local[0]
+            prefix_mins = numpy.minimum.accumulate([ls[-1] for ls in local[:-1]])
+            for i in range(1, nchunks):
+                s, e = slices[i]
+                numpy.minimum(local[i], prefix_mins[i - 1], out=out[s:e])
+            return out
+    if _is_torch_tensor(a):
+        return _get_torch().cummin(a, dim=0).values
+    return numpy.minimum.accumulate(a)
+
+def _flatnonzero_chunk(mask, s, e):
+    idx = numpy.flatnonzero(mask[s:e])
+    idx += s  # in-place add avoids creating new array
+    return idx
+
+def _flatnonzero(a):
+    """Parallel flatnonzero for large boolean/integer arrays."""
+    if type(a) is numpy.ndarray and len(a) >= 100_000:
+        n = len(a)
+        nchunks = 4
+        chunk = n // nchunks
+        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+        global _argsort_pool
+        if _argsort_pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            _argsort_pool = ThreadPoolExecutor(max_workers=16)
+        futures = [_argsort_pool.submit(_flatnonzero_chunk, a, s, e) for s, e in slices]
+        return numpy.concatenate([f.result() for f in futures])
+    if _is_torch_tensor(a):
+        return _get_torch().nonzero(a, as_tuple=False).flatten()
+    return numpy.flatnonzero(a)
+
+_CMP_FNS = {'<': numpy.less, '>': numpy.greater, '==': numpy.equal}
+# Python operator versions work on both numpy arrays and torch tensors
+_OP_CMP_FNS = {'<': _op.lt, '>': _op.gt, '==': _op.eq}
+_CFFI_WHERE_FNS = {'>': 'cffi_where_gt', '<': 'cffi_where_lt', '==': 'cffi_where_eq'}
+_CFFI_FILTER_FNS = {'>': 'cffi_filter_gt', '<': 'cffi_filter_lt', '==': 'cffi_filter_eq'}
+
+def _fused_where_chunk(a, cmp_fn, val, s, e):
+    idx = numpy.flatnonzero(cmp_fn(a[s:e], val))
+    idx += s  # in-place add avoids creating new array
+    return idx
+
+def _fused_where(a, cmp_op, val):
+    """Fused comparison + flatnonzero: single cffi for float64, parallel numpy fallback."""
+    global _argsort_pool
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64 and len(a) >= 100_000:
+        utils = _get_cffi_utils()
+        if utils is not None and cmp_op in _CFFI_WHERE_FNS:
+            ffi, lib = utils
+            n = len(a)
+            out = numpy.empty(n, dtype=numpy.int64)
+            cfn = getattr(lib, _CFFI_WHERE_FNS[cmp_op])
+            k = cfn(ffi.from_buffer('double[]', a), ffi.cast('int64_t*', out.ctypes.data), n, float(val))
+            return out[:k]
+    cmp_fn = _CMP_FNS[cmp_op]
+    if type(a) is numpy.ndarray and len(a) >= 100_000:
+        n = len(a)
+        nchunks = 4
+        chunk = n // nchunks
+        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+        if _argsort_pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            _argsort_pool = ThreadPoolExecutor(max_workers=16)
+        futures = [_argsort_pool.submit(_fused_where_chunk, a, cmp_fn, val, s, e) for s, e in slices]
+        return numpy.concatenate([f.result() for f in futures])
+    if _is_torch_tensor(a):
+        t = _get_torch()
+        op_cmp = _OP_CMP_FNS[cmp_op]
+        return t.nonzero(op_cmp(a, val), as_tuple=False).flatten()
+    return numpy.flatnonzero(cmp_fn(a, val))
+
+def _fused_filter_chunk(a, cmp_fn, val, s, e):
+    chunk = a[s:e]
+    idx = numpy.flatnonzero(cmp_fn(chunk, val))
+    return chunk[idx]
+
+def _fused_filter(a, cmp_op, val):
+    """Fused comparison + filter: single cffi for float64, parallel numpy fallback."""
+    global _argsort_pool
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64 and len(a) >= 100_000:
+        utils = _get_cffi_utils()
+        if utils is not None and cmp_op in _CFFI_FILTER_FNS:
+            ffi, lib = utils
+            n = len(a)
+            out = numpy.empty(n, dtype=numpy.float64)
+            cfn = getattr(lib, _CFFI_FILTER_FNS[cmp_op])
+            k = cfn(ffi.from_buffer('double[]', a), ffi.from_buffer('double[]', out), n, float(val))
+            return out[:k]
+    cmp_fn = _CMP_FNS[cmp_op]
+    if type(a) is numpy.ndarray and len(a) >= 100_000:
+        n = len(a)
+        nchunks = 6 if n >= 750_000 else 4
+        chunk = n // nchunks
+        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+        if _argsort_pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            _argsort_pool = ThreadPoolExecutor(max_workers=16)
+        futures = [_argsort_pool.submit(_fused_filter_chunk, a, cmp_fn, val, s, e) for s, e in slices]
+        return numpy.concatenate([f.result() for f in futures])
+    if _is_torch_tensor(a):
+        op_cmp = _OP_CMP_FNS[cmp_op]
+        return a[op_cmp(a, val)]
+    idx = numpy.flatnonzero(cmp_fn(a, val))
+    return a[idx]
+
+def _fused_count_chunk(a, cmp_fn, val, s, e):
+    return numpy.count_nonzero(cmp_fn(a[s:e], val))
+
+def _fused_count(a, cmp_op, val):
+    """Fused comparison + count: cffi single-pass for float64, parallel numpy fallback."""
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64:
+        utils = _get_cffi_utils()
+        if utils is not None:
+            ffi, lib = utils
+            fn_name = _CFFI_COUNT_FNS.get(cmp_op)
+            if fn_name is not None:
+                cfn = getattr(lib, fn_name)
+                return cfn(ffi.from_buffer('double[]', a), float(val), len(a))
+    cmp_fn = _CMP_FNS[cmp_op]
+    if type(a) is numpy.ndarray and len(a) >= 100_000:
+        n = len(a)
+        nchunks = 4
+        chunk = n // nchunks
+        slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+        global _argsort_pool
+        if _argsort_pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            _argsort_pool = ThreadPoolExecutor(max_workers=16)
+        futures = [_argsort_pool.submit(_fused_count_chunk, a, cmp_fn, val, s, e) for s, e in slices]
+        return sum(f.result() for f in futures)
+    if _is_torch_tensor(a):
+        op_cmp = _OP_CMP_FNS[cmp_op]
+        return int(op_cmp(a, val).sum().item())
+    return int(numpy.count_nonzero(cmp_fn(a, val)))
+
+def _unique(a):
+    """Fast unique preserving first-occurrence order for integer arrays."""
+    if _is_torch_tensor(a):
+        t = _get_torch()
+        return t.unique(a)
+    if type(a) is numpy.ndarray and a.ndim == 1:
+        dk = a.dtype.kind
+        if dk == 'i' or dk == 'u':
+            n = len(a)
+            if n > 0:
+                mn, mx = _cffi_minmax_i64(a) if a.dtype == numpy.int64 else (int(a.min()), int(a.max()))
+                val_range = mx - mn + 1
+                if val_range <= max(10 * n, 1_000_000):
+                    utils = _get_cffi_utils()
+                    if utils is not None:
+                        ffi, lib = utils
+                        a64 = a if a.dtype == numpy.int64 else a.astype(numpy.int64)
+                        out = numpy.empty(val_range, dtype=numpy.int64)
+                        k = lib.cffi_unique_int(
+                            ffi.cast('const int64_t*', a64.ctypes.data),
+                            ffi.cast('int64_t*', out.ctypes.data),
+                            n, mn, val_range)
+                        return out[:k].astype(a.dtype)
+                    first_pos = numpy.full(val_range, n, dtype=numpy.intp)
+                    numpy.minimum.at(first_pos, a - mn, numpy.arange(n))
+                    appeared = first_pos < n
+                    unique_offsets = numpy.flatnonzero(appeared)
+                    order = numpy.argsort(first_pos[unique_offsets])
+                    return (unique_offsets[order] + mn).astype(a.dtype)
+        _, ids = numpy.unique(a, return_index=True)
+        ids.sort()
+        return a[ids]
+    return a
+
+# Names of non-element-wise functions in compiled expressions
+_NON_ELEMENTWISE_NAMES = frozenset([
+    '_argsort', '_fast_sort', '_rank', '_cumsum', '_cumprod',
+    '_running_max', '_running_min', '_flatnonzero',
+    '_fused_where', '_fused_filter', '_fused_count', '_unique', '_dotsum',
+])
+
+import re
+_NON_ELEMENTWISE_RE = re.compile(r'_(?!v\d)')  # _ not followed by variable pattern
+
+def _is_elementwise_source(src):
+    """Check if compiled expression source is purely element-wise (safe for parallel chunking)."""
+    return '[' not in src and not _NON_ELEMENTWISE_RE.search(src)
+
+# cffi JIT for fused element-wise evaluation
+_cffi_cache = {}
+_cffi_mod = None
+_cffi_checked = False
+
+def _get_cffi():
+    global _cffi_mod, _cffi_checked
+    if not _cffi_checked:
+        _cffi_checked = True
+        try:
+            import cffi
+            _cffi_mod = cffi
+        except ImportError:
+            pass
+    return _cffi_mod
+
+def _python_expr_to_c(src, nvars, scalars=None):
+    """Convert Python arithmetic expression to C with array indexing.
+    scalars: optional set of variable names to emit as-is (not array-indexed).
+    """
+    import ast
+    tree = ast.parse(src, mode='eval')
+    class CGen(ast.NodeVisitor):
+        def visit_Expression(self, node):
+            return self.visit(node.body)
+        def visit_BinOp(self, node):
+            left = self.visit(node.left)
+            right = self.visit(node.right)
+            if isinstance(node.op, ast.Pow):
+                return f'pow({left},{right})'
+            op_map = {ast.Add: '+', ast.Sub: '-', ast.Mult: '*', ast.Div: '/'}
+            op_str = op_map.get(type(node.op))
+            if op_str is None:
+                raise ValueError(type(node.op).__name__)
+            return f'({left}{op_str}{right})'
+        def visit_Compare(self, node):
+            if len(node.ops) != 1 or len(node.comparators) != 1:
+                raise ValueError('multi-compare')
+            left = self.visit(node.left)
+            right = self.visit(node.comparators[0])
+            cmp_map = {ast.Lt: '<', ast.Gt: '>', ast.LtE: '<=', ast.GtE: '>=', ast.Eq: '==', ast.NotEq: '!='}
+            op_str = cmp_map.get(type(node.ops[0]))
+            if op_str is None:
+                raise ValueError(type(node.ops[0]).__name__)
+            return f'({left}{op_str}{right})'
+        def visit_UnaryOp(self, node):
+            operand = self.visit(node.operand)
+            if isinstance(node.op, ast.USub):
+                return f'(-{operand})'
+            return operand
+        def visit_Name(self, node):
+            if scalars and node.id in scalars:
+                return node.id
+            if node.id.startswith('_v') and node.id[2:].isdigit():
+                return f'{node.id}[_i]'
+            raise ValueError(node.id)
+        def visit_Constant(self, node):
+            if isinstance(node.value, (int, float)):
+                return f'{float(node.value)}'
+            raise ValueError(node.value)
+        def generic_visit(self, node):
+            raise ValueError(type(node).__name__)
+    return CGen().visit(tree)
+
+def _compile_cffi_fused(src, nvars):
+    """Compile elementwise expression to fused C function via cffi."""
+    cached = _cffi_cache.get(src)
+    if cached is not None:
+        return cached
+    cffi = _get_cffi()
+    if cffi is None:
+        _cffi_cache[src] = False
+        return False
+    try:
+        c_expr = _python_expr_to_c(src, nvars)
+    except (ValueError, SyntaxError):
+        _cffi_cache[src] = False
+        return False
+    params_c = ', '.join([f'const double* _v{i}' for i in range(nvars)] + ['double* _out', 'int64_t _n'])
+    params_cdef = ', '.join(['const double*'] * nvars + ['double*', 'int64_t'])
+    c_src = f'#include <stdint.h>\n#include <math.h>\nvoid _fused({params_c}) {{ for (int64_t _i = 0; _i < _n; _i++) {{ _out[_i] = {c_expr}; }} }}'
+    ffi = cffi.FFI()
+    ffi.cdef(f'void _fused({params_cdef});')
+    try:
+        lib = ffi.verify(c_src, extra_compile_args=['-O3'])
+    except Exception:
+        _cffi_cache[src] = False
+        return False
+    _cffi_cache[src] = (ffi, lib)
+    return (ffi, lib)
+
+# Reduce ops: identity values and C accumulator expressions
+_CFFI_REDUCE_OPS = {
+    '+': ('0.0', '_acc += %s;'),
+    '*': ('1.0', '_acc *= %s;'),
+    '|': ('-1.0/0.0', '{ double _v = %s; if (_v > _acc) _acc = _v; }'),  # -inf
+    '&': ('1.0/0.0', '{ double _v = %s; if (_v < _acc) _acc = _v; }'),    # +inf
+}
+
+def _compile_cffi_reduce(inner_src, reduce_op, nvars):
+    """Compile fused reduce: reduce_op / inner_expr(x) in a single C pass."""
+    cache_key = f'__reduce_{reduce_op}_{inner_src}'
+    cached = _cffi_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    cffi = _get_cffi()
+    if cffi is None:
+        _cffi_cache[cache_key] = False
+        return False
+    op_info = _CFFI_REDUCE_OPS.get(reduce_op)
+    if op_info is None:
+        _cffi_cache[cache_key] = False
+        return False
+    try:
+        c_expr = _python_expr_to_c(inner_src, nvars)
+    except (ValueError, SyntaxError):
+        _cffi_cache[cache_key] = False
+        return False
+    identity, acc_tmpl = op_info
+    acc_stmt = acc_tmpl % c_expr
+    params_c = ', '.join([f'const double* _v{i}' for i in range(nvars)] + ['int64_t _n'])
+    params_cdef = ', '.join(['const double*'] * nvars + ['int64_t'])
+    c_src = f'#include <stdint.h>\n#include <math.h>\ndouble _reduce({params_c}) {{ double _acc = {identity}; for (int64_t _i = 0; _i < _n; _i++) {{ {acc_stmt} }} return _acc; }}'
+    ffi = cffi.FFI()
+    ffi.cdef(f'double _reduce({params_cdef});')
+    try:
+        lib = ffi.verify(c_src, extra_compile_args=['-O3', '-ffast-math'])
+    except Exception:
+        _cffi_cache[cache_key] = False
+        return False
+    _cffi_cache[cache_key] = (ffi, lib)
+    return (ffi, lib)
+
+_REDUCE_NP_FALLBACK = {'+': numpy.sum, '*': numpy.prod, '|': numpy.max, '&': numpy.min}
+
+def _cffi_reduce_1(reduce_op, inner_src, a):
+    """Runtime fused reduce for 1-variable expressions. Falls back to numpy."""
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64 and len(a) > 0:
+        result = _compile_cffi_reduce(inner_src, reduce_op, 1)
+        if result:
+            ffi, lib = result
+            return lib._reduce(ffi.from_buffer('double[]', a), len(a))
+    # Fallback: evaluate inner expression then numpy reduce
+    fb_globals = dict(_EVAL_GLOBALS)
+    fb_globals['_v0'] = a
+    inner_val = eval(inner_src, fb_globals)
+    return _REDUCE_NP_FALLBACK[reduce_op](inner_val)
+
+def _cffi_reduce_2(reduce_op, inner_src, a, b):
+    """Runtime fused reduce for 2-variable expressions. Falls back to numpy."""
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64 and \
+       type(b) is numpy.ndarray and b.dtype == numpy.float64 and len(a) > 0:
+        result = _compile_cffi_reduce(inner_src, reduce_op, 2)
+        if result:
+            ffi, lib = result
+            return lib._reduce(ffi.from_buffer('double[]', a), ffi.from_buffer('double[]', b), len(a))
+    # Fallback: evaluate inner expression then numpy reduce
+    fb_globals = dict(_EVAL_GLOBALS)
+    fb_globals['_v0'] = a
+    fb_globals['_v1'] = b
+    inner_val = eval(inner_src, fb_globals)
+    return _REDUCE_NP_FALLBACK[reduce_op](inner_val)
+
+# Fused running_max/min + expression: single-pass C loop
+_RUNNING_PATTERNS = {
+    '_running_max(_v0)': ('>', '_v0[0]'),   # running max: update if x[i] > _rm
+    '_running_min(_v0)': ('<', '_v0[0]'),   # running min: update if x[i] < _rm
+}
+
+def _compile_cffi_fused_running(src, mode='expr'):
+    """Compile fused running_max/min + expression into single-pass C loop.
+    mode='expr' returns array output, mode='reduce_OP' returns scalar reduction.
+    """
+    cache_key = f'__fused_running_{mode}_{src}'
+    cached = _cffi_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    cffi = _get_cffi()
+    if cffi is None:
+        _cffi_cache[cache_key] = False
+        return False
+    # Detect which running pattern is in the source
+    pattern_found = None
+    for pat, (cmp_op, init) in _RUNNING_PATTERNS.items():
+        if pat in src:
+            pattern_found = (pat, cmp_op, init)
+            break
+    if pattern_found is None:
+        _cffi_cache[cache_key] = False
+        return False
+    pat, cmp_op, init = pattern_found
+    # Replace _running_max/_running_min with _rm in the expression
+    c_src_expr = src.replace(pat, '_rm')
+    # Convert the modified expression to C (with _rm as a scalar variable)
+    try:
+        c_expr = _python_expr_to_c(c_src_expr, 1, scalars={'_rm'})
+    except (ValueError, SyntaxError):
+        _cffi_cache[cache_key] = False
+        return False
+    ffi = cffi.FFI()
+    if mode == 'expr':
+        # Array output: out[i] = expr(_v0[i], _rm)
+        c_code = f'''#include <stdint.h>
+#include <math.h>
+void _fused(const double* _v0, double* _out, int64_t _n) {{
+    double _rm = _v0[0];
+    _out[0] = {c_expr.replace('_v0[_i]', '_v0[0]')};
+    for (int64_t _i = 1; _i < _n; _i++) {{
+        if (_v0[_i] {cmp_op} _rm) _rm = _v0[_i];
+        _out[_i] = {c_expr};
+    }}
+}}'''
+        ffi.cdef('void _fused(const double*, double*, int64_t);')
+    elif mode.startswith('reduce_'):
+        # Scalar reduction output
+        reduce_op = mode[7:]  # e.g., '|', '&', '+', '*'
+        op_info = _CFFI_REDUCE_OPS.get(reduce_op)
+        if op_info is None:
+            _cffi_cache[cache_key] = False
+            return False
+        identity, acc_tmpl = op_info
+        acc_stmt_0 = acc_tmpl % c_expr.replace('_v0[_i]', '_v0[0]')
+        acc_stmt = acc_tmpl % c_expr
+        c_code = f'''#include <stdint.h>
+#include <math.h>
+double _fused(const double* _v0, int64_t _n) {{
+    double _rm = _v0[0];
+    double _acc = {identity};
+    {acc_stmt_0}
+    for (int64_t _i = 1; _i < _n; _i++) {{
+        if (_v0[_i] {cmp_op} _rm) _rm = _v0[_i];
+        {acc_stmt}
+    }}
+    return _acc;
+}}'''
+        ffi.cdef('double _fused(const double*, int64_t);')
+    else:
+        _cffi_cache[cache_key] = False
+        return False
+    try:
+        lib = ffi.verify(c_code, extra_compile_args=['-O3'])
+    except Exception:
+        _cffi_cache[cache_key] = False
+        return False
+    _cffi_cache[cache_key] = (ffi, lib)
+    return (ffi, lib)
+
+def _fused_running_expr(src, a):
+    """Runtime: fused running_max/min + expression, single-pass C loop."""
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64 and len(a) > 0:
+        result = _compile_cffi_fused_running(src, mode='expr')
+        if result:
+            ffi, lib = result
+            out = numpy.empty(len(a), dtype=numpy.float64)
+            lib._fused(ffi.from_buffer('double[]', a), ffi.from_buffer('double[]', out), len(a))
+            return out
+    # Fallback: evaluate normally
+    fb_globals = dict(_EVAL_GLOBALS)
+    fb_globals['_v0'] = a
+    return eval(src, fb_globals)
+
+def _fused_running_reduce(reduce_op, src, a):
+    """Runtime: fused reduce + running_max/min + expression, single-pass C loop."""
+    if type(a) is numpy.ndarray and a.dtype == numpy.float64 and len(a) > 0:
+        result = _compile_cffi_fused_running(src, mode=f'reduce_{reduce_op}')
+        if result:
+            ffi, lib = result
+            return lib._fused(ffi.from_buffer('double[]', a), len(a))
+    # Fallback: evaluate inner expression then reduce
+    fb_globals = dict(_EVAL_GLOBALS)
+    fb_globals['_v0'] = a
+    inner_val = eval(src, fb_globals)
+    return _REDUCE_NP_FALLBACK[reduce_op](inner_val)
+
+# cffi utilities: running_max/min, count (lazy-compiled)
+_cffi_utils = None
+_cffi_utils_checked = False
+
+def _get_cffi_utils():
+    global _cffi_utils, _cffi_utils_checked
+    if _cffi_utils_checked:
+        return _cffi_utils
+    _cffi_utils_checked = True
+    cffi = _get_cffi()
+    if cffi is None:
+        return None
+    ffi = cffi.FFI()
+    ffi.cdef('''
+void cffi_running_max(const double* a, double* out, int64_t n);
+void cffi_running_min(const double* a, double* out, int64_t n);
+void cffi_cumsum(const double* a, double* out, int64_t n);
+void cffi_cumprod(const double* a, double* out, int64_t n);
+int64_t cffi_count_lt(const double* a, double val, int64_t n);
+int64_t cffi_count_gt(const double* a, double val, int64_t n);
+int64_t cffi_count_eq(const double* a, double val, int64_t n);
+void cffi_minmax_i64(const int64_t* a, int64_t n, int64_t* out);
+void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range);
+void cffi_counting_argsort_i64(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
+void cffi_counting_argsort_u16(const uint16_t* keys, int64_t n, const int64_t* orig_idx, int64_t* out);
+void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
+void cffi_inverse_perm(const int64_t* perm, int64_t* out, int64_t n);
+int64_t cffi_unique_int(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
+void cffi_counting_rank(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range);
+void cffi_linear_scan(const double* x, double* out, int64_t n, double cx, double cy);
+int64_t cffi_filter_gt(const double* a, double* out, int64_t n, double val);
+int64_t cffi_filter_lt(const double* a, double* out, int64_t n, double val);
+int64_t cffi_filter_eq(const double* a, double* out, int64_t n, double val);
+int64_t cffi_where_gt(const double* a, int64_t* out, int64_t n, double val);
+int64_t cffi_where_lt(const double* a, int64_t* out, int64_t n, double val);
+int64_t cffi_where_eq(const double* a, int64_t* out, int64_t n, double val);
+void cffi_bucket_prep_i64(const int64_t* a, uint8_t* bucket_ids, uint16_t* low16,
+                           int64_t n, int64_t mn, int32_t shift);
+int64_t cffi_find_bucket(const uint8_t* bucket_ids, int64_t* out, int64_t n, uint8_t target);
+int64_t cffi_bucket_argsort(const uint8_t* bucket_ids, const uint16_t* low16,
+                             int64_t* out, int64_t n, uint8_t target);
+void cffi_add_scalar(double* a, int64_t n, double val);
+''')
+    try:
+        lib = ffi.verify('''
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+void cffi_running_max(const double* a, double* out, int64_t n) {
+    double mx = a[0]; out[0] = mx;
+    for (int64_t i = 1; i < n; i++) { if (a[i] > mx) mx = a[i]; out[i] = mx; }
+}
+void cffi_running_min(const double* a, double* out, int64_t n) {
+    double mn = a[0]; out[0] = mn;
+    for (int64_t i = 1; i < n; i++) { if (a[i] < mn) mn = a[i]; out[i] = mn; }
+}
+void cffi_cumsum(const double* a, double* out, int64_t n) {
+    double s = 0.0;
+    for (int64_t i = 0; i < n; i++) { s += a[i]; out[i] = s; }
+}
+void cffi_cumprod(const double* a, double* out, int64_t n) {
+    double p = 1.0;
+    int64_t i;
+    for (i = 0; i < n; i++) {
+        p *= a[i]; out[i] = p;
+        if (p == 0.0) { i++; break; }
+    }
+    if (i < n) memset(out + i, 0, (n - i) * sizeof(double));
+}
+int64_t cffi_count_lt(const double* a, double val, int64_t n) {
+    int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] < val); return c;
+}
+int64_t cffi_count_gt(const double* a, double val, int64_t n) {
+    int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] > val); return c;
+}
+int64_t cffi_count_eq(const double* a, double val, int64_t n) {
+    int64_t c = 0; for (int64_t i = 0; i < n; i++) c += (a[i] == val); return c;
+}
+void cffi_minmax_i64(const int64_t* a, int64_t n, int64_t* out) {
+    int64_t mn = a[0], mx = a[0];
+    for (int64_t i = 1; i < n; i++) {
+        int64_t v = a[i];
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+    }
+    out[0] = mn;
+    out[1] = mx;
+}
+void cffi_counting_argsort(const int32_t* a, int64_t* out, int64_t n, int32_t mn, int64_t range) {
+    int32_t* counts = (int32_t*)calloc(range, sizeof(int32_t));
+    for (int64_t i = 0; i < n; i++) counts[a[i] - mn]++;
+    int32_t total = 0;
+    for (int64_t v = 0; v < range; v++) { int32_t c = counts[v]; counts[v] = total; total += c; }
+    for (int64_t i = 0; i < n; i++) out[counts[a[i] - mn]++] = i;
+    free(counts);
+}
+void cffi_counting_argsort_i64(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
+    int32_t* counts = (int32_t*)calloc(range, sizeof(int32_t));
+    for (int64_t i = 0; i < n; i++) counts[a[i] - mn]++;
+    int32_t total = 0;
+    for (int64_t v = 0; v < range; v++) { int32_t c = counts[v]; counts[v] = total; total += c; }
+    for (int64_t i = 0; i < n; i++) out[counts[a[i] - mn]++] = i;
+    free(counts);
+}
+void cffi_counting_argsort_u16(const uint16_t* keys, int64_t n, const int64_t* orig_idx, int64_t* out) {
+    /* Two-pass radix sort: 256-element count arrays fit in L1 cache (1KB each)
+       vs original 65536-element array (512KB, causes L2 cache thrashing). */
+    int64_t* temp_idx = (int64_t*)malloc(n * sizeof(int64_t));
+    uint16_t* temp_keys = (uint16_t*)malloc(n * sizeof(uint16_t));
+    /* Pass 1: sort by low byte */
+    int32_t c0[256];
+    memset(c0, 0, sizeof(c0));
+    for (int64_t i = 0; i < n; i++) c0[keys[i] & 0xFF]++;
+    int32_t t0 = 0;
+    for (int32_t v = 0; v < 256; v++) { int32_t c = c0[v]; c0[v] = t0; t0 += c; }
+    for (int64_t i = 0; i < n; i++) {
+        int32_t p = c0[keys[i] & 0xFF]++;
+        temp_idx[p] = orig_idx[i];
+        temp_keys[p] = keys[i];
+    }
+    /* Pass 2: sort by high byte */
+    int32_t c1[256];
+    memset(c1, 0, sizeof(c1));
+    for (int64_t i = 0; i < n; i++) c1[temp_keys[i] >> 8]++;
+    int32_t t1 = 0;
+    for (int32_t v = 0; v < 256; v++) { int32_t c = c1[v]; c1[v] = t1; t1 += c; }
+    for (int64_t i = 0; i < n; i++) out[c1[temp_keys[i] >> 8]++] = temp_idx[i];
+    free(temp_idx);
+    free(temp_keys);
+}
+void cffi_counting_sort_values(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
+    int32_t* buf = (int32_t*)calloc(range, sizeof(int32_t));
+    for (int64_t i = 0; i < n; i++) buf[a[i] - mn]++;
+    int32_t total = 0;
+    for (int64_t v = 0; v < range; v++) { int32_t c = buf[v]; buf[v] = total; total += c; }
+    for (int64_t i = 0; i < n; i++) { int64_t v = a[i] - mn; out[buf[v]++] = a[i]; }
+    free(buf);
+}
+void cffi_inverse_perm(const int64_t* perm, int64_t* out, int64_t n) {
+    for (int64_t i = 0; i < n; i++) out[perm[i]] = i;
+}
+int64_t cffi_unique_int(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
+    uint8_t* seen = (uint8_t*)calloc(range, sizeof(uint8_t));
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) {
+        int64_t v = a[i] - mn;
+        if (!seen[v]) { seen[v] = 1; out[k++] = a[i]; }
+    }
+    free(seen);
+    return k;
+}
+void cffi_counting_rank(const int64_t* a, int64_t* out, int64_t n, int64_t mn, int64_t range) {
+    int32_t* counts = (int32_t*)calloc(range, sizeof(int32_t));
+    for (int64_t i = 0; i < n; i++) counts[a[i] - mn]++;
+    int32_t total = 0;
+    for (int64_t v = 0; v < range; v++) { int32_t c = counts[v]; counts[v] = total; total += c; }
+    for (int64_t i = 0; i < n; i++) out[i] = counts[a[i] - mn]++;
+    free(counts);
+}
+void cffi_linear_scan(const double* x, double* out, int64_t n, double cx, double cy) {
+    out[0] = x[0];
+    for (int64_t i = 1; i < n; i++) out[i] = cx * out[i-1] + cy * x[i];
+}
+int64_t cffi_filter_gt(const double* a, double* out, int64_t n, double val) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = a[i]; k += (a[i] > val); }
+    return k;
+}
+int64_t cffi_filter_lt(const double* a, double* out, int64_t n, double val) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = a[i]; k += (a[i] < val); }
+    return k;
+}
+int64_t cffi_filter_eq(const double* a, double* out, int64_t n, double val) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = a[i]; k += (a[i] == val); }
+    return k;
+}
+int64_t cffi_where_gt(const double* a, int64_t* out, int64_t n, double val) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = i; k += (a[i] > val); }
+    return k;
+}
+int64_t cffi_where_lt(const double* a, int64_t* out, int64_t n, double val) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = i; k += (a[i] < val); }
+    return k;
+}
+int64_t cffi_where_eq(const double* a, int64_t* out, int64_t n, double val) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = i; k += (a[i] == val); }
+    return k;
+}
+void cffi_bucket_prep_i64(const int64_t* a, uint8_t* bucket_ids, uint16_t* low16,
+                           int64_t n, int64_t mn, int32_t shift) {
+    uint32_t mask = (shift == 16) ? 0xFFFF : (uint32_t)((1 << shift) - 1);
+    for (int64_t i = 0; i < n; i++) {
+        uint32_t shifted = (uint32_t)((int32_t)(a[i] - mn));
+        bucket_ids[i] = (uint8_t)(shifted >> shift);
+        low16[i] = (uint16_t)(shifted & mask);
+    }
+}
+int64_t cffi_find_bucket(const uint8_t* bucket_ids, int64_t* out, int64_t n, uint8_t target) {
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = i; k += (bucket_ids[i] == target); }
+    return k;
+}
+int64_t cffi_bucket_argsort(const uint8_t* bucket_ids, const uint16_t* low16,
+                             int64_t* out, int64_t n, uint8_t target) {
+    /* Fused find + gather + radix sort: eliminates Python overhead between steps.
+       Phase 1: branchless scan to find indices for target bucket. */
+    int64_t k = 0;
+    for (int64_t i = 0; i < n; i++) { out[k] = i; k += (bucket_ids[i] == target); }
+    if (k <= 1) return k;
+    /* Phase 2: gather keys and radix sort in-place.
+       Two-pass radix on uint16 keys with 256-element L1-friendly count arrays. */
+    uint16_t* keys = (uint16_t*)malloc(k * sizeof(uint16_t));
+    for (int64_t i = 0; i < k; i++) keys[i] = low16[out[i]];
+    int64_t* temp_idx = (int64_t*)malloc(k * sizeof(int64_t));
+    uint16_t* temp_keys = (uint16_t*)malloc(k * sizeof(uint16_t));
+    /* Pass 1: sort by low byte */
+    int32_t c0[256];
+    memset(c0, 0, sizeof(c0));
+    for (int64_t i = 0; i < k; i++) c0[keys[i] & 0xFF]++;
+    int32_t t0 = 0;
+    for (int32_t v = 0; v < 256; v++) { int32_t c = c0[v]; c0[v] = t0; t0 += c; }
+    for (int64_t i = 0; i < k; i++) {
+        int32_t p = c0[keys[i] & 0xFF]++;
+        temp_idx[p] = out[i];
+        temp_keys[p] = keys[i];
+    }
+    /* Pass 2: sort by high byte */
+    int32_t c1[256];
+    memset(c1, 0, sizeof(c1));
+    for (int64_t i = 0; i < k; i++) c1[temp_keys[i] >> 8]++;
+    int32_t t1 = 0;
+    for (int32_t v = 0; v < 256; v++) { int32_t c = c1[v]; c1[v] = t1; t1 += c; }
+    for (int64_t i = 0; i < k; i++) out[c1[temp_keys[i] >> 8]++] = temp_idx[i];
+    free(keys);
+    free(temp_idx);
+    free(temp_keys);
+    return k;
+}
+void cffi_add_scalar(double* a, int64_t n, double val) {
+    for (int64_t i = 0; i < n; i++) a[i] += val;
+}
+''', extra_compile_args=['-O3'])
+        _cffi_utils = (ffi, lib)
+    except Exception:
+        pass
+    return _cffi_utils
+
+_minmax_out = None  # Lazy-initialized reusable output buffer for cffi_minmax_i64
+
+def _cffi_minmax_i64(a):
+    """Combined min/max in single pass via cffi (saves one array scan vs separate min+max)."""
+    global _minmax_out
+    utils = _get_cffi_utils()
+    if utils is not None and a.dtype == numpy.int64:
+        ffi, lib = utils
+        if _minmax_out is None:
+            _minmax_out = numpy.empty(2, dtype=numpy.int64)
+        lib.cffi_minmax_i64(ffi.from_buffer('int64_t[]', a), len(a),
+                            ffi.from_buffer('int64_t[]', _minmax_out))
+        return int(_minmax_out[0]), int(_minmax_out[1])
+    return int(a.min()), int(a.max())
+
+_CFFI_COUNT_FNS = {'<': 'cffi_count_lt', '>': 'cffi_count_gt', '==': 'cffi_count_eq'}
+
+def _parallel_eval_2(fn, v0, v1):
+    """Fused C eval for element-wise 2-arg expressions, numpy parallel fallback."""
+    global _argsort_pool
+    n = len(v0)
+    # Try cffi fused eval (single-threaded C loop eliminates intermediate arrays)
+    src = getattr(fn, '_source', None)
+    if src is not None and v0.dtype == numpy.float64 and v1.dtype == numpy.float64:
+        cffi_result = _compile_cffi_fused(src, 2)
+        if cffi_result:
+            ffi, lib = cffi_result
+            result = numpy.empty(n, dtype=numpy.float64)
+            lib._fused(
+                ffi.from_buffer('double[]', v0),
+                ffi.from_buffer('double[]', v1),
+                ffi.from_buffer('double[]', result),
+                n
+            )
+            return result
+    # Fallback: numpy parallel chunked eval
+    if _argsort_pool is None:
+        from concurrent.futures import ThreadPoolExecutor
+        _argsort_pool = ThreadPoolExecutor(max_workers=16)
+    nchunks = 6
+    chunk = n // nchunks
+    result = numpy.empty(n, dtype=numpy.float64)
+    def _chunk_fn(s, e, out=result, f=fn, a=v0, b=v1):
+        out[s:e] = f(a[s:e], b[s:e])
+    slices = [(i * chunk, (i + 1) * chunk if i < nchunks - 1 else n) for i in range(nchunks)]
+    futures = [_argsort_pool.submit(_chunk_fn, s, e) for s, e in slices]
+    for f in futures:
+        f.result()
+    return result
+
+# Globals dict for eval of compiled source that references numpy
+_EVAL_GLOBALS = {'_np': numpy, '_rank': _rank, '_dotsum': _dotsum, '_argsort': _argsort, '_fast_sort': _fast_sort, '_cumsum': _cumsum, '_cumprod': _cumprod, '_running_max': _running_max, '_running_min': _running_min, '_flatnonzero': _flatnonzero, '_fused_where': _fused_where, '_fused_filter': _fused_filter, '_fused_count': _fused_count, '_unique': _unique, '_cffi_reduce_1': _cffi_reduce_1, '_cffi_reduce_2': _cffi_reduce_2, '_fused_running_expr': _fused_running_expr, '_fused_running_reduce': _fused_running_reduce}
+
+# Axis-based reduce/scan functions for stacked 2D arrays (used by _axis_fn on compiled fns)
+_AXIS_REDUCE_KEEPDIMS = {
+    '+': lambda a: numpy.sum(a, axis=1, keepdims=True),
+    '*': lambda a: numpy.prod(a, axis=1, keepdims=True),
+    '|': lambda a: numpy.max(a, axis=1, keepdims=True),
+    '&': lambda a: numpy.min(a, axis=1, keepdims=True),
+}
+_AXIS_SCAN_2D = {
+    '+': lambda a: numpy.cumsum(a, axis=1),
+    '*': lambda a: numpy.cumprod(a, axis=1),
+    '|': lambda a: numpy.maximum.accumulate(a, axis=1),
+    '&': lambda a: numpy.minimum.accumulate(a, axis=1),
+}
+
+def _expr_to_source(expr, klong, dyadic=False, var_refs=None):
+    """Try to convert an expression tree to a Python source string.
+    Returns (source_str, is_const) or None if not possible.
+    Handles arithmetic ops, monad ops (#), and simple adverb chains (+/, */, etc.).
+    If var_refs is a dict, collects variable references (KGSym -> var_name) for
+    top-level expression compilation instead of requiring variables to be constants.
+    """
+    te = type(expr)
+    if te is KGSym:
+        if expr is _sym_x:
+            return ('x', False)
+        if dyadic and expr is _sym_y:
+            return ('y', False)
+        try:
+            val = klong._context[expr]
+            tv = type(val)
+            if tv is int or tv is float:
+                if var_refs is not None:
+                    # Top-level mode: capture as var_ref so compiled fn always reads current values
+                    if expr in var_refs:
+                        return (var_refs[expr], False)
+                    var_name = f'_v{len(var_refs)}'
+                    var_refs[expr] = var_name
+                    return (var_name, False)
+                return (repr(val), True)
+            if var_refs is not None and tv is numpy.ndarray:
+                if expr in var_refs:
+                    return (var_refs[expr], False)
+                var_name = f'_v{len(var_refs)}'
+                var_refs[expr] = var_name
+                return (var_name, False)
+        except KeyError:
+            pass
+        return None
+    if te is int or te is float:
+        return (repr(expr), True)
+    if (te is KGCall or te is KGFn) and expr._is_op:
+        if expr._op_arity == 2:
+            py_op = _KLONG_OP_TO_PY.get(expr._op_a)
+            if py_op is None:
+                # Special handling for @ (index-at) in top-level compilation
+                if var_refs is not None and expr._op_a == '@':
+                    fa = expr.args
+                    if type(fa) is not list:
+                        fa = [fa] if fa is not None else fa
+                    if fa is not None and len(fa) == 2:
+                        s0 = _expr_to_source(fa[0], klong, dyadic=dyadic, var_refs=var_refs)
+                        s1 = _expr_to_source(fa[1], klong, dyadic=dyadic, var_refs=var_refs)
+                        if s0 is not None and s1 is not None:
+                            # Detect x@<x → np.sort(x) optimization
+                            if s1[0] == f'_argsort({s0[0]})':
+                                return (f'_fast_sort({s0[0]})', False)
+                            # Detect x@_fused_where(x,cmp,val) → _fused_filter(x,cmp,val)
+                            _s1str = s1[0]
+                            if _s1str.startswith(f'_fused_where({s0[0]},'):
+                                return (f'_fused_filter({_s1str[13:]}', False)
+                            return (f'{s0[0]}[{s1[0]}]', False)
+                # Special handling for # dyad (take): N#array → array[:N]
+                if var_refs is not None and expr._op_a == '#':
+                    fa = expr.args
+                    if type(fa) is not list:
+                        fa = [fa] if fa is not None else fa
+                    if fa is not None and len(fa) == 2:
+                        s0 = _expr_to_source(fa[0], klong, dyadic=dyadic, var_refs=var_refs)
+                        s1 = _expr_to_source(fa[1], klong, dyadic=dyadic, var_refs=var_refs)
+                        if s0 is not None and s1 is not None and s0[1]:
+                            # Only for constant positive int take count
+                            return (f'{s1[0]}[:{s0[0]}]', False)
+                # Special handling for |/& (max/min) dyads — no Python infix operator
+                if expr._op_a == '|' or expr._op_a == '&':
+                    _np_fn = '_np.maximum' if expr._op_a == '|' else '_np.minimum'
+                    fa = expr.args
+                    if type(fa) is not list:
+                        fa = [fa] if fa is not None else fa
+                    if fa is not None and len(fa) == 2:
+                        s0 = _expr_to_source(fa[0], klong, dyadic=dyadic, var_refs=var_refs)
+                        s1 = _expr_to_source(fa[1], klong, dyadic=dyadic, var_refs=var_refs)
+                        if s0 is not None and s1 is not None:
+                            is_const = s0[1] and s1[1]
+                            return (f'{_np_fn}({s0[0]},{s1[0]})', is_const)
+                return None
+            fa = expr.args
+            if type(fa) is not list:
+                fa = [fa] if fa is not None else fa
+            if fa is None or len(fa) != 2:
+                return None
+            s0 = _expr_to_source(fa[0], klong, dyadic=dyadic, var_refs=var_refs)
+            s1 = _expr_to_source(fa[1], klong, dyadic=dyadic, var_refs=var_refs)
+            if s0 is not None and s1 is not None:
+                is_const = s0[1] and s1[1]
+                if is_const:
+                    # Both const: pre-evaluate to avoid runtime computation
+                    try:
+                        val = eval(f'({s0[0]}{py_op}{s1[0]})')
+                        return (repr(val), True)
+                    except Exception:
+                        pass
+                # Pre-fold constant sub-expressions (e.g., (1-0.06) → 0.94)
+                if s0[1] and '(' in s0[0]:
+                    try: s0 = (repr(eval(s0[0])), True)
+                    except Exception: pass
+                if s1[1] and '(' in s1[0]:
+                    try: s1 = (repr(eval(s1[0])), True)
+                    except Exception: pass
+                return (f'({s0[0]}{py_op}{s1[0]})', is_const)
+        if expr._op_arity == 1:
+            # Monad ops: & (where/flatnonzero), # (length), < (argsort), - (negate)
+            op_a = expr._op_a
+            # Note: #, <, & have type-dependent behavior (e.g., # = length for arrays, ordinal for chars)
+            # so they require var_refs (top-level compilation where types are known).
+            # Negate (-) is always -x regardless of type, so it's safe without var_refs.
+            if op_a == '-' or (var_refs is not None and op_a in ('&', '#', '<', '?')):
+                fa = expr.args
+                arg = fa[0] if type(fa) is list else fa
+                if op_a == '<':
+                    # Detect <<x (rank) pattern: use O(n) inverse permutation
+                    ta = type(arg)
+                    if (ta is KGCall or ta is KGFn) and arg._is_op and arg._op_arity == 1 and arg._op_a == '<':
+                        inner_arg = arg.args
+                        inner = inner_arg[0] if type(inner_arg) is list else inner_arg
+                        s = _expr_to_source(inner, klong, dyadic=dyadic, var_refs=var_refs)
+                        if s is not None:
+                            return (f'_rank({s[0]})', False)
+                elif op_a == '#':
+                    # Detect #&(expr) → count_nonzero(expr) optimization
+                    ta = type(arg)
+                    if (ta is KGCall or ta is KGFn) and arg._is_op and arg._op_arity == 1 and arg._op_a == '&':
+                        inner_arg = arg.args
+                        inner = inner_arg[0] if type(inner_arg) is list else inner_arg
+                        # Detect #&(a CMP val) → _fused_count(a, cmp, val) for parallel count
+                        ti = type(inner)
+                        if (ti is KGCall or ti is KGFn) and inner._is_op and inner._op_arity == 2:
+                            cmp_op = inner._op_a
+                            if cmp_op in ('<', '>', '='):
+                                cmp_args = inner.args
+                                if type(cmp_args) is list and len(cmp_args) == 2:
+                                    s0 = _expr_to_source(cmp_args[0], klong, dyadic=dyadic, var_refs=var_refs)
+                                    s1 = _expr_to_source(cmp_args[1], klong, dyadic=dyadic, var_refs=var_refs)
+                                    if s0 is not None and s1 is not None:
+                                        py_cmp = {'<': '<', '>': '>', '=': '=='}[cmp_op]
+                                        return (f'_fused_count({s0[0]},{py_cmp!r},{s1[0]})', False)
+                        s = _expr_to_source(inner, klong, dyadic=dyadic, var_refs=var_refs)
+                        if s is not None:
+                            return (f'_np.count_nonzero({s[0]})', False)
+                if op_a == '&':
+                    # Detect &(x CMP literal) → fused parallel comparison+where
+                    ta = type(arg)
+                    if (ta is KGCall or ta is KGFn) and arg._is_op and arg._op_arity == 2:
+                        cmp_op = arg._op_a
+                        if cmp_op in ('<', '>', '='):
+                            cmp_args = arg.args
+                            if type(cmp_args) is list and len(cmp_args) == 2:
+                                s0 = _expr_to_source(cmp_args[0], klong, dyadic=dyadic, var_refs=var_refs)
+                                s1 = _expr_to_source(cmp_args[1], klong, dyadic=dyadic, var_refs=var_refs)
+                                if s0 is not None and s1 is not None:
+                                    py_cmp = {'<': '<', '>': '>', '=': '=='}[cmp_op]
+                                    return (f'_fused_where({s0[0]},{py_cmp!r},{s1[0]})', False)
+                s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
+                if s is not None:
+                    if op_a == '&':
+                        return (f'_flatnonzero({s[0]})', False)
+                    elif op_a == '#':
+                        return (f'len({s[0]})', False)
+                    elif op_a == '<':
+                        return (f'_argsort({s[0]})', False)
+                    elif op_a == '?':
+                        return (f'_unique({s[0]})', False)
+                    else:  # '-' = negate
+                        return (f'(-{s[0]})', False)
+        # Monad ops (arity 1) handled by _compile_arg_fn for correct semantics
+    # Handle simple adverb chains: op/x → _np.sum(x), op\x → _np.cumsum(x), etc.
+    if te is KGCall and expr._is_adverb_chain:
+        chain = expr.a
+        if type(chain) is list and len(chain) == 3:
+            verb_adv = chain[0]
+            adverb = chain[1]
+            arg = chain[2]
+            if type(verb_adv) is KGAdverb and type(verb_adv.a) is KGOp and type(adverb) is KGAdverb:
+                op_char = verb_adv.a.a
+                adv_char = adverb.a
+                py_fn = None
+                if adv_char == '/':
+                    py_fn = _KLONG_REDUCE_TO_PY.get(op_char)
+                    # Detect +/(x*y) → BLAS dot product
+                    if op_char == '+' and py_fn is not None:
+                        ta = type(arg)
+                        if (ta is KGCall or ta is KGFn) and arg._is_op and arg._op_arity == 2 and arg._op_a == '*':
+                            fa_arg = arg.args
+                            if type(fa_arg) is list and len(fa_arg) == 2:
+                                s0 = _expr_to_source(fa_arg[0], klong, dyadic=dyadic, var_refs=var_refs)
+                                s1 = _expr_to_source(fa_arg[1], klong, dyadic=dyadic, var_refs=var_refs)
+                                if s0 is not None and s1 is not None:
+                                    return (f'_dotsum({s0[0]},{s1[0]})', False)
+                elif adv_char == '\\':
+                    py_fn = _KLONG_SCAN_TO_PY.get(op_char)
+                elif adv_char == ":'" and var_refs is not None:
+                    # Each-pair: op:'var → var[:-1] op var[1:]
+                    py_op = _KLONG_OP_TO_PY.get(op_char)
+                    if py_op is not None:
+                        s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
+                        if s is not None:
+                            return (f'({s[0]}[:-1]{py_op}{s[0]}[1:])', False)
+                    # Max/min each-pair: |:'var → np.maximum(var[:-1], var[1:])
+                    if op_char == '|':
+                        s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
+                        if s is not None:
+                            return (f'_np.maximum({s[0]}[:-1],{s[0]}[1:])', False)
+                    if op_char == '&':
+                        s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
+                        if s is not None:
+                            return (f'_np.minimum({s[0]}[:-1],{s[0]}[1:])', False)
+                if py_fn is not None:
+                    s = _expr_to_source(arg, klong, dyadic=dyadic, var_refs=var_refs)
+                    if s is not None:
+                        # For reduce (not scan), try cffi fused reduce on arithmetic expressions
+                        if adv_char == '/' and not s[1] and var_refs is not None:
+                            inner = s[0]
+                            has_v0 = '_v0' in inner
+                            has_v1 = '_v1' in inner
+                            if has_v0 and not has_v1:
+                                try:
+                                    _python_expr_to_c(inner, 1)
+                                    return (f"_cffi_reduce_1({op_char!r},{inner!r},_v0)", False)
+                                except (ValueError, SyntaxError):
+                                    pass
+                            elif not has_v0 and has_v1:
+                                # Remap _v1 → _v0 for the C function, pass _v1 at runtime
+                                remapped = inner.replace('_v1', '_v0')
+                                try:
+                                    _python_expr_to_c(remapped, 1)
+                                    return (f"_cffi_reduce_1({op_char!r},{remapped!r},_v1)", False)
+                                except (ValueError, SyntaxError):
+                                    pass
+                            elif has_v0 and has_v1:
+                                try:
+                                    _python_expr_to_c(inner, 2)
+                                    return (f"_cffi_reduce_2({op_char!r},{inner!r},_v0,_v1)", False)
+                                except (ValueError, SyntaxError):
+                                    pass
+                        return (f'{py_fn}({s[0]})', s[1])
+    return None
+
+
+def _compile_arg_fn(expr, klong, dyadic=False):
+    """Try to compile a sub-expression to a fast Python function of x (or x,y if dyadic).
+
+    Returns a callable or None. The returned callable has:
+    - _vectorizable: if it can be applied to numpy arrays element-wise
+    - _is_const: if the result is independent of x/y
+    - _axis_fn: if set, can be called on a stacked 2D array for batch processing
+    """
+    te = type(expr)
+    if te is KGSym:
+        if expr is _sym_x:
+            fn = (lambda x, y: x) if dyadic else (lambda x: x)
+            fn._vectorizable = True
+            fn._is_const = False
+            fn._axis_fn = (lambda X, Y: X) if dyadic else (lambda a: a)
+            if dyadic:
+                fn._is_x = True
+            return fn
+        if dyadic and expr is _sym_y:
+            fn = lambda x, y: y
+            fn._vectorizable = True
+            fn._is_const = False
+            fn._axis_fn = lambda X, Y: Y
+            fn._is_y = True
+            return fn
+        # Try to resolve global variable to a constant value
+        try:
+            val = klong._context[expr]
+            tv = type(val)
+            if tv is int or tv is float or tv is numpy.ndarray:
+                fn = (lambda x, y, c=val: c) if dyadic else (lambda x, c=val: c)
+                fn._vectorizable = tv is not numpy.ndarray
+                fn._is_const = True
+                fn._axis_fn = (lambda X, Y, c=val: c) if dyadic else (lambda a, c=val: c)
+                return fn
+        except KeyError:
+            pass
+        return None
+    if te is int or te is float:
+        fn = (lambda x, y, c=expr: c) if dyadic else (lambda x, c=expr: c)
+        fn._vectorizable = True
+        fn._is_const = True
+        fn._axis_fn = (lambda X, Y, c=expr: c) if dyadic else (lambda a, c=expr: c)
+        return fn
+    if (te is KGCall or te is KGFn) and expr._is_op and expr._op_arity == 2:
+        op_a = expr._op_a
+        _fast = _FAST_DYAD_OPS.get(op_a)
+        _op = _fast if _fast is not None else klong._vd[op_a]
+        fa = expr.args
+        if type(fa) is not list:
+            fa = [fa] if fa is not None else fa
+        if fa is None or len(fa) != 2:
+            return None
+        a0, a1 = fa[0], fa[1]
+        # Recursively compile sub-args (allows deeper nesting)
+        c0 = _compile_arg_fn(a0, klong, dyadic=dyadic)
+        c1 = _compile_arg_fn(a1, klong, dyadic=dyadic)
+        if c0 is not None and c1 is not None:
+            # Constant folding: if both children are constants, pre-compute
+            if c0._is_const and c1._is_const:
+                try:
+                    _cv0 = c0(0, 0) if dyadic else c0(0)
+                    _cv1 = c1(0, 0) if dyadic else c1(0)
+                    _const = _op(_cv0, _cv1)
+                    fn = (lambda x, y, c=_const: c) if dyadic else (lambda x, c=_const: c)
+                    fn._vectorizable = True
+                    fn._is_const = True
+                    fn._axis_fn = None if dyadic else (lambda a, c=_const: c)
+                    return fn
+                except Exception:
+                    pass
+            if dyadic:
+                fn = lambda x, y, op=_op, g0=c0, g1=c1: op(g0(x, y), g1(x, y))
+            else:
+                fn = lambda x, op=_op, g0=c0, g1=c1: op(g0(x), g1(x))
+            fn._vectorizable = _fast is not None and c0._vectorizable and c1._vectorizable
+            fn._is_const = False
+            # Compose axis functions if both children support it and op is a fast Python op
+            _af0 = getattr(c0, '_axis_fn', None)
+            _af1 = getattr(c1, '_axis_fn', None)
+            if _fast is not None and _af0 is not None and _af1 is not None:
+                if dyadic:
+                    fn._axis_fn = lambda X, Y, op=_fast, g0=_af0, g1=_af1: op(g0(X, Y), g1(X, Y))
+                else:
+                    fn._axis_fn = lambda a, op=_fast, g0=_af0, g1=_af1: op(g0(a), g1(a))
+                # Propagate _uses_scan from children
+                if getattr(_af0, '_uses_scan', False) or getattr(_af1, '_uses_scan', False):
+                    fn._axis_fn._uses_scan = True
+            else:
+                fn._axis_fn = None
+            # Tag constant*x pattern for matmul optimization in reduce
+            if not dyadic and op_a == '*':
+                if c0._is_const and not c1._is_const:
+                    try:
+                        _cv = c0(0)
+                        if type(_cv) is numpy.ndarray:
+                            fn._const_mul_val = _cv
+                    except Exception:
+                        pass
+                elif c1._is_const and not c0._is_const:
+                    try:
+                        _cv = c1(0)
+                        if type(_cv) is numpy.ndarray:
+                            fn._const_mul_val = _cv
+                    except Exception:
+                        pass
+            # Tag linear coefficient patterns for affine recurrence detection in scan
+            if dyadic and op_a == '*':
+                # x * const or const * x → tag _x_coeff
+                _x0 = getattr(c0, '_is_x', False)
+                _x1 = getattr(c1, '_is_x', False)
+                _y0 = getattr(c0, '_is_y', False)
+                _y1 = getattr(c1, '_is_y', False)
+                if _x0 and c1._is_const:
+                    try: fn._x_coeff = c1(0, 0)
+                    except: pass
+                elif _x1 and c0._is_const:
+                    try: fn._x_coeff = c0(0, 0)
+                    except: pass
+                elif _y0 and c1._is_const:
+                    try: fn._y_coeff = c1(0, 0)
+                    except: pass
+                elif _y1 and c0._is_const:
+                    try: fn._y_coeff = c0(0, 0)
+                    except: pass
+            # Tag linear recurrence: c1*x + c2*y → _linear_recurrence = (c1, c2)
+            # Bare x/y have implicit coeff of 1
+            if dyadic and op_a == '+':
+                _xc0 = getattr(c0, '_x_coeff', 1.0 if getattr(c0, '_is_x', False) else None)
+                _xc1 = getattr(c1, '_x_coeff', 1.0 if getattr(c1, '_is_x', False) else None)
+                _yc0 = getattr(c0, '_y_coeff', 1.0 if getattr(c0, '_is_y', False) else None)
+                _yc1 = getattr(c1, '_y_coeff', 1.0 if getattr(c1, '_is_y', False) else None)
+                if _xc0 is not None and _yc1 is not None:
+                    fn._linear_recurrence = (float(_xc0), float(_yc1))
+                elif _xc1 is not None and _yc0 is not None:
+                    fn._linear_recurrence = (float(_xc1), float(_yc0))
+            return fn
+    # Handle monad ops (arity 1): e.g., #x → count(x)
+    if (te is KGCall or te is KGFn) and expr._is_op and expr._op_arity == 1:
+        op_a = expr._op_a
+        _op = klong._vm.get(op_a)
+        if _op is not None:
+            fa = expr.args
+            _fa = fa if type(fa) is not list else fa[0]
+            c = _compile_arg_fn(_fa, klong, dyadic=dyadic)
+            if c is not None:
+                if dyadic:
+                    fn = lambda x, y, op=_op, g=c: op(g(x, y))
+                else:
+                    fn = lambda x, op=_op, g=c: op(g(x))
+                fn._vectorizable = False
+                fn._is_const = c._is_const
+                # For count monad (#), axis version uses shape[-1]
+                _c_axis = getattr(c, '_axis_fn', None)
+                if not dyadic and op_a == '#' and _c_axis is not None:
+                    fn._axis_fn = lambda a, g=_c_axis: numpy.asarray(g(a)).shape[-1]
+                else:
+                    fn._axis_fn = None
+                return fn
+    # Handle simple adverb chains: op/x → reduce, op\x → accumulate
+    if te is KGCall and expr._is_adverb_chain:
+        chain = expr.a
+        if type(chain) is list and len(chain) == 3:
+            verb_adv = chain[0]
+            adverb = chain[1]
+            arg = chain[2]
+            if type(verb_adv) is KGAdverb and type(verb_adv.a) is KGOp and type(adverb) is KGAdverb:
+                op_char = verb_adv.a.a
+                adv_char = adverb.a
+                c_arg = _compile_arg_fn(arg, klong, dyadic=dyadic)
+                if c_arg is not None:
+                    np_fn = None
+                    _axis_fn_2d = None
+                    if adv_char == '/':
+                        np_fn = _KLONG_REDUCE_TO_PY.get(op_char)
+                        _axis_fn_2d = _AXIS_REDUCE_KEEPDIMS.get(op_char)
+                    elif adv_char == '\\':
+                        np_fn = _KLONG_SCAN_TO_PY.get(op_char)
+                        _axis_fn_2d = _AXIS_SCAN_2D.get(op_char)
+                    if np_fn is not None:
+                        # Resolve to actual numpy function
+                        _resolved = eval(np_fn, _EVAL_GLOBALS)
+                        if dyadic:
+                            fn = lambda x, y, rf=_resolved, g=c_arg: rf(g(x, y))
+                        else:
+                            fn = lambda x, rf=_resolved, g=c_arg: rf(g(x))
+                        fn._vectorizable = False
+                        fn._is_const = c_arg._is_const
+                        # Compose axis function if child supports it
+                        _c_axis = getattr(c_arg, '_axis_fn', None)
+                        if _axis_fn_2d is not None and _c_axis is not None:
+                            if dyadic:
+                                fn._axis_fn = lambda X, Y, af=_axis_fn_2d, g=_c_axis: af(g(X, Y))
+                            else:
+                                # Optimization: +/(constant*x) → matrix-vector multiply via BLAS
+                                _cmv = getattr(c_arg, '_const_mul_val', None)
+                                if op_char == '+' and _cmv is not None:
+                                    fn._axis_fn = lambda a, c=_cmv: a @ c
+                                else:
+                                    fn._axis_fn = lambda a, af=_axis_fn_2d, g=_c_axis: af(g(a))
+                            # Tag scan operations: per-element cffi may be faster than axis batch
+                            if adv_char == '\\':
+                                fn._axis_fn._uses_scan = True
+                        else:
+                            fn._axis_fn = None
+                        return fn
+                    # Each-pair: op:'x → x[:-1] op x[1:]
+                    if adv_char == ":'" and not dyadic:
+                        _fast = _FAST_DYAD_OPS.get(op_char)
+                        _c_axis = getattr(c_arg, '_axis_fn', None)
+                        if _fast is not None:
+                            if c_arg._is_const:
+                                return None  # each-pair on constant makes no sense
+                            def _ep_fn(x, op=_fast, g=c_arg):
+                                v = g(x)
+                                return op(v[:-1], v[1:])
+                            _ep_fn._vectorizable = False
+                            _ep_fn._is_const = False
+                            if _c_axis is not None:
+                                def _ep_axis(a, op=_fast, g=_c_axis):
+                                    v = g(a)
+                                    return op(v[:, :-1], v[:, 1:])
+                                _ep_fn._axis_fn = _ep_axis
+                            else:
+                                _ep_fn._axis_fn = None
+                            return _ep_fn
+                        # Max/min each-pair: |:'x, &:'x
+                        if op_char == '|' or op_char == '&':
+                            _np_fn = numpy.maximum if op_char == '|' else numpy.minimum
+                            def _ep_fn(x, npf=_np_fn, g=c_arg):
+                                v = g(x)
+                                return npf(v[:-1], v[1:])
+                            _ep_fn._vectorizable = False
+                            _ep_fn._is_const = False
+                            if _c_axis is not None:
+                                def _ep_axis(a, npf=_np_fn, g=_c_axis):
+                                    v = g(a)
+                                    return npf(v[:, :-1], v[:, 1:])
+                                _ep_fn._axis_fn = _ep_axis
+                            else:
+                                _ep_fn._axis_fn = None
+                            return _ep_fn
+    return None
 
 
 def chain_adverbs(klong, arr):
@@ -203,25 +2165,420 @@ def chain_adverbs(klong, arr):
 
         ,/:~[1 [2 [3 [4] 5] 6] 7]  -->  [1 2 3 4 5 6 7]
 
-        ,/\~ (Flatten-Over-Scan-Converging) explains why ,/:~ flattens
+        ,/\\~ (Flatten-Over-Scan-Converging) explains why ,/:~ flattens
         any object:
 
-        ,/\~[1 [2 [3 [4] 5] 6] 7]  -->  [[1 [2 [3 [4] 5] 6] 7]
+        ,/\\~[1 [2 [3 [4] 5] 6] 7]  -->  [[1 [2 [3 [4] 5] 6] 7]
                                           [1 2 [3 [4] 5] 6 7]
                                            [1 2 3 [4] 5 6 7]
                                             [1 2 3 4 5 6 7]]
 
     """
+    _specialized = False
+    _vectorizable = False
+    _resolved_op = None
     if arr[0].arity == 1:
-        f = lambda x,k=klong,a=arr[0].a: k.eval(KGCall(a, [x], arity=1))
+        if type(arr[0].a) is KGOp:
+            # Direct dispatch for built-in operators — pre-resolved function avoids dict lookup
+            _fn = klong._vm[arr[0].a.a]
+            f = lambda x,fn=_fn: fn(x)
+        else:
+            # Try to specialize for simple op bodies (e.g., {x+1}, {x*2})
+            # This avoids context push/pop and _eval_fn overhead entirely
+            _specialized = False
+            verb = arr[0].a
+            # Resolve symbol to actual function at chain-creation time
+            if type(verb) is KGSym:
+                try:
+                    _resolved = klong._context[verb]
+                except KeyError:
+                    _resolved = None
+                if _resolved is not None and type(_resolved) is KGFn and not _resolved._is_op and not _resolved._is_adverb_chain and _resolved.args is None:
+                    body = _resolved.a
+                    tb = type(body)
+                else:
+                    body = verb
+                    tb = type(body)
+            else:
+                body = verb
+                tb = type(body)
+            # Unwrap inline lambda KGFn: {x*x} → body is KGFn wrapping the op KGCall
+            if tb is KGFn and not body._is_op and not body._is_adverb_chain and body.args is None:
+                body = body.a
+                tb = type(body)
+            if (tb is KGCall or tb is KGFn) and body._is_op:
+                op_a = body._op_a
+                if body._op_arity == 2:
+                    # Use fast Python operators for common arithmetic, fall back to cached_fn
+                    _fast_op = _FAST_DYAD_OPS.get(op_a)
+                    _op_fn = _fast_op if _fast_op is not None else klong._vd[op_a]
+                    fa = body.args
+                    if type(fa) is not list:
+                        fa = [fa] if fa is not None else fa
+                    fa0, fa1 = fa[0], fa[1]
+                    t0, t1 = type(fa0), type(fa1)
+                    # {x op literal}: e.g., {x+1}, {x*2}
+                    if t0 is KGSym and fa0 is _sym_x and (t1 is int or t1 is float):
+                        _c = fa1
+                        f = lambda x, fn=_op_fn, c=_c: fn(x, c)
+                        _specialized = True
+                        _vectorizable = _fast_op is not None
+                    # {literal op x}: e.g., {1+x}
+                    elif t1 is KGSym and fa1 is _sym_x and (t0 is int or t0 is float):
+                        _c = fa0
+                        f = lambda x, fn=_op_fn, c=_c: fn(c, x)
+                        _specialized = True
+                        _vectorizable = _fast_op is not None
+                    # {x op x}: e.g., {x*x}
+                    elif t0 is KGSym and fa0 is _sym_x and t1 is KGSym and fa1 is _sym_x:
+                        f = lambda x, fn=_op_fn: fn(x, x)
+                        _specialized = True
+                        _vectorizable = _fast_op is not None
+                    else:
+                        # Try flat source compilation first (fastest)
+                        _src = _expr_to_source(body, klong, dyadic=False)
+                        if _src is not None:
+                            src_str, is_const = _src
+                            if not is_const:
+                                try:
+                                    _code = compile(f'lambda x:{src_str}', '<klong>', 'eval')
+                                    f = eval(_code, _EVAL_GLOBALS)
+                                    _specialized = True
+                                    _vectorizable = _fast_op is not None
+                                    # Get axis function for batch processing via _compile_arg_fn
+                                    _body_cf = _compile_arg_fn(body, klong, dyadic=False)
+                                    if _body_cf is not None and getattr(_body_cf, '_axis_fn', None) is not None:
+                                        f._axis_fn = _body_cf._axis_fn
+                                except Exception:
+                                    pass
+                        if not _specialized:
+                            # Fallback: nested compound lambda chain
+                            _cf0 = _compile_arg_fn(fa0, klong)
+                            _cf1 = _compile_arg_fn(fa1, klong)
+                            if _cf0 is not None and _cf1 is not None:
+                                f = lambda x, fn=_op_fn, g0=_cf0, g1=_cf1: fn(g0(x), g1(x))
+                                _specialized = True
+                                _vectorizable = _fast_op is not None and _cf0._vectorizable and _cf1._vectorizable
+                                # Compose axis functions for stacked batch processing
+                                _af0 = getattr(_cf0, '_axis_fn', None)
+                                _af1 = getattr(_cf1, '_axis_fn', None)
+                                if _fast_op is not None and _af0 is not None and _af1 is not None:
+                                    f._axis_fn = lambda a, op=_fast_op, g0=_af0, g1=_af1: op(g0(a), g1(a))
+                                    if getattr(_af0, '_uses_scan', False) or getattr(_af1, '_uses_scan', False):
+                                        f._axis_fn._uses_scan = True
+                elif body._op_arity == 1:
+                    # {monad_op x}: e.g., {!x}, {-x}
+                    fa = body.args
+                    _fa = fa if type(fa) is not list else fa[0]
+                    if type(_fa) is KGSym and _fa is _sym_x:
+                        _op_fn = klong._vm[op_a]
+                        f = lambda x, fn=_op_fn: fn(x)
+                        _specialized = True
+            if not _specialized:
+                # Try _compile_arg_fn on full body (handles adverb chains, monads, compositions)
+                _body_cf = _compile_arg_fn(body, klong, dyadic=False)
+                if _body_cf is not None:
+                    f = _body_cf
+                    _specialized = True
+            if not _specialized:
+                # General case: use KGCall + _eval_fn (skip eval dispatch)
+                _call = KGCall(verb, [None], arity=1)
+                _args = _call.args
+                def f(x, k=klong, c=_call, a=_args):
+                    a[0] = x
+                    return k._eval_fn(c)
     else:
-        f = lambda x,y,k=klong,a=arr[0].a: k.eval(KGCall(a, [x,y], arity=2))
+        if type(arr[0].a) is KGOp:
+            # Direct dispatch for built-in operators — pre-resolved function avoids dict lookup
+            _fn = klong._vd[arr[0].a.a]
+            f = lambda x,y,fn=_fn: fn(x,y)
+            _vectorizable = True
+        else:
+            # Try to unwrap inline lambda and resolve to direct op
+            _dyad_verb = arr[0].a
+            _resolved_op = None  # Will be set to KGOp if we can vectorize each-2
+            _dtb = type(_dyad_verb)
+            # Unwrap KGFn wrapper: {x+y} → body is KGFn wrapping op KGCall
+            if _dtb is KGFn and not _dyad_verb._is_op and not _dyad_verb._is_adverb_chain and _dyad_verb.args is None:
+                _inner = _dyad_verb.a
+                _dit = type(_inner)
+                if (_dit is KGCall or _dit is KGFn) and _inner._is_op and _inner._op_arity == 2:
+                    _dop_a = _inner._op_a
+                    _dfast = _FAST_DYAD_OPS.get(_dop_a)
+                    _dop = _dfast if _dfast is not None else klong._vd[_dop_a]
+                    _dfa = _inner.args
+                    if type(_dfa) is not list:
+                        _dfa = [_dfa] if _dfa is not None else _dfa
+                    if _dfa is not None and len(_dfa) == 2:
+                        _da0, _da1 = _dfa[0], _dfa[1]
+                        # {x op y}: direct dyadic
+                        if type(_da0) is KGSym and _da0 is _sym_x and type(_da1) is KGSym and _da1 is _sym_y:
+                            f = lambda x,y,fn=_dop: fn(x,y)
+                            _resolved_op = KGOp(_dop_a, arity=2)
+                            _dyad_verb = None  # skip general case
+                        # {y op x}: swapped args
+                        elif type(_da0) is KGSym and _da0 is _sym_y and type(_da1) is KGSym and _da1 is _sym_x:
+                            f = lambda x,y,fn=_dop: fn(y,x)
+                            _dyad_verb = None
+            if _dyad_verb is not None:
+                # Try to compile the full body as a flat Python lambda (fastest)
+                _compiled = None
+                if _dtb is KGFn and not _dyad_verb._is_op and not _dyad_verb._is_adverb_chain and _dyad_verb.args is None:
+                    _src = _expr_to_source(_dyad_verb.a, klong, dyadic=True)
+                    if _src is not None:
+                        src_str, is_const = _src
+                        if is_const:
+                            try:
+                                _const = eval(src_str)
+                                _compiled = lambda x, y, c=_const: c
+                            except Exception:
+                                pass
+                        else:
+                            try:
+                                _code = compile(f'lambda x,y:{src_str}', '<klong>', 'eval')
+                                _compiled = eval(_code, _EVAL_GLOBALS)
+                            except Exception:
+                                pass
+                    if _compiled is None:
+                        _compiled = _compile_arg_fn(_dyad_verb.a, klong, dyadic=True)
+                if _compiled is not None:
+                    f = _compiled
+                    # Attach axis function and linear recurrence from compiled-fn metadata
+                    if getattr(f, '_axis_fn', None) is None or getattr(f, '_linear_recurrence', None) is None:
+                        _body_cf = _compile_arg_fn(_dyad_verb.a, klong, dyadic=True)
+                        if _body_cf is not None:
+                            if getattr(f, '_axis_fn', None) is None and getattr(_body_cf, '_axis_fn', None) is not None:
+                                f._axis_fn = _body_cf._axis_fn
+                            _lr = getattr(_body_cf, '_linear_recurrence', None)
+                            if _lr is not None:
+                                f._linear_recurrence = _lr
+                    # Detect scan-vectorize pattern: {x + g(y)} → cumsum, {x * g(y)} → cumprod
+                    if _dtb is KGFn:
+                        _vbody = _dyad_verb.a
+                        _vbt = type(_vbody)
+                        if (_vbt is KGCall or _vbt is KGFn) and _vbody._is_op and _vbody._op_arity == 2:
+                            _vop = _vbody._op_a
+                            if _vop == '+' or _vop == '*':
+                                _vfa = _vbody.args
+                                if type(_vfa) is list and len(_vfa) == 2:
+                                    _y_dep = None
+                                    if type(_vfa[0]) is KGSym and _vfa[0] is _sym_x:
+                                        _y_dep = _vfa[1]
+                                    elif type(_vfa[1]) is KGSym and _vfa[1] is _sym_x:
+                                        _y_dep = _vfa[0]
+                                    if _y_dep is not None:
+                                        _gy_src = _expr_to_source(_y_dep, klong, dyadic=True)
+                                        if _gy_src is not None and 'x' not in _gy_src[0]:
+                                            try:
+                                                _gy_fn = eval(compile(f'lambda y:{_gy_src[0]}', '<klong>', 'eval'), _EVAL_GLOBALS)
+                                                if _vop == '+':
+                                                    f._scan_cumsum_fn = _gy_fn
+                                                else:
+                                                    f._scan_cumprod_fn = _gy_fn
+                                            except Exception:
+                                                pass
+                    _dyad_verb = None
+                else:
+                    # General case: use KGCall + _eval_fn
+                    _call = KGCall(arr[0].a, [None, None], arity=2)
+                    _args = _call.args
+                    def f(x, y, k=klong, c=_call, a=_args):
+                        a[0] = x
+                        a[1] = y
+                        return k._eval_fn(c)
+    # Axis-based reduction dispatch for over-each / scan-each on list of arrays
+    _AXIS_REDUCE = {
+        '+': lambda a: numpy.sum(a, axis=1),
+        '*': lambda a: numpy.prod(a, axis=1),
+        '|': lambda a: numpy.max(a, axis=1),
+        '&': lambda a: numpy.min(a, axis=1),
+        '-': lambda a: numpy.subtract.reduce(a, axis=1),
+        '%': lambda a: numpy.divide.reduce(a, axis=1),
+    }
+    _AXIS_SCAN = {
+        '+': lambda a: numpy.cumsum(a, axis=1),
+        '*': lambda a: numpy.cumprod(a, axis=1),
+        '-': lambda a: numpy.subtract.accumulate(a, axis=1),
+        '%': lambda a: numpy.divide.accumulate(a, axis=1),
+    }
     for i in range(1,len(arr)-1):
+        # For each-adverb (') with a vectorizable arithmetic function,
+        # apply directly to the array instead of iterating element by element.
+        # This is safe for +, *, - which are element-wise on numpy arrays.
+        if arr[i].a == "'" and _vectorizable and arr[i].arity == 1:
+            _prev_f = f
+            _be = klong._backend
+            # Check if previous adverb was over(/) or scan(\) for axis optimization
+            _verb_op = arr[0].a.a if type(arr[0].a) is KGOp else None
+            _prev_adv = arr[i-1].a if i > 1 else None
+            _axis_fn = None
+            if _verb_op is not None:
+                if _prev_adv == '/':
+                    _axis_fn = _AXIS_REDUCE.get(_verb_op)
+                elif _prev_adv == '\\':
+                    _axis_fn = _AXIS_SCAN.get(_verb_op)
+            # Also check for compiled axis function from _compile_arg_fn
+            if _axis_fn is None:
+                _axis_fn = getattr(f, '_axis_fn', None)
+            _af_uses_scan = getattr(_axis_fn, '_uses_scan', False) if _axis_fn is not None else False
+            def f(x, f=_prev_f, be=_be, axis_fn=_axis_fn, uses_scan=_af_uses_scan):
+                tx = type(x)
+                if tx is numpy.ndarray and x.ndim > 0:
+                    return f(x)
+                if tx is list:
+                    # For scan operations, per-element cffi is faster when arrays are long
+                    if uses_scan and len(x) > 0 and type(x[0]) is numpy.ndarray and len(x[0]) >= 300:
+                        return be.kg_asarray([f(e) for e in x])
+                    if axis_fn is not None and len(x) > 0 and type(x[0]) is numpy.ndarray:
+                        try:
+                            stacked = numpy.concatenate(x).reshape(len(x), -1)
+                            result = axis_fn(stacked)
+                            if type(result) is numpy.ndarray:
+                                if result.ndim == 1:
+                                    return result
+                                # 2D: keepdims scalar-per-row → ravel, else list of arrays
+                                if result.shape[1] == 1:
+                                    return result.ravel()
+                                return list(result)
+                            return result
+                        except (ValueError, TypeError):
+                            pass
+                    return be.kg_asarray([f(e) for e in x])
+                if isinstance(x, str):
+                    return be.kg_asarray([f(e) for e in be.str_to_char_array(x)])
+                return f(x)
+            _vectorizable = False  # Only vectorize the innermost each
+            continue
+        # Axis-fn fast path for compiled functions with _axis_fn on list of arrays
+        if arr[i].a == "'" and arr[i].arity == 1:
+            _af = getattr(f, '_axis_fn', None)
+            if _af is not None:
+                _prev_f = f
+                _be = klong._backend
+                _af_uses_scan = getattr(_af, '_uses_scan', False)
+                def f(x, af=_af, pf=_prev_f, be=_be, uses_scan=_af_uses_scan):
+                    if type(x) is list and len(x) > 0 and type(x[0]) is numpy.ndarray:
+                        # For scan operations, per-element cffi is faster when arrays are long
+                        if uses_scan and len(x[0]) >= 300:
+                            return be.kg_asarray([pf(e) for e in x])
+                        try:
+                            stacked = numpy.concatenate(x).reshape(len(x), -1)
+                            if stacked.ndim == 2:
+                                r = af(stacked)
+                                if type(r) is numpy.ndarray:
+                                    if r.ndim == 2:
+                                        return r.ravel() if r.shape[1] == 1 else list(r)
+                                    return r
+                                return r
+                        except (ValueError, TypeError):
+                            pass
+                    # Fallback to per-element
+                    if hasattr(x, '__iter__') and not isinstance(x, str):
+                        return be.kg_asarray([pf(e) for e in x])
+                    return pf(x)
+                continue
+        # Vectorized fold: {x + g(y)}/array → a[0] + sum(g(a[1:]))
+        if arr[i].a == '/' and arr[i].arity == 1:
+            _csf = getattr(f, '_scan_cumsum_fn', None)
+            _cpf = getattr(f, '_scan_cumprod_fn', None)
+            if _csf is not None:
+                def f(x, csf=_csf):
+                    if type(x) is numpy.ndarray and len(x) > 0:
+                        if len(x) == 1:
+                            return x[0]
+                        return x[0] + numpy.sum(csf(x[1:]))
+                    from functools import reduce
+                    return reduce(lambda a, b, _csf=csf: a + _csf(b), x)
+                continue
+            if _cpf is not None:
+                def f(x, cpf=_cpf):
+                    if type(x) is numpy.ndarray and len(x) > 0:
+                        if len(x) == 1:
+                            return x[0]
+                        return x[0] * numpy.prod(cpf(x[1:]))
+                    from functools import reduce
+                    return reduce(lambda a, b, _cpf=cpf: a * _cpf(b), x)
+                continue
+        # Vectorized scan: {x + g(y)}\array → a[0] + cumsum(g(a[1:]))
+        if arr[i].a == '\\' and arr[i].arity == 1:
+            # Affine recurrence first (cffi single-pass is fastest when available)
+            _lr = getattr(f, '_linear_recurrence', None)
+            if _lr is not None:
+                _c_x, _c_y = _lr
+                def f(x, cx=_c_x, cy=_c_y):
+                    if type(x) is numpy.ndarray:
+                        return _prefix_scan_linear(x, cx, cy)
+                    return numpy.fromiter(itertools.accumulate(
+                        x.tolist() if type(x) is numpy.ndarray else x,
+                        lambda a, b, _cx=cx, _cy=cy: _cx * a + _cy * b
+                    ), dtype=numpy.float64, count=len(x))
+                continue
+            _csf = getattr(f, '_scan_cumsum_fn', None)
+            _cpf = getattr(f, '_scan_cumprod_fn', None)
+            if _csf is not None:
+                _be = klong._backend
+                def f(x, csf=_csf, be=_be):
+                    if type(x) is numpy.ndarray and len(x) > 0:
+                        n = len(x)
+                        if n == 1:
+                            return x.copy()
+                        g = csf(x[1:])
+                        cs = numpy.cumsum(g)
+                        cs += x[0]
+                        result = numpy.empty(n, dtype=cs.dtype)
+                        result[0] = x[0]
+                        result[1:] = cs
+                        return result
+                    return be.kg_asarray(list(itertools.accumulate(x, lambda a, b, _csf=csf: a + _csf(b))))
+                continue
+            if _cpf is not None:
+                _be = klong._backend
+                def f(x, cpf=_cpf, be=_be):
+                    if type(x) is numpy.ndarray and len(x) > 0:
+                        n = len(x)
+                        if n == 1:
+                            return x.copy()
+                        g = cpf(x[1:])
+                        cp = numpy.cumprod(g)
+                        cp *= x[0]
+                        result = numpy.empty(n, dtype=cp.dtype)
+                        result[0] = x[0]
+                        result[1:] = cp
+                        return result
+                    return be.kg_asarray(list(itertools.accumulate(x, lambda a, b, _cpf=cpf: a * _cpf(b))))
+                continue
         o = get_adverb_fn(klong, arr[i].a, arity=arr[i].arity)
         if arr[i].arity == 1:
-            f = lambda x,f=f,o=o: o(f,x,op=arr[0].a)
+            _scan_op = _resolved_op if _resolved_op is not None else arr[0].a
+            f = lambda x,f=f,o=o,_op=_scan_op: o(f,x,op=_op)
         else:
-            f = lambda x,y,f=f,o=o: o(f,x,y)
+            if arr[i].a == "'":
+                # Batch path for dyadic each-2 with axis function
+                _daf = getattr(f, '_axis_fn', None)
+                if _daf is not None:
+                    _prev_f = f
+                    _be = klong._backend
+                    _each2_op = _resolved_op if _resolved_op is not None else arr[0].a
+                    def f(x, y, daf=_daf, pf=_prev_f, be=_be, o=o, _op=_each2_op):
+                        if type(x) is list and type(y) is list and len(x) > 0 and type(x[0]) is numpy.ndarray:
+                            try:
+                                X = numpy.concatenate(x).reshape(len(x), -1)
+                                Y = numpy.concatenate(y).reshape(len(y), -1)
+                                result = daf(X, Y)
+                                if type(result) is numpy.ndarray:
+                                    if result.ndim == 1:
+                                        return result
+                                    if result.ndim == 2:
+                                        return result.ravel() if result.shape[1] == 1 else list(result)
+                                return result
+                            except (ValueError, TypeError):
+                                pass
+                        return o(pf, x, y, op=_op)
+                else:
+                    _each2_op = _resolved_op if _resolved_op is not None else arr[0].a
+                    f = lambda x,y,f=f,o=o,_op=_each2_op: o(f,x,y,op=_op)
+            else:
+                f = lambda x,y,f=f,o=o: o(f,x,y)
     if arr[-2].arity == 1:
         f = lambda a=arr[-1],f=f,k=klong: f(k.eval(a))
     else:
@@ -230,6 +2587,9 @@ def chain_adverbs(klong, arr):
 
 
 class KlongInterpreter():
+    __slots__ = ('_backend', '_context', '_vd', '_vm', '_start_time', '_module',
+                 '_parse_cache', '_adverb_cache', '_result_cache', '_result_cache_ok',
+                 '_compiled_expr_cache')
 
     def __init__(self, backend=None, device=None):
         """
@@ -250,6 +2610,11 @@ class KlongInterpreter():
         self._vm = create_monad_functions(self)
         self._start_time = time.time()
         self._module = None
+        self._parse_cache = {}
+        self._adverb_cache = {}
+        self._result_cache = {}
+        self._result_cache_ok = True
+        self._compiled_expr_cache = {}
 
     @property
     def backend(self):
@@ -262,33 +2627,46 @@ class KlongInterpreter():
         return self._backend.np
 
     def __setitem__(self, k, v):
-        k = k if isinstance(k, KGSym) else KGSym(k)
+        k = k if type(k) is KGSym else KGSym(k)
         self._context[k] = v
+        self._result_cache.clear()
+        # Only clear adverb cache when assigning functions (not data)
+        # since specialized adverb closures capture resolved function bodies
+        tv = type(v)
+        if tv is KGFn or tv is KGCall:
+            self._adverb_cache.clear()
+        self._result_cache_ok = False
 
     def __getitem__(self, k):
-        k = k if isinstance(k, KGSym) else KGSym(k)
+        k = k if type(k) is KGSym else KGSym(k)
         r = self._context[k]
         # Pass the symbol name to avoid O(n) context search
-        return KGFnWrapper(self, r, sym=k) if issubclass(type(r), KGFn) else r
+        tr = type(r)
+        return KGFnWrapper(self, r, sym=k) if tr is KGFn or tr is KGCall else r
 
     def __delitem__(self, k):
-        k = k if isinstance(k, KGSym) else KGSym(k)
+        k = k if type(k) is KGSym else KGSym(k)
         del self._context[k]
+        self._result_cache.clear()
+        self._adverb_cache.clear()
+        self._result_cache_ok = False
 
     def _get_op_fn(self, s, arity):
         return self._vm[s] if arity == 1 else self._vd[s]
 
     def _is_monad(self, s):
-        return isinstance(s,KGOp) and in_map(s.a, self._vm)
+        return type(s) is KGOp and s.a in self._vm
 
     def _is_dyad(self, s):
-        return isinstance(s,KGOp) and in_map(s.a, self._vd)
+        return type(s) is KGOp and s.a in self._vd
 
     def start_module(self, name):
         self._context.start_module(name)
+        self._module = name
 
     def stop_module(self):
         self._context.stop_module()
+        self._module = None
 
     def parse_module(self, name):
         self._module = None if safe_eq(name,0) or is_empty(name) else name
@@ -301,7 +2679,7 @@ class KlongInterpreter():
 
     def _apply_adverbs(self, t, i, a, aa, arity, dyad=False, dyad_value=None):
         aa_arity = get_adverb_arity(aa, arity)
-        if isinstance(a,KGOp):
+        if type(a) is KGOp:
             a.arity = aa_arity
         a = KGAdverb(a, aa_arity)
         arr = [a, KGAdverb(aa, arity)]
@@ -346,26 +2724,52 @@ class KlongInterpreter():
             raise UnexpectedChar(t,i,t[i])
         arr = []
         if cmatch(t, i, ')'): # nilad application
-            return i+1,arr
-        k = i
+            return i+1, arr
+
+        last_was_separator = False
         while True:
-            ii,c = kg_read(t, i, ignore_newline=True, module=self.current_module())
-            if safe_eq(c, ';'):
-                i = ii
-                if k == i - 1:
-                    arr.append(None)
-                k = i
+            i = skip(t, i, ignore_newline=True)
+            if cmatch(t, i, ';'):
+                arr.append(None)
+                i += 1
+                last_was_separator = True
                 continue
-            elif safe_eq(c,')'):
-                if k == ii - 1:
+            if cmatch(t, i, ')'):
+                if last_was_separator and len(arr) > 0:
                     arr.append(None)
-                break
-            i,a = self._expr(t,i,ignore_newline=True)
+                return i + 1, arr
+
+            i, a = self._expr(t, i, ignore_newline=True)
             if a is None:
                 break
             arr.append(a)
-        i = cexpect(t,i,')')
-        return i,arr
+            last_was_separator = False
+
+            i = skip(t, i, ignore_newline=True)
+            if cmatch(t, i, ';'):
+                i += 1
+                last_was_separator = True
+                continue
+            if cmatch(t, i, ')'):
+                return i + 1, arr
+            raise UnexpectedChar(t, i, t[i])
+
+        raise UnexpectedEOF(t, i)
+
+    def _read_index_args(self, t, i=0):
+        """
+        Parse postfix index syntax like a[0] and a[1 2].
+
+        A single index is returned as a scalar; multiple indices are returned
+        as a backend array so the existing @ operator semantics apply.
+        """
+        i, arr = read_list(t, ']', i=i+1, module=self.current_module())
+        if len(arr) == 0:
+            return i, self._backend.kg_asarray([])
+        if len(arr) == 1:
+            q = arr[0]
+            return i, self._backend.kg_asarray(q) if type(q) is list else q
+        return i, self._backend.kg_asarray(arr)
 
 
     def _factor(self, t, i=0, ignore_newline=False):
@@ -400,7 +2804,7 @@ class KlongInterpreter():
         i,a = kg_read_array(t, i, self._backend, ignore_newline=ignore_newline, module=self.current_module())
         if a is None:
             return i,a
-        if safe_eq(a, '{'): # read fn
+        if type(a) is str and a == '{': # read fn
             i,a = self.prog(t, i, ignore_newline=True)
             a = a[0] if len(a) == 1 else a
             i = skip(t, i, ignore_newline=True)
@@ -414,14 +2818,14 @@ class KlongInterpreter():
             ii, aa = peek_adverb(t, i)
             if aa:
                 i,a = self._apply_adverbs(t, ii, a, aa, arity=1)
-        elif isinstance(a, KGSym):
+        elif type(a) is KGSym:
             if cmatch(t,i,'(') or cmatch2(t,i,':','('):
                 i,fa = self._read_fn_args(t,i)
                 a = KGFn(a, fa, arity=len(fa)) if has_none(fa) else KGCall(a, fa, arity=len(fa))
-                if safe_eq(a.a, KGSym(".comment")):
+                if a.a == KGSym(".comment"):
                     i = read_sys_comment(t,i,a.args[0])
                     return self._factor(t,i, ignore_newline=ignore_newline)
-                elif safe_eq(a.a, KGSym('.module')):
+                elif a.a == KGSym('.module'):
                     self.parse_module(fa[0])
             ii, aa = peek_adverb(t, i)
             if aa:
@@ -434,11 +2838,14 @@ class KlongInterpreter():
             else:
                 i, aa = self._expr(t, i, ignore_newline=ignore_newline)
                 a = KGFn(a, aa, arity=1)
-        elif safe_eq(a, '('):
+        elif type(a) is str and a == '(':
             i,a = self._expr(t, i, ignore_newline=ignore_newline)
             i = cexpect(t, i, ')')
-        elif safe_eq(a, ':['):
+        elif type(a) is str and a == ':[':
             return read_cond(self, t, i)
+        while cmatch(t, i, '['):
+            i, index = self._read_index_args(t, i)
+            a = KGFn(KGOp('@', arity=2), [a, index], arity=2)
         return i, a
 
     def _expr(self, t, i=0, ignore_newline=False):
@@ -452,14 +2859,14 @@ class KlongInterpreter():
 
         """
         i, a = self._factor(t, i, ignore_newline=ignore_newline)
-        if a is None or safe_eq(a, ';'):
+        if a is None or (type(a) is str and a == ';'):
             return i,a
         ii, aa = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())
         if self._is_dyad(aa):
             aa.arity = 2
-        while isinstance(aa,(KGOp,KGSym)) or safe_eq(aa, '{'):
+        while type(aa) is KGOp or type(aa) is KGSym or aa == '{':
             i = ii
-            if safe_eq(aa, '{'): # read fn
+            if aa == '{': # read fn
                 i,aa = self.prog(t, i, ignore_newline=True)
                 aa = aa[0] if len(aa) == 1 else aa
                 i = skip(t, i, ignore_newline=True)
@@ -470,7 +2877,7 @@ class KlongInterpreter():
                     aa = KGFn(aa, fa, arity=arity) if has_none(fa) else KGCall(aa, fa, arity=arity)
                 else:
                     aa = KGFn(aa, args=None, arity=arity)
-            elif isinstance(aa,KGSym) and (cmatch(t, i, '(') or cmatch2(t,i,':','(')):
+            elif type(aa) is KGSym and (cmatch(t, i, '(') or cmatch2(t,i,':','(')):
                 i,fa = self._read_fn_args(t,i)
                 aa = KGFn(aa, fa, arity=len(fa)) if has_none(fa) else KGCall(aa, fa, arity=len(fa))
             ii, aaa = peek_adverb(t, i)
@@ -480,7 +2887,7 @@ class KlongInterpreter():
                 i, aaa = self._expr(t, i, ignore_newline=ignore_newline)
                 a = KGFn(aa, [a, aaa], arity=2)
             ii, aa = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())
-        if ignore_newline and safe_eq(a, '\n'):
+        if ignore_newline and type(a) is str and a == '\n':
             i = skip(t, i, ignore_newline=True)
         return i, a
 
@@ -498,7 +2905,7 @@ class KlongInterpreter():
         arr = []
         while i < len(t):
             i, q = self._expr(t,i, ignore_newline=ignore_newline)
-            if q is None or safe_eq(q, ';'):
+            if q is None or (type(q) is str and q == ';'):
                 continue
             arr.append(q)
             ii, c = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())
@@ -543,24 +2950,25 @@ class KlongInterpreter():
         - Even if this function (`_f`) corresponds to a reserved symbol, it should still undergo the projection flattening process in subsequent recursive calls.
 
         """
-        if isinstance(f, KGSym):
+        tf = type(f)
+        if tf is KGSym:
             try:
                 _f = self._context[f]
-                if isinstance(_f, (KGFn,KGLambda)) or not in_map(f, reserved_fn_symbols):
-                    # if f is a symbol and it resolves to a function, then we resolve f as the function.
-                    # In this case, the f_args are meant for the resolved function.
+                t_f = type(_f)
+                if t_f is KGFn or t_f is KGCall or t_f in _kglambda_types or _is_kglambda_type(t_f) or f not in reserved_fn_symbols_set:
                     f = _f
+                    tf = t_f
                 else:
                     return f, f_args, f_arity
             except KeyError:
-                if not in_map(f, reserved_fn_symbols):
+                if f not in reserved_fn_symbols_set:
                     raise KlongException(f"undefined: {f}")
-        if f_arity > 0 and isinstance(f, KGFn) and not f.is_op() and not f.is_adverb_chain():
+        if f_arity > 0 and (tf is KGFn or tf is KGCall) and not f._is_op and not f._is_adverb_chain:
             if f.args is None:
                 # if f.args is None, then there are no projections in place and we use f_args entirely for the function.
                 return f.a, f_args, f.arity
             elif has_none(f.args):
-                f_args.append(f.args if isinstance(f.args, list) else [f.args])
+                f_args.append(f.args if type(f.args) is list else [f.args])
                 return f.a, f_args, f.arity
         return f, f_args, f_arity
 
@@ -597,40 +3005,851 @@ class KlongInterpreter():
             Subsequent processing will then use the arguments attached to the referenced function as the basis for projection flattening.
 
         """
-        f = x.a
-        f_arity = x.arity
-        f_args = [None] if x.args is None else [x.args if isinstance(x.args, list) else [x.args]]
 
-        # three passes as there are max three argumentes: x,y, and z
-        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
-        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
-        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+        # Fast path: use cached resolution if available and still valid
+        _ctx = self._context
+        _ctx_list = _ctx._context
+        _tx = type(x)
+        if _tx is KGCall and x._cached_version == _ctx._lookup_version:
+            f = x._cached_body
+            # Specialized hot path: _cached_cond_fast implies nargs_ok, KGCond body, nargs==1
+            if x._cached_cond_fast:
+                # Inline arg eval for nargs==1
+                if x._arg0_dyad_fast:
+                    # Pre-cached: arg sym, literal, op_a
+                    _ay = x._arg0_literal
+                    _ax = _ctx._fast_x
+                    if _ax is None:
+                        _ax = self.eval(x._arg0_sym)
+                    if type(_ax) is int:
+                        _aop = x._arg0_op_a
+                        if _aop == '-':
+                            _xval = _ax - _ay
+                        elif _aop == '+':
+                            _xval = _ax + _ay
+                        elif _aop == '*':
+                            _xval = _ax * _ay
+                        else:
+                            _xval = self._vd[_aop](_ax, _ay)
+                    else:
+                        _xval = self._vd[x._arg0_op_a](_ax, _ay)
+                elif x._arg0_is_dyad_op:
+                    q = x._f_args[0]
+                    _afa = q.args
+                    if type(_afa) is not list:
+                        _afa = [_afa] if _afa is not None else _afa
+                    _afa1 = _afa[1]
+                    _at1 = type(_afa1)
+                    _ay = _afa1 if _at1 is int or _at1 is float else self.eval(_afa1)
+                    _afa0 = _afa[0]
+                    _at0 = type(_afa0)
+                    if _at0 is KGSym and _afa0 in reserved_fn_symbols_set:
+                        _ax = _ctx._fast_x if _afa0 is _sym_x else _ctx_list[-1].get(_afa0)
+                        if _ax is None:
+                            _ax = self.eval(_afa0)
+                    elif _at0 is int or _at0 is float:
+                        _ax = _afa0
+                    else:
+                        _ax = self.eval(_afa0)
+                    if type(_ax) is int and type(_ay) is int:
+                        _aop = q._op_a
+                        if _aop == '-':
+                            _xval = _ax - _ay
+                        elif _aop == '+':
+                            _xval = _ax + _ay
+                        elif _aop == '*':
+                            _xval = _ax * _ay
+                        else:
+                            _afast = q._fast_op
+                            _xval = _afast(_ax, _ay) if _afast is not None else self._vd[_aop](_ax, _ay)
+                    else:
+                        _afast = q._fast_op
+                        if _afast is not None and (type(_ax) is int or type(_ax) is float) and (type(_ay) is int or type(_ay) is float):
+                            _xval = _afast(_ax, _ay)
+                        else:
+                            _xval = self._vd[q._op_a](_ax, _ay)
+                else:
+                    q = x._f_args[0]
+                    tq = type(q)
+                    if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types:
+                        _xval = q
+                    elif (tq is KGFn or tq is KGCall) and q._is_op:
+                        _xval = self.eval(q)
+                    elif tq is KGCall:
+                        _xval = self._eval_fn(q)
+                    else:
+                        _xval = self.call(q)
+                # Check for specialized closure (fib-like self-recursive pattern)
+                _sfn = x._specialized_fn
+                if _sfn is not None:
+                    return _sfn(_xval)
+                _saved_x = _ctx._fast_x
+                _ctx._fast_x = _xval
+                try:
+                    # Condition eval — pre-cached literal, op_a, fast_op
+                    _cy = x._cond_literal
+                    _cx = _xval
+                    if type(_cx) is int:
+                        _cop_a = x._cond_op_a
+                        if _cop_a == '<':
+                            p = _cx < _cy
+                        elif _cop_a == '>':
+                            p = _cx > _cy
+                        elif _cop_a == '=':
+                            p = _cx == _cy
+                        else:
+                            _cfast = x._cond_fast_op
+                            q = _cfast(_cx, _cy) if _cfast is not None else self._vd[_cop_a](_cx, _cy)
+                            p = q != 0
+                    else:
+                        _cop_a = x._cond_op_a
+                        _cfast = x._cond_fast_op
+                        if _cfast is not None and (type(_cx) is int or type(_cx) is float):
+                            q = _cfast(_cx, _cy)
+                        else:
+                            q = self._vd[_cop_a](_cx, _cy)
+                        tq = type(q)
+                        if tq is int or tq is float:
+                            p = q != 0
+                        else:
+                            p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
+                    xb = f[1] if p else f[2]
+                    if p:
+                        if x._cached_true_is_sym:
+                            if xb is _sym_x:
+                                return _xval
+                            return self.eval(xb)
+                    else:
+                        _fbc0 = x._cached_fb_call0
+                        if _fbc0 is not None:
+                            # Ultra-fast: both false branch args are KGCall
+                            _by = self._eval_fn(x._cached_fb_call1)
+                            _bx = self._eval_fn(_fbc0)
+                            _fbop = x._cached_fb_op_a
+                            if type(_bx) is int and type(_by) is int:
+                                if _fbop == '+':
+                                    return _bx + _by
+                                elif _fbop == '-':
+                                    return _bx - _by
+                                elif _fbop == '*':
+                                    return _bx * _by
+                                else:
+                                    return self._vd[_fbop](_bx, _by)
+                            else:
+                                return self._vd[_fbop](_bx, _by)
+                        elif x._cached_false_is_dyad_op:
+                            _bfa = xb.args
+                            if type(_bfa) is not list:
+                                _bfa = [_bfa] if _bfa is not None else _bfa
+                            _bfa1 = _bfa[1]
+                            _bt1 = type(_bfa1)
+                            if _bt1 is int or _bt1 is float:
+                                _by = _bfa1
+                            elif _bt1 is KGSym and _bfa1 in reserved_fn_symbols_set:
+                                _by = _xval if _bfa1 is _sym_x else self.eval(_bfa1)
+                            elif (_bt1 is KGFn or _bt1 is KGCall) and _bfa1._is_op:
+                                _by = self.eval(_bfa1)
+                            elif _bt1 is KGCall and not _bfa1._is_adverb_chain:
+                                _by = self._eval_fn(_bfa1)
+                            else:
+                                _by = self.eval(_bfa1)
+                            _bop_a = xb._op_a
+                            if _bop_a in _UNEVALUATED_OPS:
+                                _bx = _bfa[0]
+                            else:
+                                _bfa0 = _bfa[0]
+                                _bt0 = type(_bfa0)
+                                if _bt0 is KGSym and _bfa0 in reserved_fn_symbols_set:
+                                    _bx = _xval if _bfa0 is _sym_x else self.eval(_bfa0)
+                                elif _bt0 is int or _bt0 is float:
+                                    _bx = _bfa0
+                                elif (_bt0 is KGFn or _bt0 is KGCall) and _bfa0._is_op:
+                                    _bx = self.eval(_bfa0)
+                                elif _bt0 is KGCall and not _bfa0._is_adverb_chain:
+                                    _bx = self._eval_fn(_bfa0)
+                                else:
+                                    _bx = self.eval(_bfa0)
+                            if type(_bx) is int and type(_by) is int:
+                                if _bop_a == '+':
+                                    return _bx + _by
+                                elif _bop_a == '-':
+                                    return _bx - _by
+                                elif _bop_a == '*':
+                                    return _bx * _by
+                                else:
+                                    _bfast = xb._fast_op
+                                    if _bfast is not None:
+                                        return _bfast(_bx, _by)
+                                    return self._vd[_bop_a](_bx, _by)
+                            else:
+                                _bfast = xb._fast_op
+                                if _bfast is not None and (type(_bx) is int or type(_bx) is float) and (type(_by) is int or type(_by) is float):
+                                    return _bfast(_bx, _by)
+                                return self._vd[_bop_a](_bx, _by)
+                    txb = type(xb)
+                    if txb is int or txb is float:
+                        return xb
+                    if txb is KGSym:
+                        if xb in reserved_fn_symbols_set:
+                            if xb is _sym_x:
+                                return _xval
+                        return self.eval(xb)
+                    if (txb is KGCall or txb is KGFn) and xb._is_op:
+                        return self.eval(xb)
+                    if txb is KGCall and not xb._is_adverb_chain:
+                        return self._eval_fn(xb)
+                    return self.call(xb)
+                finally:
+                    _ctx._fast_x = _saved_x
+            if not x._cached_nargs_ok:
+                return x
+            tf = x._cached_body_type
+            f_args = x._f_args
+            nargs = x._nargs
+        else:
+            f_arity = x.arity
+            f = x.a
+            f_args = [None] if x.args is None else [x.args if type(x.args) is list else [x.args]]
+            # Fast path: inline first resolve for the common case
+            tf = type(f)
+            if tf is KGSym:
+                try:
+                    # Fast path: check lookup cache directly for non-reserved symbols
+                    _f = _ctx._lookup_cache.get(f) if f not in reserved_fn_symbols_set else None
+                    if _f is None:
+                        _f = _ctx[f]
+                    t_f = type(_f)
+                    if t_f is KGFn or t_f is KGCall or t_f in _kglambda_types or _is_kglambda_type(t_f) or f not in reserved_fn_symbols_set:
+                        f = _f
+                        tf = t_f
+                        # Check if we can unwrap the function directly
+                        if f_arity > 0 and (tf is KGFn or tf is KGCall) and not f._is_op and not f._is_adverb_chain:
+                            if f.args is None:
+                                f, f_arity = f.a, f.arity
+                                tf = type(f)
+                            elif has_none(f.args):
+                                f_args.append(f.args if type(f.args) is list else [f.args])
+                                f, f_arity = f.a, f.arity
+                                tf = type(f)
+                except KeyError:
+                    if f not in reserved_fn_symbols_set:
+                        raise KlongException(f"undefined: {f}")
+            elif tf is KGFn or tf is KGCall:
+                if f_arity > 0 and not f._is_op and not f._is_adverb_chain:
+                    if f.args is None:
+                        f, f_arity = f.a, f.arity
+                        tf = type(f)
+                    elif has_none(f.args):
+                        f_args.append(f.args if type(f.args) is list else [f.args])
+                        f, f_arity = f.a, f.arity
+                        tf = type(f)
+            # Continue with remaining passes if needed (skip ops — they're already resolved)
+            if tf is KGSym or ((tf is KGFn or tf is KGCall) and not f._is_op):
+                f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+                tf = type(f)
+                if tf is KGSym or ((tf is KGFn or tf is KGCall) and not f._is_op):
+                    f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+                    tf = type(f)
+            # Cache the resolution for next time (only when no projection merging occurred)
+            if _tx is KGCall and len(f_args) == 1:
+                x._cached_body = f
+                x._cached_body_arity = f_arity
+                x._cached_body_type = tf
+                x._cached_version = _ctx._lookup_version
+                x._cached_nargs_ok = x._nargs >= f_arity
+                # Pre-compute KGCond body dispatch hints
+                if tf is KGCond:
+                    _x0 = f[0]
+                    _tx0 = type(_x0)
+                    _cond_is_dyad = (_tx0 is KGCall or _tx0 is KGFn) and _x0._is_op and _x0._op_arity == 2
+                    x._cached_cond_is_dyad_op = _cond_is_dyad
+                    # Pre-compute fast condition path: dyad op with list args, arg0 IS _sym_x, literal arg1, nargs==1
+                    if _cond_is_dyad:
+                        _cfa = _x0.args
+                        _cond_fast = (x._nargs == 1 and type(_cfa) is list and
+                            _cfa[0] is _sym_x and
+                            (type(_cfa[1]) is int or type(_cfa[1]) is float))
+                        x._cached_cond_fast = _cond_fast
+                        if _cond_fast:
+                            x._cond_literal = _cfa[1]
+                            x._cond_op_a = _x0._op_a
+                            x._cond_fast_op = _x0._fast_op
+                    else:
+                        x._cached_cond_fast = False
+                    # Pre-compute branch types
+                    _f1 = f[1]
+                    _f2 = f[2]
+                    x._cached_true_is_sym = type(_f1) is KGSym and _f1 in reserved_fn_symbols_set
+                    _tf2 = type(_f2)
+                    _f2_is_dyad = (_tf2 is KGCall or _tf2 is KGFn) and _f2._is_op and _f2._op_arity == 2
+                    x._cached_false_is_dyad_op = _f2_is_dyad
+                    # Pre-cache false branch dual-call pattern: op(call0, call1)
+                    if _f2_is_dyad:
+                        _f2a = _f2.args
+                        if type(_f2a) is list and len(_f2a) == 2:
+                            _fb0, _fb1 = _f2a[0], _f2a[1]
+                            _tfb0, _tfb1 = type(_fb0), type(_fb1)
+                            if (_tfb0 is KGCall and not _fb0._is_op and not _fb0._is_adverb_chain and
+                                _tfb1 is KGCall and not _fb1._is_op and not _fb1._is_adverb_chain):
+                                x._cached_fb_call0 = _fb0
+                                x._cached_fb_call1 = _fb1
+                                x._cached_fb_op_a = _f2._op_a
+                                # Detect fib-like self-recursive pattern for closure generation
+                                # Pattern: {:[x OP N; x; self(x OP A) BOP self(x OP B)]}
+                                _xa = x.a
+                                if (_cond_fast and
+                                    type(_f1) is KGSym and _f1 is _sym_x and
+                                    type(_xa) is KGSym and
+                                    type(_fb0.a) is KGSym and _fb0.a is _xa and
+                                    type(_fb1.a) is KGSym and _fb1.a is _xa and
+                                    _fb0._arg0_dyad_fast and _fb1._arg0_dyad_fast):
+                                    _sfn = _make_recursive_closure(
+                                        _x0._op_a, _cfa[1],
+                                        _fb0._arg0_op_a, _fb0._arg0_literal,
+                                        _fb1._arg0_op_a, _fb1._arg0_literal,
+                                        _f2._op_a)
+                                    if _sfn is not None:
+                                        x._specialized_fn = _sfn
+                else:
+                    x._cached_cond_is_dyad_op = False
+                    x._cached_cond_fast = False
+                    x._cached_true_is_sym = False
+                    x._cached_false_is_dyad_op = False
 
-        f_args.reverse()
-        f_args = merge_projections(f_args)
-        if (0 if f_args is None else len(f_args)) < f_arity or has_none(f_args):
-            return x
+            if len(f_args) == 1:
+                f_args = f_args[0]
+                nargs = 0 if f_args is None else len(f_args)
+                if nargs < f_arity:
+                    return x
+            else:
+                f_args.reverse()
+                f_args = merge_projections(f_args)
+                nargs = 0 if f_args is None else len(f_args)
+                if nargs < f_arity or has_none(f_args):
+                    return x
 
-        ctx = {} if f_args is None else {reserved_fn_symbol_map[p]: self.call(q) for p,q in zip(reserved_fn_args,f_args)}
+        if f_args is None:
+            ctx = {}
+        else:
+            # Inline call() dispatch for op args to skip method call overhead
+            if nargs == 1:
+                q = f_args[0]
+                if x._arg0_dyad_fast:
+                    # Ultra-fast: args is list, arg0 is reserved sym, arg1 is literal
+                    _afa = q.args
+                    _ay = _afa[1]
+                    _ax = _ctx_list[-1].get(_afa[0])
+                    if _ax is None:
+                        _ax = self.eval(_afa[0])
+                    if type(_ax) is int:
+                        _aop = q._op_a
+                        if _aop == '-':
+                            _xval = _ax - _ay
+                        elif _aop == '+':
+                            _xval = _ax + _ay
+                        elif _aop == '*':
+                            _xval = _ax * _ay
+                        else:
+                            _afast = q._fast_op
+                            _xval = _afast(_ax, _ay) if _afast is not None else self._vd[_aop](_ax, _ay)
+                    else:
+                        _afast = q._fast_op
+                        if _afast is not None and (type(_ax) is int or type(_ax) is float):
+                            _xval = _afast(_ax, _ay)
+                        else:
+                            _xval = self._vd[q._op_a](_ax, _ay)
+                elif x._arg0_is_dyad_op:
+                    # Medium path: dyad op but args need full type checking
+                    _afa = q.args
+                    if type(_afa) is not list:
+                        _afa = [_afa] if _afa is not None else _afa
+                    _afa1 = _afa[1]
+                    _at1 = type(_afa1)
+                    _ay = _afa1 if _at1 is int or _at1 is float else self.eval(_afa1)
+                    _afa0 = _afa[0]
+                    _at0 = type(_afa0)
+                    if _at0 is KGSym and _afa0 in reserved_fn_symbols_set:
+                        _ax = _ctx_list[-1].get(_afa0)
+                        if _ax is None:
+                            _ax = self.eval(_afa0)
+                    elif _at0 is int or _at0 is float:
+                        _ax = _afa0
+                    else:
+                        _ax = self.eval(_afa0)
+                    if type(_ax) is int and type(_ay) is int:
+                        _aop = q._op_a
+                        if _aop == '-':
+                            _xval = _ax - _ay
+                        elif _aop == '+':
+                            _xval = _ax + _ay
+                        elif _aop == '*':
+                            _xval = _ax * _ay
+                        else:
+                            _afast = q._fast_op
+                            _xval = _afast(_ax, _ay) if _afast is not None else self._vd[_aop](_ax, _ay)
+                    else:
+                        _afast = q._fast_op
+                        if _afast is not None and (type(_ax) is int or type(_ax) is float) and (type(_ay) is int or type(_ay) is float):
+                            _xval = _afast(_ax, _ay)
+                        else:
+                            _xval = self._vd[q._op_a](_ax, _ay)
+                else:
+                    tq = type(q)
+                    if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types:
+                        _xval = q
+                    elif tq is KGSym:
+                        # Fast path: skip call() overhead for symbol args
+                        if q in reserved_fn_symbols_set:
+                            _xval = _ctx_list[-1].get(q)
+                            if _xval is None:
+                                _xval = self.eval(q)
+                        else:
+                            _xval = self.eval(q)
+                    elif (tq is KGFn or tq is KGCall) and q._is_op:
+                        _xval = self.eval(q)
+                    elif tq is KGCall:
+                        _xval = self._eval_fn(q)
+                    else:
+                        _xval = self.call(q)
+                ctx = {_sym_x: _xval}
+            elif nargs == 2:
+                q0, q1 = f_args[0], f_args[1]
+                tq0, tq1 = type(q0), type(q1)
+                v0 = q0 if tq0 is int or tq0 is float or tq0 is numpy.ndarray or tq0 in _numpy_scalar_types else (self.eval(q0) if (tq0 is KGFn or tq0 is KGCall) and q0._is_op else self.call(q0))
+                v1 = q1 if tq1 is int or tq1 is float or tq1 is numpy.ndarray or tq1 in _numpy_scalar_types else (self.eval(q1) if (tq1 is KGFn or tq1 is KGCall) and q1._is_op else self.call(q1))
+                ctx = {_sym_x: v0, _sym_y: v1}
+            else:
+                ctx = {}
+                for sym, q in zip(reserved_fn_symbols, f_args):
+                    tq = type(q)
+                    ctx[sym] = q if tq is int or tq is float or tq is numpy.ndarray or tq in _numpy_scalar_types else self.call(q)
 
-        if is_list(f) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0:
-            # Filter out semicolons and check if all remaining elements are symbols
-            params = [q for q in f[0] if isinstance(q, KGSym)]
-            have_locals = len(params) > 0 and all(isinstance(q, KGSym) for q in params)
-            if have_locals:
+        has_locals = (tf is list or (tf is numpy.ndarray and f.ndim > 0)) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0
+        if has_locals:
+            # Filter out semicolons — remaining elements are local variable declarations
+            params = [q for q in f[0] if type(q) is KGSym]
+            if len(params) > 0:
                 for q in params:
                     # Don't overwrite function parameters (x, y, z)
                     if q not in ctx:
                         ctx[q] = q
                 f = f[1:]
+            else:
+                has_locals = False
 
         ctx[reserved_dot_f_symbol] = f
 
-        self._context.push(ctx)
+        # Inline push/pop for speed — avoid method call overhead
+        if has_locals:
+            _ctx.push(ctx)
+        else:
+            _ctx_list.append(ctx)
         try:
-            return f(self, self._context) if issubclass(type(f), KGLambda) else self.call(f)
+            # Recompute tf only if has_locals modified f (f = f[1:] changes type)
+            if has_locals:
+                tf = type(f)
+            # KGCond first: most common for recursive/conditional function bodies
+            if tf is KGCond:
+                x0 = f[0]
+                if x._cached_cond_fast:
+                    # Ultra-fast path: nargs==1, arg0 IS _sym_x, arg1 is literal
+                    # _xval is the computed x value — use it directly (no ctx.get)
+                    _cfa = x0.args
+                    _cy = _cfa[1]
+                    _cx = _xval
+                    if type(_cx) is int and type(_cy) is int:
+                        _cop_a = x0._op_a
+                        if _cop_a == '<':
+                            p = _cx < _cy
+                        elif _cop_a == '>':
+                            p = _cx > _cy
+                        elif _cop_a == '=':
+                            p = _cx == _cy
+                        else:
+                            _cfast = x0._fast_op
+                            q = _cfast(_cx, _cy) if _cfast is not None else self._vd[_cop_a](_cx, _cy)
+                            p = q != 0
+                    else:
+                        _cop_a = x0._op_a
+                        _cfast = x0._fast_op
+                        if _cfast is not None and (type(_cx) is int or type(_cx) is float) and (type(_cy) is int or type(_cy) is float):
+                            q = _cfast(_cx, _cy)
+                        else:
+                            q = self._vd[_cop_a](_cx, _cy)
+                        tq = type(q)
+                        if tq is int or tq is float:
+                            p = q != 0
+                        else:
+                            p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
+                    xb = f[1] if p else f[2]
+                    # Pre-computed fast paths for branch dispatch
+                    if p:
+                        if x._cached_true_is_sym:
+                            if xb is _sym_x:
+                                return _xval
+                            _v = ctx.get(xb)
+                            if _v is not None:
+                                return _v
+                            return self.eval(xb)
+                    else:
+                        _fbc0 = x._cached_fb_call0
+                        if _fbc0 is not None:
+                            _by = self._eval_fn(x._cached_fb_call1)
+                            _bx = self._eval_fn(_fbc0)
+                            _fbop = x._cached_fb_op_a
+                            if type(_bx) is int and type(_by) is int:
+                                if _fbop == '+':
+                                    return _bx + _by
+                                elif _fbop == '-':
+                                    return _bx - _by
+                                elif _fbop == '*':
+                                    return _bx * _by
+                                else:
+                                    return self._vd[_fbop](_bx, _by)
+                            else:
+                                return self._vd[_fbop](_bx, _by)
+                        elif x._cached_false_is_dyad_op:
+                            # Inline dyad op for KGCond branch (e.g., (fib(x-1))+(fib(x-2)))
+                            _bfa = xb.args
+                            if type(_bfa) is not list:
+                                _bfa = [_bfa] if _bfa is not None else _bfa
+                            _bfa1 = _bfa[1]
+                            _bt1 = type(_bfa1)
+                            if _bt1 is int or _bt1 is float:
+                                _by = _bfa1
+                            elif _bt1 is KGSym and _bfa1 in reserved_fn_symbols_set:
+                                _by = ctx.get(_bfa1)
+                                if _by is None:
+                                    _by = self.eval(_bfa1)
+                            elif (_bt1 is KGFn or _bt1 is KGCall) and _bfa1._is_op:
+                                _by = self.eval(_bfa1)
+                            elif _bt1 is KGCall and not _bfa1._is_adverb_chain:
+                                _by = self._eval_fn(_bfa1)
+                            else:
+                                _by = self.eval(_bfa1)
+                            _bop_a = xb._op_a
+                            if _bop_a in _UNEVALUATED_OPS:
+                                _bx = _bfa[0]
+                            else:
+                                _bfa0 = _bfa[0]
+                                _bt0 = type(_bfa0)
+                                if _bt0 is KGSym and _bfa0 in reserved_fn_symbols_set:
+                                    _bx = ctx.get(_bfa0)
+                                    if _bx is None:
+                                        _bx = self.eval(_bfa0)
+                                elif _bt0 is int or _bt0 is float:
+                                    _bx = _bfa0
+                                elif (_bt0 is KGFn or _bt0 is KGCall) and _bfa0._is_op:
+                                    _bx = self.eval(_bfa0)
+                                elif _bt0 is KGCall and not _bfa0._is_adverb_chain:
+                                    _bx = self._eval_fn(_bfa0)
+                                else:
+                                    _bx = self.eval(_bfa0)
+                            if type(_bx) is int and type(_by) is int:
+                                if _bop_a == '+':
+                                    return _bx + _by
+                                elif _bop_a == '-':
+                                    return _bx - _by
+                                elif _bop_a == '*':
+                                    return _bx * _by
+                                else:
+                                    _bfast = xb._fast_op
+                                    if _bfast is not None:
+                                        return _bfast(_bx, _by)
+                                    return self._vd[_bop_a](_bx, _by)
+                            else:
+                                _bfast = xb._fast_op
+                                if _bfast is not None and (type(_bx) is int or type(_bx) is float) and (type(_by) is int or type(_by) is float):
+                                    return _bfast(_bx, _by)
+                                return self._vd[_bop_a](_bx, _by)
+                    # General branch dispatch (fallback for ultra-fast path)
+                    txb = type(xb)
+                    if txb is int or txb is float:
+                        return xb
+                    if txb is KGSym:
+                        if xb in reserved_fn_symbols_set:
+                            _v = ctx.get(xb)
+                            if _v is not None:
+                                return _v
+                        return self.eval(xb)
+                    if (txb is KGCall or txb is KGFn) and xb._is_op:
+                        return self.eval(xb)
+                    if txb is KGCall and not xb._is_adverb_chain:
+                        return self._eval_fn(xb)
+                    return self.call(xb)
+                elif x._cached_cond_is_dyad_op:
+                    # Medium path: condition is a dyad op but args need type checking
+                    _cfa = x0.args
+                    if type(_cfa) is not list:
+                        _cfa = [_cfa] if _cfa is not None else _cfa
+                    _cfa1 = _cfa[1]
+                    _ct1 = type(_cfa1)
+                    _cy = _cfa1 if _ct1 is int or _ct1 is float else self.eval(_cfa1)
+                    _cfa0 = _cfa[0]
+                    _ct0 = type(_cfa0)
+                    if _ct0 is KGSym and _cfa0 in reserved_fn_symbols_set:
+                        _cx = ctx.get(_cfa0)
+                        if _cx is None:
+                            _cx = self.eval(_cfa0)
+                    elif _ct0 is int or _ct0 is float:
+                        _cx = _cfa0
+                    else:
+                        _cx = self.eval(_cfa0)
+                    _cop_a = x0._op_a
+                    if type(_cx) is int and type(_cy) is int:
+                        if _cop_a == '<':
+                            q = 1 if _cx < _cy else 0
+                        elif _cop_a == '>':
+                            q = 1 if _cx > _cy else 0
+                        elif _cop_a == '=':
+                            q = 1 if _cx == _cy else 0
+                        else:
+                            _cfast = x0._fast_op
+                            q = _cfast(_cx, _cy) if _cfast is not None else self._vd[_cop_a](_cx, _cy)
+                    else:
+                        _cfast = x0._fast_op
+                        if _cfast is not None and (type(_cx) is int or type(_cx) is float) and (type(_cy) is int or type(_cy) is float):
+                            q = _cfast(_cx, _cy)
+                        else:
+                            q = self._vd[_cop_a](_cx, _cy)
+                else:
+                    tx0 = type(x0)
+                    if tx0 is int or tx0 is float:
+                        q = x0
+                    elif (tx0 is KGCall or tx0 is KGFn) and x0._is_op:
+                        q = self.eval(x0)
+                    else:
+                        q = self.call(x0)
+                tq = type(q)
+                if tq is int or tq is float:
+                    p = q != 0
+                else:
+                    p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
+                xb = f[1] if p else f[2]
+                # Pre-computed fast paths for branch dispatch
+                if p:
+                    if x._cached_true_is_sym:
+                        _v = ctx.get(xb)
+                        if _v is not None:
+                            return _v
+                        return self.eval(xb)
+                else:
+                    _fbc0 = x._cached_fb_call0
+                    if _fbc0 is not None:
+                        _by = self._eval_fn(x._cached_fb_call1)
+                        _bx = self._eval_fn(_fbc0)
+                        _fbop = x._cached_fb_op_a
+                        if type(_bx) is int and type(_by) is int:
+                            if _fbop == '+':
+                                return _bx + _by
+                            elif _fbop == '-':
+                                return _bx - _by
+                            elif _fbop == '*':
+                                return _bx * _by
+                            else:
+                                return self._vd[_fbop](_bx, _by)
+                        else:
+                            return self._vd[_fbop](_bx, _by)
+                    elif x._cached_false_is_dyad_op:
+                        # Inline dyad op for KGCond branch (e.g., (fib(x-1))+(fib(x-2)))
+                        _bfa = xb.args
+                        if type(_bfa) is not list:
+                            _bfa = [_bfa] if _bfa is not None else _bfa
+                        _bfa1 = _bfa[1]
+                        _bt1 = type(_bfa1)
+                        if _bt1 is int or _bt1 is float:
+                            _by = _bfa1
+                        elif _bt1 is KGSym and _bfa1 in reserved_fn_symbols_set:
+                            _by = ctx.get(_bfa1)
+                            if _by is None:
+                                _by = self.eval(_bfa1)
+                        elif (_bt1 is KGFn or _bt1 is KGCall) and _bfa1._is_op:
+                            _by = self.eval(_bfa1)
+                        elif _bt1 is KGCall and not _bfa1._is_adverb_chain:
+                            _by = self._eval_fn(_bfa1)
+                        else:
+                            _by = self.eval(_bfa1)
+                        _bop_a = xb._op_a
+                        if _bop_a in _UNEVALUATED_OPS:
+                            _bx = _bfa[0]
+                        else:
+                            _bfa0 = _bfa[0]
+                            _bt0 = type(_bfa0)
+                            if _bt0 is KGSym and _bfa0 in reserved_fn_symbols_set:
+                                _bx = ctx.get(_bfa0)
+                                if _bx is None:
+                                    _bx = self.eval(_bfa0)
+                            elif _bt0 is int or _bt0 is float:
+                                _bx = _bfa0
+                            elif (_bt0 is KGFn or _bt0 is KGCall) and _bfa0._is_op:
+                                _bx = self.eval(_bfa0)
+                            elif _bt0 is KGCall and not _bfa0._is_adverb_chain:
+                                _bx = self._eval_fn(_bfa0)
+                            else:
+                                _bx = self.eval(_bfa0)
+                        if type(_bx) is int and type(_by) is int:
+                            if _bop_a == '+':
+                                return _bx + _by
+                            elif _bop_a == '-':
+                                return _bx - _by
+                            elif _bop_a == '*':
+                                return _bx * _by
+                            else:
+                                _bfast = xb._fast_op
+                                if _bfast is not None:
+                                    return _bfast(_bx, _by)
+                                return self._vd[_bop_a](_bx, _by)
+                        else:
+                            _bfast = xb._fast_op
+                            if _bfast is not None and (type(_bx) is int or type(_bx) is float) and (type(_by) is int or type(_by) is float):
+                                return _bfast(_bx, _by)
+                            return self._vd[_bop_a](_bx, _by)
+                # General branch dispatch (fallback when pre-computed flags are False)
+                txb = type(xb)
+                if txb is int or txb is float:
+                    return xb
+                if txb is KGSym:
+                    if xb in reserved_fn_symbols_set:
+                        _v = ctx.get(xb)
+                        if _v is not None:
+                            return _v
+                    return self.eval(xb)
+                if (txb is KGCall or txb is KGFn) and xb._is_op and xb._op_arity == 2:
+                    _bfa = xb.args
+                    if type(_bfa) is not list:
+                        _bfa = [_bfa] if _bfa is not None else _bfa
+                    _bfa1 = _bfa[1]
+                    _bt1 = type(_bfa1)
+                    if _bt1 is int or _bt1 is float:
+                        _by = _bfa1
+                    elif _bt1 is KGSym and _bfa1 in reserved_fn_symbols_set:
+                        _by = ctx.get(_bfa1)
+                        if _by is None:
+                            _by = self.eval(_bfa1)
+                    elif (_bt1 is KGFn or _bt1 is KGCall) and _bfa1._is_op:
+                        _by = self.eval(_bfa1)
+                    elif _bt1 is KGCall and not _bfa1._is_adverb_chain:
+                        _by = self._eval_fn(_bfa1)
+                    else:
+                        _by = self.eval(_bfa1)
+                    _bop_a = xb._op_a
+                    if _bop_a in _UNEVALUATED_OPS:
+                        _bx = _bfa[0]
+                    else:
+                        _bfa0 = _bfa[0]
+                        _bt0 = type(_bfa0)
+                        if _bt0 is KGSym and _bfa0 in reserved_fn_symbols_set:
+                            _bx = ctx.get(_bfa0)
+                            if _bx is None:
+                                _bx = self.eval(_bfa0)
+                        elif _bt0 is int or _bt0 is float:
+                            _bx = _bfa0
+                        elif (_bt0 is KGFn or _bt0 is KGCall) and _bfa0._is_op:
+                            _bx = self.eval(_bfa0)
+                        elif _bt0 is KGCall and not _bfa0._is_adverb_chain:
+                            _bx = self._eval_fn(_bfa0)
+                        else:
+                            _bx = self.eval(_bfa0)
+                    if type(_bx) is int and type(_by) is int:
+                        if _bop_a == '+':
+                            return _bx + _by
+                        elif _bop_a == '-':
+                            return _bx - _by
+                        elif _bop_a == '*':
+                            return _bx * _by
+                        else:
+                            _bfast = xb._fast_op
+                            if _bfast is not None:
+                                return _bfast(_bx, _by)
+                            return self._vd[_bop_a](_bx, _by)
+                    else:
+                        _bfast = xb._fast_op
+                        if _bfast is not None and (type(_bx) is int or type(_bx) is float) and (type(_by) is int or type(_by) is float):
+                            return _bfast(_bx, _by)
+                        return self._vd[_bop_a](_bx, _by)
+                if (txb is KGCall or txb is KGFn) and xb._is_op:
+                    return self.eval(xb)
+                if txb is KGCall and not xb._is_adverb_chain:
+                    return self._eval_fn(xb)
+                return self.call(xb)
+            # Op body (e.g., x+1)
+            if (tf is KGCall or tf is KGFn) and f._is_op:
+                op_a = f._op_a
+                fa = f.args
+                if f._op_arity == 2:
+                    if type(fa) is not list:
+                        fa = [fa] if fa is not None else fa
+                    fa1 = fa[1]
+                    t1 = type(fa1)
+                    _y = fa1 if t1 is int or t1 is float or t1 is numpy.ndarray else self.eval(fa1)
+                    if op_a in _UNEVALUATED_OPS:
+                        _x = fa[0]
+                    else:
+                        fa0 = fa[0]
+                        t0 = type(fa0)
+                        if t0 is KGSym and fa0 in reserved_fn_symbols_set:
+                            _x = ctx.get(fa0)
+                            if _x is None:
+                                _x = self.eval(fa0)
+                        elif t0 is int or t0 is float or t0 is numpy.ndarray:
+                            _x = fa0
+                        else:
+                            _x = self.eval(fa0)
+                    # Fast path: inline operators for int-int case
+                    if type(_x) is int and type(_y) is int:
+                        if op_a == '+':
+                            return _x + _y
+                        elif op_a == '-':
+                            return _x - _y
+                        elif op_a == '*':
+                            return _x * _y
+                        elif op_a == '<':
+                            return 1 if _x < _y else 0
+                        elif op_a == '>':
+                            return 1 if _x > _y else 0
+                        elif op_a == '=':
+                            return 1 if _x == _y else 0
+                        else:
+                            _fast_op = f._fast_op
+                            if _fast_op is not None:
+                                return _fast_op(_x, _y)
+                            return self._vd[op_a](_x, _y)
+                    else:
+                        _fast_op = f._fast_op
+                        if _fast_op is not None and (type(_x) is int or type(_x) is float) and (type(_y) is int or type(_y) is float):
+                            return _fast_op(_x, _y)
+                        return self._vd[op_a](_x, _y)
+                else:
+                    _x = fa if type(fa) is not list else fa[0]
+                    if op_a not in _UNEVALUATED_OPS:
+                        tx_x = type(_x)
+                        if tx_x is KGSym and _x in reserved_fn_symbols_set:
+                            v = ctx.get(_x)
+                            if v is not None:
+                                _x = v
+                            else:
+                                _x = self.eval(_x)
+                        elif tx_x is not int and tx_x is not float and tx_x is not numpy.ndarray:
+                            _x = self.eval(_x)
+                    # Fast path: use pre-cached Python operators for scalar int/float monad
+                    _fast_monad = f._fast_monad
+                    if _fast_monad is not None and (type(_x) is int or type(_x) is float):
+                        return _fast_monad(_x)
+                    return self._vm[op_a](_x)
+            if tf is int or tf is float:
+                return f
+            if tf in _kglambda_types or _is_kglambda_type(tf):
+                return f(self, _ctx)
+            # Route KGFn (recursive function calls) through _eval_fn, everything else through eval directly
+            if tf is KGFn and not f._is_op and not f._is_adverb_chain:
+                return self._eval_fn(f)
+            return self.eval(f)
         finally:
-            self._context.pop()
+            if has_locals:
+                _ctx.pop()
+            else:
+                if len(_ctx_list) > _ctx._min_ctx_count:
+                    _ctx_list.pop()
 
     def call(self, x):
         """
@@ -638,7 +3857,17 @@ class KlongInterpreter():
         Invoke a Klong program (as produced by prog()), causing functions to be called and evaluated.
 
         """
-        return self.eval(KGCall(x.a, x.args, x.arity) if isinstance(x, KGFn) else x)
+        tx = type(x)
+        if tx is int or tx is float:
+            return x
+        if tx is KGCall:
+            return self.eval(x)
+        if tx is KGFn:
+            # eval already handles KGFn for ops/adverbs via (tx is KGCall or tx is KGFn)
+            if x._is_op or x._is_adverb_chain:
+                return self.eval(x)
+            return self._eval_fn(x)
+        return self.eval(x)
 
     def eval(self, x):
         """
@@ -651,33 +3880,117 @@ class KlongInterpreter():
         * Functions (KGFn) are not invoked unless they are KGCall instances, allowing for function definitions to be differentiated from invocations.
 
         """
-        if isinstance(x, KGSym):
+        tx = type(x)
+        if tx is KGSym:
+            # Fast path: reserved symbols (x, y, z) are always in innermost scope
+            if x in reserved_fn_symbols_set:
+                v = self._context._context[-1].get(x)
+                if v is not None:
+                    return v
+                # Fallback: specialized path stores x in _fast_x (no dict push)
+                if x is _sym_x:
+                    v = self._context._fast_x
+                    if v is not None:
+                        return v
             try:
                 return self._context[x]
             except KeyError:
-                if x not in reserved_fn_symbols:
+                if x not in reserved_fn_symbols_set:
                     self._context[x] = x
                 return x
-        elif isinstance(x, KGFn):
-            if x.is_op():
-                f = self._get_op_fn(x.a.a, x.a.arity)
-                fa = (x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else x.args
-                _y = self.eval(fa[1]) if x.a.arity == 2 else None
-                _x = fa[0] if x.a.a in ['::','∇'] else self.eval(fa[0])
-                return f(_x) if x.a.arity == 1 else f(_x, _y)
-            elif x.is_adverb_chain():
-                return chain_adverbs(self, x.a)()
-            elif isinstance(x, KGCall):
+        elif tx is KGCall or tx is KGFn:
+            if x._is_op:
+                op_a = x._op_a
+                fa = x.args
+                if x._op_arity == 2:
+                    if type(fa) is not list:
+                        fa = [fa] if fa is not None else fa
+                    fa1 = fa[1]
+                    t1 = type(fa1)
+                    # Inline dispatch: skip eval overhead for common arg types
+                    if t1 is int or t1 is float or t1 is numpy.ndarray:
+                        _y = fa1
+                    elif t1 is KGSym and fa1 in reserved_fn_symbols_set:
+                        _y = self._context._context[-1].get(fa1)
+                        if _y is None:
+                            _y = self.eval(fa1)
+                    elif t1 is KGCall and not fa1._is_op and not fa1._is_adverb_chain:
+                        _y = self._eval_fn(fa1)
+                    else:
+                        _y = self.eval(fa1)
+                    if op_a in _UNEVALUATED_OPS:
+                        _x = fa[0]
+                    else:
+                        fa0 = fa[0]
+                        t0 = type(fa0)
+                        if t0 is int or t0 is float or t0 is numpy.ndarray:
+                            _x = fa0
+                        elif t0 is KGSym and fa0 in reserved_fn_symbols_set:
+                            _x = self._context._context[-1].get(fa0)
+                            if _x is None:
+                                _x = self.eval(fa0)
+                        elif t0 is KGCall and not fa0._is_op and not fa0._is_adverb_chain:
+                            _x = self._eval_fn(fa0)
+                        else:
+                            _x = self.eval(fa0)
+                    # Fast path: use pre-cached Python operators for scalar int/float
+                    _fast_op = x._fast_op
+                    if _fast_op is not None and (type(_x) is int or type(_x) is float) and (type(_y) is int or type(_y) is float):
+                        return _fast_op(_x, _y)
+                    return self._vd[op_a](_x, _y)
+                else:
+                    _x = fa if type(fa) is not list else fa[0]
+                    if op_a not in _UNEVALUATED_OPS:
+                        tx_x = type(_x)
+                        if tx_x is not int and tx_x is not float and tx_x is not numpy.ndarray:
+                            _x = self.eval(_x)
+                    # Fast path: use pre-cached Python operators for scalar int/float monad
+                    _fast_monad = x._fast_monad
+                    if _fast_monad is not None and (type(_x) is int or type(_x) is float):
+                        return _fast_monad(_x)
+                    return self._vm[op_a](_x)
+            elif x._is_adverb_chain:
+                xa_id = id(x.a)
+                cached = self._adverb_cache.get(xa_id)
+                if cached is None:
+                    cached_fn = chain_adverbs(self, x.a)
+                    # Store both closure and chain list reference to prevent id reuse after GC
+                    self._adverb_cache[xa_id] = (cached_fn, x.a)
+                else:
+                    cached_fn = cached[0]
+                return cached_fn()
+            elif tx is KGCall:
                 return self._eval_fn(x)
-        elif isinstance(x, KGCond):
-            q = self.call(x[0])
-            p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
-            return self.call(x[1]) if p else self.call(x[2])
-        elif isinstance(x,list) and len(x) > 0:
+        elif tx is KGCond:
+            # Inline condition eval: skip call() overhead for common op case
+            x0 = x[0]
+            tx0 = type(x0)
+            if tx0 is int or tx0 is float:
+                q = x0
+            elif (tx0 is KGCall or tx0 is KGFn) and x0._is_op:
+                q = self.eval(x0)
+            else:
+                q = self.call(x0)
+            tq = type(q)
+            if tq is int or tq is float:
+                p = q != 0
+            else:
+                p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
+            # Inline branch eval: skip call() overhead for common cases
+            xb = x[1] if p else x[2]
+            txb = type(xb)
+            if txb is int or txb is float:
+                return xb
+            if txb is KGSym:
+                return self.eval(xb)
+            if (txb is KGCall or txb is KGFn) and xb._is_op:
+                return self.eval(xb)
+            return self.call(xb)
+        elif tx is list and len(x) > 0:
             return [self.call(y) for y in x][-1]
         return x
 
-    def __call__(self, x, *args, **kwds):
+    def __call__(self, x):
         """
 
         Convience method for executing Klong programs.
@@ -695,8 +4008,128 @@ class KlongInterpreter():
         assert 2 == KlongInterpreter()("1+1")
 
         """
-        r = self.exec(x)
-        return r[-1] if r else None
+        # Fast path: return cached result if available
+        result = self._result_cache.get(x)
+        if result is not None:
+            return result
+        # Check parse cache; if miss, parse inline (avoids redundant exec→parse_cache check)
+        cached = self._parse_cache.get(x)
+        _was_cached = cached is not None
+        if not _was_cached:
+            i, prog = self.prog(x)
+            i = skip(x, i)
+            if i < len(x) and x[i] == '}':
+                raise UnexpectedChar(x, i, x[i])
+            cached = prog[0] if len(prog) == 1 else prog
+            self._parse_cache[x] = cached
+        # Eval the cached AST
+        self._result_cache_ok = True
+        # Fast path: compiled expression cache (compiled lambda with variable lookups)
+        _compiled = self._compiled_expr_cache.get(x)
+        if _compiled is not None:
+            if type(_compiled) is tuple:
+                _clen = len(_compiled)
+                _ctx = self._context
+                if _clen == 2:
+                    result = _compiled[0](_ctx[_compiled[1]])
+                elif _clen == 3:
+                    _cfn = _compiled[0]
+                    _cv0 = _ctx[_compiled[1]]
+                    _cv1 = _ctx[_compiled[2]]
+                    if getattr(_cfn, '_parallel', False) and type(_cv0) is numpy.ndarray and type(_cv1) is numpy.ndarray and len(_cv0) >= 500_000:
+                        result = _parallel_eval_2(_cfn, _cv0, _cv1)
+                    else:
+                        result = _cfn(_cv0, _cv1)
+                else:
+                    _cfn, _cvar_syms = _compiled
+                    result = _cfn(*(_ctx[s] for s in _cvar_syms))
+            else:
+                # Negative cache sentinel (False) — skip compilation, use normal eval
+                x0 = cached
+                tx0 = type(x0)
+                if tx0 is int or tx0 is float:
+                    result = x0
+                elif tx0 is KGCall:
+                    result = self.eval(x0) if x0._is_op or x0._is_adverb_chain else self._eval_fn(x0)
+                elif tx0 is KGFn and x0._is_op:
+                    result = self.eval(x0)
+                else:
+                    result = self.call(x0)
+        elif type(cached) is not list:
+            x0 = cached
+            tx0 = type(x0)
+            # Inline call dispatch for common cases to avoid function call overhead
+            if tx0 is int or tx0 is float:
+                result = x0
+            elif tx0 is KGCall:
+                # KGCall: dispatch directly to avoid call() → eval() → _eval_fn() chain
+                result = self.eval(x0) if x0._is_op or x0._is_adverb_chain else self._eval_fn(x0)
+            elif tx0 is KGFn and x0._is_op:
+                result = self.eval(x0)
+            else:
+                result = self.call(x0)
+            # Try to compile top-level expression for future calls
+            if _was_cached and type(cached) is not list:
+                var_refs = {}
+                src = _expr_to_source(cached, self, var_refs=var_refs)
+                if src is not None and var_refs:
+                    var_syms = list(var_refs.keys())
+                    var_names = [var_refs[s] for s in var_syms]
+                    _src0 = src[0]
+                    # Detect fused running_max/min + expression patterns (single-var only)
+                    if len(var_syms) == 1 and ('_running_max(_v0)' in _src0 or '_running_min(_v0)' in _src0):
+                        _REDUCE_MAP = {'_np.max(': '|', '_np.min(': '&', '_np.sum(': '+', '_np.prod(': '*'}
+                        _reduce_rewrite = None
+                        for _prefix, _rop in _REDUCE_MAP.items():
+                            if _src0.startswith(_prefix) and _src0.endswith(')'):
+                                _inner = _src0[len(_prefix):-1]
+                                _reduce_rewrite = (_rop, _inner)
+                                break
+                        if _reduce_rewrite is not None:
+                            _rop, _inner = _reduce_rewrite
+                            _src0 = f"_fused_running_reduce({_rop!r},{_inner!r},_v0)"
+                        else:
+                            _src0 = f"_fused_running_expr({_src0!r},_v0)"
+                    fn_src = f'lambda {",".join(var_names)}: {_src0}'
+                    try:
+                        fn = eval(fn_src, _EVAL_GLOBALS)
+                        # Tag element-wise functions for parallel chunked evaluation
+                        if _is_elementwise_source(_src0):
+                            fn._parallel = True
+                            fn._source = _src0
+                        # Store (fn, sym0) for 1-var, (fn, sym0, sym1) for 2-var
+                        # This avoids generator overhead in dispatch
+                        if len(var_syms) == 1:
+                            self._compiled_expr_cache[x] = (fn, var_syms[0])
+                        elif len(var_syms) == 2:
+                            self._compiled_expr_cache[x] = (fn, var_syms[0], var_syms[1])
+                        else:
+                            self._compiled_expr_cache[x] = (fn, var_syms)
+                    except Exception:
+                        self._compiled_expr_cache[x] = False
+                else:
+                    self._compiled_expr_cache[x] = False
+        else:
+            if not cached:
+                return None
+            result = [self.call(y) for y in cached][-1]
+        # Only cache results on warm path (parse cache hit) — cold path may contain
+        # side-effectful expressions whose results shouldn't be cached
+        if _was_cached and self._result_cache_ok:
+            rt = type(result)
+            if rt is int or rt is float:
+                self._result_cache[x] = result
+            elif rt is numpy.ndarray:
+                if result.ndim > 0 and result.flags.writeable:
+                    result.flags.writeable = False
+                self._result_cache[x] = result
+            elif rt in _numpy_scalar_types or _is_numpy_scalar_type(rt):
+                self._result_cache[x] = result
+            elif hasattr(result, 'flags'):
+                if result.flags.writeable:
+                    result.flags.writeable = False
+                self._result_cache[x] = result
+        return result
 
     def exec(self, x):
         """
@@ -706,4 +4139,14 @@ class KlongInterpreter():
         Each subprogram is executed in order and the resulting array contains the resulst of each sub-program.
 
         """
-        return [self.call(y) for y in self.prog(x)[1]]
+        cached = self._parse_cache.get(x)
+        if cached is not None:
+            # Single-expression programs stored unwrapped
+            return [self.call(cached)] if type(cached) is not list else [self.call(y) for y in cached]
+        i, prog = self.prog(x)
+        i = skip(x, i)
+        if i < len(x) and x[i] == '}':
+            raise UnexpectedChar(x, i, x[i])
+        # Store single-expression programs unwrapped for fast __call__ dispatch
+        self._parse_cache[x] = prog[0] if len(prog) == 1 else prog
+        return [self.call(y) for y in prog]

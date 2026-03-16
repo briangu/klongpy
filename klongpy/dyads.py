@@ -176,8 +176,18 @@ def eval_dyad_at_index(klong, a, b):
     if is_list(b):
         if is_empty(b):
             r = bknp.asarray([])
+        elif type(a) is bknp.ndarray and type(b) is bknp.ndarray:
+            r = a[b.astype(int)] if b.dtype.kind == 'f' else a[b]
+        elif hasattr(b, 'dtype'):
+            # Convert mismatched types: if one is torch and the other numpy, unify
+            if hasattr(b, 'cpu') and type(a) is bknp.ndarray:
+                b_np = b.cpu().numpy()
+                r = a[b_np.astype(int)] if b_np.dtype.kind == 'f' else a[b_np]
+            elif hasattr(a, '__getitem__'):
+                r = a[b.long()] if hasattr(b, 'long') else a[b.astype(int)]
+            else:
+                r = backend.kg_asarray([a[x] for x in b])
         else:
-            # TODO: return None for missing keys? or raise?
             r = backend.kg_asarray([a[x] for x in b])
     elif backend.is_integer(b):
         r = a[b]
@@ -405,7 +415,7 @@ def __e_dyad_format2(a, b, backend):
         a = a.item()
     if hasattr(b, 'ndim') and b.ndim == 0:
         b = b.item()
-    if safe_eq(int(a), 0):
+    if int(a) == 0:
         return str(b)
     if (backend.is_float(b) and not isinstance(b,int)) and (backend.is_float(a) and not isinstance(a,int)):
         b = "{:Xf}".replace("X",str(a)).format(b)
@@ -509,6 +519,14 @@ def _arr_to_list(a):
     return a if is_list(a) else [a]# if not is_list(a) else a
 
 
+def _is_hashable(x):
+    try:
+        hash(x)
+        return True
+    except TypeError:
+        return False
+
+
 def eval_dyad_join(a, b, backend):
     """
 
@@ -551,19 +569,24 @@ def eval_dyad_join(a, b, backend):
                     :{[1 0]},[1 2]  -->  :{[1 2]}
 
     """
-    if (isinstance(a,str) and not isinstance(a,KGSym)) and (isinstance(b,str) and not isinstance(b,KGSym)):
+    ta = type(a)
+    tb = type(b)
+    if isinstance(a, str) and ta is not KGSym and isinstance(b, str) and tb is not KGSym:
         return a+b
-    if isinstance(a,dict):
+    if isinstance(a, dict) and isinstance(b, dict):
+        a.update(b)
+        return a
+    if isinstance(a, dict) and is_list(b) and len(b) == 2 and _is_hashable(b[0]):
         a[b[0]] = b[1]
         return a
-    if isinstance(b,dict) and is_list(a) and len(a) == 2:
+    if isinstance(b, dict) and is_list(a) and len(a) == 2 and _is_hashable(a[0]):
         b[a[0]] = a[1]
         return b
 
     if bknp.isarray(a) and bknp.isarray(b):
         # Only use fast path for 1D+ arrays (not 0D scalars)
-        a_is_1d_plus = hasattr(a, 'ndim') and a.ndim >= 1
-        b_is_1d_plus = hasattr(b, 'ndim') and b.ndim >= 1
+        a_is_1d_plus = a.ndim >= 1
+        b_is_1d_plus = b.ndim >= 1
         if a_is_1d_plus and b_is_1d_plus:
             if len(a) == 0:
                 return b
@@ -1014,22 +1037,24 @@ def eval_dyad_take(a, b, backend):
                            0#""  -->  ""
 
     """
-    np_backend = backend.np
     j = isinstance(b,str)
-    b = backend.str_to_chr_arr(b) if j else np_backend.asarray(b)
-    abs_a = np_backend.abs(a)
-    aa = int(abs_a) if hasattr(abs_a, 'item') else abs_a  # Convert tensor to int
-    b_size = backend.array_size(b)
-    if b_size == 0:
-        # Handle empty array/string case
-        r = b
-    elif aa > b_size:
-        b = np_backend.tile(b, aa // len(b))
-        b = np_backend.concatenate((b, b[:aa-backend.array_size(b)]) if a > 0 else (b[-(aa-backend.array_size(b)):], b))
-        r = b[a:] if a < 0 else b[:a]
+    aa = abs(int(a.item() if hasattr(a, 'item') else a))
+    blen = len(b) if hasattr(b, '__len__') else 0
+    # Fast path: simple slice when no cycling needed
+    if not j and type(b) is bknp.ndarray and blen > 0 and aa <= blen:
+        if aa == 0:
+            return bknp.asarray([])
+        return b[-aa:] if a < 0 else b[:aa]
+    items = list(b) if j else to_list(b)
+    if aa == 0 or len(items) == 0:
+        result = []
     else:
-        r = b[a:] if a < 0 else b[:a]
-    return "".join(r) if j else r
+        repeats = ((aa - 1) // len(items)) + 1
+        if a < 0:
+            repeats += 1
+        expanded = items * repeats
+        result = expanded[-aa:] if a < 0 else expanded[:aa]
+    return "".join(result) if j else backend.kg_asarray(result)
 
 
 def eval_dyad_grad(klong, a, b):
@@ -1118,50 +1143,126 @@ def eval_dyad_autograd(klong, a, b):
         return grad_of_fn(klong, a, b)
 
 
+_dyad_cache = {}
+
+# Cache which types are numpy scalar types to avoid repeated issubclass calls
+_numpy_scalar_types = set()
+
+def _is_numpy_scalar(tx):
+    """Check if tx is a numpy scalar type, with result caching."""
+    if tx in _numpy_scalar_types:
+        return True
+    if issubclass(tx, numpy.integer) or issubclass(tx, numpy.floating):
+        _numpy_scalar_types.add(tx)
+        return True
+    return False
+
+def _immutable_key(x):
+    """Return a stable cache key for x, or None if not cacheable."""
+    tx = type(x)
+    if tx is int or tx is float:
+        return x
+    if tx is numpy.ndarray:
+        if not x.flags.writeable:
+            return id(x) if x.ndim > 0 else x.item()
+        return None
+    # numpy scalars (int64, float64, etc.) are hashable and compare equal to Python ints/floats
+    # so they can be used directly as dict keys — skip the expensive .item() call
+    if tx in _numpy_scalar_types or _is_numpy_scalar(tx):
+        return x
+    if hasattr(x, 'flags') and not x.flags.writeable and hasattr(x, 'ndim') and x.ndim > 0:
+        return id(x)
+    return None
+
+
+def _make_cached_dyad(fn, fn_id=None):
+    """Wrap a dyad function to cache results when inputs are immutable."""
+    _fn_id = fn_id if fn_id is not None else id(fn)
+    _ndarray = numpy.ndarray
+    def cached_fn(a, b):
+        # Fast path: skip cache for mutable ndarrays (common case)
+        ta = type(a)
+        tb = type(b)
+        if (ta is _ndarray and a.flags.writeable) or (tb is _ndarray and b.flags.writeable):
+            return fn(a, b)
+        # Inline _immutable_key for common types (int, float, numpy scalar, immutable ndarray)
+        if ta is int or ta is float:
+            a_key = a
+        elif ta is _ndarray:
+            a_key = id(a) if a.ndim > 0 else a.item()
+        elif ta in _numpy_scalar_types:
+            a_key = a
+        else:
+            a_key = _immutable_key(a)
+            if a_key is None:
+                return fn(a, b)
+        if tb is int or tb is float:
+            b_key = b
+        elif tb is _ndarray:
+            b_key = id(b) if b.ndim > 0 else b.item()
+        elif tb in _numpy_scalar_types:
+            b_key = b
+        else:
+            b_key = _immutable_key(b)
+            if b_key is None:
+                return fn(a, b)
+        cache_key = (_fn_id, ta, a_key, tb, b_key)
+        cached = _dyad_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        result = fn(a, b)
+        if type(result) is _ndarray and result.ndim > 0:
+            result.flags.writeable = False
+        _dyad_cache[cache_key] = result
+        return result
+    return cached_fn
+
+
+_cached_dyad_base = {}
+
 def create_dyad_functions(klong):
     backend = klong._backend
+    backend_id = id(backend)
 
-    # Simple dyads that don't need backend or klong
-    simple = {
-        ':-': eval_dyad_amend_in_depth,
-        '_': eval_dyad_drop,
-        ':@': eval_dyad_index_in_depth,
-    }
+    base = _cached_dyad_base.get(backend_id)
+    if base is None:
+        bknp = backend.np
+        base = {
+            ':-': eval_dyad_amend_in_depth,
+            '_': _make_cached_dyad(eval_dyad_drop, fn_id='_'),
+            ':@': eval_dyad_index_in_depth,
+            '+': _make_cached_dyad(bknp.add),
+            '*': _make_cached_dyad(bknp.multiply),
+            '-': _make_cached_dyad(bknp.subtract),
+            '|': _make_cached_dyad(lambda a, b: eval_dyad_maximum(a, b, backend), fn_id='|'),
+            '&': _make_cached_dyad(lambda a, b: eval_dyad_minimum(a, b, backend), fn_id='&'),
+            '!': _make_cached_dyad(lambda a, b: eval_dyad_remainder(a, b, backend), fn_id='!'),
+            '%': _make_cached_dyad(lambda a, b: eval_dyad_divide(a, b, backend), fn_id='%'),
+            ':=': lambda a, b: eval_dyad_amend(a, b, backend),
+            ':_': _make_cached_dyad(lambda a, b: eval_dyad_cut(a, b, backend), fn_id=':_'),
+            '=': _make_cached_dyad(lambda a, b: eval_dyad_equal(a, b, backend), fn_id='='),
+            '?': _make_cached_dyad(lambda a, b: eval_dyad_find(a, b, backend), fn_id='?'),
+            ':$': _make_cached_dyad(lambda a, b: eval_dyad_form(a, b, backend), fn_id=':$'),
+            '$': _make_cached_dyad(lambda a, b: eval_dyad_format2(a, b, backend), fn_id='$'),
+            ':%': _make_cached_dyad(lambda a, b: eval_dyad_integer_divide(a, b, backend), fn_id=':%'),
+            ',': _make_cached_dyad(lambda a, b: eval_dyad_join(a, b, backend), fn_id=','),
+            '<': _make_cached_dyad(lambda a, b: eval_dyad_less(a, b, backend), fn_id='<'),
+            '~': _make_cached_dyad(lambda a, b: eval_dyad_match(a, b, backend), fn_id='~'),
+            '>': _make_cached_dyad(lambda a, b: eval_dyad_more(a, b, backend), fn_id='>'),
+            '^': _make_cached_dyad(lambda a, b: eval_dyad_power(a, b, backend), fn_id='^'),
+            ':^': _make_cached_dyad(lambda a, b: eval_dyad_reshape(a, b, backend), fn_id=':^'),
+            ':+': _make_cached_dyad(lambda a, b: eval_dyad_rotate(a, b, backend), fn_id=':+'),
+            ':#': _make_cached_dyad(lambda a, b: eval_dyad_split(a, b, backend), fn_id=':#'),
+            '#': _make_cached_dyad(lambda a, b: eval_dyad_take(a, b, backend), fn_id='#'),
+        }
+        _cached_dyad_base[backend_id] = base
 
-    # Dyads needing backend
-    backend_dyads = {
-        '+': lambda a, b: eval_dyad_add(a, b, backend),
-        '|': lambda a, b: eval_dyad_maximum(a, b, backend),
-        '&': lambda a, b: eval_dyad_minimum(a, b, backend),
-        '!': lambda a, b: eval_dyad_remainder(a, b, backend),
-        '%': lambda a, b: eval_dyad_divide(a, b, backend),
-        '*': lambda a, b: eval_dyad_multiply(a, b, backend),
-        '-': lambda a, b: eval_dyad_subtract(a, b, backend),
-        ':=': lambda a, b: eval_dyad_amend(a, b, backend),
-        ':_': lambda a, b: eval_dyad_cut(a, b, backend),
-        '=': lambda a, b: eval_dyad_equal(a, b, backend),
-        '?': lambda a, b: eval_dyad_find(a, b, backend),
-        ':$': lambda a, b: eval_dyad_form(a, b, backend),
-        '$': lambda a, b: eval_dyad_format2(a, b, backend),
-        ':%': lambda a, b: eval_dyad_integer_divide(a, b, backend),
-        ',': lambda a, b: eval_dyad_join(a, b, backend),
-        '<': lambda a, b: eval_dyad_less(a, b, backend),
-        '~': lambda a, b: eval_dyad_match(a, b, backend),
-        '>': lambda a, b: eval_dyad_more(a, b, backend),
-        '^': lambda a, b: eval_dyad_power(a, b, backend),
-        ':^': lambda a, b: eval_dyad_reshape(a, b, backend),
-        ':+': lambda a, b: eval_dyad_rotate(a, b, backend),
-        ':#': lambda a, b: eval_dyad_split(a, b, backend),
-        '#': lambda a, b: eval_dyad_take(a, b, backend),
-    }
-
-    # Dyads needing klong
-    klong_dyads = {
+    # Dyads needing klong (must be per-interpreter)
+    return {
+        **base,
         '@': lambda a, b: eval_dyad_at_index(klong, a, b),
         '::': lambda a, b: eval_dyad_define(klong, a, b),
         '∇': lambda a, b: eval_dyad_grad(klong, a, b),
         '∂': lambda a, b: eval_dyad_jacobian(klong, a, b),
         ':>': lambda a, b: eval_dyad_autograd(klong, a, b),
     }
-
-    return {**simple, **backend_dyads, **klong_dyads}

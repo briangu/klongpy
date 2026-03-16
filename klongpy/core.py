@@ -36,6 +36,7 @@ __all__ = [
     # Type constants
     'reserved_fn_args',
     'reserved_fn_symbols',
+    'reserved_fn_symbols_set',
     'reserved_fn_symbol_map',
     'reserved_dot_f_symbol',
     # Type helpers

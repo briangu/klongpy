@@ -7,6 +7,7 @@ from klongpy.core import KGCall, KGLambda, KGSym
 from klongpy.web.sys_fn_web import (
     WebServerHandle,
     create_system_functions_web,
+    eval_sys_fn_create_web_server,
     eval_sys_fn_shutdown_web_server,
 )
 
@@ -34,6 +35,24 @@ class TestWebServerHandle(unittest.TestCase):
 
 
 class TestShutdownWebServer(unittest.TestCase):
+    def test_shutdown_raw_webhandle(self):
+        klong = KlongInterpreter()
+        klong['.system'] = {'ioloop': asyncio.new_event_loop()}
+        mock_runner = AsyncMock()
+        mock_task = MagicMock()
+        handle = WebServerHandle("localhost", 8080, mock_runner, mock_task)
+
+        def _run(coro, _loop):
+            coro.close()
+            future = MagicMock()
+            future.result.return_value = None
+            return future
+
+        with patch("klongpy.web.sys_fn_web.asyncio.run_coroutine_threadsafe", side_effect=_run):
+            result = eval_sys_fn_shutdown_web_server(klong, handle)
+
+        self.assertEqual(result, 1)
+
     def test_shutdown_non_kgcall(self):
         klong = KlongInterpreter()
         result = eval_sys_fn_shutdown_web_server(klong, "not_a_kgcall")
@@ -55,6 +74,12 @@ class TestShutdownWebServer(unittest.TestCase):
         call.a = inner_lambda
         result = eval_sys_fn_shutdown_web_server(klong, call)
         self.assertEqual(result, 0)
+
+    def test_create_web_server_requires_aiohttp(self):
+        klong = KlongInterpreter()
+        with patch("klongpy.web.sys_fn_web.web", None):
+            with self.assertRaises(ImportError):
+                eval_sys_fn_create_web_server(klong, 0, {}, {})
 
 
 class TestCreateSystemFunctions(unittest.TestCase):

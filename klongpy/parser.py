@@ -12,8 +12,10 @@ import copy
 from .types import (
     KGSym, KGChar, KGOp, KGCond, KGCall, KGLambda,
     reserved_fn_symbol_map,
-    safe_eq, is_symbolic, is_adverb
+    is_symbolic, is_adverb, _ADVERBS
 )
+
+_DELIMITERS = frozenset({';', '(', ')', '{', '}', ']'})
 
 
 # Character matching utilities
@@ -97,22 +99,29 @@ def read_sys_comment(t, i, a):
 
 # Whitespace handling
 
+_WHITESPACE = frozenset({' ', '\t', '\r', '\f', '\v', '\n'})
+_WHITESPACE_NO_NL = frozenset({' ', '\t', '\r', '\f', '\v'})
+
 def skip_space(t, i=0, ignore_newline=False):
     """
         NOTE: a newline character translates to a semicolon in Klong,
         except in functions, dictionaries, conditional expressions,
         and lists. So
     """
-    while i < len(t) and (t[i].isspace() and (ignore_newline or t[i] != '\n')):
+    ws = _WHITESPACE if ignore_newline else _WHITESPACE_NO_NL
+    while i < len(t) and t[i] in ws:
         i += 1
     return i
 
 
 def skip(t, i=0, ignore_newline=False):
-    i = skip_space(t, i, ignore_newline=ignore_newline)
+    # Inline skip_space to avoid function call overhead
+    ws = _WHITESPACE if ignore_newline else _WHITESPACE_NO_NL
+    while i < len(t) and t[i] in ws:
+        i += 1
     if cmatch2(t, i, ':', '"'):
         i = read_shifted_comment(t, i+2)
-        i = skip(t, i)
+        i = skip(t, i, ignore_newline)
     return i
 
 
@@ -186,8 +195,14 @@ def read_string(t, i=0):
 
 # Dictionary helper
 
+def _materialize_dict_literal(v):
+    if isinstance(v, KGCall) and v.a is copy_lambda and v.arity == 0 and isinstance(v.args, dict):
+        return {k: _materialize_dict_literal(q) for k, q in v.args.items()}
+    return v
+
+
 def list_to_dict(a):
-    return {x[0]:x[1] for x in a}
+    return {x[0]: _materialize_dict_literal(x[1]) for x in a}
 
 
 # Lambda for copy operations (used in dict parsing)
@@ -207,7 +222,7 @@ def read_list(t, delim, i=0, module=None):
         i, q = kg_read(t, i, read_neg=True, ignore_newline=True, module=module)
         if q is None:
             break
-        if safe_eq(q, '['):
+        if q == '[':
             i, q = read_list(t, ']', i=i, module=module)
         arr.append(q)
         i = skip(t, i, ignore_newline=True)
@@ -228,9 +243,9 @@ def kg_read(t, i, read_neg=False, ignore_newline=False, module=None):
     a = t[i]
     if a == '\n':
         a = ';'
-    if a in [';', '(', ')', '{', '}', ']']:
+    if a in _DELIMITERS:
         return i+1, a
-    elif cmatch2(t, i, '0', 'c'):
+    elif a == '0' and (i+1) < len(t) and t[i+1] == 'c':
         return read_char(t, i)
     elif a.isnumeric() or (read_neg and (a == '-' and (i+1) < len(t) and t[i+1].isnumeric())):
         return read_num(t, i)
@@ -251,9 +266,9 @@ def kg_read(t, i, read_neg=False, ignore_newline=False, module=None):
         elif aa == '|':
             return i+2, ':|'
         return i+2, KGOp(f":{aa}", arity=0)
-    elif safe_eq(a, '['):
+    elif a == '[':
         return read_list(t, ']', i=i+1, module=module)
-    elif is_symbolic(a):
+    elif a.isalnum() or a == '.':
         return read_sym(t, i, module=module)
     return read_op(t, i)
 
@@ -282,7 +297,7 @@ def kg_read_array(t, i, backend, **kwargs):
         (new_position, value) where value is converted to an array if it was a list.
     """
     i, a = kg_read(t, i, **kwargs)
-    if isinstance(a, list):
+    if type(a) is list:
         a = backend.kg_asarray(a)
     return i, a
 
@@ -319,10 +334,14 @@ def read_cond(klong, t, i=0):
 # Adverb peeking
 
 def peek_adverb(t, i=0):
-    x = cpeek2(t, i)
-    if is_adverb(x):
-        return i+2, x
-    x = cpeek(t, i)
-    if is_adverb(x):
-        return i+1, x
+    # Inline cpeek2/cpeek/is_adverb to avoid function call overhead
+    tlen = len(t)
+    if i < tlen:
+        if i + 1 < tlen:
+            x = t[i:i+2]
+            if x in _ADVERBS:
+                return i+2, x
+        x = t[i]
+        if x in _ADVERBS:
+            return i+1, x
     return i, None

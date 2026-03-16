@@ -28,12 +28,19 @@ class KlongException(Exception):
 
 
 class KGSym(str):
+    _intern = {}
+    def __new__(cls, s):
+        existing = cls._intern.get(s)
+        if existing is not None:
+            return existing
+        obj = str.__new__(cls, s)
+        cls._intern[s] = obj
+        return obj
     def __repr__(self):
         return f":{super().__str__()}"
     def __eq__(self, o):
-        return isinstance(o,KGSym) and self.__str__() == o.__str__()
-    def __hash__(self):
-        return super().__hash__()
+        return self is o or (type(o) is KGSym and str.__eq__(self, o))
+    __hash__ = str.__hash__
 
 
 def get_fn_arity_str(arity):
@@ -46,21 +53,45 @@ def get_fn_arity_str(arity):
     return ":triad"
 
 
+import operator as _op
+import math as _math
+
+# Fast scalar dispatch tables — pre-resolved on KGFn at construction time
+def _int_lt(a, b): return 1 if a < b else 0
+def _int_gt(a, b): return 1 if a > b else 0
+def _int_eq(a, b): return 1 if a == b else 0
+def _int_not(x): return 1 if x == 0 else 0
+def _fast_floor(x): return x if type(x) is int else _math.floor(x)
+
+_FAST_SCALAR_OPS = {'+': _op.add, '*': _op.mul, '-': _op.sub, '^': _op.pow, '<': _int_lt, '>': _int_gt, '=': _int_eq, '|': max, '&': min}
+_FAST_SCALAR_MONADS = {'-': _op.neg, '~': _int_not, '_': _fast_floor}
+
+
 class KGFn:
+    __slots__ = ('a', 'args', 'arity', 'global_params', '_is_op', '_is_adverb_chain', '_op_a', '_op_arity', '_fast_op', '_fast_monad')
+
     def __init__(self, a, args, arity, global_params=None):
         self.a = a
         self.args = args
         self.arity = arity
-        self.global_params = global_params or set()
+        self.global_params = global_params
+        _is_op = type(a) is KGOp
+        self._is_op = _is_op
+        self._is_adverb_chain = type(a) is list and len(a) > 0 and type(a[0]) is KGAdverb
+        if _is_op:
+            _op_a = a.a
+            self._op_a = _op_a
+            self._op_arity = a.arity
+            self._fast_op = _FAST_SCALAR_OPS.get(_op_a)
+            self._fast_monad = _FAST_SCALAR_MONADS.get(_op_a)
+        else:
+            self._op_a = None
+            self._op_arity = 0
+            self._fast_op = None
+            self._fast_monad = None
 
     def __str__(self):
         return get_fn_arity_str(self.arity)
-
-    def is_op(self):
-        return isinstance(self.a, KGOp)
-
-    def is_adverb_chain(self):
-        return isinstance(self.a, list) and isinstance(self.a[0], KGAdverb)
 
 
 class KGFnWrapper:
@@ -76,6 +107,7 @@ class KGFnWrapper:
         klong('callback::{new implementation}')
         fn(args)  # Uses the NEW implementation
     """
+    __slots__ = ('klong', 'fn', '_sym')
 
     def __init__(self, klong, fn, sym=None):
         self.klong = klong
@@ -85,14 +117,14 @@ class KGFnWrapper:
 
     def _find_symbol(self, fn):
         """Find which symbol this function is currently bound to"""
-        if not isinstance(fn, KGFn) or isinstance(fn, KGCall):
+        if type(fn) is not KGFn:
             return None
 
         # Search the context for this function
         # Skip reserved symbols (x, y, z, .f) which are function parameters, not stored callbacks
         for sym, value in self.klong._context:
             # Skip reserved symbols - use the module constants
-            if sym in reserved_fn_symbols or sym == reserved_dot_f_symbol:
+            if sym in reserved_fn_symbols_set or sym == reserved_dot_f_symbol:
                 continue
             if value is fn:
                 return sym
@@ -103,7 +135,7 @@ class KGFnWrapper:
         if self._sym is not None:
             try:
                 current = self.klong._context[self._sym]
-                if isinstance(current, KGFn) and not isinstance(current, KGCall):
+                if type(current) is KGFn:
                     # Use the current definition
                     if len(args) != current.arity:
                         raise RuntimeError(f"Klong function called with {len(args)} but expected {current.arity}")
@@ -120,17 +152,76 @@ class KGFnWrapper:
 
 
 class KGCall(KGFn):
+    __slots__ = ('_cached_body', '_cached_body_arity', '_cached_body_type', '_cached_version', '_cached_nargs_ok', '_cached_cond_is_dyad_op', '_cached_cond_fast', '_cached_true_is_sym', '_cached_false_is_dyad_op', '_nargs', '_f_args', '_arg0_is_dyad_op', '_arg0_dyad_fast', '_arg0_sym', '_arg0_literal', '_arg0_op_a', '_cond_literal', '_cond_op_a', '_cond_fast_op', '_cached_fb_call0', '_cached_fb_call1', '_cached_fb_op_a', '_specialized_fn')
+
+    def __init__(self, a, args, arity, global_params=None):
+        super().__init__(a, args, arity, global_params)
+        self._cached_body = None
+        self._cached_body_arity = 0
+        self._cached_body_type = None
+        self._cached_version = -1
+        self._cached_nargs_ok = False
+        self._cached_cond_is_dyad_op = False
+        self._cached_cond_fast = False
+        self._cached_true_is_sym = False
+        self._cached_false_is_dyad_op = False
+        self._cond_literal = None
+        self._cond_op_a = None
+        self._cond_fast_op = None
+        self._cached_fb_call0 = None
+        self._cached_fb_call1 = None
+        self._cached_fb_op_a = None
+        self._specialized_fn = None
+        self._nargs = 0 if args is None else (len(args) if type(args) is list else 1)
+        _f_args = args if args is None or type(args) is list else [args]
+        self._f_args = _f_args
+        # Pre-compute arg dispatch strategy for nargs==1
+        if _f_args is not None and len(_f_args) == 1:
+            _a0 = _f_args[0]
+            _ta0 = type(_a0)
+            _is_dyad = (_ta0 is KGFn or _ta0 is KGCall) and _a0._is_op and _a0._op_arity == 2
+            self._arg0_is_dyad_op = _is_dyad
+            if _is_dyad:
+                _a0_args = _a0.args
+                _fast = (type(_a0_args) is list and
+                    (type(_a0_args[0]) is KGSym and _a0_args[0] in reserved_fn_symbols_set) and
+                    (type(_a0_args[1]) is int or type(_a0_args[1]) is float))
+                self._arg0_dyad_fast = _fast
+                if _fast:
+                    self._arg0_sym = _a0_args[0]
+                    self._arg0_literal = _a0_args[1]
+                    self._arg0_op_a = _a0._op_a
+                else:
+                    self._arg0_sym = None
+                    self._arg0_literal = None
+                    self._arg0_op_a = None
+            else:
+                self._arg0_dyad_fast = False
+                self._arg0_sym = None
+                self._arg0_literal = None
+                self._arg0_op_a = None
+        else:
+            self._arg0_is_dyad_op = False
+            self._arg0_dyad_fast = False
+            self._arg0_sym = None
+            self._arg0_literal = None
+            self._arg0_op_a = None
+
     def __str__(self):
         return self.a.__str__() if issubclass(type(self.a), KGLambda) else super().__str__()
 
 
 class KGOp:
+    __slots__ = ('a', 'arity')
+
     def __init__(self, a, arity):
         self.a = a
         self.arity = arity
 
 
 class KGAdverb:
+    __slots__ = ('a', 'arity')
+
     def __init__(self, a, arity):
         self.a = a
         self.arity = arity
@@ -155,11 +246,21 @@ class KGUndefined:
 KLONG_UNDEFINED = KGUndefined()
 
 
+_inspect_cache = {}
+
 def safe_inspect(fn, follow_wrapped=True):
+    code = getattr(fn, '__code__', None)
+    if code is not None:
+        cached = _inspect_cache.get(id(code))
+        if cached is not None:
+            return cached
     try:
-        return inspect.signature(fn, follow_wrapped=follow_wrapped).parameters
+        result = inspect.signature(fn, follow_wrapped=follow_wrapped).parameters
     except ValueError:
-        return {"args":[]}
+        result = {"args":[]}
+    if code is not None:
+        _inspect_cache[id(code)] = result
+    return result
 
 
 class KGLambda:
@@ -182,6 +283,8 @@ class KGLambda:
     lambda klong, x: klong(x)
 
     """
+    __slots__ = ('fn', 'args', '_provide_klong', '_wildcard')
+
     def __init__(self, fn, args=None, provide_klong=False, wildcard=False):
         self.fn = fn
         params = args or safe_inspect(fn)
@@ -197,11 +300,14 @@ class KGLambda:
                     pos_args.append(ctx[sym])
                 except KeyError:
                     break
-        else:
-            pos_args = [ctx[x] for x in self.args]
-        return pos_args
+            return pos_args
+        return [ctx[x] for x in self.args]
 
     def __call__(self, klong, ctx):
+        # Fast path for common arity-1 non-klong case
+        args = self.args
+        if not self._wildcard and not self._provide_klong and len(args) == 1:
+            return self.fn(ctx[args[0]])
         pos_args = self._get_pos_args(ctx)
         return self.fn(klong, *pos_args) if self._provide_klong else self.fn(*pos_args)
 
@@ -252,22 +358,44 @@ class RangeError(Exception):
 # Reserved function argument names and symbols
 reserved_fn_args = ['x','y','z']
 reserved_fn_symbols = [KGSym(n) for n in reserved_fn_args]
+reserved_fn_symbols_set = frozenset(reserved_fn_symbols)
 reserved_fn_symbol_map = {n:KGSym(n) for n in reserved_fn_args}
 reserved_dot_f_symbol = KGSym('.f')
 
 
 # Type checking functions
 
+# Cache which types are integer-like and float-like to avoid repeated issubclass
+_integer_types = set()
+_float_types = set()
+
 def is_list(x):
     # Check for list or any array-like with ndim > 0 (works for numpy and torch)
-    return isinstance(x, list) or (hasattr(x, 'ndim') and x.ndim > 0)
+    t = type(x)
+    if t is list:
+        return True
+    if t is numpy.ndarray:
+        return x.ndim > 0
+    return hasattr(x, 'ndim') and x.ndim > 0
 
 
 def is_iterable(x):
-    return is_list(x) or (isinstance(x, str) and not isinstance(x, (KGSym, KGChar)))
+    t = type(x)
+    if t is list:
+        return True
+    if t is str:
+        return True
+    if t is numpy.ndarray:
+        return x.ndim > 0
+    if isinstance(x, str) and not isinstance(x, (KGSym, KGChar)):
+        return True
+    return hasattr(x, 'ndim') and x.ndim > 0
 
 
 def is_empty(a):
+    t = type(a)
+    if t is list or t is str:
+        return len(a) == 0
     return is_iterable(a) and len(a) == 0
 
 
@@ -280,30 +408,45 @@ def to_list(a):
 
 
 def is_integer(x, backend):
-    if issubclass(type(x), (int, numpy.integer)):
+    tx = type(x)
+    if tx is int:
+        return True
+    if tx in _integer_types:
+        return True
+    if issubclass(tx, (int, numpy.integer)):
+        _integer_types.add(tx)
         return True
     # Handle 0-dim numpy arrays
-    if isinstance(x, numpy.ndarray) and x.ndim == 0:
+    if tx is numpy.ndarray and x.ndim == 0:
         return numpy.issubdtype(x.dtype, numpy.integer)
     # Handle backend-specific scalar integers (e.g., torch tensors)
     return backend.is_scalar_integer(x)
 
 
 def is_float(x, backend):
-    if issubclass(type(x), (float, numpy.floating, int)):
+    tx = type(x)
+    if tx is float or tx is int:
+        return True
+    if tx in _float_types:
+        return True
+    if issubclass(tx, (float, numpy.floating)):
+        _float_types.add(tx)
         return True
     # Handle 0-dim numpy arrays
-    if isinstance(x, numpy.ndarray) and x.ndim == 0:
+    if tx is numpy.ndarray and x.ndim == 0:
         return numpy.issubdtype(x.dtype, numpy.floating)
     # Handle backend-specific scalar floats (e.g., torch tensors)
     return backend.is_scalar_float(x)
 
 
 def is_number(a, backend):
+    ta = type(a)
+    if ta is int or ta is float:
+        return True
     if is_float(a, backend) or is_integer(a, backend):
         return True
     # Handle 0-dim numpy arrays
-    if isinstance(a, numpy.ndarray) and a.ndim == 0:
+    if ta is numpy.ndarray and a.ndim == 0:
         return numpy.issubdtype(a.dtype, numpy.number)
     # Handle 0-dim backend tensors as numbers
     if backend.is_backend_array(a) and hasattr(a, 'ndim') and a.ndim == 0:
@@ -320,7 +463,7 @@ def str_is_float(b):
 
 
 def is_symbolic(c):
-    return isinstance(c, str) and (c.isalpha() or c.isdigit() or c == '.')
+    return isinstance(c, str) and (c.isalnum() or c == '.')
 
 
 def is_char(x):
@@ -333,11 +476,25 @@ def is_char(x):
 
 def is_atom(x):
     """ All objects except for non-empty lists and non-empty strings are atoms. """
+    t = type(x)
+    if t is list or t is str:
+        return len(x) == 0
+    if t is numpy.ndarray:
+        return x.ndim == 0 or len(x) == 0
     return is_empty(x) if is_iterable(x) else True
 
 
+_ndarray_type = None  # lazily populated
+
 def kg_truth(x):
-    return x*1
+    global _ndarray_type
+    if _ndarray_type is None:
+        import numpy
+        _ndarray_type = numpy.ndarray
+    # Keep numpy boolean arrays as-is for fast flatnonzero in Where monad
+    if type(x) is _ndarray_type:
+        return x
+    return x * 1
 
 
 def str_to_chr_arr(s, backend):
@@ -382,7 +539,9 @@ def get_dtype_kind(arr, backend):
 # Utility functions
 
 def safe_eq(a, b):
-    return isinstance(a, type(b)) and a == b
+    if a is b:
+        return True
+    return type(a) is type(b) and a == b
 
 
 def in_map(x, v):
@@ -393,10 +552,11 @@ def in_map(x, v):
 
 
 def has_none(a):
-    if isinstance(a, list):
-        for q in a:
-            if q is None:
-                return True
+    if a is None or type(a) is not list:
+        return False
+    for q in a:
+        if q is None:
+            return True
     return False
 
 
@@ -408,42 +568,41 @@ def rec_flatten(a):
 
 # Adverb utilities
 
-def is_adverb(s):
-    return s in {
-        "'",
-        ':\\',
-        ":'",
-        ':/',
-        '/',
-        ':~',
-        ':*',
-        '\\',
-        '\\~',
-        '\\*'
-    }
+_ADVERBS = frozenset({
+    "'",
+    ':\\',
+    ":'",
+    ':/',
+    '/',
+    ':~',
+    ':*',
+    '\\',
+    '\\~',
+    '\\*'
+})
 
+def is_adverb(s):
+    return s in _ADVERBS
+
+
+_ADVERB_ARITIES = {
+    ':\\': 2,
+    ":'": 2,
+    ':/': 2,
+    '/': 2,
+    ':~': 1,
+    ':*': 1,
+    '\\': 2,
+    '\\~': 1,
+    '\\*': 1,
+}
 
 def get_adverb_arity(s, ctx):
     if s == "'":
         return ctx
-    elif s == ':\\':
-        return 2
-    elif s == ':\'':
-        return 2
-    elif s == ':/':
-        return 2
-    elif s == '/':
-        return 2
-    elif s == ':~':
-        return 1
-    elif s == ':*':
-        return 1
-    elif s == '\\':
-        return 2
-    elif s == '\\~':
-        return 1
-    elif s == '\\*':
-        return 1
+    r = _ADVERB_ARITIES.get(s)
+    if r is not None:
+        return r
     raise RuntimeError(f"unknown adverb: {s}")
 
 
@@ -469,7 +628,7 @@ def merge_projections(arr):
             if sparse_fa[i] is None:
                 sparse_fa[i] = fa[j]
                 j += 1
-                while j < len(fa) and safe_eq(fa[j], None):
+                while j < len(fa) and fa[j] is None:
                     j += 1
             i += 1
         k += 1
@@ -483,20 +642,22 @@ def get_fn_arity(f):
 
     NOTE: TODO: it maybe easier / better to do this at parse time vs late.
     """
-    if isinstance(f, KGFn) and isinstance(f.a, KGSym) and not in_map(f.a, reserved_fn_symbols):
-       return sum(1 for x in set(f.args) if in_map(x, reserved_fn_symbols) or (x is None))
+    tf = type(f)
+    if (tf is KGFn or tf is KGCall) and type(f.a) is KGSym and f.a not in reserved_fn_symbols_set:
+       return sum(1 for x in set(f.args) if x in reserved_fn_symbols_set or (x is None))
     def _e(f, level=0):
-        if isinstance(f, KGFn):
+        tf = type(f)
+        if tf is KGFn or tf is KGCall:
             x = _e(f.a, level=1)
-            if isinstance(f.args, list):
+            if type(f.args) is list:
                 for q in f.args:
                     x.update(_e(q, level=1))
-        elif isinstance(f, list):
+        elif tf is list or tf is KGCond:
             x = set()
             for q in f:
                 x.update(_e(q, level=1))
-        elif isinstance(f, KGSym):
-            x = set([f]) if f in reserved_fn_symbols else set()
+        elif tf is KGSym:
+            x = set([f]) if f in reserved_fn_symbols_set else set()
         else:
             x = set()
         return x if level else len(x)

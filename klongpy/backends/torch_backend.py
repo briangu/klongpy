@@ -124,6 +124,8 @@ class TorchBackend:
         self._subtract = None
         self._multiply = None
         self._divide = None
+        self._maximum = None
+        self._minimum = None
 
         # Device priority: explicit > CUDA > MPS (Apple Silicon) > CPU
         if device is not None:
@@ -207,6 +209,8 @@ class TorchBackend:
                 )
             if a.dtype == numpy.float64 and self.device.type == 'mps':
                 a = a.astype(numpy.float32)
+            if not a.flags.writeable:
+                a = a.copy()
             return torch.from_numpy(a).to(self.device)
         # Check if input is a list/tuple of tensors - use stack to preserve gradients
         if isinstance(a, (list, tuple)) and len(a) > 0 and all(isinstance(x, torch.Tensor) for x in a):
@@ -335,17 +339,31 @@ class TorchBackend:
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         return torch.abs(a_t)
 
-    def minimum(self, a, b):
-        """Element-wise minimum."""
-        a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
-        b_t = self.asarray(b) if not isinstance(b, torch.Tensor) else b
-        return torch.minimum(a_t, b_t)
+    @property
+    def minimum(self):
+        if self._minimum is None:
+            def cummin_values(a, dim=0):
+                return torch.cummin(a, dim=dim).values
+            self._minimum = self.TorchUfunc(
+                self, torch.minimum,
+                lambda a, dim=None: torch.amin(a) if dim is None else torch.amin(a, dim=dim),
+                cummin_values,
+                numpy.minimum
+            )
+        return self._minimum
 
-    def maximum(self, a, b):
-        """Element-wise maximum."""
-        a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
-        b_t = self.asarray(b) if not isinstance(b, torch.Tensor) else b
-        return torch.maximum(a_t, b_t)
+    @property
+    def maximum(self):
+        if self._maximum is None:
+            def cummax_values(a, dim=0):
+                return torch.cummax(a, dim=dim).values
+            self._maximum = self.TorchUfunc(
+                self, torch.maximum,
+                lambda a, dim=None: torch.amax(a) if dim is None else torch.amax(a, dim=dim),
+                cummax_values,
+                numpy.maximum
+            )
+        return self._maximum
 
     def floor(self, a):
         """Floor of input."""

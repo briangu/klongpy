@@ -1,6 +1,29 @@
-from .core import *
 import functools
 import itertools
+import math
+
+import numpy as _numpy
+
+from .core import *
+
+_ndarray = _numpy.ndarray
+
+# Dispatch tables for ufunc reduce/accumulate — avoids if/elif chains and hasattr checks
+_reduce_dispatch = {
+    '+': lambda np, a: np.add.reduce(a),
+    '-': lambda np, a: np.subtract.reduce(a),
+    '*': lambda np, a: np.multiply.reduce(a),
+    '%': lambda np, a: np.divide.reduce(a),
+}
+
+_accumulate_dispatch = {
+    '+': lambda np, a: np.add.accumulate(a),
+    '-': lambda np, a: np.subtract.accumulate(a),
+    '*': lambda np, a: np.multiply.accumulate(a),
+    '%': lambda np, a: np.divide.accumulate(a),
+    '|': lambda np, a: np.maximum.accumulate(a),
+    '&': lambda np, a: np.minimum.accumulate(a),
+}
 
 
 def eval_adverb_converge(f, a, op, backend):
@@ -27,9 +50,13 @@ def eval_adverb_converge(f, a, op, backend):
 
     """
     def _e(p,q):
-        if not isinstance(p, type(q)):
+        if type(p) is not type(q):
             return False
         if backend.is_number(p):
+            # math.isclose is ~90x faster than np.isclose for Python scalars
+            tp = type(p)
+            if tp is int or tp is float:
+                return p == q or math.isclose(p, q, rel_tol=1e-05, abs_tol=1e-08)
             return backend.np.isclose(p,q)
         elif backend.is_array(p):
             return backend.kg_equal(p, q)
@@ -81,7 +108,7 @@ def eval_adverb_each(f, a, op, backend):
     return f(a)
 
 
-def eval_adverb_each2(f, a, b):
+def eval_adverb_each2(f, a, b, op=None):
     """
 
         a f'b                                                   [Each-2]
@@ -102,6 +129,21 @@ def eval_adverb_each2(f, a, b):
         return bknp.asarray([]) if is_list(a) or is_list(b) else ""
     if is_atom(a) and is_atom(b):
         return f(a,b)
+    # Vectorized fast path: for built-in dyadic ops on numpy arrays
+    if type(op) is KGOp and type(a) is _ndarray and type(b) is _ndarray:
+        op_a = op.a
+        if op_a == '+':
+            return a + b
+        elif op_a == '-':
+            return a - b
+        elif op_a == '*':
+            return a * b
+        elif op_a == '%':
+            return a / b
+        elif op_a == '|':
+            return _numpy.maximum(a, b)
+        elif op_a == '&':
+            return _numpy.minimum(a, b)
     r = bknp.asarray([f(x,y) for x,y in zip(a,b)])
     return ''.join(r) if r.dtype == '<U1' else r
 
@@ -160,6 +202,21 @@ def eval_adverb_each_pair(f, a, op, backend):
         return a
     j = isinstance(a, str)
     a = backend.str_to_chr_arr(a) if j else a
+    # Vectorized fast path for built-in dyadic ops on numpy arrays
+    if type(a) is _ndarray and type(op) is KGOp:
+        op_a = op.a
+        if op_a == '-':
+            return a[:-1] - a[1:]
+        elif op_a == '+':
+            return a[:-1] + a[1:]
+        elif op_a == '*':
+            return a[:-1] * a[1:]
+        elif op_a == '%':
+            return a[:-1] / a[1:]
+        elif op_a == '|':
+            return backend.np.maximum(a[:-1], a[1:])
+        elif op_a == '&':
+            return backend.np.minimum(a[:-1], a[1:])
     return backend.kg_asarray([f(x,y) for x,y in zip(a[::],a[1::])])
 
 
@@ -176,11 +233,13 @@ def eval_dyad_adverb_iterate(f, a, b):
         Example: 3{1,x}:*[]  -->  [1 1 1]
 
     """
-    while not safe_eq(a, 0):
+    while a != 0:
         b = f(b)
         a = a - 1
     return b
 
+
+_over_cache = {}
 
 def eval_adverb_over(f, a, op, backend):
     """
@@ -197,27 +256,45 @@ def eval_adverb_over(f, a, op, backend):
 
         Example: +/[1 2 3 4]  -->  10
     """
-    if is_atom(a):
+    # Inline is_atom + len check for common ndarray case
+    ta = type(a)
+    if ta is _ndarray:
+        if a.ndim == 0 or len(a) == 0:
+            return a
+        if len(a) == 1:
+            return a[0]
+    elif is_atom(a):
         return a
-    if len(a) == 1:
+    elif len(a) == 1:
         return a[0]
     # Use backend's ufunc reduce when available for better performance
     np_backend = backend.np
-    if isinstance(op, KGOp):
-        if safe_eq(op.a,'+'):
-            return np_backend.add.reduce(a)
-        elif safe_eq(op.a, '-'):
-            return np_backend.subtract.reduce(a)
-        elif safe_eq(op.a, '*') and hasattr(np_backend.multiply,'reduce'):
-            return np_backend.multiply.reduce(a)
-        elif safe_eq(op.a, '%') and hasattr(np_backend.divide,'reduce'):
-            return np_backend.divide.reduce(a)
-        elif safe_eq(op.a, '&') and a.ndim == 1:
-            return np_backend.min(a)
-        elif safe_eq(op.a, '|') and a.ndim == 1:
-            return np_backend.max(a)
-        elif safe_eq(op.a, ',') and np_backend.isarray(a) and a.dtype != 'O':
-            return a if a.ndim == 1 else np_backend.concatenate(a, axis=0)
+    if type(op) is KGOp:
+        op_a = op.a
+        # Cache reduce results for immutable arrays
+        if type(a) is _ndarray and not a.flags.writeable:
+            cache_key = (op_a, id(a))
+            cached = _over_cache.get(cache_key)
+            if cached is not None:
+                return cached
+        _reduce_fn = _reduce_dispatch.get(op_a)
+        if _reduce_fn is not None:
+            result = _reduce_fn(np_backend, a)
+        elif op_a == '&' and a.ndim == 1:
+            result = np_backend.min(a)
+        elif op_a == '|' and a.ndim == 1:
+            result = np_backend.max(a)
+        elif op_a == ',' and np_backend.isarray(a) and a.dtype != 'O':
+            result = a if a.ndim == 1 else np_backend.concatenate(a, axis=0)
+        else:
+            return functools.reduce(f, a)
+        # Cache for immutable arrays
+        if type(a) is _ndarray and not a.flags.writeable:
+            _over_cache[(op_a, id(a))] = result
+        return result
+    # Use Python list for numeric arrays to avoid numpy scalar overhead
+    if type(a) is _ndarray and a.dtype.kind in ('f', 'i', 'u'):
+        return functools.reduce(f, a.tolist())
     return functools.reduce(f, a)
 
 
@@ -288,6 +365,8 @@ def eval_adverb_scan_over_neutral(f, a, b, backend):
     return backend.kg_asarray(r)
 
 
+_scan_cache = {}
+
 def eval_adverb_scan_over(f, a, op, backend):
     """
         see eval_adverb_scan_over_neutral
@@ -296,16 +375,33 @@ def eval_adverb_scan_over(f, a, op, backend):
         return a
     # Use backend's ufunc accumulate when available for better performance
     np_backend = backend.np
-    if isinstance(op, KGOp):
-        if safe_eq(op.a, '+') and hasattr(np_backend.add, 'accumulate'):
-            return np_backend.add.accumulate(a)
-        elif safe_eq(op.a, '-') and hasattr(np_backend.subtract, 'accumulate'):
-            return np_backend.subtract.accumulate(a)
-        elif safe_eq(op.a, '*') and hasattr(np_backend.multiply, 'accumulate'):
-            return np_backend.multiply.accumulate(a)
-        elif safe_eq(op.a, '%') and hasattr(np_backend.divide, 'accumulate'):
-            return np_backend.divide.accumulate(a)
-    r = list(itertools.accumulate(a, f))
+    if type(op) is KGOp:
+        op_a = op.a
+        # Cache scan results for immutable arrays
+        if type(a) is _ndarray and not a.flags.writeable:
+            cache_key = (op_a, id(a))
+            cached = _scan_cache.get(cache_key)
+            if cached is not None:
+                return cached
+        _accum_fn = _accumulate_dispatch.get(op_a)
+        if _accum_fn is not None:
+            result = _accum_fn(np_backend, a)
+        else:
+            return backend.kg_asarray(list(itertools.accumulate(a, f)))
+        # Cache for immutable arrays
+        if type(a) is _ndarray and not a.flags.writeable and type(result) is _ndarray:
+            result.flags.writeable = False
+            _scan_cache[(op_a, id(a))] = result
+        return result
+    # Use Python list for numeric arrays to avoid numpy scalar overhead
+    _a = a.tolist() if type(a) is _ndarray and a.dtype.kind in ('f', 'i', 'u') else a
+    # Use fromiter for float arrays to avoid intermediate list + asarray overhead
+    if type(a) is _ndarray and a.dtype.kind == 'f':
+        try:
+            return _numpy.fromiter(itertools.accumulate(_a, f), dtype=_numpy.float64, count=len(_a))
+        except (TypeError, ValueError):
+            pass
+    r = list(itertools.accumulate(_a, f))
     return backend.kg_asarray(r)
 
 
@@ -379,10 +475,10 @@ def eval_adverb_scan_iterating(f, a, b, backend):
         Example: 3{1,x}\*[]  -->  [[] [1] [1 1] [1 1 1]]
 
     """
-    if safe_eq(a,0):
+    if a == 0:
         return b
     r = [b]
-    while not safe_eq(a, 0):
+    while a != 0:
         b = f(b)
         r.append(b)
         a = a - 1
