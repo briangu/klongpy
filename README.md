@@ -137,43 +137,152 @@ Array languages express *what* you want, not *how* to compute it. This enables a
 
 KlongPy inherits from the [APL](https://en.wikipedia.org/wiki/APL_(programming_language)) family tree (APL → J → K/Q → Klong), adding Python integration and automatic differentiation.
 
-## Performance: NumPy vs PyTorch Backend
+## Performance
 
-The PyTorch backend provides significant speedups for large arrays with GPU acceleration (RTX 4090 in this case):
+Run the included benchmark on any backend:
 
-```
-$ python3 tests/perf_vector.py
-============================================================
-VECTOR OPS (element-wise, memory-bound)
-  Size: 10,000,000 elements, Iterations: 100
-============================================================
-NumPy (baseline)                    0.021854s
-KlongPy (numpy)                     0.001413s  (15.46x vs NumPy)
-KlongPy (torch, cpu)                0.000029s  (761.22x vs NumPy)
-KlongPy (torch, cuda)               0.000028s  (784.04x vs NumPy)
-
-============================================================
-MATRIX MULTIPLY (compute-bound, GPU advantage)
-  Size: 4000x4000, Iterations: 5
-============================================================
-NumPy (baseline)                    0.078615s
-KlongPy (numpy)                     0.075400s  (1.04x vs NumPy)
-KlongPy (torch, cpu)                0.077350s  (1.02x vs NumPy)
-KlongPy (torch, cuda)               0.002339s  (33.62x vs NumPy)
+```bash
+kgpy examples/benchmark.kg                  # default backend (torch if available)
+kgpy --backend numpy examples/benchmark.kg  # numpy backend
 ```
 
-Also supporting Apple Silicon MPS (M1 Mac Studio) enables fast local work:
+### NumPy Backend (Apple M1 Mac Studio)
+
+The NumPy backend includes CFFI-accelerated native C loops, parallel processing, and pattern-matched vectorization:
 
 ```
-$ python tests/perf_backend.py --compare
-Benchmark                   NumPy (ms)   Torch (ms)      Speedup
-----------------------------------------------------------------------
-vector_add_1M                    0.327        0.065    5.02x (torch)
-compound_expr_1M                 0.633        0.070    9.00x (torch)
-sum_1M                           0.246        0.087    2.84x (torch)
-grade_up_100K                    0.588        0.199    2.96x (torch)
-enumerate_1M                     0.141        0.050    2.83x (torch)
+$ kgpy --backend numpy examples/benchmark.kg
+=================================================================
+KlongPy Performance Benchmark
+=================================================================
+
+  [vector] 1M floats
+  -------------------------------------------------
+  running_sum_1M    +\a          6.91 ms
+  cumul_prod_100K   *\a          0.71 ms
+  vec_arith_1M      (a*2+b)%a+1 8.06 ms
+  dot_product_1M    +/a*b       7.14 ms
+
+  [reduce] 1M floats
+  -------------------------------------------------
+  sum_1M            +/a          3.50 ms
+  max_1M            |/a          3.41 ms
+  min_1M            &/a          3.41 ms
+
+  [sort] 100K integers
+  -------------------------------------------------
+  grade_up_100K     <iv          5.71 ms
+  sort_100K         iv@<iv       5.76 ms
+  rank_100K         <<iv         5.83 ms
+  unique_100K       ?ig         52.03 ms
+
+  [filter] 1M floats
+  -------------------------------------------------
+  where_1M          &(a>0.5)     4.34 ms
+  filter_1M         a@&(a>0.5)   4.81 ms
+  count_filter_1M   #&(a>0.5)    4.37 ms
+
+  [scan] 1K elements
+  -------------------------------------------------
+  ewma_1K                        1.66 ms
+  scan_add_1K       {x+y}\!1K   0.010 ms
+  scan_compound_1K  {x+y*2}\    0.016 ms
+  fold_sum_1K       {x+y}/!1K   0.008 ms
+
+  [running] 10K elements
+  -------------------------------------------------
+  running_max_10K   |\ts         0.20 ms
+  running_min_10K   &\ts         0.20 ms
+  drawdown_10K      (|\ts)-ts    0.20 ms
+  max_drawdown_10K               0.21 ms
+
+  [adverb] 1K elements
+  -------------------------------------------------
+  each_square_1K    {x*x}'!1K   0.008 ms
+  each2_add_1K      a{x+y}'b    0.008 ms
+  over_custom_1K    {x+y*y}/!1K 0.014 ms
+
+  [finance] 100K trades
+  -------------------------------------------------
+  vwap_100K                      2.05 ms
+  returns_10K       -:'price     0.17 ms
+
+  [interp] Recursive & looping
+  -------------------------------------------------
+  fib(20)                        0.18 ms
+  fib(25)                        0.10 ms
+  nested_fn(1000)                0.019 ms
+  loop_1K           1K{x+1}:*0  0.071 ms
 ```
+
+### PyTorch MPS Backend (Apple M1 Mac Studio)
+
+```
+$ kgpy examples/benchmark.kg
+=================================================================
+KlongPy Performance Benchmark
+=================================================================
+
+  [vector] 1M floats
+  -------------------------------------------------
+  running_sum_1M    +\a         10.75 ms
+  cumul_prod_100K   *\a          1.47 ms
+  vec_arith_1M      (a*2+b)%a+1 11.17 ms
+  dot_product_1M    +/a*b        9.09 ms
+
+  [reduce] 1M floats
+  -------------------------------------------------
+  sum_1M            +/a          4.40 ms
+  max_1M            |/a          4.86 ms
+  min_1M            &/a          4.73 ms
+
+  [sort] 100K integers
+  -------------------------------------------------
+  grade_up_100K     <iv          4.82 ms
+  sort_100K         iv@<iv       3.57 ms
+  rank_100K         <<iv         3.22 ms
+  unique_100K       ?ig          4.57 ms
+
+  [filter] 1M floats
+  -------------------------------------------------
+  where_1M          &(a>0.5)     9.32 ms
+  filter_1M         a@&(a>0.5)   7.53 ms
+  count_filter_1M   #&(a>0.5)    6.75 ms
+
+  [scan] 1K elements
+  -------------------------------------------------
+  ewma_1K                      276.81 ms
+  scan_add_1K       {x+y}\!1K   0.80 ms
+  scan_compound_1K  {x+y*2}\    2.62 ms
+  fold_sum_1K       {x+y}/!1K   0.52 ms
+
+  [running] 10K elements
+  -------------------------------------------------
+  running_max_10K   |\ts         0.84 ms
+  running_min_10K   &\ts         0.77 ms
+  drawdown_10K      (|\ts)-ts    0.79 ms
+  max_drawdown_10K               1.19 ms
+
+  [adverb] 1K elements
+  -------------------------------------------------
+  each_square_1K    {x*x}'!1K   0.012 ms
+  each2_add_1K      a{x+y}'b    0.010 ms
+  over_custom_1K    {x+y*y}/!1K 0.024 ms
+
+  [finance] 100K trades
+  -------------------------------------------------
+  vwap_100K                      4.32 ms
+  returns_10K       -:'price    72.24 ms
+
+  [interp] Recursive & looping
+  -------------------------------------------------
+  fib(20)                        0.29 ms
+  fib(25)                        0.13 ms
+  nested_fn(1000)                0.026 ms
+  loop_1K           1K{x+1}:*0  0.099 ms
+```
+
+The NumPy backend excels at interpreter-heavy operations (scan, fold, running max/min) thanks to CFFI-accelerated native C loops. The PyTorch backend is competitive on array operations and provides autograd support for gradient computation.
 
 ## Complete Feature Set
 

@@ -264,8 +264,14 @@ def eval_monad_grade_up(a, backend):
     if _last_grade_result is not None and arr is _last_grade_result:
         _last_grade_result = None
         n = len(arr)
-        rank = bknp.empty(n, dtype=bknp.intp)
-        rank[arr] = bknp.arange(n)
+        if type(arr) is _ndarray:
+            rank = bknp.empty(n, dtype=bknp.intp)
+            rank[arr] = bknp.arange(n)
+        else:
+            np_arr = arr.cpu().numpy() if hasattr(arr, 'cpu') else bknp.asarray(arr)
+            rank = bknp.empty(n, dtype=bknp.intp)
+            rank[np_arr] = bknp.arange(n)
+            rank = backend.np.asarray(rank)
         return rank
     result = kg_argsort(arr, backend)
     _last_grade_result = result

@@ -209,6 +209,8 @@ class TorchBackend:
                 )
             if a.dtype == numpy.float64 and self.device.type == 'mps':
                 a = a.astype(numpy.float32)
+            if not a.flags.writeable:
+                a = a.copy()
             return torch.from_numpy(a).to(self.device)
         # Check if input is a list/tuple of tensors - use stack to preserve gradients
         if isinstance(a, (list, tuple)) and len(a) > 0 and all(isinstance(x, torch.Tensor) for x in a):

@@ -389,7 +389,7 @@ def eval_adverb_scan_over(f, a, op, backend):
         else:
             return backend.kg_asarray(list(itertools.accumulate(a, f)))
         # Cache for immutable arrays
-        if type(a) is _ndarray and not a.flags.writeable:
+        if type(a) is _ndarray and not a.flags.writeable and type(result) is _ndarray:
             result.flags.writeable = False
             _scan_cache[(op_a, id(a))] = result
         return result

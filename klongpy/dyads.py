@@ -178,6 +178,15 @@ def eval_dyad_at_index(klong, a, b):
             r = bknp.asarray([])
         elif type(a) is bknp.ndarray and type(b) is bknp.ndarray:
             r = a[b.astype(int)] if b.dtype.kind == 'f' else a[b]
+        elif hasattr(b, 'dtype'):
+            # Convert mismatched types: if one is torch and the other numpy, unify
+            if hasattr(b, 'cpu') and type(a) is bknp.ndarray:
+                b_np = b.cpu().numpy()
+                r = a[b_np.astype(int)] if b_np.dtype.kind == 'f' else a[b_np]
+            elif hasattr(a, '__getitem__'):
+                r = a[b.long()] if hasattr(b, 'long') else a[b.astype(int)]
+            else:
+                r = backend.kg_asarray([a[x] for x in b])
         else:
             r = backend.kg_asarray([a[x] for x in b])
     elif backend.is_integer(b):
