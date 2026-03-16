@@ -1,0 +1,140 @@
+:" KlongPy Performance Benchmark "
+:" Run: kgpy examples/benchmark.kg "
+:" Works with any backend (numpy, torch cpu/mps/cuda) "
+
+.pyf("numpy.random";["random" "randn"])
+
+N::10
+
+.p("=================================================================")
+.p("KlongPy Performance Benchmark")
+.p("=================================================================")
+
+:" ---- VECTOR ---- "
+.p("")
+.p("  [vector] 1M floats")
+.p("  -------------------------------------------------")
+t::.pc();N{x;a::random(1000000);+\a;x+1}:*0
+.d("  running_sum_1M    +\\a          ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;a::random(100000);*\a;x+1}:*0
+.d("  cumul_prod_100K   *\\a          ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;a::random(1000000);b::random(1000000);(a*2+b)%a+1;x+1}:*0
+.d("  vec_arith_1M      (a*2+b)%a+1  ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;a::random(1000000);b::random(1000000);+/a*b;x+1}:*0
+.d("  dot_product_1M    +/a*b        ");.d((.pc()-t)*1000%N);.p(" ms")
+
+:" ---- REDUCE ---- "
+.p("")
+.p("  [reduce] 1M floats")
+.p("  -------------------------------------------------")
+t::.pc();N{x;a::random(1000000);+/a;x+1}:*0
+.d("  sum_1M            +/a          ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;a::random(1000000);|/a;x+1}:*0
+.d("  max_1M            |/a          ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;a::random(1000000);&/a;x+1}:*0
+.d("  min_1M            &/a          ");.d((.pc()-t)*1000%N);.p(" ms")
+
+:" ---- SORT ---- "
+.p("")
+.p("  [sort] 100K integers")
+.p("  -------------------------------------------------")
+t::.pc();N{x;iv::_(random(100000)*100000);<iv;x+1}:*0
+.d("  grade_up_100K     <iv          ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;iv::_(random(100000)*100000);iv@<iv;x+1}:*0
+.d("  sort_100K         iv@<iv       ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;iv::_(random(100000)*100000);<<iv;x+1}:*0
+.d("  rank_100K         <<iv         ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;ig::_(random(100000)*1000);?ig;x+1}:*0
+.d("  unique_100K       ?ig          ");.d((.pc()-t)*1000%N);.p(" ms")
+
+:" ---- FILTER ---- "
+.p("")
+.p("  [filter] 1M floats")
+.p("  -------------------------------------------------")
+t::.pc();N{x;a::random(1000000);&(a>0.5);x+1}:*0
+.d("  where_1M          &(a>0.5)     ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;a::random(1000000);a@&(a>0.5);x+1}:*0
+.d("  filter_1M         a@&(a>0.5)   ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;a::random(1000000);#&(a>0.5);x+1}:*0
+.d("  count_filter_1M   #&(a>0.5)    ");.d((.pc()-t)*1000%N);.p(" ms")
+
+:" ---- SCAN ---- "
+.p("")
+.p("  [scan] 1K elements")
+.p("  -------------------------------------------------")
+alpha::0.06
+t::.pc();N{x;ret::randn(1000)*0.01;{(x*alpha)+(y*(1-alpha))}\ret;x+1}:*0
+.d("  ewma_1K                        ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;d::!1000;{x+y}\d;x+1}:*0
+.d("  scan_add_1K       {x+y}\\!1K   ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;d::!1000;{x+y*2}\d;x+1}:*0
+.d("  scan_compound_1K  {x+y*2}\\    ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;d::!1000;{x+y}/d;x+1}:*0
+.d("  fold_sum_1K       {x+y}/!1K    ");.d((.pc()-t)*1000%N);.p(" ms")
+
+:" ---- RUNNING ---- "
+.p("")
+.p("  [running] 10K elements")
+.p("  -------------------------------------------------")
+t::.pc();N{x;ts::100+randn(10000)*0.5;|\ts;x+1}:*0
+.d("  running_max_10K   |\\ts        ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;ts::100+randn(10000)*0.5;&\ts;x+1}:*0
+.d("  running_min_10K   &\\ts        ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;ts::100+randn(10000)*0.5;(|\ts)-ts;x+1}:*0
+.d("  drawdown_10K      (|\\ts)-ts   ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;ts::100+randn(10000)*0.5;|/(|\ts)-ts;x+1}:*0
+.d("  max_drawdown_10K               ");.d((.pc()-t)*1000%N);.p(" ms")
+
+:" ---- ADVERB ---- "
+.p("")
+.p("  [adverb] 1K elements")
+.p("  -------------------------------------------------")
+t::.pc();N{x;d::!1000;{x*x}'d;x+1}:*0
+.d("  each_square_1K    {x*x}'!1K   ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;d::!1000;d{x+y}'d;x+1}:*0
+.d("  each2_add_1K      a{x+y}'b    ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;d::!1000;{x+y*y}/d;x+1}:*0
+.d("  over_custom_1K    {x+y*y}/!1K ");.d((.pc()-t)*1000%N);.p(" ms")
+
+:" ---- FINANCE ---- "
+.p("")
+.p("  [finance] 100K trades")
+.p("  -------------------------------------------------")
+t::.pc();N{x;p::50+randn(100000)*10;s::_(random(100000)*9900)+100;(+/p*s)%+/s;x+1}:*0
+.d("  vwap_100K                      ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;p::50+randn(10000)*10;-:'p;x+1}:*0
+.d("  returns_10K       -:'price     ");.d((.pc()-t)*1000%N);.p(" ms")
+
+:" ---- RECURSIVE ---- "
+.p("")
+.p("  [interp] Recursive & looping")
+.p("  -------------------------------------------------")
+fib::{:[x<2;x;fib(x-1)+fib(x-2)]}
+t::.pc();fib(20);.d("  fib(20)                        ");.d((.pc()-t)*1000);.p(" ms")
+t::.pc();fib(25);.d("  fib(25)                        ");.d((.pc()-t)*1000);.p(" ms")
+
+f1::{x+1};f2::{x*2};f3::{x-3};h::{f3(f2(f1(x)))}
+t::.pc();h(1000);.d("  nested_fn(1000)                ");.d((.pc()-t)*1000);.p(" ms")
+t::.pc();1000{x+1}:*0;.d("  loop_1K           1K{x+1}:*0  ");.d((.pc()-t)*1000);.p(" ms")
+
+.p("")
+.p("=================================================================")
