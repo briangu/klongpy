@@ -18,7 +18,7 @@ A tree of tuples representing compute operations. Pure data, no backend referenc
 
 ```python
 ('literal', value)                  # int or float
-('var', symbol, param_name)         # variable reference, e.g. ('var', KGSym('a'), '_v0')
+('var', param_name)                 # variable reference, e.g. ('var', '_v0')
 ('binop', op, left_ir, right_ir)    # binary op: '+', '-', '*', '%', '^'
 ('cmp', op, left_ir, right_ir)      # comparison: '=', '>', '<' (Klong operators)
 ('negate', child_ir)                # unary negation
