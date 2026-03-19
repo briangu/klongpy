@@ -668,6 +668,16 @@ class KlongInterpreter():
                 return x
         elif isinstance(x, KGFn):
             if x.is_op():
+                # Try compiled path for operator expressions (skips assignment/gradient)
+                if x.a.a not in ('::','∇'):
+                    compiled = compile_expr(x, self)
+                    if compiled is not None:
+                        fn, var_syms = compiled
+                        try:
+                            args = [self._context[s] for s in var_syms]
+                            return fn(*args)
+                        except Exception:
+                            pass
                 f = self._get_op_fn(x.a.a, x.a.arity)
                 fa = (x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else x.args
                 _y = self.eval(fa[1]) if x.a.arity == 2 else None
