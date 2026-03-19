@@ -44,8 +44,6 @@ def _ast_to_ir(node, klong, var_refs):
 
     # Symbols -> variable references
     if t is KGSym:
-        if node in reserved_fn_symbols:
-            return None
         try:
             val = klong._context[node]
         except KeyError:
