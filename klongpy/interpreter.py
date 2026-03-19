@@ -12,6 +12,7 @@ from .sys_fn_ipc import create_system_functions_ipc, create_system_var_ipc
 from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
 from .utils import ReadonlyDict
+from .compiler import compile_expr
 
 
 def set_context_var(d, sym, v):
@@ -250,6 +251,8 @@ class KlongInterpreter():
         self._vm = create_monad_functions(self)
         self._start_time = time.time()
         self._module = None
+        self._parse_cache = {}
+        self._compiled_cache = {}
 
     @property
     def backend(self):
@@ -264,6 +267,10 @@ class KlongInterpreter():
     def __setitem__(self, k, v):
         k = k if isinstance(k, KGSym) else KGSym(k)
         self._context[k] = v
+        # Compiled expressions assume operand types (tensor vs list vs scalar).
+        # A type change (e.g., tensor -> list) would silently produce wrong
+        # results since Python operators have different semantics per type.
+        self._compiled_cache.clear()
 
     def __getitem__(self, k):
         k = k if isinstance(k, KGSym) else KGSym(k)
@@ -274,6 +281,7 @@ class KlongInterpreter():
     def __delitem__(self, k):
         k = k if isinstance(k, KGSym) else KGSym(k)
         del self._context[k]
+        self._compiled_cache.clear()
 
     def _get_op_fn(self, s, arity):
         return self._vm[s] if arity == 1 else self._vd[s]
@@ -677,26 +685,38 @@ class KlongInterpreter():
             return [self.call(y) for y in x][-1]
         return x
 
-    def __call__(self, x, *args, **kwds):
+    def __call__(self, x):
         """
-
-        Convience method for executing Klong programs.
+        Convenience method for executing Klong programs.
 
         If the result only contains one entry, it's directly returned for convenience.
-
-        Example:
-
-        klong = KlongInterpreter()
-        r = klong("1+1")
-        assert r == 2
-
-        or more succinctly
-
-        assert 2 == KlongInterpreter()("1+1")
-
         """
-        r = self.exec(x)
-        return r[-1] if r else None
+        # Parse cache
+        cached = self._parse_cache.get(x)
+        if cached is None:
+            i, prog = self.prog(x)
+            cached = prog[0] if len(prog) == 1 else prog
+            self._parse_cache[x] = cached
+
+        # Try compiled path (single expressions only)
+        if type(cached) is not list:
+            compiled = self._compiled_cache.get(x)
+            if compiled is None:
+                compiled = compile_expr(cached, self)
+                self._compiled_cache[x] = compiled or False
+            if compiled and compiled is not False:
+                fn, var_syms = compiled
+                try:
+                    args = [self._context[s] for s in var_syms]
+                    return fn(*args)
+                except Exception:
+                    pass  # fall through to interpreter
+
+        # Existing interpreter path
+        if type(cached) is list:
+            r = [self.call(y) for y in cached]
+            return r[-1] if r else None
+        return self.call(cached)
 
     def exec(self, x):
         """
