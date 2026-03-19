@@ -1002,6 +1002,87 @@ class TorchBackendProvider(BackendProvider):
 
         return 1 if result else 0
 
+    def compile_expr_ir(self, ir, var_syms):
+        """Compile IR tree to a callable using torch tensor operations."""
+        source = self._ir_to_source(ir)
+        if source is None:
+            return None
+
+        param_names = list(self._collect_params(ir))
+        fn_source = f"def _expr({', '.join(param_names)}): return {source}"
+        ns = {}
+        try:
+            exec(fn_source, ns)
+        except Exception:
+            return None
+        return (ns['_expr'], var_syms)
+
+    def _ir_to_source(self, ir):
+        """Convert IR tree to Python source string with torch operations."""
+        node_type = ir[0]
+
+        if node_type == 'literal':
+            return repr(ir[1])
+
+        if node_type == 'var':
+            return ir[1]
+
+        if node_type == 'binop':
+            op, left, right = ir[1], ir[2], ir[3]
+            l = self._ir_to_source(left)
+            r = self._ir_to_source(right)
+            if l is None or r is None:
+                return None
+            py_op = {'+': '+', '-': '-', '*': '*', '%': '/', '^': '**'}.get(op)
+            if py_op is None:
+                return None
+            return f'({l}{py_op}{r})'
+
+        if node_type == 'cmp':
+            op, left, right = ir[1], ir[2], ir[3]
+            l = self._ir_to_source(left)
+            r = self._ir_to_source(right)
+            if l is None or r is None:
+                return None
+            py_cmp = {'=': '==', '>': '>', '<': '<'}.get(op)
+            if py_cmp is None:
+                return None
+            return f'(({l}{py_cmp}{r})*1)'
+
+        if node_type == 'negate':
+            child = self._ir_to_source(ir[1])
+            if child is None:
+                return None
+            return f'(-{child})'
+
+        if node_type == 'reduce':
+            op, arg = ir[1], ir[2]
+            arg_src = self._ir_to_source(arg)
+            if arg_src is None:
+                return None
+            method = {'+': 'sum', '*': 'prod', '|': 'max', '&': 'min'}.get(op)
+            if method is None:
+                return None
+            return f'({arg_src}).{method}()'
+
+        if node_type == 'scan':
+            op, arg = ir[1], ir[2]
+            arg_src = self._ir_to_source(arg)
+            if arg_src is None:
+                return None
+            methods = {
+                '+': 'cumsum(0)',
+                '*': 'cumprod(0)',
+                '|': 'cummax(0).values',
+                '&': 'cummin(0).values',
+            }
+            method = methods.get(op)
+            if method is None:
+                return None
+            return f'({arg_src}).{method}'
+
+        return None
+
     def kg_asarray(self, a):
         """
         Converts input data into a PyTorch tensor for KlongPy.
