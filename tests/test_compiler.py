@@ -242,6 +242,116 @@ class TestCompileExprCorrectness(unittest.TestCase):
         self._assert_compiled_matches_interp(klong, 'a*alpha')
 
 
+class TestCompileReductions(unittest.TestCase):
+    """Test compilation of reduce (op/) and scan (op\\) expressions."""
+
+    def _get_ast(self, klong, expr):
+        return klong.prog(expr)[1][0]
+
+    def _assert_compiled_matches_interp(self, klong, expr):
+        from klongpy.compiler import compile_expr
+        import torch
+        ast = self._get_ast(klong, expr)
+        result = compile_expr(ast, klong)
+        self.assertIsNotNone(result, f"Failed to compile: {expr}")
+        fn, var_syms = result
+        args = [klong._context[s] for s in var_syms]
+        compiled_val = fn(*args)
+        interp_val = klong.eval(ast)
+        def _to_cpu(v):
+            if isinstance(v, torch.Tensor):
+                return v.cpu()
+            return torch.tensor(v)
+        torch.testing.assert_close(
+            _to_cpu(compiled_val).float(),
+            _to_cpu(interp_val).float(),
+            msg=f"Mismatch for: {expr}"
+        )
+
+    def test_sum_reduce(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '+/a')
+
+    def test_product_reduce(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.rand(10) + 0.5  # keep positive for stable product
+        self._assert_compiled_matches_interp(klong, '*/a')
+
+    def test_max_reduce(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '|/a')
+
+    def test_min_reduce(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '&/a')
+
+    def test_fused_sum_product(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        klong['b'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '+/a*b')
+
+    def test_fused_max_expression(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        klong['b'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '|/a-b')
+
+    def test_cumsum_scan(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '+\\a')
+
+    def test_cumprod_scan(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.rand(20) + 0.5
+        self._assert_compiled_matches_interp(klong, '*\\a')
+
+    def test_running_max_scan(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '|\\a')
+
+    def test_running_min_scan(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '&\\a')
+
+    def test_unsupported_reduce_returns_none(self):
+        from klongpy.compiler import compile_expr
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(10)
+        # -/ is not a standard reduce we support
+        ast = self._get_ast(klong, '-/a')
+        result = compile_expr(ast, klong)
+        self.assertIsNone(result)
+
+
 class TestInterpreterIntegration(unittest.TestCase):
     """Test that __call__ uses the compiler when available."""
 

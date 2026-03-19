@@ -5,7 +5,7 @@ Compiles Klong expression ASTs to Python functions using torch-compatible
 operators. Falls back to None (interpreter handles it) for anything it
 can't compile.
 """
-from .types import KGSym, KGFn, KGOp, reserved_fn_symbols
+from .types import KGSym, KGFn, KGCall, KGOp, KGAdverb, reserved_fn_symbols
 
 
 def compile_expr(ast, klong):
@@ -28,7 +28,12 @@ def compile_expr(ast, klong):
     param_names = [var_refs[s] for s in var_syms]
 
     fn_source = f"def _expr({', '.join(param_names)}): return {source}"
-    ns = {}
+    # _torch is available for scan/reduce functions (cumsum, cummax, etc.)
+    try:
+        import torch as _torch_mod
+    except ImportError:
+        _torch_mod = None
+    ns = {'_torch': _torch_mod}
     try:
         exec(fn_source, ns)
     except SyntaxError:
@@ -46,6 +51,26 @@ _KLONG_TO_PY = {
 
 # Comparison ops return bool in Python but numeric 0/1 in Klong
 _KLONG_CMP_OPS = {'>', '<', '='}
+
+# Reduce (op/) -> method call on the argument
+_REDUCE_TO_METHOD = {
+    '+': 'sum', '*': 'prod',
+}
+# |/ and &/ return (value, index) tuples from .max()/.min(), need .values
+_REDUCE_TO_VALMETHOD = {
+    '|': 'max', '&': 'min',
+}
+
+# Scan (op\) -> torch function call
+_SCAN_TO_FN = {
+    '+': '_torch.cumsum({arg}, 0)',
+    '*': '_torch.cumprod({arg}, 0)',
+}
+# |\, &\ return (values, indices) tuples, need .values
+_SCAN_TO_VALFN = {
+    '|': '_torch.cummax({arg}, 0).values',
+    '&': '_torch.cummin({arg}, 0).values',
+}
 
 
 def _ast_to_source(node, klong, var_refs):
@@ -110,5 +135,35 @@ def _ast_to_source(node, klong, var_refs):
             if s is None:
                 return None
             return f'(-{s})'
+
+    # Adverb chains: op/arg (reduce) and op\arg (scan)
+    # Structure: KGCall with is_adverb_chain(), a = [KGAdverb(KGOp), KGAdverb('/'), arg]
+    if isinstance(node, KGCall) and node.is_adverb_chain():
+        chain = node.a
+        if isinstance(chain, list) and len(chain) == 3:
+            verb_adv = chain[0]
+            adverb = chain[1]
+            arg = chain[2]
+            if (isinstance(verb_adv, KGAdverb) and isinstance(verb_adv.a, KGOp)
+                    and isinstance(adverb, KGAdverb)):
+                op_char = verb_adv.a.a
+                adv_char = adverb.a
+                arg_src = _ast_to_source(arg, klong, var_refs)
+                if arg_src is None:
+                    return None
+                if adv_char == '/':
+                    method = _REDUCE_TO_METHOD.get(op_char)
+                    if method is not None:
+                        return f'({arg_src}).{method}()'
+                    method = _REDUCE_TO_VALMETHOD.get(op_char)
+                    if method is not None:
+                        return f'({arg_src}).{method}()'
+                elif adv_char == '\\':
+                    tmpl = _SCAN_TO_FN.get(op_char)
+                    if tmpl is not None:
+                        return tmpl.format(arg=arg_src)
+                    tmpl = _SCAN_TO_VALFN.get(op_char)
+                    if tmpl is not None:
+                        return tmpl.format(arg=arg_src)
 
     return None
