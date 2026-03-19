@@ -146,34 +146,32 @@ kgpy --backend torch --device cpu examples/bench_compiler.kg
 kgpy --backend numpy examples/bench_compiler.kg
 ```
 
-### Array Expression Benchmark (Apple M1 Mac Studio)
+### Expression Compiler Benchmark (Apple M1 Mac Studio)
+
+The expression compiler converts Klong ASTs to a backend-neutral IR, then generates platform-specific Python functions — eliminating interpreter dispatch and intermediate array allocation.
 
 | Operation | NumPy | Torch CPU | Notes |
 |-----------|------:|----------:|-------|
-| **Element-wise** (1M floats) | | | |
-| `a+b` | 0.39 ms | 0.25 ms | |
-| `a*b` | 0.37 ms | 0.15 ms | |
-| `a%b` | 0.37 ms | 0.18 ms | |
-| **Compound** (1M floats) | | | |
-| `a*2+b` | 0.65 ms | 0.40 ms | Compiled: skips interpreter dispatch |
-| `(a+b)*(a-b)` | 1.07 ms | 0.62 ms | |
-| `(a*2+b)%(a+1)` | 1.20 ms | 0.74 ms | |
-| **Reduce** (1M floats) | | | |
-| `+/a` | 0.24 ms | 0.13 ms | Compiled to `np.sum` / `tensor.sum` |
-| `+/a*b` | 0.58 ms | 0.35 ms | Fused: single compiled expression |
-| `|/a` | 0.17 ms | 0.15 ms | |
-| **Scan** (1M floats) | | | |
-| `+\a` | 3.69 ms | 1.02 ms | Compiled to `np.cumsum` / `tensor.cumsum` |
-| **Running ops** (10K floats) | | | |
-| `|\ts` running max | 16.99 ms | 0.06 ms | **283x** — compiled to `tensor.cummax` |
-| `(|\ts)-ts` drawdown | 16.96 ms | 0.05 ms | **339x** |
-| `|/(|\ts)-ts` max drawdown | 16.96 ms | 0.06 ms | **283x** |
-| **Sort** (100K ints) | | | |
-| `<iv` | 5.57 ms | 4.92 ms | |
-| **Finance** (100K trades) | | | |
-| VWAP `(+/p*s)%+/s` | 0.15 ms | 0.46 ms | |
-
-Both backends include expression compilers that convert Klong ASTs to a backend-neutral IR, then generate platform-specific Python functions. The numpy backend compiles to `np.sum`/`np.prod`/`np.cumsum`/`np.cumprod`; the torch backend compiles to tensor methods like `.sum()`/`.cumsum(0)`/`.cummax(0)`. This eliminates interpreter dispatch and intermediate array allocation.
+| **Dispatch overhead** (1K floats) | | | Per-call cost, 1000 iterations |
+| `a+b` | 0.008 ms | 0.019 ms | |
+| `a*2+b` | 0.009 ms | 0.020 ms | |
+| `(a*2+b)%(a+1)` | 0.013 ms | 0.029 ms | |
+| **Expression depth** (100K floats) | | | Deeper = more dispatch saved |
+| `a+b` (2 nodes) | 0.034 ms | 0.094 ms | |
+| `(a+b)*(a-b)` (6 nodes) | 0.078 ms | 0.252 ms | |
+| `(a*2+b*3)%(a+1)-(b*c)` (12 nodes) | 0.152 ms | 0.592 ms | |
+| **Fused reduce** (100K floats) | | | Compiled: one function call |
+| `+/a` sum | 0.048 ms | 0.097 ms | |
+| `+/a*b` dot product | 0.076 ms | 0.182 ms | Fused multiply + reduce |
+| `+/a*b+c` fused 3-var | 0.107 ms | 0.265 ms | |
+| **Running ops** (10K floats) | | | Biggest compiler win |
+| `+\ts` cumsum | 0.064 ms | 0.040 ms | |
+| `|\ts` running max | 16.69 ms | 0.048 ms | **350x** — compiled to `tensor.cummax` |
+| `(|\ts)-ts` drawdown | 16.64 ms | 0.052 ms | **320x** |
+| `|/(|\ts)-ts` max drawdown | 16.70 ms | 0.063 ms | **265x** |
+| **Real-world** (100K elements) | | | |
+| `(+/p*s)%+/s` VWAP | 0.148 ms | 0.384 ms | |
+| `a-(+/a)%#a` de-mean | 0.068 ms | 0.188 ms | |
 
 ## Complete Feature Set
 
