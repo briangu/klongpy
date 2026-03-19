@@ -28,10 +28,7 @@ def compile_expr(ast, klong):
     param_names = [var_refs[s] for s in var_syms]
 
     fn_source = f"def _expr({', '.join(param_names)}): return {source}"
-    # Get torch module from sys.modules (already imported by torch backend).
-    # Avoids importing torch directly in the compiler module.
-    import sys
-    ns = {'_torch': sys.modules.get('torch')}
+    ns = {}
     try:
         exec(fn_source, ns)
     except SyntaxError:
@@ -59,15 +56,15 @@ _REDUCE_TO_VALMETHOD = {
     '|': 'max', '&': 'min',
 }
 
-# Scan (op\) -> torch function call
-_SCAN_TO_FN = {
-    '+': '_torch.cumsum({arg}, 0)',
-    '*': '_torch.cumprod({arg}, 0)',
+# Scan (op\) -> tensor method call (no torch module reference needed)
+_SCAN_TO_METHOD = {
+    '+': 'cumsum(0)',
+    '*': 'cumprod(0)',
 }
 # |\, &\ return (values, indices) tuples, need .values
-_SCAN_TO_VALFN = {
-    '|': '_torch.cummax({arg}, 0).values',
-    '&': '_torch.cummin({arg}, 0).values',
+_SCAN_TO_VALMETHOD = {
+    '|': 'cummax(0).values',
+    '&': 'cummin(0).values',
 }
 
 
@@ -157,11 +154,11 @@ def _ast_to_source(node, klong, var_refs):
                     if method is not None:
                         return f'({arg_src}).{method}()'
                 elif adv_char == '\\':
-                    tmpl = _SCAN_TO_FN.get(op_char)
-                    if tmpl is not None:
-                        return tmpl.format(arg=arg_src)
-                    tmpl = _SCAN_TO_VALFN.get(op_char)
-                    if tmpl is not None:
-                        return tmpl.format(arg=arg_src)
+                    method = _SCAN_TO_METHOD.get(op_char)
+                    if method is not None:
+                        return f'({arg_src}).{method}'
+                    method = _SCAN_TO_VALMETHOD.get(op_char)
+                    if method is not None:
+                        return f'({arg_src}).{method}'
 
     return None
