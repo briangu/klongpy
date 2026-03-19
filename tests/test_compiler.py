@@ -242,6 +242,179 @@ class TestCompileExprCorrectness(unittest.TestCase):
         self._assert_compiled_matches_interp(klong, 'a*alpha')
 
 
+class TestCompileReductions(unittest.TestCase):
+    """Test compilation of reduce (op/) and scan (op\\) expressions."""
+
+    def _get_ast(self, klong, expr):
+        return klong.prog(expr)[1][0]
+
+    def _assert_compiled_matches_interp(self, klong, expr):
+        from klongpy.compiler import compile_expr
+        import torch
+        ast = self._get_ast(klong, expr)
+        result = compile_expr(ast, klong)
+        self.assertIsNotNone(result, f"Failed to compile: {expr}")
+        fn, var_syms = result
+        args = [klong._context[s] for s in var_syms]
+        compiled_val = fn(*args)
+        interp_val = klong.eval(ast)
+        def _to_cpu(v):
+            if isinstance(v, torch.Tensor):
+                return v.cpu()
+            return torch.tensor(v)
+        torch.testing.assert_close(
+            _to_cpu(compiled_val).float(),
+            _to_cpu(interp_val).float(),
+            msg=f"Mismatch for: {expr}"
+        )
+
+    def test_sum_reduce(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '+/a')
+
+    def test_product_reduce(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.rand(10) + 0.5  # keep positive for stable product
+        self._assert_compiled_matches_interp(klong, '*/a')
+
+    def test_max_reduce(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '|/a')
+
+    def test_min_reduce(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '&/a')
+
+    def test_fused_sum_product(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        klong['b'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '+/a*b')
+
+    def test_fused_max_expression(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        klong['b'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '|/a-b')
+
+    def test_cumsum_scan(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '+\\a')
+
+    def test_cumprod_scan(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.rand(20) + 0.5
+        self._assert_compiled_matches_interp(klong, '*\\a')
+
+    def test_running_max_scan(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '|\\a')
+
+    def test_running_min_scan(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '&\\a')
+
+    def test_unsupported_reduce_returns_none(self):
+        from klongpy.compiler import compile_expr
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(10)
+        # -/ is not a standard reduce we support
+        ast = self._get_ast(klong, '-/a')
+        result = compile_expr(ast, klong)
+        self.assertIsNone(result)
+
+
+class TestEvalIntegration(unittest.TestCase):
+    """Test that eval() uses the compiler for adverb chains."""
+
+    def test_scan_in_loop_uses_compiled(self):
+        """|\a inside a loop should use torch.cummax, not element-by-element."""
+        from klongpy import KlongInterpreter
+        import torch, time
+        klong = KlongInterpreter(backend='torch', device='cpu')
+        klong['a'] = torch.randn(100000)
+        # Run |\a via eval (simulates inner-loop usage)
+        ast = klong.prog('|\\a')[1][0]
+        t0 = time.perf_counter()
+        for _ in range(10):
+            result = klong.eval(ast)
+        elapsed = time.perf_counter() - t0
+        # Should complete in well under 1 second (compiled: ~0.01s, interpreter: ~50s)
+        self.assertLess(elapsed, 1.0, f"|\\ too slow ({elapsed:.2f}s) — compiler not active in eval()")
+        # Verify correctness
+        expected = torch.cummax(klong['a'].cpu(), 0).values
+        torch.testing.assert_close(result.cpu(), expected)
+
+    def test_reduce_in_loop_uses_compiled(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch', device='cpu')
+        klong['a'] = torch.randn(100000)
+        ast = klong.prog('+/a')[1][0]
+        result = klong.eval(ast)
+        expected = klong['a'].sum()
+        torch.testing.assert_close(result.cpu().float(), expected.cpu().float())
+
+    def test_fused_reduce_in_eval(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch', device='cpu')
+        klong['a'] = torch.randn(1000)
+        klong['b'] = torch.randn(1000)
+        ast = klong.prog('+/a*b')[1][0]
+        result = klong.eval(ast)
+        expected = (klong['a'] * klong['b']).sum()
+        torch.testing.assert_close(result.cpu().float(), expected.cpu().float())
+
+    def test_cumsum_in_eval(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch', device='cpu')
+        klong['a'] = torch.randn(1000)
+        ast = klong.prog('+\\a')[1][0]
+        result = klong.eval(ast)
+        expected = torch.cumsum(klong['a'], 0)
+        torch.testing.assert_close(result.cpu().float(), expected.cpu().float())
+
+    def test_numpy_backend_eval_unchanged(self):
+        """Eval on numpy backend should still work (no compilation)."""
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0, 2.0, 3.0])
+        ast = klong.prog('+/a')[1][0]
+        result = klong.eval(ast)
+        self.assertAlmostEqual(float(result), 6.0)
+
+
 class TestInterpreterIntegration(unittest.TestCase):
     """Test that __call__ uses the compiler when available."""
 

@@ -146,31 +146,34 @@ kgpy --backend torch --device cpu examples/bench_compiler.kg
 kgpy --backend numpy examples/bench_compiler.kg
 ```
 
-### Array Expression Benchmark (Apple M1 Mac Studio, 1M floats)
+### Array Expression Benchmark (Apple M1 Mac Studio)
 
 | Operation | NumPy | Torch CPU | Notes |
 |-----------|------:|----------:|-------|
-| **Element-wise** | | | |
-| `a+b` | 0.37 ms | 0.24 ms | |
+| **Element-wise** (1M floats) | | | |
+| `a+b` | 0.37 ms | 0.17 ms | |
 | `a*b` | 0.35 ms | 0.14 ms | |
-| `a%b` | 0.36 ms | 0.18 ms | |
-| **Compound expressions** | | | |
-| `a*2+b` | 0.65 ms | 0.42 ms | Compiled: skips interpreter dispatch |
-| `(a+b)*(a-b)` | 1.12 ms | 0.64 ms | |
-| `(a*2+b)%(a+1)` | 1.20 ms | 0.74 ms | |
-| **Comparison** | | | |
-| `a>b` | 0.89 ms | 0.55 ms | |
-| **Reduce** | | | |
-| `+/a` | 0.20 ms | 0.12 ms | |
-| `+/a*b` | 0.52 ms | 0.33 ms | |
-| **Scan** | | | |
-| `+\a` | 3.64 ms | 1.00 ms | |
+| `a%b` | 0.36 ms | 0.14 ms | |
+| **Compound** (1M floats) | | | |
+| `a*2+b` | 0.65 ms | 0.30 ms | Compiled: skips interpreter dispatch |
+| `(a+b)*(a-b)` | 1.12 ms | 0.51 ms | |
+| `(a*2+b)%(a+1)` | 1.20 ms | 0.59 ms | |
+| **Reduce** (1M floats) | | | |
+| `+/a` | 0.20 ms | 0.10 ms | Compiled to `torch.sum` |
+| `+/a*b` | 0.52 ms | 0.28 ms | Fused: single compiled expression |
+| `|/a` | 0.11 ms | 0.11 ms | |
+| **Scan** (1M floats) | | | |
+| `+\a` | 3.64 ms | 1.03 ms | Compiled to `torch.cumsum` |
+| **Running ops** (10K floats) | | | |
+| `|\ts` running max | 16.9 ms | 0.07 ms | **242x** — compiled to `torch.cummax` |
+| `(|\ts)-ts` drawdown | 16.9 ms | 0.05 ms | **338x** |
+| `|/(|\ts)-ts` max drawdown | 16.9 ms | 0.06 ms | **282x** |
 | **Sort** (100K ints) | | | |
-| `<iv` | 5.44 ms | 4.89 ms | |
+| `<iv` | 5.44 ms | 4.78 ms | |
 | **Finance** (100K trades) | | | |
-| VWAP `(+/p*s)%+/s` | 0.11 ms | 0.43 ms | |
+| VWAP `(+/p*s)%+/s` | 0.11 ms | 0.46 ms | |
 
-The torch backend includes an expression compiler that converts Klong ASTs to Python functions using torch-compatible operators. For compound expressions like `(a*2+b)%(a+1)`, the compiler eliminates interpreter dispatch overhead. Future phases will add `torch.compile` for automatic kernel fusion across reductions, scans, and adverb chains.
+The torch backend includes an expression compiler that converts Klong ASTs to Python functions using torch-native operations. Reductions compile to `torch.sum`/`prod`/`max`/`min`; scans compile to `torch.cumsum`/`cumprod`/`cummax`/`cummin`. This eliminates interpreter dispatch and intermediate array allocation.
 
 ## Complete Feature Set
 

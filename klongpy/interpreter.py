@@ -674,6 +674,15 @@ class KlongInterpreter():
                 _x = fa[0] if x.a.a in ['::','∇'] else self.eval(fa[0])
                 return f(_x) if x.a.arity == 1 else f(_x, _y)
             elif x.is_adverb_chain():
+                # Try compiled path for adverb chains (reduce/scan)
+                compiled = compile_expr(x, self)
+                if compiled is not None:
+                    fn, var_syms = compiled
+                    try:
+                        args = [self._context[s] for s in var_syms]
+                        return fn(*args)
+                    except Exception:
+                        pass
                 return chain_adverbs(self, x.a)()
             elif isinstance(x, KGCall):
                 return self._eval_fn(x)
