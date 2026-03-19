@@ -251,27 +251,36 @@ class TestInterpreterIntegration(unittest.TestCase):
         klong('a+b')
         self.assertIn('a+b', klong._compiled_cache)
 
-    def test_cache_cleared_on_setitem(self):
+    def test_compiled_uses_current_values_after_reassignment(self):
         from klongpy import KlongInterpreter
         import torch
         klong = KlongInterpreter(backend='torch')
-        klong['a'] = torch.tensor([1.0])
-        klong['b'] = torch.tensor([2.0])
-        klong('a+b')
+        klong['a'] = torch.tensor([1.0, 2.0])
+        klong['b'] = torch.tensor([3.0, 4.0])
+        r1 = klong('a+b')
+        torch.testing.assert_close(r1.cpu(), torch.tensor([4.0, 6.0]))
+        # Reassign a — compiled cache should still work with new values
+        klong['a'] = torch.tensor([10.0, 20.0])
+        r2 = klong('a+b')
+        torch.testing.assert_close(r2.cpu(), torch.tensor([13.0, 24.0]))
+        # Cache entry should be reused (not cleared)
         self.assertIn('a+b', klong._compiled_cache)
-        klong['a'] = torch.tensor([10.0])
-        self.assertEqual(len(klong._compiled_cache), 0)
 
-    def test_cache_cleared_on_delitem(self):
+    def test_compiled_works_with_different_shapes(self):
         from klongpy import KlongInterpreter
         import torch
         klong = KlongInterpreter(backend='torch')
-        klong['a'] = torch.tensor([1.0])
-        klong['b'] = torch.tensor([2.0])
-        klong('a+b')
+        klong['a'] = torch.tensor([1.0, 2.0])
+        klong['b'] = torch.tensor([3.0, 4.0])
+        r1 = klong('a+b')
+        torch.testing.assert_close(r1.cpu(), torch.tensor([4.0, 6.0]))
+        # Change to different shape — compiled fn should still work
+        klong['a'] = torch.tensor([10.0, 20.0, 30.0])
+        klong['b'] = torch.tensor([1.0, 2.0, 3.0])
+        r2 = klong('a+b')
+        torch.testing.assert_close(r2.cpu(), torch.tensor([11.0, 22.0, 33.0]))
+        # Cache entry should be reused
         self.assertIn('a+b', klong._compiled_cache)
-        del klong['a']
-        self.assertEqual(len(klong._compiled_cache), 0)
 
     def test_numpy_backend_still_works(self):
         from klongpy import KlongInterpreter
