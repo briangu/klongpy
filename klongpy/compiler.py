@@ -42,8 +42,10 @@ _KLONG_TO_PY = {
     '+': '+', '-': '-', '*': '*',
     '%': '/',   # Klong % is division
     '^': '**',
-    '>': '>', '<': '<', '=': '==',
 }
+
+# Comparison ops return bool in Python but numeric 0/1 in Klong
+_KLONG_CMP_OPS = {'>', '<', '='}
 
 
 def _ast_to_source(node, klong, var_refs):
@@ -80,9 +82,6 @@ def _ast_to_source(node, klong, var_refs):
         arity = node.a.arity
 
         if arity == 2:
-            py_op = _KLONG_TO_PY.get(op_char)
-            if py_op is None:
-                return None
             args = node.args
             if not isinstance(args, list):
                 args = [args] if args is not None else None
@@ -92,7 +91,14 @@ def _ast_to_source(node, klong, var_refs):
             right = _ast_to_source(args[1], klong, var_refs)
             if left is None or right is None:
                 return None
-            return f'({left}{py_op}{right})'
+            py_op = _KLONG_TO_PY.get(op_char)
+            if py_op is not None:
+                return f'({left}{py_op}{right})'
+            # Comparison ops: wrap with *1 to convert bool -> numeric 0/1
+            if op_char in _KLONG_CMP_OPS:
+                py_cmp = {'=': '==', '>': '>', '<': '<'}[op_char]
+                return f'(({left}{py_cmp}{right})*1)'
+            return None
 
         if arity == 1 and op_char == '-':
             arg = node.args

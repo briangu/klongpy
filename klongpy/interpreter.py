@@ -267,6 +267,10 @@ class KlongInterpreter():
     def __setitem__(self, k, v):
         k = k if isinstance(k, KGSym) else KGSym(k)
         self._context[k] = v
+        # Compiled expressions assume operand types (tensor vs list vs scalar).
+        # A type change (e.g., tensor -> list) would silently produce wrong
+        # results since Python operators have different semantics per type.
+        self._compiled_cache.clear()
 
     def __getitem__(self, k):
         k = k if isinstance(k, KGSym) else KGSym(k)
@@ -277,6 +281,7 @@ class KlongInterpreter():
     def __delitem__(self, k):
         k = k if isinstance(k, KGSym) else KGSym(k)
         del self._context[k]
+        self._compiled_cache.clear()
 
     def _get_op_fn(self, s, arity):
         return self._vm[s] if arity == 1 else self._vd[s]
