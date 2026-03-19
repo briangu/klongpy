@@ -151,29 +151,29 @@ kgpy --backend numpy examples/bench_compiler.kg
 | Operation | NumPy | Torch CPU | Notes |
 |-----------|------:|----------:|-------|
 | **Element-wise** (1M floats) | | | |
-| `a+b` | 0.37 ms | 0.17 ms | |
-| `a*b` | 0.35 ms | 0.14 ms | |
-| `a%b` | 0.36 ms | 0.14 ms | |
+| `a+b` | 0.39 ms | 0.25 ms | |
+| `a*b` | 0.37 ms | 0.15 ms | |
+| `a%b` | 0.37 ms | 0.18 ms | |
 | **Compound** (1M floats) | | | |
-| `a*2+b` | 0.65 ms | 0.30 ms | Compiled: skips interpreter dispatch |
-| `(a+b)*(a-b)` | 1.12 ms | 0.51 ms | |
-| `(a*2+b)%(a+1)` | 1.20 ms | 0.59 ms | |
+| `a*2+b` | 0.65 ms | 0.40 ms | Compiled: skips interpreter dispatch |
+| `(a+b)*(a-b)` | 1.07 ms | 0.62 ms | |
+| `(a*2+b)%(a+1)` | 1.20 ms | 0.74 ms | |
 | **Reduce** (1M floats) | | | |
-| `+/a` | 0.20 ms | 0.10 ms | Compiled to `torch.sum` |
-| `+/a*b` | 0.52 ms | 0.28 ms | Fused: single compiled expression |
-| `|/a` | 0.11 ms | 0.11 ms | |
+| `+/a` | 0.24 ms | 0.13 ms | Compiled to `np.sum` / `tensor.sum` |
+| `+/a*b` | 0.58 ms | 0.35 ms | Fused: single compiled expression |
+| `|/a` | 0.17 ms | 0.15 ms | |
 | **Scan** (1M floats) | | | |
-| `+\a` | 3.64 ms | 1.03 ms | Compiled to `torch.cumsum` |
+| `+\a` | 3.69 ms | 1.02 ms | Compiled to `np.cumsum` / `tensor.cumsum` |
 | **Running ops** (10K floats) | | | |
-| `|\ts` running max | 16.9 ms | 0.07 ms | **242x** — compiled to `torch.cummax` |
-| `(|\ts)-ts` drawdown | 16.9 ms | 0.05 ms | **338x** |
-| `|/(|\ts)-ts` max drawdown | 16.9 ms | 0.06 ms | **282x** |
+| `|\ts` running max | 16.99 ms | 0.06 ms | **283x** — compiled to `tensor.cummax` |
+| `(|\ts)-ts` drawdown | 16.96 ms | 0.05 ms | **339x** |
+| `|/(|\ts)-ts` max drawdown | 16.96 ms | 0.06 ms | **283x** |
 | **Sort** (100K ints) | | | |
-| `<iv` | 5.44 ms | 4.78 ms | |
+| `<iv` | 5.57 ms | 4.92 ms | |
 | **Finance** (100K trades) | | | |
-| VWAP `(+/p*s)%+/s` | 0.11 ms | 0.46 ms | |
+| VWAP `(+/p*s)%+/s` | 0.15 ms | 0.46 ms | |
 
-The torch backend includes an expression compiler that converts Klong ASTs to Python functions using torch-native operations. Reductions compile to `torch.sum`/`prod`/`max`/`min`; scans compile to `torch.cumsum`/`cumprod`/`cummax`/`cummin`. This eliminates interpreter dispatch and intermediate array allocation.
+Both backends include expression compilers that convert Klong ASTs to a backend-neutral IR, then generate platform-specific Python functions. The numpy backend compiles to `np.sum`/`np.prod`/`np.cumsum`/`np.cumprod`; the torch backend compiles to tensor methods like `.sum()`/`.cumsum(0)`/`.cummax(0)`. This eliminates interpreter dispatch and intermediate array allocation.
 
 ## Complete Feature Set
 
