@@ -69,16 +69,13 @@ def _ast_to_source(node, klong, var_refs):
             if node not in var_refs:
                 var_refs[node] = f'_v{len(var_refs)}'
             return var_refs[node]
-        # Only accept torch tensors — numpy arrays would bypass backend
-        # coercion and return wrong type (ndarray instead of Tensor)
-        try:
-            import torch
-            if isinstance(val, torch.Tensor):
-                if node not in var_refs:
-                    var_refs[node] = f'_v{len(var_refs)}'
-                return var_refs[node]
-        except ImportError:
-            pass
+        # Only accept backend-native arrays (torch.Tensor when on torch backend).
+        # Uses backend.np.ndarray which is torch.Tensor for torch, numpy.ndarray
+        # for numpy. This avoids importing torch directly.
+        if isinstance(val, klong._backend.np.ndarray):
+            if node not in var_refs:
+                var_refs[node] = f'_v{len(var_refs)}'
+            return var_refs[node]
         return None
 
     # Operator expressions
