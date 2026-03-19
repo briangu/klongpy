@@ -230,5 +230,67 @@ class TestCompileExprCorrectness(unittest.TestCase):
         self._assert_compiled_matches_interp(klong, 'a*alpha')
 
 
+class TestInterpreterIntegration(unittest.TestCase):
+    """Test that __call__ uses the compiler when available."""
+
+    def test_call_uses_compiled_path(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.tensor([1.0, 2.0, 3.0])
+        klong['b'] = torch.tensor([4.0, 5.0, 6.0])
+        result = klong('a+b')
+        torch.testing.assert_close(result.cpu(), torch.tensor([5.0, 7.0, 9.0]))
+
+    def test_call_populates_compiled_cache(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.tensor([1.0, 2.0])
+        klong['b'] = torch.tensor([3.0, 4.0])
+        klong('a+b')
+        self.assertIn('a+b', klong._compiled_cache)
+
+    def test_cache_cleared_on_setitem(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.tensor([1.0])
+        klong['b'] = torch.tensor([2.0])
+        klong('a+b')
+        self.assertIn('a+b', klong._compiled_cache)
+        klong['a'] = torch.tensor([10.0])
+        self.assertEqual(len(klong._compiled_cache), 0)
+
+    def test_cache_cleared_on_delitem(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.tensor([1.0])
+        klong['b'] = torch.tensor([2.0])
+        klong('a+b')
+        self.assertIn('a+b', klong._compiled_cache)
+        del klong['a']
+        self.assertEqual(len(klong._compiled_cache), 0)
+
+    def test_numpy_backend_still_works(self):
+        from klongpy import KlongInterpreter
+        klong = KlongInterpreter(backend='numpy')
+        result = klong('1+2')
+        self.assertEqual(result, 3)
+
+    def test_multi_statement_falls_through(self):
+        from klongpy import KlongInterpreter
+        klong = KlongInterpreter(backend='torch')
+        result = klong('a::5;b::3;a+b')
+        self.assertEqual(int(result), 8)
+
+    def test_assignment_falls_through(self):
+        from klongpy import KlongInterpreter
+        klong = KlongInterpreter(backend='torch')
+        klong('a::42')
+        self.assertEqual(int(klong['a']), 42)
+
+
 if __name__ == '__main__':
     unittest.main()
