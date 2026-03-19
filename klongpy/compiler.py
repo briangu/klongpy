@@ -69,11 +69,16 @@ def _ast_to_source(node, klong, var_refs):
             if node not in var_refs:
                 var_refs[node] = f'_v{len(var_refs)}'
             return var_refs[node]
-        # Check for tensor/ndarray (anything with .shape)
-        if hasattr(val, 'shape'):
-            if node not in var_refs:
-                var_refs[node] = f'_v{len(var_refs)}'
-            return var_refs[node]
+        # Only accept torch tensors — numpy arrays would bypass backend
+        # coercion and return wrong type (ndarray instead of Tensor)
+        try:
+            import torch
+            if isinstance(val, torch.Tensor):
+                if node not in var_refs:
+                    var_refs[node] = f'_v{len(var_refs)}'
+                return var_refs[node]
+        except ImportError:
+            pass
         return None
 
     # Operator expressions

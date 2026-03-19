@@ -28,6 +28,18 @@ class TestCompilerFallback(unittest.TestCase):
         result = compile_expr(ast, klong)
         self.assertIsNone(result)
 
+    def test_returns_none_for_numpy_arrays_on_torch_backend(self):
+        from klongpy.compiler import compile_expr
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = np.array([1.0, 2.0])
+        klong['b'] = np.array([3.0, 4.0])
+        ast = klong.prog("a+b")[1][0]
+        # Must return None — compiling would bypass torch backend coercion
+        result = compile_expr(ast, klong)
+        self.assertIsNone(result)
+
 
 class TestAstToSource(unittest.TestCase):
     """Test the AST-to-source walker on parsed expressions."""
