@@ -54,6 +54,28 @@ t::.pc();N{x;(a*2+b)%(a+1);x+1}:*0
 t::.pc();N{x;(a*2+b*3)%(a+1)-(b*c);x+1}:*0
 .d("  (a*2+b*3)%(a+1)-(b*c) (12)    ");.d((.pc()-t)*1000%N);.p(" ms")
 
+:" ---- LAMBDA EXPRESSIONS ---- "
+:" Compiled lambdas match direct expressions "
+.p("")
+.p("  [lambda compilation] 100K floats, 1000 iterations")
+.p("  -------------------------------------------------")
+
+f::{x+y}
+t::.pc();N{x;f(a;b);x+1}:*0
+.d("  {x+y}(a;b)       simple        ");.d((.pc()-t)*1000%N);.p(" ms")
+
+f::{x*2+y}
+t::.pc();N{x;f(a;b);x+1}:*0
+.d("  {x*2+y}(a;b)     compound      ");.d((.pc()-t)*1000%N);.p(" ms")
+
+f::{(x+y)*(x-y)}
+t::.pc();N{x;f(a;b);x+1}:*0
+.d("  {(x+y)*(x-y)}    complex       ");.d((.pc()-t)*1000%N);.p(" ms")
+
+f::{+/x*y}
+t::.pc();N{x;f(a;b);x+1}:*0
+.d("  {+/x*y}(a;b)     fused reduce  ");.d((.pc()-t)*1000%N);.p(" ms")
+
 :" ---- FUSED REDUCE ---- "
 :" Compiled: one function. Interpreter: multiply then reduce. "
 .p("")
@@ -106,6 +128,10 @@ t::.pc();N{x;(+/p*s)%+/s;x+1}:*0
 
 t::.pc();N{x;(a-(+/a)%#a);x+1}:*0
 .d("  a-(+/a)%#a       de-mean       ");.d((.pc()-t)*1000%N);.p(" ms")
+
+vwap::{(+/x*y)%+/y}
+t::.pc();N{x;vwap(p;s);x+1}:*0
+.d("  vwap(p;s)        lambda vwap   ");.d((.pc()-t)*1000%N);.p(" ms")
 
 .p("")
 .p("=================================================================")
