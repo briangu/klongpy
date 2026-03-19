@@ -19,14 +19,25 @@ class TestCompilerFallback(unittest.TestCase):
         result = compile_expr("hello", klong)
         self.assertIsNone(result)
 
-    def test_returns_none_when_no_torch(self):
+    def test_returns_none_for_pure_constant_expr(self):
         from klongpy.compiler import compile_expr
         from klongpy import KlongInterpreter
-        # numpy backend — compiler should return None
+        # 1+2 has no variable refs — not worth compiling
         klong = KlongInterpreter(backend='numpy')
         ast = klong.prog("1+2")[1][0]
         result = compile_expr(ast, klong)
         self.assertIsNone(result)
+
+    def test_numpy_backend_compiles_expressions(self):
+        from klongpy.compiler import compile_expr
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0, 2.0, 3.0])
+        klong['b'] = np.array([4.0, 5.0, 6.0])
+        ast = klong.prog("a+b")[1][0]
+        result = compile_expr(ast, klong)
+        self.assertIsNotNone(result, "numpy backend should compile array expressions")
 
     def test_returns_none_for_numpy_arrays_on_torch_backend(self):
         from klongpy.compiler import compile_expr
@@ -45,11 +56,37 @@ class TestBackendCompileExprIr(unittest.TestCase):
     """Test BackendProvider.compile_expr_ir interface."""
 
     def test_base_returns_none(self):
-        from klongpy.backends.numpy_backend import NumpyBackendProvider
-        backend = NumpyBackendProvider()
+        from klongpy.backends.base import BackendProvider
+        # Create a minimal concrete subclass that doesn't override compile_expr_ir
+        class _StubBackend(BackendProvider):
+            @property
+            def name(self): return 'stub'
+            @property
+            def np(self): return None
+            def supports_object_dtype(self): return False
+            def supports_strings(self): return False
+            def supports_float64(self): return False
+            def str_to_char_array(self, s): pass
+            def kg_asarray(self, a): pass
+            def is_array(self, x): return False
+            def is_backend_array(self, x): return False
+            def get_dtype_kind(self, arr): return None
+            def to_numpy(self, x): return x
+            def is_scalar_integer(self, x): return False
+            def is_scalar_float(self, x): return False
+            def argsort(self, a, descending=False): pass
+            def array_size(self, a): return 0
+        backend = _StubBackend()
         ir = ('binop', '+', ('literal', 1), ('literal', 2))
         result = backend.compile_expr_ir(ir, [])
         self.assertIsNone(result)
+
+    def test_numpy_backend_compiles_ir(self):
+        from klongpy.backends.numpy_backend import NumpyBackendProvider
+        backend = NumpyBackendProvider()
+        ir = ('binop', '+', ('var', '_v0'), ('var', '_v1'))
+        result = backend.compile_expr_ir(ir, ['a', 'b'])
+        self.assertIsNotNone(result)
 
 
 class TestAstToIr(unittest.TestCase):
@@ -208,6 +245,163 @@ class TestAstToIr(unittest.TestCase):
         self.assertTrue(
             ir[2] == ('literal', 1) or ir[3] == ('literal', 1)
         )
+
+
+class TestNumpyBackendCompiler(unittest.TestCase):
+    """Test numpy backend's compile_expr_ir."""
+
+    def _compile_and_run(self, klong, expr):
+        """Compile and execute, return (compiled_result, interp_result)."""
+        from klongpy.compiler import compile_expr
+        import numpy as np
+        ast = klong.prog(expr)[1][0]
+        result = compile_expr(ast, klong)
+        self.assertIsNotNone(result, f"Failed to compile: {expr}")
+        fn, var_syms = result
+        args = [klong._context[s] for s in var_syms]
+        compiled_val = fn(*args)
+        interp_val = klong.eval(ast)
+        return compiled_val, interp_val
+
+    def test_add(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0, 2.0, 3.0])
+        klong['b'] = np.array([4.0, 5.0, 6.0])
+        compiled, interp = self._compile_and_run(klong, 'a+b')
+        np.testing.assert_array_almost_equal(compiled, interp)
+
+    def test_subtract(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.randn(100)
+        klong['b'] = np.random.randn(100)
+        compiled, interp = self._compile_and_run(klong, 'a-b')
+        np.testing.assert_array_almost_equal(compiled, interp)
+
+    def test_divide(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.randn(100)
+        klong['b'] = np.random.randn(100) + 1.0
+        compiled, interp = self._compile_and_run(klong, 'a%b')
+        np.testing.assert_array_almost_equal(compiled, interp)
+
+    def test_power(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.abs(np.random.randn(100)) + 0.1
+        compiled, interp = self._compile_and_run(klong, 'a^2')
+        np.testing.assert_array_almost_equal(compiled, interp)
+
+    def test_comparison(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.randn(100)
+        klong['b'] = np.random.randn(100)
+        compiled, interp = self._compile_and_run(klong, 'a>b')
+        np.testing.assert_array_equal(compiled, interp)
+
+    def test_negate(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.randn(100)
+        compiled, interp = self._compile_and_run(klong, '-a')
+        np.testing.assert_array_almost_equal(compiled, interp)
+
+    def test_compound_expression(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.randn(100)
+        klong['b'] = np.random.randn(100)
+        compiled, interp = self._compile_and_run(klong, 'a*2+b')
+        np.testing.assert_array_almost_equal(compiled, interp)
+
+    def test_sum_reduce(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.randn(100)
+        compiled, interp = self._compile_and_run(klong, '+/a')
+        np.testing.assert_almost_equal(float(compiled), float(interp))
+
+    def test_product_reduce(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.rand(10) + 0.5
+        compiled, interp = self._compile_and_run(klong, '*/a')
+        np.testing.assert_almost_equal(float(compiled), float(interp))
+
+    def test_max_reduce(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.randn(100)
+        compiled, interp = self._compile_and_run(klong, '|/a')
+        np.testing.assert_almost_equal(float(compiled), float(interp))
+
+    def test_min_reduce(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.randn(100)
+        compiled, interp = self._compile_and_run(klong, '&/a')
+        np.testing.assert_almost_equal(float(compiled), float(interp))
+
+    def test_cumsum_scan(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.randn(100)
+        compiled, interp = self._compile_and_run(klong, '+\\a')
+        np.testing.assert_array_almost_equal(compiled, interp)
+
+    def test_cumprod_scan(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.rand(20) + 0.5
+        compiled, interp = self._compile_and_run(klong, '*\\a')
+        np.testing.assert_array_almost_equal(compiled, interp)
+
+    def test_cummax_scan_returns_none(self):
+        """Numpy lacks cummax — compiler should return None, interpreter handles it."""
+        from klongpy.compiler import compile_expr
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.randn(100)
+        ast = klong.prog('|\\a')[1][0]
+        result = compile_expr(ast, klong)
+        self.assertIsNone(result)
+
+    def test_cummin_scan_returns_none(self):
+        """Numpy lacks cummin — compiler should return None, interpreter handles it."""
+        from klongpy.compiler import compile_expr
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.randn(100)
+        ast = klong.prog('&\\a')[1][0]
+        result = compile_expr(ast, klong)
+        self.assertIsNone(result)
+
+    def test_fused_sum_product(self):
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.random.randn(100)
+        klong['b'] = np.random.randn(100)
+        compiled, interp = self._compile_and_run(klong, '+/a*b')
+        np.testing.assert_almost_equal(float(compiled), float(interp))
 
 
 class TestCompileExprCorrectness(unittest.TestCase):
@@ -480,8 +674,8 @@ class TestEvalIntegration(unittest.TestCase):
         expected = torch.cumsum(klong['a'], 0)
         torch.testing.assert_close(result.cpu().float(), expected.cpu().float())
 
-    def test_numpy_backend_eval_unchanged(self):
-        """Eval on numpy backend should still work (no compilation)."""
+    def test_numpy_backend_eval_compiled(self):
+        """Eval on numpy backend should compile reduce expressions."""
         from klongpy import KlongInterpreter
         import numpy as np
         klong = KlongInterpreter(backend='numpy')
