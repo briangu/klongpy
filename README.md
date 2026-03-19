@@ -137,43 +137,40 @@ Array languages express *what* you want, not *how* to compute it. This enables a
 
 KlongPy inherits from the [APL](https://en.wikipedia.org/wiki/APL_(programming_language)) family tree (APL → J → K/Q → Klong), adding Python integration and automatic differentiation.
 
-## Performance: NumPy vs PyTorch Backend
+## Performance
 
-The PyTorch backend provides significant speedups for large arrays with GPU acceleration (RTX 4090 in this case):
+Run the included benchmark on any backend:
 
-```
-$ python3 tests/perf_vector.py
-============================================================
-VECTOR OPS (element-wise, memory-bound)
-  Size: 10,000,000 elements, Iterations: 100
-============================================================
-NumPy (baseline)                    0.021854s
-KlongPy (numpy)                     0.001413s  (15.46x vs NumPy)
-KlongPy (torch, cpu)                0.000029s  (761.22x vs NumPy)
-KlongPy (torch, cuda)               0.000028s  (784.04x vs NumPy)
-
-============================================================
-MATRIX MULTIPLY (compute-bound, GPU advantage)
-  Size: 4000x4000, Iterations: 5
-============================================================
-NumPy (baseline)                    0.078615s
-KlongPy (numpy)                     0.075400s  (1.04x vs NumPy)
-KlongPy (torch, cpu)                0.077350s  (1.02x vs NumPy)
-KlongPy (torch, cuda)               0.002339s  (33.62x vs NumPy)
+```bash
+kgpy --backend torch --device cpu examples/bench_compiler.kg
+kgpy --backend numpy examples/bench_compiler.kg
 ```
 
-Also supporting Apple Silicon MPS (M1 Mac Studio) enables fast local work:
+### Array Expression Benchmark (Apple M1 Mac Studio, 1M floats)
 
-```
-$ python tests/perf_backend.py --compare
-Benchmark                   NumPy (ms)   Torch (ms)      Speedup
-----------------------------------------------------------------------
-vector_add_1M                    0.327        0.065    5.02x (torch)
-compound_expr_1M                 0.633        0.070    9.00x (torch)
-sum_1M                           0.246        0.087    2.84x (torch)
-grade_up_100K                    0.588        0.199    2.96x (torch)
-enumerate_1M                     0.141        0.050    2.83x (torch)
-```
+| Operation | NumPy | Torch CPU | Notes |
+|-----------|------:|----------:|-------|
+| **Element-wise** | | | |
+| `a+b` | 0.37 ms | 0.24 ms | |
+| `a*b` | 0.35 ms | 0.14 ms | |
+| `a%b` | 0.36 ms | 0.18 ms | |
+| **Compound expressions** | | | |
+| `a*2+b` | 0.65 ms | 0.42 ms | Compiled: skips interpreter dispatch |
+| `(a+b)*(a-b)` | 1.12 ms | 0.64 ms | |
+| `(a*2+b)%(a+1)` | 1.20 ms | 0.74 ms | |
+| **Comparison** | | | |
+| `a>b` | 0.89 ms | 0.55 ms | |
+| **Reduce** | | | |
+| `+/a` | 0.20 ms | 0.12 ms | |
+| `+/a*b` | 0.52 ms | 0.33 ms | |
+| **Scan** | | | |
+| `+\a` | 3.64 ms | 1.00 ms | |
+| **Sort** (100K ints) | | | |
+| `<iv` | 5.44 ms | 4.89 ms | |
+| **Finance** (100K trades) | | | |
+| VWAP `(+/p*s)%+/s` | 0.11 ms | 0.43 ms | |
+
+The torch backend includes an expression compiler that converts Klong ASTs to Python functions using torch-compatible operators. For compound expressions like `(a*2+b)%(a+1)`, the compiler eliminates interpreter dispatch overhead. Future phases will add `torch.compile` for automatic kernel fusion across reductions, scans, and adverb chains.
 
 ## Complete Feature Set
 
