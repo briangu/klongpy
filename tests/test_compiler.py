@@ -352,6 +352,69 @@ class TestCompileReductions(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TestEvalIntegration(unittest.TestCase):
+    """Test that eval() uses the compiler for adverb chains."""
+
+    def test_scan_in_loop_uses_compiled(self):
+        """|\a inside a loop should use torch.cummax, not element-by-element."""
+        from klongpy import KlongInterpreter
+        import torch, time
+        klong = KlongInterpreter(backend='torch', device='cpu')
+        klong['a'] = torch.randn(100000)
+        # Run |\a via eval (simulates inner-loop usage)
+        ast = klong.prog('|\\a')[1][0]
+        t0 = time.perf_counter()
+        for _ in range(10):
+            result = klong.eval(ast)
+        elapsed = time.perf_counter() - t0
+        # Should complete in well under 1 second (compiled: ~0.01s, interpreter: ~50s)
+        self.assertLess(elapsed, 1.0, f"|\\ too slow ({elapsed:.2f}s) — compiler not active in eval()")
+        # Verify correctness
+        expected = torch.cummax(klong['a'].cpu(), 0).values
+        torch.testing.assert_close(result.cpu(), expected)
+
+    def test_reduce_in_loop_uses_compiled(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch', device='cpu')
+        klong['a'] = torch.randn(100000)
+        ast = klong.prog('+/a')[1][0]
+        result = klong.eval(ast)
+        expected = klong['a'].sum()
+        torch.testing.assert_close(result.cpu().float(), expected.cpu().float())
+
+    def test_fused_reduce_in_eval(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch', device='cpu')
+        klong['a'] = torch.randn(1000)
+        klong['b'] = torch.randn(1000)
+        ast = klong.prog('+/a*b')[1][0]
+        result = klong.eval(ast)
+        expected = (klong['a'] * klong['b']).sum()
+        torch.testing.assert_close(result.cpu().float(), expected.cpu().float())
+
+    def test_cumsum_in_eval(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch', device='cpu')
+        klong['a'] = torch.randn(1000)
+        ast = klong.prog('+\\a')[1][0]
+        result = klong.eval(ast)
+        expected = torch.cumsum(klong['a'], 0)
+        torch.testing.assert_close(result.cpu().float(), expected.cpu().float())
+
+    def test_numpy_backend_eval_unchanged(self):
+        """Eval on numpy backend should still work (no compilation)."""
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0, 2.0, 3.0])
+        ast = klong.prog('+/a')[1][0]
+        result = klong.eval(ast)
+        self.assertAlmostEqual(float(result), 6.0)
+
+
 class TestInterpreterIntegration(unittest.TestCase):
     """Test that __call__ uses the compiler when available."""
 
