@@ -1,11 +1,21 @@
 """
-Torch expression compiler for KlongPy.
+Expression compiler for KlongPy.
 
-Compiles Klong expression ASTs to Python functions using torch-compatible
-operators. Falls back to None (interpreter handles it) for anything it
-can't compile.
+Compiles Klong expression ASTs to a backend-neutral IR (tuple tree),
+then delegates to the active backend for platform-specific code generation.
+Falls back to None (interpreter handles it) for anything it can't compile.
 """
 from .types import KGSym, KGFn, KGCall, KGOp, KGAdverb, reserved_fn_symbols
+
+
+# Arithmetic ops the IR supports
+_ARITH_OPS = {'+', '-', '*', '%', '^'}
+
+# Comparison ops
+_CMP_OPS = {'>', '<', '='}
+
+# Supported reduce/scan ops
+_REDUCE_SCAN_OPS = {'+', '*', '|', '&'}
 
 
 def compile_expr(ast, klong):
@@ -13,68 +23,24 @@ def compile_expr(ast, klong):
 
     Returns (compiled_fn, [var_syms]) or None.
     """
-    # Check for torch backend
-    if not hasattr(klong._backend, '_torch_backend'):
-        return None
-
     var_refs = {}
-    source = _ast_to_source(ast, klong, var_refs)
-    if source is None:
+    ir = _ast_to_ir(ast, klong, var_refs)
+    if ir is None:
         return None
     if not var_refs:
         return None  # pure constant — not worth compiling
 
     var_syms = list(var_refs.keys())
-    param_names = [var_refs[s] for s in var_syms]
-
-    fn_source = f"def _expr({', '.join(param_names)}): return {source}"
-    ns = {}
-    try:
-        exec(fn_source, ns)
-    except SyntaxError:
-        return None
-
-    return (ns['_expr'], var_syms)
+    return klong._backend.compile_expr_ir(ir, var_syms)
 
 
-# Klong operator -> Python operator
-_KLONG_TO_PY = {
-    '+': '+', '-': '-', '*': '*',
-    '%': '/',   # Klong % is division
-    '^': '**',
-}
-
-# Comparison ops return bool in Python but numeric 0/1 in Klong
-_KLONG_CMP_OPS = {'>', '<', '='}
-
-# Reduce (op/) -> method call on the argument
-_REDUCE_TO_METHOD = {
-    '+': 'sum', '*': 'prod',
-}
-# |/ and &/ return (value, index) tuples from .max()/.min(), need .values
-_REDUCE_TO_VALMETHOD = {
-    '|': 'max', '&': 'min',
-}
-
-# Scan (op\) -> tensor method call (no torch module reference needed)
-_SCAN_TO_METHOD = {
-    '+': 'cumsum(0)',
-    '*': 'cumprod(0)',
-}
-# |\, &\ return (values, indices) tuples, need .values
-_SCAN_TO_VALMETHOD = {
-    '|': 'cummax(0).values',
-    '&': 'cummin(0).values',
-}
-
-
-def _ast_to_source(node, klong, var_refs):
-    """Walk AST and emit Python source. Returns source string or None."""
+def _ast_to_ir(node, klong, var_refs):
+    """Walk AST and emit IR tuples. Returns IR tree or None."""
     t = type(node)
 
     # Literals
     if t is int or t is float:
-        return repr(node)
+        return ('literal', node)
 
     # Symbols -> variable references
     if t is KGSym:
@@ -88,14 +54,11 @@ def _ast_to_source(node, klong, var_refs):
         if tv is int or tv is float:
             if node not in var_refs:
                 var_refs[node] = f'_v{len(var_refs)}'
-            return var_refs[node]
-        # Only accept backend-native arrays (torch.Tensor when on torch backend).
-        # Uses backend.np.ndarray which is torch.Tensor for torch, numpy.ndarray
-        # for numpy. This avoids importing torch directly.
+            return ('var', var_refs[node])
         if isinstance(val, klong._backend.np.ndarray):
             if node not in var_refs:
                 var_refs[node] = f'_v{len(var_refs)}'
-            return var_refs[node]
+            return ('var', var_refs[node])
         return None
 
     # Operator expressions
@@ -109,30 +72,26 @@ def _ast_to_source(node, klong, var_refs):
                 args = [args] if args is not None else None
             if args is None or len(args) != 2:
                 return None
-            left = _ast_to_source(args[0], klong, var_refs)
-            right = _ast_to_source(args[1], klong, var_refs)
+            left = _ast_to_ir(args[0], klong, var_refs)
+            right = _ast_to_ir(args[1], klong, var_refs)
             if left is None or right is None:
                 return None
-            py_op = _KLONG_TO_PY.get(op_char)
-            if py_op is not None:
-                return f'({left}{py_op}{right})'
-            # Comparison ops: wrap with *1 to convert bool -> numeric 0/1
-            if op_char in _KLONG_CMP_OPS:
-                py_cmp = {'=': '==', '>': '>', '<': '<'}[op_char]
-                return f'(({left}{py_cmp}{right})*1)'
+            if op_char in _ARITH_OPS:
+                return ('binop', op_char, left, right)
+            if op_char in _CMP_OPS:
+                return ('cmp', op_char, left, right)
             return None
 
         if arity == 1 and op_char == '-':
             arg = node.args
             if isinstance(arg, list):
                 arg = arg[0]
-            s = _ast_to_source(arg, klong, var_refs)
-            if s is None:
+            child = _ast_to_ir(arg, klong, var_refs)
+            if child is None:
                 return None
-            return f'(-{s})'
+            return ('negate', child)
 
     # Adverb chains: op/arg (reduce) and op\arg (scan)
-    # Structure: KGCall with is_adverb_chain(), a = [KGAdverb(KGOp), KGAdverb('/'), arg]
     if isinstance(node, KGCall) and node.is_adverb_chain():
         chain = node.a
         if isinstance(chain, list) and len(chain) == 3:
@@ -143,22 +102,14 @@ def _ast_to_source(node, klong, var_refs):
                     and isinstance(adverb, KGAdverb)):
                 op_char = verb_adv.a.a
                 adv_char = adverb.a
-                arg_src = _ast_to_source(arg, klong, var_refs)
-                if arg_src is None:
+                if op_char not in _REDUCE_SCAN_OPS:
+                    return None
+                arg_ir = _ast_to_ir(arg, klong, var_refs)
+                if arg_ir is None:
                     return None
                 if adv_char == '/':
-                    method = _REDUCE_TO_METHOD.get(op_char)
-                    if method is not None:
-                        return f'({arg_src}).{method}()'
-                    method = _REDUCE_TO_VALMETHOD.get(op_char)
-                    if method is not None:
-                        return f'({arg_src}).{method}()'
+                    return ('reduce', op_char, arg_ir)
                 elif adv_char == '\\':
-                    method = _SCAN_TO_METHOD.get(op_char)
-                    if method is not None:
-                        return f'({arg_src}).{method}'
-                    method = _SCAN_TO_VALMETHOD.get(op_char)
-                    if method is not None:
-                        return f'({arg_src}).{method}'
+                    return ('scan', op_char, arg_ir)
 
     return None

@@ -41,97 +41,173 @@ class TestCompilerFallback(unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestAstToSource(unittest.TestCase):
-    """Test the AST-to-source walker on parsed expressions."""
+class TestBackendCompileExprIr(unittest.TestCase):
+    """Test BackendProvider.compile_expr_ir interface."""
+
+    def test_base_returns_none(self):
+        from klongpy.backends.numpy_backend import NumpyBackendProvider
+        backend = NumpyBackendProvider()
+        ir = ('binop', '+', ('literal', 1), ('literal', 2))
+        result = backend.compile_expr_ir(ir, [])
+        self.assertIsNone(result)
+
+
+class TestAstToIr(unittest.TestCase):
+    """Test the AST-to-IR walker on parsed expressions."""
 
     def _get_ast(self, klong, expr):
-        """Parse an expression and return the AST node."""
         return klong.prog(expr)[1][0]
 
     def test_simple_addition(self):
-        from klongpy.compiler import _ast_to_source
+        from klongpy.compiler import _ast_to_ir
         from klongpy import KlongInterpreter
-        import torch
-        klong = KlongInterpreter(backend='torch')
-        klong['a'] = torch.tensor([1.0, 2.0, 3.0])
-        klong['b'] = torch.tensor([4.0, 5.0, 6.0])
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0, 2.0, 3.0])
+        klong['b'] = np.array([4.0, 5.0, 6.0])
         ast = self._get_ast(klong, 'a+b')
         var_refs = {}
-        source = _ast_to_source(ast, klong, var_refs)
-        self.assertIsNotNone(source)
-        self.assertIn('+', source)
+        ir = _ast_to_ir(ast, klong, var_refs)
+        self.assertEqual(ir[0], 'binop')
+        self.assertEqual(ir[1], '+')
         self.assertEqual(len(var_refs), 2)
 
     def test_compound_expression(self):
-        from klongpy.compiler import _ast_to_source
+        from klongpy.compiler import _ast_to_ir
         from klongpy import KlongInterpreter
-        import torch
-        klong = KlongInterpreter(backend='torch')
-        klong['a'] = torch.tensor([1.0, 2.0])
-        klong['b'] = torch.tensor([3.0, 4.0])
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0, 2.0])
+        klong['b'] = np.array([3.0, 4.0])
         ast = self._get_ast(klong, 'a*2+b')
         var_refs = {}
-        source = _ast_to_source(ast, klong, var_refs)
-        self.assertIsNotNone(source)
+        ir = _ast_to_ir(ast, klong, var_refs)
+        self.assertIsNotNone(ir)
+        self.assertEqual(ir[0], 'binop')
 
-    def test_division_maps_to_truediv(self):
-        from klongpy.compiler import _ast_to_source
+    def test_division(self):
+        from klongpy.compiler import _ast_to_ir
         from klongpy import KlongInterpreter
-        import torch
-        klong = KlongInterpreter(backend='torch')
-        klong['a'] = torch.tensor([10.0])
-        klong['b'] = torch.tensor([3.0])
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([10.0])
+        klong['b'] = np.array([3.0])
         ast = self._get_ast(klong, 'a%b')
         var_refs = {}
-        source = _ast_to_source(ast, klong, var_refs)
-        self.assertIn('/', source)
+        ir = _ast_to_ir(ast, klong, var_refs)
+        self.assertEqual(ir[0], 'binop')
+        self.assertEqual(ir[1], '%')
 
-    def test_negate_monad(self):
-        from klongpy.compiler import _ast_to_source
+    def test_comparison_greater(self):
+        from klongpy.compiler import _ast_to_ir
         from klongpy import KlongInterpreter
-        import torch
-        klong = KlongInterpreter(backend='torch')
-        klong['a'] = torch.tensor([1.0, -2.0])
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0])
+        klong['b'] = np.array([2.0])
+        ast = self._get_ast(klong, 'a>b')
+        var_refs = {}
+        ir = _ast_to_ir(ast, klong, var_refs)
+        self.assertEqual(ir[0], 'cmp')
+        self.assertEqual(ir[1], '>')
+
+    def test_comparison_less(self):
+        from klongpy.compiler import _ast_to_ir
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0])
+        klong['b'] = np.array([2.0])
+        ast = self._get_ast(klong, 'a<b')
+        var_refs = {}
+        ir = _ast_to_ir(ast, klong, var_refs)
+        self.assertEqual(ir[0], 'cmp')
+        self.assertEqual(ir[1], '<')
+
+    def test_comparison_equal(self):
+        from klongpy.compiler import _ast_to_ir
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0])
+        klong['b'] = np.array([2.0])
+        ast = self._get_ast(klong, 'a=b')
+        var_refs = {}
+        ir = _ast_to_ir(ast, klong, var_refs)
+        self.assertEqual(ir[0], 'cmp')
+        self.assertEqual(ir[1], '=')
+
+    def test_negate(self):
+        from klongpy.compiler import _ast_to_ir
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0, -2.0])
         ast = self._get_ast(klong, '-a')
         var_refs = {}
-        source = _ast_to_source(ast, klong, var_refs)
-        self.assertIsNotNone(source)
-        self.assertIn('-', source)
+        ir = _ast_to_ir(ast, klong, var_refs)
+        self.assertEqual(ir[0], 'negate')
+
+    def test_reduce(self):
+        from klongpy.compiler import _ast_to_ir
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0, 2.0, 3.0])
+        ast = self._get_ast(klong, '+/a')
+        var_refs = {}
+        ir = _ast_to_ir(ast, klong, var_refs)
+        self.assertEqual(ir[0], 'reduce')
+        self.assertEqual(ir[1], '+')
+
+    def test_scan(self):
+        from klongpy.compiler import _ast_to_ir
+        from klongpy import KlongInterpreter
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0, 2.0, 3.0])
+        ast = self._get_ast(klong, '+\\a')
+        var_refs = {}
+        ir = _ast_to_ir(ast, klong, var_refs)
+        self.assertEqual(ir[0], 'scan')
+        self.assertEqual(ir[1], '+')
 
     def test_repeated_variable_single_param(self):
-        from klongpy.compiler import _ast_to_source
+        from klongpy.compiler import _ast_to_ir
         from klongpy import KlongInterpreter
-        import torch
-        klong = KlongInterpreter(backend='torch')
-        klong['a'] = torch.tensor([1.0, 2.0])
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0, 2.0])
         ast = self._get_ast(klong, 'a*a')
         var_refs = {}
-        source = _ast_to_source(ast, klong, var_refs)
-        self.assertIsNotNone(source)
+        ir = _ast_to_ir(ast, klong, var_refs)
+        self.assertIsNotNone(ir)
         self.assertEqual(len(var_refs), 1)
 
     def test_unsupported_op_returns_none(self):
-        from klongpy.compiler import _ast_to_source
+        from klongpy.compiler import _ast_to_ir
         from klongpy import KlongInterpreter
-        import torch
-        klong = KlongInterpreter(backend='torch')
-        klong['a'] = torch.tensor([1.0])
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0])
         ast = self._get_ast(klong, 'a@0')
         var_refs = {}
-        source = _ast_to_source(ast, klong, var_refs)
-        self.assertIsNone(source)
+        ir = _ast_to_ir(ast, klong, var_refs)
+        self.assertIsNone(ir)
 
-    def test_scalar_literal_in_expression(self):
-        from klongpy.compiler import _ast_to_source
+    def test_literal_in_expression(self):
+        from klongpy.compiler import _ast_to_ir
         from klongpy import KlongInterpreter
-        import torch
-        klong = KlongInterpreter(backend='torch')
-        klong['a'] = torch.tensor([1.0, 2.0])
+        import numpy as np
+        klong = KlongInterpreter(backend='numpy')
+        klong['a'] = np.array([1.0, 2.0])
         ast = self._get_ast(klong, 'a+1')
         var_refs = {}
-        source = _ast_to_source(ast, klong, var_refs)
-        self.assertIsNotNone(source)
-        self.assertIn('1', source)
+        ir = _ast_to_ir(ast, klong, var_refs)
+        self.assertIsNotNone(ir)
+        self.assertTrue(
+            ir[2] == ('literal', 1) or ir[3] == ('literal', 1)
+        )
 
 
 class TestCompileExprCorrectness(unittest.TestCase):
