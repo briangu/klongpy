@@ -670,8 +670,11 @@ class KlongInterpreter():
             if x.is_op():
                 # Try compiled path for operator expressions (skips assignment/gradient)
                 if x.a.a not in ('::','∇'):
-                    compiled = compile_expr(x, self)
-                    if compiled is not None:
+                    compiled = getattr(x, '_compiled', None)
+                    if compiled is None:
+                        compiled = compile_expr(x, self) or False
+                        x._compiled = compiled
+                    if compiled and compiled is not False:
                         fn, var_syms = compiled
                         try:
                             args = [self._context[s] for s in var_syms]
@@ -685,8 +688,11 @@ class KlongInterpreter():
                 return f(_x) if x.a.arity == 1 else f(_x, _y)
             elif x.is_adverb_chain():
                 # Try compiled path for adverb chains (reduce/scan)
-                compiled = compile_expr(x, self)
-                if compiled is not None:
+                compiled = getattr(x, '_compiled', None)
+                if compiled is None:
+                    compiled = compile_expr(x, self) or False
+                    x._compiled = compiled
+                if compiled and compiled is not False:
                     fn, var_syms = compiled
                     try:
                         args = [self._context[s] for s in var_syms]
