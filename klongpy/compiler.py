@@ -5,7 +5,7 @@ Compiles Klong expression ASTs to Python functions using torch-compatible
 operators. Falls back to None (interpreter handles it) for anything it
 can't compile.
 """
-from .types import KGSym, KGFn, KGOp, reserved_fn_symbols
+from .types import KGSym, KGFn, KGCall, KGOp, KGAdverb, reserved_fn_symbols
 
 
 def compile_expr(ast, klong):
@@ -46,6 +46,26 @@ _KLONG_TO_PY = {
 
 # Comparison ops return bool in Python but numeric 0/1 in Klong
 _KLONG_CMP_OPS = {'>', '<', '='}
+
+# Reduce (op/) -> method call on the argument
+_REDUCE_TO_METHOD = {
+    '+': 'sum', '*': 'prod',
+}
+# |/ and &/ return (value, index) tuples from .max()/.min(), need .values
+_REDUCE_TO_VALMETHOD = {
+    '|': 'max', '&': 'min',
+}
+
+# Scan (op\) -> tensor method call (no torch module reference needed)
+_SCAN_TO_METHOD = {
+    '+': 'cumsum(0)',
+    '*': 'cumprod(0)',
+}
+# |\, &\ return (values, indices) tuples, need .values
+_SCAN_TO_VALMETHOD = {
+    '|': 'cummax(0).values',
+    '&': 'cummin(0).values',
+}
 
 
 def _ast_to_source(node, klong, var_refs):
@@ -110,5 +130,35 @@ def _ast_to_source(node, klong, var_refs):
             if s is None:
                 return None
             return f'(-{s})'
+
+    # Adverb chains: op/arg (reduce) and op\arg (scan)
+    # Structure: KGCall with is_adverb_chain(), a = [KGAdverb(KGOp), KGAdverb('/'), arg]
+    if isinstance(node, KGCall) and node.is_adverb_chain():
+        chain = node.a
+        if isinstance(chain, list) and len(chain) == 3:
+            verb_adv = chain[0]
+            adverb = chain[1]
+            arg = chain[2]
+            if (isinstance(verb_adv, KGAdverb) and isinstance(verb_adv.a, KGOp)
+                    and isinstance(adverb, KGAdverb)):
+                op_char = verb_adv.a.a
+                adv_char = adverb.a
+                arg_src = _ast_to_source(arg, klong, var_refs)
+                if arg_src is None:
+                    return None
+                if adv_char == '/':
+                    method = _REDUCE_TO_METHOD.get(op_char)
+                    if method is not None:
+                        return f'({arg_src}).{method}()'
+                    method = _REDUCE_TO_VALMETHOD.get(op_char)
+                    if method is not None:
+                        return f'({arg_src}).{method}()'
+                elif adv_char == '\\':
+                    method = _SCAN_TO_METHOD.get(op_char)
+                    if method is not None:
+                        return f'({arg_src}).{method}'
+                    method = _SCAN_TO_VALMETHOD.get(op_char)
+                    if method is not None:
+                        return f'({arg_src}).{method}'
 
     return None
