@@ -122,5 +122,113 @@ class TestAstToSource(unittest.TestCase):
         self.assertIn('1', source)
 
 
+class TestCompileExprCorrectness(unittest.TestCase):
+    """Test that compiled functions produce correct results."""
+
+    def _get_ast(self, klong, expr):
+        return klong.prog(expr)[1][0]
+
+    def _assert_compiled_matches_interp(self, klong, expr):
+        """Compile expr, run both paths, compare results."""
+        from klongpy.compiler import compile_expr
+        import torch
+        ast = self._get_ast(klong, expr)
+        result = compile_expr(ast, klong)
+        self.assertIsNotNone(result, f"Failed to compile: {expr}")
+        fn, var_syms = result
+        args = [klong._context[s] for s in var_syms]
+        compiled_val = fn(*args)
+        interp_val = klong.eval(ast)
+        # Normalize to CPU float tensors for comparison
+        # (devices may differ, comparison ops return bool vs int)
+        def _to_cpu_float(v):
+            if isinstance(v, torch.Tensor):
+                return v.cpu().float()
+            return torch.tensor(v).float()
+        torch.testing.assert_close(
+            _to_cpu_float(compiled_val),
+            _to_cpu_float(interp_val),
+            msg=f"Mismatch for: {expr}"
+        )
+
+    def test_add(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        klong['b'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, 'a+b')
+
+    def test_subtract(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        klong['b'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, 'a-b')
+
+    def test_multiply(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        klong['b'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, 'a*b')
+
+    def test_divide(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        klong['b'] = torch.randn(100) + 1.0
+        self._assert_compiled_matches_interp(klong, 'a%b')
+
+    def test_power(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.rand(100) + 0.1
+        self._assert_compiled_matches_interp(klong, 'a^2')
+
+    def test_comparison(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        klong['b'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, 'a>b')
+
+    def test_negate(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        self._assert_compiled_matches_interp(klong, '-a')
+
+    def test_compound_expression(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(1000)
+        klong['b'] = torch.randn(1000)
+        self._assert_compiled_matches_interp(klong, 'a*2+b')
+
+    def test_complex_expression(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(1000) + 2.0
+        klong['b'] = torch.randn(1000)
+        self._assert_compiled_matches_interp(klong, '(a*2+b)%(a+1)')
+
+    def test_mixed_scalar_tensor(self):
+        from klongpy import KlongInterpreter
+        import torch
+        klong = KlongInterpreter(backend='torch')
+        klong['a'] = torch.randn(100)
+        klong['alpha'] = 0.5
+        self._assert_compiled_matches_interp(klong, 'a*alpha')
+
+
 if __name__ == '__main__':
     unittest.main()

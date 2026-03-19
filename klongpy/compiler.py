@@ -14,7 +14,7 @@ def compile_expr(ast, klong):
     Returns (compiled_fn, [var_syms]) or None.
     """
     # Check for torch backend
-    if not hasattr(klong._backend, 'torch'):
+    if not hasattr(klong._backend, '_torch_backend'):
         return None
 
     var_refs = {}
