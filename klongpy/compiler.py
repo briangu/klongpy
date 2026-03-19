@@ -28,12 +28,10 @@ def compile_expr(ast, klong):
     param_names = [var_refs[s] for s in var_syms]
 
     fn_source = f"def _expr({', '.join(param_names)}): return {source}"
-    # _torch is available for scan/reduce functions (cumsum, cummax, etc.)
-    try:
-        import torch as _torch_mod
-    except ImportError:
-        _torch_mod = None
-    ns = {'_torch': _torch_mod}
+    # Get torch module from sys.modules (already imported by torch backend).
+    # Avoids importing torch directly in the compiler module.
+    import sys
+    ns = {'_torch': sys.modules.get('torch')}
     try:
         exec(fn_source, ns)
     except SyntaxError:
