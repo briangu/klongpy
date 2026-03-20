@@ -72,7 +72,8 @@ def pytest_configure(config):
     def _patched_init(self, *args, backend=None, device=None, **kwargs):
         if backend is None:
             backend = _TEST_BACKEND
-        if device is None and _TEST_DEVICE is not None:
+        # Only inject device for torch backend — numpy doesn't support device selection
+        if device is None and _TEST_DEVICE is not None and backend == 'torch':
             device = _TEST_DEVICE
         return _original_init(self, *args, backend=backend, device=device, **kwargs)
 
