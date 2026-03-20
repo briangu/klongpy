@@ -1,146 +1,137 @@
-:" KlongPy Array Expression Benchmark "
+:" KlongPy Expression Compiler Benchmark "
+:" Measures where the compiler eliminates interpreter dispatch overhead "
 :" Run:  kgpy --backend torch --device cpu examples/bench_compiler.kg "
 :" Or:   kgpy --backend numpy examples/bench_compiler.kg "
 
 .pyf("numpy.random";["random" "randn"])
 
-N::100
+N::1000
 
 .p("=================================================================")
-.p("KlongPy Array Expression Benchmark")
+.p("KlongPy Expression Compiler Benchmark")
 .p("=================================================================")
+
+:" ---- DISPATCH OVERHEAD ---- "
+:" Small arrays, many iterations: interpreter dispatch dominates "
 .p("")
-
-:" ---- ELEMENT-WISE ---- "
-.p("  [element-wise] 1M floats")
+.p("  [dispatch overhead] 1K floats, 1000 iterations")
 .p("  -------------------------------------------------")
 
-a::random(1000000)
-b::random(1000000)
+a::random(1000)
+b::random(1000)
 
 t::.pc();N{x;a+b;x+1}:*0
 .d("  a+b                            ");.d((.pc()-t)*1000%N);.p(" ms")
 
-t::.pc();N{x;a*b;x+1}:*0
-.d("  a*b                            ");.d((.pc()-t)*1000%N);.p(" ms")
-
-t::.pc();N{x;a-b;x+1}:*0
-.d("  a-b                            ");.d((.pc()-t)*1000%N);.p(" ms")
-
-t::.pc();N{x;a%b;x+1}:*0
-.d("  a%b                            ");.d((.pc()-t)*1000%N);.p(" ms")
-
-:" ---- COMPOUND ---- "
-.p("")
-.p("  [compound] 1M floats")
-.p("  -------------------------------------------------")
-
 t::.pc();N{x;a*2+b;x+1}:*0
 .d("  a*2+b                          ");.d((.pc()-t)*1000%N);.p(" ms")
-
-t::.pc();N{x;(a+b)*(a-b);x+1}:*0
-.d("  (a+b)*(a-b)                    ");.d((.pc()-t)*1000%N);.p(" ms")
 
 t::.pc();N{x;(a*2+b)%(a+1);x+1}:*0
 .d("  (a*2+b)%(a+1)                  ");.d((.pc()-t)*1000%N);.p(" ms")
 
-t::.pc();N{x;a^2+b^2;x+1}:*0
-.d("  a^2+b^2                        ");.d((.pc()-t)*1000%N);.p(" ms")
-
-:" ---- COMPARISON ---- "
+:" ---- EXPRESSION DEPTH ---- "
+:" Deeper expressions = more AST nodes = more dispatch saved "
 .p("")
-.p("  [comparison] 1M floats")
+.p("  [expression depth] 100K floats, 1000 iterations")
 .p("  -------------------------------------------------")
 
-t::.pc();N{x;a>b;x+1}:*0
-.d("  a>b                            ");.d((.pc()-t)*1000%N);.p(" ms")
+a::random(100000)
+b::random(100000)
+c::random(100000)
 
-t::.pc();N{x;a>0.5;x+1}:*0
-.d("  a>0.5                          ");.d((.pc()-t)*1000%N);.p(" ms")
+t::.pc();N{x;a+b;x+1}:*0
+.d("  a+b              (2 nodes)     ");.d((.pc()-t)*1000%N);.p(" ms")
 
-:" ---- NEGATE ---- "
+t::.pc();N{x;a*2+b;x+1}:*0
+.d("  a*2+b            (4 nodes)     ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;(a+b)*(a-b);x+1}:*0
+.d("  (a+b)*(a-b)      (6 nodes)     ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;(a*2+b)%(a+1);x+1}:*0
+.d("  (a*2+b)%(a+1)    (8 nodes)     ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;(a*2+b*3)%(a+1)-(b*c);x+1}:*0
+.d("  (a*2+b*3)%(a+1)-(b*c) (12)    ");.d((.pc()-t)*1000%N);.p(" ms")
+
+:" ---- LAMBDA EXPRESSIONS ---- "
+:" Compiled lambdas match direct expressions "
 .p("")
-.p("  [negate] 1M floats")
+.p("  [lambda compilation] 100K floats, 1000 iterations")
 .p("  -------------------------------------------------")
 
-t::.pc();N{x;-a;x+1}:*0
-.d("  -a                             ");.d((.pc()-t)*1000%N);.p(" ms")
+f::{x+y}
+t::.pc();N{x;f(a;b);x+1}:*0
+.d("  {x+y}(a;b)       simple        ");.d((.pc()-t)*1000%N);.p(" ms")
 
-:" ---- REDUCE ---- "
+f::{x*2+y}
+t::.pc();N{x;f(a;b);x+1}:*0
+.d("  {x*2+y}(a;b)     compound      ");.d((.pc()-t)*1000%N);.p(" ms")
+
+f::{(x+y)*(x-y)}
+t::.pc();N{x;f(a;b);x+1}:*0
+.d("  {(x+y)*(x-y)}    complex       ");.d((.pc()-t)*1000%N);.p(" ms")
+
+f::{+/x*y}
+t::.pc();N{x;f(a;b);x+1}:*0
+.d("  {+/x*y}(a;b)     fused reduce  ");.d((.pc()-t)*1000%N);.p(" ms")
+
+:" ---- FUSED REDUCE ---- "
+:" Compiled: one function. Interpreter: multiply then reduce. "
 .p("")
-.p("  [reduce] 1M floats")
+.p("  [fused reduce] 100K floats, 1000 iterations")
 .p("  -------------------------------------------------")
 
 t::.pc();N{x;+/a;x+1}:*0
-.d("  +/a                            ");.d((.pc()-t)*1000%N);.p(" ms")
+.d("  +/a              sum           ");.d((.pc()-t)*1000%N);.p(" ms")
 
 t::.pc();N{x;+/a*b;x+1}:*0
-.d("  +/a*b                          ");.d((.pc()-t)*1000%N);.p(" ms")
+.d("  +/a*b            dot product   ");.d((.pc()-t)*1000%N);.p(" ms")
 
-t::.pc();N{x;|/a;x+1}:*0
-.d("  |/a                            ");.d((.pc()-t)*1000%N);.p(" ms")
+t::.pc();N{x;|/a-b;x+1}:*0
+.d("  |/a-b            max diff      ");.d((.pc()-t)*1000%N);.p(" ms")
 
-:" ---- SCAN ---- "
+t::.pc();N{x;+/a*b+c;x+1}:*0
+.d("  +/a*b+c          fused 3-var   ");.d((.pc()-t)*1000%N);.p(" ms")
+
+:" ---- RUNNING OPS ---- "
+:" Biggest compiler win: cummax/cummin bypass Python loops "
 .p("")
-.p("  [scan] 1M floats")
-.p("  -------------------------------------------------")
-
-t::.pc();N{x;+\a;x+1}:*0
-.d("  +\\a                            ");.d((.pc()-t)*1000%N);.p(" ms")
-
-t::.pc();N{x;|\a;x+1}:*0
-.d("  |\\a                            ");.d((.pc()-t)*1000%N);.p(" ms")
-
-:" ---- SORT ---- "
-.p("")
-.p("  [sort] 100K integers")
-.p("  -------------------------------------------------")
-
-iv::_(random(100000)*100000)
-
-t::.pc();N{x;<iv;x+1}:*0
-.d("  <iv        grade_up             ");.d((.pc()-t)*1000%N);.p(" ms")
-
-t::.pc();N{x;iv@<iv;x+1}:*0
-.d("  iv@<iv     sort                 ");.d((.pc()-t)*1000%N);.p(" ms")
-
-:" ---- FILTER ---- "
-.p("")
-.p("  [filter] 1M floats")
-.p("  -------------------------------------------------")
-
-t::.pc();N{x;&(a>0.5);x+1}:*0
-.d("  &(a>0.5)   where               ");.d((.pc()-t)*1000%N);.p(" ms")
-
-t::.pc();N{x;a@&(a>0.5);x+1}:*0
-.d("  a@&(a>0.5) filter              ");.d((.pc()-t)*1000%N);.p(" ms")
-
-:" ---- RUNNING ---- "
-.p("")
-.p("  [running] 10K floats")
+.p("  [running ops] 10K floats, 1000 iterations")
 .p("  -------------------------------------------------")
 
 ts::100+randn(10000)*0.5
 
+t::.pc();N{x;+\ts;x+1}:*0
+.d("  +\\ts             cumsum        ");.d((.pc()-t)*1000%N);.p(" ms")
+
 t::.pc();N{x;|\ts;x+1}:*0
-.d("  |\\ts       running_max          ");.d((.pc()-t)*1000%N);.p(" ms")
+.d("  |\\ts             running max   ");.d((.pc()-t)*1000%N);.p(" ms")
 
 t::.pc();N{x;(|\ts)-ts;x+1}:*0
-.d("  (|\\ts)-ts  drawdown             ");.d((.pc()-t)*1000%N);.p(" ms")
+.d("  (|\\ts)-ts        drawdown      ");.d((.pc()-t)*1000%N);.p(" ms")
 
 t::.pc();N{x;|/(|\ts)-ts;x+1}:*0
-.d("  |/(|\\ts)-ts max_drawdown        ");.d((.pc()-t)*1000%N);.p(" ms")
+.d("  |/(|\\ts)-ts      max drawdown  ");.d((.pc()-t)*1000%N);.p(" ms")
 
-:" ---- FINANCE ---- "
+:" ---- REAL-WORLD PATTERNS ---- "
+:" Practical expressions from finance and data science "
 .p("")
-.p("  [finance] 100K trades")
+.p("  [real-world] 100K elements, 1000 iterations")
 .p("  -------------------------------------------------")
 
 p::50+randn(100000)*10
 s::_(random(100000)*9900)+100
 
 t::.pc();N{x;(+/p*s)%+/s;x+1}:*0
-.d("  vwap                           ");.d((.pc()-t)*1000%N);.p(" ms")
+.d("  (+/p*s)%+/s      vwap          ");.d((.pc()-t)*1000%N);.p(" ms")
+
+t::.pc();N{x;(a-(+/a)%#a);x+1}:*0
+.d("  a-(+/a)%#a       de-mean       ");.d((.pc()-t)*1000%N);.p(" ms")
+
+vwap::{(+/x*y)%+/y}
+t::.pc();N{x;vwap(p;s);x+1}:*0
+.d("  vwap(p;s)        lambda vwap   ");.d((.pc()-t)*1000%N);.p(" ms")
 
 .p("")
 .p("=================================================================")

@@ -146,34 +146,37 @@ kgpy --backend torch --device cpu examples/bench_compiler.kg
 kgpy --backend numpy examples/bench_compiler.kg
 ```
 
-### Array Expression Benchmark (Apple M1 Mac Studio)
+### Expression Compiler Benchmark (Apple M1 Mac Studio)
 
-| Operation | NumPy | Torch CPU | Notes |
-|-----------|------:|----------:|-------|
-| **Element-wise** (1M floats) | | | |
-| `a+b` | 0.37 ms | 0.17 ms | |
-| `a*b` | 0.35 ms | 0.14 ms | |
-| `a%b` | 0.36 ms | 0.14 ms | |
-| **Compound** (1M floats) | | | |
-| `a*2+b` | 0.65 ms | 0.30 ms | Compiled: skips interpreter dispatch |
-| `(a+b)*(a-b)` | 1.12 ms | 0.51 ms | |
-| `(a*2+b)%(a+1)` | 1.20 ms | 0.59 ms | |
-| **Reduce** (1M floats) | | | |
-| `+/a` | 0.20 ms | 0.10 ms | Compiled to `torch.sum` |
-| `+/a*b` | 0.52 ms | 0.28 ms | Fused: single compiled expression |
-| `|/a` | 0.11 ms | 0.11 ms | |
-| **Scan** (1M floats) | | | |
-| `+\a` | 3.64 ms | 1.03 ms | Compiled to `torch.cumsum` |
-| **Running ops** (10K floats) | | | |
-| `|\ts` running max | 16.9 ms | 0.07 ms | **242x** — compiled to `torch.cummax` |
-| `(|\ts)-ts` drawdown | 16.9 ms | 0.05 ms | **338x** |
-| `|/(|\ts)-ts` max drawdown | 16.9 ms | 0.06 ms | **282x** |
-| **Sort** (100K ints) | | | |
-| `<iv` | 5.44 ms | 4.78 ms | |
-| **Finance** (100K trades) | | | |
-| VWAP `(+/p*s)%+/s` | 0.11 ms | 0.46 ms | |
+Both backends include an expression compiler that converts Klong ASTs to a backend-neutral IR, then generates platform-specific Python functions. Expressions compile once and are cached — subsequent calls pay only execution cost.
 
-The torch backend includes an expression compiler that converts Klong ASTs to Python functions using torch-native operations. Reductions compile to `torch.sum`/`prod`/`max`/`min`; scans compile to `torch.cumsum`/`cumprod`/`cummax`/`cummin`. This eliminates interpreter dispatch and intermediate array allocation.
+Times are per-call averages over 1000 iterations.
+
+| Operation | Elements | NumPy | Torch CPU |
+|-----------|------:|------:|----------:|
+| **Arithmetic** | | | |
+| `a+b` | 100K | 0.066 ms | 0.155 ms |
+| `a*2+b` | 100K | 0.091 ms | 0.276 ms |
+| `(a+b)*(a-b)` | 100K | 0.124 ms | 0.390 ms |
+| `(a*2+b*3)%(a+1)-(b*c)` | 100K | 0.218 ms | 0.870 ms |
+| **Lambdas** | | | |
+| `{x+y}(a;b)` | 100K | 0.074 ms | 0.156 ms |
+| `{(x+y)*(x-y)}(a;b)` | 100K | 0.129 ms | 0.390 ms |
+| `{+/x*y}(a;b)` | 100K | 0.098 ms | 0.285 ms |
+| **Reduce** | | | |
+| `+/a` | 100K | 0.065 ms | 0.150 ms |
+| `+/a*b` | 100K | 0.095 ms | 0.293 ms |
+| **Scan** | | | |
+| `+\ts` cumsum | 10K | 0.083 ms | 0.054 ms |
+| `|\ts` running max | 10K | 24.63 ms | 0.068 ms |
+| `(|\ts)-ts` drawdown | 10K | 24.65 ms | 0.072 ms |
+| `|/(|\ts)-ts` max drawdown | 10K | 24.68 ms | 0.081 ms |
+| **Real-world** | | | |
+| `(+/p*s)%+/s` VWAP | 100K | 0.151 ms | 0.512 ms |
+| `vwap::{(+/x*y)%+/y}; vwap(p;s)` | 100K | 0.151 ms | 0.489 ms |
+| `a-(+/a)%#a` de-mean | 100K | 0.088 ms | 0.292 ms |
+
+NumPy is faster for element-wise and reduce operations on CPU. Torch excels at scan operations where it compiles to native tensor methods (`cummax`, `cumsum`) — running max is **362x faster** than NumPy's interpreter fallback. Torch's full advantage appears on GPU (`--device cuda` or `--device mps`).
 
 ## Complete Feature Set
 

@@ -321,6 +321,48 @@ class BackendProvider(ABC):
             "Run with USE_TORCH=1 environment variable."
         )
 
+    def compile_expr_ir(self, ir, var_syms):
+        """Compile a compute IR tree to a callable.
+
+        Args:
+            ir: Tuple-based IR tree from compiler.py.
+                Node types:
+                - ('literal', value)
+                - ('var', param_name)
+                - ('binop', op, left_ir, right_ir)  -- op: '+','-','*','%','^'
+                - ('cmp', op, left_ir, right_ir)     -- op: '=','>','<'
+                - ('negate', child_ir)
+                - ('reduce', op, arg_ir)             -- op: '+','*','|','&'
+                - ('scan', op, arg_ir)               -- op: '+','*','|','&'
+            var_syms: List of KGSym variable references in parameter order.
+
+        Returns:
+            (callable, var_syms) or None. Default returns None (no compilation).
+        """
+        return None
+
+    @staticmethod
+    def _collect_params(ir):
+        """Collect unique parameter names from IR tree in order."""
+        params = []
+        seen = set()
+
+        def _walk(node):
+            if node[0] == 'var':
+                name = node[1]
+                if name not in seen:
+                    seen.add(name)
+                    params.append(name)
+            elif node[0] in ('binop', 'cmp'):
+                _walk(node[2])
+                _walk(node[3])
+            elif node[0] == 'negate':
+                _walk(node[1])
+            elif node[0] in ('reduce', 'scan'):
+                _walk(node[2])  # node[1] is the op char, node[2] is the arg IR
+
+        _walk(ir)
+        return params
 
     def kg_equal(self, a, b):
         """Compare two values or arrays for equality, handling nested arrays and tensors."""
