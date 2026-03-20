@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -680,6 +680,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Adverbs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#each-index-adverb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Each-Index Adverb: @'
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluated-array-constructors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluated Array Constructors: [;...]
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1110,6 +1138,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Adverbs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#each-index-adverb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Each-Index Adverb: @'
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluated-array-constructors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluated Array Constructors: [;...]
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1440,7 +1496,7 @@
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>grad_f(3)         :&quot; Compute gradient at x=3
 </code></pre></div>
 <h3 id="pytorch-autograd">PyTorch Autograd: <code>:&gt;</code><a class="headerlink" href="#pytorch-autograd" title="Permanent link">&para;</a></h3>
-<p>The <code>:&gt;</code> operator uses PyTorch's automatic differentiation when the torch backend is enabled (<code>USE_TORCH=1</code>). Falls back to numeric differentiation otherwise.</p>
+<p>The <code>:&gt;</code> operator uses PyTorch's automatic differentiation when the torch backend is enabled (<code>--backend torch</code>). Falls back to numeric differentiation otherwise.</p>
 <p><strong>Syntax:</strong> <code>function:&gt;point</code></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>f::{x^2}
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>f:&gt;3              :&quot; Returns 6.0 (derivative of x^2 at x=3)
@@ -1595,6 +1651,11 @@
 <td>Apply f to each element</td>
 </tr>
 <tr>
+<td><code>f@'a</code></td>
+<td>Each-Index</td>
+<td>Apply f to [index;element] pairs</td>
+</tr>
+<tr>
 <td><code>f/a</code></td>
 <td>Over</td>
 <td>Reduce with f</td>
@@ -1631,9 +1692,41 @@
 </tr>
 </tbody>
 </table>
+<h3 id="each-index-adverb">Each-Index Adverb: <code>@'</code><a class="headerlink" href="#each-index-adverb" title="Permanent link">&para;</a></h3>
+<p>The <code>@'</code> adverb applies a function to <code>[index;element]</code> pairs, similar to Python's <code>enumerate()</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>:&quot; Get indices&quot;
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>{x@0}@&#39;[10 20 30]           :&quot; [0 1 2]&quot;
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>:&quot; Get values (same as regular each)&quot;
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>{x@1}@&#39;[10 20 30]           :&quot; [10 20 30]&quot;
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>:&quot; Use both index and value&quot;
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>{(x@0)*(x@1)}@&#39;[10 20 30]   :&quot; [0 20 60]&quot;
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>:&quot; Add index to each value&quot;
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>{(x@0)+(x@1)}@&#39;[100 200 300] :&quot; [100 201 302]&quot;
+</code></pre></div>
+<h3 id="evaluated-array-constructors">Evaluated Array Constructors: <code>[;...]</code><a class="headerlink" href="#evaluated-array-constructors" title="Permanent link">&para;</a></h3>
+<p>The <code>[;expr1;expr2;...]</code> syntax creates arrays by evaluating each expression:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>:&quot; Basic expressions&quot;
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>[;1+1;2+2;3+3]              :&quot; [2 4 6]&quot;
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>:&quot; With variables and function calls&quot;
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>a::10; b::20
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>[;a;b;a+b]                  :&quot; [10 20 30]&quot;
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>:&quot; With function results&quot;
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>avg::{(+/x)%#x}
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>arr::[1 2 3 4 5]
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>[;avg(arr);+/arr;#arr]       :&quot; [3.0 15 5]&quot;
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>:&quot; Inside a function&quot;
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>make::{[;x;x*2;x*3]}
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>make(5)                      :&quot; [5 10 15]&quot;
+</code></pre></div>
 <h2 id="unused-operators">Unused Operators<a class="headerlink" href="#unused-operators" title="Permanent link">&para;</a></h2>
 <p>The following operator combinations are reserved for future use:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>:! :&amp; :, :&lt; :?
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>:! :&amp; :, :&lt; :?
 </code></pre></div>
 
 

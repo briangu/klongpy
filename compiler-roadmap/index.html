@@ -8,13 +8,9 @@
       
       
       
-        <link rel="canonical" href="https://briangu.github.io/klongpy/performance/">
+        <link rel="canonical" href="https://briangu.github.io/klongpy/compiler-roadmap/">
       
       
-        <link rel="prev" href="../torch_backend/">
-      
-      
-        <link rel="next" href="../operators/">
       
       
         
@@ -25,7 +21,7 @@
     
     
       
-        <title>Performance - KlongPy</title>
+        <title>Expression Compiler Roadmap - KlongPy</title>
       
     
     
@@ -74,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#performance" class="md-skip">
+        <a href="#expression-compiler-roadmap" class="md-skip">
           Skip to content
         </a>
       
@@ -109,7 +105,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Performance
+              Expression Compiler Roadmap
             
           </span>
         </div>
@@ -306,20 +302,18 @@
       
   
   
-    
   
   
-  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
           <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
@@ -340,7 +334,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -411,37 +405,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Performance
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
         
   
   
@@ -457,76 +424,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#benchmark" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Benchmark
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#results" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Results
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Results">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#cuda-gpu" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CUDA GPU
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#apple-silicon-mps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Apple Silicon (MPS)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -898,10 +795,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#benchmark" class="md-nav__link">
+  <a href="#current-state" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Benchmark
+        Current State
       
     </span>
   </a>
@@ -909,41 +806,35 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#results" class="md-nav__link">
+  <a href="#phase-2-lambda-inlining" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Results
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Results">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#cuda-gpu" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CUDA GPU
+        Phase 2: Lambda Inlining
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#apple-silicon-mps" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#phase-3-function-call-tracing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Apple Silicon (MPS)
+        Phase 3: Function Call Tracing
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#priority" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Priority
+      
+    </span>
+  </a>
   
 </li>
       
@@ -967,62 +858,42 @@
   
 
 
-<h1 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h1>
-<p>The Klong language is simple, so the overhead is low. The bulk of the compute time will likely be spent in the array backend doing actual work.</p>
-<p><strong>Key insight</strong>: GPU acceleration shines for compute-bound operations (matrix multiply), not memory-bound operations (element-wise ops).</p>
-<p>Use <code>kgpy --backend torch</code> to enable the PyTorch backend.</p>
-<h2 id="benchmark">Benchmark<a class="headerlink" href="#benchmark" title="Permanent link">&para;</a></h2>
-<p>The benchmark (<code>tests/perf_vector.py</code>) tests two workload types:</p>
+<h1 id="expression-compiler-roadmap">Expression Compiler Roadmap<a class="headerlink" href="#expression-compiler-roadmap" title="Permanent link">&para;</a></h1>
+<h2 id="current-state">Current State<a class="headerlink" href="#current-state" title="Permanent link">&para;</a></h2>
+<p>The expression compiler has two optimization layers:</p>
 <ol>
-<li><strong>Vector ops</strong> (element-wise, memory-bound): <code>2*1+!10000000</code></li>
-<li><strong>Matrix multiply</strong> (compute-bound): 4000×4000 matmul</li>
+<li>
+<p><strong>Compiler</strong> (<code>compiler.py</code> → <code>backend.compile_expr_ir</code>): catches top-level expressions and compiles them to backend-specific Python functions. Handles arithmetic, comparisons, reduce/scan on arrays. Produces backend-neutral IR, each backend generates its own code.</p>
+</li>
+<li>
+<p><strong>Adverb ufuncs</strong> (<code>adverbs.py</code>): when the compiler can't handle an expression (e.g., reduce/scan inside a lambda), the interpreter falls through to adverb functions that manually dispatch to numpy ufuncs (<code>np.add.reduce</code>, <code>np.add.accumulate</code>, etc.). Without this layer, <code>functools.reduce</code> on 100K elements is ~5000x slower.</p>
+</li>
 </ol>
-<h2 id="results">Results<a class="headerlink" href="#results" title="Permanent link">&para;</a></h2>
-<h3 id="cuda-gpu">CUDA GPU<a class="headerlink" href="#cuda-gpu" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$<span class="w"> </span>python3<span class="w"> </span>tests/perf_vector.py
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="o">============================================================</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>VECTOR<span class="w"> </span>OPS<span class="w"> </span><span class="o">(</span>element-wise,<span class="w"> </span>memory-bound<span class="o">)</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>Size:<span class="w"> </span><span class="m">10</span>,000,000<span class="w"> </span>elements,<span class="w"> </span>Iterations:<span class="w"> </span><span class="nv">100</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="o">============================================================</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>NumPy<span class="w"> </span><span class="o">(</span>baseline<span class="o">)</span><span class="w">                    </span><span class="m">0</span>.021854s
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>KlongPy<span class="w"> </span><span class="o">(</span>numpy<span class="o">)</span><span class="w">                     </span><span class="m">0</span>.001413s<span class="w">  </span><span class="o">(</span><span class="m">15</span>.46x<span class="w"> </span>vs<span class="w"> </span>NumPy<span class="o">)</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>KlongPy<span class="w"> </span><span class="o">(</span>torch,<span class="w"> </span>cpu<span class="o">)</span><span class="w">                </span><span class="m">0</span>.000029s<span class="w">  </span><span class="o">(</span><span class="m">761</span>.22x<span class="w"> </span>vs<span class="w"> </span>NumPy<span class="o">)</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>KlongPy<span class="w"> </span><span class="o">(</span>torch,<span class="w"> </span>cuda<span class="o">)</span><span class="w">               </span><span class="m">0</span>.000028s<span class="w">  </span><span class="o">(</span><span class="m">784</span>.04x<span class="w"> </span>vs<span class="w"> </span>NumPy<span class="o">)</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="o">============================================================</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>MATRIX<span class="w"> </span>MULTIPLY<span class="w"> </span><span class="o">(</span>compute-bound,<span class="w"> </span>GPU<span class="w"> </span>advantage<span class="o">)</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span>Size:<span class="w"> </span>4000x4000,<span class="w"> </span>Iterations:<span class="w"> </span><span class="nv">5</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="o">============================================================</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>NumPy<span class="w"> </span><span class="o">(</span>baseline<span class="o">)</span><span class="w">                    </span><span class="m">0</span>.078615s
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>KlongPy<span class="w"> </span><span class="o">(</span>numpy<span class="o">)</span><span class="w">                     </span><span class="m">0</span>.075400s<span class="w">  </span><span class="o">(</span><span class="m">1</span>.04x<span class="w"> </span>vs<span class="w"> </span>NumPy<span class="o">)</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>KlongPy<span class="w"> </span><span class="o">(</span>torch,<span class="w"> </span>cpu<span class="o">)</span><span class="w">                </span><span class="m">0</span>.077350s<span class="w">  </span><span class="o">(</span><span class="m">1</span>.02x<span class="w"> </span>vs<span class="w"> </span>NumPy<span class="o">)</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>KlongPy<span class="w"> </span><span class="o">(</span>torch,<span class="w"> </span>cuda<span class="o">)</span><span class="w">               </span><span class="m">0</span>.002339s<span class="w">  </span><span class="o">(</span><span class="m">33</span>.62x<span class="w"> </span>vs<span class="w"> </span>NumPy<span class="o">)</span>
-</code></pre></div>
-<h3 id="apple-silicon-mps">Apple Silicon (MPS)<a class="headerlink" href="#apple-silicon-mps" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$<span class="w"> </span>python3<span class="w"> </span>tests/perf_vector.py
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">============================================================</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>VECTOR<span class="w"> </span>OPS<span class="w"> </span><span class="o">(</span>element-wise,<span class="w"> </span>memory-bound<span class="o">)</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>Size:<span class="w"> </span><span class="m">10</span>,000,000<span class="w"> </span>elements,<span class="w"> </span>Iterations:<span class="w"> </span><span class="nv">100</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="o">============================================================</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>NumPy<span class="w"> </span><span class="o">(</span>baseline<span class="o">)</span><span class="w">                    </span><span class="m">0</span>.007547s
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>KlongPy<span class="w"> </span><span class="o">(</span>numpy<span class="o">)</span><span class="w">                     </span><span class="m">0</span>.007378s<span class="w">  </span><span class="o">(</span><span class="m">1</span>.02x<span class="w"> </span>vs<span class="w"> </span>NumPy<span class="o">)</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>KlongPy<span class="w"> </span><span class="o">(</span>torch,<span class="w"> </span>cpu<span class="o">)</span><span class="w">                </span><span class="m">0</span>.007360s<span class="w">  </span><span class="o">(</span><span class="m">1</span>.03x<span class="w"> </span>vs<span class="w"> </span>NumPy<span class="o">)</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>KlongPy<span class="w"> </span><span class="o">(</span>torch,<span class="w"> </span>mps<span class="o">)</span><span class="w">                </span><span class="m">0</span>.007320s<span class="w">  </span><span class="o">(</span><span class="m">1</span>.03x<span class="w"> </span>vs<span class="w"> </span>NumPy<span class="o">)</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="o">============================================================</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>MATRIX<span class="w"> </span>MULTIPLY<span class="w"> </span><span class="o">(</span>compute-bound,<span class="w"> </span>GPU<span class="w"> </span>advantage<span class="o">)</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span>Size:<span class="w"> </span>4000x4000,<span class="w"> </span>Iterations:<span class="w"> </span><span class="nv">5</span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="o">============================================================</span>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>NumPy<span class="w"> </span><span class="o">(</span>baseline<span class="o">)</span><span class="w">                    </span><span class="m">0</span>.034870s
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>KlongPy<span class="w"> </span><span class="o">(</span>numpy<span class="o">)</span><span class="w">                     </span><span class="m">0</span>.036095s<span class="w">  </span><span class="o">(</span><span class="m">0</span>.97x<span class="w"> </span>vs<span class="w"> </span>NumPy<span class="o">)</span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>KlongPy<span class="w"> </span><span class="o">(</span>torch,<span class="w"> </span>cpu<span class="o">)</span><span class="w">                </span><span class="m">0</span>.035907s<span class="w">  </span><span class="o">(</span><span class="m">0</span>.97x<span class="w"> </span>vs<span class="w"> </span>NumPy<span class="o">)</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>KlongPy<span class="w"> </span><span class="o">(</span>torch,<span class="w"> </span>mps<span class="o">)</span><span class="w">                </span><span class="m">0</span>.011203s<span class="w">  </span><span class="o">(</span><span class="m">3</span>.11x<span class="w"> </span>vs<span class="w"> </span>NumPy<span class="o">)</span>
-</code></pre></div>
-<p><strong>Observations:</strong>
-- <strong>CUDA</strong>: Massive speedups for both vector ops (784x) and matrix multiply (34x)
-- <strong>MPS</strong>: ~3x speedup for matrix multiply; vector ops similar across backends
-- Results vary by hardware and workload characteristics</p>
-<p>See <a href="../torch_backend/">torch_backend.md</a> for more details on the PyTorch backend and performance characteristics.</p>
+<p>The compiler only sees "leaf" expressions — the final expression the interpreter evaluates. It cannot look inside lambdas or function calls because by the time the compiler runs, those are opaque Python objects, not ASTs.</p>
+<h2 id="phase-2-lambda-inlining">Phase 2: Lambda Inlining<a class="headerlink" href="#phase-2-lambda-inlining" title="Permanent link">&para;</a></h2>
+<p>Extend the compiler to handle lambdas by compiling their body expressions.</p>
+<p>When the compiler encounters a lambda like <code>{+/x*y}</code>, it can:
+- Inspect the lambda's AST body
+- Compile it as a function with parameters mapped from the lambda's arguments
+- Return a compiled callable that replaces the interpreter's lambda evaluation</p>
+<p>This would make the adverb ufunc optimizations in <code>adverbs.py</code> redundant for the common case, since <code>{+/x}(a)</code> would compile to <code>np.sum(a)</code> directly.</p>
+<p>Key challenges:
+- Lambda ASTs need to be accessible at compile time (they're stored in <code>KGFn</code> objects)
+- Variable scoping: lambda parameters vs. outer context variables
+- Nested lambdas and closures</p>
+<h2 id="phase-3-function-call-tracing">Phase 3: Function Call Tracing<a class="headerlink" href="#phase-3-function-call-tracing" title="Permanent link">&para;</a></h2>
+<p>Extend the compiler to trace through function calls and compile the compute graph.</p>
+<p>Similar to how <code>torch.compile</code> and JAX's <code>jit</code> work: trace the execution of a function, record the operations, compile the resulting graph. The interpreter becomes the fallback for operations that escape the trace (I/O, control flow, Python interop).</p>
+<p>At this point, most of monads.py/dyads.py/adverbs.py would be pushed into backend-generated code for the compiled path. The interpreter modules would remain as the "slow path" for:
+- Expressions with side effects (I/O, assignments)
+- Dynamic typing that can't be resolved at compile time
+- Python interop calls
+- Control flow (conditionals, loops)</p>
+<h2 id="priority">Priority<a class="headerlink" href="#priority" title="Permanent link">&para;</a></h2>
+<p>Phase 2 (lambda inlining) is the high-value next step. It would:
+- Eliminate the adverb ufunc layer for most use cases
+- Let users write <code>f::{+/x*y}</code> and get compiled performance
+- Keep the same frontend/backend split architecture</p>
 
 
 

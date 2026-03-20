@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -72,7 +72,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#klongpy" class="md-skip">
+        <a href="#klongpy-a-high-performance-array-language-with-autograd" class="md-skip">
           Skip to content
         </a>
       
@@ -818,30 +818,52 @@
   
 
 
-<h1 id="klongpy">KlongPy<a class="headerlink" href="#klongpy" title="Permanent link">&para;</a></h1>
-<p>KlongPy is a Python adaptation of the <a href="https://t3x.org/klong">Klong</a> <a href="https://en.wikipedia.org/wiki/Array_programming">array language</a>, offering high-performance vectorized operations. It prioritizes compatibility with Python, thus allowing seamless integration of Python's expansive ecosystem while retaining Klong's succinctness. With the optional <a href="https://pytorch.org/">PyTorch</a> backend, KlongPy can operate using both CPU and GPU backends with automatic differentiation support. It utilizes <a href="https://numpy.org/">NumPy</a>, an <a href="https://analyzethedatanotthedrivel.org/2018/03/31/NumPy-another-iverson-ghost/">Iverson Ghost</a> descendant from APL, as its core. The framework's foundation lies in <a href="https://t3x.org">Nils M Holm</a>'s work, the original developer of Klong, who has authored a <a href="https://t3x.org/klong/book.html">Klong Book</a>. KlongPy is especially useful for data scientists, quantitative analysts, researchers, and programming language aficionados.</p>
-<h1 id="quick-install">Quick install<a class="headerlink" href="#quick-install" title="Permanent link">&para;</a></h1>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip3<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;klongpy[repl]&quot;</span><span class="w">   </span><span class="c1"># REPL + NumPy backend</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># or</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>pip3<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;klongpy[all]&quot;</span><span class="w">    </span><span class="c1"># All extras (torch, web, db, websockets)</span>
+<h1 id="klongpy-a-high-performance-array-language-with-autograd">KlongPy: A High-Performance Array Language with Autograd<a class="headerlink" href="#klongpy-a-high-performance-array-language-with-autograd" title="Permanent link">&para;</a></h1>
+<p>KlongPy is a Python adaptation of the <a href="https://t3x.org/klong">Klong</a> <a href="https://en.wikipedia.org/wiki/Array_programming">array language</a>, offering high-performance vectorized operations. It prioritizes compatibility with Python, thus allowing seamless integration of Python's expansive ecosystem while retaining Klong's succinctness.</p>
+<p>KlongPy backends include <a href="https://numpy.org/">NumPy</a> and optional <a href="https://pytorch.org/">PyTorch</a> (CPU, CUDA, and Apple MPS).
+When PyTorch is enabled, automatic differentiation (autograd) is supported; otherwise, numeric differentiation is the default.</p>
+<p>New to v0.7.0, KlongPy now brings gradient-based programming to an already-succinct array language, so you can differentiate compact array expressions directly. It's also a batteries-included system with IPC, DuckDB-backed database tooling, web/websocket support, and other integrations exposed seamlessly from the language.</p>
+<p>Array languages like APL, K, and Q revolutionized finance by treating operations as data transformations, not loops. KlongPy brings this philosophy to machine learning: gradients become expressions you compose, not boilerplate you maintain. The result is a succinct mathematical-like notation that is automatically extended to machine learning.</p>
+<p>Source code on GitHub: <a href="https://github.com/briangu/klongpy">briangu/klongpy</a></p>
+<h1 id="quick-install">Quick Install<a class="headerlink" href="#quick-install" title="Permanent link">&para;</a></h1>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># REPL + NumPy backend (pick one option below)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;klongpy[repl]&quot;</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>kgpy
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Enable torch backend (autograd + GPU)</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;klongpy[torch]&quot;</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>kgpy<span class="w"> </span>--backend<span class="w"> </span>torch
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Everything (web, db, websockets, torch, repl)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;klongpy[all]&quot;</span>
 </code></pre></div>
 <p>New users may want to read the <a href="quick-start/">Quick Start</a> guide and the
 <a href="repl/">REPL Reference</a> to get familiar with the interactive environment.
 Note: the REPL (<code>kgpy</code>) requires the <code>klongpy[repl]</code> extra (or <code>klongpy[all]</code>).</p>
 <h1 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h1>
-<p>KlongPy is both an Array Language runtime and a set of powerful tools for building high performance data analysis and distributed computing applications.  Some of the features include:</p>
+<p>KlongPy is a batteries-included platform with kdb+/Q-inspired features:</p>
+<h3 id="core-language">Core Language<a class="headerlink" href="#core-language" title="Permanent link">&para;</a></h3>
 <ul>
-<li><a href="https://en.wikipedia.org/wiki/Array_programming"><strong>Array Programming</strong></a>: Based on <a href="https://t3x.org/klong">Klong</a>, a concise, expressive, and easy-to-understand array programming language. Its simple syntax and rich feature set make it an excellent tool for data scientists and engineers.</li>
-<li><a href="performance/"><strong>Speed</strong></a>: Designed for high-speed vectorized computing, enabling you to process large data sets quickly and efficiently on either CPU or GPU.</li>
-<li><a href="torch_backend/"><strong>PyTorch Backend &amp; Autograd</strong></a>: Optional PyTorch backend with automatic differentiation for gradient computation, enabling machine learning and optimization workflows.</li>
-<li><a href="fast_columnar_database/"><strong>Fast Columnar Database</strong></a>: Includes integration with <a href="http://duckdb.org">DuckDB</a>, a super fast in-process columnar store that can operate directly on NumPy arrays with zero-copy.</li>
-<li><a href="ipc_capabilities/"><strong>Inter-Process Communication (IPC)</strong></a>: Includes built-in support for IPC, enabling easy communication between different processes and systems. Ticker plants and similar pipelines are easy to build.</li>
-<li><a href="table_and_key_value_stores/"><strong>Table and Key-Value Store</strong></a>: Includes a simple file-backed key value store that can be used to store database tables or raw key/value pairs.</li>
-<li><a href="python_integration/"><strong>Python Integration</strong></a>: Seamlessly compatible with Python and modules, allowing you to leverage existing Python libraries and frameworks.</li>
-<li><a href="web_server/"><strong>Web server</strong></a>: Includes a web server, making it easy to build sites backed by KlongPy capabilities.</li>
-<li><a href="websockets/"><strong>WebSockets</strong></a>: Connect to WebSocket servers and handle messages in KlongPy.</li>
-<li><a href="timer/"><strong>Timers</strong></a>: Includes periodic timer facility to periodically perform tasks.</li>
-<li><a href="operators/"><strong>Operator Reference</strong></a>: Quick lookup for language operators.</li>
+<li><strong>Vectorized Operations</strong>: NumPy/PyTorch-powered bulk array operations</li>
+<li><strong>Automatic Differentiation</strong>: Native <code>:&gt;</code> operator for exact gradients</li>
+<li><strong>GPU Acceleration</strong>: CUDA and Apple MPS support via PyTorch</li>
+<li><strong>Python Integration</strong>: Import any Python library with <code>.py()</code> and <code>.pyf()</code></li>
+<li><strong><a href="performance/">Speed</a></strong>: High-performance vectorized computing on CPU or GPU</li>
+</ul>
+<h3 id="data-infrastructure-kdbq-like">Data Infrastructure (kdb+/Q-like)<a class="headerlink" href="#data-infrastructure-kdbq-like" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="fast_columnar_database/">Fast Columnar Database</a></strong>: Zero-copy DuckDB integration for SQL on arrays</li>
+<li><strong><a href="ipc_capabilities/">Inter-Process Communication</a></strong>: Build ticker plants and distributed systems</li>
+<li><strong><a href="table_and_key_value_stores/">Table &amp; Key-Value Store</a></strong>: Persistent storage for tables and data</li>
+<li><strong><a href="web_server/">Web Server</a></strong>: Built-in HTTP server for APIs and dashboards</li>
+<li><strong><a href="websockets/">WebSockets</a></strong>: Connect to WebSocket servers and handle messages in KlongPy</li>
+<li><strong><a href="timer/">Timers</a></strong>: Scheduled execution for periodic tasks</li>
+</ul>
+<h3 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="torch_backend/">PyTorch Backend &amp; Autograd</a></strong>: Complete autograd reference</li>
+<li><strong><a href="operators/">Operator Reference</a></strong>: All language operators</li>
+<li><strong><a href="performance/">Performance Guide</a></strong>: Optimization tips</li>
 </ul>
 <h1 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h1>
 <p>Consider this simple Klong expression that computes an array's average: <code>(+/a)%#a</code>. Decoded, it means "sum of 'a' divided by the length of 'a'", as read from right to left.</p>
@@ -904,43 +926,63 @@ Note: the REPL (<code>kgpy</code>) requires the <code>klongpy[repl]</code> extra
 </code></pre></div>
 <p>And let's run a performance comparison between NumPy and PyTorch backends:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">KlongInterpreter</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># Use torch backend</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;USE_TORCH&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;1&#39;</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">KlongInterpreter</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># Use torch backend</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="n">klong</span> <span class="o">=</span> <span class="n">KlongInterpreter</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="s1">&#39;torch&#39;</span><span class="p">)</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="n">klong</span><span class="p">(</span><span class="s1">&#39;avg::{(+/x)</span><span class="si">%#x</span><span class="s1">}&#39;</span><span class="p">)</span>
 <a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="n">klong</span> <span class="o">=</span> <span class="n">KlongInterpreter</span><span class="p">()</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="n">klong</span><span class="p">(</span><span class="s1">&#39;avg::{(+/x)</span><span class="si">%#x</span><span class="s1">}&#39;</span><span class="p">)</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="c1"># Create large array</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="n">data</span> <span class="o">=</span> <span class="n">klong</span><span class="p">(</span><span class="s1">&#39;!1000000&#39;</span><span class="p">)</span>
 <a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="c1"># Create large array</span>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="n">data</span> <span class="o">=</span> <span class="n">klong</span><span class="p">(</span><span class="s1">&#39;!1000000&#39;</span><span class="p">)</span>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter_ns</span><span class="p">()</span>
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="n">r</span> <span class="o">=</span> <span class="n">klong</span><span class="p">[</span><span class="s1">&#39;avg&#39;</span><span class="p">](</span><span class="n">data</span><span class="p">)</span>
-<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="n">stop</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter_ns</span><span class="p">()</span>
-<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>
-<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;avg=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">r</span><span class="p">)</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="nb">round</span><span class="p">((</span><span class="n">stop</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="p">(</span><span class="mi">10</span><span class="o">**</span><span class="mi">9</span><span class="p">),</span><span class="w"> </span><span class="mi">6</span><span class="p">)</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
-<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Backend: </span><span class="si">{</span><span class="n">klong</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">, Device: </span><span class="si">{</span><span class="n">klong</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="n">device</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter_ns</span><span class="p">()</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="n">r</span> <span class="o">=</span> <span class="n">klong</span><span class="p">[</span><span class="s1">&#39;avg&#39;</span><span class="p">](</span><span class="n">data</span><span class="p">)</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="n">stop</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter_ns</span><span class="p">()</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;avg=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">r</span><span class="p">)</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="nb">round</span><span class="p">((</span><span class="n">stop</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="p">(</span><span class="mi">10</span><span class="o">**</span><span class="mi">9</span><span class="p">),</span><span class="w"> </span><span class="mi">6</span><span class="p">)</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Backend: </span><span class="si">{</span><span class="n">klong</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">, Device: </span><span class="si">{</span><span class="n">klong</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="n">device</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>Run with PyTorch:</p>
-<div class="highlight"><pre><span></span><code>$ USE_TORCH=1 python3 example.py
+<div class="highlight"><pre><span></span><code>$ python3 example.py
 avg=499999.5 in 0.001234 seconds
 Backend: torch, Device: mps:0
 </code></pre></div>
-<h2 id="automatic-differentiation">Automatic Differentiation<a class="headerlink" href="#automatic-differentiation" title="Permanent link">&para;</a></h2>
-<p>With the PyTorch backend, use the <code>:&gt;</code> operator for automatic differentiation:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>?&gt; f::{x^2}        :&quot; Define f(x) = x^2
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>:monad
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>?&gt; f:&gt;3            :&quot; Compute gradient at x=3
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>6.0
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>?&gt; g::{+/x^2}      :&quot; Sum of squares
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>:monad
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>?&gt; g:&gt;[1 2 3]      :&quot; Gradient: [2*x1, 2*x2, 2*x3]
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>[2.0 4.0 6.0]
+<h2 id="why-klongpy">Why KlongPy?<a class="headerlink" href="#why-klongpy" title="Permanent link">&para;</a></h2>
+<h3 id="for-quants-and-traders">For Quants and Traders<a class="headerlink" href="#for-quants-and-traders" title="Permanent link">&para;</a></h3>
+<p>Optimize portfolios with gradients in a language designed for arrays:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>:&quot; Portfolio optimization: gradient of Sharpe ratio&quot;
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>returns::[0.05 0.08 0.03 0.10]      :&quot; Annual returns per asset&quot;
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>vols::[0.15 0.20 0.10 0.25]         :&quot; Volatilities per asset&quot;
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>w::[0.25 0.25 0.25 0.25]            :&quot; Portfolio weights&quot;
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>sharpe::{(+/x*returns)%((+/((x^2)*(vols^2)))^0.5)}
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>sg::sharpe:&gt;w                       :&quot; Gradient of Sharpe ratio&quot;
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>.d(&quot;sharpe gradient=&quot;); .p(sg)
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>sharpe gradient=[0.07257738709449768 0.032256484031677246 0.11693036556243896 -0.22176480293273926]
 </code></pre></div>
-<p>Enable the PyTorch backend with <code>USE_TORCH=1</code> or <code>KLONGPY_BACKEND=torch</code>, or
-programmatically via <code>KlongInterpreter(backend="torch", device="cuda")</code>.</p>
+<h3 id="for-ml-researchers">For ML Researchers<a class="headerlink" href="#for-ml-researchers" title="Permanent link">&para;</a></h3>
+<p>Neural networks in pure array notation:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>:&quot; Single-layer neural network with gradient descent&quot;
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>.bkf([&quot;exp&quot;])
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>sigmoid::{1%(1+exp(0-x))}
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>forward::{sigmoid((w1*x)+b1)}
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>X::[0.5 1.0 1.5 2.0]; Y::[0.2 0.4 0.6 0.8]
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>w1::0.1; b1::0.1; lr::0.1
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>loss::{+/((forward&#39;X)-Y)^2}
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>:&quot; Train with multi-param gradients&quot;
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>{grads::loss:&gt;[w1 b1]; w1::w1-(lr*grads@0); b1::b1-(lr*grads@1)}&#39;!1000
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>.d(&quot;w1=&quot;); .d(w1); .d(&quot; b1=&quot;); .p(b1)
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>w1=1.74 b1=-2.17
+</code></pre></div>
+<h3 id="for-scientists">For Scientists<a class="headerlink" href="#for-scientists" title="Permanent link">&para;</a></h3>
+<p>Express mathematics directly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>:&quot; Gradient of f(x,y,z) = x^2 + y^2 + z^2 at [1,2,3]&quot;
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>f::{+/x^2}
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>f:&gt;[1 2 3]
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>[2.0 4.0 6.0]
+</code></pre></div>
+<p>Enable the PyTorch backend with <code>--backend torch</code> or programmatically via <code>KlongInterpreter(backend="torch", device="cuda")</code>.</p>
 <p>See <a href="torch_backend/">PyTorch Backend &amp; Autograd</a> for more details and the <a href="https://github.com/briangu/klongpy/tree/main/examples/autograd">autograd examples</a> for complete examples including gradient descent and neural networks.</p>
 <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
 <h3 id="cpu">CPU<a class="headerlink" href="#cpu" title="Permanent link">&para;</a></h3>
@@ -949,72 +991,85 @@ programmatically via <code>KlongInterpreter(backend="torch", device="cuda")</cod
 <h3 id="pytorch-backend-recommended-for-autograd-and-gpu">PyTorch Backend (recommended for autograd and GPU)<a class="headerlink" href="#pytorch-backend-recommended-for-autograd-and-gpu" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>$ pip3 install &quot;klongpy[torch]&quot;
 </code></pre></div>
-<p>Then enable with <code>USE_TORCH=1</code>:</p>
-<div class="highlight"><pre><span></span><code>$ USE_TORCH=1 python your_script.py
-$ USE_TORCH=1 kgpy
+<p>Then use the <code>--backend</code> flag:</p>
+<div class="highlight"><pre><span></span><code>$ python your_script.py  # (with KlongInterpreter(backend=&#39;torch&#39;))
+$ kgpy --backend torch
 </code></pre></div>
 <h3 id="all-application-tools-db-web-repl-websockets-etc">All application tools (db, web, REPL, websockets, etc.)<a class="headerlink" href="#all-application-tools-db-web-repl-websockets-etc" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>$ pip3 install &quot;klongpy[all]&quot;
 </code></pre></div>
 <h1 id="repl">REPL<a class="headerlink" href="#repl" title="Permanent link">&para;</a></h1>
 <p>KlongPy has a REPL similar to Klong's REPL.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>$<span class="w"> </span>pip3<span class="w"> </span>install<span class="w"> </span>klongpy<span class="o">[</span>repl<span class="o">]</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>$<span class="w"> </span>rlwrap<span class="w"> </span>kgpy
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>Welcome<span class="w"> </span>to<span class="w"> </span>KlongPy<span class="w"> </span>REPL
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>author:<span class="w"> </span>Brian<span class="w"> </span>Guarraci
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>repo<span class="w">  </span>:<span class="w"> </span>https://github.com/briangu/klongpy
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>Ctrl-C<span class="w"> </span>to<span class="w"> </span>quit
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>?&gt;<span class="w"> </span><span class="m">1</span>+1
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="m">2</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>&gt;?<span class="w"> </span><span class="s2">&quot;hello, world!&quot;</span>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>hello,<span class="w"> </span>world!
-<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>?&gt;<span class="w"> </span>prime::<span class="o">{</span><span class="p">&amp;</span>/x!:<span class="se">\2</span>+!_x^1%2<span class="o">}</span>
-<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>:monad
-<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>?&gt;<span class="w"> </span>prime<span class="o">(</span><span class="m">4</span><span class="o">)</span>
-<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="m">0</span>
-<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>?&gt;<span class="w"> </span>prime<span class="o">(</span><span class="m">251</span><span class="o">)</span>
-<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="m">1</span>
-<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>?&gt;<span class="w"> </span><span class="o">]</span>T<span class="w"> </span>prime<span class="o">(</span><span class="m">251</span><span class="o">)</span>
-<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a>total:<span class="w"> </span><span class="m">0</span>.0004914579913020134<span class="w"> </span>per:<span class="w"> </span><span class="m">0</span>.0004914579913020134
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>$<span class="w"> </span>pip3<span class="w"> </span>install<span class="w"> </span>klongpy<span class="o">[</span>repl<span class="o">]</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>$<span class="w"> </span>rlwrap<span class="w"> </span>kgpy
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>Welcome<span class="w"> </span>to<span class="w"> </span>KlongPy<span class="w"> </span>REPL
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>author:<span class="w"> </span>Brian<span class="w"> </span>Guarraci
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>repo<span class="w">  </span>:<span class="w"> </span>https://github.com/briangu/klongpy
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>Ctrl-C<span class="w"> </span>to<span class="w"> </span>quit
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>?&gt;<span class="w"> </span><span class="m">1</span>+1
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="m">2</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>&gt;?<span class="w"> </span><span class="s2">&quot;hello, world!&quot;</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>hello,<span class="w"> </span>world!
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>?&gt;<span class="w"> </span>prime::<span class="o">{</span><span class="p">&amp;</span>/x!:<span class="se">\2</span>+!_x^1%2<span class="o">}</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>:monad
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>?&gt;<span class="w"> </span>prime<span class="o">(</span><span class="m">4</span><span class="o">)</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="m">0</span>
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>?&gt;<span class="w"> </span>prime<span class="o">(</span><span class="m">251</span><span class="o">)</span>
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="m">1</span>
+<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a>?&gt;<span class="w"> </span><span class="o">]</span>T<span class="w"> </span>prime<span class="o">(</span><span class="m">251</span><span class="o">)</span>
+<a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a>total:<span class="w"> </span><span class="m">0</span>.0004914579913020134<span class="w"> </span>per:<span class="w"> </span><span class="m">0</span>.0004914579913020134
 </code></pre></div>
 <p>Read about the <a href="https://t3x.org/klong/prime.html">prime example here</a>.</p>
 <h1 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h1>
-<p>KlongPy aims to be a complete implementation of klong.  It currently passes all of the integration tests provided by klong as well as additional suites.</p>
-<p>The PyTorch backend provides GPU acceleration (CUDA, MPS) and automatic differentiation. Note that the torch backend does not support object dtype arrays or string operations - use the numpy backend for these.</p>
-<p>Primary ongoing work includes:</p>
-<ul>
-<li>Additional tools to make KlongPy applications more capable.</li>
-<li>Additional syntax error help</li>
-<li>Expanded torch backend coverage</li>
-</ul>
+<p>KlongPy is a superset of the Klong array language, passing all Klong integration tests plus additional test suites. The PyTorch backend provides GPU acceleration (CUDA, MPS) and automatic differentiation.</p>
+<p>Ongoing development:
+- Expanded torch backend coverage
+- Additional built-in tools and integrations
+- Improved error messages and debugging</p>
+<p>Note: The torch backend does not support object dtype arrays or string operations. Use the numpy backend for these.</p>
 <h1 id="differences-from-klong">Differences from Klong<a class="headerlink" href="#differences-from-klong" title="Permanent link">&para;</a></h1>
 <p>KlongPy is effectively a superset of the Klong language, but has some key differences:</p>
-<div class="highlight"><pre><span></span><code>* Infinite precision: The main difference in this implementation of Klong is the lack of infinite precision.  By using NumPy we are restricted to doubles.
-* Python integration: Most notably, the &quot;.py&quot; command allows direct import of Python modules into the current Klong context.
-* IPC - KlongPy supports IPC between KlongPy processes.
-</code></pre></div>
-<h1 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h1>
 <ul>
-<li><a href="https://github.com/briangu/klupyter">Klupyter - KlongPy in Jupyter Notebooks</a></li>
-<li><a href="https://github.com/briangu/aoc/tree/main/22">Advent Of Code '22</a></li>
+<li><strong>Infinite precision</strong>: The main difference in this implementation of Klong is the lack of infinite precision. By using NumPy we are restricted to doubles.</li>
+<li><strong>Python integration</strong>: The <code>.py()</code> and <code>.pyf()</code> commands allow direct import of Python modules into the current Klong context.</li>
+<li><strong>IPC</strong>: KlongPy supports IPC between KlongPy processes.</li>
+<li><strong>Autograd</strong>: Native gradient computation via the <code>:&gt;</code> operator with PyTorch backend.</li>
 </ul>
-<h1 id="unused-operators">Unused operators<a class="headerlink" href="#unused-operators" title="Permanent link">&para;</a></h1>
-<p>The following operators are yet to be used:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>:! :&amp; :, :&lt; :?
+<h1 id="use-cases">Use Cases<a class="headerlink" href="#use-cases" title="Permanent link">&para;</a></h1>
+<ul>
+<li><strong>Quantitative Finance</strong>: Self-optimizing trading strategies, risk models, portfolio optimization</li>
+<li><strong>Machine Learning</strong>: Neural networks, gradient descent, optimization in minimal code</li>
+<li><strong>Scientific Computing</strong>: Physics simulations, numerical methods, data analysis</li>
+<li><strong>Time Series Analysis</strong>: Signal processing, feature engineering, streaming data</li>
+<li><strong>Rapid Prototyping</strong>: Express complex algorithms in few lines, then optimize</li>
+</ul>
+<h1 id="lineage-and-inspiration">Lineage and Inspiration<a class="headerlink" href="#lineage-and-inspiration" title="Permanent link">&para;</a></h1>
+<p>KlongPy stands on the shoulders of giants:</p>
+<ul>
+<li><strong><a href="https://en.wikipedia.org/wiki/APL_(programming_language)">APL</a></strong> (1966): Ken Iverson's revolutionary notation</li>
+<li><strong><a href="https://www.jsoftware.com/">J</a></strong>: ASCII-friendly APL successor</li>
+<li><strong><a href="https://code.kx.com/">K/Q/kdb+</a></strong>: High-performance time series and trading systems</li>
+<li><strong><a href="https://t3x.org/klong">Klong</a></strong>: Nils M Holm's elegant, accessible array language</li>
+<li><strong><a href="https://numpy.org/">NumPy</a></strong>: The "Iverson Ghost" in Python's scientific stack</li>
+<li><strong><a href="https://pytorch.org/">PyTorch</a></strong>: Automatic differentiation and GPU acceleration</li>
+</ul>
+<p>KlongPy combines Klong's simplicity with Python's ecosystem and PyTorch's autograd creating something new: an array language where gradients are first-class citizens.</p>
+<h1 id="related-projects">Related Projects<a class="headerlink" href="#related-projects" title="Permanent link">&para;</a></h1>
+<ul>
+<li><a href="https://github.com/briangu/klupyter">Klupyter</a> - KlongPy in Jupyter Notebooks</li>
+<li><a href="https://github.com/briangu/klongpy-vscode">VS Code Syntax Highlighting</a></li>
+<li><a href="https://github.com/briangu/aoc">Advent of Code Solutions</a></li>
+</ul>
+<h1 id="development">Development<a class="headerlink" href="#development" title="Permanent link">&para;</a></h1>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/briangu/klongpy.git
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nb">cd</span><span class="w"> </span>klongpy
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span><span class="w">   </span><span class="c1"># Install in editable mode with dev dependencies</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w">  </span><span class="c1"># Run tests</span>
 </code></pre></div>
-<h1 id="contribute">Contribute<a class="headerlink" href="#contribute" title="Permanent link">&para;</a></h1>
-<h3 id="develop">Develop<a class="headerlink" href="#develop" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>$ git clone https://github.com/briangu/klongpy.git
-$ cd klongpy
-$ pip install -e &quot;.[dev]&quot;
-</code></pre></div>
-<h3 id="running-tests">Running tests<a class="headerlink" href="#running-tests" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/
-</code></pre></div>
-<h1 id="acknowledgement">Acknowledgement<a class="headerlink" href="#acknowledgement" title="Permanent link">&para;</a></h1>
-<p>HUGE thanks to Nils M Holm for his work on Klong and providing the foundations for this interesting project.</p>
+<h1 id="acknowledgements">Acknowledgements<a class="headerlink" href="#acknowledgements" title="Permanent link">&para;</a></h1>
+<p>Huge thanks to <a href="https://t3x.org">Nils M Holm</a> for creating Klong and writing the <a href="https://t3x.org/klong/book.html">Klong Book</a>, which made this project possible.</p>
 
 
 

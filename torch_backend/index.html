@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -453,6 +453,34 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Enabling the PyTorch Backend">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Line
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#programmatically" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Programmatically
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1238,6 +1266,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Enabling the PyTorch Backend">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Line
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#programmatically" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Programmatically
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1634,27 +1690,22 @@
 <h1 id="pytorch-backend-and-autograd">PyTorch Backend and Autograd<a class="headerlink" href="#pytorch-backend-and-autograd" title="Permanent link">&para;</a></h1>
 <p>KlongPy supports multiple array backends. The PyTorch backend enables GPU acceleration and automatic differentiation (autograd) for gradient-based computations.</p>
 <h2 id="enabling-the-pytorch-backend">Enabling the PyTorch Backend<a class="headerlink" href="#enabling-the-pytorch-backend" title="Permanent link">&para;</a></h2>
-<p>Set the <code>USE_TORCH</code> environment variable:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Enable torch backend</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">USE_TORCH</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>your_script.py
+<h3 id="command-line">Command Line<a class="headerlink" href="#command-line" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Use --backend flag</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>kgpy<span class="w"> </span>--backend<span class="w"> </span>torch
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Or in the REPL</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nv">USE_TORCH</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>kgpy
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># With GPU device selection</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>kgpy<span class="w"> </span>--backend<span class="w"> </span>torch<span class="w"> </span>--device<span class="w"> </span>cuda
 </code></pre></div>
-<p>You can also set:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">KLONGPY_BACKEND</span><span class="o">=</span>torch
-</code></pre></div>
-<p>Or programmatically:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;USE_TORCH&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;1&#39;</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">KlongInterpreter</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">klong</span> <span class="o">=</span> <span class="n">KlongInterpreter</span><span class="p">()</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">klong</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>  <span class="c1"># &#39;torch&#39;</span>
-</code></pre></div>
-<p>You can also pass the backend directly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">KlongInterpreter</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">klong</span> <span class="o">=</span> <span class="n">KlongInterpreter</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="s2">&quot;torch&quot;</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span>
+<h3 id="programmatically">Programmatically<a class="headerlink" href="#programmatically" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">KlongInterpreter</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># Create interpreter with torch backend</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">klong</span> <span class="o">=</span> <span class="n">KlongInterpreter</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="s2">&quot;torch&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">klong</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>  <span class="c1"># &#39;torch&#39;</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># With specific device</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">klong</span> <span class="o">=</span> <span class="n">KlongInterpreter</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="s2">&quot;torch&quot;</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="backend-comparison">Backend Comparison<a class="headerlink" href="#backend-comparison" title="Permanent link">&para;</a></h2>
 <table>
@@ -1669,7 +1720,7 @@
 <tr>
 <td>Default</td>
 <td>Yes</td>
-<td>No (requires USE_TORCH=1 or KLONGPY_BACKEND=torch)</td>
+<td>No (use <code>--backend torch</code>)</td>
 </tr>
 <tr>
 <td>Object dtype</td>
@@ -1705,12 +1756,12 @@
 </table>
 <h2 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h2>
 <p>The torch backend excels with large arrays:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Benchmark              NumPy      Torch      Winner
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>---------------------------------------------------------
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>vector_add_100K        0.04ms     0.08ms     NumPy (2x)
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>vector_add_1M          0.36ms     0.07ms     Torch (5x)
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>compound_expr_1M       0.61ms     0.07ms     Torch (8x)
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>grade_up_100K          0.59ms     0.19ms     Torch (3x)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Benchmark              NumPy      Torch      Winner
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>---------------------------------------------------------
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>vector_add_100K        0.04ms     0.08ms     NumPy (2x)
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>vector_add_1M          0.36ms     0.07ms     Torch (5x)
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>compound_expr_1M       0.61ms     0.07ms     Torch (8x)
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>grade_up_100K          0.59ms     0.19ms     Torch (3x)
 </code></pre></div>
 <p>For small arrays (&lt;100K elements), NumPy is slightly faster due to lower dispatch overhead. For larger arrays, torch wins significantly.</p>
 <h2 id="automatic-differentiation">Automatic Differentiation<a class="headerlink" href="#automatic-differentiation" title="Permanent link">&para;</a></h2>
@@ -1743,16 +1794,16 @@
 <p>On Mac, <code>∂</code> can be typed directly with <strong>Option + d</strong>. For <code>∇</code>, use the Character Viewer or copy-paste.</p>
 <h3 id="autograd-operator-recommended"><code>:&gt;</code> Autograd Operator (Recommended)<a class="headerlink" href="#autograd-operator-recommended" title="Permanent link">&para;</a></h3>
 <p>The <code>:&gt;</code> operator uses PyTorch autograd for exact gradients:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>f::{x^2}         :&quot; Define f(x) = x^2
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>f:&gt;3             :&quot; Compute f&#39;(3) = 6.0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>f::{x^2}         :&quot; Define f(x) = x^2
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>f:&gt;3             :&quot; Compute f&#39;(3) = 6.0
 </code></pre></div>
 <p>The syntax is <code>function:&gt;point</code> where:
 - <code>function</code> is a scalar-valued function (must return a single number)
 - <code>point</code> is the input at which to compute the gradient</p>
 <h3 id="numeric-gradient-operator"><code>∇</code> Numeric Gradient Operator<a class="headerlink" href="#numeric-gradient-operator" title="Permanent link">&para;</a></h3>
 <p>The <code>∇</code> operator <strong>always</strong> uses numeric differentiation (finite differences), regardless of backend:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>f::{x^2}         :&quot; Define f(x) = x^2
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>3∇f              :&quot; Compute f&#39;(3) ≈ 6.0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>f::{x^2}         :&quot; Define f(x) = x^2
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>3∇f              :&quot; Compute f&#39;(3) ≈ 6.0
 </code></pre></div>
 <p>The syntax is <code>point∇function</code> (note: reversed order from <code>:&gt;</code>).</p>
 <h3 id="how-they-work">How They Work<a class="headerlink" href="#how-they-work" title="Permanent link">&para;</a></h3>
@@ -1786,135 +1837,133 @@
 </tr>
 </tbody>
 </table>
-<p>With the torch backend (<code>USE_TORCH=1</code> or <code>KLONGPY_BACKEND=torch</code>), prefer <code>:&gt;</code> for:
+<p>With the torch backend (<code>--backend torch</code> or <code>backend='torch'</code>), prefer <code>:&gt;</code> for:
 - Exact gradients (no floating-point approximation error)
 - Complex computational graphs
 - Better performance on large arrays</p>
 <h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
 <p><strong>Scalar function:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>f::{x^3}          :&quot; f(x) = x^3
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>f:&gt;2              :&quot; f&#39;(2) = 3*4 = 12.0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>f::{x^3}          :&quot; f(x) = x^3
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>f:&gt;2              :&quot; f&#39;(2) = 3*4 = 12.0
 </code></pre></div></p>
 <p><strong>Polynomial:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>p::{((3*x^4)-(2*x^2))+x}   :&quot; p(x) = 3x^4 - 2x^2 + x
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>p:&gt;1                        :&quot; p&#39;(1) = 12 - 4 + 1 = 9.0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>p::{((3*x^4)-(2*x^2))+x}   :&quot; p(x) = 3x^4 - 2x^2 + x
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>p:&gt;1                        :&quot; p&#39;(1) = 12 - 4 + 1 = 9.0
 </code></pre></div></p>
 <p><strong>Vector function (sum of squares):</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>g::{+/x^2}             :&quot; g(x) = sum(x_i^2)
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>g:&gt;[1.0 2.0 3.0]       :&quot; [2 4 6] = 2*x
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>g::{+/x^2}             :&quot; g(x) = sum(x_i^2)
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>g:&gt;[1.0 2.0 3.0]       :&quot; [2 4 6] = 2*x
 </code></pre></div></p>
 <p><strong>Gradient descent:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>f::{x^2}
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>x::5.0
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>lr::0.1
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>:&quot; Update rule: x = x - lr * grad
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>x::x-(lr*f:&gt;x)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>f::{x^2}
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>x::5.0
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>lr::0.1
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>:&quot; Update rule: x = x - lr * grad
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>x::x-(lr*f:&gt;x)
 </code></pre></div></p>
 <h3 id="multi-parameter-gradients">Multi-Parameter Gradients<a class="headerlink" href="#multi-parameter-gradients" title="Permanent link">&para;</a></h3>
 <p>Compute gradients for multiple parameters simultaneously using a list of symbols:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>w::2.0
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>b::3.0
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>loss::{(w^2)+(b^2)}
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>:&quot; Compute gradients for both w and b
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>grads::loss:&gt;[w b]    :&quot; [4.0 6.0] = [2w, 2b]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>w::2.0
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>b::3.0
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>loss::{(w^2)+(b^2)}
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>:&quot; Compute gradients for both w and b
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>grads::loss:&gt;[w b]    :&quot; [4.0 6.0] = [2w, 2b]
 </code></pre></div>
 <p>This is especially useful for neural network training:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>w::1.0
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>b::0.0
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>X::[1 2 3]
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>Y::[3 5 7]
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>:&quot; MSE loss
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>loss::{(+/((w*X)+b-Y)^2)%3}
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>:&quot; Compute both gradients in one call
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>grads::loss:&gt;[w b]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>w::1.0
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>b::0.0
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>X::[1 2 3]
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>Y::[3 5 7]
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>:&quot; MSE loss
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>loss::{(+/((w*X)+b-Y)^2)%3}
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>:&quot; Compute both gradients in one call
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>grads::loss:&gt;[w b]
 </code></pre></div>
 <h3 id="jacobian-computation">Jacobian Computation<a class="headerlink" href="#jacobian-computation" title="Permanent link">&para;</a></h3>
 <p>Compute the Jacobian matrix (matrix of partial derivatives) using the <code>∂</code> operator or <code>.jacobian()</code> function:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>f::{x^2}                 :&quot; Element-wise square
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>:&quot; Using ∂ operator (point∂function)
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>[1 2]∂f                  :&quot; [[2 0] [0 4]] diagonal matrix
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>:&quot; Using .jacobian() function
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>.jacobian(f;[1 2])       :&quot; Same result
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>f::{x^2}                 :&quot; Element-wise square
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>:&quot; Using ∂ operator (point∂function)
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>[1 2]∂f                  :&quot; [[2 0] [0 4]] diagonal matrix
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>:&quot; Using .jacobian() function
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>.jacobian(f;[1 2])       :&quot; Same result
 </code></pre></div>
 <p>For vector-valued functions f: R^n -&gt; R^m, the Jacobian is an m x n matrix where J[i,j] = df_i/dx_j.</p>
 <h3 id="multi-parameter-jacobians">Multi-Parameter Jacobians<a class="headerlink" href="#multi-parameter-jacobians" title="Permanent link">&para;</a></h3>
 <p>Just like gradients, you can compute Jacobians with respect to multiple parameters using a list of symbols:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>w::[1.0 2.0]
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>b::[3.0 4.0]
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>f::{w^2}                 :&quot; Returns [w0^2, w1^2]
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>:&quot; Compute Jacobians for both w and b
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>jacobians::[w b]∂f       :&quot; Returns [J_w, J_b]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>w::[1.0 2.0]
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>b::[3.0 4.0]
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>f::{w^2}                 :&quot; Returns [w0^2, w1^2]
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>:&quot; Compute Jacobians for both w and b
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>jacobians::[w b]∂f       :&quot; Returns [J_w, J_b]
 </code></pre></div>
 <p>This returns a list of Jacobian matrices, one per parameter. Useful for analyzing how vector-valued functions depend on multiple parameter sets.</p>
 <h3 id="custom-optimizers">Custom Optimizers<a class="headerlink" href="#custom-optimizers" title="Permanent link">&para;</a></h3>
 <p>KlongPy provides the gradient primitives (<code>:&gt;</code>, <code>∂</code>, <code>.jacobian()</code>). For optimizers, use the example classes in <code>examples/autograd/optimizers.py</code> which you can copy to your project and customize.</p>
 <p><strong>Manual gradient descent (no optimizer needed):</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>w::10.0
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>loss::{w^2}
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>lr::0.1
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>:&quot; Update rule: w = w - lr * gradient
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>{w::w-(lr*loss:&gt;w)}&#39;!50
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>w                        :&quot; Close to 0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>w::10.0
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>loss::{w^2}
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>lr::0.1
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>:&quot; Update rule: w = w - lr * gradient
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>{w::w-(lr*loss:&gt;w)}&#39;!50
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>w                        :&quot; Close to 0
 </code></pre></div></p>
 <p><strong>Using a custom optimizer class:</strong></p>
 <ol>
 <li>Copy <code>examples/autograd/optimizers.py</code> to your project directory</li>
 <li>Import with <code>.pyf()</code>:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>:&quot; Import the optimizer class
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>.pyf(&quot;optimizers&quot;;&quot;SGDOptimizer&quot;)
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>:&quot; Setup parameters and loss
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>w::10.0
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>loss::{w^2}
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>:&quot; Create optimizer with learning rate 0.1
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>opt::SGDOptimizer(klong;[&quot;w&quot;];:{[&quot;lr&quot; 0.1]})
-<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>
-<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>:&quot; Run optimization steps
-<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>{opt(loss)}&#39;!50
-<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>w                        :&quot; Close to 0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>:&quot; Import the optimizer class
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>.pyf(&quot;optimizers&quot;;&quot;SGDOptimizer&quot;)
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>:&quot; Setup parameters and loss
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>w::10.0
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>loss::{w^2}
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>:&quot; Create optimizer with learning rate 0.1
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>opt::SGDOptimizer(klong;[&quot;w&quot;];:{[&quot;lr&quot; 0.1]})
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>:&quot; Run optimization steps
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>{opt(loss)}&#39;!50
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>w                        :&quot; Close to 0
 </code></pre></div>
 <p><strong>Available example optimizers:</strong>
 - <code>SGDOptimizer</code> - Stochastic Gradient Descent with optional momentum
 - <code>AdamOptimizer</code> - Adam optimizer with adaptive learning rates</p>
 <p><strong>SGD with momentum:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>.pyf(&quot;optimizers&quot;;&quot;SGDOptimizer&quot;)
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>opt::SGDOptimizer(klong;[&quot;w&quot;];:{[&quot;lr&quot; 0.01 &quot;momentum&quot; 0.9]})
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>.pyf(&quot;optimizers&quot;;&quot;SGDOptimizer&quot;)
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>opt::SGDOptimizer(klong;[&quot;w&quot;];:{[&quot;lr&quot; 0.01 &quot;momentum&quot; 0.9]})
 </code></pre></div></p>
 <p><strong>Adam optimizer:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>.pyf(&quot;optimizers&quot;;&quot;AdamOptimizer&quot;)
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>opt::AdamOptimizer(klong;[&quot;w&quot; &quot;b&quot;];:{[&quot;lr&quot; 0.001]})
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>.pyf(&quot;optimizers&quot;;&quot;AdamOptimizer&quot;)
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>opt::AdamOptimizer(klong;[&quot;w&quot; &quot;b&quot;];:{[&quot;lr&quot; 0.001]})
 </code></pre></div></p>
 <p><strong>Training loop example:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>.pyf(&quot;optimizers&quot;;&quot;AdamOptimizer&quot;)
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>w::1.0;b::0.0
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>X::[1 2 3];Y::[3 5 7]
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>loss::{(+/((w*X)+b-Y)^2)%3}
-<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>opt::AdamOptimizer(klong;[&quot;w&quot; &quot;b&quot;];:{[&quot;lr&quot; 0.1]})
-<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>
-<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>:&quot; Train for 500 steps
-<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>{opt(loss)}&#39;!500
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>.pyf(&quot;optimizers&quot;;&quot;AdamOptimizer&quot;)
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>w::1.0;b::0.0
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>X::[1 2 3];Y::[3 5 7]
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>loss::{(+/((w*X)+b-Y)^2)%3}
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>opt::AdamOptimizer(klong;[&quot;w&quot; &quot;b&quot;];:{[&quot;lr&quot; 0.1]})
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>:&quot; Train for 500 steps
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>{opt(loss)}&#39;!500
 </code></pre></div></p>
 <p><strong>Creating your own optimizer:</strong></p>
 <p>The example optimizers use <code>multi_grad_of_fn</code> from <code>klongpy.autograd</code> to compute gradients for multiple parameters. Copy and modify the optimizer classes to implement custom update rules (RMSprop, AdaGrad, learning rate schedules, etc.).</p>
 <h2 id="gpu-acceleration">GPU Acceleration<a class="headerlink" href="#gpu-acceleration" title="Permanent link">&para;</a></h2>
 <p>When CUDA or Apple MPS is available, tensors automatically use GPU:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">KlongInterpreter</span>
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;USE_TORCH&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;1&#39;</span>
-<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>
-<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="n">klong</span> <span class="o">=</span> <span class="n">KlongInterpreter</span><span class="p">()</span>
-<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">klong</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>  <span class="c1"># &#39;cuda:0&#39;, &#39;mps:0&#39;, or &#39;cpu&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">KlongInterpreter</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="n">klong</span> <span class="o">=</span> <span class="n">KlongInterpreter</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="s1">&#39;torch&#39;</span><span class="p">)</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">klong</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>  <span class="c1"># &#39;cuda:0&#39;, &#39;mps:0&#39;, or &#39;cpu&#39;</span>
 </code></pre></div>
 <h3 id="device-selection">Device Selection<a class="headerlink" href="#device-selection" title="Permanent link">&para;</a></h3>
 <p>The backend automatically selects the best available device:
@@ -1927,20 +1976,18 @@
 - Some operations fall back to CPU</p>
 <h2 id="mixing-with-python">Mixing with Python<a class="headerlink" href="#mixing-with-python" title="Permanent link">&para;</a></h2>
 <p>Access torch tensors directly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">KlongInterpreter</span>
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;USE_TORCH&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;1&#39;</span>
-<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>
-<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="n">klong</span> <span class="o">=</span> <span class="n">KlongInterpreter</span><span class="p">()</span>
-<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>
-<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="c1"># KlongPy operations return torch tensors</span>
-<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="n">result</span> <span class="o">=</span> <span class="n">klong</span><span class="p">(</span><span class="s1">&#39;2*1+!1000000&#39;</span><span class="p">)</span>
-<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="nb">print</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>  <span class="c1"># &lt;class &#39;torch.Tensor&#39;&gt;</span>
-<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>  <span class="c1"># cuda:0, mps:0, or cpu</span>
-<a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a>
-<a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="c1"># Convert to numpy when needed</span>
-<a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="n">np_result</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">klongpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">KlongInterpreter</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="n">klong</span> <span class="o">=</span> <span class="n">KlongInterpreter</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="s1">&#39;torch&#39;</span><span class="p">)</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="c1"># KlongPy operations return torch tensors</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="n">result</span> <span class="o">=</span> <span class="n">klong</span><span class="p">(</span><span class="s1">&#39;2*1+!1000000&#39;</span><span class="p">)</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="nb">print</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>  <span class="c1"># &lt;class &#39;torch.Tensor&#39;&gt;</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>  <span class="c1"># cuda:0, mps:0, or cpu</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="c1"># Convert to numpy when needed</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="n">np_result</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
 </code></pre></div>
 <h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
 <ol>
@@ -1961,16 +2008,16 @@
 <p>The torch backend supports compiling Klong functions for optimized execution using <code>torch.compile</code>:</p>
 <h3 id="compilefninput-compile-function"><code>.compile(fn;input)</code> - Compile Function<a class="headerlink" href="#compilefninput-compile-function" title="Permanent link">&para;</a></h3>
 <p>Compiles a function for faster execution:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>f::{x^2}
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>cf::.compile(f;3.0)      :&quot; Returns compiled function
-<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>cf(5.0)                   :&quot; 25.0 (optimized)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>f::{x^2}
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>cf::.compile(f;3.0)      :&quot; Returns compiled function
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>cf(5.0)                   :&quot; 25.0 (optimized)
 </code></pre></div>
 <p>The compiled function runs significantly faster for complex computations.</p>
 <h3 id="exportfninputpath-export-computation-graph"><code>.export(fn;input;path)</code> - Export Computation Graph<a class="headerlink" href="#exportfninputpath-export-computation-graph" title="Permanent link">&para;</a></h3>
 <p>Exports the function's computation graph to a file for inspection:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>f::{(x^3)+(2*x^2)+x}
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>info::.export(f;2.0;&quot;model.pt2&quot;)
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>.p(info@&quot;graph&quot;)         :&quot; Print computation graph
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>f::{(x^3)+(2*x^2)+x}
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>info::.export(f;2.0;&quot;model.pt2&quot;)
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>.p(info@&quot;graph&quot;)         :&quot; Print computation graph
 </code></pre></div>
 <p>Returns a dictionary with:
 - <code>"compiled_fn"</code> - The compiled function
@@ -1979,16 +2026,16 @@
 <p>The exported <code>.pt2</code> file can be loaded with <code>torch.export.load()</code> in Python.</p>
 <h3 id="compilexfninputoptions-extended-compilation"><code>.compilex(fn;input;options)</code> - Extended Compilation<a class="headerlink" href="#compilexfninputoptions-extended-compilation" title="Permanent link">&para;</a></h3>
 <p>Compile with advanced options for mode and backend:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>f::{x^2}
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>
-<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>:&quot; Fast compilation for development
-<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>cf::.compilex(f;3.0;:{[&quot;mode&quot; &quot;reduce-overhead&quot;]})
-<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>
-<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>:&quot; Maximum optimization for production
-<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>cf::.compilex(f;3.0;:{[&quot;mode&quot; &quot;max-autotune&quot;]})
-<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>
-<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>:&quot; Debug mode (no compilation)
-<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a>cf::.compilex(f;3.0;:{[&quot;backend&quot; &quot;eager&quot;]})
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>f::{x^2}
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>:&quot; Fast compilation for development
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>cf::.compilex(f;3.0;:{[&quot;mode&quot; &quot;reduce-overhead&quot;]})
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>:&quot; Maximum optimization for production
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>cf::.compilex(f;3.0;:{[&quot;mode&quot; &quot;max-autotune&quot;]})
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>:&quot; Debug mode (no compilation)
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>cf::.compilex(f;3.0;:{[&quot;backend&quot; &quot;eager&quot;]})
 </code></pre></div>
 <p><strong>Options dictionary:</strong>
 - <code>"mode"</code> - Compilation mode (see table below)
@@ -1997,10 +2044,10 @@
 - <code>"dynamic"</code> - Set to 1 for dynamic shapes, 0 for static</p>
 <h3 id="cmodes-query-compilation-modes"><code>.cmodes()</code> - Query Compilation Modes<a class="headerlink" href="#cmodes-query-compilation-modes" title="Permanent link">&para;</a></h3>
 <p>Get information about available modes and backends:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>info::.cmodes()
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>.p(info@&quot;modes&quot;)          :&quot; Available compilation modes
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>.p(info@&quot;backends&quot;)       :&quot; Available backends
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>.p(info@&quot;recommendations&quot;) :&quot; Suggested settings
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>info::.cmodes()
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>.p(info@&quot;modes&quot;)          :&quot; Available compilation modes
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>.p(info@&quot;backends&quot;)       :&quot; Available backends
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>.p(info@&quot;recommendations&quot;) :&quot; Suggested settings
 </code></pre></div>
 <h3 id="compilation-mode-comparison">Compilation Mode Comparison<a class="headerlink" href="#compilation-mode-comparison" title="Permanent link">&para;</a></h3>
 <table>
@@ -2065,11 +2112,11 @@
 <p>Use <code>.gradcheck()</code> to verify that autograd gradients are correct:</p>
 <h3 id="gradcheckfninputs-verify-gradients"><code>.gradcheck(fn;inputs)</code> - Verify Gradients<a class="headerlink" href="#gradcheckfninputs-verify-gradients" title="Permanent link">&para;</a></h3>
 <p>Verifies autograd gradients against numeric gradients:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>f::{x^2}
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>.gradcheck(f;3.0)        :&quot; Returns 1 if correct
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>g::{+/x^2}
-<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>.gradcheck(g;[1.0 2.0 3.0])  :&quot; Returns 1
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>f::{x^2}
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>.gradcheck(f;3.0)        :&quot; Returns 1 if correct
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>g::{+/x^2}
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>.gradcheck(g;[1.0 2.0 3.0])  :&quot; Returns 1
 </code></pre></div>
 <p>This uses <code>torch.autograd.gradcheck</code> internally for rigorous verification.</p>
 <p><strong>Use cases:</strong>

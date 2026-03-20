@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -340,6 +340,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#example-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Projects
+      
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#1-basic-arithmetic" class="md-nav__link">
@@ -962,6 +973,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#example-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Projects
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#1-basic-arithmetic" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1114,6 +1136,21 @@
 </ul>
 <p>The reason that Klong functions only take up to 3 parameters AND name them for you is both convenience and compactness.</p>
 <hr />
+<h2 id="example-projects">Example Projects<a class="headerlink" href="#example-projects" title="Permanent link">&para;</a></h2>
+<p>Looking for full, runnable projects? These directories under <code>examples/</code> show end-to-end usage:</p>
+<ul>
+<li><a href="https://github.com/briangu/klongpy/tree/main/examples/1brc">1brc</a> — One Billion Row Challenge-style pipeline; parallel file reads in Python with vectorized KlongPy stats aggregation.</li>
+<li><a href="https://github.com/briangu/klongpy/tree/main/examples/autograd">autograd</a> — PyTorch-backed automatic differentiation; gradients, optimizers, neural nets, finance, and differentiable physics.</li>
+<li><a href="https://github.com/briangu/klongpy/tree/main/examples/db">db</a> — DuckDB/columnar table interop, persisted table store, and a web+db server for ingest/query.</li>
+<li><a href="https://github.com/briangu/klongpy/tree/main/examples/deploy">deploy</a> — Minimal Docker image that runs <code>kgpy</code> with a script path from <code>KG_FILE_PATH</code>.</li>
+<li><a href="https://github.com/briangu/klongpy/tree/main/examples/ipc">ipc</a> — IPC clients/servers, broadcast, and pub/sub patterns using <code>.srv</code>, <code>.cli</code>, and timers.</li>
+<li><a href="https://github.com/briangu/klongpy/tree/main/examples/math">math</a> — NumPy interop for FFT/trig; quick numeric examples using <code>.pyf</code>.</li>
+<li><a href="https://github.com/briangu/klongpy/tree/main/examples/ml">ml</a> — KNN, cosine similarity, transformer, and LSTM demos illustrating vectorized ML primitives.</li>
+<li><a href="https://github.com/briangu/klongpy/tree/main/examples/python">python</a> — Calling Python from Klong and Klong from Python; multiprocessing/threading patterns.</li>
+<li><a href="https://github.com/briangu/klongpy/tree/main/examples/stats_logging">stats_logging</a> — High-throughput stats ingestion with IPC + table storage, periodic flush and reporting.</li>
+<li><a href="https://github.com/briangu/klongpy/tree/main/examples/stocks">stocks</a> — Market data ingestion (yfinance/Alpaca/Polygon), Black-Scholes, and LSTM forecasting.</li>
+<li><a href="https://github.com/briangu/klongpy/tree/main/examples/web">web</a> — Minimal HTTP server with GET/POST handlers using <code>klongpy.web</code>.</li>
+</ul>
 <h2 id="1-basic-arithmetic">1. Basic Arithmetic<a class="headerlink" href="#1-basic-arithmetic" title="Permanent link">&para;</a></h2>
 <p>Let's get started with the basics and build up to some more interesting math.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>?&gt; 5+3*2 :&quot; Expressions are evaluated from right to left: 3*2 and then + 5
@@ -1260,7 +1297,7 @@
 </code></pre></div>
 <h3 id="pytorch-autograd-with-recommended-with-torch-backend">PyTorch Autograd with <code>:&gt;</code> (recommended with torch backend)<a class="headerlink" href="#pytorch-autograd-with-recommended-with-torch-backend" title="Permanent link">&para;</a></h3>
 <p>Enable the torch backend for exact gradients:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>$<span class="w"> </span><span class="nv">USE_TORCH</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>kgpy
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>$<span class="w"> </span>kgpy<span class="w"> </span>--backend<span class="w"> </span>torch
 </code></pre></div>
 <p>Use the <code>:&gt;</code> operator for PyTorch autograd. The syntax is <code>function:&gt;point</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>?&gt; f::{x^2}        :&quot; Define f(x) = x^2
