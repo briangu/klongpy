@@ -148,35 +148,35 @@ kgpy --backend numpy examples/bench_compiler.kg
 
 ### Expression Compiler Benchmark (Apple M1 Mac Studio)
 
-The expression compiler converts Klong ASTs to a backend-neutral IR, then generates platform-specific Python functions — eliminating interpreter dispatch and intermediate array allocation.
+Both backends include an expression compiler that converts Klong ASTs to a backend-neutral IR, then generates platform-specific Python functions. Expressions compile once and are cached — subsequent calls pay only execution cost.
 
-| Operation | NumPy | Torch CPU | Notes |
-|-----------|------:|----------:|-------|
-| **Dispatch overhead** (1K floats) | | | Per-call cost, 1000 iterations |
-| `a+b` | 0.042 ms | 0.035 ms | |
-| `a*2+b` | 0.046 ms | 0.041 ms | |
-| `(a*2+b)%(a+1)` | 0.056 ms | 0.056 ms | |
-| **Expression depth** (100K floats) | | | Deeper = more dispatch saved |
-| `a+b` (2 nodes) | 0.066 ms | 0.155 ms | |
-| `(a+b)*(a-b)` (6 nodes) | 0.124 ms | 0.390 ms | |
-| `(a*2+b*3)%(a+1)-(b*c)` (12 nodes) | 0.218 ms | 0.870 ms | |
-| **Lambda compilation** (100K floats) | | | Lambdas compile to native ops |
-| `{x+y}(a;b)` | 0.072 ms | 0.156 ms | Matches direct `a+b` |
-| `{(x+y)*(x-y)}` | 0.126 ms | 0.390 ms | Matches direct form |
-| `{+/x*y}(a;b)` fused reduce | 0.096 ms | 0.285 ms | Fused multiply + reduce |
-| **Fused reduce** (100K floats) | | | Compiled: one function call |
-| `+/a` sum | 0.065 ms | 0.150 ms | |
-| `+/a*b` dot product | 0.092 ms | 0.293 ms | Fused multiply + reduce |
-| `+/a*b+c` fused 3-var | 0.122 ms | 0.398 ms | |
-| **Running ops** (10K floats) | | | Biggest compiler win |
-| `+\ts` cumsum | 0.083 ms | 0.054 ms | |
-| `|\ts` running max | 24.63 ms | 0.068 ms | **362x** — compiled to `tensor.cummax` |
-| `(|\ts)-ts` drawdown | 24.65 ms | 0.072 ms | **342x** |
-| `|/(|\ts)-ts` max drawdown | 24.68 ms | 0.081 ms | **305x** |
-| **Real-world** (100K elements) | | | |
-| `(+/p*s)%+/s` VWAP | 0.151 ms | 0.512 ms | |
-| `vwap(p;s)` lambda VWAP | 0.151 ms | 0.489 ms | Lambda matches direct |
-| `a-(+/a)%#a` de-mean | 0.088 ms | 0.292 ms | |
+Times are per-call averages over 1000 iterations.
+
+| Operation | Elements | NumPy | Torch CPU |
+|-----------|------:|------:|----------:|
+| **Arithmetic** | | | |
+| `a+b` | 100K | 0.066 ms | 0.155 ms |
+| `a*2+b` | 100K | 0.091 ms | 0.276 ms |
+| `(a+b)*(a-b)` | 100K | 0.124 ms | 0.390 ms |
+| `(a*2+b*3)%(a+1)-(b*c)` | 100K | 0.218 ms | 0.870 ms |
+| **Lambdas** | | | |
+| `{x+y}(a;b)` | 100K | 0.074 ms | 0.156 ms |
+| `{(x+y)*(x-y)}(a;b)` | 100K | 0.129 ms | 0.390 ms |
+| `{+/x*y}(a;b)` | 100K | 0.098 ms | 0.285 ms |
+| **Reduce** | | | |
+| `+/a` | 100K | 0.065 ms | 0.150 ms |
+| `+/a*b` | 100K | 0.095 ms | 0.293 ms |
+| **Scan** | | | |
+| `+\ts` cumsum | 10K | 0.083 ms | 0.054 ms |
+| `|\ts` running max | 10K | 24.63 ms | 0.068 ms |
+| `(|\ts)-ts` drawdown | 10K | 24.65 ms | 0.072 ms |
+| `|/(|\ts)-ts` max drawdown | 10K | 24.68 ms | 0.081 ms |
+| **Real-world** | | | |
+| `(+/p*s)%+/s` VWAP | 100K | 0.151 ms | 0.512 ms |
+| `vwap::{(+/x*y)%+/y}; vwap(p;s)` | 100K | 0.151 ms | 0.489 ms |
+| `a-(+/a)%#a` de-mean | 100K | 0.088 ms | 0.292 ms |
+
+NumPy is faster for element-wise and reduce operations on CPU. Torch excels at scan operations where it compiles to native tensor methods (`cummax`, `cumsum`) — running max is **362x faster** than NumPy's interpreter fallback. Torch's full advantage appears on GPU (`--device cuda` or `--device mps`).
 
 ## Complete Feature Set
 
