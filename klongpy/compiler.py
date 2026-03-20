@@ -5,7 +5,7 @@ Compiles Klong expression ASTs to a backend-neutral IR (tuple tree),
 then delegates to the active backend for platform-specific code generation.
 Falls back to None (interpreter handles it) for anything it can't compile.
 """
-from .types import KGSym, KGFn, KGCall, KGOp, KGAdverb, reserved_fn_symbols
+from .types import KGSym, KGFn, KGCall, KGOp, KGAdverb
 
 
 # Arithmetic ops the IR supports

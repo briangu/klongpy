@@ -58,6 +58,9 @@ class TestNumpyModule:
 
     def __getattr__(self, name):
         attr = getattr(self._np, name)
+        # Pass through types/classes directly (needed for isinstance checks)
+        if isinstance(attr, type):
+            return attr
         if isinstance(attr, np.ufunc):
             return TestUfunc(attr, self._wrap_result)
         if callable(attr):
@@ -69,7 +72,7 @@ class TestNumpyModule:
 
 class TestBackendProvider(NumpyBackendProvider):
     def __init__(self, device=None):
-        super().__init__(device=device)
+        super().__init__(device=None)
         self._np = TestNumpyModule(np)
 
     @property
