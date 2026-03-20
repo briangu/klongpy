@@ -81,6 +81,31 @@ def eval_adverb_each(f, a, op, backend):
     return f(a)
 
 
+def eval_adverb_each_index(f, a, op, backend):
+    """
+
+        f@'a                                                 [Each-Index]
+
+        If "a" is a list, apply "f" to [index;element] pairs for each
+        member of "a":
+
+        f@'a  -->  f([0;a1]),f([1;a2]),...,f([N-1;aN])
+
+        Similar to Python's enumerate(), this gives the function access
+        to both the index and the value at each position.
+
+        Examples:  {x@0}@'[10 20 30]        -->  [0 1 2]
+                   {x@1}@'[10 20 30]        -->  [10 20 30]
+                   {(x@0)*(x@1)}@'[10 20 30]  -->  [0 20 60]
+    """
+    if is_empty(a):
+        return a
+    if is_iterable(a):
+        r = [f(backend.kg_asarray([i, x])) for i, x in enumerate(a)]
+        return backend.kg_asarray(r)
+    return f(backend.kg_asarray([0, a]))
+
+
 def eval_adverb_each2(f, a, b):
     """
 
@@ -430,4 +455,6 @@ def get_adverb_fn(klong, s, arity):
         return eval_dyad_adverb_iterate
     elif s == ':~':
         return (lambda f,a,b: eval_adverb_while(klong,f,a,b)) if arity == 2 else lambda f,a,op: eval_adverb_converge(f,a,op,backend)
+    elif s == "@'":
+        return lambda f,a,op: eval_adverb_each_index(f,a,op,backend)
     raise RuntimeError(f"unknown adverb: {s}")

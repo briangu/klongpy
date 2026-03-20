@@ -1,0 +1,47 @@
+:" Tests for each-index adverb @'"
+
+:" test_each_index_get_indices - extract indices"
+eir1::{x@0}@'[10 20 30]
+t("each-index indices"; eir1; [0 1 2])
+
+:" test_each_index_get_values - extract values"
+eir2::{x@1}@'[10 20 30]
+t("each-index values"; eir2; [10 20 30])
+
+:" test_each_index_computation - index times value"
+eir3::{(x@0)*(x@1)}@'[10 20 30]
+t("each-index idx*val"; eir3; [0 20 60])
+
+:" test_each_index_empty - empty array"
+eir4::{x}@'[]
+t("each-index empty"; #eir4; 0)
+
+:" test_each_index_single - single element"
+eir5::{x@0}@'[42]
+t("each-index single"; eir5; [0])
+
+:" test_each_index_add_index - add index to each value"
+eir6::{(x@0)+(x@1)}@'[100 200 300]
+t("each-index add"; eir6; [100 201 302])
+
+:" test_each_index_enumerate - get [index;value] pairs"
+eipairs::{x}@'[5 6 7]
+t("each-index pair 0"; eipairs@0; [0 5])
+t("each-index pair 1"; eipairs@1; [1 6])
+t("each-index pair 2"; eipairs@2; [2 7])
+
+:" test_each_index_filter_by_index - conditional based on index"
+eieven::{:[0=(x@0)!2;x@1;0]}
+eir7::eieven@'[10 20 30 40]
+t("each-index even filter"; eir7; [10 0 30 0])
+
+:" test_each_index_weights - weighted sum using indices"
+eiweights::{(x@0)+1}
+eir8::eiweights@'[0 0 0 0]
+t("each-index weights"; eir8; [1 2 3 4])
+
+:" test_each_index_with_function - using named function"
+:" Note: Klong evaluates right-to-left, so use explicit parens"
+eifn::{((x@0)*10)+(x@1)}
+eir9::eifn@'[5 6 7]
+t("each-index named fn"; eir9; [5 16 27])

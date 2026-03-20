@@ -1,0 +1,48 @@
+:" Tests for evaluated array constructors [;expr1;expr2;...]"
+
+:" test_eval_array_basic - basic arithmetic expressions"
+ear1::[;1+1;2+2;3+3]
+t("eval array basic"; ear1; [2 4 6])
+
+:" test_eval_array_single - single element"
+ear2::[;42]
+t("eval array single"; ear2; [42])
+
+:" test_eval_array_empty - empty array"
+ear3::[;]
+t("eval array empty"; #ear3; 0)
+
+:" test_eval_array_variables - with variable references"
+eaA::10
+eaB::20
+ear4::[;eaA;eaB;eaA+eaB]
+t("eval array vars"; ear4; [10 20 30])
+
+:" test_eval_array_function_calls - with function calls"
+eavg::{(+/x)%#x}
+earr::[1 2 3 4 5]
+ear5::[;eavg(earr)]
+t("eval array avg"; ear5; [3.0])
+
+ear6::[;+/earr]
+t("eval array sum"; ear6; [15])
+
+ear7::[;#earr]
+t("eval array count"; ear7; [5])
+
+:" test_eval_array_nested - arrays containing arrays"
+eaX::[1 2 3]
+eaY::[4 5 6]
+ear8::[;eaX;eaY]
+t("eval array nested len"; #ear8; 2)
+t("eval array nested @0"; ear8@0; [1 2 3])
+t("eval array nested @1"; ear8@1; [4 5 6])
+
+:" test_eval_array_complex_expr - complex expressions"
+ear9::[;1+2*3;(4+5)*6]
+t("eval array complex"; ear9; [7 54])
+
+:" test_eval_array_in_function - used inside a function"
+eamake::{[;x;x*2;x*3]}
+ear10::eamake(5)
+t("eval array in fn"; ear10; [5 10 15])

@@ -247,6 +247,11 @@ f::{x^2}
 f'[1 2 3]               :" Each: apply f to each -> [1 4 9]"
 +/[1 2 3]               :" Over: fold/reduce -> 6"
 +\[1 2 3]               :" Scan: running fold -> [1 3 6]"
+{x@0}@'[10 20 30]       :" Each-Index: enumerate -> [0 1 2]"
+
+:" Evaluated arrays (expressions evaluated at construction)"
+a::10; b::20
+[;a;b;a+b]              :" -> [10 20 30]"
 
 :" Autograd"
 f::{x^2}

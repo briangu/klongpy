@@ -83,6 +83,8 @@ __all__ = [
     # Parser - comment
     'read_shifted_comment',
     'read_sys_comment',
+    'read_expr_array',
+    'KGExprArray',
     # Parser - lexeme readers
     'read_num',
     'read_char',

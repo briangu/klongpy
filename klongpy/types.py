@@ -419,7 +419,8 @@ def is_adverb(s):
         ':*',
         '\\',
         '\\~',
-        '\\*'
+        '\\*',
+        "@'"
     }
 
 
@@ -443,6 +444,8 @@ def get_adverb_arity(s, ctx):
     elif s == '\\~':
         return 1
     elif s == '\\*':
+        return 1
+    elif s == "@'":
         return 1
     raise RuntimeError(f"unknown adverb: {s}")
 

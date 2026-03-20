@@ -316,7 +316,7 @@ def eval_monad_reciprocal(a, backend):
     return backend.vec_fn(a, lambda x: bknp.reciprocal(bknp.asarray(x, dtype=float)))
 
 
-def eval_monad_reverse(a):
+def eval_monad_reverse(a, backend):
     """
 
         |a                                                     [Reverse]
@@ -330,6 +330,13 @@ def eval_monad_reverse(a):
                               |1  -->  1
 
     """
+    if backend.is_backend_array(a):
+        np_mod = backend.np
+        if hasattr(np_mod, 'flip'):
+            try:
+                return np_mod.flip(a, dims=[0])  # torch style
+            except TypeError:
+                return np_mod.flip(a, axis=0)  # numpy style
     return a[::-1]
 
 
@@ -483,13 +490,13 @@ def create_monad_functions(klong):
         '@': eval_monad_atom,
         '&': eval_monad_expand_where,
         '*': eval_monad_first,
-        '|': eval_monad_reverse,
         '+': eval_monad_transpose,
         '˙': eval_monad_track,
     }
 
     # Monads needing backend
     backend_monads = {
+        '|': lambda a: eval_monad_reverse(a, backend),
         ',': lambda a: eval_monad_list(a, backend),
         ':#': lambda a: eval_monad_char(a, backend),
         '!': lambda a: eval_monad_enumerate(a, backend),

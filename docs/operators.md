@@ -206,6 +206,7 @@ info::.export(f;2.0;"model.pt2")
 | Adverb | Name | Description |
 |--------|------|-------------|
 | `f'a` | Each | Apply f to each element |
+| `f@'a` | Each-Index | Apply f to [index;element] pairs |
 | `f/a` | Over | Reduce with f |
 | `f\a` | Scan | Scan with f |
 | `n f'a` | Each-n | Apply f to groups of n |
@@ -213,6 +214,46 @@ info::.export(f;2.0;"model.pt2")
 | `f:*a` | Iterate | Iterate f until stable |
 | `n f:*a` | Iterate-n | Iterate f n times |
 | `f:~a` | Converge | Converge with condition |
+
+### Each-Index Adverb: `@'`
+
+The `@'` adverb applies a function to `[index;element]` pairs, similar to Python's `enumerate()`:
+
+```klong
+:" Get indices"
+{x@0}@'[10 20 30]           :" [0 1 2]"
+
+:" Get values (same as regular each)"
+{x@1}@'[10 20 30]           :" [10 20 30]"
+
+:" Use both index and value"
+{(x@0)*(x@1)}@'[10 20 30]   :" [0 20 60]"
+
+:" Add index to each value"
+{(x@0)+(x@1)}@'[100 200 300] :" [100 201 302]"
+```
+
+### Evaluated Array Constructors: `[;...]`
+
+The `[;expr1;expr2;...]` syntax creates arrays by evaluating each expression:
+
+```klong
+:" Basic expressions"
+[;1+1;2+2;3+3]              :" [2 4 6]"
+
+:" With variables and function calls"
+a::10; b::20
+[;a;b;a+b]                  :" [10 20 30]"
+
+:" With function results"
+avg::{(+/x)%#x}
+arr::[1 2 3 4 5]
+[;avg(arr);+/arr;#arr]       :" [3.0 15 5]"
+
+:" Inside a function"
+make::{[;x;x*2;x*3]}
+make(5)                      :" [5 10 15]"
+```
 
 ## Unused Operators
 
