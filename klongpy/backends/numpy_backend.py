@@ -160,7 +160,7 @@ class NumpyBackendProvider(BackendProvider):
             arg_src = self._ir_to_source(arg)
             if arg_src is None:
                 return None
-            method = {'+': 'np.sum', '*': 'np.prod', '|': 'np.max', '&': 'np.min'}.get(op)
+            method = {'+': 'np.add.reduce', '*': 'np.multiply.reduce', '|': 'np.maximum.reduce', '&': 'np.minimum.reduce'}.get(op)
             if method is None:
                 return None
             return f'{method}({arg_src})'

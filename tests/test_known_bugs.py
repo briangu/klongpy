@@ -1,12 +1,18 @@
 import unittest
 
-import pandas as pd
+try:
+    import pandas as pd
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
+
 from utils import *
 
 from klongpy import KlongInterpreter
 from klongpy.core import KGChar, KGSym
 
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestKnownBugsSuite(unittest.TestCase):
 
     @unittest.skip

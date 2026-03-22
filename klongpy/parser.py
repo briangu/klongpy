@@ -92,7 +92,7 @@ def read_sys_comment(t, i, a):
             j += 1
         return i + j + len(a)
     except ValueError:
-        return RuntimeError("end of comment not found")
+        raise RuntimeError("end of comment not found")
 
 
 # Whitespace handling
@@ -128,7 +128,7 @@ def read_num(t, i=0):
             use_float = True
         elif t[i] == 'e':
             use_float = True
-            if cmatch(t, i+1, '-'):
+            if cmatch(t, i+1, '-') or cmatch(t, i+1, '+'):
                 i += 2
         elif not t[i].isnumeric():
             break

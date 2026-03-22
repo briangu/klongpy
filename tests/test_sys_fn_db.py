@@ -1,12 +1,18 @@
 import unittest
 
 import numpy as np
-import pandas as pd
+
+try:
+    import pandas as pd
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
 
 from klongpy import KlongInterpreter
 from tests.backend_compat import requires_strings
 
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestLocalScopeBehavior(unittest.TestCase):
     """
     KlongPy uses the DuckDb's ability to scope in dataframes into table space.
@@ -23,6 +29,7 @@ class TestLocalScopeBehavior(unittest.TestCase):
         self.assertTrue(locals().get("hello") is None)
 
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestTablePrint(unittest.TestCase):
 
     @requires_strings
@@ -49,6 +56,7 @@ class TestTablePrint(unittest.TestCase):
         self.assertEqual(r, f"""a\n{seq}...\nrows=100\n""")
 
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestTableDataFrame(unittest.TestCase):
 
     def test_table_from_empty_df(self):

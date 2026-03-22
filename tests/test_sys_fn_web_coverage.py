@@ -2,15 +2,21 @@ import asyncio
 import unittest
 from unittest.mock import MagicMock, AsyncMock, patch
 
+try:
+    from klongpy.web.sys_fn_web import (
+        WebServerHandle,
+        create_system_functions_web,
+        eval_sys_fn_shutdown_web_server,
+    )
+    HAS_WEB = True
+except ImportError:
+    HAS_WEB = False
+
 from klongpy import KlongInterpreter
 from klongpy.core import KGCall, KGLambda, KGSym
-from klongpy.web.sys_fn_web import (
-    WebServerHandle,
-    create_system_functions_web,
-    eval_sys_fn_shutdown_web_server,
-)
 
 
+@unittest.skipUnless(HAS_WEB, "requires aiohttp")
 class TestWebServerHandle(unittest.TestCase):
     def test_str_with_bind(self):
         handle = WebServerHandle("127.0.0.1", 8080, None, None)
@@ -33,6 +39,7 @@ class TestWebServerHandle(unittest.TestCase):
         self.assertIsNone(handle.task)
 
 
+@unittest.skipUnless(HAS_WEB, "requires aiohttp")
 class TestShutdownWebServer(unittest.TestCase):
     def test_shutdown_non_kgcall(self):
         klong = KlongInterpreter()
@@ -57,6 +64,7 @@ class TestShutdownWebServer(unittest.TestCase):
         self.assertEqual(result, 0)
 
 
+@unittest.skipUnless(HAS_WEB, "requires aiohttp")
 class TestCreateSystemFunctions(unittest.TestCase):
     def test_create_system_functions_web(self):
         registry = create_system_functions_web()

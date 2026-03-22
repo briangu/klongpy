@@ -3,20 +3,24 @@ import shutil
 import tempfile
 import unittest
 
-import pandas as pd
+try:
+    import pandas as pd
+    from klongpy.core import KLONG_UNDEFINED
+    from klongpy.db.sys_fn_kvs import (
+        TableStorage,
+        KeyValueStorage,
+        KlongKvsException,
+        eval_sys_fn_create_table_storage,
+        eval_sys_fn_create_kvs,
+        create_system_functions_kvs,
+    )
+    from klongpy.db.sys_fn_db import Table
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
 
-from klongpy.core import KLONG_UNDEFINED
-from klongpy.db.sys_fn_kvs import (
-    TableStorage,
-    KeyValueStorage,
-    KlongKvsException,
-    eval_sys_fn_create_table_storage,
-    eval_sys_fn_create_kvs,
-    create_system_functions_kvs,
-)
-from klongpy.db.sys_fn_db import Table
 
-
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestTableStorage(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -76,6 +80,7 @@ class TestTableStorage(unittest.TestCase):
         self.assertIn("tables", result)
 
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestKeyValueStorage(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -123,6 +128,7 @@ class TestKeyValueStorage(unittest.TestCase):
         self.assertIn("kvs", result)
 
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestCreateFunctions(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -149,6 +155,7 @@ class TestCreateFunctions(unittest.TestCase):
         self.assertIn("root path must be a string", str(ctx.exception))
 
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestCreateSystemFunctionsKvs(unittest.TestCase):
     def test_create_system_functions_kvs(self):
         registry = create_system_functions_kvs()

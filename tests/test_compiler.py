@@ -704,7 +704,7 @@ class TestInterpreterIntegration(unittest.TestCase):
         klong['a'] = torch.tensor([1.0, 2.0])
         klong['b'] = torch.tensor([3.0, 4.0])
         klong('a+b')
-        self.assertIn('a+b', klong._compiled_cache)
+        self.assertIn(('a+b', None), klong._compiled_cache)
 
     def test_cache_cleared_on_setitem(self):
         from klongpy import KlongInterpreter
@@ -713,7 +713,7 @@ class TestInterpreterIntegration(unittest.TestCase):
         klong['a'] = torch.tensor([1.0])
         klong['b'] = torch.tensor([2.0])
         klong('a+b')
-        self.assertIn('a+b', klong._compiled_cache)
+        self.assertIn(('a+b', None), klong._compiled_cache)
         klong['a'] = torch.tensor([10.0])
         self.assertEqual(len(klong._compiled_cache), 0)
 
@@ -724,7 +724,7 @@ class TestInterpreterIntegration(unittest.TestCase):
         klong['a'] = torch.tensor([1.0])
         klong['b'] = torch.tensor([2.0])
         klong('a+b')
-        self.assertIn('a+b', klong._compiled_cache)
+        self.assertIn(('a+b', None), klong._compiled_cache)
         del klong['a']
         self.assertEqual(len(klong._compiled_cache), 0)
 

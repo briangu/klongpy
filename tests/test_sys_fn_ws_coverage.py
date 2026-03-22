@@ -8,22 +8,28 @@ import numpy as np
 from utils import LoopsBase
 
 from klongpy import KlongInterpreter
-from klongpy.ws.sys_fn_ws import (
-    NumpyEncoder,
-    encode_message,
-    decode_message,
-    ConnectionProvider,
-    ClientConnectionProvider,
-    ExistingConnectionProvider,
-    NetworkClient,
-    KlongWSCreateConnectionException,
-    KlongWSConnectionFailureException,
-    create_system_functions_websockets,
-    create_system_var_websockets,
-    eval_sys_fn_shutdown_client,
-)
+
+try:
+    from klongpy.ws.sys_fn_ws import (
+        NumpyEncoder,
+        encode_message,
+        decode_message,
+        ConnectionProvider,
+        ClientConnectionProvider,
+        ExistingConnectionProvider,
+        NetworkClient,
+        KlongWSCreateConnectionException,
+        KlongWSConnectionFailureException,
+        create_system_functions_websockets,
+        create_system_var_websockets,
+        eval_sys_fn_shutdown_client,
+    )
+    HAS_WS = True
+except ImportError:
+    HAS_WS = False
 
 
+@unittest.skipUnless(HAS_WS, "requires websockets")
 class TestNumpyEncoder(unittest.TestCase):
     def test_encode_numpy_array(self):
         arr = np.array([1, 2, 3])
@@ -38,6 +44,7 @@ class TestNumpyEncoder(unittest.TestCase):
         self.assertEqual(parsed["val"], 42)
 
 
+@unittest.skipUnless(HAS_WS, "requires websockets")
 class TestEncodeDecode(unittest.TestCase):
     def test_encode_decode_message(self):
         msg = {"key": "value", "num": 42}
@@ -52,6 +59,7 @@ class TestEncodeDecode(unittest.TestCase):
         self.assertEqual(decoded, msg)
 
 
+@unittest.skipUnless(HAS_WS, "requires websockets")
 class TestConnectionProvider(unittest.TestCase):
     def test_base_provider_raises_exception(self):
         provider = ConnectionProvider()
@@ -59,6 +67,7 @@ class TestConnectionProvider(unittest.TestCase):
             asyncio.run(provider.connect())
 
 
+@unittest.skipUnless(HAS_WS, "requires websockets")
 class TestClientConnectionProvider(unittest.TestCase):
     def test_str(self):
         provider = ClientConnectionProvider("ws://localhost:8080")
@@ -95,6 +104,7 @@ class TestClientConnectionProvider(unittest.TestCase):
         self.assertIsNone(provider.websocket)
 
 
+@unittest.skipUnless(HAS_WS, "requires websockets")
 class TestExistingConnectionProvider(unittest.TestCase):
     def test_str(self):
         provider = ExistingConnectionProvider(None, "ws://test:1234")
@@ -118,6 +128,7 @@ class TestExistingConnectionProvider(unittest.TestCase):
         self.assertIsNone(provider.websocket)
 
 
+@unittest.skipUnless(HAS_WS, "requires websockets")
 class TestNetworkClientBasics(LoopsBase, unittest.TestCase):
     def test_initialization(self):
         klong = KlongInterpreter()
@@ -157,6 +168,7 @@ class TestNetworkClientBasics(LoopsBase, unittest.TestCase):
         self.assertIsInstance(client.conn_provider, ClientConnectionProvider)
 
 
+@unittest.skipUnless(HAS_WS, "requires websockets")
 class TestShutdownClient(unittest.TestCase):
     def test_shutdown_closed_client(self):
         mock_client = MagicMock()
@@ -165,6 +177,7 @@ class TestShutdownClient(unittest.TestCase):
         self.assertEqual(result, 0)
 
 
+@unittest.skipUnless(HAS_WS, "requires websockets")
 class TestSystemFunctions(unittest.TestCase):
     def test_create_system_functions_websockets(self):
         registry = create_system_functions_websockets()

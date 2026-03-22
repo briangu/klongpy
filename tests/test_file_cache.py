@@ -7,7 +7,11 @@ import time
 import unittest
 from multiprocessing.pool import ThreadPool
 
-from klongpy.db.file_cache import FileCache
+try:
+    from klongpy.db.file_cache import FileCache
+    HAS_DB = True
+except ImportError:
+    HAS_DB = False
 
 # TODO: add MacOS RAM disk
 # hdiutil attach -nomount ram://$((2 * 1024 * 100))
@@ -25,6 +29,7 @@ def gen_file(tmp_dir=None):
     f.seek(0)
     return f,d,len(d)
 
+@unittest.skipUnless(HAS_DB, "requires pandas")
 class FileCacheTests(unittest.TestCase):
     def setUp(self):
         self.file_contents = {i:gen_file() for i in range(10)}

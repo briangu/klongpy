@@ -1,6 +1,7 @@
 
 import errno
 import importlib
+import importlib.abc
 import importlib.util
 import inspect
 import os
@@ -344,20 +345,58 @@ def import_directory_module(x):
         raise FileNotFoundError(f"Not a valid Python module (missing __init__.py): {x}")
 
 
+class _SiblingFinder(importlib.abc.MetaPathFinder):
+    """A sys.meta_path finder that resolves imports to a specific directory.
+
+    Installed temporarily during import_file_module's exec_module call so
+    that `import sibling` inside the loaded file finds the correct sibling
+    in the same directory.
+    """
+    def __init__(self, module_dir):
+        self.module_dir = module_dir
+
+    def find_spec(self, fullname, path, target=None):
+        if '.' in fullname:
+            return None
+        # Don't shadow modules that are already loaded — only resolve
+        # genuinely new imports from the sibling directory.
+        if fullname in sys.modules:
+            return None
+        candidate = os.path.join(self.module_dir, fullname + '.py')
+        if os.path.isfile(candidate):
+            return importlib.util.spec_from_file_location(fullname, location=candidate)
+        return None
+
+
 def import_file_module(x):
     """
     Import a module from a file path.
+
+    Adds the module's directory to sys.path (so spawned subprocesses and
+    later imports can find siblings) and installs a temporary meta-path
+    finder so that sibling imports resolve during exec_module even if a
+    same-named module already exists in sys.modules.
     """
     location = os.path.abspath(x)
     module_name = os.path.splitext(os.path.basename(x))[0]
+    module_dir = os.path.dirname(location)
     spec = importlib.util.spec_from_file_location(module_name, location=location)
     module = importlib.util.module_from_spec(spec)
     module.__file__ = location
     module.__package__ = None
     module.__name__ = module_name
-    spec.loader.exec_module(module)
+    # Add directory to sys.path so spawned subprocesses can resolve siblings.
+    if module_dir not in sys.path:
+        sys.path.insert(0, module_dir)
+    # Temporary finder ensures sibling imports resolve even if a same-named
+    # module is already cached in sys.modules from a different directory.
+    finder = _SiblingFinder(module_dir)
+    sys.meta_path.insert(0, finder)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.meta_path.remove(finder)
     sys.modules[module.__name__] = module
-    sys.path.insert(0, os.path.dirname(x))
     return module
 
 

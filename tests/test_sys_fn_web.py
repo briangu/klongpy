@@ -3,14 +3,19 @@ import socket
 import unittest
 from unittest.mock import patch
 
-import aiohttp
+try:
+    import aiohttp
+    from klongpy.web.sys_fn_web import eval_sys_fn_create_web_server
+    HAS_AIOHTTP = True
+except ImportError:
+    HAS_AIOHTTP = False
 
 from klongpy.core import KGCall, KGLambda, KGSym
 from klongpy.repl import create_repl, cleanup_repl
-from klongpy.web.sys_fn_web import eval_sys_fn_create_web_server
 from tests.backend_compat import requires_strings
 
 
+@unittest.skipUnless(HAS_AIOHTTP, "requires aiohttp")
 class TestSysFnWeb(unittest.TestCase):
     def setUp(self):
         self.klong, self.loops = create_repl()

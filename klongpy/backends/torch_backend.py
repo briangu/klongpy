@@ -1060,10 +1060,10 @@ class TorchBackendProvider(BackendProvider):
             arg_src = self._ir_to_source(arg)
             if arg_src is None:
                 return None
-            method = {'+': 'sum', '*': 'prod', '|': 'max', '&': 'min'}.get(op)
+            method = {'+': 'sum', '*': 'prod', '|': 'amax', '&': 'amin'}.get(op)
             if method is None:
                 return None
-            return f'({arg_src}).{method}()'
+            return f'({arg_src}).{method}(0)'
 
         if node_type == 'scan':
             op, arg = ir[1], ir[2]

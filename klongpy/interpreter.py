@@ -97,11 +97,13 @@ class KlongContext():
         set_context_var(self._context[0], k, v)
         return k
 
+    _MISSING = object()
+
     def __getitem__(self, k):
         assert isinstance(k, KGSym)
         for d in self._context:
-            v = d.get(k)
-            if v is not None:
+            v = d.get(k, self._MISSING)
+            if v is not self._MISSING:
                 return v
             if isinstance(d,KGModule):
                 if  '`' in k:
@@ -299,7 +301,15 @@ class KlongInterpreter():
         self._context.stop_module()
 
     def parse_module(self, name):
-        self._module = None if safe_eq(name,0) or is_empty(name) else name
+        if safe_eq(name,0) or is_empty(name):
+            self._module = None
+        else:
+            # Strip any module qualification that read_sym may have added
+            # (e.g. m2`m1 -> m2 when switching from m1 to m2)
+            s = str(name)
+            if '`' in s:
+                name = KGSym(s.split('`')[0])
+            self._module = name
 
     def current_module(self):
         return self._module
@@ -628,9 +638,11 @@ class KlongInterpreter():
         ctx = {} if f_args is None else {reserved_fn_symbol_map[p]: self.call(q) for p,q in zip(reserved_fn_args,f_args)}
 
         if is_list(f) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0:
-            # Filter out semicolons and check if all remaining elements are symbols
-            params = [q for q in f[0] if isinstance(q, KGSym)]
-            have_locals = len(params) > 0 and all(isinstance(q, KGSym) for q in params)
+            # Filter out semicolons and check if ALL remaining elements are symbols.
+            # A mixed list like [a 1] is a normal array literal, not a local declaration.
+            non_sep = [q for q in f[0] if q != ';']
+            params = [q for q in non_sep if isinstance(q, KGSym)]
+            have_locals = len(params) > 0 and len(params) == len(non_sep)
             if have_locals:
                 for q in params:
                     # Don't overwrite function parameters (x, y, z)
@@ -725,19 +737,21 @@ class KlongInterpreter():
 
         If the result only contains one entry, it's directly returned for convenience.
         """
-        # Parse cache
-        cached = self._parse_cache.get(x)
+        # Parse cache — keyed by (source, module) since parsing depends on
+        # the active module (symbols get module-qualified names).
+        cache_key = (x, self._module)
+        cached = self._parse_cache.get(cache_key)
         if cached is None:
             i, prog = self.prog(x)
             cached = prog[0] if len(prog) == 1 else prog
-            self._parse_cache[x] = cached
+            self._parse_cache[cache_key] = cached
 
         # Try compiled path (single expressions only)
         if type(cached) is not list:
-            compiled = self._compiled_cache.get(x)
+            compiled = self._compiled_cache.get(cache_key)
             if compiled is None:
                 compiled = compile_expr(cached, self)
-                self._compiled_cache[x] = compiled or False
+                self._compiled_cache[cache_key] = compiled or False
             if compiled and compiled is not False:
                 fn, var_syms = compiled
                 try:

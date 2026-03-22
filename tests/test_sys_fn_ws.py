@@ -4,28 +4,35 @@ from unittest.mock import AsyncMock
 from utils import LoopsBase
 
 from klongpy import KlongInterpreter
-from klongpy.ws.sys_fn_ws import NetworkClient, KlongWSConnectionFailureException
+
+try:
+    from klongpy.ws.sys_fn_ws import NetworkClient, KlongWSConnectionFailureException
+    HAS_WS = True
+except ImportError:
+    HAS_WS = False
 
 
-class DummyConnectionProvider:
-    async def connect(self):
-        return object()
+if HAS_WS:
+    class DummyConnectionProvider:
+        async def connect(self):
+            return object()
 
-    async def close(self):
-        return None
+        async def close(self):
+            return None
 
-    def is_open(self):
-        return True
+        def is_open(self):
+            return True
 
-    def __str__(self):
-        return "dummy"
-
-
-class FailingNetworkClient(NetworkClient):
-    async def _listen(self, on_message):
-        raise KlongWSConnectionFailureException()
+        def __str__(self):
+            return "dummy"
 
 
+    class FailingNetworkClient(NetworkClient):
+        async def _listen(self, on_message):
+            raise KlongWSConnectionFailureException()
+
+
+@unittest.skipUnless(HAS_WS, "requires websockets")
 class TestNetworkClient(LoopsBase, unittest.TestCase):
     def test_run_client_uses_self_handlers(self):
         klong = KlongInterpreter()

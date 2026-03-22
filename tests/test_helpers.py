@@ -4,25 +4,30 @@ import tempfile
 import unittest
 
 import numpy as np
-import pandas as pd
 
-from klongpy.db.helpers import (
-    file_path_to_key_path,
-    key_to_file_path,
-    save_gzip_df_file,
-    read_gzip_df_file,
-    save_df_file,
-    read_df_file,
-    df_memory_usage,
-    serialize_gzip_df,
-    deserialize_gzip_df,
-    serialize_obj,
-    deserialize_obj,
-    serialize_df,
-    deserialize_df,
-)
+try:
+    import pandas as pd
+    from klongpy.db.helpers import (
+        file_path_to_key_path,
+        key_to_file_path,
+        save_gzip_df_file,
+        read_gzip_df_file,
+        save_df_file,
+        read_df_file,
+        df_memory_usage,
+        serialize_gzip_df,
+        deserialize_gzip_df,
+        serialize_obj,
+        deserialize_obj,
+        serialize_df,
+        deserialize_df,
+    )
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
 
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestHelpersFunctions(unittest.TestCase):
     def test_file_path_to_key_path(self):
         path = os.path.join("foo", "bar", "baz")
@@ -35,6 +40,7 @@ class TestHelpersFunctions(unittest.TestCase):
         self.assertEqual(result, key)
 
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestDataFrameFileIO(unittest.TestCase):
     def setUp(self):
         self.df = pd.DataFrame({'A': [1, 2, 3], 'B': [4, 5, 6]})
@@ -61,6 +67,7 @@ class TestDataFrameFileIO(unittest.TestCase):
         self.assertGreater(result, 0)
 
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestDataFrameSerialization(unittest.TestCase):
     def setUp(self):
         self.df = pd.DataFrame({'A': [1, 2, 3], 'B': ['x', 'y', 'z']})
@@ -78,6 +85,7 @@ class TestDataFrameSerialization(unittest.TestCase):
         pd.testing.assert_frame_equal(result, self.df)
 
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestObjectSerialization(unittest.TestCase):
     def test_serialize_and_deserialize_dict(self):
         obj = {'key': 'value', 'num': 42}

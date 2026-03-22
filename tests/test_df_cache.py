@@ -4,9 +4,12 @@ import tempfile
 import threading
 import unittest
 
-import pandas as pd
-
-from klongpy.db.df_cache import PandasDataFrameCache
+try:
+    import pandas as pd
+    from klongpy.db.df_cache import PandasDataFrameCache
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
 
 # TODO: add MacOS RAM disk
 # hdiutil attach -nomount ram://$((2 * 1024 * 100))
@@ -14,6 +17,7 @@ from klongpy.db.df_cache import PandasDataFrameCache
 # https://stackoverflow.com/questions/1854/how-to-identify-which-os-python-is-running-on
 tmp_dir = "/dev/shm" if platform.system() == "Linux" else None
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestPandasDataFrameCache(unittest.TestCase):
     def setUp(self):
         self.test_file_1 = tempfile.NamedTemporaryFile(delete=False, dir=tmp_dir)
@@ -47,6 +51,7 @@ class TestPandasDataFrameCache(unittest.TestCase):
         os.unlink(self.test_file_1.name)
 
 
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
 class TestMultithreadedPandasDataFrameCache(unittest.TestCase):
     def setUp(self):
         self.test_file_1 = tempfile.NamedTemporaryFile(delete=False, dir=tmp_dir)
