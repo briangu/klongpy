@@ -476,9 +476,17 @@ class TorchBackend:
             for i in range(1, a.shape[dim]):
                 result.append(result[-1] - a[i])
             return torch.stack(result)
+        def reduce_subtract(a, dim=None):
+            # a-b-c == a-(b+c). Fold over axis 0 (the reduce() default since the
+            # autograd-safe over change) so -/ of a 2-D array stays element-wise
+            # column-wise; torch.sum keeps it differentiable. (Previously this
+            # returned None for any dim other than None, which broke -/ once
+            # reduce() started passing dim=0.)
+            rest = torch.sum(a[1:]) if dim is None else torch.sum(a[1:], dim=dim)
+            return a[0] - rest
         return self.TorchUfunc(
             self, torch.subtract,
-            lambda a, dim=None: a[0] - torch.sum(a[1:]) if dim is None else None,
+            reduce_subtract,
             cumulative_subtract,
             numpy.subtract
         )
@@ -492,12 +500,11 @@ class TorchBackend:
     @property
     def divide(self):
         def reduce_divide(a, dim=None):
-            if dim is None:
-                result = a.flatten()[0]
-                for x in a.flatten()[1:]:
-                    result = result / x
-                return result
-            return None
+            # a/b/c == a/(b*c). Same axis-0 fold as the other reduces, vectorized
+            # + autograd-safe via torch.prod. (Previously returned None for any
+            # dim other than None, which broke %/ once reduce() passed dim=0.)
+            rest = torch.prod(a[1:]) if dim is None else torch.prod(a[1:], dim=dim)
+            return a[0] / rest
         return self.TorchUfunc(self, torch.divide, reduce_divide, None, numpy.divide)
 
     @property

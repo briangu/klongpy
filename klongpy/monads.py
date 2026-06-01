@@ -253,7 +253,20 @@ def eval_monad_not(a, backend):
 
     """
     def _neg(x):
-        return 1 if is_empty(x) else 0 if is_dict(x) or isinstance(x, (KGFn, KGSym)) else kg_truth(bknp.logical_not(bknp.asarray(x, dtype=object)))
+        if is_empty(x):
+            return 1
+        if is_dict(x) or isinstance(x, (KGFn, KGSym)):
+            return 0
+        arr = bknp.asarray(x)
+        # Numeric/boolean input keeps a CLEAN (non-object) result so it can be
+        # used as an index or by & (where). Forcing dtype=object here (as the old
+        # code did unconditionally) tainted the result: logical_not on an object
+        # array stays object, and then `&~v` / `RR@(&~v)` fail to cast O->int64.
+        # Non-numeric input (strings/chars) still gets the object path so Python's
+        # `not` semantics apply (e.g. ~"string" -> 0).
+        if arr.dtype.kind not in ('b', 'i', 'u', 'f', 'c'):
+            arr = bknp.asarray(x, dtype=object)
+        return kg_truth(bknp.logical_not(arr))
     return backend.vec_fn(a, _neg) if not is_empty(a) else _neg(a)
 
 

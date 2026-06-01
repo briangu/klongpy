@@ -587,3 +587,18 @@ class TestMatrixVectorGradient:
         fd = np.array([(loss(a0 + eps * e) - loss(a0 - eps * e)) / (2 * eps)
                        for e in np.eye(2)])
         np.testing.assert_allclose(grad, fd, atol=get_atol(backend) * 10)
+
+    def test_subtract_over_2d_reduces_axis0(self, klong, backend):
+        # -/ of a 2-D array folds over axis 0 element-wise: r0-r1-r2.
+        # Regression guard: the axis-0 reduce default must not break -/ on torch
+        # (a-b-c == a-(b+c)).
+        klong['M'] = np.array([[10.0, 20.0], [1.0, 2.0], [3.0, 4.0]])
+        np.testing.assert_allclose(to_numpy(klong('-/M')), [6.0, 14.0],
+                                   atol=get_atol(backend))
+
+    def test_divide_over_2d_reduces_axis0(self, klong, backend):
+        # %/ of a 2-D array folds over axis 0 element-wise: r0/r1/r2.
+        # (a/b/c == a/(b*c)) — same regression guard as subtract.
+        klong['M'] = np.array([[12.0, 24.0], [2.0, 4.0], [3.0, 2.0]])
+        np.testing.assert_allclose(to_numpy(klong('%/M')), [2.0, 3.0],
+                                   atol=get_atol(backend))
