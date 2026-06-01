@@ -115,8 +115,23 @@ def eval_sys_evaluate(klong, x):
         return its result. This is a direct interface to the Klong
         system, e.g. .E("a::123");a will yield 123.
 
+        Evaluation happens at GLOBAL scope, so top-level definitions
+        (`name::...`) persist as globals — even when .E is called from
+        inside a function (e.g. runtime code generation). Without this,
+        new vars would land in the (transient) calling frame and be lost.
+
     """
-    return klong(x)
+    kc = klong._context
+    # Temporarily drop pushed local frames so global assignment (which
+    # targets _context[0]) lands in the real global frame, then restore.
+    stashed = []
+    while len(kc._context) > kc._min_ctx_count:
+        stashed.append(kc._context.popleft())
+    try:
+        return klong(x)
+    finally:
+        for d in reversed(stashed):
+            kc._context.appendleft(d)
 
 
 def eval_sys_from_channel(klong, x):
