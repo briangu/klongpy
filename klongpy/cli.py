@@ -310,11 +310,11 @@ def main():
 
     args = parser.parse_args(main_args[1:])
 
-    # Default to torch backend if available and not explicitly set
+    # Default to the numpy backend: fast and predictable for general array work
+    # (and it never surprises non-autograd .kg scripts with MPS-tensor issues).
+    # The torch backend (GPU + exact autograd via :>) is opt-in: --backend torch.
     if args.backend is None:
-        available_backends = list_backends()
-        if 'torch' in available_backends:
-            args.backend = 'torch'
+        args.backend = 'numpy'
 
     if args.debug:
         print("args: ", args)

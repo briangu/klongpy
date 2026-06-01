@@ -383,6 +383,11 @@ class _SiblingFinder(importlib.abc.MetaPathFinder):
         return None
 
 
+# path -> already-imported module, so repeated .pyf/.py of the same file
+# does not re-execute it (see import_file_module).
+_FILE_MODULE_CACHE = {}
+
+
 def import_file_module(x):
     """
     Import a module from a file path.
@@ -393,6 +398,12 @@ def import_file_module(x):
     same-named module already exists in sys.modules.
     """
     location = os.path.abspath(x)
+    # Cache by path so re-importing the same file (e.g. .pyf(f;"a") then
+    # .pyf(f;"b")) returns the SAME module instead of re-executing it — which
+    # would re-run module-level side effects (e.g. re-register prometheus metrics).
+    cached = _FILE_MODULE_CACHE.get(location)
+    if cached is not None:
+        return cached
     module_name = os.path.splitext(os.path.basename(x))[0]
     module_dir = os.path.dirname(location)
     spec = importlib.util.spec_from_file_location(module_name, location=location)
@@ -412,6 +423,7 @@ def import_file_module(x):
     finally:
         sys.meta_path.remove(finder)
     sys.modules[module.__name__] = module
+    _FILE_MODULE_CACHE[location] = module
     return module
 
 

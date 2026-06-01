@@ -29,6 +29,9 @@ keywords = ["klong", "array", "language", "interpreter", "numpy", "torch"]
 
 dependencies = [
     "numpy>=2.0",
+    # the `kgpy` CLI imports colorama unconditionally, so it is a core dep
+    # (not just the optional `repl` extra) — otherwise `kgpy file.kg` dies.
+    "colorama>=0.4",
 ]
 
 [project.optional-dependencies]
