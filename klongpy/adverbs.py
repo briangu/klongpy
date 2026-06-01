@@ -106,7 +106,7 @@ def eval_adverb_each_index(f, a, op, backend):
     return f(backend.kg_asarray([0, a]))
 
 
-def eval_adverb_each2(f, a, b):
+def eval_adverb_each2(f, a, b, backend):
     """
 
         a f'b                                                   [Each-2]
@@ -124,11 +124,20 @@ def eval_adverb_each2(f, a, b):
 
     """
     if is_empty(a) or is_empty(b):
-        return bknp.asarray([]) if is_list(a) or is_list(b) else ""
+        return backend.kg_asarray([]) if is_list(a) or is_list(b) else ""
     if is_atom(a) and is_atom(b):
         return f(a,b)
-    r = bknp.asarray([f(x,y) for x,y in zip(a,b)])
-    return ''.join(r) if r.dtype == '<U1' else r
+    # backend.kg_asarray stacks (torch.stack on the torch backend) so gradients
+    # are preserved through each-dyad — unlike numpy asarray which detaches them.
+    r = backend.kg_asarray([f(x,y) for x,y in zip(a,b)])
+    dt = getattr(r, 'dtype', None)
+    if dt == '<U1':
+        return ''.join(r)
+    # kg_asarray may return an object array of single-char strings (numpy
+    # backend) where numpy.asarray would give '<U1'; rejoin those into a string.
+    if dt == object and len(r) and all(isinstance(c, str) and len(c) == 1 for c in r):
+        return ''.join(r)
+    return r
 
 
 def eval_adverb_each_left(f, a, b, backend):
@@ -436,7 +445,7 @@ def get_adverb_fn(klong, s, arity):
     backend = klong._backend
 
     if s == "'":
-        return eval_adverb_each2 if arity == 2 else lambda f,a,op: eval_adverb_each(f,a,op,backend)
+        return (lambda f,a,b: eval_adverb_each2(f,a,b,backend)) if arity == 2 else lambda f,a,op: eval_adverb_each(f,a,op,backend)
     elif s == '/':
         return eval_adverb_over_neutral if arity == 2 else lambda f,a,op: eval_adverb_over(f,a,op,backend)
     elif s == '\\':

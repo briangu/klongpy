@@ -553,3 +553,37 @@ class TestCompileModes:
             pytest.skip("Test for numpy backend only")
         with pytest.raises(RuntimeError):
             klong('.cmodes()')
+
+
+class TestMatrixVectorGradient:
+    """each-dyad (f') and over (f/) must support a differentiable matrix-vector
+    contraction A . RC (sum over axis 0), on both backends. Regression guard for
+    the autograd-safe each-dyad + axis-0 reduce fix."""
+
+    def test_over_2d_reduces_axis0(self, klong, backend):
+        # +/ of a 2-D array folds over axis 0 (column-wise sum), matching numpy.
+        klong['M'] = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        np.testing.assert_allclose(to_numpy(klong('+/M')), [5.0, 7.0, 9.0],
+                                   atol=get_atol(backend))
+
+    def test_each_dyad_scales_rows(self, klong, backend):
+        # A *' RC scales each row of RC by A[i]; +/ then sums them -> A . RC.
+        klong['RC'] = np.array([[0.1, 0.2, 0.3], [0.0, -0.1, 0.4]])
+        val = to_numpy(klong("{+/x*'RC}([0.6 0.4])"))
+        np.testing.assert_allclose(val, [0.06, 0.08, 0.34], atol=get_atol(backend))
+
+    def test_matrix_vector_gradient(self, klong, backend):
+        # gradient of  +/(A . RC)^2  wrt A must flow through each-dyad + over.
+        RC = np.array([[0.1, 0.2, 0.3], [0.0, -0.1, 0.4]])
+        klong['RC'] = RC
+        grad = to_numpy(klong("{+/(+/x*'RC)^2}:>[0.6 0.4]"))
+
+        def loss(a):
+            d = (a[:, None] * RC).sum(0)
+            return float((d ** 2).sum())
+
+        a0 = np.array([0.6, 0.4])
+        eps = 1e-4
+        fd = np.array([(loss(a0 + eps * e) - loss(a0 - eps * e)) / (2 * eps)
+                       for e in np.eye(2)])
+        np.testing.assert_allclose(grad, fd, atol=get_atol(backend) * 10)

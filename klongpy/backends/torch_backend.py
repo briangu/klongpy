@@ -434,8 +434,13 @@ class TorchBackend:
                 return self._numpy_ufunc.reduce(self._to_numpy(a), axis=axis)
             try:
                 arr = self._backend.asarray(a)
+                if getattr(arr, 'ndim', 1) == 0:
+                    return arr
                 if axis is None:
-                    return self._reduce_op(arr)
+                    # match numpy's ufunc.reduce: fold over axis 0, so +/ of a
+                    # 2-D array yields the column-wise vector (not a scalar) and
+                    # stays autograd-safe (torch.sum(dim=0)).
+                    axis = 0
                 return self._reduce_op(arr, dim=axis)
             except TorchUnsupportedDtypeError:
                 if self._numpy_ufunc:
