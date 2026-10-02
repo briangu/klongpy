@@ -443,7 +443,7 @@ class BackendProvider(ABC):
 
     def vec_fn2(self, a, b, f):
         """
-        Apply function f to elements of a and b, handling nested structures.
+        Apply atomic f with recursive Klong list pairing and scalar extension.
         """
         if self.np.isarray(a):
             if a.dtype == 'O':
@@ -457,6 +457,16 @@ class BackendProvider(ABC):
                 return self.kg_asarray([self.vec_fn2(x, y, f) for x, y in zip(a, b)])
         elif self.np.isarray(b) and b.dtype == 'O':
             return self.kg_asarray([self.vec_fn2(a, x, f) for x in b])
+        if self.np.isarray(a) and self.np.isarray(b):
+            # Numeric arrays encode nested lists: shared leading dimensions
+            # must match, then atoms extend into the remaining list dimensions.
+            rank = min(a.ndim, b.ndim)
+            if a.shape[:rank] != b.shape[:rank]:
+                raise ValueError(f"atomic dyad shape mismatch: {a.shape} and {b.shape}")
+            if a.ndim < b.ndim:
+                a = a.reshape(a.shape + (1,) * (b.ndim - a.ndim))
+            elif b.ndim < a.ndim:
+                b = b.reshape(b.shape + (1,) * (a.ndim - b.ndim))
         return f(a, b)
 
     def rec_fn(self, a, f):

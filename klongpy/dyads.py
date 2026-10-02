@@ -18,7 +18,7 @@ def eval_dyad_add(a, b, backend):
                   1+0.3  -->  1.3
 
     """
-    return backend.np.add(a, b)
+    return backend.vec_fn2(a, b, backend.np.add)
 
 
 def eval_dyad_amend(a, b, backend):
@@ -229,7 +229,7 @@ def eval_dyad_divide(a, b, backend):
         b_val = backend.scalar_to_python(b) if backend.is_backend_array(b) or (hasattr(b, 'ndim') and b.ndim == 0) else b
         if b_val == 0:
             return KLONG_UNDEFINED
-    return backend.np.divide(a, b)
+    return backend.vec_fn2(a, b, backend.np.divide)
 
 
 def eval_dyad_drop(a, b):
@@ -670,7 +670,7 @@ def eval_dyad_maximum(a, b, backend):
                     1.0|1.1  -->  1.1
 
     """
-    return backend.np.maximum(a, b)
+    return backend.vec_fn2(a, b, backend.np.maximum)
 
 
 def eval_dyad_minimum(a, b, backend):
@@ -697,7 +697,7 @@ def eval_dyad_minimum(a, b, backend):
                     1.0&1.1  -->  1.0
 
     """
-    return backend.np.minimum(a, b)
+    return backend.vec_fn2(a, b, backend.np.minimum)
 
 
 def eval_dyad_more(a, b, backend):
@@ -736,7 +736,7 @@ def eval_dyad_multiply(a, b, backend):
                   0.3*7  -->  2.1
 
     """
-    return backend.np.multiply(a, b)
+    return backend.vec_fn2(a, b, backend.np.multiply)
 
 
 def _e_dyad_power(a, b, backend):
@@ -800,7 +800,7 @@ def eval_dyad_remainder(a, b, backend):
                    -7!-5  --> -2
 
     """
-    return backend.np.fmod(a, b)
+    return backend.vec_fn2(a, b, backend.np.fmod)
 
 
 def eval_dyad_reshape(a, b, backend):
@@ -988,7 +988,7 @@ def eval_dyad_subtract(a, b, backend):
                   1-0.3  -->  0.7
 
     """
-    return backend.np.subtract(a, b)
+    return backend.vec_fn2(a, b, backend.np.subtract)
 
 
 def eval_dyad_take(a, b, backend):
