@@ -121,3 +121,48 @@ def test_python_list_operands(klong):
                                   [[-9, -8, -7], [-16, -15, -14]])
     assert vector == [10, 20]
     assert matrix == [[1, 2, 3], [4, 5, 6]]
+
+
+@pytest.mark.parametrize('dtype', [int, float, object])
+@pytest.mark.parametrize('op,fn', [('+', operator.add), ('-', operator.sub), ('=', operator.eq)])
+@pytest.mark.parametrize('reverse', [False, True])
+def test_zero_dimensional_atom_with_ragged_array(klong, dtype, op, fn, reverse):
+    if not klong._backend.supports_object_dtype():
+        pytest.skip('Ragged arrays require object dtype')
+    scalar = klong._backend.kg_asarray(np.array(10, dtype=dtype))
+    klong['s'] = scalar
+    klong['r'] = klong._backend.kg_asarray([[1, 2], [3, 4, 5]])
+    literal = '[[1 2] [3 4 5]]'
+    for expr in ((f'{literal}{op}s', f'r{op}s') if reverse else
+                 (f's{op}{literal}', f's{op}r')):
+        result = klong(expr)
+        assert len(result) == 2
+        for actual, row in zip(result, ([1, 2], [3, 4, 5])):
+            expected = fn(np.asarray(row), 10) if reverse else fn(10, np.asarray(row))
+            np.testing.assert_array_equal(actual, expected)
+    assert scalar.ndim == 0
+    assert scalar.item() == 10
+
+
+@pytest.mark.parametrize('reverse', [False, True])
+def test_zero_dimensional_torch_atom_keeps_gradients(klong_torch, reverse):
+    backend = klong_torch._backend
+    matrix = backend.kg_asarray([[1., 2., 3.], [4., 5., 6.]])
+
+    def loss(x):
+        assert x.ndim == 0
+        klong_torch['a'] = x
+        klong_torch['b'] = matrix
+        return klong_torch('+/+/b*a' if reverse else '+/+/a*b')
+
+    gradient = backend.compute_autograd(loss, np.array(10.))
+    np.testing.assert_array_equal(backend.to_numpy(gradient), 21.)
+
+
+def test_zero_dimensional_object_atom(klong):
+    if not klong._backend.supports_object_dtype():
+        pytest.skip('Object scalars require object dtype')
+    klong['a'] = klong._backend.kg_asarray(np.array(10, dtype=object))
+    klong['b'] = klong._backend.kg_asarray(np.array(2))
+    np.testing.assert_array_equal(klong._backend.to_numpy(klong('a+b')), 12)
+    np.testing.assert_array_equal(klong._backend.to_numpy(klong('b-a')), -8)
