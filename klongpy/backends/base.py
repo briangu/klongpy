@@ -443,20 +443,37 @@ class BackendProvider(ABC):
 
     def vec_fn2(self, a, b, f):
         """
-        Apply function f to elements of a and b, handling nested structures.
+        Apply atomic f with recursive Klong list pairing and scalar extension.
         """
-        if self.np.isarray(a):
+        if isinstance(a, list):
+            a = self.kg_asarray(a)
+        if isinstance(b, list):
+            b = self.kg_asarray(b)
+        # Zero-dimensional arrays are atoms; keep tensors intact for autograd.
+        a_is_list = self.np.isarray(a) and a.ndim > 0
+        b_is_list = self.np.isarray(b) and b.ndim > 0
+        if a_is_list:
             if a.dtype == 'O':
-                if self.np.isarray(b):
+                if b_is_list:
                     assert len(a) == len(b)
                     return self.kg_asarray([self.vec_fn2(x, y, f) for x, y in zip(a, b)])
                 else:
                     return self.kg_asarray([self.vec_fn2(x, b, f) for x in a])
-            elif self.np.isarray(b) and b.dtype == 'O':
+            elif b_is_list and b.dtype == 'O':
                 assert len(a) == len(b)
                 return self.kg_asarray([self.vec_fn2(x, y, f) for x, y in zip(a, b)])
-        elif self.np.isarray(b) and b.dtype == 'O':
+        elif b_is_list and b.dtype == 'O':
             return self.kg_asarray([self.vec_fn2(a, x, f) for x in b])
+        if self.np.isarray(a) and self.np.isarray(b):
+            # Numeric arrays encode nested lists: shared leading dimensions
+            # must match, then atoms extend into the remaining list dimensions.
+            rank = min(a.ndim, b.ndim)
+            if a.shape[:rank] != b.shape[:rank]:
+                raise ValueError(f"atomic dyad shape mismatch: {a.shape} and {b.shape}")
+            if a.ndim < b.ndim:
+                a = a.reshape(a.shape + (1,) * (b.ndim - a.ndim))
+            elif b.ndim < a.ndim:
+                b = b.reshape(b.shape + (1,) * (a.ndim - b.ndim))
         return f(a, b)
 
     def rec_fn(self, a, f):

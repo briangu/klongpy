@@ -4,6 +4,7 @@ NumPy backend provider for KlongPy.
 This is the default backend that supports all Klong operations including
 string manipulation and object dtype arrays.
 """
+import operator
 import warnings
 import numpy as np
 
@@ -110,7 +111,13 @@ class NumpyBackendProvider(BackendProvider):
 
         param_names = list(self._collect_params(ir))
         fn_source = f"def _expr({', '.join(param_names)}): return {source}"
-        ns = {'np': np}
+        ns = {
+            'np': np,
+            '_atomic': self.vec_fn2,
+            '_add': operator.add, '_sub': operator.sub, '_mul': operator.mul,
+            '_div': operator.truediv, '_pow': operator.pow,
+            '_eq': operator.eq, '_gt': operator.gt, '_lt': operator.lt,
+        }
         try:
             exec(fn_source, ns)
         except Exception:
@@ -133,10 +140,10 @@ class NumpyBackendProvider(BackendProvider):
             r = self._ir_to_source(right)
             if l is None or r is None:
                 return None
-            py_op = {'+': '+', '-': '-', '*': '*', '%': '/', '^': '**'}.get(op)
+            py_op = {'+': '_add', '-': '_sub', '*': '_mul', '%': '_div', '^': '_pow'}.get(op)
             if py_op is None:
                 return None
-            return f'({l}{py_op}{r})'
+            return f'_atomic({l}, {r}, {py_op})'
 
         if node_type == 'cmp':
             op, left, right = ir[1], ir[2], ir[3]
@@ -144,10 +151,10 @@ class NumpyBackendProvider(BackendProvider):
             r = self._ir_to_source(right)
             if l is None or r is None:
                 return None
-            py_cmp = {'=': '==', '>': '>', '<': '<'}.get(op)
+            py_cmp = {'=': '_eq', '>': '_gt', '<': '_lt'}.get(op)
             if py_cmp is None:
                 return None
-            return f'(({l}{py_cmp}{r})*1)'
+            return f'(_atomic({l}, {r}, {py_cmp})*1)'
 
         if node_type == 'negate':
             child = self._ir_to_source(ir[1])

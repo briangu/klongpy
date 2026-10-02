@@ -1,5 +1,28 @@
 # Operator Reference
 
+## Atomic dyads and nested lists
+
+Atomic dyads (`+`, `-`, `*`, `%`, `:%`, `!`, `^`, `&`, `|`, `=`, `<`, `>`)
+combine list elements pairwise, starting at the outermost dimension. When one
+operand is a scalar, it applies to every element of the other operand, recursively.
+Two lists must have equal lengths at every level where both operands are lists;
+a singleton list is still a list, not a scalar.
+
+```klong
+[1 2 3]+[3 3]:^[1 2 3 4 5 6 7 8 9]
+:" [[2 3 4] [6 7 8] [10 11 12]]"
+
+[10 20]+[[1 2 3] [4 5 6]]
+:" [[11 12 13] [24 25 26]]"
+```
+
+For rectangular numeric arrays, this pairs shared leading dimensions and extends
+the lower-rank operand across the remaining dimensions. The rule applies to
+interpreted and compiled Klong expressions. Python functions called through
+interop retain their own behavior: NumPy operations use NumPy's trailing-axis
+broadcasting. See the [Klong reference, semantics of arguments](https://t3x.org/klong/klong-ref.txt.html)
+and [discussion #82](https://github.com/briangu/klongpy/discussions/82).
+
 ## Monads (Single Argument)
 
 | Operator | Name | Description |
