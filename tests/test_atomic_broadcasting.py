@@ -109,3 +109,15 @@ def test_atomic_torch_gradients(klong_torch):
 
     gradient = backend.compute_autograd(loss, [2., 3.])
     np.testing.assert_array_equal(backend.to_numpy(gradient), [6., 15.])
+
+
+def test_python_list_operands(klong):
+    vector = [10, 20]
+    matrix = [[1, 2, 3], [4, 5, 6]]
+    klong['a'], klong['b'] = vector, matrix
+    np.testing.assert_array_equal(klong._backend.to_numpy(klong('a+b')),
+                                  [[11, 12, 13], [24, 25, 26]])
+    np.testing.assert_array_equal(klong._backend.to_numpy(klong('b-a')),
+                                  [[-9, -8, -7], [-16, -15, -14]])
+    assert vector == [10, 20]
+    assert matrix == [[1, 2, 3], [4, 5, 6]]

@@ -445,6 +445,10 @@ class BackendProvider(ABC):
         """
         Apply atomic f with recursive Klong list pairing and scalar extension.
         """
+        if isinstance(a, list):
+            a = self.kg_asarray(a)
+        if isinstance(b, list):
+            b = self.kg_asarray(b)
         if self.np.isarray(a):
             if a.dtype == 'O':
                 if self.np.isarray(b):
