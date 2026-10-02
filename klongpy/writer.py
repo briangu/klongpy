@@ -117,6 +117,7 @@ def kg_argsort(a, backend, descending=False):
             return backend.argsort(a, descending=descending)
 
     # Slow path: nested arrays or strings need element-by-element comparison
+    # NumPy reductions must receive host arrays, not backend tensor methods.
     def _e(x):
-        return (-np.inf, x) if is_empty(a[x]) else (np.max(a[x]), x) if is_list(a[x]) else (a[x], x)
+        return (-np.inf, x) if is_empty(a[x]) else (np.max(backend.to_numpy(a[x])), x) if is_list(a[x]) else (a[x], x)
     return np.asarray(sorted(range(len(a)), key=_e, reverse=descending))
