@@ -209,8 +209,8 @@ Full documentation: [https://briangu.github.io/klongpy](https://briangu.github.i
 KlongPy's network features assume every peer is trusted. Use them on a trusted network only.
 
 - **IPC (`.srv`, `.cli`)**: a connected peer can run arbitrary Klong, and through it arbitrary Python (`.py`, `.pyf`) and shell commands (`.sys`). It can also call any function you have defined and assign any variable.
-- **IPC wire format**: messages are pickled in both directions, so unpickling a message runs code chosen by the sender. The frame length is read from the peer without a limit.
-- **No authentication or encryption**: there is no login, no TLS, and no access control on IPC or `.web`.
+- **IPC wire format**: the default path speaks the kdb+ IPC protocol and does not unpickle anything from the network. Message size is limited (`.system` key `ipc_max_message`, 256 MiB by default). The legacy pickle mode (`KLONGPY_IPC=legacy`, or a `.srv` left on `auto` that sees an old client) still unpickles messages, which runs code chosen by the sender, and is deprecated. Use it on trusted networks only, or set `KLONGPY_IPC=kdb` to refuse it.
+- **No encryption, optional login**: IPC credentials (`"host:port:user:password"`) and all data are sent in clear text and there is no TLS. A server accepts every client unless the program defines `.srv.auth`. `.web` has no login or access control.
 - **Bind address**: `.srv(8888)` and `.web(8888;...)` listen on all interfaces (`0.0.0.0`). Anyone who can reach the port has the access above. `.web` routes run the Klong functions you register with the request parameters.
 - **KVS and tables**: keys are used as file names under the store root without checking that they stay inside it, and values are pickled on disk. Treat the root directory as trusted storage and do not load stores you did not write.
 - **`.db`**: the string you pass is executed as SQL by DuckDB as given.
@@ -312,7 +312,7 @@ Minimize f(x) = (x-3)^2
 
 (with PyTorch's autograd)
 ```klong
-$ rlwrap kgpy --backend torch
+$ kgpy --backend torch
 ?> f::{(x-3)^2}
 :monad
 ?> s::10.0; lr::0.1
@@ -323,7 +323,7 @@ $ rlwrap kgpy --backend torch
 
 (Numerical differentiation)
 ```klong
-$ rlwrap kgpy
+$ kgpy
 ?> f::{(x-3)^2}
 :monad
 ?> s::10.0; lr::0.1

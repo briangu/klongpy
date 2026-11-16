@@ -108,7 +108,7 @@ KlongPy has the powerful ability to load Python modules directly. This can be ex
 Here is an example of how you can load a Python module into KlongPy:
 
 ```bash
-$ rlwrap kgpy
+$ kgpy
 
 Welcome to KlongPy REPL v0.7.0
 author: Brian Guarraci
@@ -152,7 +152,7 @@ def not_exported():
 Now, you can import the module with the .py command and run the "hello" function.
 
 ```bash
-$ rlwrap kgpy
+$ kgpy
 
 Welcome to KlongPy REPL v0.7.0
 author: Brian Guarraci

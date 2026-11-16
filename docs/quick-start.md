@@ -20,7 +20,7 @@ source venv/bin/activate
 ```
 
 With the environment active, choose one of the install options below
-(and optionally `rlwrap` for a nicer REPL experience):
+(the REPL has line editing, history and tab completion built in, so `rlwrap` is not needed):
 
 ```bash
 # Base runtime only (NumPy backend)
@@ -41,8 +41,6 @@ For GPU acceleration and automatic differentiation, install PyTorch:
 pip install "klongpy[torch]"
 ```
 
-For nicer line editing, install `rlwrap` via your OS package manager (optional).
-
 Then enable the torch backend when running:
 
 ```bash
@@ -56,7 +54,7 @@ After installing KlongPy, you can start using it right away. Here’s how to set
 
 
 ```bash
-$> rlwrap kgpy
+$> kgpy
 Welcome to KlongPy REPL v0.7.0
 author: Brian Guarraci
 web   : http://klongpy.org

@@ -63,7 +63,7 @@ Below, we define the function 'avg' and apply it to the array of 1 million integ
 Let's try this in the KlongPy REPL:
 
 ```Bash
-$ rlwrap kgpy
+$ kgpy
 
 Welcome to KlongPy REPL v0.7.0
 author: Brian Guarraci
@@ -239,7 +239,7 @@ KlongPy has a REPL similar to Klong's REPL.
 
 ```bash
 $ pip3 install klongpy[repl]
-$ rlwrap kgpy
+$ kgpy
 
 Welcome to KlongPy REPL
 author: Brian Guarraci
