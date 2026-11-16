@@ -595,6 +595,15 @@ def main():
     parser.add_argument('--clock-mhz', metavar='N', type=int, default=300, help='with --emit-hls: the kernel clock in MHz (default: 300)')
     parser.add_argument('--synth', action='store_true',
                         help='with --emit-hls: run C synthesis on $KLONG_HW_BUILD (user@host; unset: here) and print the estimates')
+    parser.add_argument('--hw-build', metavar='FILE', nargs='*',
+                        help='(experimental) build one Alveo U250 bitstream holding every .entry of FILEs on $KLONG_HW_BUILD '
+                             '(user@host), cached by source; it takes hours and runs detached. With no FILE: --status or --wait '
+                             'for the build in progress. With --int64, --clock-mhz, --lanes, --force, --hw-emu')
+    parser.add_argument('--status', action='store_true', help='with --hw-build: report the progress of the build')
+    parser.add_argument('--wait', action='store_true', help='with --hw-build: wait until the build finishes and report it')
+    parser.add_argument('--lanes', metavar='N', type=int, default=1, help='with --hw-build: cores per kernel (only 1 in this version)')
+    parser.add_argument('--force', action='store_true', help='with --hw-build: build again although the image exists')
+    parser.add_argument('--hw-emu', action='store_true', help='with --hw-build: a hardware emulation image (never loaded on the card)')
     parser.add_argument('-o', '--output', metavar='DIR', help='with --emit-c and --emit-hls: the directory to write to (default: .)')
     parser.add_argument('--float64', action='store_true', help='with --emit-c: kg_float is double (the default is float)')
     parser.add_argument('--line-directives', action='store_true',
@@ -642,6 +651,16 @@ def main():
         sys.exit(emit_hls_main(args.emit_hls, args.output, 64 if args.int64 else 32, args.prefix, args.clock_mhz, args.synth))
     if args.synth:
         parser.error("--synth needs --emit-hls")
+    if args.hw_build is not None:
+        if args.float64:
+            parser.error("--float64 cannot be used with --hw-build: the card has float32 only in this version")
+        if args.clock_mhz < 1:
+            parser.error("--clock-mhz must be a positive number of MHz")
+        from klongpy.hw.build import hw_build_main
+        sys.exit(hw_build_main(args.hw_build, 64 if args.int64 else 32, args.clock_mhz, args.lanes, args.force,
+                               args.status, args.wait, args.hw_emu))
+    if args.status or args.wait or args.force or args.hw_emu:
+        parser.error("--status, --wait, --force and --hw-emu need --hw-build")
     if args.emit_c or (args.check_static and args.dump_ir):
         from klongpy.static.compile import emit_main
         sys.exit(emit_main(args.emit_c or args.check_static, args.output, 64 if args.int64 else 32,

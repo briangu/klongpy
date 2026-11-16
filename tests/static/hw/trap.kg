@@ -1,0 +1,8 @@
+:" Two entries that can trap, for the card tests (tests/static/test_hw_card.py): an index out of range and an integer
+   division by zero set bits of the status word that the host reads after a run. "
+
+f::{x@y}
+g::{x!y}
+
+.entry("f";"int[4] int -> int")
+.entry("g";"int int -> int")
