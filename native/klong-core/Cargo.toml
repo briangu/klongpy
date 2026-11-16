@@ -1,0 +1,21 @@
+[package]
+name = "klong-core"
+description = "Klong lexer, parser, values and evaluator. no_std + alloc."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = ["strings", "dicts"]
+# Narrow builds: 32-bit integers and/or floats.
+int32 = []
+float32 = []
+# Stubs until ticket 103 (strings and dictionaries are always compiled in the spike).
+strings = []
+dicts = []
+
+[dependencies]
+# The only dependency. pow, floor, trunc and fmod for f64/f32 are not in `core`;
+# libm is the pure-Rust, no_std port of musl's libm (the same code compiler-builtins uses).
+libm = { version = "0.2", default-features = false }

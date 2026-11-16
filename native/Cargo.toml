@@ -1,0 +1,23 @@
+# Native Klong runtime (tickets 100, 102). Design: tickets/design/native-runtime.md.
+[workspace]
+resolver = "2"
+members = ["klong-core", "klong-rt", "klong-host", "klong-cli"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[profile.release]
+opt-level = 3
+debug = false
+
+# Size-optimised build for small targets: cargo build --profile min-size
+[profile.min-size]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

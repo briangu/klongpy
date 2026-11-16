@@ -1,0 +1,29 @@
+# Size probe: the core and the runtime linked for a 32-bit target without an operating system
+# (wasm32-unknown-unknown, the only such target installed when ticket 102 was written).
+# Not a workspace member: it only builds for wasm32. See scripts/measure.sh.
+[package]
+name = "klong-probe"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+int32 = ["klong-rt/int32"]
+float32 = ["klong-rt/float32"]
+
+[dependencies]
+klong-core = { path = "../klong-core" }
+klong-rt = { path = "../klong-rt" }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[workspace]

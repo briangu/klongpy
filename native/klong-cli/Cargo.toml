@@ -1,0 +1,20 @@
+[package]
+name = "klong-cli"
+description = "The klong binary: file, -e, REPL, --dump-ast and the conformance protocol."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "klong"
+path = "src/main.rs"
+
+[features]
+int32 = ["klong-rt/int32", "klong-host/int32", "klong-core/int32"]
+float32 = ["klong-rt/float32", "klong-host/float32", "klong-core/float32"]
+
+[dependencies]
+klong-core = { path = "../klong-core" }
+klong-rt = { path = "../klong-rt" }
+klong-host = { path = "../klong-host" }
