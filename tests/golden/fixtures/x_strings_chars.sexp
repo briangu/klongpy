@@ -1,0 +1,5 @@
+(str "a\"b")
+(char "x")
+(char " ")
+(str "")
+(str "+")

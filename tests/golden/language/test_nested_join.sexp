@@ -1,0 +1,6 @@
+(def (sym data) (fn 0 (m "!" (num 3))))
+(call (sym t) (str "1,,{data()}'!2") (d "," (num 1) (m "," (adv (verb (fn 0 (call (sym data)))) (adverbs "'") (m "!" (num 2))))) (list (num 1) (list (list (num 0) (num 1) (num 2)) (list (num 0) (num 1) (num 2)))))
+(def (sym a) (m "!" (num 10)))
+(def (sym k) (num 3))
+(def (sym c) (d "," (m "," (m "," (m "," (d "#" (num 1) (sym a))))) (sym k)))
+(call (sym t) (str "c::(,,,1#a),k") (def (sym c) (d "," (m "," (m "," (m "," (d "#" (num 1) (sym a))))) (sym k))) (list (list (list (list (num 0)))) (num 3)))

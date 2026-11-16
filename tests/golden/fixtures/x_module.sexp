@@ -1,0 +1,5 @@
+(call (sym .module) (qsym m))
+(def (sym a`m) (num 1))
+(call (d "+" (sym a`m) (arg x)) (num 2))
+(call (sym .module) (num 0))
+(sym a)

@@ -390,12 +390,16 @@ def main():
     parser.add_argument('-s', '--server', help='start the IPC server', type=str)
     parser.add_argument('-t', '--test', help='test program from file')
     parser.add_argument('-v', '--verbose', help='enable verbose output', action="store_true")
+    parser.add_argument('--dump-ast', metavar='FILE', help='print the canonical parse tree of FILE and exit')
     parser.add_argument('-d', '--debug', help='enable debug mode', action="store_true")
     parser.add_argument('--backend', help='set array backend', type=str.lower, choices=list_backends())
     parser.add_argument('--device', help='set backend device (torch only)', type=str)
     parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
 
     args = parser.parse_args(main_args[1:])
+    if args.dump_ast:
+        from klongpy.dump import main as _dump_main
+        sys.exit(_dump_main([args.dump_ast]))
 
     # Default to the numpy backend: fast and predictable for general array work
     # (and it never surprises non-autograd .kg scripts with MPS-tensor issues).

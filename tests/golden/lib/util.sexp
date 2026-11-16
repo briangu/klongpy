@@ -1,0 +1,4 @@
+(def (sym dp) (fn 1 (cond (m "@" (arg x)) (num 0) (d "+" (num 1) (adv (verb "|") (adverbs "/") (adv (verb (sym .f)) (adverbs "'") (arg x)))))))
+(def (sym flr) (fn 2 (locals f) (def (sym f) (arg x)) (d "@" (arg y) (d "?" (adv (verb (sym f)) (adverbs "'") (arg y)) (num 1)))))
+(def (sym all) (fn 2 (locals f) (def (sym f) (arg x)) (cond (m "@" (arg y)) (call (sym f) (arg y)) (adv (verb (proj (sym all) (sym f) _)) (adverbs "'") (arg y)))))
+(def (sym all2) (fn 3 (locals f a b) (def (sym f) (arg x)) (def (sym a) (arg y)) (def (sym b) (arg z)) (cond (m "@" (sym a)) (cond (m "@" (sym b)) (call (sym f) (sym a) (sym b)) (call (sym all) (proj (sym f) (sym a) _) (sym b))) (cond (m "@" (sym b)) (call (sym all) (proj (sym f) _ (sym b)) (sym a)) (adv2 (verb (fn 2 (call (sym all2) (sym f) (arg x) (arg y)))) (adverbs "'") (sym a) (sym b))))))

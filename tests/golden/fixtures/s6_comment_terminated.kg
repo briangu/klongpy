@@ -1,0 +1,5 @@
+a::1
+.comment("END")
+foo bar
+END
+a+1
