@@ -1,7 +1,8 @@
 import asyncio
+import logging
 import sys
 
-from klongpy.core import KGCall, KGFn, KGFnWrapper
+from klongpy.core import KGCall, KGFn, KGFnWrapper, KlongException
 
 
 class KGTimerHandler:
@@ -25,7 +26,12 @@ def _call_periodic(loop: asyncio.BaseEventLoop, name, interval, callback):
     start = loop.time()
 
     def run(handle, fn=callback):
-        r = fn()
+        try:
+            r = fn()
+        except Exception:
+            logging.exception("timer %s callback failed; cancelling timer", name)
+            handle.cancel()
+            return
         if r:
             if interval == 0:
                 handle.delegate = loop.call_soon(run, handle)
@@ -48,7 +54,8 @@ def eval_sys_fn_timer(klong, x, y, z):
     
         .timer(x, y, z)                                   [Create-timer]
 
-        Create a timer named by "x" that repeats every "y" seconds and calls function "z".
+        Create a timer named by "x" that repeats every "y" seconds (fractional
+        seconds are allowed) and calls function "z".
 
         An interval value of 0 indicates immediately callback (async).
 
@@ -75,19 +82,22 @@ def eval_sys_fn_timer(klong, x, y, z):
             th::.timer("count";1;cb)
 
     """
-    y= int(y)
-    if y < 0:
-        return "x must be a non-negative integer"
+    try:
+        y = float(y)
+    except (TypeError, ValueError):
+        raise KlongException("y must be a non-negative number")
+    if not y >= 0:
+        raise KlongException("y must be a non-negative number")
 
     # Wrap the callback - KGFnWrapper now handles dynamic resolution automatically
     if isinstance(z, KGCall):
-        return "z must be a function (not a function call)"
+        raise KlongException("z must be a function (not a function call)")
     if isinstance(z, KGFn):
         callback = KGFnWrapper(klong, z)
     elif callable(z):
         callback = z
     else:
-        return "z must be a function"
+        raise KlongException("z must be a function")
 
     system = klong['.system']
     klongloop = system['klongloop']
