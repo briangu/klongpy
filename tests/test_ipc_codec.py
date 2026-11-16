@@ -362,11 +362,12 @@ class TestEncode(unittest.TestCase):
         fn = KGFn(None, [], 1)
         self.assertEqual(decode(encode(fn, fn_text=lambda f: "{x+1}")), KdbLambda("kg", "{x+1}"))
         self.assertEqual(decode(encode(fn, fn_text=lambda f: None)), KdbLambda("kg", ":monad"))
+        previous = codec._fn_text_hook
         codec.set_function_text_hook(lambda f: "{hooked}")
         try:
             self.assertEqual(decode(encode(fn)), KdbLambda("kg", "{hooked}"))
         finally:
-            codec.set_function_text_hook(None)
+            codec.set_function_text_hook(previous)
         self.assertEqual(decode(encode(fn)), KdbLambda("kg", ":monad"))
         interp_fn = _klong("{x+y}")
         self.assertEqual(decode(encode(interp_fn)).context, "kg")

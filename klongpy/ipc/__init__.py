@@ -1,10 +1,13 @@
 """The kdb+ IPC wire protocol, written from public documentation (ticket 105).
 
-Three layers, none of which does I/O except the endpoint (not here yet):
+Three layers; only the endpoint does I/O:
 
 ``klongpy.ipc.codec``     encode/decode one object (pure functions)
 ``klongpy.ipc.compress``  message compression and decompression
 ``klongpy.ipc.session``   handshake, framing and response matching (state machine)
+``klongpy.ipc.endpoint``  requests, serving, calls, errors on the wire, handshake glue
+                          (used by ``klongpy.sys_fn_ipc``; imported from there, not here)
+``klongpy.ipc.legacy``    the deprecated pickle protocol, kept for one transition release
 
 This is an independent implementation of the protocol as described by public
 documentation and Apache-licensed client code; kdb+ is a trademark of KX.

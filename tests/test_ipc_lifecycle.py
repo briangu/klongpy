@@ -19,36 +19,14 @@ from klongpy.core import KlongException
 from klongpy.utils import CallbackEvent
 
 
-def free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
-
-
-def bounded(fn, timeout=10.0):
-    """Run fn in a daemon thread; fail (not hang) if it does not finish in time."""
-    box = {}
-
-    def run():
-        try:
-            box["r"] = fn()
-        except BaseException as e:  # noqa: BLE001 - re-raised below
-            box["e"] = e
-
-    t = threading.Thread(target=run, daemon=True)
-    t.start()
-    t.join(timeout)
-    if t.is_alive():
-        raise AssertionError(f"did not finish within {timeout}s")
-    if "e" in box:
-        raise box["e"]
-    return box.get("r")
+from ipc_helpers import bounded, free_port  # noqa: E402
 
 
 class SilentServer:
-    """Accepts connections and never replies. close_after: close each connection after n seconds."""
+    """Completes the kdb+ handshake, then never replies. close_after: close each connection after n seconds.
+
+    (A peer that does not even answer the greeting is a handshake timeout, tested in test_ipc_endpoint.)
+    """
 
     def __init__(self, close_after=None):
         self.sock = socket.socket()
@@ -67,6 +45,23 @@ class SilentServer:
                 self.conns.append(c)
                 if self.close_after is not None:
                     threading.Timer(self.close_after, c.close).start()
+                threading.Thread(target=self._handshake, args=(c,), daemon=True).start()
+        except OSError:
+            pass
+
+    @staticmethod
+    def _handshake(c):
+        """Read the greeting up to its NUL and answer with capability 3."""
+        try:
+            buf = b""
+            while b"\x00" not in buf:
+                data = c.recv(256)
+                if not data:
+                    return
+                buf += data
+            c.sendall(b"\x03")
+            while c.recv(65536):          # then swallow whatever the client sends
+                pass
         except OSError:
             pass
 

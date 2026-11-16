@@ -37,3 +37,27 @@ class IPCRangeError(IPCError):
 
 class IPCStateError(RuntimeError):
     """The session API was used out of order (a programming error, not a peer error)."""
+
+
+# ----------------------------------------------------------------------------
+# transport failures seen by Klong programs (raised by the endpoint layer)
+# ----------------------------------------------------------------------------
+
+class KlongIPCException(Exception):
+    pass
+
+
+class KlongIPCConnectionClosedException(KlongIPCException):
+    pass
+
+
+class KlongIPCConnectionFailureException(KlongIPCException):
+    pass
+
+
+class KlongIPCCreateConnectionException(KlongIPCException):
+    pass
+
+
+class KlongIPCHandshakeException(KlongIPCCreateConnectionException):
+    """The kdb+ handshake failed: refused, timed out or malformed."""
