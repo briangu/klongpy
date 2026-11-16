@@ -1,0 +1,33 @@
+CONFIG_IDF_TARGET="esp32p4"
+
+# Chip revision. ESP-IDF builds the P4 either for revisions below v3 or from v3 on (the
+# instruction set and the minimum revision in the image header differ); the two images are
+# not interchangeable. This board reads v3.2 (esptool), so: v3.1 and later.
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=n
+CONFIG_ESP32P4_REV_MIN_301=y
+
+# 32 MB NOR flash (esptool: manufacturer c8, device 4019). Mode and speed are the defaults
+# (DIO, 80 MHz), which the board's other firmware runs with.
+CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y
+# One factory app of 1.5 MB at 0x10000.
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+
+# In-package PSRAM (32 MB on the ESP32-P4NRW32X): the Klong heap. A board without it still
+# boots and gets a small heap in internal RAM (main.c).
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_IGNORE_NOTFOUND=y
+
+# The console is UART0 on its default pins (TX GPIO37, RX GPIO38: the USB-serial bridge),
+# 115200 8N1. ESP-IDF prints its boot log there; main.c silences logging before the banner.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
+
+# 1 ms tick: the idle wait of the main loop is one tick.
+CONFIG_FREERTOS_HZ=1000
+
+# The interpreter task runs on CPU 1, may compute for as long as a program does, and feeds
+# the task watchdog itself (every 4096 evaluation steps). Core 1's idle task is therefore
+# not watched; a single operation that takes longer than this many seconds resets the board.
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=30
+CONFIG_ESP_TASK_WDT_PANIC=y
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=n

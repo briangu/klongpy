@@ -1,0 +1,32 @@
+[package]
+name = "klong-ffi"
+description = "The Klong board runtime (console, upload, RAM file system, library, timers) as a static library with a small C ABI, for linking into a vendor SDK application (ESP-IDF, Pico SDK). Header: include/klong.h."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# staticlib is the product. rlib is there only so that cargo builds the library before the
+# integration test (which links the .a from C, not the rlib).
+crate-type = ["staticlib", "rlib"]
+# no unit tests: on a bare-metal target the crate has its own panic handler. The C ABI is
+# tested from C (tests/c_abi.rs compiles tests/host.c against the host build of the library).
+test = false
+doctest = false
+
+[features]
+default = ["files", "lib", "timers"]
+files = ["klong-board/files"]
+lib = ["klong-board/lib"]
+timers = ["klong-rt/timers"]
+int32 = ["klong-board/int32"]
+float32 = ["klong-board/float32"]
+# kdb+ IPC needs transports from the platform; the C ABI has none yet, so it is off.
+ipc = ["klong-rt/ipc"]
+
+[dependencies]
+klong-core = { path = "../klong-core" }
+klong-rt = { path = "../klong-rt", default-features = false }
+klong-console = { path = "../klong-console", default-features = false }
+klong-board = { path = "../klong-board", default-features = false }

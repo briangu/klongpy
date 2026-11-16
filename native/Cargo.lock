@@ -36,6 +36,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "klong-ffi"
+version = "0.0.1"
+dependencies = [
+ "klong-board",
+ "klong-console",
+ "klong-core",
+ "klong-rt",
+]
+
+[[package]]
 name = "klong-host"
 version = "0.0.1"
 dependencies = [
