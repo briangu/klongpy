@@ -46,7 +46,8 @@ def run(*items, klong=None, history=None, cancel_on_blank=True, evaluate=evaluat
     script = Script(*items)
     exit_state = {"code": None}
     out = io.StringIO()
-    with contextlib.redirect_stdout(out):
+    # errors go to stderr (ticket 042); one buffer keeps them in order with the values
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
         cli.repl_loop(klong, evaluate, script, history=history, exit_state=exit_state,
                       cancel_on_blank=cancel_on_blank)
     text = out.getvalue()
@@ -75,12 +76,12 @@ class TestMultiLine(unittest.TestCase):
     def test_trailing_dyad_is_evaluated_at_once(self):
         out, script, *_ = run("1+")
         self.assertEqual(script.prompts, [cli.PROMPT, cli.PROMPT])
-        self.assertIn("Error", out)
+        self.assertIn("syntax error", out)
 
     def test_mismatch_is_evaluated_at_once(self):
         out, script, *_ = run("(1]")
         self.assertEqual(script.prompts, [cli.PROMPT, cli.PROMPT])
-        self.assertIn("Error", out)
+        self.assertIn("syntax error", out)
 
     def test_blank_line_at_main_prompt_is_ignored(self):
         out, script, *_ = run("", "1+1")
@@ -131,7 +132,7 @@ class TestMultiLine(unittest.TestCase):
         def boom(klong, text):
             raise RuntimeError("boom")
         out, *_ = run("1", "2", evaluate=boom)
-        self.assertEqual(out.count("Error"), 2)
+        self.assertEqual(out.count("internal error: RuntimeError: boom"), 2)
 
     def test_keyboard_interrupt_from_evaluate_propagates(self):
         def intr(klong, text):

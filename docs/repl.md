@@ -72,12 +72,28 @@ Errors, `]` commands and expressions with no result leave it unchanged; assignin
 
 Tab completes defined names (including system functions such as `.p` to `.pc .py ...`), `]` commands, and file names after `]l ` and inside `.l("`. History is kept in `~/.kgpy_history` (at most 1000 entries, saved on exit); set `KGPY_HISTORY` to another path, or to an empty value to disable it. Without the `readline` module (for example on Windows) the REPL works without editing, completion or history.
 
+### Errors
+
+A failed entry prints the position, the source line and a caret on stderr, and the REPL stays in the loop. The first line is red on a terminal (never when `NO_COLOR` is set). In a multi-line entry the line number counts inside the entry. This entry is typed over three prompts; piped in, it gives the same output:
+
+```
+$ printf ':[1=1;\n2+"b";\n3]\n' | kgpy >/dev/null
+2:2: type error: cannot apply + (Plus) to integer and string
+  2+"b";
+   ^
+```
+
+An exception that is a bug in KlongPy prints one `internal error: Type: message` line and how to get the traceback (`-v`). Ctrl-C during a long evaluation stops it and prints `interrupted`. [Errors](errors.md) lists the kinds, the flags and the exit statuses.
+
 ### CLI options
 
 The `kgpy` executable supports a few useful flags:
 
-- `-e EXPR` Evaluate an expression and exit.
-- `-l FILE` Load a file into the REPL on startup.
+- `-e EXPR` Evaluate an expression and exit. The value goes to stdout, an error to stderr with status 1.
+- `-l FILE` Load a file into the REPL on startup. If the load fails, the error is printed and the process exits with status 1 without starting the REPL.
 - `-s PORT` Start the IPC server (e.g., `kgpy -s 8888`).
-- `-t FILE` Run a test file (non-interactive).
-- `-v` Verbose output.
+- `-t FILE` Run a test file (non-interactive), one line at a time. A failing line is reported and the run goes on; the process exits after the last line with status 1 if any line failed. It does not start the REPL.
+- `-v` Verbose output. Errors also print the Python traceback.
+- `--traceback` Print the Python traceback with an error, without the other verbose output.
+
+A file run (`kgpy file.kg`) stops at the first error, prints it with the file name, line and column (`file.kg:3:6: ...`) and exits with status 1. Input piped into the REPL exits with status 1 if any entry failed.

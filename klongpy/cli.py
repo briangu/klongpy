@@ -7,6 +7,8 @@ See https://t3x.org/klong/klong-ref.txt.html for additional details.
 
 import argparse
 import asyncio
+import concurrent.futures
+import ctypes
 import importlib
 import importlib.util
 import importlib.metadata
@@ -20,9 +22,12 @@ import colorama
 
 from klongpy import KlongInterpreter, __version__, list_backends
 from klongpy.core import kg_write
+from klongpy.errors import KlongError, KlongSystemError
 from klongpy.help_index import apropos_text, help_text
+from klongpy.lexer import Source
 from klongpy.sys_fn import eval_sys_load
-from klongpy.repl import cleanup_repl, create_repl
+from klongpy.repl import (cleanup_repl, create_repl, format_error, klong_warnings, use_color,
+                          write_stderr)
 from klongpy.repl_input import Completer, History, check_text, history_path
 
 _READLINE_SPEC = importlib.util.find_spec("readline")
@@ -123,7 +128,12 @@ def sys_cmd_load(klong, cmd):
     name = _arg(cmd)
     if not name:
         return "usage: ]l file"
-    return eval_sys_load(klong, name) or 1
+    try:
+        return eval_sys_load(klong, name) or 1
+    except OSError as e:
+        if isinstance(e, KlongError):
+            raise
+        return f"cannot load {name}: {e}"
 
 
 def sys_cmd_exit(klong, cmd):
@@ -230,10 +240,11 @@ def create_sys_cmd_functions():
     return registry
 
 
-def run_sys_cmd(klong, sys_cmds, s):
+def run_sys_cmd(klong, sys_cmds, s, verbose=False):
     """Run one ]-command line and return the value to print (or None).
 
-    Never raises for a bad argument: problems come back as a one-line message.
+    Never raises for a bad argument: problems come back as a one-line message,
+    an error as a ReplError.
     """
     if len(s) < 2 or s[1].isspace():
         return "system commands:\n" + "\n".join(
@@ -246,7 +257,7 @@ def run_sys_cmd(klong, sys_cmds, s):
     except (SystemExit, KeyboardInterrupt, EOFError):
         raise
     except Exception as e:
-        return failure(f"Error: {e.args}")
+        return ReplError(format_error(e, use_color(sys.stderr), verbose))
 
 
 def _title(fn):
@@ -264,22 +275,67 @@ class ExitRequest:
         self.code = 0 if code is None else code
 
 
-async def repl_eval(klong, p, verbose=True, set_it=True):
-    """Evaluate one REPL entry; the value of a successful non-empty result is also stored in `it`."""
+class ReplError(str):
+    """An error already rendered for the screen. repl_loop prints it to stderr and counts a failed entry."""
+
+
+async def repl_eval(klong, p, verbose=False, set_it=True):
+    """
+    Evaluate one REPL entry; the value of a successful non-empty result is also stored in `it`.
+
+    p is the text or a klongpy.lexer.Source. Returns None, the text to print, an
+    ExitRequest, or a ReplError (the rendered error; the Python traceback follows
+    it when verbose). Klong warnings raised while the entry runs are written to
+    stderr as they happen.
+    """
     try:
-        r = klong(p)
+        with klong_warnings():
+            r = klong(p)
         if r is not None and set_it:
             klong['it'] = r
-        r = r if r is None else success(kg_write(r, klong._backend, display=False))
+        if r is not None:
+            r = kg_write(r, klong._backend, display=False)
+            if use_color(sys.stdout):
+                r = success(r)
     except SystemExit as exc:
         return ExitRequest(exc.code)
+    except KeyboardInterrupt:
+        return ReplError("interrupted")
     except Exception as e:
-        r = failure(f"Error: {e.args}")
-        if verbose:
-            import traceback
-            traceback.print_exception(type(e), e, e.__traceback__)
+        return ReplError(format_error(e, use_color(sys.stderr), verbose))
 
     return r
+
+
+INTERRUPT_GRACE = 2.0
+
+
+def interrupt_evaluation(future, thread, grace=INTERRUPT_GRACE):
+    """
+    Ctrl-C arrived in the main thread while `future` is evaluating in `thread`: raise
+    KeyboardInterrupt there (repl_eval turns it into "interrupted") and wait for the
+    result. Python code stops at its next bytecode; a long numpy call or a sleep
+    finishes first, so after `grace` seconds say so and keep waiting; a second
+    Ctrl-C then quits.
+    """
+    if not future.done() and thread is not None and thread.ident is not None:
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(thread.ident), ctypes.py_object(KeyboardInterrupt))
+    try:
+        return future.result(timeout=grace)
+    except concurrent.futures.TimeoutError:
+        write_stderr("interrupt sent, waiting for the evaluation to stop (Ctrl-C again to quit)")
+        return future.result()
+
+
+def make_evaluate(klong_loop, klong_thread, verbose=False):
+    """The evaluate(klong, text) for repl_loop: run repl_eval on the klong loop; Ctrl-C interrupts that evaluation."""
+    def evaluate(klong, text):
+        future = asyncio.run_coroutine_threadsafe(repl_eval(klong, text, verbose=verbose), klong_loop)
+        try:
+            return future.result()
+        except KeyboardInterrupt:
+            return interrupt_evaluation(future, klong_thread)
+    return evaluate
 
 
 def _klongpy_version():
@@ -365,38 +421,59 @@ def read_entry(read_line, history=None, cancel_on_blank=True):
 
 
 def repl_loop(klong, evaluate, read_line=get_input, sys_cmds=None, history=None,
-              exit_state=None, cancel_on_blank=True):
+              exit_state=None, cancel_on_blank=True, verbose=False):
     """
     The read-eval-print loop, free of any terminal: read_line(prompt) supplies
-    the input and evaluate(klong, text) the result. Returns when the input
-    ends (EOFError) or an ExitRequest comes back. KeyboardInterrupt at a prompt
-    never quits; one raised by evaluate propagates to the caller.
+    the input and evaluate(klong, source) the result; source is a
+    klongpy.lexer.Source named <repl:N> (N counts the entries evaluated), whose
+    text is the entry, so an error on the second line of a multi-line entry
+    reports line 2. Returns the number of entries that failed when the input
+    ends (EOFError) or an ExitRequest comes back; exit_state["failures"] holds the
+    same count. Values print to stdout; errors (a ReplError, or an exception
+    that escapes evaluate) print to stderr. KeyboardInterrupt at a prompt never
+    quits; one raised by evaluate propagates to the caller.
     """
     sys_cmds = create_sys_cmd_functions() if sys_cmds is None else sys_cmds
+    entry = 0
+    failures = 0
+
+    def failed():
+        nonlocal failures
+        failures += 1
+        if exit_state is not None:
+            exit_state["failures"] = failures
+
     while True:
         try:
             s = read_entry(read_line, history, cancel_on_blank)
         except EOFError:
             print("\rbye!")
-            return
+            return failures
         if s is None:
             continue
         try:
             transcript_write("\t" + s)
-            r = run_sys_cmd(klong, sys_cmds, s) if s.startswith("]") else evaluate(klong, s)
+            if s.startswith("]"):
+                r = run_sys_cmd(klong, sys_cmds, s, verbose)
+            else:
+                entry += 1
+                r = evaluate(klong, Source(f"<repl:{entry}>", s))
             if isinstance(r, ExitRequest):
                 if exit_state is not None:
                     exit_state["code"] = r.code
-                return
-            if r is not None:
+                return failures
+            if isinstance(r, ReplError):
+                failed()
+                write_stderr(r)
+                transcript_write(str(r))
+            elif r is not None:
                 print(r)
                 transcript_write(str(r))
         except KeyboardInterrupt:
             raise
         except Exception as e:
-            print(failure(f"Error: {e.args}"))
-            import traceback
-            traceback.print_exception(type(e), e, e.__traceback__)
+            failed()
+            write_stderr(format_error(e, use_color(sys.stderr), verbose))
 
 
 def setup_readline(klong, sys_cmds, environ=None):
@@ -422,19 +499,56 @@ def setup_readline(klong, sys_cmds, environ=None):
 
 async def run_in_klong(klong, s):
     try:
-        return klong(s)
+        with klong_warnings():
+            return klong(s)
     except SystemExit as exc:
         return ExitRequest(exc.code)
 
 
 def run_file(klong_loop, klong, fname, verbose=False):
+    """
+    Run a Klong file on the klong loop and return its result (an ExitRequest for .x).
+    Errors propagate: a KlongError carries the Source named fname, so it renders
+    as `fname:line:col: ...`. A file that cannot be read is a KlongSystemError.
+    """
     # Add script directory to sys.path so .py/.pyf imports resolve sibling modules
     script_dir = os.path.dirname(os.path.abspath(fname))
     if script_dir not in sys.path:
         sys.path.insert(0, script_dir)
-    with open(fname, "r") as f:
-        content = f.read()
-    return run_in_loop(klong_loop, run_in_klong(klong, content))
+    try:
+        with open(fname, "r") as f:
+            content = f.read()
+    except OSError as e:
+        raise KlongSystemError(f"cannot open {fname}: {e.strerror or e}") from e
+    return run_in_loop(klong_loop, run_in_klong(klong, Source(fname, content)))
+
+
+def run_test_file(klong, fname, report):
+    """
+    Run a test file one line at a time (blank lines and lines starting with ":" are skipped).
+    A failing line is reported with report(exception) and does not stop the run.
+    Returns the number of failed lines. Each line is evaluated as a Source named fname
+    padded with newlines so an error reports its real line number in the file.
+    """
+    print(f"Test: {fname}")
+    try:
+        with open(fname, "r") as f:
+            lines = f.read().splitlines()
+    except OSError as e:
+        raise KlongSystemError(f"cannot open {fname}: {e.strerror or e}") from e
+    failed = 0
+    for n, raw in enumerate(lines, 1):
+        x = raw.strip()
+        if len(x) == 0 or x.startswith(":"):
+            continue
+        print(x)
+        try:
+            with klong_warnings():
+                klong(Source(fname, "\n" * (n - 1) + raw))
+        except Exception as e:
+            report(e)
+            failed += 1
+    return failed
 
 
 def main():
@@ -455,7 +569,9 @@ def main():
     parser.add_argument('-l', '--load', help='load program from file')
     parser.add_argument('-s', '--server', help='start the IPC server', type=str)
     parser.add_argument('-t', '--test', help='test program from file')
-    parser.add_argument('-v', '--verbose', help='enable verbose output', action="store_true")
+    parser.add_argument('-v', '--verbose', help='enable verbose output; errors also print the Python traceback', action="store_true")
+    parser.add_argument('--traceback', help='print the Python traceback with an error (what -v does, without the other output)',
+                        action="store_true")
     parser.add_argument('--dump-ast', metavar='FILE', help='print the canonical parse tree of FILE and exit')
     parser.add_argument('-d', '--debug', help='enable debug mode', action="store_true")
     parser.add_argument('--backend', help='set array backend', type=str.lower, choices=list_backends())
@@ -476,12 +592,29 @@ def main():
     if args.debug:
         print("args: ", args)
 
+    show_traceback = args.verbose or args.traceback
+
+    def report(e):
+        """Print an exception to stderr: rendered if it is a KlongError, one `internal error` line if not."""
+        write_stderr(format_error(e, use_color(sys.stderr), show_traceback))
+
+    def interrupted():
+        write_stderr("interrupted")
+        sys.exit(130)
+
     if args.expr:
         try:
             klong = KlongInterpreter(backend=args.backend, device=args.device)
         except ValueError as exc:
             parser.error(str(exc))
-        result = klong(args.expr)
+        try:
+            with klong_warnings():
+                result = klong(Source("<expr>", args.expr))
+        except KeyboardInterrupt:
+            interrupted()
+        except Exception as e:
+            report(e)
+            sys.exit(1)
         if result is not None:
             print(kg_write(result, klong._backend, display=False))
         return
@@ -490,7 +623,7 @@ def main():
         klong, loops = create_repl(debug=args.debug, backend=args.backend, device=args.device)
     except ValueError as exc:
         parser.error(str(exc))
-    io_loop, _, _, klong_loop, _, _ = loops
+    io_loop, _, _, klong_loop, klong_thread, _ = loops
     shutdown_event = klong['.system']['closeEvent']
 
     klong['.helpdb'] = []
@@ -500,44 +633,46 @@ def main():
     run_repl = False
     exit_code = None
 
-    if args.server:
-        r = klong(f".srv({args.server})")
-        if r == 0:
-            print("Failed to start server")
-    elif args.test:
-        print(f"Test: {args.test}")
-        with open(args.test, "r") as f:
-            for x in f.readlines():
-                x = x.strip()
-                if len(x) == 0 or x.startswith(":"):
-                    continue
-                print(x)
-                klong(x)
+    try:
+        if args.server:
+            r = klong(f".srv({args.server})")
+            if r == 0:
+                print("Failed to start server")
+        elif args.test:
+            # a test run never starts the REPL; it exits after the last line, 1 if any line failed
+            if run_test_file(klong, args.test, report):
+                exit_code = 1
 
-    if args.filename:
-        if args.verbose:
-            print(f"Running: {args.filename}")
-        result = run_file(klong_loop, klong, args.filename, verbose=args.verbose)
-        if isinstance(result, ExitRequest):
-            exit_code = result.code
+        if args.filename:
+            if args.verbose:
+                print(f"Running: {args.filename}")
+            result = run_file(klong_loop, klong, args.filename, verbose=args.verbose)
+            if isinstance(result, ExitRequest):
+                exit_code = result.code
 
-        def gather_io_tasks(io_loop):
-            done_event = threading.Event()
-            tasks = asyncio.all_tasks(loop=io_loop)
-            async def main_task():
-                gathered_task = asyncio.gather(*tasks)
-                gathered_task.add_done_callback(lambda x: done_event.set())
-                await gathered_task
-            if len(tasks) > 1:
-                io_loop.call_soon_threadsafe(asyncio.create_task, main_task())
-            else:
-                done_event.set()
-            return done_event
+            def gather_io_tasks(io_loop):
+                done_event = threading.Event()
+                tasks = asyncio.all_tasks(loop=io_loop)
+                async def main_task():
+                    gathered_task = asyncio.gather(*tasks)
+                    gathered_task.add_done_callback(lambda x: done_event.set())
+                    await gathered_task
+                if len(tasks) > 1:
+                    io_loop.call_soon_threadsafe(asyncio.create_task, main_task())
+                else:
+                    done_event.set()
+                return done_event
 
-        if exit_code is None:
-            gather_io_tasks(io_loop).wait()
-    else:
-        run_repl = True
+            if exit_code is None:
+                gather_io_tasks(io_loop).wait()
+        elif not args.test:
+            run_repl = True
+    except KeyboardInterrupt:
+        interrupted()
+    except Exception as e:
+        report(e)
+        exit_code = 1
+        run_repl = False
 
     if args.debug:
         print("run_repl: ", run_repl)
@@ -548,22 +683,31 @@ def main():
         if args.load:
             if args.verbose:
                 print(f"Loading: {args.load}")
-            result = run_file(klong_loop, klong, args.load, verbose=args.verbose)
-            if isinstance(result, ExitRequest):
-                exit_code = result.code
+            try:
+                result = run_file(klong_loop, klong, args.load, verbose=args.verbose)
+            except KeyboardInterrupt:
+                interrupted()
+            except Exception as e:
+                # a failing load is rendered and the process exits
+                report(e)
+                exit_code = 1
                 run_repl = False
+            else:
+                if isinstance(result, ExitRequest):
+                    exit_code = result.code
+                    run_repl = False
         if run_repl:
-            exit_state = {"code": None}
-            colorama.init(autoreset=True)
+            exit_state = {"code": None, "failures": 0}
+            colorama.init(autoreset=True, strip=True if os.environ.get("NO_COLOR") else None)
             backend_name = klong._backend.name
             device_name = str(klong._backend.device) if hasattr(klong._backend, 'device') else None
             show_repl_header(backend_name, device_name, args.server)
             sys_cmds = create_sys_cmd_functions()
             history = setup_readline(klong, sys_cmds)
-            evaluate = lambda k, text: run_in_loop(klong_loop, repl_eval(k, text, verbose=args.verbose))
+            evaluate = make_evaluate(klong_loop, klong_thread, verbose=show_traceback)
             try:
                 repl_loop(klong, evaluate, get_input, sys_cmds, history, exit_state,
-                          cancel_on_blank=sys.stdin.isatty())
+                          cancel_on_blank=sys.stdin.isatty(), verbose=show_traceback)
             except KeyboardInterrupt:
                 print("\rbye!")
                 exit_state["code"] = 130
@@ -572,6 +716,9 @@ def main():
             console_loop.close()
             if exit_state["code"] is not None:
                 exit_code = exit_state["code"]
+            elif exit_state["failures"] and not sys.stdin.isatty():
+                # piped input: a failed entry makes the run fail (an interactive session ends 0)
+                exit_code = 1
 
     shutdown_event.trigger()
 
