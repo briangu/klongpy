@@ -5,7 +5,66 @@ Compiles Klong expression ASTs to a backend-neutral IR (tuple tree),
 then delegates to the active backend for platform-specific code generation.
 Falls back to None (interpreter handles it) for anything it can't compile.
 """
+import logging
+from collections import OrderedDict
+
 from .types import KGSym, KGFn, KGCall, KGOp, KGAdverb
+
+_log = logging.getLogger(__name__)
+
+# Returned by run_compiled when the compiled function must not be used for
+# the current values (see run_compiled). The caller evaluates normally.
+NOT_COMPILED = object()
+
+# Exceptions that mean "this AST cannot be compiled". They are raised while
+# the AST is walked or the source is generated, before any Klong code runs,
+# so falling back to the interpreter for them cannot repeat a side effect.
+# Nothing is caught once a compiled function is running: see run_compiled.
+_UNSUPPORTED = (AttributeError, IndexError, KeyError, TypeError, ValueError, NotImplementedError, SyntaxError)
+
+CACHE_LIMIT = 2048
+
+
+class LRUCache(OrderedDict):
+    """A dict that keeps at most `maxsize` entries, dropping the least recently used."""
+
+    def __init__(self, maxsize=CACHE_LIMIT):
+        super().__init__()
+        self.maxsize = maxsize
+
+    def get(self, key, default=None):
+        try:
+            self.move_to_end(key)
+        except KeyError:
+            return default
+        return OrderedDict.__getitem__(self, key)
+
+    def __setitem__(self, key, value):
+        OrderedDict.__setitem__(self, key, value)
+        self.move_to_end(key)
+        while len(self) > self.maxsize:
+            self.popitem(last=False)
+
+
+class CompiledExpr:
+    """A compiled function with the operand kinds it was compiled for."""
+    __slots__ = ('fn', 'var_syms', 'kinds')
+
+    def __init__(self, fn, var_syms, kinds):
+        self.fn = fn
+        self.var_syms = var_syms
+        self.kinds = kinds
+
+
+def _kind(val, klong):
+    """Operand class a compiled function is valid for, or None if not compilable."""
+    tv = type(val)
+    if tv is int or tv is float:
+        return tv
+    if isinstance(val, klong._backend.np.ndarray):
+        dt = val.dtype
+        return ('array', getattr(dt, 'kind', None) or str(dt))
+    return None
 
 
 # Arithmetic ops the IR supports
@@ -23,15 +82,67 @@ def compile_expr(ast, klong):
 
     Returns (compiled_fn, [var_syms]) or None.
     """
-    var_refs = {}
-    ir = _ast_to_ir(ast, klong, var_refs)
-    if ir is None:
-        return None
-    if not var_refs:
-        return None  # pure constant — not worth compiling
+    try:
+        var_refs = {}
+        ir = _ast_to_ir(ast, klong, var_refs)
+        if ir is None:
+            return None
+        if not var_refs:
+            return None  # pure constant — not worth compiling
 
-    var_syms = list(var_refs.keys())
-    return klong._backend.compile_expr_ir(ir, var_syms)
+        var_syms = list(var_refs.keys())
+        return klong._backend.compile_expr_ir(ir, var_syms)
+    except _UNSUPPORTED:
+        _log.debug("expression not compilable", exc_info=True)
+        return None
+
+
+def compile_guarded(ast, klong):
+    """Like compile_expr, but returns a CompiledExpr that remembers the kind
+    (int, float, array dtype kind) of every variable it was compiled for, or None.
+    """
+    r = compile_expr(ast, klong)
+    if r is None:
+        return None
+    fn, var_syms = r
+    try:
+        kinds = [_kind(klong._context[s], klong) for s in var_syms]
+    except KeyError:
+        return None
+    if None in kinds:
+        return None
+    return CompiledExpr(fn, var_syms, kinds)
+
+
+def run_compiled(klong, c):
+    """Run a CompiledExpr on the current values of its variables.
+
+    Returns NOT_COMPILED, without running anything, if a variable has been
+    rebound to a different kind of value since compilation (or removed): the
+    compiled function assumes its kinds, and Python operators mean different
+    things on other types. Otherwise the result is returned and any exception
+    the function raises propagates (except ZeroDivisionError, see below): the function is the whole expression, so
+    re-running it on the interpreter would only repeat the work and the error.
+    """
+    ctx = klong._context
+    args = []
+    try:
+        for s, kind in zip(c.var_syms, c.kinds):
+            v = ctx[s]
+            if type(v) is not kind and _kind(v, klong) != kind:
+                return NOT_COMPILED
+            args.append(v)
+    except KeyError:
+        return NOT_COMPILED
+    try:
+        return c.fn(*args)
+    except ZeroDivisionError:
+        # The one run-time fallback. Python raises this for scalar a%b with
+        # b == 0 where the interpreter returns :undefined. The compiled
+        # function is only literals, variable values already fetched above and
+        # the arithmetic/reduce/scan operators of the IR: it never calls Klong
+        # code and has no side effect, so the interpreter can re-evaluate it.
+        return NOT_COMPILED
 
 
 def _ast_to_ir(node, klong, var_refs):

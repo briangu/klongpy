@@ -13,7 +13,7 @@ from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
 from .types import KGQSym
 from .utils import ReadonlyDict
-from .compiler import compile_expr
+from .compiler import compile_guarded, run_compiled, NOT_COMPILED, LRUCache
 
 
 def set_context_var(d, sym, v):
@@ -273,8 +273,8 @@ class KlongInterpreter():
         self._vm = create_monad_functions(self)
         self._start_time = time.time()
         self._module = None
-        self._parse_cache = {}
-        self._compiled_cache = {}
+        self._parse_cache = LRUCache()
+        self._compiled_cache = LRUCache()
 
     @property
     def backend(self):
@@ -802,7 +802,24 @@ class KlongInterpreter():
         any, are the unevaluated expressions it was parsed with.
 
         """
-        return self.eval(KGCall(x.a, x.args, x.arity) if isinstance(x, KGFn) else x)
+        if isinstance(x, KGFn):
+            c = KGCall(x.a, x.args, x.arity)
+            c._origin = getattr(x, '_origin', x)  # compile cache lives on the node as parsed
+            return self.eval(c)
+        return self.eval(x)
+
+    def _compiled_for(self, x):
+        """The CompiledExpr for an operator or adverb-chain node, or False.
+
+        The result (including "not compilable") is kept on the node as parsed,
+        so the KGCall that call() makes for every evaluation shares it.
+        """
+        node = getattr(x, '_origin', x)
+        compiled = getattr(node, '_compiled', None)
+        if compiled is None:
+            compiled = compile_guarded(x, self) or False
+            node._compiled = compiled
+        return compiled
 
     def eval(self, x):
         """
@@ -828,17 +845,11 @@ class KlongInterpreter():
             if x.is_op():
                 # Try compiled path for operator expressions (skips assignment/gradient)
                 if x.a.a not in ('::','∇'):
-                    compiled = getattr(x, '_compiled', None)
-                    if compiled is None:
-                        compiled = compile_expr(x, self) or False
-                        x._compiled = compiled
-                    if compiled and compiled is not False:
-                        fn, var_syms = compiled
-                        try:
-                            args = [self._context[s] for s in var_syms]
-                            return fn(*args)
-                        except Exception:
-                            pass
+                    compiled = self._compiled_for(x)
+                    if compiled:
+                        r = run_compiled(self, compiled)
+                        if r is not NOT_COMPILED:
+                            return r
                 f = self._get_op_fn(x.a.a, x.a.arity)
                 fa = (x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else x.args
                 _y = self.eval(fa[1]) if x.a.arity == 2 else None
@@ -846,17 +857,11 @@ class KlongInterpreter():
                 return f(_x) if x.a.arity == 1 else f(_x, _y)
             elif x.is_adverb_chain():
                 # Try compiled path for adverb chains (reduce/scan)
-                compiled = getattr(x, '_compiled', None)
-                if compiled is None:
-                    compiled = compile_expr(x, self) or False
-                    x._compiled = compiled
-                if compiled and compiled is not False:
-                    fn, var_syms = compiled
-                    try:
-                        args = [self._context[s] for s in var_syms]
-                        return fn(*args)
-                    except Exception:
-                        pass
+                compiled = self._compiled_for(x)
+                if compiled:
+                    r = run_compiled(self, compiled)
+                    if r is not NOT_COMPILED:
+                        return r
                 return chain_adverbs(self, x.a)()
             elif isinstance(x, KGCall):
                 return self._eval_fn(x)
@@ -890,15 +895,12 @@ class KlongInterpreter():
         if type(cached) is not list:
             compiled = self._compiled_cache.get(cache_key)
             if compiled is None:
-                compiled = compile_expr(cached, self)
-                self._compiled_cache[cache_key] = compiled or False
-            if compiled and compiled is not False:
-                fn, var_syms = compiled
-                try:
-                    args = [self._context[s] for s in var_syms]
-                    return fn(*args)
-                except Exception:
-                    pass  # fall through to interpreter
+                compiled = compile_guarded(cached, self) or False
+                self._compiled_cache[cache_key] = compiled
+            if compiled:
+                r = run_compiled(self, compiled)
+                if r is not NOT_COMPILED:
+                    return r
 
         # Existing interpreter path
         if type(cached) is list:
