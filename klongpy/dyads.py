@@ -1,5 +1,6 @@
 from .core import *
 from .autograd import grad_of_fn, numeric_grad, jacobian_of_fn, multi_jacobian_of_fn, multi_grad_of_fn
+import numbers
 import numpy
 
 
@@ -53,29 +54,51 @@ def eval_dyad_amend(a, b, backend):
     if len(b) <= 1:
         return a
     if isinstance(a, str):
-        r = backend.str_to_chr_arr(a)
-        q = backend.str_to_chr_arr(b[0])
+        if not isinstance(b[0], str):
+            raise KlongException(f":=: value for a string must be a character or string, got {b[0]!r}")  # TODO(040): KlongTypeError
+        n = len(a)
+        r = a
         for i in b[1:]:
-            try:
-                r[i:i+len(q)] = q
-            except ValueError:
-                r = r.astype(object)
-                if i > len(r):
-                    RangeError(i)
-                elif i == len(r):
-                    r = numpy.append(r, b[0])
-                else:
-                    r[i] = b[0]
-        return "".join(["".join(x) for x in r])
+            i = _amend_index(i, n, allow_end=True)
+            r = r[:i] + b[0] + r[i+len(b[0]):]
+        return str(r)
     r = np_backend.array(a) # clone
+    n = len(r)
+    idx = [_amend_index(i, n, allow_end=False) for i in b[1:]]
     if is_list(b[0]): # TOOD: use bknp.put if we can
         r = r.tolist()
-        for i in b[1:]:
+        for i in idx:
             r[i] = b[0]
         r = backend.kg_asarray(r)
     else:
-        numpy.put(r, numpy.asarray(b[1:],dtype=int), b[0])
+        r = _amend_promote(r, b[0])
+        numpy.put(r, numpy.asarray(idx,dtype=int), b[0])
     return r
+
+
+def _amend_index(i, n, allow_end):
+    """Normalise an amend index: -n..n-1 (and n when allow_end) are valid."""
+    if getattr(i, 'ndim', None) == 0 and hasattr(i, 'item'):
+        i = i.item()
+    if isinstance(i, (str, bool)) or not isinstance(i, numbers.Real) or i != i or i != int(i):
+        raise KlongException(f":=: index must be an integer, got {i!r}")  # TODO(040): KlongTypeError
+    i = int(i)
+    j = i + n if i < 0 else i
+    if j < 0 or j > n or (j == n and not allow_end):
+        raise KlongException(f":=: index {i} out of range for length {n}")  # TODO(040): KlongRangeError
+    return j
+
+
+def _amend_promote(r, v):
+    """Widen the dtype of r when v cannot be held by it (so put does not truncate)."""
+    kind = getattr(getattr(r, 'dtype', None), 'kind', None)
+    if kind is None:
+        return r
+    if isinstance(v, (numbers.Integral, numpy.bool_)):
+        return r
+    if isinstance(v, numbers.Real):
+        return r.astype(float) if kind in 'iub' else r
+    return r.astype(object) if kind != 'O' else r
 
 
 def _e_dyad_amend_in_depth(p, q, v):
@@ -137,6 +160,18 @@ def eval_dyad_cut(a, b, backend):
     return bknp.asarray(["".join(x) for x in r]) if j else backend.kg_asarray(r)
 
 
+def _normalize_index(i, n):
+    """a@i accepts -n <= i < n; a negative index counts from the end."""
+    if getattr(i, 'ndim', None) == 0 and hasattr(i, 'item'):
+        i = i.item()
+    if not isinstance(i, numbers.Integral):
+        return i  # not an integer index: let the container decide (e.g. nested lists)
+    i = int(i)
+    if i < -n or i >= n:
+        raise KlongException(f"@: index {i} out of range for length {n}")  # TODO(040): KlongRangeError
+    return i + n if i < 0 else i
+
+
 def eval_dyad_at_index(klong, a, b):
     """
 
@@ -175,14 +210,16 @@ def eval_dyad_at_index(klong, a, b):
     backend = klong._backend
     j = isinstance(a,str)
     a = backend.str_to_chr_arr(a) if j else a
+    n = None if is_dict(a) or not hasattr(a, '__len__') else len(a)
     if is_list(b):
         if is_empty(b):
             r = bknp.asarray([])
         else:
-            # TODO: return None for missing keys? or raise?
+            if n is not None:
+                b = [_normalize_index(x, n) for x in b]
             r = backend.kg_asarray([a[x] for x in b])
     elif backend.is_integer(b):
-        r = a[b]
+        r = a[b if n is None else _normalize_index(b, n)]
         j = False
     else:
         r = a
@@ -213,6 +250,35 @@ def eval_dyad_define(klong, n, v):
     return v
 
 
+def _undefined_on_zero_divisor(fn, backend):
+    """Wrap an elementwise numeric f(x, y) so that positions where y == 0 give :undefined.
+
+    A scalar zero divisor gives :undefined itself; for arrays the result becomes
+    a mixed (object) list with :undefined at the offending positions.  When there
+    is no zero divisor the fast path and the dtype are unchanged.  Backends that
+    cannot hold :undefined in an array (torch) keep their IEEE results.
+    """
+    if not backend.supports_object_dtype():
+        return fn
+    np_ = backend.np
+
+    def g(x, y):
+        yn = np_.asarray(y)
+        if yn.dtype.kind not in 'biuf':
+            return fn(x, y)
+        zero = yn == 0
+        if not zero.any():
+            return fn(x, y)
+        with numpy.errstate(all='ignore'):
+            r = fn(x, np_.where(zero, 1, yn))
+        if numpy.ndim(r) == 0:
+            return KLONG_UNDEFINED
+        o = numpy.asarray(r).astype(object)
+        o[numpy.broadcast_to(zero, o.shape)] = KLONG_UNDEFINED
+        return o
+    return g
+
+
 def eval_dyad_divide(a, b, backend):
     """
 
@@ -231,7 +297,7 @@ def eval_dyad_divide(a, b, backend):
         b_val = backend.scalar_to_python(b) if backend.is_backend_array(b) or (hasattr(b, 'ndim') and b.ndim == 0) else b
         if b_val == 0:
             return KLONG_UNDEFINED
-    return backend.vec_fn2(a, b, backend.np.divide)
+    return backend.vec_fn2(a, b, _undefined_on_zero_divisor(backend.np.divide, backend))
 
 
 def eval_dyad_drop(a, b):
@@ -350,13 +416,19 @@ def __e_dyad_form(a, b, backend):
             return KLONG_UNDEFINED
         return KGSym(b[1:] if isinstance(b,str) and b.startswith(":") else b)
     if backend.is_integer(a):
-        if backend.is_float(b) or is_empty(b) or ('.' in b and str_is_float(b)):
+        if not isinstance(b, str) or is_empty(b):
             return KLONG_UNDEFINED
-        return int(b)
+        try:
+            return int(b)
+        except ValueError:
+            return KLONG_UNDEFINED
     if backend.is_float(a):
         if is_empty(b):
             return KLONG_UNDEFINED
-        return float(b)
+        try:
+            return float(b)
+        except (ValueError, TypeError):
+            return KLONG_UNDEFINED
     if isinstance(a,KGChar):
         b = str(b)
         if len(b) != 1:
@@ -370,6 +442,9 @@ def _e_dyad_form(a, b, backend):
     """
     if bknp.isarray(a) and bknp.isarray(b):
         return bknp.asarray([backend.vec_fn2(x, y, lambda x, y: _e_dyad_form(x, y, backend)) for x,y in zip(a,b)])
+    if bknp.isarray(b) and b.ndim > 0 and not bknp.isarray(a):
+        # numeric list on the right (e.g. 1:$[5]): convert element by element
+        return backend.kg_asarray([_e_dyad_form(a, x, backend) for x in b])
     return __e_dyad_form(a, b, backend)
 
 def eval_dyad_form(a, b, backend):
@@ -407,6 +482,8 @@ def __e_dyad_format2(a, b, backend):
         a = a.item()
     if hasattr(b, 'ndim') and b.ndim == 0:
         b = b.item()
+    if isinstance(a, float) and not (isinstance(b, float) and not isinstance(b, bool)):
+        raise KlongException(f"$: a real width needs a real number to format, got {b!r}")  # TODO(040): KlongTypeError
     if safe_eq(int(a), 0):
         return str(b)
     if (backend.is_float(b) and not isinstance(b,int)) and (backend.is_float(a) and not isinstance(a,int)):
@@ -503,7 +580,7 @@ def eval_dyad_integer_divide(a, b, backend):
         b_val = backend.scalar_to_python(b) if backend.is_backend_array(b) or (hasattr(b, 'ndim') and b.ndim == 0) else b
         if b_val == 0:
             return KLONG_UNDEFINED
-    return backend.vec_fn2(a, b, lambda x, y: _e_dyad_integer_divide(x, y, backend))
+    return backend.vec_fn2(a, b, _undefined_on_zero_divisor(lambda x, y: _e_dyad_integer_divide(x, y, backend), backend))
 
 
 def _arr_to_list(a):
@@ -556,6 +633,8 @@ def eval_dyad_join(a, b, backend):
     if (isinstance(a,str) and not isinstance(a,KGSym)) and (isinstance(b,str) and not isinstance(b,KGSym)):
         return a+b
     if isinstance(a,dict):
+        if not (is_list(b) and len(b) == 2):
+            raise KlongException(",: a dictionary can only be joined with a tuple (a list of two members)")  # TODO(040): KlongTypeError
         a[b[0]] = b[1]
         return a
     if isinstance(b,dict) and is_list(a) and len(a) == 2:
@@ -794,6 +873,8 @@ def eval_dyad_remainder(a, b, backend):
 
         Formally, a = (b*a:%b) + a!b .
 
+        a!0 is :undefined (as is a%0 and a:%0), also element by element.
+
         Dyadic "!" is an atomic operator.
 
         Examples:    7!5  -->  2
@@ -802,7 +883,7 @@ def eval_dyad_remainder(a, b, backend):
                    -7!-5  --> -2
 
     """
-    return backend.vec_fn2(a, b, backend.np.fmod)
+    return backend.vec_fn2(a, b, _undefined_on_zero_divisor(backend.np.fmod, backend))
 
 
 def eval_dyad_reshape(a, b, backend):
@@ -856,6 +937,8 @@ def eval_dyad_reshape(a, b, backend):
     j = isinstance(b, str)
     b = backend.str_to_chr_arr(b) if j else b
     if np_backend.isarray(a):
+        if np_backend.isarray(a) and a.ndim > 0 and bool((a < -1).any()):
+            raise KlongException(f":^: only -1 may be negative in a shape, got {to_list(a)}")  # TODO(040): KlongRangeError
         if np_backend.isarray(b):
             y = np_backend.where(a < 0)[0]
             if len(y) > 0:
@@ -863,6 +946,8 @@ def eval_dyad_reshape(a, b, backend):
                 a[y] = backend.array_size(b) // 2
             b_s = backend.array_size(b)
             a_s = int(np_backend.prod(a))  # Ensure it's a Python int for comparison
+            if b_s == 0 and a_s > 0:
+                raise KlongException(":^: cannot fill a non-empty shape from an empty source")  # TODO(040): KlongRangeError
             # Convert shape to tuple of ints for backend compatibility
             a_shape = tuple(int(x) for x in (a.tolist() if hasattr(a, 'tolist') else a))
             if a_s > b_s:
@@ -877,10 +962,16 @@ def eval_dyad_reshape(a, b, backend):
             else:
                 r = np_backend.resize(b, a_shape)
         else:
+            if bool((a < 0).any()):
+                raise KlongException(":^: -1 in a shape needs a list as the source, not an atom")  # TODO(040): KlongRangeError
             r = np_backend.full(a, b)
     else:
+        if a < 0:
+            raise KlongException(f":^: size must not be negative, got {a}")  # TODO(040): KlongRangeError
         if a == 0:
             r = b
+        elif np_backend.isarray(b) and backend.array_size(b) == 0:
+            raise KlongException(":^: cannot fill a non-empty shape from an empty source")  # TODO(040): KlongRangeError
         elif np_backend.isarray(b):
             if a < b.shape[0]:
                 r = np_backend.resize(b, (a,))
@@ -954,6 +1045,18 @@ def eval_dyad_split(a, b, backend):
     b = backend.str_to_chr_arr(b) if j else b
 
     a = a if bknp.isarray(a) else [a]
+    if len(a) == 0:
+        raise KlongException(":#: segment sizes must not be empty")  # TODO(040): KlongRangeError
+    sizes = []
+    for n in a:
+        if getattr(n, 'ndim', None) == 0 and hasattr(n, 'item'):
+            n = n.item()
+        if isinstance(n, (str, bool)) or not isinstance(n, numbers.Real) or n != n or n in (float('inf'), float('-inf')) or n != int(n):
+            raise KlongException(f":#: segment sizes must be integers, got {n!r}")  # TODO(040): KlongTypeError
+        if n < 1:
+            raise KlongException(f":#: segment sizes must be positive, got {n!r}")  # TODO(040): KlongRangeError
+        sizes.append(int(n))
+    a = sizes
     if len(a) == 1:
         if a[0] >= len(b):
             r = [b]

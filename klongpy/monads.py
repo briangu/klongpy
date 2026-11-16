@@ -47,6 +47,8 @@ def eval_monad_enumerate(a, backend):
                   !10  -->  [0 1 2 3 4 5 6 7 8 9]
 
     """
+    if is_dict(a):
+        raise KlongException("!: enumerate needs an integer, not a dictionary")  # TODO(040): KlongTypeError
     if not backend.is_integer(a):
         raise RuntimeError(f"enumerate: invalid type error: {a}")
     return bknp.arange(int(a))
@@ -137,7 +139,12 @@ def eval_monad_format(a, backend):
                     $:foo  -->  ":foo"
 
     """
-    return f":{a}" if isinstance(a, KGSym) else backend.vec_fn(a, lambda x: eval_monad_format(x, backend)) if is_list(a) else str(a)
+    if isinstance(a, KGSym):
+        return f":{a}"
+    if is_list(a):
+        # "$" is atomic: format element by element (a numeric array holds atoms)
+        return backend.kg_asarray([eval_monad_format(x, backend) for x in a])
+    return str(a)
 
 
 def eval_monad_grade_up(a, backend):
@@ -199,9 +206,44 @@ def eval_monad_groupby(a, backend):
     arr = backend.kg_asarray(a)
     if backend.array_size(arr) == 0:
         return arr
-    vals, inverse = bknp.unique(arr, return_inverse=True)
-    groups = [bknp.where(inverse == i)[0] for i in range(len(vals))]
+    kind = backend.get_dtype_kind(arr)
+    if kind in ('b', 'i', 'u', 'f', 'U') and getattr(arr, 'ndim', 1) == 1:
+        # fast path: sort-based unique, then order the groups by first appearance
+        arr_np = backend.to_numpy(arr) if backend.is_backend_array(arr) else arr
+        _, first, inverse = bknp.unique(arr_np, return_index=True, return_inverse=True)
+        inverse = inverse.reshape(-1)
+        order = bknp.argsort(first, kind='stable')
+        idx = bknp.argsort(inverse, kind='stable')
+        parts = bknp.split(idx, bknp.cumsum(bknp.bincount(inverse))[:-1])
+        groups = [parts[i] for i in order]
+    else:
+        # mixed, nested or ragged input: key on (type, value), dict keeps insertion order
+        d = {}
+        for i, x in enumerate(arr):
+            d.setdefault(_value_key(x), []).append(i)
+        groups = [bknp.asarray(v) for v in d.values()]
     return backend.kg_asarray(groups)
+
+
+def _value_key(x):
+    """Hashable key comparing by type and value (not by str()); NaN equals NaN."""
+    if isinstance(x, KGChar):
+        return ('c', str(x))
+    if isinstance(x, str):
+        return ('s', str(x))
+    if isinstance(x, (bool, bknp.bool_, int, bknp.integer)):
+        return ('i', int(x))
+    if isinstance(x, (float, bknp.floating)):
+        return ('f', 'nan' if x != x else float(x))
+    if hasattr(x, 'tolist') and getattr(x, 'ndim', 1) == 0:
+        return _value_key(x.tolist())
+    if isinstance(x, (list, tuple)) or hasattr(x, '__len__') and hasattr(x, 'dtype'):
+        return ('l', tuple(_value_key(e) for e in x))
+    try:
+        hash(x)
+        return (type(x).__name__, x)
+    except TypeError:
+        return ('id', id(x))
 
 
 def eval_monad_list(a, backend):
@@ -285,10 +327,15 @@ def eval_monad_range(a, backend):
     """
     np_backend = backend.np
     if isinstance(a, str):
-        return ''.join(bknp.unique(backend.str_to_chr_arr(a)))
+        return ''.join(dict.fromkeys(a))
     elif np_backend.isarray(a):
         dtype_kind = backend.get_dtype_kind(a)
-        if dtype_kind != 'O' and a.ndim > 1:
+        if dtype_kind != 'O' and a.ndim == 1:
+            a_np = backend.to_numpy(a) if backend.is_backend_array(a) else a
+            _, ids = bknp.unique(a_np, return_index=True)
+            ids.sort()
+            return a[ids]
+        elif dtype_kind != 'O' and a.ndim > 1:
             # Use numpy for unique with return_index across backends
             a_np = backend.to_numpy(a) if backend.is_backend_array(a) else a
             _, ids = bknp.unique(a_np, axis=0, return_index=True)
@@ -300,7 +347,7 @@ def eval_monad_range(a, backend):
             s = set()
             arr = []
             for x in a:
-                sx = str(x)
+                sx = _value_key(x)
                 if sx not in s:
                     s.add(sx)
                     arr.append(x)
@@ -343,6 +390,8 @@ def eval_monad_reverse(a, backend):
                               |1  -->  1
 
     """
+    if is_atom(a):
+        return a
     if backend.is_backend_array(a):
         np_mod = backend.np
         if hasattr(np_mod, 'flip'):
@@ -408,14 +457,28 @@ def eval_monad_shape(a, backend):
     def _normalize_backend_array(x):
         return backend.to_numpy(x) if backend.is_backend_array(x) else x
 
-    def _a(x): # use numpy's natural shape by replacing all strings with arrays
+    def _shape(x):
+        # shape of nested lists/strings; unequal-length sub-lists make a vector
         x = _normalize_backend_array(x)
-        return bknp.asarray([
-            bknp.empty(len(y)) if isinstance(y, str) else (_a(y) if is_list(y) else _normalize_backend_array(y))
-            for y in x
-        ])
+        if isinstance(x, str):
+            return [len(x)] if not isinstance(x, (KGSym, KGChar)) else []
+        if not is_list(x):
+            return []
+        if getattr(x, 'dtype', None) is not None and x.dtype != object:
+            return list(x.shape)
+        n = len(x)
+        if n == 0:
+            return [0]
+        subs = [_shape(y) for y in x]
+        first = subs[0]
+        if first and all(sh == first for sh in subs):
+            return [n] + first
+        return [n]
+
     a = _normalize_backend_array(a)
-    return 0 if is_atom(a) else bknp.asarray([len(a)]) if isinstance(a, str) else bknp.asarray(_a(a).shape)
+    if is_atom(a):
+        return 0
+    return bknp.asarray(_shape(a), dtype=int)
 
 
 def eval_monad_size(a, backend):

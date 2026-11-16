@@ -1,6 +1,42 @@
 from .core import *
 import functools
 import itertools
+import numbers
+
+
+def _iteration_count(a, name):
+    """Validate the count of iterate/scan-iterate and return it as a Python int.
+
+    Any integral real is accepted (int, numpy integer, float with an integral
+    value) as long as it is >= 0.  Anything else raises instead of looping.
+    """
+    if getattr(a, 'ndim', None) == 0 and hasattr(a, 'item'):
+        a = a.item()
+    if isinstance(a, (bool, str)) or not isinstance(a, numbers.Real):
+        raise KlongException(f"{name}: count must be a non-negative integer, got {a!r}")  # TODO(040): KlongTypeError
+    if a != a or a in (float('inf'), float('-inf')) or a != int(a):
+        raise KlongException(f"{name}: count must be a non-negative integer, got {a!r}")  # TODO(040): KlongRangeError
+    if a < 0:
+        raise KlongException(f"{name}: count must not be negative, got {a!r}")  # TODO(040): KlongRangeError
+    return int(a)
+
+
+def _is_scalar_operand(b):
+    """True for an atom that each-left/each-right must not iterate (numbers, chars, symbols, ...)."""
+    if isinstance(b, (str, dict)):
+        return isinstance(b, (KGChar, KGSym))
+    return not is_iterable(b)
+
+
+def _converged(backend, p, q):
+    """True when two successive values are equal; NaN equals NaN."""
+    if backend.is_number(p) and backend.is_number(q):
+        return bool(backend.np.isclose(p, q, equal_nan=True))
+    if not isinstance(p, type(q)):
+        return False
+    if backend.is_array(p):
+        return backend.kg_equal(p, q)
+    return p == q
 
 
 def eval_adverb_converge(f, a, op, backend):
@@ -27,13 +63,7 @@ def eval_adverb_converge(f, a, op, backend):
 
     """
     def _e(p,q):
-        if not isinstance(p, type(q)):
-            return False
-        if backend.is_number(p):
-            return backend.np.isclose(p,q)
-        elif backend.is_array(p):
-            return backend.kg_equal(p, q)
-        return p == q
+        return _converged(backend, p, q)
     x = f(a)
     xx = f(x)
     while not _e(x,xx):
@@ -141,7 +171,7 @@ def eval_adverb_each2(f, a, b, backend):
 
 
 def eval_adverb_each_left(f, a, b, backend):
-    """
+    r"""
         a f:\b                                              [Each-Left]
         a f:/b                                              [Each-Right]
 
@@ -162,6 +192,8 @@ def eval_adverb_each_left(f, a, b, backend):
         Examples: 1,:\[2 3 4]  -->  [[1 2] [1 3] [1 4]]
                   1,:/[2 3 4]  -->  [[2 1] [3 1] [4 1]]
     """
+    if _is_scalar_operand(b):
+        return f(a,b)
     b = backend.str_to_chr_arr(b) if isinstance(b,str) else b
     return backend.kg_asarray([f(a,x) for x in b])
 
@@ -170,6 +202,8 @@ def eval_adverb_each_right(f, a, b, backend):
     """
     see: eval_dyad_adverb_each_left
     """
+    if _is_scalar_operand(b):
+        return f(b,a)
     b = backend.str_to_chr_arr(b) if isinstance(b,str) else b
     return backend.kg_asarray([f(x,a) for x in b])
 
@@ -210,9 +244,8 @@ def eval_dyad_adverb_iterate(f, a, b):
         Example: 3{1,x}:*[]  -->  [1 1 1]
 
     """
-    while not safe_eq(a, 0):
+    for _ in range(_iteration_count(a, ":*")):
         b = f(b)
-        a = a - 1
     return b
 
 
@@ -235,6 +268,13 @@ def eval_adverb_over(f, a, op, backend):
         return a
     if len(a) == 1:
         return a[0]
+    if isinstance(a, str):
+        # numpy string ufuncs have no min/max: use Python's on the characters
+        if isinstance(op, KGOp) and safe_eq(op.a, '&'):
+            return min(a)
+        if isinstance(op, KGOp) and safe_eq(op.a, '|'):
+            return max(a)
+        return functools.reduce(f, list(a))
     # Use backend's ufunc reduce when available for better performance
     np_backend = backend.np
     if isinstance(op, KGOp):
@@ -246,9 +286,9 @@ def eval_adverb_over(f, a, op, backend):
             return np_backend.multiply.reduce(a)
         elif safe_eq(op.a, '%') and hasattr(np_backend.divide,'reduce'):
             return np_backend.divide.reduce(a)
-        elif safe_eq(op.a, '&') and a.ndim == 1:
+        elif safe_eq(op.a, '&') and getattr(a, 'ndim', 0) == 1:
             return np_backend.min(a)
-        elif safe_eq(op.a, '|') and a.ndim == 1:
+        elif safe_eq(op.a, '|') and getattr(a, 'ndim', 0) == 1:
             return np_backend.max(a)
         elif safe_eq(op.a, ',') and np_backend.isarray(a) and a.dtype != 'O':
             return a if a.ndim == 1 else np_backend.concatenate(a, axis=0)
@@ -289,7 +329,7 @@ def eval_adverb_over_neutral(f, a, b):
 
 
 def eval_adverb_scan_over_neutral(f, a, b, backend):
-    """
+    r"""
 
         f\a                                                  [Scan-Over]
         a f\b                                        [Scan-Over-Neutral]
@@ -344,7 +384,7 @@ def eval_adverb_scan_over(f, a, op, backend):
 
 
 def eval_adverb_scan_converging(f, a, op, backend):
-    """
+    r"""
 
         f\~a                                           [Scan-Converging]
 
@@ -366,7 +406,7 @@ def eval_adverb_scan_converging(f, a, op, backend):
     x = a
     xx = f(a)
     r = [a, xx]
-    while not backend.kg_equal(x, xx):
+    while not _converged(backend, x, xx):
         x = xx
         xx = f(x)
         r.append(xx)
@@ -375,7 +415,7 @@ def eval_adverb_scan_converging(f, a, op, backend):
 
 
 def eval_adverb_scan_while(klong, f, a, b, backend):
-    """
+    r"""
 
         a f\~b                                              [Scan-While]
 
@@ -402,23 +442,27 @@ def eval_adverb_scan_while(klong, f, a, b, backend):
 
 
 def eval_adverb_scan_iterating(f, a, b, backend):
-    """
+    r"""
 
         a f\*b                                          [Scan-Iterating]
 
         This adverbs is like its non-scanning counterpart, but collects
         intermediate results in a list and return that list.
 
+        The count must be a non-negative integer. If "a" is zero, "b" is
+        returned as it is (not wrapped in a list), as in the Klong
+        reference: 0{1,x}\*[]  -->  [] and 0,\*1  -->  1.
+
         Example: 3{1,x}\*[]  -->  [[] [1] [1 1] [1 1 1]]
 
     """
-    if safe_eq(a,0):
+    n = _iteration_count(a, "\\*")
+    if n == 0:
         return b
     r = [b]
-    while not safe_eq(a, 0):
+    for _ in range(n):
         b = f(b)
         r.append(b)
-        a = a - 1
     return backend.kg_asarray(r)
 
 

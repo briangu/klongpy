@@ -455,12 +455,12 @@ class BackendProvider(ABC):
         if a_is_list:
             if a.dtype == 'O':
                 if b_is_list:
-                    assert len(a) == len(b)
+                    self._check_same_length(a, b)
                     return self.kg_asarray([self.vec_fn2(x, y, f) for x, y in zip(a, b)])
                 else:
                     return self.kg_asarray([self.vec_fn2(x, b, f) for x in a])
             elif b_is_list and b.dtype == 'O':
-                assert len(a) == len(b)
+                self._check_same_length(a, b)
                 return self.kg_asarray([self.vec_fn2(x, y, f) for x, y in zip(a, b)])
         elif b_is_list and b.dtype == 'O':
             return self.kg_asarray([self.vec_fn2(a, x, f) for x in b])
@@ -469,12 +469,18 @@ class BackendProvider(ABC):
             # must match, then atoms extend into the remaining list dimensions.
             rank = min(a.ndim, b.ndim)
             if a.shape[:rank] != b.shape[:rank]:
-                raise ValueError(f"atomic dyad shape mismatch: {a.shape} and {b.shape}")
+                raise _mismatch_error(f"atomic dyad shape mismatch: {tuple(a.shape)} and {tuple(b.shape)}")
             if a.ndim < b.ndim:
                 a = a.reshape(a.shape + (1,) * (b.ndim - a.ndim))
             elif b.ndim < a.ndim:
                 b = b.reshape(b.shape + (1,) * (a.ndim - b.ndim))
         return f(a, b)
+
+    @staticmethod
+    def _check_same_length(a, b):
+        # explicit check (an assert is stripped by python -O and would silently truncate)
+        if len(a) != len(b):
+            raise _mismatch_error(f"atomic dyad shape mismatch: length {len(a)} and length {len(b)}")
 
     def rec_fn(self, a, f):
         """
@@ -521,6 +527,26 @@ class BackendProvider(ABC):
             'supports_object_dtype': self.supports_object_dtype(),
             'supports_autograd': self.supports_autograd(),
         }
+
+
+_MISMATCH_ERROR = None
+
+
+def _mismatch_error(message):
+    """Error for atomic-dyad operands that do not pair up.
+
+    A KlongException that is also a ValueError (existing callers and tests catch
+    ValueError).  Created lazily because klongpy.types imports this package.
+    TODO(040): replace by KlongTypeError.
+    """
+    global _MISMATCH_ERROR
+    if _MISMATCH_ERROR is None:
+        from ..types import KlongException
+
+        class AtomicShapeMismatch(KlongException, ValueError):
+            pass
+        _MISMATCH_ERROR = AtomicShapeMismatch
+    return _MISMATCH_ERROR(message)
 
 
 class UnsupportedDtypeError(Exception):
