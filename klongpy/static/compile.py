@@ -24,7 +24,8 @@ from .infer import lower
 from .ir import dump
 from .signature import _C_KEYWORDS
 
-__all__ = ["compile_program", "emit_program", "emit_main", "Compiled", "runtime_header", "c_prefix"]
+__all__ = ["compile_program", "emit_program", "emit_main", "Compiled", "runtime_header", "c_prefix", "emit_hls_program",
+           "emit_hls_main"]
 
 
 def runtime_header():
@@ -150,4 +151,67 @@ def emit_main(files, out_dir=None, int_bits=32, float_bits=32, line_directives=F
             where = out_dir or "."
             print(f"{path}: wrote {os.path.join(where, res.prefix + '.c')}, {res.prefix}.h and klong_rt.h", file=out)
             print(res.report_text(), file=out)
+    return status
+
+
+def emit_hls_program(path, out_dir=None, *, text=None, int_bits=32, prefix=None, clock_mhz=None, externs=None,
+                     line_directives=False):
+    """
+    Compile a program to C and the Vitis HLS files around it (emit_hls). With
+    out_dir, writes the C files and the HLS files there. Returns the HlsOutput,
+    with the Emitted as its ``emitted`` attribute.
+    """
+    from .emit_hls import DEFAULT_CLOCK_MHZ, emit_hls
+    emitted = emit_program(path, None, text=text, int_bits=int_bits, float_bits=32, prefix=prefix, externs=externs,
+                           line_directives=line_directives)
+    out = emit_hls(emitted.compiled.program, emitted, clock_mhz=clock_mhz or DEFAULT_CLOCK_MHZ,
+                   source_name=os.path.basename(os.fspath(path)))
+    out.emitted = emitted
+    out.files[emitted.prefix + ".c"] = emitted.c
+    out.files[emitted.prefix + ".h"] = emitted.h
+    with open(runtime_header(), "r") as f:
+        out.files["klong_rt.h"] = f.read()
+    if out_dir is not None:
+        out.write(out_dir)
+    return out
+
+
+def emit_hls_main(files, out_dir=None, int_bits=32, prefix=None, clock_mhz=None, synth=False, stdout=None, stderr=None,
+                  color=False):
+    """
+    The body of ``kgpy --emit-hls FILE... -o DIR [--synth]``. Prints what it wrote and, with synth, runs C synthesis
+    on the build machine ($KLONG_HW_BUILD; unset: this machine) and prints the estimates. Returns 0, 1 when a program
+    is outside the profile or cannot be a kernel (or its synthesis fails), 2 when a file cannot be read.
+    """
+    out = stdout or sys.stdout
+    err = stderr or sys.stderr
+    status = 0
+    if prefix and len(files) > 1:
+        print("--prefix names one program: give one FILE", file=err)
+        return 2
+    where = out_dir or "."
+    for path in files:
+        try:
+            res = emit_hls_program(path, where, int_bits=int_bits, prefix=prefix, clock_mhz=clock_mhz)
+        except (OSError, UnicodeDecodeError) as e:
+            print(f"{path}: cannot read: {getattr(e, 'strerror', None) or e}", file=err)
+            status = max(status, 2)
+            continue
+        except KlongError as e:
+            for d in getattr(e, "diagnostics", None) or [e]:
+                print(d.render(color), file=err)
+            status = 1 if status != 1 else status
+            continue
+        except ValueError as e:
+            print(f"{path}: {e}", file=err)
+            status = 1
+            continue
+        names = sorted(res.files)
+        print(f"{path}: wrote {', '.join(os.path.join(where, n) for n in names)}", file=out)
+        for ent in res.entries:
+            print(f"  kernel {ent['top']}: entry {ent['name']} ({ent['signature']}); record in {ent['in_bytes']} bytes, "
+                  f"out {ent['out_bytes']} bytes", file=out)
+        if synth:
+            from ..hw.synth import synth_main
+            status = max(status, synth_main(res, where, out, err))
     return status

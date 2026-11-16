@@ -90,7 +90,18 @@ typedef float kg_float;
  */
 void kg_trap(int code, int line);
 
-#if defined(KG_RT_IMPLEMENTATION) && !defined(KG_NO_DEFAULT_TRAP) && (defined(__GNUC__) || defined(__clang__))
+/*
+ * KG_TRAP_FLAG (hardware, kgpy --emit-hls): define it to the name of a counter. The generated
+ * <prog>.c then defines that counter and a kg_trap that sets bit <code> of it and returns, in
+ * place of the default below (KG_TRAP_BOUNDS is bit 1, KG_TRAP_DIV0 bit 2); the caller reads and clears it.
+ */
+#if defined(KG_RT_IMPLEMENTATION) && defined(KG_TRAP_FLAG)
+unsigned KG_TRAP_FLAG;
+void kg_trap(int code, int line) {
+    (void)line;
+    KG_TRAP_FLAG |= 1u << (unsigned)code;
+}
+#elif defined(KG_RT_IMPLEMENTATION) && !defined(KG_NO_DEFAULT_TRAP) && (defined(__GNUC__) || defined(__clang__))
 KG_WEAK void kg_trap(int code, int line) {
     (void)code;
     (void)line;
