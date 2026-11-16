@@ -57,6 +57,13 @@ CASES = [
     ("W002", "f(a;b)::{a+b};f(1;2)", []),   # named parameters
     ('W002', '.bkf(["exp" "sin"]);exp(1.0)', []),
     ("W002", '.py("m");zz', []),            # .py defines unknown names: W002 is off for the file
+    ("W002", '.extern("read.adc";"int -> float");read.adc(0)', []),        # .extern binds its name
+    ("W002", '.extern("write.pwm";"int float -> void";"hw");write.pwm(0;1.0)', []),
+    ("W002", 'read.adc(0);.extern("read.adc";"int -> float")', [(1, 1)]),   # used before the declaration
+    ("W002", 'setup::{.extern("read.adc";"int -> float")};f::{read.adc(x)}', []),   # declared inside a function
+    ("W002", '.extern("read.adc";"int -> float");read.dac(0)', [(1, 36)]),  # another name is still undefined
+    ("W002", 'n::"a";.extern(n;"int -> float");zz(0)', []),                # a computed name: W002 is off for the file
+    ("W002", 'f::{x};.entry("f";"int -> int");f(1)', []),
     # W003 declared local never used
     ("W003", "f::{[a;b];a::1}", [(1, 8)]),
     ("W003", "f::{[a b]::x;a}", [(1, 8)]),

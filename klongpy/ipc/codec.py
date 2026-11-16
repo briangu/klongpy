@@ -183,9 +183,54 @@ def _norm_widths(widths):
 _PACK_ATOM = {
     -1: struct.Struct("<bB"), -4: struct.Struct("<bB"), -5: struct.Struct("<bh"),
     -6: struct.Struct("<bi"), -7: struct.Struct("<bq"), -8: struct.Struct("<bf"),
-    -9: struct.Struct("<bd"),
+    -9: struct.Struct("<bd"), -12: struct.Struct("<bq"), -16: struct.Struct("<bq"),
 }
 _VEC_HDR = struct.Struct("<bBi")
+
+# kdb+ temporals sent from numpy: datetime64 is a timestamp (12), int64
+# nanoseconds since 2000-01-01; timedelta64 is a timespan (16), int64
+# nanoseconds; NaT is the null (INT64_MIN).  Any numpy unit is normalised to
+# nanoseconds.  Decoding stays as the design says (the underlying integer):
+# what was sent as a timestamp comes back as the int64 nanoseconds, not as
+# datetime64 (see tickets/design/ipc-kdb.md section 4).
+_KDB_EPOCH_NS = 946684800 * 10 ** 9          # 2000-01-01 in Unix nanoseconds
+_FINER_THAN_NS = ("ps", "fs", "as")
+
+
+def _temporal_ns(a):
+    """datetime64/timedelta64 array as (int64 kdb+ nanoseconds, kdb+ type); NaT is INT64_MIN."""
+    is_time = a.dtype.kind == "M"
+    unit = np.datetime_data(a.dtype)[0]
+    if not is_time and unit in ("Y", "M"):
+        raise IPCTypeError("cannot send numpy %s array (a calendar unit has no fixed length)" % a.dtype)
+    try:
+        with np.errstate(all="ignore"):
+            ns = a.astype("datetime64[ns]" if is_time else "timedelta64[ns]")
+    except OverflowError:
+        raise IPCRangeError("%s value outside the nanosecond range of a kdb+ temporal" % a.dtype) from None
+    except (TypeError, ValueError):
+        raise IPCTypeError("cannot send numpy %s array" % a.dtype) from None
+    nat = np.isnat(a)
+    if unit not in _FINER_THAN_NS and unit != "generic":
+        # an overflow of the nanosecond range wraps silently in numpy: detect it
+        try:
+            with np.errstate(all="ignore"):
+                back = ns.astype(a.dtype)
+            same = np.array_equal(back[~nat], a[~nat])
+        except OverflowError:
+            same = False
+        if not same:
+            raise IPCRangeError("%s value outside the nanosecond range of a kdb+ temporal" % a.dtype)
+    v = ns.view("i8")
+    if is_time:
+        if a.size and (~nat).any():
+            live = v[~nat]
+            if int(live.min()) < _INT64_MIN + _KDB_EPOCH_NS:
+                raise IPCRangeError("datetime64 value before the kdb+ range")
+        with np.errstate(over="ignore"):
+            v = v - np.int64(_KDB_EPOCH_NS)
+    v = np.where(nat, np.int64(_INT64_MIN), v)
+    return v, (12 if is_time else 16)
 _PY_FLOATS = {float, np.float64}
 
 
@@ -381,6 +426,11 @@ class _Encoder:
         if a.ndim == 0:
             return self.obj(a[()], depth)
         k = a.dtype.kind
+        if k in "Mm" and a.ndim == 1:
+            ns, t = _temporal_ns(a)
+            self.out.append(_VEC_HDR.pack(t, 0, self._count(a.shape[0])))
+            self.out.append(memoryview(np.ascontiguousarray(ns, dtype="<i8").view("u1")))
+            return None
         if a.ndim == 1 and k in "biuf":
             if a.shape[0] == 0:
                 # empty list: an empty general list, as for Klong's []
@@ -388,7 +438,7 @@ class _Encoder:
             return self._vector(a)
         if k == "U" or k == "S":
             return self._seq(a.tolist(), depth)
-        if k in "biufO":
+        if k in "biufOMm":
             if a.ndim == 1:
                 return self._seq(list(a), depth)
             # rank 2 or more: a general list of rows, encoded recursively
@@ -418,7 +468,7 @@ class _Encoder:
                 a = c
             else:
                 a = np.asarray(c)
-                if a.dtype.kind not in "biuf":
+                if a.dtype.kind not in "biufMm":
                     a = np.asarray(c, dtype=object)
                 if a.ndim != 1:
                     raise IPCTypeError("table column is not a list")
@@ -466,6 +516,9 @@ class _Encoder:
                 self._charvec(b)        # non-ASCII chars go as a char vector
         elif isinstance(v, str):
             self._charvec(self._bytes_text(v, "string"))
+        elif isinstance(v, (np.datetime64, np.timedelta64)):    # before np.integer: timedelta64 is one
+            ns, t = _temporal_ns(np.asarray(v))
+            self.out.append(_PACK_ATOM[-t].pack(-t, int(ns[()])))
         elif isinstance(v, (bool, np.bool_)):
             self.out.append(_PACK_ATOM[-1].pack(-1, 1 if v else 0))
         elif isinstance(v, int):

@@ -1,4 +1,5 @@
 """Tables over the kdb+ IPC protocol (type 98)."""
+import struct
 import unittest
 
 import numpy as np
@@ -59,6 +60,41 @@ class TestKlongTable(unittest.TestCase):
         import pandas as pd
         t = self.db.Table(pd.DataFrame({"a": [1, 2, 3], "b": [1.5, 2.5, 3.5]}))
         self.assertEqual(bytes(encode(t)), Q_TABLE)
+
+    def test_datetime_column_is_a_timestamp_column(self):
+        import pandas as pd
+        df = pd.DataFrame({"a": [1, 2, 3], "t": pd.to_datetime(["2000-01-01", "2024-01-15 10:30:00", None], format="ISO8601")})
+        want = (b"\x62\x00\x63" + b"\x0b\x00" + struct.pack("<i", 2) + b"a\x00t\x00"
+                + b"\x00\x00" + struct.pack("<i", 2)
+                + b"\x07\x00" + struct.pack("<i", 3) + struct.pack("<qqq", 1, 2, 3)
+                + b"\x0c\x00" + struct.pack("<i", 3) + struct.pack("<qqq", 0, 758629800000000000, -2 ** 63))
+        self.assertEqual(bytes(encode(self.db.Table(df))), want)
+
+    def test_every_pandas_datetime_unit_and_timedelta(self):
+        import pandas as pd
+        for unit in ("s", "ms", "us", "ns"):
+            with self.subTest(unit=unit):
+                t = pd.to_datetime(["2000-01-02", "NaT"]).astype("datetime64[%s]" % unit)
+                df = pd.DataFrame({"t": t, "d": pd.to_timedelta([1, 2], unit="s").astype("timedelta64[%s]" % unit)})
+                r = decode(encode(self.db.Table(df)))
+                self.assertEqual(r.get("t").tolist(), [86400 * 10 ** 9, -2 ** 63])
+                self.assertEqual(r.get("d").tolist(), [10 ** 9, 2 * 10 ** 9])
+
+    def test_timestamp_column_round_trip(self):
+        """Out as a timestamp column; back as the kdb+ nanosecond integers (design section 4: temporals decode
+        to the underlying integer), which are exactly what was sent."""
+        import pandas as pd
+        sent = pd.to_datetime(["2000-01-01", "2024-01-15 10:30:00.123456789", "1999-12-31 23:59:59"], format="ISO8601")
+        back = decode(encode(self.db.Table(pd.DataFrame({"t": sent})))).get("t")
+        self.assertEqual(np.asarray(back).dtype, np.int64)
+        recovered = pd.to_datetime(np.asarray(back)) + (pd.Timestamp("2000-01-01") - pd.Timestamp(0))
+        self.assertTrue((recovered == sent).all())
+
+    def test_timezone_aware_column_is_sent_as_utc(self):
+        import pandas as pd
+        t = pd.to_datetime(["2000-01-01 01:00:00"]).tz_localize("Europe/Paris")        # 00:00:00 UTC
+        r = decode(encode(self.db.Table(pd.DataFrame({"t": t}))))
+        self.assertEqual(np.asarray(r.get("t")).tolist(), [0])
 
     def test_q_table_arrives_as_table(self):
         t = decode(Q_TABLE)

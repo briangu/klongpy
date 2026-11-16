@@ -1088,16 +1088,54 @@ x:h`tbl; -1 "R|cols|ok|0|",(-3!cols x);
         back = self.kg(klong, "c(req)")
         np.testing.assert_array_equal(back.get("a"), [2, 3])
 
-    def test_datetime_column_cannot_be_sent(self):
-        """(c) A pandas datetime64 column has no encoding (codec raises ``type``), so q gets a signal, not a table.
-        Design section 3 does not list temporal values; a timestamp (type 12) mapping would be the natural addition."""
+    def test_datetime_column_is_a_timestamp_column(self):
+        """A pandas datetime64 column is sent as a timestamp vector (type 12, int64 ns since 2000), NaT as 0Np.
+        It comes back as the underlying integers: temporals decode to numbers (design section 4)."""
         import pandas as pd
-        t = self.db.Table(pd.DataFrame({"a": [1, 2], "t": pd.to_datetime(["2024-01-15", "2024-01-16"])}))
+        t = self.db.Table(pd.DataFrame({"a": [1, 2, 3], "t": pd.to_datetime(["2000-01-01", "2024-01-15 10:30:00", None],
+                                                                            format="ISO8601")}))
         self.serve(tdt=t)
-        r, out = self.run_q('rep["tdt";`tdt]; rep["after";"1+1"];')
-        self.assertEqual(r["tdt"][0], "err", out)
-        self.assertIn("cannot send a value of kind", r["tdt"][1], out)
+        r, out = self.run_q('''
+rep["tdt";`tdt];
+rep["after";"1+1"];
+x:h`tdt;
+-1 "R|ty|ok|0|",(-3!type x`t);
+-1 "R|ts|ok|0|",(-3!x`t);
+-1 "R|null|ok|0|",(-3!null x`t);
+-1 "R|cast|ok|0|",(-3!`long$x`t);
+-1 "R|date|ok|0|",(-3!`date$x`t);
+''')
+        self.assertEqual(r["tdt"][:2], ("ok", 98), out)
+        self.assertEqual(r["ty"][2], "12h", out)
+        self.assertEqual(r["ts"][2], "2000.01.01D00:00:00.000000000 2024.01.15D10:30:00.000000000 0N", out)      # PeachQ prints a null timestamp as 0N
+        self.assertEqual(r["null"][2], "001b", out)
+        self.assertEqual(r["cast"][2], "0 758629800000000000 0N", out)
+        self.assertEqual(r["date"][2], "2000.01.01 2024.01.15 0N", out)
         self.assertEqual(r["after"], ("ok", -7, "2"), out)
+
+    def test_timestamp_column_comes_back_intact(self):
+        import pandas as pd
+        sent = pd.to_datetime(["2000-01-01", "2024-01-15 10:30:00.123456789", "1999-12-31 23:59:59"], format="ISO8601")
+        klong = self.repl()
+        server = PeachQServer(EXE)
+        self.addCleanup(server.stop)
+        self.kg(klong, f"c::.cli({server.port})")
+        klong["req"] = ["{x}", self.db.Table(pd.DataFrame({"t": sent}))]            # q echoes the table it was sent
+        back = self.kg(klong, "c(req)")
+        self.assertIsInstance(back, self.db.Table)
+        col = np.asarray(back.get("t"))
+        self.assertEqual(col.dtype, np.int64)
+        self.assertEqual(col.tolist(), [0, 758629800123456789, -1000000000])
+        recovered = pd.to_datetime(col) + (pd.Timestamp("2000-01-01") - pd.Timestamp(0))
+        self.assertTrue((recovered == sent).all())
+        klong["req"] = ["{type x`t}", self.db.Table(pd.DataFrame({"t": sent}))]
+        self.assertEqual(self.kg(klong, "c(req)"), 12)
+        klong["req"] = ["{type x}", np.array(["2000-01-02"], dtype="datetime64[D]")]    # a plain array too
+        self.assertEqual(self.kg(klong, "c(req)"), 12)
+        klong["req"] = ["{x}", np.array([1, 2], dtype="timedelta64[s]")]
+        np.testing.assert_array_equal(self.kg(klong, "c(req)"), [10 ** 9, 2 * 10 ** 9])
+        klong["req"] = ["{type x}", np.array([1, 2], dtype="timedelta64[s]")]
+        self.assertEqual(self.kg(klong, "c(req)"), 16)
 
 
 @NEED_PEACHQ

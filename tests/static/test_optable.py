@@ -14,6 +14,8 @@ from klongpy.static.host import call_entry, load_program
 from klongpy.static.optable import BY_ID, OPERAND_KINDS, SHAPE_RULES, TYPE_RULES, lookup
 from klongpy.types import is_adverb
 
+from .hostutil import to_np
+
 # Rows whose element type on the host depends on the value (design section 8):
 # KlongPy's ^ returns an int whenever the result is whole, and a conditional
 # whose branches are an int and a float has the type of the branch taken
@@ -110,7 +112,7 @@ class TestExamples(unittest.TestCase):
                 klong = load_program("t.kg", text=prog, externs=stubs)
                 args = inputs if inputs is not None else [sample(p, i) for i, p in enumerate(want.params)]
                 value = klong["f"](*[np.asarray(a) if isinstance(a, list) else a for a in args]) if want.arity else klong("f()")
-                elem, shape = host_type(value)
+                elem, shape = host_type(to_np(klong, value))
                 self.assertEqual(shape, tuple(want.result.shape))
                 if row not in HOST_ELEM_DIFFERS:
                     self.assertEqual(elem, want.result.elem)

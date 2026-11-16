@@ -27,6 +27,6 @@ prev::0.0
 
 clamp::{(x|lo)&hi}
 
-step::{[e u];e::x-read.adc(0);integ::clamp(integ+ki*e*dt);u::clamp((kp*e)+integ+kd*(e-prev)%dt);prev::e;write.pwm(0;u);u}   :"lint:ignore W002 (read.adc and write.pwm are externs)"
+step::{[e u];e::x-read.adc(0);integ::clamp(integ+ki*e*dt);u::clamp((kp*e)+integ+kd*(e-prev)%dt);prev::e;write.pwm(0;u);u}
 
 .entry("step";"float -> float")

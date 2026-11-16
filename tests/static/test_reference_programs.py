@@ -23,6 +23,8 @@ import numpy as np
 from klongpy import KlongInterpreter
 from klongpy.static import call_entry, check_file, load_program
 
+from .hostutil import host_rtol, to_np
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DIR = os.path.join(ROOT, "examples", "embedded")
 PROGRAMS = ["mavg", "pid", "fir"]
@@ -74,8 +76,8 @@ class TestReferencePrograms(unittest.TestCase):
                 literal = KlongInterpreter()
                 for expr, want in steps:
                     got = klong(expr)
-                    np.testing.assert_allclose(np.asarray(got, dtype=float), np.asarray(literal(want), dtype=float),
-                                               rtol=0, atol=1e-9, err_msg=f"{name}: {expr}")
+                    np.testing.assert_allclose(np.asarray(to_np(klong, got), dtype=float), np.asarray(to_np(literal, literal(want)), dtype=float),
+                                               rtol=host_rtol(), atol=1e-9 if host_rtol() == 0 else 1e-5, err_msg=f"{name}: {expr}")
 
     def test_every_type_is_known_once_the_definitions_are_evaluated(self):
         want = {
@@ -111,11 +113,11 @@ class TestReferencePrograms(unittest.TestCase):
         klong.externs["read.adc"] = lambda c: 0.3
         klong.externs["write.pwm"] = lambda channel, duty: writes.append((channel, duty)) or 0
         klong(f'.l("{os.path.join(DIR, "pid.kg")}")')
-        out = [klong(f"step({v})") for v in (0.31, 0.31, 0.5)]
-        np.testing.assert_allclose(out, [0.12005, 0.0201, 1.0], rtol=0, atol=1e-12)
-        np.testing.assert_allclose([klong("integ"), klong("prev")], [0.0011, 0.2], rtol=0, atol=1e-12)
+        out = [float(to_np(klong, klong(f"step({v})"))) for v in (0.31, 0.31, 0.5)]
+        np.testing.assert_allclose(out, [0.12005, 0.0201, 1.0], rtol=host_rtol(), atol=1e-12 if host_rtol() == 0 else 1e-6)
+        np.testing.assert_allclose([float(to_np(klong, klong("integ"))), float(to_np(klong, klong("prev")))], [0.0011, 0.2], rtol=host_rtol(), atol=1e-12 if host_rtol() == 0 else 1e-6)
         self.assertEqual([w[0] for w in writes], [0, 0, 0])
-        np.testing.assert_allclose([w[1] for w in writes], out, rtol=0, atol=1e-12)
+        np.testing.assert_allclose([w[1] for w in writes], out, rtol=host_rtol(), atol=1e-12 if host_rtol() == 0 else 1e-6)
         self.assertEqual(sorted(klong.externs.declared), ["read.adc", "write.pwm"])
         self.assertEqual([(e.name, str(e.signature)) for e in klong.externs.entries], [("step", "float -> float")])
         r = check_file(os.path.join(DIR, "pid.kg"))
@@ -134,9 +136,9 @@ class TestReferencePrograms(unittest.TestCase):
         klong, _ = load("fir")
         ones = call_entry(klong, "run", np.ones(256))
         self.assertEqual(ones.shape, (241,))
-        np.testing.assert_allclose(ones, 1.0, rtol=0, atol=1e-12)       # the taps sum to 1
+        np.testing.assert_allclose(ones, 1.0, rtol=host_rtol(), atol=1e-12 if host_rtol() == 0 else 1e-6)       # the taps sum to 1
         ramp = call_entry(klong, "run", np.arange(256) * 0.5)
-        np.testing.assert_allclose([ramp[0], ramp[-1]], [3.75, 123.75], rtol=0, atol=1e-9)
+        np.testing.assert_allclose([ramp[0], ramp[-1]], [3.75, 123.75], rtol=host_rtol(), atol=1e-9 if host_rtol() == 0 else 1e-5)
         r = check_file(os.path.join(DIR, "fir.kg"))
         self.assertEqual(r.unresolved, ["raw", "taps", "idx"])          # built on the host
         self.assertEqual([n for n, g in r.globals.items() if g.assigned], [])

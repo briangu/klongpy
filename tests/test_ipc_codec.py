@@ -309,7 +309,7 @@ class TestEncode(unittest.TestCase):
             encode([2 ** 63, 1])
 
     def test_type_errors(self):
-        for bad in (None, object(), {1, 2}, b"bytes", np.array([1 + 2j]), np.array(["2020-01-01"], dtype="M8[D]")):
+        for bad in (None, object(), {1, 2}, b"bytes", np.array([1 + 2j]), np.array([(1, 2)], dtype=[("a", "i4"), ("b", "i4")])):
             with self.assertRaises(IPCTypeError, msg=repr(bad)):
                 encode(bad)
         with self.assertRaises(IPCTypeError):
@@ -410,6 +410,109 @@ class TestEncode(unittest.TestCase):
         e = encode(a)
         self.assertEqual(len(e), 6 + 8000)
         self.assertTrue(np.array_equal(np.frombuffer(e, dtype="<i8", offset=6), a))
+
+
+class TestTemporalEncode(unittest.TestCase):
+    """numpy datetime64 is a kdb+ timestamp (12), timedelta64 a timespan (16); bytes computed by hand.
+
+    kdb+ timestamp: int64 nanoseconds since 2000-01-01 (Unix 946684800 s). 2000-01-02 is
+    86400e9 = 0x4E94914F0000 ns; 2000-01-01T00:00:01 is 1e9 = 0x3B9ACA00; NaT is INT64_MIN.
+    """
+    NULL = struct.pack("<q", -2 ** 63)
+
+    def test_timestamp_vector_bytes(self):
+        a = np.array(["2000-01-01", "2000-01-02", "NaT"], dtype="datetime64[ns]")
+        want = (b"\x0c\x00" + struct.pack("<i", 3) + struct.pack("<q", 0) + struct.pack("<q", 86400 * 10 ** 9) + self.NULL)
+        self.assertEqual(bytes(encode(a)), want)
+        self.assertEqual(want[6:14], bytes(8))
+        self.assertEqual(want[14:22], bytes.fromhex("00004f91944e0000"))
+
+    def test_before_the_epoch_is_negative(self):
+        a = np.array(["1999-12-31T23:59:59"], dtype="datetime64[s]")
+        self.assertEqual(bytes(encode(a)), b"\x0c\x00" + struct.pack("<i", 1) + struct.pack("<q", -10 ** 9))
+
+    def test_a_unix_time_value(self):
+        # 2024-01-15T10:30:00: the value q itself gives for 2024.01.15D10:30:00.000000000
+        a = np.array(["2024-01-15T10:30:00"], dtype="datetime64[ns]")
+        self.assertEqual(bytes(encode(a)), b"\x0c\x00" + struct.pack("<i", 1) + struct.pack("<q", 758629800000000000))
+
+    def test_every_unit_is_normalised_to_nanoseconds(self):
+        want = bytes(encode(np.array(["2000-01-02T00:00:01"], dtype="datetime64[ns]")))
+        for unit in ("s", "ms", "us", "ns"):
+            with self.subTest(unit=unit):
+                self.assertEqual(bytes(encode(np.array(["2000-01-02T00:00:01"], dtype="datetime64[%s]" % unit))), want)
+        self.assertEqual(bytes(encode(np.array(["2000-01-02"], dtype="datetime64[D]"))),
+                         b"\x0c\x00" + struct.pack("<i", 1) + struct.pack("<q", 86400 * 10 ** 9))
+        self.assertEqual(bytes(encode(np.array(["2000-02"], dtype="datetime64[M]"))),
+                         b"\x0c\x00" + struct.pack("<i", 1) + struct.pack("<q", 31 * 86400 * 10 ** 9))
+        self.assertEqual(bytes(encode(np.array(["2001"], dtype="datetime64[Y]"))),
+                         b"\x0c\x00" + struct.pack("<i", 1) + struct.pack("<q", 366 * 86400 * 10 ** 9))
+        self.assertEqual(bytes(encode(np.array(["2000-01-01T00:00:00.000001000"], dtype="datetime64[ns]"))),
+                         b"\x0c\x00" + struct.pack("<i", 1) + struct.pack("<q", 1000))
+
+    def test_nat_of_every_unit_is_the_null(self):
+        for unit in ("s", "D", "ns"):
+            a = np.array(["NaT", "2000-01-01"], dtype="datetime64[%s]" % unit)
+            self.assertEqual(bytes(encode(a)), b"\x0c\x00" + struct.pack("<i", 2) + self.NULL + bytes(8))
+
+    def test_timespan_vector_bytes(self):
+        a = np.array([1, 2], dtype="timedelta64[s]")
+        self.assertEqual(bytes(encode(a)), b"\x10\x00" + struct.pack("<i", 2) + struct.pack("<qq", 10 ** 9, 2 * 10 ** 9))
+        a = np.array([5, -2 ** 63], dtype="int64").view("timedelta64[ms]")             # the second is NaT
+        self.assertEqual(bytes(encode(a)), b"\x10\x00" + struct.pack("<i", 2) + struct.pack("<q", 5 * 10 ** 6) + self.NULL)
+        a = np.array([1], dtype="timedelta64[D]")
+        self.assertEqual(bytes(encode(a)), b"\x10\x00" + struct.pack("<i", 1) + struct.pack("<q", 86400 * 10 ** 9))
+
+    def test_atoms(self):
+        self.assertEqual(bytes(encode(np.datetime64("2000-01-01T00:00:01"))), b"\xf4" + struct.pack("<q", 10 ** 9))
+        self.assertEqual(bytes(encode(np.datetime64("NaT"))), b"\xf4" + self.NULL)
+        self.assertEqual(bytes(encode(np.timedelta64(5, "ms"))), b"\xf0" + struct.pack("<q", 5 * 10 ** 6))
+        self.assertEqual(bytes(encode(np.timedelta64("NaT"))), b"\xf0" + self.NULL)
+        self.assertEqual(bytes(encode(np.array(np.datetime64("2000-01-01T00:00:01")))), b"\xf4" + struct.pack("<q", 10 ** 9))
+
+    def test_empty_vectors_keep_their_type(self):
+        self.assertEqual(bytes(encode(np.array([], dtype="datetime64[ns]"))), b"\x0c\x00" + struct.pack("<i", 0))
+        self.assertEqual(bytes(encode(np.array([], dtype="timedelta64[ns]"))), b"\x10\x00" + struct.pack("<i", 0))
+
+    def test_matrix_is_a_list_of_vectors(self):
+        a = np.array([["2000-01-01", "2000-01-02"]], dtype="datetime64[D]")
+        row = b"\x0c\x00" + struct.pack("<i", 2) + struct.pack("<qq", 0, 86400 * 10 ** 9)
+        self.assertEqual(bytes(encode(a)), b"\x00\x00" + struct.pack("<i", 1) + row)
+
+    def test_a_list_of_datetime_values_is_a_general_list_of_atoms(self):
+        v = [np.datetime64("2000-01-01"), np.datetime64("2000-01-02")]
+        self.assertEqual(bytes(encode(v)), b"\x00\x00" + struct.pack("<i", 2) + b"\xf4" + struct.pack("<q", 0)
+                         + b"\xf4" + struct.pack("<q", 86400 * 10 ** 9))
+
+    def test_column_of_a_table(self):
+        t = codec.KdbTable(a=np.array([1, 2]), t=np.array(["2000-01-01", "NaT"], dtype="datetime64[ns]"))
+        want = (b"\x62\x00\x63" + b"\x0b\x00" + struct.pack("<i", 2) + b"a\x00t\x00"
+                + b"\x00\x00" + struct.pack("<i", 2)
+                + b"\x07\x00" + struct.pack("<i", 2) + struct.pack("<qq", 1, 2)
+                + b"\x0c\x00" + struct.pack("<i", 2) + bytes(8) + self.NULL)
+        self.assertEqual(bytes(encode(t)), want)
+
+    def test_out_of_range_and_calendar_units_are_refused(self):
+        with self.assertRaises(IPCRangeError):
+            encode(np.array(["9000-01-01"], dtype="datetime64[D]"))       # beyond the int64 nanosecond range
+        with self.assertRaises(IPCRangeError):
+            encode(np.array(["1600-01-01"], dtype="datetime64[D]"))
+        with self.assertRaises(IPCRangeError):
+            encode(np.array(["1677-09-22"], dtype="datetime64[D]"))       # inside numpy's ns range, before kdb+'s
+        with self.assertRaises(IPCTypeError):
+            encode(np.array([1], dtype="timedelta64[M]"))                  # a month has no fixed length
+
+    def test_round_trip_is_the_underlying_integer(self):
+        """Design section 4: temporals decode to the underlying integer, so the datetime64 does not come back
+        as such. The asymmetry is deliberate; the value is the kdb+ nanosecond count."""
+        a = np.array(["2000-01-01", "2024-01-15T10:30:00", "NaT"], dtype="datetime64[ns]")
+        back = decode(encode(a))
+        self.assertEqual(back.dtype, np.int64)
+        self.assertEqual(back.tolist(), [0, 758629800000000000, -2 ** 63])
+        np.testing.assert_array_equal(back[:2].view("timedelta64[ns]") + np.datetime64("2000-01-01", "ns"), a[:2])
+        t = np.array([1, 2], dtype="timedelta64[s]")
+        np.testing.assert_array_equal(decode(encode(t)).view("timedelta64[ns]"), t)
+        self.assertEqual(decode(encode(np.datetime64("2000-01-02"))), 86400 * 10 ** 9)
 
 
 # ----------------------------------------------------------------------------

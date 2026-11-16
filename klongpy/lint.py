@@ -438,7 +438,7 @@ def _parse_level(source, strict, toks, ctx):
     way the rest of the file is parsed from the next top-level separator.
     """
     from .interpreter import KlongInterpreter
-    klong = KlongInterpreter(strict=strict)
+    klong = KlongInterpreter(strict=strict, backend="numpy")   # parse only: the same result whatever the default backend
     text = source.text
     n = len(text)
     stmts = []
@@ -633,6 +633,8 @@ class _Analysis:
                 self._backend_functions(i, f)
             elif nm == '.l' and nxt is not None and nxt[0] in ('LPAREN', 'CALLP') and not nxt[4]:
                 self._load(i, f)
+            elif nm == '.extern' and nxt is not None and nxt[0] in ('LPAREN', 'CALLP') and not nxt[4]:
+                self._extern(i, f)
         # destructuring [a b]::... defines its names
         for f in self.frames:
             if f.kind == 'data' and f.is_target and f.close is not None and f.fn is None:
@@ -674,6 +676,27 @@ class _Analysis:
                 self.defs.setdefault(nm, []).append(_Def(nm, i, start, end, None, True))
         else:
             self.import_anywhere.update(names)
+
+    def _extern(self, i, f):
+        """
+        .extern("name";"signature") binds the name (a static-profile program, see
+        klongpy/static/signature.py: the first argument is the name, as written
+        in the program text). A first argument that is not a string literal binds
+        an unknown name. .entry names a function the program already defines, so
+        it adds no name.
+        """
+        toks = self.toks
+        n = len(toks)
+        arg = toks[i + 2] if i + 2 < n else None
+        nxt = toks[i + 3] if i + 3 < n else None
+        if not (arg is not None and arg[0] == 'STR' and not arg[6] and nxt is not None and nxt[0] in ('SEMI', 'RPAREN')):
+            self.unknown = True
+            return
+        nm = arg[3]
+        if f.fn is None:
+            self.defs.setdefault(nm, []).append(_Def(nm, i, self.stmt_start(i), self.stmt_end(i), None, True))
+        else:
+            self.import_anywhere.add(nm)
 
     def _load(self, i, f):
         toks = self.toks

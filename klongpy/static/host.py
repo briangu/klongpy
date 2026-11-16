@@ -30,6 +30,13 @@ def load_program(path, externs=None, *, text=None, strict=2, klong=None, backend
         klong     an existing KlongInterpreter to run in, instead of a new one
         backend   backend name for a new interpreter
 
+    A program may run on any backend ("numpy", "torch"). What runs inside is the
+    backend's own (torch computes in float32, so results can differ from the
+    compiled program's double arithmetic by about 1e-7); what crosses the
+    boundary is numpy: a stand-in is called with Python numbers and numpy
+    int64/float64 arrays, and call_entry returns the same, and both are checked
+    against the signature in that form. The checker never depends on the backend.
+
     Top-level definitions are evaluated in order, exactly as kgpy does;
     ``.extern`` binds each declared name to its stand-in and ``.entry``
     validates each signature. Errors are KlongError, positioned in the file.

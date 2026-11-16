@@ -11,6 +11,7 @@ Binding API, as specified here:
     load_program(path, externs={...})   run a file with stand-ins bound
     call_entry(klong, name, *args)      call an entry with arguments and result checked
 """
+import importlib.util
 import os
 import subprocess
 import sys
@@ -25,6 +26,8 @@ from klongpy.errors import (KlongArityError, KlongError, KlongNameError, KlongPy
 from klongpy.static import call_entry, check_source, load_program
 from klongpy.sys_fn_static import ExternTable
 from klongpy.types import KLONG_UNDEFINED
+
+from .hostutil import to_np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ADC = '.extern("read.adc";"int -> float")\n'
@@ -99,7 +102,7 @@ class TestExtern(unittest.TestCase):
     def test_wrong_array_shape(self):
         klong = interp(fill=lambda a: a * 2.0)
         klong('.extern("fill";"float[3] -> float[3]")')
-        r = klong("fill([1 2 3])")
+        r = to_np(klong, klong("fill([1 2 3])"))
         self.assertEqual((r.dtype.kind, r.tolist()), ("f", [2.0, 4.0, 6.0]))
         with self.assertRaises(KlongShapeError) as cm:
             klong("fill([1 2])")
@@ -331,6 +334,89 @@ class TestHostHelpers(unittest.TestCase):
         klong = KlongInterpreter(strict=2)
         self.assertIs(load_program("prog.kg", text=self.PROG, externs={"read.adc": lambda ch: 1.0}, klong=klong), klong)
         self.assertEqual(klong("step(3.0)"), 3.0)
+
+
+HAS_TORCH = importlib.util.find_spec("torch") is not None
+
+
+class TestHostBackends(unittest.TestCase):
+    """
+    A static program runs on any backend. The interior is the backend's own (the
+    torch backend computes in float32); the boundary is numpy: an extern stand-in
+    gets Python numbers and numpy int64/float64 arrays, call_entry returns the same,
+    and signatures are checked on those, whatever the backend.
+    """
+    PROG = ('.extern("probe";"float[3] -> float[3]")\n'
+            '.extern("tick";"int -> int")\n'
+            'w::[1.5 2.5 3.5]\n'
+            'f::{[a];a::probe(x+w);(a*2.0)+tick(1)}\n'
+            '.entry("f";"float[3] -> float[3]")\n'
+            'g::{+/x}\n'
+            '.entry("g";"int[4] -> int")\n')
+
+    def run_on(self, backend):
+        seen = []
+
+        def probe(a):
+            seen.append(a)
+            return a * 0.5
+
+        def tick(n):
+            seen.append(n)
+            return n
+        klong = load_program("p.kg", text=self.PROG, externs={"probe": probe, "tick": tick}, backend=backend)
+        out = call_entry(klong, "f", [1.0, 2.0, 3.0])
+        total = call_entry(klong, "g", [1, 2, 3, 4])
+        return klong, seen, out, total
+
+    def check_boundary(self, backend):
+        klong, seen, out, total = self.run_on(backend)
+        self.assertEqual(klong._backend.name, backend)
+        arr, n = seen
+        self.assertIs(type(arr), np.ndarray)
+        self.assertEqual((arr.dtype, arr.shape), (np.float64, (3,)))
+        self.assertEqual(arr.tolist(), [2.5, 4.5, 6.5])
+        self.assertIs(type(n), int)
+        self.assertIs(type(out), np.ndarray)
+        self.assertEqual(out.dtype, np.float64)
+        self.assertEqual(out.tolist(), [3.5, 5.5, 7.5])
+        self.assertIs(type(total), int)
+        self.assertEqual(total, 10)
+        # the signature is checked on the numpy value: a wrong shape or type is refused on every backend
+        with self.assertRaises(KlongShapeError):
+            call_entry(klong, "f", [1.0, 2.0])
+        with self.assertRaises(KlongTypeError):
+            call_entry(klong, "g", [1.0, 2.0, 3.0, 4.0])
+        return out
+
+    def test_numpy(self):
+        self.check_boundary("numpy")
+
+    @unittest.skipUnless(HAS_TORCH, "torch is not installed")
+    def test_torch(self):
+        self.check_boundary("torch")
+
+    @unittest.skipUnless(HAS_TORCH, "torch is not installed")
+    def test_a_torch_result_that_is_not_the_declared_type_is_refused(self):
+        klong = load_program("p.kg", text='f::{x%2}\n.entry("f";"int -> int")', backend="torch")
+        with self.assertRaises(KlongTypeError):
+            call_entry(klong, "f", 3)
+
+    @unittest.skipUnless(HAS_TORCH, "torch is not installed")
+    def test_the_checker_does_not_depend_on_the_backend(self):
+        """check_source gives the same diagnostics and types whichever backend evaluated the globals."""
+        text = 'w::[1.5 2.5 3.5]\nk::[[1 2] [3 4]]\nf::{x+w}\n.entry("f";"float[3] -> float[3]")\n'
+        base = check_source(text, "t.kg")
+        self.assertEqual([str(d) for d in base.diagnostics], [])
+        want = {n: str(g.ty) for n, g in base.globals.items()}
+        self.assertEqual(want, {"w": "float[3]", "k": "int[2,2]"})
+        for backend in ("numpy", "torch"):
+            klong = load_program("t.kg", text=text, backend=backend)
+            r = check_source(text, "t.kg", globals={n: klong(n) for n in want})
+            self.assertEqual([str(d) for d in r.diagnostics], [])
+            self.assertEqual({n: str(g.ty) for n, g in r.globals.items()}, want)
+            self.assertEqual({f: {tuple(map(str, k)): str(v) for k, v in i.specializations.items()} for f, i in r.functions.items()},
+                             {f: {tuple(map(str, k)): str(v) for k, v in i.specializations.items()} for f, i in base.functions.items()})
 
 
 class TestSameMistakeHostAndChecker(unittest.TestCase):
