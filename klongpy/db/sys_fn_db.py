@@ -309,3 +309,19 @@ def create_system_functions_db():
         registry[_get_name(fn.__doc__)] = fn
 
     return registry
+
+
+def _table_from_wire(names, columns):
+    """A table received over IPC (kdb+ type 98) as a Table."""
+    names = [str(n) for n in names]
+    data = {}
+    for n, c in zip(names, columns):
+        data[n] = np.array(list(c), dtype=object) if isinstance(c, str) else c
+    return Table(data, columns=names)
+
+
+try:
+    from klongpy.ipc.codec import set_table_factory
+    set_table_factory(_table_from_wire)
+except ImportError:  # the IPC package is optional
+    pass

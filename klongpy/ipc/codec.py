@@ -60,7 +60,7 @@ from .errors import ProtocolError, IPCTypeError, IPCRangeError
 
 __all__ = [
     "encode", "encode_call", "decode", "KdbLambda", "KdbOpaque", "KdbError",
-    "set_function_text_hook", "MAX_DEPTH", "GENERIC_NULL",
+    "set_function_text_hook", "set_table_factory", "KdbTable", "MAX_DEPTH", "GENERIC_NULL",
 ]
 
 #: nesting limit for general lists, dictionaries, tables and function objects
@@ -119,6 +119,27 @@ class KdbError:
 
 
 _fn_text_hook = None
+
+
+class KdbTable(dict):
+    """A decoded kdb+ table (type 98): a dict from column-name symbol to column.
+
+    It encodes as a table again, so a table passes through unchanged.
+    """
+    __slots__ = ()
+
+
+_table_factory = None
+
+
+def set_table_factory(factory):
+    """Install ``factory(names, columns) -> value`` for decoded tables.
+
+    ``klongpy.db`` installs one when it is loaded so a table arrives as its
+    ``Table``; without it a table is a :class:`KdbTable`.  ``None`` removes it.
+    """
+    global _table_factory
+    _table_factory = factory
 
 
 def set_function_text_hook(hook):
@@ -375,6 +396,32 @@ class _Encoder:
         self._seq(list(d.keys()), depth + 1)
         self._seq(list(d.values()), depth + 1)
 
+    def _table(self, names, cols, depth):
+        """A table: 98, attribute byte, then a dictionary of column names to columns."""
+        if depth >= MAX_DEPTH:
+            raise IPCRangeError("nesting deeper than %d" % MAX_DEPTH)
+        rows = None
+        arrays = []
+        for c in cols:
+            if isinstance(c, str):
+                a = c
+            else:
+                a = np.asarray(c)
+                if a.dtype.kind not in "biuf":
+                    a = np.asarray(c, dtype=object)
+                if a.ndim != 1:
+                    raise IPCTypeError("table column is not a list")
+            if rows is None:
+                rows = len(a)
+            elif len(a) != rows:
+                raise IPCTypeError("table columns differ in length")
+            arrays.append(a)
+        self.out.append(b"\x62\x00\x63")
+        self._sym_vector([str(n) for n in names])
+        self.out.append(_VEC_HDR.pack(0, 0, self._count(len(arrays))))
+        for a in arrays:
+            self.obj(a, depth + 1)
+
     def _function(self, fn):
         if isinstance(fn, KGFnWrapper):
             fn = fn.fn
@@ -420,6 +467,12 @@ class _Encoder:
             self._numpy_scalar(v)
         elif isinstance(v, np.ndarray):
             self._array(v, depth)
+        elif isinstance(v, KdbTable):
+            self._table(list(v.keys()), list(v.values()), depth)
+        elif hasattr(v, "get_dataframe") and hasattr(v, "columns"):
+            # a klongpy.db Table, recognised by shape so pandas is not imported here
+            df = v.get_dataframe()
+            self._table(list(v.columns), [df[c].values for c in v.columns], depth)
         elif isinstance(v, Mapping):
             self._dict(v, depth)
         elif isinstance(v, (list, tuple)):
@@ -748,7 +801,9 @@ class _Decoder:
                 rows = len(c)
             elif len(c) != rows:
                 raise ProtocolError("table columns differ in length")
-        return {names[i]: cols[i] for i in range(len(names))}
+        if _table_factory is not None:
+            return _table_factory(list(names), cols)
+        return KdbTable((names[i], cols[i]) for i in range(len(names)))
 
     def _lambda(self):
         ctx = self._cstring()

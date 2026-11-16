@@ -691,3 +691,20 @@ class TestClosingAndDeadlines(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# These tests check the codec's own table form; klongpy.db, when another test
+# has loaded it, makes decoded tables arrive as its Table instead.
+_saved_table_factory = None
+
+
+def setUpModule():
+    global _saved_table_factory
+    from klongpy.ipc import codec as _codec
+    _saved_table_factory = _codec._table_factory
+    _codec.set_table_factory(None)
+
+
+def tearDownModule():
+    from klongpy.ipc import codec as _codec
+    _codec.set_table_factory(_saved_table_factory)
