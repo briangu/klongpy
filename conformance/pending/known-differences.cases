@@ -32,27 +32,6 @@
 : reason The first item of the scan is a char in the reference suite (`t(",\\\"abc\""; ...; [0ca "ab" "abc"])`); KlongPy gives the string "a".
 : actual ["a" "ab" "abc"]
 
-@ pending.dict-at-string-key dicts strings
-> d:::{["a" 1]}
-> d@"a"
-= 1
-: reason `d@k` with a string key returns the whole dictionary; with an integer key it returns the value. The reference defines lookup as `d?k`; if `@` is supported on dictionaries it must agree for every key type.
-: actual :{["a" 1]}
-
-@ pending.dict-at-symbol-key dicts
-> d:::{[:k 5]}
-> d@:k
-= 5
-: reason Same as dict-at-string-key, symbol key.
-: actual :{[:k 5]}
-
-@ pending.dict-at-missing-int-key dicts
-> d:::{[1 2]}
-> d@7
-= :undefined
-: reason `d@7` for a missing key raises an internal error (a bug in KlongPy); `d?7` answers :undefined and docs say dictionary lookups are not range checked.
-: actual error: internal
-
 @ pending.index-by-float core float
 > [1 2 3]@1.0
 !type
@@ -70,12 +49,6 @@
 !type
 : reason Where of a string is reported as a range error; the operand has the wrong type.
 : actual error: range
-
-@ pending.format-of-dict dicts strings
-> $:{[1 2]}
-= ":{[1 2]}"
-: reason `$` of a dictionary gives the Python repr "{1: 2}"; it should give the written form, as `$` of a list gives.
-: actual "{1: 2}"
 
 @ pending.strict2-undefined-name-at-top-level core strict2
 > foo

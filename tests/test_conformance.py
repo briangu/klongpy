@@ -34,6 +34,10 @@ SHIM = os.path.join(CONF, "shim", "kgpy_shim.py")
 
 CASE_FILES = conf.case_files(conf.CASES_DIR)
 PENDING_FILES = conf.case_files(conf.PENDING_DIR)
+# The backend the in-process interpreter runs on (tests/conftest.py, --backend) and the tags
+# KlongPy declares there. The shim is a separate process and always runs the numpy backend.
+BACKEND = os.environ.get("_KLONGPY_TEST_BACKEND", "numpy")
+TAGS = conf.klongpy_tags(BACKEND)
 COMMENT = re.compile(r':"(?:[^"]|"")*"')
 FLOAT_TEXT = re.compile(r"\d\.\d|\d[eE][+-]?\d")
 
@@ -53,7 +57,7 @@ class TestKlongPyAgainstSuite(unittest.TestCase):
         cls.executor = conf.InProcess()
 
     def check_file(self, path):
-        cases = conf.selected(conf.load_file(path), conf.KLONGPY_TAGS)
+        cases = conf.selected(conf.load_file(path), TAGS)
         failed = _failures(cases, self.executor)
         if failed:
             self.fail(f"{len(failed)} of {len(cases)} cases failed in {os.path.relpath(path, ROOT)}:\n"
@@ -245,7 +249,8 @@ class TestShimProtocol(unittest.TestCase):
 
     def test_in_process_and_shim_agree_on_pending(self):
         cases = conf.selected(conf.load_dir(conf.PENDING_DIR), conf.KLONGPY_TAGS)
-        ex_ext, ex_in = self.external(), conf.InProcess()
+        # the shim process runs the numpy backend: compare it with numpy in process on every --backend
+        ex_ext, ex_in = self.external(), conf.InProcess(backend="numpy")
         for c in cases[:6]:
             a, b = ex_ext.run(c), ex_in.run(c)
             self.assertEqual((a.kind, a.text), (b.kind, b.text), c.name)
@@ -266,7 +271,7 @@ class TestPending(unittest.TestCase):
 
     def test_pending_cases_still_fail(self):
         ex = conf.InProcess()
-        cases = conf.selected(conf.load_dir(conf.PENDING_DIR), conf.KLONGPY_TAGS)
+        cases = conf.selected(conf.load_dir(conf.PENDING_DIR), TAGS)
         self.assertGreater(len(cases), 0)
         passing = [c for c in cases if conf.check(c, ex.run(c)) is None]
         if passing:
@@ -278,6 +283,8 @@ class TestPending(unittest.TestCase):
     def test_actual_is_current(self):
         """`: actual` documents what KlongPy answers; when it moves, update it (or the case passes now)."""
         ex = conf.InProcess()
+        if BACKEND != "numpy":
+            self.skipTest("`: actual` records the answer of the numpy backend (the reference)")
         for c in conf.selected(conf.load_dir(conf.PENDING_DIR), conf.KLONGPY_TAGS):
             r = ex.run(c)
             got = ("error: " + r.text) if r.kind == "error" else (r.text or "(no value)")

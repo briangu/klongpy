@@ -130,6 +130,38 @@ def to_numpy(x):
     return x
 
 
+def plain(x):
+    """
+    A Klong result as plain Python data: tensors and numpy arrays become
+    (nested) lists, 0-d tensors and numpy scalars become Python numbers.
+    Everything else (strings, symbols, :undefined, dictionaries) is returned
+    as it is. Use it where a test compares a result with a Python literal, so
+    the same assertion holds on the numpy and the torch backend.
+    """
+    if TORCH_AVAILABLE and isinstance(x, torch.Tensor):
+        return x.detach().cpu().tolist()
+    if isinstance(x, np.ndarray):
+        if x.ndim == 0:
+            return plain(x.item())
+        return [plain(q) for q in x] if x.dtype == object else x.tolist()
+    if isinstance(x, np.generic):
+        return x.item()
+    if isinstance(x, list):
+        return [plain(q) for q in x]
+    return x
+
+
+def dtype_kind(x):
+    """The numpy dtype kind ('i', 'f', 'O', ...) of an array or tensor, on either backend."""
+    dt = getattr(x, 'dtype', None)
+    kind = getattr(dt, 'kind', None)
+    if kind is not None:
+        return kind
+    if TORCH_AVAILABLE and isinstance(x, torch.Tensor):
+        return 'f' if x.is_floating_point() else 'b' if x.dtype == torch.bool else 'c' if x.is_complex() else 'i'
+    return None
+
+
 def _make_skip_decorator(condition_fn, reason_fn):
     """Factory for creating skip decorators."""
     def decorator(test_item):
@@ -399,4 +431,6 @@ __all__ = [
     'TORCH_AVAILABLE',
     'is_torch_backend',
     'to_numpy',
+    'plain',
+    'dtype_kind',
 ]

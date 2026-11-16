@@ -226,7 +226,8 @@ class TestAssignmentToANonName(unittest.TestCase):
         self.addCleanup(warnings.resetwarnings)
 
     def test_number_and_string(self):
-        for text in ("1::5", '"a"::5', "[a b]::[1 2]", "f(1)::5", "0cx::1", "(1+2)::3", "a::1::5"):
+        # ("[a b]::[1 2]" was one of these until ticket 060 made it a destructuring)
+        for text in ("1::5", '"a"::5', "f(1)::5", "0cx::1", "(1+2)::3", "a::1::5"):
             with self.subTest(text=text):
                 run(0, text)                                         # legacy: accepted
                 for level in (1, 2):

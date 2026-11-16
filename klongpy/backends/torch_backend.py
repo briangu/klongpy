@@ -10,7 +10,8 @@ import numpy
 import torch
 import torch.autograd.functional as torch_autograd_functional
 
-from .base import BackendProvider, UnsupportedDtypeError, is_jagged_array
+from .base import BackendProvider, CompiledDecline, UnsupportedDtypeError, is_jagged_array
+from .numpy_backend import KGChar, NumpyBackendProvider, _beyond_int64, _has_big_int
 from ..autograd import AutogradChainBrokenError, NonScalarLossError, _invoke_fn
 
 # numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
@@ -219,10 +220,26 @@ class TorchBackend:
             return result
         # For all other lists/tuples, convert via numpy (faster than torch.tensor for nested/mixed data)
         if isinstance(a, (list, tuple)):
+            if any(isinstance(x, torch.Tensor) for x in a):
+                # tensors mixed with plain numbers: stack, so the tensors stay in the autograd graph
+                # (numpy.asarray would detach them, or fail on one that requires grad)
+                if not all(isinstance(x, (torch.Tensor, int, float)) for x in a):
+                    raise TorchUnsupportedDtypeError("PyTorch backend does not support object dtype arrays.")
+                members = [x if isinstance(x, torch.Tensor) else self.asarray(x) for x in a]
+                result = torch.stack([m.to(self.device) for m in members])
+                if result.dtype == torch.float64 and self.device.type == 'mps':
+                    result = result.to(torch.float32)
+                return result
             arr = numpy.asarray(a)
             if arr.dtype == object:
                 raise TorchUnsupportedDtypeError(
                     "PyTorch backend does not support object dtype arrays."
+                )
+            if arr.dtype.kind == 'u' or (arr.dtype.kind == 'f' and type(a) is list and arr.size
+                                         and _beyond_int64(arr) and _has_big_int(a)):
+                # numpy made uint64 or floats of [2**63 1]: the integers stay exact in an object array
+                raise TorchUnsupportedDtypeError(
+                    "PyTorch backend does not support integers beyond 64 bits in a tensor."
                 )
             # Convert float64 to float32 to match torch.tensor's default behavior
             if arr.dtype == numpy.float64:
@@ -240,7 +257,13 @@ class TorchBackend:
             )
 
     def array(self, a, dtype=None):
-        """Create a torch tensor."""
+        """Create a torch tensor. Like numpy.array this is a copy: the caller may write to it."""
+        if dtype is None:
+            if isinstance(a, torch.Tensor):
+                r = a.clone()
+                return r if r.device == self.device else r.to(self.device)
+            if self._is_object_ndarray(a):
+                return a.copy()
         return self.asarray(a, dtype=dtype)
 
     def isarray(self, x):
@@ -248,15 +271,106 @@ class TorchBackend:
         return isinstance(x, (numpy.ndarray, torch.Tensor))
 
     def zeros(self, shape, dtype=None):
+        if dtype is int:
+            return torch.zeros(shape, dtype=torch.int64, device=self.device)
         return torch.zeros(shape, device=self.device)
 
     def ones(self, shape, dtype=None):
+        if dtype is int:
+            return torch.ones(shape, dtype=torch.int64, device=self.device)
         return torch.ones(shape, device=self.device)
+
+    @staticmethod
+    def _is_object_ndarray(x):
+        return isinstance(x, numpy.ndarray) and x.dtype.kind not in 'biuf'
+
+    def _host(self, x):
+        """x for a numpy call: tensors leave the graph and the device."""
+        return x.detach().cpu().numpy() if isinstance(x, torch.Tensor) else x
+
+    @staticmethod
+    def _int_list(x):
+        """A shape, repeat count or index list as Python integers."""
+        if isinstance(x, (torch.Tensor, numpy.ndarray)):
+            x = x.tolist()
+        if isinstance(x, (list, tuple)):
+            return [int(i) for i in x]
+        return int(x)
+
+    def full(self, shape, fill_value, dtype=None):
+        """numpy.full: the shape may be a tensor; a tensor fill value stays in the graph."""
+        shape = self._int_list(shape)
+        shape = tuple(shape) if isinstance(shape, list) else (shape,)
+        if isinstance(fill_value, torch.Tensor):
+            return fill_value.expand(shape + tuple(fill_value.shape)).clone()
+        if isinstance(fill_value, bool) or not isinstance(fill_value, (int, float)):
+            # a string, symbol, dictionary, ...: not a tensor value
+            r = numpy.empty(shape, dtype=object)
+            r.fill(fill_value)
+            return r
+        t = torch.full(shape, fill_value, device=self.device)
+        if t.dtype == torch.float64:
+            t = t.to(torch.float32)  # the float width asarray gives a Python float
+        return t
+
+    def tile(self, a, reps):
+        """numpy.tile: an integer or a list of integers as the count; object arrays stay numpy."""
+        reps = self._int_list(reps)
+        if not isinstance(a, torch.Tensor):
+            if self._is_object_ndarray(a):
+                return numpy.tile(a, reps)
+            a = self.asarray(a)
+        return torch.tile(a, tuple(reps) if isinstance(reps, list) else (reps,))
+
+    def resize(self, a, new_shape):
+        """numpy.resize: the elements of a in order, cycled or cut to fill new_shape."""
+        new_shape = self._int_list(new_shape)
+        new_shape = tuple(new_shape) if isinstance(new_shape, list) else (new_shape,)
+        if not isinstance(a, torch.Tensor):
+            if self._is_object_ndarray(a):
+                return numpy.resize(a, new_shape)
+            a = self.asarray(a)
+        flat = a.reshape(-1)
+        n = 1
+        for d in new_shape:
+            n *= d
+        if n == 0 or flat.numel() == 0:
+            return flat[:0].reshape(new_shape) if n == 0 else torch.zeros(new_shape, dtype=a.dtype, device=a.device)
+        if n > flat.numel():
+            flat = flat.repeat(-(-n // flat.numel()))
+        return flat[:n].reshape(new_shape)
+
+    def roll(self, a, shift, axis=None):
+        """numpy.roll (without an axis: over the flattened elements)."""
+        if not isinstance(a, torch.Tensor):
+            if isinstance(a, numpy.ndarray):
+                if self._is_object_ndarray(a):
+                    return numpy.roll(a, self._int_list(shift), axis)
+            a = self.asarray(a)
+        shift = self._int_list(shift)
+        return torch.roll(a, shift) if axis is None else torch.roll(a, shift, dims=axis)
+
+    def repeat(self, a, repeats, axis=None):
+        """numpy.repeat (torch calls it repeat_interleave)."""
+        a = a if isinstance(a, torch.Tensor) else self.asarray(a)
+        repeats = repeats if isinstance(repeats, torch.Tensor) else self.asarray(repeats)
+        if axis is None:
+            a = a.reshape(-1)
+            return torch.repeat_interleave(a, repeats.to(torch.int64).reshape(-1) if repeats.ndim else int(repeats))
+        return torch.repeat_interleave(a, repeats.to(torch.int64), dim=axis)
+
+    def logical_not(self, a):
+        if self._is_object_ndarray(a) or not isinstance(a, (torch.Tensor, numpy.ndarray, int, float, list)):
+            return numpy.logical_not(a)
+        return torch.logical_not(a if isinstance(a, torch.Tensor) else self.asarray(a))
 
     def arange(self, *args, **kwargs):
         return torch.arange(*args, device=self.device, **kwargs)
 
     def concatenate(self, arrays, axis=0):
+        if not isinstance(arrays, torch.Tensor) and any(self._is_object_ndarray(a) for a in arrays):
+            # strings and mixed lists are numpy object arrays on every backend
+            return numpy.concatenate([self._host(a) for a in arrays], axis=axis)
         tensors = [self.asarray(a) for a in arrays]
         return torch.cat(tensors, dim=axis)
 
@@ -288,12 +402,14 @@ class TorchBackend:
     def copy(self, a):
         if isinstance(a, torch.Tensor):
             return a.clone()
+        if self._is_object_ndarray(a):
+            return a.copy()
         return self.asarray(a).clone()
 
-    def isclose(self, a, b, rtol=1e-05, atol=1e-08):
+    def isclose(self, a, b, rtol=1e-05, atol=1e-08, equal_nan=False):
         # For scalars, use numpy's isclose to avoid tensor conversion issues
         if not hasattr(a, '__len__') and not hasattr(b, '__len__'):
-            return self._numpy.isclose(float(a), float(b), rtol=rtol, atol=atol)
+            return self._numpy.isclose(float(a), float(b), rtol=rtol, atol=atol, equal_nan=equal_nan)
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         b_t = self.asarray(b) if not isinstance(b, torch.Tensor) else b
         # torch.isclose requires same dtype, convert to float if needed
@@ -301,7 +417,7 @@ class TorchBackend:
             # Use float32 for MPS compatibility (MPS doesn't support float64)
             a_t = a_t.to(torch.float32)
             b_t = b_t.to(torch.float32)
-        return torch.isclose(a_t, b_t, rtol=rtol, atol=atol)
+        return torch.isclose(a_t, b_t, rtol=rtol, atol=atol, equal_nan=equal_nan)
 
     def array_equal(self, a, b):
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
@@ -317,6 +433,8 @@ class TorchBackend:
 
     def transpose(self, a, axes=None):
         """Transpose a tensor."""
+        if self._is_object_ndarray(a):
+            return numpy.transpose(a, axes)
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         if axes is None:
             return a_t.T if a_t.ndim >= 2 else a_t
@@ -336,17 +454,34 @@ class TorchBackend:
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         return torch.abs(a_t)
 
+    def _binary(self, op, numpy_ufunc, a, b):
+        """op on tensors; operands a tensor cannot hold (an integer beyond int64, an
+        object array) go to the numpy ufunc, which raises OverflowError for the
+        integer so that vec_fn2 repeats the operator on Python integers."""
+        try:
+            a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
+            b_t = self.asarray(b) if not isinstance(b, torch.Tensor) else b
+        except TorchUnsupportedDtypeError:
+            return numpy_ufunc(self._host(a), self._host(b))
+        return op(a_t, b_t)
+
     def minimum(self, a, b):
         """Element-wise minimum."""
-        a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
-        b_t = self.asarray(b) if not isinstance(b, torch.Tensor) else b
-        return torch.minimum(a_t, b_t)
+        return self._binary(torch.minimum, numpy.minimum, a, b)
 
     def maximum(self, a, b):
         """Element-wise maximum."""
-        a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
-        b_t = self.asarray(b) if not isinstance(b, torch.Tensor) else b
-        return torch.maximum(a_t, b_t)
+        return self._binary(torch.maximum, numpy.maximum, a, b)
+
+    # exact on Python integers, see BackendProvider._exact_atomic
+    minimum.object_safe = True
+    maximum.object_safe = True
+
+    def less(self, a, b):
+        return self._binary(torch.less, numpy.less, a, b)
+
+    def greater(self, a, b):
+        return self._binary(torch.greater, numpy.greater, a, b)
 
     def floor(self, a):
         """Floor of input."""
@@ -383,6 +518,25 @@ class TorchBackend:
         a_t = self.asarray(a) if not isinstance(a, torch.Tensor) else a
         return torch.isnan(a_t)
 
+    def negative(self, a):
+        if isinstance(a, torch.Tensor):
+            return torch.negative(a)
+        if self._is_object_ndarray(a) or (isinstance(a, int) and not -2 ** 63 <= a < 2 ** 63):
+            return numpy.negative(a)  # an integer beyond int64, or a list holding one
+        return torch.negative(self.asarray(a))
+
+    def fmod(self, a, b):
+        """Truncated remainder. Integer operands with a zero divisor are computed as
+        floats, so the result is the IEEE nan (torch raises ZeroDivisionError for integers)."""
+        try:
+            a_t = a if isinstance(a, torch.Tensor) else self.asarray(a)
+            b_t = b if isinstance(b, torch.Tensor) else self.asarray(b)
+        except TorchUnsupportedDtypeError:
+            return numpy.fmod(self._host(a), self._host(b))  # an integer beyond int64: numpy's OverflowError
+        if not (a_t.is_floating_point() or b_t.is_floating_point()) and bool((b_t == 0).any()):
+            a_t = a_t.to(torch.float32)
+        return torch.fmod(a_t, b_t)
+
     def sign(self, a):
         """Sign of elements."""
         if isinstance(a, (int, float)):
@@ -402,6 +556,8 @@ class TorchBackend:
             self._accumulate_op = accumulate_op
             self._torch = torch
             self._numpy_ufunc = numpy_ufunc
+            # exact on Python integers, see BackendProvider._exact_atomic
+            self.object_safe = numpy_ufunc in (numpy.add, numpy.subtract, numpy.multiply)
 
         def _is_object_array(self, x):
             return isinstance(x, numpy.ndarray) and x.dtype == object
@@ -419,6 +575,11 @@ class TorchBackend:
                 return self._op(a, b)
             if (a_is_tensor and isinstance(b, (int, float))) or \
                (b_is_tensor and isinstance(a, (int, float))):
+                s = a if b_is_tensor else b
+                if type(s) is int and not -9223372036854775808 <= s <= 9223372036854775807:
+                    # torch would wrap the integer silently; numpy raises, and
+                    # vec_fn2 then repeats the operator on Python integers
+                    raise OverflowError("Python integer out of bounds for int64")
                 return self._op(a, b)
             # Numpy fallback for object arrays
             if self._numpy_ufunc and (self._is_object_array(a) or self._is_object_array(b)):
@@ -569,7 +730,12 @@ class TorchBackendProvider(BackendProvider):
         return False
 
     def supports_strings(self) -> bool:
-        return False
+        return True
+
+    def supports_exact_integers(self) -> bool:
+        # an integer beyond int64 is never a tensor: it is a Python integer (or
+        # sits in a numpy object array) on this backend too
+        return True
 
     def supports_float64(self) -> bool:
         # MPS device doesn't support float64
@@ -612,6 +778,24 @@ class TorchBackendProvider(BackendProvider):
             return x.detach().cpu().numpy()
         return x
 
+    def to_display(self, x):
+        """A tensor as the value that is printed.
+
+        A float32 number (a 0-d tensor, or an element of a float32 list)
+        becomes the Python float with the shortest text that reads back as the
+        same float32: 1.23 prints as 1.23, where the float32 value widened to
+        64 bits would print as 1.2300000190734863.
+        """
+        if isinstance(x, torch.Tensor):
+            x = x.detach().cpu().numpy()
+            if x.ndim > 0:
+                return x
+        if hasattr(x, 'item') and hasattr(x, 'ndim') and x.ndim == 0:
+            if x.dtype == numpy.float32:
+                return float(str(x[()] if isinstance(x, numpy.ndarray) else x))
+            return x.item()
+        return x
+
     def is_scalar_integer(self, x) -> bool:
         if isinstance(x, torch.Tensor) and x.ndim == 0:
             return x.dtype in (torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8)
@@ -623,10 +807,99 @@ class TorchBackendProvider(BackendProvider):
         return False
 
     def argsort(self, a, descending=False):
-        """Return indices that would sort the array."""
+        """Return indices that would sort the array.
+
+        Ascending is stable. Descending is the reverse of the ascending order,
+        as on the numpy backend, so equal elements come out last index first.
+        """
         if not isinstance(a, torch.Tensor):
             a = self._torch_backend.asarray(a)
-        return torch.argsort(a, descending=descending)
+        indices = torch.argsort(a, stable=True)
+        return torch.flip(indices, dims=[0]) if descending else indices
+
+    def put(self, r, idx, v):
+        """Amend: write v at the flat positions idx of r (a fresh copy, see TorchBackend.array).
+
+        A tensor stays a tensor and stays in the autograd graph (r is a clone, so
+        the write is not on a leaf); a real number written into an integer tensor
+        makes it a float tensor, and a value a tensor cannot hold (a string, a
+        symbol, ...) makes the list a numpy object array.
+        """
+        if not isinstance(r, torch.Tensor):
+            if isinstance(v, torch.Tensor):
+                v = v.item() if v.ndim == 0 else v.detach().cpu().numpy()
+            if isinstance(r, numpy.ndarray) and r.dtype.kind in 'iub' and isinstance(v, float):
+                r = r.astype(float)
+            numpy.put(r, numpy.asarray(idx, dtype=int), v)
+            return r
+        is_number = isinstance(v, torch.Tensor) or (isinstance(v, (int, float, numpy.number)) and not isinstance(v, bool))
+        if not is_number:
+            o = r.detach().cpu().numpy().astype(object)
+            numpy.put(o, numpy.asarray(idx, dtype=int), v)
+            return o
+        v_is_float = v.is_floating_point() if isinstance(v, torch.Tensor) else isinstance(v, (float, numpy.floating))
+        if v_is_float and not r.is_floating_point():
+            r = r.to(v.dtype if isinstance(v, torch.Tensor) else torch.float32)
+        if isinstance(v, torch.Tensor) and v.dtype != r.dtype:
+            v = v.to(r.dtype)  # an integer written into a float tensor (index_put wants one dtype)
+        flat = r.reshape(-1)
+        flat[torch.as_tensor(idx, dtype=torch.int64, device=r.device)] = v
+        return r
+
+    def amend_at(self, a, index, v):
+        """Amend-in-Depth: a copy of a with the one element at the index path replaced by v."""
+        index = tuple(int(i) for i in (index.tolist() if hasattr(index, 'tolist') else index)) \
+            if getattr(index, 'ndim', 1) > 0 else (int(index),)
+        is_number = isinstance(v, torch.Tensor) or (isinstance(v, (int, float, numpy.number)) and not isinstance(v, bool))
+        if not is_number:
+            return super().amend_at(a.detach().cpu().numpy(), index, v)
+        r = a.clone()
+        v_is_float = v.is_floating_point() if isinstance(v, torch.Tensor) else isinstance(v, (float, numpy.floating))
+        if v_is_float and not r.is_floating_point():
+            r = r.to(v.dtype if isinstance(v, torch.Tensor) else torch.float32)
+        r[index] = v
+        return r
+
+    def index_at(self, a, index):
+        """Index-in-Depth: the element of a at the index path."""
+        if isinstance(a, torch.Tensor):
+            if isinstance(index, list) or getattr(index, 'ndim', 0) > 0:
+                if not isinstance(index, torch.Tensor):
+                    index = self._torch_backend.asarray(index)
+                # one index per axis; rows of indices select several elements, as in numpy
+                return a[tuple(index.to(torch.int64))]
+            return a[int(index)]
+        if isinstance(index, torch.Tensor):
+            index = index.tolist()
+        return super().index_at(a, index)
+
+    def array_split(self, a, sections):
+        """numpy.array_split: a number of sections, or the positions to cut before."""
+        sections = TorchBackend._int_list(sections)
+        if isinstance(a, torch.Tensor):
+            return list(torch.tensor_split(a, sections))
+        return numpy.array_split(a, sections)
+
+    def find_equal(self, a, b):
+        """Positions (along the first axis) where a equals the atom b."""
+        if isinstance(b, torch.Tensor) and b.ndim == 0 and not isinstance(a, torch.Tensor):
+            b = b.item()
+        if isinstance(a, torch.Tensor):
+            if not isinstance(b, (torch.Tensor, int, float)):
+                return torch.zeros(0, dtype=torch.int64, device=a.device)
+            return torch.where(a == b)[0]
+        return super().find_equal(a, b)
+
+    def reciprocal(self, x):
+        if isinstance(x, torch.Tensor):
+            return torch.reciprocal(x if x.is_floating_point() else x.to(torch.float32))
+        return super().reciprocal(x)
+
+    def dict_key(self, k):
+        """A dictionary key: a 0-d tensor is the number it holds (tensors hash by identity)."""
+        if isinstance(k, torch.Tensor) and k.ndim == 0:
+            return k.item()
+        return k
 
     def array_size(self, a):
         """Get the total number of elements in an array/tensor."""
@@ -666,8 +939,14 @@ class TorchBackendProvider(BackendProvider):
         return x
 
     def to_int_array(self, a):
-        """Convert array/tensor to integer type."""
+        """Convert array/tensor to integer type.
+
+        A float tensor holding inf or nan (a division by zero) stays a float
+        tensor: the IEEE value is the result, an integer cast would be garbage.
+        """
         if isinstance(a, torch.Tensor):
+            if a.requires_grad or (a.is_floating_point() and not bool(torch.isfinite(a).all())):
+                return a  # an integer cast would leave the autograd graph
             return a.to(int)
         return numpy.asarray(a, dtype=int) if isinstance(a, numpy.ndarray) else int(a)
 
@@ -688,11 +967,37 @@ class TorchBackendProvider(BackendProvider):
             b_val = b.item() if isinstance(b, torch.Tensor) and b.ndim == 0 else b
             if isinstance(b_val, (int, numpy.integer)) and b_val < 0:
                 a = a.float()
-            return a.pow(b)
+            try:
+                return a.pow(b)
+            except RuntimeError:
+                # an exponent beyond float32 on a device without float64 (mps):
+                # the float32 it rounds to (inf), which is what the cpu computes
+                if type(b) is float and not isinstance(a, bool):
+                    return a.pow(torch.tensor(b, dtype=torch.float64).to(torch.float32).to(a.device))
+                raise
+        if isinstance(b, torch.Tensor) and (b.ndim > 0 or b.requires_grad) \
+                and isinstance(a, (int, float)) and not isinstance(a, bool) \
+                and (type(a) is float or -9223372036854775808 <= a <= 9223372036854775807):
+            # a number to a tensor power: a tensor, in the autograd graph of the exponent
+            # (an exponent that is a plain 0-d tensor is a number: the float64 path below)
+            return self.power(torch.as_tensor(float(a), dtype=b.dtype if b.is_floating_point() else torch.float32,
+                                              device=b.device), b)
         # For numpy arrays or scalars
         a_val = float(a) if isinstance(a, (int, numpy.integer)) else a
         b_val = b.item() if isinstance(b, torch.Tensor) and b.ndim == 0 else (b.cpu().numpy() if isinstance(b, torch.Tensor) else b)
-        return numpy.power(a_val, b_val)
+        with numpy.errstate(divide='ignore'):  # 0^-1 is inf, as on the numpy backend
+            return numpy.power(a_val, b_val)
+
+    def vec_fn(self, a, f):
+        """As the base, but the results are put into the object array one by one:
+        numpy.asarray would read a tensor among them as a sequence, which copies
+        it out of the graph on the cpu and fails on any other device."""
+        if isinstance(a, numpy.ndarray) and a.dtype == object:
+            out = numpy.empty(len(a), dtype=object)
+            for i, x in enumerate(a):
+                out[i] = self.vec_fn(x, f) if self._is_list(x) else f(x)
+            return out
+        return f(a)
 
     def has_gradient(self, x) -> bool:
         """Check if x is tracking gradients."""
@@ -813,10 +1118,9 @@ class TorchBackendProvider(BackendProvider):
         return jacobian
 
     def str_to_char_array(self, s):
-        """Not supported in torch backend."""
-        raise TorchUnsupportedDtypeError(
-            "PyTorch backend does not support string-to-character array conversion."
-        )
+        """A string as a list of characters: a numpy object array, as on the numpy backend
+        (text is never a tensor)."""
+        return numpy.asarray([KGChar(x) for x in s], dtype=object)
 
     def compile_function(self, func, example_input, output_path=None, mode="default",
                          backend="inductor", fullgraph=False, dynamic=None):
@@ -1023,11 +1327,39 @@ class TorchBackendProvider(BackendProvider):
 
         param_names = list(self._collect_params(ir))
         fn_source = f"def _expr({', '.join(param_names)}): return {source}"
+        # The compiled operators are the ones the interpreter applies (ticket 025):
+        # the same ufunc objects through vec_fn2, the interpreter's own ^ and
+        # negate, and reduce/scan with the interpreter's treatment of atoms and
+        # empty lists. Both paths then give the same values, the same types
+        # (tensors, also for two plain numbers) and the same autograd graph.
+        xp = self._torch_backend
+        divide = xp.divide
+
+        def _div(x, y):
+            # the interpreter gives :undefined for atom%0; leave that to it
+            if getattr(y, 'ndim', 0) == 0 and getattr(x, 'ndim', 0) == 0 and y == 0:
+                raise ZeroDivisionError("division by zero")
+            return divide(x, y)
+
+        def _reducing(reduce):
+            def over(x):
+                shape = getattr(x, 'shape', ())
+                if len(shape) and shape[0]:
+                    if not isinstance(x, torch.Tensor):
+                        raise CompiledDecline("not a tensor")  # an object array: the interpreter folds it
+                    return reduce(x)
+                return x
+            return over
+
         ns = {
             '_atomic': self.vec_fn2,
-            '_add': operator.add, '_sub': operator.sub, '_mul': operator.mul,
-            '_div': operator.truediv, '_pow': self.interpreter_power(),  # ticket 025: the interpreter's ^ (untested without torch)
-            '_eq': operator.eq, '_gt': operator.gt, '_lt': operator.lt,
+            '_add': xp.add, '_sub': xp.subtract, '_mul': xp.multiply,
+            '_div': _div, '_pow': self.interpreter_power(), '_neg': self.interpreter_negate(),
+            '_eq': self.safe_equal, '_gt': xp.greater, '_lt': xp.less,
+            '_rsum': _reducing(xp.add.reduce), '_rprod': _reducing(xp.multiply.reduce),
+            '_rmax': _reducing(lambda x: x.amax(0)), '_rmin': _reducing(lambda x: x.amin(0)),
+            '_cumsum': _reducing(lambda x: x.cumsum(0)), '_cumprod': _reducing(lambda x: x.cumprod(0)),
+            '_cummax': _reducing(lambda x: x.cummax(0).values), '_cummin': _reducing(lambda x: x.cummin(0).values),
         }
         try:
             exec(fn_source, ns)
@@ -1071,33 +1403,27 @@ class TorchBackendProvider(BackendProvider):
             child = self._ir_to_source(ir[1])
             if child is None:
                 return None
-            return f'(-{child})'
+            return f'_neg({child})'
 
         if node_type == 'reduce':
             op, arg = ir[1], ir[2]
             arg_src = self._ir_to_source(arg)
             if arg_src is None:
                 return None
-            method = {'+': 'sum', '*': 'prod', '|': 'amax', '&': 'amin'}.get(op)
+            method = {'+': '_rsum', '*': '_rprod', '|': '_rmax', '&': '_rmin'}.get(op)
             if method is None:
                 return None
-            return f'({arg_src}).{method}(0)'
+            return f'{method}({arg_src})'
 
         if node_type == 'scan':
             op, arg = ir[1], ir[2]
             arg_src = self._ir_to_source(arg)
             if arg_src is None:
                 return None
-            methods = {
-                '+': 'cumsum(0)',
-                '*': 'cumprod(0)',
-                '|': 'cummax(0).values',
-                '&': 'cummin(0).values',
-            }
-            method = methods.get(op)
+            method = {'+': '_cumsum', '*': '_cumprod', '|': '_cummax', '&': '_cummin'}.get(op)
             if method is None:
                 return None
-            return f'({arg_src}).{method}'
+            return f'{method}({arg_src})'
 
         return None
 
@@ -1111,7 +1437,7 @@ class TorchBackendProvider(BackendProvider):
         """
         if isinstance(a, str):
             # Strings become numpy character arrays like in numpy backend
-            return numpy.array(list(a))
+            return self.str_to_char_array(a)
         try:
             # Check for jagged arrays early - torch converts them incorrectly
             if is_jagged_array(a):
@@ -1124,23 +1450,41 @@ class TorchBackendProvider(BackendProvider):
                         raise ValueError
             return arr
         except (NumpyVisibleDeprecationWarning, ValueError, TypeError, RuntimeError, TorchUnsupportedDtypeError):
-            # Fall back to numpy object array for heterogeneous/unsupported data
-            # Use numpy for inner conversions to avoid MPS tensor issues
-            def _numpy_convert(x):
-                if isinstance(x, list):
-                    try:
-                        return numpy.asarray(x)
-                    except (ValueError, TypeError):
-                        return numpy.asarray([_numpy_convert(i) for i in x], dtype=object)
-                return x
-            try:
-                arr = numpy.asarray(a, dtype=object)
-                # Recursively convert inner lists to numpy arrays
-                arr = numpy.asarray(
-                    [_numpy_convert(x) if isinstance(x, list) else x for x in arr],
-                    dtype=object
-                )
+            return self._object_array(a)
+
+    def _object_array(self, a):
+        """
+        The numpy object array for data a tensor cannot hold (strings, symbols,
+        mixed or ragged lists). Inner Python lists are converted as the numpy
+        backend converts them (numeric ones become numpy arrays, symbols and
+        strings are kept as they are); tensors that are members stay tensors,
+        except that a 0-d tensor outside the autograd graph becomes the number
+        it holds.
+        """
+        if isinstance(a, (list, tuple)) and any(isinstance(x, torch.Tensor) for x in a):
+            out = numpy.empty(len(a), dtype=object)
+            for i, x in enumerate(a):
+                if isinstance(x, torch.Tensor):
+                    out[i] = x.item() if x.ndim == 0 and not x.requires_grad else x
+                else:
+                    out[i] = _HOST.kg_asarray(x) if isinstance(x, list) else x
+            return out
+        try:
+            arr = numpy.asarray(a, dtype=object)
+            if arr.ndim == 0:
                 return arr
+            # Recursively convert inner lists to numpy arrays
+            return numpy.asarray(
+                [_HOST.kg_asarray(x) if isinstance(x, list) else x for x in arr],
+                dtype=object
+            )
+        except (ValueError, TypeError):
+            try:
+                return _HOST.kg_asarray(a)
             except (ValueError, TypeError):
                 # Last resort: keep as list
                 return a
+
+
+# numpy conversions of the data tensors cannot hold
+_HOST = NumpyBackendProvider()

@@ -360,11 +360,14 @@ class TestCoreWithTorch(unittest.TestCase):
         self.assertEqual(list(result), ['h', 'e', 'l', 'l', 'o'])
 
     @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
-    def test_str_to_chr_arr_fails(self):
-        """Test that str_to_chr_arr fails in torch mode."""
+    def test_str_to_chr_arr_is_a_numpy_char_array(self):
+        """A string is a numpy object array of characters on torch too (ticket 028; it raised before)."""
         backend = get_backend('torch')
-        with self.assertRaises(UnsupportedDtypeError):
-            backend.str_to_chr_arr("hello")
+        r = backend.str_to_chr_arr("hello")
+        self.assertIsInstance(r, numpy.ndarray)
+        self.assertEqual(r.dtype, object)
+        self.assertEqual(list(r), ['h', 'e', 'l', 'l', 'o'])
+        self.assertTrue(all(type(c).__name__ == 'KGChar' for c in r))
 
     @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_kg_asarray_jagged_returns_object_array(self):

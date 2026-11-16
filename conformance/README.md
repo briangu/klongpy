@@ -103,9 +103,17 @@ Capability tags:
 | `strict1`, `strict2` | the runner starts the interpreter at that strict level (`--strict N`) |
 
 Implementation tags: `numpy-only`, `torch-only`, `kgpy-only` mark behaviour
-that belongs to one KlongPy backend and is not normative; no case uses them
-yet. KlongPy declares every tag except `torch-only`, `timers`, `ipc` and
-`desktop` (`KLONGPY_TAGS` in `run.py`).
+that belongs to one KlongPy backend. `numpy-only` is the result of the
+reference (numpy) backend that the torch backend cannot give by design: text
+of a float64 value (torch computes in float32 by default) and `:undefined`
+inside a list (a tensor cannot hold it and keeps the IEEE `inf`/`nan`, ticket
+015). Each such case has a `# numpy-only:` comment with the reason; the
+expected result stays the reference one, and another runtime that gives it
+declares the tag. No case uses `torch-only` or `kgpy-only` yet. KlongPy on
+the numpy backend declares every tag except `torch-only`, `timers`, `ipc` and
+`desktop` (`KLONGPY_TAGS` in `run.py`); on the torch backend it declares
+`torch-only` instead of `numpy-only` (`KLONGPY_TORCH_TAGS`,
+`klongpy_tags(backend)`).
 
 ## Runner protocol
 

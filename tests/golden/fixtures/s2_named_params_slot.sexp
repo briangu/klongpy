@@ -1,1 +1,1 @@
-(def (call (sym f) (sym a) (sym b)) (fn 0 (d "+" (sym a) (sym b))))
+(def (sym f) (fn 2 (params a b) (d "+" (sym a) (sym b))))

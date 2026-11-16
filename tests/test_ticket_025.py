@@ -19,6 +19,10 @@ import numpy as np
 import klongpy.interpreter as interp_mod
 from klongpy import KlongInterpreter
 from klongpy.errors import KlongRangeError
+from tests.backend_compat import TORCH_AVAILABLE, is_torch_backend, plain
+
+if TORCH_AVAILABLE:
+    import torch
 
 
 BIG = 9223372036854775808          # 2**63
@@ -26,7 +30,9 @@ HUGE = 100000000000000000000       # 10**20
 
 
 def values(r):
-    """A result as plain Python data, numpy scalars and arrays unwrapped."""
+    """A result as plain Python data, numpy scalars and arrays (and tensors) unwrapped."""
+    if TORCH_AVAILABLE and isinstance(r, torch.Tensor):
+        return r.detach().cpu().tolist()
     if isinstance(r, np.ndarray):
         return r.tolist()
     if isinstance(r, np.generic):
@@ -187,6 +193,9 @@ VARS = [s.split("::")[0] for s in SETUP]
 
 
 def _norm(r):
+    if TORCH_AVAILABLE and isinstance(r, torch.Tensor):
+        # the type is part of the comparison: a tensor is not a numpy array or a Python number
+        return ("tensor", tuple(r.shape), str(r.dtype), repr(r.detach().cpu().tolist()), r.requires_grad)
     if isinstance(r, np.ndarray):
         l = values(r.tolist())
         return ("array", r.shape, repr(l), repr(_types(l)))

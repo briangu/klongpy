@@ -125,7 +125,10 @@ def from_expect(e):
     raise ValueError(e)
 
 
-_klong = KlongInterpreter()
+# The codec is plain numpy on every backend (klongpy/ipc/codec.py, "Torch isolation"): the
+# expected values of the vectors are numpy values, also when the suite runs with --backend torch.
+# The endpoint converts tensors before encoding; tests/test_torch_regressions.py covers that.
+_klong = KlongInterpreter(backend='numpy')
 
 
 def expected_value(entry):

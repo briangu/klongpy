@@ -19,11 +19,13 @@
 > -0.25
 = -0.25
 
-@ printing.print-float-sum core float string-fmt
+# numpy-only: float64 text; the torch backend computes in float32 by default
+@ printing.print-float-sum core float string-fmt numpy-only
 > 0.1+0.2
 = 0.30000000000000004
 
-@ printing.print-float-third core float string-fmt
+# numpy-only: float64 text; the torch backend computes in float32 by default
+@ printing.print-float-third core float string-fmt numpy-only
 > 1%3
 = 0.3333333333333333
 
@@ -79,7 +81,8 @@
 > 1%0
 = :undefined
 
-@ printing.print-undefined-in-list core float
+# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value (ticket 015)
+@ printing.print-undefined-in-list core float numpy-only
 > [1 2 0]%[1 0 1]
 = [1.0 :undefined 0.0]
 

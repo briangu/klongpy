@@ -78,8 +78,7 @@ def eval_dyad_amend(a, b, backend):
             r[i] = b[0]
         r = backend.kg_asarray(r)
     else:
-        r = _amend_promote(r, b[0])
-        numpy.put(r, numpy.asarray(idx,dtype=int), b[0])
+        r = backend.put(_amend_promote(r, b[0]), idx, b[0])
     return r
 
 
@@ -119,7 +118,7 @@ def _e_dyad_amend_in_depth(p, q, v):
         p[q] = v
         return p
 
-def eval_dyad_amend_in_depth(a, b):
+def eval_dyad_amend_in_depth(a, b, backend):
     """
 
         a:-b                                            [Amend-in-Depth]
@@ -134,6 +133,10 @@ def eval_dyad_amend_in_depth(a, b):
                       [[[0]]]:-1,[0 0 0]  -->  [[[1]]]
 
     """
+    if backend.is_backend_array(a):
+        return backend.amend_at(a, b[1:], b[0])
+    if backend.is_backend_array(b):
+        b = backend.to_numpy(b)
     return _e_dyad_amend_in_depth(a, b[1:], b[0])
 
 
@@ -159,9 +162,11 @@ def eval_dyad_cut(a, b, backend):
 
     """
     j = isinstance(b, str)
-    b = bknp.asarray(backend.str_to_chr_arr(b) if j else b)
-    a = a if bknp.isarray(a) else [a]
-    r = bknp.array_split(b, a)
+    np_backend = backend.np
+    b = backend.str_to_chr_arr(b) if j else b
+    b = b if np_backend.isarray(b) else np_backend.asarray(b)
+    a = a if np_backend.isarray(a) and a.ndim > 0 else [a]
+    r = backend.array_split(b, a)
     if len(b) == 0 and len(a) > 0:
         r = r[1:]
     return bknp.asarray(["".join(x) for x in r]) if j else backend.kg_asarray(r)
@@ -179,6 +184,12 @@ def _normalize_index(i, n, what='list'):
         # also an IndexError, which is what an index out of range was before
         raise compat(KlongRangeError, IndexError)(f"index {i} out of range for {what} of {n}")
     return i + n if i < 0 else i
+
+
+def _dict_lookup(d, k, backend):
+    """The value of key k in the dictionary d, :undefined when there is none (Find and At)."""
+    v = d.get(backend.dict_key(k))
+    return KLONG_UNDEFINED if v is None else v
 
 
 def eval_dyad_at_index(klong, a, b):
@@ -202,6 +213,10 @@ def eval_dyad_at_index(klong, a, b):
         Indices -n..n-1 are valid for a list or string of length n; a
         negative index counts from the end. Any other index is an error.
 
+        When "a" is a dictionary, return the value associated with the
+        key "b", as a?b does, and :undefined when there is no such key.
+        When "b" is a list, return the list of the values of its members.
+
         When "a" is a function, "b" (if it is an atom) or the members
         of "b" (if it is a list) will be passed as arguments to the
         function and the result will be returned.
@@ -212,6 +227,7 @@ def eval_dyad_at_index(klong, a, b):
                   "hello world"@[3 7 2]  -->  "lol"
                          [1 2 3 4 5]@-1  -->  5
                          {y+x*x}@[2 3]   -->  7
+                        :{["k" 1]}@"k"   -->  1
 
     """
     if isinstance(a, (KGFn, KGSym)) or issubclass(type(a), KGLambda):
@@ -220,9 +236,18 @@ def eval_dyad_at_index(klong, a, b):
         b = [x for x in b] if klong._backend.is_array(b) else b
         return klong.apply(a, b if isinstance(b, list) else [b], 1)
     backend = klong._backend
+    if is_dict(a):
+        # A dictionary (or a table): a@b is the lookup a?b for every kind of
+        # key, and :undefined for a key that is not there. A list is one
+        # lookup per member (a list cannot be a key).
+        if is_list(b):
+            if is_empty(b):
+                return backend.np.asarray([])
+            return backend.kg_asarray([_dict_lookup(a, x, backend) for x in b])
+        return _dict_lookup(a, b, backend)
     j = isinstance(a,str)
     a = backend.str_to_chr_arr(a) if j else a
-    n = None if is_dict(a) or not hasattr(a, '__len__') else len(a)
+    n = None if not hasattr(a, '__len__') else len(a)
     if is_list(b):
         if is_empty(b):
             r = backend.np.asarray([])
@@ -237,7 +262,7 @@ def eval_dyad_at_index(klong, a, b):
         r = a
     if j:
         if backend.np.isarray(r) and r.ndim > 1:
-            return backend.np.asarray(["".join(x) for x in r], dtype=object)
+            return bknp.asarray(["".join(x) for x in r], dtype=object)
         return "".join(r)
     return r
 
@@ -274,7 +299,14 @@ def _undefined_on_zero_divisor(fn, backend):
     cannot hold :undefined in an array (torch) keep their IEEE results.
     """
     if not backend.supports_object_dtype():
-        return fn
+        def ieee(x, y):
+            # an atom divided by the atom 0 is :undefined on every backend; a
+            # tensor keeps the IEEE inf/nan (it cannot hold :undefined) and
+            # stays in the autograd graph
+            if getattr(y, 'ndim', 0) == 0 and getattr(x, 'ndim', 0) == 0 and backend.is_number(y) and y == 0:
+                return KLONG_UNDEFINED
+            return fn(x, y)
+        return ieee
     np_ = backend.np
 
     def g(x, y):
@@ -328,7 +360,7 @@ def eval_dyad_divide(a, b, backend):
     return backend.vec_fn2(a, b, _undefined_on_zero_divisor(backend.np.divide, backend))
 
 
-def eval_dyad_drop(a, b):
+def eval_dyad_drop(a, b, backend):
     """
 
         a_b                                                       [Drop]
@@ -350,7 +382,7 @@ def eval_dyad_drop(a, b):
     """
     if is_dict(b):
         try:
-            del b[a] # biased towards presence perf
+            del b[backend.dict_key(a)] # biased towards presence perf
         except KeyError:
             pass
         return b
@@ -431,11 +463,11 @@ def eval_dyad_find(a, b, backend):
     if isinstance(a,str):
         return backend.np.asarray(list(finditer(a,str(b))))
     elif is_dict(a):
-        v = a.get(b)
+        v = a.get(backend.dict_key(b))
         return KLONG_UNDEFINED if v is None else v
     if is_list(b):
         return backend.np.asarray([i for i,x in enumerate(a) if backend.kg_equal(x, b)])
-    return bknp.where(bknp.asarray(a) == b)[0]
+    return backend.find_equal(a, b)
 
 
 def __e_dyad_form(a, b, backend):
@@ -468,7 +500,7 @@ def _e_dyad_form(a, b, backend):
     """
     Unravel the broadcasting of a and b and apply __e_dyad_form
     """
-    if backend.np.isarray(a) and backend.np.isarray(b):
+    if backend.np.isarray(a) and backend.np.isarray(b) and a.ndim > 0 and b.ndim > 0:
         return backend.np.asarray([backend.vec_fn2(x, y, lambda x, y: _e_dyad_form(x, y, backend)) for x,y in zip(a,b)])
     if backend.np.isarray(b) and b.ndim > 0 and not backend.np.isarray(a):
         # numeric list on the right (e.g. 1:$[5]): convert element by element
@@ -509,7 +541,7 @@ def __e_dyad_format2(a, b, backend):
     if hasattr(a, 'ndim') and a.ndim == 0:
         a = a.item()
     if hasattr(b, 'ndim') and b.ndim == 0:
-        b = b.item()
+        b = backend.to_display(b)  # .item(), or the float32 number as it prints
     if isinstance(a, float) and not (isinstance(b, float) and not isinstance(b, bool)):
         raise KlongTypeError(f"$: a real width needs a real number to format, got {b!r}")
     if safe_eq(int(a), 0):
@@ -530,7 +562,7 @@ def _e_dyad_format2(a, b, backend):
     """
     if is_list(a) and is_list(b):
         return backend.kg_asarray([backend.vec_fn2(x, y, lambda x, y: _e_dyad_format2(x, y, backend)) for x, y in zip(to_list(a), to_list(b))])
-    if backend.np.isarray(a) and backend.np.isarray(b):
+    if backend.np.isarray(a) and backend.np.isarray(b) and a.ndim > 0 and b.ndim > 0:
         return backend.np.asarray([backend.vec_fn2(x, y, lambda x, y: _e_dyad_format2(x, y, backend)) for x, y in zip(a, b)])
     return __e_dyad_format2(a, b, backend)
 
@@ -562,7 +594,7 @@ def eval_dyad_format2(a, b, backend):
     return backend.vec_fn2(a, b, lambda x, y: _e_dyad_format2(x, y, backend))
 
 
-def eval_dyad_index_in_depth(a, b):
+def eval_dyad_index_in_depth(a, b, backend):
     """
 
         a:@b                                            [Index-in-Depth]
@@ -579,7 +611,7 @@ def eval_dyad_index_in_depth(a, b):
                         {y+x*x}:@[2 3]  -->  7
 
     """
-    return bknp.asarray(a)[tuple(b) if is_list(b) else b] if not is_empty(b) else b
+    return backend.index_at(a, b) if not is_empty(b) else b
 
 
 def _e_dyad_integer_divide(x, y, backend):
@@ -639,6 +671,10 @@ def eval_dyad_join(a, b, backend):
         the same key will be replaced by the new entry. The head of the
         tuple is the key and the second element is the payload.
 
+        If "a" and "b" are dictionaries, add the entries of "b" to "a"
+        and return "a". An entry of "b" replaces an entry of "a" with
+        the same key.
+
         Otherwise, create a tuple containing "a" and "b" in that order.
 
         Join always returns a fresh list, but dictionaries will be
@@ -656,17 +692,26 @@ def eval_dyad_join(a, b, backend):
                            1,2,3,4  -->  [1 2 3 4]
                     [1 2],:{[1 0]}  -->  :{[1 2]}
                     :{[1 0]},[1 2]  -->  :{[1 2]}
+                  :{[1 2]},:{[3 4]}  -->  :{[1 2] [3 4]}
 
     """
     if (isinstance(a,str) and not isinstance(a,KGSym)) and (isinstance(b,str) and not isinstance(b,KGSym)):
         return a+b
     if isinstance(a,dict):
+        if isinstance(b,dict):
+            # merge: the entries of b go into a, b winning; a is updated in situ
+            for k,v in b.items():
+                a[k] = v
+            return a
         if not (is_list(b) and len(b) == 2):
-            raise KlongTypeError(",: a dictionary can only be joined with a tuple (a list of two members)")
-        a[b[0]] = b[1]
+            raise KlongTypeError(",: a dictionary can only be joined with a tuple (a list of two members) "
+                                 "or a dictionary",
+                                 hint="d,[key value] adds an entry and d,d2 merges; to put a dictionary "
+                                      "into a list write list,,d")
+        a[backend.dict_key(b[0])] = b[1]
         return a
     if isinstance(b,dict) and is_list(a) and len(a) == 2:
-        b[a[0]] = a[1]
+        b[backend.dict_key(a[0])] = a[1]
         return b
 
     if backend.np.isarray(a) and backend.np.isarray(b):
@@ -964,6 +1009,10 @@ def eval_dyad_reshape(a, b, backend):
     np_backend = backend.np
     j = isinstance(b, str)
     b = backend.str_to_chr_arr(b) if j else b
+    if backend.is_backend_array(a) and a.ndim == 0:
+        a = backend.scalar_to_python(a)  # a 0-d tensor is an atom: the size, not a shape list
+    if backend.is_backend_array(b) and b.ndim == 0:
+        b = backend.scalar_to_python(b) if not backend.has_gradient(b) else b.reshape(1)
     if np_backend.isarray(a):
         if np_backend.isarray(a) and a.ndim > 0 and bool((a < -1).any()):
             raise KlongRangeError(f":^: only -1 may be negative in a shape, got {to_list(a)}")
@@ -983,7 +1032,7 @@ def eval_dyad_reshape(a, b, backend):
                 b = np_backend.concatenate((b, b[:a_s - backend.array_size(b)]))
                 b_s = backend.array_size(b)
                 r = b.reshape(a_shape)
-                r = np_backend.asarray(["".join(x) for x in r]) if j else r
+                r = bknp.asarray(["".join(x) for x in r]) if j else r
                 j = False
             elif a_s == b_s:
                 r = b.reshape(a_shape)
@@ -1011,7 +1060,7 @@ def eval_dyad_reshape(a, b, backend):
             r = np_backend.full((a,), b)
     if j:
         if np_backend.isarray(r) and r.ndim > 1:
-            return np_backend.asarray(["".join(x) for x in r], dtype=object)
+            return bknp.asarray(["".join(x) for x in r], dtype=object)
         return "".join(r)
     return r
 
@@ -1044,7 +1093,7 @@ def eval_dyad_rotate(a, b, backend):
         return b
     j = isinstance(b, str)
     b = backend.str_to_chr_arr(b) if j else b
-    r = bknp.roll(b, a)
+    r = backend.np.roll(b, a)
     return "".join(r) if j else r
 
 
@@ -1072,7 +1121,7 @@ def eval_dyad_split(a, b, backend):
     j = isinstance(b, str)
     b = backend.str_to_chr_arr(b) if j else b
 
-    a = a if backend.np.isarray(a) else [a]
+    a = a if backend.np.isarray(a) and a.ndim > 0 else [a]
     if len(a) == 0:
         raise KlongRangeError(":#: segment sizes must not be empty")
     sizes = []
@@ -1092,7 +1141,7 @@ def eval_dyad_split(a, b, backend):
             k = len(b) // a[0]
             if (k*a[0]) < len(b):
                 k += 1
-            r = bknp.array_split(b, k)
+            r = backend.array_split(b, k)
     else:
         p, q = 0, 0
         r = []
@@ -1103,7 +1152,7 @@ def eval_dyad_split(a, b, backend):
             if p >= len(a):
                 p = 0
 
-    return backend.np.asarray(["".join(x) for x in r],dtype=object) if j else backend.kg_asarray(r)
+    return bknp.asarray(["".join(x) for x in r],dtype=object) if j else backend.kg_asarray(r)
 
 
 def eval_dyad_subtract(a, b, backend):
@@ -1155,7 +1204,8 @@ def eval_dyad_take(a, b, backend):
     elif isinstance(b, KGSym):
         b = backend.kg_asarray([b])  # a symbol is an atom: n#:s is [:s :s ...]
     else:
-        b = np_backend.asarray(b)
+        if not np_backend.isarray(b):
+            b = backend.kg_asarray(b)
         if b.ndim == 0:
             b = b.reshape(1)  # an atom: n#7 is [7 7 ...]
     abs_a = np_backend.abs(a)
@@ -1269,11 +1319,7 @@ def create_dyad_functions(klong):
     backend = klong._backend
 
     # Simple dyads that don't need backend or klong
-    simple = {
-        ':-': eval_dyad_amend_in_depth,
-        '_': eval_dyad_drop,
-        ':@': eval_dyad_index_in_depth,
-    }
+    simple = {}
 
     # Dyads needing backend
     backend_dyads = {
@@ -1285,6 +1331,9 @@ def create_dyad_functions(klong):
         '*': lambda a, b: eval_dyad_multiply(a, b, backend),
         '-': lambda a, b: eval_dyad_subtract(a, b, backend),
         ':=': lambda a, b: eval_dyad_amend(a, b, backend),
+        ':-': lambda a, b: eval_dyad_amend_in_depth(a, b, backend),
+        '_': lambda a, b: eval_dyad_drop(a, b, backend),
+        ':@': lambda a, b: eval_dyad_index_in_depth(a, b, backend),
         ':_': lambda a, b: eval_dyad_cut(a, b, backend),
         '=': lambda a, b: eval_dyad_equal(a, b, backend),
         '?': lambda a, b: eval_dyad_find(a, b, backend),

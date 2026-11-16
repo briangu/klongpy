@@ -104,8 +104,10 @@ class KGFn:
     #   locals     tuple of KGSym: the names declared by a leading list of
     #              symbols ({[a b];...}). The declaration is not part of the
     #              stored body (see KGBody).
-    #   params     named parameters; None for a function of x, y and z
-    #              (ticket 061 sets it)
+    #   params     tuple of KGSym: the named parameters of a function defined
+    #              as f(a;b)::{...} (ticket 061); None for a function of x, y
+    #              and z. The arity of such a function is len(params), and its
+    #              body is a KGBody that carries the same tuple.
     #   max_arg    the highest of x=1, y=2, z=3 the body mentions, 0 for none.
     #              The body of a nested function literal does not count (its
     #              x, y, z are its own); see _scan_args.
@@ -155,27 +157,57 @@ class KGBody(list):
 
         locals   tuple of KGSym, in the order written (the legacy rule: the
                  first statement is a non-empty list that, ignoring ";", holds
-                 only symbols, and at least one statement follows it)
-        decl     the declaration as it was parsed (the data list)
+                 only symbols, and at least one statement follows it),
+                 followed by the targets of a head destructuring (ticket 060:
+                 {[a b]::x;...}, see head_destructuring)
+        decl     the declaration as it was parsed (the data list); None when
+                 none was written
+        params   tuple of KGSym: the named parameters of f(a;b)::{...}
+                 (ticket 061), None for a function of x, y and z. The call
+                 binds the arguments to these names instead of x, y, z.
         plain    the same statements as a plain list: what is evaluated.
                  (.f is bound to the KGBody itself, so that a call through .f
                  declares the locals again: ticket 026.)
 
-    The body carries its locals so that a caller that holds only the body
-    (KGFnWrapper, IPC and timer callbacks pass fn.a to apply) still gets them.
+    The body carries its locals and params so that a caller that holds only
+    the body (KGFnWrapper, IPC and timer callbacks pass fn.a to apply, and .f
+    is the body) still gets them. A function with named parameters, or with a
+    head destructuring, always has a KGBody, also when it declares no locals
+    and when it is a single statement.
     """
-    def __init__(self, stmts, locals, decl=None):
+    def __init__(self, stmts, locals, decl=None, params=None):
         list.__init__(self, stmts)
         self.locals = tuple(locals)
         self.decl = decl
         self.plain = list(stmts)
+        self.params = None if params is None else tuple(params)
 
     def __reduce__(self):
-        return (KGBody, (list(self), self.locals, self.decl))
+        return (KGBody, (list(self), self.locals, self.decl, self.params))
 
     def full(self):
-        """The body with its declaration as first statement (the form before ticket 032)."""
-        return [self.decl if self.decl is not None else list(self.locals)] + list(self)
+        """
+        The body with its declaration as first statement (the form before
+        ticket 032). A body without a written declaration (its locals come
+        from a head destructuring, or it only carries params) is the
+        statements.
+        """
+        if self.decl is None:
+            return list(self)
+        return [self.decl] + list(self)
+
+
+class KGDestructure(tuple):
+    """
+    The left side of a destructuring assignment, [a b c]::v (ticket 060): the
+    target names, a tuple of KGSym. The parser puts it where the name of an
+    ordinary assignment goes, as the unevaluated left operand of the ::
+    node, and KlongInterpreter._destructure binds the names.
+    """
+    __slots__ = ()
+
+    def __reduce__(self):
+        return (KGDestructure, (tuple(self),))
 
 
 class KGFnWrapper:
@@ -214,30 +246,76 @@ class KGFnWrapper:
         return None
 
     def __call__(self, *args, **kwargs):
+        """
+        Call the function with exactly as many arguments as it takes.
+
+        Arguments may be given by keyword: the parameter names of a function
+        defined with named parameters, f(a;b)::{...} (ticket 061), or x, y
+        and z for any other function. Too few or too many arguments, an
+        unknown keyword and a parameter given twice are a KlongArityError
+        (which is also a RuntimeError). There are no projections from Python.
+        """
+        fn = self.fn
         # Try to resolve dynamically first if we have a symbol
         if self._sym is not None:
             try:
                 current = self.klong._context[self._sym]
                 if isinstance(current, KGFn) and not isinstance(current, KGCall):
                     # Use the current definition
-                    if len(args) != current.arity:
-                        raise _arity_error(len(args), current.arity)
-                    fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
-                    return self.klong.apply(current.a, fn_args, current.arity)
+                    fn = current
             except KeyError:
                 # Symbol was deleted, fall through to original function
                 pass
-
-        if len(args) != self.fn.arity:
-            raise _arity_error(len(args), self.fn.arity)
+        params = getattr(fn.a, 'params', None)
+        if kwargs:
+            args = self._with_keywords(fn, params, args, kwargs)
+        if len(args) != fn.arity:
+            if params is not None:
+                raise _named_arity_error(f"{self._name()} takes {_count(fn.arity)}, got {len(args)}")
+            raise _arity_error(len(args), fn.arity)
         fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
-        return self.klong.apply(self.fn.a, fn_args, self.fn.arity)
+        return self.klong.apply(fn.a, fn_args, fn.arity)
+
+    def _name(self):
+        return "the function" if self._sym is None else str.__str__(self._sym).split('`')[0]
+
+    def _with_keywords(self, fn, params, args, kwargs):
+        """The positional argument tuple for args and kwargs, or the KlongArityError."""
+        if params is not None:
+            names = [str.__str__(p).split('`')[0] for p in params]
+        else:
+            names = reserved_fn_args[:fn.arity]
+        n = len(names)
+        given = len(args) + len(kwargs)
+        slots = list(args) + [_MISSING] * (n - len(args))
+        for k, v in kwargs.items():
+            if k not in names:
+                raise _named_arity_error(f"{self._name()} has no parameter named {k}")
+            i = names.index(k)
+            if i < len(args):
+                raise _named_arity_error(f"{self._name()} got its parameter {k} twice")
+            slots[i] = v
+        if len(args) > n or any(q is _MISSING for q in slots):
+            raise _named_arity_error(f"{self._name()} takes {_count(n)}, got {given}")
+        return tuple(slots)
+
+
+_MISSING = object()
+
+
+def _count(n):
+    return "no arguments" if n == 0 else "1 argument" if n == 1 else f"{n} arguments"
 
 
 def _arity_error(given, expected):
     # also a RuntimeError, which is what this raised before the hierarchy existed
     from .errors import compat
     return compat(KlongArityError, RuntimeError)(f"Klong function called with {given} but expected {expected}")
+
+
+def _named_arity_error(message):
+    from .errors import compat
+    return compat(KlongArityError, RuntimeError)(message)
 
 
 class KGCall(KGFn):
@@ -312,6 +390,9 @@ class KGLambda:
     """
     # the name the function is bound to, when known (set for system functions)
     name = None
+    # True only for a Python function supplied by the user; a class attribute so
+    # subclasses that skip __init__ still have it
+    user = False
 
     def __init__(self, fn, args=None, provide_klong=False, wildcard=False, user=False):
         self.fn = fn
@@ -598,7 +679,13 @@ def merge_projections(arr):
         return arr
     if len(arr) == 1 or not has_none(arr[0]):
         return arr[0]
-    sparse_fa = np.copy(arr[0])
+    # An object array with one slot per argument. (numpy.copy of the list
+    # gave the same whenever it worked; it failed on an argument that is a
+    # list, as in f([1 2];).)
+    first = arr[0]
+    sparse_fa = numpy.empty(len(first), dtype=object)
+    for i in range(len(first)):
+        sparse_fa[i] = first[i]
     i = 0
     k = 1
     while i < len(sparse_fa) and k < len(arr):
@@ -754,4 +841,28 @@ def fn_metadata(node):
             node.max_arg, node.uses_self = _scan_args(body)
     elif not is_list(body) or split_locals(body) is None:
         node.locals = ()
+    return node
+
+
+def head_destructuring(node):
+    """
+    Ticket 060, the head form: when the first statement of the body of the
+    function literal node (after its locals declaration, if any) is a
+    destructuring assignment, its targets are locals of the function, exactly
+    as if they were declared: {[s k r]::x;...} never touches globals named s,
+    k or r. Appends them to node.locals and to the KGBody (creating one for a
+    body that had no declaration). Call after fn_metadata. Returns the node.
+    """
+    body = node.a
+    first = body[0] if (type(body) is KGBody or type(body) is list) and len(body) > 0 else body
+    if not (isinstance(first, KGFn) and isinstance(first.a, KGOp) and first.a.a == '::'
+            and type(first.args) is list and len(first.args) == 2 and type(first.args[0]) is KGDestructure):
+        return node
+    if type(body) is KGBody:
+        names = body.locals + tuple(q for q in first.args[0] if q not in body.locals)
+        node.a = KGBody(list(body), names, body.decl, body.params)
+    else:
+        names = tuple(first.args[0])
+        node.a = KGBody(list(body) if type(body) is list else [body], names)
+    node.locals = names
     return node

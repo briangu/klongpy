@@ -49,7 +49,7 @@ error: adverb ' must directly follow its verb
 **A dictionary literal entry that is not a `[key value]` pair is a syntax error.** It was an `IndexError` or `TypeError`.
 
 ```kgpy
-?> :{;1;2}
+?> :{1}
 error: each entry of a dictionary literal must be a [key value] pair
 ```
 
@@ -147,7 +147,7 @@ error: :#: segment sizes must be positive, got 0
 ?> [2 2]:^[]
 error: :^: cannot fill a non-empty shape from an empty source
 ?> :{[1 2]},[1 2 3]
-error: ,: a dictionary can only be joined with a tuple (a list of two members)
+error: ,: a dictionary can only be joined with a tuple (a list of two members) or a dictionary
 ```
 
 ### System functions

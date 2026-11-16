@@ -1,0 +1,67 @@
+:" Destructuring assignment [a b c]::v (ticket 060)"
+
+:" test_destructure_top_level "
+[da db dc]::[1 2 3]
+t("[da db dc]::[1 2 3];da+db+dc"; da+db+dc; 6)
+t("[da db dc]::[1 2 3]"; [da db dc]::[1 2 3]; [1 2 3])
+
+:" test_destructure_one_name "
+[dd]::[5]
+t("[dd]::[5];dd"; dd; 5)
+
+:" test_destructure_string "
+[de df]::"xy"
+t("[de df]::""xy"";de"; de; 0cx)
+t("[de df]::""xy"";df"; df; 0cy)
+
+:" test_destructure_matrix_rows "
+[dg dh]::[[1 2 3] [4 5 6]]
+t("[dg dh]::[[1 2 3] [4 5 6]];dg"; dg; [1 2 3])
+t("[dg dh]::[[1 2 3] [4 5 6]];dh"; dh; [4 5 6])
+
+:" test_destructure_expression_on_the_right "
+dv::[10 20 30]
+[di dj]::2#dv
+t("[di dj]::2#dv;di+dj"; di+dj; 30)
+[dk dl]::[;1+1;2*3]
+t("[dk dl]::[;1+1;2*3];dk*dl"; dk*dl; 12)
+
+:" test_destructure_head_form "
+dp::7
+DF::{[dp dq]::x;dp+dq}
+t("DF([1 2])"; DF([1 2]); 3)
+t("dp is untouched by the head form"; dp; 7)
+
+:" test_destructure_head_form_one_statement "
+DG::{[dp dq]::x}
+t("DG([3 4])"; DG([3 4]); [3 4])
+t("dp is untouched by a one-statement body"; dp; 7)
+
+:" test_destructure_head_form_after_locals "
+DH::{[t];[dp dq]::x;t::dp*dq;t+1}
+t("DH([3 4])"; DH([3 4]); 13)
+t("dp is untouched after a locals list"; dp; 7)
+
+:" test_destructure_declared_locals "
+DI::{[a b];1;[a b]::x;a-b}
+t("DI([5 3])"; DI([5 3]); 2)
+
+:" test_destructure_assigns_existing_globals "
+dr::0;ds::0
+DJ::{1;[dr ds]::x;0}
+DJ([8 9])
+t("DJ([8 9]);dr+ds"; dr+ds; 17)
+
+:" test_destructure_under_each "
+DK::{[a b]::x;a*b}
+t("DK'[[1 2] [3 4] [5 6]]"; DK'[[1 2] [3 4] [5 6]]; [2 12 30])
+
+:" test_destructure_recursion "
+DL::{[n acc]::x;:[n<1;acc;DL((n-1),acc*n)]}
+t("DL([5 1])"; DL([5 1]); 120)
+DM::{[n acc]::x;:[n<1;acc;.f((n-1),acc*n)]}
+t("DM([5 1])"; DM([5 1]); 120)
+
+:" test_list_of_names_as_data_is_untouched "
+dw::[da db]
+t("dw::[da db];#dw"; #dw; 2)

@@ -1,0 +1,166 @@
+# Destructuring assignment [a b c]::v
+@ destructuring.basic core
+> [a b c]::[1 2 3]
+> a+b+c
+= 6
+
+@ destructuring.value-of-the-statement core
+> [a b c]::[1 2 3]
+= [1 2 3]
+
+@ destructuring.one-name core
+> [a]::[5]
+> a
+= 5
+
+@ destructuring.expression-on-the-right core
+> v::[10 20 30]
+> [a b]::2#v
+> a+b
+= 30
+
+@ destructuring.matrix-rows core
+> [r s]::[[1 2 3] [4 5 6]]
+> s
+= [4 5 6]
+
+@ destructuring.string-chars strings
+> [a b]::"xy"
+> a
+= 0cx
+
+@ destructuring.assigns-existing-variable core
+> a::1
+> [a b]::[10 20]
+> a+b
+= 30
+
+@ destructuring.parenthesized-target core
+> ([a b])::[1 2]
+> a+b
+= 3
+
+@ destructuring.too-many-values core
+> [a b]::[1 2 3]
+! shape
+
+@ destructuring.too-few-values core
+> [a b c]::[1 2]
+! shape
+
+@ destructuring.atom-on-the-right core
+> [a b]::5
+! type
+
+@ destructuring.dict-on-the-right dicts
+> [a b]:::{[1 2] [3 4]}
+! type
+
+@ destructuring.symbol-on-the-right core
+> [a b]:::foo
+! type
+
+@ destructuring.nothing-bound-on-failure core
+> a::7
+> f::{[a b]::x;0}
+> g::{:[x;f([1 2 3]);a]}
+> g(0)
+= 7
+
+@ destructuring.shape-error-inside-a-function core
+> f::{[a b]::x;0}
+> f([1 2 3])
+! shape
+
+@ destructuring.head-form core
+> f::{[p q]::x;p+q}
+> f([1 2])
+= 3
+
+@ destructuring.head-form-first-element core
+> {[p q]::x;p}([1 2])
+= 1
+
+@ destructuring.head-form-leaves-global core
+> a::7
+> {[a q]::x;a+q}([1 2])
+> a
+= 7
+
+@ destructuring.head-form-one-statement core
+> a::7
+> f::{[a b]::x}
+> f([1 2])
+> a
+= 7
+
+@ destructuring.head-form-one-statement-value core
+> f::{[a b]::x}
+> f([1 2])
+= [1 2]
+
+@ destructuring.head-form-after-locals core
+> t::0
+> s::0
+> f::{[t];[s u]::x;t::s+u;t*2}
+> f([1 2])+t+s
+= 6
+
+@ destructuring.head-form-atom-is-type-error core
+> fn::{[a b c]::x;a}
+> fn(1)
+! type
+
+@ destructuring.not-first-statement-is-local-to-the-call core
+> f::{1;[p q]::x;p+q}
+> f([1 2])
+= 3
+
+@ destructuring.under-each core
+> f::{[p q]::x;p*q}
+> f'[[1 2] [3 4] [5 6]]
+= [2 12 30]
+
+@ destructuring.recursion core
+> f::{[n acc]::x;:[n<1;acc;f((n-1),acc*n)]}
+> f([5 1])
+= 120
+
+@ destructuring.list-of-names-on-the-right-is-data core
+> v::[a b]
+> #v
+= 2
+
+@ destructuring.strict1-head-form core strict1
+> a::7
+> {[p q]::x;p+q}([1 2])
+= 3
+
+@ destructuring.strict1-undeclared-elsewhere core strict1
+> f::{1;[p q]::x;p+q}
+> f([1 2])
+! name
+
+@ destructuring.strict1-duplicate-name core strict1
+> [a b a]::[1 2 3]
+! syntax
+
+@ destructuring.strict1-nested core strict1
+> [a [b c]]::[1 [2 3]]
+! syntax
+
+@ destructuring.strict1-argument-name core strict1
+> [x y]::[1 2]
+! syntax
+
+@ destructuring.strict1-not-a-name core strict1
+> [a 1]::[1 2]
+! syntax
+
+@ destructuring.strict1-empty core strict1
+> []::[]
+! syntax
+
+@ destructuring.strict2-head-form core strict2
+> {[p q]::x;p+q}([1 2])
+= 3

@@ -1,7 +1,10 @@
 """Golden parse-tree snapshots and unit tests of klongpy.dump (ticket 030, step 1)."""
 import os
+import re
 import sys
 import unittest
+
+import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden"))
 
@@ -9,6 +12,14 @@ import regen  # noqa: E402
 from klongpy import KlongInterpreter  # noqa: E402
 from klongpy.dump import dump, dump_text, parse_program  # noqa: E402
 from klongpy.types import KGQSym, KGSym  # noqa: E402
+from tests.backend_compat import is_torch_backend  # noqa: E402
+
+
+_FLOAT_NUM = re.compile(r"\(num (-?(?:\d+\.\d*(?:[eE][-+]?\d+)?|\d+[eE][-+]?\d+))\)")
+
+
+def _as_float32(text):
+    return _FLOAT_NUM.sub(lambda m: "(num %r)" % np.float32(float(m.group(1))).item(), text)
 
 
 class TestGoldenTrees(unittest.TestCase):
@@ -32,7 +43,13 @@ class TestGoldenTrees(unittest.TestCase):
             with self.subTest(group=group, name=name):
                 with open(golden, "r") as f:
                     want = f.read()
-                self.assertEqual(regen.render(src), want)
+                got = regen.render(src)
+                if is_torch_backend():
+                    # A float inside a list literal is an element of a float32 tensor on the
+                    # torch backend, so the dump shows its float32 value. The trees are the
+                    # same otherwise: compare both with every float rounded to float32.
+                    got, want = _as_float32(got), _as_float32(want)
+                self.assertEqual(got, want)
 
     def test_dump_is_deterministic(self):
         for group, name, src, _ in regen.cases():

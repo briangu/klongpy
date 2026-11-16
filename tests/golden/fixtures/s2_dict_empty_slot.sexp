@@ -1,1 +1,1 @@
-(error KlongSyntaxError)
+(edict (num 1) (num 2))

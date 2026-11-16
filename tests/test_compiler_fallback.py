@@ -13,6 +13,7 @@ import warnings
 
 from klongpy import KlongInterpreter
 from klongpy.compiler import CACHE_LIMIT, LRUCache, compile_guarded
+from tests.backend_compat import plain
 
 
 def _compiled_entry(klong, source):
@@ -201,7 +202,7 @@ class TestRebinding(unittest.TestCase):
     @staticmethod
     def _result_of(k, src):
         try:
-            return ('ok', str(k(src)))
+            return ('ok', str(plain(k(src))))  # plain: the value, not the repr of a tensor
         except Exception as e:  # compare error class with the interpreter's
             return ('err', type(e).__name__)
 

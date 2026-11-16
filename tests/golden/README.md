@@ -37,7 +37,8 @@ file: `python -m klongpy.dump FILE`.
 
 Ticket 031 changed the token parser on purpose in three places that hold at
 every strict level, and the legacy parser was left as it is; five fixtures
-record the new result (`tests/test_parser_tokens.py::FIXTURES_031`):
+record the new result (`tests/test_parser_tokens.py::FIXTURES_031`, which
+lists four since ticket 063 gave `s2_dict_empty_slot` a meaning):
 `s2_cond_ws_before_second_semi` and `s2_cond_ws_both` (whitespace before the
 first `;` of a conditional is accepted), `s2_space_before_adverb` (an adverb
 that does not follow its verb is a syntax error when parsed), and
@@ -53,3 +54,17 @@ highest of x, y, z the body mentions (`{-x}` is `(fn 1 ...)`, `{y}` is
 found. 17 snapshots were regenerated (16 of `language` and `lib`, and
 `fixtures/x_nested_functions`); 210 lines differ and each differs in that
 number only. Both parsers agree, because the arity function is shared.
+
+Tickets 060, 061 and 063 added syntax that only the token parser has:
+destructuring `[a b]::v` (`(destructure (a b) R)`), named parameters
+`f(a;b)::{...}` (`(def (sym f) (fn 2 (params a b) ...))`) and the evaluated
+dictionary literal `:{;k;v}` (`(edict K V ...)`). The `t060_*`, `t061_*` and
+`t063_*` fixtures record it, with the inputs next to it that are not that
+syntax (a nested or duplicate name, `x` as a parameter, an odd number of
+expressions, ...). Three existing snapshots changed, the three that held the
+place of that syntax in the observed table: `s2_destructuring_slot`,
+`s2_named_params_slot` and `s2_dict_empty_slot`. No other snapshot changed. A
+dictionary literal nested in a list or dictionary literal is now a dictionary
+value where it was an unevaluated call; both dump as `(dict ...)`, so
+`x_dict_nested` is unchanged. `tests/test_parser_tokens.py` leaves these files
+out of the comparison with the legacy parser (`is_06x`).

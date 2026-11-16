@@ -20,8 +20,8 @@ PKG = os.path.join(ROOT, "klongpy")
 # Direct `np.x`, `numpy.x` and `bknp.x` attribute uses (AST walk) left in each operator module.
 NUMPY_BUDGET = {
     "adverbs.py": 0,
-    "monads.py": 22,
-    "dyads.py": 23,
+    "monads.py": 16,
+    "dyads.py": 17,
 }
 NUMPY_NAMES = {"np", "numpy", "bknp"}
 

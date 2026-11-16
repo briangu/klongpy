@@ -24,8 +24,10 @@ Expression mode (the object is something that will be evaluated):
     KGSym other                             (sym a) (sym a`mod)
     numpy array / data list                 (list D...)         elements in data mode
     KGExprArray                             (elist E...)
+    KGExprDict                              (edict K1 V1 K2 V2 ...)    :{;k1;v1;k2;v2} (ticket 063)
     KGCond [c, t, e]                        (cond C T E)        e may be a KGCond
     KGCall(copy_lambda, args=dict)          (dict (K V) ...)    insertion order
+    KGCall(copy_lambda, args=array)         (list D...)         a list literal that holds a dictionary literal
     KGCall([KGAdverb v, KGAdverb a1, ..., X], args=None), X not a list
                                             (adv (verb V) (adverbs "a1" ...) X)
     same, X = [L, R] (a Python list)        (adv2 (verb V) (adverbs ...) L R)
@@ -34,9 +36,11 @@ Expression mode (the object is something that will be evaluated):
     KGFn(KGOp, args=None)                   (m "-" (missing))   monad without operand
     KGFn(KGOp, [L, None])                   (d "@" L (missing)) dyad without right operand
     KGFn(KGOp "::", [L, R])                 (def L R)
+    KGFn(KGOp "::", [KGDestructure, R])     (destructure (a b c) R)    [a b c]::R (ticket 060)
     KGFn(KGOp, [L, R])                      (d "+" L R)
     KGFn(F, [L, R]) no hole, F not a KGOp   (infix F L R)       F = KGSym or KGFn
     KGFn(body, None)                        (fn ARITY (locals a b) BODY...)
+    same, defined as f(a;b)::{...}          (fn ARITY (params a b) (locals ...) BODY...)    (ticket 061)
     KGCall(KGSym, [A...])                   (call (sym f) A...)
     KGCall(body, [A...])                    (call (fn ARITY ...) A...)
     KGFn(F, [A...]) with a None hole        (proj F A ... _ ...)
@@ -46,7 +50,8 @@ Expression mode (the object is something that will be evaluated):
 Function bodies: KGFn.a / KGCall.a of a literal is the body. A body that is a
 Python list is a statement sequence. The locals declaration is printed as
 (locals ...) and is not part of BODY: the token parser stores it apart from
-the statements (a KGBody, ticket 032, printed from its ``locals``); in a tree
+the statements (a KGBody, ticket 032, printed from its ``locals``, which also
+hold the targets of a destructuring that heads the body, ticket 060); in a tree
 of the legacy parser it is the first element of the list, a non-empty data
 list holding only symbols (and ";"), found by the same test as at run time.
 ARITY is KGFn.arity / KGCall.arity (for a function literal: the highest of x, y, z
@@ -80,9 +85,9 @@ import json
 import os
 import sys
 
-from klongpy.types import (KGAdverb, KGBody, KGCall, KGChar, KGCond, KGFn, KGLambda, KGOp, KGQSym, KGSym,
+from klongpy.types import (KGAdverb, KGBody, KGCall, KGChar, KGCond, KGDestructure, KGFn, KGLambda, KGOp, KGQSym, KGSym,
                            reserved_fn_symbol_map)
-from klongpy.parser import KGExprArray
+from klongpy.parser import KGExprArray, KGExprDict
 
 
 def _str(s):
@@ -152,14 +157,19 @@ def _locals(body):
 
 
 def _fn(body, arity, compat):
+    params = None
     if type(body) is KGBody:
         # the token parser stores the declaration apart from the body (ticket 032)
         loc, stmts = [str.__str__(q) for q in body.locals], list(body)
+        params = body.params
     elif type(body) is list:
         loc, stmts = _locals(body)
     else:
         loc, stmts = None, [body]
     parts = [f"(fn {arity}"]
+    if params is not None:
+        # f(a;b)::{...} (ticket 061); "(params)" for a function of no parameters
+        parts.append("(params" + "".join(" " + str.__str__(q) for q in params) + ")")
     if loc:
         parts.append("(locals " + " ".join(loc) + ")")
     parts.extend(_e(s, compat) for s in stmts)
@@ -229,10 +239,15 @@ def _e0(x, compat):
         return f"(opval {_str(x.a)})"
     if isinstance(x, KGCond):
         return "(cond " + " ".join(_e(q, compat) for q in x) + ")"
+    if isinstance(x, KGExprDict):
+        return "(edict" + "".join(" " + _e(q, compat) for q in x) + ")"
     if isinstance(x, KGExprArray):
         return "(elist" + "".join(" " + _e(q, compat) for q in x) + ")"
     if _is_dict_literal(x):
         return _dict(x, compat)
+    if isinstance(x, KGCall) and isinstance(x.a, KGLambda) and hasattr(x.args, "ndim"):
+        # a list literal that holds a dictionary literal (copied when evaluated, like a dictionary literal)
+        return _data(x.args, compat)
     if isinstance(x, KGCall) and isinstance(x.a, list) and x.a and isinstance(x.a[0], KGAdverb):
         return _adverb_chain(x, compat)
     if isinstance(x, KGFn):
@@ -242,6 +257,9 @@ def _e0(x, compat):
             if x.args is None:
                 return _fn(x.a, x.arity, compat)
             return f"(unknown {type(x).__name__})"
+        if isinstance(x.a, KGOp) and len(x.args) == 2 and type(x.args[0]) is KGDestructure:
+            names = " ".join(str.__str__(q) for q in x.args[0])
+            return f"(destructure ({names}) {_operand(x.args[1], compat)})"
         if isinstance(x.a, KGOp) and not isinstance(x, KGCall):
             args = " ".join(_operand(q, compat) for q in x.args)
         else:

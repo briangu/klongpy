@@ -1,2 +1,2 @@
-(def (list (sym a) (sym b)) (list (num 1) (num 2)))
+(destructure (a b) (list (num 1) (num 2)))
 (sym a)

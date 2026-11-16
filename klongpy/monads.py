@@ -32,6 +32,8 @@ def eval_monad_char(a, backend):
                   :#10  -->  :"newline character"
 
     """
+    if backend.is_backend_array(a):
+        a = backend.to_numpy(a)  # code points are not differentiable; chr() needs plain integers
     return backend.rec_fn(a, lambda x: KGChar(chr(x))) if is_list(a) else KGChar(chr(a))
 
 
@@ -55,7 +57,7 @@ def eval_monad_enumerate(a, backend):
     return backend.np.arange(int(a))
 
 
-def eval_monad_expand_where(a):
+def eval_monad_expand_where(a, backend):
     """
 
         &a                                                [Expand/Where]
@@ -79,7 +81,8 @@ def eval_monad_expand_where(a):
 
     """
     arr = a if is_list(a) else [a]
-    return bknp.repeat(bknp.arange(len(arr)), arr)
+    np_backend = backend.np
+    return np_backend.repeat(np_backend.arange(len(arr)), arr)
 
 
 def eval_monad_first(a):
@@ -142,9 +145,14 @@ def eval_monad_format(a, backend):
     """
     if isinstance(a, KGSym):
         return f":{a}"
+    if is_dict(a):
+        # the form in which it is displayed, :{[k v] ...}
+        return kg_write(a, backend)
     if is_list(a):
         # "$" is atomic: format element by element (a numeric array holds atoms)
         return backend.kg_asarray([eval_monad_format(x, backend) for x in a])
+    if backend.is_backend_array(a):
+        a = backend.to_display(a)  # the number as it prints, not the repr of a 0-d tensor
     return str(a)
 
 
@@ -301,6 +309,8 @@ def eval_monad_not(a, backend):
             return 1
         if is_dict(x) or isinstance(x, (KGFn, KGSym)):
             return 0
+        if backend.is_backend_array(x):
+            return kg_truth(backend.np.logical_not(x))
         arr = bknp.asarray(x)
         # Numeric/boolean input keeps a CLEAN (non-object) result so it can be
         # used as an index or by & (where). Forcing dtype=object here (as the old
@@ -377,7 +387,7 @@ def eval_monad_reciprocal(a, backend):
             return KLONG_UNDEFINED
     # 1%0 inside an array gives inf; numpy would warn, so scope the silence to this call
     with bknp.errstate(divide='ignore'):
-        return backend.vec_fn(a, lambda x: bknp.reciprocal(bknp.asarray(x, dtype=float)))
+        return backend.vec_fn(a, backend.reciprocal)
 
 
 def eval_monad_reverse(a, backend):
@@ -507,7 +517,7 @@ def eval_monad_size(a, backend):
     return backend.np.abs(a) if backend.is_number(a) else ord(a) if is_char(a) else len(a)
 
 
-def eval_monad_transpose(a):
+def eval_monad_transpose(a, backend):
     """
 
         +a                                                   [Transpose]
@@ -519,7 +529,8 @@ def eval_monad_transpose(a):
                                  +[]  -->  []
 
     """
-    return bknp.transpose(bknp.asarray(a))
+    np_backend = backend.np
+    return np_backend.transpose(a if np_backend.isarray(a) else np_backend.asarray(a))
 
 
 def eval_monad_undefined(a, backend):
@@ -573,15 +584,15 @@ def create_monad_functions(klong):
     # Simple monads that don't need backend or klong
     simple = {
         '@': eval_monad_atom,
-        '&': eval_monad_expand_where,
         '*': eval_monad_first,
-        '+': eval_monad_transpose,
         '˙': eval_monad_track,
     }
 
     # Monads needing backend
     backend_monads = {
         '|': lambda a: eval_monad_reverse(a, backend),
+        '&': lambda a: eval_monad_expand_where(a, backend),
+        '+': lambda a: eval_monad_transpose(a, backend),
         ',': lambda a: eval_monad_list(a, backend),
         ':#': lambda a: eval_monad_char(a, backend),
         '!': lambda a: eval_monad_enumerate(a, backend),

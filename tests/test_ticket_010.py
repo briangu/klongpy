@@ -5,6 +5,7 @@ import numpy as np
 
 from klongpy import KlongInterpreter
 from klongpy.types import KlongException
+from tests.backend_compat import dtype_kind
 
 
 class Ticket010(unittest.TestCase):
@@ -38,7 +39,7 @@ class Ticket010(unittest.TestCase):
     def test_amend_int_into_int_array_keeps_dtype(self):
         r = self.run_kg('[1 2 3]:=0,1')
         self.assertEqual(list(r), [1, 0, 3])
-        self.assertEqual(r.dtype.kind, "i")
+        self.assertEqual(dtype_kind(r), "i")
 
     def test_amend_float_array_control(self):
         self.assertEqual(list(self.run_kg('[1 2 3.0]:=0.5,1')), [1.0, 0.5, 3.0])

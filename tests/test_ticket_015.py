@@ -8,6 +8,7 @@ from pathlib import Path
 from klongpy import KlongInterpreter
 from klongpy.core import KLONG_UNDEFINED
 from klongpy.types import KlongException
+from tests.backend_compat import dtype_kind, is_torch_backend, plain
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -64,8 +65,10 @@ class Ticket015(unittest.TestCase):
 
     # 5
     def test_join_dict_bad_pair(self):
-        for src in ['d:::{[1 0]};d,5', 'd:::{[1 0]};d,[1]', 'd:::{[1 0]};d,[[1 2]]', 'd:::{[1 0]};d,[1 2 3]', 'd:::{[1 0]};d,:{[3 4]}']:
+        for src in ['d:::{[1 0]};d,5', 'd:::{[1 0]};d,[1]', 'd:::{[1 0]};d,[[1 2]]', 'd:::{[1 0]};d,[1 2 3]']:
             self.assert_klong_error(src)
+        # ticket 063: a dictionary on the right is a merge
+        self.assertEqual(self.kg('d:::{[1 0]};d,:{[3 4]}'), {1: 0, 3: 4})
 
     def test_join_dict_good_pair(self):
         r = self.kg('d:::{[1 0]};d,[5 6]')
@@ -133,6 +136,17 @@ class Ticket015(unittest.TestCase):
     def test_divide_by_zero_scalar_array_consistent(self):
         self.assertIs(self.kg('1%0'), KLONG_UNDEFINED)
         self.assertIs(self.kg('0%0'), KLONG_UNDEFINED)
+        if is_torch_backend():
+            # Ticket 015 decision: a tensor cannot hold :undefined, so the torch
+            # backend keeps the IEEE values (and the tensor stays in the autograd
+            # graph). Atoms are :undefined on every backend (asserted above).
+            inf = float('inf')
+            self.assertEqual(plain(self.kg('[1 2]%0')), [inf, inf])
+            r = plain(self.kg('[1 0]%[1 0]'))
+            self.assertEqual(r[0], 1.0)
+            self.assertTrue(r[1] != r[1])  # 0%0 is nan
+            self.assertEqual(plain(self.kg('5%[1 0]')), [5.0, inf])
+            return
         r = self.kg('[1 2]%0')
         self.assertEqual(len(r), 2)
         self.assertTrue(all(x is KLONG_UNDEFINED for x in r))
@@ -145,12 +159,17 @@ class Ticket015(unittest.TestCase):
 
     def test_divide_without_zero_is_float_array(self):
         r = self.kg('[1 2]%[1 2]')
-        self.assertEqual(r.dtype.kind, "f")
+        self.assertEqual(dtype_kind(r), "f")
         self.assertEqual(py(r), [1.0, 1.0])
         self.assertEqual(py(self.kg('[[1 2] [3 4]]%2')), [[0.5, 1.0], [1.5, 2.0]])
 
     def test_divide_nested_zero(self):
         r = self.kg('[[1 2] [3 4]]%[[1 0] [0 4]]')
+        if is_torch_backend():
+            # torch keeps the IEEE values in the tensor (ticket 015 decision)
+            inf = float('inf')
+            self.assertEqual(plain(r), [[1.0, inf], [inf, 1.0]])
+            return
         self.assertEqual(r[0][0], 1.0)
         self.assertIs(r[0][1], KLONG_UNDEFINED)
         self.assertIs(r[1][0], KLONG_UNDEFINED)
@@ -159,6 +178,16 @@ class Ticket015(unittest.TestCase):
     def test_modulo_zero(self):
         self.assertIs(self.kg('7:%0'), KLONG_UNDEFINED)
         self.assertIs(self.kg('7!0'), KLONG_UNDEFINED)
+        if is_torch_backend():
+            # torch keeps the IEEE values in the tensor (ticket 015 decision):
+            # a remainder by zero is nan, an integer division by zero is inf,
+            # and the list becomes a float tensor
+            r = plain(self.kg('[7 8]!0'))
+            self.assertTrue(all(x != x for x in r))
+            self.assertEqual(plain(self.kg('[7 8]:%[2 0]')), [3.0, float('inf')])
+            self.assertEqual(plain(self.kg('[7 8]:%[2 3]')), [3, 2])  # no zero: still integers
+            self.assertEqual(dtype_kind(self.kg('[7 8]:%[2 3]')), "i")
+            return
         r = self.kg('[7 8]!0')
         self.assertTrue(all(x is KLONG_UNDEFINED for x in r))
         r = self.kg('[7 8]:%[2 0]')
@@ -192,8 +221,7 @@ class Ticket015(unittest.TestCase):
         self.assert_klong_error('!:{[1 2] [3 4]}')
         self.assertEqual(py(self.kg('!3')), [0, 1, 2])
 
-    # owned by 063
-    @unittest.expectedFailure
+    # was an expected failure until ticket 063
     def test_nested_dict_literal(self):
         r = self.kg(':{[1 :{[2 3]}]}')
         self.assertIsInstance(r[1], dict)

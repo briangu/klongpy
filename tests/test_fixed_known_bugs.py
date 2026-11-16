@@ -2,7 +2,11 @@
 import unittest
 import warnings
 
+import importlib.util
+
 from klongpy import KlongInterpreter, KlongSyntaxError, KlongSyntaxWarning
+
+HAS_DB = all(importlib.util.find_spec(m) is not None for m in ("pandas", "duckdb"))
 
 
 class TestFixedKnownBugs(unittest.TestCase):
@@ -23,6 +27,44 @@ class TestFixedKnownBugs(unittest.TestCase):
         self.assertTrue(klong._backend.kg_equal(r, [3, 8]))
         r = klong("((q@0),(q@-1))")
         self.assertTrue(klong._backend.kg_equal(r, [3, 8]))
+
+    # The next four were skipped for ticket 063 (dictionaries).
+
+    @unittest.skipUnless(HAS_DB, "requires pandas and duckdb (the db extras)")
+    def test_table_access_with_at(self):
+        # was test_known_bugs.test_table_access_with_at: @ on a table is the lookup ? is
+        import numpy as np
+        import pandas as pd
+        data = {'col1': np.arange(10)}
+        df = pd.DataFrame(data)
+        klong = KlongInterpreter()
+        klong['df'] = df
+        klong('.py("klongpy.db")')
+        klong('T::.table(df)')
+        r = klong('T@"col1"')
+        self.assertTrue(klong._backend.kg_equal(r, data['col1']))
+        self.assertTrue(klong._backend.kg_equal(klong('T?"col1"'), data['col1']))
+
+    def test_join_two_dict(self):
+        # was test_known_bugs.test_join_two_dict: d,d2 merges d2 into d
+        klong = KlongInterpreter()
+        klong("b:::{[1 2]}")
+        klong("c:::{[3 4]}")
+        r = klong("b,c")
+        self.assertEqual(r, {1: 2, 3: 4})
+
+    def test_nested_dict(self):
+        # was test_known_bugs.test_nested_dict: a nested dictionary literal is a dictionary
+        klong = KlongInterpreter()
+        klong('c:::{["GET" :{["/" 2]}]}')
+        r = klong('(c?"GET")?"/"')
+        self.assertEqual(r, 2)
+
+    def test_dict_inner_create(self):
+        # was test_known_bugs.test_dict_inner_create
+        klong = KlongInterpreter()
+        r = klong(":{[1 :{[2 3]}]}")
+        self.assertEqual(r[1], {2: 3})
 
 
 if __name__ == '__main__':

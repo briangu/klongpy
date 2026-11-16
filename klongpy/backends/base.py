@@ -57,6 +57,10 @@ class BackendProvider(ABC):
         """Whether this backend supports object dtype."""
         pass
 
+    def supports_exact_integers(self) -> bool:
+        """Whether an atomic dyad on an integer beyond int64 is repeated on Python integers."""
+        return self.supports_object_dtype()
+
     @abstractmethod
     def supports_strings(self) -> bool:
         """Whether this backend supports string operations."""
@@ -223,6 +227,39 @@ class BackendProvider(ABC):
         """
         r = np.power(float(a) if isinstance(a, (int, np.integer)) else a, b)
         return r
+
+    # -- operator primitives that have no common spelling across array libraries.
+    # The defaults are the numpy calls the operators made directly before.
+
+    def put(self, r, idx, v):
+        """Amend: write v at the flat positions idx of r (a copy the caller owns) and return it."""
+        np.put(r, np.asarray(idx, dtype=int), v)
+        return r
+
+    def amend_at(self, a, index, v):
+        """Amend-in-Depth: a copy of a with the one element at the index path replaced by v."""
+        r = np.array(a, dtype=object) if isinstance(v, str) else np.array(a)
+        r[tuple(index) if getattr(index, 'ndim', 1) > 0 else index] = v
+        return r
+
+    def index_at(self, a, index):
+        """Index-in-Depth: the element of a at the index path."""
+        return np.asarray(a)[tuple(index) if isinstance(index, list) or getattr(index, 'ndim', 0) > 0 else index]
+
+    def array_split(self, a, sections):
+        """numpy.array_split: a number of sections, or the positions to cut before."""
+        return np.array_split(a, sections)
+
+    def find_equal(self, a, b):
+        """Positions (along the first axis) where a equals the atom b."""
+        return np.where(np.asarray(a) == b)[0]
+
+    def reciprocal(self, x):
+        return np.reciprocal(np.asarray(x, dtype=float))
+
+    def dict_key(self, k):
+        """The value to use as a dictionary key for k."""
+        return k
 
     def has_gradient(self, x) -> bool:
         """Check if x is tracking gradients (for autograd)."""
@@ -513,10 +550,10 @@ class BackendProvider(ABC):
         of the second attempt re-raise the original OverflowError, which
         becomes a KlongRangeError. Nothing here runs unless numpy raised.
         """
-        if not (getattr(f, 'object_safe', False) or f in _OBJECT_SAFE_UFUNCS) or not self.supports_object_dtype():
+        if not (getattr(f, 'object_safe', False) or f in _OBJECT_SAFE_UFUNCS) or not self.supports_exact_integers():
             raise error
         try:
-            r = f(_as_python_objects(a), _as_python_objects(b))
+            r = f(_as_python_objects(self.to_numpy(a)), _as_python_objects(self.to_numpy(b)))
         except (TypeError, AttributeError, ValueError):
             raise error from None
         if isinstance(r, np.ndarray) and r.dtype == object and r.ndim > 0:
@@ -588,6 +625,15 @@ def _mismatch_error(message):
 
 
 class AtomicShapeMismatch(ValueError):
+    pass
+
+
+class CompiledDecline(ZeroDivisionError):
+    """Raised inside a compiled expression to hand it to the interpreter.
+
+    A ZeroDivisionError because that is the one exception compiler.run_compiled
+    turns into "evaluate normally" (a compiled expression has no side effect).
+    """
     pass
 
 

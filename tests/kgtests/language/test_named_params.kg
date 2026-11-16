@@ -1,0 +1,78 @@
+:" Named parameters and more than three arguments, f(a;b;c;d)::{...} (ticket 061)"
+
+:" test_named_four_parameters "
+nf(a;b;c;d)::{(a*1000)+(b*100)+(c*10)+d}
+t("nf(1;2;3;4)"; nf(1;2;3;4); 1234)
+
+:" test_named_zero_one_two_three_six "
+nz()::{42}
+t("nz()"; nz(); 42)
+no(a)::{a*2}
+t("no(21)"; no(21); 42)
+nt(a;b)::{a-b}
+t("nt(5;3)"; nt(5;3); 2)
+nh(a;b;c)::{a-b-c}
+t("nh(9;5;3)"; nh(9;5;3); 7)
+ns(a;b;c;d;e;g)::{[;g;e;d;c;b;a]}
+t("ns(1;2;3;4;5;6)"; ns(1;2;3;4;5;6); [6 5 4 3 2 1])
+
+:" test_named_parameters_are_local "
+a::100;b::200
+t("nt(1;2) with globals a and b"; nt(1;2); -1)
+t("a is untouched"; a; 100)
+t("b is untouched"; b; 200)
+
+:" test_named_locals_list "
+nl(a;b)::{[t];t::a;t+b}
+t("nl(1;2)"; nl(1;2); 3)
+
+:" test_named_head_destructuring "
+nd(v;k)::{[p q]::v;k*p+q}
+t("nd([1 2];10)"; nd([1 2];10); 30)
+
+:" test_named_x_in_a_nested_function "
+nx(a;b)::{{x}(a)+b}
+t("nx(1;2)"; nx(1;2); 3)
+ne(a;b)::{{x+b}'a}
+t("ne([1 2 3];10)"; ne([1 2 3];10); [11 12 13])
+
+:" test_named_projection "
+np1::nf(1;;;4)
+t("np1(2;3)"; np1(2;3); 1234)
+np2::nf(;2;3;)
+t("np2(1;4)"; np2(1;4); 1234)
+np3::nf(1;2;3;)
+t("np3'[4 5 6]"; np3'[4 5 6]; [1234 1235 1236])
+np4::np1(2;)
+t("np4(3)"; np4(3); 1234)
+
+:" test_named_projection_five_levels "
+nq1::ns(1;;;;;);nq2::nq1(2;;;;);nq3::nq2(3;;;);nq4::nq3(4;;);nq5::nq4(5;)
+t("nq5(6)"; nq5(6); [6 5 4 3 2 1])
+
+:" test_named_apply_spreads_a_list "
+t("nf@[1 2 3 4]"; nf@[1 2 3 4]; 1234)
+t("no@21"; no@21; 42)
+
+:" test_named_under_adverbs "
+t("no'[1 2 3]"; no'[1 2 3]; [2 4 6])
+t("nt/[10 1 2]"; nt/[10 1 2]; 7)
+t("[5 6]nt'[1 2]"; [5 6]nt'[1 2]; [4 4])
+t("5 nt 3"; 5 nt 3; 2)
+
+:" test_named_recursion "
+nfact(n;acc)::{:[n<1;acc;nfact(n-1;acc*n)]}
+t("nfact(5;1)"; nfact(5;1); 120)
+ngact(n;acc)::{:[n<1;acc;.f(n-1;acc*n)]}
+t("ngact(5;1)"; ngact(5;1); 120)
+
+:" test_named_redefinition "
+nr(a;b)::{a+b}
+nr(a;b;c)::{a*b*c}
+t("nr(2;3;4)"; nr(2;3;4); 24)
+
+:" test_named_function_as_a_value "
+ng::nf
+t("ng(1;2;3;4)"; ng(1;2;3;4); 1234)
+na(fn;v)::{fn(v;v;v;v)}
+t("na(nf;1)"; na(nf;1); 1111)

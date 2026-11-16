@@ -195,7 +195,8 @@
 > $2.0
 = "2.0"
 
-@ strings.fmt-float-fraction strings float string-fmt
+# numpy-only: float64 text; the torch backend computes in float32 by default
+@ strings.fmt-float-fraction strings float string-fmt numpy-only
 > $0.1+0.2
 = "0.30000000000000004"
 

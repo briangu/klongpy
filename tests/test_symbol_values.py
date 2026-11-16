@@ -26,6 +26,7 @@ from klongpy.types import KGQSym
 from klongpy.sys_fn_ipc import (KGAsyncCall, KGRemoteFnCall, decode_message,
                                 encode_message, execute_server_command)
 from klongpy.writer import kg_write
+from tests.backend_compat import to_numpy
 
 FOO = KGSym("foo")
 BAR = KGSym("bar")
@@ -34,6 +35,7 @@ BAZ = KGSym("baz")
 
 def _plain(x):
     """Convert a Klong result to plain Python lists for comparison."""
+    x = to_numpy(x)  # a tensor on the torch backend
     if isinstance(x, np.ndarray):
         return [_plain(q) for q in x]
     if isinstance(x, list):

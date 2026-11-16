@@ -7,22 +7,23 @@ from collections import deque
 from .adverbs import get_adverb_fn
 from .backends import get_backend
 from .core import *
-from .dyads import create_dyad_functions
+from .dyads import create_dyad_functions, eval_dyad_define
 from .monads import create_monad_functions
 from .sys_fn import create_system_functions
 from .sys_fn_autograd import create_system_functions_autograd
 from .sys_fn_ipc import create_system_functions_ipc, create_system_var_ipc
 from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
-from .types import KGQSym
-from .errors import (KlongArityError, KlongError, KlongInternalError, KlongNameError, KlongRangeError, KlongSyntaxError,
-                     KlongSyntaxWarning,
-                     adverb_name, classify, compat, is_passthrough, operator_error, operator_name,
+from .types import KGQSym, KGDestructure
+from .errors import (KlongArityError, KlongError, KlongInternalError, KlongNameError, KlongRangeError, KlongShapeError,
+                     KlongSyntaxError, KlongSyntaxWarning, KlongTypeError,
+                     adverb_name, classify, compat, describe, is_passthrough, operator_error, operator_name,
                      python_error, system_error)
 from .lexer import Lexer, Source
-from .parser import (ADVERB_GLYPHS, SEMI, ProgResult, tk_adverb_error, tk_assign_hint, tk_check, tk_comment_end, tk_finish,
+from .parser import (ADVERB_GLYPHS, SEMI, KGExprDict, NamedDef, ProgResult, copy_lambda, tk_adverb_error, tk_assign_hint,
+                     tk_check, tk_comment_end, tk_destructure, tk_direct_arg, tk_finish, tk_named_def,
                      tk_index_hint, tk_juxtaposed, tk_missing_operand, tk_peek_adverb, tk_raise, tk_read_cond,
-                     tk_read_data, tk_read_expr_array, tk_stray, tk_warnings)
+                     tk_read_data, tk_read_expr_array, tk_read_expr_dict, tk_stray, tk_warnings)
 from .utils import ReadonlyDict
 from .compiler import compile_guarded, run_compiled, NOT_COMPILED, LRUCache
 
@@ -376,6 +377,9 @@ class KlongInterpreter():
         self._backend = get_backend(backend, device=device)
         self._context = KlongContext(create_system_contexts(), strict_mode=strict)
         self._vd = create_dyad_functions(self)
+        # '::' with a list of names on its left is a destructuring assignment
+        # (ticket 060); with a name it is Define, as registered.
+        self._vd['::'] = lambda a, b: self._destructure(a, b) if type(a) is KGDestructure else eval_dyad_define(self, a, b)
         self._vm = create_monad_functions(self)
         self._start_time = time.time()
         self._module = None
@@ -613,7 +617,10 @@ class KlongInterpreter():
         """
         toks = lx.toks
         body, bsp = self._prog(lx, True)
-        a = body[0] if len(body) == 1 else body
+        # A body of one statement is that statement, except an evaluated
+        # dictionary literal (ticket 063): it is a list of expressions, which
+        # as a body would be taken for a list of statements.
+        a = body[0] if len(body) == 1 and type(body[0]) is not KGExprDict else body
         j = lx.pos
         tok = toks[j]
         while tok[0] == 'NEWLINE' and not tok[5]:
@@ -650,7 +657,82 @@ class KlongInterpreter():
         if type(f.a) is KGBody:
             f.locals_span = bsp[0]
             f.body_spans = tuple(bsp[1:])
+        if f.locals is not None:
+            # ticket 060: the targets of a destructuring that heads the body are locals
+            head_destructuring(f)
         return f
+
+    @staticmethod
+    def _not_assignable(a, st, lend):
+        """Ticket 050: "1::5" at strict level 1 and above. Level 0 accepts it silently (legacy)."""
+        raise KlongSyntaxError("cannot assign: the left side of :: must be a name",
+                               span=(st, lend), hint=tk_assign_hint(a))
+
+    def _def_target(self, lx, a, st, lend):
+        """
+        The left side a of a '::' is not a name (it spans st to lend). Returns
+        what the assignment node gets as its left operand:
+
+            [a b c]::v      a list literal of plain names: the destructuring
+                            targets, a KGDestructure (ticket 060)
+            f(a;b)::{...}   a call of a plain name with plain names as
+                            arguments: a NamedDef, which _named_def turns into
+                            the name f once the right side is read (ticket 061)
+
+        Anything else is not assignable: a syntax error at strict level 1 and
+        above (ticket 050), and at level 0 the expression itself, as always
+        (the assignment then binds nothing). A list literal that is not a
+        list of plain names, and a parameter list that repeats a name or uses
+        x, y or z, also warn at level 0.
+        """
+        ll = lx.last_list
+        if ll is not None and ll[0] is a:
+            if tk_destructure(lx, ll[1]):
+                return KGDestructure(a)
+            return a
+        nd = tk_named_def(lx, a, st, lend)
+        if nd is not None:
+            return nd
+        if lx.strict:
+            self._not_assignable(a, st, lend)
+        return a
+
+    def _named_def(self, lx, nd, r, rj, osp):
+        """
+        Finish f(a;b)::{...} (ticket 061). nd is the NamedDef of the left
+        side, r the right side, read from token index rj on, osp the span of
+        the '::'. The right side must be a function literal that does not use
+        x, y or z itself; it becomes a function of the named parameters: arity
+        and params are set on the literal's node, and its body becomes a
+        KGBody that carries the params (see KGBody). Returns the name being
+        defined, the left operand of the assignment.
+        """
+        toks = lx.toks
+        if not (type(r) is KGFn and r.args is None and r.body_spans is not None):
+            span = getattr(r, 'span', None)
+            if span is None:
+                span = osp if r is None or isinstance(r, str) and r == ';' else (lx.start, toks[lx.pos-1][2])
+            raise KlongSyntaxError("named-parameter definition needs a function body in braces", span=span,
+                                   hint="write f(a;b)::{a+b}: the right side is one function literal")
+        while toks[rj][1] < r.span[0]:
+            rj += 1
+        tok = tk_direct_arg(toks, rj, lx.pos)
+        if tok is not None:
+            raise KlongSyntaxError(f"{tok[3]} is not available in a function with named parameters",
+                                   span=(tok[1], tok[2]),
+                                   hint="use the parameter names; x, y and z exist only in a function without a "
+                                        "parameter list (a nested {...} has its own)")
+        params = nd.params
+        body = r.a
+        if type(body) is KGBody:
+            body.params = params
+        else:
+            r.a = KGBody(list(body) if type(body) is list else [body], (), None, params)
+        if r.locals is None:
+            r.locals = ()
+        r.params = params
+        r.arity = len(params)
+        return nd.name
 
     def _factor(self, lx, ignore_newline=False):
         """
@@ -741,7 +823,9 @@ class KlongInterpreter():
                         tk_missing_operand(lx, v, (st, tok[2]), right=False)
                         if r is SEMI:
                             r = ';'
-                    a = KGFn(a, r, arity=1)
+                    # (an evaluated dictionary literal is a list of expressions
+                    # and would be taken for the argument list: ticket 063)
+                    a = KGFn(a, [r] if type(r) is KGExprDict else r, arity=1)
                     e = toks[lx.pos-1][2]
                     a.span = (st, e)
                     a.op_span = (st, tok[2])
@@ -756,7 +840,16 @@ class KlongInterpreter():
                 lx.pos = j + 2
                 a = tk_read_expr_array(self, lx, st)
             else:
+                n = lx.dicts_read
                 a = self._backend.kg_asarray(tk_read_data(self, lx, j, True))
+                if lx.dicts_read != n:
+                    # The list holds a dictionary literal (ticket 063), which
+                    # is a mutable value: like a dictionary literal, the list
+                    # is copied each time it is evaluated.
+                    a = KGCall(copy_lambda, args=a, arity=0)
+                    a.span = (st, lx.end())
+                    a.source = lx.source
+                lx.last_list = (a, j)       # for "[a b]::v" (see _def_target)
         elif k == 'LPAREN':
             lx.pos = j + 1
             # legacy: "(;)" and "(" newline ")" give the ';' itself, which the
@@ -785,7 +878,13 @@ class KlongInterpreter():
             lx.pos = j + 1
             a = tk_read_cond(self, lx, st)
         elif k == 'DICT':
-            a = tk_read_data(self, lx, j, True)
+            nt = toks[j+1]
+            if nt[0] == 'SEMI' and not nt[4]:
+                # evaluated dictionary literal :{;key1;value1;...} (ticket 063)
+                lx.pos = j + 2
+                a = tk_read_expr_dict(self, lx, st)
+            else:
+                a = tk_read_data(self, lx, j, True)
         elif k == 'ERROR':
             tk_raise(lx, tok)
         else:
@@ -822,6 +921,7 @@ class KlongInterpreter():
                     j += 1
                     tok = toks[j]
                     k = tok[0]
+            target = False      # this operator is '::' and its left side is not a name
             if k == 'OP' or k == 'COP' or k == 'CALLP':
                 v = tok[3]
                 aa = KGOp(v, 0)
@@ -829,10 +929,7 @@ class KlongInterpreter():
                     # legacy: only the first operator read here has its arity set
                     if first:
                         aa.arity = 2
-                    if v == '::' and lx.strict and not isinstance(a, KGSym):
-                        # ticket 050: "1::5". Level 0 accepts it silently (legacy).
-                        raise KlongSyntaxError("cannot assign: the left side of :: must be a name",
-                                               span=(st, lend), hint=tk_assign_hint(a))
+                    target = v == '::' and not isinstance(a, KGSym)
                 elif v in ADVERB_GLYPHS:
                     # ticket 031: "{x} '[1 2]". No operator is spelled like an
                     # adverb, so this could only fail when evaluated.
@@ -864,9 +961,14 @@ class KlongInterpreter():
             ost = tok[1]
             adv = tk_peek_adverb(lx)
             if adv is not None:
+                if target and lx.strict:
+                    self._not_assignable(a, st, lend)
                 a = self._apply_adverbs(lx, aa, adv, 2, st, ost, dyad=True, dyad_value=a, lsp=(st, lend))
             else:
                 osp = (ost, toks[lx.pos-1][2])
+                if target:
+                    a = self._def_target(lx, a, st, lend)
+                    rj = lx.pos
                 r = self._expr(lx, ignore_newline)
                 missing = r is None or r is SEMI
                 if missing:
@@ -874,6 +976,8 @@ class KlongInterpreter():
                     tk_missing_operand(lx, tok[3] if k != 'LBRACE' else 'the function', osp)
                     if r is SEMI:
                         r = ';'
+                if target and type(a) is NamedDef:
+                    a = self._named_def(lx, a, r, rj, osp)
                 a = KGFn(aa, [a, r], arity=2)
                 e = toks[lx.pos-1][2]
                 a.span = (st, e)
@@ -1366,11 +1470,17 @@ class KlongInterpreter():
         if len(f_args) == 1:
             f_args = f_args[0]
         else:
+            if len(f_args) == 4:
+                f, f_args, f_arity, node = self._resolve_deeper(f, f_args, f_arity, node)
             f_args.reverse()
-            if self._context._strict_mode == 2:
+            if self._context._strict_mode == 2 or (type(f) is KGBody and f.params is not None):
                 self._check_projection(x.a, f_args)
             f_args = merge_projections(f_args)
         n = 0 if f_args is None else len(f_args)
+        if type(f) is KGBody and f.params is not None:
+            # a function with named parameters (ticket 061)
+            ctx = self._bind_params(x.a, f, f_args, n, node)
+            return x if ctx is None else self._run_fn(f, ctx, node)
         if n < f_arity or has_none(f_args):
             return x
         if n > f_arity and self._context._strict_mode == 2 and not isinstance(f, KGLambda):
@@ -1384,10 +1494,61 @@ class KlongInterpreter():
 
         return self._run_fn(f, ctx, node)
 
+    def _resolve_deeper(self, f, f_args, f_arity, node):
+        """
+        Three passes of _resolve_fn went through three projections (f_args
+        holds four layers) and may not have reached the function: a function
+        of x, y and z cannot be projected more than twice, one with n named
+        parameters n-1 times (ticket 061). Resolve to the end; the result
+        stands only if it is a function with named parameters. Anything else
+        is left as the three passes left it.
+        """
+        g, g_args, g_arity, g_node = f, list(f_args), f_arity, node
+        for _ in range(256):
+            h, g_args, g_arity, g_node = self._resolve_fn(g, g_args, g_arity, g_node)
+            if h is g:
+                break
+            g = h
+        if type(g) is KGBody and g.params is not None:
+            return g, g_args, g_arity, g_node
+        return f, f_args, f_arity, node
+
+    def _bind_params(self, callee, f, f_args, n, node):
+        """
+        The frame for a written call of f, a function with named parameters
+        (ticket 061): each parameter bound to the value of its argument
+        expression. Returns None when the call is not complete (fewer
+        arguments than parameters, or a hole): the call is then a value, as
+        for any function. More arguments than parameters is an arity error
+        at every strict level.
+        """
+        params = f.params
+        m = len(params)
+        if n == m:
+            if n == 0:
+                return {}
+            for q in f_args:
+                if q is None:
+                    return None
+            return {p: self.call(q) for p, q in zip(params, f_args)}
+        given = 0 if f_args is None else sum(1 for q in f_args if q is not None)
+        if n > m:
+            raise self._too_many(callee, m, given)
+        if node is None:
+            # reached through the body (.f): there is no function value to project
+            raise self._too_many(callee, m, given)
+        return None
+
     @staticmethod
     def _too_many(callee, takes, given):
-        """The strict level 2 error for a call with more arguments than the function takes."""
-        name = str.__str__(callee).split('`')[0] if isinstance(callee, str) and callee not in reserved_fn_symbols else "the function"
+        """
+        The error for a call with a number of arguments the function does not
+        take: more than it takes (strict level 2; for a function with named
+        parameters every level), or, where no projection can be made, fewer.
+        """
+        name = (str.__str__(callee).split('`')[0]
+                if isinstance(callee, str) and callee not in reserved_fn_symbols and callee != reserved_dot_f_symbol
+                else "the function")
         what = "no arguments" if takes == 0 else "1 argument" if takes == 1 else f"{takes} arguments"
         return KlongArityError(f"{name} takes {what}, got {given}")
 
@@ -1461,6 +1622,13 @@ class KlongInterpreter():
 
         if len(f_args) == 1:
             # no projection involved: the values are the arguments
+            if type(f) is KGBody and f.params is not None:
+                # named parameters (ticket 061): exactly as many values as
+                # parameters. Values cannot express a hole, so there is no
+                # projection to return for fewer.
+                if len(values) != len(f.params):
+                    raise self._too_many(fn, len(f.params), len(values))
+                return self._run_fn(f, dict(zip(f.params, values)), node)
             if len(values) < f_arity:
                 return KGCall(fn, values, len(values) if arity is None else arity)
             if len(values) > f_arity and self._context._strict_mode == 2 and not isinstance(f, KGLambda):
@@ -1469,15 +1637,33 @@ class KlongInterpreter():
             # Projection arguments are unevaluated expressions; mark the values
             # so that only the projection arguments are evaluated after merging.
             f_args[0] = [_Value(v) for v in values]
+            if len(f_args) == 4:
+                f, f_args, f_arity, node = self._resolve_deeper(f, f_args, f_arity, node)
+            named = type(f) is KGBody and f.params is not None
             f_args.reverse()
-            if self._context._strict_mode == 2:
+            if named or self._context._strict_mode == 2:
                 self._check_projection(fn, f_args)
             f_args = merge_projections(f_args)
+            if named:
+                if len(f_args) != len(f.params) or any(q is None for q in f_args):
+                    raise self._projection_short(fn, f, f_args, values)
+                values = [q.v if type(q) is _Value else self.call(q) for q in f_args]
+                return self._run_fn(f, dict(zip(f.params, values)), node)
             if len(f_args) < f_arity or has_none(f_args):
                 return KGCall(fn, values, len(values) if arity is None else arity)
             values = [q.v if type(q) is _Value else self.call(q) for q in f_args]
 
         return self._run_fn(f, dict(zip(reserved_fn_symbols, values)), node)
+
+    def _projection_short(self, callee, f, merged, values):
+        """
+        The arity error for values applied to a projection of f, a function
+        with named parameters, that do not complete it: merged is the
+        projection's arguments with the values filled in.
+        """
+        if len(merged) != len(f.params):
+            return self._too_many(callee, len(f.params), len(merged))
+        return self._too_many(callee, len(values) + sum(1 for q in merged if q is None), len(values))
 
     def _run_fn(self, f, ctx, node=None):
         """
@@ -1544,13 +1730,58 @@ class KlongInterpreter():
                     # User Python (.py, .pyf, .pya) fails as a KlongPythonError.
                     # A system function's OSError becomes a KlongSystemError;
                     # anything else it raises is passed on as it is.
-                    err = python_error(e) if f.user else system_error(e)
+                    err = python_error(e) if f.user is True else system_error(e)  # a network client stores a login name in .user
                     if err is e:
                         raise
                     raise err from e
             return self.call(f)
         finally:
             self._context.pop()
+
+    def _destructure(self, names, v):
+        """
+        [a b c]::v (ticket 060): bind each name to one element of v, which
+        must be a list, an array or a string with exactly one element per
+        name. Each name is assigned by the rule of name::element (Define), so
+        an existing variable is assigned where it lives. Nothing is bound
+        unless everything can be. The value is v.
+        """
+        n = len(names)
+        if isinstance(v, str):
+            items = None if isinstance(v, (KGSym, KGChar)) else [KGChar(c) for c in v]
+        else:
+            items = v if is_list(v) else None
+        if items is None:
+            raise KlongTypeError(f"cannot destructure {describe(v)} into {n} name{'s' if n != 1 else ''}",
+                                 hint="the right side of [a b c]::value must be a list or a string")
+        m = len(items)
+        if m != n:
+            raise KlongShapeError(f"cannot destructure {m} value{'s' if m != 1 else ''} into {n} name{'s' if n != 1 else ''}",
+                                  hint="the list needs exactly one element for each name")
+        for name, q in zip(names, items):
+            eval_dyad_define(self, name, q)
+        return v
+
+    def _eval_dict(self, x):
+        """
+        Evaluate :{;key1;value1;...} (ticket 063): the key and value
+        expressions alternate in x and are evaluated left to right; the
+        result is a new dictionary each time.
+        """
+        d = {}
+        dict_key = self._backend.dict_key
+        it = iter(x)
+        for q in it:
+            k = dict_key(self.call(q))
+            v = self.call(next(it))
+            try:
+                if is_list(k):
+                    raise TypeError     # (a tensor would hash, by identity)
+                d[k] = v
+            except TypeError:
+                raise KlongTypeError(f"a {describe(k)} cannot be a dictionary key",
+                                     hint="a key is a number, a string, a char or a symbol") from None
+        return d
 
     def _eval_quoted_symbol(self, x):
         """
@@ -1876,6 +2107,8 @@ class KlongInterpreter():
                 p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
                 return self.call(x[1]) if p else self.call(x[2])
             elif isinstance(x, KGExprArray):
+                if type(x) is KGExprDict:
+                    return self._eval_dict(x)
                 results = [self.call(e) for e in x]
                 return self._backend.kg_asarray(results)
             elif isinstance(x,list) and len(x) > 0:

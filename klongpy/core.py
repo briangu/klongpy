@@ -85,6 +85,8 @@ __all__ = [
     'fn_metadata',
     'split_locals',
     'KGBody',
+    'KGDestructure',
+    'head_destructuring',
     # Parser - character matching
     'cmatch',
     'cmatch2',

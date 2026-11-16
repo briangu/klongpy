@@ -18,8 +18,10 @@ import warnings
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def evaluate(source, strict=None):
-    """Return (status, text, console): status "result" with the printed value, or "error" with the kind."""
+def evaluate(source, strict=None, backend=None):
+    """Return (status, text, console): status "result" with the printed value, or "error" with the kind.
+
+    backend: the KlongPy backend name, or None for the interpreter's default."""
     if ROOT not in sys.path:
         sys.path.insert(0, ROOT)
     from klongpy import KlongInterpreter
@@ -29,7 +31,7 @@ def evaluate(source, strict=None):
     with warnings.catch_warnings(), contextlib.redirect_stdout(out):
         warnings.simplefilter("ignore")
         try:
-            klong = KlongInterpreter()
+            klong = KlongInterpreter(backend=backend) if backend else KlongInterpreter()
             if strict:
                 klong(f".strict({strict})")
             r = klong(source)

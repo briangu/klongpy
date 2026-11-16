@@ -39,6 +39,14 @@ META_KEYS = ("reason", "actual", "ticket")
 # the other tiers have no cases in this suite yet.
 KLONGPY_TAGS = frozenset(("core", "strings", "dicts", "float", "string-fmt", "strict1", "strict2",
                           "width64", "bigint", "unicode", "device", "sysio", "numpy-only", "kgpy-only"))
+# KlongPy on the torch backend: floats are 32 bits wide by default and a tensor cannot
+# hold :undefined, so it does not declare `numpy-only` (README, "Tags").
+KLONGPY_TORCH_TAGS = (KLONGPY_TAGS - {"numpy-only"}) | {"torch-only"}
+
+
+def klongpy_tags(backend="numpy"):
+    """The tags KlongPy declares when it runs on the given backend."""
+    return KLONGPY_TORCH_TAGS if backend == "torch" else KLONGPY_TAGS
 
 
 class FormatError(Exception):
@@ -207,11 +215,12 @@ class InProcess:
     """KlongPy in this process: a fresh interpreter per case, through the same function the shim uses."""
     name = "KlongPy (in process)"
 
-    def __init__(self):
+    def __init__(self, backend=None):
         self.shim = _load_shim()
+        self.backend = backend  # None: the interpreter's default
 
     def run(self, case):
-        status, text, out = self.shim.evaluate(case.source, case.strict_level)
+        status, text, out = self.shim.evaluate(case.source, case.strict_level, backend=self.backend)
         return Result("value" if status == "result" else "error", text, out)
 
 

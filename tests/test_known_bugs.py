@@ -21,19 +21,6 @@ class TestKnownBugsSuite(unittest.TestCase):
     differences from reference Klong live in TestDocumentedDifferences below.
     """
 
-    @requires_pandas
-    @unittest.skip("ticket 063: @ has no dict branch, so T@\"col1\" returns the table, not the column")
-    def test_table_access_with_at(self):
-        data = {'col1': np.arange(10)}
-        df = pd.DataFrame(data)
-        klong = KlongInterpreter()
-        klong['df'] = df
-        klong('.py("klongpy.db")')
-        klong('T::.table(df)')
-        # @ should work the same as a dictionary
-        r = klong('T@"col1"')
-        self.assertTrue(klong._backend.kg_equal(r, data['col1']))
-
     @unittest.skip("ticket 031 left this to a language ticket: `foo(fn)(2)` does not apply the result of a call "
                    "(`g::foo(fn);g(2)` works). The dropped `(2)` is now a KlongSyntaxWarning at strict level 0 "
                    "and a syntax error at level 1 (tests/test_fixed_known_bugs.py)")
@@ -46,27 +33,6 @@ class TestKnownBugsSuite(unittest.TestCase):
         klong('foo::{x}')
         r = klong('foo(fn)(2)')
         self.assertEqual(r, 12)
-
-    @unittest.skip("ticket 063: join of two dictionaries rejected (dyads `,` only takes a pair)")
-    def test_join_two_dict(self):
-        klong = KlongInterpreter()
-        klong("b:::{[1 2]}")
-        klong("c:::{[3 4]}")
-        r = klong("b,c")
-        self.assertEqual(r, {1: 2, 3: 4})
-
-    @unittest.skip("ticket 063: nested dict literal is a deferred call, so `?` on it fails (ValueError)")
-    def test_nested_dict(self):
-        klong = KlongInterpreter()
-        klong('c:::{["GET" :{["/" 2]}]}')
-        r = klong('(c?"GET")?"/"')
-        self.assertEqual(r, 2)
-
-    @unittest.skip("ticket 063: the inner literal stays a deferred KGCall instead of a dict")
-    def test_dict_inner_create(self):
-        klong = KlongInterpreter()
-        r = klong(":{[1 :{[2 3]}]}")
-        self.assertEqual(r[1], {2: 3})
 
     def test_take_nested_array(self):
         klong = KlongInterpreter()

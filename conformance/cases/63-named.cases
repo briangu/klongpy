@@ -1,0 +1,231 @@
+# Named parameters f(a;b)::{...}
+@ named.four-parameters core
+> f(a;b;c;d)::{(a*1000)+(b*100)+(c*10)+d}
+> f(1;2;3;4)
+= 1234
+
+@ named.no-parameters core
+> f()::{42}
+> f()
+= 42
+
+@ named.one-parameter core
+> f(a)::{a*2}
+> f(21)
+= 42
+
+@ named.six-parameters core
+> f(a;b;c;d;e;g)::{[;g;e;d;c;b;a]}
+> f(1;2;3;4;5;6)
+= [6 5 4 3 2 1]
+
+@ named.parameters-are-local core
+> a::100
+> b::200
+> f(a;b)::{a+b}
+> f(1;2)+a+b
+= 303
+
+@ named.assigning-a-parameter-is-local core
+> a::100
+> g(a)::{a::a+1;a}
+> g(1)+a
+= 102
+
+@ named.locals-list core
+> f(a;b)::{[t];t::a;t+b}
+> f(1;2)
+= 3
+
+@ named.head-destructuring core
+> f(v;k)::{[p q]::v;k*p+q}
+> f([1 2];10)
+= 30
+
+@ named.x-in-a-nested-function core
+> f(a;b)::{{x}(a)+b}
+> f(1;2)
+= 3
+
+@ named.nested-function-reads-parameters core
+> f(a;b)::{{x+b}'a}
+> f([1 2 3];10)
+= [11 12 13]
+
+@ named.arguments-evaluated-in-order core
+> n::0
+> t()::{n::n+1;n}
+> f(a;b;c;d)::{[;a;b;c;d]}
+> f(t();t();t();t())
+= [1 2 3 4]
+
+@ named.projection-with-holes core
+> f(a;b;c;d)::{(a*1000)+(b*100)+(c*10)+d}
+> g::f(1;;;4)
+> g(2;3)
+= 1234
+
+@ named.projection-first-and-last-open core
+> f(a;b;c;d)::{(a*1000)+(b*100)+(c*10)+d}
+> g::f(;2;3;)
+> g(1;4)
+= 1234
+
+@ named.projection-of-a-projection core
+> f(a;b;c;d)::{(a*1000)+(b*100)+(c*10)+d}
+> g::f(1;;;4)
+> h::g(2;)
+> h(3)
+= 1234
+
+@ named.projection-five-levels core
+> f(a;b;c;d;e;g)::{[;a;b;c;d;e;g]}
+> p1::f(1;;;;;)
+> p2::p1(2;;;;)
+> p3::p2(3;;;)
+> p4::p3(4;;)
+> p5::p4(5;)
+> p5(6)
+= [1 2 3 4 5 6]
+
+@ named.projection-list-argument core
+> f(a;b;c;d)::{a,b,c,d}
+> g::f([1 2];;[3 4];)
+> g(0;9)
+= [1 2 0 3 4 9]
+
+@ named.projection-under-each core
+> f(a;b;c;d)::{a+b+c+d}
+> f(1;2;3;)'[1 2 3]
+= [7 8 9]
+
+@ named.apply-spreads-a-list core
+> f(a;b;c;d)::{a+b+c+d}
+> f@[1 2 3 4]
+= 10
+
+@ named.apply-one-argument core
+> f(a)::{a*2}
+> f@21
+= 42
+
+@ named.monad-under-each core
+> sq(a)::{a*a}
+> sq'[1 2 3]
+= [1 4 9]
+
+@ named.dyad-under-over core
+> add(a;b)::{a+b}
+> add/[1 2 3 4]
+= 10
+
+@ named.dyad-under-each-2 core
+> add(a;b)::{a+b}
+> [1 2 3]add'[10 20 30]
+= [11 22 33]
+
+@ named.dyad-infix core
+> sub(a;b)::{a-b}
+> 5 sub 3
+= 2
+
+@ named.recursion-by-name core
+> fact(n;acc)::{:[n<1;acc;fact(n-1;acc*n)]}
+> fact(5;1)
+= 120
+
+@ named.recursion-by-dot-f core
+> fact(n;acc)::{:[n<1;acc;.f(n-1;acc*n)]}
+> fact(5;1)
+= 120
+
+@ named.redefinition core
+> f(a;b)::{a+b}
+> f(a;b;c)::{a*b*c}
+> f(2;3;4)
+= 24
+
+@ named.function-as-a-value core
+> f(a;b;c;d)::{a+b+c+d}
+> ap(fn;v)::{fn(v;v;v;v)}
+> ap(f;2)
+= 8
+
+@ named.too-many-arguments core
+> f(a;b)::{a+b}
+> f(1;2;3)
+! arity
+
+@ named.too-many-arguments-nilad core
+> f()::{1}
+> f(1)
+! arity
+
+@ named.too-many-for-a-projection core
+> f(a;b;c;d)::{a+b+c+d}
+> g::f(1;;;4)
+> g(2;3;5)
+! arity
+
+@ named.apply-too-many core
+> f(a;b)::{a+b}
+> f@[1 2 3]
+! arity
+
+@ named.apply-too-few core
+> f(a;b;c;d)::{a+b+c+d}
+> f@[1 2]
+! arity
+
+@ named.four-parameters-under-each core
+> f(a;b;c;d)::{a+b+c+d}
+> f'[1 2 3]
+! arity
+
+@ named.four-parameters-under-over core
+> f(a;b;c;d)::{a+b+c+d}
+> f/[1 2 3]
+! arity
+
+@ named.body-must-be-a-function core
+> f(a;b)::5
+! syntax
+
+@ named.body-must-be-a-function-not-an-expression core
+> f(a;b)::a+b
+! syntax
+
+@ named.x-in-the-body core
+> f(a;b)::{x}
+! syntax
+
+@ named.z-in-the-body core
+> f(a;b)::{a+z}
+! syntax
+
+@ named.strict1-definition-and-call core strict1
+> f(a;b;c;d)::{[t];t::a+b;t+c+d}
+> f(1;2;3;4)
+= 10
+
+@ named.strict1-reserved-parameter-name core strict1
+> f(a;x)::{a}
+! syntax
+
+@ named.strict1-duplicate-parameter-name core strict1
+> f(a;a)::{a}
+! syntax
+
+@ named.strict1-argument-that-is-not-a-name core strict1
+> f(a;1)::{a}
+! syntax
+
+@ named.strict2-definition-and-call core strict2
+> f(a;b;c;d)::{[t];t::a+b;t+c+d}
+> f(1;2;3;4)
+= 10
+
+@ named.strict2-too-many-arguments core strict2
+> f(a;b)::{a+b}
+> f(1;2;3)
+! arity

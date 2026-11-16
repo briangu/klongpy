@@ -46,8 +46,9 @@ class TestExtraCoreSuite(unittest.TestCase):
         klong("D:::{[1 2]}")
         r = klong("D@1")
         self.assertEqual(r, 2)
-        with self.assertRaises(KeyError):
-            klong("D@2")
+        # ticket 063: @ on a dictionary is the lookup ?, :undefined for a missing key (it was a KeyError)
+        self.assertIs(klong("D@2"), klong("D?2"))
+        self.assertEqual(str(klong("D@2")), ":undefined")
 
     @requires_object_dtype
     def test_each_dict_with_mixed_types(self):
@@ -394,7 +395,7 @@ zop([
         klong = KlongInterpreter()
         r = klong('{(x+2%x)%2}\~2')
         e = np.asarray([2.        , 1.5       , 1.41666667, 1.41421569])
-        self.assertTrue(np.isclose(r,e).all())
+        self.assertTrue(np.isclose(klong._backend.to_numpy(r),e).all())  # to_numpy: a tensor on any device
 
         r = klong(',/\~["a" ["b"] "c"]')
         e = np.asarray([["a",["b"],"c"],["a","b","c"],"abc"],dtype=object)

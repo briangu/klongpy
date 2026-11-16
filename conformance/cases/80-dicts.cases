@@ -94,6 +94,41 @@
 > :{[1 2] [3 4]}@3
 = 4
 
+# Lookup with @: the same as ? for every kind of key
+@ dicts.dict-at-string-key dicts strings
+> d:::{["a" 1]}
+> d@"a"
+= 1
+
+@ dicts.dict-at-symbol-key dicts
+> d:::{[:k 5]}
+> d@:k
+= 5
+
+@ dicts.dict-at-missing-int-key dicts
+> d:::{[1 2]}
+> d@7
+= :undefined
+
+@ dicts.dict-at-missing-string-key dicts strings
+> d:::{["a" 1]}
+> d@"z"
+= :undefined
+
+@ dicts.dict-at-float-key dicts float
+> d:::{[1.5 2]}
+> d@1.5
+= 2
+
+@ dicts.dict-at-list-of-keys dicts
+> d:::{[1 10] [2 20]}
+> d@[2 1 2]
+= [20 10 20]
+
+@ dicts.dict-at-list-value dicts
+> :{[1 [2 3]]}@1
+= [2 3]
+
 # Adding and replacing: join , with a pair
 @ dicts.dict-add dicts
 > :{[1 2] [3 4]},[5 6]
@@ -149,6 +184,169 @@
 > {c,x,1+:[:_(c?x);0;c?x]}'[1 2 1 1]
 > c?1
 = 3
+
+# Merge: join , with a dictionary
+@ dicts.dict-merge dicts
+> :{[1 2]},:{[3 4]}
+= :{[1 2] [3 4]}
+
+@ dicts.dict-merge-right-wins dicts
+> :{[1 2] [3 4]},:{[3 5] [6 7]}
+= :{[1 2] [3 5] [6 7]}
+
+@ dicts.dict-merge-in-place dicts
+> b:::{[1 2]}
+> c:::{[3 4]}
+> b,c
+> b
+= :{[1 2] [3 4]}
+
+@ dicts.dict-merge-right-unchanged dicts
+> b:::{[1 2]}
+> c:::{[3 4]}
+> b,c
+> c
+= :{[3 4]}
+
+@ dicts.dict-merge-empty-left dicts
+> :{},:{[1 2]}
+= :{[1 2]}
+
+@ dicts.dict-merge-empty-right dicts
+> :{[1 2]},:{}
+= :{[1 2]}
+
+@ dicts.dict-merge-over-list dicts
+> ,/[:{[1 2]} :{[3 4]} :{[1 5]}]
+= :{[1 5] [3 4]}
+
+@ dicts.dict-pair-on-the-left dicts
+> [1 2],:{[1 0]}
+= :{[1 2]}
+
+@ dicts.dict-appended-to-list-with-wrap dicts
+> a::[:{} :{}]
+> a::a,,:{}
+> #a
+= 3
+
+# Nested literals are dictionaries
+@ dicts.dict-nested-literal dicts
+> :{[1 :{[2 3]}]}
+= :{[1 :{[2 3]}]}
+
+@ dicts.dict-nested-lookup dicts
+> c:::{[1 :{[2 3]}]}
+> (c?1)?2
+= 3
+
+@ dicts.dict-in-list-literal dicts
+> [1 :{[2 3]} 4]
+= [1 :{[2 3]} 4]
+
+@ dicts.dict-in-list-literal-lookup dicts
+> l::[:{[1 2]} :{[1 3]}]
+> (l@1)?1
+= 3
+
+@ dicts.dict-literal-in-function-is-fresh dicts
+> f::{:{[1 :{[2 3]}]}}
+> p::f()
+> (p?1),[9 9]
+> f()
+= :{[1 :{[2 3]}]}
+
+@ dicts.dict-list-literal-in-function-is-fresh dicts
+> f::{[:{[1 2]}]}
+> p::f()
+> (p@0),[9 9]
+> f()
+= [:{[1 2]}]
+
+# Evaluated literal :{;key;value;...}
+@ dicts.edict-basic dicts
+> :{;1;2;3;4}
+= :{[1 2] [3 4]}
+
+@ dicts.edict-empty dicts
+> :{;}
+= :{}
+
+@ dicts.edict-expressions dicts
+> a::5
+> :{;a;a+1;a*2;[;a;a]}
+= :{[5 6] [10 [5 5]]}
+
+@ dicts.edict-string-keys dicts strings
+> a::5
+> d:::{;"k";a}
+> d?"k"
+= 5
+
+@ dicts.edict-lookup-of-expression dicts strings
+> :{;"a";1+1;"b";2*3}?"b"
+= 6
+
+@ dicts.edict-nested dicts
+> :{;1;:{;2;3}}
+= :{[1 :{[2 3]}]}
+
+@ dicts.edict-newlines dicts
+> :{;1;2
+>   ;3;4
+> }
+= :{[1 2] [3 4]}
+
+@ dicts.edict-in-function-is-fresh dicts
+> f::{:{;1;x}}
+> p::f(1)
+> p,[2 2]
+> f(5)
+= :{[1 5]}
+
+@ dicts.edict-evaluated-in-order dicts
+> n::0
+> t::{n::n+1;n}
+> :{;t();t();t();t()}
+= :{[1 2] [3 4]}
+
+@ dicts.edict-later-key-wins dicts
+> :{;1;2;1;3}
+= :{[1 3]}
+
+@ dicts.edict-size dicts
+> #:{;1;2;3;4}
+= 2
+
+@ dicts.edict-as-argument dicts
+> f::{x?1}
+> f(:{;1;7})
+= 7
+
+@ dicts.edict-odd-count dicts
+> :{;1;2;3}
+! syntax
+
+@ dicts.edict-empty-slot dicts
+> :{;1;;2}
+! syntax
+
+@ dicts.edict-trailing-separator dicts
+> :{;1;2;}
+! syntax
+
+@ dicts.edict-list-key dicts
+> :{;[1 2];3}
+! type
+
+# Format
+@ dicts.format-of-dict dicts strings
+> $:{[1 2]}
+= ":{[1 2]}"
+
+@ dicts.format-of-empty-dict dicts strings
+> $:{}
+= ":{}"
 
 # Size, atoms, each
 @ dicts.dict-size dicts
@@ -236,8 +434,16 @@
 > :{[1]}
 ! syntax
 
-@ dicts.dict-join-dict-dict dicts
-> :{[1 2]},:{[3 4]}
+@ dicts.dict-join-atom dicts
+> :{[1 2]},5
+! type
+
+@ dicts.dict-join-list-of-three dicts
+> :{[1 2]},[1 2 3]
+! type
+
+@ dicts.dict-join-string dicts strings
+> :{[1 2]},"ab"
 ! type
 
 @ dicts.dict-amend-unsupported dicts

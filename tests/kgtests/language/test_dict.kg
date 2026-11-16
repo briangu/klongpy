@@ -1,0 +1,62 @@
+:" Dictionaries: evaluated literal, nested literals, merge, lookup with @ (ticket 063)"
+
+:" test_dict_evaluated_literal "
+dea::5
+de1:::{;"k";dea;"s";dea*2}
+t("de1?""k"""; de1?"k"; 5)
+t("de1?""s"""; de1?"s"; 10)
+t(":{;""a"";1+1;""b"";2*3}?""b"""; :{;"a";1+1;"b";2*3}?"b"; 6)
+t(":{;}"; :{;}; :{})
+t(":{;1;2;3;4}"; :{;1;2;3;4}; :{[1 2] [3 4]})
+
+:" test_dict_evaluated_literal_multiline "
+de2:::{;"a";1
+        ;"b";2
+}
+t("de2?""b"""; de2?"b"; 2)
+
+:" test_dict_evaluated_literal_in_a_function "
+DMK::{:{;"n";x;"sq";x*x}}
+t("DMK(3)?""sq"""; DMK(3)?"sq"; 9)
+de3::DMK(1);de4::DMK(2)
+de3,"extra",,1
+t("each call makes a new dictionary"; $de4?"extra"; ":undefined")
+
+:" test_dict_evaluated_literal_nested "
+de5:::{;"GET";:{;"/";2};"l";[;dea;dea+1]}
+t("(de5?""GET"")?""/"""; (de5?"GET")?"/"; 2)
+t("de5?""l"""; de5?"l"; [5 6])
+
+:" test_dict_nested_literal_is_a_dictionary "
+dn1:::{["GET" :{["/" 2]}]}
+t("(dn1?""GET"")?""/"""; (dn1?"GET")?"/"; 2)
+dn2::[:{[1 2]} :{[1 3]}]
+t("(dn2@1)?1"; (dn2@1)?1; 3)
+t("#[:{} :{}]"; #[:{} :{}]; 2)
+
+:" test_dict_merge "
+dm1:::{[1 2]};dm2:::{[3 4]}
+t("dm1,dm2"; dm1,dm2; :{[1 2] [3 4]})
+t("dm1 shows the merge"; dm1; :{[1 2] [3 4]})
+t("dm2 is unchanged"; dm2; :{[3 4]})
+t("the right dictionary wins"; :{[1 2] [3 4]},:{[3 5]}; :{[1 2] [3 5]})
+t(":{},:{}"; :{},:{}; :{})
+
+:" test_dict_pair_join_is_unchanged "
+t("[1 2],:{[1 0]}"; [1 2],:{[1 0]}; :{[1 2]})
+t(":{[1 0]},[1 2]"; :{[1 0]},[1 2]; :{[1 2]})
+dA::[:{} :{}];dA::dA,,:{}
+t("list,,dict appends a dictionary"; #dA; 3)
+
+:" test_dict_lookup_with_at "
+dl:::{["k" 1] [:s 2] [3 4]}
+t("dl@""k"""; dl@"k"; 1)
+t("dl@:s"; dl@:s; 2)
+t("dl@3"; dl@3; 4)
+t("$dl@""z"""; $dl@"z"; ":undefined")
+t("$dl@7"; $dl@7; ":undefined")
+t("$dl?""z"""; $dl?"z"; ":undefined")
+t("dl@[3 3]"; dl@[3 3]; [4 4])
+
+:" test_dict_format "
+t("$:{[1 2]}"; $:{[1 2]}; ":{[1 2]}")

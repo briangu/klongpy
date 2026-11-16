@@ -2,6 +2,7 @@
 import unittest
 
 from klongpy import KlongInterpreter
+from tests.backend_compat import dtype_kind
 
 
 def py(x):
@@ -29,7 +30,7 @@ class Ticket016(unittest.TestCase):
 
     def test_range_numeric_keeps_dtype(self):
         r = KlongInterpreter()('?[3 1 3 2]')
-        self.assertEqual(r.dtype.kind, "i")
+        self.assertEqual(dtype_kind(r), "i")
 
     def test_range_object_cases(self):
         self.assertEqual(self.run_kg('?["b" "a" "b"]'), ["b", "a"])

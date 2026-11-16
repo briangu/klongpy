@@ -20,7 +20,7 @@ from .lexer import ERR_CHAR_EOF
 from .errors import KlongSyntaxError, KlongSyntaxWarning, UnexpectedChar, UnexpectedEOF, compat
 
 from .types import (
-    KGSym, KGQSym, KGChar, KGOp, KGCond, KGCall, KGFn, KGLambda,
+    KGSym, KGQSym, KGChar, KGOp, KGCond, KGCall, KGFn, KGLambda, KGDestructure,
     reserved_fn_symbol_map,
     safe_eq, is_list, is_symbolic, is_adverb
 )
@@ -375,6 +375,19 @@ class KGExprArray(list):
     source = None
 
 
+class KGExprDict(KGExprArray):
+    """
+    Container for an evaluated dictionary literal :{;key1;value1;key2;value2}
+    (ticket 063): the unevaluated key and value expressions, alternating.
+    Each evaluation of the literal evaluates them left to right and builds a
+    new dictionary (KlongInterpreter._eval_dict).
+
+    A subclass of KGExprArray so that everything that walks the expressions
+    of an evaluated list walks these too; code that must tell them apart
+    tests for this class first.
+    """
+
+
 def read_expr_array(klong, t, i=0):
     """
     Parse an evaluated array constructor: [;expr1;expr2;...]
@@ -479,11 +492,161 @@ def tk_issue(lx, code, message, span, hint=None, note=None):
 def tk_assign_hint(left):
     """The hint for an assignment whose left side is the expression left, not a name (ticket 050)."""
     if isinstance(left, KGFn) and isinstance(left.a, KGSym) and isinstance(left.args, list):
-        return f"to define a function write {left.a}::{{...}} and use x, y and z for its arguments"
+        return (f"to define a function write {left.a}::{{...}} and use x, y and z for its arguments, "
+                f"or name its parameters: f(a;b)::{{...}}, with plain names between the parentheses")
     if isinstance(left, KGFn) and left.is_op() and left.a.a == '@':
         return "to change an element use amend, a:=value,index"
     if is_list(left):
         return "assign one name at a time: a::1;b::2"
+    return None
+
+
+_DESTRUCTURE_HINT = "write [a b c]::value with plain names, one for each element of value"
+
+
+def tk_destructure(lx, j):
+    """
+    Ticket 060. The list literal whose '[' is the token at index j is the
+    left side of '::'. True if it is a list of plain names (at least one,
+    none of x, y, z or .f, none twice): the statement is a destructuring
+    assignment. Any other list is not one: a syntax error at strict level 1
+    and above; at level 0 a warning, and False is returned (the assignment
+    stays what it was: it binds nothing).
+    """
+    toks = lx.toks
+    names = []
+    seen = set()
+    why = None
+    hint = _DESTRUCTURE_HINT
+    i = j + 1
+    while True:
+        tok = toks[i]
+        k = tok[0]
+        if k == 'RBRACK' or k == 'EOF':
+            break
+        if k == 'NEWLINE' and not tok[5]:
+            i += 1
+            continue
+        if k == 'NAME':
+            v = tok[3]
+            if v in reserved_fn_symbol_map:
+                why = why or "x, y and z are the arguments of a function and cannot be assigned"
+            elif v == '.f':
+                why = why or ".f is the running function and cannot be assigned"
+            elif v in seen:
+                why = why or f"{v} is named twice"
+            seen.add(v)
+            names.append(v)
+        elif k == 'LBRACK':
+            why = "nested lists are not supported"
+            hint = "destructure in two steps: [a t]::value;[b c]::t"
+            break
+        else:
+            why = why or "the list on the left of :: must hold only names"
+            if k == 'OP' and tok[3] == '_':
+                hint = "there is no skip marker: name every element"
+        i += 1
+    if why is None and not names:
+        why = "the list on the left of :: is empty"
+    if why is not None:
+        m = _matching(toks, j)
+        end = toks[m][2] if m is not None else toks[j][2]
+        tk_issue(lx, 'not-a-destructuring', f"cannot destructure: {why}", (toks[j][1], end),
+                 hint=hint, note="nothing is assigned")
+        return False
+    return True
+
+
+class NamedDef:
+    """
+    Parser scratch (ticket 061): the left side of f(a;b)::{...} while the
+    right side is being read: the name being defined and its parameters.
+    """
+    __slots__ = ('name', 'params')
+
+    def __init__(self, name, params):
+        self.name = name
+        self.params = params
+
+
+def tk_named_def(lx, a, st, lend):
+    """
+    Ticket 061. a, the left side of '::', is a call. If it is a call of a
+    plain name whose arguments are all plain names, f(a;b;c), the statement
+    defines f with those parameters: returns a NamedDef. Parameters may not be
+    x, y or z and may not repeat: a syntax error at strict level 1 and above
+    and, at level 0, a warning (None is returned: the assignment stays what
+    it was and defines nothing). Any other call is not this form: None.
+    """
+    if not (type(a) is KGCall and type(a.a) is KGSym and type(a.args) is list and a.op_span is not None):
+        return None
+    if a.a in reserved_fn_symbol_map.values() or lx.text[a.op_span[0]] == '{':
+        return None                     # x(a)::..., {f}(a)::...
+    params = a.args
+    for q in params:
+        if type(q) is not KGSym:
+            return None                 # f(a;1), f(a;:b), f(a;g(b)), ...
+    why = None
+    seen = set()
+    for q in params:
+        if q in reserved_fn_symbol_map.values():
+            why = "x, y and z cannot be parameter names"
+            break
+        if q in seen:
+            why = f"{str.__str__(q).split('`')[0]} is named twice"
+            break
+        seen.add(q)
+    if why is not None:
+        name = str.__str__(a.a).split('`')[0]
+        tk_issue(lx, 'not-a-definition', f"cannot define {name} with named parameters: {why}", (st, lend),
+                 hint="name each parameter once, with names other than x, y and z: f(a;b)::{a+b}",
+                 note="nothing is defined")
+        return None
+    return NamedDef(a.a, tuple(params))
+
+
+def tk_direct_arg(toks, i, end):
+    """
+    Ticket 061. toks[i] is the '{' of a function literal that ends before
+    index end. Returns the first token that is x, y or z used by that
+    function itself, or None: a nested function literal has its own x, y and
+    z, and in a list or dictionary literal a name is a symbol, not a use.
+    """
+    stack = []      # 'c' code brackets, 'f' nested function, 'l' data list, 'd' data dictionary
+    data = fn = 0
+    i += 1
+    while i < end:
+        tok = toks[i]
+        k = tok[0]
+        if data:
+            if k == 'LBRACK':
+                stack.append('l')
+                data += 1
+            elif k == 'DICT':
+                stack.append('d')
+                data += 1
+            elif (k == 'RBRACK' and stack[-1] == 'l') or (k == 'RBRACE' and stack[-1] == 'd'):
+                stack.pop()
+                data -= 1
+        elif k == 'NAME':
+            if not fn and tok[3] in reserved_fn_symbol_map:
+                return tok
+        elif k == 'LBRACE':
+            stack.append('f')
+            fn += 1
+        elif k == 'LBRACK' or k == 'DICT':
+            nt = toks[i+1]
+            if nt[0] == 'SEMI' and not nt[4]:
+                stack.append('c')       # [;...] and :{;...} hold expressions
+            else:
+                stack.append('l' if k == 'LBRACK' else 'd')
+                data += 1
+        elif k == 'LPAREN' or k == 'CALLP' or k == 'COND':
+            stack.append('c')
+        elif k == 'RPAREN' or k == 'RBRACK' or k == 'RBRACE':
+            if stack and stack.pop() == 'f':
+                fn -= 1
+        i += 1
     return None
 
 
@@ -642,13 +805,15 @@ def tk_dict(lx, entries, span):
     """
     try:
         return list_to_dict(entries)
-    except (IndexError, TypeError) as e:
+    except (IndexError, TypeError, KeyError) as e:
+        # (KeyError: the entry is itself a dictionary literal, ticket 063)
         if isinstance(e, TypeError) and 'unhashable' in str(e):
             msg = "a list cannot be a dictionary key"
         else:
             msg = "each entry of a dictionary literal must be a [key value] pair"
         cls = compat(KlongSyntaxError, IndexError if isinstance(e, IndexError) else TypeError)
-        raise cls(msg, span=span, hint="write :{[key1 value1] [key2 value2]}") from e
+        raise cls(msg, span=span, hint="write :{[key1 value1] [key2 value2]}, or :{;key1;value1;key2;value2} "
+                                       "to have the keys and values evaluated") from e
 
 
 def tk_raise(lx, tok, neg=False):
@@ -783,8 +948,13 @@ def tk_read_list(klong, lx, j, close):
             j, q = tk_read_list(klong, lx, j + 1, 'RBRACK')
             append(q)
         elif k == 'DICT':
+            # A dictionary literal inside a list or dictionary literal is a
+            # dictionary value (ticket 063; it used to be an unevaluated
+            # call). The literal that holds it is copied each time it is
+            # evaluated, and the nested dictionary with it: see _factor.
             j, q = tk_read_list(klong, lx, j + 1, 'RBRACE')
-            append(KGCall(copy_lambda, args=tk_dict(lx, q, (tok[1], toks[j-1][2])), arity=0))
+            append(tk_dict(lx, q, (tok[1], toks[j-1][2])))
+            lx.dicts_read += 1
         elif k == 'COP' or k == 'CALLP':
             append(KGOp(tok[3], 0))
             j += 1
@@ -970,3 +1140,68 @@ def tk_read_expr_array(klong, lx, st):
     a.arg_spans = tuple(sp)
     a.source = lx.source
     return a
+
+
+_EDICT_HINT = "write :{;key1;value1;key2;value2}"
+
+
+def tk_read_expr_dict(klong, lx, st):
+    """
+    Ticket 063. The read position is just after ':{;' (the ';' directly
+    follows the ':{'); st is the offset of the ':{'. Key and value
+    expressions alternate, separated by ';'; newlines between them are
+    skipped. ':{;}' is the empty dictionary. A key without a value and an
+    empty slot are syntax errors at every strict level.
+    """
+    toks = lx.toks
+    r = []
+    sp = []
+
+    def skip():
+        j = lx.pos
+        tok = toks[j]
+        while tok[0] == 'NEWLINE':
+            j += 1
+            tok = toks[j]
+        lx.pos = j
+        return tok
+
+    tok = skip()
+    if tok[0] == 'RBRACE':
+        lx.pos += 1
+    else:
+        while True:
+            tok = skip()
+            k = tok[0]
+            if k == 'EOF':
+                lx.at_end = True
+                tk_unterminated(lx, ('DICT', st, st + 2), 'RBRACE')
+                break
+            if k == 'SEMI' or k == 'RBRACE':
+                raise KlongSyntaxError("missing expression in a dictionary literal", span=(tok[1], tok[2]),
+                                       hint=_EDICT_HINT)
+            expr = klong._expr(lx, True)
+            r.append(';' if expr is SEMI else expr)
+            sp.append((lx.start, lx.end()))
+            tok = skip()
+            k = tok[0]
+            if k == 'SEMI':
+                lx.pos += 1
+            elif k == 'RBRACE':
+                lx.pos += 1
+                break
+            elif k == 'EOF':
+                lx.at_end = True
+                tk_unterminated(lx, ('DICT', st, st + 2), 'RBRACE')
+                break
+            else:
+                raise KlongSyntaxError(f"expected ';' or '}}' but found {_lexeme(lx, tok)}", span=(tok[1], tok[2]),
+                                       hint=_EDICT_HINT)
+    if len(r) % 2:
+        raise KlongSyntaxError("the last key of the dictionary literal has no value", span=(st, lx.end()),
+                               hint=_EDICT_HINT + ": keys and values alternate")
+    d = KGExprDict(r)
+    d.span = (st, lx.end())
+    d.arg_spans = tuple(sp)
+    d.source = lx.source
+    return d

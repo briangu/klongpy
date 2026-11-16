@@ -22,6 +22,7 @@ from klongpy.dump import dump_text
 from klongpy.errors import UnexpectedChar
 from klongpy.lexer import Lexer, Source
 from klongpy.types import KGFn
+from tests.backend_compat import to_numpy
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -44,6 +45,7 @@ def run(text, level=0, setup=()):
 
 
 def same(a, b):
+    a, b = to_numpy(a), to_numpy(b)  # a tensor on the torch backend
     if isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
         return np.array_equal(np.asarray(a), np.asarray(b))
     return a == b
@@ -378,7 +380,8 @@ class TestAdverbNotAfterVerb(unittest.TestCase):
 
 class TestDictionaryEntries(unittest.TestCase):
     def test_not_pairs_is_a_syntax_error_at_every_level(self):
-        for text, also in [(":{;1;2}", IndexError), (":{1 2", TypeError), (":{[1]}", IndexError), (":{1}", TypeError),
+        # (":{;1;2}" was one of these until ticket 063 made it the evaluated literal)
+        for text, also in [(":{ ;1;2}", IndexError), (":{1 2", TypeError), (":{[1]}", IndexError), (":{1}", TypeError),
                            (":{[[1 2] 3]}", TypeError), ("[1 :{[1]}]", IndexError)]:
             for level in (0, 1):
                 with self.subTest(text=text, level=level):
@@ -394,7 +397,8 @@ class TestDictionaryEntries(unittest.TestCase):
                         self.assertIsNotNone(e.hint)
 
     def test_goldens_of_the_two_reader_crashes(self):
-        self.assertEqual(dump_text(":{;1;2}"), "(error KlongSyntaxError)\n")
+        self.assertEqual(dump_text(":{ ;1;2}"), "(error KlongSyntaxError)\n")
+        self.assertEqual(dump_text(":{;1;2}"), "(edict (num 1) (num 2))\n")     # ticket 063
         self.assertEqual(dump_text(":{1 2"), "(error KlongSyntaxError)\n")
 
 

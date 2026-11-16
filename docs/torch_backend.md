@@ -33,7 +33,7 @@ klong = KlongInterpreter(backend="torch", device="cuda")
 |---------|---------------|-----------------|
 | Default | Yes | No (use `--backend torch`) |
 | Object dtype | Yes | No |
-| String operations | Yes | Not supported |
+| String operations | Yes | Yes (strings and mixed lists are numpy object arrays on the host, not tensors) |
 | GPU acceleration | No | Yes (CUDA/MPS) |
 | Autograd | Numeric only | Native autograd |
 | Small array performance | Faster | Slightly slower |

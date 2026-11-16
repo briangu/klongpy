@@ -299,7 +299,7 @@ class Lexer:
     nl_comment flag.
     """
     __slots__ = ('source', 'text', 'toks', 'pos', 'trivia', 'start', 'at_end', '_base', 'nl_comment',
-                 'strict', 'issues')
+                 'strict', 'issues', 'last_list', 'dicts_read')
 
     def __init__(self, source, pos=0, nl_comment=True):
         if isinstance(source, str):
@@ -313,6 +313,8 @@ class Lexer:
         self.at_end = False     # parser scratch: a read ran into end of input
         self.strict = 0         # parser scratch: the strict level this text is parsed at
         self.issues = []        # parser scratch: what the parser accepted with a warning (parser.tk_issue)
+        self.last_list = None   # parser scratch: (value, index of its '[') of the last list literal read as a factor
+        self.dicts_read = 0     # parser scratch: dictionary literals read as data, inside a list or dictionary literal
         self.nl_comment = nl_comment
         self._base = (0, pos)   # (token index, offset): where lexing last (re)started
         _lex(self.text, pos, self.toks, self.trivia, False, nl_comment)

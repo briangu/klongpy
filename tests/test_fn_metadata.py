@@ -19,6 +19,7 @@ import unittest
 import numpy as np
 
 from klongpy import KlongInterpreter
+from tests.backend_compat import plain
 from klongpy.dump import dump, dump_text
 from klongpy.lexer import Source
 from klongpy.parser import KGExprArray
@@ -63,7 +64,7 @@ class TestBehaviourIsUnchanged(unittest.TestCase):
         self.assertEqual(run("a::7", "f::{[a];a::x;a}", "f(1);a"), 7)
         self.assertEqual(run("f::{[a];a::x;a+1}", "g::f;g(2)"), 3)
         self.assertEqual(run("f::{[a];a::x;a+y}", "g::f(;10)", "g(2)"), 12)
-        self.assertTrue(np.array_equal(run("{[a];a::x;a+1}'!5"), [1, 2, 3, 4, 5]))
+        self.assertEqual(plain(run("{[a];a::x;a+1}'!5")), [1, 2, 3, 4, 5])  # plain: a tensor on any device
 
     def test_a_local_named_like_a_parameter_does_not_shadow_it(self):
         self.assertEqual(run("{[x];x}(3)"), 3)
@@ -346,11 +347,18 @@ def literals(tree, out):
 class TestCorpus(unittest.TestCase):
     """Every function literal in tests/kgtests, klongpy/lib and examples against the old code."""
 
+    # Written with the syntax of tickets 060, 061 and 063 (destructuring, named parameters,
+    # evaluated dictionary literal), which the old code and the legacy parser do not have.
+    NEW_SYNTAX = ("tests/kgtests/language/test_destructuring.kg", "tests/kgtests/language/test_named_params.kg",
+                  "tests/kgtests/language/test_dict.kg", "examples/1brc/worker.kg",
+                  "examples/stocks/options/black-scholes.kg", "examples/autograd/compile_demo.kg")
+
     def sources(self):
+        skip = {os.path.join(ROOT, *q.split("/")) for q in self.NEW_SYNTAX}
         for d in ("tests/kgtests", "klongpy/lib", "examples"):
             for dp, _, fns in os.walk(os.path.join(ROOT, d)):
                 for name in sorted(fns):
-                    if name.endswith(".kg"):
+                    if name.endswith(".kg") and os.path.join(dp, name) not in skip:
                         path = os.path.join(dp, name)
                         with open(path, newline="") as f:
                             yield os.path.relpath(path, ROOT), f.read()

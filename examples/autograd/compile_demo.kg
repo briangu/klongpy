@@ -110,7 +110,7 @@ compilemode::"default"
 .p("")
 
 :" Compile with selectable options"
-compileopts:::{};compileopts,"mode",,compilemode;compileopts,"backend",,compilebackend
+compileopts:::{;"mode";compilemode;"backend";compilebackend}
 cf::.compilex(f1;3.0;compileopts)
 cpoly::.compilex(poly;2.0;compileopts)
 

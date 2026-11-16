@@ -31,19 +31,41 @@ FIXTURES = "tests/golden/fixtures"
 # (see CHANGED_BY_031 below): the legacy parser, which is frozen, still gives
 # what their goldens recorded before.
 FIXTURES_031 = {"s2_cond_ws_before_second_semi.kg", "s2_cond_ws_both.kg", "s2_space_before_adverb.kg",
-                "s2_dict_empty_slot.kg", "s6_unterminated_dict.kg"}
+                "s6_unterminated_dict.kg"}
+
+# Files with the syntax of tickets 060 (destructuring), 061 (named parameters)
+# and 063 (evaluated dictionary literal, nested dictionary literals), which
+# only the token parser has: the t060_*, t061_* and t063_* fixtures, the three
+# fixtures that held the place of that syntax, a fixture with a nested
+# dictionary literal, and the sources written with it.
+FILES_06X = {"s2_destructuring_slot.kg", "s2_named_params_slot.kg", "s2_dict_empty_slot.kg", "x_dict_nested.kg",
+             "test_destructuring.kg", "test_named_params.kg", "test_dict.kg"}
+PREFIXES_06X = ("t060_", "t061_", "t063_")
+EXAMPLES_06X = (os.path.join("examples", "1brc", "worker.kg"),
+                os.path.join("examples", "stocks", "options", "black-scholes.kg"),
+                os.path.join("examples", "autograd", "compile_demo.kg"))
 
 
-def kg_files(*dirs, t023=False, t031=False):
+def is_06x(path):
+    fn = os.path.basename(path)
+    return fn in FILES_06X or fn.startswith(PREFIXES_06X) or path.endswith(EXAMPLES_06X)
+
+
+def kg_files(*dirs, t023=False, t031=False, t06x=False):
     """
-    Every .kg file under dirs. The t023_* fixtures hold the ticket 023 literals
-    and the FIXTURES_031 ones the syntax ticket 031 changed: the places where
-    the two parsers differ on purpose. They are left out unless asked for.
+    Every .kg file under dirs. The t023_* fixtures hold the ticket 023 literals,
+    the FIXTURES_031 ones the syntax ticket 031 changed and FILES_06X the
+    syntax tickets 060, 061 and 063 added: the places where the two parsers
+    differ on purpose. They are left out unless asked for.
     """
     for d in dirs:
         for dp, _, fns in os.walk(os.path.join(ROOT, d)):
             for fn in sorted(fns):
-                if fn.endswith(".kg") and (t023 or not fn.startswith("t023_")) and (t031 or fn not in FIXTURES_031):
+                if not fn.endswith(".kg"):
+                    continue
+                if not t06x and is_06x(os.path.join(dp, fn)):
+                    continue
+                if (t023 or not fn.startswith("t023_")) and (t031 or fn not in FIXTURES_031):
                     yield os.path.join(dp, fn)
 
 
@@ -127,7 +149,7 @@ QUIRKS = [
     "[-0cx]", "[-0c", "[1 [-0cx 2] 3] 4", ":{[-0cx 1]}", "f([-0cx])", "1 [-0cx", "[-1.2.3]", "[-3e]",
     # data mode
     "[1;2]", "[a b :c x y z]", "[+ - :: :~ \\~ :( ]", "[( ) { } :[ :| ;]", "[1 [2 [3]] []]", ":{[1 2] [3 4]}", ":{}",
-    ':{"ab"}', "[:{[1 2]} 3]", ":{[1 :{[2 3]}]}", "[1 2}", "[.comment(\"x\") 1 x 2]",
+    ':{"ab"}', "[1 2}", "[.comment(\"x\") 1 x 2]",
     # numbers, characters, names
     ":123", ":0cx", ".5", "1.2.3", "3e", "1e-", "1e-)", "1e+5", "10c", "0c", "1+0c", ":0c", "[0c", "1 1.2.3", "1 0c",
     "my_var::5", "é::1", "²", "∇f", "x:", ": 1", ":\n1", "-:123", "1:?2", ":!1", ":&", ":,", ":<", "1::5", '"a"::5', "(a)::5",
@@ -170,12 +192,40 @@ CHANGED_BY_031 = {
     "{x} '[1 2]": ("(error KlongSyntaxError)\n", '(d "\'" (fn 1 (arg x)) (list (num 1) (num 2)))\n'),
     "(f)'[1 2]": ("(error KlongSyntaxError)\n", '(d "\'" (sym f) (list (num 1) (num 2)))\n'),
     # a dictionary literal whose entries are not pairs: a syntax error, not a crash of the reader
-    ":{;1;2}": ("(error KlongSyntaxError)\n", "(error IndexError)\n"),
+    ":{ ;1;2}": ("(error KlongSyntaxError)\n", "(error IndexError)\n"),
     ":{1}": ("(error KlongSyntaxError)\n", "(error TypeError)\n"),
     ":{[[1 2] 3]}": ("(error KlongSyntaxError)\n", "(error TypeError)\n"),
     ":{[1 2]]}": ("(error KlongSyntaxError)\n", "(error IndexError)\n"),
     ':{[1 2] :"c"\n}': ("(error KlongSyntaxError)\n", "(error IndexError)\n"),
 }
+
+
+# Where tickets 060, 061 and 063 make the token parser differ from the legacy
+# parser on purpose, at every strict level: input -> (dump on the token
+# parser, dump on the legacy parser). The last two dump alike: the nested
+# literal is a dictionary on the token parser and an unevaluated call on the
+# legacy parser.
+CHANGED_BY_06X = {
+    "[a b]::[1 2]": ("(destructure (a b) (list (num 1) (num 2)))\n", "(def (list (sym a) (sym b)) (list (num 1) (num 2)))\n"),
+    "f(a;b)::{a+b}": ('(def (sym f) (fn 2 (params a b) (d "+" (sym a) (sym b))))\n',
+                      '(def (call (sym f) (sym a) (sym b)) (fn 0 (d "+" (sym a) (sym b))))\n'),
+    ":{;1;2}": ("(edict (num 1) (num 2))\n", "(error IndexError)\n"),
+    "[:{[1 2]} 3]": ("(list (dict ((num 1) (num 2))) (num 3))\n",) * 2,
+    ":{[1 :{[2 3]}]}": ("(dict ((num 1) (dict ((num 2) (num 3)))))\n",) * 2,
+}
+
+
+def changed_by_06x(text):
+    """
+    True when a text of the random differential test may hold the syntax of
+    tickets 060 and 063 (its fragments cannot spell a named-parameter
+    definition): a list on the left of '::', or a dictionary literal inside a
+    list or a dictionary literal.
+    """
+    kinds = [t.kind for t in tokenize(text) if t.kind != "NEWLINE"]
+    if "DICT" in kinds and (kinds.count("DICT") > 1 or "LBRACK" in kinds):
+        return True
+    return any(a == "RBRACK" and b == "OP" for a, b in zip(kinds, kinds[1:])) and "]::" in "".join(text.split())
 
 
 def changed_by_031(text, token, legacy):
@@ -199,6 +249,20 @@ class TestSameTreeAsLegacy(unittest.TestCase):
                 self.assertEqual(dump_text(text, parser="legacy"), legacy)
                 self.assertTrue(changed_by_031(text, parse(text, "token"), parse(text, "legacy")))
 
+    def test_changed_by_06x(self):
+        for text, (token, legacy) in CHANGED_BY_06X.items():
+            with self.subTest(text=text):
+                self.assertEqual(dump_text(text, parser="token"), token)
+                self.assertEqual(dump_text(text, parser="legacy"), legacy)
+                self.assertNotEqual(parse(text, "token"), parse(text, "legacy"))
+
+    def test_ticket_06x_files_parse_on_the_token_parser(self):
+        paths = [p for p in kg_files(*SOURCE_DIRS, t06x=True) if is_06x(p)]
+        self.assertEqual(len(paths), 6)
+        for path in paths:
+            with self.subTest(path=os.path.relpath(path, ROOT)):
+                self.assertEqual(parse(read(path), "token")[0], "ok")
+
     def test_files_compat_dump(self):
         """Old and new parser give identical dump(compat=True) for every .kg file and every fixture."""
         n = 0
@@ -208,7 +272,7 @@ class TestSameTreeAsLegacy(unittest.TestCase):
                 self.assertEqual(dump_text(text, compat=True, parser="token"),
                                  dump_text(text, compat=True, parser="legacy"))
             n += 1
-        self.assertGreater(n, 190)
+        self.assertGreater(n, 184)
 
     def test_files_full_dump(self):
         """The full dump (quoted symbols shown) agrees too: KGQSym is built by both."""
@@ -341,6 +405,8 @@ class TestSameTreeAsLegacy(unittest.TestCase):
                 continue
             if a != b and changed_by_031(text, b, a):
                 continue
+            if a != b and changed_by_06x(text):
+                continue
             compared += 1
             self.assertEqual(b, a, repr(text))
         self.assertGreater(compared, 3000)
@@ -358,7 +424,7 @@ class TestEvaluationOfObservedTable(unittest.TestCase):
 
     CASES = ["f (1)", "1 2 3+4 5", "{x}(1)(2)", '"abc', "[1 2 3", "1+1 )", "1+1 ]", "1+1 }", "x@", "f::", "a::{x+1};a (1)",
              "1 -2", "-1+2", "[1 -2]", "[1-2]", "[1 - 2]", "[1 +2]", "[1;2]", ":123", ".5", ":foo", "foo::5;:foo",
-             "foo::5;{x}'[:foo :bar]", '{x :"c"\n+2}(1)', "{x\n+2}(1)", '[1 2 :"c"\n3]', "[a b]::[1 2];a", "f(a;b)::{a+b}",
+             "foo::5;{x}'[:foo :bar]", '{x :"c"\n+2}(1)', "{x\n+2}(1)", '[1 2 :"c"\n3]',
              "1::5", '"a"::5', "(a)::5;a", ":!1", "10c", ":[1;2 ;3]", ":[1;2;3 ]", "(1+2", "1+", "-", "#",
              "1.2.3", "3e", "0c", "my_var::5", "1:?2"]
 
@@ -519,7 +585,7 @@ class TestSpans(unittest.TestCase):
     def test_every_node_of_every_file_has_a_span_at_its_first_token(self):
         k = KlongInterpreter(parser="token")
         nodes = 0
-        for path in kg_files(*SOURCE_DIRS, FIXTURES):
+        for path in kg_files(*SOURCE_DIRS, FIXTURES, t06x=True):
             text = read(path)
             saved = k._module
             try:

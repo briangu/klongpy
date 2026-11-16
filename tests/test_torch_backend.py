@@ -268,10 +268,12 @@ class TestTorchCoreIntegration(unittest.TestCase):
         self.assertEqual(len(result), 5)
         self.assertEqual(list(result), ['h', 'e', 'l', 'l', 'o'])
 
-    def test_str_to_chr_arr_fails(self):
-        """Test that str_to_chr_arr fails."""
-        with self.assertRaises(UnsupportedDtypeError):
-            str_to_chr_arr("hello")
+    def test_str_to_chr_arr_is_a_numpy_char_array(self):
+        """A string is a numpy object array of characters on torch too (ticket 028; it raised before)."""
+        r = str_to_chr_arr("hello")
+        self.assertIsInstance(r, np.ndarray)
+        self.assertEqual(r.dtype, object)
+        self.assertEqual(list(r), ['h', 'e', 'l', 'l', 'o'])
 
     def test_kg_asarray_jagged_returns_object_array(self):
         """Test that kg_asarray falls back to numpy object array for jagged arrays."""

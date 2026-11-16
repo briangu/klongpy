@@ -197,7 +197,7 @@ class TestCallbacks(unittest.TestCase):
         k(".srv.o::{opened::opened,,x}")
         with self.assertNoLogs(level="WARNING"):
             h._call_hook(".srv.o", 3)
-        self.assertEqual(np.asarray(k("opened")).tolist(), [3])
+        self.assertEqual(k._backend.to_numpy(k("opened")).tolist(), [3])  # to_numpy: a tensor on any device
 
 
 if __name__ == "__main__":
