@@ -9,6 +9,9 @@ from . import KlongInterpreter
 from .utils import CallbackEvent
 
 
+PENDING_TASK_TIMEOUT = 5.0
+
+
 class LoopStopper:
     def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         self._loop = loop
@@ -49,16 +52,16 @@ def cleanup_async_loop(loop: asyncio.AbstractEventLoop, loop_thread: threading.T
     loop.call_soon_threadsafe(stop_event.set)
     loop_thread.join()
 
+    # The loop thread has exited, so the loop is not running: drive it here until
+    # the cancelled tasks have finished (bounded, so a task that ignores
+    # cancellation cannot hang the caller).
     pending_tasks = asyncio.all_tasks(loop=loop)
     if len(pending_tasks) > 0:
         if name:
             print(f"WARNING: pending tasks in {name} loop")
         for task in pending_tasks:
-            loop.call_soon_threadsafe(task.cancel)
-        while len(asyncio.all_tasks(loop=loop)) > 0:
-            time.sleep(0)
-
-    loop.stop()
+            task.cancel()
+        loop.run_until_complete(asyncio.wait(pending_tasks, timeout=PENDING_TASK_TIMEOUT))
 
     if not loop.is_closed():
         loop.close()
@@ -67,9 +70,11 @@ def cleanup_async_loop(loop: asyncio.AbstractEventLoop, loop_thread: threading.T
 def append_pkg_resource_path_KLONGPATH() -> None:
     with importlib.resources.as_file(importlib.resources.files('klongpy')) as pkg_path:
         pkg_lib_path = os.path.join(pkg_path, 'lib')
+        pkg_lib_path = str(pkg_lib_path)
         klongpath = os.environ.get('KLONGPATH', '.:lib')
-        klongpath = f"{klongpath}:{pkg_lib_path}" if klongpath else str(pkg_lib_path)
-        os.environ['KLONGPATH'] = klongpath
+        if pkg_lib_path in klongpath.split(':'):
+            return
+        os.environ['KLONGPATH'] = f"{klongpath}:{pkg_lib_path}" if klongpath else pkg_lib_path
 
 
 def create_repl(debug: bool = False, backend: Optional[str] = None, device: Optional[str] = None):

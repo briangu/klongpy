@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 import logging
 import pickle
 import struct
@@ -24,6 +25,20 @@ class KlongIPCConnectionFailureException(KlongIPCException):
 
 class KlongIPCCreateConnectionException(KlongIPCException):
     pass
+
+
+DEFAULT_CALL_TIMEOUT = 30.0
+CLOSE_TIMEOUT = 5.0
+
+
+def get_system(klong):
+    """Return the interpreter's `.system` dictionary (ioloop, klongloop, closeEvent)."""
+    try:
+        return klong['.system']
+    except KeyError:
+        # TODO(040): KlongSystemError
+        raise KlongException(".system is not defined: this interpreter was not created by create_repl "
+                             "(IPC needs .system with ioloop, klongloop and closeEvent)") from None
 
 
 class KGRemoteCloseConnection():
@@ -270,6 +285,8 @@ class NetworkClient(KGLambda):
         self.reader: StreamReader = None
         self.writer: StreamWriter = None
         self._run_exit_event = threading.Event()
+        # deadline in seconds for each call; None disables it. Settable per handle.
+        self.call_timeout = DEFAULT_CALL_TIMEOUT
 
         if shutdown_event is not None:
             self.shutdown_event.subscribe(self.close)
@@ -282,9 +299,13 @@ class NetworkClient(KGLambda):
         From the KlongPy perspective, any outstanding remote calls will fail with the close_exception.
 
         """
-        for future in self.pending_responses.values():
-            future.set_exception(close_exception)
+        if close_exception is None:
+            close_exception = KlongIPCConnectionClosedException(f"connection closed: {str(self.conn_provider)}")
+        pending = list(self.pending_responses.values())
         self.pending_responses.clear()
+        for future in pending:
+            if not future.done():
+                future.set_exception(close_exception)
 
     def run_client(self):
         """
@@ -424,24 +445,48 @@ class NetworkClient(KGLambda):
             logging.warning(f"unexpected error: {type(e)} {e}")
             raise e
 
-    def call(self, msg):
+    def call(self, msg, timeout=...):
         """
 
         Send a message to the remote server and wait for the response.
+
+        The call fails after "timeout" seconds (default: self.call_timeout, None for no limit).
+        A timed out call closes the connection and every pending request on it fails with the same error.
 
         """
         if not self.is_open():
             raise KlongException("connection not established")
 
+        if timeout is ...:
+            timeout = self.call_timeout
         msg_id = uuid.uuid4()
         future = self.ioloop.create_future()
         self.pending_responses[msg_id] = future
 
         async def send_message_and_get_result():
-            await stream_send_msg(self.writer, msg_id, msg)
-            return await future
+            writer = self.writer
+            if writer is None:
+                self.pending_responses.pop(msg_id, None)
+                raise KlongIPCConnectionFailureException(f"connection lost: {str(self.conn_provider)}")
+            try:
+                await stream_send_msg(writer, msg_id, msg)
+                return await asyncio.wait_for(future, timeout)
+            except asyncio.TimeoutError:
+                self.pending_responses.pop(msg_id, None)
+                err = KlongIPCConnectionFailureException(f"call timed out after {timeout}s: {str(self.conn_provider)}")
+                self._cleanup_pending_responses(err)
+                if writer is self.writer:
+                    writer.close()
+                raise err from None
 
-        return asyncio.run_coroutine_threadsafe(send_message_and_get_result(), self.ioloop).result()
+        cf = asyncio.run_coroutine_threadsafe(send_message_and_get_result(), self.ioloop)
+        try:
+            return cf.result(None if timeout is None else timeout + CLOSE_TIMEOUT)
+        except concurrent.futures.TimeoutError:
+            cf.cancel()
+            self.pending_responses.pop(msg_id, None)
+            # TODO(040): KlongSystemError
+            raise KlongIPCConnectionFailureException(f"call timed out after {timeout}s: {str(self.conn_provider)}") from None
 
     def __call__(self, _, ctx):
         """
@@ -464,13 +509,14 @@ class NetworkClient(KGLambda):
     def _stop(self):
         """
 
-        Stop the network client.
-        First send the KGRemoteCloseConnection message to the server to tell it to close the connection.
+        Stop the network client and wait (bounded) for the run loop to exit.
 
         """
         self.running = False
-        self._run_exit_event.wait()
-        self._run_exit_event.clear()
+        if self._run_exit_event.wait(CLOSE_TIMEOUT):
+            self._run_exit_event.clear()
+        else:
+            logging.warning(f"timed out waiting for the client to stop: {str(self.conn_provider)}")
 
     def cleanup(self):
         """
@@ -478,11 +524,11 @@ class NetworkClient(KGLambda):
         Cleanup the network client and the underlying connection.
 
         """
-        if not self.running:
-            return
-
         if self.shutdown_event is not None:
             self.shutdown_event.unsubscribe(self.close)
+
+        if not self.running:
+            return
 
         # run close in the appropriate context task to avoid deadlock
         try:
@@ -493,8 +539,13 @@ class NetworkClient(KGLambda):
             else:
                 raise RuntimeError()
         except RuntimeError:
+            self.running = False
+            # close the connection first: it wakes a run loop that is blocked reading
+            try:
+                asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result(CLOSE_TIMEOUT)
+            except (concurrent.futures.TimeoutError, OSError, RuntimeError) as e:
+                logging.warning(f"error closing connection {str(self.conn_provider)}: {e}")
             self._stop()
-            asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result()
 
     def close(self):
         """
@@ -502,11 +553,17 @@ class NetworkClient(KGLambda):
         Close the network client and the underlying connection.
 
         Sends a message to the server to tell it to gracefully close the connection.
+        If the connection is already gone or the peer does not answer, the client is closed anyway.
 
         """
         if not self.running:
             return
-        self.call(KGRemoteCloseConnection())
+        if self.is_open():
+            timeout = CLOSE_TIMEOUT if self.call_timeout is None else min(self.call_timeout, CLOSE_TIMEOUT)
+            try:
+                self.call(KGRemoteCloseConnection(), timeout=timeout)
+            except (KlongException, KlongIPCException) as e:
+                logging.info(f"close: peer did not acknowledge: {e}")
         self.cleanup()
 
     def is_open(self):
@@ -668,39 +725,102 @@ class TcpServerConnectionHandler:
 
 
 class TcpServerHandler:
+    """
+
+    The IPC server of one interpreter. Each interpreter keeps its own handler in its `.system` dictionary.
+
+    All socket work happens on the ioloop. create_server and shutdown_server may be called from any
+    other thread and return once the listening socket is bound, or closed.
+
+    """
     def __init__(self):
         self.connection_handler = None
-        self.task = None
+        self.ioloop = None
         self.server = None
+        self.shutdown_event = None
         self.connections = []
 
-    def create_server(self, ioloop, klongloop, klong, bind, port, shutdown_event=None):
-        if self.task is not None:
+    def create_server(self, ioloop, klongloop, klong, bind, port, shutdown_event=None, timeout=CLOSE_TIMEOUT * 2):
+        """
+
+        Start listening. Returns 1 when the socket is bound, 0 if this handler is already serving.
+        Raises KlongException if the socket cannot be bound.
+
+        """
+        if self.server is not None:
             return 0
         self.connection_handler = TcpServerConnectionHandler(ioloop, klongloop, klong, shutdown_event=shutdown_event)
-        self.task = ioloop.call_soon_threadsafe(asyncio.create_task, self.run_server(bind, port))
+        self.ioloop = ioloop
+        where = f"{bind or '0.0.0.0'}:{port}"
+        cf = asyncio.run_coroutine_threadsafe(self.run_server(bind, port), ioloop)
+        try:
+            cf.result(timeout)
+        except concurrent.futures.TimeoutError:
+            cf.cancel()
+            self._reset()
+            # TODO(040): KlongSystemError
+            raise KlongException(f"cannot listen on {where}: timed out") from None
+        except OSError as e:
+            self._reset()
+            # TODO(040): KlongSystemError
+            raise KlongException(f"cannot listen on {where}: {e.strerror or e}") from None
+        self.shutdown_event = shutdown_event
+        if shutdown_event is not None:
+            shutdown_event.subscribe(self.shutdown_server)
         return 1
 
-    def shutdown_server(self):
-        if self.task is None:
-            return 0
-        for writer in self.connections:
+    def _reset(self):
+        self.connection_handler = None
+        self.server = None
+        self.ioloop = None
+
+    async def _close(self, server, connections):
+        server.close()
+        for writer in connections:
             if not writer.is_closing():
                 writer.close()
+        try:
+            await asyncio.wait_for(server.wait_closed(), CLOSE_TIMEOUT)
+        except asyncio.TimeoutError:
+            logging.warning("IPC server: timed out waiting for connections to close")
+
+    def shutdown_server(self):
+        """
+
+        Stop listening and drop the client connections. Returns 1 if a server was stopped, else 0.
+
+        """
+        server, ioloop = self.server, self.ioloop
+        if server is None:
+            return 0
+        connections = list(self.connections)
         self.connections.clear()
-        if self.server:
-            self.server.close()
+        if self.shutdown_event is not None:
+            self.shutdown_event.unsubscribe(self.shutdown_server)
+            self.shutdown_event = None
         self.server = None
-        self.task.cancel()
-        self.task = None
-        self.connection_handler = None
+        self.ioloop = None
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+        if running is ioloop:
+            # cannot block the ioloop on its own work
+            ioloop.create_task(self._close(server, connections))
+        else:
+            try:
+                asyncio.run_coroutine_threadsafe(self._close(server, connections), ioloop).result(CLOSE_TIMEOUT * 2)
+            except (concurrent.futures.TimeoutError, RuntimeError) as e:
+                logging.warning(f"IPC server: error while shutting down: {e}")
         return 1
 
     async def handle_client(self, reader, writer):
         self.connections.append(writer)
+        handler = self.connection_handler
 
         try:
-            await self.connection_handler.handle_client(reader, writer)
+            if handler is not None:
+                await handler.handle_client(reader, writer)
         finally:
             writer.close()
             if writer in self.connections:
@@ -710,6 +830,7 @@ class TcpServerHandler:
         self.server = await asyncio.start_server(self.handle_client, bind, port, reuse_address=True, start_serving=True)
         addr = self.server.sockets[0].getsockname()
         logging.info(f'Serving IPC on {addr}')
+
 
 class NetworkClientDictHandle(dict):
     def __init__(self, nc: NetworkClient):
@@ -743,6 +864,14 @@ class NetworkClientDictHandle(dict):
             import traceback
             traceback.print_exception(type(e), e, e.__traceback__)
             raise e
+
+    @property
+    def call_timeout(self):
+        return self.nc.call_timeout
+
+    @call_timeout.setter
+    def call_timeout(self, seconds):
+        self.nc.call_timeout = seconds
 
     def close(self):
         return self.nc.close()
@@ -815,10 +944,10 @@ def eval_sys_fn_create_client(klong, x):
     x = x.a if isinstance(x,KGCall) else x
     if isinstance(x,NetworkClient):
         return x
-    system = klong['.system']
+    system = get_system(klong)
     ioloop = system['ioloop']
     klongloop = system['klongloop']
-    shutdown_event = system['closeEvent']
+    shutdown_event = system.get('closeEvent')
     nc = x.nc if isinstance(x,NetworkClientDictHandle) else NetworkClient.create_from_addr(ioloop, klongloop, klong, shutdown_event, x).run_client()
     return nc
 
@@ -872,10 +1001,10 @@ def eval_sys_fn_create_dict_client(klong, x):
     x = x.a if isinstance(x,KGCall) else x
     if isinstance(x,NetworkClientDictHandle):
         return x
-    system = klong['.system']
+    system = get_system(klong)
     ioloop = system['ioloop']
     klongloop = system['klongloop']
-    shutdown_event = system['closeEvent']
+    shutdown_event = system.get('closeEvent')
     nc = x if isinstance(x,NetworkClient) else NetworkClient.create_from_addr(ioloop, klongloop, klong, shutdown_event, x).run_client()
     return NetworkClientDictHandle(nc)
 
@@ -901,9 +1030,6 @@ def eval_sys_fn_shutdown_client(x):
     return 0
 
 
-_ipc_tcp_server = TcpServerHandler()
-
-
 def eval_sys_fn_create_ipc_server(klong, x):
     """
 
@@ -916,25 +1042,32 @@ def eval_sys_fn_create_ipc_server(klong, x):
 
         if "x" is 0, then the server is closed and existing client connections are dropped.
 
+        Returns 1 when the server is listening and 0 if it was already started
+        (or, for 0, if there was no server). If the port cannot be bound, an error
+        is raised.
+
+        Each interpreter has its own server, so several interpreters may serve
+        different ports.
+
+        Security: a bare port listens on all interfaces (0.0.0.0), and a client can
+        run any Klong code in this interpreter. KlongPy assumes every peer is
+        trusted. To limit access, bind to localhost, as in .srv("127.0.0.1:8888"),
+        and firewall the port. Never expose it to an untrusted network or the
+        internet.
+
     """
     x = str(x)
     parts = x.split(":")
     bind = parts[0] if len(parts) > 1 else None
     port = int(parts[0] if len(parts) == 1 else parts[1])
-    system = klong['.system']
-    shutdown_event = system['closeEvent']
+    system = get_system(klong)
+    server = system.get('ipc_server')
+    if server is None:
+        server = system.setdefault('ipc_server', TcpServerHandler())
     if len(parts) == 1 and port == 0:
-        shutdown_event.unsubscribe(_ipc_tcp_server.shutdown_server)
-        return _ipc_tcp_server.shutdown_server()
-    ioloop = system['ioloop']
-    klongloop = system['klongloop']
-    # subscribe to the shutdown event and run shutdown_server in the klong loop
-    async def async_shutdown_in_klongloop():
-        _ipc_tcp_server.shutdown_server()
-    def shutdown_in_klongloop():
-        klongloop.call_soon_threadsafe(asyncio.create_task, async_shutdown_in_klongloop())
-    shutdown_event.subscribe(shutdown_in_klongloop)
-    return _ipc_tcp_server.create_server(ioloop, klongloop, klong, bind, port, shutdown_event=shutdown_event)
+        return server.shutdown_server()
+    return server.create_server(system['ioloop'], system['klongloop'], klong, bind, port,
+                                shutdown_event=system.get('closeEvent'))
 
 
 class KGAsyncCall(KGLambda):
@@ -986,7 +1119,7 @@ def eval_sys_fn_create_async_wrapper(klong, x, y):
         raise KlongException("x must be a function")
     if not (issubclass(type(y),KGFn) or issubclass(type(x),KGLambda)):
         raise KlongException("y must be a function")
-    system = klong['.system']
+    system = get_system(klong)
     klongloop = system['klongloop']
     # KGAsyncCall will wrap the callbacks automatically
     return KGAsyncCall(klongloop, x, y, klong)
