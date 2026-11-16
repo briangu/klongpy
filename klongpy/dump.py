@@ -44,9 +44,11 @@ Expression mode (the object is something that will be evaluated):
     None                                    _
 
 Function bodies: KGFn.a / KGCall.a of a literal is the body. A body that is a
-Python list is a statement sequence; if its first element is a non-empty data
-list holding only symbols (and ";") it is the locals declaration and is
-printed as (locals ...) and removed from BODY (same test as _run_fn).
+Python list is a statement sequence. The locals declaration is printed as
+(locals ...) and is not part of BODY: the token parser stores it apart from
+the statements (a KGBody, ticket 032, printed from its ``locals``); in a tree
+of the legacy parser it is the first element of the list, a non-empty data
+list holding only symbols (and ";"), found by the same test as at run time.
 ARITY is KGFn.arity / KGCall.arity (legacy get_fn_arity).
 
 Data mode (inside lists and dict literals): KGOp -> (op "+"), the string ";"
@@ -77,7 +79,7 @@ import json
 import os
 import sys
 
-from klongpy.types import (KGAdverb, KGCall, KGChar, KGCond, KGFn, KGLambda, KGOp, KGQSym, KGSym,
+from klongpy.types import (KGAdverb, KGBody, KGCall, KGChar, KGCond, KGFn, KGLambda, KGOp, KGQSym, KGSym,
                            reserved_fn_symbol_map)
 from klongpy.parser import KGExprArray
 
@@ -149,7 +151,10 @@ def _locals(body):
 
 
 def _fn(body, arity, compat):
-    if type(body) is list:
+    if type(body) is KGBody:
+        # the token parser stores the declaration apart from the body (ticket 032)
+        loc, stmts = [str.__str__(q) for q in body.locals], list(body)
+    elif type(body) is list:
         loc, stmts = _locals(body)
     else:
         loc, stmts = None, [body]
@@ -304,7 +309,7 @@ def node_spans(tree):
             else:
                 for q in x:
                     walk(q)
-        elif type(x) is list:
+        elif type(x) is list or type(x) is KGBody:
             for q in x:
                 walk(q)
 

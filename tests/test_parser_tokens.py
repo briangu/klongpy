@@ -10,14 +10,16 @@ import random
 import subprocess
 import sys
 import unittest
+import warnings
 
 import numpy as np
 
+from klongpy.errors import KlongSyntaxWarning
 from klongpy import KlongInterpreter
 from klongpy.dump import dump, dump_text, node_spans, parse_program
 from klongpy.lexer import Lexer, Source, tokenize
 from klongpy.parser import KGExprArray, ProgResult
-from klongpy.types import KGAdverb, KGCall, KGCond, KGFn, KGLambda, KGOp
+from klongpy.types import KGAdverb, KGBody, KGCall, KGCond, KGFn, KGLambda, KGOp
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -25,16 +27,23 @@ SOURCE_DIRS = ("tests/kgtests", "klongpy/lib", "examples")
 FIXTURES = "tests/golden/fixtures"
 
 
-def kg_files(*dirs, t023=False):
+# Fixtures on which ticket 031 changed the token parser at every strict level
+# (see CHANGED_BY_031 below): the legacy parser, which is frozen, still gives
+# what their goldens recorded before.
+FIXTURES_031 = {"s2_cond_ws_before_second_semi.kg", "s2_cond_ws_both.kg", "s2_space_before_adverb.kg",
+                "s2_dict_empty_slot.kg", "s6_unterminated_dict.kg"}
+
+
+def kg_files(*dirs, t023=False, t031=False):
     """
-    Every .kg file under dirs. The t023_* fixtures hold the ticket 023 literals,
-    the one place where the two parsers differ on purpose: they are left out
-    unless asked for.
+    Every .kg file under dirs. The t023_* fixtures hold the ticket 023 literals
+    and the FIXTURES_031 ones the syntax ticket 031 changed: the places where
+    the two parsers differ on purpose. They are left out unless asked for.
     """
     for d in dirs:
         for dp, _, fns in os.walk(os.path.join(ROOT, d)):
             for fn in sorted(fns):
-                if fn.endswith(".kg") and (t023 or not fn.startswith("t023_")):
+                if fn.endswith(".kg") and (t023 or not fn.startswith("t023_")) and (t031 or fn not in FIXTURES_031):
                     yield os.path.join(dp, fn)
 
 
@@ -61,6 +70,10 @@ def canon(x):
         return (type(x).__name__, a, args, x.arity)
     if isinstance(x, np.ndarray):
         return ("ndarray", str(x.dtype), x.shape, [canon(e) for e in x])
+    if isinstance(x, KGBody):
+        # ticket 032: the token parser keeps the locals declaration apart from the
+        # statements; the legacy tree has it as the first statement
+        return ("list", [canon(e) for e in x.full()])
     if isinstance(x, (list, tuple)):
         return (type(x).__name__, [canon(e) for e in x])
     if isinstance(x, str):
@@ -103,7 +116,7 @@ QUIRKS = [
     # the brackets that must match
     "(1+2", "(1+2 )", "{x", "{x;}", "{}", "{x }", "{x\n}", "f(1", "f(1 )", "f(1\n)", "f(\n1)", "f(1;2", ":[1;2;3", ":[1;2",
     # adjacency: calls, adverbs, the evaluated list
-    "a::{x+1};a (1)", "{x} '[1 2]", "{x}'[1 2]", "f:(1;2)", "{x-y}:(1;2)", "f :(1)", "[;1;2]", "[ ;1;2]", "[; 1 ; 2 ]",
+    "a::{x+1};a (1)", "{x}'[1 2]", "f:(1;2)", "{x-y}:(1;2)", "f :(1)", "[;1;2]", "[ ;1;2]", "[; 1 ; 2 ]",
     "+/x", "+ /x", "x+/y", "x+ /y", ",/\\~x", ",/:~x", "f@'x", "f@ 'x", "x,:\\y", "x,:'y", "x,:/y", "+/'x", "{x}/y",
     "x{y}/z", "x f/y", "x f(1)/y", ":foo(1)", "1 :foo 2", "x(1)", "x :(1)", "f(1)'x", "{x}(1)'y", "+/+/x", "+//x",
     # projections: an argument is omitted only where the separators touch
@@ -114,7 +127,7 @@ QUIRKS = [
     "[-0cx]", "[-0c", "[1 [-0cx 2] 3] 4", ":{[-0cx 1]}", "f([-0cx])", "1 [-0cx", "[-1.2.3]", "[-3e]",
     # data mode
     "[1;2]", "[a b :c x y z]", "[+ - :: :~ \\~ :( ]", "[( ) { } :[ :| ;]", "[1 [2 [3]] []]", ":{[1 2] [3 4]}", ":{}",
-    ":{;1;2}", ":{[[1 2] 3]}", ':{"ab"}', ":{1}", "[:{[1 2]} 3]", ":{[1 :{[2 3]}]}", "[1 2}", ":{[1 2]]}", "[.comment(\"x\") 1 x 2]",
+    ':{"ab"}', "[:{[1 2]} 3]", ":{[1 :{[2 3]}]}", "[1 2}", "[.comment(\"x\") 1 x 2]",
     # numbers, characters, names
     ":123", ":0cx", ".5", "1.2.3", "3e", "1e-", "1e-)", "1e+5", "10c", "0c", "1+0c", ":0c", "[0c", "1 1.2.3", "1 0c",
     "my_var::5", "é::1", "²", "∇f", "x:", ": 1", ":\n1", "-:123", "1:?2", ":!1", ":&", ":,", ":<", "1::5", '"a"::5', "(a)::5",
@@ -122,7 +135,7 @@ QUIRKS = [
     ":foo", "foo::5;:foo", ":x", "[:foo :bar]", "f(:a;:b)", ":.f",
     # newlines
     "1\n2", "1\n\n2\n", "{x\n+2}(1)", "{x\n;+2}", '{x :"c"\n+2}(1)', '[1 2 :"c"\n3]', '{x :"c"\n}', '{x\n:"c"\n}',
-    '[1 2 :"c"\n]', '[1 :"c1"\n :"c2"\n 2]', ':{[1 2] :"c"\n}', '[1 :"c"\n\n2]', '[1 :"c"\n :"d"\n]', "{+/\nx}", "{x+/\ny}",
+    '[1 2 :"c"\n]', '[1 :"c1"\n :"c2"\n 2]', '[1 :"c"\n\n2]', '[1 :"c"\n :"d"\n]', "{+/\nx}", "{x+/\ny}",
     "{x+/y\n+z}", "(1\n)", "(\n1)", "(\n)", "(;)", "(;)1", "((;))", "(\n)\n1", '[;1 :"c"\n;2]', '[;1;\n2\n]', '[;1 :"c"\n2]',
     '[;1; :"c"\n :"d"\n 2]', "[;1;;2]", ':[1 :"c"\n;2;3]', ':[1;2 :"c"\n;3]', ":[1;2\n;3]", ":[1;2;3\n]", ':[1;2;3 :"c"\n]',
     "a::[1 2\n3 4]\nb::2", "f::{[a];\n a::x;\n a}\n", "1;;2", ";", "\n", "", "   ", ";;1",
@@ -130,7 +143,7 @@ QUIRKS = [
     "{0c\n }", "f(0c\n )", "f(0c\n ;1)", ":[0c\n ;1;2]", "(0c\n )", '{0c\n :"c"\n1}', "{1+0c\n }", '{"\n"\n}', "f(1;0c\n\n)",
     "[;0c\n ;1]", "0c\n 1", "{x;0c\n\n\n}",
     # conditionals
-    ":[1;2;3]", ":[ 1 ; 2 ; 3 ]", ":[1 ;2;3]", ":[1;2 ;3]", ":[1;2;3 ]", ":[a;1:|b;2;3]", ":[a;1 :| b;2;3]", ":[a;1:|b;2:|c;3;4]",
+    ":[1;2;3]", ":[1;2 ;3]", ":[1;2;3 ]", ":[a;1:|b;2;3]", ":[a;1 :| b;2;3]", ":[a;1:|b;2:|c;3;4]",
     ":[;1;2]", ":[1;;2]", ":[1;2:|3]", ":[1;2;3;4]", ":[:[1;2;3];4;5]", ":[1]",
     # .comment and .module
     '.comment("END")\nfoo "bar\nEND\n1', '.comment("END") 1', '.comment("*")\nx\n****\n2', ".comment()", ".comment(1)",
@@ -144,7 +157,48 @@ QUIRKS = [
 ]
 
 
+# Where ticket 031 makes the token parser differ from the legacy parser on
+# purpose, at every strict level (the legacy parser is frozen): input ->
+# (dump on the token parser, dump on the legacy parser).
+CHANGED_BY_031 = {
+    # whitespace and newlines are allowed between a condition and its ';'
+    ":[ 1 ; 2 ; 3 ]": ("(cond (num 1) (num 2) (num 3))\n", "(error UnexpectedChar)\n"),
+    ":[1 ;2;3]": ("(cond (num 1) (num 2) (num 3))\n", "(error UnexpectedChar)\n"),
+    ":[1\n;2;3]": ("(cond (num 1) (num 2) (num 3))\n", "(error UnexpectedChar)\n"),
+    ":[0 ;1:|1 ;2;3]": ("(cond (num 0) (num 1) (cond (num 1) (num 2) (num 3)))\n", "(error UnexpectedChar)\n"),
+    # an adverb where a dyadic operator is expected is a syntax error when parsed
+    "{x} '[1 2]": ("(error KlongSyntaxError)\n", '(d "\'" (fn 1 (arg x)) (list (num 1) (num 2)))\n'),
+    "(f)'[1 2]": ("(error KlongSyntaxError)\n", '(d "\'" (sym f) (list (num 1) (num 2)))\n'),
+    # a dictionary literal whose entries are not pairs: a syntax error, not a crash of the reader
+    ":{;1;2}": ("(error KlongSyntaxError)\n", "(error IndexError)\n"),
+    ":{1}": ("(error KlongSyntaxError)\n", "(error TypeError)\n"),
+    ":{[[1 2] 3]}": ("(error KlongSyntaxError)\n", "(error TypeError)\n"),
+    ":{[1 2]]}": ("(error KlongSyntaxError)\n", "(error IndexError)\n"),
+    ':{[1 2] :"c"\n}': ("(error KlongSyntaxError)\n", "(error IndexError)\n"),
+}
+
+
+def changed_by_031(text, token, legacy):
+    """
+    True when two parse() outcomes differ only because of a deliberate change
+    of ticket 031 (see CHANGED_BY_031), for the random differential test.
+    """
+    if token[0] == "error" and token[1] == "KlongSyntaxError" and (
+            token[2].startswith("adverb ") or "dictionary" in token[2]):
+        return True
+    # the ';' after a condition no longer has to be adjacent
+    return legacy[0] == "error" and legacy[1] == "UnexpectedChar" and legacy[2].endswith("char: ;") and (
+        ":[" in text or ":|" in text)
+
+
 class TestSameTreeAsLegacy(unittest.TestCase):
+    def test_changed_by_031(self):
+        for text, (token, legacy) in CHANGED_BY_031.items():
+            with self.subTest(text=text):
+                self.assertEqual(dump_text(text, parser="token"), token)
+                self.assertEqual(dump_text(text, parser="legacy"), legacy)
+                self.assertTrue(changed_by_031(text, parse(text, "token"), parse(text, "legacy")))
+
     def test_files_compat_dump(self):
         """Old and new parser give identical dump(compat=True) for every .kg file and every fixture."""
         n = 0
@@ -169,6 +223,15 @@ class TestSameTreeAsLegacy(unittest.TestCase):
             text = read(path)
             with self.subTest(path=os.path.relpath(path, ROOT)):
                 self.assertEqual(parse(text, "token"), parse(text, "legacy"))
+
+    def test_ticket_031_fixtures_differ(self):
+        paths = [p for p in kg_files(FIXTURES, t031=True) if os.path.basename(p) in FIXTURES_031]
+        self.assertEqual(len(paths), len(FIXTURES_031))
+        for path in paths:
+            text = read(path)
+            with self.subTest(path=os.path.relpath(path, ROOT)):
+                self.assertNotEqual(dump_text(text, parser="token"), dump_text(text, parser="legacy"))
+                self.assertTrue(changed_by_031(text, parse(text, "token"), parse(text, "legacy")))
 
     def test_ticket_023_fixtures_are_the_only_ones_that_differ(self):
         paths = [p for p in kg_files(FIXTURES, t023=True) if os.path.basename(p).startswith("t023_")]
@@ -204,8 +267,7 @@ class TestSameTreeAsLegacy(unittest.TestCase):
             "f(0c\n )": '(call (sym f) (char "\\n"))\n',
             "f(1 )": "(error UnexpectedChar)\n",
             "1 :foo 2": "(infix (sym foo) (num 1) (num 2))\n",
-            "{{f}}": "(error TypeError)\n",
-            ":{;1;2}": "(error IndexError)\n",
+            "{{f}}": "(fn 0 (fn 0 (sym f)))\n",        # was a TypeError in get_fn_arity until ticket 032
             ".comment()": "(error IndexError)\n",
             ".comment(1)": "(error TypeError)\n",
             '.comment("END") 1': "(error KlongSyntaxError)\n",   # also a RuntimeError
@@ -228,7 +290,7 @@ class TestSameTreeAsLegacy(unittest.TestCase):
         for text, cls, msg in [("(1+2", "UnexpectedChar", "t: (1+2 pos: 4 char: )"),
                                ("(  ", "UnexpectedChar", "t: (   pos: 3 char: )"),
                                ("{x  \n ", "UnexpectedChar", "t:   \n  pos: 6 char: }"),
-                               (":[1 ;2;3]", "UnexpectedChar", "t: 1 ;2;3] pos: 3 char: ;"),
+                               (":[1 2;3]", "UnexpectedChar", "t: [1 2;3] pos: 3 char: ;"),
                                ("f(1 )", "UnexpectedChar", "t: f(1 ) pos: 3 char: )"),
                                ("1+0c", "UnexpectedEOF", "t: 1+0c pos: 4"),
                                ("3e", "KlongSyntaxError", "could not convert string to float: '3e'"),
@@ -277,6 +339,8 @@ class TestSameTreeAsLegacy(unittest.TestCase):
                 # .comment can end inside later text and uncover a ticket 023 literal
                 # that neither token list above shows; too rare to be worth modelling
                 continue
+            if a != b and changed_by_031(text, b, a):
+                continue
             compared += 1
             self.assertEqual(b, a, repr(text))
         self.assertGreater(compared, 3000)
@@ -285,11 +349,18 @@ class TestSameTreeAsLegacy(unittest.TestCase):
 class TestEvaluationOfObservedTable(unittest.TestCase):
     """frontend.md section 2: each input gives the same result on both parsers."""
 
+    def setUp(self):
+        # these inputs are malformed on purpose: ticket 031 warns about them at strict level 0
+        cw = warnings.catch_warnings()
+        cw.__enter__()
+        self.addCleanup(cw.__exit__, None, None, None)
+        warnings.simplefilter("ignore", KlongSyntaxWarning)
+
     CASES = ["f (1)", "1 2 3+4 5", "{x}(1)(2)", '"abc', "[1 2 3", "1+1 )", "1+1 ]", "1+1 }", "x@", "f::", "a::{x+1};a (1)",
              "1 -2", "-1+2", "[1 -2]", "[1-2]", "[1 - 2]", "[1 +2]", "[1;2]", ":123", ".5", ":foo", "foo::5;:foo",
              "foo::5;{x}'[:foo :bar]", '{x :"c"\n+2}(1)', "{x\n+2}(1)", '[1 2 :"c"\n3]', "[a b]::[1 2];a", "f(a;b)::{a+b}",
-             "1::5", '"a"::5', "(a)::5;a", ":!1", "10c", ":[1;2 ;3]", ":[1;2;3 ]", "(1+2", "1+", "-", "#", ":[ 1 ; 2 ; 3 ]",
-             ":[1 ;2;3]", "{x} '[1 2]", "1.2.3", "3e", "0c", "my_var::5", ":{;1;2}", "1:?2"]
+             "1::5", '"a"::5', "(a)::5;a", ":!1", "10c", ":[1;2 ;3]", ":[1;2;3 ]", "(1+2", "1+", "-", "#",
+             "1.2.3", "3e", "0c", "my_var::5", "1:?2"]
 
     @staticmethod
     def outcome(text, parser):
@@ -362,10 +433,13 @@ class TestSpans(unittest.TestCase):
         r = self.prog(text)
         fn = r[1][0].args[1]
         self.assertEqual(fn.span, (3, 19))
-        self.assertEqual(fn.body_spans, ((4, 7), (8, 12), (15, 18)))
+        # the locals declaration is not a statement of the stored body (ticket 032)
+        self.assertEqual(fn.locals_span, (4, 7))
+        self.assertEqual(fn.body_spans, ((8, 12), (15, 18)))
+        self.assertEqual(len(fn.body_spans), len(fn.a))
         self.assertIs(fn.source, r.source)
         self.assertEqual(fn.source.text, text)
-        self.assertEqual(fn.source.line_col(fn.body_spans[2][0]), (2, 2))
+        self.assertEqual(fn.source.line_col(fn.body_spans[1][0]), (2, 2))
         self.assertIsNone(fn.arg_spans)
         self.assertIs(r[1][0].source, r.source)     # every node with a span records its source (ticket 040)
 
@@ -497,14 +571,14 @@ class TestSpans(unittest.TestCase):
                 else:
                     if x.body_spans is not None:
                         self.assertIs(x.source, source)
-                        self.assertEqual(len(x.body_spans), len(a) if type(a) is list else 1)
+                        self.assertEqual(len(x.body_spans), len(a) if type(a) in (list, KGBody) else 1)
                     n += self.walk(a, source, starts, ends)
                 n += self.walk(x.args, source, starts, ends)
             else:
                 self.assertEqual(len(x.arg_spans), len(x))
                 for q in x:
                     n += self.walk(q, source, starts, ends)
-        elif type(x) is list:
+        elif type(x) is list or type(x) is KGBody:
             for q in x:
                 n += self.walk(q, source, starts, ends)
         return n

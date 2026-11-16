@@ -2,7 +2,7 @@
 .pyf("numpy";["std" "mean"])
 .l("yfinance.kg")
 
-T::fetch("MSFT";"2020-01-01"; "2023-01-01"])
+T::fetch("MSFT";"2020-01-01"; "2023-01-01")
 
 :" get close prices "
 close::T?"Close"

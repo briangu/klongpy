@@ -50,7 +50,7 @@
 (call (sym t) (str "[1 2 3 4]?[1 2] returns []") (d "?" (list (num 1) (num 2) (num 3) (num 4)) (list (num 1) (num 2))) (list))
 (call (sym t) (str "[[1 2] 3 4]?[1 2] returns [0]") (d "?" (list (list (num 1) (num 2)) (num 3) (num 4)) (list (num 1) (num 2))) (list (num 0)))
 (call (sym t) (str "[[[1 2] [3 4]] [[5 6] [7 8]]]?[[5 6] [7 8]] returns [1]") (d "?" (list (list (list (num 1) (num 2)) (list (num 3) (num 4))) (list (list (num 5) (num 6)) (list (num 7) (num 8)))) (list (list (num 5) (num 6)) (list (num 7) (num 8)))) (list (num 1)))
-(call (sym t) (infix (call (sym .rs) (str "-5")) (opval "'") (d "-" (sym returns) (d "-" (infix (call (sym .rs) (str "-5")) (d "'" (num 5) (str ";")) (str ";")) (num 5)))))
+(call (sym t) (str ".rs(\"-5\") returns -5") (call (sym .rs) (str "-5")) (m "-" (num 5)))
 (def (sym PATH) (list (list (num 0) (num 0)) (list (num 0) (num 0))))
 (def (sym V) (list (list (num 0) (num 0))))
 (def (sym SP) (fn 3 (def (sym PATH) (d ":-" (sym PATH) (d "," (arg z) (d "," (arg x) (arg y)))))))

@@ -5,10 +5,12 @@ import os
 import pickle
 import tempfile
 import unittest
+import warnings
 
 import klongpy
 import klongpy.interpreter
 import klongpy.types
+from klongpy.errors import KlongSyntaxWarning
 from klongpy import KlongInterpreter, KlongException
 from klongpy.errors import (
     ERROR_KINDS, KlongArityError, KlongError, KlongInternalError, KlongInterrupt, KlongMemoryError,
@@ -221,6 +223,13 @@ class TestSyntaxErrors(unittest.TestCase):
 
 
 class TestMissingOperands(unittest.TestCase):
+    def setUp(self):
+        # these inputs are malformed on purpose: ticket 031 warns about them at strict level 0
+        cw = warnings.catch_warnings()
+        cw.__enter__()
+        self.addCleanup(cw.__exit__, None, None, None)
+        warnings.simplefilter("ignore", KlongSyntaxWarning)
+
     def test_dyad_without_right_operand(self):
         e = raised(KlongInterpreter(), "1+")
         self.assertIs(type(e), KlongSyntaxError)

@@ -1,5 +1,6 @@
 import os
 import time
+import warnings
 from collections import deque
 
 from .adverbs import get_adverb_fn
@@ -14,11 +15,13 @@ from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
 from .types import KGQSym
 from .errors import (KlongError, KlongInternalError, KlongNameError, KlongRangeError, KlongSyntaxError,
+                     KlongSyntaxWarning,
                      adverb_name, classify, compat, is_passthrough, operator_error, operator_name,
                      python_error, system_error)
 from .lexer import Lexer, Source
-from .parser import (SEMI, ProgResult, tk_check, tk_comment_end, tk_peek_adverb, tk_raise, tk_read_cond,
-                     tk_read_data, tk_read_expr_array)
+from .parser import (ADVERB_GLYPHS, SEMI, ProgResult, tk_adverb_error, tk_check, tk_comment_end, tk_finish,
+                     tk_index_hint, tk_juxtaposed, tk_missing_operand, tk_peek_adverb, tk_raise, tk_read_cond,
+                     tk_read_data, tk_read_expr_array, tk_stray, tk_warnings)
 from .utils import ReadonlyDict
 from .compiler import compile_guarded, run_compiled, NOT_COMPILED, LRUCache
 
@@ -300,6 +303,8 @@ class KlongInterpreter():
         # __call__ and exec, and so by .l, .E and file runs, which go through
         # them. See current_source().
         self._sources = []
+        # warnings.warn_explicit registries, one per Source (see _warn)
+        self._warn_registry = {}
 
     @property
     def backend(self):
@@ -404,8 +409,11 @@ class KlongInterpreter():
         oe = toks[lx.pos-1][2]
         # legacy: the operand is read without ignore_newline, wherever we are
         r = self._expr(lx)
-        if r is SEMI:
-            r = ';'
+        if r is None or r is SEMI:
+            # ticket 031: the chain has nothing to apply to
+            tk_missing_operand(lx, lx.text[ost:oe], (ost, oe), right=dyad)
+            if r is SEMI:
+                r = ';'
         arr.append([dyad_value,r] if dyad else r)
         # Parser-built: the operand expressions are the last element of arr
         # and are evaluated by chain_adverbs.
@@ -457,6 +465,7 @@ class KlongInterpreter():
         # legacy: an argument is omitted only where a ';' or the ')' directly
         # follows the previous separator, with nothing in between.
         sep = j
+        fresh = True    # nothing read since the '(' or the last separator
         while True:
             j = lx.pos
             tok = toks[j]
@@ -470,12 +479,17 @@ class KlongInterpreter():
                     arr.append(None)
                     spans.append(None)
                 lx.pos = sep = j + 1
+                fresh = True
                 continue
             elif k == 'RPAREN':
                 if j == sep and not tok[4]:
                     arr.append(None)
                     spans.append(None)
                 break
+            if not fresh and k != 'EOF':
+                # ticket 031: "f(1 2)", "f(q[0])". No separator since the last
+                # argument: what follows was silently one more argument.
+                tk_juxtaposed(lx, j)
             if k == 'LBRACK':
                 # legacy: the lexeme is read here as a data list before the
                 # expression reader sees that it is an evaluated list
@@ -487,6 +501,7 @@ class KlongInterpreter():
                 break
             arr.append(';' if a is SEMI else a)     # SEMI only from "(;)"
             spans.append((lx.start, toks[lx.pos-1][2]))
+            fresh = False
         # legacy: the ')' must follow the last argument directly
         tok = toks[lx.pos]
         if tok[0] != 'RPAREN' or tok[4]:
@@ -508,7 +523,9 @@ class KlongInterpreter():
             j += 1
             tok = toks[j]
         if tok[0] != 'RBRACE':
-            raise UnexpectedChar(lx.text, tok[1], '}')
+            e = UnexpectedChar(lx.text, tok[1], '}')
+            e.hint = tk_index_hint(lx, j)               # "{q[0]}"
+            raise e
         lx.pos = j = j + 1
         arity = get_fn_arity(a)
         nt = toks[j]
@@ -525,6 +542,17 @@ class KlongInterpreter():
         f.span = (st, toks[lx.pos-1][2])
         f.body_spans = tuple(bsp)
         f.source = lx.source
+        # Function metadata, computed once here (ticket 032): locals, max_arg,
+        # uses_self. A locals declaration leaves the stored body.
+        try:
+            fn_metadata(f)
+        except Exception:
+            # the test for a declaration fails on this body, as it will when
+            # the function is called: leave it to the call
+            pass
+        if type(f.a) is KGBody:
+            f.locals_span = bsp[0]
+            f.body_spans = tuple(bsp[1:])
         return f
 
     def _factor(self, lx, ignore_newline=False):
@@ -610,15 +638,19 @@ class KlongInterpreter():
                     a = self._apply_adverbs(lx, a, aa, 1, st, st)
                 else:
                     r = self._expr(lx, ignore_newline)
-                    if r is SEMI:
-                        r = ';'
+                    missing = r is None or r is SEMI
+                    if missing:
+                        # ticket 031: warning at strict level 0, error above
+                        tk_missing_operand(lx, v, (st, tok[2]), right=False)
+                        if r is SEMI:
+                            r = ';'
                     a = KGFn(a, r, arity=1)
                     e = toks[lx.pos-1][2]
                     a.span = (st, e)
                     a.op_span = (st, tok[2])
                     a.arg_spans = (None if r is None else (lx.start, e),)
                     a.source = lx.source
-                    if r is None:
+                    if missing:
                         a.missing_operand = True
         elif k == 'LBRACK':
             nt = toks[j+1]
@@ -635,7 +667,9 @@ class KlongInterpreter():
             a = self._expr(lx, ignore_newline)
             tok = toks[lx.pos]
             if tok[0] != 'RPAREN' or tok[4]:
-                raise UnexpectedChar(lx.text, lx.offset(), ')')
+                e = UnexpectedChar(lx.text, lx.offset(), ')')
+                e.hint = tk_index_hint(lx, lx.pos)      # "(q[0])"
+                raise e
             lx.pos += 1
         elif k == 'LBRACE': # read fn
             lx.pos = j + 1
@@ -659,6 +693,7 @@ class KlongInterpreter():
             tk_raise(lx, tok)
         else:
             # ) } ] :| where a factor was expected
+            tk_stray(lx, tok)
             lx.pos = j + 1
             a = tok[3]
         lx.start = st
@@ -691,10 +726,16 @@ class KlongInterpreter():
                     tok = toks[j]
                     k = tok[0]
             if k == 'OP' or k == 'COP' or k == 'CALLP':
-                aa = KGOp(tok[3], 0)
-                # legacy: only the first operator read here has its arity set
-                if first and tok[3] in self._vd:
-                    aa.arity = 2
+                v = tok[3]
+                aa = KGOp(v, 0)
+                if v in self._vd:
+                    # legacy: only the first operator read here has its arity set
+                    if first:
+                        aa.arity = 2
+                elif v in ADVERB_GLYPHS:
+                    # ticket 031: "{x} '[1 2]". No operator is spelled like an
+                    # adverb, so this could only fail when evaluated.
+                    tk_adverb_error(lx, tok)
                 lx.pos = j + 1
             elif k == 'NAME' or k == 'QNAME':
                 v = tok[3]
@@ -726,15 +767,19 @@ class KlongInterpreter():
             else:
                 osp = (ost, toks[lx.pos-1][2])
                 r = self._expr(lx, ignore_newline)
-                if r is SEMI:
-                    r = ';'
+                missing = r is None or r is SEMI
+                if missing:
+                    # ticket 031: warning at strict level 0, error above
+                    tk_missing_operand(lx, tok[3] if k != 'LBRACE' else 'the function', osp)
+                    if r is SEMI:
+                        r = ';'
                 a = KGFn(aa, [a, r], arity=2)
                 e = toks[lx.pos-1][2]
                 a.span = (st, e)
                 a.op_span = osp
                 a.arg_spans = ((st, lend), None if r is None else (lx.start, e))
                 a.source = lx.source
-                if r is None:
+                if missing:
                     a.missing_operand = True
         if ignore_newline and isinstance(a, str) and a == '\n':
             # legacy: an expression that is just the newline character (0c
@@ -818,18 +863,44 @@ class KlongInterpreter():
                 if e.source is None and e.span is not None:
                     e.source = t if isinstance(t, Source) else Source("<string>", text)
                 raise
-        lx = Lexer(t, i)
+        # Syntax checks (ticket 031) go by the strict level in force now. At
+        # level 0 they only record warnings; at level 1 and above they raise,
+        # and a newline after a comment is an ordinary newline.
+        strict = self._context._strict_mode
+        lx = Lexer(t, i, strict == 0)
+        lx.strict = strict
         try:
             arr, spans = self._prog(lx, ignore_newline)
+            end = lx.offset()
+            tk_finish(lx)
         except KlongError as e:
             # a syntax error knows its span (offsets into this text)
             if e.source is None and e.span is not None:
                 e.source = lx.source
             raise
-        r = ProgResult((lx.offset(), arr))
+        r = ProgResult((end, arr))
         r.stmt_spans = spans
         r.source = lx.source
+        if lx.issues:
+            r.warnings = tk_warnings(lx)
         return r
+
+    def _warn(self, issued):
+        """
+        Issue the syntax warnings of a parse (ProgResult.warnings) through the
+        warnings module, with the name of the source as file name and the
+        line of the span as line number. Python's filters decide what happens
+        to them: by default each is shown once per location (a location is a
+        line of one source: a name and its text); under
+        ``-W error::klongpy.KlongSyntaxWarning`` the first one is raised.
+        """
+        regs = self._warn_registry
+        if len(regs) > 256:
+            regs.clear()
+        for w in issued:
+            source = w.source
+            warnings.warn_explicit(w, KlongSyntaxWarning, source.name, source.line_col(w.span[0])[0],
+                                   module='klongpy', registry=regs.setdefault(source, {}))
 
     # ------------------------------------------------------------------
     # Legacy grammar on the source string (parser="legacy"). Deprecated;
@@ -1059,7 +1130,7 @@ class KlongInterpreter():
             i = ii
         return i, arr
 
-    def _resolve_fn(self, f, f_args, f_arity):
+    def _resolve_fn(self, f, f_args, f_arity, node=None):
         """
 
         Resolve a Klong function to its final form and update its arguments and arity.
@@ -1076,7 +1147,10 @@ class KlongInterpreter():
             f_arity (int): The arity of the function.
 
         Returns:
-            tuple: A tuple containing the resolved function, updated arguments list, and updated arity.
+            tuple: the resolved function, the updated arguments list, the updated arity, and the
+            node (KGFn) the resolved function is the body of, which carries its metadata (locals;
+            see KGFn). The node is the one passed in when this pass resolved nothing, and None
+            when the function was not reached through a node.
 
         Details:
         - f_args is the list of arguments provided to the function during the current invocation.
@@ -1102,6 +1176,7 @@ class KlongInterpreter():
                     # if f is a symbol and it resolves to a function, then we resolve f as the function.
                     # In this case, the f_args are meant for the resolved function.
                     f = _f
+                    node = None
                 else:
                     # f is x, y or z and holds a value that is not a function.
                     # If that value is a symbol naming a function, call the
@@ -1115,19 +1190,20 @@ class KlongInterpreter():
                         except KeyError:
                             pass
                     if not isinstance(_g, (KGFn,KGLambda)):
-                        return f, f_args, f_arity
+                        return f, f_args, f_arity, node
                     f = _g
+                    node = None
             except KeyError:
                 if not in_map(f, reserved_fn_symbols):
                     raise KlongNameError(f"undefined function: {f}")
         if f_arity > 0 and isinstance(f, KGFn) and not f.is_op() and not f.is_adverb_chain():
             if f.args is None:
                 # if f.args is None, then there are no projections in place and we use f_args entirely for the function.
-                return f.a, f_args, f.arity
+                return f.a, f_args, f.arity, f
             elif has_none(f.args):
                 f_args.append(f.args if isinstance(f.args, list) else [f.args])
-                return f.a, f_args, f.arity
-        return f, f_args, f_arity
+                return f.a, f_args, f.arity, f
+        return f, f_args, f_arity, node
 
     def _eval_fn(self, x: KGFn):
         """
@@ -1172,9 +1248,9 @@ class KlongInterpreter():
         f_args = [None] if x.args is None else [x.args if isinstance(x.args, list) else [x.args]]
 
         # three passes as there are max three argumentes: x,y, and z
-        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
-        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
-        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity)
+        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node)
+        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node)
 
         f_args.reverse()
         f_args = merge_projections(f_args)
@@ -1183,7 +1259,7 @@ class KlongInterpreter():
 
         ctx = {} if f_args is None else {p: self.call(q) for p,q in zip(reserved_fn_symbols,f_args)}
 
-        return self._run_fn(f, ctx)
+        return self._run_fn(f, ctx, node)
 
     def apply(self, f, values, arity=None):
         """
@@ -1224,9 +1300,9 @@ class KlongInterpreter():
         f_args = [values]
 
         # three passes as there are max three argumentes: x,y, and z
-        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
-        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
-        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity)
+        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node)
+        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node)
 
         if len(f_args) == 1:
             # no projection involved: the values are the arguments
@@ -1242,27 +1318,40 @@ class KlongInterpreter():
                 return KGCall(fn, values, len(values) if arity is None else arity)
             values = [q.v if type(q) is _Value else self.call(q) for q in f_args]
 
-        return self._run_fn(f, dict(zip(reserved_fn_symbols, values)))
+        return self._run_fn(f, dict(zip(reserved_fn_symbols, values)), node)
 
-    def _run_fn(self, f, ctx):
+    def _run_fn(self, f, ctx, node=None):
         """
 
         Run a resolved function with its arguments bound in ctx: declare its
         locals, set .f, and evaluate the body in a new context frame.
 
+        f is the body. Its locals were found when the function was parsed
+        (ticket 032): a body that declares any is a KGBody, which carries
+        them. node is the KGFn the body was taken from, when the caller has
+        it; a node whose metadata says "no locals" needs no look at the body.
+        A body that reaches here without metadata (a KGFn built by hand or by
+        the legacy parser, or .f, which is the bare statement list) is tested
+        by the same rule, split_locals, and the result is stored on the node.
+
         """
-        if is_list(f) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0:
-            # Filter out semicolons and check if ALL remaining elements are symbols.
-            # A mixed list like [a 1] is a normal array literal, not a local declaration.
-            non_sep = [q for q in f[0] if q != ';']
-            params = [q for q in non_sep if isinstance(q, KGSym)]
-            have_locals = len(params) > 0 and len(params) == len(non_sep)
-            if have_locals:
-                for q in params:
-                    # Don't overwrite function parameters (x, y, z)
+        if type(f) is KGBody:
+            for q in f.locals:
+                # Don't overwrite function parameters (x, y, z)
+                if q not in ctx:
+                    ctx[q] = q
+            f = f.plain
+        elif node is None or node.locals is None:
+            sp = split_locals(f)
+            if sp is not None:
+                for q in sp[0]:
                     if q not in ctx:
                         ctx[q] = q
-                f = f[1:]
+                if node is not None and node.a is f:
+                    fn_metadata(node)
+                f = sp[2]
+            elif node is not None and node.a is f:
+                fn_metadata(node)
 
         ctx[reserved_dot_f_symbol] = f
 
@@ -1600,22 +1689,30 @@ class KlongInterpreter():
         """
         # Parse cache, keyed by (source, module, strict level): parsing depends
         # on the active module (symbols get module-qualified names) and syntax
-        # checks depend on the strict level. An entry is the triple (tree,
-        # statement spans, Source); tree is the statement itself when there
-        # is one, else the list of them.
+        # checks depend on the strict level. An entry is (tree, statement
+        # spans, Source, syntax warnings); tree is the statement itself when
+        # there is one, else the list of them.
+        #
+        # Syntax warnings belong to the text, not to the parse: they are
+        # issued every time the text is run, from the cache or not, so what a
+        # program prints does not depend on what the cache holds. (A function
+        # body's warnings are issued when its definition is run, never when
+        # the function is called.)
         module = self._module
         parse_key = (x, module, self._context._strict_mode)
         cached = self._parse_cache.get(parse_key)
         if cached is None:
             p = self.prog(x)
             prog = p[1]
-            cached = (prog[0] if len(prog) == 1 else prog, p.stmt_spans, p.source)
+            cached = (prog[0] if len(prog) == 1 else prog, p.stmt_spans, p.source, p.warnings)
             # A parse that switched the module (.module) has a side effect on
             # the parser that a cached tree would not repeat: do not cache it.
             m = self._module
             if m is module or (m is not None and module is not None and m == module):
                 self._parse_cache[parse_key] = cached
-        tree, spans, source = cached
+        tree, spans, source, issued = cached
+        if issued:
+            self._warn(issued)
         sources = self._sources
         sources.append(source)
         n = 0
@@ -1662,6 +1759,8 @@ class KlongInterpreter():
 
         """
         p = self.prog(x)
+        if p.warnings:
+            self._warn(p.warnings)
         spans, source = p.stmt_spans, p.source
         sources = self._sources
         sources.append(source)

@@ -34,3 +34,15 @@ To regenerate after an intended change to the parser or the dump:
 
 and review the diff. `--check` lists the files that differ. To inspect one
 file: `python -m klongpy.dump FILE`.
+
+Ticket 031 changed the token parser on purpose in three places that hold at
+every strict level, and the legacy parser was left as it is; five fixtures
+record the new result (`tests/test_parser_tokens.py::FIXTURES_031`):
+`s2_cond_ws_before_second_semi` and `s2_cond_ws_both` (whitespace before the
+first `;` of a conditional is accepted), `s2_space_before_adverb` (an adverb
+that does not follow its verb is a syntax error when parsed), and
+`s2_dict_empty_slot` and `s6_unterminated_dict` (a dictionary literal whose
+entries are not pairs is a syntax error, where the reader used to fail with an
+`IndexError` or a `TypeError`). The warnings of that ticket do not appear in
+the trees: at strict level 0, where the snapshots are taken, the tree of a
+malformed input is what it always was.

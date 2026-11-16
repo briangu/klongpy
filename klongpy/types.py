@@ -95,6 +95,31 @@ class KGFn:
     source = None
     missing_operand = False
 
+    # Function metadata (ticket 032), set once by the token parser on the node
+    # of a function literal ({...}, with or without an argument list after
+    # it). None means "not computed": the node is not a function literal, or
+    # it was built by hand or by the legacy parser. fn_metadata(node) computes
+    # and stores the fields for such a node. Nothing is evaluated to read them.
+    #
+    #   locals     tuple of KGSym: the names declared by a leading list of
+    #              symbols ({[a b];...}). The declaration is not part of the
+    #              stored body (see KGBody).
+    #   params     named parameters; None for a function of x, y and z
+    #              (ticket 061 sets it)
+    #   max_arg    the highest of x=1, y=2, z=3 the body mentions, 0 for none.
+    #              Nested function bodies count, as they do for arity: a nested
+    #              function called with fewer arguments reads the outer ones.
+    #   uses_self  the body mentions .f (outside nested function literals,
+    #              where .f is the nested function)
+    #
+    # arity keeps its legacy meaning: the number of distinct names among x, y
+    # and z that get_fn_arity finds, which is not always max_arg ({y} has
+    # arity 1 and max_arg 2).
+    locals = None
+    params = None
+    max_arg = None
+    uses_self = None
+
     def __init__(self, a, args, arity, global_params=None):
         self.a = a
         self.args = args
@@ -119,7 +144,38 @@ class KGFn:
         return isinstance(self.a, list) and isinstance(self.a[0], KGAdverb)
 
 
-_SPAN_ATTRS = frozenset(('span', 'op_span', 'arg_spans', 'body_spans', 'source'))
+_SPAN_ATTRS = frozenset(('span', 'op_span', 'arg_spans', 'body_spans', 'source', 'locals_span'))
+
+
+class KGBody(list):
+    """
+    The statements of a function body that declares locals, without the
+    declaration: {[a b];a::x;a+b} is stored as KGBody([a::x, a+b]) with
+    locals (a, b).
+
+        locals   tuple of KGSym, in the order written (the legacy rule: the
+                 first statement is a non-empty list that, ignoring ";", holds
+                 only symbols, and at least one statement follows it)
+        decl     the declaration as it was parsed (the data list)
+        plain    the same statements as a plain list: what is evaluated, and
+                 what .f is bound to. A call through .f therefore declares no
+                 locals, as before this class existed.
+
+    The body carries its locals so that a caller that holds only the body
+    (KGFnWrapper, IPC and timer callbacks pass fn.a to apply) still gets them.
+    """
+    def __init__(self, stmts, locals, decl=None):
+        list.__init__(self, stmts)
+        self.locals = tuple(locals)
+        self.decl = decl
+        self.plain = list(stmts)
+
+    def __reduce__(self):
+        return (KGBody, (list(self), self.locals, self.decl))
+
+    def full(self):
+        """The body with its declaration as first statement (the form before ticket 032)."""
+        return [self.decl if self.decl is not None else list(self.locals)] + list(self)
 
 
 class KGFnWrapper:
@@ -547,13 +603,28 @@ def merge_projections(arr):
 
 def get_fn_arity(f):
     """
-    Examine a function AST and infer arity by looking for x,y and z.
-    This arity is needed to populate the KGFn.
+    Examine a function body and infer arity by looking for x, y and z: the
+    number of distinct ones found. The parser calls this once for each
+    function literal and stores the result on the node (KGFn.arity); nothing
+    calls it at run time.
 
-    NOTE: TODO: it maybe easier / better to do this at parse time vs late.
+    The count is the historical one and is kept as it is, because arity
+    decides when a call is complete: an operand of a monad is not looked at
+    ({-x} has arity 0), and a body that is a single call of a named function
+    counts only arguments that are x, y, z or omitted ({g(x+1)} has arity 0).
+    KGFn.max_arg is the complete answer.
+
+    Argument values are never hashed (a call whose argument is a list used to
+    fail here with "unhashable type").
     """
-    if isinstance(f, KGFn) and isinstance(f.a, KGSym) and not in_map(f.a, reserved_fn_symbols):
-       return sum(1 for x in set(f.args) if in_map(x, reserved_fn_symbols) or (x is None))
+    if isinstance(f, KGFn) and isinstance(f.a, KGSym) and not in_map(f.a, reserved_fn_symbols) and isinstance(f.args, list):
+        # distinct arguments that are x, y, z or a projection hole
+        seen = []
+        for q in f.args:
+            if q is None or (isinstance(q, str) and in_map(q, reserved_fn_symbols)):
+                if not any(q is s or (q is not None and s is not None and q == s) for s in seen):
+                    seen.append(q)
+        return len(seen)
     def _e(f, level=0):
         if isinstance(f, KGFn):
             x = _e(f.a, level=1)
@@ -570,3 +641,99 @@ def get_fn_arity(f):
             x = set()
         return x if level else len(x)
     return _e(f)
+
+
+_ARG_INDEX = {reserved_fn_symbols[0]: 1, reserved_fn_symbols[1]: 2, reserved_fn_symbols[2]: 3}
+
+
+def _scan_args(f):
+    """
+    (highest of x=1 y=2 z=3 mentioned in the expression f, whether .f is
+    mentioned). Data (arrays, dictionary literals) is not code and is skipped.
+    A nested function literal contributes its max_arg and never its .f.
+    """
+    if isinstance(f, KGSym):
+        i = _ARG_INDEX.get(f)
+        if i is not None:
+            return i, False
+        return 0, f == reserved_dot_f_symbol
+    if isinstance(f, KGFn):
+        if f.max_arg is not None:
+            m, s = f.max_arg, False
+        else:
+            m, s = _scan_args(f.a)
+        args = f.args
+        if isinstance(args, list):
+            for q in args:
+                if q is not None:
+                    m2, s2 = _scan_args(q)
+                    if m2 > m:
+                        m = m2
+                    s = s or s2
+        elif args is not None and not isinstance(args, dict):
+            m2, s2 = _scan_args(args)
+            if m2 > m:
+                m = m2
+            s = s or s2
+        return m, s
+    if isinstance(f, list):
+        m, s = 0, False
+        for q in f:
+            m2, s2 = _scan_args(q)
+            if m2 > m:
+                m = m2
+            s = s or s2
+        return m, s
+    if isinstance(f, KGAdverb):
+        return _scan_args(f.a)
+    return 0, False
+
+
+def split_locals(body):
+    """
+    The legacy rule for a locals declaration, applied to a function body:
+    returns (locals, declaration, statements after it), or None when the body
+    declares none. The body must be a statement list of more than one
+    statement whose first is a non-empty list that, leaving out ";", holds
+    only symbols ({[a 1];x} declares nothing: [a 1] is data).
+    """
+    if is_list(body) and len(body) > 1 and is_list(body[0]) and len(body[0]) > 0:
+        decl = body[0]
+        non_sep = [q for q in decl if q != ';']
+        names = [q for q in non_sep if isinstance(q, KGSym)]
+        if len(names) > 0 and len(names) == len(non_sep):
+            return tuple(names), decl, body[1:]
+    return None
+
+
+def fn_metadata(node):
+    """
+    Compute and store the function metadata of the node of a function (see
+    KGFn): arity is left alone; locals, max_arg and uses_self are set, and a
+    locals declaration is moved out of the stored body (node.a becomes a
+    KGBody). Returns the node. Does nothing if the node already has them.
+
+    The parser does this for every function literal. A KGFn built by hand has
+    it done on its first call.
+
+    locals stays None (decided at each call, as before) in two cases nobody
+    writes on purpose: the body is a single data list whose first row is a
+    list of symbols, and a body on which the declaration test itself fails.
+    """
+    if node.locals is not None:
+        return node
+    body = node.a
+    node.max_arg, node.uses_self = _scan_args(body)
+    if type(body) is KGBody:
+        node.locals = body.locals
+    elif isinstance(body, list):
+        sp = split_locals(body)
+        if sp is None:
+            node.locals = ()
+        else:
+            node.locals = sp[0]
+            node.a = body = KGBody(sp[2], sp[0], sp[1])
+            node.max_arg, node.uses_self = _scan_args(body)
+    elif not is_list(body) or split_locals(body) is None:
+        node.locals = ()
+    return node

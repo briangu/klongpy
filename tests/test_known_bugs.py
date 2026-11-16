@@ -34,21 +34,9 @@ class TestKnownBugsSuite(unittest.TestCase):
         r = klong('T@"col1"')
         self.assertTrue(klong._backend.kg_equal(r, data['col1']))
 
-    @unittest.skip("ticket 031: the lexer does not honour `;` inside a string argument (call stays unevaluated)")
-    def test_semicolon_string_arg(self):
-        klong = KlongInterpreter()
-        klong('f::{x,y}')
-        r = klong('f("hello";";")')
-        self.assertEqual(r, "hello;")
-
-    @unittest.skip("ticket 031: unconsumed trailing input `}}}` is silently ignored")
-    def test_extra_chars_ignored(self):
-        klong = KlongInterpreter()
-        with self.assertRaises(Exception):
-            klong("aggs::{[a];a:::{}}}}")
-
-    @unittest.skip("ticket 031: `foo(fn)(2)` silently drops the unconsumed `(2)` and returns fn; "
-                   "`g::foo(fn);g(2)` works")
+    @unittest.skip("ticket 031 left this to a language ticket: `foo(fn)(2)` does not apply the result of a call "
+                   "(`g::foo(fn);g(2)` works). The dropped `(2)` is now a KlongSyntaxWarning at strict level 0 "
+                   "and a syntax error at level 1 (tests/test_fixed_known_bugs.py)")
     def test_monad_argument_returned(self):
         """
         Test that a monadic lambda can be passed as an argument, returned, and then called.
@@ -58,19 +46,6 @@ class TestKnownBugsSuite(unittest.TestCase):
         klong('foo::{x}')
         r = klong('foo(fn)(2)')
         self.assertEqual(r, 12)
-
-    @unittest.skip("ticket 031: an unterminated string is accepted (`a::\"T` gives \"T\")")
-    def test_fail_non_terminated_string(self):
-        klong = KlongInterpreter()
-        with self.assertRaises(Exception):
-            klong('a::"T')
-
-    @unittest.skip("ticket 032: get_fn_arity does set(f.args) on a call whose argument is an array "
-                   "(TypeError: unhashable type: 'numpy.ndarray', types.py get_fn_arity)")
-    def test_define_nilad_with_subcall(self):
-        klong = KlongInterpreter()
-        klong("nt::{x}")
-        klong('newt::{nt([["1" 2] ["3" 4] ["5" 6]])}')
 
     @unittest.skip("ticket 063: join of two dictionaries rejected (dyads `,` only takes a pair)")
     def test_join_two_dict(self):
@@ -86,13 +61,6 @@ class TestKnownBugsSuite(unittest.TestCase):
         klong('c:::{["GET" :{["/" 2]}]}')
         r = klong('(c?"GET")?"/"')
         self.assertEqual(r, 2)
-
-    @unittest.skip("ticket 031: a missing closing `]` before `}` is accepted")
-    def test_dict_inner_create_syntax(self):
-        klong = KlongInterpreter()
-        with self.assertRaises(RuntimeError):
-            # should fail to parse
-            r = klong(":{[1 :{[2 3]}}")
 
     @unittest.skip("ticket 063: the inner literal stays a deferred KGCall instead of a dict")
     def test_dict_inner_create(self):

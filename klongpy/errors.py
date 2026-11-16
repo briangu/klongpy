@@ -16,6 +16,9 @@ KlongPy errors: one hierarchy, source positions, and rendering.
       KlongStaticError         kind "static"
       KlongRemoteError         kind "remote"
 
+    KlongSyntaxWarning         a Warning, not an error: what the parser accepts
+                               at strict level 0 and rejects at level 1 and above
+
 ``kind`` is the contract shared with other implementations (the conformance
 suite asserts on it, never on message text); ``wire`` is the name the error
 has on the IPC wire.
@@ -43,13 +46,14 @@ __all__ = [
     'KlongSyntaxError', 'KlongNameError', 'KlongArityError', 'KlongTypeError',
     'KlongShapeError', 'KlongRangeError', 'KlongSystemError', 'KlongPythonError',
     'KlongInternalError', 'KlongMemoryError', 'KlongInterrupt', 'KlongStaticError',
-    'KlongRemoteError', 'UnexpectedChar', 'UnexpectedEOF', 'RangeError',
+    'KlongRemoteError', 'UnexpectedChar', 'UnexpectedEOF', 'RangeError', 'KlongSyntaxWarning',
     'ERROR_KINDS', 'compat', 'classify', 'describe', 'operator_name',
     'operator_error', 'python_error', 'system_error',
 ]
 
 _RED = "\x1b[31m"       # colorama.Fore.RED, the style klongpy/cli.py prints failures in
 _RESET = "\x1b[0m"      # colorama.Style.RESET_ALL
+_YELLOW = "\x1b[33m"    # warnings
 _CLIP = 120             # widest source line shown by render()
 
 
@@ -114,34 +118,96 @@ class KlongError(Exception):
         hint) are produced. A source read at the REPL has no name in the
         first line. color=True colours the first line only.
         """
-        head = f"{self.kind} error: {self.message}"
-        lines = []
-        pos = self.position()
-        if pos is not None:
-            name, line, col = pos
-            where = f"{line}:{col}" if _is_repl_name(name) else f"{name}:{line}:{col}"
-            head = f"{where}: {head}"
-            text = self.source.line_text(line).replace('\t', ' ')
-            start = col - 1
-            # the span, clipped to its first line; at least one caret
-            width = max(1, min(self.span[1] - self.span[0], len(text) - start))
-            if len(text) > _CLIP:
-                # a window of _CLIP columns around the caret
-                lo = max(0, min(start - _CLIP // 2, len(text) - _CLIP))
-                text = text[lo:lo + _CLIP]
-                start -= lo
-                width = max(1, min(width, _CLIP - start))
-            lines.append("  " + text)
-            lines.append("  " + " " * start + "^" * width)
-        if self.hint:
-            lines.append(f"  hint: {self.hint}")
-        if color:
-            head = f"{_RED}{head}{_RESET}"
-        return "\n".join([head] + lines)
+        return _render(f"{self.kind} error: {self.message}", self.span, self.source, self.hint,
+                       _RED if color else None)
+
+
+def _render(head, span, source, hint, color=None):
+    """The layout shared by KlongError.render and KlongSyntaxWarning.render."""
+    lines = []
+    if span is not None and source is not None:
+        name = source.name
+        line, col = source.line_col(span[0])
+        where = f"{line}:{col}" if _is_repl_name(name) else f"{name}:{line}:{col}"
+        head = f"{where}: {head}"
+        text = source.line_text(line).replace('\t', ' ')
+        start = col - 1
+        # the span, clipped to its first line; at least one caret
+        width = max(1, min(span[1] - span[0], len(text) - start))
+        if len(text) > _CLIP:
+            # a window of _CLIP columns around the caret
+            lo = max(0, min(start - _CLIP // 2, len(text) - _CLIP))
+            text = text[lo:lo + _CLIP]
+            start -= lo
+            width = max(1, min(width, _CLIP - start))
+        lines.append("  " + text)
+        lines.append("  " + " " * start + "^" * width)
+    if hint:
+        lines.append(f"  hint: {hint}")
+    if color:
+        head = f"{color}{head}{_RESET}"
+    return "\n".join([head] + lines)
 
 
 def _is_repl_name(name):
     return not name or name.startswith('<repl')
+
+
+class KlongSyntaxWarning(Warning):
+    """
+    The parser accepted something it should not have (ticket 031): input left
+    after a complete statement, a stray closing bracket, an operator without
+    its operand, a string, list, dictionary or comment that runs to the end
+    of the input. At strict level 0 the program still means what it always
+    meant and this warning is issued through the warnings module when the
+    program text is run; at strict level 1 and above the same condition is a
+    KlongSyntaxError with the same message.
+
+        message   one line, no position (str() of the warning)
+        span      (start, end) offsets into source.text
+        source    the klongpy.lexer.Source
+        hint      one optional line of advice
+        code      short stable name of the condition: "trailing-input",
+                  "stray-closer", "missing-operand", "unterminated-string",
+                  "unterminated-list", "unterminated-dict",
+                  "unterminated-comment"
+
+    ``python -W error::klongpy.KlongSyntaxWarning`` turns it into an exception.
+    """
+    kind = 'warning'
+
+    def __init__(self, message='', *, span=None, source=None, hint=None, code=None):
+        Warning.__init__(self, message)
+        self.message = message
+        self.span = span
+        self.source = source
+        self.hint = hint
+        self.code = code
+
+    def __str__(self):
+        return self.message
+
+    def __reduce__(self):
+        return (_rebuild_warning, (self.message, self.span, self.source, self.hint, self.code))
+
+    def position(self):
+        """(name, line, column) of the start of the span, 1-based, or None when there is no position."""
+        if self.span is None or self.source is None:
+            return None
+        line, col = self.source.line_col(self.span[0])
+        return self.source.name, line, col
+
+    def render(self, color=False):
+        """
+        The warning laid out like an error (KlongError.render), with
+        "warning:" where an error has "<kind> error:".
+        """
+        return _render(f"warning: {self.message}", self.span, self.source, self.hint,
+                       _YELLOW if color else None)
+
+
+def _rebuild_warning(message, span, source, hint, code):
+    return KlongSyntaxWarning(message, span=span, source=source, hint=hint, code=code)
 
 
 class KlongSyntaxError(KlongError):

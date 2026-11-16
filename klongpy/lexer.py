@@ -166,10 +166,11 @@ def _num_end(text, i, n):
     return i if i < n else n
 
 
-def _lex(text, pos, out, trivia, one=False):
+def _lex(text, pos, out, trivia, one=False, nlc=True):
     """
     Append the tokens of text[pos:] to out (ending with EOF) and its comments
-    to trivia. With one=True stop after the first token.
+    to trivia. With one=True stop after the first token. With nlc=False no
+    NEWLINE is flagged nl_comment.
     """
     n = len(text)
     match = _MASTER.match
@@ -217,7 +218,7 @@ def _lex(text, pos, out, trivia, one=False):
             c = text[s]
             tok = new(T, (_PUNCT[c], s, e, c, s > gap, False, False, None))
         elif g == 'NL':
-            tok = new(T, ('NEWLINE', s, e, '\n', s > gap, com, False, None))
+            tok = new(T, ('NEWLINE', s, e, '\n', s > gap, com and nlc, False, None))
         elif g == 'STR':
             body = text[s+1:e]
             q = body.count('"')
@@ -292,10 +293,15 @@ class Lexer:
     The parser reads ``toks`` and ``pos`` directly: toks holds every token from
     the current position to EOF (always the last element), pos is the index of
     the next token. seek keeps the list object and edits it in place.
-    """
-    __slots__ = ('source', 'text', 'toks', 'pos', 'trivia', 'start', 'at_end', '_base')
 
-    def __init__(self, source, pos=0):
+    nl_comment=False (strict level 1 and above, ticket 031) makes a newline
+    that follows a comment an ordinary newline: no NEWLINE token carries the
+    nl_comment flag.
+    """
+    __slots__ = ('source', 'text', 'toks', 'pos', 'trivia', 'start', 'at_end', '_base', 'nl_comment',
+                 'strict', 'issues')
+
+    def __init__(self, source, pos=0, nl_comment=True):
         if isinstance(source, str):
             source = Source("<string>", source)
         self.source = source
@@ -305,8 +311,11 @@ class Lexer:
         self.pos = 0
         self.start = pos        # parser scratch: start offset of the expression just parsed
         self.at_end = False     # parser scratch: a read ran into end of input
+        self.strict = 0         # parser scratch: the strict level this text is parsed at
+        self.issues = []        # parser scratch: what the parser accepted with a warning (parser.tk_issue)
+        self.nl_comment = nl_comment
         self._base = (0, pos)   # (token index, offset): where lexing last (re)started
-        _lex(self.text, pos, self.toks, self.trivia)
+        _lex(self.text, pos, self.toks, self.trivia, False, nl_comment)
 
     def next(self):
         tok = self.toks[self.pos]
@@ -346,7 +355,7 @@ class Lexer:
         lo = self.offset()
         first = []
         triv = []
-        _lex(text, offset, first, triv, one=True)
+        _lex(text, offset, first, triv, True, self.nl_comment)
         first = first[0]
         s = first[1]
         # Lexing is a function of the position alone, so if the tokens already
@@ -366,7 +375,7 @@ class Lexer:
         else:
             del toks[p:]
             self.trivia = [c for c in self.trivia if c[1] < lo]
-            _lex(text, offset, toks, self.trivia)
+            _lex(text, offset, toks, self.trivia, False, self.nl_comment)
         self._base = (p, offset)
         self.at_end = False
 

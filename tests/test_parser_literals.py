@@ -8,9 +8,11 @@ kind of every token. The legacy parser (parser="legacy") keeps the defect and
 is not tested here.
 """
 import unittest
+import warnings
 
 import numpy as np
 
+from klongpy.errors import KlongSyntaxWarning
 from klongpy import KlongInterpreter as _KlongInterpreter
 from klongpy.core import KGChar, KlongException
 from klongpy.dump import dump_text as _dump_text
@@ -142,6 +144,13 @@ class TestBracketChars(unittest.TestCase):
 
 
 class TestPunctuationIsStillPunctuation(unittest.TestCase):
+    def setUp(self):
+        # these inputs are malformed on purpose: ticket 031 warns about them at strict level 0
+        cw = warnings.catch_warnings()
+        cw.__enter__()
+        self.addCleanup(cw.__exit__, None, None, None)
+        warnings.simplefilter("ignore", KlongSyntaxWarning)
+
     def test_real_punctuation(self):
         k = KlongInterpreter()
         self.assertEqual(k("{x+1}(1)"), 2)

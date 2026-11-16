@@ -3,7 +3,7 @@ from .errors import (
     KlongError, KlongException, KlongSyntaxError, KlongNameError, KlongArityError,
     KlongTypeError, KlongShapeError, KlongRangeError, KlongSystemError,
     KlongPythonError, KlongInternalError, KlongMemoryError, KlongInterrupt,
-    KlongStaticError, KlongRemoteError,
+    KlongStaticError, KlongRemoteError, KlongSyntaxWarning,
 )
 from .backends import (
     get_backend,
@@ -35,6 +35,7 @@ __all__ = [
     "KlongInterrupt",
     "KlongStaticError",
     "KlongRemoteError",
+    "KlongSyntaxWarning",
     "UnsupportedDtypeError",
     "get_backend",
     "register_backend",

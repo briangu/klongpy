@@ -16,9 +16,9 @@ class TestExtraCoreSuite(unittest.TestCase):
     def test_negate_array_result_type(self):
         """ ensure the result type of negating an array is correct """
         klong = KlongInterpreter()
-        r = klong("-1]")
+        r = klong("-1")
         self.assertTrue(is_integer(r, klong._backend))
-        r = klong("-1.0]")
+        r = klong("-1.0")
         self.assertTrue(is_float(r, klong._backend))
         r = klong("-[1 2 3]")
         # Check for integer dtype (works for both numpy and torch)
@@ -126,7 +126,7 @@ class TestExtraCoreSuite(unittest.TestCase):
         klong = KlongInterpreter()
         klong("""
 NAMES:::{}
-AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}")
+AN::{[k n g];.p(x);k::(x?",")@0;n::.rs(k#x);g::.rs((k+1)_x);NAMES,n,,g}
         """)
         r = klong('S::\"""John"",""boy""\"')
         self.assertEqual(r,'"John","boy"')

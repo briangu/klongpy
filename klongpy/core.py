@@ -82,6 +82,9 @@ __all__ = [
     # Function utilities
     'merge_projections',
     'get_fn_arity',
+    'fn_metadata',
+    'split_locals',
+    'KGBody',
     # Parser - character matching
     'cmatch',
     'cmatch2',

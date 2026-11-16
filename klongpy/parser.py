@@ -17,7 +17,7 @@ comments marked "legacy:" say which legacy behaviour a line stands for.
 import copy
 
 from .lexer import ERR_CHAR_EOF
-from .errors import KlongSyntaxError, UnexpectedChar, UnexpectedEOF, compat
+from .errors import KlongSyntaxError, KlongSyntaxWarning, UnexpectedChar, UnexpectedEOF, compat
 
 from .types import (
     KGSym, KGQSym, KGChar, KGOp, KGCond, KGCall, KGLambda,
@@ -443,9 +443,201 @@ class ProgResult(tuple):
 
         stmt_spans   one (start, end) span per statement (None on the legacy parser)
         source       the lexer.Source the spans refer to (None on the legacy parser)
+        warnings     the KlongSyntaxWarning objects of this parse, in source
+                     order (ticket 031). prog() does not issue them; __call__
+                     and exec do, each time the text is run.
     """
     stmt_spans = None
     source = None
+    warnings = ()
+
+
+# ---------------------------------------------------------------------------
+# Syntax checks (ticket 031). The token parser accepts a number of malformed
+# inputs because the legacy parser did. Each such place calls tk_issue: at
+# strict level 1 and above that raises a KlongSyntaxError; at level 0 the
+# issue is recorded on the lexer, the parse goes on exactly as before, and
+# prog() turns the issues into KlongSyntaxWarning objects (tk_warnings).
+# ---------------------------------------------------------------------------
+
+ADVERB_GLYPHS = frozenset(("'", '/', '\\', '\\~', '\\*', ":'", ':/', ':\\', ':~', ':*'))
+
+_REST = "the rest of the input is not evaluated"
+_TO_END = "it runs to the end of the input"
+
+
+def tk_issue(lx, code, message, span, hint=None, note=None):
+    """
+    Something the legacy grammar accepts and should not. note says what
+    happens to it at strict level 0; it is part of the warning only.
+    """
+    if lx.strict:
+        raise KlongSyntaxError(message, span=span, hint=hint)
+    lx.issues.append((span, code, message, note, hint))
+
+
+def tk_warnings(lx):
+    """The issues recorded while parsing, as KlongSyntaxWarning objects in source order."""
+    out = []
+    seen = set()
+    open_seen = False
+    for span, code, message, note, hint in sorted(lx.issues, key=lambda q: q[0]):
+        if (span, code) in seen:
+            continue        # a lexeme the parser read twice (once to look at it)
+        seen.add((span, code))
+        if code == 'unterminated-list' or code == 'unterminated-dict':
+            if open_seen:
+                continue    # nested in a list that is itself not closed: one warning
+            open_seen = True
+        out.append(KlongSyntaxWarning(f"{message}; {note}" if note else message,
+                                      span=span, source=lx.source, hint=hint, code=code))
+    return tuple(out)
+
+
+def _lexeme(lx, tok):
+    """A token as written, quoted and clipped, for a message."""
+    s = lx.text[tok[1]:tok[2]]
+    if len(s) > 20 or '\n' in s:
+        s = s.split('\n', 1)[0][:20] + '...'
+    return f"'{s}'"
+
+
+def _matching(toks, j):
+    """Index of the token that closes the bracket opened at index j, or None."""
+    depth = 0
+    for i in range(j, len(toks)):
+        k = toks[i][0]
+        if k in ('LPAREN', 'CALLP', 'LBRACK', 'LBRACE', 'COND', 'DICT'):
+            depth += 1
+        elif k in ('RPAREN', 'RBRACK', 'RBRACE'):
+            depth -= 1
+            if depth == 0:
+                return i
+    return None
+
+
+def tk_missing_operand(lx, what, span, right=True):
+    """An operator, an infix function or an adverb chain with nothing to apply it to."""
+    tk_issue(lx, 'missing-operand', f"missing right operand for {what}" if right else f"missing operand for {what}", span)
+
+
+def tk_stray(lx, tok):
+    """A closing bracket (or :|) where an expression was expected."""
+    v = tok[3]
+    tk_issue(lx, 'stray-closer', f"unexpected '{v}'", (tok[1], tok[2]),
+             note=f'it is read as the string "{v}"')
+
+
+def tk_adverb_error(lx, tok):
+    """An adverb glyph where a dyadic operator is expected: at every strict level an error."""
+    v = tok[3]
+    if tok[4]:
+        raise KlongSyntaxError(f"adverb {v} must directly follow its verb", span=(tok[1], tok[2]),
+                               hint=f"an adverb follows its verb with no space: remove the space before {v}")
+    raise KlongSyntaxError(f"adverb {v} does not follow a verb", span=(tok[1], tok[2]),
+                           hint="an adverb directly follows an operator, a name or a function literal")
+
+
+def tk_index_hint(lx, j):
+    """The hint for name[...] (the token at index j is the '['), or None."""
+    toks = lx.toks
+    tok = toks[j]
+    prev = toks[j-1] if j > 0 else None
+    if tok[0] != 'LBRACK' or tok[4] or prev is None or prev[0] not in ('NAME', 'QNAME', 'RBRACK', 'RPAREN'):
+        return None
+    text = lx.text
+    m = _matching(toks, j)
+    if prev[0] == 'NAME' and m is not None:
+        name = text[prev[1]:prev[2]]
+        inner = text[tok[2]:toks[m][1]].strip()
+        if m == j + 2 and toks[j+1][0] in ('NUM', 'NAME', 'STR', 'CHAR'):
+            return f"use {name}@{inner} to index"
+        if len(inner) <= 24 and '\n' not in inner:
+            return f"use {name}@[{inner}] to index"
+    return "use @ to index: a@1 for one element, a@[1 2] for several"
+
+
+def tk_juxtaposed(lx, j):
+    """
+    In an argument list, the token at index j starts an expression although no
+    ';' followed the previous argument: f(1 2) passes two arguments.
+    """
+    tok = lx.toks[j]
+    tk_issue(lx, 'trailing-input', f"unexpected {_lexeme(lx, tok)} after the end of the argument", (tok[1], tok[2]),
+             hint=tk_index_hint(lx, j) or "arguments are separated by ;",
+             note="it is passed as one more argument")
+
+
+def tk_finish(lx):
+    """
+    Called when the top-level parse has stopped: whatever is left is input
+    the legacy parser dropped without a word, and a string or comment may run
+    to the end of the input.
+    """
+    toks = lx.toks
+    j = lx.pos
+    tok = toks[j]
+    k = tok[0]
+    if k != 'EOF':
+        prev = toks[j-1] if j > 0 else None
+        pk = prev[0] if prev is not None else None
+        span = (tok[1], tok[2])
+        text = lx.text
+        if k == 'RPAREN' or k == 'RBRACK' or k == 'RBRACE':
+            tk_issue(lx, 'stray-closer', f"unexpected '{tok[3]}': nothing is open that it could close", span,
+                     note=_REST if toks[j+1][0] != 'EOF' else "it is ignored")
+        else:
+            hint = None
+            if (k == 'LPAREN' or k == 'CALLP') and (pk == 'NAME' or pk == 'QNAME' or pk == 'RBRACE') and tok[4]:
+                m = _matching(toks, j)
+                args = text[tok[1]:toks[m][2]] if m is not None else None
+                if args is None or len(args) > 24 or '\n' in args:
+                    args = '(...)'
+                callee = text[prev[1]:prev[2]] if pk != 'RBRACE' else '{...}'
+                hint = f"no space may separate a function from its argument list: write {callee}{args}"
+            elif k == 'LPAREN' or k == 'CALLP':
+                hint = "only a name or a function literal can be followed by an argument list; assign the value to a name first"
+            elif k == 'LBRACK' and tk_index_hint(lx, j) is not None:
+                hint = tk_index_hint(lx, j)
+            elif k in ('NUM', 'STR', 'CHAR', 'NAME', 'QNAME') and pk in ('NUM', 'STR', 'CHAR', 'NAME', 'QNAME'):
+                hint = "a list is written in brackets, [1 2 3]; statements are separated by ;"
+            tk_issue(lx, 'trailing-input', f"unexpected {_lexeme(lx, tok)} after the end of the expression", span,
+                     hint=hint, note=_REST)
+    # Only the last token can be a string without its closing quote.
+    if len(toks) >= 2:
+        t = toks[-2]
+        if t[0] == 'STR' and t[6]:
+            tk_issue(lx, 'unterminated-string', "unterminated string: the closing \" is missing", (t[1], t[2]), note=_TO_END)
+    for c in lx.trivia:
+        if c[6]:
+            tk_issue(lx, 'unterminated-comment', "unterminated comment: the closing \" is missing", (c[1], c[2]),
+                     note=_TO_END)
+
+
+def tk_unterminated(lx, opener, close):
+    """A list or dictionary literal that end of input closed. opener is its opening token."""
+    if close == 'RBRACK':
+        tk_issue(lx, 'unterminated-list', "unterminated list: the closing ] is missing", (opener[1], opener[2]), note=_TO_END)
+    else:
+        tk_issue(lx, 'unterminated-dict', "unterminated dictionary: the closing } is missing", (opener[1], opener[2]),
+                 note=_TO_END)
+
+
+def tk_dict(lx, entries, span):
+    """
+    The dictionary a :{...} literal denotes. Entries that are not [key value]
+    pairs made the legacy reader fail with an IndexError or a TypeError; the
+    syntax error raised here is still an instance of that class.
+    """
+    try:
+        return list_to_dict(entries)
+    except (IndexError, TypeError) as e:
+        if isinstance(e, TypeError) and 'unhashable' in str(e):
+            msg = "a list cannot be a dictionary key"
+        else:
+            msg = "each entry of a dictionary literal must be a [key value] pair"
+        cls = compat(KlongSyntaxError, IndexError if isinstance(e, IndexError) else TypeError)
+        raise cls(msg, span=span, hint="write :{[key1 value1] [key2 value2]}") from e
 
 
 def tk_raise(lx, tok, neg=False):
@@ -527,6 +719,7 @@ def tk_read_list(klong, lx, j, close):
     module = klong._module
     arr = []
     append = arr.append
+    opener = toks[j-1]
     tok = toks[j]
     k = tok[0]
     while k == 'NEWLINE' and not tok[5]:
@@ -580,7 +773,7 @@ def tk_read_list(klong, lx, j, close):
             append(q)
         elif k == 'DICT':
             j, q = tk_read_list(klong, lx, j + 1, 'RBRACE')
-            append(KGCall(copy_lambda, args=list_to_dict(q), arity=0))
+            append(KGCall(copy_lambda, args=tk_dict(lx, q, (tok[1], toks[j-1][2])), arity=0))
         elif k == 'COP' or k == 'CALLP':
             append(KGOp(tok[3], 0))
             j += 1
@@ -603,6 +796,7 @@ def tk_read_list(klong, lx, j, close):
         j += 1
     else:
         lx.at_end = True    # ran into end of input; tk_read_data undoes this for a look-ahead
+        tk_unterminated(lx, opener, close)
     return j, arr
 
 
@@ -626,14 +820,18 @@ def tk_read_data(klong, lx, j, consume):
                 lx.at_end = at_end
         if consume:
             lx.pos = e
+        end = lx.toks[e-1][2]
     except _DataFallback:
         e, q = read_list(lx.text, ']' if close == 'RBRACK' else '}', i=tok[2], module=klong._module)
+        if e >= len(lx.text) and lx.text[e-1:e] != (']' if close == 'RBRACK' else '}'):
+            tk_unterminated(lx, tok, close)
         if consume:
             lx.pos = j + 1
             lx.seek(e)
             lx.at_end = e >= len(lx.text)
+        end = e
     if close == 'RBRACE':
-        q = KGCall(copy_lambda, args=list_to_dict(q), arity=0)
+        q = KGCall(copy_lambda, args=tk_dict(lx, q, (tok[1], end)), arity=0)
         if consume:
             q.span = (tok[1], lx.end())
             q.source = lx.source
@@ -666,11 +864,17 @@ def tk_read_cond(klong, lx, st):
     n = klong._expr(lx, True)
     r.append(';' if n is SEMI else n)
     sp.append(None if n is None else (lx.start, lx.end()))
-    tok = toks[lx.pos]
-    # legacy: no whitespace is allowed between the condition and its ';'
-    if tok[0] != 'SEMI' or tok[4]:
+    # Whitespace and newlines may come between the condition and its ';'
+    # (ticket 031; the legacy reader wanted the ';' adjacent here, and only
+    # here).
+    j = lx.pos
+    tok = toks[j]
+    while tok[0] == 'NEWLINE' and not tok[5]:
+        j += 1
+        tok = toks[j]
+    if tok[0] != 'SEMI':
         raise UnexpectedChar(lx.text, lx.offset(), ';')
-    lx.pos += 1
+    lx.pos = j + 1
     n = klong._expr(lx, True)
     r.append(';' if n is SEMI else n)
     sp.append(None if n is None else (lx.start, lx.end()))
@@ -724,6 +928,7 @@ def tk_read_expr_array(klong, lx, st):
         k = tok[0]
         if k == 'EOF':
             lx.at_end = True
+            tk_unterminated(lx, ('LBRACK', st, st + 1), 'RBRACK')
             break
         if k == 'RBRACK':
             break
