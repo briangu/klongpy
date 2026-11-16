@@ -545,7 +545,9 @@ def eval_monad_track(a):
 
         ˙a                                                    [Track]
 
-        Identity operator used when marking values for gradient tracking.
+        Identity: returns "a". Internal. It is reserved for marking a value
+        for gradient tracking and currently has no effect. It has no ASCII
+        form.
 
     """
     return a
@@ -556,7 +558,10 @@ def eval_monad_grad(klong, a):
 
         ∇a                                                     [Grad]
 
-        Return a function that computes the numeric gradient of ``a``.
+        Return a function that computes the gradient of ``a``: by
+        automatic differentiation when the backend supports it (PyTorch),
+        by finite differences otherwise. Glyph only; there is no ASCII
+        form (see .grad(f;x) for the point form of x∇f).
 
     """
     return KGLambda(lambda x, fn=a, k=klong: grad_of_fn(k, fn, x))

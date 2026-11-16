@@ -24,6 +24,19 @@ def is_supported_type(x):
     return not (isinstance(x, str) or is_jagged_array(x))
 
 
+# numpy ufuncs that give the exact answer on object arrays of Python integers
+_OBJECT_SAFE_UFUNCS = frozenset((np.add, np.subtract, np.multiply, np.less, np.greater, np.maximum, np.minimum))
+
+
+def _as_python_objects(x):
+    """x as an object array (or Python scalar) whose elements are Python numbers, not numpy scalars."""
+    if isinstance(x, np.ndarray):
+        return x.astype(object)
+    if isinstance(x, np.generic):
+        return np.asarray(x.item(), dtype=object)
+    return np.asarray(x, dtype=object)
+
+
 class BackendProvider(ABC):
     """Abstract interface for array backends."""
 
@@ -321,6 +334,16 @@ class BackendProvider(ABC):
             "Run with USE_TORCH=1 environment variable."
         )
 
+    def interpreter_power(self):
+        """The function a compiled `a^b` applies to a pair of atoms: the interpreter's own."""
+        from ..dyads import _e_dyad_power
+        return lambda a, b: _e_dyad_power(a, b, self)
+
+    def interpreter_negate(self):
+        """The function a compiled `-a` applies: the interpreter's own."""
+        from ..monads import eval_monad_negate
+        return lambda a: eval_monad_negate(a, self)
+
     def compile_expr_ir(self, ir, var_syms):
         """Compile a compute IR tree to a callable.
 
@@ -474,7 +497,31 @@ class BackendProvider(ABC):
                 a = a.reshape(a.shape + (1,) * (b.ndim - a.ndim))
             elif b.ndim < a.ndim:
                 b = b.reshape(b.shape + (1,) * (a.ndim - b.ndim))
-        return f(a, b)
+        try:
+            return f(a, b)
+        except OverflowError as e:
+            return self._exact_atomic(a, b, f, e)
+
+    def _exact_atomic(self, a, b, f, error):
+        """Redo f(a, b) with Python integers after an OverflowError.
+
+        An operand that is an integer outside int64 cannot be put in a numpy
+        integer array, so numpy raises OverflowError. Only the operators whose
+        result for such operands is exact on Python integers are redone
+        (`object_safe`: + - * % < > | & ; not ^, which would compute a huge exact
+        power). Anything else, a backend without object arrays, and any error
+        of the second attempt re-raise the original OverflowError, which
+        becomes a KlongRangeError. Nothing here runs unless numpy raised.
+        """
+        if not (getattr(f, 'object_safe', False) or f in _OBJECT_SAFE_UFUNCS) or not self.supports_object_dtype():
+            raise error
+        try:
+            r = f(_as_python_objects(a), _as_python_objects(b))
+        except (TypeError, AttributeError, ValueError):
+            raise error from None
+        if isinstance(r, np.ndarray) and r.dtype == object and r.ndim > 0:
+            r = self.kg_asarray(r.tolist())  # back to int64 where the values fit again
+        return r
 
     @staticmethod
     def _check_same_length(a, b):

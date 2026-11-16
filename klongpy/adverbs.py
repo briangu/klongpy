@@ -92,7 +92,7 @@ def eval_adverb_each(f, a, op, backend):
         Example: -'[1 2 3]  -->  [-1 -2 -3]
 
     """
-    if isinstance(a,str):
+    if isinstance(a,str) and not isinstance(a, KGSym):  # a symbol is an atom: f(a) below
         if is_empty(a):
             return a
         has_str = False

@@ -1,6 +1,7 @@
 from .core import *
 from .autograd import grad_of_fn, numeric_grad, jacobian_of_fn, multi_jacobian_of_fn, multi_grad_of_fn
 import numbers
+import operator
 import numpy
 
 
@@ -13,6 +14,11 @@ def eval_dyad_add(a, b, backend):
         numbers.
 
         Dyadic "+" is an atomic operator.
+
+        Integers are 64 bits wide and a sum that does not fit wraps
+        around, but if an operand is an integer outside 64 bits (such
+        as 9223372036854775808) the sum is exact. The same holds for
+        "-", "*", "<", ">", "|" and "&".
 
         Examples:  12+3  -->  15
                   12+-3  -->  9
@@ -241,9 +247,12 @@ def eval_dyad_define(klong, n, v):
 
         a::b                                                    [Define]
 
-        Assign "b" to the variable "a" and return "b". When a local
-        variable named "a" exists, the value will be assigned to it,
-        otherwise the global variable "a" will be assigned the value.
+        Assign "b" to the variable "a" and return "b". When a variable
+        named "a" exists in any scope (a local, or a global), the value
+        is assigned to it there. Otherwise, at top level the variable
+        is created; inside a function the name becomes local to that
+        call, and no global is created (in strict mode, see .strict(),
+        this is an error). To create a global from a function, use .E.
 
         Note that :: cannot be used to assign values to the function
         variables "x", "y", and "z" (they are read-only).
@@ -282,7 +291,20 @@ def _undefined_on_zero_divisor(fn, backend):
         o = np_.asarray(r).astype(object)
         o[numpy.broadcast_to(zero, o.shape)] = KLONG_UNDEFINED
         return o
+    g.object_safe = True  # see BackendProvider._exact_atomic; fn is np.divide or np.fmod
     return g
+
+
+def _ordering(py_cmp, ufunc):
+    """Atomic < or >: strings compare with Python, everything else with the numpy ufunc.
+
+    `object_safe`: when an operand is an integer outside int64 (numpy raises
+    OverflowError) vec_fn2 repeats the call on Python integers.
+    """
+    def f(x, y):
+        return py_cmp(x, y) if (isinstance(x, str) and isinstance(y, str)) else ufunc(x, y)
+    f.object_safe = True
+    return f
 
 
 def eval_dyad_divide(a, b, backend):
@@ -693,7 +715,7 @@ def eval_dyad_less(a, b, backend):
                    [1 2 3]<[1 4 3]  -->  [0 1 0]
 
     """
-    return kg_truth(backend.vec_fn2(a, b, lambda x,y: x < y if (isinstance(x,str) and isinstance(y,str)) else backend.np.less(x,y)))
+    return kg_truth(backend.vec_fn2(a, b, _ordering(operator.lt, backend.np.less)))
 
 
 def eval_dyad_match(a, b, backend):
@@ -806,7 +828,7 @@ def eval_dyad_more(a, b, backend):
                    [1 4 3]>[1 2 3]  -->  [0 1 0]
 
     """
-    return kg_truth(backend.vec_fn2(a, b, lambda x,y: x > y if (isinstance(x,str) and isinstance(y,str)) else backend.np.greater(x,y)))
+    return kg_truth(backend.vec_fn2(a, b, _ordering(operator.gt, backend.np.greater)))
 
 
 def eval_dyad_multiply(a, b, backend):
@@ -1112,7 +1134,8 @@ def eval_dyad_take(a, b, backend):
         extract elements from the end of "b". Extracting more elements
         than contained in "b" will fill the extra slots by cycling
         through "b". Taking 0 elements will result in an empty list
-        or string.
+        or string. If "b" is an atom (a number or a symbol), it is
+        repeated: 3#7 --> [7 7 7].
 
         Examples:     1#[1 2 3]  -->  [1]
                       2#[1 2 3]  -->  [1 2]
@@ -1126,8 +1149,15 @@ def eval_dyad_take(a, b, backend):
 
     """
     np_backend = backend.np
-    j = isinstance(b,str)
-    b = backend.str_to_chr_arr(b) if j else np_backend.asarray(b)
+    j = isinstance(b,str) and not isinstance(b, KGSym)
+    if j:
+        b = backend.str_to_chr_arr(b)
+    elif isinstance(b, KGSym):
+        b = backend.kg_asarray([b])  # a symbol is an atom: n#:s is [:s :s ...]
+    else:
+        b = np_backend.asarray(b)
+        if b.ndim == 0:
+            b = b.reshape(1)  # an atom: n#7 is [7 7 ...]
     abs_a = np_backend.abs(a)
     aa = int(abs_a) if hasattr(abs_a, 'item') else abs_a  # Convert tensor to int
     b_size = backend.array_size(b)
@@ -1157,6 +1187,7 @@ def eval_dyad_grad(klong, a, b):
         using finite differences. Always uses numeric differentiation.
 
         For automatic differentiation, use the :> operator instead.
+        ASCII form: .grad(b;a).
 
     """
     def call_fn(v):

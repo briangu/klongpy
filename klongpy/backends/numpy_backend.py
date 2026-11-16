@@ -38,38 +38,114 @@ _NUMPY_NAMESPACE = _make_numpy_namespace()
 _NUMPY_VALUES = (np.ndarray, np.generic)
 
 
-def _ignore_divide(op):
-    """Wrap a binary operator so numpy divide-by-zero does not warn.
-
-    Klong yields inf for these, as it always has; the suppression is scoped to
-    the call instead of being a process-wide ``np.seterr``.  Plain Python
-    numbers never warn (they raise), so they skip the context manager.
-    """
-    def f(a, b):
-        if isinstance(a, _NUMPY_VALUES) or isinstance(b, _NUMPY_VALUES):
-            with np.errstate(divide='ignore'):
-                return op(a, b)
-        return op(a, b)
-    return f
-
-
 def _compiled_div(a, b):
     """Division for compiled expressions.
 
     A zero divisor raises ZeroDivisionError, for arrays as well as scalars, so
     the compiled path falls back to the interpreter, which returns :undefined
-    per element (ticket 015).  Without a zero the result is plain division.
+    per element (ticket 015).  Without a zero the result is np.divide, which
+    is what the interpreter computes.
     """
     if isinstance(b, _NUMPY_VALUES):
         if np.any(b == 0):
             raise ZeroDivisionError("division by zero")
     elif b == 0:
         raise ZeroDivisionError("division by zero")
-    return operator.truediv(a, b)
+    return np.divide(a, b)
 
 
-_quiet_truediv = _compiled_div
-_quiet_pow = _ignore_divide(operator.pow)
+_EXACT_FLOAT_INT = 2 ** 53
+
+
+def _kind_of(x):
+    dt = getattr(x, 'dtype', None)
+    if dt is None:
+        return 'i' if type(x) is int else 'f'
+    return dt.kind
+
+
+def _small_ints(x):
+    if isinstance(x, np.ndarray):
+        return x.size == 0 or (x.max() <= _EXACT_FLOAT_INT and x.min() >= -_EXACT_FLOAT_INT)
+    return -_EXACT_FLOAT_INT <= x <= _EXACT_FLOAT_INT
+
+
+def _equal(x, y):
+    """`x=y` for atoms, as the interpreter's: the truth value is made per atom, so lists stay integer
+    lists, and an integer and a float are compared exactly (numpy would round the integer to a float)."""
+    dx = getattr(x, 'dtype', None)
+    dy = getattr(y, 'dtype', None)
+    if dx is not dy or (dx is None and type(x) is not type(y)):
+        kx = _kind_of(x)
+        ky = _kind_of(y)
+        if kx != ky and (kx == 'i' and ky == 'f' and not _small_ints(x) or kx == 'f' and ky == 'i' and not _small_ints(y)):
+            return (np.asarray(x, dtype=object) == np.asarray(y, dtype=object)) * 1
+    return (x == y) * 1
+
+
+_INT64_MIN = -2 ** 63
+_INT64_MAX = 2 ** 63 - 1
+_PY_NUMBERS = (int, float)
+
+
+def _arithmetic(py_op, ufunc, atomic):
+    """`x+y`, `x-y` or `x*y` for a compiled expression.
+
+    Arrays and anything else go through the atomic dyad with the numpy ufunc,
+    as in the interpreter. Two Python numbers (the loop counters of compiled
+    scalar code) are combined directly; an integer result that does not fit
+    int64 is left to the ufunc, which wraps it as the interpreter does.
+    """
+    def f(x, y):
+        if x.__class__ in _PY_NUMBERS and y.__class__ in _PY_NUMBERS:
+            r = py_op(x, y)
+            if r.__class__ is float or _INT64_MIN <= r <= _INT64_MAX:
+                return r  # a Python number again, so a loop counter stays eligible for the compiled path
+        return atomic(x, y, ufunc)
+    return f
+
+
+def _negation(negate, ufunc):
+    """`-x` for a compiled expression: np.negative for numbers and numeric arrays, as the interpreter does;
+    the interpreter's own function for anything else (object arrays)."""
+    def f(x):
+        c = x.__class__
+        if c is float or (c is int and _INT64_MIN <= x <= _INT64_MAX) or (c is np.ndarray and x.dtype.kind != 'O'):
+            return ufunc(x)
+        return negate(x)
+    return f
+
+
+def _accumulating(ufunc):
+    """`op\\x` for a compiled expression: the interpreter returns an atom unchanged."""
+    accumulate = ufunc.accumulate
+
+    def scan(x):
+        return x if np.ndim(x) == 0 else accumulate(x)
+    return scan
+
+
+def _reducing(ufunc):
+    """`op/x` for a compiled expression: the interpreter returns an atom or an empty list unchanged."""
+    reduce = ufunc.reduce
+
+    def over(x):
+        shape = getattr(x, 'shape', ())
+        return reduce(x) if shape and shape[0] else x
+    return over
+
+
+_INT64_LIMIT = float(2 ** 63)
+
+
+def _beyond_int64(arr):
+    """True if a float array has a value of magnitude 2**63 or more (the only floats that can come from big integers)."""
+    return arr.max() >= _INT64_LIMIT or arr.min() <= -_INT64_LIMIT
+
+
+def _has_big_int(a):
+    """A list of integers, one of them outside int64 (a float in the list makes it a float list, as usual)."""
+    return all(type(x) is int or isinstance(x, np.integer) for x in a) and any(not -2 ** 63 <= x < 2 ** 63 for x in a)
 
 
 class NumpyBackendProvider(BackendProvider):
@@ -161,12 +237,21 @@ class NumpyBackendProvider(BackendProvider):
 
         param_names = list(self._collect_params(ir))
         fn_source = f"def _expr({', '.join(param_names)}): return {source}"
+        # The compiled operators are the ones the interpreter applies (np.add,
+        # ... and the interpreter's own ^ and negate), so both paths give the
+        # same values, dtypes and errors (ticket 025).
+        xp = self._np
         ns = {
-            'np': self._np,
+            'np': xp,
             '_atomic': self.vec_fn2,
-            '_add': operator.add, '_sub': operator.sub, '_mul': operator.mul,
-            '_div': _quiet_truediv, '_pow': _quiet_pow,
-            '_eq': operator.eq, '_gt': operator.gt, '_lt': operator.lt,
+            '_add': _arithmetic(operator.add, xp.add, self.vec_fn2),
+            '_sub': _arithmetic(operator.sub, xp.subtract, self.vec_fn2),
+            '_mul': _arithmetic(operator.mul, xp.multiply, self.vec_fn2),
+            '_div': _compiled_div, '_pow': self.interpreter_power(), '_neg': _negation(self.interpreter_negate(), xp.negative),
+            '_eq': _equal, '_gt': xp.greater, '_lt': xp.less,
+            '_cumsum': _accumulating(xp.add), '_cumprod': _accumulating(xp.multiply),
+            '_rsum': _reducing(xp.add), '_rprod': _reducing(xp.multiply),
+            '_rmax': _reducing(xp.maximum), '_rmin': _reducing(xp.minimum),
         }
         try:
             exec(fn_source, ns)
@@ -193,6 +278,8 @@ class NumpyBackendProvider(BackendProvider):
             py_op = {'+': '_add', '-': '_sub', '*': '_mul', '%': '_div', '^': '_pow'}.get(op)
             if py_op is None:
                 return None
+            if py_op in ('_add', '_sub', '_mul'):
+                return f'{py_op}({l}, {r})'
             return f'_atomic({l}, {r}, {py_op})'
 
         if node_type == 'cmp':
@@ -210,14 +297,14 @@ class NumpyBackendProvider(BackendProvider):
             child = self._ir_to_source(ir[1])
             if child is None:
                 return None
-            return f'(-{child})'
+            return f'_neg({child})'
 
         if node_type == 'reduce':
             op, arg = ir[1], ir[2]
             arg_src = self._ir_to_source(arg)
             if arg_src is None:
                 return None
-            method = {'+': 'np.add.reduce', '*': 'np.multiply.reduce', '|': 'np.maximum.reduce', '&': 'np.minimum.reduce'}.get(op)
+            method = {'+': '_rsum', '*': '_rprod', '|': '_rmax', '&': '_rmin'}.get(op)
             if method is None:
                 return None
             return f'{method}({arg_src})'
@@ -227,7 +314,7 @@ class NumpyBackendProvider(BackendProvider):
             arg_src = self._ir_to_source(arg)
             if arg_src is None:
                 return None
-            method = {'+': 'np.cumsum', '*': 'np.cumprod'}.get(op)
+            method = {'+': '_cumsum', '*': '_cumprod'}.get(op)
             if method is None:
                 return None  # |\ and &\ not supported in numpy
             return f'{method}({arg_src})'
@@ -242,6 +329,8 @@ class NumpyBackendProvider(BackendProvider):
             arr = self._np.asarray(a)
             if arr.dtype.kind not in ['O', 'i', 'f']:
                 raise ValueError
+            if arr.dtype.kind == 'f' and type(a) is list and arr.size and _beyond_int64(arr) and _has_big_int(a):
+                raise ValueError  # numpy made floats of [2**63 1]: keep the integers exact
         except (NumpyVisibleDeprecationWarning, ValueError):
             try:
                 arr = self._np.asarray(a, dtype=object)

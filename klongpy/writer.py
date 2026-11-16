@@ -10,7 +10,7 @@ import sys
 
 from .backend import np
 from .types import (
-    KGSym, KGChar, KGFn, KGChannel, KGChannelDir, KLONG_UNDEFINED,
+    KGSym, KGChar, KGFn, KGOp, KGChannel, KGChannelDir, KLONG_UNDEFINED,
     is_integer, is_float, is_list, is_iterable, is_empty,
     get_dtype_kind
 )
@@ -60,6 +60,11 @@ def kg_write_fn(x, display=False):
     return str(x)
 
 
+def kg_write_op(x, display=False):
+    """An operator value prints as its glyph: ::, +, :+ ..."""
+    return str(x.a)
+
+
 def kg_write_channel(x, display=False):
     if x.channel_dir == KGChannelDir.INPUT:
         return ":inchan.0"
@@ -88,6 +93,8 @@ def kg_write(a, backend, display=False):
         return kg_write_list(a, _backend, display=display)
     elif isinstance(a, KGFn):
         return kg_write_fn(a, display=display)
+    elif isinstance(a, KGOp):
+        return kg_write_op(a, display=display)
     elif isinstance(a, KGChannel):
         return kg_write_channel(a, display=display)
     elif hasattr(a, '__str__'):

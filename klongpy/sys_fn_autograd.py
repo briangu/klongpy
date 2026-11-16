@@ -1,6 +1,7 @@
 """
 Autograd system functions for KlongPy.
 
+Provides .grad() for the numeric gradient (the ASCII form of the nabla operator).
 Provides .jacobian() for Jacobian matrix computation.
 Provides .compile() for function compilation and graph export (torch only).
 
@@ -10,6 +11,32 @@ which can be copied to your project and customized.
 import sys
 
 from .autograd import jacobian_of_fn, _invoke_fn
+from .dyads import eval_dyad_grad
+from .errors import KlongTypeError
+from .types import KGSym
+
+
+def eval_sys_grad(klong, x, y):
+    """
+
+        .grad(x;y)                                                  [Grad]
+
+        Compute the numeric gradient of function x at point y, using finite
+        differences. This is the ASCII form of the nabla operator: .grad(f;y)
+        equals y∇f. The function comes first, as in .jacobian(f;y).
+
+        The point y is taken by value: a number or a list of numbers. (The
+        operator y∇f also accepts a symbol and then perturbs that variable;
+        .grad does not.) For automatic differentiation use f:>y.
+
+        Examples:
+            .grad({x^2};3)               -->  6.0 (approximately)
+            .grad({+/x^2};[1 2 3])       -->  [2 4 6] (approximately)
+
+    """
+    if isinstance(y, KGSym):
+        raise KlongTypeError(".grad: the point must be a number or a list of numbers, not a symbol")
+    return eval_dyad_grad(klong, y, x)
 
 
 def eval_sys_jacobian(klong, x, y):

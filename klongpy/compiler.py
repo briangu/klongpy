@@ -56,14 +56,23 @@ class CompiledExpr:
         self.kinds = kinds
 
 
+# Python integers outside this range are exact in Klong (ticket 025) but are not
+# numpy integers; a compiled expression never sees one.
+_INT64_MIN = -2 ** 63
+_INT64_MAX = 2 ** 63 - 1
+
+
 def _kind(val, klong):
     """Operand class a compiled function is valid for, or None if not compilable."""
     tv = type(val)
-    if tv is int or tv is float:
+    if tv is int:
+        return int if _INT64_MIN <= val <= _INT64_MAX else None
+    if tv is float:
         return tv
     if isinstance(val, klong._backend.np.ndarray):
         dt = val.dtype
-        return ('array', getattr(dt, 'kind', None) or str(dt))
+        k = getattr(dt, 'kind', None) or str(dt)
+        return None if k == 'u' else ('array', k)
     return None
 
 
@@ -129,7 +138,10 @@ def run_compiled(klong, c):
     try:
         for s, kind in zip(c.var_syms, c.kinds):
             v = ctx[s]
-            if type(v) is not kind and _kind(v, klong) != kind:
+            if type(v) is kind:
+                if kind is int and not _INT64_MIN <= v <= _INT64_MAX:
+                    return NOT_COMPILED  # an integer beyond 64 bits: the interpreter's exact arithmetic
+            elif _kind(v, klong) != kind:
                 return NOT_COMPILED
             args.append(v)
     except KeyError:
@@ -145,12 +157,35 @@ def run_compiled(klong, c):
         return NOT_COMPILED
 
 
+def _is_scalar(ir, var_refs, klong):
+    """True if the IR certainly evaluates to a number rather than an array.
+
+    Decided from the values the variables hold now; run_compiled's kind check
+    keeps those kinds. False means "an array or not known".
+    """
+    t = ir[0]
+    if t == 'literal':
+        return True
+    if t == 'var':
+        for sym, name in var_refs.items():
+            if name == ir[1]:
+                return type(klong._context[sym]) in (int, float)
+        return False
+    if t == 'binop' or t == 'cmp':
+        return _is_scalar(ir[2], var_refs, klong) and _is_scalar(ir[3], var_refs, klong)
+    if t == 'negate':
+        return _is_scalar(ir[1], var_refs, klong)
+    return False
+
+
 def _ast_to_ir(node, klong, var_refs):
     """Walk AST and emit IR tuples. Returns IR tree or None."""
     t = type(node)
 
-    # Literals
-    if t is int or t is float:
+    # Literals (an integer beyond 64 bits is left to the interpreter, see _kind)
+    if t is int:
+        return ('literal', node) if _INT64_MIN <= node <= _INT64_MAX else None
+    if t is float:
         return ('literal', node)
 
     # Symbols -> variable references
@@ -162,7 +197,7 @@ def _ast_to_ir(node, klong, var_refs):
         except KeyError:
             return None
         tv = type(val)
-        if tv is int or tv is float:
+        if tv is float or (tv is int and _INT64_MIN <= val <= _INT64_MAX):
             if node not in var_refs:
                 var_refs[node] = f'_v{len(var_refs)}'
             return ('var', var_refs[node])
@@ -221,6 +256,8 @@ def _ast_to_ir(node, klong, var_refs):
                 if adv_char == '/':
                     return ('reduce', op_char, arg_ir)
                 elif adv_char == '\\':
+                    if _is_scalar(arg_ir, var_refs, klong):
+                        return None  # the interpreter returns a scalar for op\scalar, not a list
                     return ('scan', op_char, arg_ir)
 
     return None

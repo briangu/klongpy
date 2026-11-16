@@ -1026,7 +1026,7 @@ class TorchBackendProvider(BackendProvider):
         ns = {
             '_atomic': self.vec_fn2,
             '_add': operator.add, '_sub': operator.sub, '_mul': operator.mul,
-            '_div': operator.truediv, '_pow': operator.pow,
+            '_div': operator.truediv, '_pow': self.interpreter_power(),  # ticket 025: the interpreter's ^ (untested without torch)
             '_eq': operator.eq, '_gt': operator.gt, '_lt': operator.lt,
         }
         try:
