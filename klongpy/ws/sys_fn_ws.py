@@ -120,7 +120,14 @@ class ClientConnectionProvider(ConnectionProvider):
         self.websocket = None
 
     def is_open(self):
-        return self.websocket is not None and not self.websocket.closed
+        ws = self.websocket
+        if ws is None:
+            return False
+        # legacy websockets (<= 12) has a bool `.closed`; newer clients only have `.state`.
+        closed = getattr(ws, "closed", None)
+        if isinstance(closed, bool):
+            return not closed
+        return getattr(getattr(ws, "state", None), "name", None) == "OPEN"
 
     def __str__(self):
         return f"remote[{self.uri}]"

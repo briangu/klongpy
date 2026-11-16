@@ -60,9 +60,9 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
     """
     app = web.Application()
 
-    logging.info("web server start @ ", x)
-    logging.info("GET: ", y)
-    logging.info("POST: ", z)
+    logging.info("web server start @ %s", x)
+    logging.info("GET: %s", y)
+    logging.info("POST: %s", z)
 
     for route, fn in y.items():
         arity = fn.arity if isinstance(fn, KGFn) else fn.get_arity() if issubclass(type(fn), KGLambda) else 0
@@ -84,7 +84,7 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
                 logging.info(f"failed web request: {route} with error {e}")
                 return web.Response(text="Invalid request", status=400)
 
-        logging.info("adding GET route: ", route)
+        logging.info("adding GET route: %s", route)
 
         app.router.add_get(route, _get)
 
@@ -106,10 +106,10 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
                 parameters = dict(await request.post())
                 return web.Response(text=str(fn(parameters)))
             except Exception as e:
-                logging.error(e)
+                logging.exception("failed web request: %s", route)
                 return web.Response(text="Invalid request", status=400)
 
-        logging.info("adding POST route: ", route)
+        logging.info("adding POST route: %s", route)
 
         app.router.add_post(route, _post)
 

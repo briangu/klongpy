@@ -38,6 +38,46 @@ class TestSysFnWeb(unittest.TestCase):
         finally:
             s.close()
 
+    def test_web_start_logs_cleanly(self):
+        import logging
+        errors = []
+
+        class Raising(logging.Handler):
+            def emit(self, record):
+                try:
+                    record.getMessage()
+                except Exception as e:
+                    errors.append(e)
+
+            def handleError(self, record):
+                errors.append(record)
+
+        records = []
+
+        class Collect(logging.Handler):
+            def emit(self, record):
+                records.append(record.getMessage())
+
+        root = logging.getLogger()
+        old_level = root.level
+        handlers = [Raising(), Collect()]
+        for h in handlers:
+            h.setLevel(logging.INFO)
+            root.addHandler(h)
+        root.setLevel(logging.INFO)
+        try:
+            ok = KGLambda(lambda x: "ok")
+            with patch("klongpy.web.sys_fn_web.asyncio.create_task",
+                       side_effect=lambda coro: (coro.close(), object())[1]):
+                eval_sys_fn_create_web_server(self.klong, 0, {"/g": ok}, {"/p": ok})
+        finally:
+            for h in handlers:
+                root.removeHandler(h)
+            root.setLevel(old_level)
+        self.assertEqual(errors, [])
+        self.assertTrue(any(m.startswith("GET:") and "/g" in m for m in records), records)
+        self.assertTrue(any(m.startswith("POST:") and "/p" in m for m in records), records)
+
     @requires_strings
     def test_web_server_start_and_stop(self):
         klong = self.klong

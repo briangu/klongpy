@@ -96,3 +96,20 @@ class TestTableDataFrame(unittest.TestCase):
         # TODO: @ should work the same as a dictionary
         # r = klong('T@"col1"')
         # self.assertTrue(kg_equal(r, data['col1']))
+
+
+@unittest.skipUnless(HAS_PANDAS, "requires pandas")
+class TestDbQueryByTableName(unittest.TestCase):
+
+    def test_db_query_by_table_name(self):
+        try:
+            import duckdb  # noqa: F401
+        except ImportError:
+            self.skipTest("requires duckdb")
+        klong = KlongInterpreter()
+        klong('.py("klongpy.db")')
+        klong('T::.table(,"a",,[1 2 3])')
+        klong('q:::{}')
+        klong('q,"T",,T')
+        klong('db::.db(q)')
+        self.assertEqual(float(klong('db("select sum(a) from T")')), 6.0)

@@ -59,3 +59,36 @@ class TestNetworkClient(LoopsBase, unittest.TestCase):
         self.assertIsInstance(on_error.await_args.args[1], KlongWSConnectionFailureException)
 
         client.close()
+
+
+@unittest.skipUnless(HAS_WS, "requires websockets")
+class TestWsIsOpen(unittest.TestCase):
+
+    def test_ws_is_open_new_client(self):
+        import asyncio
+        import websockets
+        from klongpy.ws.sys_fn_ws import ClientConnectionProvider
+
+        async def handler(ws):
+            try:
+                await ws.wait_closed()
+            except Exception:
+                pass
+
+        async def run():
+            try:
+                server = await websockets.serve(handler, "127.0.0.1", 0)
+            except PermissionError:
+                self.skipTest("socket bind not permitted in this environment")
+            port = server.sockets[0].getsockname()[1]
+            provider = ClientConnectionProvider(f"ws://127.0.0.1:{port}")
+            self.assertFalse(provider.is_open())
+            await provider.connect()
+            self.assertTrue(provider.is_open())
+            ws = provider.websocket
+            await ws.close()
+            self.assertFalse(provider.is_open())
+            server.close()
+            await server.wait_closed()
+
+        asyncio.run(run())

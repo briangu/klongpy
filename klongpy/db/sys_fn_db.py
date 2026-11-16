@@ -135,9 +135,9 @@ class Database(KGLambda):
     def __call__(self, _, ctx):
         x = ctx[reserved_fn_symbol_map[reserved_fn_args[0]]]
 
-        # add the table column -> dataframe into local scope so DuckDB can reference them by name in the SQL.
+        # register the table dataframes so DuckDB can reference them by name in the SQL.
         for k,v in self.tables.items():
-            locals()[k] = v.get_dataframe()
+            self.con.register(k, v.get_dataframe())
 
         try:
             df = self.con.execute(x).fetchdf()
