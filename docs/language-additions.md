@@ -488,3 +488,7 @@ In the REPL, `it` holds the value of the last expression that printed a result. 
 ?> r::it+1
 7
 ```
+
+## See also
+
+[What's new in v2](whats-new-v2.md), [Migrating to v2](migrating-to-v2.md), [Differences from Klong](differences.md), [Conformance Suite](conformance.md), [Roadmap](roadmap.md).

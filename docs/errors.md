@@ -97,7 +97,7 @@ internal error: AttributeError: 'int' object has no attribute 'channel_dir'
 
 | Mode | Value results | Errors | Exit status |
 |---|---|---|---|
-| `kgpy file.kg` | nothing printed unless the program prints | rendered to stderr; the run stops at the first error | 0, or 1 on an error; `.x(n)` gives its own status |
+| `kgpy file.kg` | nothing printed unless the program prints | rendered to stderr; the run stops at the first error | 0, or 1 on an error; `.x(0)` exits with 0 and `.x(n)` for any other value with 1 |
 | `kgpy -e EXPR` | the result to stdout | rendered to stderr | 0, or 1 on an error |
 | `kgpy -t file` | the lines are echoed to stdout | each failing line rendered to stderr; the run goes on | 1 if any line failed, else 0; the REPL is not started |
 | `kgpy -l file` | | a failing load is rendered to stderr and the process exits, without the REPL | 1 |
@@ -250,3 +250,9 @@ Only the default (token) parser warns. The legacy parser (`KLONGPY_PARSER=legacy
 ## Interrupt
 
 In the REPL, Ctrl-C during a long evaluation stops it, prints `interrupted` and returns to the prompt. Python code stops at its next step; one long call into numpy finishes first. If the evaluation has not stopped after two seconds the REPL says so, and a second Ctrl-C quits. Ctrl-C at the prompt only abandons the line.
+
+## See also
+
+- [Conformance Suite](conformance.md): the error kinds above are the ones the implementation-neutral suite checks, by kind and not by message.
+- [Strict Mode](strict.md) and [Lint](lint.md): turning silent mistakes into errors or reports.
+- [Differences from Klong](differences.md) and [Roadmap](roadmap.md) for known limits.

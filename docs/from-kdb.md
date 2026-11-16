@@ -635,13 +635,13 @@ cb::{n::n+1;.p(n);:[n<3;1;0]}
 th::.timer("t";0.2;cb)
 ```
 
-This Klong block is not a checked transcript because a timer fires on the interpreter's event loop and the documentation checker does not run one. It was run with `kgpy` and printed 1, 2 and 3.
+This Klong block is not a checked transcript because a timer fires on the interpreter's event loop and the documentation checker does not run one. It was run with `kgpy -l file.kg`, which stays in the REPL while the timer fires, and printed 1, 2 and 3. `kgpy file.kg` runs the file and exits without waiting for a timer, so it prints nothing for this program.
 
 ## Talking to q: IPC
 
 KlongPy's `.srv`, `.cli`, `.clid`, `.clic`, `.clit` and `.async` speak the kdb+ IPC protocol. A Klong program can connect to a q process, and a q process can connect to a Klong server. The full description, including how functions cross the wire, is in [IPC Capabilities](ipc_capabilities.md). This section is what a q user needs.
 
-Version 1 limits: there is no TLS, so a user name and password travel in clear text, and a peer that can reach the port can run Klong code in your interpreter, including `.py` and `.sys`. Use it on trusted networks. The largest message accepted is 256 MiB by default (the `.system` key `ipc_max_message`); KlongPy does not handle messages over 2 GB. Protocol capability 3 is used: compressed messages are understood, and sent only when `klong.ipc_compress` is set from Python.
+Limits of this release: there is no TLS, so a user name and password travel in clear text, and a peer that can reach the port can run Klong code in your interpreter, including `.py` and `.sys`. Use it on trusted networks. The largest message accepted is 256 MiB by default (the `.system` key `ipc_max_message`); KlongPy does not handle messages over 2 GB. Protocol capability 3 is used: compressed messages are understood, and sent only when `klong.ipc_compress` is set from Python.
 
 What was tested: KlongPy against PeachQ 0.92 in both directions, and against a protocol-level fake of a kdb+ server. It was not tested against a KX kdb+ process, so the behaviours below are those of PeachQ. The protocol tests live in `tests/test_ipc_peachq.py` and run when `KLONG_TEST_PEACHQ` names a PeachQ executable.
 
@@ -926,6 +926,6 @@ Compared with a q process:
 
 - [Tutorial](tutorial.md) for the language from the first expression.
 - [Klong for NumPy users](from-numpy.md) for the Python array side.
-- [IPC Capabilities](ipc_capabilities.md), [Timers](timer.md), [Fast Columnar Database](fast_columnar_database.md).
+- [IPC Capabilities](ipc_capabilities.md), [IPC and timers in the native runtime](native/ipc.md), [Timers](timer.md), [Fast Columnar Database](fast_columnar_database.md).
 - [Friendlier syntax](language-additions.md) for destructuring, named parameters and dictionaries.
 - [Strict mode](strict.md) and [Lint](lint.md) for the checks that catch the q habits above.

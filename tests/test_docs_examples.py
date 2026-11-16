@@ -13,7 +13,8 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPT = os.path.join(ROOT, "scripts", "check_docs.py")
-DOCS = [os.path.join(ROOT, "README.md")] + sorted(glob.glob(os.path.join(ROOT, "docs", "*.md")))
+DOCS = ([os.path.join(ROOT, "README.md")] + sorted(glob.glob(os.path.join(ROOT, "docs", "*.md")))
+        + sorted(glob.glob(os.path.join(ROOT, "docs", "native", "*.md"))))
 
 
 @unittest.skipUnless(os.path.exists(SCRIPT), "scripts/check_docs.py is not part of this source tree")
@@ -252,6 +253,71 @@ class TestShellDirectives(unittest.TestCase):
 
     def test_link_on_a_transcript_block_is_rejected(self):
         r = self.run_doc("<!-- check-docs: link examples -->\n```kgpy\n?> 1\n1\n```\n")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("console blocks only", r.stderr)
+
+
+FILE_DOC = """<!-- check-docs: requires-file scripts/check_docs.py -->
+```console
+$ echo first
+first
+```
+
+<!-- check-docs: continue -->
+```console
+$ echo second
+second
+```
+
+<!-- check-docs: requires-file no/such/file/for/check-docs -->
+```console
+$ echo not run
+this is not what it prints
+```
+
+<!-- check-docs: continue -->
+```console
+$ echo not run either
+this is not what it prints
+```
+"""
+
+
+@unittest.skipUnless(os.path.exists(SCRIPT), "scripts/check_docs.py is not part of this source tree")
+class TestFileAndPathDirectives(unittest.TestCase):
+    """``requires-file`` skips a block whose file is not there; ``path`` puts a directory of the repository on the PATH."""
+
+    def run_doc(self, text):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "doc.md")
+            with open(path, "w") as f:
+                f.write(text)
+            return subprocess.run([sys.executable, SCRIPT, path], cwd=ROOT, capture_output=True, text=True, timeout=120)
+
+    def test_a_missing_file_skips_the_block_and_its_continuations(self):
+        r = self.run_doc(FILE_DOC)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("2 examples checked, 0 mismatches", r.stdout)
+        self.assertIn("2 blocks skipped (needs no/such/file/for/check-docs)", r.stdout)
+
+    def test_a_file_that_is_there_lets_the_block_run(self):
+        r = self.run_doc(FILE_DOC.replace("no/such/file/for/check-docs", "scripts/check_docs.py").replace("this is not what it prints", "wrong"))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertEqual(r.stdout.count("MISMATCH"), 2, r.stdout)
+
+    def test_the_directory_comes_first_on_the_path(self):
+        text = "<!-- check-docs: path scripts -->\n```console\n$ echo $PATH | cut -d: -f1\n%s\n```\n" % os.path.join(ROOT, "scripts")
+        r = self.run_doc(text)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("1 examples checked, 0 mismatches", r.stdout)
+
+    def test_a_path_that_is_not_a_directory_is_rejected(self):
+        r = self.run_doc("<!-- check-docs: path no/such/dir -->\n```console\n$ echo x\nx\n```\n")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("cannot put", r.stderr)
+
+    def test_path_on_a_transcript_block_is_rejected(self):
+        r = self.run_doc("<!-- check-docs: path scripts -->\n```kgpy\n?> 1\n1\n```\n")
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("console blocks only", r.stderr)
 

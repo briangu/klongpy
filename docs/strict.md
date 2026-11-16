@@ -347,3 +347,5 @@ Leave level 0 on for programs written before these levels existed, and for a pro
 The standard library under `klongpy/lib` loads at levels 0, 1 and 2, so a strict program can load it with `.l`.
 
 Run [`kgpy --lint`](lint.md) over a file to see the same kinds of mistake without running anything.
+
+See also: [Errors](errors.md), [Conformance Suite](conformance.md) (the `strict1` and `strict2` cases), [Migrating to v2](migrating-to-v2.md).

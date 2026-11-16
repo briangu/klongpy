@@ -315,3 +315,5 @@ for d in lint_source("a::1\n[a 2]\n", "demo.kg"):
 ```
 
 `lint_source(text, name, *, select, ignore, define, base_dir, resolve)` returns `Diagnostic` objects in order of position. `str(d)` is the line the command prints. `resolve=False` never reads other files. `lint_file(path, ...)` reads a file.
+
+See also: [Strict Mode](strict.md), [Errors](errors.md).

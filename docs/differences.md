@@ -102,7 +102,7 @@ Why: the depth walk follows lists, and a string is not one. The test this comes 
 
 ### Numbers
 
-Reals are doubles, where Klong's are arbitrary precision. Integers are 64 bits wide and wrap on overflow, as in NumPy. An operand beyond 64 bits (a long literal, or `2^64`) makes `+ - * % < > | &` exact, but `^` is computed in floating point.
+Reals are doubles, where Klong's are arbitrary precision. Integers are 64 bits wide and wrap on overflow, as in NumPy. An operand beyond 64 bits (a long literal, or `2^64`) makes `+ - * < > | &` exact. `%` gives a float and `^` is computed in floating point.
 
 ```kgpy
 ?> 9223372036854775807+1
@@ -153,3 +153,9 @@ error: cannot apply % (Reciprocal) to string
 - `pending.first-of-string-is-a-char`, `pending.first-of-reversed-string-is-a-char`, `pending.scan-join-over-string-first-item-is-a-char`: the first element of a string should be a character (`0ca`, as `"abc"@0` gives), not a one-character string. `*"abc"`, `*|"hello"` and the first item of `,\"abc"` are strings. The reference suite passes only because `~` treats a character and a one-character string as equal.
 - `pending.index-by-float`: `[1 2 3]@1.0` should be a type error (an index must be an integer). It returns the whole list.
 - `pending.reciprocal-of-string` and `pending.where-of-string`: `%"a"` and `&"a"` should be type errors, as `-"a"` is. They are reported as range errors.
+
+## See also
+
+- [Conformance Suite](conformance.md): the implementation-neutral cases, including the pending list that the known bugs above come from.
+- [Roadmap](roadmap.md): known limits and what is planned.
+- [Migrating to v2](migrating-to-v2.md) and [What's new in v2](whats-new-v2.md).

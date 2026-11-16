@@ -50,10 +50,12 @@ Test it out:
 $ curl "http://localhost:8888"
 []
 $ curl -X POST -d"p=100" "http://localhost:8888/p"
-[100]
+['100']
 $ curl "http://localhost:8888"
-[100]
+['100']
 ```
+
+The posted value is a string, so `data` holds `'100'`, not the number 100. A path with no handler returns HTTP 404.
 
 You can also launch the same web server directly from the REPL:
 
@@ -87,3 +89,8 @@ Stop the server with:
 ?> .webc(h)
 1
 ```
+
+## See also
+
+- [WebSockets](websockets.md) and [IPC capabilities](ipc_capabilities.md).
+- [System functions](system-functions.md): `.web`, `.webc`.

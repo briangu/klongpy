@@ -1,6 +1,6 @@
 """Check the transcript examples in the documentation.
 
-    python scripts/check_docs.py                  # README.md and docs/*.md of this repository
+    python scripts/check_docs.py                  # README.md, docs/*.md and docs/native/*.md of this repository
     python scripts/check_docs.py FILE.md ...      # these files only
 
 Two kinds of fenced block are run:
@@ -39,14 +39,21 @@ A comment on the line before a fenced block changes how it is run::
     <!-- check-docs: continue -->               run in the interpreters of the previous block
     <!-- check-docs: requires duckdb pandas --> run only if these packages import, else skip
     <!-- check-docs: requires-cmd clang -->      run only if these commands are on the PATH, else skip
+    <!-- check-docs: requires-file PATH -->      run only if this path of the repository exists, else skip (a built binary, say)
     <!-- check-docs: link examples -->           (console blocks) link these paths of the repository into the directory
+    <!-- check-docs: path native/target/release -->  (console blocks) put these directories of the repository on the PATH
     <!-- check-docs: strict 2 -->                run in an interpreter at strict level 2 (0, 1 or 2)
     <!-- check-docs: render -->                  show a failed input as the REPL prints it on stderr
     <!-- check-docs: skip: reason -->           do not run; the reason is required
 
 Directives combine with ``;`` (``continue; requires duckdb``); a ``skip`` reason runs to the end of the comment. ``requires`` and
 ``requires-cmd`` on a block apply to the blocks that continue it. ``requires-cmd`` names programs (a C compiler, say) that
-must be found on the ``PATH``; the block is skipped, with ``needs clang`` as the reason, where one is missing. ``link`` makes a
+must be found on the ``PATH``; the block is skipped, with ``needs clang`` as the reason, where one is missing. ``requires-file``
+names paths relative to the repository root (``native/target/release/klong``, a binary that has to be built first); the
+block is skipped, with ``needs native/target/release/klong`` as the reason, where one does not exist. ``path`` puts the named
+directories of the repository, in front of the ``PATH`` of a console block's commands, so that ``klong`` there is the
+one that was built; it is given on the block that starts the session, is an error on any other form, and the directory has
+to exist unless the block is skipped. ``link`` makes a
 console block's directory contain a symbolic link to each named path of the repository (``examples`` makes
 ``examples/embedded/mavg.kg`` readable by the commands, so a page can use the paths that a reader's checkout has); it is given
 on the block that starts the session and is an error on any other form. ``strict N`` sets the strict level of the interpreters the block creates, so a
@@ -95,8 +102,8 @@ DIRECTIVE = re.compile(r"(?:<!--\s*check-docs:(.*?)-->\s*)?```([a-z]*)\n(.*?)```
 
 def parse_directives(text):
     """{'continue': bool, 'requires': [packages], 'skip': reason or None}."""
-    d = {"continue": False, "requires": [], "requires_cmd": [], "link": [], "skip": None, "strict": None,
-         "render": False}
+    d = {"continue": False, "requires": [], "requires_cmd": [], "requires_file": [], "link": [], "path": [],
+         "skip": None, "strict": None, "render": False}
     text = (text or "").strip()
     m = re.search(r"(?:^|;)\s*skip\b", text)
     if m:                                    # the reason runs to the end and may contain ';'
@@ -110,6 +117,10 @@ def parse_directives(text):
             d["continue"] = True
         elif part.split()[:1] == ["requires-cmd"]:
             d["requires_cmd"] += part.split()[1:]
+        elif part.split()[:1] == ["requires-file"]:
+            d["requires_file"] += part.split()[1:]
+        elif part.split()[:1] == ["path"]:
+            d["path"] += part.split()[1:]
         elif part.split()[:1] == ["requires"]:
             d["requires"] += part.split()[1:]
         elif part.split()[:1] == ["link"]:
@@ -135,7 +146,7 @@ def blocks(text):
         if m.group(2) == "console" and body.startswith("$ "):
             yield "shell", body, d
         elif first.startswith("?> ") and (d["skip"] or d["continue"] or d["requires"] or d["requires_cmd"]
-                                        or not re.search(SKIP_SINGLE, body)):
+                                        or d["requires_file"] or not re.search(SKIP_SINGLE, body)):
             yield "single", body, d
         elif PAIR.match(first):
             yield "pair", body, d
@@ -212,8 +223,9 @@ def run_step(klong, expr, buf, settle=0.0, render=False):
 class Session:
     """The interpreters one block (and the blocks that continue it) run in."""
 
-    def __init__(self, kind, strict=0, link=()):
+    def __init__(self, kind, strict=0, link=(), path=()):
         self.kind = kind
+        self.path = []
         self.strict = strict
         self.buf = io.StringIO()
         self.stack = contextlib.ExitStack()
@@ -232,6 +244,11 @@ class Session:
             with open(py, "w") as f:
                 f.write(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
             os.chmod(py, 0o755)
+            for name in path:
+                target = os.path.join(ROOT, name)
+                if not os.path.isdir(target) or os.path.isabs(name) or ".." in name.split("/"):
+                    raise ValueError(f"check-docs: cannot put {name!r} on the PATH: not a directory of the repository")
+                self.path.append(target)
             for name in link:
                 target = os.path.join(ROOT, name)
                 if not os.path.exists(target) or os.path.isabs(name) or ".." in name.split("/"):
@@ -253,7 +270,7 @@ class Session:
 
     def run_shell(self, path, body, report):
         env = dict(os.environ, NO_COLOR="1", PYTHONPATH=ROOT + os.pathsep + os.environ.get("PYTHONPATH", ""),
-                   PATH=self.bin + os.pathsep + os.environ.get("PATH", ""), KGPY_HISTORY="")
+                   PATH=os.pathsep.join(self.path + [self.bin, os.environ.get("PATH", "")]), KGPY_HISTORY="")
         for cmd, exp in parse_shell(body):
             cmd = self.localize(cmd)
             exp = [self.localize(line).rstrip() for line in exp]
@@ -298,16 +315,17 @@ def check_text(path, text, report, skipped):
             if not reason:
                 missing = [p for p in d["requires"] if not importable(p)]
                 missing += [c for c in d["requires_cmd"] if shutil.which(c) is None]
+                missing += [f for f in d["requires_file"] if not os.path.exists(os.path.join(ROOT, f))]
                 if missing:
                     reason = "needs " + ", ".join(missing)
-            if d["link"] and kind != "shell":
-                raise ValueError(f"{path}: link applies to console blocks only")
+            if (d["link"] or d["path"]) and kind != "shell":
+                raise ValueError(f"{path}: link and path apply to console blocks only")
             if reason:
                 skip_chain = reason
                 skipped.append((path, reason))
                 continue
             if session is None:
-                session = Session(kind, d["strict"] or 0, d["link"])
+                session = Session(kind, d["strict"] or 0, d["link"], d["path"])
             elif session.kind != kind:
                 raise ValueError(f"{path}: a continued block must have the same form as the one before it")
             elif d["strict"] is not None and d["strict"] != session.strict:
@@ -319,7 +337,8 @@ def check_text(path, text, report, skipped):
 
 
 def main(argv):
-    paths = argv or [os.path.join(ROOT, "README.md")] + sorted(glob.glob(os.path.join(ROOT, "docs", "*.md")))
+    paths = argv or ([os.path.join(ROOT, "README.md")] + sorted(glob.glob(os.path.join(ROOT, "docs", "*.md")))
+                     + sorted(glob.glob(os.path.join(ROOT, "docs", "native", "*.md"))))
     counts = {"checked": 0, "bad": 0}
     skipped = []
 

@@ -132,10 +132,10 @@ The `:>` operator uses PyTorch's automatic differentiation when the torch backen
 
 ```klong
 f::{x^2}
-f:>3              :" Returns 6.0 (derivative of x^2 at x=3)
+f:>3              :" Returns 6.0 on torch; on numpy 6.000000000838668 (finite differences)
 
 g::{+/x^2}
-g:>[1 2 3]        :" Returns [2 4 6] (gradient of sum of squares)
+g:>[1 2 3]        :" Returns [2 4 6] (gradient of sum of squares; on numpy, values near these)
 ```
 
 ### Multi-Parameter Gradients
@@ -146,12 +146,11 @@ The `:>` operator can compute gradients for multiple parameters simultaneously w
 w::2.0;b::3.0
 loss::{(w^2)+(b^2)}
 
-:" Single parameter (returns gradient)
-loss:>w               :" Returns 4.0
-
-:" Multiple parameters (returns list of gradients)
+:" A list of symbols returns a list of gradients
 loss:>[w b]           :" Returns [4.0 6.0]
 ```
+
+On the numpy backend the same call returns finite-difference values (`[3.9999999996709334 6.000000000838668]`). The values were produced by running this example on both backends. A single symbol, `loss:>w`, is not covered here: it does not give 4.0 on either backend.
 
 ### Jacobian Operator: `∂`
 
@@ -164,7 +163,7 @@ f::{x^2}              :" Element-wise square
 [1 2]∂f               :" [[2 0] [0 4]] - diagonal Jacobian
 
 g::{+/x^2}            :" Sum of squares (scalar output)
-[1 2 3]∂g             :" [2 4 6] - gradient vector
+[1 2 3]∂g             :" [2 4 6] on torch; [[2 4 6]] on numpy (one row, finite differences)
 ```
 
 Also available as `.jacobian(function;point)`.
@@ -197,7 +196,7 @@ The two gradient operators take their arguments in opposite orders: `point∇fun
 
 ### Autograd System Functions
 
-Additional system functions for autograd (require PyTorch backend):
+Additional system functions for autograd (require the PyTorch backend; `.gradcheck` also needs the CPU device, `kgpy --backend torch --device cpu`):
 
 | Function | Description |
 |----------|-------------|
@@ -523,7 +522,7 @@ error: :*: count must be a non-negative integer, got 1.5
 
 ### Integers beyond 64 bits
 
-Integers are 64 bits wide. A sum, difference or product of two such integers that does not fit wraps around, as it does in NumPy. An operand that is itself outside 64 bits (a long literal, or the result of `2^64`) makes `+ - * % < > | &` exact:
+Integers are 64 bits wide. A sum, difference or product of two such integers that does not fit wraps around, as it does in NumPy. An operand that is itself outside 64 bits (a long literal, or the result of `2^64`) makes `+ - * < > | &` exact, while `%` gives a float:
 
 ```kgpy
 ?> 9223372036854775807+1
@@ -724,3 +723,7 @@ The following operator combinations are reserved for future use:
 ```
 :! :& :, :< :?
 ```
+
+## See also
+
+[Conformance Suite](conformance.md) for what the operators are tested against, [Differences from Klong](differences.md), [Roadmap](roadmap.md).

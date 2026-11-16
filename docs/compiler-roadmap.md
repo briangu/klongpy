@@ -1,46 +1,37 @@
 # Expression Compiler Roadmap
 
-## Current State
+Checked against the code on 2026-11-16 (`klongpy/compiler.py`, the call sites in `klongpy/interpreter.py`, and `klongpy/static/`). The "Current state" section describes what runs today. The sections after it are plans, not features: none of that work exists.
 
-The expression compiler has two optimization layers:
+## Current state
 
-1. **Compiler** (`compiler.py` → `backend.compile_expr_ir`): catches top-level expressions and compiles them to backend-specific Python functions. Handles arithmetic, comparisons, reduce/scan on arrays. Produces backend-neutral IR, each backend generates its own code.
+KlongPy has two separate compilers. They share no code and do different jobs.
 
-2. **Adverb ufuncs** (`adverbs.py`): when the compiler can't handle an expression (e.g., reduce/scan inside a lambda), the interpreter falls through to adverb functions that manually dispatch to numpy ufuncs (`np.add.reduce`, `np.add.accumulate`, etc.). Without this layer, `functools.reduce` on 100K elements is ~5000x slower.
+### The expression compiler (`klongpy/compiler.py`)
 
-The compiler only sees "leaf" expressions — the final expression the interpreter evaluates. It cannot look inside lambdas or function calls because by the time the compiler runs, those are opaque Python objects, not ASTs.
+It speeds up arithmetic and reductions on numbers and arrays while a program runs under KlongPy.
 
-## Phase 2: Lambda Inlining
+- The interpreter asks the compiler about each operator node and each adverb-chain node it evaluates. The result, including "not compilable", is cached on the node, so the work is done once per node.
+- The compiler turns a node into a small backend-neutral tree (the IR) and the active backend (`compile_expr_ir` in `klongpy/backends/numpy_backend.py` and `torch_backend.py`) generates a Python function from it.
+- What the IR covers: integer and float literals, variables that hold a number or an array, the dyads `+ - * % ^`, the comparisons `> < =`, monadic `-`, and reduce (`/`) and scan (`\`) with `+ * | &`.
+- Anything else (strings, lists of mixed values, other operators, calls to functions, indexing, assignment) is left to the interpreter. A node that contains such a part is not compiled as a whole.
+- A compiled function is valid only for the kinds of value its variables had when it was compiled (int, float, array of a dtype kind). If a variable is later rebound to another kind, or an integer beyond 64 bits, the interpreter evaluates the node instead. A scalar division by zero is also re-evaluated by the interpreter, which returns `:undefined`.
+- It does run inside function bodies. For `f::{+/x*y}` the node `+/x*y` is compiled with `x` and `y` as its variables, on the first call, and reused on later calls while their kinds stay the same. What is not compiled is the function as a unit: the interpreter still evaluates the body node by node.
 
-Extend the compiler to handle lambdas by compiling their body expressions.
+When a reduce or scan is not compiled (an operator outside the table above, or operands that are not plain variables), the interpreter uses the adverb implementations in `klongpy/adverbs.py`, which call the backend's ufunc `reduce` and `accumulate` for the common operators.
 
-When the compiler encounters a lambda like `{+/x*y}`, it can:
-- Inspect the lambda's AST body
-- Compile it as a function with parameters mapped from the lambda's arguments
-- Return a compiled callable that replaces the interpreter's lambda evaluation
+### The static compiler (`klongpy/static/`)
 
-This would make the adverb ufunc optimizations in `adverbs.py` redundant for the common case, since `{+/x}(a)` would compile to `np.sum(a)` directly.
+It compiles a restricted subset of Klong, the static profile, to C ahead of time. It is described in [Compiling Klong to C](embedded.md) and [The static profile](static-profile.md). It checks a program (`kgpy --check-static`), infers types and shapes, and emits C code with a runtime header. It is not used by the expression compiler and does not speed up a normal KlongPy run.
 
-Key challenges:
-- Lambda ASTs need to be accessible at compile time (they're stored in `KGFn` objects)
-- Variable scoping: lambda parameters vs. outer context variables
-- Nested lambdas and closures
+## Planned: compile a function as a unit
 
-## Phase 3: Function Call Tracing
+Not available. Compile the whole body of a function, not node by node, so that `f::{+/x*y}` becomes one compiled call and temporaries between operators can be avoided. Open questions: how parameters and outer variables map into the compiled function, nested functions and closures, and how to keep the guard on operand kinds cheap.
 
-Extend the compiler to trace through function calls and compile the compute graph.
+## Planned: trace function calls
 
-Similar to how `torch.compile` and JAX's `jit` work: trace the execution of a function, record the operations, compile the resulting graph. The interpreter becomes the fallback for operations that escape the trace (I/O, control flow, Python interop).
+Not available. Record the operations a function performs and compile the resulting graph, as `torch.compile` and JAX's `jit` do, with the interpreter as the fallback for anything that escapes the trace (I/O, assignments, Python calls, conditionals that depend on values).
 
-At this point, most of monads.py/dyads.py/adverbs.py would be pushed into backend-generated code for the compiled path. The interpreter modules would remain as the "slow path" for:
-- Expressions with side effects (I/O, assignments)
-- Dynamic typing that can't be resolved at compile time
-- Python interop calls
-- Control flow (conditionals, loops)
+## Related
 
-## Priority
-
-Phase 2 (lambda inlining) is the high-value next step. It would:
-- Eliminate the adverb ufunc layer for most use cases
-- Let users write `f::{+/x*y}` and get compiled performance
-- Keep the same frontend/backend split architecture
+- [Performance](performance.md) has measurements.
+- [Roadmap](roadmap.md) lists what is planned for the project as a whole.

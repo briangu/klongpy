@@ -1,5 +1,5 @@
 site_name: KlongPy
-site_url: https://briangu.github.io/klongpy
+site_url: https://www.klongpy.org/
 repo_url: https://github.com/briangu/klongpy
 repo_name: briangu/klongpy
 
@@ -12,9 +12,15 @@ site_dir: 'site'
 # Navigation structure
 nav:
   - Home: 'index.md'
-  - Quick Start: 'quick-start.md'
-  - Tutorial: 'tutorial.md'
-  - Examples: 'examples.md'
+  - Getting Started:
+      - Start Here: 'getting-started.md'
+      - Quick Start: 'quick-start.md'
+      - Tutorial: 'tutorial.md'
+      - Examples: 'examples.md'
+  - What's New:
+      - What's New in v2: 'whats-new-v2.md'
+      - Migrating to v2: 'migrating-to-v2.md'
+      - Release Notes: 'release-notes.md'
   - Guides:
       - Klong for NumPy Users: 'from-numpy.md'
       - Klong for q Users: 'from-kdb.md'
@@ -27,7 +33,15 @@ nav:
       - Strict Mode: 'strict.md'
       - Lint: 'lint.md'
       - Differences from Klong: 'differences.md'
-  - Embedded:
+  - Native Runtime:
+      - Overview: 'native/index.md'
+      - Building and Running: 'native/building.md'
+      - Serial Console and Upload: 'native/console.md'
+      - ESP32-P4: 'native/esp32-p4.md'
+      - IPC and Timers: 'native/ipc.md'
+      - Management Node: 'native/management-node.md'
+      - Porting to a Board: 'native/porting.md'
+  - Embedded C:
       - Compiling Klong to C: 'embedded.md'
       - Static Profile: 'static-profile.md'
   - Reference:
@@ -35,7 +49,6 @@ nav:
       - REPL: 'repl.md'
       - Errors: 'errors.md'
       - System Functions: 'system-functions.md'
-      - Release Notes: 'release-notes.md'
   - Data & Systems:
       - Fast Columnar Database: 'fast_columnar_database.md'
       - Table & Key-Value Store: 'table_and_key_value_stores.md'
@@ -43,6 +56,10 @@ nav:
       - Web Server: 'web_server.md'
       - WebSockets: 'websockets.md'
       - Timers: 'timer.md'
+  - Project:
+      - Contributing: 'contributing.md'
+      - Conformance Suite: 'conformance.md'
+      - Roadmap: 'roadmap.md'
 
 # Theme configuration
 theme:
@@ -73,3 +90,12 @@ markdown_extensions:
 # google_analytics:
 #   - 'UA-XXXXX-X'
 #   - 'auto'
+
+# Versioned docs: each release line is published under its own directory on the
+# gh-pages branch by mike (see .github/workflows/gh-pages.yml); this adds the
+# version selector to the header.
+extra:
+  version:
+    provider: mike
+    default: latest
+    alias: true

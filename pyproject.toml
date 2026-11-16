@@ -45,7 +45,7 @@ web = ["aiohttp>=3.9"]
 # pandas 2.x supports Python 3.9/3.10; pandas 3 needs 3.11+ (pip picks the newest that fits).
 db = ["pandas>=2.0", "duckdb>=1.0"]
 ws = ["websockets>=12"]
-docs = ["mkdocs>=1.6", "mkdocs-material>=9.7"]
+docs = ["mkdocs>=1.6", "mkdocs-material>=9.7", "mike>=2.1"]
 all = [
     "torch",
     "colorama>=0.4",

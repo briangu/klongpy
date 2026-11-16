@@ -563,3 +563,9 @@ With the server on `KLONGPY_IPC=kdb` the same client connects and its first call
 - Calling through a connection from a function that was itself called by a q process (nested callbacks with kdb+) is not supported.
 - There is no TLS. Anyone on the path can read the credentials and data.
 - On the wire a function is its source text and the receiver parses it, so a function that was never given a source text (a projection) arrives opaque, and a function of the sender that uses names the receiver lacks fails on the receiver.
+
+## See also
+
+- [IPC and timers in the native runtime](native/ipc.md): IPC on the Rust runtime.
+- [Management node](native/management-node.md): managing native nodes.
+- [Timers](timer.md), [Web server](web_server.md), [WebSockets](websockets.md) and the [roadmap](roadmap.md) (testing against a real kdb+ is planned, not done).

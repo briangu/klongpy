@@ -144,6 +144,8 @@ We can now issue a JOIN SQL:
 
 Tables are backed by Pandas DataFrames, so it's easy to integrate Pandas directly into KlongPy via DuckDB.
 
+Run on 2026-11-16 with pandas and duckdb installed, this prints `[25 30 35 40]`:
+
 ```Python
 from klongpy import KlongInterpreter
 import pandas as pd
@@ -161,3 +163,8 @@ db::.db(:{},"people",t)
 db("select Age from people")
 """)
 ```
+
+## See also
+
+- [Table and key-value stores](table_and_key_value_stores.md) to keep tables on disk.
+- [IPC capabilities](ipc_capabilities.md) and [Roadmap](roadmap.md).

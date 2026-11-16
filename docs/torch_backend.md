@@ -41,18 +41,16 @@ klong = KlongInterpreter(backend="torch", device="cuda")
 
 ## Performance
 
-The torch backend excels with large arrays:
+Measured on 2026-11-16 on an Apple M2 Ultra (macOS, Python 3.12.9, numpy 2.5.5, torch 2.15.0). Each figure is the mean of 20 runs after 3 warm-up runs, for the expression `1+!100000` and so on, using the benchmark expressions of `tests/perf_backend.py`. The MPS column calls `torch.mps.synchronize()` before and after the timed runs; without it the GPU timings only measure queueing.
 
-```
-Benchmark              NumPy      Torch      Winner
----------------------------------------------------------
-vector_add_100K        0.04ms     0.08ms     NumPy (2x)
-vector_add_1M          0.36ms     0.07ms     Torch (5x)
-compound_expr_1M       0.61ms     0.07ms     Torch (8x)
-grade_up_100K          0.59ms     0.19ms     Torch (3x)
-```
+| Expression | NumPy | Torch, CPU | Torch, MPS |
+|---|---|---|---|
+| `1+!100000` | 0.039 ms | 0.169 ms | 0.038 ms |
+| `1+!1000000` | 0.383 ms | 0.292 ms | 0.051 ms |
+| `2*1+!1000000` | 0.698 ms | 0.390 ms | 0.072 ms |
+| `<!100000` (grade up) | 0.602 ms | 2.185 ms | 0.163 ms |
 
-For small arrays (<100K elements), NumPy is slightly faster due to lower dispatch overhead. For larger arrays, torch wins significantly.
+On the CPU, torch is slower than NumPy at 100K elements and about 1.3 to 1.8 times faster for the 1M-element arithmetic; its grade up was 3.6 times slower than NumPy's in this run. The GPU is faster on all four rows. These numbers are from one machine and one run; other hardware and other torch versions will differ. Run `python tests/perf_backend.py --compare` for the full set on your machine (it uses the best device it finds and does not synchronize the GPU).
 
 ## Automatic Differentiation
 
@@ -97,7 +95,9 @@ The syntax is `point∇function`; the autograd operator `:>` takes the function 
 |----------|--------|-----------|-------|
 | `:>` with torch | PyTorch autograd | Exact | Fast |
 | `:>` without torch | Numeric | ~1e-6 error | Slower |
-| `∇` (any backend) | Always numeric | ~1e-6 error | Slower |
+| `∇` (any backend) | Always numeric | ~1e-6 error on the CPU (see note) | Slower |
+
+Under the torch backend values are float32 on every device, so the numeric result is coarser. With `f::{x^2}`, `3∇f` gave `6.000000000838668` on the CPU and `5.993843` on MPS (torch 2.15.0).
 
 With the torch backend (`--backend torch` or `backend='torch'`), prefer `:>` for:
 - Exact gradients (no floating-point approximation error)
@@ -131,8 +131,10 @@ x::5.0
 lr::0.1
 
 :" Update rule: x = x - lr * grad
-x::x-(lr*f:>x)
+x::x-(lr*f:>x)           :" x is now 4.0
 ```
+
+`function:>point` differentiates a function of its argument. A function that reads a global variable instead of `x` must be differentiated with respect to that variable by naming it in a list, as in the next section.
 
 ### Multi-Parameter Gradients
 
@@ -197,6 +199,8 @@ This returns a list of Jacobian matrices, one per parameter. Useful for analyzin
 
 KlongPy provides the gradient primitives (`:>`, `∂`, `.jacobian()`). For optimizers, use the example classes in `examples/autograd/optimizers.py` which you can copy to your project and customize.
 
+`loss:>[w]` returns a list with one gradient, so `**` takes its first element: `lr**g` is `lr*(*g)`. (`loss:>w` with a `loss` that ignores its argument does not work: on the torch backend it raises an autograd error, and on the numpy backend it returns 0.0.)
+
 **Manual gradient descent (no optimizer needed):**
 ```klong
 w::10.0
@@ -204,14 +208,14 @@ loss::{w^2}
 lr::0.1
 
 :" Update rule: w = w - lr * gradient
-{w::w-(lr*loss:>w)}'!50
-w                        :" Close to 0
+{w::w-(lr**loss:>[w])}'!50
+w                        :" Close to 0 (about 0.0001 after 50 steps)
 ```
 
 **Using a custom optimizer class:**
 
 1. Copy `examples/autograd/optimizers.py` to your project directory
-2. Import with `.pyf()`:
+2. Import with `.pyf()` (the file is found in the current directory, or give its path). The optimizer receives the interpreter automatically; do not pass `klong` yourself:
 
 ```klong
 :" Import the optimizer class
@@ -222,7 +226,7 @@ w::10.0
 loss::{w^2}
 
 :" Create optimizer with learning rate 0.1
-opt::SGDOptimizer(klong;["w"];:{["lr" 0.1]})
+opt::SGDOptimizer(["w"];:{["lr" 0.1]})
 
 :" Run optimization steps
 {opt(loss)}'!50
@@ -236,13 +240,13 @@ w                        :" Close to 0
 **SGD with momentum:**
 ```klong
 .pyf("optimizers";"SGDOptimizer")
-opt::SGDOptimizer(klong;["w"];:{["lr" 0.01 "momentum" 0.9]})
+opt::SGDOptimizer(["w"];:{["lr" 0.01 "momentum" 0.9]})
 ```
 
 **Adam optimizer:**
 ```klong
 .pyf("optimizers";"AdamOptimizer")
-opt::AdamOptimizer(klong;["w" "b"];:{["lr" 0.001]})
+opt::AdamOptimizer(["w" "b"];:{["lr" 0.001]})
 ```
 
 **Training loop example:**
@@ -252,7 +256,7 @@ opt::AdamOptimizer(klong;["w" "b"];:{["lr" 0.001]})
 w::1.0;b::0.0
 X::[1 2 3];Y::[3 5 7]
 loss::{(+/((w*X)+b-Y)^2)%3}
-opt::AdamOptimizer(klong;["w" "b"];:{["lr" 0.1]})
+opt::AdamOptimizer(["w" "b"];:{["lr" 0.1]})
 
 :" Train for 500 steps
 {opt(loss)}'!500
@@ -270,8 +274,10 @@ When CUDA or Apple MPS is available, tensors automatically use GPU:
 from klongpy import KlongInterpreter
 
 klong = KlongInterpreter(backend='torch')
-print(klong._backend.device)  # 'cuda:0', 'mps:0', or 'cpu'
+print(klong._backend.device)  # 'cuda', 'mps' or 'cpu'
 ```
+
+Tensors then report their device with an index, for example `mps:0`.
 
 ### Device Selection
 
@@ -283,8 +289,8 @@ The backend automatically selects the best available device:
 ### MPS Limitations
 
 Apple's MPS backend has some limitations:
-- No float64 support (uses float32)
-- Some operations fall back to CPU
+- No float64 support. Float values are float32. (The torch backend on the CPU also produces float32 tensors: `1.5+1e-9` prints `1.5000` on both.)
+- `.gradcheck()` requires the CPU; on MPS it raises `.gradcheck() requires CPU device, got 'mps'`. Run `kgpy --backend torch --device cpu` for it.
 
 ## Mixing with Python
 
@@ -319,6 +325,8 @@ np_result = result.cpu().numpy()
 
 The torch backend supports compiling Klong functions for optimized execution using `torch.compile`:
 
+The examples in this section were run with torch 2.15.0 on the CPU and on MPS. Re-assigning a name that already holds a compiled function (`cf::.compile(f;3.0)` a second time in the same session) and then calling it returned the function instead of calling it in the run below; give each compiled function a new name.
+
 ### `.compile(fn;input)` - Compile Function
 
 Compiles a function for faster execution:
@@ -329,24 +337,18 @@ cf::.compile(f;3.0)      :" Returns compiled function
 cf(5.0)                   :" 25.0 (optimized)
 ```
 
-The compiled function runs significantly faster for complex computations.
+The result is a tensor, `tensor(25., grad_fn=<CompiledFunctionBackward>)` in the run above.
 
 ### `.export(fn;input;path)` - Export Computation Graph
 
-Exports the function's computation graph to a file for inspection:
+Asks torch to export the function's computation graph to a file:
 
 ```klong
 f::{(x^3)+(2*x^2)+x}
 info::.export(f;2.0;"model.pt2")
-.p(info@"graph")         :" Print computation graph
 ```
 
-Returns a dictionary with:
-- `"compiled_fn"` - The compiled function
-- `"export_path"` - Path where graph was saved
-- `"graph"` - String representation of computation graph
-
-The exported `.pt2` file can be loaded with `torch.export.load()` in Python.
+The result is a dictionary with the keys `compiled_fn`, `export_path`, `export_error`, `mode` and `backend`. In the test run (torch 2.15.0, CPU and MPS) the export did not complete for a Klong function: `export_path` was empty and `export_error` read ``Expected `mod` to be an instance of `torch.nn.Module`, got <class 'function'>.``. The `compiled_fn` entry was still usable. Check `export_error` before relying on the file.
 
 ### `.compilex(fn;input;options)` - Extended Compilation
 
@@ -384,11 +386,13 @@ info::.cmodes()
 
 ### Compilation Mode Comparison
 
-| Mode              | Compile Time | Runtime Speed | Best For           |
-|-------------------|--------------|---------------|---------------------|
-| `default`         | Medium       | Good          | General use         |
-| `reduce-overhead` | Fast         | Moderate      | Development/testing |
-| `max-autotune`    | Slow         | Best          | Production          |
+These are the descriptions that `.cmodes()` returns; compile times were not measured.
+
+| Mode              | Description (from `.cmodes()`) |
+|-------------------|--------------------------------|
+| `default`         | Balanced compilation - good for most cases |
+| `reduce-overhead` | Faster compile time, less optimization - good for development |
+| `max-autotune`    | Maximum optimization - best for production/training loops |
 
 ### Backend Comparison
 
@@ -411,7 +415,7 @@ Verifies autograd gradients against numeric gradients:
 
 ```klong
 f::{x^2}
-.gradcheck(f;3.0)        :" Returns 1 if correct
+.gradcheck(f;3.0)        :" Returns 1 if correct (CPU only)
 
 g::{+/x^2}
 .gradcheck(g;[1.0 2.0 3.0])  :" Returns 1
@@ -428,11 +432,11 @@ This uses `torch.autograd.gradcheck` internally for rigorous verification.
 
 ### "PyTorch backend does not support object dtype"
 
-The torch backend cannot handle mixed-type arrays or nested structures with varying shapes. Use the numpy backend for these cases.
+Some operations on mixed-type arrays or nested structures of varying shape raise this error. Simple cases work, because the torch backend keeps strings and mixed lists as numpy object arrays on the host (`["a" 1]` and `[[1 2][3]]` both evaluate). When an operation fails with this message, use the numpy backend.
 
 ### MPS float64 errors
 
-MPS doesn't support float64. The backend automatically converts to float32, but some precision-sensitive operations may behave differently.
+MPS doesn't support float64. The backend converts to float32, so results differ from the numpy backend in the last digits (see the `3∇f` example above).
 
 ### Slow small array operations
 
@@ -443,3 +447,9 @@ For arrays <10K elements, numpy may be faster. Consider using numpy backend for 
 If `.compile()` fails with C++ errors, ensure you have:
 - A C++ compiler installed (clang++ or g++)
 - The required header files (may need Xcode Command Line Tools on macOS)
+
+## See also
+
+- [Roadmap](roadmap.md) for the known limits of the torch backend and what is planned.
+- [Performance](performance.md) and [Python integration](python_integration.md).
+- [Migrating to v2](migrating-to-v2.md) and [What's new in v2](whats-new-v2.md).

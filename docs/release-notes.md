@@ -1,5 +1,7 @@
 # Release Notes
 
+For the overview of version 2 see [What's new in v2](whats-new-v2.md), and for what to change in an existing program see [Migrating to v2](migrating-to-v2.md). This page is the detailed list of behaviour changes.
+
 ## Next release: behaviour changes
 
 This list is the changes that can alter what an existing program does or prints. Each item gives the old behaviour, the new one and an example. The examples are run against the interpreter when the documentation is checked, so the new output shown is what it prints.

@@ -770,7 +770,7 @@ None
 
 (The REPL prints nothing for the value `None`; the checker writes it out.)
 
-`.l("file.kg")` loads and runs a Klong file. The name is looked up in the current directory, then in the directories of the `KLONGPATH` environment variable, and `.kg` may be left off. The standard library files (`math`, `csv`, `set`, `nstat` and others) are in the `klongpy/lib` directory, which is always on the path. The next example writes a small file, using a channel (`.oc` opens one, `.tc` sends output to it and `.cc` closes it), then loads it:
+`.l("file.kg")` loads and runs a Klong file. The name is looked up in the current directory, then in the directories of the `KLONGPATH` environment variable, and `.kg` may be left off. `KLONGPATH` defaults to `.:lib`. The standard library files (`math`, `csv`, `set`, `nstat` and others) are in the `klongpy/lib` directory of the package, which is not on that path: set `KLONGPATH` to that directory, or copy the file you need, before you load one. The next example writes a small file, using a channel (`.oc` opens one, `.tc` sends output to it and `.cc` closes it), then loads it:
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -980,3 +980,5 @@ For new code, use level 2 (`kgpy --strict=2`) and run `kgpy --lint` on the files
 - [System functions](system-functions.md): files, channels, timers, IPC, the database and more.
 - [Examples](examples.md): short programs.
 - Coming from another tool? [From NumPy](from-numpy.md) and [From kdb+/q](from-kdb.md) map their idioms to Klong.
+- [Start Here](getting-started.md) and [What's new in v2](whats-new-v2.md) for what v2 adds, and [Migrating to v2](migrating-to-v2.md) for existing programs.
+- [Native runtime](native/index.md): the same language on small devices, with no Python.

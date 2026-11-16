@@ -1,6 +1,6 @@
 # Timer
 
-KlongPy includes periodic timer capabilities:
+KlongPy includes periodic timer capabilities. Timers fire while the REPL is open: type the examples at the `kgpy` prompt, or load a file and stay in the REPL with `kgpy -l file.kg`. A file run as `kgpy file.kg` ended without printing any tick in the test runs on 2026-11-16 (KlongPy 0.7.0).
 
 ```
 cb::{.p("hello")}
@@ -67,4 +67,12 @@ error: y must be a non-negative number
 error: z must be a function
 ```
 
-If the callback raises an error while the timer is running, the error is logged and the timer is cancelled.
+If the callback is a named function, such as `cb` above, the timer looks the name up again on every tick, so redefining `cb` while the timer runs changes what the next tick calls.
+
+If the callback raises an error while the timer is running, the error is logged (a traceback and the line `timer b callback failed; cancelling timer`) and the timer is cancelled.
+
+## See also
+
+- [IPC and timers on a device](native/ipc.md): the timers of the native runtime.
+- [System functions](system-functions.md): `.timer` and `.timerc`.
+- [Roadmap](roadmap.md)

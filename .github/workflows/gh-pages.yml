@@ -1,12 +1,30 @@
 name: Deploy Docs
 
+# Versioned docs with mike. Each release line (major.minor of the version in
+# pyproject.toml) is built into its own directory on the gh-pages branch, and the
+# whole branch is then published to GitHub Pages. Older versions stay available.
+#
+# A push to main publishes the docs of main as its version and moves the
+# "latest" alias to it. To publish the docs of an older commit or tag as a
+# version (for example to keep the previous release's docs), run this workflow
+# by hand with `ref` and `version`; "latest" is left where it is.
+
 on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Commit, tag or branch whose docs to publish (default: the branch the workflow runs on)'
+        required: false
+        default: ''
+      version:
+        description: 'Version name to publish it as, for example 0.7 (default: major.minor from pyproject.toml, and the "latest" alias moves)'
+        required: false
+        default: ''
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -19,6 +37,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -26,13 +47,33 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ".[docs]"
-      - name: Build site
-        run: mkdocs build --strict
+          pip install ".[docs]" "mike>=2.1"
+      - name: Check the site builds
+        run: mkdocs build --strict -d /tmp/site-check
+      - name: Publish this version to the gh-pages branch
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages --depth=1 || true
+          # an older tree has no version selector configured: add it for this build only
+          grep -q "provider: mike" mkdocs.yml || printf '\nextra:\n  version:\n    provider: mike\n' >> mkdocs.yml
+          if [ -n "$VERSION_INPUT" ]; then
+            mike deploy --push "$VERSION_INPUT"
+          else
+            version=$(python -c "import tomllib;v=tomllib.load(open('pyproject.toml','rb'))['project']['version'].split('.');print(v[0]+'.'+v[1])")
+            mike deploy --push --update-aliases "$version" latest
+            mike set-default --push latest
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: published
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: published
 
   deploy:
     needs: build

@@ -425,3 +425,9 @@ error: vol takes 4 arguments, got 5
 ?> d@"zz"
 :undefined
 ```
+
+## See also
+
+- [Start here](getting-started.md) and the [Tutorial](tutorial.md) for the language.
+- [Migrating to v2](migrating-to-v2.md) for what changed in this release.
+- [Native runtime](native/index.md) for running Klong without Python or NumPy.
