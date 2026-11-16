@@ -56,3 +56,18 @@ for target in riscv32imac-unknown-none-elf thumbv7em-none-eabihf; do
     (cd klong-probe && cargo +stable build -q --release --target $target --target-dir ../target/probe-sym --config 'profile.release.strip=false' 2>/dev/null)
     python3 scripts/sections.py target/probe-sym/$target/release/klong-probe --heap 65536 --top 12
 done
+
+# Ticket 104: the board skeleton with the console, and without it (one fixed program), as
+# linked images. The difference is what the console and the main loop cost.
+BOARD="console: noconsole:--no-default-features+--features=files,lib console-bare:--no-default-features+--features=console noconsole-bare:--no-default-features console-narrow:--features=int32,float32"
+for target in riscv32imac-unknown-none-elf thumbv7em-none-eabihf; do
+    have $target || continue
+    echo "== $target: sections of klong-board-image (its 64 KiB heap is taken off .bss)"
+    for set in $BOARD; do
+        name=${set%%:*}
+        opts=$(echo "${set#*:}" | tr '+' ' ')
+        cargo +stable build -q -p klong-board --profile min-size --target $target --target-dir target/board-$name $opts 2>/dev/null
+        echo "  [$name]"
+        python3 scripts/sections.py target/board-$name/$target/min-size/klong-board-image --heap 65536 | tail -1
+    done
+done

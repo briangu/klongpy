@@ -253,6 +253,9 @@ fn run(o: Opts) -> ExitCode {
                 ExitCode::from(1)
             }
         };
+        // timers, queued calls, a server: keep going while there is something to wait for
+        let _ = std::io::stdout().flush();
+        rt.run_events();
         if o.stats {
             stats(&rt);
         }
@@ -277,6 +280,8 @@ fn run(o: Opts) -> ExitCode {
                 ExitCode::from(1)
             }
         };
+        let _ = std::io::stdout().flush();
+        rt.run_events();
         if o.stats {
             stats(&rt);
         }
@@ -284,16 +289,36 @@ fn run(o: Opts) -> ExitCode {
     }
 
     // read-eval-print loop: one line, one program
-    let stdin = std::io::stdin();
-    let mut line = String::new();
+    // (lines are read by a thread so that timers and IPC are served while nothing is typed)
+    let (tx, lines) = std::sync::mpsc::channel::<String>();
+    std::thread::spawn(move || {
+        let stdin = std::io::stdin();
+        loop {
+            let mut line = String::new();
+            match stdin.lock().read_line(&mut line) {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {}
+            }
+            if tx.send(line).is_err() {
+                break;
+            }
+        }
+    });
     loop {
         print!("  ");
         let _ = std::io::stdout().flush();
-        line.clear();
-        match stdin.lock().read_line(&mut line) {
-            Ok(0) | Err(_) => break,
-            Ok(_) => {}
-        }
+        let line = loop {
+            if rt.poll_events() {
+                continue;
+            }
+            let nap = if rt.events_active() { 1 } else { 50 };
+            match lines.recv_timeout(std::time::Duration::from_millis(nap)) {
+                Ok(l) => break Some(l),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break None,
+            }
+        };
+        let Some(line) = line else { break };
         let src = line.trim_end_matches(['\n', '\r']);
         if src == "]q" {
             break;

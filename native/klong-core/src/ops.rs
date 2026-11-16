@@ -1297,6 +1297,11 @@ fn d_cut(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
 }
 
 fn d_find(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
+    if let Value::Ext(e) = &a {
+        if let Some(r) = e.0.find(ip, &b) {
+            return r;
+        }
+    }
     match &a {
         Value::Str(s) => {
             // KlongPy searches for str(b): the text of a string or a char, the name of a
@@ -1356,7 +1361,12 @@ fn d_find(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
     }
 }
 
-fn d_join(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
+fn d_join(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
+    if let Value::Ext(e) = &a {
+        if let Some(r) = e.0.join(ip, &b) {
+            return r;
+        }
+    }
     if let (Some(x), Some(y)) = (text_of(&a), text_of(&b)) {
         let (x, y) = (x.as_str(), y.as_str());
         let mut v = try_string(x.len() + y.len())?;

@@ -11,8 +11,14 @@
 
 extern crate alloc;
 
+pub mod events;
 pub mod heap;
+#[cfg(feature = "ipc")]
+pub mod ipc;
+pub mod link;
 pub mod memfs;
+#[cfg(feature = "ipc")]
+pub mod memlink;
 pub mod platform;
 
 #[cfg(feature = "files")]
@@ -108,6 +114,8 @@ impl<P: Platform> Hooks for RtHooks<P> {
 pub struct Runtime<P: Platform + 'static> {
     pub interp: Interp,
     pub shared: Rc<Shared<P>>,
+    /// Timers, queued calls and IPC connections (`events.rs`).
+    pub events: Rc<events::Events<P>>,
 }
 
 pub(crate) fn one<'a>(a: &'a [Value], name: &str) -> Result<&'a Value> {
@@ -261,7 +269,7 @@ impl<P: Platform + 'static> Runtime<P> {
                 d.set(Value::text("int")?, Value::Int(klong_core::INT_BITS as Int))?;
                 d.set(Value::text("float")?, Value::Int(klong_core::FLT_BITS as Int))?;
                 let mut features = Vec::new();
-                for (on, name) in [(cfg!(feature = "files"), "files"), (cfg!(feature = "lib"), "lib"), (cfg!(feature = "int32"), "int32"), (cfg!(feature = "float32"), "float32")] {
+                for (on, name) in [(cfg!(feature = "files"), "files"), (cfg!(feature = "lib"), "lib"), (cfg!(feature = "int32"), "int32"), (cfg!(feature = "float32"), "float32"), (cfg!(feature = "timers"), "timers"), (cfg!(feature = "ipc"), "ipc")] {
                     if on {
                         features.push(Value::text(name)?);
                     }
@@ -347,7 +355,9 @@ impl<P: Platform + 'static> Runtime<P> {
                 );
             }
         }
-        Runtime { interp, shared }
+        let events = events::Events::new(shared.clone());
+        events::register(&mut interp, &events);
+        Runtime { interp, shared, events }
     }
 
     /// Run a program; the value of its last statement.

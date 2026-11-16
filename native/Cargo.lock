@@ -3,11 +3,28 @@
 version = 4
 
 [[package]]
+name = "klong-board"
+version = "0.0.1"
+dependencies = [
+ "klong-console",
+ "klong-core",
+ "klong-rt",
+]
+
+[[package]]
 name = "klong-cli"
 version = "0.0.1"
 dependencies = [
  "klong-core",
  "klong-host",
+ "klong-rt",
+]
+
+[[package]]
+name = "klong-console"
+version = "0.0.1"
+dependencies = [
+ "klong-core",
  "klong-rt",
 ]
 
@@ -27,10 +44,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "klong-ipc"
+version = "0.0.1"
+dependencies = [
+ "klong-core",
+]
+
+[[package]]
 name = "klong-rt"
 version = "0.0.1"
 dependencies = [
  "klong-core",
+ "klong-ipc",
+]
+
+[[package]]
+name = "klong-sim"
+version = "0.0.1"
+dependencies = [
+ "klong-console",
+ "klong-core",
+ "klong-rt",
 ]
 
 [[package]]

@@ -19,6 +19,9 @@ files = ["klong-rt/files"]
 lib = ["klong-rt/lib"]
 int32 = ["klong-rt/int32"]
 float32 = ["klong-rt/float32"]
+timers = ["klong-rt/timers"]
+ipc = ["klong-rt/ipc"]
+compress = ["klong-rt/compress"]
 
 [dependencies]
 klong-core = { path = "../klong-core" }

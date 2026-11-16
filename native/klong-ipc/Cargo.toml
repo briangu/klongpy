@@ -1,0 +1,17 @@
+[package]
+name = "klong-ipc"
+description = "kdb+ IPC for Klong without I/O: codec, session, packet reliability layer, serial framing. no_std + alloc."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# The compressor (sending compressed messages). Decompression is always built: a peer that
+# was told capability 3 may compress anything it sends. Off on small devices: it costs flash
+# and a second buffer of half the message.
+compress = []
+
+[dependencies]
+klong-core = { path = "../klong-core" }

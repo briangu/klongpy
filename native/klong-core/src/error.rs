@@ -22,6 +22,9 @@ pub enum Kind {
     Interrupt,
     /// Always a bug in this runtime.
     Internal,
+    /// An error reported by an IPC peer in words that are not one of the kinds above (a kdb+
+    /// signal such as `length`, or free text).
+    Remote,
 }
 
 impl Kind {
@@ -37,6 +40,7 @@ impl Kind {
             Kind::Memory => "memory",
             Kind::Interrupt => "interrupt",
             Kind::Internal => "internal",
+            Kind::Remote => "remote",
         }
     }
 }

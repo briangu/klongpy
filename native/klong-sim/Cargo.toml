@@ -1,0 +1,20 @@
+[package]
+name = "klong-sim"
+description = "A simulated Klong board on the host: a Platform whose serial port is a pair of queues in memory, standard input and output, or a pseudo-terminal, with the real console on top (ticket 104)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "klong-sim"
+path = "src/main.rs"
+
+[features]
+int32 = ["klong-rt/int32", "klong-console/int32", "klong-core/int32"]
+float32 = ["klong-rt/float32", "klong-console/float32", "klong-core/float32"]
+
+[dependencies]
+klong-core = { path = "../klong-core" }
+klong-rt = { path = "../klong-rt" }
+klong-console = { path = "../klong-console" }

@@ -166,5 +166,14 @@ class TestNativeConformance(unittest.TestCase):
         self.assertGreater(ran, 10)
 
 
+# The serial console of ticket 104 (a simulated board behind a pseudo-terminal, the upload tool,
+# the cases through the console): the classes of native/tests/test_console.py, skipped unless
+# native/target/release/klong-sim is built.
+_console = _load("native_test_console", os.path.join(ROOT, "native", "tests", "test_console.py"))
+TestConsoleCheckComplete = _console.TestCheckComplete
+TestConsoleUploadTool = _console.TestUploadTool
+TestConsoleConformance = _console.TestConformanceOverConsole
+
+
 if __name__ == "__main__":
     unittest.main()

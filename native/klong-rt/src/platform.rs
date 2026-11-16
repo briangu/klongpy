@@ -36,6 +36,17 @@ pub trait Platform {
     /// `.x(code)`: leave the program. A desktop ends the process; a board may reset or do
     /// nothing, in which case the running evaluation is interrupted.
     fn exit(&mut self, _code: i32) {}
+    /// The networks of this platform (ticket 106): `.cli` and `.srv` find a transport by the
+    /// name in the address. None by default.
+    fn transports(&mut self) -> &mut [alloc::boxed::Box<dyn crate::link::Transport>] {
+        &mut []
+    }
+    /// Sleep until `deadline_us` (of `now_us`) or until input may be ready, whichever is
+    /// first; `None` means until input. Returning early is always allowed, and the default
+    /// returns at once (a busy loop: correct, not frugal).
+    fn wait(&mut self, _deadline_us: Option<u64>) {
+        self.idle()
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

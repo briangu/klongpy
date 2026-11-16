@@ -652,6 +652,15 @@ impl Func {
 pub trait Ext {
     fn type_name(&self) -> &str;
     fn as_any(&self) -> &dyn core::any::Any;
+    /// `x?y` with this object as `x` (a remote dictionary answers a lookup). `None`: the
+    /// object is not something Find applies to.
+    fn find(&self, _ip: &mut crate::interp::Interp, _y: &Value) -> Option<Result<Value>> {
+        None
+    }
+    /// `x,y` with this object as `x` (a remote dictionary takes a `[key value]` pair).
+    fn join(&self, _ip: &mut crate::interp::Interp, _y: &Value) -> Option<Result<Value>> {
+        None
+    }
 }
 pub struct ExtBox(pub Box<dyn Ext>);
 

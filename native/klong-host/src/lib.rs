@@ -7,6 +7,8 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use klong_rt::{FileId, FileSystem, FsError, Mode, Platform};
 
+pub mod net;
+
 /// Where what a program prints with `.p .d .w` goes.
 pub enum Console {
     Stdout,
@@ -19,6 +21,8 @@ pub struct HostPlatform {
     start: Instant,
     pub console: Console,
     pub fs: Files,
+    /// The networks `.cli` and `.srv` can use: `tcp`, and whatever a test adds.
+    pub transports: Vec<Box<dyn klong_rt::link::Transport>>,
 }
 
 /// Where the file functions go: the operating system, or a file system in memory (fuzzing
@@ -30,7 +34,7 @@ pub enum Files {
 
 impl HostPlatform {
     pub fn new(console: Console) -> HostPlatform {
-        HostPlatform { start: Instant::now(), console, fs: Files::Host(HostFs::default()) }
+        HostPlatform { start: Instant::now(), console, fs: Files::Host(HostFs::default()), transports: vec![Box::new(net::TcpTransport::new())] }
     }
 }
 
@@ -155,6 +159,17 @@ impl Platform for HostPlatform {
     }
     fn name(&self) -> &str {
         "host"
+    }
+    fn transports(&mut self) -> &mut [Box<dyn klong_rt::link::Transport>] {
+        &mut self.transports
+    }
+    fn wait(&mut self, deadline_us: Option<u64>) {
+        // (no readiness notification from the standard library: sleep briefly instead)
+        let now = self.now_us();
+        let us = deadline_us.map_or(1000, |d| d.saturating_sub(now)).min(5000);
+        if us > 0 {
+            std::thread::sleep(std::time::Duration::from_micros(us));
+        }
     }
     fn exit(&mut self, code: i32) {
         let _ = std::io::stdout().flush();

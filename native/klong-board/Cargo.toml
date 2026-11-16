@@ -1,0 +1,28 @@
+[package]
+name = "klong-board"
+description = "Skeleton of a board port: what a real port supplies (a UART, a clock, a file system, heap and stack sizes) as traits, a Platform built from them, the main loop, and an allocator over one region of RAM. no_std; no vendor crates."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "klong-board-image"
+path = "src/bin/image.rs"
+test = false
+bench = false
+
+[features]
+default = ["files", "lib", "console"]
+files = ["klong-rt/files", "klong-console/files"]
+lib = ["klong-rt/lib", "klong-console/lib"]
+int32 = ["klong-rt/int32", "klong-console/int32"]
+float32 = ["klong-rt/float32", "klong-console/float32"]
+# The image only: with it the console, without it one fixed program (to measure what the
+# console costs).
+console = []
+
+[dependencies]
+klong-core = { path = "../klong-core" }
+klong-rt = { path = "../klong-rt", default-features = false }
+klong-console = { path = "../klong-console", default-features = false }
