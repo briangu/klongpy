@@ -1,5 +1,7 @@
 # Table and Key-Value Stores
 
+> **Security:** keys are used as file names under the store root and values are pickled on disk. Treat the root as trusted storage. See the [security model](https://github.com/briangu/klongpy#security-model-trusted-networks).
+
 To support the KlongPy database capabilities, the `klongpy.db` module includes a key-value store capability that allows for saving and retrieving tables from disk. There is a more generic key-value store as well as a TableStore. The TableStore merges tables when writing to disk, while the generic key-value store writes raw serialized data and doesn't consider the contents.
 
 Install the database extras first:

@@ -204,6 +204,23 @@ KlongPy is a batteries-included platform with kdb+/Q-inspired features:
 
 Full documentation: [https://briangu.github.io/klongpy](https://briangu.github.io/klongpy)
 
+## Security Model: Trusted Networks
+
+KlongPy's network features assume every peer is trusted. Use them on a trusted network only.
+
+- **IPC (`.srv`, `.cli`)**: a connected peer can run arbitrary Klong, and through it arbitrary Python (`.py`, `.pyf`) and shell commands (`.sys`). It can also call any function you have defined and assign any variable.
+- **IPC wire format**: messages are pickled in both directions, so unpickling a message runs code chosen by the sender. The frame length is read from the peer without a limit.
+- **No authentication or encryption**: there is no login, no TLS, and no access control on IPC or `.web`.
+- **Bind address**: `.srv(8888)` and `.web(8888;...)` listen on all interfaces (`0.0.0.0`). Anyone who can reach the port has the access above. `.web` routes run the Klong functions you register with the request parameters.
+- **KVS and tables**: keys are used as file names under the store root without checking that they stay inside it, and values are pickled on disk. Treat the root directory as trusted storage and do not load stores you did not write.
+- **`.db`**: the string you pass is executed as SQL by DuckDB as given.
+
+To limit exposure:
+
+- Bind to localhost: `.srv("127.0.0.1:8888")`, `.web("127.0.0.1:8080";get;post)`. `kgpy -s ARG` evaluates `.srv(ARG)`, so to bind to localhost pass a quoted string: `kgpy -s '"127.0.0.1:8888"'`.
+- Firewall the ports, and never expose a KlongPy port to an untrusted network or the internet.
+- Between hosts, use an SSH tunnel or VPN.
+
 ## Typing Special Characters
 
 KlongPy uses Unicode operators for mathematical notation. Here's how to type them:

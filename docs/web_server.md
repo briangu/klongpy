@@ -1,5 +1,6 @@
 # Web Server
 
+> **Security:** `.web` listens on all interfaces by default and has no authentication or encryption. Bind to localhost (`.web("127.0.0.1:8080";get;post)`) and use it on trusted networks only. See the [security model](https://github.com/briangu/klongpy#security-model-trusted-networks).
 
 KlongPy includes a simple web server module. It's optional so you need to install the dependencies:
 

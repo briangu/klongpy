@@ -1,5 +1,6 @@
 # Inter-Process Communication (IPC) Capabilities
 
+> **Security:** a peer that can reach this port can run arbitrary code, and there is no authentication or encryption. Use it on trusted networks only and bind to localhost where you can. See the [security model](https://github.com/briangu/klongpy#security-model-trusted-networks).
 
 KlongPy has powerful Inter-Process Communication (IPC) features that enable it to connect and interact with remote KlongPy instances. This includes executing commands, retrieving or storing data, and even defining functions remotely. These new capabilities are available via two new functions: .cli() and .clid().
 
