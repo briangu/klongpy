@@ -33,10 +33,6 @@ fn json_str(s: &str, out: &mut String) {
     out.push('"');
 }
 
-fn json_bytes(b: &[u8], out: &mut String) {
-    json_str(&String::from_utf8_lossy(b), out);
-}
-
 pub struct Dumper<'a> {
     pub tree: &'a Tree,
     pub syms: &'a Interner,
@@ -58,12 +54,13 @@ impl<'a> Dumper<'a> {
             }
             Value::Char(c) => {
                 out.push_str("(char ");
-                json_bytes(&[*c], out);
+                let mut b = [0u8; 4];
+                json_str(c.encode_utf8(&mut b), out);
                 out.push(')');
             }
             Value::Str(s) => {
                 out.push_str("(str ");
-                json_bytes(&s.0, out);
+                json_str(s.as_str(), out);
                 out.push(')');
             }
             Value::Int(i) => {
@@ -77,11 +74,11 @@ impl<'a> Dumper<'a> {
             Value::Dict(d) => {
                 let d = d.borrow();
                 out.push_str("(dict");
-                for i in 0..d.keys.len() {
+                for i in 0..d.len() {
                     out.push_str(" (");
-                    self.data(&d.keys[i], out);
+                    self.data(&d.keys()[i], out);
                     out.push(' ');
-                    self.data(&d.vals[i], out);
+                    self.data(&d.vals()[i], out);
                     out.push(')');
                 }
                 out.push(')');
@@ -172,12 +169,6 @@ impl<'a> Dumper<'a> {
                 out.push(')');
             }
             Node::Lit(v) | Node::DictLit(v) | Node::CopyList(v) => self.data(v, out),
-            Node::CharLit(c) => {
-                out.push_str("(char ");
-                let mut b = [0u8; 4];
-                json_str(c.encode_utf8(&mut b), out);
-                out.push(')');
-            }
             Node::OpVal { op, .. } => {
                 out.push_str("(opval ");
                 json_str(self.syms.name(*op), out);

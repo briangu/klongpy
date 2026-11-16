@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Micro-benchmarks of the native runtime against KlongPy (ticket 102), and peak heap.
+Micro-benchmarks of the native runtime against KlongPy (tickets 102 and 103), and peak heap.
 
     .venv/bin/python native/scripts/bench.py [path to klong]
 
@@ -27,6 +27,13 @@ PROGRAMS = [
     ("each with a lambda, 100000", "#{x*x}'!100000"),
     ("sum of squares, 1e6", "+/{x*x}'!1000000"),
     ("build a list by appending, 2000", "a::[];{a::a,x;x}'!2000;#a"),
+    # ticket 103: strings and dictionaries
+    ("format and join 20000 numbers", "#,/$'!20000"),
+    ("find in a 60000 char text", "s::,/20000#,\"ab \";(#s?\"b\"),#s?0ca"),
+    # (small: KlongPy takes time quadratic in the length here)
+    ("index a non-ASCII string, 2000", "s::2000#\"aé\";#{s@x}'!2000"),
+    ("dictionary: 50000 inserts, lookups", "d:::{};{d,x,,x*2}'!50000;+/{d?x}'!50000"),
+    ("dictionary: 20000 string keys", "d:::{};k::$'!20000;{d,x,,#x}'k;+/{d?x}'k"),
 ]
 
 

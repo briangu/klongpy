@@ -13,6 +13,8 @@ use crate::value::{Flt, Func, Value, WILDCARD};
 pub trait Sink: core::fmt::Write {
     fn push(&mut self, c: char);
     fn push_str(&mut self, s: &str);
+    /// The value nests too deeply to print (only dictionaries can: they may hold themselves).
+    fn too_deep(&mut self) {}
 }
 
 impl Sink for String {
@@ -28,6 +30,7 @@ impl Sink for String {
 pub struct Checked {
     pub text: String,
     pub oom: bool,
+    pub deep: bool,
 }
 
 impl Sink for Checked {
@@ -45,6 +48,9 @@ impl Sink for Checked {
             self.oom = true;
         }
     }
+    fn too_deep(&mut self) {
+        self.deep = true;
+    }
 }
 
 impl core::fmt::Write for Checked {
@@ -60,6 +66,9 @@ pub fn format_value(syms: &Interner, v: &Value, display: bool) -> crate::error::
     write_value(syms, v, display, &mut out);
     if out.oom {
         return Err(crate::error::Error::memory());
+    }
+    if out.deep {
+        return Err(crate::value::too_deep());
     }
     Ok(out.text)
 }
@@ -165,20 +174,13 @@ pub fn arity_name(arity: u8) -> &'static str {
     }
 }
 
-fn push_bytes<S: Sink>(out: &mut S, b: &[u8]) {
-    match core::str::from_utf8(b) {
-        Ok(s) => out.push_str(s),
-        Err(_) => {
-            for &c in b {
-                out.push(if c < 0x80 { c as char } else { '\u{fffd}' });
-            }
-        }
-    }
-}
-
 /// The printed form of a value. `display` is what `.d` and `.p` use for strings and chars
 /// (no quotes).
 pub fn write_value<S: Sink>(syms: &Interner, v: &Value, display: bool, out: &mut S) {
+    write_at(syms, v, display, out, 0)
+}
+
+fn write_at<S: Sink>(syms: &Interner, v: &Value, display: bool, out: &mut S, depth: u32) {
     match v {
         Value::Undefined => out.push_str(":undefined"),
         Value::Int(i) => {
@@ -195,47 +197,56 @@ pub fn write_value<S: Sink>(syms: &Interner, v: &Value, display: bool, out: &mut
             if !display {
                 out.push_str("0c");
             }
-            push_bytes(out, &[*c]);
+            out.push(*c);
         }
         Value::Str(s) => {
             if display {
-                push_bytes(out, &s.0);
+                out.push_str(s.as_str());
             } else {
+                // a quote inside the string is written twice
                 out.push('"');
-                let mut start = 0;
-                for (i, &c) in s.0.iter().enumerate() {
-                    if c == b'"' {
-                        push_bytes(out, &s.0[start..=i]);
-                        start = i;
-                    }
+                let mut rest = s.as_str();
+                while let Some(i) = rest.find('"') {
+                    out.push_str(&rest[..=i]);
+                    out.push('"');
+                    rest = &rest[i + 1..];
                 }
-                push_bytes(out, &s.0[start..]);
+                out.push_str(rest);
                 out.push('"');
             }
         }
         Value::Ints(_) | Value::Flts(_) | Value::List(_) => {
+            if depth > crate::value::max_nest() {
+                out.too_deep();
+                return;
+            }
             out.push('[');
             let n = v.len().unwrap_or(0);
             for i in 0..n {
                 if i > 0 {
                     out.push(' ');
                 }
-                write_value(syms, &v.item(i), display, out);
+                write_at(syms, &v.item(i), display, out, depth + 1);
             }
             out.push(']');
         }
         Value::Dict(d) => {
+            if depth > crate::value::max_nest() {
+                out.too_deep();
+                return;
+            }
             out.push_str(":{");
-            let d = d.borrow();
-            for i in 0..d.keys.len() {
-                if i > 0 {
+            if let Ok(d) = d.try_borrow() {
+                for i in 0..d.len() {
+                    if i > 0 {
+                        out.push(' ');
+                    }
+                    out.push('[');
+                    write_at(syms, &d.keys()[i], display, out, depth + 1);
                     out.push(' ');
+                    write_at(syms, &d.vals()[i], display, out, depth + 1);
+                    out.push(']');
                 }
-                out.push('[');
-                write_value(syms, &d.keys[i], display, out);
-                out.push(' ');
-                write_value(syms, &d.vals[i], display, out);
-                out.push(']');
             }
             out.push('}');
         }
@@ -289,4 +300,15 @@ pub fn to_string(syms: &Interner, v: &Value) -> String {
     let mut s = String::new();
     write_value(syms, v, false, &mut s);
     s
+}
+
+/// `f` with exactly `prec` digits after the point, correctly rounded (C's `%.*f`).
+pub fn write_fixed<S: Sink>(f: Flt, prec: usize, out: &mut S) {
+    if f.is_nan() {
+        out.push_str("nan");
+    } else if f.is_infinite() {
+        out.push_str(if f < 0.0 { "-inf" } else { "inf" });
+    } else {
+        let _ = write!(out, "{:.*}", prec, f);
+    }
 }

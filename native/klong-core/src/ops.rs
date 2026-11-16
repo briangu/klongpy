@@ -4,16 +4,14 @@
 //! (`vec_fn2` in `klongpy/backends/base.py`): scalar extension, recursive pairing of lists,
 //! leading-dimension agreement for arrays. Loops are plain. Integer arithmetic wraps at the
 //! build width.
-use alloc::format;
 use alloc::rc::Rc;
 use alloc::vec::Vec;
-use core::cell::RefCell;
 use core::cmp::Ordering;
 
 use crate::error::{Error, Result};
 use crate::interp::Interp;
-use crate::sym::{SymId, FIRST_OP};
-use crate::value::{atom_eq, matches, try_extend, try_push, try_vec, Arr, Dict, Flt, Int, Value};
+use crate::sym::{Interner, SymId, FIRST_OP};
+use crate::value::{atom_eq, matches, try_push, try_push_char, try_push_str, try_str, try_string, try_vec, Arr, Dict, Flt, Int, Value};
 
 pub type MonadFn = fn(&mut Interp, Value) -> Result<Value>;
 pub type DyadFn = fn(&mut Interp, Value, Value) -> Result<Value>;
@@ -56,9 +54,6 @@ fn absent_m(_: &mut Interp, _: Value) -> Result<Value> {
 fn absent_d(_: &mut Interp, _: Value, _: Value) -> Result<Value> {
     Err(Error::name("operator not available on this build").with_hint("automatic differentiation is desktop only"))
 }
-fn later_d(_: &mut Interp, _: Value, _: Value) -> Result<Value> {
-    Err(Error::typ("operator not implemented in the native core yet (strings tier, ticket 103)"))
-}
 fn define_d(_: &mut Interp, _: Value, y: Value) -> Result<Value> {
     // `::` is evaluated by the interpreter (its left operand is not evaluated); as a function
     // value applied to two values it binds nothing.
@@ -67,8 +62,8 @@ fn define_d(_: &mut Interp, _: Value, y: Value) -> Result<Value> {
 
 macro_rules! at {
     ($name:ident, $op:expr) => {
-        fn $name(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
-            atomic($op, &a, &b)
+        fn $name(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
+            atomic(&ip.syms, $op, &a, &b)
         }
     };
 }
@@ -104,7 +99,7 @@ pub static OPS: [OpDef; 31] = [
     op!(",", "List", Some(m_list), "Join", Some(d_join), None),
     op!(":#", "Char", Some(m_char), "Split", Some(d_split), None),
     op!("_", "Floor", Some(m_floor), "Drop", Some(d_drop), None),
-    op!("$", "Format", Some(m_format), "Format2", Some(later_d), None),
+    op!("$", "Format", Some(m_format), "Format2", Some(d_format2), None),
     op!("~", "Not", Some(m_not), "Match", Some(d_match), None),
     op!("?", "Range", Some(m_range), "Find", Some(d_find), None),
     op!("#", "Size", Some(m_size), "Take", Some(d_take), None),
@@ -112,7 +107,7 @@ pub static OPS: [OpDef; 31] = [
     op!(":=", "", None, "Amend", Some(d_amend), None),
     op!(":-", "", None, "Amend-in-Depth", Some(d_amend_depth), None),
     op!(":@", "", None, "Index-in-Depth", Some(d_index_depth), None),
-    op!(":$", "", None, "Form", Some(later_d), None),
+    op!(":$", "", None, "Form", Some(d_form), None),
     op!(":^", "", None, "Reshape", Some(d_reshape), None),
     op!(":+", "", None, "Rotate", Some(d_rotate), None),
     op!("::", "", None, "Define", Some(define_d), None),
@@ -315,19 +310,41 @@ fn type_error(op: Atomic, a: &Value, b: &Value) -> Error {
         Atomic::More => (">", "More"),
         Atomic::Eq => ("=", "Equal"),
     };
-    Error::typ(format!("cannot apply {} ({}) to {} and {}", g, n, a.describe(), b.describe()))
+    Error::typ(crate::msg!("cannot apply {} ({}) to {} and {}", g, n, a.describe(), b.describe()))
 }
 
-fn text_of(v: &Value) -> Option<Vec<u8>> {
+/// The text of a string or of a char, without copying a string.
+pub(crate) struct Txt<'a> {
+    s: Option<&'a str>,
+    buf: [u8; 4],
+    n: u8,
+}
+
+impl Txt<'_> {
+    pub(crate) fn as_str(&self) -> &str {
+        match self.s {
+            Some(s) => s,
+            None => core::str::from_utf8(&self.buf[..self.n as usize]).unwrap_or(""),
+        }
+    }
+}
+
+pub(crate) fn text_of(v: &Value) -> Option<Txt<'_>> {
     match v {
-        Value::Str(s) => Some(s.0.clone()),
-        Value::Char(c) => Some(alloc::vec![*c]),
+        Value::Str(s) => Some(Txt { s: Some(s.as_str()), buf: [0; 4], n: 0 }),
+        Value::Char(c) => {
+            let mut buf = [0u8; 4];
+            let n = c.encode_utf8(&mut buf).len() as u8;
+            Some(Txt { s: None, buf, n })
+        }
         _ => None,
     }
 }
 
 /// One pair of atoms (anything that is not a list).
-fn atom_op(op: Atomic, a: &Value, b: &Value) -> Result<Value> {
+// (not inlined: `atomic` recurses once per level of nesting and must stay small on the stack)
+#[inline(never)]
+fn atom_op(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> {
     if let (Some(x), Some(y)) = (num(a), num(b)) {
         if op == Atomic::Pow {
             // KlongPy: a power whose result is a whole number is an integer.
@@ -353,12 +370,18 @@ fn atom_op(op: Atomic, a: &Value, b: &Value) -> Result<Value> {
     match op {
         Atomic::Eq => Ok(Value::bool(atom_eq(a, b))),
         Atomic::Less | Atomic::More => {
-            let ord = match (a, b) {
-                (Value::Sym(_), Value::Sym(_)) => return Err(type_error(op, a, b)),
-                _ => match (text_of(a), text_of(b)) {
-                    (Some(x), Some(y)) => x.cmp(&y),
-                    _ => return Err(type_error(op, a, b)),
-                },
+            // text orders by code point; a symbol orders as its name (KlongPy's symbols are
+            // strings), also against a string
+            let name = |v: &Value| match v {
+                Value::Sym(s) => Some(syms.name(*s)),
+                _ => None,
+            };
+            let (ta, tb) = (text_of(a), text_of(b));
+            let x = name(a).or(ta.as_ref().map(|t| t.as_str()));
+            let y = name(b).or(tb.as_ref().map(|t| t.as_str()));
+            let ord = match (x, y) {
+                (Some(x), Some(y)) => x.cmp(y),
+                _ => return Err(type_error(op, a, b)),
             };
             Ok(Value::bool(if op == Atomic::Less { ord == Ordering::Less } else { ord == Ordering::Greater }))
         }
@@ -367,7 +390,7 @@ fn atom_op(op: Atomic, a: &Value, b: &Value) -> Result<Value> {
 }
 
 fn shape_error(a: usize, b: usize) -> Error {
-    Error::shape(format!("atomic dyad shape mismatch: length {} and length {}", a, b))
+    Error::shape(crate::msg!("atomic dyad shape mismatch: length {} and length {}", a, b))
 }
 
 /// The operands of a numeric array loop: a slice or one repeated number.
@@ -423,7 +446,8 @@ fn shaped_like(like: &Value, ints: Option<Vec<Int>>, flts: Option<Vec<Flt>>) -> 
 }
 
 /// Numeric array against numeric array or number.
-fn array_op(op: Atomic, a: &Value, b: &Value) -> Result<Value> {
+#[inline(never)]
+fn array_op(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> {
     let ((x, xa), (y, ya)) = match (Operand::of(a), Operand::of(b)) {
         (Some(x), Some(y)) => (x, y),
         _ => return Err(type_error(op, a, b)),
@@ -446,7 +470,7 @@ fn array_op(op: Atomic, a: &Value, b: &Value) -> Result<Value> {
         }
         (Some(p), None) => (p, dims_of(p).3, 1, 1),
         (None, Some(q)) => (q, dims_of(q).3, 1, 1),
-        (None, None) => return atom_op(op, a, b),
+        (None, None) => return atom_op(syms, op, a, b),
     };
     let both_int = x.is_int() && y.is_int();
     let int_result = match op {
@@ -529,58 +553,31 @@ fn reshape_flat(flat: Vec<Value>, like: &Value) -> Result<Value> {
 }
 
 /// The pairing routine of every atomic dyad.
-pub fn atomic(op: Atomic, a: &Value, b: &Value) -> Result<Value> {
+// One recursion per level of nesting: the body is kept small on the stack (one loop; the work
+// on atoms and on numeric arrays is in functions that are not inlined).
+pub fn atomic(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> {
     let al = a.is_list();
     let bl = b.is_list();
     if !al && !bl {
-        return atom_op(op, a, b);
+        return atom_op(syms, op, a, b);
     }
-    let a_obj = matches!(a, Value::List(_));
-    let b_obj = matches!(b, Value::List(_));
-    if !a_obj && !b_obj {
-        if (al || num(a).is_some()) && (bl || num(b).is_some()) {
-            return array_op(op, a, b);
-        }
-        // a numeric array against an atom that is not a number
-        if al {
-            let n = a.len().unwrap_or(0);
-            let mut out = try_vec(n)?;
-            for i in 0..n {
-                out.push(atomic(op, &a.item(i), b)?);
-            }
-            return Value::from_items(out);
-        }
-        let n = b.len().unwrap_or(0);
-        let mut out = try_vec(n)?;
-        for i in 0..n {
-            out.push(atomic(op, a, &b.item(i))?);
-        }
-        return Value::from_items(out);
+    let mixed = matches!(a, Value::List(_)) || matches!(b, Value::List(_));
+    if !mixed && (al || num(a).is_some()) && (bl || num(b).is_some()) {
+        return array_op(syms, op, a, b);
     }
-    if al && bl {
-        let n = a.len().unwrap_or(0);
-        let k = b.len().unwrap_or(0);
-        if n != k {
-            return Err(shape_error(n, k));
-        }
-        let mut out = try_vec(n)?;
-        for i in 0..n {
-            out.push(atomic(op, &a.item(i), &b.item(i))?);
-        }
-        return Value::from_items(out);
+    // element by element: two lists pair up, an atom is repeated
+    let n = if al { a.len().unwrap_or(0) } else { b.len().unwrap_or(0) };
+    if al && bl && b.len() != Some(n) {
+        return Err(shape_error(n, b.len().unwrap_or(0)));
     }
-    if al {
-        let n = a.len().unwrap_or(0);
-        let mut out = try_vec(n)?;
-        for i in 0..n {
-            out.push(atomic(op, &a.item(i), b)?);
-        }
-        return Value::from_items(out);
-    }
-    let n = b.len().unwrap_or(0);
     let mut out = try_vec(n)?;
     for i in 0..n {
-        out.push(atomic(op, a, &b.item(i))?);
+        let r = match (al, bl) {
+            (true, true) => atomic(syms, op, &a.item(i), &b.item(i)),
+            (true, false) => atomic(syms, op, &a.item(i), b),
+            _ => atomic(syms, op, a, &b.item(i)),
+        };
+        out.push(r?);
     }
     Value::from_items(out)
 }
@@ -608,17 +605,25 @@ fn m_atom(_: &mut Interp, a: Value) -> Result<Value> {
 }
 
 fn m_first(_: &mut Interp, a: Value) -> Result<Value> {
-    Ok(if a.is_atom() { a } else { a.item(0) })
+    if a.is_atom() {
+        return Ok(a);
+    }
+    // KlongPy: the first element of a string is the string of that character (Python's
+    // s[0]), where "abc"@0 is the char. The suite pins it (strings.str-first-of-reverse).
+    if let Value::Str(s) = &a {
+        return Ok(Value::char_str(s.char_at(0)));
+    }
+    Ok(a.item(0))
 }
 
 /// A list or string with the same kind as `like` from its elements.
 fn rebuild(like: &Value, items: Vec<Value>) -> Result<Value> {
     if like.is_str() {
-        let mut s = try_vec(items.len())?;
+        let mut s = try_string(items.len())?;
         for q in &items {
             match q {
-                Value::Char(c) => s.push(*c),
-                Value::Str(t) => try_extend(&mut s, &t.0)?,
+                Value::Char(c) => try_push_char(&mut s, *c)?,
+                Value::Str(t) => try_push_str(&mut s, t.as_str())?,
                 _ => return Value::from_items(items),
             }
         }
@@ -637,6 +642,11 @@ fn m_reverse(_: &mut Interp, a: Value) -> Result<Value> {
             v.extend(x.data.iter().rev().copied());
             return Ok(Value::ints(v));
         }
+    }
+    if let Value::Str(t) = &a {
+        let mut s = try_string(t.as_str().len())?;
+        s.extend(t.as_str().chars().rev());
+        return Ok(Value::str(s));
     }
     let mut items = a.items()?;
     items.reverse();
@@ -690,15 +700,17 @@ fn m_transpose(_: &mut Interp, a: Value) -> Result<Value> {
 
 fn m_list(_: &mut Interp, a: Value) -> Result<Value> {
     if let Value::Char(c) = a {
-        return Ok(Value::str(alloc::vec![c]));
+        return Ok(Value::char_str(c));
     }
     Value::from_items(alloc::vec![a])
 }
 
 fn m_char(_: &mut Interp, a: Value) -> Result<Value> {
     map_atoms(&a, &|x| match x {
-        Value::Int(i) if (0..256).contains(i) => Ok(Value::Char(*i as u8)),
-        Value::Int(_) => Err(Error::range(":#: character code out of range")),
+        Value::Int(i) => match u32::try_from(*i).ok().and_then(char::from_u32) {
+            Some(c) => Ok(Value::Char(c)),
+            None => Err(Error::range(":#: not a character code (0 to 1114111, surrogates excluded)")),
+        },
         _ => Err(Error::typ(":#: char needs an integer")),
     })
 }
@@ -711,7 +723,7 @@ fn m_enumerate(_: &mut Interp, a: Value) -> Result<Value> {
             v.extend((0..n).map(|i| i as Int));
             Ok(Value::ints(v))
         }
-        _ => Err(Error::typ(format!("!: enumerate needs an integer, not {}", a.describe()))),
+        _ => Err(Error::typ(crate::msg!("!: enumerate needs an integer, not {}", a.describe()))),
     }
 }
 
@@ -722,7 +734,7 @@ fn m_floor(_: &mut Interp, a: Value) -> Result<Value> {
     map_atoms(&a, &|x| match x {
         Value::Int(i) => Ok(Value::Int(*i)),
         Value::Flt(f) => Ok(Value::Int(flt_to_int(m::floor(*f))?)),
-        _ => Err(Error::range(format!("_: cannot floor {}", x.describe()))),
+        _ => Err(Error::range(crate::msg!("_: cannot floor {}", x.describe()))),
     })
 }
 
@@ -737,8 +749,8 @@ fn m_format(ip: &mut Interp, a: Value) -> Result<Value> {
     }
     match &a {
         Value::Str(_) => Ok(a),
-        Value::Char(c) => Ok(Value::str(alloc::vec![*c])),
-        _ => Ok(Value::str(crate::fmt::format_value(&ip.syms, &a, false)?.into_bytes())),
+        Value::Char(c) => Ok(Value::char_str(*c)),
+        _ => Ok(Value::str(crate::fmt::format_value(&ip.syms, &a, false)?)),
     }
 }
 
@@ -749,7 +761,7 @@ fn cmp_atoms(a: &Value, b: &Value) -> Result<Ordering> {
             _ => x.partial_cmp(&y).unwrap_or(Ordering::Equal),
         }),
         _ => match (text_of(a), text_of(b)) {
-            (Some(x), Some(y)) => Ok(x.cmp(&y)),
+            (Some(x), Some(y)) => Ok(x.as_str().cmp(y.as_str())),
             _ => Err(Error::typ("cannot order values of different kinds")),
         },
     }
@@ -760,7 +772,7 @@ fn cmp_atoms(a: &Value, b: &Value) -> Result<Ordering> {
 fn grade_key(ip: &Interp, v: &Value) -> Result<Option<Value>> {
     if let Value::Sym(s) = v {
         // a symbol sorts as its name
-        return Ok(Some(Value::str(ip.syms.name(*s).as_bytes().to_vec())));
+        return Ok(Some(Value::text(ip.syms.name(*s))?));
     }
     if v.is_empty() {
         return Ok(None);
@@ -789,12 +801,13 @@ fn grade(ip: &Interp, a: Value, down: bool) -> Result<Value> {
     idx.extend(0..n);
     let numeric = match &a {
         Value::Ints(x) if x.rank() == 1 => {
-            idx.sort_by(|&i, &j| x.data[i].cmp(&x.data[j]));
+            // (sort_unstable_by does not allocate; the index breaks ties, so the order is the stable one)
+            idx.sort_unstable_by(|&i, &j| x.data[i].cmp(&x.data[j]).then(i.cmp(&j)));
             true
         }
         Value::Flts(x) if x.rank() == 1 => {
             // a total order (sort_by may panic without one): NaN last, as numpy sorts
-            idx.sort_by(|&i, &j| x.data[i].partial_cmp(&x.data[j]).unwrap_or_else(|| x.data[i].is_nan().cmp(&x.data[j].is_nan())));
+            idx.sort_unstable_by(|&i, &j| x.data[i].partial_cmp(&x.data[j]).unwrap_or_else(|| x.data[i].is_nan().cmp(&x.data[j].is_nan())).then(i.cmp(&j)));
             true
         }
         _ => false,
@@ -825,7 +838,7 @@ fn grade(ip: &Interp, a: Value, down: bool) -> Result<Value> {
             return Err(Error::typ("cannot order values of different kinds"));
         }
         let mut err = None;
-        idx.sort_by(|&i, &j| {
+        idx.sort_unstable_by(|&i, &j| {
             let o = match (&keys[i], &keys[j]) {
                 (None, None) => Ordering::Equal,
                 (None, Some(_)) => Ordering::Less,
@@ -867,7 +880,7 @@ fn same_key(a: &Value, b: &Value) -> bool {
         (Value::Int(x), Value::Int(y)) => x == y,
         (Value::Flt(x), Value::Flt(y)) => x == y || (x.is_nan() && y.is_nan()),
         (Value::Char(x), Value::Char(y)) => x == y,
-        (Value::Str(x), Value::Str(y)) => x.0 == y.0,
+        (Value::Str(x), Value::Str(y)) => x.as_str() == y.as_str(),
         (Value::Sym(x), Value::Sym(y)) => x == y,
         (Value::Undefined, Value::Undefined) => true,
         _ => {
@@ -886,7 +899,7 @@ fn m_group(_: &mut Interp, a: Value) -> Result<Value> {
         return Err(Error::typ("=: group needs a list"));
     }
     if a.is_empty() {
-        return Ok(a);
+        return Ok(Value::empty());
     }
     let n = a.len().unwrap_or(0);
     let mut keys: Vec<Value> = Vec::new();
@@ -924,7 +937,7 @@ fn m_negate(_: &mut Interp, a: Value) -> Result<Value> {
         Value::Int(i) => Ok(Value::Int(i.wrapping_neg())),
         Value::Flt(f) => Ok(Value::Flt(-*f)),
         _ if x.is_empty() => Ok(x.clone()),
-        _ => Err(Error::typ(format!("cannot apply - (Negate) to {}", x.describe()))),
+        _ => Err(Error::typ(crate::msg!("cannot apply - (Negate) to {}", x.describe()))),
     })
 }
 
@@ -965,7 +978,7 @@ fn m_reciprocal(_: &mut Interp, a: Value) -> Result<Value> {
     map_atoms(&a, &|x| match num(x) {
         Some(n) => Ok(Value::Flt(1.0 / n.f())),
         None if x.is_empty() => Ok(x.clone()),
-        None => Err(Error::range(format!("cannot apply % (Reciprocal) to {}", x.describe()))),
+        None => Err(Error::range(crate::msg!("cannot apply % (Reciprocal) to {}", x.describe()))),
     })
 }
 
@@ -973,12 +986,12 @@ fn m_size(ip: &mut Interp, a: Value) -> Result<Value> {
     Ok(match &a {
         Value::Int(i) => Value::Int(i.wrapping_abs()),
         Value::Flt(f) => Value::Flt(fabs(*f)),
-        Value::Char(c) => Value::Int(*c as Int),
-        Value::Dict(d) => Value::Int(d.borrow().keys.len() as Int),
-        Value::Sym(s) => Value::Int(ip.syms.name(*s).len() as Int),
+        Value::Char(c) => Value::Int(*c as u32 as Int),
+        Value::Dict(d) => Value::Int(d.borrow().len() as Int),
+        Value::Sym(s) => Value::Int(ip.syms.name(*s).chars().count() as Int),
         _ => match a.len() {
             Some(n) => Value::Int(n as Int),
-            None => return Err(Error::typ(format!("cannot apply # (Size) to {}", a.describe()))),
+            None => return Err(Error::typ(crate::msg!("cannot apply # (Size) to {}", a.describe()))),
         },
     })
 }
@@ -989,7 +1002,7 @@ fn m_undefined(_: &mut Interp, a: Value) -> Result<Value> {
 
 fn shape_of(a: &Value) -> Vec<Int> {
     match a {
-        Value::Str(s) => alloc::vec![s.0.len() as Int],
+        Value::Str(s) => alloc::vec![s.len() as Int],
         Value::Ints(x) => (0..x.rank()).map(|i| x.dim(i) as Int).collect(),
         Value::Flts(x) => (0..x.rank()).map(|i| x.dim(i) as Int).collect(),
         Value::List(v) => {
@@ -1031,7 +1044,7 @@ fn norm_index(i: Int, n: usize, what: &str) -> Result<usize> {
     let n = n as i128;
     let i = i as i128;
     if i < -n || i >= n {
-        return Err(Error::range(format!("index {} out of range for {} of {}", i, what, n)));
+        return Err(Error::range(crate::msg!("index {} out of range for {} of {}", i, what, n)));
     }
     Ok((if i < 0 { i + n } else { i }) as usize)
 }
@@ -1073,13 +1086,13 @@ fn d_at(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
         }
         _ if a.is_iterable() => {
             if b.is_list() && b.is_empty() {
-                return Ok(if a.is_str() { Value::str(Vec::new()) } else { Value::empty() });
+                return Ok(if a.is_str() { Value::empty_str() } else { Value::empty() });
             }
             index(&a, &b)
         }
         _ => {
             if b.is_list() || matches!(b, Value::Int(_)) {
-                Err(Error::typ(format!("cannot apply @ (Index/Apply) to {} and {}", a.describe(), b.describe())))
+                Err(Error::typ(crate::msg!("cannot apply @ (Index/Apply) to {} and {}", a.describe(), b.describe())))
             } else {
                 Ok(a)
             }
@@ -1095,7 +1108,7 @@ fn amend_index(v: &Value, n: usize, allow_end: bool) -> Result<usize> {
     };
     let j = if i < 0 { i + n as i128 } else { i };
     if j < 0 || j > n as i128 || (j == n as i128 && !allow_end) {
-        return Err(Error::range(format!(":=: index {} out of range for length {}", i, n)));
+        return Err(Error::range(crate::msg!(":=: index {} out of range for length {}", i, n)));
     }
     Ok(j as usize)
 }
@@ -1112,23 +1125,28 @@ fn d_amend(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
         return Ok(a);
     }
     let v = b.item(0);
-    if let Value::Str(s) = &a {
+    if let Value::Str(t) = &a {
         let ins = match text_of(&v) {
             Some(t) => t,
             None => return Err(Error::typ(":=: value for a string must be a character or string")),
         };
-        let mut r = s.0.clone();
+        let ins = ins.as_str();
+        let ins_len = ins.chars().count();
+        // every index refers to the string as it was given; each replacement is made in the
+        // result of the one before
+        let orig = t.len();
+        let mut r = crate::value::Text::new(try_str(t.as_str())?);
         for k in 1..bn {
             let n = r.len();
-            let i = amend_index(&b.item(k), s.0.len(), true)?;
-            let end = (i + ins.len()).min(n);
-            let mut next = try_vec(n + ins.len())?;
-            next.extend_from_slice(&r[..i.min(n)]);
-            next.extend_from_slice(&ins);
-            next.extend_from_slice(&r[end..]);
-            r = next;
+            let i = amend_index(&b.item(k), orig, true)?.min(n);
+            let end = (i + ins_len).min(n);
+            let mut next = try_string(r.as_str().len() + ins.len())?;
+            next.push_str(r.slice(0, i));
+            next.push_str(ins);
+            next.push_str(r.slice(end, n));
+            r = crate::value::Text::new(next);
         }
-        return Ok(Value::str(r));
+        return Ok(Value::Str(Rc::new(r)));
     }
     let mut items = a.items()?;
     let n = items.len();
@@ -1176,11 +1194,7 @@ fn slice(b: &Value, lo: usize, hi: usize) -> Result<Value> {
             v.extend_from_slice(&x.data[lo..hi]);
             Ok(Value::flts(v))
         }
-        Value::Str(s) => {
-            let mut v = try_vec(hi - lo)?;
-            v.extend_from_slice(&s.0[lo..hi]);
-            Ok(Value::str(v))
-        }
+        Value::Str(s) => Value::text(s.slice(lo, hi)),
         _ => {
             let mut v = try_vec(hi - lo)?;
             for i in lo..hi {
@@ -1193,21 +1207,16 @@ fn slice(b: &Value, lo: usize, hi: usize) -> Result<Value> {
 
 fn d_drop(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
     if let Value::Dict(d) = &b {
-        let mut dm = d.borrow_mut();
-        if let Some(i) = dm.find(&a) {
-            dm.keys.remove(i);
-            dm.vals.remove(i);
-        }
-        drop(dm);
+        d.borrow_mut().remove(&a)?;
         return Ok(b);
     }
     let k = match a {
         Value::Int(i) => i,
-        _ => return Err(Error::typ(format!("cannot apply _ (Drop) to {} and {}", a.describe(), b.describe()))),
+        _ => return Err(Error::typ(crate::msg!("cannot apply _ (Drop) to {} and {}", a.describe(), b.describe()))),
     };
     let n = match b.len() {
         Some(n) => n,
-        None => return Err(Error::typ(format!("cannot apply _ (Drop) to {} and {}", a.describe(), b.describe()))),
+        None => return Err(Error::typ(crate::msg!("cannot apply _ (Drop) to {} and {}", a.describe(), b.describe()))),
     };
     if k >= 0 {
         slice(&b, (k as u128).min(n as u128) as usize, n)
@@ -1282,24 +1291,50 @@ fn d_cut(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
         out.remove(0);
     }
     if b.is_str() {
-        return Ok(Value::raw_list(out));
+        return Value::raw_list(out);
     }
     Value::from_items(out)
 }
 
-fn d_find(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
+fn d_find(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
     match &a {
         Value::Str(s) => {
-            let sub = match text_of(&b) {
-                Some(t) => t,
-                None => return Err(Error::typ("?: find in a string needs a string or a char")),
-            };
-            let mut out: Vec<Int> = Vec::new();
-            if !sub.is_empty() && sub.len() <= s.0.len() {
-                for i in 0..=(s.0.len() - sub.len()) {
-                    if s.0[i..i + sub.len()] == sub[..] {
-                        try_push(&mut out, i as Int)?;
+            // KlongPy searches for str(b): the text of a string or a char, the name of a
+            // symbol, the digits of a number
+            let other;
+            let held;
+            let sub: &str = match text_of(&b) {
+                Some(t) => {
+                    held = t;
+                    held.as_str()
+                }
+                None => match &b {
+                    Value::Sym(q) => ip.syms.name(*q),
+                    Value::Int(_) | Value::Flt(_) => {
+                        other = crate::fmt::format_value(&ip.syms, &b, true)?;
+                        &other
                     }
+                    _ => return Err(Error::typ("?: find in a string needs a string or a char")),
+                },
+            };
+            let hay = s.as_str();
+            let mut out: Vec<Int> = Vec::new();
+            if sub.is_empty() {
+                // the empty string is found between any two characters, and at both ends
+                out = try_vec(s.len() + 1)?;
+                out.extend((0..=s.len()).map(|i| i as Int));
+            } else if sub.len() <= hay.len() {
+                // positions are code points; candidates are every character start
+                let (hb, sb) = (hay.as_bytes(), sub.as_bytes());
+                let mut ci = 0;
+                for i in 0..=(hb.len() - sb.len()) {
+                    if hb[i] & 0xC0 == 0x80 {
+                        continue;
+                    }
+                    if hb[i..i + sb.len()] == sb[..] {
+                        try_push(&mut out, ci as Int)?;
+                    }
+                    ci += 1;
                 }
             }
             Ok(Value::ints(out))
@@ -1323,9 +1358,10 @@ fn d_find(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
 
 fn d_join(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
     if let (Some(x), Some(y)) = (text_of(&a), text_of(&b)) {
-        let mut v = try_vec(x.len() + y.len())?;
-        v.extend_from_slice(&x);
-        v.extend_from_slice(&y);
+        let (x, y) = (x.as_str(), y.as_str());
+        let mut v = try_string(x.len() + y.len())?;
+        v.push_str(x);
+        v.push_str(y);
         return Ok(Value::str(v));
     }
     if let Value::Dict(d) = &a {
@@ -1333,8 +1369,8 @@ fn d_join(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
             if !Rc::ptr_eq(d, e) {
                 let e = e.borrow();
                 let mut dm = d.borrow_mut();
-                for i in 0..e.keys.len() {
-                    dm.set(e.keys[i].clone(), e.vals[i].clone());
+                for i in 0..e.len() {
+                    dm.set(e.keys()[i].clone(), e.vals()[i].clone())?;
                 }
             }
             return Ok(a);
@@ -1342,12 +1378,12 @@ fn d_join(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
         if !(b.is_list() && b.len() == Some(2)) {
             return Err(Error::typ(",: a dictionary can only be joined with a tuple (a list of two members) or a dictionary"));
         }
-        d.borrow_mut().set(b.item(0), b.item(1));
+        d.borrow_mut().set(b.item(0), b.item(1))?;
         return Ok(a);
     }
     if let Value::Dict(d) = &b {
         if a.is_list() && a.len() == Some(2) {
-            d.borrow_mut().set(a.item(0), a.item(1));
+            d.borrow_mut().set(a.item(0), a.item(1))?;
             return Ok(b);
         }
     }
@@ -1427,7 +1463,7 @@ fn build_shape(flat: &[Value], dims: &[usize], at: &mut usize, is_str: bool) -> 
             *at += 1;
         }
         if is_str {
-            return rebuild(&Value::str(Vec::new()), row);
+            return rebuild(&Value::empty_str(), row);
         }
         return Value::from_items(row);
     }
@@ -1436,7 +1472,7 @@ fn build_shape(flat: &[Value], dims: &[usize], at: &mut usize, is_str: bool) -> 
         rows.push(build_shape(flat, &dims[1..], at, is_str)?);
     }
     if is_str {
-        return Ok(Value::raw_list(rows));
+        return Value::raw_list(rows);
     }
     Value::from_items(rows)
 }
@@ -1453,9 +1489,9 @@ fn d_reshape(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
                     if !b.is_iterable() {
                         return Err(Error::range(":^: -1 in a shape needs a list as the source, not an atom"));
                     }
-                    dims.push(b_size / 2)
+                    try_push(&mut dims, b_size / 2)?
                 }
-                Value::Int(i) => dims.push(i as usize),
+                Value::Int(i) => try_push(&mut dims, i as usize)?,
                 _ => return Err(Error::typ(":^: a shape must hold integers")),
             }
         }
@@ -1546,13 +1582,13 @@ fn d_split(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
         if s < 1 {
             return Err(Error::range(":#: segment sizes must be positive"));
         }
-        sizes.push(s as usize);
+        try_push(&mut sizes, s as usize)?;
     }
     let mut parts: Vec<Value> = Vec::new();
     if sizes.len() == 1 {
         let s = sizes[0];
         if s >= n {
-            parts.push(b.clone());
+            try_push(&mut parts, b.clone())?;
         } else {
             // numpy.array_split into ceil(n/s) sections: the first n mod k sections get one
             // element more than the others.
@@ -1562,7 +1598,7 @@ fn d_split(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
             let mut at = 0;
             for i in 0..k {
                 let len = each + (i < extras) as usize;
-                parts.push(slice(&b, at, at + len)?);
+                try_push(&mut parts, slice(&b, at, at + len)?)?;
                 at += len;
             }
         }
@@ -1570,13 +1606,13 @@ fn d_split(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
         let mut q = 0;
         let mut p = 0;
         while q < n {
-            parts.push(slice(&b, q, q + sizes[p])?);
+            try_push(&mut parts, slice(&b, q, q + sizes[p])?)?;
             q += sizes[p];
             p = (p + 1) % sizes.len();
         }
     }
     if b.is_str() {
-        return Ok(Value::raw_list(parts));
+        return Value::raw_list(parts);
     }
     Value::from_items(parts)
 }
@@ -1584,7 +1620,7 @@ fn d_split(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
 fn d_take(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
     let k = match a {
         Value::Int(i) => i,
-        _ => return Err(Error::typ(format!("cannot apply # (Take) to {} and {}", a.describe(), b.describe()))),
+        _ => return Err(Error::typ(crate::msg!("cannot apply # (Take) to {} and {}", a.describe(), b.describe()))),
     };
     let b = if b.is_iterable() { b } else { Value::from_items(alloc::vec![b])? };
     let n = b.len().unwrap_or(0);
@@ -1605,25 +1641,232 @@ fn d_take(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
     rebuild(&b, out)
 }
 
+// ---------------------------------------------------------------------------------------
+// Format2 and Form
+// ---------------------------------------------------------------------------------------
+
+/// The pairing of the atomic dyads for an operator on atoms that are not all numbers
+/// (KlongPy `vec_fn2`): two lists pair element by element, a list and an atom extend the atom,
+/// strings are atoms.
+fn pair_atoms(ip: &mut Interp, a: &Value, b: &Value, f: fn(&mut Interp, &Value, &Value) -> Result<Value>) -> Result<Value> {
+    let (al, bl) = (a.is_list(), b.is_list());
+    if !al && !bl {
+        return f(ip, a, b);
+    }
+    let n = if al { a.len().unwrap_or(0) } else { b.len().unwrap_or(0) };
+    if al && bl && b.len() != Some(n) {
+        return Err(shape_error(n, b.len().unwrap_or(0)));
+    }
+    let mut out = try_vec(n)?;
+    for i in 0..n {
+        let r = match (al, bl) {
+            (true, true) => pair_atoms(ip, &a.item(i), &b.item(i), f),
+            (true, false) => pair_atoms(ip, &a.item(i), b, f),
+            _ => pair_atoms(ip, a, &b.item(i), f),
+        };
+        out.push(r?);
+    }
+    Value::from_items(out)
+}
+
+/// `text` padded with blanks to `width` characters: on the right, or on the left.
+fn pad(text: &str, width: usize, left: bool) -> Result<alloc::string::String> {
+    let n = text.chars().count();
+    let fill = width.saturating_sub(n);
+    let mut out = try_string(text.len().checked_add(fill).ok_or_else(Error::memory)?)?;
+    if left {
+        out.extend(core::iter::repeat_n(' ', fill));
+    }
+    out.push_str(text);
+    if !left {
+        out.extend(core::iter::repeat_n(' ', fill));
+    }
+    Ok(out)
+}
+
+/// `a$b` on atoms (KlongPy `__e_dyad_format2`). Public for `.fmt`.
+pub fn format2(ip: &mut Interp, a: &Value, b: &Value) -> Result<Value> {
+    let whole = match a {
+        Value::Int(i) => *i as i128,
+        Value::Flt(f) if f.is_finite() => m::trunc(*f) as i128,
+        Value::Flt(_) => return Err(Error::range("$: the width must be a finite number")),
+        _ => return Err(Error::typ(crate::msg!("cannot apply $ (Format2) to {} and {}", a.describe(), b.describe()))),
+    };
+    if let Value::Flt(w) = a {
+        let x = match b {
+            Value::Flt(x) => *x,
+            _ => return Err(Error::typ(crate::msg!("$: a real width needs a real number to format, got {}", b.describe())).with_hint("convert an integer first: 5.2$3*1.0")),
+        };
+        if whole != 0 {
+            // Python "{:<w>f}".format(x), w being the text of the width: n.m is n characters
+            // at least and m digits after the point; then the part before the point is
+            // padded to n characters again
+            let mut spec = crate::fmt::Checked::default();
+            crate::fmt::write_float(*w, &mut spec);
+            let spec = spec.text.trim_start_matches('-');
+            let (n, m) = spec.split_once('.').unwrap_or((spec, "0"));
+            let (n, m) = match (n.parse::<usize>(), m.parse::<usize>()) {
+                (Ok(n), Ok(m)) if m <= 512 && n <= i32::MAX as usize => (n, m),
+                _ => return Err(Error::range("$: a real width must have the form n.m")),
+            };
+            let mut num = crate::fmt::Checked::default();
+            crate::fmt::write_fixed(x, m, &mut num);
+            if num.oom {
+                return Err(Error::memory());
+            }
+            let body = pad(&num.text, n, true)?;
+            if *w < 0.0 {
+                return Ok(Value::str(body));
+            }
+            return Ok(Value::str(match body.split_once('.') {
+                Some((int, frac)) => {
+                    let mut out = pad(int, n, true)?;
+                    try_push_str(&mut out, ".")?;
+                    try_push_str(&mut out, frac)?;
+                    out
+                }
+                None => body,
+            }));
+        }
+    }
+    // the text of b as Python's str gives it: no quotes, and a symbol with its colon only
+    // when it is padded
+    let text = match b {
+        Value::Sym(s) if whole != 0 => {
+            let name = ip.syms.name(*s);
+            let mut t = try_string(name.len() + 1)?;
+            t.push(':');
+            t.push_str(name);
+            t
+        }
+        _ => crate::fmt::format_value(&ip.syms, b, true)?,
+    };
+    if whole == 0 {
+        return Ok(Value::str(text));
+    }
+    let width = usize::try_from(whole.unsigned_abs()).map_err(|_| Error::memory())?;
+    Ok(Value::str(pad(&text, width, whole < 0)?))
+}
+
+fn d_format2(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
+    pair_atoms(ip, &a, &b, format2)
+}
+
+/// Python `int(text)`: blanks around, a sign, digits (single underscores between digits).
+fn parse_int(text: &str) -> Option<Int> {
+    let t = text.trim();
+    let (neg, digits) = match t.as_bytes().first()? {
+        b'-' => (true, &t[1..]),
+        b'+' => (false, &t[1..]),
+        _ => (false, t),
+    };
+    if digits.is_empty() {
+        return None;
+    }
+    let mut v: Int = 0;
+    let mut prev_digit = false;
+    for c in digits.bytes() {
+        match c {
+            b'0'..=b'9' => {
+                let d = (c - b'0') as Int;
+                // out of the build's integer width: not an integer here
+                v = if neg { v.checked_mul(10)?.checked_sub(d)? } else { v.checked_mul(10)?.checked_add(d)? };
+                prev_digit = true;
+            }
+            b'_' if prev_digit => prev_digit = false,
+            _ => return None,
+        }
+    }
+    if prev_digit {
+        Some(v)
+    } else {
+        None
+    }
+}
+
+/// Python `float(text)`.
+fn parse_float(text: &str) -> Option<Flt> {
+    let t = text.trim();
+    // Rust reads the same forms (digits, point, exponent, inf, infinity, nan, any case)
+    if t.is_empty() || t.contains('_') {
+        return None;
+    }
+    t.parse::<Flt>().ok()
+}
+
+/// `a:$b` on atoms (KlongPy `__e_dyad_form`): `b` converted to the kind of thing `a` is, or
+/// `:undefined` when it cannot be.
+fn form(ip: &mut Interp, a: &Value, b: &Value) -> Result<Value> {
+    Ok(match a {
+        Value::Sym(_) => {
+            if b.is_empty() {
+                return Ok(Value::Undefined);
+            }
+            let held;
+            let name: &str = match b {
+                Value::Str(s) => s.as_str().strip_prefix(':').unwrap_or(s.as_str()),
+                Value::Sym(_) => return Ok(b.clone()),
+                _ => {
+                    held = crate::fmt::format_value(&ip.syms, b, true)?;
+                    &held
+                }
+            };
+            let s = ip.syms.intern(name);
+            if let Some(e) = ip.syms.failure() {
+                return Err(e);
+            }
+            Value::Sym(s)
+        }
+        Value::Int(_) => match b {
+            Value::Str(s) => parse_int(s.as_str()).map(Value::Int).unwrap_or(Value::Undefined),
+            _ => Value::Undefined,
+        },
+        Value::Flt(_) => match b {
+            Value::Str(s) => parse_float(s.as_str()).map(Value::Flt).unwrap_or(Value::Undefined),
+            Value::Char(c) => c.to_digit(10).map(|d| Value::Flt(d as Flt)).unwrap_or(Value::Undefined),
+            Value::Int(i) => Value::Flt(*i as Flt),
+            Value::Flt(_) => b.clone(),
+            _ => Value::Undefined,
+        },
+        Value::Char(_) => match b {
+            Value::Char(_) => b.clone(),
+            Value::Str(s) if s.len() == 1 => Value::Char(s.char_at(0)),
+            Value::Int(i) if (0..10).contains(i) => Value::Char((b'0' + *i as u8) as char),
+            _ => Value::Undefined,
+        },
+        _ => b.clone(),
+    })
+}
+
+fn d_form(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
+    pair_atoms(ip, &a, &b, form)
+}
+
 /// A deep copy of a value that holds dictionaries (a dictionary literal is copied each time
 /// it is evaluated).
 pub fn deep_copy(v: &Value) -> Result<Value> {
+    deep_copy_at(v, 0)
+}
+
+fn deep_copy_at(v: &Value, depth: u32) -> Result<Value> {
+    if depth > crate::value::max_nest() {
+        return Err(crate::value::too_deep());
+    }
     match v {
         Value::Dict(d) => {
-            let d = d.borrow();
+            let d = d.try_borrow().map_err(|_| Error::internal("dictionary in use"))?;
             let mut n = Dict::default();
-            for i in 0..d.keys.len() {
-                n.keys.push(d.keys[i].clone());
-                n.vals.push(deep_copy(&d.vals[i])?);
+            for i in 0..d.len() {
+                n.set(d.keys()[i].clone(), deep_copy_at(&d.vals()[i], depth + 1)?)?;
             }
-            Ok(Value::Dict(Rc::new(RefCell::new(n))))
+            Ok(Value::dict(n))
         }
         Value::List(items) => {
             let mut out = try_vec(items.len())?;
             for q in items.iter() {
-                out.push(deep_copy(q)?);
+                out.push(deep_copy_at(q, depth + 1)?);
             }
-            Ok(Value::raw_list(out))
+            Value::raw_list(out)
         }
         _ => Ok(v.clone()),
     }

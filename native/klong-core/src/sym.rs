@@ -19,11 +19,18 @@ pub struct Interner {
     /// A name could not be stored (no memory); `x` was returned in its place. The parser
     /// reports it as a `memory` error.
     pub oom: bool,
+    /// A name longer than `MAX_NAME` was refused (`x` was returned in its place).
+    pub long: bool,
 }
+
+/// The longest name, in bytes: a name is stored once and for good, and its text is copied
+/// where no failure can be reported, so it must be small (a module name and a name together
+/// stay under the size the allocator treats as "sized by data").
+pub const MAX_NAME: usize = 255;
 
 impl Interner {
     pub fn new() -> Interner {
-        let mut t = Interner { names: Vec::new(), map: BTreeMap::new(), oom: false };
+        let mut t = Interner { names: Vec::new(), map: BTreeMap::new(), oom: false, long: false };
         for n in ["x", "y", "z", ".f"] {
             t.intern(n);
         }
@@ -37,6 +44,11 @@ impl Interner {
         if let Some(&i) = self.map.get(s) {
             return SymId(i);
         }
+        // (a module-qualified name is two names and a backquote)
+        if s.len() > 2 * MAX_NAME + 1 || (s.len() > MAX_NAME && !s.contains('`')) {
+            self.long = true;
+            return X;
+        }
         if self.names.try_reserve(1).is_err() {
             self.oom = true;
             return X;
@@ -46,6 +58,18 @@ impl Interner {
         self.names.push(rc.clone());
         self.map.insert(rc, i);
         SymId(i)
+    }
+
+    /// The failure of the interning since the last call, if any.
+    pub fn failure(&mut self) -> Option<crate::error::Error> {
+        if core::mem::take(&mut self.long) {
+            self.oom = false;
+            return Some(crate::error::Error::range("a name is longer than 255 bytes"));
+        }
+        if core::mem::take(&mut self.oom) {
+            return Some(crate::error::Error::memory());
+        }
+        None
     }
 
     pub fn lookup(&self, s: &str) -> Option<SymId> {

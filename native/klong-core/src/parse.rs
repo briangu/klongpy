@@ -11,7 +11,6 @@ use alloc::format;
 use alloc::rc::Rc;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use core::cell::RefCell;
 
 use crate::error::{Error, Result, Source, Span};
 use crate::lex::{Lexer, Tok, K, TV};
@@ -45,6 +44,8 @@ pub struct Parser<'a> {
     dicts_read: u32,
     depth: u32,
     max_depth: u32,
+    /// (stack address the budget is measured from, bytes allowed): `Config::stack_limit`.
+    stack: Option<(usize, usize)>,
 }
 
 const ADVERBS: [&str; 10] = ["'", "/", "\\", "\\~", "\\*", ":'", ":/", ":\\", ":~", ":*"];
@@ -66,12 +67,13 @@ pub fn parse(
     module: &mut Option<String>,
     strict: u8,
     max_depth: u32,
+    stack: Option<(usize, usize)>,
 ) -> Result<Parsed> {
     // the copy of the text for error messages is sized by data
     let mut copy = String::new();
     copy.try_reserve_exact(text.len()).map_err(|_| Error::memory())?;
     copy.push_str(text);
-    let source = Rc::new(Source { name: name.to_string(), text: copy });
+    let source = Rc::new(Source { name: crate::value::try_str(name)?, text: copy });
     let mut p = Parser {
         lx: Lexer::new(text, strict == 0),
         tree: Tree::new(Some(source.clone())),
@@ -82,6 +84,7 @@ pub fn parse(
         dicts_read: 0,
         depth: 0,
         max_depth,
+        stack,
     };
     if p.lx.toks.is_empty() || !p.tree.reserve() {
         return Err(Error::memory());
@@ -89,11 +92,19 @@ pub fn parse(
     let r = p.prog(false).and_then(|stmts| p.finish().map(|_| stmts));
     // tokens, nodes or names that could not be stored: whatever the parser made of the rest
     // is meaningless
-    if p.lx.oom || p.tree.oom || core::mem::take(&mut p.syms.oom) {
+    if p.lx.oom || p.tree.oom {
+        p.syms.failure();
         return Err(Error::memory());
     }
+    if let Some(e) = p.syms.failure() {
+        return Err(if e.kind == crate::error::Kind::Range { Error::syntax("a name is longer than 255 bytes") } else { e });
+    }
     match r {
-        Ok(stmts) => Ok(Parsed { tree: Rc::new(p.tree), stmts: stmts.into_iter().map(NodeId).collect() }),
+        Ok(stmts) => {
+            let mut ids = crate::value::try_vec(stmts.len())?;
+            ids.extend(stmts.into_iter().map(NodeId));
+            Ok(Parsed { tree: Rc::new(p.tree), stmts: ids })
+        }
         Err(mut e) => {
             if e.source.is_none() && e.span.is_some() {
                 e.source = Some(source);
@@ -103,7 +114,75 @@ pub fn parse(
     }
 }
 
+/// One data object from the start of `text` (`Interp::read_datum`).
+pub fn read_datum(text: &str, syms: &mut Interner, module: &mut Option<String>, max_depth: u32, stack: Option<(usize, usize)>) -> Result<Option<(usize, Value)>> {
+    let mut p = Parser { lx: Lexer::new(text, true), tree: Tree::new(None), syms, module, strict: 0, last_list: None, dicts_read: 0, depth: 0, max_depth, stack };
+    if p.lx.toks.is_empty() || !p.tree.reserve() {
+        return Err(Error::memory());
+    }
+    let j = p.skip_nl(0);
+    let tok = p.tok(j).clone();
+    let r = match tok.k {
+        K::Eof => Ok(None),
+        K::LBrack | K::Dict => p.read_data(j, true).map(|v| {
+            let end = p.tok(p.lx.pos.saturating_sub(1)).end;
+            Some((end as usize, v))
+        }),
+        K::Num | K::Str | K::Char => {
+            let v = match &tok.v {
+                TV::Int(i) => Value::Int(*i),
+                TV::Flt(f) => Value::Flt(*f),
+                TV::Str(s) => Value::text(s)?,
+                TV::Char(c) => Value::Char(*c),
+                _ => Value::Undefined,
+            };
+            Ok(Some((tok.end as usize, v)))
+        }
+        K::Name | K::QName => {
+            let s = p.sym_for(p.lx.text_of(&tok));
+            Ok(Some((tok.end as usize, Value::Sym(s))))
+        }
+        K::Op if p.lx.text_of(&tok) == "-" => {
+            let nt = p.tok(j + 1).clone();
+            match (nt.k, &nt.v, nt.ws) {
+                (K::Num, TV::Int(i), false) => Ok(Some((nt.end as usize, Value::Int(i.wrapping_neg())))),
+                (K::Num, TV::Flt(f), false) => Ok(Some((nt.end as usize, Value::Flt(-*f)))),
+                _ => Err(Error::syntax("not a data object").with_span((tok.start, tok.end))),
+            }
+        }
+        K::Error => Err(p.raise_tok(&tok)),
+        _ => Err(Error::syntax("not a data object").with_span((tok.start, tok.end))),
+    };
+    if p.lx.oom || p.tree.oom {
+        p.syms.failure();
+        return Err(Error::memory());
+    }
+    if let Some(e) = p.syms.failure() {
+        return Err(if e.kind == crate::error::Kind::Range { Error::syntax("a name is longer than 255 bytes") } else { e });
+    }
+    r
+}
+
 impl<'a> Parser<'a> {
+    #[inline]
+    fn out_of_stack(&self) -> bool {
+        match self.stack {
+            Some((base, limit)) => base.abs_diff(crate::interp::stack_here()) > limit,
+            None => false,
+        }
+    }
+
+    /// Append to a list the parser builds whose length the program decides (arguments,
+    /// statements, the elements of a literal). Without memory the element is dropped and the
+    /// parse ends as a `memory` error (`parse`).
+    fn keep<T>(&mut self, v: &mut Vec<T>, x: T) {
+        if v.len() == v.capacity() && v.try_reserve(1).is_err() {
+            self.tree.oom = true;
+            return;
+        }
+        v.push(x);
+    }
+
     fn tok(&self, j: usize) -> &Tok {
         self.lx.tok(j)
     }
@@ -129,7 +208,7 @@ impl<'a> Parser<'a> {
     }
 
     fn lit_str(&mut self, s: &str) -> NodeId {
-        self.add(Node::Lit(Value::str(s.as_bytes().to_vec())), (0, 0))
+        self.add(Node::Lit(Value::str(String::from(s))), (0, 0))
     }
 
     /// A `;` read where an expression was expected is the string ";" (legacy).
@@ -148,6 +227,11 @@ impl<'a> Parser<'a> {
             "z" => sym::Z,
             _ => match &*self.module {
                 Some(m) if !v.starts_with('.') => {
+                    // (two names: under the size the allocator treats as sized by data)
+                    if v.len() > crate::sym::MAX_NAME {
+                        self.syms.long = true;
+                        return sym::X;
+                    }
                     let q = format!("{}`{}", v, m);
                     self.syms.intern(&q)
                 }
@@ -168,8 +252,8 @@ impl<'a> Parser<'a> {
 
     fn unexpected(&self, at: u32, want: char) -> Error {
         let found = match self.lx.text[(at as usize).min(self.lx.text.len())..].chars().next() {
-            Some(c) => format!("expected '{}' but found '{}'", want, c),
-            None => format!("expected '{}' but found end of input", want),
+            Some(c) => crate::msg!("expected '{}' but found '{}'", want, c),
+            None => crate::msg!("expected '{}' but found end of input", want),
         };
         Error::syntax(found).with_span((at, at + 1))
     }
@@ -177,20 +261,9 @@ impl<'a> Parser<'a> {
     fn raise_tok(&self, tok: &Tok) -> Error {
         let m = match tok.v {
             TV::CharEof => "character literal 0c at end of input".to_string(),
-            _ => format!("malformed number {}", &self.lx.text[tok.start as usize..tok.end as usize]),
+            _ => crate::msg!("malformed number {}", &self.lx.text[tok.start as usize..tok.end as usize]),
         };
         Error::syntax(m).with_span((tok.start, tok.end))
-    }
-
-    fn char_value(c: char) -> Value {
-        if c.is_ascii() {
-            Value::Char(c as u8)
-        } else {
-            // Strings are bytes (native-runtime.md section 11): a char that is not one byte is
-            // the string of its bytes.
-            let mut b = [0u8; 4];
-            Value::str(c.encode_utf8(&mut b).as_bytes().to_vec())
-        }
     }
 
     // ----- adverbs -----------------------------------------------------------------------
@@ -243,7 +316,8 @@ impl<'a> Parser<'a> {
         }
         let mut advs = alloc::vec![self.syms.intern(aa).0];
         while let Some(more) = self.peek_adverb() {
-            advs.push(self.syms.intern(more).0);
+            let id = self.syms.intern(more).0;
+            self.keep(&mut advs, id);
         }
         let oe = self.lx.end();
         // legacy: the operand is read without newline skipping, wherever we are
@@ -251,7 +325,7 @@ impl<'a> Parser<'a> {
         if r == NONE || r == SEMI {
             let what = &self.lx.text[ost as usize..oe as usize];
             self.issue(
-                if dyad { format!("missing right operand for {}", what) } else { format!("missing operand for {}", what) },
+                if dyad { crate::msg!("missing right operand for {}", what) } else { crate::msg!("missing operand for {}", what) },
                 (ost, oe),
             )?;
             r = self.unsemi(r);
@@ -284,7 +358,7 @@ impl<'a> Parser<'a> {
             match tok.k {
                 K::Semi | K::Newline => {
                     if j == sep && !tok.ws {
-                        arr.push(NONE.0);
+                        self.keep(&mut arr, NONE.0);
                     }
                     sep = j + 1;
                     self.lx.pos = sep;
@@ -293,7 +367,7 @@ impl<'a> Parser<'a> {
                 }
                 K::RParen => {
                     if j == sep && !tok.ws {
-                        arr.push(NONE.0);
+                        self.keep(&mut arr, NONE.0);
                     }
                     break;
                 }
@@ -313,7 +387,7 @@ impl<'a> Parser<'a> {
                 break;
             }
             let a = self.unsemi(a);
-            arr.push(a.0);
+            self.keep(&mut arr, a.0);
             fresh = false;
         }
         // legacy: the ')' must follow the last argument directly
@@ -393,7 +467,7 @@ impl<'a> Parser<'a> {
         for i in 0..v.len().unwrap_or(0) {
             match v.item(i) {
                 Value::Sym(s) => names.push(s.0),
-                Value::Str(s) if s.0 == b";" => {}
+                Value::Str(s) if s.as_str() == ";" => {}
                 _ => return None,
             }
         }
@@ -528,7 +602,7 @@ impl<'a> Parser<'a> {
                         } else if v == ".f" {
                             why = Some(".f is the running function and cannot be assigned".to_string());
                         } else if names.contains(&v) {
-                            why = Some(format!("{} is named twice", v));
+                            why = Some(crate::msg!("{} is named twice", v));
                         }
                     }
                     names.push(v);
@@ -551,7 +625,7 @@ impl<'a> Parser<'a> {
         match why {
             Some(w) => {
                 let end = self.matching(j).map(|m| self.tok(m).end).unwrap_or(self.tok(j).end);
-                self.issue(format!("cannot destructure: {}", w), (self.tok(j).start, end))?;
+                self.issue(crate::msg!("cannot destructure: {}", w), (self.tok(j).start, end))?;
                 Ok(false)
             }
             None => Ok(true),
@@ -593,13 +667,13 @@ impl<'a> Parser<'a> {
                 break;
             }
             if ids[..i].contains(&s) {
-                why = Some(format!("{} is named twice", self.syms.name(SymId(s)).split('`').next().unwrap_or("")));
+                why = Some(crate::msg!("{} is named twice", self.syms.name(SymId(s)).split('`').next().unwrap_or("")));
                 break;
             }
         }
         if let Some(w) = why {
             let n = self.syms.name(name).split('`').next().unwrap_or("").to_string();
-            self.issue(format!("cannot define {} with named parameters: {}", n, w), (st, lend))?;
+            self.issue(crate::msg!("cannot define {} with named parameters: {}", n, w), (st, lend))?;
             return Ok(None);
         }
         Ok(Some(NamedDef { name, params: ids }))
@@ -646,6 +720,10 @@ impl<'a> Parser<'a> {
         let mut fnd = 0;
         i += 1;
         while i < end {
+            // (this only improves an error message: without memory, no message)
+            if stack.try_reserve(1).is_err() {
+                return None;
+            }
             let tok = self.tok(i);
             let k = tok.k;
             if data > 0 {
@@ -701,7 +779,7 @@ impl<'a> Parser<'a> {
             rj += 1;
         }
         if let Some(tok) = self.direct_arg(rj, self.lx.pos) {
-            return Err(Error::syntax(format!("{} is not available in a function with named parameters", self.lx.text_of(&tok)))
+            return Err(Error::syntax(crate::msg!("{} is not available in a function with named parameters", self.lx.text_of(&tok)))
                 .with_span((tok.start, tok.end))
                 .with_hint("use the parameter names; x, y and z exist only in a function without a parameter list"));
         }
@@ -729,7 +807,7 @@ impl<'a> Parser<'a> {
     /// closer and the elements. Nothing is consumed.
     fn read_list(&mut self, mut j: usize, close: K) -> Result<(usize, Vec<Value>)> {
         self.depth += 1;
-        if self.depth > self.max_depth {
+        if self.depth > self.max_depth || self.out_of_stack() {
             return Err(Error::range("expression nested too deeply"));
         }
         let opener = self.tok(j - 1).clone();
@@ -751,28 +829,29 @@ impl<'a> Parser<'a> {
             }
             match tok.k {
                 K::Num => {
-                    arr.push(match tok.v {
+                    let v = match tok.v {
                         TV::Int(i) => Value::Int(i),
                         TV::Flt(f) => Value::Flt(f),
                         _ => Value::Undefined,
-                    });
+                    };
+                    self.keep(&mut arr, v);
                     j += 1;
                 }
                 K::Str => {
                     if let TV::Str(s) = &tok.v {
-                        arr.push(Value::str(s.as_bytes().to_vec()));
+                        self.keep(&mut arr, Value::text(s)?);
                     }
                     j += 1;
                 }
                 K::Char => {
                     if let TV::Char(c) = tok.v {
-                        arr.push(Self::char_value(c));
+                        self.keep(&mut arr, Value::Char(c));
                     }
                     j += 1;
                 }
                 K::Name | K::QName => {
                     let s = self.sym_for(self.lx.text_of(&tok));
-                    arr.push(Value::Sym(s));
+                    self.keep(&mut arr, Value::Sym(s));
                     j += 1;
                 }
                 K::Op => {
@@ -781,8 +860,8 @@ impl<'a> Parser<'a> {
                     if self.lx.text_of(&tok) == "-" && !nt.ws && matches!(nt.k, K::Num | K::Error | K::Char) && !colon {
                         // legacy: '-' and the digits after it are one number
                         match (&nt.k, &nt.v) {
-                            (K::Num, TV::Int(i)) => arr.push(Value::Int(i.wrapping_neg())),
-                            (K::Num, TV::Flt(f)) => arr.push(Value::Flt(-*f)),
+                            (K::Num, TV::Int(i)) => self.keep(&mut arr, Value::Int(i.wrapping_neg())),
+                            (K::Num, TV::Flt(f)) => self.keep(&mut arr, Value::Flt(-*f)),
                             (K::Error, TV::BadNum) => return Err(self.raise_tok(&nt)),
                             // "-0cx" is the number -0 and the name cx in KlongPy (its number
                             // reader does not know the 0c prefix). Not reproduced.
@@ -790,33 +869,39 @@ impl<'a> Parser<'a> {
                         }
                         j += 2;
                     } else {
-                        arr.push(Value::Prim(self.syms.intern(self.lx.text_of(&tok))));
+                        let v = Value::Prim(self.syms.intern(self.lx.text_of(&tok)));
+                        self.keep(&mut arr, v);
                         j += 1;
                     }
                 }
                 K::LBrack => {
                     let (nj, q) = self.read_list(j + 1, K::RBrack)?;
-                    arr.push(Value::from_items(q)?);
+                    // the entries of a dictionary literal stay as written: [1.5 2] is the key
+                    // 1.5 and the value 2, not a list of two floats
+                    self.keep(&mut arr, if close == K::RBrace { Value::raw_list(q)? } else { Value::from_items(q)? });
                     j = nj;
                 }
                 K::Dict => {
                     let (nj, q) = self.read_list(j + 1, K::RBrace)?;
-                    arr.push(self.make_dict(q, (tok.start, self.tok(nj - 1).end))?);
+                    let v = self.make_dict(q, (tok.start, self.tok(nj - 1).end))?;
+                    self.keep(&mut arr, v);
                     self.dicts_read += 1;
                     j = nj;
                 }
                 K::Cop | K::CallP => {
-                    arr.push(Value::Prim(self.syms.intern(self.lx.text_of(&tok))));
+                    let v = Value::Prim(self.syms.intern(self.lx.text_of(&tok)));
+                    self.keep(&mut arr, v);
                     j += 1;
                 }
                 K::Error => return Err(self.raise_tok(&tok)),
                 K::Newline => {
-                    arr.push(Value::str(b";".to_vec()));
+                    self.keep(&mut arr, Value::text(";")?);
                     j += 1;
                 }
                 _ => {
                     // ; ( ) { } ] :[ :| are the strings they are written as
-                    arr.push(Value::str(self.lx.text_of(&tok).as_bytes().to_vec()));
+                    let v = Value::text(self.lx.text_of(&tok))?;
+                    self.keep(&mut arr, v);
                     j += 1;
                 }
             }
@@ -844,16 +929,22 @@ impl<'a> Parser<'a> {
                     .with_hint("write :{[key1 value1] [key2 value2]}, or :{;key1;value1;key2;value2} to have the keys and values evaluated"));
             }
             let conv = |v: Value| match v {
-                Value::Char(c) if e.is_str() => Value::str(alloc::vec![c]),
+                Value::Char(c) if e.is_str() => Value::char_str(c),
                 v => v,
             };
             let k = conv(e.item(0));
             if k.is_list() || matches!(k, Value::Dict(_)) {
                 return Err(Error::syntax("a list cannot be a dictionary key").with_span(span));
             }
-            d.set(k, conv(e.item(1)));
+            let v = conv(e.item(1));
+            // a value that is itself a list was read as one and is normalised now
+            let v = match v {
+                Value::List(_) => Value::from_items(v.items()?)?,
+                v => v,
+            };
+            d.set(k, v).map_err(|e| if e.kind == crate::error::Kind::Type { Error::syntax("this value cannot be a dictionary key").with_span(span) } else { e })?;
         }
-        Ok(Value::Dict(Rc::new(RefCell::new(d))))
+        Ok(Value::dict(d))
     }
 
     /// Read the list or dictionary literal whose opener is token `j`. With `consume` the read
@@ -951,7 +1042,7 @@ impl<'a> Parser<'a> {
             let expr = self.expr(true)?;
             if expr != NONE {
                 let expr = self.unsemi(expr);
-                r.push(expr.0);
+                self.keep(&mut r, expr.0);
             }
             j = self.skip_nl(self.lx.pos);
             if self.kind(j) == K::Semi {
@@ -998,7 +1089,7 @@ impl<'a> Parser<'a> {
                 }
                 let expr = self.expr(true)?;
                 let expr = self.unsemi(expr);
-                r.push(expr.0);
+                self.keep(&mut r, expr.0);
                 let tok = skip(self);
                 match tok.k {
                     K::Semi => self.lx.pos += 1,
@@ -1031,22 +1122,23 @@ impl<'a> Parser<'a> {
     fn comment_end(&self, st: u32, args: &[u32]) -> Result<usize> {
         let marker = match args.first() {
             Some(&q) if q != NONE.0 => match self.tree.node(NodeId(q)) {
-                Node::Lit(Value::Str(s)) if !s.0.is_empty() => String::from_utf8_lossy(&s.0).into_owned(),
+                // (the literal itself is shared, not copied)
+                Node::Lit(Value::Str(s)) if !s.is_empty() => s.clone(),
                 _ => return Err(Error::syntax(".comment needs a string").with_span((st, self.lx.end()))),
             },
             _ => return Err(Error::syntax(".comment needs a string").with_span((st, self.lx.end()))),
         };
         let i = self.lx.offset() as usize;
         let t = self.lx.text;
-        let mut j = match t[i..].find(&marker) {
+        let mut j = match t[i..].find(marker.as_str()) {
             Some(j) => j,
             None => return Err(Error::syntax("end of comment not found").with_span((st, self.lx.end()))),
         };
         // legacy: extend while the marker repeats
-        while t.is_char_boundary(i + j + 1) && t[i + j + 1..].starts_with(&marker) {
+        while t.is_char_boundary(i + j + 1) && t[i + j + 1..].starts_with(marker.as_str()) {
             j += 1;
         }
-        Ok(i + j + marker.len())
+        Ok(i + j + marker.as_str().len())
     }
 
     fn parse_module(&mut self, args: &[u32]) {
@@ -1056,7 +1148,11 @@ impl<'a> Parser<'a> {
                 Node::Lit(Value::Int(0)) => None,
                 Node::Lit(Value::Int(i)) => Some(format!("{}", i)),
                 Node::Lit(v) if v.is_empty() => None,
-                Node::Lit(Value::Str(s)) => Some(String::from_utf8_lossy(&s.0).into_owned()),
+                Node::Lit(Value::Str(s)) if s.as_str().len() <= crate::sym::MAX_NAME => Some(String::from(s.as_str())),
+                Node::Lit(Value::Str(_)) => {
+                    self.syms.long = true;
+                    None
+                }
                 _ => None,
             },
             _ => None,
@@ -1103,9 +1199,8 @@ impl<'a> Parser<'a> {
                 let n = match &tok.v {
                     TV::Int(i) => Node::Lit(Value::Int(*i)),
                     TV::Flt(f) => Node::Lit(Value::Flt(*f)),
-                    TV::Str(s) => Node::Lit(Value::str(s.as_bytes().to_vec())),
-                    TV::Char(c) if c.is_ascii() => Node::Lit(Value::Char(*c as u8)),
-                    TV::Char(c) => Node::CharLit(*c),
+                    TV::Str(s) => Node::Lit(Value::text(s)?),
+                    TV::Char(c) => Node::Lit(Value::Char(*c)),
                     _ => Node::Lit(Value::Undefined),
                 };
                 a = self.add(n, (tok.start, tok.end));
@@ -1122,7 +1217,7 @@ impl<'a> Parser<'a> {
                         let mut r = self.expr(ign)?;
                         let missing = r == NONE || r == SEMI;
                         if missing {
-                            self.issue(format!("missing operand for {}", v), (st, tok.end))?;
+                            self.issue(crate::msg!("missing operand for {}", v), (st, tok.end))?;
                             r = self.unsemi(r);
                         }
                         let e = self.lx.end();
@@ -1190,7 +1285,7 @@ impl<'a> Parser<'a> {
             _ => {
                 // ) } ] :| where a factor was expected: read as the string it is written as
                 let v = self.lx.text_of(&tok);
-                self.issue(format!("unexpected '{}'", v), (tok.start, tok.end))?;
+                self.issue(crate::msg!("unexpected '{}'", v), (tok.start, tok.end))?;
                 self.lx.pos = j + 1;
                 a = self.lit_str(v);
             }
@@ -1201,7 +1296,7 @@ impl<'a> Parser<'a> {
 
     fn expr(&mut self, ign: bool) -> Result<NodeId> {
         self.depth += 1;
-        if self.depth > self.max_depth {
+        if self.depth > self.max_depth || self.out_of_stack() {
             return Err(Error::range("expression nested too deeply"));
         }
         let r = self.expr_inner(ign);
@@ -1233,7 +1328,7 @@ impl<'a> Parser<'a> {
                         target = v == "::" && !matches!(self.tree.node(a), Node::Sym(_) | Node::QSym(_));
                     } else if ADVERBS.contains(&v) {
                         // ticket 031: an adverb glyph where a dyadic operator is expected
-                        let m = if tok.ws { format!("adverb {} must directly follow its verb", v) } else { format!("adverb {} does not follow a verb", v) };
+                        let m = if tok.ws { crate::msg!("adverb {} must directly follow its verb", v) } else { crate::msg!("adverb {} does not follow a verb", v) };
                         return Err(Error::syntax(m).with_span((tok.start, tok.end)));
                     }
                     op = Some(self.syms.intern(v));
@@ -1290,7 +1385,7 @@ impl<'a> Parser<'a> {
                 let missing = r == NONE || r == SEMI;
                 if missing {
                     let what = if tok.k == K::LBrace { "the function" } else { self.lx.text_of(&tok) };
-                    self.issue(format!("missing right operand for {}", what), osp)?;
+                    self.issue(crate::msg!("missing right operand for {}", what), osp)?;
                     r = self.unsemi(r);
                 }
                 if let Some(nd) = named {
@@ -1308,8 +1403,8 @@ impl<'a> Parser<'a> {
         }
         if ign && Tree::is_real(a) {
             let nl = match self.tree.node(a) {
-                Node::Lit(Value::Char(b'\n')) => true,
-                Node::Lit(Value::Str(s)) => s.0 == b"\n",
+                Node::Lit(Value::Char('\n')) => true,
+                Node::Lit(Value::Str(s)) => s.as_str() == "\n",
                 _ => false,
             };
             if nl {
@@ -1336,7 +1431,7 @@ impl<'a> Parser<'a> {
             if q == SEMI {
                 continue;
             }
-            arr.push(q.0);
+            self.keep(&mut arr, q.0);
             let mut j = self.lx.pos;
             if ign {
                 j = self.skip_nl(j);
@@ -1363,9 +1458,9 @@ impl<'a> Parser<'a> {
             let span = (tok.start, tok.end);
             let v = &self.lx.text[tok.start as usize..tok.end as usize];
             if matches!(tok.k, K::RParen | K::RBrack | K::RBrace) {
-                self.issue(format!("unexpected '{}': nothing is open that it could close", v), span)?;
+                self.issue(crate::msg!("unexpected '{}': nothing is open that it could close", v), span)?;
             } else {
-                self.issue(format!("unexpected '{}' after the end of the expression", v.lines().next().unwrap_or("")), span)?;
+                self.issue(crate::msg!("unexpected '{}' after the end of the expression", v.lines().next().unwrap_or("")), span)?;
             }
         }
         let n = self.lx.toks.len();

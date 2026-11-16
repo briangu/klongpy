@@ -1,6 +1,5 @@
 //! Adverbs (KlongPy `klongpy/adverbs.py`). An adverb receives the chain and the level of the
 //! function it modifies; it calls that function with `Interp::chain_call`.
-use alloc::format;
 use alloc::vec::Vec;
 
 use crate::error::{Error, Result};
@@ -31,16 +30,16 @@ fn converged(p: &Value, q: &Value) -> bool {
 fn iteration_count(a: &Value, name: &str) -> Result<usize> {
     match a {
         Value::Int(i) if *i >= 0 => Ok(*i as usize),
-        Value::Int(_) => Err(Error::range(format!("{}: count must not be negative", name))),
+        Value::Int(_) => Err(Error::range(crate::msg!("{}: count must not be negative", name))),
         Value::Flt(f) if f.is_finite() && *f == (*f as Int) as Flt => {
             if *f < 0.0 {
-                Err(Error::range(format!("{}: count must not be negative", name)))
+                Err(Error::range(crate::msg!("{}: count must not be negative", name)))
             } else {
                 Ok(*f as usize)
             }
         }
-        Value::Flt(_) => Err(Error::range(format!("{}: count must be a non-negative integer", name))),
-        _ => Err(Error::typ(format!("{}: count must be a non-negative integer", name))),
+        Value::Flt(_) => Err(Error::range(crate::msg!("{}: count must be a non-negative integer", name))),
+        _ => Err(Error::typ(crate::msg!("{}: count must be a non-negative integer", name))),
     }
 }
 
@@ -52,10 +51,10 @@ fn is_scalar_operand(b: &Value) -> bool {
 /// The elements joined back: a string when every result is a char or a string.
 fn join_text(items: Vec<Value>) -> Result<Value> {
     if !items.is_empty() && items.iter().all(|q| matches!(q, Value::Char(_))) {
-        let mut s = try_vec(items.len())?;
+        let mut s = crate::value::try_string(items.len())?;
         for q in &items {
             if let Value::Char(c) = q {
-                s.push(*c);
+                crate::value::try_push_char(&mut s, *c)?;
             }
         }
         return Ok(Value::str(s));
@@ -145,7 +144,7 @@ impl Interp {
             }
             ":'" => self.each_pair(ch, level, a),
             "@'" => self.each_index(ch, level, a),
-            _ => Err(Error::typ(format!("adverb {} needs two operands", g))),
+            _ => Err(Error::typ(crate::msg!("adverb {} needs two operands", g))),
         }
     }
 
@@ -154,7 +153,7 @@ impl Interp {
         match g {
             "'" => {
                 if a.is_empty() || b.is_empty() {
-                    return Ok(if a.is_list() || b.is_list() { Value::empty() } else { Value::str(Vec::new()) });
+                    return Ok(if a.is_list() || b.is_list() { Value::empty() } else { Value::empty_str() });
                 }
                 if a.is_atom() && b.is_atom() {
                     return self.f2(ch, level, a, b);
@@ -260,7 +259,7 @@ impl Interp {
             // to the left one (KlongPy passes the right one where the verb's glyph goes).
             ":'" => self.each_pair(ch, level, a),
             "@'" => self.each_index(ch, level, a),
-            _ => Err(Error::typ(format!("unknown adverb {}", g))),
+            _ => Err(Error::typ(crate::msg!("unknown adverb {}", g))),
         }
     }
 
@@ -268,7 +267,9 @@ impl Interp {
         if let Value::Dict(d) = &a {
             let pairs: Vec<(Value, Value)> = {
                 let d = d.borrow();
-                d.keys.iter().cloned().zip(d.vals.iter().cloned()).collect()
+                let mut pairs = try_vec(d.len())?;
+                pairs.extend(d.keys().iter().cloned().zip(d.vals().iter().cloned()));
+                pairs
             };
             let mut out = try_vec(pairs.len())?;
             for (k, v) in pairs {
@@ -289,11 +290,11 @@ impl Interp {
             out.push(self.f1(ch, level, a.item(i))?);
         }
         if a.is_str() && out.iter().any(|q| matches!(q, Value::Char(_) | Value::Str(_))) {
-            let mut s = Vec::new();
+            let mut s = alloc::string::String::new();
             for q in &out {
                 match q {
-                    Value::Char(c) => try_push(&mut s, *c)?,
-                    Value::Str(t) => crate::value::try_extend(&mut s, &t.0)?,
+                    Value::Char(c) => crate::value::try_push_char(&mut s, *c)?,
+                    Value::Str(t) => crate::value::try_push_str(&mut s, t.as_str())?,
                     _ => return Err(Error::typ("': each over a string gave a mix of text and other values")),
                 }
             }
@@ -323,8 +324,19 @@ impl Interp {
                     return Ok(Value::Flt(x.data[1..].iter().fold(x.data[0] as Flt, |s, v| s / *v as Flt)));
                 }
                 (Value::Flts(x), Some("%")) if x.rank() == 1 => return Ok(Value::Flt(x.data[1..].iter().fold(x.data[0], |s, v| s / *v))),
-                (Value::Str(s), Some("&")) => return Ok(Value::Char(s.0.iter().copied().min().unwrap_or(0))),
-                (Value::Str(s), Some("|")) => return Ok(Value::Char(s.0.iter().copied().max().unwrap_or(0))),
+                (Value::Str(s), Some("&")) => return Ok(Value::Char(s.as_str().chars().min().unwrap_or('\0'))),
+                (Value::Str(s), Some("|")) => return Ok(Value::Char(s.as_str().chars().max().unwrap_or('\0'))),
+                // ,/ over strings: one pass (the fold copies what it has joined at every step)
+                (Value::List(l), Some(",")) if l.iter().all(|v| matches!(v, Value::Str(_))) => {
+                    let total = l.iter().map(|v| if let Value::Str(t) = v { t.as_str().len() } else { 0 }).sum();
+                    let mut out = crate::value::try_string(total)?;
+                    for v in l.iter() {
+                        if let Value::Str(t) = v {
+                            out.push_str(t.as_str());
+                        }
+                    }
+                    return Ok(Value::str(out));
+                }
                 _ => {}
             }
         }

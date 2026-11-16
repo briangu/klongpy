@@ -4,8 +4,9 @@ Per-file conformance counts of the native binary (uses conformance/run.py as a l
 
     .venv/bin/python native/scripts/conformance.py [--tags a,b] [--all] [-- extra klong options]
 
-Default tags: what the spike of ticket 102 declares. --all adds strings,dicts,unicode (ticket 103)
-and lists every failure. Extra options go to the binary (for example `-- --heap-limit 1M`).
+Default tags: everything the native runtime declares (ticket 103). --core runs the tags of
+the spike of ticket 102 only; --narrow the tags of a build with the features int32,float32.
+Extra options go to the binary (for example `-- --heap-limit 1M`).
 """
 import importlib.util
 import os
@@ -14,6 +15,10 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SPIKE = "core,float,string-fmt,width64,strict1,strict2,numpy-only,device"
+# Not declared: bigint (integers wrap at the build width), torch-only and kgpy-only (KlongPy's
+# own), timers, ipc, desktop (tickets 106 and none).
+DECLARED = SPIKE + ",strings,dicts,unicode,sysio"
+NARROW = "core,strings,dicts,unicode,sysio,strict1,strict2,numpy-only,device"
 
 
 def main(argv):
@@ -21,10 +26,12 @@ def main(argv):
     if "--" in argv:
         i = argv.index("--")
         argv, extra = argv[:i], argv[i + 1:]
-    tags = SPIKE
-    show = "--all" in argv
-    if show:
-        tags += ",strings,dicts,unicode"
+    tags = DECLARED
+    show = True
+    if "--core" in argv:
+        tags = SPIKE
+    if "--narrow" in argv:
+        tags = NARROW
     if "--tags" in argv:
         tags = argv[argv.index("--tags") + 1]
     tags = set(tags.split(","))

@@ -41,7 +41,8 @@ pub enum TV {
     Int(Int),
     Flt(Flt),
     Char(char),
-    Str(String),
+    /// (shared: a token is cloned by the parser, and the text is as long as the program says)
+    Str(alloc::rc::Rc<String>),
     /// Error token: a malformed number.
     BadNum,
     /// Error token: `0c` at end of input.
@@ -224,13 +225,31 @@ pub fn lex(text: &str, pos: usize, out: &mut Vec<Tok>, trivia: &mut Vec<Comment>
             let body = if term { &text[s + 1..e - 1] } else { &text[s + 1..e] };
             tok.k = K::Str;
             tok.unterminated = !term;
-            tok.v = TV::Str(body.replace("\"\"", "\""));
+            // the text of the literal is sized by data: no room for it is no room for the tokens
+            let mut val = String::new();
+            if val.try_reserve_exact(body.len()).is_err() {
+                // end the tokens as `put` does: the parser must meet an Eof
+                if let Some(last) = out.last_mut() {
+                    *last = Tok { k: K::Eof, start: s as u32, end: s as u32, ws: false, nlc: false, unterminated: false, v: TV::None };
+                }
+                return false;
+            }
+            let mut rest = body;
+            while let Some(i) = rest.find("\"\"") {
+                val.push_str(&rest[..=i]);
+                rest = &rest[i + 2..];
+            }
+            val.push_str(rest);
+            tok.v = TV::Str(alloc::rc::Rc::new(val));
             cur.pos = e;
         } else if c == ':' {
             match c2 {
                 Some('"') => {
                     let (e, term) = quoted_end(text, s + 2);
                     if trivia.try_reserve(1).is_err() {
+                        if let Some(last) = out.last_mut() {
+                            *last = Tok { k: K::Eof, start: s as u32, end: s as u32, ws: false, nlc: false, unterminated: false, v: TV::None };
+                        }
                         return false;
                     }
                     trivia.push(Comment { start: s as u32, end: e as u32, unterminated: !term });

@@ -12,11 +12,10 @@
 //! (a `range` error, never a native stack overflow); every call and every adverb iteration
 //! ticks, and every 4096 ticks the embedder's [`Hooks::tick`] runs.
 use alloc::boxed::Box;
-use alloc::format;
 use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::cell::RefCell;
+use core::cell::Cell;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use crate::error::{Error, Kind, Result};
@@ -24,7 +23,7 @@ use crate::ops;
 use crate::parse::{self, Parsed};
 use crate::sym::{self, Interner, SymId};
 use crate::tree::{Node, NodeId, Range, Tree, NONE};
-use crate::value::{try_vec, Dict, Func, NativeFn, Slot, Value, WILDCARD};
+use crate::value::{try_push, try_vec, Dict, Func, NativeFn, Slot, Value, WILDCARD};
 
 /// What the embedder gives the core. `tick` is called every 4096 calls or adverb iterations;
 /// returning true interrupts the evaluation (Ctrl-C on a console).
@@ -55,13 +54,56 @@ pub struct Config {
     /// True when the allocator has passed its soft limit and is living on the reserve: the
     /// evaluation unwinds with a `memory` error at the next tick.
     pub mem_probe: Option<fn() -> bool>,
+    /// Bytes of native stack the evaluator and the parser may use, measured from where the
+    /// outermost `run` was entered. An evaluation or a parse that would go deeper ends with a
+    /// `range` error, like `max_depth`, whatever a level costs on the target (the limit is
+    /// checked against the real stack pointer). `None`: only `max_depth` bounds the recursion.
+    /// See [`Config::for_stack`].
+    pub stack_limit: Option<usize>,
+    /// How deep data may nest (lists in lists, projections in projections): the constructors
+    /// refuse to build anything deeper, because every walk over data recurses once per level.
+    pub max_nest: u32,
 }
+
+/// Native stack one level of data nesting costs in the deepest walk (printing, matching, the
+/// atomic pairing, drop): about 300 bytes on a 64-bit host in a release build (ticket 103),
+/// with a margin.
+pub const STACK_PER_NEST: usize = 384;
 
 impl Default for Config {
     fn default() -> Config {
-        Config { max_depth: 512, strict: 0, step_limit: None, interrupt: None, mem_probe: None }
+        Config { max_depth: 512, strict: 0, step_limit: None, interrupt: None, mem_probe: None, stack_limit: None, max_nest: crate::value::DEFAULT_MAX_NEST }
     }
 }
+
+impl Config {
+    /// Limits for a task whose native stack is `bytes` large: a quarter of it (at least
+    /// 2 KiB) is kept for what runs at the bottom of the recursion (an operator walking
+    /// nested data, a system function, the platform), the rest is the evaluator's, and data
+    /// nesting is capped so that a walk fits in half of what is kept.
+    pub fn for_stack(bytes: usize) -> Config {
+        let keep = (bytes / 4).max(2048).min(bytes / 2);
+        let nest = ((keep / 2) / STACK_PER_NEST).clamp(8, crate::value::DEFAULT_MAX_NEST as usize) as u32;
+        Config { stack_limit: Some(bytes - keep), max_nest: nest, max_depth: u32::MAX, ..Config::default() }
+    }
+}
+
+/// The address of something on the stack of the caller, as a number.
+#[inline(always)]
+pub(crate) fn stack_here() -> usize {
+    let marker = 0u8;
+    core::hint::black_box(&marker) as *const u8 as usize
+}
+
+/// One global scope (KlongPy's context list): the program's own names, or a module.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Scope {
+    Plain,
+    Module(SymId),
+}
+
+const JOURNALED: u16 = 0x8000;
+const NO_LINK: u32 = u32::MAX;
 
 type Frame = Vec<(SymId, Option<Value>)>;
 
@@ -85,6 +127,26 @@ pub struct Interp {
     pub syms: Interner,
     pub cfg: Config,
     globals: Vec<Option<Value>>,
+    /// Per global: the scope it was created in (and the `JOURNALED` bit).
+    gscope: Vec<u16>,
+    /// The global scopes, oldest first. `.module(:m)` adds a module scope and `.module(0)` a
+    /// plain one, as KlongPy pushes a context for each.
+    scopes: Vec<Scope>,
+    /// Names a module scope holds: (plain name, scope, qualified name), in creation order.
+    exports: Vec<(SymId, u16, SymId)>,
+    /// Per symbol: (generation, the symbol whose global a read of it yields). Only used once
+    /// there is a module.
+    link: Vec<Cell<(u32, u32)>>,
+    generation: u32,
+    /// The global bindings a load has replaced, for undoing a load that fails.
+    journal: Option<Journal>,
+    /// Stack address where the outermost `run` was entered, and how many runs are nested.
+    stack_base: usize,
+    running: u32,
+    /// A system function answered "no value" (KlongPy's None): see `no_value`.
+    void: bool,
+    /// High-water mark of native stack used below `stack_base`, in bytes.
+    pub max_stack_seen: usize,
     frames: Vec<Frame>,
     /// Per symbol: how many bindings of it are on the frame stack.
     shadow: Vec<u32>,
@@ -94,6 +156,13 @@ pub struct Interp {
     module: Option<String>,
     /// High-water mark of `depth` (for sizing a board's stack).
     pub max_depth_seen: u32,
+}
+
+struct Journal {
+    old: Vec<(SymId, Option<Value>)>,
+    scopes: usize,
+    exports: usize,
+    module: Option<String>,
 }
 
 pub(crate) struct Chain<'a> {
@@ -107,10 +176,21 @@ pub(crate) struct Chain<'a> {
 
 impl Interp {
     pub fn new(cfg: Config, hooks: Box<dyn Hooks>) -> Interp {
+        crate::value::set_max_nest(cfg.max_nest);
         Interp {
             syms: Interner::new(),
             cfg,
             globals: Vec::new(),
+            gscope: Vec::new(),
+            scopes: alloc::vec![Scope::Plain],
+            exports: Vec::new(),
+            link: Vec::new(),
+            generation: 1,
+            journal: None,
+            stack_base: 0,
+            running: 0,
+            void: false,
+            max_stack_seen: 0,
             frames: Vec::new(),
             shadow: Vec::new(),
             hooks,
@@ -128,48 +208,240 @@ impl Interp {
         self.set_global(s, Value::Fn(Rc::new(Func::Native { name: s, arity, f })));
     }
 
+    /// Define a global from the embedder (a system function, a system variable). Aborts if
+    /// there is no memory for the table: for start-up only.
     pub fn set_global(&mut self, s: SymId, v: Value) {
         let i = s.0 as usize;
         if self.globals.len() <= i {
             self.globals.resize(i + 1, None);
         }
+        if self.gscope.len() <= i {
+            self.gscope.resize(i + 1, 0);
+        }
         self.globals[i] = Some(v);
+        self.generation = self.generation.wrapping_add(1);
     }
 
     pub fn global(&self, name: &str) -> Option<Value> {
         let s = self.syms.lookup(name)?;
-        self.globals.get(s.0 as usize).cloned().flatten()
+        self.global_ref(s).cloned()
+    }
+
+    /// Define or replace a global by name (for the embedder: `.a`, `fullpath`).
+    pub fn define_global(&mut self, name: &str, v: Value) -> Result<()> {
+        let s = self.syms.intern(name);
+        if let Some(e) = self.syms.failure() {
+            return Err(e);
+        }
+        self.try_set_global(s, v)
     }
 
     pub fn format(&self, v: &Value) -> String {
         crate::fmt::to_string(&self.syms, v)
     }
 
+    fn stack(&self) -> Option<(usize, usize)> {
+        self.cfg.stack_limit.map(|l| (if self.running == 0 { stack_here() } else { self.stack_base }, l))
+    }
+
     pub fn parse(&mut self, text: &str, name: &str) -> Result<Parsed> {
-        parse::parse(text, name, &mut self.syms, &mut self.module, self.cfg.strict, self.cfg.max_depth)
+        let stack = self.stack();
+        parse::parse(text, name, &mut self.syms, &mut self.module, self.cfg.strict, self.cfg.max_depth, stack)
     }
 
     /// Parse and run a program: every statement in order; the value of the last one, or `None`
-    /// for a program without statements.
+    /// for a program without statements. May be called from a system function (`.l`, `.E`):
+    /// the program then runs where the call was made, and sees the locals of its callers.
     pub fn run(&mut self, text: &str, name: &str) -> Result<Option<Value>> {
+        if self.running == 0 {
+            self.stack_base = stack_here();
+            // a failure deferred by something outside an evaluation is not this program's
+            let _ = crate::value::take_deferred();
+        }
+        self.running += 1;
+        let r = self.run_parsed(text, name);
+        self.running -= 1;
+        r
+    }
+
+    fn run_parsed(&mut self, text: &str, name: &str) -> Result<Option<Value>> {
         let p = self.parse(text, name)?;
+        let frames = self.frames.len();
+        let depth = self.depth;
         let mut last = None;
         for &s in &p.stmts {
-            last = Some(self.eval_top(&p.tree, s)?);
+            self.void = false;
+            match self.eval(&p.tree, s, true) {
+                Ok(v) => last = Some(v),
+                Err(e) => {
+                    // unwind whatever the failed statement left behind
+                    while self.frames.len() > frames {
+                        self.pop_frame();
+                    }
+                    self.depth = depth;
+                    return Err(e);
+                }
+            }
         }
+        if self.void && matches!(last, Some(Value::Undefined)) {
+            last = None;
+        }
+        self.void = false;
         Ok(last)
     }
 
-    fn eval_top(&mut self, tree: &Rc<Tree>, s: NodeId) -> Result<Value> {
-        let r = self.eval(tree, s, true);
-        if r.is_err() {
-            // unwind whatever the failed statement left behind
-            while let Some(f) = self.frames.pop() {
-                self.unshadow(&f);
+    /// What a system function returns when it has nothing to return (`.module`, `.cc`, a load
+    /// of an empty file). It is `:undefined` inside an expression; a program whose last
+    /// statement ends this way has no value, and nothing is printed for it.
+    pub fn no_value(&mut self) -> Value {
+        self.void = true;
+        Value::Undefined
+    }
+
+    /// Read one data object (a number, a string, a char, a symbol, a list or a dictionary
+    /// literal) from the start of `text`: the number of bytes it took and the value, or `None`
+    /// when there is nothing but blanks. For `.r` and `.rs`.
+    pub fn read_datum(&mut self, text: &str) -> Result<Option<(usize, Value)>> {
+        let stack = self.stack();
+        parse::read_datum(text, &mut self.syms, &mut self.module, self.cfg.max_depth, stack)
+    }
+
+    /// Run a program at global scope, whatever function is running (`.E`): the frames of the
+    /// callers are set aside, so a definition lands in the globals.
+    pub fn run_global(&mut self, text: &str, name: &str) -> Result<Option<Value>> {
+        let frames = core::mem::take(&mut self.frames);
+        let shadow = core::mem::take(&mut self.shadow);
+        let r = self.run(text, name);
+        self.frames = frames;
+        self.shadow = shadow;
+        r
+    }
+
+    /// Run a program as a load (`.l`): when it fails, the global definitions it made or
+    /// replaced, and the modules it opened, are undone, so that a failed load leaves nothing
+    /// half-defined. (What it did to a dictionary or wrote to a channel stays done.) Loads
+    /// nest; the outermost one decides.
+    pub fn load(&mut self, text: &str, name: &str) -> Result<Option<Value>> {
+        if self.journal.is_some() {
+            return self.run(text, name);
+        }
+        for g in self.gscope.iter_mut() {
+            *g &= !JOURNALED;
+        }
+        self.journal = Some(Journal { old: Vec::new(), scopes: self.scopes.len(), exports: self.exports.len(), module: self.module.clone() });
+        let r = self.run(text, name);
+        if let Some(j) = self.journal.take() {
+            if r.is_err() {
+                for (s, old) in j.old.into_iter().rev() {
+                    if let Some(slot) = self.globals.get_mut(s.0 as usize) {
+                        *slot = old;
+                    }
+                }
+                self.scopes.truncate(j.scopes.max(1));
+                self.exports.truncate(j.exports);
+                self.module = j.module;
+                self.generation = self.generation.wrapping_add(1);
             }
-            self.depth = 0;
         }
         r
+    }
+
+    // ----- modules ---------------------------------------------------------------------------
+
+    /// `.module(:name)` at run time: a module scope. The names assigned at top level while
+    /// it is the newest scope belong to it (the parser has already qualified them).
+    pub fn module_start(&mut self, name: &str) -> Result<()> {
+        let s = self.syms.intern(name);
+        if let Some(e) = self.syms.failure() {
+            return Err(e);
+        }
+        self.push_scope(Scope::Module(s))
+    }
+
+    /// `.module(0)`: a new plain scope on top of the module.
+    pub fn module_stop(&mut self) -> Result<()> {
+        self.push_scope(Scope::Plain)
+    }
+
+    fn push_scope(&mut self, sc: Scope) -> Result<()> {
+        if self.scopes.len() >= (JOURNALED - 1) as usize {
+            return Err(Error::range("too many modules"));
+        }
+        self.scopes.try_reserve(1).map_err(|_| Error::memory())?;
+        try_push(&mut self.scopes, sc)?;
+        self.generation = self.generation.wrapping_add(1);
+        Ok(())
+    }
+
+    /// The module the parser is in (`.module` switches it while it parses).
+    pub fn parse_module(&self) -> Option<&str> {
+        self.module.as_deref()
+    }
+
+    #[inline]
+    fn has_global(&self, s: SymId) -> bool {
+        matches!(self.globals.get(s.0 as usize), Some(Some(_)))
+    }
+
+    /// The global a read of `s` yields. Without modules that is its own; with them, KlongPy's
+    /// walk through the scopes from the newest: a plain scope holds a name as written; a
+    /// module scope answers a plain name with its own variable of that name (`unit` finds
+    /// `unit` of module `geo`); and a module's name that the module does not define is looked
+    /// up, as a plain name, in the scopes older than the module.
+    #[inline]
+    fn global_ref(&self, s: SymId) -> Option<&Value> {
+        if self.scopes.len() <= 1 {
+            return self.globals.get(s.0 as usize)?.as_ref();
+        }
+        let t = self.resolve_global(s)?;
+        self.globals.get(t.0 as usize)?.as_ref()
+    }
+
+    #[inline(never)]
+    fn resolve_global(&self, s: SymId) -> Option<SymId> {
+        let cell = self.link.get(s.0 as usize);
+        if let Some(c) = cell {
+            let (g, t) = c.get();
+            if g == self.generation {
+                return if t == NO_LINK { None } else { Some(SymId(t)) };
+            }
+        }
+        let t = self.resolve_uncached(s);
+        if let Some(c) = cell {
+            c.set((self.generation, t.map(|t| t.0).unwrap_or(NO_LINK)));
+        }
+        t
+    }
+
+    fn resolve_uncached(&self, s: SymId) -> Option<SymId> {
+        match self.syms.name(s).split_once('`') {
+            None => self.resolve_plain(s, usize::MAX),
+            Some((base, module)) => {
+                if self.has_global(s) {
+                    return Some(s);
+                }
+                let limit = self.scopes.iter().rposition(|sc| matches!(sc, Scope::Module(n) if self.syms.name(*n) == module))?;
+                self.resolve_plain(self.syms.lookup(base)?, limit)
+            }
+        }
+    }
+
+    /// The newest scope older than `limit` that answers the plain name `b`.
+    fn resolve_plain(&self, b: SymId, limit: usize) -> Option<SymId> {
+        let mut best: Option<(usize, SymId)> = None;
+        if self.has_global(b) {
+            let sc = (self.gscope.get(b.0 as usize).copied().unwrap_or(0) & !JOURNALED) as usize;
+            if sc < limit {
+                best = Some((sc, b));
+            }
+        }
+        for &(base, sc, q) in &self.exports {
+            let sc = sc as usize;
+            if base == b && sc < limit && best.map(|(bs, _)| sc > bs).unwrap_or(true) && self.has_global(q) {
+                best = Some((sc, q));
+            }
+        }
+        best.map(|(_, t)| t)
     }
 
     // ----- ticks ---------------------------------------------------------------------------
@@ -235,17 +507,56 @@ impl Interp {
         for (s, _) in &f {
             self.shadow[s.0 as usize] += 1;
         }
-        self.frames.push(f);
+        try_push(&mut self.frames, f)?;
         Ok(())
     }
 
+    /// Create or replace the global `s` itself (no module rule: that is for reads).
     fn try_set_global(&mut self, s: SymId, v: Value) -> Result<()> {
         let i = s.0 as usize;
+        let n = self.syms.len().max(i + 1);
         if self.globals.len() <= i {
-            let more = i + 1 - self.globals.len();
-            self.globals.try_reserve(more).map_err(|_| Error::memory())?;
+            self.globals.try_reserve(n - self.globals.len()).map_err(|_| Error::memory())?;
+            self.globals.resize(n, None);
         }
-        self.set_global(s, v);
+        if self.gscope.len() <= i {
+            self.gscope.try_reserve(n - self.gscope.len()).map_err(|_| Error::memory())?;
+            self.gscope.resize(n, 0);
+        }
+        if self.scopes.len() > 1 && self.link.len() <= i {
+            self.link.try_reserve(n - self.link.len()).map_err(|_| Error::memory())?;
+            self.link.resize(n, Cell::new((0, NO_LINK)));
+        }
+        let existed = self.globals[i].is_some();
+        if let Some(j) = &mut self.journal {
+            if self.gscope[i] & JOURNALED == 0 {
+                j.old.try_reserve(1).map_err(|_| Error::memory())?;
+                try_push(&mut j.old, (s, self.globals[i].take()))?;
+                self.gscope[i] |= JOURNALED;
+            }
+        }
+        if !existed {
+            let top = self.scopes.len() - 1;
+            self.gscope[i] = top as u16 | (self.gscope[i] & JOURNALED);
+            if let Scope::Module(_) = self.scopes[top] {
+                if let Some((base, _)) = self.syms.name(s).split_once('`') {
+                    // (the name is copied: interning borrows the table)
+                    let mut buf = String::new();
+                    buf.try_reserve(base.len()).map_err(|_| Error::memory())?;
+                    buf.push_str(base);
+                    let b = self.syms.intern(&buf);
+                    if let Some(e) = self.syms.failure() {
+                        return Err(e);
+                    }
+                    if !self.exports.iter().any(|&(eb, sc, _)| eb == b && sc as usize == top) {
+                        self.exports.try_reserve(1).map_err(|_| Error::memory())?;
+                        try_push(&mut self.exports, (b, top as u16, s))?;
+                    }
+                }
+            }
+            self.generation = self.generation.wrapping_add(1);
+        }
+        self.globals[i] = Some(v);
         Ok(())
     }
 
@@ -271,13 +582,13 @@ impl Interp {
                     if *k == s {
                         return match v {
                             Some(v) => Ok(Some(v.clone())),
-                            None => Err(Error::name(format!("local variable {} is read before it is assigned", self.syms.name(s)))),
+                            None => Err(Error::name(crate::msg!("local variable {} is read before it is assigned", self.syms.name(s)))),
                         };
                     }
                 }
             }
         }
-        Ok(self.globals.get(s.0 as usize).cloned().flatten())
+        Ok(self.global_ref(s).cloned())
     }
 
     /// `name::value` (KlongPy `KlongContext.__setitem__`): assign where the name lives; a new
@@ -294,7 +605,10 @@ impl Interp {
                     }
                 }
             }
-            if matches!(self.globals.get(s.0 as usize), Some(Some(_))) {
+            if self.has_global(s) {
+                if self.journal.is_some() {
+                    return self.try_set_global(s, v);
+                }
                 self.globals[s.0 as usize] = Some(v);
                 return Ok(());
             }
@@ -303,8 +617,8 @@ impl Interp {
         // locals (ticket 033); they are always bound in its own frame
         if self.cfg.strict >= 1 && !self.frames.is_empty() && !sym::is_arg(s) {
             let n = self.syms.name(s);
-            return Err(Error::name(format!("undefined variable: {}", n))
-                .with_hint(format!("declare it as a local in the parameter list, {{[{}]; ...}}, or define the global before the function is called", n)));
+            return Err(Error::name(crate::msg!("undefined variable: {}", n))
+                .with_hint(crate::msg!("declare it as a local in the parameter list, {{[{}]; ...}}, or define the global before the function is called", n)));
         }
         if self.frames.is_empty() {
             return self.try_set_global(s, v);
@@ -319,14 +633,14 @@ impl Interp {
                 }
             }
             f.try_reserve(1).map_err(|_| Error::memory())?;
-            f.push((s, Some(v)));
+            try_push(f, (s, Some(v)))?;
             self.shadow[i] += 1;
         }
         Ok(())
     }
 
     fn is_defined(&self, s: SymId) -> bool {
-        self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0 || matches!(self.globals.get(s.0 as usize), Some(Some(_)))
+        self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0 || self.global_ref(s).is_some()
     }
 
     /// The value of a name that is not defined.
@@ -334,7 +648,7 @@ impl Interp {
     fn undefined(&mut self, s: SymId) -> Result<Value> {
         let level = self.cfg.strict;
         if level == 2 || (level == 1 && !self.frames.is_empty()) {
-            return Err(Error::name(format!("undefined: {}", self.syms.name(s))));
+            return Err(Error::name(crate::msg!("undefined: {}", self.syms.name(s))));
         }
         Ok(Value::Sym(s))
     }
@@ -377,8 +691,18 @@ impl Interp {
             self.depth -= 1;
             return Err(Error::range("expression nested too deeply"));
         }
-        let r = self.eval_node(tree, id, call);
+        if let Err(e) = self.check_stack() {
+            self.depth -= 1;
+            return Err(e);
+        }
+        let mut r = self.eval_node(tree, id, call);
         self.depth -= 1;
+        // a failure met where no error could be returned (value.rs, `defer_memory`)
+        if let Some(e) = crate::value::take_deferred() {
+            if r.is_ok() {
+                r = Err(e);
+            }
+        }
         match r {
             Ok(v) => Ok(v),
             Err(mut e) => {
@@ -397,10 +721,6 @@ impl Interp {
     fn eval_node(&mut self, tree: &Rc<Tree>, id: NodeId, call: bool) -> Result<Value> {
         match tree.node(id) {
             Node::Lit(v) => Ok(v.clone()),
-            Node::CharLit(c) => {
-                let mut b = [0u8; 4];
-                Ok(Value::str(c.encode_utf8(&mut b).as_bytes().to_vec()))
-            }
             Node::Sym(s) => match self.lookup(*s)? {
                 Some(v) => Ok(v),
                 None => self.undefined(*s),
@@ -415,7 +735,7 @@ impl Interp {
                     Err(e) => Err(e),
                 };
                 if *missing {
-                    return r.map_err(|_| Error::syntax(format!("missing operand for {}", self.syms.name(*op))));
+                    return r.map_err(|_| Error::syntax(crate::msg!("missing operand for {}", self.syms.name(*op))));
                 }
                 r
             }
@@ -423,7 +743,7 @@ impl Interp {
                 let (op, l, r, missing) = (*op, *l, *r, *missing);
                 let res = self.eval_dyad(tree, op, l, r);
                 if missing {
-                    return res.map_err(|_| Error::syntax(format!("missing right operand for {}", self.syms.name(op))));
+                    return res.map_err(|_| Error::syntax(crate::msg!("missing right operand for {}", self.syms.name(op))));
                 }
                 res
             }
@@ -453,7 +773,8 @@ impl Interp {
                 let mut out = try_vec(r.len as usize)?;
                 for k in 0..r.len {
                     let q = NodeId(tree.ids(*r)[k as usize]);
-                    out.push(self.eval(tree, q, true)?);
+                    let pushed = self.eval(tree, q, true)?;
+                    try_push(&mut out, pushed)?;
                 }
                 Value::from_items(out)
             }
@@ -464,13 +785,10 @@ impl Interp {
                 while k + 1 < ids.len() {
                     let key = self.eval(tree, NodeId(ids[k]), true)?;
                     let val = self.eval(tree, NodeId(ids[k + 1]), true)?;
-                    if key.is_list() || matches!(key, Value::Dict(_) | Value::Fn(_)) {
-                        return Err(Error::typ(format!("a {} cannot be a dictionary key", key.describe())).with_hint("a key is a number, a string, a char or a symbol"));
-                    }
-                    d.set(key, val);
+                    d.set(key, val)?;
                     k += 2;
                 }
-                Ok(Value::Dict(Rc::new(RefCell::new(d))))
+                Ok(Value::dict(d))
             }
             Node::DictLit(v) | Node::CopyList(v) => ops::deep_copy(v),
             Node::Seq(r) => self.eval_seq(tree, *r),
@@ -490,7 +808,7 @@ impl Interp {
     }
 
     fn unknown_op(&self, op: SymId) -> Error {
-        Error::syntax(format!("unknown operator {}", self.syms.name(op)))
+        Error::syntax(crate::msg!("unknown operator {}", self.syms.name(op)))
     }
 
     fn op_def(&self, op: SymId) -> Result<&'static ops::OpDef> {
@@ -521,7 +839,7 @@ impl Interp {
         }
         let x = self.eval(tree, l, false)?;
         match def.atomic {
-            Some(a) => ops::atomic(a, &x, &y),
+            Some(a) => ops::atomic(&self.syms, a, &x, &y),
             None => f(self, x, y),
         }
     }
@@ -541,12 +859,12 @@ impl Interp {
                 let names = tree.ids(*names);
                 let n = names.len();
                 if !v.is_iterable() {
-                    return Err(Error::typ(format!("cannot destructure {} into {} name{}", v.describe(), n, if n != 1 { "s" } else { "" }))
+                    return Err(Error::typ(crate::msg!("cannot destructure {} into {} name{}", v.describe(), n, if n != 1 { "s" } else { "" }))
                         .with_hint("the right side of [a b c]::value must be a list or a string"));
                 }
                 let m = v.len().unwrap_or(0);
                 if m != n {
-                    return Err(Error::shape(format!(
+                    return Err(Error::shape(crate::msg!(
                         "cannot destructure {} value{} into {} name{}",
                         m,
                         if m != 1 { "s" } else { "" },
@@ -618,7 +936,10 @@ impl Interp {
                 }
                 None => {
                     if !sym::is_arg(s) {
-                        return Err(Error::name(format!("undefined function: {}", self.syms.name(s))));
+                        let name = self.syms.name(s);
+                        let e = Error::name(crate::msg!("undefined function: {}", name));
+                        // a system function this build does not have (native-runtime.md section 9)
+                        return Err(if name.starts_with('.') { e.with_hint(crate::msg!("{} is not available on this build", name)) } else { e });
                     }
                 }
             }
@@ -632,14 +953,16 @@ impl Interp {
                             if !*has_args {
                                 next = Some((self.node_value(tree, *a), *fa));
                             } else if tree.ids(*args).contains(&NONE.0) {
-                                layers.push(Layer::Tree(tree.clone(), *args));
+                                try_push(layers, Layer::Tree(tree.clone(), *args))?;
                                 next = Some((self.node_value(tree, *a), *fa));
                             }
                         }
                     }
-                    Func::Proj { f: callee, args } => {
+                    Func::Proj { f: callee, args, .. } => {
                         if args.iter().any(|q| matches!(q, Slot::Hole)) {
-                            layers.push(Layer::Slots(args.clone()));
+                            let mut held = try_vec(args.len())?;
+                            held.extend(args.iter().cloned());
+                            try_push(layers, Layer::Slots(held))?;
                             next = Some((callee.clone(), args.len().min(255) as u8));
                         }
                     }
@@ -655,20 +978,31 @@ impl Interp {
         Ok(())
     }
 
-    fn layer_args(layer: Layer) -> Vec<Option<Arg>> {
-        match layer {
+    /// (The lists are as long as a call has arguments, which the program decides.)
+    fn layer_args(layer: Layer) -> Result<Vec<Option<Arg>>> {
+        Ok(match layer {
             Layer::None => Vec::new(),
-            Layer::Tree(tree, r) => tree.ids(r).iter().map(|&q| if q == NONE.0 { None } else { Some(Arg::Code(tree.clone(), NodeId(q))) }).collect(),
-            Layer::Vals(v) => v.into_iter().map(|x| Some(Arg::Val(x))).collect(),
-            Layer::Slots(v) => v
-                .into_iter()
-                .map(|q| match q {
+            Layer::Tree(tree, r) => {
+                let ids = tree.ids(r);
+                let mut out = try_vec(ids.len())?;
+                out.extend(ids.iter().map(|&q| if q == NONE.0 { None } else { Some(Arg::Code(tree.clone(), NodeId(q))) }));
+                out
+            }
+            Layer::Vals(v) => {
+                let mut out = try_vec(v.len())?;
+                out.extend(v.into_iter().map(|x| Some(Arg::Val(x))));
+                out
+            }
+            Layer::Slots(v) => {
+                let mut out = try_vec(v.len())?;
+                out.extend(v.into_iter().map(|q| match q {
                     Slot::Hole => None,
                     Slot::Val(x) => Some(Arg::Val(x)),
                     Slot::Code(t, id) => Some(Arg::Code(t, id)),
-                })
-                .collect(),
-        }
+                }));
+                out
+            }
+        })
     }
 
     /// KlongPy `merge_projections`: the holes of the innermost projection are filled, in
@@ -703,7 +1037,10 @@ impl Interp {
     /// Strict level 2 (and functions with named parameters at every level): a call of a
     /// projection must not supply more arguments than the projection has holes.
     fn check_projection(&self, callee: &Value, layers: &[Vec<Option<Arg>>]) -> Result<()> {
-        let mut sparse: Vec<bool> = layers.first().map(|l| l.iter().map(|q| q.is_some()).collect()).unwrap_or_default();
+        let mut sparse: Vec<bool> = try_vec(layers.first().map(|l| l.len()).unwrap_or(0))?;
+        if let Some(l) = layers.first() {
+            sparse.extend(l.iter().map(|q| q.is_some()));
+        }
         for fa in layers.iter().skip(1) {
             let mut holes = 0;
             let mut j = 0;
@@ -731,9 +1068,9 @@ impl Interp {
         let what = match takes {
             0 => String::from("no arguments"),
             1 => String::from("1 argument"),
-            n => format!("{} arguments", n),
+            n => crate::msg!("{} arguments", n),
         };
-        Error::arity(format!("{} takes {}, got {}", name, what, given))
+        Error::arity(crate::msg!("{} takes {}, got {}", name, what, given))
     }
 
     /// The named parameters of a function body, if it has any (ticket 061).
@@ -817,7 +1154,7 @@ impl Interp {
         let mut arity = arity0;
         let mut node = false;
         let mut layers: Vec<Layer> = Vec::new();
-        layers.push(if has_args { Layer::Tree(tree.clone(), args) } else { Layer::None });
+        try_push(&mut layers, if has_args { Layer::Tree(tree.clone(), args) } else { Layer::None })?;
         // three passes as there are at most three arguments: x, y and z
         self.resolve(&mut f, &mut layers, &mut arity, &mut node)?;
         self.resolve(&mut f, &mut layers, &mut arity, &mut node)?;
@@ -842,7 +1179,7 @@ impl Interp {
                 let mut frame: Frame = try_vec(n + 2)?;
                 for (k, &q) in ids.iter().enumerate() {
                     let v = self.eval(tree, NodeId(q), true)?;
-                    frame.push((SymId(ptree.ids(params)[k]), Some(v)));
+                    try_push(&mut frame, (SymId(ptree.ids(params)[k]), Some(v)))?;
                 }
                 return self.run_fn(f, frame);
             }
@@ -857,7 +1194,7 @@ impl Interp {
             let mut frame: Frame = try_vec(n.min(3) + 2)?;
             for (k, &q) in ids.iter().take(3).enumerate() {
                 let v = self.eval(tree, NodeId(q), true)?;
-                frame.push((SymId(k as u32), Some(v)));
+                try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
             return self.run_fn(f, frame);
         }
@@ -865,7 +1202,7 @@ impl Interp {
         if layers.len() == 4 {
             self.resolve_deeper(&mut f, &mut layers, &mut arity, &mut node)?;
         }
-        let mut lists: Vec<Vec<Option<Arg>>> = layers.into_iter().map(Self::layer_args).collect();
+        let mut lists: Vec<Vec<Option<Arg>>> = layers.into_iter().map(Self::layer_args).collect::<Result<_>>()?;
         lists.reverse();
         let named = Self::params_of(&f);
         if self.cfg.strict == 2 || named.is_some() {
@@ -889,7 +1226,7 @@ impl Interp {
             for (k, q) in merged.iter().enumerate() {
                 if let Some(a) = q {
                     let v = self.eval_arg(a)?;
-                    frame.push((SymId(ptree.ids(params)[k]), Some(v)));
+                    try_push(&mut frame, (SymId(ptree.ids(params)[k]), Some(v)))?;
                 }
             }
             return self.run_fn(f, frame);
@@ -904,7 +1241,7 @@ impl Interp {
         for (k, q) in merged.iter().take(3).enumerate() {
             if let Some(a) = q {
                 let v = self.eval_arg(a)?;
-                frame.push((SymId(k as u32), Some(v)));
+                try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
         }
         self.run_fn(f, frame)
@@ -950,7 +1287,8 @@ impl Interp {
         let mut slots: Vec<Slot> = try_vec(ids.len() + pad)?;
         if !self.frames.is_empty() {
             for &q in ids {
-                slots.push(if q == NONE.0 { Slot::Hole } else { Slot::Val(self.eval(tree, NodeId(q), true)?) });
+                let pushed = if q == NONE.0 { Slot::Hole } else { Slot::Val(self.eval(tree, NodeId(q), true)?) };
+                try_push(&mut slots, pushed)?;
             }
         } else {
             let callee_is_arg = matches!(tree.node(a), Node::Sym(s) if sym::is_arg(*s));
@@ -958,14 +1296,14 @@ impl Interp {
                 return Ok(as_written);
             }
             for &q in ids {
-                slots.push(if q == NONE.0 { Slot::Hole } else { Slot::Code(tree.clone(), NodeId(q)) });
+                try_push(&mut slots, if q == NONE.0 { Slot::Hole } else { Slot::Code(tree.clone(), NodeId(q)) })?;
             }
         }
         for _ in 0..pad {
-            slots.push(Slot::Hole);
+            try_push(&mut slots, Slot::Hole)?;
         }
         let callee = self.projected_callee(self.node_value(tree, a));
-        Ok(Value::Fn(Rc::new(Func::Proj { f: callee, args: slots })))
+        Ok(Value::Fn(Rc::new(Func::proj(callee, slots)?)))
     }
 
     /// The projection `apply` returns when the values do not complete `f`: the values, held as
@@ -974,9 +1312,9 @@ impl Interp {
         let mut slots: Vec<Slot> = try_vec(values.len() + holes)?;
         slots.extend(values.into_iter().map(Slot::Val));
         for _ in 0..holes {
-            slots.push(Slot::Hole);
+            try_push(&mut slots, Slot::Hole)?;
         }
-        Ok(Value::Fn(Rc::new(Func::Proj { f: self.projected_callee(f.clone()), args: slots })))
+        Ok(Value::Fn(Rc::new(Func::proj(self.projected_callee(f.clone()), slots)?)))
     }
 
     /// Apply a function to argument values that are already evaluated (KlongPy `apply`): no
@@ -997,7 +1335,7 @@ impl Interp {
         let mut f_arity = arity.unwrap_or(given.min(255) as u8);
         let mut node = false;
         let mut layers: Vec<Layer> = Vec::new();
-        layers.push(Layer::Vals(values));
+        try_push(&mut layers, Layer::Vals(values))?;
         self.resolve(&mut g, &mut layers, &mut f_arity, &mut node)?;
         self.resolve(&mut g, &mut layers, &mut f_arity, &mut node)?;
         self.resolve(&mut g, &mut layers, &mut f_arity, &mut node)?;
@@ -1013,7 +1351,7 @@ impl Interp {
                 }
                 let mut frame: Frame = try_vec(given + 2)?;
                 for (k, v) in values.into_iter().enumerate() {
-                    frame.push((SymId(ptree.ids(params)[k]), Some(v)));
+                    try_push(&mut frame, (SymId(ptree.ids(params)[k]), Some(v)))?;
                 }
                 return self.run_fn(g, frame);
             }
@@ -1026,7 +1364,7 @@ impl Interp {
             }
             let mut frame: Frame = try_vec(given.min(3) + 2)?;
             for (k, v) in values.into_iter().take(3).enumerate() {
-                frame.push((SymId(k as u32), Some(v)));
+                try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
             return self.run_fn(g, frame);
         }
@@ -1039,7 +1377,7 @@ impl Interp {
             self.resolve_deeper(&mut g, &mut layers, &mut f_arity, &mut node)?;
         }
         let named = Self::params_of(&g);
-        let mut lists: Vec<Vec<Option<Arg>>> = layers.into_iter().map(Self::layer_args).collect();
+        let mut lists: Vec<Vec<Option<Arg>>> = layers.into_iter().map(Self::layer_args).collect::<Result<_>>()?;
         lists.reverse();
         if named.is_some() || self.cfg.strict == 2 {
             self.check_projection(f, &lists)?;
@@ -1059,7 +1397,7 @@ impl Interp {
             for (k, q) in merged.iter().enumerate() {
                 if let Some(a) = q {
                     let v = self.eval_arg(a)?;
-                    frame.push((SymId(ptree.ids(params)[k]), Some(v)));
+                    try_push(&mut frame, (SymId(ptree.ids(params)[k]), Some(v)))?;
                 }
             }
             return self.run_fn(g, frame);
@@ -1072,7 +1410,7 @@ impl Interp {
         for (k, q) in merged.iter().take(3).enumerate() {
             if let Some(a) = q {
                 let v = self.eval_arg(a)?;
-                frame.push((SymId(k as u32), Some(v)));
+                try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
         }
         self.run_fn(g, frame)
@@ -1089,7 +1427,7 @@ impl Interp {
             Value::Sym(s) => {
                 // a symbol in call position that names no function: its value as a name
                 let s = *s;
-                frame.push((sym::DOT_F, Some(f.clone())));
+                try_push(&mut frame, (sym::DOT_F, Some(f.clone())))?;
                 self.push_frame(frame)?;
                 let r = match self.lookup(s) {
                     Ok(Some(v)) => Ok(v),
@@ -1103,7 +1441,7 @@ impl Interp {
         };
         match &*func {
             Func::Code { tree, node } => {
-                frame.push((sym::DOT_F, Some(f.clone())));
+                try_push(&mut frame, (sym::DOT_F, Some(f.clone())))?;
                 let r = match tree.node(*node) {
                     Node::Body { stmts, locals, .. } => {
                         for &q in tree.ids(*locals) {
@@ -1111,7 +1449,8 @@ impl Interp {
                             if !frame.iter().any(|(k, _)| *k == s) {
                                 // an unassigned local is its own symbol; at strict level 2
                                 // reading it is an error
-                                frame.push((s, if self.cfg.strict == 2 { None } else { Some(Value::Sym(s)) }));
+                                frame.try_reserve(1).map_err(|_| Error::memory())?;
+                                try_push(&mut frame, (s, if self.cfg.strict == 2 { None } else { Some(Value::Sym(s)) }))?;
                             }
                         }
                         self.push_frame(frame)?;
@@ -1130,7 +1469,7 @@ impl Interp {
                 for (k, v) in frame.iter() {
                     if sym::is_arg(*k) {
                         if let Some(v) = v {
-                            args.push(v.clone());
+                            try_push(&mut args, v.clone())?;
                         }
                     }
                 }
@@ -1174,7 +1513,28 @@ impl Interp {
 
     /// Call level `level` of a chain: level 0 is the verb, level i the verb modified by the
     /// first i adverbs.
+    /// The native stack against `Config::stack_limit`: called wherever the evaluator recurses
+    /// (a nested evaluation, a level of an adverb chain).
+    #[inline]
+    pub(crate) fn check_stack(&mut self) -> Result<()> {
+        let used = self.stack_base.abs_diff(stack_here());
+        if used > self.max_stack_seen {
+            self.max_stack_seen = used;
+            if let Some(limit) = self.cfg.stack_limit {
+                if used > limit {
+                    return Err(Error::range("expression nested too deeply").with_hint("the native stack budget of this build is used up"));
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn chain_call(&mut self, ch: &Chain, level: usize, x: Value, y: Option<Value>) -> Result<Value> {
+        // a chain of adverbs recurses once per adverb without a nested evaluation
+        self.check_stack()?;
+        if (level as u64) + (self.depth as u64) > self.cfg.max_depth as u64 {
+            return Err(Error::range("expression nested too deeply"));
+        }
         if level == 0 {
             return match ch.tree.node(ch.verb) {
                 Node::OpVal { op, .. } if ops::by_id(*op).is_some() || self.syms.name(*op) == ops::TRACK => match (ch.verb_arity, y) {
@@ -1182,7 +1542,7 @@ impl Interp {
                     (2, Some(y)) => {
                         let def = self.op_def(*op)?;
                         match def.atomic {
-                            Some(a) => ops::atomic(a, &x, &y),
+                            Some(a) => ops::atomic(&self.syms, a, &x, &y),
                             None => self.dyad(*op, x, y),
                         }
                     }
@@ -1218,6 +1578,6 @@ fn same_value(a: &Value, b: &Value) -> bool {
 impl Kind {
     /// The exit line of the conformance runner protocol.
     pub fn protocol_line(self) -> String {
-        format!("error: {}", self.name())
+        crate::msg!("error: {}", self.name())
     }
 }

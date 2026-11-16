@@ -39,8 +39,6 @@ pub struct Range {
 
 pub enum Node {
     Lit(Value),
-    /// A char literal that is not one byte (non-ASCII).
-    CharLit(char),
     Sym(SymId),
     QSym(SymId),
     OpVal { op: SymId, arity: u8 },

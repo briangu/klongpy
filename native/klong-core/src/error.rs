@@ -177,3 +177,59 @@ impl core::fmt::Debug for Error {
 }
 
 pub type Result<T> = core::result::Result<T, Error>;
+
+/// The longest message text [`msg!`] builds, in bytes.
+pub const MSG_MAX: usize = 300;
+
+/// The text of a message under construction (see [`msg!`]).
+pub struct Msg {
+    text: String,
+    full: bool,
+}
+
+impl Msg {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Msg {
+        Msg { text: String::new(), full: false }
+    }
+    pub fn finish(self) -> String {
+        self.text
+    }
+}
+
+impl core::fmt::Write for Msg {
+    fn write_str(&mut self, t: &str) -> core::fmt::Result {
+        if self.full {
+            return Ok(());
+        }
+        let room = MSG_MAX - self.text.len().min(MSG_MAX);
+        let mut n = t.len().min(room);
+        while !t.is_char_boundary(n) {
+            n -= 1;
+        }
+        let cut = n < t.len();
+        if self.text.try_reserve(n + 3).is_err() {
+            self.full = true;
+            return Ok(());
+        }
+        self.text.push_str(&t[..n]);
+        if cut {
+            self.text.push_str("...");
+            self.full = true;
+        }
+        Ok(())
+    }
+}
+
+/// `format!` for the text of an error message: a message quotes names, tokens, paths and
+/// templates, which are as long as the program makes them, so the text is cut at [`MSG_MAX`]
+/// bytes and never asks the allocator for more (a message that cannot be stored at all is
+/// empty; the kind of the error and its position remain).
+#[macro_export]
+macro_rules! msg {
+    ($($arg:tt)*) => {{
+        let mut m = $crate::error::Msg::new();
+        let _ = core::fmt::Write::write_fmt(&mut m, format_args!($($arg)*));
+        m.finish()
+    }};
+}

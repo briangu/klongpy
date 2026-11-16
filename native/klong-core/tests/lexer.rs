@@ -22,7 +22,7 @@ fn names_symbols_strings_chars() {
     assert_eq!(t[0].k, K::Name);
     assert_eq!(t[1].k, K::QName);
     assert_eq!(t[2].k, K::Str);
-    assert!(matches!(&t[2].v, TV::Str(s) if s == "a\"b"));
+    assert!(matches!(&t[2].v, TV::Str(s) if s.as_str() == "a\"b"));
     assert_eq!(t[3].k, K::Char);
     assert!(matches!(t[3].v, TV::Char('x')));
 }
