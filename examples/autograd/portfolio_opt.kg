@@ -28,7 +28,7 @@ r1::allReturns@1
 r2::allReturns@2
 r3::allReturns@3
 
-rets::[r0 r1 r2 r3]
+rets::[;r0;r1;r2;r3]
 
 ndays::#r0
 .d("Loaded ");.d(ndays);.p(" days of returns")

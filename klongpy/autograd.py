@@ -75,14 +75,16 @@ def _invoke_fn(klong, fn, args):
     """Invoke a Klong function with the given arguments.
 
     Handles all function types uniformly:
-    - KGSym, KGLambda: wrap in KGCall with args
-    - KGFn, KGCall: extract inner function, wrap in KGCall with args
+    - KGSym, KGLambda: applied to args
+    - KGFn, KGCall: extract inner function, apply it to args
     - callable: call directly with args
+
+    args are values and are not evaluated again.
     """
     if callable(fn) and not isinstance(fn, (KGSym, KGLambda, KGFn)):
         return fn(*args)
     inner = fn.a if isinstance(fn, KGFn) else fn
-    return klong.call(KGCall(inner, list(args), len(args)))
+    return klong.apply(inner, list(args))
 
 
 def numeric_grad(func, x, backend, eps=None):

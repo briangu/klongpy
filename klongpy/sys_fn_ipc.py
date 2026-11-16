@@ -958,7 +958,7 @@ class KGAsyncCall(KGLambda):
             r = self.fn(*params)
         else:
             # Shouldn't reach here, but handle it
-            r = klong.call(KGCall(self.fn.a, [*params], self.fn.arity))
+            r = klong.apply(self.fn.a, [*params], self.fn.arity)
 
         # Invoke callback - KGFnWrapper handles dynamic resolution automatically
         if self.cb is not None:

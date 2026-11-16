@@ -394,8 +394,7 @@ def eval_adverb_scan_while(klong, f, a, b, backend):
 
     """
     r = [b]
-    # TODO: fix arity
-    while klong.eval(KGCall(a, b, arity=1)):
+    while klong.apply(a, [b]):
         b = f(b)
         r.append(b)
     r.pop()
@@ -436,7 +435,7 @@ def eval_adverb_while(klong, f, a, b):
         Example: {x<1000}{x*2}:~1  -->  1024
 
     """
-    while klong.eval(KGCall(a, b, arity=1)):
+    while klong.apply(a, [b]):
         b = f(b)
     return b
 

@@ -11,6 +11,7 @@ from .sys_fn_autograd import create_system_functions_autograd
 from .sys_fn_ipc import create_system_functions_ipc, create_system_var_ipc
 from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
+from .types import KGQSym
 from .utils import ReadonlyDict
 from .compiler import compile_expr
 
@@ -22,8 +23,20 @@ def set_context_var(d, sym, v):
     assert isinstance(sym, KGSym)
     if callable(v) and not issubclass(type(v), KGLambda) :
         x = KGLambda(v)
+        # A function value in call form with no arguments yet (args=None).
         v = KGCall(x,args=None,arity=x.get_arity())
     d[sym] = v
+
+
+class _Value:
+    """
+    Marks an already-evaluated argument while it is merged with projection
+    arguments, which are stored as unevaluated expressions (see apply()).
+    """
+    __slots__ = ('v',)
+
+    def __init__(self, v):
+        self.v = v
 
 
 class KGModule(dict):
@@ -215,10 +228,17 @@ def chain_adverbs(klong, arr):
                                             [1 2 3 4 5 6 7]]
 
     """
-    if arr[0].arity == 1:
-        f = lambda x,k=klong,a=arr[0].a: k.eval(KGCall(a, [x], arity=1))
-    else:
-        f = lambda x,y,k=klong,a=arr[0].a: k.eval(KGCall(a, [x,y], arity=2))
+    # The verb receives values the adverb has already produced, so it is
+    # applied to them directly and they are never evaluated a second time.
+    a = arr[0].a
+    f = None
+    if isinstance(a, KGOp):
+        f = (klong._vm if arr[0].arity == 1 else klong._vd).get(a.a)
+    if f is None:
+        if arr[0].arity == 1:
+            f = lambda x,k=klong,a=a: k.apply(a, [x])
+        else:
+            f = lambda x,y,k=klong,a=a: k.apply(a, [x,y])
     for i in range(1,len(arr)-1):
         o = get_adverb_fn(klong, arr[i].a, arity=arr[i].arity)
         if arr[i].arity == 1:
@@ -330,6 +350,8 @@ class KlongInterpreter():
             ii,aa = peek_adverb(t, i)
         i, aa = self._expr(t, i)
         arr.append([dyad_value,aa] if dyad else aa)
+        # Parser-built: the operand expressions are the last element of arr
+        # and are evaluated by chain_adverbs.
         return i,KGCall(arr,args=None,arity=2 if dyad else 1)
 
     def _read_fn_args(self, t, i=0):
@@ -421,7 +443,8 @@ class KlongInterpreter():
             i, exprs = read_expr_array(self, t, ii + 2)
             return i, KGExprArray(exprs)
 
-        i,a = kg_read_array(t, i, self._backend, ignore_newline=ignore_newline, module=self.current_module())
+        # qsym=True: a quoted symbol in expression position is a KGQSym node.
+        i,a = kg_read_array(t, i, self._backend, ignore_newline=ignore_newline, module=self.current_module(), qsym=True)
         if a is None:
             return i,a
         if safe_eq(a, '{'): # read fn
@@ -432,6 +455,8 @@ class KlongInterpreter():
             arity = get_fn_arity(a)
             if cmatch(t, i, '(') or cmatch2(t,i,':','('):
                 i,fa = self._read_fn_args(t,i)
+                # Parser-built calls (here and below): fa holds unevaluated
+                # argument expressions, which _eval_fn evaluates.
                 a = KGFn(a, fa, arity) if has_none(fa) else KGCall(a, fa, arity)
             else:
                 a = KGFn(a, args=None, arity=arity)
@@ -575,7 +600,20 @@ class KlongInterpreter():
                     # In this case, the f_args are meant for the resolved function.
                     f = _f
                 else:
-                    return f, f_args, f_arity
+                    # f is x, y or z and holds a value that is not a function.
+                    # If that value is a symbol naming a function, call the
+                    # function it names, as a call through any other variable
+                    # holding a symbol does ({x(1)}'[f g]). The symbol is in
+                    # call position here; as data it is never looked up.
+                    _g = None
+                    if isinstance(_f, KGSym) and not in_map(_f, reserved_fn_symbols):
+                        try:
+                            _g = self._context[_f]
+                        except KeyError:
+                            pass
+                    if not isinstance(_g, (KGFn,KGLambda)):
+                        return f, f_args, f_arity
+                    f = _g
             except KeyError:
                 if not in_map(f, reserved_fn_symbols):
                     raise KlongException(f"undefined: {f}")
@@ -620,6 +658,11 @@ class KlongInterpreter():
             In higher-order function scenarios, the x.args contains the function referenced by the symbol in by x.a.
             Subsequent processing will then use the arguments attached to the referenced function as the basis for projection flattening.
 
+        The arguments in x.args are unevaluated expressions (the parser built
+        this call, or call() turned a function into one). They are evaluated here,
+        once, after projections are merged. A caller that already holds argument
+        values must use apply() instead.
+
         """
         f = x.a
         f_arity = x.arity
@@ -635,8 +678,71 @@ class KlongInterpreter():
         if (0 if f_args is None else len(f_args)) < f_arity or has_none(f_args):
             return x
 
-        ctx = {} if f_args is None else {reserved_fn_symbol_map[p]: self.call(q) for p,q in zip(reserved_fn_args,f_args)}
+        ctx = {} if f_args is None else {p: self.call(q) for p,q in zip(reserved_fn_symbols,f_args)}
 
+        return self._run_fn(f, ctx)
+
+    def apply(self, f, values, arity=None):
+        """
+
+        Apply a function to argument values that are already evaluated.
+
+        The values are bound to x, y and z as they are: no value is evaluated
+        again, so a symbol stays a symbol, a function stays a function and a
+        list is never run as a program. Every call made at run time (adverbs,
+        the apply form of @, KGFnWrapper, IPC and timer callbacks, autograd)
+        goes through here. Calls written in the source go through _eval_fn,
+        which evaluates the argument expressions first.
+
+        Args:
+            f: what to apply: a function value (KGFn), a symbol naming one, a
+               KGLambda, an operator (KGOp), or a function body.
+            values (list): the argument values.
+            arity (int): the arity to assume for f when f does not carry its
+               own (a body or a KGLambda). Defaults to len(values).
+
+        If f is a projection, the arguments it already holds are expressions and
+        are evaluated now, as in a written call; only "values" are exempt.
+
+        If there are fewer values than f needs, the unapplied call is returned,
+        as a written call does.
+
+        """
+        if isinstance(f, KGOp):
+            return self._vm[f.a](values[0]) if len(values) == 1 else self._vd[f.a](values[0], values[1])
+
+        fn = f
+        f_arity = len(values) if arity is None else arity
+        f_args = [values]
+
+        # three passes as there are max three argumentes: x,y, and z
+        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+        f, f_args, f_arity = self._resolve_fn(f, f_args, f_arity)
+
+        if len(f_args) == 1:
+            # no projection involved: the values are the arguments
+            if len(values) < f_arity:
+                return KGCall(fn, values, len(values) if arity is None else arity)
+        else:
+            # Projection arguments are unevaluated expressions; mark the values
+            # so that only the projection arguments are evaluated after merging.
+            f_args[0] = [_Value(v) for v in values]
+            f_args.reverse()
+            f_args = merge_projections(f_args)
+            if len(f_args) < f_arity or has_none(f_args):
+                return KGCall(fn, values, len(values) if arity is None else arity)
+            values = [q.v if type(q) is _Value else self.call(q) for q in f_args]
+
+        return self._run_fn(f, dict(zip(reserved_fn_symbols, values)))
+
+    def _run_fn(self, f, ctx):
+        """
+
+        Run a resolved function with its arguments bound in ctx: declare its
+        locals, set .f, and evaluate the body in a new context frame.
+
+        """
         if is_list(f) and len(f) > 1 and is_list(f[0]) and len(f[0]) > 0:
             # Filter out semicolons and check if ALL remaining elements are symbols.
             # A mixed list like [a 1] is a normal array literal, not a local declaration.
@@ -658,10 +764,42 @@ class KlongInterpreter():
         finally:
             self._context.pop()
 
+    def _eval_quoted_symbol(self, x):
+        """
+
+        Evaluate a quoted symbol (`:foo`, a KGQSym node).
+
+        STRICT-LEVEL SWITCH (ticket 051): this is the one place that decides
+        what a quoted symbol evaluates to.
+
+        Strict levels 0 and 1 (all that exist today) keep the legacy rule: a
+        quoted symbol is treated like the bare name, so it gives the variable's
+        value when one is defined and the symbol otherwise (and, like a bare
+        undefined name, it is then defined as itself).
+
+        Strict level 2 is to return the plain symbol and never look it up,
+        i.e. only the last two lines of this method.
+
+        The result is never a KGQSym: the symbol value is a plain KGSym.
+
+        """
+        try:
+            return self._context[x]
+        except KeyError:
+            pass
+        s = reserved_fn_symbol_map.get(str.__str__(x))
+        if s is None:
+            s = KGSym(x)
+            self._context[s] = s
+        return s
+
     def call(self, x):
         """
 
         Invoke a Klong program (as produced by prog()), causing functions to be called and evaluated.
+
+        A function that is not yet a call is put in call form here; its args, if
+        any, are the unevaluated expressions it was parsed with.
 
         """
         return self.eval(KGCall(x.a, x.args, x.arity) if isinstance(x, KGFn) else x)
@@ -678,6 +816,8 @@ class KlongInterpreter():
 
         """
         if isinstance(x, KGSym):
+            if type(x) is KGQSym:
+                return self._eval_quoted_symbol(x)
             try:
                 return self._context[x]
             except KeyError:

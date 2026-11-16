@@ -3,6 +3,7 @@ KlongPy type definitions and type checking functions.
 
 This module contains all the core types used by the KlongPy interpreter:
 - KGSym: Symbol type
+- KGQSym: Quoted symbol (`:foo`) tree node
 - KGChar: Character type
 - KGFn, KGCall: Function types
 - KGLambda: Lambda wrapper
@@ -34,6 +35,26 @@ class KGSym(str):
         return isinstance(o,KGSym) and self.__str__() == o.__str__()
     def __hash__(self):
         return super().__hash__()
+
+
+class KGQSym(KGSym):
+    """
+    Tree node for a quoted symbol (`:foo`), as opposed to the bare name `foo`.
+
+    It is equal and hash-equal to the plain KGSym, so dictionary keys and
+    comparisons do not care which one they hold. It exists only in parsed
+    programs: KlongInterpreter._eval_quoted_symbol decides what it evaluates to,
+    and evaluation never yields a KGQSym. List and dictionary literals hold
+    plain KGSym.
+
+    Pickling and copying produce a plain KGSym, so a quoted symbol never
+    crosses IPC as anything but a symbol.
+    """
+    def __reduce__(self):
+        return (KGSym, (str.__str__(self),))
+
+    def __reduce_ex__(self, protocol):
+        return self.__reduce__()
 
 
 def get_fn_arity_str(arity):
@@ -108,7 +129,7 @@ class KGFnWrapper:
                     if len(args) != current.arity:
                         raise RuntimeError(f"Klong function called with {len(args)} but expected {current.arity}")
                     fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
-                    return self.klong.call(KGCall(current.a, [*fn_args], current.arity))
+                    return self.klong.apply(current.a, fn_args, current.arity)
             except KeyError:
                 # Symbol was deleted, fall through to original function
                 pass
@@ -116,7 +137,7 @@ class KGFnWrapper:
         if len(args) != self.fn.arity:
             raise RuntimeError(f"Klong function called with {len(args)} but expected {self.fn.arity}")
         fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
-        return self.klong.call(KGCall(self.fn.a, [*fn_args], self.fn.arity))
+        return self.klong.apply(self.fn.a, fn_args, self.fn.arity)
 
 
 class KGCall(KGFn):

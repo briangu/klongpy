@@ -168,8 +168,10 @@ def eval_dyad_at_index(klong, a, b):
 
     """
     if isinstance(a, (KGFn, KGSym)) or issubclass(type(a), KGLambda):
+        # b holds values: a list supplies one argument per member, an atom is
+        # the single argument. apply() binds them without evaluating them again.
         b = [x for x in b] if klong._backend.is_array(b) else b
-        return klong.eval(KGCall(a, b, arity=1))
+        return klong.apply(a, b if isinstance(b, list) else [b], 1)
     backend = klong._backend
     j = isinstance(a,str)
     a = backend.str_to_chr_arr(a) if j else a
@@ -1045,7 +1047,7 @@ def eval_dyad_grad(klong, a, b):
     """
     def call_fn(v):
         if isinstance(b, (KGSym, KGLambda, KGFn, KGCall)):
-            return klong.call(KGCall(b, [v], 1))
+            return klong.apply(b, [v])
         return b(v)
 
     if isinstance(a, KGSym):

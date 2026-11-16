@@ -43,6 +43,8 @@ def _ast_to_ir(node, klong, var_refs):
         return ('literal', node)
 
     # Symbols -> variable references
+    # Exact type on purpose: a quoted symbol (KGQSym) is not a plain variable
+    # reference and is left to the interpreter (KlongInterpreter._eval_quoted_symbol).
     if t is KGSym:
         try:
             val = klong._context[node]

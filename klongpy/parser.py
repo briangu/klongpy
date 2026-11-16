@@ -10,7 +10,7 @@ This module contains all the parsing functions for the Klong language:
 import copy
 
 from .types import (
-    KGSym, KGChar, KGOp, KGCond, KGCall, KGLambda,
+    KGSym, KGQSym, KGChar, KGOp, KGCond, KGCall, KGLambda,
     reserved_fn_symbol_map,
     safe_eq, is_symbolic, is_adverb
 )
@@ -216,11 +216,17 @@ def read_list(t, delim, i=0, module=None):
     return i, arr
 
 
-def kg_read(t, i, read_neg=False, ignore_newline=False, module=None):
+def kg_read(t, i, read_neg=False, ignore_newline=False, module=None, qsym=False):
     """
     Read a Klong lexeme from string t starting at position i.
 
     C := I | H | R | S | V | Y
+
+    qsym: when True, a quoted symbol (`:foo`) is returned as a KGQSym node
+    instead of a plain KGSym. The interpreter asks for this where the lexeme
+    is an expression that will be evaluated. Everywhere else (list and
+    dictionary literals, reading data) a quoted symbol is a symbol value and
+    stays a plain KGSym.
     """
     i = skip(t, i, ignore_newline=ignore_newline)
     if i >= len(t):
@@ -239,12 +245,15 @@ def kg_read(t, i, read_neg=False, ignore_newline=False, module=None):
     elif a == ':' and (i+1 < len(t)):
         aa = t[i+1]
         if aa.isalpha() or aa == '.':
-            return read_sym(t, i=i+1, module=module)
+            i, s = read_sym(t, i=i+1, module=module)
+            return i, (KGQSym(s) if qsym else s)
         elif aa.isnumeric() or aa == '"':
             return kg_read(t, i+1, ignore_newline=ignore_newline, module=module)
         elif aa == '{':
             i, d = read_list(t, '}', i=i+2, module=module)
             d = list_to_dict(d)
+            # Parser-built call: args is the dictionary literal handed to
+            # copy_lambda as-is (arity 0, nothing is bound or evaluated).
             return i, KGCall(copy_lambda, args=d, arity=0)
         elif aa == '[':
             return i+2, ':['
@@ -274,7 +283,7 @@ def kg_read_array(t, i, backend, **kwargs):
     backend : BackendProvider
         The backend to use for array conversion.
     **kwargs
-        Additional arguments passed to kg_read (read_neg, ignore_newline, module).
+        Additional arguments passed to kg_read (read_neg, ignore_newline, module, qsym).
 
     Returns
     -------
