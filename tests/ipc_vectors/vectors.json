@@ -1,0 +1,1196 @@
+[
+ {
+  "name": "kx-int-atom",
+  "klong": "1",
+  "hex": "010000000d000000fa01000000",
+  "mode": "roundtrip",
+  "widths": "32",
+  "source": "kx"
+ },
+ {
+  "name": "kx-int-vector",
+  "klong": "[1]",
+  "hex": "010000001200000006000100000001000000",
+  "mode": "roundtrip",
+  "widths": "32",
+  "source": "kx"
+ },
+ {
+  "name": "kx-dict-sym-int",
+  "klong": ":{[:a 2][:b 3]}",
+  "hex": "0100000021000000630b0002000000610062000600020000000200000003000000",
+  "mode": "roundtrip",
+  "widths": "32",
+  "source": "kx"
+ },
+ {
+  "name": "kx-lambda-root",
+  "klong": "{x+y} (q lambda, root context)",
+  "hex": "010000001500000064000a00050000007b782b797d",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "kx",
+  "expect": {
+   "lambda": [
+    "",
+    "{x+y}"
+   ]
+  }
+ },
+ {
+  "name": "string-1+1-sync",
+  "klong": "\"1+1\"",
+  "hex": "01010000110000000a0003000000312b31",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived",
+  "type": 1
+ },
+ {
+  "name": "response-long-2",
+  "klong": "2",
+  "hex": "0102000011000000f90200000000000000",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived",
+  "type": 2
+ },
+ {
+  "name": "long-vector",
+  "klong": "[1 2 3]",
+  "hex": "0100000026000000070003000000010000000000000002000000000000000300000000000000",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "float-vector",
+  "klong": "[1.5 2.5]",
+  "hex": "010000001e000000090002000000000000000000f83f0000000000000440",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "symbol-atom",
+  "klong": ":abc",
+  "hex": "010000000d000000f561626300",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived"
+ },
+ {
+  "name": "mixed-list",
+  "klong": "[1 :ab 0cx 2.5]",
+  "hex": "0100000026000000000004000000f90100000000000000f5616200f678f70000000000000440",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "dict-sym-long",
+  "klong": ":{[:a 1][:b 2]}",
+  "hex": "0100000029000000630b00020000006100620007000200000001000000000000000200000000000000",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "error-type",
+  "klong": "error object 'type'",
+  "hex": "010200000e000000807479706500",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived",
+  "type": 2,
+  "expect": {
+   "error": "type"
+  }
+ },
+ {
+  "name": "generic-null",
+  "klong": ":undefined (generic null)",
+  "hex": "010000000a0000006500",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived",
+  "expect": {
+   "undefined": true
+  }
+ },
+ {
+  "name": "call-symbol-fn",
+  "klong": "[:add 1 2]",
+  "hex": "0101000025000000000003000000f561646400f90100000000000000f90200000000000000",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived",
+  "type": 1
+ },
+ {
+  "name": "call-string-fn",
+  "klong": "[\"add\" 1 2]",
+  "hex": "01010000290000000000030000000a0003000000616464f90100000000000000f90200000000000000",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived",
+  "type": 1
+ },
+ {
+  "name": "long-null",
+  "klong": "-9223372036854775808",
+  "hex": "0100000011000000f90000000000000080",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived",
+  "expect": {
+   "int": -9223372036854775808
+  }
+ },
+ {
+  "name": "empty-list",
+  "klong": "[]",
+  "hex": "010000000e000000000000000000",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived"
+ },
+ {
+  "name": "empty-string",
+  "klong": "\"\"",
+  "hex": "010000000e0000000a0000000000",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived"
+ },
+ {
+  "name": "char-atom",
+  "klong": "0cx",
+  "hex": "010000000a000000f678",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived"
+ },
+ {
+  "name": "string-utf8",
+  "klong": "\"h\u00e9llo\"",
+  "hex": "01000000140000000a000600000068c3a96c6c6f",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived"
+ },
+ {
+  "name": "float-atom",
+  "klong": "1.5",
+  "hex": "0100000011000000f7000000000000f83f",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "float-nan",
+  "klong": "NaN",
+  "hex": "0100000011000000f7000000000000f87f",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived",
+  "expect": {
+   "float": "nan"
+  }
+ },
+ {
+  "name": "rank2-array",
+  "klong": "[[1 2][3 4]]",
+  "hex": "010000003a0000000000020000000700020000000100000000000000020000000000000007000200000003000000000000000400000000000000",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "ragged-list",
+  "klong": "[[1 2][3]]",
+  "hex": "0100000032000000000002000000070002000000010000000000000002000000000000000700010000000300000000000000",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "symbol-vector",
+  "klong": "[:a :b :c]",
+  "hex": "01000000140000000b0003000000610062006300",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived"
+ },
+ {
+  "name": "list-of-strings",
+  "klong": "[\"ab\" \"c\"]",
+  "hex": "010000001d0000000000020000000a000200000061620a000100000063",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived"
+ },
+ {
+  "name": "dict-empty",
+  "klong": ":{}",
+  "hex": "010000001500000063000000000000000000000000",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived"
+ },
+ {
+  "name": "dict-mixed-values",
+  "klong": ":{[:a 1][:b \"x\"]}",
+  "hex": "0100000029000000630b000200000061006200000002000000f901000000000000000a000100000078",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "dict-vector-values",
+  "klong": ":{[:a [1 2]][:b [3.5 4.5]]}",
+  "hex": "0100000045000000630b000200000061006200000002000000070002000000010000000000000002000000000000000900020000000000000000000c400000000000001240",
+  "mode": "roundtrip",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "int-vector-32",
+  "klong": "[1 2 3]",
+  "hex": "010000001a000000060003000000010000000200000003000000",
+  "mode": "roundtrip",
+  "widths": "32",
+  "source": "derived"
+ },
+ {
+  "name": "real-vector-32",
+  "klong": "[1.5 2.5]",
+  "hex": "01000000160000000800020000000000c03f00002040",
+  "mode": "roundtrip",
+  "widths": "32",
+  "source": "derived"
+ },
+ {
+  "name": "real-atom-32",
+  "klong": "1.5",
+  "hex": "010000000d000000f80000c03f",
+  "mode": "roundtrip",
+  "widths": "32",
+  "source": "derived"
+ },
+ {
+  "name": "lambda-kg",
+  "klong": "kg lambda (display form)",
+  "hex": "0100000017000000646b67000a00050000003a64796164",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived",
+  "expect": {
+   "lambda": [
+    "kg",
+    ":dyad"
+   ]
+  }
+ },
+ {
+  "name": "lambda-context-d",
+  "klong": "q lambda in context d",
+  "hex": "01000000160000006464000a00050000007b782b797d",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived",
+  "expect": {
+   "lambda": [
+    "d",
+    "{x+y}"
+   ]
+  }
+ },
+ {
+  "name": "opaque-operator",
+  "klong": ":kdb-function (102)",
+  "hex": "010000000a0000006601",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived",
+  "expect": {
+   "opaque": [
+    102,
+    "6601"
+   ]
+  }
+ },
+ {
+  "name": "opaque-projection",
+  "klong": ":kdb-function (104 with arguments)",
+  "hex": "010000001800000068020000006601f90100000000000000",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived",
+  "expect": {
+   "opaque": [
+    104,
+    "68020000006601f90100000000000000"
+   ]
+  }
+ },
+ {
+  "name": "opaque-adverb",
+  "klong": ":kdb-function (106 over an operator)",
+  "hex": "010000000b0000006a6601",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived",
+  "expect": {
+   "opaque": [
+    106,
+    "6a6601"
+   ]
+  }
+ },
+ {
+  "name": "opaque-unary-primitive",
+  "klong": ":kdb-function (101, nonzero index)",
+  "hex": "010000000a0000006503",
+  "mode": "roundtrip",
+  "widths": "any",
+  "source": "derived",
+  "expect": {
+   "opaque": [
+    101,
+    "6503"
+   ]
+  }
+ },
+ {
+  "name": "be-long-vector",
+  "klong": "[1 2 3]",
+  "hex": "0000000000000026070000000003000000000000000100000000000000020000000000000003",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "be-float-vector",
+  "klong": "[1.5 2.5]",
+  "hex": "000000000000001e0900000000023ff80000000000004004000000000000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "be-dict",
+  "klong": ":{[:a 1][:b 2]}",
+  "hex": "0000000000000029630b00000000026100620007000000000200000000000000010000000000000002",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "be-int-atom",
+  "klong": "1",
+  "hex": "000000000000000dfa00000001",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "be-mixed-list",
+  "klong": "[1 :ab 0cx 2.5]",
+  "hex": "0000000000000026000000000004f90000000000000001f5616200f678f74004000000000000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "be-lambda",
+  "klong": "q lambda {x+y}",
+  "hex": "000000000000001564000a00000000057b782b797d",
+  "mode": "decode",
+  "widths": "any",
+  "source": "derived",
+  "expect": {
+   "lambda": [
+    "",
+    "{x+y}"
+   ]
+  }
+ },
+ {
+  "name": "be-opaque-projection",
+  "klong": ":kdb-function, held little-endian",
+  "hex": "000000000000001868000000026601f90000000000000001",
+  "mode": "decode",
+  "widths": "any",
+  "source": "derived",
+  "expect": {
+   "opaque": [
+    104,
+    "68020000006601f90100000000000000"
+   ]
+  }
+ },
+ {
+  "name": "compressed-char-vector",
+  "klong": "1200 chars \"abab...\"",
+  "hex": "0100010025000000be040000000a00b004000061625503ff6203ff6203ff6203ff620103a4",
+  "mode": "decode",
+  "widths": "any",
+  "source": "derived",
+  "expect": {
+   "str": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+  }
+ },
+ {
+  "name": "attribute-ignored",
+  "klong": "[1 2 3]",
+  "hex": "0100000026000000070103000000010000000000000002000000000000000300000000000000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "table",
+  "klong": ":{[:a [1 2]][:b [3.5 4.5]]}",
+  "hex": "01000000470000006200630b000200000061006200000002000000070002000000010000000000000002000000000000000900020000000000000000000c400000000000001240",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "table-sorted-attribute",
+  "klong": ":{[:a [1 2]][:b [3.5 4.5]]}",
+  "hex": "01000000470000006201630b000200000061006200000002000000070302000000010000000000000002000000000000000900020000000000000000000c400000000000001240",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "table-symbol-and-string-columns",
+  "klong": "table with a symbol column and a string column",
+  "hex": "010000003a0000006200630b0002000000730074000000020000000b0002000000780079000000020000000a000200000061620a000100000063",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived",
+  "expect": {
+   "dict": [
+    [
+     {
+      "sym": "s"
+     },
+     {
+      "array": [
+       {
+        "sym": "x"
+       },
+       {
+        "sym": "y"
+       }
+      ],
+      "dtype": "object"
+     }
+    ],
+    [
+     {
+      "sym": "t"
+     },
+     {
+      "array": [
+       {
+        "str": "ab"
+       },
+       {
+        "str": "c"
+       }
+      ],
+      "dtype": "object"
+     }
+    ]
+   ]
+  }
+ },
+ {
+  "name": "keyed-table",
+  "klong": "[:{[:k [1 2]]} :{[:v [3 4]]}] (keys table, values table)",
+  "hex": "0100000057000000636200630b00010000006b00000001000000070002000000010000000000000002000000000000006200630b0001000000760000000100000007000200000003000000000000000400000000000000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived",
+  "expect": {
+   "array": [
+    {
+     "dict": [
+      [
+       {
+        "sym": "k"
+       },
+       {
+        "array": [
+         1,
+         2
+        ],
+        "dtype": "int64"
+       }
+      ]
+     ]
+    },
+    {
+     "dict": [
+      [
+       {
+        "sym": "v"
+       },
+       {
+        "array": [
+         3,
+         4
+        ],
+        "dtype": "int64"
+       }
+      ]
+     ]
+    }
+   ],
+   "dtype": "object"
+  }
+ },
+ {
+  "name": "sorted-dict",
+  "klong": ":{[:a 1][:b 2]}",
+  "hex": "01000000290000007f0b01020000006100620007000200000001000000000000000200000000000000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "table-empty",
+  "klong": ":{}",
+  "hex": "01000000170000006200630b0000000000000000000000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "timestamp-atom",
+  "klong": "1",
+  "hex": "0100000011000000f40100000000000000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "timestamp-vector",
+  "klong": "[1 2]",
+  "hex": "010000001e0000000c000200000001000000000000000200000000000000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "timespan-atom",
+  "klong": "86400000000000",
+  "hex": "0100000011000000f000004f91944e0000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "month-atom",
+  "klong": "12",
+  "hex": "010000000d000000f30c000000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "date-atom",
+  "klong": "9000",
+  "hex": "010000000d000000f228230000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "date-vector",
+  "klong": "[0 1 -1]",
+  "hex": "010000001a0000000e00030000000000000001000000ffffffff",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "datetime-atom",
+  "klong": "0.5",
+  "hex": "0100000011000000f1000000000000e03f",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "minute-atom",
+  "klong": "90",
+  "hex": "010000000d000000ef5a000000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "second-atom",
+  "klong": "3661",
+  "hex": "010000000d000000ee4d0e0000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "time-atom",
+  "klong": "45296789",
+  "hex": "010000000d000000ed952cb302",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "time-vector",
+  "klong": "[0 1000]",
+  "hex": "010000001600000013000200000000000000e8030000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "bool-vector",
+  "klong": "[1 0]",
+  "hex": "01000000100000000100020000000100",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "bool-atom",
+  "klong": "1",
+  "hex": "010000000a000000ff01",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "byte-atom",
+  "klong": "255",
+  "hex": "010000000a000000fcff",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "byte-vector",
+  "klong": "[0 1 255]",
+  "hex": "01000000110000000400030000000001ff",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "short-atom",
+  "klong": "-2",
+  "hex": "010000000b000000fbfeff",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "short-vector",
+  "klong": "[1 -2 3]",
+  "hex": "01000000140000000500030000000100feff0300",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "int-atom-64",
+  "klong": "1",
+  "hex": "010000000d000000fa01000000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "int-vector-64",
+  "klong": "[1 2 3]",
+  "hex": "010000001a000000060003000000010000000200000003000000",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "int-null-vector",
+  "klong": "[-2147483648]",
+  "hex": "010000001200000006000100000000000080",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "real-atom-64",
+  "klong": "1.5",
+  "hex": "010000000d000000f80000c03f",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "real-vector-64",
+  "klong": "[1.5 2.5]",
+  "hex": "01000000160000000800020000000000c03f00002040",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "float-null-q",
+  "klong": "NaN (bit pattern fff8...)",
+  "hex": "0100000011000000f7000000000000f8ff",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived",
+  "expect": {
+   "float": "nan"
+  }
+ },
+ {
+  "name": "float-infinities",
+  "klong": "[inf -inf]",
+  "hex": "010000001e000000090002000000000000000000f07f000000000000f0ff",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived",
+  "expect": {
+   "array": [
+    "inf",
+    "-inf"
+   ],
+   "dtype": "float64"
+  }
+ },
+ {
+  "name": "guid-atom",
+  "klong": "[0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15]",
+  "hex": "0100000019000000fe000102030405060708090a0b0c0d0e0f",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived"
+ },
+ {
+  "name": "guid-vector",
+  "klong": "two guids as a 2x16 array",
+  "hex": "010000002e000000020002000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "mode": "decode",
+  "widths": "64",
+  "source": "derived",
+  "expect": {
+   "array": [
+    [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15
+    ],
+    [
+     16,
+     17,
+     18,
+     19,
+     20,
+     21,
+     22,
+     23,
+     24,
+     25,
+     26,
+     27,
+     28,
+     29,
+     30,
+     31
+    ]
+   ],
+   "dtype": "int64"
+  }
+ },
+ {
+  "name": "char-atom-high-byte",
+  "klong": "U+FFFD (invalid UTF-8)",
+  "hex": "010000000a000000f6ff",
+  "mode": "decode",
+  "widths": "any",
+  "source": "derived",
+  "expect": {
+   "char": "\ufffd"
+  }
+ },
+ {
+  "name": "string-invalid-utf8",
+  "klong": "invalid UTF-8 replaced",
+  "hex": "01000000100000000a0002000000ff61",
+  "mode": "decode",
+  "widths": "any",
+  "source": "derived",
+  "expect": {
+   "str": "\ufffda"
+  }
+ },
+ {
+  "name": "reject-unused-type-3",
+  "klong": "type 3 does not exist",
+  "hex": "010000000e000000030000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-atom-type-minus-3",
+  "klong": "atom type -3",
+  "hex": "010000000a000000fd00",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-enum-vector-20",
+  "klong": "enumerations are never sent",
+  "hex": "010000000e000000140000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-type-112",
+  "klong": "dynamic load: layout unconfirmed",
+  "hex": "010000000a0000007000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-type-77-anymap",
+  "klong": "mapped list type",
+  "hex": "010000000e0000004d0000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-truncated-vector",
+  "klong": "long vector of 3 with two elements",
+  "hex": "010000001e00000007000300000001000000000000000200000000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-truncated-atom",
+  "klong": "long atom with four bytes",
+  "hex": "010000000d000000f901000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-empty-body",
+  "klong": "no object at all",
+  "hex": "0100000008000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-count-too-big",
+  "klong": "long vector claiming 2^31-1 elements",
+  "hex": "01000000160000000700ffffff7f0000000000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-count-negative",
+  "klong": "long vector with count -1",
+  "hex": "010000000e0000000700ffffffff",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-list-count-too-big",
+  "klong": "general list claiming 1e9 items",
+  "hex": "010000000e000000000000ca9a3b",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-char-vector-count",
+  "klong": "char vector longer than the message",
+  "hex": "01000000110000000a0064000000616263",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-symbol-vector-count",
+  "klong": "symbol vector of 5 with one symbol",
+  "hex": "01000000100000000b00050000006100",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-trailing-bytes",
+  "klong": "one byte after the object",
+  "hex": "0100000012000000f9010000000000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-symbol-unterminated",
+  "klong": "symbol atom without NUL",
+  "hex": "010000000c000000f5616263",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-error-unterminated",
+  "klong": "error text without NUL",
+  "hex": "010000000d0000008074797065",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-nesting-65",
+  "klong": "65 nested general lists",
+  "hex": "0100000097010000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000000001000000f90100000000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-lambda-text-not-chars",
+  "klong": "lambda whose text is a long atom",
+  "hex": "01000000130000006400f90100000000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-lambda-context-unterminated",
+  "klong": "lambda context without NUL",
+  "hex": "010000000b000000646b67",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-dict-length-mismatch",
+  "klong": "2 keys, 1 value",
+  "hex": "0100000021000000630b0002000000610062000700010000000100000000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-dict-atom-values",
+  "klong": "dict whose values are an atom",
+  "hex": "010000001a000000630b00010000006100f90100000000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-dict-atom-keys",
+  "klong": "dict whose keys are an atom",
+  "hex": "010000001a00000063f561000700010000000100000000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-table-column-lengths",
+  "klong": "table columns of different length",
+  "hex": "010000003f0000006200630b000200000061006200000002000000070002000000010000000000000002000000000000000700010000000100000000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-table-names-not-symbols",
+  "klong": "table names are a long vector",
+  "hex": "010000002d00000062006307000100000001000000000000000000010000000700010000000100000000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-table-without-dict",
+  "klong": "table tag followed by a long atom",
+  "hex": "01000000130000006200f90100000000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-projection-count",
+  "klong": "projection claiming 2^31-1 items",
+  "hex": "010000000d00000068ffffff7f",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-guid-truncated",
+  "klong": "guid atom with 15 bytes",
+  "hex": "0100000018000000fe000000000000000000000000000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-header-oversize",
+  "klong": "length field above max_message",
+  "hex": "01000000ffffff7f",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-header-length-below-8",
+  "klong": "length field 7",
+  "hex": "0100000007000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-header-negative-length",
+  "klong": "length field -1",
+  "hex": "01000000ffffffff",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-header-bad-byte-order",
+  "klong": "byte 0 is 2",
+  "hex": "0200000008000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-header-bad-message-type",
+  "klong": "message type 3",
+  "hex": "010300000a0000006500",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-header-bad-compression-flag",
+  "klong": "compression flag 2",
+  "hex": "010002000a0000006500",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-header-reserved-byte",
+  "klong": "byte 3 set (large-message extension, capability 5 only)",
+  "hex": "010000010a0000006500",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-compressed-bomb",
+  "klong": "declares 256 MiB from a 15-byte stream",
+  "hex": "010001000f00000000000010004141",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-compressed-bad-backref",
+  "klong": "back-reference before any data was indexed",
+  "hex": "010001000f00000014000000010000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-compressed-truncated",
+  "klong": "stream ends before the declared size",
+  "hex": "0100010022000000be040000000a00b004000061625503ff6203ff6203ff6203ff62",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ },
+ {
+  "name": "reject-compressed-usize-below-header",
+  "klong": "declared size 4",
+  "hex": "010001000d0000000400000000",
+  "mode": "reject",
+  "widths": "any",
+  "source": "derived",
+  "error": "system"
+ }
+]
