@@ -23,6 +23,7 @@ from klongpy.core import kg_write
 from klongpy.help_index import apropos_text, help_text
 from klongpy.sys_fn import eval_sys_load
 from klongpy.repl import cleanup_repl, create_repl
+from klongpy.repl_input import Completer, History, check_text, history_path
 
 _READLINE_SPEC = importlib.util.find_spec("readline")
 readline = importlib.import_module("readline") if _READLINE_SPEC else None
@@ -263,9 +264,12 @@ class ExitRequest:
         self.code = 0 if code is None else code
 
 
-async def repl_eval(klong, p, verbose=True):
+async def repl_eval(klong, p, verbose=True, set_it=True):
+    """Evaluate one REPL entry; the value of a successful non-empty result is also stored in `it`."""
     try:
         r = klong(p)
+        if r is not None and set_it:
+            klong['it'] = r
         r = r if r is None else success(kg_write(r, klong._backend, display=False))
     except SystemExit as exc:
         return ExitRequest(exc.code)
@@ -299,59 +303,121 @@ def show_repl_header(backend_name, device_name=None, ipc_addr=None):
         print()
 
 
-def get_input():
-    return input("?> ")
+PROMPT = "?> "
+CONTINUATION_PROMPT = ".. "
+
+
+def _prompt_text(text, color=None):
+    """The prompt string, coloured and wrapped so readline does not count the escape codes."""
+    # libedit moves the escape codes in front of the text (the colour is reset before
+    # the text is drawn), so the continuation prompt is plain there.
+    if color is None or readline is None or not sys.stdin.isatty() or "libedit" in (readline.__doc__ or ""):
+        return text
+    return f"\001{color}\002{text}\001{colorama.Style.RESET_ALL}\002"
+
+
+def get_input(prompt=PROMPT):
+    color = colorama.Fore.CYAN if prompt == CONTINUATION_PROMPT else None
+    return input(_prompt_text(prompt, color))
 
 
 def run_in_loop(klong_loop, coro):
     return asyncio.run_coroutine_threadsafe(coro, klong_loop).result()
 
 
-class ConsoleInputHandler:
-    @staticmethod
-    async def input_producer(console_loop, klong_loop, klong, verbose=False, exit_state=None):
-        sys_cmds = create_sys_cmd_functions()
+def read_entry(read_line, history=None, cancel_on_blank=True):
+    """
+    Read one REPL entry with read_line(prompt) -> str.
+
+    Returns the entry text, or None when there is nothing to evaluate (a blank
+    line, Ctrl-C, or a cancelled continuation). A ]-command is returned as the
+    single line it is. An incomplete entry (see check_complete) is continued
+    on ".. " lines joined by newlines; at a continuation prompt an empty line
+    (when cancel_on_blank) or Ctrl-C cancels. EOFError propagates, also in the
+    middle of an entry. A multi-line entry becomes one history item.
+    """
+    mark = history.mark() if history is not None else 0
+    try:
+        s = read_line(PROMPT)
+    except KeyboardInterrupt:
+        print()
+        return None
+    if len(s) == 0:
+        return None
+    if s.startswith("]"):
+        return s
+    lines = [s]
+    while check_text("\n".join(lines), f"<repl:{len(lines)}>") == "incomplete":
         try:
-            while True:
-                try:
-                    s = await console_loop.run_in_executor(None, get_input)
-                    if len(s) == 0:
-                        continue
-                    transcript_write("\t" + s)
-                    if s.startswith("]"):
-                        r = run_sys_cmd(klong, sys_cmds, s)
-                    else:
-                        r = run_in_loop(klong_loop, repl_eval(klong, s, verbose=verbose))
-                    if isinstance(r, ExitRequest):
-                        if exit_state is not None:
-                            exit_state["code"] = r.code
-                        break
-                    if r is not None:
-                        print(r)
-                        transcript_write(str(r))
-                except EOFError:
-                    print("\rbye!")
-                    break
-                except KeyboardInterrupt:
-                    buf = ""
-                    if readline is not None:
-                        try:
-                            buf = readline.get_line_buffer()
-                        except Exception:
-                            buf = ""
-                    if buf:
-                        print()
-                        continue
-                    print("\rbye!")
-                    if exit_state is not None:
-                        exit_state["code"] = 130
-                    break
-                except Exception as e:
-                    print(failure(f"Error: {e.args}"))
-                    import traceback
-                    traceback.print_exception(type(e), e, e.__traceback__)
-        finally:
-            console_loop.stop()
+            nxt = read_line(CONTINUATION_PROMPT)
+        except KeyboardInterrupt:
+            print()
+            nxt = None
+        if nxt is None or (cancel_on_blank and nxt == ""):
+            if history is not None:
+                history.replace_entry(mark, "\n".join(lines))
+            return None
+        lines.append(nxt)
+    text = "\n".join(lines)
+    if len(lines) > 1 and history is not None:
+        history.replace_entry(mark, text)
+    return text
+
+
+def repl_loop(klong, evaluate, read_line=get_input, sys_cmds=None, history=None,
+              exit_state=None, cancel_on_blank=True):
+    """
+    The read-eval-print loop, free of any terminal: read_line(prompt) supplies
+    the input and evaluate(klong, text) the result. Returns when the input
+    ends (EOFError) or an ExitRequest comes back. KeyboardInterrupt at a prompt
+    never quits; one raised by evaluate propagates to the caller.
+    """
+    sys_cmds = create_sys_cmd_functions() if sys_cmds is None else sys_cmds
+    while True:
+        try:
+            s = read_entry(read_line, history, cancel_on_blank)
+        except EOFError:
+            print("\rbye!")
+            return
+        if s is None:
+            continue
+        try:
+            transcript_write("\t" + s)
+            r = run_sys_cmd(klong, sys_cmds, s) if s.startswith("]") else evaluate(klong, s)
+            if isinstance(r, ExitRequest):
+                if exit_state is not None:
+                    exit_state["code"] = r.code
+                return
+            if r is not None:
+                print(r)
+                transcript_write(str(r))
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            print(failure(f"Error: {e.args}"))
+            import traceback
+            traceback.print_exception(type(e), e, e.__traceback__)
+
+
+def setup_readline(klong, sys_cmds, environ=None):
+    """
+    Wire tab completion and the persistent history. Returns a History (inert
+    when readline is missing or the history file is disabled or unwritable).
+    """
+    if readline is None:
+        return History(None, None)
+    history = History(readline, history_path(environ))
+    try:
+        readline.set_completer(Completer(klong, sys_cmds))
+        readline.set_completer_delims(" \t\n\"'()[]{};,+-*/<>=~!@#%^&|\\?:")
+        if "libedit" in (readline.__doc__ or ""):
+            readline.parse_and_bind("bind ^I rl_complete")
+        else:
+            readline.parse_and_bind("tab: complete")
+    except Exception:
+        pass
+    history.load()
+    return history
 
 
 async def run_in_klong(klong, s):
@@ -492,12 +558,17 @@ def main():
             backend_name = klong._backend.name
             device_name = str(klong._backend.device) if hasattr(klong._backend, 'device') else None
             show_repl_header(backend_name, device_name, args.server)
-            console_loop.create_task(ConsoleInputHandler.input_producer(console_loop, klong_loop, klong, args.verbose, exit_state))
+            sys_cmds = create_sys_cmd_functions()
+            history = setup_readline(klong, sys_cmds)
+            evaluate = lambda k, text: run_in_loop(klong_loop, repl_eval(k, text, verbose=args.verbose))
             try:
-                console_loop.run_forever()
+                repl_loop(klong, evaluate, get_input, sys_cmds, history, exit_state,
+                          cancel_on_blank=sys.stdin.isatty())
             except KeyboardInterrupt:
+                print("\rbye!")
                 exit_state["code"] = 130
-                console_loop.stop()
+            finally:
+                history.save()
             console_loop.close()
             if exit_state["code"] is not None:
                 exit_code = exit_state["code"]

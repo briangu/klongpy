@@ -77,7 +77,10 @@ def eval_sys_var_epsilon():
         can differ. For numbers smaller than 0.1, there would be a
         smaller difference and number x>=1 cannot differ by .e, because
         1+.e --> 1. the actual value of .e is implementation-dependent.
-        On a 9-digit implementation, it would be 0.000000001 (1e-9).
+        In KlongPy it is 1e-18. Numbers are IEEE doubles, so the
+        spacing between neighbouring reals is about 1.4e-17 at 0.1 and
+        1.1e-16 just below 1; the statement above about the smallest
+        difference does not hold.
 
         The logarithm to base 10 of %.e (ln(%.e)%ln(10)) equals the
         number of digits in the mantissa of a real number (this is
@@ -153,14 +156,7 @@ def eval_sys_var_host():
     pass
 
 
-# def eval_sys_var_it():
-#     """
-
-#         it                                                          [It]
-
-#         In interactive mode, "it" always holds the value of the most
-#         recent successful computation. See also: INTERACTION, below.
-
-#     """
-#     pass
+# `it` is not a system variable: the REPL (klongpy/cli.py, repl_eval) assigns it
+# an ordinary global after each expression that prints a result. Programs run
+# from files, -e and -l never change it.
 
