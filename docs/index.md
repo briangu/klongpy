@@ -55,6 +55,7 @@ KlongPy is a batteries-included platform with kdb+/Q-inspired features:
 - **[Klong for NumPy Users](from-numpy.md)** and **[Klong for q Users](from-kdb.md)**: Translation tables and the differences that cause mistakes
 - **[Friendlier Syntax](language-additions.md)**: Destructuring, named parameters, evaluated dictionaries, `.fmt`
 - **[Strict Mode](strict.md)** and **[Lint](lint.md)**: Catch mistakes early
+- **[Compiling Klong to C](embedded.md)**: A static subset of Klong that compiles to freestanding C99 for small targets
 - **[PyTorch Backend & Autograd](torch_backend.md)**: Complete autograd reference
 - **[Operator Reference](operators.md)**: All language operators
 - **[Errors](errors.md)**, **[System Functions](system-functions.md)** and **[Release Notes](release-notes.md)**
@@ -282,7 +283,7 @@ Note: The torch backend does not support object dtype arrays or string operation
 
 # Differences from Klong
 
-KlongPy extends Klong and differs from it in these ways:
+KlongPy extends Klong and differs from it in these ways (the cases where its behaviour differs, and the known bugs, are on [Differences from Klong](differences.md)):
 
 * **Number precision**: Reals are doubles, where Klong's are arbitrary precision. Integers are 64 bits wide and wrap around on overflow, as in NumPy; an operand beyond 64 bits (a long literal, or `2^64`) makes `+ - * % < > | &` exact, but `^` is computed in floating point.
 * **Friendlier syntax**: Destructuring (`[a b]::v`), named parameters (`f(a;b;c;d)::{...}`), evaluated dictionaries (`:{;k;v}`), `d@k` on dictionaries, `.fmt`, `.grad`. Programs for classic Klong run unchanged apart from the cases in [Syntax that changed meaning](release-notes.md#syntax-that-changed-meaning). See [Friendlier Syntax](language-additions.md).

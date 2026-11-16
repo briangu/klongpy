@@ -175,5 +175,86 @@ class TestShellBlocks(unittest.TestCase):
         self.assertIn("0 examples checked", r.stdout)
 
 
+CMD_DOC = """<!-- check-docs: requires-cmd sh -->
+```console
+$ echo first
+first
+```
+
+<!-- check-docs: continue; requires-cmd no-such-program-for-check-docs -->
+```console
+$ echo not run
+this is not what it prints
+```
+
+<!-- check-docs: continue -->
+```console
+$ echo not run either
+this is not what it prints
+```
+"""
+
+LINK_DOC = """<!-- check-docs: link examples/embedded -->
+```console
+$ ls examples/embedded/mavg.kg
+examples/embedded/mavg.kg
+$ python -c 'import klongpy; print(klongpy.__name__)'
+klongpy
+```
+
+<!-- check-docs: continue -->
+```console
+$ kgpy --check-static examples/embedded/mavg.kg
+examples/embedded/mavg.kg: inside the static profile (1 function, 1 entry, 0 externs, 2 globals)
+```
+"""
+
+
+@unittest.skipUnless(os.path.exists(SCRIPT), "scripts/check_docs.py is not part of this source tree")
+class TestShellDirectives(unittest.TestCase):
+    """``requires-cmd`` skips a block when a program is missing; ``link`` shows repository paths to the commands."""
+
+    def run_doc(self, text):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "doc.md")
+            with open(path, "w") as f:
+                f.write(text)
+            return subprocess.run([sys.executable, SCRIPT, path], cwd=ROOT, capture_output=True, text=True, timeout=120)
+
+    def test_missing_command_skips_the_block_and_its_continuations(self):
+        r = self.run_doc(CMD_DOC)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("1 examples checked, 0 mismatches", r.stdout)
+        self.assertIn("2 blocks skipped (needs no-such-program-for-check-docs)", r.stdout)
+
+    def test_a_block_without_the_directive_runs(self):
+        text = CMD_DOC.replace("; requires-cmd no-such-program-for-check-docs", "")
+        text = text.replace("this is not what it prints", "wrong")
+        r = self.run_doc(text)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertEqual(r.stdout.count("MISMATCH"), 2, r.stdout)
+
+    @unittest.skipUnless(os.path.exists(os.path.join(ROOT, "examples", "embedded", "mavg.kg")), "examples are not part of this source tree")
+    def test_link_and_python(self):
+        r = self.run_doc(LINK_DOC)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("3 examples checked, 0 mismatches", r.stdout)
+
+    @unittest.skipUnless(os.path.exists(os.path.join(ROOT, "examples", "embedded", "mavg.kg")), "examples are not part of this source tree")
+    def test_without_link_the_path_is_missing(self):
+        r = self.run_doc(LINK_DOC.replace("<!-- check-docs: link examples/embedded -->\n", ""))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+
+    def test_link_of_an_unknown_path_is_rejected(self):
+        r = self.run_doc(LINK_DOC.replace("examples/embedded", "no/such/path"))
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("cannot link", r.stderr)
+
+    def test_link_on_a_transcript_block_is_rejected(self):
+        r = self.run_doc("<!-- check-docs: link examples -->\n```kgpy\n?> 1\n1\n```\n")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("console blocks only", r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

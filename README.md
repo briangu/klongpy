@@ -202,6 +202,7 @@ KlongPy is a batteries-included platform with kdb+/Q-inspired features:
 - **[Klong for NumPy Users](docs/from-numpy.md)** and **[Klong for q Users](docs/from-kdb.md)**: Translation tables and the differences that cause mistakes
 - **[Friendlier Syntax](docs/language-additions.md)**: Destructuring, named parameters, evaluated dictionaries, `.fmt`
 - **[Strict Mode](docs/strict.md)** and **[Lint](docs/lint.md)**: Catch mistakes early
+- **[Compiling Klong to C](docs/embedded.md)**: A static subset of Klong that compiles to freestanding C99 for small targets
 - **[PyTorch Backend & Autograd](docs/torch_backend.md)**: Complete autograd reference
 - **[Operator Reference](docs/operators.md)**: All language operators
 - **[Performance Guide](docs/performance.md)**: Optimization tips

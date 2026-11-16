@@ -26,6 +26,9 @@ nav:
       - Friendlier Syntax: 'language-additions.md'
       - Strict Mode: 'strict.md'
       - Lint: 'lint.md'
+      - Differences from Klong: 'differences.md'
+  - Embedded:
+      - Compiling Klong to C: 'embedded.md'
       - Static Profile: 'static-profile.md'
   - Reference:
       - Operators: 'operators.md'

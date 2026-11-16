@@ -318,6 +318,19 @@ error: cannot apply ^ (Power) to integer and integer
 :foo
 ```
 
+**A monad applied to a conditional or an evaluated list gets the value.** `-:[0;2;3]` applied the monad to the condition and was 0; the conditional gives 2 or 3 and the monad applies to that, so it is -3. In the same way `#[;a;b;c]` was the size of `a` and is 3. A function call whose argument is a conditional was not affected.
+
+```kgpy
+?> -:[0;2;3]
+-3
+?> -:[1;2;3]
+-2
+?> a::[7 8 9]
+[7 8 9]
+?> #[;a;1;2]
+3
+```
+
 ### System functions
 
 **`.sys` runs a shell command and returns its exit status.** It tried to start a program named by the whole string.
@@ -375,6 +388,21 @@ a b
 ```
 
 **New: `.fmt`, `.pf` and `.grad`.** `.fmt(template;args)` and `.pf(template;args)` format text with `{}` placeholders, and `.grad(f;x)` is the ASCII name of `x∇f`. See [Friendlier syntax](language-additions.md#formatted-text).
+
+### Libraries
+
+**`fft` and `eigenv` work.** `fft` in `math.kg` and `eigenv` in `eigenv.kg` raised errors. `eigenv` needed two operators to accept more than they did: amend in depth (`:-`) with a real value joined to integer indices, and join (`,`) of lists of different shape. Both do now. The library computes with its own sine and cosine, so `fft` is accurate to about four decimals, not to the last digit of a double.
+
+```kgpy
+?> .l("math.kg");0
+0
+?> fft([1.0 0.0 0.0 0.0])
+[[1.0 0.0] [1.0 0.0] [1.0 0.0] [1.0 0.0]]
+?> .l("eigenv.kg");0
+0
+?> eigenv([[2.0 1.0 0.0] [1.0 2.0 1.0] [0.0 1.0 2.0]];4)
+[[3.4143 1.9998 0.5859] [[0.4993 -0.7073 0.5004] [0.7073 -0.0008 -0.7069] [0.5004 0.7069 0.4999]]]
+```
 
 ### Strict mode
 
@@ -545,3 +573,34 @@ client?> f("1+1")
 **A call waits 30 seconds.** A call with no answer raises an error that contains `timed out`, closes the connection and fails every call waiting on it. Change the limit with `.clit`. See [Closing, Timeouts and `.clit`](ipc_capabilities.md#closing-timeouts-and-clit).
 
 **Tables and functions cross the connection.** A `klongpy.db` table is sent as a kdb+ table and arrives as a table when `klongpy.db` is loaded; an index does not travel. A function literal is sent as its source text. See [the protocol](ipc_capabilities.md#the-protocol) and [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
+
+**A numpy `datetime64` or `timedelta64` can be sent.** It goes as a kdb+ timestamp or timespan, in nanoseconds (a date is nanoseconds since 2000-01-01), and `NaT` is the null. It used to be a type error on the sending side. It arrives as the integer, as every kdb+ temporal does, so the receiver of `2000-01-02` sees 86400000000000. A numpy unit is converted to nanoseconds, a calendar unit (years, months) of a timedelta is refused, and a value outside the range of a kdb+ temporal is a range error.
+
+```kgpy
+server?> .py("numpy")
+1
+server?> .pyf("numpy";"datetime64")
+1
+server?> .srv(8888)
+1
+client?> f::.cli(8888)
+remote[localhost:8888]:fn
+client?> f("datetime64(""2000-01-02"")")
+86400000000000
+```
+
+
+### Static Klong and C
+
+**New: a subset of Klong that compiles to C.** [The static profile](static-profile.md) is the part of the language in which every type, shape and call target is known before the program runs. `kgpy --check-static FILE...` checks files against it without running them, and `kgpy --emit-c FILE... -o DIR` compiles a program inside it to freestanding C99 with no heap, no recursion and no C library. `.extern("name";"int -> float")` declares a function the target provides, and `.entry("name";"float -> float")` declares one the host calls. Under KlongPy an extern is a Python function (`klong.externs["name"] = f`), and `klongpy.static.load_program` and `call_entry` run a program the way the compiled one is called. A program that uses neither is unaffected. See [Compiling Klong to C](embedded.md).
+
+```kgpy
+?> .extern("read.adc";"int -> float")
+"int -> float"
+?> .entry("f";"-> int")
+error: .entry: the function f is not defined
+```
+
+**`kgpy --lint` knows `.extern`.** A name declared by a top-level `.extern` is defined, so calls to it are no longer reported by W002.
+
+**`kgpy --lint` takes several files after one flag, and W019 needs an enclosing function.** `kgpy --lint a.kg b.kg` lints both; W019 was reported for a top-level expression too.

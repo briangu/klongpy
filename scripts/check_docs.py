@@ -26,6 +26,8 @@ Two kinds of fenced block are run:
   klongpy.cli``); the text is compared exactly except for trailing blanks. A block that
   continues a shell block shares its directory, so files made earlier are still there.
   ``NO_COLOR`` is set. The exit status is not shown; ask for it with ``echo $?``.
+  ``python`` runs the interpreter that runs this script, with this checkout on its path,
+  as ``kgpy`` does.
 
 In all forms ``/tmp/`` in a block is replaced by a fresh temporary directory
 for the run, so examples that write files do not touch the real ``/tmp``, and
@@ -36,12 +38,18 @@ A comment on the line before a fenced block changes how it is run::
 
     <!-- check-docs: continue -->               run in the interpreters of the previous block
     <!-- check-docs: requires duckdb pandas --> run only if these packages import, else skip
+    <!-- check-docs: requires-cmd clang -->      run only if these commands are on the PATH, else skip
+    <!-- check-docs: link examples -->           (console blocks) link these paths of the repository into the directory
     <!-- check-docs: strict 2 -->                run in an interpreter at strict level 2 (0, 1 or 2)
     <!-- check-docs: render -->                  show a failed input as the REPL prints it on stderr
     <!-- check-docs: skip: reason -->           do not run; the reason is required
 
-Directives combine with ``;`` (``continue; requires duckdb``); a ``skip`` reason runs to the end of the comment. ``requires`` on
-a block applies to the blocks that continue it. ``strict N`` sets the strict level of the interpreters the block creates, so a
+Directives combine with ``;`` (``continue; requires duckdb``); a ``skip`` reason runs to the end of the comment. ``requires`` and
+``requires-cmd`` on a block apply to the blocks that continue it. ``requires-cmd`` names programs (a C compiler, say) that
+must be found on the ``PATH``; the block is skipped, with ``needs clang`` as the reason, where one is missing. ``link`` makes a
+console block's directory contain a symbolic link to each named path of the repository (``examples`` makes
+``examples/embedded/mavg.kg`` readable by the commands, so a page can use the paths that a reader's checkout has); it is given
+on the block that starts the session and is an error on any other form. ``strict N`` sets the strict level of the interpreters the block creates, so a
 page can show that its examples are accepted at level 2 without a ``.strict(2)`` line in the transcript; it applies to the
 blocks that continue it, and a continued block may not give a different level. ``render`` (for this block only; repeat it
 on a continued block) shows an error as the REPL prints it, the position line, the source line, the carets and the ``hint:``
@@ -59,6 +67,7 @@ import importlib.util
 import io
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -86,7 +95,8 @@ DIRECTIVE = re.compile(r"(?:<!--\s*check-docs:(.*?)-->\s*)?```([a-z]*)\n(.*?)```
 
 def parse_directives(text):
     """{'continue': bool, 'requires': [packages], 'skip': reason or None}."""
-    d = {"continue": False, "requires": [], "skip": None, "strict": None, "render": False}
+    d = {"continue": False, "requires": [], "requires_cmd": [], "link": [], "skip": None, "strict": None,
+         "render": False}
     text = (text or "").strip()
     m = re.search(r"(?:^|;)\s*skip\b", text)
     if m:                                    # the reason runs to the end and may contain ';'
@@ -98,8 +108,12 @@ def parse_directives(text):
         part = part.strip()
         if part == "continue":
             d["continue"] = True
-        elif part.startswith("requires"):
+        elif part.split()[:1] == ["requires-cmd"]:
+            d["requires_cmd"] += part.split()[1:]
+        elif part.split()[:1] == ["requires"]:
             d["requires"] += part.split()[1:]
+        elif part.split()[:1] == ["link"]:
+            d["link"] += part.split()[1:]
         elif part == "render":
             d["render"] = True
         elif part.split()[:1] == ["strict"]:
@@ -120,7 +134,7 @@ def blocks(text):
         d = parse_directives(m.group(1))
         if m.group(2) == "console" and body.startswith("$ "):
             yield "shell", body, d
-        elif first.startswith("?> ") and (d["skip"] or d["continue"] or d["requires"]
+        elif first.startswith("?> ") and (d["skip"] or d["continue"] or d["requires"] or d["requires_cmd"]
                                         or not re.search(SKIP_SINGLE, body)):
             yield "single", body, d
         elif PAIR.match(first):
@@ -198,7 +212,7 @@ def run_step(klong, expr, buf, settle=0.0, render=False):
 class Session:
     """The interpreters one block (and the blocks that continue it) run in."""
 
-    def __init__(self, kind, strict=0):
+    def __init__(self, kind, strict=0, link=()):
         self.kind = kind
         self.strict = strict
         self.buf = io.StringIO()
@@ -214,6 +228,16 @@ class Session:
             with open(shim, "w") as f:
                 f.write(f'#!/bin/sh\nexec "{sys.executable}" -m klongpy.cli "$@"\n')
             os.chmod(shim, 0o755)
+            py = os.path.join(self.bin, "python")
+            with open(py, "w") as f:
+                f.write(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
+            os.chmod(py, 0o755)
+            for name in link:
+                target = os.path.join(ROOT, name)
+                if not os.path.exists(target) or os.path.isabs(name) or ".." in name.split("/"):
+                    raise ValueError(f"check-docs: cannot link {name!r}: not a path of the repository")
+                os.makedirs(os.path.dirname(os.path.join(self.tmp, name)), exist_ok=True)
+                os.symlink(target, os.path.join(self.tmp, name))
         elif kind == "single":
             klong, loops = create_repl(strict=strict)
             self.env = {None: klong}
@@ -273,14 +297,17 @@ def check_text(path, text, report, skipped):
             reason = skip_chain or d["skip"]
             if not reason:
                 missing = [p for p in d["requires"] if not importable(p)]
+                missing += [c for c in d["requires_cmd"] if shutil.which(c) is None]
                 if missing:
                     reason = "needs " + ", ".join(missing)
+            if d["link"] and kind != "shell":
+                raise ValueError(f"{path}: link applies to console blocks only")
             if reason:
                 skip_chain = reason
                 skipped.append((path, reason))
                 continue
             if session is None:
-                session = Session(kind, d["strict"] or 0)
+                session = Session(kind, d["strict"] or 0, d["link"])
             elif session.kind != kind:
                 raise ValueError(f"{path}: a continued block must have the same form as the one before it")
             elif d["strict"] is not None and d["strict"] != session.strict:
