@@ -45,8 +45,8 @@ handleError::{.d("error: ");.p(y)}
 sendAuth::{.p("sending auth");x(auth)}
 handleAuthFailure::{.p("failed to auth")}
 handleLogin::{.p("logged in");subscribe(x)}
-handleControl::{[msg];msg::y?"msg";:[msg="connected";sendAuth(x);:[msg="authenticated";handleLogin(x;y);handleAuthFailure(x;y)]]}
-handleMsg::{[q T];.p(y);T::y?"T";:[T="success";handleControl(x;y);:[T="error";handleError(x;y);handleData(x;y)]]}
+handleControl::{[msg];msg::y?"msg";:[msg="connected";sendAuth(x):|msg="authenticated";handleLogin(x;y);handleAuthFailure(x;y)]}
+handleMsg::{[q T];.p(y);T::y?"T";:[T="success";handleControl(x;y):|T="error";handleError(x;y);handleData(x;y)]}
 .ws.m::{[c];c::x;{handleMsg(c;x)}'y}
 
 c::.ws("wss://stream.data.alpaca.markets/v2/sip")

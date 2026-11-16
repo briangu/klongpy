@@ -278,6 +278,34 @@ make::{[;x;x*2;x*3]}
 make(5)                      :" [5 10 15]"
 ```
 
+## Conditionals
+
+`:[c;a;b]` evaluates `c`. If `c` is true it evaluates and returns `a`, otherwise `b`. Only the chosen branch is evaluated.
+
+A condition is false if it is a number equal to 0 (including `0.0`) or an empty value (`[]` or `""`). Everything else is true, including `:foo` and the empty dictionary.
+
+```
+:[1;"yes";"no"]              :" yes"
+:[0;"yes";"no"]              :" no"
+:[[];"yes";"no"]             :" no, the empty list is false"
+```
+
+### Else-if chains
+
+`:|` in place of the `;` before a branch starts the next test: `:[c1;a:|c2;b;d]` is short for `:[c1;a;:[c2;b;d]]`. Both forms parse to the same program. Chains can be any length.
+
+```
+:[0;1:|1;2;3]                :" 2"
+:[0;1:|0;2;3]                :" 3"
+
+sign::{:[x<0;"neg":|x=0;"zero";"pos"]}
+sign(-5)                     :" neg"
+sign(0)                      :" zero"
+sign(7)                      :" pos"
+```
+
+The chain form only replaces a conditional in the else (last) slot. A conditional in the then slot, as in `:[c1;:[c2;a;b];d]`, stays nested.
+
 ## Unused Operators
 
 The following operator combinations are reserved for future use:

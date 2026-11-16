@@ -40,7 +40,7 @@ cli(:subscribe,,["AM.MSFT"])
 mean::{(+/x)%#x}
 std::{((+/((x-y)^2))%#x)^0.5}
 bollinger::{[m s];m::mean(x);s::std(x;mean(x));(m+2*s),(m-2*s)}
-signal::{[upper lower p];upper::x@0;lower::x@1;p::y@0;:[p<lower;"buy";:[p>upper;"sell";"hold"]]}
+signal::{[upper lower p];upper::x@0;lower::x@1;p::y@0;:[p<lower;"buy":|p>upper;"sell";"hold"]}
 
 analyze::{[b c];c::db("select c from prices order by s desc limit 20");.p(c);b::bollinger(c);.p(signal(b;c))}
 timeAnalyze::{time(analyze)}

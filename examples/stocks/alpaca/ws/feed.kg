@@ -41,7 +41,7 @@ rmclient::{x_clients}
 sendAuth::{.p("sending auth");.p(auth);x(auth)}
 handleUnknown::{.d("unhandled");.p(y)}
 handleLogin::{.p("logged in")}
-handleControl::{[msg];msg::y?"msg";:[msg="connected";sendAuth(x);:[msg="authenticated";handleLogin(x;y);handleAuthFailure(x;y)]]}
+handleControl::{[msg];msg::y?"msg";:[msg="connected";sendAuth(x):|msg="authenticated";handleLogin(x;y);handleAuthFailure(x;y)]}
 handleSubscribed::{.p(y)}
 
 handlers:::{}
@@ -54,7 +54,7 @@ mkts::{[d ts];d::.pyc("parse_date";,x;:{});.pyc(d,,"timestamp";[];:{})}
 
 :" send the message to all subscribed clients "
 send::{.d("sending ");.d(k);.d(" to client ");.p(y);y(:update,,z)}
-match::{[ev k subscription];ev::x;k::y;subscription::z;all::ev,".*";:[subscription?all;1;:[subscription?k;1;0]]}
+match::{[ev k subscription];ev::x;k::y;subscription::z;all::ev,".*";:[subscription?all;1:|subscription?k;1;0]}
 broadcast::{[ev k data];ev::x;k::y;data::z;{:[match(ev;k;x@1);send(k;x@0;data);0]}'clients}
 handleData::{[ev sym k];.d("data: ");.p(y);ev::(y?"T");sym::(y?"S");y,"t",mkts(y?"t");k::ev,".",sym;broadcast(ev;k;y)}
 

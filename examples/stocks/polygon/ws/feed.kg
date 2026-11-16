@@ -27,7 +27,7 @@ handleStatus::{h::handlers?(y?"status");:[h;h(x;y);handleUnknown(x;y)]}
 
 :" send the message to all subscribed clients "
 send::{.d("sending ");.d(k);.d(" to client ");.p(y);y(:update,,z)}
-match::{[ev k subscription];ev::x;k::y;subscription::z;all::ev,".*";:[subscription?all;1;:[subscription?k;1;0]]}
+match::{[ev k subscription];ev::x;k::y;subscription::z;all::ev,".*";:[subscription?all;1:|subscription?k;1;0]}
 broadcast::{[ev k data];ev::x;k::y;data::z;{:[match(ev;k;x@1);send(k;x@0;data);0]}'clients}
 handleData::{[ev sym k];ev::(y?"ev");sym::(y?"sym");k::ev,".",sym;broadcast(ev;k;y)}
 
