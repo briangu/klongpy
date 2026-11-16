@@ -18,7 +18,7 @@ import timeit
 
 import colorama
 
-from klongpy import KlongInterpreter, list_backends
+from klongpy import KlongInterpreter, __version__, list_backends
 from klongpy.core import kg_write
 from klongpy.help_index import apropos_text, help_text
 from klongpy.sys_fn import eval_sys_load
@@ -278,9 +278,16 @@ async def repl_eval(klong, p, verbose=True):
     return r
 
 
+def _klongpy_version():
+    try:
+        return importlib.metadata.distribution('klongpy').version
+    except importlib.metadata.PackageNotFoundError:
+        return __version__
+
+
 def show_repl_header(backend_name, device_name=None, ipc_addr=None):
     print()
-    print(f"{colorama.Fore.GREEN}Welcome to KlongPy REPL v{importlib.metadata.distribution('klongpy').version}")
+    print(f"{colorama.Fore.GREEN}Welcome to KlongPy REPL v{_klongpy_version()}")
     print(f"{colorama.Fore.GREEN}Author: Brian Guarraci")
     print(f"{colorama.Fore.GREEN}Web: http://klongpy.org")
     device_str = f" ({device_name})" if device_name else ""
