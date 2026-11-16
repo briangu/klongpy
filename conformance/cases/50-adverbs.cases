@@ -1,0 +1,482 @@
+# Each '
+@ adverbs.each-monad-fn core
+> {x*2}'[1 2 3]
+= [2 4 6]
+
+@ adverbs.each-operator core
+> -'[1 2 3]
+= [-1 -2 -3]
+
+@ adverbs.each-size strings
+> #'["ab" "cde" ""]
+= [2 3 0]
+
+@ adverbs.each-empty core
+> {x*2}'[]
+= []
+
+@ adverbs.each-nested-list core
+> {x+1}'[[1 2] [3]]
+= [[2 3] [4]]
+
+@ adverbs.each-enlist core
+> ,'[1 2 3]
+= [[1] [2] [3]]
+
+@ adverbs.each-over-string strings
+> {x}'"abc"
+= "abc"
+
+@ adverbs.each-symbols-stay-symbols core
+> {x}'[:a :b]
+= [:a :b]
+
+@ adverbs.each-returns-lists core
+> {x,x}'[1 2]
+= [[1 1] [2 2]]
+
+@ adverbs.each-over-matrix-rows core
+> +/'[[1 2] [3 4] [5 6]]
+= [3 7 11]
+
+@ adverbs.each-with-named-fn core
+> f::{x*x}
+> f'[1 2 3]
+= [1 4 9]
+
+@ adverbs.each-shape core
+> ^'[[1 2] [3 4 5]]
+= [[2] [3]]
+
+# Each-pair (dyadic each)
+@ adverbs.eachpair-fn core
+> [1 2 3]{x+y}'[10 20 30]
+= [11 22 33]
+
+@ adverbs.eachpair-join core
+> [1 2],'[3 4]
+= [[1 3] [2 4]]
+
+@ adverbs.eachpair-join-3 core
+> [1 2 3],'[4 5 6]
+= [[1 4] [2 5] [3 6]]
+
+@ adverbs.eachpair-plus core
+> [1 2]+'[10 20]
+= [11 22]
+
+@ adverbs.eachpair-empty core
+> [],'[]
+= []
+
+@ adverbs.eachpair-single core
+> [1],'[2]
+= [[1 2]]
+
+@ adverbs.eachpair-strings strings
+> ["a" "b"],'["x" "y"]
+= ["ax" "by"]
+
+# Each-index @'
+@ adverbs.eachindex-index core
+> {x@0}@'[10 20 30]
+= [0 1 2]
+
+@ adverbs.eachindex-value core
+> {x@1}@'[10 20 30]
+= [10 20 30]
+
+@ adverbs.eachindex-product core
+> {(x@0)*(x@1)}@'[10 20 30]
+= [0 20 60]
+
+@ adverbs.eachindex-sum core
+> {(x@0)+(x@1)}@'[100 200 300]
+= [100 201 302]
+
+@ adverbs.eachindex-pairs core
+> {x}@'[10 20 30]
+= [[0 10] [1 20] [2 30]]
+
+@ adverbs.eachindex-empty core
+> {x}@'[]
+= []
+
+# Over /
+@ adverbs.over-plus core
+> +/[1 2 3 4]
+= 10
+
+@ adverbs.over-times core
+> */[1 2 3 4]
+= 24
+
+@ adverbs.over-minus core
+> -/[10 2 3]
+= 5
+
+@ adverbs.over-max core
+> |/[3 9 2]
+= 9
+
+@ adverbs.over-min core
+> &/[3 9 2]
+= 2
+
+@ adverbs.over-join core
+> ,/[[1 2] [3] [4 5]]
+= [1 2 3 4 5]
+
+@ adverbs.over-single core
+> +/[5]
+= 5
+
+@ adverbs.over-atom core
+> +/1
+= 1
+
+@ adverbs.over-empty core
+> +/[]
+= []
+
+@ adverbs.over-empty-join core
+> ,/[]
+= []
+
+@ adverbs.over-matrix-columns core
+> +/[[1 2] [3 4]]
+= [4 6]
+
+@ adverbs.over-with-seed core
+> 10+/[1 2 3]
+= 16
+
+@ adverbs.over-with-seed-times core
+> 10*/[1 2 3]
+= 60
+
+@ adverbs.over-seed-empty core
+> 5+/[]
+= 5
+
+@ adverbs.over-seed-join-list core
+> [],/[1 2 3]
+= [1 2 3]
+
+@ adverbs.over-fn core
+> {x-y}/[10 2 3]
+= 5
+
+@ adverbs.over-fn-join core
+> {x,y}/[1 2 3]
+= [1 2 3]
+
+@ adverbs.over-fn-seed core
+> 100{x-y}/[1 2 3]
+= 94
+
+@ adverbs.over-count-matches core
+> +/[1 2 1 3]=1
+= 2
+
+@ adverbs.over-string-join strings
+> ,/["ab" "cd" "ef"]
+= "abcdef"
+
+@ adverbs.over-chars-seed strings
+> 0c0,/"abc"
+= "0abc"
+
+@ adverbs.over-empty-string strings
+> ,/""
+= ""
+
+@ adverbs.over-equal core
+> =/[1 1 1]
+= 1
+
+@ adverbs.over-match core
+> ~/[1 1]
+= 1
+
+@ adverbs.over-floats core float
+> +/[0.5 0.25 0.25]
+= 1.0
+
+@ adverbs.over-sum-large core
+> +/!1000
+= 499500
+
+# Scan \
+@ adverbs.scan-plus core
+> +\[1 2 3 4]
+= [1 3 6 10]
+
+@ adverbs.scan-times core
+> *\[1 2 3 4]
+= [1 2 6 24]
+
+@ adverbs.scan-minus core
+> -\[1 2 3]
+= [1 -1 -4]
+
+@ adverbs.scan-join core
+> ,\[1 2 3]
+= [1 [1 2] [1 2 3]]
+
+@ adverbs.scan-empty core
+> +\[]
+= []
+
+@ adverbs.scan-atom core
+> +\5
+= 5
+
+@ adverbs.scan-with-seed core
+> 10+\[1 2 3]
+= [10 11 13 16]
+
+@ adverbs.scan-fn core
+> {x+y}\[1 2 3]
+= [1 3 6]
+
+@ adverbs.scan-max core
+> |\[3 1 4 1 5]
+= [3 3 4 4 5]
+
+@ adverbs.scan-seed-empty-list core
+> [],\[1 2]
+= [[] [1] [1 2]]
+
+@ adverbs.scan-seed-atom-join core
+> 1,\2
+= [1 [1 2]]
+
+# Iterate :*
+@ adverbs.iterate-zero-times core
+> 5{x+1}:*0
+= 5
+
+@ adverbs.iterate-three core
+> 3{x*2}:*1
+= 8
+
+@ adverbs.iterate-zero-count-is-argument core
+> 0{x*2}:*1
+= 1
+
+@ adverbs.iterate-count-is-float-integral core float
+> 2.0{x+1}:*0
+= 2
+
+@ adverbs.iterate-over-empty core
+> 3{1,x}:*[]
+= [1 1 1]
+
+@ adverbs.iterate-negative-count core
+> (-1){x+1}:*0
+! range
+
+@ adverbs.iterate-fractional-count core float
+> 1.5{x+1}:*0
+! range
+
+@ adverbs.iterate-build-list core
+> 4{x,x}:*[1]
+= [1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1]
+
+# Scan-iterate \*
+@ adverbs.scaniterate-three core
+> 3{x*2}\*1
+= [1 2 4 8]
+
+@ adverbs.scaniterate-zero core
+> 0{x+1}\*5
+= 5
+
+@ adverbs.scaniterate-from-zero core
+> 3{x+1}\*0
+= [0 1 2 3]
+
+@ adverbs.scaniterate-one core
+> 1{x+1}\*0
+= [0 1]
+
+@ adverbs.scaniterate-negative-count core
+> (-1){x+1}\*0
+! range
+
+@ adverbs.scaniterate-count-float-integral core float
+> 2.0{x+1}\*0
+= [0 1 2]
+
+# Converge :~ and scan-converge \~
+@ adverbs.converge-halving core
+> {_x%2}:~100
+= 0
+
+@ adverbs.converge-already-fixed core
+> {x}:~5
+= 5
+
+@ adverbs.converge-empty core
+> {1+x}:~[]
+= []
+
+@ adverbs.converge-flatten core
+> ,/:~[1 [2] 3]
+= [1 2 3]
+
+@ adverbs.converge-flatten-deep core
+> ,/:~[[[[[0]]]]]
+= 0
+
+@ adverbs.converge-flatten-empty core
+> ,/:~[]
+= []
+
+@ adverbs.converge-flatten-one core
+> ,/:~[1]
+= 1
+
+@ adverbs.converge-sqrt-newton core float
+> {_(x+100%x)%2}:~50
+= 10
+
+@ adverbs.scanconverge-halving core
+> {_x%2}\~100
+= [100 50 25 12 6 3 1 0]
+
+@ adverbs.scanconverge-already-fixed core
+> {x}\~5
+= [5]
+
+@ adverbs.scanconverge-flatten core
+> ,/\~[1 [2] 3]
+= [[1 [2] 3] [1 2 3]]
+
+@ adverbs.scanconverge-flatten-empty core
+> ,/\~[]
+= [[]]
+
+@ adverbs.scanconverge-flatten-one core
+> ,/\~[1]
+= [[1] 1]
+
+# Adverbs on dictionaries and strings
+@ adverbs.each-dict-first dicts
+> *':{[1 2] [3 4]}
+= [1 3]
+
+@ adverbs.each-empty-dict dicts
+> *':{}
+= []
+
+# Each-Left :\ keeps the left argument fixed; Each-Right :/ keeps the right-hand element on the left
+@ adverbs.eachleft-join core
+> 0,:\[1 2 3]
+= [[0 1] [0 2] [0 3]]
+
+@ adverbs.eachleft-empty core
+> 0,:\[]
+= []
+
+@ adverbs.eachleft-single core
+> 0,:\[1]
+= [[0 1]]
+
+@ adverbs.eachleft-minus core
+> 10-:\[1 2 3]
+= [9 8 7]
+
+@ adverbs.eachleft-fn core
+> 0{(,,x),y}:\[1 2 3]
+= [[[0] 1] [[0] 2] [[0] 3]]
+
+@ adverbs.eachleft-list-left core
+> [1 2]+:\[10 20]
+= [[11 12] [21 22]]
+
+@ adverbs.eachleft-string strings
+> 0c!,:\"test"
+= ["!t" "!e" "!s" "!t"]
+
+@ adverbs.eachright-join core
+> 0,:/[1 2 3]
+= [[1 0] [2 0] [3 0]]
+
+@ adverbs.eachright-empty core
+> 0,:/[]
+= []
+
+@ adverbs.eachright-single core
+> 0,:/[1]
+= [[1 0]]
+
+@ adverbs.eachright-minus core
+> 10-:/[1 2 3]
+= [-9 -8 -7]
+
+@ adverbs.eachright-fn core
+> 0{(,,x),y}:/[1 2 3]
+= [[[1] 0] [[2] 0] [[3] 0]]
+
+@ adverbs.eachright-string strings
+> 0c!,:/"test"
+= ["t!" "e!" "s!" "t!"]
+
+# Each-Pair :' applies f to neighbours
+@ adverbs.eachpairs-join core
+> ,:'[1 2 3]
+= [[1 2] [2 3]]
+
+@ adverbs.eachpairs-minus core
+> -:'!5
+= [-1 -1 -1 -1]
+
+@ adverbs.eachpairs-empty core
+> ,:'[]
+= []
+
+@ adverbs.eachpairs-single core
+> ,:'[1]
+= [1]
+
+@ adverbs.eachpairs-two core
+> ,:'[1 2]
+= [[1 2]]
+
+@ adverbs.eachpairs-fn core
+> f::{y,x}
+> f:'!5
+= [[1 0] [2 1] [3 2] [4 3]]
+
+# Each-Left and Each-Right with an atom on the right
+@ adverbs.eachleft-atom-right core
+> 1,:\5
+= [1 5]
+
+@ adverbs.eachright-atom-right core
+> 1,:/5
+= [5 1]
+
+@ adverbs.eachright-list-right core
+> 1,:/[2 3]
+= [[2 1] [3 1]]
+
+@ adverbs.eachleft-list-right core
+> 1,:\[2 3]
+= [[1 2] [1 3]]
+
+@ adverbs.iterate-count-zero-float core float
+> 0.0{x+1}:*5
+= 5
+
+@ adverbs.iterate-count-computed core float
+> (6%2){x+1}:*0
+= 3
+
+@ adverbs.iterate-count-fractional-half core float
+> 0.5{x+1}:*0
+! range
+

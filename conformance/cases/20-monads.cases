@@ -1,0 +1,537 @@
+# @ Atom
+@ monads.atom-int core
+> @5
+= 1
+
+@ monads.atom-float core float
+> @1.5
+= 1
+
+@ monads.atom-symbol core
+> @:foo
+= 1
+
+@ monads.atom-char strings
+> @0cx
+= 1
+
+@ monads.atom-string strings
+> @"abc"
+= 0
+
+@ monads.atom-empty-string strings
+> @""
+= 1
+
+@ monads.atom-list core
+> @[1 2 3]
+= 0
+
+@ monads.atom-empty-list core
+> @[]
+= 1
+
+@ monads.atom-function core
+> @{x}
+= 1
+
+@ monads.atom-dict dicts
+> @:{[1 2]}
+= 1
+
+@ monads.atom-empty-dict dicts
+> @:{}
+= 1
+
+@ monads.atom-undefined core
+> @(1%0)
+= 1
+
+# :# Char
+@ monads.char-from-int strings
+> :#97
+= 0ca
+
+@ monads.char-from-int-list strings
+> :#[72 105]
+= [0cH 0ci]
+
+# ! Enumerate
+@ monads.enum-5 core
+> !5
+= [0 1 2 3 4]
+
+@ monads.enum-0 core
+> !0
+= []
+
+@ monads.enum-1 core
+> !1
+= [0]
+
+@ monads.enum-big core
+> +/!100
+= 4950
+
+# & Where
+@ monads.where-bits core
+> &[0 1 0 1 1]
+= [1 3 4]
+
+@ monads.where-counts core
+> &[1 2 0 3]
+= [0 1 1 3 3 3]
+
+@ monads.where-none core
+> &[0 0 0]
+= []
+
+@ monads.where-scalar core
+> &3
+= [0 0 0]
+
+@ monads.where-zero core
+> &0
+= []
+
+@ monads.where-compare core
+> &[1 5 2 7]>3
+= [1 3]
+
+# * First
+@ monads.first-list core
+> *[7 8 9]
+= 7
+
+@ monads.first-nested core
+> *[[1 2] [3 4]]
+= [1 2]
+
+@ monads.first-atom core
+> *5
+= 5
+
+@ monads.first-empty-list core
+> *[]
+= []
+
+@ monads.first-symbol-list core
+> *[:a :b]
+= :a
+
+# _ Floor
+@ monads.floor-pos core float
+> _3.7
+= 3
+
+@ monads.floor-neg core float
+> _-3.7
+= -4
+
+@ monads.floor-int core
+> _5
+= 5
+
+@ monads.floor-list core float
+> _[1.5 2.5 -0.5]
+= [1 2 -1]
+
+@ monads.floor-integral-float core float
+> _4.0
+= 4
+
+# - Negate
+@ monads.neg-int core
+> -5
+= -5
+
+@ monads.neg-float core float
+> -1.5
+= -1.5
+
+@ monads.neg-list core
+> -[1 -2 3]
+= [-1 2 -3]
+
+@ monads.neg-zero core
+> -0
+= 0
+
+@ monads.neg-nested core
+> -[[1 2] [3 4]]
+= [[-1 -2] [-3 -4]]
+
+@ monads.neg-name core
+> a::3
+> -a
+= -3
+
+# ~ Not
+@ monads.not-zero core
+> ~0
+= 1
+
+@ monads.not-one core
+> ~1
+= 0
+
+@ monads.not-five core
+> ~5
+= 0
+
+@ monads.not-zero-float core float
+> ~0.0
+= 1
+
+@ monads.not-list core
+> ~[0 1 2 0]
+= [1 0 0 1]
+
+@ monads.not-empty-list core
+> ~[]
+= 1
+
+@ monads.not-nested core
+> ~[[0 1] [1 0]]
+= [[1 0] [0 1]]
+
+# % Reciprocal
+@ monads.recip-int core float
+> %4
+= 0.25
+
+@ monads.recip-two core float
+> %2
+= 0.5
+
+@ monads.recip-list core float
+> %[1 2 4]
+= [1.0 0.5 0.25]
+
+@ monads.recip-zero core
+> %0
+= :undefined
+
+@ monads.recip-float core float
+> %0.25
+= 4.0
+
+# , List
+@ monads.enlist-int core
+> ,5
+= [5]
+
+@ monads.enlist-list core
+> ,[1 2]
+= [[1 2]]
+
+@ monads.enlist-empty core
+> ,[]
+= [[]]
+
+@ monads.enlist-symbol core
+> ,:a
+= [:a]
+
+@ monads.enlist-char strings
+> ,0cx
+= "x"
+
+@ monads.enlist-string strings
+> ,"ab"
+= ["ab"]
+
+@ monads.enlist-nested core
+> ,,1
+= [[1]]
+
+# ? Range (first-appearance order)
+@ monads.range-order core
+> ?[3 1 3 2 1]
+= [3 1 2]
+
+@ monads.range-string strings
+> ?"abcab"
+= "abc"
+
+@ monads.range-sorted-input core
+> ?[1 1 2 2 3]
+= [1 2 3]
+
+@ monads.range-empty core
+> ?[]
+= []
+
+@ monads.range-single core
+> ?[5 5 5]
+= [5]
+
+@ monads.range-nested core
+> ?[[1 2] [3] [1 2]]
+= [[1 2] [3]]
+
+@ monads.range-symbols core
+> ?[:b :a :b]
+= [:b :a]
+
+@ monads.range-floats core float
+> ?[1.5 0.5 1.5]
+= [1.5 0.5]
+
+@ monads.range-negative core
+> ?[-1 2 -1 -3 2]
+= [-1 2 -3]
+
+# = Group (first-appearance order)
+@ monads.group-order core
+> =[3 1 3 2 1]
+= [[0 2] [1 4] [3]]
+
+@ monads.group-string strings
+> ="abca"
+= [[0 3] [1] [2]]
+
+@ monads.group-empty core
+> =[]
+= []
+
+@ monads.group-single core
+> =[7 7 7]
+= [[0 1 2]]
+
+@ monads.group-all-distinct core
+> =[3 2 1]
+= [[0] [1] [2]]
+
+@ monads.group-symbols core
+> =[:b :a :b]
+= [[0 2] [1]]
+
+@ monads.group-then-count core
+> #'=[1 2 1 1 3]
+= [3 1 1]
+
+# | Reverse
+@ monads.reverse-list core
+> |[1 2 3]
+= [3 2 1]
+
+@ monads.reverse-string strings
+> |"abc"
+= "cba"
+
+@ monads.reverse-atom core
+> |5
+= 5
+
+@ monads.reverse-empty core
+> |[]
+= []
+
+@ monads.reverse-nested core
+> |[[1 2] [3 4]]
+= [[3 4] [1 2]]
+
+@ monads.reverse-twice core
+> ||[1 2 3]
+= [1 2 3]
+
+# ^ Shape
+@ monads.shape-vector core
+> ^[1 2 3]
+= [3]
+
+@ monads.shape-matrix core
+> ^[[1 2 3] [4 5 6]]
+= [2 3]
+
+@ monads.shape-atom core
+> ^5
+= 0
+
+@ monads.shape-empty core
+> ^[]
+= 0
+
+@ monads.shape-symbol core
+> ^:foo
+= 0
+
+@ monads.shape-string-list strings
+> ^["abc" "def"]
+= [2 3]
+
+@ monads.shape-3d core
+> ^[[[1] [2]] [[3] [4]]]
+= [2 2 1]
+
+@ monads.shape-string strings
+> ^"abcd"
+= [4]
+
+@ monads.shape-ragged core
+> ^[[1 2] [3]]
+= [2]
+
+@ monads.shape-cube core
+> ^[2 2 2]:^!8
+= [2 2 2]
+
+# # Size
+@ monads.size-list core
+> #[1 2 3 4]
+= 4
+
+@ monads.size-string strings
+> #"hello"
+= 5
+
+@ monads.size-empty core
+> #[]
+= 0
+
+@ monads.size-empty-string strings
+> #""
+= 0
+
+@ monads.size-atom core
+> #5
+= 5
+
+@ monads.size-negative-atom core
+> #-5
+= 5
+
+@ monads.size-nested core
+> #[[1 2] [3 4] [5 6]]
+= 3
+
+@ monads.size-float-atom core float
+> #2.5
+= 2.5
+
+@ monads.size-dict dicts
+> #:{[1 2][3 4]}
+= 2
+
+# + Transpose
+@ monads.transpose-matrix core
+> +[[1 2 3] [4 5 6]]
+= [[1 4] [2 5] [3 6]]
+
+@ monads.transpose-square core
+> +[[1 2] [3 4]]
+= [[1 3] [2 4]]
+
+@ monads.transpose-vector core
+> +[1 2 3]
+= [1 2 3]
+
+@ monads.transpose-twice core
+> ++[[1 2] [3 4] [5 6]]
+= [[1 2] [3 4] [5 6]]
+
+@ monads.transpose-atom core
+> +5
+= 5
+
+# < > Grade
+@ monads.gradeup core
+> <[3 1 2]
+= [1 2 0]
+
+@ monads.gradedown core
+> >[3 1 2]
+= [0 2 1]
+
+@ monads.gradeup-string strings
+> <"hello"
+= [1 0 2 3 4]
+
+@ monads.gradedown-string strings
+> >"hello"
+= [4 3 2 0 1]
+
+@ monads.gradeup-ties-stable core
+> <[2 1 2 1]
+= [1 3 0 2]
+
+@ monads.gradedown-ties-stable core
+> >[2 1 2 1]
+= [2 0 3 1]
+
+@ monads.gradeup-empty core
+> <[]
+= []
+
+@ monads.gradeup-floats core float
+> <[2.5 -1.5 0.5]
+= [1 2 0]
+
+@ monads.gradeup-strings strings
+> <["pear" "apple" "fig"]
+= [1 2 0]
+
+@ monads.gradeup-sort-via-index core
+> a::[5 3 9 1]
+> a@<a
+= [1 3 5 9]
+
+@ monads.gradeup-negative core
+> <[-1 -5 3 0]
+= [1 0 3 2]
+
+# :_ Undefined
+@ monads.undef-yes core
+> :_(1%0)
+= 1
+
+@ monads.undef-no core
+> :_5
+= 0
+
+@ monads.undef-list-of-undef core
+> :_[1 2]
+= 0
+
+# $ Format
+@ monads.fmt-int strings
+> $42
+= "42"
+
+@ monads.fmt-negative strings
+> $-7
+= "-7"
+
+@ monads.fmt-float strings float
+> $1.5
+= "1.5"
+
+@ monads.fmt-string strings
+> $"abc"
+= "abc"
+
+@ monads.fmt-char strings
+> $0cx
+= "x"
+
+@ monads.fmt-symbol strings
+> $:foo
+= ":foo"
+
+@ monads.fmt-list strings
+> $[1 2 3]
+= ["1" "2" "3"]
+
+@ monads.fmt-empty-list strings
+> $[]
+= []
+
+@ monads.fmt-nested-list strings
+> $[[1 2] [3]]
+= [["1" "2"] ["3"]]
+
+@ monads.fmt-float-list strings float
+> $[0.5 2.0]
+= ["0.5" "2.0"]
+

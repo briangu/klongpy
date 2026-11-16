@@ -1,0 +1,357 @@
+# Result printing: the printed form is part of the contract
+@ printing.print-int core
+> 42
+= 42
+
+@ printing.print-negative-int core
+> -3
+= -3
+
+@ printing.print-float core float
+> 1.5
+= 1.5
+
+@ printing.print-float-whole-keeps-point core float
+> 6.0
+= 6.0
+
+@ printing.print-float-negative core float
+> -0.25
+= -0.25
+
+@ printing.print-float-sum core float string-fmt
+> 0.1+0.2
+= 0.30000000000000004
+
+@ printing.print-float-third core float string-fmt
+> 1%3
+= 0.3333333333333333
+
+@ printing.print-float-exponent-large core float string-fmt
+> 1e22
+= 1e+22
+
+@ printing.print-float-exponent-small core float string-fmt
+> 1e-7
+= 1e-07
+
+@ printing.print-float-1e15 core float string-fmt
+> 1e15
+= 1000000000000000.0
+
+@ printing.print-float-1e16 core float string-fmt
+> 1e16
+= 1e+16
+
+@ printing.print-float-0001 core float string-fmt
+> 0.0001
+= 0.0001
+
+@ printing.print-float-00001 core float string-fmt
+> 0.00001
+= 1e-05
+
+@ printing.print-float-big-fraction core float string-fmt
+> 123456789.123
+= 123456789.123
+
+@ printing.print-float-negative-zero core float string-fmt
+> -0.0
+= -0.0
+
+@ printing.print-float-in-list core float
+> [0.5 1.0 2.25]
+= [0.5 1.0 2.25]
+
+@ printing.print-float-mixed-promotes core float
+> [1 2.5 3]
+= [1.0 2.5 3.0]
+
+@ printing.print-float-sqrt2 core float string-fmt
+> 2^0.5
+= 1.4142135623730951
+
+@ printing.print-float-division-list core float
+> [1 2 3 4]%4
+= [0.25 0.5 0.75 1.0]
+
+@ printing.print-undefined core
+> 1%0
+= :undefined
+
+@ printing.print-undefined-in-list core float
+> [1 2 0]%[1 0 1]
+= [1.0 :undefined 0.0]
+
+@ printing.print-symbol core
+> :abc
+= :abc
+
+@ printing.print-symbol-list core
+> [:a :b]
+= [:a :b]
+
+@ printing.print-char strings
+> 0cx
+= 0cx
+
+@ printing.print-char-quote strings
+> 0c"
+= 0c"
+
+@ printing.print-char-in-list strings
+> [0ca 0cb 5]
+= [0ca 0cb 5]
+
+@ printing.print-string strings
+> "abc"
+= "abc"
+
+@ printing.print-string-empty strings
+> ""
+= ""
+
+@ printing.print-string-quote-doubled strings
+> "a""b"
+= "a""b"
+
+@ printing.print-string-only-quote strings
+> """"
+= """"
+
+@ printing.print-string-with-brackets strings
+> "[1 2]"
+= "[1 2]"
+
+@ printing.print-string-list strings
+> ["ab" "cd"]
+= ["ab" "cd"]
+
+@ printing.print-string-with-newline strings
+> "a
+> b"
+= "a
+= b"
+
+@ printing.print-list core
+> [1 2 3]
+= [1 2 3]
+
+@ printing.print-list-empty core
+> []
+= []
+
+@ printing.print-list-nested core
+> [[1 2] [3 4]]
+= [[1 2] [3 4]]
+
+@ printing.print-list-nested-empty core
+> [[] [[]]]
+= [[] [[]]]
+
+@ printing.print-list-ragged core
+> [[1] [2 3] []]
+= [[1] [2 3] []]
+
+@ printing.print-list-mixed strings float
+> [1 :a "s" 0cc 2.5]
+= [1 :a "s" 0cc 2.5]
+
+@ printing.print-list-negative core float
+> [-1 -2.5]
+= [-1.0 -2.5]
+
+@ printing.print-list-singleton core
+> [5]
+= [5]
+
+@ printing.print-list-of-symbols-and-lists core
+> [:a [1 2] :b]
+= [:a [1 2] :b]
+
+@ printing.print-dict-empty dicts
+> :{}
+= :{}
+
+@ printing.print-dict dicts
+> :{[1 2] [3 4]}
+= :{[1 2] [3 4]}
+
+@ printing.print-dict-symbol-keys dicts
+> :{[:a 1] [:b [2 3]]}
+= :{[:a 1] [:b [2 3]]}
+
+@ printing.print-dict-string-values dicts strings
+> :{[1 "x"]}
+= :{[1 "x"]}
+
+@ printing.print-matrix core
+> [2 3]:^!6
+= [[0 1 2] [3 4 5]]
+
+@ printing.print-matrix-floats core float
+> [2 2]:^[0.5 1.5 2.5 3.5]
+= [[0.5 1.5] [2.5 3.5]]
+
+@ printing.print-boolean-as-int core
+> 3>2
+= 1
+
+@ printing.print-assignment-value core
+> a::5
+= 5
+
+@ printing.print-assignment-chain core
+> a::b::3
+> a+b
+= 6
+
+@ printing.print-define-value-list core
+> a::[1 2]
+= [1 2]
+
+@ printing.print-last-statement-only core
+> 1
+> 2
+> 3
+= 3
+
+@ printing.print-trailing-comment core
+> 5:"c"
+= 5
+
+# Console output: .p prints with a newline, .d without, .w is the written form
+@ printing.console-p-int core
+> .p(1);0
+= 0
+~ 1
+
+@ printing.console-p-string strings
+> .p("hi");0
+= 0
+~ hi
+
+@ printing.console-p-list core
+> .p([1 2]);0
+= 0
+~ [1 2]
+
+@ printing.console-p-symbol core
+> .p(:a);0
+= 0
+~ a
+
+@ printing.console-p-float core float
+> .p(1.5);0
+= 0
+~ 1.5
+
+@ printing.console-p-char strings
+> .p(0cx);0
+= 0
+~ x
+
+@ printing.console-p-string-with-quotes strings
+> .p("a""b");0
+= 0
+~ a"b
+
+@ printing.console-p-nested strings
+> .p([[1 2] "a"]);0
+= 0
+~ [[1 2] a]
+
+@ printing.console-p-dict dicts
+> .p(:{[1 2]});0
+= 0
+~ :{[1 2]}
+
+@ printing.console-p-twice core
+> .p(1);.p(2);0
+= 0
+~ 1
+~ 2
+
+@ printing.console-d-string strings
+> .d("hi");0
+= 0
+~ hi
+
+@ printing.console-d-no-newline-then-p strings
+> .d("a");.d("b");.p("");0
+= 0
+~ ab
+
+@ printing.console-d-list core
+> .d([1 2]);0
+= 0
+~ [1 2]
+
+@ printing.console-d-symbol core
+> .d(:a);0
+= 0
+~ a
+
+@ printing.console-d-char strings
+> .d(0cx);0
+= 0
+~ x
+
+@ printing.console-d-int core
+> .d(5);0
+= 0
+~ 5
+
+@ printing.console-w-string strings
+> .w("x");0
+= 0
+~ "x"
+
+@ printing.console-w-int core
+> .w(1);0
+= 0
+~ 1
+
+@ printing.console-w-list strings
+> .w([1 "a"]);0
+= 0
+~ [1 "a"]
+
+@ printing.console-w-symbol core
+> .w(:a);0
+= 0
+~ :a
+
+@ printing.console-w-char strings
+> .w(0cx);0
+= 0
+~ 0cx
+
+@ printing.console-w-string-with-quotes strings
+> .w("a""b");0
+= 0
+~ "a""b"
+
+@ printing.console-output-before-error strings
+> .p(1);1+"a"
+! type
+~ 1
+
+@ printing.console-p-in-fn core
+> f::{.p(x);x+1}
+> f(1)
+= 2
+~ 1
+
+@ printing.console-p-in-each core
+> .p'[1 2 3];0
+= 0
+~ 1
+~ 2
+~ 3
+
+@ printing.console-d-blank strings
+> .d("");.p("");0
+= 0
+~
+

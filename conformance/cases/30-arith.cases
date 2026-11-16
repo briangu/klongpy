@@ -1,0 +1,511 @@
+# Plus, minus, times
+@ arith.plus-int core
+> 2+3
+= 5
+
+@ arith.plus-float core float
+> 1+1.5
+= 2.5
+
+@ arith.plus-list-list core
+> [1 2 3]+[10 20 30]
+= [11 22 33]
+
+@ arith.plus-list-scalar core
+> [1 2 3]+10
+= [11 12 13]
+
+@ arith.plus-scalar-list core
+> 10+[1 2 3]
+= [11 12 13]
+
+@ arith.minus-list-scalar core
+> [10 20 30]-1
+= [9 19 29]
+
+@ arith.minus-scalar-list core
+> 10-[1 2 3]
+= [9 8 7]
+
+@ arith.minus-negative-result core
+> 3-10
+= -7
+
+@ arith.times-int core
+> 6*7
+= 42
+
+@ arith.times-list core
+> [1 2 3]*[2 2 2]
+= [2 4 6]
+
+@ arith.times-scalar-list core
+> 2*[1 2 3]
+= [2 4 6]
+
+@ arith.times-zero core
+> 0*[5 6]
+= [0 0]
+
+@ arith.times-float core float
+> 2*3.0
+= 6.0
+
+@ arith.plus-empty-lists core
+> []+[]
+= []
+
+@ arith.plus-empty-scalar core
+> []+1
+= []
+
+@ arith.plus-nested-scalar core
+> [[1 2] [3 4]]+10
+= [[11 12] [13 14]]
+
+@ arith.plus-nested-nested core
+> [[1 2] [3 4]]+[[10 20] [30 40]]
+= [[11 22] [33 44]]
+
+@ arith.plus-ragged-scalar core
+> [[1 2] [3]]+1
+= [[2 3] [4]]
+
+@ arith.plus-ragged-ragged core
+> [[1 2] [3]]+[[10 20] [30]]
+= [[11 22] [33]]
+
+@ arith.plus-vector-matrix-rows core
+> [10 20]+[[1 2 3] [4 5 6]]
+= [[11 12 13] [24 25 26]]
+
+@ arith.plus-matrix-vector-rows core
+> [[1 2 3] [4 5 6]]+[10 20]
+= [[11 12 13] [24 25 26]]
+
+@ arith.plus-length-mismatch core
+> [1 2 3]+[1 2]
+! shape
+
+@ arith.plus-nested-length-mismatch core
+> [[1 2] [3 4]]+[1 2 3]
+! shape
+
+@ arith.plus-singleton-is-a-list core
+> [1 2 3]+[1]
+! shape
+
+@ arith.minus-float-int core float
+> 5-5.0
+= 0.0
+
+@ arith.times-negatives core
+> [-1 2]*[-3 -4]
+= [3 -8]
+
+# Division: % always real, :% integer, ! remainder
+@ arith.divide-int core float
+> 7%2
+= 3.5
+
+@ arith.divide-exact-is-real core float
+> 4%2
+= 2.0
+
+@ arith.divide-third core float
+> 1%3
+= 0.3333333333333333
+
+@ arith.divide-negative core float
+> (-7)%2
+= -3.5
+
+@ arith.divide-list core float
+> [1 2 3 4]%2
+= [0.5 1.0 1.5 2.0]
+
+@ arith.divide-list-list core float
+> [10 20]%[4 8]
+= [2.5 2.5]
+
+@ arith.divide-zero core
+> 1%0
+= :undefined
+
+@ arith.divide-zero-float core float
+> 5.0%0
+= :undefined
+
+@ arith.divide-zero-zero core
+> 0%0
+= :undefined
+
+@ arith.divide-list-by-zero core
+> [1 2 3]%0
+= [:undefined :undefined :undefined]
+
+@ arith.divide-list-element-zero core float
+> [1 2 0]%[1 0 1]
+= [1.0 :undefined 0.0]
+
+@ arith.divide-nested-zero core
+> [[1 2] [3 4]]%0
+= [[:undefined :undefined] [:undefined :undefined]]
+
+@ arith.idiv-pos core
+> 7:%2
+= 3
+
+@ arith.idiv-neg-truncates core
+> (-7):%2
+= -3
+
+@ arith.idiv-negative-divisor core
+> 7:%-2
+= -3
+
+@ arith.idiv-list core
+> [7 8 9]:%2
+= [3 4 4]
+
+@ arith.idiv-zero core
+> 5:%0
+= :undefined
+
+@ arith.idiv-list-zero core
+> [5 6]:%[0 2]
+= [:undefined 3]
+
+@ arith.idiv-float-operand core float
+> 7.5:%2
+= 3
+
+@ arith.rem-pos core
+> 7!3
+= 1
+
+@ arith.rem-sign-of-dividend core
+> (-7)!3
+= -1
+
+@ arith.rem-negative-divisor core
+> 7!-3
+= 1
+
+@ arith.rem-exact core
+> 6!3
+= 0
+
+@ arith.rem-list core
+> [5 6 7]!3
+= [2 0 1]
+
+@ arith.rem-zero core
+> 5!0
+= :undefined
+
+@ arith.rem-list-zero core
+> [5 6]![0 2]
+= [:undefined 0]
+
+@ arith.rem-float core float
+> 7.5!2
+= 1.5
+
+@ arith.recip-in-expression core float
+> 1%4
+= 0.25
+
+@ arith.divide-then-multiply core float
+> (1%4)*4
+= 1.0
+
+# Power
+@ arith.pow-int core
+> 2^10
+= 1024
+
+@ arith.pow-zero-exp core
+> 2^0
+= 1
+
+@ arith.pow-one-exp core
+> 7^1
+= 7
+
+@ arith.pow-zero-base core
+> 0^3
+= 0
+
+@ arith.pow-negative-base core
+> (-2)^3
+= -8
+
+@ arith.pow-negative-base-even core
+> (-2)^2
+= 4
+
+@ arith.pow-negative-exp core float
+> 2^-1
+= 0.5
+
+@ arith.pow-negative-exp-2 core float
+> 2^-2
+= 0.25
+
+@ arith.pow-neg-base-neg-exp core float
+> (-2)^-3
+= -0.125
+
+@ arith.pow-fraction-exp core float
+> 2^0.5
+= 1.4142135623730951
+
+@ arith.pow-list-base core
+> [1 2 3]^2
+= [1 4 9]
+
+@ arith.pow-list-exp core
+> 2^[1 2 3 4]
+= [2 4 8 16]
+
+@ arith.pow-list-list core
+> [2 3]^[3 2]
+= [8 9]
+
+@ arith.pow-large-in-i64 core width64
+> 2^62
+= 4611686018427387904
+
+# Comparison
+@ arith.less core
+> 1<2
+= 1
+
+@ arith.less-false core
+> 2<1
+= 0
+
+@ arith.less-equal-is-false core
+> 1<1
+= 0
+
+@ arith.more core
+> 2>1
+= 1
+
+@ arith.more-false core
+> 1>2
+= 0
+
+@ arith.more-negative core
+> (-1)>-2
+= 1
+
+@ arith.less-list core
+> [1 5 3]<[2 4 3]
+= [1 0 0]
+
+@ arith.more-list-scalar core
+> [1 5 3]>2
+= [0 1 1]
+
+@ arith.less-scalar-list core
+> 2<[1 2 3]
+= [0 0 1]
+
+@ arith.less-float-int core float
+> 1<1.5
+= 1
+
+@ arith.less-nested core
+> [[1 2] [3 4]]<3
+= [[1 1] [0 0]]
+
+@ arith.equal-int core
+> 3=3
+= 1
+
+@ arith.equal-diff core
+> 3=4
+= 0
+
+@ arith.equal-int-float core float
+> 1=1.0
+= 1
+
+@ arith.equal-list core
+> [1 2 3]=[1 2 3]
+= [1 1 1]
+
+@ arith.equal-list-scalar core
+> [1 2 1]=1
+= [1 0 1]
+
+@ arith.equal-list-length-mismatch core
+> [1 2]=[1 2 3]
+! shape
+
+@ arith.equal-empty core
+> []=[]
+= []
+
+@ arith.less-empty core
+> []<1
+= []
+
+@ arith.equal-symbols core
+> :a=:a
+= 1
+
+@ arith.equal-symbols-diff core
+> :a=:b
+= 0
+
+@ arith.equal-symbol-list core
+> [:a :b :a]=:a
+= [1 0 1]
+
+# Min and max (also logical and / or)
+@ arith.min core
+> 3&5
+= 3
+
+@ arith.max core
+> 3|5
+= 5
+
+@ arith.min-list core
+> [1 5 3]&[4 2 6]
+= [1 2 3]
+
+@ arith.max-list core
+> [1 5 3]|[4 2 6]
+= [4 5 6]
+
+@ arith.max-list-scalar core
+> [1 5 3]|2
+= [2 5 3]
+
+@ arith.min-list-scalar core
+> [1 5 3]&2
+= [1 2 2]
+
+@ arith.and-bits core
+> 1&0
+= 0
+
+@ arith.or-bits core
+> 1|0
+= 1
+
+@ arith.and-both core
+> 1&1
+= 1
+
+@ arith.or-neither core
+> 0|0
+= 0
+
+@ arith.min-negative core
+> (-3)&2
+= -3
+
+@ arith.max-float-int core float
+> 2.5|1
+= 2.5
+
+@ arith.min-nested core
+> [[1 8] [3 4]]&5
+= [[1 5] [3 4]]
+
+@ arith.min-empty core
+> []&[]
+= []
+
+# Match (deep equality, ignores int/float)
+@ arith.match-lists core
+> [1 2]~[1 2]
+= 1
+
+@ arith.match-diff core
+> [1 2 3]~[1 2 4]
+= 0
+
+@ arith.match-int-float core float
+> 1~1.0
+= 1
+
+@ arith.match-nested core
+> [[1 2] 3]~[[1 2] 3]
+= 1
+
+@ arith.match-nested-diff core
+> [[1 2] 3]~[[1 2] 4]
+= 0
+
+@ arith.match-length core
+> [1 2]~[1 2 3]
+= 0
+
+@ arith.match-atom-list core
+> 1~[1]
+= 0
+
+@ arith.match-empty core
+> []~[]
+= 1
+
+@ arith.match-symbol core
+> :a~:a
+= 1
+
+@ arith.match-symbol-diff core
+> :a~:b
+= 0
+
+@ arith.match-type core
+> 1~:a
+= 0
+
+@ arith.match-strings strings
+> "abc"~"abc"
+= 1
+
+@ arith.match-strings-diff strings
+> "abc"~"abd"
+= 0
+
+@ arith.match-empty-list-string strings
+> []~""
+= 0
+
+@ arith.match-int-string strings
+> 1~"1"
+= 0
+
+@ arith.match-float-list core float
+> [1.5 2.5]~[1.5 2.5]
+= 1
+
+# Remainder and integer division with zero and negative operands
+@ arith.idiv-zero-scalar core
+> 7:%0
+= :undefined
+
+@ arith.rem-negative-dividend-5 core
+> (-7)!5
+= -2
+
+@ arith.idiv-exact-fraction core
+> 10:%8
+= 1
+
+@ arith.divide-nested-scalar core float
+> [[1 2] [3 4]]%2
+= [[0.5 1.0] [1.5 2.0]]
+
+@ arith.divide-nested-pairwise core float
+> [[1 0] [0 1]]%[[1 1] [1 1]]
+= [[1.0 0.0] [0.0 1.0]]
+

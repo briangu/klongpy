@@ -1,0 +1,104 @@
+# Cases whose correct result is known but which KlongPy does not produce yet.
+# Each has `: reason` and `: actual` (what KlongPy answers now). The expectation is the correct result.
+# `python conformance/run.py --pending` runs them and reports any that now pass: move those to cases/.
+
+@ pending.where-of-empty-list core
+> &[]
+= []
+: reason Where of an empty list raises a type error; the result of `&` on `[]` is the empty list (nothing is selected), as for every other monad on `[]`.
+: actual error: type
+
+@ pending.find-symbol-in-list core
+> [:a :b]?:b
+= [1]
+: reason Find with a symbol in a list of symbols returns [] although `[:a :b]=:b` is `[0 1]`; `[:a :b]?:a` is [] too (the string case `"abc"?:b` answers [1] by converting the symbol to text).
+: actual []
+
+@ pending.first-of-string-is-a-char strings
+> *"abc"
+= 0ca
+: reason `"abc"@0` is the char 0ca but `*"abc"` prints as the one-character string "a"; the reference suite expects the char (it passes only because `~` treats 0ca and "a" as equal).
+: actual "a"
+
+@ pending.first-of-reversed-string-is-a-char strings
+> *|"hello"
+= 0co
+: reason Same as first-of-string-is-a-char.
+: actual "o"
+
+@ pending.scan-join-over-string-first-item-is-a-char strings
+> ,\"abc"
+= [0ca "ab" "abc"]
+: reason The first item of the scan is a char in the reference suite (`t(",\\\"abc\""; ...; [0ca "ab" "abc"])`); KlongPy gives the string "a".
+: actual ["a" "ab" "abc"]
+
+@ pending.dict-at-string-key dicts strings
+> d:::{["a" 1]}
+> d@"a"
+= 1
+: reason `d@k` with a string key returns the whole dictionary; with an integer key it returns the value. The reference defines lookup as `d?k`; if `@` is supported on dictionaries it must agree for every key type.
+: actual :{["a" 1]}
+
+@ pending.dict-at-symbol-key dicts
+> d:::{[:k 5]}
+> d@:k
+= 5
+: reason Same as dict-at-string-key, symbol key.
+: actual :{[:k 5]}
+
+@ pending.dict-at-missing-int-key dicts
+> d:::{[1 2]}
+> d@7
+= :undefined
+: reason `d@7` for a missing key raises an internal error (a bug in KlongPy); `d?7` answers :undefined and docs say dictionary lookups are not range checked.
+: actual error: internal
+
+@ pending.index-by-float core float
+> [1 2 3]@1.0
+!type
+: reason Indexing with a real returns the whole list; an index must be an integer, so this is a type error.
+: actual [1 2 3]
+
+@ pending.reciprocal-of-string strings
+> %"a"
+!type
+: reason Reciprocal of a string is reported as a range error; every other monad on a string operand (`-"a"`) reports type.
+: actual error: range
+
+@ pending.where-of-string strings
+> &"a"
+!type
+: reason Where of a string is reported as a range error; the operand has the wrong type.
+: actual error: range
+
+@ pending.format-of-dict dicts strings
+> $:{[1 2]}
+= ":{[1 2]}"
+: reason `$` of a dictionary gives the Python repr "{1: 2}"; it should give the written form, as `$` of a list gives.
+: actual "{1: 2}"
+
+@ pending.strict2-undefined-name-at-top-level core strict2
+> foo
+!name
+: reason Level 2: reading a name that is not defined is a name error. Level 2 is not implemented yet (ticket 051): the result is :foo.
+: actual :foo
+
+@ pending.strict2-quoted-symbol-with-variable core strict2
+> a::1
+> :a
+= :a
+: reason Level 2: `:a` is the symbol even when a variable `a` exists. Currently 1.
+: actual 1
+
+@ pending.strict2-local-read-before-assign core strict2
+> {[a];a}()
+!name
+: reason Level 2: reading a declared local before assigning it is a name error. Currently :a.
+: actual :a
+
+@ pending.strict2-extra-arguments core strict2
+> f::{x}
+> f(1;2)
+!arity
+: reason Level 2: more arguments than the function takes is an arity error. Currently the extra argument is dropped.
+: actual 1

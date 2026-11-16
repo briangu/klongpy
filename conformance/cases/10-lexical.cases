@@ -1,0 +1,333 @@
+# Integers, floats and their written forms
+@ lexical.int core
+> 42
+= 42
+
+@ lexical.int-zero core
+> 0
+= 0
+
+@ lexical.int-negative core
+> -7
+= -7
+
+@ lexical.int-max-literal core width64
+> 9223372036854775807
+= 9223372036854775807
+
+@ lexical.int-min-expression core width64
+> (-9223372036854775807)-1
+= -9223372036854775808
+
+@ lexical.int-large-product core width64
+> 3000000000*3000000000
+= 9000000000000000000
+
+@ lexical.int-negative-spaces core
+> 3- 2
+= 1
+
+@ lexical.int-neg-literal-after-op core
+> 3+-2
+= 1
+
+@ lexical.float core float
+> 1.5
+= 1.5
+
+@ lexical.float-negative core float
+> -2.25
+= -2.25
+
+@ lexical.float-exponent core float
+> 1e3
+= 1000.0
+
+@ lexical.float-exponent-neg core float
+> 25e-2
+= 0.25
+
+@ lexical.float-exponent-frac core float
+> 1.5e2
+= 150.0
+
+@ lexical.float-whole-prints-point core float
+> 3.0
+= 3.0
+
+@ lexical.float-big-exponent core float string-fmt
+> 1e22
+= 1e+22
+
+@ lexical.float-small-exponent core float string-fmt
+> 1e-7
+= 1e-07
+
+@ lexical.int-vs-float-equal core float
+> 1=1.0
+= 1
+
+# Characters
+@ lexical.char strings
+> 0cx
+= 0cx
+
+@ lexical.char-space strings
+> [0c  0cx]
+= [0c  0cx]
+
+@ lexical.char-digit strings
+> 0c7
+= 0c7
+
+@ lexical.char-quote strings
+> 0c"
+= 0c"
+
+@ lexical.char-bracket strings
+> 0c]
+= 0c]
+
+@ lexical.char-paren-in-list strings
+> [0c( 0c)]
+= [0c( 0c)]
+
+@ lexical.char-semicolon-in-list strings
+> [0c; 0c,]
+= [0c; 0c,]
+
+# Strings
+@ lexical.string strings
+> "hello"
+= "hello"
+
+@ lexical.string-empty strings
+> ""
+= ""
+
+@ lexical.string-with-spaces strings
+> "a b  c"
+= "a b  c"
+
+@ lexical.string-doubled-quote strings
+> "say ""hi"""
+= "say ""hi"""
+
+@ lexical.string-only-quote strings
+> """"
+= """"
+
+@ lexical.string-with-brackets strings
+> "[1 2 3]"
+= "[1 2 3]"
+
+@ lexical.string-with-colon strings
+> "x:"
+= "x:"
+
+@ lexical.string-semicolon strings
+> "a;b"
+= "a;b"
+
+@ lexical.string-colon-bracket strings
+> ":[a;b;c]"
+= ":[a;b;c]"
+
+@ lexical.string-newline-inside strings
+> "a
+> b"
+= "a
+= b"
+
+# Symbols
+@ lexical.symbol core
+> :foo
+= :foo
+
+@ lexical.symbol-dotted core
+> :a.b
+= :a.b
+
+@ lexical.symbol-with-digits core
+> :x1y2
+= :x1y2
+
+@ lexical.symbol-in-list core
+> [:a :b]
+= [:a :b]
+
+# Lists
+@ lexical.list-ints core
+> [1 2 3]
+= [1 2 3]
+
+@ lexical.list-empty core
+> []
+= []
+
+@ lexical.list-floats core float
+> [1.5 2.5]
+= [1.5 2.5]
+
+@ lexical.list-mixed-int-float core float
+> [1 2.5 3]
+= [1.0 2.5 3.0]
+
+@ lexical.list-nested core
+> [[1 2] [3 4]]
+= [[1 2] [3 4]]
+
+@ lexical.list-ragged core
+> [[1 2] [3]]
+= [[1 2] [3]]
+
+@ lexical.list-mixed-types strings
+> [1 "a" :b 0cc]
+= [1 "a" :b 0cc]
+
+@ lexical.list-of-strings strings
+> ["ab" "cd"]
+= ["ab" "cd"]
+
+@ lexical.list-singleton core
+> [7]
+= [7]
+
+@ lexical.list-nested-empty core
+> [[] []]
+= [[] []]
+
+@ lexical.list-negative-elems core
+> [-1 -2 3]
+= [-1 -2 3]
+
+@ lexical.list-with-adjacent-minus core
+> [1 -2]
+= [1 -2]
+
+@ lexical.list-evaluated core
+> [;1+1;2*3]
+= [2 6]
+
+@ lexical.list-evaluated-with-names core
+> a::10
+> b::20
+> [;a;b;a+b]
+= [10 20 30]
+
+@ lexical.list-evaluated-in-fn core
+> {[;x;x*2;x*3]}(5)
+= [5 10 15]
+
+@ lexical.list-evaluated-nested core
+> [;[;1;2];3]
+= [[1 2] 3]
+
+@ lexical.list-evaluated-strings strings
+> [;"a";"b"]
+= ["a" "b"]
+
+# Comments and whitespace
+@ lexical.comment-line core
+> :"a comment"
+> 5
+= 5
+
+@ lexical.comment-trailing-statement core
+> 1+2:"ignored"
+= 3
+
+@ lexical.comment-multi-line core
+> :"line one
+> line two"
+> 9
+= 9
+
+@ lexical.comment-with-quote core
+> :"say ""hi"""
+> 3
+= 3
+
+@ lexical.comment-only core
+> :"nothing here"
+
+@ lexical.whitespace-around-dyad core
+> 1   +   2
+= 3
+
+@ lexical.whitespace-tab core
+> 1+	2
+= 3
+
+@ lexical.statements-newline core
+> a::1
+> b::2
+> a+b
+= 3
+
+@ lexical.statements-semicolon core
+> a::1;b::2;a+b
+= 3
+
+@ lexical.blank-lines-between core
+> a::4
+>
+>
+> a*2
+= 8
+
+@ lexical.comment-form-dot strings
+> .comment("end")
+> anything goes here: [ ( "
+> end
+> 5
+= 5
+
+# Right to left evaluation and parentheses
+@ lexical.rtl-basic core
+> 2*3+4
+= 14
+
+@ lexical.rtl-minus core
+> 10-3-2
+= 9
+
+@ lexical.rtl-parens core
+> (2*3)+4
+= 10
+
+@ lexical.rtl-parens-nested core
+> ((1+2)*(3+4))
+= 21
+
+@ lexical.rtl-monad-chain core
+> -*[3 4 5]
+= -3
+
+@ lexical.rtl-dyad-monad core
+> 10-#[1 2 3]
+= 7
+
+@ lexical.unary-minus-literal-vs-op core
+> -3+5
+= -8
+
+@ lexical.unary-minus-name core
+> a::5
+> -a
+= -5
+
+@ lexical.unary-minus-parens core
+> -(3+5)
+= -8
+
+@ lexical.minus-after-name core
+> a::10
+> a-3
+= 7
+
+@ lexical.minus-after-name-spaced core
+> a::10
+> a - 3
+= 7
+

@@ -1,0 +1,416 @@
+# Definition and call
+@ functions.fn-monad core
+> f::{x+1}
+> f(2)
+= 3
+
+@ functions.fn-dyad core
+> f::{x+y}
+> f(1;2)
+= 3
+
+@ functions.fn-triad core
+> f::{x+y+z}
+> f(1;2;3)
+= 6
+
+@ functions.fn-nilad core
+> f::{42}
+> f()
+= 42
+
+@ functions.fn-inline-call core
+> {x*x}(7)
+= 49
+
+@ functions.fn-inline-dyad core
+> {x-y}(10;3)
+= 7
+
+@ functions.fn-argument-order core
+> {x-y}(10;1)
+= 9
+
+@ functions.fn-uses-all-three core
+> {x,y,z}(1;2;3)
+= [1 2 3]
+
+@ functions.fn-body-statements core
+> f::{[a];a::x*2;a+1}
+> f(5)
+= 11
+
+@ functions.fn-nested-x-shadows core
+> F::{{x+1}(x*10)}
+> F(2)
+= 21
+
+@ functions.fn-nested-uses-outer-arg-as-value core
+> F::{G(x+1)}
+> G::{x*2}
+> F(4)
+= 10
+
+@ functions.fn-call-with-expression-args core
+> f::{x+y}
+> f(1+1;2*3)
+= 8
+
+@ functions.fn-call-result-as-arg core
+> f::{x+1}
+> f(f(f(0)))
+= 3
+
+@ functions.fn-dyad-result-used-as-index core
+> f::{x@y}
+> f([5 6 7];1)
+= 6
+
+@ functions.fn-body-with-conditional-and-string strings
+> f::{:[x;"t";"f"]}
+> f(1)
+= "t"
+
+@ functions.fn-result-is-last-statement core
+> {1;2;3}()
+= 3
+
+@ functions.fn-empty-body-ish core
+> {[]}()
+= []
+
+@ functions.fn-nested-call core
+> f::{x+1}
+> g::{f(x)*2}
+> g(3)
+= 8
+
+@ functions.fn-as-argument core
+> ap::{x(y)}
+> ap({x+1};5)
+= 6
+
+@ functions.fn-as-argument-dyad core
+> ap::{x(y;z)}
+> ap({x-y};10;3)
+= 7
+
+@ functions.fn-as-argument-nilad core
+> ap::{x()}
+> ap({7})
+= 7
+
+@ functions.fn-extra-name-in-body-is-global core
+> k::10
+> {x+k}(1)
+= 11
+
+@ functions.fn-recursive-fib core
+> f::{:[x<2;x;f(x-1)+f(x-2)]}
+> f(15)
+= 610
+
+@ functions.fn-recursive-fact core
+> f::{:[x=0;1;x*f(x-1)]}
+> f(10)
+= 3628800
+
+@ functions.fn-mutual-recursion core
+> ev::{:[x=0;1;od(x-1)]}
+> od::{:[x=0;0;ev(x-1)]}
+> ev(10)
+= 1
+
+@ functions.fn-recursion-accumulator core
+> f::{:[x=0;y;f(x-1;y+x)]}
+> f(100;0)
+= 5050
+
+@ functions.fn-redefine core
+> f::{x}
+> f::{x+1}
+> f(1)
+= 2
+
+@ functions.fn-with-each core
+> f::{x*x}
+> f'[1 2 3]
+= [1 4 9]
+
+@ functions.fn-applied-via-at core
+> f::{x*3}
+> f@4
+= 12
+
+@ functions.fn-dyad-via-at core
+> f::{x-y}
+> f@[10 4]
+= 6
+
+@ functions.fn-over-fn core
+> f::{x+y}
+> f/[1 2 3]
+= 6
+
+@ functions.fn-scan-fn core
+> f::{x*y}
+> f\[1 2 3 4]
+= [1 2 6 24]
+
+# Projections
+@ functions.proj-right-hole core
+> f::{x+y}
+> g::f(1;)
+> g(5)
+= 6
+
+@ functions.proj-left-hole core
+> f::{x-y}
+> g::f(;1)
+> g(5)
+= 4
+
+@ functions.proj-each core
+> f::{x-y}
+> g::f(;1)
+> g'[5 6]
+= [4 5]
+
+@ functions.proj-triad-two-holes core
+> f::{x+y+z}
+> g::f(1;;)
+> g(2;3)
+= 6
+
+@ functions.proj-triad-middle-hole core
+> f::{x+y+z}
+> g::f(1;;3)
+> g(2)
+= 6
+
+@ functions.proj-triad-last-hole core
+> f::{x+y+z}
+> g::f(1;2;)
+> g(3)
+= 6
+
+@ functions.proj-reuse core
+> f::{x*y}
+> d::f(2;)
+> d(d(3))
+= 12
+
+@ functions.proj-operator core
+> {x+y}(1;)@2
+= 3
+
+# Locals
+@ functions.local-declared core
+> f::{[a b];a::x;b::y;a*b}
+> f(3;4)
+= 12
+
+@ functions.local-shadows-global core
+> a::1
+> f::{[a];a::5;a}
+> f()
+> a
+= 1
+
+@ functions.local-leaves-global core
+> a::1
+> f::{[a];a::5;a}
+> f();a
+= 1
+
+@ functions.local-global-visible core
+> a::1
+> f::{a}
+> f()
+= 1
+
+@ functions.local-global-assigned core
+> a::1
+> f::{a::2}
+> f()
+> a
+= 2
+
+@ functions.local-per-call core
+> f::{[t];t::x;t}
+> f(1)+f(2)
+= 3
+
+@ functions.local-recursion-safe core
+> f::{[n];n::x;:[x=0;0;n+f(x-1)]}
+> f(4)
+= 10
+
+@ functions.local-in-nested-call core
+> g::{[a];a::10;f()}
+> f::{a}
+> a::1
+> g()
+= 10
+
+@ functions.local-single-declared-with-args core
+> f::{[t];t::x*2;t+y}
+> f(3;1)
+= 7
+
+@ functions.local-reads-undeclared-param core
+> f::{[a];a::x;a}
+> f(9)
+= 9
+
+@ functions.global-fn-sees-later-global core
+> f::{g}
+> g::7
+> f()
+= 7
+
+# Conditionals
+@ functions.cond-true strings
+> :[1;"yes";"no"]
+= "yes"
+
+@ functions.cond-false strings
+> :[0;"yes";"no"]
+= "no"
+
+@ functions.cond-true-number core
+> :[1;10;20]
+= 10
+
+@ functions.cond-false-number core
+> :[0;10;20]
+= 20
+
+@ functions.cond-nonzero core
+> :[5;10;20]
+= 10
+
+@ functions.cond-negative core
+> :[-1;10;20]
+= 10
+
+@ functions.cond-zero-float core float
+> :[0.0;10;20]
+= 20
+
+@ functions.cond-nonzero-float core float
+> :[0.5;10;20]
+= 10
+
+@ functions.cond-empty-list core
+> :[[];10;20]
+= 20
+
+@ functions.cond-nonempty-list core
+> :[[0];10;20]
+= 10
+
+@ functions.cond-empty-string strings
+> :["";10;20]
+= 20
+
+@ functions.cond-nonempty-string strings
+> :["a";10;20]
+= 10
+
+@ functions.cond-symbol core
+> :[:a;10;20]
+= 10
+
+@ functions.cond-function core
+> :[{x};10;20]
+= 10
+
+@ functions.cond-empty-dict-true dicts
+> :[:{};10;20]
+= 10
+
+@ functions.cond-comparison strings
+> x::5
+> :[x>3;"big";"small"]
+= "big"
+
+@ functions.cond-only-chosen-evaluated core
+> a::0
+> :[1;a::1;a::2]
+> a
+= 1
+
+@ functions.cond-only-else-evaluated core
+> a::0
+> :[0;a::1;a::2]
+> a
+= 2
+
+@ functions.cond-returns-list core
+> :[1;[1 2];3]
+= [1 2]
+
+@ functions.cond-nested-then core
+> :[1;:[0;1;2];3]
+= 2
+
+@ functions.cond-nested-else core
+> :[0;1;:[1;2;3]]
+= 2
+
+@ functions.cond-in-fn strings
+> f::{:[x;"y";"n"]}
+> f(0)
+= "n"
+
+@ functions.cond-chain-first core
+> :[1;10:|1;20;30]
+= 10
+
+@ functions.cond-chain-second core
+> :[0;10:|1;20;30]
+= 20
+
+@ functions.cond-chain-else core
+> :[0;10:|0;20;30]
+= 30
+
+@ functions.cond-chain-long core
+> :[0;1:|0;2:|0;3:|1;4;5]
+= 4
+
+@ functions.cond-chain-long-else core
+> :[0;1:|0;2:|0;3:|0;4;5]
+= 5
+
+@ functions.cond-chain-in-fn core
+> sign::{:[x<0;-1:|x=0;0;1]}
+> sign'[-5 0 7]
+= [-1 0 1]
+
+@ functions.cond-chain-equals-nested core
+> :[0;1:|0;2;3]~:[0;1;:[0;2;3]]
+= 1
+
+@ functions.cond-condition-is-expression strings
+> :[(2+2)=4;"ok";"no"]
+= "ok"
+
+@ functions.cond-condition-list-compare core
+> :[[1 2]~[1 2];1;0]
+= 1
+
+@ functions.cond-with-assignment-branches core
+> :[1;a::1;a::2]
+> a
+= 1
+
+@ functions.cond-bad-no-else core
+> :[1;2]
+! syntax
+
+@ functions.cond-too-many-parts core
+> :[1;2;3;4]
+! syntax
+

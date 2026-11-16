@@ -1,0 +1,161 @@
+# Symbols are data: a symbol in a list or passed through an adverb is never looked up
+@ symbols.sym-literal core
+> :foo
+= :foo
+
+@ symbols.sym-dotted core
+> :a.b
+= :a.b
+
+@ symbols.sym-in-list-defined-name core
+> foo::5
+> [:foo :bar]
+= [:foo :bar]
+
+@ symbols.sym-bare-name-in-list-is-symbol core
+> foo::5
+> [foo]
+= [:foo]
+
+@ symbols.sym-each-keeps-symbols core
+> foo::5
+> l::[:foo :bar]
+> {x}'l
+= [:foo :bar]
+
+@ symbols.sym-apply-keeps-symbol core
+> foo::5
+> l::[:foo :bar]
+> {x}@*l
+= :foo
+
+@ symbols.sym-evaluated-list-uses-values core
+> foo::5
+> {x}'[;foo;:bar]
+= [5 :bar]
+
+@ symbols.sym-index-into-list core
+> foo::5
+> l::[:foo]
+> l@0
+= :foo
+
+@ symbols.sym-first core
+> foo::5
+> *[:foo :bar]
+= :foo
+
+@ symbols.sym-reverse core
+> foo::5
+> |[:foo :bar]
+= [:bar :foo]
+
+@ symbols.sym-join core
+> foo::5
+> [:foo :bar],:baz
+= [:foo :bar :baz]
+
+@ symbols.sym-fn-arg-through-each core
+> foo::5
+> f::{x}
+> f'[:foo]
+= [:foo]
+
+@ symbols.sym-range core
+> foo::5
+> ?[:foo :foo :bar]
+= [:foo :bar]
+
+@ symbols.sym-group core
+> foo::5
+> =[:foo :bar :foo]
+= [[0 2] [1]]
+
+@ symbols.sym-match-in-list core
+> foo::5
+> [:foo]~[:foo]
+= 1
+
+@ symbols.sym-equal-elementwise core
+> foo::5
+> [:foo :bar]=[:foo :baz]
+= [1 0]
+
+@ symbols.sym-grade core
+> <[:foo :bar :baz]
+= [1 2 0]
+
+@ symbols.sym-grade-down core
+> >[:foo :bar :baz]
+= [0 2 1]
+
+@ symbols.sym-not-equal-prefix core
+> :foo=:fo
+= 0
+
+@ symbols.sym-equal core
+> :foo=:foo
+= 1
+
+@ symbols.sym-match core
+> :foo~:foo
+= 1
+
+@ symbols.sym-match-different core
+> :foo~:bar
+= 0
+
+@ symbols.sym-atom core
+> @:foo
+= 1
+
+@ symbols.sym-enlist core
+> ,:foo
+= [:foo]
+
+@ symbols.sym-format strings
+> $:foo
+= ":foo"
+
+@ symbols.sym-format-list strings
+> $[:a :b]
+= [":a" ":b"]
+
+@ symbols.sym-undefined-name-is-not-a-call-target core
+> nosuchfn(1)
+! name
+
+@ symbols.sym-undefined-call-in-fn core
+> f::{nosuch(x)}
+> f(1)
+! name
+
+@ symbols.sym-as-dict-key dicts
+> d:::{[:k 5]}
+> d?:k
+= 5
+
+@ symbols.sym-from-string-form strings
+> :a:$"foo"
+= :foo
+
+@ symbols.sym-in-nested-list core
+> [[:a] [:b :c]]
+= [[:a] [:b :c]]
+
+@ symbols.sym-evaluated-list-fn-result core
+> f::{x}
+> [;f(:a);f(:b)]
+= [:a :b]
+
+@ symbols.sym-pass-to-user-fn core
+> g::{x}
+> g(:zzz)
+= :zzz
+
+@ symbols.sym-pass-through-two-fns core
+> g::{x}
+> h::{g(x)}
+> h(:zzz)
+= :zzz
+

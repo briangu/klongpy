@@ -1,0 +1,402 @@
+# Strings and chars as data
+@ strings.str-length strings
+> #"hello"
+= 5
+
+@ strings.str-empty-length strings
+> #""
+= 0
+
+@ strings.str-index strings
+> "hello"@1
+= 0ce
+
+@ strings.str-index-last strings
+> "hello"@-1
+= 0co
+
+@ strings.str-index-list strings
+> "hello"@[1 3]
+= "el"
+
+@ strings.str-first-of-reverse strings
+> *|"hello"
+= "o"
+
+@ strings.str-reverse strings
+> |"abc"
+= "cba"
+
+@ strings.str-take strings
+> 2#"hello"
+= "he"
+
+@ strings.str-drop strings
+> 2_"hello"
+= "llo"
+
+@ strings.str-join-3 strings
+> "abc","def","ghi"
+= "abcdefghi"
+
+@ strings.str-join-numbers-makes-list strings
+> "ab",1
+= ["ab" 1]
+
+@ strings.str-equal strings
+> "abc"="abc"
+= 1
+
+@ strings.str-not-equal strings
+> "abc"="abd"
+= 0
+
+@ strings.str-less strings
+> "abc"<"abd"
+= 1
+
+@ strings.str-less-prefix strings
+> "ab"<"b"
+= 1
+
+@ strings.str-less-longer strings
+> "b"<"ab"
+= 0
+
+@ strings.str-equal-different-length strings
+> "ab"="abc"
+= 0
+
+@ strings.str-char-equal strings
+> 0ca=0ca
+= 1
+
+@ strings.str-char-less strings
+> 0ca<0cb
+= 1
+
+@ strings.str-char-index-equal strings
+> ("abc"@0)=0ca
+= 1
+
+@ strings.str-grade strings
+> <"hello"
+= [1 0 2 3 4]
+
+@ strings.str-grade-down strings
+> >"hello"
+= [4 3 2 0 1]
+
+@ strings.str-range strings
+> ?"mississippi"
+= "misp"
+
+@ strings.str-group strings
+> ="mississippi"
+= [[0] [1 4 7 10] [2 3 5 6] [8 9]]
+
+@ strings.str-split-by-find strings
+> "a,b,c"?","
+= [1 3]
+
+@ strings.str-split-pieces strings
+> [1 3]:_"a,b,c"
+= ["a" ",b" ",c"]
+
+@ strings.str-empty-match strings
+> ""~""
+= 1
+
+@ strings.str-char-vs-string-match strings
+> 0ca~"a"
+= 1
+
+@ strings.str-list-of-strings strings
+> ["ab" "cd"]@1
+= "cd"
+
+@ strings.str-each-size strings
+> #'["ab" "" "cde"]
+= [2 0 3]
+
+@ strings.str-sort-via-grade strings
+> s::"banana"
+> s@<s
+= "aaabnn"
+
+@ strings.str-unique-sorted strings
+> s::"banana"
+> t::?s
+> t@<t
+= "abn"
+
+@ strings.str-reshape strings
+> [2 2]:^"abcd"
+= ["ab" "cd"]
+
+@ strings.str-nested-strings-shape strings
+> ^["abc" "def"]
+= [2 3]
+
+@ strings.str-rotate strings
+> 1:+"abc"
+= "cab"
+
+@ strings.str-amend strings
+> "abc":="x",1
+= "axc"
+
+@ strings.str-append-via-amend strings
+> "abc":="xy",3
+= "abcxy"
+
+@ strings.str-char-as-string strings
+> ,0cx
+= "x"
+
+@ strings.str-string-in-list-is-one-item strings
+> #["abc"]
+= 1
+
+@ strings.str-concat-over strings
+> ,/["a" "b" "c"]
+= "abc"
+
+@ strings.str-concat-each-suffix strings
+> {x,"!"}'["a" "b"]
+= ["a!" "b!"]
+
+@ strings.str-char-is-not-string strings
+> @0cx
+= 1
+
+@ strings.str-string-is-not-atom strings
+> @"x"
+= 0
+
+# Format $
+@ strings.fmt-int strings
+> $42
+= "42"
+
+@ strings.fmt-negative strings
+> $-7
+= "-7"
+
+@ strings.fmt-zero strings
+> $0
+= "0"
+
+@ strings.fmt-float strings float
+> $1.5
+= "1.5"
+
+@ strings.fmt-float-whole strings float
+> $2.0
+= "2.0"
+
+@ strings.fmt-float-fraction strings float string-fmt
+> $0.1+0.2
+= "0.30000000000000004"
+
+@ strings.fmt-string-identity strings
+> $"abc"
+= "abc"
+
+@ strings.fmt-char strings
+> $0cx
+= "x"
+
+@ strings.fmt-symbol strings
+> $:foo
+= ":foo"
+
+@ strings.fmt-list strings
+> $[1 2 3]
+= ["1" "2" "3"]
+
+@ strings.fmt-empty-list strings
+> $[]
+= []
+
+@ strings.fmt-nested strings
+> $[[1 2] [3]]
+= [["1" "2"] ["3"]]
+
+@ strings.fmt-mixed-list strings
+> $[1 :a "b"]
+= ["1" ":a" "b"]
+
+@ strings.fmt-large strings
+> $1000000
+= "1000000"
+
+@ strings.fmt-large-float strings float string-fmt
+> $1e10
+= "10000000000.0"
+
+@ strings.fmt-exponent-float strings float string-fmt
+> $1e20
+= "1e+20"
+
+@ strings.fmt-roundtrip-int strings
+> 0:$$123
+= 123
+
+# Format2 n$x: pad
+@ strings.pad-right strings
+> 10$123
+= "123       "
+
+@ strings.pad-left strings
+> (-10)$123
+= "       123"
+
+@ strings.pad-string-right strings
+> 5$"ab"
+= "ab   "
+
+@ strings.pad-string-left strings
+> (-5)$"ab"
+= "   ab"
+
+@ strings.pad-no-truncate strings
+> 2$"abcd"
+= "abcd"
+
+@ strings.pad-zero-width strings
+> 0$123
+= "123"
+
+@ strings.pad-exact strings
+> 3$"abc"
+= "abc"
+
+@ strings.pad-float strings float
+> 10$1.5
+= "1.5       "
+
+@ strings.pad-symbol strings
+> 6$:a
+= ":a    "
+
+@ strings.pad-negative-value strings
+> 6$-12
+= "-12   "
+
+@ strings.pad-real-width strings float string-fmt
+> 5.2$3.0
+= "    3.00"
+
+@ strings.pad-real-width-round strings float string-fmt
+> 6.2$3.14159
+= "     3.14"
+
+@ strings.pad-real-width-needs-real strings float
+> 5.2$3
+! type
+
+@ strings.pad-real-width-negative-value strings float string-fmt
+> 7.2$-1.5
+= "     -1.50"
+
+# Form :$
+@ strings.form-int strings
+> 1:$"12"
+= 12
+
+@ strings.form-int-negative strings
+> 1:$"-3"
+= -3
+
+@ strings.form-int-bad strings
+> 1:$"x"
+= :undefined
+
+@ strings.form-int-from-float-text strings float
+> 1:$"1.5"
+= :undefined
+
+@ strings.form-float strings float
+> 1.0:$"1.5"
+= 1.5
+
+@ strings.form-float-from-int-text strings float
+> 1.5:$"2"
+= 2.0
+
+@ strings.form-float-bad strings float
+> 1.0:$"x"
+= :undefined
+
+@ strings.form-float-exponent strings float
+> 1.0:$"1e3"
+= 1000.0
+
+@ strings.form-leading-zeros strings
+> 0:$"007"
+= 7
+
+@ strings.form-list strings
+> [1 1]:$["12" "x"]
+= [12 :undefined]
+
+@ strings.form-symbol strings
+> :a:$"foo"
+= :foo
+
+@ strings.form-char-bad strings
+> 0ca:$"xyz"
+= :undefined
+
+@ strings.form-roundtrip strings
+> 0:$$-45
+= -45
+
+# Char arithmetic is not defined
+@ strings.char-plus-int strings
+> 0ca+1
+! type
+
+@ strings.string-plus-int strings
+> "a"+1
+! type
+
+@ strings.char-minus-char strings
+> 0ca-0cb
+! type
+
+@ strings.neg-string strings
+> -"a"
+! type
+
+# Code points via :# (Char) and _ (floor)
+@ strings.char-from-code strings
+> :#97
+= 0ca
+
+@ strings.char-from-code-list strings
+> :#[72 105]
+= [0cH 0ci]
+
+# Unicode (code points in KlongPy, bytes in native)
+@ strings.unicode-length strings unicode
+> #"héllo"
+= 5
+
+@ strings.unicode-index strings unicode
+> "héllo"@1
+= 0cé
+
+@ strings.unicode-reverse strings unicode
+> |"héllo"
+= "olléh"
+
+@ strings.unicode-print strings unicode
+> "héllo"
+= "héllo"
+
+@ strings.pad-real-width-three-decimals strings float string-fmt
+> 5.3$123.45
+= "  123.450"
+

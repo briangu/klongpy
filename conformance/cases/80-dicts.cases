@@ -1,0 +1,246 @@
+# Dictionary literals and lookup with ?
+@ dicts.dict-empty dicts
+> :{}
+= :{}
+
+@ dicts.dict-one-entry dicts
+> :{[1 2]}
+= :{[1 2]}
+
+@ dicts.dict-two-entries dicts
+> :{[1 2] [3 4]}
+= :{[1 2] [3 4]}
+
+@ dicts.dict-string-keys dicts strings
+> :{["a" 1] ["b" 2]}
+= :{["a" 1] ["b" 2]}
+
+@ dicts.dict-symbol-keys dicts
+> :{[:a 1] [:b 2]}
+= :{[:a 1] [:b 2]}
+
+@ dicts.dict-value-is-list dicts
+> :{[1 [2 3]]}
+= :{[1 [2 3]]}
+
+@ dicts.dict-duplicate-key-last-wins dicts
+> :{[1 2] [1 3]}
+= :{[1 3]}
+
+@ dicts.dict-lookup-int dicts
+> :{[1 2] [3 4]}?3
+= 4
+
+@ dicts.dict-lookup-first dicts
+> :{[1 2] [3 4]}?1
+= 2
+
+@ dicts.dict-lookup-missing dicts
+> :{[1 2] [3 4]}?5
+= :undefined
+
+@ dicts.dict-lookup-empty dicts
+> :{}?:foo
+= :undefined
+
+@ dicts.dict-lookup-string dicts strings
+> :{["a" 1] ["b" 2]}?"a"
+= 1
+
+@ dicts.dict-lookup-string-missing dicts strings
+> :{["a" 1] ["b" 2]}?"c"
+= :undefined
+
+@ dicts.dict-lookup-symbol dicts
+> :{[:a 1] [:b 2]}?:b
+= 2
+
+@ dicts.dict-lookup-symbol-missing dicts
+> :{[:foo :bar]}?:bar
+= :undefined
+
+@ dicts.dict-lookup-char dicts strings
+> :{[0ca 1]}?0ca
+= 1
+
+@ dicts.dict-lookup-list-value dicts
+> :{[1 [2 3]]}?1
+= [2 3]
+
+@ dicts.dict-lookup-after-duplicate dicts
+> :{[1 2] [1 3]}?1
+= 3
+
+@ dicts.dict-lookup-key-is-symbol-value-symbol dicts
+> :{[:foo :bar]}?:foo
+= :bar
+
+@ dicts.dict-lookup-undefined-is-undefined dicts
+> :_(:{[1 2]}?9)
+= 1
+
+@ dicts.dict-lookup-in-arithmetic dicts
+> d:::{[:a 1] [:b 2]}
+> (d?:a)+(d?:b)
+= 3
+
+@ dicts.dict-lookup-with-key-from-variable dicts
+> d:::{[:a 7]}
+> k::d?:a
+> k
+= 7
+
+@ dicts.dict-lookup-int-at dicts
+> :{[1 2] [3 4]}@3
+= 4
+
+# Adding and replacing: join , with a pair
+@ dicts.dict-add dicts
+> :{[1 2] [3 4]},[5 6]
+= :{[1 2] [3 4] [5 6]}
+
+@ dicts.dict-replace dicts
+> :{[1 2] [3 4]},[1 9]
+= :{[1 9] [3 4]}
+
+@ dicts.dict-add-to-empty dicts
+> :{},[1 2]
+= :{[1 2]}
+
+@ dicts.dict-add-chain-pair dicts
+> d:::{[1 2]}
+> d,3,4
+> d
+= :{[1 2] [3 4]}
+
+@ dicts.dict-add-visible-after dicts
+> d:::{[1 2]}
+> d,[3 4]
+> d
+= :{[1 2] [3 4]}
+
+@ dicts.dict-add-shared-through-alias dicts
+> d:::{[1 2]}
+> e::d
+> d,[3 4]
+> e
+= :{[1 2] [3 4]}
+
+@ dicts.dict-add-result-is-same-dict dicts
+> d:::{[1 2]}
+> e::d,[3 4]
+> d
+= :{[1 2] [3 4]}
+
+@ dicts.dict-built-by-each dicts
+> d:::{}
+> {d,x,x}'!3
+> d
+= :{[0 0] [1 1] [2 2]}
+
+@ dicts.dict-lookup-after-replace dicts
+> d:::{[1 2]}
+> d,[1 5]
+> d?1
+= 5
+
+@ dicts.dict-counter dicts
+> c:::{}
+> {c,x,1+:[:_(c?x);0;c?x]}'[1 2 1 1]
+> c?1
+= 3
+
+# Size, atoms, each
+@ dicts.dict-size dicts
+> #:{[1 2] [3 4]}
+= 2
+
+@ dicts.dict-size-empty dicts
+> #:{}
+= 0
+
+@ dicts.dict-size-after-duplicate dicts
+> #:{[1 2] [1 3]}
+= 1
+
+@ dicts.dict-atom dicts
+> @:{[1 2]}
+= 1
+
+@ dicts.dict-empty-atom dicts
+> @:{}
+= 1
+
+@ dicts.dict-each-values dicts
+> d:::{[1 2] [3 4]}
+> {x@1}'d
+= [2 4]
+
+@ dicts.dict-each-first dicts
+> *':{[1 2] [3 4]}
+= [1 3]
+
+@ dicts.dict-each-empty dicts
+> *':{}
+= []
+
+@ dicts.dict-each-pairs dicts
+> d:::{[1 2] [3 4]}
+> {x}'d
+= [[1 2] [3 4]]
+
+# Match
+@ dicts.dict-match-same dicts
+> :{[1 2] [3 4]}~:{[1 2] [3 4]}
+= 1
+
+@ dicts.dict-match-order-insensitive dicts
+> :{[1 2] [3 4]}~:{[3 4] [1 2]}
+= 1
+
+@ dicts.dict-match-diff-value dicts
+> :{[1 2] [3 4]}~:{[1 2] [0 4]}
+= 0
+
+@ dicts.dict-match-diff-key dicts
+> :{[1 2] [3 4]}~:{[1 0] [3 4]}
+= 0
+
+@ dicts.dict-match-diff-size dicts
+> :{[1 2]}~:{[1 2] [3 4]}
+= 0
+
+@ dicts.dict-match-not-list dicts
+> :{[1 2]}~[1 2]
+= 0
+
+@ dicts.dict-match-not-atom dicts
+> :{[123 456]}~123
+= 0
+
+@ dicts.dict-match-empty dicts
+> :{}~:{}
+= 1
+
+# Truthiness
+@ dicts.dict-empty-is-true dicts
+> :[:{};1;0]
+= 1
+
+# Errors
+@ dicts.dict-bad-entry dicts
+> :{1}
+! syntax
+
+@ dicts.dict-entry-not-a-pair dicts
+> :{[1]}
+! syntax
+
+@ dicts.dict-join-dict-dict dicts
+> :{[1 2]},:{[3 4]}
+! type
+
+@ dicts.dict-amend-unsupported dicts
+> :{[1 2]}:=9,1
+! type
+

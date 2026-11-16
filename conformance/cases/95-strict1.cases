@@ -1,0 +1,94 @@
+# Strict level 1: input that level 0 accepts with a warning is a syntax error
+@ strict1.ignored-input-after-statement core strict1
+> 1 2 3
+! syntax
+
+@ strict1.ignored-input-call-after-space core strict1
+> f::{x}
+> f (1)
+! syntax
+
+@ strict1.ignored-input-list-pair core strict1
+> 1 2 3+4 5
+! syntax
+
+@ strict1.unterminated-string strings strict1
+> "abc
+! syntax
+
+@ strict1.unterminated-list core strict1
+> [1 2
+! syntax
+
+@ strict1.unterminated-brace core strict1
+> {x
+! syntax
+
+@ strict1.stray-close-bracket core strict1
+> ]
+! syntax
+
+@ strict1.stray-close-paren core strict1
+> )
+! syntax
+
+@ strict1.missing-right-operand core strict1
+> 1+
+! syntax
+
+@ strict1.lone-operator core strict1
+> +
+! syntax
+
+@ strict1.adverb-after-space core strict1
+> {x} '[1 2]
+! syntax
+
+@ strict1.undeclared-local-assignment core strict1
+> {a::5;a}()
+! name
+
+@ strict1.undeclared-local-assignment-other-global-exists core strict1
+> a::1
+> {b::5;b}()
+! name
+
+@ strict1.assignment-to-non-name core strict1
+> 1::5
+! syntax
+
+# Level 1 still accepts what is well formed
+@ strict1.well-formed-arithmetic core strict1
+> 1+2
+= 3
+
+@ strict1.well-formed-declared-local core strict1
+> {[a];a::5;a}()
+= 5
+
+@ strict1.well-formed-call-and-each core strict1
+> f::{x*2}
+> f'[1 2 3]
+= [2 4 6]
+
+@ strict1.well-formed-list-and-index core strict1
+> [10 20 30]@1
+= 20
+
+@ strict1.well-formed-cond core strict1
+> :[0;1:|1;2;3]
+= 2
+
+@ strict1.well-formed-strings strings strict1
+> "ab","cd"
+= "abcd"
+
+@ strict1.well-formed-global-assigned-in-fn core strict1
+> a::1
+> {a::2}()
+> a
+= 2
+
+@ strict1.undefined-name-at-top-level-is-still-a-symbol core strict1
+> foo
+= :foo

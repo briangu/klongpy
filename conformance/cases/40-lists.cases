@@ -1,0 +1,667 @@
+# Join
+@ lists.join-atoms core
+> 1,2
+= [1 2]
+
+@ lists.join-atom-list core
+> 1,[2 3]
+= [1 2 3]
+
+@ lists.join-list-atom core
+> [1 2],3
+= [1 2 3]
+
+@ lists.join-lists core
+> [1 2],[3 4]
+= [1 2 3 4]
+
+@ lists.join-empty-left core
+> [],[1 2]
+= [1 2]
+
+@ lists.join-empty-right core
+> [1 2],[]
+= [1 2]
+
+@ lists.join-empty-both core
+> [],[]
+= []
+
+@ lists.join-chain core
+> 1,2,3
+= [1 2 3]
+
+@ lists.join-nested-keeps-depth core
+> [[1 2]],[3 4]
+= [[1 2] 3 4]
+
+@ lists.join-nested-both core
+> [[1 2]],[[3 4]]
+= [[1 2] [3 4]]
+
+@ lists.join-empty-list-element core
+> [[]],[[]]
+= [[] []]
+
+@ lists.join-symbols core
+> :a,:b
+= [:a :b]
+
+@ lists.join-float-int core float
+> 1,2.5
+= [1.0 2.5]
+
+@ lists.join-enlisted core
+> (,1),(,2)
+= [1 2]
+
+@ lists.join-over-ragged core
+> ,/[[1 2] [3] [4 5]]
+= [1 2 3 4 5]
+
+@ lists.join-strings strings
+> "ab","cd"
+= "abcd"
+
+@ lists.join-string-char strings
+> "ab",0cc
+= "abc"
+
+@ lists.join-char-string strings
+> 0ca,"b"
+= "ab"
+
+@ lists.join-char-char strings
+> 0ca,0cb
+= "ab"
+
+@ lists.join-string-int strings
+> "ab",1
+= ["ab" 1]
+
+@ lists.join-int-string strings
+> 1,"a"
+= [1 "a"]
+
+@ lists.join-list-string strings
+> [1 2],"ab"
+= [1 2 "ab"]
+
+@ lists.join-empty-string strings
+> "",""
+= ""
+
+@ lists.join-string-empty-list strings
+> "ab",[]
+= ["ab"]
+
+# Take
+@ lists.take-fewer core
+> 3#[1 2 3 4 5]
+= [1 2 3]
+
+@ lists.take-all core
+> 5#[1 2 3 4 5]
+= [1 2 3 4 5]
+
+@ lists.take-more-cycles core
+> 7#[1 2 3]
+= [1 2 3 1 2 3 1]
+
+@ lists.take-zero core
+> 0#[1 2 3]
+= []
+
+@ lists.take-from-empty core
+> 3#[]
+= []
+
+@ lists.take-last core
+> (-2)#[1 2 3 4 5]
+= [4 5]
+
+@ lists.take-last-more-cycles core
+> (-7)#[1 2 3]
+= [3 1 2 3 1 2 3]
+
+@ lists.take-last-one core
+> (-1)#[1 2 3]
+= [3]
+
+@ lists.take-rows core
+> 2#[[1 2] [3 4] [5 6]]
+= [[1 2] [3 4]]
+
+@ lists.take-rows-more core
+> 5#[[1 2] [3 4]]
+= [[1 2] [3 4] [1 2] [3 4] [1 2]]
+
+@ lists.take-rows-zero core
+> 0#[[1 2] [3 4]]
+= []
+
+@ lists.take-rows-last core
+> (-1)#[[1 2] [3 4] [5 6]]
+= [[5 6]]
+
+@ lists.take-rows-last-more core
+> (-3)#[[1 2] [3 4]]
+= [[3 4] [1 2] [3 4]]
+
+@ lists.take-rows-single-row core
+> 4#[[0 0]]
+= [[0 0] [0 0] [0 0] [0 0]]
+
+@ lists.take-rows-ragged core
+> 3#[[1] [2 3]]
+= [[1] [2 3] [1]]
+
+@ lists.take-rows-ragged-last core
+> (-3)#[[1] [2 3]]
+= [[2 3] [1] [2 3]]
+
+@ lists.take-rows-rank3 core
+> 3#[[[1 2]] [[3 4]]]
+= [[[1 2]] [[3 4]] [[1 2]]]
+
+@ lists.take-strings-list strings
+> 4#["ab" "cd"]
+= ["ab" "cd" "ab" "cd"]
+
+@ lists.take-string strings
+> 2#"hello"
+= "he"
+
+@ lists.take-string-more strings
+> 10#"abc"
+= "abcabcabca"
+
+@ lists.take-string-last strings
+> (-3)#"hello"
+= "llo"
+
+@ lists.take-symbols core
+> 5#[:a :b]
+= [:a :b :a :b :a]
+
+@ lists.take-zero-from-string strings
+> 0#"abc"
+= ""
+
+@ lists.take-floats core float
+> 4#[1.5 2.5]
+= [1.5 2.5 1.5 2.5]
+
+# Drop
+@ lists.drop-some core
+> 2_[1 2 3 4 5]
+= [3 4 5]
+
+@ lists.drop-all-and-more core
+> 9_[1 2 3]
+= []
+
+@ lists.drop-zero core
+> 0_[1 2 3]
+= [1 2 3]
+
+@ lists.drop-from-empty core
+> 3_[]
+= []
+
+@ lists.drop-last core
+> (-2)_[1 2 3 4 5]
+= [1 2 3]
+
+@ lists.drop-last-more core
+> (-9)_[1 2 3]
+= []
+
+@ lists.drop-rows core
+> 2_[[1 2] [3 4] [5 6]]
+= [[5 6]]
+
+@ lists.drop-string strings
+> 2_"hello"
+= "llo"
+
+@ lists.drop-string-last strings
+> (-2)_"hello"
+= "hel"
+
+@ lists.drop-exact-length core
+> 3_[1 2 3]
+= []
+
+# Find
+@ lists.find-one core
+> [1 2 3]?2
+= [1]
+
+@ lists.find-many core
+> [1 2 3 1 2 1]?1
+= [0 3 5]
+
+@ lists.find-none core
+> [1 2 3]?4
+= []
+
+@ lists.find-in-empty core
+> []?0
+= []
+
+@ lists.find-sublist-element core
+> [[1] [2] [3]]?[2]
+= [1]
+
+@ lists.find-float core float
+> [1.5 2.5]?2.5
+= [1]
+
+@ lists.find-char strings
+> "hello"?0cl
+= [2 3]
+
+@ lists.find-substring strings
+> "xyyyyz"?"yy"
+= [1 2 3]
+
+@ lists.find-substring-none strings
+> "hello"?"z"
+= []
+
+@ lists.find-substring-end strings
+> "hello"?"lo"
+= [3]
+
+@ lists.find-space strings
+> "a b c"?" "
+= [1 3]
+
+@ lists.find-empty-in-empty strings
+> ""?""
+= [0]
+
+@ lists.find-empty-in-string strings
+> "ab"?""
+= [0 1 2]
+
+# Index and apply
+@ lists.index-first core
+> [10 20 30]@0
+= 10
+
+@ lists.index-last core
+> [10 20 30]@2
+= 30
+
+@ lists.index-negative core
+> [10 20 30]@-1
+= 30
+
+@ lists.index-negative-first core
+> [10 20 30]@-3
+= 10
+
+@ lists.index-list core
+> [10 20 30]@[2 0]
+= [30 10]
+
+@ lists.index-list-negative core
+> [10 20 30]@[0 -1]
+= [10 30]
+
+@ lists.index-list-repeat core
+> [10 20 30]@[1 1 1]
+= [20 20 20]
+
+@ lists.index-empty-list core
+> [10 20 30]@[]
+= []
+
+@ lists.index-matrix-row core
+> [[1 2] [3 4]]@1
+= [3 4]
+
+@ lists.index-matrix-rows core
+> [[1 2] [3 4]]@[1 0]
+= [[3 4] [1 2]]
+
+@ lists.index-matrix-twice core
+> ([[1 2] [3 4]]@1)@0
+= 3
+
+@ lists.index-string strings
+> "abc"@1
+= 0cb
+
+@ lists.index-string-negative strings
+> "abc"@-1
+= 0cc
+
+@ lists.index-string-list strings
+> "abc"@[0 -1]
+= "ac"
+
+@ lists.index-by-enumerate core
+> (!10)@[1 3 5 9]
+= [1 3 5 9]
+
+@ lists.index-apply-monad core
+> {x+1}@5
+= 6
+
+@ lists.index-apply-dyad-list core
+> {x+y}@[1 2]
+= 3
+
+@ lists.index-past-end core
+> [1 2 3]@3
+! range
+
+@ lists.index-negative-past-start core
+> [1 2 3]@-4
+! range
+
+@ lists.index-list-with-bad core
+> [1 2 3]@[0 5]
+! range
+
+@ lists.index-string-past-end strings
+> "abc"@3
+! range
+
+@ lists.index-string-negative-past-start strings
+> "abc"@-4
+! range
+
+@ lists.index-empty core
+> []@0
+! range
+
+@ lists.index-matrix-past-end core
+> [[1 2] [3 4]]@2
+! range
+
+@ lists.index-big-negative core
+> [1 2 3]@-100
+! range
+
+# Amend
+@ lists.amend-first core
+> [1 2 3]:=9,0
+= [9 2 3]
+
+@ lists.amend-last-negative core
+> [1 2 3]:=9,-1
+= [1 2 9]
+
+@ lists.amend-middle core
+> [1 2 3]:=9,1
+= [1 9 3]
+
+@ lists.amend-many-indices core
+> [1 2 3]:=0,[0 2]
+= [0 2 0]
+
+@ lists.amend-past-end core
+> [1 2 3]:=9,3
+! range
+
+@ lists.amend-negative-past-start core
+> [1 2 3]:=9,-4
+! range
+
+@ lists.amend-float-promotes core float
+> [1 2 3]:=2.5,1
+= [1.0 2.5 3.0]
+
+@ lists.amend-string strings
+> "abc":="x",1
+= "axc"
+
+@ lists.amend-string-append strings
+> "abc":="xy",3
+= "abcxy"
+
+@ lists.amend-string-past-append strings
+> "abc":="x",4
+! range
+
+@ lists.amend-string-negative strings
+> "abc":=0cz,-1
+= "abz"
+
+@ lists.amend-original-unchanged core
+> a::[1 2 3]
+> b::a:=9,0
+> a
+= [1 2 3]
+
+@ lists.amend-empty core
+> []:=1,0
+! range
+
+@ lists.amend-deep core
+> [[1 2] [3 4]]:-9,[1 0]
+= [[1 2] [9 4]]
+
+@ lists.amend-deep-single-level core
+> [1 2 3]:-9,[1]
+= [1 9 3]
+
+@ lists.amend-deep-out-of-range core
+> [[1 2] [3 4]]:-9,[2 0]
+! range
+
+# Index in depth
+@ lists.indexdepth-one core
+> [[1 2] [3 4]]:@[1 0]
+= 3
+
+@ lists.indexdepth-many core
+> [[1 2] [3 4]]:@[[0 1] [1 0]]
+= [2 3]
+
+# Cut
+@ lists.cut-three core
+> [1 4 7]:_!10
+= [[0] [1 2 3] [4 5 6] [7 8 9]]
+
+@ lists.cut-at-start core
+> [0]:_!10
+= [[] [0 1 2 3 4 5 6 7 8 9]]
+
+@ lists.cut-at-end core
+> [10]:_!10
+= [[0 1 2 3 4 5 6 7 8 9] []]
+
+@ lists.cut-string strings
+> [2 4]:_"abcdef"
+= ["ab" "cd" "ef"]
+
+@ lists.cut-empty-pieces core
+> (!6):_!5
+= [[] [0] [1] [2] [3] [4] []]
+
+# Reshape
+@ lists.reshape-2x3 core
+> [2 3]:^!6
+= [[0 1 2] [3 4 5]]
+
+@ lists.reshape-3x2 core
+> [3 2]:^!6
+= [[0 1] [2 3] [4 5]]
+
+@ lists.reshape-flat core
+> [6]:^!6
+= [0 1 2 3 4 5]
+
+@ lists.reshape-cycles core
+> [2 2]:^!3
+= [[0 1] [2 0]]
+
+@ lists.reshape-truncates core
+> [2]:^[1 2 3 4]
+= [1 2]
+
+@ lists.reshape-rank3 core
+> [2 2 2]:^!8
+= [[[0 1] [2 3]] [[4 5] [6 7]]]
+
+@ lists.reshape-from-empty-zero core
+> [0]:^[]
+= []
+
+@ lists.reshape-from-empty-nonzero core
+> [2 3]:^[]
+! range
+
+@ lists.reshape-then-shape core
+> ^[3 4]:^!12
+= [3 4]
+
+# Rotate
+@ lists.rotate-right core
+> 1:+[1 2 3 4 5]
+= [5 1 2 3 4]
+
+@ lists.rotate-left core
+> (-1):+[1 2 3 4 5]
+= [2 3 4 5 1]
+
+@ lists.rotate-wraps core
+> 7:+[1 2 3]
+= [3 1 2]
+
+@ lists.rotate-zero core
+> 0:+[1 2 3]
+= [1 2 3]
+
+@ lists.rotate-string strings
+> 1:+"abc"
+= "cab"
+
+@ lists.rotate-empty core
+> 1:+[]
+= []
+
+# Split
+@ lists.split-uneven core
+> 2:#[1 2 3 4 5]
+= [[1 2] [3 4] [5]]
+
+@ lists.split-sizes core
+> [2 1]:#[1 2 3]
+= [[1 2] [3]]
+
+@ lists.split-sizes-short core
+> [2 1 2]:#[1 2 3 4 5]
+= [[1 2] [3] [4 5]]
+
+@ lists.split-string strings
+> 2:#"hello"
+= ["he" "ll" "o"]
+
+@ lists.split-larger-than-list core
+> 5:#[1 2]
+= [[1 2]]
+
+@ lists.split-one core
+> 1:#[1 2 3]
+= [[1] [2] [3]]
+
+@ lists.split-rows core
+> 2:#[[1 2] [3 4] [5 6]]
+= [[[1 2] [3 4]] [[5 6]]]
+
+@ lists.split-empty core
+> 3:#[]
+= []
+
+@ lists.split-zero-size core
+> 0:#[1 2 3]
+! range
+
+@ lists.split-negative-size core
+> (-2):#[1 2 3]
+! range
+
+@ lists.split-empty-sizes core
+> []:#[1 2 3]
+! range
+
+@ lists.split-zero-in-sizes core
+> [1 0]:#[1 2 3]
+! range
+
+# More reshape, amend and shape cases (tickets 010, 015)
+@ lists.reshape-minus-one-rows core
+> [-1 2]:^[1 2 3 4 5 6]
+= [[1 2] [3 4] [5 6]]
+
+@ lists.reshape-minus-one-cols core
+> [2 -1]:^!10
+= [[0 1 2 3 4] [5 6 7 8 9]]
+
+@ lists.reshape-other-negative core
+> [-2 3]:^[1 2 3 4 5 6]
+! range
+
+@ lists.reshape-empty-string-nonzero strings
+> [2 2]:^""
+! range
+
+@ lists.reshape-scalar-shape-from-empty core
+> 5:^[]
+! range
+
+@ lists.amend-string-grow-by-two strings
+> "abc":="def",3
+= "abcdef"
+
+@ lists.amend-string-grow-by-one strings
+> "abc":="x",3
+= "abcx"
+
+@ lists.amend-string-overlap-and-grow strings
+> "aa":="bc",1
+= "abc"
+
+@ lists.amend-string-char-many-places strings
+> "-----":=0cx,[1 3]
+= "-x-x-"
+
+@ lists.amend-string-pair-many-places strings
+> "-------":="xx",[1 4]
+= "-xx-xx-"
+
+@ lists.amend-float-into-int-list core float
+> [1 2 3]:=0.5,1
+= [1.0 0.5 3.0]
+
+@ lists.amend-int-into-int-list core
+> [1 2 3]:=0,1
+= [1 0 3]
+
+@ lists.amend-negative-index-variable core
+> a::[1 2 3]
+> a:=7,-1
+= [1 2 7]
+
+@ lists.shape-ragged-depth core
+> ^[[[1]] [[2] [3]]]
+= [2]
+
+@ lists.shape-ragged-scalar-and-list core
+> ^[1 [2]]
+= [2]
+
+@ lists.shape-nested-strings strings
+> ^[["ab" "cd"] ["ef" "gh"]]
+= [2 2 2]
+
+@ lists.shape-list-of-strings-same-length strings
+> ^["abcd" "efgh"]
+= [2 4]
+

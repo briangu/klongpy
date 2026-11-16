@@ -1,0 +1,237 @@
+# Type errors
+@ errors.err-type-int-plus-string strings
+> 1+"a"
+! type
+
+@ errors.err-type-string-plus-int strings
+> "a"+1
+! type
+
+@ errors.err-type-list-plus-string strings
+> [1 2]+"ab"
+! type
+
+@ errors.err-type-int-plus-symbol core
+> 1+:a
+! type
+
+@ errors.err-type-list-with-string strings
+> 1+[1 "a"]
+! type
+
+@ errors.err-type-negate-string strings
+> -"a"
+! type
+
+@ errors.err-type-negate-symbol core
+> -:a
+! type
+
+@ errors.err-type-fn-plus-int core
+> {x}+1
+! type
+
+@ errors.err-type-char-plus-int strings
+> 0ca+1
+! type
+
+# Shape errors
+@ errors.err-shape-plus core
+> [1 2 3]+[1 2]
+! shape
+
+@ errors.err-shape-times core
+> [1 2]*[1 2 3 4]
+! shape
+
+@ errors.err-shape-equal core
+> [1 2 3]=[1 2]
+! shape
+
+@ errors.err-shape-less core
+> [1 2]<[1 2 3]
+! shape
+
+@ errors.err-shape-nested core
+> [[1 2] [3 4]]+[1 2 3]
+! shape
+
+@ errors.err-shape-nested-inner core
+> [[1 2] [3 4]]+[[1 2 3] [4 5 6]]
+! shape
+
+@ errors.err-shape-min core
+> [1 2]&[1 2 3]
+! shape
+
+@ errors.err-shape-singleton core
+> [1 2 3]+[1]
+! shape
+
+# Range errors
+@ errors.err-range-index core
+> [1 2 3]@3
+! range
+
+@ errors.err-range-index-negative core
+> [1 2 3]@-4
+! range
+
+@ errors.err-range-index-list core
+> [1 2 3]@[0 7]
+! range
+
+@ errors.err-range-index-string strings
+> "abc"@3
+! range
+
+@ errors.err-range-index-empty core
+> []@0
+! range
+
+@ errors.err-range-amend core
+> [1 2 3]:=9,3
+! range
+
+@ errors.err-range-amend-negative core
+> [1 2 3]:=9,-4
+! range
+
+@ errors.err-range-amend-string strings
+> "abc":="x",4
+! range
+
+@ errors.err-range-reshape-empty core
+> [2 3]:^[]
+! range
+
+@ errors.err-range-split-zero core
+> 0:#[1 2 3]
+! range
+
+@ errors.err-range-split-negative core
+> (-1):#[1 2 3]
+! range
+
+@ errors.err-range-split-empty-sizes core
+> []:#[1 2 3]
+! range
+
+@ errors.err-range-iterate-negative core
+> (-1){x+1}:*0
+! range
+
+@ errors.err-range-scan-iterate-negative core
+> (-1){x+1}\*0
+! range
+
+@ errors.err-range-recursion core device
+> f::{f(x)}
+> f(1)
+! range
+
+# Name errors
+@ errors.err-name-call-undefined core
+> f(1)
+! name
+
+@ errors.err-name-call-undefined-2 core
+> nosuchfn(1;2)
+! name
+
+@ errors.err-name-call-undefined-in-fn core
+> g::{h(x)}
+> g(1)
+! name
+
+@ errors.err-name-sysfn core
+> .nosuchsysfn(1)
+! name
+
+# System errors
+@ errors.err-system-open-missing strings sysio
+> .ic("/nonexistent-dir-conformance/x")
+! system
+
+@ errors.err-system-load-missing strings sysio
+> .l("/nonexistent-dir-conformance/x.kg")
+! system
+
+# Syntax errors that are errors at every strict level
+@ errors.err-syntax-unclosed-paren core
+> (1
+! syntax
+
+@ errors.err-syntax-unclosed-brace core
+> {x
+! syntax
+
+@ errors.err-syntax-unclosed-cond core
+> :[1;2
+! syntax
+
+@ errors.err-syntax-cond-too-few core
+> :[1;2]
+! syntax
+
+@ errors.err-syntax-cond-too-many core
+> :[1;2;3;4]
+! syntax
+
+@ errors.err-syntax-missing-right-operand core
+> 1+
+! syntax
+
+@ errors.err-syntax-lone-operator core
+> +
+! syntax
+
+@ errors.err-syntax-lone-at core
+> @
+! syntax
+
+@ errors.err-syntax-empty-parens core
+> ()
+! syntax
+
+@ errors.err-syntax-two-items-in-parens core
+> (1 2)
+! syntax
+
+@ errors.err-syntax-dict-entry-not-pair dicts
+> :{1}
+! syntax
+
+@ errors.err-syntax-dict-entry-one dicts
+> :{[1]}
+! syntax
+
+@ errors.err-syntax-unclosed-brace-after-def core
+> f::{x+1
+! syntax
+
+# Empty arguments and zero divisors are not errors
+@ errors.edge-division-by-zero-is-undefined core
+> 1%0
+= :undefined
+
+@ errors.edge-empty-list-first core
+> *[]
+= []
+
+@ errors.edge-empty-list-over core
+> +/[]
+= []
+
+@ errors.edge-take-from-empty core
+> 3#[]
+= []
+
+@ errors.edge-grade-empty core
+> <[]
+= []
+
+@ errors.edge-reverse-empty core
+> |[]
+= []
+

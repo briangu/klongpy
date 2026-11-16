@@ -1,0 +1,282 @@
+# Spacing and layout that parse the same way
+@ syntax.space-after-adverb core
+> +/ [1 2 3]
+= 6
+
+@ syntax.space-around-index core
+> [1 2 3] @ 1
+= 2
+
+@ syntax.space-before-index-arg core
+> [1 2 3]@ 1
+= 2
+
+@ syntax.space-after-index core
+> [1 2 3] @1
+= 2
+
+@ syntax.space-in-parens-expr core
+> (1+2) * 3
+= 9
+
+@ syntax.space-in-cond core
+> :[ 1 ; 2 ; 3 ]
+= 2
+
+@ syntax.space-minus-binary core
+> 1 - 1
+= 0
+
+@ syntax.space-minus-name-and-literal core
+> a::5
+> a -1
+= 4
+
+@ syntax.space-minus-name-after core
+> a::5
+> a- 1
+= 4
+
+@ syntax.space-monad-minus-list core
+> - [1 2]
+= [-1 -2]
+
+@ syntax.adverb-adjacent-to-fn-literal core
+> {x+1}'[1 2]
+= [2 3]
+
+@ syntax.adverb-adjacent-to-name core
+> a::{x+1}
+> a'[1 2]
+= [2 3]
+
+@ syntax.call-adjacent-parens core
+> a::{x+1}
+> a(1)
+= 2
+
+@ syntax.dyad-adjacent-names core
+> a::2
+> b::3
+> a*b
+= 6
+
+@ syntax.leading-semicolon core
+> ;1
+= 1
+
+@ syntax.trailing-semicolon core
+> 1+2;
+= 3
+
+@ syntax.statements-on-one-line core
+> 1+2;3+4
+= 7
+
+@ syntax.reassign-uses-old-value core
+> a::5;a::a+1;a
+= 6
+
+@ syntax.assign-in-expression core
+> 2+b::3
+= 5
+
+@ syntax.assign-chain core
+> a::b::3
+> a+b
+= 6
+
+@ syntax.assign-value-semantics core
+> x::[1 2 3]
+> y::x:=9,0
+> x
+= [1 2 3]
+
+@ syntax.dict-assign-triple-colon dicts
+> a:::{}
+> #a
+= 0
+
+# Data lists are not evaluated
+@ syntax.datalist-names-are-symbols core
+> a::1
+> b::2
+> [a b]
+= [:a :b]
+
+@ syntax.datalist-evaluated-form core
+> a::1
+> b::2
+> [;a;b]
+= [1 2]
+
+@ syntax.datalist-minus-fuses core
+> [1 -1]
+= [1 -1]
+
+@ syntax.datalist-minus-fuses-nospace core
+> [1-1]
+= [1 -1]
+
+@ syntax.datalist-name-then-negative core
+> a::5
+> [a -1]
+= [:a -1]
+
+@ syntax.datalist-nested-brackets core
+> [[1] [[2]]]
+= [[1] [[2]]]
+
+@ syntax.datalist-negative-first core
+> [-1 2]
+= [-1 2]
+
+@ syntax.datalist-float-negative core float
+> [-1.5 2]
+= [-1.5 2.0]
+
+@ syntax.datalist-with-char-and-number strings
+> [0ca 1]
+= [0ca 1]
+
+@ syntax.datalist-newlines core
+> [1
+> 2
+> 3]
+= [1 2 3]
+
+# Negative numbers and unary minus
+@ syntax.minus-literal-after-dyad core
+> 5--3
+= 8
+
+@ syntax.minus-literal-after-dyad-2 core
+> 5+-3
+= 2
+
+@ syntax.minus-monad-takes-whole-right core
+> -3+5
+= -8
+
+@ syntax.minus-parenthesised-literal core
+> (-3)+5
+= 2
+
+@ syntax.minus-name core
+> a::3
+> -a
+= -3
+
+@ syntax.minus-name-then-dyad core
+> a::3
+> -a+1
+= -4
+
+@ syntax.minus-on-call core
+> f::{x}
+> -f(2)
+= -2
+
+@ syntax.minus-twice core
+> --5
+= 5
+
+@ syntax.minus-after-open-paren core
+> (-3)
+= -3
+
+@ syntax.negative-in-call-args core
+> {x+y}(-1;-2)
+= -3
+
+@ syntax.negative-literal-index core
+> [1 2 3]@-1
+= 3
+
+@ syntax.negative-take-needs-parens core
+> (-2)#[1 2 3 4]
+= [3 4]
+
+@ syntax.negative-literal-float core float
+> 1.5+-0.5
+= 1.0
+
+# Multi-line programs
+@ syntax.multiline-cond core
+> :[1;
+> 2;
+> 3]
+= 2
+
+@ syntax.multiline-fn-body core
+> f::{[a];
+> a::x*2;
+> a+1}
+> f(5)
+= 11
+
+@ syntax.multiline-list-literal core
+> [1 2
+> 3 4]
+= [1 2 3 4]
+
+@ syntax.multiline-fn-call-args core
+> {x+y}(1;
+> 2)
+= 3
+
+@ syntax.multiline-string strings
+> "a
+> b"
+= "a
+= b"
+
+@ syntax.blank-lines-ignored core
+> a::1
+>
+>
+> b::2
+>
+> a+b
+= 3
+
+@ syntax.comment-between-statements core
+> a::1
+> :"note"
+> a+1
+= 2
+
+@ syntax.comment-after-expression core
+> 3:"three"
+= 3
+
+@ syntax.comment-with-semicolon-and-brackets core
+> :"a; [b] {c}"
+> 7
+= 7
+
+@ syntax.comment-doubled-quote-inside core
+> :"say ""x"""
+> 8
+= 8
+
+@ syntax.comment-in-fn-body core
+> f::{[a];a::x;:"c";a+1}
+> f(1)
+= 2
+
+@ syntax.comment-at-end-no-newline core
+> 5
+> :"end"
+= 5
+
+# Parse errors: the same at every strict level
+@ syntax.syntax-adverb-after-space-on-name core
+> a::{x+1}
+> a '[1 2]
+! syntax
+
+@ syntax.syntax-unexpected-close-in-fn core
+> {x+1)}
+! syntax
+
