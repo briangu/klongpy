@@ -5,6 +5,7 @@ import importlib.abc
 import importlib.util
 import inspect
 import os
+import re
 import subprocess
 import sys
 import time
@@ -325,6 +326,138 @@ def eval_sys_print(klong, x):
     o = kg_write(x, klong._backend, display=True)
     klong['.sys.cout'].raw.write(o+"\n")
     return o
+
+
+_FMT_SPEC_RE = re.compile(r"-?\d+(\.\d+)?")
+
+
+def _fmt_error(template, msg):
+    # TODO(040): KlongRangeError
+    return KlongException(f".fmt: {msg} in template {template!r}")
+
+
+def _fmt_parse(template):
+    """Split a template into literal strings and (index, spec) tuples; index is None for {}."""
+    parts = []
+    lit = []
+    i, n = 0, len(template)
+    while i < n:
+        c = template[i]
+        if c == "{":
+            if template[i+1:i+2] == "{":
+                lit.append("{")
+                i += 2
+                continue
+            j = template.find("}", i)
+            if j < 0:
+                raise _fmt_error(template, "unmatched '{'")
+            body = template[i+1:j]
+            idx_s, colon, spec = body.partition(":")
+            if idx_s != "" and not idx_s.isdigit():
+                raise _fmt_error(template, f"bad placeholder '{{{body}}}'")
+            if colon and not _FMT_SPEC_RE.fullmatch(spec):
+                raise _fmt_error(template, f"bad format '{spec}' in placeholder '{{{body}}}'")
+            if lit:
+                parts.append("".join(lit))
+                lit = []
+            parts.append((int(idx_s) if idx_s else None, spec if colon else None))
+            i = j + 1
+        elif c == "}":
+            if template[i+1:i+2] == "}":
+                lit.append("}")
+                i += 2
+                continue
+            raise _fmt_error(template, "unmatched '}'")
+        else:
+            lit.append(c)
+            i += 1
+    if lit:
+        parts.append("".join(lit))
+    return parts
+
+
+def _fmt_render(klong, template, args):
+    if not isinstance(template, str):
+        # TODO(040): KlongTypeError
+        raise KlongException(f".fmt: template must be a string, got {type(template).__name__}")
+    from .dyads import _e_dyad_format2
+    backend = klong._backend
+    args = _to_display_value(args, backend)
+    args = list(args) if (is_list(args) and not isinstance(args, str)) else [args]
+    parts = _fmt_parse(template)
+    holes = [p for p in parts if not isinstance(p, str)]
+    auto = [h for h in holes if h[0] is None]
+    if auto and len(auto) != len(holes):
+        # TODO(040): KlongRangeError
+        raise _fmt_error(template, "cannot mix {} and {N} placeholders")
+    if auto and len(auto) != len(args):
+        # TODO(040): KlongRangeError
+        raise _fmt_error(template, f"{len(auto)} placeholder(s) but {len(args)} argument(s)")
+    out = []
+    nxt = 0
+    for p in parts:
+        if isinstance(p, str):
+            out.append(p)
+            continue
+        idx, spec = p
+        if idx is None:
+            idx, nxt = nxt, nxt + 1
+        if idx >= len(args):
+            # TODO(040): KlongRangeError
+            raise _fmt_error(template, f"index {idx} out of range for {len(args)} argument(s)")
+        v = args[idx]
+        if spec is None:
+            out.append(kg_write(v, backend, display=True))
+        elif "." in spec:
+            if isinstance(v, bool) or not isinstance(v, (int, float, numpy.integer, numpy.floating)):
+                # TODO(040): KlongTypeError
+                raise _fmt_error(template, f"format '{spec}' needs a number, got {kg_write(v, backend, display=True)!r}")
+            out.append(_e_dyad_format2(float(spec), float(v), backend))
+        else:
+            out.append(_e_dyad_format2(int(spec), kg_write(v, backend, display=True), backend))
+    return "".join(out)
+
+
+def eval_sys_format(klong, x, y):
+    """
+
+        .fmt(x;y)                                               [Format]
+
+        Return the template string "x" with its placeholders replaced by
+        the arguments in "y". If "y" is a list (not a string), its elements
+        are the arguments; otherwise "y" is the single argument. To pass one
+        list as the only argument, wrap it: .fmt("{}";,[1 2 3]).
+
+        Placeholders: "{}" takes the next argument, "{0}", "{1}" take by
+        index (the two styles may not be mixed), "{{" and "}}" are literal
+        braces. A format may follow a colon, as in "{:8}", "{0:-8}" and
+        "{:5.2}", and is applied like Format2 (n$value): a positive width
+        pads on the right, a negative width on the left, and a fractional
+        format such as 5.2 formats a number (an integer is converted to a
+        real first). Arguments are rendered as Display does.
+
+        Examples:   .fmt("Spot: {}";3.5)       -->  "Spot: 3.5"
+                    .fmt("{1} {0}";[;1;2])     -->  "2 1"
+                    .fmt("{:5.2}";3)           -->  " 3.00"
+
+    """
+    return _fmt_render(klong, x, y)
+
+
+def eval_sys_print_format(klong, x, y):
+    """
+
+        .pf(x;y)                                          [Print-Format]
+
+        Like Format (.fmt), but also write the result and a newline
+        sequence to the current output channel. Return the string.
+
+        Example:   .pf("a={}";1)   writes  a=1
+
+    """
+    r = _fmt_render(klong, x, y)
+    klong['.sys.cout'].raw.write(r + "\n")
+    return r
 
 
 def eval_sys_backend_print(klong, x):
