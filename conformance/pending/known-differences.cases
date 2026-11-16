@@ -49,29 +49,3 @@
 !type
 : reason Where of a string is reported as a range error; the operand has the wrong type.
 : actual error: range
-
-@ pending.strict2-undefined-name-at-top-level core strict2
-> foo
-!name
-: reason Level 2: reading a name that is not defined is a name error. Level 2 is not implemented yet (ticket 051): the result is :foo.
-: actual :foo
-
-@ pending.strict2-quoted-symbol-with-variable core strict2
-> a::1
-> :a
-= :a
-: reason Level 2: `:a` is the symbol even when a variable `a` exists. Currently 1.
-: actual 1
-
-@ pending.strict2-local-read-before-assign core strict2
-> {[a];a}()
-!name
-: reason Level 2: reading a declared local before assigning it is a name error. Currently :a.
-: actual :a
-
-@ pending.strict2-extra-arguments core strict2
-> f::{x}
-> f(1;2)
-!arity
-: reason Level 2: more arguments than the function takes is an arity error. Currently the extra argument is dropped.
-: actual 1

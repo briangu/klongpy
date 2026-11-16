@@ -1,0 +1,18 @@
+# Strict level 2: undefined names, quoted symbols, locals and extra arguments
+@ strict2.undefined-name-at-top-level core strict2
+> foo
+! name
+
+@ strict2.quoted-symbol-with-variable core strict2
+> a::1
+> :a
+= :a
+
+@ strict2.local-read-before-assign core strict2
+> {[a];a}()
+! name
+
+@ strict2.extra-arguments core strict2
+> f::{x}
+> f(1;2)
+! arity
