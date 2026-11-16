@@ -225,10 +225,11 @@ def _backend_name(klong):
 
 
 def to_wire_value(klong, v):
-    """Backend arrays (torch tensors) to numpy before encoding (UNTESTED here: torch is not installed).
+    """Backend arrays (torch tensors) to numpy before encoding (tests/test_torch_regressions.py).
 
-    Only values that are backend arrays, and lists of them, are touched; the
-    numpy backend returns everything unchanged and costs nothing.
+    Only values that are backend arrays, and lists and dictionaries holding
+    them, are touched; the numpy backend returns everything unchanged and
+    costs nothing.
     """
     be = _backend(klong)
     if be is None or _backend_name(klong) == "numpy":
@@ -238,6 +239,8 @@ def to_wire_value(klong, v):
             return be.to_numpy(v)
         if isinstance(v, (list, tuple)):
             return [to_wire_value(klong, x) for x in v]
+        if type(v) is dict:
+            return {to_wire_value(klong, key): to_wire_value(klong, x) for key, x in v.items()}
         if isinstance(v, np.ndarray) and v.dtype == object:
             out = np.empty(len(v), dtype=object)
             for i, x in enumerate(v):
@@ -249,7 +252,7 @@ def to_wire_value(klong, v):
 
 
 def _from_wire_array(klong, v):
-    """Decoded numeric numpy arrays to the backend's array type (UNTESTED with torch)."""
+    """Decoded numeric numpy arrays to the backend's array type (tests/test_torch_regressions.py)."""
     if isinstance(v, np.ndarray) and v.dtype.kind in "if" and _backend_name(klong) != "numpy":
         try:
             return _backend(klong).kg_asarray(v)
@@ -404,7 +407,7 @@ def evaluate_request(klong, value):
     if items is None:
         return value
     callee, args = items[0], items[1:]
-    if (len(items) == 3 and (callee == "set" and isinstance(callee, (str, KGSym)))
+    if (len(items) == 3 and isinstance(callee, (str, KGSym)) and str(callee) == "set"       # KGSym("set") != "set"
             and isinstance(args[0], KGSym) and not klong._context.is_defined_sym(_SET_SYM)):
         klong[args[0]] = lambda_value(klong, args[1])
         return KLONG_UNDEFINED
@@ -876,6 +879,9 @@ def function_source_text(fn):
     receiver parses the text, so names in the body are the receiver's.
     """
     if getattr(fn, 'args', None) is not None:
+        return None
+    if getattr(getattr(fn, 'a', None), 'params', None) is not None:
+        # f(a;b)::{...}: the parameter list is not part of the literal's text
         return None
     node = fn if getattr(fn, 'span', None) is not None else getattr(fn, '_origin', None)
     span = getattr(node, 'span', None)
