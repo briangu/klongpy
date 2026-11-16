@@ -74,6 +74,7 @@ See the [REPL Reference](repl.md) for more information on commands and operation
 
 Now that you've installed KlongPy and run a simple session, you're ready to dive deeper. Check out the following resources:
 
+- [Tutorial](tutorial.md) - the language from the first expression to functions, adverbs, dictionaries and files.
 - [Examples](examples.md) - hands-on code examples.
 - [Python Integration](python_integration.md) - interop with Python modules and data.
 - [PyTorch Backend & Autograd](torch_backend.md) - gradients, Jacobians, and compilation.

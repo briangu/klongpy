@@ -12,7 +12,7 @@ Less code to write and faster execution.
 
 ---
 
-Just so the following examples make more sense when you see the REPL outputs, there are a few quick rules about Klong functions.  Functions only take up to 3 parameters and they are ALWAYS called x,y and z.
+Just so the following examples make more sense when you see the REPL outputs, there are a few quick rules about Klong functions.  Functions written with `x`, `y` and `z` take up to 3 parameters, named for you. (For more, or for names of your own, see [named parameters](language-additions.md#named-parameters).)
 
 A function with
 
@@ -21,7 +21,7 @@ A function with
 * two parameters: dyad (x and y)
 * three parameters: a triad (x, y and z)
 
-The reason that Klong functions only take up to 3 parameters AND name them for you is both convenience and compactness.
+A function has as many parameters as the highest of `x`, `y` and `z` that its body uses, so `{-x}` is a monad and `{y}` is a dyad. Naming the parameters for you is both convenience and compactness.
 
 ---
 

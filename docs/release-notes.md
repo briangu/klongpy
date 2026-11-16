@@ -6,6 +6,84 @@ This list is the changes that can alter what an existing program does or prints.
 
 "Old" means the last release, 0.7.0. Where the old behaviour was an unrelated Python error, only its kind is given.
 
+### Syntax that changed meaning
+
+These inputs were accepted by the last release and ran without an error, and now mean something else. A program that contains one of them can give a different result. [`kgpy --lint`](lint.md) and [strict mode](strict.md) point at some of them. The old behaviour shown is that of the last release; the examples print what the interpreter now does.
+
+**`[a b]::v` binds the names.** A list of names on the left of `::` used to be accepted, to evaluate the right side and to bind nothing. It is now a [destructuring](language-additions.md#destructuring): `a` and `b` are set to the members of `v`, so a name that already held a value changes. `a::5;[a b]::[1 2];a` was 5 and is 1. A list on the left that is not a list of distinct plain names (nested, repeated, `x y z`, empty) still binds nothing at strict level 0, now with a warning, and is a syntax error at level 1 and 2. A wrong number of members is a `shape` error, and a right side that is not a list is a `type` error.
+
+```kgpy
+?> a::5
+5
+?> [a b]::[1 2]
+[1 2]
+?> a
+1
+?> [a b]::[1 2 3]
+error: cannot destructure 3 values into 2 names
+```
+
+**`f(a;b)::{...}` defines `f`.** It used to evaluate the call `f(a;b)` and define nothing, so `f` stayed undefined. If `f`, `a` and `b` existed, it called `f` and threw the result away. It is now a definition with [named parameters](language-additions.md#named-parameters), and it is not limited to three: `f(a;b;c;d)::{...}` is allowed.
+
+```kgpy
+?> f(a;b)::{a+b}
+:dyad
+?> f(1;2)
+3
+?> g(a;b;c;d)::{a+b+c+d}
+:triad
+?> g(1;2;3;4)
+10
+```
+
+**`d@"k"` returns the value.** On a dictionary, `d@k` returned the dictionary itself when `k` was a string, symbol or real number, and raised a Python `KeyError` for a missing integer key. It is now the same as `d?k` for every key: the value, or `:undefined` when the key is missing. `d@[k1 k2]` is the list of values. `$d` was Python's text for a dictionary, `{'a': 1}`, and is now the Klong form. See [Dictionaries](language-additions.md#dictionaries).
+
+```kgpy
+?> d:::{["a" 1] ["b" 2]}
+:{["a" 1] ["b" 2]}
+?> d@"a"
+1
+?> d@"zz"
+:undefined
+?> d@["a" "b"]
+[1 2]
+?> $d
+":{[""a"" 1] [""b"" 2]}"
+```
+
+**The arity of `{-x}` is one.** A function's arity is the highest of `x`, `y` and `z` its body uses, wherever it uses them. It was the highest used outside a monad or a call, so `{-x}`, `{#x}` and `{g(x+1)}` counted as having no arguments, and `{y}` as having one. The display, calls from Python, projections and the choice of monad or dyad under an adverb all follow the arity. `f::{-x}` displays as `:monad`, where it displayed as `:nilad`, and `klong['f'](5)` from Python is -5, where it raised an arity error. A written call such as `f(5)` worked before and still does. The arguments of a nested function literal do not count toward the enclosing function. See [How many arguments a function takes](language-additions.md#how-many-arguments-a-function-takes).
+
+```kgpy
+?> f::{-x}
+:monad
+?> f(5)
+-5
+?> g::{#x}
+:monad
+?> h::{x+z}
+:triad
+```
+
+**`{y}(1)` is an incomplete call, not `:y`.** `{y}` has two arguments now. A call with one of them used to bind it to `x` and return the unbound `y` as the symbol `:y`. It now gives a function value, as `{x+y}(1)` always has, and the value is not completed by calling it again. A projection is written with the empty slot, `{y}(1;)`, and is completed by `p(5)`. A call with every argument, `{y}(1;2)`, is 2.
+
+```kgpy
+?> {y}(1;2)
+2
+?> p::{y}(1;)
+:dyad
+?> p(5)
+5
+```
+
+**A recursive call through `.f` has its own locals.** `.f` called itself without declaring the function's locals, so the inner call changed the outer call's variable. `f::{[t];t::x;:[x<2;t;t+.f(x-1)]};f(3)` was 3, where the same function written with its own name gives 6.
+
+```kgpy
+?> f::{[t];t::x;:[x<2;t;t+.f(x-1)]}
+:monad
+?> f(3)
+6
+```
+
 ### Parser
 
 **A string or character that looks like punctuation is a string or character.** `"{"`, `";"`, `")"`, `":["`, `0c{` and the like were taken for the opener, separator or closer they spell. `"{"` was a syntax error, `";"` at the start of a statement was an empty statement, `f(")")` was a syntax error and `["[" 1 2]` was the nested list `[[1 2]]`.
@@ -150,6 +228,43 @@ error: :^: cannot fill a non-empty shape from an empty source
 error: ,: a dictionary can only be joined with a tuple (a list of two members) or a dictionary
 ```
 
+**Take with a number or a symbol on the right repeats it.** `3#7` was a Python `TypeError`, and `2#:foo` took two characters of the string `"foo"`. An atom is repeated, and `0#7` is the empty list.
+
+```kgpy
+?> 3#7
+[7 7 7]
+?> (-3)#7
+[7 7 7]
+?> 0#7
+[]
+?> 2#:foo
+[:foo :foo]
+```
+
+**Integers beyond 64 bits are exact.** An operand outside the 64-bit range made `+ - * % < > | &` fail with a Python `OverflowError`, although the language already made such integers (`2^64`, a long literal). The operation is now done on exact integers, in a list as well as on a scalar, and a result that fits in 64 bits again is an ordinary integer. Operands that are both inside 64 bits keep their wrap-around, as before: `9223372036854775807+1` is `-9223372036854775808`. `^` is computed in floating point, so `10^400` is still an error, and `!` is an error for such an operand. The compiled fast path and the interpreter now give the same answer for these expressions.
+
+```kgpy
+?> 1+9223372036854775808
+9223372036854775809
+?> [1 2]+9223372036854775808
+[9223372036854775809 9223372036854775810]
+?> 9223372036854775808*3
+27670116110564327424
+?> 9223372036854775807+1
+-9223372036854775808
+?> 10^400
+error: cannot apply ^ (Power) to integer and integer
+```
+
+**Each on a symbol passes the symbol.** `f'x` with a symbol `x` is `f(x)`. The symbol was taken for the string of its name and iterated over its characters.
+
+```kgpy
+?> s:::foo
+:foo
+?> {x}'s
+:foo
+```
+
 ### System functions
 
 **`.sys` runs a shell command and returns its exit status.** It tried to start a program named by the whole string.
@@ -165,6 +280,134 @@ error: ,: a dictionary can only be joined with a tuple (a list of two members) o
 ?> .timer("t";-1;{1})
 error: y must be a non-negative number
 ```
+
+**`.pyc` passes positional arguments.** A Python function that takes its arguments by position lost them when called through `.pyc`. `hypot(3;4)` gave 0.0.
+
+```kgpy
+?> .pyf("math";"hypot")
+1
+?> .pyc("hypot";[3 4];:{})
+5.0
+```
+
+**`.webc` stops a web server.** `.webc(h)` returned 0 and left the server running, because it did not recognise the handle that `.web` returns. It returns 1 and stops the server. See [the web server](web_server.md).
+
+**A missing key in a `.kvs` store is `:undefined`.** It raised an error carrying the key as its message, where [the key-value store page](table_and_key_value_stores.md) says `:undefined`.
+
+<!-- check-docs: requires duckdb pandas -->
+```kgpy
+?> .py("klongpy.db")
+1
+?> kvs::.kvs("/tmp/kvs-missing")
+/tmp/kvs-missing:kvs
+?> kvs?"nothing"
+:undefined
+```
+
+**`.db` accepts a dictionary literal that holds tables.** `.db(:{["T" T]})` built a database whose queries failed with `'Database' object has no attribute 'user'`. It now works like `.db(:{},"T",,T)`.
+
+<!-- check-docs: requires duckdb pandas -->
+```kgpy
+?> .py("klongpy.db")
+1
+?> T::.table([["a" [1 2 3]] ["b" [4 5 6]]])
+a b
+1 4
+2 5
+3 6
+?> db::.db(:{["T" T]})
+:db
+?> db("select sum(a) from T")
+6.0
+```
+
+**New: `.fmt`, `.pf` and `.grad`.** `.fmt(template;args)` and `.pf(template;args)` format text with `{}` placeholders, and `.grad(f;x)` is the ASCII name of `x∇f`. See [Friendlier syntax](language-additions.md#formatted-text).
+
+### Strict mode
+
+The default stays level 0, which behaves as before. See [Strict mode](strict.md) for the rules.
+
+**`.strict(n)` sets level `n`.** `.strict(2)` and `.strict(0)` were accepted and silently set level 1, because the extra argument was dropped. The level is one of 0, 1 and 2, and anything else is an error. `.strict()` is still level 1, and `.unsafe()` is level 0. Each returns the level.
+
+```kgpy
+?> .strict(2)
+2
+?> .strict(0)
+0
+?> .strict(3)
+error: the strict level must be 0, 1 or 2
+```
+
+**`kgpy --strict[=N]` and `KlongInterpreter(strict=N)` choose the level.** There was no flag and no constructor argument; the level could only be set from Klong code. Bare `--strict` is level 1. Files loaded with `.l` run at the level of the session.
+
+```
+$ kgpy --strict=2 -e 'a+1'
+<expr>:1:1: name error: undefined: a
+  a+1
+  ^
+```
+
+**At level 1, `1::5` is a syntax error, and a read in a function reports the read.** The left side of `::` that is not a name was accepted and stored a meaningless entry. A function that read a name that was not defined was told to declare it in the parameter list, which is advice for an assignment. The message is now `undefined: a`. Level 1 also turns the parser's warnings into errors, as [Errors](errors.md#syntax-warnings) lists.
+
+```kgpy
+?> .strict(1)
+1
+?> 1::5
+error: cannot assign: the left side of :: must be a name
+?> f::{a+1}
+:nilad
+?> f()
+error: undefined: a
+```
+
+**Level 2 is new.** Reading an undefined name is a name error with a "did you mean" hint, `:foo` is always the symbol, a declared local read before it is assigned is an error, and a call with more arguments than the function takes is an arity error.
+
+```kgpy
+?> a+1
+error: cannot apply + (Plus) to symbol and integer
+?> .strict(2)
+2
+?> c+1
+error: undefined: c
+?> foo::5
+5
+?> :foo
+:foo
+?> {x+y}(1;2;3)
+error: the function takes 2 arguments, got 3
+```
+
+**There is no `global:` prefix.** The `.strict()` documentation promised that a function could create a global with `[global:counter]`. Nothing implemented it; `[global:counter]` was an ordinary locals list holding the names `global` and `counter`. The promise is deleted. To change a global from a function, define it first at the top level; to create one from inside a function, use `.E`.
+
+### Friendlier syntax
+
+New forms are described in [Friendlier syntax](language-additions.md). These are the changes in behaviour that come with them, apart from the five in [Syntax that changed meaning](#syntax-that-changed-meaning).
+
+**A destructuring at the start of a function declares its names as locals.** `{[s k]::x;s+k}` needs no locals list at any strict level, and does not change a global named `s`.
+
+**A dictionary literal inside a dictionary or list literal is a dictionary.** It was stored as an unusable call object. A list literal that holds one is copied each time it is evaluated, as a dictionary literal is.
+
+```kgpy
+?> d:::{["GET" :{["/" 2]}]}
+:{["GET" :{["/" 2]}]}
+?> d@"GET"
+:{["/" 2]}
+```
+
+**`d,d2` merges two dictionaries.** It raised a Python `KeyError`. The entries of `d2` are copied into `d`, which changes in place, and an entry of `d2` replaces one with the same key. A right operand that is not a pair or a dictionary is still an error.
+
+```kgpy
+?> a:::{["x" 1]}
+:{["x" 1]}
+?> b:::{["y" 2]}
+:{["y" 2]}
+?> a,b
+:{["x" 1] ["y" 2]}
+```
+
+**Python callers can pass arguments by name, and a named-parameter function takes any number of them.** `KGFnWrapper` ignored keyword arguments. `klong['f'](1, 2, d=4, c=3)` passes parameters by name, for a function written with named parameters or with `x`, `y` and `z`. Too few, too many, an unknown or a repeated name raises `KlongArityError`.
+
+**A function with named parameters has no source text.** Over IPC it is sent like a projection, as an opaque value that the receiver can hold and send back but not call. See [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
 
 ### Errors
 

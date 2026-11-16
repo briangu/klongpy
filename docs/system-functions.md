@@ -488,7 +488,7 @@ Example:
 
     Multiple sub-modules can be imported at once:
 
-    .pyf("numpy"; ["sqrt";"sin"])
+    .pyf("numpy"; ["sqrt" "sin"])
     sqrt(4) --> 2.0
     sin(1) --> 0.8414709848078965
 ```
@@ -560,7 +560,7 @@ Example:
     .bkf("exp")
     exp(1.0) --> 2.718...
 
-    .bkf(["exp";"sin";"cos"])
+    .bkf(["exp" "sin" "cos"])
     sin(1.0) --> 0.841...
 
 Common functions available: exp, sin, cos, tan, tanh, sqrt, abs,
@@ -584,18 +584,43 @@ log, log10, floor, ceil, round
 `.strict()` [Strict]
 
 ```text
-Enable strict mode for variable assignment (level 1).
-In strict mode, a function cannot create a global variable by
-assignment; assigning to a name that is not a parameter, a
-declared local or an existing global is an error. There is no
-global: prefix. To create a global from a function, use .E.
+.strict(x)
+
+Set the strict level and return it. .strict() sets level 1;
+"x" may be 0, 1 or 2. Level 0 is the default: see .unsafe().
+
+Level 1: malformed input that level 0 only warns about (input
+left after a statement, an unterminated string or list, a
+missing operand) is a syntax error, and so is an assignment
+whose left side is not a name. Inside a function, assigning to
+a name that is not a declared local or an existing variable is
+an error, and so is reading a name that is not defined.
+
+Level 2: in addition, reading an undefined name is an error
+everywhere, as is reading a local variable before it has been
+assigned and passing more arguments than a function takes; a
+quoted symbol (:a) is always the symbol, never the value of a
+variable of that name.
+
+The rule for :: is the same at every level: when a variable of
+that name exists in any scope, it is assigned there. Otherwise,
+at top level the variable is created; inside a function the
+name becomes local to the call (level 0) or the assignment is
+an error (level 1 and 2). To change a variable from a function,
+define it at top level first. To create one from inside a
+function, use .E.
+
+Text is checked for syntax at the level in force when it is
+read, and code runs under the level in force when it runs.
 
 Example:
     .strict()
     counter::0
-    increment::{counter::counter+1}  :" OK - counter already exists"
+    increment::{counter::counter+1}  :" OK - counter exists"
     f::{newvar::42}
-    f()  :" ERROR - newvar is not defined"
+    f()  :" ERROR - undefined variable: newvar"
+    g::{[t];t::42;t}
+    g()  :" OK - t is declared local"
 ```
 
 KlongPy has no `global:` prefix. A function that needs to create a global uses `.E`, which evaluates its string at global scope.
@@ -620,15 +645,17 @@ error: undefined variable: newvar
 `.unsafe()` [Unsafe]
 
 ```text
-Disable strict mode for variable assignment (level 0).
-Strict mode is off. Assigning to a new name inside a function
-still makes it local to the call; it does not create a global.
-Use .E for that.
+Set strict level 0, the default, and return 0. See .strict().
+
+At level 0, assigning to a name that does not exist inside a
+function makes the name local to that call. It does not create
+a variable outside the function; use .E for that.
 
 Example:
     .unsafe()
     f::{newvar::42}
-    f()  :" newvar is local to the call; no global is created"
+    f()     :" 42; newvar is local to the call"
+    newvar  :" still undefined"
 ```
 
 ```kgpy
@@ -872,9 +899,24 @@ is raised.
 Each interpreter has its own server, so several interpreters may serve
 different ports.
 
+Clients speak the kdb+ IPC protocol, so q and other kdb+ client libraries can
+connect. A client that speaks the deprecated pickle protocol of earlier KlongPy
+releases is recognised and served too (with a one-time warning), unless
+KLONGPY_IPC=kdb; KLONGPY_IPC=legacy accepts only that protocol.
+
+Hooks, set as global functions: .srv.o(h) when a client connects, .srv.c(h) when
+it disconnects, .srv.e(h;text) on an error that nobody is waiting for, and
+.srv.auth(user;password), which returns 1 to accept a client and 0 to refuse it
+(with no .srv.auth every client is accepted). The hooks run on the Klong loop.
+
+A message larger than the .system key "ipc_max_message" (bytes, 256 MiB when not
+set, read when a connection is made) closes the connection. Set it before .srv
+and .cli, as in .system,"ipc_max_message",1000000.
+
 Security: a bare port listens on all interfaces (0.0.0.0), and a client can
 run any Klong code in this interpreter. KlongPy assumes every peer is
-trusted. To limit access, bind to localhost, as in .srv("127.0.0.1:8888"),
+trusted. Credentials are sent in clear text and there is no encryption.
+To limit access, bind to localhost, as in .srv("127.0.0.1:8888"),
 and firewall the port. Never expose it to an untrusted network or the
 internet.
 ```
@@ -889,15 +931,25 @@ When the port cannot be bound (for example it is in use), `.srv` raises an error
 Return a function which evaluates commands on a remote KlongPy server.
 
 If "x" is an integer, then it is interpreted as a port in "localhost:<port>".
-if "x" is a string, then it is interpreted as a host address "<host>:<port>"
+if "x" is a string, then it is interpreted as a host address "<host>:<port>",
+or "<host>:<port>:<user>:<password>" to send credentials (the order of kdb+'s hopen).
 
 If "x" is a remote dictionary, the underlying network connection
 is shared and a remote function is returned.
+
+The connection speaks the kdb+ IPC protocol (KLONGPY_IPC=legacy selects the
+deprecated pickle protocol, for talking to an old server). Credentials are
+sent in clear text. If the server refuses the handshake, an error is raised.
+
+Calls wait for the answer, 30 seconds at most (see .clit); a call that times
+out closes the connection. While a call waits, requests the server makes on
+this connection (callbacks) are served.
 
 Connection examples:
 
            .cli(8888)            --> remote function to localhost:8888
            .cli("localhost:8888") --> remote function to localhost:8888
+           .cli("localhost:8888:bob:secret") --> same, as user bob
 
            d::.clid(8888)
            .cli(d)                --> remote function to same connection as d
@@ -906,15 +958,15 @@ Evaluation examples:
 
            f::.cli(8888)
 
-    A string is passed it is evaluated remotely:
+    A string is evaluated remotely as Klong source:
 
-           f("hello")             --> "hello" is evaluated remotely
+           f("1+1")               --> 2 (computed remotely)
            f("avg::{(+/x)%#x}")   --> "avg" function is defined remotely
            f("avg(!100)")         --> 49.5 (computed remotely)
 
     Remote functions may be evaluated by passing an array with the first element
     being the symbol of the remote function to execute.  The remaining elements
-    are supplied as parameters:
+    are supplied as parameters (as they are: symbols stay symbols):
 
     Example: call :avg with a locally generated !100 range which is passed to the remote server.
 
@@ -928,7 +980,7 @@ Evaluation examples:
     When a symbol is applied, the remote value is returned.
     For functions, a remote function proxy is returned.
 
-    Example: retrieve a function proxy to :avg and then call it as if it were a local function.
+    Example: retrieve a function proxy to :avg and then call it as if it were local function.
 
            q::f(:avg)
            q(!100)                --> 49.5
@@ -937,6 +989,14 @@ Evaluation examples:
 
            f("b::!100")
            p::f(:b)               --> "p: now holds a copy of the remote array "b"
+
+    A function is sent as its source text and the receiver parses it, so the
+    names in its body are the receiver's. A projection is sent as an opaque value.
+
+    An error on the server is raised here as the error class of its kind, with the
+    server's message: a range error there is a range error here. Text from a peer
+    that is not a KlongPy server, or a name KlongPy does not know, is a remote error.
+    A connection that fails, is refused or times out is a system error.
 ```
 
 ### `.clid`
@@ -947,42 +1007,44 @@ Evaluation examples:
 Return a dictionary which evaluates set/get operations on a remote KlongPy server.
 
 If "x" is an integer, then it is interpreted as a port in "localhost:<port>".
-if "x" is a string, then it is interpreted as a host address "<host>:<port>"
+if "x" is a string, then it is interpreted as a host address "<host>:<port>" or
+"<host>:<port>:<user>:<password>".
 
-If "x" is a remote function, the underlying network connection
-is shared and a remote function is returned.
-
-Examples:  .cli(8888)             --> remote function to localhost:8888
-           .cli("localhost:8888") --> remote function to localhost:8888
-           .cli(d)                --> remote function to same connection as d
+If "x" is a remote function (from .cli), the underlying network connection
+is shared and a remote dictionary is returned. The protocol, timeout and errors
+are those of .cli.
 
 Connection examples:
 
-           .cli(8888)            --> remote function to localhost:8888
-           .cli("localhost:8888") --> remote function to localhost:8888
+           .clid(8888)            --> remote dictionary to localhost:8888
+           .clid("localhost:8888") --> remote dictionary to localhost:8888
 
            f::.cli(8888)
-           .cli(f)                --> remote function to same connection as f
+           .clid(f)               --> remote dictionary on the same connection as f
 
 Evaluation examples:
 
-           d::.cli(8888)
+           d::.clid(8888)
 
     Set a remote key/value pair :foo -> 2 on the remote server.
 
            d,[:foo 2]             --> sets :foo to 2
            d,[:bar "hello"]       --> sets :bar to "hello"
-           d,:fn,{x+1}            --> sets :fn to the monad {x+1)
+           d,:fn,{x+1}            --> sets :fn to the monad {x+1}
 
     Get a remote value:
 
            d?:foo                 --> 2
-           d?:bar                 --> hello
-           d?:fn                 --> remote function proxy to :avg
+           d?:bar                 --> "hello"
+           d?:fn                  --> remote function proxy to :fn
 
     To use the remote function proxy:
            q::d?:fn
-           q(2)               --> 3 (remotely executed after passing 2)
+           q(2)                   --> 3 (remotely executed after passing 2)
+
+    A get of a name the server does not have is a name error. A set sends the
+    three-item request ("set"; name; value), which a KlongPy server treats as an
+    assignment of a global.
 ```
 
 ### `.clic`
@@ -1005,6 +1067,14 @@ will also close and will fail if called.
 ```text
 Returns an async functional wrapper for the function "x" and calls "y"
 when completed. The wrapper has the same arity as the wrapped function.
+Both must be functions, else a type error is raised.
+
+Calling the wrapper returns 1 at once. A local function runs as a task on the
+Klong loop and "y" is called with its result. When "x" is a connection (from
+.cli) or a remote function proxy, the request is sent without blocking
+and "y" runs on the Klong loop when the answer arrives; an error answer or a
+lost connection is logged and "y" is not called. With a connection the
+wrapper takes the one request argument, as the connection does.
 ```
 
 ## Autograd
@@ -1446,4 +1516,47 @@ Returns 1 if closed, 0 if already closed.
 
 When a connection is closed, all remote proxies / functions tied to this connection
 will also close and will fail if called.
+```
+
+## Other
+
+| Name | Title | Description |
+|------|-------|-------------|
+| `.clit(x,y)` | Set-IPC-call-timeout | Set the call timeout of a remote function or dictionary opened by .cli or .clid (or handed to a server hook) to "y" seconds. |
+| `.grad(x;y)` | Grad | Compute the numeric gradient of function x at point y, using finite differences. |
+
+### `.clit`
+
+`.clit(x,y)` [Set-IPC-call-timeout]
+
+```text
+Set the call timeout of a remote function or dictionary opened by .cli or .clid
+(or handed to a server hook) to "y" seconds. A call that gets no answer in time
+closes the connection and fails, as does every other call waiting on it.
+The default is 30 seconds; 0 removes the limit.
+
+Returns 1 when set, 0 if "x" is not a connection handle.
+
+Example:
+
+           c::.cli(8888)
+           .clit(c;2.5)           --> 1: calls on c now fail after 2.5 seconds
+```
+
+### `.grad`
+
+`.grad(x;y)` [Grad]
+
+```text
+Compute the numeric gradient of function x at point y, using finite
+differences. This is the ASCII form of the nabla operator: .grad(f;y)
+equals y∇f. The function comes first, as in .jacobian(f;y).
+
+The point y is taken by value: a number or a list of numbers. (The
+operator y∇f also accepts a symbol and then perturbs that variable;
+.grad does not.) For automatic differentiation use f:>y.
+
+Examples:
+    .grad({x^2};3)               -->  6.0 (approximately)
+    .grad({+/x^2};[1 2 3])       -->  [2 4 6] (approximately)
 ```

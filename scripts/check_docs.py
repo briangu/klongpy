@@ -18,7 +18,16 @@ Two kinds of fenced block are run:
   the block is replaced by a free port, in the inputs and in the expected text.
   After each input the script waits a moment so that callbacks have run.
 
-In both forms ``/tmp/`` in a block is replaced by a fresh temporary directory
+* a block with the fence tag ``console`` whose first line starts with ``$ `` is a shell
+  transcript: each ``$ `` line is a command run with ``sh -c`` in a temporary directory,
+  with ``> `` lines directly after it as the rest of the command (a here-document, say),
+  and the lines up to the next ``$ `` are the output it must print, standard output and
+  standard error together. ``kgpy`` runs this checkout's command line (``python -m
+  klongpy.cli``); the text is compared exactly except for trailing blanks. A block that
+  continues a shell block shares its directory, so files made earlier are still there.
+  ``NO_COLOR`` is set. The exit status is not shown; ask for it with ``echo $?``.
+
+In all forms ``/tmp/`` in a block is replaced by a fresh temporary directory
 for the run, so examples that write files do not touch the real ``/tmp``, and
 the port 8888 by a free port. A ``?> `` block that starts a server or opens a
 client is run only when a directive on it asks for it (see ``requires``).
@@ -27,10 +36,16 @@ A comment on the line before a fenced block changes how it is run::
 
     <!-- check-docs: continue -->               run in the interpreters of the previous block
     <!-- check-docs: requires duckdb pandas --> run only if these packages import, else skip
+    <!-- check-docs: strict 2 -->                run in an interpreter at strict level 2 (0, 1 or 2)
+    <!-- check-docs: render -->                  show a failed input as the REPL prints it on stderr
     <!-- check-docs: skip: reason -->           do not run; the reason is required
 
 Directives combine with ``;`` (``continue; requires duckdb``); a ``skip`` reason runs to the end of the comment. ``requires`` on
-a block applies to the blocks that continue it. Use ``skip`` only for an
+a block applies to the blocks that continue it. ``strict N`` sets the strict level of the interpreters the block creates, so a
+page can show that its examples are accepted at level 2 without a ``.strict(2)`` line in the transcript; it applies to the
+blocks that continue it, and a continued block may not give a different level. ``render`` (for this block only; repeat it
+on a continued block) shows an error as the REPL prints it, the position line, the source line, the carets and the ``hint:``
+line, instead of ``error: <first line of the message>``; the position starts at ``line:column`` as at the REPL. Use ``skip`` only for an
 example that cannot run here (it needs a running web server, say); the
 summary line counts skipped blocks and why.
 
@@ -45,6 +60,7 @@ import io
 import os
 import re
 import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -65,12 +81,12 @@ SETTLE = 0.15       # seconds to let callbacks run after each two-interpreter st
 DOC_PORT = "8888"
 
 
-DIRECTIVE = re.compile(r"(?:<!--\s*check-docs:(.*?)-->\s*)?```[a-z]*\n(.*?)```", re.S)
+DIRECTIVE = re.compile(r"(?:<!--\s*check-docs:(.*?)-->\s*)?```([a-z]*)\n(.*?)```", re.S)
 
 
 def parse_directives(text):
     """{'continue': bool, 'requires': [packages], 'skip': reason or None}."""
-    d = {"continue": False, "requires": [], "skip": None}
+    d = {"continue": False, "requires": [], "skip": None, "strict": None, "render": False}
     text = (text or "").strip()
     m = re.search(r"(?:^|;)\s*skip\b", text)
     if m:                                    # the reason runs to the end and may contain ';'
@@ -84,18 +100,27 @@ def parse_directives(text):
             d["continue"] = True
         elif part.startswith("requires"):
             d["requires"] += part.split()[1:]
+        elif part == "render":
+            d["render"] = True
+        elif part.split()[:1] == ["strict"]:
+            words = part.split()
+            if len(words) != 2 or words[1] not in ("0", "1", "2"):
+                raise ValueError(f"check-docs: strict needs a level 0, 1 or 2, got {part!r}")
+            d["strict"] = int(words[1])
         elif part:
             raise ValueError(f"unknown check-docs directive: {part!r}")
     return d
 
 
 def blocks(text):
-    """(kind, body, directives) for every runnable fenced block: kind is 'single' or 'pair'."""
+    """(kind, body, directives) for every runnable fenced block: kind is 'single', 'pair' or 'shell'."""
     for m in DIRECTIVE.finditer(text):
-        body = m.group(2)
+        body = m.group(3)
         first = body.lstrip()
         d = parse_directives(m.group(1))
-        if first.startswith("?> ") and (d["skip"] or d["continue"] or d["requires"]
+        if m.group(2) == "console" and body.startswith("$ "):
+            yield "shell", body, d
+        elif first.startswith("?> ") and (d["skip"] or d["continue"] or d["requires"]
                                         or not re.search(SKIP_SINGLE, body)):
             yield "single", body, d
         elif PAIR.match(first):
@@ -125,6 +150,22 @@ def parse(body, prefixes):
     return steps
 
 
+def parse_shell(body):
+    """[[command, [expected lines]]]: ``$ `` starts a command, ``> `` lines directly after it continue it."""
+    steps = []
+    for line in body.splitlines():
+        if line.startswith("$ "):
+            steps.append([line[2:], []])
+        elif steps and not steps[-1][1] and line.startswith("> "):
+            steps[-1][0] += "\n" + line[2:]
+        elif steps:
+            steps[-1][1].append(line)
+    for st in steps:
+        while st[1] and st[1][-1] == "":
+            st[1].pop()
+    return steps
+
+
 def free_port():
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
@@ -133,7 +174,7 @@ def free_port():
     return port
 
 
-def run_step(klong, expr, buf, settle=0.0):
+def run_step(klong, expr, buf, settle=0.0, render=False):
     """Run one input; the lines it printed, then its value (or ``error: ...``).
 
     ``settle`` waits that long first so that callbacks started by the input have printed."""
@@ -145,7 +186,10 @@ def run_step(klong, expr, buf, settle=0.0):
             klong['it'] = r      # the REPL keeps the last printed value in `it`
         text = kg_write(r, klong._backend, display=False)
     except Exception as ex:
-        text = "error: " + str(ex).split("\n")[0]
+        if render and hasattr(ex, "render"):
+            text = ex.render().replace("<string>:", "", 1)
+        else:
+            text = "error: " + str(ex).split("\n")[0]
     if settle:
         time.sleep(settle)
     return (buf.getvalue() + text).split("\n")
@@ -154,33 +198,54 @@ def run_step(klong, expr, buf, settle=0.0):
 class Session:
     """The interpreters one block (and the blocks that continue it) run in."""
 
-    def __init__(self, kind):
+    def __init__(self, kind, strict=0):
         self.kind = kind
+        self.strict = strict
         self.buf = io.StringIO()
         self.stack = contextlib.ExitStack()
         self.stack.enter_context(contextlib.redirect_stdout(self.buf))
         self.tmp = self.stack.enter_context(tempfile.TemporaryDirectory(prefix="check_docs_"))
         self.port = str(free_port())
         self.loops = []
-        if kind == "single":
-            klong, loops = create_repl()
+        self.bin = None
+        if kind == "shell":
+            self.bin = self.stack.enter_context(tempfile.TemporaryDirectory(prefix="check_docs_bin_"))
+            shim = os.path.join(self.bin, "kgpy")
+            with open(shim, "w") as f:
+                f.write(f'#!/bin/sh\nexec "{sys.executable}" -m klongpy.cli "$@"\n')
+            os.chmod(shim, 0o755)
+        elif kind == "single":
+            klong, loops = create_repl(strict=strict)
             self.env = {None: klong}
             self.loops.append(loops)
         else:
-            server, sloops = create_repl()
-            client, cloops = create_repl()
+            server, sloops = create_repl(strict=strict)
+            client, cloops = create_repl(strict=strict)
             self.env = {"server": server, "client": client}
             self.loops += [sloops, cloops]
 
     def localize(self, text):
         return text.replace("/tmp/", self.tmp + "/").replace(DOC_PORT, self.port)
 
-    def run(self, path, body, report):
+    def run_shell(self, path, body, report):
+        env = dict(os.environ, NO_COLOR="1", PYTHONPATH=ROOT + os.pathsep + os.environ.get("PYTHONPATH", ""),
+                   PATH=self.bin + os.pathsep + os.environ.get("PATH", ""), KGPY_HISTORY="")
+        for cmd, exp in parse_shell(body):
+            cmd = self.localize(cmd)
+            exp = [self.localize(line).rstrip() for line in exp]
+            r = subprocess.run(["sh", "-c", cmd], cwd=self.tmp, env=env, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120)
+            got = [line.rstrip() for line in r.stdout.rstrip("\n").split("\n")] if r.stdout.strip() else []
+            report(path, cmd, exp, got)
+
+    def run(self, path, body, report, render=False):
+        if self.kind == "shell":
+            return self.run_shell(path, body, report)
         prefixes = {None: "?> "} if self.kind == "single" else {"server": "server?> ", "client": "client?> "}
         for who, expr, exp in parse(body, prefixes):
             expr = self.localize(expr)
             exp = [self.localize(line) for line in exp]
-            got = run_step(self.env[who], expr, self.buf, SETTLE if self.kind == "pair" else 0.0)
+            got = run_step(self.env[who], expr, self.buf, SETTLE if self.kind == "pair" else 0.0, render)
             report(path, expr, exp, got)
 
     def close(self):
@@ -215,10 +280,12 @@ def check_text(path, text, report, skipped):
                 skipped.append((path, reason))
                 continue
             if session is None:
-                session = Session(kind)
+                session = Session(kind, d["strict"] or 0)
             elif session.kind != kind:
                 raise ValueError(f"{path}: a continued block must have the same form as the one before it")
-            session.run(path, body, report)
+            elif d["strict"] is not None and d["strict"] != session.strict:
+                raise ValueError(f"{path}: a continued block cannot change the strict level")
+            session.run(path, body, report, d["render"])
     finally:
         if session:
             session.close()

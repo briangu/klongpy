@@ -13,18 +13,25 @@ site_dir: 'site'
 nav:
   - Home: 'index.md'
   - Quick Start: 'quick-start.md'
+  - Tutorial: 'tutorial.md'
   - Examples: 'examples.md'
   - Guides:
+      - Klong for NumPy Users: 'from-numpy.md'
+      - Klong for q Users: 'from-kdb.md'
       - Python Integration: 'python_integration.md'
       - PyTorch Backend & Autograd: 'torch_backend.md'
       - Performance: 'performance.md'
       - Compiler Roadmap: 'compiler-roadmap.md'
+  - Language:
+      - Friendlier Syntax: 'language-additions.md'
+      - Strict Mode: 'strict.md'
+      - Lint: 'lint.md'
   - Reference:
       - Operators: 'operators.md'
       - REPL: 'repl.md'
       - Errors: 'errors.md'
-      - Release Notes: 'release-notes.md'
       - System Functions: 'system-functions.md'
+      - Release Notes: 'release-notes.md'
   - Data & Systems:
       - Fast Columnar Database: 'fast_columnar_database.md'
       - Table & Key-Value Store: 'table_and_key_value_stores.md'

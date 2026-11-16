@@ -47,7 +47,8 @@ and [discussion #82](https://github.com/briangu/klongpy/discussions/82).
 | `#a` | Size | Length/count |
 | `+a` | Transpose | Transpose matrix |
 | `:_a` | Undefined | Check if undefined |
-| `∇a` | Grad | Numeric gradient function of a |
+| `∇a` | Grad | Gradient function of `a`: by autograd on the torch backend, by finite differences otherwise. Glyph only |
+| `˙a` | Track | Identity. Internal: reserved for marking a value for gradient tracking, and currently has no effect. No ASCII form |
 
 ## Dyads (Two Arguments)
 
@@ -56,17 +57,17 @@ and [discussion #82](https://github.com/briangu/klongpy/discussions/82).
 | `a:=b` | Amend | Amend array or string at index; see [Indexing and amend](#indexing-and-amend) |
 | `a:-b` | Amend-in-Depth | Deep amend |
 | `a:_b` | Cut | Cut array at indices |
-| `a::b` | Define | Define variable |
+| `a::b` | Define | Define variable. A list of names on the left destructures, and `f(a;b)::{...}` defines a function with named parameters; see [Language forms](#language-forms) |
 | `a%b` | Divide | Division; a zero divisor gives `:undefined` |
 | `a_b` | Drop | Drop elements |
 | `a=b` | Equal | Equality test |
 | `a?b` | Find | Find element |
 | `a:$b` | Form | Convert string `b` to the type of `a`; `:undefined` if it does not convert |
 | `a$b` | Format2 | Format with width: a positive `a` pads on the right, a negative `a` pads on the left; `a` of the form `5.2` formats a real |
-| `a@b` | Index/Apply | Index or apply function; negative indices count from the end |
+| `a@b` | Index/Apply | Index or apply function; negative indices count from the end. On a dictionary, the value of key `b` (`:undefined` if missing), or the list of values for a list of keys; see [Dictionaries](#dictionaries) |
 | `a:@b` | Index-in-Depth | Deep indexing |
 | `a:%b` | Integer-Divide | Integer division; a zero divisor gives `:undefined` |
-| `a,b` | Join | Concatenate |
+| `a,b` | Join | Concatenate. A two-member list joined to a dictionary is an entry, and two dictionaries merge; see [Dictionaries](#dictionaries) |
 | `a<b` | Less | Less than |
 | `a~b` | Match | Deep equality |
 | `a\|b` | Max/Or | Maximum or logical or |
@@ -79,14 +80,14 @@ and [discussion #82](https://github.com/briangu/klongpy/discussions/82).
 | `a!b` | Remainder | Modulo; a zero divisor gives `:undefined` |
 | `a:+b` | Rotate | Rotate elements |
 | `a:#b` | Split | Split `b` into pieces of size `a` (or of the sizes in list `a`); sizes must be 1 or more |
-| `a#b` | Take | Take elements |
+| `a#b` | Take | Take elements; an atom `b` is repeated (`3#7` is `[7 7 7]`) |
 | `a*b` | Times | Multiplication |
-| `a∇b` | Grad | Numeric gradient of b at a |
+| `a∇b` | Grad | Numeric gradient of function `b` at `a`. ASCII: `.grad(b;a)` |
 | `a:>b` | Autograd | Gradient of a at b (PyTorch autograd) |
 
 ## Gradient Operators
 
-KlongPy provides two gradient operators:
+KlongPy provides two gradient operators and the Jacobian operator `∂`:
 
 ### Numeric Gradient: `∇` (nabla)
 
@@ -100,6 +101,19 @@ f::{x^2}
 
 g::{+/x^2}
 [1 2 3]∇g         :" Returns [2 4 6] (gradient of sum of squares)
+```
+
+**ASCII form:** `.grad(function;point)` is the same computation with the function first, for keyboards without `∇`. The point is taken by value.
+
+```kgpy
+?> f::{x^2}
+:monad
+?> 3∇f
+6.000000000838668
+?> .grad(f;3)
+6.000000000838668
+?> .grad({+/x^2};[1 2 3])
+[2.000000000279556 3.9999999996709334 6.000000000838668]
 ```
 
 **Monad syntax:** `∇function` returns a gradient function
@@ -170,7 +184,7 @@ f::{w^2}              :" Returns [w0^2, w1^2]
 
 ### Comparison
 
-The two gradient operators take their arguments in opposite orders: `point∇function` for numeric differentiation and `function:>point` for autograd. This table is the one authoritative comparison; other pages link here.
+The two gradient operators take their arguments in opposite orders: `point∇function` for numeric differentiation and `function:>point` for autograd. The ASCII names take the function first, like `:>`. This table is the one authoritative comparison; other pages link here.
 
 | Feature | `∇` (nabla) | `:>` (autograd) | `∂` (jacobian) |
 |---------|-------------|-----------------|----------------|
@@ -178,6 +192,7 @@ The two gradient operators take their arguments in opposite orders: `point∇fun
 | Precision | Approximate | Exact | Exact |
 | Output | Scalar functions | Scalar functions | Vector functions |
 | Syntax | `point∇function` | `function:>point` | `point∂function` |
+| ASCII name | `.grad(function;point)` | `function:>point` | `.jacobian(function;point)` |
 | Multi-param | No | `f:>[w b]` | `[w b]∂f` |
 
 ### Autograd System Functions
@@ -309,6 +324,57 @@ sign(7)                      :" pos"
 
 The chain form only replaces a conditional in the else (last) slot. A conditional in the then slot, as in `:[c1;:[c2;a;b];d]`, stays nested.
 
+## Dictionaries
+
+A dictionary literal is `:{[key value] [key value]}`, and `:{}` is the empty dictionary. The entries of that form are not evaluated. The evaluated form, `:{;key;value;key;value}`, evaluates its expressions from left to right each time it is evaluated; `:{;}` is the empty dictionary. A dictionary literal inside a dictionary or list literal is a dictionary.
+
+| Expression | Result |
+|---|---|
+| `d?k` or `d@k` | The value of key `k`, or `:undefined` when `k` is missing. Not range checked. |
+| `d@[k1 k2]` | The list of values, with `:undefined` for a missing key. |
+| `:_d@k` | 1 when the key is missing. |
+| `d,d2` | Copies the entries of `d2` into `d`, which changes in place; an entry of `d2` replaces one with the same key. |
+| `d,[k v]`, `d,k,,v`, `[k v],d` | Adds the entry. A list of two members joined to a dictionary, on either side, is an entry. |
+| `l,,d` | Appends the dictionary `d` to the list `l`. `l,d` does not: for a list of two members it is the pair rule above. |
+| `$d` | The written form, as a string. |
+
+```kgpy
+?> n::7
+7
+?> d:::{;"n";n;"sq";n*n}
+:{["n" 7] ["sq" 49]}
+?> d@["n" "sq" "no"]
+[7 49 :undefined]
+?> d,:{["sq" 0] ["z" 1]}
+:{["n" 7] ["sq" 0] ["z" 1]}
+?> [1 2],,d
+[1 2 :{["n" 7] ["sq" 0] ["z" 1]}]
+```
+
+A list cannot be a key, and an odd number of expressions in `:{;...}` is a syntax error. [Friendlier syntax](language-additions.md#dictionaries) has the details with the classic form beside each.
+
+## Language Forms
+
+Two forms bind names with `::`. Both are described with examples, and with the classic equivalent, in [Friendlier syntax](language-additions.md).
+
+| Form | Meaning |
+|---|---|
+| `[a b c]::v` | Destructuring. Binds each name to the member of `v` in the same position; the count must match. As the first statement of a function, `{[a b]::x;...}`, the names are local to it. |
+| `f(a;b;c;d)::{...}` | Defines `f` with the named parameters `a b c d`, any number of them. Too many arguments is an arity error; too few is a projection. `x`, `y` and `z` cannot be used in the body. |
+
+A function's arity, which the display (`:monad`, `:dyad`, `:triad`) shows and an adverb dispatches on, is the highest of `x`, `y` and `z` its body uses, not counting nested function literals, or the number of named parameters. `{-x}` is a monad and `{y}` a dyad.
+
+```kgpy
+?> f::{-x}
+:monad
+?> g::{y}
+:dyad
+?> h::{x+z}
+:triad
+?> k(a;b;c;d)::{a+b+c+d}
+:triad
+```
+
 ## Edge Cases and Errors
 
 These rules apply to the interpreted and compiled paths and to the NumPy backend. In the transcripts below, an error is shown as `error: message`; the REPL adds its own prefix.
@@ -358,7 +424,7 @@ error: :=: index 4 out of range for length 3
 [1.0 2.5 3.0]
 ```
 
-Dictionary lookups are not range checked.
+Dictionary lookups are not range checked: `d@k` for a key that is missing is `:undefined`.
 
 ### Division by zero
 
@@ -455,6 +521,51 @@ error: :*: count must be a non-negative integer, got 1.5
 [1 2 1 2 1]
 ```
 
+### Integers beyond 64 bits
+
+Integers are 64 bits wide. A sum, difference or product of two such integers that does not fit wraps around, as it does in NumPy. An operand that is itself outside 64 bits (a long literal, or the result of `2^64`) makes `+ - * % < > | &` exact:
+
+```kgpy
+?> 9223372036854775807+1
+-9223372036854775808
+?> 1+9223372036854775808
+9223372036854775809
+?> [1 2]+9223372036854775808
+[9223372036854775809 9223372036854775810]
+?> 9223372036854775808*3
+27670116110564327424
+?> 9223372036854775808<9223372036854775809
+1
+```
+
+`^` is computed in floating point and is an error where the result does not fit a float. `!` is an error for an operand that does not fit 64 bits. Floats are doubles.
+
+```kgpy
+?> 2^64
+18446744073709551616
+?> 10^400
+error: cannot apply ^ (Power) to integer and integer
+?> 9223372036854775808!2
+error: cannot apply ! (Remainder) to integer and integer
+```
+
+### Take of an atom
+
+`n#x` with a number or a symbol `x` repeats it. The result is a list of `n` copies, and `0#7` is empty.
+
+```kgpy
+?> 3#7
+[7 7 7]
+?> 0#7
+[]
+?> 3#2.5
+[2.5 2.5 2.5]
+?> 2#:foo
+[:foo :foo]
+?> 3#"a"
+"aaa"
+```
+
 ### Indexing is `@`, not `q[1]`
 
 Square brackets build lists. They do not index, so `q[1]` is the variable `q` followed by the list `[1]`. The parser reads `q`, warns that `[1]` is left over (see [Syntax warnings](errors.md#syntax-warnings)) and returns `q`. Inside parentheses or a function body it is an error, with a hint. Write `q@1`.
@@ -515,7 +626,13 @@ A symbol held in a list or a variable stays a symbol when it passes through an a
 :foo
 ?> {x}'[;foo;:bar]
 [5 :bar]
+?> s:::baz
+:baz
+?> {x}'s
+:baz
 ```
+
+Each over a symbol `s` is `f(s)`: the symbol is not iterated as a string.
 
 ## Unused Operators
 

@@ -198,6 +198,10 @@ KlongPy is a batteries-included platform with kdb+/Q-inspired features:
 
 ### Documentation
 - **[Quick Start Guide](docs/quick-start.md)**: Get running in 5 minutes
+- **[Tutorial](docs/tutorial.md)**: The language from the first expression to functions, adverbs, dictionaries and files
+- **[Klong for NumPy Users](docs/from-numpy.md)** and **[Klong for q Users](docs/from-kdb.md)**: Translation tables and the differences that cause mistakes
+- **[Friendlier Syntax](docs/language-additions.md)**: Destructuring, named parameters, evaluated dictionaries, `.fmt`
+- **[Strict Mode](docs/strict.md)** and **[Lint](docs/lint.md)**: Catch mistakes early
 - **[PyTorch Backend & Autograd](docs/torch_backend.md)**: Complete autograd reference
 - **[Operator Reference](docs/operators.md)**: All language operators
 - **[Performance Guide](docs/performance.md)**: Optimization tips
@@ -237,13 +241,16 @@ KlongPy uses Unicode operators for mathematical notation. Here's how to type the
 
 **Alternative:** Use the function equivalents that don't require special characters:
 ```klong
-3∇f           :" Using nabla"
+3∇f            :" Using nabla"
+.grad(f;3)     :" Instead of 3∇f"
 .jacobian(f;x) :" Instead of x∂f"
 ```
 
+Note the argument order: `.grad` and `.jacobian` take the function first, while `∇` and `∂` take the point first.
+
 ## Syntax Cheat Sheet
 
-Functions take up to 3 parameters, always named `x`, `y`, `z`:
+Functions take up to 3 parameters, named `x`, `y`, `z`. A function has as many parameters as the highest of the three that its body uses. For more than three, or for names you choose, write `f(a;b;c;d)::{...}` (see [Friendlier Syntax](docs/language-additions.md#named-parameters)):
 
 ```klong
 :" Operators (right to left evaluation)"

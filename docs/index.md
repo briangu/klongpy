@@ -26,8 +26,9 @@ kgpy --backend torch
 pip install "klongpy[all]"
 ```
 
-New users may want to read the [Quick Start](quick-start.md) guide and the
-[REPL Reference](repl.md) to get familiar with the interactive environment.
+New users may want to read the [Quick Start](quick-start.md) guide, the [Tutorial](tutorial.md) and the
+[REPL Reference](repl.md) to get familiar with the language and the interactive environment. If you know NumPy or q,
+see [Klong for NumPy Users](from-numpy.md) or [Klong for q Users](from-kdb.md).
 Note: the REPL (`kgpy`) requires the `klongpy[repl]` extra (or `klongpy[all]`).
 
 # Overview
@@ -50,8 +51,13 @@ KlongPy is a batteries-included platform with kdb+/Q-inspired features:
 - **[Timers](timer.md)**: Scheduled execution for periodic tasks
 
 ### Documentation
+- **[Tutorial](tutorial.md)**: The language from the first expression to functions, adverbs, dictionaries and files
+- **[Klong for NumPy Users](from-numpy.md)** and **[Klong for q Users](from-kdb.md)**: Translation tables and the differences that cause mistakes
+- **[Friendlier Syntax](language-additions.md)**: Destructuring, named parameters, evaluated dictionaries, `.fmt`
+- **[Strict Mode](strict.md)** and **[Lint](lint.md)**: Catch mistakes early
 - **[PyTorch Backend & Autograd](torch_backend.md)**: Complete autograd reference
 - **[Operator Reference](operators.md)**: All language operators
+- **[Errors](errors.md)**, **[System Functions](system-functions.md)** and **[Release Notes](release-notes.md)**
 - **[Performance Guide](performance.md)**: Optimization tips
 
 # Examples
@@ -278,7 +284,11 @@ Note: The torch backend does not support object dtype arrays or string operation
 
 KlongPy extends Klong and differs from it in these ways:
 
-* **Infinite precision**: The main difference in this implementation of Klong is the lack of infinite precision. By using NumPy we are restricted to doubles.
+* **Number precision**: Reals are doubles, where Klong's are arbitrary precision. Integers are 64 bits wide and wrap around on overflow, as in NumPy; an operand beyond 64 bits (a long literal, or `2^64`) makes `+ - * % < > | &` exact, but `^` is computed in floating point.
+* **Friendlier syntax**: Destructuring (`[a b]::v`), named parameters (`f(a;b;c;d)::{...}`), evaluated dictionaries (`:{;k;v}`), `d@k` on dictionaries, `.fmt`, `.grad`. Programs for classic Klong run unchanged apart from the cases in [Syntax that changed meaning](release-notes.md#syntax-that-changed-meaning). See [Friendlier Syntax](language-additions.md).
+* **Function arity**: A function has as many arguments as the highest of `x`, `y` and `z` its body uses, so `{-x}` is a monad. Named parameters allow more than three.
+* **Strict mode and lint**: Three [strict levels](strict.md) and [`kgpy --lint`](lint.md) turn silent mistakes into errors or reports. The default is the classic behaviour.
+* **Errors**: Errors carry a position and are [classed by kind](errors.md).
 * **Python integration**: The `.py()` and `.pyf()` commands allow direct import of Python modules into the current Klong context.
 * **IPC**: KlongPy supports IPC between KlongPy processes.
 * **Autograd**: Native gradient computation via the `:>` operator with PyTorch backend.

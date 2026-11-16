@@ -31,6 +31,18 @@ r = klong['f'](3, 10, 20)
 assert r == 2990
 ```
 
+Arguments may also be passed by name. For a function written with `x`, `y` and `z` the names are `x`, `y` and `z`. A function defined with [named parameters](language-additions.md#named-parameters) takes any number of parameters, and its names are the ones in its definition:
+
+```python
+assert klong['f'](3, 10, z=20) == 2990
+
+klong("g(a;b;c;d)::{(a*1000)+b-c+d}")
+assert klong['g'](3, 10, 20, 1) == 2989
+assert klong['g'](3, 10, d=1, c=20) == 2989
+```
+
+A call from Python does not make a projection. Too few arguments, too many, an unknown name or a name given twice raises `KlongArityError` (a `KlongError`, kind `arity`).
+
 ## Data example
 
 Since the Klong interpreter context is dictionary-like, you can store values there for access in Klong:
