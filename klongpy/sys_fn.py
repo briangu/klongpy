@@ -846,11 +846,12 @@ def eval_sys_system(x):
 
         sh -c "command"
 
-        and an exit code of zero would indicate success.
+        and an exit code of zero would indicate success. The command's
+        stdout and stderr are inherited from the interpreter process. On
+        Windows the command is run through cmd.
 
     """
-    with subprocess.Popen([x], stdout=subprocess.PIPE) as proc:
-        return proc.returncode
+    return subprocess.run(x, shell=True).returncode
 
 
 def eval_sys_to_channel(klong, x):
