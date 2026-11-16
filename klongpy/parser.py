@@ -20,9 +20,9 @@ from .lexer import ERR_CHAR_EOF
 from .errors import KlongSyntaxError, KlongSyntaxWarning, UnexpectedChar, UnexpectedEOF, compat
 
 from .types import (
-    KGSym, KGQSym, KGChar, KGOp, KGCond, KGCall, KGLambda,
+    KGSym, KGQSym, KGChar, KGOp, KGCond, KGCall, KGFn, KGLambda,
     reserved_fn_symbol_map,
-    safe_eq, is_symbolic, is_adverb
+    safe_eq, is_list, is_symbolic, is_adverb
 )
 
 
@@ -474,6 +474,17 @@ def tk_issue(lx, code, message, span, hint=None, note=None):
     if lx.strict:
         raise KlongSyntaxError(message, span=span, hint=hint)
     lx.issues.append((span, code, message, note, hint))
+
+
+def tk_assign_hint(left):
+    """The hint for an assignment whose left side is the expression left, not a name (ticket 050)."""
+    if isinstance(left, KGFn) and isinstance(left.a, KGSym) and isinstance(left.args, list):
+        return f"to define a function write {left.a}::{{...}} and use x, y and z for its arguments"
+    if isinstance(left, KGFn) and left.is_op() and left.a.a == '@':
+        return "to change an element use amend, a:=value,index"
+    if is_list(left):
+        return "assign one name at a time: a::1;b::2"
+    return None
 
 
 def tk_warnings(lx):

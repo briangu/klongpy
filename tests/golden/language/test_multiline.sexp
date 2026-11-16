@@ -18,5 +18,5 @@
 (call (sym t) (str "multiline function w/ vars and new line after last") (call (sym mlf) (num 1) (num 2) (num 3)) (num 6))
 (def (sym nested) (fn 3 (locals a b c fn) (def (sym a) (arg x)) (def (sym b) (arg y)) (def (sym c) (arg z)) (def (sym fn) (fn 1 (d "*" (arg x) (arg x)))) (call (sym fn) (d "+" (sym a) (d "+" (sym b) (sym c))))))
 (call (sym t) (str "multiline nested function") (call (sym nested) (num 1) (num 2) (num 3)) (num 36))
-(def (sym nestedexpr) (fn 0 (adv2 (verb (fn 1 (d "," (m "," (arg x)) (arg y)))) (adverbs "/") (num 5) (list (num 1)))))
+(def (sym nestedexpr) (fn 0 (adv2 (verb (fn 2 (d "," (m "," (arg x)) (arg y)))) (adverbs "/") (num 5) (list (num 1)))))
 (call (sym t) (str "nested 5{(,x),y}/[1]") (call (sym nestedexpr)) (list (num 5) (num 1)))

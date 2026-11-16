@@ -1065,27 +1065,56 @@ def eval_sys_exit(x):
     sys.exit(1)
 
 
-def eval_sys_strict(klong):
+def eval_sys_strict(klong, x=None):
     """
 
         .strict()                                                 [Strict]
+        .strict(x)
 
-        Enable strict mode for variable assignment (level 1).
-        In strict mode, a function cannot create a global variable by
-        assignment; assigning to a name that is not a parameter, a
-        declared local or an existing global is an error. There is no
-        global: prefix. To create a global from a function, use .E.
+        Set the strict level and return it. .strict() sets level 1;
+        "x" may be 0, 1 or 2. Level 0 is the default: see .unsafe().
+
+        Level 1: malformed input that level 0 only warns about (input
+        left after a statement, an unterminated string or list, a
+        missing operand) is a syntax error, and so is an assignment
+        whose left side is not a name. Inside a function, assigning to
+        a name that is not a declared local or an existing variable is
+        an error, and so is reading a name that is not defined.
+
+        Level 2: in addition, reading an undefined name is an error
+        everywhere, as is reading a local variable before it has been
+        assigned and passing more arguments than a function takes; a
+        quoted symbol (:a) is always the symbol, never the value of a
+        variable of that name.
+
+        The rule for :: is the same at every level: when a variable of
+        that name exists in any scope, it is assigned there. Otherwise,
+        at top level the variable is created; inside a function the
+        name becomes local to the call (level 0) or the assignment is
+        an error (level 1 and 2). To change a variable from a function,
+        define it at top level first. To create one from inside a
+        function, use .E.
+
+        Text is checked for syntax at the level in force when it is
+        read, and code runs under the level in force when it runs.
 
         Example:
             .strict()
             counter::0
-            increment::{counter::counter+1}  :" OK - counter already exists"
+            increment::{counter::counter+1}  :" OK - counter exists"
             f::{newvar::42}
-            f()  :" ERROR - newvar is not defined"
+            f()  :" ERROR - undefined variable: newvar"
+            g::{[t];t::42;t}
+            g()  :" OK - t is declared local"
 
     """
-    klong._context._strict_mode = 1
-    return 1
+    level = 1 if x is None else x
+    if isinstance(level, bool) or not isinstance(level, (int, numpy.integer)):
+        raise KlongTypeError("the strict level must be 0, 1 or 2")
+    if level not in (0, 1, 2):
+        raise KlongRangeError("the strict level must be 0, 1 or 2")
+    klong.strict = int(level)
+    return klong.strict
 
 
 def eval_sys_unsafe(klong):
@@ -1093,18 +1122,20 @@ def eval_sys_unsafe(klong):
 
         .unsafe()                                                 [Unsafe]
 
-        Disable strict mode for variable assignment (level 0).
-        Strict mode is off. Assigning to a new name inside a function
-        still makes it local to the call; it does not create a global.
-        Use .E for that.
+        Set strict level 0, the default, and return 0. See .strict().
+
+        At level 0, assigning to a name that does not exist inside a
+        function makes the name local to that call. It does not create
+        a variable outside the function; use .E for that.
 
         Example:
             .unsafe()
             f::{newvar::42}
-            f()  :" newvar is local to the call; no global is created"
+            f()     :" 42; newvar is local to the call"
+            newvar  :" still undefined"
 
     """
-    klong._context._strict_mode = 0
+    klong.strict = 0
     return 0
 
 
@@ -1119,5 +1150,9 @@ def create_system_functions():
     for x in filter(lambda n: n.startswith("eval_sys_"), dir(m)):
         fn = getattr(m,x)
         registry[_get_name(fn.__doc__)] = fn
+
+    # .strict takes zero or one argument (ticket 050): a wildcard lambda is
+    # handed whichever of x, y, z the call supplied.
+    registry['.strict'] = KGLambda(eval_sys_strict, wildcard=True)
 
     return registry

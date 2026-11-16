@@ -3,9 +3,13 @@ Function metadata computed once when a function literal is parsed (ticket 032):
 arity, locals, max_arg and uses_self are on the node; the locals declaration is
 not part of the stored body; calling a function no longer inspects its body.
 
-Nothing a program can observe changed, except that two crashes of
+Ticket 032 changed nothing a program can observe, except that two crashes of
 get_fn_arity are gone. The first class pins that; the corpus class compares
 every function literal of the repository with the code as it was.
+
+Ticket 026 then made arity the highest argument mentioned (max_arg) and bound
+.f to the function with its locals. The tests that pinned the old count say
+so where they changed; tests/test_ticket_026.py has the new behaviour.
 """
 import copy
 import os
@@ -41,11 +45,12 @@ def run(*lines):
 class TestBehaviourIsUnchanged(unittest.TestCase):
     """Ticket step 1: these passed before the change and pass after it."""
 
-    def test_arity_is_a_count(self):
-        self.assertEqual(run("f::{y}", "f(5)"), KGSym("y"))             # arity 1: 5 is x, y is unbound
-        self.assertEqual(run("f::{x+z}", "f(1;2;3)"), 4)                # arity 2, a third argument still binds z
+    def test_arity_is_the_highest_argument(self):
+        # ticket 026 (was: a count of names, f(5) gave :y and {x+z} was a dyad)
+        self.assertIsInstance(run("f::{y}", "f(5)"), KGCall)            # arity 2: f(5) is incomplete
+        self.assertEqual(run("f::{x+z}", "f(1;2;3)"), 4)
         self.assertEqual(run("f::{{x}(1)}", "f(5)"), 1)
-        self.assertIsInstance(run("f::{{x}(1)}", "f()"), KGCall)        # the inner x counts: f() is incomplete
+        self.assertIsInstance(run("f::{{x}(1)}", "f()"), KGCall)        # {x}(1) is the tree of x(1): x counts
         self.assertEqual(run("f::{x+y}", "g::f(1;)", "g(2)"), 3)
         self.assertIsInstance(run("f::{x+y}", "f(1)"), KGCall)
 
@@ -83,12 +88,14 @@ class TestBehaviourIsUnchanged(unittest.TestCase):
         self.assertEqual(run("f::{:[x<2;1;x*.f(x-1)]}", "f(5)"), 120)
         self.assertEqual(run("{:[x<2;1;x*.f(x-1)]}(5)"), 120)
 
-    def test_dot_f_call_declares_no_locals(self):
-        # Legacy defect, pinned because this ticket changes no behaviour: .f is the body
-        # without its declaration, so a recursive call shares the caller's locals.
-        self.assertEqual(run("f::{[a];a::x;:[x>0;.f(x-1);0];a}", "f(3)"), 0)
-        self.assertEqual(run("f::{[a];a::x;:[x<2;1;a*.f(x-1)]}", "f(5)"), 1)       # not 120
-        self.assertEqual(run("{[a];.f}()"), [KGSym(".f")])
+    def test_dot_f_call_declares_its_locals(self):
+        # Fixed by ticket 026 (this test pinned the defect: 0, 1 and a bare statement list).
+        # .f is the function with its declaration, so a recursive call has its own locals.
+        self.assertEqual(run("f::{[a];a::x;:[x>0;.f(x-1);0];a}", "f(3)"), 3)
+        self.assertEqual(run("f::{[a];a::x;:[x<2;1;a*.f(x-1)]}", "f(5)"), 120)
+        r = run("{[a];.f}()")
+        self.assertIsInstance(r, KGBody)
+        self.assertEqual((list(r), r.locals), ([KGSym(".f")], (KGSym("a"),)))
 
     def test_python_callers(self):
         k = KlongInterpreter()
@@ -117,9 +124,9 @@ class TestMetadata(unittest.TestCase):
         self.assertEqual(f.locals, (KGSym("a"), KGSym("b")))
         self.assertEqual((f.max_arg, f.arity, f.uses_self, f.params), (1, 1, False, None))
         f = fn("{y}")
-        self.assertEqual((f.arity, f.max_arg, f.locals), (1, 2, ()))
+        self.assertEqual((f.arity, f.max_arg, f.locals), (2, 2, ()))     # arity is max_arg since ticket 026
         f = fn("{x+z}")
-        self.assertEqual((f.arity, f.max_arg), (2, 3))
+        self.assertEqual((f.arity, f.max_arg), (3, 3))
         self.assertEqual(fn("{1}").max_arg, 0)
 
     def test_nothing_is_evaluated_to_read_them(self):
@@ -159,20 +166,30 @@ class TestMetadata(unittest.TestCase):
         f = fn("{x+y}(1;)")
         self.assertEqual((f.locals, f.max_arg), ((), 2))
 
-    def test_max_arg_looks_everywhere_arity_does_not(self):
-        for text, arity, max_arg in [("{-x}", 0, 1), ("{#x}", 0, 1), ("{x,-y}", 1, 2), ("{a::#x;a}", 0, 1),
-                                     ("{:[x;y;z]}", 3, 3), ("{[;x;y]}", 2, 2), ("{+/x}", 1, 1), ("{x+/y}", 2, 2),
-                                     ("{z{x+y}'x}", 2, 3), ("{:[0;1;-z]}", 0, 3), ("{[x y z]}", 0, 0),
-                                     ("{:{[1 2]}}", 0, 0), ("{[1 2 3]}", 0, 0)]:
+    def test_max_arg_looks_everywhere_and_arity_is_max_arg(self):
+        # the second column is what arity was before ticket 026
+        for text, _, max_arg in [("{-x}", 0, 1), ("{#x}", 0, 1), ("{x,-y}", 1, 2), ("{a::#x;a}", 0, 1),
+                                 ("{:[x;y;z]}", 3, 3), ("{[;x;y]}", 2, 2), ("{+/x}", 1, 1), ("{x+/y}", 2, 2),
+                                 ("{z{x+y}'x}", 2, 3), ("{:[0;1;-z]}", 0, 3), ("{[x y z]}", 0, 0),
+                                 ("{:{[1 2]}}", 0, 0), ("{[1 2 3]}", 0, 0)]:
+            arity = max_arg
             with self.subTest(text=text):
                 f = fn(text)
                 self.assertEqual((f.arity, f.max_arg), (arity, max_arg))
 
-    def test_nested_bodies_count_for_max_arg_as_for_arity(self):
+    def test_nested_function_bodies_do_not_count(self):
+        # ticket 026: the x, y, z of a nested literal are its own. (Before, arity counted
+        # them except in the verb of an adverb, and max_arg counted all of them.)
+        for text, n in [("{{x+y}'x}", 1), ("{a::{x+y+z};a(x;1;2)}", 1), ("{{x*y}@x}", 1), ("{:[x;{y};0]}", 1),
+                        ("{{x+y}(1;2)}", 0), ("{{x+y}(z;2)}", 3), ("{x{y}'x}", 1)]:
+            with self.subTest(text=text):
+                f = fn(text)
+                self.assertEqual((f.arity, f.max_arg), (n, n))
+        # {x}(1) and x(1) are one tree; the name in call position counts
         f = fn("{{x}(1)}")
         self.assertEqual((f.arity, f.max_arg), (1, 1))
         f = fn("{{y}(1)}")
-        self.assertEqual((f.arity, f.max_arg), (1, 2))
+        self.assertEqual((f.arity, f.max_arg), (2, 2))
 
     def test_uses_self(self):
         self.assertTrue(fn("{:[x<2;1;x*.f(x-1)]}").uses_self)
@@ -262,10 +279,11 @@ class TestArityCrashesFixed(unittest.TestCase):
             self.assertEqual(fn("{{f}}", parser).arity, 0)      # TypeError: 'NoneType' object is not iterable
             self.assertEqual(dump_text("{{f}}", parser=parser), "(fn 0 (fn 0 (sym f)))\n")
 
-    def test_the_single_call_rule_is_otherwise_what_it_was(self):
-        # a body that is one call of a named function: distinct arguments that are x, y, z or omitted
-        for text, arity in [("{g(x)}", 1), ("{g(x;x)}", 1), ("{g(x;y)}", 2), ("{g(1;)}", 1), ("{g(;;)}", 1),
-                            ("{g(;x)}", 2), ("{g(x+1)}", 0), ("{g(1;2)}", 0), ("{g()}", 0), ("{g(:x;x)}", 1),
+    def test_a_body_that_is_one_call(self):
+        # ticket 026: no special rule any more, except that a projection takes an argument
+        # per hole. Changed from the old count: {g(;;)} 1, {g(x+1)} 0.
+        for text, arity in [("{g(x)}", 1), ("{g(x;x)}", 1), ("{g(x;y)}", 2), ("{g(1;)}", 1), ("{g(;;)}", 3),
+                            ("{g(;x)}", 1), ("{g(x+1)}", 1), ("{g(1;2)}", 0), ("{g()}", 0), ("{g(:x;x)}", 1),
                             ('{g("x")}', 0), ("{g(0cx)}", 0)]:
             with self.subTest(text=text):
                 self.assertEqual(fn(text).arity, arity)
@@ -338,7 +356,10 @@ class TestCorpus(unittest.TestCase):
                             yield os.path.relpath(path, ROOT), f.read()
 
     def test_arity_and_locals_are_what_the_old_code_computed(self):
+        # Locals: identical to the old scan. Arity: since ticket 026 it is max_arg; the
+        # literals where that is not the old count are counted here by (old, new).
         total = with_locals = crashes = 0
+        changed = {}
         k = KlongInterpreter()
         for rel, text in self.sources():
             saved = k._module
@@ -356,7 +377,9 @@ class TestCorpus(unittest.TestCase):
                     # the listed wrong case: the old code could not parse this function at all
                     crashes += 1
                     continue
-                self.assertEqual(f.arity, want, where)
+                self.assertEqual(f.arity, f.max_arg, where)
+                if f.arity != want:
+                    changed[(want, f.arity)] = changed.get((want, f.arity), 0) + 1
                 loc, rest = old_locals(body)
                 self.assertEqual(f.locals, loc, where)
                 stored = f.a
@@ -373,6 +396,11 @@ class TestCorpus(unittest.TestCase):
         self.assertGreater(total, 1500)
         self.assertGreater(with_locals, 100)
         self.assertEqual(crashes, 0)        # no file in the repository has one: they could not be loaded
+        # Undercounts fixed (an argument under a monad, inside a call argument, or a gap
+        # such as {y}), and seven overcounts (a nested literal's arguments were counted).
+        self.assertTrue(all(new > old for old, new in changed if (old, new) not in ((1, 0), (2, 1))), changed)
+        self.assertEqual(changed.get((1, 0), 0) + changed.get((2, 1), 0), 7)
+        self.assertGreater(sum(changed.values()), 200)
 
     def test_arity_equals_the_legacy_parser_tree(self):
         """The same, against the frozen legacy parser: the dumps print each function's arity."""
@@ -380,8 +408,8 @@ class TestCorpus(unittest.TestCase):
             with self.subTest(path=rel):
                 self.assertEqual(dump_text(text, parser="token"), dump_text(text, parser="legacy"))
 
-    def test_where_arity_and_max_arg_disagree(self):
-        """How often the historical count is not the highest argument used (for the report; lint W011)."""
+    def test_arity_is_max_arg_everywhere(self):
+        """Ticket 026. (Before it, 258 literals had arity != max_arg.)"""
         k = KlongInterpreter()
         total = differ = 0
         for rel, text in self.sources():
@@ -393,8 +421,8 @@ class TestCorpus(unittest.TestCase):
             for f in literals(tree, []):
                 total += 1
                 differ += f.arity != f.max_arg
-        self.assertGreater(differ, 0)
-        self.assertLess(differ, total)
+        self.assertEqual(differ, 0)
+        self.assertGreater(total, 1500)
 
 
 if __name__ == "__main__":

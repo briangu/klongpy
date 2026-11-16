@@ -80,13 +80,13 @@ def append_pkg_resource_path_KLONGPATH() -> None:
         os.environ['KLONGPATH'] = f"{klongpath}:{pkg_lib_path}" if klongpath else pkg_lib_path
 
 
-def create_repl(debug: bool = False, backend: Optional[str] = None, device: Optional[str] = None):
+def create_repl(debug: bool = False, backend: Optional[str] = None, device: Optional[str] = None, strict: int = 0):
     io_loop, io_thread, io_stop = setup_async_loop(debug=debug)
     klong_loop, klong_thread, klong_stop = setup_async_loop(debug=debug)
 
     append_pkg_resource_path_KLONGPATH()
 
-    klong = KlongInterpreter(backend=backend, device=device)
+    klong = KlongInterpreter(backend=backend, device=device, strict=strict)
     shutdown_event = CallbackEvent()
     klong['.system'] = {'ioloop': io_loop, 'klongloop': klong_loop, 'closeEvent': shutdown_event}
 

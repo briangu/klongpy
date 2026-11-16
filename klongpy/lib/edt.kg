@@ -11,7 +11,7 @@
 :"when entering nothing (just pressing ENTER), the edited"
 :"string is returned."
 
-edt::{[pad,dlt,ins,upd];
+edt::{[pad dlt ins upd];
   pad::{(#y)#(#y){x,0c }:*x};
   dlt::{x@&{~x~0c/}'pad(y;x)};
   ins::{:[0c^=*y;(1_y),x;(*x),.f(1_x;1_y)]};

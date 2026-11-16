@@ -574,11 +574,15 @@ def main():
                         action="store_true")
     parser.add_argument('--dump-ast', metavar='FILE', help='print the canonical parse tree of FILE and exit')
     parser.add_argument('-d', '--debug', help='enable debug mode', action="store_true")
+    parser.add_argument('--strict', metavar='N', type=int, choices=[0, 1, 2], default=0,
+                        help='strict level: 0 (the default), 1 or 2; --strict alone means 1. Written --strict=N')
     parser.add_argument('--backend', help='set array backend', type=str.lower, choices=list_backends())
     parser.add_argument('--device', help='set backend device (torch only)', type=str)
     parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
 
-    args = parser.parse_args(main_args[1:])
+    # --strict[=N]: the bare flag means level 1 and never takes the next word
+    # (which may be the file name) for its value.
+    args = parser.parse_args(['--strict=1' if a == '--strict' else a for a in main_args[1:]])
     if args.dump_ast:
         from klongpy.dump import main as _dump_main
         sys.exit(_dump_main([args.dump_ast]))
@@ -604,7 +608,7 @@ def main():
 
     if args.expr:
         try:
-            klong = KlongInterpreter(backend=args.backend, device=args.device)
+            klong = KlongInterpreter(backend=args.backend, device=args.device, strict=args.strict)
         except ValueError as exc:
             parser.error(str(exc))
         try:
@@ -620,7 +624,7 @@ def main():
         return
 
     try:
-        klong, loops = create_repl(debug=args.debug, backend=args.backend, device=args.device)
+        klong, loops = create_repl(debug=args.debug, backend=args.backend, device=args.device, strict=args.strict)
     except ValueError as exc:
         parser.error(str(exc))
     io_loop, _, _, klong_loop, klong_thread, _ = loops

@@ -107,14 +107,14 @@ class KGFn:
     #   params     named parameters; None for a function of x, y and z
     #              (ticket 061 sets it)
     #   max_arg    the highest of x=1, y=2, z=3 the body mentions, 0 for none.
-    #              Nested function bodies count, as they do for arity: a nested
-    #              function called with fewer arguments reads the outer ones.
+    #              The body of a nested function literal does not count (its
+    #              x, y, z are its own); see _scan_args.
     #   uses_self  the body mentions .f (outside nested function literals,
     #              where .f is the nested function)
     #
-    # arity keeps its legacy meaning: the number of distinct names among x, y
-    # and z that get_fn_arity finds, which is not always max_arg ({y} has
-    # arity 1 and max_arg 2).
+    # The arity of a function literal is its max_arg (ticket 026): {-x} is a
+    # monad and {y} a dyad. The one exception is a body that is itself a
+    # function value ({g(1;)}, {{x+y}}): see get_fn_arity.
     locals = None
     params = None
     max_arg = None
@@ -157,9 +157,9 @@ class KGBody(list):
                  first statement is a non-empty list that, ignoring ";", holds
                  only symbols, and at least one statement follows it)
         decl     the declaration as it was parsed (the data list)
-        plain    the same statements as a plain list: what is evaluated, and
-                 what .f is bound to. A call through .f therefore declares no
-                 locals, as before this class existed.
+        plain    the same statements as a plain list: what is evaluated.
+                 (.f is bound to the KGBody itself, so that a call through .f
+                 declares the locals again: ticket 026.)
 
     The body carries its locals so that a caller that holds only the body
     (KGFnWrapper, IPC and timer callbacks pass fn.a to apply) still gets them.
@@ -310,6 +310,9 @@ class KGLambda:
     lambda klong, x: klong(x)
 
     """
+    # the name the function is bound to, when known (set for system functions)
+    name = None
+
     def __init__(self, fn, args=None, provide_klong=False, wildcard=False, user=False):
         self.fn = fn
         # user: the function is user Python brought in through .py, .pyf or
@@ -323,10 +326,14 @@ class KGLambda:
 
     def _get_pos_args(self, ctx):
         if self._wildcard:
+            # Whichever of x, y, z this call supplied: they are in the frame
+            # the call pushed. (Looking through the whole context took an
+            # enclosing function's x for an argument: {f()}(5) called f(5).)
+            frame = ctx._context[0] if hasattr(ctx, '_context') else ctx
             pos_args = []
             for sym in reserved_fn_symbols:
                 try:
-                    pos_args.append(ctx[sym])
+                    pos_args.append(frame[sym])
                 except KeyError:
                     break
         else:
@@ -362,17 +369,24 @@ class KGChannel:
         def close(self, *args):
             self._raw.close()
 
-    def __init__(self, raw, channel_dir):
+    def __init__(self, raw, channel_dir, owned=True):
+        """
+        owned: the channel closes raw when it is closed or collected. The
+        standard channels (.cin, .cout, .cerr) do not own sys.stdin,
+        sys.stdout and sys.stderr: an interpreter that goes away must not
+        close the streams of the process.
+        """
         self.channel_dir = channel_dir
         self.raw = raw
-        self._fh = KGChannel.FileHandler(raw, self)
+        self._fh = KGChannel.FileHandler(raw, self) if owned else None
         self.at_eof = False
 
     def __enter__(self):
         return self
 
     def __exit__(self, ext_type, exc_value, traceback):
-        self._fh.close()
+        if self._fh is not None:
+            self._fh.close()
 
 
 # Reserved function argument names and symbols
@@ -603,44 +617,35 @@ def merge_projections(arr):
 
 def get_fn_arity(f):
     """
-    Examine a function body and infer arity by looking for x, y and z: the
-    number of distinct ones found. The parser calls this once for each
-    function literal and stores the result on the node (KGFn.arity); nothing
-    calls it at run time.
+    The arity of a function body: the highest of x=1, y=2, z=3 that the body
+    mentions, 0 when it mentions none (ticket 026). {-x} is a monad, {y} a
+    dyad, {x+z} a triad. Every mention counts, wherever it is: under a monad,
+    in a call argument, as the verb of an adverb. Not counted: data (arrays,
+    dictionary literals) and the body of a nested function literal, whose x,
+    y and z are its own (see _scan_args). That number is KGFn.max_arg.
 
-    The count is the historical one and is kept as it is, because arity
-    decides when a call is complete: an operand of a monad is not looked at
-    ({-x} has arity 0), and a body that is a single call of a named function
-    counts only arguments that are x, y, z or omitted ({g(x+1)} has arity 0).
-    KGFn.max_arg is the complete answer.
+    One class keeps what it always had: a body that is itself a function
+    value. A call of such a function is passed on to that value (_resolve_fn),
+    so the function takes what the value takes:
 
-    Argument values are never hashed (a call whose argument is a list used to
-    fail here with "unhashable type").
+        {g(1;)}    a projection: one argument per hole    f(5) is g(1;5)
+        {{x+y}}    a function literal: that literal's arity    f(1;2) is 3
+
+    The token parser stores the result on the node of every function literal
+    and nothing calls this at run time. It remains for nodes without metadata
+    (the legacy parser, functions built by hand).
+
+    Before ticket 026 this was a count of the distinct names an incomplete
+    scan found: {-x} had arity 0, {y} arity 1, and {a::{x+y};a(x;1)} arity 2.
     """
-    if isinstance(f, KGFn) and isinstance(f.a, KGSym) and not in_map(f.a, reserved_fn_symbols) and isinstance(f.args, list):
-        # distinct arguments that are x, y, z or a projection hole
-        seen = []
-        for q in f.args:
-            if q is None or (isinstance(q, str) and in_map(q, reserved_fn_symbols)):
-                if not any(q is s or (q is not None and s is not None and q == s) for s in seen):
-                    seen.append(q)
-        return len(seen)
-    def _e(f, level=0):
-        if isinstance(f, KGFn):
-            x = _e(f.a, level=1)
-            if isinstance(f.args, list):
-                for q in f.args:
-                    x.update(_e(q, level=1))
-        elif isinstance(f, list):
-            x = set()
-            for q in f:
-                x.update(_e(q, level=1))
-        elif isinstance(f, KGSym):
-            x = set([f]) if f in reserved_fn_symbols else set()
-        else:
-            x = set()
-        return x if level else len(x)
-    return _e(f)
+    m = _scan_args(f)[0]
+    if isinstance(f, KGFn) and not isinstance(f.a, KGOp) and not f.is_adverb_chain():
+        args = f.args
+        if args is None:
+            return max(m, f.arity)
+        if isinstance(args, list):
+            return max(m, sum(1 for q in args if q is None))
+    return m
 
 
 _ARG_INDEX = {reserved_fn_symbols[0]: 1, reserved_fn_symbols[1]: 2, reserved_fn_symbols[2]: 3}
@@ -650,7 +655,16 @@ def _scan_args(f):
     """
     (highest of x=1 y=2 z=3 mentioned in the expression f, whether .f is
     mentioned). Data (arrays, dictionary literals) is not code and is skipped.
-    A nested function literal contributes its max_arg and never its .f.
+
+    A nested function literal contributes nothing: its x, y, z and .f are its
+    own. (A function is never run with fewer arguments than it mentions, so
+    it cannot read the enclosing function's.) The arguments written after a
+    nested literal, {x+y}(z;), belong to the enclosing function and count.
+
+    A nested literal is recognised by its shape, so that trees of both
+    parsers give the same answer: a KGFn whose callee is not a name, an
+    operator or an adverb chain is a function body. {x}(1) and x(1) are the
+    same tree and count x: both consult the enclosing x in call position.
     """
     if isinstance(f, KGSym):
         i = _ARG_INDEX.get(f)
@@ -658,10 +672,13 @@ def _scan_args(f):
             return i, False
         return 0, f == reserved_dot_f_symbol
     if isinstance(f, KGFn):
-        if f.max_arg is not None:
-            m, s = f.max_arg, False
+        a = f.a
+        if (isinstance(a, KGSym) and f.args is not None) or (isinstance(a, list) and len(a) > 0 and isinstance(a[0], KGAdverb)):
+            m, s = _scan_args(a)
         else:
-            m, s = _scan_args(f.a)
+            # an operator, or the body of a nested function literal ({y} is
+            # a KGFn without args; the name y alone is a bare KGSym)
+            m, s = 0, False
         args = f.args
         if isinstance(args, list):
             for q in args:
@@ -709,7 +726,8 @@ def split_locals(body):
 def fn_metadata(node):
     """
     Compute and store the function metadata of the node of a function (see
-    KGFn): arity is left alone; locals, max_arg and uses_self are set, and a
+    KGFn): arity is left alone (the parser sets it; for a function literal it
+    equals max_arg); locals, max_arg and uses_self are set, and a
     locals declaration is moved out of the stored body (node.a becomes a
     KGBody). Returns the node. Does nothing if the node already has them.
 

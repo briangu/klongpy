@@ -153,7 +153,7 @@ D:::{[:sym 42]}
 t("D?:sym returns 42"; D?:sym; 42)
 
 :" test_symbol_dict_key_N_P_functions "
-N::{d:::{[:sym 0]};d,:p,x;d}
+N::{[d];d:::{[:sym 0]};d,:p,x;d}
 P::N(43)
 t("P?:p returns 43"; P?:p; 43)
 

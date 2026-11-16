@@ -49,7 +49,8 @@ Python list is a statement sequence. The locals declaration is printed as
 the statements (a KGBody, ticket 032, printed from its ``locals``); in a tree
 of the legacy parser it is the first element of the list, a non-empty data
 list holding only symbols (and ";"), found by the same test as at run time.
-ARITY is KGFn.arity / KGCall.arity (legacy get_fn_arity).
+ARITY is KGFn.arity / KGCall.arity (for a function literal: the highest of x, y, z
+its body mentions, see klongpy.types.get_fn_arity).
 
 Data mode (inside lists and dict literals): KGOp -> (op "+"), the string ";"
 -> (str ";"), every KGSym (reserved or not, KGQSym too) -> (sym a), nested

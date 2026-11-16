@@ -30,7 +30,45 @@ What goes across, in each direction:
 
 A `klongpy.db` table is sent as a kdb+ table (type 98) of its columns, after any pending inserts are committed. A table received becomes a `Table` when `klongpy.db` is loaded in the receiving process (`.py("klongpy.db")`), and otherwise a dictionary from column symbol to column. The table's index is not carried: the receiver must apply `.index` again. A keyed table from q arrives as a two-element list of the key table and the value table.
 
-Also received: timestamps, timespans, dates, times and the other temporal types arrive as their underlying integer (a datetime as its float), a GUID as an array of 16 integers, a kdb+ table as a dictionary from column symbol to column, and any other q function type as an opaque value that prints as `:kdb-function` and can be sent back unchanged. Nulls and infinities are not translated: a long null arrives as -9223372036854775808 and a float null as NaN. A value with no kdb+ form is a type error on the sending side and nothing is sent.
+Storing a table on a server and reading it back (needs pandas and DuckDB, `pip install "klongpy[db]"`):
+
+<!-- check-docs: requires duckdb pandas -->
+```kgpy
+server?> .py("klongpy.db")
+1
+server?> .srv(8888)
+1
+server?> store:::{}
+:{}
+server?> put::{store,x,,y;1}
+:dyad
+server?> get::{store?x}
+:monad
+client?> .py("klongpy.db")
+1
+client?> f::.cli(8888)
+remote[localhost:8888]:fn
+client?> T::.table([["a" [1 2 3]] ["b" [1.5 2.5 3.5]]])
+a   b
+1 1.5
+2 2.5
+3 3.5
+client?> f(:put,"T",T)
+1
+client?> R::f(:get,,"T")
+a   b
+1 1.5
+2 2.5
+3 3.5
+client?> R?"a"
+[1 2 3]
+client?> .schema(R)
+["a" "b"]
+server?> #store?"T"
+3
+```
+
+Also received: timestamps, timespans, dates, times and the other temporal types arrive as their underlying integer (a datetime as its float), a GUID as an array of 16 integers, a kdb+ table as above, and any other q function type as an opaque value that prints as `:kdb-function` and can be sent back unchanged. Nulls and infinities are not translated: a long null arrives as -9223372036854775808 and a float null as NaN. A value with no kdb+ form is a type error on the sending side and nothing is sent.
 
 ## Addresses
 
@@ -351,7 +389,7 @@ While a call is waiting for its answer, the connection keeps serving the request
 server?> .srv(8888)
 1
 server?> callme::{.cli.h(:hello,,x)*10}
-:nilad
+:monad
 client?> hello::{x+1}
 :monad
 client?> f::.cli(8888)

@@ -7,7 +7,7 @@ G::{x};F::{G(4_x)}
 t("F(""hello"")"; F("hello"); "o")
 
 :" test_fn_nested_x_scope "
-FL:::{};FL,0,{.p(,x@1)};F::{f::FL?0;f(x)}
+FL:::{};FL,0,{.p(,x@1)};F::{[f];f::FL?0;f(x)}
 t("F(""hello"")"; F("hello"); "e")
 
 :" test_nested_x_scope_3 "

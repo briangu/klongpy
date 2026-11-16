@@ -28,7 +28,7 @@ def eval_sys_var_cin():
         The standard I/O channels cannot be closed.
 
     """
-    return KGChannel(sys.stdin, KGChannelDir.INPUT)
+    return KGChannel(sys.stdin, KGChannelDir.INPUT, owned=False)
 
 
 def eval_sys_var_cout():
@@ -39,7 +39,7 @@ def eval_sys_var_cout():
         See [Input-Channel]
 
     """
-    return KGChannel(sys.stdout, KGChannelDir.OUTPUT)
+    return KGChannel(sys.stdout, KGChannelDir.OUTPUT, owned=False)
 
 
 
@@ -51,7 +51,7 @@ def eval_sys_var_cerr():
         See [Input-Channel]
 
     """
-    return KGChannel(sys.stderr, KGChannelDir.OUTPUT)
+    return KGChannel(sys.stderr, KGChannelDir.OUTPUT, owned=False)
 
 
 def eval_sys_var_cols():

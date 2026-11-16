@@ -1,3 +1,4 @@
+import difflib
 import os
 import time
 import warnings
@@ -14,12 +15,12 @@ from .sys_fn_ipc import create_system_functions_ipc, create_system_var_ipc
 from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
 from .types import KGQSym
-from .errors import (KlongError, KlongInternalError, KlongNameError, KlongRangeError, KlongSyntaxError,
+from .errors import (KlongArityError, KlongError, KlongInternalError, KlongNameError, KlongRangeError, KlongSyntaxError,
                      KlongSyntaxWarning,
                      adverb_name, classify, compat, is_passthrough, operator_error, operator_name,
                      python_error, system_error)
 from .lexer import Lexer, Source
-from .parser import (ADVERB_GLYPHS, SEMI, ProgResult, tk_adverb_error, tk_check, tk_comment_end, tk_finish,
+from .parser import (ADVERB_GLYPHS, SEMI, ProgResult, tk_adverb_error, tk_assign_hint, tk_check, tk_comment_end, tk_finish,
                      tk_index_hint, tk_juxtaposed, tk_missing_operand, tk_peek_adverb, tk_raise, tk_read_cond,
                      tk_read_data, tk_read_expr_array, tk_stray, tk_warnings)
 from .utils import ReadonlyDict
@@ -33,6 +34,7 @@ def set_context_var(d, sym, v):
     assert isinstance(sym, KGSym)
     if callable(v) and not issubclass(type(v), KGLambda) :
         x = KGLambda(v)
+        x.name = str.__str__(sym)   # for messages (strict level 2 arity error)
         # A function value in call form with no arguments yet (args=None).
         v = KGCall(x,args=None,arity=x.get_arity())
     d[sym] = v
@@ -47,6 +49,58 @@ class _Value:
 
     def __init__(self, v):
         self.v = v
+
+
+class _Unset:
+    """The value of a declared local that has not been assigned (strict level 2)."""
+    __slots__ = ()
+
+    def __repr__(self):
+        return "<unassigned local>"
+
+
+_UNSET = _Unset()
+
+
+class _StrictFrame(dict):
+    """
+    The frame of a function call made at strict level 2. A declared local
+    that has not been assigned holds _UNSET, so that the name exists (an
+    assignment finds it here) but reading it is a name error. At levels 0 and
+    1 a frame is a plain dict and a local starts as its own symbol.
+
+    _UNSET never leaves the frame: every way of reading a value raises, and
+    items() (iteration of the context) leaves unassigned locals out.
+
+    The error is also a KeyError, which is what a lookup of a name without a
+    value raises: code that only asks whether a name has a value (the
+    expression compiler looking at operand kinds) treats it as that, and eval
+    passes it on as the name error it is.
+    """
+    __slots__ = ()
+
+    @staticmethod
+    def _unset(k):
+        name = str.__str__(k).split('`')[0]
+        return compat(KlongNameError, KeyError)(f"local '{name}' read before assignment")
+
+    def get(self, k, default=None):
+        v = dict.get(self, k, default)
+        if v is _UNSET:
+            raise self._unset(k)
+        return v
+
+    def __getitem__(self, k):
+        v = dict.__getitem__(self, k)
+        if v is _UNSET:
+            raise self._unset(k)
+        return v
+
+    def items(self):
+        return [kv for kv in dict.items(self) if kv[1] is not _UNSET]
+
+    def values(self):
+        return [v for v in dict.values(self) if v is not _UNSET]
 
 
 class KGModule(dict):
@@ -78,9 +132,12 @@ class KlongContext():
 
     """
 
-    def __init__(self, system_contexts, strict_mode=1):
+    def __init__(self, system_contexts, strict_mode=0):
         self._context = deque([{}, *system_contexts])
         self._min_ctx_count = len(system_contexts)
+        # The strict level, 0 (the default), 1 or 2: the one place it is
+        # stored. Set through KlongInterpreter(strict=n), its strict property,
+        # .strict() and .unsafe(). See check_strict_level.
         self._strict_mode = strict_mode
 
     def start_module(self, name):
@@ -102,10 +159,7 @@ class KlongContext():
 
         # Variable doesn't exist - check strict mode
         if self._strict_mode >= 1:
-            # Check if we're inside a function (more than just global scope)
-            in_function = len(self._context) > self._min_ctx_count + 1
-
-            if in_function:
+            if self.in_function():
                 # Inside function - disallow creating new variables
                 raise KlongNameError(
                     f"undefined variable: {k}",
@@ -115,6 +169,10 @@ class KlongContext():
         # Create new variable in current scope
         set_context_var(self._context[0], k, v)
         return k
+
+    def in_function(self):
+        """Whether a function is running (there is a frame above the global one)."""
+        return len(self._context) > self._min_ctx_count + 1
 
     _MISSING = object()
 
@@ -169,6 +227,27 @@ class KlongContext():
                 if x[0] not in seen:
                     yield x
                     seen.add(x[0])
+
+
+STRICT_LEVELS = (0, 1, 2)
+
+
+def check_strict_level(n):
+    """
+    The strict level n if it is one (the integer 0, 1 or 2), else ValueError.
+
+        0   the default: everything the language always accepted
+        1   malformed input is a syntax error; inside a function, assigning
+            to or reading an undeclared name is a name error
+        2   also: reading an undefined name anywhere, reading a local before
+            it is assigned and passing too many arguments are errors, and a
+            quoted symbol is always the symbol
+
+    The table is tickets/design/errors-strict-lint.md section 4.
+    """
+    if type(n) is not int or n not in STRICT_LEVELS:
+        raise ValueError(f"strict level must be 0, 1 or 2, not {n!r}")
+    return n
 
 
 def add_context_key_values(d, context):
@@ -268,7 +347,7 @@ def chain_fn(klong, arr):
 
 class KlongInterpreter():
 
-    def __init__(self, backend=None, device=None, parser=None):
+    def __init__(self, backend=None, device=None, parser=None, strict=0):
         """
         Initialize a Klong interpreter.
 
@@ -285,14 +364,17 @@ class KlongInterpreter():
             character-cursor parser; it is deprecated and will be removed
             after one release. When not given, the environment variable
             KLONGPY_PARSER is consulted.
+        strict : int, optional
+            The strict level, 0 (the default), 1 or 2; see the strict
+            property. Programs can change it with .strict(n) and .unsafe().
         """
         parser = parser or os.environ.get('KLONGPY_PARSER') or 'token'
         if parser not in ('token', 'legacy'):
             raise ValueError(f"unknown parser: {parser!r} (expected 'token' or 'legacy')")
         self._parser = parser
+        check_strict_level(strict)
         self._backend = get_backend(backend, device=device)
-        strict_mode = 0  # 0=unsafe (default for backward compat), 1=strict, 2=pedantic
-        self._context = KlongContext(create_system_contexts(), strict_mode=strict_mode)
+        self._context = KlongContext(create_system_contexts(), strict_mode=strict)
         self._vd = create_dyad_functions(self)
         self._vm = create_monad_functions(self)
         self._start_time = time.time()
@@ -305,6 +387,21 @@ class KlongInterpreter():
         self._sources = []
         # warnings.warn_explicit registries, one per Source (see _warn)
         self._warn_registry = {}
+
+    @property
+    def strict(self):
+        """
+        The strict level: 0 (the default), 1 or 2 (see check_strict_level).
+
+        The level in force when a statement is parsed decides its syntax
+        checks; the level in force when it runs decides the run-time checks.
+        Files loaded with .l run at the level of the session.
+        """
+        return self._context._strict_mode
+
+    @strict.setter
+    def strict(self, n):
+        self._context._strict_mode = check_strict_level(n)
 
     @property
     def backend(self):
@@ -732,6 +829,10 @@ class KlongInterpreter():
                     # legacy: only the first operator read here has its arity set
                     if first:
                         aa.arity = 2
+                    if v == '::' and lx.strict and not isinstance(a, KGSym):
+                        # ticket 050: "1::5". Level 0 accepts it silently (legacy).
+                        raise KlongSyntaxError("cannot assign: the left side of :: must be a name",
+                                               span=(st, lend), hint=tk_assign_hint(a))
                 elif v in ADVERB_GLYPHS:
                     # ticket 031: "{x} '[1 2]". No operator is spelled like an
                     # adverb, so this could only fail when evaluated.
@@ -1193,7 +1294,9 @@ class KlongInterpreter():
                         return f, f_args, f_arity, node
                     f = _g
                     node = None
-            except KeyError:
+            except KeyError as e:
+                if isinstance(e, KlongError):
+                    raise               # a local read before assignment (strict level 2)
                 if not in_map(f, reserved_fn_symbols):
                     raise KlongNameError(f"undefined function: {f}")
         if f_arity > 0 and isinstance(f, KGFn) and not f.is_op() and not f.is_adverb_chain():
@@ -1245,21 +1348,73 @@ class KlongInterpreter():
         """
         f = x.a
         f_arity = x.arity
-        f_args = [None] if x.args is None else [x.args if isinstance(x.args, list) else [x.args]]
+        if x.args is None:
+            f_args = [None]
+            if type(f) is KGQSym and self._context._strict_mode == 2:
+                # {:foo}: the body is a quoted symbol, and this is its
+                # evaluation, not a call of foo (the tree does not tell them
+                # apart; at levels 0 and 1 the name is looked up, as before)
+                return self._eval_quoted_symbol(f)
+        else:
+            f_args = [x.args if isinstance(x.args, list) else [x.args]]
 
         # three passes as there are max three argumentes: x,y, and z
         f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity)
         f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node)
         f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node)
 
-        f_args.reverse()
-        f_args = merge_projections(f_args)
-        if (0 if f_args is None else len(f_args)) < f_arity or has_none(f_args):
+        if len(f_args) == 1:
+            f_args = f_args[0]
+        else:
+            f_args.reverse()
+            if self._context._strict_mode == 2:
+                self._check_projection(x.a, f_args)
+            f_args = merge_projections(f_args)
+        n = 0 if f_args is None else len(f_args)
+        if n < f_arity or has_none(f_args):
             return x
+        if n > f_arity and self._context._strict_mode == 2 and not isinstance(f, KGLambda):
+            # f_arity is the callee's own arity when the callee is a Klong
+            # function; for anything else it is the count of arguments
+            # written. (A KGLambda is checked in _run_fn against its own
+            # arity; a dictionary literal is a call of one with arity 0.)
+            raise self._too_many(x.a, f_arity, n)
 
         ctx = {} if f_args is None else {p: self.call(q) for p,q in zip(reserved_fn_symbols,f_args)}
 
         return self._run_fn(f, ctx, node)
+
+    @staticmethod
+    def _too_many(callee, takes, given):
+        """The strict level 2 error for a call with more arguments than the function takes."""
+        name = str.__str__(callee).split('`')[0] if isinstance(callee, str) and callee not in reserved_fn_symbols else "the function"
+        what = "no arguments" if takes == 0 else "1 argument" if takes == 1 else f"{takes} arguments"
+        return KlongArityError(f"{name} takes {what}, got {given}")
+
+    def _check_projection(self, callee, layers):
+        """
+        Strict level 2: a call of a projection must not supply more arguments
+        than the projection has holes. layers is what merge_projections is
+        about to merge (the projection's arguments first); the walk is the
+        same, and anything a layer has left when the holes are used up is an
+        argument that would be dropped.
+        """
+        sparse = list(layers[0]) if layers[0] is not None else []
+        holes = sum(1 for q in sparse if q is None)
+        i = 0
+        for fa in layers[1:]:
+            if fa is None:
+                continue
+            j = 0
+            while i < len(sparse) and j < len(fa):
+                if sparse[i] is None:
+                    sparse[i] = fa[j]
+                    j += 1
+                    while j < len(fa) and fa[j] is None:
+                        j += 1
+                i += 1
+            if any(q is not None for q in fa[j:]):
+                raise self._too_many(callee, holes, sum(1 for q in fa if q is not None))
 
     def apply(self, f, values, arity=None):
         """
@@ -1308,11 +1463,15 @@ class KlongInterpreter():
             # no projection involved: the values are the arguments
             if len(values) < f_arity:
                 return KGCall(fn, values, len(values) if arity is None else arity)
+            if len(values) > f_arity and self._context._strict_mode == 2 and not isinstance(f, KGLambda):
+                raise self._too_many(fn, f_arity, len(values))
         else:
             # Projection arguments are unevaluated expressions; mark the values
             # so that only the projection arguments are evaluated after merging.
             f_args[0] = [_Value(v) for v in values]
             f_args.reverse()
+            if self._context._strict_mode == 2:
+                self._check_projection(fn, f_args)
             f_args = merge_projections(f_args)
             if len(f_args) < f_arity or has_none(f_args):
                 return KGCall(fn, values, len(values) if arity is None else arity)
@@ -1335,29 +1494,48 @@ class KlongInterpreter():
         by the same rule, split_locals, and the result is stored on the node.
 
         """
+        # .f is the function as it is called here: a KGBody keeps its locals,
+        # so a call through .f declares them again (ticket 026).
+        ctx[reserved_dot_f_symbol] = f
         if type(f) is KGBody:
-            for q in f.locals:
-                # Don't overwrite function parameters (x, y, z)
-                if q not in ctx:
-                    ctx[q] = q
+            if self._context._strict_mode == 2:
+                # an unassigned local is an error to read, not its own symbol
+                ctx = _StrictFrame(ctx)
+                for q in f.locals:
+                    if q not in ctx:
+                        ctx[q] = _UNSET
+            else:
+                for q in f.locals:
+                    # Don't overwrite function parameters (x, y, z)
+                    if q not in ctx:
+                        ctx[q] = q
             f = f.plain
         elif node is None or node.locals is None:
             sp = split_locals(f)
             if sp is not None:
-                for q in sp[0]:
-                    if q not in ctx:
-                        ctx[q] = q
+                if self._context._strict_mode == 2:
+                    ctx = _StrictFrame(ctx)
+                    for q in sp[0]:
+                        if q not in ctx:
+                            ctx[q] = _UNSET
+                else:
+                    for q in sp[0]:
+                        if q not in ctx:
+                            ctx[q] = q
                 if node is not None and node.a is f:
                     fn_metadata(node)
                 f = sp[2]
             elif node is not None and node.a is f:
                 fn_metadata(node)
 
-        ctx[reserved_dot_f_symbol] = f
-
         self._context.push(ctx)
         try:
             if issubclass(type(f), KGLambda):
+                if self._context._strict_mode == 2 and type(f) is KGLambda and len(ctx) - 1 > len(f.args) and not f._wildcard:
+                    # ctx holds the arguments and .f. Exact type: the
+                    # subclasses (database, remote function, network client)
+                    # take any number of arguments and have no args of their own.
+                    raise self._too_many(f.name, len(f.args), len(ctx) - 1)
                 try:
                     return f(self, self._context)
                 except KlongError:
@@ -1379,20 +1557,20 @@ class KlongInterpreter():
 
         Evaluate a quoted symbol (`:foo`, a KGQSym node).
 
-        STRICT-LEVEL SWITCH (ticket 051): this is the one place that decides
-        what a quoted symbol evaluates to.
+        This is the one place that decides what a quoted symbol evaluates to.
 
-        Strict levels 0 and 1 (all that exist today) keep the legacy rule: a
-        quoted symbol is treated like the bare name, so it gives the variable's
-        value when one is defined and the symbol otherwise (and, like a bare
-        undefined name, it is then defined as itself).
+        Strict levels 0 and 1 keep the legacy rule: a quoted symbol is treated
+        like the bare name, so it gives the variable's value when one is
+        defined and the symbol otherwise (at level 0 it is then defined as
+        itself, like a bare undefined name).
 
-        Strict level 2 is to return the plain symbol and never look it up,
-        i.e. only the last two lines of this method.
+        Strict level 2: the symbol, never a lookup (ticket 051).
 
         The result is never a KGQSym: the symbol value is a plain KGSym.
 
         """
+        if self._context._strict_mode == 2:
+            return reserved_fn_symbol_map.get(str.__str__(x)) or KGSym(x)
         try:
             return self._context[x]
         except KeyError:
@@ -1400,8 +1578,49 @@ class KlongInterpreter():
         s = reserved_fn_symbol_map.get(str.__str__(x))
         if s is None:
             s = KGSym(x)
-            self._context[s] = s
+            ctx = self._context
+            # Level 0 defines the name as itself, like a bare undefined name.
+            # Above it nothing is defined: inside a function the definition
+            # was the level 1 name error, and a quoted symbol is not a read
+            # of a variable (ticket 050).
+            if not ctx._strict_mode:
+                ctx[s] = s
         return s
+
+    def _undefined(self, x):
+        """
+        The value of the name x, which is not defined (the cold path of eval).
+
+        Strict level 0: the name is defined as its own symbol, which is the
+        value (legacy). Level 1: the same at top level; inside a function it
+        is a name error (ticket 050; it was one before, raised by the
+        definition and worded as advice for an assignment). Level 2: a name
+        error everywhere (ticket 051), with a hint when one defined name is
+        close to x.
+        """
+        ctx = self._context
+        level = ctx._strict_mode
+        if level:
+            if level == 2:
+                raise KlongNameError(f"undefined: {x}", hint=self._did_you_mean(x))
+            if ctx.in_function():
+                raise KlongNameError(f"undefined: {x}")
+        if x not in reserved_fn_symbols:
+            ctx[x] = x
+        return x
+
+    # A defined name is offered when difflib rates it at least this similar
+    # to the undefined one: "lenth" for "lenght" is 0.73, "abcx" for "abcd"
+    # 0.75, "abd" for "abc" 0.67, "abxy" for "abcd" 0.5.
+    DID_YOU_MEAN_CUTOFF = 0.7
+
+    def _did_you_mean(self, x):
+        """The hint for the undefined name x: the closest defined name, if one is close."""
+        name = str.__str__(x).split('`')[0]
+        names = {str.__str__(k).split('`')[0] for k, _ in self._context}
+        names.discard(name)
+        close = difflib.get_close_matches(name, sorted(names), n=1, cutoff=self.DID_YOU_MEAN_CUTOFF)
+        return f"did you mean {close[0]}?" if close else None
 
     def call(self, x):
         """
@@ -1585,10 +1804,10 @@ class KlongInterpreter():
                     return self._eval_quoted_symbol(x)
                 try:
                     return self._context[x]
-                except KeyError:
-                    if x not in reserved_fn_symbols:
-                        self._context[x] = x
-                    return x
+                except KeyError as e:
+                    if isinstance(e, KlongError):
+                        raise           # a local read before assignment (strict level 2)
+                    return self._undefined(x)
             elif isinstance(x, KGFn):
                 if x.is_op():
                     # Try compiled path for operator expressions (skips assignment/gradient)

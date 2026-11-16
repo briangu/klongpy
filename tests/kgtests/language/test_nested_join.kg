@@ -1,7 +1,7 @@
 :" test that we can create new arrays with nested arrays and the result has the right shape "
 
 data::{!3}
-t("1,,{data()}'!2";1,,{data()}'!2;[1 [[0 1 2] [0 1 2]]])
+t("1,,{x;data()}'!2";1,,{x;data()}'!2;[1 [[0 1 2] [0 1 2]]])
 
 
 a::!10

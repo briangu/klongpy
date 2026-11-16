@@ -149,7 +149,7 @@ cmul::{(((*x)**y)-(x@1)*y@1),((x@1)**y)+(*x)*y@1}
 cdiv::{[d];d::((*y)^2)+(y@1)^2;((((*x)^2)+(^*y)^2)%d),(((x@1)**y)-(*x)*y@1)%d}
 cexp::{(exp(*x)*cos(x@1)),exp(*x)*sin(x@1)}
 cabs::{sqr(((*x)^2)+(x@1)^2)}
-fft::{ff2::{[n e o p t k];n::#x;
+fft::{[ff2 f n k];ff2::{[n e o p t k];n::#x;
             f::{p::2:#x;e::ff2(*'p);o::ff2({x@1}'p);k::-1;
                 t::{k::k+1;cmul(cexp(cdiv(cmul([0 -2];(k*pi),0);n,0));x)}'o;
                 (e cadd't),e csub't};
@@ -157,7 +157,7 @@ fft::{ff2::{[n e o p t k];n::#x;
       n::#x;k::{(2^x)<n}{1+x}:~1;n#ff2({x,0}'x,&(2^k)-n)}
 gln.c::[76.18009173 -86.50532033 24.01409822
         -1.231739516 0.00120858003 -0.00000536382]
-gamln::{[xx t i];xx::x-1;t::xx+5.5;t::((xx+0.5)*ln(t))-t;i::0;
+gamln::{[xx t i s];xx::x-1;t::xx+5.5;t::((xx+0.5)*ln(t))-t;i::0;
         t+ln(2.50662827465*6{xx::xx+1;s::x+(gln.c@i)%xx;i::i+1;s}:*1)}
 gam::{exp(gamln(x))}
 beta::{exp((gamln(x)+gamln(y))-gamln(x+y))}

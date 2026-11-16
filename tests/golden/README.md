@@ -46,3 +46,10 @@ entries are not pairs is a syntax error, where the reader used to fail with an
 `IndexError` or a `TypeError`). The warnings of that ticket do not appear in
 the trees: at strict level 0, where the snapshots are taken, the tree of a
 malformed input is what it always was.
+
+Ticket 026 changed what `(fn N ...)` prints for a function literal: N is the
+highest of x, y, z the body mentions (`{-x}` is `(fn 1 ...)`, `{y}` is
+`(fn 2 ...)`), where it used to be a count of the names an incomplete scan
+found. 17 snapshots were regenerated (16 of `language` and `lib`, and
+`fixtures/x_nested_functions`); 210 lines differ and each differs in that
+number only. Both parsers agree, because the arity function is shared.

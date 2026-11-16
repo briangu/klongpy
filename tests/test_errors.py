@@ -306,7 +306,7 @@ class TestRuntimePositions(unittest.TestCase):
         k(".strict()")
         k("f::{1+undefinedname}")
         e = raised(k, "f()", KlongNameError)
-        self.assertEqual(str(e), "undefined variable: undefinedname")
+        self.assertEqual(str(e), "undefined: undefinedname")     # a read (ticket 050; was "undefined variable:")
         self.assertEqual(e.span, (6, 19))
         self.assertEqual(e.source.text, "f::{1+undefinedname}")
         k("h::{x+y}")
