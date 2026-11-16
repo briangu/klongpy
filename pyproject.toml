@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -22,6 +22,8 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development :: Interpreters",
 ]
@@ -36,26 +38,38 @@ dependencies = [
 
 [project.optional-dependencies]
 torch = ["torch"]
-repl = ["colorama==0.4.6"]
-web = ["aiohttp==3.9.4"]
-db = ["pandas==3.0.0", "duckdb==1.4.4"]
-ws = ["websockets==12.0"]
+# colorama is already a core dependency; this extra is kept so
+# `pip install klongpy[repl]` keeps working.
+repl = ["colorama>=0.4"]
+web = ["aiohttp>=3.9"]
+# pandas 2.x supports Python 3.9/3.10; pandas 3 needs 3.11+ (pip picks the newest that fits).
+db = ["pandas>=2.0", "duckdb>=1.0"]
+ws = ["websockets>=12"]
 docs = ["mkdocs>=1.6", "mkdocs-material>=9.7"]
 all = [
     "torch",
-    "colorama==0.4.6",
-    "aiohttp==3.9.4",
-    "pandas==3.0.0",
-    "duckdb==1.4.4",
-    "websockets==12.0",
-    "mkdocs>=1.6",
-    "mkdocs-material>=9.7",
+    "colorama>=0.4",
+    "aiohttp>=3.9",
+    "pandas>=2.0",
+    "duckdb>=1.0",
+    "websockets>=12",
+]
+# alias of `all` (used by CLAUDE.md: pip install -e ".[full]")
+full = [
+    "torch",
+    "colorama>=0.4",
+    "aiohttp>=3.9",
+    "pandas>=2.0",
+    "duckdb>=1.0",
+    "websockets>=12",
 ]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
-    "mkdocs>=1.6",
-    "mkdocs-material>=9.7",
+]
+release = [
+    "build",
+    "twine",
 ]
 
 [project.urls]
