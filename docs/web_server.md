@@ -57,13 +57,20 @@ $ curl "http://localhost:8888"
 
 You can also launch the same web server directly from the REPL:
 
+<!-- check-docs: requires aiohttp -->
 ```kgpy
 ?> .py("klongpy.web")
+1
 ?> data::!10
+[0 1 2 3 4 5 6 7 8 9]
 ?> index::{x; "Hello, Klong World! ", data}
+:monad
 ?> get:::{}; get,"/",index
+:{["/" :monad]}
 ?> post:::{}
+:{}
 ?> h::.web(8888;get;post)
+web[0.0.0.0:8888]
 ```
 
 Now in another terminal:
@@ -75,6 +82,7 @@ $ curl http://localhost:8888
 
 Stop the server with:
 
+<!-- check-docs: skip: .webc(h) returns 0 and leaves the server running (interpreter bug: the handle is not a KGCall, see sys_fn_web.py); the documented result is 1 -->
 ```kgpy
 ?> .webc(h)
 1

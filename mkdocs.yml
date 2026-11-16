@@ -23,6 +23,7 @@ nav:
       - Operators: 'operators.md'
       - REPL: 'repl.md'
       - Errors: 'errors.md'
+      - Release Notes: 'release-notes.md'
       - System Functions: 'system-functions.md'
   - Data & Systems:
       - Fast Columnar Database: 'fast_columnar_database.md'

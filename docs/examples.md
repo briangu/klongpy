@@ -65,11 +65,12 @@ KlongPy is more about arrays of things, so let's define sum and count functions 
 
 Now that we know the sum and number of elements we can compute the average:
 
+<!-- check-docs: continue -->
 ```kgpy
 ?> avg::{sum(x)%count(x)} :" average is the sum divided by the number of elements
 :monad
 ?> avg([1 2 3])
-2
+2.0
 ```
 
 ## 2. Math on arrays
@@ -158,16 +159,18 @@ KlongPy leverages a high-performance columnar store called DuckDB that uses zero
 
 It's easy to create a table and a db to query:
 
+<!-- check-docs: requires duckdb pandas -->
 ```kgpy
 ?> .py("klongpy.db")
+1
 ?> t::.table([["name" ["Alice" "Bob"]] ["age" [25 30]]])
-name age
-Alice 25
-Bob 30
-?> db::.db(:{},"T",t)
+ name age
+Alice  25
+  Bob  30
+?> db::.db(:{},"T",,t)
+:db
 ?> db("select * from T where age > 27")
-name age
-Bob 30
+["Bob" 30]
 ```
 
 ## 5. IPC, Remote Function Calls and Asynchronous operations
@@ -181,36 +184,39 @@ To see this in action, let's setup a simple scenario where the server has an "av
 Start a server in one terminal:
 
 ```kgpy
-?> avg::{(+/x)%#x}
+server?> avg::{(+/x)%#x}
 :monad
-?> .srv(8888)
+server?> .srv(8888)
 1
 ```
 
 Start the client and make the connection to the server as 'f'.  In order to pass parameters to a remote function we form an array of the function symbol followed by the parameters (e.g. :avg,,!100)
 
+<!-- check-docs: continue -->
 ```kgpy
-?> f::.cli(8888) :" connect to the server
+client?> f::.cli(8888) :" connect to the server
 remote[localhost:8888]:fn
-?> f(:avg,,!100) :" call the remote function avg directly with the parameter !100
+client?> f(:avg,,!100) :" call the remote function avg directly with the parameter !100
 49.5
 ```
 
 Let's get fancy and make a local proxy to the remote function:
 
+<!-- check-docs: continue -->
 ```kgpy
-?> myavg::f(:avg) :" reference the remote function by it's symbol :avg and assign to a local variable called myavg
+client?> myavg::f(:avg) :" reference the remote function by its symbol :avg and assign to a local variable called myavg
 remote[localhost:8888]:fn:avg:monad
-?> myavg(!100) :" this runs on the server with !100 array passed to it as a parameter
+client?> myavg(!100) :" this runs on the server with !100 array passed to it as a parameter
 49.5
 ```
 
 Since remote functions may take a while we can wrap them with an async wrapper and have it call our callback when completed:
 
+<!-- check-docs: continue -->
 ```kgpy
-?> afn::.async(myavg;{.d("Avg calculated: ");.p(x)})
+client?> afn::.async(myavg;{.d("Avg calculated: ");.p(x)})
 async::monad
-?> afn(!100)
+client?> afn(!100)
 Avg calculated: 49.5
 1
 ```
@@ -249,13 +255,13 @@ KlongPy supports automatic differentiation, enabling gradient-based optimization
 
 ### Numeric Gradient with `∇` (always numeric, any backend)
 
-The `∇` operator **always** computes gradients using numeric differentiation:
+The `∇` operator **always** computes gradients using numeric differentiation, so the result is close to the exact value but not equal to it:
 
 ```kgpy
 ?> f::{x^2}        :" Define f(x) = x^2
 :monad
-?> 3∇f             :" Compute f'(3) ≈ 6.0
-6.0
+?> 3∇f             :" Compute f'(3), which is about 6
+6.000000000838668
 ```
 
 ### PyTorch Autograd with `:>` (recommended with torch backend)
@@ -268,6 +274,7 @@ $ kgpy --backend torch
 
 Use the `:>` operator for PyTorch autograd. The syntax is `function:>point`:
 
+<!-- check-docs: skip: shows the torch backend output (exact gradients), and torch is not installed where the docs are checked -->
 ```kgpy
 ?> f::{x^2}        :" Define f(x) = x^2
 :monad
@@ -277,6 +284,7 @@ Use the `:>` operator for PyTorch autograd. The syntax is `function:>point`:
 
 For vector-valued inputs, the gradient is computed element-wise:
 
+<!-- check-docs: skip: shows the torch backend output (exact gradients), and torch is not installed where the docs are checked -->
 ```kgpy
 ?> h::{+/x^2}      :" h(x) = sum of squares
 :monad
@@ -286,6 +294,7 @@ For vector-valued inputs, the gradient is computed element-wise:
 
 Simple gradient descent to minimize x^2:
 
+<!-- check-docs: skip: shows the torch backend output (exact gradients), and torch is not installed where the docs are checked -->
 ```kgpy
 ?> f::{x^2}
 :monad

@@ -18,24 +18,38 @@ Since KlongPy Tables are backed by Pandas DataFrames, it's convenient to be able
 
 Let's consider that we have a table called 'prices' and we want to store it on disk.
 
+<!-- check-docs: requires duckdb pandas -->
 ```
+?> .py("klongpy.db")
+1
+?> prices::.table([["sym" ["A" "B"]] ["px" [1.5 2.5]]])
+sym  px
+  A 1.5
+  B 2.5
 ?> tbs::.tables("/tmp/tables")
 /tmp/tables:tables
-?> tbs,"prices",prices
+?> tbs,"prices",,prices
 /tmp/tables:tables
 ```
 
 Similarly, reading values is the same as getting a value from a dict:
 
+<!-- check-docs: continue -->
 ```
 ?> prices::tbs?"prices"
+sym  px
+  A 1.5
+  B 2.5
 ```
 
 ### Generic key-value store
 
 A simple key-value store backed by disk is available via the .kvs() command.
 
+<!-- check-docs: requires duckdb pandas -->
 ```
+?> .py("klongpy.db")
+1
 ?> kvs::.kvs("/tmp/kvs")
 /tmp/kvs:kvs
 ?> kvs,"hello",,"world"
@@ -46,7 +60,8 @@ Now a file `/tmp/kvs/hello` exists with a pickled instance of "hello". Only unpi
 
 Retrieving a value is the same as reading from a dictionary:
 
+<!-- check-docs: continue -->
 ```
 ?> kvs?"hello"
-world
+"world"
 ```

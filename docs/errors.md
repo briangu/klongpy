@@ -155,6 +155,98 @@ name:line:column: warning: message
 
 A warning without a position is the single line `warning: message`. Warnings do not change the exit status. Python code that uses the interpreter directly sees them through the standard `warnings` module. Other Python warnings (from numpy, for example) are left to Python's own handling.
 
+### Syntax warnings
+
+Input that the parser used to accept without a word is now reported. At the default level (strict level 0) each case below is a `KlongSyntaxWarning` and the program runs as it always did, so existing programs keep their results. The warning text adds what happens to the input. Every warning has a `code`:
+
+| `code` | Input | What happens at the default level |
+|---|---|---|
+| `trailing-input` | `1 2 3`, `"a" "b"`, `f(1 2)` | The first expression is evaluated and the rest is dropped. In a call the extra item is passed as one more argument. |
+| `stray-closer` | `1+1 )`, `x::1 }` | A closer with nothing open is ignored. In a place where an expression is expected (`1;)`) it is read as a string. |
+| `missing-operand` | `f::`, `+/`, `1 f` | The operator has no operand. The statement evaluates to nothing, or fails when it is run (`1+` is also a syntax error). |
+| `unterminated-string` | `"abc` | The string runs to the end of the input. |
+| `unterminated-list` | `[1 2 3` | The list runs to the end of the input. For nested lists only the outermost is reported. |
+| `unterminated-dict` | `:{[1 2]` | The dictionary runs to the end of the input. |
+| `unterminated-comment` | `3:"x` | The comment runs to the end of the input. |
+
+At the default level the REPL returns these values (each with a warning on stderr):
+
+```kgpy
+?> 1 2 3
+1
+?> 1+1 )
+2
+?> f::
+None
+?> "abc
+"abc"
+?> [1 2 3
+[1 2 3]
+?> :{[1 2]
+:{[1 2]}
+?> 3:"x
+3
+```
+
+The same inputs are errors under `.strict(1)`: a `KlongSyntaxError` with the same message, without the sentence about what would have happened, and nothing is evaluated.
+
+```kgpy
+?> .strict(1)
+1
+?> 1 2 3
+error: unexpected '2' after the end of the expression
+?> 1+1 )
+error: unexpected ')': nothing is open that it could close
+?> f::
+error: missing right operand for ::
+?> +/
+error: missing operand for +/
+?> "abc
+error: unterminated string: the closing " is missing
+?> [1 2 3
+error: unterminated list: the closing ] is missing
+?> :{[1 2]
+error: unterminated dictionary: the closing } is missing
+?> 3:"x
+error: unterminated comment: the closing " is missing
+```
+
+A few inputs are errors at every level, because they were never valid: an adverb that does not directly follow a verb (`{1 '2}`, `(f)'3`), and a dictionary literal entry that is not a `[key value]` pair (`:{;1;2}`). They fail when the text is parsed, so a function that contains one now fails when it is defined, not when it is called.
+
+#### From Python
+
+A warning belongs to the text, not to one run of it. `klong(text)` issues the warnings of `text` through `warnings.warn_explicit` before it evaluates anything, each time it is called, also for text that comes from the parse cache. The file name is the name of the source (`<string>` for text passed as a string). `KlongSyntaxWarning` is exported by `klongpy`. Its attributes are `message` (also `str(w)`), `code`, `span` (a `(start, end)` pair into the source text), `source`, `hint` and `render()`.
+
+Python's default filter shows a warning once for each place it is issued from. To collect them, or to see every one, use `warnings.catch_warnings`:
+
+```python
+import warnings
+from klongpy import KlongInterpreter, KlongSyntaxWarning
+
+klong = KlongInterpreter()
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    klong("1 2 3")                      # evaluates to 1
+for w in caught:
+    print(w.message.code)               # trailing-input
+    print(w.message.render())
+```
+
+To make them errors, turn the category into an `error` filter. The warning is then raised before anything in the text runs, and every time the text is run:
+
+```python
+warnings.simplefilter("error", KlongSyntaxWarning)
+try:
+    klong("1+1 )")
+except KlongSyntaxWarning as w:
+    print(w.code)                       # stray-closer
+```
+
+`warnings.simplefilter("error")`, `python -W error` and `pytest -W error::klongpy.KlongSyntaxWarning` work as well. `python -W error::klongpy.KlongSyntaxWarning` does not, and neither does `PYTHONWARNINGS=error::klongpy.KlongSyntaxWarning`. Python resolves the category name while it starts, before `klongpy` can be imported (importing it needs numpy), so it prints `Invalid -W option ignored: invalid module name: 'klongpy'` and the filter is not installed. Install the filter from code, as above, or use `-W error` for all warnings.
+
+Only the default (token) parser warns. The legacy parser (`KLONGPY_PARSER=legacy`) accepts the same input silently at every level.
+
 ## Interrupt
 
 In the REPL, Ctrl-C during a long evaluation stops it, prints `interrupted` and returns to the prompt. Python code stops at its next step; one long call into numpy finishes first. If the evaluation has not stopped after two seconds the REPL says so, and a second Ctrl-C quits. Ctrl-C at the prompt only abandons the line.

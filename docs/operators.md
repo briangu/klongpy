@@ -338,9 +338,9 @@ These rules apply to the interpreted and compiled paths and to the NumPy backend
 ?> "abc"@[0 -1]
 "ac"
 ?> [1 2 3]@3
-error: @: index 3 out of range for length 3
+error: index 3 out of range for list of 3
 ?> [1 2 3]@-4
-error: @: index -4 out of range for length 3
+error: index -4 out of range for list of 3
 ```
 
 `a:=v,i` uses the same index rule. On a string, index `#a` appends and any larger index is an error. A real value put into an integer list turns the whole list into reals.
@@ -381,7 +381,7 @@ Two lists of different lengths in an atomic dyad are an error. So is filling a n
 
 ```kgpy
 ?> [1 2 3]+[1 2]
-error: atomic dyad shape mismatch: (3,) and (2,)
+error: cannot apply + (Plus) to list of 3 and list of 2
 ?> [2 3]:^[]
 error: :^: cannot fill a non-empty shape from an empty source
 ```
@@ -436,6 +436,68 @@ error: :#: segment sizes must not be empty
 error: :*: count must not be negative, got -1
 ?> 1.5{x+1}:*0
 error: :*: count must be a non-negative integer, got 1.5
+```
+
+### Take on nested lists
+
+`n#a` on a list of lists takes whole rows, not elements of the rows. If `n` is larger than the number of rows, the rows repeat from the start. A negative `n` takes `|n|` rows and the result ends with the last row; when `|n|` is larger than the number of rows, the rows repeat.
+
+```kgpy
+?> 5#[[1 2] [3 4]]
+[[1 2] [3 4] [1 2] [3 4] [1 2]]
+?> 2#[[1 2] [3 4] [5 6]]
+[[1 2] [3 4]]
+?> (-3)#[[1 2] [3 4]]
+[[3 4] [1 2] [3 4]]
+?> 0#[[1 2] [3 4]]
+[]
+?> 5#[1 2]
+[1 2 1 2 1]
+```
+
+### Indexing is `@`, not `q[1]`
+
+Square brackets build lists. They do not index, so `q[1]` is the variable `q` followed by the list `[1]`. The parser reads `q`, warns that `[1]` is left over (see [Syntax warnings](errors.md#syntax-warnings)) and returns `q`. Inside parentheses or a function body it is an error, with a hint. Write `q@1`.
+
+```kgpy
+?> q::[10 20 30]
+[10 20 30]
+?> q@1
+20
+?> q[1]
+[10 20 30]
+?> {q[1]}
+error: expected '}' but found '['
+```
+
+### Whitespace in a conditional
+
+Spaces are allowed before and after the `;` that separates the parts of a conditional.
+
+```kgpy
+?> :[1 ;"a";"b"]
+"a"
+?> :[0 ;"a" ;"b"]
+"b"
+?> :[1 = 1 ; "yes" ; "no"]
+"yes"
+```
+
+### An adverb touches its verb
+
+An adverb must follow its verb with no space between them. A space is a syntax error at every strict level, and it is found when the text is parsed, so a function that contains one fails when it is defined.
+
+```kgpy
+?> f::{x+1}
+:monad
+?> f'[1 2]
+[2 3]
+?> f '[1 2]
+error: adverb ' must directly follow its verb
+?> {x+1} '[1 2]
+error: adverb ' must directly follow its verb
+?> (f)'[1 2]
+error: adverb ' does not follow a verb
 ```
 
 ### Symbols are data

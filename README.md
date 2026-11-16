@@ -355,18 +355,19 @@ Learned: w=2.01 b=2.97
 
 ### 4. Database Operations
 
+<!-- check-docs: requires duckdb pandas -->
 ```klong
 ?> .py("klongpy.db")
-?> t::.table([[\"name\" [\"Alice\" \"Bob\" \"Carol\"]] [\"age\" [25 30 35]]])
-name  age
+1
+?> t::.table([["name" ["Alice" "Bob" "Carol"]] ["age" [25 30 35]]])
+ name age
 Alice  25
-Bob    30
+  Bob  30
 Carol  35
-?> db::.db(:{},\"T\",t)
-?> db(\"SELECT * FROM T WHERE age > 27\")
-name  age
-Bob    30
-Carol  35
+?> db::.db(:{},"T",,t)
+:db
+?> db("SELECT * FROM T WHERE age > 27")
+[["Bob" 30] ["Carol" 35]]
 ```
 
 ### 5. IPC: Distributed Computing
