@@ -135,18 +135,18 @@ Any number of parameters is allowed. Classic functions stop at three (`x y z`):
 <!-- check-docs: strict 2 -->
 ```kgpy
 ?> g(a;b;c;d)::{(a*b)+c*d}
-:triad
+:fn/4
 ?> g(1;2;3;4)
 14
 ?> g@[1 2 3 4]
 14
 ?> mx(a;b;c;d;e;f)::{a+b+c+d+e+f}
-:triad
+:fn/6
 ?> mx(1;2;3;4;5;6)
 21
 ```
 
-A function of four or more parameters displays as `:triad`. A function with no parameters is written `h()::{...}`:
+A function of four or more parameters displays as `:fn/N`, N being the number of parameters (`:fn/4`, `:fn/6`), which is also the form that goes over [IPC](ipc_capabilities.md); `:nilad`, `:monad`, `:dyad` and `:triad` stay for zero to three. A function with no parameters is written `h()::{...}`:
 
 <!-- check-docs: strict 2 -->
 ```kgpy
@@ -222,7 +222,7 @@ Leaving an argument empty, or leaving arguments off the end, makes a projection 
 <!-- check-docs: strict 2 -->
 ```kgpy
 ?> g(a;b;c;d)::{(a*b)+c*d}
-:triad
+:fn/4
 ?> p::g(1;;3;4)
 :monad
 ?> p(10)

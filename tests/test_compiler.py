@@ -1,4 +1,7 @@
+import importlib.util
 import unittest
+
+needs_torch = unittest.skipUnless(importlib.util.find_spec("torch") is not None, "requires torch")
 
 
 class TestCompilerFallback(unittest.TestCase):
@@ -39,6 +42,7 @@ class TestCompilerFallback(unittest.TestCase):
         result = compile_expr(ast, klong)
         self.assertIsNotNone(result, "numpy backend should compile array expressions")
 
+    @needs_torch
     def test_returns_none_for_numpy_arrays_on_torch_backend(self):
         from klongpy.compiler import compile_expr
         from klongpy import KlongInterpreter
@@ -404,6 +408,7 @@ class TestNumpyBackendCompiler(unittest.TestCase):
         np.testing.assert_almost_equal(float(compiled), float(interp))
 
 
+@needs_torch
 class TestCompileExprCorrectness(unittest.TestCase):
     """Test that compiled functions produce correct results."""
 
@@ -512,6 +517,7 @@ class TestCompileExprCorrectness(unittest.TestCase):
         self._assert_compiled_matches_interp(klong, 'a*alpha')
 
 
+@needs_torch
 class TestCompileReductions(unittest.TestCase):
     """Test compilation of reduce (op/) and scan (op\\) expressions."""
 
@@ -625,6 +631,7 @@ class TestCompileReductions(unittest.TestCase):
 class TestEvalIntegration(unittest.TestCase):
     """Test that eval() uses the compiler for adverb chains."""
 
+    @needs_torch
     def test_scan_in_loop_uses_compiled(self):
         """|\a inside a loop should use torch.cummax, not element-by-element."""
         from klongpy import KlongInterpreter
@@ -643,6 +650,7 @@ class TestEvalIntegration(unittest.TestCase):
         expected = torch.cummax(klong['a'].cpu(), 0).values
         torch.testing.assert_close(result.cpu(), expected)
 
+    @needs_torch
     def test_reduce_in_loop_uses_compiled(self):
         from klongpy import KlongInterpreter
         import torch
@@ -653,6 +661,7 @@ class TestEvalIntegration(unittest.TestCase):
         expected = klong['a'].sum()
         torch.testing.assert_close(result.cpu().float(), expected.cpu().float())
 
+    @needs_torch
     def test_fused_reduce_in_eval(self):
         from klongpy import KlongInterpreter
         import torch
@@ -664,6 +673,7 @@ class TestEvalIntegration(unittest.TestCase):
         expected = (klong['a'] * klong['b']).sum()
         torch.testing.assert_close(result.cpu().float(), expected.cpu().float())
 
+    @needs_torch
     def test_cumsum_in_eval(self):
         from klongpy import KlongInterpreter
         import torch
@@ -688,6 +698,7 @@ class TestEvalIntegration(unittest.TestCase):
 class TestInterpreterIntegration(unittest.TestCase):
     """Test that __call__ uses the compiler when available."""
 
+    @needs_torch
     def test_call_uses_compiled_path(self):
         from klongpy import KlongInterpreter
         import torch
@@ -697,6 +708,7 @@ class TestInterpreterIntegration(unittest.TestCase):
         result = klong('a+b')
         torch.testing.assert_close(result.cpu(), torch.tensor([5.0, 7.0, 9.0]))
 
+    @needs_torch
     def test_call_populates_compiled_cache(self):
         from klongpy import KlongInterpreter
         import torch
@@ -706,6 +718,7 @@ class TestInterpreterIntegration(unittest.TestCase):
         klong('a+b')
         self.assertIn(('a+b', None), klong._compiled_cache)
 
+    @needs_torch
     def test_cache_cleared_on_setitem(self):
         from klongpy import KlongInterpreter
         import torch
@@ -717,6 +730,7 @@ class TestInterpreterIntegration(unittest.TestCase):
         klong['a'] = torch.tensor([10.0])
         self.assertEqual(len(klong._compiled_cache), 0)
 
+    @needs_torch
     def test_cache_cleared_on_delitem(self):
         from klongpy import KlongInterpreter
         import torch
@@ -728,6 +742,7 @@ class TestInterpreterIntegration(unittest.TestCase):
         del klong['a']
         self.assertEqual(len(klong._compiled_cache), 0)
 
+    @needs_torch
     def test_type_change_does_not_produce_wrong_result(self):
         from klongpy import KlongInterpreter
         import torch
@@ -751,12 +766,14 @@ class TestInterpreterIntegration(unittest.TestCase):
         result = klong('1+2')
         self.assertEqual(result, 3)
 
+    @needs_torch
     def test_multi_statement_falls_through(self):
         from klongpy import KlongInterpreter
         klong = KlongInterpreter(backend='torch')
         result = klong('a::5;b::3;a+b')
         self.assertEqual(int(result), 8)
 
+    @needs_torch
     def test_assignment_falls_through(self):
         from klongpy import KlongInterpreter
         klong = KlongInterpreter(backend='torch')

@@ -29,17 +29,24 @@ from .utils import ReadonlyDict
 from .compiler import compile_guarded, run_compiled, NOT_COMPILED, LRUCache
 
 
-def set_context_var(d, sym, v):
+def context_value(sym, v):
     """
-    Sets a context variable, wrapping Python lambda/functions as appropriate.
+    The value stored for sym: a Python lambda/function is wrapped as a Klong function.
     """
-    assert isinstance(sym, KGSym)
     if callable(v) and not issubclass(type(v), KGLambda) :
         x = KGLambda(v)
         x.name = str.__str__(sym)   # for messages (strict level 2 arity error)
         # A function value in call form with no arguments yet (args=None).
         v = KGCall(x,args=None,arity=x.get_arity())
-    d[sym] = v
+    return v
+
+
+def set_context_var(d, sym, v):
+    """
+    Sets a context variable, wrapping Python lambda/functions as appropriate.
+    """
+    assert isinstance(sym, KGSym)
+    d[sym] = context_value(sym, v)
 
 
 class _Value:
@@ -164,7 +171,9 @@ class KlongContext():
             # Check if variable exists in any scope
             for d in self._context:
                 if in_map(k, d):
-                    d[k] = v
+                    # a Python function assigned over an existing name is wrapped
+                    # as it is for a new one
+                    d[k] = context_value(k, v)
                     return k
 
         # Variable doesn't exist - check strict mode. x, y and z are the
@@ -1508,6 +1517,15 @@ class KlongInterpreter():
             # arity; a dictionary literal is a call of one with arity 0.)
             raise self._too_many(x.a, f_arity, n)
 
+        if isinstance(f, KGLambda) and f._wildcard and f_args is not None and len(f_args) > len(reserved_fn_symbols):
+            # a Python function that takes whatever it is given gets every
+            # argument written, not only the first three
+            if layered:
+                values = [q.v if type(q) is _Value else self.call(q) for q in f_args]
+            else:
+                values = [self.call(q) for q in f_args]
+            return self._run_fn(f, self._wildcard_frame(values), node)
+
         if layered:
             # a projection holds the values of the arguments it was made with
             ctx = {p: (q.v if type(q) is _Value else self.call(q)) for p,q in zip(reserved_fn_symbols,f_args)}
@@ -1515,6 +1533,17 @@ class KlongInterpreter():
             ctx = {} if f_args is None else {p: self.call(q) for p,q in zip(reserved_fn_symbols,f_args)}
 
         return self._run_fn(f, ctx, node)
+
+    @staticmethod
+    def _wildcard_frame(values):
+        """
+        The frame for a call of a wildcard Python function (KGLambda.wildcard)
+        with more than three arguments: x, y and z hold the first three and
+        reserved_all_args_symbol holds the list of every one.
+        """
+        ctx = dict(zip(reserved_fn_symbols, values))
+        ctx[reserved_all_args_symbol] = list(values)
+        return ctx
 
     def _projection(self, x, merged, need, layered):
         """
@@ -1754,6 +1783,8 @@ class KlongInterpreter():
                 return self._value_projection(fn, values, sum(1 for q in f_args if q is None))
             values = [q.v if type(q) is _Value else self.call(q) for q in f_args]
 
+        if isinstance(f, KGLambda) and f._wildcard and len(values) > len(reserved_fn_symbols):
+            return self._run_fn(f, self._wildcard_frame(values), node)
         return self._run_fn(f, dict(zip(reserved_fn_symbols, values)), node)
 
     def _projection_short(self, callee, f, merged, values):
@@ -2165,6 +2196,17 @@ class KlongInterpreter():
                     fa = (x.args if type(x.args) is list else [x.args]) if x.args is not None else self._no_operand(x)
                     _y = self.eval(fa[1]) if x.a.arity == 2 else None
                     _x = fa[0] if x.a.a in ['::','∇'] else self.eval(fa[0])
+                    if x.a.a == ':>' and type(fa[1]) is KGSym and isinstance(_x, KGFn) and _x.arity == 0:
+                        # loss:>w with a niladic loss: w names the parameter to
+                        # differentiate (as in loss:>[w]), not a point. A function
+                        # of x takes the value of w as its point, as f:>x does.
+                        try:
+                            return f(_x, [fa[1]])[0]
+                        except Exception as e:
+                            err = self._op_error(e, x, (_x, _y))
+                            if err is e:
+                                raise
+                            raise err from e
                     try:
                         return f(_x) if x.a.arity == 1 else f(_x, _y)
                     except Exception as e:

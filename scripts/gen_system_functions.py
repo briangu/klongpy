@@ -25,7 +25,7 @@ from klongpy.writer import kg_write
 
 MODULES = [
     "klongpy.sys_fn", "klongpy.sys_var", "klongpy.sys_fn_autograd", "klongpy.sys_fn_timer",
-    "klongpy.sys_fn_ipc", "klongpy.db.sys_fn_db", "klongpy.db.sys_fn_kvs",
+    "klongpy.sys_fn_ipc", "klongpy.sys_fn_static", "klongpy.db.sys_fn_db", "klongpy.db.sys_fn_kvs",
     "klongpy.web.sys_fn_web", "klongpy.ws.sys_fn_ws",
 ]
 HEADER = re.compile(r"^(?P<head>.*?)\s{2,}\[(?P<title>[^\]]+)\]\s*$")
@@ -41,6 +41,7 @@ GROUPS = [
      ".srv .cli .clid .clic .async"),
     ("Autograd", "Defined in the base interpreter; most need the PyTorch backend. See [PyTorch Backend](torch_backend.md).",
      ".jacobian .gradcheck .compile .compilex .cmodes .export"),
+    ("Embedded programs", "Defined in the base interpreter. See [Compiling Klong to C](embedded.md).", ".extern .entry"),
     ("Database", 'Load with `.py("klongpy.db")`. See [Fast Columnar Database](fast_columnar_database.md).',
      ".db .table .insert .index .rindex .schema"),
     ("Key-value and table storage", 'Load with `.py("klongpy.db")`. See [Table and Key-Value Stores](table_and_key_value_stores.md).',
@@ -106,6 +107,8 @@ DESC = {
     ".compilex": "Compile a function with a chosen mode and backend (PyTorch backend).",
     ".cmodes": "List the available `torch.compile` modes and backends (PyTorch backend).",
     ".export": "Export a function's computation graph to a file (PyTorch backend).",
+    ".extern": "Declare a function the host provides, with a typed signature, for a program that is compiled.",
+    ".entry": "Mark a function as an entry point of a compiled program and fix its signature.",
     ".db": "Create a DuckDB database from a dictionary of tables.",
     ".table": "Create a table from column definitions.",
     ".insert": "Insert rows into a table.",

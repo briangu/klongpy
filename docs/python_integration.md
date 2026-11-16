@@ -98,7 +98,9 @@ ndarray [1 2 3 4 5]
 
 Python functions, including lambdas, can be easily added to support common operations.
 
-In order to be consistent with the Klong language, the parameters of Python functions may have at most three parameters and they must be x, y, and z.
+A Python function that you add by assigning it (`klong['f'] = lambda ...`) is a Klong function of at most three parameters, which must be named x, y and z, as for any function written with `x y z`.
+
+A function imported with `.py` or `.pyf` that has optional parameters is called with every argument written in the call, however many: `.pyf("numpy";"linspace")` then `linspace(0;1;4;0)` passes the fourth argument too (`endpoint=0`). Too many or too few arguments are the Python `TypeError`, reported as a Klong error of kind `python`. A function with no optional parameters takes its required ones by position, at most three of them, and extra arguments are dropped (an arity error at [strict level 2](strict.md)). One with more than three required parameters is called with a list of the positional arguments and a dictionary of the keyword arguments, `f([1 2 3 4];:{})`, or through `.pyc`.
 
 ```console
 $ python -W ignore <<'EOF'

@@ -273,7 +273,7 @@ client?> f("1+1")
 
 In Python the first error is a `KlongRangeError` with `kind == "range"` and `wire_name == "index"`.
 
-Failures of the connection itself are `KlongSystemError` (`KlongIPCException` and its subclasses): the server could not be reached or refused the handshake, the connection closed or was lost, a protocol error, a call timed out, or an oversize message. Every call waiting on a connection that fails gets the same error.
+Failures of the connection itself are `KlongSystemError` (`KlongIPCException` and its subclasses): the server refused the handshake (raised from `.cli`), the server could not be reached (shown by the first call, after the retries described below), the connection closed or was lost, a protocol error, a call timed out, or an oversize message. Every call waiting on a connection that fails gets the same error.
 
 ## Credentials: `.srv.auth`
 
@@ -295,6 +295,8 @@ error: remote[localhost:8888] closed the connection during the handshake (bad cr
 ```
 
 A refused client raises a system error from `.cli`. The server also drops a connection that does not complete the handshake within 5 seconds, and reads at most 256 bytes of it.
+
+When nothing listens on the port (the connection is refused), `.cli` does not fail at once, and it does not raise. It tries up to 5 times and waits after each failed attempt, 5 seconds first and twice as long each time: 5, 10, 20, 40 and 80 seconds. The interpreter is blocked meanwhile (Ctrl-C stops the wait). After the fifth wait, about 155 seconds after the call (155.1 s measured), `.cli` returns the connection function as usual, and the failure shows on the first call through it: a system error, `connection not established`. A wrong password or a server that is not kdb+ is different: that is the handshake error above, raised from `.cli`. The retry numbers are the defaults `max_retries=5` and `retry_delay=5.0` of `HostPortConnectionProvider` in `klongpy/sys_fn_ipc.py`, which `.cli` uses without passing others; there is no Klong-level way to change them.
 
 ## Closing, Timeouts and `.clit`
 

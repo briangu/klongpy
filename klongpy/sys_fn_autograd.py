@@ -12,7 +12,7 @@ import sys
 
 from .autograd import jacobian_of_fn, _invoke_fn
 from .dyads import eval_dyad_grad
-from .errors import KlongTypeError
+from .errors import KlongTypeError, needs_torch_backend as _needs_torch
 from .types import KGSym
 
 
@@ -62,7 +62,7 @@ def eval_sys_compile(klong, x, y):
         .compile(x;y)                                           [Compile]
 
         Compile a function for optimized execution using torch.compile.
-        Requires PyTorch backend (USE_TORCH=1).
+        Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
 
         Arguments:
             x           - Function to compile
@@ -86,10 +86,7 @@ def eval_sys_compile(klong, x, y):
 
     backend = klong._backend
     if not backend.supports_autograd():
-        raise RuntimeError(
-            ".compile() requires PyTorch backend. "
-            "Run with USE_TORCH=1 environment variable."
-        )
+        raise _needs_torch(".compile()")
 
     # Wrap the Klong function for torch
     def wrapped_fn(v):
@@ -104,7 +101,7 @@ def eval_sys_export(klong, x, y, z):
         .export(x;y;z)                                          [Export]
 
         Export a function's computation graph to a file for inspection.
-        Requires PyTorch backend (USE_TORCH=1).
+        Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
 
         Arguments:
             x           - Function to export
@@ -132,10 +129,7 @@ def eval_sys_export(klong, x, y, z):
 
     backend = klong._backend
     if not backend.supports_autograd():
-        raise RuntimeError(
-            ".export() requires PyTorch backend. "
-            "Run with USE_TORCH=1 environment variable."
-        )
+        raise _needs_torch(".export()")
 
     # Wrap the Klong function for torch
     def wrapped_fn(v):
@@ -150,7 +144,7 @@ def eval_sys_compilex(klong, x, y, z):
         .compilex(x;y;z)                                        [Compile-Extended]
 
         Compile a function with extended options for mode and backend.
-        Requires PyTorch backend (USE_TORCH=1).
+        Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
 
         Arguments:
             x           - Function to compile
@@ -201,10 +195,7 @@ def eval_sys_compilex(klong, x, y, z):
 
     backend = klong._backend
     if not backend.supports_autograd():
-        raise RuntimeError(
-            ".compilex() requires PyTorch backend. "
-            "Run with USE_TORCH=1 environment variable."
-        )
+        raise _needs_torch(".compilex()")
 
     # Extract options from dictionary
     mode = options.get("mode", "default") if isinstance(options, dict) else "default"
@@ -230,7 +221,7 @@ def eval_sys_cmodes(klong):
         .cmodes()                                               [Compile-Modes]
 
         Get information about available torch.compile modes and backends.
-        Requires PyTorch backend (USE_TORCH=1).
+        Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
 
         Returns:
             Dictionary with:
@@ -260,10 +251,7 @@ def eval_sys_cmodes(klong):
     """
     backend = klong._backend
     if not backend.supports_autograd():
-        raise RuntimeError(
-            ".cmodes() requires PyTorch backend. "
-            "Run with USE_TORCH=1 environment variable."
-        )
+        raise _needs_torch(".cmodes()")
 
     return backend.get_compile_modes()
 
@@ -275,7 +263,7 @@ def eval_sys_gradcheck(klong, x, y):
 
         Verify that autograd gradients match numeric gradients.
         Uses torch.autograd.gradcheck for rigorous verification.
-        Requires PyTorch backend (USE_TORCH=1).
+        Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
 
         Arguments:
             x       - Function to check (should return a scalar)

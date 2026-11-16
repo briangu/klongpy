@@ -120,7 +120,7 @@ def grad_of_fn(klong, fn, x):
     """
     Return gradient of Klong or Python function ``fn`` at ``x``.
 
-    Uses PyTorch autograd when available (USE_TORCH=1), otherwise
+    Uses PyTorch autograd when available (the torch backend), otherwise
     falls back to numeric differentiation.
     """
     backend = klong._backend

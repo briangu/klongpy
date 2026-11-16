@@ -417,12 +417,12 @@ A Klong function sees its arguments as `x`, `y` and `z`, and three is the most. 
 ?> pv3(0.05;10;100)
 61.39132535407592
 ?> sum4(a;b;c;d)::{a+b+c+d}
-:triad
+:fn/4
 ?> sum4(1;2;3;4)
 10
 ```
 
-The parameters are locals. Inside such a function `x`, `y` and `z` are not available, because the parameters replace them. (The REPL shows every function of three or more arguments as `:triad`, including the four-parameter `sum4`.) Fewer arguments give a projection, as before, and more are an error:
+The parameters are locals. Inside such a function `x`, `y` and `z` are not available, because the parameters replace them. (The REPL shows a function of four or more parameters as `:fn/N`, here `:fn/4`.) Fewer arguments give a projection, as before, and more are an error:
 
 <!-- check-docs: continue -->
 ```kgpy

@@ -567,5 +567,22 @@ class TestIPCFunctionText(unittest.TestCase):
         self.assertEqual(ref.arity, 5)
 
 
+class TestDisplayOfManyParameters(unittest.TestCase):
+    def test_four_or_more_parameters_display_as_fn_n(self):
+        k = KlongInterpreter()
+        k("f(a;b;c;d)::{a+b+c+d}")
+        k("g(a;b;c;d;e;f)::{a}")
+        k("h(a;b;c)::{a}")
+        self.assertEqual(str(k("f")), ":fn/4")
+        self.assertEqual(str(k("g")), ":fn/6")
+        self.assertEqual(str(k("h")), ":triad")
+
+    def test_display_is_the_form_ipc_sends(self):
+        from klongpy.ipc import codec
+        k = KlongInterpreter()
+        k("f(a;b;c;d)::{a+b+c+d}")
+        self.assertEqual(codec.decode(codec.encode(k("f"))).text, str(k("f")))
+
+
 if __name__ == "__main__":
     unittest.main()

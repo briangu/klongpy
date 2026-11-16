@@ -1111,7 +1111,7 @@ Examples:
 ```text
 Verify that autograd gradients match numeric gradients.
 Uses torch.autograd.gradcheck for rigorous verification.
-Requires PyTorch backend (USE_TORCH=1).
+Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
 
 Arguments:
     x       - Function to check (should return a scalar)
@@ -1141,7 +1141,7 @@ Notes:
 
 ```text
 Compile a function for optimized execution using torch.compile.
-Requires PyTorch backend (USE_TORCH=1).
+Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
 
 Arguments:
     x           - Function to compile
@@ -1167,7 +1167,7 @@ Notes:
 
 ```text
 Compile a function with extended options for mode and backend.
-Requires PyTorch backend (USE_TORCH=1).
+Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
 
 Arguments:
     x           - Function to compile
@@ -1220,7 +1220,7 @@ Notes:
 
 ```text
 Get information about available torch.compile modes and backends.
-Requires PyTorch backend (USE_TORCH=1).
+Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
 
 Returns:
     Dictionary with:
@@ -1254,7 +1254,7 @@ Backend Comparison:
 
 ```text
 Export a function's computation graph to a file for inspection.
-Requires PyTorch backend (USE_TORCH=1).
+Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
 
 Arguments:
     x           - Function to export
@@ -1276,6 +1276,68 @@ Notes:
     - Only supported with PyTorch backend
     - The exported graph can be loaded with torch.export.load()
     - Use .compile() for just compiling without export
+```
+
+## Embedded programs
+
+Defined in the base interpreter. See [Embedded Targets](embedded.md).
+
+| Name | Title | Description |
+|------|-------|-------------|
+| `.extern(x;y)` | Extern | Declare a function the host provides, with a typed signature, for a program that is compiled. |
+| `.entry(x;y)` | Entry | Mark a function as an entry point of a compiled program and fix its signature. |
+
+### `.extern`
+
+`.extern(x;y)` [Extern]
+
+```text
+.extern(x;y;z)
+
+Declare a function the host provides. "x" is its name, a
+string; "y" is its signature, a string of the form
+"params -> result"; "z" is the module it is imported from
+when the program is compiled to wasm ("env" when omitted).
+
+A type is int, float, an array of them with fixed dimensions
+(int[8], float[16,241]) or, for a parameter, str. The result
+may also be void. Parameters are separated by spaces and may
+be absent: "-> int" is a function of no arguments.
+
+Under KlongPy the name is bound to the Python function that
+the host program registered as its stand-in,
+klong.externs["name"]. Arguments and result are checked
+against the signature on every call; a call without a
+stand-in is an error. A compiled program calls the C function
+of that name, with "." written as "_" (read.adc is read_adc).
+
+Returns the signature in its canonical form.
+
+Examples:   .extern("read.adc";"int -> float")
+            .extern("write.pwm";"int float -> void")
+            .extern("fill";"float[64] -> float[64]";"dsp")
+            read.adc(0)
+```
+
+### `.entry`
+
+`.entry(x;y)` [Entry]
+
+```text
+Mark the function named "x" (a string) as an entry point of
+a compiled program and fix the types of its arguments and
+result with the signature "y" (see .extern; str is not
+allowed). The function must already be defined and must take
+as many arguments as the signature has parameters. A function
+may have several entries with different shapes.
+
+Under KlongPy this only checks the declaration and records it
+in klong.externs.entries; the function is called as usual.
+
+Returns the signature in its canonical form.
+
+Example:   step::{x*2}
+           .entry("step";"float -> float")
 ```
 
 ## Database

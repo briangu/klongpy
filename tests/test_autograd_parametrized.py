@@ -19,6 +19,7 @@ from conftest import to_numpy, to_scalar, TORCH_AVAILABLE
 from klongpy.autograd import NonScalarLossError, grad_of_fn, numeric_grad
 from klongpy.backends import get_backend
 from klongpy.core import KGSym
+from klongpy.errors import KlongError
 from utils import torch_autograd
 
 torch = importlib.import_module("torch") if TORCH_AVAILABLE else None
@@ -383,6 +384,72 @@ class TestTorchAutogradFunction:
             torch_autograd(lambda t: t**2, x, klong._backend)
 
 
+class TestGradientForms:
+    """Every documented form of the gradient operators, on both backends."""
+
+    def _setup(self, klong):
+        klong('w::2.0;b::3.0;loss::{(w^2)+(b^2)};f::{x^2};g::{+/x^2};v::[1.0 2.0 3.0]')
+
+    def test_single_symbol(self, klong, backend):
+        """loss:>w differentiates a niladic loss with respect to w."""
+        self._setup(klong)
+        assert np.isclose(to_scalar(klong('loss:>w')), 4.0, atol=get_atol(backend))
+        assert np.isclose(to_scalar(klong('loss:>b')), 6.0, atol=get_atol(backend))
+
+    def test_single_symbol_restores_value(self, klong, backend):
+        self._setup(klong)
+        klong('loss:>w')
+        assert np.isclose(to_scalar(klong('w')), 2.0)
+
+    def test_single_symbol_matches_list_form(self, klong, backend):
+        self._setup(klong)
+        assert np.isclose(to_scalar(klong('loss:>w')), to_scalar(klong('*loss:>[w]')),
+                          atol=get_atol(backend))
+
+    def test_symbol_list(self, klong, backend):
+        self._setup(klong)
+        r = klong('loss:>[w b]')
+        np.testing.assert_allclose([to_scalar(r[0]), to_scalar(r[1])], [4.0, 6.0],
+                                   atol=get_atol(backend))
+
+    def test_vector_symbol(self, klong, backend):
+        """A symbol that holds a vector, with a niladic loss."""
+        klong('u::[1.0 2.0];gg::{+/u^2}')
+        np.testing.assert_allclose(to_numpy(klong('gg:>u')), [2.0, 4.0], atol=get_atol(backend))
+
+    def test_point_value(self, klong, backend):
+        self._setup(klong)
+        assert np.isclose(to_scalar(klong('f:>3')), 6.0, atol=get_atol(backend))
+        assert np.isclose(to_scalar(klong('f:>3.0')), 6.0, atol=get_atol(backend))
+
+    def test_point_held_in_a_variable(self, klong, backend):
+        """A function of x given a variable takes the variable's value as the point."""
+        self._setup(klong)
+        klong('p::3.0')
+        assert np.isclose(to_scalar(klong('f:>p')), 6.0, atol=get_atol(backend))
+        np.testing.assert_allclose(to_numpy(klong('g:>v')), [2.0, 4.0, 6.0], atol=get_atol(backend))
+
+    def test_point_vector(self, klong, backend):
+        self._setup(klong)
+        np.testing.assert_allclose(to_numpy(klong('g:>[1 2 3]')), [2.0, 4.0, 6.0],
+                                   atol=get_atol(backend))
+
+    def test_numeric_nabla_and_ascii_name(self, klong, backend):
+        """3∇f and .grad(f;3) are the numeric gradient (coarse in float32)."""
+        self._setup(klong)
+        for src in ('3∇f', '.grad(f;3)'):
+            assert np.isclose(to_scalar(klong(src)), 6.0, atol=0.02), src
+        for src in ('[1 2 3]∇g', '.grad(g;[1 2 3])', 'v∇g', '.grad(g;v)'):
+            np.testing.assert_allclose(to_numpy(klong(src)), [2.0, 4.0, 6.0],
+                                       atol=0.02, err_msg=src)
+
+    def test_jacobian_forms(self, klong, backend):
+        self._setup(klong)
+        for src in ('[1 2]∂{x^2}', '.jacobian({x^2};[1.0 2.0])'):
+            np.testing.assert_allclose(to_numpy(klong(src)), [[2.0, 0.0], [0.0, 4.0]],
+                                       atol=0.02, err_msg=src)
+
+
 class TestGradcheck:
     """Tests for torch.autograd.gradcheck verification."""
 
@@ -433,8 +500,11 @@ class TestGradcheck:
         if backend != 'numpy':
             pytest.skip("Test for numpy backend only")
         klong('f::{x^2}')
-        with pytest.raises(RuntimeError):
+        with pytest.raises(KlongError) as e:
             klong('.gradcheck(f;3.0)')
+        assert 'torch backend' in str(e.value)
+        assert '--backend torch' in (e.value.hint or '')
+        assert 'USE_TORCH' not in str(e.value) + (e.value.hint or '')
 
 
 class TestCompile:
@@ -478,12 +548,47 @@ class TestCompile:
             if result.get('export_path'):
                 assert os.path.exists(path)
 
+    def test_export_writes_a_loadable_file(self, klong, backend):
+        """torch 2.15 export takes a Module: a Klong function must still export."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        klong('f::{x^2}')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'model.pt2')
+            try:
+                result = klong(f'.export(f;3.0;"{path}")')
+            except Exception as e:
+                if 'CppCompileError' in str(type(e).__name__) or 'InductorError' in str(type(e).__name__):
+                    pytest.skip(f"torch.compile not available on this system: {e}")
+                raise
+            assert not result.get('export_error'), result.get('export_error')
+            assert result['export_path'] == path
+            assert os.path.exists(path)
+            assert 'pow' in result['graph']
+            loaded = torch.export.load(path).module()
+            assert np.isclose(float(loaded(torch.tensor(3.0))), 9.0, atol=1e-5)
+
+    def test_compile_assigned_twice_is_still_callable(self, klong, backend):
+        """cf::.compile(f;3.0) a second time must not leave cf holding the function object."""
+        if backend != 'torch':
+            pytest.skip("Requires torch backend")
+        klong('f::{x^2}')
+        try:
+            klong('cf::.compile(f;3.0)')
+            klong('cf::.compile(f;3.0)')
+        except Exception as e:
+            if 'CppCompileError' in str(type(e).__name__) or 'InductorError' in str(type(e).__name__):
+                pytest.skip(f"torch.compile not available on this system: {e}")
+            raise
+        assert np.isclose(float(klong('cf(2.0)')), 4.0, atol=1e-5)
+        assert np.isclose(float(klong('cf(5.0)')), 25.0, atol=1e-5)
+
     def test_compile_fails_on_numpy(self, klong, backend):
         """Test that .compile() raises error on numpy backend."""
         if backend != 'numpy':
             pytest.skip("Test for numpy backend only")
         klong('f::{x^2}')
-        with pytest.raises(RuntimeError):
+        with pytest.raises(KlongError):
             klong('.compile(f;3.0)')
 
     def test_export_fails_on_numpy(self, klong, backend):
@@ -491,7 +596,7 @@ class TestCompile:
         if backend != 'numpy':
             pytest.skip("Test for numpy backend only")
         klong('f::{x^2}')
-        with pytest.raises(RuntimeError):
+        with pytest.raises(KlongError):
             klong('.export(f;3.0;"test.pt2")')
 
 
@@ -544,14 +649,14 @@ class TestCompileModes:
         if backend != 'numpy':
             pytest.skip("Test for numpy backend only")
         klong('f::{x^2}')
-        with pytest.raises(RuntimeError):
+        with pytest.raises(KlongError):
             klong('.compilex(f;3.0;:{["mode" "default"]})')
 
     def test_cmodes_fails_on_numpy(self, klong, backend):
         """Test that .cmodes() raises error on numpy backend."""
         if backend != 'numpy':
             pytest.skip("Test for numpy backend only")
-        with pytest.raises(RuntimeError):
+        with pytest.raises(KlongError):
             klong('.cmodes()')
 
 

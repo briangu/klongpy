@@ -52,6 +52,7 @@ __all__ = [
     'reserved_fn_symbols',
     'reserved_fn_symbol_map',
     'reserved_dot_f_symbol',
+    'reserved_all_args_symbol',
     # Type helpers
     'get_fn_arity_str',
     'safe_inspect',

@@ -222,7 +222,7 @@ The errors are `KlongShapeError` and the other classes in [Errors](errors.md). P
 [1 2 3]
 ```
 
-A Python function is called with at most three arguments, and only its required parameters are passed by position. Parameters that have a default can be set only through `.pyc`, which takes the function name, a list of positional arguments and a dictionary of keywords:
+A Python function with optional parameters, imported with `.py` or `.pyf`, is called with every argument the call supplies, by position (`linspace(0;1;5;0)` passes the fourth, `endpoint`). Parameters that are set by keyword go through `.pyc`, which takes the function name, a list of positional arguments and a dictionary of keywords:
 
 ```kgpy
 ?> .pyf("numpy";"linspace")
@@ -393,7 +393,7 @@ Named parameters allow more than three arguments and read like a Python signatur
 
 ```kgpy
 ?> vol(w;h;d;t)::{w*h*d*t}
-:triad
+:fn/4
 ?> vol(1;2;3;4)
 24
 ?> vol(1;2;3;4;5)

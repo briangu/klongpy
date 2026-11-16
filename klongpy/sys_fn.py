@@ -598,6 +598,8 @@ def _handle_import(item):
                 # whichever of x, y and z the call supplies (wildcard): with
                 # the count of the required ones only, linspace(0;1;5) lost
                 # its third argument (ticket 033; ticket 027 for .pyc).
+                # The wildcard function is handed every argument the call
+                # writes, however many (linspace(0;1;4;0) passes the fourth).
                 if optional_args and 'klong' not in required_args and len(required_args) <= len(reserved_fn_args):
                     item = KGLambda(item, args=None, wildcard=True)
                     # displayed by the arguments it needs (:monad for fft(a, n=None))

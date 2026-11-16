@@ -83,7 +83,7 @@ An exception that is a bug in KlongPy prints one `internal error: Type: message`
 
 The `kgpy` executable supports a few useful flags:
 
-- `-e EXPR` Evaluate an expression and exit. The value goes to stdout, an error to stderr with status 1.
+- `-e EXPR` Evaluate an expression and exit. The value goes to stdout, an error to stderr with status 1. It starts the same system context as a file run and the REPL, so `.timer`, `.srv` and `.cli` work in it, but the process ends when the expression has been evaluated and closes whatever it opened: a timer does not fire after that, and a server stops.
 - `-l FILE` Load a file into the REPL on startup. If the load fails, the error is printed and the process exits with status 1 without starting the REPL.
 - `-s PORT` Start the IPC server (e.g., `kgpy -s 8888`).
 - `-t FILE` Run a test file (non-interactive), one line at a time. A failing line is reported and the run goes on; the process exits after the last line with status 1 if any line failed. It does not start the REPL.
@@ -93,7 +93,7 @@ The `kgpy` executable supports a few useful flags:
 - `--backend NAME` and `--device DEVICE` Choose the array backend and device (see [PyTorch Backend](torch_backend.md)). `--backend` offers `torch` only where torch is installed.
 - `--lint`, `--check-static`, `--emit-c` and `--dump-ast` check or translate files without running them: see [Lint](lint.md), [Static Profile](static-profile.md), [Compiling Klong to C](embedded.md) and [Conformance Suite](conformance.md).
 
-A file run (`kgpy file.kg`) stops at the first error, prints it with the file name, line and column (`file.kg:3:6: ...`) and exits with status 1. Input piped into the REPL exits with status 1 if any entry failed.
+A file run (`kgpy file.kg`) stops at the first error, prints it with the file name, line and column (`file.kg:3:6: ...`) and exits with status 1. When the last line has run the process exits, with two exceptions: it stays up while the file holds an IPC server (`.srv`) or an open connection (`.cli`, `.clid`), as the publish and subscribe scripts in [IPC Capabilities](ipc_capabilities.md) do, until Ctrl-C (status 130) or until the file closes the connection with `.clic`. What the file printed is flushed before it waits. A timer alone does not keep it up (see [Timer](timer.md)). Input piped into the REPL exits with status 1 if any entry failed.
 
 ## See also
 

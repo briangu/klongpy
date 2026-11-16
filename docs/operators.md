@@ -150,7 +150,7 @@ loss::{(w^2)+(b^2)}
 loss:>[w b]           :" Returns [4.0 6.0]
 ```
 
-On the numpy backend the same call returns finite-difference values (`[3.9999999996709334 6.000000000838668]`). The values were produced by running this example on both backends. A single symbol, `loss:>w`, is not covered here: it does not give 4.0 on either backend.
+On the numpy backend the same call returns finite-difference values (`[3.9999999996709334 6.000000000838668]`). The values were produced by running this example on both backends. A single symbol works the same way when `loss` takes no argument: `loss:>w` gives `4.0` (the gradient itself, not a one-element list; on numpy `3.9999999996709334`). A symbol that holds a vector gives the gradient vector. When the function does use its argument (`f::{x^2}`), a symbol on the right is just a variable holding the point: `p::3.0` then `f:>p` is `f:>3.0`.
 
 ### Jacobian Operator: `∂`
 
@@ -361,7 +361,7 @@ Two forms bind names with `::`. Both are described with examples, and with the c
 | `[a b c]::v` | Destructuring. Binds each name to the member of `v` in the same position; the count must match. As the first statement of a function, `{[a b]::x;...}`, the names are local to it. |
 | `f(a;b;c;d)::{...}` | Defines `f` with the named parameters `a b c d`, any number of them. Too many arguments is an arity error; too few is a projection. `x`, `y` and `z` cannot be used in the body. |
 
-A function's arity, which the display (`:monad`, `:dyad`, `:triad`) shows and an adverb dispatches on, is the highest of `x`, `y` and `z` its body uses, not counting nested function literals, or the number of named parameters. `{-x}` is a monad and `{y}` a dyad.
+A function's arity, which the display (`:monad`, `:dyad`, `:triad`, and `:fn/N` for four or more named parameters) shows and an adverb dispatches on, is the highest of `x`, `y` and `z` its body uses, not counting nested function literals, or the number of named parameters. `{-x}` is a monad and `{y}` a dyad.
 
 ```kgpy
 ?> f::{-x}
@@ -371,7 +371,7 @@ A function's arity, which the display (`:monad`, `:dyad`, `:triad`) shows and an
 ?> h::{x+z}
 :triad
 ?> k(a;b;c;d)::{a+b+c+d}
-:triad
+:fn/4
 ```
 
 ## Edge Cases and Errors

@@ -48,7 +48,7 @@ __all__ = [
     'KlongInternalError', 'KlongMemoryError', 'KlongInterrupt', 'KlongStaticError',
     'KlongRemoteError', 'UnexpectedChar', 'UnexpectedEOF', 'RangeError', 'KlongSyntaxWarning',
     'ERROR_KINDS', 'compat', 'classify', 'describe', 'operator_name',
-    'operator_error', 'python_error', 'system_error',
+    'operator_error', 'python_error', 'system_error', 'needs_torch_backend',
 ]
 
 _RED = "\x1b[31m"       # colorama.Fore.RED, the style klongpy/cli.py prints failures in
@@ -250,6 +250,12 @@ class KlongSystemError(KlongError):
     """A system function failed for an outside reason; the OS error is __cause__."""
     kind = 'system'
     wire = 'os'
+
+
+def needs_torch_backend(name):
+    """The error of a system function that only the torch backend provides."""
+    return KlongSystemError(f"{name} requires the torch backend",
+                      hint="select it with kgpy --backend torch, or KlongInterpreter(backend='torch')")
 
 
 class KlongPythonError(KlongError):

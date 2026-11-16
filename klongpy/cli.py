@@ -588,7 +588,14 @@ def main():
     parser.add_argument('--emit-c', metavar='FILE', nargs='+',
                         help='compile FILEs of the static profile to C99 (<name>.c, <name>.h, klong_rt.h) in the directory '
                              'given by -o, print the size report, then exit; with --int64, --float64, --line-directives, --prefix')
-    parser.add_argument('-o', '--output', metavar='DIR', help='with --emit-c: the directory to write to (default: .)')
+    parser.add_argument('--emit-hls', metavar='FILE', nargs='+',
+                        help='(experimental) write what Vitis HLS needs to make a kernel of each .entry of FILEs of the static '
+                             'profile (C, <name>_<entry>_top.cpp, test bench, tcl, manifest.json) in the directory given by -o; '
+                             'with --int64, --prefix, --clock-mhz, --synth (not --float64: the card has float32 only)')
+    parser.add_argument('--clock-mhz', metavar='N', type=int, default=300, help='with --emit-hls: the kernel clock in MHz (default: 300)')
+    parser.add_argument('--synth', action='store_true',
+                        help='with --emit-hls: run C synthesis on $KLONG_HW_BUILD (user@host; unset: here) and print the estimates')
+    parser.add_argument('-o', '--output', metavar='DIR', help='with --emit-c and --emit-hls: the directory to write to (default: .)')
     parser.add_argument('--float64', action='store_true', help='with --emit-c: kg_float is double (the default is float)')
     parser.add_argument('--line-directives', action='store_true',
                         help='with --emit-c: emit #line so a debugger steps through the Klong source')
@@ -626,6 +633,15 @@ def main():
             parser.error("--lint needs at least one FILE")
         from klongpy.lint import lint_main
         sys.exit(lint_main(lint_files, args.select, args.ignore, args.verbose, args.define))
+    if args.emit_hls:
+        if args.float64:
+            parser.error("--float64 cannot be used with --emit-hls: the card has float32 only in this version")
+        if args.clock_mhz < 1:
+            parser.error("--clock-mhz must be a positive number of MHz")
+        from klongpy.static.compile import emit_hls_main
+        sys.exit(emit_hls_main(args.emit_hls, args.output, 64 if args.int64 else 32, args.prefix, args.clock_mhz, args.synth))
+    if args.synth:
+        parser.error("--synth needs --emit-hls")
     if args.emit_c or (args.check_static and args.dump_ir):
         from klongpy.static.compile import emit_main
         sys.exit(emit_main(args.emit_c or args.check_static, args.output, 64 if args.int64 else 32,
@@ -654,33 +670,46 @@ def main():
         write_stderr("interrupted")
         sys.exit(130)
 
-    if args.expr:
+    def start_interpreter():
+        """
+        The interpreter with the system context every run needs: the loops and
+        the close event behind .timer, .srv and .cli (.system), the help
+        database, and the host's environment and arguments. -e, a file run, -l
+        and the REPL all start here.
+        """
         try:
-            klong = KlongInterpreter(backend=args.backend, device=args.device, strict=args.strict)
+            klong, loops = create_repl(debug=args.debug, backend=args.backend, device=args.device, strict=args.strict)
         except ValueError as exc:
             parser.error(str(exc))
+        klong['.helpdb'] = []
+        klong['.os.env'] = dict(os.environ)
+        klong['.os.argv'] = extras if extras else []
+        return klong, loops
+
+    if args.expr:
+        klong, loops = start_interpreter()
+        shutdown_event = klong['.system']['closeEvent']
         try:
-            with klong_warnings():
-                result = klong(Source("<expr>", args.expr))
-        except KeyboardInterrupt:
-            interrupted()
-        except Exception as e:
-            report(e)
-            sys.exit(1)
-        if result is not None:
-            print(kg_write(result, klong._backend, display=False))
+            try:
+                with klong_warnings():
+                    result = klong(Source("<expr>", args.expr))
+            except KeyboardInterrupt:
+                interrupted()
+            except Exception as e:
+                report(e)
+                sys.exit(1)
+            if result is not None:
+                print(kg_write(result, klong._backend, display=False))
+        finally:
+            # -e evaluates the expression and exits: a timer, a server or a
+            # connection it opened is closed with the process
+            shutdown_event.trigger()
+            cleanup_repl(loops, debug=args.debug)
         return
 
-    try:
-        klong, loops = create_repl(debug=args.debug, backend=args.backend, device=args.device, strict=args.strict)
-    except ValueError as exc:
-        parser.error(str(exc))
+    klong, loops = start_interpreter()
     io_loop, _, _, klong_loop, klong_thread, _ = loops
     shutdown_event = klong['.system']['closeEvent']
-
-    klong['.helpdb'] = []
-    klong['.os.env'] = dict(os.environ)
-    klong['.os.argv'] = extras if extras else []
 
     run_repl = False
     exit_code = None
@@ -716,6 +745,9 @@ def main():
                 return done_event
 
             if exit_code is None:
+                # the program is over; what it printed must be visible even when the
+                # process now stays up for a server or a connection it holds open
+                sys.stdout.flush()
                 gather_io_tasks(io_loop).wait()
         elif not args.test:
             run_repl = True

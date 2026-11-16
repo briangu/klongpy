@@ -199,7 +199,7 @@ This returns a list of Jacobian matrices, one per parameter. Useful for analyzin
 
 KlongPy provides the gradient primitives (`:>`, `∂`, `.jacobian()`). For optimizers, use the example classes in `examples/autograd/optimizers.py` which you can copy to your project and customize.
 
-`loss:>[w]` returns a list with one gradient, so `**` takes its first element: `lr**g` is `lr*(*g)`. (`loss:>w` with a `loss` that ignores its argument does not work: on the torch backend it raises an autograd error, and on the numpy backend it returns 0.0.)
+`loss:>[w]` returns a list with one gradient, so `**` takes its first element: `lr**g` is `lr*(*g)`. (For a single parameter, `loss:>w` returns the gradient itself, so `w::w-(lr*loss:>w)` also works.)
 
 **Manual gradient descent (no optimizer needed):**
 ```klong
@@ -348,7 +348,7 @@ f::{(x^3)+(2*x^2)+x}
 info::.export(f;2.0;"model.pt2")
 ```
 
-The result is a dictionary with the keys `compiled_fn`, `export_path`, `export_error`, `mode` and `backend`. In the test run (torch 2.15.0, CPU and MPS) the export did not complete for a Klong function: `export_path` was empty and `export_error` read ``Expected `mod` to be an instance of `torch.nn.Module`, got <class 'function'>.``. The `compiled_fn` entry was still usable. Check `export_error` before relying on the file.
+The result is a dictionary with the keys `compiled_fn`, `export_path`, `graph`, `graph_module`, `mode` and `backend`. The file at `export_path` can be read back with `torch.export.load(path).module()`. If torch cannot export the function, the dictionary has `export_path` empty and the reason in `export_error` instead, and `compiled_fn` is still usable: check `export_error` before relying on the file.
 
 ### `.compilex(fn;input;options)` - Extended Compilation
 

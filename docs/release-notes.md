@@ -33,10 +33,12 @@ error: cannot destructure 3 values into 2 names
 ?> f(1;2)
 3
 ?> g(a;b;c;d)::{a+b+c+d}
-:triad
+:fn/4
 ?> g(1;2;3;4)
 10
 ```
+
+A function of four or more parameters displays as `:fn/N` (here `:fn/4`), the form IPC uses; zero to three keep `:nilad`, `:monad`, `:dyad` and `:triad`.
 
 **`d@"k"` returns the value.** On a dictionary, `d@k` returned the dictionary itself when `k` was a string, symbol or real number, and raised a Python `KeyError` for a missing integer key. It is now the same as `d?k` for every key: the value, or `:undefined` when the key is missing. `d@[k1 k2]` is the list of values. `$d` was Python's text for a dictionary, `{'a': 1}`, and is now the Klong form. See [Dictionaries](language-additions.md#dictionaries).
 

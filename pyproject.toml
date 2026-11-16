@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "klongpy"
-version = "0.7.0"
+version = "2.0.0"
 description = "High-Performance Klong array language with rich Python integration."
 readme = "README.md"
 license = "MIT"
@@ -54,8 +54,10 @@ all = [
     "duckdb>=1.0",
     "websockets>=12",
 ]
-# alias of `all` (used by CLAUDE.md: pip install -e ".[full]")
+# `all` plus what the tests import (pytest: several test modules use it), so
+# that `pip install -e ".[full]"` and `python -m unittest discover tests` work
 full = [
+    "pytest>=7.0",
     "torch",
     "colorama>=0.4",
     "aiohttp>=3.9",

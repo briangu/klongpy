@@ -63,10 +63,10 @@ You need Python 3.9 to 3.14.
 ```text
 $ python -m venv .venv
 $ .venv/bin/pip install -e ".[full]"
-$ .venv/bin/pip install pytest pytest-asyncio
+$ .venv/bin/pip install pytest-asyncio
 ```
 
-The editable install with `[full]` took about 28 seconds with a warm pip cache. The second line is the `dev` extra; the test suite needs it (see below). The extras in `pyproject.toml`:
+The editable install with `[full]` took about 28 seconds with a warm pip cache. `[full]` includes `pytest`, which the test suite needs (see below); the second line adds `pytest-asyncio`, the other half of the `dev` extra. The extras in `pyproject.toml`:
 
 | Extra | Adds |
 |---|---|
@@ -78,7 +78,8 @@ The editable install with `[full]` took about 28 seconds with a warm pip cache. 
 | `ws` | `websockets`, for `.ws`. |
 | `docs` | `mkdocs`, `mkdocs-material` and `mike`. |
 | `dev` | `pytest` and `pytest-asyncio`. |
-| `all`, `full` | torch, colorama, aiohttp, pandas, duckdb and websockets. Both are the same list. They do not include `dev` or `docs`. |
+| `all` | torch, colorama, aiohttp, pandas, duckdb and websockets. It does not include `dev` or `docs`. |
+| `full` | `all` and `pytest`, which several test modules import. Use it for `pip install -e ".[full]"` before running the tests. It does not include `pytest-asyncio` or `docs`. |
 
 Torch is optional. KlongPy runs without it, and tests and examples that need it skip or are skipped by the documentation checker. To work on the torch backend, install `torch`, and see the rule below on where `torch` may be imported.
 
@@ -98,7 +99,7 @@ $ python -m pytest tests -q
 
 Durations on 2026-11-16 with torch, pandas, duckdb, aiohttp and websockets installed, the native binary built, and `pytest` installed: `python -m pytest tests -q` took about 7 minutes (2614 passed, 186 skipped, 7777 subtests passed; one failure was a page under `docs/native/` that was still being written). `python -m unittest discover tests` took about 6 minutes. The machine was in use for other work, so expect less on an idle one. Single files are much faster, for example `tests/test_conformance.py` took 11 seconds.
 
-Four test modules (`test_atomic_broadcasting`, `test_autograd_parametrized`, `test_nested_grade` and `test_ticket_064`) import `pytest`, so `unittest discover` needs it installed too. The `full` extra does not include it; add the `dev` extra or run `pip install pytest pytest-asyncio`. Without torch installed, `tests/test_compiler.py` raises `ModuleNotFoundError` for 33 tests under `unittest discover` instead of skipping them; install torch (`[full]` does) before you run the whole suite.
+Four test modules (`test_atomic_broadcasting`, `test_autograd_parametrized`, `test_nested_grade` and `test_ticket_064`) import `pytest`, so `unittest discover` needs it installed too; the `full` extra includes it. Without torch installed, the 33 tests of `tests/test_compiler.py` that use torch are skipped.
 
 pytest also takes the options defined in `tests/conftest.py`, which run every `KlongInterpreter` in the tests on another backend:
 
@@ -125,7 +126,7 @@ $ python -m unittest tests.test_cli_errors.TestInterrupt -v
 | `native/tests/test_console.py` | The native binaries, including `klong-sim`. | Skipped. |
 | `tests/static/` (the emitted C is compiled and run) | A C compiler: `$KG_TEST_CC`, else `cc`, `clang` or `gcc` on the path. | Skipped. |
 | `tests/test_backend.py` and others that name torch | PyTorch. | Skipped. |
-| `tests/test_compiler.py` | PyTorch. | Errors without torch under `unittest discover`; CI excludes it on the legs without torch. |
+| `tests/test_compiler.py` | PyTorch, for 33 of its 69 tests. | Those tests are skipped; CI still excludes the file on the legs without torch. |
 | Tests of `.db`, `.web` and `.ws` | `pandas`, `duckdb`, `aiohttp`, `websockets`. | Skipped. |
 | `tests/test_docs_examples.py` | Blocks in the docs that need an optional package or a PeachQ session. | The checker skips those blocks. |
 

@@ -41,6 +41,12 @@ cli.main()
 """
 
 
+def _default_sigint():
+    """Run in the child before exec: a test run started in the background has SIGINT
+    ignored, which the child would inherit and Python would then not turn into KeyboardInterrupt."""
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+
 def run_cli(*args, stdin="", env=None, driver=None, timeout=60, cwd=None):
     environ = dict(os.environ, KGPY_HISTORY="", PYTHONPATH=ROOT)
     environ.pop("NO_COLOR", None)
@@ -104,6 +110,70 @@ class TestExpr(Files):
     def test_exit_function_keeps_its_status(self):
         self.assertEqual(run_cli("-e", ".x(1)").returncode, 1)
         self.assertEqual(run_cli("-e", ".x(0)").returncode, 0)
+
+
+class TestSystemContext(Files):
+    """-e and a file run start the same system context (.system: the loops behind .timer, .srv and .cli) as -l and the REPL."""
+
+    def serve(self):
+        """A KlongPy IPC server in this process; returns its port."""
+        from klongpy.repl import cleanup_repl, create_repl
+        from tests.ipc_helpers import free_port
+        port = free_port()
+        klong, loops = create_repl()
+        self.addCleanup(cleanup_repl, loops)
+        klong(f".srv({port})")
+        return port
+
+    def test_expr_can_create_a_timer(self):
+        r = run_cli("-e", 'cb::{1};th::.timer("t";0.2;cb);1', timeout=30)
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "1\n", ""))
+
+    def test_expr_can_cancel_its_timer(self):
+        r = run_cli("-e", 'cb::{1};th::.timer("t";0.2;cb);.timerc(th)', timeout=30)
+        self.assertEqual((r.returncode, r.stderr), (0, ""), r.stderr)
+
+    def test_expr_can_connect_to_a_server(self):
+        port = self.serve()
+        r = run_cli("-e", f'c::.cli({port});c("1+2")', timeout=30)
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "3\n", ""))
+
+    def test_expr_has_the_host_variables_of_a_file_run(self):
+        r = run_cli("-e", ".os.argv", "--", "a", "b")
+        self.assertEqual((r.returncode, r.stdout), (0, '["a" "b"]\n'))
+
+    def test_file_with_a_timer_ends_with_the_script(self):
+        path = self.write("timer.kg", 'cb::{.p("tick");1}\nth::.timer("t";0.2;cb)\n.p("end")\n')
+        r = run_cli(path, timeout=30)
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+        self.assertTrue(r.stdout.startswith("end\n"), r.stdout)
+
+    def test_file_that_closes_its_connection_ends(self):
+        port = self.serve()
+        path = self.write("closes.kg", f'c::.cli({port})\n.p(c("1+2"))\n.clic(c)\n.p("done")\n')
+        r = run_cli(path, timeout=30)
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "3\ndone\n", ""))
+
+    @unittest.skipIf(sys.platform == "win32", "needs SIGINT")
+    def test_file_holding_a_connection_prints_and_keeps_running_until_interrupted(self):
+        # the pub-sub client in docs/ipc_capabilities.md stays up to receive updates
+        port = self.serve()
+        path = self.write("holds.kg", f'c::.cli({port})\n.p(c("1+2"))\n.p("done")\n')
+        environ = dict(os.environ, KGPY_HISTORY="", PYTHONPATH=ROOT)
+        p = subprocess.Popen([sys.executable, "-W", "ignore", "-m", "klongpy.cli", path], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True, cwd=ROOT, env=environ, preexec_fn=_default_sigint)
+        try:
+            self.assertEqual(p.stdout.readline(), "3\n")      # visible although stdout is a pipe
+            self.assertEqual(p.stdout.readline(), "done\n")
+            time.sleep(0.5)
+            self.assertIsNone(p.poll())
+            p.send_signal(signal.SIGINT)
+            p.communicate(timeout=30)
+            self.assertEqual(p.returncode, 130)
+        finally:
+            if p.poll() is None:
+                p.kill()
+            p.wait()
 
 
 class TestFileRun(Files):
@@ -496,7 +566,8 @@ class TestInterrupt(unittest.TestCase):
     def test_ctrl_c_stops_a_long_evaluation_and_the_repl_goes_on(self):
         environ = dict(os.environ, KGPY_HISTORY="", PYTHONPATH=ROOT)
         p = subprocess.Popen([sys.executable, "-W", "ignore", "-m", "klongpy.cli"], stdin=subprocess.PIPE,
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=ROOT, env=environ)
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=ROOT, env=environ,
+                             preexec_fn=_default_sigint)
         try:
             p.stdin.write('.p("ready")\n')
             p.stdin.flush()
@@ -529,7 +600,8 @@ class TestInterrupt(unittest.TestCase):
             for args in (["-e", "{x+1}/1+!30000000"], [path]):
                 environ = dict(os.environ, KGPY_HISTORY="", PYTHONPATH=ROOT)
                 p = subprocess.Popen([sys.executable, "-W", "ignore", "-m", "klongpy.cli"] + args,
-                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=ROOT, env=environ)
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=ROOT, env=environ,
+                                     preexec_fn=_default_sigint)
                 try:
                     time.sleep(3.0)
                     self.assertIsNone(p.poll())

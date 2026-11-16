@@ -1,6 +1,6 @@
 # Timer
 
-KlongPy includes periodic timer capabilities. Timers fire while the REPL is open: type the examples at the `kgpy` prompt, or load a file and stay in the REPL with `kgpy -l file.kg`. A file run as `kgpy file.kg` ended without printing any tick in the test runs on 2026-11-16 (KlongPy 0.7.0).
+KlongPy includes periodic timer capabilities. Timers fire while the REPL is open: type the examples at the `kgpy` prompt, or load a file and stay in the REPL with `kgpy -l file.kg`. A file run as `kgpy file.kg` and `kgpy -e` can create timers (they start the same system context as the REPL), but the process exits when the file or the expression ends, and a timer that has not fired by then never does: a script that is meant to tick has to keep the process up, for example with a server (`.srv`), or be loaded with `-l`.
 
 ```
 cb::{.p("hello")}

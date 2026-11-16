@@ -13,7 +13,7 @@ import torch.autograd.functional as torch_autograd_functional
 from .base import BackendProvider, CompiledDecline, UnsupportedDtypeError, is_jagged_array
 from .numpy_backend import KGChar, NumpyBackendProvider, _beyond_int64, _has_big_int
 from ..autograd import AutogradChainBrokenError, NonScalarLossError, _invoke_fn
-from ..errors import KlongTypeError
+from ..errors import KlongSystemError, KlongTypeError
 
 # numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
 from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
@@ -1198,7 +1198,16 @@ class TorchBackendProvider(BackendProvider):
         # Export the function graph for inspection
         try:
             # Use torch.export for graph capture
-            exported = torch.export.export(func, (example_input,))
+            # torch.export takes a torch.nn.Module (torch 2.15 rejects a plain function)
+            class _Exported(torch.nn.Module):
+                def __init__(self, fn):
+                    super().__init__()
+                    self.fn = fn
+
+                def forward(self, x):
+                    return self.fn(x)
+
+            exported = torch.export.export(_Exported(func), (example_input,))
 
             # Save the exported program
             torch.export.save(exported, output_path)
@@ -1303,10 +1312,9 @@ class TorchBackendProvider(BackendProvider):
         """
         # Gradcheck requires float64 which is only supported on CPU
         if self.device.type != 'cpu':
-            raise RuntimeError(
-                f".gradcheck() requires CPU device, got '{self.device.type}'. "
-                "Run with: kgpy --backend torch --device cpu"
-            )
+            raise KlongSystemError(
+                f".gradcheck() requires CPU device, got '{self.device.type}'",
+                hint="run with kgpy --backend torch --device cpu")
 
         dtype = torch.float64
 

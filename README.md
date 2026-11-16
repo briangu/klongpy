@@ -29,6 +29,19 @@ pip install "klongpy[all]"       # all of the above
 
 The REPL needs no extra: `kgpy` starts it. `kgpy --backend torch` selects the torch backend.
 
+### Staying on version 1
+
+Version 2 changes how some existing code behaves; [Migrating to v2](docs/migrating-to-v2.md) lists every change.
+To keep the previous release line:
+
+```bash
+pip install "klongpy<2"
+```
+
+The documentation for each release line stays online: pick the version in the header of
+[klongpy.org](https://www.klongpy.org/). The README of a release is the one shown on its PyPI page
+and at its tag in this repository.
+
 ## A first session
 
 An expression is read from right to left. `!5` is the list 0 to 4, and `+/` sums a list:

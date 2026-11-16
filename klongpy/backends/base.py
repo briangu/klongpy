@@ -373,10 +373,8 @@ class BackendProvider(ABC):
         Returns:
             1 if gradients are correct, raises error otherwise
         """
-        raise RuntimeError(
-            ".gradcheck() requires PyTorch backend. "
-            "Run with USE_TORCH=1 environment variable."
-        )
+        from ..errors import needs_torch_backend
+        raise needs_torch_backend(".gradcheck()")
 
     def interpreter_power(self):
         """The function a compiled `a^b` applies to a pair of atoms: the interpreter's own."""

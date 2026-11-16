@@ -66,7 +66,10 @@ def get_fn_arity_str(arity):
         return ":monad"
     elif arity == 2:
         return ":dyad"
-    return ":triad"
+    if arity == 3:
+        return ":triad"
+    # four or more named parameters: the form the IPC codec sends (ipc/codec.py)
+    return ":fn/%d" % arity
 
 
 class KGFn:
@@ -282,7 +285,7 @@ class KGFnWrapper:
             if holes:
                 if len(args) != holes:
                     raise _named_arity_error(f"{self._name()} takes {_count(holes)}, got {len(args)}")
-                return self.klong.apply(fn, [np.asarray(x) if isinstance(x, list) else x for x in args])
+                return self.klong.apply(fn, self._as_values(args))
         params = getattr(fn.a, 'params', None)
         if kwargs:
             args = self._with_keywords(fn, params, args, kwargs)
@@ -290,8 +293,13 @@ class KGFnWrapper:
             if params is not None:
                 raise _named_arity_error(f"{self._name()} takes {_count(fn.arity)}, got {len(args)}")
             raise _arity_error(len(args), fn.arity)
-        fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
+        fn_args = self._as_values(args)
         return self.klong.apply(fn.a, fn_args, fn.arity)
+
+    def _as_values(self, args):
+        """The arguments as Klong values: a Python list becomes an array, a ragged one an object array (the backend's conversion)."""
+        asarray = self.klong._backend.kg_asarray
+        return [asarray(x) if isinstance(x, list) else x for x in args]
 
     def _name(self):
         return "the function" if self._sym is None else str.__str__(self._sym).split('`')[0]
@@ -410,6 +418,7 @@ class KGLambda:
     # True only for a Python function supplied by the user; a class attribute so
     # subclasses that skip __init__ still have it
     user = False
+    _wildcard = False
 
     def __init__(self, fn, args=None, provide_klong=False, wildcard=False, user=False):
         self.fn = fn
@@ -428,6 +437,9 @@ class KGLambda:
             # the call pushed. (Looking through the whole context took an
             # enclosing function's x for an argument: {f()}(5) called f(5).)
             frame = ctx._context[0] if hasattr(ctx, '_context') else ctx
+            if reserved_all_args_symbol in frame:
+                # more than three arguments were written: all of them
+                return list(frame[reserved_all_args_symbol])
             pos_args = []
             for sym in reserved_fn_symbols:
                 try:
@@ -492,6 +504,7 @@ reserved_fn_args = ['x','y','z']
 reserved_fn_symbols = [KGSym(n) for n in reserved_fn_args]
 reserved_fn_symbol_map = {n:KGSym(n) for n in reserved_fn_args}
 reserved_dot_f_symbol = KGSym('.f')
+reserved_all_args_symbol = KGSym('.args')   # in the frame of a wildcard call with more than three arguments
 
 
 # Type checking functions
