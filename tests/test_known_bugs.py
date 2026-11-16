@@ -11,39 +11,18 @@ from utils import *
 from klongpy import KlongInterpreter
 from klongpy.core import KGChar, KGSym
 
+requires_pandas = unittest.skipUnless(HAS_PANDAS, "requires pandas")
 
-@unittest.skipUnless(HAS_PANDAS, "requires pandas")
+
 class TestKnownBugsSuite(unittest.TestCase):
+    """Real bugs and not-yet-implemented behaviour. Every skip names the ticket that owns it.
 
-    @unittest.skip
-    def test_array_substitution(self):
-        # [!10] should eval to [:! 10] but it doesn't
-        klong = KlongInterpreter()
-        r = klong('[!10]')
-        self.assertTrue(klong._backend.kg_equal(r, [KGSym('!'), 10]))
-        # [3*a^2] should eval to [3 :* :a :^ 2] but it doesn't
-        r = klong('[3*a^2]')
-        self.assertTrue(klong._backend.kg_equal(r, [3, KGSym('*'), KGSym('a'), KGSym('^'), 2]))
+    Triaged under ticket 018. Passing tests moved to test_fixed_known_bugs.py; intended
+    differences from reference Klong live in TestDocumentedDifferences below.
+    """
 
-    @unittest.skip
-    def test_should_fail_parsing(self):
-        """
-           this is a bug in both original Klong and KlongPy:
-           fn::{[a b c]::1;a::1;b::2;c::3} the :: after variable declaration is a syntax error
-        """
-        pass
-
-    @unittest.skip
-    def test_calling_time_with_lambda(self):
-        """
-        .l("time")
-        a::!1000;#a
-        time({{{x*x}'a}'!1000})
-        """
-        # time will evaluate the lambda in such a way that the gap between the first .pc() and the second .pc() is
-        # very small, so the time will be close to 0.
-
-    @unittest.skip
+    @requires_pandas
+    @unittest.skip("ticket 063: @ has no dict branch, so T@\"col1\" returns the table, not the column")
     def test_table_access_with_at(self):
         data = {'col1': np.arange(10)}
         df = pd.DataFrame(data)
@@ -55,47 +34,21 @@ class TestKnownBugsSuite(unittest.TestCase):
         r = klong('T@"col1"')
         self.assertTrue(klong._backend.kg_equal(r, data['col1']))
 
-    @unittest.skip
-    def test_extra_spaces(self):
-        klong = KlongInterpreter()
-        r = klong("a::{ 1 + 1 };a()")
-        self.assertEqual(r, 2)
-
-    @unittest.skip
+    @unittest.skip("ticket 031: the lexer does not honour `;` inside a string argument (call stays unevaluated)")
     def test_semicolon_string_arg(self):
         klong = KlongInterpreter()
         klong('f::{x,y}')
         r = klong('f("hello";";")')
         self.assertEqual(r, "hello;")
 
-    @unittest.skip
-    def test_wrap_join(self):
-        klong = KlongInterpreter()
-        klong("q::[3 8]")
-        r = klong("q[0],q[-1]")
-        self.assertTrue(klong._backend.kg_equal(r, [3,8]))
-        r = klong("(q[0],q[-1])")
-        self.assertTrue(klong._backend.kg_equal(r, [3,8]))
-
-    @unittest.skip
-    def test_append_empty_dictionaries(self):
-        klong = KlongInterpreter()
-        r = klong("A::[];A::A,:{};A::A,:{};A::A,:{};A")
-        self.assertTrue(klong._backend.kg_equal(r, [{}, {}, {}]))
-
-    @unittest.skip
+    @unittest.skip("ticket 031: unconsumed trailing input `}}}` is silently ignored")
     def test_extra_chars_ignored(self):
         klong = KlongInterpreter()
         with self.assertRaises(Exception):
             klong("aggs::{[a];a:::{}}}}")
 
-    @unittest.skip
-    def test_tested_arity(self):
-        # inner x is not seen in arity calculation
-        #        {.pyc(x,"ticker";[];:{})}'1#symbols
-        pass
-
-    @unittest.skip
+    @unittest.skip("ticket 031: `foo(fn)(2)` silently drops the unconsumed `(2)` and returns fn; "
+                   "`g::foo(fn);g(2)` works")
     def test_monad_argument_returned(self):
         """
         Test that a monadic lambda can be passed as an argument, returned, and then called.
@@ -106,31 +59,20 @@ class TestKnownBugsSuite(unittest.TestCase):
         r = klong('foo(fn)(2)')
         self.assertEqual(r, 12)
 
-    @unittest.skip
-    def test_triad_as_arguments_with_currying(self):
-        """
-        Test that two monads can be passed as arguments to a klong function.
-        """
-        klong = KlongInterpreter()
-        klong('fn::{x+10+y*z}')
-        klong('foo::{x(2;;)}')
-        r = klong('w::foo(fn;;)')
-        r = klong('w(;3;5)')
-        self.assertEqual(r, 2+10+3*5)
-
-    @unittest.skip
+    @unittest.skip("ticket 031: an unterminated string is accepted (`a::\"T` gives \"T\")")
     def test_fail_non_terminated_string(self):
         klong = KlongInterpreter()
         with self.assertRaises(Exception):
             klong('a::"T')
 
-    @unittest.skip
+    @unittest.skip("ticket 032: get_fn_arity does set(f.args) on a call whose argument is an array "
+                   "(TypeError: unhashable type: 'numpy.ndarray', types.py get_fn_arity)")
     def test_define_nilad_with_subcall(self):
         klong = KlongInterpreter()
         klong("nt::{x}")
         klong('newt::{nt([["1" 2] ["3" 4] ["5" 6]])}')
 
-    @unittest.skip
+    @unittest.skip("ticket 063: join of two dictionaries rejected (dyads `,` only takes a pair)")
     def test_join_two_dict(self):
         klong = KlongInterpreter()
         klong("b:::{[1 2]}")
@@ -138,75 +80,95 @@ class TestKnownBugsSuite(unittest.TestCase):
         r = klong("b,c")
         self.assertEqual(r, {1: 2, 3: 4})
 
-    @unittest.skip
+    @unittest.skip("ticket 063: nested dict literal is a deferred call, so `?` on it fails (ValueError)")
     def test_nested_dict(self):
         klong = KlongInterpreter()
         klong('c:::{["GET" :{["/" 2]}]}')
         r = klong('(c?"GET")?"/"')
         self.assertEqual(r, 2)
 
-    @unittest.skip
+    @unittest.skip("ticket 031: a missing closing `]` before `}` is accepted")
     def test_dict_inner_create_syntax(self):
         klong = KlongInterpreter()
         with self.assertRaises(RuntimeError):
             # should fail to parse
             r = klong(":{[1 :{[2 3]}}")
 
-    @unittest.skip
+    @unittest.skip("ticket 063: the inner literal stays a deferred KGCall instead of a dict")
     def test_dict_inner_create(self):
-        # this creates a KGCall to wrap the inner dict, which is generally correct for
         klong = KlongInterpreter()
         r = klong(":{[1 :{[2 3]}]}")
         self.assertEqual(r[1], {2: 3})
 
-    @unittest.skip
-    def test_match_nested_array(self):
-        klong = KlongInterpreter()
-        r = klong('[7,7,7]~[7,7,7]')
-        self.assertEqual(r,1)
-
-    @unittest.skip
-    def test_monad_not_getting_called(self):
-        klong = KlongInterpreter()
-        klong("""
-BESTF::10^9;RESETF::{BESTF::10^9}
-ITER::{1};
-RUNX::{{x;ITER()}{x}:~ITER()}
-SCAN::{RESETF();RUNX();BESTF}
-        """)
-        r = klong("SCAN()")
-        self.assertEqual(r,99)
-
-    @unittest.skip
+    @unittest.skip("no ticket yet (needs one, see ticket 018 notes): (4)#[[0 0]] flattens to one row "
+                   "of 8 instead of 4 rows of 2")
     def test_take_nested_array(self):
         klong = KlongInterpreter()
         r = klong("(4)#[[0 0]]")
         self.assertTrue(klong._backend.kg_equal(r,[[0,0],[0,0],[0,0],[0,0]]))
 
-    @unittest.skip
+    @unittest.skip("ticket 051/040: calling an undefined function raises KlongException (not a "
+                   "RuntimeError subclass) today; strict level 2 owns the error contract")
     def test_fall_call_undefined_fn(self):
         klong = KlongInterpreter()
         with self.assertRaises(RuntimeError):
             klong('R(1)')
 
-    @unittest.skip
-    def test_at_in_depth_strings(self):
-        # DIFF: this isn't yet supported in Klong
-        klong = KlongInterpreter()
-        r = klong('["1234","5678"]:@[0 1]')
-        self.assertEqual(r,KGChar('2'))
 
-    @unittest.skip
-    def test_dot_f_complex(self):
-        """ TODO: this is from the ref doc but doesn't work in klong either """
+class TestDocumentedDifferences(unittest.TestCase):
+    """Intended KlongPy behaviour that differs from reference Klong (ticket 018, listed by ticket 081)."""
+
+    def test_array_substitution(self):
+        # Differs: a list literal takes tokens, so operators become KGOp objects and names become
+        # symbols; use `[;...]` for an evaluated list. Reference Klong gives [:! 10].
         klong = KlongInterpreter()
-        klong("fr::{:[@x;0;1+|/{.f(x)}'x]}")
-        self.assert_eval_cmp('fr(0)', '[]', klong=klong)
-        self.assert_eval_cmp('fr(1)', '[1]', klong=klong)
-        self.assert_eval_cmp('fr(3)', '[1 1 1]', klong=klong)
-        self.assert_eval_cmp('fr(10)', '[1 1 1 1 1 1 1 1 1 1]', klong=klong)
-        klong("fr::{:[@x;0;1+|/.f'x]}")
-        self.assert_eval_cmp('fr(0)', '[]', klong=klong)
-        self.assert_eval_cmp('fr(1)', '[1]', klong=klong)
-        self.assert_eval_cmp('fr(3)', '[1 1 1]', klong=klong)
-        self.assert_eval_cmp('fr(10)', '[1 1 1 1 1 1 1 1 1 1]', klong=klong)
+        r = klong('[!10]')
+        self.assertEqual(len(r), 2)
+        self.assertEqual(type(r[0]).__name__, 'KGOp')
+        self.assertEqual(r[1], 10)
+        r = klong('[3*a^2]')
+        self.assertEqual(len(r), 5)
+        self.assertEqual(r[0], 3)
+        self.assertEqual(type(r[1]).__name__, 'KGOp')
+        self.assertEqual(r[2], KGSym('a'))
+        self.assertEqual(type(r[3]).__name__, 'KGOp')
+        self.assertEqual(r[4], 2)
+
+    def test_match_nested_array(self):
+        # Differs: `,` is not a list separator; `[7,7,7]` is a five-element token list
+        # (7 , 7 , 7 with `,` as an operator object), not [7 7 7].
+        klong = KlongInterpreter()
+        self.assertEqual(klong('#[7,7,7]'), 5)
+        self.assertEqual(klong('[7 7 7]~[7 7 7]'), 1)
+
+    def test_append_empty_dictionaries(self):
+        # Differs: `list,dict` follows the pair rule (ticket 063): a two-element list joined with
+        # a dict is read as a key/value pair, so the third append fails.
+        klong = KlongInterpreter()
+        r = klong("A::[];A::A,:{}")
+        self.assertEqual(len(r), 1)
+        with self.assertRaises(Exception):
+            klong("A::A,:{};A::A,:{}")
+
+    def test_triad_as_arguments_with_currying(self):
+        # Differs: a projection like x(2;;) needs the arity of x at parse time, which a lambda
+        # parameter does not have, so currying a function passed as an argument does not work.
+        # Currying a named function directly does.
+        klong = KlongInterpreter()
+        klong('fn::{x+10+y*z}')
+        klong('p::fn(2;;)')
+        self.assertEqual(klong('p(3;5)'), 2+10+3*5)
+        klong('foo::{x(2;;)}')
+        klong('w::foo(fn;;)')
+        self.assertNotEqual(klong('w(;3;5)'), 2+10+3*5)
+
+    def test_at_in_depth_strings(self):
+        # Differs: `@` with a list of indices does not index into depth (strings), as the
+        # original comment says; it raises (a raw IndexError today, to be wrapped by ticket 041).
+        klong = KlongInterpreter()
+        with self.assertRaises(Exception):
+            klong('["1234","5678"]:@[0 1]')
+
+
+if __name__ == '__main__':
+    unittest.main()
