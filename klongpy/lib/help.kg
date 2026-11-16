@@ -31,13 +31,13 @@ op.db::[
   "b=string; convert 'b' to an object of the same form (type) as 'a'"]
  [" $a" "Format" "convert 'a' to a string representing the value of 'a'"]
 [" a$b" "Format2"
- "a=real|list; when both operands are lists, apply pairwise. Format 'b', pad with 'a' blanks or to align to x.y digits"]
+ "a=real|list; when both operands are lists, apply pairwise. Format 'b', pad with 'a' blanks (a<0 = pad on the left) or to align to x.y digits"]
  [" >a" "Grade-Down"
   "a=vector; vector of indices of elements of 'a' in descending order"]
  [" <a" "Grade-Up"
   "a=vector; vector of indices of elements of 'a' in ascending order"]
- [" =a" "Group" "a=vector; vector of groups (matching elements) of 'a'"]
- [" a@b" "Index/Apply" "a=vector, b=integer; extract b'th element of 'a'"]
+ [" =a" "Group" "a=vector; index lists of equal elements of 'a', in order of first appearance"]
+ [" a@b" "Index/Apply" "a=vector, b=integer; extract b'th element of 'a' (b<0 = from the end)"]
  [" a@b" "Index/Apply"
   "a=vector, b=list(integer); extract bi'th elements from 'a'"]
  [" a:@b" "Index-in-Depth" "a=vector, b=integer; extract b'th element of 'a'"]
@@ -66,7 +66,7 @@ op.db::[
  [" ^a" "Shape" "a=vector; vector of dimensions of 'a'; 0 for atoms"]
  [" #a" "Size"
   "magnitude of numbers, size of vectors, code points of characters"]
- [" a:#b" "Split" "a=integer, b=vector; split 'b' into 'a'-element subvectors"]
+ [" a:#b" "Split" "a=integer>0, b=vector; split 'b' into 'a'-element subvectors"]
  [" a:#b" "Split"
   "a=list(integer), b=vector; split into subvectors of sizes in 'a'"]
  [" a#b" "Take"

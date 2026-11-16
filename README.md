@@ -459,7 +459,7 @@ KlongPy combines Klong's simplicity with Python's ecosystem and PyTorch's autogr
 
 ## Status
 
-KlongPy is a superset of the Klong array language, passing all Klong integration tests plus additional test suites. The PyTorch backend provides GPU acceleration (CUDA, MPS) and automatic differentiation.
+KlongPy implements the Klong array language and runs the Klong test suite, plus additional test suites. It differs from Klong in a few ways, listed in the documentation. The PyTorch backend provides GPU acceleration (CUDA, MPS) and automatic differentiation.
 
 Ongoing development:
 - Expanded torch backend coverage

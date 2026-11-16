@@ -265,7 +265,7 @@ Read about the [prime example here](https://t3x.org/klong/prime.html).
 
 # Status
 
-KlongPy is a superset of the Klong array language, passing all Klong integration tests plus additional test suites. The PyTorch backend provides GPU acceleration (CUDA, MPS) and automatic differentiation.
+KlongPy implements the Klong array language and runs the Klong test suite, plus additional test suites. It differs from Klong in a few ways, listed under Differences from Klong below. The PyTorch backend provides GPU acceleration (CUDA, MPS) and automatic differentiation.
 
 Ongoing development:
 - Expanded torch backend coverage
@@ -276,7 +276,7 @@ Note: The torch backend does not support object dtype arrays or string operation
 
 # Differences from Klong
 
-KlongPy is effectively a superset of the Klong language, but has some key differences:
+KlongPy extends Klong and differs from it in these ways:
 
 * **Infinite precision**: The main difference in this implementation of Klong is the lack of infinite precision. By using NumPy we are restricted to doubles.
 * **Python integration**: The `.py()` and `.pyf()` commands allow direct import of Python modules into the current Klong context.

@@ -144,6 +144,29 @@ async:monad
 
 Note, the result of .async() is a function, so it's possible to reuse these.
 
+## Server Lifecycle and Call Timeouts
+
+`.srv(x)` returns 1 when the server is now listening and 0 when this interpreter was already serving. `.srv(0)` stops the server and drops its client connections; it returns 1 if a server was running and 0 if not. Each interpreter has its own server, so several interpreters can serve different ports.
+
+```kgpy
+?> .srv(18767)
+1
+?> .srv(18767)
+0
+?> .srv(0)
+1
+?> .srv(0)
+0
+```
+
+If the port cannot be bound, `.srv` raises an error instead of returning. With another process already listening on port 8888, the error message looks like this:
+
+```text
+cannot listen on 0.0.0.0:8888: error while attempting to bind on address ... [errno 48] address already in use
+```
+
+A call made through `.cli` or `.clid` waits for the reply for 30 seconds. If no reply arrives, the call raises an error whose message contains `timed out`, the connection is closed, and every other call waiting on that connection fails with the same error. A connection that closes while calls are waiting fails them in the same way. From Python, the limit is the `call_timeout` attribute of the client object (`klong["f"].call_timeout = 5`, or `None` for no limit).
+
 ## Synchronization
 
 While the IPC server I/O is async, the KlongPy interpreter is single-threaded.  All remote operations are synchronous to make it easy to use remote operations as part of a normal workflow.  Of course, when calling over to another KlongPy instance, you have no idea what state that instance is in, but within the calling instance operations will be sequential.

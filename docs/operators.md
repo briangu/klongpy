@@ -30,19 +30,19 @@ and [discussion #82](https://github.com/briangu/klongpy/discussions/82).
 | `@a` | Atom | Check if value is an atom |
 | `:#a` | Char | Convert to character |
 | `!a` | Enumerate | Generate sequence 0..a-1 |
-| `&a` | Expand | Expand boolean mask |
+| `&a` | Expand/Where | Indices where `a` is true (repeated by the count in `a`); `&3` is `[0 0 0]` |
 | `*a` | First | First element |
 | `_a` | Floor | Floor/truncate |
-| `$a` | Format | Convert to string |
+| `$a` | Format | Convert to string; on a list, converts each element (`$[1 2 3]` is `["1" "2" "3"]`) |
 | `>a` | Grade-Down | Indices that would sort descending |
 | `<a` | Grade-Up | Indices that would sort ascending |
-| `=a` | Group | Group equal elements |
+| `=a` | Group | Indices of equal elements, one list per distinct value, in order of first appearance |
 | `,a` | List | Wrap in list |
 | `-a` | Negate | Negate value |
 | `~a` | Not | Logical not |
 | `%a` | Reciprocal | 1/a |
-| `?a` | Range | Random or range |
-| `|a` | Reverse | Reverse order |
+| `?a` | Range | Unique elements in order of first appearance (not sorted). For a random number use `.rn()` |
+| `|a` | Reverse | Reverse order; an atom is returned unchanged |
 | `^a` | Shape | Array dimensions |
 | `#a` | Size | Length/count |
 | `+a` | Transpose | Transpose matrix |
@@ -53,19 +53,19 @@ and [discussion #82](https://github.com/briangu/klongpy/discussions/82).
 
 | Operator | Name | Description |
 |----------|------|-------------|
-| `a:=b` | Amend | Amend array at index |
+| `a:=b` | Amend | Amend array or string at index; see [Indexing and amend](#indexing-and-amend) |
 | `a:-b` | Amend-in-Depth | Deep amend |
 | `a:_b` | Cut | Cut array at indices |
 | `a::b` | Define | Define variable |
-| `a%b` | Divide | Division |
+| `a%b` | Divide | Division; a zero divisor gives `:undefined` |
 | `a_b` | Drop | Drop elements |
 | `a=b` | Equal | Equality test |
 | `a?b` | Find | Find element |
-| `a:$b` | Form | Format with precision |
-| `a$b` | Format2 | Format with width |
-| `a@b` | Index/Apply | Index or apply function |
+| `a:$b` | Form | Convert string `b` to the type of `a`; `:undefined` if it does not convert |
+| `a$b` | Format2 | Format with width: a positive `a` pads on the right, a negative `a` pads on the left; `a` of the form `5.2` formats a real |
+| `a@b` | Index/Apply | Index or apply function; negative indices count from the end |
 | `a:@b` | Index-in-Depth | Deep indexing |
-| `a:%b` | Integer-Divide | Integer division |
+| `a:%b` | Integer-Divide | Integer division; a zero divisor gives `:undefined` |
 | `a,b` | Join | Concatenate |
 | `a<b` | Less | Less than |
 | `a~b` | Match | Deep equality |
@@ -76,9 +76,9 @@ and [discussion #82](https://github.com/briangu/klongpy/discussions/82).
 | `a+b` | Plus | Addition |
 | `a^b` | Power | Exponentiation |
 | `a:^b` | Reshape | Reshape array |
-| `a!b` | Remainder | Modulo |
+| `a!b` | Remainder | Modulo; a zero divisor gives `:undefined` |
 | `a:+b` | Rotate | Rotate elements |
-| `a:#b` | Split | Split at indices |
+| `a:#b` | Split | Split `b` into pieces of size `a` (or of the sizes in list `a`); sizes must be 1 or more |
 | `a#b` | Take | Take elements |
 | `a*b` | Times | Multiplication |
 | `a∇b` | Grad | Numeric gradient of b at a |
@@ -170,6 +170,8 @@ f::{w^2}              :" Returns [w0^2, w1^2]
 
 ### Comparison
 
+The two gradient operators take their arguments in opposite orders: `point∇function` for numeric differentiation and `function:>point` for autograd. This table is the one authoritative comparison; other pages link here.
+
 | Feature | `∇` (nabla) | `:>` (autograd) | `∂` (jacobian) |
 |---------|-------------|-----------------|----------------|
 | Method | Numeric | PyTorch autograd | PyTorch/numeric |
@@ -234,9 +236,10 @@ info::.export(f;2.0;"model.pt2")
 | `f\a` | Scan | Scan with f |
 | `n f'a` | Each-n | Apply f to groups of n |
 | `a f'b` | Each-pair | Apply f to pairs |
-| `f:*a` | Iterate | Iterate f until stable |
-| `n f:*a` | Iterate-n | Iterate f n times |
-| `f:~a` | Converge | Converge with condition |
+| `n f:*a` | Iterate | Apply f to a, n times; n must be a non-negative integer |
+| `n f\*a` | Scan-Iterate | Like Iterate, returning every intermediate value |
+| `f:~a` | Converge | Apply f until the result stops changing |
+| `f\~a` | Scan-Converge | Like Converge, returning every intermediate value |
 
 ### Each-Index Adverb: `@'`
 
@@ -305,6 +308,152 @@ sign(7)                      :" pos"
 ```
 
 The chain form only replaces a conditional in the else (last) slot. A conditional in the then slot, as in `:[c1;:[c2;a;b];d]`, stays nested.
+
+## Edge Cases and Errors
+
+These rules apply to the interpreted and compiled paths and to the NumPy backend. In the transcripts below, an error is shown as `error: message`; the REPL adds its own prefix.
+
+### Range and group order
+
+`?a` and `=a` keep the order in which values first appear. Neither sorts.
+
+```kgpy
+?> ?[3 1 3 2 1]
+[3 1 2]
+?> ?"abcab"
+"abc"
+?> =[3 1 3 2 1]
+[[0 2] [1 4] [3]]
+?> ="abca"
+[[0 3] [1] [2]]
+```
+
+### Indexing and amend
+
+`a@i` accepts `-n..n-1` for a list or string of length `n`; a negative index counts from the end, as in NumPy. Any other index is an error. A list of indices is checked the same way.
+
+```kgpy
+?> [1 2 3]@-1
+3
+?> "abc"@[0 -1]
+"ac"
+?> [1 2 3]@3
+error: @: index 3 out of range for length 3
+?> [1 2 3]@-4
+error: @: index -4 out of range for length 3
+```
+
+`a:=v,i` uses the same index rule. On a string, index `#a` appends and any larger index is an error. A real value put into an integer list turns the whole list into reals.
+
+```kgpy
+?> [1 2 3]:=9,-1
+[1 2 9]
+?> [1 2 3]:=9,3
+error: :=: index 3 out of range for length 3
+?> "abc":="xy",3
+"abcxy"
+?> "abc":="x",4
+error: :=: index 4 out of range for length 3
+?> [1 2 3]:=2.5,1
+[1.0 2.5 3.0]
+```
+
+Dictionary lookups are not range checked.
+
+### Division by zero
+
+`%`, `:%` and `!` give `:undefined` for a zero divisor, one element at a time when an operand is a list. The result list then holds `:undefined` objects, and arithmetic on such a list raises an error.
+
+```kgpy
+?> 1%0
+:undefined
+?> [1 2 0]%[1 0 1]
+[1.0 :undefined 0.0]
+?> [5 6]![0 2]
+[:undefined 0]
+?> 1:%0
+:undefined
+```
+
+### Shape mismatch
+
+Two lists of different lengths in an atomic dyad are an error. So is filling a non-empty shape from an empty list.
+
+```kgpy
+?> [1 2 3]+[1 2]
+error: atomic dyad shape mismatch: (3,) and (2,)
+?> [2 3]:^[]
+error: :^: cannot fill a non-empty shape from an empty source
+```
+
+### Format and Form
+
+`$` converts an atom to a string and applies to each element of a list. `a:$b` converts the string `b` to the type of `a`, giving `:undefined` where the text does not convert, one element at a time for a list. `n$x` with a width of `5.2` needs a real `x`.
+
+```kgpy
+?> $[1 2 3]
+["1" "2" "3"]
+?> 1:$"12"
+12
+?> 1:$"x"
+:undefined
+?> [1 1]:$["12" "x"]
+[12 :undefined]
+?> 1.0:$"1.5"
+1.5
+?> 10$123
+"123       "
+?> (-10)$123
+"       123"
+?> 5.2$3.0
+"    3.00"
+?> 5.2$3
+error: $: a real width needs a real number to format, got 3
+```
+
+### Split and iterate counts
+
+Split sizes must be integers of 1 or more, and the size list may not be empty. The count of an iterate or scan-iterate must be an integer of 0 or more; an integral real such as `2.0` is accepted. A count of 0 returns the argument itself, for scan-iterate as well (not a one-element list).
+
+```kgpy
+?> 2:#[1 2 3 4 5]
+[[1 2] [3 4] [5]]
+?> [2 1]:#[1 2 3]
+[[1 2] [3]]
+?> 0:#[1 2 3]
+error: :#: segment sizes must be positive, got 0
+?> []:#[1 2 3]
+error: :#: segment sizes must not be empty
+?> 3{1,x}:*[]
+[1 1 1]
+?> 2.0{x+1}:*0
+2
+?> 3{x+1}\*0
+[0 1 2 3]
+?> 0{x+1}\*5
+5
+?> (-1){x+1}:*0
+error: :*: count must not be negative, got -1
+?> 1.5{x+1}:*0
+error: :*: count must be a non-negative integer, got 1.5
+```
+
+### Symbols are data
+
+A symbol held in a list or a variable stays a symbol when it passes through an adverb, `@`, a projection or a Python or IPC callback. It is not looked up as a variable. To pass the values of variables, build the list from values with `[;a;b]`.
+
+```kgpy
+?> foo::5
+5
+?> l::[:foo :bar]
+[:foo :bar]
+?> {x}'l
+[:foo :bar]
+?> {x}@*l
+:foo
+?> {x}'[;foo;:bar]
+[5 :bar]
+```
 
 ## Unused Operators
 

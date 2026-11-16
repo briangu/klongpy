@@ -89,7 +89,7 @@ f::{x^2}         :" Define f(x) = x^2
 3∇f              :" Compute f'(3) ≈ 6.0
 ```
 
-The syntax is `point∇function` (note: reversed order from `:>`).
+The syntax is `point∇function`; the autograd operator `:>` takes the function first (`function:>point`). The [operator reference](operators.md#comparison) has the table that compares the gradient operators.
 
 ### How They Work
 
