@@ -573,6 +573,13 @@ def main():
     parser.add_argument('--traceback', help='print the Python traceback with an error (what -v does, without the other output)',
                         action="store_true")
     parser.add_argument('--dump-ast', metavar='FILE', help='print the canonical parse tree of FILE and exit')
+    parser.add_argument('--lint', metavar='FILE', nargs='+',
+                        help='check FILEs for the classic Klong traps without running them, then exit '
+                             '(1 if any error was found); with --select, --ignore, --define and -v')
+    parser.add_argument('--select', metavar='CODES', help='with --lint: report only these codes (comma-separated)')
+    parser.add_argument('--ignore', metavar='CODES', help='with --lint: leave these codes out (comma-separated)')
+    parser.add_argument('--define', metavar='NAMES',
+                        help='with --lint: names the host defines before the program runs (comma-separated)')
     parser.add_argument('-d', '--debug', help='enable debug mode', action="store_true")
     parser.add_argument('--strict', metavar='N', type=int, choices=[0, 1, 2], default=0,
                         help='strict level: 0 (the default), 1 or 2; --strict alone means 1. Written --strict=N')
@@ -586,6 +593,9 @@ def main():
     if args.dump_ast:
         from klongpy.dump import main as _dump_main
         sys.exit(_dump_main([args.dump_ast]))
+    if args.lint:
+        from klongpy.lint import lint_main
+        sys.exit(lint_main(args.lint, args.select, args.ignore, args.verbose, args.define))
 
     # Default to the numpy backend: fast and predictable for general array work
     # (and it never surprises non-autograd .kg scripts with MPS-tensor issues).
