@@ -37,6 +37,12 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
         If "x" is an integer, then it is interpreted as a port in "0.0.0.0:<port>".
         if "x" is a string, then it is interpreted as a bind address "<bind>:<port>"
 
+        Security: a bare port listens on all interfaces (0.0.0.0), and routes
+        run the Klong functions you register with the request parameters.
+        KlongPy assumes every peer is trusted. To limit access, bind to
+        localhost, as in .web("127.0.0.1:8080";get;post), and firewall the
+        port. Never expose it to an untrusted network or the internet.
+
         GET routes are specified in a dictionary provided by "y".
         POST routes are specified in a dictionary provided by "z".
 
