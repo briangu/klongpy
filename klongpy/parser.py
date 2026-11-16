@@ -1,13 +1,22 @@
 """
-KlongPy parser and lexer functions.
+KlongPy parser functions.
 
-This module contains all the parsing functions for the Klong language:
-- Lexeme reading (numbers, strings, symbols, operators)
-- List parsing
-- Conditional expression parsing
-- Comment handling
+There are two front ends. The default one reads tokens from klongpy/lexer.py;
+its readers are the tk_* functions at the end of this module and the grammar
+methods of KlongInterpreter (_prog, _expr, _factor, _read_fn_args,
+_apply_adverbs). The legacy one works on the source string with a character
+cursor: the readers in the first part of this module and the _legacy_* methods
+of KlongInterpreter. It is selected with KlongInterpreter(parser="legacy") or
+KLONGPY_PARSER=legacy, is deprecated, and is kept for one release so the two
+can be compared. The character readers (kg_read, read_list, ...) also remain
+the readers of data for .r and .rs.
+
+The token readers reproduce the legacy readers decision for decision; the
+comments marked "legacy:" say which legacy behaviour a line stands for.
 """
 import copy
+
+from .lexer import ERR_CHAR_EOF
 
 from .types import (
     KGSym, KGQSym, KGChar, KGOp, KGCond, KGCall, KGLambda,
@@ -307,10 +316,10 @@ def read_cond(klong, t, i=0):
         c := ':[' ( e ';' e ':|' )* e ';' e ';' e ']'
     """
     r = []
-    i, n = klong._expr(t, i, ignore_newline=True)
+    i, n = klong._legacy_expr(t, i, ignore_newline=True)
     r.append(n)
     i = cexpect(t, i, ';')
-    i, n = klong._expr(t, i, ignore_newline=True)
+    i, n = klong._legacy_expr(t, i, ignore_newline=True)
     r.append(n)
     i = skip(t, i, ignore_newline=True)
     if cmatch2(t, i, ':', '|'):
@@ -318,7 +327,7 @@ def read_cond(klong, t, i=0):
         r.append(n)
     else:
         i = cexpect(t, i, ';')
-        i, n = klong._expr(t, i, ignore_newline=True)
+        i, n = klong._legacy_expr(t, i, ignore_newline=True)
         r.append(n)
         i = skip(t, i, ignore_newline=True)
         i = cexpect(t, i, ']')
@@ -346,8 +355,11 @@ class KGExprArray(list):
     Holds unevaluated expressions that are evaluated at runtime.
     Similar to KGCond, this defers evaluation until the expressions
     are actually needed (e.g., when a function is called).
+
+    span and arg_spans are set by the token parser (see KGFn).
     """
-    pass
+    span = None
+    arg_spans = None
 
 
 def read_expr_array(klong, t, i=0):
@@ -363,7 +375,7 @@ def read_expr_array(klong, t, i=0):
     i = skip(t, i, ignore_newline=True)
 
     while i < len(t) and not cmatch(t, i, ']'):
-        i, expr = klong._expr(t, i, ignore_newline=True)
+        i, expr = klong._legacy_expr(t, i, ignore_newline=True)
         if expr is not None:
             r.append(expr)
         i = skip(t, i, ignore_newline=True)
@@ -377,3 +389,334 @@ def read_expr_array(klong, t, i=0):
         i += 1
 
     return i, r
+
+
+# ---------------------------------------------------------------------------
+# Token readers (the default front end). See tickets/design/frontend.md.
+#
+# Positions. The lexer holds the token list (lx.toks, ending with EOF) and the
+# index of the next token (lx.pos). An index stands for the legacy character
+# position at the END of the previous token: the whitespace before the token
+# at that index has not been skipped. Where the legacy code tested a character
+# at such a position (cmatch right after a lexeme) the test here is "this kind
+# and tok.ws is False". Where the legacy code skipped first and then tested,
+# only the kind is tested.
+#
+# Newlines. The legacy skip(ignore_newline=True) skips whitespace and newlines
+# up to the first comment and then, after the comment, stops at the next
+# newline. In token terms: NEWLINE tokens are skipped unless nl_comment is set.
+# A NEWLINE that is read (not skipped) is a ';'.
+#
+# Tokens are indexed as tuples in the hot paths:
+# 0 kind, 1 start, 2 end, 3 value, 4 ws, 5 nl_comment, 6 unterminated, 7 message.
+# ---------------------------------------------------------------------------
+
+class _Punct(str):
+    """Marker for a ';' read as punctuation, as opposed to the string literal ";"."""
+    __slots__ = ()
+
+
+SEMI = _Punct(';')
+
+
+class _DataFallback(Exception):
+    """A list holds text that only the character reader lexes the legacy way (see tk_read_list)."""
+
+
+class ProgResult(tuple):
+    """
+    What KlongInterpreter.prog returns: the pair (end offset, statements), as
+    always, which also carries
+
+        stmt_spans   one (start, end) span per statement (None on the legacy parser)
+        source       the lexer.Source the spans refer to (None on the legacy parser)
+    """
+    stmt_spans = None
+    source = None
+
+
+def tk_raise(lx, tok, neg=False):
+    """Raise what the legacy readers raised for the text of an ERROR token."""
+    if tok[7] is ERR_CHAR_EOF:
+        raise UnexpectedEOF(lx.text, len(lx.text))
+    d = ('-' + tok[3]) if neg else tok[3]
+    if '.' in d or 'e' in d:
+        float(d)
+    else:
+        int(d)
+    raise ValueError(tok[7])
+
+
+def tk_peek_adverb(lx):
+    """
+    legacy: peek_adverb. If an adverb starts exactly at the read position,
+    consume it and return its text, else return None. Two-character adverbs
+    are tested before one-character ones.
+    """
+    j = lx.pos
+    tok = lx.toks[j]
+    if tok[4]:
+        return None
+    k = tok[0]
+    if k == 'OP':
+        v = tok[3]
+        if v == '@':
+            nt = lx.toks[j+1]
+            if nt[0] == 'OP' and nt[3] == "'" and not nt[4]:
+                lx.pos = j + 2
+                return "@'"
+            return None
+        if v == "'" or v == '/' or v == '\\' or v == '\\~' or v == '\\*':
+            lx.pos = j + 1
+            return v
+    elif k == 'COP':
+        v = tok[3]
+        if v == ":'" or v == ':/' or v == ':\\' or v == ':~' or v == ':*':
+            lx.pos = j + 1
+            return v
+    return None
+
+
+def tk_read_list(klong, lx, j, close):
+    """
+    legacy: read_list. Read the body of a list ('[', close 'RBRACK') or of a
+    dictionary literal (':{', close 'RBRACE') in data mode, starting at token
+    index j (just after the opener). Returns (index after the closer, list).
+    Nothing is consumed: the caller sets lx.pos.
+
+    In data mode every token is a datum: a name is a symbol, ';' is the
+    string ";", an operator is a KGOp object, and '-' directly followed by a
+    number is a negative number. The list ends at the closer or at end of
+    input (an unterminated list is accepted).
+
+    A string or char whose content is "[" is a datum like any other (ticket
+    023; the legacy reader started a nested list there).
+    """
+    toks = lx.toks
+    module = klong._module
+    arr = []
+    append = arr.append
+    tok = toks[j]
+    k = tok[0]
+    while k == 'NEWLINE' and not tok[5]:
+        j += 1
+        tok = toks[j]
+        k = tok[0]
+    while k != close and k != 'EOF':
+        if k == 'NEWLINE':
+            # legacy: the skip before this read stopped at a newline that
+            # follows a comment; the read itself then skips that newline and
+            # reads whatever comes next as a datum, even the closer, and a
+            # second newline-after-comment as ";".
+            j += 1
+            tok = toks[j]
+            k = tok[0]
+            while k == 'NEWLINE' and not tok[5]:
+                j += 1
+                tok = toks[j]
+                k = tok[0]
+            if k == 'EOF':
+                break
+        if k == 'NUM' or k == 'STR' or k == 'CHAR':
+            append(tok[3])
+            j += 1
+        elif k == 'NAME' or k == 'QNAME':
+            v = tok[3]
+            append(reserved_fn_symbol_map.get(v) or KGSym(v if module is None or v[0] == '.' else f"{v}`{module}"))
+            j += 1
+        elif k == 'OP':
+            nt = toks[j+1]
+            nk = nt[0]
+            if (tok[3] == '-' and not nt[4] and (nk == 'NUM' or nk == 'ERROR' or nk == 'CHAR')
+                    and lx.text[nt[1]] != ':'):
+                # legacy: read_neg. '-' and the digits after it are one number.
+                if nk == 'NUM':
+                    append(-nt[3])
+                    j += 2
+                elif nk == 'ERROR' and nt[7] is not ERR_CHAR_EOF:
+                    tk_raise(lx, nt, neg=True)
+                else:
+                    # legacy: "-0cx" is the number -0 followed by the name cx
+                    # (the number reader does not know the 0c prefix). Tokens
+                    # cannot express that; the caller re-reads the whole list
+                    # with the character reader.
+                    raise _DataFallback()
+            else:
+                append(KGOp(tok[3], 0))
+                j += 1
+        elif k == 'LBRACK':
+            j, q = tk_read_list(klong, lx, j + 1, 'RBRACK')
+            append(q)
+        elif k == 'DICT':
+            j, q = tk_read_list(klong, lx, j + 1, 'RBRACE')
+            append(KGCall(copy_lambda, args=list_to_dict(q), arity=0))
+        elif k == 'COP' or k == 'CALLP':
+            append(KGOp(tok[3], 0))
+            j += 1
+        elif k == 'ERROR':
+            tk_raise(lx, tok)
+        elif k == 'NEWLINE':
+            append(';')
+            j += 1
+        else:
+            # ; ( ) { } ] :[ :| are the strings they are written as
+            append(tok[3])
+            j += 1
+        tok = toks[j]
+        k = tok[0]
+        while k == 'NEWLINE' and not tok[5]:
+            j += 1
+            tok = toks[j]
+            k = tok[0]
+    if k == close:
+        j += 1
+    else:
+        lx.at_end = True    # ran into end of input; tk_read_data undoes this for a look-ahead
+    return j, arr
+
+
+def tk_read_data(klong, lx, j, consume):
+    """
+    Read the list or dictionary literal whose opener is the token at index j.
+    With consume=True the read position moves past it and the value is
+    returned (a Python list, or the dictionary literal node). With
+    consume=False nothing moves: the legacy parser read a lexeme to look at it
+    and then often left it unread, and a malformed number inside it raised
+    all the same.
+    """
+    tok = lx.toks[j]
+    close = 'RBRACK' if tok[0] == 'LBRACK' else 'RBRACE'
+    at_end = lx.at_end
+    try:
+        try:
+            e, q = tk_read_list(klong, lx, j + 1, close)
+        finally:
+            if not consume:
+                lx.at_end = at_end
+        if consume:
+            lx.pos = e
+    except _DataFallback:
+        e, q = read_list(lx.text, ']' if close == 'RBRACK' else '}', i=tok[2], module=klong._module)
+        if consume:
+            lx.pos = j + 1
+            lx.seek(e)
+            lx.at_end = e >= len(lx.text)
+    if close == 'RBRACE':
+        q = KGCall(copy_lambda, args=list_to_dict(q), arity=0)
+        if consume:
+            q.span = (tok[1], lx.end())
+    return q
+
+
+def tk_check(klong, lx, j):
+    """
+    legacy: a kg_read whose result is looked at and not consumed. Raise what
+    reading the token at index j as a lexeme raised: a malformed number, 0c at
+    end of input, or an error inside a list or dictionary literal.
+    """
+    tok = lx.toks[j]
+    if tok[0] == 'ERROR':
+        tk_raise(lx, tok)
+    else:
+        tk_read_data(klong, lx, j, False)
+
+
+def tk_read_cond(klong, lx, st):
+    """
+    legacy: read_cond. The read position is just after ':[' (or ':|'); st is
+    the offset of that token.
+
+        c := ':[' ( e ';' e ':|' )* e ';' e ';' e ']'
+    """
+    toks = lx.toks
+    r = []
+    sp = []
+    n = klong._expr(lx, True)
+    r.append(';' if n is SEMI else n)
+    sp.append(None if n is None else (lx.start, lx.end()))
+    tok = toks[lx.pos]
+    # legacy: no whitespace is allowed between the condition and its ';'
+    if tok[0] != 'SEMI' or tok[4]:
+        raise UnexpectedChar(lx.text, lx.offset(), ';')
+    lx.pos += 1
+    n = klong._expr(lx, True)
+    r.append(';' if n is SEMI else n)
+    sp.append(None if n is None else (lx.start, lx.end()))
+    j = lx.pos
+    tok = toks[j]
+    while tok[0] == 'NEWLINE' and not tok[5]:
+        j += 1
+        tok = toks[j]
+    if tok[0] == 'ELIF':
+        lx.pos = j + 1
+        n = tk_read_cond(klong, lx, tok[1])
+        r.append(n)
+        sp.append(n.span)
+    else:
+        if tok[0] != 'SEMI':
+            raise UnexpectedChar(lx.text, tok[1], ';')
+        lx.pos = j + 1
+        n = klong._expr(lx, True)
+        r.append(';' if n is SEMI else n)
+        sp.append(None if n is None else (lx.start, lx.end()))
+        j = lx.pos
+        tok = toks[j]
+        while tok[0] == 'NEWLINE' and not tok[5]:
+            j += 1
+            tok = toks[j]
+        if tok[0] != 'RBRACK':
+            raise UnexpectedChar(lx.text, tok[1], ']')
+        lx.pos = j + 1
+    c = KGCond(r)
+    c.span = (st, lx.end())
+    c.arg_spans = tuple(sp)
+    return c
+
+
+def tk_read_expr_array(klong, lx, st):
+    """
+    legacy: read_expr_array. The read position is just after '[;'; st is the
+    offset of the '['. Each element between semicolons is a full expression.
+    """
+    toks = lx.toks
+    r = []
+    sp = []
+    j = lx.pos
+    tok = toks[j]
+    while tok[0] == 'NEWLINE' and not tok[5]:
+        j += 1
+        tok = toks[j]
+    lx.pos = j
+    while True:
+        k = tok[0]
+        if k == 'EOF':
+            lx.at_end = True
+            break
+        if k == 'RBRACK':
+            break
+        if k == 'NEWLINE':
+            # legacy: the skip stopped at a newline after a comment; the
+            # expression reader's own skip then passes it.
+            lx.pos += 1
+        expr = klong._expr(lx, True)
+        if expr is not None:
+            r.append(';' if expr is SEMI else expr)
+            sp.append((lx.start, lx.end()))
+        j = lx.pos
+        tok = toks[j]
+        while tok[0] == 'NEWLINE' and not tok[5]:
+            j += 1
+            tok = toks[j]
+        if tok[0] == 'SEMI':
+            j += 1
+            tok = toks[j]
+            while tok[0] == 'NEWLINE' and not tok[5]:
+                j += 1
+                tok = toks[j]
+        lx.pos = j
+    if tok[0] == 'RBRACK':
+        lx.pos += 1
+    a = KGExprArray(r)
+    a.span = (st, lx.end())
+    a.arg_spans = tuple(sp)
+    return a

@@ -51,7 +51,7 @@ def eval_monad_enumerate(a, backend):
         raise KlongException("!: enumerate needs an integer, not a dictionary")  # TODO(040): KlongTypeError
     if not backend.is_integer(a):
         raise RuntimeError(f"enumerate: invalid type error: {a}")
-    return bknp.arange(int(a))
+    return backend.np.arange(int(a))
 
 
 def eval_monad_expand_where(a):
@@ -373,7 +373,9 @@ def eval_monad_reciprocal(a, backend):
         a_val = backend.scalar_to_python(a) if backend.is_backend_array(a) else a
         if a_val == 0:
             return KLONG_UNDEFINED
-    return backend.vec_fn(a, lambda x: bknp.reciprocal(bknp.asarray(x, dtype=float)))
+    # 1%0 inside an array gives inf; numpy would warn, so scope the silence to this call
+    with bknp.errstate(divide='ignore'):
+        return backend.vec_fn(a, lambda x: bknp.reciprocal(bknp.asarray(x, dtype=float)))
 
 
 def eval_monad_reverse(a, backend):
@@ -478,7 +480,7 @@ def eval_monad_shape(a, backend):
     a = _normalize_backend_array(a)
     if is_atom(a):
         return 0
-    return bknp.asarray(_shape(a), dtype=int)
+    return backend.np.asarray(_shape(a), dtype=int)
 
 
 def eval_monad_size(a, backend):

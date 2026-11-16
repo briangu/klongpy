@@ -1,7 +1,8 @@
 """
 Canonical dump of a KlongPy parse tree (tickets/design/frontend.md section 7).
 
-    dump(tree, compat=False) -> str
+    dump(tree, compat=False, spans=False) -> str
+    node_spans(tree) -> [(node, span, op_span, arg_spans), ...]
     parse_program(klong, text) -> list of statements (parse only, no evaluation)
 
     python -m klongpy.dump FILE      print the dump of a file, one form per line
@@ -67,8 +68,9 @@ Where the legacy tree cannot tell two forms apart (design list vs tree)
   ``.module(:m)`` does appear as an ordinary call.
 * A dyad adverb chain with a missing-operand slot is not distinguishable
   from a normal one; (adv2) always has two operands.
-* The design's node flags (``unterminated`` etc.) do not exist on the legacy
-  tree, so ``compat`` only affects qsym.
+* The design's node flags (``unterminated`` etc.) do not exist on the tree
+  (the token parser builds the same tree as the legacy one), so ``compat``
+  only affects qsym.
 * Unrecognised objects print as ``(unknown ClassName)``.
 """
 import json
@@ -188,7 +190,19 @@ def _operand(x, compat):
     return "(missing)" if x is None else _e(x, compat)
 
 
+_SPANS = False
+
+
 def _e(x, compat):
+    s = _e0(x, compat)
+    if _SPANS:
+        sp = getattr(x, "span", None)
+        if sp is not None:
+            s += f"@{sp[0]}:{sp[1]}"
+    return s
+
+
+def _e0(x, compat):
     x = _scalar(x)
     if x is None:
         return "_"
@@ -247,11 +261,55 @@ def _e(x, compat):
     return f"(unknown {type(x).__name__})"
 
 
-def dump(tree, compat=False):
-    """Canonical text of a parse tree. A top-level list is a program (one line per statement)."""
-    if type(tree) is list:
-        return "".join(_e(s, compat) + "\n" for s in tree)
-    return _e(tree, compat) + "\n"
+def dump(tree, compat=False, spans=False):
+    """
+    Canonical text of a parse tree. A top-level list is a program (one line per statement).
+
+    With spans=True every node that carries a source span (set by the token
+    parser on KGFn, KGCall, KGCond, KGExprArray and dictionary literals) is
+    followed by ``@start:end``. Leaves have no span of their own; their
+    positions are in the enclosing node's arg_spans (see node_spans).
+    """
+    global _SPANS
+    saved = _SPANS
+    _SPANS = bool(spans)
+    try:
+        if type(tree) is list:
+            return "".join(_e(s, compat) + "\n" for s in tree)
+        return _e(tree, compat) + "\n"
+    finally:
+        _SPANS = saved
+
+
+def node_spans(tree):
+    """
+    Every node of a parse tree that carries a span, depth first, as a list of
+    (node, span, op_span, arg_spans). For tests and tools.
+    """
+    out = []
+
+    def walk(x):
+        if isinstance(x, (KGFn, KGCond, KGExprArray)):
+            if getattr(x, "span", None) is not None:
+                out.append((x, x.span, getattr(x, "op_span", None), getattr(x, "arg_spans", None)))
+            if isinstance(x, KGFn):
+                a = x.a
+                if type(a) is list and a and isinstance(a[0], KGAdverb):
+                    walk(a[0].a)
+                    walk(a[-1])
+                else:
+                    walk(a)
+                if not isinstance(x.args, dict):
+                    walk(x.args)
+            else:
+                for q in x:
+                    walk(q)
+        elif type(x) is list:
+            for q in x:
+                walk(q)
+
+    walk(tree)
+    return out
 
 
 def parse_program(klong, text):
@@ -271,11 +329,15 @@ def parse_program(klong, text):
     return prog
 
 
-def dump_text(text, compat=False):
-    """Parse text on a fresh interpreter and dump it; on a parse-time exception return ``(error ClassName)``."""
+def dump_text(text, compat=False, parser=None, spans=False):
+    """
+    Parse text on a fresh interpreter and dump it; on a parse-time exception return ``(error ClassName)``.
+
+    parser selects the front end ("token" or "legacy"); None is the interpreter's default.
+    """
     from klongpy import KlongInterpreter
     try:
-        return dump(parse_program(KlongInterpreter(), text), compat)
+        return dump(parse_program(KlongInterpreter(parser=parser), text), compat, spans)
     except Exception as e:
         return f"(error {type(e).__name__})\n"
 

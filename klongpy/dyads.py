@@ -213,7 +213,7 @@ def eval_dyad_at_index(klong, a, b):
     n = None if is_dict(a) or not hasattr(a, '__len__') else len(a)
     if is_list(b):
         if is_empty(b):
-            r = bknp.asarray([])
+            r = backend.np.asarray([])
         else:
             if n is not None:
                 b = [_normalize_index(x, n) for x in b]
@@ -224,8 +224,8 @@ def eval_dyad_at_index(klong, a, b):
     else:
         r = a
     if j:
-        if bknp.isarray(r) and r.ndim > 1:
-            return bknp.asarray(["".join(x) for x in r], dtype=object)
+        if backend.np.isarray(r) and r.ndim > 1:
+            return backend.np.asarray(["".join(x) for x in r], dtype=object)
         return "".join(r)
     return r
 
@@ -273,7 +273,7 @@ def _undefined_on_zero_divisor(fn, backend):
             r = fn(x, np_.where(zero, 1, yn))
         if numpy.ndim(r) == 0:
             return KLONG_UNDEFINED
-        o = numpy.asarray(r).astype(object)
+        o = np_.asarray(r).astype(object)
         o[numpy.broadcast_to(zero, o.shape)] = KLONG_UNDEFINED
         return o
     return g
@@ -401,12 +401,12 @@ def eval_dyad_find(a, b, backend):
 
     """
     if isinstance(a,str):
-        return bknp.asarray(list(finditer(a,str(b))))
+        return backend.np.asarray(list(finditer(a,str(b))))
     elif is_dict(a):
         v = a.get(b)
         return KLONG_UNDEFINED if v is None else v
     if is_list(b):
-        return bknp.asarray([i for i,x in enumerate(a) if backend.kg_equal(x, b)])
+        return backend.np.asarray([i for i,x in enumerate(a) if backend.kg_equal(x, b)])
     return bknp.where(bknp.asarray(a) == b)[0]
 
 
@@ -440,9 +440,9 @@ def _e_dyad_form(a, b, backend):
     """
     Unravel the broadcasting of a and b and apply __e_dyad_form
     """
-    if bknp.isarray(a) and bknp.isarray(b):
-        return bknp.asarray([backend.vec_fn2(x, y, lambda x, y: _e_dyad_form(x, y, backend)) for x,y in zip(a,b)])
-    if bknp.isarray(b) and b.ndim > 0 and not bknp.isarray(a):
+    if backend.np.isarray(a) and backend.np.isarray(b):
+        return backend.np.asarray([backend.vec_fn2(x, y, lambda x, y: _e_dyad_form(x, y, backend)) for x,y in zip(a,b)])
+    if backend.np.isarray(b) and b.ndim > 0 and not backend.np.isarray(a):
         # numeric list on the right (e.g. 1:$[5]): convert element by element
         return backend.kg_asarray([_e_dyad_form(a, x, backend) for x in b])
     return __e_dyad_form(a, b, backend)
@@ -641,7 +641,7 @@ def eval_dyad_join(a, b, backend):
         b[a[0]] = a[1]
         return b
 
-    if bknp.isarray(a) and bknp.isarray(b):
+    if backend.np.isarray(a) and backend.np.isarray(b):
         # Only use fast path for 1D+ arrays (not 0D scalars)
         a_is_1d_plus = hasattr(a, 'ndim') and a.ndim >= 1
         b_is_1d_plus = hasattr(b, 'ndim') and b.ndim >= 1
@@ -649,7 +649,7 @@ def eval_dyad_join(a, b, backend):
             if len(a) == 0:
                 return b
             if len(a.shape) == len(b.shape) and a.shape[-1] == b.shape[-1]:
-                return bknp.concatenate((a,b))
+                return backend.np.concatenate((a,b))
 
     aa = _arr_to_list(a)
     bb = _arr_to_list(b)
@@ -1039,12 +1039,12 @@ def eval_dyad_split(a, b, backend):
 
     """
     if len(b) == 0:
-        return bknp.asarray([])
+        return backend.np.asarray([])
 
     j = isinstance(b, str)
     b = backend.str_to_chr_arr(b) if j else b
 
-    a = a if bknp.isarray(a) else [a]
+    a = a if backend.np.isarray(a) else [a]
     if len(a) == 0:
         raise KlongException(":#: segment sizes must not be empty")  # TODO(040): KlongRangeError
     sizes = []
@@ -1075,7 +1075,7 @@ def eval_dyad_split(a, b, backend):
             if p >= len(a):
                 p = 0
 
-    return bknp.asarray(["".join(x) for x in r],dtype=object) if j else backend.kg_asarray(r)
+    return backend.np.asarray(["".join(x) for x in r],dtype=object) if j else backend.kg_asarray(r)
 
 
 def eval_dyad_subtract(a, b, backend):

@@ -1,3 +1,4 @@
+import os
 import time
 from collections import deque
 
@@ -12,6 +13,9 @@ from .sys_fn_ipc import create_system_functions_ipc, create_system_var_ipc
 from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
 from .types import KGQSym
+from .lexer import Lexer, Source
+from .parser import (SEMI, ProgResult, tk_check, tk_peek_adverb, tk_raise, tk_read_cond,
+                     tk_read_data, tk_read_expr_array)
 from .utils import ReadonlyDict
 from .compiler import compile_guarded, run_compiled, NOT_COMPILED, LRUCache
 
@@ -79,9 +83,6 @@ class KlongContext():
 
     def stop_module(self):
         self.push({})
-
-    def current_module(self):
-        return self._module
 
     def __setitem__(self, k, v):
         assert isinstance(k, KGSym)
@@ -254,7 +255,7 @@ def chain_adverbs(klong, arr):
 
 class KlongInterpreter():
 
-    def __init__(self, backend=None, device=None):
+    def __init__(self, backend=None, device=None, parser=None):
         """
         Initialize a Klong interpreter.
 
@@ -265,7 +266,17 @@ class KlongInterpreter():
         device : str, optional
             Device for torch backend ('cpu', 'cuda', 'mps'). Only applies
             when backend='torch'. If None, auto-selects best available device.
+        parser : str, optional
+            'token' (the default) reads programs through klongpy.lexer and
+            records source spans. 'legacy' selects the previous
+            character-cursor parser; it is deprecated and will be removed
+            after one release. When not given, the environment variable
+            KLONGPY_PARSER is consulted.
         """
+        parser = parser or os.environ.get('KLONGPY_PARSER') or 'token'
+        if parser not in ('token', 'legacy'):
+            raise ValueError(f"unknown parser: {parser!r} (expected 'token' or 'legacy')")
+        self._parser = parser
         self._backend = get_backend(backend, device=device)
         strict_mode = 0  # 0=unsafe (default for backward compat), 1=strict, 2=pedantic
         self._context = KlongContext(create_system_contexts(), strict_mode=strict_mode)
@@ -337,7 +348,452 @@ class KlongInterpreter():
     def process_start_time(self):
         return self._start_time
 
-    def _apply_adverbs(self, t, i, a, aa, arity, dyad=False, dyad_value=None):
+    # ------------------------------------------------------------------
+    # Grammar on tokens (the default parser).
+    #
+    # These methods are the legacy grammar methods (kept below as _legacy_*)
+    # rewritten to read tokens from a klongpy.lexer.Lexer instead of
+    # characters from (t, i), decision for decision: every quirk of the legacy
+    # parser is reproduced, with one deliberate exception (ticket 023): a
+    # string or char literal is never mistaken for punctuation, because a
+    # token knows its kind. See the notes on positions and newlines above the
+    # tk_* readers in parser.py.
+    #
+    # Each method leaves lx.start at the start offset of the expression it
+    # returned; its end is the end of the last token consumed. Source spans
+    # are recorded on the nodes from these (see KGFn) and change nothing else.
+    # ------------------------------------------------------------------
+
+    def _apply_adverbs(self, lx, a, aa, arity, st, ost, dyad=False, dyad_value=None, lsp=None):
+        """
+        The read position is just after the first adverb aa of the verb a.
+        st is the start offset of the whole expression, ost of the verb, lsp
+        the span of the left operand of a dyadic chain.
+        """
+        aa_arity = get_adverb_arity(aa, arity)
+        if isinstance(a,KGOp):
+            a.arity = aa_arity
+        arr = [KGAdverb(a, aa_arity), KGAdverb(aa, arity)]
+        aa = tk_peek_adverb(lx)
+        while aa is not None:
+            arr.append(KGAdverb(aa, 1))
+            aa = tk_peek_adverb(lx)
+        toks = lx.toks
+        oe = toks[lx.pos-1][2]
+        # legacy: the operand is read without ignore_newline, wherever we are
+        r = self._expr(lx)
+        if r is SEMI:
+            r = ';'
+        arr.append([dyad_value,r] if dyad else r)
+        # Parser-built: the operand expressions are the last element of arr
+        # and are evaluated by chain_adverbs.
+        c = KGCall(arr,args=None,arity=2 if dyad else 1)
+        e = toks[lx.pos-1][2]
+        rsp = None if r is None else (lx.start, e)
+        c.span = (st, e)
+        c.op_span = (ost, oe)
+        c.arg_spans = (lsp, rsp) if dyad else (rsp,)
+        return c
+
+    def _read_fn_args(self, lx):
+        """
+
+        # Arguments are delimited by parentheses and separated by
+        # semicolons. There are up to three arguments.
+
+        a := '(' ')'
+           | '(' e ')'
+           | '(' e ';' e ')'
+           | '(' e ':' e ';' e ')'
+
+        # Projected argument lists are like argument lists (a), but at
+        # least one argument must be omitted.
+
+        P := '(' ';' e ')'
+           | '(' e ';' ')'
+           | '(' ';' e ';' e ')'
+           | '(' e ';' ';' e ')'
+           | '(' e ';' e ';' ')'
+           | '(' ';' ';' e ')'
+           | '(' ';' e ';' ')'
+           | '(' e ';' ';' ')'
+
+        The token at the read position is '(' or ':('. Returns the arguments
+        (None for an omitted one) and their spans.
+
+        """
+        toks = lx.toks
+        j = lx.pos + 1
+        lx.pos = j
+        arr = []
+        spans = []
+        tok = toks[j]
+        if tok[0] == 'RPAREN' and not tok[4]: # nilad application
+            lx.pos = j + 1
+            return arr, spans
+        # legacy: an argument is omitted only where a ';' or the ')' directly
+        # follows the previous separator, with nothing in between.
+        sep = j
+        while True:
+            j = lx.pos
+            tok = toks[j]
+            k = tok[0]
+            while k == 'NEWLINE' and not tok[5]:
+                j += 1
+                tok = toks[j]
+                k = tok[0]
+            if k == 'SEMI' or k == 'NEWLINE':
+                if j == sep and not tok[4]:
+                    arr.append(None)
+                    spans.append(None)
+                lx.pos = sep = j + 1
+                continue
+            elif k == 'RPAREN':
+                if j == sep and not tok[4]:
+                    arr.append(None)
+                    spans.append(None)
+                break
+            if k == 'LBRACK':
+                # legacy: the lexeme is read here as a data list before the
+                # expression reader sees that it is an evaluated list
+                nt = toks[j+1]
+                if nt[0] == 'SEMI' and not nt[4]:
+                    tk_check(self, lx, j)
+            a = self._expr(lx, True)
+            if a is None:
+                break
+            arr.append(';' if a is SEMI else a)     # SEMI only from "(;)"
+            spans.append((lx.start, toks[lx.pos-1][2]))
+        # legacy: the ')' must follow the last argument directly
+        tok = toks[lx.pos]
+        if tok[0] != 'RPAREN' or tok[4]:
+            raise UnexpectedChar(lx.text, lx.offset(), ')')
+        lx.pos += 1
+        return arr, spans
+
+    def _read_fn(self, lx, st):
+        """
+        Read a function literal and the argument list that may follow it. The
+        read position is just after the '{' whose offset is st.
+        """
+        toks = lx.toks
+        body, bsp = self._prog(lx, True)
+        a = body[0] if len(body) == 1 else body
+        j = lx.pos
+        tok = toks[j]
+        while tok[0] == 'NEWLINE' and not tok[5]:
+            j += 1
+            tok = toks[j]
+        if tok[0] != 'RBRACE':
+            raise UnexpectedChar(lx.text, tok[1], '}')
+        lx.pos = j = j + 1
+        arity = get_fn_arity(a)
+        nt = toks[j]
+        nk = nt[0]
+        if (nk == 'LPAREN' or nk == 'CALLP') and not nt[4]:
+            fa, fsp = self._read_fn_args(lx)
+            # Parser-built calls (here and below): fa holds unevaluated
+            # argument expressions, which _eval_fn evaluates.
+            f = KGFn(a, fa, arity) if has_none(fa) else KGCall(a, fa, arity)
+            f.op_span = (st, tok[2])
+            f.arg_spans = tuple(fsp)
+        else:
+            f = KGFn(a, args=None, arity=arity)
+        f.span = (st, toks[lx.pos-1][2])
+        f.body_spans = tuple(bsp)
+        f.source = lx.source
+        return f
+
+    def _factor(self, lx, ignore_newline=False):
+        """
+
+        # A factor is a lexeme class (C) or a variable (V) applied to
+        # arguments (a) or a function (f) or a function applied to
+        # arguments or a monadic operator (m) applied to an expression
+        # or a parenthesized expression or a conditional expression (c)
+        # or a list (L) or a dictionary (D).
+
+        x := C
+           | V a
+           | f
+           | f a
+           | m e
+           | '(' e ')'
+           | c
+           | L
+           | D
+
+        # A function is a program delimited by braces. Deja vu? A
+        # function may be projected onto on some of its arguments,
+        # giving a projection. A variable can also be used to form
+        # a projection.
+
+        f := '{' p '}'
+           | '{' p '}' P
+           | V P
+
+        Returns None at end of input and SEMI for a ';' (or a newline that
+        acts as one). Any other punctuation that cannot start a factor is
+        returned as the string it is written as, as the legacy parser did.
+
+       """
+        toks = lx.toks
+        j = lx.pos
+        tok = toks[j]
+        k = tok[0]
+        if ignore_newline:
+            while k == 'NEWLINE' and not tok[5]:
+                j += 1
+                tok = toks[j]
+                k = tok[0]
+        st = tok[1]
+        if k == 'NAME' or k == 'QNAME':
+            v = tok[3]
+            module = self._module
+            a = reserved_fn_symbol_map.get(v) or KGSym(v if module is None or v[0] == '.' else f"{v}`{module}")
+            if k == 'QNAME':
+                # a quoted symbol in expression position is a KGQSym node
+                a = KGQSym(a)
+            lx.pos = j = j + 1
+            nt = toks[j]
+            nk = nt[0]
+            if (nk == 'LPAREN' or nk == 'CALLP') and not nt[4]:
+                fa, fsp = self._read_fn_args(lx)
+                a = KGFn(a, fa, arity=len(fa)) if has_none(fa) else KGCall(a, fa, arity=len(fa))
+                if v == '.comment':
+                    # .comment("END") hides the raw text up to the marker
+                    lx.seek(read_sys_comment(lx.text, lx.offset(), a.args[0]))
+                    return self._factor(lx, ignore_newline)
+                elif v == '.module':
+                    self.parse_module(fa[0])
+                a.span = (st, toks[lx.pos-1][2])
+                a.op_span = (st, tok[2])
+                a.arg_spans = tuple(fsp)
+            aa = tk_peek_adverb(lx)
+            if aa is not None:
+                a = self._apply_adverbs(lx, a, aa, 1, st, st)
+        elif k == 'NUM' or k == 'STR' or k == 'CHAR':
+            lx.pos = j + 1
+            a = tok[3]
+        elif k == 'OP' or k == 'COP' or k == 'CALLP':
+            v = tok[3]
+            a = KGOp(v, 0)
+            lx.pos = j + 1
+            if v in self._vm:
+                a.arity = 1
+                aa = tk_peek_adverb(lx)
+                if aa is not None:
+                    a = self._apply_adverbs(lx, a, aa, 1, st, st)
+                else:
+                    r = self._expr(lx, ignore_newline)
+                    if r is SEMI:
+                        r = ';'
+                    a = KGFn(a, r, arity=1)
+                    e = toks[lx.pos-1][2]
+                    a.span = (st, e)
+                    a.op_span = (st, tok[2])
+                    a.arg_spans = (None if r is None else (lx.start, e),)
+        elif k == 'LBRACK':
+            nt = toks[j+1]
+            if nt[0] == 'SEMI' and not nt[4]:
+                # evaluated array constructor [;expr1;expr2;...]
+                lx.pos = j + 2
+                a = tk_read_expr_array(self, lx, st)
+            else:
+                a = self._backend.kg_asarray(tk_read_data(self, lx, j, True))
+        elif k == 'LPAREN':
+            lx.pos = j + 1
+            # legacy: "(;)" and "(" newline ")" give the ';' itself, which the
+            # callers then treat as a separator: a is passed on as SEMI.
+            a = self._expr(lx, ignore_newline)
+            tok = toks[lx.pos]
+            if tok[0] != 'RPAREN' or tok[4]:
+                raise UnexpectedChar(lx.text, lx.offset(), ')')
+            lx.pos += 1
+        elif k == 'LBRACE': # read fn
+            lx.pos = j + 1
+            a = self._read_fn(lx, st)
+            aa = tk_peek_adverb(lx)
+            if aa is not None:
+                a = self._apply_adverbs(lx, a, aa, 1, st, st)
+        elif k == 'SEMI' or k == 'NEWLINE':
+            lx.pos = j + 1
+            a = SEMI
+        elif k == 'EOF':
+            lx.pos = j
+            lx.at_end = True
+            return None
+        elif k == 'COND':
+            lx.pos = j + 1
+            a = tk_read_cond(self, lx, st)
+        elif k == 'DICT':
+            a = tk_read_data(self, lx, j, True)
+        elif k == 'ERROR':
+            tk_raise(lx, tok)
+        else:
+            # ) } ] :| where a factor was expected
+            lx.pos = j + 1
+            a = tok[3]
+        lx.start = st
+        return a
+
+    def _expr(self, lx, ignore_newline=False):
+        """
+
+        # An expression is a factor or a dyadic operation applied to
+        # a factor and an expression. I.e. dyads associate to the right.
+
+        e := x
+           | x d e
+
+        """
+        a = self._factor(lx, ignore_newline)
+        if a is None or a is SEMI:
+            return a
+        st = lx.start
+        toks = lx.toks
+        first = True
+        while True:
+            j = lx.pos
+            lend = toks[j-1][2]
+            tok = toks[j]
+            k = tok[0]
+            if ignore_newline:
+                while k == 'NEWLINE' and not tok[5]:
+                    j += 1
+                    tok = toks[j]
+                    k = tok[0]
+            if k == 'OP' or k == 'COP' or k == 'CALLP':
+                aa = KGOp(tok[3], 0)
+                # legacy: only the first operator read here has its arity set
+                if first and tok[3] in self._vd:
+                    aa.arity = 2
+                lx.pos = j + 1
+            elif k == 'NAME' or k == 'QNAME':
+                v = tok[3]
+                module = self._module
+                aa = reserved_fn_symbol_map.get(v) or KGSym(v if module is None or v[0] == '.' else f"{v}`{module}")
+                lx.pos = j + 1
+                nt = toks[j+1]
+                nk = nt[0]
+                if (nk == 'LPAREN' or nk == 'CALLP') and not nt[4]:
+                    fa, fsp = self._read_fn_args(lx)
+                    aa = KGFn(aa, fa, arity=len(fa)) if has_none(fa) else KGCall(aa, fa, arity=len(fa))
+                    aa.span = (tok[1], toks[lx.pos-1][2])
+                    aa.op_span = (tok[1], tok[2])
+                    aa.arg_spans = tuple(fsp)
+            elif k == 'LBRACE': # read fn
+                lx.pos = j + 1
+                aa = self._read_fn(lx, tok[1])
+            else:
+                if k == 'LBRACK' or k == 'DICT' or k == 'ERROR':
+                    # legacy: the lexeme was read to look at it
+                    tk_check(self, lx, j)
+                break
+            first = False
+            ost = tok[1]
+            adv = tk_peek_adverb(lx)
+            if adv is not None:
+                a = self._apply_adverbs(lx, aa, adv, 2, st, ost, dyad=True, dyad_value=a, lsp=(st, lend))
+            else:
+                osp = (ost, toks[lx.pos-1][2])
+                r = self._expr(lx, ignore_newline)
+                if r is SEMI:
+                    r = ';'
+                a = KGFn(aa, [a, r], arity=2)
+                e = toks[lx.pos-1][2]
+                a.span = (st, e)
+                a.op_span = osp
+                a.arg_spans = ((st, lend), None if r is None else (lx.start, e))
+        if ignore_newline and isinstance(a, str) and a == '\n':
+            # legacy: an expression that is just the newline character (0c
+            # followed by a newline, or a string holding one newline) was taken
+            # for a newline lexeme, and the whitespace and newlines after it
+            # were skipped here. What follows is then read as if it were
+            # adjacent, and a newline after a comment that stopped the skip no
+            # longer acts as ';'. Restarting the lexer at the token the skip
+            # stopped at gives exactly that state.
+            j = lx.pos
+            tok = toks[j]
+            while tok[0] == 'NEWLINE' and not tok[5]:
+                j += 1
+                tok = toks[j]
+            lx.pos = j
+            lx.seek(tok[1])
+        lx.start = st
+        return a
+
+    def _prog(self, lx, ignore_newline=False):
+        """
+
+        # A program is a ';'-separated sequence of expressions.
+
+        p := e
+           | e ';' p
+
+        Returns the statements and one span per statement.
+
+        """
+        arr = []
+        spans = []
+        toks = lx.toks
+        while True:
+            q = self._expr(lx, ignore_newline)
+            if q is None:
+                break
+            if q is SEMI:
+                continue
+            arr.append(q)
+            j = lx.pos
+            spans.append((lx.start, toks[j-1][2]))
+            tok = toks[j]
+            k = tok[0]
+            if ignore_newline:
+                while k == 'NEWLINE' and not tok[5]:
+                    j += 1
+                    tok = toks[j]
+                    k = tok[0]
+            if k == 'SEMI' or k == 'NEWLINE':
+                lx.pos = j + 1
+            else:
+                if k == 'LBRACK' or k == 'DICT' or k == 'ERROR':
+                    # legacy: the lexeme was read to look at it
+                    tk_check(self, lx, j)
+                # legacy: whatever follows a complete statement is dropped
+                break
+        return arr, spans
+
+    def prog(self, t, i=0, ignore_newline=False):
+        """
+
+        Parse a Klong expression string into a Klong program, which can then be evaluated.
+
+        # A program is a ';'-separated sequence of expressions.
+
+        p := e
+           | e ';' p
+
+        t is the program text or a klongpy.lexer.Source (a text with a name).
+        Returns the pair (offset where parsing stopped, list of statements).
+        The pair also has two attributes: stmt_spans, one (start, end) span
+        per statement, and source, the Source the spans refer to.
+
+        """
+        if self._parser == 'legacy':
+            return ProgResult(self._legacy_prog(t.text if isinstance(t, Source) else t, i, ignore_newline=ignore_newline))
+        lx = Lexer(t, i)
+        arr, spans = self._prog(lx, ignore_newline)
+        r = ProgResult((lx.offset(), arr))
+        r.stmt_spans = spans
+        r.source = lx.source
+        return r
+
+    # ------------------------------------------------------------------
+    # Legacy grammar on the source string (parser="legacy"). Deprecated;
+    # kept unchanged for one release so the two parsers can be compared.
+    # ------------------------------------------------------------------
+
+    def _legacy_apply_adverbs(self, t, i, a, aa, arity, dyad=False, dyad_value=None):
         aa_arity = get_adverb_arity(aa, arity)
         if isinstance(a,KGOp):
             a.arity = aa_arity
@@ -348,13 +804,13 @@ class KlongInterpreter():
             arr.append(KGAdverb(aa, 1))
             i = ii
             ii,aa = peek_adverb(t, i)
-        i, aa = self._expr(t, i)
+        i, aa = self._legacy_expr(t, i)
         arr.append([dyad_value,aa] if dyad else aa)
         # Parser-built: the operand expressions are the last element of arr
         # and are evaluated by chain_adverbs.
         return i,KGCall(arr,args=None,arity=2 if dyad else 1)
 
-    def _read_fn_args(self, t, i=0):
+    def _legacy_read_fn_args(self, t, i=0):
         """
 
         # Arguments are delimited by parentheses and separated by
@@ -400,7 +856,7 @@ class KlongInterpreter():
                 if k == ii - 1:
                     arr.append(None)
                 break
-            i,a = self._expr(t,i,ignore_newline=True)
+            i,a = self._legacy_expr(t,i,ignore_newline=True)
             if a is None:
                 break
             arr.append(a)
@@ -408,7 +864,7 @@ class KlongInterpreter():
         return i,arr
 
 
-    def _factor(self, t, i=0, ignore_newline=False):
+    def _legacy_factor(self, t, i=0, ignore_newline=False):
         """
 
         # A factor is a lexeme class (C) or a variable (V) applied to
@@ -448,13 +904,13 @@ class KlongInterpreter():
         if a is None:
             return i,a
         if safe_eq(a, '{'): # read fn
-            i,a = self.prog(t, i, ignore_newline=True)
+            i,a = self._legacy_prog(t, i, ignore_newline=True)
             a = a[0] if len(a) == 1 else a
             i = skip(t, i, ignore_newline=True)
             i = cexpect(t, i, '}')
             arity = get_fn_arity(a)
             if cmatch(t, i, '(') or cmatch2(t,i,':','('):
-                i,fa = self._read_fn_args(t,i)
+                i,fa = self._legacy_read_fn_args(t,i)
                 # Parser-built calls (here and below): fa holds unevaluated
                 # argument expressions, which _eval_fn evaluates.
                 a = KGFn(a, fa, arity) if has_none(fa) else KGCall(a, fa, arity)
@@ -462,35 +918,35 @@ class KlongInterpreter():
                 a = KGFn(a, args=None, arity=arity)
             ii, aa = peek_adverb(t, i)
             if aa:
-                i,a = self._apply_adverbs(t, ii, a, aa, arity=1)
+                i,a = self._legacy_apply_adverbs(t, ii, a, aa, arity=1)
         elif isinstance(a, KGSym):
             if cmatch(t,i,'(') or cmatch2(t,i,':','('):
-                i,fa = self._read_fn_args(t,i)
+                i,fa = self._legacy_read_fn_args(t,i)
                 a = KGFn(a, fa, arity=len(fa)) if has_none(fa) else KGCall(a, fa, arity=len(fa))
                 if safe_eq(a.a, KGSym(".comment")):
                     i = read_sys_comment(t,i,a.args[0])
-                    return self._factor(t,i, ignore_newline=ignore_newline)
+                    return self._legacy_factor(t,i, ignore_newline=ignore_newline)
                 elif safe_eq(a.a, KGSym('.module')):
                     self.parse_module(fa[0])
             ii, aa = peek_adverb(t, i)
             if aa:
-                i,a = self._apply_adverbs(t, ii, a, aa, arity=1)
+                i,a = self._legacy_apply_adverbs(t, ii, a, aa, arity=1)
         elif self._is_monad(a):
             a.arity = 1
             ii, aa = peek_adverb(t, i)
             if aa:
-                i,a = self._apply_adverbs(t, ii, a, aa, arity=1)
+                i,a = self._legacy_apply_adverbs(t, ii, a, aa, arity=1)
             else:
-                i, aa = self._expr(t, i, ignore_newline=ignore_newline)
+                i, aa = self._legacy_expr(t, i, ignore_newline=ignore_newline)
                 a = KGFn(a, aa, arity=1)
         elif safe_eq(a, '('):
-            i,a = self._expr(t, i, ignore_newline=ignore_newline)
+            i,a = self._legacy_expr(t, i, ignore_newline=ignore_newline)
             i = cexpect(t, i, ')')
         elif safe_eq(a, ':['):
             return read_cond(self, t, i)
         return i, a
 
-    def _expr(self, t, i=0, ignore_newline=False):
+    def _legacy_expr(self, t, i=0, ignore_newline=False):
         """
 
         # An expression is a factor or a dyadic operation applied to
@@ -500,7 +956,7 @@ class KlongInterpreter():
            | x d e
 
         """
-        i, a = self._factor(t, i, ignore_newline=ignore_newline)
+        i, a = self._legacy_factor(t, i, ignore_newline=ignore_newline)
         if a is None or safe_eq(a, ';'):
             return i,a
         ii, aa = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())
@@ -509,31 +965,31 @@ class KlongInterpreter():
         while isinstance(aa,(KGOp,KGSym)) or safe_eq(aa, '{'):
             i = ii
             if safe_eq(aa, '{'): # read fn
-                i,aa = self.prog(t, i, ignore_newline=True)
+                i,aa = self._legacy_prog(t, i, ignore_newline=True)
                 aa = aa[0] if len(aa) == 1 else aa
                 i = skip(t, i, ignore_newline=True)
                 i = cexpect(t, i, '}')
                 arity = get_fn_arity(aa)
                 if cmatch(t, i, '(') or cmatch2(t,i,':','('):
-                    i,fa = self._read_fn_args(t,i)
+                    i,fa = self._legacy_read_fn_args(t,i)
                     aa = KGFn(aa, fa, arity=arity) if has_none(fa) else KGCall(aa, fa, arity=arity)
                 else:
                     aa = KGFn(aa, args=None, arity=arity)
             elif isinstance(aa,KGSym) and (cmatch(t, i, '(') or cmatch2(t,i,':','(')):
-                i,fa = self._read_fn_args(t,i)
+                i,fa = self._legacy_read_fn_args(t,i)
                 aa = KGFn(aa, fa, arity=len(fa)) if has_none(fa) else KGCall(aa, fa, arity=len(fa))
             ii, aaa = peek_adverb(t, i)
             if aaa:
-                i,a = self._apply_adverbs(t, ii, aa, aaa, arity=2, dyad=True, dyad_value=a)
+                i,a = self._legacy_apply_adverbs(t, ii, aa, aaa, arity=2, dyad=True, dyad_value=a)
             else:
-                i, aaa = self._expr(t, i, ignore_newline=ignore_newline)
+                i, aaa = self._legacy_expr(t, i, ignore_newline=ignore_newline)
                 a = KGFn(aa, [a, aaa], arity=2)
             ii, aa = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())
         if ignore_newline and safe_eq(a, '\n'):
             i = skip(t, i, ignore_newline=True)
         return i, a
 
-    def prog(self, t, i=0, ignore_newline=False):
+    def _legacy_prog(self, t, i=0, ignore_newline=False):
         """
 
         Parse a Klong expression string into a Klong program, which can then be evaluated.
@@ -546,7 +1002,7 @@ class KlongInterpreter():
         """
         arr = []
         while i < len(t):
-            i, q = self._expr(t,i, ignore_newline=ignore_newline)
+            i, q = self._legacy_expr(t,i, ignore_newline=ignore_newline)
             if q is None or safe_eq(q, ';'):
                 continue
             arr.append(q)
@@ -882,14 +1338,21 @@ class KlongInterpreter():
 
         If the result only contains one entry, it's directly returned for convenience.
         """
-        # Parse cache — keyed by (source, module) since parsing depends on
-        # the active module (symbols get module-qualified names).
-        cache_key = (x, self._module)
-        cached = self._parse_cache.get(cache_key)
+        # Parse cache, keyed by (source, module, strict level): parsing depends
+        # on the active module (symbols get module-qualified names) and syntax
+        # checks depend on the strict level.
+        module = self._module
+        cache_key = (x, module)
+        parse_key = (x, module, self._context._strict_mode)
+        cached = self._parse_cache.get(parse_key)
         if cached is None:
             i, prog = self.prog(x)
             cached = prog[0] if len(prog) == 1 else prog
-            self._parse_cache[cache_key] = cached
+            # A parse that switched the module (.module) has a side effect on
+            # the parser that a cached tree would not repeat: do not cache it.
+            m = self._module
+            if m is module or (m is not None and module is not None and m == module):
+                self._parse_cache[parse_key] = cached
 
         # Try compiled path (single expressions only)
         if type(cached) is not list:

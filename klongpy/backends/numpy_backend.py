@@ -5,7 +5,7 @@ This is the default backend that supports all Klong operations including
 string manipulation and object dtype arrays.
 """
 import operator
-import warnings
+import types
 import numpy as np
 
 from .base import BackendProvider
@@ -19,17 +19,66 @@ class KGChar(str):
     pass
 
 
+def _make_numpy_namespace():
+    """The numpy module as seen through the numpy backend.
+
+    A separate module object holding numpy's own attributes (including its lazy
+    ``__getattr__`` for submodules such as ``random``) plus ``isarray``, which
+    the backend API needs.  Lookups cost the same as on numpy itself, and the
+    real ``numpy`` module is never modified.
+    """
+    ns = types.ModuleType('numpy')
+    ns.__dict__.update(vars(np))
+    ns.isarray = lambda x: isinstance(x, np.ndarray)
+    return ns
+
+
+_NUMPY_NAMESPACE = _make_numpy_namespace()
+
+_NUMPY_VALUES = (np.ndarray, np.generic)
+
+
+def _ignore_divide(op):
+    """Wrap a binary operator so numpy divide-by-zero does not warn.
+
+    Klong yields inf for these, as it always has; the suppression is scoped to
+    the call instead of being a process-wide ``np.seterr``.  Plain Python
+    numbers never warn (they raise), so they skip the context manager.
+    """
+    def f(a, b):
+        if isinstance(a, _NUMPY_VALUES) or isinstance(b, _NUMPY_VALUES):
+            with np.errstate(divide='ignore'):
+                return op(a, b)
+        return op(a, b)
+    return f
+
+
+def _compiled_div(a, b):
+    """Division for compiled expressions.
+
+    A zero divisor raises ZeroDivisionError, for arrays as well as scalars, so
+    the compiled path falls back to the interpreter, which returns :undefined
+    per element (ticket 015).  Without a zero the result is plain division.
+    """
+    if isinstance(b, _NUMPY_VALUES):
+        if np.any(b == 0):
+            raise ZeroDivisionError("division by zero")
+    elif b == 0:
+        raise ZeroDivisionError("division by zero")
+    return operator.truediv(a, b)
+
+
+_quiet_truediv = _compiled_div
+_quiet_pow = _ignore_divide(operator.pow)
+
+
 class NumpyBackendProvider(BackendProvider):
     """NumPy-based backend provider."""
 
     def __init__(self, device=None):
         if device is not None:
             raise ValueError("Backend 'numpy' does not support device selection")
-        self._np = np
-        np.seterr(divide='ignore')
-        warnings.filterwarnings("error", category=NumpyVisibleDeprecationWarning)
-        # Add isarray method to numpy module reference
-        self._np.isarray = lambda x: isinstance(x, np.ndarray)
+        self._np = _NUMPY_NAMESPACE
 
     @property
     def name(self) -> str:
@@ -96,7 +145,8 @@ class NumpyBackendProvider(BackendProvider):
 
     def power(self, a, b):
         """Compute a^b, returning integer if result is whole number."""
-        r = np.power(float(a) if isinstance(a, (int, np.integer)) else a, b)
+        with np.errstate(divide='ignore'):
+            r = np.power(float(a) if isinstance(a, (int, np.integer)) else a, b)
         return r
 
     def str_to_char_array(self, s):
@@ -112,10 +162,10 @@ class NumpyBackendProvider(BackendProvider):
         param_names = list(self._collect_params(ir))
         fn_source = f"def _expr({', '.join(param_names)}): return {source}"
         ns = {
-            'np': np,
+            'np': self._np,
             '_atomic': self.vec_fn2,
             '_add': operator.add, '_sub': operator.sub, '_mul': operator.mul,
-            '_div': operator.truediv, '_pow': operator.pow,
+            '_div': _quiet_truediv, '_pow': _quiet_pow,
             '_eq': operator.eq, '_gt': operator.gt, '_lt': operator.lt,
         }
         try:

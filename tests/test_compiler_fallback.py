@@ -289,3 +289,19 @@ class TestCachesBounded(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestCompiledDivisionByZero(unittest.TestCase):
+    """Compiled and interpreted division agree on a zero divisor (ticket 015)."""
+
+    def test_array_divided_by_zero_matches_interpreter(self):
+        from klongpy import KlongInterpreter
+        from klongpy.writer import kg_write
+        for src, literal in [('x::[1.0 2.0];x%0', '[1.0 2.0]%0'),
+                             ('x::[1.0 2.0];y::[1.0 0.0];x%y', '[1.0 2.0]%[1.0 0.0]'),
+                             ('x::[1.0 2.0];y::[2.0 4.0];x%y', '[1.0 2.0]%[2.0 4.0]')]:
+            with self.subTest(src=src):
+                k = KlongInterpreter()
+                a = kg_write(k(src), k._backend)
+                b = kg_write(KlongInterpreter()(literal), k._backend)
+                self.assertEqual(a, b)

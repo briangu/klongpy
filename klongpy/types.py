@@ -16,7 +16,7 @@ import weakref
 from enum import Enum
 import numpy
 
-from .backend import np
+from .backend import np, KGChar
 
 
 # python3.11 support
@@ -68,11 +68,38 @@ def get_fn_arity_str(arity):
 
 
 class KGFn:
+    # Source positions, recorded by the token parser and by nothing else. They
+    # are plain attributes that default to None, so nodes built by hand (or by
+    # the legacy parser, or at run time) simply have none. A span is a
+    # (start, end) pair of offsets into the text of a klongpy.lexer.Source.
+    #
+    #   span        the whole expression
+    #   op_span     the operator, the callee, or the verb with its adverbs
+    #   arg_spans   one span per argument, in order (None for a projection
+    #               hole or a missing operand): parallel to args for a call or
+    #               a dyad, one element for a monad, the operands for an
+    #               adverb chain
+    #   body_spans  function literals only: one span per statement of the body
+    #   source      function literals only: the Source the function was read from
+    span = None
+    op_span = None
+    arg_spans = None
+    body_spans = None
+    source = None
+
     def __init__(self, a, args, arity, global_params=None):
         self.a = a
         self.args = args
         self.arity = arity
         self.global_params = global_params or set()
+
+    def __getstate__(self):
+        # Positions refer to a source text that does not travel with the node:
+        # a pickled or copied function carries none.
+        d = self.__dict__
+        if 'span' in d or 'source' in d:
+            d = {k: v for k, v in d.items() if k not in _SPAN_ATTRS}
+        return d
 
     def __str__(self):
         return get_fn_arity_str(self.arity)
@@ -82,6 +109,9 @@ class KGFn:
 
     def is_adverb_chain(self):
         return isinstance(self.a, list) and isinstance(self.a[0], KGAdverb)
+
+
+_SPAN_ATTRS = frozenset(('span', 'op_span', 'arg_spans', 'body_spans', 'source'))
 
 
 class KGFnWrapper:
@@ -157,12 +187,10 @@ class KGAdverb:
         self.arity = arity
 
 
-class KGChar(str):
-    pass
-
-
 class KGCond(list):
-    pass
+    # set by the token parser, see KGFn
+    span = None
+    arg_spans = None
 
 
 class KGUndefined:
@@ -345,11 +373,7 @@ def is_symbolic(c):
 
 
 def is_char(x):
-    # Check for both core and backend KGChar classes
-    if isinstance(x, KGChar):
-        return True
-    # Also check for backend KGChar (in case they're different classes)
-    return type(x).__name__ == 'KGChar' and isinstance(x, str)
+    return isinstance(x, KGChar)
 
 
 def is_atom(x):

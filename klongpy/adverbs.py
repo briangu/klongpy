@@ -285,7 +285,8 @@ def eval_adverb_over(f, a, op, backend):
         elif safe_eq(op.a, '*') and hasattr(np_backend.multiply,'reduce'):
             return np_backend.multiply.reduce(a)
         elif safe_eq(op.a, '%') and hasattr(np_backend.divide,'reduce'):
-            return np_backend.divide.reduce(a)
+            with np_backend.errstate(divide='ignore'):
+                return np_backend.divide.reduce(a)
         elif safe_eq(op.a, '&') and getattr(a, 'ndim', 0) == 1:
             return np_backend.min(a)
         elif safe_eq(op.a, '|') and getattr(a, 'ndim', 0) == 1:
@@ -378,7 +379,8 @@ def eval_adverb_scan_over(f, a, op, backend):
         elif safe_eq(op.a, '*') and hasattr(np_backend.multiply, 'accumulate'):
             return np_backend.multiply.accumulate(a)
         elif safe_eq(op.a, '%') and hasattr(np_backend.divide, 'accumulate'):
-            return np_backend.divide.accumulate(a)
+            with np_backend.errstate(divide='ignore'):
+                return np_backend.divide.accumulate(a)
     r = list(itertools.accumulate(a, f))
     return backend.kg_asarray(r)
 

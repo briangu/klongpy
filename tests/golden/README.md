@@ -12,13 +12,21 @@ Layout: `tests/golden/<group>/<name>.sexp`
 |---|---|
 | `language` | every `.kg` under `tests/kgtests/language/` |
 | `lib` | every `klongpy/lib/*.kg` |
-| `fixtures` | `tests/golden/fixtures/*.kg`: small inputs, one per row of the observed table (`s2_*`), per quirk of the behaviour-preserved table (`s6_*`) and for other forms (`x_*`) |
+| `fixtures` | `tests/golden/fixtures/*.kg`: small inputs, one per row of the observed table (`s2_*`), per quirk of the behaviour-preserved table (`s6_*`), for other forms (`x_*`) and for the bracket literals of ticket 023 (`t023_*`) |
 
 Each file holds one top-level form per statement. An input that raises while
 parsing is recorded as `(error ClassName)`. Fixture sources are stored without
 a trailing newline unless the newline is the point of the test.
 
 Each source is parsed on a fresh interpreter, without evaluating it.
+
+The snapshots were taken on the legacy character-cursor parser and are now
+checked against the default token parser (`klongpy/lexer.py`), which must
+reproduce them byte for byte. `tests/test_parser_tokens.py` additionally
+compares the two parsers directly on every source. The `t023_*` fixtures are
+the exception: they record the token parser's result for string and char
+literals whose content is a bracket, which the legacy parser
+(`KLONGPY_PARSER=legacy`) still misreads as that bracket.
 
 To regenerate after an intended change to the parser or the dump:
 

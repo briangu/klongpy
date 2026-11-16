@@ -41,7 +41,7 @@ def cases():
 def render(path):
     with open(path, "r", newline="") as f:
         text = f.read()
-    return dump_text(text)
+    return dump_text(text, parser="token")
 
 
 def main(argv):
