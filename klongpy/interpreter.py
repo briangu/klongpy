@@ -13,8 +13,11 @@ from .sys_fn_ipc import create_system_functions_ipc, create_system_var_ipc
 from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
 from .types import KGQSym
+from .errors import (KlongError, KlongInternalError, KlongNameError, KlongRangeError, KlongSyntaxError,
+                     adverb_name, classify, compat, is_passthrough, operator_error, operator_name,
+                     python_error, system_error)
 from .lexer import Lexer, Source
-from .parser import (SEMI, ProgResult, tk_check, tk_peek_adverb, tk_raise, tk_read_cond,
+from .parser import (SEMI, ProgResult, tk_check, tk_comment_end, tk_peek_adverb, tk_raise, tk_read_cond,
                      tk_read_data, tk_read_expr_array)
 from .utils import ReadonlyDict
 from .compiler import compile_guarded, run_compiled, NOT_COMPILED, LRUCache
@@ -101,11 +104,10 @@ class KlongContext():
 
             if in_function:
                 # Inside function - disallow creating new variables
-                raise KlongException(
-                    f"undefined variable: {k}\n"
-                    f"  To create a local variable, declare it in the parameter list: {{[{k}]; ...}}\n"
-                    f"  To modify an existing global, ensure it exists before calling the function"
-                )
+                raise KlongNameError(
+                    f"undefined variable: {k}",
+                    hint=f"declare it as a local in the parameter list, {{[{k}]; ...}}, "
+                         f"or define the global before the function is called")
 
         # Create new variable in current scope
         set_context_var(self._context[0], k, v)
@@ -229,6 +231,18 @@ def chain_adverbs(klong, arr):
                                             [1 2 3 4 5 6 7]]
 
     """
+    f = chain_fn(klong, arr)
+    if arr[-2].arity == 1:
+        return lambda a=arr[-1],f=f,k=klong: f(k.eval(a))
+    return lambda a=arr[-1],f=f,k=klong: f(k.eval(a[0]),k.eval(a[1]))
+
+
+def chain_fn(klong, arr):
+    """
+    The function a chain of adverbs makes of its verb: it takes the values of
+    the operand(s), which are the last element of arr and are evaluated by
+    the caller (KlongInterpreter.eval, or the thunk chain_adverbs returns).
+    """
     # The verb receives values the adverb has already produced, so it is
     # applied to them directly and they are never evaluated a second time.
     a = arr[0].a
@@ -246,10 +260,6 @@ def chain_adverbs(klong, arr):
             f = lambda x,f=f,o=o: o(f,x,op=arr[0].a)
         else:
             f = lambda x,y,f=f,o=o: o(f,x,y)
-    if arr[-2].arity == 1:
-        f = lambda a=arr[-1],f=f,k=klong: f(k.eval(a))
-    else:
-        f = lambda a=arr[-1],f=f,k=klong: f(k.eval(a[0]),k.eval(a[1]))
     return f
 
 
@@ -286,6 +296,10 @@ class KlongInterpreter():
         self._module = None
         self._parse_cache = LRUCache()
         self._compiled_cache = LRUCache()
+        # The Source of each program being run, innermost last: pushed by
+        # __call__ and exec, and so by .l, .E and file runs, which go through
+        # them. See current_source().
+        self._sources = []
 
     @property
     def backend(self):
@@ -317,7 +331,15 @@ class KlongInterpreter():
         self._compiled_cache.clear()
 
     def _get_op_fn(self, s, arity):
-        return self._vm[s] if arity == 1 else self._vd[s]
+        try:
+            return self._vm[s] if arity == 1 else self._vd[s]
+        except KeyError:
+            # (ticket 042 makes this a parse-time error)
+            raise compat(KlongSyntaxError, KeyError)(f"unknown operator {s}") from None
+
+    def current_source(self):
+        """The klongpy.lexer.Source of the program being run (the innermost one), or None."""
+        return self._sources[-1] if self._sources else None
 
     def _is_monad(self, s):
         return isinstance(s,KGOp) and in_map(s.a, self._vm)
@@ -393,6 +415,7 @@ class KlongInterpreter():
         c.span = (st, e)
         c.op_span = (ost, oe)
         c.arg_spans = (lsp, rsp) if dyad else (rsp,)
+        c.source = lx.source
         return c
 
     def _read_fn_args(self, lx):
@@ -562,13 +585,14 @@ class KlongInterpreter():
                 a = KGFn(a, fa, arity=len(fa)) if has_none(fa) else KGCall(a, fa, arity=len(fa))
                 if v == '.comment':
                     # .comment("END") hides the raw text up to the marker
-                    lx.seek(read_sys_comment(lx.text, lx.offset(), a.args[0]))
+                    lx.seek(tk_comment_end(lx, st, a.args[0]))
                     return self._factor(lx, ignore_newline)
                 elif v == '.module':
                     self.parse_module(fa[0])
                 a.span = (st, toks[lx.pos-1][2])
                 a.op_span = (st, tok[2])
                 a.arg_spans = tuple(fsp)
+                a.source = lx.source
             aa = tk_peek_adverb(lx)
             if aa is not None:
                 a = self._apply_adverbs(lx, a, aa, 1, st, st)
@@ -593,6 +617,9 @@ class KlongInterpreter():
                     a.span = (st, e)
                     a.op_span = (st, tok[2])
                     a.arg_spans = (None if r is None else (lx.start, e),)
+                    a.source = lx.source
+                    if r is None:
+                        a.missing_operand = True
         elif k == 'LBRACK':
             nt = toks[j+1]
             if nt[0] == 'SEMI' and not nt[4]:
@@ -682,6 +709,7 @@ class KlongInterpreter():
                     aa.span = (tok[1], toks[lx.pos-1][2])
                     aa.op_span = (tok[1], tok[2])
                     aa.arg_spans = tuple(fsp)
+                    aa.source = lx.source
             elif k == 'LBRACE': # read fn
                 lx.pos = j + 1
                 aa = self._read_fn(lx, tok[1])
@@ -705,6 +733,9 @@ class KlongInterpreter():
                 a.span = (st, e)
                 a.op_span = osp
                 a.arg_spans = ((st, lend), None if r is None else (lx.start, e))
+                a.source = lx.source
+                if r is None:
+                    a.missing_operand = True
         if ignore_newline and isinstance(a, str) and a == '\n':
             # legacy: an expression that is just the newline character (0c
             # followed by a newline, or a string holding one newline) was taken
@@ -780,9 +811,21 @@ class KlongInterpreter():
 
         """
         if self._parser == 'legacy':
-            return ProgResult(self._legacy_prog(t.text if isinstance(t, Source) else t, i, ignore_newline=ignore_newline))
+            text = t.text if isinstance(t, Source) else t
+            try:
+                return ProgResult(self._legacy_prog(text, i, ignore_newline=ignore_newline))
+            except KlongError as e:
+                if e.source is None and e.span is not None:
+                    e.source = t if isinstance(t, Source) else Source("<string>", text)
+                raise
         lx = Lexer(t, i)
-        arr, spans = self._prog(lx, ignore_newline)
+        try:
+            arr, spans = self._prog(lx, ignore_newline)
+        except KlongError as e:
+            # a syntax error knows its span (offsets into this text)
+            if e.source is None and e.span is not None:
+                e.source = lx.source
+            raise
         r = ProgResult((lx.offset(), arr))
         r.stmt_spans = spans
         r.source = lx.source
@@ -939,6 +982,8 @@ class KlongInterpreter():
             else:
                 i, aa = self._legacy_expr(t, i, ignore_newline=ignore_newline)
                 a = KGFn(a, aa, arity=1)
+                if aa is None:
+                    a.missing_operand = True
         elif safe_eq(a, '('):
             i,a = self._legacy_expr(t, i, ignore_newline=ignore_newline)
             i = cexpect(t, i, ')')
@@ -984,6 +1029,8 @@ class KlongInterpreter():
             else:
                 i, aaa = self._legacy_expr(t, i, ignore_newline=ignore_newline)
                 a = KGFn(aa, [a, aaa], arity=2)
+                if aaa is None:
+                    a.missing_operand = True
             ii, aa = kg_read(t, i, ignore_newline=ignore_newline, module=self.current_module())
         if ignore_newline and safe_eq(a, '\n'):
             i = skip(t, i, ignore_newline=True)
@@ -1072,7 +1119,7 @@ class KlongInterpreter():
                     f = _g
             except KeyError:
                 if not in_map(f, reserved_fn_symbols):
-                    raise KlongException(f"undefined: {f}")
+                    raise KlongNameError(f"undefined function: {f}")
         if f_arity > 0 and isinstance(f, KGFn) and not f.is_op() and not f.is_adverb_chain():
             if f.args is None:
                 # if f.args is None, then there are no projections in place and we use f_args entirely for the function.
@@ -1165,7 +1212,12 @@ class KlongInterpreter():
 
         """
         if isinstance(f, KGOp):
-            return self._vm[f.a](values[0]) if len(values) == 1 else self._vd[f.a](values[0], values[1])
+            try:
+                return self._vm[f.a](values[0]) if len(values) == 1 else self._vd[f.a](values[0], values[1])
+            except Exception as e:
+                if isinstance(e, KlongError) or is_passthrough(e):
+                    raise
+                raise operator_error(e, f.a, operator_name(f.a, 1 if len(values) == 1 else 2), values) from e
 
         fn = f
         f_arity = len(values) if arity is None else arity
@@ -1216,7 +1268,20 @@ class KlongInterpreter():
 
         self._context.push(ctx)
         try:
-            return f(self, self._context) if issubclass(type(f), KGLambda) else self.call(f)
+            if issubclass(type(f), KGLambda):
+                try:
+                    return f(self, self._context)
+                except KlongError:
+                    raise
+                except Exception as e:
+                    # User Python (.py, .pyf, .pya) fails as a KlongPythonError.
+                    # A system function's OSError becomes a KlongSystemError;
+                    # anything else it raises is passed on as it is.
+                    err = python_error(e) if f.user else system_error(e)
+                    if err is e:
+                        raise
+                    raise err from e
+            return self.call(f)
         finally:
             self._context.pop()
 
@@ -1277,6 +1342,134 @@ class KlongInterpreter():
             node._compiled = compiled
         return compiled
 
+    def _locate(self, e, x):
+        """
+        Give the error e, which has no position yet, the position of x: an
+        expression whose evaluation e is passing through on its way out. Since
+        this runs at every level the error passes and only while e has no
+        span, the innermost node that has one wins.
+
+        A leaf (a name, a number) carries no span. It is remembered instead,
+        and the node that holds it as an argument supplies the span of that
+        argument from its arg_spans.
+        """
+        node = getattr(x, '_origin', x)
+        if not isinstance(node, (KGFn, KGCond, KGExprArray)):
+            if node is not None and '_leaf' not in e.__dict__:
+                e._leaf = node
+            return
+        span = node.span
+        if span is None:
+            return
+        leaf = e.__dict__.pop('_leaf', None)
+        spans = node.arg_spans
+        if leaf is not None and spans:
+            if isinstance(node, KGFn):
+                args = node.a[-1] if node.is_adverb_chain() else node.args
+                if not isinstance(args, list):
+                    args = [args]
+            else:
+                args = node
+            for a, sp in zip(args, spans):
+                if a is leaf and sp is not None:
+                    span = sp
+                    break
+        e.span = span
+        e.source = node.source
+
+    def _no_operand(self, x):
+        """Raise the syntax error for the monad node x, which has no operand ("-" alone)."""
+        node = getattr(x, '_origin', x)
+        raise KlongSyntaxError(f"missing operand for {x.a.a}", span=node.op_span,
+                               source=node.source if node.op_span is not None else None)
+
+    def _op_error(self, e, x, operands):
+        """
+        The error to raise for the exception e that the operator node x raised
+        when applied to operands (their values); e itself when it is to be
+        passed on. This is the only place operator messages are made:
+
+            cannot apply + (Plus) to integer and string
+
+        The classification table is klongpy.errors.classify. An error a
+        system function raised is passed on untouched, as is a KlongError,
+        which only gets the operator's position if it has none.
+
+        A node the parser marked missing_operand ("1+") reports whatever went
+        wrong as the syntax error it is.
+        """
+        node = getattr(x, '_origin', x)
+        op = x.a
+        if node.missing_operand:
+            err = KlongSyntaxError(f"missing right operand for {op.a}" if op.arity != 1 else f"missing operand for {op.a}")
+        elif isinstance(e, KlongError):
+            err = e
+            if err.span is not None:
+                return err
+        elif is_passthrough(e):
+            return e
+        else:
+            arity = 1 if op.arity == 1 else 2
+            err = operator_error(e, op.a, operator_name(op.a, arity), operands)
+        if node.op_span is not None:
+            err.__dict__.pop('_leaf', None)
+            err.span = node.op_span
+            err.source = node.source
+        return err
+
+    def _chain_error(self, e, x, operands):
+        """As _op_error, for the adverb chain node x: "cannot apply +/ (Plus-Over) to list of 2"."""
+        if is_passthrough(e):
+            return e
+        node = getattr(x, '_origin', x)
+        if isinstance(e, KlongError):
+            err = e
+            if err.span is not None:
+                return err
+        else:
+            arr = x.a
+            verb = arr[0]
+            names = []
+            if isinstance(verb.a, KGOp):
+                glyph = verb.a.a
+                names.append(operator_name(glyph, verb.arity))
+            else:
+                glyph = 'f'
+            for adv in arr[1:-1]:
+                glyph += adv.a
+                names.append(adverb_name(adv.a, adv.arity))
+            err = operator_error(e, glyph, "-".join(n for n in names if n), operands)
+        if node.op_span is not None:
+            err.__dict__.pop('_leaf', None)
+            err.span = node.op_span
+            err.source = node.source
+        return err
+
+    def _compiled_error(self, e, x):
+        """
+        The error to raise for the exception e that the compiled function of
+        the node x raised; e itself when it is to be passed on (anything that
+        is not one of the library errors operators raise).
+
+        The compiled function is the whole expression, so which operator
+        failed on what is not known. The operands of x are evaluated to find
+        out: a compiled expression is literals, variables and arithmetic, so
+        that has no side effect, and x itself is not run again. An operand
+        that fails is the error; otherwise x failed on these values.
+        """
+        if isinstance(e, KlongError) or is_passthrough(e) or classify(e) is KlongInternalError:
+            return e
+        try:
+            if x.is_op():
+                fa = x.args if isinstance(x.args, list) else [x.args]
+                return self._op_error(e, x, tuple(self.eval(a) for a in fa))
+            a = x.a[-1]
+            return self._chain_error(e, x, (self.eval(a),) if x.a[-2].arity == 1 else (self.eval(a[0]), self.eval(a[1])))
+        except KlongError as inner:
+            return inner
+        except Exception:
+            return e
+
     def eval(self, x):
         """
 
@@ -1287,89 +1480,178 @@ class KlongInterpreter():
         * Python lists contain programs and NumPy arrays contain data.
         * Functions (KGFn) are not invoked unless they are KGCall instances, allowing for function definitions to be differentiated from invocations.
 
+        Errors. Nothing here runs unless something is raised (a try costs
+        nothing until then). A KlongError on its way out is given the position
+        of the innermost node it passes that has one (_locate). Any other
+        exception that escapes an operator or an adverb chain is turned into a
+        KlongError there (_op_error, _chain_error): that is the one place
+        library exceptions (numpy, torch) are classified. SystemExit,
+        KeyboardInterrupt and GeneratorExit are not Exceptions and are never
+        caught.
+
         """
-        if isinstance(x, KGSym):
-            if type(x) is KGQSym:
-                return self._eval_quoted_symbol(x)
-            try:
-                return self._context[x]
-            except KeyError:
-                if x not in reserved_fn_symbols:
-                    self._context[x] = x
-                return x
-        elif isinstance(x, KGFn):
-            if x.is_op():
-                # Try compiled path for operator expressions (skips assignment/gradient)
-                if x.a.a not in ('::','∇'):
+        try:
+            if isinstance(x, KGSym):
+                if type(x) is KGQSym:
+                    return self._eval_quoted_symbol(x)
+                try:
+                    return self._context[x]
+                except KeyError:
+                    if x not in reserved_fn_symbols:
+                        self._context[x] = x
+                    return x
+            elif isinstance(x, KGFn):
+                if x.is_op():
+                    # Try compiled path for operator expressions (skips assignment/gradient)
+                    if x.a.a not in ('::','∇'):
+                        compiled = self._compiled_for(x)
+                        if compiled:
+                            try:
+                                r = run_compiled(self, compiled)
+                            except Exception as e:
+                                err = self._compiled_error(e, x)
+                                if err is e:
+                                    raise
+                                raise err from e
+                            if r is not NOT_COMPILED:
+                                return r
+                    f = self._get_op_fn(x.a.a, x.a.arity)
+                    fa = (x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else self._no_operand(x)
+                    _y = self.eval(fa[1]) if x.a.arity == 2 else None
+                    _x = fa[0] if x.a.a in ['::','∇'] else self.eval(fa[0])
+                    try:
+                        return f(_x) if x.a.arity == 1 else f(_x, _y)
+                    except Exception as e:
+                        err = self._op_error(e, x, (_x,) if x.a.arity == 1 else (_x, _y))
+                        if err is e:
+                            raise
+                        raise err from e
+                elif x.is_adverb_chain():
+                    # Try compiled path for adverb chains (reduce/scan)
                     compiled = self._compiled_for(x)
                     if compiled:
-                        r = run_compiled(self, compiled)
+                        try:
+                            r = run_compiled(self, compiled)
+                        except Exception as e:
+                            err = self._compiled_error(e, x)
+                            if err is e:
+                                raise
+                            raise err from e
                         if r is not NOT_COMPILED:
                             return r
-                f = self._get_op_fn(x.a.a, x.a.arity)
-                fa = (x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else x.args
-                _y = self.eval(fa[1]) if x.a.arity == 2 else None
-                _x = fa[0] if x.a.a in ['::','∇'] else self.eval(fa[0])
-                return f(_x) if x.a.arity == 1 else f(_x, _y)
-            elif x.is_adverb_chain():
-                # Try compiled path for adverb chains (reduce/scan)
-                compiled = self._compiled_for(x)
-                if compiled:
-                    r = run_compiled(self, compiled)
-                    if r is not NOT_COMPILED:
-                        return r
-                return chain_adverbs(self, x.a)()
-            elif isinstance(x, KGCall):
-                return self._eval_fn(x)
-        elif isinstance(x, KGCond):
-            q = self.call(x[0])
-            p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
-            return self.call(x[1]) if p else self.call(x[2])
-        elif isinstance(x, KGExprArray):
-            results = [self.call(e) for e in x]
-            return self._backend.kg_asarray(results)
-        elif isinstance(x,list) and len(x) > 0:
-            return [self.call(y) for y in x][-1]
-        return x
+                    arr = x.a
+                    f = chain_fn(self, arr)
+                    a = arr[-1]
+                    if arr[-2].arity == 1:
+                        _x = self.eval(a)
+                        try:
+                            return f(_x)
+                        except Exception as e:
+                            err = self._chain_error(e, x, (_x,))
+                            if err is e:
+                                raise
+                            raise err from e
+                    else:
+                        _x = self.eval(a[0])
+                        _y = self.eval(a[1])
+                        try:
+                            return f(_x, _y)
+                        except Exception as e:
+                            err = self._chain_error(e, x, (_x, _y))
+                            if err is e:
+                                raise
+                            raise err from e
+                elif isinstance(x, KGCall):
+                    return self._eval_fn(x)
+            elif isinstance(x, KGCond):
+                q = self.call(x[0])
+                p = not ((self._backend.is_number(q) and q == 0) or is_empty(q))
+                return self.call(x[1]) if p else self.call(x[2])
+            elif isinstance(x, KGExprArray):
+                results = [self.call(e) for e in x]
+                return self._backend.kg_asarray(results)
+            elif isinstance(x,list) and len(x) > 0:
+                return [self.call(y) for y in x][-1]
+            return x
+        except KlongError as e:
+            if e.span is None:
+                self._locate(e, x)
+            raise
+
+    def _top_error(self, e, n, spans, source):
+        """
+        A KlongError is leaving the top level from statement n of a program:
+        a statement that is a bare leaf (a lone name) has no node to take a
+        position from, so it gets the span of the statement.
+        """
+        if e.span is None and spans is not None and n < len(spans):
+            e.__dict__.pop('_leaf', None)
+            e.span = spans[n]
+            e.source = source
 
     def __call__(self, x):
         """
         Convenience method for executing Klong programs.
 
         If the result only contains one entry, it's directly returned for convenience.
+
+        x is the program text, or a klongpy.lexer.Source (a text with a name,
+        e.g. a file path): errors then report positions under that name.
         """
         # Parse cache, keyed by (source, module, strict level): parsing depends
         # on the active module (symbols get module-qualified names) and syntax
-        # checks depend on the strict level.
+        # checks depend on the strict level. An entry is the triple (tree,
+        # statement spans, Source); tree is the statement itself when there
+        # is one, else the list of them.
         module = self._module
-        cache_key = (x, module)
         parse_key = (x, module, self._context._strict_mode)
         cached = self._parse_cache.get(parse_key)
         if cached is None:
-            i, prog = self.prog(x)
-            cached = prog[0] if len(prog) == 1 else prog
+            p = self.prog(x)
+            prog = p[1]
+            cached = (prog[0] if len(prog) == 1 else prog, p.stmt_spans, p.source)
             # A parse that switched the module (.module) has a side effect on
             # the parser that a cached tree would not repeat: do not cache it.
             m = self._module
             if m is module or (m is not None and module is not None and m == module):
                 self._parse_cache[parse_key] = cached
+        tree, spans, source = cached
+        sources = self._sources
+        sources.append(source)
+        n = 0
+        try:
+            # Try compiled path (single expressions only)
+            if type(tree) is not list:
+                cache_key = (x, module)
+                compiled = self._compiled_cache.get(cache_key)
+                if compiled is None:
+                    compiled = compile_guarded(tree, self) or False
+                    self._compiled_cache[cache_key] = compiled
+                if compiled:
+                    try:
+                        r = run_compiled(self, compiled)
+                    except Exception as e:
+                        err = self._compiled_error(e, tree)
+                        if err is e:
+                            raise
+                        raise err from e
+                    if r is not NOT_COMPILED:
+                        return r
+                return self.call(tree)
 
-        # Try compiled path (single expressions only)
-        if type(cached) is not list:
-            compiled = self._compiled_cache.get(cache_key)
-            if compiled is None:
-                compiled = compile_guarded(cached, self) or False
-                self._compiled_cache[cache_key] = compiled
-            if compiled:
-                r = run_compiled(self, compiled)
-                if r is not NOT_COMPILED:
-                    return r
-
-        # Existing interpreter path
-        if type(cached) is list:
-            r = [self.call(y) for y in cached]
-            return r[-1] if r else None
-        return self.call(cached)
+            # Existing interpreter path
+            r = None
+            for y in tree:
+                r = self.call(y)
+                n += 1
+            return r
+        except KlongError as e:
+            self._top_error(e, n, spans, source)
+            raise
+        except RecursionError as e:
+            raise compat(KlongRangeError, RecursionError)("expression nested too deeply") from e
+        finally:
+            sources.pop()
 
     def exec(self, x):
         """
@@ -1379,4 +1661,17 @@ class KlongInterpreter():
         Each subprogram is executed in order and the resulting array contains the resulst of each sub-program.
 
         """
-        return [self.call(y) for y in self.prog(x)[1]]
+        p = self.prog(x)
+        spans, source = p.stmt_spans, p.source
+        sources = self._sources
+        sources.append(source)
+        r = []
+        try:
+            for y in p[1]:
+                r.append(self.call(y))
+            return r
+        except KlongError as e:
+            self._top_error(e, len(r), spans, source)
+            raise
+        finally:
+            sources.pop()

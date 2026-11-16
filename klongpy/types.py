@@ -17,15 +17,17 @@ from enum import Enum
 import numpy
 
 from .backend import np, KGChar
+from .errors import (  # noqa: F401  (re-exported: klongpy.types and klongpy.core are where callers import them from)
+    KlongError, KlongException, KlongSyntaxError, KlongNameError, KlongArityError,
+    KlongTypeError, KlongShapeError, KlongRangeError, KlongSystemError,
+    KlongPythonError, KlongInternalError, KlongMemoryError, KlongInterrupt,
+    KlongStaticError, KlongRemoteError, RangeError,
+)
 
 
 # python3.11 support
 if not hasattr(inspect, 'getargspec'):
     inspect.getargspec = inspect.getfullargspec
-
-
-class KlongException(Exception):
-    pass
 
 
 class KGSym(str):
@@ -80,12 +82,18 @@ class KGFn:
     #               a dyad, one element for a monad, the operands for an
     #               adverb chain
     #   body_spans  function literals only: one span per statement of the body
-    #   source      function literals only: the Source the function was read from
+    #   source      the Source the spans refer to (the text the node was read from)
+    #
+    # missing_operand is set by the parser on an operator node written without
+    # its (right) operand ("1+", "-" alone). Such a node is evaluated as
+    # before; if that fails, the error reported is the syntax error (see
+    # KlongInterpreter._op_error and tickets/design/frontend.md section 6).
     span = None
     op_span = None
     arg_spans = None
     body_spans = None
     source = None
+    missing_operand = False
 
     def __init__(self, a, args, arity, global_params=None):
         self.a = a
@@ -157,7 +165,7 @@ class KGFnWrapper:
                 if isinstance(current, KGFn) and not isinstance(current, KGCall):
                     # Use the current definition
                     if len(args) != current.arity:
-                        raise RuntimeError(f"Klong function called with {len(args)} but expected {current.arity}")
+                        raise _arity_error(len(args), current.arity)
                     fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
                     return self.klong.apply(current.a, fn_args, current.arity)
             except KeyError:
@@ -165,9 +173,15 @@ class KGFnWrapper:
                 pass
 
         if len(args) != self.fn.arity:
-            raise RuntimeError(f"Klong function called with {len(args)} but expected {self.fn.arity}")
+            raise _arity_error(len(args), self.fn.arity)
         fn_args = [np.asarray(x) if isinstance(x, list) else x for x in args]
         return self.klong.apply(self.fn.a, fn_args, self.fn.arity)
+
+
+def _arity_error(given, expected):
+    # also a RuntimeError, which is what this raised before the hierarchy existed
+    from .errors import compat
+    return compat(KlongArityError, RuntimeError)(f"Klong function called with {given} but expected {expected}")
 
 
 class KGCall(KGFn):
@@ -180,6 +194,14 @@ class KGOp:
         self.a = a
         self.arity = arity
 
+    def __eq__(self, other):
+        if not isinstance(other, KGOp):
+            return NotImplemented
+        return self.a == other.a and self.arity == other.arity
+
+    def __hash__(self):
+        return hash((KGOp, self.a, self.arity))
+
 
 class KGAdverb:
     def __init__(self, a, arity):
@@ -191,6 +213,7 @@ class KGCond(list):
     # set by the token parser, see KGFn
     span = None
     arg_spans = None
+    source = None
 
 
 class KGUndefined:
@@ -231,8 +254,12 @@ class KGLambda:
     lambda klong, x: klong(x)
 
     """
-    def __init__(self, fn, args=None, provide_klong=False, wildcard=False):
+    def __init__(self, fn, args=None, provide_klong=False, wildcard=False, user=False):
         self.fn = fn
+        # user: the function is user Python brought in through .py, .pyf or
+        # .pya (as opposed to one of KlongPy's own system functions). An
+        # exception it raises is reported as a KlongPythonError.
+        self.user = user or getattr(fn, '_klong_user', False)
         params = args or safe_inspect(fn)
         self.args = [reserved_fn_symbol_map[x] for x in reserved_fn_args if x in params]
         self._provide_klong = provide_klong or 'klong' in params
@@ -290,12 +317,6 @@ class KGChannel:
 
     def __exit__(self, ext_type, exc_value, traceback):
         self._fh.close()
-
-
-class RangeError(Exception):
-    def __init__(self, i):
-        self.i = i
-        super().__init__()
 
 
 # Reserved function argument names and symbols

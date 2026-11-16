@@ -100,8 +100,6 @@ class TestKnownBugsSuite(unittest.TestCase):
         r = klong(":{[1 :{[2 3]}]}")
         self.assertEqual(r[1], {2: 3})
 
-    @unittest.skip("no ticket yet (needs one, see ticket 018 notes): (4)#[[0 0]] flattens to one row "
-                   "of 8 instead of 4 rows of 2")
     def test_take_nested_array(self):
         klong = KlongInterpreter()
         r = klong("(4)#[[0 0]]")

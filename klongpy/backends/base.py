@@ -529,24 +529,19 @@ class BackendProvider(ABC):
         }
 
 
-_MISMATCH_ERROR = None
-
-
 def _mismatch_error(message):
     """Error for atomic-dyad operands that do not pair up.
 
-    A KlongException that is also a ValueError (existing callers and tests catch
-    ValueError).  Created lazily because klongpy.types imports this package.
-    TODO(040): replace by KlongTypeError.
+    A ValueError. The operator that was being applied turns it into a
+    KlongShapeError that names the operator and the operands (see
+    klongpy.errors.classify and KlongInterpreter._op_error); that error is
+    still a ValueError, and this one is its __cause__.
     """
-    global _MISMATCH_ERROR
-    if _MISMATCH_ERROR is None:
-        from ..types import KlongException
+    return AtomicShapeMismatch(message)
 
-        class AtomicShapeMismatch(KlongException, ValueError):
-            pass
-        _MISMATCH_ERROR = AtomicShapeMismatch
-    return _MISMATCH_ERROR(message)
+
+class AtomicShapeMismatch(ValueError):
+    pass
 
 
 class UnsupportedDtypeError(Exception):

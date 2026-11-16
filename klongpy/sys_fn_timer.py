@@ -2,7 +2,7 @@ import asyncio
 import logging
 import sys
 
-from klongpy.core import KGCall, KGFn, KGFnWrapper, KlongException
+from klongpy.core import KGCall, KGFn, KGFnWrapper, KlongException, KlongRangeError, KlongTypeError
 
 
 class KGTimerHandler:
@@ -85,19 +85,19 @@ def eval_sys_fn_timer(klong, x, y, z):
     try:
         y = float(y)
     except (TypeError, ValueError):
-        raise KlongException("y must be a non-negative number")
+        raise KlongTypeError("y must be a non-negative number") from None
     if not y >= 0:
-        raise KlongException("y must be a non-negative number")
+        raise KlongRangeError("y must be a non-negative number")
 
     # Wrap the callback - KGFnWrapper now handles dynamic resolution automatically
     if isinstance(z, KGCall):
-        raise KlongException("z must be a function (not a function call)")
+        raise KlongTypeError("z must be a function (not a function call)")
     if isinstance(z, KGFn):
         callback = KGFnWrapper(klong, z)
     elif callable(z):
         callback = z
     else:
-        raise KlongException("z must be a function")
+        raise KlongTypeError("z must be a function")
 
     system = klong['.system']
     klongloop = system['klongloop']

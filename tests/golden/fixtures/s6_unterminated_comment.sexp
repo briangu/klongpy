@@ -1,1 +1,1 @@
-(error RuntimeError)
+(error KlongSyntaxError)

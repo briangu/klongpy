@@ -48,9 +48,10 @@ def eval_monad_enumerate(a, backend):
 
     """
     if is_dict(a):
-        raise KlongException("!: enumerate needs an integer, not a dictionary")  # TODO(040): KlongTypeError
+        raise KlongTypeError("!: enumerate needs an integer, not a dictionary")
     if not backend.is_integer(a):
-        raise RuntimeError(f"enumerate: invalid type error: {a}")
+        from .errors import compat, describe
+        raise compat(KlongTypeError, RuntimeError)(f"!: enumerate needs an integer, not {describe(a)}")
     return backend.np.arange(int(a))
 
 
@@ -195,7 +196,8 @@ def eval_monad_groupby(a, backend):
         index of each occurrence of one element within "a". "a" must be
         a list or string. The indices of all elements of "a" that are
         equal according to "~" (Match) will appear in the same group in
-        ascending order.
+        ascending order. The groups are ordered by the first appearance
+        of their value in "a".
 
         ="" and =[] will yield [].
 

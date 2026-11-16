@@ -248,6 +248,9 @@ class NumpyBackendProvider(BackendProvider):
             except ValueError:
                 arr = [x.tolist() if self.is_array(x) else x for x in a]
                 arr = self._np.asarray(arr, dtype=object)
+            if arr.ndim == 0:
+                # A scalar outside int64 (for example 2**63): keep the Python value.
+                return arr
             arr = self._np.asarray(
                 [self.kg_asarray(x) if isinstance(x, list) else x for x in arr],
                 dtype=object

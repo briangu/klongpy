@@ -1,4 +1,10 @@
-from .interpreter import KlongInterpreter, KlongException
+from .interpreter import KlongInterpreter
+from .errors import (
+    KlongError, KlongException, KlongSyntaxError, KlongNameError, KlongArityError,
+    KlongTypeError, KlongShapeError, KlongRangeError, KlongSystemError,
+    KlongPythonError, KlongInternalError, KlongMemoryError, KlongInterrupt,
+    KlongStaticError, KlongRemoteError,
+)
 from .backends import (
     get_backend,
     register_backend,
@@ -15,6 +21,20 @@ __all__ = [
     "__version__",
     "KlongInterpreter",
     "KlongException",
+    "KlongError",
+    "KlongSyntaxError",
+    "KlongNameError",
+    "KlongArityError",
+    "KlongTypeError",
+    "KlongShapeError",
+    "KlongRangeError",
+    "KlongSystemError",
+    "KlongPythonError",
+    "KlongInternalError",
+    "KlongMemoryError",
+    "KlongInterrupt",
+    "KlongStaticError",
+    "KlongRemoteError",
     "UnsupportedDtypeError",
     "get_backend",
     "register_backend",

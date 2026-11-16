@@ -13,11 +13,11 @@ def _iteration_count(a, name):
     if getattr(a, 'ndim', None) == 0 and hasattr(a, 'item'):
         a = a.item()
     if isinstance(a, (bool, str)) or not isinstance(a, numbers.Real):
-        raise KlongException(f"{name}: count must be a non-negative integer, got {a!r}")  # TODO(040): KlongTypeError
+        raise KlongTypeError(f"{name}: count must be a non-negative integer, got {a!r}")
     if a != a or a in (float('inf'), float('-inf')) or a != int(a):
-        raise KlongException(f"{name}: count must be a non-negative integer, got {a!r}")  # TODO(040): KlongRangeError
+        raise KlongRangeError(f"{name}: count must be a non-negative integer, got {a!r}")
     if a < 0:
-        raise KlongException(f"{name}: count must not be negative, got {a!r}")  # TODO(040): KlongRangeError
+        raise KlongRangeError(f"{name}: count must not be negative, got {a!r}")
     return int(a)
 
 

@@ -13,6 +13,9 @@ from inspect import Parameter
 
 import numpy
 
+from .errors import (KlongNameError, KlongRangeError, KlongSystemError, KlongTypeError, compat,
+                     python_error)
+from .lexer import Source
 from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
                    bknp, is_dict, is_empty, is_list, kg_read_array, kg_write,
                    reserved_fn_args, reserved_fn_symbol_map, safe_eq, safe_inspect)
@@ -101,10 +104,10 @@ def eval_sys_delete_file(x):
             os.remove(x)
         except OSError as e:
             if e.errno != errno.ENOENT:
-                raise RuntimeError(f"file could not be deleted: {x}")
+                raise compat(KlongSystemError, RuntimeError)(f"file could not be deleted: {x}")
             raise e
     else:
-        raise RuntimeError(f"file does not exist: {x}")
+        raise compat(KlongSystemError, RuntimeError)(f"file does not exist: {x}")
 
 
 def eval_sys_evaluate(klong, x):
@@ -117,7 +120,7 @@ def eval_sys_evaluate(klong, x):
         system, e.g. .E("a::123");a will yield 123.
 
         Evaluation happens at GLOBAL scope, so top-level definitions
-        (`name::...`) persist as globals — even when .E is called from
+        (`name::...`) persist as globals, even when .E is called from
         inside a function (e.g. runtime code generation). Without this,
         new vars would land in the (transient) calling frame and be lost.
 
@@ -153,7 +156,7 @@ def eval_sys_from_channel(klong, x):
     if safe_eq(x,0) or is_empty(x):
         x = klong['.cin']
     if x.channel_dir != KGChannelDir.INPUT:
-        raise RuntimeError("output channel cannot be used input")
+        raise compat(KlongTypeError, RuntimeError)("output channel cannot be used input")
     o = klong['.sys.cin']
     klong['.sys.cin'] = x
     return o
@@ -169,7 +172,7 @@ def eval_sys_flush(x):
 
     """
     if x.channel_dir != KGChannelDir.OUTPUT:
-        raise RuntimeError("input channel cannot be flushed")
+        raise compat(KlongTypeError, RuntimeError)("input channel cannot be flushed")
     x.raw.flush()
 
 
@@ -187,7 +190,7 @@ def eval_sys_input_channel(x):
         try:
             return KGChannel(open(x, 'r'), KGChannelDir.INPUT)
         except IOError:
-            raise RuntimeError(f"file could not be opened: {x}")
+            raise compat(KlongSystemError, RuntimeError)(f"file could not be opened: {x}")
     else:
         raise FileNotFoundError(f"file does not exist: {x}")
 
@@ -238,13 +241,16 @@ def eval_sys_load(klong, x):
             #   so that the interpreter can pop it's temporary context off as normal.
             ctx = klong._context.pop()
             try:
-                r = klong(f.read())
+                r = klong(Source(x, f.read()))
             finally:
                 klong._context.push(ctx)
             return r
     except IOError as e:
+        if isinstance(e, KlongException):
+            # an error of the program that was loaded: it has its own position
+            raise
         print(e)
-        raise RuntimeError(f"file could not be opened: {x}")
+        raise compat(KlongSystemError, RuntimeError)(f"file could not be opened: {x}") from e
 
 
 def eval_sys_more_input(klong):
@@ -261,7 +267,7 @@ def eval_sys_more_input(klong):
     """
     x = klong['.sys.cin']
     if x.channel_dir != KGChannelDir.INPUT:
-        raise RuntimeError("output channel cannot be used for input")
+        raise compat(KlongTypeError, RuntimeError)("output channel cannot be used for input")
     return not x.at_eof
 
 
@@ -331,9 +337,8 @@ def eval_sys_print(klong, x):
 _FMT_SPEC_RE = re.compile(r"-?\d+(\.\d+)?")
 
 
-def _fmt_error(template, msg):
-    # TODO(040): KlongRangeError
-    return KlongException(f".fmt: {msg} in template {template!r}")
+def _fmt_error(template, msg, cls=KlongRangeError):
+    return cls(f".fmt: {msg} in template {template!r}")
 
 
 def _fmt_parse(template):
@@ -378,8 +383,7 @@ def _fmt_parse(template):
 
 def _fmt_render(klong, template, args):
     if not isinstance(template, str):
-        # TODO(040): KlongTypeError
-        raise KlongException(f".fmt: template must be a string, got {type(template).__name__}")
+        raise KlongTypeError(f".fmt: template must be a string, got {type(template).__name__}")
     from .dyads import _e_dyad_format2
     backend = klong._backend
     args = _to_display_value(args, backend)
@@ -388,10 +392,8 @@ def _fmt_render(klong, template, args):
     holes = [p for p in parts if not isinstance(p, str)]
     auto = [h for h in holes if h[0] is None]
     if auto and len(auto) != len(holes):
-        # TODO(040): KlongRangeError
         raise _fmt_error(template, "cannot mix {} and {N} placeholders")
     if auto and len(auto) != len(args):
-        # TODO(040): KlongRangeError
         raise _fmt_error(template, f"{len(auto)} placeholder(s) but {len(args)} argument(s)")
     out = []
     nxt = 0
@@ -403,15 +405,13 @@ def _fmt_render(klong, template, args):
         if idx is None:
             idx, nxt = nxt, nxt + 1
         if idx >= len(args):
-            # TODO(040): KlongRangeError
             raise _fmt_error(template, f"index {idx} out of range for {len(args)} argument(s)")
         v = args[idx]
         if spec is None:
             out.append(kg_write(v, backend, display=True))
         elif "." in spec:
             if isinstance(v, bool) or not isinstance(v, (int, float, numpy.integer, numpy.floating)):
-                # TODO(040): KlongTypeError
-                raise _fmt_error(template, f"format '{spec}' needs a number, got {kg_write(v, backend, display=True)!r}")
+                raise _fmt_error(template, f"format '{spec}' needs a number, got {kg_write(v, backend, display=True)!r}", KlongTypeError)
             out.append(_e_dyad_format2(float(spec), float(v), backend))
         else:
             out.append(_e_dyad_format2(int(spec), kg_write(v, backend, display=True), backend))
@@ -438,7 +438,7 @@ def eval_sys_format(klong, x, y):
 
         Examples:   .fmt("Spot: {}";3.5)       -->  "Spot: 3.5"
                     .fmt("{1} {0}";[;1;2])     -->  "2 1"
-                    .fmt("{:5.2}";3)           -->  " 3.00"
+                    .fmt("{:5.2}";3)           -->  "    3.00"
 
     """
     return _fmt_render(klong, x, y)
@@ -569,7 +569,7 @@ def import_module_from_sys(x):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
-    raise RuntimeError(f"module could not be imported: {x}")
+    raise compat(KlongSystemError, RuntimeError)(f"module could not be imported: {x}")
 
 
 def _handle_import(item):
@@ -629,7 +629,13 @@ def _handle_import(item):
     if n_args > len(reserved_fn_args):
         # TODO: this should be logged
         # print(f".py: {name} - too many paramters: use .pyc() to call this function")
-        return lambda x,y: item(*x,**y)
+        def call_with_lists(x, y):
+            return item(*x, **y)
+        call_with_lists._klong_user = True
+        return call_with_lists
+    if isinstance(item, KGLambda):
+        # user Python: an exception it raises is a KlongPythonError
+        item.user = True
     return item
 
 
@@ -686,7 +692,7 @@ def _import_module(klong, x, from_set=None):
         return 1
     except Exception as e:
         print(f".py: {e}")
-        raise RuntimeError(f"failed to load module: {x}")
+        raise compat(KlongSystemError, RuntimeError)(f"failed to load module: {x}")
 
 
 def eval_sys_python(klong, x):
@@ -723,7 +729,7 @@ def eval_sys_python(klong, x):
 
     """
     if not isinstance(x,str):
-        raise RuntimeError("module name must be a string")
+        raise compat(KlongTypeError, RuntimeError)("module name must be a string")
     return _import_module(klong, x, from_set=None)
 
 
@@ -766,12 +772,12 @@ def eval_sys_python_call(klong, x, y, z):
     """
     if is_list(x):
         if not isinstance(x[0],object):
-            raise KlongException("x must be a list of [object;function]")
+            raise KlongTypeError("x must be a list of [object;function]")
         if not isinstance(x[1],str):
-            raise KlongException("function name must be a string")
+            raise KlongTypeError("function name must be a string")
         klazz = klong[x[0]] if isinstance(x[0],KGSym) else x[0]
         if not hasattr(klazz, x[1]):
-            raise KlongException(f"function {x[1]} not found")
+            raise KlongNameError(f"function {x[1]} not found")
         f = getattr(klazz, x[1])
         if not callable(f):
             return f
@@ -782,12 +788,17 @@ def eval_sys_python_call(klong, x, y, z):
     if not is_list(y):
         y = [y]
     if not is_dict(z):
-        raise KlongException("z must be a dictionary")
-    if isinstance(f, KGLambda):
-        ctx = {reserved_fn_symbol_map[k]:v for k,v in zip(reserved_fn_args[:f.get_arity()], y)}
-        r = f.call_with_kwargs(klong, ctx, kwargs=z)
-    else:
-        r = f(*y, **z)
+        raise KlongTypeError("z must be a dictionary")
+    try:
+        if isinstance(f, KGLambda):
+            ctx = {reserved_fn_symbol_map[k]:v for k,v in zip(reserved_fn_args[:f.get_arity()], y)}
+            r = f.call_with_kwargs(klong, ctx, kwargs=z)
+        else:
+            r = f(*y, **z)
+    except KlongException:
+        raise
+    except Exception as e:
+        raise python_error(e) from e
     # TODO: hack to convert generators into lists - until we can handle generators in Klong
     # determine if the result is a generator and if it is then convert it to a list
     if inspect.isgenerator(r):
@@ -800,14 +811,16 @@ def eval_sys_python_attribute(klong, x, y):
 
         .pya(x, y)                                    [Python-Attribute]
 
+        Return the attribute named "y" of the Python object "x".
+
     """
     if not isinstance(x,object):
-        raise KlongException("x must be a Python object")
+        raise KlongTypeError("x must be a Python object")
     if not isinstance(y,str):
-        raise KlongException("attribute name must be a string")
+        raise KlongTypeError("attribute name must be a string")
     klazz = klong[x] if isinstance(x,KGSym) else x
     if not hasattr(klazz, y):
-        raise KlongException(f"attribute {y} not found")
+        raise KlongNameError(f"attribute {y} not found")
     return _handle_import(getattr(klazz, y))
 
 
@@ -835,11 +848,11 @@ def eval_sys_python_from(klong, x, y):
 
     """
     if not isinstance(x,str):
-        raise RuntimeError("module name must be a string")
+        raise compat(KlongTypeError, RuntimeError)("module name must be a string")
     if isinstance(y,str):
         y = [y]
     if not (is_list(y) and all(map(lambda p: isinstance(p,str), y))) or isinstance(y,str):
-        raise RuntimeError("from list entry must be a string")
+        raise compat(KlongTypeError, RuntimeError)("from list entry must be a string")
     return _import_module(klong, x, from_set=set(y))
 
 
@@ -870,7 +883,7 @@ def eval_sys_backend_fn(klong, x):
     if isinstance(x, str):
         x = [x]
     if not (is_list(x) and all(map(lambda p: isinstance(p, str), x))):
-        raise RuntimeError("function name(s) must be a string or list of strings")
+        raise compat(KlongTypeError, RuntimeError)("function name(s) must be a string or list of strings")
 
     backend = klong._backend
     ctx = klong._context.pop()
@@ -880,7 +893,7 @@ def eval_sys_backend_fn(klong, x):
                 fn = getattr(backend.np, fn_name)
                 klong[fn_name] = _handle_import(fn)
             else:
-                raise RuntimeError(f"Backend does not have function: {fn_name}")
+                raise compat(KlongNameError, RuntimeError)(f"Backend does not have function: {fn_name}")
     finally:
         klong._context.push(ctx)
     return None
@@ -996,7 +1009,7 @@ def eval_sys_to_channel(klong, x):
     if safe_eq(x,0) or is_empty(x):
         x = klong['.cout']
     if x.channel_dir != KGChannelDir.OUTPUT:
-        raise RuntimeError("input channel cannot be a to channel")
+        raise compat(KlongTypeError, RuntimeError)("input channel cannot be a to channel")
     c = klong['.sys.cout']
     klong['.sys.cout'] = x
     return c
@@ -1058,14 +1071,17 @@ def eval_sys_strict(klong):
         .strict()                                                 [Strict]
 
         Enable strict mode for variable assignment (level 1).
-        In strict mode, functions cannot create new global variables
-        unless they are explicitly declared with the global: prefix.
+        In strict mode, a function cannot create a global variable by
+        assignment; assigning to a name that is not a parameter, a
+        declared local or an existing global is an error. There is no
+        global: prefix. To create a global from a function, use .E.
 
         Example:
             .strict()
             counter::0
-            increment::{counter::counter+1}  :" ERROR"
-            increment::{[global:counter];counter::counter+1}  :" OK"
+            increment::{counter::counter+1}  :" OK - counter already exists"
+            f::{newvar::42}
+            f()  :" ERROR - newvar is not defined"
 
     """
     klong._context._strict_mode = 1
@@ -1078,13 +1094,14 @@ def eval_sys_unsafe(klong):
         .unsafe()                                                 [Unsafe]
 
         Disable strict mode for variable assignment (level 0).
-        In unsafe mode, functions can create new global variables
-        without declaration (legacy behavior).
+        Strict mode is off. Assigning to a new name inside a function
+        still makes it local to the call; it does not create a global.
+        Use .E for that.
 
         Example:
             .unsafe()
-            f::{newvar::42}  :" OK - creates global newvar"
-            f()
+            f::{newvar::42}
+            f()  :" newvar is local to the call; no global is created"
 
     """
     klong._context._strict_mode = 0

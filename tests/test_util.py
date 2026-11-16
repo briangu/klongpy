@@ -208,7 +208,8 @@ class TestUtil(unittest.TestCase):
         with self.assertRaises(UnexpectedChar) as cm:
             cexpect(arr, 4, 'a')
         e = cm.exception
-        self.assertEqual(e.args, ('t: abc pos: 4 char: a',))
+        self.assertEqual(e.legacy_text, 't: abc pos: 4 char: a')
+        self.assertEqual(str(e), "expected 'a' but found end of input")
         with self.assertRaises(UnexpectedChar):
             cexpect(arr, 0, 'e')
         for i,x in enumerate(arr):

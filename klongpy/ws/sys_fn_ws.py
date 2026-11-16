@@ -476,6 +476,9 @@ def eval_sys_fn_create_client(klong, x):
 
         .ws(x)                                 [Create-Websocket-client]
 
+        Connect to the WebSocket server at address "x" and return the
+        client. Close it with .wsc.
+
     """
     x = x.a if isinstance(x,KGCall) else x
     if isinstance(x,NetworkClient):
@@ -493,7 +496,7 @@ def eval_sys_fn_shutdown_client(x):
 
         .wsc(x)                                 [Close-Websocket-client]
 
-        Close a remote dictionary or function opened by .cli or .clid.
+        Close a remote dictionary or function opened by .ws.
 
         Returns 1 if closed, 0 if already closed.
 

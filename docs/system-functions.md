@@ -502,6 +502,10 @@ Example:
 
 `.pya(x, y)` [Python-Attribute]
 
+```text
+Return the attribute named "y" of the Python object "x".
+```
+
 ### `.pyc`
 
 `.pyc(x, y, z)` [Python-Call]
@@ -581,10 +585,10 @@ log, log10, floor, ceil, round
 
 ```text
 Enable strict mode for variable assignment (level 1).
-In strict mode, a function cannot create a global variable by assignment;
-assigning to a name that is not a parameter, a declared local or an existing
-global is an error. There is no global: prefix. To create a global from a
-function, use .E.
+In strict mode, a function cannot create a global variable by
+assignment; assigning to a name that is not a parameter, a
+declared local or an existing global is an error. There is no
+global: prefix. To create a global from a function, use .E.
 
 Example:
     .strict()
@@ -617,8 +621,9 @@ error: undefined variable: newvar
 
 ```text
 Disable strict mode for variable assignment (level 0).
-Strict mode is off. Assigning to a new name inside a function still makes
-it local to the call; it does not create a global. Use .E for that.
+Strict mode is off. Assigning to a new name inside a function
+still makes it local to the call; it does not create a global.
+Use .E for that.
 
 Example:
     .unsafe()
@@ -713,7 +718,10 @@ variable is used by the line editor, if compiled in and enabled
 can differ. For numbers smaller than 0.1, there would be a
 smaller difference and number x>=1 cannot differ by .e, because
 1+.e --> 1. the actual value of .e is implementation-dependent.
-In KlongPy it is 1e-18.
+In KlongPy it is 1e-18. Numbers are IEEE doubles, so the
+spacing between neighbouring reals is about 1.4e-17 at 0.1 and
+1.1e-16 just below 1; the statement above about the smallest
+difference does not hold.
 
 The logarithm to base 10 of %.e (ln(%.e)%ln(10)) equals the
 number of digits in the mantissa of a real number (this is
@@ -1422,12 +1430,17 @@ Load with `.py("klongpy.ws")`. See [WebSockets](websockets.md).
 
 `.ws(x)` [Create-Websocket-client]
 
+```text
+Connect to the WebSocket server at address "x" and return the
+client. Close it with .wsc.
+```
+
 ### `.wsc`
 
 `.wsc(x)` [Close-Websocket-client]
 
 ```text
-Close a remote dictionary or function opened by .cli or .clid.
+Close a remote dictionary or function opened by .ws.
 
 Returns 1 if closed, 0 if already closed.
 

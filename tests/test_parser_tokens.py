@@ -84,7 +84,8 @@ def parse(text, parser):
         m = k._module
         return ("ok", r[0], canon(r[1]), None if m is None else str(m))
     except Exception as e:
-        return ("error", type(e).__name__, str(e))
+        # legacy_text: the message the class had before ticket 040 (klongpy/errors.py)
+        return ("error", type(e).__name__, getattr(e, 'legacy_text', str(e)))
     finally:
         k._module = None
 
@@ -207,8 +208,8 @@ class TestSameTreeAsLegacy(unittest.TestCase):
             ":{;1;2}": "(error IndexError)\n",
             ".comment()": "(error IndexError)\n",
             ".comment(1)": "(error TypeError)\n",
-            '.comment("END") 1': "(error RuntimeError)\n",
-            "1.2.3": "(error ValueError)\n",
+            '.comment("END") 1': "(error KlongSyntaxError)\n",   # also a RuntimeError
+            "1.2.3": "(error KlongSyntaxError)\n",               # also a ValueError
             "0c": "(error UnexpectedEOF)\n",
         }
         for text, sexp in want.items():
@@ -230,10 +231,10 @@ class TestSameTreeAsLegacy(unittest.TestCase):
                                (":[1 ;2;3]", "UnexpectedChar", "t: 1 ;2;3] pos: 3 char: ;"),
                                ("f(1 )", "UnexpectedChar", "t: f(1 ) pos: 3 char: )"),
                                ("1+0c", "UnexpectedEOF", "t: 1+0c pos: 4"),
-                               ("3e", "ValueError", "could not convert string to float: '3e'"),
-                               ("[-1.2.3]", "ValueError", "could not convert string to float: '-1.2.3'"),
-                               ("²", "ValueError", "invalid literal for int() with base 10: '²'"),
-                               ('.comment("E")', "RuntimeError", "end of comment not found")]:
+                               ("3e", "KlongSyntaxError", "could not convert string to float: '3e'"),
+                               ("[-1.2.3]", "KlongSyntaxError", "could not convert string to float: '-1.2.3'"),
+                               ("²", "KlongSyntaxError", "invalid literal for int() with base 10: '²'"),
+                               ('.comment("E")', "KlongSyntaxError", "end of comment not found")]:
             for parser in ("token", "legacy"):
                 with self.subTest(text=text, parser=parser):
                     self.assertEqual(parse(text, parser), ("error", cls, msg))
@@ -366,7 +367,7 @@ class TestSpans(unittest.TestCase):
         self.assertEqual(fn.source.text, text)
         self.assertEqual(fn.source.line_col(fn.body_spans[2][0]), (2, 2))
         self.assertIsNone(fn.arg_spans)
-        self.assertIsNone(r[1][0].source)           # only function literals record a source
+        self.assertIs(r[1][0].source, r.source)     # every node with a span records its source (ticket 040)
 
     def test_function_literal_call(self):
         n = self.one("{x+y}(1;2)")

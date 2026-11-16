@@ -17,6 +17,7 @@ comments marked "legacy:" say which legacy behaviour a line stands for.
 import copy
 
 from .lexer import ERR_CHAR_EOF
+from .errors import KlongSyntaxError, UnexpectedChar, UnexpectedEOF, compat
 
 from .types import (
     KGSym, KGQSym, KGChar, KGOp, KGCond, KGCall, KGLambda,
@@ -43,16 +44,18 @@ def cpeek2(t, i):
     return t[i:i+2] if i < (len(t)-1) else None
 
 
-class UnexpectedChar(Exception):
-    def __init__(self, t, i, c):
-        super().__init__(f"t: {t[i-10:i+10]} pos: {i} char: {c}")
+# UnexpectedChar and UnexpectedEOF live in klongpy.errors (they are
+# KlongSyntaxError subclasses) and are re-exported from here.
 
-
-class UnexpectedEOF(Exception):
-    def __init__(self, t, i):
-        self.t = t
-        self.i = i
-        super().__init__(f"t: {t[i-10:]} pos: {i}")
+def malformed_number(text, legacy_text, span=None, source=None):
+    """
+    The syntax error for a number that does not read ("1.2.3", "3e"). It is
+    also a ValueError, which is what the number readers let through before;
+    legacy_text is the message of that ValueError.
+    """
+    e = compat(KlongSyntaxError, ValueError)(f"malformed number '{text}'", span=span, source=source)
+    e.legacy_text = legacy_text
+    return e
 
 
 def cexpect(t, i, c):
@@ -101,7 +104,10 @@ def read_sys_comment(t, i, a):
             j += 1
         return i + j + len(a)
     except ValueError:
-        raise RuntimeError("end of comment not found")
+        # also a RuntimeError, which is what this raised before
+        e = compat(KlongSyntaxError, RuntimeError)("end of comment not found")
+        e.legacy_text = "end of comment not found"
+        raise e from None
 
 
 # Whitespace handling
@@ -142,13 +148,19 @@ def read_num(t, i=0):
         elif not t[i].isnumeric():
             break
         i += 1
-    return i, float(t[p:i]) if use_float else int(t[p:i])
+    try:
+        return i, float(t[p:i]) if use_float else int(t[p:i])
+    except ValueError as ex:
+        raise malformed_number(t[p:i], str(ex), (p, i)) from ex
+
+
+_CHAR_EOF = "expected a character after 0c but found end of input"
 
 
 def read_char(t, i):
     i = cexpect2(t, i, '0', 'c')
     if i >= len(t):
-        raise UnexpectedEOF(t, i)
+        raise UnexpectedEOF(t, i, message=_CHAR_EOF)
     return i+1, KGChar(t[i])
 
 
@@ -356,10 +368,11 @@ class KGExprArray(list):
     Similar to KGCond, this defers evaluation until the expressions
     are actually needed (e.g., when a function is called).
 
-    span and arg_spans are set by the token parser (see KGFn).
+    span, arg_spans and source are set by the token parser (see KGFn).
     """
     span = None
     arg_spans = None
+    source = None
 
 
 def read_expr_array(klong, t, i=0):
@@ -438,13 +451,31 @@ class ProgResult(tuple):
 def tk_raise(lx, tok, neg=False):
     """Raise what the legacy readers raised for the text of an ERROR token."""
     if tok[7] is ERR_CHAR_EOF:
-        raise UnexpectedEOF(lx.text, len(lx.text))
+        e = UnexpectedEOF(lx.text, len(lx.text), message=_CHAR_EOF)
+        e.span = (tok[1], tok[2])
+        raise e
     d = ('-' + tok[3]) if neg else tok[3]
-    if '.' in d or 'e' in d:
-        float(d)
-    else:
-        int(d)
-    raise ValueError(tok[7])
+    span = (tok[1] - 1 if neg else tok[1], tok[2])
+    try:
+        if '.' in d or 'e' in d:
+            float(d)
+        else:
+            int(d)
+    except ValueError as ex:
+        raise malformed_number(d, str(ex), span) from ex
+    raise malformed_number(d, tok[7], span)
+
+
+def tk_comment_end(lx, st, marker):
+    """
+    The offset just after the end marker of the .comment("marker") call that
+    starts at offset st and ends at the read position (see read_sys_comment).
+    """
+    try:
+        return read_sys_comment(lx.text, lx.offset(), marker)
+    except KlongSyntaxError as e:
+        e.span = (st, lx.end())
+        raise
 
 
 def tk_peek_adverb(lx):
@@ -605,6 +636,7 @@ def tk_read_data(klong, lx, j, consume):
         q = KGCall(copy_lambda, args=list_to_dict(q), arity=0)
         if consume:
             q.span = (tok[1], lx.end())
+            q.source = lx.source
     return q
 
 
@@ -670,6 +702,7 @@ def tk_read_cond(klong, lx, st):
     c = KGCond(r)
     c.span = (st, lx.end())
     c.arg_spans = tuple(sp)
+    c.source = lx.source
     return c
 
 
@@ -719,4 +752,5 @@ def tk_read_expr_array(klong, lx, st):
     a = KGExprArray(r)
     a.span = (st, lx.end())
     a.arg_spans = tuple(sp)
+    a.source = lx.source
     return a
