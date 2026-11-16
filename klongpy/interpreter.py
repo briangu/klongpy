@@ -2107,7 +2107,7 @@ class KlongInterpreter():
             return e
         try:
             if x.is_op():
-                fa = x.args if isinstance(x.args, list) else [x.args]
+                fa = x.args if type(x.args) is list else [x.args]
                 return self._op_error(e, x, tuple(self.eval(a) for a in fa))
             a = x.a[-1]
             return self._chain_error(e, x, (self.eval(a),) if x.a[-2].arity == 1 else (self.eval(a[0]), self.eval(a[1])))
@@ -2162,7 +2162,7 @@ class KlongInterpreter():
                             if r is not NOT_COMPILED:
                                 return r
                     f = self._get_op_fn(x.a.a, x.a.arity)
-                    fa = (x.args if isinstance(x.args, list) else [x.args]) if x.args is not None else self._no_operand(x)
+                    fa = (x.args if type(x.args) is list else [x.args]) if x.args is not None else self._no_operand(x)
                     _y = self.eval(fa[1]) if x.a.arity == 2 else None
                     _x = fa[0] if x.a.a in ['::','∇'] else self.eval(fa[0])
                     try:

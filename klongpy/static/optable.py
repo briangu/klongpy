@@ -157,7 +157,8 @@ OPTABLE = (
     _ok("rotate", ":+", "dyad", "Rotate", "int-scalar rank1", "right", "same",
         "rank 1 only (KlongPy rotates the flattened data of a matrix); negative n rotates left",
         ("y:+x", "int[4] int -> int[4]"), ("(-1):+x", "float[3] -> float[3]")),
-    _ok("reshape", ":^", "dyad", "Reshape", "const-shape num", "right", "reshape", "",
+    _ok("reshape", ":^", "dyad", "Reshape", "const-shape num", "right", "reshape",
+        "the row-major data cycles; a scalar n takes a scalar or a rank-1 array only (write [n]:^a for a matrix)",
         ("[2 3]:^x", "int[6] -> int[2,3]"), ("4:^x", "int[2] -> int[4]"), ("[2 2]:^x", "float -> float[2,2]")),
     _ok("amend", ":=", "dyad", "Amend", "rank1 amend-pair", "promote", "amend",
         "g::g:=v,i on a global is an in-place store",
@@ -255,6 +256,70 @@ for _op in OPTABLE:
 def lookup(glyph, valence):
     """The row for a glyph used as "monad", "dyad", "adverb1" or "adverb2"; None if there is none."""
     return _BY_KEY.get((glyph, valence))
+
+
+# ---------------------------------------------------------------------------
+# The C expansion column (ticket 092): row id -> (strategy, int form, float form).
+#
+#   "expr"   an elementwise C expression; {a} and {b} are the operands (already of the
+#            element type the operation works in), {line} the Klong source line. A tree of
+#            these over one shape is one loop nest with no intermediate array.
+#   "view"   an index remapping: the result reads its operand through other indices and
+#            has no storage of its own (a fusible leaf).
+#   "const"  folded at compile time.
+#   "loop"   a loop that fills a slot (or a scalar accumulator).
+#   "stmt"   a statement.
+#
+# Every allowed row has an entry and no rejected row has one; the emitter
+# (klongpy/static/emit_c.py) handles exactly these, and a test holds the three
+# sets equal, so the checker cannot accept an operator the emitter lacks.
+# ---------------------------------------------------------------------------
+
+C_EXPANSION = {
+    "add": ("expr", "kg_iadd({a}, {b})", "({a} + {b})"),
+    "sub": ("expr", "kg_isub({a}, {b})", "({a} - {b})"),
+    "mul": ("expr", "kg_imul({a}, {b})", "({a} * {b})"),
+    "div": ("expr", None, "kg_fdiv({a}, {b}, {line})"),
+    "idiv": ("expr", "kg_idiv({a}, {b}, {line})", None),
+    "rem": ("expr", "kg_imod({a}, {b}, {line})", "kg_fmod({a}, {b}, {line})"),
+    "pow": ("expr", "kg_ipow({a}, {b})", "kg_pow({a}, {b})"),
+    "max": ("expr", "kg_imax({a}, {b})", "kg_fmax({a}, {b})"),
+    "min": ("expr", "kg_imin({a}, {b})", "kg_fmin({a}, {b})"),
+    "lt": ("expr", "kg_ilt({a}, {b})", "kg_flt({a}, {b})"),
+    "gt": ("expr", "kg_igt({a}, {b})", "kg_fgt({a}, {b})"),
+    "eq": ("expr", "kg_ieq({a}, {b})", "kg_feq({a}, {b})"),
+    "match": ("loop", "kg_match((kg_float){a}, (kg_float){b})", "kg_match({a}, {b})"),
+    "index": ("view", None, None),
+    "take": ("view", None, None),
+    "drop": ("view", None, None),
+    "join": ("view", None, None),
+    "rotate": ("view", None, None),
+    "reshape": ("view", None, None),
+    "amend": ("loop", None, None),
+    "define": ("stmt", None, None),
+    "neg": ("expr", "kg_ineg({a})", "(-{a})"),
+    "floor": ("expr", None, "kg_floor({a})"),
+    "recip": ("expr", None, "kg_fdiv((kg_float)1, {a}, {line})"),
+    "not": ("expr", "(kg_int)({a} == 0)", "(kg_int)({a} == 0)"),
+    "size": ("const", None, None),
+    "shape": ("const", None, None),
+    "first": ("view", None, None),
+    "reverse": ("view", None, None),
+    "transpose": ("view", None, None),
+    "enumerate": ("view", None, None),
+    "list": ("view", None, None),
+    "each": ("loop", None, None),
+    "each2": ("loop", None, None),
+    "over": ("loop", None, None),
+    "over-seed": ("loop", None, None),
+    "scan": ("loop", None, None),
+    "scan-seed": ("loop", None, None),
+    "each-pair": ("loop", None, None),
+    "iterate": ("loop", None, None),
+    "while": ("loop", None, None),
+}
+
+assert set(C_EXPANSION) == {op.id for op in OPTABLE if op.status == "allowed"}, "the C column covers exactly the allowed rows"
 
 
 # ---------------------------------------------------------------------------

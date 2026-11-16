@@ -214,7 +214,7 @@ def _ast_to_ir(node, klong, var_refs):
 
         if arity == 2:
             args = node.args
-            if not isinstance(args, list):
+            if type(args) is not list:
                 args = [args] if args is not None else None
             if args is None or len(args) != 2:
                 return None
@@ -230,7 +230,7 @@ def _ast_to_ir(node, klong, var_refs):
 
         if arity == 1 and op_char == '-':
             arg = node.args
-            if isinstance(arg, list):
+            if type(arg) is list:      # a conditional or evaluated list is a list subclass: one operand
                 arg = arg[0]
             child = _ast_to_ir(arg, klong, var_refs)
             if child is None:

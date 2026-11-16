@@ -583,7 +583,18 @@ def main():
     parser.add_argument('--check-static', metavar='FILE', nargs='+',
                         help='check that FILEs are inside the static profile (the subset that compiles ahead of time) '
                              'without running them, then exit (1 if any is outside); with --int64 and -v')
-    parser.add_argument('--int64', action='store_true', help='with --check-static: kg_int is 64 bits wide (the default is 32)')
+    parser.add_argument('--int64', action='store_true',
+                        help='with --check-static and --emit-c: kg_int is 64 bits wide (the default is 32)')
+    parser.add_argument('--emit-c', metavar='FILE', nargs='+',
+                        help='compile FILEs of the static profile to C99 (<name>.c, <name>.h, klong_rt.h) in the directory '
+                             'given by -o, print the size report, then exit; with --int64, --float64, --line-directives, --prefix')
+    parser.add_argument('-o', '--output', metavar='DIR', help='with --emit-c: the directory to write to (default: .)')
+    parser.add_argument('--float64', action='store_true', help='with --emit-c: kg_float is double (the default is float)')
+    parser.add_argument('--line-directives', action='store_true',
+                        help='with --emit-c: emit #line so a debugger steps through the Klong source')
+    parser.add_argument('--prefix', metavar='NAME', help='with --emit-c: the C prefix of the public names (default: the file name)')
+    parser.add_argument('--dump-ir', action='store_true',
+                        help='with --emit-c or --check-static: evaluate the compile-time definitions and print the typed IR')
     parser.add_argument('-d', '--debug', help='enable debug mode', action="store_true")
     parser.add_argument('--strict', metavar='N', type=int, choices=[0, 1, 2], default=0,
                         help='strict level: 0 (the default), 1 or 2; --strict alone means 1. Written --strict=N')
@@ -615,6 +626,11 @@ def main():
             parser.error("--lint needs at least one FILE")
         from klongpy.lint import lint_main
         sys.exit(lint_main(lint_files, args.select, args.ignore, args.verbose, args.define))
+    if args.emit_c or (args.check_static and args.dump_ir):
+        from klongpy.static.compile import emit_main
+        sys.exit(emit_main(args.emit_c or args.check_static, args.output, 64 if args.int64 else 32,
+                           64 if args.float64 else 32, args.line_directives, args.prefix, args.dump_ir,
+                           emit_c=bool(args.emit_c)))
     if args.check_static:
         from klongpy.static import check_main
         sys.exit(check_main(args.check_static, 64 if args.int64 else 32, args.verbose))

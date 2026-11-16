@@ -1930,6 +1930,11 @@ class _Checker:
             if dims.ndim > 1:
                 self.diag("operand", sp, f"the shape of s:^a (Reshape) is {a}; it must be an int or a list of ints")
                 return ANY
+            if dims.ndim == 0 and b.shape is not None and len(b.shape) > 1:
+                # KlongPy answers n:^matrix with rows or with elements depending on n; only the list form is defined here
+                self.diag("operand", sp, f"n:^a (Reshape) of {b} with a scalar n: the profile reshapes a matrix by a list of dimensions only",
+                          "write the shape as a list: [n]:^a")
+                return ANY
             shape = tuple(int(d) for d in dims.reshape(-1))
             return self.mk(b.elem, shape, sp)
         if k == "amend":

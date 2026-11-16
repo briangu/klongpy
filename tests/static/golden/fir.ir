@@ -1,0 +1,15 @@
+program fir (kg_int: 32 bits)
+global const taps: float[16] = [0.013888888888888888 0.027777777777777776 0.041666666666666664 0.05555555555555555 0.06944444444444445 0.08333333333333333 0.09722222222222222 0.1111111111111111 ...]
+global const idx: int[16,241] = [0 1 2 3 4 5 6 7 ...]
+entry run: float[256] -> float[241] -> run#1
+
+fn +#0 [op] (x: float[241]; y: float[241]) -> float[241]
+  (add:float[241] (param 0 x:float[241]) (param 1 y:float[241]))
+  arrays: binary:float[241] fused
+  effects: no
+
+fn run#1 [fn] (x: float[256]) -> float[241]
+  (over:float[241] <op +#0> (mul:float[16,241] (const taps:float[16]) (gather:float[16,241] checked (param 0 x:float[256]) (const idx:int[16,241]))))
+  arrays: reduce:float[241] slot, binary:float[16,241] fused, gather:float[16,241] fused
+  calls: +#0
+  effects: no

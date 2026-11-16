@@ -1,0 +1,16 @@
+program mavg (kg_int: 32 bits)
+global state buf: float[4] = [0.0 0.0 0.0 0.0]
+global state pos: int = 0
+entry step: float -> float -> step#1
+
+fn +#0 [op] (x: float; y: float) -> float
+  (add:float (param 0 x:float) (param 1 y:float))
+  effects: no
+
+fn step#1 [fn] (x: float) -> float
+  (set:float[4] (state buf:float[4]) (amend:float[4] (state buf:float[4]) (param 0 x:float) (state pos:int)))
+  (set:int (state pos:int) (rem:int (add:int (state pos:int) (1:int)) (4:int)))
+  (div:float (over:float <op +#0> (state buf:float[4])) (4.0:float))
+  arrays: amend:float[4] slot
+  calls: +#0
+  effects: yes

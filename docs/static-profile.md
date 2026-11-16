@@ -121,7 +121,7 @@ error has a stable id.
 | a<code>_</code>b | `drop` | Drop | const-int , array | right | drop | negative n drops from the end |
 | a<code>,</code>b | `join` | Join | num , num | promote | join | joining ints with floats gives floats |
 | a<code>:+</code>b | `rotate` | Rotate | int-scalar , rank1 | right | same | rank 1 only (KlongPy rotates the flattened data of a matrix); negative n rotates left |
-| a<code>:^</code>b | `reshape` | Reshape | const-shape , num | right | reshape |  |
+| a<code>:^</code>b | `reshape` | Reshape | const-shape , num | right | reshape | the row-major data cycles; a scalar n takes a scalar or a rank-1 array only (write [n]:^a for a matrix) |
 | a<code>:=</code>b | `amend` | Amend | rank1 , amend-pair | promote | amend | g::g:=v,i on a global is an in-place store |
 | a<code>::</code>b | `define` | Define | - | right | same | name::expr assigns a local or a global and is the value assigned; see the forms table |
 | <code>-</code>a | `neg` | Negate | num | same | same | a leading - negates the whole expression to its right |

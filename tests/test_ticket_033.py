@@ -575,3 +575,22 @@ class TestQLambdaDisplay(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMonadOnConditional(unittest.TestCase):
+    """A monad applied to a conditional or an evaluated list takes the whole result as its operand."""
+
+    def test_monad_on_conditional_and_expression_list(self):
+        from klongpy import KlongInterpreter
+        k = KlongInterpreter()
+        self.assertEqual(k('-:[0;2;3]'), -3)
+        self.assertEqual(k('-:[1;2;3]'), -2)
+        self.assertEqual(k('#[;1;2;3]'), 3)
+        self.assertEqual(k('*[;4;5]'), 4)
+
+    def test_inside_a_function_and_on_the_compiled_path(self):
+        from klongpy import KlongInterpreter
+        k = KlongInterpreter()
+        self.assertEqual(k('n::{-:[x;2;3]};n(0)'), -3)
+        self.assertEqual(k('c::{#[;x;x;x]};c(7)'), 3)
+        self.assertEqual(k('a::2;-:[a=2;10;20]'), -10)

@@ -1,2 +1,3 @@
 README.md
 recursive-include klongpy/lib *.kg
+recursive-include klongpy/static *.h
