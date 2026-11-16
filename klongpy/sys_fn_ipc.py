@@ -22,12 +22,14 @@ import uuid  # noqa: F401
 from asyncio import StreamReader, StreamWriter
 
 from klongpy.core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
-                          KlongException, KLONG_UNDEFINED, is_list,
+                          KlongException, KLONG_UNDEFINED, is_list,  # noqa: F401
                           reserved_fn_args, reserved_fn_symbols, reserved_fn_symbol_map)
 
+from klongpy.errors import KlongRangeError, KlongSystemError, KlongTypeError
 from klongpy.ipc.errors import (KlongIPCException, KlongIPCConnectionClosedException,  # noqa: F401
                                 KlongIPCConnectionFailureException,
-                                KlongIPCCreateConnectionException, KlongIPCHandshakeException)
+                                KlongIPCCreateConnectionException, KlongIPCHandshakeException,
+                                KlongIPCTimeoutException)
 from klongpy.ipc.endpoint import (CLOSE_TIMEOUT, DEFAULT_CALL_TIMEOUT, HANDSHAKE_TIMEOUT,  # noqa: F401
                                   KdbConnectionMixin, KGRemoteFnProxy, KlongRemoteException,
                                   auth_accepts, new_connection_state)
@@ -46,8 +48,7 @@ def get_system(klong):
     try:
         return klong['.system']
     except KeyError:
-        # TODO(040): KlongSystemError
-        raise KlongException(".system is not defined: this interpreter was not created by create_repl "
+        raise KlongSystemError(".system is not defined: this interpreter was not created by create_repl "
                              "(IPC needs .system with ioloop, klongloop and closeEvent)") from None
 
 
@@ -246,7 +247,7 @@ class NetworkClient(LegacyConnectionMixin, KdbConnectionMixin, KGLambda):
 
         When the .clic function is called, the network client is stopped and the connection is closed.
 
-        Raises KlongException when the server refuses the handshake (wrong credentials, not a kdb+ protocol server).
+        Raises KlongSystemError when the server refuses the handshake (wrong credentials, not a kdb+ protocol server).
 
         """
         self.running = True
@@ -269,8 +270,7 @@ class NetworkClient(LegacyConnectionMixin, KdbConnectionMixin, KGLambda):
         connect_event.wait()
         if errors and isinstance(errors[0], KlongIPCHandshakeException):
             self.cleanup()
-            # TODO(040): KlongSystemError
-            raise KlongException(str(errors[0]))
+            raise KlongSystemError(str(errors[0])) from errors[0]
         return self
 
     def run_server(self):
@@ -394,7 +394,7 @@ class NetworkClient(LegacyConnectionMixin, KdbConnectionMixin, KGLambda):
 
         """
         if not self.is_open():
-            raise KlongException("connection not established")
+            raise KlongSystemError("connection not established")
         if timeout is ...:
             timeout = self.call_timeout
         if self.protocol == "legacy":
@@ -555,8 +555,7 @@ def parse_address(addr):
     try:
         port = int(port)
     except ValueError:
-        # TODO(040): KlongSystemError
-        raise KlongException(f"bad address {addr!r}: expected port, host:port or host:port:user:password") from None
+        raise KlongTypeError(f"bad address {addr!r}: expected port, host:port or host:port:user:password") from None
     return host or "localhost", port, user, password
 
 
@@ -698,7 +697,7 @@ class TcpServerHandler:
         """
 
         Start listening. Returns 1 when the socket is bound, 0 if this handler is already serving.
-        Raises KlongException if the socket cannot be bound.
+        Raises KlongSystemError if the socket cannot be bound.
 
         """
         if self.server is not None:
@@ -712,12 +711,10 @@ class TcpServerHandler:
         except concurrent.futures.TimeoutError:
             cf.cancel()
             self._reset()
-            # TODO(040): KlongSystemError
-            raise KlongException(f"cannot listen on {where}: timed out") from None
+            raise KlongSystemError(f"cannot listen on {where}: timed out") from None
         except OSError as e:
             self._reset()
-            # TODO(040): KlongSystemError
-            raise KlongException(f"cannot listen on {where}: {e.strerror or e}") from None
+            raise KlongSystemError(f"cannot listen on {where}: {e.strerror or e}") from e
         self.shutdown_event = shutdown_event
         if shutdown_event is not None:
             shutdown_event.subscribe(self.shutdown_server)
@@ -861,9 +858,9 @@ def eval_sys_fn_create_client(klong, x):
 
                    f::.cli(8888)
 
-            A string is passed it is evaluated remotely:
+            A string is evaluated remotely as Klong source:
 
-                   f("hello")             --> "hello" is evaluated remotely
+                   f("1+1")               --> 2 (computed remotely)
                    f("avg::{(+/x)%#x}")   --> "avg" function is defined remotely
                    f("avg(!100)")         --> 49.5 (computed remotely)
 
@@ -893,7 +890,13 @@ def eval_sys_fn_create_client(klong, x):
                    f("b::!100")
                    p::f(:b)               --> "p: now holds a copy of the remote array "b"
 
-            A remote error is raised here as an error whose text is "<kind>: <message>".
+            A function is sent as its source text and the receiver parses it, so the
+            names in its body are the receiver's. A projection is sent as an opaque value.
+
+            An error on the server is raised here as the error class of its kind, with the
+            server's message: a range error there is a range error here. Text from a peer
+            that is not a KlongPy server, or a name KlongPy does not know, is a remote error.
+            A connection that fails, is refused or times out is a system error.
 
     """
     x = x.a if isinstance(x,KGCall) else x
@@ -923,40 +926,41 @@ def eval_sys_fn_create_dict_client(klong, x):
         if "x" is a string, then it is interpreted as a host address "<host>:<port>" or
         "<host>:<port>:<user>:<password>".
 
-        If "x" is a remote function, the underlying network connection
-        is shared and a remote function is returned.
-
-        Examples:  .cli(8888)             --> remote function to localhost:8888
-                   .cli("localhost:8888") --> remote function to localhost:8888
-                   .cli(d)                --> remote function to same connection as d
+        If "x" is a remote function (from .cli), the underlying network connection
+        is shared and a remote dictionary is returned. The protocol, timeout and errors
+        are those of .cli.
 
         Connection examples:
 
-                   .cli(8888)            --> remote function to localhost:8888
-                   .cli("localhost:8888") --> remote function to localhost:8888
+                   .clid(8888)            --> remote dictionary to localhost:8888
+                   .clid("localhost:8888") --> remote dictionary to localhost:8888
 
                    f::.cli(8888)
-                   .cli(f)                --> remote function to same connection as f
+                   .clid(f)               --> remote dictionary on the same connection as f
 
         Evaluation examples:
 
-                   d::.cli(8888)
+                   d::.clid(8888)
 
             Set a remote key/value pair :foo -> 2 on the remote server.
 
                    d,[:foo 2]             --> sets :foo to 2
                    d,[:bar "hello"]       --> sets :bar to "hello"
-                   d,:fn,{x+1}            --> sets :fn to the monad {x+1)
+                   d,:fn,{x+1}            --> sets :fn to the monad {x+1}
 
             Get a remote value:
 
                    d?:foo                 --> 2
-                   d?:bar                 --> hello
-                   d?:fn                 --> remote function proxy to :avg
+                   d?:bar                 --> "hello"
+                   d?:fn                  --> remote function proxy to :fn
 
             To use the remote function proxy:
                    q::d?:fn
-                   q(2)               --> 3 (remotely executed after passing 2)
+                   q(2)                   --> 3 (remotely executed after passing 2)
+
+            A get of a name the server does not have is a name error. A set sends the
+            three-item request ("set"; name; value), which a KlongPy server treats as an
+            assignment of a global.
 
     """
     x = x.a if isinstance(x,KGCall) else x
@@ -1014,10 +1018,9 @@ def eval_sys_fn_client_timeout(x, y):
     try:
         seconds = float(y)
     except (TypeError, ValueError):
-        # TODO(040): KlongTypeError
-        raise KlongException("y must be a number of seconds") from None
+        raise KlongTypeError("y must be a number of seconds") from None
     if seconds != seconds or seconds < 0:
-        raise KlongException("y must be a number of seconds, 0 or more")
+        raise KlongRangeError("y must be a number of seconds, 0 or more")
     x.call_timeout = None if seconds == 0 else seconds
     return 1
 
@@ -1049,7 +1052,11 @@ def eval_sys_fn_create_ipc_server(klong, x):
         Hooks, set as global functions: .srv.o(h) when a client connects, .srv.c(h) when
         it disconnects, .srv.e(h;text) on an error that nobody is waiting for, and
         .srv.auth(user;password), which returns 1 to accept a client and 0 to refuse it
-        (with no .srv.auth every client is accepted).
+        (with no .srv.auth every client is accepted). The hooks run on the Klong loop.
+
+        A message larger than the .system key "ipc_max_message" (bytes, 256 MiB when not
+        set, read when a connection is made) closes the connection. Set it before .srv
+        and .cli, as in .system,"ipc_max_message",1000000.
 
         Security: a bare port listens on all interfaces (0.0.0.0), and a client can
         run any Klong code in this interpreter. KlongPy assumes every peer is
@@ -1065,8 +1072,7 @@ def eval_sys_fn_create_ipc_server(klong, x):
     try:
         port = int(parts[0] if len(parts) == 1 else parts[1])
     except ValueError:
-        # TODO(040): KlongTypeError
-        raise KlongException(f"bad address {x!r}: expected port or bind:port") from None
+        raise KlongTypeError(f"bad address {x!r}: expected port or bind:port") from None
     system = get_system(klong)
     server = system.get('ipc_server')
     if server is None:
@@ -1129,7 +1135,10 @@ class KGAsyncCall(KGLambda):
         if self._is_kdb_remote():
             self._call_remote(params)
             return 1
-        self.klongloop.create_task(self.acall(klong, params))
+        # thread safe: the call may be made from a thread other than the loop's
+        cf = asyncio.run_coroutine_threadsafe(self.acall(klong, params), self.klongloop)
+        cf.add_done_callback(lambda f: f.cancelled() or f.exception() is None
+                             or logging.warning(f".async: call failed: {f.exception()}"))
         return 1
 
     def __str__(self):
@@ -1143,17 +1152,20 @@ def eval_sys_fn_create_async_wrapper(klong, x, y):
 
         Returns an async functional wrapper for the function "x" and calls "y"
         when completed. The wrapper has the same arity as the wrapped function.
+        Both must be functions, else a type error is raised.
 
-        Calling the wrapper returns 1 at once. When "x" is a remote function or
-        connection (from .cli or a remote function proxy) the request is sent
-        without blocking and "y" runs on the klong loop when the answer arrives;
-        an error answer or a lost connection is logged and "y" is not called.
+        Calling the wrapper returns 1 at once. A local function runs as a task on the
+        Klong loop and "y" is called with its result. When "x" is a connection (from
+        .cli) or a remote function proxy, the request is sent without blocking
+        and "y" runs on the Klong loop when the answer arrives; an error answer or a
+        lost connection is logged and "y" is not called. With a connection the
+        wrapper takes the one request argument, as the connection does.
 
     """
-    if not (issubclass(type(x),KGFn) or issubclass(type(x),KGLambda)):
-        raise KlongException("x must be a function")
-    if not (issubclass(type(y),KGFn) or issubclass(type(x),KGLambda)):
-        raise KlongException("y must be a function")
+    if not issubclass(type(x), (KGFn, KGLambda)):
+        raise KlongTypeError("x must be a function")
+    if not issubclass(type(y), (KGFn, KGLambda)):
+        raise KlongTypeError("y must be a function")
     system = get_system(klong)
     klongloop = system['klongloop']
     # KGAsyncCall will wrap the callbacks automatically

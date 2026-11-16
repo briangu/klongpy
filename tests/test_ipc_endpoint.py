@@ -143,7 +143,8 @@ class TestRequests(IPCCase):
         self.assertEqual(self.kg(client, "d?:later"), 7)
         with self.assertRaises(KlongException) as cm:
             self.kg(client, "d?:nosuch")
-        self.assertIn("name:", str(cm.exception))
+        self.assertEqual(cm.exception.kind, "name")
+        self.assertIn("symbol not found", str(cm.exception))
 
     def test_dict_set_symbol_value_stays_a_symbol(self):
         server, client = self.pair()
@@ -210,7 +211,7 @@ class TestRequests(IPCCase):
         with self.assertRaises(KlongRemoteException) as cm:
             self.kg(client, "c(:nosuchfn,,1)")
         self.assertEqual(cm.exception.wire_name, "name")
-        self.assertTrue(str(cm.exception).startswith("name: "))
+        self.assertTrue(cm.exception.text.startswith("name: "))     # the text as received
         with self.assertRaises(KlongRemoteException) as cm:
             self.kg(client, "c(:boom,,1)")
         self.assertIsNotNone(cm.exception.wire_name)               # "<wire name>: <message>"
@@ -228,7 +229,8 @@ class TestRequests(IPCCase):
         # on the way out: refused here, nothing is sent, the connection is fine
         with self.assertRaises(KlongException) as cm:
             self.kg(client, "c(:echo,,obj)")
-        self.assertTrue(str(cm.exception).startswith("type: cannot send"), str(cm.exception))
+        self.assertEqual(cm.exception.kind, "type")
+        self.assertTrue(str(cm.exception).startswith("cannot send"), str(cm.exception))
         self.assertNotIsInstance(cm.exception, KlongRemoteException)
         # on the way back: the server answers with a type error
         with self.assertRaises(KlongRemoteException) as cm:
@@ -402,6 +404,15 @@ class TestAsync(IPCCase):
         self.kg(client, "af(:slow,,3)")
         self.assertEqual(self.kg(client, 'c("1+1")'), 2)             # answered after the slow one, in order
         self.assertTrue(wait_until(lambda: self.kg(client, "res") == 3, 5))
+
+    def test_async_on_a_local_function_runs_from_the_main_thread(self):
+        """The wrapped call may be made from any thread; the callback runs soon after, with nothing else waking the loop."""
+        client = self.repl()
+        self.kg(client, "res::0;sq::{x*x};cb::{res::x};aq::.async(sq;cb)")
+        self.assertEqual(self.kg(client, "aq(7)"), 1)
+        self.assertTrue(wait_until(lambda: self.kg(client, "res") == 49, 3))
+        self.assertEqual(self.kg(client, "aq(8)"), 1)
+        self.assertTrue(wait_until(lambda: self.kg(client, "res") == 64, 3))
 
     def test_async_error_is_logged_and_callback_not_called(self):
         server, client = self.pair()

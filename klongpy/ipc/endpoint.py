@@ -31,13 +31,14 @@ from collections import deque
 
 import numpy as np
 
-from ..core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym, KlongException,
-                    KLONG_UNDEFINED, UnexpectedChar, UnexpectedEOF,
-                    reserved_fn_args, reserved_fn_symbol_map)
+from ..core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
+                    KLONG_UNDEFINED, reserved_fn_args, reserved_fn_symbol_map)
+from ..errors import (ERROR_KINDS, KlongError, KlongInternalError, KlongRemoteError,
+                      KlongSystemError, KlongTypeError, classify)
 from .codec import KdbError, KdbLambda, set_function_text_hook
 from .errors import (IPCError, IPCStateError, KlongIPCConnectionClosedException,
                      KlongIPCConnectionFailureException, KlongIPCHandshakeException,
-                     ProtocolError)
+                     KlongIPCTimeoutException, ProtocolError)
 from .legacy import (KGRemoteDictGetCall, KGRemoteDictSetCall, KGRemoteFnCall,
                      KGRemoteFnRef)
 from .session import (Closed, Failure, Handshake, HandshakeAccepted, HandshakeRejected,
@@ -59,53 +60,81 @@ _DISPLAY_ARITY = {"nilad": 0, "monad": 1, "dyad": 2, "triad": 3}
 # errors on the wire (design section 7)
 # ----------------------------------------------------------------------------
 
-class KlongRemoteException(KlongException):
-    """The peer answered a request with an error object.
+#: wire name -> the KlongError class it stands for (``errors-strict-lint.md`` section 1)
+WIRE_CLASSES = {c.wire: c for c in ERROR_KINDS.values() if c.wire}
+_REMOTE_CLASSES = {}
+
+
+def _remote_class(kcls):
+    """The subclass of ``kcls`` that is also a ``KlongRemoteException`` (made once, importable from here)."""
+    c = _REMOTE_CLASSES.get(kcls)
+    if c is None:
+        name = f"KlongRemote{kcls.__name__[len('Klong'):]}"
+        c = type(name, (KlongRemoteException, kcls), {
+            "__module__": __name__, "__doc__": f"A {kcls.__name__} reported by the peer.",
+            "kind": kcls.kind, "wire": kcls.wire})
+        _REMOTE_CLASSES[kcls] = c
+        globals()[name] = c
+    return c
+
+
+class KlongRemoteException(KlongRemoteError):
+    """The peer answered a request with an error object (kind ``remote``, or the kind it names).
 
     ``text`` is the whole text as received (``<wire name>: <message>`` from a
     KlongPy peer, anything from another one); ``wire_name`` is the part before
-    ``: `` when it is one of ours, else ``None``.
+    ``: `` when it is one of ours, else ``None``.  Creating one from text that
+    starts with a wire name gives an instance of that name's class too
+    (``index`` is a ``KlongRangeError``), with ``kind`` of that class and the
+    message without the prefix; any other text keeps ``kind == "remote"``.
+    ``hint`` names the peer.
     """
-    # TODO(040): becomes KlongRemoteError / the KlongError subclass of the wire name, remote=True
 
     remote = True
-    WIRE_NAMES = ("parse", "name", "rank", "type", "length", "index", "os", "python",
-                  "internal", "wsfull", "stop")
 
-    def __init__(self, text, peer=None):
-        super().__init__(text)
+    def __new__(cls, text="", peer=None):
+        if cls is KlongRemoteException:
+            kcls = WIRE_CLASSES.get(str(text).partition(": ")[0]) if ": " in str(text) else None
+            if kcls is not None:
+                cls = _remote_class(kcls)
+        return super().__new__(cls)
+
+    def __init__(self, text="", peer=None):
+        text = str(text)
+        head, sep, rest = text.partition(": ")
+        wire_name = head if sep and head in WIRE_CLASSES else None
+        super().__init__(rest if wire_name else text,
+                         hint=None if peer is None else f"reported by {peer}")
         self.text = text
         self.peer = None if peer is None else str(peer)
-        head, sep, _ = text.partition(": ")
-        self.wire_name = head if sep and head in self.WIRE_NAMES else None
+        self.wire_name = wire_name
 
 
 def wire_error_text(exc):
-    """``<wire name>: <message>`` for an exception raised while serving a request."""
-    # TODO(040): use exc.kind once the KlongError hierarchy exists
+    """``<wire name>: <message>`` for an exception raised while serving a request.
+
+    The name is the ``wire`` of the error's class (``kind``): ``index`` for a
+    range error, ``length`` for a shape error.  An exception that is not a
+    ``KlongError`` is classified as an operator's would be; a bare ``KlongError``
+    is a ``type`` error.
+    """
     msg = str(exc)
+    if isinstance(exc, KlongRemoteException):
+        return exc.text.replace("\x00", "")
     if isinstance(exc, IPCError):
-        name = {"type": "type", "range": "index", "system": "os"}.get(exc.kind, "type")
+        name = ERROR_KINDS[exc.kind].wire
+    elif isinstance(exc, KlongError):
+        name = exc.wire or "type"
     elif isinstance(exc, KeyError):
         name = "name"
         msg = f"symbol not found: {exc.args[0] if exc.args else ''}"
-    elif isinstance(exc, (UnexpectedChar, UnexpectedEOF)):
-        name = "parse"
-    elif isinstance(exc, KlongRemoteException):
-        return exc.text.replace("\x00", "")
-    elif isinstance(exc, KlongException):
-        name = "type"
-    elif isinstance(exc, IndexError):
-        name = "index"
-    elif isinstance(exc, (MemoryError, RecursionError)):
-        name = "wsfull"
     elif isinstance(exc, OSError):
         name = "os"
-    elif isinstance(exc, (ValueError, TypeError, ArithmeticError)):
-        name = "length" if ("shape" in msg or "broadcast" in msg) else "type"
     else:
-        name = "internal"
-        msg = f"{type(exc).__name__}: {msg}" if msg else type(exc).__name__
+        kcls = classify(exc)
+        name = kcls.wire
+        if kcls is KlongInternalError:
+            msg = f"{type(exc).__name__}: {msg}" if msg else type(exc).__name__
     if not msg:
         msg = type(exc).__name__
     return f"{name}: {msg}".replace("\x00", "")
@@ -351,7 +380,7 @@ def _apply(klong, callee, args):
     if isinstance(callee, KdbLambda):
         fn = parse_function(klong, callee.text)
         if fn is None:
-            raise KlongException(f"cannot run function text from the peer: {callee.text}")
+            raise KlongTypeError(f"cannot run function text from the peer: {callee.text}")
         target = fn
     elif isinstance(callee, KGSym):
         target = klong._context[callee]          # KeyError: symbol not found
@@ -359,7 +388,7 @@ def _apply(klong, callee, args):
     else:
         target = fn = klong(callee)
     if not (isinstance(target, (KGFn, KGLambda)) or callable(target)):
-        raise KlongException(f"not callable: {callee}")
+        raise KlongTypeError(f"not callable: {callee}")
     if len(args) == 1 and args[0] is KLONG_UNDEFINED and _arity_of(target) == 0:
         args = []                                # q's (`f; ::) calls f with no arguments
     return klong.apply(fn, args)
@@ -415,7 +444,6 @@ class KdbConnectionMixin:
     # -- small helpers -------------------------------------------------------
 
     def _failure(self, msg):
-        # TODO(040): KlongSystemError
         return KlongIPCConnectionFailureException(msg)
 
     def _make_proxy(self, sym, arity):
@@ -564,7 +592,7 @@ class KdbConnectionMixin:
         if waiter is None or waiter.done():
             return
         if ev.error is not None:
-            waiter.set_exception(KlongException(wire_error_text(ev.error)))
+            waiter.set_exception(ERROR_KINDS[ev.error.kind](str(ev.error)))   # a response that did not decode
         else:
             waiter.set_result(ev.value)
 
@@ -694,7 +722,7 @@ class KdbConnectionMixin:
                 data, pend = sess.send_sync(value, call=as_call, blocking=blocking, tag=waiter,
                                             deadline=deadline, compress_body=self._compress_ok())
             except IPCError as e:
-                raise KlongException(wire_error_text(e)) from None
+                raise ERROR_KINDS[e.kind](str(e)) from None
             self.pending_responses[pend] = waiter
             if blocking:
                 self._waiters.append(waiter)
@@ -756,8 +784,7 @@ class KdbConnectionMixin:
             raise
 
     def _timed_out(self, timeout):
-        # TODO(040): KlongSystemError
-        err = self._failure(f"call timed out after {timeout}s: {str(self.conn_provider)}")
+        err = KlongIPCTimeoutException(f"call timed out after {timeout}s: {str(self.conn_provider)}")
         self._abort(err)
         raise err
 
@@ -767,9 +794,9 @@ class KdbConnectionMixin:
         Nothing waits for the answer, so the connection's deadline is enforced by a timer on the ioloop.
         """
         if not self.is_open():
-            raise KlongException("connection not established")
+            raise KlongSystemError("connection not established")
         if self.protocol == "legacy":
-            raise KlongException("call_async needs the kdb+ protocol")
+            raise KlongSystemError("call_async needs the kdb+ protocol")
         if timeout is ...:
             timeout = self.call_timeout
         lookup_holder = []

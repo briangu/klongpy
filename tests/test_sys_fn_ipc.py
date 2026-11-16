@@ -669,7 +669,8 @@ class TestNetworkClient(LoopsBase, unittest.TestCase):
         try:
             with self.assertRaises(KlongRemoteException) as cm:
                 bounded(lambda: client.call("x"))
-            self.assertEqual(str(cm.exception), "type: no good")
+            self.assertEqual(cm.exception.text, "type: no good")
+            self.assertEqual(str(cm.exception), "no good")
             self.assertEqual(cm.exception.wire_name, "type")
             self.assertTrue(client.is_open())               # an error answer does not close the connection
         finally:

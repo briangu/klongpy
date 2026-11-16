@@ -27,6 +27,8 @@ from asyncio.exceptions import IncompleteReadError
 
 from ..core import (KGFn, KGFnWrapper, KGLambda, KGSym, KlongException,
                     get_fn_arity_str, reserved_fn_args, reserved_fn_symbols)
+from ..errors import KlongSystemError, KlongTypeError
+from .errors import KlongIPCTimeoutException
 
 LEGACY_MODULE = "klongpy.sys_fn_ipc"
 
@@ -88,8 +90,7 @@ def ipc_mode(default):
     if not v:
         return default
     if v not in IPC_MODES:
-        # TODO(040): KlongSystemError
-        raise KlongException(f"KLONGPY_IPC must be one of {', '.join(IPC_MODES)}, not {v!r}")
+        raise KlongSystemError(f"KLONGPY_IPC must be one of {', '.join(IPC_MODES)}, not {v!r}")
     return v
 
 
@@ -221,7 +222,7 @@ async def execute_server_command(future_loop, result_future, klong, command, nc)
                 else:
                     response = r(*command.params)
             else:
-                raise KlongException(f"not callable: {command.sym}")
+                raise KlongTypeError(f"not callable: {command.sym}")
         elif isinstance(command, KGRemoteDictSetCall):
             klong[command.key] = command.value
             response = None
@@ -325,7 +326,7 @@ class LegacyConnectionMixin:
                 return await asyncio.wait_for(future, timeout)
             except asyncio.TimeoutError:
                 self.pending_responses.pop(msg_id, None)
-                err = self._failure(f"call timed out after {timeout}s: {str(self.conn_provider)}")
+                err = KlongIPCTimeoutException(f"call timed out after {timeout}s: {str(self.conn_provider)}")
                 self._cleanup_pending_responses(err)
                 if writer is self.writer:
                     writer.close()
@@ -338,8 +339,7 @@ class LegacyConnectionMixin:
         except concurrent.futures.TimeoutError:
             cf.cancel()
             self.pending_responses.pop(msg_id, None)
-            # TODO(040): KlongSystemError
-            raise self._failure(f"call timed out after {timeout}s: {str(self.conn_provider)}") from None
+            raise KlongIPCTimeoutException(f"call timed out after {timeout}s: {str(self.conn_provider)}") from None
         if is_lookup and isinstance(response, KGRemoteFnRef):
             sym = msg.key if isinstance(msg, KGRemoteDictGetCall) else msg
             response = self._make_proxy(sym, response.arity)

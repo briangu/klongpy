@@ -3,8 +3,10 @@
 The decoder and the decompressor raise :class:`ProtocolError` on any malformed
 input and nothing else (except :class:`IPCRangeError` when a 32-bit build is
 asked to narrow a value that does not fit).  The endpoint layer maps these to
-``KlongError`` kinds later (ticket 105 step 3, ticket 040).
+``KlongError`` classes by their ``kind``.  The ``KlongIPC*`` classes at the end
+are what Klong programs see when the transport fails.
 """
+from ..errors import KlongSystemError
 
 
 class IPCError(Exception):
@@ -43,8 +45,8 @@ class IPCStateError(RuntimeError):
 # transport failures seen by Klong programs (raised by the endpoint layer)
 # ----------------------------------------------------------------------------
 
-class KlongIPCException(Exception):
-    pass
+class KlongIPCException(KlongSystemError):
+    """The connection failed or could not be made (kind ``system``)."""
 
 
 class KlongIPCConnectionClosedException(KlongIPCException):
@@ -53,6 +55,10 @@ class KlongIPCConnectionClosedException(KlongIPCException):
 
 class KlongIPCConnectionFailureException(KlongIPCException):
     pass
+
+
+class KlongIPCTimeoutException(KlongIPCConnectionFailureException, TimeoutError):
+    """A call got no answer in time (``call_timeout``); the connection was closed."""
 
 
 class KlongIPCCreateConnectionException(KlongIPCException):
