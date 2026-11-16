@@ -21,10 +21,17 @@ pub static FILES: &[(&str, &str)] = &[
     ("edt", include_str!("../../../klongpy/lib/edt.kg")),
 ];
 
+/// The management service (ticket 108). It is IPC from end to end, so an image without `ipc`
+/// does not carry it.
+#[cfg(feature = "ipc")]
+pub static IPC_FILES: &[(&str, &str)] = &[("mgmt", include_str!("../../../klongpy/lib/mgmt.kg"))];
+#[cfg(not(feature = "ipc"))]
+pub static IPC_FILES: &[(&str, &str)] = &[];
+
 /// The library file `.l(name)` means: the last path component, without `.kg`.
 /// Returns the name to report in errors and the text.
 pub fn find(name: &str) -> Option<(&'static str, &'static str)> {
     let base = name.rsplit('/').next().unwrap_or(name);
     let base = base.strip_suffix(".kg").unwrap_or(base);
-    FILES.iter().find(|(n, _)| *n == base).map(|(n, t)| (*n, *t))
+    FILES.iter().chain(IPC_FILES.iter()).find(|(n, _)| *n == base).map(|(n, t)| (*n, *t))
 }

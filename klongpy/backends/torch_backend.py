@@ -800,11 +800,16 @@ class TorchBackendProvider(BackendProvider):
     def is_scalar_integer(self, x) -> bool:
         if isinstance(x, torch.Tensor) and x.ndim == 0:
             return x.dtype in (torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8)
+        if isinstance(x, numpy.ndarray) and x.ndim == 0:
+            # an item of a mixed (object) list is a 0-d numpy array on this backend too
+            return numpy.issubdtype(x.dtype, numpy.integer)
         return False
 
     def is_scalar_float(self, x) -> bool:
         if isinstance(x, torch.Tensor) and x.ndim == 0:
             return x.dtype in (torch.float16, torch.float32, torch.float64, torch.bfloat16)
+        if isinstance(x, numpy.ndarray) and x.ndim == 0:
+            return numpy.issubdtype(x.dtype, numpy.floating)
         return False
 
     def argsort(self, a, descending=False):

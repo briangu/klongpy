@@ -594,3 +594,14 @@ class TestMonadOnConditional(unittest.TestCase):
         self.assertEqual(k('n::{-:[x;2;3]};n(0)'), -3)
         self.assertEqual(k('c::{#[;x;x;x]};c(7)'), 3)
         self.assertEqual(k('a::2;-:[a=2;10;20]'), -10)
+
+
+class TestConditionOnDictionaryValue(unittest.TestCase):
+    """A zero stored in a dictionary is false in a conditional on every backend."""
+
+    def test_zero_from_a_dictionary_is_false(self):
+        from klongpy import KlongInterpreter
+        k = KlongInterpreter()
+        k('d:::{};d,"w",,0;d,"v",,5')
+        self.assertEqual(k(':[d?"w";1;2]'), 2)
+        self.assertEqual(k(':[d?"v";1;2]'), 1)

@@ -141,3 +141,39 @@ fn modules() {
     ok(".module(:a);n::1;f::{n};.module(0);.module(:b);n::2;.module(0);f()", "1");
 }
 
+
+/// Ticket 108: `.try(f; args)` gives an error as a value, `.err(kind; message)` raises one.
+#[test]
+fn try_gives_errors_as_values_and_err_raises_them() {
+    let ok = |text: &str, want: &str| assert_eq!(run(&mut rt(), text).as_deref(), Ok(want), "{}", text);
+    ok(".try({x+y};[1 2])", "[1 3]");
+    ok(".try({x};,[1 2 3])", "[1 [1 2 3]]");
+    ok("f::{42};.try(f;[])", "[1 42]");
+    ok(".try({x+y};[1 \"a\"])", "[0 \"type\" \"cannot apply + (Plus) to integer and string\"]");
+    ok(".try({[1 2 3]@x};,9)", "[0 \"range\" \"index 9 out of range for list of 3\"]");
+    ok("(.try(.E;,\"1+\"))@1", "\"syntax\"");
+    ok("(.try({nosuch(x)};,1))@1", "\"name\"");
+    // every kind a program may raise comes back as itself, with its message
+    for kind in ["syntax", "name", "arity", "type", "shape", "range", "system", "memory", "internal", "remote"] {
+        ok(&format!(".try({{.err(x;\"n1: gone\")}};,\"{kind}\")"), &format!("[0 \"{kind}\" \"n1: gone\"]"));
+        ok(&format!(".try({{.err(x;\"m\")}};,:{kind})"), &format!("[0 \"{kind}\" \"m\"]"));
+    }
+    // the evaluation goes on after a trapped error, at any depth
+    ok("g::{.try({.err(\"system\";x)};,x)};a::g(\"one\");b::.try({1+g(x)};,\"two\");(a@2),\"/\",b@1", "\"one/type\"");
+    let err = |text: &str, want: Kind| assert_eq!(run(&mut rt(), text), Err(want), "{}", text);
+    err(".err(\"type\";\"bad\")", Kind::Type);
+    err(".err(\"system\";\"n1: link down\")", Kind::System);
+    err(".err(\"nope\";\"x\")", Kind::Range);
+    err(".err(\"interrupt\";\"x\")", Kind::Range);
+    err(".err(\"type\";5)", Kind::Type);
+    err(".err(5;\"x\")", Kind::Type);
+    err(".try(5;[])", Kind::Type);
+    err(".try({x};\"ab\")", Kind::Type);
+    // a stop is not for the program to swallow
+    err(".try({.x(x)};,0);1", Kind::Interrupt);
+    // and the message is the one given
+    let mut r = rt();
+    let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let e = r.run(".err(\"range\";\"n2: index 9\")", "<test>").err().expect("an error");
+    assert_eq!((e.kind, &*e.message), (Kind::Range, "n2: index 9"));
+}

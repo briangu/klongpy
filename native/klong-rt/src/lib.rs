@@ -241,6 +241,67 @@ impl<P: Platform + 'static> Runtime<P> {
                 }
             }),
         );
+        // .try(f; args) and .err(kind; message): an error as a value, and a value as an error.
+        // A program that speaks for other nodes (the management service, ticket 108) has to
+        // survive their failures and pass them on as what they were.
+        interp.register(
+            ".try",
+            2,
+            Rc::new(|ip: &mut Interp, a: &[Value]| {
+                let (f, args) = match a {
+                    [f, args] => (f, args),
+                    _ => return Err(Error::arity(klong_core::msg!(".try takes 2 arguments, got {}", a.len()))),
+                };
+                if !matches!(f, Value::Fn(_) | Value::Prim(_)) {
+                    return Err(Error::typ(klong_core::msg!(".try: x must be a function, got {}", f.describe())));
+                }
+                let args = match args {
+                    Value::Str(_) | Value::Dict(_) => return Err(Error::typ(klong_core::msg!(".try: y must be the list of arguments, got {}", args.describe()))),
+                    v if v.is_empty() => Vec::new(),
+                    v => v.items().map_err(|_| Error::typ(klong_core::msg!(".try: y must be the list of arguments, got {}", v.describe())))?,
+                };
+                let n = args.len().min(255) as u8;
+                let mut r = klong_core::value::try_vec(3)?;
+                match ip.apply(f, args, Some(n)) {
+                    Ok(v) => {
+                        r.push(Value::Int(1));
+                        r.push(v);
+                    }
+                    // Ctrl-C and .x are not for the program to swallow
+                    Err(e) if e.kind == klong_core::Kind::Interrupt => return Err(e),
+                    Err(e) => {
+                        r.push(Value::Int(0));
+                        r.push(Value::text(e.kind.name())?);
+                        r.push(Value::text(&e.message)?);
+                    }
+                }
+                Value::from_items(r)
+            }),
+        );
+        interp.register(
+            ".err",
+            2,
+            Rc::new(|ip: &mut Interp, a: &[Value]| {
+                let (k, m) = match a {
+                    [k, m] => (k, m),
+                    _ => return Err(Error::arity(klong_core::msg!(".err takes 2 arguments, got {}", a.len()))),
+                };
+                let name = match k {
+                    Value::Str(s) => s.as_str(),
+                    Value::Sym(s) => ip.syms.name(*s),
+                    v => return Err(Error::typ(klong_core::msg!(".err: x must be the name of an error kind, got {}", v.describe()))),
+                };
+                use klong_core::Kind as K;
+                let kind = [K::Syntax, K::Name, K::Arity, K::Type, K::Shape, K::Range, K::System, K::Memory, K::Internal, K::Remote].into_iter().find(|c| c.name() == name);
+                let Some(kind) = kind else {
+                    return Err(Error::range(klong_core::msg!(".err: {} is not an error kind", name)));
+                };
+                match m {
+                    Value::Str(s) => Err(Error::new(kind, klong_core::msg!("{}", s.as_str()))),
+                    v => Err(Error::typ(klong_core::msg!(".err: y must be the message, a string, got {}", v.describe()))),
+                }
+            }),
+        );
         interp.register(
             ".module",
             1,
