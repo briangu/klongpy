@@ -69,7 +69,7 @@ f::{x^2}; s::5.0
 - **[A better REPL](docs/repl.md)**: multi-line entry, completion, history and `it`
 - **[kdb+ compatible IPC](docs/ipc_capabilities.md)**: the default wire protocol is kdb+, with tables, timestamps and credentials
 - **[The torch backend](docs/torch_backend.md)** and exact gradients
-- **[A conformance suite](docs/conformance.md)** of 1266 cases that does not depend on one implementation
+- **[A conformance suite](docs/conformance.md)** of 1270 cases that does not depend on one implementation
 - **[Compiling a static subset of Klong to C](docs/embedded.md)** for small targets
 - **[A native Rust runtime](docs/native/index.md)** that runs the full language without Python, including on an [ESP32-P4](docs/native/esp32-p4.md)
 - **Documentation that is checked by a tool**: the examples in the documentation are run by `scripts/check_docs.py`

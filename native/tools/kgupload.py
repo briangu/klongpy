@@ -486,31 +486,51 @@ def is_text(data):
     return b"\x00" not in data
 
 
-def main(argv=None):
-    ap = argparse.ArgumentParser(prog="kgupload.py", description="Upload to and run on a Klong board over its serial console.")
+def _common_options():
+    """The options every command takes. A fresh parser at each call: the parent's actions are
+    shared with the parsers that use it, and `set_defaults` changes the shared actions."""
+    common = argparse.ArgumentParser(add_help=False)
+    S = argparse.SUPPRESS
+    common.add_argument("--baud", type=int, default=S)
+    common.add_argument("--timeout", type=float, default=S)
+    common.add_argument("--run-timeout", type=float, default=S)
+    common.add_argument("--retries", type=int, default=S)
+    common.add_argument("--chunk", type=int, default=S)
+    common.add_argument("--chunk-delay", type=float, default=S, metavar="MS")
+    common.add_argument("--record", type=int, default=S)
+    common.add_argument("--window", type=int, default=S)
+    common.add_argument("--board-timeout", type=float, default=S)
+    common.add_argument("-v", "--verbose", action="store_true", default=S)
+    return common
+
+
+def build_parser():
+    # The options are accepted before or after the subcommand: the same options are added to the main
+    # parser and to every subcommand. They have no default of their own there (a
+    # default in a subparser would overwrite a value given before the subcommand); the
+    # defaults are set once, on the main parser.
+    common = _common_options()
+    ap = argparse.ArgumentParser(prog="kgupload.py", description="Upload to and run on a Klong board over its serial console.", parents=[common])
     ap.add_argument("port", help="serial device or pseudo-terminal")
-    ap.add_argument("--baud", type=int)
-    ap.add_argument("--timeout", type=float, default=10.0)
-    ap.add_argument("--run-timeout", type=float, default=60.0)
-    ap.add_argument("--retries", type=int, default=3)
-    ap.add_argument("--chunk", type=int, default=1024)
-    ap.add_argument("--chunk-delay", type=float, default=0.0, metavar="MS")
-    ap.add_argument("--record", type=int, default=16)
-    ap.add_argument("--window", type=int, default=32)
-    ap.add_argument("--board-timeout", type=float, default=BOARD_TIMEOUT)
-    ap.add_argument("-v", "--verbose", action="store_true")
+    ap.set_defaults(baud=None, timeout=10.0, run_timeout=60.0, retries=3, chunk=1024, chunk_delay=0.0, record=16, window=32,
+                    board_timeout=BOARD_TIMEOUT, verbose=False)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("ver", help="version, widths, features, free heap")
-    up = sub.add_parser("upload", help="store a file on the board")
+    sub.add_parser("ver", help="version, widths, features, free heap", parents=[_common_options()])
+    up = sub.add_parser("upload", help="store a file on the board", parents=[_common_options()])
     up.add_argument("file")
     up.add_argument("remote", nargs="?")
     how = up.add_mutually_exclusive_group()
     how.add_argument("--hex", action="store_true", help="send as Intel HEX (the default for files that are not UTF-8 text)")
     how.add_argument("--raw", action="store_true", help="send with put, whatever the file holds")
-    run = sub.add_parser("run", help="evaluate a program on the board without storing it")
+    run = sub.add_parser("run", help="evaluate a program on the board without storing it", parents=[_common_options()])
     run.add_argument("file", nargs="?")
     run.add_argument("-e", dest="expr", metavar="TEXT")
-    sub.add_parser("reset", help="restart the board with .x(0)")
+    sub.add_parser("reset", help="restart the board with .x(0)", parents=[_common_options()])
+    return ap
+
+
+def main(argv=None):
+    ap = build_parser()
     args = ap.parse_args(argv)
 
     if args.cmd == "run" and (args.file is None) == (args.expr is None):

@@ -95,7 +95,23 @@ klong> 1+1
 klong>
 ```
 
-Input that arrives while a program runs is kept, in order, up to 4096 bytes, and the rest is dropped.
+Input that arrives while a program runs is kept, in order, up to 4096 bytes, and the rest is dropped. A Ctrl-C ends the running program and discards the typed-ahead input that arrived before it; what comes after it is kept. One Ctrl-C ends one program: a second one is read at the prompt (it abandons the line being typed). It makes no difference how the bytes are split. Here the Ctrl-C comes in the same burst as the line that starts the loop, and the `2+` typed before it is discarded, while `1+1` after it is run:
+
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
+```console
+$ printf '{1}{x+1}:~0\n2+\003\n1+1\n' | klong-sim
+Klong 0.0.1 (sim, int64 float64)
+klong> {1}{x+1}:~0
+1:1: interrupt error: interrupted
+  {1}{x+1}:~0
+  ^^^^^^^^^^^
+klong>
+klong> 1+1
+2
+klong>
+```
+
+A Ctrl-C that arrives after the program has already finished is read at the prompt like any other. The `klong` program's own REPL has no Ctrl-C byte: on a pipe nothing can interrupt a runaway loop, and on a terminal Ctrl-C is the terminal's signal and ends the process.
 
 While a program runs the console is not answering anything else. A program that blocks the board for longer than the watchdog allows is reset by the watchdog: on the ESP32-P4 firmware the task watchdog is 30 seconds. Whether a runaway loop survives that on a board has not been tested; see the [porting checklist](porting.md).
 
@@ -210,7 +226,7 @@ ver=0.0.1 int=64 float=64 features=files,lib,timers,ipc platform=sim fs=1
 kgupload.py [OPTIONS] PORT SUBCOMMAND ...
 ```
 
-The options come before the subcommand.
+The options may stand before or after the subcommand (`kgupload.py PORT --chunk 100 upload f.kg` and `kgupload.py PORT upload --chunk 100 f.kg` are the same).
 
 | Subcommand | Does |
 |---|---|
@@ -324,9 +340,9 @@ Without `--port` it starts simulated boards, one per job, and talks to each thro
 <!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native conformance -->
 ```console
 $ python native/scripts/console_conformance.py | tail -1 | cut -c1-40
-total                         1266  1266
+total                         1270  1270
 ```
 
-That passed 1266 of 1266 on 2026-11-16 in about 2.4 seconds with 8 simulated boards. To make the simulation as small as a board, add `-- --stack-budget 64K --heap-limit 1M --crlf`; the simulated runs of the project gave 1265 of 1266 with a 64 KiB stack and 1264 with 32 KiB, because the missing cases recurse deeply and end with a `range` error. The same script ran against a real board, an ESP32-P4: 1266 of 1266 over the serial port in 1877 seconds, see the [ESP32-P4](esp32-p4.md) page.
+That passed 1270 of 1270 on 2026-11-16 in about 2.4 seconds with 8 simulated boards. To make the simulation as small as a board, add `-- --stack-budget 64K --heap-limit 1M --crlf`; the simulated runs of the project gave 1265 of 1266 with a 64 KiB stack and 1264 with 32 KiB, because the missing cases recurse deeply and end with a `range` error. The same script ran against a real board, an ESP32-P4: 1266 of 1266 over the serial port in 1877 seconds, see the [ESP32-P4](esp32-p4.md) page.
 
 The runner needs a `System::reset` that really resets, because without it all cases share one interpreter and some fail. It needs a banner within `--timeout`, and a `max_run` of at least the largest case (under 4 KiB). The `sysio` cases write files, and on a board without storage you leave them out with `--tags`. `--narrow` selects the cases of a build with `int32,float32`.

@@ -90,21 +90,25 @@ it has no start-up code).
 
 ## Budget
 
-Flash, linked image of `klong-board` (`sh native/scripts/measure.sh`; `opt-level = "z"`, LTO,
-`panic = "abort"`; i64 and f64 unless said; bytes):
+Flash, linked image of `klong-board` (`sh native/scripts/measure.sh`, section "klong-board-image";
+`opt-level = "z"`, LTO, `panic = "abort"`; i64 and f64 unless said; bytes; measured 2026-11-16, the
+same numbers as `docs/native/building.md` and `docs/native/porting.md`):
 
 | Target | Features | .text | .rodata | flash | of which console and main loop |
 |---|---|---|---|---|---|
-| thumbv7em-none-eabihf | files, lib | 175244 | 72184 | 247448 | 20212 |
-| | files, lib, int32, float32 | 160988 | 71968 | 232976 | |
-| | none | 165572 | 29196 | 194788 | 21068 |
-| riscv32imac-unknown-none-elf | files, lib | 216848 | 108216 | 325084 | 26218 |
-| | files, lib, int32, float32 | 203376 | 107208 | 310604 | |
-| | none | 204948 | 62828 | 267796 | 27452 |
+| thumbv7em-none-eabihf | files, lib | 176788 | 72656 | 249464 | 20564 |
+| | files, lib, int32, float32 | 162564 | 72440 | 235024 | |
+| | none | 167188 | 29676 | 196884 | 21436 |
+| riscv32imac-unknown-none-elf | files, lib | 218990 | 109092 | 328102 | 26850 |
+| | files, lib, int32, float32 | 205518 | 107984 | 313522 | |
+| | none | 207056 | 63664 | 270740 | 27984 |
 
 The console column is the difference to the same image running one fixed program instead.
 Static RAM is 48 bytes (`.data` + `.bss`) beside the heap. The Klong library is 42 KiB of
-`.rodata` (feature `lib`).
+`.rodata` (feature `lib`). These images have no IPC and no timers: IPC adds roughly 42 KB on
+thumbv7em and 59 KB on riscv32imac, timers 1.7 and 2.5 KB, the `mgmt` library 12.7 KB, and
+`.try` and `.err` 1.7 and 2.3 KB (older figures, not re-measured). The ESP32-P4 image is
+692 KB (speed profile, with ESP-IDF).
 
 RAM:
 - Console state: 432 bytes (32-bit) inside the board's main structure, plus on the heap at
@@ -116,6 +120,10 @@ RAM:
 - Interpreter (ticket 103): about 12 KiB after start-up; `1+1` needs 1.5 KiB more; a
   dictionary of 100 entries 26 KiB; `.l("csv")` 50 KiB; `.l("math")` 495 KiB; `.l("nstat")`
   1.04 MiB. Parsed source costs 20 to 30 bytes of heap per byte of source.
+- IPC, per connection (`native/scripts/ipc_bench.py`, host, 2026-11-16): 2149 bytes of heap per
+  idle connection on a server and 2303 on a client (handle included), plus one read buffer shared
+  by all connections (64 KiB on a 64-bit host, 1 KiB on a 32-bit target) and the message being
+  received; 66 KB left over after 100 connections closed.
 - Practical floors: 64 KiB of heap runs expressions and small programs (the conformance
   suite: all but 1 case at 64 KiB in ticket 103's run); 256 KiB runs the whole suite; 1 MiB
   is needed for the larger library files.
@@ -155,7 +163,7 @@ RAM:
 Per case the runner sends `.x(0)` (the board resets and prints its banner: a fresh
 interpreter), `.strict(N)` when the case has a strict tag, and the program with `^A run`; it
 compares the value, the console output and the error kind with the case. Without `--port` it
-does the same against simulated boards (1266 of 1266 on the default build; add
+does the same against simulated boards (1270 of 1270 on the default build; add
 `-- --stack-budget 64K --heap-limit 1M --crlf` to make the simulation as small as a board).
 Needs: `System::reset` that really resets (or the cases share one interpreter and some fail),
 a banner within `--timeout`, and `max_run` of at least the largest case (under 4 KiB).

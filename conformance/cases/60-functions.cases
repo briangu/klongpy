@@ -100,6 +100,24 @@
 > ap({7})
 = 7
 
+# A function literal without arguments is evaluated where it stands, also as an argument:
+# the callee receives its value, not a function. A name that holds one is a value that can be passed.
+@ functions.fn-nilad-literal-as-argument-is-called core
+> f::{x+1}
+> f({41})
+= 42
+
+@ functions.fn-nilad-literal-as-argument-last-statement core
+> f::{x}
+> f({1;2;3})
+= 3
+
+@ functions.fn-nilad-name-as-argument-is-the-function core
+> f::{x()}
+> g::{41}
+> f(g)
+= 41
+
 @ functions.fn-extra-name-in-body-is-global core
 > k::10
 > {x+k}(1)

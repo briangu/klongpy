@@ -50,7 +50,64 @@ $ klong -e '+/!100'
 | `klong --dump-ast FILE` | print the canonical parse tree of a file and exit |
 | `klong --conformance` | the runner protocol of the conformance suite: the program is read from standard input |
 
-There is no `--help`. An option that `klong` does not know prints a usage line and exits with status 2. The usage line shows only a few of the options below.
+`klong --help` (or `-h`) prints the forms and every option and exits with status 0; `klong --version` prints the version. An option that `klong` does not know prints the same text on standard error and exits with status 2. This is the output, and it is checked against the program:
+
+<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+```console
+$ klong --help
+usage: klong [OPTIONS] [FILE [ARG ...] | -e EXPR | --conformance | --dump-ast FILE]
+
+Without FILE or -e: a read-eval-print loop on standard input.
+  FILE [ARG ...]        run a file; the arguments are in .a
+  -e EXPR               evaluate EXPR and print its value
+  --conformance         the runner protocol of conformance/README.md (program on stdin)
+  --dump-ast FILE       print the canonical parse tree of FILE and exit
+
+Options (before FILE or -e; sizes accept the suffixes K and M):
+  --strict N            strict level 0, 1 or 2
+  --heap-limit BYTES    most the program may allocate (default: no limit)
+  --max-depth N         most nested evaluations before a range error (default 512)
+  --steps N             stop after about N calls and adverb iterations (interrupt)
+  --stack BYTES         native stack of the evaluating thread (default 64M)
+  --stack-budget BYTES  set the limits as a board with a task stack of this size would
+  --max-nest N          most levels of nested lists (default 128)
+  --stats               print peak heap, nesting and stack figures on standard error
+  --bench N             with -e: best time of N runs on standard error, in nanoseconds
+  --memfs               the file functions work on an empty file system in memory
+  --fail-every N        make every Nth large allocation fail (out-of-memory testing)
+  -h, --help            print this text and exit
+  --version             print the version and exit
+$ klong --version
+klong 0.0.1
+```
+
+`klong-sim` has the same two options:
+
+<!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
+```console
+$ klong-sim --help
+usage: klong-sim [OPTIONS]
+
+A simulated board: the real serial console on standard input and output.
+  --pty                 serve a pseudo-terminal instead; the first output line is `pty: DEVICE`
+  --check-complete      read one entry per line as hex digits, answer complete, incomplete or error
+  --dumb                no echo, no editing
+  --crlf                end output lines with CR LF
+  --no-fs               a board without a file system
+  --fs-bytes N          size of the RAM file system (default 8M)
+  --heap-limit N        heap budget of the program (default: none)
+  --stack-budget N      set the limits as a board with a task stack of N bytes would
+  --stack N             native stack of the evaluating thread (default 64M)
+  --strict N            strict level 0, 1 or 2
+  --max-line N          longest input line
+  --max-entry N         longest multi-line entry
+  --max-run N           longest program sent with ^A run
+  --max-file N          longest file sent with ^A put or ^A hex
+  --timeout-ms N        a transfer with no byte for this long is abandoned
+  -h, --help            print this text and exit
+  --version             print the version and exit
+Sizes take the suffixes K and M. End of input ends the program.
+```
 
 ### `-e`
 
@@ -134,6 +191,8 @@ Options go before `FILE` or `-e`. Sizes accept the suffixes `K` and `M` (1024 an
 | `--bench N` | with `-e`: time `N` runs of the expression and print the best on standard error, in nanoseconds |
 | `--memfs` | the file functions work on an empty file system in memory, not on the real files (for fuzzing) |
 | `--fail-every N` | make every `N`th large allocation fail, to test out-of-memory handling |
+| `-h`, `--help` | print the usage and exit with status 0 |
+| `--version` | print the version and exit |
 
 `.l` looks for a file in the directories of the environment variable `KLONGPATH` (default `.:lib`, colon separated) and, when it finds none, in the library built into the program.
 
@@ -258,16 +317,16 @@ The language is checked by the cases in `conformance/cases`, which KlongPy and t
 <!-- check-docs: requires-file native/target/release/klong; link native conformance -->
 ```console
 $ python native/scripts/conformance.py | tail -1 | cut -c1-40
-total                         1266  1266
+total                         1270  1270
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1266 of 1266 on this machine on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1270 of 1270 on this machine on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
 KLONG_NATIVE=native/target/narrow/release/klong python native/scripts/conformance.py --narrow
 ```
 
-That gave 1153 of 1153 with the narrow build above. The parse trees of the golden files match too: `python conformance/run.py --trees --cmd native/target/release/klong` reported `169 of 169 trees match`. The same suite runs through the serial console of a simulated board and of a real one, see [Serial Console and Upload](console.md).
+That gave 1156 of 1156 with the narrow build above. The parse trees of the golden files match too: `python conformance/run.py --trees --cmd native/target/release/klong` reported `169 of 169 trees match`. The same suite runs through the serial console of a simulated board and of a real one, see [Serial Console and Upload](console.md).
 
 Not every case runs on every build. A case carries tags, and a build runs the cases whose tags it declares. The default build leaves out the tags `bigint` (it wraps), `torch-only` and `kgpy-only` (KlongPy's own), `desktop` (Python interop, databases, web) and the `timers` and `ipc` tiers, which have no cases. The narrow build also leaves out `float`, `string-fmt` and `width64`, the cases that pin 64-bit results.
 
@@ -291,12 +350,12 @@ The width features do not change the size of a 64-bit program in any useful way.
 
 | Target | Features | `.text` | `.rodata` | flash |
 |---|---|---|---|---|
-| `thumbv7em-none-eabihf` | `files`, `lib` | 176,364 | 72,656 | 249,040 |
-| | `files`, `lib`, `int32`, `float32` | 162,076 | 72,440 | 234,536 |
-| | none | 166,700 | 29,676 | 196,396 |
-| `riscv32imac-unknown-none-elf` | `files`, `lib` | 218,404 | 108,956 | 327,380 |
-| | `files`, `lib`, `int32`, `float32` | 204,900 | 107,928 | 312,848 |
-| | none | 206,504 | 63,568 | 270,092 |
+| `thumbv7em-none-eabihf` | `files`, `lib` | 176,788 | 72,656 | 249,464 |
+| | `files`, `lib`, `int32`, `float32` | 162,564 | 72,440 | 235,024 |
+| | none | 167,188 | 29,676 | 196,884 |
+| `riscv32imac-unknown-none-elf` | `files`, `lib` | 218,990 | 109,092 | 328,102 |
+| | `files`, `lib`, `int32`, `float32` | 205,518 | 107,984 | 313,522 |
+| | none | 207,056 | 63,664 | 270,740 |
 
 These images have no IPC and no timers. IPC adds about 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, and the `mgmt` library 12.7 KB (figures from the work on those features; they were not re-measured for this page). The firmware for the [ESP32-P4](esp32-p4.md) is 692 KB, but it is built with `opt-level` 3 and carries ESP-IDF.
 

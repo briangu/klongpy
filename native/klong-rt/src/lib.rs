@@ -50,6 +50,15 @@ pub struct Shared<P: Platform> {
     /// Console bytes read while an evaluation was running (for the line editor of ticket 104;
     /// `.rl` on the console reads them too).
     pub pending: RefCell<Vec<u8>>,
+    /// A Ctrl-C that the console found in input it had already read when an evaluation
+    /// started: the next tick reports it (an evaluation that ends before its first tick
+    /// leaves it to the console's ordinary input). The console clears it when the evaluation ends.
+    pub interrupt_armed: core::cell::Cell<bool>,
+    /// A Ctrl-C was read from the port during the evaluation (the console then drops the
+    /// input it had read ahead before the evaluation: it was typed before the Ctrl-C).
+    pub ctrl_c_seen: core::cell::Cell<bool>,
+    /// The tick reported the armed Ctrl-C.
+    pub armed_hit: core::cell::Cell<bool>,
     pub(crate) io: RefCell<Io>,
 }
 
@@ -68,6 +77,44 @@ pub(crate) struct Io {
 }
 
 impl<P: Platform> Shared<P> {
+    /// Read what has arrived on the console during an evaluation. The first Ctrl-C (0x03) is
+    /// reported (true) and the typed-ahead input received before it is discarded. Everything
+    /// after it, including further Ctrl-C bytes, is kept in order for the console: one
+    /// Ctrl-C ends one evaluation. Typed-ahead input is bounded (4096 bytes).
+    pub(crate) fn scan_console(&self, p: &mut P) -> bool {
+        let mut buf = [0u8; 32];
+        let armed = self.interrupt_armed.replace(false);
+        if armed {
+            self.armed_hit.set(true);
+        }
+        let mut stop = armed;
+        loop {
+            let n = p.console_read(&mut buf);
+            if n == 0 {
+                break;
+            }
+            for &b in &buf[..n] {
+                if b == 0x03 && !stop {
+                    stop = true;
+                    self.ctrl_c_seen.set(true);
+                    if let Ok(mut q) = self.pending.try_borrow_mut() {
+                        q.clear();
+                    }
+                } else if let Ok(mut q) = self.pending.try_borrow_mut() {
+                    // typed-ahead input is bounded: a board has no room for an unread flood
+                    if q.len() < 4096 && q.try_reserve(1).is_ok() {
+                        q.push(b);
+                    }
+                }
+            }
+            if stop {
+                // (the rest stays at the port until the next tick: a later Ctrl-C is for a later evaluation)
+                break;
+            }
+        }
+        stop
+    }
+
     /// Write to the console, whatever the To channel is.
     pub fn console(&self, s: &str) {
         if let Ok(mut p) = self.platform.try_borrow_mut() {
@@ -89,25 +136,7 @@ impl<P: Platform> Hooks for RtHooks<P> {
             Err(_) => return false,
         };
         p.idle();
-        let mut buf = [0u8; 32];
-        let mut stop = false;
-        loop {
-            let n = p.console_read(&mut buf);
-            if n == 0 {
-                break;
-            }
-            for &b in &buf[..n] {
-                if b == 0x03 {
-                    stop = true;
-                } else if let Ok(mut q) = self.shared.pending.try_borrow_mut() {
-                    // typed-ahead input is bounded: a board has no room for an unread flood
-                    if q.len() < 4096 && q.try_reserve(1).is_ok() {
-                        q.push(b);
-                    }
-                }
-            }
-        }
-        stop
+        self.shared.scan_console(&mut p)
     }
 }
 
@@ -144,6 +173,9 @@ impl<P: Platform + 'static> Runtime<P> {
         let shared = Rc::new(Shared {
             platform: RefCell::new(platform),
             pending: RefCell::new(Vec::new()),
+            interrupt_armed: core::cell::Cell::new(false),
+            ctrl_c_seen: core::cell::Cell::new(false),
+            armed_hit: core::cell::Cell::new(false),
             io: RefCell::new(Io { from: Value::Undefined, to: Value::Undefined, cin: Value::Undefined, cout: Value::Undefined, rng, start_us, path }),
         });
         let mut interp = Interp::new(cfg, Box::new(RtHooks { shared: shared.clone() }));

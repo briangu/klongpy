@@ -244,3 +244,37 @@ fn found_by_fuzzing() {
     // the shape of a deep list was exponential in its depth
     ok(&format!("^{}1{}", "[".repeat(60), "]".repeat(60)), &format!("[{}]", vec!["1"; 60].join(" ")));
 }
+
+#[test]
+fn integer_power_is_exact_when_it_fits_and_wraps_when_it_does_not() {
+    ok("2^10", "1024");
+    ok("(-2)^3", "-8");
+    ok("3^0", "1");
+    ok("0^0", "1");
+    ok("[1 2 3]^2", "[1 4 9]");
+    #[cfg(not(feature = "int32"))]
+    {
+        ok("2^62", "4611686018427387904");
+        // wraps at 64 bits like `*`; it does not saturate at the largest integer
+        ok("2^63", "-9223372036854775808");
+        ok("2^64", "0");
+        ok("3^40", "-6289078614652622815");
+        ok("(-2)^63", "-9223372036854775808");
+        ok("10^19", "-8446744073709551616");
+        ok("2^63", &run("2*2^62").unwrap());
+        ok("[2 3]^[63 40]", "[-9223372036854775808 -6289078614652622815]");
+    }
+    #[cfg(feature = "int32")]
+    {
+        ok("2^30", "1073741824");
+        ok("2^31", "-2147483648");
+        ok("2^32", "0");
+        ok("3^21", "1870418611");
+        ok("3^22", "1316288537");
+        ok("2^31", &run("2*2^30").unwrap());
+    }
+    // a negative exponent or a fraction gives a float; a whole float result is an integer
+    ok("2^-1", "0.5");
+    ok("4^0.5", "2");
+    ok("1^-1", "1");
+}

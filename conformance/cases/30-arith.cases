@@ -283,6 +283,10 @@
 > 2^62
 = 4611686018427387904
 
+@ arith.pow-large-exact-in-i64-list core width64
+> [7 10]^[22 18]
+= [3909821048582988049 1000000000000000000]
+
 # Comparison
 @ arith.less core
 > 1<2

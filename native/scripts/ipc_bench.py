@@ -133,6 +133,9 @@ def main():
         print(f"native server: {used(server) - base} bytes left after all 100 connections closed")
     finally:
         server.stop()
+    # (os._exit skips the flush of the buffered output that a pipe gets)
+    sys.stdout.flush()
+    sys.stderr.flush()
     os._exit(0)
 
 

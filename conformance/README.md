@@ -91,14 +91,14 @@ Marks (documented differences, `native-runtime.md` section 11):
 |---|---|
 | `width64` | needs 64-bit integers or floats; a 32-bit build skips it |
 | `bigint` | needs integers beyond the build width (no case yet: KlongPy's scalar behaviour is being changed) |
-| `unicode` | counts or indexes non-ASCII text (KlongPy: code points; native: bytes) |
+| `unicode` | counts or indexes non-ASCII text, in code points (KlongPy and the native runtime both count code points; a runtime that counts bytes does not declare it) |
 | `device` | needs a depth limit, a heap limit or a console |
 
 Capability tags:
 
 | Tag | Meaning |
 |---|---|
-| `float` | needs floating point numbers |
+| `float` | needs floating point numbers; the cases expect `f64` (64-bit) results, so a build with 32-bit floats (the native `float32` feature) does not declare it |
 | `string-fmt` | depends on the exact float text (Python `repr`: `1e+22`, `1e-07`, `0.30000000000000004`) |
 | `strict1`, `strict2` | the runner starts the interpreter at that strict level (`--strict N`) |
 

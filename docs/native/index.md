@@ -28,7 +28,7 @@ $ klong -e '.l("nstat");.p(sd([1 2 3 4]))'
 
 ## How it relates to KlongPy
 
-It is the **same language**, and that is checked and not only intended. The repository has a conformance suite, `conformance/cases`, of 1266 cases at the time of writing for the default build. Each case is a program, the printed value or the error kind it must produce, and optionally the console output. KlongPy runs the suite and the native runtime runs the same files, through a small command-line protocol, with no Python. KlongPy is the reference: a case that KlongPy fails is either a KlongPy bug, which goes to a pending list, or a wrong case. The 169 golden parse trees of KlongPy's own tests are matched byte for byte as well.
+It is the **same language**, and that is checked and not only intended. The repository has a conformance suite, `conformance/cases`, of 1270 cases at the time of writing for the default build. Each case is a program, the printed value or the error kind it must produce, and optionally the console output. KlongPy runs the suite and the native runtime runs the same files, through a small command-line protocol, with no Python. KlongPy is the reference: a case that KlongPy fails is either a KlongPy bug, which goes to a pending list, or a wrong case. The 169 golden parse trees of KlongPy's own tests are matched byte for byte as well.
 
 These are the differences. All of them follow from having no Python and no numpy, or from running on a small device.
 
@@ -68,10 +68,10 @@ Two more things are worth knowing. The REPL of the desktop `klong` program is si
 
 | Area | Result | Where it ran |
 |---|---|---|
-| The language, default build (64-bit) | 1266 of 1266 conformance cases; 169 of 169 parse trees | desktop |
-| The language, 32-bit build (`int32`, `float32`) | 1153 of 1153 cases that the build declares | desktop |
+| The language, default build (64-bit) | 1270 of 1270 conformance cases; 169 of 169 parse trees | desktop |
+| The language, 32-bit build (`int32`, `float32`) | 1156 of 1156 cases that the build declares | desktop |
 | The embedded library | all twelve files load, at strict levels 0, 1 and 2 | desktop |
-| The serial console | 1266 of 1266 cases through `^A run` | simulated boards |
+| The serial console | 1270 of 1270 cases through `^A run` | simulated boards |
 | The serial console | 1266 of 1266 cases over the serial port, in 1877 seconds | **an ESP32-P4** |
 | REPL, line editing, Ctrl-C on a runaway loop, the embedded library, uploads | work | **an ESP32-P4** |
 | Speed | `fib(24)` 4.2 s on the board, against about 35 ms on an Apple-silicon Mac; **the cause is not investigated** | an ESP32-P4 and the Mac |
@@ -93,7 +93,7 @@ Two more things are worth knowing. The REPL of the desktop `klong` program is si
 
 Known issues on the board:
 
-* After a reset the first line can fail with `input is not valid UTF-8`, because of a stray byte. Send the line again.
+* After a reset the first line can fail with `input is not valid UTF-8`, because of a stray byte. Send the line again. (The firmware source flushes the receive buffer at start-up now; not yet tried on the board.)
 * Opening the serial port resets the board, and the RAM file system is lost at every reset.
 * `fib(24)` is far slower on the board than the clock would suggest, and nobody has found out why.
 

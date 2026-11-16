@@ -67,7 +67,7 @@ esptool --chip esp32p4 -p PORT -b 460800 --before default-reset --after hard-res
 Open the port at 115200 8N1 with no flow control, with any terminal program that opens a serial device. Two things are worth knowing before you do.
 
 * **Opening the port resets the board.** The USB-serial bridge toggles DTR and RTS, which reset the chip, so you see the boot log every time you open the port. A program that holds the board's state in RAM loses it. The upload tool waits for the banner after it opens the port.
-* **After a reset the first line you send can fail** with `input is not valid UTF-8`. A stray byte arrives with or after the boot, and the console takes it into the line you type. This is a known issue. Press Enter once, or Ctrl-C, and type the line again.
+* **After a reset the first line you send can fail** with `input is not valid UTF-8`. A stray byte arrives with or after the boot, and the console takes it into the line you type. This is a known issue on the image that was flashed on 2026-11-16. The firmware source now discards the receive buffer, waits 30 ms and checks again, before the banner is printed (`drain_rx` in `main.c`); that has been built but not yet tried on the board. With an image from before that change, press Enter once, or Ctrl-C, and type the line again.
 
 ## What you see
 

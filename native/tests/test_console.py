@@ -359,8 +359,13 @@ class TestUploadTool(unittest.TestCase):
         time.sleep(0.1)
         self.assertNotIn(b"klong> ", port.drain())
         port.write(b"\x03")
-        out = self.read_until(port, b"4\nklong> ")
+        out = self.read_until(port, b"klong> ")
         self.assertIn(b"interrupt error", out)
+        # what was typed ahead before the Ctrl-C is discarded (docs/native/console.md); what comes after is run
+        time.sleep(0.2)
+        self.assertNotIn(b"4\n", port.drain())
+        port.write(b"2+2\r")
+        out = self.read_until(port, b"4\nklong> ")
         # the board is as alive as before
         self.assertEqual(kg.Board(port, timeout=5.0).sync()["platform"], "sim")
 
@@ -495,6 +500,34 @@ class TestUploadTool(unittest.TestCase):
         p = subprocess.run([sys.executable, TOOL, "/dev/does-not-exist", "ver"], capture_output=True, timeout=30)
         self.assertEqual(p.returncode, 3)
         self.assertIn(b"cannot open", p.stderr)
+
+    def test_options_come_before_or_after_the_subcommand(self):
+        ap = kg.build_parser()
+        before = ap.parse_args(["PORT", "--chunk", "64", "--chunk-delay", "2", "-v", "upload", "f.kg", "r.kg"])
+        after = ap.parse_args(["PORT", "upload", "--chunk", "64", "--chunk-delay", "2", "-v", "f.kg", "r.kg"])
+        last = ap.parse_args(["PORT", "upload", "f.kg", "r.kg", "--chunk", "64", "--chunk-delay", "2", "-v"])
+        self.assertEqual(vars(before), vars(after))
+        self.assertEqual(vars(before), vars(last))
+        self.assertEqual((before.chunk, before.chunk_delay, before.verbose, before.window), (64, 2.0, True, 32))
+        # a value given before the subcommand is not overwritten by the subcommand's default
+        both = ap.parse_args(["PORT", "--timeout", "3", "run", "-e", "1", "--retries", "5"])
+        self.assertEqual((both.timeout, both.retries, both.run_timeout, both.expr), (3.0, 5, 60.0, "1"))
+        for cmd in ("ver", "reset"):
+            self.assertEqual(ap.parse_args(["PORT", cmd, "--baud", "9600"]).baud, 9600)
+        # defaults are unchanged
+        d = ap.parse_args(["PORT", "ver"])
+        self.assertEqual((d.baud, d.timeout, d.chunk, d.chunk_delay, d.record, d.window, d.verbose), (None, 10.0, 1024, 0.0, 16, 32, False))
+        # and it works end to end, with the options after the subcommand
+        s = self.sim()
+        with tempfile.TemporaryDirectory() as t:
+            src = os.path.join(t, "big.kg")
+            with open(src, "w") as f:
+                f.write("x::7\n" * 100)
+            code, out, err = self.tool(s, "upload", "--chunk", "100", "--chunk-delay", "1", src)
+            self.assertEqual((code, err), (0, ""))
+            self.assertRegex(out, r"^big\.kg: 500 bytes, ")
+        code, out, err = self.tool(s, "ver", "--timeout", "20")
+        self.assertEqual(code, 0, err)
 
     def test_a_board_that_does_not_answer(self):
         # a pseudo-terminal with nobody behind it

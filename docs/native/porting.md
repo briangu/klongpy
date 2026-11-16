@@ -101,12 +101,12 @@ The C interface of the firmware has `files`, `lib` and `timers`. It has no IPC: 
 
 | Target | Features | `.text` | `.rodata` | flash |
 |---|---|---|---|---|
-| `thumbv7em-none-eabihf` | `files`, `lib` | 176,364 | 72,656 | 249,040 |
-| | `files`, `lib`, `int32`, `float32` | 162,076 | 72,440 | 234,536 |
-| | no `files`, no `lib` | 166,700 | 29,676 | 196,396 |
-| `riscv32imac-unknown-none-elf` | `files`, `lib` | 218,404 | 108,956 | 327,380 |
-| | `files`, `lib`, `int32`, `float32` | 204,900 | 107,928 | 312,848 |
-| | no `files`, no `lib` | 206,504 | 63,568 | 270,092 |
+| `thumbv7em-none-eabihf` | `files`, `lib` | 176,788 | 72,656 | 249,464 |
+| | `files`, `lib`, `int32`, `float32` | 162,564 | 72,440 | 235,024 |
+| | no `files`, no `lib` | 167,188 | 29,676 | 196,884 |
+| `riscv32imac-unknown-none-elf` | `files`, `lib` | 218,990 | 109,092 | 328,102 |
+| | `files`, `lib`, `int32`, `float32` | 205,518 | 107,984 | 313,522 |
+| | no `files`, no `lib` | 207,056 | 63,664 | 270,740 |
 
 These include the console. Static RAM (`.data` and `.bss`) is 48 bytes beside the heap. The Klong library is about 42 KiB of `.rodata` (the `lib` feature). IPC adds roughly 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, the `mgmt` library 12.7 KB, and `.try` and `.err` 1.7 and 2.3 KB (figures from the work on those features, not re-measured for this page). The ESP32-P4 image is 692 KB, but it is built with the speed profile and includes ESP-IDF.
 

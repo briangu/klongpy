@@ -239,6 +239,87 @@ fn console_survives_random_and_mutated_streams() {
     assert!(replies > 0 && errors > 0);
 }
 
+/// Runaway loops and Ctrl-C in bursts: a Ctrl-C that arrives with the line that starts a loop,
+/// after it, inside typed-ahead text, twice, or one byte at a time, always ends the loop, and
+/// the console answers afterwards. The bound is virtual time: one idle per tick of the
+/// evaluator (4096 steps), and a loop that is not interrupted runs into the step limit (1000 idles).
+#[test]
+fn ctrl_c_in_bursts_ends_every_runaway_loop() {
+    let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    const NOISE: &[&[u8]] = &[b"2+", b"\n", b"3*3\n", b"\x03", b"1+1\n", b"7", b"\r\n", b"\x03\x03", b"[1 2\n", b"\x1b[D", b"{x}\n"];
+    let streams = env("KLONG_FUZZ_STREAMS", 1500).min(600);
+    let mut rng = Rng(env("KLONG_FUZZ_SEED", 104).wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
+    for n in 0..streams {
+        let mut stream: Vec<u8> = Vec::new();
+        for _ in 0..1 + rng.below(4) {
+            for _ in 0..rng.below(3) {
+                stream.extend(NOISE[rng.below(NOISE.len())]);
+            }
+            stream.extend(b"{1}{x+1}:~0\n");
+            for _ in 0..rng.below(5) {
+                let w = NOISE[rng.below(NOISE.len())];
+                if w != b"\x03" && w != b"\x03\x03" {
+                    stream.extend(w);
+                }
+            }
+            // the Ctrl-C that belongs to this loop (more noise may follow it)
+            stream.push(0x03);
+            for _ in 0..rng.below(3) {
+                stream.extend(NOISE[rng.below(NOISE.len())]);
+            }
+        }
+        let dumb = rng.chance(30);
+        let config = Config { step_limit: Some(4096 * 1000), ..Config::default() };
+        let mut s = Sim::new(SimOptions { console: ConsoleConfig { dumb, ..ConsoleConfig::default() }, config, fs_bytes: None, crlf: false, mem: None });
+        s.wire.set_us_per_idle(1000);
+        s.run();
+        let mut rest = &stream[..];
+        let mut delay = 0;
+        let mut first = true;
+        let mut plan: Vec<(u64, String)> = Vec::new();
+        let burst = rng.below(40);
+        s.wire.set_burst(burst);
+        if rng.chance(40) {
+            // all of it in one burst: the console reads ahead past the line that starts a loop
+            s.wire.send(rest);
+            plan.push((0, String::from_utf8_lossy(rest).into_owned()));
+            rest = &[];
+        }
+        while !rest.is_empty() {
+            let most = if rng.chance(50) { 4 } else { 60 };
+            let take = (1 + rng.below(most)).min(rest.len());
+            if delay == 0 && (first || rng.chance(40)) {
+                // (in order: nothing is sent directly once something is held back)
+                s.wire.send(&rest[..take]);
+                plan.push((0, String::from_utf8_lossy(&rest[..take]).into_owned()));
+            } else {
+                // arrives while the board is busy
+                delay += 1 + rng.below(2) as u64;
+                s.wire.send_after_idles(delay, &rest[..take]);
+                plan.push((delay, String::from_utf8_lossy(&rest[..take]).into_owned()));
+            }
+            first = false;
+            rest = &rest[take..];
+        }
+        // held bytes arrive only while the board idles: let time pass when it is at rest
+        let mut rounds = 0;
+        let mut transcript = Vec::new();
+        loop {
+            transcript.extend(s.run());
+            if s.wire.unread() == 0 {
+                break;
+            }
+            s.console.rt.shared.platform.borrow_mut().port.idle();
+            rounds += 1;
+            assert!(rounds < 100_000, "stream {n}: input never arrives");
+        }
+        assert!(s.wire.idles() < 500, "stream {n}: {} idles (a loop was not interrupted) burst {burst} dumb {dumb} plan {:?}: {:?}", s.wire.idles(), plan, String::from_utf8_lossy(&transcript));
+        assert!(!s.console.busy(), "stream {n}: still busy");
+        let answer = s.io(b"\x03\n1+1\n");
+        assert!(answer.replace('\r', "").ends_with("2\n") || answer.contains("2\nklong> "), "stream {n}: {answer:?} after {:?}", String::from_utf8_lossy(&stream));
+    }
+}
+
 #[test]
 fn hex_parser_survives_and_never_accepts_a_damaged_record() {
     let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());

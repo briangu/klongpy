@@ -254,6 +254,9 @@ impl Interp {
     /// the program then runs where the call was made, and sees the locals of its callers.
     pub fn run(&mut self, text: &str, name: &str) -> Result<Option<Value>> {
         if self.running == 0 {
+            // the nesting bound is one value for the process (see `value::set_max_nest`): the
+            // interpreter that runs asserts its own, whichever was created last
+            crate::value::set_max_nest(self.cfg.max_nest);
             self.stack_base = stack_here();
             // a failure deferred by something outside an evaluation is not this program's
             let _ = crate::value::take_deferred();

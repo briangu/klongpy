@@ -347,14 +347,16 @@ pub(crate) fn text_of(v: &Value) -> Option<Txt<'_>> {
 fn atom_op(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> {
     if let (Some(x), Some(y)) = (num(a), num(b)) {
         if op == Atomic::Pow {
-            // KlongPy: a power whose result is a whole number is an integer.
+            // An integer to a non-negative integer power is an integer: exact when it fits,
+            // wrapping at the build width when it does not, as `+ - *` do.
+            if let (Num::I(i), Num::I(j)) = (x, y) {
+                if j >= 0 {
+                    return Ok(Value::Int(int_pow(i, j)));
+                }
+            }
+            // KlongPy: any other power whose result is a whole number is an integer.
             let r = m::pow(x.f(), y.f());
             if r.is_finite() && m::trunc(r) == r {
-                if let (Num::I(i), Num::I(j)) = (x, y) {
-                    if j >= 0 && fabs(r) < 9.0e15 {
-                        return Ok(Value::Int(int_pow(i, j)));
-                    }
-                }
                 return Ok(Value::Int(flt_to_int(r)?));
             }
             if !r.is_finite() && !r.is_nan() {

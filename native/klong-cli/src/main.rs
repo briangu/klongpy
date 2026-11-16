@@ -71,8 +71,33 @@ fn size_arg(s: &str) -> Option<usize> {
     digits.parse::<usize>().ok()?.checked_mul(mult)
 }
 
+const HELP: &str = "\
+usage: klong [OPTIONS] [FILE [ARG ...] | -e EXPR | --conformance | --dump-ast FILE]
+
+Without FILE or -e: a read-eval-print loop on standard input.
+  FILE [ARG ...]        run a file; the arguments are in .a
+  -e EXPR               evaluate EXPR and print its value
+  --conformance         the runner protocol of conformance/README.md (program on stdin)
+  --dump-ast FILE       print the canonical parse tree of FILE and exit
+
+Options (before FILE or -e; sizes accept the suffixes K and M):
+  --strict N            strict level 0, 1 or 2
+  --heap-limit BYTES    most the program may allocate (default: no limit)
+  --max-depth N         most nested evaluations before a range error (default 512)
+  --steps N             stop after about N calls and adverb iterations (interrupt)
+  --stack BYTES         native stack of the evaluating thread (default 64M)
+  --stack-budget BYTES  set the limits as a board with a task stack of this size would
+  --max-nest N          most levels of nested lists (default 128)
+  --stats               print peak heap, nesting and stack figures on standard error
+  --bench N             with -e: best time of N runs on standard error, in nanoseconds
+  --memfs               the file functions work on an empty file system in memory
+  --fail-every N        make every Nth large allocation fail (out-of-memory testing)
+  -h, --help            print this text and exit
+  --version             print the version and exit
+";
+
 fn usage() -> ExitCode {
-    eprintln!("usage: klong [--strict N] [--heap-limit BYTES] [--max-depth N] [--steps N] [--stats] [FILE | -e EXPR | --conformance | --dump-ast FILE]");
+    eprint!("{}", HELP);
     ExitCode::from(2)
 }
 
@@ -81,6 +106,15 @@ fn parse_args() -> Option<Opts> {
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
         match a.as_str() {
+            // (before FILE only: after it the arguments are the program's)
+            "-h" | "--help" if o.file.is_none() => {
+                print!("{}", HELP);
+                std::process::exit(0);
+            }
+            "--version" if o.file.is_none() => {
+                println!("klong {}", env!("CARGO_PKG_VERSION"));
+                std::process::exit(0);
+            }
             "--conformance" => o.conformance = true,
             "--stats" => o.stats = true,
             "--memfs" => o.memfs = true,

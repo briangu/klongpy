@@ -224,15 +224,73 @@ fn ctrl_c_stops_a_runaway_loop() {
     assert!(out.ends_with(P));
     assert!(s.wire.idles() >= 3);
     assert_eq!(s.io(b"1+1\n"), "1+1\n2\nklong> ");
-    // what was typed while it ran is not lost, and comes after it in order
+    // what was typed while it ran is kept, in order, until a Ctrl-C: that ends the
+    // evaluation and discards the typed-ahead input received before it
     s.wire.send(b"{1}{x+1}:~0\n");
     s.wire.send_after_idles(2, b"2+");
     s.wire.send_after_idles(3, b"2\n\x03");
     let out = String::from_utf8_lossy(&s.run()).into_owned();
     assert!(out.contains("interrupt error"), "{out}");
-    assert!(out.ends_with("2+2\n4\nklong> "), "{out}");
+    assert!(!out.contains("2+2"), "{out}");
+    // input after the Ctrl-C is kept, in order
+    s.wire.send(b"{1}{x+1}:~0\n");
+    s.wire.send_after_idles(2, b"2+");
+    s.wire.send_after_idles(3, b"2\n\x033*3\n");
+    let out = String::from_utf8_lossy(&s.run()).into_owned();
+    assert!(out.contains("interrupt error"), "{out}");
+    assert!(out.ends_with("3*3\n9\nklong> "), "{out}");
+    assert!(!out.contains("2+2"), "{out}");
     // a second Ctrl-C at the prompt only abandons the line
     assert_eq!(s.io(b"\x03"), "^C\nklong> ");
+}
+
+const LOOP: &[u8] = b"{1}{x+1}:~0\n";
+
+/// Run the bytes sent in one burst; the text written.
+fn burst(bytes: &[u8]) -> String {
+    let _one = lock();
+    let mut s = terminal();
+    s.wire.send(bytes);
+    let out = String::from_utf8_lossy(&s.run()).into_owned();
+    assert!(!s.console.busy(), "{out}");
+    out
+}
+
+#[test]
+fn ctrl_c_in_the_same_burst_as_the_line_that_starts_the_loop() {
+    // the byte is already read (ahead) when the evaluation starts
+    for tail in [&b"\x03"[..], b"\x03\n", b"\x03\n1+1\n", b"\x03\x03\n1+1\n", b"\x03\r\n1+1\r\n"] {
+        let mut input = LOOP.to_vec();
+        input.extend(tail);
+        let out = burst(&input);
+        assert!(out.contains("interrupt error"), "{tail:?}: {out}");
+        assert!(out.ends_with(P), "{tail:?}: {out}");
+        if tail.ends_with(b"1+1\n") || tail.ends_with(b"1+1\r\n") {
+            assert!(out.contains("1+1\n2\nklong> "), "{tail:?}: {out}");
+        }
+    }
+    // typed before the Ctrl-C: discarded; after it: kept
+    let out = burst(b"{1}{x+1}:~0\n2+\x03\n3*3\n");
+    assert!(out.contains("interrupt error") && out.ends_with("3*3\n9\nklong> ") && !out.contains("2+"), "{out}");
+    let out = burst(b"{1}{x+1}:~0\n7*7\n\x03\n3*3\n");
+    assert!(out.contains("interrupt error") && out.ends_with("3*3\n9\nklong> ") && !out.contains("7*7"), "{out}");
+    // the same one byte at a time, and read in bursts of every size
+    for n in 1..8 {
+        let _one = lock();
+        let mut s = terminal();
+        s.wire.set_burst(n);
+        s.wire.send(b"{1}{x+1}:~0\n\x03\n1+1\n");
+        let out = String::from_utf8_lossy(&s.run()).into_owned();
+        assert!(out.contains("interrupt error") && out.ends_with("1+1\n2\nklong> "), "burst {n}: {out}");
+    }
+}
+
+#[test]
+fn a_ctrl_c_after_a_short_evaluation_is_read_at_the_prompt() {
+    // read ahead with the line, and the evaluation ends before its first tick: nothing was
+    // interrupted, the Ctrl-C is an ordinary one at the prompt
+    let out = burst(b"1+1\n\x032+2\n");
+    assert!(out.ends_with("2\nklong> ^C\nklong> 2+2\n4\nklong> "), "{out}");
 }
 
 #[test]

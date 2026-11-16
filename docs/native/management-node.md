@@ -191,7 +191,15 @@ $ klong -e '.err("interrupt";"stop")'
   ^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-Give `.try` a named function or a function with an argument, as above. A function literal with no argument written directly in the call, such as `.try({1+"a"};[0])`, is called while its arguments are evaluated, and its error is not caught.
+A function literal with no argument, written where a value is expected, is evaluated on the spot: that is the rule of the language, and KlongPy does the same (`f::{x+1};f({41})` gives 42, because `f` receives 41). So `.try({1+"a"};[0])` raises the error while its arguments are evaluated, before `.try` runs, and `.timer("t";1;{0})` hands `.timer` the number 0. To pass such a function, give it a name or an argument:
+
+<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+```console
+$ klong -e 'h::{1+"a"};.try(h;[0])'
+[0 "type" "cannot apply + (Plus) to integer and string"]
+$ klong -e '.try({x;1+"a"};[0])'
+[0 "type" "cannot apply + (Plus) to integer and string"]
+```
 
 KlongPy has no `.try` and no `.err`. KlongPy as the management process (next section) therefore works around them:
 

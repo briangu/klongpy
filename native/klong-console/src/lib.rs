@@ -379,6 +379,45 @@ impl<P: Platform + 'static> Console<P> {
         Some(self.inbuf[0])
     }
 
+    /// Input that was already read when an evaluation starts is invisible to the tick hook,
+    /// which reads the port. If it holds a Ctrl-C, that Ctrl-C belongs to the evaluation about
+    /// to run: arm the first tick to report it. (If the evaluation ends before a tick, the
+    /// Ctrl-C is still in the input and is read at the prompt as usual.)
+    fn arm_interrupt(&mut self) {
+        self.rt.shared.ctrl_c_seen.set(false);
+        self.rt.shared.armed_hit.set(false);
+        let held = self.inbuf[self.in_pos..self.in_len].contains(&0x03)
+            || self.typed[self.typed_pos.min(self.typed.len())..].contains(&0x03)
+            || self.rt.shared.pending.try_borrow().map(|q| q.contains(&0x03)).unwrap_or(false);
+        self.rt.shared.interrupt_armed.set(held);
+    }
+
+    /// After an evaluation. A Ctrl-C ends the evaluation and discards the typed-ahead input
+    /// that came before it; later input is kept, in order, and so are later Ctrl-C bytes (one
+    /// Ctrl-C ends one evaluation). If it was read from the port during the evaluation, all
+    /// the input read ahead before the evaluation is older and goes; if it was in the input
+    /// read ahead (armed), the input up to and including the first such Ctrl-C goes.
+    fn end_eval(&mut self) {
+        self.rt.shared.interrupt_armed.set(false);
+        if self.rt.shared.ctrl_c_seen.replace(false) {
+            self.in_pos = self.in_len;
+            self.typed_pos = self.typed.len();
+        } else if self.rt.shared.armed_hit.replace(false) {
+            if let Some(i) = self.inbuf[self.in_pos..self.in_len].iter().position(|&b| b == 0x03) {
+                self.in_pos += i + 1;
+            } else if let Some(j) = self.typed[self.typed_pos.min(self.typed.len())..].iter().position(|&b| b == 0x03) {
+                self.typed_pos += j + 1;
+                self.in_pos = self.in_len;
+            } else if let Ok(mut q) = self.rt.shared.pending.try_borrow_mut() {
+                if let Some(k) = q.iter().position(|&b| b == 0x03) {
+                    q.drain(..=k);
+                    self.typed_pos = self.typed.len();
+                    self.in_pos = self.in_len;
+                }
+            }
+        }
+    }
+
     /// Take the bytes that have arrived (at most a bounded number of them), run at most the
     /// work they complete, and check the transfer timeout. Returns false when there was
     /// nothing to do: the caller may then wait for input. Never waits itself.
@@ -527,7 +566,9 @@ impl<P: Platform + 'static> Console<P> {
     }
 
     fn eval_print(&mut self, text: &str) {
+        self.arm_interrupt();
         let r = self.rt.run(text, "<repl>");
+        self.end_eval();
         let r = r.and_then(|v| match v {
             Some(v) => format_value(&self.rt.interp.syms, &v, false).map(Some),
             None => Ok(None),
@@ -867,7 +908,9 @@ impl<P: Platform + 'static> Console<P> {
 
     /// Evaluate a program sent with `run` and answer.
     fn run_program(&mut self, text: &str) {
+        self.arm_interrupt();
         let r = self.rt.run(text, "<run>");
+        self.end_eval();
         let r = r.and_then(|v| match v {
             Some(v) => format_value(&self.rt.interp.syms, &v, false).map(Some),
             None => Ok(None),

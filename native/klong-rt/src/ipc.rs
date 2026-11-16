@@ -529,24 +529,7 @@ impl<P: Platform + 'static> Events<P> {
             }
         }
         let Ok(mut p) = self.shared.platform.try_borrow_mut() else { return false };
-        let mut buf = [0u8; 32];
-        let mut stop = false;
-        loop {
-            let n = p.console_read(&mut buf);
-            if n == 0 {
-                break;
-            }
-            for &b in &buf[..n] {
-                if b == 0x03 {
-                    stop = true;
-                } else if let Ok(mut q) = self.shared.pending.try_borrow_mut() {
-                    if q.len() < 4096 && q.try_reserve(1).is_ok() {
-                        q.push(b);
-                    }
-                }
-            }
-        }
-        stop
+        self.shared.scan_console(&mut p)
     }
 
     // ----- connections -------------------------------------------------------------------

@@ -143,11 +143,43 @@ fn size_arg(s: &str) -> Option<usize> {
     digits.parse::<usize>().ok()?.checked_mul(mult)
 }
 
+const HELP: &str = "\
+usage: klong-sim [OPTIONS]
+
+A simulated board: the real serial console on standard input and output.
+  --pty                 serve a pseudo-terminal instead; the first output line is `pty: DEVICE`
+  --check-complete      read one entry per line as hex digits, answer complete, incomplete or error
+  --dumb                no echo, no editing
+  --crlf                end output lines with CR LF
+  --no-fs               a board without a file system
+  --fs-bytes N          size of the RAM file system (default 8M)
+  --heap-limit N        heap budget of the program (default: none)
+  --stack-budget N      set the limits as a board with a task stack of N bytes would
+  --stack N             native stack of the evaluating thread (default 64M)
+  --strict N            strict level 0, 1 or 2
+  --max-line N          longest input line
+  --max-entry N         longest multi-line entry
+  --max-run N           longest program sent with ^A run
+  --max-file N          longest file sent with ^A put or ^A hex
+  --timeout-ms N        a transfer with no byte for this long is abandoned
+  -h, --help            print this text and exit
+  --version             print the version and exit
+Sizes take the suffixes K and M. End of input ends the program.
+";
+
 fn parse_args() -> Option<Opts> {
     let mut o = Opts::default();
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
         match a.as_str() {
+            "-h" | "--help" => {
+                print!("{}", HELP);
+                std::process::exit(0);
+            }
+            "--version" => {
+                println!("klong-sim {}", env!("CARGO_PKG_VERSION"));
+                std::process::exit(0);
+            }
             "--pty" => o.pty = true,
             "--check-complete" => o.check = true,
             "--dumb" => o.dumb = true,
@@ -266,7 +298,7 @@ fn main() -> ExitCode {
     let o = match parse_args() {
         Some(o) => o,
         None => {
-            eprintln!("usage: klong-sim [--pty] [--dumb] [--crlf] [--no-fs] [--fs-bytes N] [--heap-limit N] [--stack-budget N] [--strict N] [--max-line N] [--max-entry N] [--max-run N] [--max-file N] [--timeout-ms N] | --check-complete");
+            eprint!("{}", HELP);
             return ExitCode::from(2);
         }
     };

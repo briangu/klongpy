@@ -110,6 +110,22 @@ static void k_fatal(void *ctx, const char *msg, size_t len) {
     abort();
 }
 
+/* Discard what is in the receive buffer, and wait until nothing more comes. A reset leaves a
+ * stray byte on the line (the USB-serial bridge or the boot ROM); read as the first input of
+ * the console, it made the first line fail with "input is not valid UTF-8". Flush, wait a
+ * short settle time, and repeat while something arrived meanwhile (at most five rounds). */
+#define RX_SETTLE_MS 30
+static void drain_rx(void) {
+    for (int round = 0; round < 5; round++) {
+        uart_flush_input(CONSOLE_UART);
+        vTaskDelay(pdMS_TO_TICKS(RX_SETTLE_MS));
+        size_t waiting = 0;
+        uart_get_buffered_data_len(CONSOLE_UART, &waiting);
+        if (waiting == 0) return;
+    }
+    uart_flush_input(CONSOLE_UART);
+}
+
 static void klong_task(void *arg) {
     (void)arg;
     esp_task_wdt_add(NULL);
@@ -145,6 +161,9 @@ static void klong_task(void *arg) {
         cfg.heap_limit = KLONG_INTERNAL_HEAP;
     }
 
+    /* (a second time, here: the console starts and prints its banner right after) */
+    drain_rx();
+
     int32_t rc = klong_init(&cfg); /* prints the banner and the first prompt */
     if (rc != KLONG_OK) {
         esp_rom_printf("\r\nklong: klong_init failed (%d)\r\n", (int)rc);
@@ -171,6 +190,7 @@ void app_main(void) {
     ESP_ERROR_CHECK(uart_driver_install(CONSOLE_UART, CONSOLE_RX_BYTES, 0, 0, NULL, 0));
     ESP_ERROR_CHECK(uart_param_config(CONSOLE_UART, &uart));
     uart_wait_tx_done(CONSOLE_UART, pdMS_TO_TICKS(200));
+    drain_rx(); /* before the banner is printed and the console starts */
 
     BaseType_t ok = xTaskCreatePinnedToCore(klong_task, "klong", KLONG_TASK_STACK, NULL, KLONG_TASK_PRIORITY, NULL, KLONG_TASK_CORE);
     if (ok != pdPASS) {

@@ -8,10 +8,19 @@ fn interp() -> Interp {
 
 /// The bound on nesting and the failures deferred from where no error can be returned are
 /// kept per process (the core has no thread-local storage): one interpreter runs at a time.
+/// (An interpreter sets the bound when a program starts, so creating one while another test
+/// runs is harmless; two programs running at once, in two threads, would still interfere:
+/// that is the limitation, and every test that runs a program takes this lock.)
 static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+fn lock() -> std::sync::MutexGuard<'static, ()> {
+    ONE.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Run a program; the caller holds `lock()` for as long as the interpreter and its values live
+/// (dropping deeply nested data records a deferred failure too, and that must not reach
+/// another test's program).
 fn run_with(ip: &mut Interp, text: &str) -> Result<String, Kind> {
-    let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
     match ip.run(text, "<test>") {
         Ok(Some(v)) => klong_core::fmt::format_value(&ip.syms, &v, false).map_err(|e| e.kind),
         Ok(None) => Ok(String::new()),
@@ -20,7 +29,9 @@ fn run_with(ip: &mut Interp, text: &str) -> Result<String, Kind> {
 }
 
 fn run(text: &str) -> Result<String, Kind> {
-    run_with(&mut interp(), text)
+    let _one = lock();
+    let mut ip = interp();
+    run_with(&mut ip, text)
 }
 
 fn ok(text: &str, want: &str) {
@@ -127,6 +138,7 @@ fn data_nesting_is_bounded() {
 #[test]
 fn a_stack_budget_bounds_recursion_whatever_a_level_costs() {
     big(|| {
+        let _one = lock();
         let mut ip = Interp::new(Config::for_stack(64 * 1024), Box::new(NoHooks));
         assert_eq!(run_with(&mut ip, "f::{:[x;f(x-1);0]};f(3)"), Ok("0".into()));
         assert_eq!(run_with(&mut ip, "f::{:[x;f(x-1);0]};f(100000)"), Err(Kind::Range));
@@ -144,6 +156,7 @@ fn found_by_fuzzing_103() {
     // a chain of adverbs recursed once per adverb without a check: stack overflow on a small stack
     big(|| {
         err(&format!("1+{}2", "'".repeat(600)), Kind::Range);
+        let _one = lock();
         let mut ip = Interp::new(Config::for_stack(48 * 1024), Box::new(NoHooks));
         assert_eq!(run_with(&mut ip, &format!("(-1){{x+1}}\\*{}0", "'".repeat(5000))), Err(Kind::Range));
     });
@@ -152,6 +165,7 @@ fn found_by_fuzzing_103() {
     err(&format!(":a:$\"{}\"", "a".repeat(300)), Kind::Range);
     ok(&format!("{}::1", "a".repeat(255)), "1");
     // a message quotes at most MSG_MAX bytes of the program
+    let _one = lock();
     let e = interp().run(&format!(".f{}(1)", "a".repeat(250)), "<t>").err().map(|e| e.render()).unwrap_or_default();
     assert!(e.contains("undefined function"), "{}", e);
     let e = interp().run(&format!("1+\"{}", "é".repeat(4000)), "<t>").err().map(|e| e.message.len()).unwrap_or(0);
