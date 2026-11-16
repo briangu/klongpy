@@ -280,3 +280,19 @@
 > {x+1)}
 ! syntax
 
+
+@ syntax.monad-on-conditional core
+> -:[0;2;3]
+= -3
+
+@ syntax.monad-on-conditional-true core
+> -:[1;2;3]
+= -2
+
+@ syntax.monad-on-conditional-in-function core
+> n::{-:[x;2;3]};n(0)
+= -3
+
+@ syntax.monad-on-expression-list core
+> #[;1;2;3]
+= 3
