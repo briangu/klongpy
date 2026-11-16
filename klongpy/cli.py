@@ -11,6 +11,7 @@ import importlib
 import importlib.util
 import importlib.metadata
 import os
+import re
 import sys
 import threading
 import timeit
@@ -19,6 +20,8 @@ import colorama
 
 from klongpy import KlongInterpreter, list_backends
 from klongpy.core import kg_write
+from klongpy.help_index import apropos_text, help_text
+from klongpy.sys_fn import eval_sys_load
 from klongpy.repl import cleanup_repl, create_repl
 
 _READLINE_SPEC = importlib.util.find_spec("readline")
@@ -33,8 +36,16 @@ def sys_cmd_shell(klong, cmd):
         Pass the given command to the Unix shell.
 
     """
-    os.system(cmd[2:].strip())
+    command = _arg(cmd)
+    if not command:
+        return "usage: ]! command"
+    os.system(command)
     return None
+
+
+def _arg(cmd):
+    """Return the text after the one-letter command name, stripped."""
+    return cmd[2:].strip()
 
 
 def sys_cmd_apropos(klong, cmd):
@@ -42,13 +53,11 @@ def sys_cmd_apropos(klong, cmd):
 
         ]a topic                                               [Apropos]
 
-        ]htopic is short for help("topic"). In addition, ]hall will
-        list all available help texts. The "topic" must be an operator
-        symbol or operator name (e.g. :: or Define).
+        List the help entries whose name or title contains "topic"
+        (case-insensitive), e.g. ]a scan.
 
     """
-    # TODO
-    return None
+    return apropos_text(_arg(cmd))
 
 
 def sys_cmd_help(klong, cmd):
@@ -56,18 +65,24 @@ def sys_cmd_help(klong, cmd):
 
         ]h topic                                                  [Help]
 
-        ]htopic is short for help("topic"). In addition, ]hall will
-        list all available help texts. The "topic" must be an operator
-        symbol or operator name (e.g. :: or Define).
+        Show help for an operator, adverb, system function or variable.
+        The topic is a glyph (]h /), a name (]h Over, ]h .p) or part of
+        a name. ]h alone lists all topics by group; ]hall shows every
+        entry; ]hadverbs (also operators, variables, extensions, forms)
+        lists one group.
 
     """
     try:
-        klong['help']
-    except KeyError:
-        klong('.l("help.kg")')
-    topic = cmd[2:].strip() if len(cmd) > 2 else ""
-    klong(f'help("{topic}")')
-    return None
+        return help_text(_arg(cmd))
+    except Exception:
+        # fall back to the hand-written operator table
+        try:
+            klong['help']
+        except KeyError:
+            klong('.l("help.kg")')
+        klong['.help_topic'] = _arg(cmd)
+        klong('help(.help_topic)')
+        return None
 
 
 def sys_cmd_dir(klong, cmd):
@@ -81,10 +96,12 @@ def sys_cmd_dir(klong, cmd):
         Unix shell and the "ls" utility (it does "cd dir; ls *.kg").
 
     """
-    cmd = cmd[2:].strip()
+    cmd = _arg(cmd)
     dir = cmd if cmd else (os.environ.get("KLONGPATH") or "./").split(":")[0]
+    if not os.path.isdir(dir):
+        return f"no such directory: {dir}"
     found = False
-    for x in os.listdir(dir):
+    for x in sorted(os.listdir(dir)):
         if x.endswith(".kg"):
             print(x)
             found = True
@@ -98,10 +115,14 @@ def sys_cmd_load(klong, cmd):
 
         ]l file                                                   [Load]
 
-        ]lfile is short for .l("file").
+        ]l file is short for .l("file"). The name is used as typed
+        (leading and trailing blanks are removed).
 
     """
-    return klong(f'.l("{cmd[2:]}")') or 1
+    name = _arg(cmd)
+    if not name:
+        return "usage: ]l file"
+    return eval_sys_load(klong, name) or 1
 
 
 def sys_cmd_exit(klong, cmd):
@@ -117,6 +138,17 @@ def sys_cmd_exit(klong, cmd):
     return ExitRequest(0)
 
 
+_transcript = None
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def transcript_write(text):
+    """Append text to the open transcript file, if any."""
+    if _transcript is not None:
+        _transcript.write(_ANSI.sub("", text) + "\n")
+        _transcript.flush()
+
+
 def sys_cmd_transcript(klong, cmd):
     """
         ]t file                                             [Transcript]
@@ -126,14 +158,26 @@ def sys_cmd_transcript(klong, cmd):
         with a TAB (HT) character in the transcript file.
 
     """
-    # TODO
-    return None
+    global _transcript
+    name = _arg(cmd)
+    if _transcript is not None:
+        _transcript.close()
+        _transcript = None
+        if not name:
+            return "transcript stopped"
+    if not name:
+        return "no transcript is open"
+    try:
+        _transcript = open(name, "a", encoding="utf-8")
+    except OSError as e:
+        return f"cannot open {name}: {e.strerror or e}"
+    return f"transcript appended to {name}"
 
 
 def sys_cmd_timeit(klong, cmd):
     """
-        ]T <prog>
-        ]T:N <prog>
+        ]T prog
+        ]T:N prog
 
         Time an klong expression for 1 or N iterations using the timeit facility.
 
@@ -150,8 +194,21 @@ def sys_cmd_timeit(klong, cmd):
         Note: Added in KlongPy.
 
     """
-    n = int(cmd[3:cmd.index(" ")]) if cmd[2] == ":" else 1
-    r = timeit.timeit(lambda k=klong,p=cmd[cmd.index(" "):]: k(p), number=n)
+    usage = "usage: ]T expr  or  ]T:N expr"
+    rest = cmd[2:].lstrip() if not cmd[2:].startswith(":") else cmd[2:]
+    n = 1
+    if rest.startswith(":"):
+        count, _, rest = rest[1:].partition(" ")
+        try:
+            n = int(count)
+        except ValueError:
+            return f"iteration count must be a positive integer, got '{count}'; {usage}"
+        if n < 1:
+            return f"iteration count must be a positive integer, got '{count}'; {usage}"
+    prog = rest.strip()
+    if not prog:
+        return usage
+    r = timeit.timeit(lambda k=klong, p=prog: k(p), number=n)
     return f"total: {r} per: {r/n}"
 
 
@@ -170,6 +227,31 @@ def create_sys_cmd_functions():
         registry[name] = fn
 
     return registry
+
+
+def run_sys_cmd(klong, sys_cmds, s):
+    """Run one ]-command line and return the value to print (or None).
+
+    Never raises for a bad argument: problems come back as a one-line message.
+    """
+    if len(s) < 2 or s[1].isspace():
+        return "system commands:\n" + "\n".join(
+            f"  ]{k}  {_title(fn)}" for k, fn in sorted(sys_cmds.items()))
+    fn = sys_cmds.get(s[1])
+    if fn is None:
+        return f"unknown system command: ]{s[1]}"
+    try:
+        return fn(klong, s)
+    except (SystemExit, KeyboardInterrupt, EOFError):
+        raise
+    except Exception as e:
+        return failure(f"Error: {e.args}")
+
+
+def _title(fn):
+    m = re.search(r"\[([^\]]+)\]\s*$", next(
+        (ln for ln in (fn.__doc__ or "").splitlines() if ln.strip()), ""))
+    return m.group(1) if m else ""
 
 
 success = lambda input: f"{colorama.Fore.GREEN}{input}"
@@ -228,12 +310,9 @@ class ConsoleInputHandler:
                     s = await console_loop.run_in_executor(None, get_input)
                     if len(s) == 0:
                         continue
+                    transcript_write("\t" + s)
                     if s.startswith("]"):
-                        if s[1] in sys_cmds:
-                            r = sys_cmds[s[1]](klong, s)
-                        else:
-                            print(f"unkown system command: ]{s[1]}")
-                            continue
+                        r = run_sys_cmd(klong, sys_cmds, s)
                     else:
                         r = run_in_loop(klong_loop, repl_eval(klong, s, verbose=verbose))
                     if isinstance(r, ExitRequest):
@@ -242,6 +321,7 @@ class ConsoleInputHandler:
                         break
                     if r is not None:
                         print(r)
+                        transcript_write(str(r))
                 except EOFError:
                     print("\rbye!")
                     break

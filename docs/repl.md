@@ -27,13 +27,16 @@ Several system commands prefixed with `]` are available:
 
 | Command | Description |
 |---------|-------------|
-| `]h topic` | Show help text for an operator or topic. |
+| `]h topic` | Show help for an operator, adverb, system function or variable. A glyph (`]h /`), a name (`]h Over`, `]h .p`) or part of a name works. `]h` lists all topics by group and `]h all` shows every entry. |
 | `]! cmd` | Run a shell command. |
-| `]a topic` | Search help topics (currently a no-op). |
+| `]a topic` | List help entries whose name or title contains `topic` (for example `]a scan`). |
 | `]i dir` | List `.kg` files in a directory. Defaults to `KLONGPATH`. |
 | `]l file` | Load and execute a Klong source file. |
 | `]T expr` | Time the evaluation of an expression. Use `]T:n` to repeat `n` times. |
+| `]t file` | Append input and results to `file`. `]t` with no file stops the transcript. |
 | `]q` | Exit the REPL. |
+
+A bare `]` lists the commands. A command with a missing or bad argument prints a usage line.
 
 Press `Ctrl-D` to quit as well.
 

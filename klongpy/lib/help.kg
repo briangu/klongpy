@@ -33,9 +33,9 @@ op.db::[
 [" a$b" "Format2"
  "a=real|list; when both operands are lists, apply pairwise. Format 'b', pad with 'a' blanks or to align to x.y digits"]
  [" >a" "Grade-Down"
-  "a=vector; vector of indices of elements of 'a' in ascending order"]
- [" <a" "Grade-Up"
   "a=vector; vector of indices of elements of 'a' in descending order"]
+ [" <a" "Grade-Up"
+  "a=vector; vector of indices of elements of 'a' in ascending order"]
  [" =a" "Group" "a=vector; vector of groups (matching elements) of 'a'"]
  [" a@b" "Index/Apply" "a=vector, b=integer; extract b'th element of 'a'"]
  [" a@b" "Index/Apply"
@@ -63,7 +63,7 @@ op.db::[
  [" |a" "Reverse" "a=vector; reversed vector"]
  [" a:+b" "Rotate"
   "a=integer, b=vector; 'b' rotated to right by 'a' elements (a<0 = left)"]
- [" ^a" "Shape" "a=vector; vector of dimenions of 'a'; 0 for atoms"]
+ [" ^a" "Shape" "a=vector; vector of dimensions of 'a'; 0 for atoms"]
  [" #a" "Size"
   "magnitude of numbers, size of vectors, code points of characters"]
  [" a:#b" "Split" "a=integer, b=vector; split 'b' into 'a'-element subvectors"]
