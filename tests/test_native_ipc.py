@@ -122,8 +122,18 @@ class Native:
             pass
 
 
+def as_np(v):
+    """A backend array (a torch tensor when the session backend is torch) as a numpy array; anything else unchanged."""
+    if not isinstance(v, np.ndarray) and hasattr(v, "detach") and hasattr(v, "cpu"):
+        return v.detach().cpu().numpy()
+    return v
+
+
 def norm(v):
     """A value as plain Python data that says what kind each part is."""
+    v = as_np(v)
+    if isinstance(v, np.ndarray) and v.ndim == 0:
+        v = v.item()
     if isinstance(v, np.ndarray):
         return [norm(x) for x in v.tolist()] if v.dtype != object else [norm(x) for x in v]
     if isinstance(v, (list, tuple)):
@@ -304,15 +314,15 @@ class TestKlongPyClientNativeServer(Case):
     def test_large_vector(self):
         n = 200_000
         self.klong["big"] = np.arange(n)
-        r = self.kg(self.klong, "c(:idf,,big)", 60)
+        r = as_np(self.kg(self.klong, "c(:idf,,big)", 60))
         self.assertEqual(r.dtype.kind, "i")
         np.testing.assert_array_equal(r, np.arange(n))
         self.klong["bigf"] = np.arange(1_000_000) * 0.5               # 8 MB each way
-        r = self.kg(self.klong, "c(:idf,,bigf)", 60)
+        r = as_np(self.kg(self.klong, "c(:idf,,bigf)", 60))
         self.assertEqual(r.dtype.kind, "f")
         np.testing.assert_array_equal(r, np.arange(1_000_000) * 0.5)
         self.assertEqual(self.server.value("#c2::0.5*!1000000"), "1000000")
-        np.testing.assert_array_equal(self.kg(self.klong, "c(:c2)", 60), np.arange(1_000_000) * 0.5)
+        np.testing.assert_array_equal(as_np(self.kg(self.klong, "c(:c2)", 60)), np.arange(1_000_000) * 0.5)
 
     def test_authentication(self):
         self.server.run('.srv.auth::{(x~"ann")&y~"pw"}')
