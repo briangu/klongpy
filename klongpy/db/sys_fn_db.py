@@ -4,7 +4,7 @@ import duckdb
 import numpy as np
 import pandas as pd
 
-from klongpy.core import (KGCall, KGLambda, KlongException, KLONG_UNDEFINED,
+from klongpy.core import (KGCall, KGLambda, KGSym, KlongException, KLONG_UNDEFINED,
                           reserved_fn_args, reserved_fn_symbol_map)
 from klongpy.backend import np as backend_np
 
@@ -127,6 +127,8 @@ class Table(dict):
 
 
 class Database(KGLambda):
+    # __init__ does not call KGLambda.__init__: the flag the interpreter reads
+    user = False
 
     def __init__(self, tables):
         self.tables = tables
@@ -280,7 +282,7 @@ def eval_sys_fn_insert_table(x, y):
     return x
 
 
-def eval_sys_fn_create_db(x):
+def eval_sys_fn_create_db(klong, x):
     """
 
         .db(x)                                               [Create-db]
@@ -293,7 +295,8 @@ def eval_sys_fn_create_db(x):
     """
     if not isinstance(x,dict):
         return "a db must be created from a dict"
-    return Database(x)
+    # a dictionary literal, :{["T" T]}, holds the symbol T, not its value
+    return Database({k: klong[v] if isinstance(v, KGSym) else v for k, v in x.items()})
 
 
 def create_system_functions_db():

@@ -1085,6 +1085,7 @@ def eval_sys_fn_create_ipc_server(klong, x):
 
 
 class KGAsyncCall(KGLambda):
+    user = False  # __init__ does not call KGLambda.__init__
     def __init__(self, klongloop, fn, cb, klong):
         self.klongloop = klongloop
         self.klong = klong

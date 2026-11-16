@@ -82,7 +82,7 @@ $ curl http://localhost:8888
 
 Stop the server with:
 
-<!-- check-docs: skip: .webc(h) returns 0 and leaves the server running (interpreter bug: the handle is not a KGCall, see sys_fn_web.py); the documented result is 1 -->
+<!-- check-docs: continue -->
 ```kgpy
 ?> .webc(h)
 1

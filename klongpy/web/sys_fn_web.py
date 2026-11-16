@@ -155,10 +155,10 @@ def eval_sys_fn_shutdown_web_server(klong, x):
     """
     if isinstance(x, KGCall) and issubclass(type(x.a), KGLambda):
         x = x.a.fn
-        if isinstance(x, WebServerHandle) and x.runner is not None:
-            print("shutting down web server")
-            asyncio.run_coroutine_threadsafe(x.shutdown(), klong['.system']['ioloop']).result()
-            return 1
+    if isinstance(x, WebServerHandle) and x.runner is not None:
+        logging.info("shutting down web server")
+        asyncio.run_coroutine_threadsafe(x.shutdown(), klong['.system']['ioloop']).result()
+        return 1
     return 0
 
 

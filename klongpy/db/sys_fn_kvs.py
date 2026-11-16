@@ -63,7 +63,11 @@ class KeyValueStorage(dict):
     def get(self, x):
         if not isinstance(x,str):
             raise KlongKvsException(x, "key must be a str")
-        return deserialize_obj(self.cache.get_file(key_to_file_path(x)))
+        try:
+            data = self.cache.get_file(key_to_file_path(x))
+        except FileNotFoundError:
+            return KLONG_UNDEFINED
+        return deserialize_obj(data)
 
     def set(self, x, y):
         if not isinstance(x,str):

@@ -158,6 +158,7 @@ class ExistingConnectionProvider(ConnectionProvider):
 class NetworkClient(KGLambda):
     """
     """
+    user = False  # __init__ does not call KGLambda.__init__
     def __init__(self, ioloop, klongloop, klong, conn_provider, shutdown_event=None, on_connect=None, on_close=None, on_error=None, on_message=None):
         self.ioloop = ioloop
         self.klongloop = klongloop

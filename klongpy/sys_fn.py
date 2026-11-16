@@ -790,7 +790,11 @@ def eval_sys_python_call(klong, x, y, z):
     if not is_dict(z):
         raise KlongTypeError("z must be a dictionary")
     try:
-        if isinstance(f, KGLambda):
+        if isinstance(f, KGLambda) and f._wildcard:
+            # a wildcard function takes whatever it is given (its arity is 0:
+            # building the frame from the arity would drop every argument)
+            r = f.fn(klong, *y, **z) if f._provide_klong else f.fn(*y, **z)
+        elif isinstance(f, KGLambda):
             ctx = {reserved_fn_symbol_map[k]:v for k,v in zip(reserved_fn_args[:f.get_arity()], y)}
             r = f.call_with_kwargs(klong, ctx, kwargs=z)
         else:
