@@ -1,0 +1,8 @@
+# Results of examples/embedded/fir.kg under KlongPy at strict level 2.
+# One line per call, run in order in one session:  expression => result
++/taps => 1.0
+^idx => [16 241]
+#run(256:^1.0) => 241
+run(256:^1.0) => 241:^1.0
+*run(0.5*!256) => 3.75
+run(0.5*!256)@240 => 123.75

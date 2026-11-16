@@ -1,0 +1,4 @@
+:" expect: static line 3 take-rank "
+
+f::{2#x}
+.entry("f";"int[4,3] -> int[2,3]")

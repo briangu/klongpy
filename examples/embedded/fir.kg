@@ -1,0 +1,19 @@
+:" A 16-tap FIR filter over a block of 256 samples, giving 241 outputs.
+
+   A reference program of the static profile (docs/static-profile.md). The
+   tables are built on the host, when the program is compiled: raw is used
+   only to compute taps and is not part of the compiled program; taps (16
+   floats that sum to 1) and idx (a 16 by 241 table of sample positions)
+   become constant data.
+
+   Check it:   kgpy --check-static examples/embedded/fir.kg
+   Expected:   examples/embedded/fir.expect
+"
+
+raw::{1.0+x&15-x}'!16
+taps::raw%+/raw
+idx::+{x+!16}'!241
+
+run::{+/taps*x@idx}
+
+.entry("run";"float[256] -> float[241]")

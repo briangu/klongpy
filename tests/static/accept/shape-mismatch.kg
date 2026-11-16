@@ -1,0 +1,4 @@
+:" accept: shape-mismatch - operands of the same shape "
+
+f::{x+y}
+.entry("f";"int[3] int[3] -> int[3]")

@@ -1,0 +1,5 @@
+:" accept: extern-call - an extern called with the declared type "
+
+.extern("read.adc";"int -> float")
+f::{read.adc(x)}
+.entry("f";"int -> float")

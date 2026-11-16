@@ -1,0 +1,4 @@
+:" expect: static line 3 cond-scalar "
+
+f::{:[x;1;2]}
+.entry("f";"int[3] -> int")

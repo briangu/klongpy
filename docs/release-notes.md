@@ -64,16 +64,69 @@ error: cannot destructure 3 values into 2 names
 :triad
 ```
 
-**`{y}(1)` is an incomplete call, not `:y`.** `{y}` has two arguments now. A call with one of them used to bind it to `x` and return the unbound `y` as the symbol `:y`. It now gives a function value, as `{x+y}(1)` always has, and the value is not completed by calling it again. A projection is written with the empty slot, `{y}(1;)`, and is completed by `p(5)`. A call with every argument, `{y}(1;2)`, is 2.
+**`{y}(1)` is a projection, not `:y`.** `{y}` has two arguments now. A call with one of them used to bind it to `x` and return the unbound `y` as the symbol `:y`. It now gives a projection that waits for the second argument, the same value as `{y}(1;)` with the empty slot, and `p(5)` completes it. A call with every argument, `{y}(1;2)`, is 2.
 
 ```kgpy
 ?> {y}(1;2)
 2
-?> p::{y}(1;)
-:dyad
+?> p::{y}(1)
+:monad
 ?> p(5)
 5
+?> q::{y}(1;)
+:monad
+?> q(5)
+5
 ```
+
+**A call with too few arguments is a projection.** `r::{x+y};s::r(1)` used to give a value that looked like a function and could never be completed: `s(10)` returned it unchanged. A call with fewer arguments than the function takes is now a projection over the missing trailing arguments, `r(1)` being the same as `r(1;)`, for functions of `x`, `y` and `z` and for functions with named parameters. It is allowed at every strict level; too many arguments is still an arity error at level 2. A function applied to too few values by `@` or an adverb gives a projection in the same way, so `{x+y}'[1 2 3]` is a list of three projections. Three things follow from one rule for all of them:
+
+- A projection is shown by the number of arguments it still takes. `{x+y}(1;)` displayed as `:dyad` and is `:monad`.
+- A written call that leaves a slot empty and has fewer arguments than the function takes leaves the trailing arguments open as well. For a function `g` of three arguments, `h::g(1;)` waits for two arguments, where `h(2)` used to run `g` without its third.
+- A projection made inside a function holds the values its arguments had there. `mk::{[a];a::x*2;r(a;)};p::mk(5);p(10)` is 20; it used to look `a` up when `p` was called, long after `mk` had returned, and fail. At top level a projection still evaluates its argument expressions each time it is completed, as before: `a::1;p::r(a;);a::5;p(10)` is 15.
+
+```kgpy
+?> r::{x+y}
+:dyad
+?> s::r(1)
+:monad
+?> s(10)
+11
+?> g::{x,y,z}
+:triad
+?> h::g(1)
+:dyad
+?> h(2;3)
+[1 2 3]
+?> {x(10)}'{r(x)}'[1 2 3]
+[11 12 13]
+```
+
+**A projection of a projection fills the first open slot.** `f::{x,y,z};p::f(1;;);q::p(;3);q(2)` ran `f` without its middle argument, because each call went on from the slot where the one before it stopped. It is `[1 2 3]`. A projection called with too few arguments, `p(2;)` or `p(2)`, is a projection again; it used to run the function with the open slot unbound when written as a statement.
+
+```kgpy
+?> f::{x,y,z}
+:triad
+?> p::f(1;;)
+:dyad
+?> q::p(;3)
+:monad
+?> q(2)
+[1 2 3]
+```
+
+**`:undefined` written in a program is the undefined value.** It used to be the symbol named `undefined`, which prints the same and is a different value, so `u::1%0;u~:undefined` was 0. It is 1, and `:_:undefined` is 1.
+
+```kgpy
+?> u::1%0
+:undefined
+?> u~:undefined
+1
+```
+
+**`x`, `y` and `z` can be assigned at strict levels 1 and 2.** `h::{x::7};h(1)` was `undefined variable: x` at level 1 and 2. The arguments are locals of the call, as named parameters are, and the caller's value is not changed.
+
+**A Python function with optional parameters gets every argument.** A function brought in with `.py` or `.pyf` was called with its required parameters only, so `linspace(0;1;5)` made 50 points and `arange(2;8)` was `[0 1]`. It now gets each argument written. It is displayed by its required parameters, as before.
 
 **A recursive call through `.f` has its own locals.** `.f` called itself without declaring the function's locals, so the inner call changed the outer call's variable. `f::{[t];t::x;:[x<2;t;t+.f(x-1)]};f(3)` was 3, where the same function written with its own name gives 6.
 

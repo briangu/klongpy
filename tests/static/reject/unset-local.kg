@@ -1,0 +1,4 @@
+:" expect: static line 3 unset-local "
+
+f::{[a];x+a}
+.entry("f";"int -> int")

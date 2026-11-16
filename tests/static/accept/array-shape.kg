@@ -1,0 +1,4 @@
+:" accept: array-shape - a take that leaves at least one item "
+
+f::{1#x}
+.entry("f";"int[4] -> int[1]")

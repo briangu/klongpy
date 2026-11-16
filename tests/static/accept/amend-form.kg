@@ -1,0 +1,4 @@
+:" accept: amend-form - amend written a:=v,i "
+
+f::{x:=9,0}
+.entry("f";"int[4] -> int[4]")

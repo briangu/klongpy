@@ -1,0 +1,5 @@
+:" expect: static line 3 global-array "
+
+tab::[[1 2] [3]]
+f::{x}
+.entry("f";"int -> int")

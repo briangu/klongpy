@@ -1,0 +1,4 @@
+:" accept: grade - Less, the dyad of the same glyph "
+
+f::{x<2}
+.entry("f";"int[4] -> int[4]")

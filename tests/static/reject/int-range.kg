@@ -1,0 +1,5 @@
+:" expect: static line 3 int-range "
+
+big::3000000000
+f::{x}
+.entry("f";"int -> int")

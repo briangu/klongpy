@@ -1,0 +1,5 @@
+:" accept: undefined-name - a global defined at top level "
+
+k::2
+f::{x+k}
+.entry("f";"int -> int")

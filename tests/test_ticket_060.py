@@ -388,6 +388,9 @@ class TestRepositoryGate(unittest.TestCase):
             "examples/1brc/worker.kg",
             "tests/kgtests/language/test_destructuring.kg",
             "tests/golden/fixtures/s2_destructuring_slot.kg",
+            # written on purpose by the named-parameter tests (ticket 061)
+            "tests/golden/fixtures/t061_head_destructuring.kg",
+            "tests/kgtests/language/test_named_params.kg",
         }
         try:
             out = subprocess.run(["git", "ls-files", "*.kg"], cwd=ROOT, capture_output=True, text=True, check=True).stdout

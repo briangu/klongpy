@@ -114,7 +114,8 @@ def _e_dyad_amend_in_depth(p, q, v):
         p[q[0]] = r
         return p
     else:
-        p = bknp.array(p, dtype=object) if isinstance(v, (str, KGSym)) else bknp.array(p)
+        # a float value into an integer array: the array becomes a float array
+        p = bknp.array(p, dtype=object) if isinstance(v, (str, KGSym)) else _amend_promote(bknp.array(p), v)
         p[q] = v
         return p
 
@@ -137,7 +138,16 @@ def eval_dyad_amend_in_depth(a, b, backend):
         return backend.amend_at(a, b[1:], b[0])
     if backend.is_backend_array(b):
         b = backend.to_numpy(b)
-    return _e_dyad_amend_in_depth(a, b[1:], b[0])
+    v, q = b[0], b[1:]
+    if backend.get_dtype_kind(b) == 'f':
+        # A float value joined to the indices made one float list (5.5,[0 1]):
+        # the indices are integers again, and the value a float for the
+        # promotion of an integer array.
+        if (q != q.astype(int)).any():
+            raise KlongTypeError(f":-: index must be an integer, got {q[q != q.astype(int)][0]!r}")
+        q = q.astype(int)
+        v = float(v)
+    return _e_dyad_amend_in_depth(a, q, v)
 
 
 def eval_dyad_cut(a, b, backend):
@@ -736,7 +746,12 @@ def eval_dyad_join(a, b, backend):
     # Use numpy directly for object arrays (backends without object dtype need this)
     # Convert backend arrays to numpy first (needed for device-backed arrays)
     r_numpy = [backend.to_numpy(x) if backend.is_array(x) else x for x in r]
-    return numpy.asarray(r_numpy, dtype=object)
+    try:
+        return numpy.asarray(r_numpy, dtype=object)
+    except ValueError:
+        # members that are arrays of different shape (a vector and a matrix)
+        # do not broadcast into one array: a list of them, member by member
+        return backend.object_array(r_numpy)
 
 
 def eval_dyad_less(a, b, backend):

@@ -1,0 +1,5 @@
+:" expect: static line 3 global-value "
+
+gain::"high"
+f::{x}
+.entry("f";"int -> int")

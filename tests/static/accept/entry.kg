@@ -1,0 +1,4 @@
+:" accept: entry - an entry whose signature has one parameter per argument "
+
+f::{x+y}
+.entry("f";"int int -> int")

@@ -1,0 +1,17 @@
+:" Moving average over the last four samples.
+
+   A reference program of the static profile (docs/static-profile.md): it
+   runs under KlongPy as it stands and is inside the subset that compiles to
+   C. The window and the write position are state, kept between calls.
+
+   Check it:   kgpy --check-static examples/embedded/mavg.kg
+   Run it:     kgpy -l examples/embedded/mavg.kg, then step(4.0)
+   Expected:   examples/embedded/mavg.expect
+"
+
+buf::[0.0 0.0 0.0 0.0]
+pos::0
+
+step::{buf::buf:=x,pos;pos::(pos+1)!#buf;(+/buf)%#buf}
+
+.entry("step";"float -> float")

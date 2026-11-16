@@ -1,0 +1,5 @@
+:" accept: redefinition - two functions, two names "
+
+f::{x+1}
+g::{f(x)*2}
+.entry("g";"int -> int")

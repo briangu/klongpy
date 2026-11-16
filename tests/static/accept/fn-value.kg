@@ -1,0 +1,5 @@
+:" accept: fn-value - a function called by name "
+
+g::{x+1}
+f::{g(x)}
+.entry("f";"int -> int")

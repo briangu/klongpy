@@ -1,0 +1,4 @@
+:" expect: static line 3 converge "
+
+f::{{(x+2%x)%2}:~x}
+.entry("f";"float -> float")

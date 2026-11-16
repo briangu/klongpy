@@ -1,0 +1,4 @@
+:" accept: symbol - an evaluated list of variables "
+
+f::{[a];a::x*2;[;a;a]}
+.entry("f";"int -> int[2]")

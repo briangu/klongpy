@@ -1,0 +1,4 @@
+:" expect: static line 3 strict-syntax "
+
+f::{x+}
+.entry("f";"int -> int")

@@ -1,0 +1,4 @@
+:" expect: static line 3 find "
+
+f::{x?1}
+.entry("f";"int[4] -> int[4]")

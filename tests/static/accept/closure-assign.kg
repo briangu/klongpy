@@ -1,0 +1,4 @@
+:" accept: closure-assign - the sum computed by Over and assigned outside the literal "
+
+f::{[s];s::+/x;s}
+.entry("f";"int[4] -> int")

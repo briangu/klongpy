@@ -1,0 +1,5 @@
+:" accept: arity - a call with the number of arguments the function takes "
+
+g::{x+y}
+f::{g(x;1)}
+.entry("f";"int -> int")

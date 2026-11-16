@@ -1,0 +1,5 @@
+:" accept: int-range - an integer inside int32 "
+
+big::2000000000
+f::{x&big}
+.entry("f";"int -> int")

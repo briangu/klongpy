@@ -1,0 +1,4 @@
+:" accept: cond-scalar - a scalar condition "
+
+f::{:[*x;1;2]}
+.entry("f";"int[3] -> int")

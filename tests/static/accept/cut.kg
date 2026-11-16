@@ -1,0 +1,4 @@
+:" accept: cut - Drop with a constant count "
+
+f::{2_x}
+.entry("f";"int[4] -> int[2]")

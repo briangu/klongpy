@@ -414,3 +414,29 @@
 > :[1;2;3;4]
 ! syntax
 
+# x, y and z are assignable inside the function, at every strict level (ticket 033)
+@ functions.assign-arg-x core
+> h::{x::7}
+> h(1)
+= 7
+
+@ functions.assign-arg-x-strict1 core strict1
+> h::{x::7;x+1}
+> h(1)
+= 8
+
+@ functions.assign-arg-x-strict2 core strict2
+> h::{x::7;x+1}
+> h(1)
+= 8
+
+@ functions.assign-arg-y-z-strict2 core strict2
+> h::{y::x+1;z::y+1;x,y,z}
+> h(1;0;0)
+= [1 2 3]
+
+@ functions.assign-arg-x-leaves-the-caller core strict1
+> h::{x::7;x}
+> g::{h(x);x}
+> g(1)
+= 1

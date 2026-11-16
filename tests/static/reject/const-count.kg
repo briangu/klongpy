@@ -1,0 +1,4 @@
+:" expect: static line 3 const-count "
+
+f::{y#x}
+.entry("f";"int[4] int -> int[3]")

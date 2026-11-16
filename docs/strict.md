@@ -298,7 +298,7 @@ error: local 'a' read before assignment
 
 ### Too many arguments
 
-A function takes as many arguments as the highest of `x`, `y` and `z` it uses, or as many as it has named [parameters](language-additions.md#named-parameters). At levels 0 and 1 extra arguments are dropped. At level 2 they are an arity error. A call that leaves an argument empty, `f(1;)`, is a projection, and is not an error at any level.
+A function takes as many arguments as the highest of `x`, `y` and `z` it uses, or as many as it has named [parameters](language-additions.md#named-parameters). At levels 0 and 1 extra arguments are dropped. At level 2 they are an arity error. A call with fewer arguments, written `f(1;)` with the empty slot or `f(1)` without it, is a projection, and is not an error at any level.
 
 ```kgpy
 ?> {x+y}(1;2;3)
@@ -314,8 +314,12 @@ error: f takes 1 argument, got 2
 ?> {x+z}(1;2;3)
 4
 ?> p::{x+y}(1;)
-:dyad
+:monad
 ?> p(10)
+11
+?> q::{x+y}(1)
+:monad
+?> q(10)
 11
 ```
 

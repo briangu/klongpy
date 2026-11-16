@@ -1,0 +1,4 @@
+:" accept: loop-state - a state that starts as a float "
+
+f::{10{x*0.5}:*1.0}
+.entry("f";"-> float")

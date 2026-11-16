@@ -1,0 +1,5 @@
+:" expect: static line 4 arity "
+
+g::{x+y}
+f::{g(x;1;2)}
+.entry("f";"int -> int")

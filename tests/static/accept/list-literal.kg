@@ -1,0 +1,4 @@
+:" accept: list-literal - a rectangular list literal "
+
+f::{x+[[1 2] [3 4]]}
+.entry("f";"int -> int[2,2]")

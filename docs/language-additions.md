@@ -217,14 +217,14 @@ A call works as for any function, and a function may be recursive by its own nam
 120
 ```
 
-Leaving an argument empty makes a projection that takes the rest by position, for any number of parameters. `f@list` spreads a list as the arguments. A function of one or two parameters works with the adverbs; one of more than two gives an arity error from the adverb.
+Leaving an argument empty, or leaving arguments off the end, makes a projection that takes the rest by position, for any number of parameters. `g(1;2)` is the same projection as `g(1;2;;)`. `f@list` spreads a list as the arguments. A function of one or two parameters works with the adverbs; one of more than two gives an arity error from the adverb.
 
 <!-- check-docs: strict 2 -->
 ```kgpy
 ?> g(a;b;c;d)::{(a*b)+c*d}
 :triad
 ?> p::g(1;;3;4)
-:triad
+:monad
 ?> p(10)
 22
 ?> sub(a;b)::{a-b}
@@ -285,7 +285,7 @@ The arity of a function written with `x`, `y` and `z` is the highest of the thre
 3
 ```
 
-A function that uses `x` only under a monad such as `-x` has one argument. It used to be counted as having none, which made `f::{-x}` display as `:nilad` and made Python callers pass the wrong number of arguments. `{y}` has two, so a call with one argument does not return a value; `{y}(1;2)` is 2.
+A function that uses `x` only under a monad such as `-x` has one argument. It used to be counted as having none, which made `f::{-x}` display as `:nilad` and made Python callers pass the wrong number of arguments. `{y}` has two, so a call with one argument is a projection that waits for the second: `p::{y}(1);p(2)` is 2, and so is `{y}(1;2)`.
 
 ## Dictionaries
 

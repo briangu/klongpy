@@ -1,0 +1,4 @@
+:" expect: static line 4 entry "
+
+f::{x+y}
+.entry("f";"int -> int")

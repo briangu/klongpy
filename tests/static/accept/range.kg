@@ -1,0 +1,4 @@
+:" accept: range - Reverse, a monad of fixed length "
+
+f::{|x}
+.entry("f";"int[4] -> int[4]")

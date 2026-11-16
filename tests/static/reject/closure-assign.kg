@@ -1,0 +1,4 @@
+:" expect: static line 3 closure-assign "
+
+f::{[s];s::0;{s::s+x}'x;s}
+.entry("f";"int[4] -> int")

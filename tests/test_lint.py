@@ -148,7 +148,8 @@ CASES = [
     # W019 assignment to x, y or z
     ("W019", "{x::5;x}(1)", [(1, 2)]),
     ("W019", "{[a];z::1;a}", [(1, 6)]),
-    ("W019", "y::2", [(1, 1)]),
+    ("W019", "{y::2}", [(1, 2)]),
+    ("W019", "y::2", []),                       # top level: an ordinary variable (ticket 033)
     ("W019", "{[x];x::5;x}(1)", []),        # a declared local named x
     ("W019", "{a::x}", []),
     # W020 a two-element list joined to a dictionary
@@ -489,7 +490,7 @@ class Cli(unittest.TestCase):
     def test_several_files_in_one_run(self):
         a = self.write("a.kg", "my_var::5\n")
         b = self.write("b.kg", "1+\n")
-        c = self.write("c.kg", "x::1\n")
+        c = self.write("c.kg", "f::{x::1}\n")
         rc, out, err = self.run_cli(a, b, c)
         self.assertEqual(rc, 1, err)
         lines = out.splitlines()

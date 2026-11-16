@@ -1,0 +1,5 @@
+:" expect: static line 3 load "
+
+.l("support/no.such.file")
+f::{x+1}
+.entry("f";"int -> int")

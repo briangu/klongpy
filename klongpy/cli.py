@@ -573,13 +573,17 @@ def main():
     parser.add_argument('--traceback', help='print the Python traceback with an error (what -v does, without the other output)',
                         action="store_true")
     parser.add_argument('--dump-ast', metavar='FILE', help='print the canonical parse tree of FILE and exit')
-    parser.add_argument('--lint', metavar='FILE', nargs='+',
+    parser.add_argument('--lint', metavar='FILE', nargs='*', action='extend',
                         help='check FILEs for the classic Klong traps without running them, then exit '
                              '(1 if any error was found); with --select, --ignore, --define and -v')
     parser.add_argument('--select', metavar='CODES', help='with --lint: report only these codes (comma-separated)')
     parser.add_argument('--ignore', metavar='CODES', help='with --lint: leave these codes out (comma-separated)')
     parser.add_argument('--define', metavar='NAMES',
                         help='with --lint: names the host defines before the program runs (comma-separated)')
+    parser.add_argument('--check-static', metavar='FILE', nargs='+',
+                        help='check that FILEs are inside the static profile (the subset that compiles ahead of time) '
+                             'without running them, then exit (1 if any is outside); with --int64 and -v')
+    parser.add_argument('--int64', action='store_true', help='with --check-static: kg_int is 64 bits wide (the default is 32)')
     parser.add_argument('-d', '--debug', help='enable debug mode', action="store_true")
     parser.add_argument('--strict', metavar='N', type=int, choices=[0, 1, 2], default=0,
                         help='strict level: 0 (the default), 1 or 2; --strict alone means 1. Written --strict=N')
@@ -589,13 +593,31 @@ def main():
 
     # --strict[=N]: the bare flag means level 1 and never takes the next word
     # (which may be the file name) for its value.
-    args = parser.parse_args(['--strict=1' if a == '--strict' else a for a in main_args[1:]])
+    argv = ['--strict=1' if a == '--strict' else a for a in main_args[1:]]
+    lint_rest = []
+    if '--lint' in argv:
+        # file names may be spread between the options: take what is left over
+        args, lint_rest = parser.parse_known_args(argv)
+        bad = [a for a in lint_rest if a.startswith('-') and a != '-']
+        if bad:
+            parser.error(f"unrecognized arguments: {' '.join(bad)}")
+    else:
+        args = parser.parse_args(argv)
     if args.dump_ast:
         from klongpy.dump import main as _dump_main
         sys.exit(_dump_main([args.dump_ast]))
-    if args.lint:
+    if args.lint is not None:
+        # The options may come in any order (ticket 033): --lint -v FILE
+        # leaves FILE to the positional argument, and --lint A -v B leaves B
+        # there; a file after that is in the words argparse did not place.
+        lint_files = list(args.lint) + ([args.filename] if args.filename is not None else []) + lint_rest
+        if not lint_files:
+            parser.error("--lint needs at least one FILE")
         from klongpy.lint import lint_main
-        sys.exit(lint_main(args.lint, args.select, args.ignore, args.verbose, args.define))
+        sys.exit(lint_main(lint_files, args.select, args.ignore, args.verbose, args.define))
+    if args.check_static:
+        from klongpy.static import check_main
+        sys.exit(check_main(args.check_static, 64 if args.int64 else 32, args.verbose))
 
     # Default to the numpy backend: fast and predictable for general array work
     # (and it never surprises non-autograd .kg scripts with MPS-tensor issues).

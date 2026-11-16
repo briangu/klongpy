@@ -13,6 +13,7 @@ import torch.autograd.functional as torch_autograd_functional
 from .base import BackendProvider, CompiledDecline, UnsupportedDtypeError, is_jagged_array
 from .numpy_backend import KGChar, NumpyBackendProvider, _beyond_int64, _has_big_int
 from ..autograd import AutogradChainBrokenError, NonScalarLossError, _invoke_fn
+from ..errors import KlongTypeError
 
 # numpy 2.x moved VisibleDeprecationWarning to numpy.exceptions
 from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
@@ -848,8 +849,13 @@ class TorchBackendProvider(BackendProvider):
 
     def amend_at(self, a, index, v):
         """Amend-in-Depth: a copy of a with the one element at the index path replaced by v."""
-        index = tuple(int(i) for i in (index.tolist() if hasattr(index, 'tolist') else index)) \
-            if getattr(index, 'ndim', 1) > 0 else (int(index),)
+        index = (index.tolist() if hasattr(index, 'tolist') else list(index)) \
+            if getattr(index, 'ndim', 1) > 0 else [index.item() if hasattr(index, 'item') else index]
+        for i in index:
+            if i != int(i):
+                # 5.5,[0 1] is one float tensor: whole numbers are indices, anything else is not
+                raise KlongTypeError(f":-: index must be an integer, got {i!r}")
+        index = tuple(int(i) for i in index)
         is_number = isinstance(v, torch.Tensor) or (isinstance(v, (int, float, numpy.number)) and not isinstance(v, bool))
         if not is_number:
             return super().amend_at(a.detach().cpu().numpy(), index, v)

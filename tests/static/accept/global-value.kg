@@ -1,0 +1,5 @@
+:" accept: global-value - a numeric global "
+
+gain::42
+f::{x*gain}
+.entry("f";"int -> int")

@@ -1,0 +1,4 @@
+:" accept: size-of-atom - Size of an array "
+
+f::{#x}
+.entry("f";"int[3] -> int")

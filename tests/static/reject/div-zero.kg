@@ -1,0 +1,4 @@
+:" expect: static line 3 div-zero "
+
+f::{x!0}
+.entry("f";"int -> int")

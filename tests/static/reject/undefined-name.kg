@@ -1,0 +1,4 @@
+:" expect: static line 3 undefined-name "
+
+f::{x+k}
+.entry("f";"int -> int")

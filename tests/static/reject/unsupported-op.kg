@@ -1,0 +1,4 @@
+:" expect: static line 3 unsupported-op "
+
+f::{x+:\y}
+.entry("f";"int[3] int[3] -> int[3,3]")

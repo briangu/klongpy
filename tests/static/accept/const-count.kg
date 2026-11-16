@@ -1,0 +1,5 @@
+:" accept: const-count - a count that is a global no function assigns "
+
+n::3
+f::{n#x}
+.entry("f";"int[4] -> int[3]")

@@ -1,0 +1,5 @@
+:" expect: static line 4 fn-value "
+
+g::{x+1}
+f::{[h];h::g;h(x)}
+.entry("f";"int -> int")

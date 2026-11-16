@@ -1,0 +1,4 @@
+:" accept: recursion - a loop written with Over "
+
+f::{*/1+!5}
+.entry("f";"-> int")

@@ -1,0 +1,4 @@
+:" expect: static line 3 shape-change "
+
+f::{[a];a::x;a::[1 2];a}
+.entry("f";"int -> int")

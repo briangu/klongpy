@@ -1,0 +1,4 @@
+:" expect: static line 3 size-of-atom "
+
+f::{#x}
+.entry("f";"int -> int")

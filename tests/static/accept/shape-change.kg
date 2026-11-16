@@ -1,0 +1,4 @@
+:" accept: shape-change - a local that keeps its shape "
+
+f::{[a];a::x;a::a+1;a}
+.entry("f";"int -> int")

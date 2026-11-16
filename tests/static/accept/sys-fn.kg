@@ -1,0 +1,5 @@
+:" accept: sys-fn - output through a declared extern "
+
+.extern("log.int";"int -> void")
+f::{log.int(x);x}
+.entry("f";"int -> int")

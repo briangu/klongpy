@@ -1,0 +1,4 @@
+:" accept: index-range - a constant index inside the array "
+
+f::{x@3}
+.entry("f";"int[4] -> int")

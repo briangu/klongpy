@@ -1,0 +1,4 @@
+:" accept: strict-syntax - a complete expression "
+
+f::{x+1}
+.entry("f";"int -> int")

@@ -1,0 +1,4 @@
+:" expect: static line 3 index-range "
+
+f::{x@4}
+.entry("f";"int[4] -> int")

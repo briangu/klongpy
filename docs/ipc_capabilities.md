@@ -190,7 +190,7 @@ client?> f(inc,1)
 
 `f(:twice,{x+k},1)` calls the server's `twice` with the function and 1, which gives (1+7)+7. `f(inc,1)` sends the source of `inc` as the function to run remotely, and the server applies it to 1.
 
-A projection has no source text. It is sent as an opaque value with the arity of the function it was made from. The receiver can hold it, store it and send it back, but cannot call it:
+A projection has no source text. It is sent as an opaque value with the number of arguments it still takes. The receiver can hold it, store it and send it back, but cannot call it:
 
 ```kgpy
 server?> .srv(8888)
@@ -200,11 +200,11 @@ server?> show::{x}
 client?> f::.cli(8888)
 remote[localhost:8888]:fn
 client?> p::{x+y}(1;)
-:dyad
+:monad
 client?> p(2)
 3
 client?> f(:show,,p)
-:dyad
+:monad
 ```
 
 A remote function proxy (the result of `f(:name)` or `d?:name`) is bound to its connection and name. Calling it sends the call; closing the connection makes it fail.

@@ -1,0 +1,4 @@
+:" expect: static line 3 cond-shape "
+
+f::{:[x;[1 2];[4 5 6]]}
+.entry("f";"int -> int[3]")

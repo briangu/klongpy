@@ -1,0 +1,4 @@
+:" accept: operand - Integer-Divide of ints "
+
+f::{x:%2}
+.entry("f";"int -> int")

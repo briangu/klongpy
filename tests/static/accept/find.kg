@@ -1,0 +1,4 @@
+:" accept: find - Equal gives a mask of fixed length "
+
+f::{x=1}
+.entry("f";"int[4] -> int[4]")

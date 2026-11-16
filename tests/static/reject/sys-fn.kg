@@ -1,0 +1,4 @@
+:" expect: static line 3 sys-fn "
+
+f::{.p(x);x}
+.entry("f";"int -> int")

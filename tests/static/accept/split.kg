@@ -1,0 +1,4 @@
+:" accept: split - Take with a constant count "
+
+f::{2#x}
+.entry("f";"int[4] -> int[2]")

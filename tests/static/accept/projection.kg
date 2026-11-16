@@ -1,0 +1,5 @@
+:" accept: projection - a call with every argument "
+
+g::{x+y}
+f::{g(x;1)}
+.entry("f";"int -> int")

@@ -1216,7 +1216,7 @@ class _Linter:
             t = toks[i]
             if t[0] == 'NAME' and t[3] in _ARGS and toks[i + 1][0] == 'COP' and toks[i + 1][3] == '::' \
                     and ctx[i].kind not in _DATA_KINDS and not ctx[i].is_header \
-                    and not (ctx[i].fn is not None and t[3] in ctx[i].fn.locals):
+                    and ctx[i].fn is not None and t[3] not in ctx[i].fn.locals:
                 self.add('W019', (t[1], toks[i + 1][2]), f"assignment to {t[3]}, which is an argument of the function",
                          "assign to a declared local instead: {[a];a::...}")
 

@@ -1,0 +1,4 @@
+:" expect: static line 3 operand "
+
+f::{x:%2}
+.entry("f";"float -> int")

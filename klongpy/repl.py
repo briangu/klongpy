@@ -89,6 +89,9 @@ def create_repl(debug: bool = False, backend: Optional[str] = None, device: Opti
     klong = KlongInterpreter(backend=backend, device=device, strict=strict)
     shutdown_event = CallbackEvent()
     klong['.system'] = {'ioloop': io_loop, 'klongloop': klong_loop, 'closeEvent': shutdown_event}
+    # the help database the library files add their entries to (math.kg and
+    # the others load help.kg, which reads it): empty until one is loaded
+    klong['.helpdb'] = []
 
     return klong, (io_loop, io_thread, io_stop, klong_loop, klong_thread, klong_stop)
 

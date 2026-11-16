@@ -1,0 +1,4 @@
+:" expect: static line 3 list-literal "
+
+f::{x+[1 [2 3]]}
+.entry("f";"int -> int[2]")

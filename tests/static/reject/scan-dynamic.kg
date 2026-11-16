@@ -1,0 +1,4 @@
+:" expect: static line 3 scan-dynamic "
+
+f::{{x<100}{x*2}\~x}
+.entry("f";"int -> int")

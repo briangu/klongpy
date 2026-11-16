@@ -1,0 +1,4 @@
+:" accept: dict - a table indexed by position "
+
+f::{[10 20]@x}
+.entry("f";"int -> int")

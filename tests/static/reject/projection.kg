@@ -1,0 +1,5 @@
+:" expect: static line 4 projection "
+
+g::{x+y}
+f::{g(x;)}
+.entry("f";"int -> int")

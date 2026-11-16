@@ -1,0 +1,4 @@
+:" accept: unset-local - a local assigned before it is read "
+
+f::{[a];a::1;x+a}
+.entry("f";"int -> int")

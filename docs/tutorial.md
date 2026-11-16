@@ -276,19 +276,23 @@ A function that takes no arguments is a nilad. It is called with empty parenthes
 2
 ```
 
-Calling a function with fewer arguments than it takes gives a new function that waits for the rest. This is called a projection. Leave the argument out, but keep the `;`:
+Calling a function with fewer arguments than it takes gives a new function that waits for the rest. This is called a projection. Leave the last arguments off, or leave any argument empty and keep its `;`:
 
 <!-- check-docs: continue -->
 ```kgpy
 ?> add::{x+y}
 :dyad
-?> inc::add(1;)
-:dyad
+?> inc::add(1)
+:monad
 ?> inc(5)
 6
+?> dec::add(;-1)
+:monad
+?> dec(5)
+4
 ```
 
-(The REPL shows a projection with the name of the kind of function it came from.) Calling a function with more arguments than it takes is an error at strict level 2, and at levels 0 and 1 the extra arguments are dropped:
+(The REPL shows a projection by the number of arguments it still takes.) A projection made inside a function keeps the values its arguments had there, so `{add(x)}'[1 2 3]` is a list of three different projections. Calling a function with more arguments than it takes is an error at strict level 2, and at levels 0 and 1 the extra arguments are dropped:
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -423,7 +427,7 @@ The parameters are locals. Inside such a function `x`, `y` and `z` are not avail
 <!-- check-docs: continue -->
 ```kgpy
 ?> p4::sum4(1;;3;4)
-:triad
+:monad
 ?> p4(2)
 10
 ?> sum4(1;2;3;4;5)
@@ -784,7 +788,7 @@ None
 
 `.l` returns the value of the last statement of the file.
 
-A library brackets its definitions with `.module(:name)` and `.module(0)`. By convention it names what it exports `name.function`, as `csv.split` and `csv.read` in `klongpy/lib/csv.kg` do, so that its names do not clash with yours:
+A library brackets its definitions with `.module(:name)` and `.module(0)`. Inside the module its names refer to the module's own variables, so a program that later assigns the same name does not change what the library's functions use. The names are not hidden, though: after the module is closed they can still be used by their plain names (see [Modules](operators.md#modules)). By convention a library names what it exports `name.function`, as `csv.split` and `csv.read` in `klongpy/lib/csv.kg` do, so that its names do not clash with yours:
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -936,7 +940,7 @@ At level 2 the same line stops earlier, on the undefined name `my`. Use `myVar` 
 error: unexpected '(' after the end of the expression
 ```
 
-**A function that only uses `y` takes two arguments.** `{y}` has arity 2, so `f::{y};f(5)` does not return 5 or an error; it is a projection that waits for `y`:
+**A function that only uses `y` takes two arguments.** `{y}` has arity 2, so `f::{y};f(5)` does not return 5 or an error; it is a projection that waits for `y`, and calling it with one more argument completes it:
 
 <!-- check-docs: continue -->
 ```kgpy

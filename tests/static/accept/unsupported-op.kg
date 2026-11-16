@@ -1,0 +1,4 @@
+:" accept: unsupported-op - Each-2 with a function literal in place of Each-Left "
+
+f::{y{x+y}'y}
+.entry("f";"int[3] int[3] -> int[3]")

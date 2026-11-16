@@ -1,0 +1,5 @@
+:" accept: load - a file that exists, loaded under the same rules "
+
+.l("support/scale")
+f::{scale(x)+1}
+.entry("f";"int -> int")

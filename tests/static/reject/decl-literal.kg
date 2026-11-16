@@ -1,0 +1,5 @@
+:" expect: static line 5 decl-literal "
+
+f::{x*2}
+name::7
+.entry(name;"int -> int")

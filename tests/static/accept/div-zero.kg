@@ -1,0 +1,4 @@
+:" accept: div-zero - a non-zero constant divisor "
+
+f::{x!2}
+.entry("f";"int -> int")

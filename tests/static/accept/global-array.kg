@@ -1,0 +1,5 @@
+:" accept: global-array - a rectangular table "
+
+tab::[[1 2] [3 4]]
+f::{(tab@x)@0}
+.entry("f";"int -> int")

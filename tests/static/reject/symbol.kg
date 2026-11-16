@@ -1,0 +1,4 @@
+:" expect: static line 3 symbol "
+
+f::{[a];a::x*2;[a a]}
+.entry("f";"int -> int[2]")

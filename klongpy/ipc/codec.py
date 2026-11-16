@@ -92,6 +92,11 @@ class KdbLambda:
     context_raw: Optional[bytes] = field(default=None, compare=False, repr=False)
     text_raw: Optional[bytes] = field(default=None, compare=False, repr=False)
 
+    def __str__(self):
+        # what Klong prints for the value: the function's text (a q lambda
+        # received from a peer stays a KdbLambda)
+        return self.text
+
     @property
     def is_klong(self):
         return self.context == "kg"
@@ -189,6 +194,12 @@ def _function_display(fn):
         arity = fn.get_arity()
     else:
         arity = getattr(fn, "arity", 0)
+        args = getattr(fn, "args", None)
+        if type(args) is list:
+            # a projection: the arguments it still takes
+            holes = sum(1 for q in args if q is None)
+            if holes:
+                arity = holes
     if not isinstance(arity, int) or arity < 0:
         arity = 0
     names = (":nilad", ":monad", ":dyad", ":triad")

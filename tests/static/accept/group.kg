@@ -1,0 +1,4 @@
+:" accept: group - Equal, the dyad of the same glyph "
+
+f::{x=x}
+.entry("f";"int[4] -> int[4]")

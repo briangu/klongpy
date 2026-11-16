@@ -1,0 +1,4 @@
+:" expect: static line 3 range "
+
+f::{?x}
+.entry("f";"int[4] -> int[4]")

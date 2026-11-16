@@ -186,7 +186,7 @@ class TestRequests(IPCCase):
         self.kg(client, "d::.clid(c)")
         self.kg(client, "g::{x+y};p::g(1;)")
         self.kg(client, "d,:fn,p")
-        self.assertEqual(str(self.kg(server, "fn")), ":dyad")       # a projection reports its function's arity
+        self.assertEqual(str(self.kg(server, "fn")), ":monad")      # a projection reports the arguments it still takes (ticket 033)
         q = self.kg(client, "q::d?:fn")                             # the opaque value goes back out as a lambda
         self.assertIsInstance(q, KGRemoteFnProxy)
         with self.assertRaises(KlongRemoteException) as cm:

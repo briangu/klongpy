@@ -1,0 +1,4 @@
+:" expect: static line 3 recursion "
+
+f::{:[x<2;1;x*f(x-1)]}
+.entry("f";"int -> int")

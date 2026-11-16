@@ -1,0 +1,5 @@
+:" accept: toplevel-effect - a top-level definition is evaluated at compile time "
+
+f::{x*2}
+k::f(21)
+.entry("f";"int -> int")

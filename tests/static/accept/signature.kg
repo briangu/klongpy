@@ -1,0 +1,4 @@
+:" accept: signature - a well-formed signature "
+
+f::{x*2}
+.entry("f";"float[8] -> float[8]")

@@ -1,0 +1,4 @@
+:" accept: decl-literal - declarations with literal arguments "
+
+f::{x*2}
+.entry("f";"int -> int")

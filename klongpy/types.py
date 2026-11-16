@@ -137,6 +137,16 @@ class KGFn:
         return d
 
     def __str__(self):
+        # A projection displays by the number of arguments it still takes:
+        # its empty slots (ticket 033). Anything else by its arity.
+        args = self.args
+        if type(args) is list:
+            holes = 0
+            for q in args:
+                if q is None:
+                    holes += 1
+            if holes:
+                return get_fn_arity_str(holes)
         return get_fn_arity_str(self.arity)
 
     def is_op(self):
@@ -266,6 +276,13 @@ class KGFnWrapper:
             except KeyError:
                 # Symbol was deleted, fall through to original function
                 pass
+        if type(fn.args) is list and not kwargs:
+            # a projection (ticket 033): it takes one argument for each empty slot
+            holes = sum(1 for q in fn.args if q is None)
+            if holes:
+                if len(args) != holes:
+                    raise _named_arity_error(f"{self._name()} takes {_count(holes)}, got {len(args)}")
+                return self.klong.apply(fn, [np.asarray(x) if isinstance(x, list) else x for x in args])
         params = getattr(fn.a, 'params', None)
         if kwargs:
             args = self._with_keywords(fn, params, args, kwargs)
@@ -682,23 +699,29 @@ def merge_projections(arr):
     # An object array with one slot per argument. (numpy.copy of the list
     # gave the same whenever it worked; it failed on an argument that is a
     # list, as in f([1 2];).)
+    #
+    # Each later layer is the argument list of a call of the projection the
+    # layers before it make: its arguments go to the empty slots in order,
+    # and an argument it leaves empty leaves that slot empty (for the next
+    # layer). Every layer starts at the first empty slot (ticket 033: the
+    # walk used to go on from where the layer before stopped, so p(;3) of a
+    # projection p and then q(2) never filled the slot p(;3) left open).
     first = arr[0]
-    sparse_fa = numpy.empty(len(first), dtype=object)
-    for i in range(len(first)):
+    n = len(first)
+    sparse_fa = numpy.empty(n, dtype=object)
+    for i in range(n):
         sparse_fa[i] = first[i]
-    i = 0
-    k = 1
-    while i < len(sparse_fa) and k < len(arr):
-        fa = arr[k]
+    for fa in arr[1:]:
+        if fa is None:
+            continue
+        m = len(fa)
         j = 0
-        while i < len(sparse_fa) and j < len(fa):
+        for i in range(n):
+            if j >= m:
+                break
             if sparse_fa[i] is None:
                 sparse_fa[i] = fa[j]
                 j += 1
-                while j < len(fa) and safe_eq(fa[j], None):
-                    j += 1
-            i += 1
-        k += 1
     return sparse_fa
 
 

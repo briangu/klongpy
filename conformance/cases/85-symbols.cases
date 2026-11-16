@@ -159,3 +159,32 @@
 > h(:zzz)
 = :zzz
 
+# :undefined written in a program is the undefined value (ticket 033)
+@ symbols.undefined-variable-matches core
+> u::1%0
+> u~:undefined
+= 1
+
+@ symbols.undefined-literal-is-undefined core
+> :_:undefined
+= 1
+
+@ symbols.undefined-matches-strict1 core strict1
+> u::1%0
+> u~:undefined
+= 1
+
+@ symbols.undefined-matches-strict2 core strict2
+> u::1%0
+> u~:undefined
+= 1
+
+@ symbols.undefined-does-not-match-a-number core
+> u::1%0
+> u~0
+= 0
+
+@ symbols.undefined-missing-key dicts
+> d:::{[1 2]}
+> (d?9)~:undefined
+= 1

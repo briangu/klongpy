@@ -1,0 +1,4 @@
+:" expect: static line 3 split "
+
+f::{2:#x}
+.entry("f";"int[4] -> int[2]")

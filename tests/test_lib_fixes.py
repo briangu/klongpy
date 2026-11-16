@@ -103,17 +103,12 @@ class TestFft(unittest.TestCase):
 
 class TestEigenv(unittest.TestCase):
     """eigenv needs `:-` to accept a float value joined to integer indices, and
-    `,` to join arrays of different rank (see ticket 029). Until the operators
-    are fixed the test is skipped; once they are, it must match numpy."""
+    `,` to join arrays of different rank (see ticket 029). Both operators are
+    fixed (tests/test_amend_depth_join_ragged.py); the result must match numpy."""
 
     @requires_object_dtype
     def test_eigenv_matches_numpy(self):
         k = load("eigenv.kg")
-        try:
-            k("[[1 2] [3 4]]:-5.5,[0 1]")
-            k("(,[1 2]),(,[[1 2] [3 4]])")
-        except Exception as e:  # noqa: BLE001
-            self.skipTest(f"operator bugs still present: {e}")
         m = [[2.0, 1.0, 0.0], [1.0, 2.0, 1.0], [0.0, 1.0, 2.0]]
         r = k("eigenv([[2.0 1.0 0.0] [1.0 2.0 1.0] [0.0 1.0 2.0]];4)")
         vals = np.sort(np.asarray(r[0], dtype=float))

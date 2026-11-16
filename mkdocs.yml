@@ -26,6 +26,7 @@ nav:
       - Friendlier Syntax: 'language-additions.md'
       - Strict Mode: 'strict.md'
       - Lint: 'lint.md'
+      - Static Profile: 'static-profile.md'
   - Reference:
       - Operators: 'operators.md'
       - REPL: 'repl.md'

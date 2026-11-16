@@ -1,0 +1,4 @@
+:" expect: static line 3 array-shape "
+
+f::{0#x}
+.entry("f";"int[4] -> int[1]")

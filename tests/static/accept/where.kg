@@ -1,0 +1,4 @@
+:" accept: where - Min/And, the dyad of the same glyph "
+
+f::{x&1}
+.entry("f";"int[4] -> int[4]")

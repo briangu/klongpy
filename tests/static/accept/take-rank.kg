@@ -1,0 +1,4 @@
+:" accept: take-rank - take from a rank-1 array "
+
+f::{2#x}
+.entry("f";"int[4] -> int[2]")

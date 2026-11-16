@@ -12,6 +12,7 @@ from .monads import create_monad_functions
 from .sys_fn import create_system_functions
 from .sys_fn_autograd import create_system_functions_autograd
 from .sys_fn_ipc import create_system_functions_ipc, create_system_var_ipc
+from .sys_fn_static import ExternTable, create_system_functions_static
 from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
 from .types import KGQSym, KGDestructure
@@ -50,6 +51,14 @@ class _Value:
 
     def __init__(self, v):
         self.v = v
+
+
+def _has_hole(merged):
+    """Whether merged projection arguments (a list or an object array) have an empty slot."""
+    for q in merged:
+        if q is None:
+            return True
+    return False
 
 
 class _Unset:
@@ -158,8 +167,10 @@ class KlongContext():
                     d[k] = v
                     return k
 
-        # Variable doesn't exist - check strict mode
-        if self._strict_mode >= 1:
+        # Variable doesn't exist - check strict mode. x, y and z are the
+        # arguments of the running function and are assignable like its
+        # locals (ticket 033); they are always bound in its own frame.
+        if self._strict_mode >= 1 and k not in reserved_fn_symbols:
             if self.in_function():
                 # Inside function - disallow creating new variables
                 raise KlongNameError(
@@ -265,6 +276,7 @@ def create_system_contexts():
     add_context_key_values(sys_d, create_system_functions())
     add_context_key_values(sys_d, create_system_functions_autograd())
     add_context_key_values(sys_d, create_system_functions_ipc())
+    add_context_key_values(sys_d, create_system_functions_static())
     add_context_key_values(sys_d, create_system_functions_timer())
     set_context_var(sys_d, KGSym('.e'), eval_sys_var_epsilon()) # TODO: support lambda
     set_context_var(sys_d, KGSym('.cin'), cin)
@@ -391,6 +403,8 @@ class KlongInterpreter():
         self._sources = []
         # warnings.warn_explicit registries, one per Source (see _warn)
         self._warn_registry = {}
+        # Python stand-ins of the functions declared with .extern (sys_fn_static.py)
+        self.externs = ExternTable()
 
     @property
     def strict(self):
@@ -1469,6 +1483,7 @@ class KlongInterpreter():
 
         if len(f_args) == 1:
             f_args = f_args[0]
+            layered = False
         else:
             if len(f_args) == 4:
                 f, f_args, f_arity, node = self._resolve_deeper(f, f_args, f_arity, node)
@@ -1476,13 +1491,16 @@ class KlongInterpreter():
             if self._context._strict_mode == 2 or (type(f) is KGBody and f.params is not None):
                 self._check_projection(x.a, f_args)
             f_args = merge_projections(f_args)
+            layered = True
         n = 0 if f_args is None else len(f_args)
         if type(f) is KGBody and f.params is not None:
             # a function with named parameters (ticket 061)
             ctx = self._bind_params(x.a, f, f_args, n, node)
-            return x if ctx is None else self._run_fn(f, ctx, node)
-        if n < f_arity or has_none(f_args):
-            return x
+            return self._projection(x, f_args, len(f.params), layered) if ctx is None else self._run_fn(f, ctx, node)
+        if n < f_arity or (_has_hole(f_args) if layered else has_none(f_args)):
+            # a short call (fewer arguments than the function takes, or an
+            # argument left empty): a projection, at every strict level
+            return self._projection(x, f_args, f_arity, layered)
         if n > f_arity and self._context._strict_mode == 2 and not isinstance(f, KGLambda):
             # f_arity is the callee's own arity when the callee is a Klong
             # function; for anything else it is the count of arguments
@@ -1490,9 +1508,87 @@ class KlongInterpreter():
             # arity; a dictionary literal is a call of one with arity 0.)
             raise self._too_many(x.a, f_arity, n)
 
-        ctx = {} if f_args is None else {p: self.call(q) for p,q in zip(reserved_fn_symbols,f_args)}
+        if layered:
+            # a projection holds the values of the arguments it was made with
+            ctx = {p: (q.v if type(q) is _Value else self.call(q)) for p,q in zip(reserved_fn_symbols,f_args)}
+        else:
+            ctx = {} if f_args is None else {p: self.call(q) for p,q in zip(reserved_fn_symbols,f_args)}
 
         return self._run_fn(f, ctx, node)
+
+    def _projection(self, x, merged, need, layered):
+        """
+        The value of the written call x when it does not supply every
+        argument (ticket 033): a projection, which is a call (KGCall) whose
+        argument list has an empty slot (None) for each argument still
+        missing. This is the one definition of a short call: an argument may
+        be left empty, f(1;), f(;2), or left off the end, f(1), and the two
+        are the same thing. Arguments left off are trailing empty slots.
+
+        merged is the argument list the function would have been called with
+        (the arguments of x filled into the slots of the projection x calls,
+        when it calls one: layered), need the number of arguments the
+        function takes.
+
+        Inside a function the arguments that are supplied are evaluated
+        here, once, and the projection holds their values (_Value): they are
+        the function's arguments and locals, which are gone when the
+        projection is completed ({add(x)}'[1 2 3] is three projections, each
+        with its own x). At top level the projection keeps the argument
+        expressions and they are evaluated each time it is completed, which
+        is the legacy rule (pinned by tests/test_symbol_values.py:
+        a::1;g::f(a;);a::2 completes with 2).
+
+        The callee stays as written, a name, so the function is looked up
+        when the projection is completed; x, y, z and .f are replaced by
+        what they hold, because they mean something else by then.
+
+        The arity field of the result is the number of slots (what
+        _resolve_fn and merge_projections work with); what is displayed is
+        the number of empty ones (KGFn.__str__).
+        """
+        args = x.args
+        if args is None:
+            # not a call: a function value, which call() put in call form
+            return x
+        if not isinstance(args, list):
+            args = [args]
+        if layered:
+            # the slots of the projection below that these arguments did not reach
+            pad = sum(1 for q in merged if q is None) - sum(1 for q in args if q is None)
+        else:
+            pad = need - len(args)
+        if self._context.in_function():
+            args = [q if q is None or type(q) is _Value else _Value(self.call(q)) for q in args]
+        elif pad > 0:
+            args = list(args)
+        elif not isinstance(x.a, KGSym) or x.a not in reserved_fn_symbols:
+            return x        # complete as written
+        if pad > 0:
+            args.extend([None] * pad)
+        return KGCall(self._projected_callee(x.a), args, len(args))
+
+    def _projected_callee(self, a):
+        """
+        The callee to store in a projection of a: a itself, except that x, y,
+        z and .f are replaced by the function they hold now.
+        """
+        if isinstance(a, KGSym) and (a in reserved_fn_symbols or a == reserved_dot_f_symbol):
+            try:
+                return self._context[a]
+            except KeyError:
+                pass
+        return a
+
+    def _value_projection(self, fn, values, holes):
+        """
+        The projection apply() returns when the values do not complete fn:
+        the values, held as they are, and one empty slot for each of the
+        holes arguments still missing.
+        """
+        args = [_Value(v) for v in values]
+        args.extend([None] * holes)
+        return KGCall(self._projected_callee(fn), args, len(args))
 
     def _resolve_deeper(self, f, f_args, f_arity, node):
         """
@@ -1510,6 +1606,10 @@ class KlongInterpreter():
                 break
             g = h
         if type(g) is KGBody and g.params is not None:
+            return g, g_args, g_arity, g_node
+        if g is not f and not isinstance(g, (KGFn, KGSym)):
+            # the body of a function of x, y and z under more projections
+            # than three passes go through (ticket 033: a short call is one)
             return g, g_args, g_arity, g_node
         return f, f_args, f_arity, node
 
@@ -1530,7 +1630,7 @@ class KlongInterpreter():
             for q in f_args:
                 if q is None:
                     return None
-            return {p: self.call(q) for p, q in zip(params, f_args)}
+            return {p: (q.v if type(q) is _Value else self.call(q)) for p, q in zip(params, f_args)}
         given = 0 if f_args is None else sum(1 for q in f_args if q is not None)
         if n > m:
             raise self._too_many(callee, m, given)
@@ -1561,19 +1661,17 @@ class KlongInterpreter():
         argument that would be dropped.
         """
         sparse = list(layers[0]) if layers[0] is not None else []
-        holes = sum(1 for q in sparse if q is None)
-        i = 0
         for fa in layers[1:]:
             if fa is None:
                 continue
+            holes = 0
             j = 0
-            while i < len(sparse) and j < len(fa):
+            for i in range(len(sparse)):
                 if sparse[i] is None:
-                    sparse[i] = fa[j]
-                    j += 1
-                    while j < len(fa) and fa[j] is None:
+                    holes += 1
+                    if j < len(fa):
+                        sparse[i] = fa[j]
                         j += 1
-                i += 1
             if any(q is not None for q in fa[j:]):
                 raise self._too_many(callee, holes, sum(1 for q in fa if q is not None))
 
@@ -1599,8 +1697,8 @@ class KlongInterpreter():
         If f is a projection, the arguments it already holds are expressions and
         are evaluated now, as in a written call; only "values" are exempt.
 
-        If there are fewer values than f needs, the unapplied call is returned,
-        as a written call does.
+        If there are fewer values than f needs, the result is a projection over
+        the missing trailing arguments, as for a written call (_projection).
 
         """
         if isinstance(f, KGOp):
@@ -1630,7 +1728,8 @@ class KlongInterpreter():
                     raise self._too_many(fn, len(f.params), len(values))
                 return self._run_fn(f, dict(zip(f.params, values)), node)
             if len(values) < f_arity:
-                return KGCall(fn, values, len(values) if arity is None else arity)
+                # a short call is a projection (ticket 033)
+                return self._value_projection(fn, values, f_arity - len(values))
             if len(values) > f_arity and self._context._strict_mode == 2 and not isinstance(f, KGLambda):
                 raise self._too_many(fn, f_arity, len(values))
         else:
@@ -1649,8 +1748,10 @@ class KlongInterpreter():
                     raise self._projection_short(fn, f, f_args, values)
                 values = [q.v if type(q) is _Value else self.call(q) for q in f_args]
                 return self._run_fn(f, dict(zip(f.params, values)), node)
-            if len(f_args) < f_arity or has_none(f_args):
-                return KGCall(fn, values, len(values) if arity is None else arity)
+            if len(f_args) < f_arity or _has_hole(f_args):
+                # the values do not fill the projection: a projection over
+                # the slots that are left
+                return self._value_projection(fn, values, sum(1 for q in f_args if q is None))
             values = [q.v if type(q) is _Value else self.call(q) for q in f_args]
 
         return self._run_fn(f, dict(zip(reserved_fn_symbols, values)), node)
@@ -1799,7 +1900,13 @@ class KlongInterpreter():
 
         The result is never a KGQSym: the symbol value is a plain KGSym.
 
+        :undefined is the undefined value at every level (ticket 033): what
+        1%0 and a missing dictionary key give, and what is printed for it, so
+        that u~:undefined and :_:undefined say whether u is undefined.
+
         """
+        if str.__str__(x) == 'undefined':
+            return KLONG_UNDEFINED
         if self._context._strict_mode == 2:
             return reserved_fn_symbol_map.get(str.__str__(x)) or KGSym(x)
         try:
@@ -2101,6 +2208,15 @@ class KlongInterpreter():
                                 raise
                             raise err from e
                 elif isinstance(x, KGCall):
+                    return self._eval_fn(x)
+                elif x.args is not None:
+                    # a call written with an empty argument, f(1;): the
+                    # projection, made now (ticket 033). A callee that is
+                    # not defined yet leaves the call as written (legacy: it
+                    # is looked up when the projection is completed).
+                    a = x.a
+                    if type(a) is KGSym and not self._context.is_defined_sym(a):
+                        return x
                     return self._eval_fn(x)
             elif isinstance(x, KGCond):
                 q = self.call(x[0])

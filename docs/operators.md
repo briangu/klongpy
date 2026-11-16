@@ -634,6 +634,89 @@ A symbol held in a list or a variable stays a symbol when it passes through an a
 
 Each over a symbol `s` is `f(s)`: the symbol is not iterated as a string.
 
+### Projections
+
+A call that does not supply every argument is a projection: a function of the arguments that are missing. An argument is left empty, `f(1;)` and `f(;2)`, or left off the end, `f(1)`; arguments left off are the trailing ones, so for a function of three arguments `f(1)`, `f(1;)` and `f(1;;)` are the same projection. This holds at every strict level, for functions of `x`, `y` and `z` and for functions with named parameters, and when `@` or an adverb applies a function to fewer values than it takes. A projection is displayed by the number of arguments it still takes.
+
+```kgpy
+?> f::{x,y,z}
+:triad
+?> p::f(1)
+:dyad
+?> q::p(;3)
+:monad
+?> q(2)
+[1 2 3]
+?> f@1
+:dyad
+```
+
+Calling a projection fills its open slots in order, starting at the first one, and a slot the call leaves empty stays open. The function is looked up by name when the projection is completed, so redefining `f` changes what `p` calls.
+
+A projection made inside a function holds the values its arguments had at that point. One made at top level keeps the argument expressions and evaluates them each time it is completed:
+
+```kgpy
+?> add::{x+y}
+:dyad
+?> {x(10)}'{add(x)}'[1 2 3]
+[11 12 13]
+?> a::1
+1
+?> p::add(a)
+:monad
+?> a::5
+5
+?> p(10)
+15
+```
+
+Three cases are not projections. A function whose whole body is a projection, `g::{add(1;)}`, passes its call on, so `g(5)` is `add(1;5)`. A call through `.f` is never short: `.f(1)` in a function of two arguments runs it with `y` as the caller left it. A function with named parameters applied to too few values by `@` or an adverb is an arity error, as is a call from Python with too few arguments.
+
+### Modules
+
+`.module(:name)` opens a module and `.module(0)` closes it. A name assigned between the two belongs to the module, and every use of that name inside the module refers to the module's own variable. This matches Klong, whose test suite KlongPy runs.
+
+The names are not hidden. After the module is closed, a module name is still reachable by its plain name, as long as the program has no variable of its own with that name:
+
+```kgpy
+?> .module(:geo);unit::10;scale::{x*unit};.module(0)
+None
+?> scale(4)
+40
+?> unit
+10
+```
+
+Assigning the name outside the module makes a separate global variable. The module's functions keep using the module's own, so they cannot be broken by a program that happens to use the same name:
+
+```kgpy
+?> .module(:geo);unit::10;scale::{x*unit};.module(0)
+None
+?> unit::2
+2
+?> scale(4)
+40
+?> scale::{x}
+:monad
+?> unit,scale(4)
+[2 4]
+```
+
+A global that exists before the module opens does not stop the module from having its own variable of that name, and afterwards the plain name reads the module's value: `v::1;.module(:m);v::5;.module(0);v` is 5. There is no qualified form such as `geo.unit`; the libraries in `klongpy/lib` name what they export with a prefix (`csv.read`) by convention only, and their helper functions without a prefix (`unesc`, `escape` in `csv.kg`) are reachable by their plain names too. When two modules define the same name, the plain name outside refers to the one loaded last.
+
+### The undefined value
+
+`:undefined` is what division by zero, a missing dictionary key and a failed Form give, and it can be written in a program. `:_a` and `a~:undefined` both test for it:
+
+```kgpy
+?> u::1%0
+:undefined
+?> u~:undefined
+1
+?> :_:undefined
+1
+```
+
 ## Unused Operators
 
 The following operator combinations are reserved for future use:

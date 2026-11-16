@@ -1,0 +1,4 @@
+:" accept: converge - Iterate, with a fixed number of steps "
+
+f::{10{(x+2%x)%2}:*x}
+.entry("f";"float -> float")

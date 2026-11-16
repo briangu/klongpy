@@ -242,6 +242,13 @@ class BackendProvider(ABC):
         r[tuple(index) if getattr(index, 'ndim', 1) > 0 else index] = v
         return r
 
+    def object_array(self, items):
+        """A one-dimensional object array holding items as they are (no member is merged into the array)."""
+        out = np.empty(len(items), dtype=object)
+        for i, q in enumerate(items):
+            out[i] = q
+        return out
+
     def index_at(self, a, index):
         """Index-in-Depth: the element of a at the index path."""
         return np.asarray(a)[tuple(index) if isinstance(index, list) or getattr(index, 'ndim', 0) > 0 else index]

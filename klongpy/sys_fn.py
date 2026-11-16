@@ -594,10 +594,14 @@ def _handle_import(item):
                 required_args = [k for k,v in sig_args.items() if (v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default == Parameter.empty) or (v.kind == Parameter.POSITIONAL_ONLY)]
                 # Get optional args (have default)
                 optional_args = [k for k,v in sig_args.items() if v.kind == Parameter.POSITIONAL_OR_KEYWORD and v.default != Parameter.empty]
-                # Use required args count, but if there are optional args and no required args,
-                # use wildcard mode so the function can accept 0-3 args
-                if not required_args and optional_args:
+                # A function with optional positional parameters takes
+                # whichever of x, y and z the call supplies (wildcard): with
+                # the count of the required ones only, linspace(0;1;5) lost
+                # its third argument (ticket 033; ticket 027 for .pyc).
+                if optional_args and 'klong' not in required_args and len(required_args) <= len(reserved_fn_args):
                     item = KGLambda(item, args=None, wildcard=True)
+                    # displayed by the arguments it needs (:monad for fft(a, n=None))
+                    item.args = [reserved_fn_symbol_map[a] for a in reserved_fn_args[:len(required_args)]]
                     n_args = 3
                 else:
                     args = required_args

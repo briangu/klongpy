@@ -1,0 +1,4 @@
+:" expect: static line 3 string "
+
+f::{x;"tick"}
+.entry("f";"int -> int")

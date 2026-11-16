@@ -1,0 +1,5 @@
+:" expect: static line 4 redefinition "
+
+f::{x+1}
+f::{x*2}
+.entry("f";"int -> int")

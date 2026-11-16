@@ -1,0 +1,5 @@
+:" expect: static line 4 toplevel-effect "
+
+f::{x*2}
+.p(f(21))
+.entry("f";"int -> int")
