@@ -115,12 +115,14 @@ pow::.pow
 uc::{:[x<0;-uc(-x);x-pi2*_(#x)%pi2]}
 sin.tlr::{[xx yy r d a];xx::x;yy::3;a::0;
           {d::(xx^yy)%*/1+!yy;r:::[a;x+d;x-d];a::~a;yy::2+yy;r}:~x}
-sin::{[xx];xx::uc(x);
+sin.pos::{[xx];xx::uc(x);
       xx:::[(~0>xx)&~xx>pi0.5;xx
                :|(~pi0.5>xx)&~xx>pi1.5;pi-xx
                :|(~pi>xx)&~xx>pi1.5;xx-pi
                ;xx-pi2];
      :[xx>pi;-sin.tlr(xx);sin.tlr(xx)]}
+:" sin is odd: the range reduction above is for x >= 0 (sin(-0.5) raised an undefined-name error)"
+sin::{:[x<0;-sin.pos(-x);sin.pos(x)]}
 cos::{sin(pi0.5-x)}
 tan::{sin(x)%cos(x)}
 :" Taylor series takes forever for big (>0.999) values "

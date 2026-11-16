@@ -143,12 +143,12 @@ mse.set::{rss.set(x;y)%#x}
 r2.set::{1-rss.set(x;y)%tss(x)}
 
 hg::{[h];+(,seg((#h)-1;*'y)),,h::hist(x;{x@1}'y)}
-spl::{[s n];s::spline(hg(x;y));s:-(y:@((#y)-1),0),((#s)-1),0}
+spl::{[s];s::spline(hg(x;y));s:-(y:@((#y)-1),0),((#s)-1),0}
 
 cvset::{[s];s::x;{(x@1),,(*x),x@2}'{(x,x+1):_s}'!#x}
 cve::{[f p];f::x;p::y;(%#z)*+/{(((*x)@1)-p(**x;f(x@1)))^2}'cvset(z)}
 
-freq::{[d c D x0 xn n];D::x;n::y;x0::*z;xn::z@1;D'x0+(!n)%(n-1)%xn-x0}
+freq::{[D x0 xn n];D::x;n::y;x0::*z;xn::z@1;D'x0+(!n)%(n-1)%xn-x0}
 nfreq::{[c d];c::%|/d::freq(x;y;z);{c*x}'d}
 dist::{[n];n::y;rnd'{n*x}'nfreq(x;n;(*z),z@1)}
 

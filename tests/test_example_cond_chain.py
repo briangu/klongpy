@@ -9,8 +9,8 @@ ROOT = os.path.join(os.path.dirname(__file__), os.pardir, "examples", "stocks")
 
 PAIRS = [
     ("alpaca/ws/feed.kg",
-     ':[msg="connected";sendAuth(x);:[msg="authenticated";handleLogin(x;y);handleAuthFailure(x;y)]]',
-     ':[msg="connected";sendAuth(x):|msg="authenticated";handleLogin(x;y);handleAuthFailure(x;y)]'),
+     ':[msg="connected";sendAuth(x);:[msg="authenticated";handleLogin();handleAuthFailure()]]',
+     ':[msg="connected";sendAuth(x):|msg="authenticated";handleLogin();handleAuthFailure()]'),
     ("alpaca/ws/feed.kg",
      ':[subscription?all;1;:[subscription?k;1;0]]',
      ':[subscription?all;1:|subscription?k;1;0]'),
@@ -18,8 +18,8 @@ PAIRS = [
      ':[p<lower;"buy";:[p>upper;"sell";"hold"]]',
      ':[p<lower;"buy":|p>upper;"sell";"hold"]'),
     ("alpaca/ws/stream.kg",
-     ':[msg="connected";sendAuth(x);:[msg="authenticated";handleLogin(x;y);handleAuthFailure(x;y)]]',
-     ':[msg="connected";sendAuth(x):|msg="authenticated";handleLogin(x;y);handleAuthFailure(x;y)]'),
+     ':[msg="connected";sendAuth(x);:[msg="authenticated";handleLogin(x);handleAuthFailure()]]',
+     ':[msg="connected";sendAuth(x):|msg="authenticated";handleLogin(x);handleAuthFailure()]'),
     ("alpaca/ws/stream.kg",
      ':[T="success";handleControl(x;y);:[T="error";handleError(x;y);handleData(x;y)]]',
      ':[T="success";handleControl(x;y):|T="error";handleError(x;y);handleData(x;y)]'),
@@ -33,8 +33,8 @@ PAIRS = [
      ':[p<lower;"buy";:[p>upper;"sell";"hold"]]',
      ':[p<lower;"buy":|p>upper;"sell";"hold"]'),
     ("polygon/ws/stream.kg",
-     ':[q="connected";sendAuth(x);:[q="auth_success";handleLogin(x;y);handleAuthFailure(x;y)]]',
-     ':[q="connected";sendAuth(x):|q="auth_success";handleLogin(x;y);handleAuthFailure(x;y)]'),
+     ':[q="connected";sendAuth(x);:[q="auth_success";handleLogin();handleAuthFailure()]]',
+     ':[q="connected";sendAuth(x):|q="auth_success";handleLogin();handleAuthFailure()]'),
 ]
 
 

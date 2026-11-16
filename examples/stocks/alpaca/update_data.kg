@@ -17,7 +17,7 @@ keys:::{}
 keys,"api_key",,.os.env?"ALPACA_API_KEY"
 keys,"secret_key",,.os.env?"ALPACA_SECRET_KEY"
 
-args:::{};{args,x,,y}'keys
+args:::{};{args,(x@0),,x@1}'keys
 
 tc::.pyc(TradingClient;[];args)
 account::.pyc(tc,"get_account";[];:{})

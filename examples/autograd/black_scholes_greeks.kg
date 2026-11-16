@@ -33,16 +33,16 @@ vol::0.2       :" Volatility"
 .p("")
 
 :" Black-Scholes price as function of spot (for delta)"
-priceOfSpot::{d1::(log(x%strike)+(rate+0.5*vol^2)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(x*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
+priceOfSpot::{[d1 d2];d1::(log(x%strike)+(rate+0.5*vol^2)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(x*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
 
 :" Black-Scholes price as function of vol (for vega)"
-priceOfVol::{d1::(log(spot%strike)+(rate+0.5*x^2)*time)%(x*sqrt(time));d2::d1-x*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
+priceOfVol::{[d1 d2];d1::(log(spot%strike)+(rate+0.5*x^2)*time)%(x*sqrt(time));d2::d1-x*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
 
 :" Black-Scholes price as function of time (for theta)"
-priceOfTime::{d1::(log(spot%strike)+(rate+0.5*vol^2)*x)%(vol*sqrt(x));d2::d1-vol*sqrt(x);(spot*ncdf(d1))-(strike*exp((0-rate)*x)*ncdf(d2))}
+priceOfTime::{[d1 d2];d1::(log(spot%strike)+(rate+0.5*vol^2)*x)%(vol*sqrt(x));d2::d1-vol*sqrt(x);(spot*ncdf(d1))-(strike*exp((0-rate)*x)*ncdf(d2))}
 
 :" Black-Scholes price as function of rate (for rho)"
-priceOfRate::{d1::(log(spot%strike)+(x+0.5*vol^2)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-x)*time)*ncdf(d2))}
+priceOfRate::{[d1 d2];d1::(log(spot%strike)+(x+0.5*vol^2)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-x)*time)*ncdf(d2))}
 
 :" Compute price"
 price::priceOfSpot(spot)

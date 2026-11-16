@@ -51,5 +51,5 @@ updateDb::{[u d];u::x;d::{u?x}'cols;.insert(prices;d)}
 timeUpdateDb::{.d("update db ms: ");.p(time(updateDb))}
 
 :" Called by server when there is a subscription update."
-update::{timeUpdateDb(x);asyncAnalyze()}
+update::{x;timeUpdateDb();asyncAnalyze()}
 

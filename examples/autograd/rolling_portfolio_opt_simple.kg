@@ -54,7 +54,7 @@ epochs::200
 .p("")
 
 :" Optimization step"
-step::{w::w-(lr*(loss:>w));w::0|w;w::w%(+/w);0}
+step::{x;w::w-(lr*(loss:>w));w::0|w;w::w%(+/w);0}
 
 .p("Optimizing with constraints [8%, 15%]...")
 .p("Running 200 optimization steps...")

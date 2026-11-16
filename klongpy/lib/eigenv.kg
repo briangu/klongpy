@@ -33,7 +33,7 @@ msum::{{#(x)+y}/(,/x)}
 msum1::{[a1;neq];neq::*(^x);a1::#'(,/(x-(x*eye(neq))));+/((a1>y)*a1)}
 termq::{[s];s::0.5*msum1(x;z);(s%y)>z}
 mkvals::{(,x),(,y)}
-next::{[w;v;neq;m;j;k;res];v::x@1;w::*x;neq::*(^w);j::1;m::0;k::0;
+next::{[w;v;neq;m;j;k];v::x@1;w::*x;neq::*(^w);j::1;m::0;k::0;
        {x<neq}{j::x;{x<j}{[aa;co;si;xx;yy];m::x;xx::(w:@(m,m))-(w:@(j,j));
          yy::2.0*(w:@(m,j));aa::atan2(xx;yy)%2.0;co::cos(aa);si::sin(aa);
          {x<neq}{[tt];k::x;tt::w:@(k,m);

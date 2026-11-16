@@ -35,7 +35,7 @@ lr1::0.1
 .p("")
 
 print1::{.d("Step ");.d(x);.d(": t=");.d(t);.d(", f(t)=");.d(f1(t));.d(", grad=");.p(y)}
-step1::{grad1::f1:>t;t::t-(lr1*grad1);:[0=(x!2);print1(x;grad1);0]}
+step1::{[grad1];grad1::f1:>t;t::t-(lr1*grad1);:[0=(x!2);print1(x;grad1);0]}
 
 step1'1+!10
 
@@ -67,7 +67,7 @@ lr2::0.001
 .p("")
 
 print2::{.d("Step ");.d(x);.d(": pt=");.d(pt);.d(", f(pt)=");.p(rosenbrock(pt))}
-step2::{grad2::rosenbrock:>pt;pt::pt-(lr2*grad2);:[0=(x!20);print2(x);0]}
+step2::{[grad2];grad2::rosenbrock:>pt;pt::pt-(lr2*grad2);:[0=(x!20);print2(x);0]}
 
 step2'1+!100
 
@@ -114,7 +114,7 @@ lr3::0.1
 .p("")
 
 print3::{.d("Step ");.d(x);.d(": w=");.d(w3);.d(", b=");.d(b3);.d(", loss=");.p(lossW3(w3))}
-step3::{gw3::lossW3:>w3;gb3::lossB3:>b3;w3::w3-(lr3*gw3);b3::b3-(lr3*gb3);:[0=(x!5);print3(x);0]}
+step3::{[gw3 gb3];gw3::lossW3:>w3;gb3::lossB3:>b3;w3::w3-(lr3*gw3);b3::b3-(lr3*gb3);:[0=(x!5);print3(x);0]}
 
 step3'1+!30
 
@@ -171,7 +171,7 @@ lr4::0.01
 .p("")
 
 print4::{.d("Step ");.d(x);.d(": a=");.d(a4);.d(", b=");.d(b4);.d(", c=");.p(c4)}
-step4::{ga4::lossA:>a4;gb4::lossB4:>b4;gc4::lossC:>c4;a4::a4-(lr4*ga4);b4::b4-(lr4*gb4);c4::c4-(lr4*gc4);:[0=(x!20);print4(x);0]}
+step4::{[ga4 gb4 gc4];ga4::lossA:>a4;gb4::lossB4:>b4;gc4::lossC:>c4;a4::a4-(lr4*ga4);b4::b4-(lr4*gb4);c4::c4-(lr4*gc4);:[0=(x!20);print4(x);0]}
 
 step4'1+!100
 

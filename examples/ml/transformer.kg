@@ -12,10 +12,7 @@ max::{{,x@*>x}'x}
 sum::{{,+/x}'x}
 
 :"Define the softmax function"
-softmax::{[ex];
-    ex::exp(x - max(x));
-    ex % sum(ex)
-}
+softmax::{{[ex];ex::exp(x-|/x);ex%+/ex}'x}
 
 :"Define dot product"
 dot::{[T];T::+y;{{+/x*y}(x;)'T}'x}

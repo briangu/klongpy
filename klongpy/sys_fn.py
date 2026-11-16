@@ -846,7 +846,7 @@ def eval_sys_python_from(klong, x, y):
 
             Multiple sub-modules can be imported at once:
 
-            .pyf("numpy"; ["sqrt";"sin"])
+            .pyf("numpy"; ["sqrt" "sin"])
             sqrt(4) --> 2.0
             sin(1) --> 0.8414709848078965
 
@@ -877,7 +877,7 @@ def eval_sys_backend_fn(klong, x):
             .bkf("exp")
             exp(1.0) --> 2.718...
 
-            .bkf(["exp";"sin";"cos"])
+            .bkf(["exp" "sin" "cos"])
             sin(1.0) --> 0.841...
 
         Common functions available: exp, sin, cos, tan, tanh, sqrt, abs,

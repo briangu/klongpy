@@ -65,7 +65,7 @@ epochs::300
 
 :" Training step - update angle using gradient"
 :" Constrain angle to valid range (0.1 to 1.4 radians)"
-step::{grad::loss:>angle;angle::(0.1|(angle-(lr*grad)))&1.4;0}
+step::{[grad];x;grad::loss:>angle;angle::(0.1|(angle-(lr*grad)))&1.4;0}
 
 :" Progress printing"
 printProg::{.d("Epoch ");.d(x);.d(": angle=");.d(angle*57.3);.d(" deg, range=");.d(range(angle));.d(", miss=");.p(sqrt(loss(angle)))}

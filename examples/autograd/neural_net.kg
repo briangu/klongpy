@@ -42,7 +42,7 @@ sigmoid::{1%(1+exp(0-x))}
 neuron::{[inp];inp::x;sigmoid((((w1)*(*inp))+(w2*(inp@1)))+bias1)}
 
 :" Loss: MSE over all examples"
-andLoss::{preds::neuron'xAnd;(+/(preds-yAnd)^2)%4}
+andLoss::{[preds];preds::neuron'xAnd;(+/(preds-yAnd)^2)%4}
 
 :" Train single neuron"
 lrAnd::1.0
@@ -63,7 +63,7 @@ lossW2::{[w2old preds r];w2old::w2;w2::x;preds::neuron'xAnd;r::(+/(preds-yAnd)^2
 lossBias1::{[bias1old preds r];bias1old::bias1;bias1::x;preds::neuron'xAnd;r::(+/(preds-yAnd)^2)%4;bias1::bias1old;r}
 
 printAnd::{.d("Step ");.d(x);.d(": loss=");.p(andLoss())}
-trainAnd::{g1::lossW1:>w1;g2::lossW2:>w2;gb::lossBias1:>bias1;w1::w1-(lrAnd*g1);w2::w2-(lrAnd*g2);bias1::bias1-(lrAnd*gb);:[0=(x!20);printAnd(x);0]}
+trainAnd::{[g1 g2 gb];g1::lossW1:>w1;g2::lossW2:>w2;gb::lossBias1:>bias1;w1::w1-(lrAnd*g1);w2::w2-(lrAnd*g2);bias1::bias1-(lrAnd*gb);:[0=(x!20);printAnd(x);0]}
 
 trainAnd'1+!100
 
@@ -76,7 +76,7 @@ trainAnd'1+!100
 .d(", bias=")
 .p(bias1)
 .p("Predictions:")
-showPredAnd::{inp::xAnd@x;pred::neuron(inp);expv::yAnd@x;.d("  ");.d(inp);.d(" -> ");.d(pred);.d(" expected: ");.p(expv)}
+showPredAnd::{[inp pred expv];inp::xAnd@x;pred::neuron(inp);expv::yAnd@x;.d("  ");.d(inp);.d(" -> ");.d(pred);.d(" expected: ");.p(expv)}
 showPredAnd'!4
 .p("")
 
@@ -116,7 +116,7 @@ bo::0.0
 forward::{[a1 a2 a3 a4];a1::tanh((h1*x)+bh1);a2::tanh((h2*x)+bh2);a3::tanh((h3*x)+bh3);a4::tanh((h4*x)+bh4);((o1*a1)+(o2*a2)+(o3*a3)+(o4*a4))+bo}
 
 :" MSE loss over training data"
-nnLoss::{preds::forward'xTrain;(+/(preds-yTrain)^2)%npoints}
+nnLoss::{[preds];preds::forward'xTrain;(+/(preds-yTrain)^2)%npoints}
 
 .d("Initial loss: ")
 .p(nnLoss())
@@ -132,7 +132,7 @@ lossBo::{[boold r];boold::bo;bo::x;r::nnLoss();bo::boold;r}
 lrNN::0.1
 
 printNN::{.d("Step ");.d(x);.d(": loss=");.p(nnLoss())}
-trainNN::{g1::lossO1:>o1;g2::lossO2:>o2;g3::lossO3:>o3;g4::lossO4:>o4;gb::lossBo:>bo;o1::o1-(lrNN*g1);o2::o2-(lrNN*g2);o3::o3-(lrNN*g3);o4::o4-(lrNN*g4);bo::bo-(lrNN*gb);:[0=(x!100);printNN(x);0]}
+trainNN::{[g1 g2 g3 g4 gb];g1::lossO1:>o1;g2::lossO2:>o2;g3::lossO3:>o3;g4::lossO4:>o4;gb::lossBo:>bo;o1::o1-(lrNN*g1);o2::o2-(lrNN*g2);o3::o3-(lrNN*g3);o4::o4-(lrNN*g4);bo::bo-(lrNN*gb);:[0=(x!100);printNN(x);0]}
 
 .p("Training output layer weights...")
 trainNN'1+!500
@@ -144,7 +144,7 @@ trainNN'1+!500
 
 :" Show some predictions"
 .p("Sample predictions vs actual sin(x):")
-showPredNN::{xv::xTrain@x;pred::forward(xv);actual::yTrain@x;.d("  x=");.d(xv);.d(": pred=");.d(pred);.d(", actual=");.p(actual)}
+showPredNN::{[xv pred actual];xv::xTrain@x;pred::forward(xv);actual::yTrain@x;.d("  x=");.d(xv);.d(": pred=");.d(pred);.d(", actual=");.p(actual)}
 showPredNN'[0 5 10 15 19]
 .p("")
 

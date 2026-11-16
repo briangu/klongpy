@@ -1,5 +1,5 @@
 :" euclidean distance "
-ed::{[d];d::x-y;({+/x}'d*d)^0.5}
+ed::{[p];p::x;{(+/(x-p)^2)^0.5}'y}
 
 :" compute knn between point x and data y "
 knn::{[distances];distances::ed(y;z);x#<distances}

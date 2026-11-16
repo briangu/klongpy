@@ -27,7 +27,7 @@ minp::0.08
 maxp::0.15
 
 avg::{(+/x)%#x}
-stddev::{r::x-avg(x);((+/r^2)%#x)^0.5}
+stddev::{[r];r::x-avg(x);((+/r^2)%#x)^0.5}
 
 portReturn::{+/x*mu}
 portVol::{+/((x*vols)^2)^0.5}

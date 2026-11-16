@@ -4,7 +4,7 @@ cb::{.d("callback called: ");.p(x)}
 fn::{x*x}
 
 t::0
-.tcb::{.d("counter: ");.p(t);t::t+1}
+tcb::{.d("counter: ");.p(t);t::t+1}
 th::.timer("counter";0.25;tcb)
 
 .p("running callback in parallel processes: ")
