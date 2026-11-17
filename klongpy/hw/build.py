@@ -11,7 +11,7 @@ The work happens on the build machine ($KLONG_HW_BUILD, ``user@host``) under ``<
     <image>.xclbin   the image (renamed ``*.timing-failed.xclbin`` when routed timing is not met)
     build.json       key, source hash, tools, clock, WNS, utilisation, wall time, SHA-256 (written by gate.py)
 
-The key is the cache key of ticket 110 (one program) or the hash of the keys of the programs (several programs
+The key is the cache key of emit_hls (one program) or the hash of the keys of the programs (several programs
 in one image). A finished passing build is reused; ``--force`` builds again. One build runs at a time on the
 machine: ``--hw-build`` refuses while another of ours runs or any Vivado or v++ process runs, and the script
 checks again when it starts. A failing image is never retried at another clock: the tool prints the clock
@@ -27,14 +27,24 @@ import subprocess
 import sys
 import time
 
-from .remote import REMOTE_ROOT, Remote, RemoteError, _tar, clean_stderr
+from .remote import Remote, RemoteError, _tar, clean_stderr
 
-__all__ = ["Plan", "Builder", "plan_for", "find_image", "StaleImage", "hw_build_main", "suggest_clock", "format_result", "VITIS_SETTINGS", "BUSY"]
+__all__ = ["Plan", "Builder", "plan_for", "find_image", "StaleImage", "hw_build_main", "suggest_clock", "format_result", "env_vitis_settings", "env_platform_repo_paths", "BUSY"]
 
-VITIS_SETTINGS = "/home/brian/tools/Xilinx/Vitis/2022.2/settings64.sh"
-PLATFORM_REPO_PATHS = "/home/brian/tools/u250-platform/opt/xilinx/platforms"
 XRT_DIR = "/opt/xilinx/xrt"
 BUSY = 75
+
+
+def env_vitis_settings(env=None):
+    """The Vitis settings script to source ($KLONG_HW_VITIS_SETTINGS), or None: v++ and vitis_hls are on the PATH of the machine."""
+    return (env if env is not None else os.environ).get("KLONG_HW_VITIS_SETTINGS", "").strip() or None
+
+
+def env_platform_repo_paths(env=None):
+    """Where the U250 platform (xilinx_u250_gen3x16_xdma_4_1_202210_1) is installed ($KLONG_HW_PLATFORM_REPO_PATHS), or None."""
+    return (env if env is not None else os.environ).get("KLONG_HW_PLATFORM_REPO_PATHS", "").strip() or None
+
+
 _KEY = re.compile(r"[0-9a-f]{64}(-hw_emu)?\Z")
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -121,11 +131,12 @@ def suggest_clock(clock_mhz, wns_ns):
 
 class Builder:
     """The build machine side. ``remote`` is a Remote (default: $KLONG_HW_BUILD); ``root`` its fixed root."""
-    def __init__(self, remote=None, vitis_settings=VITIS_SETTINGS, platform_repo=PLATFORM_REPO_PATHS, xrt=XRT_DIR):
+    def __init__(self, remote=None, vitis_settings="env", platform_repo="env", xrt=XRT_DIR):
         self.remote = remote or Remote()
         self.root = self.remote.root
-        self.vitis_settings = vitis_settings
-        self.platform_repo = platform_repo
+        # None: the tools are on the PATH of the machine / PLATFORM_REPO_PATHS is already set there (the script checks)
+        self.vitis_settings = env_vitis_settings() if vitis_settings == "env" else vitis_settings
+        self.platform_repo = env_platform_repo_paths() if platform_repo == "env" else platform_repo
         self.xrt = xrt
 
     # -- plumbing ---------------------------------------------------------------------
@@ -155,7 +166,15 @@ class Builder:
         if self.vitis_settings:
             L += ["if [ ! -f %s ]; then log 'missing %s'; finish 2; fi" % (q(self.vitis_settings), self.vitis_settings),
                   "source %s >/dev/null 2>&1" % q(self.vitis_settings)]
-        L += ["export PLATFORM_REPO_PATHS=" + q(self.platform_repo), "export XILINX_XRT=" + q(self.xrt)]
+        else:
+            L += ["if ! command -v v++ >/dev/null 2>&1 || ! command -v vitis_hls >/dev/null 2>&1; then "
+                  "log 'v++ or vitis_hls not found: set KLONG_HW_VITIS_SETTINGS to the settings64.sh of Vitis'; finish 2; fi"]
+        if self.platform_repo:
+            L += ["export PLATFORM_REPO_PATHS=" + q(self.platform_repo)]
+        else:
+            L += ['if [ -z "${PLATFORM_REPO_PATHS:-}" ]; then log "PLATFORM_REPO_PATHS is not set: set KLONG_HW_PLATFORM_REPO_PATHS '
+                  'to the directory that holds the platform"; finish 2; fi']
+        L += ["export XILINX_XRT=" + q(self.xrt)]
         # 1: one kernel object per entry
         for prefix, e in plan.kernels:
             c = e["c_name"]

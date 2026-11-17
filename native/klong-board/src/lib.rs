@@ -1,4 +1,4 @@
-//! klong-board: the skeleton of a board port (ticket 104). It names no chip. A port supplies
+//! klong-board: the skeleton of a board port. It names no chip. A port supplies
 //! four small things and gets the whole runtime with its console:
 //!
 //! * a [`Uart`]: bytes in without waiting, bytes out;
@@ -247,7 +247,7 @@ pub fn start<P: Platform + 'static>(platform: P, cfg: BoardConfig) -> Console<P>
     console
 }
 
-/// One turn of the main loop: console input, then timers and connections (ticket 106). False
+/// One turn of the main loop: console input, then timers and connections. False
 /// when there was nothing to do.
 pub fn step<P: Platform + 'static>(console: &mut Console<P>) -> bool {
     if let Ok(mut p) = console.rt.shared.platform.try_borrow_mut() {

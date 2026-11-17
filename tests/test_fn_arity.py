@@ -1,5 +1,5 @@
 """
-Ticket 026: the arity of a function literal is the highest of x, y, z its body
+The arity of a function literal is the highest of x, y, z its body
 mentions (max_arg), wherever the mention is: under a monad, inside a call
 argument, after ",,". Before, arity was a count of the names the old scan
 happened to see, so {-x} was a nilad and {y} a monad.

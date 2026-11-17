@@ -1,5 +1,5 @@
 """
-Signatures of .extern and .entry (klongpy/static/signature.py; ticket 094
+Signatures of .extern and .entry (klongpy/static/signature.py
 step 1): the grammar, positioned errors for malformed text, names, and the
 check of values against types.
 """

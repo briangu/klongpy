@@ -1,5 +1,5 @@
 """
-An evaluator of the typed IR: the interpreter stand-in for fixed-point programs (ticket 113).
+An evaluator of the typed IR: the interpreter stand-in for fixed-point programs.
 
 KlongPy has no fixed-point numbers, so a program that uses ``fixed<W,I>`` cannot run as plain
 Klong with exact results. ``klongpy.static.call_entry`` runs such a program here instead: the

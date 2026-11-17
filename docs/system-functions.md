@@ -1410,6 +1410,8 @@ Defined in the base interpreter. See [Klong functions as FPGA hardware](hardware
 | Name | Title | Description |
 |------|-------|-------------|
 | `.hw(x)` | Hardware | Bind the FPGA kernels of a built program (or the simulator's) and return a dictionary of functions. |
+| `.hw.lanes(x;y)` | Hw-Lanes | Bind the kernels of a program built with several lanes: copies of the program side by side. |
+| `.hw.set(x;y;z)` | Hw-Set | Set a parameter of a bound kernel between runs. |
 | `.hw.put(x;y)` | Hw-Put | Upload the arguments of calls of a kernel to the card once and return a buffer. |
 | `.hw.get(x)` | Hw-Get | Download a buffer made by `.hw.put`. |
 | `.hw.free(x)` | Hw-Free | Free a buffer made by `.hw.put`. |
@@ -1449,6 +1451,39 @@ held. See docs/hardware.md.
 
 Examples:   fir::.hw("fir.kg")
             fir.run(256#1.0)
+```
+
+### `.hw.lanes`
+
+`.hw.lanes(x;y)` [Hw-Lanes]
+
+```text
+Bind the kernels of a program built with --lanes y
+(kgpy --hw-build FILE --lanes y). Like .hw: "x" is a path
+or a list of paths. The kernel then runs y copies of the
+program on the same stream of calls: every .param is set
+with .hw.set as an array of y values, and a result has a
+leading dimension y.
+
+Example:   s::.hw.lanes("crossover.kg";64)
+```
+
+### `.hw.set`
+
+`.hw.set(x;y;z)` [Hw-Set]
+
+```text
+Set the parameter "y" (declared in the program with
+.param) of the kernels of "x" to the value "z", between
+runs. "x" is what .hw returned, or one of its kernels.
+The value is converted as the interpreter converts it
+(a fixed-point parameter takes a number, truncating toward
+minus infinity); for a kernel bound with .hw.lanes it is
+an array with one value per lane. The kernel keeps the
+value, through resets, until it is set again. Returns the
+number of kernels set.
+
+Example:   .hw.set(s;"fast";[3 5 8])
 ```
 
 ### `.hw.put`
@@ -1766,8 +1801,6 @@ will also close and will fail if called.
 |------|-------|-------------|
 | `.clit(x,y)` | Set-IPC-call-timeout | Set the call timeout of a remote function or dictionary opened by .cli or .clid (or handed to a server hook) to "y" seconds. |
 | `.grad(x;y)` | Grad | Compute the numeric gradient of function x at point y, using finite differences. |
-| `.hw.lanes(x;y)` | Hw-Lanes | Bind the kernels of a program built with --lanes y (kgpy --hw-build FILE --lanes y). |
-| `.hw.set(x;y;z)` | Hw-Set | Set the parameter "y" (declared in the program with .param) of the kernels of "x" to the value "z", between runs. |
 
 ### `.clit`
 
@@ -1803,37 +1836,4 @@ operator y∇f also accepts a symbol and then perturbs that variable;
 Examples:
     .grad({x^2};3)               -->  6.0 (approximately)
     .grad({+/x^2};[1 2 3])       -->  [2 4 6] (approximately)
-```
-
-### `.hw.lanes`
-
-`.hw.lanes(x;y)` [Hw-Lanes]
-
-```text
-Bind the kernels of a program built with --lanes y
-(kgpy --hw-build FILE --lanes y). Like .hw: "x" is a path
-or a list of paths. The kernel then runs y copies of the
-program on the same stream of calls: every .param is set
-with .hw.set as an array of y values, and a result has a
-leading dimension y.
-
-Example:   s::.hw.lanes("crossover.kg";64)
-```
-
-### `.hw.set`
-
-`.hw.set(x;y;z)` [Hw-Set]
-
-```text
-Set the parameter "y" (declared in the program with
-.param) of the kernels of "x" to the value "z", between
-runs. "x" is what .hw returned, or one of its kernels.
-The value is converted as the interpreter converts it
-(a fixed-point parameter takes a number, truncating toward
-minus infinity); for a kernel bound with .hw.lanes it is
-an array with one value per lane. The kernel keeps the
-value, through resets, until it is set again. Returns the
-number of kernels set.
-
-Example:   .hw.set(s;"fast";[3 5 8])
 ```

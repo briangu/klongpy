@@ -1,5 +1,5 @@
 """
-``kgpy --check-static --streamable`` (ticket 113, tickets/design/fpga-kernels.md section 5): which constructs of a
+``kgpy --check-static --streamable`` (docs/hardware.md): which constructs of a
 program inside the static profile keep a hardware kernel from taking one record per clock cycle.
 
     check_streamable(path, int_bits=32, text=None) -> [StaticDiagnostic]

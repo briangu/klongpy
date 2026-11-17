@@ -643,7 +643,7 @@ def main():
         from klongpy.dump import main as _dump_main
         sys.exit(_dump_main([args.dump_ast]))
     if args.lint is not None:
-        # The options may come in any order (ticket 033): --lint -v FILE
+        # The options may come in any order: --lint -v FILE
         # leaves FILE to the positional argument, and --lint A -v B leaves B
         # there; a file after that is in the words argparse did not place.
         lint_files = list(args.lint) + ([args.filename] if args.filename is not None else []) + lint_rest

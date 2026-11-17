@@ -1,4 +1,4 @@
-"""Ticket 011: iterate, scan-iterate, split and converge must not loop forever."""
+"""Iterate, scan-iterate, split and converge must not loop forever."""
 import math
 import signal
 import unittest
@@ -15,7 +15,7 @@ def _alarm(*_):
     raise _Timeout()
 
 
-class Ticket011(unittest.TestCase):
+class TestIterationTerminates(unittest.TestCase):
 
     def setUp(self):
         self._old = signal.signal(signal.SIGALRM, _alarm)

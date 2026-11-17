@@ -91,7 +91,7 @@ The same program with the card in place of the simulator. `KLONG_HW_HOST=user@ho
 
 <!-- check-docs: skip: needs the Alveo card -->
 ```console
-$ KLONG_HW_HOST=brian@xilinx kgpy card.kg
+$ KLONG_HW_HOST=user@fpga-host kgpy card.kg
 [3 241]
 1
 [1.0 3.0 6.0 10.0 14.0]
@@ -233,11 +233,22 @@ KLONG_HW_HOST=user@host python examples/hardware/crossover_card.py history.bin p
 | neither, and `pyxrt` importable | the card on this machine |
 | `KLONG_HW_BUILD=user@host` | where `--emit-hls --synth` and `--hw-build` run |
 
-The build machine and the card machine are the same machine today but are separate settings. Nothing of this is imported when KlongPy starts.
+The build machine and the card machine may be the same machine but are separate settings. Nothing of this is imported when KlongPy starts.
+
+These settings tell KlongPy where the tools and its files are on the build machine. They are read where `kgpy` runs and used on the machine named by `KLONG_HW_BUILD` or `KLONG_HW_HOST`:
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `KLONG_HW_ROOT` | the directory on the build and card machine under which everything is written (`work/`, `builds/`, `server/`, `venv/`, `build.lock`); an absolute path, or one that starts with `~/`, which is the home directory of that machine; a path outside it is refused | `~/klong-hw`, found on that machine |
+| `KLONG_HW_VITIS_SETTINGS` | the `settings64.sh` of Vitis that a build sources before `v++` and `vitis_hls` | none: `v++` and `vitis_hls` must be on the `PATH` of the machine, or the build stops and names this variable |
+| `KLONG_HW_HLS_SETTINGS` | the `settings64.sh` of Vitis HLS that `--synth` and the remote tests source before `vitis_hls` | none: `vitis_hls` must be on the `PATH` of the machine |
+| `KLONG_HW_PLATFORM_REPO_PATHS` | the directory that holds the U250 platform (`xilinx_u250_gen3x16_xdma_4_1_202210_1`), exported to the build as `PLATFORM_REPO_PATHS` | none: a build stops with an error naming this variable unless `PLATFORM_REPO_PATHS` is already set on the machine |
+
+The hash that names a build directory does not include the root, so images built under one root are found again when the root is set to that directory.
 
 ### Trust
 
-The server runs on the card machine with your ssh identity, and the build runs there as you. Loading an image replaces what was on the card, including an image of someone else's, after checking that no other process has the card open. The loader does not program the base shell and never loads an image whose timing failed. All of its files are under `/home/<user>/klong-hw/` on that machine. Nothing is installed outside it, and nothing needs sudo.
+The server runs on the card machine with your ssh identity, and the build runs there as you. Loading an image replaces what was on the card, including an image of someone else's, after checking that no other process has the card open. The loader does not program the base shell and never loads an image whose timing failed. All of its files are under `KLONG_HW_ROOT` (default `~/klong-hw/`) on that machine. Nothing is installed outside it, and nothing needs sudo.
 
 ## Measured
 
@@ -255,7 +266,7 @@ Image of `mavg.kg`, `fir.kg` and the trap program: 126578 LUT (7.33 percent of t
 
 ### Measured: the strategy kernel on the card
 
-Hardware tier, an Alveo U250 in `brian@xilinx` (Ryzen 9 7950X3D, 16 cores and 32 threads, gcc 9.4, numpy 1.24 for the host side), measured 2026-11-17. The image is `crossover.kg` built with `--lanes 32 --clock-mhz 250`: it passed routed timing at 250 MHz (worst setup slack 0.009 ns, worst hold slack 0.009 ns, no failing endpoints; the margin is thin) after a build of 1 hour 54 minutes, and uses 13.6 percent of the device's LUTs (234315, the shell's 118282 included), 7.0 percent of its registers, 258 block RAM tiles and 135 DSPs. The history is 10 million synthetic ticks, a random walk with rare jumps folded into the band 5 to 15 (`crossover_bench.py gen`), held as a file on the machine next to the card; the 32 parameter sets are 4 values of `fast`, 4 of `slow` and 2 stops (`param_grid`). Every lane replays all 10 million ticks, 320 million lane-ticks in all.
+Hardware tier, an Alveo U250 in a workstation (Ryzen 9 7950X3D, 16 cores and 32 threads, gcc 9.4, numpy 1.24 for the host side), measured 2026-11-17. The image is `crossover.kg` built with `--lanes 32 --clock-mhz 250`: it passed routed timing at 250 MHz (worst setup slack 0.009 ns, worst hold slack 0.009 ns, no failing endpoints; the margin is thin) after a build of 1 hour 54 minutes, and uses 13.6 percent of the device's LUTs (234315, the shell's 118282 included), 7.0 percent of its registers, 258 block RAM tiles and 135 DSPs. The history is 10 million synthetic ticks, a random walk with rare jumps folded into the band 5 to 15 (`crossover_bench.py gen`), held as a file on the machine next to the card; the 32 parameter sets are 4 values of `fast`, 4 of `slow` and 2 stops (`param_grid`). Every lane replays all 10 million ticks, 320 million lane-ticks in all.
 
 | | time for 10 M ticks x 32 lanes | lane-ticks per second, total | ticks per second per lane |
 |---|---:|---:|---:|

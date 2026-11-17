@@ -42,9 +42,9 @@ pub struct Config {
     /// Limit of nested evaluations: one per nested expression, so one to three per Klong call
     /// (the call, a conditional around it, an operator around that). The embedder must give the
     /// evaluating thread enough native stack for it: about 1 KiB per level in a release build
-    /// on a 64-bit host (measured, ticket 102), several times that in a debug build.
+    /// on a 64-bit host (measured), several times that in a debug build.
     pub max_depth: u32,
-    /// Strict level 0 to 2 (`errors-strict-lint.md` section 4).
+    /// Strict level 0 to 2 (`docs/errors.md`).
     pub strict: u8,
     /// Stop with an `interrupt` error after this many ticks (fuzzing, tests).
     pub step_limit: Option<u64>,
@@ -53,7 +53,7 @@ pub struct Config {
     /// 90 us for a call of a Klong function, so 4096 of them are 0.4 s without a look at the lane.
     pub tick_mask: u32,
     /// Set from outside (an interrupt handler) to stop the evaluation. Must live in memory
-    /// where atomics work (internal RAM on the chips of `ref-platforms.md`).
+    /// where atomics work (internal RAM on the chips of `docs/native/porting.md`).
     pub interrupt: Option<&'static AtomicBool>,
     /// True when the allocator has passed its soft limit and is living on the reserve: the
     /// evaluation unwinds with a `memory` error at the next tick.
@@ -70,7 +70,7 @@ pub struct Config {
 }
 
 /// Native stack one level of data nesting costs in the deepest walk (printing, matching, the
-/// atomic pairing, drop): about 300 bytes on a 64-bit host in a release build (ticket 103),
+/// atomic pairing, drop): about 300 bytes on a 64-bit host in a release build,
 /// with a margin.
 pub const STACK_PER_NEST: usize = 384;
 
@@ -791,7 +791,7 @@ impl Interp {
             }
         }
         // x, y and z are the arguments of the running function and are assignable like its
-        // locals (ticket 033); they are always bound in its own frame
+        // locals; they are always bound in its own frame
         if self.cfg.strict >= 1 && !self.frames.is_empty() && !sym::is_arg(s) {
             let n = self.syms.name(s);
             return Err(Error::name(crate::msg!("undefined variable: {}", n))
@@ -1122,7 +1122,7 @@ impl Interp {
             }
             Node::Fn { call: is_call, has_args, a, .. } => {
                 // A call written with an empty argument, f(1;), is a projection, made now
-                // (ticket 033). A callee that is not defined yet leaves the call as written:
+                //. A callee that is not defined yet leaves the call as written:
                 // it is looked up when the projection is completed.
                 let now = call
                     || *is_call
@@ -1286,7 +1286,7 @@ impl Interp {
     /// value when one is defined, the symbol otherwise. Level 2: always the symbol.
     #[inline(never)]
     fn quoted(&mut self, s: SymId) -> Result<Value> {
-        // :undefined is the undefined value at every level (ticket 033)
+        // :undefined is the undefined value at every level
         if self.syms.name(s) == "undefined" {
             return Ok(Value::Undefined);
         }
@@ -1347,7 +1347,7 @@ impl Interp {
                     if !sym::is_arg(s) {
                         let name = self.syms.name(s);
                         let e = Error::name(crate::msg!("undefined function: {}", name));
-                        // a system function this build does not have (native-runtime.md section 9)
+                        // a system function this build does not have (docs/native/index.md)
                         return Err(if name.starts_with('.') { e.with_hint(crate::msg!("{} is not available on this build", name)) } else { e });
                     }
                 }
@@ -1483,7 +1483,7 @@ impl Interp {
         Error::arity(crate::msg!("{} takes {}, got {}", name, what, given))
     }
 
-    /// The named parameters of a function body, if it has any (ticket 061).
+    /// The named parameters of a function body, if it has any.
     #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_params_of")]
     fn params_of(f: &Value) -> Option<(Rc<Tree>, Range)> {
         if let Value::Fn(func) = f {
@@ -1694,7 +1694,7 @@ impl Interp {
     }
 
     /// The value of the written call `id` when it does not supply every argument (KlongPy
-    /// `_projection`, ticket 033): a projection with an empty slot for each argument still
+    /// `_projection`): a projection with an empty slot for each argument still
     /// missing. An argument may be left empty, f(1;), or left off the end, f(1); the two are the
     /// same thing. `merged_holes` is the number of empty slots after the arguments were merged
     /// into the projection the call calls (None: it calls none); `need` the number of arguments

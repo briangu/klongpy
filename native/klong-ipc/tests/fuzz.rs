@@ -145,7 +145,7 @@ fn decompressor_survives_random_and_mutated_streams() {
 #[cfg(feature = "compress")]
 #[test]
 fn decompress_of_compress_is_the_message() {
-    // the worked example of the reference (ref-kdb-ipc.md 5.5), byte for byte
+    // the worked example of the reference (docs/ipc_capabilities.md), byte for byte
     let mut msg = unhex("01000000be0400000a00b0040000");
     for _ in 0..600 {
         msg.extend_from_slice(b"ab");

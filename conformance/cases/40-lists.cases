@@ -595,7 +595,7 @@
 > [1 0]:#[1 2 3]
 ! range
 
-# More reshape, amend and shape cases (tickets 010, 015)
+# More reshape, amend and shape cases
 @ lists.reshape-minus-one-rows core
 > [-1 2]:^[1 2 3 4 5 6]
 = [[1 2] [3 4] [5 6]]

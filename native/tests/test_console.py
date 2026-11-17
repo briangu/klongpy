@@ -1,5 +1,5 @@
 """
-The serial console of the native runtime, end to end on the host (ticket 104): a simulated
+The serial console of the native runtime, end to end on the host: a simulated
 board (`native/target/release/klong-sim --pty`) behind a pseudo-terminal, driven by the upload
 tool (`native/tools/kgupload.py`) exactly as a board on a serial port is.
 

@@ -1,5 +1,5 @@
 """
-The server that runs next to the Alveo card (ticket 111). One process per session, started over ssh by
+The server that runs next to the Alveo card. One process per session, started over ssh by
 klongpy/hw/client.py; it talks over stdin and stdout and opens no socket (access control is ssh).
 
     PYTHONPATH=/opt/xilinx/xrt/python python3 server.py [--device N] [--fake]

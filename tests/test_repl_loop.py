@@ -1,4 +1,4 @@
-"""REPL loop driven by scripted input (tickets 070 and 071), no terminal."""
+"""REPL loop driven by scripted input, no terminal."""
 import asyncio
 import contextlib
 import importlib.util
@@ -46,7 +46,7 @@ def run(*items, klong=None, history=None, cancel_on_blank=True, evaluate=evaluat
     script = Script(*items)
     exit_state = {"code": None}
     out = io.StringIO()
-    # errors go to stderr (ticket 042); one buffer keeps them in order with the values
+    # errors go to stderr; one buffer keeps them in order with the values
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
         cli.repl_loop(klong, evaluate, script, history=history, exit_state=exit_state,
                       cancel_on_blank=cancel_on_blank)

@@ -1,5 +1,5 @@
 """
-IPC between the native runtime (native/, ticket 106) and KlongPy, and optionally PeachQ, over localhost TCP.
+IPC between the native runtime (native/) and KlongPy, and optionally PeachQ, over localhost TCP.
 
 Skipped unless the `klong` binary is built:
 

@@ -1,14 +1,14 @@
 """
-Ticket 028: the torch backend after the wave-1 changes.
+The torch backend after the wave-1 changes.
 
 Everything here runs only with `--backend torch` (the numpy run skips it).
 
 * TestGradientThroughOperators: a tensor that requires grad still requires
   grad after every differentiable operator, and the gradient that comes back
   is the analytic one: each arithmetic operator, reduce and scan, and the
-  operators touched by tickets 010 to 016, 024 and 025.
+  operators touched by the operator edge-case fixes.
 * TestResultsStayTensors: operators that used to hand a tensor to numpy
-  (ticket 020, "Remainders") return tensors.
+  ("Remainders") return tensors.
 * TestTorchValueModel: what is different from the numpy backend by design
   (IEEE values for a division by zero inside a tensor, float32 text) and what
   is the same (strings, symbols, integers beyond 64 bits, dictionary keys).
@@ -198,7 +198,7 @@ class TestGradientThroughOperators(TorchCase):
             ("2*:\\a", [2] * 4),
             ("a*:/2", [2] * 4),
             ("{x-y}:'a", [1, 0, 0, -1]),
-            ("3{x*2}:*a", [8] * 4),            # ticket 011: iterate
+            ("3{x*2}:*a", [8] * 4),            # iterate
             ("3{x*2}\\*a", [15] * 4),
             ("{x*y}@'a", None),
         ]:
@@ -208,7 +208,7 @@ class TestGradientThroughOperators(TorchCase):
                 self.assert_grad(expr, want)
 
     def test_converge_keeps_the_graph(self):
-        # ticket 011: converge compares successive values; the value it returns is still in the graph
+        # converge compares successive values; the value it returns is still in the graph
         k, leaves = self.leaves()
         r = k("{(x+s)%2}:~8.0")     # converges to s
         self.assertIsInstance(r, torch.Tensor)
@@ -216,9 +216,9 @@ class TestGradientThroughOperators(TorchCase):
         r.backward()
         self.assertTrue(_close(leaves["s"].grad.item(), 1.0, 1e-2))
 
-    # --- tickets 010 to 016, 024, 025 --------------------------------------
+    # --- operator edge-case fixes -------------------------------------
 
-    def test_ticket_010_amend(self):
+    def test_amend(self):
         self.assert_grad("a:=7.0,1", [1, 0, 1, 1])
         self.assert_grad("a:=7,1", [1, 0, 1, 1])                       # an integer into a float tensor
         self.assert_grad("a:=s,1", [1, 0, 1, 1])
@@ -230,7 +230,7 @@ class TestGradientThroughOperators(TorchCase):
         self.assert_grad("m:-s,[0 1]", [1], wrt="s")
         self.assert_grad("m:-9.0,[1 0]", [1, 1, 0, 1], wrt="m")
 
-    def test_ticket_010_amend_does_not_write_to_the_operand(self):
+    def test_amend_does_not_write_to_the_operand(self):
         k, leaves = self.leaves()
         k("b::a:=7.0,1")
         self.assertEqual(leaves["a"].detach().cpu().tolist(), self.A)
@@ -238,7 +238,7 @@ class TestGradientThroughOperators(TorchCase):
         self.assertEqual(plain(k2("x::[1 2 3];y::x:=9,0;x")), [1, 2, 3])
         self.assertEqual(plain(k2("y")), [9, 2, 3])
 
-    def test_ticket_011_split_and_cut(self):
+    def test_split_and_cut(self):
         self.assert_grad("2:#a", [1] * 4)
         self.assert_grad("2:_a", [1] * 4)
         # ragged pieces cannot be one tensor: a list of tensors, each still in the graph
@@ -251,7 +251,7 @@ class TestGradientThroughOperators(TorchCase):
                 sum(p.sum() for p in r).backward()
                 self.assertEqual(leaves["a"].grad.tolist(), [1.0] * 4)
 
-    def test_ticket_015_index_divide_join(self):
+    def test_index_divide_join(self):
         for expr, want in [
             ("a@1", [0, 1, 0, 0]), ("a@-1", [0, 0, 0, 1]),                 # negative index
             ("a@[0 2]", [1, 0, 1, 0]), ("a@[-1 0]", [1, 0, 0, 1]), ("a@[1 1]", [0, 2, 0, 0]),
@@ -265,8 +265,8 @@ class TestGradientThroughOperators(TorchCase):
         self.assert_grad("a,s", [1], wrt="s")
         self.assert_grad("s,s", [2], wrt="s")
 
-    def test_ticket_015_division_by_zero_keeps_the_tensor(self):
-        # the decision of ticket 015: IEEE values, so the tensor stays a tensor and gradients flow
+    def test_division_by_zero_keeps_the_tensor(self):
+        # the decision: IEEE values, so the tensor stays a tensor and gradients flow
         k, leaves = self.leaves()
         r = k("a%[1 0 2 0]")
         self.assertIsInstance(r, torch.Tensor)
@@ -276,14 +276,14 @@ class TestGradientThroughOperators(TorchCase):
         self.assertEqual(leaves["a"].grad.tolist()[0], 1.0)
         self.assertEqual(leaves["a"].grad.tolist()[2], 0.5)
 
-    def test_ticket_016_range_and_grade(self):
+    def test_range_and_grade(self):
         self.assert_grad("?a", [1] * 4)                    # unique, order of appearance
         self.assert_grad("?a,a", [1] * 4)
         self.assert_grad("a@<a", [1] * 4)
         self.assert_grad("a@>a", [1] * 4)
         self.assert_grad("a@*=a", [1, 0, 0, 0])            # group gives indices; indexing by them is differentiable
 
-    def test_ticket_024_take_and_reshape(self):
+    def test_take_and_reshape(self):
         for expr, want in [
             ("3#a", [1, 1, 1, 0]), ("6#a", [2, 2, 1, 1]), ("(-2)#a", [0, 0, 1, 1]), ("(-6)#a", [1, 1, 2, 2]),
             ("2_a", [0, 0, 1, 1]), ("(-1)_a", [1, 1, 1, 0]),
@@ -296,7 +296,7 @@ class TestGradientThroughOperators(TorchCase):
         self.assert_grad("(-3)#m", [1, 1, 2, 2], wrt="m")
         self.assert_grad("+m", [1] * 4, wrt="m")
 
-    def test_ticket_025_scalar_take(self):
+    def test_scalar_take(self):
         self.assert_grad("3#s", [3], wrt="s")
         self.assert_grad("2:^s", [2], wrt="s")
         self.assert_grad("[2 2]:^s", [4], wrt="s")
@@ -323,7 +323,7 @@ class TestGradientThroughOperators(TorchCase):
 
 
 class TestResultsStayTensors(TorchCase):
-    """Ticket 020 step 1: tensor in, tensor out (these went through numpy before)."""
+    """Tensor in, tensor out (these went through numpy before)."""
 
     def test_tensor_results(self):
         for src, want in [
@@ -388,7 +388,7 @@ class TestTorchValueModel(TorchCase):
         for src in ("1%0", "0%0", "7!0", "7:%0", "%0", "(1+1)%0", "(1+1)!(1-1)"):
             with self.subTest(src=src):
                 self.assertIs(self.k(src), KLONG_UNDEFINED)
-        # lists: the tensor keeps the IEEE value (ticket 015)
+        # lists: the tensor keeps the IEEE value
         self.assertEqual(plain(self.k("[1 2]%0")), [inf, inf])
         self.assertEqual(plain(self.k("[1.0 2.0]%[2 0]")), [0.5, inf])
         r = plain(self.k("[5 6]![0 2]"))
@@ -467,7 +467,7 @@ class TestTorchValueModel(TorchCase):
 
 
 class TestCompiledPathOnTorch(TorchCase):
-    """Ticket 025 rule on torch: the compiled function applies the interpreter's operators."""
+    """Rule on torch: the compiled function applies the interpreter's operators."""
 
     SETUP = ["i::3", "j::-2", "z::0", "f::2.5", "ia::[1 2 3]", "fa::[1.5 2.5 0.5]", "e::[]", "m::[[1 2][3 4]]"]
     EXPRS = ["i+j", "i*f", "f%i", "i%z", "i^2", "f^i", "-i", "-fa", "ia+ia", "ia*2+i", "fa-ia", "fa%ia", "ia%z",
@@ -522,7 +522,7 @@ class TestCompiledPathOnTorch(TorchCase):
 
 
 class TestIpcWireValues(TorchCase):
-    """Ticket 105: the endpoint converts tensors before `encode` and arrays after `decode`."""
+    """The endpoint converts tensors before `encode` and arrays after `decode`."""
 
     def roundtrip(self, value, widths=64):
         from klongpy.ipc.codec import decode, encode

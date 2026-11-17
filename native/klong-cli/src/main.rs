@@ -3,7 +3,7 @@
 //!     klong FILE                      run a file
 //!     klong -e EXPR                   evaluate and print
 //!     klong                           read-eval-print loop
-//!     klong --dump-ast FILE           canonical parse tree (frontend.md section 7)
+//!     klong --dump-ast FILE           canonical parse tree (conformance/README.md)
 //!     klong --conformance [--strict N]
 //!                                     the runner protocol of conformance/README.md: program
 //!                                     on stdin; printed result on stdout and exit 0, or

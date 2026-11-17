@@ -1,4 +1,4 @@
-"""Ticket 010: amend raises range errors and does not truncate floats."""
+"""Amend raises range errors and does not truncate floats."""
 import unittest
 
 import numpy as np
@@ -8,7 +8,7 @@ from klongpy.types import KlongException
 from tests.backend_compat import dtype_kind
 
 
-class Ticket010(unittest.TestCase):
+class TestAmendErrors(unittest.TestCase):
 
     def run_kg(self, src):
         return KlongInterpreter()(src)

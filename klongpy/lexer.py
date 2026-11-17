@@ -294,7 +294,7 @@ class Lexer:
     the current position to EOF (always the last element), pos is the index of
     the next token. seek keeps the list object and edits it in place.
 
-    nl_comment=False (strict level 1 and above, ticket 031) makes a newline
+    nl_comment=False (strict level 1 and above) makes a newline
     that follows a comment an ordinary newline: no NEWLINE token carries the
     nl_comment flag.
     """

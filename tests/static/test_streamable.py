@@ -1,5 +1,5 @@
 """
-kgpy --check-static --streamable (ticket 113 part 2): the constructs that keep a hardware kernel from taking one record per
+kgpy --check-static --streamable: the constructs that keep a hardware kernel from taking one record per
 clock cycle, each with its span and what to change. Fixtures: tests/static/accept/stream-*.kg and reject/stream-*.kg.
 """
 import os

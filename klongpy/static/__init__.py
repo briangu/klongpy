@@ -1,6 +1,6 @@
 """
 Static Klong: the subset of the language that can be compiled ahead of time
-(tickets/design/static-compile.md).
+(docs/static-profile.md).
 
     check_source, check_file, check_main     the profile checker (kgpy --check-static)
     StaticReport, StaticDiagnostic           what it returns
@@ -13,7 +13,7 @@ Static Klong: the subset of the language that can be compiled ahead of time
                                              functions bound as its externs (klongpy.static.host)
     set_param                                set a .param register between runs
     fixed, eval_ir, streamable               fixed<W,I> semantics, the evaluator behind call_entry for programs that use
-                                             them, and kgpy --check-static --streamable (ticket 113)
+                                             them, and kgpy --check-static --streamable
 
 The checker never evaluates a program. This package imports nothing beyond
 numpy and klongpy itself.

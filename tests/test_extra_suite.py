@@ -47,7 +47,7 @@ class TestExtraCoreSuite(unittest.TestCase):
         klong("D:::{[1 2]}")
         r = klong("D@1")
         self.assertEqual(r, 2)
-        # ticket 063: @ on a dictionary is the lookup ?, :undefined for a missing key (it was a KeyError)
+        # @ on a dictionary is the lookup ?, :undefined for a missing key (it was a KeyError)
         self.assertIs(klong("D@2"), klong("D?2"))
         self.assertEqual(str(klong("D@2")), ":undefined")
 

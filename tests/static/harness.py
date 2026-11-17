@@ -1,5 +1,5 @@
 """
-The differential harness of the static compiler (ticket 093): the same
+The differential harness of the static compiler: the same
 program runs under KlongPy and as compiled C, and the two must agree.
 
     cc = find_cc()                       None when there is no C compiler (tests then skip)

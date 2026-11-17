@@ -1,4 +1,4 @@
-//! The event side of the runtime (native-runtime.md section 6): timers, queued work, and the
+//! The event side of the runtime (docs/native/index.md): timers, queued work, and the
 //! IPC connections (`ipc.rs`), all driven by [`Runtime::poll_events`]. No thread and no
 //! interrupt handler touches Klong state: a board calls `poll_events` from its loop (after its
 //! console work) and sleeps in [`Runtime::events_wait`].

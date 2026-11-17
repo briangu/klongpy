@@ -1,7 +1,7 @@
-//! The platform interface (native-runtime.md section 6): everything outside pure computation.
+//! The platform interface (docs/native/index.md): everything outside pure computation.
 //!
-//! This is the part tickets 102 and 103 need: time, the console, storage. Transports, `wait`
-//! and externs are added by tickets 104 and 106; they get default implementations, so a
+//! This is the core part of a platform: time, the console, storage. Transports, `wait`
+//! and externs are added later; they get default implementations, so a
 //! platform written against this trait keeps compiling.
 
 /// Everything a runtime needs from where it runs.
@@ -45,7 +45,7 @@ pub trait Platform {
     /// `.x(code)`: leave the program. A desktop ends the process; a board may reset or do
     /// nothing, in which case the running evaluation is interrupted.
     fn exit(&mut self, _code: i32) {}
-    /// The networks of this platform (ticket 106): `.cli` and `.srv` find a transport by the
+    /// The networks of this platform: `.cli` and `.srv` find a transport by the
     /// name in the address. None by default.
     fn transports(&mut self) -> &mut [alloc::boxed::Box<dyn crate::link::Transport>] {
         &mut []
@@ -76,7 +76,7 @@ pub enum Mode {
     /// At the end of the file, created if missing.
     Append,
     /// An existing or new file, kept as it is: for writing at any position (`seek`), as the
-    /// Intel HEX upload of ticket 104 does.
+    /// Intel HEX upload does.
     Update,
 }
 

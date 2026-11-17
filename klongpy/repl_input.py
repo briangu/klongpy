@@ -1,6 +1,6 @@
 """
 REPL input helpers that need no terminal: the completeness check for multi-line
-entry (ticket 070), the tab completer and the persistent history (ticket 071).
+entry, the tab completer and the persistent history.
 
     check_complete(tokens, source=None) -> "complete" | "incomplete" | "error"
     Completer(klong, sys_cmds)         .matches(line) -> (start, [words]); callable as a readline completer

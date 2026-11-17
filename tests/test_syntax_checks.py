@@ -1,5 +1,5 @@
 """
-Syntax checks of ticket 031: what the parser used to accept without a word.
+Syntax checks: what the parser used to accept without a word.
 
 At strict level 0 (the default) each condition is a KlongSyntaxWarning and the
 program means what it always meant; at level 1 and above it is a
@@ -208,7 +208,7 @@ class TestLevel0Warns(unittest.TestCase):
         self.assertEqual(run("f::;")[0], ";")
 
     def test_missing_operand_that_fails_is_the_syntax_error(self):
-        # ticket 040's half: "1+" and "-" alone fail at level 0 too, as the syntax error
+        # the error half: "1+" and "-" alone fail at level 0 too, as the syntax error
         for text, msg in (("1+", "missing right operand for +"), ("-", "missing operand for -"),
                           ("1+;2", "missing right operand for +")):
             for level in (0, 1):
@@ -380,7 +380,7 @@ class TestAdverbNotAfterVerb(unittest.TestCase):
 
 class TestDictionaryEntries(unittest.TestCase):
     def test_not_pairs_is_a_syntax_error_at_every_level(self):
-        # (":{;1;2}" was one of these until ticket 063 made it the evaluated literal)
+        # (":{;1;2}" was one of these until it became the evaluated literal)
         for text, also in [(":{ ;1;2}", IndexError), (":{1 2", TypeError), (":{[1]}", IndexError), (":{1}", TypeError),
                            (":{[[1 2] 3]}", TypeError), ("[1 :{[1]}]", IndexError)]:
             for level in (0, 1):
@@ -398,7 +398,7 @@ class TestDictionaryEntries(unittest.TestCase):
 
     def test_goldens_of_the_two_reader_crashes(self):
         self.assertEqual(dump_text(":{ ;1;2}"), "(error KlongSyntaxError)\n")
-        self.assertEqual(dump_text(":{;1;2}"), "(edict (num 1) (num 2))\n")     # ticket 063
+        self.assertEqual(dump_text(":{;1;2}"), "(edict (num 1) (num 2))\n")     
         self.assertEqual(dump_text(":{1 2"), "(error KlongSyntaxError)\n")
 
 

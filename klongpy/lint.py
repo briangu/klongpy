@@ -7,7 +7,7 @@ kgpy --lint: a static check for the classic Klong traps.
     RULES                              code -> Rule(code, severity, title)
 
 The linter reads a program; it never runs it. It works on the token list of
-klongpy.lexer and on the parse tree (function metadata of ticket 032 only:
+klongpy.lexer and on the parse tree (function metadata only:
 ``max_arg``, ``arity``, ``params``). No user code is evaluated, no file is
 executed (``.l("file")`` is resolved by reading and parsing that file), no
 Python module is imported, no REPL, event loop or thread is started. Only
@@ -40,7 +40,7 @@ Rules, by code
     E001  anything the parser rejects at strict level 1
     E002  call with more arguments than the callee takes
 
-The notes in docs/lint.md say where a rule is narrower than the design table
+The notes in docs/lint.md say where a rule is narrower than the table
 and why. Rules that cannot be decided from the text are reduced to the part
 that can: W002 and W012 compare textual order with the order statements run
 (top level only, right to left inside a statement), W011 needs a call that
@@ -58,7 +58,7 @@ How the pass is built
 2. A bracket scan assigns every token to a frame: top level, function body
    ``{}``, parenthesis, call, evaluated list ``[;...]``, conditional ``:[...]``,
    data list ``[...]`` or dictionary body ``:{...}``. Data frames hold data,
-   not code (frontend.md section 5), which is what lets W012 and W017 tell a
+   not code (conformance/README.md), which is what lets W012 and W017 tell a
    symbol from a use. A function body that starts with ``[a;b];`` declares
    locals.
 3. The program is parsed at strict level 0 (tree, warnings) and at strict

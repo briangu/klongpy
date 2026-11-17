@@ -1,4 +1,4 @@
-//! Ticket 108: the management service (`klongpy/lib/mgmt.kg`, part of the image) fronting nodes
+//! The management service (`klongpy/lib/mgmt.kg`, part of the image) fronting nodes
 //! over links that lose, repeat and reorder packets and over a serial line that drops and
 //! damages bytes. Three runtimes live in one thread on a simulated clock (the harness of
 //! `events.rs`): while one waits, the others are polled. The same service over TCP between

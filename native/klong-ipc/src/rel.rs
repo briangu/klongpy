@@ -1,4 +1,4 @@
-//! The packet reliability layer (`native-runtime.md` section 7.1): any link that carries
+//! The packet reliability layer (`docs/native/index.md`): any link that carries
 //! bounded packets to one peer, and may lose, duplicate, reorder or (after its own checksum)
 //! drop them, becomes the reliable ordered byte stream the IPC session needs. One layer for
 //! every non-stream network. No I/O and no clock: the owner passes packets and the time in.

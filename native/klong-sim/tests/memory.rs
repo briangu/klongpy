@@ -1,4 +1,4 @@
-//! Ticket 104: exhausting the heap from the prompt is a `memory` error and the prompt stays
+//! Exhausting the heap from the prompt is a `memory` error and the prompt stays
 //! alive. This test binary has the counting allocator of a board as its global allocator, so
 //! it holds one test only.
 use std::alloc::System;

@@ -1,4 +1,4 @@
-"""Ticket 019: IPC lifecycle (bind failures, shutdown, timeouts, per-interpreter server).
+"""IPC lifecycle (bind failures, shutdown, timeouts, per-interpreter server).
 
 All tests use real sockets on localhost with dynamically chosen ports, and every
 potentially blocking step runs under a bounded wait so that a regression fails

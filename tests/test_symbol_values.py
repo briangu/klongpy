@@ -1,5 +1,5 @@
 """
-Ticket 022: a symbol held as data must never be looked up as a variable.
+A symbol held as data must never be looked up as a variable.
 
 Two parts:
 
@@ -65,7 +65,7 @@ class SymbolValueCase(unittest.TestCase):
             self.assertIsInstance(r, KGSym, msg=expr)
 
 
-class TestTicketTable(SymbolValueCase):
+class TestSymbolTable(SymbolValueCase):
 
     def test_each(self):
         self.check("{x}'[:foo :bar]", [FOO, BAR])
@@ -83,7 +83,7 @@ class TestTicketTable(SymbolValueCase):
         self.check("{x}'[:s]", [KGSym("s")])
 
     def test_quoted_symbol_is_legacy_at_default_strict_level(self):
-        # Strict level 2 (always the symbol) arrives with ticket 051.
+        # Strict level 2 (always the symbol) is tested in test_strict_level2.py.
         self.check(":foo", 5)
         self.check("{x}(:foo)", 5)
         self.check(":bar", BAR)

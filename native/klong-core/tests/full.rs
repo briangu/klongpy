@@ -1,4 +1,4 @@
-//! Ticket 103: strings as code points, format2 and form, the dictionary, modules, the bounds
+//! Strings as code points, format2 and form, the dictionary, modules, the bounds
 //! on nesting and on names, and what fuzzing found.
 use klong_core::{Config, Interp, Kind, NoHooks};
 

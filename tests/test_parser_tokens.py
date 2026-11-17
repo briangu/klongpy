@@ -1,5 +1,5 @@
 """
-The token parser against the legacy parser (ticket 030): identical trees for
+The token parser against the legacy parser: identical trees for
 every program in the repository and for a table of legacy quirks, source spans
 on the nodes, parser selection, and the parse cache.
 """
@@ -27,35 +27,35 @@ SOURCE_DIRS = ("tests/kgtests", "klongpy/lib", "examples")
 FIXTURES = "tests/golden/fixtures"
 
 
-# Fixtures on which ticket 031 changed the token parser at every strict level
-# (see CHANGED_BY_031 below): the legacy parser, which is frozen, still gives
+# Fixtures on which the syntax checks changed the token parser at every strict level
+# (see CHANGED_BY_SYNTAX_CHECKS below): the legacy parser, which is frozen, still gives
 # what their goldens recorded before.
-FIXTURES_031 = {"s2_cond_ws_before_second_semi.kg", "s2_cond_ws_both.kg", "s2_space_before_adverb.kg",
+FIXTURES_SYNTAX_CHECKS = {"s2_cond_ws_before_second_semi.kg", "s2_cond_ws_both.kg", "s2_space_before_adverb.kg",
                 "s6_unterminated_dict.kg"}
 
-# Files with the syntax of tickets 060 (destructuring), 061 (named parameters)
+# Files with the syntax of destructuring, named parameters
 # and 063 (evaluated dictionary literal, nested dictionary literals), which
-# only the token parser has: the t060_*, t061_* and t063_* fixtures, the three
+# only the token parser has: the dst_*, named_* and dict_* fixtures, the three
 # fixtures that held the place of that syntax, a fixture with a nested
 # dictionary literal, and the sources written with it.
-FILES_06X = {"s2_destructuring_slot.kg", "s2_named_params_slot.kg", "s2_dict_empty_slot.kg", "x_dict_nested.kg",
+FILES_NEW_SYNTAX = {"s2_destructuring_slot.kg", "s2_named_params_slot.kg", "s2_dict_empty_slot.kg", "x_dict_nested.kg",
              "test_destructuring.kg", "test_named_params.kg", "test_dict.kg"}
-PREFIXES_06X = ("t060_", "t061_", "t063_")
+PREFIXES_NEW_SYNTAX = ("dst_", "named_", "dict_")
 EXAMPLES_06X = (os.path.join("examples", "1brc", "worker.kg"),
                 os.path.join("examples", "stocks", "options", "black-scholes.kg"),
                 os.path.join("examples", "autograd", "compile_demo.kg"))
 
 
-def is_06x(path):
+def is_new_syntax(path):
     fn = os.path.basename(path)
-    return fn in FILES_06X or fn.startswith(PREFIXES_06X) or path.endswith(EXAMPLES_06X)
+    return fn in FILES_NEW_SYNTAX or fn.startswith(PREFIXES_NEW_SYNTAX) or path.endswith(EXAMPLES_06X)
 
 
-def kg_files(*dirs, t023=False, t031=False, t06x=False):
+def kg_files(*dirs, brackets=False, syntax_checks=False, new_syntax=False):
     """
-    Every .kg file under dirs. The t023_* fixtures hold the ticket 023 literals,
-    the FIXTURES_031 ones the syntax ticket 031 changed and FILES_06X the
-    syntax tickets 060, 061 and 063 added: the places where the two parsers
+    Every .kg file under dirs. The brk_* fixtures hold the bracket-in-string literals,
+    the FIXTURES_SYNTAX_CHECKS ones the syntax the syntax checks changed and FILES_NEW_SYNTAX the
+    syntax destructuring, named parameters and the evaluated dictionary literal added: the places where the two parsers
     differ on purpose. They are left out unless asked for.
     """
     for d in dirs:
@@ -63,9 +63,9 @@ def kg_files(*dirs, t023=False, t031=False, t06x=False):
             for fn in sorted(fns):
                 if not fn.endswith(".kg"):
                     continue
-                if not t06x and is_06x(os.path.join(dp, fn)):
+                if not new_syntax and is_new_syntax(os.path.join(dp, fn)):
                     continue
-                if (t023 or not fn.startswith("t023_")) and (t031 or fn not in FIXTURES_031):
+                if (brackets or not fn.startswith("brk_")) and (syntax_checks or fn not in FIXTURES_SYNTAX_CHECKS):
                     yield os.path.join(dp, fn)
 
 
@@ -93,7 +93,7 @@ def canon(x):
     if isinstance(x, np.ndarray):
         return ("ndarray", str(x.dtype), x.shape, [canon(e) for e in x])
     if isinstance(x, KGBody):
-        # ticket 032: the token parser keeps the locals declaration apart from the
+        # the token parser keeps the locals declaration apart from the
         # statements; the legacy tree has it as the first statement
         return ("list", [canon(e) for e in x.full()])
     if isinstance(x, (list, tuple)):
@@ -119,7 +119,7 @@ def parse(text, parser):
         m = k._module
         return ("ok", r[0], canon(r[1]), None if m is None else str(m))
     except Exception as e:
-        # legacy_text: the message the class had before ticket 040 (klongpy/errors.py)
+        # legacy_text: the message the class had before the error hierarchy (klongpy/errors.py)
         return ("error", type(e).__name__, getattr(e, 'legacy_text', str(e)))
     finally:
         k._module = None
@@ -127,7 +127,7 @@ def parse(text, parser):
 
 # Inputs whose legacy treatment is odd enough that the token parser has a line
 # of code to reproduce it. Both parsers must agree on every one, tree for tree
-# and message for message. None of them involves the ticket 023 literals.
+# and message for message. None of them involves the bracket-in-string literals.
 QUIRKS = [
     # input after a complete statement is dropped; a stray closer is a string
     "f (1)", "1 2 3+4 5", "{x}(1)(2)", "1+1 )", "1+1 ]", "1+1 }", "1;)", ")", "]", "}", ":|", "1 [2] 3",
@@ -179,10 +179,10 @@ QUIRKS = [
 ]
 
 
-# Where ticket 031 makes the token parser differ from the legacy parser on
+# Where the syntax checks make the token parser differ from the legacy parser on
 # purpose, at every strict level (the legacy parser is frozen): input ->
 # (dump on the token parser, dump on the legacy parser).
-CHANGED_BY_031 = {
+CHANGED_BY_SYNTAX_CHECKS = {
     # whitespace and newlines are allowed between a condition and its ';'
     ":[ 1 ; 2 ; 3 ]": ("(cond (num 1) (num 2) (num 3))\n", "(error UnexpectedChar)\n"),
     ":[1 ;2;3]": ("(cond (num 1) (num 2) (num 3))\n", "(error UnexpectedChar)\n"),
@@ -200,7 +200,7 @@ CHANGED_BY_031 = {
 }
 
 
-# Where tickets 060, 061 and 063 make the token parser differ from the legacy
+# Where destructuring, named parameters and the dictionary literal make the token parser differ from the legacy
 # parser on purpose, at every strict level: input -> (dump on the token
 # parser, dump on the legacy parser). The last two dump alike: the nested
 # literal is a dictionary on the token parser and an unevaluated call on the
@@ -218,7 +218,7 @@ CHANGED_BY_06X = {
 def changed_by_06x(text):
     """
     True when a text of the random differential test may hold the syntax of
-    tickets 060 and 063 (its fragments cannot spell a named-parameter
+    destructuring and the dictionary literal (its fragments cannot spell a named-parameter
     definition): a list on the left of '::', or a dictionary literal inside a
     list or a dictionary literal.
     """
@@ -231,7 +231,7 @@ def changed_by_06x(text):
 def changed_by_031(text, token, legacy):
     """
     True when two parse() outcomes differ only because of a deliberate change
-    of ticket 031 (see CHANGED_BY_031), for the random differential test.
+    of the syntax checks (see CHANGED_BY_SYNTAX_CHECKS), for the random differential test.
     """
     if token[0] == "error" and token[1] == "KlongSyntaxError" and (
             token[2].startswith("adverb ") or "dictionary" in token[2]):
@@ -243,7 +243,7 @@ def changed_by_031(text, token, legacy):
 
 class TestSameTreeAsLegacy(unittest.TestCase):
     def test_changed_by_031(self):
-        for text, (token, legacy) in CHANGED_BY_031.items():
+        for text, (token, legacy) in CHANGED_BY_SYNTAX_CHECKS.items():
             with self.subTest(text=text):
                 self.assertEqual(dump_text(text, parser="token"), token)
                 self.assertEqual(dump_text(text, parser="legacy"), legacy)
@@ -256,8 +256,8 @@ class TestSameTreeAsLegacy(unittest.TestCase):
                 self.assertEqual(dump_text(text, parser="legacy"), legacy)
                 self.assertNotEqual(parse(text, "token"), parse(text, "legacy"))
 
-    def test_ticket_06x_files_parse_on_the_token_parser(self):
-        paths = [p for p in kg_files(*SOURCE_DIRS, t06x=True) if is_06x(p)]
+    def test_destructuring_and_named_parameter_files_parse_on_the_token_parser(self):
+        paths = [p for p in kg_files(*SOURCE_DIRS, new_syntax=True) if is_new_syntax(p)]
         self.assertEqual(len(paths), 6)
         for path in paths:
             with self.subTest(path=os.path.relpath(path, ROOT)):
@@ -288,17 +288,17 @@ class TestSameTreeAsLegacy(unittest.TestCase):
             with self.subTest(path=os.path.relpath(path, ROOT)):
                 self.assertEqual(parse(text, "token"), parse(text, "legacy"))
 
-    def test_ticket_031_fixtures_differ(self):
-        paths = [p for p in kg_files(FIXTURES, t031=True) if os.path.basename(p) in FIXTURES_031]
-        self.assertEqual(len(paths), len(FIXTURES_031))
+    def test_syntax_check_fixtures_differ(self):
+        paths = [p for p in kg_files(FIXTURES, syntax_checks=True) if os.path.basename(p) in FIXTURES_SYNTAX_CHECKS]
+        self.assertEqual(len(paths), len(FIXTURES_SYNTAX_CHECKS))
         for path in paths:
             text = read(path)
             with self.subTest(path=os.path.relpath(path, ROOT)):
                 self.assertNotEqual(dump_text(text, parser="token"), dump_text(text, parser="legacy"))
                 self.assertTrue(changed_by_031(text, parse(text, "token"), parse(text, "legacy")))
 
-    def test_ticket_023_fixtures_are_the_only_ones_that_differ(self):
-        paths = [p for p in kg_files(FIXTURES, t023=True) if os.path.basename(p).startswith("t023_")]
+    def test_bracket_literal_fixtures_are_the_only_ones_that_differ(self):
+        paths = [p for p in kg_files(FIXTURES, brackets=True) if os.path.basename(p).startswith("brk_")]
         self.assertGreaterEqual(len(paths), 6)
         for path in paths:
             text = read(path)
@@ -331,7 +331,7 @@ class TestSameTreeAsLegacy(unittest.TestCase):
             "f(0c\n )": '(call (sym f) (char "\\n"))\n',
             "f(1 )": "(error UnexpectedChar)\n",
             "1 :foo 2": "(infix (sym foo) (num 1) (num 2))\n",
-            "{{f}}": "(fn 0 (fn 0 (sym f)))\n",        # was a TypeError in get_fn_arity until ticket 032
+            "{{f}}": "(fn 0 (fn 0 (sym f)))\n",        # was a TypeError in get_fn_arity until the locals were kept apart
             ".comment()": "(error IndexError)\n",
             ".comment(1)": "(error TypeError)\n",
             '.comment("END") 1': "(error KlongSyntaxError)\n",   # also a RuntimeError
@@ -377,7 +377,7 @@ class TestSameTreeAsLegacy(unittest.TestCase):
             self.assertEqual((i, dump(p)), (5, '(d "+" (num 2) (num 3))\n'))
 
     def test_random_programs(self):
-        """A seeded differential run over token soup; inputs with a ticket 023 literal are skipped."""
+        """A seeded differential run over token soup; inputs with a bracket-in-string literal are skipped."""
         fragments = ["a", "f", "x", "y", ".comment", ".module", ".5", "é", "1", "23", "1.5", "1e3", "3e", "1.2.3", ":12",
                      "0cx", "0c", "0c\n", "-1", "+", "-", "*", ",", "@", "#", "::", ":=", ":#", ":~", ":!", "'", "/", "\\",
                      "\\~", "\\*", ":'", ":/", ":\\", ":*", "_", "$", "!", "&", "|", "~", "=", "?", ":", ":-", "∇",
@@ -400,7 +400,7 @@ class TestSameTreeAsLegacy(unittest.TestCase):
             except RecursionError:
                 continue
             if a != b and "comment" in text:
-                # .comment can end inside later text and uncover a ticket 023 literal
+                # .comment can end inside later text and uncover a bracket-in-string literal
                 # that neither token list above shows; too rare to be worth modelling
                 continue
             if a != b and changed_by_031(text, b, a):
@@ -413,10 +413,10 @@ class TestSameTreeAsLegacy(unittest.TestCase):
 
 
 class TestEvaluationOfObservedTable(unittest.TestCase):
-    """frontend.md section 2: each input gives the same result on both parsers."""
+    """conformance/README.md: each input gives the same result on both parsers."""
 
     def setUp(self):
-        # these inputs are malformed on purpose: ticket 031 warns about them at strict level 0
+        # these inputs are malformed on purpose: the parser warns about them at strict level 0
         cw = warnings.catch_warnings()
         cw.__enter__()
         self.addCleanup(cw.__exit__, None, None, None)
@@ -499,7 +499,7 @@ class TestSpans(unittest.TestCase):
         r = self.prog(text)
         fn = r[1][0].args[1]
         self.assertEqual(fn.span, (3, 19))
-        # the locals declaration is not a statement of the stored body (ticket 032)
+        # the locals declaration is not a statement of the stored body
         self.assertEqual(fn.locals_span, (4, 7))
         self.assertEqual(fn.body_spans, ((8, 12), (15, 18)))
         self.assertEqual(len(fn.body_spans), len(fn.a))
@@ -507,7 +507,7 @@ class TestSpans(unittest.TestCase):
         self.assertEqual(fn.source.text, text)
         self.assertEqual(fn.source.line_col(fn.body_spans[1][0]), (2, 2))
         self.assertIsNone(fn.arg_spans)
-        self.assertIs(r[1][0].source, r.source)     # every node with a span records its source (ticket 040)
+        self.assertIs(r[1][0].source, r.source)     # every node with a span records its source
 
     def test_function_literal_call(self):
         n = self.one("{x+y}(1;2)")
@@ -585,7 +585,7 @@ class TestSpans(unittest.TestCase):
     def test_every_node_of_every_file_has_a_span_at_its_first_token(self):
         k = KlongInterpreter(parser="token")
         nodes = 0
-        for path in kg_files(*SOURCE_DIRS, FIXTURES, t06x=True):
+        for path in kg_files(*SOURCE_DIRS, FIXTURES, new_syntax=True):
             text = read(path)
             saved = k._module
             try:
@@ -701,7 +701,7 @@ class TestParserSelection(unittest.TestCase):
         with self.assertRaises(ValueError):
             KlongInterpreter(parser="antlr")
 
-    def test_legacy_keeps_the_ticket_023_defect(self):
+    def test_legacy_keeps_the_bracket_literal_defect(self):
         self.assertEqual(dump_text('"{"', parser="legacy"), "(error UnexpectedChar)\n")
         self.assertEqual(dump_text('"{"', parser="token"), '(str "{")\n')
 

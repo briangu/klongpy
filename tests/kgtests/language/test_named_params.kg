@@ -1,4 +1,4 @@
-:" Named parameters and more than three arguments, f(a;b;c;d)::{...} (ticket 061)"
+:" Named parameters and more than three arguments, f(a;b;c;d)::{...}"
 
 :" test_named_four_parameters "
 nf(a;b;c;d)::{(a*1000)+(b*100)+(c*10)+d}

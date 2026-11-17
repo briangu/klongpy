@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-The conformance suite through the serial console (ticket 104, step 6): every case is sent to
+The conformance suite through the serial console: every case is sent to
 a board with `^A run` and judged by what comes back over the wire, instead of starting the
 `klong` binary once per case. What a board would run gives the same answers, or this says where
 it does not.

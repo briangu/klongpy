@@ -1,5 +1,5 @@
 //! klong-ffi: the board runtime behind a C ABI (`include/klong.h`), as a static library for
-//! an application built with a vendor SDK (ticket 104, step 2). The C side supplies the
+//! an application built with a vendor SDK. The C side supplies the
 //! console bytes, the clock, the heap and the reset; this crate turns them into the `Uart`,
 //! `Clock` and `System` of `klong-board` and drives `klong-console` through
 //! `klong_board::{start, step}`.

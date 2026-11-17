@@ -159,7 +159,7 @@
 > h(:zzz)
 = :zzz
 
-# :undefined written in a program is the undefined value (ticket 033)
+# :undefined written in a program is the undefined value
 @ symbols.undefined-variable-matches core
 > u::1%0
 > u~:undefined

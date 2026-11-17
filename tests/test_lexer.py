@@ -1,4 +1,4 @@
-"""The lexer: Source, token kinds, flags, trivia, the pull API (ticket 030)."""
+"""The lexer: Source, token kinds, flags, trivia, the pull API."""
 import copy
 import os
 import pickle

@@ -1,6 +1,5 @@
 """
-The reference programs of the static profile, examples/embedded/*.kg (ticket
-090 step 3, ticket 094 step 4). Each one
+The reference programs of the static profile, examples/embedded/*.kg. Each one
 
   * is inside the profile (the checker accepts it without running it),
   * runs under KlongPy at strict level 2 with Python stand-ins for its
@@ -107,7 +106,7 @@ class TestReferencePrograms(unittest.TestCase):
         self.assertEqual({n: g.assigned for n, g in r.globals.items()}, {"buf": True, "pos": True})    # both are state
 
     def test_pid(self):
-        # ticket 094 acceptance: read.adc fixed at 0.3; setpoints 0.31, 0.31, 0.5
+        # acceptance: read.adc fixed at 0.3; setpoints 0.31, 0.31, 0.5
         writes = []
         klong = KlongInterpreter(strict=2)
         klong.externs["read.adc"] = lambda c: 0.3

@@ -597,7 +597,7 @@ def _handle_import(item):
                 # A function with optional positional parameters takes
                 # whichever of x, y and z the call supplies (wildcard): with
                 # the count of the required ones only, linspace(0;1;5) lost
-                # its third argument (ticket 033; ticket 027 for .pyc).
+                # its third argument (also for .pyc).
                 # The wildcard function is handed every argument the call
                 # writes, however many (linspace(0;1;4;0) passes the fourth).
                 if optional_args and 'klong' not in required_args and len(required_args) <= len(reserved_fn_args):
@@ -1161,7 +1161,7 @@ def create_system_functions():
         fn = getattr(m,x)
         registry[_get_name(fn.__doc__)] = fn
 
-    # .strict takes zero or one argument (ticket 050): a wildcard lambda is
+    # .strict takes zero or one argument: a wildcard lambda is
     # handed whichever of x, y, z the call supplied.
     registry['.strict'] = KGLambda(eval_sys_strict, wildcard=True)
 

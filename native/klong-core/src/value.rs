@@ -1,4 +1,4 @@
-//! Values (native-runtime.md section 3).
+//! Values (docs/native/index.md).
 //!
 //! Every payload is a scalar of at most 8 bytes or one thin pointer, so a `Value` is 16 bytes on
 //! 64-bit targets and at most 16 on 32-bit ones (asserted in lib.rs).

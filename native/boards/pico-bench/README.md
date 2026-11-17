@@ -191,7 +191,7 @@ the supervisor accepts. Still open:
   `docs/native/pico-bench.md` say: `f::{:[x;1+f(x-1);0]};f(105)` works and `f(109)` is a `range` error, `#!7500`
   works on a node that is idle and `#!6300` on the client of the self-test, `#!9000` is a memory error after which `.mem()`
   shows the same use and a smaller vector works, `.l("mgmt")` loads on the client; and what `.heap(0)`, `.heap(1)`... say
-  (the operator's list is in the ticket's ninth round).
+  (the operator's list is in the bench notes above).
 * UART behaviour at 28,125 frames/s under a sustained bulk transfer in both directions: the interrupt keeping up
   (about 7% of the processor when saturated, an estimate), the FIFO never overrunning (71 us to
   fill), the 16 KB ring while the interpreter evaluates, the 12 ms transmit limit (Ctrl-T prints the counters).

@@ -215,7 +215,7 @@ fn native_functions_can_be_registered() {
 
 #[test]
 fn short_calls_are_projections() {
-    // ticket 033: a call with fewer arguments than the function takes
+    // a call with fewer arguments than the function takes
     ok("r::{x+y};s::r(1);s(10)", "11");
     ok("g::{x,y,z};h::g(1);i::h(2);i(3)", "[1 2 3]");
     ok("g::{x,y,z};h::g(;2);h(1;3)", "[1 2 3]");

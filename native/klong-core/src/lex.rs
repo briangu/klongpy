@@ -1,4 +1,4 @@
-//! Lexer: source text to tokens with spans (`tickets/design/frontend.md` section 4, as
+//! Lexer: source text to tokens with spans (`conformance/README.md`, as
 //! implemented by `klongpy/lexer.py`).
 //!
 //! Context free; it never fails. A malformed number or `0c` at end of input is an `Error`
@@ -151,7 +151,7 @@ fn num_value(d: &str) -> TV {
         }
     } else {
         // An integer literal that does not fit the build width is a syntax error
-        // (native-runtime.md section 3).
+        // (docs/native/index.md).
         match d.parse::<Int>() {
             Ok(i) => TV::Int(i),
             Err(_) => TV::BadNum,

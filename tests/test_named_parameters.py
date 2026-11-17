@@ -1,6 +1,5 @@
 """
-Named parameters and more than three arguments, f(a;b;c;d)::{...} (ticket
-061; design: tickets/design/language-additions.md section 2).
+Named parameters and more than three arguments, f(a;b;c;d)::{...} (design: docs/language-additions.md).
 
 The left side of :: is a call of a plain name with plain names as arguments;
 the right side is a function literal. The function takes exactly that many

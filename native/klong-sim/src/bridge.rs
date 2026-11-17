@@ -1,5 +1,5 @@
-//! A model of the supervisor's Klong console bridge (`klong_bridge.h` of the esp32_cube bench
-//! firmware), in front of the simulator's switch, for testing the whole path without hardware.
+//! A model of the supervisor's Klong console bridge (`klong_bridge.h` of the bench
+//! supervisor firmware), in front of the simulator's switch, for testing the whole path without hardware.
 //! `native/tools/bench_bridge_sim.py` puts the HTTP routes (and the control rules) on it.
 //!
 //! What it does, as the real one does it:

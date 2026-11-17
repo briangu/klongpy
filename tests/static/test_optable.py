@@ -16,7 +16,7 @@ from klongpy.types import is_adverb
 
 from .hostutil import to_np
 
-# Rows whose element type on the host depends on the value (design section 8):
+# Rows whose element type on the host depends on the value:
 # KlongPy's ^ returns an int whenever the result is whole, and a conditional
 # whose branches are an int and a float has the type of the branch taken
 # (the profile's type is float; the value is the same).

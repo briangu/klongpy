@@ -1,5 +1,5 @@
 """
-The profile document generator (ticket 090 artifact 2):
+The profile document generator:
 ``python -m klongpy.static.profile_doc`` prints docs/static-profile.md, whose
 operator section is generated from the operator table; ``--check`` fails when
 the checked-in text differs from the generated text.

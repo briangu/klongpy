@@ -1,5 +1,5 @@
 """
-The typed IR, lowering and inference (ticket 091): the node classes and the
+The typed IR, lowering and inference: the node classes and the
 text form, the driver (check, evaluate stage one, check again, lower), the
 rules of the operator table applied to every row, specialisation,
 reachability, and the data the storage planner starts from.

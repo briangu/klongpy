@@ -1,4 +1,4 @@
-//! Links and transports (native-runtime.md section 7): how IPC bytes leave the runtime.
+//! Links and transports (docs/native/index.md): how IPC bytes leave the runtime.
 //!
 //! A [`Transport`] makes links from address strings. A link is a [`StreamLink`] (reliable,
 //! ordered bytes: TCP, a pipe) or a [`PacketLink`] (bounded packets to one peer: a UART behind
@@ -101,7 +101,7 @@ pub trait Transport {
 }
 
 /// A raw byte pipe with no boundaries and no error detection (a UART) as a packet link:
-/// serial framing, COBS and CRC-16 (native-runtime.md section 7.2). A frame that arrives
+/// serial framing, COBS and CRC-16 (docs/native/index.md). A frame that arrives
 /// damaged is dropped; the reliability layer above retransmits.
 #[cfg(feature = "ipc")]
 pub struct SerialLink {

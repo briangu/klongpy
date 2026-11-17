@@ -1,6 +1,6 @@
 [package]
 name = "klong-sim"
-description = "A simulated Klong board on the host: a Platform whose serial port is a pair of queues in memory, standard input and output, or a pseudo-terminal, with the real console on top (ticket 104)."
+description = "A simulated Klong board on the host: a Platform whose serial port is a pair of queues in memory, standard input and output, or a pseudo-terminal, with the real console on top."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

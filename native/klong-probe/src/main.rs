@@ -1,6 +1,6 @@
 //! The probe as a linked image for a bare-metal target (riscv32imac-unknown-none-elf,
 //! thumbv7em-none-eabihf): `_start` runs one program. Not bootable: there is no linker script
-//! and no start-up code (ticket 104); it exists so that the section sizes are those of
+//! and no start-up code; it exists so that the section sizes are those of
 //! everything a board build links. On wasm32 this file is empty (the library is the probe).
 #![no_std]
 #![no_main]

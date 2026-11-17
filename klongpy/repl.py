@@ -103,7 +103,7 @@ def cleanup_repl(loops, debug: bool = False) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Reporting errors and warnings to a person (ticket 042).
+# Reporting errors and warnings to a person.
 #
 # KlongError.render() does the layout; this part decides colour, where the text
 # goes, how a Python exception that is not a KlongError is shown, and how a

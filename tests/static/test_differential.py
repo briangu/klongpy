@@ -1,5 +1,5 @@
 """
-Differential tests (ticket 093): each program runs under KlongPy and as
+Differential tests: each program runs under KlongPy and as
 compiled C, and the two must give the same answers. See tests/static/harness.py
 for how the C side runs and how values are compared.
 
@@ -8,11 +8,11 @@ for how the C side runs and how values are compared.
     TestGeneratedPrograms    a seeded generator of small static programs (see Gen)
     TestEvaluationOrder      side effects happen in Klong's order (extern logs, state)
     TestAliasing             assignments that read their own target
-    TestBounds, TestDivisionByZero, TestIntegerOverflow, TestFloor, ...   the policies of design section 8
+    TestBounds, TestDivisionByZero, TestIntegerOverflow, TestFloor, ...   the policies of the C emitter
 
 Every program runs in two configurations: the default (int32_t, float) and
---int64 --float64. Where the two worlds are specified to differ (design
-section 8) the test says so and checks the specified C behaviour instead.
+--int64 --float64. Where the two worlds are specified to differ (see
+docs/static-profile.md) the test says so and checks the specified C behaviour instead.
 All tests skip when there is no C compiler.
 """
 import math
@@ -873,7 +873,7 @@ class TestAliasing(Differential):
 
 
 # ---------------------------------------------------------------------------
-# Policies (design section 8)
+# Policies
 # ---------------------------------------------------------------------------
 
 BOUNDS = ('buf::[1.0 2.0 3.0 4.0]\n'

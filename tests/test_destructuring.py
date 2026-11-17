@@ -1,6 +1,6 @@
 """
-Destructuring assignment, [a b c]::v (ticket 060; design:
-tickets/design/language-additions.md section 1).
+Destructuring assignment, [a b c]::v (design:
+docs/language-additions.md).
 
 A list of plain names on the left of :: binds each name to one element of the
 value. As the first statement of a function body the names are also locals of
@@ -388,8 +388,8 @@ class TestRepositoryGate(unittest.TestCase):
             "examples/1brc/worker.kg",
             "tests/kgtests/language/test_destructuring.kg",
             "tests/golden/fixtures/s2_destructuring_slot.kg",
-            # written on purpose by the named-parameter tests (ticket 061)
-            "tests/golden/fixtures/t061_head_destructuring.kg",
+            # written on purpose by the named-parameter tests
+            "tests/golden/fixtures/named_head_destructuring.kg",
             "tests/kgtests/language/test_named_params.kg",
         }
         try:
@@ -399,7 +399,7 @@ class TestRepositoryGate(unittest.TestCase):
         hits = []
         for rel in out.split():
             path = os.path.join(ROOT, rel)
-            if not os.path.exists(path) or rel.startswith("tests/golden/fixtures/t060_"):
+            if not os.path.exists(path) or rel.startswith("tests/golden/fixtures/dst_"):
                 continue
             with open(path, "r", errors="replace") as f:
                 if re.search(r"\]\s*::", f.read()) and rel not in allowed:

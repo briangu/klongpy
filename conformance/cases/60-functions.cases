@@ -433,7 +433,7 @@
 > :[1;2;3;4]
 ! syntax
 
-# x, y and z are assignable inside the function, at every strict level (ticket 033)
+# x, y and z are assignable inside the function, at every strict level
 @ functions.assign-arg-x core
 > h::{x::7}
 > h(1)

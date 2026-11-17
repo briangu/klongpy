@@ -11,7 +11,7 @@ default = ["strings", "dicts"]
 # Narrow builds: 32-bit integers and/or floats.
 int32 = []
 float32 = []
-# Stubs until ticket 103 (strings and dictionaries are always compiled in the spike).
+# Stubs (strings and dictionaries are always compiled in the spike).
 strings = []
 # Place the evaluator's hot functions in sections the Pico SDK's linker script puts in RAM (`.time_critical.*`): code
 # in flash runs through a 16 KB cache and a flash that is read at a quarter of the clock. Only for that target.

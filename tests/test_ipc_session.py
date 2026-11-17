@@ -1,4 +1,4 @@
-"""Tests of the kdb+ IPC session state machine (ticket 105, step 2).
+"""Tests of the kdb+ IPC session state machine.
 
 The session does no I/O, so every test drives two ``Session`` objects (or one
 against hand-built bytes) by passing the returned bytes to the other side's
@@ -469,7 +469,7 @@ class TestMatching(unittest.TestCase):
         self.assertTrue(p1.done and p2.done)
 
     def test_two_level_nested_example(self):
-        """Design section 5: A calls B (r1); B, serving r1, calls back c1; A, serving c1,
+        """A calls B (r1); B, serving r1, calls back c1; A, serving c1,
         calls B again (r2).  A sees the r2 response first, then answers c1, then B answers r1."""
         A, B = connect()
         # A -> B: r1 at A's level 0

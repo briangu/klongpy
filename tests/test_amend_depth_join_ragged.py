@@ -1,5 +1,5 @@
 """
-Two operator bugs that broke eigenv (klongpy/lib/eigenv.kg; tickets 029, 033):
+Two operator bugs that broke eigenv (klongpy/lib/eigenv.kg):
 
 * a:-v,indices with a float v: joining v to the indices makes one float list,
   so the indices arrived as floats and the amend failed; an integer matrix

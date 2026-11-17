@@ -1,13 +1,13 @@
 """kdb+ IPC object codec: Klong values to and from the bytes of one object.
 
-Pure functions, no I/O.  Layout and semantics follow ``tickets/design/ipc-kdb.md``
-sections 3, 4 and 9 and the byte-level reference ``ref-kdb-ipc.md`` section 3.
+Pure functions, no I/O.  Layout and semantics follow ``docs/ipc_capabilities.md``
+and the public kdb+ IPC reference.
 
 ``encode(value, widths=64) -> bytes``
     one object (no message header), always little-endian.
 ``encode_call(items, widths=64) -> bytes``
     a call envelope: always a general list (type 0), even when every item is a
-    symbol (design section 3).
+    symbol.
 ``decode(data, little_endian=True, widths=64) -> value``
     one object.  Anything malformed raises :class:`ProtocolError` and nothing
     else, except :class:`IPCRangeError` when ``widths`` is 32 and a number does
@@ -22,7 +22,7 @@ must be converted by the caller (backend ``to_numpy``) before ``encode``, and
 decoded arrays are numpy arrays that the endpoint converts if the interpreter
 runs a torch backend.
 
-Decisions where the design leaves room (each also noted in the ticket):
+Decisions where the design leaves room (each is noted where it applies):
 
 * An empty general list decodes to an empty float64 array, which is what
   Klong's ``[]`` is; empty typed vectors decode to empty arrays of their
@@ -36,14 +36,13 @@ Decisions where the design leaves room (each also noted in the ticket):
   array.  A mix of ints and floats stays an object array (lossless; the design
   does not say).
 * A guid atom decodes to an int64 array of 16 and a guid vector to an (n, 16)
-  int64 array; they re-encode as long vectors, not guids (design section 4;
-  no guid is ever sent, so peers below capability 3 are safe).
+  int64 array; they re-encode as long vectors, not guids (no guid is ever sent, so peers below capability 3 are safe).
 * A dictionary whose keys or values are not lists, or a table that is not a
   dict of symbol vector and general list of equal-length columns, is a protocol
   error (the reference documents nothing else).  Unhashable keys (arrays) become
   tuples.
 * Types 112, 20..97 and anything unknown are protocol errors (reference 3.4,
-  UNCONFIRMED layouts: the safe default of design section 4).
+  UNCONFIRMED layouts: the safe default).
 """
 import struct
 from collections.abc import Mapping
@@ -150,8 +149,8 @@ def set_table_factory(factory):
 def set_function_text_hook(hook):
     """Install ``hook(fn) -> str | None`` giving the source text of a function.
 
-    Function source text is not recorded by the parser yet (spans arrive with
-    a later ticket); until then functions go out in the display form of design
+    Function source text is not recorded by the parser yet (spans may be added
+    later); until then functions go out in the display form of design
     section 6.  ``None`` removes the hook.
     """
     global _fn_text_hook
@@ -192,7 +191,7 @@ _VEC_HDR = struct.Struct("<bBi")
 # nanoseconds; NaT is the null (INT64_MIN).  Any numpy unit is normalised to
 # nanoseconds.  Decoding stays as the design says (the underlying integer):
 # what was sent as a timestamp comes back as the int64 nanoseconds, not as
-# datetime64 (see tickets/design/ipc-kdb.md section 4).
+# datetime64 (see docs/ipc_capabilities.md).
 _KDB_EPOCH_NS = 946684800 * 10 ** 9          # 2000-01-01 in Unix nanoseconds
 _FINER_THAN_NS = ("ps", "fs", "as")
 
@@ -634,7 +633,7 @@ class _Decoder:
         (c,) = self.i32.unpack_from(self.buf, self.pos)
         self.pos += 4
         # length checks before any allocation: the count must be possible in
-        # the bytes that are left (design section 9)
+        # the bytes that are left
         if c < 0 or c * min_elem > self.n - self.pos:
             raise ProtocolError("vector count %d exceeds the message" % c)
         return c

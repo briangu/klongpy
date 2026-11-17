@@ -73,7 +73,7 @@ def test_atomic_shapes(klong, expr, expected):
 def test_atomic_shape_mismatch(klong, a, b):
     klong['a'] = klong._backend.kg_asarray(a)
     klong['b'] = klong._backend.kg_asarray(b)
-    # ticket 041: the operator names itself and the operands; the class says it is a shape error
+    # the operator names itself and the operands; the class says it is a shape error
     with pytest.raises(ValueError, match=r'cannot apply \+ \(Plus\) to ') as e:
         klong('a+b')
     assert e.value.kind == 'shape'

@@ -56,7 +56,7 @@ class CompiledExpr:
         self.kinds = kinds
 
 
-# Python integers outside this range are exact in Klong (ticket 025) but are not
+# Python integers outside this range are exact in Klong but are not
 # numpy integers; a compiled expression never sees one.
 _INT64_MIN = -2 ** 63
 _INT64_MAX = 2 ** 63 - 1

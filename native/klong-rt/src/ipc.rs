@@ -1,7 +1,7 @@
 //! The IPC endpoint (feature `ipc`): `.cli .clid .clic .clit .srv .async` and the hooks
 //! `.srv.o .srv.c .srv.e .srv.auth`, over the kdb+ protocol of `klong-ipc` and whatever
 //! transports the platform has. The native twin of `klongpy/ipc/endpoint.py` and
-//! `klongpy/sys_fn_ipc.py`; design `ipc-kdb.md` sections 5 to 9.
+//! `klongpy/sys_fn_ipc.py`; design `docs/ipc_capabilities.md`.
 //!
 //! One task runs everything. A client call sends its request and then loops: move bytes,
 //! take the next event of that connection, serve it if it is a request (that is the nested
@@ -217,7 +217,7 @@ fn link_over(e: LinkError, peer: &str) -> Pump {
     }
 }
 
-/// Wire name of an error kind (`errors-strict-lint.md` section 1, as `klongpy/errors.py`).
+/// Wire name of an error kind (`docs/errors.md`, as `klongpy/errors.py`).
 fn wire_name(k: ErrKind) -> &'static str {
     match k {
         ErrKind::Syntax => "parse",
@@ -758,7 +758,7 @@ impl<P: Platform + 'static> Events<P> {
 
     // ----- serving -----------------------------------------------------------------------
 
-    /// Serve one request and answer it (design section 5).
+    /// Serve one request and answer it.
     fn serve(self: &Rc<Self>, ip: &mut Interp, conn: &Rc<Conn>, kind: Kind, value: Result<Value>) {
         let begun = match conn.sess.try_borrow_mut() {
             Ok(mut s) => match s.begin_service(kind) {
@@ -827,7 +827,7 @@ impl<P: Platform + 'static> Events<P> {
         let _ = self.pump(conn);
     }
 
-    /// Do what a request message asks (the table of design section 5).
+    /// Do what a request message asks.
     fn evaluate_request(&self, ip: &mut Interp, value: Value) -> Result<Value> {
         match &value {
             Value::Sym(s) => {

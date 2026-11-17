@@ -1,5 +1,5 @@
 """
-The C emitter and the runtime header (ticket 092): the files, the naming
+The C emitter and the runtime header: the files, the naming
 rules, fusion (golden C), storage, the size report, warnings-clean builds on
 the host, freestanding builds with no undefined symbol but the declared
 externs, compile-only cross builds for the 32-bit targets the host clang

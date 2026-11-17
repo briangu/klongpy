@@ -15,13 +15,13 @@ requires_pandas = unittest.skipUnless(HAS_PANDAS, "requires pandas")
 
 
 class TestKnownBugsSuite(unittest.TestCase):
-    """Real bugs and not-yet-implemented behaviour. Every skip names the ticket that owns it.
+    """Real bugs and not-yet-implemented behaviour. Every skip says why.
 
-    Triaged under ticket 018. Passing tests moved to test_fixed_known_bugs.py; intended
+    Triaged. Passing tests moved to test_fixed_known_bugs.py; intended
     differences from reference Klong live in TestDocumentedDifferences below.
     """
 
-    @unittest.skip("ticket 031 left this to a language ticket: `foo(fn)(2)` does not apply the result of a call "
+    @unittest.skip("left to a language change: `foo(fn)(2)` does not apply the result of a call "
                    "(`g::foo(fn);g(2)` works). The dropped `(2)` is now a KlongSyntaxWarning at strict level 0 "
                    "and a syntax error at level 1 (tests/test_fixed_known_bugs.py)")
     def test_monad_argument_returned(self):
@@ -39,7 +39,7 @@ class TestKnownBugsSuite(unittest.TestCase):
         r = klong("(4)#[[0 0]]")
         self.assertTrue(klong._backend.kg_equal(r,[[0,0],[0,0],[0,0],[0,0]]))
 
-    @unittest.skip("ticket 051/040: calling an undefined function raises KlongException (not a "
+    @unittest.skip("calling an undefined function raises KlongException (not a "
                    "RuntimeError subclass) today; strict level 2 owns the error contract")
     def test_fall_call_undefined_fn(self):
         klong = KlongInterpreter()
@@ -48,7 +48,7 @@ class TestKnownBugsSuite(unittest.TestCase):
 
 
 class TestDocumentedDifferences(unittest.TestCase):
-    """Intended KlongPy behaviour that differs from reference Klong (ticket 018, listed by ticket 081)."""
+    """Intended KlongPy behaviour that differs from reference Klong (listed in docs/differences.md)."""
 
     def test_array_substitution(self):
         # Differs: a list literal takes tokens, so operators become KGOp objects and names become
@@ -74,7 +74,7 @@ class TestDocumentedDifferences(unittest.TestCase):
         self.assertEqual(klong('[7 7 7]~[7 7 7]'), 1)
 
     def test_append_empty_dictionaries(self):
-        # Differs: `list,dict` follows the pair rule (ticket 063): a two-element list joined with
+        # Differs: `list,dict` follows the pair rule: a two-element list joined with
         # a dict is read as a key/value pair, so the third append fails.
         klong = KlongInterpreter()
         r = klong("A::[];A::A,:{}")
@@ -96,7 +96,7 @@ class TestDocumentedDifferences(unittest.TestCase):
 
     def test_at_in_depth_strings(self):
         # Differs: `@` with a list of indices does not index into depth (strings), as the
-        # original comment says; it raises (a raw IndexError today, to be wrapped by ticket 041).
+        # original comment says; it raises (a raw IndexError today, to be wrapped).
         klong = KlongInterpreter()
         with self.assertRaises(Exception):
             klong('["1234","5678"]:@[0 1]')

@@ -90,7 +90,7 @@ class KGFn:
     # missing_operand is set by the parser on an operator node written without
     # its (right) operand ("1+", "-" alone). Such a node is evaluated as
     # before; if that fails, the error reported is the syntax error (see
-    # KlongInterpreter._op_error and tickets/design/frontend.md section 6).
+    # KlongInterpreter._op_error).
     span = None
     op_span = None
     arg_spans = None
@@ -101,7 +101,7 @@ class KGFn:
     # KlongInterpreter._literal_call
     literal = False
 
-    # Function metadata (ticket 032), set once by the token parser on the node
+    # Function metadata, set once by the token parser on the node
     # of a function literal ({...}, with or without an argument list after
     # it). None means "not computed": the node is not a function literal, or
     # it was built by hand or by the legacy parser. fn_metadata(node) computes
@@ -111,7 +111,7 @@ class KGFn:
     #              symbols ({[a b];...}). The declaration is not part of the
     #              stored body (see KGBody).
     #   params     tuple of KGSym: the named parameters of a function defined
-    #              as f(a;b)::{...} (ticket 061); None for a function of x, y
+    #              as f(a;b)::{...}; None for a function of x, y
     #              and z. The arity of such a function is len(params), and its
     #              body is a KGBody that carries the same tuple.
     #   max_arg    the highest of x=1, y=2, z=3 the body mentions, 0 for none.
@@ -120,7 +120,7 @@ class KGFn:
     #   uses_self  the body mentions .f (outside nested function literals,
     #              where .f is the nested function)
     #
-    # The arity of a function literal is its max_arg (ticket 026): {-x} is a
+    # The arity of a function literal is its max_arg: {-x} is a
     # monad and {y} a dyad. The one exception is a body that is itself a
     # function value ({g(1;)}, {{x+y}}): see get_fn_arity.
     locals = None
@@ -144,7 +144,7 @@ class KGFn:
 
     def __str__(self):
         # A projection displays by the number of arguments it still takes:
-        # its empty slots (ticket 033). Anything else by its arity.
+        # its empty slots. Anything else by its arity.
         args = self.args
         if type(args) is list:
             holes = 0
@@ -174,16 +174,16 @@ class KGBody(list):
         locals   tuple of KGSym, in the order written (the legacy rule: the
                  first statement is a non-empty list that, ignoring ";", holds
                  only symbols, and at least one statement follows it),
-                 followed by the targets of a head destructuring (ticket 060:
+                 followed by the targets of a head destructuring (
                  {[a b]::x;...}, see head_destructuring)
         decl     the declaration as it was parsed (the data list); None when
                  none was written
         params   tuple of KGSym: the named parameters of f(a;b)::{...}
-                 (ticket 061), None for a function of x, y and z. The call
+                , None for a function of x, y and z. The call
                  binds the arguments to these names instead of x, y, z.
         plain    the same statements as a plain list: what is evaluated.
                  (.f is bound to the KGBody itself, so that a call through .f
-                 declares the locals again: ticket 026.)
+                 declares the locals again.)
 
     The body carries its locals and params so that a caller that holds only
     the body (KGFnWrapper, IPC and timer callbacks pass fn.a to apply, and .f
@@ -204,7 +204,7 @@ class KGBody(list):
     def full(self):
         """
         The body with its declaration as first statement (the form before
-        ticket 032). A body without a written declaration (its locals come
+        the locals were kept apart). A body without a written declaration (its locals come
         from a head destructuring, or it only carries params) is the
         statements.
         """
@@ -215,7 +215,7 @@ class KGBody(list):
 
 class KGDestructure(tuple):
     """
-    The left side of a destructuring assignment, [a b c]::v (ticket 060): the
+    The left side of a destructuring assignment, [a b c]::v: the
     target names, a tuple of KGSym. The parser puts it where the name of an
     ordinary assignment goes, as the unevaluated left operand of the ::
     node, and KlongInterpreter._destructure binds the names.
@@ -266,7 +266,7 @@ class KGFnWrapper:
         Call the function with exactly as many arguments as it takes.
 
         Arguments may be given by keyword: the parameter names of a function
-        defined with named parameters, f(a;b)::{...} (ticket 061), or x, y
+        defined with named parameters, f(a;b)::{...}, or x, y
         and z for any other function. Too few or too many arguments, an
         unknown keyword and a parameter given twice are a KlongArityError
         (which is also a RuntimeError). There are no projections from Python.
@@ -283,7 +283,7 @@ class KGFnWrapper:
                 # Symbol was deleted, fall through to original function
                 pass
         if type(fn.args) is list and not kwargs:
-            # a projection (ticket 033): it takes one argument for each empty slot
+            # a projection: it takes one argument for each empty slot
             holes = sum(1 for q in fn.args if q is None)
             if holes:
                 if len(args) != holes:
@@ -719,7 +719,7 @@ def merge_projections(arr):
     # Each later layer is the argument list of a call of the projection the
     # layers before it make: its arguments go to the empty slots in order,
     # and an argument it leaves empty leaves that slot empty (for the next
-    # layer). Every layer starts at the first empty slot (ticket 033: the
+    # layer). Every layer starts at the first empty slot (the
     # walk used to go on from where the layer before stopped, so p(;3) of a
     # projection p and then q(2) never filled the slot p(;3) left open).
     first = arr[0]
@@ -744,7 +744,7 @@ def merge_projections(arr):
 def get_fn_arity(f):
     """
     The arity of a function body: the highest of x=1, y=2, z=3 that the body
-    mentions, 0 when it mentions none (ticket 026). {-x} is a monad, {y} a
+    mentions, 0 when it mentions none. {-x} is a monad, {y} a
     dyad, {x+z} a triad. Every mention counts, wherever it is: under a monad,
     in a call argument, as the verb of an adverb. Not counted: data (arrays,
     dictionary literals) and the body of a nested function literal, whose x,
@@ -761,7 +761,7 @@ def get_fn_arity(f):
     and nothing calls this at run time. It remains for nodes without metadata
     (the legacy parser, functions built by hand).
 
-    Before ticket 026 this was a count of the distinct names an incomplete
+    This used to be a count of the distinct names an incomplete
     scan found: {-x} had arity 0, {y} arity 1, and {a::{x+y};a(x;1)} arity 2.
     """
     m = _scan_args(f)[0]
@@ -885,7 +885,7 @@ def fn_metadata(node):
 
 def head_destructuring(node):
     """
-    Ticket 060, the head form: when the first statement of the body of the
+    The head form: when the first statement of the body of the
     function literal node (after its locals declaration, if any) is a
     destructuring assignment, its targets are locals of the function, exactly
     as if they were declared: {[s k r]::x;...} never touches globals named s,

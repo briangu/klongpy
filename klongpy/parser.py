@@ -378,7 +378,7 @@ class KGExprArray(list):
 class KGExprDict(KGExprArray):
     """
     Container for an evaluated dictionary literal :{;key1;value1;key2;value2}
-    (ticket 063): the unevaluated key and value expressions, alternating.
+   : the unevaluated key and value expressions, alternating.
     Each evaluation of the literal evaluates them left to right and builds a
     new dictionary (KlongInterpreter._eval_dict).
 
@@ -418,7 +418,7 @@ def read_expr_array(klong, t, i=0):
 
 
 # ---------------------------------------------------------------------------
-# Token readers (the default front end). See tickets/design/frontend.md.
+# Token readers (the default front end). See conformance/README.md.
 #
 # Positions. The lexer holds the token list (lx.toks, ending with EOF) and the
 # index of the next token (lx.pos). An index stands for the legacy character
@@ -457,7 +457,7 @@ class ProgResult(tuple):
         stmt_spans   one (start, end) span per statement (None on the legacy parser)
         source       the lexer.Source the spans refer to (None on the legacy parser)
         warnings     the KlongSyntaxWarning objects of this parse, in source
-                     order (ticket 031). prog() does not issue them; __call__
+                     order. prog() does not issue them; __call__
                      and exec do, each time the text is run.
     """
     stmt_spans = None
@@ -466,7 +466,7 @@ class ProgResult(tuple):
 
 
 # ---------------------------------------------------------------------------
-# Syntax checks (ticket 031). The token parser accepts a number of malformed
+# Syntax checks. The token parser accepts a number of malformed
 # inputs because the legacy parser did. Each such place calls tk_issue: at
 # strict level 1 and above that raises a KlongSyntaxError; at level 0 the
 # issue is recorded on the lexer, the parse goes on exactly as before, and
@@ -490,7 +490,7 @@ def tk_issue(lx, code, message, span, hint=None, note=None):
 
 
 def tk_assign_hint(left):
-    """The hint for an assignment whose left side is the expression left, not a name (ticket 050)."""
+    """The hint for an assignment whose left side is the expression left, not a name."""
     if isinstance(left, KGFn) and isinstance(left.a, KGSym) and isinstance(left.args, list):
         return (f"to define a function write {left.a}::{{...}} and use x, y and z for its arguments, "
                 f"or name its parameters: f(a;b)::{{...}}, with plain names between the parentheses")
@@ -506,7 +506,7 @@ _DESTRUCTURE_HINT = "write [a b c]::value with plain names, one for each element
 
 def tk_destructure(lx, j):
     """
-    Ticket 060. The list literal whose '[' is the token at index j is the
+    The list literal whose '[' is the token at index j is the
     left side of '::'. True if it is a list of plain names (at least one,
     none of x, y, z or .f, none twice): the statement is a destructuring
     assignment. Any other list is not one: a syntax error at strict level 1
@@ -559,7 +559,7 @@ def tk_destructure(lx, j):
 
 class NamedDef:
     """
-    Parser scratch (ticket 061): the left side of f(a;b)::{...} while the
+    Parser scratch: the left side of f(a;b)::{...} while the
     right side is being read: the name being defined and its parameters.
     """
     __slots__ = ('name', 'params')
@@ -571,7 +571,7 @@ class NamedDef:
 
 def tk_named_def(lx, a, st, lend):
     """
-    Ticket 061. a, the left side of '::', is a call. If it is a call of a
+    a, the left side of '::', is a call. If it is a call of a
     plain name whose arguments are all plain names, f(a;b;c), the statement
     defines f with those parameters: returns a NamedDef. Parameters may not be
     x, y or z and may not repeat: a syntax error at strict level 1 and above
@@ -607,7 +607,7 @@ def tk_named_def(lx, a, st, lend):
 
 def tk_direct_arg(toks, i, end):
     """
-    Ticket 061. toks[i] is the '{' of a function literal that ends before
+    toks[i] is the '{' of a function literal that ends before
     index end. Returns the first token that is x, y or z used by that
     function itself, or None: a nested function literal has its own x, y and
     z, and in a list or dictionary literal a name is a symbol, not a use.
@@ -806,7 +806,7 @@ def tk_dict(lx, entries, span):
     try:
         return list_to_dict(entries)
     except (IndexError, TypeError, KeyError) as e:
-        # (KeyError: the entry is itself a dictionary literal, ticket 063)
+        # (KeyError: the entry is itself a dictionary literal)
         if isinstance(e, TypeError) and 'unhashable' in str(e):
             msg = "a list cannot be a dictionary key"
         else:
@@ -888,8 +888,8 @@ def tk_read_list(klong, lx, j, close):
     number is a negative number. The list ends at the closer or at end of
     input (an unterminated list is accepted).
 
-    A string or char whose content is "[" is a datum like any other (ticket
-    023; the legacy reader started a nested list there).
+    A string or char whose content is "[" is a datum like any other (the legacy
+    reader started a nested list there).
     """
     toks = lx.toks
     module = klong._module
@@ -949,7 +949,7 @@ def tk_read_list(klong, lx, j, close):
             append(q)
         elif k == 'DICT':
             # A dictionary literal inside a list or dictionary literal is a
-            # dictionary value (ticket 063; it used to be an unevaluated
+            # dictionary value (it used to be an unevaluated
             # call). The literal that holds it is copied each time it is
             # evaluated, and the nested dictionary with it: see _factor.
             j, q = tk_read_list(klong, lx, j + 1, 'RBRACE')
@@ -1046,7 +1046,7 @@ def tk_read_cond(klong, lx, st):
     r.append(';' if n is SEMI else n)
     sp.append(None if n is None else (lx.start, lx.end()))
     # Whitespace and newlines may come between the condition and its ';'
-    # (ticket 031; the legacy reader wanted the ';' adjacent here, and only
+    # (the legacy reader wanted the ';' adjacent here, and only
     # here).
     j = lx.pos
     tok = toks[j]
@@ -1147,7 +1147,7 @@ _EDICT_HINT = "write :{;key1;value1;key2;value2}"
 
 def tk_read_expr_dict(klong, lx, st):
     """
-    Ticket 063. The read position is just after ':{;' (the ';' directly
+    The read position is just after ':{;' (the ';' directly
     follows the ':{'); st is the offset of the ':{'. Key and value
     expressions alternate, separated by ';'; newlines between them are
     skipped. ':{;}' is the empty dictionary. A key without a value and an

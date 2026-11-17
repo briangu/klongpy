@@ -1,4 +1,4 @@
-//! Ticket 103: the system functions over a `Platform` whose files are in memory.
+//! The system functions over a `Platform` whose files are in memory.
 use klong_core::{Config, Kind};
 use klong_rt::memfs::MemFs;
 use klong_rt::{FileSystem, FsError, Mode, Platform, Runtime};
@@ -142,7 +142,7 @@ fn modules() {
 }
 
 
-/// Ticket 108: `.try(f; args)` gives an error as a value, `.err(kind; message)` raises one.
+/// `.try(f; args)` gives an error as a value, `.err(kind; message)` raises one.
 #[test]
 fn try_gives_errors_as_values_and_err_raises_them() {
     let ok = |text: &str, want: &str| assert_eq!(run(&mut rt(), text).as_deref(), Ok(want), "{}", text);

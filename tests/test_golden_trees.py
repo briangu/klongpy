@@ -1,4 +1,4 @@
-"""Golden parse-tree snapshots and unit tests of klongpy.dump (ticket 030, step 1)."""
+"""Golden parse-tree snapshots and unit tests of klongpy.dump."""
 import os
 import re
 import sys

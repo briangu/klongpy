@@ -1,10 +1,10 @@
-"""Ticket 020: the backend abstraction.
+"""The backend abstraction.
 
 * importing klongpy must not change process-wide numpy state;
 * one KGChar class;
 * operator modules may not grow new direct numpy uses (the budgets below can
-  only go down; each remaining use is listed in tickets/020 with the reason it
-  could not be routed through the backend mechanically);
+  only go down; each remaining use is one the backend mechanism
+  could not take over mechanically);
 * torch is imported only by klongpy/backends/torch_backend.py.
 """
 import ast

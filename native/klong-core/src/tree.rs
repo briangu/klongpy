@@ -2,7 +2,7 @@
 //! parallel `Vec<Span>`).
 //!
 //! The node kinds follow KlongPy's tree classes, because the canonical dump
-//! (`tickets/design/frontend.md` section 7) and the calling rules are defined on them:
+//! (`conformance/README.md`) and the calling rules are defined on them:
 //!
 //! | here | KlongPy |
 //! |---|---|

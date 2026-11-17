@@ -43,7 +43,7 @@ def _compiled_div(a, b):
 
     A zero divisor raises ZeroDivisionError, for arrays as well as scalars, so
     the compiled path falls back to the interpreter, which returns :undefined
-    per element (ticket 015).  Without a zero the result is np.divide, which
+    per element.  Without a zero the result is np.divide, which
     is what the interpreter computes.
     """
     if isinstance(b, _NUMPY_VALUES):
@@ -239,7 +239,7 @@ class NumpyBackendProvider(BackendProvider):
         fn_source = f"def _expr({', '.join(param_names)}): return {source}"
         # The compiled operators are the ones the interpreter applies (np.add,
         # ... and the interpreter's own ^ and negate), so both paths give the
-        # same values, dtypes and errors (ticket 025).
+        # same values, dtypes and errors.
         xp = self._np
         ns = {
             'np': xp,

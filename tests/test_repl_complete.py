@@ -1,4 +1,4 @@
-"""Table-driven tests for check_complete (ticket 070)."""
+"""Table-driven tests for check_complete."""
 import unittest
 
 from klongpy.lexer import Source, tokenize

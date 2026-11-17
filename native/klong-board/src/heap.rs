@@ -2,7 +2,7 @@
 //! merged when freed. No header on allocated blocks (`dealloc` is told the layout), so the
 //! overhead is the rounding of sizes to two machine words. It is the simplest thing that
 //! frees memory; a port with megabytes of heap and a long life should measure it against a
-//! TLSF allocator (`ref-platforms.md` section 5) and may use the vendor's `malloc` instead.
+//! TLSF allocator (`docs/native/porting.md`) and may use the vendor's `malloc` instead.
 //! Wrap it in `klong_rt::heap::Counting` for the limit, the reserve and `.mem()`.
 //!
 //! Single-threaded: the runtime allocates from one task and never from an interrupt handler.

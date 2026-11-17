@@ -1,4 +1,4 @@
-//! The canonical S-expression dump of a parse tree (`tickets/design/frontend.md` section 7;
+//! The canonical S-expression dump of a parse tree (`conformance/README.md`;
 //! the mapping is the one in the docstring of `klongpy/dump.py`). The native parser must print
 //! the same bytes as KlongPy for every golden file under `tests/golden`.
 use alloc::string::String;

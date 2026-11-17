@@ -4,7 +4,7 @@ interpreter. Skipped unless KLONG_HW_HOST names the machine with the card (user@
 examples/embedded/mavg.kg, fir.kg and tests/static/hw/trap.kg passed routed timing there:
 
     kgpy --hw-build examples/embedded/mavg.kg examples/embedded/fir.kg tests/static/hw/trap.kg --wait
-    KLONG_HW_HOST=brian@xilinx python -m pytest tests/static/test_hw_binding_card.py
+    KLONG_HW_HOST=user@fpga-host python -m pytest tests/static/test_hw_binding_card.py
 
 Loading the image replaces whatever user image the card holds; the tests skip when the card is in use. The session
 that these tests open is closed when the module ends, so that tests/static/test_hw_card.py can use the card after it.

@@ -1,8 +1,8 @@
 //! Parser: tokens to a tree. A port, decision for decision, of the token grammar in
 //! `klongpy/interpreter.py` (`_prog`, `_expr`, `_factor`, `_read_fn`, `_read_fn_args`,
 //! `_apply_adverbs`) and the `tk_*` readers of `klongpy/parser.py`, because the canonical dump
-//! of the result must equal KlongPy's for every golden file (`frontend.md` sections 5 to 7,
-//! and the pinned quirks in the notes of tickets 030 and 031).
+//! of the result must equal KlongPy's for every golden file (`conformance/README.md`,
+//! and the pinned quirks in tests/golden/README.md).
 //!
 //! At strict level 0 the input the legacy grammar accepted is accepted here (KlongPy warns;
 //! warnings are not part of this spike). At level 1 and above each such place is a syntax
@@ -589,7 +589,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// The arity of a function body (KlongPy `get_fn_arity`, ticket 026): the highest argument
+    /// The arity of a function body (KlongPy `get_fn_arity`): the highest argument
     /// it mentions; a body that is itself a function value takes that value's arity.
     fn fn_arity(&self, a: NodeId) -> u8 {
         let m = self.scan_args(a).0;
@@ -646,7 +646,7 @@ impl<'a> Parser<'a> {
         }
         self.lx.pos = j + 1;
         let arity = self.fn_arity(a);
-        // Function metadata (ticket 032): a locals declaration leaves the stored body.
+        // Function metadata: a locals declaration leaves the stored body.
         if let Node::Seq(r) = self.tree.node(a) {
             let r = *r;
             if r.len > 1 {
@@ -657,7 +657,7 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        // Ticket 060: the targets of a destructuring that heads the body are locals.
+        // The targets of a destructuring that heads the body are locals.
         a = self.head_destructuring(a);
         let nt = self.tok(j + 1);
         let node = if matches!(nt.k, K::LParen | K::CallP) && !nt.ws {
@@ -711,7 +711,7 @@ impl<'a> Parser<'a> {
         self.add(Node::Body { stmts, locals, params, has_params }, (0, 0))
     }
 
-    // ----- assignment targets (tickets 050, 060, 061) ---------------------------------------
+    // ----- assignment targets ---------------------------------------
 
     fn matching(&self, j: usize) -> Option<usize> {
         let mut depth = 0i32;
@@ -1139,7 +1139,7 @@ impl<'a> Parser<'a> {
     fn read_cond(&mut self, st: u32) -> Result<NodeId> {
         let n = self.expr(true)?;
         let c = self.unsemi(n);
-        // Whitespace and newlines may come between the condition and its ';' (ticket 031).
+        // Whitespace and newlines may come between the condition and its ';'.
         let j = self.skip_nl(self.lx.pos);
         if self.kind(j) != K::Semi {
             return Err(self.unexpected(self.lx.offset(), ';'));
@@ -1208,7 +1208,7 @@ impl<'a> Parser<'a> {
         Ok(self.add(Node::EList(range), (st, end)))
     }
 
-    /// Ticket 063. The read position is just after `:{;`; `st` is the offset of the `:{`.
+    /// The read position is just after `:{;`; `st` is the offset of the `:{`.
     fn read_expr_dict(&mut self, st: u32) -> Result<NodeId> {
         let mut r: Vec<u32> = Vec::new();
         let hint = "write :{;key1;value1;key2;value2}";
@@ -1483,7 +1483,7 @@ impl<'a> Parser<'a> {
                     if ops::is_dyad(v) {
                         target = v == "::" && !matches!(self.tree.node(a), Node::Sym(_) | Node::QSym(_));
                     } else if ADVERBS.contains(&v) {
-                        // ticket 031: an adverb glyph where a dyadic operator is expected
+                        // an adverb glyph where a dyadic operator is expected
                         let m = if tok.ws { crate::msg!("adverb {} must directly follow its verb", v) } else { crate::msg!("adverb {} does not follow a verb", v) };
                         return Err(Error::syntax(m).with_span((tok.start, tok.end)));
                     }
@@ -1633,7 +1633,7 @@ impl<'a> Parser<'a> {
     }
 
     /// The top-level parse has stopped: whatever is left is input the legacy parser dropped,
-    /// and a string or comment may run to the end of the input (ticket 031).
+    /// and a string or comment may run to the end of the input.
     fn finish(&mut self) -> Result<Vec<NodeId>> {
         let tok = self.tok(self.lx.pos).clone();
         if tok.k != K::Eof {

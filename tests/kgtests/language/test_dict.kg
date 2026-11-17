@@ -1,4 +1,4 @@
-:" Dictionaries: evaluated literal, nested literals, merge, lookup with @ (ticket 063)"
+:" Dictionaries: evaluated literal, nested literals, merge, lookup with @"
 
 :" test_dict_evaluated_literal "
 dea::5

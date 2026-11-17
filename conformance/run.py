@@ -33,7 +33,7 @@ CAPABILITIES = ("float", "string-fmt", "strict1", "strict2")
 IMPLEMENTATION = ("numpy-only", "torch-only", "kgpy-only")
 ALL_TAGS = TIERS + MARKS + CAPABILITIES + IMPLEMENTATION
 KINDS = ("syntax", "name", "arity", "type", "shape", "range", "system", "memory", "interrupt")
-META_KEYS = ("reason", "actual", "ticket")
+META_KEYS = ("reason", "actual", "issue")
 
 # What KlongPy (numpy backend) declares. `device` needs a heap limit and a console;
 # the other tiers have no cases in this suite yet.

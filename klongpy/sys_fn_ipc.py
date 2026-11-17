@@ -1,6 +1,6 @@
 """IPC system functions: .cli .clid .clic .clit .srv .async and the .srv.* hooks.
 
-The connection speaks the kdb+ IPC protocol (``klongpy.ipc``, ticket 105): see
+The connection speaks the kdb+ IPC protocol (``klongpy.ipc``): see
 ``klongpy/ipc/endpoint.py`` for what a request means and how calls are matched
 and served.  The pickle protocol of earlier releases is kept for one transition
 release in ``klongpy/ipc/legacy.py`` and selected with ``KLONGPY_IPC``:

@@ -1,4 +1,4 @@
-# Short calls (ticket 033): a call with fewer arguments than the function
+# Short calls: a call with fewer arguments than the function
 # takes is a projection over the missing trailing arguments, the same value
 # as the call written with the empty slots. It is allowed at every strict
 # level; too many arguments is an arity error at level 2.

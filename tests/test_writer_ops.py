@@ -1,5 +1,5 @@
 """
-Ticket 042, step 7: an operator value prints as its glyph, never as a Python
+An operator value prints as its glyph, never as a Python
 object repr.
 
 Step 6 (the reserved glyphs `:! :& :, :< :?` as a syntax error when used as an

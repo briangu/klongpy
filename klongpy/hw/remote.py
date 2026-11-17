@@ -6,12 +6,12 @@ Run a command on the build machine, or here.
                 fetch=["data/out.bin", "proj_f/sol1/syn/report/*_csynth.xml"], timeout=1800)
     res.returncode, res.stdout, res.stderr, res.fetched (local directory), res.elapsed
 
-Each run gets a fresh directory under the fixed root ``/home/brian/klong-hw/work/``
-(here: a temporary directory), the files are copied in, the command runs there
+Each run gets a fresh directory under the fixed root ``<root>/work/`` (the root is $KLONG_HW_ROOT, default
+``~/klong-hw``, resolved on the machine; here: a temporary directory), the files are copied in, the command runs there
 with the Vitis HLS settings sourced, and the files asked for are copied back. Files
 travel as a tar stream over ssh (nothing but ssh and tar is needed on either side).
 
-Rules this module keeps (tickets/design/fpga-kernels.md section 3):
+Rules this module keeps (docs/hardware.md):
 
   * nothing is created or removed outside ``<root>/work/<run directory>``; the
     only deletion is of the run directory this object created, after its name
@@ -33,10 +33,10 @@ import tempfile
 import time
 import uuid
 
-__all__ = ["Remote", "Result", "RemoteError", "REMOTE_ROOT", "HLS_SETTINGS", "clean_stderr", "build_target"]
+__all__ = ["Remote", "Result", "RemoteError", "DEFAULT_ROOT", "root_setting", "resolve_root", "hls_settings", "clean_stderr",
+           "build_target"]
 
-REMOTE_ROOT = "/home/brian/klong-hw"
-HLS_SETTINGS = "/home/brian/tools/Xilinx/Vitis_HLS/2022.2/settings64.sh"
+DEFAULT_ROOT = "~/klong-hw"      # on the build machine: "~" is that machine's home, not ours
 _RUN_DIR = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{5,80}\Z")
 _TARGET = re.compile(r"[A-Za-z0-9._-]+(@[A-Za-z0-9._-]+)?\Z")
 _SSH = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15"]
@@ -88,6 +88,49 @@ def build_target(env=None):
     return v
 
 
+def root_setting(env=None):
+    """
+    The fixed root on the build machine as written: $KLONG_HW_ROOT, default ``~/klong-hw``. An absolute path, or a
+    path under ``~`` (the home directory of the machine it is used on; see ``resolve_root``).
+    """
+    v = (env if env is not None else os.environ).get("KLONG_HW_ROOT", "").strip() or DEFAULT_ROOT
+    ok = (v.startswith("/") or v == "~" or v.startswith("~/")) and "\0" not in v and ".." not in v.split("/") and \
+        not any(c.isspace() for c in v)
+    if not ok or v.rstrip("/") in ("", "~"):
+        raise RemoteError(f"KLONG_HW_ROOT='{v}' is not an absolute path (or a path under ~) without spaces or '..'")
+    return v.rstrip("/")
+
+
+_HOMES = {}
+
+
+def resolve_root(target, spec=None):
+    """The root as an absolute path on ``target`` (user@host, or None for this machine); a leading ``~`` is that machine's home."""
+    spec = root_setting() if spec is None else spec
+    if not spec.startswith("~"):
+        return spec
+    if target is None:
+        home = os.path.expanduser("~")
+    else:
+        home = _HOMES.get(target)
+        if home is None:
+            try:
+                p = subprocess.run(_SSH + [target, 'printf %s "$HOME"'], capture_output=True, timeout=60)
+            except subprocess.TimeoutExpired:
+                raise RemoteError(f"{target} did not answer")
+            home = p.stdout.decode(errors="replace").strip()
+            if p.returncode != 0 or not home.startswith("/"):
+                raise RemoteError(f"cannot find the home directory on {target} (set KLONG_HW_ROOT to an absolute path): "
+                                  f"{clean_stderr(p.stderr.decode(errors='replace')).strip()}")
+            _HOMES[target] = home
+    return home.rstrip("/") + spec[1:]
+
+
+def hls_settings(env=None):
+    """The Vitis HLS settings script to source before a command ($KLONG_HW_HLS_SETTINGS), or None: the tools are on PATH."""
+    return (env if env is not None else os.environ).get("KLONG_HW_HLS_SETTINGS", "").strip() or None
+
+
 def _tar(files):
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w") as t:
@@ -128,19 +171,28 @@ def _untar(data, dest):
 class Remote:
     """
     A place to run commands: ``target`` is user@host (default: $KLONG_HW_BUILD), or None for this machine.
-    ``root`` is the fixed root on the machine (default /home/brian/klong-hw; here, a temporary directory).
+    ``root`` is the fixed root on the machine ($KLONG_HW_ROOT, default ~/klong-hw, found on the machine when first
+    needed; here, a temporary directory). ``settings`` is sourced before each command (default $KLONG_HW_HLS_SETTINGS;
+    unset: Vitis HLS must be on the PATH of the machine).
     """
-    def __init__(self, target="env", root=None, settings=HLS_SETTINGS):
+    def __init__(self, target="env", root=None, settings="env"):
         self.target = build_target() if target == "env" else target
         if self.target is not None and not _TARGET.match(self.target):
             raise RemoteError(f"'{self.target}' is not a user@host destination")
         if self.target is not None:
-            if root not in (None, REMOTE_ROOT):
-                raise RemoteError(f"the root on the build machine is fixed at {REMOTE_ROOT}")
-            self.root = REMOTE_ROOT
+            self._spec = root_setting()
+            if root not in (None, self._spec):
+                raise RemoteError(f"the root on the build machine is fixed at {self._spec}")
+            self._root = None
         else:
-            self.root = root or os.path.join(tempfile.gettempdir(), "klong-hw")
-        self.settings = settings
+            self._root = root or os.path.join(tempfile.gettempdir(), "klong-hw")
+        self.settings = hls_settings() if settings == "env" else settings
+
+    @property
+    def root(self):
+        if self._root is None:
+            self._root = resolve_root(self.target, self._spec)
+        return self._root
 
     # -- helpers ----------------------------------------------------------------
     @property

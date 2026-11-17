@@ -1,9 +1,9 @@
 //! klong-ipc: the kdb+ IPC wire protocol and the links under it, without any I/O.
 //!
 //! `no_std` + `alloc`, no dependency beyond `klong-core`. Bytes in, bytes and events out: a
-//! transport (TCP, a UART, a radio) only moves the bytes. Design: `tickets/design/ipc-kdb.md`
+//! transport (TCP, a UART, a radio) only moves the bytes. Design: `docs/ipc_capabilities.md`
 //! (the protocol shared with KlongPy, whose `klongpy/ipc` is the executable reference) and
-//! `tickets/design/native-runtime.md` section 7 (links).
+//! `docs/native/index.md` (links).
 //!
 //! * [`codec`]: one kdb+ object to and from a [`klong_core::Value`].
 //! * [`compress`]: message decompression (always) and compression (feature `compress`).

@@ -81,7 +81,7 @@ class TestKlongTable(unittest.TestCase):
                 self.assertEqual(r.get("d").tolist(), [10 ** 9, 2 * 10 ** 9])
 
     def test_timestamp_column_round_trip(self):
-        """Out as a timestamp column; back as the kdb+ nanosecond integers (design section 4: temporals decode
+        """Out as a timestamp column; back as the kdb+ nanosecond integers (temporals decode
         to the underlying integer), which are exactly what was sent."""
         import pandas as pd
         sent = pd.to_datetime(["2000-01-01", "2024-01-15 10:30:00.123456789", "1999-12-31 23:59:59"], format="ISO8601")

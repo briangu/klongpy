@@ -1,6 +1,5 @@
 """
-The typed IR of the static compiler (tickets/design/static-compile.md section 5;
-ticket 091).
+The typed IR of the static compiler (docs/static-profile.md).
 
 Every node has ``ty`` (a Ty: element type and shape) and ``span`` (offsets into
 the source of the function it came from, or None). The tree of one FnSpec is
@@ -540,7 +539,7 @@ _FUSIBLE = (Unary, Binary, Convert, Index, Gather, Take, Drop, Rotate, Reverse, 
 
 def storage_inputs(f):
     """
-    What the storage planner needs to know about one FnSpec (design section 6):
+    What the storage planner needs to know about one FnSpec:
 
         arrays   the array-valued intermediates, as "kind:type" in evaluation order, each marked
                  "fused" (an elementwise or index-remapping node: no storage of its own) or "slot"

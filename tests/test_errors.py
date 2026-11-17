@@ -1,5 +1,5 @@
 """
-Ticket 040: one KlongError hierarchy, source positions and rendering.
+One KlongError hierarchy, source positions and rendering.
 """
 import os
 import pickle
@@ -101,7 +101,7 @@ class TestHierarchy(unittest.TestCase):
 
 
 class TestRender(unittest.TestCase):
-    """The six golden renderings of the ticket."""
+    """The six golden renderings of the error design."""
 
     def test_file_position(self):
         src = Source("examples/demo.kg", 'b::2\n\na::1+"x"\n')
@@ -224,7 +224,7 @@ class TestSyntaxErrors(unittest.TestCase):
 
 class TestMissingOperands(unittest.TestCase):
     def setUp(self):
-        # these inputs are malformed on purpose: ticket 031 warns about them at strict level 0
+        # these inputs are malformed on purpose: the parser warns about them at strict level 0
         cw = warnings.catch_warnings()
         cw.__enter__()
         self.addCleanup(cw.__exit__, None, None, None)
@@ -260,7 +260,7 @@ class TestMissingOperands(unittest.TestCase):
         self.assertFalse(KGFn(KGOp("+", 2), [1, 2], 2).missing_operand)
 
     def test_operators_that_tolerate_it_still_return_silently(self):
-        # x@ and f:: return silently today; the parser half of the rule (a warning) is ticket 031
+        # x@ and f:: return silently today; the parser half of the rule (a warning) is in the parser
         k = KlongInterpreter()
         k("x::[1 2 3]")
         self.assertEqual(list(k("x@")), [1, 2, 3])
@@ -306,7 +306,7 @@ class TestRuntimePositions(unittest.TestCase):
         k(".strict()")
         k("f::{1+undefinedname}")
         e = raised(k, "f()", KlongNameError)
-        self.assertEqual(str(e), "undefined: undefinedname")     # a read (ticket 050; was "undefined variable:")
+        self.assertEqual(str(e), "undefined: undefinedname")     # a read (was "undefined variable:")
         self.assertEqual(e.span, (6, 19))
         self.assertEqual(e.source.text, "f::{1+undefinedname}")
         k("h::{x+y}")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-The Klong library and the reference Klong suites through the native binary (ticket 103).
+The Klong library and the reference Klong suites through the native binary.
 
     .venv/bin/python native/scripts/suites.py [--klong PATH] [--no-klongpy]
 

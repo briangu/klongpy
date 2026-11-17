@@ -1,9 +1,9 @@
 """
-Stage B of kgpy --emit-hls (ticket 113 part 3): the streamable kernel. Everything here runs without a Xilinx tool:
+Stage B of kgpy --emit-hls: the streamable kernel. Everything here runs without a Xilinx tool:
 the generated C++ is built with the system compiler (a stand-in for hls::stream is generated next to it) and its test
 bench runs the kernel in C simulation. The stage A kernel (--hls-wrapped) is the reference: for every reference
 program and accept fixture the two give the same output, bit for bit for ints and fixed-point numbers and for floats
-without reassociation; with --hls-reassociate floats agree within the tolerance of ticket 093 for +/.
+without reassociation; with --hls-reassociate floats agree within the tolerance of the differential harness for +/.
 tests/static/test_hls_stream_remote.py runs the same files through Vitis HLS.
 """
 import glob
@@ -293,7 +293,7 @@ def unpack_raw(entry, data):
 
 @needs
 class TestTransformations(unittest.TestCase):
-    """The three transformations of design section 5, each against stage A on the same records."""
+    """The three streamable transformations, each against stage A on the same records."""
 
     def pair(self, text, calls, name="t", **kw):
         a = HlsBuild(text=text, name=name, wrapped=True)
@@ -328,7 +328,7 @@ class TestTransformations(unittest.TestCase):
         a, c, oa, oc = self.pair(text, calls, reassociate=True)
         x, y = np.frombuffer(oa, "<f4"), np.frombuffer(oc, "<f4")
         self.assertFalse(np.array_equal(x, y), "a tree rounds differently from a chain on 33 random items")
-        self.assertTrue(np.allclose(x, y, rtol=1e-5, atol=1e-4))     # within the tolerance of ticket 093 for +/
+        self.assertTrue(np.allclose(x, y, rtol=1e-5, atol=1e-4))     # within the tolerance of the differential harness for +/
         self.assertEqual(c.res.manifest["reassociate"], True)
         self.assertNotEqual(b.res.manifest["cache_key"], c.res.manifest["cache_key"])
 

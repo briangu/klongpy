@@ -1346,7 +1346,7 @@ class TorchBackendProvider(BackendProvider):
 
         param_names = list(self._collect_params(ir))
         fn_source = f"def _expr({', '.join(param_names)}): return {source}"
-        # The compiled operators are the ones the interpreter applies (ticket 025):
+        # The compiled operators are the ones the interpreter applies:
         # the same ufunc objects through vec_fn2, the interpreter's own ^ and
         # negate, and reduce/scan with the interpreter's treatment of atoms and
         # empty lists. Both paths then give the same values, the same types

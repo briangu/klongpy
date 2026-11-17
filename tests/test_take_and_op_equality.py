@@ -1,11 +1,11 @@
-"""Ticket 024: take on rank-2+ arrays cycles over rows; KGOp equality."""
+"""Take on rank-2+ arrays cycles over rows; KGOp equality."""
 import unittest
 
 from klongpy import KlongInterpreter
 from klongpy.types import KGOp
 
 
-class TestTicket024Take(unittest.TestCase):
+class TestTakeOnRank2(unittest.TestCase):
 
     def setUp(self):
         self.klong = KlongInterpreter()
@@ -46,7 +46,7 @@ class TestTicket024Take(unittest.TestCase):
         self.eq("(-3)#[1 2]", [2, 1, 2])
 
 
-class TestTicket024OpEquality(unittest.TestCase):
+class TestOpEquality(unittest.TestCase):
 
     def test_match_operators(self):
         klong = KlongInterpreter()
@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
 
 class TestIntegerLiteralOutsideInt64(unittest.TestCase):
-    """Late finding of ticket 015: negating 2**63 raised a TypeError."""
+    """Late finding: negating 2**63 raised a TypeError."""
 
     def test_min_int64_literal(self):
         from klongpy import KlongInterpreter

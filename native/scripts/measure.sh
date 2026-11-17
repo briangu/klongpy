@@ -1,8 +1,8 @@
 #!/bin/sh
-# Builds and size figures of tickets 102 and 103. Run from anywhere: sh native/scripts/measure.sh
+# Builds and size figures. Run from anywhere: sh native/scripts/measure.sh
 # The 32-bit builds need these targets on the stable toolchain (rustup +stable target add ...):
 #   wasm32-unknown-unknown         the probe as a module that scripts/probe.mjs can run
-#   riscv32imac-unknown-none-elf   the probe as a linked image (not bootable: ticket 104)
+#   riscv32imac-unknown-none-elf   the probe as a linked image (not bootable)
 #   thumbv7em-none-eabihf          the same
 # A target that is not installed is skipped.
 set -e
@@ -57,7 +57,7 @@ for target in riscv32imac-unknown-none-elf thumbv7em-none-eabihf; do
     python3 scripts/sections.py target/probe-sym/$target/release/klong-probe --heap 65536 --top 12
 done
 
-# Ticket 104: the board skeleton with the console, and without it (one fixed program), as
+# The board skeleton with the console, and without it (one fixed program), as
 # linked images. The difference is what the console and the main loop cost.
 BOARD="console: noconsole:--no-default-features+--features=files,lib console-bare:--no-default-features+--features=console noconsole-bare:--no-default-features console-narrow:--features=int32,float32"
 for target in riscv32imac-unknown-none-elf thumbv7em-none-eabihf; do

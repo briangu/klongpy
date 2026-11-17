@@ -1,5 +1,5 @@
-"""A local stand-in for the bench supervisor's Klong console bridge (the one in the esp32_cube
-bench firmware: `klong_bridge.h` and the /klong routes of `bench_main.cpp`).
+"""A local stand-in for the bench supervisor's Klong console bridge (the one in the bench
+supervisor firmware: `klong_bridge.h` and the /klong routes of `bench_main.cpp`).
 
     bench_bridge_sim.py [--port 8080] [--nodes 2] [--baud 115200] [--selftest] [--mute K]
                         [--speed 1] [--bench-bin native/target/release/klong-bench]

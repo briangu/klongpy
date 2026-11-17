@@ -31,7 +31,7 @@ A case file is plain UTF-8 text. Each line is blank, a comment, or a one-charact
 | `= TEXT` | One line of the expected result, which is what the REPL prints for the value of the last statement. Several lines are joined with newlines. |
 | `! KIND` | Instead of `=`: the program must fail with this error kind. |
 | `~ TEXT` | Optional: the expected console output (what the program writes with `.p`, `.d` and `.w`). |
-| `: KEY TEXT` | Metadata (`reason`, `actual`, `ticket`), used in `pending/`. |
+| `: KEY TEXT` | Metadata (`reason`, `actual`, `issue`), used in `pending/`. |
 | `?` | Authoring only: "fill the expectation in". Never committed. |
 
 A case with neither `=` nor `!` expects a program that produces no value. Examples from the suite:

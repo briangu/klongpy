@@ -1,6 +1,6 @@
 //! kdb+ object codec: a Klong [`Value`] to and from the bytes of one object (no message
-//! header). The Rust twin of `klongpy/ipc/codec.py`; mapping tables in `ipc-kdb.md` sections
-//! 3 and 4, layouts in `ref-kdb-ipc.md` section 3. Both are tested against the same
+//! header). The Rust twin of `klongpy/ipc/codec.py`; mapping tables in `docs/ipc_capabilities.md` sections
+//! 3 and 4, layouts in `docs/ipc_capabilities.md`. Both are tested against the same
 //! `tests/ipc_vectors/vectors.json`.
 //!
 //! Encoding is always little-endian. An integer goes out as a long (an int from an `int32`
@@ -13,7 +13,7 @@
 //! build cannot hold it: a long that does not fit 32 bits, a symbol longer than 255 bytes, a
 //! list as a dictionary key, no memory; only this message fails).
 //!
-//! Where the native value model differs from KlongPy's (documented in ticket 106):
+//! Where the native value model differs from KlongPy's (documented in docs/native/ipc.md):
 //! a general list always takes Klong's normal form (`Value::from_items`), so a list mixing
 //! integers and floats is a float array here and an object array in KlongPy; a dictionary key
 //! must be a number, a char, a string or a symbol.

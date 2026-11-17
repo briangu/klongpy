@@ -1,5 +1,5 @@
 """
-Ticket 033: interpreter and tooling bugs found while writing the documentation.
+Interpreter and tooling bugs found while writing the documentation.
 
 Row 1   a call with fewer arguments than the function takes is a projection
         over the missing trailing arguments (it was a value that could never
@@ -66,7 +66,7 @@ class Levels(unittest.TestCase):
 # Row 1
 
 class TestShortCallIsAProjection(Levels):
-    def test_the_ticket_rows(self):
+    def test_the_rows(self):
         self.check("r::{x+y};s::r(1);s(10)", 11)
         self.check("f(a;b)::{a+b};g::f(1);g(2)", 3)
 
@@ -142,7 +142,7 @@ class TestProjectionMadeInsideAFunction(Levels):
         self.check("f::{x+y};mk::{[a];a::x;f(a;)};p::mk(5);p(10)", 15)
 
     def test_a_body_that_is_only_a_projection_passes_the_call_on(self):
-        # ticket 026, unchanged: mk(5) is f(1;5), not a function that makes projections
+        # unchanged: mk(5) is f(1;5), not a function that makes projections
         self.check("f::{x+y};mk::{f(1;)};mk(5)", 6)
 
     def test_local_of_the_enclosing_function(self):
@@ -278,7 +278,7 @@ class TestShortCallUnderAdverbsAndAt(Levels):
             self.assertEqual(r[0], KGSym("foo"))
 
     def test_named_parameters_under_each_stay_an_arity_error(self):
-        # ticket 061: values cannot express a slot for a named-parameter function
+        # values cannot express a slot for a named-parameter function
         for level in LEVELS:
             k = KlongInterpreter(strict=level)
             with self.assertRaises(KlongArityError):
@@ -515,36 +515,36 @@ class TestPyfPassesEveryArgument(unittest.TestCase):
 
     def test_python_function_with_defaults(self):
         import types
-        m = types.ModuleType("t033mod")
+        m = types.ModuleType("shortcallmod")
         exec("def scale(a, b=10, c=0):\n    return a * b + c\n"
              "def two(a, b):\n    return a - b\n", m.__dict__)
-        sys.modules["t033mod"] = m
+        sys.modules["shortcallmod"] = m
         try:
             for level in LEVELS:
                 with self.subTest(level=level):
                     k = KlongInterpreter(strict=level)
-                    k('.pyf("t033mod";"scale")')
-                    k('.pyf("t033mod";"two")')
+                    k('.pyf("shortcallmod";"scale")')
+                    k('.pyf("shortcallmod";"two")')
                     self.assertEqual(k("scale(2)"), 20)
                     self.assertEqual(k("scale(2;3)"), 6)
                     self.assertEqual(k("scale(2;3;1)"), 7)
                     self.assertEqual(tolist(k("scale'[1 2]")), [10, 20])
                     self.assertEqual(k("two(5;3)"), 2)          # no optional parameter: as before
         finally:
-            del sys.modules["t033mod"]
+            del sys.modules["shortcallmod"]
 
     def test_py_import_of_a_module(self):
         import types
-        m = types.ModuleType("t033mod2")
+        m = types.ModuleType("shortcallmod2")
         exec("def scale(a, b=10):\n    return a * b\n", m.__dict__)
-        sys.modules["t033mod2"] = m
+        sys.modules["shortcallmod2"] = m
         try:
             k = KlongInterpreter()
-            k('.py("t033mod2")')
+            k('.py("shortcallmod2")')
             self.assertEqual(k("scale(2;3)"), 6)
             self.assertEqual(k("scale(2)"), 20)
         finally:
-            del sys.modules["t033mod2"]
+            del sys.modules["shortcallmod2"]
 
 
 # ---------------------------------------------------------------------------

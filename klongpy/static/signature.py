@@ -1,6 +1,5 @@
 """
-Signatures of host functions and entry points (tickets/design/static-compile.md
-sections 2 and 9; ticket 094).
+Signatures of host functions and entry points (docs/static-profile.md).
 
     parse_signature("int float[64] -> float")  -> Signature
     parse_type("float[16,241]")                -> Ty
@@ -57,7 +56,7 @@ INT_RANGE = {32: (-2**31, 2**31 - 1), 64: (-2**63, 2**63 - 1)}
 @dataclass(frozen=True)
 class Ty:
     """
-    A static type: an element type and a shape (design section 5).
+    A static type: an element type and a shape.
 
         elem    "int", "float", "str" or "void"
         shape   () for a scalar, else 1 to 4 positive dimensions, row-major
@@ -275,12 +274,12 @@ static struct switch typedef union unsigned void volatile while
 _Bool _Complex _Imaginary main memcpy memset NULL
 """.split())
 
-# prog_<name> names the emitter generates itself (design section 7)
+# prog_<name> names the emitter generates itself
 RESERVED_ENTRY_NAMES = frozenset(("init", "t", "storage.t", "size"))
 
 
 def c_identifier(name):
-    """The C identifier of a Klong name: every '.' becomes '_' (design section 7)."""
+    """The C identifier of a Klong name: every '.' becomes '_'."""
     return str(name).replace(".", "_")
 
 

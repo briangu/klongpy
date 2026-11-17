@@ -292,9 +292,9 @@ def emit_hls(program, emitted, clock_mhz=DEFAULT_CLOCK_MHZ, source_name=None, fl
 
 def cache_key(program, clock_mhz, lanes=None, wrapped=True, reassociate=False):
     """
-    Design section 8: SHA-256 of the IR dump, the emitter version, the lanes, the clock, the platform and the tool version
+    SHA-256 of the IR dump, the emitter version, the lanes, the clock, the platform and the tool version
     (and, for the streamable back end, the stage and the reassociation, which change the hardware). With the defaults
-    of ticket 110 (stage A, no lanes) the key is the one that ticket computed.
+    (stage A, no lanes) the key is the one the first emitter computed.
     """
     h = hashlib.sha256()
     parts = [dump(program), EMITTER_VERSION, f"lanes={lanes or 1}", f"clock_mhz={clock_mhz}", f"platform={PLATFORM}",

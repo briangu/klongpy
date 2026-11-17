@@ -1,10 +1,10 @@
 # Porting the native Klong runtime to a board
 
-State: written from the host side of ticket 104. No board has run this yet. Everything below
+State: written from the host side. No board has run this yet. Everything below
 was proven on a simulated board (`klong-sim`) and by linking for `thumbv7em-none-eabihf` and
 `riscv32imac-unknown-none-elf`; the section "What only a board can show" lists what the first
-real port has to check. Design: `tickets/design/native-runtime.md` sections 6 and 8; chip
-facts: `tickets/design/ref-platforms.md`.
+real port has to check. Design: `docs/native/index.md`; chip
+facts: `docs/native/porting.md`.
 
 ## The pieces
 
@@ -71,7 +71,7 @@ it has no start-up code).
 - `write` may return fewer bytes than given; 0 is treated as an error.
 - Without storage pass `None::<NoFs>`: `put` and `hex` answer `err system`, `run` works,
   `.l` loads only the built-in library.
-- LittleFS or FAT is the port author's choice (ticket 104, open questions).
+- LittleFS or FAT is the port author's choice (open questions).
 
 **Memory** (the two numbers in `BoardConfig`)
 - `stack_bytes`: the native stack of the task that calls `run`. `Config::for_stack` turns it
@@ -87,7 +87,7 @@ it has no start-up code).
   (`pressed`). With these, exhausting the heap is a `memory` error at the prompt. Reserve
   8 to 16 KiB.
 - The interrupt flag and the `Counting` and `TickClock` counters are statics: they must be in
-  internal RAM (on Xtensa, atomics in PSRAM do not work; `ref-platforms.md` section 1).
+  internal RAM (on Xtensa, atomics in PSRAM do not work; `docs/native/porting.md`).
 
 ## A network that carries messages: the Pico bench
 
@@ -135,7 +135,7 @@ RAM:
   `max_run` (64 KiB) only while a program sent with `run` is held. `put` and `hex` stream to
   the file system through a 128-byte buffer. All limits are fields of `ConsoleConfig`; a
   board with a small heap lowers `max_run` and `max_entry`.
-- Interpreter (ticket 103): about 12 KiB after start-up; `1+1` needs 1.5 KiB more; a
+- Interpreter: about 12 KiB after start-up; `1+1` needs 1.5 KiB more; a
   dictionary of 100 entries 26 KiB; `.l("csv")` 50 KiB; `.l("math")` 495 KiB; `.l("nstat")`
   1.04 MiB. Parsed source costs 20 to 30 bytes of heap per byte of source.
 - IPC, per connection (`native/scripts/ipc_bench.py`, host, 2026-11-16): 2149 bytes of heap per
@@ -143,7 +143,7 @@ RAM:
   by all connections (64 KiB on a 64-bit host, 1 KiB on a 32-bit target) and the message being
   received; 66 KB left over after 100 connections closed.
 - Practical floors: 64 KiB of heap runs expressions and small programs (the conformance
-  suite: all but 1 case at 64 KiB in ticket 103's run); 256 KiB runs the whole suite; 1 MiB
+  suite: all but 1 case at 64 KiB in the first full run); 256 KiB runs the whole suite; 1 MiB
   is needed for the larger library files.
 - Stack: 32 KiB or more for the interpreter task (above).
 
@@ -215,7 +215,7 @@ any failure                         ^A err <kind>: <message>
 ## What only a board can show
 
 - That the image boots: start-up code, linker script, vector table, clock setup, the
-  `-march` matching the silicon (ticket 104 lists the unconfirmed items per board).
+  `-march` matching the silicon (the unconfirmed items per board are listed above).
 - UART behaviour at speed: overruns during evaluation and during flash writes, the highest
   reliable baud rate, whether flow control or pacing is needed for `put`.
 - Real stack use per recursion level on the target (measured on aarch64 and wasm32 only),

@@ -1,4 +1,4 @@
-//! Ticket 104: random and mutated byte streams into the console state machine and the Intel
+//! Random and mutated byte streams into the console state machine and the Intel
 //! HEX parser. No panic, no hang, no memory without a bound, and the console answers
 //! afterwards.
 //!

@@ -9,7 +9,7 @@ environment variable ``KLONG_TEST_PEACHQ`` names the PeachQ ``q`` executable.  R
 Everything PeachQ does here is PeachQ's behaviour, not proof of what KX's kdb+ does.  PeachQ is young: where
 the two disagree it can be a bug on either side, and each such case is marked in the test that shows it
 (``expectedFailure`` for a KlongPy bug, a skip naming the PeachQ version for a PeachQ one).  The answers to
-the VERIFY items of ``tickets/design/ref-kdb-ipc.md`` are in ``TestVerifyItems``.
+the VERIFY items of ``docs/ipc_capabilities.md`` are in ``TestVerifyItems``.
 
 Both directions are covered: KlongPy ``.cli`` against ``q -p PORT`` (``TestKlongClient...``) and a q script that
 ``hopen``s a KlongPy ``.srv`` (``TestPeachQClient...``).  Every step is time-bounded.  Tables from
@@ -48,7 +48,7 @@ EXE = peachq_exe()
 VERSION = peachq_version(EXE) if EXE else "unknown"
 LAN = lan_address() if EXE else None
 NEED_PEACHQ = unittest.skipUnless(EXE, f"PeachQ interop is opt-in: set {ENV} to a PeachQ q executable "
-                                       f"(tested with {TESTED_VERSION}; see tickets/105 'PeachQ interop (step 5)')")
+                                       f"(tested with {TESTED_VERSION}; see docs/ipc_capabilities.md)")
 NEED_LAN = unittest.skipUnless(LAN, "no non-loopback IPv4 address: PeachQ compresses only for non-local peers")
 NEED_DB = unittest.skipUnless(HAVE_DB, "klongpy.db needs pandas and duckdb (run with a Python that has both)")
 
@@ -164,7 +164,7 @@ class KlongClientCase(Case):
 
 @NEED_PEACHQ
 class TestKlongClientReceives(KlongClientCase):
-    """What arrives from q for each type of the mapping table (design section 4)."""
+    """What arrives from q for each type of the mapping table."""
 
     def check(self, table):
         for expr, want in table:
@@ -237,7 +237,7 @@ class TestKlongClientReceives(KlongClientCase):
         self.assertEqual(len(t), 2)
 
     def test_keyed_table_arrives_as_a_pair(self):
-        # design section 4: a keyed table (a dict of two tables) is a two-element list of its key and value tables
+        # a keyed table (a dict of two tables) is a two-element list of its key and value tables
         r = self.q("([k:1 2]v:3 4)")
         self.assertEqual(len(r), 2)
         self.assertIn("k", [str(x) for x in (r[0].keys() if isinstance(r[0], KdbTable) else r[0].columns)])
@@ -280,7 +280,7 @@ class TestKlongClientReceives(KlongClientCase):
 
 @NEED_PEACHQ
 class TestKlongClientSends(KlongClientCase):
-    """What q sees for each Klong value (design section 3): its type number and the value echoed back."""
+    """What q sees for each Klong value: its type number and the value echoed back."""
 
     def setUp(self):
         super().setUp()
@@ -912,7 +912,7 @@ rep["big";(`idf;til 1000)];
                 self.assertIn("REFUSED", text + err)
 
     def test_q_lambda_as_callee_is_not_applied(self):
-        """(c) design section 5: only a lambda with context ``kg`` is parsed and applied; q's own lambda comes back unchanged
+        """(c) only a lambda with context ``kg`` is parsed and applied; q's own lambda comes back unchanged
         (kdb+ would apply it: ``h({x*y};6;7)`` is 42 there)."""
         self.serve()
         r, out = self.run_q('rep["lam";({x*y};6;7)]; rep["lam as arg";(`idf;{x*y})];')
@@ -1090,7 +1090,7 @@ x:h`tbl; -1 "R|cols|ok|0|",(-3!cols x);
 
     def test_datetime_column_is_a_timestamp_column(self):
         """A pandas datetime64 column is sent as a timestamp vector (type 12, int64 ns since 2000), NaT as 0Np.
-        It comes back as the underlying integers: temporals decode to numbers (design section 4)."""
+        It comes back as the underlying integers: temporals decode to numbers."""
         import pandas as pd
         t = self.db.Table(pd.DataFrame({"a": [1, 2, 3], "t": pd.to_datetime(["2000-01-01", "2024-01-15 10:30:00", None],
                                                                             format="ISO8601")}))
@@ -1234,7 +1234,7 @@ class TestSetWithASymbolCallee(Case):
 
 
 # ----------------------------------------------------------------------------------------------------------
-# VERIFY items (tickets/design/ref-kdb-ipc.md, ipc-kdb.md section 12).  PeachQ's answers, not KX's.
+# VERIFY items (docs/ipc_capabilities.md, docs/ipc_capabilities.md).  PeachQ's answers, not KX's.
 # ----------------------------------------------------------------------------------------------------------
 
 class RawConn:
@@ -1412,7 +1412,7 @@ class TestVerifyItems(Case):
         r, out = case.run_q('rep["e";"1+\\"a\\""];')
         self.assertEqual(r["e"], ("err", "type: cannot apply + (Plus) to integer and string"), out)
 
-    # ---- items marked UNCONFIRMED in ref-kdb-ipc.md that PeachQ can answer ----
+    # ---- items marked UNCONFIRMED in docs/ipc_capabilities.md that PeachQ can answer ----
 
     def test_handshake_answers_the_smaller_capability_up_to_3(self):
         """PeachQ: an offer of 1, 2, 3 is answered with the same, an offer of 4, 5 or 6 with 3 (its maximum:
@@ -1476,8 +1476,8 @@ class TestVerifyItems(Case):
     def test_general_list_of_same_type_atoms_is_unified_on_receipt(self):
         """(c) PeachQ's ``-9!`` turns a type 0 list whose items are all atoms of one type into the vector of that type
         (two symbols give type 11, two longs 7, two chars 10; one item too; mixed or empty stays 0).  KlongPy sends a call
-        envelope as type 0 on purpose (design section 3) so that ``(`f;`a)`` is not a symbol vector, but PeachQ
-        reads it as one -- harmless, since a symbol vector is accepted as a call (design section 5), and unknown
+        envelope as type 0 on purpose so that ``(`f;`a)`` is not a symbol vector, but PeachQ
+        reads it as one -- harmless, since a symbol vector is accepted as a call, and unknown
         for kdb+."""
         def lst(*items):
             return bytes([0, 0]) + len(items).to_bytes(4, "little") + b"".join(items)

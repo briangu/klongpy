@@ -17,7 +17,7 @@ The benchmark script is `tests/perf_vector.py`. It tests two workload types:
 
 ### Apple Silicon (MPS), measured 2026-11-16
 
-Machine: Apple M2 Ultra, macOS 26.6, Python 3.12.9, NumPy 2.5.5, PyTorch 2.15.0, on the branch `next/wave-1`. The machine was not idle (load average about 9 from other work), so treat differences of 10 to 20 percent as noise. Two consecutive runs of `python tests/perf_vector.py` are shown as run 1 and run 2 (seconds per iteration, and the ratio to NumPy):
+Machine: Apple M2 Ultra, macOS 26.6, Python 3.12.9, NumPy 2.5.5, PyTorch 2.15.0. The machine was not idle (load average about 9 from other work), so treat differences of 10 to 20 percent as noise. Two consecutive runs of `python tests/perf_vector.py` are shown as run 1 and run 2 (seconds per iteration, and the ratio to NumPy):
 
 | Workload | NumPy | KlongPy numpy | KlongPy torch, cpu | KlongPy torch, mps |
 |---|---|---|---|---|

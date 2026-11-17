@@ -155,7 +155,7 @@ def _is_repl_name(name):
 
 class KlongSyntaxWarning(Warning):
     """
-    The parser accepted something it should not have (ticket 031): input left
+    The parser accepted something it should not have: input left
     after a complete statement, a stray closing bracket, an operator without
     its operand, a string, list, dictionary or comment that runs to the end
     of the input. At strict level 0 the program still means what it always

@@ -2,7 +2,7 @@
 
 Both directions are ports of the published Java (``javakdb`` ``c.java``) and
 JavaScript (``c.js``) client code, as transcribed in the reference
-(``tickets/design/ref-kdb-ipc.md`` 5.2 to 5.4).  Neither has been checked against
+(``docs/ipc_capabilities.md`` 5.2 to 5.4).  Neither has been checked against
 a message produced by a real kdb+ process (VERIFY item 3 of the design).
 
 Both functions work on whole messages including the 8-byte header:
@@ -24,7 +24,7 @@ import struct
 
 from .errors import ProtocolError
 
-#: default upper bound for a (decompressed) message, bytes (design section 9)
+#: default upper bound for a (decompressed) message, bytes
 MAX_MESSAGE = 256 * 1024 * 1024
 
 #: kdb+ compresses only messages larger than this (reference 5.1)

@@ -1,5 +1,5 @@
 """
-The fixtures of the static profile (ticket 090 step 4): every rule id has one
+The fixtures of the static profile: every rule id has one
 accept and one reject file, every file belongs to a rule, and every reject
 file starts with a valid ``expect`` line. (tests/static/test_profile.py runs
 the checker on them.)

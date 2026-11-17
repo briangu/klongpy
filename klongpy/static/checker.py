@@ -1,6 +1,6 @@
 """
 The static profile checker: is a Klong program inside the subset that can be
-compiled ahead of time? (tickets/design/static-compile.md sections 1 to 4, 9.)
+compiled ahead of time? (docs/static-profile.md.)
 
     check_source(text, name="<string>", **options) -> StaticReport
     check_file(path, **options)                    -> StaticReport
@@ -27,7 +27,7 @@ How the pass is built
    from the entries, recursion) and the set of globals some function assigns.
 4. Abstract evaluation from each entry with the argument types of its
    signature. A function is checked once per distinct tuple of argument types
-   (the specialisation rule of design section 4). A program without any
+   (the specialisation rule). A program without any
    ``.entry`` is checked as a library: every function is a root, with
    arguments of unknown type.
 
@@ -38,7 +38,7 @@ list of numbers); the value of any other compile-time expression exists only
 after the host has evaluated it, which this pass never does. Such a global
 is numeric of unknown type and shape, and a rule that needs a type or shape
 is applied only when it is known: the checker reports what is certainly wrong
-and never guesses. The driver of ticket 091 evaluates the definitions and
+and never guesses. The driver (compile.py) evaluates the definitions and
 hands the values back through ``globals=``; then everything is known and the
 same rules decide.
 
@@ -227,7 +227,7 @@ class StaticReport:
         source          the Source of the program
         statements      [(kind, name, node, span, source)] in the order they run, with kind
                         "function", "global", "extern", "entry" or "load" (what the driver
-                        of ticket 091 walks)
+                        of the driver walks)
         functions       {name: FunctionInfo}
         globals         {name: GlobalInfo}
         externs         {name: ExternDecl}
@@ -352,10 +352,10 @@ def _is_plain_str(x):
 
 def validate_global(value, int_bits=32):
     """
-    Is value acceptable as an initialised global (design section 2)?
+    Is value acceptable as an initialised global?
 
     Returns (ty, rule, message): the Ty and (None, None) when it is; ty None,
-    the rule id and a one-line reason when it is not. The driver of ticket 091
+    the rule id and a one-line reason when it is not. The driver
     calls this on the result of each compile-time definition; the checker
     calls it on literals.
     """
@@ -2239,7 +2239,7 @@ def check_source(text, name="<string>", *, int_bits=32, globals=None, base_dir=N
         name           its name in the diagnostics; also where ``.l("file")`` is looked up
         int_bits       32 (the default) or 64: the width of kg_int, for the int-range rule
         globals        {name: value or Ty}: the values of compile-time definitions, when the
-                       caller has evaluated them (the driver of ticket 091 does). A value is
+                       caller has evaluated them (the driver does). A value is
                        validated as a global (validate_global) and its type and shape are then
                        known to every rule. Without it, only literal definitions are known.
         base_dir       directory for ``.l`` lookups, instead of the directory of name

@@ -1,4 +1,4 @@
-//! Serial framing (`native-runtime.md` section 7.2): a raw byte pipe with no boundaries and no
+//! Serial framing (`docs/native/index.md`): a raw byte pipe with no boundaries and no
 //! error detection (a UART, RS-485, a radio modem in transparent mode) carries packets as
 //!
 //! ```text

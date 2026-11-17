@@ -1,5 +1,5 @@
 """
-The card server and its client (ticket 111), without a card: the protocol, the buffer bookkeeping, the rules of
+The card server and its client, without a card: the protocol, the buffer bookkeeping, the rules of
 ``load``, the client's handling of a dropped connection. The device is FakeDevice (numpy), in the same process
 or in a server process started with ``--fake``. What reaches the real card is tests/static/test_hw_card.py.
 """

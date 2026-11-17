@@ -1,4 +1,4 @@
-//! Parser: the canonical dump (frontend.md section 7) is deterministic and stable under
+//! Parser: the canonical dump (conformance/README.md) is deterministic and stable under
 //! re-parsing, arity is the highest argument used, and syntax errors carry a span.
 use klong_core::{dump::dump, Config, Interp, Kind, NoHooks};
 

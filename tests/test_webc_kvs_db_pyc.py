@@ -1,5 +1,5 @@
 """
-Ticket 027: .webc stops the server; a missing .kvs key is :undefined; .db from
+Library and system-function fixes: .webc stops the server; a missing .kvs key is :undefined; .db from
 a dictionary literal; .pyc passes positional arguments; KGLambda subclasses
 that do not call the constructor have the `user` flag.
 """

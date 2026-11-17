@@ -1,4 +1,4 @@
-//! The line editor (native-runtime.md section 8): one line of bytes, a cursor, ANSI escape
+//! The line editor (docs/native/index.md): one line of bytes, a cursor, ANSI escape
 //! sequences in and out, and a ring of earlier lines.
 //!
 //! Keys: printable bytes and UTF-8 insert at the cursor; backspace (0x08, 0x7f) and delete

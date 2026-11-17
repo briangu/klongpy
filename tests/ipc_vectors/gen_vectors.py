@@ -4,7 +4,7 @@
 
 Builds every message byte by byte with struct, independent of klongpy.ipc.codec
 (so the vectors are not self-fulfilling), and asserts the four KX-published
-strings and the other worked examples of ref-kdb-ipc.md section 8 along the way.
+strings and the other worked examples of docs/ipc_capabilities.md along the way.
 """
 import os
 import json, struct, sys
@@ -57,7 +57,7 @@ assert hdr(lam("", "{x+y}")) == kx_lam
 add("kx-lambda-root", "{x+y} (q lambda, root context)", None, "roundtrip", "any", source="kx", whole=kx_lam,
     expect={"lambda": ["", "{x+y}"]})
 
-# --- reference section 8, roundtrip ---------------------------------------
+# --- roundtrip ---------------------------------------
 r81 = bytes.fromhex("0101000011000000" "0a0003000000312b31")
 assert hdr(charvec("1+1"), 1) == r81
 add("string-1+1-sync", '"1+1"', charvec("1+1"), "roundtrip", "any", typ=1)

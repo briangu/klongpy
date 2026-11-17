@@ -1,6 +1,6 @@
-"""Tests of the kdb+ IPC codec and compression (ticket 105, steps 1 and 4).
+"""Tests of the kdb+ IPC codec and compression (steps 1 and 4).
 
-Shared vectors: ``tests/ipc_vectors/vectors.json`` (design section 12).  Entry
+Shared vectors: ``tests/ipc_vectors/vectors.json``.  Entry
 fields: ``name``, ``klong`` (Klong source of the expected value, evaluated with
 the interpreter), ``hex`` (the whole message, header included), ``mode``
 (``roundtrip``, ``decode`` or ``reject``), ``widths`` (``64``, ``32`` or ``any``),
@@ -503,7 +503,7 @@ class TestTemporalEncode(unittest.TestCase):
             encode(np.array([1], dtype="timedelta64[M]"))                  # a month has no fixed length
 
     def test_round_trip_is_the_underlying_integer(self):
-        """Design section 4: temporals decode to the underlying integer, so the datetime64 does not come back
+        """temporals decode to the underlying integer, so the datetime64 does not come back
         as such. The asymmetry is deliberate; the value is the kdb+ nanosecond count."""
         a = np.array(["2000-01-01", "2024-01-15T10:30:00", "NaT"], dtype="datetime64[ns]")
         back = decode(encode(a))

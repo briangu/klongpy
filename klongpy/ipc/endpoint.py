@@ -1,4 +1,4 @@
-"""The IPC endpoint over the kdb+ protocol (ticket 105 step 3, design sections 5 to 9).
+"""The IPC endpoint over the kdb+ protocol.
 
 The codec turns values into bytes and the session frames them and matches
 responses; this module is the glue that owns a connection's behaviour:
@@ -15,7 +15,7 @@ Threads
     message is served on the klong loop thread, except while a thread is
     blocked in a call on that connection: then that thread serves it at once,
     inline, which is what makes a callback from the server during a client's
-    call work (design section 5, rule 1).  Session state is touched under one
+    call work.  Session state is touched under one
     lock; writes are queued to the ioloop in the order they were framed.
     The supported model is one logical thread of control per connection
     (several threads sharing one handle still work, but a nested request goes
@@ -46,7 +46,7 @@ from .session import (Closed, Failure, Handshake, HandshakeAccepted, HandshakeRe
 
 DEFAULT_CALL_TIMEOUT = 30.0
 CLOSE_TIMEOUT = 5.0
-#: seconds a peer has to finish the handshake (design section 8)
+#: seconds a peer has to finish the handshake
 HANDSHAKE_TIMEOUT = 5.0
 READ_SIZE = 65536
 
@@ -57,10 +57,10 @@ _DISPLAY_ARITY = {"nilad": 0, "monad": 1, "dyad": 2, "triad": 3}
 
 
 # ----------------------------------------------------------------------------
-# errors on the wire (design section 7)
+# errors on the wire
 # ----------------------------------------------------------------------------
 
-#: wire name -> the KlongError class it stands for (``errors-strict-lint.md`` section 1)
+#: wire name -> the KlongError class it stands for (``docs/errors.md``)
 WIRE_CLASSES = {c.wire: c for c in ERROR_KINDS.values() if c.wire}
 _REMOTE_CLASSES = {}
 
@@ -293,7 +293,7 @@ def parse_function(klong, text):
 
 
 def lambda_value(klong, lam, nc=None, sym=None):
-    """A ``kg``-context lambda received from the peer as a Klong value (design section 6).
+    """A ``kg``-context lambda received from the peer as a Klong value.
 
     With ``nc`` and ``sym`` (the answer to a symbol lookup) it becomes a remote
     function proxy bound to that connection and name.  Otherwise a source text
@@ -340,7 +340,7 @@ def to_wire(msg):
 
 
 # ----------------------------------------------------------------------------
-# serving a request (design section 5)
+# serving a request
 # ----------------------------------------------------------------------------
 
 def _is_text(v):
@@ -398,7 +398,7 @@ def _apply(klong, callee, args):
 
 
 def evaluate_request(klong, value):
-    """Do what a request message asks (table in design section 5); may raise."""
+    """Do what a request message asks; may raise."""
     if isinstance(value, KGSym):
         return klong[value]
     if _is_text(value):
@@ -630,7 +630,7 @@ class KdbConnectionMixin:
     # -- serving -------------------------------------------------------------
 
     def _serve(self, msg):
-        """Serve one request message on the current thread and answer it (design section 5)."""
+        """Serve one request message on the current thread and answer it."""
         sync = msg.kind == "sync"
         with self._lock:
             sess = self.session
@@ -767,7 +767,7 @@ class KdbConnectionMixin:
         return self._result(raw, lookup_sym)
 
     def _wait(self, waiter, deadline, timeout):
-        """Block for the response, serving requests that arrive meanwhile (design section 5, rule 1)."""
+        """Block for the response, serving requests that arrive meanwhile."""
         try:
             while True:
                 remaining = None if deadline is None else deadline - time.monotonic()
@@ -828,7 +828,7 @@ class KdbConnectionMixin:
                 pass
 
     def _check_deadlines(self):
-        """ioloop timer: a request past its deadline closes the connection (design section 5)."""
+        """ioloop timer: a request past its deadline closes the connection."""
         with self._lock:
             sess = self.session
             if sess is None or sess.closed:

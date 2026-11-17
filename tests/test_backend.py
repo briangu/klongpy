@@ -361,7 +361,7 @@ class TestCoreWithTorch(unittest.TestCase):
 
     @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch not installed")
     def test_str_to_chr_arr_is_a_numpy_char_array(self):
-        """A string is a numpy object array of characters on torch too (ticket 028; it raised before)."""
+        """A string is a numpy object array of characters on torch too (it raised before)."""
         backend = get_backend('torch')
         r = backend.str_to_chr_arr("hello")
         self.assertIsInstance(r, numpy.ndarray)

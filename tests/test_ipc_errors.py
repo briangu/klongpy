@@ -1,4 +1,4 @@
-"""Ticket 040/105: IPC failures are KlongError classes.
+"""IPC failures are KlongError classes.
 
 A remote error arrives as the class of its wire name (so a range error on the
 peer is a ``KlongRangeError`` here) that is also a ``KlongRemoteException``;

@@ -1,5 +1,4 @@
-//! klong-console: the serial console of a Klong board (native-runtime.md section 8, ticket
-//! 104). A read-eval-print loop and file upload over one byte stream; never IPC.
+//! klong-console: the serial console of a Klong board (docs/native/console.md). A read-eval-print loop and file upload over one byte stream; never IPC.
 //!
 //! [`Console`] owns the [`Runtime`] and is a state machine fed one byte at a time from
 //! `Platform::console_read`. It never waits for input: [`Console::poll`] takes what has

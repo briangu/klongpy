@@ -1,8 +1,8 @@
 """
-The client of klongpy/hw/server.py (ticket 111): starts the server next to the card and moves numpy arrays.
+The client of klongpy/hw/server.py: starts the server next to the card and moves numpy arrays.
 
-    with HwSession("brian@xilinx") as hw:          # None (or $KLONG_HW_HOST unset): a server on this machine
-        info = hw.load("/home/brian/klong-hw/builds/<key>/fir.xclbin")
+    with HwSession("user@fpga-host") as hw:          # None (or $KLONG_HW_HOST unset): a server on this machine
+        info = hw.load("<root>/builds/<key>/fir.xclbin")      # <root>: $KLONG_HW_ROOT on that machine, default ~/klong-hw
         k = hw.kernel("fir_run_kernel")             # from the build.json of the loaded image
         y = k.run(x)                                # x: (n, 256) float32 -> (n, 241) float32
         k.last                                      # {"transfer_s", "kernel_s", "bytes_in", "bytes_out", ...}
@@ -24,7 +24,7 @@ import time
 
 import numpy as np
 
-from .remote import REMOTE_ROOT, clean_stderr
+from .remote import clean_stderr, resolve_root, root_setting
 
 __all__ = ["HwSession", "HwKernel", "HwError", "HwConnectionError", "HwRefused", "HwTrap", "Handle", "host_target"]
 
@@ -88,11 +88,11 @@ class HwSession:
     command   the command list that starts the server (tests give their own); default: see ``start``
     timeout   seconds to wait for any reply other than a run (a run waits as long as its own timeout plus a margin)
     """
-    def __init__(self, host="env", command=None, timeout=120, root=REMOTE_ROOT, fake=False, python=None, env=None, cwd=None, setup=None):
+    def __init__(self, host="env", command=None, timeout=120, root=None, fake=False, python=None, env=None, cwd=None, setup=None):
         self.host = host_target() if host == "env" else host
         self.command = command
         self.timeout = timeout
-        self.root = root
+        self._root = root                   # None: $KLONG_HW_ROOT or ~/klong-hw, found on the host when first needed
         self.fake = fake
         self.python = python
         self.env = dict(env or {})          # exported before the server starts (on the host)
@@ -106,6 +106,12 @@ class HwSession:
         self.image = None
         self.entries = {}
         self.last = None
+
+    @property
+    def root(self):
+        if self._root is None or self._root.startswith("~"):
+            self._root = resolve_root(self.host, self._root or root_setting())
+        return self._root
 
     # -- the connection -------------------------------------------------------------------
     def _server_files(self):

@@ -98,7 +98,7 @@ extern "C" {
 }
 
 /// Bare metal: a transmit register (the address of the UART of QEMU's `virt` machines; a
-/// board port replaces this, ticket 104).
+/// board port replaces this).
 #[cfg(not(target_arch = "wasm32"))]
 unsafe fn host_write(ptr: *const u8, len: usize) {
     for i in 0..len {

@@ -1,4 +1,4 @@
-"""Tests that began life as skipped entries in test_known_bugs.py and now pass (ticket 018)."""
+"""Tests that began life as skipped entries in test_known_bugs.py and now pass."""
 import unittest
 import warnings
 
@@ -19,7 +19,7 @@ class TestFixedKnownBugs(unittest.TestCase):
 
     def test_wrap_join(self):
         # was test_known_bugs.test_wrap_join. Klong indexes with `@`, not `q[i]`; negative
-        # indices wrap per the ticket 015 decision, so the first and last element joined
+        # indices wrap per the wrap-around decision, so the first and last element joined
         # give the whole two-element list.
         klong = KlongInterpreter()
         klong("q::[3 8]")
@@ -28,7 +28,7 @@ class TestFixedKnownBugs(unittest.TestCase):
         r = klong("((q@0),(q@-1))")
         self.assertTrue(klong._backend.kg_equal(r, [3, 8]))
 
-    # The next four were skipped for ticket 063 (dictionaries).
+    # The next four were skipped for the dictionary work.
 
     @unittest.skipUnless(HAS_DB, "requires pandas and duckdb (the db extras)")
     def test_table_access_with_at(self):
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     unittest.main()
 
     def test_semicolon_string_arg(self):
-        # was test_known_bugs.test_semicolon_string_arg; fixed by the token parser (ticket 023):
+        # was test_known_bugs.test_semicolon_string_arg; fixed by the token parser:
         # a string that holds ";" is a string
         klong = KlongInterpreter()
         klong('f::{x,y}')
@@ -79,14 +79,14 @@ if __name__ == '__main__':
         self.assertEqual(r, "hello;")
 
     def test_define_nilad_with_subcall(self):
-        # was test_known_bugs.test_define_nilad_with_subcall; ticket 032: computing the arity
+        # was test_known_bugs.test_define_nilad_with_subcall: computing the arity
         # of a function hashed the arguments of a call in its body (unhashable numpy.ndarray)
         klong = KlongInterpreter()
         klong("nt::{x}")
         klong('newt::{nt([["1" 2] ["3" 4] ["5" 6]])}')
         self.assertEqual(klong("newt()").shape, (3, 2))
 
-    # The next four were "accepted without a word" (ticket 031). At the default strict
+    # The next four were "accepted without a word". At the default strict
     # level 0 a program keeps meaning what it meant, so they are still accepted, now with a
     # KlongSyntaxWarning; at strict level 1 they are the syntax errors the tests asked for.
 

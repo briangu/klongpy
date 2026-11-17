@@ -1,5 +1,5 @@
 """
-Ticket 029: numeric checks of library functions against values computed
+Numeric checks of library functions against values computed
 independently with numpy / plain Python.
 
 * nstat.kg `freq`: the n-point frequency distribution of D on [x0 xn]
@@ -103,7 +103,7 @@ class TestFft(unittest.TestCase):
 
 class TestEigenv(unittest.TestCase):
     """eigenv needs `:-` to accept a float value joined to integer indices, and
-    `,` to join arrays of different rank (see ticket 029). Both operators are
+    `,` to join arrays of different rank (see the library fixes above). Both operators are
     fixed (tests/test_amend_depth_join_ragged.py); the result must match numpy."""
 
     @requires_object_dtype

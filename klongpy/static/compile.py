@@ -1,5 +1,5 @@
 """
-The driver of the static compiler (tickets/design/static-compile.md section 1).
+The driver of the static compiler (docs/static-profile.md).
 
     compile_program(path, ...) -> Compiled      stages one to four: check, evaluate, check again, lower
     emit_program(path, out_dir, ...) -> Emitted the same, then emit C and write <prefix>.c, <prefix>.h, klong_rt.h

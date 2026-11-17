@@ -1,5 +1,5 @@
 """
-Ticket 029: every shipped .kg file under klongpy/lib/ and examples/ is clean.
+Every shipped .kg file under klongpy/lib/ and examples/ is clean.
 
 For each file:
   1. `kgpy --lint` reports no error-level finding (E001, E002);

@@ -1,6 +1,6 @@
 """
-Dictionary ergonomics (ticket 063; design:
-tickets/design/language-additions.md section 4): the evaluated literal
+Dictionary ergonomics (design:
+docs/language-additions.md): the evaluated literal
 :{;k1;v1;k2;v2}, nested literals as values, merge with `,`, lookup with `@`,
 and `$` of a dictionary. Every rule is run at strict levels 0, 1 and 2. The
 evaluated literal and nested literals are on the token parser only.

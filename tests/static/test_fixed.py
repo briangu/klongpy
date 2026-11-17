@@ -1,5 +1,5 @@
 """
-Fixed-point numbers, ticket 113 part 1: one reference semantics (klongpy/static/fixed.py), three implementations that
+Fixed-point numbers: one reference semantics (klongpy/static/fixed.py), three implementations that
 agree bit for bit. The interpreter stand-in (the typed-IR evaluator behind call_entry), the C emitter, and (in the
 remote tier, test_hls_remote.py) the C simulation of the hardware kernel.
 

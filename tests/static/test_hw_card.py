@@ -1,10 +1,10 @@
 """
-The Alveo U250 (ticket 111): the kernels of ``mavg``, ``fir`` and the trap program run on the card and equal the
+The Alveo U250: the kernels of ``mavg``, ``fir`` and the trap program run on the card and equal the
 interpreter. Skipped unless KLONG_HW_HOST names the machine with the card (user@host) and an image built from exactly
 this source passed routed timing there:
 
     kgpy --hw-build examples/embedded/mavg.kg examples/embedded/fir.kg tests/static/hw/trap.kg --wait
-    KLONG_HW_HOST=brian@xilinx python -m pytest tests/static/test_hw_card.py
+    KLONG_HW_HOST=user@fpga-host python -m pytest tests/static/test_hw_card.py
 
 Loading the image replaces whatever user image the card holds; the tests skip when the card is in use. A result here
 is "working on hardware" for that image only (design: the image passed timing and its outputs matched the interpreter).
@@ -23,13 +23,14 @@ from .test_emit_hls import program, special_floats
 from .test_ir import ROOT
 
 HOST = os.environ.get("KLONG_HW_HOST", "").strip() or None
+BAD_ROOT = os.environ.get("KLONG_HW_ROOT", "").strip() or "~/klong-hw"      # a root on the card host: only names matter here
 CLOCK = int(os.environ.get("KLONG_HW_CLOCK", "300"))
 TRAP = os.path.join(ROOT, "tests", "static", "hw", "trap.kg")
 SOURCES = [program("mavg"), program("fir"), TRAP]
 
 
 def float_rules(test, want, got, shape):
-    """Ticket 093: float32 results within 1e-5 relative, any nan equals any nan."""
+    """Float32 results within 1e-5 relative, any nan equals any nan."""
     ty = Ty("float", tuple(shape))
     for i, (w, g) in enumerate(zip(want, got)):
         d = same(w, g if shape else g.item(), ty, 32)
@@ -151,7 +152,7 @@ class TestOnCard(unittest.TestCase):
         self.hw.free(h)
 
     def test_a_timing_failed_image_is_refused_by_name_and_without_a_record(self):
-        for bad in ("/home/brian/klong-hw/builds/none/x.timing-failed.xclbin", "/home/brian/klong-hw/builds/none/x.xclbin"):
+        for bad in (BAD_ROOT + "/builds/none/x.timing-failed.xclbin", BAD_ROOT + "/builds/none/x.xclbin"):
             with self.assertRaises(HwRefused):
                 self.hw.load(bad)
         self.hw.kernel("mavg_step_kernel")          # the image loaded before is still the session's
@@ -176,7 +177,7 @@ class TestHostSideRefusals(unittest.TestCase):
     def test_the_loader_refuses_a_timing_failed_name_without_loading(self):
         with HwSession(HOST, timeout=120) as hw:
             with self.assertRaises(HwRefused) as cm:
-                hw.load("/home/brian/klong-hw/builds/none/x.timing-failed.xclbin")
+                hw.load(BAD_ROOT + "/builds/none/x.timing-failed.xclbin")
             self.assertIn("failed routed timing", str(cm.exception))
             self.assertEqual(hw.info()["session_image"], None)
 

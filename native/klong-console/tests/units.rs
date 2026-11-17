@@ -29,7 +29,7 @@ fn parse(line: &str) -> Result<(u8, u16, Vec<u8>), HexError> {
 
 #[test]
 fn hex_records_of_the_reference() {
-    // the worked examples of ref-platforms.md section 9
+    // the worked examples of docs/native/porting.md
     let data: Vec<u8> = (1..=16).collect();
     assert_eq!(parse(":100000000102030405060708090A0B0C0D0E0F1068"), Ok((0, 0, data)));
     assert_eq!(parse(":020000040001F9"), Ok((4, 1, vec![])));

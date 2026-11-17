@@ -1,5 +1,5 @@
 """
-The C emitter (tickets/design/static-compile.md sections 6 to 8; ticket 092).
+The C emitter (docs/static-profile.md).
 
     emit(program, prefix=None, float_bits=32, line_directives=False) -> Emitted
 
@@ -70,7 +70,7 @@ class HlsOptions:
 
 def match_window(program, entry):
     """
-    Is the entry a sliding window over its one array argument (design section 5, stage B)? That is
+    Is the entry a sliding window over its one array argument? That is
 
         run::{ f/E }     with E an elementwise expression of shape [A,B] whose only array operand that reads x is
                          x@idx, idx a constant table with idx[a][b] = c + a + b, and whose other operands are

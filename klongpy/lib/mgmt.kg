@@ -1,4 +1,4 @@
-:"management service: one node that fronts the nodes behind it (ticket 108)"
+:"management service: one node that fronts the nodes behind it"
 
 .comment("*****")
 mgmt.kg runs on a management node: any node that can reach both the

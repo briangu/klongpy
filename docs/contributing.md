@@ -99,7 +99,7 @@ $ python -m pytest tests -q
 
 Durations on 2026-11-16 with torch, pandas, duckdb, aiohttp and websockets installed, the native binary built, and `pytest` installed: `python -m pytest tests -q` took about 7 minutes (2614 passed, 186 skipped, 7777 subtests passed; one failure was a page under `docs/native/` that was still being written). `python -m unittest discover tests` took about 6 minutes. The machine was in use for other work, so expect less on an idle one. Single files are much faster, for example `tests/test_conformance.py` took 11 seconds.
 
-Four test modules (`test_atomic_broadcasting`, `test_autograd_parametrized`, `test_nested_grade` and `test_ticket_064`) import `pytest`, so `unittest discover` needs it installed too; the `full` extra includes it. Without torch installed, the 33 tests of `tests/test_compiler.py` that use torch are skipped.
+Four test modules (`test_atomic_broadcasting`, `test_autograd_parametrized`, `test_nested_grade` and `test_ascii_gradient_names`) import `pytest`, so `unittest discover` needs it installed too; the `full` extra includes it. Without torch installed, the 33 tests of `tests/test_compiler.py` that use torch are skipped.
 
 pytest also takes the options defined in `tests/conftest.py`, which run every `KlongInterpreter` in the tests on another backend:
 

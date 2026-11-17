@@ -1,4 +1,4 @@
-"""Ticket 015: operator edge cases (reshape, reverse, each-left/right, dict join,
+"""Operator edge cases (reshape, reverse, each-left/right, dict join,
 over, shape, atomic length mismatch, indexing, division by zero, format, enumerate)."""
 import subprocess
 import sys
@@ -21,7 +21,7 @@ def py(x):
     return x
 
 
-class Ticket015(unittest.TestCase):
+class TestOperatorEdgeCases(unittest.TestCase):
 
     def kg(self, src):
         return KlongInterpreter()(src)
@@ -67,7 +67,7 @@ class Ticket015(unittest.TestCase):
     def test_join_dict_bad_pair(self):
         for src in ['d:::{[1 0]};d,5', 'd:::{[1 0]};d,[1]', 'd:::{[1 0]};d,[[1 2]]', 'd:::{[1 0]};d,[1 2 3]']:
             self.assert_klong_error(src)
-        # ticket 063: a dictionary on the right is a merge
+        # a dictionary on the right is a merge
         self.assertEqual(self.kg('d:::{[1 0]};d,:{[3 4]}'), {1: 0, 3: 4})
 
     def test_join_dict_good_pair(self):
@@ -137,7 +137,7 @@ class Ticket015(unittest.TestCase):
         self.assertIs(self.kg('1%0'), KLONG_UNDEFINED)
         self.assertIs(self.kg('0%0'), KLONG_UNDEFINED)
         if is_torch_backend():
-            # Ticket 015 decision: a tensor cannot hold :undefined, so the torch
+            # Decision: a tensor cannot hold :undefined, so the torch
             # backend keeps the IEEE values (and the tensor stays in the autograd
             # graph). Atoms are :undefined on every backend (asserted above).
             inf = float('inf')
@@ -166,7 +166,7 @@ class Ticket015(unittest.TestCase):
     def test_divide_nested_zero(self):
         r = self.kg('[[1 2] [3 4]]%[[1 0] [0 4]]')
         if is_torch_backend():
-            # torch keeps the IEEE values in the tensor (ticket 015 decision)
+            # torch keeps the IEEE values in the tensor (the decision)
             inf = float('inf')
             self.assertEqual(plain(r), [[1.0, inf], [inf, 1.0]])
             return
@@ -179,7 +179,7 @@ class Ticket015(unittest.TestCase):
         self.assertIs(self.kg('7:%0'), KLONG_UNDEFINED)
         self.assertIs(self.kg('7!0'), KLONG_UNDEFINED)
         if is_torch_backend():
-            # torch keeps the IEEE values in the tensor (ticket 015 decision):
+            # torch keeps the IEEE values in the tensor (the decision):
             # a remainder by zero is nan, an integer division by zero is inf,
             # and the list becomes a float tensor
             r = plain(self.kg('[7 8]!0'))
@@ -221,7 +221,7 @@ class Ticket015(unittest.TestCase):
         self.assert_klong_error('!:{[1 2] [3 4]}')
         self.assertEqual(py(self.kg('!3')), [0, 1, 2])
 
-    # was an expected failure until ticket 063
+    # was an expected failure until the dictionary work
     def test_nested_dict_literal(self):
         r = self.kg(':{[1 :{[2 3]}]}')
         self.assertIsInstance(r[1], dict)

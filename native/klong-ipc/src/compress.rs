@@ -1,10 +1,10 @@
-//! kdb+ IPC message compression (`ref-kdb-ipc.md` section 5), ports of `klongpy/ipc/compress.py`
+//! kdb+ IPC message compression (`docs/ipc_capabilities.md`), ports of `klongpy/ipc/compress.py`
 //! (themselves ports of the published Java and JavaScript client code).
 //!
 //! Both functions work on whole messages including the 8-byte header.
 //!
 //! [`decompress`] is always built: a peer that was offered capability 3 may compress.
-//! [`compress`] needs the feature `compress` (design section 10: small devices leave it out).
+//! [`compress`] needs the feature `compress` (small devices leave it out).
 //!
 //! Safety of [`decompress`]: the declared size is checked against `max_size` and against what
 //! the stream could possibly expand to (125 times its length) before anything is allocated,

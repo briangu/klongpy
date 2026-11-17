@@ -1,4 +1,4 @@
-//! Intel HEX, one record at a time (ref-platforms.md section 9). No allocation: a record is
+//! Intel HEX, one record at a time (docs/native/porting.md). No allocation: a record is
 //! decoded into a caller's 255-byte buffer.
 //!
 //! `:` count(1) address(2, big-endian) type(1) data(count) checksum(1), all as pairs of hex

@@ -1,4 +1,4 @@
-:" Destructuring assignment [a b c]::v (ticket 060)"
+:" Destructuring assignment [a b c]::v"
 
 :" test_destructure_top_level "
 [da db dc]::[1 2 3]

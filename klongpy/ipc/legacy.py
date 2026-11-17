@@ -1,4 +1,4 @@
-"""The legacy pickle IPC protocol (deprecated; ticket 105, design section 11).
+"""The legacy pickle IPC protocol (deprecated).
 
 Until the kdb+ wire protocol, KlongPy peers exchanged ``16-byte message id +
 4-byte big-endian length + pickle``.  That format is kept here, unchanged, for
@@ -97,7 +97,7 @@ def ipc_mode(default):
 def detect_protocol(buf):
     """Tell a kdb+ handshake from a legacy frame without consuming anything.
 
-    Design section 11: scan forward; a byte of 0x80 or above before any zero
+    Scan forward; a byte of 0x80 or above before any zero
     means legacy (byte 8 of a version-4 UUID always is); a zero preceded by a
     byte from 1 to 6, with a ``:`` earlier, means kdb+; any other zero means
     legacy.  Returns ``"kdb"``, ``"legacy"``, ``None`` (need more bytes) or

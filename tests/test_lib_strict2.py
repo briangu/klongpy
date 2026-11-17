@@ -1,5 +1,5 @@
 """
-Ticket 051: the standard library and the .kg test suites run at every strict
+The standard library and the .kg test suites run at every strict
 level. A file that relied on a self-defining name, a symbol lookup or a
 dropped argument fails here at level 2 (and one that assigns an undeclared
 name inside a function fails at level 1).

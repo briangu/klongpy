@@ -1,5 +1,5 @@
 """
-Fixed-point numbers through Vitis HLS C simulation (ticket 113 part 1, step 4): the same vectors as test_fixed.py, run
+Fixed-point numbers through Vitis HLS C simulation: the same vectors as test_fixed.py, run
 through the generated kernels on the build machine, must give the scaled integers of the reference semantics
 (klongpy/static/fixed.py, which test_fixed.py holds equal to the interpreter stand-in and to the C emitter).
 Skipped unless KLONG_HW_BUILD names a reachable machine. This is C simulation, not co-simulation and not hardware.

@@ -1,6 +1,6 @@
 """
-Running a static program under KlongPy (the host half of ticket 094; what the
-differential harness of ticket 093 builds on).
+Running a static program under KlongPy (the host half of .extern and .entry; what the
+differential harness builds on).
 
     klong = load_program("examples/embedded/pid.kg",
                          externs={"read.adc": lambda ch: 0.3, "write.pwm": lambda ch, duty: 0})

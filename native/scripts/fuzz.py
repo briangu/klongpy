@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Random programs into the native binary under a heap limit and a step limit (ticket 102, step 9).
+Random programs into the native binary under a heap limit and a step limit.
 Every run must end with exit status 0 or 1 (a value or a Klong error): never a panic, an abort,
 a stack overflow or a hang.
 
@@ -8,7 +8,7 @@ a stack overflow or a hang.
 
 Three generators: token soup (any order of lexemes), mutations of the programs of the
 conformance cases, and a small grammar of well-formed expressions over strings, chars,
-dictionaries, modules and the file functions (ticket 103). The binary runs with --memfs: the
+dictionaries, modules and the file functions. The binary runs with --memfs: the
 file functions see an empty file system in memory, never the real one. A cargo-fuzz target with
 coverage feedback is still to do.
 """
@@ -26,7 +26,7 @@ LEXEMES = (
     "+ - * % ! ^ & | < > = @ , # _ $ ~ ? :# :_ := :- :@ :$ :^ :+ :% :: ' / \\ :~ :* :' :\\ :/ \\~ \\* @' "
     "( ) [ ] { } ; :[ :| :{ :( \n [] {x} {x+y} {[a];a::x;a} f:: g:: a:: (;) (1;) .p( .strict( .mem() !100 !100000 "
     "[1 2 3] [[1 2] [3 4]] ∇ é :\" \"\"\" "
-    # ticket 103: strings and chars, dictionaries, modules, files
+    # strings and chars, dictionaries, modules, files
     "\"abc\" \"héllo\" \"a\"\"b\" \"1.5\" \"-12\" \"é\" 0cé 0c0 0c\" :{} :{[1 2]} :{[\"k\" [1 2]]} :{;\"k\";1} :{[1.5 2]} d "
     "d:: d,d d,[1 d] d?\"k\" d@1 1_d {x}'d :{[1 :{[2 :{}]}]} 5$ -5$ 5.2$ 1e300$ 0:$ 1.0:$ :a:$ 0ca:$ \"\":$ "
     ".module(:m) .module(0) .l(\"f\") .l(\"math\") .ic(\"f\") .oc(\"f\") .ac(\"f\") .cc( .tc( .fc( .tc(0) .fc(0) "

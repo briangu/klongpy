@@ -1,4 +1,4 @@
-//! `Config::max_nest` (ticket 103). In a file of its own: the bound is kept per process.
+//! `Config::max_nest`. In a file of its own: the bound is kept per process.
 use klong_core::{Config, Interp, Kind, NoHooks};
 
 #[test]

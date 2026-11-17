@@ -1,5 +1,5 @@
 """
-Fixed-point numbers of the static profile (ticket 113, tickets/design/fpga-kernels.md section 6).
+Fixed-point numbers of the static profile (docs/hardware.md).
 
 ``fixed<W,I>`` is a signed number of W bits of which I are integer bits (the sign
 bit counts): the value of a W-bit integer ``raw`` is ``raw * 2^-(W-I)``. This

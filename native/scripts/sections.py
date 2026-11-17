@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Section sizes of an ELF image, and what its code is made of (ticket 103).
+Section sizes of an ELF image, and what its code is made of.
 
     python3 native/scripts/sections.py FILE [--top N] [--heap BYTES]
 

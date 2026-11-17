@@ -1,4 +1,4 @@
-"""kdb+ IPC session: a state machine with no I/O (design sections 2, 5, 8, 9).
+"""kdb+ IPC session: a state machine with no I/O.
 
 A :class:`Session` is one end of one connection.  The endpoint layer owns the
 socket and the interpreter; it
@@ -6,12 +6,12 @@ socket and the interpreter; it
 * feeds received bytes in with :meth:`Session.feed` and gets events back,
 * asks the session to frame what it wants to send and writes the returned bytes,
 * tells the session when it starts and ends serving an incoming request, so
-  that responses can be matched without message ids (design section 5).
+  that responses can be matched without message ids.
 
 Nothing here touches a socket, a clock or an event loop; time is passed in
 (``deadline`` / ``check_deadlines(now)``).
 
-Handshake (design section 8, reference section 1)
+Handshake
     client:  ``hello()`` returns ``user:password`` + capability byte + NUL;
              the first byte received is the server's reply (``HandshakeAccepted``),
              EOF before it means refusal (``HandshakeRejected``).
@@ -30,7 +30,7 @@ must be zero: a non-zero value would be the large-message extension of
 capability 5/6, which is UNCONFIRMED in the reference and never negotiated
 (safe default: protocol error).
 
-Response matching without ids (design section 5):
+Response matching without ids:
 
 * outstanding sync requests live in *levels*; level 0 holds those issued by
   ordinary code;
@@ -64,7 +64,7 @@ __all__ = [
 ASYNC, SYNC, RESPONSE = 0, 1, 2
 KIND_NAMES = {ASYNC: "async", SYNC: "sync", RESPONSE: "response"}
 
-#: capability byte we send and the highest we negotiate (design section 1)
+#: capability byte we send and the highest we negotiate
 DEFAULT_CAPABILITY = 3
 #: a server reads at most this many bytes looking for the handshake's NUL
 HANDSHAKE_LIMIT = 256

@@ -1,10 +1,9 @@
 """
-Strict levels (tickets 050 and 051; design: tickets/design/errors-strict-lint.md
-section 4).
+Strict levels (docs/strict.md).
 
 One integer, 0 (the default), 1 or 2, set by KlongInterpreter(strict=n), the
 `strict` property, `kgpy --strict[=n]`, .strict(), .strict(n) and .unsafe().
-This file has the plumbing and the level 1 rules of ticket 050; the level 2
+This file has the plumbing and the level 1 rules; the level 2
 rules are in tests/test_strict_level2.py. Every rule is run at all three levels.
 """
 import importlib.util
@@ -226,7 +225,7 @@ class TestAssignmentToANonName(unittest.TestCase):
         self.addCleanup(warnings.resetwarnings)
 
     def test_number_and_string(self):
-        # ("[a b]::[1 2]" was one of these until ticket 060 made it a destructuring)
+        # ("[a b]::[1 2]" was one of these until destructuring made it one)
         for text in ("1::5", '"a"::5', "f(1)::5", "0cx::1", "(1+2)::3", "a::1::5"):
             with self.subTest(text=text):
                 run(0, text)                                         # legacy: accepted

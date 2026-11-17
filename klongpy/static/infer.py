@@ -1,6 +1,6 @@
 """
 Lowering to the typed IR, with type and shape inference and specialisation
-(tickets/design/static-compile.md sections 4 and 5; ticket 091).
+(docs/static-profile.md).
 
     lower(report, values, name="prog", int_bits=32) -> ir.Program
 

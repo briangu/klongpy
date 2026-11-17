@@ -1,11 +1,11 @@
 """
-Ticket 064: ASCII names for the gradient operators.
+ASCII names for the gradient operators.
 
 `.grad(f;x)` is the ASCII form of `x∇f` (numeric gradient, function first like
 `.jacobian(f;x)`). `.jacobian(f;x)` and `f:>x` already are the ASCII forms of
 `x∂f` and of autograd. `˙` stays an internal identity.
 
-Run on the torch backend with `pytest tests/test_ticket_064.py --backend torch`.
+Run on the torch backend with `pytest tests/test_ascii_gradient_names.py --backend torch`.
 """
 import numpy as np
 import pytest

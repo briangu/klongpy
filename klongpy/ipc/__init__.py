@@ -1,4 +1,4 @@
-"""The kdb+ IPC wire protocol, written from public documentation (ticket 105).
+"""The kdb+ IPC wire protocol, written from public documentation.
 
 Three layers; only the endpoint does I/O:
 

@@ -1,5 +1,5 @@
 """
-The native runtime (native/, tickets 102 and 103) against the conformance suite and the golden parse trees.
+The native runtime (native/) against the conformance suite and the golden parse trees.
 
 Skipped unless the `klong` binary is built:
 
@@ -86,7 +86,7 @@ class TestNativeConformance(unittest.TestCase):
         self.assertEqual(run(["--steps", "100000"], "{1}{x+1}:~0"), (1, "error: interrupt"))
 
     def test_nesting_and_small_stacks(self):
-        """Data nested too deeply, and recursion on a small native stack, are range errors (ticket 103)."""
+        """Data nested too deeply, and recursion on a small native stack, are range errors."""
         import subprocess
 
         def run(args, source):
@@ -108,7 +108,7 @@ class TestNativeConformance(unittest.TestCase):
         self.assertEqual(run([], "1+" + quote * 600 + "2"), (1, "error: range"))
 
     def test_allocation_failures_are_errors(self):
-        """Programs that fuzzing found to abort or hang when an allocation failed (ticket 103)."""
+        """Programs that fuzzing found to abort or hang when an allocation failed."""
         import subprocess
 
         quote = chr(39)
@@ -166,7 +166,7 @@ class TestNativeConformance(unittest.TestCase):
         self.assertGreater(ran, 10)
 
 
-# The serial console of ticket 104 (a simulated board behind a pseudo-terminal, the upload tool,
+# The serial console (a simulated board behind a pseudo-terminal, the upload tool,
 # the cases through the console): the classes of native/tests/test_console.py, skipped unless
 # native/target/release/klong-sim is built.
 _console = _load("native_test_console", os.path.join(ROOT, "native", "tests", "test_console.py"))

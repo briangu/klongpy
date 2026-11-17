@@ -1,6 +1,6 @@
 """
 ``python -m klongpy.hw.bench [--host user@host] [--sizes 1,1000,100000]``: end-to-end time of the ``fir`` kernel on
-the card against numpy on this machine and on the card host (ticket 111, step 6).
+the card against numpy on this machine and on the card host.
 
 For each number of blocks per call it prints, for the card:
     put    host memory to card memory (the server's clock, around the DMA), seconds
@@ -13,6 +13,7 @@ All of it is measured, not estimated. Needs a built, passing image of examples/e
 """
 import argparse
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -53,7 +54,9 @@ def numpy_times(sizes, repeat=5):
 
 def numpy_times_on(host, sizes, repeat=5):
     code = "SIZES=%r\nREPEAT=%d\n%s" % (sizes, repeat, NUMPY_FIR)
-    p = subprocess.run(["ssh", "-o", "BatchMode=yes", host, "/home/brian/klong-hw/venv/bin/python -"], input=code.encode(),
+    from .remote import resolve_root
+    py = shlex.quote(resolve_root(host) + "/venv/bin/python") + " -"
+    p = subprocess.run(["ssh", "-o", "BatchMode=yes", host, py], input=code.encode(),
                        capture_output=True, timeout=1200)
     if p.returncode != 0:
         raise RuntimeError(p.stderr.decode(errors="replace")[-500:])

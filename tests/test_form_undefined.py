@@ -1,11 +1,11 @@
-"""Ticket 014: form (:$) returns :undefined on a failed conversion."""
+"""Form (:$) returns :undefined on a failed conversion."""
 import unittest
 
 from klongpy import KlongInterpreter
 from klongpy.core import KLONG_UNDEFINED
 
 
-class Ticket014(unittest.TestCase):
+class TestFormUndefined(unittest.TestCase):
 
     def run_kg(self, src):
         return KlongInterpreter()(src)

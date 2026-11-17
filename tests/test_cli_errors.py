@@ -1,4 +1,4 @@
-"""Readable errors in the REPL, `-e`, file runs and piped input (ticket 042)."""
+"""Readable errors in the REPL, `-e`, file runs and piped input."""
 import asyncio
 import contextlib
 import importlib.util

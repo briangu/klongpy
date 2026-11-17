@@ -1,6 +1,6 @@
 """
-Tests for klongpy.lint and `kgpy --lint` (ticket 052; design in
-tickets/design/errors-strict-lint.md section 5).
+Tests for klongpy.lint and `kgpy --lint` (design in
+docs/lint.md).
 
 Layout: the rule table (one positive and one negative case per code, with the
 line:col of every finding), suppression, select/ignore, cross-file names,
@@ -156,7 +156,7 @@ CASES = [
     ("W019", "{x::5;x}(1)", [(1, 2)]),
     ("W019", "{[a];z::1;a}", [(1, 6)]),
     ("W019", "{y::2}", [(1, 2)]),
-    ("W019", "y::2", []),                       # top level: an ordinary variable (ticket 033)
+    ("W019", "y::2", []),                       # top level: an ordinary variable
     ("W019", "{[x];x::5;x}(1)", []),        # a declared local named x
     ("W019", "{a::x}", []),
     # W020 a two-element list joined to a dictionary
@@ -202,8 +202,8 @@ class TestRuleTable(unittest.TestCase):
             with self.subTest(code=code, text=text):
                 self.assertEqual(found(text, code), want)
 
-    def test_the_inputs_of_the_ticket(self):
-        """The observed inputs of ticket 052 give the codes it names."""
+    def test_the_observed_inputs(self):
+        """The observed inputs give the codes it names."""
         for text, code in [("my_var::5", "W001"), ("-1+2", "W010"), ("f::{y};f(5)", "W011"),
                            ("a::1;[a b]", "W012"), ("f (1)", "W014"), ("{x} '[1 2]", "W014"),
                            ('{x :"c"\n+2}(1)', "W015"), (":123", "W016"), ("[1;2]", "W017"),
@@ -645,7 +645,7 @@ def _corpus():
 class TestShippedSources(unittest.TestCase):
     """
     The linter over the .kg files of the repository. The findings that remain
-    were each read and judged true (tickets/052 implementation notes); rules
+    were each read and judged true; rules
     that would indicate a false positive or a real hazard must not appear.
     """
     # codes that fire on shipped code, each reviewed: W003 unused locals, W012/W018/W020 in the test files that

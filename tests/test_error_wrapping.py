@@ -1,5 +1,5 @@
 """
-Ticket 041: library exceptions (numpy; torch by the same rules) are turned
+Library exceptions (numpy; torch by the same rules) are turned
 into Klong errors at operator dispatch.
 """
 import os
@@ -29,7 +29,7 @@ def raised(klong, text, cls=KlongError):
 
 
 class TestOperatorErrors(unittest.TestCase):
-    """The table of the ticket: a KlongError subclass with __cause__ set, not a numpy type."""
+    """The table: a KlongError subclass with __cause__ set, not a numpy type."""
 
     def test_table(self):
         k = KlongInterpreter()
@@ -67,7 +67,7 @@ class TestOperatorErrors(unittest.TestCase):
         self.assertIsInstance(e, IndexError)
         self.assertEqual(e.span, (5, 6))
         self.assertEqual(str(raised(k, '"abc"@[0 9]', KlongRangeError)), "index 9 out of range for string of 3")
-        self.assertEqual(k("[1 2]@[;1]").tolist(), [2])           # the ticket's correction: not an error
+        self.assertEqual(k("[1 2]@[;1]").tolist(), [2])           # the correction: not an error
 
     def test_undefined_in_arithmetic_names_undefined(self):
         e = raised(KlongInterpreter(), "[1.0 :undefined]+1", KlongTypeError)

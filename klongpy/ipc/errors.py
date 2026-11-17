@@ -12,7 +12,7 @@ from ..errors import KlongSystemError
 class IPCError(Exception):
     """Base class of every error raised by klongpy.ipc."""
 
-    #: wire name of the Klong error kind this maps to (see design section 7)
+    #: wire name of the Klong error kind this maps to
     kind = "system"
 
 

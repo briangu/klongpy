@@ -1,11 +1,11 @@
 //! klong-rt: what a Klong runtime needs around the core, still without naming a board or an
 //! operating system: the [`Platform`] and [`FileSystem`] traits, the system functions
-//! (native-runtime.md section 9), the tick hook that carries Ctrl-C from the console into a
+//! (docs/native/index.md), the tick hook that carries Ctrl-C from the console into a
 //! running evaluation, heap accounting ([`heap::Counting`]) and the Klong library as text.
 //!
 //! Features: `files` (channels, `.l`, the file functions; needs `Platform::fs`), `lib` (the
 //! pure-Klong library of `klongpy/lib` in the image, loaded by `.l("math")`). The event loop,
-//! the line editor and the upload receiver are ticket 104; IPC and timers ticket 106.
+//! the line editor and the upload receiver, IPC and timers are in the console and ipc modules.
 #![no_std]
 #![deny(clippy::unwrap_used, clippy::expect_used)]
 
@@ -51,7 +51,7 @@ pub type MemStats = fn() -> (usize, usize, usize);
 /// ran, and the input/output state.
 pub struct Shared<P: Platform> {
     pub platform: RefCell<P>,
-    /// Console bytes read while an evaluation was running (for the line editor of ticket 104;
+    /// Console bytes read while an evaluation was running (for the line editor;
     /// `.rl` on the console reads them too).
     pub pending: RefCell<Vec<u8>>,
     /// A Ctrl-C that the console found in input it had already read when an evaluation
@@ -278,7 +278,7 @@ impl<P: Platform + 'static> Runtime<P> {
             }),
         );
         // .try(f; args) and .err(kind; message): an error as a value, and a value as an error.
-        // A program that speaks for other nodes (the management service, ticket 108) has to
+        // A program that speaks for other nodes (the management service) has to
         // survive their failures and pass them on as what they were.
         interp.register(
             ".try",

@@ -1,5 +1,5 @@
 //! Is a console entry a whole entry? A port of `check_complete` and `check_text` of
-//! `klongpy/repl_input.py` (ticket 070), on the tokens of `klong-core`'s lexer. The cases of
+//! `klongpy/repl_input.py`, on the tokens of `klong-core`'s lexer. The cases of
 //! `tests/test_repl_complete.py` are run against it (klong-console/tests and the Python test
 //! of native/tests).
 //!

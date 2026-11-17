@@ -1,4 +1,4 @@
-//! Ticket 106: timers and IPC with a simulated clock and links in memory. Two runtimes live
+//! Timers and IPC with a simulated clock and links in memory. Two runtimes live
 //! in one thread; while one waits (`Platform::wait`, `Platform::idle`) the other is polled.
 #![cfg(all(feature = "ipc", feature = "timers"))]
 use std::cell::{Cell, RefCell};

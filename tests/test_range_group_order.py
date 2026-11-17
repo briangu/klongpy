@@ -1,4 +1,4 @@
-"""Ticket 016: range and group keep first-appearance order."""
+"""Range and group keep first-appearance order."""
 import unittest
 
 from klongpy import KlongInterpreter
@@ -13,7 +13,7 @@ def py(x):
     return x
 
 
-class Ticket016(unittest.TestCase):
+class TestRangeGroupOrder(unittest.TestCase):
 
     def run_kg(self, src):
         return py(KlongInterpreter()(src))

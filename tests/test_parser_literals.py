@@ -1,5 +1,5 @@
 """
-Ticket 023: a string or char literal whose content is a bracket (or another
+A string or char literal whose content is a bracket (or another
 piece of punctuation) is that string or char, never the punctuation.
 
 The legacy parser decided what a lexeme was by comparing the value its reader
@@ -145,7 +145,7 @@ class TestBracketChars(unittest.TestCase):
 
 class TestPunctuationIsStillPunctuation(unittest.TestCase):
     def setUp(self):
-        # these inputs are malformed on purpose: ticket 031 warns about them at strict level 0
+        # these inputs are malformed on purpose: the parser warns about them at strict level 0
         cw = warnings.catch_warnings()
         cw.__enter__()
         self.addCleanup(cw.__exit__, None, None, None)

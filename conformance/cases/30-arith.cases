@@ -141,17 +141,17 @@
 > 0%0
 = :undefined
 
-# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value (ticket 015)
+# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value
 @ arith.divide-list-by-zero core numpy-only
 > [1 2 3]%0
 = [:undefined :undefined :undefined]
 
-# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value (ticket 015)
+# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value
 @ arith.divide-list-element-zero core float numpy-only
 > [1 2 0]%[1 0 1]
 = [1.0 :undefined 0.0]
 
-# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value (ticket 015)
+# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value
 @ arith.divide-nested-zero core numpy-only
 > [[1 2] [3 4]]%0
 = [[:undefined :undefined] [:undefined :undefined]]
@@ -176,7 +176,7 @@
 > 5:%0
 = :undefined
 
-# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value (ticket 015)
+# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value
 @ arith.idiv-list-zero core numpy-only
 > [5 6]:%[0 2]
 = [:undefined 3]
@@ -209,7 +209,7 @@
 > 5!0
 = :undefined
 
-# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value (ticket 015)
+# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value
 @ arith.rem-list-zero core numpy-only
 > [5 6]![0 2]
 = [:undefined 0]

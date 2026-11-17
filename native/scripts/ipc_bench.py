@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ticket 106 measurements: IPC throughput over localhost TCP and memory per connection.
+"""Measurements: IPC throughput over localhost TCP and memory per connection.
 
     .venv/bin/python native/scripts/ipc_bench.py [--binary native/target/release/klong] [--reps 30]
 

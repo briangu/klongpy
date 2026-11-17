@@ -1,5 +1,5 @@
 """
-Ticket 025: scalar take, integers beyond 64 bits, each on a symbol, and the
+Scalar take, integers beyond 64 bits, each on a symbol, and the
 compiled path agreeing with the interpreter.
 
 Decision on integers beyond 64 bits: exact. An atomic dyad (+ - * % < > ^ ...)

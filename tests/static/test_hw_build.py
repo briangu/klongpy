@@ -1,5 +1,5 @@
 """
-kgpy --hw-build (ticket 111): the timing gate, the cache, the detached build script and the status of a build.
+kgpy --hw-build: the timing gate, the cache, the detached build script and the status of a build.
 Everything here runs without a Xilinx tool: the build script runs on this machine with stand-ins for ``vitis_hls``
 and ``v++`` (shell scripts that write the files the real tools write), so what is tested is our flow: the guard,
 the phases, the gate, build.json, the cache. The real tools are exercised by tests/static/test_hw_card.py.

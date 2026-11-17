@@ -1,5 +1,5 @@
 """
-Canonical dump of a KlongPy parse tree (tickets/design/frontend.md section 7).
+Canonical dump of a KlongPy parse tree (conformance/README.md).
 
     dump(tree, compat=False, spans=False) -> str
     node_spans(tree) -> [(node, span, op_span, arg_spans), ...]
@@ -24,7 +24,7 @@ Expression mode (the object is something that will be evaluated):
     KGSym other                             (sym a) (sym a`mod)
     numpy array / data list                 (list D...)         elements in data mode
     KGExprArray                             (elist E...)
-    KGExprDict                              (edict K1 V1 K2 V2 ...)    :{;k1;v1;k2;v2} (ticket 063)
+    KGExprDict                              (edict K1 V1 K2 V2 ...)    :{;k1;v1;k2;v2}
     KGCond [c, t, e]                        (cond C T E)        e may be a KGCond
     KGCall(copy_lambda, args=dict)          (dict (K V) ...)    insertion order
     KGCall(copy_lambda, args=array)         (list D...)         a list literal that holds a dictionary literal
@@ -36,11 +36,11 @@ Expression mode (the object is something that will be evaluated):
     KGFn(KGOp, args=None)                   (m "-" (missing))   monad without operand
     KGFn(KGOp, [L, None])                   (d "@" L (missing)) dyad without right operand
     KGFn(KGOp "::", [L, R])                 (def L R)
-    KGFn(KGOp "::", [KGDestructure, R])     (destructure (a b c) R)    [a b c]::R (ticket 060)
+    KGFn(KGOp "::", [KGDestructure, R])     (destructure (a b c) R)    [a b c]::R
     KGFn(KGOp, [L, R])                      (d "+" L R)
     KGFn(F, [L, R]) no hole, F not a KGOp   (infix F L R)       F = KGSym or KGFn
     KGFn(body, None)                        (fn ARITY (locals a b) BODY...)
-    same, defined as f(a;b)::{...}          (fn ARITY (params a b) (locals ...) BODY...)    (ticket 061)
+    same, defined as f(a;b)::{...}          (fn ARITY (params a b) (locals ...) BODY...)   
     KGCall(KGSym, [A...])                   (call (sym f) A...)
     KGCall(body, [A...])                    (call (fn ARITY ...) A...)
     KGFn(F, [A...]) with a None hole        (proj F A ... _ ...)
@@ -50,8 +50,8 @@ Expression mode (the object is something that will be evaluated):
 Function bodies: KGFn.a / KGCall.a of a literal is the body. A body that is a
 Python list is a statement sequence. The locals declaration is printed as
 (locals ...) and is not part of BODY: the token parser stores it apart from
-the statements (a KGBody, ticket 032, printed from its ``locals``, which also
-hold the targets of a destructuring that heads the body, ticket 060); in a tree
+the statements (a KGBody, printed from its ``locals``, which also
+hold the targets of a destructuring that heads the body); in a tree
 of the legacy parser it is the first element of the list, a non-empty data
 list holding only symbols (and ";"), found by the same test as at run time.
 ARITY is KGFn.arity / KGCall.arity (for a function literal: the highest of x, y, z
@@ -159,7 +159,7 @@ def _locals(body):
 def _fn(body, arity, compat):
     params = None
     if type(body) is KGBody:
-        # the token parser stores the declaration apart from the body (ticket 032)
+        # the token parser stores the declaration apart from the body
         loc, stmts = [str.__str__(q) for q in body.locals], list(body)
         params = body.params
     elif type(body) is list:
@@ -168,7 +168,7 @@ def _fn(body, arity, compat):
         loc, stmts = None, [body]
     parts = [f"(fn {arity}"]
     if params is not None:
-        # f(a;b)::{...} (ticket 061); "(params)" for a function of no parameters
+        # f(a;b)::{...}; "(params)" for a function of no parameters
         parts.append("(params" + "".join(" " + str.__str__(q) for q in params) + ")")
     if loc:
         parts.append("(locals " + " ".join(loc) + ")")

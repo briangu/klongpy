@@ -1,7 +1,7 @@
 //! klong-host: the `Platform` of desktop operating systems. Standard library only.
 //!
-//! Time, the console and files (tickets 102 and 103). TCP, pseudo-terminal links and the lossy
-//! test link are ticket 106.
+//! Time, the console and files. TCP, pseudo-terminal links and the lossy
+//! test link live in klong-rt and klong-ipc.
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 

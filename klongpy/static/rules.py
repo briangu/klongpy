@@ -4,7 +4,7 @@ The rules of the static profile, as data: one stable id per rejection.
     RULES   id -> Rule(id, group, title, section, hint)
 
 A profile violation is reported as a KlongStaticError whose ``rule`` attribute
-is one of these ids (tickets/design/static-compile.md; ``section`` is the
+is one of these ids (docs/static-profile.md; ``section`` is the
 section of that document the rule comes from, "+" marks a rule this checker
 adds because the design implies it without naming it). The ids are part of
 the contract with the reject fixtures (tests/static/reject/<id>.kg) and with
@@ -133,7 +133,7 @@ assert len(RULES) == len(_R), "duplicate rule id"
 
 
 # ---------------------------------------------------------------------------
-# The streamable tier (kgpy --check-static --streamable; ticket 113, design section 5): not violations of the
+# The streamable tier (kgpy --check-static --streamable): not violations of the
 # profile, but constructs that keep a hardware kernel from taking one record per clock cycle.
 # ---------------------------------------------------------------------------
 

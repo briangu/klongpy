@@ -3,7 +3,7 @@ The strategy kernel of examples/hardware/crossover.kg on the Alveo U250. Skipped
 KLONG_HW_HOST names the machine with the card and an image of the program with 32 lanes passed routed timing there:
 
     kgpy --hw-build examples/hardware/crossover.kg --lanes 32 --clock-mhz 250 --wait
-    KLONG_HW_HOST=brian@xilinx python -m pytest tests/static/test_crossover_card.py
+    KLONG_HW_HOST=user@fpga-host python -m pytest tests/static/test_crossover_card.py
 
 (the clock is the one the image was built for; the tests find an image of any clock). Loading it replaces whatever
 user image the card holds. The two hand-checked series and a history of 200000 ticks are compared with the numpy

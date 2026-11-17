@@ -1,6 +1,5 @@
 """
-Strict level 2 (ticket 051; design: tickets/design/errors-strict-lint.md
-section 4): reading an undefined name, reading a local before it is assigned
+Strict level 2 (docs/strict.md): reading an undefined name, reading a local before it is assigned
 and passing too many arguments are errors, and a quoted symbol is always the
 symbol. Every rule is run at levels 0, 1 and 2; levels 0 and 1 keep what they
 did before.
@@ -59,7 +58,7 @@ class TestUndefinedRead(unittest.TestCase):
 
     def test_inside_a_function(self):
         self.assertEqual(run(0, "f::{a;1}", "f()"), 1)
-        for level in (1, 2):                                            # level 1 has this rule too (ticket 050)
+        for level in (1, 2):                                            # level 1 has this rule too
             self.assertEqual(str(error(level, "f::{a+1}", "f()")), "undefined: a")
 
     def test_as_an_argument_and_in_other_positions(self):
@@ -146,7 +145,7 @@ class TestQuotedSymbols(unittest.TestCase):
             run(2, ":foo", "foo")
 
     def test_symbols_through_adverbs(self):
-        for level in LEVELS:                                            # fixed at every level by ticket 022
+        for level in LEVELS:                                            # fixed at every level
             self.assertEqual(run(level, "foo::5", "{x}'[:foo :bar]").tolist(), [KGSym("foo"), KGSym("bar")])
 
     def test_the_name_still_reads_the_variable(self):

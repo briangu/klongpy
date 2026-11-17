@@ -1,5 +1,5 @@
 """
-Ticket 017: the compiled fast path must not swallow run-time errors or re-run
+The compiled fast path must not swallow run-time errors or re-run
 an expression on the interpreter, must compile a function body once, and must
 keep its caches bounded.
 
@@ -293,7 +293,7 @@ if __name__ == '__main__':
 
 
 class TestCompiledDivisionByZero(unittest.TestCase):
-    """Compiled and interpreted division agree on a zero divisor (ticket 015)."""
+    """Compiled and interpreted division agree on a zero divisor."""
 
     def test_array_divided_by_zero_matches_interpreter(self):
         from klongpy import KlongInterpreter

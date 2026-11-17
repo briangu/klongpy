@@ -2,7 +2,7 @@
 //! that name first; the built-in copy is what a board without storage, or without the file,
 //! gets. Each is parsed when it is loaded, not at start-up.
 //!
-//! Which files are here, and why the others are not, is recorded in ticket 103: a file is
+//! Which files are here, and why the others are not, is recorded in this module: a file is
 //! included when it loads and works with what the native runtime has.
 
 /// (name, text)
@@ -21,7 +21,7 @@ pub static FILES: &[(&str, &str)] = &[
     ("edt", include_str!("../../../klongpy/lib/edt.kg")),
 ];
 
-/// The management service (ticket 108). It is IPC from end to end, so an image without `ipc`
+/// The management service. It is IPC from end to end, so an image without `ipc`
 /// does not carry it.
 #[cfg(feature = "ipc")]
 pub static IPC_FILES: &[(&str, &str)] = &[("mgmt", include_str!("../../../klongpy/lib/mgmt.kg"))];

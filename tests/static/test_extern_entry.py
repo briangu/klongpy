@@ -1,5 +1,5 @@
 """
-.extern and .entry under KlongPy (ticket 094 steps 2 to 4; design section 9):
+.extern and .entry under KlongPy :
 the binding API (klong.externs), the checks at declaration and at call time,
 and what `kgpy --check-static` says about the same mistakes.
 
@@ -420,7 +420,7 @@ class TestHostBackends(unittest.TestCase):
 
 
 class TestSameMistakeHostAndChecker(unittest.TestCase):
-    """Ticket 094 acceptance: a wrong argument type or a missing stand-in is a positioned error naming the extern on both sides."""
+    """A wrong argument type or a missing stand-in is a positioned error naming the extern on both sides."""
 
     PROG = ADC + 'step::{read.adc(x)}\n.entry("step";"float -> float")\n'
 

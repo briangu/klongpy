@@ -1,5 +1,5 @@
 """
-kgpy --emit-hls (ticket 110): the files that Vitis HLS turns into a kernel. Everything here runs without a
+kgpy --emit-hls: the files that Vitis HLS turns into a kernel. Everything here runs without a
 Xilinx tool: the generated C++ is compiled with the system compiler (the pragmas are ``#pragma HLS``, which other
 compilers ignore, and the top function needs no Xilinx header), and the test bench built from it runs the
 program, whose outputs must equal the interpreter's. tests/static/test_hls_remote.py runs the same files in

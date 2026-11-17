@@ -1,5 +1,5 @@
 //! kdb+ IPC session: one end of one connection, as a state machine with no I/O. The Rust twin
-//! of `klongpy/ipc/session.py` (design `ipc-kdb.md` sections 2, 5, 8, 9).
+//! of `klongpy/ipc/session.py` (design `docs/ipc_capabilities.md`).
 //!
 //! The owner of the link
 //!
@@ -23,7 +23,7 @@
 //! total length). The length is checked against `max_message` before anything is buffered, and
 //! so is the declared size of a compressed message.
 //!
-//! Response matching (design section 5): outstanding sync requests live in levels; level 0
+//! Response matching: outstanding sync requests live in levels; level 0
 //! holds those of ordinary code; [`Session::begin_service`] opens a deeper level when a
 //! blocking call is outstanding, and requests issued while serving go there; a response
 //! completes the oldest request of the deepest level that has any; [`Session::end_service`]

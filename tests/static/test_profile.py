@@ -1,6 +1,5 @@
 """
-The static profile checker (ticket 090; tickets/design/static-compile.md
-sections 1 to 4).
+The static profile checker (docs/static-profile.md).
 
 Table-driven. For every rule id in klongpy.static.rules there is one program
 inside the profile (tests/static/accept/<id>.kg: the nearest legal form) and
@@ -297,7 +296,7 @@ class TestDiagnostics(unittest.TestCase):
 
 
 class TestStages(unittest.TestCase):
-    """Design section 1: what each kind of top-level statement is."""
+    """what each kind of top-level statement is."""
 
     def test_statements_are_sorted_by_the_root_of_their_tree(self):
         text = "\n".join([

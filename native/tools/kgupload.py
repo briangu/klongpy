@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Talk to the console of a Klong board over a serial port (ticket 104): upload a file, run a
+Talk to the console of a Klong board over a serial port: upload a file, run a
 program, ask for the version. Python standard library only.
 
     kgupload.py PORT ver
@@ -23,7 +23,7 @@ sent ahead of their acknowledgements, default 32), --board-timeout SECONDS (how 
 waits before it abandons a transfer, default 5: the tool keeps quiet that long to get a stuck
 board back), -v (show the conversation on standard error).
 
-The protocol (native-runtime.md section 8, as built in native/klong-console): the byte 0x01 at
+The protocol (docs/native/index.md, as built in native/klong-console): the byte 0x01 at
 the start of an empty input line starts a command; every reply is one line that starts with
 0x01.
 

@@ -1,5 +1,4 @@
-//! Errors: the kinds of `tickets/design/errors-strict-lint.md` section 1, and their rendering
-//! (section 2 there).
+//! Errors: the kinds of `docs/errors.md`, and their rendering.
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
@@ -137,7 +136,7 @@ impl Error {
         Error::new(Kind::Internal, m)
     }
 
-    /// The text of errors-strict-lint.md section 2:
+    /// The text of docs/errors.md:
     ///
     /// ```text
     /// name:line:col: <kind> error: <message>

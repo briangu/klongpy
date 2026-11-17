@@ -1,4 +1,4 @@
-//! TCP for the host: the `tcp` transport of `.cli` and `.srv` (ticket 106).
+//! TCP for the host: the `tcp` transport of `.cli` and `.srv`.
 //!
 //! Sockets are non-blocking once connected. Connecting itself blocks, for at most
 //! [`CONNECT_TIMEOUT`]: the standard library has no portable non-blocking connect, and a host

@@ -2,7 +2,7 @@
 
 Test cases for the Klong language that do not depend on any implementation.
 KlongPy runs them in `tests/test_conformance.py`; a second implementation (the
-native runtime of tickets 102 and 103) runs the same files through the small
+native runtime) runs the same files through the small
 command-line protocol below, with no Python. KlongPy is the reference: a case
 that KlongPy fails is either a KlongPy bug (it goes to `pending/`) or a wrong
 case.
@@ -33,7 +33,7 @@ The text is everything after that space, trailing blanks included.
 | `= TEXT` | one line of the expected result: what the REPL prints for the value of the last statement. Several `=` lines are joined with `\n` (a string holding a newline prints on several lines). A bare `=` is an empty line. |
 | `! KIND` | instead of `=`: evaluating must fail with this error kind. |
 | `~ TEXT` | optional: the expected console output (what the program writes with `.p .d .w`), lines joined with `\n`; a final newline is not compared. |
-| `: KEY TEXT` | metadata (`reason`, `actual`, `ticket`); used in `pending/`. |
+| `: KEY TEXT` | metadata (`reason`, `actual`, `issue`); used in `pending/`. |
 | `?` | authoring only: "fill me in", see `run.py --bless`. Never committed. |
 
 A case with neither `=` nor `!` expects a program that produces no value.
@@ -65,7 +65,7 @@ console text is the only thing under test.
 ### Error kinds
 
 `syntax name arity type shape range system memory interrupt`, the kinds of
-`tickets/design/errors-strict-lint.md` section 1. (`python`, `internal`,
+`docs/errors.md`. (`python`, `internal`,
 `static` and `remote` are not part of this suite; `internal` is always a bug.)
 A runtime maps its own errors to these.
 
@@ -83,9 +83,9 @@ needs, `core` being implied by them):
 | `strings` | string and char values, `$`, `:$` and everything printing them |
 | `dicts` | dictionaries |
 | `sysio` | files and channels (`.ic`, `.l`, ...) |
-| `timers`, `ipc`, `desktop` | tiers of ticket 101; no cases yet |
+| `timers`, `ipc`, `desktop` | tiers with no cases yet |
 
-Marks (documented differences, `native-runtime.md` section 11):
+Marks (documented differences, `docs/native/index.md`):
 
 | Tag | Meaning |
 |---|---|
@@ -106,8 +106,7 @@ Implementation tags: `numpy-only`, `torch-only`, `kgpy-only` mark behaviour
 that belongs to one KlongPy backend. `numpy-only` is the result of the
 reference (numpy) backend that the torch backend cannot give by design: text
 of a float64 value (torch computes in float32 by default) and `:undefined`
-inside a list (a tensor cannot hold it and keeps the IEEE `inf`/`nan`, ticket
-015). Each such case has a `# numpy-only:` comment with the reason; the
+inside a list (a tensor cannot hold it and keeps the IEEE `inf`/`nan`). Each such case has a `# numpy-only:` comment with the reason; the
 expected result stays the reference one, and another runtime that gives it
 declares the tag. No case uses `torch-only` or `kgpy-only` yet. KlongPy on
 the numpy backend declares every tag except `torch-only`, `timers`, `ipc` and
@@ -155,8 +154,7 @@ as above); `tests/test_conformance.py` drives it through the external path.
 
 ## Parse trees
 
-`kgpy --dump-ast FILE` prints the canonical dump (`tickets/design/frontend.md`
-section 7, implemented by `klongpy/dump.py`) of every top-level form of FILE.
+`kgpy --dump-ast FILE` prints the canonical dump (implemented by `klongpy/dump.py`) of every top-level form of FILE.
 The golden files are `tests/golden/<group>/<name>.sexp`; groups and sources
 are listed in `tests/golden/README.md` and enumerated by
 `tests/golden/regen.py`. The native parser must print the same bytes:
@@ -171,8 +169,8 @@ means the implementation must exit 1 with `error: syntax` on stdout.
 ## Pending
 
 `pending/*.cases` hold cases whose **correct** result is known but KlongPy does
-not produce it. Each has `: reason` (why it is a bug, or which ticket will
-change it) and `: actual` (what KlongPy answers today). The expectation is the
+not produce it. Each has `: reason` (why it is a bug, or which change will
+fix it) and `: actual` (what KlongPy answers today). The expectation is the
 correct result. `tests/test_conformance.py` checks that each still fails and
 prints a note when one starts to pass; move it to `cases/` then
 (`CONFORMANCE_STRICT_PENDING=1` makes that a failure).

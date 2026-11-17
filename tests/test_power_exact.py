@@ -4,7 +4,7 @@ from klongpy import KlongInterpreter
 
 
 class TestExactIntegerPower(unittest.TestCase):
-    """A scalar integer to a non-negative integer power is exact (ticket: pow-scalar)."""
+    """A scalar integer to a non-negative integer power is exact."""
 
     def setUp(self):
         self.klong = KlongInterpreter()

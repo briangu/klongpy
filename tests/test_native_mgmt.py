@@ -1,5 +1,5 @@
 """
-The management service (klongpy/lib/mgmt.kg, ticket 108), on the host: a management process fronting three
+The management service (klongpy/lib/mgmt.kg), on the host: a management process fronting three
 node processes over localhost TCP, driven from its own prompt and by a desktop KlongPy client.
 
 Skipped unless the `klong` binary is built:
@@ -143,7 +143,7 @@ class NativeManagement(Cluster):
         self.assertEqual(self.m.value(f'.srv("127.0.0.1:{self.mport}")'), "1")
 
     def desktop(self):
-        """KlongPy as the ticket's desktop helper: mgmt::.cli("host:port"), then mgmt(:mgmt.call,...)."""
+        """KlongPy as the desktop helper: mgmt::.cli("host:port"), then mgmt(:mgmt.call,...)."""
         klong = self.repl()
         self.kg(klong, f'mgmt::.cli("127.0.0.1:{self.mport}")')
         return klong

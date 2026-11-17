@@ -1,6 +1,6 @@
 """
 The operator table of the static profile, as plain data
-(tickets/design/static-compile.md sections 3 and 4).
+(docs/static-profile.md).
 
     OPTABLE              every operator and adverb of Klong, one Op per glyph and valence
     FORMS                the allowed forms that are not operators (literals, control, calls)
@@ -9,8 +9,8 @@ The operator table of the static profile, as plain data
 
 This is the single source for the checker (klongpy/static/checker.py applies
 the rule named in each row), for the generated section of the profile
-document (klongpy/static/profile_doc.py) and for the per-row tests. Ticket 091
-attaches lowering to the rows, ticket 092 adds the C expansion.
+document (klongpy/static/profile_doc.py) and for the per-row tests. Lowering
+and the C expansion are attached to the rows elsewhere.
 
 Columns of an Op
 
@@ -259,7 +259,7 @@ def lookup(glyph, valence):
 
 
 # ---------------------------------------------------------------------------
-# The C expansion column (ticket 092): row id -> (strategy, int form, float form).
+# The C expansion column: row id -> (strategy, int form, float form).
 #
 #   "expr"   an elementwise C expression; {a} and {b} are the operands (already of the
 #            element type the operation works in), {line} the Klong source line. A tree of

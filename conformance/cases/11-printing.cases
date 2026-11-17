@@ -81,7 +81,7 @@
 > 1%0
 = :undefined
 
-# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value (ticket 015)
+# numpy-only: :undefined inside a list; a torch tensor keeps the IEEE value
 @ printing.print-undefined-in-list core float numpy-only
 > [1 2 0]%[1 0 1]
 = [1.0 :undefined 0.0]

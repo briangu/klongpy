@@ -1,5 +1,5 @@
 """
-The implementation-neutral conformance suite (conformance/README.md, ticket 101).
+The implementation-neutral conformance suite (conformance/README.md).
 
 * every case in conformance/cases runs against KlongPy in process, one test per file;
   a failure names the file and line of the case;

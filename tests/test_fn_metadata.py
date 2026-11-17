@@ -1,15 +1,15 @@
 """
-Function metadata computed once when a function literal is parsed (ticket 032):
+Function metadata computed once when a function literal is parsed:
 arity, locals, max_arg and uses_self are on the node; the locals declaration is
 not part of the stored body; calling a function no longer inspects its body.
 
-Ticket 032 changed nothing a program can observe, except that two crashes of
+The locals/arity metadata changed nothing a program can observe, except that two crashes of
 get_fn_arity are gone. The first class pins that; the corpus class compares
 every function literal of the repository with the code as it was.
 
-Ticket 026 then made arity the highest argument mentioned (max_arg) and bound
+A later change made arity the highest argument mentioned (max_arg) and bound
 .f to the function with its locals. The tests that pinned the old count say
-so where they changed; tests/test_ticket_026.py has the new behaviour.
+so where they changed; tests/test_fn_arity.py has the new behaviour.
 """
 import copy
 import os
@@ -44,10 +44,10 @@ def run(*lines):
 
 
 class TestBehaviourIsUnchanged(unittest.TestCase):
-    """Ticket step 1: these passed before the change and pass after it."""
+    """Step 1: these passed before the change and pass after it."""
 
     def test_arity_is_the_highest_argument(self):
-        # ticket 026 (was: a count of names, f(5) gave :y and {x+z} was a dyad)
+        # (was: a count of names, f(5) gave :y and {x+z} was a dyad)
         self.assertIsInstance(run("f::{y}", "f(5)"), KGCall)            # arity 2: f(5) is incomplete
         self.assertEqual(run("f::{x+z}", "f(1;2;3)"), 4)
         self.assertEqual(run("f::{{x}(1)}", "f(5)"), 1)
@@ -90,7 +90,7 @@ class TestBehaviourIsUnchanged(unittest.TestCase):
         self.assertEqual(run("{:[x<2;1;x*.f(x-1)]}(5)"), 120)
 
     def test_dot_f_call_declares_its_locals(self):
-        # Fixed by ticket 026 (this test pinned the defect: 0, 1 and a bare statement list).
+        # Fixed (this test pinned the defect: 0, 1 and a bare statement list).
         # .f is the function with its declaration, so a recursive call has its own locals.
         self.assertEqual(run("f::{[a];a::x;:[x>0;.f(x-1);0];a}", "f(3)"), 3)
         self.assertEqual(run("f::{[a];a::x;:[x<2;1;a*.f(x-1)]}", "f(5)"), 120)
@@ -125,7 +125,7 @@ class TestMetadata(unittest.TestCase):
         self.assertEqual(f.locals, (KGSym("a"), KGSym("b")))
         self.assertEqual((f.max_arg, f.arity, f.uses_self, f.params), (1, 1, False, None))
         f = fn("{y}")
-        self.assertEqual((f.arity, f.max_arg, f.locals), (2, 2, ()))     # arity is max_arg since ticket 026
+        self.assertEqual((f.arity, f.max_arg, f.locals), (2, 2, ()))     # arity is max_arg
         f = fn("{x+z}")
         self.assertEqual((f.arity, f.max_arg), (3, 3))
         self.assertEqual(fn("{1}").max_arg, 0)
@@ -168,7 +168,7 @@ class TestMetadata(unittest.TestCase):
         self.assertEqual((f.locals, f.max_arg), ((), 2))
 
     def test_max_arg_looks_everywhere_and_arity_is_max_arg(self):
-        # the second column is what arity was before ticket 026
+        # the second column is what arity was before arity became max_arg
         for text, _, max_arg in [("{-x}", 0, 1), ("{#x}", 0, 1), ("{x,-y}", 1, 2), ("{a::#x;a}", 0, 1),
                                  ("{:[x;y;z]}", 3, 3), ("{[;x;y]}", 2, 2), ("{+/x}", 1, 1), ("{x+/y}", 2, 2),
                                  ("{z{x+y}'x}", 2, 3), ("{:[0;1;-z]}", 0, 3), ("{[x y z]}", 0, 0),
@@ -179,7 +179,7 @@ class TestMetadata(unittest.TestCase):
                 self.assertEqual((f.arity, f.max_arg), (arity, max_arg))
 
     def test_nested_function_bodies_do_not_count(self):
-        # ticket 026: the x, y, z of a nested literal are its own. (Before, arity counted
+        # the x, y, z of a nested literal are its own. (Before, arity counted
         # them except in the verb of an adverb, and max_arg counted all of them.)
         for text, n in [("{{x+y}'x}", 1), ("{a::{x+y+z};a(x;1;2)}", 1), ("{{x*y}@x}", 1), ("{:[x;{y};0]}", 1),
                         ("{{x+y}(1;2)}", 0), ("{{x+y}(z;2)}", 3), ("{x{y}'x}", 1)]:
@@ -281,7 +281,7 @@ class TestArityCrashesFixed(unittest.TestCase):
             self.assertEqual(dump_text("{{f}}", parser=parser), "(fn 0 (fn 0 (sym f)))\n")
 
     def test_a_body_that_is_one_call(self):
-        # ticket 026: no special rule any more, except that a projection takes an argument
+        # no special rule any more, except that a projection takes an argument
         # per hole. Changed from the old count: {g(;;)} 1, {g(x+1)} 0.
         for text, arity in [("{g(x)}", 1), ("{g(x;x)}", 1), ("{g(x;y)}", 2), ("{g(1;)}", 1), ("{g(;;)}", 3),
                             ("{g(;x)}", 1), ("{g(x+1)}", 1), ("{g(1;2)}", 0), ("{g()}", 0), ("{g(:x;x)}", 1),
@@ -347,7 +347,7 @@ def literals(tree, out):
 class TestCorpus(unittest.TestCase):
     """Every function literal in tests/kgtests, klongpy/lib and examples against the old code."""
 
-    # Written with the syntax of tickets 060, 061 and 063 (destructuring, named parameters,
+    # Written with the syntax of destructuring, named parameters and the evaluated dictionary (destructuring, named parameters,
     # evaluated dictionary literal), which the old code and the legacy parser do not have.
     NEW_SYNTAX = ("tests/kgtests/language/test_destructuring.kg", "tests/kgtests/language/test_named_params.kg",
                   "tests/kgtests/language/test_dict.kg", "examples/1brc/worker.kg",
@@ -364,7 +364,7 @@ class TestCorpus(unittest.TestCase):
                             yield os.path.relpath(path, ROOT), f.read()
 
     def test_arity_and_locals_are_what_the_old_code_computed(self):
-        # Locals: identical to the old scan. Arity: since ticket 026 it is max_arg; the
+        # Locals: identical to the old scan. Arity: it is max_arg; the
         # literals where that is not the old count are counted here by (old, new).
         total = with_locals = crashes = 0
         changed = {}
@@ -417,7 +417,7 @@ class TestCorpus(unittest.TestCase):
                 self.assertEqual(dump_text(text, parser="token"), dump_text(text, parser="legacy"))
 
     def test_arity_is_max_arg_everywhere(self):
-        """Ticket 026. (Before it, 258 literals had arity != max_arg.)"""
+        """(Before the change, 258 literals had arity != max_arg.)"""
         k = KlongInterpreter()
         total = differ = 0
         for rel, text in self.sources():

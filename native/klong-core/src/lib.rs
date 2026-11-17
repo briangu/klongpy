@@ -2,7 +2,7 @@
 //!
 //! `no_std` + `alloc`. Everything outside pure computation reaches the core through the
 //! embedder: [`Hooks`] (the periodic tick that carries interrupts) and the system functions an
-//! embedder registers with [`Interp::register`]. Design: `tickets/design/native-runtime.md`.
+//! embedder registers with [`Interp::register`]. Design: `docs/native/index.md`.
 #![no_std]
 // (`link_section` counts as unsafe code for the lint; the feature `ram-hot` uses it on a few functions, `heap-tags` exports one
 // static to the board's allocator, and nothing else is unsafe)
@@ -38,7 +38,7 @@ pub const FLT_BITS: u32 = 64;
 #[cfg(feature = "float32")]
 pub const FLT_BITS: u32 = 32;
 
-// The size budget of the design (native-runtime.md section 3): 16 bytes on 64-bit targets and at
+// The size budget of the design (docs/native/index.md): 16 bytes on 64-bit targets and at
 // most 16 on 32-bit ones. Checked when the crate is compiled, on every target.
 const _: () = assert!(core::mem::size_of::<Value>() <= 16);
 #[cfg(target_pointer_width = "64")]

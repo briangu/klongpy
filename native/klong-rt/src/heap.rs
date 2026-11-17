@@ -1,4 +1,4 @@
-//! A counting allocator that enforces a heap limit (native-runtime.md section 5). This module
+//! A counting allocator that enforces a heap limit (docs/native/index.md). This module
 //! is the one place in `klong-rt` that uses `unsafe`.
 //!
 //! * `limit` is the hard limit. `reserve` bytes below it are held back: a request of

@@ -1,7 +1,6 @@
 """
 .extern and .entry: declaring the functions a compiled program takes from its
-host and the functions the host calls (tickets/design/static-compile.md
-section 9, ticket 094).
+host and the functions the host calls (docs/static-profile.md).
 
 Under KlongPy the two declarations make a static program runnable as it
 stands, with Python functions standing in for what the target provides:
@@ -142,8 +141,8 @@ def _bind(decl):
         fn = KGLambda(call, wildcard=True)
         fn.name = decl.name
         return fn
-    # more than three parameters: a function with named parameters (ticket
-    # 061) whose body reads them from its own frame
+    # more than three parameters: a function with named parameters
+    # whose body reads them from its own frame
     params = tuple(KGSym(f"arg{i + 1}") for i in range(n))
 
     def call(klong):

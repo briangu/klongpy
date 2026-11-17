@@ -182,7 +182,7 @@ class KlongContext():
 
         # Variable doesn't exist - check strict mode. x, y and z are the
         # arguments of the running function and are assignable like its
-        # locals (ticket 033); they are always bound in its own frame.
+        # locals; they are always bound in its own frame.
         if self._strict_mode >= 1 and k not in reserved_fn_symbols:
             if self.in_function():
                 # Inside function - disallow creating new variables
@@ -268,7 +268,7 @@ def check_strict_level(n):
             it is assigned and passing too many arguments are errors, and a
             quoted symbol is always the symbol
 
-    The table is tickets/design/errors-strict-lint.md section 4.
+    The table is docs/errors.md.
     """
     if type(n) is not int or n not in STRICT_LEVELS:
         raise ValueError(f"strict level must be 0, 1 or 2, not {n!r}")
@@ -404,7 +404,7 @@ class KlongInterpreter():
         self._context = KlongContext(create_system_contexts(), strict_mode=strict)
         self._vd = create_dyad_functions(self)
         # '::' with a list of names on its left is a destructuring assignment
-        # (ticket 060); with a name it is Define, as registered.
+        #; with a name it is Define, as registered.
         self._vd['::'] = lambda a, b: self._destructure(a, b) if type(a) is KGDestructure else eval_dyad_define(self, a, b)
         self._vm = create_monad_functions(self)
         self._start_time = time.time()
@@ -468,7 +468,7 @@ class KlongInterpreter():
         try:
             return self._vm[s] if arity == 1 else self._vd[s]
         except KeyError:
-            # (ticket 042 makes this a parse-time error)
+            # (strict mode makes this a parse-time error)
             raise compat(KlongSyntaxError, KeyError)(f"unknown operator {s}") from None
 
     def current_source(self):
@@ -510,7 +510,7 @@ class KlongInterpreter():
     # These methods are the legacy grammar methods (kept below as _legacy_*)
     # rewritten to read tokens from a klongpy.lexer.Lexer instead of
     # characters from (t, i), decision for decision: every quirk of the legacy
-    # parser is reproduced, with one deliberate exception (ticket 023): a
+    # parser is reproduced, with one deliberate exception: a
     # string or char literal is never mistaken for punctuation, because a
     # token knows its kind. See the notes on positions and newlines above the
     # tk_* readers in parser.py.
@@ -539,7 +539,7 @@ class KlongInterpreter():
         # legacy: the operand is read without ignore_newline, wherever we are
         r = self._expr(lx)
         if r is None or r is SEMI:
-            # ticket 031: the chain has nothing to apply to
+            # the chain has nothing to apply to
             tk_missing_operand(lx, lx.text[ost:oe], (ost, oe), right=dyad)
             if r is SEMI:
                 r = ';'
@@ -616,7 +616,7 @@ class KlongInterpreter():
                     spans.append(None)
                 break
             if not fresh and k != 'EOF':
-                # ticket 031: "f(1 2)", "f(q[0])". No separator since the last
+                # "f(1 2)", "f(q[0])". No separator since the last
                 # argument: what follows was silently one more argument.
                 tk_juxtaposed(lx, j)
             if k == 'LBRACK':
@@ -646,7 +646,7 @@ class KlongInterpreter():
         toks = lx.toks
         body, bsp = self._prog(lx, True)
         # A body of one statement is that statement, except an evaluated
-        # dictionary literal (ticket 063): it is a list of expressions, which
+        # dictionary literal: it is a list of expressions, which
         # as a body would be taken for a list of statements.
         a = body[0] if len(body) == 1 and type(body[0]) is not KGExprDict else body
         j = lx.pos
@@ -675,7 +675,7 @@ class KlongInterpreter():
         f.span = (st, toks[lx.pos-1][2])
         f.body_spans = tuple(bsp)
         f.source = lx.source
-        # Function metadata, computed once here (ticket 032): locals, max_arg,
+        # Function metadata, computed once here: locals, max_arg,
         # uses_self. A locals declaration leaves the stored body.
         try:
             fn_metadata(f)
@@ -687,13 +687,13 @@ class KlongInterpreter():
             f.locals_span = bsp[0]
             f.body_spans = tuple(bsp[1:])
         if f.locals is not None:
-            # ticket 060: the targets of a destructuring that heads the body are locals
+            # the targets of a destructuring that heads the body are locals
             head_destructuring(f)
         return f
 
     @staticmethod
     def _not_assignable(a, st, lend):
-        """Ticket 050: "1::5" at strict level 1 and above. Level 0 accepts it silently (legacy)."""
+        """"1::5" at strict level 1 and above. Level 0 accepts it silently (legacy)."""
         raise KlongSyntaxError("cannot assign: the left side of :: must be a name",
                                span=(st, lend), hint=tk_assign_hint(a))
 
@@ -703,13 +703,13 @@ class KlongInterpreter():
         what the assignment node gets as its left operand:
 
             [a b c]::v      a list literal of plain names: the destructuring
-                            targets, a KGDestructure (ticket 060)
+                            targets, a KGDestructure
             f(a;b)::{...}   a call of a plain name with plain names as
                             arguments: a NamedDef, which _named_def turns into
-                            the name f once the right side is read (ticket 061)
+                            the name f once the right side is read
 
         Anything else is not assignable: a syntax error at strict level 1 and
-        above (ticket 050), and at level 0 the expression itself, as always
+        above, and at level 0 the expression itself, as always
         (the assignment then binds nothing). A list literal that is not a
         list of plain names, and a parameter list that repeats a name or uses
         x, y or z, also warn at level 0.
@@ -728,7 +728,7 @@ class KlongInterpreter():
 
     def _named_def(self, lx, nd, r, rj, osp):
         """
-        Finish f(a;b)::{...} (ticket 061). nd is the NamedDef of the left
+        Finish f(a;b)::{...}. nd is the NamedDef of the left
         side, r the right side, read from token index rj on, osp the span of
         the '::'. The right side must be a function literal that does not use
         x, y or z itself; it becomes a function of the named parameters: arity
@@ -848,12 +848,12 @@ class KlongInterpreter():
                     r = self._expr(lx, ignore_newline)
                     missing = r is None or r is SEMI
                     if missing:
-                        # ticket 031: warning at strict level 0, error above
+                        # warning at strict level 0, error above
                         tk_missing_operand(lx, v, (st, tok[2]), right=False)
                         if r is SEMI:
                             r = ';'
                     # (an evaluated dictionary literal is a list of expressions
-                    # and would be taken for the argument list: ticket 063)
+                    # and would be taken for the argument list)
                     a = KGFn(a, [r] if type(r) is KGExprDict else r, arity=1)
                     e = toks[lx.pos-1][2]
                     a.span = (st, e)
@@ -872,7 +872,7 @@ class KlongInterpreter():
                 n = lx.dicts_read
                 a = self._backend.kg_asarray(tk_read_data(self, lx, j, True))
                 if lx.dicts_read != n:
-                    # The list holds a dictionary literal (ticket 063), which
+                    # The list holds a dictionary literal, which
                     # is a mutable value: like a dictionary literal, the list
                     # is copied each time it is evaluated.
                     a = KGCall(copy_lambda, args=a, arity=0)
@@ -909,7 +909,7 @@ class KlongInterpreter():
         elif k == 'DICT':
             nt = toks[j+1]
             if nt[0] == 'SEMI' and not nt[4]:
-                # evaluated dictionary literal :{;key1;value1;...} (ticket 063)
+                # evaluated dictionary literal :{;key1;value1;...}
                 lx.pos = j + 2
                 a = tk_read_expr_dict(self, lx, st)
             else:
@@ -960,7 +960,7 @@ class KlongInterpreter():
                         aa.arity = 2
                     target = v == '::' and not isinstance(a, KGSym)
                 elif v in ADVERB_GLYPHS:
-                    # ticket 031: "{x} '[1 2]". No operator is spelled like an
+                    # "{x} '[1 2]". No operator is spelled like an
                     # adverb, so this could only fail when evaluated.
                     tk_adverb_error(lx, tok)
                 lx.pos = j + 1
@@ -1001,7 +1001,7 @@ class KlongInterpreter():
                 r = self._expr(lx, ignore_newline)
                 missing = r is None or r is SEMI
                 if missing:
-                    # ticket 031: warning at strict level 0, error above
+                    # warning at strict level 0, error above
                     tk_missing_operand(lx, tok[3] if k != 'LBRACE' else 'the function', osp)
                     if r is SEMI:
                         r = ';'
@@ -1097,7 +1097,7 @@ class KlongInterpreter():
                 if e.source is None and e.span is not None:
                     e.source = t if isinstance(t, Source) else Source("<string>", text)
                 raise
-        # Syntax checks (ticket 031) go by the strict level in force now. At
+        # Syntax checks go by the strict level in force now. At
         # level 0 they only record warnings; at level 1 and above they raise,
         # and a newline after a comment is an ordinary newline.
         strict = self._context._strict_mode
@@ -1571,7 +1571,7 @@ class KlongInterpreter():
             layered = True
         n = 0 if f_args is None else len(f_args)
         if type(f) is KGBody and f.params is not None:
-            # a function with named parameters (ticket 061)
+            # a function with named parameters
             ctx = self._bind_params(x.a, f, f_args, n, node)
             return self._projection(x, f_args, len(f.params), layered) if ctx is None else self._run_fn(f, ctx, node)
         if n < f_arity or (_has_hole(f_args) if layered else has_none(f_args)):
@@ -1616,7 +1616,7 @@ class KlongInterpreter():
     def _projection(self, x, merged, need, layered):
         """
         The value of the written call x when it does not supply every
-        argument (ticket 033): a projection, which is a call (KGCall) whose
+        argument: a projection, which is a call (KGCall) whose
         argument list has an empty slot (None) for each argument still
         missing. This is the one definition of a short call: an argument may
         be left empty, f(1;), f(;2), or left off the end, f(1), and the two
@@ -1692,7 +1692,7 @@ class KlongInterpreter():
         Three passes of _resolve_fn went through three projections (f_args
         holds four layers) and may not have reached the function: a function
         of x, y and z cannot be projected more than twice, one with n named
-        parameters n-1 times (ticket 061). Resolve to the end; the result
+        parameters n-1 times. Resolve to the end; the result
         stands only if it is a function with named parameters. Anything else
         is left as the three passes left it.
         """
@@ -1706,14 +1706,14 @@ class KlongInterpreter():
             return g, g_args, g_arity, g_node
         if g is not f and not isinstance(g, (KGFn, KGSym)):
             # the body of a function of x, y and z under more projections
-            # than three passes go through (ticket 033: a short call is one)
+            # than three passes go through (a short call is one)
             return g, g_args, g_arity, g_node
         return f, f_args, f_arity, node
 
     def _bind_params(self, callee, f, f_args, n, node):
         """
         The frame for a written call of f, a function with named parameters
-        (ticket 061): each parameter bound to the value of its argument
+       : each parameter bound to the value of its argument
         expression. Returns None when the call is not complete (fewer
         arguments than parameters, or a hole): the call is then a value, as
         for any function. More arguments than parameters is an arity error
@@ -1818,14 +1818,14 @@ class KlongInterpreter():
         if len(f_args) == 1:
             # no projection involved: the values are the arguments
             if type(f) is KGBody and f.params is not None:
-                # named parameters (ticket 061): exactly as many values as
+                # named parameters: exactly as many values as
                 # parameters. Values cannot express a hole, so there is no
                 # projection to return for fewer.
                 if len(values) != len(f.params):
                     raise self._too_many(fn, len(f.params), len(values))
                 return self._run_fn(f, dict(zip(f.params, values)), node)
             if len(values) < f_arity:
-                # a short call is a projection (ticket 033)
+                # a short call is a projection
                 return self._value_projection(fn, values, f_arity - len(values))
             if len(values) > f_arity and self._context._strict_mode == 2 and not isinstance(f, KGLambda):
                 raise self._too_many(fn, f_arity, len(values))
@@ -1872,7 +1872,7 @@ class KlongInterpreter():
         locals, set .f, and evaluate the body in a new context frame.
 
         f is the body. Its locals were found when the function was parsed
-        (ticket 032): a body that declares any is a KGBody, which carries
+       : a body that declares any is a KGBody, which carries
         them. node is the KGFn the body was taken from, when the caller has
         it; a node whose metadata says "no locals" needs no look at the body.
         A body that reaches here without metadata (a KGFn built by hand or by
@@ -1881,7 +1881,7 @@ class KlongInterpreter():
 
         """
         # .f is the function as it is called here: a KGBody keeps its locals,
-        # so a call through .f declares them again (ticket 026).
+        # so a call through .f declares them again.
         ctx[reserved_dot_f_symbol] = f
         if type(f) is KGBody:
             if self._context._strict_mode == 2:
@@ -1940,7 +1940,7 @@ class KlongInterpreter():
 
     def _destructure(self, names, v):
         """
-        [a b c]::v (ticket 060): bind each name to one element of v, which
+        [a b c]::v: bind each name to one element of v, which
         must be a list, an array or a string with exactly one element per
         name. Each name is assigned by the rule of name::element (Define), so
         an existing variable is assigned where it lives. Nothing is bound
@@ -1964,7 +1964,7 @@ class KlongInterpreter():
 
     def _eval_dict(self, x):
         """
-        Evaluate :{;key1;value1;...} (ticket 063): the key and value
+        Evaluate :{;key1;value1;...}: the key and value
         expressions alternate in x and are evaluated left to right; the
         result is a new dictionary each time.
         """
@@ -1995,11 +1995,11 @@ class KlongInterpreter():
         defined and the symbol otherwise (at level 0 it is then defined as
         itself, like a bare undefined name).
 
-        Strict level 2: the symbol, never a lookup (ticket 051).
+        Strict level 2: the symbol, never a lookup.
 
         The result is never a KGQSym: the symbol value is a plain KGSym.
 
-        :undefined is the undefined value at every level (ticket 033): what
+        :undefined is the undefined value at every level: what
         1%0 and a missing dictionary key give, and what is printed for it, so
         that u~:undefined and :_:undefined say whether u is undefined.
 
@@ -2019,7 +2019,7 @@ class KlongInterpreter():
             # Level 0 defines the name as itself, like a bare undefined name.
             # Above it nothing is defined: inside a function the definition
             # was the level 1 name error, and a quoted symbol is not a read
-            # of a variable (ticket 050).
+            # of a variable.
             if not ctx._strict_mode:
                 ctx[s] = s
         return s
@@ -2030,9 +2030,9 @@ class KlongInterpreter():
 
         Strict level 0: the name is defined as its own symbol, which is the
         value (legacy). Level 1: the same at top level; inside a function it
-        is a name error (ticket 050; it was one before, raised by the
+        is a name error (it was one before, raised by the
         definition and worded as advice for an assignment). Level 2: a name
-        error everywhere (ticket 051), with a hint when one defined name is
+        error everywhere, with a hint when one defined name is
         close to x.
         """
         ctx = self._context
@@ -2322,7 +2322,7 @@ class KlongInterpreter():
                     return self._eval_fn(x)
                 elif x.args is not None:
                     # a call written with an empty argument, f(1;): the
-                    # projection, made now (ticket 033). A callee that is
+                    # projection, made now. A callee that is
                     # not defined yet leaves the call as written (legacy: it
                     # is looked up when the projection is completed).
                     a = x.a

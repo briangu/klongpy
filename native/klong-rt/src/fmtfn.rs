@@ -1,4 +1,4 @@
-//! `.fmt(template; args)` and `.pf` (KlongPy `_fmt_parse`, `_fmt_render`; ticket 062).
+//! `.fmt(template; args)` and `.pf` (KlongPy `_fmt_parse`, `_fmt_render`).
 use alloc::string::String;
 use alloc::vec::Vec;
 
