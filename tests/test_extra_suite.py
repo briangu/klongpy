@@ -4,6 +4,7 @@ from utils import *
 from backend_compat import requires_strings, requires_object_dtype
 
 from klongpy import KlongInterpreter
+from klongpy.errors import KlongError
 from klongpy.core import KGChar, KGSym, rec_flatten, is_char, is_float, is_integer
 
 
@@ -408,5 +409,6 @@ zop([
         klong('s::{(x+2%x)%2}:~2')
         r = klong('s')
         self.assertTrue(np.isclose(r,1.41421356237309504))
-        r = klong('s()')
-        self.assertTrue(np.isclose(r,1.41421356237309504))
+        # s holds the converged number, which is not a function: calling it is an error
+        with self.assertRaises(KlongError):
+            klong('s()')

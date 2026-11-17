@@ -277,6 +277,25 @@ Before: `"{"`, `";"`, `")"` and `":["` were taken for the opener, separator or c
 
 A program that worked around the old behaviour (a string written another way to dodge `"{"`) still runs.
 
+### Calling a value that is not a function
+
+Before: `a::1.0;a([3 4])` returned 1.0. The arguments were dropped and the value of `a` came back, so a definition written without braces, `avg::(+/x)%#x`, failed silently: `avg(list)` printed the number that `avg` held. Now the call is a `type` error, at every strict level, and the message says what was called and what it is.
+
+```kgpy
+?> a::1.0
+1.0
+?> a([3 4])
+error: cannot call a: it is a float, not a function
+?> a::[1 2 3]
+[1 2 3]
+?> a(1)
+error: cannot call a: it is a list of 3, not a function
+?> a@1
+2
+```
+
+Search your code for a call on a name that holds a value. A list or a dictionary is read with `a@i` or `d@k`. The one idiom that relied on the old behaviour is a function literal passed as an argument and then called: `time({work()})` evaluates the literal where it stands, so the callee `x()` called its value. Give the function a name and pass the name, `w::{work()};time(w)`. A call on a function, a projection, a Python function, an IPC connection or a database is unchanged. There is no switch.
+
 ## Strict mode
 
 The default is still level 0, which behaves as before. What changed under it:
@@ -405,6 +424,7 @@ From Python it is `KlongInterpreter(parser="legacy")`. It restores the old readi
 | `[a b]::v` binds; `f(a;b)::{...}` defines | `KLONGPY_PARSER=legacy` |
 | Strings such as `"{"`; whitespace before `;` in a conditional | `KLONGPY_PARSER=legacy` |
 | Left-over input warns (level 0) or fails (strict) | Level 0 is the default; `warnings.filterwarnings("ignore", category=KlongSyntaxWarning)` hides the warning |
+| A call on a number, string, list or dictionary is a `type` error | None |
 | Arity, projections, `d@k`, `:undefined`, `x%0`, conditional monads, symbols as data, operator results | None |
 | Error classes and messages | None; `except KlongException` and the old Python classes still catch |
 | Errors on stderr, exit statuses | None |

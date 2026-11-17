@@ -273,7 +273,9 @@ class TestPending(unittest.TestCase):
         ex = conf.InProcess()
         cases = conf.selected(conf.load_dir(conf.PENDING_DIR), TAGS)
         self.assertGreater(len(cases), 0)
-        passing = [c for c in cases if conf.check(c, ex.run(c)) is None]
+        # a case whose reason starts with "native:" passes in KlongPy on purpose: it waits for the native runtime
+        passing = [c for c in cases if conf.check(c, ex.run(c)) is None
+                   and not c.meta.get("reason", "").startswith("native:")]
         if passing:
             names = ", ".join(f"{c.where} {c.name}" for c in passing)
             if os.environ.get("CONFORMANCE_STRICT_PENDING"):

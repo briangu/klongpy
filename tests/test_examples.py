@@ -28,7 +28,7 @@ class TestExamples(unittest.TestCase):
                 klong, _ = run_file(x, klong=klong)
                 if fname == "nstat.kg":
                     ran_nstat = True
-                    r = klong("sqr2pi(2)")
+                    r = klong("sqr2pi")
                     self.assertTrue(np.isclose(r, math.sqrt(math.pi*2)))
         finally:
             os.chdir(cwd)

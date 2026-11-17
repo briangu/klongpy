@@ -21,6 +21,7 @@ import uuid
 import numpy as np
 
 from klongpy import KlongInterpreter
+from klongpy.errors import KlongError
 from klongpy.core import KGCall, KGFn, KGFnWrapper, KGLambda, KGSym
 from klongpy.types import KGQSym
 from klongpy.sys_fn_ipc import (KGAsyncCall, KGRemoteFnCall, decode_message,
@@ -205,9 +206,10 @@ class TestApplyAndProjection(SymbolValueCase):
         self.check("{y(x)}/[3 p q]", 8)
         self.check("{x}'[p q]", [KGSym("p"), KGSym("q")])
 
-    def test_calling_argument_holding_other_symbol_is_unchanged(self):
-        # not a function name: same result as before this change
-        self.check("{x(3)}'[:foo :bar]", [3, 3])
+    def test_calling_argument_holding_other_symbol_is_an_error(self):
+        # not a function name: a call of a symbol that names nothing is an error
+        with self.assertRaises(KlongError):
+            self.klong("{x(3)}'[:foo :bar]")
 
     def test_nilad_value_is_not_invoked_by_apply(self):
         self.klong("n::{7};id::{x}")

@@ -35,7 +35,7 @@ CALLS = [
     ("nstat.kg", "svar([1 2 3 4])"), ("nstat.kg", "M([3 1 2])"), ("nstat.kg", "mo([1 2 2 3])"),
     ("nstat.kg", "rng([1 5 3])"), ("nstat.kg", "cov([1 2 3];[2 4 7])"), ("nstat.kg", "cor([1 2 3];[2 4 7])"),
     ("nstat.kg", "lr(4;lreg([[1 2] [2 4] [3 7]]))"), ("nstat.kg", "ndf(0)"), ("nstat.kg", "cdf(0)"),
-    ("nstat.kg", "qf(0.975)"), ("nstat.kg", "sqr2pi(2)"), ("nstat.kg", "f.mu([[1 2] [3 1]])"),
+    ("nstat.kg", "qf(0.975)"), ("nstat.kg", "sqr2pi"), ("nstat.kg", "f.mu([[1 2] [3 1]])"),
     ("nstat.kg", "f.var([[1 2] [3 1]])"), ("nstat.kg", "t.cdf(5;1.2)"), ("nstat.kg", "t.pdf(5;1.2)"),
     ("nstat.kg", "x2.pdf(3;1.5)"), ("nstat.kg", "erf(0.5)"),
     ("set.kg", "union([1 2];[2 3])"),

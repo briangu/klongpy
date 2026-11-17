@@ -85,6 +85,17 @@ The last result is a projection that is still waiting, not 27, the value of `fn(
 
 Why: arity is a property of the function that the reader knows from its text, and a parameter has none until the function runs.
 
+### Calling a value that is not a function is an error
+
+`a(args)` where `a` holds a number, a string, a list or a dictionary is a `type` error that names `a` and says what it holds. The call used to return the value. A dictionary is read with `d@k`. This page does not state what reference Klong does here, because no source in this repository says.
+
+```kgpy
+?> a::5
+5
+?> a(1)
+error: cannot call a: it is an integer, not a function
+```
+
 ### Index in depth does not reach into strings
 
 `a:@b` with a list `b` follows the indices down through nested lists. Through a list of strings it is an error. Index one level at a time instead.

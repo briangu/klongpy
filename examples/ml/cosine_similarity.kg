@@ -35,6 +35,7 @@ a::{x;.rn()}'!1536
 b::{x;.rn()}'!1536
 
 r::10000
-t::time({{x;cd(a;b)}'!r})
+passes::{{x;cd(a;b)}'!r}
+t::time(passes)
 .d("time (s) per pass: ");.p(t%r)
 .d("iter per second: ");.p(1%(t%r))

@@ -418,10 +418,15 @@ def main(argv=None):
     rows = run_cases(todo, executor, args.jobs)
     failed = [(c, p) for c, _, p in rows if p]
     if args.pending:
-        fixed = [c for c, _, p in rows if not p]
+        # a case whose reason starts with "native:" passes in KlongPy on purpose:
+        # it waits for the native runtime, which does not give the result yet
+        waiting = [c for c, _, p in rows if not p and c.meta.get("reason", "").startswith("native:")]
+        fixed = [c for c, _, p in rows if not p and c not in waiting]
         for c in fixed:
             print(f"NOW PASSES {c.where} {c.name}: move it to cases/")
-        print(f"{len(rows) - len(fixed)} of {len(rows)} pending cases still fail as expected")
+        rest = len(rows) - len(waiting)
+        print(f"{rest - len(fixed)} of {rest} pending cases still fail as expected"
+              + (f"; {len(waiting)} more pass in KlongPy and wait for the native runtime" if waiting else ""))
         return 0
     for c, p in failed:
         print(f"FAIL {c.where} {c.name}\n  " + p.replace("\n", "\n  "))

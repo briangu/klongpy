@@ -97,7 +97,8 @@
 
 @ functions.fn-as-argument-nilad core
 > ap::{x()}
-> ap({7})
+> g::{7}
+> ap(g)
 = 7
 
 # A function literal without arguments is evaluated where it stands, also as an argument:
@@ -475,3 +476,91 @@
 @ functions.display-arity-5 core
 > f(a;b;c;d;e)::{a+b+c+d+e};f
 = :fn/5
+
+# A name that is not defined stays an undefined-function error, and a dictionary is read with @, not called
+@ functions.call-undefined-name-is-a-name-error core strict2
+> nope(1)
+! name
+
+@ functions.dictionary-lookup-is-at dicts
+> d:::{[1 2]}
+> d@1
+= 2
+
+# Calling a value that is not a function is a type error at every strict level (what was called and what it is are in the message)
+
+@ functions.call-integer-is-an-error core
+> a::3
+> a(1)
+! type
+
+@ functions.call-float-is-an-error core float
+> avg::1.5
+> avg([3 3 3 4 5 7])
+! type
+
+@ functions.call-list-is-an-error core
+> a::[1 2 3]
+> a(1)
+! type
+
+@ functions.call-symbol-is-an-error core
+> a:::foo
+> a(1)
+! type
+
+@ functions.call-string-is-an-error strings
+> a::"abc"
+> a(1)
+! type
+
+@ functions.call-dictionary-is-an-error dicts
+> d:::{[1 2]}
+> d(1)
+! type
+
+@ functions.call-nilad-on-integer-is-an-error core
+> a::3
+> a()
+! type
+
+@ functions.call-nilad-on-list-is-an-error core
+> a::[1 2 3]
+> a()
+! type
+
+@ functions.call-local-is-an-error core
+> f::{[a];a::3;a(1)}
+> f()
+! type
+
+@ functions.call-parameter-is-an-error core
+> f::{x(1)}
+> f(5)
+! type
+
+@ functions.call-result-without-braces-is-an-error core
+> f::{x+1}
+> g::f(3)
+> g(1)
+! type
+
+@ functions.call-under-adverb-is-an-error core
+> a::3
+> a'[1 2]
+! type
+
+@ functions.call-nilad-literal-argument-then-called-is-an-error core
+> ap::{x()}
+> ap({7})
+! type
+
+@ functions.call-integer-is-an-error-strict1 core strict1
+> a::3
+> a(1)
+! type
+
+@ functions.call-integer-is-an-error-strict2 core strict2
+> a::3
+> a(1)
+! type

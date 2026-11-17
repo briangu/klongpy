@@ -4,7 +4,7 @@ The conformance suite is a set of test cases for the Klong language that does no
 
 KlongPy is the reference. When KlongPy fails a case, either KlongPy has a bug (the case goes to the pending list, below) or the case is wrong.
 
-The suite has 1277 cases in 17 files under `conformance/cases/`, 8 pending cases under `conformance/pending/`, and the golden parse trees under `tests/golden/` (169 pairs of source and tree). The full specification is `conformance/README.md`; this page is the short version for users and implementers.
+The suite has 1294 cases in 17 files under `conformance/cases/`, 8 pending cases under `conformance/pending/` (that KlongPy fails), and the golden parse trees under `tests/golden/` (169 pairs of source and tree). The full specification is `conformance/README.md`; this page is the short version for users and implementers.
 
 ## What is in the repository
 
@@ -105,14 +105,14 @@ The commands below are checked by `scripts/check_docs.py`, so the counts are wha
 <!-- check-docs: link conformance -->
 ```console
 $ python conformance/run.py
-1277 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
+1294 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 ```
 
 The in-process run takes about a second. To run KlongPy through the same executable protocol that a native implementation uses, give the reference shim as the command (about 17 seconds with 8 jobs on the machine of the measurements below):
 
 ```text
 $ python conformance/run.py --cmd "python -W ignore conformance/shim/kgpy_shim.py" --jobs 8
-1277 passed, 0 failed, 0 skipped by tags (python -W ignore conformance/shim/kgpy_shim.py)
+1294 passed, 0 failed, 0 skipped by tags (python -W ignore conformance/shim/kgpy_shim.py)
 ```
 
 `--tags a,b` is the list of tags the implementation declares; other cases are skipped and counted. `--list` shows what would run. A file or directory argument limits the run. A failure prints the file, the line and the case name with the expected and the actual text.
@@ -122,7 +122,7 @@ $ python conformance/run.py --cmd "python -W ignore conformance/shim/kgpy_shim.p
 $ python conformance/run.py conformance/cases/90-errors.cases
 57 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 $ python conformance/run.py --list --tags core | wc -l
-     761
+     771
 ```
 
 `python -m pytest tests/test_conformance.py --backend torch --device cpu` runs the in-process cases on the torch backend. The numpy backend declares every tag except `torch-only`, `timers`, `ipc` and `desktop`. The torch backend declares `torch-only` instead of `numpy-only`, because float32 text and `:undefined` inside a list differ there by design.
@@ -136,10 +136,10 @@ $ cd native && cargo build --release
 $ cd ..
 $ python conformance/run.py --cmd "native/target/release/klong --conformance" \
       --tags core,strings,dicts,sysio,float,string-fmt,width64,strict1,strict2,numpy-only,device,unicode --jobs 8
-1276 passed, 0 failed, 1 skipped by tags (native/target/release/klong --conformance)
+1293 passed, 0 failed, 1 skipped by tags (native/target/release/klong --conformance)
 ```
 
-Measured on 2026-11-16 on an Apple M2 Ultra: 1276 of 1276 in about 2 seconds with 8 jobs. With `--tags core` alone, 761 cases run and 516 are skipped by tags. The native runtime does not declare `bigint`, `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`.
+Measured on 2026-11-16 on an Apple M2 Ultra: 1293 of 1293 in about 2 seconds with 8 jobs. With `--tags core` alone, 771 cases run and 523 are skipped by tags. The native runtime does not declare `bigint`, `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`.
 
 `native/scripts/conformance.py` prints the same run as a table of counts per file. The golden parse trees run the same way:
 
@@ -157,7 +157,7 @@ A board is driven through its serial console, not through the `klong` binary. `n
 ```text
 $ python native/scripts/console_conformance.py
 ...
-total                         1276  1276   in 2.4 s through console of native/target/release/klong-sim, 8 jobs
+total                         1293  1293   in 2.4 s through console of native/target/release/klong-sim, 8 jobs
 ```
 
 `--narrow` runs the tags of a 32-bit build (1160 cases passed on 2026-11-16). With `--port /dev/ttyUSB0` the same script drives a real board over a serial port, one case at a time. On an ESP32-P4 the native runtime passed 1266 of 1266 this way on 2026-11-16 (see [ESP32-P4](native/esp32-p4.md)). That is the only hardware result so far.
@@ -172,9 +172,11 @@ $ python conformance/run.py --pending
 8 of 8 pending cases still fail as expected
 ```
 
-The eight cases today: `&` of an empty list and of a string, `[:a :b]?:b` (find a symbol in a list), `*"abc"` and the first item of `,\"abc"` (a string where a char is expected), `[1 2 3]@1.0` (indexing by a real), and the reciprocal of a string (a range error where a type error is expected).
+The eight cases that KlongPy fails today: `&` of an empty list and of a string, `[:a :b]?:b` (find a symbol in a list), `*"abc"` and the first item of `,\"abc"` (a string where a char is expected), `[1 2 3]@1.0` (indexing by a real), and the reciprocal of a string (a range error where a type error is expected).
 
 `tests/test_conformance.py` checks that each pending case still fails and prints a warning when one starts to pass. When that happens, move the case to `cases/`. Setting `CONFORMANCE_STRICT_PENDING=1` turns the warning into a failure. A runtime that is not KlongPy does not run the pending list.
+
+A pending case of another kind is possible: when KlongPy changes first, the cases for the change pass in KlongPy and fail in the native runtime. Their `: reason` starts with `native:`, and `run.py --pending` and the test count them apart (`N more pass in KlongPy and wait for the native runtime`) instead of asking to move them; they move to `cases/` when the native runtime gives the same result. There are none now: the 15 cases for calling a value that is not a function (a `type` error, see [Differences from Klong](differences.md#calling-a-value-that-is-not-a-function-is-an-error)) waited for the native runtime, which gives the same error since 2026-11-16, and are in `cases/60-functions.cases`.
 
 ## Adding a case
 

@@ -56,7 +56,7 @@ Every error KlongPy raises on purpose is a `KlongError`. The `kind` is the short
 | `KlongSyntaxError` | `syntax` | text the lexer or parser rejects, for example `(1]` |
 | `KlongNameError` | `name` | an undefined function, or an undefined variable in strict mode |
 | `KlongArityError` | `arity` | the wrong number of arguments |
-| `KlongTypeError` | `type` | an operand of the wrong kind, for example `1+"a"` |
+| `KlongTypeError` | `type` | an operand of the wrong kind, for example `1+"a"`, or a call of a value that is not a function, for example `a::1.0;a(2)` |
 | `KlongShapeError` | `shape` | lengths or shapes that do not agree, for example `[1 2 3]+[1 2]` |
 | `KlongRangeError` | `range` | an index out of range, or a value outside an operator's domain |
 | `KlongSystemError` | `system` | a system function failed for an outside reason (missing file, refused connection) |

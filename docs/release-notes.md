@@ -522,6 +522,19 @@ error: malformed number '1.2.3'
 
 These were `undefined: f` and a `ValueError` from `float()`. The error carries its position, its kind and the source: see [Reading an error](errors.md#reading-an-error).
 
+**Calling a value that is not a function is a type error.** `name(args)` used to return the value of `name` and drop the arguments when `name` held a number, a string, a list or a dictionary, at every strict level. A definition written without its braces, `avg::(+/x)%#x`, made `avg` the number 1.0, and `avg([3 3 3 4 5 7])` printed 1.0. The call is now a `type` error that names the callee and what it holds, with the source span of the call. It applies to every written call (`a(1)`, `a()`, `a(1;2)`, a name inside a function, `x(1)` on a parameter that holds a value) and to a name given to an adverb (`a'[1 2]`, `a/[1 2]`). A function, a projection, an operator, a Python function brought in with `.py` or `.pyf` or stored from Python, an IPC connection from `.cli` and a database from `.db` are called as before; a name that is not defined is still `undefined function`. A symbol that names a function is still called through (`g:::f;g(2)`). A dictionary is read with `d@k`; `d(k)` gave the dictionary and now fails. A function literal passed as an argument is evaluated where it stands, so `ap::{x()}` called as `ap({7})` calls the number 7 and now fails: pass the function by name, `g::{7};ap(g)`. A value that is not called is not affected.
+
+```kgpy
+?> avg::1.0
+1.0
+?> avg([3 3 3 4 5 7])
+error: cannot call avg: it is a float, not a function
+?> avg::{(+/x)%#x}
+:monad
+?> avg([3 3 3 4 5 7])
+4.166666666666667
+```
+
 ### REPL and CLI
 
 **Errors go to stderr, with the position and a caret.** At the REPL they were printed on stdout as `Error: (args...)`. A file run or `-e` printed a Python traceback; a traceback is now printed only with `-v` or `--traceback`.

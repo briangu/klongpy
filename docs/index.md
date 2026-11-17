@@ -66,7 +66,7 @@ See [Python Integration](python_integration.md). `]T expression` at the REPL tim
 - **[A better REPL](repl.md)**: multi-line entry, completion, history and `it`
 - **[kdb+ compatible IPC](ipc_capabilities.md)**: the default wire protocol is kdb+, with tables, timestamps and credentials
 - **[The torch backend](torch_backend.md)** and exact gradients
-- **[A conformance suite](conformance.md)** of 1277 cases that does not depend on one implementation
+- **[A conformance suite](conformance.md)** of 1294 cases that does not depend on one implementation
 - **[Compiling a static subset of Klong to C](embedded.md)** for small targets
 - **[A native Rust runtime](native/index.md)** that runs the full language without Python, including on an [ESP32-P4](native/esp32-p4.md)
 - **Documentation that is checked by a tool**: the examples in these pages are run by `scripts/check_docs.py`

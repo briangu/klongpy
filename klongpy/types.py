@@ -97,6 +97,9 @@ class KGFn:
     body_spans = None
     source = None
     missing_operand = False
+    # set by the parser on the call of a function literal, {x}(1): see
+    # KlongInterpreter._literal_call
+    literal = False
 
     # Function metadata (ticket 032), set once by the token parser on the node
     # of a function literal ({...}, with or without an argument list after

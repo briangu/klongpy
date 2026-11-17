@@ -30,6 +30,9 @@ from .utils import ReadonlyDict
 from .compiler import compile_guarded, run_compiled, NOT_COMPILED, LRUCache
 
 
+_CALLABLE = (KGFn, KGLambda, KGFnWrapper, KGOp, KGAdverb)
+
+
 def context_value(sym, v):
     """
     The value stored for sym: a Python lambda/function is wrapped as a Klong function.
@@ -664,6 +667,7 @@ class KlongInterpreter():
             # Parser-built calls (here and below): fa holds unevaluated
             # argument expressions, which _eval_fn evaluates.
             f = KGFn(a, fa, arity) if has_none(fa) else KGCall(a, fa, arity)
+            f.literal = True
             f.op_span = (st, tok[2])
             f.arg_spans = tuple(fsp)
         else:
@@ -1258,6 +1262,7 @@ class KlongInterpreter():
                 # Parser-built calls (here and below): fa holds unevaluated
                 # argument expressions, which _eval_fn evaluates.
                 a = KGFn(a, fa, arity) if has_none(fa) else KGCall(a, fa, arity)
+                a.literal = True
             else:
                 a = KGFn(a, args=None, arity=arity)
             ii, aa = peek_adverb(t, i)
@@ -1319,6 +1324,7 @@ class KlongInterpreter():
                 if cmatch(t, i, '(') or cmatch2(t,i,':','('):
                     i,fa = self._legacy_read_fn_args(t,i)
                     aa = KGFn(aa, fa, arity=arity) if has_none(fa) else KGCall(aa, fa, arity=arity)
+                    aa.literal = True
                 else:
                     aa = KGFn(aa, args=None, arity=arity)
             elif isinstance(aa,KGSym) and (cmatch(t, i, '(') or cmatch2(t,i,':','(')):
@@ -1360,7 +1366,7 @@ class KlongInterpreter():
             i = ii
         return i, arr
 
-    def _resolve_fn(self, f, f_args, f_arity, node=None):
+    def _resolve_fn(self, f, f_args, f_arity, node=None, calling=False):
         """
 
         Resolve a Klong function to its final form and update its arguments and arity.
@@ -1402,6 +1408,9 @@ class KlongInterpreter():
         if isinstance(f, KGSym):
             try:
                 _f = self._context[f]
+                if (calling and node is None and f != reserved_dot_f_symbol and not isinstance(_f, _CALLABLE)
+                        and not self._names_function(_f, f)):
+                    raise self._not_a_function(f, _f)
                 if isinstance(_f, (KGFn,KGLambda)) or not in_map(f, reserved_fn_symbols):
                     # if f is a symbol and it resolves to a function, then we resolve f as the function.
                     # In this case, the f_args are meant for the resolved function.
@@ -1420,6 +1429,8 @@ class KlongInterpreter():
                         except KeyError:
                             pass
                     if not isinstance(_g, (KGFn,KGLambda)):
+                        if calling and node is None and not isinstance(_f, _CALLABLE):
+                            raise self._not_a_function(f, _f)
                         return f, f_args, f_arity, node
                     f = _g
                     node = None
@@ -1436,6 +1447,58 @@ class KlongInterpreter():
                 f_args.append(f.args if isinstance(f.args, list) else [f.args])
                 return f.a, f_args, f.arity, f
         return f, f_args, f_arity, node
+
+    @staticmethod
+    def _literal_call(x):
+        """
+        True when the call node x is a call of a function literal ({x}(1)),
+        which the parser marks. A literal whose body is a bare name stores
+        the name where the callee of a written call would be, and the two
+        look alike; the callee of a literal is not a name to look up.
+        """
+        return x.literal
+
+    def _names_function(self, v, name):
+        """
+        True when v, the value found for the name being called, is a symbol
+        that leads to a function (a call through a variable holding a symbol,
+        {x(1)}'[f g]), or one that leads nowhere defined (the call then fails
+        as an undefined function, as it always has). False for any other
+        value that is not a function. A symbol naming itself, which is what
+        an undefined name is at strict level 0, names nothing.
+        """
+        seen = {name}
+        for _ in range(3):
+            if not isinstance(v, KGSym) or in_map(v, reserved_fn_symbols) or v in seen:
+                return False
+            seen.add(v)
+            try:
+                v = self._context[v]
+            except KeyError:
+                return True
+            if isinstance(v, _CALLABLE):
+                return True
+        return False
+
+    @staticmethod
+    def _not_a_function(name, value):
+        """
+        The error for a call of name, whose value is not a function: a number,
+        a string, a list, a dictionary, ... (strict levels 0, 1 and 2). The
+        value would otherwise be returned and the arguments dropped, which
+        hides a definition written without its braces.
+        """
+        d = describe(value)
+        art = "an" if d[:1] in "aeiou" else "a"
+        what = d if d.startswith(":") or d == "nothing" else f"{art} {d}"
+        if isinstance(name, str) and name not in reserved_fn_symbols:
+            shown = str.__str__(name).split('`')[0]
+        else:
+            shown = "the value" if not isinstance(name, str) else str.__str__(name)
+        hint = "a function is written {...}"
+        if is_list(value) or isinstance(value, (dict, str)) and not isinstance(value, KGSym):
+            hint += f"; to index, write {shown}@i"
+        return KlongTypeError(f"cannot call {shown}: it is {what}, not a function", hint=hint)
 
     def _eval_fn(self, x: KGFn):
         """
@@ -1477,6 +1540,9 @@ class KlongInterpreter():
         """
         f = x.a
         f_arity = x.arity
+        # args is None for the evaluation of a function body that is a bare
+        # name ({a}), which is not a call; a written call has a list, even f()
+        calling = x.args is not None and not self._literal_call(x)
         if x.args is None:
             f_args = [None]
             if type(f) is KGQSym and self._context._strict_mode == 2:
@@ -1488,9 +1554,9 @@ class KlongInterpreter():
             f_args = [x.args if isinstance(x.args, list) else [x.args]]
 
         # three passes as there are max three argumentes: x,y, and z
-        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity)
-        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node)
-        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node)
+        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, None, calling)
+        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node, calling)
+        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node, calling)
 
         if len(f_args) == 1:
             f_args = f_args[0]
@@ -1745,9 +1811,9 @@ class KlongInterpreter():
         f_args = [values]
 
         # three passes as there are max three argumentes: x,y, and z
-        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity)
-        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node)
-        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node)
+        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, None, True)
+        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node, True)
+        f, f_args, f_arity, node = self._resolve_fn(f, f_args, f_arity, node, True)
 
         if len(f_args) == 1:
             # no projection involved: the values are the arguments
@@ -2004,6 +2070,7 @@ class KlongInterpreter():
         """
         if isinstance(x, KGFn):
             c = KGCall(x.a, x.args, x.arity)
+            c.literal = x.literal
             c._origin = getattr(x, '_origin', x)  # compile cache lives on the node as parsed
             return self.eval(c)
         return self.eval(x)

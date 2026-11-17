@@ -58,6 +58,7 @@ TORCH = (["torch"], ["--backend", "torch", "--device", "cpu"])
 PLAIN = ([], [])
 RUNNABLE = {
     "examples/1brc/worker.kg": PLAIN,
+    "examples/hardware/crossover.kg": PLAIN,         # a static-profile program: loading it defines its functions and state
     "examples/autograd/basic_gradient.kg": PLAIN,
     "examples/autograd/differentiable_physics.kg": PLAIN,
     "examples/autograd/gradient_descent.kg": PLAIN,

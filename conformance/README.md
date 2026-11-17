@@ -177,6 +177,11 @@ correct result. `tests/test_conformance.py` checks that each still fails and
 prints a note when one starts to pass; move it to `cases/` then
 (`CONFORMANCE_STRICT_PENDING=1` makes that a failure).
 
+A case whose `: reason` starts with `native:` is the other kind: KlongPy passes it and
+another runtime does not yet (the language changed in KlongPy first). `run.py --pending`
+and the test count those apart and do not ask to move them; move them to `cases/` when
+the other runtime passes.
+
 ## Adding cases
 
 Write the source, put `?` where the expectation goes, run
