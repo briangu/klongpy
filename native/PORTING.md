@@ -76,9 +76,9 @@ it has no start-up code).
 **Memory** (the two numbers in `BoardConfig`)
 - `stack_bytes`: the native stack of the task that calls `run`. `Config::for_stack` turns it
   into a recursion limit checked against the real stack pointer, so deep recursion is a
-  `range` error, not a crash. Measured: about 0.75 KiB per level of Klong recursion on a
-  32-bit target (745 bytes on a Pico, 2026-11-16: 16 KiB gives about 14 levels at the default quarter kept; 64 KiB: about 60; 256 KiB: about 250;
-  `klong_config.stack_keep` lets a board keep less than a quarter: the Pico bench keeps 16 of 133 KiB and gets 159 levels from 137 KiB).
+  `range` error, not a crash. Measured: about 0.85 KiB per level of Klong recursion on a
+  32-bit target (864 bytes by the frames of a thumbv6m image, 90 levels reached and 95 failed on a Pico at a limit of 80,640 bytes, 2026-11-16: 16 KiB gives about 12 levels at the default quarter kept; 64 KiB: about 50; 256 KiB: about 200;
+  `klong_config.stack_keep` lets a board keep less than a quarter, and the lane honours it: the Pico bench keeps 16 of 108 KiB and gets 107 levels from 112 KiB).
   The whole conformance suite through the console passes 1265 of 1266 with a 64 KiB stack and
   1264 with 32 KiB; the misses are cases that recurse deeply and end as `range` errors.
 - The global allocator: wrap whatever allocates (`klong_board::heap::RegionHeap` over a
@@ -98,7 +98,7 @@ its `no_std` datagram layer, and `klong-ffi --features lane` exposes it to a C s
 The lane is 4.5 Mbaud (115200 also works): a 16 KB receive ring fed by interrupt, an 8 KB transmit
 ring drained by interrupt, and a boot self-test that reports to the supervisor are part of the
 Pico shell. `docs/native/pico-bench.md` has the design, the sizes and the simulator results; the
-image has run on two Picos (2026-11-16; measured: `fib(18)` 0.385 s, a call between two Picos 3.36 ms, 745 bytes of stack a level of Klong recursion), and its RAM is split as described there: a stack that starts at the top of RAM, a heap that is the rest, the evaluator's hot functions in RAM.
+image has run on two Picos (2026-11-16; measured: `fib(18)` 0.385 s, a call between two Picos 3.36 ms, 864 bytes of stack a level of Klong recursion), and its RAM is split as described there: a stack that starts at the top of RAM, a heap that is the rest, the evaluator's hot functions in RAM.
 
 The lane's console (`docs/native/pico-bench.md` "Interactive use"): channel 1 is console
 text (input datagrams with the ACK flag, one at a time; no echo or prompt), channel 2 is `done`, `int` and

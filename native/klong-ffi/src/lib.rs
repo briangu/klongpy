@@ -63,6 +63,8 @@ pub struct KlongConfig {
     pub flags: u32,
     /// Of `stack_bytes`, what is kept for the bottom of the recursion (0: a quarter).
     pub stack_keep: usize,
+    /// Bytes the allocator keeps for each block (its header): see `Counting::set_overhead` (0: none).
+    pub heap_overhead: usize,
 }
 
 /// A static that one task uses. klong.h requires every call and callback to be on the task
@@ -261,6 +263,7 @@ pub unsafe extern "C" fn klong_init(config: *const KlongConfig) -> i32 {
         }
         *HOOKS.0.get() = Some(cfg);
     }
+    HEAP.set_overhead(cfg.heap_overhead);
     HEAP.set_limit(cfg.heap_limit, cfg.heap_reserve);
 
     let mut system = CSystem { name: [0; 31], name_len: 0 };
@@ -396,6 +399,8 @@ mod lane {
         /// Four u32 counters the C driver keeps: receive ring overruns, FIFO overruns, line
         /// errors, times the transmit ring was full. Null if it has none.
         pub counters: *const u32,
+        /// Null, or a short text (NUL-terminated) on why the board restarted: the self-test's reports carry it.
+        pub note: *const core::ffi::c_char,
     }
 
     /// `struct klong_lane_stats` of klong.h.
@@ -429,6 +434,23 @@ mod lane {
         pub uart_tx_ring_full: u32,
         /// The self-test: 0 not running or undecided, 1 passed, 2 failed.
         pub selftest: i32,
+    }
+
+    /// The restart note of the config as text (at most 120 bytes, printable ASCII).
+    fn note_text(p: *const core::ffi::c_char) -> alloc::string::String {
+        let mut s = alloc::string::String::new();
+        if p.is_null() {
+            return s;
+        }
+        for i in 0..120 {
+            // SAFETY: NUL-terminated by the contract of klong_lane_config.note; read up to the terminator.
+            let c = unsafe { *p.add(i) } as u8;
+            if c == 0 {
+                break;
+            }
+            s.push(if (0x20..0x7f).contains(&c) { c as char } else { '?' });
+        }
+        s
     }
 
     struct CLane(KlongLaneConfig);
@@ -568,7 +590,8 @@ mod lane {
             ip.tick_mask = 127;
             if let (Some(h), Some(_)) = (hooks(), ip.stack_limit) {
                 let bytes = h.stack_bytes;
-                let keep = (bytes / 8).max(4096).min(bytes / 2);
+                // what the board says it keeps (klong_config.stack_keep), else an eighth
+                let keep = if h.stack_keep != 0 { h.stack_keep.max(2048).min(bytes / 2) } else { (bytes / 8).max(4096).min(bytes / 2) };
                 ip.stack_limit = Some(bytes - keep);
                 ip.max_nest = ((keep / 2) / 384).clamp(8, ip.max_nest.max(8) as usize) as u32;
             }
@@ -579,7 +602,7 @@ mod lane {
             Err(_) => return KLONG_ERR_STATE,
         }
         // SAFETY: as above; `LANE` is empty until this write.
-        unsafe { *LANE.0.get() = Some(Lane { net, console: cfg.flags & KLONG_LANE_NO_CONSOLE == 0, selftest: if cfg.flags & KLONG_LANE_SELFTEST != 0 { Some(klong_rt::selftest::SelfTest::new()) } else { None } }) };
+        unsafe { *LANE.0.get() = Some(Lane { net, console: cfg.flags & KLONG_LANE_NO_CONSOLE == 0, selftest: if cfg.flags & KLONG_LANE_SELFTEST != 0 { { let mut t = klong_rt::selftest::SelfTest::new(); t.set_note(note_text(cfg.note)); Some(t) } } else { None } }) };
         KLONG_OK
     }
 

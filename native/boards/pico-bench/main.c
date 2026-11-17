@@ -28,11 +28,22 @@
 #include "hardware/structs/rosc.h"
 #include "hardware/sync.h"
 #include "hardware/uart.h"
+#include "hardware/structs/watchdog.h"
 #include "hardware/watchdog.h"
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 
 #include "klong.h"
+
+/* Memory comes from newlib's malloc directly. The SDK wraps malloc (pico_malloc) so that a NULL is a `panic("Out of
+ * memory")`, which prints on a USB that nobody is attached to and then spins with the interrupts on: the node answers
+ * the supervisor's PING from nothing and is dead. Here a NULL is an answer: a vector that does not fit is a `memory`
+ * error, and what cannot fail and does (a frame) is `k_fatal`, which restarts the chip and says so. */
+extern void *__real_malloc(size_t);
+extern void __real_free(void *);
+#define KH_MALLOC __real_malloc
+#define KH_FREE __real_free
+#define KH_MEMALIGN memalign
 #include "klong_heap.h"
 #include "klong_memory.h"
 
@@ -65,11 +76,12 @@
  * the main loop is away. */
 #define LANE_TX_RING 8192u
 
-/* The stack: KLONG_STACK_BYTES from the top of RAM (__StackTop, the end of the second scratch bank) down. About
- * 740 bytes per level of Klong recursion (measured on this image: README.md), so 150 levels of a simple recursion
- * are 111 KB; KLONG_STACK_KEEP of what is given to the evaluator is kept for what runs below its deepest level (a
- * walk over nested data, the lane's pump: about 6 KB; the data nesting allowed is made from it), and
- * KLONG_STACK_ABOVE is the rest, for the frames above klong_run and the interrupts, which run on this stack. */
+/* The stack: KLONG_STACK_BYTES from the top of RAM (__StackTop, the end of the second scratch bank) down. About 870 bytes per
+ * level of Klong recursion (the frames on the path, read from the disassembly: 864; measured on the boards with the limit
+ * the lane gave: 90 levels worked and 95 did not, at 80,640 bytes), so 110 levels of a simple recursion are about 97 KB.
+ * KLONG_STACK_KEEP of what is given to the evaluator is kept for what runs below its deepest level (a walk over nested
+ * data, the lane's pump: about 3 KB; the data nesting allowed is made from it), and KLONG_STACK_ABOVE is the rest, for the
+ * frames above klong_run and the interrupts, which run on this stack. */
 #define KLONG_STACK_ABOVE (4u * 1024)
 #define KLONG_STACK_BUDGET (KLONG_STACK_BYTES - KLONG_STACK_ABOVE)
 #define KLONG_STACK_KEEP (16u * 1024)
@@ -84,6 +96,75 @@ extern char __StackTop;  /* the top of RAM */
 void *_sbrk(int incr) {
     if (kh_arena_start == NULL) kh_init(&end, STACK_BOTTOM);
     return kh_sbrk(incr);
+}
+
+/* ---- the safety net: a fault, a overrun stack and a hang are seen, and the node restarts and says why ------------- */
+
+/* Why the chip restarted is kept in the watchdog's scratch registers 0 to 3 (they survive a watchdog reset, not a power-on;
+ * 4 to 7 are the SDK's): [0] a magic and the kind, [1] and [2] the program counter and link register of a fault, or the
+ * first 8 characters of a fatal message. The next boot turns it into text for the self-test's reports (` boot=...`),
+ * which the supervisor reads on channel 3: nothing here needs a cable. */
+#define NOTE_MAGIC 0x4b4c4e00u /* "KLN" and the kind in the low byte */
+enum { NOTE_HARDFAULT = 1, NOTE_STACK = 2, NOTE_FATAL = 3 };
+static char boot_note[64];
+
+static void note_set(uint32_t kind, uint32_t a, uint32_t b) {
+    watchdog_hw->scratch[0] = NOTE_MAGIC | kind;
+    watchdog_hw->scratch[1] = a;
+    watchdog_hw->scratch[2] = b;
+}
+
+/* After the HardFault: where it happened. r0 is the stacked frame: r0-r3, r12, lr, pc, psr. */
+void __attribute__((used)) fault_c(uint32_t *frame) {
+    note_set(NOTE_HARDFAULT, frame[6], frame[5]);
+    watchdog_reboot(0, 0, 1);
+    for (;;) {
+    }
+}
+void __attribute__((naked)) isr_hardfault(void) {
+    __asm volatile("mov r0, lr\n\t"
+                   "movs r1, #4\n\t"
+                   "tst r0, r1\n\t"
+                   "beq 1f\n\t"
+                   "mrs r0, psp\n\t"
+                   "b 2f\n\t"
+                   "1: mrs r0, msp\n\t"
+                   "2: ldr r1, =fault_c\n\t"
+                   "bx r1\n\t");
+}
+
+/* Words at the bottom of the stack, which the heap's end (STACK_BOTTOM) stops short of: a recursion that got past the
+ * stack budget, or anything that writes below it, changes them, and the idle path sees it within a turn. */
+#define CANARY_WORDS 8u
+#define CANARY 0xc0de5afeu
+static void canary_set(void) {
+    volatile uint32_t *w = (volatile uint32_t *)(uintptr_t)STACK_BOTTOM;
+    for (uint32_t i = 0; i < CANARY_WORDS; i++) w[i] = CANARY ^ i;
+}
+static int canary_ok(void) {
+    volatile uint32_t *w = (volatile uint32_t *)(uintptr_t)STACK_BOTTOM;
+    for (uint32_t i = 0; i < CANARY_WORDS; i++)
+        if (w[i] != (CANARY ^ i)) return 0;
+    return 1;
+}
+
+/* The text of the reason of this boot, from the scratch registers or the watchdog's flags; empty after a power-on. */
+static void boot_note_read(void) {
+    uint32_t m = watchdog_hw->scratch[0];
+    boot_note[0] = 0;
+    if ((m & 0xffffff00u) == NOTE_MAGIC) {
+        uint32_t a = watchdog_hw->scratch[1], b = watchdog_hw->scratch[2];
+        switch (m & 0xff) {
+        case NOTE_HARDFAULT: snprintf(boot_note, sizeof boot_note, "hardfault pc=%08lx lr=%08lx", (unsigned long)a, (unsigned long)b); break;
+        case NOTE_STACK: snprintf(boot_note, sizeof boot_note, "stack"); break;
+        default: snprintf(boot_note, sizeof boot_note, "fatal %.4s%.4s", (const char *)&a, (const char *)&b); break;
+        }
+        watchdog_hw->scratch[0] = 0;
+    } else if (watchdog_enable_caused_reboot()) {
+        snprintf(boot_note, sizeof boot_note, "watchdog");
+    } else if (watchdog_caused_reboot()) {
+        snprintf(boot_note, sizeof boot_note, "reset");
+    }
 }
 
 /* ---- the lane: UART interrupts <-> rings ------------------------------------------------- */
@@ -218,6 +299,18 @@ static void k_wait(void *ctx, uint32_t max_ms) {
     /* the lane is read from an interrupt, so a short sleep loses nothing; 200 us keeps the latency of a call low */
     sleep_us(max_ms == 0 ? 0 : 200u);
 }
+/* Called every turn of the main loop and every 128 calls of an evaluation: the watchdog is fed here, and the canary of the
+ * stack looked at. A turn that takes more than the watchdog's 8 s (a primitive over a huge vector) restarts the node. */
+static void k_idle(void *ctx) {
+    (void)ctx;
+    watchdog_update();
+    if (!canary_ok()) {
+        note_set(NOTE_STACK, 0, 0);
+        watchdog_reboot(0, 0, 1);
+        for (;;) {
+        }
+    }
+}
 static void k_reset(void *ctx, int32_t code) {
     (void)ctx, (void)code;
     watchdog_reboot(0, 0, 10); /* the RP2040 restarts, as .x(code) means; the lane is silent for the boot */
@@ -238,6 +331,10 @@ static uint64_t k_entropy(void *ctx) {
 }
 static void k_fatal(void *ctx, const char *msg, size_t len) {
     (void)ctx;
+    uint32_t a = 0, b = 0;
+    memcpy(&a, msg, len < 4 ? len : 4);
+    if (len > 4) memcpy(&b, msg + 4, len < 8 ? len - 4 : 4);
+    note_set(NOTE_FATAL, a, b);
     if (stdio_usb_connected()) {
         printf("\r\nklong fatal: %.*s\r\n", (int)len, msg);
         stdio_flush();
@@ -259,9 +356,11 @@ static void klong_main(void) {
     kh_limits(arena, &cfg.heap_limit, &cfg.heap_reserve);
     cfg.stack_bytes = KLONG_STACK_BUDGET;
     cfg.stack_keep = KLONG_STACK_KEEP;
+    cfg.heap_overhead = 8; /* newlib's malloc: a header of 8 bytes in front of each block, and blocks of 8 */
     cfg.write = k_write;
     cfg.read = k_read;
     cfg.now_ms = k_now_ms;
+    cfg.idle = k_idle;
     cfg.wait = k_wait;
     cfg.reset = k_reset;
     cfg.entropy = k_entropy;
@@ -280,7 +379,9 @@ static void klong_main(void) {
     lane.flags = KLONG_SELFTEST ? KLONG_LANE_SELFTEST : 0;
     lane.baud = LANE_BAUD;
     lane.counters = (const uint32_t *)lane_counters;
+    lane.note = boot_note[0] ? boot_note : NULL;
     if (klong_lane_init(&lane) != KLONG_OK) k_fatal(NULL, "klong_lane_init", 15);
+    watchdog_enable(8000, true); /* fed in k_idle */
     klong_run();
     for (;;) tight_loop_contents();
 }
@@ -295,6 +396,8 @@ static void __attribute__((noreturn, noinline)) on_big_stack(void (*fn)(void)) {
 }
 
 int main(void) {
+    boot_note_read();
+    canary_set();
     /* USB CDC for the console; stdio over uart is off, so uart0 belongs to the lane alone */
     stdio_usb_init();
     lane_init();

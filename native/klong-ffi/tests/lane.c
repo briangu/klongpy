@@ -154,7 +154,7 @@ static int selftest_main(void) {
     lane.baud = 4500000u;
     lane.flags = KLONG_LANE_SELFTEST;
     CHECK(klong_lane_init(&lane) == KLONG_OK, "lane init");
-    run(40, 100);
+    run(80, 100); /* node 0 starts its self-test 1 s + 4 x 0.6 s after it is numbered */
     collect(0, 3, text, sizeof text, NULL, &statuses);
     for (i = 0; i + 16 <= tx_len; i += 16)
         if (tx[i + 3] == 3 && tx[i + 5] == 16 && tx[i + 9] == 4 && tx[i + 11] == 0x31) flags_ok++;

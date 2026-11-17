@@ -10,14 +10,14 @@
 #ifndef KLONG_MEMORY_H
 #define KLONG_MEMORY_H
 
-/* The interpreter's stack, from the top of RAM down: 137 KB. A build with another stack (`KLONG_STACK_KB=96 ./build.sh`)
+/* The interpreter's stack, from the top of RAM down: 112 KB. A build with another stack (`KLONG_STACK_KB=96 ./build.sh`)
  * has another heap: the bytes between the end of .bss and the bottom of the stack that it gets are printed by build.sh
  * (the whole of RAM is 270,336 bytes less 54,764 of .data and .bss, which is about 215 KB to share). */
 #ifndef KLONG_STACK_BYTES
-#define KLONG_STACK_BYTES (137u * 1024)
+#define KLONG_STACK_BYTES (112u * 1024)
 /* The bytes of heap that the image built with that stack has at least (from its linker map; main.c refuses to start
  * with less). The host test models an arena of exactly this size. */
-#define KH_TESTED_ARENA 73000u
+#define KH_TESTED_ARENA 98000u
 #elif !defined(KH_TESTED_ARENA)
 #define KH_TESTED_ARENA 0u /* another stack: nothing tested at that size */
 #endif

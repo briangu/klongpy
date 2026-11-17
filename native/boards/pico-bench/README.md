@@ -36,15 +36,17 @@ The SDK and the toolchain are only read. Nothing is flashed and no port is opene
 `build.sh`: `KLONG_SELFTEST=0` leaves the boot self-test out, `LANE_BAUD=115200` builds for the
 slow lane, `KLONG_OPT=z` makes the smaller image.
 
-Measured on 2026-11-16 (SDK 2.3.1, GCC 15.3.1), the image of the last round: `.bin` 641,468 bytes
-(31% of the 2 MB flash; the `.uf2` is 1,283,072 bytes because of its 256-byte blocks); with
+Measured on 2026-11-17 (SDK 2.3.1, GCC 15.3.1), the image of the seventh round: `.bin` 656,332 bytes
+(31% of the 2 MB flash; the `.uf2` is 1,312,768 bytes because of its 256-byte blocks); with
 `KLONG_OPT=z` about 430,000. RAM, from the linker's symbols (`build.sh` prints it): `.data` and
-`.bss` 54,764 bytes (the evaluator's hot functions 16 KB, the 16 KB receive ring, the 8 KB transmit
-ring), a heap of 75,284 bytes, the interpreter's stack of 140,288 bytes from the top of RAM, of
-270,336 in all. `KLONG_STACK_KB=96 ./build.sh` gives the stack 96 KB and the heap what is left (the
+`.bss` 54,852 bytes (the evaluator's hot functions 16 KB, the 16 KB receive ring, the 8 KB transmit
+ring), a heap of 100,796 bytes, the interpreter's stack of 114,688 bytes from the top of RAM, of
+270,336 in all (`tools/check_layout.py` checks it, and `build.sh` runs it). `KLONG_STACK_KB=96 ./build.sh` gives the stack 96 KB and the heap what is left (the
 table in `docs/native/pico-bench.md#ram-stack-and-heap` has the other sizes). The reasons for the
-split and the predictions for this image (about 6,000 for the largest `#!n`, 155 to 160 levels of
-recursion, `fib(18)` 0.385 to 0.40 s, self-test 125 to 140 ms) are there.
+split and the predictions for this image (about 7,900 for the largest `#!n`, 105 to 109 levels of
+recursion, `fib(18)` 0.385 to 0.40 s, self-test 125 to 140 ms, begun about 3 s after boot) are there, with
+what failed on the boards in the sixth round and why. A node that restarted says why in the self-test's
+reports (` boot=hardfault pc=... lr=...`, `boot=stack`, `boot=fatal ...`, `boot=watchdog`, `boot=reset`).
 
 ## What it does with the hardware
 
@@ -59,7 +61,8 @@ recursion, `fib(18)` 0.385 to 0.40 s, self-test 125 to 140 ms) are there.
 | Frames it understands | PING, answered with PONG (type 2, source = this node, destination = the sender, **the same sequence, length 0**, opaque byte 16); datagram frames (APP_DATA, sub-types 0xD0..0xD3). It sends STATUS (type 3, to 16, **once a second**, length 4: `payload[0]` load 0..100 (always 0), `payload[1]` flags, `payload[2..3]` uptime seconds u16 LE, monotonic, saturating at 65535). Every other valid frame is ignored silently, in particular the deployer's APP_DATA sub-types 0xA0..0xB1 and 0xE1/0xE2 (tested with floods of them between datagram frames). |
 | Does not do | the bench OS's app loader (sub-types 0xA0..0xB1) and echo service (0xE1/0xE2): this image replaces that OS |
 | Reset | `.x(0)` restarts the chip through the watchdog |
-| Memory | interpreter stack 137 KB from the top of RAM (the stack pointer is moved there at start; Klong is given 133 KB, of which 16 KB are kept for what runs below its deepest level), heap: newlib `malloc` over the 73.5 KB between `.bss` and the stack, with `_sbrk` in `main.c`; the runtime's limit is the arena less 4% (72,273 bytes), a vector may take it up to 6 KB short of that (66,129), and `_sbrk` keeps the top 6 KB for small blocks (`klong_heap.h`); small blocks wait on free lists of their size class, up to 8 KB; lane buffers (7.8 KB for 6 reassembly slots, plus up to 16 KB of stream buffers per open connection) come from that heap |
+| Memory | interpreter stack 112 KB from the top of RAM (the stack pointer is moved there at start; Klong is given 108 KB, of which 16 KB are kept for what runs below its deepest level), heap: newlib `malloc` (`__real_malloc`: a NULL is an answer, not the SDK's panic) over the 98 KB between `.bss` and the stack, with `_sbrk` in `main.c`; the runtime counts each block as malloc holds it (`heap_overhead` 8), its limit is the arena less 8 KB of free blocks kept for reuse and 3% of holes, a vector may take it up to 6 KB short of that, and `_sbrk` keeps the top 6 KB for small blocks (`klong_heap.h`); lane buffers (7.8 KB for 6 reassembly slots, plus up to 16 KB of stream buffers per open connection) come from that heap |
+| Safety net | a HardFault handler, the watchdog (8 s, fed in the idle path), a canary at the bottom of the stack; the reason of a restart is in the self-test's reports as ` boot=...` |
 
 Ctrl-T (0x14) on the USB console prints the counters instead of reaching Klong: frames,
 datagram outcomes, UART overruns (`rx ring overruns` is the one that says the main loop was away
@@ -133,7 +136,7 @@ received and 5 us per frame sent (estimates for a Cortex-M0+ at 125 MHz); a real
 several times slower, so the waits below are generous.
 
 0. **Before anything**: `cd native && cargo test --release --workspace` passes, and
-   `./build.sh` made `build/klong_pico_bench.uf2` (check: its `.bin` is 641,468 bytes; the
+   `./build.sh` made `build/klong_pico_bench.uf2` (check: its `.bin` is 656,332 bytes; the
    lane is 4.5 Mbaud and the self-test is on). Decide which two Picos, say nodes 0 and 1 (any two:
    with nodes 1 and 3, node 3 tries 2, waits 3 s, and uses 1). The other two keep the bench
    firmware or stay in reset; this image ignores their frames and they ignore ours.
@@ -142,8 +145,8 @@ several times slower, so the waits below are generous.
 2. **Numbered and alive, within 3 s of the last flash finishing.** The supervisor's PING reaches
    each node within 1 s of boot; it answers with PONG, and STATUS follows once a second.
    Success: both nodes online, STATUS flags `0x31`.
-3. **The self-test, within 10 s** (the model says 1.2 s after boot at 4.5 Mbaud: 1 s of waiting
-   for the lower node to listen, 0.1 s of calls). Success, on the supervisor:
+3. **The self-test, within 10 s** (the model says 2 to 3 s after boot at 4.5 Mbaud: the numbering, 1 s of
+   waiting and 0.6 s more for each node number below 4, 0.1 s of calls). Success, on the supervisor:
    * the higher node's STATUS flags change from `0x31` to **`0x51`** (the next STATUS after the
      test, so at most 1 s later), and a channel-1 datagram from it reads
      `klong selftest pass <ms>ms node=1 peer=0 ...` (measured on the previous image: 125 ms; the model: 116 ms; accept up to 2000 ms);
@@ -180,14 +183,14 @@ several times slower, so the waits below are generous.
 
 Shown on 2026-11-16 (two Picos, the image flashed that day): the boot (the stack switch, the
 interrupt, the clock, the real baud rate well enough for the lane), the self-test, calls, the
-evaluator's `range` error at its depth limit (90 levels, 745 bytes a level: measured), the STATUS
+evaluator's `range` error at its depth limit (90 levels, about 864 bytes a level: measured at a limit of 80,640), the STATUS
 the supervisor accepts. Still open:
 
 * The USB CDC console and stdio set-up (no cable was on a Pico).
-* That the image of the last round (137 KB of stack from the top of RAM, a heap of 73.5 KB, a
+* That the image of the seventh round (112 KB of stack from the top of RAM, a heap of 98 KB, a
   hand-written `_sbrk`) boots and does what the predictions in `docs/native/pico-bench.md` say:
-  `f::{:[x;1+f(x-1);0]};f(150)` works and `f(200)` is a `range` error, `#!6000` works on a node that is idle
-  and on the client of the self-test alike, `#!8000` is a memory error after which `.mem()` shows the same
+  `f::{:[x;1+f(x-1);0]};f(100)` works and `f(150)` is a `range` error, `#!7500` works on a node that is idle
+  and on the client of the self-test alike, `#!9000` is a memory error after which `.mem()` shows the same
   use and a smaller vector works.
 * UART behaviour at 28,125 frames/s under a sustained bulk transfer in both directions: the interrupt keeping up
   (about 7% of the processor when saturated, an estimate), the FIFO never overrunning (71 us to

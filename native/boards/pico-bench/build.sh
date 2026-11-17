@@ -33,3 +33,8 @@ stack=${KLONG_STACK_KB:+$((KLONG_STACK_KB * 1024))}
 stack=${stack:-$(sed -n 's/^#define KLONG_STACK_BYTES (\([0-9]*\)u \* 1024)/\1/p' "$here/klong_memory.h" | head -1 | awk '{print $1 * 1024}')}
 top=$((0x20042000))
 echo "RAM: static $((0x$end - 0x20000000)) bytes, heap $((top - stack - 0x$end)) bytes, stack $stack bytes, of $((top - 0x20000000))"
+
+# The layout must be one the firmware can run: a bad one fails the build (see tools/check_layout.py)
+tested=$(sed -n 's/^#define KH_TESTED_ARENA \([0-9]*\)u.*/\1/p' "$here/klong_memory.h" | head -1)
+[ -n "${KLONG_STACK_KB:-}" ] && tested=0
+python3 "$here/tools/check_layout.py" "$here/build/klong_pico_bench.elf" --stack-bytes "$stack" --budget $((stack - 4096)) --keep 16384 --tested-arena "${tested:-0}"

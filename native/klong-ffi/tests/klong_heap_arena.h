@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "klong_memory.h"
 
@@ -20,7 +21,9 @@ typedef struct mock_chunk {
 
 static _Alignas(8) uint8_t mock_arena[KH_TESTED_ARENA];
 static mock_chunk *mock_free_list;
-static size_t mock_used_bytes;
+static size_t mock_used_bytes, mock_phys_peak;
+static long mock_live, mock_live_peak;
+static size_t mock_arena_bytes = KH_TESTED_ARENA;
 static void *mock_sbrk(long incr);
 
 static void mock_init(void);

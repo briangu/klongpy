@@ -5,7 +5,7 @@
 static void *mock_sbrk(long incr) { return kh_sbrk(incr); }
 
 static void mock_init(void) {
-    kh_init((char *)mock_arena, (char *)mock_arena + (KH_TESTED_ARENA & ~7u));
+    kh_init((char *)mock_arena, (char *)mock_arena + (mock_arena_bytes & ~7u));
     mock_free_list = NULL;
 }
 
@@ -45,6 +45,9 @@ static void *mock_malloc(size_t n) {
         mock_free_list = c->next;
     }
     mock_used_bytes += c->size;
+    memset((uint8_t *)c + 16, 0xAA, c->size - 16);
+    mock_live++; if (mock_live > mock_live_peak) mock_live_peak = mock_live;
+    if (mock_used_bytes > mock_phys_peak) mock_phys_peak = mock_used_bytes;
     return (uint8_t *)c + 8;
 }
 
@@ -52,6 +55,8 @@ static void mock_free(void *p) {
     if (!p) return;
     mock_chunk *c = (mock_chunk *)((uint8_t *)p - 8);
     mock_used_bytes -= c->size;
+    mock_live--;
+    memset((uint8_t *)c + 16, 0xDD, c->size - 16);
     mock_chunk *prev = NULL, *n = mock_free_list;
     while (n && n < c) prev = n, n = n->next;
     c->next = n;

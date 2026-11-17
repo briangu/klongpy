@@ -38,8 +38,13 @@ use crate::{Platform, Runtime};
 const REPORT_EVERY_MS: u64 = 3000;
 const RETRY_FAIL_MS: u64 = 15_000;
 const RETRY_NO_PEER_MS: u64 = 10_000;
+const RETRY_SOON_MS: u64 = 1_500;
+const PROBE_HANDSHAKE_US: u64 = 400_000;
 /// Let the lower nodes start listening before the first connection attempt.
 const START_DELAY_MS: u64 = 1000;
+/// A node starts 600 ms later than the one above it (up to node 4): a node that probes a lower node that is mute waits for it
+/// and serves nobody meanwhile, so the higher nodes ask first, and are done (a pass is 125 ms) before the lower one probes.
+const START_STAGGER_MS: u64 = 600;
 const STEP_LIMIT_US: u64 = 20_000_000;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -70,6 +75,8 @@ pub struct SelfTest {
     /// When the last report went out; `None`: one is due now.
     last_report: Option<u64>,
     pub attempts: u32,
+    /// Why the board restarted (a fault, the watchdog), kept in every report until the next restart.
+    note: String,
 }
 
 impl Default for SelfTest {
@@ -89,7 +96,12 @@ fn first_line(e: &str) -> String {
 
 impl SelfTest {
     pub fn new() -> SelfTest {
-        SelfTest { state: State::Boot, node: 0, peer: None, result: String::new(), steps: Vec::new(), total_ms: 0, last_report: None, attempts: 0 }
+        SelfTest { state: State::Boot, node: 0, peer: None, result: String::new(), steps: Vec::new(), total_ms: 0, last_report: None, attempts: 0, note: String::new() }
+    }
+
+    /// The reason of the restart, for the reports (empty: a power-on or an ordinary reset).
+    pub fn set_note(&mut self, note: String) {
+        self.note = note;
     }
 
     pub fn verdict(&self) -> Verdict {
@@ -210,6 +222,15 @@ impl SelfTest {
     }
 
     fn text(&self, rt_calls: u64, running: bool) -> String {
+        let mut t = self.text_main(rt_calls, running);
+        if !self.note.is_empty() {
+            t.push_str(" boot=");
+            t.push_str(&self.note);
+        }
+        t
+    }
+
+    fn text_main(&self, rt_calls: u64, running: bool) -> String {
         let n = self.node;
         match &self.state {
             State::Passed => {
@@ -241,7 +262,7 @@ impl SelfTest {
                 self.state = State::Ready { since: now };
                 did = true;
             }
-            State::Ready { since } if now >= since + START_DELAY_MS => {
+            State::Ready { since } if now >= since + START_DELAY_MS + START_STAGGER_MS * (4 - self.node.min(4) as u64) => {
                 did = true;
                 self.attempts += 1;
                 self.find_and_run(rt, net, now);
@@ -271,6 +292,13 @@ impl SelfTest {
         self.peer = None;
         // the nodes below this one, nearest first
         let mut found = false;
+        // A node that does not answer (the bench's other firmware sits below the first Klong node) is waited for while
+        // this node serves nobody: a blocked `.cli` answers no hello of another node's. A Klong node answers in a few
+        // milliseconds (27 ms at 115200), so the probe waits a fraction of a second, not the 3 s of a real connection;
+        // with 3 s each, the lowest Klong node was deaf for 6 s after every boot and the one above it, which asked in that
+        // time, waited 10 s to ask again (measured on the boards, 2026-11-17).
+        let hs = net.handshake_timeout_us();
+        net.set_handshake_timeout_us(PROBE_HANDSHAKE_US.min(hs));
         for k in (0..self.node).rev() {
             if Self::eval(rt, &format!("h::.cli(\"node:{}\")", k)).is_ok() {
                 self.peer = Some(k);
@@ -278,8 +306,12 @@ impl SelfTest {
                 break;
             }
         }
+        net.set_handshake_timeout_us(hs);
         if !found {
-            self.state = State::NoPeer { retry_at: Self::now_ms(rt) + RETRY_NO_PEER_MS };
+            // asked again soon at first (the node above may have asked while this one was probing), then every 10 s
+            // (each node waits a second longer than the one below it, so that two nodes that probe do not probe at the same time)
+            let wait = if self.attempts < 4 { RETRY_SOON_MS + 1000 * self.node as u64 } else { RETRY_NO_PEER_MS };
+            self.state = State::NoPeer { retry_at: Self::now_ms(rt) + wait };
             return;
         }
         match self.run_steps(rt, net) {

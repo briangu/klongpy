@@ -271,6 +271,15 @@ class Session:
             with open(py, "w") as f:
                 f.write(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
             os.chmod(py, 0o755)
+            # The first run of a script that was just written can take a minute on a loaded macOS (the system scans it first), and a
+            # server started in the background by a page, with the wait of a few seconds that the page gives it, is then not up when
+            # its client comes: run each once here, where waiting costs nothing.
+            for exe in (shim, py):
+                try:
+                    subprocess.run([exe, "-c" if exe == py else "-h"] + (["pass"] if exe == py else []), stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, timeout=300)
+                except (subprocess.SubprocessError, OSError):
+                    pass
             for name in path:
                 target = os.path.join(ROOT, name)
                 if not os.path.isdir(target) or os.path.isabs(name) or ".." in name.split("/"):

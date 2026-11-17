@@ -487,6 +487,16 @@ impl NodeNet {
         self.0.try_borrow().ok().and_then(|c| c.lane.node())
     }
 
+    /// How long a connection waits for the answer to its hello, microseconds (the connections made from now on).
+    pub fn handshake_timeout_us(&self) -> u64 {
+        self.0.try_borrow().map(|c| c.cfg.handshake_timeout_us).unwrap_or(0)
+    }
+    pub fn set_handshake_timeout_us(&self, us: u64) {
+        if let Ok(mut c) = self.0.try_borrow_mut() {
+            c.cfg.handshake_timeout_us = us;
+        }
+    }
+
     /// Keep the last `n` messages that arrive on channels other than IPC (what a supervisor
     /// reads: the self-test's report, the console's text), with their sources.
     pub fn keep_log(&self, n: usize) {

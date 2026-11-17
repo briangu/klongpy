@@ -296,7 +296,7 @@ $ klong --steps 1000 -e '{1}{x+1}:~0'
   ^^^^^^^^^^^
 ```
 
-The figures in the stack-budget lines are for this 64-bit host. On a 32-bit board a level of Klong recursion costs about 0.75 KiB: 745 bytes measured on a Pico (Cortex-M0+, `thumbv6m`, 2026-11-16) for `f::{:[x;1+f(x-1);0]}`, 530 for a call with no operator around it (so 90 and 120 levels in 69,120 bytes), against about 0.8 to 2 KiB on the host. The stack budget is used as `bytes` less what is kept below the deepest level (a quarter by default; a board can say, `Config::for_stack_keep`: the Pico keeps 16 KiB of 133 KiB), so 64 KiB gives about 60 levels and 256 KiB about 250 at the default.
+The figures in the stack-budget lines are for this 64-bit host. On a 32-bit board a level of Klong recursion costs about 0.85 KiB: 864 bytes by the frames of the thumbv6m image (`f::{:[x;1+f(x-1);0]}`: it reached 90 levels and failed at 95 on a Pico at a limit of 80,640 bytes, 2026-11-16), against about 0.8 to 2 KiB on the host. The stack budget is used as `bytes` less what is kept below the deepest level (a quarter by default; a board can say, `Config::for_stack_keep`: the Pico keeps 16 KiB of 133 KiB), so 64 KiB gives about 60 levels and 256 KiB about 250 at the default.
 
 With `--stats` the program reports what it used, on standard error: the peak heap, the heap in use, the limit and the number of refused allocations (`heap: peak 23174 bytes, in use 15679 bytes, limit 0, refused 0` for the program below, on the machine of this page; the heap numbers vary a little), the deepest nesting of evaluations and the native stack. The heap figures are bytes requested from the allocator and include the interpreter's own state of about 15 KiB on the desktop.
 

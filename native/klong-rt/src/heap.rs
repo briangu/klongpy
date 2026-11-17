@@ -27,6 +27,7 @@ pub struct Counting<A> {
     peak: AtomicUsize,
     limit: AtomicUsize,
     reserve: AtomicUsize,
+    overhead: AtomicUsize,
     every: AtomicUsize,
     count: AtomicUsize,
     failed: AtomicUsize,
@@ -40,6 +41,7 @@ impl<A> Counting<A> {
             peak: AtomicUsize::new(0),
             limit: AtomicUsize::new(0),
             reserve: AtomicUsize::new(0),
+            overhead: AtomicUsize::new(0),
             every: AtomicUsize::new(0),
             count: AtomicUsize::new(0),
             failed: AtomicUsize::new(0),
@@ -49,6 +51,21 @@ impl<A> Counting<A> {
     pub fn set_limit(&self, limit: usize, reserve: usize) {
         self.limit.store(limit, Relaxed);
         self.reserve.store(reserve.min(limit / 2), Relaxed);
+    }
+    /// Bytes the allocator beneath keeps for each block (malloc's header): every block is counted as its size rounded to 8
+    /// plus this, at least 16 in all, so that what is counted is what the arena holds and the limit can be the arena's size.
+    /// 0 (the default): the size asked for, as before.
+    pub fn set_overhead(&self, per_block: usize) {
+        self.overhead.store(per_block, Relaxed);
+    }
+    /// What a block of `size` bytes takes.
+    fn cost(&self, size: usize) -> usize {
+        let o = self.overhead.load(Relaxed);
+        if o == 0 {
+            size
+        } else {
+            ((size.saturating_add(7) & !7).saturating_add(o)).max(16)
+        }
     }
     pub fn used(&self) -> usize {
         self.used.load(Relaxed)
@@ -78,6 +95,11 @@ impl<A> Counting<A> {
     }
 
     fn admit(&self, size: usize) -> bool {
+        self.admit_cost(self.cost(size), size)
+    }
+
+    /// `add` bytes more in use, for a request of `size` (large requests keep the reserve).
+    fn admit_cost(&self, add: usize, size: usize) -> bool {
         if size >= LARGE {
             let every = self.every.load(Relaxed);
             if every != 0 {
@@ -92,7 +114,7 @@ impl<A> Counting<A> {
         if limit == 0 {
             return true;
         }
-        let after = self.used.load(Relaxed).saturating_add(size);
+        let after = self.used.load(Relaxed).saturating_add(add);
         if after > limit {
             return false;
         }
@@ -123,28 +145,30 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for Counting<A> {
         // SAFETY: the caller's contract for `alloc` is passed on unchanged.
         let p = unsafe { self.inner.alloc(layout) };
         if !p.is_null() {
-            self.account(layout.size());
+            self.account(self.cost(layout.size()));
         }
         p
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        self.release(layout.size());
+        self.release(self.cost(layout.size()));
         // SAFETY: `ptr` came from `self.inner` with this layout.
         unsafe { self.inner.dealloc(ptr, layout) }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         let old = layout.size();
-        if new_size > old && !self.admit(new_size - old) {
+        // growing is an allocation, a copy and a free (the default `realloc` of the allocator beneath): both blocks are there
+        // at once, so the whole of the new one is asked for while the old one is still counted
+        if new_size > old && !self.admit_cost(self.cost(new_size), new_size - old) {
             self.failed.store(self.failed.load(Relaxed) + 1, Relaxed);
             return core::ptr::null_mut();
         }
         // SAFETY: the caller's contract for `realloc` is passed on unchanged.
         let p = unsafe { self.inner.realloc(ptr, layout, new_size) };
         if !p.is_null() {
-            self.release(old);
-            self.account(new_size);
+            self.release(self.cost(old));
+            self.account(self.cost(new_size));
         }
         p
     }

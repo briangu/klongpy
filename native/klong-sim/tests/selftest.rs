@@ -196,3 +196,24 @@ fn the_selftest_leaves_nothing_of_the_library_or_its_variables() {
     c.ok(".l(\"mgmt\")");
     assert_eq!(c.ok("mgmt.names()"), "[]");
 }
+
+/// The bench as it is: nodes 0 and 1 run other firmware and answer nothing, nodes 2 and 3 run the image. Node 2 probes the two
+/// below it and waits for each (a blocked `.cli` serves nobody), so node 3 must ask it before that, or after: on the boards the
+/// image whose nodes both probed at once left node 3 without a peer for 10 s and then, the first time it connected, out of memory.
+#[test]
+fn the_node_above_a_probing_node_is_not_left_without_a_peer() {
+    let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    for baud in BAUDS {
+        let b = bench(4, baud);
+        b.node(0).mute.set(true);
+        b.node(1).mute.set(true);
+        let mut r = Reports(vec![]);
+        let took = until(&b, &mut r, 3, "klong selftest pass ", 60);
+        println!("METRIC [{} baud] nodes 0 and 1 mute: node 3 passes after {:.1} s: {}", baud, took, r.last(3).unwrap());
+        assert!(r.last(3).unwrap().contains("peer=2"));
+        // (the first attempt: no 10 s wait)
+        assert!(took < if baud > 1_000_000 { 4.0 } else { 9.0 }, "{} s", took);
+        let took2 = until(&b, &mut r, 2, "klong selftest ", 30);
+        assert!(took2 < 30.0);
+    }
+}

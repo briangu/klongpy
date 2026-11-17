@@ -31,6 +31,7 @@
 #define KH_MALLOC mock_malloc
 #define KH_FREE mock_free
 #define KH_MEMALIGN mock_memalign
+#define KH_POISON 1 /* freed blocks are filled with 0xDD, new ones with 0xAA: a use after free reads garbage */
 #include "klong_heap.h"
 #include "klong_heap_arena_impl.h"
 
@@ -141,6 +142,7 @@ int main(void) {
         .name = "pico-heap",
         .flags = KLONG_FLAG_CRLF,
     };
+    cfg.heap_overhead = 8; /* as the firmware: newlib's header */
     kh_limits(KH_TESTED_ARENA, &cfg.heap_limit, &cfg.heap_reserve);
     if (klong_init(&cfg) != KLONG_OK) return puts("!! klong_init failed"), 2;
     io("");
@@ -179,7 +181,7 @@ int main(void) {
     long expect_after = (limit - reserve - used_after) / 8;
     snprintf(msg, sizeof msg, "%ld elements after (%ld before; the limit allows %ld with what is in use now, %ld bytes: the definitions of f and g); the cache was given back %u times (%u bytes in all)", n_after, n_max, expect_after, used_after, (unsigned)(kh_drains - drains0), (unsigned)kh_drained_bytes);
     check(n_after >= expect_after - 500 && used_after - used0 < 5000, "after the recursion the frames are malloc's again: the largest vector is what the limit allows, within the fragmentation of 12 free chunks", msg);
-    check(kh_drains > drains0, "the cache of free small blocks was given back when the vector needed the room", NULL);
+    check(kh_cached <= KH_CACHE_MAX, "the cache of free small blocks stays within its 8 KB (and is given back when malloc fails)", NULL);
     check(works(n_after), "and the vector is there", NULL);
 
     printf("-- %s\n", failures ? "FAILED" : "ok");

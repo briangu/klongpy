@@ -24,6 +24,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #ifndef KH_MALLOC
 #include <malloc.h>
@@ -36,11 +37,13 @@
 #define KH_CLASSES (KH_SMALL_MAX / 8u)
 #define KH_CACHE_MAX (8u * 1024)
 
-/* The runtime's heap limit counts the bytes it asked for. What it does not count and the arena holds: malloc's
- * header on each block (8 bytes, and a little more for the rounding), the rounding of a small block to 8, and what is
- * not Klong's (the USB stack's few allocations). KH_SLACK is what is kept for that: 4% of the arena and at least
- * 2 KB. A request of LARGE bytes or more (klong-rt/src/heap.rs) is refused KH_RESERVE bytes before the limit, so
- * that the smaller requests of unwinding, printing the error and the next prompt find room. */
+/* The runtime counts each block as malloc holds it (`heap_overhead`: the 8-byte header, sizes rounded to 8, at least 16), so
+ * what it counts is what its blocks take of the arena. Not counted, and in the arena: the free blocks on the cache (up to
+ * KH_CACHE_MAX), and what first-fit leaves in holes (KH_FRAG: 3% of the arena, at least 2 KB). The limit is the arena less
+ * those. A request of LARGE bytes or more (klong-rt/src/heap.rs) is refused KH_RESERVE bytes before the limit, so that the
+ * smaller requests of unwinding, printing the error and the next prompt find room. Every block, small or large, is taken with
+ * the room of an arena that cannot give out more than the limit allows: a vector that does not fit is a `memory` error, never
+ * a NULL where nothing can be done with it. */
 #define KH_RESERVE (6u * 1024)
 #define KH_SLACK_MIN (2u * 1024)
 
@@ -66,9 +69,9 @@ static inline void *kh_sbrk(long incr) {
 
 /* heap_limit and heap_reserve for klong_config, from the bytes of the arena. */
 static inline void kh_limits(size_t arena, size_t *limit, size_t *reserve) {
-    size_t slack = arena / 25;
-    if (slack < KH_SLACK_MIN) slack = KH_SLACK_MIN;
-    *limit = arena - slack;
+    size_t frag = arena / 32;
+    if (frag < KH_SLACK_MIN) frag = KH_SLACK_MIN;
+    *limit = arena - KH_CACHE_MAX - frag;
     *reserve = KH_RESERVE;
 }
 
@@ -99,12 +102,18 @@ static void *kh_small_alloc(size_t size) {
     if (p) {
         kh_free_list[c] = *(void **)p;
         kh_cached -= (uint32_t)(c << 3);
+#ifdef KH_POISON
+        memset(p, 0xAA, c << 3);
+#endif
         return p;
     }
     kh_small = 1;
     p = KH_MALLOC(c << 3);
     if (!p && kh_drain()) p = KH_MALLOC(c << 3);
     kh_small = 0;
+#ifdef KH_POISON
+    if (p) memset(p, 0xAA, c << 3);
+#endif
     return p;
 }
 
@@ -122,6 +131,9 @@ static void kh_free(void *ctx, void *ptr, size_t size, size_t align) {
     if (size <= KH_SMALL_MAX && align <= 8) {
         size_t c = ((size ? size : 1) + 7u) >> 3;
         if (kh_cached + (c << 3) <= KH_CACHE_MAX) {
+#ifdef KH_POISON
+            memset(ptr, 0xDD, c << 3); /* the host test: a block that is read after it was freed reads 0xDDDD... */
+#endif
             *(void **)ptr = kh_free_list[c];
             kh_free_list[c] = ptr;
             kh_cached += (uint32_t)(c << 3);

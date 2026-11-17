@@ -87,6 +87,12 @@ typedef struct klong_config {
      * evaluator gets the rest). A board that has measured what it needs there can give the
      * evaluator more; at least 2048. */
     size_t stack_keep;
+
+    /* Bytes the allocator keeps for each block besides its size (malloc's header: 8 for newlib's).
+     * With it every block is counted as its size rounded to 8 plus this, at least 16 (what
+     * the arena holds), so heap_limit can be the arena's size less what is not counted;
+     * 0: the sizes asked for. */
+    size_t heap_overhead;
 } klong_config;
 
 /* Build the runtime, run boot.kg if the file system has one, print the banner
@@ -137,6 +143,7 @@ typedef struct klong_lane_config {
     uint32_t flags;       /* KLONG_LANE_* */
     uint32_t baud;        /* the lane's baud rate (0: 115200): picks packet size and timeouts */
     const uint32_t *counters; /* NULL, or 4 counters the driver keeps: rx ring overruns, rx FIFO overruns, line errors, tx ring full */
+    const char *note;     /* NULL, or why the board restarted (a fault, the watchdog), at most 120 characters: the self-test's reports carry it as ` boot=...` */
 } klong_lane_config;
 
 typedef struct klong_lane_stats {

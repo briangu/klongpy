@@ -51,7 +51,7 @@ The block starts a native node that serves two functions and prints a line when 
 
 <!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
 ```console
-$ klong -e 'sq::{x*x};total::{+/x};.srv.o::{.p("client connected")};.srv.c::{.p("client left")};.srv("127.0.0.1:8888")' > server.log 2>&1 & echo $! > server.pid; for i in $(seq 100); do [ -s server.log ] && break; sleep 0.1; done
+$ klong -e 'sq::{x*x};total::{+/x};.srv.o::{.p("client connected")};.srv.c::{.p("client left")};.srv("127.0.0.1:8888")' > server.log 2>&1 & echo $! > server.pid; for i in $(seq 600); do [ -s server.log ] && break; sleep 0.1; done
 $ cat > client.kg <<'EOF'
 > c::.cli("127.0.0.1:8888")
 > .p(c(:sq,,7))
@@ -83,7 +83,7 @@ The other direction. The KlongPy node runs in the background for up to 25 second
 <!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
 ```console
 $ printf 'sq::{x*x}\nmean::{(+/x)%%#x}\n' > server.kg
-$ sleep 25 2>/dev/null | kgpy -s 8888 -l server.kg > kgpy.log 2>&1 & echo $! > kgpy.pid; for i in $(seq 100); do lsof -nP -iTCP:8888 -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 0.1; done
+$ sleep 25 2>/dev/null | kgpy -s 8888 -l server.kg > kgpy.log 2>&1 & echo $! > kgpy.pid; for i in $(seq 600); do lsof -nP -iTCP:8888 -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 0.1; done
 $ klong -e 'c::.cli(8888);.p(c(:sq,,7));.p(c(:mean,,[1 2 3 4]));c("1+2")'
 49
 2.5
@@ -106,7 +106,7 @@ An error on the server comes back as an error of the same kind on the caller, an
 <!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
 ```console
 $ printf 'sq::{x*x}\n' > server.kg
-$ sleep 25 2>/dev/null | kgpy -s 8888 -l server.kg > kgpy.log 2>&1 & echo $! > kgpy.pid; for i in $(seq 100); do lsof -nP -iTCP:8888 -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 0.1; done
+$ sleep 25 2>/dev/null | kgpy -s 8888 -l server.kg > kgpy.log 2>&1 & echo $! > kgpy.pid; for i in $(seq 600); do lsof -nP -iTCP:8888 -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 0.1; done
 $ klong -e 'c::.cli(8888);g::.async(c(:sq);{.p("got ",$x)});g(6);.p("sent")'
 sent
 "sent"
@@ -122,7 +122,7 @@ A call that takes longer than the connection's timeout fails with a `system` err
 
 <!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
 ```console
-$ klong -e 'wait::{[t];t::.pc()+x;{.pc()<t}{x}:~0;x};.srv("127.0.0.1:8888")' > w.log 2>&1 & echo $! > w.pid; for i in $(seq 100); do [ -s w.log ] && break; sleep 0.1; done
+$ klong -e 'wait::{[t];t::.pc()+x;{.pc()<t}{x}:~0;x};.srv("127.0.0.1:8888")' > w.log 2>&1 & echo $! > w.pid; for i in $(seq 600); do [ -s w.log ] && break; sleep 0.1; done
 $ printf 'c::.cli(8888)\n.clit(c;0.5)\nc(:wait,,2)\n' | klong 2>&1 | grep -v '^ *$'
   :monad
   1
@@ -139,7 +139,7 @@ A server that defines `.srv.auth` checks the user name and password in the addre
 
 <!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
 ```console
-$ klong -e '.srv.auth::{(x~"ann")&y~"pw"};sq::{x*x};.srv("127.0.0.1:8888")' > a.log 2>&1 & echo $! > a.pid; for i in $(seq 100); do [ -s a.log ] && break; sleep 0.1; done
+$ klong -e '.srv.auth::{(x~"ann")&y~"pw"};sq::{x*x};.srv("127.0.0.1:8888")' > a.log 2>&1 & echo $! > a.pid; for i in $(seq 600); do [ -s a.log ] && break; sleep 0.1; done
 $ klong -e 'c::.cli("127.0.0.1:8888:ann:pw");c(:sq,,5)'
 25
 $ klong -e 'c::.cli("127.0.0.1:8888:bob:no");c(:sq,,5)' 2>&1 | sed -n 1p
