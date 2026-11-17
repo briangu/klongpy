@@ -14,14 +14,14 @@
 //! 3. `echo`: 500 integers (4 KB) there and back, compared;
 //! 4. `mgmt`: the management library (`mgmt.call`) on the peer; skipped when the library is not built in.
 //!
-//! The verdict is reported to address 16 on datagram channel 1, as text, every 3 seconds, and
+//! The verdict is reported to address 16 on datagram channel 3, as text, every 3 seconds, and
 //! as the flags byte of STATUS (`klong_dgram::lane::STATUS_SELFTEST_*`):
 //!
 //! | State | STATUS flags | Report text |
 //! |---|---|---|
-//! | serving (a server, or a client that found no peer yet, or is running the steps) | `0x21` | `klong selftest serving node=N calls=C` or `... running ...` |
-//! | passed | `0x41` | `klong selftest pass 212ms node=N peer=K sync=3ms echo=130ms calls=C` |
-//! | failed | `0x81` | `klong selftest fail STEP REASON node=N peer=K` |
+//! | serving (a server, or a client that found no peer yet, or is running the steps) | `0x31` | `klong selftest serving node=N calls=C` or `... running ...` |
+//! | passed | `0x51` | `klong selftest pass 212ms node=N peer=K sync=3ms echo=130ms calls=C` |
+//! | failed | `0x91` | `klong selftest fail STEP REASON node=N peer=K` |
 //!
 //! The first number after `pass` is the total time of the four steps in milliseconds, measured
 //! with the board clock. A failed test is run again after 15 seconds and a missing peer is looked for
@@ -32,7 +32,7 @@ use alloc::vec::Vec;
 
 use klong_dgram::lane::{STATUS_SELFTEST_FAIL, STATUS_SELFTEST_PASS, STATUS_SELFTEST_RUNNING};
 
-use crate::node::{NodeNet, CH_CONSOLE};
+use crate::node::{NodeNet, CH_SELFTEST};
 use crate::{Platform, Runtime};
 
 const REPORT_EVERY_MS: u64 = 3000;
@@ -173,7 +173,10 @@ impl SelfTest {
             Err(_) => {}
             Ok(_) => {
                 Self::eval(rt, &format!("mgmt.add(\"p\";\"node:{}\")", self.peer.unwrap_or(0))).map_err(|e| ("mgmt", e))?;
-                Self::check(rt, "mgmt", &format!("mgmt.call(\"p\";[:stping{}]@0;[9])", k), "9")?;
+                let r = Self::check(rt, "mgmt", &format!("mgmt.call(\"p\";[:stping{}]@0;[9])", k), "9");
+                // the library's connection to the peer is closed, so that `.cli` to it works afterwards
+                let _ = Self::eval(rt, ".clic((mgmt.nodes?\"p\")?\"h\")");
+                r?;
                 done(self, rt, "mgmt");
             }
         }
@@ -230,7 +233,7 @@ impl SelfTest {
             let calls = Self::calls(rt);
             let text = self.text(calls, running);
             // a datagram to the supervisor on channel 1; if the sender is busy, the next turn tries again
-            if let Ok(true) = net.send(klong_dgram::frame::SUPERVISOR, CH_CONSOLE, text.as_bytes(), false) {
+            if let Ok(true) = net.send(klong_dgram::frame::SUPERVISOR, CH_SELFTEST, text.as_bytes(), false) {
                 self.last_report = Some(now);
             }
             did = true;

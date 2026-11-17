@@ -378,29 +378,21 @@ fn console_channel_between_lanes_body(baud: u32) {
     let b = Bench::new(2, opts(baud));
     let n = b.node(1);
     let mut buf = [0u8; 64];
-    assert!(b.sup.send(1, 1, b"1+1\r", false).unwrap());
-    let ok = b.spin_until(1_000_000, || n.net.console_peer().is_some());
-    assert!(ok.is_some());
-    let k = n.net.console_read(&mut buf);
-    assert_eq!(&buf[..k], b"1+1\r");
-    assert_eq!(n.net.console_peer(), Some(16));
-    n.net.console_write(b"2\r\nklong> ");
+    assert!(b.sup.send(1, 1, b"1+1\n", true).unwrap());
+    b.spin_until(1_000_000, || n.net.console_peer().is_some()).expect("the input arrives");
+    // (the node's own console is polled by the bench: it evaluated the line)
     let mut got = vec![];
     b.spin_until(2_000_000, || {
-        let k = b.sup.console_read(&mut buf);
-        got.extend_from_slice(&buf[..k]);
-        got.len() >= 9
+        got.extend(b.sup.take_log());
+        got.iter().any(|g| g.1 == 2)
     })
-    .expect("the reply");
-    assert_eq!(got, b"2\r\nklong> ");
-    // another node's console traffic does not leak: node 0 has nobody attached
+    .expect("done");
+    let text: Vec<u8> = got.iter().filter(|g| g.1 == 1).flat_map(|g| g.2.clone()).collect();
+    assert_eq!(text, b"2\n");
+    assert!(got.iter().any(|g| g.1 == 2 && g.2.starts_with(b"done ") && g.2.ends_with(b" ok")), "{:?}", got);
+    // another node's console has nobody attached, and nothing leaks to it
     assert_eq!(b.node(0).net.console_peer(), None);
-    // detach with ^D: output stops going to the lane
-    assert!(b.sup.send(1, 1, &[4], false).unwrap());
-    b.spin_until(1_000_000, || n.net.console_peer().is_none()).expect("detached");
-    n.net.console_write(b"nobody listens");
-    b.spin_ms(300);
-    assert_eq!(b.sup.console_read(&mut buf), 0);
+    assert_eq!(n.net.console_read(&mut buf), 0);
 }
 
 both! {

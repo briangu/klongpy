@@ -99,6 +99,12 @@ ring drained by interrupt, and a boot self-test that reports to the supervisor a
 Pico shell. `docs/native/pico-bench.md` has the design, the sizes and the simulator results; the
 image was built and linked, not run.
 
+The lane's console (`docs/native/pico-bench.md` "Interactive use"): channel 1 is console
+text (input datagrams with the ACK flag, one at a time; no echo or prompt), channel 2 is `done`, `int` and
+`hello`, channel 3 the self-test; a port wires it with `klong_console::Console::lane_begin` and `lane_end`
+around each turn of its main loop (`klong_ffi` does) and `NodeNet::console_local_input` when somebody types
+on the local console.
+
 ## Budget
 
 Flash, linked image of `klong-board` (`sh native/scripts/measure.sh`, section "klong-board-image";

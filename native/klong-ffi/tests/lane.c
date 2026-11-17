@@ -81,7 +81,7 @@ static void put_frame(uint8_t type, uint8_t src, uint8_t dst, uint16_t seq, uint
 /* a message from the supervisor to node `dst` on `chan`, as START, DATA, END */
 static void put_message(uint8_t dst, uint8_t chan, uint16_t id, const char *text) {
     size_t n = strlen(text), i;
-    uint8_t start[4] = {(uint8_t)n, (uint8_t)(n >> 8), 0, chan};
+    uint8_t start[4] = {(uint8_t)n, (uint8_t)(n >> 8), (uint8_t)(chan == 1 ? 1 : 0), chan}; /* console input asks for an ACK */
     uint32_t crc = crc32((const uint8_t *)text, n);
     uint8_t end[4] = {(uint8_t)crc, (uint8_t)(crc >> 8), (uint8_t)(crc >> 16), (uint8_t)(crc >> 24)};
     put_frame(9, 16, dst, id, 0xd0, start, 4);
@@ -99,6 +99,7 @@ static void run(int turns, uint64_t ms_per_turn) {
 /* every frame the board sent since `from`, reassembled: datagrams to the supervisor on `chan` */
 static size_t collect(size_t from, uint8_t chan, char *out, size_t cap, int *pongs, int *statuses) {
     size_t i, len = 0;
+    int cur = -1;
     for (i = from; i + 16 <= tx_len; i += 16) {
         const uint8_t *f = tx + i;
         if (f[0] != 0xa5 || f[1] != 0x5a || crc16(f + 2, 12) != (uint16_t)(f[14] | f[15] << 8)) {
@@ -108,19 +109,19 @@ static size_t collect(size_t from, uint8_t chan, char *out, size_t cap, int *pon
         }
         if (f[3] == 2 && pongs) (*pongs)++;
         if (f[3] == 3 && statuses) (*statuses)++;
-        if (f[3] == 9 && f[8] == 0xd1 && f[5] == 16 && len + f[9] < cap) {
+        if (f[3] == 9 && f[8] == 0xd0 && f[5] == 16) cur = f[13];
+        if (f[3] == 9 && f[8] == 0xd1 && f[5] == 16 && cur == chan && len + f[9] < cap) {
             memcpy(out + len, f + 10, f[9]);
             len += f[9];
         }
     }
-    (void)chan;
     out[len] = 0;
     return len;
 }
 
 #define CHECK(cond, ...) do { if (!(cond)) { printf("FAIL line %d: ", __LINE__); printf(__VA_ARGS__); printf("\n"); failures++; } } while (0)
 
-/* The boot self-test on node 0: serving, STATUS flags 0x21, a report datagram to 16 on channel 1. */
+/* The boot self-test on node 0: serving, STATUS flags 0x31, a report datagram to 16 on channel 1. */
 static int selftest_main(void) {
     klong_config cfg;
     klong_lane_config lane;
@@ -154,10 +155,10 @@ static int selftest_main(void) {
     lane.flags = KLONG_LANE_SELFTEST;
     CHECK(klong_lane_init(&lane) == KLONG_OK, "lane init");
     run(40, 100);
-    collect(0, 1, text, sizeof text, NULL, &statuses);
+    collect(0, 3, text, sizeof text, NULL, &statuses);
     for (i = 0; i + 16 <= tx_len; i += 16)
-        if (tx[i + 3] == 3 && tx[i + 5] == 16 && tx[i + 9] == 4 && tx[i + 11] == 0x21) flags_ok++;
-    CHECK(statuses >= 3 && flags_ok == statuses, "STATUS frames with flags 0x21: %d of %d", flags_ok, statuses);
+        if (tx[i + 3] == 3 && tx[i + 5] == 16 && tx[i + 9] == 4 && tx[i + 11] == 0x31) flags_ok++;
+    CHECK(statuses >= 3 && flags_ok == statuses, "STATUS frames with flags 0x31: %d of %d", flags_ok, statuses);
     CHECK(strstr(text, "klong selftest serving node=0 calls=0") != NULL, "report: [%s]", text);
     printf("report: [%s]\n", text);
     klong_lane_stats_get(&st);
@@ -170,7 +171,7 @@ int main(int argc, char **argv) {
     klong_config cfg;
     klong_lane_config lane;
     klong_lane_stats st;
-    char text[512];
+    char text[512], text2[128];
     int pongs = 0, statuses = 0;
     size_t mark;
 
@@ -232,6 +233,9 @@ int main(int argc, char **argv) {
     run(40, 5);
     collect(mark, 1, text, sizeof text, NULL, NULL);
     CHECK(strstr(text, "3") != NULL, "console reply on the lane: [%s]", text);
+    CHECK(strstr(text, "klong> ") == NULL && strstr(text, "1+2") == NULL, "no prompt and no echo for a datagram peer: [%s]", text);
+    collect(mark, 2, text2, sizeof text2, NULL, NULL);
+    CHECK(strcmp(text2, "done 100 ok") == 0, "done on channel 2: [%s]", text2);
     printf("console reply: [%s]\n", text);
 
     /* a second line, a longer reply */
@@ -241,11 +245,24 @@ int main(int argc, char **argv) {
     run(80, 5);
     collect(mark, 1, text, sizeof text, NULL, NULL);
     CHECK(strstr(text, "499500") != NULL, "second reply: [%s]", text);
+    collect(mark, 2, text2, sizeof text2, NULL, NULL);
+    CHECK(strcmp(text2, "done 101 ok") == 0, "done on channel 2: [%s]", text2);
+    /* an error, hello and int when idle */
+    mark = tx_len;
+    rx_len = rx_pos = 0;
+    put_message(2, 1, 102, "1+\"a\"\r");
+    put_message(2, 2, 103, "hello");
+    put_message(2, 2, 104, "int");
+    run(80, 5);
+    collect(mark, 2, text2, sizeof text2, NULL, NULL);
+    CHECK(strstr(text2, "done 102 error") != NULL && strstr(text2, "klong 0.0.1 node=2 lane-test int64 float64") != NULL, "error, hello: [%s]", text2);
+    collect(mark, 1, text, sizeof text, NULL, NULL);
+    CHECK(strstr(text, "error") != NULL, "the error text is on channel 1: [%s]", text);
 
     klong_lane_stats_get(&st);
     printf("lane: rx %u tx %u ignored %u pings %u delivered %u console peer %d bad %u skipped %u\n", st.frames_rx, st.frames_tx, st.frames_ignored, st.pings, st.datagrams_delivered, st.console_peer, st.bad_frames, st.skipped_bytes);
     CHECK(st.console_peer == 16, "console peer");
-    CHECK(st.datagrams_delivered == 2, "two datagrams delivered, got %u", st.datagrams_delivered);
+    CHECK(st.datagrams_delivered == 5, "five datagrams delivered, got %u", st.datagrams_delivered);
     CHECK(st.frames_ignored >= 1, "ignored frames");
     CHECK(st.skipped_bytes > 0, "noise skipped");
 

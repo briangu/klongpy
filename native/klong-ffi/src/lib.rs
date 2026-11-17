@@ -128,9 +128,14 @@ impl Uart for CUart {
             _ => 0,
         };
         #[cfg(feature = "lane")]
-        if n == 0 {
-            // nothing typed on the console port: the console channel of the lane
-            return lane::console_read(buf);
+        {
+            if n > 0 {
+                // somebody typed on the local console: the lane's peer no longer owns the output
+                lane::local_input();
+            } else {
+                // nothing typed on the console port: the console channel of the lane
+                return lane::console_read(buf);
+            }
         }
         n
     }
@@ -301,9 +306,12 @@ pub extern "C" fn klong_step() -> i32 {
     match unsafe { &mut *state } {
         Some(s) => {
             s.stepping = true;
+            #[cfg(feature = "lane")]
+            lane::turn_begin(&mut s.console);
             let mut busy = klong_board::step(&mut s.console);
             #[cfg(feature = "lane")]
             {
+                lane::turn_end(&mut s.console);
                 busy |= lane::selftest_step(&mut s.console.rt);
             }
             s.stepping = false;
@@ -399,6 +407,11 @@ mod lane {
         pub inbox_overflow: u32,
         pub console_dropped: u32,
         pub console_peer: i32,
+        /// Console output with no peer to go to (bytes), input dropped for lack of room (datagrams), and
+        /// channel-1 datagrams without the ACK flag, which are another console's output (datagrams).
+        pub console_no_peer: u32,
+        pub console_in_dropped: u32,
+        pub console_unsolicited: u32,
         pub uart_rx_ring_overruns: u32,
         pub uart_rx_fifo_overruns: u32,
         pub uart_line_errors: u32,
@@ -460,6 +473,29 @@ mod lane {
             l.net.pump();
         }
     }
+    pub fn local_input() {
+        if let Some(l) = get() {
+            if l.console {
+                l.net.console_local_input();
+            }
+        }
+    }
+    /// Before and after one turn of the main loop (`klong_step`): the console is quiet while the
+    /// lane's input is being evaluated, and tells the lane when it has finished with a datagram.
+    pub fn turn_begin(c: &mut klong_console::Console<super::Board>) {
+        if let Some(l) = get() {
+            if l.console {
+                c.lane_begin(&l.net);
+            }
+        }
+    }
+    pub fn turn_end(c: &mut klong_console::Console<super::Board>) {
+        if let Some(l) = get() {
+            if l.console {
+                c.lane_end(&l.net);
+            }
+        }
+    }
     pub fn console_read(buf: &mut [u8]) -> usize {
         match get() {
             Some(l) if l.console => l.net.console_read(buf),
@@ -506,6 +542,7 @@ mod lane {
                 node: if cfg.node >= 0 { Some(cfg.node as u8) } else { None },
             },
             epoch_seed: (cfg.seed >> 16) as u16 ^ cfg.seed as u16,
+            target: state.console.rt.shared.platform.try_borrow().map(|p| alloc::string::String::from(p.system.name())).unwrap_or_default(),
             ..base
         };
         let net = NodeNet::new(Box::new(CLane(cfg)), Box::new(|| CClock::now_ms().saturating_mul(1000)), node);
@@ -558,6 +595,9 @@ mod lane {
             s.ipc_out = c.messages_out;
             s.inbox_overflow = c.inbox_overflow;
             s.console_dropped = c.console_dropped;
+            s.console_no_peer = c.console_no_peer;
+            s.console_in_dropped = c.console_in_dropped;
+            s.console_unsolicited = c.console_unsolicited;
             s.console_peer = l.net.console_peer().map_or(-1, |p| p as i32);
             let u = l.net.uart_counters();
             s.uart_rx_ring_overruns = u.rx_ring_overruns;

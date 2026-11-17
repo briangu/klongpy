@@ -461,7 +461,7 @@ fn lane_learns_its_number_and_answers_ping() {
     assert!(l.poll_tx(900).is_none());
     let s = Frame::decode(&l.poll_tx(1005).unwrap()).unwrap();
     assert_eq!((s.ftype, s.src, s.dst), (T_STATUS, 2, 16));
-    assert_eq!(s.payload[1], 1);
+    assert_eq!(s.payload[1], 0x11);
     assert!(l.poll_tx(1500).is_none());
     assert!(l.poll_tx(2005).is_some());
 }
@@ -513,7 +513,7 @@ fn frames_from_the_supervisor_side_tool() {
 #[test]
 fn liveness_frames_are_exact() {
     use klong_dgram::lane::{STATUS_ALIVE, STATUS_SELFTEST_FAIL, STATUS_SELFTEST_PASS, STATUS_SELFTEST_RUNNING};
-    assert_eq!((STATUS_ALIVE, STATUS_SELFTEST_RUNNING, STATUS_SELFTEST_PASS, STATUS_SELFTEST_FAIL), (0x01, 0x21, 0x41, 0x81));
+    assert_eq!((STATUS_ALIVE, STATUS_SELFTEST_RUNNING, STATUS_SELFTEST_PASS, STATUS_SELFTEST_FAIL), (0x11, 0x31, 0x51, 0x91));
     let mut l: Lane<64, 2> = Lane::new(LaneConfig { node: Some(3), ..cfg() });
     // a PING with a payload and an odd opaque byte: the PONG has the same sequence and length 0
     feed(&mut l, Frame::new(T_PING, 16, 3, 0xbeef, 77, &[1, 2]), 10);
@@ -526,9 +526,36 @@ fn liveness_frames_are_exact() {
     for t in [1010u64, 2020, 3030, 70_000_000] {
         let s = Frame::decode(&l.poll_tx(t).unwrap()).unwrap();
         assert_eq!((s.ftype, s.dst, s.len), (T_STATUS, 16, 4));
-        assert_eq!((s.payload[0], s.payload[1]), (100, 0x41));
+        assert_eq!((s.payload[0], s.payload[1]), (100, 0x51));
         ups.push(s.payload[2] as u16 | (s.payload[3] as u16) << 8);
         assert!(l.poll_tx(t + 500).is_none());
     }
     assert_eq!(ups, vec![1, 2, 3, 65535]);
+}
+
+#[test]
+fn a_gated_channel_has_one_owner_at_a_time() {
+    let mut d = dg(0);
+    d.set_gate(1);
+    let mut got = vec![];
+    let mut feed = |d: &mut Dg, fs: &[Frame]| {
+        for f in fs {
+            d.on_frame_id(f, 0, &mut |s, c, id, _, b| got.push((s, c, id, b.to_vec())));
+        }
+    };
+    feed(&mut d, &frames(16, 0, 7, 1, FLAG_ACK, b"1+1\n"));
+    assert_eq!(d.gate_owner(), Some(16));
+    // another source on the same channel is refused (ACK 2) and may try again later; the channel 0 is free
+    feed(&mut d, &frames(2, 0, 5, 1, FLAG_ACK, b"2+2\n"));
+    feed(&mut d, &frames(2, 0, 6, 0, FLAG_ACK, b"free"));
+    // output of another console (no ACK asked for) is not input: the gate does not stop it, and it does not take the gate
+    feed(&mut d, &frames(3, 0, 9, 1, 0, b"out\n"));
+    let acks: Vec<_> = acks(&mut d).iter().map(|a| (a.dst, a.seq, a.payload[0])).collect();
+    assert_eq!(acks, vec![(16, 7, 0), (2, 5, 2), (2, 6, 0)]);
+    assert_eq!(d.gate_owner(), Some(16));
+    // the owner may go on; the id is given with the message
+    feed(&mut d, &frames(16, 0, 8, 1, FLAG_ACK, b"3+3\n"));
+    d.release_gate();
+    feed(&mut d, &frames(2, 0, 5, 1, FLAG_ACK, b"2+2\n"));
+    assert_eq!(got.iter().map(|g| (g.0, g.1, g.2)).collect::<Vec<_>>(), vec![(16, 1, 7), (2, 0, 6), (3, 1, 9), (16, 1, 8), (2, 1, 5)]);
 }

@@ -144,7 +144,11 @@ pub struct Datagrams<const MAX: usize, const SLOTS: usize> {
     tx_crc: u32,
     tx_deadline: u64,
     next_id: u16,
-    result: Option<SendResult>,
+    /// What became of the last messages, oldest first (four are kept).
+    results: [Option<SendResult>; 4],
+    /// A channel that only one source may use at a time (the console: the node that is typing).
+    gate_chan: Option<u8>,
+    gate_owner: Option<u8>,
     pub stats: Stats,
 }
 
@@ -172,7 +176,9 @@ impl<const MAX: usize, const SLOTS: usize> Datagrams<MAX, SLOTS> {
             tx_crc: 0,
             tx_deadline: 0,
             next_id: cfg.first_id,
-            result: None,
+            results: [None; 4],
+            gate_chan: None,
+            gate_owner: None,
             stats: Stats { delivered: 0, duplicates: 0, broken: 0, refused: 0, abandoned: 0, stray: 0, resent: 0, frames_out: 0 },
         }
     }
@@ -188,11 +194,31 @@ impl<const MAX: usize, const SLOTS: usize> Datagrams<MAX, SLOTS> {
         MAX
     }
 
+    /// Make `chan` a single-owner channel: the source of the first message that is delivered on it
+    /// owns it until [`Datagrams::release_gate`]; a message from another source meanwhile is
+    /// refused (ACK 2, not delivered, not remembered as delivered: it may be sent again).
+    pub const fn set_gate(&mut self, chan: u8) {
+        self.gate_chan = Some(chan);
+    }
+    pub const fn release_gate(&mut self) {
+        self.gate_owner = None;
+    }
+    pub const fn gate_owner(&self) -> Option<u8> {
+        self.gate_owner
+    }
+
     // ----- sending ------------------------------------------------------------------------
 
     /// Start sending `data` to `dest` on `channel`. Frames are produced by [`Datagrams::poll_tx`].
     /// The message is copied; `ack` asks the receiver to confirm. Returns the message id.
     pub fn send(&mut self, dest: u8, channel: u8, data: &[u8], ack: bool) -> Result<u16, SendError> {
+        let id = self.next_id;
+        self.send_as(dest, channel, data, ack, id)
+    }
+
+    /// [`Datagrams::send`] with the message id chosen by the caller (a supervisor that numbers every
+    /// message it sends, whatever it is for, from one counter). The next automatic id follows it.
+    pub fn send_as(&mut self, dest: u8, channel: u8, data: &[u8], ack: bool, id: u16) -> Result<u16, SendError> {
         let own = self.own.ok_or(SendError::NoAddress)?;
         if self.tx != Tx::Idle {
             return Err(SendError::Busy);
@@ -209,13 +235,12 @@ impl<const MAX: usize, const SLOTS: usize> Datagrams<MAX, SLOTS> {
         self.tx_dest = dest;
         self.tx_chan = channel;
         self.tx_flags = if ack { FLAG_ACK } else { 0 };
-        self.tx_id = self.next_id;
-        self.next_id = self.next_id.wrapping_add(1);
+        self.tx_id = id;
+        self.next_id = id.wrapping_add(1);
         self.tx_crc = crc32(data);
         self.tx_cursor = 0;
         self.tx_tries = 0;
         self.tx = Tx::Sending;
-        self.result = None;
         Ok(self.tx_id)
     }
 
@@ -224,14 +249,26 @@ impl<const MAX: usize, const SLOTS: usize> Datagrams<MAX, SLOTS> {
         self.tx != Tx::Idle
     }
 
-    /// What became of the last message, once, when it is over.
+    /// What became of the oldest message whose outcome has not been taken, once, when it is over.
     pub fn take_result(&mut self) -> Option<SendResult> {
-        self.result.take()
+        let r = self.results[0].take();
+        if r.is_some() {
+            self.results.copy_within(1..4, 0);
+            self.results[3] = None;
+        }
+        r
     }
 
     fn finish(&mut self, outcome: Outcome) {
         self.tx = Tx::Idle;
-        self.result = Some(SendResult { id: self.tx_id, dest: self.tx_dest, outcome });
+        let r = SendResult { id: self.tx_id, dest: self.tx_dest, outcome };
+        match self.results.iter().position(|x| x.is_none()) {
+            Some(i) => self.results[i] = Some(r),
+            None => {
+                self.results.copy_within(1..4, 0);
+                self.results[3] = Some(r);
+            }
+        }
     }
 
     fn tx_frame(&self, k: usize) -> Frame {
@@ -320,7 +357,12 @@ impl<const MAX: usize, const SLOTS: usize> Datagrams<MAX, SLOTS> {
     /// Process a frame addressed to this node. Frames that are not datagram frames are
     /// ignored. A completed message is handed to `deliver(source, channel, bytes)` once, and
     /// before this returns.
-    pub fn on_frame(&mut self, f: &Frame, _now_ms: u64, deliver: &mut dyn FnMut(u8, u8, &[u8])) {
+    pub fn on_frame(&mut self, f: &Frame, now_ms: u64, deliver: &mut dyn FnMut(u8, u8, &[u8])) {
+        self.on_frame_id(f, now_ms, &mut |s, c, _, _, b| deliver(s, c, b))
+    }
+
+    /// [`Datagrams::on_frame`], with the message id (the sequence of its START) and the flags byte of its START given to `deliver` too.
+    pub fn on_frame_id(&mut self, f: &Frame, _now_ms: u64, deliver: &mut dyn FnMut(u8, u8, u16, u8, &[u8])) {
         if f.ftype != T_APP_DATA || f.src > SUPERVISOR || f.src == FPGA {
             return;
         }
@@ -389,7 +431,7 @@ impl<const MAX: usize, const SLOTS: usize> Datagrams<MAX, SLOTS> {
         m.next += 1;
     }
 
-    fn rx_end(&mut self, s: usize, f: &Frame, deliver: &mut dyn FnMut(u8, u8, &[u8])) {
+    fn rx_end(&mut self, s: usize, f: &Frame, deliver: &mut dyn FnMut(u8, u8, u16, u8, &[u8])) {
         let m = self.meta[s];
         if m.state == Rx::Idle || m.id != f.seq {
             self.stats.stray += 1;
@@ -408,6 +450,8 @@ impl<const MAX: usize, const SLOTS: usize> Datagrams<MAX, SLOTS> {
             }
             _ => {
                 let len = m.len as usize;
+                // only messages that ask for an ACK (input: output of another console does not) belong to the gate
+                let gated = self.gate_chan == Some(m.chan) && m.flags & FLAG_ACK != 0;
                 let buf = &self.bufs[m.slot as usize][..len];
                 let mut c = Crc32::new();
                 c.update(buf);
@@ -417,10 +461,16 @@ impl<const MAX: usize, const SLOTS: usize> Datagrams<MAX, SLOTS> {
                 } else if m.last == m.id as u32 {
                     self.stats.duplicates += 1;
                     ACK_DELIVERED
+                } else if gated && self.gate_owner.is_some_and(|o| o != s as u8) {
+                    self.stats.refused += 1;
+                    ACK_REFUSED
                 } else {
                     self.meta[s].last = m.id as u32;
                     self.stats.delivered += 1;
-                    deliver(s as u8, m.chan, buf);
+                    if gated {
+                        self.gate_owner = Some(s as u8);
+                    }
+                    deliver(s as u8, m.chan, m.id, m.flags, buf);
                     ACK_DELIVERED
                 }
             }

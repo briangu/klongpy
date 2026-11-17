@@ -18,7 +18,7 @@ struct Reports(Vec<(u8, String)>);
 impl Reports {
     fn collect(&mut self, b: &Bench) {
         for (src, chan, m) in b.sup.take_log() {
-            assert_eq!(chan, 1);
+            assert_eq!(chan, 3);
             self.0.push((src, String::from_utf8_lossy(&m).into_owned()));
         }
     }

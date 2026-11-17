@@ -177,9 +177,9 @@ static void print_stats(void) {
     klong_heap(&used, &peak, &limit);
     printf("\r\nlane: node %d  frames rx %lu tx %lu ignored %lu pings %lu  bad crc %lu, noise bytes skipped %lu\r\n", (int)klong_lane_node(), (unsigned long)st.frames_rx,
            (unsigned long)st.frames_tx, (unsigned long)st.frames_ignored, (unsigned long)st.pings, (unsigned long)st.bad_frames, (unsigned long)st.skipped_bytes);
-    printf("datagrams: delivered %lu duplicate %lu broken %lu refused %lu resent %lu  ipc in %lu out %lu, inbox overflow %lu  console peer %d dropped %lu\r\n",
+    printf("datagrams: delivered %lu duplicate %lu broken %lu refused %lu resent %lu  ipc in %lu out %lu, inbox overflow %lu  console peer %d, output dropped %lu, with no peer %lu, input dropped %lu, unsolicited %lu\r\n",
            (unsigned long)st.datagrams_delivered, (unsigned long)st.datagrams_duplicate, (unsigned long)st.datagrams_broken, (unsigned long)st.datagrams_refused,
-           (unsigned long)st.datagrams_resent, (unsigned long)st.ipc_in, (unsigned long)st.ipc_out, (unsigned long)st.inbox_overflow, (int)st.console_peer, (unsigned long)st.console_dropped);
+           (unsigned long)st.datagrams_resent, (unsigned long)st.ipc_in, (unsigned long)st.ipc_out, (unsigned long)st.inbox_overflow, (int)st.console_peer, (unsigned long)st.console_dropped, (unsigned long)st.console_no_peer, (unsigned long)st.console_in_dropped, (unsigned long)st.console_unsolicited);
     printf("uart %lu baud: rx ring overruns %lu, fifo overruns %lu, line errors %lu, tx ring full %lu  heap used %lu peak %lu of %lu\r\n", (unsigned long)lane_actual_baud,
            (unsigned long)lane_counters[0], (unsigned long)lane_counters[1], (unsigned long)lane_counters[2], (unsigned long)lane_counters[3], (unsigned long)used, (unsigned long)peak, (unsigned long)limit);
     printf("selftest: %s\r\n", st.selftest == 1 ? "pass" : st.selftest == 2 ? "fail" : "running, serving or off");

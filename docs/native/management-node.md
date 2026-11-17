@@ -53,7 +53,7 @@ Start three nodes. Each defines `sq` and serves one port:
 
 <!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
 ```console
-$ for i in 1 2 3; do klong -e "sq::{x*x};.srv(\"127.0.0.1:$((8888+i))\")" > n$i.log 2>&1 & echo $! > n$i.pid; done; sleep 1
+$ for i in 1 2 3; do klong -e "sq::{x*x};.srv(\"127.0.0.1:$((8888+i))\")" > n$i.log 2>&1 & echo $! > n$i.pid; done; for i in $(seq 100); do [ -s n1.log ] && [ -s n2.log ] && [ -s n3.log ] && break; sleep 0.1; done
 ```
 
 Write the management node's program. It registers the nodes, starts the liveness check every 0.3 seconds, defines one helper, and serves the management port. The ports are the arguments of the program, which a file reads from `.a`:
@@ -69,7 +69,7 @@ $ cat > mgr.kg <<'EOF'
 > states::{{(mgmt.nodes?x)?"state"}'mgmt.names()}
 > .srv("127.0.0.1:",.a@3)
 > EOF
-$ klong mgr.kg $((8888+1)) $((8888+2)) $((8888+3)) $((8888+10)) > mgr.log 2>&1 & echo $! > mgr.pid; sleep 1; cat mgr.log
+$ klong mgr.kg $((8888+1)) $((8888+2)) $((8888+3)) $((8888+10)) > mgr.log 2>&1 & echo $! > mgr.pid; for i in $(seq 100); do lsof -nP -iTCP:$((8888+10)) -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 0.1; done; cat mgr.log
 ```
 
 The management node prints nothing. `klong` stays alive because a timer runs and a server listens.

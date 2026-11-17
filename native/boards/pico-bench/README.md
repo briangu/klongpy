@@ -34,8 +34,8 @@ The SDK and the toolchain are only read. Nothing is flashed and no port is opene
 `build.sh`: `KLONG_SELFTEST=0` leaves the boot self-test out, `LANE_BAUD=115200` builds for the
 slow lane, `KLONG_OPT=z` makes the smaller image.
 
-Measured on 2026-11-16 (SDK 2.3.1, GCC 15.3.1): `.bin` 618,300 bytes (30% of the 2 MB flash;
-the `.uf2` is 1,236,992 bytes because of its 256-byte blocks); with `KLONG_OPT=z` about 430,000.
+Measured on 2026-11-16 (SDK 2.3.1, GCC 15.3.1): `.bin` 623,172 bytes (30% of the 2 MB flash;
+the `.uf2` is 1,246,720 bytes because of its 256-byte blocks); with `KLONG_OPT=z` about 430,000.
 Static RAM: `.data` 9.3 KB, `.bss` 93.7 KB (of which the interpreter's 48 KB stack, the 32 KB
 receive ring and the 8 KB transmit ring), 159 KB left for the heap, of which Klong may use 112 KB.
 
@@ -64,17 +64,7 @@ too long), heap use, the self-test verdict.
   `Klong 0.0.1 (pico-bench, int64 float64)` is printed at start, before a host can be there,
   so press Enter for the prompt `klong> `. `native/tools/kgupload.py PORT ver` works; `put` and `run` work
   (the file system is in RAM, in the Klong heap, and is lost at reset).
-* **Lane (a proposal for the bench owner, not part of the bench protocol)**: datagram channel
-  **1** carries the same console byte stream.
-  * Any message on channel 1 to the node attaches its sender as the console's peer (the last
-    sender wins) and its bytes are typed into the console. Messages are text; a line ends with
-    `\r`.
-  * The console's output goes to USB and, while a peer is attached, to that peer in messages
-    of up to 240 bytes on channel 1, without ACK, best effort, in order. 2 KB are buffered;
-    more is dropped (`console_dropped` in the counters).
-  * A message of the single byte `0x04` detaches the peer.
-  * `tools/lane_frames.py send 0 '1+2\r'` prints the frames a supervisor puts on its lane to
-    type `1+2` on node 0.
+* **Lane**: datagram channel **1** is the console for the supervisor's page or `tools/klong_bench.py` (see "Interactive Klong" below): input datagrams with the ACK flag that end at a line end, output as text to the sender, `done`, `int` and `hello` on channel 2. `tools/lane_frames.py send 0 '1+2\n' --ack` prints the frames of such an input for any other tool to put on a lane.
 
 ## The boot self-test
 
@@ -96,10 +86,10 @@ text, first at the end of the test and then every 3 seconds, and as the flags by
 
 | State | STATUS flags | Report text (channel 1, to 16) |
 |---|---|---|
-| alive, no self-test (an image built with `KLONG_SELFTEST=0`) | `0x01` | none |
-| serving, looking for a peer, or running | **`0x21`** | `klong selftest serving node=N calls=C` or `klong selftest running node=N calls=C` |
-| passed | **`0x41`** | `klong selftest pass 94ms node=N peer=K sync=1ms echo=79ms calls=C` |
-| failed | **`0x81`** | `klong selftest fail STEP REASON node=N peer=K`, STEP one of `sync async echo mgmt`, REASON the error's kind and message |
+| alive, no self-test (an image built with `KLONG_SELFTEST=0`) | `0x11` | none |
+| serving, looking for a peer, or running | **`0x31`** | `klong selftest serving node=N calls=C` or `klong selftest running node=N calls=C` |
+| passed | **`0x51`** | `klong selftest pass 94ms node=N peer=K sync=1ms echo=79ms calls=C` |
+| failed | **`0x91`** | `klong selftest fail STEP REASON node=N peer=K`, STEP one of `sync async echo mgmt`, REASON the error's kind and message |
 
 The number after `pass` is the time of the four steps in milliseconds. `calls` is how many
 calls this node answered as a server. A node that is not number 0 and finds nobody below it
@@ -108,6 +98,24 @@ looks again every 10 seconds; a failed test is run again after 15 seconds; a pas
 bench's own OS uses STATUS flag bits 1 and 2 for its apps, so these values (bits 5 to 7) cannot
 be mistaken for it. The report's channel is also the console's, so a supervisor that reads
 channel 1 sees these lines among any console text.
+
+## Interactive Klong from a page or a workstation
+
+**Status: the node side and the workstation CLI are built and tested in the simulator, against a model of the supervisor's bridge and against a stand-in for its HTTP API; no Pico has run them.** `docs/native/pico-bench.md`, "Interactive use", has the format.
+
+On the node: channel 1 is the console (input datagrams with the ACK flag, ending at a line end, at most 1024 bytes; output as text without ACK to the address that last sent input; no echo and no prompt on the lane), channel 2 is control (`done ID ok|error|interrupted` after the output, `int` to interrupt, `hello`), channel 3 is the boot self-test report. STATUS flags are `0x11` alive, `0x31` self-test serving or running, `0x51` pass, `0x91` fail (bit `0x10`: not a cube node), and the load is 100 while input is being evaluated. Ctrl-T on the USB console shows `console peer`, the dropped input and output counts.
+
+Once the supervisor has the bridge (`GET /klong` is the page; the routes are `/klong/eval`, `/klong/output`, `/klong/interrupt`, `/klong/nodes`, `/klong/control`):
+
+    export KLONG_BENCH_HOST=bench.local          # the supervisor; not written in any file of the repository
+    native/tools/klong_bench.py status           # which nodes are Klong nodes, their load and self-test line
+    native/tools/klong_bench.py repl --node 1    # a REPL; Ctrl-C interrupts the node, Ctrl-D leaves
+    native/tools/klong_bench.py eval --node 1 'sq::{x*x};sq(12)'
+    native/tools/klong_bench.py run  --node 1 program.kg   # uploads and runs (text, lines up to 1023 bytes)
+
+Only one client types at a time, as on the BASIC page: the first input claims control when nobody has it, `--take` asks the one that has it. During a page session only the supervisor should type into the nodes' consoles: output goes to whoever sent input last, so another node typing into a node's console takes its output away from the page. A node typing at the same time as the supervisor is refused (ACK status 2) while an evaluation of the supervisor's input is running.
+
+What works today only in simulation: all of it. `native/tools/bench_bridge_sim.py` serves the same routes in front of the simulator (`cargo build --release` in `native/` first), and `tests/test_native_bench_cli.py` and `native/klong-sim/tests/console_bridge.rs` run the sessions: a REPL, multi-line programs, errors, a runaway loop interrupted, 14 KB of output, upload and run of a file, two nodes in turn, the self-test staying off the console, IPC between nodes while a console is in use.
 
 ## Hardware test plan, two Picos
 
@@ -118,7 +126,7 @@ received and 5 us per frame sent (estimates for a Cortex-M0+ at 125 MHz); a real
 several times slower, so the waits below are generous.
 
 0. **Before anything**: `cd native && cargo test --release --workspace` passes, and
-   `./build.sh` made `build/klong_pico_bench.uf2` (check: its `.bin` is 618,300 bytes; the
+   `./build.sh` made `build/klong_pico_bench.uf2` (check: its `.bin` is 623,172 bytes; the
    lane is 4.5 Mbaud and the self-test is on). Decide which two Picos, say nodes 0 and 1 (any two:
    with nodes 1 and 3, node 3 tries 2, waits 3 s, and uses 1). The other two keep the bench
    firmware or stay in reset; this image ignores their frames and they ignore ours.
@@ -126,19 +134,19 @@ several times slower, so the waits below are generous.
    twice). Each flash holds all four Picos in reset; when the second is done they all start.
 2. **Numbered and alive, within 3 s of the last flash finishing.** The supervisor's PING reaches
    each node within 1 s of boot; it answers with PONG, and STATUS follows once a second.
-   Success: both nodes online, STATUS flags `0x21`.
+   Success: both nodes online, STATUS flags `0x31`.
 3. **The self-test, within 10 s** (the model says 1.2 s after boot at 4.5 Mbaud: 1 s of waiting
    for the lower node to listen, 0.1 s of calls). Success, on the supervisor:
-   * the higher node's STATUS flags change from `0x21` to **`0x41`** (the next STATUS after the
+   * the higher node's STATUS flags change from `0x31` to **`0x51`** (the next STATUS after the
      test, so at most 1 s later), and a channel-1 datagram from it reads
      `klong selftest pass <ms>ms node=1 peer=0 ...` (the model: 94 ms; accept up to 2000 ms);
-   * the lower node stays at `0x21` and reports `klong selftest serving node=0 calls=5` (5 calls
+   * the lower node stays at `0x31` and reports `klong selftest serving node=0 calls=5` (5 calls
      answered: sync, async, sync, echo, mgmt), repeated every 3 s.
-4. **How long before it is a failure**: if after **30 s** no node has left `0x21`, or a node's flags
-   are `0x81`, the test failed. Read the failing step in the `fail` text (`sync` and `async`:
+4. **How long before it is a failure**: if after **30 s** no node has left `0x31`, or a node's flags
+   are `0x91`, the test failed. Read the failing step in the `fail` text (`sync` and `async`:
    the connection or the call; `echo`: a 4 KB message did not survive; `mgmt`: the library).
-   `0x81` repeats the test every 15 s, so a transient fault turns into `0x41` by itself.
-   Still `0x21` with `serving` on both after 30 s: the higher node did not find the lower one
+   `0x91` repeats the test every 15 s, so a transient fault turns into `0x51` by itself.
+   Still `0x31` with `serving` on both after 30 s: the higher node did not find the lower one
    (it was not numbered, or its frames did not arrive); with a cable, Ctrl-T on both shows
    `node` numbers, `frames rx/tx`, `bad crc`, `rx ring overruns`.
 5. **Then, with a cable on one Pico** (USB CDC): Enter gives `klong> `; `1+2` gives `3`;
@@ -147,9 +155,11 @@ several times slower, so the waits below are generous.
    `big::!6000;(h(:stecho0,,big))~big` gives `1` (48 KB each way in about 0.5 s in the model).
    `{1}{x+1}:~0` runs until Ctrl-C while the supervisor keeps seeing PONGs (the interrupt serves
    the lane); Ctrl-T afterwards must show `rx ring overruns 0`.
-6. **The console over the lane** (no cable; needs a supervisor-side sender, see
-   `tools/lane_frames.py send 0 '1+2\r'` for the frames): channel 1 to node 0 gets
-   `1+2\r\n3\r\nklong> ` back.
+6. **The console over the lane**, from the page or `klong_bench.py repl --node 0` once the bridge has it
+   (before that, `tools/lane_frames.py send 0 '1+2\n' --ack` prints the frames for any tool): the input is
+   acknowledged, channel 1 to the sender carries `3\n` (no echo, no prompt), and channel 2 `done ID ok`.
+   A line `1+"a"` gives the error text and `done ID error`; `{1}{x+1}:~0` runs with STATUS load 100
+   until the page's interrupt ends it with `interrupt error: interrupted` and `done ID interrupted`.
 7. **A reset in the middle**: from the cable, start a long call to the peer; the supervisor does
    `reset N` on the peer. Success: the call ends within about 1 s with a `system` error and the
    node keeps running; when the peer is numbered again (about 1 s) and the self-test runs again

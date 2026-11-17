@@ -45,6 +45,8 @@ pub struct SwitchStats {
     pub status_flags: [u8; 17],
     pub status_load: [u8; 17],
     pub status_uptime: [u16; 17],
+    /// Virtual microseconds of the last STATUS from each node (0: none yet).
+    pub status_at_us: [u64; 17],
     /// Bytes thrown away because a node's receive ring was full, per node port.
     pub rx_ring_overruns: [u64; 17],
     /// Bytes of damaged or torn frames the switch's parsers skipped.
@@ -146,6 +148,7 @@ impl Inner {
                                             self.stats.status_load[s] = f.payload[0];
                                             self.stats.status_flags[s] = f.payload[1];
                                             self.stats.status_uptime[s] = f.payload[2] as u16 | (f.payload[3] as u16) << 8;
+                                            self.stats.status_at_us[s] = at as u64;
                                         }
                                     }
                                     _ => {}

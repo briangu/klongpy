@@ -9,6 +9,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use klong_console::{Console, ConsoleConfig};
 use klong_core::{Config, Kind};
 use klong_dgram::{LaneConfig, Outcome};
 use klong_rt::link::Transport;
@@ -29,6 +30,7 @@ pub struct BenchPlatform {
     net: NodeNet,
     switch: Switch,
     seed: u64,
+    fs: klong_rt::memfs::MemFs,
 }
 
 impl BenchPlatform {
@@ -60,6 +62,9 @@ impl Platform for BenchPlatform {
         self.out.borrow_mut().extend_from_slice(bytes);
         self.net.console_write(bytes);
     }
+    fn fs(&mut self) -> Option<&mut dyn klong_rt::FileSystem> {
+        Some(&mut self.fs)
+    }
     fn transports(&mut self) -> &mut [Box<dyn Transport>] {
         &mut self.transports
     }
@@ -83,7 +88,8 @@ impl Platform for BenchPlatform {
 }
 
 pub struct BenchNode {
-    pub rt: Rc<RefCell<Runtime<BenchPlatform>>>,
+    /// The board's console (`console.rt` is its runtime): the datagram console's input goes through it.
+    pub console: Rc<RefCell<Console<BenchPlatform>>>,
     pub net: NodeNet,
     /// The boot self-test, when the bench was made with `selftest: true` (the firmware's own logic).
     pub selftest: RefCell<Option<SelfTest>>,
@@ -95,7 +101,8 @@ pub struct BenchNode {
 impl BenchNode {
     /// Evaluate source text; the value formatted, or the error's kind and message.
     pub fn run(&self, text: &str) -> Result<String, (Kind, String)> {
-        let mut rt = self.rt.borrow_mut();
+        let mut console = self.console.borrow_mut();
+        let rt = &mut console.rt;
         match rt.run(text, "<bench>") {
             Ok(Some(v)) => klong_core::fmt::format_value(&rt.interp.syms, &v, false).map_err(|e| (e.kind, e.message.to_string())),
             Ok(None) => Ok(String::new()),
@@ -148,6 +155,9 @@ impl Default for BenchOpts {
 
 type Nodes = Rc<RefCell<Vec<Rc<BenchNode>>>>;
 type Schedule = Rc<RefCell<Vec<(u64, Box<dyn FnOnce()>)>>>;
+/// Called from every board's idle hook, wherever the board is (inside an evaluation, say): a place for
+/// a program to look at its own input while the simulation is busy.
+type External = Rc<RefCell<Option<Box<dyn FnMut()>>>>;
 
 /// Run what has come due (a node that resets at a given moment, a cable that is cut).
 fn run_due(schedule: &Schedule, now: u64) {
@@ -168,13 +178,14 @@ pub struct Bench {
     pub switch: Switch,
     nodes: Nodes,
     schedule: Schedule,
+    external: External,
     /// The supervisor's lane, with the datagram layer on it (for the console channel and raw datagrams).
     pub sup: NodeNet,
     opts: BenchOpts,
     generation: Cell<u64>,
 }
 
-fn make_node(clock: &Rc<Cell<u64>>, switch: &Switch, opts: BenchOpts, index: usize, generation: u64, nodes: &Nodes, schedule: &Schedule) -> Rc<BenchNode> {
+fn make_node(clock: &Rc<Cell<u64>>, switch: &Switch, opts: BenchOpts, index: usize, generation: u64, nodes: &Nodes, schedule: &Schedule, external: &External) -> Rc<BenchNode> {
     let io = switch.port(index as u8, clock.clone());
     let c = clock.clone();
     let mut cfg = opts.node.map(|f| f()).unwrap_or_else(|| NodeConfig::for_baud(opts.baud));
@@ -198,14 +209,24 @@ fn make_node(clock: &Rc<Cell<u64>>, switch: &Switch, opts: BenchOpts, index: usi
         hook: hook.clone(),
         net: net.clone(),
         switch: switch.clone(),
+        fs: klong_rt::memfs::MemFs::new(),
         seed: opts.seed ^ (index as u64 + 1) * 0x9e37_79b9 ^ generation << 20,
     };
-    let rt = Rc::new(RefCell::new(Runtime::new(platform, Config::default(), None)));
+    let mut console = Console::new(Runtime::new(platform, Config::default(), None), ConsoleConfig::default());
+    console.start();
+    out.borrow_mut().clear(); // the banner and the first prompt
+    let console = Rc::new(RefCell::new(console));
     let weak = Rc::downgrade(nodes);
     let schedule = schedule.clone();
+    let external = external.clone();
     let clock = clock.clone();
     *hook.borrow_mut() = Some(Box::new(move || {
         run_due(&schedule, clock.get());
+        if let Ok(mut e) = external.try_borrow_mut() {
+            if let Some(f) = e.as_mut() {
+                f();
+            }
+        }
         let Some(nodes) = weak.upgrade() else { return };
         let list: Vec<Rc<BenchNode>> = match nodes.try_borrow() {
             Ok(l) => l.clone(),
@@ -220,12 +241,12 @@ fn make_node(clock: &Rc<Cell<u64>>, switch: &Switch, opts: BenchOpts, index: usi
             }
             // a board's main loop calls Platform::idle every turn, which pumps its lane
             o.net.pump();
-            if let Ok(mut rt) = o.rt.try_borrow_mut() {
-                rt.poll_events();
+            if let Ok(mut c) = o.console.try_borrow_mut() {
+                c.rt.poll_events();
             }
         }
     }));
-    Rc::new(BenchNode { rt, net, out, selftest: RefCell::new(if opts.selftest { Some(SelfTest::new()) } else { None }), mute: Cell::new(false) })
+    Rc::new(BenchNode { console, net, out, selftest: RefCell::new(if opts.selftest { Some(SelfTest::new()) } else { None }), mute: Cell::new(false) })
 }
 
 impl Bench {
@@ -238,18 +259,19 @@ impl Bench {
         switch.set_ring(opts.rx_ring, if opts.tx_ring == 0 { klong_dgram::tx_depth(opts.baud) } else { opts.tx_ring });
         let nodes: Nodes = Rc::new(RefCell::new(Vec::new()));
         let schedule: Schedule = Rc::new(RefCell::new(Vec::new()));
+        let external: External = Rc::new(RefCell::new(None));
         for i in 0..n {
-            let node = make_node(&clock, &switch, opts, i, 0, &nodes, &schedule);
+            let node = make_node(&clock, &switch, opts, i, 0, &nodes, &schedule, &external);
             nodes.borrow_mut().push(node);
         }
         let c = clock.clone();
         let sup = NodeNet::new(
             Box::new(switch.port(klong_dgram::frame::SUPERVISOR, clock.clone())),
             Box::new(move || c.get()),
-            NodeConfig { lane: LaneConfig { node: Some(klong_dgram::frame::SUPERVISOR), supervisor_duties: false, ..LaneConfig::default() }, ..NodeConfig::default() },
+            NodeConfig { lane: LaneConfig { node: Some(klong_dgram::frame::SUPERVISOR), supervisor_duties: false, ..LaneConfig::default() }, console: false, ..NodeConfig::for_baud(opts.baud) },
         );
         sup.keep_log(256);
-        let b = Bench { clock, switch, nodes, schedule, sup, opts, generation: Cell::new(0) };
+        let b = Bench { clock, switch, nodes, schedule, external, sup, opts, generation: Cell::new(0) };
         b.switch.set_pings(opts.pings);
         if opts.pings {
             b.spin_ms(60);
@@ -276,21 +298,26 @@ impl Bench {
     pub fn reset_node(&self, i: usize) {
         self.generation.set(self.generation.get() + 1);
         self.switch.clear_lane(i as u8);
-        let node = make_node(&self.clock, &self.switch, self.opts, i, self.generation.get(), &self.nodes, &self.schedule);
+        let node = make_node(&self.clock, &self.switch, self.opts, i, self.generation.get(), &self.nodes, &self.schedule, &self.external);
         self.nodes.borrow_mut()[i] = node;
     }
 
     /// Reset node `i` at virtual time `at_us`, wherever the others are then (inside a call that waits, say).
     pub fn reset_node_at(&self, i: usize, at_us: u64) {
-        let (clock, switch, opts, nodes, schedule) = (self.clock.clone(), self.switch.clone(), self.opts, self.nodes.clone(), self.schedule.clone());
+        let (clock, switch, opts, nodes, schedule, external) = (self.clock.clone(), self.switch.clone(), self.opts, self.nodes.clone(), self.schedule.clone(), self.external.clone());
         let gen = self.generation.get() + 1;
         self.generation.set(gen);
         let job: Box<dyn FnOnce()> = Box::new(move || {
             switch.clear_lane(i as u8);
-            let node = make_node(&clock, &switch, opts, i, gen, &nodes, &schedule);
+            let node = make_node(&clock, &switch, opts, i, gen, &nodes, &schedule, &external);
             nodes.borrow_mut()[i] = node;
         });
         self.schedule.borrow_mut().push((at_us, job));
+    }
+
+    /// Run `f` at every idle of every board (see `External`): for a program that reads its own input meanwhile.
+    pub fn on_idle(&self, f: impl FnMut() + 'static) {
+        *self.external.borrow_mut() = Some(Box::new(f));
     }
 
     /// Run `f` at virtual time `at_us`.
@@ -303,6 +330,11 @@ impl Bench {
         let until = self.clock.get() + us;
         while self.clock.get() < until {
             run_due(&self.schedule, self.clock.get());
+            if let Ok(mut e) = self.external.try_borrow_mut() {
+                if let Some(f) = e.as_mut() {
+                    f();
+                }
+            }
             let mut did = false;
             let list: Vec<Rc<BenchNode>> = self.nodes.borrow().clone();
             for n in &list {
@@ -311,11 +343,16 @@ impl Bench {
                 }
                 // what a board's main loop does every turn: Platform::idle, which pumps the lane
                 n.net.pump();
-                if let Ok(mut rt) = n.rt.try_borrow_mut() {
+                if let Ok(mut c) = n.console.try_borrow_mut() {
+                    // a board's turn: the console, the lane's input, the events
+                    c.lane_begin(&n.net);
+                    did |= c.poll();
+                    c.lane_end(&n.net);
+                    let rt = &mut c.rt;
                     did |= rt.poll_events();
                     if let Ok(mut st) = n.selftest.try_borrow_mut() {
                         if let Some(st) = st.as_mut() {
-                            did |= st.step(&mut rt, &n.net);
+                            did |= st.step(rt, &n.net);
                         }
                     }
                 }

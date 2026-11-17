@@ -37,13 +37,16 @@ impl Default for LaneConfig {
 
 const CTL: usize = 4;
 
-/// STATUS flags byte (`payload[1]`): bit 0 is the bench's "alive", the three values above it say
-/// how the boot self-test stands (the bench's own OS uses bits 1 and 2 for its apps, so these cannot be mistaken for it).
-pub const STATUS_ALIVE: u8 = 0x01;
+/// STATUS flags byte (`payload[1]`). Bit 0 is the bench's "alive". Bit 0x10 says "foreign OS, not a
+/// cube app node" (the supervisor's console bridge looks for it; the bench's own OS keeps bits 0x02
+/// and 0x04 for its apps, which stay clear here). Bits 0x20, 0x40 and 0x80 say how the boot
+/// self-test stands.
+pub const STATUS_FOREIGN: u8 = 0x10;
+pub const STATUS_ALIVE: u8 = 0x01 | STATUS_FOREIGN;
 /// The self-test is running, or this node is serving and has no verdict of its own.
-pub const STATUS_SELFTEST_RUNNING: u8 = 0x21;
-pub const STATUS_SELFTEST_PASS: u8 = 0x41;
-pub const STATUS_SELFTEST_FAIL: u8 = 0x81;
+pub const STATUS_SELFTEST_RUNNING: u8 = 0x21 | STATUS_FOREIGN;
+pub const STATUS_SELFTEST_PASS: u8 = 0x41 | STATUS_FOREIGN;
+pub const STATUS_SELFTEST_FAIL: u8 = 0x81 | STATUS_FOREIGN;
 const NO_FRAME: Frame = Frame { ftype: 0, src: 0, dst: 0, seq: 0, sub: 0, len: 0, payload: [0; 4] };
 
 pub struct Lane<const MAX: usize, const SLOTS: usize> {
@@ -91,9 +94,14 @@ impl<const MAX: usize, const SLOTS: usize> Lane<MAX, SLOTS> {
 
     /// Bytes from the wire. Completed messages go to `deliver(source, channel, bytes)`.
     pub fn rx(&mut self, bytes: &[u8], now_ms: u64, deliver: &mut dyn FnMut(u8, u8, &[u8])) {
+        self.rx_id(bytes, now_ms, &mut |s, c, _, _, b| deliver(s, c, b))
+    }
+
+    /// [`Lane::rx`] with the message id given to `deliver` too.
+    pub fn rx_id(&mut self, bytes: &[u8], now_ms: u64, deliver: &mut dyn FnMut(u8, u8, u16, u8, &[u8])) {
         for &b in bytes {
             if let Some(f) = self.parser.push(b) {
-                self.on_frame(&f, now_ms, deliver);
+                self.on_frame_id(&f, now_ms, deliver);
             }
         }
     }
@@ -108,6 +116,10 @@ impl<const MAX: usize, const SLOTS: usize> Lane<MAX, SLOTS> {
     }
 
     pub fn on_frame(&mut self, f: &Frame, now_ms: u64, deliver: &mut dyn FnMut(u8, u8, &[u8])) {
+        self.on_frame_id(f, now_ms, &mut |s, c, _, _, b| deliver(s, c, b))
+    }
+
+    pub fn on_frame_id(&mut self, f: &Frame, now_ms: u64, deliver: &mut dyn FnMut(u8, u8, u16, u8, &[u8])) {
         self.stats.frames_rx += 1;
         let node = match self.dg.node() {
             Some(n) => n,
@@ -133,7 +145,7 @@ impl<const MAX: usize, const SLOTS: usize> Lane<MAX, SLOTS> {
                 // PONG: the sequence of the PING, length 0
                 self.push_ctl(Frame::new(T_PONG, node, f.src, f.seq, 16, &[]));
             }
-            T_APP_DATA if f.dst == node => self.dg.on_frame(f, now_ms, deliver),
+            T_APP_DATA if f.dst == node => self.dg.on_frame_id(f, now_ms, deliver),
             _ => self.stats.ignored += 1,
         }
     }
@@ -141,6 +153,11 @@ impl<const MAX: usize, const SLOTS: usize> Lane<MAX, SLOTS> {
     /// Queue a message (see [`Datagrams::send`]).
     pub fn send(&mut self, dest: u8, channel: u8, data: &[u8], ack: bool) -> Result<u16, SendError> {
         self.dg.send(dest, channel, data, ack)
+    }
+
+    /// [`Lane::send`] with the message id chosen by the caller.
+    pub fn send_as(&mut self, dest: u8, channel: u8, data: &[u8], ack: bool, id: u16) -> Result<u16, SendError> {
+        self.dg.send_as(dest, channel, data, ack, id)
     }
 
     /// The next 16 bytes for the wire: PONG and STATUS, then ACKs, then the message in progress.

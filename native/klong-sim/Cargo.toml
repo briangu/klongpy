@@ -17,5 +17,5 @@ float32 = ["klong-rt/float32", "klong-console/float32", "klong-core/float32"]
 [dependencies]
 klong-core = { path = "../klong-core" }
 klong-rt = { path = "../klong-rt", features = ["timers", "ipc"] }
-klong-console = { path = "../klong-console" }
+klong-console = { path = "../klong-console", features = ["ipc"] }
 klong-dgram = { path = "../klong-dgram" }

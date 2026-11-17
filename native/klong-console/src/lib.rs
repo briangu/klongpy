@@ -224,6 +224,11 @@ pub struct Console<P: Platform + 'static> {
     typed: Vec<u8>,
     typed_pos: usize,
     after_cr: bool,
+    /// No echo and no prompt: a datagram peer is typing (see `lane_begin`).
+    quiet: bool,
+    /// Errors printed, and of them interrupts (a console that is driven by a program counts them).
+    errors: core::cell::Cell<u32>,
+    interrupts: core::cell::Cell<u32>,
     now: u64,
     last_input: u64,
     xfer: Transfer,
@@ -252,6 +257,9 @@ impl<P: Platform + 'static> Console<P> {
             typed: Vec::new(),
             typed_pos: 0,
             after_cr: false,
+            quiet: false,
+            errors: core::cell::Cell::new(0),
+            interrupts: core::cell::Cell::new(0),
             now: 0,
             last_input: 0,
             xfer: Transfer::new(),
@@ -278,6 +286,23 @@ impl<P: Platform + 'static> Console<P> {
         self.state != State::Line
     }
 
+    /// No echo, no editing and no prompt while true: a program (not a person at a terminal) is
+    /// typing. Results and errors are still printed. Set it between turns.
+    pub fn set_quiet(&mut self, quiet: bool) {
+        self.quiet = quiet;
+        self.ed.dumb = quiet || self.cfg.dumb;
+    }
+
+    /// Input that the console has read and not handled yet (so that it is not between two inputs).
+    pub fn input_pending(&self) -> bool {
+        self.in_pos < self.in_len || self.typed_pos < self.typed.len() || self.rt.shared.pending.try_borrow().map(|q| !q.is_empty()).unwrap_or(false)
+    }
+
+    /// (errors printed, of which interrupts) since the start, wrapping.
+    pub fn error_counts(&self) -> (u32, u32) {
+        (self.errors.get(), self.interrupts.get())
+    }
+
     /// Bytes this console holds on the heap right now (tests and the memory budget).
     pub fn held_bytes(&self) -> usize {
         self.ed.buf.capacity()
@@ -297,16 +322,22 @@ impl<P: Platform + 'static> Console<P> {
     }
 
     fn echo(&self, bytes: &[u8]) {
-        if !self.cfg.dumb {
+        if !self.cfg.dumb && !self.quiet {
             self.out(bytes);
         }
     }
 
     fn prompt(&self) {
+        if self.quiet {
+            return;
+        }
         self.out(if self.entry.is_empty() { self.cfg.prompt } else { self.cfg.more }.as_bytes());
     }
 
     fn reply(&self, args: core::fmt::Arguments) {
+        if alloc::format!("{}", args).starts_with("err") {
+            self.errors.set(self.errors.get().wrapping_add(1));
+        }
         self.out(b"\x01");
         let mut r = Reply { port: self.port(), left: 400 };
         let _ = r.write_fmt(args);
@@ -314,6 +345,10 @@ impl<P: Platform + 'static> Console<P> {
     }
 
     fn print_error(&self, e: &Error) {
+        self.errors.set(self.errors.get().wrapping_add(1));
+        if e.kind == klong_core::Kind::Interrupt {
+            self.interrupts.set(self.interrupts.get().wrapping_add(1));
+        }
         self.out(e.render().as_bytes());
         self.out(b"\n");
     }
@@ -1113,5 +1148,23 @@ impl<P: Platform + 'static> Console<P> {
             Ok((len, sum)) => self.finish_file(len, sum),
             Err(e) => self.abandon("system", e.text()),
         }
+    }
+}
+
+#[cfg(feature = "ipc")]
+impl<P: Platform + 'static> Console<P> {
+    /// Before one turn of the main loop on a board whose console also takes input from a lane's
+    /// datagram channel (`klong_rt::node::NodeNet`): no echo and no prompt while a datagram's lines
+    /// are being evaluated.
+    pub fn lane_begin(&mut self, net: &klong_rt::node::NodeNet) {
+        net.pump();
+        self.set_quiet(net.console_quiet());
+    }
+
+    /// After the turn: tells the lane whether the console has finished with the datagram it was
+    /// given (and how: errors, interrupts), so that `done ID STATUS` goes out after its output.
+    pub fn lane_end(&mut self, net: &klong_rt::node::NodeNet) {
+        let (e, i) = self.error_counts();
+        net.console_turn(self.input_pending(), e, i);
     }
 }

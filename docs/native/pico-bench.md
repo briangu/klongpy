@@ -240,7 +240,7 @@ Over TCP the same small call costs microseconds; here it costs two datagrams. At
 
 | | |
 |---|---|
-| Flash | 618,300 bytes (`.bin`; 30% of 2 MB); about 430,000 with `KLONG_OPT=z`. `.uf2`: 1,236,992 bytes |
+| Flash | 623,172 bytes (`.bin`; 30% of 2 MB); about 430,000 with `KLONG_OPT=z`. `.uf2`: 1,246,720 bytes |
 | The runtime alone, `thumbv6m` linked as a probe, `opt-level=z`, with the library, timers and IPC | 292,724 bytes; the console without IPC 258,500 (see [Porting to a Board](porting.md) for `thumbv7em`) |
 | Static RAM | `.data` 9.3 KB, `.bss` 93.7 KB: the 48 KB interpreter stack, the 32 KB receive ring, the 8 KB transmit ring |
 | Heap | 112 KB limit (159 KB available), 16 KB held back |
@@ -255,29 +255,77 @@ A byte arrives every 2.2 us, a frame every 36 us, and the 32-byte hardware FIFO 
 
 Transmitting never blocks the interpreter: the runtime copies a frame into an 8 KB ring and returns, and the transmit interrupt (FIFO half empty) feeds the wire. At most 12 ms of wire time (5.4 KB at 4.5 Mbaud, 128 bytes at 115200) may wait in the ring: a deeper queue only delays what has to go out behind it, an ACK behind a full window (measured in the simulator: with a 8 KB limit at 115200 three echoes took 8.3 s instead of 5.55 s), and a shallower one lets the lane idle while the main loop is away. If the main loop is away for more than 12 ms the wire idles; nothing breaks. `PacketLink::send` answers "busy" while a datagram's frames are still being queued, which paces each connection to the lane.
 
+## Interactive use
+
+A Klong console on any node, from a web page in the supervisor (the bridge, built in the bench's own repository) or from a workstation with `native/tools/klong_bench.py`. **Status: the node side and the CLI are proven in the simulator and against a model of the bridge; no Pico has run Klong yet.**
+
+How it works. A node's console takes its input from datagram **channel 1** and its output goes the same way; **channel 2** is control; **channel 3** is the self-test report, so it stays out of the console.
+
+| What | Format |
+|---|---|
+| Input | a channel-1 datagram of at most 1024 bytes that ends at a line end, with the **ACK flag**; the sender becomes the console's peer. Its lines are evaluated in order by the same console that serves USB, with no echo and no prompt. A datagram without the ACK flag is not input (it is another console's output, and is dropped, so two nodes typing at each other do not loop) |
+| Output | channel 1, text, no ACK flag, to the peer that last sent input, in datagrams of at most 1024 bytes cut at a line end; results and error messages as the console prints them. With no peer (nobody has typed, or somebody typed on the USB console since) it is dropped and counted: a timer that prints on an idle node loses its output |
+| `done ID STATUS` | channel 2, after all the lines of input datagram ID have been evaluated and their output sent: `ok`, `error` (some line raised one; its text went to channel 1) or `interrupted` |
+| `int` | channel 2, from the peer: ends the running evaluation by the serial console's Ctrl-C rule (a 0x03 the console reads through the same lane pump that runs every 4096 steps, so it is seen while the interpreter is busy) and discards what was received before it, the rest of the datagram and the datagrams behind it, each of which is told `done ID interrupted`. Ignored when idle |
+| `hello` | channel 2: the reply is `klong VERSION node=N TARGET int64 float64` |
+| STATUS | flag bit `0x10` (not a cube node): `0x11` alive, `0x31` self-test serving or running, `0x51` pass, `0x91` fail. Load 100 while input is being evaluated, 0 when idle |
+
+A **second sender** is refused, not queued: while a node's console is busy for one sender, a datagram with the ACK flag on channel 1 from another address is answered with ACK status 2 and goes nowhere (and may be sent again); the owner may send as many as it likes, which queue like typed-ahead input, and the console is free for others when its last datagram is done. A node typing into another node's console, when it is free, takes the output away from whoever typed before, since the peer is the address that last sent input: **during a page session only the supervisor should type at the nodes.**
+
+The upload commands of the serial console (`^A put`, `^A run`) work on channel 1: a datagram is a chunk of the command's stream, and the console answers with its ordinary `\x01go` and `\x01ok` lines. They are binary-safe to the console (a datagram is CRC-checked and its bytes reach the console unchanged, even 0x00 and 0x03 outside an evaluation) but the **1024-byte limit and the bridge's newline rule** limit what can be sent through the bridge: the bridge adds a newline to input that has none, so a chunk must end at a newline, which means text files in chunks of at most 1023 bytes plus the newline, no binary files, no line over 1023 bytes. Through a lane directly (not the bridge) any bytes in any chunk sizes work.
+
+`klong_bench.py` (standard library only, Python 3.9+):
+
+    klong_bench.py --host bench.local status
+    klong_bench.py --host bench.local repl --node 1
+    klong_bench.py --host bench.local eval --node 1 'sq::{x*x};sq(12)'
+    klong_bench.py --host bench.local run  --node 1 program.kg
+
+`--host` defaults to the environment variable `KLONG_BENCH_HOST`. The CLI is a client of the bridge like the page: it names itself (`id` and `name` on every call), claims control with its first input (or asks for it with `--take`), keeps it alive by polling, gives it up when it ends, leaves out the echo of its own lines (the bridge's transcript has `klong> LINE` for every line typed), and prints "not delivered" when the bridge says the input was refused or never acknowledged. Ctrl-C in the REPL interrupts the node; a second one stops waiting.
+
+`native/tools/bench_bridge_sim.py` is a stand-in for the bridge in front of the simulator, with the same routes, errors and control rules, for the CLI's tests and as an executable reference. A session against it (the port is free for the example; the virtual bench runs at four times real time):
+
+<!-- check-docs: requires-file native/target/release/klong-bench; path native/target/release; link native -->
+```console
+$ python native/tools/bench_bridge_sim.py --port 18751 --nodes 2 --speed 4 > bridge.log 2>&1 & echo $! > bridge.pid; for i in $(seq 100); do grep -q "simulator pid" bridge.log && break; sleep 0.1; done
+$ for i in $(seq 200); do python native/tools/klong_bench.py --host 127.0.0.1:18751 status 2>/dev/null | grep -q "yes" && break; sleep 0.1; done
+$ python native/tools/klong_bench.py --host 127.0.0.1:18751 eval --node 1 'sq::{x*x};sq(12)'
+144
+$ printf 'n::40\nn+2\n1+"a"\n:q\n' | python native/tools/klong_bench.py --host 127.0.0.1:18751 repl --node 1 | sed -n 2,7p
+klong[1]> 40
+klong[1]> 42
+klong[1]> 1:1: type error: cannot apply + (Plus) to integer and string
+  1+"a"
+  ^^^^^
+klong[1]>
+$ kill $(cat bridge.pid)
+```
+
+(Ctrl-C in `repl`, or an interrupt sent to `eval` while it runs `{1}{x+1}:~0`, ends the loop with `interrupt error: interrupted`; `tests/test_native_bench_cli.py` does that, with a signal, and checks the load of 100 in the node's STATUS while it runs.)
+
 ## The boot self-test
 
-For the first hardware test the image runs a fixed self-test at boot (`klong-rt/src/selftest.rs`, the same Rust code that the simulator runs in `klong-sim/tests/selftest.rs`), selected at build time (`KLONG_SELFTEST=0` leaves it out), one image for every board. Every node serves. A node that is not number 0 connects to the nearest node below it that answers (`.cli("node:K")` for K = N-1 down to 0), so of two flashed boards the lower serves and the higher is the client, and neither needs the other's number in advance. The client runs four steps and times them with the board clock: a synchronous call; an asynchronous call, then a synchronous one, then the asynchronous answer; a 4 KB echo (500 integers) compared; and, on a new connection, the management library calling the peer. The result goes to address 16 on datagram channel 1 as text, every 3 seconds, and as the flags byte of STATUS:
+For the first hardware test the image runs a fixed self-test at boot (`klong-rt/src/selftest.rs`, the same Rust code that the simulator runs in `klong-sim/tests/selftest.rs`), selected at build time (`KLONG_SELFTEST=0` leaves it out), one image for every board. Every node serves. A node that is not number 0 connects to the nearest node below it that answers (`.cli("node:K")` for K = N-1 down to 0), so of two flashed boards the lower serves and the higher is the client, and neither needs the other's number in advance. The client runs four steps and times them with the board clock: a synchronous call; an asynchronous call, then a synchronous one, then the asynchronous answer; a 4 KB echo (500 integers) compared; and, on a new connection, the management library calling the peer. The result goes to address 16 on datagram **channel 3** as text, every 3 seconds, and as the flags byte of STATUS (bit `0x10` says it is not a cube node):
 
 | State | STATUS flags | Report text |
 |---|---|---|
-| alive, no self-test | `0x01` | none |
-| serving, looking for a peer, or running | `0x21` | `klong selftest serving node=N calls=C` or `klong selftest running node=N calls=C` |
-| passed | `0x41` | `klong selftest pass 94ms node=N peer=K sync=1ms echo=79ms calls=C` |
-| failed | `0x81` | `klong selftest fail STEP REASON node=N peer=K` |
+| alive, no self-test | `0x11` | none |
+| serving, looking for a peer, or running | `0x31` | `klong selftest serving node=N calls=C` or `klong selftest running node=N calls=C` |
+| passed | `0x51` | `klong selftest pass 94ms node=N peer=K sync=1ms echo=79ms calls=C` |
+| failed | `0x91` | `klong selftest fail STEP REASON node=N peer=K` |
 
-(`pass` is followed by the time of the four steps in milliseconds; STEP is `sync`, `async`, `echo` or `mgmt` and REASON the error's kind and message.) A node that finds nobody below it is the lowest board with the image as far as it can tell, so it reports `serving` and looks again every 10 seconds, never `fail`; a failure is run again after 15 seconds, a pass stays. The flag values use bits 5 to 7, which the bench's own OS does not (it uses bits 1 and 2 for its apps).
+(`pass` is followed by the time of the four steps in milliseconds; STEP is `sync`, `async`, `echo` or `mgmt` and REASON the error's kind and message.) A node that finds nobody below it is the lowest board with the image as far as it can tell, so it reports `serving` and looks again every 10 seconds, never `fail`; a failure is run again after 15 seconds, a pass stays. The flag values use bits 4 to 7, which the bench's own OS does not (it uses bits 1 and 2 for its apps).
 
-In the simulator, behind the switch model and with a simulated supervisor that reads the channel-1 datagrams and the STATUS flags, at both rates: two boards with the same program pass (flags `0x41` on the client, `0x21` and `calls=5` on the server, the report repeating); a muted node in between (other firmware) is skipped after a handshake timeout and the next one is the peer; a lone board serves and never fails; a peer with a broken echo makes the client report `fail echo type: cannot apply + (Plus) to integer and string` with flags `0x81` and, once it is fixed, `0x41`; and a flood of the deployer's sub-types `0xA0..0xB1` and `0xE1/0xE2` to both nodes during the test changes nothing (the datagram layer's tests do the same between and inside messages).
+In the simulator, behind the switch model and with a simulated supervisor that reads the channel-3 datagrams and the STATUS flags, at both rates: two boards with the same program pass (flags `0x51` on the client, `0x31` and `calls=5` on the server, the report repeating); a muted node in between (other firmware) is skipped after a handshake timeout and the next one is the peer; a lone board serves and never fails; a peer with a broken echo makes the client report `fail echo type: cannot apply + (Plus) to integer and string` with flags `0x91` and, once it is fixed, `0x51`; and a flood of the deployer's sub-types `0xA0..0xB1` and `0xE1/0xE2` to both nodes during the test changes nothing (the datagram layer's tests do the same between and inside messages).
 
-One thing the self-test found: `.async(h(:f);cb)` runs the function that is defined *locally* under that name, not the peer's, when both nodes define `f` (the proxy asks the peer for the function's source and calls the local copy). The self-test's functions are therefore named for their node (`stping0`, `stecho0`). That is behaviour of the runtime's proxies that already existed, not of the adapter.
+One thing the self-test found, and what it turned out to be: with a function `f` defined on both nodes, `h(:f,,5)` and `.async(h(:f);cb)` run the *local* `f`. That is the language, not the adapter and not a native-only bug: a symbol that names a function you have defined is that function (KlongPy evaluates `:f` to the function as well), and calling a peer with a function sends its source for the peer to apply (`f(inc,1)` in [IPC Capabilities](../ipc_capabilities.md)). To call the peer's own `f` when you also have one, use the list `h([:f 5])` or the string `h("f(5)")`, and `.async(h;cb)` with the same requests. The self-test names its functions for their node (`stping0`, `stecho0`) so that it never meets the case; `tests/test_native_ipc.py` pins the behaviour down with two processes.
 
-`klong-ffi` with `--features lane` adds `klong_lane_init`, `klong_lane_pump`, `klong_lane_node` and `klong_lane_stats_get` to `klong.h`. `tests/lane.c` (run by `cargo test -p klong-ffi`) drives them from a C program that plays the supervisor: noise, a broadcast PING, a PING that numbers the node, the PONG and the STATUS a second later, ignored frames, a console line answered on channel 1, and, in a second run, the self-test of node 0 (`serving`, STATUS flags `0x21`).
+`klong-ffi` with `--features lane` adds `klong_lane_init`, `klong_lane_pump`, `klong_lane_node` and `klong_lane_stats_get` to `klong.h`. `tests/lane.c` (run by `cargo test -p klong-ffi`) drives them from a C program that plays the supervisor: noise, a broadcast PING, a PING that numbers the node, the PONG and the STATUS a second later, ignored frames, a console line answered on channel 1, and, in a second run, the self-test of node 0 (`serving`, STATUS flags `0x31`).
 
 ## Open questions for the bench owner
 
 * **Does the supervisor accept this node's PONG and STATUS?** They now follow the stated rules (PONG with the PING's sequence and length 0; STATUS to 16 every second, length 4, load, flags, uptime LE) and `software/worker/runtime.h`; they have not run against the supervisor.
-* **The self-test's report on channel 1** and the flag values `0x21`, `0x41`, `0x81` are definitions of this work. The report shares channel 1 with the console. If the supervisor's datagram log wants another channel or other values, they are constants.
+* **The self-test's report on channel 3** and the flag values `0x31`, `0x51`, `0x91` were agreed with the bench's own session; they are constants.
 * **Who sends datagrams from the supervisor?** The QT Py firmware has no datagram sender; the console over the lane needs one (`tools/lane_frames.py` shows the frames). The self-test needs only the supervisor to read.
 * **The processor's cost per frame** is an estimate (10 us received, 5 sent). If a Pico needs several times that, the lane's 112 KB/s cannot be used and the receive ring is what absorbs the difference; a first measurement is the `rx ring overruns` counter under a bulk transfer.
 * **Packet size** (126 bytes) and the first timeouts (100 ms at 4.5 Mbaud) are tuned in the simulator for random loss; the bench's losses come from queue overflow, in bursts.

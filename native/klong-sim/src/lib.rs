@@ -18,6 +18,7 @@ use klong_rt::memfs::MemFs;
 use klong_rt::{FileSystem, MemStats, Platform, Runtime};
 
 pub mod bench;
+pub mod bridge;
 pub mod pty;
 pub mod switch;
 

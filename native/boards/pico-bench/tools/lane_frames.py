@@ -9,8 +9,8 @@ hex that a lane gave.
     lane_frames.py send DEST TEXT [--src 16] [--chan 1] [--id N] [--ack]   hex of the frames of one message
     lane_frames.py decode HEXFILE|-                                       the frames and messages in a hex dump
 
-TEXT understands \\r \\n \\x04 escapes. Example: ``send 0 '1+2\\r'`` is what a supervisor sends
-to type ``1+2`` on node 0's console (channel 1).
+TEXT understands \\r \\n \\x04 escapes. Example: ``send 0 '1+2\\n' --ack`` is what a supervisor sends
+to type ``1+2`` on node 0's console (channel 1; console input asks for an ACK).
 """
 import argparse
 import sys

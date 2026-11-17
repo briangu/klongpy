@@ -140,6 +140,7 @@ typedef struct klong_lane_stats {
     uint32_t datagrams_delivered, datagrams_duplicate, datagrams_broken, datagrams_refused, datagrams_resent;
     uint32_t ipc_in, ipc_out, inbox_overflow, console_dropped;
     int32_t console_peer;  /* node attached to the lane console, -1 none */
+    uint32_t console_no_peer, console_in_dropped, console_unsolicited; /* output with nobody to send it to (bytes), input dropped (datagrams), channel-1 datagrams without the ACK flag (datagrams) */
     uint32_t uart_rx_ring_overruns, uart_rx_fifo_overruns, uart_line_errors, uart_tx_ring_full; /* the driver's counters */
     int32_t selftest;      /* 0 undecided or off, 1 passed, 2 failed */
 } klong_lane_stats;

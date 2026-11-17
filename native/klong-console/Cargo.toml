@@ -10,6 +10,7 @@ publish.workspace = true
 default = ["files", "lib"]
 files = ["klong-rt/files"]
 lib = ["klong-rt/lib"]
+ipc = ["klong-rt/ipc"]
 int32 = ["klong-rt/int32"]
 float32 = ["klong-rt/float32"]
 
