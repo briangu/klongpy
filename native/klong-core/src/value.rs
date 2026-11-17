@@ -224,6 +224,7 @@ impl Text {
 /// A `String` with room for `n` bytes, or a `memory` error.
 pub fn try_string(n: usize) -> Result<String> {
     let mut s = String::new();
+    let _tag = crate::htag::Scope::new(crate::htag::STRING);
     s.try_reserve_exact(n).map_err(|_| Error::memory())?;
     Ok(s)
 }
@@ -236,6 +237,7 @@ pub fn try_str(s: &str) -> Result<String> {
 }
 
 pub fn try_push_str(out: &mut String, s: &str) -> Result<()> {
+    let _tag = crate::htag::Scope::new(crate::htag::STRING);
     out.try_reserve(s.len()).map_err(|_| Error::memory())?;
     out.push_str(s);
     Ok(())
@@ -699,12 +701,14 @@ fn try_copy<T: Copy>(xs: &[T]) -> Option<Vec<T>> {
 /// depends on data goes through here or through `try_reserve`.
 pub fn try_vec<T>(n: usize) -> Result<Vec<T>> {
     let mut v = Vec::new();
+    let _tag = crate::htag::Scope::new(crate::htag::VECTOR);
     v.try_reserve_exact(n).map_err(|_| Error::memory())?;
     Ok(v)
 }
 
 pub fn try_push<T>(v: &mut Vec<T>, x: T) -> Result<()> {
     if v.len() == v.capacity() {
+        let _tag = crate::htag::Scope::new(crate::htag::VECTOR);
         v.try_reserve(1).map_err(|_| Error::memory())?;
     }
     v.push(x);
@@ -712,6 +716,7 @@ pub fn try_push<T>(v: &mut Vec<T>, x: T) -> Result<()> {
 }
 
 pub fn try_extend<T: Copy>(v: &mut Vec<T>, xs: &[T]) -> Result<()> {
+    let _tag = crate::htag::Scope::new(crate::htag::VECTOR);
     v.try_reserve(xs.len()).map_err(|_| Error::memory())?;
     v.extend_from_slice(xs);
     Ok(())

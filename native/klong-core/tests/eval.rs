@@ -278,3 +278,18 @@ fn integer_power_is_exact_when_it_fits_and_wraps_when_it_does_not() {
     ok("4^0.5", "2");
     ok("1^-1", "1");
 }
+
+/// `load_owned` is `load` of a text that is handed over: the same definitions, and an error cut from the text that was handed over.
+#[test]
+fn load_owned_is_load_without_a_second_copy() {
+    let mut ip = Interp::new(Config::default(), Box::new(NoHooks));
+    ip.load_owned(String::from("sq::{x*x}\nsq(7)"), "<owned>").unwrap();
+    let v = ip.run("sq(6)", "<t>").unwrap().unwrap();
+    assert_eq!(ip.format(&v), "36");
+    let e = match ip.load_owned(String::from("a::1\nb::2+)\nc::3"), "<owned>") {
+        Err(e) => e,
+        Ok(_) => panic!("a syntax error is an error"),
+    };
+    let shown = e.render();
+    assert!(shown.starts_with("2:") && shown.contains("b::2+)"), "{shown}");
+}

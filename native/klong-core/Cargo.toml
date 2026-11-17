@@ -16,6 +16,9 @@ strings = []
 # Place the evaluator's hot functions in sections the Pico SDK's linker script puts in RAM (`.time_critical.*`): code
 # in flash runs through a 16 KB cache and a flash that is read at a quarter of the clock. Only for that target.
 ram-hot = []
+# A diagnostic: the runtime says, before each allocation, what kind of object it is for (`htag`), in a static the board's
+# allocator reads (`KLONG_ALLOC_TAG`). Off, the calls compile to nothing.
+heap-tags = []
 dicts = []
 
 [dependencies]

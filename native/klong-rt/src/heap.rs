@@ -32,7 +32,13 @@ pub struct Counting<A> {
     every: AtomicUsize,
     count: AtomicUsize,
     failed: AtomicUsize,
+    /// `Grow` as a number (0: none), see `set_grow`.
+    grow: AtomicUsize,
 }
+
+/// Resize a block in place if the allocator beneath can: `(ptr, old size, new size, align)`, true when the block is now of the new
+/// size where it was (for a larger size that needs the room after it to be free; a smaller size gives the end back).
+pub type Grow = unsafe fn(*mut u8, usize, usize, usize) -> bool;
 
 impl<A> Counting<A> {
     pub const fn new(inner: A) -> Counting<A> {
@@ -47,6 +53,20 @@ impl<A> Counting<A> {
             every: AtomicUsize::new(0),
             count: AtomicUsize::new(0),
             failed: AtomicUsize::new(0),
+            grow: AtomicUsize::new(0),
+        }
+    }
+    /// Let `realloc` ask the allocator beneath to resize a block where it is. A vector that doubles then needs the room of
+    /// its growth only, not the old and the new block at once (which is what the default `realloc` needs, and what the limit
+    /// is kept for when this says no).
+    pub fn set_grow(&self, f: Option<Grow>) {
+        self.grow.store(f.map_or(0, |f| f as usize), Relaxed);
+    }
+    fn grow_fn(&self) -> Option<Grow> {
+        match self.grow.load(Relaxed) {
+            0 => None,
+            // SAFETY: only `set_grow` stores here, and it stores a `Grow`.
+            n => Some(unsafe { core::mem::transmute::<usize, Grow>(n) }),
         }
     }
     /// Set the hard limit in bytes (0 = none) and the reserve held back below it.
@@ -165,6 +185,22 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for Counting<A> {
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         let old = layout.size();
+        if let Some(grow) = self.grow_fn() {
+            let (oc, nc) = (self.cost(old), self.cost(new_size));
+            if new_size > old {
+                // in place the block takes only what it grows by
+                if !self.admit_cost(nc.saturating_sub(oc), new_size - old) {
+                    self.failed.store(self.failed.load(Relaxed) + 1, Relaxed);
+                    return core::ptr::null_mut();
+                }
+            }
+            // SAFETY: `ptr` came from the allocator beneath with `layout`; `grow` keeps its contract.
+            if new_size != old && unsafe { grow(ptr, old, new_size, layout.align()) } {
+                self.release(oc);
+                self.account(nc);
+                return ptr;
+            }
+        }
         // growing is an allocation, a copy and a free (the default `realloc` of the allocator beneath): both blocks are there
         // at once, so the whole of the new one is asked for while the old one is still counted
         if new_size > old && !self.admit_cost(self.cost(new_size), new_size - old) {

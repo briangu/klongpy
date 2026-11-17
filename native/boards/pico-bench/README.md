@@ -39,11 +39,11 @@ slow lane, `KLONG_OPT=z` makes the smaller image.
 Measured on 2026-11-17 (SDK 2.3.1, GCC 15.3.1), the image of the eighth round: `.bin` 655,276 bytes
 (31% of the 2 MB flash; the `.uf2` is 1,310,720 bytes because of its 256-byte blocks); with
 `KLONG_OPT=z` about 430,000. RAM, from the linker's symbols (`build.sh` prints it): `.data` and
-`.bss` 54,864 bytes (the evaluator's hot functions 16 KB, the 16 KB receive ring, the 8 KB transmit
-ring), a heap of 100,784 bytes, the interpreter's stack of 114,688 bytes from the top of RAM, of
+`.bss` 57,760 bytes (the evaluator's hot functions 16 KB, the 16 KB receive ring, the 8 KB transmit
+ring, 2.7 KB of heap diagnostic), a heap of 97,888 bytes, the interpreter's stack of 114,688 bytes from the top of RAM, of
 270,336 in all (`tools/check_layout.py` checks it, and `build.sh` runs it). `KLONG_STACK_KB=96 ./build.sh` gives the stack 96 KB and the heap what is left (the
 table in `docs/native/pico-bench.md#ram-stack-and-heap` has the other sizes). The reasons for the
-split and the predictions for this image (about 7,800 (the server) and 7,400 (the client of the self-test) for the largest `#!n`, 105 to 109 levels of
+split and the predictions for this image (about 7,750 (the server) and 6,500 (the client of the self-test) for the largest `#!n`, 105 to 109 levels of
 recursion, `fib(18)` 0.385 to 0.40 s, self-test 125 to 140 ms, begun about 3 s after boot) are there, with
 what failed on the boards in the sixth round and why. A node that restarted says why in the self-test's
 reports (` boot=hardfault pc=... lr=...`, `boot=stack`, `boot=fatal ...`, `boot=watchdog`, `boot=reset`).
@@ -61,7 +61,7 @@ reports (` boot=hardfault pc=... lr=...`, `boot=stack`, `boot=fatal ...`, `boot=
 | Frames it understands | PING, answered with PONG (type 2, source = this node, destination = the sender, **the same sequence, length 0**, opaque byte 16); datagram frames (APP_DATA, sub-types 0xD0..0xD3). It sends STATUS (type 3, to 16, **once a second**, length 4: `payload[0]` load 0..100 (always 0), `payload[1]` flags, `payload[2..3]` uptime seconds u16 LE, monotonic, saturating at 65535). Every other valid frame is ignored silently, in particular the deployer's APP_DATA sub-types 0xA0..0xB1 and 0xE1/0xE2 (tested with floods of them between datagram frames). |
 | Does not do | the bench OS's app loader (sub-types 0xA0..0xB1) and echo service (0xE1/0xE2): this image replaces that OS |
 | Reset | `.x(0)` restarts the chip through the watchdog |
-| Memory | interpreter stack 112 KB from the top of RAM (the stack pointer is moved there at start; Klong is given 108 KB, of which 16 KB are kept for what runs below its deepest level), heap: the 98 KB between `.bss` and the stack, in two parts (`klong_heap.h`): blocks of up to 8 KB (frames, symbols, tables, buffers) in a headerless region at the top that grows down, and the rest (vectors, strings, parse trees) newlib's `malloc` (`__real_malloc`: a NULL is an answer, not the SDK's panic) from the bottom, with `_sbrk` in `main.c`; the runtime counts each block rounded up to 8 (`heap_round`), its limit is the arena less 8 KB of free blocks kept for reuse and 3% of holes, a vector may take it up to 6 KB short of that, and `_sbrk` keeps the top 6 KB for small blocks (`klong_heap.h`); lane buffers (7.8 KB for 6 reassembly slots, plus up to 16 KB of stream buffers per open connection) come from that heap |
+| Memory | interpreter stack 112 KB from the top of RAM (the stack pointer is moved there at start; Klong is given 108 KB, of which 16 KB are kept for what runs below its deepest level), heap: the 98 KB between `.bss` and the stack, the first 4 KB newlib's (`_sbrk` in `main.c`, for the SDK's own `malloc` users) and the rest the runtime's pool (`klong_heap.h`: one address-ordered free list with coalescing, no malloc: small blocks from its top, vectors and parse trees from its bottom, a block resized in place when it can; a NULL is an answer, not the SDK's panic); the runtime counts each block rounded up to 8 (`heap_round`), its limit is the pool less 2 KB, and a vector may take it up to 6 KB short of that; `.heap(mode)` reads the pool back (a diagnostic, in the build by default: `KLONG_HEAP_DIAG=0 ./build.sh` leaves it out; docs/native/pico-bench.md has the modes); lane buffers (7.8 KB for 6 reassembly slots, plus up to 16 KB of stream buffers per open connection) come from that heap |
 | Safety net | a HardFault handler, the watchdog (8 s, fed in the idle path), a canary at the bottom of the stack; the reason of a restart is in the self-test's reports as ` boot=...` |
 
 Ctrl-T (0x14) on the USB console prints the counters instead of reaching Klong: frames,
@@ -187,11 +187,11 @@ evaluator's `range` error at its depth limit (90 levels, about 864 bytes a level
 the supervisor accepts. Still open:
 
 * The USB CDC console and stdio set-up (no cable was on a Pico).
-* That the image of the seventh round (112 KB of stack from the top of RAM, a heap of 98 KB, a
-  hand-written `_sbrk`) boots and does what the predictions in `docs/native/pico-bench.md` say:
-  `f::{:[x;1+f(x-1);0]};f(100)` works and `f(150)` is a `range` error, `#!7500` works on a node that is idle
-  and on the client of the self-test alike, `#!9000` is a memory error after which `.mem()` shows the same
-  use and a smaller vector works.
+* That the image of the ninth round (the runtime's own pool in the heap, `.heap`) does what the predictions in
+  `docs/native/pico-bench.md` say: `f::{:[x;1+f(x-1);0]};f(105)` works and `f(109)` is a `range` error, `#!7500`
+  works on a node that is idle and `#!6300` on the client of the self-test, `#!9000` is a memory error after which `.mem()`
+  shows the same use and a smaller vector works, `.l("mgmt")` loads on the client; and what `.heap(0)`, `.heap(1)`... say
+  (the operator's list is in the ticket's ninth round).
 * UART behaviour at 28,125 frames/s under a sustained bulk transfer in both directions: the interrupt keeping up
   (about 7% of the processor when saturated, an estimate), the FIFO never overrunning (71 us to
   fill), the 16 KB ring while the interpreter evaluates, the 12 ms transmit limit (Ctrl-T prints the counters).

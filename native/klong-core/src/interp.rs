@@ -134,6 +134,12 @@ enum Arg {
     Val(Value),
 }
 
+/// A program to run: borrowed (copied once, for error messages) or handed over (kept as that copy).
+enum Prog<'a> {
+    Text(&'a str),
+    Owned(String),
+}
+
 pub struct Interp {
     pub syms: Interner,
     pub cfg: Config,
@@ -272,10 +278,24 @@ impl Interp {
         parse::parse(text, name, &mut self.syms, &mut self.module, self.cfg.strict, self.cfg.max_depth, stack)
     }
 
+    fn parse_prog(&mut self, prog: Prog, name: &str) -> Result<Parsed> {
+        match prog {
+            Prog::Text(text) => self.parse(text, name),
+            Prog::Owned(text) => {
+                let stack = self.stack();
+                parse::parse_owned(text, name, &mut self.syms, &mut self.module, self.cfg.strict, self.cfg.max_depth, stack)
+            }
+        }
+    }
+
     /// Parse and run a program: every statement in order; the value of the last one, or `None`
     /// for a program without statements. May be called from a system function (`.l`, `.E`):
     /// the program then runs where the call was made, and sees the locals of its callers.
     pub fn run(&mut self, text: &str, name: &str) -> Result<Option<Value>> {
+        self.run_prog(Prog::Text(text), name)
+    }
+
+    fn run_prog(&mut self, prog: Prog, name: &str) -> Result<Option<Value>> {
         if self.running == 0 {
             // the nesting bound is one value for the process (see `value::set_max_nest`): the
             // interpreter that runs asserts its own, whichever was created last
@@ -285,7 +305,7 @@ impl Interp {
             let _ = crate::value::take_deferred();
         }
         self.running += 1;
-        let r = self.run_parsed(text, name);
+        let r = self.run_parsed(prog, name);
         self.running -= 1;
         if self.running == 0 {
             // between two programs the pools of vectors made for speed (and the recent function bodies, each of
@@ -295,8 +315,8 @@ impl Interp {
         r
     }
 
-    fn run_parsed(&mut self, text: &str, name: &str) -> Result<Option<Value>> {
-        let p = self.parse(text, name)?;
+    fn run_parsed(&mut self, prog: Prog, name: &str) -> Result<Option<Value>> {
+        let p = self.parse_prog(prog, name)?;
         let frames = self.frames.len();
         let depth = self.depth;
         let mut last = None;
@@ -353,14 +373,23 @@ impl Interp {
     /// half-defined. (What it did to a dictionary or wrote to a channel stays done.) Loads
     /// nest; the outermost one decides.
     pub fn load(&mut self, text: &str, name: &str) -> Result<Option<Value>> {
+        self.load_prog(Prog::Text(text), name)
+    }
+
+    /// `load` of a text that is handed over: it is kept as the copy that error messages are cut from, not copied (a library is not held twice).
+    pub fn load_owned(&mut self, text: String, name: &str) -> Result<Option<Value>> {
+        self.load_prog(Prog::Owned(text), name)
+    }
+
+    fn load_prog(&mut self, prog: Prog, name: &str) -> Result<Option<Value>> {
         if self.journal.is_some() {
-            return self.run(text, name);
+            return self.run_prog(prog, name);
         }
         for g in self.gscope.iter_mut() {
             *g &= !JOURNALED;
         }
         self.journal = Some(Journal { old: Vec::new(), scopes: self.scopes.len(), exports: self.exports.len(), module: self.module.clone() });
-        let r = self.run(text, name);
+        let r = self.run_prog(prog, name);
         if let Some(j) = self.journal.take() {
             if r.is_err() {
                 for (s, old) in j.old.into_iter().rev() {
@@ -547,6 +576,7 @@ impl Interp {
 
     /// Create or replace the global `s` itself (no module rule: that is for reads).
     fn try_set_global(&mut self, s: SymId, v: Value) -> Result<()> {
+        let _tag = crate::htag::Scope::new(crate::htag::GLOBALS);
         let i = s.0 as usize;
         let n = self.syms.len().max(i + 1);
         if self.globals.len() <= i {
@@ -757,6 +787,12 @@ impl Interp {
         self.layer_pool.shrink_to_fit();
         self.frame_pool.clear();
         self.frame_pool.shrink_to_fit();
+        // the tables indexed by symbol grow by doubling while a library loads: what a table has beyond its symbols is kept for nothing
+        // (and the block it grew into is the last, the one that stays)
+        self.globals.shrink_to_fit();
+        self.gscope.shrink_to_fit();
+        self.link.shrink_to_fit();
+        self.syms.shrink();
         if self.frames.is_empty() {
             self.frames = Vec::new();
         }

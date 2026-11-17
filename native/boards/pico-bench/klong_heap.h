@@ -1,23 +1,48 @@
 /*
- * The heap of the Pico bench firmware: what klong_config.alloc and .free do, the `_sbrk` under malloc, and the
- * numbers the runtime's heap limit is made from. A header of static functions, so that the firmware (main.c) and
- * the host test (native/klong-ffi/tests/pico_heap.c, which runs the same code over a model of newlib's malloc with
- * an arena of the Pico's size) compile the one source.
+ * The heap of the Pico bench firmware: what klong_config.alloc, .free and .grow do, and the numbers the runtime's heap
+ * limit is made from. A header of static functions, so that the firmware (main.c) and the host tests
+ * (native/klong-ffi/tests/pico_heap.c and pico_node.c, which run this very source over a static arena of the Pico's
+ * size) compile the one source. Nothing here is newlib's: the arena is the runtime's alone, and its state is a few
+ * words that a diagnostic (`.heap`, below) can read whole.
  *
- * Everything is malloc's. Small blocks (up to 128 bytes, alignment up to 8: what a call of a Klong function
- * allocates: argument frames, projection layers, boxed values) are rounded to 8 bytes and, when freed, kept on a
- * free list of their size class instead of being given back, up to KH_CACHE_MAX bytes in all (the runtime tells
- * `free` the size): a call and a return of a Klong function then take a few instructions each, where newlib's
- * malloc and free walk a list and merge neighbours (a few hundred cycles on a Cortex-M0+, several times a call).
- * What is more than the cache holds goes back to malloc at once. So the memory a deep recursion had for its
- * frames is malloc's again when it returns, bar the 8 KB of the cache, and `kh_drain` gives that back too when
- * malloc fails: a vector can have the whole heap. (A first version took slabs of 2 KB from malloc and kept
- * them: a block of long life in each slab kept it, and a recursion left the heap in pieces. The test shows it.)
+ * ONE POOL. The arena is one address-ordered list of free chunks (offset-linked, 8 bytes of header in a free chunk and
+ * none in a block: the runtime tells `free` the size) with coalescing of neighbours on every free. There are no regions
+ * and no break to move, so there is nothing that "cannot shrink" and no memory is held back by anything but live
+ * blocks (and the cache of small blocks, below). Two ends, so that what lives long and what comes and goes do not interleave:
+ *   - a block of up to KH_HIGH_MAX (8 KB) comes from the chunk that is HIGHEST in the arena, from its top end: the
+ *     frames, boxed values, tables and buffers pack against the top;
+ *   - a larger block (a vector, a string) from the LOWEST chunk that fits, from its bottom end; and so, whatever its size, is
+ *     everything a parse makes (tokens, tree nodes, the copy of the source: the runtime says so, `htag::TREE`), because a parse
+ *     is where a node's memory peaks (the management library's 52 KB on a board with 98 KB) and what it makes is thrown away
+ *     but for a few blocks: if those lay among the top's long-lived blocks, the symbols and tables made at the peak would stay
+ *     scattered over what the peak had reached and a vector could not pass them (the host model of the boards shows it: the
+ *     client of the self-test lost 6% of its largest vector to it with this rule and the next one left out).
+ *   The free space between the ends is one span that a vector can have whole.
+ * What lives as long as the node (`htag::SYMBOLS`, `htag::GLOBALS`) never takes a block of the cache (below): that is wherever a
+ * temporary of an earlier program was, and a name taken from there would stay there for ever. (Both rules need what the runtime
+ * says before it allocates, `KLONG_ALLOC_TAG`: they are in the build with KH_TAGS, which KH_DIAG implies, the Pico bench's
+ * default; without it every block is placed by its size alone.)
  *
- * Nothing in the runtime may fail where it cannot return an error (a frame, a reference count: a failure is a
- * reset), so the top KH_RESERVE bytes of the arena are for small blocks only: `kh_sbrk` refuses a request of any
- * other size that would touch them. A vector can use everything below, and the runtime's own heap limit keeps
- * its large requests KH_RESERVE short of its limit (klong-rt/src/heap.rs).
+ * THE CACHE. Small blocks (up to 128 bytes, alignment up to 8: what a call of a Klong function allocates) are, when
+ * freed, kept on a list of their size class instead of being given back, up to KH_CACHE_MAX bytes in all: a call and a
+ * return then take a few instructions each where a walk of the free list takes hundreds of cycles on a Cortex-M0+.
+ * A cached block is memory held: it sits where it was allocated and keeps its neighbours from merging. So the cache is
+ * given back (`kh_drain`) when an allocation fails and, by the firmware, whenever the runtime has nothing to do
+ * (`k_wait`): a node that is idle holds nothing but live blocks.
+ *
+ * GROWTH. `kh_grow` resizes a block in place when the chunk after it is free (a Vec that doubles, a String that
+ * grows): the runtime asks first and copies only if this says no, so a vector's growth does not need the old and the
+ * new block at once.
+ *
+ * LIMITS. The runtime counts every block as the pool holds it (heap_round 8, heap_overhead 0), so its limit is the
+ * pool's size less a little for holes (`kh_limits`): the cache is not counted, and is given back before a request fails. A request of
+ * 512 bytes or more is refused KH_RESERVE bytes before the limit, so that unwinding, printing the error and the next
+ * prompt find room. A vector that does not fit is a `memory` error, never a NULL where nothing can be done with it.
+ *
+ * DIAGNOSTIC. With KH_DIAG defined (the Pico bench build does) the pool keeps a table of its live blocks of 512 bytes or
+ * more (address, size, what kind of object asked: the runtime's `KLONG_ALLOC_TAG`) and a byte per 64 of the arena with
+ * the kinds of the blocks that start in it, and `kh_diag_*` return the whole state as integers (see `.heap` in
+ * docs/native/pico-bench.md). Without it none of that exists.
  */
 #ifndef KLONG_HEAP_H
 #define KLONG_HEAP_H
@@ -26,161 +51,211 @@
 #include <stdint.h>
 #include <string.h>
 
-#ifndef KH_MALLOC
-#include <malloc.h>
-#define KH_MALLOC malloc
-#define KH_FREE free
-#define KH_MEMALIGN memalign
-#endif
-
 #define KH_SMALL_MAX 128u
 #define KH_CLASSES (KH_SMALL_MAX / 8u)
-#define KH_CACHE_MAX (8u * 1024)
-
-/* The runtime counts each block as the arena holds it (`heap_round` 8: sizes rounded up to 8; `heap_overhead` 0: the blocks of the
- * region, which are nearly all of them, have no header; the few over KH_REGION_MAX are malloc's, with 8 bytes more each, which
- * the slack below covers). Not counted, and in the arena: the free blocks on the cache (up to KH_CACHE_MAX), and what first-fit
- * leaves in holes (KH_FRAG: 3% of the arena, at least 2 KB). The limit is the arena less those. A request of LARGE bytes or
- * more (klong-rt/src/heap.rs) is refused KH_RESERVE bytes before the limit, so that the smaller requests of unwinding, printing
- * the error and the next prompt find room. A vector that does not fit is a `memory` error, never a NULL where nothing can be
- * done with it. */
+#define KH_CACHE_MAX (4u * 1024)
+#define KH_HIGH_MAX 8192u
 #define KH_RESERVE (6u * 1024)
 #define KH_SLACK_MIN (2u * 1024)
+/* What the SDK's own malloc (stdio, USB) is given at the bottom of the heap, apart from the runtime's pool (main.c). */
+#define KH_SDK_BYTES (4u * 1024)
 
-/* Blocks of up to KH_REGION_MAX bytes (what is not a vector: argument frames, boxed values, the tables that grow with the
- * symbols, the buffers of a connection) are not newlib's: they live in a region at the top of the arena, which grows down from
- * the end of the arena and shrinks back when its lowest block is freed, in a first-fit list in address order with no header (the
- * runtime tells `free` the size). What is longer lived than a program (the table of symbols, of globals, a connection's buffer: they
- * grow by doubling while a library loads, and the last, grown block stays) then sits at the top, and the vectors and strings
- * and parse trees of over 8 KB, which come and go, have the bottom of the arena to themselves: a block left in the middle of it
- * by a program that has gone is what made the largest vector of a node that had loaded the management library 20 KB smaller. */
-#define KH_REGION_MAX 8192u
+#define KH_NIL 0xFFFFFFFFu
+
 typedef struct kh_chunk {
-    struct kh_chunk *next;
-    size_t size;
+    uint32_t size; /* bytes of the chunk, a multiple of 8 */
+    uint32_t next; /* offset of the next free chunk (higher in the arena), or KH_NIL */
 } kh_chunk;
-#define KH_GRAIN (sizeof(kh_chunk))
-static kh_chunk *kh_rfree;     /* the region's free chunks, in address order */
-static char *kh_top_lo;        /* the bottom of the region */
-static uint32_t kh_region_bytes; /* in use in the region */
-static char *kh_arena_start, *kh_heap_end, *kh_arena_stop;
+
+static char *kh_base;       /* the pool: 8-aligned */
+static uint32_t kh_bytes;   /* its size, a multiple of 8 */
+static uint32_t kh_head;    /* offset of the lowest free chunk */
+static uint32_t kh_taken, kh_taken_peak; /* bytes out of the pool: live blocks and the cache */
 static void *kh_free_list[KH_CLASSES + 1];
 static uint32_t kh_cached;                   /* bytes on the lists */
-static uint32_t kh_drains, kh_drained_bytes; /* how often malloc failed and the lists were given back, and how much */
+static uint32_t kh_drains, kh_drained_bytes; /* how often the lists were given back, and how much */
+static uint32_t kh_fail_small, kh_fail_large; /* requests the pool could not serve (after giving the cache back) */
+static uint32_t kh_grown, kh_grow_missed;     /* blocks resized in place; asked to, and the chunk after was not free */
+
+#define KH_AT(o) ((kh_chunk *)(kh_base + (o)))
+
+#ifdef KH_DIAG
+#ifndef KH_TAGS
+#define KH_TAGS 1
+#endif
+#endif
+#ifdef KH_TAGS
+extern volatile uint8_t KLONG_ALLOC_TAG; /* set by the runtime (klong-core, feature heap-tags) before it allocates */
+#define KH_TAG_TREE 5u /* htag::TREE */
+#define KH_TENURED(tag) ((tag) == 3u || (tag) == 4u) /* htag::SYMBOLS, htag::GLOBALS: they live as long as the node does */
+#else
+#define KH_TENURED(tag) 0
+#endif
+#ifdef KH_TAGS
+#define KLONG_ALLOC_TAG_NOW (KLONG_ALLOC_TAG)
+#else
+#define KLONG_ALLOC_TAG_NOW 0
+#endif
+
+#ifdef KH_DIAG
+#define KH_CELL 64u
+#ifndef KH_CELLS_MAX
+#define KH_CELLS_MAX 1600u /* 100 KB of arena */
+#endif
+#define KH_TAB_N 96u
+#define KH_TAB_MIN 512u
+static uint8_t kh_cell[KH_CELLS_MAX]; /* per 64 bytes of the pool: a bit per kind (1 << tag) of the blocks that started in it */
+static struct kh_ent {
+    uint32_t off, size;
+    uint8_t tag;
+} kh_tab[KH_TAB_N];
+static uint32_t kh_tab_n, kh_tab_bytes, kh_tab_lost;
+static void kh_diag_note(void *p, size_t n) {
+    uint32_t o = (uint32_t)((char *)p - kh_base);
+    uint8_t tag = KLONG_ALLOC_TAG & 7u;
+    if ((o / KH_CELL) < KH_CELLS_MAX) kh_cell[o / KH_CELL] |= (uint8_t)(1u << tag);
+    if (n >= KH_TAB_MIN) {
+        for (uint32_t i = 0; i < KH_TAB_N; i++)
+            if (kh_tab[i].size == 0) {
+                kh_tab[i].off = o, kh_tab[i].size = (uint32_t)n, kh_tab[i].tag = tag;
+                kh_tab_n++, kh_tab_bytes += (uint32_t)n;
+                return;
+            }
+        kh_tab_lost++;
+    }
+}
+static void kh_diag_forget(void *p, size_t n) {
+    uint32_t o = (uint32_t)((char *)p - kh_base);
+    if (n >= KH_TAB_MIN) {
+        for (uint32_t i = 0; i < KH_TAB_N; i++)
+            if (kh_tab[i].size && kh_tab[i].off == o) {
+                kh_tab_n--, kh_tab_bytes -= kh_tab[i].size;
+                kh_tab[i].size = 0;
+                return;
+            }
+    }
+}
+/* the cells that lie wholly in [lo, hi) hold no block start any more */
+static void kh_diag_clear(uint32_t lo, uint32_t hi) {
+    for (uint32_t c = (lo + KH_CELL - 1) / KH_CELL; (c + 1) * KH_CELL <= hi && c < KH_CELLS_MAX; c++) kh_cell[c] = 0;
+}
+#define KH_NOTE(p, n) kh_diag_note((p), (n))
+#define KH_FORGET(p, n) kh_diag_forget((p), (n))
+#else
+#define KH_NOTE(p, n) ((void)0)
+#define KH_FORGET(p, n) ((void)0)
+#endif
 
 static inline void kh_init(char *start, char *stop) {
-    kh_arena_start = kh_heap_end = start;
-    kh_arena_stop = stop;
-    kh_top_lo = stop;
+    uintptr_t s = ((uintptr_t)start + 7u) & ~(uintptr_t)7u;
+    kh_base = (char *)s;
+    kh_bytes = (uint32_t)(((uintptr_t)stop - s) & ~(uintptr_t)7u);
+    kh_head = 0;
+    KH_AT(0)->size = kh_bytes;
+    KH_AT(0)->next = KH_NIL;
+    kh_taken = kh_taken_peak = kh_cached = 0;
 }
 
-/* _sbrk: the break may rise to KH_RESERVE bytes below the end of the arena, or to the end for a small block. */
-static inline void *kh_sbrk(long incr) {
-    char *prev = kh_heap_end;
-    long room = kh_top_lo - kh_heap_end - (long)KH_RESERVE; /* the top KH_RESERVE bytes of the room are the region's */
-    if (incr > room) return (void *)-1;
-    kh_heap_end += incr;
-    return prev;
-}
-
-/* heap_limit and heap_reserve for klong_config, from the bytes of the arena. */
+/* heap_limit and heap_reserve for klong_config, from the bytes of the pool. The cache is not taken off: it is given back when a
+ * request fails, so what the pool holds is the live blocks (all counted) and what is free; the slack is for holes. */
 static inline void kh_limits(size_t arena, size_t *limit, size_t *reserve) {
-    size_t frag = arena / 32;
+    size_t frag = arena / 64;
     if (frag < KH_SLACK_MIN) frag = KH_SLACK_MIN;
-    *limit = arena - KH_CACHE_MAX - frag;
+    *limit = arena - frag;
     *reserve = KH_RESERVE;
 }
 
-/* A block of up to KH_REGION_MAX bytes: from the region, and from malloc when the region cannot grow (what is free in
- * malloc's part below its break, after a vector has been and gone, is room for it too); and back to where it came from, which
- * its address says: the region is above every block of malloc's. */
-#define KH_IN_REGION(p) ((char *)(p) >= kh_top_lo)
-static void *kh_region_alloc(size_t size);
-static void kh_region_free(void *ptr, size_t size);
-static void *kh_block_alloc(size_t size) {
-    void *p = kh_region_alloc(size);
-    if (!p) p = KH_MALLOC(size < 16 ? 16 : size);
-    return p;
-}
-static void kh_block_free(void *ptr, size_t size) {
-    if (KH_IN_REGION(ptr)) kh_region_free(ptr, size);
-    else KH_FREE(ptr);
-}
-
-#ifndef KH_ON_ALLOC
-#define KH_ON_ALLOC(p, n)
-#define KH_ON_FREE(p)
-#endif
-
 static size_t kh_round(size_t n) {
-    return (n + KH_GRAIN - 1) & ~(KH_GRAIN - 1);
+    n = (n + 7u) & ~(size_t)7u;
+    return n ? n : 8u;
 }
 
-/* A block of the region: first fit, and the region grows down when nothing fits. */
-static void *kh_region_alloc(size_t size) {
-    size_t n = kh_round(size ? size : 1);
-    /* the fit highest in the arena, and its end of it: the region packs against the top of the arena and what is free stays at the
-     * bottom, where it can be given back */
-    kh_chunk *prev = NULL, *fit_prev = NULL, *fit = NULL;
-    for (kh_chunk *c = kh_rfree; c; prev = c, c = c->next)
-        if (c->size >= n) fit = c, fit_prev = prev;
-    if (fit) {
-        void *p;
-        if (fit->size - n >= KH_GRAIN) {
-            fit->size -= n;
-            p = (char *)fit + fit->size;
-        } else {
-            p = fit;
-            if (fit_prev) fit_prev->next = fit->next; else kh_rfree = fit->next;
+/* Carve [b, b+n) out of the chunk at offset `o` (whose predecessor in the list is `prev`): what is left of it on either side stays. */
+static void kh_carve(uint32_t prev, uint32_t o, uint32_t b, uint32_t n) {
+    kh_chunk *c = KH_AT(o);
+    uint32_t size = c->size, nx = c->next, after = nx;
+    uint32_t tail = o + size - (b + n);
+    if (tail) {
+        kh_chunk *t = KH_AT(b + n);
+        t->size = tail;
+        t->next = nx;
+        after = b + n;
+    }
+    uint32_t link = after;
+    if (b > o) {
+        c->size = b - o;
+        c->next = after;
+        link = o;
+    }
+    if (prev == KH_NIL) kh_head = link; else KH_AT(prev)->next = link;
+}
+
+/* n bytes (a multiple of 8) from the pool: `high` the chunk highest in the arena, from its top; otherwise the lowest that fits,
+ * from its bottom (at an address aligned to `align`). NULL when no chunk has it. */
+static void *kh_pool_alloc(size_t n, size_t align, int high) {
+    uint32_t prev = KH_NIL, p = kh_head, fit_prev = KH_NIL, fit = KH_NIL, lead = 0;
+    for (; p != KH_NIL; prev = p, p = KH_AT(p)->next) {
+        uint32_t size = KH_AT(p)->size;
+        if (size < n) continue;
+        uint32_t l = 0;
+        if (align > 8 && !high) {
+            uintptr_t a = (uintptr_t)(kh_base + p);
+            l = (uint32_t)(((a + align - 1) & ~(uintptr_t)(align - 1)) - a);
+            if (size < n + l) continue;
         }
-        kh_region_bytes += (uint32_t)n;
-        KH_ON_ALLOC(p, n);
-        return p;
+        fit_prev = prev, fit = p, lead = l;
+        if (!high) break;
     }
-    /* nothing fits: lower the bottom of the region (a free chunk at the bottom is extended instead of left in front of a new block) */
-    size_t have = (kh_rfree && (char *)kh_rfree == kh_top_lo) ? kh_rfree->size : 0;
-    if (have >= n) return NULL; /* unreachable: it would have fitted */
-    size_t need = n - have;
-    if ((size_t)(kh_top_lo - kh_heap_end) < need) return NULL;
-    kh_top_lo -= need;
-    if (have) kh_rfree = kh_rfree->next; /* the chunk is the head of the list and becomes the block */
-    kh_region_bytes += (uint32_t)n;
-    KH_ON_ALLOC(kh_top_lo, n);
-    return kh_top_lo;
+    if (fit == KH_NIL) return NULL;
+    uint32_t size = KH_AT(fit)->size;
+    uint32_t b = high ? fit + size - (uint32_t)n : fit + lead;
+    kh_carve(fit_prev, fit, b, (uint32_t)n);
+    kh_taken += (uint32_t)n;
+    if (kh_taken > kh_taken_peak) kh_taken_peak = kh_taken;
+    return kh_base + b;
 }
 
-static void kh_region_free(void *ptr, size_t size) {
-    size_t n = kh_round(size ? size : 1);
-    kh_chunk *c = ptr, *prev = NULL, *next = kh_rfree;
-    kh_region_bytes -= (uint32_t)n;
-    KH_ON_FREE(ptr);
-    while (next && next < c) prev = next, next = next->next;
-    c->size = n;
-    c->next = next;
-    if (prev) prev->next = c; else kh_rfree = c;
-    if (next && (char *)c + c->size == (char *)next) { /* merge with the one after */
-        c->size += next->size;
-        c->next = next->next;
+/* Give n bytes back: into the list in address order, merged with the chunk after and the one before. */
+static void kh_pool_free(void *ptr, size_t n) {
+    uint32_t o = (uint32_t)((char *)ptr - kh_base), prev = KH_NIL, nx = kh_head;
+    while (nx != KH_NIL && nx < o) prev = nx, nx = KH_AT(nx)->next;
+    kh_chunk *c = KH_AT(o);
+    c->size = (uint32_t)n;
+    c->next = nx;
+    if (nx != KH_NIL && o + (uint32_t)n == nx) {
+        c->size += KH_AT(nx)->size;
+        c->next = KH_AT(nx)->next;
     }
-    if (prev && (char *)prev + prev->size == (char *)c) { /* and the one before */
-        prev->size += c->size;
-        prev->next = c->next;
-        c = prev;
+    uint32_t lo = o;
+    if (prev != KH_NIL) {
+        kh_chunk *pc = KH_AT(prev);
+        if (prev + pc->size == o) {
+            pc->size += c->size;
+            pc->next = c->next;
+            lo = prev;
+        } else {
+            pc->next = o;
+        }
+    } else {
+        kh_head = o;
     }
-    if ((char *)c == kh_top_lo) { /* the lowest block of the region is free: the region shrinks, the room goes back to the heap */
-        kh_top_lo += c->size;
-        kh_rfree = c->next;
-    }
+    kh_taken -= (uint32_t)n;
+#ifdef KH_DIAG
+    kh_diag_clear(lo, KH_AT(lo)->size + lo);
+#else
+    (void)lo;
+#endif
 }
 
-/* Give the cached blocks back to the region (which merges them). Returns the bytes (0: there were none). */
+/* Give the cached blocks back to the pool (which merges them). Returns the bytes (0: there were none). */
 static size_t kh_drain(void) {
     size_t freed = 0;
     for (uint32_t c = 1; c <= KH_CLASSES; c++) {
         void *p = kh_free_list[c];
         while (p) {
             void *next = *(void **)p;
-            kh_block_free(p, c * 8u);
+            KH_FORGET(p, c * 8u);
+            kh_pool_free(p, c * 8u);
             freed += c * 8u;
             p = next;
         }
@@ -194,35 +269,50 @@ static size_t kh_drain(void) {
     return freed;
 }
 
-static void *kh_small_alloc(size_t size) {
-    size_t c = (size + 7u) >> 3;
-    void *p = kh_free_list[c];
+static void *kh_take(size_t size, size_t align) {
+    size_t n = kh_round(size);
+    int high = size <= KH_HIGH_MAX && align <= 8;
+#ifdef KH_TAGS
+    if (KLONG_ALLOC_TAG == KH_TAG_TREE) high = 0; /* a parse (tokens, nodes, the copy of the source) is made and thrown away, or lives as long as its library: with the vectors, not among what lives for ever */
+#endif
+    void *p = kh_pool_alloc(n, align, high);
+    if (!p && kh_drain()) p = kh_pool_alloc(n, align, high);
     if (p) {
-        kh_free_list[c] = *(void **)p;
-        kh_cached -= (uint32_t)(c << 3);
-#ifdef KH_POISON
-        memset(p, 0xAA, c << 3);
-#endif
-        return p;
+        KH_NOTE(p, n);
+    } else if (size <= KH_SMALL_MAX) {
+        kh_fail_small++;
+    } else {
+        kh_fail_large++;
     }
-    p = kh_block_alloc(c << 3);
-    if (!p && kh_drain()) p = kh_block_alloc(c << 3);
-#ifdef KH_POISON
-    if (p) memset(p, 0xAA, c << 3);
-#endif
     return p;
 }
 
 static void *kh_alloc(void *ctx, size_t size, size_t align) {
     (void)ctx;
-    if (size <= KH_SMALL_MAX && align <= 8) return kh_small_alloc(size ? size : 1);
-    if (size <= KH_REGION_MAX && align <= 8) {
-        void *r = kh_block_alloc(size);
-        if (!r && kh_drain()) r = kh_block_alloc(size);
-        return r;
+    if (size <= KH_SMALL_MAX && align <= 8) {
+        size_t c = ((size ? size : 1) + 7u) >> 3;
+        /* What lives as long as the node (the table of symbols and the globals) never takes a cached block: those are wherever a
+         * temporary of an earlier program was, and a name taken from the middle of the heap stays there for ever and pins it. It
+         * comes from the pool, at the highest address that is free. */
+        void *p = KH_TENURED(KLONG_ALLOC_TAG_NOW) ? NULL : kh_free_list[c];
+        if (p) {
+            kh_free_list[c] = *(void **)p;
+            kh_cached -= (uint32_t)(c << 3);
+#ifdef KH_POISON
+            memset(p, 0xAA, c << 3);
+#endif
+            return p;
+        }
+        p = kh_take(c << 3, 8);
+#ifdef KH_POISON
+        if (p) memset(p, 0xAA, c << 3);
+#endif
+        return p;
     }
-    void *p = align <= 8 ? KH_MALLOC(size) : KH_MEMALIGN(align, size);
-    if (!p && kh_drain()) p = align <= 8 ? KH_MALLOC(size) : KH_MEMALIGN(align, size);
+    void *p = kh_take(size, align);
+#ifdef KH_POISON
+    if (p && size <= 4096) memset(p, 0xAA, kh_round(size));
+#endif
     return p;
 }
 
@@ -241,11 +331,153 @@ static void kh_free(void *ctx, void *ptr, size_t size, size_t align) {
             return;
         }
     }
-    if (size <= KH_REGION_MAX && align <= 8) {
-        kh_block_free(ptr, size);
-        return;
-    }
-    KH_FREE(ptr);
+    size_t n = kh_round(size);
+    KH_FORGET(ptr, n);
+#ifdef KH_POISON
+    if (n <= 4096) memset(ptr, 0xDD, n);
+#endif
+    kh_pool_free(ptr, n);
 }
+
+/* Resize a block in place: shrinking gives the tail back, growing takes the chunk after the block when it is free and long enough.
+ * Returns 1 when the block is now `new_size` bytes where it was (the runtime copies and frees otherwise). */
+static int kh_grow(void *ctx, void *ptr, size_t old_size, size_t new_size, size_t align) {
+    (void)ctx;
+    if (!ptr || align > 8) return 0;
+    size_t o = kh_round(old_size), n = kh_round(new_size);
+    /* a block that is, or becomes, one of the cached size classes is left alone: `free` is told its size and files it by class */
+    if (o <= KH_SMALL_MAX || n <= KH_SMALL_MAX) return 0;
+    if (n == o) return 1;
+    uint32_t off = (uint32_t)((char *)ptr - kh_base);
+    if (n < o) {
+        /* a small block that could be put higher is moved by the runtime (alloc, copy, free) instead: a table that grew while the top was full
+         * and stayed lies below what has since been freed above it, and keeps the room under it from a vector */
+        if (n <= KH_HIGH_MAX) {
+            for (uint32_t p = kh_head; p != KH_NIL; p = KH_AT(p)->next)
+                if (p > off + (uint32_t)o && KH_AT(p)->size >= n) return 0;
+        }
+        KH_FORGET(ptr, o);
+        kh_pool_free((char *)ptr + n, o - n);
+        KH_NOTE(ptr, n);
+        return 1;
+    }
+    uint32_t prev = KH_NIL, p = kh_head, want = off + (uint32_t)o;
+    while (p != KH_NIL && p < want) prev = p, p = KH_AT(p)->next;
+    if (p != want || KH_AT(p)->size < (uint32_t)(n - o)) {
+        kh_grow_missed++;
+        return 0;
+    }
+    uint32_t extra = (uint32_t)(n - o), size = KH_AT(p)->size;
+    kh_chunk *c = KH_AT(p);
+    uint32_t nx = c->next;
+    if (size == extra) {
+        if (prev == KH_NIL) kh_head = nx; else KH_AT(prev)->next = nx;
+    } else {
+        kh_chunk *rest = KH_AT(p + extra);
+        rest->size = size - extra;
+        rest->next = nx;
+        if (prev == KH_NIL) kh_head = p + extra; else KH_AT(prev)->next = p + extra;
+    }
+    KH_FORGET(ptr, o);
+    kh_grown++;
+    kh_taken += extra;
+    if (kh_taken > kh_taken_peak) kh_taken_peak = kh_taken;
+    KH_NOTE(ptr, n);
+    return 1;
+}
+
+#ifdef KH_DIAG
+/* ---- the diagnostic: the pool as integers (`.heap`; docs/native/pico-bench.md) -------------------------------------------------- */
+
+#define KH_PAGE 20u /* entries of a page of the map; blocks: 24 */
+
+/* The summary, fields 0 to 20 (the firmware appends its own from 21). Offsets are from the base of the pool. */
+#define KH_SUMMARY_N 21u
+static size_t kh_diag_summary(int64_t *out, size_t cap) {
+    if (cap < KH_SUMMARY_N) return 0;
+    uint32_t free_bytes = 0, largest = 0, chunks = 0, first = KH_NIL, last = KH_NIL;
+    for (uint32_t p = kh_head; p != KH_NIL; p = KH_AT(p)->next) {
+        uint32_t s = KH_AT(p)->size;
+        free_bytes += s, chunks++;
+        if (s > largest) largest = s;
+        if (first == KH_NIL) first = p;
+        last = p;
+    }
+    int64_t v[KH_SUMMARY_N] = {(int64_t)(uintptr_t)kh_base, kh_bytes, kh_taken, kh_taken_peak, kh_cached, kh_drains, kh_drained_bytes, free_bytes, largest, chunks,
+                               first == KH_NIL ? -1 : (int64_t)first, first == KH_NIL ? 0 : KH_AT(first)->size, last == KH_NIL ? -1 : (int64_t)last, last == KH_NIL ? 0 : KH_AT(last)->size,
+                               kh_tab_n, kh_tab_bytes, kh_tab_lost, kh_fail_small, kh_fail_large, kh_grown, kh_grow_missed};
+    for (uint32_t i = 0; i < KH_SUMMARY_N; i++) out[i] = v[i];
+    return KH_SUMMARY_N;
+}
+
+/* A page of the map of the whole pool in address order, runs of free and of used bytes: [offset size kind kinds] with kind 0 free,
+ * 1 used, and `kinds` the bits (1 << tag) of the blocks that started in a used run (so what lives there). */
+static size_t kh_diag_map(uint32_t page, int64_t *out, size_t cap) {
+    size_t n = 0, idx = 0, first = (size_t)page * KH_PAGE;
+    uint32_t pos = 0;
+    uint32_t p = kh_head;
+    for (;;) {
+        uint32_t run_off, run_size, kind;
+        if (p != KH_NIL && p == pos) { /* a free chunk is here */
+            run_off = p, run_size = KH_AT(p)->size, kind = 0;
+            p = KH_AT(p)->next;
+        } else {
+            uint32_t stop = p == KH_NIL ? kh_bytes : p;
+            if (pos >= kh_bytes) break;
+            run_off = pos, run_size = stop - pos, kind = 1;
+        }
+        pos = run_off + run_size;
+        if (idx >= first) {
+            if (n + 4 > cap || n / 4 >= KH_PAGE) break;
+            uint32_t kinds = 0;
+            if (kind) {
+                for (uint32_t c = run_off / KH_CELL; c <= (run_off + run_size - 1) / KH_CELL && c < KH_CELLS_MAX; c++) kinds |= kh_cell[c];
+            }
+            out[n++] = run_off, out[n++] = run_size, out[n++] = kind, out[n++] = kinds;
+        }
+        idx++;
+    }
+    return n;
+}
+
+/* A page of the live blocks of 512 bytes or more, by address: [offset size tag]. */
+#define KH_BLOCKS_PAGE 24u
+static size_t kh_diag_blocks(uint32_t page, int64_t *out, size_t cap) {
+    uint8_t idx[KH_TAB_N];
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < KH_TAB_N; i++) {
+        if (!kh_tab[i].size) continue;
+        uint32_t j = n++;
+        while (j > 0 && kh_tab[idx[j - 1]].off > kh_tab[i].off) idx[j] = idx[j - 1], j--;
+        idx[j] = (uint8_t)i;
+    }
+    size_t k = 0;
+    for (uint32_t i = page * KH_BLOCKS_PAGE; i < n && i < (page + 1) * KH_BLOCKS_PAGE && k + 3 <= cap; i++) {
+        out[k++] = kh_tab[idx[i]].off, out[k++] = kh_tab[idx[i]].size, out[k++] = kh_tab[idx[i]].tag;
+    }
+    return k;
+}
+
+/* The cached blocks of each size class (8, 16, ... 128 bytes). */
+static size_t kh_diag_cache(int64_t *out, size_t cap) {
+    size_t k = 0;
+    for (uint32_t c = 1; c <= KH_CLASSES && k < cap; c++) {
+        uint32_t cnt = 0;
+        for (void *p = kh_free_list[c]; p; p = *(void **)p) cnt++;
+        out[k++] = cnt;
+    }
+    return k;
+}
+
+/* One entry for the whole diagnostic: mode 0 the summary (heap fields), 1..99 a page of the map (mode - 1), 100..199 a page of the
+ * live blocks (mode - 100), 200 the cache. */
+static size_t kh_diag(uint32_t mode, int64_t *out, size_t cap) {
+    if (mode == 0) return kh_diag_summary(out, cap);
+    if (mode < 100) return kh_diag_map(mode - 1, out, cap);
+    if (mode < 200) return kh_diag_blocks(mode - 100, out, cap);
+    if (mode == 200) return kh_diag_cache(out, cap);
+    return 0;
+}
+#endif
 
 #endif

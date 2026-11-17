@@ -97,6 +97,12 @@ typedef struct klong_config {
     /* Blocks are counted rounded up to a multiple of this (the grain the allocator gives them out
      * in: 8); 0: as asked. */
     size_t heap_round;
+
+    /* Optional (may be NULL): resize a block where it is. `ptr` is a block of `alloc` of `old_size` bytes; return 1 if it is now
+     * `new_size` bytes at the same address (a larger size needs the room after the block to be free; a smaller one gives the end
+     * back), 0 if it cannot be done there, and then nothing has changed: the runtime allocates, copies and frees. A vector that
+     * grows by doubling then does not need the old block and the new at once. */
+    int (*grow)(void *ctx, void *ptr, size_t old_size, size_t new_size, size_t align);
 } klong_config;
 
 /* Build the runtime, run boot.kg if the file system has one, print the banner
@@ -110,6 +116,13 @@ int32_t klong_step(void);
 /* The main loop: klong_step, and the wait callback when it had nothing to do. Returns
  * only if klong_init was not called. */
 void klong_run(void);
+
+/* A diagnostic of the heap (library built with the cargo feature `heapdiag`; the Pico bench): the board gives a function that
+ * fills `out` (room for `cap` integers) for a `mode` and returns how many it wrote (0: nothing for that mode), and the system
+ * function `.heap(mode)` returns them as a vector. What the modes mean is the board's (boards/pico-bench/klong_heap.h). The runtime
+ * also tells the board's allocator what each allocation is for, in `volatile uint8_t KLONG_ALLOC_TAG` (0 other, 1 vector, 2 string,
+ * 3 symbols, 4 globals, 5 parse, 6 ipc, 7 console), set before the `alloc` callback is called. Call once, after klong_init. */
+void klong_set_diag(size_t (*diag)(uint32_t mode, int64_t *out, size_t cap));
 
 /* Heap figures of the runtime in bytes: in use, the highest so far, the limit. Any of
  * the pointers may be NULL. */

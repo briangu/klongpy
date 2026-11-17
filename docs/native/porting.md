@@ -63,6 +63,7 @@ The interface is the header `native/klong-ffi/include/klong.h`, which has `KLONG
 | `int32_t klong_step(void)` | one turn of the main loop: console input, then timers. 1 when something was done, 0 when there was nothing to do (the caller may sleep), -1 before `klong_init` |
 | `void klong_run(void)` | the main loop: `klong_step`, and the `wait` callback when there was nothing to do. Returns only if `klong_init` was not called |
 | `void klong_heap(size_t *used, size_t *peak, size_t *limit)` | heap figures in bytes; any pointer may be NULL |
+| `void klong_set_diag(size_t (*diag)(uint32_t mode, int64_t *out, size_t cap))` | a diagnostic of the heap, in a library built with the cargo feature `heapdiag` (the Pico bench): the board's function fills the integers of a mode and the system function `.heap(mode)` returns them; the runtime also says what each allocation is for in `volatile uint8_t KLONG_ALLOC_TAG`. See [the Pico bench page](pico-bench.md#the-heap-what-the-boards-showed-and-the-allocator-that-followed-the-ninth-round) |
 
 The configuration structure, `klong_config`:
 
@@ -72,6 +73,8 @@ The configuration structure, `klong_config`:
 | `ctx` | passed back as the first argument of every callback |
 | `alloc(ctx, size, align)`, `free(ctx, ptr, size, align)` | the heap; `align` is a power of two, 8 for 64-bit numbers, so a 4-byte aligned `malloc` is not enough |
 | `heap_limit`, `heap_reserve` | the limit in bytes (0 for none) and the reserve |
+| `heap_overhead`, `heap_round` | what the allocator keeps per block (its header) and the grain it gives blocks out in, so that what the runtime counts is what the arena holds (0, 0: the sizes asked for) |
+| `grow(ctx, ptr, old_size, new_size, align)` | optional: resize a block where it is (1 if done, 0 if not, and then nothing has changed). A vector that grows by doubling then needs the room it grows by and not the old block and the new at once; without it the runtime allocates, copies and frees |
 | `stack_bytes` | as above; 32 KiB is the least that is useful |
 | `write(ctx, bytes, len)`, `read(ctx, buf, cap)` | the console, raw bytes both ways: no echo, no line buffering, no CR LF translation by the driver |
 | `now_ms(ctx)` | monotonic milliseconds |

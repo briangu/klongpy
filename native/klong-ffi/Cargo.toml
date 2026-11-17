@@ -29,6 +29,9 @@ ipc = ["klong-rt/ipc"]
 # The RP2040 (Pico SDK) build: the evaluator's hot functions in RAM.
 pico = ["klong-core/ram-hot"]
 lane = ["ipc", "klong-console/ipc"]
+# A diagnostic of the heap (the Pico bench build): `.heap(mode)` returns the board's allocator state as integers (the board supplies
+# `klong_diag`), and the runtime tells the allocator what each allocation is for (klong-core `heap-tags`).
+heapdiag = ["klong-core/heap-tags"]
 
 [dependencies]
 klong-core = { path = "../klong-core" }
@@ -38,4 +41,4 @@ klong-board = { path = "../klong-board", default-features = false }
 
 [dev-dependencies]
 # the tests of the lane part of the C interface (tests/lane.c) need the feature on
-klong-ffi = { path = ".", features = ["lane"] }
+klong-ffi = { path = ".", features = ["lane", "heapdiag"] }

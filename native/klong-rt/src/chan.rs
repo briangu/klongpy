@@ -419,7 +419,7 @@ pub(crate) fn register<P: Platform + 'static>(interp: &mut Interp, shared: &Rc<S
         1,
         Rc::new(move |ip: &mut Interp, a: &[Value]| {
             let (path, text) = load_text(&sh, text_arg(a, ".l")?)?;
-            match ip.load(&text, &path)? {
+            match ip.load_owned(text, &path)? {
                 Some(v) => Ok(v),
                 None => Ok(ip.no_value()),
             }

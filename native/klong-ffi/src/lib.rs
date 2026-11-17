@@ -67,6 +67,8 @@ pub struct KlongConfig {
     pub heap_overhead: usize,
     /// Blocks are counted rounded up to a multiple of this (see `Counting::set_round`; 0: as asked).
     pub heap_round: usize,
+    /// Optional: resize a block where it is (see klong.h). Returns 1 when done.
+    pub grow: Option<unsafe extern "C" fn(Ctx, *mut c_void, usize, usize, usize) -> i32>,
 }
 
 /// A static that one task uses. klong.h requires every call and callback to be on the task
@@ -114,6 +116,15 @@ unsafe impl GlobalAlloc for CHeap {
 /// The counters are statics, so they are in internal RAM whatever memory `alloc` returns.
 #[global_allocator]
 static HEAP: Counting<CHeap> = Counting::new(CHeap);
+
+/// `Counting`'s way to the C side's `grow`.
+unsafe fn cgrow(ptr: *mut u8, old: usize, new: usize, align: usize) -> bool {
+    match hooks() {
+        // SAFETY: a callback of klong.h, called with its context on the runtime's task, for a block of its `alloc`.
+        Some(KlongConfig { grow: Some(f), ctx, .. }) => unsafe { f(ctx, ptr as *mut c_void, old, new, align) != 0 },
+        _ => false,
+    }
+}
 
 fn mem() -> (usize, usize, usize) {
     (HEAP.used(), HEAP.peak(), HEAP.limit())
@@ -268,6 +279,9 @@ pub unsafe extern "C" fn klong_init(config: *const KlongConfig) -> i32 {
     HEAP.set_overhead(cfg.heap_overhead);
     HEAP.set_round(cfg.heap_round);
     HEAP.set_limit(cfg.heap_limit, cfg.heap_reserve);
+    if cfg.grow.is_some() {
+        HEAP.set_grow(Some(cgrow));
+    }
 
     let mut system = CSystem { name: [0; 31], name_len: 0 };
     let fallback = b"board";
@@ -301,7 +315,10 @@ pub unsafe extern "C" fn klong_init(config: *const KlongConfig) -> i32 {
         console: ConsoleConfig { dumb: cfg.flags & KLONG_FLAG_DUMB != 0, ..ConsoleConfig::default() },
         ..BoardConfig::default()
     };
-    let console = klong_board::start(platform, board);
+    #[cfg_attr(not(feature = "heapdiag"), allow(unused_mut))]
+    let mut console = klong_board::start(platform, board);
+    #[cfg(feature = "heapdiag")]
+    heapdiag::register(&mut console.rt.interp);
     // SAFETY: as above; `STATE` is empty until this write.
     unsafe { *STATE.0.get() = Some(State { console, stepping: false }) };
     KLONG_OK
@@ -701,5 +718,51 @@ mod bare {
         loop {
             core::hint::spin_loop();
         }
+    }
+}
+
+/// `.heap(mode)`: the board's heap as integers, for a diagnostic (feature `heapdiag`). The numbers come from a function the board
+/// gives with `klong_set_diag` (boards/pico-bench/main.c); this only carries them into a vector of the interpreter.
+#[cfg(feature = "heapdiag")]
+mod heapdiag {
+    use alloc::rc::Rc;
+    use alloc::vec::Vec;
+    use klong_core::error::Error;
+    use klong_core::interp::Interp;
+    use klong_core::value::{Int, Value};
+
+    /// `size_t diag(uint32_t mode, int64_t *out, size_t cap)`: fill `out` (room for `cap` integers) for `mode`, return how many.
+    type Diag = unsafe extern "C" fn(u32, *mut i64, usize) -> usize;
+    static DIAG: super::Global<Option<Diag>> = super::Global(core::cell::UnsafeCell::new(None));
+
+    /// See klong.h.
+    ///
+    /// # Safety
+    /// `f` is null or a function that keeps the contract above; called from the task that calls `klong_init`.
+    #[no_mangle]
+    pub unsafe extern "C" fn klong_set_diag(f: Option<Diag>) {
+        // SAFETY: one task (klong.h): the cell is written here and read in `.heap`, never at the same time.
+        unsafe { *DIAG.0.get() = f }
+    }
+
+    pub fn register(interp: &mut Interp) {
+        interp.register(
+            ".heap",
+            1,
+            Rc::new(|_: &mut Interp, a: &[Value]| {
+                let mode = match a.first() {
+                    Some(Value::Int(m)) if *m >= 0 => *m as u32,
+                    _ => return Err(Error::typ(".heap takes a mode, a non-negative integer")),
+                };
+                // SAFETY: as in `klong_set_diag`: a read of a `Copy` value on the one task.
+                let Some(diag) = (unsafe { *DIAG.0.get() }) else { return Err(Error::typ(".heap: the board gave no diagnostic")) };
+                let mut out = [0i64; 96];
+                // SAFETY: `out` has room for the 96 integers passed as `cap`; the board writes at most that many and returns the count.
+                let n = unsafe { diag(mode, out.as_mut_ptr(), out.len()) }.min(out.len());
+                let mut v: Vec<Int> = klong_core::value::try_vec(n)?;
+                v.extend(out[..n].iter().map(|&x| x as Int));
+                Ok(Value::ints(v))
+            }),
+        );
     }
 }

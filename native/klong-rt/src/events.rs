@@ -91,6 +91,7 @@ impl<P: Platform + 'static> Events<P> {
 
     pub(crate) fn queue(&self, w: Work) -> Result<()> {
         let mut q = self.work.try_borrow_mut().map_err(|_| Error::internal("runtime state in use"))?;
+        let _tag = klong_core::htag::Scope::new(klong_core::htag::IPC);
         q.try_reserve(1).map_err(|_| Error::memory())?;
         q.push_back(w);
         Ok(())

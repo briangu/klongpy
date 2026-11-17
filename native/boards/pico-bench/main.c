@@ -14,8 +14,9 @@
  * Memory (the whole of the 264 KB of RAM; the figures are in README.md): the code that runs most (the evaluator)
  * is copied to RAM at start, 17 KB of .data; the lane's rings are 24 KB; the interpreter runs on a stack of
  * KLONG_STACK_BYTES that starts at the top of RAM, in the 8 KB of the two scratch banks, and grows down; the heap
- * is everything between the end of .bss and the bottom of that stack (newlib's malloc, with its _sbrk below), and
- * the runtime's heap limit is made from its size (klong_heap.h).
+ * is everything between the end of .bss and the bottom of that stack: the first KH_SDK_BYTES are newlib's (the SDK's own
+ * malloc users, through the _sbrk below), the rest is the runtime's pool (klong_heap.h: its own allocator, one address-ordered
+ * list with coalescing, no malloc), and the runtime's heap limit is made from its size.
  */
 #include <malloc.h>
 #include <stdint.h>
@@ -35,15 +36,15 @@
 
 #include "klong.h"
 
-/* Memory comes from newlib's malloc directly. The SDK wraps malloc (pico_malloc) so that a NULL is a `panic("Out of
- * memory")`, which prints on a USB that nobody is attached to and then spins with the interrupts on: the node answers
- * the supervisor's PING from nothing and is dead. Here a NULL is an answer: a vector that does not fit is a `memory`
- * error, and what cannot fail and does (a frame) is `k_fatal`, which restarts the chip and says so. */
-extern void *__real_malloc(size_t);
-extern void __real_free(void *);
-#define KH_MALLOC __real_malloc
-#define KH_FREE __real_free
-#define KH_MEMALIGN memalign
+/* The runtime's memory is not newlib's: it has a pool of its own (klong_heap.h). What the SDK itself takes from malloc (stdio's
+ * buffer when a console is on USB, a few small things) comes from the first KH_SDK_BYTES of the heap through `_sbrk` below; if
+ * that is not enough the SDK's pico_malloc panics, as it always has. */
+#ifndef KLONG_HEAP_DIAG
+#define KLONG_HEAP_DIAG 1 /* `.heap`, and the allocator's table of live blocks: see klong_heap.h and docs/native/pico-bench.md */
+#endif
+#if KLONG_HEAP_DIAG
+#define KH_DIAG 1
+#endif
 #include "klong_heap.h"
 #include "klong_memory.h"
 
@@ -90,12 +91,18 @@ extern char end;         /* the first byte after .data and .bss: the heap starts
 extern char __StackTop;  /* the top of RAM */
 #define STACK_BOTTOM ((char *)((uintptr_t)&__StackTop - KLONG_STACK_BYTES))
 
-/* The SDK's _sbrk stops at the bottom of the 8 KB scratch banks, which are the SDK's own stacks: the heap here
- * stops at the bottom of the interpreter's stack, which starts in them (klong_heap.h keeps its top 6 KB for
- * small blocks). */
+/* The heap: from `end` (rounded to 8) the SDK's KH_SDK_BYTES for newlib's malloc, then the runtime's pool to the bottom of the
+ * interpreter's stack, which starts in the SDK's scratch banks (they are the SDK's own stacks, unused after boot). */
+#define SDK_START ((char *)(((uintptr_t)&end + 7u) & ~(uintptr_t)7u))
+#define SDK_STOP (SDK_START + KH_SDK_BYTES)
+static char *sdk_brk;
 void *_sbrk(int incr) {
-    if (kh_arena_start == NULL) kh_init(&end, STACK_BOTTOM);
-    return kh_sbrk(incr);
+    if (sdk_brk == NULL) sdk_brk = SDK_START;
+    char *prev = sdk_brk;
+    if (incr > 0 && (size_t)(SDK_STOP - prev) < (size_t)incr) return (void *)-1;
+    if (incr < 0 && (size_t)(prev - SDK_START) < (size_t)-incr) return (void *)-1;
+    sdk_brk += incr;
+    return prev;
 }
 
 /* ---- the safety net: a fault, a overrun stack and a hang are seen, and the node restarts and says why ------------- */
@@ -294,8 +301,18 @@ static uint64_t k_now_ms(void *ctx) {
     (void)ctx;
     return time_us_64() / 1000u;
 }
+static uint64_t last_drain_ms;
 static void k_wait(void *ctx, uint32_t max_ms) {
     (void)ctx;
+    /* idle: the cache of freed small blocks goes back to the pool, so that a node at rest holds only what lives (a cached block sits
+     * where it was and keeps its neighbours from merging). At most every 20 ms: a call over IPC waits between its messages. */
+    if (kh_cached) {
+        uint64_t now = time_us_64() / 1000u;
+        if (now - last_drain_ms >= 20u) {
+            kh_drain();
+            last_drain_ms = now;
+        }
+    }
     /* the lane is read from an interrupt, so a short sleep loses nothing; 200 us keeps the latency of a call low */
     sleep_us(max_ms == 0 ? 0 : 200u);
 }
@@ -343,6 +360,28 @@ static void k_fatal(void *ctx, const char *msg, size_t len) {
     for (;;) tight_loop_contents();
 }
 
+#if KLONG_HEAP_DIAG
+/* `.heap(mode)` (klong-ffi feature `heapdiag`, given to the runtime with klong_set_diag): the heap as integers. Mode 0 is the summary: the allocator's fields 0 to 20
+ * (klong_heap.h) and then the board's, below; modes 1.. are the allocator's map and live blocks (kh_diag). Documented in
+ * docs/native/pico-bench.md. */
+enum { DIAG_USED = KH_SUMMARY_N, DIAG_PEAK, DIAG_LIMIT, DIAG_RESERVE, DIAG_SDK_BREAK, DIAG_NEWLIB_ARENA, DIAG_NEWLIB_USED, DIAG_NEWLIB_FREE, DIAG_STACK_FREE, DIAG_END, DIAG_STACK_BOTTOM, DIAG_N };
+static size_t board_diag(uint32_t mode, int64_t *out, size_t cap) {
+    if (mode != 0) return kh_diag(mode, out, cap);
+    if (cap < DIAG_N) return 0;
+    size_t used, peak, limit;
+    kh_diag(0, out, cap);
+    klong_heap(&used, &peak, &limit);
+    struct mallinfo mi = mallinfo();
+    out[DIAG_USED] = (int64_t)used, out[DIAG_PEAK] = (int64_t)peak, out[DIAG_LIMIT] = (int64_t)limit;
+    out[DIAG_RESERVE] = KH_RESERVE; /* the runtime keeps this much of the limit back from large requests */
+    out[DIAG_SDK_BREAK] = sdk_brk ? sdk_brk - SDK_START : 0;
+    out[DIAG_NEWLIB_ARENA] = mi.arena, out[DIAG_NEWLIB_USED] = mi.uordblks, out[DIAG_NEWLIB_FREE] = mi.fordblks;
+    out[DIAG_STACK_FREE] = (char *)__builtin_frame_address(0) - STACK_BOTTOM;
+    out[DIAG_END] = (int64_t)(uintptr_t)&end, out[DIAG_STACK_BOTTOM] = (int64_t)(uintptr_t)STACK_BOTTOM;
+    return DIAG_N;
+}
+#endif
+
 static void klong_main(void) {
     klong_config cfg;
     klong_lane_config lane;
@@ -351,12 +390,14 @@ static void klong_main(void) {
     cfg.size = sizeof cfg;
     cfg.alloc = kh_alloc;
     cfg.free = kh_free;
-    size_t arena = (size_t)(STACK_BOTTOM - &end);
+    kh_init(SDK_STOP, STACK_BOTTOM);
+    size_t arena = kh_bytes;
     if (arena < KH_TESTED_ARENA) k_fatal(NULL, "heap smaller than the arena tested", 33);
+    cfg.grow = kh_grow;
     kh_limits(arena, &cfg.heap_limit, &cfg.heap_reserve);
     cfg.stack_bytes = KLONG_STACK_BUDGET;
     cfg.stack_keep = KLONG_STACK_KEEP;
-    cfg.heap_overhead = 0; /* blocks of up to 8 KB are the region's (klong_heap.h), which has no header; those over it are malloc's, 8 bytes more each (in the slack) */
+    cfg.heap_overhead = 0; /* the pool's blocks have no header (klong_heap.h) */
     cfg.heap_round = 8;    /* and are given out in 8s */
     cfg.write = k_write;
     cfg.read = k_read;
@@ -369,6 +410,9 @@ static void klong_main(void) {
     cfg.name = "pico-bench";
     cfg.flags = KLONG_FLAG_CRLF; /* files live in RAM (MemFs), in the heap: lost at reset */
     if (klong_init(&cfg) != KLONG_OK) k_fatal(NULL, "klong_init", 10);
+#if KLONG_HEAP_DIAG
+    klong_set_diag(board_diag);
+#endif
 
     memset(&lane, 0, sizeof lane);
     lane.abi_version = KLONG_ABI_VERSION;

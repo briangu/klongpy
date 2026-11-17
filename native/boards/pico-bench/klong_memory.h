@@ -15,9 +15,10 @@
  * (the whole of RAM is 270,336 bytes less 54,764 of .data and .bss, which is about 215 KB to share). */
 #ifndef KLONG_STACK_BYTES
 #define KLONG_STACK_BYTES (112u * 1024)
-/* The bytes of heap that the image built with that stack has at least (from its linker map; main.c refuses to start
- * with less). The host test models an arena of exactly this size. */
-#define KH_TESTED_ARENA 98000u
+/* The bytes of the runtime's pool that the image built with that stack has at least (the heap of its linker map, 97,892 bytes with the
+ * diagnostic on, less KH_SDK_BYTES for newlib's malloc and the alignment; main.c refuses to start with less, and build.sh checks the
+ * linker map against it plus KH_SDK_BYTES). The host tests run the allocator over a pool of exactly this size. */
+#define KH_TESTED_ARENA 93000u
 #elif !defined(KH_TESTED_ARENA)
 #define KH_TESTED_ARENA 0u /* another stack: nothing tested at that size */
 #endif

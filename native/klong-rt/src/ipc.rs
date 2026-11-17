@@ -110,6 +110,7 @@ impl Conn {
             out.0.clear();
             out.1 = 0;
         }
+        let _tag = klong_core::htag::Scope::new(klong_core::htag::IPC);
         out.0.try_reserve(bytes.len()).map_err(|_| Error::memory())?;
         out.0.extend_from_slice(bytes);
         Ok(())
@@ -389,6 +390,7 @@ impl<P: Platform + 'static> Events<P> {
         let want = self.ipc.cfg.try_borrow().map(|c| c.read_chunk).unwrap_or(1024).max(64);
         if chunk.len() != want {
             chunk.clear();
+            let _tag = klong_core::htag::Scope::new(klong_core::htag::IPC);
             if chunk.try_reserve_exact(want).is_err() {
                 return Pump::Over(String::from("out of memory"), false);
             }
@@ -559,6 +561,7 @@ impl<P: Platform + 'static> Events<P> {
                 let seed = self.shared.platform.try_borrow_mut().map(|mut p| p.entropy()).unwrap_or(now);
                 let id = [seed as u8, (seed >> 8) as u8, (seed >> 16) as u8];
                 let r = if server_side { Rel::server(rc, id, now / 1000) } else { Rel::client(rc, id, now / 1000) };
+                let _tag = klong_core::htag::Scope::new(klong_core::htag::IPC);
                 let mut buf = try_vec(rc.mtu)?;
                 buf.resize(rc.mtu, 0);
                 ConnLink::Rel(RelLink { link: p, rel: r, stuck: Vec::new(), buf })

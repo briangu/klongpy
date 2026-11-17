@@ -21,6 +21,7 @@ endif()
 # -DKLONG_SELFTEST=0 builds the image without the boot self-test; -DLANE_BAUD=115200 for a slower lane
 set(KLONG_SELFTEST 1 CACHE STRING "run the boot self-test (1) or not (0)")
 set(LANE_BAUD 4500000 CACHE STRING "baud rate of the lane")
+set(KLONG_HEAP_DIAG 1 CACHE STRING "the heap diagnostic (.heap) and the allocator table of live blocks: 1 (default) or 0")
 # -DKLONG_STACK_KB=96 gives the interpreter a stack of that many KB (default: klong_memory.h, 137), and the heap what is left
 set(KLONG_STACK_KB "" CACHE STRING "interpreter stack in KB, empty for the default")
 # The flash is read at clk_sys/4 (31 MHz) by the SDK's default second-stage boot loader: a miss of the 16 KB
@@ -28,7 +29,7 @@ set(KLONG_STACK_KB "" CACHE STRING "interpreter stack in KB, empty for the defau
 # 62.5 MHz. (Set -DPICO_FLASH_CLKDIV=4 to go back.)
 set(PICO_FLASH_CLKDIV 2 CACHE STRING "flash clock divider of the boot loader, even")
 add_executable(klong_pico_bench main.c)
-target_compile_definitions(klong_pico_bench PRIVATE KLONG_SELFTEST=${KLONG_SELFTEST} LANE_BAUD=${LANE_BAUD}u)
+target_compile_definitions(klong_pico_bench PRIVATE KLONG_SELFTEST=${KLONG_SELFTEST} LANE_BAUD=${LANE_BAUD}u KLONG_HEAP_DIAG=${KLONG_HEAP_DIAG})
 if(NOT "${KLONG_STACK_KB}" STREQUAL "")
     math(EXPR KLONG_STACK_BYTES "${KLONG_STACK_KB} * 1024")
     target_compile_definitions(klong_pico_bench PRIVATE KLONG_STACK_BYTES=${KLONG_STACK_BYTES}u)

@@ -220,7 +220,8 @@ class TestUploadTool(unittest.TestCase):
         self.assertGreater(int(v["heap_used"]), 0)
         # a board with a heap limit says how much is free
         v = self.board(self.sim("--heap-limit", "1M").path).ver()
-        self.assertTrue(900_000 < int(v["heap_free"]) <= 1024 * 1024, v)
+        # (the limit is set above what was in use at start, and a program that has run gives back the slack its tables grew with, so a little more than 1M can be free)
+        self.assertTrue(900_000 < int(v["heap_free"]) <= 1024 * 1024 + 16 * 1024, v)
 
     def test_run(self):
         b = self.board(self.sim().path)

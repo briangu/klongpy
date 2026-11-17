@@ -49,6 +49,7 @@ impl Interner {
             self.long = true;
             return X;
         }
+        let _tag = crate::htag::Scope::new(crate::htag::SYMBOLS);
         if self.names.try_reserve(1).is_err() {
             self.oom = true;
             return X;
@@ -86,6 +87,12 @@ impl Interner {
 
     pub fn is_empty(&self) -> bool {
         self.names.is_empty()
+    }
+
+    /// Give back the room the table of names has beyond its names.
+    pub fn shrink(&mut self) {
+        let _tag = crate::htag::Scope::new(crate::htag::SYMBOLS);
+        self.names.shrink_to_fit();
     }
 }
 

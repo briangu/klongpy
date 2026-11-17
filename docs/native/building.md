@@ -305,7 +305,7 @@ With `--stats` the program reports what it used, on standard error: the peak hea
 $ klong --stats -e '+/!1000' 2>&1 | grep -v '^heap'
 499500
 depth: 3 nested evaluations at most
-stack: 704 bytes of native stack at most
+stack: 696 bytes of native stack at most
 ```
 
 ## Running the conformance suite

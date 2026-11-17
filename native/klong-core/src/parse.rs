@@ -71,9 +71,29 @@ pub fn parse(
 ) -> Result<Parsed> {
     // the copy of the text for error messages is sized by data
     let mut copy = String::new();
-    copy.try_reserve_exact(text.len()).map_err(|_| Error::memory())?;
+    {
+        let _tag = crate::htag::Scope::new(crate::htag::TREE);
+        copy.try_reserve_exact(text.len()).map_err(|_| Error::memory())?;
+    }
     copy.push_str(text);
-    let source = Rc::new(Source { name: crate::value::try_str(name)?, text: copy });
+    parse_owned(copy, name, syms, module, strict, max_depth, stack)
+}
+
+/// `parse` of a text the caller has no more use for: the text is the copy that error messages are cut from, so a program held in
+/// memory is not held twice (a library of 12 KB is 12 KB less at the peak of its load).
+pub fn parse_owned(
+    text: String,
+    name: &str,
+    syms: &mut Interner,
+    module: &mut Option<String>,
+    strict: u8,
+    max_depth: u32,
+    stack: Option<(usize, usize)>,
+) -> Result<Parsed> {
+    let _tag = crate::htag::Scope::new(crate::htag::TREE);
+    let source = Rc::new(Source { name: crate::value::try_str(name)?, text });
+    let anchor = source.clone();
+    let text: &str = &anchor.text;
     let mut p = Parser {
         lx: Lexer::new(text, strict == 0),
         tree: Tree::new(Some(source.clone())),

@@ -577,7 +577,11 @@ impl<P: Platform + 'static> Console<P> {
         self.ed.remember();
         let sep = usize::from(!self.entry.is_empty());
         let fits = self.entry.len() + sep + self.ed.buf.len() <= self.cfg.max_entry;
-        if !fits || self.entry.try_reserve(sep + self.ed.buf.len()).is_err() {
+        let refused = {
+            let _tag = klong_core::htag::Scope::new(klong_core::htag::CONSOLE);
+            !fits || self.entry.try_reserve(sep + self.ed.buf.len()).is_err()
+        };
+        if refused {
             let mut r = Reply { port: self.port(), left: 120 };
             let _ = write!(r, "range error: entry longer than {} bytes", self.cfg.max_entry);
             self.out(b"\n");
@@ -825,6 +829,7 @@ impl<P: Platform + 'static> Console<P> {
             return self.reply(format_args!("err range: {} bytes is more than a program sent with run may have ({})", len, self.cfg.max_run));
         }
         let mut program = Vec::new();
+        let _tag = klong_core::htag::Scope::new(klong_core::htag::CONSOLE);
         if program.try_reserve_exact(len as usize).is_err() {
             return self.reply(format_args!("err memory: out of memory"));
         }
