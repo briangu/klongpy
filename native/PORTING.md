@@ -163,7 +163,7 @@ RAM:
 Per case the runner sends `.x(0)` (the board resets and prints its banner: a fresh
 interpreter), `.strict(N)` when the case has a strict tag, and the program with `^A run`; it
 compares the value, the console output and the error kind with the case. Without `--port` it
-does the same against simulated boards (1270 of 1270 on the default build; add
+does the same against simulated boards (1276 of 1276 on the default build; add
 `-- --stack-budget 64K --heap-limit 1M --crlf` to make the simulation as small as a board).
 Needs: `System::reset` that really resets (or the cases share one interpreter and some fail),
 a banner within `--timeout`, and `max_run` of at least the largest case (under 4 KiB).

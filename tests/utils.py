@@ -1,5 +1,6 @@
 import asyncio
 import re
+import sys
 import threading
 import time
 import unittest
@@ -10,6 +11,17 @@ from klongpy import KlongInterpreter
 from klongpy.core import is_list
 from klongpy.backends import get_backend
 from klongpy.backend import UnsupportedDtypeError, np as backend_np
+
+
+# Tests print through the language's .p/.w. Under `python -m unittest discover tests`
+# stdout is a block-buffered pipe or file while the runner writes its progress and its
+# summary to stderr, so the printed values came out after the summary line, at exit.
+# Line buffering keeps them in order.
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except Exception:
+        pass
 
 
 def is_torch_backend(klong):

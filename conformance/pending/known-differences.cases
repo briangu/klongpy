@@ -49,9 +49,3 @@
 !type
 : reason Where of a string is reported as a range error; the operand has the wrong type.
 : actual error: range
-
-@ pending.pow-scalar-integer-is-exact core width64
-> 7^22
-= 3909821048582988049
-: reason An integer to a non-negative integer power that fits in 64 bits is exact. The list form `[7]^[22]` is, the scalar form goes through a float.
-: actual 3909821048582988288

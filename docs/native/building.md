@@ -317,16 +317,16 @@ The language is checked by the cases in `conformance/cases`, which KlongPy and t
 <!-- check-docs: requires-file native/target/release/klong; link native conformance -->
 ```console
 $ python native/scripts/conformance.py | tail -1 | cut -c1-40
-total                         1270  1270
+total                         1276  1276
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1270 of 1270 on this machine on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1276 of 1276 on this machine on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
 KLONG_NATIVE=native/target/narrow/release/klong python native/scripts/conformance.py --narrow
 ```
 
-That gave 1156 of 1156 with the narrow build above. The parse trees of the golden files match too: `python conformance/run.py --trees --cmd native/target/release/klong` reported `169 of 169 trees match`. The same suite runs through the serial console of a simulated board and of a real one, see [Serial Console and Upload](console.md).
+That gave 1160 of 1160 with the narrow build above. The parse trees of the golden files match too: `python conformance/run.py --trees --cmd native/target/release/klong` reported `169 of 169 trees match`. The same suite runs through the serial console of a simulated board and of a real one, see [Serial Console and Upload](console.md).
 
 Not every case runs on every build. A case carries tags, and a build runs the cases whose tags it declares. The default build leaves out the tags `bigint` (it wraps), `torch-only` and `kgpy-only` (KlongPy's own), `desktop` (Python interop, databases, web) and the `timers` and `ipc` tiers, which have no cases. The narrow build also leaves out `float`, `string-fmt` and `width64`, the cases that pin 64-bit results.
 

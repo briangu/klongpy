@@ -251,6 +251,19 @@
 > (-2)^2
 = 4
 
+@ arith.pow-scalar-integer-is-exact core width64
+> 7^22
+= 3909821048582988049
+
+@ arith.pow-scalar-integer-is-exact-in-a-function core width64
+> f::{x^y}
+> f(7;22)
+= 3909821048582988049
+
+@ arith.pow-scalar-integer-beyond-64-bits core bigint
+> 7^40
+= 6366805760909027985741435139224001
+
 @ arith.pow-negative-exp core float
 > 2^-1
 = 0.5

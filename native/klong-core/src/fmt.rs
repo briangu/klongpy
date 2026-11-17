@@ -165,12 +165,17 @@ impl Write for Small {
     }
 }
 
-pub fn arity_name(arity: u8) -> &'static str {
+/// A function prints as its arity: `:nilad :monad :dyad :triad`, then `:fn/N` for four or more.
+pub fn write_arity<S: Sink>(arity: u8, out: &mut S) {
     match arity {
-        0 => ":nilad",
-        1 => ":monad",
-        2 => ":dyad",
-        _ => ":triad",
+        0 => out.push_str(":nilad"),
+        1 => out.push_str(":monad"),
+        2 => out.push_str(":dyad"),
+        3 => out.push_str(":triad"),
+        n => {
+            out.push_str(":fn/");
+            let _ = write!(out, "{}", n);
+        }
     }
 }
 
@@ -250,7 +255,7 @@ fn write_at<S: Sink>(syms: &Interner, v: &Value, display: bool, out: &mut S, dep
             }
             out.push('}');
         }
-        Value::Fn(f) => out.push_str(arity_name(func_arity(f))),
+        Value::Fn(f) => write_arity(func_arity(f), out),
         Value::Prim(p) => out.push_str(syms.name(*p)),
         Value::Ext(e) => {
             out.push(':');

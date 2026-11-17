@@ -140,10 +140,13 @@ class TestBigIntegers(unittest.TestCase):
         self.assertEqual(values(k("x+1")), BIG + 1)
         self.assertEqual(values(k("[1 2]+x")), [BIG + 1, BIG + 2])
 
-    def test_power_beyond_float_is_a_range_error(self):
-        # ^ is computed in floating point
+    def test_power_beyond_float_is_exact(self):
+        # an integer to a non-negative integer power is exact (a scalar)
+        self.assertEqual(int(self.k("10^400")), 10 ** 400)
+
+    def test_power_beyond_a_million_bits_is_a_range_error(self):
         with self.assertRaises(KlongRangeError):
-            self.k("10^400")
+            self.k("10^100000000")
 
     def test_unsupported_operator_is_a_range_error(self):
         # ! (remainder) has no object-dtype loop: still an error, in the library classes

@@ -181,3 +181,13 @@ fn a_monad_takes_the_whole_conditional_or_evaluated_list() {
     ok("#[;1;2;3]", "3");
     ok("#:[1;[1 2 3];0]", "3");
 }
+
+#[test]
+fn functions_display_their_arity() {
+    ok("f::{1};f", ":nilad");
+    ok("f::{x};f", ":monad");
+    ok("f::{x+y};f", ":dyad");
+    ok("f::{x+y+z};f", ":triad");
+    ok("f(a;b;c;d)::{a+b+c+d};f", ":fn/4");
+    ok("f(a;b;c;d;e)::{a+b+c+d+e};f", ":fn/5");
+}

@@ -537,12 +537,12 @@ Integers are 64 bits wide. A sum, difference or product of two such integers tha
 1
 ```
 
-`^` is computed in floating point and is an error where the result does not fit a float. `!` is an error for an operand that does not fit 64 bits. Floats are doubles.
+`^` of two integers with a non-negative exponent is exact (`10^400` has all its digits) unless the result would need more than a million bits, which is an error. A negative or fractional exponent gives a float, and an error where the result does not fit a float. `!` is an error for an operand that does not fit 64 bits. Floats are doubles.
 
 ```kgpy
 ?> 2^64
 18446744073709551616
-?> 10^400
+?> 10^100000000
 error: cannot apply ^ (Power) to integer and integer
 ?> 9223372036854775808!2
 error: cannot apply ! (Remainder) to integer and integer

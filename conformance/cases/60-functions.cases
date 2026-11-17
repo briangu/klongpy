@@ -458,3 +458,20 @@
 > g::{h(x);x}
 > g(1)
 = 1
+
+# A function prints as its arity; four or more named parameters print as :fn/N.
+@ functions.display-arity-0 core
+> f::{1};f
+= :nilad
+
+@ functions.display-arity-3 core
+> f::{x+y+z};f
+= :triad
+
+@ functions.display-arity-4 core
+> f(a;b;c;d)::{a+b+c+d};f
+= :fn/4
+
+@ functions.display-arity-5 core
+> f(a;b;c;d;e)::{a+b+c+d+e};f
+= :fn/5

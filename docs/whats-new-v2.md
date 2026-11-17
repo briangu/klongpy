@@ -167,12 +167,12 @@ See [IPC Capabilities](ipc_capabilities.md) and [Klong for q Users](from-kdb.md#
 
 ## The conformance suite
 
-The `conformance/` directory holds 1270 test cases for the language that do not depend on any implementation: a program, and the text the REPL prints or the kind of error it raises. KlongPy is the reference, and the native runtime runs the same files with no Python. See [Conformance Suite](conformance.md).
+The `conformance/` directory holds 1277 test cases for the language that do not depend on any implementation: a program, and the text the REPL prints or the kind of error it raises. KlongPy is the reference, and the native runtime runs the same files with no Python. See [Conformance Suite](conformance.md).
 
 <!-- check-docs: link conformance -->
 ```console
 $ python conformance/run.py | tail -n 1
-1270 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
+1277 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 ```
 
 ## Compiling static Klong to C

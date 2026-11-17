@@ -908,7 +908,38 @@ def eval_dyad_multiply(a, b, backend):
     return backend.vec_fn2(a, b, backend.np.multiply)
 
 
+# An exact integer power is computed only while the result stays small enough
+# to be cheap (2^20 bits); beyond that the float computation answers, as before.
+_EXACT_POWER_BITS = 1 << 20
+
+
+def _int_scalar(x):
+    """The Python int of an integer scalar (a Python or NumPy integer, or a 0-d integer
+    array or tensor of any backend), else None. A bool is not one."""
+    if isinstance(x, numbers.Integral):
+        return None if isinstance(x, bool) else int(x)
+    if getattr(x, 'ndim', None) == 0 and hasattr(x, 'item'):
+        v = x.item()
+        if type(v) is int:
+            return v
+    return None
+
+
+def _exact_int_power(a, b):
+    """a^b as an exact Python integer for two integer scalars and b >= 0, else None."""
+    a = _int_scalar(a)
+    b = _int_scalar(b)
+    if a is None or b is None or b < 0 or a.bit_length() * b > _EXACT_POWER_BITS:
+        return None
+    return a ** b
+
+
 def _e_dyad_power(a, b, backend):
+    # An integer to a non-negative integer power is exact (Python integers do not
+    # wrap); a negative or fractional exponent gives a float.
+    exact = _exact_int_power(a, b)
+    if exact is not None:
+        return exact
     # Check if input requires grad - if so, preserve float for autograd
     input_has_grad = backend.has_gradient(a)
     # Use backend power function which handles gradient-aware power

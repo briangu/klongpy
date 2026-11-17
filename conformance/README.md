@@ -90,7 +90,7 @@ Marks (documented differences, `native-runtime.md` section 11):
 | Tag | Meaning |
 |---|---|
 | `width64` | needs 64-bit integers or floats; a 32-bit build skips it |
-| `bigint` | needs integers beyond the build width (no case yet: KlongPy's scalar behaviour is being changed) |
+| `bigint` | needs integers beyond the build width (a scalar integer power, for one) |
 | `unicode` | counts or indexes non-ASCII text, in code points (KlongPy and the native runtime both count code points; a runtime that counts bytes does not declare it) |
 | `device` | needs a depth limit, a heap limit or a console |
 
