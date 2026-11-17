@@ -5,7 +5,7 @@ means this machine) and print the estimates.
 import os
 
 from .remote import Remote, RemoteError
-from .reports import format_table, parse_synth_dir, warning_classes
+from .reports import ii_warnings, format_table, parse_synth_dir, stream_summary, warning_classes
 
 __all__ = ["synthesize", "synth_main"]
 
@@ -66,8 +66,22 @@ def synth_main(res, where, out, err):
             print(tail, file=err)
             status = 1
             continue
-        for line in format_table(ent["name"], r["top"], r["modules"], clock):
+        streamed = res.manifest.get("stage") == "B"
+        for line in format_table(ent["name"], r["top"], r["modules"], clock,
+                                 (ent["in_words"], ent["out_words"]) if streamed else None):
             print(line, file=out)
+        if r["top"]["fmax_mhz"] is not None and r["top"]["fmax_mhz"] < clock:
+            print(f"  warning: the estimated Fmax {r['top']['fmax_mhz']} MHz is below the target clock {clock} MHz: the tool "
+                  "chained operations to reach its interval; ask for a slower clock (--clock-mhz) or break the long path", file=out)
+        if streamed:
+            sm = stream_summary(r["modules"], ent["in_words"], ent["out_words"])
+            if sm["core_ii"] is not None and sm["core_ii"] > 1:
+                why = "; ".join(f"[{c}] {m[:200]}" for c, m in ii_warnings(r["log"])[:2]) or "see the tool log"
+                print(f"  warning: the core loop reached an interval of {sm['core_ii']} cycles, not 1: {why}", file=out)
+            elif sm["interval"] is not None and sm["interval"] > 1:
+                print(f"  note: one record every {sm['interval']} cycles is set by the {sm['limit']} process "
+                      f"({'a record is ' + str(ent['in_words']) + ' input word(s)' if sm['limit'] == 'load' else 'a result is ' + str(ent['out_words']) + ' word(s)' if sm['limit'] == 'store' else 'see the core loop'}), "
+                      "not by the program's dependences", file=out)
         if r["warnings"]:
             print("  tool messages by class (code: count, first message):", file=out)
             for code, (sev, n, msg) in sorted(r["warnings"].items()):

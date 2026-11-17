@@ -61,7 +61,7 @@ from .diagnostics import StaticDiagnostic
 from .optable import lookup
 from .rules import RULES
 from .signature import (INT_RANGE, MAX_RANK, EntryDecl, ExternDecl, SignatureError, Ty, check_entry_name,
-                        check_extern_name, parse_signature)
+                        check_extern_name, fixed_spec, is_fixed, parse_signature, parse_type)
 
 __all__ = ["check_source", "check_file", "check_main", "StaticReport", "FunctionInfo", "GlobalInfo",
            "ExternDecl", "EntryDecl", "validate_global"]
@@ -82,7 +82,7 @@ class AT:
         kind    "num"   a number or an array of numbers
                 "any"   nothing is known (an error was already reported here)
                 "void"  the result of a void extern
-        elem    "int", "float" or None (not known)
+        elem    "int", "float", "fixed<W,I>" or None (not known)
         shape   a tuple of positive ints, () for a scalar, or None (not known)
         const   _NC, _CU, or the value (a Python int or float, or a numpy array)
     """
@@ -140,11 +140,23 @@ def _from_ty(ty):
 
 
 def _promote(a, b):
+    if is_fixed(a) or is_fixed(b):
+        return a if a == b else None      # the checker reports a fixed-point mismatch where it sees the operands
     if a == "float" or b == "float":
         return "float"
     if a == "int" and b == "int":
         return "int"
     return None
+
+
+def _fixed_holds(elem, const):
+    """Does the int constant (a number or an array) fit the integer part of the fixed type elem? None when it is not a known constant."""
+    if const is _NC or const is _CU:
+        return None
+    w, i = fixed_spec(elem)
+    lo, hi = -(1 << (i - 1)), (1 << (i - 1)) - 1
+    a = np.asarray(const)
+    return bool(a.size == 0 or (int(a.min()) >= lo and int(a.max()) <= hi))
 
 
 def _is_int_const(at):
@@ -199,6 +211,7 @@ class GlobalInfo:
         self.at = AT("num", None, None, _CU)
         self.assigned = False
         self.resolved = False
+        self.param = False      # declared with .param: an input register, never a constant, never assigned
 
     @property
     def ty(self):
@@ -230,6 +243,7 @@ class StaticReport:
         self.globals = {}
         self.externs = {}
         self.entries = []
+        self.params = {}
 
     @property
     def ok(self):
@@ -347,6 +361,12 @@ def validate_global(value, int_bits=32):
     """
     lo, hi = INT_RANGE[int_bits]
     v = value
+    if hasattr(v, "spec") and hasattr(v, "raw"):          # a FixedArray (klongpy/static/fixed.py)
+        if v.size == 0:
+            return None, "global-array", "an empty list cannot be a global value: every dimension is a positive integer"
+        if v.ndim > MAX_RANK:
+            return None, "global-array", f"an array of rank {v.ndim} cannot be a global value: the rank is 1 to {MAX_RANK}"
+        return Ty(v.spec.elem, tuple(int(d) for d in v.shape)), None, None
     if getattr(v, "ndim", None) == 0 and hasattr(v, "item"):
         v = v.item()
     if isinstance(v, (bool, np.bool_)):
@@ -624,7 +644,7 @@ class _Checker:
                 else:
                     self.define_globals([name], right, n, span, lsp, source, single=True)
                 return
-        if isinstance(n, KGCall) and isinstance(n.a, KGSym) and _name(n.a) in (".extern", ".entry", ".l"):
+        if isinstance(n, KGCall) and isinstance(n.a, KGSym) and _name(n.a) in (".extern", ".entry", ".l", ".param"):
             self.declaration(_name(n.a), n, span, source, base_dir, depth)
             return
         what = "this expression"
@@ -652,6 +672,9 @@ class _Checker:
     def define_globals(self, names, right, node, span, lsp, source, single=False):
         known, value = self.literal(right)
         for i, name in enumerate(names):
+            if name in self.report.params:
+                self.diag("redefinition", lsp, f"{name} is a parameter (.param); it cannot be defined again")
+                continue
             if name in reserved_fn_args or not self.taken(name, "global", lsp):
                 continue
             g = GlobalInfo(name, node, span, source)
@@ -692,8 +715,8 @@ class _Checker:
         const = _NC
         if not ty.shape:
             v = value.item() if hasattr(value, "item") else value
-            const = int(v) if ty.elem == "int" else float(v)
-        elif isinstance(value, np.ndarray) and value.size <= 4096:
+            const = _NC if is_fixed(ty.elem) else (int(v) if ty.elem == "int" else float(v))
+        elif isinstance(value, np.ndarray) and value.size <= 4096 and not is_fixed(ty.elem):
             const = value
         g.at = _num(ty.elem, ty.shape, const)
 
@@ -726,10 +749,13 @@ class _Checker:
 
     def declaration(self, which, n, span, source, base_dir, depth):
         args = _args(n)
-        want = {".extern": (2, 3), ".entry": (2, 2), ".l": (1, 1)}[which]
+        want = {".extern": (2, 3), ".entry": (2, 2), ".l": (1, 1), ".param": (2, 3)}[which]
         if not want[0] <= len(args) <= want[1]:
-            takes = "2 or 3 arguments" if which == ".extern" else _plural(want[0], "argument")
+            takes = "2 or 3 arguments" if which in (".extern", ".param") else _plural(want[0], "argument")
             self.diag("decl-literal", span, f"{which} takes {takes}, got {len(args)}")
+            return
+        if which == ".param":
+            self.param_declaration(n, args, span, source)
             return
         for i, a in enumerate(args):
             if not _is_plain_str(a):
@@ -788,6 +814,57 @@ class _Checker:
         self.report.entries.append(EntryDecl(name, sig, span, source))
         self.report.statements.append(("entry", name, n, span, source))
 
+    def param_declaration(self, n, args, span, source):
+        """``.param("name";"type"[;default])``: a global that is an input register."""
+        for i, a in enumerate(args[:2]):
+            if not _is_plain_str(a):
+                self.diag("decl-literal", _arg_span(n, i, span), f"argument {i + 1} of .param must be a string literal")
+                return
+        name, text = args[0], args[1]
+        nsp, tsp = _arg_span(n, 0, span), _arg_span(n, 1, span)
+        try:
+            ty = parse_type(text)
+        except SignatureError as e:
+            at = tsp
+            if source.text[tsp[0]:tsp[1]] == '"' + text + '"':
+                start = tsp[0] + 1 + e.span[0]
+                at = (start, max(tsp[0] + 1 + e.span[1], start + 1))
+            self.diag("signature", at, f".param type: {e.message}")
+            return
+        if ty.shape or ty.elem not in ("int", "float") and not is_fixed(ty.elem):
+            self.diag("param", tsp, f"the type of a parameter is a scalar int, float or fixed<W,I>; {ty} is not",
+                      "a parameter is one register: pass arrays as entry arguments")
+            return
+        bad = check_extern_name(name)
+        if bad:
+            self.diag("param", nsp, bad.replace("an extern", "a parameter"))
+            return
+        if len(args) == 3:
+            d = args[2]
+            if isinstance(d, KGFn) and isinstance(d.a, KGOp) and d.a.a == "-" and type(d.args) is not list:
+                d = -d.args if isinstance(d.args, (int, float)) else None
+            if isinstance(d, bool) or not isinstance(d, (int, float, np.integer, np.floating)):
+                self.diag("param", _arg_span(n, 2, span), "the default of .param must be a number literal")
+                return
+            if ty.elem == "int" and isinstance(d, (float, np.floating)):
+                self.diag("param", _arg_span(n, 2, span), f"the default of the int parameter {name} must be an int")
+                return
+        old = self.report.params.get(name)
+        if old is not None:
+            if old != ty:
+                self.diag("param", span, f"the parameter {name} is declared again as {ty}; it was {old}")
+            return
+        if not self.taken(name, "global", nsp):
+            return
+        g = GlobalInfo(name, n, span, source)
+        g.at = _num(ty.elem, ())
+        g.resolved = True
+        g.assigned = True
+        g.param = True
+        self.globals[name] = g
+        self.report.params[name] = ty
+        self.report.statements.append(("param", name, n, span, source))
+
     def load_file(self, name, nsp, span, source, base_dir, depth):
         self.report.statements.append(("load", name, None, span, source))
         if not self.resolve:
@@ -843,6 +920,10 @@ class _Checker:
                 g = self.globals.get(name)
                 if g is not None:
                     g.assigned = True
+                    if g.param:
+                        self.diag("param", r.assigns[name], f"{name} is a parameter: a compiled function reads it and cannot assign it",
+                                  "a parameter is written by the host between runs; keep the running value in another global",
+                                  source=f.source)
             for callee in f.calls:
                 if callee not in fns:
                     continue
@@ -960,6 +1041,10 @@ class _Checker:
         if r.kind == "void":
             self.diag("entry", ssp, f"entry {e.name} is declared to return {want}, but the function returns nothing "
                                     "(its last statement is a call of a void extern)", source=e.source)
+            return
+        if (is_fixed(r.elem) or is_fixed(want.elem)) and r.elem is not None and r.elem != want.elem:
+            self.diag("entry", ssp, f"entry {e.name} is declared to return {want}, but the function returns {r}",
+                      "a fixed-point result must be exactly the declared type: convert it with .fixed(type;value)", source=e.source)
             return
         if r.elem == "float" and want.elem == "int":
             self.diag("entry", ssp, f"entry {e.name} is declared to return {want}, but the function returns {r}",
@@ -1142,6 +1227,12 @@ class _Checker:
             return ANY
         return self.call(n, sp, fr)
 
+    @staticmethod
+    def _frames(fr):
+        while fr is not None:
+            yield fr
+            fr = fr.parent
+
     def is_function(self, name, fr):
         f = fr
         while f is not None:
@@ -1255,14 +1346,16 @@ class _Checker:
         if t.shape is not None and e.shape is not None and t.shape != e.shape:
             self.diag("cond-shape", sp, f"the branches of the conditional are {t} and {e}; they must have the same shape")
             return ANY
-        return _num(_promote(t.elem, e.elem), t.shape if t.shape == e.shape else None)
+        elem = self.join_elem([t, e], sp, "the branches of the conditional")
+        if elem is False:
+            return ANY
+        return _num(elem, t.shape if t.shape == e.shape else None)
 
     def elist(self, n, sp, fr):
         items = [self.ev(q, _arg_span(n, i, sp), fr) for i, q in enumerate(n)]
         if not items:
             self.diag("array-shape", sp, "an empty list has a dimension of 0")
             return ANY
-        elem = "int"
         shape = items[0].shape if items[0].kind == "num" else None
         for i, it in enumerate(items):
             if it.kind == "void":
@@ -1270,12 +1363,14 @@ class _Checker:
                 return ANY
             if it.kind != "num":
                 return ANY
-            elem = _promote(elem, it.elem)
             if it.shape is None:
                 shape = None
             elif shape is not None and it.shape != shape:
                 self.diag("list-literal", sp, f"the elements of the list are {items[0]} and {it}; they must have the same shape")
                 return ANY
+        elem = self.join_elem(items, sp, "the list")
+        if elem is False:
+            return ANY
         if shape is None:
             return _num(elem, None)
         return self.mk(elem, (len(items),) + tuple(shape), sp)
@@ -1342,6 +1437,13 @@ class _Checker:
                     self.diag("shape-change", sp, f"{name} was {old} and is assigned {v}: the shape of a variable is fixed")
                 elif v.shape is None:
                     shape = None
+                if (is_fixed(old.elem) or is_fixed(v.elem)) and old.elem is not None and v.elem is not None \
+                        and old.elem != v.elem:
+                    self.diag("fixed", sp, f"{name} was {old} and is assigned {v}: a variable does not change its type",
+                              f'convert the value: .fixed("{old.elem if is_fixed(old.elem) else v.elem}";value)')
+                    var.ty = ANY
+                    var.set = True
+                    return
                 elem = "float" if "float" in (old.elem, v.elem) else (old.elem if old.elem == v.elem else None)
                 var.ty = _num(elem, shape)
             var.set = True
@@ -1357,6 +1459,10 @@ class _Checker:
         g = self.globals.get(name)
         if g is not None:
             have = g.at
+            if g.param:
+                self.diag("param", sp, f"{name} is a parameter: a compiled function reads it and cannot assign it",
+                          "a parameter is written by the host between runs; keep the running value in another global")
+                return
             if v.kind == "num" and have.kind == "num":
                 if have.shape is not None and v.shape is not None and have.shape != v.shape:
                     self.diag("shape-change", sp, f"the global {name} is {have.plain()} and is assigned {v}: "
@@ -1364,7 +1470,9 @@ class _Checker:
                 elif have.elem is not None and v.elem is not None and have.elem != v.elem:
                     hint = ("state must not change type: floor the value with _, or define the global as a float"
                             if have.elem == "int" else
-                            "state must not change type: write the value as a float (0.0, or multiply by 1.0)")
+                            "state must not change type: write the value as a float (0.0, or multiply by 1.0)"
+                            if have.elem == "float" else
+                            f'state must not change type: convert the value with .fixed("{have.elem}";value)')
                     self.diag("shape-change", sp, f"the global {name} is {have.plain()} and is assigned {v}: "
                                                   "the type of a global is fixed", hint)
             return
@@ -1413,6 +1521,8 @@ class _Checker:
         if name == ".f":
             self.diag("recursion", csp, ".f is the running function: calling it is recursion")
             return ANY
+        if name in (".fixed", ".float"):
+            return self.conversion(name, n, args, sp, csp, fr)
         if name.startswith("."):
             self.diag("sys-fn", csp, f"{name} is a system function; it does not exist in a compiled program")
             return ANY
@@ -1424,6 +1534,39 @@ class _Checker:
             self.diag("undefined-name", csp, f"the function {name} is not defined",
                       "a function provided by the target is declared with .extern")
         return ANY
+
+    def conversion(self, name, n, args, sp, csp, fr):
+        """.fixed(type;x) and .float(x): the conversions between fixed-point numbers and the other types."""
+        want = 2 if name == ".fixed" else 1
+        if len(args) != want:
+            for i, q in enumerate(args):
+                if not _is_plain_str(q):
+                    self.ev(q, _arg_span(n, i, sp), fr)
+            self.diag("fixed", csp, f"{name} takes {_plural(want, 'argument')}, got {len(args)}")
+            return ANY
+        ty = None
+        if name == ".fixed":
+            tsp = _arg_span(n, 0, sp)
+            if not _is_plain_str(args[0]):
+                self.diag("fixed", tsp, "the type of .fixed must be a string literal such as \"fixed<32,16>\"")
+            else:
+                try:
+                    ty = parse_type(args[0])
+                except SignatureError as e:
+                    self.diag("signature", tsp, f".fixed type: {e.message}")
+                    ty = None
+                if ty is not None and (not is_fixed(ty.elem) or ty.shape):
+                    self.diag("fixed", tsp, f".fixed converts to fixed<W,I>, not {ty}")
+                    ty = None
+        v = self.arg(args[-1], _arg_span(n, len(args) - 1, sp), fr)
+        if v.kind == "void":
+            self.diag("void-value", sp, f"the argument of {name} is the result of a void extern")
+            return ANY
+        if v.kind != "num" or (name == ".fixed" and ty is None):
+            return ANY
+        if name == ".fixed":
+            return _num(ty.elem, v.shape)
+        return _num("float", v.shape)
 
     def arg(self, q, sp, fr):
         if _is_fn_literal(q) or (isinstance(q, KGSym) and not isinstance(q, KGQSym) and self.is_function(_name(q), fr)):
@@ -1556,6 +1699,13 @@ class _Checker:
             count = self.ev(left, _arg_span(n, 0, sp), fr)
             if count.kind == "num" and (count.shape or count.elem == "float"):
                 self.diag("operand", _arg_span(n, 0, sp), f"the count of Iterate is {count}; it must be an int scalar")
+            refs = _Refs()
+            self.scan(left, sp, set(), refs)
+            hit = [k for k in refs.refs if k in self.report.params and not any(k in f_.vars for f_ in self._frames(fr))]
+            if hit:
+                self.diag("param", _arg_span(n, 0, sp), f"the count of Iterate is the parameter {hit[0]}: a loop bound cannot depend on "
+                          "one, since the hardware is built for a fixed number of iterations",
+                          "iterate a fixed maximum and keep the value once the parameter's count is reached")
             f = self.verb(verb, 1, vsp, fr)
             return self.loop(kind, f, None, b, sp, None)
         need = 1 if kind == "each" else 2
@@ -1599,7 +1749,10 @@ class _Checker:
                 return ANY
             return self.stacked(r, None if n_items is None else n_items - 1, sp)
         # over and scan, with or without a seed
-        acc = self.accumulate(f, a.plain() if a is not None else item, item, sp, row)
+        seed = a.plain() if a is not None else item
+        if a is not None and is_fixed(item.elem) and a.elem == "int" and _fixed_holds(item.elem, a.const):
+            seed = _num(item.elem, a.shape)         # a constant int seed converts exactly
+        acc = self.accumulate(f, seed, item, sp, row)
         if acc.kind != "num":
             return acc
         if kind in ("over", "over-seed"):
@@ -1694,6 +1847,71 @@ class _Checker:
             return None, ANY
         return row, None
 
+    def join_elem(self, ats, sp, what):
+        """
+        The element type of values that meet in one place (operands of an operator, branches of a
+        conditional, items of a list). Fixed-point numbers do not mix with floats or with fixed-point
+        numbers of another type, and an int joins a fixed-point number only as a constant that fits.
+        False after a diagnostic.
+        """
+        elems = [x.elem for x in ats]
+        fx = [e for e in elems if is_fixed(e)]
+        if not fx:
+            out = "int"
+            for e in elems:
+                out = _promote(out, e) if out is not None else None
+            return out
+        if None in elems:
+            return None
+        target = fx[0]
+        for x in ats:
+            if x.elem == target:
+                continue
+            if is_fixed(x.elem):
+                self.diag("fixed", sp, f"{what} mixes {target} and {x.elem}",
+                          f'convert one of them: .fixed("{x.elem}";value) or .fixed("{target}";value)')
+                return False
+            if x.elem == "float":
+                self.diag("fixed", sp, f"{what} mixes {target} with a float: they do not convert implicitly",
+                          f'write the float as a fixed-point constant .fixed("{target}";value), or convert the {target} with .float(value)')
+                return False
+            fits = _fixed_holds(target, x.const)
+            if fits is None:
+                self.diag("fixed", sp, f"{what} mixes {target} with the int {x}, which is not a constant: an int converts only where it is exact",
+                          f'convert it explicitly: .fixed("{target}";value)')
+                return False
+            if not fits:
+                self.diag("fixed", sp, f"{what}: the int constant does not fit {target} (its integer part has {fixed_spec(target)[1]} bits)",
+                          f'convert it explicitly: .fixed("{target}";value) wraps')
+                return False
+        return target
+
+    _FIXED_OPS = ("add", "sub", "mul", "div", "max", "min", "lt", "gt", "eq")
+
+    def fixed_dyad(self, row, glyph, a, b, shape, sp):
+        """The type of an atomic dyad with a fixed-point operand."""
+        k = row.id
+        elem = self.join_elem([a, b], sp, f"{glyph} ({row.name})")
+        if elem is False:
+            return ANY
+        if k not in self._FIXED_OPS:
+            self.diag("fixed", sp, f"{glyph} ({row.name}) is not defined on fixed-point numbers",
+                      "the fixed-point operators are + - * % | & < > = (and _ to floor to an int); "
+                      "use .float(x) to leave fixed-point for the others")
+            return ANY
+        if elem is not None and k == "div":
+            if fixed_spec(elem)[0] > 32:
+                self.diag("fixed", sp, f"% (Divide) of {elem}: fixed-point division is defined for 32 bits or fewer",
+                          "a 64-bit quotient needs a 128-bit divider: divide narrower values and widen the result with .fixed")
+                return ANY
+            if b.const is not _NC and b.const is not _CU and np.any(np.asarray(b.const) == 0):
+                self.diag("div-zero", sp, f"{glyph} ({row.name}) divides a fixed-point number by the constant 0",
+                          "compiled code traps on a fixed-point division by zero")
+                return ANY
+        if k in ("lt", "gt", "eq"):
+            return _num("int", shape)
+        return _num(elem, shape)
+
     def ty_monad(self, glyph, a, sp):
         row, bad = self.rejected(glyph, "monad", sp)
         if row is None:
@@ -1704,6 +1922,10 @@ class _Checker:
         if a.kind != "num":
             return ANY
         k = row.id
+        if is_fixed(a.elem) and k in ("recip",):
+            self.diag("fixed", sp, f"{glyph} ({row.name}) of {a.elem}: a reciprocal is a float",
+                      "divide instead: .fixed(\"" + a.elem + "\";1)%x, or 1%x")
+            return ANY
         if k == "neg":
             c = a.const
             if c is not _NC and c is not _CU:
@@ -1804,6 +2026,8 @@ class _Checker:
                 self.diag("div-zero", sp, f"{glyph} ({row.name}) divides an int by the constant 0",
                           "compiled code traps on an integer division by zero")
                 return ANY
+            if is_fixed(a.elem) or is_fixed(b.elem):
+                return self.fixed_dyad(row, glyph, a, b, shape, sp)
             rule = row.type_rule
             if rule == "promote":
                 elem = _promote(a.elem, b.elem)
@@ -1839,6 +2063,8 @@ class _Checker:
                 return self.mk(elem, shape, sp)
             return _num(elem, shape, const if shape == () else _NC)
         if k == "match":
+            if (is_fixed(a.elem) or is_fixed(b.elem)) and self.join_elem([a, b], sp, "~ (Match)") is False:
+                return ANY
             if a.shape is not None and b.shape is not None and a.shape != b.shape:
                 self.diag("shape-mismatch", sp, f"~ (Match) compares {a} with {b}: the shapes differ, so the answer is always 0",
                           "the profile matches operands of the same shape only")
@@ -1890,7 +2116,9 @@ class _Checker:
                 return ANY
             return _num(b.elem, (left,) + tuple(b.shape[1:]))
         if k == "join":
-            elem = _promote(a.elem, b.elem)
+            elem = self.join_elem([a, b], sp, ", (Join)")
+            if elem is False:
+                return ANY
             if a.shape is None or b.shape is None:
                 return _num(elem, None)
             sa, sb = tuple(a.shape), tuple(b.shape)
@@ -1986,7 +2214,16 @@ class _Checker:
                     ok = False
         if not ok:
             return ANY
-        return _num(_promote(arr.elem, val.elem if val.kind == "num" else None), arr.shape)
+        if val.kind != "num":
+            return _num(None, arr.shape)
+        elem = self.join_elem([arr, val], sp, ":= (Amend)")
+        if elem is False:
+            return ANY
+        if is_fixed(elem) and elem != arr.elem:
+            self.diag("fixed", sp, f":= (Amend) of {arr} with {val}: the array would change its type",
+                      f'convert the value: .fixed("{arr.elem}";value)')
+            return ANY
+        return _num(elem, arr.shape)
 
 
 # ---------------------------------------------------------------------------
@@ -2027,14 +2264,17 @@ def check_file(path, **options):
     return check_source(text, path, **options)
 
 
-def check_main(files, int_bits=32, verbose=False, stdout=None, stderr=None, color=False):
+def check_main(files, int_bits=32, verbose=False, stdout=None, stderr=None, color=False, streamable=False):
     """
     The body of ``kgpy --check-static FILE...``. Every problem of every file is
     printed to stderr, rendered like any KlongPy error; a file inside the
     profile gets one line on stdout. Returns the exit status: 1 if any file
     is outside the profile, 2 if a file could not be read (and none was
     outside), else 0. With verbose, the functions, globals and declarations
-    of each file are listed.
+    of each file are listed. With streamable, a file inside the profile is
+    also searched for what keeps a hardware kernel from taking one record
+    per clock cycle (klongpy/static/streamable.py); each finding is printed
+    like a profile violation, with the rule id of the streamable tier.
     """
     import sys
     out = stdout or sys.stdout
@@ -2062,6 +2302,24 @@ def check_main(files, int_bits=32, verbose=False, stdout=None, stderr=None, colo
                 note += (f"; {_plural(n, 'global')} ({', '.join(report.unresolved[:4])}{', ...' if n > 4 else ''}) "
                          f"{'is' if n == 1 else 'are'} computed on the host: checked for form only until the program is compiled")
             print(f"{path}: inside the static profile ({report.summary()}){note}", file=out)
+            if streamable and path != "-":
+                from ..errors import KlongError
+                from .streamable import check_streamable
+                try:
+                    found = check_streamable(path, int_bits=int_bits)
+                except KlongError as e:
+                    for d in getattr(e, "diagnostics", None) or [e]:
+                        print(d.render(color), file=err)
+                    bad += 1
+                    total += 1
+                    found = []
+                if found:
+                    bad += 1
+                    total += len(found)
+                    for d in found:
+                        print(d.render(color), file=err)
+                else:
+                    print(f"{path}: streamable: nothing keeps a kernel from taking one record per clock cycle", file=out)
         if verbose:
             _describe(report, out)
     if total:

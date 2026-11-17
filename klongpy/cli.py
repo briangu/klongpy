@@ -601,7 +601,16 @@ def main():
                              'for the build in progress. With --int64, --clock-mhz, --lanes, --force, --hw-emu')
     parser.add_argument('--status', action='store_true', help='with --hw-build: report the progress of the build')
     parser.add_argument('--wait', action='store_true', help='with --hw-build: wait until the build finishes and report it')
-    parser.add_argument('--lanes', metavar='N', type=int, default=1, help='with --hw-build: cores per kernel (only 1 in this version)')
+    parser.add_argument('--lanes', metavar='N', type=int, default=None,
+                        help='with --emit-hls and --hw-build: N cores on one input stream; every .param becomes an array of N '
+                             'values and the result gains a leading dimension N')
+    parser.add_argument('--hls-wrapped', action='store_true',
+                        help='with --emit-hls and --hw-build: the stage A kernel (the C of --emit-c called once per record) '
+                             'instead of the streamable one')
+    parser.add_argument('--hls-reassociate', action='store_true',
+                        help='with --emit-hls and --hw-build: sum float reductions as a balanced tree (changes the rounding)')
+    parser.add_argument('--streamable', action='store_true',
+                        help='with --check-static: also say what keeps a kernel from taking one record per clock cycle')
     parser.add_argument('--force', action='store_true', help='with --hw-build: build again although the image exists')
     parser.add_argument('--hw-emu', action='store_true', help='with --hw-build: a hardware emulation image (never loaded on the card)')
     parser.add_argument('-o', '--output', metavar='DIR', help='with --emit-c and --emit-hls: the directory to write to (default: .)')
@@ -648,9 +657,18 @@ def main():
         if args.clock_mhz < 1:
             parser.error("--clock-mhz must be a positive number of MHz")
         from klongpy.static.compile import emit_hls_main
-        sys.exit(emit_hls_main(args.emit_hls, args.output, 64 if args.int64 else 32, args.prefix, args.clock_mhz, args.synth))
+        if args.lanes is not None and args.lanes < 1:
+            parser.error("--lanes must be 1 or more")
+        if args.hls_wrapped and (args.lanes is not None or args.hls_reassociate):
+            parser.error("--lanes and --hls-reassociate belong to the streamable kernel, not to --hls-wrapped")
+        sys.exit(emit_hls_main(args.emit_hls, args.output, 64 if args.int64 else 32, args.prefix, args.clock_mhz, args.synth,
+                               wrapped=args.hls_wrapped, lanes=args.lanes, reassociate=args.hls_reassociate))
     if args.synth:
         parser.error("--synth needs --emit-hls")
+    if args.streamable and not args.check_static:
+        parser.error("--streamable needs --check-static")
+    if (args.hls_wrapped or args.hls_reassociate or args.lanes is not None) and args.hw_build is None:
+        parser.error("--lanes, --hls-wrapped and --hls-reassociate need --emit-hls or --hw-build")
     if args.hw_build is not None:
         if args.float64:
             parser.error("--float64 cannot be used with --hw-build: the card has float32 only in this version")
@@ -658,7 +676,8 @@ def main():
             parser.error("--clock-mhz must be a positive number of MHz")
         from klongpy.hw.build import hw_build_main
         sys.exit(hw_build_main(args.hw_build, 64 if args.int64 else 32, args.clock_mhz, args.lanes, args.force,
-                               args.status, args.wait, args.hw_emu))
+                               args.status, args.wait, args.hw_emu, wrapped=args.hls_wrapped,
+                               reassociate=args.hls_reassociate))
     if args.status or args.wait or args.force or args.hw_emu:
         parser.error("--status, --wait, --force and --hw-emu need --hw-build")
     if args.emit_c or (args.check_static and args.dump_ir):
@@ -668,7 +687,7 @@ def main():
                            emit_c=bool(args.emit_c)))
     if args.check_static:
         from klongpy.static import check_main
-        sys.exit(check_main(args.check_static, 64 if args.int64 else 32, args.verbose))
+        sys.exit(check_main(args.check_static, 64 if args.int64 else 32, args.verbose, streamable=args.streamable))
 
     # Default to the numpy backend: fast and predictable for general array work
     # (and it never surprises non-autograd .kg scripts with MPS-tensor issues).

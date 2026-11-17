@@ -1,0 +1,7 @@
+:" accept: fixed - one fixed-point type, an int constant that fits, explicit conversions "
+
+half::.fixed("fixed<32,16>";0.5)
+f::{(x*half)+2}
+g::{.float(x)+1.5}
+.entry("f";"fixed<32,16> -> fixed<32,16>")
+.entry("g";"fixed<32,16> -> float")

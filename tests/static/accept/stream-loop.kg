@@ -1,0 +1,4 @@
+:" accept: stream-loop - an Iterate with a constant count "
+
+f::{3{x*2}:*x}
+.entry("f";"int -> int")

@@ -15,6 +15,7 @@ import os
 import re
 import shutil
 import sys
+import threading
 
 from ..errors import KlongError
 from .checker import check_source
@@ -26,6 +27,9 @@ from .signature import _C_KEYWORDS
 
 __all__ = ["compile_program", "emit_program", "emit_main", "Compiled", "runtime_header", "c_prefix", "emit_hls_program",
            "emit_hls_main"]
+
+
+_CHDIR = threading.RLock()
 
 
 def runtime_header():
@@ -73,14 +77,15 @@ def compile_program(path, *, text=None, int_bits=32, externs=None, name=None):
     # form errors are decided without running anything: stop before stage one if there are any
     first.raise_first()
     # .l("file") is looked up from the directory of the program, as the checker does
-    cwd = os.getcwd()
-    try:
-        if base_dir:
-            os.chdir(base_dir)
-        klong = load_program(os.path.abspath(os.path.join(cwd, path)) if base_dir else path, externs=externs, text=text,
-                             strict=2, backend="numpy")
-    finally:
-        os.chdir(cwd)
+    with _CHDIR:        # the working directory is the process's: two threads compiling must not interleave their chdirs
+        cwd = os.getcwd()
+        try:
+            if base_dir:
+                os.chdir(base_dir)
+            klong = load_program(os.path.abspath(os.path.join(cwd, path)) if base_dir else path, externs=externs, text=text,
+                                 strict=2, backend="numpy")
+        finally:
+            os.chdir(cwd)
     values = {}
     for gname in first.globals:
         values[gname] = klong[gname]
@@ -91,14 +96,14 @@ def compile_program(path, *, text=None, int_bits=32, externs=None, name=None):
 
 
 def emit_program(path, out_dir=None, *, text=None, int_bits=32, float_bits=32, line_directives=False, prefix=None,
-                 externs=None):
+                 externs=None, hls=None):
     """
     Compile a program to C. With out_dir, writes <prefix>.c, <prefix>.h and
     klong_rt.h there. Returns the Emitted (texts and size report), with the
     Compiled as its ``compiled`` attribute.
     """
     compiled = compile_program(path, text=text, int_bits=int_bits, externs=externs, name=prefix)
-    out = emit(compiled.program, prefix=prefix, float_bits=float_bits, line_directives=line_directives)
+    out = emit(compiled.program, prefix=prefix, float_bits=float_bits, line_directives=line_directives, hls=hls)
     out.compiled = compiled
     if out_dir is not None:
         os.makedirs(out_dir, exist_ok=True)
@@ -155,17 +160,29 @@ def emit_main(files, out_dir=None, int_bits=32, float_bits=32, line_directives=F
 
 
 def emit_hls_program(path, out_dir=None, *, text=None, int_bits=32, prefix=None, clock_mhz=None, externs=None,
-                     line_directives=False):
+                     line_directives=False, wrapped=False, lanes=None, reassociate=False):
     """
-    Compile a program to C and the Vitis HLS files around it (emit_hls). With
-    out_dir, writes the C files and the HLS files there. Returns the HlsOutput,
-    with the Emitted as its ``emitted`` attribute.
+    Compile a program to C and the Vitis HLS files around it (emit_hls). With out_dir, writes the C files and the HLS
+    files there. Returns the HlsOutput, with the Emitted as its ``emitted`` attribute.
+
+        wrapped      stage A: the plain C of --emit-c is the core, called once per record (kgpy --hls-wrapped)
+        lanes        N cores on one stream (stage B only)
+        reassociate  sum floats as a balanced tree (stage B only; changes the rounding)
     """
+    from .emit_c import HLS_WORK_LIMIT, HlsOptions, hls_work
     from .emit_hls import DEFAULT_CLOCK_MHZ, emit_hls
+    if wrapped and (lanes is not None or reassociate):
+        raise ValueError("--lanes and --hls-reassociate belong to the streamable back end, not to --hls-wrapped")
+    options = None
+    if not wrapped:
+        compiled = compile_program(path, text=text, int_bits=int_bits, externs=externs, name=prefix)
+        work = max([hls_work(compiled.program, e) for e in compiled.program.entries] or [0])
+        options = HlsOptions(reassociate=reassociate, mode="pipeline" if work <= HLS_WORK_LIMIT else "block")
     emitted = emit_program(path, None, text=text, int_bits=int_bits, float_bits=32, prefix=prefix, externs=externs,
-                           line_directives=line_directives)
+                           line_directives=line_directives, hls=options)
     out = emit_hls(emitted.compiled.program, emitted, clock_mhz=clock_mhz or DEFAULT_CLOCK_MHZ,
-                   source_name=os.path.basename(os.fspath(path)))
+                   source_name=os.path.basename(os.fspath(path)), wrapped=wrapped, lanes=lanes, reassociate=reassociate,
+                   mode=options.mode if options else None)
     out.emitted = emitted
     out.files[emitted.prefix + ".c"] = emitted.c
     out.files[emitted.prefix + ".h"] = emitted.h
@@ -177,7 +194,7 @@ def emit_hls_program(path, out_dir=None, *, text=None, int_bits=32, prefix=None,
 
 
 def emit_hls_main(files, out_dir=None, int_bits=32, prefix=None, clock_mhz=None, synth=False, stdout=None, stderr=None,
-                  color=False):
+                  color=False, wrapped=False, lanes=None, reassociate=False):
     """
     The body of ``kgpy --emit-hls FILE... -o DIR [--synth]``. Prints what it wrote and, with synth, runs C synthesis
     on the build machine ($KLONG_HW_BUILD; unset: this machine) and prints the estimates. Returns 0, 1 when a program
@@ -192,7 +209,8 @@ def emit_hls_main(files, out_dir=None, int_bits=32, prefix=None, clock_mhz=None,
     where = out_dir or "."
     for path in files:
         try:
-            res = emit_hls_program(path, where, int_bits=int_bits, prefix=prefix, clock_mhz=clock_mhz)
+            res = emit_hls_program(path, where, int_bits=int_bits, prefix=prefix, clock_mhz=clock_mhz, wrapped=wrapped,
+                                   lanes=lanes, reassociate=reassociate)
         except (OSError, UnicodeDecodeError) as e:
             print(f"{path}: cannot read: {getattr(e, 'strerror', None) or e}", file=err)
             status = max(status, 2)

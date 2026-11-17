@@ -82,10 +82,11 @@ class StaleImage(RemoteError):
     """No passing image exists for this source: the message says the command that builds it."""
 
 
-def plan_for(files, int_bits=32, clock_mhz=300, target="hw"):
+def plan_for(files, int_bits=32, clock_mhz=300, target="hw", wrapped=False, lanes=None, reassociate=False):
     """The Plan (key, image name) of the programs ``files``, without building anything."""
     from ..static.compile import emit_hls_program
-    return Plan([emit_hls_program(f, None, int_bits=int_bits, clock_mhz=clock_mhz) for f in files], clock_mhz, target=target)
+    return Plan([emit_hls_program(f, None, int_bits=int_bits, clock_mhz=clock_mhz, wrapped=wrapped, lanes=lanes,
+                                  reassociate=reassociate) for f in files], clock_mhz, target=target, lanes=lanes or 1)
 
 
 def find_image(files, host="env", int_bits=32, clock_mhz=300):
@@ -342,8 +343,8 @@ def format_result(plan_clock, st, builder=None):
     return lines
 
 
-def hw_build_main(files, int_bits=32, clock_mhz=300, lanes=1, force=False, status=False, wait=False, hw_emu=False,
-                  stdout=None, stderr=None, builder=None, poll=60):
+def hw_build_main(files, int_bits=32, clock_mhz=300, lanes=None, force=False, status=False, wait=False, hw_emu=False,
+                  stdout=None, stderr=None, builder=None, poll=60, wrapped=False, reassociate=False):
     """
     The body of ``kgpy --hw-build [FILE...] [--status] [--wait] [--force]``. Returns 0 when the image is built (or
     cached, or the build was started and --wait was not given), 1 when the build or the timing gate failed or a build is
@@ -352,8 +353,10 @@ def hw_build_main(files, int_bits=32, clock_mhz=300, lanes=1, force=False, statu
     from ..errors import KlongError
     from ..static.compile import emit_hls_program
     out, err = stdout or sys.stdout, stderr or sys.stderr
-    if lanes != 1:
-        print("--lanes %d: only one lane is built in this version (the emitter makes one core per kernel)" % lanes, file=err)
+    if lanes == 1 and not wrapped:
+        lanes = None            # one core, no lane dimension: the kernel without --lanes
+    if lanes is not None and wrapped:
+        print("--lanes needs the streamable back end: it cannot be combined with --hls-wrapped", file=err)
         return 2
     try:
         b = builder or Builder()
@@ -375,7 +378,8 @@ def hw_build_main(files, int_bits=32, clock_mhz=300, lanes=1, force=False, statu
         outputs = []
         for path in files:
             try:
-                outputs.append(emit_hls_program(path, None, int_bits=int_bits, clock_mhz=clock_mhz))
+                outputs.append(emit_hls_program(path, None, int_bits=int_bits, clock_mhz=clock_mhz, wrapped=wrapped,
+                                                lanes=lanes, reassociate=reassociate))
             except (OSError, UnicodeDecodeError) as e:
                 print("%s: cannot read: %s" % (path, getattr(e, "strerror", None) or e), file=err)
                 return 2
@@ -387,7 +391,7 @@ def hw_build_main(files, int_bits=32, clock_mhz=300, lanes=1, force=False, statu
                 print("%s: %s" % (path, e), file=err)
                 return 1
         try:
-            plan = Plan(outputs, clock_mhz, target=target, lanes=lanes)
+            plan = Plan(outputs, clock_mhz, target=target, lanes=lanes or 1)
         except ValueError as e:
             print(str(e), file=err)
             return 2

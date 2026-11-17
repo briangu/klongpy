@@ -11,6 +11,9 @@ Static Klong: the subset of the language that can be compiled ahead of time
     c_identifier                             the C name of a Klong name
     load_program, call_entry                 run a static program under KlongPy with Python
                                              functions bound as its externs (klongpy.static.host)
+    set_param                                set a .param register between runs
+    fixed, eval_ir, streamable               fixed<W,I> semantics, the evaluator behind call_entry for programs that use
+                                             them, and kgpy --check-static --streamable (ticket 113)
 
 The checker never evaluates a program. This package imports nothing beyond
 numpy and klongpy itself.
@@ -18,7 +21,7 @@ numpy and klongpy itself.
 from .checker import (EntryDecl, ExternDecl, FunctionInfo, GlobalInfo, StaticReport, check_file, check_main,
                       check_source, validate_global)
 from .diagnostics import StaticDiagnostic
-from .host import call_entry, load_program
+from .host import call_entry, load_program, set_param
 from .optable import FORMS, OPTABLE
 from .rules import RULES
 from .signature import Signature, SignatureError, Ty, c_identifier, parse_signature, parse_type
@@ -28,5 +31,5 @@ __all__ = [
     "StaticReport", "StaticDiagnostic", "FunctionInfo", "GlobalInfo", "ExternDecl", "EntryDecl",
     "RULES", "OPTABLE", "FORMS",
     "parse_signature", "parse_type", "Signature", "SignatureError", "Ty", "c_identifier",
-    "load_program", "call_entry",
+    "load_program", "call_entry", "set_param",
 ]

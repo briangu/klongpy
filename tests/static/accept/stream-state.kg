@@ -1,0 +1,5 @@
+:" accept: stream-state - the same accumulator in an int, which adds in one cycle "
+
+integ::0
+step::{integ::integ+x;integ}
+.entry("step";"int -> int")

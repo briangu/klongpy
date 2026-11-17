@@ -68,7 +68,7 @@ class TestCsimAndSynthesis(unittest.TestCase):
         cls.mavg_calls = [[float(v)] for v in special_floats(rng, (N,))]
         cls.fir_calls = [[blk] for blk in special_floats(rng, (N, 256), rate=0.002)]
         for name, entry, calls in (("mavg", "step", cls.mavg_calls), ("fir", "run", cls.fir_calls)):
-            res = emit_hls_program(program(name), None)
+            res = emit_hls_program(program(name), None, wrapped=True)
             e = res.entries[0]
             data = {"in.bin": pack(e, 32, calls)}
             cls.runs[name] = (res, e, synthesize(res, REMOTE, timeout=1800, csim_data=data))
@@ -114,7 +114,7 @@ class TestCsimAndSynthesis(unittest.TestCase):
 @unittest.skipUnless(REMOTE, "set KLONG_HW_BUILD=user@host to run Vitis HLS on the build machine")
 class TestTrapFlag(unittest.TestCase):
     def run_csim(self, text, name, calls):
-        res = emit_hls_program(name + ".kg", None, text=text, prefix=name)
+        res = emit_hls_program(name + ".kg", None, text=text, prefix=name, wrapped=True)
         e = res.entries[0]
         r = synthesize(res, REMOTE, timeout=900, csim_data={"in.bin": pack(e, 32, calls)}, synth=False)[e["c_name"]]
         self.assertEqual(r["result"].returncode, 0, r["log"][-2000:] + r["stdout"][-2000:])

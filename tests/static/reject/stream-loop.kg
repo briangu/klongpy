@@ -1,0 +1,4 @@
+:" expect: static line 3 stream-loop "
+
+f::{{x<100}{x*2}:~x}
+.entry("f";"int -> int")

@@ -427,4 +427,91 @@ static inline KG_UNUSED kg_float kg_pow(kg_float a, kg_float b) {
 #endif
 }
 
+
+/* ---- fixed-point: fixed<W,I> is a W-bit two's complement integer (stored in an int32_t or int64_t) ----
+ * whose value is raw * 2^-F, F = W - I. Results wrap to W bits; multiply and divide round toward minus
+ * infinity. Everything is integer arithmetic (no __int128, no library): the same code is the reference of the
+ * hardware flow, and the tests hold it equal to klongpy/static/fixed.py bit for bit. */
+
+/* an arithmetic shift right that is defined for negative x */
+static inline KG_UNUSED int64_t kg_sar64(int64_t x, int n) {
+    if (n == 0) {
+        return x;
+    }
+    return x >= 0 ? (int64_t)((uint64_t)x >> n) : (int64_t)(~((~(uint64_t)x) >> n));
+}
+
+/* v wrapped to w bits (2 <= w <= 64) */
+static inline KG_UNUSED int64_t kg_fxwrap(int64_t v, int w) {
+    if (w >= 64) {
+        return v;
+    }
+    return kg_sar64((int64_t)((uint64_t)v << (64 - w)), 64 - w);
+}
+
+static inline KG_UNUSED int64_t kg_fxadd(int64_t a, int64_t b, int w) { return kg_fxwrap((int64_t)((uint64_t)a + (uint64_t)b), w); }
+static inline KG_UNUSED int64_t kg_fxsub(int64_t a, int64_t b, int w) { return kg_fxwrap((int64_t)((uint64_t)a - (uint64_t)b), w); }
+static inline KG_UNUSED int64_t kg_fxneg(int64_t a, int w) { return kg_fxwrap((int64_t)((uint64_t)0 - (uint64_t)a), w); }
+
+/* floor(a * b / 2^f) wrapped; the product of two operands of at most 32 bits fits 64 bits */
+static inline KG_UNUSED int64_t kg_fxmul(int64_t a, int64_t b, int f, int w) { return kg_fxwrap(kg_sar64(a * b, f), w); }
+
+/* the same for up to 64 bits: the 128-bit product from 32-bit limbs, then the low 64 bits of its shift */
+static inline KG_UNUSED int64_t kg_fxmul128(int64_t a, int64_t b, int f, int w) {
+    uint64_t ua = (uint64_t)a, ub = (uint64_t)b;
+    uint64_t a0 = ua & 0xffffffffu, a1 = ua >> 32, b0 = ub & 0xffffffffu, b1 = ub >> 32;
+    uint64_t p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
+    uint64_t mid = (p00 >> 32) + (p01 & 0xffffffffu) + (p10 & 0xffffffffu);
+    uint64_t lo = (p00 & 0xffffffffu) | (mid << 32);
+    uint64_t hi = p11 + (p01 >> 32) + (p10 >> 32) + (mid >> 32);
+    uint64_t r;
+    if (a < 0) {
+        hi -= ub;
+    }
+    if (b < 0) {
+        hi -= ua;
+    }
+    r = f == 0 ? lo : ((lo >> f) | (hi << (64 - f)));
+    return kg_fxwrap((int64_t)r, w);
+}
+
+/* floor(a * 2^f / b) wrapped, for w <= 32; a division by zero traps */
+static inline KG_UNUSED int64_t kg_fxdiv(int64_t a, int64_t b, int f, int w, int line) {
+    int64_t n, q;
+    if (b == 0) {
+        kg_trap(KG_TRAP_DIV0, line);
+        return 0;
+    }
+    n = (int64_t)((uint64_t)a << f);
+    q = n / b;
+    if (n % b != 0 && ((n < 0) != (b < 0))) {
+        q -= 1;
+    }
+    return kg_fxwrap(q, w);
+}
+
+/* int to fixed: a * 2^f wrapped */
+static inline KG_UNUSED int64_t kg_fxfromi(int64_t a, int f, int w) { return kg_fxwrap((int64_t)((uint64_t)a << f), w); }
+
+/* fixed to another fixed type: the change of fraction bits d = F(dst) - F(src) */
+static inline KG_UNUSED int64_t kg_fxshift(int64_t a, int d, int w) {
+    return kg_fxwrap(d >= 0 ? (int64_t)((uint64_t)a << d) : kg_sar64(a, -d), w);
+}
+
+/* float to fixed: floor(x * 2^f) wrapped; nan and anything beyond a 64-bit integer give 0 */
+static inline KG_UNUSED int64_t kg_fxfromf(double x, double scale, int w) {
+    double s = x * scale, t;
+    if (!(s >= -9223372036854775808.0 && s < 9223372036854775808.0)) {
+        return 0;
+    }
+    t = (double)(int64_t)s;
+    if (t > s) {
+        t -= 1.0;
+    }
+    return kg_fxwrap((int64_t)t, w);
+}
+
+/* _x: floor to an int (wrapped to the width of kg_int) */
+static inline KG_UNUSED kg_int kg_fxfloor(int64_t a, int f) { return (kg_int)(kg_uint)(uint64_t)kg_sar64(a, f); }
+
 #endif /* KLONG_RT_H */

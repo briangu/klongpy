@@ -52,8 +52,11 @@ import tempfile
 import numpy as np
 
 from klongpy.errors import KlongError
+from klongpy.static import fixed as fx
 from klongpy.static.compile import emit_program
+from klongpy.static.emit_c import ctype_of
 from klongpy.static.host import call_entry, load_program
+from klongpy.static.signature import is_fixed
 
 WARN = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic"]
 
@@ -77,12 +80,16 @@ def sanitize_flags():
 
 
 def _ct(ty, float_bits, int_bits):
+    if is_fixed(ty.elem):
+        return ctypes.c_int32 if fx.spec_of(ty.elem).W <= 32 else ctypes.c_int64
     if ty.elem == "float":
         return ctypes.c_double if float_bits == 64 else ctypes.c_float
     return ctypes.c_int64 if int_bits == 64 else ctypes.c_int32
 
 
 def _np(ty, float_bits, int_bits):
+    if is_fixed(ty.elem):
+        return np.int32 if fx.spec_of(ty.elem).W <= 32 else np.int64
     if ty.elem == "float":
         return np.float64 if float_bits == 64 else np.float32
     return np.int64 if int_bits == 64 else np.int32
@@ -139,7 +146,7 @@ class Build:
                "static jmp_buf kgt_jb;", "static int kgt_code;", "int kgt_line;", "",
                "void kg_trap(int code, int line) {", "    kgt_code = code;", "    kgt_line = line;",
                "    longjmp(kgt_jb, 1);", "}", ""]
-        ct = lambda t: "kg_float" if t.elem == "float" else "kg_int"  # noqa: E731
+        ct = lambda t: ctype_of(t.elem)  # noqa: E731
         for x in self.program.externs:
             sig = x.signature
             decl, args = [], []
@@ -307,9 +314,9 @@ class Host:
     def reset(self):
         self.klong = load_program(self.path or self.name, externs=self.externs, text=self.text, strict=2, backend="numpy")
 
-    def call(self, name, *args):
+    def call(self, name, *args, raw=False):
         try:
-            return ("ok", call_entry(self.klong, name, *args))
+            return ("ok", call_entry(self.klong, name, *args, raw=raw))
         except KlongError as e:
             return ("error", e)
 
@@ -336,7 +343,7 @@ def same(host, c, ty, float_bits, rtol=None, atol=None, int_bits=64, zero_sign=T
     v = np.asarray(c)
     if h.shape != v.shape:
         return f"shape {h.shape} on the host, {v.shape} in C"
-    if ty.elem == "int":
+    if ty.elem == "int" or is_fixed(ty.elem):
         if h.dtype.kind == "f":
             if not np.all(h == np.floor(h)):
                 return f"host {host!r} is not whole, C {c!r}"

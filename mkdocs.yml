@@ -44,6 +44,7 @@ nav:
   - Embedded C:
       - Compiling Klong to C: 'embedded.md'
       - Static Profile: 'static-profile.md'
+      - Klong as FPGA Hardware: 'hardware.md'
   - Reference:
       - Operators: 'operators.md'
       - REPL: 'repl.md'

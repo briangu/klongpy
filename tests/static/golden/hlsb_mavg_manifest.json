@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "emitter": "klong-emit-hls/1",
+  "program": "mavg",
+  "source": "mavg.kg",
+  "int_bits": 32,
+  "float_bits": 32,
+  "lanes": 1,
+  "clock_mhz": 300,
+  "cache_key": "a23364fd165c1c158445e7b4d32c02de14684ad588e763536d87dc71ae2aeb59",
+  "cflags": [
+    "-DKG_TRAP_FLAG=kg_hls_trap"
+  ],
+  "tool": {
+    "name": "Vitis HLS",
+    "version": "2022.2",
+    "flow_target": "vitis",
+    "part": "xcu250-figd2104-2L-e",
+    "platform": "xilinx_u250_gen3x16_xdma_4_1_202210_1"
+  },
+  "c_files": [
+    "mavg.c",
+    "mavg.h",
+    "klong_rt.h",
+    "kg_hls_stub.h"
+  ],
+  "entries": [
+    {
+      "name": "step",
+      "c_name": "step",
+      "signature": "float -> float",
+      "top": "mavg_step_kernel",
+      "params": [
+        {
+          "name": "x",
+          "elem": "float",
+          "shape": [],
+          "offset": 0,
+          "words": 1
+        }
+      ],
+      "result": {
+        "elem": "float",
+        "shape": [],
+        "words": 1
+      },
+      "in_words": 1,
+      "out_words": 1,
+      "in_type": "kg_float",
+      "out_type": "kg_float",
+      "in_bytes": 4,
+      "out_bytes": 4,
+      "files": {
+        "top": "mavg_step_top.cpp",
+        "tb": "mavg_step_tb.cpp",
+        "tcl": "hls_step.tcl"
+      },
+      "kernel_args": [
+        "in",
+        "out",
+        "n",
+        "reset",
+        "status"
+      ],
+      "streams": {
+        "in": "record",
+        "out": "record"
+      }
+    }
+  ],
+  "status_bits": {
+    "any_trap": 0,
+    "bounds": 1,
+    "div_zero": 2
+  },
+  "kernel": "void <top>(const in_type *in, out_type *out, unsigned n, unsigned reset, unsigned *status)",
+  "stage": "B",
+  "lane_dimension": false,
+  "reassociate": false
+}

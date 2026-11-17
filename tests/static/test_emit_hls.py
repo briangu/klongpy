@@ -39,23 +39,26 @@ def program(name):
 
 def emit(name_or_path, **kw):
     path = name_or_path if os.sep in name_or_path or name_or_path.endswith(".kg") else program(name_or_path)
+    kw.setdefault("wrapped", True)         # these tests are about stage A (kgpy --hls-wrapped); stage B is in test_hls_stream.py
     return emit_hls_program(path, None, **kw)
 
 
 class HlsBuild:
     """A program emitted for HLS, with the test bench built by the system compiler: run(records) -> (out, status)."""
 
-    def __init__(self, text=None, path=None, name="t", int_bits=32):
+    def __init__(self, text=None, path=None, name="t", int_bits=32, wrapped=True, **kw):
         self.dir = tempfile.mkdtemp(prefix="kghls_")
         _KEEP.append(self.dir)
-        self.res = emit_hls_program(path or name + ".kg", self.dir, text=text, int_bits=int_bits, prefix=name, externs=STUBS)
+        self.res = emit_hls_program(path or name + ".kg", self.dir, text=text, int_bits=int_bits, prefix=name, externs=STUBS,
+                                    wrapped=wrapped, **kw)
         self.prefix = self.res.prefix
         self.entry = self.res.entries[0]
+        self.regs = self.res.manifest.get("registers", [])
         flags = ["-DKG_TRAP_FLAG=kg_hls_trap", "-I" + self.dir] + (["-DKG_INT64"] if int_bits == 64 else [])
         P = self.prefix
         e = self.entry["files"]
         cmds = [
-            [CC, "-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-ffp-contract=off", "-c",
+            [CC, "-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-Wno-unknown-pragmas", "-O1", "-ffp-contract=off", "-c",
              os.path.join(self.dir, P + ".c"), "-o", os.path.join(self.dir, "core.o")] + flags,
             [CXX, "-std=c++14", "-Wall", "-Wextra", "-Werror", "-Wno-unknown-pragmas", "-O1", "-ffp-contract=off", "-c",
              os.path.join(self.dir, e["top"]), "-o", os.path.join(self.dir, "top.o")] + flags,
@@ -68,12 +71,15 @@ class HlsBuild:
             if r.returncode != 0:
                 raise AssertionError(f"{' '.join(cmd)}\n{r.stderr}")
 
-    def run(self, records, per=0):
-        """records: bytes of in.bin. Returns (out.bin bytes, status word)."""
+    def run(self, records, per=0, regs=None):
+        """records: bytes of in.bin; regs: bytes of regs.bin (the parameters). Returns (out.bin bytes, status word)."""
         d = os.path.join(self.dir, "data")
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, "in.bin"), "wb") as f:
             f.write(records)
+        if regs is not None:
+            with open(os.path.join(d, "regs.bin"), "wb") as f:
+                f.write(regs)
         r = subprocess.run([os.path.join(self.dir, "tb"), d, str(per)], capture_output=True, text=True)
         if r.returncode != 0:
             raise AssertionError(f"tb failed: {r.stderr}")
@@ -85,18 +91,21 @@ class HlsBuild:
 
 
 def np_type(elem, int_bits=32):
+    if elem.startswith("fixed<"):
+        return np.dtype("<i4" if int(elem[6:].split(",")[0]) <= 32 else "<i8")
     return np.dtype("<f4") if elem == "float" else np.dtype("<i4" if int_bits == 32 else "<i8")
 
 
 def pack(entry, int_bits, calls):
     """The bytes of in.bin for a list of calls, each a list of arguments (the record layout of the manifest)."""
     mixed = len({p["elem"] for p in entry["params"]}) > 1
+    width = np_type(entry["params"][0]["elem"], int_bits).itemsize
     parts = []
     for args in calls:
         for p, a in zip(entry["params"], args):
             a = np.asarray(a).reshape(-1)
             if mixed:
-                parts.append(a.astype(np_type(p["elem"])).tobytes())
+                parts.append(a.astype(np_type(p["elem"], int_bits) if width == 8 else np_type(p["elem"])).tobytes())
             else:
                 parts.append(a.astype(np_type(p["elem"], int_bits)).tobytes())
     return b"".join(parts)
@@ -216,11 +225,11 @@ class TestFiles(unittest.TestCase):
         for text, why in (('f::{1}\n.entry("f";"-> int")', "no argument"),):
             with self.subTest(why=why):
                 with self.assertRaises(KlongStaticError) as cm:
-                    emit_hls_program("t.kg", None, text=text)
+                    emit_hls_program("t.kg", None, text=text, wrapped=True)
                 self.assertIn(why, str(cm.exception))
         text = 'f::{x+y}\n.entry("f";"int float -> float")'
         with self.assertRaises(KlongStaticError) as cm:
-            emit_hls_program("t.kg", None, text=text, int_bits=64)
+            emit_hls_program("t.kg", None, text=text, int_bits=64, wrapped=True)
         self.assertIn("--int64", str(cm.exception))
 
     def test_float64_is_rejected(self):
@@ -235,7 +244,7 @@ class TestFiles(unittest.TestCase):
         for path in sorted(glob.glob(os.path.join(HERE, "accept", "*.kg"))):
             with self.subTest(fixture=os.path.basename(path)):
                 try:
-                    res = emit_hls_program(path, None, externs=STUBS)
+                    res = emit_hls_program(path, None, externs=STUBS, wrapped=True)
                 except KlongStaticError as e:
                     self.assertIn("[hls]", str(e))
                     self.assertTrue("no externs" in str(e) or "no argument" in str(e), str(e))
@@ -254,7 +263,7 @@ class TestCompiledWithTheSystemCompiler(unittest.TestCase):
     def test_every_emitted_fixture_compiles(self):
         for path in sorted(glob.glob(os.path.join(HERE, "accept", "*.kg"))):
             try:
-                res = emit_hls_program(path, None, externs=STUBS)
+                res = emit_hls_program(path, None, externs=STUBS, wrapped=True)
             except KlongStaticError:
                 continue
             with self.subTest(fixture=os.path.basename(path)):
@@ -352,7 +361,7 @@ class TestCli(unittest.TestCase):
     def test_emit_hls_writes_the_files(self):
         d = tempfile.mkdtemp(prefix="kghls_")
         _KEEP.append(d)
-        r = self.cli("--emit-hls", program("fir"), "-o", d, "--clock-mhz", "250")
+        r = self.cli("--emit-hls", program("fir"), "--hls-wrapped", "-o", d, "--clock-mhz", "250")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("fir_run_kernel", r.stdout)
         self.assertEqual(sorted(os.listdir(d)), ["fir.c", "fir.h", "fir_run_tb.cpp", "fir_run_top.cpp", "hls_run.tcl",

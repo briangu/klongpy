@@ -7,7 +7,8 @@ import os
 import re
 import xml.etree.ElementTree as ET
 
-__all__ = ["parse_csynth_xml", "parse_synth_dir", "warnings_of", "warning_classes", "format_table", "record_interval"]
+__all__ = ["parse_csynth_xml", "parse_synth_dir", "warnings_of", "warning_classes", "format_table", "record_interval",
+           "stream_summary", "ii_warnings"]
 
 _WARN = re.compile(r"^(WARNING|ERROR|CRITICAL WARNING): \[([A-Z]+ [0-9]+-[0-9]+)\] (.*)$")
 
@@ -37,7 +38,14 @@ def parse_csynth_xml(path):
     res = {k: _num(_text(root, f"AreaEstimates/Resources/{k}")) for k in ("BRAM_18K", "DSP", "FF", "LUT", "URAM")}
     avail = {k: _num(_text(root, f"AreaEstimates/AvailableResources/{k}")) for k in ("BRAM_18K", "DSP", "FF", "LUT", "URAM")}
     lat = "PerformanceEstimates/SummaryOfOverallLatency/"
+    loops = []
+    sl = root.find("PerformanceEstimates/SummaryOfLoopLatency")
+    if sl is not None:
+        for node in sl:
+            loops.append({"name": node.tag, "ii": _num(_text(node, "PipelineII")), "depth": _num(_text(node, "PipelineDepth")),
+                          "trip": _num(_text(node, "TripCount")), "latency": _num(_text(node, "Latency"))})
     return {
+        "loops": loops,
         "module": _text(root, "UserAssignments/TopModelName"),
         "part": _text(root, "UserAssignments/Part"),
         "target_ns": float(_text(root, "UserAssignments/TargetClockPeriod") or 0) or None,
@@ -97,11 +105,46 @@ def record_interval(top, modules):
     return None, ""
 
 
+def stream_summary(modules, in_words, out_words):
+    """
+    The steady-state rate of a streamable kernel (kgpy --emit-hls, stage B), from the initiation intervals of the
+    pipelined loops of its three processes: the core takes one record per ``core_ii`` cycles, the load process one
+    word per ``load_ii`` (a record is in_words of them), the store one word per ``store_ii``. The kernel moves one
+    record every ``interval`` cycles, the largest of the three; ``limit`` names which. None where the tool reported no
+    pipelined loop (a block program).
+    """
+    def ii_of(prefix):
+        found = [(m["module"], lp) for name, m in modules.items() if name.split("_Pipeline")[0] == prefix
+                 for lp in m.get("loops", []) if lp["ii"] is not None]
+        return max(found, key=lambda x: x[1]["ii"]) if found else None
+    core, load, store = ii_of("core"), ii_of("load"), ii_of("store")
+    parts = {"core": core[1]["ii"] if core else None, "load": load[1]["ii"] * in_words if load else None,
+             "store": store[1]["ii"] * out_words if store else None}
+    known = {k: v for k, v in parts.items() if v is not None}
+    if not known:
+        return {"interval": None, "limit": None, "core_ii": None, "load_ii": None, "store_ii": None, "parts": parts,
+                "core_depth": None, "core_loop": None}
+    limit = max(known, key=lambda k: known[k])
+    return {"interval": known[limit], "limit": limit, "core_ii": parts["core"],
+            "load_ii": load[1]["ii"] if load else None, "store_ii": store[1]["ii"] if store else None, "parts": parts,
+            "core_depth": core[1]["depth"] if core else None, "core_loop": core[1]["name"] if core else None}
+
+
+def ii_warnings(log_text):
+    """The tool's messages about a pipeline that did not reach its target interval: [(code, text)]."""
+    out, seen = [], set()
+    for sev, code, msg in warnings_of(log_text):
+        if code in ("HLS 200-880", "HLS 200-1470", "HLS 200-885", "HLS 200-1486") and (code, msg) not in seen:
+            seen.add((code, msg))
+            out.append((code, msg))
+    return out
+
+
 def _cell(v, unit=""):
     return "?" if v is None else f"{v}{unit}"
 
 
-def format_table(entry_name, top, modules, clock_mhz):
+def format_table(entry_name, top, modules, clock_mhz, stream=None):
     """The synthesis table of one kernel as lines of text. Everything in it is an estimate of C synthesis."""
     lines = [f"kernel {entry_name}: C synthesis estimates (not timing closure; not measured on hardware)"]
     if top is None:
@@ -116,6 +159,14 @@ def format_table(entry_name, top, modules, clock_mhz):
         f"  LUT {_cell(top['lut'])}   FF {_cell(top['ff'])}   DSP {_cell(top['dsp'])}   BRAM_18K {_cell(top['bram'])}"
         f"   URAM {_cell(top['uram'])}",
     ]
+    if stream is not None:
+        sm = stream_summary(modules, *stream)
+        if sm["interval"] is None:
+            lines.append("  streaming rate     no pipelined core loop: the interval of the whole call is the one above")
+        else:
+            lines.append(f"  streaming rate     one record every {sm['interval']} cycle(s), limited by the {sm['limit']} process "
+                         f"(core II {_cell(sm['core_ii'])}, load II {_cell(sm['load_ii'])} per word of {stream[0]}, "
+                         f"store II {_cell(sm['store_ii'])} per word of {stream[1]}; core pipeline depth {_cell(sm['core_depth'])})")
     if modules:
         lines.append("  modules:")
         for name in sorted(modules):

@@ -309,7 +309,9 @@ error: ,: a dictionary can only be joined with a tuple (a list of two members) o
 27670116110564327424
 ?> 9223372036854775807+1
 -9223372036854775808
-?> 10^400
+?> 7^22
+3909821048582988049
+?> 10^100000000
 error: cannot apply ^ (Power) to integer and integer
 ```
 
@@ -604,6 +606,8 @@ client?> f("datetime64(""2000-01-02"")")
 ?> .entry("f";"-> int")
 error: .entry: the function f is not defined
 ```
+
+**Experimental: `.hw` calls a function of the static profile as FPGA hardware.** `fir::.hw("fir.kg")` binds the kernels of an image built with `kgpy --hw-build fir.kg` for an Alveo U250 and `fir.run(x)` runs on the card, with the arguments checked against the `.entry` signature, an extra leading dimension meaning several calls, resident buffers (`.hw.put`, `.hw.get`, `.hw.free`), `.hw.reset` and `.hw.info`. `KLONG_HW=sim` runs the same generated code on the host as a simulator, with no card. Nothing changes for a program that does not use `.hw`, and nothing of it is imported at start. This is experimental: it has been run on one card with one image, and in that first stage the hardware is slower than numpy on the kernel that was measured. See [Klong functions as FPGA hardware](hardware.md).
 
 **`kgpy --lint` knows `.extern`.** A name declared by a top-level `.extern` is defined, so calls to it are no longer reported by W002.
 

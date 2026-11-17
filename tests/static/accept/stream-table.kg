@@ -1,0 +1,5 @@
+:" accept: stream-table - a lookup in a small table "
+
+table::0.5*!16
+look::{table@x}
+.entry("look";"int -> float")

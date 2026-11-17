@@ -1,0 +1,5 @@
+:" expect: static line 4 stream-table "
+
+table::0.5*!2000
+look::{table@x}
+.entry("look";"int -> float")

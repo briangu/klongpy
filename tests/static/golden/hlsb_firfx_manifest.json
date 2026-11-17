@@ -1,0 +1,91 @@
+{
+  "format": 1,
+  "emitter": "klong-emit-hls/1",
+  "program": "firfx",
+  "source": "fir_fixed.kg",
+  "int_bits": 32,
+  "float_bits": 32,
+  "lanes": 1,
+  "clock_mhz": 300,
+  "cache_key": "456492dd19eeb4ac3ca0961f92d9950916e6e7d944eb46f4925294577bed731c",
+  "cflags": [
+    "-DKG_TRAP_FLAG=kg_hls_trap"
+  ],
+  "tool": {
+    "name": "Vitis HLS",
+    "version": "2022.2",
+    "flow_target": "vitis",
+    "part": "xcu250-figd2104-2L-e",
+    "platform": "xilinx_u250_gen3x16_xdma_4_1_202210_1"
+  },
+  "c_files": [
+    "firfx.c",
+    "firfx.h",
+    "klong_rt.h",
+    "kg_hls_stub.h"
+  ],
+  "entries": [
+    {
+      "name": "run",
+      "c_name": "run",
+      "signature": "fixed<32,16>[256] -> fixed<32,16>[241]",
+      "top": "firfx_run_kernel",
+      "params": [
+        {
+          "name": "x",
+          "elem": "fixed<32,16>",
+          "shape": [
+            256
+          ],
+          "offset": 0,
+          "words": 256
+        }
+      ],
+      "result": {
+        "elem": "fixed<32,16>",
+        "shape": [
+          241
+        ],
+        "words": 241
+      },
+      "in_words": 256,
+      "out_words": 241,
+      "in_type": "int32_t",
+      "out_type": "int32_t",
+      "in_bytes": 1024,
+      "out_bytes": 964,
+      "files": {
+        "top": "firfx_run_top.cpp",
+        "tb": "firfx_run_tb.cpp",
+        "tcl": "hls_run.tcl"
+      },
+      "kernel_args": [
+        "in",
+        "out",
+        "n",
+        "reset",
+        "status"
+      ],
+      "window": {
+        "taps": 16,
+        "outputs": 241,
+        "offset": 0,
+        "inputs": 256,
+        "op": "add"
+      },
+      "streams": {
+        "in": "word",
+        "out": "word"
+      }
+    }
+  ],
+  "status_bits": {
+    "any_trap": 0,
+    "bounds": 1,
+    "div_zero": 2
+  },
+  "kernel": "void <top>(const in_type *in, out_type *out, unsigned n, unsigned reset, unsigned *status)",
+  "stage": "B",
+  "lane_dimension": false,
+  "reassociate": false
+}

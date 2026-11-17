@@ -17,7 +17,7 @@ edited by hand; the text around them (HEAD and TAIL below) is.
 import sys
 
 from .optable import FORMS, OPERAND_KINDS, OPTABLE, SHAPE_RULES, TYPE_RULES
-from .rules import GROUPS, RULES
+from .rules import GROUPS, RULES, STREAM_RULES
 
 BEGIN = "<!-- BEGIN GENERATED -->"
 END = "<!-- END GENERATED -->"
@@ -72,6 +72,9 @@ def generated_block():
                 rule_rows.append((f"`{r.id}`", title, _cell(r.title)))
     parts.append("### Errors\n\nEvery rejection is a `static error` that ends in one of these rule ids.\n\n"
                  + _table(("Rule id", "Group", "Rejected"), rule_rows))
+    parts.append("### The streamable tier\n\n`kgpy --check-static --streamable` reports these as the same kind of error, for a program "
+                 "that is inside the profile but would not take one record per clock cycle in hardware.\n\n"
+                 + _table(("Rule id", "Reported when", "Change"), [(f"`{r.id}`", _cell(r.title), _cell(r.hint)) for r in STREAM_RULES.values()]))
     return "\n\n".join(parts) + "\n"
 
 
@@ -113,6 +116,7 @@ A program is split by what kind of top-level statement it is.
 | `name::{...}` or `name(p;q)::{...}` | run time | a function to compile, if reachable from an entry |
 | `name::<any other expression>` | compile time | evaluated once by KlongPy on the host; the result becomes an initialised global |
 | `.extern(...)` | compile time | declares a function the target provides |
+| `.param(...)` | compile time | declares a global that is an input register of the compiled program |
 | `.entry(...)` | compile time | marks a function as a C entry point and fixes its argument types |
 | `.l("file")` | compile time | loads another file under the same rules |
 | any other expression | error | top-level effects have no meaning on the target |
@@ -135,6 +139,7 @@ The program must parse at strict level 2 (`kgpy --strict=2`).
 |---|---|---|
 | `int` | `kg_int` = `int32_t` (default) or `int64_t` (`--int64`) | booleans are ints 0 and 1 |
 | `float` | `kg_float` = `float` (default) or `double` (`--float64`) | |
+| `fixed<W,I>` | `int32_t` (W up to 32) or `int64_t` | a W-bit fixed-point number with I integer bits; see [Fixed-point numbers](#fixed-point-numbers) |
 | `int[d1,...,dk]`, `float[d1,...,dk]` | pointer to `kg_int`/`kg_float`, row-major | every `d` a compile-time positive integer, rank 1 to 4 |
 | `str` | `const char *` | only as a literal argument to an extern |
 
@@ -178,6 +183,77 @@ error has a stable id.
 """
 
 TAIL = """
+## Fixed-point numbers
+
+`fixed<W,I>` is a signed number of W bits, 2 to 64, of which I, 1 to W, are integer bits (the sign bit counts). It
+is for programs whose arithmetic must be exact and cheap in hardware: an add is one cycle and a multiply is a
+DSP block. It is written in a signature (`"fixed<32,16> -> fixed<64,32>"`) and made by two conversions that are
+system functions evaluated by the compiler:
+
+```
+.fixed("fixed<32,16>";x)     :" an int, float or fixed-point value (or array) as that type "
+.float(x)                    :" a fixed-point value (or array) as a float "
+```
+
+**Reference semantics.** The value of a number is `raw * 2^-F` where `raw` is an integer of W bits and
+`F = W - I`. Every operation is defined on `raw`, and the interpreter stand-in, the C emitter and the hardware give
+the same bits (the tests compare them over every pair of `fixed<8,4>` values and over random values of
+`fixed<32,16>`, `fixed<64,32>` and others):
+
+| Operation | Result `raw` |
+|---|---|
+| `a+b`, `a-b`, `-a` | the integer result, wrapped to W bits (two's complement) |
+| `a*b` | `floor(a*b / 2^F)`, wrapped to W bits |
+| `a%b` | `floor(a * 2^F / b)`, wrapped to W bits; `b` is not 0 (a zero divisor traps like an integer one); W is at most 32 |
+| `a<b`, `a>b`, `a=b`, `a~b` | the comparison of the raw values, as an int |
+| <code>a&#124;b</code>, `a&b` | the larger and the smaller raw value |
+| `_a` | `floor(a / 2^F)` as an int (wrapped to `kg_int`) |
+| `.fixed("fixed<W,I>";v)`, v an int | `v * 2^F`, wrapped |
+| `.fixed("fixed<W,I>";v)`, v a float | `floor(v * 2^F)`, wrapped; nan, and anything beyond a 64-bit integer, give 0 |
+| `.fixed("fixed<W,I>";v)`, v fixed-point | the fraction bits are shifted (a right shift floors), then wrapped |
+| `.float(v)` | `raw * 2^-F`, exact up to 53 bits, rounded to `float` in compiled code |
+
+Where this is written down once: `klongpy/static/fixed.py`. The C code (`klong_rt.h`) uses integers only: a
+product of two operands of more than 32 bits is computed from 32-bit limbs, so `__int128` is not needed and a
+32-bit target can use any W up to 64; division is limited to 32 bits because a 64-bit quotient needs a 128-bit
+dividend. Hardware uses the same integer code (so that equality is by construction), not `ap_fixed`.
+
+**What mixes.** Two operands of the same fixed-point type; or a fixed-point operand and an `int` that is a constant
+that fits the integer part of the type (`x*2`, `x+1`). Everything else is an error with the rule `fixed`: two
+different fixed-point types (convert one with `.fixed`), a float (write the float as `.fixed("fixed<..>";0.5)` or
+convert the fixed-point value with `.float`), an int that is not a constant. `:%`, `!`, `^` and the monad `%` are
+not defined on fixed-point numbers; `x|-x` is the absolute value. Reductions and scans of `+ | &` work and wrap like
+the operators they apply; an int constant seed (`0+/x`) converts exactly.
+
+Under KlongPy a program that uses `fixed<..>` runs through `klongpy.static.call_entry`, which evaluates the typed
+program on the scaled integers (`klongpy/static/eval_ir.py`): the interpreter has no fixed-point type. A
+fixed-point argument is a number or an array (or a `klongpy.static.fixed.FixedArray`), and the result is a float,
+or with `raw=True` the scaled integers that compiled code works on.
+
+## Parameters
+
+```
+.param("gain";"fixed<32,16>";0.5)      :" name, type, and the value it starts with (0 when omitted) "
+```
+
+declares a global that is an input register: the host writes it between runs and a run reads it. The type is a
+scalar `int`, `float` or `fixed<W,I>`; the name is defined by `.param` itself and a compiled function may read it,
+not assign it (rule `param`). It is not a compile-time constant, so a shape or a loop count cannot depend on it; a
+parameter bounds a window only as "use the first p of a fixed maximum": `+/buf*(!8)<p`. Under KlongPy it is an
+an ordinary global; `klongpy.static.set_param(klong, "gain", 0.75)` sets it between calls (`call_entry` reads it at each
+call). In C it is a field of the instance with a setter, `prog_set_gain(p, value)`; `prog_init` restores the
+default. In the hardware kernel it is an `s_axilite` argument.
+
+## The streamable tier
+
+`kgpy --check-static --streamable prog.kg` answers a second question about a program that is inside the profile:
+can a hardware kernel take one record per clock cycle? It reports, with the span of the construct and what to
+change, each of: a loop with a data-dependent bound (`stream-loop`), state that is read and written back through a
+multi-cycle operation, a float operation or a division by a value that is not a constant (`stream-state`), a data-dependent index into an array of more than
+1024 items (`stream-table`), and an entry that does more than 4096 element operations per call and is not a sliding
+window (`stream-block`). A sliding window is `+/taps*x@idx` with the index table `k+!w`: the kernel keeps the last `w`
+samples in a shift register and makes one output per input word.
+
 ## Typing rules
 
 Inference is forward and monomorphic. Every expression gets one type from the types of its parts.

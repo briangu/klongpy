@@ -13,7 +13,8 @@ Grammar
     signature := params "->" result
     params    := type*                 separated by spaces, may be empty
     result    := type | "void"
-    type      := ("int" | "float") dims? | "str"
+    type      := ("int" | "float" | fixed) dims? | "str"
+    fixed     := "fixed<" W "," I ">"  2 <= W <= 64, 1 <= I <= W
     dims      := "[" N ("," N)* "]"    1 to 4 dimensions, each a positive integer
 
 ``str`` is a parameter type only, and only of an extern. The same parser is
@@ -28,6 +29,27 @@ from dataclasses import dataclass
 import numpy as np
 
 MAX_RANK = 4
+
+_FIXED = re.compile(r"fixed<(\d+),(\d+)>\Z")
+
+
+def fixed_elem(width, integer):
+    """The element type text of a fixed-point number: fixed<32,16>."""
+    return f"fixed<{int(width)},{int(integer)}>"
+
+
+def fixed_spec(elem):
+    """(W, I) of an element type such as ``fixed<32,16>``, or None when elem is not a fixed-point type."""
+    m = _FIXED.match(elem) if isinstance(elem, str) else None
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def is_fixed(elem):
+    return isinstance(elem, str) and elem.startswith("fixed<")
+
+
+def is_numeric(elem):
+    return elem in ("int", "float") or is_fixed(elem)
 
 INT_RANGE = {32: (-2**31, 2**31 - 1), 64: (-2**63, 2**63 - 1)}
 
@@ -129,7 +151,7 @@ class SignatureError(ValueError):
         self.span = span
 
 
-_TYPE = re.compile(r"([A-Za-z]+)(\[([^\]]*)\])?")
+_TYPE = re.compile(r"([A-Za-z]+)(<[^<>\s]*>)?(\[([^\]]*)\])?")
 _DIMS = re.compile(r"\s*\d+\s*(,\s*\d+\s*)*\Z")
 _WORD = re.compile(r"\S+")
 
@@ -142,20 +164,37 @@ def _type_at(text, pos, end):
         stop = w.end() if w else min(pos + 1, end)
         raise SignatureError(f"expected a type but found '{text[pos:stop]}'", (pos, stop))
     word = m.group(1)
-    if word not in ("int", "float", "str", "void"):
-        raise SignatureError(f"unknown type '{word}' (the types are int, float, str and void)", m.span(1))
+    angle = m.group(2)
+    if word == "fixed":
+        if angle is None:
+            raise SignatureError("fixed needs its widths: fixed<W,I> (W total bits, I integer bits)", m.span(1))
+        mm = re.match(r"<(\d+),(\d+)>\Z", angle)
+        if not mm:
+            raise SignatureError(f"a fixed-point type is written fixed<W,I> with two positive integers, found 'fixed{angle}'",
+                                 m.span(2))
+        w, i = int(mm.group(1)), int(mm.group(2))
+        if not 2 <= w <= 64:
+            raise SignatureError(f"fixed<{w},{i}>: the total width W must be 2 to 64", m.span(2))
+        if not 1 <= i <= w:
+            raise SignatureError(f"fixed<{w},{i}>: the integer bits I must be 1 to W ({w})", m.span(2))
+        word = fixed_elem(w, i)
+    else:
+        if angle is not None:
+            raise SignatureError(f"{word} takes no <...> (only fixed<W,I> does)", m.span(2))
+        if word not in ("int", "float", "str", "void"):
+            raise SignatureError(f"unknown type '{word}' (the types are int, float, fixed<W,I>, str and void)", m.span(1))
     shape = ()
-    if m.group(2) is not None:
-        inner = m.group(3)
+    if m.group(3) is not None:
+        inner = m.group(4)
         if word in ("str", "void"):
-            raise SignatureError(f"{word} cannot have dimensions", m.span(2))
+            raise SignatureError(f"{word} cannot have dimensions", m.span(3))
         if not _DIMS.match(inner):
-            raise SignatureError(f"dimensions must be positive integers separated by commas, found '[{inner}]'", m.span(2))
+            raise SignatureError(f"dimensions must be positive integers separated by commas, found '[{inner}]'", m.span(3))
         shape = tuple(int(d) for d in inner.split(","))
         if any(d <= 0 for d in shape):
-            raise SignatureError("every dimension must be a positive integer", m.span(2))
+            raise SignatureError("every dimension must be a positive integer", m.span(3))
         if len(shape) > MAX_RANK:
-            raise SignatureError(f"an array has at most {MAX_RANK} dimensions, found {len(shape)}", m.span(2))
+            raise SignatureError(f"an array has at most {MAX_RANK} dimensions, found {len(shape)}", m.span(3))
     stop = m.end()
     if stop < end and not text[stop].isspace():
         w = _WORD.match(text, pos, end)
@@ -321,6 +360,33 @@ class Mismatch(Exception):
         self.message = message
 
 
+def _conform_fixed(ty, value, what):
+    """A fixed-point value (a number, a list or a FixedArray of the type) as a FixedArray of the type."""
+    from . import fixed as fx
+    spec = fx.spec_of(ty.elem)
+    if isinstance(value, fx.FixedArray):
+        if value.spec != spec:
+            raise Mismatch("type", f"{what} must be {ty}, got {value.spec.elem}{'[' + ','.join(str(d) for d in value.shape) + ']' if value.ndim else ''}")
+        raw = value.raw
+    else:
+        v = value
+        if hasattr(v, "detach"):
+            v = v.detach().cpu().numpy()
+        if isinstance(v, (list, tuple)):
+            try:
+                v = np.asarray(v)
+            except Exception:
+                raise Mismatch("type", f"{what} must be {ty}, got a ragged list")
+        a = np.asarray(v)
+        if a.dtype.kind not in "iubf" or a.dtype == object:
+            raise Mismatch("type", f"{what} must be {ty}, got {_describe(value)}")
+        raw = fx.from_float(a, spec) if a.dtype.kind == "f" else fx.from_int(a, spec)
+    raw = np.asarray(raw, dtype=np.int64)
+    if tuple(raw.shape) != tuple(ty.shape):
+        raise Mismatch("shape" if ty.shape and raw.ndim else "type", f"{what} must be {ty}, got {_describe(value)}")
+    return fx.FixedArray(raw, spec)
+
+
 def conform(ty, value, what):
     """
     Check value against ty and return it in the canonical host form:
@@ -341,6 +407,8 @@ def conform(ty, value, what):
         if type(value) is str:      # not a symbol or a character, which are str subclasses
             return value
         raise Mismatch("type", f"{what} must be str, got {_describe(value)}")
+    if is_fixed(ty.elem):
+        return _conform_fixed(ty, value, what)
     v = _scalar(value)
     if not ty.shape:
         if isinstance(v, (bool, np.bool_)):

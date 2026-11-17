@@ -24,9 +24,24 @@ import sys
 
 from .errors import (KlongArityError, KlongError, KlongNameError, KlongShapeError, KlongSystemError, KlongTypeError,
                      python_error)
-from .static.signature import (EntryDecl, ExternDecl, Mismatch, SignatureError, check_entry_name, check_extern_name,
-                               conform, parse_signature)
+from .static.signature import (EntryDecl, ExternDecl, Mismatch, SignatureError, Ty, check_entry_name, check_extern_name,
+                               conform, fixed_spec, is_fixed, parse_signature, parse_type)
 from .types import KGBody, KGCall, KGFn, KGLambda, KGSym, KLONG_UNDEFINED, fn_metadata
+
+
+class ParamDecl:
+    """``.param(name; type[; default])``: a global that is an input register of the compiled program."""
+    __slots__ = ("name", "ty", "default", "span", "source")
+
+    def __init__(self, name, ty, default=0, span=None, source=None):
+        self.name = name
+        self.ty = ty
+        self.default = default
+        self.span = span
+        self.source = source
+
+    def __repr__(self):
+        return f"<param {self.name}: {self.ty}>"
 
 
 class ExternTable(dict):
@@ -35,6 +50,7 @@ class ExternTable(dict):
 
         declared   {name: ExternDecl}   what .extern has declared (name, signature, module)
         entries    [EntryDecl]          what .entry has declared, in order
+        params     {name: ParamDecl}    what .param has declared (tunable registers)
 
     A stand-in is called with one positional argument per parameter of the
     signature: a Python int for ``int``, a float for ``float``, a str for
@@ -45,6 +61,7 @@ class ExternTable(dict):
         dict.__init__(self, *args, **kwargs)
         self.declared = {}
         self.entries = []
+        self.params = {}        # name -> ParamDecl, what .param has declared
 
     def entry(self, name, signature=None):
         """The EntryDecl of name (with that signature text, when a function has several); KeyError if none."""
@@ -263,6 +280,159 @@ def eval_sys_entry(klong, x, y):
     return str(sig)
 
 
+def _scalar_ty(which, text):
+    try:
+        ty = parse_type(text)
+    except SignatureError as e:
+        raise KlongTypeError(f"{which}: {e.message}", hint='a type is int, float or fixed<W,I>, for example "fixed<32,16>"') from None
+    return ty
+
+
+def _fixed_value(klong_value, spec_elem, what):
+    """A number, a list or a FixedArray as a FixedArray of the type spec_elem (truncating toward minus infinity)."""
+    import numpy as np
+    from .static import fixed as fx
+    spec = fx.spec_of(spec_elem)
+    v = klong_value
+    if isinstance(v, fx.FixedArray):
+        return fx.FixedArray(fx.convert(v.raw, v.spec, spec), spec)
+    if hasattr(v, "detach"):
+        v = v.detach().cpu().numpy()
+    a = np.asarray(v)
+    if a.dtype.kind in "iub":
+        return fx.FixedArray(fx.from_int(a, spec), spec)
+    if a.dtype.kind == "f":
+        return fx.FixedArray(fx.from_float(a, spec), spec)
+    raise KlongTypeError(f"{what} must be a number or an array of numbers, got {type(klong_value).__name__}")
+
+
+def eval_sys_fixed(klong, x, y):
+    """
+
+        .fixed(x;y)                                               [Fixed]
+
+        Convert the number or array "y" to the fixed-point type named by
+        the string "x", for example "fixed<32,16>" (32 bits, 16 of them
+        integer bits: the value of the raw integer r is r*2^-16). An int
+        converts exactly, a float and a wider fixed-point value are
+        truncated toward minus infinity, and the result wraps to the
+        width of the type.
+
+        This is how a fixed-point constant is written. Under KlongPy it
+        returns a fixed-point value that the static profile understands:
+        programs that use fixed-point numbers run through
+        klongpy.static.call_entry, not as plain Klong.
+
+        Examples:   .fixed("fixed<32,16>";0.5)
+                    .fixed("fixed<64,32>";price)
+                    .fixed("fixed<8,4>";[1 2 3])
+
+    """
+    _strings(".fixed", (x,), ("type",))
+    ty = _scalar_ty(".fixed", x)
+    if not is_fixed(ty.elem) or ty.shape:
+        raise KlongTypeError(".fixed: the type must be fixed<W,I>, for example \"fixed<32,16>\"")
+    return _fixed_value(y, ty.elem, ".fixed: the value")
+
+
+def eval_sys_float(klong, x):
+    """
+
+        .float(x)                                                 [Float]
+
+        Convert the fixed-point number or array "x" (or an int) to a
+        float: the value raw*2^-(W-I). The result is exact when the type
+        has at most 53 bits; compiled code rounds it to float32.
+
+        Examples:   .float(.fixed("fixed<32,16>";0.5))  -->  0.5
+
+    """
+    import numpy as np
+    from .static import fixed as fx
+    if isinstance(x, fx.FixedArray):
+        r = x.to_float()
+        return float(r) if r.ndim == 0 else r
+    a = np.asarray(x)
+    if a.dtype.kind in "iubf":
+        r = a.astype(np.float64)
+        return float(r) if r.ndim == 0 else r
+    raise KlongTypeError(".float: the argument must be a fixed-point number or an array of numbers")
+
+
+def _default_of(name, ty, default):
+    import numpy as np
+    from .static import fixed as fx
+    if is_fixed(ty.elem):
+        return _fixed_value(default, ty.elem, f".param {name}: the default")
+    if isinstance(default, fx.FixedArray):
+        raise KlongTypeError(f".param: the default of {name} is fixed-point but the type is {ty}")
+    if isinstance(default, (bool, np.bool_)):
+        default = int(default)
+    if ty.elem == "int":
+        if not isinstance(default, (int, np.integer)):
+            raise KlongTypeError(f".param: the default of {name} must be an int")
+        return int(default)
+    if not isinstance(default, (int, float, np.integer, np.floating)):
+        raise KlongTypeError(f".param: the default of {name} must be a number")
+    return float(default)
+
+
+def eval_sys_param(klong, *args):
+    """
+
+        .param(x;y)                                               [Param]
+        .param(x;y;z)
+
+        Declare the global named by the string "x" as a tunable
+        parameter of a compiled program: an input register that the host
+        writes between runs and that is constant during one. "y" is its
+        type, "int", "float" or "fixed<W,I>" (a scalar); "z" is the
+        value it starts with (0 when omitted).
+
+        The name is defined as an ordinary global. The compiled program
+        may read it and may not assign it. Array shapes and loop bounds
+        cannot depend on it: a parameter may bound a window only as "use
+        the first p of a fixed maximum". Set it between runs with
+        klongpy.static.set_param(klong;name;value) (the hardware binding
+        .hw.set does the same on the card).
+
+        Returns the type in its canonical form.
+
+        Examples:   .param("window";"int";4)
+                    .param("stop";"fixed<32,16>";0.5)
+
+    """
+    import numpy as np
+    if len(args) not in (2, 3):
+        raise KlongArityError(f".param takes 2 or 3 arguments, got {len(args)}")
+    _strings(".param", args[:2], ("name", "type"))
+    name = args[0]
+    ty = _scalar_ty(".param", args[1])
+    if ty.shape or ty.elem not in ("int", "float") and not is_fixed(ty.elem):
+        raise KlongTypeError(f".param: {name} must be a scalar int, float or fixed<W,I>, not {ty}")
+    bad = check_extern_name(name)
+    if bad:
+        raise KlongTypeError(f".param: {bad.replace('an extern', 'a parameter')}")
+    table = extern_table(klong)
+    default = _default_of(name, ty, args[2] if len(args) == 3 else 0)
+    old = table.params.get(name)
+    if old is not None:
+        if old.ty != ty:
+            raise KlongTypeError(f".param: {name} is already declared as {old.ty}")
+        return str(ty)
+    sym = KGSym(name)
+    try:
+        klong._context[sym]
+    except KeyError:
+        pass
+    else:
+        raise KlongNameError(f".param: {name} is already defined in the program",
+                             hint="a parameter is defined by .param itself: remove the other definition")
+    table.params[name] = ParamDecl(name, ty, default)
+    _define_global(klong, sym, default)
+    return str(ty)
+
+
 def create_system_functions_static():
     def _get_name(s):
         i = s.index(".")
@@ -278,5 +448,6 @@ def create_system_functions_static():
     # .extern takes two or three arguments: a wildcard lambda is handed
     # whichever of x, y, z the call supplied (as .strict is)
     registry['.extern'] = KGLambda(eval_sys_extern, wildcard=True)
+    registry['.param'] = KGLambda(eval_sys_param, wildcard=True)
 
     return registry

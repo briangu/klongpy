@@ -1,0 +1,9 @@
+:" The 16-tap FIR filter of examples/embedded/fir.kg on fixed<32,16> samples and taps. "
+
+raw::{1.0+x&15-x}'!16
+taps::.fixed("fixed<32,16>";raw%+/raw)
+idx::+{x+!16}'!241
+
+run::{+/taps*x@idx}
+
+.entry("run";"fixed<32,16>[256] -> fixed<32,16>[241]")

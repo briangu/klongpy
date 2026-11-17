@@ -1280,12 +1280,15 @@ Notes:
 
 ## Embedded programs
 
-Defined in the base interpreter. See [Embedded Targets](embedded.md).
+Defined in the base interpreter. See [Compiling Klong to C](embedded.md).
 
 | Name | Title | Description |
 |------|-------|-------------|
 | `.extern(x;y)` | Extern | Declare a function the host provides, with a typed signature, for a program that is compiled. |
 | `.entry(x;y)` | Entry | Mark a function as an entry point of a compiled program and fix its signature. |
+| `.param(x;y)` | Param | Declare a global of a compiled program as a parameter the host sets between runs (a register in hardware). |
+| `.fixed(x;y)` | Fixed | Convert a number to a fixed-point type, `fixed<W,I>`, in a compiled program. |
+| `.float(x)` | Float | Convert a fixed-point or integer value to a float in a compiled program. |
 
 ### `.extern`
 
@@ -1338,6 +1341,183 @@ Returns the signature in its canonical form.
 
 Example:   step::{x*2}
            .entry("step";"float -> float")
+```
+
+### `.param`
+
+`.param(x;y)` [Param]
+
+```text
+.param(x;y;z)
+
+Declare the global named by the string "x" as a tunable
+parameter of a compiled program: an input register that the host
+writes between runs and that is constant during one. "y" is its
+type, "int", "float" or "fixed<W,I>" (a scalar); "z" is the
+value it starts with (0 when omitted).
+
+The name is defined as an ordinary global. The compiled program
+may read it and may not assign it. Array shapes and loop bounds
+cannot depend on it: a parameter may bound a window only as "use
+the first p of a fixed maximum". Set it between runs with
+klongpy.static.set_param(klong;name;value) (the hardware binding
+.hw.set does the same on the card).
+
+Returns the type in its canonical form.
+
+Examples:   .param("window";"int";4)
+            .param("stop";"fixed<32,16>";0.5)
+```
+
+### `.fixed`
+
+`.fixed(x;y)` [Fixed]
+
+```text
+Convert the number or array "y" to the fixed-point type named by
+the string "x", for example "fixed<32,16>" (32 bits, 16 of them
+integer bits: the value of the raw integer r is r*2^-16). An int
+converts exactly, a float and a wider fixed-point value are
+truncated toward minus infinity, and the result wraps to the
+width of the type.
+
+This is how a fixed-point constant is written. Under KlongPy it
+returns a fixed-point value that the static profile understands:
+programs that use fixed-point numbers run through
+klongpy.static.call_entry, not as plain Klong.
+
+Examples:   .fixed("fixed<32,16>";0.5)
+            .fixed("fixed<64,32>";price)
+            .fixed("fixed<8,4>";[1 2 3])
+```
+
+### `.float`
+
+`.float(x)` [Float]
+
+```text
+Convert the fixed-point number or array "x" (or an int) to a
+float: the value raw*2^-(W-I). The result is exact when the type
+has at most 53 bits; compiled code rounds it to float32.
+
+Examples:   .float(.fixed("fixed<32,16>";0.5))  -->  0.5
+```
+
+## Hardware (experimental)
+
+Defined in the base interpreter. See [Klong functions as FPGA hardware](hardware.md).
+
+| Name | Title | Description |
+|------|-------|-------------|
+| `.hw(x)` | Hardware | Bind the FPGA kernels of a built program (or the simulator's) and return a dictionary of functions. |
+| `.hw.put(x;y)` | Hw-Put | Upload the arguments of calls of a kernel to the card once and return a buffer. |
+| `.hw.get(x)` | Hw-Get | Download a buffer made by `.hw.put`. |
+| `.hw.free(x)` | Hw-Free | Free a buffer made by `.hw.put`. |
+| `.hw.reset(x)` | Hw-Reset | Make the next call of a kernel start the program from its initial state. |
+| `.hw.info()` | Hw-Info | A dictionary describing the hardware in use and the loaded image. |
+
+### `.hw`
+
+`.hw(x)` [Hardware]
+
+```text
+Bind the FPGA kernels of a built program. "x" is the path of
+a Klong program of the static profile that has .entry
+declarations, or a list of paths for an image that was
+built from several programs (kgpy --hw-build a.kg b.kg).
+The program is checked and compiled, the image built from
+exactly this source is found on the build machine
+($KLONG_HW_HOST) and loaded on the card, and a dictionary
+from entry name to function is returned. Each entry is also
+bound as "program.entry", where "program" is the file name
+without ".kg": fir::.hw("fir.kg") makes fir.run, which is
+also fir@"run".
+
+A call checks its arguments against the entry's signature
+and runs on the card; an argument with one extra leading
+dimension means that many calls in one run, and the result
+has that dimension too. The program's state is kept between
+calls and starts fresh at the first call after .hw.
+
+With KLONG_HW=sim the kernels run on this machine's CPU: the
+generated HLS code compiled with the C++ compiler. That is a
+simulator, not hardware. There is no image to build then.
+
+Without KLONG_HW=sim, KLONG_HW_HOST or pyxrt, .hw is an
+error that says so. Loading an image replaces what the card
+held. See docs/hardware.md.
+
+Examples:   fir::.hw("fir.kg")
+            fir.run(256#1.0)
+```
+
+### `.hw.put`
+
+`.hw.put(x;y)` [Hw-Put]
+
+```text
+Upload the arguments of calls of the kernel "x" to the
+card once and return a buffer. "y" is the argument of the
+kernel (with the extra leading dimension for many calls)
+or, for a kernel with several arguments, a list of them.
+A buffer is accepted by the kernel in place of its
+arguments: fir.run(b). It stays on the card until it is
+freed with .hw.free or the image is unloaded or the session
+ends.
+
+Example:   b::.hw.put(fir.run;x)
+           fir.run(b)
+```
+
+### `.hw.get`
+
+`.hw.get(x)` [Hw-Get]
+
+```text
+Download a buffer made by .hw.put as an array of the
+arguments it holds (for a kernel with several arguments,
+the records: one row per call, the arguments flattened one
+after the other).
+
+Example:   .hw.get(b)
+```
+
+### `.hw.free`
+
+`.hw.free(x)` [Hw-Free]
+
+```text
+Free a buffer made by .hw.put. Returns 1. Freeing a buffer
+twice is an error.
+
+Example:   .hw.free(b)
+```
+
+### `.hw.reset`
+
+`.hw.reset(x)` [Hw-Reset]
+
+```text
+Make the next call of the kernel "x" start the program from
+its initial state (the program's globals as initialised
+when the program was loaded). Returns 1.
+
+Example:   .hw.reset(mavg.step)
+```
+
+### `.hw.info`
+
+`.hw.info()` [Hw-Info]
+
+```text
+A dictionary describing the hardware in use: "mode"
+("card", "local" or "sim"), "device", "shell", the loaded
+"image" (path), its "key", "kernels", the "build" record
+of the image (timing, utilisation, build time), and the
+resident "buffers" and "buffer-bytes". It does not load
+anything. Without a hardware to use it is an error.
+
+Example:   .hw.info()
 ```
 
 ## Database

@@ -41,7 +41,8 @@ from .checker import (_arg_span, _args, _body, _is_chain, _is_fn_literal, _is_pl
 from .diagnostics import StaticDiagnostic
 from .optable import lookup
 from .rules import RULES
-from .signature import INT_RANGE, MAX_RANK, Ty
+from . import fixed as fx
+from .signature import INT_RANGE, MAX_RANK, Ty, is_fixed, parse_type
 
 __all__ = ["lower"]
 
@@ -58,6 +59,10 @@ def _is_int(v):
 
 
 def _promote(a, b):
+    if is_fixed(a):
+        return a
+    if is_fixed(b):
+        return b
     return "float" if "float" in (a, b) else "int"
 
 
@@ -161,12 +166,31 @@ class _Lower:
         return self.lo <= v <= self.hi
 
     def conv(self, n, elem):
-        """n as the element type elem (only int to float converts)."""
+        """n as the element type elem (an int converts to float, and an int constant to fixed-point; the checker allowed no more)."""
+        if is_fixed(elem) and n.ty.elem == "int":
+            return self.to_fixed(n, elem)
         if n.ty.elem == elem or elem != "float" or n.ty.elem != "int":
             return n
         if isinstance(n, ir.Const):
             return self.const(np.asarray(n.value, dtype=np.float64) if n.ty.shape else float(n.value), n.span)
         return ir.Convert(Ty("float", n.ty.shape), n.span, a=n)
+
+    def to_fixed(self, n, elem):
+        """n (an int, a float or a fixed-point value) as fixed-point elem: a constant when n is one."""
+        spec = fx.spec_of(elem)
+        src = n.ty.elem
+        if src == elem:
+            return n
+        if isinstance(n, ir.Const) and not isinstance(n.value, str):
+            v = np.asarray(n.value)
+            if is_fixed(src):
+                raw = fx.convert(v, fx.spec_of(src), spec)
+            elif src == "float":
+                raw = fx.from_float(v, spec)
+            else:
+                raw = fx.from_int(v, spec)
+            return ir.Const(Ty(elem, n.ty.shape), n.span, value=raw if n.ty.shape else int(raw))
+        return ir.Convert(Ty(elem, n.ty.shape), n.span, a=n)
 
     def mk(self, elem, shape, sp):
         if any(d <= 0 for d in shape):
@@ -186,12 +210,15 @@ class _Lower:
             v = self.values[name]
             if hasattr(v, "detach"):
                 v = v.detach().cpu().numpy()
-            if ty.shape:
+            if is_fixed(ty.elem):
+                v = np.asarray(v.raw if hasattr(v, "raw") else v, dtype=np.int64)
+                v = v.copy() if ty.shape else int(v)
+            elif ty.shape:
                 v = np.asarray(v).astype(np.float64 if ty.elem == "float" else np.int64)
             else:
                 v = v.item() if hasattr(v, "item") else v
                 v = float(v) if ty.elem == "float" else int(v)
-            g = self.gdefs[name] = ir.GlobalDef(name, ty, v, bool(info.assigned))
+            g = self.gdefs[name] = ir.GlobalDef(name, ty, v, bool(info.assigned), param=bool(getattr(info, "param", False)))
         return g
 
     def global_ref(self, name, sp):
@@ -199,6 +226,8 @@ class _Lower:
         if g.state:
             return ir.GlobalRef(g.ty, sp, name=name, state=True)
         if not g.ty.shape:
+            if is_fixed(g.ty.elem):
+                return ir.Const(g.ty, sp, value=int(g.value))
             return self.const(g.value, sp)
         return ir.GlobalRef(g.ty, sp, name=name, state=False, known=g.value if g.value.size <= 4096 else None)
 
@@ -502,6 +531,17 @@ class _Lower:
             return self.extern_call(decl, vals, sp)
         if name == ".f":
             self.fail("recursion", sp, ".f is the running function: calling it is recursion")
+        if name == ".fixed":
+            ty = parse_type(args[0])
+            v = self.ev(args[1], _arg_span(n, 1, sp), fr)
+            return self.to_fixed(v, ty.elem)
+        if name == ".float":
+            v = self.ev(args[0], _arg_span(n, 0, sp), fr)
+            if v.ty.elem == "float":
+                return v
+            if isinstance(v, ir.Const) and not is_fixed(v.ty.elem):
+                return self.const(np.asarray(v.value, dtype=np.float64) if v.ty.shape else float(v.value), sp)
+            return ir.Convert(Ty("float", v.ty.shape), sp, a=v)
         if name.startswith("."):
             self.fail("sys-fn", sp, f"{name} is a system function; it does not exist in a compiled program")
         self.fail("undefined-name", sp, f"the function {name} is not defined")
@@ -591,6 +631,8 @@ class _Lower:
             return ir.EachPair(stacked(f.result_ty, count - 1), sp, fn=f, a=b, captures=cap)
         # over and scan: the accumulator is the fixed point of acc = f(acc, item), with one promotion
         acc = a.ty if a is not None else item
+        if a is not None and acc.elem == "int" and is_fixed(item.elem):
+            acc = Ty(item.elem, acc.shape)
         f, cap = self.verb(verb, [acc, item], vsp, fr)
         for _ in range(2):
             r = f.result_ty
@@ -638,6 +680,8 @@ class _Lower:
         shape = a.ty.shape
         if k == "neg":
             c = a.cval
+            if is_fixed(a.ty.elem):
+                return ir.Unary(a.ty, sp, op="neg", a=a)
             if isinstance(a, ir.Const) and not shape and (a.ty.elem == "float" or self.in_range(-c)):
                 return self.const(-c, sp)
             return ir.Unary(a.ty, sp, op="neg", a=a, known=None if c is None else -c)
@@ -719,6 +763,12 @@ class _Lower:
             if _is_int(cb) and cb == 0 and ea == "int" and eb == "int" and (k in ("idiv", "rem") or (k == "div" and ca is not None)):
                 self.fail("div-zero", sp, f"{glyph} ({row.name}) divides an int by the constant 0")
             rule = row.type_rule
+            fxe = ea if is_fixed(ea) else eb if is_fixed(eb) else None
+            if fxe is not None:
+                elem, work = ("int" if rule == "int" else fxe), fxe
+                if len(shape) > MAX_RANK:
+                    self.mk(elem, shape, sp)
+                return ir.Binary(Ty(elem, shape), sp, op=k, a=self.conv(a, work), b=self.conv(b, work))
             if rule == "promote":
                 elem = work = _promote(ea, eb)
             elif rule == "float":
@@ -862,7 +912,8 @@ class _Lower:
             f = self.spec(e.name, sig.params)
             r, want = f.result_ty, sig.result
             if want.elem != "void":
-                if r.elem == "void" or r.shape != want.shape or (r.elem == "float" and want.elem == "int"):
+                if r.elem == "void" or r.shape != want.shape or (r.elem == "float" and want.elem == "int") \
+                        or ((is_fixed(r.elem) or is_fixed(want.elem)) and r.elem != want.elem):
                     self.src = e.source
                     self.fail("entry", e.span, f"entry {e.name} is declared to return {want}, but the function returns {r}")
             c_name = e.name.replace(".", "_")

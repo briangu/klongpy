@@ -166,17 +166,25 @@ class XrtDevice:
         info = {"examine": text.strip().splitlines()[-6:], "kind": "xrt"}
         for line in text.splitlines():
             if line.startswith("[") and "]" in line:
-                info["device"] = line.split("]")[0].strip("[")
-                parts = [p.strip() for p in line.split(":")]
-                if len(parts) > 2:
-                    info["shell"] = parts[2] if len(parts) > 2 else ""
+                head, _, rest = line.partition("]")
+                info["device"] = head.strip("[")
+                words = rest.replace(":", " ").split()
+                if words:
+                    info["shell"] = words[0]
                 break
         info.update(self.loaded())
         return info
 
     def loaded(self):
         """The image on the card now: {"uuid": ..., "kernels": [...], "busy": bool} from xbutil (nothing is opened)."""
-        text = _xbutil(["examine", "-r", "dynamic-regions"])
+        # xbutil needs the device named when the machine could have several; the first card's address is looked up once
+        if getattr(self, "bdf", None) is None:
+            self.bdf = ""
+            for line in _xbutil(["examine"]).splitlines():
+                if line.startswith("[") and "]" in line:
+                    self.bdf = line.split("]")[0].strip("[")
+                    break
+        text = _xbutil(["examine"] + (["-d", self.bdf] if self.bdf else []) + ["-r", "dynamic-regions"])
         uuid, cus, busy = None, [], False
         for line in text.splitlines():
             s = line.strip()

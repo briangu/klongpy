@@ -21,6 +21,7 @@ GROUPS = (
     ("length", "Results whose length depends on run-time data"),
     ("form", "Forms outside the profile"),
     ("type", "Types and shapes"),
+    ("stream", "The streamable tier (--streamable)"),
 )
 
 _R = (
@@ -119,8 +120,35 @@ _R = (
      "start from a value of the type the function returns (0.0 instead of 0)"),
     ("extern-call", "type", "a call of an extern that does not match its signature", "9",
      None),
+    ("fixed", "type", "a fixed-point number used in a way that is not defined: mixed with a float or another fixed type, "
+     "an operator it does not have, a conversion that is not exact", "6",
+     "convert explicitly with .fixed(\"fixed<W,I>\";x) or .float(x); an int converts implicitly only as a constant that fits"),
+    ("param", "program", "a .param that cannot be declared, a parameter that a compiled function assigns, or a parameter used as a shape", "6",
+     "a parameter is a scalar register the host writes between runs; a function only reads it"),
 )
 
 RULES = {r[0]: Rule(*r) for r in _R}
 
 assert len(RULES) == len(_R), "duplicate rule id"
+
+
+# ---------------------------------------------------------------------------
+# The streamable tier (kgpy --check-static --streamable; ticket 113, design section 5): not violations of the
+# profile, but constructs that keep a hardware kernel from taking one record per clock cycle.
+# ---------------------------------------------------------------------------
+
+STREAM_RULES = {r[0]: Rule(*r) for r in (
+    ("stream-loop", "stream", "a loop whose number of iterations depends on the data (While, or Iterate with a count that is "
+     "not a constant)", "5",
+     "a pipelined kernel needs a bounded loop: use n f:*a with a constant n, and stop early by holding the value"),
+    ("stream-state", "stream", "state that is read and written back through a multi-cycle operation (a float operation, or a "
+     "division or remainder by a value that is not a constant)", "5",
+     "a float add, multiply or divide, or a divider, takes several cycles, so the next record has to wait for it: keep that state "
+     "as an int or a fixed<W,I> updated by adds, multiplies and constant moduli, or let the host do the accumulation"),
+    ("stream-table", "stream", "a data-dependent index into an array of more than 1024 items", "5",
+     "a random access into a big table needs a memory with one port per access; make the table smaller, or index it "
+     "with a constant window (x@idx with idx[a][b] = c + a + b is a shift register)"),
+    ("stream-block", "stream", "an entry that does more than 4096 element operations per call and is not a sliding window", "5",
+     "such a call is a block program: the kernel can start a new record only when the previous one has gone through its "
+     "loops. Write the filter as a window, +/taps*x@idx with the index table k+!w, to stream it"),
+)}

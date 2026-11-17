@@ -1,0 +1,4 @@
+:" expect: static line 3 fixed "
+
+f::{x+1.5}
+.entry("f";"fixed<32,16> -> fixed<32,16>")

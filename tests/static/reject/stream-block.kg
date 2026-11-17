@@ -1,0 +1,4 @@
+:" expect: static line 3 stream-block "
+
+f::{(x*x)+x}
+.entry("f";"float[5000] -> float[5000]")

@@ -1,0 +1,5 @@
+:" expect: static line 4 stream-state "
+
+integ::0.0
+step::{integ::integ+(x*0.5);integ}
+.entry("step";"float -> float")

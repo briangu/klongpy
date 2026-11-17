@@ -12,6 +12,7 @@ from .monads import create_monad_functions
 from .sys_fn import create_system_functions
 from .sys_fn_autograd import create_system_functions_autograd
 from .sys_fn_ipc import create_system_functions_ipc, create_system_var_ipc
+from .sys_fn_hw import create_system_functions_hw
 from .sys_fn_static import ExternTable, create_system_functions_static
 from .sys_fn_timer import create_system_functions_timer
 from .sys_var import *
@@ -286,6 +287,7 @@ def create_system_contexts():
     add_context_key_values(sys_d, create_system_functions_autograd())
     add_context_key_values(sys_d, create_system_functions_ipc())
     add_context_key_values(sys_d, create_system_functions_static())
+    add_context_key_values(sys_d, create_system_functions_hw())
     add_context_key_values(sys_d, create_system_functions_timer())
     set_context_var(sys_d, KGSym('.e'), eval_sys_var_epsilon()) # TODO: support lambda
     set_context_var(sys_d, KGSym('.cin'), cin)

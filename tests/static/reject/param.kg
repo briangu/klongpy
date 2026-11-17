@@ -1,0 +1,5 @@
+:" expect: static line 4 param "
+
+.param("gain";"int";2)
+f::{gain::x;x}
+.entry("f";"int -> int")

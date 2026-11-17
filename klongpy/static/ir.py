@@ -116,7 +116,7 @@ class Binary(Node):
 
 @_node(["a"])
 class Convert(Node):
-    """int to float."""
+    """The conversion of a to the element type of ``ty``: int to float, int, float or fixed-point to fixed-point, fixed-point to float."""
     a: Node = None
 
 
@@ -343,6 +343,7 @@ class GlobalDef:
     ty: Ty
     value: object
     state: bool
+    param: bool = False     # declared with .param: an input register, set by the host between runs
 
 
 @dataclass(eq=False)
@@ -452,7 +453,7 @@ def _expr(n):
         ops = [n.a] if isinstance(n, Unary) else [n.a, n.b]
         return f"({n.op}{t} {' '.join(_expr(q) for q in ops)})"
     if isinstance(n, Convert):
-        return f"(float{t} {_expr(n.a)})"
+        return f"(convert{t} {_expr(n.a)})" if n.ty.elem != "float" or n.a.ty.elem != "int" else f"(float{t} {_expr(n.a)})"
     if isinstance(n, Match):
         return f"(match{t} {_expr(n.a)} {_expr(n.b)})"
     if isinstance(n, Index):
@@ -507,7 +508,7 @@ def dump(program):
     """
     out = [f"program {program.name} (kg_int: {program.int_bits} bits)"]
     for g in program.globals:
-        kind = "state" if g.state else "const"
+        kind = "param" if g.param else "state" if g.state else "const"
         shown = _table(g.value) if g.ty.shape else _num(g.value)
         out.append(f"global {kind} {g.name}: {g.ty} = {shown}")
     for x in program.externs:

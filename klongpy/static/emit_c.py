@@ -43,13 +43,162 @@ import numpy as np
 
 from ..errors import KlongStaticError
 from . import ir
+from . import fixed as fx
 from .optable import C_EXPANSION
-from .signature import _C_KEYWORDS, Ty, c_identifier
+from .signature import _C_KEYWORDS, Ty, c_identifier, is_fixed
 
-__all__ = ["emit", "Emitted", "HANDLED"]
+__all__ = ["emit", "Emitted", "HANDLED", "HlsOptions", "hls_work"]
+
+
+class HlsOptions:
+    """
+    What the hardware flavour of the C changes (kgpy --emit-hls, stage B); the plain C of --emit-c is unchanged.
+
+        reassociate   a float reduction with an associative operator may be summed as a balanced tree
+                      (the order of the additions, and so the rounding, changes)
+        mode          "pipeline": the whole call of an entry is one pipelined region; every loop in it is unrolled
+                      "block": the call is big (an array loop nest); each innermost loop is pipelined instead
+        unroll_max    a constant-trip loop of at most this many iterations is unrolled in "block" mode too
+        tree_max      the longest reduction written as a tree
+    """
+    def __init__(self, reassociate=False, mode="pipeline", unroll_max=16, tree_max=512):
+        self.reassociate = reassociate
+        self.mode = mode
+        self.unroll_max = unroll_max
+        self.tree_max = tree_max
+
+
+def match_window(program, entry):
+    """
+    Is the entry a sliding window over its one array argument (design section 5, stage B)? That is
+
+        run::{ f/E }     with E an elementwise expression of shape [A,B] whose only array operand that reads x is
+                         x@idx, idx a constant table with idx[a][b] = c + a + b, and whose other operands are
+                         constants (a table of shape [A] or [A,B], or a scalar); f one of + | &
+
+    The kernel then keeps the last A samples in a shift register and produces one output per input sample once the
+    window is full, instead of reading the whole record first. Returns a dict (taps A, outputs B, offset c, inputs N,
+    the Reduce node, the Gather node) or None.
+    """
+    sig = entry.decl.signature
+    fn = entry.fn
+    if len(sig.params) != 1 or len(sig.params[0].shape) != 1 or len(sig.result.shape) != 1:
+        return None
+    if len(fn.body.stmts) != 1 or any(isinstance(n, (ir.ExternCall, ir.Call, ir.Assign, ir.Cond, ir.Map, ir.Map2, ir.Loop,
+                                                    ir.Scan, ir.EachPair, ir.Amend)) for n in ir.walk(fn.body)):
+        return None
+    top = fn.body.stmts[0]
+    if not isinstance(top, ir.Reduce) or top.seed is not None or top.captures or top.fn.kind != "op":
+        return None
+    op = top.fn.body.stmts[0]
+    if not (isinstance(op, ir.Binary) and op.op in ("add", "max", "min")):
+        return None
+    e = top.a
+    if len(e.ty.shape) != 2 or tuple(top.ty.shape) != (e.ty.shape[1],):
+        return None
+    A, B = e.ty.shape
+    gathers = [n for n in ir.walk(e) if isinstance(n, ir.Gather)]
+    if len(gathers) != 1 or not isinstance(gathers[0].a, ir.ParamRef) or gathers[0].a.index != 0:
+        return None
+    g = gathers[0]
+    idx = g.idx.cval if g.idx.cval is not None else None
+    if idx is None and isinstance(g.idx, ir.GlobalRef) and not g.idx.state:
+        idx = next((q.value for q in program.globals if q.name == g.idx.name), None)
+    if idx is None:
+        return None
+    idx = np.asarray(idx)
+    if idx.shape != (A, B):
+        return None
+    c = int(idx[0, 0])
+    if not np.array_equal(idx, c + np.add.outer(np.arange(A), np.arange(B))):
+        return None
+    N = sig.params[0].shape[0]
+    if c < 0 or c + A + B - 2 >= N:
+        return None
+    for n in ir.walk(e):
+        if isinstance(n, ir.ParamRef) and n is not g.a:
+            return None
+        if isinstance(n, ir.GlobalRef) and n.state:
+            return None
+        if isinstance(n, (ir.Index, ir.Take, ir.Drop, ir.Rotate, ir.Reverse, ir.Transpose, ir.Reshape, ir.Join, ir.Iota,
+                          ir.MakeList)):
+            return None
+    return {"taps": A, "outputs": B, "offset": c, "inputs": N, "reduce": top, "gather": g, "op": op.op}
+
+
+# the iterations of array loops above which a call is not unrolled into one pipelined region
+HLS_WORK_LIMIT = 4096
+
+
+def hls_work(program, entry):
+    """A rough count of the element operations in one call of an entry (what full unrolling would replicate)."""
+    seen, total, todo = set(), 0, [entry.fn]
+    while todo:
+        fn = todo.pop()
+        if id(fn) in seen:
+            continue
+        seen.add(id(fn))
+        for n in ir.walk(fn.body):
+            if n.ty.shape and not isinstance(n, (ir.Const, ir.GlobalRef, ir.LocalRef, ir.ParamRef, ir.Seq, ir.Assign)):
+                total += n.ty.size
+            if isinstance(n, (ir.Reduce, ir.Scan)):
+                total += n.a.ty.size
+            if isinstance(n, (ir.Map, ir.Map2, ir.EachPair)) or (isinstance(n, ir.Loop) and n.kind == "iterate"):
+                total += n.ty.size
+            todo.extend(ir.fnspecs(n))
+            if isinstance(n, ir.Call):
+                todo.append(n.fn)
+    return total
 
 # the rows of the operator table this emitter handles (a test compares it with the table)
 HANDLED = frozenset(C_EXPANSION)
+
+def ctype_of(elem):
+    """The C type of an element: kg_float, kg_int, or the integer that holds a fixed-point number."""
+    if elem == "float":
+        return "kg_float"
+    if is_fixed(elem):
+        return "int32_t" if fx.spec_of(elem).W <= 32 else "int64_t"
+    return "kg_int"
+
+
+def _fx_conv(src, dst, x):
+    """The C expression that converts x of element type src to dst (a fixed-point type or float)."""
+    if is_fixed(dst):
+        d = fx.spec_of(dst)
+        ct = ctype_of(dst)
+        if is_fixed(src):
+            s = fx.spec_of(src)
+            return f"(({ct})kg_fxshift({x}, {d.F - s.F}, {d.W}))"
+        if src == "float":
+            return f"(({ct})kg_fxfromf((double)({x}), {float(2.0 ** d.F)!r}, {d.W}))"
+        return f"(({ct})kg_fxfromi((int64_t)({x}), {d.F}, {d.W}))"
+    # fixed to float
+    s = fx.spec_of(src)
+    return f"((kg_float)({x}) * (kg_float){float(2.0 ** -s.F)!r})"
+
+
+def _fx_expand(op, elem, a, b, line):
+    """The C expression of operator ``op`` on fixed-point operands (already of the type elem)."""
+    s = fx.spec_of(elem)
+    ct = ctype_of(elem)
+    mul = "kg_fxmul" if s.W <= 32 else "kg_fxmul128"
+    forms = {
+        "add": f"(({ct})kg_fxadd({a}, {b}, {s.W}))",
+        "sub": f"(({ct})kg_fxsub({a}, {b}, {s.W}))",
+        "mul": f"(({ct}){mul}({a}, {b}, {s.F}, {s.W}))",
+        "div": f"(({ct})kg_fxdiv({a}, {b}, {s.F}, {s.W}, {line}))",
+        "max": f"(({a}) > ({b}) ? ({a}) : ({b}))",
+        "min": f"(({a}) < ({b}) ? ({a}) : ({b}))",
+        "lt": f"((kg_int)(({a}) < ({b})))",
+        "gt": f"((kg_int)(({a}) > ({b})))",
+        "eq": f"((kg_int)(({a}) == ({b})))",
+        "neg": f"(({ct})kg_fxneg({a}, {s.W}))",
+        "floor": f"kg_fxfloor({a}, {s.F})",
+        "not": f"((kg_int)(({a}) == 0))",
+    }
+    return forms.get(op)
+
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z|\(?-?\d+\)?\Z")
 
@@ -272,7 +421,7 @@ class _Fn:
 
     # -- small helpers ------------------------------------------------------------
     def ctype(self, elem):
-        return "kg_float" if elem == "float" else "kg_int"
+        return ctype_of(elem)
 
     def fail(self, node, message):
         raise KlongStaticError(f"the C emitter cannot compile this: {message} [unsupported-op]",
@@ -312,13 +461,24 @@ class _Fn:
         self.free.extend(self.live)
         self.live = []
 
+    def pragma(self, count, innermost=True):
+        """The HLS pragma of the loop just opened (stage B only)."""
+        h = self.em.hls
+        if h is None:
+            return
+        if h.mode == "pipeline" or (isinstance(count, int) and count <= h.unroll_max):
+            self.code.emit("#pragma HLS unroll")
+        elif innermost:
+            self.code.emit("#pragma HLS pipeline II=1")
+
     def open_loops(self, shape):
         idx = []
-        for d in shape:
+        for k, d in enumerate(shape):
             i = self.code.name("i")
             self.code.scalars += 1
             self.code.emit(f"for (kg_int {i} = 0; {i} < {d}; {i}++) {{")
             self.code.depth += 1
+            self.pragma(d, k == len(shape) - 1)
             idx.append(i)
         return tuple(idx)
 
@@ -329,8 +489,12 @@ class _Fn:
 
     # -- values ---------------------------------------------------------------------
     def conv(self, v, elem):
-        if v.elem == elem or elem != "float":
+        if v.elem == elem or (elem != "float" and not is_fixed(elem)):
             return v
+        if is_fixed(elem) or is_fixed(v.elem):
+            if isinstance(v, _S):
+                return _S(elem, _fx_conv(v.elem, elem, v.c), v.reads)
+            return _A(Ty(elem, v.shape), lambda idx: _fx_conv(v.elem, elem, v.at(idx)), v.reads)
         if isinstance(v, _S):
             return _S("float", f"(kg_float)({v.c})" if not v.atomic else f"(kg_float){v.c}", v.reads)
         return _A(Ty("float", v.shape), lambda idx: f"(kg_float)({v.at(idx)})", v.reads)
@@ -449,9 +613,14 @@ class _Fn:
         return self.params[-1][n.index]
 
     def c_Convert(self, n, dest):
-        return self.conv(self.compile(n.a), "float")
+        return self.conv(self.compile(n.a), n.ty.elem)
 
     def expand(self, op, elem, a, b, node):
+        if is_fixed(elem):
+            text = _fx_expand(op, elem, a, b, self.line_of(node))
+            if text is None:
+                self.fail(node, f"{op} on {elem}")
+            return text
         form = C_EXPANSION[op][2 if elem == "float" else 1]
         if form is None:
             self.fail(node, f"{op} on {elem}")
@@ -487,12 +656,15 @@ class _Fn:
     def c_Match(self, n, dest):
         b, a = self.operands([n.b, n.a])
         form = C_EXPANSION["match"][2 if a.elem == "float" else 1]
+        if is_fixed(a.elem):
+            form = "((kg_int)(({a}) == ({b})))"
         if isinstance(a, _S):
             return _S("int", form.format(a=f"({a.c})", b=f"({b.c})"), a.reads | b.reads)
         t = self.temp("int", "1", const=False)
         idx = self.open_loops(a.shape)
         eq = "kg_feq" if a.elem == "float" else "kg_ieq"
-        self.code.emit(f"if (!{eq}({a.at(idx)}, {b.at(idx)})) {{")
+        test = f"({a.at(idx)}) == ({b.at(idx)})" if is_fixed(a.elem) else f"{eq}({a.at(idx)}, {b.at(idx)})"
+        self.code.emit(f"if (!({test})) {{")
         self.code.emit(f"    {t} = 0;")
         self.code.emit("}")
         self.close(len(a.shape))
@@ -507,6 +679,8 @@ class _Fn:
         return self.row(a, j)
 
     def c_Gather(self, n, dest):
+        if id(n) in self.em.window_leaves:
+            return _A(n.ty, lambda I: f"win[{I[0]}]")
         idx, a = self.operands([n.idx, n.a])
         r = len(idx.shape)
         size = n.a.ty.shape[0]
@@ -764,6 +938,10 @@ class _Fn:
         first = 0 if n.seed is not None else 1
         out = self.target(dest, n.ty, vals + caps, [fn]) if scan else None
         k0 = 1 if scan else 0       # row of the scan result the first step writes
+        if not acc_ty.shape and not scan and self.em.hls is not None and not caps:
+            tree = self.tree_fold(n, fn, init, a, first, count, acc_ty)
+            if tree is not None:
+                return tree
         if not acc_ty.shape:
             acc = self.temp(acc_ty.elem, self.conv(init, acc_ty.elem).c, const=False)
             if scan:
@@ -773,6 +951,7 @@ class _Fn:
                 self.code.scalars += 1
                 self.code.emit(f"for (kg_int {j} = {first}; {j} < {count}; {j}++) {{")
                 self.code.depth += 1
+                self.pragma(count - first)
                 res = self.apply(fn, [_S(acc_ty.elem, acc), self.row(a, j)] + caps)
                 self.code.emit(f"{acc} = {self.conv(res, acc_ty.elem).c};")
                 if scan:
@@ -786,6 +965,7 @@ class _Fn:
                 self.code.scalars += 1
                 self.code.emit(f"for (kg_int {j} = {first}; {j} < {count}; {j}++) {{")
                 self.code.depth += 1
+                self.pragma(count - first)
                 prev = self.row_dest(out, _add(j, k0 - first - 1))
                 cur = self.row_dest(out, _add(j, k0 - first))
                 res = self.apply(fn, [_stored(acc_ty, prev.ptr), self.row(a, j)] + caps)
@@ -799,10 +979,35 @@ class _Fn:
             self.code.scalars += 1
             self.code.emit(f"for (kg_int {j} = {first}; {j} < {count}; {j}++) {{")
             self.code.depth += 1
+            self.pragma(count - first)
             res = self.apply(fn, [_A(acc_ty, _stored(acc_ty, t.ptr).at, {t.key: True}, t.ptr, t.key), self.row(a, j)] + caps)
             self.store(res, _Dest(t.ptr, t.key, acc_ty, False))
             self.close()
         return _stored(acc_ty, t.ptr, t.key, mutable=not t.fresh)
+
+    def tree_fold(self, n, fn, init, a, first, count, acc_ty):
+        """A reduction by + | & of a short array as a balanced tree (hardware); None when the form does not apply."""
+        h = self.em.hls
+        body = fn.body.stmts[0] if fn.kind == "op" and len(fn.body.stmts) == 1 else None
+        if not (isinstance(body, ir.Binary) and body.op in ("add", "max", "min") and isinstance(body.a, ir.ParamRef)
+                and isinstance(body.b, ir.ParamRef) and (body.a.index, body.b.index) == (0, 1)):
+            return None
+        if acc_ty.elem == "float" and not h.reassociate:
+            return None
+        if acc_ty.elem not in ("float", "int") and not is_fixed(acc_ty.elem):
+            return None
+        if count < 2 or count > h.tree_max or n.a.ty.elem != acc_ty.elem:
+            return None
+        items = [self.row(a, str(j)).c for j in range(count)]
+        while len(items) > 1:
+            nxt = [self.expand(body.op, acc_ty.elem, items[k], items[k + 1], n) for k in range(0, len(items) - 1, 2)]
+            if len(items) % 2:
+                nxt.append(items[-1])
+            items = nxt
+        expr = items[0]
+        if n.seed is not None:
+            expr = self.expand(body.op, acc_ty.elem, self.conv(init, acc_ty.elem).c, expr, n)
+        return _S(acc_ty.elem, self.temp(acc_ty.elem, expr))
 
     def c_Reduce(self, n, dest):
         return self.fold(n, dest, n.ty, False)
@@ -839,6 +1044,7 @@ class _Fn:
             self.code.scalars += 1
             self.code.emit(f"for (kg_int {k} = 0; {k} < {count.c}; {k}++) {{")
             self.code.depth += 1
+            self.pragma(_lit(count.c))
         else:
             self.code.emit("for (;;) {")
             self.code.depth += 1
@@ -927,6 +1133,8 @@ class _Fn:
         sig = f"static {rtype} {em.fn_name(spec)}({', '.join(decl)})"
         unused = [f"    (void)a{i}_{c_identifier(name)};" for i, name in enumerate(spec.param_names)]
         body = ["    (void)p;"] + unused + head + self.code.lines
+        if self.em.hls is not None:
+            body = ["#pragma HLS inline"] + body
         return sig, _mark_unused(body)
 
     def comment(self, sp, src):
@@ -959,7 +1167,9 @@ def dest_of(n):
 # ---------------------------------------------------------------------------
 
 class _Emitter:
-    def __init__(self, program, prefix, float_bits, line_directives):
+    def __init__(self, program, prefix, float_bits, line_directives, hls=None):
+        self.hls = hls
+        self.window_leaves = set()
         self.program = program
         self.prefix = prefix
         self.int_bits = program.int_bits
@@ -978,6 +1188,8 @@ class _Emitter:
         self.frames = {}            # fn index -> (scalars, calls)
 
     def isize(self, elem):
+        if is_fixed(elem):
+            return 4 if fx.spec_of(elem).W <= 32 else 8
         return (self.float_bits if elem == "float" else self.int_bits) // 8
 
     # -- literals and tables --------------------------------------------------------------
@@ -989,6 +1201,12 @@ class _Emitter:
             if v in (float("inf"), float("-inf")):
                 return "KG_INF" if v > 0 else "(-KG_INF)"
             return f"((kg_float){v!r})"
+        if is_fixed(elem):
+            v = int(v)
+            ct = ctype_of(elem)
+            if ct == "int64_t":
+                return f"INT64_C({v})" if v > -(1 << 63) else "(-INT64_C(9223372036854775807) - 1)"
+            return f"(({ct}){v})" if v >= 0 else f"(({ct})({v}))" if v > -(1 << 31) else "(-2147483647 - 1)"
         v = int(v)
         lo = -(1 << (self.int_bits - 1))
         if v == lo:
@@ -1007,13 +1225,13 @@ class _Emitter:
         return name
 
     def table_text(self, name, ty, arr):
-        ctype = "kg_float" if ty.elem == "float" else "kg_int"
+        ctype = ctype_of(ty.elem)
         flat = arr.reshape(-1)
         if ty.elem == "float":
             items = [self.literal("float", x).replace("((kg_float)", "").rstrip(")") if x == x and abs(x) != float("inf")
                      else self.literal("float", x) for x in flat]
         else:
-            items = [self.literal("int", x) for x in flat]
+            items = [self.literal(ty.elem if is_fixed(ty.elem) else "int", x) for x in flat]
         lines = []
         row = "   "
         for it in items:
@@ -1090,6 +1308,12 @@ class _Emitter:
             sig, body = ctx.build()
             fns.append((f, sig, body))
             self.frames[f.index] = (ctx.code.scalars, [g for g in ctx.calls])
+        windows = []
+        if self.hls is not None:
+            for e in prog.entries:
+                m = match_window(prog, e)
+                if m is not None:
+                    windows.append((e, m, self.window_function(e, m)))
         state = [g for g in prog.globals if g.state]
         consts = [g for g in prog.globals if not g.state and g.ty.shape]
         for g in consts:
@@ -1106,7 +1330,7 @@ class _Emitter:
             sig = e.decl.signature
             f = e.fn
             want = sig.result
-            ctype = lambda t: "kg_float" if t.elem == "float" else "kg_int"  # noqa: E731
+            ctype = lambda t: ctype_of(t.elem)  # noqa: E731
             decl = [f"{P}_t *p"]
             args = ["p"]
             names = []
@@ -1190,14 +1414,22 @@ class _Emitter:
         if not fields:
             h.append("    kg_int kg_unused; /* the program has no state and needs no array storage */")
         for elem, name, size, note, _ in fields:
-            ctype = "kg_float" if elem == "float" else "kg_int"
+            ctype = ctype_of(elem)
             h.append(f"    {ctype} {name}{f'[{size}]' if size else ''}; /* {note} */")
         h += ["};", f"typedef struct {P} {P}_t;", f"typedef struct {P} {P}_storage_t; /* for static allocation */",
               f"#define {P.upper()}_SIZE (sizeof(struct {P}))", ""]
+        pdefs = [g for g in prog.globals if g.param]
         h += [f"/* Sets the state to its initial values. Call it once before the first entry. */",
               f"void {P}_init({P}_t *p);",
               f"/* sizeof({P}_t), for a host that allocates the instance itself. */",
               f"size_t {P}_size(void);", ""]
+        if pdefs:
+            h.append("/* Parameters (.param): input registers. Set one between runs; init puts back its default. */")
+        for g in pdefs:
+            h.append(f"void {P}_set_{c_identifier(g.name)}({P}_t *p, {ctype_of(g.ty.elem)} value); /* {g.name}: {g.ty} */")
+        for e, m, (sig_text, _) in windows:
+            h.append(f"/* hardware: one output of entry {e.decl.name} from the last {m['taps']} samples (win[0] the oldest). */")
+            h.append(sig_text + ";")
         if protos:
             h.append("/* Entries. An array argument and the out array must not overlap. */")
         for proto, note in protos:
@@ -1208,7 +1440,7 @@ class _Emitter:
             h.append(f"{self.extern_proto(x)}; /* Klong name {x.name}: {x.signature} (module {x.module}) */")
         h += ["", f"#endif /* {guard} */", ""]
 
-        c = [f"/* {P}.c - generated by KlongPy (kgpy --emit-c) from {self.source_name}. Do not edit. */",
+        c = [f"/* {P}.c - generated by KlongPy ({'kgpy --emit-hls, the streamable core' if self.hls is not None else 'kgpy --emit-c'}) from {self.source_name}. Do not edit. */",
              "#define KG_RT_IMPLEMENTATION /* the weak kg_trap (and freestanding memcpy, memset) are defined in this file */",
              f'#include "{P}.h"', ""]
         for name, ty, arr in self.tables:
@@ -1236,6 +1468,12 @@ class _Emitter:
             else:
                 c.append(f"    p->g_{cid} = {self.literal(g.ty.elem, g.value)};")
         c += ["}", "", f"size_t {P}_size(void) {{", f"    return sizeof({P}_t);", "}", ""]
+        for e, m, (sig_text, body) in windows:
+            c += [f"/* the window of entry {e.decl.name}: the result of one output from the last {m['taps']} samples */",
+                  sig_text + " {"] + body + ["}", ""]
+        for g in pdefs:
+            cid = c_identifier(g.name)
+            c += [f"void {P}_set_{cid}({P}_t *p, {ctype_of(g.ty.elem)} value) {{", f"    p->g_{cid} = value;", "}", ""]
         for e, proto, body in wrappers:
             c.append(proto + " {")
             c += body
@@ -1255,9 +1493,38 @@ class _Emitter:
         }
         return Emitted(P, ctext, "\n".join(h), report)
 
+    def window_function(self, e, m):
+        """(prototype, body lines) of ``T <P>_<entry>_window(const T *win)``: the reduction of one window."""
+        red = m["reduce"]
+        elem = red.ty.elem
+        spec = e.fn
+        ctx = _Fn(self, spec)
+        self.window_leaves.add(id(m["gather"]))
+        ctx.params.append([])
+        E = ctx.compile(red.a)
+        n_taps = m["taps"]
+        items = [E.at((str(j), "0")) for j in range(n_taps)]
+        op = m["op"]
+        if elem == "float" and not (self.hls and self.hls.reassociate) or (self.hls is None):
+            acc = ctx.temp(elem, items[0], const=False)
+            for it in items[1:]:
+                ctx.code.emit(f"{acc} = {ctx.expand(op, elem, acc, it, red)};")
+            result = acc
+        else:
+            while len(items) > 1:
+                nxt = [ctx.expand(op, elem, items[k], items[k + 1], red) for k in range(0, len(items) - 1, 2)]
+                if len(items) % 2:
+                    nxt.append(items[-1])
+                items = nxt
+            result = ctx.temp(elem, items[0])
+        ctype = ctype_of(elem)
+        proto = f"{ctype} {self.prefix}_{e.c_name}_window(const {ctype_of(e.decl.signature.params[0].elem)} *win)"
+        body = ["#pragma HLS inline"] + _mark_unused(ctx.code.lines) + [f"    return {result};"]
+        return proto, body
+
     def extern_proto(self, x):
         sig = x.signature
-        ctype = lambda t: "kg_float" if t.elem == "float" else "kg_int"  # noqa: E731
+        ctype = lambda t: ctype_of(t.elem)  # noqa: E731
         decl = []
         for i, ty in enumerate(sig.params):
             if ty.elem == "str":
@@ -1304,7 +1571,7 @@ class _Emitter:
         return best
 
 
-def emit(program, prefix=None, float_bits=32, line_directives=False):
+def emit(program, prefix=None, float_bits=32, line_directives=False, hls=None):
     """
     Emit C for a lowered program. prefix is the C prefix of every public name
     (default: the program's name): <prefix>_t, <prefix>_init, <prefix>_<entry>.
@@ -1316,10 +1583,14 @@ def emit(program, prefix=None, float_bits=32, line_directives=False):
     if not re.match(r"[A-Za-z][A-Za-z0-9_]*\Z", prefix) or prefix == "kg" or prefix.startswith("kg_") or prefix in _C_KEYWORDS:
         raise ValueError(f"'{prefix}' cannot be the C prefix of a program: it must be a C identifier that is not a C keyword "
                          "and does not start with kg_")
-    public = {f"{prefix}_{e.c_name}" for e in program.entries} | {f"{prefix}_init", f"{prefix}_size", f"{prefix}_t", f"{prefix}_storage_t"}
+    public = {f"{prefix}_{e.c_name}" for e in program.entries} | {f"{prefix}_init", f"{prefix}_size", f"{prefix}_t", f"{prefix}_storage_t"} \
+        | {f"{prefix}_set_{c_identifier(g.name)}" for g in program.globals if g.param}
+    clash = [e.c_name for e in program.entries if any(e.c_name == f"set_{c_identifier(g.name)}" for g in program.globals if g.param)]
+    if clash:
+        raise ValueError(f"the entry {clash[0]} has the C name of the setter of a parameter")
     for x in program.externs:
         if x.c_name in public or x.c_name == prefix:
             raise KlongStaticError(f"the C name of extern {x.name} is '{x.c_name}', which this program generates itself [extern]",
                                    span=x.span, source=x.source,
                                    hint="rename the extern, or compile with another --prefix")
-    return _Emitter(program, prefix, float_bits, line_directives).run()
+    return _Emitter(program, prefix, float_bits, line_directives, hls).run()

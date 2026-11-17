@@ -147,6 +147,8 @@ class TestFixtures(unittest.TestCase):
 
     def test_every_reject_fixture_fails_with_its_rule_and_line(self):
         for path in sorted(glob.glob(os.path.join(HERE, "reject", "*.kg"))):
+            if os.path.basename(path).startswith("stream-"):
+                continue            # inside the profile: the streamable tier rejects them (test_streamable.py)
             with self.subTest(fixture=os.path.basename(path)):
                 with open(path) as f:
                     m = EXPECT.match(f.read())

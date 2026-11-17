@@ -175,7 +175,7 @@ _DATA_KINDS = ('data', 'dict')
 _ARGS = ('x', 'y', 'z')
 _EXTRA_BUILTINS = frozenset(('.comment', '.f', '.helpdb', '.os.env', '.os.argv', '.help_topic', '.system', '.cli.h'))
 # calls that bring in names the linter cannot see
-_UNKNOWN_DEFINERS = frozenset(('.py', '.pyf', '.pya', '.E'))
+_UNKNOWN_DEFINERS = frozenset(('.py', '.pyf', '.pya', '.E', '.hw'))
 _NOT_DYAD = frozenset(('*', '%'))   # -1*x is (-1)*x: the sign commutes, nothing to warn about
 
 
@@ -633,8 +633,8 @@ class _Analysis:
                 self._backend_functions(i, f)
             elif nm == '.l' and nxt is not None and nxt[0] in ('LPAREN', 'CALLP') and not nxt[4]:
                 self._load(i, f)
-            elif nm == '.extern' and nxt is not None and nxt[0] in ('LPAREN', 'CALLP') and not nxt[4]:
-                self._extern(i, f)
+            elif nm in ('.extern', '.param') and nxt is not None and nxt[0] in ('LPAREN', 'CALLP') and not nxt[4]:
+                self._extern(i, f)     # .param("name";...) defines its name as .extern does
         # destructuring [a b]::... defines its names
         for f in self.frames:
             if f.kind == 'data' and f.is_target and f.close is not None and f.fn is None:

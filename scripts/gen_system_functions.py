@@ -25,7 +25,7 @@ from klongpy.writer import kg_write
 
 MODULES = [
     "klongpy.sys_fn", "klongpy.sys_var", "klongpy.sys_fn_autograd", "klongpy.sys_fn_timer",
-    "klongpy.sys_fn_ipc", "klongpy.sys_fn_static", "klongpy.db.sys_fn_db", "klongpy.db.sys_fn_kvs",
+    "klongpy.sys_fn_ipc", "klongpy.sys_fn_static", "klongpy.sys_fn_hw", "klongpy.db.sys_fn_db", "klongpy.db.sys_fn_kvs",
     "klongpy.web.sys_fn_web", "klongpy.ws.sys_fn_ws",
 ]
 HEADER = re.compile(r"^(?P<head>.*?)\s{2,}\[(?P<title>[^\]]+)\]\s*$")
@@ -41,7 +41,9 @@ GROUPS = [
      ".srv .cli .clid .clic .async"),
     ("Autograd", "Defined in the base interpreter; most need the PyTorch backend. See [PyTorch Backend](torch_backend.md).",
      ".jacobian .gradcheck .compile .compilex .cmodes .export"),
-    ("Embedded programs", "Defined in the base interpreter. See [Compiling Klong to C](embedded.md).", ".extern .entry"),
+    ("Embedded programs", "Defined in the base interpreter. See [Compiling Klong to C](embedded.md).", ".extern .entry .param .fixed .float"),
+    ("Hardware (experimental)", "Defined in the base interpreter. See [Klong functions as FPGA hardware](hardware.md).",
+     ".hw .hw.put .hw.get .hw.free .hw.reset .hw.info"),
     ("Database", 'Load with `.py("klongpy.db")`. See [Fast Columnar Database](fast_columnar_database.md).',
      ".db .table .insert .index .rindex .schema"),
     ("Key-value and table storage", 'Load with `.py("klongpy.db")`. See [Table and Key-Value Stores](table_and_key_value_stores.md).',
@@ -109,6 +111,15 @@ DESC = {
     ".export": "Export a function's computation graph to a file (PyTorch backend).",
     ".extern": "Declare a function the host provides, with a typed signature, for a program that is compiled.",
     ".entry": "Mark a function as an entry point of a compiled program and fix its signature.",
+    ".param": "Declare a global of a compiled program as a parameter the host sets between runs (a register in hardware).",
+    ".fixed": "Convert a number to a fixed-point type, `fixed<W,I>`, in a compiled program.",
+    ".float": "Convert a fixed-point or integer value to a float in a compiled program.",
+    ".hw": "Bind the FPGA kernels of a built program (or the simulator's) and return a dictionary of functions.",
+    ".hw.put": "Upload the arguments of calls of a kernel to the card once and return a buffer.",
+    ".hw.get": "Download a buffer made by `.hw.put`.",
+    ".hw.free": "Free a buffer made by `.hw.put`.",
+    ".hw.reset": "Make the next call of a kernel start the program from its initial state.",
+    ".hw.info": "A dictionary describing the hardware in use and the loaded image.",
     ".db": "Create a DuckDB database from a dictionary of tables.",
     ".table": "Create a table from column definitions.",
     ".insert": "Insert rows into a table.",
@@ -223,7 +234,7 @@ def collect():
             if not mm:
                 raise SystemExit(f"{n}: docstring has no header line")
             head = mm.group("head").strip()
-            name = re.match(r"\.\w+", head).group(0)
+            name = re.match(r"\.\w+(?:\.\w+)*", head).group(0)
             body = "\n".join(lines[lines.index(first) + 1:]).strip("\n")
             items[name] = dict(name=name, head=head, title=mm.group("title"), body=body, module=m)
     return items

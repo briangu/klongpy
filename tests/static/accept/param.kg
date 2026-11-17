@@ -1,0 +1,5 @@
+:" accept: param - a parameter that a function reads "
+
+.param("gain";"int";2)
+f::{x*gain}
+.entry("f";"int -> int")
