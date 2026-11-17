@@ -264,9 +264,10 @@ fn queue_overflow_and_retries_body(baud: u32) {
         b.node(i).ok(&format!("blob::!{}", n));
     }
     if baud > 1_000_000 {
-        // with 126-byte packets and these timeouts three senders at 4.5 Mbaud no longer fill 256
-        // frames (the run above measured a queue of 172); cut the port's queue so that it overflows
-        b.switch.set_queue_cap(64);
+        // with 126-byte packets and these timeouts three senders at 4.5 Mbaud do not fill 256 frames (the
+        // run measured a queue of 29 at most, the receiver taking a frame in 10 us): cut the port's queue
+        // so that it overflows
+        b.switch.set_queue_cap(16);
     }
     let before = b.switch.stats();
     let t0 = b.now_us();
@@ -275,7 +276,7 @@ fn queue_overflow_and_retries_body(baud: u32) {
     let shown = m.ok("x");
     assert_eq!(m.ok(&format!("{{(x@1)~!{}}}'x", n)), "[1 1 1]", "{}", &shown[..shown.len().min(300)]);
     let st = b.switch.stats();
-    println!("METRIC fan-in of 3 x {} bytes into one port (queue of {} frames): {:.2} s virtual, {} frames dropped by overflow, max queue {}", 8 * n, if baud > 1_000_000 { 64 } else { 256 }, (b.now_us() - t0) as f64 / 1e6, st.overflow - before.overflow, st.max_queue);
+    println!("METRIC fan-in of 3 x {} bytes into one port (queue of {} frames): {:.2} s virtual, {} frames dropped by overflow, max queue {}", 8 * n, if baud > 1_000_000 { 16 } else { 256 }, (b.now_us() - t0) as f64 / 1e6, st.overflow - before.overflow, st.max_queue);
     assert!(st.overflow > before.overflow, "the queue should overflow");
     // with the random loss of a worse switch on top the results are still right
     b.switch.set_loss_ppm(3_000);
@@ -396,6 +397,8 @@ fn console_channel_between_lanes_body(baud: u32) {
 }
 
 both! {
+    a_late_reset_of_an_old_connection_is_ignored => a_late_reset_of_an_old_connection_is_ignored_body,
+    reconnect_at_once => reconnect_at_once_body,
     two_nodes_calls_values_errors => two_nodes_calls_values_errors_body,
     async_calls_and_hooks => async_calls_and_hooks_body,
     call_timeout => call_timeout_body,
@@ -409,4 +412,104 @@ both! {
     dropped_frames_cost_time_not_correctness => dropped_frames_cost_time_not_correctness_body,
     latency_and_throughput => latency_and_throughput_body,
     console_channel_between_lanes => console_channel_between_lanes_body,
+}
+
+/// Seen on the bench: `.clic(h)` and, a second later, `.cli` to the same node ended in "handshake timed
+/// out". The goodbye (RST) of the old connection can leave the node after the first packet of the new
+/// one (the sender was busy when it was queued), and the old epoch's RST then closed the new connection.
+fn reconnect_at_once_body(baud: u32) {
+    let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let b = Bench::new(2, opts(baud));
+    let a = b.node(0);
+    serve(&b, 1);
+    let t0 = b.now_us();
+    for k in 0..300 {
+        // back to back, with or without a call in between, with a big message in flight sometimes
+            let r = a.run(&format!("h::.cli(\"node:1\");r::h(:sq,,{})", k));
+        assert_eq!(r, Ok((k * k).to_string()), "reconnect {} at {} baud", k, baud);
+        if k % 3 == 0 {
+            a.ok("big::!200;(h(:idf,,big))~big");
+        }
+        assert_eq!(a.ok(".clic(h)"), "1");
+    }
+    let per = (b.now_us() - t0) as f64 / 300.0 / 1000.0;
+    println!("METRIC 300 reconnects in a row, each with a call: {:.1} ms virtual per connect+call+close", per);
+    assert!(b.node(1).net.counters().restarts <= 300);
+}
+
+/// The same race, made exact: the goodbye (RST) of a connection of epoch 1 arrives after the first packet
+/// (SYN) of the next one, epoch 2, from the same node. It must not close the new connection.
+fn a_late_reset_of_an_old_connection_is_ignored_body(baud: u32) {
+    let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let b = Bench::new(2, opts(baud));
+    serve(&b, 1);
+    // node 0's lane, by hand: header = epoch << 1 | 1 (from a client), then the reliability layer's packet
+    // (SYN is 0b10 in the top bits, version 1, a 3-byte session id; RST is 0b11)
+    let syn = |epoch: u16, id: u8| {
+        let h = epoch << 1 | 1;
+        vec![h as u8, (h >> 8) as u8, 0x80 | 1, id, id, id]
+    };
+    let rst = |epoch: u16| {
+        let h = epoch << 1 | 1;
+        vec![h as u8, (h >> 8) as u8, 0xc0]
+    };
+    let net0 = b.node(0).net.clone();
+    let send = |m: Vec<u8>| {
+        for _ in 0..2000 {
+            if net0.send(1, 0, &m, false).unwrap() {
+                return;
+            }
+            b.spin(500);
+        }
+        panic!("busy");
+    };
+    send(syn(100, 7));
+    b.spin_ms(50);
+    assert_eq!(b.node(1).net.open_links(), 1);
+    send(syn(200, 9)); // the peer connects again
+    b.spin_ms(50);
+    assert_eq!(b.node(1).net.counters().restarts, 1);
+    send(rst(100)); // the old connection's goodbye, late
+    b.spin_ms(200);
+    assert_eq!(b.node(1).net.open_links(), 1, "the late reset of epoch 100 closed the connection of epoch 200 ({} baud)", baud);
+    // a reset of the current epoch does close it
+    send(rst(200));
+    b.spin_ms(200);
+    assert_eq!(b.node(1).net.open_links(), 0);
+}
+
+/// The model's costs are fitted to two measurements (fib(18) exactly; the call latency only to about half, see below) on the bench (2026-11-16, Picos 2 and 3 running this runtime):
+/// Measured on Picos 2 and 3 (2026-11-16, image 463a5f28): 100 synchronous calls `h("1+1")` from one to the other took
+/// 3.36 ms each, `fib(18)` 0.385 s (46 us a call), a 4 KB echo 92 ms. See `bench::FIT_*`: this keeps the model where
+/// the hardware put it, within 15% for the call and for `fib(18)`.
+#[test]
+fn latency_fitted_to_the_hardware() {
+    let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let b = Bench::new(2, opts(4_500_000));
+    serve(&b, 1);
+    let a = b.node(0);
+    a.ok("h::.cli(\"node:1\");h(\"1+1\")");
+    let t0 = b.now_us();
+    for _ in 0..100 {
+        assert_eq!(a.ok("h(\"1+1\")"), "2");
+    }
+    let each = (b.now_us() - t0) as f64 / 100.0 / 1000.0;
+    println!("METRIC fitted: 100 calls h(\"1+1\"): {:.2} ms each (hardware: 3.36 ms)", each);
+    assert!((3.36 * 0.85..3.36 * 1.15).contains(&each), "{} ms", each);
+    // a request 400 bytes longer: the hardware took 8.14 ms (a byte costs 11.9 us there: the wire is 8.9)
+    let long = format!("h(\"1+1{}\")", " ".repeat(400));
+    let t0 = b.now_us();
+    for _ in 0..30 {
+        assert_eq!(a.ok(&long), "2");
+    }
+    let each_long = (b.now_us() - t0) as f64 / 30.0 / 1000.0;
+    println!("METRIC fitted: 30 calls with 400 bytes more: {:.2} ms each (hardware: 8.14 ms)", each_long);
+    assert!((8.14 * 0.85..8.14 * 1.15).contains(&each_long), "{} ms", each_long);
+    // fib(18) on the model: 8361 calls at 46 us
+    a.ok("fib::{:[x<2;x;fib(x-1)+fib(x-2)]}");
+    let t0 = b.now_us();
+    assert_eq!(a.ok("fib(18)"), "2584");
+    let s = (b.now_us() - t0) as f64 / 1e6;
+    println!("METRIC fitted: fib(18): {:.3} s (hardware: 0.385 s)", s);
+    assert!((0.385 * 0.85..0.385 * 1.15).contains(&s), "{} s", s);
 }

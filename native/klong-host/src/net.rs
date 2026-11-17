@@ -89,7 +89,17 @@ impl Transport for TcpTransport {
         let mut last = LinkError::Unreachable;
         for a in addrs {
             match TcpStream::connect_timeout(&a, CONNECT_TIMEOUT) {
-                Ok(s) => return Ok(Link::Stream(Box::new(TcpLink::new(s)?))),
+                Ok(s) => {
+                    // A connect to a port of the OS's ephemeral range, with nothing listening on that address (the
+                    // IPv6 `localhost` before the IPv4 one, say), can be given the same port as its own source
+                    // and connect to itself (TCP simultaneous open): the "server" is this socket, which answers
+                    // the greeting with the greeting. It is a refused connection.
+                    if s.local_addr().ok() == s.peer_addr().ok() {
+                        last = LinkError::Refused;
+                        continue;
+                    }
+                    return Ok(Link::Stream(Box::new(TcpLink::new(s)?)));
+                }
                 Err(e) => last = link_error(&e),
             }
         }

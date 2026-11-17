@@ -296,7 +296,7 @@ $ klong --steps 1000 -e '{1}{x+1}:~0'
   ^^^^^^^^^^^
 ```
 
-The figures in the stack-budget lines are for this 64-bit host. On a 32-bit board a level of Klong recursion costs about 0.8 KiB (16 KiB of stack: about 14 levels, 64 KiB: about 60, 256 KiB: about 250, from the porting notes), against about 1.3 to 2 KiB on the host.
+The figures in the stack-budget lines are for this 64-bit host. On a 32-bit board a level of Klong recursion costs about 0.75 KiB: 745 bytes measured on a Pico (Cortex-M0+, `thumbv6m`, 2026-11-16) for `f::{:[x;1+f(x-1);0]}`, 530 for a call with no operator around it (so 90 and 120 levels in 69,120 bytes), against about 0.8 to 2 KiB on the host. The stack budget is used as `bytes` less what is kept below the deepest level (a quarter by default; a board can say, `Config::for_stack_keep`: the Pico keeps 16 KiB of 133 KiB), so 64 KiB gives about 60 levels and 256 KiB about 250 at the default.
 
 With `--stats` the program reports what it used, on standard error: the peak heap, the heap in use, the limit and the number of refused allocations (`heap: peak 23174 bytes, in use 15679 bytes, limit 0, refused 0` for the program below, on the machine of this page; the heap numbers vary a little), the deepest nesting of evaluations and the native stack. The heap figures are bytes requested from the allocator and include the interpreter's own state of about 15 KiB on the desktop.
 
@@ -305,7 +305,7 @@ With `--stats` the program reports what it used, on standard error: the peak hea
 $ klong --stats -e '+/!1000' 2>&1 | grep -v '^heap'
 499500
 depth: 3 nested evaluations at most
-stack: 1048 bytes of native stack at most
+stack: 704 bytes of native stack at most
 ```
 
 ## Running the conformance suite
@@ -317,10 +317,10 @@ The language is checked by the cases in `conformance/cases`, which KlongPy and t
 <!-- check-docs: requires-file native/target/release/klong; link native conformance -->
 ```console
 $ python native/scripts/conformance.py | tail -1 | cut -c1-40
-total                         1276  1276
+total                         1293  1293
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1276 of 1276 on this machine on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1293 of 1293 on this machine on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
 KLONG_NATIVE=native/target/narrow/release/klong python native/scripts/conformance.py --narrow

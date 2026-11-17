@@ -232,6 +232,7 @@ fn flt_to_int(f: Flt) -> Result<Int> {
 }
 
 /// One pair of numbers. `None` is `:undefined` (a zero divisor).
+#[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_num_op")]
 fn num_op(op: Atomic, a: Num, b: Num) -> Result<Option<Num>> {
     use Num::{F, I};
     Ok(Some(match op {
@@ -344,6 +345,7 @@ pub(crate) fn text_of(v: &Value) -> Option<Txt<'_>> {
 /// One pair of atoms (anything that is not a list).
 // (not inlined: `atomic` recurses once per level of nesting and must stay small on the stack)
 #[inline(never)]
+#[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_atom_op")]
 fn atom_op(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> {
     if let (Some(x), Some(y)) = (num(a), num(b)) {
         if op == Atomic::Pow {
@@ -557,6 +559,7 @@ fn reshape_flat(flat: Vec<Value>, like: &Value) -> Result<Value> {
 /// The pairing routine of every atomic dyad.
 // One recursion per level of nesting: the body is kept small on the stack (one loop; the work
 // on atoms and on numeric arrays is in functions that are not inlined).
+#[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_atomic")]
 pub fn atomic(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> {
     let al = a.is_list();
     let bl = b.is_list();

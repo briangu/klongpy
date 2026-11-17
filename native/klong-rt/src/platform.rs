@@ -12,6 +12,15 @@ pub trait Platform {
     fn wall_clock(&self) -> Option<f64>;
     /// Watchdog, yield. Called often (every 4096 calls or adverb iterations of an evaluation).
     fn idle(&mut self);
+    /// The evaluator's slow tick (every `Config::tick_mask + 1` calls of Klong functions): `idle` by default. A
+    /// simulation that charges time for evaluation does it here.
+    fn slow_tick(&mut self) {
+        self.idle()
+    }
+    /// An IPC message was encoded and sent, or one arrived whole and is being handled (the kdb+ encode or decode, the
+    /// session, the evaluation of a request): nothing by default. A simulation that charges time for the processor
+    /// does it here.
+    fn message_cpu(&mut self) {}
     /// Non-blocking; 0 if nothing is waiting.
     fn console_read(&mut self, buf: &mut [u8]) -> usize;
     fn console_write(&mut self, bytes: &[u8]);
@@ -40,6 +49,12 @@ pub trait Platform {
     /// name in the address. None by default.
     fn transports(&mut self) -> &mut [alloc::boxed::Box<dyn crate::link::Transport>] {
         &mut []
+    }
+    /// True while the console's input comes from a program, not a person (a lane's datagram console):
+    /// the console then neither echoes nor prompts. Asked at every input byte, so input that arrives
+    /// while a turn of the main loop is under way is treated as it should be.
+    fn console_quiet(&self) -> bool {
+        false
     }
     /// Sleep until `deadline_us` (of `now_us`) or until input may be ready, whichever is
     /// first; `None` means until input. Returning early is always allowed, and the default

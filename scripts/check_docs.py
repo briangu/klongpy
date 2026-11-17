@@ -73,6 +73,7 @@ import glob
 import importlib.util
 import io
 import os
+import random
 import re
 import shutil
 import socket
@@ -199,6 +200,32 @@ def free_port():
     return port
 
 
+def free_port_block(count=16, low=20000, high=30000):
+    """The first of ``count`` consecutive free ports, below the ranges operating systems hand out to
+    outgoing connections (macOS from 49152, Linux from 32768).
+
+    The pages use the port 8888 and the ones above it (``8888+10``). Taken from the ephemeral range,
+    as ``free_port`` does, those ports are the source ports of the sockets that the page's own clients
+    and servers open: a client that connects to ``localhost:PORT`` (the IPv6 address first, where nothing
+    listens) can be given PORT as its own port and connect to itself, and read its own greeting as the
+    server's reply (one run in several, on a busy machine)."""
+    for _ in range(200):
+        base = random.randrange(low, high - count)
+        socks = []
+        try:
+            for p in range(base, base + count):
+                s = socket.socket()
+                socks.append(s)
+                s.bind(("127.0.0.1", p))
+        except OSError:
+            continue
+        finally:
+            for s in socks:
+                s.close()
+        return base
+    return free_port()
+
+
 def run_step(klong, expr, buf, settle=0.0, render=False):
     """Run one input; the lines it printed, then its value (or ``error: ...``).
 
@@ -231,7 +258,7 @@ class Session:
         self.stack = contextlib.ExitStack()
         self.stack.enter_context(contextlib.redirect_stdout(self.buf))
         self.tmp = self.stack.enter_context(tempfile.TemporaryDirectory(prefix="check_docs_"))
-        self.port = str(free_port())
+        self.port = str(free_port_block())
         self.loops = []
         self.bin = None
         if kind == "shell":

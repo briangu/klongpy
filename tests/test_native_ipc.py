@@ -460,6 +460,25 @@ class TestNativeToNative(Case):
         self.native_error(c, "c(:fail,,1)", "type")
         self.native_error(c, "c(:nosuch,,1)", "name")
 
+    def test_a_symbol_that_names_a_local_function_is_that_function(self):
+        # Both runtimes: `:f` is the function `f` when one is defined here, and calling the peer with a function
+        # sends its source (docs/ipc_capabilities.md: f(inc,1)). So with `ping` defined on both sides,
+        # c(:ping,,5) runs the *local* ping, on the peer. A call that names the peer's function without
+        # being turned into the local one is the list `[:ping 5]` or the string "ping(5)", also for `.async`.
+        self.server.run("ping::{x}")
+        self.client.run("ping::{x+1000}")
+        self.assertEqual(self.client.value("c(:ping,,5)"), "1005")
+        self.assertEqual(self.client.value("c([:ping 5])"), "5")
+        self.assertEqual(self.client.value('c("ping(5)")'), "5")
+        self.client.run("got::0;af::.async(c;{got::x});af([:ping 5])")
+        self.assertTrue(wait_until(lambda: self.client.value("got") == "5"))
+        # KlongPy agrees about what the symbol is
+        from klongpy import KlongInterpreter
+        k = KlongInterpreter()
+        k("ping::{x+1000}")
+        self.assertEqual(type(k(":ping")).__name__, "KGFn")
+        self.assertEqual(str(k("[:ping 5]")), "[:ping 5]")
+
     def test_callbacks_two_levels_and_the_nesting_limit(self):
         self.server.run('f::{.cli.h("g()")};h::{40+x};f2::{.cli.h("g2()")};sf::{.cli.h(:cf,,x+1)}')
         self.client.run("g::{7};g2::{c(:h,,2)};cf::{c(:sf,,x+1)}")

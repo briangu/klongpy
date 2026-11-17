@@ -5,11 +5,13 @@
  * libklong_ffi.a (Rust, native/klong-ffi), reached through klong.h. Everything of Klong
  * runs in one task with a known stack.
  */
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 
 #include "driver/uart.h"
 #include "esp_heap_caps.h"
+#include "esp_memory_utils.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_rom_sys.h"
@@ -47,16 +49,62 @@
 
 static uint32_t heap_caps; /* where the Klong heap lives: PSRAM, or internal RAM without */
 
-/* 64-bit integers and doubles need 8-byte alignment; heap_caps_malloc gives 4. Both kinds
- * of block are freed with heap_caps_free. */
+/* Small blocks (what a call of a Klong function allocates and frees: argument frames, boxed values) come from
+ * free lists by size class, in slabs of internal RAM. heap_caps_malloc and heap_caps_free take a lock, walk
+ * the heap's tables and, in PSRAM, miss the cache on the allocator's own bookkeeping every time: measured on the
+ * board, a call of a Klong function took 56 us (about 20,000 cycles at 360 MHz) with three of each per call; a
+ * block that goes back to its class costs a few instructions and stays in the fast memory. The runtime says the
+ * size to `free`, so no header is needed. Classes of 8 bytes up to 128; a class takes 4 KB slabs from internal RAM
+ * (up to SMALL_SLAB_LIMIT of them, then from the heap) and never gives them back. Bigger blocks and bigger
+ * alignments go to heap_caps as before; both kinds are freed with heap_caps_free. */
+#define SMALL_MAX 128u
+#define SMALL_SLAB 4096u
+#define SMALL_SLAB_LIMIT (96u * 1024u)
+static void *small_free[SMALL_MAX / 8 + 1];
+static uint8_t *slab_at, *slab_end;
+static size_t slab_total;
+
+static void *small_alloc(size_t size) {
+    size_t c = (size + 7u) >> 3;
+    void *p = small_free[c];
+    if (p) {
+        small_free[c] = *(void **)p;
+        return p;
+    }
+    size_t n = c << 3;
+    if ((size_t)(slab_end - slab_at) < n) {
+        uint8_t *s = slab_total < SMALL_SLAB_LIMIT ? heap_caps_malloc(SMALL_SLAB, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) : NULL;
+        if (!s) return heap_caps_aligned_alloc(8, n, heap_caps); /* internal RAM is spoken for: the heap (8-aligned as a slab block is), freed there below */
+        slab_total += SMALL_SLAB;
+        slab_at = s;
+        slab_end = s + SMALL_SLAB;
+    }
+    p = slab_at;
+    slab_at += n;
+    return p;
+}
+
+/* 64-bit integers and doubles need 8-byte alignment; heap_caps_malloc gives 4. */
 static void *k_alloc(void *ctx, size_t size, size_t align) {
     (void)ctx;
+    if (size <= SMALL_MAX && align <= 8) return small_alloc(size ? size : 1);
     if (align <= 4) return heap_caps_malloc(size, heap_caps);
     return heap_caps_aligned_alloc(align, size, heap_caps);
 }
 
 static void k_free(void *ctx, void *ptr, size_t size, size_t align) {
-    (void)ctx, (void)size, (void)align;
+    (void)ctx;
+    if (!ptr) return;
+    if (size <= SMALL_MAX && align <= 8) {
+        if (heap_caps & MALLOC_CAP_SPIRAM && esp_ptr_external_ram(ptr)) { /* a small block that came from the heap */
+            heap_caps_free(ptr);
+            return;
+        }
+        size_t c = ((size ? size : 1) + 7u) >> 3;
+        *(void **)ptr = small_free[c];
+        small_free[c] = ptr;
+        return;
+    }
     heap_caps_free(ptr);
 }
 

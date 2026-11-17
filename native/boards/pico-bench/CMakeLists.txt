@@ -21,8 +21,18 @@ endif()
 # -DKLONG_SELFTEST=0 builds the image without the boot self-test; -DLANE_BAUD=115200 for a slower lane
 set(KLONG_SELFTEST 1 CACHE STRING "run the boot self-test (1) or not (0)")
 set(LANE_BAUD 4500000 CACHE STRING "baud rate of the lane")
+# -DKLONG_STACK_KB=96 gives the interpreter a stack of that many KB (default: klong_memory.h, 137), and the heap what is left
+set(KLONG_STACK_KB "" CACHE STRING "interpreter stack in KB, empty for the default")
+# The flash is read at clk_sys/4 (31 MHz) by the SDK's default second-stage boot loader: a miss of the 16 KB
+# instruction cache costs about 60 cycles for 8 bytes. The W25Q16JV on the Pico runs quad reads at 133 MHz: /2 is
+# 62.5 MHz. (Set -DPICO_FLASH_CLKDIV=4 to go back.)
+set(PICO_FLASH_CLKDIV 2 CACHE STRING "flash clock divider of the boot loader, even")
 add_executable(klong_pico_bench main.c)
 target_compile_definitions(klong_pico_bench PRIVATE KLONG_SELFTEST=${KLONG_SELFTEST} LANE_BAUD=${LANE_BAUD}u)
+if(NOT "${KLONG_STACK_KB}" STREQUAL "")
+    math(EXPR KLONG_STACK_BYTES "${KLONG_STACK_KB} * 1024")
+    target_compile_definitions(klong_pico_bench PRIVATE KLONG_STACK_BYTES=${KLONG_STACK_BYTES}u)
+endif()
 target_include_directories(klong_pico_bench PRIVATE "${KLONG_NATIVE}/klong-ffi/include")
 target_compile_options(klong_pico_bench PRIVATE -O2 -Wall -Wextra -Werror)
 # the Rust library after the SDK's libraries would let libgcc's helpers win; before them is fine either way
@@ -30,4 +40,5 @@ target_link_libraries(klong_pico_bench PRIVATE "${KLONG_FFI_LIB}" pico_stdlib ha
 # USB CDC console; the SDK's stdio over a UART stays off so that uart0 (GP16/GP17) is the lane's alone
 pico_enable_stdio_usb(klong_pico_bench 1)
 pico_enable_stdio_uart(klong_pico_bench 0)
+target_compile_definitions(bs2_default PRIVATE PICO_FLASH_SPI_CLKDIV=${PICO_FLASH_CLKDIV})
 pico_add_extra_outputs(klong_pico_bench)

@@ -411,3 +411,38 @@ fn output_with_nobody_to_send_it_to_is_dropped_and_counted() {
     assert!(String::from_utf8_lossy(&o.data).contains("tick"), "{:?}", o.data.len());
     n.ok(".timerc(\"t\")");
 }
+
+/// Seen on the bench: after the boot self-test between two nodes, the first console evaluations were
+/// echoed and followed by a prompt, on one node and then the other, because input that arrives while a
+/// turn of the board's loop is under way (after the console looked at the lane, before it read) was
+/// not treated as a program's. The real sequence: self-test, then input to each node at irregular times.
+#[test]
+fn after_the_selftest_no_echo_and_no_prompt_whenever_the_input_arrives() {
+    let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    for baud in BAUDS {
+        let r = rig(3, baud, true);
+        r.b.spin_ms(8000); // the self-test of node 1 and 2 runs and passes
+        let mut k = 0u64;
+        for round in 0..60u64 {
+            for node in [1usize, 2] {
+                // an irregular gap, from nothing to a few frame times, so that the datagram's frames land at
+                // every point of a turn
+                r.b.spin(37 * ((round * 7 + node as u64 * 3) % 29));
+                k += 1;
+                let (out, st) = r.eval(node, &format!("{}+{}\n", k, k));
+                assert_eq!((out.as_str(), st.as_str()), (format!("{}\n", 2 * k).as_str(), "ok"), "{} baud, round {}, node {}", baud, round, node);
+            }
+        }
+        // the transcript is plain text: no CR, no prompt anywhere
+        for node in [1usize, 2] {
+            let o = r.br.output(node, None).unwrap();
+            let text = String::from_utf8_lossy(&o.data).into_owned();
+            assert!(!text.contains('\r') && !text.contains("klong> klong>"), "{}", text);
+        }
+        // a board's console writes CR LF for a terminal; a datagram peer is sent LF
+        r.b.node(1).net.console_write(b"x\r\ny\r");
+        r.b.spin_ms(500);
+        let o = r.br.output(1, None).unwrap();
+        assert!(String::from_utf8_lossy(&o.data).ends_with("x\ny\r"), "{:?}", String::from_utf8_lossy(&o.data[o.data.len().saturating_sub(10)..]));
+    }
+}

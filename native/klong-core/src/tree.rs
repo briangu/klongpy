@@ -46,7 +46,8 @@ pub enum Node {
     Dyad { op: SymId, l: NodeId, r: NodeId, missing: bool },
     /// `a` is the callee: a `Sym`, another `Fn`, or a function body (one statement, a `Seq` or
     /// a `Body`). `args` are argument expressions, `NONE` for a hole.
-    Fn { a: NodeId, args: Range, has_args: bool, arity: u8, call: bool },
+    /// `literal`: the call of a function literal (`{x}(1)`), whose callee is a body and not a name to look up.
+    Fn { a: NodeId, args: Range, has_args: bool, arity: u8, call: bool, literal: bool },
     /// `advs` holds the adverb glyphs; `first_arity` is the arity the first adverb was read
     /// with (1 after a factor, 2 between operands), the others have arity 1. A monadic chain
     /// has its operand in `r`.

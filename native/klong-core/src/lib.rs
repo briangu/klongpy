@@ -4,7 +4,9 @@
 //! embedder: [`Hooks`] (the periodic tick that carries interrupts) and the system functions an
 //! embedder registers with [`Interp::register`]. Design: `tickets/design/native-runtime.md`.
 #![no_std]
-#![forbid(unsafe_code)]
+// (`link_section` counts as unsafe code for the lint; the feature `ram-hot` uses it on a few functions, and nothing else is unsafe)
+#![cfg_attr(not(feature = "ram-hot"), forbid(unsafe_code))]
+#![cfg_attr(feature = "ram-hot", deny(unsafe_code))]
 #![deny(clippy::unwrap_used, clippy::expect_used)]
 
 extern crate alloc;

@@ -709,6 +709,7 @@ impl<P: Platform + 'static> Events<P> {
                 }
             }
             Event::Message { kind: Kind::Response, value, pending, .. } => {
+                self.message_cpu();
                 let Some(id) = pending else { return };
                 let a = conn.asyncs.try_borrow_mut().ok().and_then(|mut a| a.iter().position(|q| q.id == id).map(|i| a.remove(i)));
                 match a {
@@ -731,7 +732,10 @@ impl<P: Platform + 'static> Events<P> {
                     }
                 }
             }
-            Event::Message { kind, value, .. } => self.serve(ip, conn, kind, value),
+            Event::Message { kind, value, .. } => {
+                self.message_cpu();
+                self.serve(ip, conn, kind, value)
+            }
             Event::Failure { error, pending } => {
                 let text = klong_core::msg!("protocol error from {}: {}", conn.peer, error);
                 self.conn_down(ip, conn, text, pending, false);
@@ -915,10 +919,18 @@ impl<P: Platform + 'static> Events<P> {
         }
     }
 
+    /// The processor time of a message (see `Platform::message_cpu`).
+    fn message_cpu(&self) {
+        if let Ok(mut p) = self.shared.platform.try_borrow_mut() {
+            p.message_cpu();
+        }
+    }
+
     fn send(&self, ip: &Interp, conn: &Conn, req: &Request, blocking: bool) -> Result<PendingId> {
         if conn.is_down() {
             return Err(conn.down_error());
         }
+        self.message_cpu();
         let deadline = conn.timeout_us.get().map(|t| self.now().saturating_add(t));
         let compress = self.ipc.cfg.try_borrow().map(|c| c.compress).unwrap_or(false);
         let (bytes, id) = {

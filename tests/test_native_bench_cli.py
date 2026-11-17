@@ -53,7 +53,7 @@ class Bridge:
 
     def call(self, method, path, body=None, who="tester1"):
         sep = "&" if "?" in path else "?"
-        req = urllib.request.Request("http://%s%s%sid=%s&name=Tester" % (self.host, path, sep, who), data=body, method=method)
+        req = urllib.request.Request("http://%s%s%sid=%s&name=Tester" % (self.host, path, sep, who), data=body, method=method, headers={"Content-Type": "text/plain"})
         try:
             with urllib.request.urlopen(req, timeout=15) as r:
                 return r.status, json.loads(r.read())
@@ -112,6 +112,9 @@ class Cli(unittest.TestCase):
             time.sleep(0.3)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("klong selftest pass", r.stdout)
+        self.assertIn("alive,klong", r.stdout)
+        self.assertIn("selftest-pass", r.stdout)
+        self.assertIn("0x51", r.stdout)
         self.assertEqual(r.stdout.count("online"), 3)
         self.assertEqual(r.stdout.count("offline"), 1)  # a bench has four ports
         # the self-test report is on channel 3, not in the console
@@ -185,16 +188,41 @@ class Cli(unittest.TestCase):
             os.unlink(small)
             os.unlink(big)
 
-    def test_a_line_that_cannot_be_sent_is_refused_before_anything_is_sent(self):
+    def test_run_sends_any_text_file_whatever_its_lines(self):
+        # raw=1: no newline is added and nothing is echoed, so a chunk may end anywhere: a line of 3000
+        # characters and a file without a final newline go through
         with tempfile.NamedTemporaryFile("w", suffix=".kg", delete=False) as f:
-            f.write("x::1\n" + "y::" + "1" * 1100 + "\n")
+            f.write("x::1\ny::[" + " ".join(str(i % 10) for i in range(1500)) + "]\n" + ".p(\"long line ok\")\n+/y")
             path = f.name
         try:
-            r = self.bridge.cli("run", "--node", "1", path)
-            self.assertEqual(r.returncode, 2)
-            self.assertIn("line 2 is longer", r.stderr)
+            r = self.bridge.cli("run", "--node", "1", path, timeout=120)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("long line ok", r.stdout)
+            self.assertIn("6750", r.stdout)  # 150 * (0+1+..+9) * 1 = 6750
         finally:
             os.unlink(path)
+
+    def test_raw_eval_adds_no_newline_and_leaves_no_echo(self):
+        b = self.bridge
+        start = b.get("/klong/output?node=1&from=4294967295")[1]["next"]
+        st, o = b.post("/klong/eval?node=1&raw=1", b"6*7\n")
+        self.assertEqual(st, 200)
+        end = time.time() + 20
+        while time.time() < end:
+            out = b.get("/klong/output?node=1&from=%d" % start)[1]
+            if any(d["id"] == o["id"] for d in out["dones"]):
+                break
+            time.sleep(0.05)
+        self.assertEqual(out["data"], "42\n")  # no `klong> 6*7`
+        # without raw=1 a newline is added and the line echoed; without text/plain the body is not there
+        st, o = b.post("/klong/eval?node=1", b"7*7")
+        self.assertEqual(st, 200)
+        req = urllib.request.Request("http://%s/klong/eval?node=1&id=tester1&name=T" % b.host, data=b"1\n", method="POST", headers={"Content-Type": "application/x-www-form-urlencoded"})
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            urllib.request.urlopen(req, timeout=10)
+        self.assertEqual(cm.exception.code, 400)
+        time.sleep(1)
+        b.release()
 
     def test_long_output_arrives_whole(self):
         r = self.bridge.cli("eval", "--node", "1", "!1200")
@@ -226,7 +254,9 @@ class Cli(unittest.TestCase):
                 break
             time.sleep(0.05)
         self.assertEqual(out["done"], {"id": o["id"], "status": "ok"})
-        self.assertEqual(list(out), ["node", "next", "data", "done", "load", "online", "klong", "sent", "control"])
+        self.assertLessEqual({"node", "next", "data", "done", "dones", "load", "online", "klong", "sent", "control"}, set(out))
+        self.assertEqual(out["dones"][0], out["done"])  # the newest first
+        self.assertLessEqual(len(out["dones"]), 8)
         self.assertEqual((out["node"], out["online"], out["klong"], out["load"]), (1, True, True, 0))
         self.assertEqual(out["sent"], {"id": o["id"], "state": "delivered"})
         self.assertEqual(sorted(out["control"]), ["driver", "retry", "you"])
@@ -241,7 +271,8 @@ class Cli(unittest.TestCase):
         self.assertEqual(b.post("/klong/interrupt?node=1"), (200, {"ok": True}))
         nodes = b.get("/klong/nodes")[1]["nodes"]
         self.assertEqual(len(nodes), 4)
-        self.assertEqual(sorted(nodes[1]), ["info", "klong", "load", "node", "online", "selftest"])
+        self.assertEqual(sorted(nodes[1]), ["flags", "info", "klong", "load", "node", "online", "selftest"])
+        self.assertEqual(nodes[1]["flags"] & 0x10, 0x10)
         self.assertTrue(nodes[1]["info"].startswith("klong 0.0.1 node=1 "))
         # the errors and their texts
         self.assertEqual(b.post("/klong/eval?node=7", b"1\n"), (400, {"error": "node=0..3"}))
@@ -430,6 +461,14 @@ class WithFake(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue(FakeBridge.seen and all("id=" in p and "name=klong-bench%20cli" in p for p in FakeBridge.seen), FakeBridge.seen)
         self.assertTrue(any("/klong/control?action=release" in p for p in FakeBridge.seen), "control is given up at the end")
+
+    def test_a_base_url_is_a_host(self):
+        sys.path.insert(0, os.path.join(os.path.dirname(CLI)))
+        import importlib
+        kb = importlib.import_module("klong_bench")
+        for text, want in [("bench.local", ("bench.local", 80)), ("bench.local:8080", ("bench.local", 8080)), ("http://bench.local", ("bench.local", 80)), ("http://bench.local:81/", ("bench.local", 81))]:
+            b = kb.Bridge(text)
+            self.assertEqual((b.host, b.port), want, text)
 
     def test_no_host_is_written_into_the_tools(self):
         for path in (CLI, BRIDGE):

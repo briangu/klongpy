@@ -11,8 +11,11 @@
  * datagrams, and runs Klong's kdb+ IPC (`.cli("node:2")`, `.srv("node:")`) and a console
  * (datagram channel 1) over them. The console is also on USB CDC for a session with a cable.
  *
- * Memory: the interpreter runs on a 48 KB stack of its own (the SDK's default stack is 2 KB),
- * its heap is newlib's malloc, limited to KLONG_HEAP_LIMIT.
+ * Memory (the whole of the 264 KB of RAM; the figures are in README.md): the code that runs most (the evaluator)
+ * is copied to RAM at start, 17 KB of .data; the lane's rings are 24 KB; the interpreter runs on a stack of
+ * KLONG_STACK_BYTES that starts at the top of RAM, in the 8 KB of the two scratch banks, and grows down; the heap
+ * is everything between the end of .bss and the bottom of that stack (newlib's malloc, with its _sbrk below), and
+ * the runtime's heap limit is made from its size (klong_heap.h).
  */
 #include <malloc.h>
 #include <stdint.h>
@@ -30,6 +33,8 @@
 #include "pico/stdio_usb.h"
 
 #include "klong.h"
+#include "klong_heap.h"
+#include "klong_memory.h"
 
 /* The lane. GP16/GP17 are uart0 TX/RX on the RP2040. */
 #define LANE_UART uart0
@@ -44,15 +49,15 @@
 
 /* Receive: at 4.5 Mbaud a byte arrives every 2.2 us, a 16-byte frame every 36 us, and the 32-byte
  * hardware FIFO fills in 71 us. The interrupt (highest priority, FIFO level 8 bytes, plus the
- * receive-timeout interrupt for the tail of a burst) moves bytes into a 32 KB ring: 2048 frames,
- * 73 ms of a lane that never pauses. The main loop is away that long only inside one primitive
+ * receive-timeout interrupt for the tail of a burst) moves bytes into a 16 KB ring: 1024 frames,
+ * 37 ms of a lane that never pauses. The main loop is away that long only inside one primitive
  * of the interpreter that does not call `idle` (a sort or a sum over a huge vector, say);
  * the runtime reads the ring at every turn of its loop, every 4096 steps of an evaluation and
  * inside every IPC call. What does not fit is dropped and counted; the layers above recover by
  * retransmission. Bytes are not parsed in the interrupt: that would put the CRC and the datagram
  * layer (Rust, with its state) at interrupt level for a saving that a ring of this size makes
- * unnecessary, and the ring costs 32 KB of the 264. */
-#define LANE_RX_RING 32768u
+ * unnecessary, and the ring costs 16 KB of the 264. */
+#define LANE_RX_RING 16384u
 /* Transmit: a ring of 8 KB drained by the transmit interrupt (FIFO half empty), so that the
  * interpreter never waits for the wire: klong_lane_write copies and returns. The library lets
  * at most 12 ms of wire time wait in it (lane_tx_limit): a deeper queue only delays what has to
@@ -60,12 +65,26 @@
  * the main loop is away. */
 #define LANE_TX_RING 8192u
 
-#define KLONG_STACK_BYTES (48u * 1024)
-#define KLONG_STACK_BUDGET (KLONG_STACK_BYTES - 6u * 1024) /* the rest: frames above klong_run, interrupts */
-#define KLONG_HEAP_LIMIT (112u * 1024)
-#define KLONG_HEAP_RESERVE (16u * 1024)
+/* The stack: KLONG_STACK_BYTES from the top of RAM (__StackTop, the end of the second scratch bank) down. About
+ * 740 bytes per level of Klong recursion (measured on this image: README.md), so 150 levels of a simple recursion
+ * are 111 KB; KLONG_STACK_KEEP of what is given to the evaluator is kept for what runs below its deepest level (a
+ * walk over nested data, the lane's pump: about 6 KB; the data nesting allowed is made from it), and
+ * KLONG_STACK_ABOVE is the rest, for the frames above klong_run and the interrupts, which run on this stack. */
+#define KLONG_STACK_ABOVE (4u * 1024)
+#define KLONG_STACK_BUDGET (KLONG_STACK_BYTES - KLONG_STACK_ABOVE)
+#define KLONG_STACK_KEEP (16u * 1024)
 
-static uint8_t klong_stack[KLONG_STACK_BYTES] __attribute__((aligned(8)));
+extern char end;         /* the first byte after .data and .bss: the heap starts here */
+extern char __StackTop;  /* the top of RAM */
+#define STACK_BOTTOM ((char *)((uintptr_t)&__StackTop - KLONG_STACK_BYTES))
+
+/* The SDK's _sbrk stops at the bottom of the 8 KB scratch banks, which are the SDK's own stacks: the heap here
+ * stops at the bottom of the interpreter's stack, which starts in them (klong_heap.h keeps its top 6 KB for
+ * small blocks). */
+void *_sbrk(int incr) {
+    if (kh_arena_start == NULL) kh_init(&end, STACK_BOTTOM);
+    return kh_sbrk(incr);
+}
 
 /* ---- the lane: UART interrupts <-> rings ------------------------------------------------- */
 
@@ -152,15 +171,6 @@ static size_t lane_write(void *ctx, const uint8_t *buf, size_t len) {
 
 /* ---- klong.h callbacks ------------------------------------------------------------------- */
 
-static void *k_alloc(void *ctx, size_t size, size_t align) {
-    (void)ctx;
-    return align <= 8 ? malloc(size) : memalign(align, size);
-}
-static void k_free(void *ctx, void *ptr, size_t size, size_t align) {
-    (void)ctx, (void)size, (void)align;
-    free(ptr);
-}
-
 /* The console on USB CDC (for a session with a cable): raw bytes, nothing is echoed or
  * translated by the SDK. With no host attached, output is dropped. */
 static void k_write(void *ctx, const uint8_t *bytes, size_t len) {
@@ -180,8 +190,8 @@ static void print_stats(void) {
     printf("datagrams: delivered %lu duplicate %lu broken %lu refused %lu resent %lu  ipc in %lu out %lu, inbox overflow %lu  console peer %d, output dropped %lu, with no peer %lu, input dropped %lu, unsolicited %lu\r\n",
            (unsigned long)st.datagrams_delivered, (unsigned long)st.datagrams_duplicate, (unsigned long)st.datagrams_broken, (unsigned long)st.datagrams_refused,
            (unsigned long)st.datagrams_resent, (unsigned long)st.ipc_in, (unsigned long)st.ipc_out, (unsigned long)st.inbox_overflow, (int)st.console_peer, (unsigned long)st.console_dropped, (unsigned long)st.console_no_peer, (unsigned long)st.console_in_dropped, (unsigned long)st.console_unsolicited);
-    printf("uart %lu baud: rx ring overruns %lu, fifo overruns %lu, line errors %lu, tx ring full %lu  heap used %lu peak %lu of %lu\r\n", (unsigned long)lane_actual_baud,
-           (unsigned long)lane_counters[0], (unsigned long)lane_counters[1], (unsigned long)lane_counters[2], (unsigned long)lane_counters[3], (unsigned long)used, (unsigned long)peak, (unsigned long)limit);
+    printf("uart %lu baud: rx ring overruns %lu, fifo overruns %lu, line errors %lu, tx ring full %lu  heap used %lu peak %lu of %lu (cache given back %lu times, %lu bytes)\r\n", (unsigned long)lane_actual_baud,
+           (unsigned long)lane_counters[0], (unsigned long)lane_counters[1], (unsigned long)lane_counters[2], (unsigned long)lane_counters[3], (unsigned long)used, (unsigned long)peak, (unsigned long)limit, (unsigned long)kh_drains, (unsigned long)kh_drained_bytes);
     printf("selftest: %s\r\n", st.selftest == 1 ? "pass" : st.selftest == 2 ? "fail" : "running, serving or off");
     stdio_flush();
 }
@@ -242,11 +252,13 @@ static void klong_main(void) {
     memset(&cfg, 0, sizeof cfg);
     cfg.abi_version = KLONG_ABI_VERSION;
     cfg.size = sizeof cfg;
-    cfg.alloc = k_alloc;
-    cfg.free = k_free;
-    cfg.heap_limit = KLONG_HEAP_LIMIT;
-    cfg.heap_reserve = KLONG_HEAP_RESERVE;
+    cfg.alloc = kh_alloc;
+    cfg.free = kh_free;
+    size_t arena = (size_t)(STACK_BOTTOM - &end);
+    if (arena < KH_TESTED_ARENA) k_fatal(NULL, "heap smaller than the arena tested", 33);
+    kh_limits(arena, &cfg.heap_limit, &cfg.heap_reserve);
     cfg.stack_bytes = KLONG_STACK_BUDGET;
+    cfg.stack_keep = KLONG_STACK_KEEP;
     cfg.write = k_write;
     cfg.read = k_read;
     cfg.now_ms = k_now_ms;
@@ -273,9 +285,10 @@ static void klong_main(void) {
     for (;;) tight_loop_contents();
 }
 
-/* Move the stack pointer to the 48 KB array and call klong_main there: the SDK's stack is 2 KB. */
+/* Move the stack pointer to the top of RAM, where the interpreter's stack starts, and call klong_main there: the
+ * SDK's own stack is the top 2 KB of the same place, and nothing of it is used after this. */
 static void __attribute__((noreturn, noinline)) on_big_stack(void (*fn)(void)) {
-    uint32_t top = ((uint32_t)klong_stack + sizeof klong_stack) & ~7u;
+    uint32_t top = (uint32_t)&__StackTop & ~7u;
     __asm volatile("msr msp, %0\n\tbx %1\n\t" ::"r"(top), "r"(fn) : "memory");
     for (;;) {
     }

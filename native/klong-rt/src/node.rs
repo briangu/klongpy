@@ -53,6 +53,7 @@ const RX_PER_PUMP: usize = 8192;
 /// Reassembly buffers: sources that may be in the middle of a message at the same moment.
 pub const RX_SLOTS: usize = 6;
 const MSG_MAX: usize = klong_dgram::MAX_MSG;
+const REL_SYN: u8 = 2;
 const REL_RST: u8 = 3;
 
 /// The lane's UART, from the adapter's side. Neither call waits.
@@ -319,12 +320,17 @@ impl Core {
         let mut idx = self.find(src, !from_client);
         if let Some(i) = idx {
             if self.slots[i].epoch != epoch {
-                if from_client {
+                if from_client && head >> 6 == REL_SYN {
                     // the peer restarted and connects again: the old connection is over
                     self.slots[i].closed = true;
                     self.counters.restarts += 1;
+                    idx = None;
+                } else {
+                    // a packet of another epoch that is not the start of a connection: a late packet of a
+                    // connection that is gone (its goodbye can leave after the first packet of the next
+                    // one), which must not touch this one
+                    return;
                 }
-                idx = None;
             }
         }
         if idx.is_none() {
@@ -509,6 +515,11 @@ impl NodeNet {
         self.0.try_borrow().map(|c| c.io.counters()).unwrap_or_default()
     }
 
+    /// Connections that are not closed (client and server ends): for tests and diagnostics.
+    pub fn open_links(&self) -> usize {
+        self.0.try_borrow().map(|c| c.slots.iter().filter(|s| !s.closed).count()).unwrap_or(0)
+    }
+
     pub fn lane_stats(&self) -> LaneStats {
         self.0.try_borrow().map(|c| c.lane.stats).unwrap_or_default()
     }
@@ -562,6 +573,15 @@ impl NodeNet {
             c.counters.console_no_peer = c.counters.console_no_peer.saturating_add(bytes.len() as u32);
             return;
         }
+        // a datagram peer gets "\n", not the "\r\n" a terminal wants (the board's console writes CR LF)
+        let mut text: Vec<u8> = Vec::with_capacity(bytes.len());
+        for (i, &b) in bytes.iter().enumerate() {
+            if b == b'\r' && bytes.get(i + 1) == Some(&b'\n') {
+                continue;
+            }
+            text.push(b);
+        }
+        let bytes = &text[..];
         let room = c.cfg.console_out_bytes.saturating_sub(c.cout_bytes);
         if room < bytes.len() {
             c.counters.console_dropped += (bytes.len() - room) as u32;

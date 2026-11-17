@@ -22,9 +22,10 @@ Ctrl-C while something runs sends an interrupt to the node (a second one stops w
 leaves the REPL. A node's console is the one that last received input: the output of a node that
 somebody types at from its USB port, or from another node, does not come here.
 
-`run` sends the file in datagrams of at most 1024 bytes that end at a line end (the bridge adds a newline to
-input that has none, so a cut anywhere else would put a byte in the file). A line longer than 1023 bytes, and
-binary files, cannot go through it.
+`run` sends the file with `raw=1` (the bridge adds no newline and echoes nothing) in datagrams of at most 1024
+bytes cut anywhere, so any text file goes, whatever its lines. Still impossible: a program the node cannot hold
+(`max_run` of its console, 64 KB, and its free heap), a file that is not valid UTF-8 (the node refuses the program),
+and binary data in the answers (the bridge's JSON carries text: NUL becomes a blank, invalid UTF-8 a U+FFFD).
 
 Exit status of `eval` and `run`: 0 ok, 1 an error on the node, 130 interrupted, 2 not delivered or the bridge
 says no (409 somebody has control, 503 the node is offline or not a Klong node), 3 other.
@@ -40,7 +41,7 @@ import time
 import zlib
 from urllib.parse import quote
 
-CHUNK = 1024  # bytes of console input per datagram, with the newline
+CHUNK = 1024  # bytes of console input per datagram
 POLL = 0.1
 KEEPALIVE = 3.0  # (the bridge forgets a client after 10 s without a poll)
 
@@ -54,6 +55,10 @@ class BridgeError(Exception):
 
 class Bridge:
     def __init__(self, host, name="klong-bench cli", ident=None, timeout=10):
+        # a base URL as the bridge's own pages give it is taken as the host it names (http only: the bridge has no TLS)
+        if host.startswith("http://"):
+            host = host[len("http://"):]
+        host = host.rstrip("/")
         if ":" in host:
             h, p = host.rsplit(":", 1)
             self.host, self.port = h, int(p)
@@ -68,7 +73,8 @@ class Bridge:
         path = "%s%sid=%s&name=%s" % (path, sep, self.id, quote(self.name))
         conn = http.client.HTTPConnection(self.host, self.port, timeout=self.timeout)
         try:
-            conn.request(method, path, body=body)
+            # (the body is the bridge's "plain" argument only with this content type)
+            conn.request(method, path, body=body, headers={"Content-Type": "text/plain"} if body is not None else {})
             r = conn.getresponse()
             raw = r.read()
         except OSError as e:
@@ -83,12 +89,13 @@ class Bridge:
             raise BridgeError(r.status, obj.get("error", "bridge error %d" % r.status))
         return obj
 
-    def eval(self, node, data):
-        """Queue input; the id of the message. 429 (the queue holds two) is waited out for a few seconds."""
+    def eval(self, node, data, raw=False):
+        """Queue input; the id of the message. 429 (the queue holds two) is waited out for a few seconds.
+        `raw`: the body goes as it is, with no newline added and no echo in the transcript."""
         end = time.time() + 5
         while True:
             try:
-                return self.request("POST", "/klong/eval?node=%d" % node, data)["id"]
+                return self.request("POST", "/klong/eval?node=%d%s" % (node, "&raw=1" if raw else ""), data)["id"]
             except BridgeError as e:
                 if e.code == 429 and time.time() < end:
                     time.sleep(0.05)
@@ -211,21 +218,31 @@ class Session:
             time.sleep(0.3)
         raise BridgeError(409, "control was not given")
 
-    def send_and_wait(self, data, show=True):
+    @staticmethod
+    def done_of(o, my_id):
+        """Our input's status from `dones` (the newest 8, newest first), else from `done`."""
+        for d in o.get("dones") or []:
+            if d["id"] == my_id:
+                return d["status"]
+        d = o.get("done")
+        return d["status"] if d and d["id"] == my_id else None
+
+    def send_and_wait(self, data, show=True, raw=False):
         """Send one input; print its output as it arrives; its status (ok, error, interrupted), `not delivered`
         or `abandoned`."""
-        with self.lock:
-            self.tr.expect(data)
-        my_id = self.b.eval(self.node, data)
+        if not raw:
+            with self.lock:
+                self.tr.expect(data)
+        my_id = self.b.eval(self.node, data, raw=raw)
         interrupted = False
         while True:
             try:
                 o = self.poll(show=show)
-                d = o.get("done")
-                if d and d["id"] == my_id:
+                st = self.done_of(o, my_id)
+                if st is not None:
                     # the transcript is complete up to its `done`: one more look for what came with it
                     self.poll(show=show)
-                    return d["status"]
+                    return st
                 sent = o.get("sent") or {}
                 if sent.get("id") == my_id and sent.get("state") in ("failed", "refused"):
                     return "not delivered: " + ("the node's console is busy for another sender" if sent["state"] == "refused" else "no acknowledgement from the node")
@@ -275,33 +292,19 @@ def cmd_run(b, a):
     if not prog:
         print("klong_bench: empty file", file=sys.stderr)
         return 2
-    lines = prog.split(b"\n")
-    chunks, cur = [], b""
-    for i, line in enumerate(lines):
-        piece = line + (b"\n" if i < len(lines) - 1 else b"")
-        if not piece:
-            continue
-        if len(piece) > CHUNK - 1:
-            print("klong_bench: line %d is longer than %d bytes: it cannot be sent" % (i + 1, CHUNK - 1), file=sys.stderr)
-            return 2
-        if len(cur) + len(piece) > CHUNK:
-            chunks.append(cur)
-            cur = b""
-        cur += piece
-    if cur:
-        chunks.append(cur)
+    chunks = [prog[i:i + CHUNK] for i in range(0, len(prog), CHUNK)]
     s = Session(b, a.node)
     try:
         if a.take:
             s.take_control()
         header = ("\x01run %d %08x\n" % (len(prog), zlib.crc32(prog) & 0xFFFFFFFF)).encode()
-        st = s.send_and_wait(header, show=False)
+        st = s.send_and_wait(header, show=False, raw=True)
         if st != "ok" or "\x01go" not in s.text():
             print("klong_bench: the node did not accept the upload: %s" % (s.text().replace("\x01", "").strip() or st), file=sys.stderr)
             return 1
         s.all.clear()
         for ch in chunks:
-            st = s.send_and_wait(ch, show=False)
+            st = s.send_and_wait(ch, show=False, raw=True)
             if st not in ("ok", "error"):
                 return status_code(st)
         text = s.text()
@@ -347,12 +350,24 @@ def cmd_repl(b, a):
         finish(s)
 
 
+FLAGS = [(0x01, "alive"), (0x02, "app-image"), (0x04, "app-running"), (0x10, "klong"), (0x20, "selftest-serving"), (0x40, "selftest-pass"), (0x80, "selftest-fail")]
+
+
+def decode_flags(f):
+    """The STATUS flags byte: 0x01 alive, 0x02 an app image, 0x04 an app running (the cube OS), 0x10 not a cube
+    node (Klong), 0x20 self-test serving or running, 0x40 passed, 0x80 failed."""
+    if f is None:
+        return "?"
+    return ",".join(n for bit, n in FLAGS if f & bit) or "-"
+
+
 def cmd_status(b, a):
-    print("%-4s %-8s %-5s %-5s  %s" % ("node", "state", "klong", "load", "what it says"))
+    print("%-4s %-8s %-5s %-5s %-6s %-26s %s" % ("node", "state", "klong", "load", "flags", "decoded", "what it says"))
     for n in b.nodes():
         state = "online" if n["online"] else "offline"
         says = n.get("selftest") or n.get("info") or ""
-        print("%-4d %-8s %-5s %-5d  %s" % (n["node"], state, "yes" if n["klong"] else "no", n["load"], says))
+        f = n.get("flags")
+        print("%-4d %-8s %-5s %-5d %-6s %-26s %s" % (n["node"], state, "yes" if n["klong"] else "no", n["load"], "0x%02x" % f if f is not None and n["online"] else "-", decode_flags(f) if n["online"] else "-", says))
     return 0
 
 

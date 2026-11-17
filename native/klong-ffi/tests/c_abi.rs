@@ -88,3 +88,45 @@ fn c_program_drives_the_lane() {
     assert!(run.status.success(), "the self-test run failed:\n{text}\n{}", String::from_utf8_lossy(&run.stderr));
     assert!(text.trim_end().ends_with("-- ok"), "{text}");
 }
+
+/// The Pico bench firmware's heap (`boards/pico-bench/klong_heap.h`, the source `main.c` compiles) over a model of
+/// newlib's malloc with an arena of the image's size: the largest `!n`, the error at the limit and the memory
+/// coming back, the slabs of a deep recursion going to a vector. `tests/pico_heap.c`.
+#[test]
+fn pico_firmware_heap_on_the_host() {
+    let here = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let exe = std::env::current_exe().expect("test path");
+    let deps = exe.parent().expect("deps directory");
+    let lib = std::fs::read_dir(deps)
+        .expect("deps directory is readable")
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            name.starts_with("libklong_ffi-") && name.ends_with(".a")
+        })
+        .max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok())
+        .map(|e| e.path())
+        .expect("libklong_ffi-*.a beside the test");
+    let out = deps.join("klong-ffi-pico-heap");
+    let cc = std::env::var("CC").unwrap_or_else(|_| "cc".into());
+    let board = here.join("../boards/pico-bench");
+    let status = Command::new(&cc)
+        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-O1", "-I"])
+        .arg(here.join("include"))
+        .arg("-I")
+        .arg(&board)
+        .arg("-I")
+        .arg(here.join("tests"))
+        .arg(here.join("tests/pico_heap.c"))
+        .arg(&lib)
+        .arg("-o")
+        .arg(&out)
+        .status()
+        .expect("the C compiler runs");
+    assert!(status.success(), "compiling tests/pico_heap.c failed");
+    let run = Command::new(&out).output().expect("the C program runs");
+    let text = String::from_utf8_lossy(&run.stdout);
+    println!("{text}");
+    assert!(run.status.success(), "the C program failed:\n{text}\n{}", String::from_utf8_lossy(&run.stderr));
+    assert!(text.trim_end().ends_with("-- ok"), "{text}");
+}

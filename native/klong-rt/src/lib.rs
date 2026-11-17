@@ -139,7 +139,7 @@ impl<P: Platform> Hooks for RtHooks<P> {
             Ok(p) => p,
             Err(_) => return false,
         };
-        p.idle();
+        p.slow_tick();
         self.shared.scan_console(&mut p)
     }
 }

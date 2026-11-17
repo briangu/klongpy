@@ -174,3 +174,25 @@ fn a_flood_of_the_deployers_frames_does_not_disturb_it() {
         assert!(r.last(1).unwrap().contains("peer=0"));
     }
 }
+
+/// The test leaves nothing behind: the client of it, which loaded the management library (some 18 KB of the board's heap,
+/// 110 KB on the 64-bit host: measured with `.mem()` on `.l("mgmt")`, 34,032 bytes before, 149,250 after, 39,040 once its
+/// names are set to 0) and made a 4 KB vector, drops them when it is done. On the board the client had half again as much
+/// in use as the server, and the largest vector it could make was half the server's. (The simulator has no `.mem()`:
+/// what is checked is that the names are gone, and that the library can be loaded again.)
+#[test]
+fn the_selftest_leaves_nothing_of_the_library_or_its_variables() {
+    let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let b = bench(2, 4_500_000);
+    let mut r = Reports(vec![]);
+    until(&b, &mut r, 1, "klong selftest pass ", 60);
+    b.spin_ms(500);
+    let c = b.node(1);
+    assert_eq!(c.ok("mgmt.nodes"), "0");
+    assert_eq!(c.ok("mgmt.add"), "0");
+    assert_eq!(c.ok("big"), "0");
+    assert_eq!(c.ok("h"), "0");
+    // the library can be loaded again, and works
+    c.ok(".l(\"mgmt\")");
+    assert_eq!(c.ok("mgmt.names()"), "[]");
+}

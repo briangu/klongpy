@@ -26,6 +26,8 @@ float32 = ["klong-board/float32"]
 ipc = ["klong-rt/ipc"]
 # The lane of a packet switch (the Pico bench): datagrams over a UART of 16-byte frames, IPC and a
 # console channel on top (klong_lane_* in klong.h).
+# The RP2040 (Pico SDK) build: the evaluator's hot functions in RAM.
+pico = ["klong-core/ram-hot"]
 lane = ["ipc", "klong-console/ipc"]
 
 [dependencies]

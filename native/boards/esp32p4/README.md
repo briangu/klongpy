@@ -65,7 +65,7 @@ reset the board (DTR/RTS), the tool waits for the banner.
 | | |
 |---|---|
 | Task | `klong`, pinned to CPU 1, priority 1, **128 KiB stack** (internal RAM); the runtime gets a budget of 120 KiB (`Config::for_stack`), so deep recursion is a `range` error |
-| Heap | `heap_caps_malloc` / `heap_caps_aligned_alloc` in PSRAM (`MALLOC_CAP_SPIRAM`); limit three quarters of the free PSRAM (about 24 MiB), 16 KiB reserve; without PSRAM 256 KiB of internal RAM |
+| Heap | `heap_caps_malloc` / `heap_caps_aligned_alloc` in PSRAM (`MALLOC_CAP_SPIRAM`); limit three quarters of the free PSRAM (about 24 MiB), 16 KiB reserve; without PSRAM 256 KiB of internal RAM. Blocks of up to 128 bytes come from free lists by size class in 4 KiB slabs of internal RAM (96 KiB at most; when internal RAM is spoken for, from the heap, 8-aligned, and freed there); ESP-IDF's own C is built with `CONFIG_COMPILER_OPTIMIZATION_PERF` |
 | Console | ESP-IDF UART driver on UART0, 32 KiB receive buffer, `uart_read_bytes` with no wait, `uart_write_bytes`; raw bytes (no VFS, so no echo, line buffering or CR/LF translation by ESP-IDF); the runtime sends CR LF |
 | Logging | `esp_log_level_set("*", ESP_LOG_NONE)` at the start of `app_main`; only the boot log comes before the banner. A panic (a bug, or a watchdog) still prints and restarts the board |
 | Clock | `esp_timer_get_time` |

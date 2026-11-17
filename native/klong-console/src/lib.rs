@@ -226,6 +226,7 @@ pub struct Console<P: Platform + 'static> {
     after_cr: bool,
     /// No echo and no prompt: a datagram peer is typing (see `lane_begin`).
     quiet: bool,
+    forced_quiet: bool,
     /// Errors printed, and of them interrupts (a console that is driven by a program counts them).
     errors: core::cell::Cell<u32>,
     interrupts: core::cell::Cell<u32>,
@@ -258,6 +259,7 @@ impl<P: Platform + 'static> Console<P> {
             typed_pos: 0,
             after_cr: false,
             quiet: false,
+            forced_quiet: false,
             errors: core::cell::Cell::new(0),
             interrupts: core::cell::Cell::new(0),
             now: 0,
@@ -289,8 +291,18 @@ impl<P: Platform + 'static> Console<P> {
     /// No echo, no editing and no prompt while true: a program (not a person at a terminal) is
     /// typing. Results and errors are still printed. Set it between turns.
     pub fn set_quiet(&mut self, quiet: bool) {
-        self.quiet = quiet;
-        self.ed.dumb = quiet || self.cfg.dumb;
+        self.forced_quiet = quiet;
+        self.sync_quiet();
+    }
+
+    /// Echo and prompt are off when the owner said so (`set_quiet`) or the platform says the input is
+    /// a program's. Looked at for every input byte: input that arrives in the middle of a turn counts.
+    fn sync_quiet(&mut self) {
+        let q = self.forced_quiet || self.rt.shared.platform.try_borrow().map(|p| p.console_quiet()).unwrap_or(false);
+        if q != self.quiet {
+            self.quiet = q;
+            self.ed.dumb = q || self.cfg.dumb;
+        }
     }
 
     /// Input that the console has read and not handled yet (so that it is not between two inputs).
@@ -478,6 +490,7 @@ impl<P: Platform + 'static> Console<P> {
 
     /// One byte from the serial port.
     pub fn feed(&mut self, b: u8) {
+        self.sync_quiet();
         if self.after_cr {
             self.after_cr = false;
             if b == b'\n' {

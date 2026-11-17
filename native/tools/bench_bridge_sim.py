@@ -11,19 +11,22 @@ executable reference. Where the real bridge was read, this follows it; where it 
 
 Every call carries `id=<1..16 letters and digits>` and `name=<display name>`. Routes (JSON):
 
-    POST /klong/eval?node=N&id&name        body: lines (a newline is added if missing), at most 1024 bytes with it
+    POST /klong/eval?node=N&id&name[&raw=1] body: lines (a newline is added if missing), at most 1024 bytes with it;
+                                           Content-Type: text/plain is needed; raw=1 sends the body as it is: no newline
+                                           added, no echo in the transcript
                                            -> {"id": ID}; 409 {"error": "<name> has control"}; 503 {"error": "that node is offline"
                                            | "that node is not running Klong"}; 413; 429 {"error": "still sending the last one"}
                                            (the queue holds two per node: an evaluation and an interrupt); 400
     GET  /klong/output?node=N&from=X&id&name
                                            -> {"node","next","data","done":{"id","status"}|null,"load","online","klong",
+                                              "dones":[{"id","status"}, ...] (the newest 8, newest first; "done" is the newest),
                                               "sent":{"id","state":none|sending|delivered|failed|refused},"control":{...}},
                                               plus "lost": true when X left the window. The window is the newest 8 KB per
                                               node and a response has at most 4 KB, never cut inside a UTF-8 character.
                                               The transcript has each typed line echoed as `klong> LINE`.
                                               Polling with an id keeps that id's control alive (lost after 10 s without a poll).
     POST /klong/interrupt?node=N&id&name   -> {"ok": true}; the same errors as eval
-    GET  /klong/nodes                      -> {"nodes": [{"node","online","klong","load","info","selftest"}]}, 4 nodes
+    GET  /klong/nodes                      -> {"nodes": [{"node","online","klong","load","flags","info","selftest"}]}, 4 nodes
     POST /klong/control?action=claim|take|give|keep|release&id&name
                                            -> {"ok": true}, or 409/400 {"error": "..."}
 
@@ -327,6 +330,8 @@ def make_handler(sim, control):
                 else:
                     i, st = kv["done"].split(":", 1)
                     obj["done"] = {"id": int(i), "status": st}
+                dones = [] if kv["dones"] == "-" else [dict(zip(("id", "status"), (int(t.split(":")[0]), t.split(":", 1)[1]))) for t in kv["dones"].split(",")]
+                obj["dones"] = dones
                 obj.update({"load": int(kv["load"]), "online": kv["online"] == "1", "klong": kv["klong"] == "1", "sent": {"id": int(sid), "state": state}})
                 with control.lock:
                     obj["control"] = control.json(id_)
@@ -336,7 +341,7 @@ def make_handler(sim, control):
                 for l in sim.cmd_multi("nodes"):
                     w = l.split(" ")
                     kv = dict(t.split("=", 1) for t in w[2:])
-                    out.append({"node": int(w[1]), "online": kv["online"] == "1", "klong": kv["klong"] == "1", "load": int(kv["load"]),
+                    out.append({"node": int(w[1]), "online": kv["online"] == "1", "klong": kv["klong"] == "1", "load": int(kv["load"]), "flags": int(kv["flags"]),
                                 "info": unhex(kv["info"]).decode("utf-8", "replace"), "selftest": unhex(kv["selftest"]).decode("utf-8", "replace")})
                 return self.send_json(200, {"nodes": out})
             self.send_json(404, {"error": "no such route"})
@@ -377,9 +382,11 @@ def make_handler(sim, control):
                 if u.path == "/klong/interrupt":
                     r = sim.cmd("interrupt %d" % k)
                     return self.send_json(200, {"ok": True}) if r.startswith("ok") else self.sim_error(r)
-                if not body:
+                # the body is the request's "plain" argument only for Content-Type: text/plain
+                if not body or not self.headers.get("Content-Type", "").startswith("text/plain"):
                     return self.send_json(400, {"error": "send the lines as the request body"})
-                r = sim.cmd("eval %d %s" % (k, body.hex()))
+                raw = q.get("raw", ["0"])[0] == "1"
+                r = sim.cmd("eval %d %s %s" % (k, "raw" if raw else "text", body.hex()))
                 if not r.startswith("ok "):
                     return self.sim_error(r)
                 return self.send_json(200, {"id": int(r.split()[1])})

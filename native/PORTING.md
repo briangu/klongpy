@@ -76,8 +76,9 @@ it has no start-up code).
 **Memory** (the two numbers in `BoardConfig`)
 - `stack_bytes`: the native stack of the task that calls `run`. `Config::for_stack` turns it
   into a recursion limit checked against the real stack pointer, so deep recursion is a
-  `range` error, not a crash. Measured: about 0.8 KiB per level of Klong recursion on a
-  32-bit target (16 KiB: about 14 levels; 64 KiB: about 60; 256 KiB: about 250).
+  `range` error, not a crash. Measured: about 0.75 KiB per level of Klong recursion on a
+  32-bit target (745 bytes on a Pico, 2026-11-16: 16 KiB gives about 14 levels at the default quarter kept; 64 KiB: about 60; 256 KiB: about 250;
+  `klong_config.stack_keep` lets a board keep less than a quarter: the Pico bench keeps 16 of 133 KiB and gets 159 levels from 137 KiB).
   The whole conformance suite through the console passes 1265 of 1266 with a 64 KiB stack and
   1264 with 32 KiB; the misses are cases that recurse deeply and end as `range` errors.
 - The global allocator: wrap whatever allocates (`klong_board::heap::RegionHeap` over a
@@ -94,10 +95,10 @@ it has no start-up code).
 its `no_std` datagram layer, and `klong-ffi --features lane` exposes it to a C shell
 (`klong_lane_*` in `klong.h`); `boards/pico-bench/` is that shell for the RP2040
 (`thumbv6m-none-eabi`: no compare-and-swap, which the runtime does not need, no divide, no FPU).
-The lane is 4.5 Mbaud (115200 also works): a 32 KB receive ring fed by interrupt, an 8 KB transmit
+The lane is 4.5 Mbaud (115200 also works): a 16 KB receive ring fed by interrupt, an 8 KB transmit
 ring drained by interrupt, and a boot self-test that reports to the supervisor are part of the
 Pico shell. `docs/native/pico-bench.md` has the design, the sizes and the simulator results; the
-image was built and linked, not run.
+image has run on two Picos (2026-11-16; measured: `fib(18)` 0.385 s, a call between two Picos 3.36 ms, 745 bytes of stack a level of Klong recursion), and its RAM is split as described there: a stack that starts at the top of RAM, a heap that is the rest, the evaluator's hot functions in RAM.
 
 The lane's console (`docs/native/pico-bench.md` "Interactive use"): channel 1 is console
 text (input datagrams with the ACK flag, one at a time; no echo or prompt), channel 2 is `done`, `int` and
@@ -180,7 +181,7 @@ RAM:
 Per case the runner sends `.x(0)` (the board resets and prints its banner: a fresh
 interpreter), `.strict(N)` when the case has a strict tag, and the program with `^A run`; it
 compares the value, the console output and the error kind with the case. Without `--port` it
-does the same against simulated boards (1276 of 1276 on the default build; add
+does the same against simulated boards (1293 of 1293 on the default build; add
 `-- --stack-budget 64K --heap-limit 1M --crlf` to make the simulation as small as a board).
 Needs: `System::reset` that really resets (or the cases share one interpreter and some fail),
 a banner within `--timeout`, and `max_run` of at least the largest case (under 4 KiB).

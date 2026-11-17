@@ -81,6 +81,12 @@ typedef struct klong_config {
 
     const char *name; /* board name for the banner and `ver`, at most 31 bytes; copied */
     uint32_t flags;   /* KLONG_FLAG_* */
+
+    /* Of stack_bytes, what is kept for what runs below the deepest evaluation: a walk over
+     * nested data, the lane's pump, a system function. 0: a quarter of stack_bytes (the
+     * evaluator gets the rest). A board that has measured what it needs there can give the
+     * evaluator more; at least 2048. */
+    size_t stack_keep;
 } klong_config;
 
 /* Build the runtime, run boot.kg if the file system has one, print the banner

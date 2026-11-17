@@ -248,7 +248,7 @@ impl<'a> Dumper<'a> {
                 self.operand(*r, out);
                 out.push(')');
             }
-            Node::Fn { a, args, has_args, arity, call } => {
+            Node::Fn { a, args, has_args, arity, call, .. } => {
                 if !*has_args {
                     self.func(*a, *arity, out);
                     return;

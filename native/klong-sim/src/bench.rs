@@ -21,9 +21,42 @@ use crate::switch::Switch;
 
 type Hook = Rc<RefCell<Option<Box<dyn FnMut()>>>>;
 
+/// Costs of an RP2040 at 125 MHz, fitted to measurements on the bench (2026-11-16, Picos 2 and 3, image 463a5f28 with
+/// the evaluator in RAM and the flash at 62.5 MHz; `docs/native/pico-bench.md` has the measurements):
+///
+/// * `fib(18)`: 8361 calls in 0.385 s, 46 us a call (the first image: 94 us), so the evaluator's slow tick, every 128
+///   calls on the firmware, comes every 5.9 ms (`FIT_IDLE_STEP_US`).
+/// * a small synchronous call `h("1+1")` from one Pico to the other: 3.36 ms (3.34 and 3.43 ms for `h(:f,,7)`); 3.94
+///   ms for a request 40 bytes longer, 8.14 ms for 400 bytes longer (11.9 us a byte; the wire is 8.9); 100 calls
+///   pipelined with `.async` took 1.73 ms each; a 4 KB echo took 92 ms.
+/// * what the wire and the frames explain (the frame costs are the estimates: 10 us received, 5 us sent) is 0.70 ms of
+///   the call. The rest, about 2.65 ms, is neither the wire nor the lane's loop (a loop turn is 200 us), nor the
+///   evaluation (a call of a function and a call of a string, which parses, cost the same): it is the processor
+///   time of the IPC messages, four of them in a call (the request sent and received, the answer sent and received),
+///   about 0.66 ms each on the board (the kdb+ codec, the session and `serve` on an M0+ with no 64-bit
+///   arithmetic and a malloc that takes a few hundred cycles) and 0.88 ms in this model, which has one clock for all
+///   boards and lets some of it pass while a frame is on the wire: `FIT_MSG_US`, charged by `Platform::message_cpu`.
+///   It is a measured total, not a decomposition: nothing on the board separates the codec from the session.
+/// * what the model does not have: two boards' processors working at once. Pipelined, the sim takes 2.8 ms a call
+///   against the board's 1.73, because the clock is shared; bulk transfers are 10 us a byte against 11.9
+///   (a 4 KB echo 82 ms against 92: the sender's loop between two packets, about 0.2 ms a packet, which no
+///   knob here reproduces).
+pub const FIT_IDLE_STEP_US: u64 = 128 * 46;
+pub const FIT_TURN_US: u64 = 800;
+pub const FIT_MSG_US: u64 = 880;
+pub const FIT_RX_US: f64 = 10.0;
+pub const FIT_TX_US: f64 = 5.0;
+
 pub struct BenchPlatform {
     clock: Rc<Cell<u64>>,
+    /// Virtual microseconds for the evaluator's slow tick (`Platform::idle` from an evaluation): `tick_mask + 1`
+    /// calls of Klong functions.
     idle_step: u64,
+    /// A turn of the board's main loop that finds work, and how long a wait lasts (the firmware sleeps 200 us).
+    turn_us: u64,
+    wait_quantum: u64,
+    /// Processor time of one IPC message sent, or received whole and handled (`Platform::message_cpu`).
+    msg_us: u64,
     out: Rc<RefCell<Vec<u8>>>,
     transports: Vec<Box<dyn Transport>>,
     hook: Hook,
@@ -34,6 +67,13 @@ pub struct BenchPlatform {
 }
 
 impl BenchPlatform {
+    /// What `klong_board::step` does first at every turn of the main loop: feed the watchdog (here: serve the lane).
+    fn turn_idle(&mut self) {
+        self.clock.set(self.clock.get() + self.turn_us);
+        self.net.pump();
+        self.peers();
+    }
+
     fn peers(&self) {
         if let Ok(mut h) = self.hook.try_borrow_mut() {
             if let Some(f) = h.as_mut() {
@@ -51,12 +91,23 @@ impl Platform for BenchPlatform {
         None
     }
     fn idle(&mut self) {
-        self.clock.set(self.clock.get() + self.idle_step);
+        // (a spin of a wait loop, or the evaluator's tick after `slow_tick` charged for the calls)
+        self.clock.set(self.clock.get() + 10);
         self.net.pump();
         self.peers();
     }
+    fn slow_tick(&mut self) {
+        self.clock.set(self.clock.get() + self.idle_step);
+        self.idle();
+    }
+    fn message_cpu(&mut self) {
+        self.clock.set(self.clock.get() + self.msg_us);
+    }
     fn console_read(&mut self, buf: &mut [u8]) -> usize {
         self.net.console_read(buf)
+    }
+    fn console_quiet(&self) -> bool {
+        self.net.console_quiet()
     }
     fn console_write(&mut self, bytes: &[u8]) {
         self.out.borrow_mut().extend_from_slice(bytes);
@@ -76,12 +127,10 @@ impl Platform for BenchPlatform {
         self.net.pump();
         self.peers();
         let now = self.clock.get();
-        let mut to = now + 1000;
+        // the firmware's wait sleeps 200 us whatever arrives meanwhile: no wake-up by interrupt
+        let mut to = now + self.wait_quantum;
         if let Some(d) = deadline_us {
             to = to.min(d);
-        }
-        if let Some(e) = self.switch.next_event_us() {
-            to = to.min(e.max(now + 1));
         }
         self.clock.set(to.max(now + 1));
     }
@@ -123,7 +172,14 @@ impl BenchNode {
 
 #[derive(Clone, Copy)]
 pub struct BenchOpts {
+    /// Virtual microseconds per slow tick of the evaluator: `tick_mask + 1` calls of Klong functions at
+    /// `us_per_call` each (fitted to the hardware: see `docs/native/pico-bench.md`).
     pub idle_step_us: u64,
+    /// A turn of the main loop that finds work, and the firmware's wait.
+    pub turn_us: u64,
+    pub wait_quantum_us: u64,
+    /// Processor time of an IPC message sent or received, microseconds (`BenchPlatform::msg_us`).
+    pub msg_us: u64,
     pub seed: u64,
     pub node: Option<fn() -> NodeConfig>,
     /// Override the adapter's packet size and first retransmission timeout (for tuning runs).
@@ -149,7 +205,7 @@ pub struct BenchOpts {
 
 impl Default for BenchOpts {
     fn default() -> BenchOpts {
-        BenchOpts { idle_step_us: 200, seed: 118, node: None, link_mtu: None, rto_ms: None, pings: true, baud: 115_200, rx_cost_us: 10.0, tx_cost_us: 5.0, rx_ring: 32 * 1024, tx_ring: 0, selftest: false }
+        BenchOpts { idle_step_us: FIT_IDLE_STEP_US, turn_us: FIT_TURN_US, wait_quantum_us: 200, msg_us: FIT_MSG_US, seed: 118, node: None, link_mtu: None, rto_ms: None, pings: true, baud: 115_200, rx_cost_us: FIT_RX_US, tx_cost_us: FIT_TX_US, rx_ring: 16 * 1024, tx_ring: 0, selftest: false }
     }
 }
 
@@ -204,6 +260,9 @@ fn make_node(clock: &Rc<Cell<u64>>, switch: &Switch, opts: BenchOpts, index: usi
     let platform = BenchPlatform {
         clock: clock.clone(),
         idle_step: opts.idle_step_us,
+        turn_us: opts.turn_us,
+        msg_us: opts.msg_us,
+        wait_quantum: opts.wait_quantum_us,
         out: out.clone(),
         transports: vec![net.transport()],
         hook: hook.clone(),
@@ -212,7 +271,7 @@ fn make_node(clock: &Rc<Cell<u64>>, switch: &Switch, opts: BenchOpts, index: usi
         fs: klong_rt::memfs::MemFs::new(),
         seed: opts.seed ^ (index as u64 + 1) * 0x9e37_79b9 ^ generation << 20,
     };
-    let mut console = Console::new(Runtime::new(platform, Config::default(), None), ConsoleConfig::default());
+    let mut console = Console::new(Runtime::new(platform, Config { tick_mask: 127, ..Config::default() }, None), ConsoleConfig::default());
     console.start();
     out.borrow_mut().clear(); // the banner and the first prompt
     let console = Rc::new(RefCell::new(console));
@@ -346,6 +405,12 @@ impl Bench {
                 if let Ok(mut c) = n.console.try_borrow_mut() {
                     // a board's turn: the console, the lane's input, the events
                     c.lane_begin(&n.net);
+                    // klong_board::step calls Platform::idle first (it feeds the watchdog and, here, serves the lane
+                    // and lets time pass) and only then reads the console: input that arrives meanwhile is read in
+                    // the same turn, after `lane_begin` looked
+                    if let Ok(mut p) = c.rt.shared.platform.try_borrow_mut() {
+                        p.turn_idle();
+                    }
                     did |= c.poll();
                     c.lane_end(&n.net);
                     let rt = &mut c.rt;

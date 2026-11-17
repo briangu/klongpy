@@ -67,7 +67,8 @@ struct NodeState {
     buf: VecDeque<u8>,
     /// Counter of the first byte in `buf`.
     base: u64,
-    done: Option<(u16, String)>,
+    /// The newest first, at most 8.
+    dones: VecDeque<(u16, String)>,
     info: String,
     selftest: String,
     queue: VecDeque<Out>,
@@ -122,6 +123,8 @@ pub struct Output {
     pub online: bool,
     pub klong: bool,
     pub done: Option<(u16, String)>,
+    /// The newest 8, newest first (`done` is the first).
+    pub dones: Vec<(u16, String)>,
     pub sent: (u16, Sent),
 }
 
@@ -131,6 +134,8 @@ pub struct NodeInfo {
     pub load: u8,
     pub info: String,
     pub selftest: String,
+    /// The STATUS flags byte of the node's last STATUS (0 if none).
+    pub flags: u8,
 }
 
 impl Bridge {
@@ -196,7 +201,8 @@ impl Bridge {
                     if let Some(rest) = t.strip_prefix("done ") {
                         let mut w = rest.split(' ');
                         if let (Some(id), Some(status)) = (w.next().and_then(|v| v.parse::<u16>().ok()), w.next()) {
-                            n.done = Some((id, status.to_string()));
+                            n.dones.push_front((id, status.to_string()));
+                            n.dones.truncate(8);
                         }
                     } else if t.starts_with("klong ") {
                         n.info = t.chars().take(160).collect();
@@ -273,13 +279,18 @@ impl Bridge {
 
     /// Console input for a node: lines, a newline added if there is none. The id of the message.
     pub fn eval(&self, node: usize, body: &[u8]) -> Result<u16, EvalError> {
+        self.eval_with(node, body, false)
+    }
+
+    /// `raw`: the body goes as it is: no newline is added and nothing is echoed (for upload commands).
+    pub fn eval_with(&self, node: usize, body: &[u8], raw: bool) -> Result<u16, EvalError> {
         self.poll();
         self.check_node(node, true)?;
         if body.is_empty() {
             return Err(EvalError::Empty);
         }
         let mut text = body.to_vec();
-        if text.last() != Some(&b'\n') {
+        if !raw && text.last() != Some(&b'\n') {
             text.push(b'\n');
         }
         if text.len() > 1024 {
@@ -287,6 +298,9 @@ impl Bridge {
         }
         let mut st = self.state.borrow_mut();
         let id = self.queue(&mut st, node, CH_CONSOLE, &text)?;
+        if raw {
+            return Ok(id);
+        }
         // the transcript shows each line typed, after a prompt, before its result
         let n = &mut st.nodes[node];
         let mut echo = Vec::new();
@@ -343,7 +357,7 @@ impl Bridge {
         }
         let data: Vec<u8> = n.buf.iter().skip((start - n.base) as usize).take((end - start) as usize).copied().collect();
         let klong = online && flags & 0x10 != 0;
-        Ok(Output { next: end, data, lost, load: if klong { load } else { 0 }, online, klong, done: n.done.clone(), sent: (n.last_id, n.last_state.unwrap_or(Sent::None)) })
+        Ok(Output { next: end, data, lost, load: if klong { load } else { 0 }, online, klong, done: n.dones.front().cloned(), dones: n.dones.iter().cloned().collect(), sent: (n.last_id, n.last_state.unwrap_or(Sent::None)) })
     }
 
     pub fn nodes(&self) -> Vec<NodeInfo> {
@@ -352,7 +366,7 @@ impl Bridge {
         (0..NODES)
             .map(|i| {
                 let (flags, load, online) = self.flags(i);
-                NodeInfo { online, klong: online && flags & 0x10 != 0, load: if online { load } else { 0 }, info: st.nodes[i].info.clone(), selftest: st.nodes[i].selftest.clone() }
+                NodeInfo { online, klong: online && flags & 0x10 != 0, load: if online { load } else { 0 }, flags: if online { flags } else { 0 }, info: st.nodes[i].info.clone(), selftest: st.nodes[i].selftest.clone() }
             })
             .collect()
     }
@@ -376,7 +390,8 @@ impl Bridge {
             }
             Some("eval") => {
                 let node = w.next().and_then(|v| v.parse::<usize>().ok()).unwrap_or(99);
-                match self.eval(node, &hex(w.next().unwrap_or(""))) {
+                let raw = w.next() == Some("raw");
+                match self.eval_with(node, &hex(w.next().unwrap_or("")), raw) {
                     Ok(id) => format!("ok {}", id),
                     Err(e) => err(e),
                 }
@@ -390,7 +405,7 @@ impl Bridge {
                 let from = w.next().and_then(|v| v.parse::<u64>().ok());
                 match self.output(node, from) {
                     Ok(o) => format!(
-                        "ok node={} next={} load={} online={} klong={} lost={} done={} sent={}:{} data={}",
+                        "ok node={} next={} load={} online={} klong={} lost={} done={} dones={} sent={}:{} data={}",
                         node,
                         o.next,
                         o.load,
@@ -398,6 +413,7 @@ impl Bridge {
                         o.klong as u8,
                         o.lost as u8,
                         o.done.map_or("-".to_string(), |d| format!("{}:{}", d.0, d.1)),
+                        if o.dones.is_empty() { "-".to_string() } else { o.dones.iter().map(|d| format!("{}:{}", d.0, d.1)).collect::<Vec<_>>().join(",") },
                         o.sent.0,
                         o.sent.1.name(),
                         tohex(&o.data)
@@ -412,7 +428,7 @@ impl Bridge {
             Some("nodes") => {
                 let mut out = String::new();
                 for (i, n) in self.nodes().iter().enumerate() {
-                    out.push_str(&format!("node {} online={} klong={} load={} info={} selftest={}\n", i, n.online as u8, n.klong as u8, n.load, tohex(n.info.as_bytes()), tohex(n.selftest.as_bytes())));
+                    out.push_str(&format!("node {} online={} klong={} load={} flags={} info={} selftest={}\n", i, n.online as u8, n.klong as u8, n.load, n.flags, tohex(n.info.as_bytes()), tohex(n.selftest.as_bytes())));
                 }
                 out.push_str("end");
                 out

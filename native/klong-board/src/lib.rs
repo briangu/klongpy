@@ -28,6 +28,11 @@ use klong_rt::{FileId, FileSystem, FsError, MemStats, Mode, Platform, Runtime};
 
 /// The serial port of the console.
 pub trait Uart {
+    /// True while the bytes being read come from a program that wants neither echo nor prompt (see
+    /// `Platform::console_quiet`).
+    fn quiet(&self) -> bool {
+        false
+    }
     /// Bytes that have arrived, at most `buf.len()`; 0 when there are none. Must not wait.
     /// The driver's receive buffer must hold what arrives while the interpreter is busy for
     /// one tick (a few milliseconds) or while flash is written; what does not fit is lost.
@@ -194,6 +199,9 @@ impl<U: Uart, C: Clock, S: System, F: FileSystem> Platform for BoardPlatform<U, 
     fn exit(&mut self, code: i32) {
         self.system.reset(code)
     }
+    fn console_quiet(&self) -> bool {
+        self.uart.quiet()
+    }
     fn transports(&mut self) -> &mut [alloc::boxed::Box<dyn klong_rt::link::Transport>] {
         &mut self.transports
     }
@@ -211,6 +219,9 @@ pub struct BoardConfig {
     /// per level of Klong recursion on a 32-bit target, so 16 KiB gives about 14 levels and
     /// 64 KiB about 60.
     pub stack_bytes: usize,
+    /// Of `stack_bytes`, what is kept for what runs below the deepest evaluation (0: a quarter of it): see
+    /// `Config::for_stack_keep`.
+    pub stack_keep: usize,
     /// Heap figures (used, peak, limit) for `.mem()` and `ver`: `Counting::used` and friends.
     pub mem: Option<MemStats>,
     /// True when the allocator lives on its reserve (`Counting::pressed`): the evaluation
@@ -223,13 +234,13 @@ pub struct BoardConfig {
 
 impl Default for BoardConfig {
     fn default() -> BoardConfig {
-        BoardConfig { stack_bytes: 32 * 1024, mem: None, mem_pressed: None, strict: 0, console: ConsoleConfig::default() }
+        BoardConfig { stack_bytes: 32 * 1024, stack_keep: 0, mem: None, mem_pressed: None, strict: 0, console: ConsoleConfig::default() }
     }
 }
 
 /// Build the runtime and its console, run `boot.kg`, print the banner and the first prompt.
 pub fn start<P: Platform + 'static>(platform: P, cfg: BoardConfig) -> Console<P> {
-    let config = Config { strict: cfg.strict, mem_probe: cfg.mem_pressed, ..Config::for_stack(cfg.stack_bytes) };
+    let config = Config { strict: cfg.strict, mem_probe: cfg.mem_pressed, ..Config::for_stack_keep(cfg.stack_bytes, cfg.stack_keep) };
     let rt = Runtime::new(platform, config, cfg.mem);
     let mut console = Console::new(rt, ConsoleConfig { mem: cfg.mem, ..cfg.console });
     console.start();

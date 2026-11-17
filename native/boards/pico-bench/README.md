@@ -1,9 +1,11 @@
 # Klong on the 4-Pico bench
 
-Status: **built, not yet run on hardware.** Nothing here has been flashed to a Pico or seen a
-lane. Everything below the C shell (`main.c`) was run on the host and in the simulator
-(`klong-sim`, with a model of the bench's switch); `main.c` and the image were only compiled
-and linked. The design and the simulator results are in `docs/native/pico-bench.md`.
+Status: **run on two Picos of the bench (2026-11-16).** The image flashed that day (SHA-256
+`463a5f28...a0fd`) booted, passed its self-test, and carried calls between two Picos; the
+figures marked *measured* are from them. The image of the last round (below) is built and not yet
+flashed: figures marked *predicted* are for it. Everything below the C shell (`main.c`) was also
+run on the host and in the simulator (`klong-sim`, with a model of the bench's switch, fitted to
+the measurements). The design and the results are in `docs/native/pico-bench.md`.
 
 A Raspberry Pi Pico (RP2040) as one node of the bench: it learns its node number from its
 lane, answers the supervisor's PING and sends STATUS, carries messages of up to 1024 bytes
@@ -34,17 +36,22 @@ The SDK and the toolchain are only read. Nothing is flashed and no port is opene
 `build.sh`: `KLONG_SELFTEST=0` leaves the boot self-test out, `LANE_BAUD=115200` builds for the
 slow lane, `KLONG_OPT=z` makes the smaller image.
 
-Measured on 2026-11-16 (SDK 2.3.1, GCC 15.3.1): `.bin` 623,172 bytes (30% of the 2 MB flash;
-the `.uf2` is 1,246,720 bytes because of its 256-byte blocks); with `KLONG_OPT=z` about 430,000.
-Static RAM: `.data` 9.3 KB, `.bss` 93.7 KB (of which the interpreter's 48 KB stack, the 32 KB
-receive ring and the 8 KB transmit ring), 159 KB left for the heap, of which Klong may use 112 KB.
+Measured on 2026-11-16 (SDK 2.3.1, GCC 15.3.1), the image of the last round: `.bin` 641,468 bytes
+(31% of the 2 MB flash; the `.uf2` is 1,283,072 bytes because of its 256-byte blocks); with
+`KLONG_OPT=z` about 430,000. RAM, from the linker's symbols (`build.sh` prints it): `.data` and
+`.bss` 54,764 bytes (the evaluator's hot functions 16 KB, the 16 KB receive ring, the 8 KB transmit
+ring), a heap of 75,284 bytes, the interpreter's stack of 140,288 bytes from the top of RAM, of
+270,336 in all. `KLONG_STACK_KB=96 ./build.sh` gives the stack 96 KB and the heap what is left (the
+table in `docs/native/pico-bench.md#ram-stack-and-heap` has the other sizes). The reasons for the
+split and the predictions for this image (about 6,000 for the largest `#!n`, 155 to 160 levels of
+recursion, `fib(18)` 0.385 to 0.40 s, self-test 125 to 140 ms) are there.
 
 ## What it does with the hardware
 
 | | |
 |---|---|
 | Lane | uart0, **GP16 TX, GP17 RX**, `uart_init(uart0, 4500000)` (4.505 Mbaud at the 125 MHz `clk_peri`, which is kept; the router tolerates 3%), 8N1, no flow control, FIFOs on, RX pull-up on GP17. Nothing else uses these pins; the SDK's stdio over UART is switched off. |
-| Receive | the UART interrupt (highest priority; FIFO level 8 bytes plus the receive timeout) moves bytes into a **32 KB ring**: 2048 frames, 73 ms of a lane that never pauses. The 32-byte FIFO alone fills in 71 us. Counters: ring overruns, FIFO overruns, line errors. |
+| Receive | the UART interrupt (highest priority; FIFO level 8 bytes plus the receive timeout) moves bytes into a **16 KB ring**: 1024 frames, 37 ms of a lane that never pauses. The 32-byte FIFO alone fills in 71 us. Counters: ring overruns, FIFO overruns, line errors. |
 | Transmit | the runtime copies frames into an **8 KB ring** and returns; the transmit interrupt (FIFO half empty) feeds the wire. At most 12 ms of wire time (5.4 KB at 4.5 Mbaud, 128 bytes at 115200) may wait in it; the runtime offers the rest at its next turn, so the interpreter never waits for the wire and an ACK is not stuck behind a full window. A full ring is counted (`tx ring full`). |
 | USB | CDC console (pico_stdio_usb), raw bytes, nothing is dropped except when no host is attached |
 | Not touched | RUN, SWD, every other GPIO, the second core, flash (the image has no flash file system: uploads live in RAM and are lost at reset) |
@@ -52,7 +59,7 @@ receive ring and the 8 KB transmit ring), 159 KB left for the heap, of which Klo
 | Frames it understands | PING, answered with PONG (type 2, source = this node, destination = the sender, **the same sequence, length 0**, opaque byte 16); datagram frames (APP_DATA, sub-types 0xD0..0xD3). It sends STATUS (type 3, to 16, **once a second**, length 4: `payload[0]` load 0..100 (always 0), `payload[1]` flags, `payload[2..3]` uptime seconds u16 LE, monotonic, saturating at 65535). Every other valid frame is ignored silently, in particular the deployer's APP_DATA sub-types 0xA0..0xB1 and 0xE1/0xE2 (tested with floods of them between datagram frames). |
 | Does not do | the bench OS's app loader (sub-types 0xA0..0xB1) and echo service (0xE1/0xE2): this image replaces that OS |
 | Reset | `.x(0)` restarts the chip through the watchdog |
-| Memory | interpreter stack 48 KB static (the stack pointer is moved there at start; Klong is given 42 KB), heap: newlib `malloc`, limit 112 KB, 16 KB held back for errors; lane buffers (7.8 KB for 6 reassembly slots, plus up to 16 KB of stream buffers per open connection) come from that heap; the 112 KB limit leaves 47 KB for allocator overhead |
+| Memory | interpreter stack 137 KB from the top of RAM (the stack pointer is moved there at start; Klong is given 133 KB, of which 16 KB are kept for what runs below its deepest level), heap: newlib `malloc` over the 73.5 KB between `.bss` and the stack, with `_sbrk` in `main.c`; the runtime's limit is the arena less 4% (72,273 bytes), a vector may take it up to 6 KB short of that (66,129), and `_sbrk` keeps the top 6 KB for small blocks (`klong_heap.h`); small blocks wait on free lists of their size class, up to 8 KB; lane buffers (7.8 KB for 6 reassembly slots, plus up to 16 KB of stream buffers per open connection) come from that heap |
 
 Ctrl-T (0x14) on the USB console prints the counters instead of reaching Klong: frames,
 datagram outcomes, UART overruns (`rx ring overruns` is the one that says the main loop was away
@@ -101,7 +108,7 @@ channel 1 sees these lines among any console text.
 
 ## Interactive Klong from a page or a workstation
 
-**Status: the node side and the workstation CLI are built and tested in the simulator, against a model of the supervisor's bridge and against a stand-in for its HTTP API; no Pico has run them.** `docs/native/pico-bench.md`, "Interactive use", has the format.
+**Status: the node side and the workstation CLI are built and tested in the simulator, against a model of the supervisor's bridge and against a stand-in for its HTTP API, and have run on two Picos through the real bridge (2026-11-16: `status`, `eval`, the measurements of `docs/native/pico-bench.md`).** `docs/native/pico-bench.md`, "Interactive use", has the format.
 
 On the node: channel 1 is the console (input datagrams with the ACK flag, ending at a line end, at most 1024 bytes; output as text without ACK to the address that last sent input; no echo and no prompt on the lane), channel 2 is control (`done ID ok|error|interrupted` after the output, `int` to interrupt, `hello`), channel 3 is the boot self-test report. STATUS flags are `0x11` alive, `0x31` self-test serving or running, `0x51` pass, `0x91` fail (bit `0x10`: not a cube node), and the load is 100 while input is being evaluated. Ctrl-T on the USB console shows `console peer`, the dropped input and output counts.
 
@@ -126,7 +133,7 @@ received and 5 us per frame sent (estimates for a Cortex-M0+ at 125 MHz); a real
 several times slower, so the waits below are generous.
 
 0. **Before anything**: `cd native && cargo test --release --workspace` passes, and
-   `./build.sh` made `build/klong_pico_bench.uf2` (check: its `.bin` is 623,172 bytes; the
+   `./build.sh` made `build/klong_pico_bench.uf2` (check: its `.bin` is 641,468 bytes; the
    lane is 4.5 Mbaud and the self-test is on). Decide which two Picos, say nodes 0 and 1 (any two:
    with nodes 1 and 3, node 3 tries 2, waits 3 s, and uses 1). The other two keep the bench
    firmware or stay in reset; this image ignores their frames and they ignore ours.
@@ -139,7 +146,7 @@ several times slower, so the waits below are generous.
    for the lower node to listen, 0.1 s of calls). Success, on the supervisor:
    * the higher node's STATUS flags change from `0x31` to **`0x51`** (the next STATUS after the
      test, so at most 1 s later), and a channel-1 datagram from it reads
-     `klong selftest pass <ms>ms node=1 peer=0 ...` (the model: 94 ms; accept up to 2000 ms);
+     `klong selftest pass <ms>ms node=1 peer=0 ...` (measured on the previous image: 125 ms; the model: 116 ms; accept up to 2000 ms);
    * the lower node stays at `0x31` and reports `klong selftest serving node=0 calls=5` (5 calls
      answered: sync, async, sync, echo, mgmt), repeated every 3 s.
 4. **How long before it is a failure**: if after **30 s** no node has left `0x31`, or a node's flags
@@ -151,7 +158,7 @@ several times slower, so the waits below are generous.
    `node` numbers, `frames rx/tx`, `bad crc`, `rx ring overruns`.
 5. **Then, with a cable on one Pico** (USB CDC): Enter gives `klong> `; `1+2` gives `3`;
    `h::.cli("node:0");t::.pc();h(:stping0,,5);.pc()-t` (on the higher node, after the self-test
-   closed its connection) gives the round trip in seconds (the model: about 0.001);
+   closed its connection) gives the round trip in seconds (measured: about 0.0034);
    `big::!6000;(h(:stecho0,,big))~big` gives `1` (48 KB each way in about 0.5 s in the model).
    `{1}{x+1}:~0` runs until Ctrl-C while the supervisor keeps seeing PONGs (the interrupt serves
    the lane); Ctrl-T afterwards must show `rx ring overruns 0`.
@@ -171,17 +178,22 @@ several times slower, so the waits below are generous.
 
 ## Not verified without hardware
 
-* That the image boots: the stack switch (`msr msp` in `main.c`), the interrupt, the USB CDC
-  and stdio set-up, the clock; all compiled and linked only.
-* That 48 KB of stack is right: the interpreter's use per level of Klong recursion on a
-  Cortex-M0+ was not measured (about 0.8 KB on 64-bit hosts); `f::{f(x+1)};f(0)` must give a
-  `range` error, not a crash.
-* UART behaviour at 28,125 frames/s: the interrupt keeping up (about 7% of the processor when
-  saturated, an estimate), the FIFO never overrunning (71 us to fill), the 32 KB ring while the
-  interpreter evaluates, the 12 ms transmit limit, the value of clk_peri and the real baud rate
-  (Ctrl-T prints it).
-* The speed of soft-float `f64` and 64-bit arithmetic on the M0+, and the processor time per
-  frame (the simulator charges 10 us received, 5 us sent, and 0.2 ms per 4096 evaluation steps:
-  estimates), hence the real latency of a call and whether the endpoints keep up with the lane.
+Shown on 2026-11-16 (two Picos, the image flashed that day): the boot (the stack switch, the
+interrupt, the clock, the real baud rate well enough for the lane), the self-test, calls, the
+evaluator's `range` error at its depth limit (90 levels, 745 bytes a level: measured), the STATUS
+the supervisor accepts. Still open:
+
+* The USB CDC console and stdio set-up (no cable was on a Pico).
+* That the image of the last round (137 KB of stack from the top of RAM, a heap of 73.5 KB, a
+  hand-written `_sbrk`) boots and does what the predictions in `docs/native/pico-bench.md` say:
+  `f::{:[x;1+f(x-1);0]};f(150)` works and `f(200)` is a `range` error, `#!6000` works on a node that is idle
+  and on the client of the self-test alike, `#!8000` is a memory error after which `.mem()` shows the same
+  use and a smaller vector works.
+* UART behaviour at 28,125 frames/s under a sustained bulk transfer in both directions: the interrupt keeping up
+  (about 7% of the processor when saturated, an estimate), the FIFO never overrunning (71 us to
+  fill), the 16 KB ring while the interpreter evaluates, the 12 ms transmit limit (Ctrl-T prints the counters).
+* The speed of soft-float `f64` on the M0+ (the measurements are of integers), and the processor time per
+  frame (the simulator charges 10 us received, 5 us sent: estimates, hidden behind the wire in every
+  measurement; the 2.6 ms of a call that neither the wire nor the evaluation explains is charged per IPC message).
 * The supervisor's behaviour with this image: that PONG and STATUS in the format above are what
   it expects (they follow `software/worker/runtime.h` of the bench sources).

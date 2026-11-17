@@ -514,9 +514,9 @@ impl<'a> Parser<'a> {
             let fa = self.read_fn_args()?;
             let call = !fa.contains(&NONE.0);
             let args = self.tree.range(&fa);
-            Node::Fn { a, args, has_args: true, arity, call }
+            Node::Fn { a, args, has_args: true, arity, call, literal: true }
         } else {
-            Node::Fn { a, args: Range::default(), has_args: false, arity, call: false }
+            Node::Fn { a, args: Range::default(), has_args: false, arity, call: false, literal: false }
         };
         let e = self.lx.end();
         Ok(self.add(node, (st, e)))
@@ -1188,7 +1188,7 @@ impl<'a> Parser<'a> {
                     let arity = fa.len().min(255) as u8;
                     let args = self.tree.range(&fa);
                     let e = self.lx.end();
-                    a = self.add(Node::Fn { a, args, has_args: true, arity, call }, (st, e));
+                    a = self.add(Node::Fn { a, args, has_args: true, arity, call, literal: false }, (st, e));
                 }
                 if let Some(aa) = self.peek_adverb() {
                     a = self.apply_adverbs(a, aa, 1, st, st, false, NONE)?;
@@ -1345,7 +1345,7 @@ impl<'a> Parser<'a> {
                         let arity = fa.len().min(255) as u8;
                         let args = self.tree.range(&fa);
                         let e = self.lx.end();
-                        aa = self.add(Node::Fn { a: aa, args, has_args: true, arity, call }, (tok.start, e));
+                        aa = self.add(Node::Fn { a: aa, args, has_args: true, arity, call, literal: false }, (tok.start, e));
                     }
                 }
                 K::LBrace => {
@@ -1396,7 +1396,7 @@ impl<'a> Parser<'a> {
                     Some(o) => self.add(Node::Dyad { op: o, l: a, r, missing }, (st, e)),
                     None => {
                         let args = self.tree.range(&[a.0, r.0]);
-                        self.add(Node::Fn { a: aa, args, has_args: true, arity: 2, call: false }, (st, e))
+                        self.add(Node::Fn { a: aa, args, has_args: true, arity: 2, call: false, literal: false }, (st, e))
                     }
                 };
             }

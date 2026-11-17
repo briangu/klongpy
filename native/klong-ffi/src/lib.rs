@@ -61,6 +61,8 @@ pub struct KlongConfig {
     pub fatal: Option<unsafe extern "C" fn(Ctx, *const c_char, usize)>,
     pub name: *const c_char,
     pub flags: u32,
+    /// Of `stack_bytes`, what is kept for the bottom of the recursion (0: a quarter).
+    pub stack_keep: usize,
 }
 
 /// A static that one task uses. klong.h requires every call and callback to be on the task
@@ -120,6 +122,14 @@ fn pressed() -> bool {
 
 struct CUart;
 impl Uart for CUart {
+    fn quiet(&self) -> bool {
+        #[cfg(feature = "lane")]
+        {
+            lane::quiet()
+        }
+        #[cfg(not(feature = "lane"))]
+        false
+    }
     fn read(&mut self, buf: &mut [u8]) -> usize {
         let n = match hooks() {
             // SAFETY: klong.h: `read` writes at most `cap` bytes into `buf` and returns the
@@ -279,6 +289,7 @@ pub unsafe extern "C" fn klong_init(config: *const KlongConfig) -> i32 {
     platform.crlf = cfg.flags & KLONG_FLAG_CRLF != 0;
     let board = BoardConfig {
         stack_bytes: cfg.stack_bytes,
+        stack_keep: cfg.stack_keep,
         mem: Some(mem),
         mem_pressed: Some(pressed),
         console: ConsoleConfig { dumb: cfg.flags & KLONG_FLAG_DUMB != 0, ..ConsoleConfig::default() },
@@ -473,6 +484,9 @@ mod lane {
             l.net.pump();
         }
     }
+    pub fn quiet() -> bool {
+        get().is_some_and(|l| l.console && l.net.console_quiet())
+    }
     pub fn local_input() {
         if let Some(l) = get() {
             if l.console {
@@ -545,6 +559,20 @@ mod lane {
             target: state.console.rt.shared.platform.try_borrow().map(|p| alloc::string::String::from(p.system.name())).unwrap_or_default(),
             ..base
         };
+        // A Cortex-M0+ spends about 90 us on a call of a Klong function: with the default slow tick (every 4096 calls)
+        // the lane would not be looked at for 0.4 s during an evaluation. Every 128 calls is about 12 ms. And the
+        // evaluator keeps an eighth of the stack, not a quarter, for what runs at the bottom of the recursion
+        // (this board's stack is small and recursion depth is what it is short of).
+        {
+            let ip = &mut state.console.rt.interp.cfg;
+            ip.tick_mask = 127;
+            if let (Some(h), Some(_)) = (hooks(), ip.stack_limit) {
+                let bytes = h.stack_bytes;
+                let keep = (bytes / 8).max(4096).min(bytes / 2);
+                ip.stack_limit = Some(bytes - keep);
+                ip.max_nest = ((keep / 2) / 384).clamp(8, ip.max_nest.max(8) as usize) as u32;
+            }
+        }
         let net = NodeNet::new(Box::new(CLane(cfg)), Box::new(|| CClock::now_ms().saturating_mul(1000)), node);
         match state.console.rt.shared.platform.try_borrow_mut() {
             Ok(mut p) => p.transports.push(net.transport()),

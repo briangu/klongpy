@@ -48,6 +48,10 @@ pub struct Config {
     pub strict: u8,
     /// Stop with an `interrupt` error after this many ticks (fuzzing, tests).
     pub step_limit: Option<u64>,
+    /// The slow tick (the platform's `idle`, Ctrl-C, the lane) runs when `ticks & tick_mask == 0`: every
+    /// 4096 calls and adverb iterations by default. A slow processor lowers it: a Cortex-M0+ takes about
+    /// 90 us for a call of a Klong function, so 4096 of them are 0.4 s without a look at the lane.
+    pub tick_mask: u32,
     /// Set from outside (an interrupt handler) to stop the evaluation. Must live in memory
     /// where atomics work (internal RAM on the chips of `ref-platforms.md`).
     pub interrupt: Option<&'static AtomicBool>,
@@ -72,7 +76,7 @@ pub const STACK_PER_NEST: usize = 384;
 
 impl Default for Config {
     fn default() -> Config {
-        Config { max_depth: 512, strict: 0, step_limit: None, interrupt: None, mem_probe: None, stack_limit: None, max_nest: crate::value::DEFAULT_MAX_NEST }
+        Config { max_depth: 512, strict: 0, step_limit: None, tick_mask: 4095, interrupt: None, mem_probe: None, stack_limit: None, max_nest: crate::value::DEFAULT_MAX_NEST }
     }
 }
 
@@ -82,7 +86,14 @@ impl Config {
     /// nested data, a system function, the platform), the rest is the evaluator's, and data
     /// nesting is capped so that a walk fits in half of what is kept.
     pub fn for_stack(bytes: usize) -> Config {
-        let keep = (bytes / 4).max(2048).min(bytes / 2);
+        Config::for_stack_keep(bytes, 0)
+    }
+
+    /// `for_stack` with the part kept for the bottom of the recursion given (0: a quarter). A board that knows
+    /// what runs there (the lane's pump, a walk over nested data) can keep less and give the evaluator more.
+    pub fn for_stack_keep(bytes: usize, keep: usize) -> Config {
+        let keep = if keep == 0 { bytes / 4 } else { keep };
+        let keep = keep.max(2048).min(bytes / 2);
         let nest = ((keep / 2) / STACK_PER_NEST).clamp(8, crate::value::DEFAULT_MAX_NEST as usize) as u32;
         Config { stack_limit: Some(bytes - keep), max_nest: nest, max_depth: u32::MAX, ..Config::default() }
     }
@@ -153,6 +164,14 @@ pub struct Interp {
     hooks: Box<dyn Hooks>,
     depth: u32,
     ticks: u64,
+    /// Emptied vectors kept for the next call: a call of a Klong function would otherwise allocate and free
+    /// its argument frame and its list of projection layers (a Cortex-M0+ takes a few hundred cycles for each).
+    frame_pool: Vec<Frame>,
+    /// The function values made for a few tree nodes lately (a function literal's body is made into one at every
+    /// call: an allocation). Each entry keeps its tree alive, so a tree's address cannot be taken for another's.
+    body_cache: core::cell::RefCell<[Option<(usize, NodeId, Value)>; 8]>,
+    body_next: Cell<u8>,
+    layer_pool: Vec<Vec<Layer>>,
     module: Option<String>,
     /// High-water mark of `depth` (for sizing a board's stack).
     pub max_depth_seen: u32,
@@ -196,6 +215,10 @@ impl Interp {
             hooks,
             depth: 0,
             ticks: 0,
+            frame_pool: Vec::new(),
+            body_cache: core::cell::RefCell::new([None, None, None, None, None, None, None, None]),
+            body_next: Cell::new(0),
+            layer_pool: Vec::new(),
             module: None,
             max_depth_seen: 0,
         }
@@ -264,6 +287,11 @@ impl Interp {
         self.running += 1;
         let r = self.run_parsed(text, name);
         self.running -= 1;
+        if self.running == 0 {
+            // between two programs the pools of vectors made for speed (and the recent function bodies, each of
+            // which keeps its parse tree) give their memory back: a board has no memory to keep for them
+            self.release_caches();
+        }
         r
     }
 
@@ -392,6 +420,7 @@ impl Interp {
     /// `unit` of module `geo`); and a module's name that the module does not define is looked
     /// up, as a plain name, in the scopes older than the module.
     #[inline]
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_global_ref")]
     fn global_ref(&self, s: SymId) -> Option<&Value> {
         if self.scopes.len() <= 1 {
             return self.globals.get(s.0 as usize)?.as_ref();
@@ -452,7 +481,7 @@ impl Interp {
     #[inline]
     pub(crate) fn tick(&mut self) -> Result<()> {
         self.ticks += 1;
-        if self.ticks & 4095 == 0 {
+        if self.ticks & self.cfg.tick_mask as u64 == 0 {
             return self.slow_tick();
         }
         // Every call and every adverb iteration allocates a little through paths that cannot
@@ -502,6 +531,8 @@ impl Interp {
         }
         Ok(())
     }
+
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_push_frame")]
 
     fn push_frame(&mut self, f: Frame) -> Result<()> {
         self.frames.try_reserve(1).map_err(|_| Error::memory())?;
@@ -563,6 +594,8 @@ impl Interp {
         Ok(())
     }
 
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_unshadow")]
+
     fn unshadow(&mut self, f: &Frame) {
         for (s, _) in f {
             if let Some(c) = self.shadow.get_mut(s.0 as usize) {
@@ -571,13 +604,33 @@ impl Interp {
         }
     }
 
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_pop_frame")]
+
     fn pop_frame(&mut self) {
-        if let Some(f) = self.frames.pop() {
+        if let Some(mut f) = self.frames.pop() {
             self.unshadow(&f);
+            f.clear();
+            if self.frame_pool.len() < 32 && f.capacity() <= 16 {
+                self.frame_pool.push(f);
+            }
+        }
+    }
+
+    /// An empty frame with room for `n` entries, from the pool when there is one.
+    #[inline]
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_new_frame")]
+    fn new_frame(&mut self, n: usize) -> Result<Frame> {
+        match self.frame_pool.pop() {
+            Some(mut f) => {
+                f.try_reserve(n).map_err(|_| Error::memory())?;
+                Ok(f)
+            }
+            None => try_vec(n),
         }
     }
 
     /// The value of a name: the innermost frame that binds it, else the global.
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_lookup")]
     pub fn lookup(&self, s: SymId) -> Result<Option<Value>> {
         if self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0 {
             for f in self.frames.iter().rev() {
@@ -660,12 +713,26 @@ impl Interp {
 
     /// A tree node as a value in function position: a leaf is its value, a name is the symbol,
     /// anything else is the node itself.
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_node_value")]
     fn node_value(&self, tree: &Rc<Tree>, id: NodeId) -> Value {
         match tree.node(id) {
             Node::Lit(v) => v.clone(),
             Node::Sym(s) | Node::QSym(s) => Value::Sym(*s),
             Node::OpVal { op, .. } => Value::Prim(*op),
-            _ => Value::Fn(Rc::new(Func::Code { tree: tree.clone(), node: id })),
+            _ => {
+                let key = Rc::as_ptr(tree) as usize;
+                if let Ok(mut c) = self.body_cache.try_borrow_mut() {
+                    if let Some((_, _, v)) = c.iter().flatten().find(|(t, n, _)| *t == key && *n == id) {
+                        return v.clone();
+                    }
+                    let v = Value::Fn(Rc::new(Func::Code { tree: tree.clone(), node: id }));
+                    let k = self.body_next.get() as usize % 8;
+                    self.body_next.set(self.body_next.get().wrapping_add(1));
+                    c[k] = Some((key, id, v.clone()));
+                    return v;
+                }
+                Value::Fn(Rc::new(Func::Code { tree: tree.clone(), node: id }))
+            }
         }
     }
 
@@ -680,8 +747,98 @@ impl Interp {
         }
     }
 
+    /// Let go of what the evaluator keeps for speed: the recent function bodies (each holds its whole parse tree
+    /// alive, so the tree of a library that was loaded and dropped stays) and the pool of argument layers.
+    pub fn release_caches(&mut self) {
+        if let Ok(mut c) = self.body_cache.try_borrow_mut() {
+            *c = [None, None, None, None, None, None, None, None];
+        }
+        self.layer_pool.clear();
+        self.layer_pool.shrink_to_fit();
+        self.frame_pool.clear();
+        self.frame_pool.shrink_to_fit();
+        if self.frames.is_empty() {
+            self.frames = Vec::new();
+        }
+    }
+
+    /// KlongPy `_CALLABLE`: what a call may be made on.
+    fn is_callable(v: &Value) -> bool {
+        matches!(v, Value::Fn(_) | Value::Prim(_))
+    }
+
+    /// KlongPy `_names_function`: `v`, the value found for the name `name` being called, is a symbol that
+    /// leads to a function or to nothing defined (a call through a variable holding a symbol: the call then
+    /// fails as an undefined function, as it always has). False for any other value, and for a symbol
+    /// that names itself (what an undefined name is at strict level 0).
+    #[inline(never)]
+    fn names_function(&self, v: &Value, name: SymId) -> Result<bool> {
+        let mut seen = [name; 4];
+        let mut n = 1;
+        let mut v = v.clone();
+        for _ in 0..3 {
+            let s = match v {
+                Value::Sym(s) if !sym::is_arg(s) && !seen[..n].contains(&s) => s,
+                _ => return Ok(false),
+            };
+            seen[n] = s;
+            n += 1;
+            match self.lookup(s)? {
+                // (an undefined name is its own symbol at strict level 0, which names nothing)
+                None if self.cfg.strict == 0 => v = Value::Sym(s),
+                None => return Ok(true),
+                Some(w) => {
+                    if Self::is_callable(&w) {
+                        return Ok(true);
+                    }
+                    v = w;
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    /// KlongPy `_not_a_function`: the error for a call of `name`, whose value is not a function.
+    #[inline(never)]
+    #[cold]
+    fn not_a_function(&self, name: SymId, v: &Value) -> Error {
+        let shown = self.syms.name(name).split('`').next().unwrap_or("");
+        let what = match v {
+            Value::Int(_) => crate::msg!("an integer"),
+            Value::Flt(x) if !x.is_finite() => crate::msg!(":undefined"),
+            Value::Flt(_) => crate::msg!("a float"),
+            Value::Char(_) => crate::msg!("a char"),
+            Value::Sym(_) => crate::msg!("a symbol"),
+            Value::Undefined => crate::msg!(":undefined"),
+            Value::Str(_) => crate::msg!("a string"),
+            Value::Dict(_) => crate::msg!("a dict"),
+            Value::Ext(_) => crate::msg!("a channel"),
+            Value::Fn(_) | Value::Prim(_) => crate::msg!("a function"),
+            Value::Ints(a) => Self::list_kind(a.rank(), a.len(), a.row_dims()),
+            Value::Flts(a) => Self::list_kind(a.rank(), a.len(), a.row_dims()),
+            Value::List(l) => Self::list_kind(1, l.len(), &[]),
+        };
+        let mut hint = String::from("a function is written {...}");
+        if matches!(v, Value::Ints(_) | Value::Flts(_) | Value::List(_) | Value::Str(_) | Value::Dict(_)) {
+            hint.push_str(&crate::msg!("; to index, write {}@i", shown));
+        }
+        Error::typ(crate::msg!("cannot call {}: it is {}, not a function", shown, what)).with_hint(hint)
+    }
+
+    fn list_kind(rank: usize, len: usize, row: &[u32]) -> String {
+        if rank <= 1 {
+            return if len == 0 { crate::msg!("an empty list") } else { crate::msg!("a list of {}", len) };
+        }
+        let mut dims = crate::msg!("{}", len);
+        for d in row {
+            dims.push_str(&crate::msg!("x{}", d));
+        }
+        if rank == 2 { crate::msg!("a {} matrix", dims) } else { crate::msg!("a {} array", dims) }
+    }
+
     /// Evaluate a node. With `call` set, a function node is invoked (KlongPy `call`); without
     /// it a function literal or projection is the value (`eval`).
+    #[inline(always)]
     pub fn eval(&mut self, tree: &Rc<Tree>, id: NodeId, call: bool) -> Result<Value> {
         if !Tree::is_real(id) {
             return Err(Error::syntax("missing operand"));
@@ -721,6 +878,7 @@ impl Interp {
     }
 
     #[inline(never)]
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_eval_node")]
     fn eval_node(&mut self, tree: &Rc<Tree>, id: NodeId, call: bool) -> Result<Value> {
         match tree.node(id) {
             Node::Lit(v) => Ok(v.clone()),
@@ -730,18 +888,7 @@ impl Interp {
             },
             Node::QSym(s) => self.quoted(*s),
             Node::OpVal { op, .. } => Ok(Value::Prim(*op)),
-            Node::Monad { op, arg, missing } => {
-                let def = self.op_def(*op)?;
-                let f = def.monad.ok_or_else(|| self.unknown_op(*op))?;
-                let r = match self.eval(tree, *arg, false) {
-                    Ok(x) => f(self, x),
-                    Err(e) => Err(e),
-                };
-                if *missing {
-                    return r.map_err(|_| Error::syntax(crate::msg!("missing operand for {}", self.syms.name(*op))));
-                }
-                r
-            }
+            Node::Monad { op, arg, missing } => self.eval_monad(tree, *op, *arg, *missing),
             Node::Dyad { op, l, r, missing } => {
                 let (op, l, r, missing) = (*op, *l, *r, *missing);
                 let res = self.eval_dyad(tree, op, l, r);
@@ -772,27 +919,8 @@ impl Interp {
                 let q = self.eval(tree, *c, true)?;
                 self.eval(tree, if q.truthy() { *t } else { *e }, true)
             }
-            Node::EList(r) => {
-                let mut out = try_vec(r.len as usize)?;
-                for k in 0..r.len {
-                    let q = NodeId(tree.ids(*r)[k as usize]);
-                    let pushed = self.eval(tree, q, true)?;
-                    try_push(&mut out, pushed)?;
-                }
-                Value::from_items(out)
-            }
-            Node::EDict(r) => {
-                let mut d = Dict::default();
-                let ids = tree.ids(*r);
-                let mut k = 0;
-                while k + 1 < ids.len() {
-                    let key = self.eval(tree, NodeId(ids[k]), true)?;
-                    let val = self.eval(tree, NodeId(ids[k + 1]), true)?;
-                    d.set(key, val)?;
-                    k += 2;
-                }
-                Ok(Value::dict(d))
-            }
+            Node::EList(r) => self.eval_elist(tree, *r),
+            Node::EDict(r) => self.eval_edict(tree, *r),
             Node::DictLit(v) | Node::CopyList(v) => ops::deep_copy(v),
             Node::Seq(r) => self.eval_seq(tree, *r),
             Node::Body { stmts, .. } => self.eval_seq(tree, *stmts),
@@ -800,7 +928,49 @@ impl Interp {
         }
     }
 
+    /// The arms of `eval_node` that are not on the way of a call, apart, so that its stack frame (one per
+    /// level of Klong recursion, on a chip with a stack of tens of KB) is not made for them.
     #[inline(never)]
+    fn eval_monad(&mut self, tree: &Rc<Tree>, op: SymId, arg: NodeId, missing: bool) -> Result<Value> {
+        let def = self.op_def(op)?;
+        let f = def.monad.ok_or_else(|| self.unknown_op(op))?;
+        let r = match self.eval(tree, arg, false) {
+            Ok(x) => f(self, x),
+            Err(e) => Err(e),
+        };
+        if missing {
+            return r.map_err(|_| Error::syntax(crate::msg!("missing operand for {}", self.syms.name(op))));
+        }
+        r
+    }
+
+    #[inline(never)]
+    fn eval_elist(&mut self, tree: &Rc<Tree>, r: Range) -> Result<Value> {
+        let mut out = try_vec(r.len as usize)?;
+        for k in 0..r.len {
+            let q = NodeId(tree.ids(r)[k as usize]);
+            let pushed = self.eval(tree, q, true)?;
+            try_push(&mut out, pushed)?;
+        }
+        Value::from_items(out)
+    }
+
+    #[inline(never)]
+    fn eval_edict(&mut self, tree: &Rc<Tree>, r: Range) -> Result<Value> {
+        let mut d = Dict::default();
+        let ids = tree.ids(r);
+        let mut k = 0;
+        while k + 1 < ids.len() {
+            let key = self.eval(tree, NodeId(ids[k]), true)?;
+            let val = self.eval(tree, NodeId(ids[k + 1]), true)?;
+            d.set(key, val)?;
+            k += 2;
+        }
+        Ok(Value::dict(d))
+    }
+
+    #[inline(never)]
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_eval_seq")]
     fn eval_seq(&mut self, tree: &Rc<Tree>, r: Range) -> Result<Value> {
         let mut last = Value::empty();
         for k in 0..r.len {
@@ -813,6 +983,8 @@ impl Interp {
     fn unknown_op(&self, op: SymId) -> Error {
         Error::syntax(crate::msg!("unknown operator {}", self.syms.name(op)))
     }
+
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_op_def")]
 
     fn op_def(&self, op: SymId) -> Result<&'static ops::OpDef> {
         ops::by_id(op).ok_or_else(|| self.unknown_op(op))
@@ -832,6 +1004,7 @@ impl Interp {
     }
 
     #[inline(never)]
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_eval_dyad")]
     fn eval_dyad(&mut self, tree: &Rc<Tree>, op: SymId, l: NodeId, r: NodeId) -> Result<Value> {
         let def = self.op_def(op)?;
         let f = def.dyad.ok_or_else(|| self.unknown_op(op))?;
@@ -908,10 +1081,15 @@ impl Interp {
     /// One pass of KlongPy's `_resolve_fn`: a name becomes the function it names; a function
     /// node becomes its callee, and the arguments a projection holds join the layers.
     #[inline(never)]
-    fn resolve(&mut self, f: &mut Value, layers: &mut Vec<Layer>, arity: &mut u8, node: &mut bool) -> Result<()> {
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_resolve")]
+    fn resolve(&mut self, f: &mut Value, layers: &mut Vec<Layer>, arity: &mut u8, node: &mut bool, calling: bool) -> Result<()> {
         if let Value::Sym(s) = *f {
             match self.lookup(s)? {
                 Some(v) => {
+                    // a call of a name whose value is not a function (KlongPy `_resolve_fn`)
+                    if calling && !*node && s != sym::DOT_F && !Self::is_callable(&v) && !self.names_function(&v, s)? {
+                        return Err(self.not_a_function(s, &v));
+                    }
                     if Self::is_fn_value(&v) || !sym::is_arg(s) {
                         *f = v;
                         *node = false;
@@ -933,7 +1111,12 @@ impl Interp {
                                 *f = w;
                                 *node = false;
                             }
-                            None => return Ok(()),
+                            None => {
+                                if calling && !*node && !Self::is_callable(&v) {
+                                    return Err(self.not_a_function(s, &v));
+                                }
+                                return Ok(());
+                            }
                         }
                     }
                 }
@@ -1077,6 +1260,7 @@ impl Interp {
     }
 
     /// The named parameters of a function body, if it has any (ticket 061).
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_params_of")]
     fn params_of(f: &Value) -> Option<(Rc<Tree>, Range)> {
         if let Value::Fn(func) = f {
             if let Func::Code { tree, node } = &**func {
@@ -1111,7 +1295,7 @@ impl Interp {
             let n = layers.len();
             let was = g_arity;
             let prev = g.clone();
-            self.resolve(&mut g, layers, &mut g_arity, &mut g_node)?;
+            self.resolve(&mut g, layers, &mut g_arity, &mut g_node, false)?;
             if layers.len() == n && was == g_arity && same_value(&prev, &g) {
                 break;
             }
@@ -1141,9 +1325,23 @@ impl Interp {
     /// Evaluate a call node (KlongPy `_eval_fn`). The arguments are expressions; they are
     /// evaluated here, once, after projections are merged.
     #[inline(never)]
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_eval_call")]
     fn eval_call(&mut self, tree: &Rc<Tree>, id: NodeId) -> Result<Value> {
-        let (a, args, has_args, arity0) = match tree.node(id) {
-            Node::Fn { a, args, has_args, arity, .. } => (*a, *args, *has_args, *arity),
+        let mut layers = self.layer_pool.pop().unwrap_or_default();
+        let r = self.eval_call_in(tree, id, &mut layers);
+        layers.clear();
+        if self.layer_pool.len() < 16 && layers.capacity() <= 8 {
+            self.layer_pool.push(layers);
+        }
+        r
+    }
+
+    #[inline(never)]
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_eval_call_in")]
+    fn eval_call_in(&mut self, tree: &Rc<Tree>, id: NodeId, layers: &mut Vec<Layer>) -> Result<Value> {
+        let (a, args, has_args, arity0, calling) = match tree.node(id) {
+            // (a written call, not the evaluation of a body that is a bare name, and not the call of a literal)
+            Node::Fn { a, args, has_args, arity, literal, .. } => (*a, *args, *has_args, *arity, *has_args && !*literal),
             _ => return Err(Error::internal("not a call")),
         };
         if !has_args && self.cfg.strict == 2 {
@@ -1152,16 +1350,14 @@ impl Interp {
                 return Ok(Value::Sym(*s));
             }
         }
-        let callee = self.node_value(tree, a);
-        let mut f = callee.clone();
+        let mut f = self.node_value(tree, a);
         let mut arity = arity0;
         let mut node = false;
-        let mut layers: Vec<Layer> = Vec::new();
-        try_push(&mut layers, if has_args { Layer::Tree(tree.clone(), args) } else { Layer::None })?;
+        try_push(layers, if has_args { Layer::Tree(tree.clone(), args) } else { Layer::None })?;
         // three passes as there are at most three arguments: x, y and z
-        self.resolve(&mut f, &mut layers, &mut arity, &mut node)?;
-        self.resolve(&mut f, &mut layers, &mut arity, &mut node)?;
-        self.resolve(&mut f, &mut layers, &mut arity, &mut node)?;
+        self.resolve(&mut f, layers, &mut arity, &mut node, calling)?;
+        self.resolve(&mut f, layers, &mut arity, &mut node, calling)?;
+        self.resolve(&mut f, layers, &mut arity, &mut node, calling)?;
 
         if layers.len() == 1 {
             // the common case: no projection involved
@@ -1172,14 +1368,14 @@ impl Interp {
                 let given = ids.iter().filter(|&&q| q != NONE.0).count();
                 if n != m {
                     if n > m || !node {
-                        return Err(self.too_many(&callee, m, given));
+                        return Err(self.too_many(&self.node_value(tree, a), m, given));
                     }
                     return self.projection(tree, id, None, m);
                 }
                 if ids.contains(&NONE.0) {
                     return self.projection(tree, id, None, m);
                 }
-                let mut frame: Frame = try_vec(n + 2)?;
+                let mut frame: Frame = self.new_frame(n + 2)?;
                 for (k, &q) in ids.iter().enumerate() {
                     let v = self.eval(tree, NodeId(q), true)?;
                     try_push(&mut frame, (SymId(ptree.ids(params)[k]), Some(v)))?;
@@ -1192,9 +1388,9 @@ impl Interp {
                 return self.projection(tree, id, None, arity as usize);
             }
             if n > arity as usize && self.cfg.strict == 2 && !Self::is_native(&f) {
-                return Err(self.too_many(&callee, arity as usize, n));
+                return Err(self.too_many(&self.node_value(tree, a), arity as usize, n));
             }
-            let mut frame: Frame = try_vec(n.min(3) + 2)?;
+            let mut frame: Frame = self.new_frame(n.min(3) + 2)?;
             for (k, &q) in ids.iter().take(3).enumerate() {
                 let v = self.eval(tree, NodeId(q), true)?;
                 try_push(&mut frame, (SymId(k as u32), Some(v)))?;
@@ -1202,10 +1398,19 @@ impl Interp {
             return self.run_fn(f, frame);
         }
 
+        let callee = self.node_value(tree, a);
+        self.eval_call_slow(tree, id, layers, callee, f, arity, node)
+    }
+
+    /// A call that goes through projections: its layers merged. Apart from the common case, which is
+    /// on the way of every level of recursion and so keeps its stack frame small.
+    #[inline(never)]
+    #[allow(clippy::too_many_arguments)]
+    fn eval_call_slow(&mut self, tree: &Rc<Tree>, id: NodeId, layers: &mut Vec<Layer>, callee: Value, mut f: Value, mut arity: u8, mut node: bool) -> Result<Value> {
         if layers.len() == 4 {
-            self.resolve_deeper(&mut f, &mut layers, &mut arity, &mut node)?;
+            self.resolve_deeper(&mut f, layers, &mut arity, &mut node)?;
         }
-        let mut lists: Vec<Vec<Option<Arg>>> = layers.into_iter().map(Self::layer_args).collect::<Result<_>>()?;
+        let mut lists: Vec<Vec<Option<Arg>>> = layers.drain(..).map(Self::layer_args).collect::<Result<_>>()?;
         lists.reverse();
         let named = Self::params_of(&f);
         if self.cfg.strict == 2 || named.is_some() {
@@ -1225,7 +1430,7 @@ impl Interp {
             if holes > 0 {
                 return self.projection(tree, id, Some(holes), m);
             }
-            let mut frame: Frame = try_vec(n + 2)?;
+            let mut frame: Frame = self.new_frame(n + 2)?;
             for (k, q) in merged.iter().enumerate() {
                 if let Some(a) = q {
                     let v = self.eval_arg(a)?;
@@ -1240,7 +1445,7 @@ impl Interp {
         if n > arity as usize && self.cfg.strict == 2 && !Self::is_native(&f) {
             return Err(self.too_many(&callee, arity as usize, n));
         }
-        let mut frame: Frame = try_vec(n.min(3) + 2)?;
+        let mut frame: Frame = self.new_frame(n.min(3) + 2)?;
         for (k, q) in merged.iter().take(3).enumerate() {
             if let Some(a) = q {
                 let v = self.eval_arg(a)?;
@@ -1339,9 +1544,9 @@ impl Interp {
         let mut node = false;
         let mut layers: Vec<Layer> = Vec::new();
         try_push(&mut layers, Layer::Vals(values))?;
-        self.resolve(&mut g, &mut layers, &mut f_arity, &mut node)?;
-        self.resolve(&mut g, &mut layers, &mut f_arity, &mut node)?;
-        self.resolve(&mut g, &mut layers, &mut f_arity, &mut node)?;
+        self.resolve(&mut g, &mut layers, &mut f_arity, &mut node, true)?;
+        self.resolve(&mut g, &mut layers, &mut f_arity, &mut node, true)?;
+        self.resolve(&mut g, &mut layers, &mut f_arity, &mut node, true)?;
 
         if layers.len() == 1 {
             let values = match layers.pop() {
@@ -1422,23 +1627,15 @@ impl Interp {
     /// Run a resolved function with its arguments bound in `frame` (KlongPy `_run_fn`): declare
     /// its locals, set `.f`, evaluate the body in a new frame.
     #[inline(never)]
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_run_fn")]
     fn run_fn(&mut self, f: Value, mut frame: Frame) -> Result<Value> {
         self.tick()?;
 
         let func = match &f {
             Value::Fn(func) => func.clone(),
             Value::Sym(s) => {
-                // a symbol in call position that names no function: its value as a name
                 let s = *s;
-                try_push(&mut frame, (sym::DOT_F, Some(f.clone())))?;
-                self.push_frame(frame)?;
-                let r = match self.lookup(s) {
-                    Ok(Some(v)) => Ok(v),
-                    Ok(None) => self.undefined(s),
-                    Err(e) => Err(e),
-                };
-                self.pop_frame();
-                return r;
+                return self.run_name(f, s, frame);
             }
             _ => return Ok(f),
         };
@@ -1468,23 +1665,44 @@ impl Interp {
                 r
             }
             Func::Native { arity, f: native, .. } => {
-                let mut args: Vec<Value> = Vec::new();
-                for (k, v) in frame.iter() {
-                    if sym::is_arg(*k) {
-                        if let Some(v) = v {
-                            try_push(&mut args, v.clone())?;
-                        }
-                    }
-                }
-                if self.cfg.strict == 2 && *arity != WILDCARD && args.len() > *arity as usize {
-                    return Err(self.too_many(&Value::Undefined, *arity as usize, args.len()));
-                }
-                let native = native.clone();
-                native(self, &args)
+                let (arity, native) = (*arity, native.clone());
+                self.run_native(frame, arity, native)
             }
             // a projection that was given nothing more is the value it is
             Func::Proj { .. } => Ok(f),
         }
+    }
+
+    /// The arms of `run_fn` that are not on the way of a recursion of Klong code, apart (see `eval_monad`).
+    /// A symbol in call position that names no function: its value as a name.
+    #[inline(never)]
+    fn run_name(&mut self, f: Value, s: SymId, mut frame: Frame) -> Result<Value> {
+        try_push(&mut frame, (sym::DOT_F, Some(f)))?;
+        self.push_frame(frame)?;
+        let r = match self.lookup(s) {
+            Ok(Some(v)) => Ok(v),
+            Ok(None) => self.undefined(s),
+            Err(e) => Err(e),
+        };
+        self.pop_frame();
+        r
+    }
+
+    /// A native function called with the arguments bound in `frame`.
+    #[inline(never)]
+    fn run_native(&mut self, frame: Frame, arity: u8, native: NativeFn) -> Result<Value> {
+        let mut args: Vec<Value> = Vec::new();
+        for (k, v) in frame.iter() {
+            if sym::is_arg(*k) {
+                if let Some(v) = v {
+                    try_push(&mut args, v.clone())?;
+                }
+            }
+        }
+        if self.cfg.strict == 2 && arity != WILDCARD && args.len() > arity as usize {
+            return Err(self.too_many(&Value::Undefined, arity as usize, args.len()));
+        }
+        native(self, &args)
     }
 
     // ----- adverb chains --------------------------------------------------------------------------
