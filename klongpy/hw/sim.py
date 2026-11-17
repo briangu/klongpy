@@ -92,6 +92,11 @@ def build_library(out):
         o = os.path.join(work, "core.o")
         _run([cc, "-std=c99", "-c", os.path.join(work, out.prefix + ".c"), "-o", o] + flags)
         objs.append(o)
+        for e in out.entries:               # a kernel with one process per lane has the program's C once more per lane
+            for lf in e.get("lane_files", ()):
+                o = os.path.join(work, lf[:-2] + ".o")
+                _run([cc, "-std=c99", "-c", os.path.join(work, lf), "-o", o] + flags)
+                objs.append(o)
         for e in out.entries:
             o = os.path.join(work, e["c_name"] + "_top.o")
             _run([cxx, "-std=c++14", "-Wno-unknown-pragmas", "-c", os.path.join(work, e["files"]["top"]), "-o", o] + flags)
@@ -136,16 +141,36 @@ class SimDevice(FakeDevice):
 def _kernel_fn(lib, entry):
     fn = getattr(lib, entry["top"])
     fn.restype = None
-    fn.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint, ctypes.POINTER(ctypes.c_uint)]
+    # the register arguments between reset and status: one table pointer (lanes), or scalars in manifest order
+    regs = entry.get("registers") or []
+    if entry.get("register_table"):
+        reg_types = [ctypes.c_void_p]
+    else:
+        reg_types = [{"float": ctypes.c_float}.get(r["elem"], ctypes.c_int64 if r["bytes"] == 8 else ctypes.c_int32) for r in regs]
+    fn.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint] + reg_types + [ctypes.POINTER(ctypes.c_uint)]
     in_bytes, out_bytes = entry["in_bytes"], entry["out_bytes"]
+    summary = entry.get("output") == "summary"
 
-    def run(words, n, reset, state):
+    def run(words, n, reset, state, regvals=None):
         data = np.array(words, dtype=np.uint32, copy=True)
         if data.nbytes < n * in_bytes:
             raise ServerError("TooBig", "the input holds %d bytes and %d records need %d" % (data.nbytes, n, n * in_bytes))
-        out = np.zeros(n * out_bytes, dtype=np.uint8)
+        out = np.zeros(out_bytes if summary else n * out_bytes, dtype=np.uint8)
         status = ctypes.c_uint(0)
-        fn(data.ctypes.data, out.ctypes.data, n, 1 if reset else 0, ctypes.byref(status))
+        extra = []
+        if regs:
+            if regvals is None:
+                raise ServerError("BadRequest", "kernel %s has registers and the server passed none" % entry["top"])
+            if entry.get("register_table"):
+                table = np.frombuffer(bytes(regvals["args"][0]), dtype=np.uint8).copy()
+                extra = [table.ctypes.data]
+            else:
+                extra = []
+                for r, v in zip(regs, regvals["args"]):
+                    if r["elem"] == "float":
+                        v = float(np.array([v], dtype="<i4").view("<f4")[0])
+                    extra.append(v)
+        fn(data.ctypes.data, out.ctypes.data, n, 1 if reset else 0, *extra, ctypes.byref(status))
         return out, status.value
     return run
 
@@ -199,7 +224,8 @@ class SimSession(HwSession):
         Compile the HlsOutputs of an image's programs and register them as one simulated image. Returns
         (pseudo path, build dict shaped like a build.json: key, passed, kernels = the manifests).
         """
-        libs = [(build_library(o), o.entries) for o in outputs]
+        libs = [(build_library(o), [dict(e, registers=o.manifest["registers"]) if o.manifest.get("registers") else e
+                                    for e in o.entries]) for o in outputs]
         keys = [o.manifest["cache_key"] for o in outputs]
         key = keys[0] if len(keys) == 1 else hashlib.sha256("\n".join(keys).encode()).hexdigest()
         if self._dir is None:

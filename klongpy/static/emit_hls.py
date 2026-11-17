@@ -94,16 +94,36 @@ def _bytes_of(elem, int_bits):
     return 4 if elem == "float" else int_bits // 8
 
 
-def _layout(program, entry):
-    """The record layout of an entry, or a KlongStaticError saying why it has none."""
+def roles(program, wrapped=False):
+    """
+    ``(readers, pairs)``: the entries that are not kernels of their own and the kernels that read them.
+
+    A *summary pair* is a ``void`` entry with arguments (the driver: ``step: fixed<32,16> -> void``) and the one entry
+    without arguments that returns a value (the reader: ``summary: -> fixed<64,32>[3]``). The two share the program's
+    state. The driver's kernel makes its n calls, writes nothing per call, then calls the reader once per lane and writes
+    that one result record: "replay many ticks, read a small summary at the end". Only the streamable kernel has it.
+    ``pairs`` is {id(driver entry): reader entry}; a program with a driver and no single reader, or with a reader and
+    no driver, gets no pairs and the entries are rejected one by one as before.
+    """
+    drivers = [e for e in program.entries if e.decl.signature.params and e.decl.signature.result.elem == "void"]
+    readers = [e for e in program.entries if not e.decl.signature.params and e.decl.signature.result.elem != "void"]
+    if wrapped or not drivers or len(readers) != 1:
+        return [], {}
+    return readers, {id(d): readers[0] for d in drivers}
+
+
+def _layout(program, entry, reader=None):
+    """The record layout of an entry, or a KlongStaticError saying why it has none. ``reader``: see roles()."""
     sig = entry.decl.signature
-    ext = reachable_externs(entry)
+    ext = reachable_externs(entry) + ([n for n in reachable_externs(reader) if n not in reachable_externs(entry)] if reader else [])
     ib = program.int_bits
     if ext:
         raise _reject(program, entry, f"it calls the extern {', '.join(ext)}; hardware has no externs in this version",
                       "keep the extern out of the entry, or compute its value on the host and pass it as an argument")
-    if sig.result.elem == "void":
-        raise _reject(program, entry, "it returns nothing, so there is no result record to read back")
+    if sig.result.elem == "void" and reader is None:
+        raise _reject(program, entry, "it returns nothing, so there is no result record to read back",
+                      "declare one more entry without arguments that returns the state, for example "
+                      '.entry("summary";"-> float[3]"): the kernel then runs its calls and writes that result once')
     params, off = [], 0
     for i, ty in enumerate(sig.params):
         if ty.elem not in ("int", "float") and not is_fixed(ty.elem):
@@ -116,8 +136,13 @@ def _layout(program, entry):
         raise _reject(program, entry, "its arguments mix words of different widths (--int64 and fixed<W,I> with W over "
                                       "32 are 8 bytes, a float is 4), which one record cannot hold",
                       "make the arguments words of one width")
-    r = sig.result
+    r = reader.decl.signature.result if reader else sig.result
     return params, off, {"elem": r.elem, "shape": list(r.shape), "words": r.size}
+
+
+# names the generated top function uses for its own arguments and locals: a parameter of the program cannot have one
+RESERVED = frozenset(["in", "out", "n", "reset", "status", "params", "inst", "started", "pw", "sin", "sout", "sst", "win", "rec",
+                      "buf", "res", "obuf", "ibuf", "first", "load", "core", "store"])
 
 
 def registers(program, lanes):
@@ -126,10 +151,28 @@ def registers(program, lanes):
     for g in program.globals:
         if not g.param:
             continue
+        if c_identifier(g.name) in RESERVED:
+            raise KlongStaticError(f"the parameter {g.name} cannot be a kernel register: its name is one that the generated kernel "
+                                   "uses for its own arguments ({}) [hls]".format(", ".join(sorted(RESERVED))),
+                                   hint=f"rename the parameter, for example {g.name}_p")
         out.append({"name": g.name, "elem": g.ty.elem, "ctype": ctype_of(g.ty.elem), "cid": c_identifier(g.name),
                     "default": int(g.value) if g.ty.elem != "float" else float(g.value), "lanes": lanes or 1,
                     "bytes": _bytes_of(g.ty.elem, program.int_bits)})
     return out
+
+
+def register_table(regs, lanes):
+    """
+    How the parameters of a kernel with lanes reach it: one table in card memory (an m_axi argument ``params``), because
+    the host runtime passes scalars to an s_axilite argument and cannot write an array to one. Row k holds the
+    ``lanes`` values of register k, each in a word of ``word_bytes`` (the widest register; a float travels as its bits,
+    an int sign-extended). None without lanes: a parameter is then an s_axilite scalar.
+    """
+    if not lanes or not regs:
+        return None
+    wb = max(r["bytes"] for r in regs)
+    return {"order": [r["name"] for r in regs], "lanes": lanes, "word_bytes": wb, "words": len(regs) * lanes,
+            "bytes": len(regs) * lanes * wb}
 
 
 def emit_hls(program, emitted, clock_mhz=DEFAULT_CLOCK_MHZ, source_name=None, float_bits=32, *, wrapped=False, lanes=None,
@@ -153,10 +196,15 @@ def emit_hls(program, emitted, clock_mhz=DEFAULT_CLOCK_MHZ, source_name=None, fl
     prefix = emitted.prefix
     ib = program.int_bits
     regs = registers(program, lanes)
+    table = register_table(regs, lanes)
     files, entries = {}, []
     flags = [f"-DKG_TRAP_FLAG={TRAP_FLAG}"] + (["-DKG_INT64"] if ib == 64 else [])
+    readers, pairs = roles(program, wrapped)
     for e in program.entries:
-        params, in_words, result = _layout(program, e)
+        if any(e is r for r in readers):
+            continue                      # read by the kernel of the driver, not a kernel of its own
+        reader = pairs.get(id(e))
+        params, in_words, result = _layout(program, e, reader)
         if in_words == 0:
             raise _reject(program, e, "it takes no argument, so a call has no input record")
         stem = f"{prefix}_{e.c_name}"
@@ -178,15 +226,28 @@ def emit_hls(program, emitted, clock_mhz=DEFAULT_CLOCK_MHZ, source_name=None, fl
             "in_bytes": sum(_bytes_of(p["elem"], ib) * p["words"] for p in params),
             "out_bytes": _bytes_of(out_elem, ib) * out_words,
             "files": {"top": f"{stem}_top.cpp", "tb": f"{stem}_tb.cpp", "tcl": f"hls_{e.c_name}.tcl"},
-            "kernel_args": ["in", "out", "n", "reset"] + [r["name"] for r in regs] + ["status"],
+            "kernel_args": ["in", "out", "n", "reset"] + (["params"] if table else [r["name"] for r in regs]) + ["status"],
         }
+        if table:
+            ent["register_table"] = table
         if mixed:
             ent["in_type"] = f"uint{8 * wbytes}_t"
+        if reader is not None:
+            # the result of the kernel is the one record of the reader, written after the n calls
+            ent["output"] = "summary"
+            ent["summary"] = {"entry": reader.decl.name, "c_name": reader.c_name, "signature": str(reader.decl.signature)}
         if wrapped:
             files[ent["files"]["top"]] = _top(prefix, e, ent, params, mixed, regs)
+        elif reader is not None and lanes and lanes > 1 and not mixed:
+            # one dataflow process per lane: see _top_lanes
+            ent["structure"] = "lane-processes"
+            ent["lane_files"] = [f"lane_{l}.c" for l in range(lanes)]
+            for l in range(lanes):
+                files[f"lane_{l}.c"] = _lane_c(prefix, l, emitted.h, regs, program)
+            files[ent["files"]["top"]] = _top_lanes(program, prefix, e, ent, params, regs, lanes, reader, emitted.h)
         else:
-            files[ent["files"]["top"]] = _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode)
-        files[ent["files"]["tb"]] = _tb(prefix, ent, regs, lanes)
+            files[ent["files"]["top"]] = _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode, reader)
+        files[ent["files"]["tb"]] = _tb(prefix, ent, regs, lanes, table)
         files[ent["files"]["tcl"]] = _tcl(prefix, ent, clock_mhz, flags, source_name, stage_b=not wrapped)
         entries.append(ent)
     if not wrapped:
@@ -211,9 +272,15 @@ def emit_hls(program, emitted, clock_mhz=DEFAULT_CLOCK_MHZ, source_name=None, fl
     }
     if regs:
         manifest["registers"] = regs
-        manifest["kernel"] = ("void <top>(const in_type *in, out_type *out, unsigned n, unsigned reset, "
-                              + ", ".join(f"{r['ctype']} {r['name']}" + (f"[{lanes}]" if lanes else "") for r in regs)
-                              + ", unsigned *status)")
+        if table:
+            manifest["register_table"] = table
+            manifest["kernel"] = ("void <top>(const in_type *in, out_type *out, unsigned n, unsigned reset, "
+                                  f"const uint{8 * table['word_bytes']}_t *params, unsigned *status)")
+        else:
+            manifest["kernel"] = ("void <top>(const in_type *in, out_type *out, unsigned n, unsigned reset, "
+                                  + ", ".join(f"{r['ctype']} {r['name']}" for r in regs) + ", unsigned *status)")
+    if any(e.get("lane_files") for e in entries):
+        manifest["c_files"] += [f for e in entries for f in e.get("lane_files", [])]
     if not wrapped:
         manifest["stage"] = "B"
         manifest["lane_dimension"] = bool(lanes)
@@ -389,7 +456,7 @@ STREAM_DEPTH = 32
 WIDE_BITS = 2048        # a record narrower than this travels between the processes as one stream element
 
 
-def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
+def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode, reader=None):
     """
     The streamable kernel: load, core and store as three processes joined by streams under one dataflow region.
 
@@ -406,7 +473,9 @@ def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
     tin, tout = ent["in_type"], ent["out_type"]
     res_words = ent["result"]["words"] // L
     sig = e.decl.signature
-    win = match_window(program, e) if not lanes and not regs else None
+    summary = reader is not None
+    tot = "OUT_WORDS" if summary else "n * OUT_WORDS"      # the output words of one launch
+    win = match_window(program, e) if not lanes and not regs and not summary else None
     pipelined = mode != "block"
     in_bits = IN * _bytes_of(params[0]["elem"], program.int_bits) * 8
     out_bits = OUT * _bytes_of(sig.result.elem, program.int_bits) * 8
@@ -426,6 +495,9 @@ def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
     if win:
         w(f" * The entry is a sliding window of {win['taps']} samples: the core is a shift register that makes one output per"
           " input word once the window is full.")
+    elif summary:
+        w(f" * Each call of the kernel makes n calls of the entry, which return nothing, and then one call of {reader.decl.name}"
+          f" ({reader.decl.signature}) per lane: that is the one output record.")
     else:
         w(" * Each call of the kernel makes n calls of the entry. The core is "
           + ("one pipelined region (II=1 when the program allows it)." if pipelined else "a block program: its loops are pipelined, not the call."))
@@ -459,6 +531,11 @@ def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
     w("#define OUT_WORDS (LANES * RES_WORDS)")
     w(f"typedef {tin} in_t;")
     w(f"typedef {tout} out_t;")
+    if ent.get("register_table"):
+        rt = ent["register_table"]
+        w(f"typedef uint{8 * rt['word_bytes']}_t reg_t;")
+        w(f"#define REG_WORDS {rt['words']}")
+        w("template <class T, class W> static inline T from_bits(W v) { T t; memcpy(&t, &v, sizeof t); return t; }")
     if wide_in:
         w("typedef struct { in_t w[IN_WORDS]; } in_rec_t;")
     if wide_out:
@@ -491,7 +568,8 @@ def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
     w("}")
     w("")
     # ---- core
-    rdecl = _reg_decl(regs, lanes)
+    table = ent.get("register_table")
+    rdecl = ", const reg_t *params" if table else _reg_decl(regs, lanes)
     if win:
         A, B, c, N = win["taps"], win["outputs"], win["offset"], win["inputs"]
         w("/* core: a shift register over the input words; the window function is the reduction of the program */")
@@ -530,7 +608,19 @@ def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
         w("        }")
         w("        started = true;")
         w("    }")
-        if regs:
+        if table:
+            w("    reg_t pw[REG_WORDS];")
+            w("    for (unsigned i = 0; i < REG_WORDS; i++) {")
+            w("#pragma HLS pipeline II=1")
+            w("        pw[i] = params[i];")
+            w("    }")
+            w("    for (unsigned l = 0; l < LANES; l++) {")
+            w("#pragma HLS unroll")
+            for k, r in enumerate(regs):
+                val = f"from_bits<{r['ctype']}>(pw[{k} * LANES + l])" if r["elem"] == "float" else f"({r['ctype']})pw[{k} * LANES + l]"
+                w(f"        {prefix}_set_{r['cid']}(&inst[l], {val});")
+            w("    }")
+        elif regs:
             w("    for (unsigned l = 0; l < LANES; l++) {")
             w("#pragma HLS unroll")
             for r in regs:
@@ -550,12 +640,13 @@ def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
             w("            rec[j] = sin.read();")
             w("        }")
             rec = "rec"
-        if wide_out:
-            w("        out_rec_t o;")
-            oref = "o.w"
-        else:
-            w("        out_t o[OUT_WORDS];")
-            oref = "o"
+        if not summary:
+            if wide_out:
+                w("        out_rec_t o;")
+                oref = "o.w"
+            else:
+                w("        out_t o[OUT_WORDS];")
+                oref = "o"
         w("        for (unsigned l = 0; l < LANES; l++) {")
         w("#pragma HLS unroll")
         call_args = []
@@ -574,12 +665,16 @@ def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
             else:
                 call_args.append(f"from_word<{ctype}>({rec}[{off}])")
         args = "".join(", " + a for a in call_args)
-        if sig.result.shape:
+        if summary:
+            w(f"            {stem}(&inst[l]{args});")
+        elif sig.result.shape:
             w(f"            {stem}(&inst[l]{args}, &{oref}[l * RES_WORDS]);")
         else:
             w(f"            {oref}[l * RES_WORDS] = {stem}(&inst[l]{args});")
         w("        }")
-        if wide_out:
+        if summary:
+            pass
+        elif wide_out:
             w("        sout.write(o);")
         else:
             w("        for (unsigned j = 0; j < OUT_WORDS; j++) {")
@@ -587,16 +682,41 @@ def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
             w("            sout.write(o[j]);")
             w("        }")
         w("    }")
+        if summary:
+            # the reader: one call per lane after the n calls of the driver, one record on the output stream
+            rstem = f"{prefix}_{reader.c_name}"
+            if wide_out:
+                w("    out_rec_t o;")
+                oref = "o.w"
+            else:
+                w("    out_t o[OUT_WORDS];")
+                oref = "o"
+            w("    for (unsigned l = 0; l < LANES; l++) {")
+            w("#pragma HLS unroll")
+            if reader.decl.signature.result.shape:
+                w(f"        {rstem}(&inst[l], &{oref}[l * RES_WORDS]);")
+            else:
+                w(f"        {oref}[l * RES_WORDS] = {rstem}(&inst[l]);")
+            w("    }")
+            if wide_out:
+                w("    sout.write(o);")
+            else:
+                w("    for (unsigned j = 0; j < OUT_WORDS; j++) {")
+                w("#pragma HLS pipeline II=1")
+                w("        sout.write(o[j]);")
+                w("    }")
         w("    sst.write(n != 0 ? KG_TRAP_FLAG : 0u);")
         w("}")
     w("")
     # ---- store
     w("/* store: the output words, one per cycle, then the status word */")
     w(f"static void store(hls::stream<{sout_t}> &s, out_t *out, hls::stream<unsigned> &sst, unsigned *status, uint64_t n) {{")
+    if summary:
+        w("    (void)n;")
     if wide_out:
         w("    out_rec_t rec;")
         w("    unsigned k = 0;")
-        w("    for (uint64_t i = 0; i < n * OUT_WORDS; i++) {")
+        w(f"    for (uint64_t i = 0; i < {tot}; i++) {{")
         w("#pragma HLS pipeline II=1")
         w("        if (k == 0) {")
         w("            rec = s.read();")
@@ -605,7 +725,7 @@ def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
         w("        k = (k + 1 == OUT_WORDS) ? 0 : k + 1;")
         w("    }")
     else:
-        w("    for (uint64_t i = 0; i < n * OUT_WORDS; i++) {")
+        w(f"    for (uint64_t i = 0; i < {tot}; i++) {{")
         w("#pragma HLS pipeline II=1")
         w("        out[i] = s.read();")
         w("    }")
@@ -617,7 +737,9 @@ def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
     w("#pragma HLS interface m_axi port=in offset=slave bundle=gmem0")
     w("#pragma HLS interface m_axi port=out offset=slave bundle=gmem1")
     w("#pragma HLS interface m_axi port=status offset=slave bundle=gmem2")
-    for port in ("in", "out", "n", "reset", *[r["cid"] for r in regs], "status"):
+    if table:
+        w("#pragma HLS interface m_axi port=params offset=slave bundle=gmem3")
+    for port in ("in", "out", "n", "reset", *(["params"] if table else [r["cid"] for r in regs]), "status"):
         w(f"#pragma HLS interface s_axilite port={port} bundle=control")
     w("#pragma HLS interface s_axilite port=return bundle=control")
     w("#pragma HLS dataflow")
@@ -628,8 +750,255 @@ def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
     w(f"#pragma HLS stream variable=sout depth={STREAM_DEPTH}")
     w("#pragma HLS stream variable=sst depth=2")
     w("    load(in, sin, n);")
-    w(f"    core(sin, sout, sst, n, reset{'' if win else ''.join(', ' + r['cid'] for r in regs)});")
+    w(f"    core(sin, sout, sst, n, reset{'' if win else (', params' if table else ''.join(', ' + r['cid'] for r in regs))});")
     w("    store(sout, out, sst, status, n);")
+    w("}")
+    w("")
+    return "\n".join(Ls)
+
+
+def _lane_names(prefix, header):
+    """The public functions of the emitted C (from its header): <prefix>_init, _size, _set_*, one per entry."""
+    import re
+    return sorted(set(re.findall(r"\b(%s_[A-Za-z0-9_]+)\s*\(" % re.escape(prefix), header)))
+
+
+def _lane_c(prefix, lane, header, regs, program):
+    """lane_<l>.c: the program's C under other names, so that lane l of the kernel owns an instance, its functions and a trap flag."""
+    L = [f"/* lane_{lane}.c - generated by KlongPy (kgpy --emit-hls). Do not edit.",
+         f" * The C of {prefix}.c under other names (a suffix _{lane}): lane {lane} of the kernel is one dataflow process, and a",
+         " * process may not share a variable with another, so it has its own functions and its own trap flag. */",
+         "#undef KG_TRAP_FLAG",
+         f"#define KG_TRAP_FLAG {TRAP_FLAG}_{lane}",
+         f"#define kg_trap kg_trap_{lane}"]
+    for name in _lane_names(prefix, header):
+        L.append(f"#define {name} {name}_{lane}")
+    L.append(f'#include "{prefix}.c"')
+    return "\n".join(L) + "\n"
+
+
+def _lane_decls(prefix, lane, header):
+    """The prototypes of lane l's functions: the lines of the header that declare the program's functions, renamed."""
+    import re
+    names = _lane_names(prefix, header)
+    out = []
+    for line in header.splitlines():
+        if any(re.search(r"\b%s\s*\(" % re.escape(n), line) for n in names) and line.rstrip().endswith(("*/", ";")):
+            text = line
+            for n in names:
+                text = re.sub(r"\b%s\b" % re.escape(n), f"{n}_{lane}", text)
+            out.append(text)
+    return out
+
+
+def _top_lanes(program, prefix, e, ent, params, regs, lanes, reader, header):
+    """
+    The kernel of a summary pair with lanes: one dataflow process per lane.
+
+    A single pipelined loop that holds all the lanes stalls on one condition (the input FIFO is empty), and that one net
+    drives the clock enable of every register of every lane: tens of thousands of loads on a net that is not driven by a
+    register, which routes at about 10 ns however few operations there are between registers. So each lane is a process
+    of its own with its own loop (a few thousand loads per stall net), joined to the others by streams:
+
+        load   the input words, copied to every lane's stream
+        regs   the register table (an m_axi argument), one set of values to each lane's stream
+        lane_l the lane's instance of the program (its C is lane_<l>.c), n calls of the entry, then the reader's record
+        store  the records of the lanes in order, then the OR of their trap flags
+    """
+    stem = f"{prefix}_{e.c_name}"
+    rstem = f"{prefix}_{reader.c_name}"
+    IN = ent["in_words"]
+    L = lanes
+    tin, tout = ent["in_type"], ent["out_type"]
+    res_words = ent["result"]["words"] // L
+    table = ent.get("register_table")
+    in_bits = IN * _bytes_of(params[0]["elem"], program.int_bits) * 8
+    wide_in = in_bits <= WIDE_BITS
+    sin_t = "in_rec_t" if wide_in else "in_t"
+    Ls = []
+    w = Ls.append
+    w(f"/* {ent['files']['top']} - generated by KlongPy (kgpy --emit-hls) from {prefix}. Do not edit.")
+    w(f" * Streamable kernel {ent['top']} for entry {ent['name']}: {ent['signature']}, {lanes} lane(s), one process per lane.")
+    w(f" * One input record is {IN} word(s) of {tin}: the arguments in order, arrays flattened row-major.")
+    w(f" * One output record is {ent['out_words']} word(s) of {tout}: {lanes} lanes of {res_words} word(s), lane first.")
+    w(f" * Each call of the kernel makes n calls of the entry, which return nothing, and then one call of {reader.decl.name}"
+      f" ({reader.decl.signature}) per lane: that is the one output record.")
+    w(" * status bit 0: some trap happened; bit 1: an index out of range; bit 2: an integer division by zero.")
+    w(" * Build with -DKG_TRAP_FLAG=" + TRAP_FLAG + " (and -DKG_INT64 for a 64-bit kg_int; see hls_*.tcl). */")
+    w("#include <stddef.h>")
+    w("#include <stdint.h>")
+    w("#include <string.h>")
+    w("#if defined(__has_include)")
+    w("#if __has_include(<hls_stream.h>)")
+    w("#include <hls_stream.h>")
+    w("#else")
+    w('#include "kg_hls_stub.h"')
+    w("#endif")
+    w("#else")
+    w("#include <hls_stream.h>")
+    w("#endif")
+    w("")
+    w("#ifndef KG_TRAP_FLAG")
+    w('#error "compile with -DKG_TRAP_FLAG=' + TRAP_FLAG + ' (the generated C records traps in that counter)"')
+    w("#endif")
+    w("")
+    w('extern "C" {')
+    w(f'#include "{prefix}.h"')
+    for l in range(L):
+        w(f"/* lane {l} */")
+        for d in _lane_decls(prefix, l, header):
+            w(d)
+        w(f"extern unsigned {TRAP_FLAG}_{l};")
+    w("}")
+    w("")
+    w(f"#define IN_WORDS {IN}")
+    w(f"#define RES_WORDS {res_words}")
+    w(f"#define LANES {L}")
+    w(f"typedef {tin} in_t;")
+    w(f"typedef {tout} out_t;")
+    if wide_in:
+        w("typedef struct { in_t w[IN_WORDS]; } in_rec_t;")
+    if table:
+        w(f"typedef uint{8 * table['word_bytes']}_t reg_t;")
+        w(f"#define REG_WORDS {table['words']}")
+        w(f"#define REG_COUNT {len(regs)}")
+        w("template <class T, class W> static inline T from_bits(W v) { T t; memcpy(&t, &v, sizeof t); return t; }")
+    w("")
+    w("/* load: the input words, one per cycle, to every lane */")
+    w(f"static void load(const in_t *in, hls::stream<{sin_t}> sin[LANES], uint64_t n) {{")
+    if wide_in:
+        w("    in_rec_t rec;")
+        w("    unsigned j = 0;")
+        w("    for (uint64_t i = 0; i < n * IN_WORDS; i++) {")
+        w("#pragma HLS pipeline II=1")
+        w("        rec.w[j] = in[i];")
+        w("        if (++j == IN_WORDS) {")
+        w("            for (unsigned l = 0; l < LANES; l++) {")
+        w("#pragma HLS unroll")
+        w("                sin[l].write(rec);")
+        w("            }")
+        w("            j = 0;")
+        w("        }")
+        w("    }")
+    else:
+        w("    for (uint64_t i = 0; i < n * IN_WORDS; i++) {")
+        w("#pragma HLS pipeline II=1")
+        w("        const in_t v = in[i];")
+        w("        for (unsigned l = 0; l < LANES; l++) {")
+        w("#pragma HLS unroll")
+        w("            sin[l].write(v);")
+        w("        }")
+        w("    }")
+    w("}")
+    w("")
+    if table:
+        w("/* regs: the register table, read once, one set of values to each lane */")
+        w("static void regs(const reg_t *params, hls::stream<reg_t> sreg[LANES]) {")
+        w("    reg_t pw[REG_WORDS];")
+        w("    for (unsigned i = 0; i < REG_WORDS; i++) {")
+        w("#pragma HLS pipeline II=1")
+        w("        pw[i] = params[i];")
+        w("    }")
+        w("    for (unsigned k = 0; k < REG_COUNT; k++) {")
+        w("        for (unsigned l = 0; l < LANES; l++) {")
+        w("#pragma HLS unroll")
+        w("            sreg[l].write(pw[k * LANES + l]);")
+        w("        }")
+        w("    }")
+        w("}")
+        w("")
+    for l in range(L):
+        w(f"/* lane {l} */")
+        regarg = f"hls::stream<reg_t> &sreg, " if table else ""
+        w(f"static void lane_{l}(hls::stream<{sin_t}> &sin, {regarg}hls::stream<out_t> &sres, hls::stream<unsigned> &sst, "
+          "uint64_t n, unsigned reset) {")
+        w(f"    static {prefix}_t inst;")
+        w("    static bool started = false;")
+        w("    if (!started || reset) {")
+        w(f"        {prefix}_init_{l}(&inst);")
+        w("        started = true;")
+        w("    }")
+        for r in regs:
+            if table:
+                val = f"from_bits<{r['ctype']}>(sreg.read())" if r["elem"] == "float" else f"({r['ctype']})sreg.read()"
+                w(f"    {prefix}_set_{r['cid']}_{l}(&inst, {val});")
+        w(f"    {TRAP_FLAG}_{l} = 0;")
+        w("    for (uint64_t r = 0; r < n; r++) {")
+        w("#pragma HLS pipeline II=1")
+        if wide_in:
+            w(f"        const in_rec_t rec = sin.read();")
+            rec = "rec.w"
+        else:
+            w("        in_t rec[IN_WORDS];")
+            w("        for (unsigned j = 0; j < IN_WORDS; j++) {")
+            w("#pragma HLS pipeline II=1")
+            w("            rec[j] = sin.read();")
+            w("        }")
+            rec = "rec"
+        args = "".join(", " + (f"&{rec}[{p['offset']}]" if p["shape"] else f"{rec}[{p['offset']}]") for p in params)
+        w(f"        {stem}_{l}(&inst{args});")
+        w("    }")
+        w("    out_t o[RES_WORDS];")
+        if reader.decl.signature.result.shape:
+            w(f"    {rstem}_{l}(&inst, o);")
+        else:
+            w(f"    o[0] = {rstem}_{l}(&inst);")
+        w("    for (unsigned j = 0; j < RES_WORDS; j++) {")
+        w("#pragma HLS pipeline II=1")
+        w("        sres.write(o[j]);")
+        w("    }")
+        w(f"    sst.write(n != 0 ? {TRAP_FLAG}_{l} : 0u);")
+        w("}")
+        w("")
+    w("/* store: the records of the lanes in order, then the status word */")
+    w("static void store(hls::stream<out_t> sres[LANES], hls::stream<unsigned> sst[LANES], out_t *out, unsigned *status) {")
+    w("    out_t rec[LANES * RES_WORDS];")
+    w("    for (unsigned l = 0; l < LANES; l++) {")
+    w("#pragma HLS unroll")
+    w("        for (unsigned j = 0; j < RES_WORDS; j++) {")
+    w("#pragma HLS unroll")
+    w("            rec[l * RES_WORDS + j] = sres[l].read();")
+    w("        }")
+    w("    }")
+    w("    for (unsigned i = 0; i < LANES * RES_WORDS; i++) {")
+    w("#pragma HLS pipeline II=1")
+    w("        out[i] = rec[i];")
+    w("    }")
+    w("    unsigned t = 0;")
+    w("    for (unsigned l = 0; l < LANES; l++) {")
+    w("#pragma HLS unroll")
+    w("        t |= sst[l].read();")
+    w("    }")
+    w("    *status = t ? (t | 1u) : 0u;")
+    w("}")
+    w("")
+    rdecl = ", const reg_t *params" if table else ""
+    w(f'extern "C" void {ent["top"]}(const in_t *in, out_t *out, unsigned n, unsigned reset{rdecl}, unsigned *status) {{')
+    w("#pragma HLS interface m_axi port=in offset=slave bundle=gmem0")
+    w("#pragma HLS interface m_axi port=out offset=slave bundle=gmem1")
+    w("#pragma HLS interface m_axi port=status offset=slave bundle=gmem2")
+    if table:
+        w("#pragma HLS interface m_axi port=params offset=slave bundle=gmem3")
+    for port in ("in", "out", "n", "reset", *(["params"] if table else []), "status"):
+        w(f"#pragma HLS interface s_axilite port={port} bundle=control")
+    w("#pragma HLS interface s_axilite port=return bundle=control")
+    w("#pragma HLS dataflow")
+    w(f"    hls::stream<{sin_t}> sin[LANES];")
+    if table:
+        w("    hls::stream<reg_t> sreg[LANES];")
+    w("    hls::stream<out_t> sres[LANES];")
+    w("    hls::stream<unsigned> sst[LANES];")
+    w(f"#pragma HLS stream variable=sin depth={STREAM_DEPTH}")
+    if table:
+        w(f"#pragma HLS stream variable=sreg depth={len(regs) + 1}")
+    w(f"#pragma HLS stream variable=sres depth={res_words + 1}")
+    w("#pragma HLS stream variable=sst depth=2")
+    w("    load(in, sin, n);")
+    if table:
+        w("    regs(params, sreg);")
+    for l in range(L):
+        w(f"    lane_{l}(sin[{l}], {'sreg[%d], ' % l if table else ''}sres[{l}], sst[{l}], n, reset);")
+    w("    store(sres, sst, out, status);")
     w("}")
     w("")
     return "\n".join(Ls)
@@ -639,7 +1008,7 @@ def _top_b(program, prefix, e, ent, params, mixed, regs, lanes, mode):
 # The test bench
 # ---------------------------------------------------------------------------
 
-def _tb(prefix, ent, regs=(), lanes=None):
+def _tb(prefix, ent, regs=(), lanes=None, table=None):
     L = []
     w = L.append
     w(f"/* {ent['files']['tb']} - generated by KlongPy (kgpy --emit-hls). Do not edit.")
@@ -648,11 +1017,17 @@ def _tb(prefix, ent, regs=(), lanes=None):
         w(" * in manifest order; absent: the defaults), writes DIR/out.bin and DIR/status.bin (one 32-bit word,")
     else:
         w(" * usage: tb [DIR [RECORDS_PER_CALL]]  reads DIR/in.bin, writes DIR/out.bin and DIR/status.bin (one 32-bit word,")
-    w(" * the OR of the status of every call). RECORDS_PER_CALL 0 (the default) is one call for the whole file;")
+    if ent.get("output") == "summary":
+        w(" * the OR of the status of every call; out.bin is the one summary record, as it is after the last call)."
+          " RECORDS_PER_CALL 0 (the default) is one call for the whole file;")
+    else:
+        w(" * the OR of the status of every call). RECORDS_PER_CALL 0 (the default) is one call for the whole file;")
     w(" * with a number, the first call has reset set and the rest continue the state. */")
     w("#include <stdio.h>")
     w("#include <stdlib.h>")
     w("#include <stdint.h>")
+    if table:
+        w("#include <string.h>")
     w("#include <vector>")
     w("")
     w('extern "C" {')
@@ -662,7 +1037,11 @@ def _tb(prefix, ent, regs=(), lanes=None):
     w(f"typedef {ent['out_type']} out_t;")
     w(f"#define IN_WORDS {ent['in_words']}")
     w(f"#define OUT_WORDS {ent['out_words']}")
-    w(f'extern "C" void {ent["top"]}(const in_t *in, out_t *out, unsigned n, unsigned reset{_reg_decl(regs, lanes)}, unsigned *status);')
+    if table:
+        w(f"typedef uint{8 * table['word_bytes']}_t reg_t;")
+        w(f'extern "C" void {ent["top"]}(const in_t *in, out_t *out, unsigned n, unsigned reset, const reg_t *params, unsigned *status);')
+    else:
+        w(f'extern "C" void {ent["top"]}(const in_t *in, out_t *out, unsigned n, unsigned reset{_reg_decl(regs, lanes)}, unsigned *status);')
     w("")
     w("int main(int argc, char **argv) {")
     w('    const char *dir = argc > 1 ? argv[1] : ".";')
@@ -685,6 +1064,17 @@ def _tb(prefix, ent, regs=(), lanes=None):
             w("        }")
         w("        fclose(rf);")
         w("    }")
+    if table:
+        w(f"    std::vector<reg_t> params({table['words']});")
+        for k, r in enumerate(regs):
+            w(f"    for (unsigned l = 0; l < {lanes}; l++) {{")
+            if r["elem"] == "float":
+                w(f"        reg_t bits = 0;")
+                w(f"        memcpy(&bits, &{r['cid']}[l], sizeof(float));")
+                w(f"        params[{k * lanes} + l] = bits;")
+            else:
+                w(f"        params[{k * lanes} + l] = (reg_t)(int64_t){r['cid']}[l];")
+            w("    }")
     w('    snprintf(path, sizeof path, "%s/in.bin", dir);')
     w('    FILE *f = fopen(path, "rb");')
     w("    if (!f) {")
@@ -702,7 +1092,8 @@ def _tb(prefix, ent, regs=(), lanes=None):
     w("        return 2;")
     w("    }")
     w("    unsigned n = (unsigned)(in.size() / IN_WORDS);")
-    w("    std::vector<out_t> out((size_t)n * OUT_WORDS + 1);")
+    summary = ent.get("output") == "summary"
+    w("    std::vector<out_t> out(" + ("(size_t)OUT_WORDS + 1" if summary else "(size_t)n * OUT_WORDS + 1") + ");")
     w("    unsigned status = 0, all = 0;")
     w("    if (per == 0 || per > n) {")
     w("        per = n;")
@@ -710,8 +1101,8 @@ def _tb(prefix, ent, regs=(), lanes=None):
     w("    unsigned done = 0;")
     w("    do {")
     w("        unsigned m = n - done < per ? n - done : per;")
-    w(f"        {ent['top']}(in.data() + (size_t)done * IN_WORDS, out.data() + (size_t)done * OUT_WORDS, m, done == 0"
-      f"{''.join(', ' + r['cid'] + ('' if lanes else '[0]') for r in regs)}, &status);")
+    w(f"        {ent['top']}(in.data() + (size_t)done * IN_WORDS, out.data() + {'0' if summary else '(size_t)done * OUT_WORDS'}, m, done == 0"
+      f"{', params.data()' if table else ''.join(', ' + r['cid'] + ('' if lanes else '[0]') for r in regs)}, &status);")
     w("        all |= status;")
     w("        done += m;")
     w("    } while (done < n);")
@@ -721,7 +1112,7 @@ def _tb(prefix, ent, regs=(), lanes=None):
     w('        fprintf(stderr, "tb: cannot write %s\\n", path);')
     w("        return 2;")
     w("    }")
-    w("    fwrite(out.data(), sizeof(out_t), (size_t)n * OUT_WORDS, f);")
+    w("    fwrite(out.data(), sizeof(out_t), " + ("(size_t)OUT_WORDS" if summary else "(size_t)n * OUT_WORDS") + ", f);")
     w("    fclose(f);")
     w('    snprintf(path, sizeof path, "%s/status.bin", dir);')
     w('    f = fopen(path, "wb");')
@@ -763,6 +1154,8 @@ def _tcl(prefix, ent, clock_mhz, flags, source_name, stage_b=False):
     w(f"open_project -reset proj_{ent['c_name']}")
     w(f"set_top {ent['top']}")
     w(f"add_files $here/{prefix}.c -cflags $cflags")
+    for lf in ent.get("lane_files", []):
+        w(f"add_files $here/{lf} -cflags $cflags")
     w(f"add_files $here/{ent['files']['top']} -cflags $cflags")
     w(f"add_files -tb $here/{ent['files']['tb']} -cflags $cflags")
     w("open_solution -reset sol1 -flow_target vitis")

@@ -374,3 +374,118 @@ class ClientTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# -- registers (.param) and summary kernels ---------------------------------------------------------------------
+
+REGS_SCALAR = [{"name": "gain", "elem": "int", "ctype": "kg_int", "cid": "gain", "default": 3, "lanes": 1, "bytes": 4},
+               {"name": "alpha", "elem": "float", "ctype": "kg_float", "cid": "alpha", "default": 0.5, "lanes": 1, "bytes": 4},
+               {"name": "off", "elem": "fixed<32,16>", "ctype": "int32_t", "cid": "off", "default": -65536, "lanes": 1, "bytes": 4}]
+REGS_LANES = [{"name": "fast", "elem": "int", "ctype": "kg_int", "cid": "fast", "default": 5, "lanes": 3, "bytes": 4},
+              {"name": "stop", "elem": "fixed<64,32>", "ctype": "int64_t", "cid": "stop", "default": 7, "lanes": 3, "bytes": 8},
+              {"name": "k", "elem": "float", "ctype": "kg_float", "cid": "k", "default": 1.5, "lanes": 3, "bytes": 4}]
+
+
+def entry(top, **kw):
+    e = dict(ENTRY_ACC, top=top, name=top, c_name=top)
+    e.update(kw)
+    return e
+
+
+class RegistersTest(unittest.TestCase):
+    """The server keeps the .param registers, passes them to the kernel in manifest order, and runs summary kernels."""
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="kgreg_")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.seen = []
+
+        def k_scalar(words, n, reset, state, regs=None):
+            self.seen.append(("scalar", list(regs["args"]) if regs else None))
+            return np.zeros(n, np.float32), 0
+
+        def k_table(words, n, reset, state, regs=None):
+            table = np.frombuffer(bytes(regs["args"][0]), dtype="<u8")
+            self.seen.append(("table", table.copy()))
+            return np.zeros(n, np.float32), 0
+
+        def k_summary(words, n, reset, state, regs=None):
+            state["calls"] = state.get("calls", 0) * (0 if reset else 1) + n
+            self.seen.append(("summary", n))
+            return np.array([state["calls"], 7], dtype=np.int32), 0
+
+        self.dev = FakeDevice({"k_scalar": k_scalar, "k_table": k_table, "k_summary": k_summary})
+        self.srv = Server(self.dev)
+        self.p = Pipe(self.srv)
+        d = tempfile.mkdtemp(prefix="kgimg_", dir=self.tmp)
+        os.makedirs(os.path.join(d, "_x/reports/link/imp"))
+        with open(os.path.join(d, "_x/reports/link/imp/impl_1_hw_bb_locked_timing_summary_routed.rpt"), "w") as f:
+            f.write(PASS_RPT)
+        with open(os.path.join(d, "t.xclbin"), "wb") as f:
+            f.write(b"not a bitstream")
+        kern = os.path.join(d, "kernels.json")
+        table = {"order": ["fast", "stop", "k"], "lanes": 3, "word_bytes": 8, "words": 9, "bytes": 72}
+        with open(kern, "w") as f:
+            json.dump([{"registers": REGS_SCALAR, "entries": [entry("k_scalar")]},
+                       {"registers": REGS_LANES, "entries": [entry("k_table", register_table=table)]},
+                       {"entries": [entry("k_summary", output="summary", in_bytes=4, out_bytes=8, out_words=2)]}], f)
+        gate.main([d, "--xclbin", "t.xclbin", "--key", "k", "--clock-mhz", "300", "--kernels", kern])
+        self.image = os.path.join(d, "t.xclbin")
+        self.ok("load", path=self.image)
+
+    def ok(self, cmd, data=b"", **a):
+        h, d = self.p.call(cmd, data, **a)
+        self.assertTrue(h["ok"], h)
+        return h, d
+
+    def err(self, cmd, data=b"", **a):
+        h, d = self.p.call(cmd, data, **a)
+        self.assertFalse(h["ok"], h)
+        return h["kind"], h["message"]
+
+    def run_kernel(self, kernel, n=1, **kw):
+        put, _ = self.ok("put", b"\0" * 64)
+        return self.ok("run", kernel=kernel, n=n, **{"in": put["handle"]}, **kw)[0]
+
+    def test_scalar_registers_are_passed_in_manifest_order_with_their_defaults(self):
+        self.run_kernel("k_scalar")
+        # the float travels as the bits of the float32 (0.5 = 0x3f000000), a fixed-point value as its raw integer
+        self.assertEqual(self.seen[-1], ("scalar", [3, 0x3f000000, -65536]))
+
+    def test_set_changes_a_register_and_keeps_it_across_runs(self):
+        self.ok("set", struct.pack("<i", -9), kernel="k_scalar", name="gain")
+        self.ok("set", struct.pack("<f", 2.0), kernel="*", name="alpha")
+        self.run_kernel("k_scalar")
+        self.run_kernel("k_scalar")
+        self.assertEqual(self.seen[-1], ("scalar", [-9, 0x40000000, -65536]))
+        self.assertEqual(self.seen[-2], self.seen[-1])
+
+    def test_a_lane_table_has_one_row_per_register_and_a_word_of_the_widest_register(self):
+        self.ok("set", struct.pack("<3i", 2, -3, 4), kernel="k_table", name="fast")
+        self.run_kernel("k_table")
+        kind, table = self.seen[-1]
+        self.assertEqual(len(table), 9)
+        self.assertEqual([int(np.int64(v)) for v in table[:3]], [2, -3, 4])        # ints sign-extended
+        self.assertEqual([int(v) for v in table[3:6]], [7, 7, 7])                  # the default of stop
+        self.assertEqual(table[6:].tolist(), [int(np.float32(1.5).view(np.uint32))] * 3)       # float bits, zero-extended
+
+    def test_set_errors(self):
+        self.assertEqual(self.err("set", b"\0\0\0\0", kernel="k_scalar", name="nope")[0], "NoSuchRegister")
+        self.assertEqual(self.err("set", b"\0\0\0\0", kernel="k_summary", name="gain")[0], "NoSuchRegister")
+        kind, msg = self.err("set", b"\0\0\0\0", kernel="k_table", name="fast")
+        self.assertEqual(kind, "BadRequest")
+        self.assertIn("3 value(s) of 4 bytes", msg)
+
+    def test_a_summary_kernel_writes_one_record_whatever_n_is_and_n_may_be_zero(self):
+        r = self.run_kernel("k_summary", n=5)
+        self.assertEqual(r["out_nbytes"], 8)
+        out, _ = self.ok("get", handle=r["out"])
+        self.assertEqual(np.frombuffer(_, dtype="<i4").tolist(), [5, 7])
+        r = self.run_kernel("k_summary", n=0)
+        self.assertEqual(r["out_nbytes"], 8)
+        self.assertEqual(self.err("run", kernel="k_scalar", n=0, **{"in": 1})[0], "BadRequest")     # not a summary kernel
+
+    def test_loading_again_forgets_the_registers(self):
+        self.ok("set", struct.pack("<i", 11), kernel="k_scalar", name="gain")
+        self.ok("load", path=self.image)
+        self.run_kernel("k_scalar")
+        self.assertEqual(self.seen[-1][1][0], 3)

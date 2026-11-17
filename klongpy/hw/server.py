@@ -23,7 +23,11 @@ Commands (arguments in the header):
     put   nbytes + data       upload bytes to card memory; reply: handle
     get   handle [offset, nbytes]   download; data in the reply
     run   kernel in n reset [out] [ktimeout]   n calls of an entry on the records in buffer ``in``; reply: out handle,
-                              status word, seconds (the kernel from submit to done)
+                              status word, seconds (the kernel from submit to done). A kernel of a summary pair
+                              (manifest ``output`` = "summary") writes one result record whatever n is, and n may be 0
+    set   kernel name + data  set the register ``name`` of a kernel (``kernel`` "*": every kernel that has it) to the
+                              values in data (one per lane, little endian, the register's width); the server keeps
+                              the values and passes them at every run
     free  handle | all
     status                    handles, bytes, image, counters
     bye                       end the session
@@ -230,10 +234,11 @@ class XrtDevice:
         bo.sync(self.xrt.xclBOSyncDirection.XCL_BO_SYNC_BO_FROM_DEVICE)
         return bytes(bo.read(nbytes, offset))
 
-    def run(self, name, bo_in, bo_out, n, reset, bo_status, timeout):
+    def run(self, name, bo_in, bo_out, n, reset, bo_status, timeout, regs=None):
         k = self.kernel(name)
         t0 = time.perf_counter()
-        r = k(bo_in, bo_out, n, reset, bo_status)
+        args = [bo_in, bo_out, n, reset] + (list(regs["args"]) if regs else [])
+        r = k(*args, bo_status)
         state = r.wait(int(timeout * 1000)) if timeout else r.wait()
         dt = time.perf_counter() - t0
         if state != self.xrt.ert_cmd_state.ERT_CMD_STATE_COMPLETED:
@@ -291,12 +296,12 @@ class FakeDevice:
     def read(self, bo, nbytes, offset=0):
         return bytes(bo[offset:offset + nbytes])
 
-    def run(self, name, bo_in, bo_out, n, reset, bo_status, timeout):
+    def run(self, name, bo_in, bo_out, n, reset, bo_status, timeout, regs=None):
         fn = self.kernel(name)
         np = self.np
         words = np.frombuffer(bytes(bo_in), dtype=np.uint32)
         t0 = time.perf_counter()
-        out, status = fn(words, n, reset, self.state)
+        out, status = fn(words, n, reset, self.state, regs) if regs else fn(words, n, reset, self.state)
         raw = np.ascontiguousarray(out).tobytes()
         bo_out[:len(raw)] = raw
         bo_status[:4] = struct.pack("<I", status)
@@ -313,6 +318,8 @@ class Server:
         self.image_ok = image_ok or _load_gate()
         self.now = now
         self.handles = {}          # handle -> (bo, nbytes)
+        self.regvals = {}          # kernel -> {register name: bytes (one value per lane)}, set by ``set``
+        self.params_bo = {}        # kernel -> (buffer of its register table, the bytes last written to it)
         self.next_handle = 1
         self.image = None          # {"path", "uuid", "build", "kernels": {top: entry}}
         self.bytes_in_use = 0
@@ -366,7 +373,8 @@ class Server:
         kernels = {}
         for m in meta.get("kernels", []):
             for e in m.get("entries", []):
-                kernels[e["top"]] = e
+                kernels[e["top"]] = dict(e, registers=m["registers"]) if m.get("registers") else e
+        self.regvals, self.params_bo = {}, {}
         self.image = {"path": path, "uuid": uuid, "build": meta, "kernels": kernels}
         replaced = {"uuid": before.get("uuid"), "compute_units": before.get("compute_units")}
         msg = ("loaded %s; it replaces the image that was on the card (uuid %s, compute units %s)" %
@@ -433,15 +441,16 @@ class Server:
         if ent is None:
             raise ServerError("NoSuchKernel", "the image has no kernel %r (it has %s)" % (name, ", ".join(sorted(image["kernels"]))))
         n = h.get("n")
-        if not isinstance(n, int) or n < 1 or n >= 1 << 31:
-            raise ServerError("BadRequest", "run needs n, a count of records from 1")
+        summary = ent.get("output") == "summary"
+        if not isinstance(n, int) or n < (0 if summary else 1) or n >= 1 << 31:
+            raise ServerError("BadRequest", "run needs n, a count of records from %d" % (0 if summary else 1))
         reset = 1 if h.get("reset") else 0
         hin, (bo_in, in_n) = self._handle(h, "in")
         need = n * ent["in_bytes"]
         if need > in_n:
             raise ServerError("TooBig", "%d records of %d bytes need %d bytes and the input buffer holds %d" %
                               (n, ent["in_bytes"], need, in_n))
-        out_bytes = n * ent["out_bytes"]
+        out_bytes = ent["out_bytes"] if summary else n * ent["out_bytes"]
         if h.get("out") is not None:
             hout, (bo_out, out_n) = self._handle(h, "out")
             if out_n < out_bytes:
@@ -452,8 +461,9 @@ class Server:
         bo_status = self.dev.alloc(4, name)
         self.dev.write(bo_status, b"\0\0\0\0", 0)
         timeout = h.get("ktimeout", 600)
+        regs = self._run_registers(name, ent)
         try:
-            dt = self.dev.run(name, bo_in, bo_out, n, reset, bo_status, timeout)
+            dt = self.dev.run(name, bo_in, bo_out, n, reset, bo_status, timeout, *([regs] if regs else []))
         except ServerError:
             raise
         except Exception as e:
@@ -464,6 +474,73 @@ class Server:
         self.times["run_s"] += dt
         self.last_kernel = name
         return {"out": hout, "out_nbytes": out_bytes, "status": status, "seconds": dt, "n": n}, b""
+
+    # -- registers (.param) ------------------------------------------------------------------
+    def _register_bytes(self, kernel, r):
+        vals = self.regvals.setdefault(kernel, {})
+        if r["name"] not in vals:
+            if r["elem"] == "float":
+                one = struct.pack("<f", r["default"])
+            else:
+                one = int(r["default"]).to_bytes(r["bytes"], "little", signed=True)
+            vals[r["name"]] = one * r.get("lanes", 1)
+        return vals[r["name"]]
+
+    def _run_registers(self, name, ent):
+        """What the kernel call gets between ``reset`` and the status buffer: None, a table buffer, or scalar values."""
+        regs = ent.get("registers")
+        if not regs:
+            return None
+        table = ent.get("register_table")
+        if table:
+            import numpy as np
+            wb = table["word_bytes"]
+            parts = []
+            for key in table["order"]:
+                r = next(x for x in regs if x["name"] == key)
+                raw = self._register_bytes(name, r)
+                if r["elem"] == "float":
+                    a = np.frombuffer(raw, dtype="<u4").astype("<u%d" % wb)
+                else:
+                    a = np.frombuffer(raw, dtype="<i%d" % r["bytes"]).astype("<i%d" % wb).view("<u%d" % wb)
+                parts.append(a.tobytes())
+            blob = b"".join(parts)
+            bo, last = self.params_bo.get(name, (None, None))
+            if bo is None:
+                bo = self.dev.alloc(len(blob), name)
+            if blob != last:
+                self.dev.write(bo, blob, 0)
+            self.params_bo[name] = (bo, blob)
+            return {"args": [bo], "table": bo}
+        args = []
+        for r in regs:
+            raw = self._register_bytes(name, r)
+            if r["elem"] == "float":
+                args.append(struct.unpack("<i", raw[:4])[0])           # the bits of the float32
+            else:
+                args.append(int.from_bytes(raw[:r["bytes"]], "little", signed=True))
+        return {"args": args, "scalars": args}
+
+    def cmd_set(self, h, data):
+        image = self._need_image()
+        name, kernel = h.get("name"), h.get("kernel", "*")
+        spec, targets = None, []
+        for top, ent in image["kernels"].items():
+            if kernel not in ("*", top):
+                continue
+            for r in ent.get("registers", []):
+                if r["name"] == name:
+                    spec = r
+                    targets.append(top)
+        if not targets:
+            raise ServerError("NoSuchRegister", "no kernel %s has a register %r" % ("of the image" if kernel == "*" else kernel, name))
+        want = spec.get("lanes", 1) * spec["bytes"]
+        if len(data) != want:
+            raise ServerError("BadRequest", "register %s takes %d value(s) of %d bytes: %d bytes, got %d" %
+                              (name, spec.get("lanes", 1), spec["bytes"], want, len(data)))
+        for top in targets:
+            self.regvals.setdefault(top, {})[name] = bytes(data)
+        return {"kernels": sorted(targets), "nbytes": len(data)}, b""
 
     def _free_all(self):
         self.handles.clear()

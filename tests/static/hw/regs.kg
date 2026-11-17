@@ -1,0 +1,15 @@
+:" Three kinds of .param registers (float, int, fixed<32,16>) and a summary pair, for the tests of .hw.set and .hw.lanes. "
+
+.param("gain";"float";2.0)
+.param("inc";"int";3)
+.param("off";"fixed<32,16>";0.5)
+
+tot::0.0
+cnt::0
+acc::.fixed("fixed<32,16>";0)
+
+step::{tot::tot+x*gain;cnt::cnt+inc;acc::acc+off;0}
+summary::{tot,(.float(acc)),cnt+0.0}
+
+.entry("step";"float -> void")
+.entry("summary";"-> float[3]")

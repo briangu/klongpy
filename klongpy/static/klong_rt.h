@@ -49,7 +49,13 @@ typedef float kg_float;
 
 #if defined(__GNUC__) || defined(__clang__)
 #define KG_WEAK __attribute__((weak))
+#if defined(KG_TRAP_FLAG)
+/* hardware (kgpy --emit-hls): the helpers are always inlined, so that the tool sees constant widths and shifts and
+ * does not build one general module (two barrel shifters) per call */
+#define KG_UNUSED __attribute__((unused, always_inline))
+#else
 #define KG_UNUSED __attribute__((unused))
+#endif
 #define KG_INF ((kg_float)__builtin_inf())
 #define KG_NAN ((kg_float)__builtin_nan(""))
 #else

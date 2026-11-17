@@ -12,7 +12,7 @@ import sys
 
 import numpy as np
 
-from .errors import (KlongArityError, KlongError, KlongRangeError, KlongShapeError, KlongSystemError,
+from .errors import (KlongArityError, KlongError, KlongNameError, KlongRangeError, KlongShapeError, KlongSystemError,
                      KlongTypeError)
 from .sys_fn_static import _define_global
 from .types import KGLambda, KGSym
@@ -66,6 +66,8 @@ def _translate(e, entry=None):
             return KlongHwBusyError("%s" % e.message)
         return KlongHwImageError("the image was refused: %s" % e.message)
     kind = getattr(e, "kind", "")
+    if kind == "NoSuchRegister":
+        return KlongNameError(e.message, hint='declare it in the program: .param("name";"int")')
     if kind in ("ImageReplaced",):
         return KlongHwImageError(e.message)
     if kind in ("NoSuchHandle",):
@@ -110,12 +112,22 @@ class HwEntryFn(KGLambda):
         self.hw_entry = bound
 
 
+def _values(elem, raw):
+    """Words from the card as Klong numbers: ints as int64, floats as float64, fixed-point as float64 (exact to 53 bits)."""
+    from .static import fixed as fx
+    from .static.signature import is_fixed
+    raw = np.asarray(raw)
+    if is_fixed(elem):
+        return fx.to_float(raw.astype(np.int64), fx.spec_of(elem))
+    return raw.astype(np.int64 if elem == "int" else np.float64)
+
+
 def _result_value(klong, bound, out, many):
-    ty = bound.sig.result
-    out = np.asarray(out)
-    out = out.astype(np.int64 if ty.elem == "int" else np.float64)
+    ty = bound.result_ty                 # the type the kernel returns: lanes in front, the summary for a driver
+    out = _values(ty.elem, out)
     if not many:
-        out = out[0]
+        if not bound.summary:
+            out = out[0]
         if not ty.shape:
             return int(out) if ty.elem == "int" else float(out)
     return klong._backend.kg_asarray(out)
@@ -204,10 +216,13 @@ def eval_sys_hw(klong, x):
                     fir.run(256#1.0)
 
     """
-    files = _paths(x)
+    return _bind(klong, _paths(x), None)
+
+
+def _bind(klong, files, lanes):
     with _guard():
         from .hw import binding
-        b = binding.bind(files)
+        b = binding.bind(files, lanes=lanes)
     table, qualified = {}, {}
     for be in b.entries.values():
         fn = HwEntryFn(be)
@@ -217,6 +232,63 @@ def eval_sys_hw(klong, x):
         _define_global(klong, KGSym(q), fn)
     klong.hw_binding = b
     return table
+
+
+def eval_sys_hw_lanes(klong, x, y):
+    """
+
+        .hw.lanes(x;y)                                        [Hw-Lanes]
+
+        Bind the kernels of a program built with --lanes y
+        (kgpy --hw-build FILE --lanes y). Like .hw: "x" is a path
+        or a list of paths. The kernel then runs y copies of the
+        program on the same stream of calls: every .param is set
+        with .hw.set as an array of y values, and a result has a
+        leading dimension y.
+
+        Example:   s::.hw.lanes("crossover.kg";64)
+
+    """
+    if isinstance(y, bool) or not isinstance(y, (int, np.integer)) or y < 1:
+        raise KlongTypeError(".hw.lanes: the number of lanes must be an integer from 1")
+    return _bind(klong, _paths(x), int(y))
+
+
+def _binding_of(x, who):
+    b = getattr(x, "hw_entry", None)
+    if b is None and isinstance(x, dict):
+        for v in x.values():
+            b = getattr(v, "hw_entry", None)
+            if b is not None:
+                break
+    if b is None:
+        raise KlongTypeError("%s: the first argument must be what .hw returned, or a kernel from it (fir.run)" % who)
+    return b.binding
+
+
+def eval_sys_hw_set(klong, x, y, z):
+    """
+
+        .hw.set(x;y;z)                                        [Hw-Set]
+
+        Set the parameter "y" (declared in the program with
+        .param) of the kernels of "x" to the value "z", between
+        runs. "x" is what .hw returned, or one of its kernels.
+        The value is converted as the interpreter converts it
+        (a fixed-point parameter takes a number, truncating toward
+        minus infinity); for a kernel bound with .hw.lanes it is
+        an array with one value per lane. The kernel keeps the
+        value, through resets, until it is set again. Returns the
+        number of kernels set.
+
+        Example:   .hw.set(s;"fast";[3 5 8])
+
+    """
+    binding = _binding_of(x, ".hw.set")
+    if type(y) is not str:
+        raise KlongTypeError(".hw.set: the name of the parameter must be a string")
+    with _guard():
+        return binding.set_register(str(y), z)
 
 
 def eval_sys_hw_put(klong, x, y):
@@ -277,8 +349,7 @@ def eval_sys_hw_get(klong, x):
     recs = np.asarray(data).reshape(x.n, -1)
     if e.arity == 1:
         ty = e.types[0]
-        arr = recs.reshape((x.n,) + ty.shape)
-        arr = arr.astype(np.int64 if ty.elem == "int" else np.float64)
+        arr = _values(ty.elem, recs.reshape((x.n,) + ty.shape))
         if not x.many:
             arr = arr[0]
             if not ty.shape:

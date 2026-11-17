@@ -1,0 +1,82 @@
+:" A moving-average crossover strategy on one instrument, for the FPGA.
+
+   One tick of the price, as fixed<32,16>, goes in; nothing comes out per tick.
+   The program keeps the whole account in its state: the sums of the last
+   `fast` and the last `slow` prices (windows of at most 32 ticks, bounded by
+   parameters), the position in {-1,0,1} from their crossover, the price the
+   position was taken at, a stop distance, the running profit and the largest
+   drawdown. `summary` reads it at the end: [profit, maximum drawdown,
+   trades]. With `--lanes N` each lane has its own parameters (fast, slow,
+   stop) and its own account; all lanes see the same ticks.
+
+   There is no multiplication in anything a tick carries over to the next:
+   the sums are updated by an add and a subtract, the position by comparisons,
+   the profit by an add. The two products of the crossover test are computed
+   from the sums and only feed the position, so they can be pipelined.
+
+   A position is long (1) while the fast average is above the slow one and short
+   (-1) while it is below. It is closed when the price moves against it by more
+   than `stop`, and not reopened until the signal has turned (or gone flat).
+   Nothing is traded before `slow` ticks have been seen.
+
+   Check it:   kgpy --check-static --streamable examples/hardware/crossover.kg
+   As C:       kgpy --emit-c examples/hardware/crossover.kg -o out/
+   As a kernel kgpy --hw-build examples/hardware/crossover.kg --lanes 32
+   Run it:     docs/hardware.md, section Strategies
+"
+
+.param("fast";"int";5)
+.param("slow";"int";20)
+.param("stop";"fixed<32,16>";1)
+
+zero::.fixed("fixed<32,16>";0)
+pzero::.fixed("fixed<64,32>";0)
+
+buf::.fixed("fixed<32,16>";32#0)
+sf::zero
+ss::zero
+prev::zero
+ent::zero
+t::0
+pos::0
+blk::0
+trades::0
+profit::pzero
+peak::pzero
+maxdd::pzero
+
+fx::{.fixed("fixed<32,16>";x)}
+wide::{.fixed("fixed<64,32>";x)}
+
+step::{[fw sw xp xm d g hit al ta tb ea eb pnl];
+  fw::1|fast&32;
+  sw::1|slow&32;
+  sf::sf+x-buf@fw-1;
+  ss::ss+x-buf@sw-1;
+  buf::x,(-1)_buf;
+  t::t+t<64;
+  d::(sf*fx(sw))-ss*fx(fw);
+  g::(t>sw-1)*(d>0)-d<0;
+  xp::x+stop;
+  xm::x-stop;
+  pnl:::[pos>0;x-prev:|pos<0;prev-x;zero];
+  profit::profit+wide(pnl);
+  hit:::[pos>0;ent>xp:|pos<0;xm>ent;0];
+  al:::[g=blk;blk;0];
+  ta:::[g=al;0;g];
+  tb:::[g=pos;0;g];
+  ea:::[ta=pos;ent;x];
+  eb:::[tb=pos;ent;x];
+  trades:::[hit;trades+(~tb=pos)&~tb=0;trades+(~ta=pos)&~ta=0];
+  ent:::[hit;eb;ea];
+  blk:::[hit;pos;al];
+  pos:::[hit;tb;ta];
+  prev::x;
+  peak::peak|profit;
+  maxdd::maxdd|peak-profit;
+  0}
+
+summary::{profit,maxdd,wide(trades)}
+
+.entry("step";"fixed<32,16> -> void")
+.entry("summary";"-> fixed<64,32>[3]")

@@ -33,6 +33,9 @@ extern unsigned KG_TRAP_FLAG;
 #define OUT_WORDS (LANES * RES_WORDS)
 typedef int32_t in_t;
 typedef int32_t out_t;
+typedef uint32_t reg_t;
+#define REG_WORDS 8
+template <class T, class W> static inline T from_bits(W v) { T t; memcpy(&t, &v, sizeof t); return t; }
 typedef struct { in_t w[IN_WORDS]; } in_rec_t;
 typedef struct { out_t w[OUT_WORDS]; } out_rec_t;
 
@@ -51,7 +54,7 @@ static void load(const in_t *in, hls::stream<in_rec_t> &s, uint64_t n) {
 }
 
 /* core: the C of the program, one call of the entry per record and lane */
-static void core(hls::stream<in_rec_t> &sin, hls::stream<out_rec_t> &sout, hls::stream<unsigned> &sst, uint64_t n, unsigned reset, int32_t alpha[4], kg_int depth[4]) {
+static void core(hls::stream<in_rec_t> &sin, hls::stream<out_rec_t> &sout, hls::stream<unsigned> &sst, uint64_t n, unsigned reset, const reg_t *params) {
     static ema_t inst[LANES];
     static bool started = false;
     if (!started || reset) {
@@ -61,10 +64,15 @@ static void core(hls::stream<in_rec_t> &sin, hls::stream<out_rec_t> &sout, hls::
         }
         started = true;
     }
+    reg_t pw[REG_WORDS];
+    for (unsigned i = 0; i < REG_WORDS; i++) {
+#pragma HLS pipeline II=1
+        pw[i] = params[i];
+    }
     for (unsigned l = 0; l < LANES; l++) {
 #pragma HLS unroll
-        ema_set_alpha(&inst[l], alpha[l]);
-        ema_set_depth(&inst[l], depth[l]);
+        ema_set_alpha(&inst[l], (int32_t)pw[0 * LANES + l]);
+        ema_set_depth(&inst[l], (kg_int)pw[1 * LANES + l]);
     }
     KG_TRAP_FLAG = 0;
     for (uint64_t r = 0; r < n; r++) {
@@ -96,16 +104,16 @@ static void store(hls::stream<out_rec_t> &s, out_t *out, hls::stream<unsigned> &
     *status = t ? (t | 1u) : 0u;
 }
 
-extern "C" void ema_step_kernel(const in_t *in, out_t *out, unsigned n, unsigned reset, int32_t alpha[4], kg_int depth[4], unsigned *status) {
+extern "C" void ema_step_kernel(const in_t *in, out_t *out, unsigned n, unsigned reset, const reg_t *params, unsigned *status) {
 #pragma HLS interface m_axi port=in offset=slave bundle=gmem0
 #pragma HLS interface m_axi port=out offset=slave bundle=gmem1
 #pragma HLS interface m_axi port=status offset=slave bundle=gmem2
+#pragma HLS interface m_axi port=params offset=slave bundle=gmem3
 #pragma HLS interface s_axilite port=in bundle=control
 #pragma HLS interface s_axilite port=out bundle=control
 #pragma HLS interface s_axilite port=n bundle=control
 #pragma HLS interface s_axilite port=reset bundle=control
-#pragma HLS interface s_axilite port=alpha bundle=control
-#pragma HLS interface s_axilite port=depth bundle=control
+#pragma HLS interface s_axilite port=params bundle=control
 #pragma HLS interface s_axilite port=status bundle=control
 #pragma HLS interface s_axilite port=return bundle=control
 #pragma HLS dataflow
@@ -116,6 +124,6 @@ extern "C" void ema_step_kernel(const in_t *in, out_t *out, unsigned n, unsigned
 #pragma HLS stream variable=sout depth=32
 #pragma HLS stream variable=sst depth=2
     load(in, sin, n);
-    core(sin, sout, sst, n, reset, alpha, depth);
+    core(sin, sout, sst, n, reset, params);
     store(sout, out, sst, status, n);
 }

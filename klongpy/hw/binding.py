@@ -121,9 +121,10 @@ atexit.register(close_all)
 # images
 # ---------------------------------------------------------------------------------------
 
-def _program_outputs(files, clock_mhz=DEFAULT_CLOCK):
+def _program_outputs(files, clock_mhz=DEFAULT_CLOCK, lanes=None):
     from ..static.compile import emit_hls_program
-    return [emit_hls_program(f, None, int_bits=32, clock_mhz=clock_mhz) for f in files]
+    return [emit_hls_program(f, None, int_bits=32, clock_mhz=clock_mhz, lanes=lanes if lanes and lanes > 1 else None)
+            for f in files]
 
 
 def _images_script(root):
@@ -133,19 +134,22 @@ def _images_script(root):
             "    t = d.get('timing') or {}\n"
             "    print(json.dumps({'dir': p.rsplit('/', 1)[0], 'xclbin': d.get('xclbin'), 'passed': bool(d.get('passed')), "
             "'met': bool(t.get('met')), 'target': d.get('target'), 'built_at': d.get('built_at'), "
-            "'programs': [k.get('cache_key') for k in d.get('kernels', [])]}))\nPY\n" % json.dumps(root))
+            "'programs': [k.get('cache_key') for k in d.get('kernels', [])], "
+            "'clocks': [k.get('clock_mhz') for k in d.get('kernels', [])]}))\nPY\n" % json.dumps(root))
 
 
-def find_image_for(files, host, clock_mhz=DEFAULT_CLOCK):
+def find_image_for(files, host, clock_mhz=DEFAULT_CLOCK, lanes=None):
     """
-    The image of exactly these programs (kgpy --hw-build FILE...), else, for programs built together with others, the
-    newest passing image that holds every one of them (same source hash). Returns (path, build.json dict).
+    The image of exactly these programs (kgpy --hw-build FILE... [--lanes N]), else, for programs built together with
+    others, the newest passing image that holds every one of them (same source hash). Returns (path, build.json dict).
+    ``clock_mhz`` None looks at the default clock first and then at every clock an image on the machine was built for.
     Raises NoImage, with the build command, when there is none.
     """
     from .build import Builder, StaleImage, find_image, plan_for
     from .remote import Remote, RemoteError
+    first_clock = DEFAULT_CLOCK if clock_mhz is None else clock_mhz
     try:
-        return find_image(files, host=host, clock_mhz=clock_mhz)
+        return find_image(files, host=host, clock_mhz=first_clock, lanes=lanes)
     except StaleImage as first:
         exact = first
     except RemoteError as e:
@@ -153,22 +157,30 @@ def find_image_for(files, host, clock_mhz=DEFAULT_CLOCK):
     if "still being built" in str(exact):
         raise NoImage(str(exact))
     try:
-        plan = plan_for(files, 32, clock_mhz)
         b = Builder(Remote(target=host))
         rc, out, err = b.sh(_images_script(b.root))
     except RemoteError as e:
         raise HwConnectionError(str(e))
     if rc != 0:
         raise HwConnectionError("cannot list the images on %s: %s" % (host or "this machine", err.strip()))
-    best = None
+    listed = []
     for line in out.splitlines():
         try:
-            d = json.loads(line)
+            listed.append(json.loads(line))
         except ValueError:
             continue
+    clocks = [first_clock]
+    if clock_mhz is None:
+        for d in listed:
+            for c in d.get("clocks") or []:
+                if isinstance(c, int) and c not in clocks:
+                    clocks.append(c)
+    plans = {c: plan_for(files, 32, c, lanes=lanes if lanes and lanes > 1 else None) for c in clocks}
+    best = None
+    for d in listed:
         if d.get("target") != "hw" or not d.get("passed") or not d.get("met"):
             continue
-        if all(k in d["programs"] for k in plan.program_keys):
+        if any(all(k in d["programs"] for k in pl.program_keys) for pl in plans.values()):
             if best is None or (d.get("built_at") or "") > (best.get("built_at") or ""):
                 best = d
     if best is None:
@@ -181,8 +193,10 @@ def find_image_for(files, host, clock_mhz=DEFAULT_CLOCK):
     return "%s/%s" % (best["dir"], meta["xclbin"]), meta
 
 
-def build_command(files, clock_mhz=DEFAULT_CLOCK):
-    return "%s %s%s" % (BUILD_COMMAND, " ".join(files), "" if clock_mhz == DEFAULT_CLOCK else " --clock-mhz %d" % clock_mhz)
+def build_command(files, clock_mhz=DEFAULT_CLOCK, lanes=None):
+    clock_mhz = DEFAULT_CLOCK if clock_mhz is None else clock_mhz
+    return "%s %s%s%s" % (BUILD_COMMAND, " ".join(files), "" if clock_mhz == DEFAULT_CLOCK else " --clock-mhz %d" % clock_mhz,
+                          " --lanes %d" % lanes if lanes and lanes > 1 else "")
 
 
 # ---------------------------------------------------------------------------------------
@@ -214,19 +228,43 @@ def _np_in(elem, int_bits):
 
 
 class BoundEntry:
-    """One entry of a bound image: ``call`` runs it on the card (or the simulator)."""
-    def __init__(self, binding, program, entry):
+    """
+    One entry of a bound image: ``call`` runs it on the card (or the simulator).
+
+    ``summary``: the entry is the driver of a summary pair (``step: T -> void`` with ``summary: -> R``): a call runs its
+    n calls and returns the one summary record of the reader. ``reader``: the entry is that reader, a call of no
+    arguments that runs no ticks and returns the summary of the state as it is.
+    """
+    def __init__(self, binding, program, entry, reader=False):
         self.binding, self.program, self.e = binding, program, entry
-        self.name = entry["name"]
-        self.qualified = "%s.%s" % (program["program"], entry["name"])
+        self.reader = reader
+        self.summary = entry.get("output") == "summary"
+        if reader:
+            self.name = entry["summary"]["entry"]
+            self.sig = parse_signature(entry["summary"]["signature"], allow_str=False)
+        else:
+            self.name = entry["name"]
+            self.sig = parse_signature(entry["signature"], allow_str=False)
+        self.qualified = "%s.%s" % (program["program"], self.name)
         self.top = entry["top"]
-        self.sig = parse_signature(entry["signature"], allow_str=False)
         self.types = list(self.sig.params)
         self.arity = len(self.types)
         self.int_bits = program.get("int_bits", 32)
-        self.pending_reset = True
         self.mixed = len({t.elem for t in self.types}) > 1
         self.last = None
+        # the result as the kernel returns it: the lane dimension (--lanes) in front, the summary's type for a driver
+        r = entry["result"]
+        self.result_ty = Ty(r["elem"], tuple(r["shape"]))
+
+    @property
+    def pending_reset(self):
+        """The first call of a kernel after .hw (or .hw.reset) starts the program from its initial state; shared by the
+        entries of one kernel (a driver and its reader)."""
+        return self.binding.pending.get(self.top, True)
+
+    @pending_reset.setter
+    def pending_reset(self, v):
+        self.binding.pending[self.top] = v
 
     def __repr__(self):
         return "<hw entry %s: %s>" % (self.qualified, self.e["signature"])
@@ -263,6 +301,10 @@ class BoundEntry:
         A Buffer is the whole input: returned as (buffer, n, True). ``many`` is True when an argument had the extra dimension.
         """
         sig = self.sig
+        if self.reader:
+            if args:
+                raise BadCall("arity", "entry %s is declared \"%s\" and takes no argument, got %d" % (self.name, sig, len(args)))
+            return [], 0, False
         if any(isinstance(a, Buffer) for a in args):
             if len(args) != 1:
                 raise BadCall("type", "a buffer holds all the arguments of its calls: pass it alone, as %s(buffer)" % self.qualified)
@@ -337,7 +379,7 @@ class BoundEntry:
         finally:
             self.last = k.last
         self.pending_reset = False
-        return out, many
+        return out, (False if self.summary else many)
 
     def reset_next(self):
         self.pending_reset = True
@@ -350,13 +392,53 @@ class Binding:
         self.path, self.build, self.loaded = path, build, loaded
         self.entries = {}                    # "prog.entry" -> BoundEntry
         self.by_name = {}                    # "entry" -> [BoundEntry]
+        self.pending = {}                    # kernel -> True while its next run must reset the program
         for o in outputs:
             m = o.manifest
             for e in m["entries"]:
-                be = BoundEntry(self, m, e)
-                self.entries[be.qualified + ("" if len(self.by_name.get(be.name, ())) == 0 else "#%d" % (len(self.by_name[be.name]) + 1))] = be
-                self.by_name.setdefault(be.name, []).append(be)
+                made = [BoundEntry(self, m, e)]
+                if e.get("output") == "summary":
+                    made.append(BoundEntry(self, m, e, reader=True))
+                for be in made:
+                    self.entries[be.qualified + ("" if len(self.by_name.get(be.name, ())) == 0 else "#%d" % (len(self.by_name[be.name]) + 1))] = be
+                    self.by_name.setdefault(be.name, []).append(be)
         self.buffers = []
+
+    def registers(self):
+        """[(manifest, register dict)] of every program of the binding."""
+        return [(o.manifest, r) for o in self.outputs for r in o.manifest.get("registers", [])]
+
+    def set_register(self, name, value):
+        """
+        Set the ``.param`` register ``name`` of every program of this binding that declares it (the kernels keep the
+        value until it is set again). ``value`` is converted as the interpreter does (``set_param``: int, float or
+        fixed-point from a number or an array); with ``--lanes N`` it is an array of N values, one per lane.
+        Returns the number of kernels set. Raises BadCall (type, shape, range) and NoSuchRegister.
+        """
+        found = [(m, r) for m, r in self.registers() if r["name"] == name]
+        if not found:
+            have = sorted({r["name"] for _m, r in self.registers()})
+            raise HwError("NoSuchRegister", "%s is not a parameter of the program%s" %
+                          (name, "; the parameters are " + ", ".join(have) if have else " (it declares none with .param)"))
+        s = self.live_session()
+        count = 0
+        for m, r in found:
+            lanes = m.get("lanes", 1) if m.get("lane_dimension") else 0
+            ty = Ty(r["elem"], (lanes,) if lanes else ())
+            what = "the value of parameter %s" % name
+            try:
+                v = conform(ty, value, what)
+            except Mismatch as e:
+                raise BadCall(e.kind, "%s (declared %s%s)" % (e.message, r["elem"], ", one value per lane: an array of %d" % lanes if lanes else ""))
+            arr = np.asarray(v.raw if hasattr(v, "raw") else v)
+            if r["elem"] == "int" and arr.size:
+                lim = 1 << (8 * r["bytes"] - 1)
+                if arr.min() < -lim or arr.max() >= lim:
+                    raise BadCall("range", "%s does not fit a %d-bit int (the kernel's int)" % (what, 8 * r["bytes"]))
+            for e in m["entries"]:
+                s.kernel(e["top"]).set_register(name, arr)
+                count += 1
+        return count
 
     @property
     def simulated(self):
@@ -380,15 +462,17 @@ class Binding:
         return d
 
 
-def bind(files, clock_mhz=DEFAULT_CLOCK, env=None):
+def bind(files, clock_mhz=None, env=None, lanes=None):
     """
     Compile ``files`` (static-profile programs), find the image that holds them, load it and return the Binding.
-    Raises HwNotAvailable, NoImage, HwRefused (timing, card busy), HwConnectionError, and the static checker's errors.
+    ``lanes``: the image was built with ``--lanes N``. ``clock_mhz`` None: the clock of the image that is found
+    (300 MHz for the simulator). Raises HwNotAvailable, NoImage, HwRefused (timing, card busy), HwConnectionError,
+    and the static checker's errors.
     """
     mode = choose_mode(env)
     if mode is None:
         raise HwNotAvailable("no hardware to run on: " + _TEMPLATE_HINT)
-    outputs = _program_outputs(files, clock_mhz)
+    outputs = _program_outputs(files, DEFAULT_CLOCK if clock_mhz is None else clock_mhz, lanes)
     try:
         s = session_for(mode)
         if mode == "sim":
@@ -397,9 +481,9 @@ def bind(files, clock_mhz=DEFAULT_CLOCK, env=None):
             from .client import host_target
             host = host_target() if mode == "card" else None
             try:
-                path, build = find_image_for(files, host, clock_mhz)
+                path, build = find_image_for(files, host, clock_mhz, lanes)
             except NoImage as e:
-                raise NoImage("%s" % _with_command(str(e), files, clock_mhz))
+                raise NoImage("%s" % _with_command(str(e), files, clock_mhz, lanes))
         if getattr(s, "image", None) == path and getattr(s, "loaded_reply", None):
             loaded = s.loaded_reply          # this image is the one this session loaded: nothing to replace
         else:
@@ -411,6 +495,6 @@ def bind(files, clock_mhz=DEFAULT_CLOCK, env=None):
     return b
 
 
-def _with_command(msg, files, clock_mhz):
-    cmd = build_command(files, clock_mhz)
+def _with_command(msg, files, clock_mhz, lanes=None):
+    cmd = build_command(files, clock_mhz, lanes)
     return msg if cmd in msg else "%s. Build it with: %s" % (msg.rstrip("."), cmd)

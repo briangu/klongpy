@@ -304,7 +304,22 @@ class HwKernel:
         self.out_dtype = self._dtype(entry["out_type"], entry["out_bytes"], words_out)
         self.out_shape = tuple(entry["result"]["shape"])
         self.params = entry["params"]
+        self.summary = entry.get("output") == "summary"        # one result record whatever n is (a summary pair)
+        self.registers = entry.get("registers") or []
         self.last = None
+
+    def set_register(self, name, values):
+        """
+        Set the register ``name`` of this kernel: ``values`` is a numpy array of one value per lane (or one value),
+        already of the register's type (int, scaled integers of a fixed-point type, or float). Kept by the server and
+        passed at every run, so it stays until it is set again.
+        """
+        r = next((x for x in self.registers if x["name"] == name), None)
+        if r is None:
+            raise HwError("NoSuchRegister", "kernel %s has no register %r" % (self.e["top"], name))
+        dt = np.dtype("<f4") if r["elem"] == "float" else np.dtype("<i%d" % r["bytes"])
+        a = np.asarray(values).astype(dt).reshape(-1)
+        self.s.call("set", data=a.tobytes(), kernel=self.e["top"], name=name)
 
     @staticmethod
     def _dtype(ctype, nbytes, words):
@@ -331,14 +346,25 @@ class HwKernel:
             cols.append(a.reshape(n, -1))
         return np.ascontiguousarray(np.hstack(cols) if len(cols) > 1 else cols[0]), n
 
-    def run(self, *args, reset=False, timeout=600, keep=False):
+    def run(self, *args, reset=False, timeout=600, keep=False, n=None):
         """
         Run the entry on n calls. Arrays in, array out (n, *result shape); with a Handle as the only argument the
-        input stays on the card; with keep=True the result is a Handle too. Raises HwTrap when a trap flag was set.
+        input stays on the card (``n``: only its first n calls); with keep=True the result is a Handle too. For a
+        summary kernel the result is the one summary record, and no argument reads the state without running a call.
+        Raises HwTrap when a trap flag was set.
         """
         t0 = time.perf_counter()
-        if len(args) == 1 and isinstance(args[0], Handle):
-            hin, n = args[0], args[0].nbytes // self.e["in_bytes"]
+        if not args and self.summary:
+            # read the summary of the state as it is: no calls (n = 0); the input buffer is not read
+            flat, n = np.zeros(max(1, self.e["in_bytes"] // self.in_dtype.itemsize), dtype=self.in_dtype), 0
+            hin, ph = self.s.put(flat)
+            put_s, put_b = ph["seconds"], 0
+        elif len(args) == 1 and isinstance(args[0], Handle):
+            hin = args[0]
+            held = hin.nbytes // self.e["in_bytes"]
+            n = held if n is None else n
+            if n > held:
+                raise HwError("TooBig", "the buffer holds %d calls and %d were asked for" % (held, n))
             put_s, put_b = 0.0, 0
         else:
             flat, n = self.pack(args)
@@ -347,12 +373,13 @@ class HwKernel:
         try:
             h, _ = self.s.call("run", timeout=timeout + 30, kernel=self.e["top"], n=n, reset=bool(reset), ktimeout=timeout,
                                **{"in": hin.id})
-            out = Handle(self.s, h["out"], h["out_nbytes"], self.out_dtype, (n,) + self.out_shape)
+            lead = () if self.summary else (n,)
+            out = Handle(self.s, h["out"], h["out_nbytes"], self.out_dtype, lead + self.out_shape)
             result, get_s = out, 0.0
             if not keep:
                 data = self.s.get(out)
                 get_s = self.s.last_get["seconds"]
-                result = data.reshape((n,) + self.out_shape)
+                result = data.reshape(lead + self.out_shape)
                 self.s.free(out)
         finally:
             if not (len(args) == 1 and isinstance(args[0], Handle)):

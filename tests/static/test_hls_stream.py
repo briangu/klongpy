@@ -167,6 +167,124 @@ class TestLanes(unittest.TestCase):
         self.assertEqual(a.run(data)[0], b.run(data)[0])
 
 
+SUMMARY = """
+.param("gain";"int";2)
+tot::0
+cnt::0
+step::{tot::tot+x*gain;cnt::cnt+1;0}
+summary::{tot,cnt}
+.entry("step";"int -> void")
+.entry("summary";"-> int[2]")
+"""
+
+
+@needs
+class TestSummaryPair(unittest.TestCase):
+    """A void entry with arguments and an entry without arguments share the state; the kernel returns the summary once."""
+
+    def reference(self, xs, gain):
+        from klongpy.static import call_entry, load_program, set_param
+        k = load_program("t.kg", text=SUMMARY, strict=2, backend="numpy")
+        set_param(k, "gain", gain)
+        for x in xs:
+            self.assertIsNone(call_entry(k, "step", int(x)))
+        return np.asarray(call_entry(k, "summary"))
+
+    def table(self, b, **values):
+        import json
+        with open(os.path.join(b.dir, "manifest.json")) as f:
+            return regs_bytes(json.load(f), values)
+
+    def test_the_summary_is_the_state_after_n_calls_and_equals_the_interpreter_per_lane(self):
+        lanes = 3
+        b = HlsBuild(text=SUMMARY, name="sm", wrapped=False, lanes=lanes)
+        e = b.entry
+        self.assertEqual((e["name"], e["output"], e["out_words"], e["out_bytes"]), ("step", "summary", 2 * lanes, 8 * lanes))
+        self.assertEqual(e["summary"]["entry"], "summary")
+        self.assertEqual(e["result"]["shape"], [lanes, 2])
+        self.assertEqual(len(b.res.entries), 1, "the reader is not a kernel of its own")
+        self.assertEqual(e["kernel_args"], ["in", "out", "n", "reset", "params", "status"])
+        xs = np.random.default_rng(3).integers(-50, 50, 41)
+        gains = [1, 2, -3]
+        regs = self.table(b, gain=gains)
+        for per in (0, 7, 1):
+            out, status = b.run(pack(e, 32, [[int(x)] for x in xs]), per=per, regs=regs)
+            self.assertEqual(status, 0)
+            got = np.frombuffer(out, dtype="<i4").reshape(lanes, 2)
+            want = np.array([self.reference(xs, g) for g in gains])
+            self.assertTrue(np.array_equal(got, want), per)
+
+    def test_lanes_of_a_summary_kernel_are_processes_with_a_trap_flag_each(self):
+        from klongpy.static.compile import emit_hls_program
+        res = emit_hls_program("sm.kg", None, text=SUMMARY, prefix="sm", lanes=3)
+        e = res.entries[0]
+        self.assertEqual(e["structure"], "lane-processes")
+        self.assertEqual(e["lane_files"], ["lane_0.c", "lane_1.c", "lane_2.c"])
+        self.assertTrue(set(e["lane_files"]) <= set(res.files) and set(e["lane_files"]) <= set(res.manifest["c_files"]))
+        self.assertIn("add_files $here/lane_2.c", res.files[e["files"]["tcl"]])
+        lane = res.files["lane_2.c"]
+        self.assertIn("#define KG_TRAP_FLAG kg_hls_trap_2", lane)
+        self.assertIn("#define sm_step sm_step_2", lane)
+        self.assertIn("#define sm_set_gain sm_set_gain_2", lane)
+        self.assertTrue(lane.rstrip().endswith('#include "sm.c"'))
+        top = res.files[e["files"]["top"]]
+        for l in range(3):
+            self.assertIn(f"static void lane_{l}(", top)
+            self.assertIn(f"sm_summary_{l}(&inst", top)
+            self.assertIn(f"extern unsigned kg_hls_trap_{l};", top)
+        self.assertNotIn("kg_hls_trap;", top, "no lane touches a variable of another")
+        # without lanes, or with one, or without a summary pair there is a single core
+        for kw in ({}, {"lanes": 1}):
+            r = emit_hls_program("sm.kg", None, text=SUMMARY, prefix="sm", **kw)
+            self.assertNotIn("structure", r.entries[0])
+        text = 'acc::0\nf::{acc::acc+x;acc}\n.entry("f";"int -> int")\n'
+        self.assertNotIn("structure", emit_hls_program("a.kg", None, text=text, prefix="a", lanes=4).entries[0])
+
+    def test_no_calls_reads_the_initial_state(self):
+        b = HlsBuild(text=SUMMARY, name="sm", wrapped=False)
+        out, status = b.run(b"")
+        self.assertEqual(status, 0)
+        self.assertEqual(np.frombuffer(out, dtype="<i4").tolist(), [0, 0])
+
+    def test_without_lanes_the_registers_stay_scalars_and_the_result_has_no_lane_dimension(self):
+        b = HlsBuild(text=SUMMARY, name="sm", wrapped=False)
+        self.assertEqual(b.entry["result"]["shape"], [2])
+        self.assertEqual(b.entry["kernel_args"], ["in", "out", "n", "reset", "gain", "status"])
+        out, _ = b.run(pack(b.entry, 32, [[5], [6]]), regs=self.table(b, gain=[3]))
+        self.assertEqual(np.frombuffer(out, dtype="<i4").tolist(), [33, 2])
+
+    def test_the_rules(self):
+        from klongpy.errors import KlongStaticError
+        from klongpy.static.compile import emit_hls_program
+
+        def emit(text, **kw):
+            return emit_hls_program("t.kg", None, text=text, prefix="t", **kw)
+        with self.assertRaises(KlongStaticError) as cm:                  # stage A has no pair
+            emit(SUMMARY, wrapped=True)
+        self.assertIn("returns nothing", str(cm.exception))
+        self.assertIn("without arguments", cm.exception.hint)
+        with self.assertRaises(KlongStaticError) as cm:                  # a reader and no driver is an entry without input
+            emit('t::0\nsummary::{t}\n.entry("summary";"-> int")\nstep::{t::t+x;t}\n.entry("step";"int -> int")')
+        self.assertIn("takes no argument", str(cm.exception))
+        two = SUMMARY + 'other::{cnt}\n.entry("other";"-> int")\n'
+        with self.assertRaises(KlongStaticError) as cm:                  # which one reads the state is ambiguous
+            emit(two)
+        self.assertIn("returns nothing", str(cm.exception))
+        with self.assertRaises(KlongStaticError):                        # no reader at all
+            emit('t::0\nstep::{t::t+x;0}\n.entry("step";"int -> void")')
+
+
+@needs
+class TestSummaryGolden(unittest.TestCase):
+    def test_files(self):
+        from .test_ir import golden
+        from klongpy.static.compile import emit_hls_program
+        res = emit_hls_program("sm.kg", None, text=SUMMARY, prefix="sm", lanes=3)
+        golden(self, "hlsb_summary3_step_top.cpp", res.files["sm_step_top.cpp"])
+        golden(self, "hlsb_summary3_step_tb.cpp", res.files["sm_step_tb.cpp"])
+        golden(self, "hlsb_summary3_manifest.json", res.files["manifest.json"])
+
+
 def unpack_raw(entry, data):
     r = entry["result"]
     dt = np.dtype("<f4") if r["elem"] == "float" else np.dtype("<i%d" % (4 if r["elem"] == "int" or int(r["elem"][6:].split(",")[0]) <= 32 else 8))

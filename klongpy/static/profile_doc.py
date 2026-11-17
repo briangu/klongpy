@@ -242,7 +242,30 @@ not assign it (rule `param`). It is not a compile-time constant, so a shape or a
 parameter bounds a window only as "use the first p of a fixed maximum": `+/buf*(!8)<p`. Under KlongPy it is an
 an ordinary global; `klongpy.static.set_param(klong, "gain", 0.75)` sets it between calls (`call_entry` reads it at each
 call). In C it is a field of the instance with a setter, `prog_set_gain(p, value)`; `prog_init` restores the
-default. In the hardware kernel it is an `s_axilite` argument.
+default. In the hardware kernel it is an `s_axilite` argument; with `--lanes N` the N values of every parameter
+are one table in card memory that the kernel reads when it starts (the host runtime cannot write an array to a
+register), which `.hw.set` fills.
+
+## A summary entry
+
+An entry reads or changes the program's state, and every entry of a program works on the same state: under KlongPy
+the same globals, in C the same instance. A hardware kernel is one entry, so that sharing needs one more rule, for
+the case where a run is "feed many records, read a small result at the end" (a strategy replayed over a tick history,
+where a result per tick would cost more than the computation):
+
+```
+step::{...update the state...;0}                       .entry("step";"fixed<32,16> -> void")
+summary::{profit,maxdd,wide(trades)}                   .entry("summary";"-> fixed<64,32>[3]")
+```
+
+A `void` entry with arguments (the driver) and one entry without arguments that returns a value (the reader) form a
+summary pair. The hardware kernel of the driver makes its n calls, writes nothing for them, then calls the reader
+once and writes that one result record (with `--lanes N`, one per lane, lane first). n may be 0: the kernel then
+reads the state as it is. The reader is not a kernel of its own, and the pair is only for the streamable kernel (the
+wrapped stage rejects it). Without a reader a `void` entry still cannot be a kernel, and a reader without a driver
+is an entry that takes no argument; both are `[hls]` errors that say so. Every other tier does the same by hand:
+`call_entry(klong, "step", x)` for each record, then `call_entry(klong, "summary")`; the C emitter has
+`prog_step(p, x)` and `prog_summary(p, out)` on one instance. `examples/hardware/crossover.kg` is a worked pair.
 
 ## The streamable tier
 

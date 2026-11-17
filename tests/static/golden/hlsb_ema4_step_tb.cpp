@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <vector>
 
 extern "C" {
@@ -15,7 +16,8 @@ typedef int32_t in_t;
 typedef int32_t out_t;
 #define IN_WORDS 1
 #define OUT_WORDS 4
-extern "C" void ema_step_kernel(const in_t *in, out_t *out, unsigned n, unsigned reset, int32_t alpha[4], kg_int depth[4], unsigned *status);
+typedef uint32_t reg_t;
+extern "C" void ema_step_kernel(const in_t *in, out_t *out, unsigned n, unsigned reset, const reg_t *params, unsigned *status);
 
 int main(int argc, char **argv) {
     const char *dir = argc > 1 ? argv[1] : ".";
@@ -42,6 +44,13 @@ int main(int argc, char **argv) {
         }
         fclose(rf);
     }
+    std::vector<reg_t> params(8);
+    for (unsigned l = 0; l < 4; l++) {
+        params[0 + l] = (reg_t)(int64_t)alpha[l];
+    }
+    for (unsigned l = 0; l < 4; l++) {
+        params[4 + l] = (reg_t)(int64_t)depth[l];
+    }
     snprintf(path, sizeof path, "%s/in.bin", dir);
     FILE *f = fopen(path, "rb");
     if (!f) {
@@ -67,7 +76,7 @@ int main(int argc, char **argv) {
     unsigned done = 0;
     do {
         unsigned m = n - done < per ? n - done : per;
-        ema_step_kernel(in.data() + (size_t)done * IN_WORDS, out.data() + (size_t)done * OUT_WORDS, m, done == 0, alpha, depth, &status);
+        ema_step_kernel(in.data() + (size_t)done * IN_WORDS, out.data() + (size_t)done * OUT_WORDS, m, done == 0, params.data(), &status);
         all |= status;
         done += m;
     } while (done < n);

@@ -89,7 +89,7 @@ def plan_for(files, int_bits=32, clock_mhz=300, target="hw", wrapped=False, lane
                                   reassociate=reassociate) for f in files], clock_mhz, target=target, lanes=lanes or 1)
 
 
-def find_image(files, host="env", int_bits=32, clock_mhz=300):
+def find_image(files, host="env", int_bits=32, clock_mhz=300, lanes=None):
     """
     The image built from exactly this source (by key) on ``host`` (default $KLONG_HW_HOST; the card host is the build
     machine today): (path of the .xclbin, build.json dict). Raises StaleImage, with the build command, when there is none,
@@ -97,8 +97,10 @@ def find_image(files, host="env", int_bits=32, clock_mhz=300):
     """
     from .client import host_target
     target = host_target() if host == "env" else host
-    plan = plan_for(files, int_bits, clock_mhz)
-    cmd = "kgpy --hw-build %s%s" % (" ".join(files), "" if clock_mhz == 300 else " --clock-mhz %d" % clock_mhz)
+    lanes = lanes if lanes and lanes > 1 else None
+    plan = plan_for(files, int_bits, clock_mhz, lanes=lanes)
+    cmd = "kgpy --hw-build %s%s%s" % (" ".join(files), "" if clock_mhz == 300 else " --clock-mhz %d" % clock_mhz,
+                                      " --lanes %d" % lanes if lanes else "")
     b = Builder(Remote(target=target))
     st = b.state(plan.dirname)
     meta = st.get("build") or {}
@@ -169,7 +171,7 @@ class Builder:
         # 2: the link
         L += ["cat > link.cfg <<'CFG'", "[connectivity]"]
         for _prefix, e in plan.kernels:
-            for port in ("in", "out", "status"):
+            for port in ("in", "out", "status") + (("params",) if e.get("register_table") else ()):
                 L.append("sp=%s_1.%s:DDR[0]" % (e["top"], port))
         L += ["CFG"]
         if plan.target == "hw_emu":

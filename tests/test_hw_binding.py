@@ -419,3 +419,126 @@ class TestErrors(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+REGS = os.path.join(ROOT, "tests", "static", "hw", "regs.kg")
+
+
+def klist(values):
+    """Klong source for a list of numbers."""
+    return "[" + " ".join(repr(float(v)) if isinstance(v, float) else str(int(v)) for v in values) + "]"
+
+
+def interpreted(ticks, gain=2.0, inc=3, off=0.5):
+    """regs.kg run by the interpreter stand-in: the summary after the ticks."""
+    from klongpy.static import call_entry, load_program, set_param
+    k = load_program(REGS, strict=2, backend="numpy")
+    set_param(k, "gain", gain)
+    set_param(k, "inc", inc)
+    set_param(k, "off", off)
+    for x in ticks:
+        call_entry(k, "step", float(x))
+    return list(np.asarray(call_entry(k, "summary")))
+
+
+@unittest.skipIf(WHY, WHY)
+class TestRegistersAndLanes(unittest.TestCase):
+    """.hw.set and .hw.lanes: parameters between runs, one value per lane, and the summary of a pair."""
+    TICKS = [1.0, 2.0, 3.5, -4.0, 0.25]
+
+    def setUp(self):
+        self.k = klong()
+
+    def values(self, v):
+        return [float(x) for x in np.asarray(to_np(self.k, v)).reshape(-1)]
+
+    def test_a_summary_pair_runs_the_calls_and_returns_the_summary_and_reads_the_state(self):
+        self.k('h::.hw("%s")' % REGS)
+        self.assertEqual(sorted(self.k("h")), ["step", "summary"])
+        got = self.values(self.k("regs.step(%s)" % klist(self.TICKS)))
+        self.assertEqual(got, interpreted(self.TICKS))
+        self.assertEqual(self.values(self.k("regs.summary()")), got, "summary() runs no ticks")
+        more = self.values(self.k("regs.step(1.0)"))
+        self.assertEqual(more, interpreted(self.TICKS + [1.0]), "the state continues")
+        self.k(".hw.reset(regs.step)")
+        self.assertEqual(self.values(self.k("regs.summary()")), interpreted([]), "a reset empties the state")
+
+    def test_set_changes_scalar_registers_of_every_type_and_survives_a_reset(self):
+        self.k('h::.hw("%s")' % REGS)
+        self.assertEqual(int(self.k('.hw.set(h;"gain";0.5)')), 1)
+        self.k('.hw.set(h;"inc";-2)')
+        self.k('.hw.set(h;"off";0.3)')
+        self.assertEqual(self.values(self.k("regs.step(%s)" % klist(self.TICKS))), interpreted(self.TICKS, 0.5, -2, 0.3))
+        self.k(".hw.reset(regs.step)")
+        self.assertEqual(self.values(self.k("regs.step(%s)" % klist(self.TICKS))), interpreted(self.TICKS, 0.5, -2, 0.3))
+        # a kernel handle works as well as the dictionary
+        self.k('.hw.set(regs.step;"inc";7)')
+        self.k(".hw.reset(regs.step)")
+        self.assertEqual(self.values(self.k("regs.step(%s)" % klist(self.TICKS))), interpreted(self.TICKS, 0.5, 7, 0.3))
+
+    def test_lanes_take_one_value_each_and_the_result_has_a_lane_dimension(self):
+        self.k('h::.hw.lanes("%s";3)' % REGS)
+        self.k('.hw.set(h;"gain";%s)' % klist([1.0, 2.0, -0.5]))
+        self.k('.hw.set(h;"inc";%s)' % klist([1, 2, 3]))
+        self.k('.hw.set(h;"off";%s)' % klist([0.0, 0.25, -1.5]))
+        got = self.k("regs.step(%s)" % klist(self.TICKS))
+        self.assertEqual(tuple(got.shape), (3, 3))
+        want = [interpreted(self.TICKS, g, n, o) for g, n, o in ((1.0, 1, 0.0), (2.0, 2, 0.25), (-0.5, 3, -1.5))]
+        self.assertEqual(np.asarray(to_np(self.k, got)).tolist(), want)
+        again = np.asarray(to_np(self.k, self.k("regs.summary()"))).tolist()
+        self.assertEqual(again, want)
+
+    def test_set_errors(self):
+        self.k('h::.hw.lanes("%s";3)' % REGS)
+        from klongpy.errors import KlongNameError
+        with self.assertRaises(KlongNameError) as cm:
+            self.k('.hw.set(h;"nothing";[1 2 3])')
+        self.assertIn("gain, inc, off", str(cm.exception))
+        with self.assertRaises(KlongShapeError):                       # one value per lane
+            self.k('.hw.set(h;"inc";[1 2])')
+        with self.assertRaises(KlongTypeError):                        # a scalar is not an array of lanes
+            self.k('.hw.set(h;"inc";5)')
+        with self.assertRaises(KlongTypeError):                        # an int register takes ints
+            self.k('.hw.set(h;"inc";[1.5 2 3])')
+        with self.assertRaises(KlongRangeError):                       # the kernel's int is 32 bits
+            self.k('.hw.set(h;"inc";[1 2 3000000000])')
+        with self.assertRaises(KlongTypeError):
+            self.k('.hw.set(h;7;[1 2 3])')
+        with self.assertRaises(KlongTypeError):
+            self.k('.hw.set(5;"inc";[1 2 3])')
+        with self.assertRaises(KlongTypeError):
+            self.k('.hw.lanes("%s";0)' % REGS)
+
+    def test_lanes_and_scalars_do_not_mix_up(self):
+        self.k('h::.hw("%s")' % REGS)
+        with self.assertRaises(KlongTypeError):                        # no lane dimension: a scalar
+            self.k('.hw.set(h;"inc";[1 2 3])')
+        binding.close_all()
+        k2 = klong()
+        k2('g::.hw.lanes("%s";2)' % REGS)
+        self.assertEqual(tuple(k2("regs.step(1.0)").shape), (2, 3))
+
+    def test_no_image_for_lanes_names_the_lanes_in_the_build_command(self):
+        from klongpy.hw.binding import build_command
+        self.assertEqual(build_command(["a.kg"], 300, 64), "kgpy --hw-build a.kg --lanes 64")
+        self.assertEqual(build_command(["a.kg"], 250, 64), "kgpy --hw-build a.kg --clock-mhz 250 --lanes 64")
+        self.assertEqual(build_command(["a.kg"], 300, None), "kgpy --hw-build a.kg")
+
+
+@unittest.skipIf(WHY, WHY)
+class TestResidentSummary(unittest.TestCase):
+    """The client's side of a summary kernel: a resident history, a run of its first n calls, a read without calls."""
+    def test_a_resident_buffer_runs_its_first_n_calls_and_a_read_runs_none(self):
+        os.environ["KLONG_HW"] = "sim"
+        b = binding.bind([REGS])
+        k = b.session.kernel(b.by_name["step"][0].top)
+        ticks = np.array([1.0, 2.0, 3.5, -4.0, 0.25], dtype="<f4")
+        h, _ = b.session.put(ticks)
+        self.assertEqual(list(k.run(h, reset=True, n=3)), interpreted(ticks[:3]))
+        self.assertEqual(list(k.run(h, reset=False, n=2)), interpreted(list(ticks[:3]) + list(ticks[:2])), "n calls continue the state")
+        self.assertEqual(list(k.run()), interpreted(list(ticks[:3]) + list(ticks[:2])), "no argument: a read, no calls")
+        self.assertEqual(list(k.run(h, reset=True)), interpreted(ticks), "all the calls the buffer holds")
+        with self.assertRaises(Exception) as cm:
+            k.run(h, n=6)
+        self.assertIn("holds 5 calls", str(cm.exception))
+        binding.close_all()

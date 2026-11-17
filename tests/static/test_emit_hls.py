@@ -66,6 +66,14 @@ class HlsBuild:
              os.path.join(self.dir, "tb.o")] + flags,
             [CXX] + [os.path.join(self.dir, f) for f in ("core.o", "top.o", "tb.o")] + ["-lm", "-o", os.path.join(self.dir, "tb")],
         ]
+        # a kernel with one process per lane has the program's C once more per lane (lane_<l>.c)
+        lane_objs = []
+        for lf in self.entry.get("lane_files", ()):
+            o = os.path.join(self.dir, lf[:-2] + ".o")
+            cmds.insert(0, [CC, "-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-Wno-unknown-pragmas", "-O1",
+                            "-ffp-contract=off", "-c", os.path.join(self.dir, lf), "-o", o] + flags)
+            lane_objs.append(o)
+        cmds[-1] = cmds[-1][:1] + lane_objs + cmds[-1][1:]
         for cmd in cmds:
             r = subprocess.run(cmd, capture_output=True, text=True)
             if r.returncode != 0:
