@@ -98,7 +98,7 @@ text, first at the end of the test and then every 3 seconds, and as the flags by
 |---|---|---|
 | alive, no self-test (an image built with `KLONG_SELFTEST=0`) | `0x11` | none |
 | serving, looking for a peer, or running | **`0x31`** | `klong selftest serving node=N calls=C` or `klong selftest running node=N calls=C` |
-| passed | **`0x51`** | `klong selftest pass 94ms node=N peer=K sync=1ms echo=79ms calls=C` |
+| passed | **`0x51`** | `klong selftest pass 94ms node=N peer=K sync=1ms echo=79ms calls=C async=Ams load=Lms add=Dms call=Mms mgmt=Gms` |
 | failed | **`0x91`** | `klong selftest fail STEP REASON node=N peer=K`, STEP one of `sync async echo mgmt`, REASON the error's kind and message |
 
 The number after `pass` is the time of the four steps in milliseconds. `calls` is how many

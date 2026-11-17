@@ -8,8 +8,13 @@ use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 struct Counting;
 static USED: AtomicUsize = AtomicUsize::new(0);
 static PEAK: AtomicUsize = AtomicUsize::new(0);
+thread_local! {
+    /// (this thread's own: the harness's other threads allocate too)
+    static COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, l: Layout) -> *mut u8 {
+        COUNT.with(|c| c.set(c.get() + 1));
         let u = USED.fetch_add(l.size(), Relaxed) + l.size();
         if u > PEAK.load(Relaxed) {
             PEAK.store(u, Relaxed);
@@ -146,4 +151,26 @@ fn a_function_kept_as_text_is_the_function() {
     let ea = eager.run("bad(1)", "<t>").err().map(|e| e.render()).unwrap_or_default();
     assert!(la.starts_with("t.kg:4:"), "{la}");
     assert_eq!(la, ea);
+}
+
+/// The functions kept as text that a program parsed are still parsed for the next (a call of the management library, a program of its own
+/// each time, would parse what it uses every time: 13 ms of 23 on the boards), until `release_lazy` or memory is short.
+#[test]
+fn a_function_parsed_for_one_program_is_still_parsed_for_the_next() {
+    let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    let text = "fact::{[t];t::0;t::0;t::0;:[x<2;1;x*fact(x-1)]}\n";
+    let mut ip = interp();
+    ip.load(text, "t.kg").unwrap();
+    let allocs = |ip: &mut Interp| {
+        let c0 = COUNT.with(|c| c.get());
+        let v = ip.run("fact(7)", "<t>").unwrap().unwrap();
+        assert_eq!(ip.format(&v), "5040");
+        COUNT.with(|c| c.get()) - c0
+    };
+    let first = allocs(&mut ip);
+    let second = allocs(&mut ip);
+    assert!(second + 15 < first, "the second program allocated {second} times, the first {first}: the function was parsed again");
+    ip.release_lazy();
+    let third = allocs(&mut ip);
+    assert!(third + 5 >= first, "after release_lazy it is parsed again: {third} against {first}");
 }

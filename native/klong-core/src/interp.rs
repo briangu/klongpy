@@ -146,6 +146,9 @@ fn compact<T>(v: &mut Vec<T>) {
 /// A program to run: borrowed (copied once, for error messages) or handed over (kept as that copy).
 /// A function literal of at least this many bytes of text, in a loaded program, is kept as text.
 const LAZY_MIN: u32 = 24;
+/// How many parsed functions kept as text are kept, and about how many bytes of trees they may hold between programs.
+const LAZY_ENTRIES: usize = 12;
+const LAZY_BUDGET: usize = 6144;
 
 enum Prog<'a> {
     Text(&'a str),
@@ -189,7 +192,7 @@ pub struct Interp {
     frame_pool: Vec<Frame>,
     /// The function values made for a few tree nodes lately (a function literal's body is made into one at every
     /// call: an allocation). Each entry keeps its tree alive, so a tree's address cannot be taken for another's.
-    lazy_cache: core::cell::RefCell<Vec<(usize, u32, Rc<Tree>, NodeId)>>,
+    lazy_cache: core::cell::RefCell<Vec<(usize, u32, Rc<Tree>, NodeId, usize)>>,
     body_cache: core::cell::RefCell<[Option<(usize, NodeId, Value)>; 8]>,
     body_next: Cell<u8>,
     layer_pool: Vec<Vec<Layer>>,
@@ -853,6 +856,7 @@ impl Interp {
 
     /// The value of a function literal: in a program that is being loaded, where its text is (`Func::Lazy`), when it is long enough for that to
     /// be less than its tree; otherwise the tree.
+    #[inline(never)]
     fn literal_value(&self, tree: &Rc<Tree>, id: NodeId) -> Value {
         if let (Some(ctx), Some(src), Node::Fn { a, arity, has_args: false, call: false, .. }) = (&tree.lazy, &tree.source, tree.node(id)) {
             if let Some((s, e)) = tree.span(id) {
@@ -866,12 +870,35 @@ impl Interp {
         Value::Fn(Rc::new(Func::Code { tree: tree.clone(), node: id }))
     }
 
+    /// What `resolve` makes of a function kept as text: its body, parsed now, and its arity (apart, so that the frame of `resolve`, which is
+    /// on the way of every recursion, is the one it was).
+    #[inline(never)]
+    fn lazy_next(&mut self, l: &crate::value::Lazy) -> Result<Option<(Value, u8)>> {
+        let (t, n) = self.materialize(l)?;
+        Ok(match t.node(n) {
+            Node::Fn { a, arity: fa, has_args: false, .. } => Some((self.node_value(&t, *a), *fa)),
+            _ => None,
+        })
+    }
+
+    /// `run_fn` of a function kept as text (apart for the same reason).
+    #[inline(never)]
+    fn run_lazy(&mut self, l: &crate::value::Lazy, f: &Value, mut frame: Frame) -> Result<Value> {
+        let (tree, node) = self.materialize(l)?;
+        try_push(&mut frame, (sym::DOT_F, Some(f.clone())))?;
+        self.push_frame(frame)?;
+        let r = self.eval(&tree, node, true);
+        self.pop_frame();
+        r
+    }
+
     /// The tree of a function kept as text: parsed from its text in the module and strict level it was, or the one parsed lately. It
     /// is let go at the end of the program (`release_caches`).
+    #[inline(never)]
     fn materialize(&mut self, l: &crate::value::Lazy) -> Result<(Rc<Tree>, NodeId)> {
         let key = (Rc::as_ptr(&l.source) as usize, l.start);
         if let Ok(c) = self.lazy_cache.try_borrow() {
-            if let Some((_, _, t, n)) = c.iter().find(|(p, s, _, _)| (*p, *s) == key) {
+            if let Some((_, _, t, n, _)) = c.iter().find(|(p, s, _, _, _)| (*p, *s) == key) {
                 return Ok((t.clone(), *n));
             }
         }
@@ -884,10 +911,12 @@ impl Interp {
         let Some(p) = next.parsed else { return Err(Error::syntax("a function kept as text did not parse again")) };
         let node = p.stmts[0];
         if let Ok(mut c) = self.lazy_cache.try_borrow_mut() {
-            if c.len() >= 12 {
+            // (about what the tree holds: a node and its span, the ids of its calls)
+            let bytes = p.tree.nodes.len() * 40 + p.tree.extra.len() * 4 + 64;
+            c.push((key.0, key.1, p.tree.clone(), node, bytes));
+            while c.len() > LAZY_ENTRIES || (c.len() > 1 && c.iter().map(|e| e.4).sum::<usize>() > LAZY_BUDGET) {
                 c.remove(0);
             }
-            c.push((key.0, key.1, p.tree.clone(), node));
         }
         Ok((p.tree, node))
     }
@@ -906,12 +935,23 @@ impl Interp {
 
     /// Let go of what the evaluator keeps for speed: the recent function bodies (each holds its whole parse tree
     /// alive, so the tree of a library that was loaded and dropped stays) and the pool of argument layers.
+    /// Let go of the functions kept as text that were parsed lately (the library that was dropped holds nothing, then).
+    pub fn release_lazy(&mut self) {
+        if let Ok(mut c) = self.lazy_cache.try_borrow_mut() {
+            *c = Vec::new();
+        }
+    }
+
     pub fn release_caches(&mut self) {
         if let Ok(mut c) = self.body_cache.try_borrow_mut() {
             *c = [None, None, None, None, None, None, None, None];
         }
-        if let Ok(mut c) = self.lazy_cache.try_borrow_mut() {
-            *c = Vec::new();
+        // the functions kept as text that were parsed lately stay for the next program, within a budget of bytes, unless memory is short
+        // (a call of the management library a second would otherwise parse what it uses every time: 13 ms of a call of 23 on the boards)
+        if self.cfg.mem_probe.is_some_and(|f| f()) {
+            if let Ok(mut c) = self.lazy_cache.try_borrow_mut() {
+                *c = Vec::new();
+            }
         }
         self.layer_pool.clear();
         self.layer_pool.shrink_to_fit();
@@ -1310,13 +1350,7 @@ impl Interp {
                             }
                         }
                     }
-                    Func::Lazy(l) => {
-                        // a function literal kept as text: its body is parsed now, and is what is called
-                        let (t, n) = self.materialize(l)?;
-                        if let Node::Fn { a, arity: fa, has_args: false, .. } = t.node(n) {
-                            next = Some((self.node_value(&t, *a), *fa));
-                        }
-                    }
+                    Func::Lazy(l) => next = self.lazy_next(l)?,
                     Func::Proj { f: callee, args, .. } => {
                         if args.iter().any(|q| matches!(q, Slot::Hole)) {
                             let mut held = try_vec(args.len())?;
@@ -1838,14 +1872,7 @@ impl Interp {
                 self.pop_frame();
                 r
             }
-            Func::Lazy(l) => {
-                let (tree, node) = self.materialize(l)?;
-                try_push(&mut frame, (sym::DOT_F, Some(f.clone())))?;
-                self.push_frame(frame)?;
-                let r = self.eval(&tree, node, true);
-                self.pop_frame();
-                r
-            }
+            Func::Lazy(l) => self.run_lazy(l, &f, frame),
             Func::Native { arity, f: native, .. } => {
                 let (arity, native) = (*arity, native.clone());
                 self.run_native(frame, arity, native)

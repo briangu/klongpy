@@ -20,7 +20,7 @@
 //! | State | STATUS flags | Report text |
 //! |---|---|---|
 //! | serving (a server, or a client that found no peer yet, or is running the steps) | `0x31` | `klong selftest serving node=N calls=C` or `... running ...` |
-//! | passed | `0x51` | `klong selftest pass 212ms node=N peer=K sync=3ms echo=130ms calls=C` |
+//! | passed | `0x51` | `klong selftest pass 212ms node=N peer=K sync=3ms echo=130ms calls=C async=Ams load=Lms add=Dms call=Mms mgmt=Gms` |
 //! | failed | `0x91` | `klong selftest fail STEP REASON node=N peer=K` |
 //!
 //! The first number after `pass` is the total time of the four steps in milliseconds, measured
@@ -184,8 +184,11 @@ impl SelfTest {
         match Self::eval(rt, ".l(\"mgmt\")") {
             Err(_) => {}
             Ok(_) => {
+                done(self, rt, "load");
                 Self::eval(rt, &format!("mgmt.add(\"p\";\"node:{}\")", self.peer.unwrap_or(0))).map_err(|e| ("mgmt", e))?;
+                done(self, rt, "add");
                 let r = Self::check(rt, "mgmt", &format!("mgmt.call(\"p\";[:stping{}]@0;[9])", k), "9");
+                done(self, rt, "call");
                 // the library's connection to the peer is closed, so that `.cli` to it works afterwards
                 let _ = Self::eval(rt, ".clic((mgmt.nodes?\"p\")?\"h\")");
                 r?;
@@ -218,6 +221,7 @@ impl SelfTest {
                 let _ = Self::eval(rt, &prog);
             }
         }
+        rt.interp.release_lazy();
         rt.interp.release_caches();
     }
 
@@ -235,7 +239,7 @@ impl SelfTest {
         match &self.state {
             State::Passed => {
                 let step = |name: &str| self.steps.iter().find(|s| s.0 == name).map(|s| s.1).unwrap_or(0);
-                format!("klong selftest pass {}ms node={} peer={} sync={}ms echo={}ms calls={}", self.total_ms, n, self.peer.unwrap_or(0), step("sync"), step("echo"), rt_calls)
+                format!("klong selftest pass {}ms node={} peer={} sync={}ms echo={}ms calls={} async={}ms load={}ms add={}ms call={}ms mgmt={}ms", self.total_ms, n, self.peer.unwrap_or(0), step("sync"), step("echo"), rt_calls, step("async"), step("load"), step("add"), step("call"), step("mgmt"))
             }
             State::Failed { .. } => format!("{} node={} peer={}", self.result, n, self.peer.unwrap_or(0)),
             _ if running => format!("klong selftest running node={} calls={}", n, rt_calls),

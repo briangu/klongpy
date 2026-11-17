@@ -240,6 +240,9 @@ struct State {
     console: Console<Board>,
     /// True while `klong_step` runs: a callback that calls back in gets "nothing to do".
     stepping: bool,
+    /// Since when `klong_step` has had nothing to do (ms), and whether the functions kept as text were let go for it.
+    idle_since: Option<u64>,
+    lazy_released: bool,
 }
 
 static STATE: Global<Option<State>> = Global(UnsafeCell::new(None));
@@ -320,7 +323,7 @@ pub unsafe extern "C" fn klong_init(config: *const KlongConfig) -> i32 {
     #[cfg(feature = "heapdiag")]
     heapdiag::register(&mut console.rt.interp);
     // SAFETY: as above; `STATE` is empty until this write.
-    unsafe { *STATE.0.get() = Some(State { console, stepping: false }) };
+    unsafe { *STATE.0.get() = Some(State { console, stepping: false, idle_since: None, lazy_released: false }) };
     KLONG_OK
 }
 
@@ -349,6 +352,22 @@ pub extern "C" fn klong_step() -> i32 {
                 busy |= lane::selftest_step(&mut s.console.rt);
             }
             s.stepping = false;
+            // the functions kept as text that programs parsed are kept while the node is busy (a call of the library after a call parses
+            // nothing) and let go 300 ms after it has nothing to do: a node at rest holds no trees
+            if busy {
+                s.idle_since = None;
+                s.lazy_released = false;
+            } else {
+                let now = CClock::now_ms();
+                match s.idle_since {
+                    None => s.idle_since = Some(now),
+                    Some(t) if !s.lazy_released && now.saturating_sub(t) >= 300 => {
+                        s.console.rt.interp.release_lazy();
+                        s.lazy_released = true;
+                    }
+                    _ => {}
+                }
+            }
             busy as i32
         }
         None => -1,
