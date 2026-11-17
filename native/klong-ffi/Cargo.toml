@@ -24,9 +24,16 @@ int32 = ["klong-board/int32"]
 float32 = ["klong-board/float32"]
 # kdb+ IPC needs transports from the platform; the C ABI has none yet, so it is off.
 ipc = ["klong-rt/ipc"]
+# The lane of a packet switch (the Pico bench): datagrams over a UART of 16-byte frames, IPC and a
+# console channel on top (klong_lane_* in klong.h).
+lane = ["ipc"]
 
 [dependencies]
 klong-core = { path = "../klong-core" }
 klong-rt = { path = "../klong-rt", default-features = false }
 klong-console = { path = "../klong-console", default-features = false }
 klong-board = { path = "../klong-board", default-features = false }
+
+[dev-dependencies]
+# the tests of the lane part of the C interface (tests/lane.c) need the feature on
+klong-ffi = { path = ".", features = ["lane"] }

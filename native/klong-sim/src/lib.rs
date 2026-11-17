@@ -17,7 +17,9 @@ use klong_core::Config;
 use klong_rt::memfs::MemFs;
 use klong_rt::{FileSystem, MemStats, Platform, Runtime};
 
+pub mod bench;
 pub mod pty;
+pub mod switch;
 
 /// The serial port of a simulated board: what a UART driver gives a real one.
 pub trait SerialPort {

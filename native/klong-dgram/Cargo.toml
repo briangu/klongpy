@@ -1,0 +1,9 @@
+[package]
+name = "klong-dgram"
+description = "The datagram layer of a 16-byte-frame packet switch (the Pico bench): frame codec with resync, CRC-16 and CRC-32, messages of 1 to 1024 bytes in START/DATA/END frames with ACK and retry, bounded reassembly per source, and the node's lane logic (node number, PING, STATUS). no_std, no allocation, no unsafe."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]

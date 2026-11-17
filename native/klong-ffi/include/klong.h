@@ -99,6 +99,52 @@ void klong_run(void);
  * the pointers may be NULL. */
 void klong_heap(size_t *used, size_t *peak, size_t *limit);
 
+/*
+ * The lane of a packet switch (library built with the cargo feature `lane`; the Pico bench).
+ *
+ * The board has one UART lane to a switch that carries only 16-byte frames. The library
+ * finds the frames in the byte stream, learns the node number, answers the supervisor's PING
+ * and sends STATUS, carries messages of up to 1024 bytes in START/DATA/END/ACK frames, and
+ * puts on top of that the kdb+ IPC of the runtime (.cli("node:2"), .srv("node:")) and the
+ * console on datagram channel 1. native/boards/pico-bench/README.md says how it is used.
+ *
+ * Call klong_lane_init once, after klong_init. The two lane callbacks do not wait: lane_read
+ * returns the bytes the UART has received (0 if none), lane_write returns how many bytes the
+ * transmitter took (0 if it is full; the library offers the rest again). The UART must buffer
+ * what arrives while the interpreter is busy, about 3 KB/s, so a receive ring of 4 KB or more
+ * in an interrupt handler. The library moves frames at every klong_step, every `idle` of the
+ * runtime (4096 steps of an evaluation) and inside every IPC call; klong_lane_pump moves
+ * them at other times too. Everything on the task that calls klong_init, like the rest.
+ */
+#define KLONG_LANE_NO_DUTIES 1u  /* do not answer PING or send STATUS (a lane without a supervisor) */
+#define KLONG_LANE_NO_CONSOLE 2u /* no console on datagram channel 1 */
+
+typedef struct klong_lane_config {
+    uint32_t abi_version; /* KLONG_ABI_VERSION */
+    uint32_t size;        /* sizeof(klong_lane_config) */
+    void *ctx;            /* first argument of the callbacks */
+    size_t (*lane_read)(void *ctx, uint8_t *buf, size_t cap);
+    size_t (*lane_write)(void *ctx, const uint8_t *buf, size_t len);
+    int32_t node;         /* this node's number 0..16, or -1 to learn it from the first frame sent to it */
+    uint32_t seed;        /* random bits: first message id and connection epochs (a restart must not reuse them) */
+    uint32_t flags;       /* KLONG_LANE_* */
+} klong_lane_config;
+
+typedef struct klong_lane_stats {
+    uint32_t frames_rx, frames_tx, frames_ignored, pings;
+    uint32_t bad_frames;   /* frames with the sync bytes and a bad CRC */
+    uint32_t skipped_bytes; /* bytes of noise the frame parser threw away */
+    uint32_t datagrams_delivered, datagrams_duplicate, datagrams_broken, datagrams_refused, datagrams_resent;
+    uint32_t ipc_in, ipc_out, inbox_overflow, console_dropped;
+    int32_t console_peer;  /* node attached to the lane console, -1 none */
+} klong_lane_stats;
+
+int32_t klong_lane_init(const klong_lane_config *config);
+void klong_lane_pump(void);
+/* This node's number, or -1 while it has none. */
+int32_t klong_lane_node(void);
+void klong_lane_stats_get(klong_lane_stats *out);
+
 #ifdef __cplusplus
 }
 #endif

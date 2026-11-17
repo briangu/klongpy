@@ -88,6 +88,15 @@ it has no start-up code).
 - The interrupt flag and the `Counting` and `TickClock` counters are statics: they must be in
   internal RAM (on Xtensa, atomics in PSRAM do not work; `ref-platforms.md` section 1).
 
+## A network that carries messages: the Pico bench
+
+`klong-rt::node` is a `Transport` (`node:N`) over a lane of 16-byte frames, `klong-dgram` is
+its `no_std` datagram layer, and `klong-ffi --features lane` exposes it to a C shell
+(`klong_lane_*` in `klong.h`); `boards/pico-bench/` is that shell for the RP2040
+(`thumbv6m-none-eabi`: no compare-and-swap, which the runtime does not need, no divide, no FPU).
+`docs/native/pico-bench.md` has the design, the sizes and the simulator results; the image was
+built and linked, not run.
+
 ## Budget
 
 Flash, linked image of `klong-board` (`sh native/scripts/measure.sh`, section "klong-board-image";

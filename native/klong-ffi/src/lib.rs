@@ -121,18 +121,26 @@ fn pressed() -> bool {
 struct CUart;
 impl Uart for CUart {
     fn read(&mut self, buf: &mut [u8]) -> usize {
-        match hooks() {
+        let n = match hooks() {
             // SAFETY: klong.h: `read` writes at most `cap` bytes into `buf` and returns the
             // count; the count is clamped in case it does not keep the second half.
             Some(KlongConfig { read: Some(f), ctx, .. }) => unsafe { f(ctx, buf.as_mut_ptr(), buf.len()) }.min(buf.len()),
             _ => 0,
+        };
+        #[cfg(feature = "lane")]
+        if n == 0 {
+            // nothing typed on the console port: the console channel of the lane
+            return lane::console_read(buf);
         }
+        n
     }
     fn write(&mut self, bytes: &[u8]) {
         if let Some(KlongConfig { write: Some(f), ctx, .. }) = hooks() {
             // SAFETY: klong.h: `write` reads `len` bytes and keeps no pointer.
             unsafe { f(ctx, bytes.as_ptr(), bytes.len()) }
         }
+        #[cfg(feature = "lane")]
+        lane::console_write(bytes);
     }
 }
 
@@ -165,6 +173,10 @@ impl System for CSystem {
             // SAFETY: a callback of klong.h with its context.
             unsafe { f(ctx) }
         }
+        // the lane is served at every turn of the main loop and every 4096 steps of an
+        // evaluation, so PING and ACK frames are answered while Klong code runs
+        #[cfg(feature = "lane")]
+        lane::pump();
     }
     fn wait(&mut self, deadline_us: Option<u64>) {
         if let Some(KlongConfig { wait: Some(f), ctx, .. }) = hooks() {
@@ -327,6 +339,193 @@ pub unsafe extern "C" fn klong_heap(used: *mut usize, peak: *mut usize, limit: *
             // SAFETY: non-null, so valid for a write by the contract above.
             unsafe { ptr.write(v) }
         }
+    }
+}
+
+// ----- the lane of a packet switch -----------------------------------------------------------
+
+#[cfg(feature = "lane")]
+mod lane {
+    use super::*;
+    use alloc::boxed::Box;
+    use klong_rt::node::{DgramConfig, LaneConfig, LaneIo, NodeConfig, NodeNet};
+
+    pub const KLONG_LANE_NO_DUTIES: u32 = 1;
+    pub const KLONG_LANE_NO_CONSOLE: u32 = 2;
+
+    /// `struct klong_lane_config` of klong.h.
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct KlongLaneConfig {
+        pub abi_version: u32,
+        pub size: u32,
+        pub ctx: Ctx,
+        pub lane_read: Option<unsafe extern "C" fn(Ctx, *mut u8, usize) -> usize>,
+        pub lane_write: Option<unsafe extern "C" fn(Ctx, *const u8, usize) -> usize>,
+        /// This node's number, or -1 to learn it from the first frame the switch sends.
+        pub node: i32,
+        /// Random bits for message ids and connection epochs.
+        pub seed: u32,
+        pub flags: u32,
+    }
+
+    /// `struct klong_lane_stats` of klong.h.
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    pub struct KlongLaneStats {
+        pub frames_rx: u32,
+        pub frames_tx: u32,
+        pub frames_ignored: u32,
+        pub pings: u32,
+        pub bad_frames: u32,
+        pub skipped_bytes: u32,
+        pub datagrams_delivered: u32,
+        pub datagrams_duplicate: u32,
+        pub datagrams_broken: u32,
+        pub datagrams_refused: u32,
+        pub datagrams_resent: u32,
+        pub ipc_in: u32,
+        pub ipc_out: u32,
+        pub inbox_overflow: u32,
+        pub console_dropped: u32,
+        pub console_peer: i32,
+    }
+
+    struct CLane(KlongLaneConfig);
+
+    impl LaneIo for CLane {
+        fn read(&mut self, buf: &mut [u8]) -> usize {
+            match self.0.lane_read {
+                // SAFETY: klong.h: writes at most `cap` bytes into `buf` and returns the count.
+                Some(f) => unsafe { f(self.0.ctx, buf.as_mut_ptr(), buf.len()) }.min(buf.len()),
+                None => 0,
+            }
+        }
+        fn write(&mut self, buf: &[u8]) -> usize {
+            match self.0.lane_write {
+                // SAFETY: klong.h: reads `len` bytes, keeps no pointer, returns how many it took.
+                Some(f) => unsafe { f(self.0.ctx, buf.as_ptr(), buf.len()) }.min(buf.len()),
+                None => 0,
+            }
+        }
+    }
+
+    struct Lane {
+        net: NodeNet,
+        console: bool,
+    }
+    static LANE: Global<Option<Lane>> = Global(UnsafeCell::new(None));
+
+    fn get() -> Option<&'static Lane> {
+        // SAFETY: one task (klong.h); written once by `klong_lane_init`, only read afterwards.
+        unsafe { (*LANE.0.get()).as_ref() }
+    }
+    pub fn pump() {
+        if let Some(l) = get() {
+            l.net.pump();
+        }
+    }
+    pub fn console_read(buf: &mut [u8]) -> usize {
+        match get() {
+            Some(l) if l.console => l.net.console_read(buf),
+            _ => 0,
+        }
+    }
+    pub fn console_write(bytes: &[u8]) {
+        if let Some(l) = get() {
+            if l.console {
+                l.net.console_write(bytes);
+            }
+        }
+    }
+
+    /// See klong.h.
+    ///
+    /// # Safety
+    /// `config` is null or points to a `klong_lane_config` whose callbacks keep the contracts of klong.h.
+    #[no_mangle]
+    pub unsafe extern "C" fn klong_lane_init(config: *const KlongLaneConfig) -> i32 {
+        if config.is_null() {
+            return KLONG_ERR_ARG;
+        }
+        // SAFETY: the first two fields are read before the rest (as in `klong_init`).
+        let (version, size) = unsafe { ((*config).abi_version, (*config).size) };
+        if version != KLONG_ABI_VERSION || size as usize != core::mem::size_of::<KlongLaneConfig>() {
+            return KLONG_ERR_ARG;
+        }
+        // SAFETY: of this version and size: a whole `klong_lane_config`.
+        let cfg = unsafe { *config };
+        if cfg.lane_read.is_none() || cfg.lane_write.is_none() || cfg.node < -1 || cfg.node > 16 {
+            return KLONG_ERR_ARG;
+        }
+        if get().is_some() {
+            return KLONG_ERR_STATE;
+        }
+        // SAFETY: one task; `STATE` is only read here and no reference outlives the statement.
+        let Some(state) = (unsafe { &mut *STATE.0.get() }).as_mut() else { return KLONG_ERR_STATE };
+        let node = NodeConfig {
+            lane: LaneConfig {
+                dgram: DgramConfig { first_id: cfg.seed as u16, ..DgramConfig::default() },
+                supervisor_duties: cfg.flags & KLONG_LANE_NO_DUTIES == 0,
+                node: if cfg.node >= 0 { Some(cfg.node as u8) } else { None },
+            },
+            epoch_seed: (cfg.seed >> 16) as u16 ^ cfg.seed as u16,
+            ..NodeConfig::default()
+        };
+        let net = NodeNet::new(Box::new(CLane(cfg)), Box::new(|| CClock::now_ms().saturating_mul(1000)), node);
+        match state.console.rt.shared.platform.try_borrow_mut() {
+            Ok(mut p) => p.transports.push(net.transport()),
+            Err(_) => return KLONG_ERR_STATE,
+        }
+        // SAFETY: as above; `LANE` is empty until this write.
+        unsafe { *LANE.0.get() = Some(Lane { net, console: cfg.flags & KLONG_LANE_NO_CONSOLE == 0 }) };
+        KLONG_OK
+    }
+
+    /// See klong.h.
+    #[no_mangle]
+    pub extern "C" fn klong_lane_pump() {
+        pump();
+    }
+
+    /// See klong.h.
+    #[no_mangle]
+    pub extern "C" fn klong_lane_node() -> i32 {
+        get().and_then(|l| l.net.node()).map_or(-1, |n| n as i32)
+    }
+
+    /// See klong.h.
+    ///
+    /// # Safety
+    /// `out` is null or valid for a write of a `klong_lane_stats`.
+    /// (The C name is `klong_lane_stats_get`: `klong_lane_stats` is the struct.)
+    #[no_mangle]
+    pub unsafe extern "C" fn klong_lane_stats_get(out: *mut KlongLaneStats) {
+        if out.is_null() {
+            return;
+        }
+        let mut s = KlongLaneStats { console_peer: -1, ..KlongLaneStats::default() };
+        if let Some(l) = get() {
+            let (ls, ds, c) = (l.net.lane_stats(), l.net.datagram_stats(), l.net.counters());
+            s.frames_rx = ls.frames_rx;
+            s.frames_tx = ls.frames_tx;
+            s.frames_ignored = ls.ignored;
+            s.pings = ls.pings;
+            s.bad_frames = l.net.parser_bad();
+            s.skipped_bytes = l.net.parser_skipped();
+            s.datagrams_delivered = ds.delivered;
+            s.datagrams_duplicate = ds.duplicates;
+            s.datagrams_broken = ds.broken;
+            s.datagrams_refused = ds.refused;
+            s.datagrams_resent = ds.resent;
+            s.ipc_in = c.messages_in;
+            s.ipc_out = c.messages_out;
+            s.inbox_overflow = c.inbox_overflow;
+            s.console_dropped = c.console_dropped;
+            s.console_peer = l.net.console_peer().map_or(-1, |p| p as i32);
+        }
+        // SAFETY: non-null, valid for a write by the contract above.
+        unsafe { out.write(s) }
     }
 }
 

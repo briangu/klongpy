@@ -17,13 +17,14 @@ float32 = ["klong-core/float32"]
 # .timer and .timerc (ticket 106).
 timers = []
 # IPC over the kdb+ protocol: .cli .clid .clic .clit .srv .async (ticket 106).
-ipc = ["dep:klong-ipc"]
+ipc = ["dep:klong-ipc", "dep:klong-dgram"]
 # Compress large IPC messages when sending (decompression is always there).
 compress = ["ipc", "klong-ipc/compress"]
 
 [dependencies]
 klong-core = { path = "../klong-core" }
 klong-ipc = { path = "../klong-ipc", optional = true }
+klong-dgram = { path = "../klong-dgram", optional = true }
 
 [[test]]
 name = "events"

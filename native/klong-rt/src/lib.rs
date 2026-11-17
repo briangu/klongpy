@@ -19,6 +19,8 @@ pub mod link;
 pub mod memfs;
 #[cfg(feature = "ipc")]
 pub mod memlink;
+#[cfg(feature = "ipc")]
+pub mod node;
 pub mod platform;
 
 #[cfg(feature = "files")]

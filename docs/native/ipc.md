@@ -14,6 +14,7 @@ The functions are the same ones, with the same names and the same wire protocol,
 | The `klong` program on the desktop, over TCP | built in and tested: with KlongPy in both directions, native to native, and against PeachQ |
 | The simulated board `klong-sim` | built in (`.ver()` lists `ipc`), but it has no transport: `.srv` and `.cli` answer `system error: this platform has no tcp transport` |
 | An ESP32-P4 | **not built in.** The firmware has no IPC: the C interface has no transports yet. Nothing about IPC has run on a board |
+| The nodes of a packet switch that carries 16-byte frames (the Pico bench), `.cli("node:2")` | built in as the `node` transport; proven in the simulator, **not run on hardware**: see [the Pico bench](pico-bench.md) |
 | Links over a UART, or a lossy packet radio | the code is there and was tested in memory with seeded faults (see [below](#links-that-are-not-tcp)); it has not been run on any wire |
 
 The `klong` program registers one transport, TCP. A board would supply its own.
@@ -210,3 +211,7 @@ The error kinds an error takes on the way: each kind of the language arrives as 
 ### Links that are not TCP
 
 The IPC code does not do I/O itself. A platform supplies transports, and the runtime puts a reliability layer on any link that is not a reliable stream. For a UART there is a framing with COBS and a CRC-16, and over it a go-back-N layer with a window of 16 packets and a retry budget. These were tested in memory, with seeded loss, duplication and reordering of 1 to 30 percent and with damaged bytes. At 30 percent a stream arrived intact only with a retry budget raised from 8 to 16, and with 100 percent loss the session fails with a timeout after 8 retransmissions. A CRC-16 cannot make "never delivers a corrupted value" absolute: a damaged frame passes with a probability of about 1.5 in 100,000. None of this has run on a real UART, and the `klong` program cannot reach these transports, so the process tests are all TCP. See [Porting to a Board](porting.md) for what a board supplies.
+
+### Links that carry messages, not bytes
+
+A packet link does not have to be a serial line. If the network delivers bounded messages (a radio, a switch, a bus with frames), a platform makes a `PacketLink` over it: `mtu` is the largest message, `send` and `recv` move one message, and the same reliability layer runs on top. An IPC message larger than the network's message is not a problem and not an error: it is part of the byte stream that the layer cuts into packets. The link may also give the layer timeouts that suit it (`PacketLink::tuning`: handshake timeout, retries, keepalive), because the defaults assume a link of some KB/s or more. The one such network so far is the Pico bench's switch, whose only unit is a frame of 4 bytes and whose largest message is 1024 bytes at about 2.9 KB/s: `.cli("node:2")` connects to node 2 over it, with the kdb+ bytes unchanged. It is described, with its limits and its simulator results, in [Native IPC on the 4-Pico Bench](pico-bench.md); it has not run on a real board.

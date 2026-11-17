@@ -10,6 +10,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "klong-dgram"
+version = "0.0.1"
+
+[[package]]
 name = "klong-ipc"
 version = "0.0.1"
 dependencies = [
@@ -29,6 +33,7 @@ name = "klong-rt"
 version = "0.0.1"
 dependencies = [
  "klong-core",
+ "klong-dgram",
  "klong-ipc",
 ]
 

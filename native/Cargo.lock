@@ -36,12 +36,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "klong-dgram"
+version = "0.0.1"
+
+[[package]]
 name = "klong-ffi"
 version = "0.0.1"
 dependencies = [
  "klong-board",
  "klong-console",
  "klong-core",
+ "klong-ffi",
  "klong-rt",
 ]
 
@@ -65,6 +70,7 @@ name = "klong-rt"
 version = "0.0.1"
 dependencies = [
  "klong-core",
+ "klong-dgram",
  "klong-ipc",
 ]
 
@@ -74,6 +80,7 @@ version = "0.0.1"
 dependencies = [
  "klong-console",
  "klong-core",
+ "klong-dgram",
  "klong-rt",
 ]
 

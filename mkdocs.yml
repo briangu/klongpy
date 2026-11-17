@@ -38,6 +38,7 @@ nav:
       - Building and Running: 'native/building.md'
       - Serial Console and Upload: 'native/console.md'
       - ESP32-P4: 'native/esp32-p4.md'
+      - Pico Bench: 'native/pico-bench.md'
       - IPC and Timers: 'native/ipc.md'
       - Management Node: 'native/management-node.md'
       - Porting to a Board: 'native/porting.md'

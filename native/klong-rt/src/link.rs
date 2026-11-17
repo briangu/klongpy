@@ -66,7 +66,21 @@ pub trait PacketLink {
     fn recv(&mut self, buf: &mut [u8]) -> Result<Option<usize>, LinkError>;
     /// First retransmission timeout, milliseconds.
     fn rto_hint_ms(&self) -> u32;
+    /// Timeouts and budgets that suit this link better than the defaults of `IpcConfig`
+    /// (a link of a few KB/s, say). Fields left `None` keep the default.
+    fn tuning(&self) -> LinkTuning {
+        LinkTuning::default()
+    }
     fn close(&mut self);
+}
+
+/// What a slow link asks of the IPC layer; see [`PacketLink::tuning`].
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+pub struct LinkTuning {
+    pub handshake_timeout_us: Option<u64>,
+    pub call_timeout_us: Option<u64>,
+    pub retries: Option<u8>,
+    pub idle_ms: Option<u32>,
 }
 
 pub enum Link {

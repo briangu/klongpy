@@ -141,11 +141,14 @@ pub struct BoardPlatform<U: Uart, C: Clock, S: System, F: FileSystem> {
     /// Send CR LF for LF: what a terminal program on the other end of a UART expects. The
     /// upload tool reads either.
     pub crlf: bool,
+    /// The networks of the board (`.cli` and `.srv` find a transport by the name in the
+    /// address): for example `klong_rt::node::NodeNet::transport()`. Empty by default.
+    pub transports: alloc::vec::Vec<alloc::boxed::Box<dyn klong_rt::link::Transport>>,
 }
 
 impl<U: Uart, C: Clock, S: System, F: FileSystem> BoardPlatform<U, C, S, F> {
     pub fn new(uart: U, clock: C, system: S, fs: Option<F>) -> Self {
-        BoardPlatform { uart, clock, system, fs, crlf: true }
+        BoardPlatform { uart, clock, system, fs, crlf: true, transports: alloc::vec::Vec::new() }
     }
 }
 
@@ -190,6 +193,9 @@ impl<U: Uart, C: Clock, S: System, F: FileSystem> Platform for BoardPlatform<U, 
     }
     fn exit(&mut self, code: i32) {
         self.system.reset(code)
+    }
+    fn transports(&mut self) -> &mut [alloc::boxed::Box<dyn klong_rt::link::Transport>] {
+        &mut self.transports
     }
     fn wait(&mut self, deadline_us: Option<u64>) {
         self.system.idle();

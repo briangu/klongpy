@@ -540,9 +540,17 @@ impl<P: Platform + 'static> Events<P> {
             (session::Config { max_message: c.max_message, ..session::Config::default() }, c.call_timeout_us, c.handshake_timeout_us, c.retries, c.link_idle_ms)
         };
         let now = self.now();
+        let (mut timeout, mut hs, mut retries, mut idle) = (timeout, hs, retries, idle);
         let link = match link {
             Link::Stream(s) => ConnLink::Stream(s),
             Link::Packet(p) => {
+                let t = p.tuning();
+                hs = t.handshake_timeout_us.unwrap_or(hs);
+                retries = t.retries.unwrap_or(retries);
+                idle = t.idle_ms.unwrap_or(idle);
+                if t.call_timeout_us.is_some() {
+                    timeout = t.call_timeout_us;
+                }
                 let mut rc = rel::Config::new(p.mtu(), p.reliable(), p.rto_hint_ms());
                 rc.retries = retries;
                 rc.idle_ms = idle;
