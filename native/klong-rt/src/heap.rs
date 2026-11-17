@@ -34,6 +34,9 @@ pub struct Counting<A> {
     failed: AtomicUsize,
     /// `Grow` as a number (0: none), see `set_grow`.
     grow: AtomicUsize,
+    /// A function called with `used` each time the peak is passed by 1 KB more than the last time it was called (see `set_peak_hook`), and that mark.
+    peak_hook: AtomicUsize,
+    snap_mark: AtomicUsize,
 }
 
 /// Resize a block in place if the allocator beneath can: `(ptr, old size, new size, align)`, true when the block is now of the new
@@ -54,7 +57,14 @@ impl<A> Counting<A> {
             count: AtomicUsize::new(0),
             failed: AtomicUsize::new(0),
             grow: AtomicUsize::new(0),
+            peak_hook: AtomicUsize::new(0),
+            snap_mark: AtomicUsize::new(0),
         }
+    }
+    /// Call `f(used)` when the high-water mark is raised, at most once for each KB it rises: the board's diagnostic keeps what the heap
+    /// holds at the moment of the peak (a peak that is over is otherwise only a number).
+    pub fn set_peak_hook(&self, f: Option<fn(usize)>) {
+        self.peak_hook.store(f.map_or(0, |f| f as usize), Relaxed);
     }
     /// Let `realloc` ask the allocator beneath to resize a block where it is. A vector that doubles then needs the room of
     /// its growth only, not the old and the new block at once (which is what the default `realloc` needs, and what the limit
@@ -105,6 +115,7 @@ impl<A> Counting<A> {
     }
     pub fn reset_peak(&self) {
         self.peak.store(self.used.load(Relaxed), Relaxed);
+        self.snap_mark.store(self.used.load(Relaxed), Relaxed);
     }
     /// Number of requests refused so far.
     pub fn failed(&self) -> usize {
@@ -153,6 +164,13 @@ impl<A> Counting<A> {
         self.used.store(u, Relaxed);
         if u > self.peak.load(Relaxed) {
             self.peak.store(u, Relaxed);
+            let h = self.peak_hook.load(Relaxed);
+            if h != 0 && u >= self.snap_mark.load(Relaxed).saturating_add(1024) {
+                self.snap_mark.store(u, Relaxed);
+                // SAFETY: only `set_peak_hook` stores here, and it stores an `fn(usize)`.
+                let f: fn(usize) = unsafe { core::mem::transmute::<usize, fn(usize)>(h) };
+                f(u);
+            }
         }
     }
 

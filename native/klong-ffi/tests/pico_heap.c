@@ -237,6 +237,26 @@ int main(void) {
     check(ns >= 21 && sum[1] == (int64_t)kh_bytes && sum[7] == free_b && sum[8] == largest_free && sum[9] == fr && sum[4] == 0, "the summary agrees with the map: free bytes, largest free chunk, chunks, nothing cached", NULL);
     check(sum[2] == (int64_t)kh_bytes - free_b, "bytes taken from the pool = the pool less what is free", NULL);
 
+    /* the high-water mark, started again, and what the heap held at it */
+    {
+        const char *r = eval(".heap(300)");
+        check(r[0] == '[' && atol(r + 1) > 0, ".heap(300) answers the old high-water mark", r);
+        long peak_after_reset = mem(1), in_use = mem(0);
+        check(peak_after_reset - in_use < 4000, "and the mark starts again from what is in use", NULL);
+        eval("#!3000");
+        long peak3 = mem(1);
+        check(peak3 > in_use + 20000, "a vector of 24 KB raises it", NULL);
+        int64_t snap[16];
+        size_t sn = kh_diag(301, snap, 16);
+        check(sn == 10 && snap[0] == 1 && snap[1] > in_use + 20000 && snap[1] <= peak3 && snap[1] + 1024 > peak3 - 1024, "the heap at the mark is kept: valid, the counted bytes within a KB of the peak", NULL);
+        int64_t blocks[72];
+        size_t bn = kh_diag(302, blocks, 72), found = 0;
+        for (size_t i = 0; i + 2 < bn; i += 3) found += blocks[i + 1] >= 24000 && blocks[i + 2] == 1;
+        check(found == 1, "and in it the vector of 24 KB, tagged as a vector", NULL);
+        eval(".heap(300)");
+        check(kh_diag(301, snap, 16) == 10 && snap[0] == 0, "starting the mark again clears it", NULL);
+    }
+
     printf("-- %s\n", failures ? "FAILED" : "ok");
     return failures ? 1 : 0;
 }

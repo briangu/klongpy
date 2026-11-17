@@ -287,6 +287,7 @@ pub fn func_arity(f: &Func) -> u8 {
             }
             _ => 0,
         },
+        Func::Lazy(l) => l.arity,
         Func::Proj { args, .. } => {
             let holes = args.iter().filter(|q| matches!(q, crate::value::Slot::Hole)).count();
             (if holes > 0 { holes } else { args.len() }).min(255) as u8

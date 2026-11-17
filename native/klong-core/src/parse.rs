@@ -152,7 +152,9 @@ pub struct Next {
 pub fn parse_next(
     source: &Rc<Source>,
     start: usize,
+    limit: usize,
     window: &mut usize,
+    lazy: Option<Rc<crate::value::LazyCtx>>,
     syms: &mut Interner,
     module: &mut Option<String>,
     strict: u8,
@@ -160,7 +162,7 @@ pub fn parse_next(
     stack: Option<(usize, usize)>,
 ) -> Result<Next> {
     let _tag = crate::htag::Scope::new(crate::htag::TREE);
-    let full: &str = &source.text;
+    let full: &str = &source.text[..limit];
     if let Some(end) = skip_comment(full, start) {
         return Ok(Next { skipped: true, parsed: None, end, last: false });
     }
@@ -211,6 +213,7 @@ pub fn parse_next(
                 let mut ids = crate::value::try_vec(1)?;
                 ids.push(NodeId(q));
                 p.tree.shrink();
+                p.tree.lazy = lazy;
                 Ok(Next { skipped: false, parsed: Some(Parsed { tree: Rc::new(p.tree), stmts: ids }), end, last })
             }
             Err(mut e) => {

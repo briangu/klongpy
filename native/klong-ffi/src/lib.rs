@@ -743,6 +743,15 @@ mod heapdiag {
     pub unsafe extern "C" fn klong_set_diag(f: Option<Diag>) {
         // SAFETY: one task (klong.h): the cell is written here and read in `.heap`, never at the same time.
         unsafe { *DIAG.0.get() = f }
+        super::HEAP.set_peak_hook(f.map(|_| peak_noted as fn(usize)));
+    }
+
+    /// The high-water mark was raised to `used`: the board keeps what its heap holds (mode 1000, with `used` in place of the capacity).
+    fn peak_noted(used: usize) {
+        // SAFETY: as in `klong_set_diag`; the board's function writes nothing when it is given no output.
+        if let Some(diag) = unsafe { *DIAG.0.get() } {
+            unsafe { diag(1000, core::ptr::null_mut(), used) };
+        }
     }
 
     pub fn register(interp: &mut Interp) {
@@ -754,6 +763,16 @@ mod heapdiag {
                     Some(Value::Int(m)) if *m >= 0 => *m as u32,
                     _ => return Err(Error::typ(".heap takes a mode, a non-negative integer")),
                 };
+                if mode == 300 {
+                    // the high-water mark starts again from what is in use (and the board forgets the heap it kept at the old one); the old one is the answer
+                    let old = super::HEAP.peak();
+                    super::HEAP.reset_peak();
+                    // SAFETY: as below.
+                    if let Some(diag) = unsafe { *DIAG.0.get() } {
+                        unsafe { diag(1001, core::ptr::null_mut(), 0) };
+                    }
+                    return Ok(Value::ints(alloc::vec![old as Int]));
+                }
                 // SAFETY: as in `klong_set_diag`: a read of a `Copy` value on the one task.
                 let Some(diag) = (unsafe { *DIAG.0.get() }) else { return Err(Error::typ(".heap: the board gave no diagnostic")) };
                 let mut out = [0i64; 96];

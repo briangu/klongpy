@@ -144,6 +144,9 @@ fn compact<T>(v: &mut Vec<T>) {
 }
 
 /// A program to run: borrowed (copied once, for error messages) or handed over (kept as that copy).
+/// A function literal of at least this many bytes of text, in a loaded program, is kept as text.
+const LAZY_MIN: u32 = 24;
+
 enum Prog<'a> {
     Text(&'a str),
     Owned(String),
@@ -186,6 +189,7 @@ pub struct Interp {
     frame_pool: Vec<Frame>,
     /// The function values made for a few tree nodes lately (a function literal's body is made into one at every
     /// call: an allocation). Each entry keeps its tree alive, so a tree's address cannot be taken for another's.
+    lazy_cache: core::cell::RefCell<Vec<(usize, u32, Rc<Tree>, NodeId)>>,
     body_cache: core::cell::RefCell<[Option<(usize, NodeId, Value)>; 8]>,
     body_next: Cell<u8>,
     layer_pool: Vec<Vec<Layer>>,
@@ -233,6 +237,7 @@ impl Interp {
             depth: 0,
             ticks: 0,
             frame_pool: Vec::new(),
+            lazy_cache: core::cell::RefCell::new(Vec::new()),
             body_cache: core::cell::RefCell::new([None, None, None, None, None, None, None, None]),
             body_next: Cell::new(0),
             layer_pool: Vec::new(),
@@ -378,10 +383,14 @@ impl Interp {
         let depth = self.depth;
         let mut last = None;
         let mut pos = 0usize;
+        let mut ctx: Option<Rc<crate::value::LazyCtx>> = None;
         loop {
             let stack = self.stack();
             let mut window = 256usize; // (a statement that needs more finds it: the parser doubles it)
-            let next = parse::parse_next(&source, pos, &mut window, &mut self.syms, &mut self.module, self.cfg.strict, self.cfg.max_depth, stack)?;
+            if ctx.as_ref().map(|c| (&c.module, c.strict)) != Some((&self.module, self.cfg.strict)) {
+                ctx = Some(Rc::new(crate::value::LazyCtx { module: self.module.clone(), strict: self.cfg.strict }));
+            }
+            let next = parse::parse_next(&source, pos, source.text.len(), &mut window, ctx.clone(), &mut self.syms, &mut self.module, self.cfg.strict, self.cfg.max_depth, stack)?;
             if next.skipped {
                 pos = next.end;
                 continue;
@@ -842,11 +851,53 @@ impl Interp {
         }
     }
 
+    /// The value of a function literal: in a program that is being loaded, where its text is (`Func::Lazy`), when it is long enough for that to
+    /// be less than its tree; otherwise the tree.
+    fn literal_value(&self, tree: &Rc<Tree>, id: NodeId) -> Value {
+        if let (Some(ctx), Some(src), Node::Fn { a, arity, has_args: false, call: false, .. }) = (&tree.lazy, &tree.source, tree.node(id)) {
+            if let Some((s, e)) = tree.span(id) {
+                let has_params = matches!(tree.node(*a), Node::Body { has_params: true, .. });
+                // (a function defined with named parameters, f(a;b)::{...}, has them from the definition, which is not in the text of the literal)
+                if e - s >= LAZY_MIN && Tree::is_real(*a) && !has_params {
+                    return Value::Fn(Rc::new(Func::Lazy(crate::value::Lazy { source: src.clone(), start: s, end: e, ctx: ctx.clone(), arity: *arity, kgfn: tree.is_kgfn(id), has_params })));
+                }
+            }
+        }
+        Value::Fn(Rc::new(Func::Code { tree: tree.clone(), node: id }))
+    }
+
+    /// The tree of a function kept as text: parsed from its text in the module and strict level it was, or the one parsed lately. It
+    /// is let go at the end of the program (`release_caches`).
+    fn materialize(&mut self, l: &crate::value::Lazy) -> Result<(Rc<Tree>, NodeId)> {
+        let key = (Rc::as_ptr(&l.source) as usize, l.start);
+        if let Ok(c) = self.lazy_cache.try_borrow() {
+            if let Some((_, _, t, n)) = c.iter().find(|(p, s, _, _)| (*p, *s) == key) {
+                return Ok((t.clone(), *n));
+            }
+        }
+        let stack = self.stack();
+        let saved = core::mem::replace(&mut self.module, l.ctx.module.clone());
+        let mut window = (l.end - l.start) as usize + 1;
+        let r = parse::parse_next(&l.source, l.start as usize, l.end as usize, &mut window, None, &mut self.syms, &mut self.module, l.ctx.strict, self.cfg.max_depth, stack);
+        self.module = saved;
+        let next = r?;
+        let Some(p) = next.parsed else { return Err(Error::syntax("a function kept as text did not parse again")) };
+        let node = p.stmts[0];
+        if let Ok(mut c) = self.lazy_cache.try_borrow_mut() {
+            if c.len() >= 12 {
+                c.remove(0);
+            }
+            c.push((key.0, key.1, p.tree.clone(), node));
+        }
+        Ok((p.tree, node))
+    }
+
     /// KlongPy `isinstance(v, (KGFn, KGLambda))`.
     fn is_fn_value(v: &Value) -> bool {
         match v {
             Value::Fn(f) => match &**f {
                 Func::Code { tree, node } => tree.is_kgfn(*node),
+                Func::Lazy(l) => l.kgfn,
                 _ => true,
             },
             _ => false,
@@ -858,6 +909,9 @@ impl Interp {
     pub fn release_caches(&mut self) {
         if let Ok(mut c) = self.body_cache.try_borrow_mut() {
             *c = [None, None, None, None, None, None, None, None];
+        }
+        if let Ok(mut c) = self.lazy_cache.try_borrow_mut() {
+            *c = Vec::new();
         }
         self.layer_pool.clear();
         self.layer_pool.shrink_to_fit();
@@ -1023,7 +1077,7 @@ impl Interp {
                 if now {
                     self.eval_call(tree, id)
                 } else {
-                    Ok(Value::Fn(Rc::new(Func::Code { tree: tree.clone(), node: id })))
+                    Ok(self.literal_value(tree, id))
                 }
             }
             Node::Adv { .. } => self.eval_adv(tree, id),
@@ -1256,6 +1310,13 @@ impl Interp {
                             }
                         }
                     }
+                    Func::Lazy(l) => {
+                        // a function literal kept as text: its body is parsed now, and is what is called
+                        let (t, n) = self.materialize(l)?;
+                        if let Node::Fn { a, arity: fa, has_args: false, .. } = t.node(n) {
+                            next = Some((self.node_value(&t, *a), *fa));
+                        }
+                    }
                     Func::Proj { f: callee, args, .. } => {
                         if args.iter().any(|q| matches!(q, Slot::Hole)) {
                             let mut held = try_vec(args.len())?;
@@ -1419,6 +1480,7 @@ impl Interp {
                 Value::Sym(_) => false,
                 Value::Fn(func) => match &**func {
                     Func::Code { tree, node } => !tree.is_kgfn(*node),
+                    Func::Lazy(l) => !l.kgfn,
                     Func::Proj { .. } => false,
                     Func::Native { .. } => true,
                 },
@@ -1773,6 +1835,14 @@ impl Interp {
                         self.eval(tree, *node, true)
                     }
                 };
+                self.pop_frame();
+                r
+            }
+            Func::Lazy(l) => {
+                let (tree, node) = self.materialize(l)?;
+                try_push(&mut frame, (sym::DOT_F, Some(f.clone())))?;
+                self.push_frame(frame)?;
+                let r = self.eval(&tree, node, true);
                 self.pop_frame();
                 r
             }

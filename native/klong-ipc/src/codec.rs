@@ -129,6 +129,14 @@ pub fn lambda_value(context: &[u8], text: &[u8]) -> Result<Value> {
 /// A projection, an operator, a system function or a function defined with a parameter list
 /// has none and goes out in its display form (`:monad`).
 pub fn function_text(f: &Func) -> Option<&str> {
+    if let Func::Lazy(l) = f {
+        // (kept as its text: the text is the answer)
+        if l.has_params {
+            return None;
+        }
+        let t = l.source.text.get(l.start as usize..l.end as usize)?;
+        return if t.starts_with('{') && t.ends_with('}') { Some(t) } else { None };
+    }
     if let Func::Code { tree, node } = f {
         if let Node::Fn { a, has_args: false, call: false, .. } = tree.node(*node) {
             if Tree::is_real(*a) {

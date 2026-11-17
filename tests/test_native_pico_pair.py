@@ -333,7 +333,9 @@ class TestPair(unittest.TestCase):
                 out, st = b.type(2, '.l("mgmt")', timeout=60)
                 self.assertEqual(st, "ok", out)
                 used, peak, _ = mem(b, 2)
-                self.assertLess(peak - base, 1.3 * (used - base) + 4096, (arena, base, used, peak))
+                # (host figures, 64-bit: the whole file kept 91 KB and peaked at 297; the function literals are kept as the place of their text now)
+                self.assertLess(used - base, 45000, (arena, base, used, peak))
+                self.assertLess(peak - base, 70000, (arena, base, used, peak))
                 for line in mgmt_drop_lines():
                     self.assertEqual(b.type(2, line)[1], "ok")
                 for n in (2, 3):
@@ -349,14 +351,18 @@ class TestPair(unittest.TestCase):
                 self.assertLess(abs(m2 - m1), 400, (m1, m2))
                 out, st = b.type(3, '.l("mgmt")', timeout=60)
                 self.assertEqual(st, "ok", out)
+                # and it works: the management node calls the other node through the functions that were kept as text
+                self.assertEqual(b.type(3, 'mgmt.add("p";"node:2")', timeout=30)[1], "ok")
+                self.assertEqual(b.type(3, 'mgmt.call("p";"1+1";[])', timeout=30), ("2", "ok"))
+                b.type(3, '.clic((mgmt.nodes?"p")?"h")')  # (as the self-test does, before it drops the library)
                 for line in mgmt_drop_lines():
                     self.assertEqual(b.type(3, line)[1], "ok")
                 dropped = largest(b, 3)
-                self.assertGreaterEqual(dropped, 0.985 * l3, (l3, dropped))
+                self.assertGreaterEqual(dropped, 0.97 * l3, (l3, dropped))  # (the names the library interned stay, counted)
                 self.assertEqual(b.type(3, '.l("mgmt")', timeout=60)[1], "ok")
                 for line in mgmt_drop_lines():
                     self.assertEqual(b.type(3, line)[1], "ok")
-                self.assertGreaterEqual(largest(b, 3), 0.985 * l3)
+                self.assertGreaterEqual(largest(b, 3), 0.97 * l3)
                 self.assertGreaterEqual(largest(b, 3), 0.99 * ideal(b, 3))
             finally:
                 b.close()

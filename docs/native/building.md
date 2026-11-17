@@ -212,13 +212,13 @@ $ klong -e '.l("nosuch")'
   ^^^^^^^^^^^^
 ```
 
-(The third line is the value of the expression, which `-e` prints.) Loading costs heap, because parsed code takes 20 to 30 bytes per byte of source, but a load reads one statement at a time, so the peak is about what stays: `.l("csv")` peaks at about 34 KB, `.l("math")` at about 227 KB and `.l("nstat")`, which loads `math`, at about 505 KB (a whole-file load needed 50 KiB, 495 KiB and 1.04 MiB). `.mem()` returns `[in use, peak, limit]` in bytes. The interpreter itself is about 15 KiB after start-up, and `nstat` takes the peak over 400 KB. The exact numbers change a little from run to run and between builds, so the transcript tests them:
+(The third line is the value of the expression, which `-e` prints.) Loading costs heap, because parsed code takes 20 to 30 bytes per byte of source, but a load reads one statement at a time, so the peak is about what stays: `.l("csv")` peaks at about 29 KB, `.l("math")` at about 139 KB and `.l("nstat")`, which loads `math`, at about 322 KB (a whole-file load needed 50 KiB, 495 KiB and 1.04 MiB): the functions of a loaded file are kept as the place of their text and parsed when called. `.mem()` returns `[in use, peak, limit]` in bytes. The interpreter itself is about 15 KiB after start-up, and `nstat` takes the peak over 300 KB. The exact numbers change a little from run to run and between builds, so the transcript tests them:
 
 <!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
 ```console
 $ klong -e '(.mem()@0)<20000'
 1
-$ klong -e '.l("nstat");(.mem()@1)>400000'
+$ klong -e '.l("nstat");(.mem()@1)>300000'
 1
 ```
 

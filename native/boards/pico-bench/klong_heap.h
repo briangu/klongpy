@@ -107,10 +107,11 @@ extern volatile uint8_t KLONG_ALLOC_TAG; /* set by the runtime (klong-core, feat
 #define KH_TAB_N 96u
 #define KH_TAB_MIN 512u
 static uint8_t kh_cell[KH_CELLS_MAX]; /* per 64 bytes of the pool: a bit per kind (1 << tag) of the blocks that started in it */
-static struct kh_ent {
+struct kh_ent {
     uint32_t off, size;
     uint8_t tag;
-} kh_tab[KH_TAB_N];
+};
+static struct kh_ent kh_tab[KH_TAB_N];
 static uint32_t kh_tab_n, kh_tab_bytes, kh_tab_lost;
 static void kh_diag_note(void *p, size_t n) {
     uint32_t o = (uint32_t)((char *)p - kh_base);
@@ -490,13 +491,65 @@ static size_t kh_diag_cache(int64_t *out, size_t cap) {
     return k;
 }
 
+/* What the pool held when the runtime's count last reached a new high-water mark (the runtime tells, `.heap(300)` starts it again): the
+ * counted bytes, what was taken, the free chunks, and the live blocks of 512 bytes or more with their kinds. Taken at most once for each KB
+ * the mark rises, so what is kept is the state within 1 KB of the peak. Mode 301 the summary, 302.. pages of blocks. */
+#define KH_SNAP_N 48u /* the largest 48 live blocks are kept */
+static struct {
+    uint32_t valid, used, taken, free_bytes, largest, chunks, tab_n, tab_bytes, cached, drains;
+    struct kh_ent tab[KH_SNAP_N];
+} kh_snap;
+static void kh_snap_take(uint32_t used) {
+    uint32_t fb = 0, lg = 0, ch = 0;
+    for (uint32_t p = kh_head; p != KH_NIL; p = KH_AT(p)->next) {
+        uint32_t s = KH_AT(p)->size;
+        fb += s, ch++;
+        if (s > lg) lg = s;
+    }
+    kh_snap.valid = 1, kh_snap.used = used, kh_snap.taken = kh_taken, kh_snap.free_bytes = fb, kh_snap.largest = lg, kh_snap.chunks = ch;
+    kh_snap.tab_n = kh_tab_n, kh_snap.tab_bytes = kh_tab_bytes, kh_snap.cached = kh_cached, kh_snap.drains = kh_drains;
+    memset(kh_snap.tab, 0, sizeof kh_snap.tab);
+    for (uint32_t i = 0, k = 0; i < KH_TAB_N && k < KH_SNAP_N; i++)
+        if (kh_tab[i].size) kh_snap.tab[k++] = kh_tab[i];
+}
+static size_t kh_snap_summary(int64_t *out, size_t cap) {
+    if (cap < 10) return 0;
+    int64_t v[10] = {kh_snap.valid, kh_snap.used, kh_snap.taken, kh_snap.free_bytes, kh_snap.largest, kh_snap.chunks, kh_snap.tab_n, kh_snap.tab_bytes, kh_snap.cached, kh_snap.drains};
+    for (int i = 0; i < 10; i++) out[i] = v[i];
+    return 10;
+}
+static size_t kh_snap_blocks(uint32_t page, int64_t *out, size_t cap) {
+    uint8_t idx[KH_SNAP_N];
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < KH_SNAP_N; i++) {
+        if (!kh_snap.tab[i].size) continue;
+        uint32_t j = n++;
+        while (j > 0 && kh_snap.tab[idx[j - 1]].off > kh_snap.tab[i].off) idx[j] = idx[j - 1], j--;
+        idx[j] = (uint8_t)i;
+    }
+    size_t k = 0;
+    for (uint32_t i = page * KH_BLOCKS_PAGE; i < n && i < (page + 1) * KH_BLOCKS_PAGE && k + 3 <= cap; i++)
+        out[k++] = kh_snap.tab[idx[i]].off, out[k++] = kh_snap.tab[idx[i]].size, out[k++] = kh_snap.tab[idx[i]].tag;
+    return k;
+}
+
 /* One entry for the whole diagnostic: mode 0 the summary (heap fields), 1..99 a page of the map (mode - 1), 100..199 a page of the
- * live blocks (mode - 100), 200 the cache. */
+ * live blocks (mode - 100), 200 the cache, 300 (the runtime's) the high-water mark starts again, 301 and 302.. the heap at the mark. */
 static size_t kh_diag(uint32_t mode, int64_t *out, size_t cap) {
     if (mode == 0) return kh_diag_summary(out, cap);
     if (mode < 100) return kh_diag_map(mode - 1, out, cap);
     if (mode < 200) return kh_diag_blocks(mode - 100, out, cap);
     if (mode == 200) return kh_diag_cache(out, cap);
+    if (mode == 301) return kh_snap_summary(out, cap);
+    if (mode >= 302 && mode < 400) return kh_snap_blocks(mode - 302, out, cap);
+    if (mode == 1000) {
+        kh_snap_take((uint32_t)cap); /* (the runtime passes the counted bytes in place of the capacity) */
+        return 0;
+    }
+    if (mode == 1001) {
+        memset(&kh_snap, 0, sizeof kh_snap);
+        return 0;
+    }
     return 0;
 }
 #endif

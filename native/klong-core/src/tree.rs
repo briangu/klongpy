@@ -70,13 +70,15 @@ pub struct Tree {
     pub spans: Vec<Span>,
     pub extra: Vec<u32>,
     pub source: Option<Rc<Source>>,
+    /// Set by a load: the function literals of this tree are kept as text (`Func::Lazy`), parsed in this context when called.
+    pub lazy: Option<Rc<crate::value::LazyCtx>>,
     /// The arena could not grow: the tree is incomplete and the parse is a `memory` error.
     pub oom: bool,
 }
 
 impl Tree {
     pub fn new(source: Option<Rc<Source>>) -> Tree {
-        Tree { nodes: Vec::new(), spans: Vec::new(), extra: Vec::new(), source, oom: false }
+        Tree { nodes: Vec::new(), spans: Vec::new(), extra: Vec::new(), source, lazy: None, oom: false }
     }
     pub fn node(&self, id: NodeId) -> &Node {
         &self.nodes[id.0 as usize]

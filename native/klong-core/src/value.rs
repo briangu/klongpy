@@ -621,6 +621,9 @@ pub enum Slot {
 pub enum Func {
     /// A tree node used as a value.
     Code { tree: Rc<Tree>, node: NodeId },
+    /// A function literal defined by a load, kept as where its text is, not as a tree: the tree is parsed again, from that text, when the
+    /// function is called, and let go at the end of the program (`Interp::materialize`). A library of 6 KB of source was 75 KB of trees.
+    Lazy(Lazy),
     /// A function applied to fewer values than it takes (made at run time by an adverb or `@`).
     /// A projection made at run time (a call with fewer arguments than the function takes, or
     /// with an empty slot): the callee and one slot for each argument.
@@ -628,6 +631,25 @@ pub enum Func {
     Proj { f: Value, args: Vec<Slot>, depth: u16, has_dict: bool },
     /// A system function. `arity` is `WILDCARD` for one that takes any number of arguments.
     Native { name: SymId, arity: u8, f: NativeFn },
+}
+
+/// A function literal of a loaded program, by its text (see `Func::Lazy`): the text, where the literal lies in it, what parsing it needs
+/// (`ctx`), and what is asked of a function without a body: its arity, whether it is a function of a body (`kgfn`) and whether it names
+/// its parameters.
+pub struct Lazy {
+    pub source: Rc<crate::error::Source>,
+    pub start: u32,
+    pub end: u32,
+    pub ctx: Rc<LazyCtx>,
+    pub arity: u8,
+    pub kgfn: bool,
+    pub has_params: bool,
+}
+
+/// What a text needs to be parsed as it was: the module in force and the strict level.
+pub struct LazyCtx {
+    pub module: Option<String>,
+    pub strict: u8,
 }
 
 impl Func {
