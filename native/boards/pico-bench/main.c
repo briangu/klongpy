@@ -356,7 +356,8 @@ static void klong_main(void) {
     kh_limits(arena, &cfg.heap_limit, &cfg.heap_reserve);
     cfg.stack_bytes = KLONG_STACK_BUDGET;
     cfg.stack_keep = KLONG_STACK_KEEP;
-    cfg.heap_overhead = 8; /* newlib's malloc: a header of 8 bytes in front of each block, and blocks of 8 */
+    cfg.heap_overhead = 0; /* blocks of up to 8 KB are the region's (klong_heap.h), which has no header; those over it are malloc's, 8 bytes more each (in the slack) */
+    cfg.heap_round = 8;    /* and are given out in 8s */
     cfg.write = k_write;
     cfg.read = k_read;
     cfg.now_ms = k_now_ms;

@@ -11,6 +11,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <execinfo.h>
 
 #include "klong_memory.h"
 
@@ -22,6 +24,13 @@ typedef struct mock_chunk {
 static _Alignas(8) uint8_t mock_arena[KH_TESTED_ARENA];
 static mock_chunk *mock_free_list;
 static size_t mock_used_bytes, mock_phys_peak;
+static uint32_t mock_seq;
+#define MOCK_TRACE_MIN 1500u
+#define MOCK_TRACE_DEPTH 14
+static void *mock_trace[KH_TESTED_ARENA / 1500 + 1][MOCK_TRACE_DEPTH]; /* the call stack of big blocks, by their allocation number's slot: host builds only */
+static uint32_t mock_trace_seq[KH_TESTED_ARENA / 1500 + 1];
+static uint32_t mock_trace_n;
+static uint32_t mock_tag[KH_TESTED_ARENA / 8 + 1]; /* the allocation number of the block at each 8 bytes of the arena */
 static long mock_live, mock_live_peak;
 static size_t mock_arena_bytes = KH_TESTED_ARENA;
 static void *mock_sbrk(long incr);

@@ -93,6 +93,10 @@ typedef struct klong_config {
      * the arena holds), so heap_limit can be the arena's size less what is not counted;
      * 0: the sizes asked for. */
     size_t heap_overhead;
+
+    /* Blocks are counted rounded up to a multiple of this (the grain the allocator gives them out
+     * in: 8); 0: as asked. */
+    size_t heap_round;
 } klong_config;
 
 /* Build the runtime, run boot.kg if the file system has one, print the banner

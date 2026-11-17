@@ -58,7 +58,8 @@ class Node:
         if note:
             env["PICO_NOTE"] = note
         args = [binary, str(arena)] + (["old"] if old else [])
-        self.p = subprocess.Popen(args, pass_fds=(3, 4), stderr=subprocess.PIPE, env=env,
+        self.errfile = tempfile.TemporaryFile()  # a file: a dump of the heap is longer than a pipe holds
+        self.p = subprocess.Popen(args, pass_fds=(3, 4), stderr=self.errfile, env=env,
                                   preexec_fn=lambda: (os.dup2(r_rx, 3), os.dup2(w_tx, 4)))
         os.close(r_rx)
         os.close(w_tx)
@@ -100,7 +101,9 @@ class Node:
         if self.p.poll() is None:
             self.p.kill()
         self.p.wait()
-        err = self.p.stderr.read().decode("utf-8", "replace") if self.p.stderr else ""
+        self.errfile.seek(0)
+        err = self.errfile.read().decode("utf-8", "replace")
+        self.errfile.close()
         for fd in (self.rx_w, self.tx_r):
             try:
                 os.close(fd)
@@ -208,6 +211,34 @@ def run_selftest(arena, old, seconds=40):
     return res
 
 
+MGMT_NAMES = None
+
+
+def mgmt_drop_lines():
+    """What the self-test does to drop the management library: its definitions set to 0, twelve to a line."""
+    global MGMT_NAMES
+    if MGMT_NAMES is None:
+        import re
+        with open(os.path.join(os.path.dirname(HERE), "klongpy", "lib", "mgmt.kg")) as f:
+            MGMT_NAMES = [m.group(1) for line in f for m in [re.match(r"([A-Za-z][A-Za-z0-9._]*)::", line)] if m]
+    return [";".join(n + "::0" for n in MGMT_NAMES[i:i + 12]) for i in range(0, len(MGMT_NAMES), 12)]
+
+
+def largest(b, node, hi=400000):
+    """The largest `#!n` the node makes, by bisection through its console."""
+    lo = 0
+    while hi - lo > 128:
+        mid = (lo + hi) // 2
+        out, _ = b.type(node, "#!%d" % mid, timeout=15)
+        lo, hi = (mid, hi) if out.strip() == str(mid) else (lo, mid)
+    return lo
+
+
+def counted(b, node):
+    out, _ = b.type(node, ".mem()")
+    return int(out.strip("[]").split()[0])
+
+
 class TestPair(unittest.TestCase):
     def test_the_fixed_policy_with_room_passes_and_the_console_works_after(self):
         r = run_selftest(BIG, False)
@@ -238,6 +269,43 @@ class TestPair(unittest.TestCase):
                 self.assertNotIn("FATAL", err, (kb, r))
             outcomes.add((r["report"] or "none").split(" node=")[0][:34])
         self.assertIn("klong selftest pass", " ".join(outcomes), outcomes)
+
+    def test_the_client_of_the_selftest_has_the_memory_of_the_server_and_the_library_can_be_loaded_and_dropped(self):
+        # The nodes of the boards measured on 2026-11-17: the server's largest vector 7,390 elements, the client's 4,000 to 4,300 straight after
+        # its self-test; one connect and close recovered 8 KB; and `.l("mgmt")` on the client failed with a memory error. Three causes: a closed
+        # connection kept by the table of handles until the next one pruned it (its 4 KB buffer), the symbols and tables that grow while the
+        # library loads and pin the middle of malloc's arena, and a library that could not be loaded a second time. The arena is the
+        # host's (the management library takes a megabyte on the 64-bit host, 45 KB on the board): the proportions are what is asserted.
+        b = Bench(1200 * 1024, False)
+        try:
+            b.spin(40, until=lambda: (b.last_report(3) or "").startswith("klong selftest pass"))
+            self.assertTrue((b.last_report(3) or "").startswith("klong selftest pass"), b.reports[-3:])
+            b.spin(1)
+            l2, l3 = largest(b, 2), largest(b, 3)
+            self.assertGreaterEqual(l3, 0.985 * l2, (l2, l3))
+            # a connection closed is gone at once: the memory after one cycle is the memory after the next
+            b.type(3, 'h::.cli("node:2");h("1+1");.clic(h);h::0')
+            m1 = counted(b, 3)
+            b.type(3, 'h::.cli("node:2");h("1+1");.clic(h);h::0')
+            m2 = counted(b, 3)
+            self.assertLess(abs(m2 - m1), 400, (m1, m2))
+            # loaded: it works, and what is left is what the library leaves
+            out, st = b.type(3, '.l("mgmt")', timeout=60)
+            self.assertEqual(st, "ok", out)
+            with_lib = largest(b, 3)
+            self.assertGreater(with_lib, 0.5 * l2, (l2, with_lib))
+            self.assertLess(with_lib, l3, (l3, with_lib))
+            # dropped: the memory of before, and the library again
+            for line in mgmt_drop_lines():
+                self.assertEqual(b.type(3, line)[1], "ok")
+            dropped = largest(b, 3)
+            self.assertGreaterEqual(dropped, 0.985 * l3, (l3, dropped))
+            self.assertEqual(b.type(3, '.l("mgmt")', timeout=60)[1], "ok")
+            for line in mgmt_drop_lines():
+                self.assertEqual(b.type(3, line)[1], "ok")
+            self.assertGreaterEqual(largest(b, 3), 0.985 * l3)
+        finally:
+            b.close()
 
     def test_a_node_that_restarted_says_why_in_its_reports(self):
         b = Bench(BIG, False, notes={3: "hardfault pc=10002d04 lr=10002d01"})

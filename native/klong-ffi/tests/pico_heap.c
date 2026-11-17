@@ -142,7 +142,8 @@ int main(void) {
         .name = "pico-heap",
         .flags = KLONG_FLAG_CRLF,
     };
-    cfg.heap_overhead = 8; /* as the firmware: newlib's header */
+    cfg.heap_overhead = 0; /* as the firmware: the region has no header, malloc's 8 are in the slack */
+    cfg.heap_round = 8;
     kh_limits(KH_TESTED_ARENA, &cfg.heap_limit, &cfg.heap_reserve);
     if (klong_init(&cfg) != KLONG_OK) return puts("!! klong_init failed"), 2;
     io("");
@@ -170,6 +171,13 @@ int main(void) {
     check(strstr(eval(msg), "memory error") == NULL && strstr(eval("a::0"), "memory error") == NULL, "the largest vector assigned to a name, then dropped", NULL);
     check(labs(mem(0) - used0) < 2000, "dropping it returns it", NULL);
     check(strstr(eval("g::{x+1};g(2)"), "3") != NULL, "functions work after all of it", NULL);
+
+    /* after a vector as large as there is (malloc's break is then at the top of the arena) and its going, small blocks have
+     * their room still: the region of small blocks cannot grow past the break, and takes what malloc has free below it */
+    snprintf(msg, sizeof msg, "a::!%ld;a::0", n_max - 150);
+    eval(msg);
+    check(strstr(eval("l::{$x}'!600;#l"), "600") != NULL, "after the largest vector has gone, a few hundred small blocks (strings) fit again", NULL);
+    check(strstr(eval("l::0"), "memory error") == NULL, "and go", NULL);
 
     /* the frames of a deep recursion are small blocks: they come back for a vector */
     check(strstr(eval("f::{:[x;1+f(x-1);0]};f(40)"), "40") != NULL, "a recursion 40 levels deep (a level costs the 64-bit host about 1 KB, the Pico about 0.3 KB)", NULL);

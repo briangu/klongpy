@@ -133,7 +133,9 @@ struct Listener {
 
 struct HandleEntry {
     f: Weak<Func>,
-    conn: Rc<Conn>,
+    /// Weak: the function's closure holds the connection while the function lives, and an entry that held it too kept a
+    /// closed connection (its buffers, an echo's 4 KB) until the next entry pruned this one.
+    conn: Weak<Conn>,
     /// The global of the peer a proxy calls; `None` for the handle of the connection.
     sym: Option<SymId>,
 }
@@ -1035,7 +1037,7 @@ impl<P: Platform + 'static> Events<P> {
         let mut h = self.ipc.handles.try_borrow_mut().map_err(|_| busy())?;
         h.retain(|e| e.f.strong_count() > 0);
         h.try_reserve(1).map_err(|_| Error::memory())?;
-        h.push(HandleEntry { f: Rc::downgrade(f), conn: conn.clone(), sym });
+        h.push(HandleEntry { f: Rc::downgrade(f), conn: Rc::downgrade(conn), sym });
         Ok(())
     }
 
@@ -1049,7 +1051,7 @@ impl<P: Platform + 'static> Events<P> {
         match v {
             Value::Fn(f) => {
                 let h = self.ipc.handles.try_borrow().ok()?;
-                h.iter().find(|e| e.f.strong_count() > 0 && core::ptr::eq(e.f.as_ptr(), Rc::as_ptr(f))).map(|e| (e.conn.clone(), e.sym))
+                h.iter().find(|e| e.f.strong_count() > 0 && core::ptr::eq(e.f.as_ptr(), Rc::as_ptr(f))).and_then(|e| e.conn.upgrade().map(|c| (c, e.sym)))
             }
             Value::Ext(e) => e.0.as_any().downcast_ref::<DictHandle<P>>().map(|d| (d.conn.clone(), None)),
             _ => None,

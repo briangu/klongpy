@@ -65,6 +65,8 @@ pub struct KlongConfig {
     pub stack_keep: usize,
     /// Bytes the allocator keeps for each block (its header): see `Counting::set_overhead` (0: none).
     pub heap_overhead: usize,
+    /// Blocks are counted rounded up to a multiple of this (see `Counting::set_round`; 0: as asked).
+    pub heap_round: usize,
 }
 
 /// A static that one task uses. klong.h requires every call and callback to be on the task
@@ -264,6 +266,7 @@ pub unsafe extern "C" fn klong_init(config: *const KlongConfig) -> i32 {
         *HOOKS.0.get() = Some(cfg);
     }
     HEAP.set_overhead(cfg.heap_overhead);
+    HEAP.set_round(cfg.heap_round);
     HEAP.set_limit(cfg.heap_limit, cfg.heap_reserve);
 
     let mut system = CSystem { name: [0; 31], name_len: 0 };

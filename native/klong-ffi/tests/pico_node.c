@@ -34,6 +34,16 @@ static void *panic_malloc(size_t n) {
     }
     return p;
 }
+#include <execinfo.h>
+struct rtrace { void *addr; size_t n; void *bt[12]; uint32_t seq; };
+static struct rtrace rtr[20000];
+static uint32_t rtr_seq;
+static void rtr_add(void *p, size_t n) {
+    for (int i = 0; i < 20000; i++) if (!rtr[i].addr) { rtr[i].addr = p; rtr[i].n = n; rtr[i].seq = ++rtr_seq; backtrace(rtr[i].bt, 12); return; }
+}
+static void rtr_del(void *p) { for (int i = 0; i < 20000; i++) if (rtr[i].addr == p) { rtr[i].addr = NULL; return; } }
+#define KH_ON_ALLOC(p, n) rtr_add(p, n)
+#define KH_ON_FREE(p) rtr_del(p)
 #define KH_MALLOC panic_malloc
 #define KH_FREE mock_free
 #define KH_MEMALIGN mock_memalign
@@ -41,6 +51,20 @@ static void *panic_malloc(size_t n) {
 #include "klong_heap.h"
 #include "klong_heap_arena_impl.h"
 
+static void on_usr1(int s) {
+    (void)s;
+    mock_dump(stderr);
+    { /* all region blocks by allocation site */
+      for (int i = 0; i < 20000; i++) if (rtr[i].addr) { char **sy = backtrace_symbols(rtr[i].bt, 12); fprintf(stderr, "RSITE %zu", rtr[i].n); for (int d = 3; d < 7 && sy; d++) { const char *q = strchr(sy[d], '_'); fprintf(stderr, " %.60s", q ? q : sy[d]); } fprintf(stderr, "\n"); free(sy); } }
+    { int shown = 0; /* the lowest blocks of the region: what pins its bottom */
+      for (;;) { struct rtrace *low = NULL; for (int i = 0; i < 20000; i++) if (rtr[i].addr && (!low || rtr[i].addr < low->addr) && (!shown || (char *)rtr[i].addr > (char *)rtr[shown - 1 + 0].addr)) low = &rtr[i];
+        break; } }
+    { char *last = NULL; for (int k = 0; k < 14; k++) { struct rtrace *low = NULL; for (int i = 0; i < 20000; i++) if (rtr[i].addr && (!last || (char *)rtr[i].addr > last) && (!low || rtr[i].addr < low->addr)) low = &rtr[i];
+        if (!low) break; last = low->addr; fprintf(stderr, "REGIONUSED %zu %zu #%u\n", (size_t)((char *)low->addr - (char *)mock_arena), low->n, low->seq); char **sy = backtrace_symbols(low->bt, 12); for (int d = 3; d < 9 && sy; d++) fprintf(stderr, "      %s\n", sy[d]); free(sy); } }
+    size_t u, p, l;
+    klong_heap(&u, &p, &l);
+    fprintf(stderr, "COUNTED used %zu peak %zu limit %zu\n", u, p, l);
+}
 static void h_write(void *ctx, const uint8_t *b, size_t n) { (void)ctx, (void)b, (void)n; }
 static size_t h_read(void *ctx, uint8_t *b, size_t cap) { (void)ctx, (void)b, (void)cap; return 0; }
 static uint64_t h_now_ms(void *ctx) {
@@ -72,6 +96,7 @@ int main(int argc, char **argv) {
     if (arena > KH_TESTED_ARENA) return 2;
     mock_arena_bytes = arena;
     mock_init();
+    signal(SIGUSR1, on_usr1);
     fcntl(3, F_SETFL, O_NONBLOCK);
     klong_config cfg;
     memset(&cfg, 0, sizeof cfg);
@@ -86,7 +111,8 @@ int main(int argc, char **argv) {
         cfg.heap_overhead = 0;
     } else {
         kh_limits(arena, &cfg.heap_limit, &cfg.heap_reserve);
-        cfg.heap_overhead = 8;
+        cfg.heap_overhead = 0;
+        cfg.heap_round = 8;
     }
     cfg.stack_bytes = 4u << 20;
     cfg.write = h_write;

@@ -28,6 +28,7 @@ pub struct Counting<A> {
     limit: AtomicUsize,
     reserve: AtomicUsize,
     overhead: AtomicUsize,
+    round: AtomicUsize,
     every: AtomicUsize,
     count: AtomicUsize,
     failed: AtomicUsize,
@@ -42,6 +43,7 @@ impl<A> Counting<A> {
             limit: AtomicUsize::new(0),
             reserve: AtomicUsize::new(0),
             overhead: AtomicUsize::new(0),
+            round: AtomicUsize::new(0),
             every: AtomicUsize::new(0),
             count: AtomicUsize::new(0),
             failed: AtomicUsize::new(0),
@@ -52,19 +54,24 @@ impl<A> Counting<A> {
         self.limit.store(limit, Relaxed);
         self.reserve.store(reserve.min(limit / 2), Relaxed);
     }
-    /// Bytes the allocator beneath keeps for each block (malloc's header): every block is counted as its size rounded to 8
-    /// plus this, at least 16 in all, so that what is counted is what the arena holds and the limit can be the arena's size.
-    /// 0 (the default): the size asked for, as before.
+    /// Bytes the allocator beneath keeps for each block (malloc's header), and (`set_round`) the grain it gives blocks out in:
+    /// every block is counted as its size rounded up to the grain plus this, so that what is counted is what the arena holds
+    /// and the limit can be the arena's size. Both 0 (the default): the size asked for, as before.
     pub fn set_overhead(&self, per_block: usize) {
         self.overhead.store(per_block, Relaxed);
     }
+    /// Blocks are counted rounded up to a multiple of `grain` (0: as asked): what the allocator beneath gives out in.
+    pub fn set_round(&self, grain: usize) {
+        self.round.store(grain, Relaxed);
+    }
     /// What a block of `size` bytes takes.
     fn cost(&self, size: usize) -> usize {
-        let o = self.overhead.load(Relaxed);
-        if o == 0 {
+        let (o, g) = (self.overhead.load(Relaxed), self.round.load(Relaxed));
+        if o == 0 && g == 0 {
             size
         } else {
-            ((size.saturating_add(7) & !7).saturating_add(o)).max(16)
+            let g = g.max(1);
+            (size.max(1).saturating_add(g - 1) / g * g).saturating_add(o)
         }
     }
     pub fn used(&self) -> usize {
