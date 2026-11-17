@@ -134,10 +134,21 @@ enum Arg {
     Val(Value),
 }
 
+/// Give back the room a table has beyond its elements, through a resize that the allocator may turn into a move: a table that grew
+/// while memory was full lies where the memory was free, and what was freed above it since is better for it and for whatever
+/// needs the room below (the board's allocator moves a small block up when there is a place higher: `kh_grow`).
+fn compact<T>(v: &mut Vec<T>) {
+    if v.try_reserve_exact(1).is_ok() {
+        v.shrink_to_fit();
+    }
+}
+
 /// A program to run: borrowed (copied once, for error messages) or handed over (kept as that copy).
 enum Prog<'a> {
     Text(&'a str),
     Owned(String),
+    /// A text that lives as long as the program does (a library in the image): read in place, never copied.
+    Static(&'static str),
 }
 
 pub struct Interp {
@@ -281,6 +292,7 @@ impl Interp {
     fn parse_prog(&mut self, prog: Prog, name: &str) -> Result<Parsed> {
         match prog {
             Prog::Text(text) => self.parse(text, name),
+            Prog::Static(text) => self.parse(text, name),
             Prog::Owned(text) => {
                 let stack = self.stack();
                 parse::parse_owned(text, name, &mut self.syms, &mut self.module, self.cfg.strict, self.cfg.max_depth, stack)
@@ -295,7 +307,18 @@ impl Interp {
         self.run_prog(Prog::Text(text), name)
     }
 
+    /// `run` of a program that is handed over, one statement at a time: each is parsed, evaluated and let go before the next is read.
+    /// What differs from `run`, which parses the whole program first (as KlongPy does): a syntax error after some statements comes
+    /// after they have run, as if they had been typed at the prompt.
+    pub fn run_streamed_owned(&mut self, text: String, name: &str) -> Result<Option<Value>> {
+        self.run_prog_mode(Prog::Owned(text), name, true)
+    }
+
     fn run_prog(&mut self, prog: Prog, name: &str) -> Result<Option<Value>> {
+        self.run_prog_mode(prog, name, false)
+    }
+
+    fn run_prog_mode(&mut self, prog: Prog, name: &str, streamed: bool) -> Result<Option<Value>> {
         if self.running == 0 {
             // the nesting bound is one value for the process (see `value::set_max_nest`): the
             // interpreter that runs asserts its own, whichever was created last
@@ -305,7 +328,7 @@ impl Interp {
             let _ = crate::value::take_deferred();
         }
         self.running += 1;
-        let r = self.run_parsed(prog, name);
+        let r = if streamed { self.run_streamed(prog, name) } else { self.run_parsed(prog, name) };
         self.running -= 1;
         if self.running == 0 {
             // between two programs the pools of vectors made for speed (and the recent function bodies, each of
@@ -333,6 +356,54 @@ impl Interp {
                     return Err(e);
                 }
             }
+        }
+        if self.void && matches!(last, Some(Value::Undefined)) {
+            last = None;
+        }
+        self.void = false;
+        Ok(last)
+    }
+
+    /// `run_parsed` one statement at a time: each is parsed (its tokens from a window of the text, its tree its own), evaluated and
+    /// let go before the next is read, so that what a load holds at once is one statement and what it keeps (the function bodies).
+    #[inline(never)]
+    fn run_streamed(&mut self, prog: Prog, name: &str) -> Result<Option<Value>> {
+        let text: alloc::borrow::Cow<'static, str> = match prog {
+            Prog::Text(t) => alloc::borrow::Cow::Owned(crate::value::try_str(t)?),
+            Prog::Owned(t) => alloc::borrow::Cow::Owned(t),
+            Prog::Static(t) => alloc::borrow::Cow::Borrowed(t),
+        };
+        let source = Rc::new(crate::error::Source { name: crate::value::try_str(name)?, text });
+        let frames = self.frames.len();
+        let depth = self.depth;
+        let mut last = None;
+        let mut pos = 0usize;
+        loop {
+            let stack = self.stack();
+            let mut window = 256usize; // (a statement that needs more finds it: the parser doubles it)
+            let next = parse::parse_next(&source, pos, &mut window, &mut self.syms, &mut self.module, self.cfg.strict, self.cfg.max_depth, stack)?;
+            if next.skipped {
+                pos = next.end;
+                continue;
+            }
+            let Some(p) = next.parsed else { break };
+            for &s in &p.stmts {
+                self.void = false;
+                match self.eval(&p.tree, s, true) {
+                    Ok(v) => last = Some(v),
+                    Err(e) => {
+                        while self.frames.len() > frames {
+                            self.pop_frame();
+                        }
+                        self.depth = depth;
+                        return Err(e);
+                    }
+                }
+            }
+            if next.last {
+                break;
+            }
+            pos = next.end;
         }
         if self.void && matches!(last, Some(Value::Undefined)) {
             last = None;
@@ -381,15 +452,20 @@ impl Interp {
         self.load_prog(Prog::Owned(text), name)
     }
 
+    /// `load` of a text that lives for ever (a library in the image's flash): it is read where it is, with no copy in RAM.
+    pub fn load_static(&mut self, text: &'static str, name: &str) -> Result<Option<Value>> {
+        self.load_prog(Prog::Static(text), name)
+    }
+
     fn load_prog(&mut self, prog: Prog, name: &str) -> Result<Option<Value>> {
         if self.journal.is_some() {
-            return self.run_prog(prog, name);
+            return self.run_prog_mode(prog, name, true);
         }
         for g in self.gscope.iter_mut() {
             *g &= !JOURNALED;
         }
         self.journal = Some(Journal { old: Vec::new(), scopes: self.scopes.len(), exports: self.exports.len(), module: self.module.clone() });
-        let r = self.run_prog(prog, name);
+        let r = self.run_prog_mode(prog, name, true);
         if let Some(j) = self.journal.take() {
             if r.is_err() {
                 for (s, old) in j.old.into_iter().rev() {
@@ -789,9 +865,9 @@ impl Interp {
         self.frame_pool.shrink_to_fit();
         // the tables indexed by symbol grow by doubling while a library loads: what a table has beyond its symbols is kept for nothing
         // (and the block it grew into is the last, the one that stays)
-        self.globals.shrink_to_fit();
-        self.gscope.shrink_to_fit();
-        self.link.shrink_to_fit();
+        compact(&mut self.globals);
+        compact(&mut self.gscope);
+        compact(&mut self.link);
         self.syms.shrink();
         if self.frames.is_empty() {
             self.frames = Vec::new();

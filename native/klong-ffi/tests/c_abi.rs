@@ -104,9 +104,12 @@ fn pico_firmware_heap_on_the_host() {
             let name = e.file_name().to_string_lossy().into_owned();
             name.starts_with("libklong_ffi-") && name.ends_with(".a")
         })
+        // other builds of the library (without the diagnostic, say) lie in the same directory, and the newest is not always this one:
+        // take the newest that has what this program links against
+        .filter(|e| std::fs::read(e.path()).map(|b| b.windows(14).any(|w| w == b"klong_set_diag") && b.windows(15).any(|w| w == b"KLONG_ALLOC_TAG")).unwrap_or(false))
         .max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok())
         .map(|e| e.path())
-        .expect("libklong_ffi-*.a beside the test");
+        .expect("libklong_ffi-*.a with the heap diagnostic beside the test");
     let out = deps.join("klong-ffi-pico-heap");
     let cc = std::env::var("CC").unwrap_or_else(|_| "cc".into());
     let board = here.join("../boards/pico-bench");

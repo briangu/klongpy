@@ -442,7 +442,7 @@ impl<P: Platform + 'static> Runtime<P> {
                     Rc::new(|ip: &mut Interp, a: &[Value]| {
                         let name = text_arg(a, ".l")?;
                         match library::find(name) {
-                            Some((label, text)) => match ip.load(text, label)? {
+                            Some((label, text)) => match ip.load_static(text, label)? {
                                 Some(v) => Ok(v),
                                 None => Ok(ip.no_value()),
                             },
@@ -455,6 +455,11 @@ impl<P: Platform + 'static> Runtime<P> {
         let events = events::Events::new(shared.clone());
         events::register(&mut interp, &events);
         Runtime { interp, shared, events }
+    }
+
+    /// Run a program that is handed over, statement by statement (see `Interp::run_streamed_owned`).
+    pub fn run_streamed(&mut self, text: String, name: &str) -> Result<Option<Value>> {
+        self.interp.run_streamed_owned(text, name)
     }
 
     /// Run a program; the value of its last statement.

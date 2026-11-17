@@ -938,7 +938,7 @@ impl<P: Platform + 'static> Console<P> {
             if got != want {
                 self.reply(format_args!("err system: check sum {:08x}, expected {:08x}", got, want));
             } else {
-                match core::str::from_utf8(&program) {
+                match String::from_utf8(program) {
                     Ok(text) => self.run_program(text),
                     Err(_) => self.reply(format_args!("err syntax: the program is not valid UTF-8")),
                 }
@@ -960,9 +960,10 @@ impl<P: Platform + 'static> Console<P> {
     }
 
     /// Evaluate a program sent with `run` and answer.
-    fn run_program(&mut self, text: &str) {
+    fn run_program(&mut self, text: String) {
         self.arm_interrupt();
-        let r = self.rt.run(text, "<run>");
+        // statement by statement, so that a program of many kilobytes is never in memory as tokens and a tree at once
+        let r = self.rt.run_streamed(text, "<run>");
         self.end_eval();
         let r = r.and_then(|v| match v {
             Some(v) => format_value(&self.rt.interp.syms, &v, false).map(Some),

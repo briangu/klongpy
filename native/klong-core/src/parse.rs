@@ -91,7 +91,7 @@ pub fn parse_owned(
     stack: Option<(usize, usize)>,
 ) -> Result<Parsed> {
     let _tag = crate::htag::Scope::new(crate::htag::TREE);
-    let source = Rc::new(Source { name: crate::value::try_str(name)?, text });
+    let source = Rc::new(Source { name: crate::value::try_str(name)?, text: alloc::borrow::Cow::Owned(text) });
     let anchor = source.clone();
     let text: &str = &anchor.text;
     let mut p = Parser {
@@ -123,6 +123,7 @@ pub fn parse_owned(
         Ok(stmts) => {
             let mut ids = crate::value::try_vec(stmts.len())?;
             ids.extend(stmts.into_iter().map(NodeId));
+            p.tree.shrink();
             Ok(Parsed { tree: Rc::new(p.tree), stmts: ids })
         }
         Err(mut e) => {
@@ -132,6 +133,132 @@ pub fn parse_owned(
             Err(e)
         }
     }
+}
+
+/// The next top-level statement of a program, from byte `start` of `source`, parsed on its own: the tokens are those of a window of
+/// the text (`window` bytes, doubled and the statement parsed again if the parser reached the end of the window), the tree is the
+/// statement's alone, and what the caller gets is that tree and where the next statement starts. A program of a few hundred
+/// statements then never has its tokens, or its whole tree, in memory at once. `parsed` is `None` at the end of the program and
+/// `last` is true when nothing more is to be parsed (the legacy parser drops what follows a complete statement that is not
+/// followed by a separator). Errors carry absolute offsets into `source`.
+pub struct Next {
+    /// `.comment("END")` was the statement: nothing to run, the next starts at `end` (the raw text it hides is not lexed).
+    pub skipped: bool,
+    pub parsed: Option<Parsed>,
+    pub end: usize,
+    pub last: bool,
+}
+
+pub fn parse_next(
+    source: &Rc<Source>,
+    start: usize,
+    window: &mut usize,
+    syms: &mut Interner,
+    module: &mut Option<String>,
+    strict: u8,
+    max_depth: u32,
+    stack: Option<(usize, usize)>,
+) -> Result<Next> {
+    let _tag = crate::htag::Scope::new(crate::htag::TREE);
+    let full: &str = &source.text;
+    if let Some(end) = skip_comment(full, start) {
+        return Ok(Next { skipped: true, parsed: None, end, last: false });
+    }
+    loop {
+        let mut wend = start.saturating_add(*window).min(full.len());
+        while !full.is_char_boundary(wend) {
+            wend -= 1;
+        }
+        let truncated = wend < full.len();
+        let saved = module.clone();
+        let mut p = Parser {
+            lx: Lexer::new_window(&full[..wend], start, strict == 0, truncated),
+            tree: Tree::new(Some(source.clone())),
+            syms: &mut *syms,
+            module: &mut *module,
+            strict,
+            last_list: None,
+            dicts_read: 0,
+            depth: 0,
+            max_depth,
+            stack,
+        };
+        if p.lx.toks.is_empty() || !p.tree.reserve() {
+            return Err(Error::memory());
+        }
+        let r = p.step().and_then(|s| match s {
+            Some((_, true)) | None => p.finish().map(|_| s),
+            _ => Ok(s),
+        });
+        if truncated && p.lx.touched.get() {
+            // the parser reached the end of the window: what it made of it means nothing; undo the module switch and take a larger one
+            *p.module = saved;
+            drop(p);
+            *window = window.saturating_mul(2);
+            continue;
+        }
+        if p.lx.oom || p.tree.oom {
+            p.syms.failure();
+            return Err(Error::memory());
+        }
+        if let Some(e) = p.syms.failure() {
+            return Err(if e.kind == crate::error::Kind::Range { Error::syntax("a name is longer than 255 bytes") } else { e });
+        }
+        return match r {
+            Ok(None) => Ok(Next { skipped: false, parsed: None, end: full.len(), last: true }),
+            Ok(Some((q, last))) => {
+                let end = if last { full.len() } else { p.lx.offset() as usize };
+                let mut ids = crate::value::try_vec(1)?;
+                ids.push(NodeId(q));
+                p.tree.shrink();
+                Ok(Next { skipped: false, parsed: Some(Parsed { tree: Rc::new(p.tree), stmts: ids }), end, last })
+            }
+            Err(mut e) => {
+                if e.source.is_none() && e.span.is_some() {
+                    e.source = Some(source.clone());
+                }
+                Err(e)
+            }
+        };
+    }
+}
+
+/// Where a statement that is `.comment("END")` ends, if one starts at `start` (after blanks): the text it hides is raw, so it is
+/// found without being lexed (a block of prose is a thousand tokens, and a window large enough for it was most of a load's memory).
+/// The same end the parser finds (`Parser::comment_end`); None for anything that is not that exact shape.
+fn skip_comment(full: &str, start: usize) -> Option<usize> {
+    let mut s = start;
+    loop {
+        let rest = &full[s..];
+        let t = rest.trim_start_matches([' ', '\t', '\n', '\r']);
+        s += rest.len() - t.len();
+        // a `:"..."` comment before it (a quote inside is doubled)
+        let Some(c) = full[s..].strip_prefix(":\"") else { break };
+        let mut i = s + 2;
+        loop {
+            let q = full[i..].find('"')?;
+            i += q + 1;
+            if full[i..].starts_with('"') {
+                i += 1;
+            } else {
+                break;
+            }
+        }
+        let _ = c;
+        s = i;
+    }
+    let body = full[s..].strip_prefix(".comment(\"")?;
+    let q = body.find('"')?;
+    let marker = &body[..q];
+    if marker.is_empty() || !body[q..].starts_with("\")") {
+        return None;
+    }
+    let i = s + ".comment(\"".len() + q + 2;
+    let mut j = full[i..].find(marker)?;
+    while full.is_char_boundary(i + j + 1) && full[i + j + 1..].starts_with(marker) {
+        j += 1;
+    }
+    Some(i + j + marker.len())
 }
 
 /// One data object from the start of `text` (`Interp::read_datum`).
@@ -1152,11 +1279,17 @@ impl<'a> Parser<'a> {
         let t = self.lx.text;
         let mut j = match t[i..].find(marker.as_str()) {
             Some(j) => j,
-            None => return Err(Error::syntax("end of comment not found").with_span((st, self.lx.end()))),
+            None => {
+                self.lx.touched.set(self.lx.truncated);
+                return Err(Error::syntax("end of comment not found").with_span((st, self.lx.end())));
+            }
         };
         // legacy: extend while the marker repeats
         while t.is_char_boundary(i + j + 1) && t[i + j + 1..].starts_with(marker.as_str()) {
             j += 1;
+        }
+        if i + j + marker.len() >= t.len() {
+            self.lx.touched.set(self.lx.truncated); // (the marker may go on past the window)
         }
         Ok(i + j + marker.as_str().len())
     }
@@ -1468,6 +1601,32 @@ impl<'a> Parser<'a> {
             }
         }
         Ok(arr)
+    }
+
+    /// One top-level statement: its node, and whether it was followed by something that is not a separator (nothing more is parsed then).
+    fn step(&mut self) -> Result<Option<(u32, bool)>> {
+        loop {
+            let q = self.expr(false)?;
+            if q == NONE {
+                return Ok(None);
+            }
+            if q == SEMI {
+                continue;
+            }
+            let j = self.lx.pos;
+            return match self.kind(j) {
+                K::Semi | K::Newline => {
+                    self.lx.pos = j + 1;
+                    Ok(Some((q.0, false)))
+                }
+                k => {
+                    if matches!(k, K::LBrack | K::Dict | K::Error) {
+                        self.check(j)?;
+                    }
+                    Ok(Some((q.0, true)))
+                }
+            };
+        }
     }
 
     /// The top-level parse has stopped: whatever is left is input the legacy parser dropped,

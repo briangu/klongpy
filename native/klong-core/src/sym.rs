@@ -92,7 +92,9 @@ impl Interner {
     /// Give back the room the table of names has beyond its names.
     pub fn shrink(&mut self) {
         let _tag = crate::htag::Scope::new(crate::htag::SYMBOLS);
-        self.names.shrink_to_fit();
+        if self.names.try_reserve_exact(1).is_ok() {
+            self.names.shrink_to_fit();
+        }
     }
 }
 

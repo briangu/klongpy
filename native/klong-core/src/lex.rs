@@ -370,16 +370,28 @@ pub struct Lexer<'a> {
     nlc: bool,
     /// There was no memory for the tokens.
     pub oom: bool,
+    /// `text` is a prefix of the program (a window): the parser asked for what lies beyond it (the end of input it saw may not be one).
+    pub truncated: bool,
+    pub touched: core::cell::Cell<bool>,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(text: &'a str, nlc: bool) -> Lexer<'a> {
-        let mut lx = Lexer { text, toks: Vec::new(), pos: 0, trivia: Vec::new(), start: 0, at_end: false, base: (0, 0), nlc, oom: false };
+        let mut lx = Lexer { text, toks: Vec::new(), pos: 0, trivia: Vec::new(), start: 0, at_end: false, base: (0, 0), nlc, oom: false, truncated: false, touched: core::cell::Cell::new(false) };
         lx.oom = !lex(text, 0, &mut lx.toks, &mut lx.trivia, false, nlc);
+        lx
+    }
+    /// The tokens of `text[start..]`, where `text` is a prefix of the program that ends where a window of it does (`truncated`).
+    pub fn new_window(text: &'a str, start: usize, nlc: bool, truncated: bool) -> Lexer<'a> {
+        let mut lx = Lexer { text, toks: Vec::new(), pos: 0, trivia: Vec::new(), start: 0, at_end: false, base: (0, start as u32), nlc, oom: false, truncated, touched: core::cell::Cell::new(false) };
+        lx.oom = !lex(text, start, &mut lx.toks, &mut lx.trivia, false, nlc);
         lx
     }
     pub fn tok(&self, j: usize) -> &Tok {
         let last = self.toks.len().saturating_sub(1);
+        if self.truncated && j >= last {
+            self.touched.set(true);
+        }
         &self.toks[j.min(last)]
     }
     pub fn text_of(&self, t: &Tok) -> &'a str {

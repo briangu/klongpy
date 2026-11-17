@@ -198,7 +198,13 @@ pub(crate) fn read_file<P: Platform + 'static>(sh: &Rc<Shared<P>>, path: &str) -
 
 /// Where `.l(name)` finds its file (KlongPy `eval_sys_load`): `name` and `name.kg` in each
 /// directory of the load path, then `name` as given.
-fn load_text<P: Platform + 'static>(sh: &Rc<Shared<P>>, name: &str) -> Result<(String, String)> {
+/// What `.l` found: a file's text (read into memory), or a library of the image, which is read where it is.
+enum Loaded {
+    Owned(String),
+    Static(&'static str),
+}
+
+fn load_text<P: Platform + 'static>(sh: &Rc<Shared<P>>, name: &str) -> Result<(String, Loaded)> {
     let dirs: Vec<String> = sh.io.try_borrow().map_err(|_| busy())?.path.clone();
     let mut tried_fs = true;
     let direct = name.starts_with('/');
@@ -217,7 +223,7 @@ fn load_text<P: Platform + 'static>(sh: &Rc<Shared<P>>, name: &str) -> Result<(S
     }
     for c in &candidates {
         match read_file(sh, c) {
-            Ok(text) => return Ok((c.clone(), text)),
+            Ok(text) => return Ok((c.clone(), Loaded::Owned(text))),
             Err(e) if e.kind == klong_core::Kind::Memory => return Err(e),
             Err(e) => {
                 // a file that is there but is not text is the answer, not a reason to look on
@@ -233,7 +239,7 @@ fn load_text<P: Platform + 'static>(sh: &Rc<Shared<P>>, name: &str) -> Result<(S
     }
     #[cfg(feature = "lib")]
     if let Some((label, text)) = crate::library::find(name) {
-        return Ok((String::from(label), klong_core::value::try_str(text)?));
+        return Ok((String::from(label), Loaded::Static(text)));
     }
     let e = Error::system(klong_core::msg!("file does not exist: {}", name));
     Err(if tried_fs { e } else { e.with_hint("this platform has no file system") })
@@ -419,7 +425,11 @@ pub(crate) fn register<P: Platform + 'static>(interp: &mut Interp, shared: &Rc<S
         1,
         Rc::new(move |ip: &mut Interp, a: &[Value]| {
             let (path, text) = load_text(&sh, text_arg(a, ".l")?)?;
-            match ip.load_owned(text, &path)? {
+            let r = match text {
+                Loaded::Owned(t) => ip.load_owned(t, &path)?,
+                Loaded::Static(t) => ip.load_static(t, &path)?,
+            };
+            match r {
                 Some(v) => Ok(v),
                 None => Ok(ip.no_value()),
             }

@@ -12,7 +12,7 @@ of a node against what its counted use leaves (`(limit - reserve - in use) / 8`,
 the client of the self-test against the server. The arena is chosen so that the library's peak is about the same share of it as on
 the board (about 80%): that is what makes the allocator's placement matter. The previous image's allocator, over a model of newlib's
 malloc, is built with `legacy=True` (`pico_node.c -DPICO_V1`): at this proportion it shows the direction of what the boards showed (the
-client's largest vector below what its use allows, the management library refused after the self-test) but not the size of it (the
+client's largest vector below what its use allows; the management library refused after the self-test too, until it was loaded statement by statement) but not the size of it (the
 boards lost 30%, the model 4 to 15%): the model is a check that the harness can see the problem, not a measurement of the board.
 The real numbers come from `.heap` on the boards.
 """
@@ -297,7 +297,7 @@ class TestPair(unittest.TestCase):
         # Image a232666c on the boards (2026-11-17): the server's largest vector 6,421 against 7,633 that its use of 22,232 bytes allowed
         # (84%), the client's 4,359 against 6,178 for 33,872 (71%), `.l("mgmt")` refused on the client after its self-test, and both
         # unchanged by later activity. The model of newlib's malloc under that allocator, with the library's peak the same share of the
-        # arena, loses less (a few per cent, not a third) but in the same places: the client's below the server's, the library refused.
+        # arena, loses less (a few per cent, not a third) but in the same places: the client's below the server's.
         # This is the check that the harness can see the problem; the sizes are not the board's.
         b = Bench(400 * 1024, legacy=True)
         try:
@@ -308,8 +308,9 @@ class TestPair(unittest.TestCase):
             self.assertLess(l3, 0.97 * l2, (l2, l3))
             self.assertLess(l3, 0.97 * ideal(b, 3), (l3, ideal(b, 3)))
             out, st = b.type(3, '.l("mgmt")', timeout=60)
-            self.assertEqual(st, "error", out)
-            self.assertIn("memory error", out)
+            # (it was refused here and on the boards while a load held the whole file's tokens and tree at once; loaded statement by
+            # statement it fits even this allocator: the refusal was the peak, the smaller largest vector was the placement)
+            self.assertEqual(st, "ok", out)
         finally:
             b.close()
 
@@ -317,13 +318,24 @@ class TestPair(unittest.TestCase):
         # What the diagnostic found in the model and the boards were meant to confirm: after the self-test no block is left in the
         # middle of the heap, so the largest vector of each node is what its counted use leaves; the client's counted use is more
         # than the server's (the symbols the library interned stay), and that is all the difference. The library loads on the client,
-        # and dropped it leaves the same, twice.
+        # and dropped it leaves the same, twice; and the library loads on either node in the 300 KB arena too, where the whole file in memory at once
+        # (the old load, 3.5 times what it keeps) did not.
         for arena in (400 * 1024, 300 * 1024):
             b = Bench(arena)
             try:
                 b.spin(40, until=lambda: (b.last_report(3) or "").startswith("klong selftest pass"))
                 self.assertTrue((b.last_report(3) or "").startswith("klong selftest pass"), b.reports[-3:])
                 b.spin(1)
+                # (first, before the largest vectors, whose own peak would hide it)
+                # the library is loaded statement by statement: what the load held at once, above what was in use, is what it keeps and one
+                # statement, not the tokens and the tree of the whole file (the whole file peaked at three times what stayed)
+                base, _, _ = mem(b, 2)
+                out, st = b.type(2, '.l("mgmt")', timeout=60)
+                self.assertEqual(st, "ok", out)
+                used, peak, _ = mem(b, 2)
+                self.assertLess(peak - base, 1.3 * (used - base) + 4096, (arena, base, used, peak))
+                for line in mgmt_drop_lines():
+                    self.assertEqual(b.type(2, line)[1], "ok")
                 for n in (2, 3):
                     got, want = largest(b, n), ideal(b, n)
                     self.assertGreaterEqual(got, 0.99 * want, (arena, n, got, want))
@@ -335,8 +347,6 @@ class TestPair(unittest.TestCase):
                 b.type(3, 'h::.cli("node:2");h("1+1");.clic(h);h::0')
                 m2 = mem(b, 3)[0]
                 self.assertLess(abs(m2 - m1), 400, (m1, m2))
-                if arena < 400 * 1024:
-                    continue  # (the library's peak does not fit a smaller arena of the 64-bit host)
                 out, st = b.type(3, '.l("mgmt")', timeout=60)
                 self.assertEqual(st, "ok", out)
                 for line in mgmt_drop_lines():

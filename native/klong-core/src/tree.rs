@@ -102,6 +102,12 @@ impl Tree {
         self.spans.push(span);
         NodeId(self.nodes.len() as u32 - 1)
     }
+    /// Give back the room the arenas grew beyond their nodes (a tree that is kept, as a function's body is, keeps no slack).
+    pub fn shrink(&mut self) {
+        self.nodes.shrink_to_fit();
+        self.spans.shrink_to_fit();
+        self.extra.shrink_to_fit();
+    }
     /// Room for the first nodes; false when there is no memory for them.
     pub fn reserve(&mut self) -> bool {
         self.nodes.try_reserve(8).is_ok() && self.spans.try_reserve(8).is_ok() && {

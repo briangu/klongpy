@@ -48,7 +48,8 @@ impl Kind {
 /// A piece of program text and where it came from.
 pub struct Source {
     pub name: String,
-    pub text: String,
+    /// Owned, or (a library in the image's flash) borrowed: then no copy of it is made in RAM.
+    pub text: Cow<'static, str>,
 }
 
 impl Source {

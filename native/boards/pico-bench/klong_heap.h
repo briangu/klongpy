@@ -32,7 +32,9 @@
  *
  * GROWTH. `kh_grow` resizes a block in place when the chunk after it is free (a Vec that doubles, a String that
  * grows): the runtime asks first and copies only if this says no, so a vector's growth does not need the old and the
- * new block at once.
+ * new block at once. A resize that could put the block further along its own end of the pool (a small block higher, a parse's or a large
+ * one lower) says no, and the runtime moves it: how a table that grew at a bad moment goes back to where its kind lives, when the
+ * runtime shrinks its tables at the end of a program.
  *
  * LIMITS. The runtime counts every block as the pool holds it (heap_round 8, heap_overhead 0), so its limit is the
  * pool's size less a little for holes (`kh_limits`): the cache is not counted, and is given back before a request fails. A request of
@@ -339,6 +341,22 @@ static void kh_free(void *ctx, void *ptr, size_t size, size_t align) {
     kh_pool_free(ptr, n);
 }
 
+#ifdef KH_TAGS
+#define KH_IS_TREE() (KLONG_ALLOC_TAG == KH_TAG_TREE)
+#else
+#define KH_IS_TREE() 0
+#endif
+/* Is there a chunk further along the end this block belongs to (the top for a small block, the bottom for a large one or a parse's) that
+ * would hold n bytes? */
+static int kh_better_place(uint32_t off, size_t o, size_t n) {
+    int low = n > KH_HIGH_MAX || KH_IS_TREE();
+    for (uint32_t p = kh_head; p != KH_NIL; p = KH_AT(p)->next) {
+        if (KH_AT(p)->size < n) continue;
+        if (low ? p < off : p > off + (uint32_t)o) return 1;
+    }
+    return 0;
+}
+
 /* Resize a block in place: shrinking gives the tail back, growing takes the chunk after the block when it is free and long enough.
  * Returns 1 when the block is now `new_size` bytes where it was (the runtime copies and frees otherwise). */
 static int kh_grow(void *ctx, void *ptr, size_t old_size, size_t new_size, size_t align) {
@@ -350,16 +368,19 @@ static int kh_grow(void *ctx, void *ptr, size_t old_size, size_t new_size, size_
     if (n == o) return 1;
     uint32_t off = (uint32_t)((char *)ptr - kh_base);
     if (n < o) {
-        /* a small block that could be put higher is moved by the runtime (alloc, copy, free) instead: a table that grew while the top was full
-         * and stayed lies below what has since been freed above it, and keeps the room under it from a vector */
-        if (n <= KH_HIGH_MAX) {
-            for (uint32_t p = kh_head; p != KH_NIL; p = KH_AT(p)->next)
-                if (p > off + (uint32_t)o && KH_AT(p)->size >= n) return 0;
-        }
+        /* a block that could be put further along its own end of the pool is moved by the runtime instead (alloc, copy, free): a small block
+         * higher, a parse's (a function body kept, shrunk after its parse) or a large one lower. A table that grew while memory was full
+         * lies where the memory was free, and what has been freed since is better for it, and for what needs the room under it. */
+        if (kh_better_place(off, o, n)) return 0;
         KH_FORGET(ptr, o);
         kh_pool_free((char *)ptr + n, o - n);
         KH_NOTE(ptr, n);
         return 1;
+    }
+    /* growing is the same: a block of the top end that could be put higher is moved, not extended */
+    if (n <= KH_HIGH_MAX && !KH_IS_TREE() && kh_better_place(off, o, n)) {
+        kh_grow_missed++;
+        return 0;
     }
     uint32_t prev = KH_NIL, p = kh_head, want = off + (uint32_t)o;
     while (p != KH_NIL && p < want) prev = p, p = KH_AT(p)->next;
