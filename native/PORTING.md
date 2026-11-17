@@ -94,8 +94,10 @@ it has no start-up code).
 its `no_std` datagram layer, and `klong-ffi --features lane` exposes it to a C shell
 (`klong_lane_*` in `klong.h`); `boards/pico-bench/` is that shell for the RP2040
 (`thumbv6m-none-eabi`: no compare-and-swap, which the runtime does not need, no divide, no FPU).
-`docs/native/pico-bench.md` has the design, the sizes and the simulator results; the image was
-built and linked, not run.
+The lane is 4.5 Mbaud (115200 also works): a 32 KB receive ring fed by interrupt, an 8 KB transmit
+ring drained by interrupt, and a boot self-test that reports to the supervisor are part of the
+Pico shell. `docs/native/pico-bench.md` has the design, the sizes and the simulator results; the
+image was built and linked, not run.
 
 ## Budget
 

@@ -36,6 +36,14 @@ impl Default for LaneConfig {
 }
 
 const CTL: usize = 4;
+
+/// STATUS flags byte (`payload[1]`): bit 0 is the bench's "alive", the three values above it say
+/// how the boot self-test stands (the bench's own OS uses bits 1 and 2 for its apps, so these cannot be mistaken for it).
+pub const STATUS_ALIVE: u8 = 0x01;
+/// The self-test is running, or this node is serving and has no verdict of its own.
+pub const STATUS_SELFTEST_RUNNING: u8 = 0x21;
+pub const STATUS_SELFTEST_PASS: u8 = 0x41;
+pub const STATUS_SELFTEST_FAIL: u8 = 0x81;
 const NO_FRAME: Frame = Frame { ftype: 0, src: 0, dst: 0, seq: 0, sub: 0, len: 0, payload: [0; 4] };
 
 pub struct Lane<const MAX: usize, const SLOTS: usize> {
@@ -45,6 +53,8 @@ pub struct Lane<const MAX: usize, const SLOTS: usize> {
     ctl: [Frame; CTL],
     ctl_n: usize,
     status_seq: u16,
+    flags: u8,
+    load: u8,
     last_status: u64,
     started: u64,
     pub stats: LaneStats,
@@ -56,11 +66,23 @@ impl<const MAX: usize, const SLOTS: usize> Lane<MAX, SLOTS> {
         if let Some(n) = cfg.node {
             dg.set_node(n);
         }
-        Lane { cfg, parser: Parser::new(), dg, ctl: [NO_FRAME; CTL], ctl_n: 0, status_seq: 0, last_status: 0, started: 0, stats: LaneStats { frames_rx: 0, frames_tx: 0, ignored: 0, pings: 0, ctl_dropped: 0 } }
+        Lane { cfg, parser: Parser::new(), dg, ctl: [NO_FRAME; CTL], ctl_n: 0, status_seq: 0, flags: STATUS_ALIVE, load: 0, last_status: 0, started: 0, stats: LaneStats { frames_rx: 0, frames_tx: 0, ignored: 0, pings: 0, ctl_dropped: 0 } }
     }
 
     pub fn node(&self) -> Option<u8> {
         self.dg.node()
+    }
+
+    /// The flags byte of the STATUS frames (a `STATUS_*` value).
+    pub fn set_status_flags(&mut self, flags: u8) {
+        self.flags = flags;
+    }
+    pub fn status_flags(&self) -> u8 {
+        self.flags
+    }
+    /// The load byte of STATUS, 0 to 100.
+    pub fn set_load(&mut self, load: u8) {
+        self.load = load.min(100);
     }
 
     pub fn parser(&self) -> &Parser {
@@ -108,12 +130,8 @@ impl<const MAX: usize, const SLOTS: usize> Lane<MAX, SLOTS> {
         match f.ftype {
             T_PING if self.cfg.supervisor_duties => {
                 self.stats.pings += 1;
-                let mut r = *f;
-                r.ftype = T_PONG;
-                r.src = node;
-                r.dst = f.src;
-                r.sub = 16;
-                self.push_ctl(r);
+                // PONG: the sequence of the PING, length 0
+                self.push_ctl(Frame::new(T_PONG, node, f.src, f.seq, 16, &[]));
             }
             T_APP_DATA if f.dst == node => self.dg.on_frame(f, now_ms, deliver),
             _ => self.stats.ignored += 1,
@@ -130,8 +148,8 @@ impl<const MAX: usize, const SLOTS: usize> Lane<MAX, SLOTS> {
         let node = self.dg.node()?;
         if self.cfg.supervisor_duties && now_ms.saturating_sub(self.last_status) >= 1000 && self.ctl_n < CTL {
             self.last_status = now_ms;
-            let up = (now_ms.saturating_sub(self.started) / 1000) as u16;
-            let f = Frame::new(T_STATUS, node, SUPERVISOR, self.status_seq, 16, &[0, 1, up as u8, (up >> 8) as u8]);
+            let up = (now_ms.saturating_sub(self.started) / 1000).min(65535) as u16;
+            let f = Frame::new(T_STATUS, node, SUPERVISOR, self.status_seq, 16, &[self.load, self.flags, up as u8, (up >> 8) as u8]);
             self.status_seq = self.status_seq.wrapping_add(1);
             self.push_ctl(f);
         }

@@ -23,6 +23,7 @@
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "hardware/structs/rosc.h"
+#include "hardware/sync.h"
 #include "hardware/uart.h"
 #include "hardware/watchdog.h"
 #include "pico/stdlib.h"
@@ -34,73 +35,118 @@
 #define LANE_UART uart0
 #define LANE_TX_GPIO 16
 #define LANE_RX_GPIO 17
-#define LANE_BAUD 115200
-#define LANE_RING 4096u /* power of two: 1.4 s of a saturated lane */
+#ifndef LANE_BAUD
+#define LANE_BAUD 4500000u /* 27 MHz / 6 at the router; uart_init(uart0, 4500000) gives 4.505 Mbaud at 125 MHz clk_peri */
+#endif
+#ifndef KLONG_SELFTEST
+#define KLONG_SELFTEST 1 /* the boot self-test: see README.md */
+#endif
+
+/* Receive: at 4.5 Mbaud a byte arrives every 2.2 us, a 16-byte frame every 36 us, and the 32-byte
+ * hardware FIFO fills in 71 us. The interrupt (highest priority, FIFO level 8 bytes, plus the
+ * receive-timeout interrupt for the tail of a burst) moves bytes into a 32 KB ring: 2048 frames,
+ * 73 ms of a lane that never pauses. The main loop is away that long only inside one primitive
+ * of the interpreter that does not call `idle` (a sort or a sum over a huge vector, say);
+ * the runtime reads the ring at every turn of its loop, every 4096 steps of an evaluation and
+ * inside every IPC call. What does not fit is dropped and counted; the layers above recover by
+ * retransmission. Bytes are not parsed in the interrupt: that would put the CRC and the datagram
+ * layer (Rust, with its state) at interrupt level for a saving that a ring of this size makes
+ * unnecessary, and the ring costs 32 KB of the 264. */
+#define LANE_RX_RING 32768u
+/* Transmit: a ring of 8 KB drained by the transmit interrupt (FIFO half empty), so that the
+ * interpreter never waits for the wire: klong_lane_write copies and returns. The library lets
+ * at most 12 ms of wire time wait in it (lane_tx_limit): a deeper queue only delays what has to
+ * go out behind it, an ACK behind a full window, and a shallower one lets the lane idle while
+ * the main loop is away. */
+#define LANE_TX_RING 8192u
 
 #define KLONG_STACK_BYTES (48u * 1024)
 #define KLONG_STACK_BUDGET (KLONG_STACK_BYTES - 6u * 1024) /* the rest: frames above klong_run, interrupts */
-#define KLONG_HEAP_LIMIT (144u * 1024)
+#define KLONG_HEAP_LIMIT (112u * 1024)
 #define KLONG_HEAP_RESERVE (16u * 1024)
 
 static uint8_t klong_stack[KLONG_STACK_BYTES] __attribute__((aligned(8)));
 
-/* ---- the lane: UART interrupt -> ring -> klong_lane_read ---------------------------------- */
+/* ---- the lane: UART interrupts <-> rings ------------------------------------------------- */
 
-static uint8_t ring[LANE_RING];
-static volatile uint32_t ring_head, ring_tail;
-static volatile uint32_t ring_overruns, fifo_overruns, line_errors;
+static uint8_t rx_ring[LANE_RX_RING];
+static uint8_t tx_ring[LANE_TX_RING];
+static volatile uint32_t rx_head, rx_tail, tx_head, tx_tail;
+/* what klong_lane_stats reports as the driver's counters: rx ring overruns, rx FIFO overruns, line errors, tx ring full */
+static volatile uint32_t lane_counters[4];
+static uint32_t lane_actual_baud, lane_tx_limit;
 
 static void __not_in_flash_func(lane_irq)(void) {
     uart_hw_t *hw = uart_get_hw(LANE_UART);
     while (!(hw->fr & UART_UARTFR_RXFE_BITS)) {
         uint32_t dr = hw->dr; /* data in bits 0..7, this byte's error flags above */
-        if (dr & UART_UARTDR_OE_BITS) fifo_overruns++;
+        if (dr & UART_UARTDR_OE_BITS) lane_counters[1]++;
         if (dr & (UART_UARTDR_FE_BITS | UART_UARTDR_BE_BITS | UART_UARTDR_PE_BITS)) {
-            line_errors++;
+            lane_counters[2]++;
             continue;
         }
-        uint32_t head = ring_head;
-        if (head - ring_tail == LANE_RING) {
-            ring_overruns++;
+        uint32_t head = rx_head;
+        if (head - rx_tail == LANE_RX_RING) {
+            lane_counters[0]++;
             continue;
         }
-        ring[head % LANE_RING] = (uint8_t)dr;
-        ring_head = head + 1;
+        rx_ring[head % LANE_RX_RING] = (uint8_t)dr;
+        rx_head = head + 1;
     }
+    /* transmit: fill the FIFO from the ring; when the ring is empty stop the interrupt, which would
+     * otherwise stay asserted while the FIFO is empty (klong_lane_write turns it on again) */
+    uint32_t tail = tx_tail;
+    while (tail != tx_head && !(hw->fr & UART_UARTFR_TXFF_BITS)) hw->dr = tx_ring[tail++ % LANE_TX_RING];
+    tx_tail = tail;
+    if (tail == tx_head) hw->imsc &= ~UART_UARTIMSC_TXIM_BITS;
     hw->icr = UART_UARTICR_RXIC_BITS | UART_UARTICR_RTIC_BITS | UART_UARTICR_OEIC_BITS;
 }
 
 static void lane_init(void) {
-    uart_init(LANE_UART, LANE_BAUD);
+    lane_actual_baud = uart_init(LANE_UART, LANE_BAUD);
     uart_set_format(LANE_UART, 8, 1, UART_PARITY_NONE);
     uart_set_hw_flow(LANE_UART, false, false);
     uart_set_fifo_enabled(LANE_UART, true);
     gpio_set_function(LANE_TX_GPIO, GPIO_FUNC_UART);
     gpio_set_function(LANE_RX_GPIO, GPIO_FUNC_UART);
     gpio_pull_up(LANE_RX_GPIO); /* idle high if the router is unplugged or held in reset */
+    /* FIFO levels: receive interrupt at 8 bytes (1/4), transmit interrupt at 16 or fewer left (1/2) */
+    uart_get_hw(LANE_UART)->ifls = (1u << UART_UARTIFLS_RXIFLSEL_LSB) | (2u << UART_UARTIFLS_TXIFLSEL_LSB);
     irq_set_exclusive_handler(UART0_IRQ, lane_irq);
+    irq_set_priority(UART0_IRQ, 0); /* above USB and everything else */
     irq_set_enabled(UART0_IRQ, true);
-    uart_set_irqs_enabled(LANE_UART, true, false); /* receive, and receive timeout; no transmit interrupt */
+    uart_set_irqs_enabled(LANE_UART, true, false); /* receive and receive timeout; transmit is switched on by klong_lane_write */
+    uint32_t limit = (uint32_t)((uint64_t)LANE_BAUD / 10u * 12u / 1000u) & ~15u; /* 12 ms of wire time, whole frames */
+    lane_tx_limit = limit < 64u ? 64u : (limit > LANE_TX_RING ? LANE_TX_RING : limit);
 }
 
 static size_t lane_read(void *ctx, uint8_t *buf, size_t cap) {
     (void)ctx;
     size_t n = 0;
-    uint32_t tail = ring_tail;
-    while (n < cap && tail != ring_head) {
-        buf[n++] = ring[tail % LANE_RING];
+    uint32_t tail = rx_tail;
+    while (n < cap && tail != rx_head) {
+        buf[n++] = rx_ring[tail % LANE_RX_RING];
         tail++;
     }
-    ring_tail = tail;
+    rx_tail = tail;
     return n;
 }
 
-/* The transmitter's 32-byte FIFO takes what fits; the library offers the rest again. */
+/* Copy into the transmit ring and return at once: the interrupt feeds the transmitter. Takes what
+ * fits under the 12 ms limit; the library offers the rest again at its next turn. */
 static size_t lane_write(void *ctx, const uint8_t *buf, size_t len) {
     (void)ctx;
-    uart_hw_t *hw = uart_get_hw(LANE_UART);
-    size_t n = 0;
-    while (n < len && !(hw->fr & UART_UARTFR_TXFF_BITS)) hw->dr = buf[n++];
+    uint32_t used = tx_head - tx_tail;
+    size_t room = used >= lane_tx_limit ? 0 : lane_tx_limit - used;
+    size_t n = len < room ? len : room;
+    if (n < len) lane_counters[3]++;
+    if (n == 0) return 0;
+    uint32_t saved = save_and_disable_interrupts();
+    uint32_t head = tx_head;
+    for (size_t i = 0; i < n; i++) tx_ring[head++ % LANE_TX_RING] = buf[i];
+    tx_head = head;
+    uart_get_hw(LANE_UART)->imsc |= UART_UARTIMSC_TXIM_BITS; /* the interrupt is asserted while the FIFO is at or below its level */
+    restore_interrupts(saved);
     return n;
 }
 
@@ -134,8 +180,9 @@ static void print_stats(void) {
     printf("datagrams: delivered %lu duplicate %lu broken %lu refused %lu resent %lu  ipc in %lu out %lu, inbox overflow %lu  console peer %d dropped %lu\r\n",
            (unsigned long)st.datagrams_delivered, (unsigned long)st.datagrams_duplicate, (unsigned long)st.datagrams_broken, (unsigned long)st.datagrams_refused,
            (unsigned long)st.datagrams_resent, (unsigned long)st.ipc_in, (unsigned long)st.ipc_out, (unsigned long)st.inbox_overflow, (int)st.console_peer, (unsigned long)st.console_dropped);
-    printf("uart: ring overruns %lu, fifo overruns %lu, line errors %lu  heap used %lu peak %lu of %lu\r\n", (unsigned long)ring_overruns, (unsigned long)fifo_overruns,
-           (unsigned long)line_errors, (unsigned long)used, (unsigned long)peak, (unsigned long)limit);
+    printf("uart %lu baud: rx ring overruns %lu, fifo overruns %lu, line errors %lu, tx ring full %lu  heap used %lu peak %lu of %lu\r\n", (unsigned long)lane_actual_baud,
+           (unsigned long)lane_counters[0], (unsigned long)lane_counters[1], (unsigned long)lane_counters[2], (unsigned long)lane_counters[3], (unsigned long)used, (unsigned long)peak, (unsigned long)limit);
+    printf("selftest: %s\r\n", st.selftest == 1 ? "pass" : st.selftest == 2 ? "fail" : "running, serving or off");
     stdio_flush();
 }
 static size_t k_read(void *ctx, uint8_t *buf, size_t cap) {
@@ -158,8 +205,8 @@ static uint64_t k_now_ms(void *ctx) {
 }
 static void k_wait(void *ctx, uint32_t max_ms) {
     (void)ctx;
-    /* the lane is read from an interrupt, so a short sleep loses nothing; 1 ms keeps the latency of a frame low */
-    sleep_us(max_ms == 0 ? 0 : (max_ms > 1 ? 1000 : max_ms * 1000u));
+    /* the lane is read from an interrupt, so a short sleep loses nothing; 200 us keeps the latency of a call low */
+    sleep_us(max_ms == 0 ? 0 : 200u);
 }
 static void k_reset(void *ctx, int32_t code) {
     (void)ctx, (void)code;
@@ -218,7 +265,9 @@ static void klong_main(void) {
     lane.lane_write = lane_write;
     lane.node = -1; /* learned from the first frame the router sends to this port */
     lane.seed = (uint32_t)random_bits();
-    lane.flags = 0;
+    lane.flags = KLONG_SELFTEST ? KLONG_LANE_SELFTEST : 0;
+    lane.baud = LANE_BAUD;
+    lane.counters = (const uint32_t *)lane_counters;
     if (klong_lane_init(&lane) != KLONG_OK) k_fatal(NULL, "klong_lane_init", 15);
     klong_run();
     for (;;) tight_loop_contents();

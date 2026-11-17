@@ -81,4 +81,10 @@ fn c_program_drives_the_lane() {
     println!("{text}");
     assert!(run.status.success(), "the C program failed:\n{text}\n{}", String::from_utf8_lossy(&run.stderr));
     assert!(text.trim_end().ends_with("-- ok"), "{text}");
+    // the same program with the boot self-test on a node numbered 0: it serves and reports
+    let run = Command::new(&out).arg("selftest").output().expect("the C program runs");
+    let text = String::from_utf8_lossy(&run.stdout);
+    println!("{text}");
+    assert!(run.status.success(), "the self-test run failed:\n{text}\n{}", String::from_utf8_lossy(&run.stderr));
+    assert!(text.trim_end().ends_with("-- ok"), "{text}");
 }

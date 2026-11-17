@@ -13,6 +13,7 @@ use klong_core::{Config, Kind};
 use klong_dgram::{LaneConfig, Outcome};
 use klong_rt::link::Transport;
 use klong_rt::node::{NodeConfig, NodeNet};
+use klong_rt::selftest::SelfTest;
 use klong_rt::{Platform, Runtime};
 
 use crate::switch::Switch;
@@ -84,6 +85,10 @@ impl Platform for BenchPlatform {
 pub struct BenchNode {
     pub rt: Rc<RefCell<Runtime<BenchPlatform>>>,
     pub net: NodeNet,
+    /// The boot self-test, when the bench was made with `selftest: true` (the firmware's own logic).
+    pub selftest: RefCell<Option<SelfTest>>,
+    /// A board that runs other firmware: it hears nothing and answers nothing on the lane.
+    pub mute: Cell<bool>,
     out: Rc<RefCell<Vec<u8>>>,
 }
 
@@ -119,11 +124,25 @@ pub struct BenchOpts {
     pub rto_ms: Option<u32>,
     /// The supervisor pings every node once a second.
     pub pings: bool,
+    /// Baud rate of every lane.
+    pub baud: u32,
+    /// Processor time of a node per 16-byte frame received and sent, microseconds. An estimate
+    /// for a Cortex-M0+ at 125 MHz: the interrupt (about 250 cycles for 16 bytes), the parser and
+    /// the table CRC-16 (about 600) and the datagram layer (about 300) are about 1200 cycles,
+    /// 10 us; encoding and queueing a frame about 5 us.
+    pub rx_cost_us: f64,
+    pub tx_cost_us: f64,
+    /// The firmware's receive ring, bytes, and how many bytes it lets wait for the transmitter
+    /// (0: 12 ms of wire time, as the firmware does; see `tx_depth`).
+    pub rx_ring: usize,
+    pub tx_ring: usize,
+    /// Run the boot self-test on every node.
+    pub selftest: bool,
 }
 
 impl Default for BenchOpts {
     fn default() -> BenchOpts {
-        BenchOpts { idle_step_us: 200, seed: 118, node: None, link_mtu: None, rto_ms: None, pings: true }
+        BenchOpts { idle_step_us: 200, seed: 118, node: None, link_mtu: None, rto_ms: None, pings: true, baud: 115_200, rx_cost_us: 10.0, tx_cost_us: 5.0, rx_ring: 32 * 1024, tx_ring: 0, selftest: false }
     }
 }
 
@@ -158,7 +177,7 @@ pub struct Bench {
 fn make_node(clock: &Rc<Cell<u64>>, switch: &Switch, opts: BenchOpts, index: usize, generation: u64, nodes: &Nodes, schedule: &Schedule) -> Rc<BenchNode> {
     let io = switch.port(index as u8, clock.clone());
     let c = clock.clone();
-    let mut cfg = opts.node.map(|f| f()).unwrap_or_default();
+    let mut cfg = opts.node.map(|f| f()).unwrap_or_else(|| NodeConfig::for_baud(opts.baud));
     cfg.epoch_seed = (opts.seed ^ (index as u64 * 7919) ^ (generation * 104729)) as u16;
     if let Some(m) = opts.link_mtu {
         cfg.link_mtu = m;
@@ -196,6 +215,9 @@ fn make_node(clock: &Rc<Cell<u64>>, switch: &Switch, opts: BenchOpts, index: usi
             if j == index {
                 continue;
             }
+            if o.mute.get() {
+                continue;
+            }
             // a board's main loop calls Platform::idle every turn, which pumps its lane
             o.net.pump();
             if let Ok(mut rt) = o.rt.try_borrow_mut() {
@@ -203,7 +225,7 @@ fn make_node(clock: &Rc<Cell<u64>>, switch: &Switch, opts: BenchOpts, index: usi
             }
         }
     }));
-    Rc::new(BenchNode { rt, net, out })
+    Rc::new(BenchNode { rt, net, out, selftest: RefCell::new(if opts.selftest { Some(SelfTest::new()) } else { None }), mute: Cell::new(false) })
 }
 
 impl Bench {
@@ -211,6 +233,9 @@ impl Bench {
     pub fn new(n: usize, opts: BenchOpts) -> Bench {
         let clock = Rc::new(Cell::new(0));
         let switch = Switch::new(n, opts.seed);
+        switch.set_baud(opts.baud);
+        switch.set_cpu(opts.rx_cost_us, opts.tx_cost_us);
+        switch.set_ring(opts.rx_ring, if opts.tx_ring == 0 { klong_dgram::tx_depth(opts.baud) } else { opts.tx_ring });
         let nodes: Nodes = Rc::new(RefCell::new(Vec::new()));
         let schedule: Schedule = Rc::new(RefCell::new(Vec::new()));
         for i in 0..n {
@@ -223,6 +248,7 @@ impl Bench {
             Box::new(move || c.get()),
             NodeConfig { lane: LaneConfig { node: Some(klong_dgram::frame::SUPERVISOR), supervisor_duties: false, ..LaneConfig::default() }, ..NodeConfig::default() },
         );
+        sup.keep_log(256);
         let b = Bench { clock, switch, nodes, schedule, sup, opts, generation: Cell::new(0) };
         b.switch.set_pings(opts.pings);
         if opts.pings {
@@ -280,10 +306,18 @@ impl Bench {
             let mut did = false;
             let list: Vec<Rc<BenchNode>> = self.nodes.borrow().clone();
             for n in &list {
+                if n.mute.get() {
+                    continue;
+                }
                 // what a board's main loop does every turn: Platform::idle, which pumps the lane
                 n.net.pump();
                 if let Ok(mut rt) = n.rt.try_borrow_mut() {
                     did |= rt.poll_events();
+                    if let Ok(mut st) = n.selftest.try_borrow_mut() {
+                        if let Some(st) = st.as_mut() {
+                            did |= st.step(&mut rt, &n.net);
+                        }
+                    }
                 }
             }
             self.sup.pump();

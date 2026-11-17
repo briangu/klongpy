@@ -19,7 +19,8 @@ export PATH="$ARM_BIN:$PATH"
     cargo +stable build --release -p klong-ffi --features lane --target $TARGET --target-dir target/pico-bench)
 ls -l "$native/target/pico-bench/$TARGET/release/libklong_ffi.a"
 
-cmake -S "$here" -B "$here/build" -G Ninja -DCMAKE_BUILD_TYPE=Release
+# KLONG_SELFTEST=0 leaves the boot self-test out; LANE_BAUD=115200 builds for a slow lane
+cmake -S "$here" -B "$here/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DKLONG_SELFTEST="${KLONG_SELFTEST:-1}" -DLANE_BAUD="${LANE_BAUD:-4500000}"
 cmake --build "$here/build"
 arm-none-eabi-size "$here/build/klong_pico_bench.elf"
 ls -l "$here/build/klong_pico_bench.uf2" "$here/build/klong_pico_bench.bin"

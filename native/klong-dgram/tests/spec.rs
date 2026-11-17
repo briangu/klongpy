@@ -509,3 +509,26 @@ fn frames_from_the_supervisor_side_tool() {
     }
     assert_eq!(got, vec![(16, 1, b"1+2\r".to_vec())]);
 }
+
+#[test]
+fn liveness_frames_are_exact() {
+    use klong_dgram::lane::{STATUS_ALIVE, STATUS_SELFTEST_FAIL, STATUS_SELFTEST_PASS, STATUS_SELFTEST_RUNNING};
+    assert_eq!((STATUS_ALIVE, STATUS_SELFTEST_RUNNING, STATUS_SELFTEST_PASS, STATUS_SELFTEST_FAIL), (0x01, 0x21, 0x41, 0x81));
+    let mut l: Lane<64, 2> = Lane::new(LaneConfig { node: Some(3), ..cfg() });
+    // a PING with a payload and an odd opaque byte: the PONG has the same sequence and length 0
+    feed(&mut l, Frame::new(T_PING, 16, 3, 0xbeef, 77, &[1, 2]), 10);
+    let pong = Frame::decode(&l.poll_tx(10).unwrap()).unwrap();
+    assert_eq!((pong.ftype, pong.src, pong.dst, pong.seq, pong.len), (T_PONG, 3, 16, 0xbeef, 0));
+    // STATUS: length 4, load, flags, uptime seconds LE, once a second, monotonic
+    l.set_load(250);
+    l.set_status_flags(STATUS_SELFTEST_PASS);
+    let mut ups = vec![];
+    for t in [1010u64, 2020, 3030, 70_000_000] {
+        let s = Frame::decode(&l.poll_tx(t).unwrap()).unwrap();
+        assert_eq!((s.ftype, s.dst, s.len), (T_STATUS, 16, 4));
+        assert_eq!((s.payload[0], s.payload[1]), (100, 0x41));
+        ups.push(s.payload[2] as u16 | (s.payload[3] as u16) << 8);
+        assert!(l.poll_tx(t + 500).is_none());
+    }
+    assert_eq!(ups, vec![1, 2, 3, 65535]);
+}

@@ -395,3 +395,42 @@ fn garbage_never_breaks_the_lane() {
     assert_eq!(got, 1);
     let _ = delivered;
 }
+
+/// The supervisor's deployer sends sub-types 0xA0..0xB1 and 0xE1/0xE2 to every online node: a
+/// flood of them, between and inside datagram messages, changes nothing: the messages arrive,
+/// nothing is answered, no state is lost.
+#[test]
+fn a_flood_of_foreign_app_frames_does_no_harm() {
+    let mut rng = Rng(4242);
+    let mut l: Box<L> = Box::new(L::new(LaneConfig { node: Some(1), supervisor_duties: true, ..LaneConfig::default() }));
+    let mut subs: Vec<u8> = (0xa0..=0xb1).collect();
+    subs.extend([0xe1, 0xe2]);
+    let mut sent = vec![];
+    let mut got: Vec<(u8, u8, Vec<u8>)> = vec![];
+    for round in 0..200u16 {
+        let len = 1 + rng.below(300) as usize;
+        let data = rng.bytes(len);
+        let src = [0u8, 2, 16][rng.below(3) as usize];
+        let l16 = len as u16;
+        let mut frames = vec![Frame::new(T_APP_DATA, src, 1, round, SUB_START, &[l16 as u8, (l16 >> 8) as u8, 0, 0])];
+        for (i, c) in data.chunks(4).enumerate() {
+            frames.push(Frame::new(T_APP_DATA, src, 1, i as u16, SUB_DATA, c));
+        }
+        frames.push(Frame::new(T_APP_DATA, src, 1, round, SUB_END, &crc32(&data).to_le_bytes()));
+        for f in frames {
+            // up to three foreign frames before each frame of the message, from any source, with any payload
+            for _ in 0..rng.below(4) {
+                let sub = subs[rng.below(subs.len() as u64) as usize];
+                let s2 = [0u8, 2, 3, 16][rng.below(4) as usize];
+                let junk = Frame::new(T_APP_DATA, s2, 1, rng.next() as u16, sub, &rng.upto(5)[..]);
+                if let Some(b) = junk.encode() {
+                    l.rx(&b, 1, &mut |s, c, b| got.push((s, c, b.to_vec())));
+                }
+            }
+            l.rx(&f.encode().unwrap(), 1, &mut |s, c, b| got.push((s, c, b.to_vec())));
+        }
+        sent.push((src, 0u8, data));
+        assert!(l.poll_tx(1).is_none(), "nothing is answered");
+    }
+    assert_eq!(got, sent);
+}

@@ -18,7 +18,11 @@ if(NOT EXISTS "${KLONG_FFI_LIB}")
     message(FATAL_ERROR "${KLONG_FFI_LIB} is missing: run native/boards/pico-bench/build.sh, which builds it first")
 endif()
 
+# -DKLONG_SELFTEST=0 builds the image without the boot self-test; -DLANE_BAUD=115200 for a slower lane
+set(KLONG_SELFTEST 1 CACHE STRING "run the boot self-test (1) or not (0)")
+set(LANE_BAUD 4500000 CACHE STRING "baud rate of the lane")
 add_executable(klong_pico_bench main.c)
+target_compile_definitions(klong_pico_bench PRIVATE KLONG_SELFTEST=${KLONG_SELFTEST} LANE_BAUD=${LANE_BAUD}u)
 target_include_directories(klong_pico_bench PRIVATE "${KLONG_NATIVE}/klong-ffi/include")
 target_compile_options(klong_pico_bench PRIVATE -O2 -Wall -Wextra -Werror)
 # the Rust library after the SDK's libraries would let libgcc's helpers win; before them is fine either way

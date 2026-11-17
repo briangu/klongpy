@@ -1,7 +1,7 @@
 //! N simulated boards behind the packet switch of the Pico bench, driven by a script on
 //! standard input, in virtual time (no real time passes):
 //!
-//!     klong-bench [N] [--loss PPM] [--seed S] [--no-pings] [--help] [--version]
+//!     klong-bench [N] [--baud BAUD] [--loss PPM] [--seed S] [--no-pings] [--help] [--version]
 //!
 //! One command per line:
 //!
@@ -14,7 +14,7 @@
 //!
 //! Blank lines and lines that start with `#` are ignored. The default is 2 nodes. Every board
 //! is `klong-rt` with the node transport (`.cli("node:K")`, `.srv("node:")`), the supervisor
-//! pings each node once a second, and the lanes run at 115200 baud: see `docs/native/pico-bench.md`.
+//! pings each node once a second, and the lanes run at 115200 baud unless `--baud` says otherwise: see `docs/native/pico-bench.md`.
 use std::io::BufRead;
 use std::process::ExitCode;
 
@@ -28,7 +28,7 @@ fn main() -> ExitCode {
     while let Some(a) = args.next() {
         match a.as_str() {
             "--help" | "-h" => {
-                println!("usage: klong-bench [N] [--loss PPM] [--seed S] [--no-pings]  (commands on standard input; see the docs)");
+                println!("usage: klong-bench [N] [--baud BAUD] [--loss PPM] [--seed S] [--no-pings]  (commands on standard input; see the docs)");
                 return ExitCode::SUCCESS;
             }
             "--version" => {
@@ -38,6 +38,7 @@ fn main() -> ExitCode {
             "--loss" => loss = args.next().and_then(|v| v.parse().ok()).unwrap_or(0),
             "--seed" => opts.seed = args.next().and_then(|v| v.parse().ok()).unwrap_or(opts.seed),
             "--no-pings" => opts.pings = false,
+            "--baud" => opts.baud = args.next().and_then(|v| v.parse().ok()).unwrap_or(opts.baud),
             v => match v.parse::<usize>() {
                 Ok(k) if (1..=16).contains(&k) => n = k,
                 _ => {

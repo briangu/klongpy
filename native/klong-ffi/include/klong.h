@@ -111,13 +111,14 @@ void klong_heap(size_t *used, size_t *peak, size_t *limit);
  * Call klong_lane_init once, after klong_init. The two lane callbacks do not wait: lane_read
  * returns the bytes the UART has received (0 if none), lane_write returns how many bytes the
  * transmitter took (0 if it is full; the library offers the rest again). The UART must buffer
- * what arrives while the interpreter is busy, about 3 KB/s, so a receive ring of 4 KB or more
- * in an interrupt handler. The library moves frames at every klong_step, every `idle` of the
+ * what arrives while the interpreter is busy: 450 KB/s at 4.5 Mbaud, so an interrupt handler and
+ * a receive ring of tens of KB; and the transmitter should have a ring too, drained by interrupt. The library moves frames at every klong_step, every `idle` of the
  * runtime (4096 steps of an evaluation) and inside every IPC call; klong_lane_pump moves
  * them at other times too. Everything on the task that calls klong_init, like the rest.
  */
 #define KLONG_LANE_NO_DUTIES 1u  /* do not answer PING or send STATUS (a lane without a supervisor) */
 #define KLONG_LANE_NO_CONSOLE 2u /* no console on datagram channel 1 */
+#define KLONG_LANE_SELFTEST 4u   /* the boot self-test (see native/boards/pico-bench/README.md) */
 
 typedef struct klong_lane_config {
     uint32_t abi_version; /* KLONG_ABI_VERSION */
@@ -128,6 +129,8 @@ typedef struct klong_lane_config {
     int32_t node;         /* this node's number 0..16, or -1 to learn it from the first frame sent to it */
     uint32_t seed;        /* random bits: first message id and connection epochs (a restart must not reuse them) */
     uint32_t flags;       /* KLONG_LANE_* */
+    uint32_t baud;        /* the lane's baud rate (0: 115200): picks packet size and timeouts */
+    const uint32_t *counters; /* NULL, or 4 counters the driver keeps: rx ring overruns, rx FIFO overruns, line errors, tx ring full */
 } klong_lane_config;
 
 typedef struct klong_lane_stats {
@@ -137,6 +140,8 @@ typedef struct klong_lane_stats {
     uint32_t datagrams_delivered, datagrams_duplicate, datagrams_broken, datagrams_refused, datagrams_resent;
     uint32_t ipc_in, ipc_out, inbox_overflow, console_dropped;
     int32_t console_peer;  /* node attached to the lane console, -1 none */
+    uint32_t uart_rx_ring_overruns, uart_rx_fifo_overruns, uart_line_errors, uart_tx_ring_full; /* the driver's counters */
+    int32_t selftest;      /* 0 undecided or off, 1 passed, 2 failed */
 } klong_lane_stats;
 
 int32_t klong_lane_init(const klong_lane_config *config);

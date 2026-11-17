@@ -8,13 +8,18 @@
 //!   supervisor, or (counted, dropped) anything else.
 //! * An output port holds 256 frames waiting for its lane; a frame that finds it full is
 //!   dropped (and counted). Frames from one input to one output stay in order.
+//! * The baud rate is a parameter ([`Switch::set_baud`]). An endpoint is not free either:
+//!   [`Switch::set_cpu`] charges each lane a processing time per frame received and sent (what
+//!   a Cortex-M0+ spends on the interrupt, the parser, the CRC and the datagram layer; an
+//!   estimate, see `docs/native/pico-bench.md`), and the receive ring holds a finite number of
+//!   bytes ([`Switch::set_ring`]): what arrives while it is full is lost and counted.
 //! * The supervisor sends PING to every node once a second when asked to ([`Switch::set_pings`]).
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
 use klong_dgram::frame::{Frame, Parser, FRAME, SUPERVISOR, T_PING, T_PONG, T_STATUS};
-use klong_rt::node::LaneIo;
+use klong_rt::node::{LaneIo, UartCounters};
 
 /// Microseconds per byte at 115200 baud, 8N1 (10 bits).
 pub const BYTE_US_115200: f64 = 10.0 * 1_000_000.0 / 115_200.0;
@@ -36,6 +41,12 @@ pub struct SwitchStats {
     pub pongs: [u64; 17],
     pub statuses: [u64; 17],
     pub pings_sent: u64,
+    /// The flags, load and uptime of the last STATUS from each node (flags 0 before the first).
+    pub status_flags: [u8; 17],
+    pub status_load: [u8; 17],
+    pub status_uptime: [u16; 17],
+    /// Bytes thrown away because a node's receive ring was full, per node port.
+    pub rx_ring_overruns: [u64; 17],
     /// Bytes of damaged or torn frames the switch's parsers skipped.
     pub skipped_bytes: u64,
 }
@@ -50,6 +61,10 @@ struct Port {
     from_node: VecDeque<(f64, u8)>,
     parser: Parser,
     tx_free_at: f64,
+    /// The endpoint's processor is busy until this time.
+    cpu_at: f64,
+    rx_overruns: u64,
+    tx_full: u64,
 }
 
 struct Inner {
@@ -59,6 +74,11 @@ struct Inner {
     byte_us: f64,
     now: f64,
     rng: u64,
+    /// Microseconds of processor per 16-byte frame received, and sent.
+    rx_cost_us: f64,
+    tx_cost_us: f64,
+    ring_bytes: usize,
+    tx_ring_bytes: usize,
     loss_ppm: u32,
     drop_next: u32,
     pings: bool,
@@ -120,7 +140,14 @@ impl Inner {
                             if s < 17 {
                                 match f.ftype {
                                     T_PONG => self.stats.pongs[s] += 1,
-                                    T_STATUS => self.stats.statuses[s] += 1,
+                                    T_STATUS => {
+                                        self.stats.statuses[s] += 1;
+                                        if f.len == 4 {
+                                            self.stats.status_load[s] = f.payload[0];
+                                            self.stats.status_flags[s] = f.payload[1];
+                                            self.stats.status_uptime[s] = f.payload[2] as u16 | (f.payload[3] as u16) << 8;
+                                        }
+                                    }
                                     _ => {}
                                 }
                             }
@@ -219,7 +246,7 @@ impl Inner {
 impl Switch {
     /// `nodes` node ports (0..nodes) and the supervisor's port (16).
     pub fn new(nodes: usize, seed: u64) -> Switch {
-        let ports = (0..=nodes).map(|_| Port { queue: VecDeque::new(), line_free_at: 0.0, to_node: VecDeque::new(), from_node: VecDeque::new(), parser: Parser::new(), tx_free_at: 0.0 }).collect();
+        let ports = (0..=nodes).map(|_| Port { queue: VecDeque::new(), line_free_at: 0.0, to_node: VecDeque::new(), from_node: VecDeque::new(), parser: Parser::new(), tx_free_at: 0.0, cpu_at: 0.0, rx_overruns: 0, tx_full: 0 }).collect();
         Switch(Rc::new(RefCell::new(Inner {
             ports,
             stats: SwitchStats::default(),
@@ -227,6 +254,10 @@ impl Switch {
             byte_us: BYTE_US_115200,
             now: 0.0,
             rng: seed | 1,
+            rx_cost_us: 0.0,
+            tx_cost_us: 0.0,
+            ring_bytes: 4096,
+            tx_ring_bytes: 32,
             loss_ppm: 0,
             drop_next: 0,
             pings: false,
@@ -252,6 +283,18 @@ impl Switch {
     /// Baud rate of every lane (default 115200).
     pub fn set_baud(&self, baud: u32) {
         self.0.borrow_mut().byte_us = 10.0 * 1_000_000.0 / baud as f64;
+    }
+    /// Processor time of an endpoint per frame received and per frame sent, microseconds.
+    pub fn set_cpu(&self, rx_us: f64, tx_us: f64) {
+        let mut s = self.0.borrow_mut();
+        s.rx_cost_us = rx_us;
+        s.tx_cost_us = tx_us;
+    }
+    /// Bytes of the receive ring and of the transmit ring of every node lane.
+    pub fn set_ring(&self, rx_bytes: usize, tx_bytes: usize) {
+        let mut s = self.0.borrow_mut();
+        s.ring_bytes = rx_bytes;
+        s.tx_ring_bytes = tx_bytes;
     }
     /// Drop this fraction of frames (parts per million) at random, seeded.
     pub fn set_loss_ppm(&self, ppm: u32) {
@@ -288,6 +331,7 @@ impl Switch {
             p.from_node.clear();
             p.parser.reset();
             p.tx_free_at = 0.0;
+            p.cpu_at = 0.0;
         }
     }
     pub fn advance(&self, now_us: u64) {
@@ -311,18 +355,32 @@ impl LaneIo for SwitchPort {
         let mut s = self.sw.0.borrow_mut();
         s.advance(self.clock.get() as f64);
         let now = s.now;
-        let p = &mut s.ports[self.index];
+        let (ring, per_byte) = (s.ring_bytes, s.rx_cost_us / FRAME as f64);
+        let index = self.index;
+        let p = &mut s.ports[index];
+        // what has arrived and was not read is in the ring; what does not fit is lost
+        let arrived = p.to_node.iter().take_while(|(t, _)| *t <= now).count();
+        if arrived > ring {
+            // the bytes that came after the ring filled up
+            let lost = arrived - ring;
+            p.to_node.drain(ring..arrived);
+            p.rx_overruns += lost as u64;
+        }
         let mut n = 0;
         while n < buf.len() {
             match p.to_node.front() {
-                Some(&(t, b)) if t <= now => {
+                Some(&(t, b)) if t <= now && p.cpu_at <= now => {
                     buf[n] = b;
                     n += 1;
                     p.to_node.pop_front();
+                    p.cpu_at = p.cpu_at.max(t) + per_byte;
                 }
                 _ => break,
             }
         }
+        let over = p.rx_overruns;
+        let addr = port_addr(index, s.nodes());
+        s.stats.rx_ring_overruns[addr] = over;
         n
     }
 
@@ -331,17 +389,36 @@ impl LaneIo for SwitchPort {
         s.advance(self.clock.get() as f64);
         let now = s.now;
         let byte = s.byte_us;
+        let (cap, per_byte) = (s.tx_ring_bytes, s.tx_cost_us / FRAME as f64);
         let p = &mut s.ports[self.index];
-        // bytes still in the FIFO: those whose turn on the wire has not come
+        // bytes still waiting for their turn on the wire (the FIFO and the transmit ring)
         let queued = if p.tx_free_at > now { ((p.tx_free_at - now) / byte).ceil() as usize } else { 0 };
-        let room = TX_FIFO.saturating_sub(queued);
+        let room = cap.saturating_sub(queued);
         let n = room.min(bytes.len());
+        if n < bytes.len() {
+            p.tx_full += 1;
+        }
         let mut t = p.tx_free_at.max(now);
         for &b in &bytes[..n] {
             t += byte;
             p.from_node.push_back((t, b));
         }
         p.tx_free_at = t;
+        p.cpu_at = p.cpu_at.max(now) + n as f64 * per_byte;
         n
+    }
+
+    fn counters(&self) -> UartCounters {
+        let s = self.sw.0.borrow();
+        let p = &s.ports[self.index];
+        UartCounters { rx_ring_overruns: p.rx_overruns as u32, rx_fifo_overruns: 0, line_errors: 0, tx_ring_full: p.tx_full as u32 }
+    }
+}
+
+fn port_addr(index: usize, nodes: usize) -> usize {
+    if index == nodes {
+        16
+    } else {
+        index
     }
 }

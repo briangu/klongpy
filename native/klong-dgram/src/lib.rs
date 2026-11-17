@@ -16,3 +16,12 @@ pub mod lane;
 pub use dgram::{Config, Datagrams, Outcome, SendError, SendResult, MAX_MSG, SOURCES};
 pub use frame::{Frame, Parser, FRAME};
 pub use lane::{Lane, LaneConfig};
+
+/// How many bytes a node lets wait for its transmitter at `baud`: 12 ms of wire time, in whole
+/// frames, at least 4 frames. A deeper queue only delays what must go out behind it (an ACK
+/// behind a full window), a shallower one lets the lane idle while the main loop is away.
+pub const fn tx_depth(baud: u32) -> usize {
+    let bytes = (baud as u64 / 10 * 12 / 1000) as usize;
+    let frames = bytes / FRAME;
+    (if frames < 4 { 4 } else { frames }) * FRAME
+}

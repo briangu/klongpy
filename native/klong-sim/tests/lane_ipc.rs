@@ -15,14 +15,32 @@ fn serve(b: &Bench, i: usize) {
     assert_eq!(n.ok(".srv(\"node:\")"), "1");
 }
 
+/// The two rates the bench is tested at. `opts` is the bench's settings for one of them.
+const BAUDS: [u32; 2] = [115_200, 4_500_000];
+
+fn opts(baud: u32) -> BenchOpts {
+    println!("METRIC -- {} baud --", baud);
+    BenchOpts { baud, ..BenchOpts::default() }
+}
+
+macro_rules! both {
+    ($($name:ident => $body:ident),* $(,)?) => {$(
+        #[test]
+        fn $name() {
+            for baud in BAUDS {
+                $body(baud);
+            }
+        }
+    )*};
+}
+
 fn ms(us: u64) -> f64 {
     us as f64 / 1000.0
 }
 
-#[test]
-fn two_nodes_calls_values_errors() {
+fn two_nodes_calls_values_errors_body(baud: u32) {
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    let b = Bench::new(2, BenchOpts::default());
+    let b = Bench::new(2, opts(baud));
     let (a, c) = (b.node(0), b.node(1));
     serve(&b, 1);
     assert_eq!(a.ok("h::.cli(\"node:1\");h(:sq,,7)"), "49");
@@ -51,10 +69,9 @@ fn two_nodes_calls_values_errors() {
     assert_eq!(a.ok(".clic(h)"), "1");
 }
 
-#[test]
-fn async_calls_and_hooks() {
+fn async_calls_and_hooks_body(baud: u32) {
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    let b = Bench::new(2, BenchOpts::default());
+    let b = Bench::new(2, opts(baud));
     let (a, c) = (b.node(0), b.node(1));
     serve(&b, 1);
     c.ok("opened::0;closed::0;.srv.o::{opened::opened+1};.srv.c::{closed::closed+1}");
@@ -69,10 +86,9 @@ fn async_calls_and_hooks() {
     b.spin_until(5_000_000, || c.ok("opened,closed") == "[1 1]").expect("the close reaches the server");
 }
 
-#[test]
-fn call_timeout() {
+fn call_timeout_body(baud: u32) {
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    let b = Bench::new(2, BenchOpts::default());
+    let b = Bench::new(2, opts(baud));
     let (a, c) = (b.node(0), b.node(1));
     serve(&b, 1);
     a.ok("h::.cli(\"node:1\")");
@@ -84,10 +100,9 @@ fn call_timeout() {
     assert!(e.1.contains("timed out"), "{}", e.1);
 }
 
-#[test]
-fn four_nodes_both_directions() {
+fn four_nodes_both_directions_body(baud: u32) {
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    let b = Bench::new(4, BenchOpts::default());
+    let b = Bench::new(4, opts(baud));
     for i in 0..4 {
         serve(&b, i);
     }
@@ -120,10 +135,9 @@ fn four_nodes_both_directions() {
     println!("METRIC 4 nodes, 12 connections, all calls: virtual time {:.1} s, switch {:?}", b.now_us() as f64 / 1e6, (b.switch.stats().frames_in, b.switch.stats().overflow));
 }
 
-#[test]
-fn messages_larger_than_one_datagram() {
+fn messages_larger_than_one_datagram_body(baud: u32) {
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    let b = Bench::new(2, BenchOpts::default());
+    let b = Bench::new(2, opts(baud));
     let a = b.node(0);
     serve(&b, 1);
     a.ok("h::.cli(\"node:1\")");
@@ -139,10 +153,9 @@ fn messages_larger_than_one_datagram() {
     assert_eq!(a.ok("d::.clid(h);d,:mine,,s;(d?:mine)~s"), "1");
 }
 
-#[test]
-fn refused_connections_and_bad_addresses() {
+fn refused_connections_and_bad_addresses_body(baud: u32) {
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    let b = Bench::new(3, BenchOpts::default());
+    let b = Bench::new(3, opts(baud));
     let a = b.node(0);
     // nobody listens on node 1
     let e = a.run(".cli(\"node:1\")").unwrap_err();
@@ -165,10 +178,9 @@ fn refused_connections_and_bad_addresses() {
     assert_eq!(b.node(1).ok(".srv(\"node:\")"), "0");
 }
 
-#[test]
-fn supervisor_pings_are_answered_and_everything_else_ignored() {
+fn supervisor_pings_are_answered_and_everything_else_ignored_body(baud: u32) {
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    let b = Bench::new(2, BenchOpts::default());
+    let b = Bench::new(2, opts(baud));
     serve(&b, 1);
     let a = b.node(0);
     a.ok("h::.cli(\"node:1\")");
@@ -197,10 +209,9 @@ fn supervisor_pings_are_answered_and_everything_else_ignored() {
     assert_eq!(b.node(1).net.lane_stats().ctl_dropped, 0);
 }
 
-#[test]
-fn management_library_across_four_nodes() {
+fn management_library_across_four_nodes_body(baud: u32) {
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    let b = Bench::new(4, BenchOpts::default());
+    let b = Bench::new(4, opts(baud));
     for i in 1..4 {
         serve(&b, i);
     }
@@ -236,10 +247,11 @@ fn management_library_across_four_nodes() {
     assert_eq!(m.out(), "");
 }
 
-#[test]
-fn queue_overflow_and_retries() {
+fn queue_overflow_and_retries_body(baud: u32) {
+    // enough bytes that the three answers overlap for long: 9.6 KB at 115200, 48 KB at 4.5 Mbaud
+    let n = if baud > 1_000_000 { 6000 } else { 1200 };
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    let b = Bench::new(4, BenchOpts::default());
+    let b = Bench::new(4, opts(baud));
     for i in 1..4 {
         serve(&b, i);
     }
@@ -249,34 +261,39 @@ fn queue_overflow_and_retries() {
     // the three nodes answer with 10 KB each at the same moment, into the one port of the
     // manager: three lanes into one, so its 256-frame queue overflows
     for i in 1..4 {
-        b.node(i).ok("blob::!1200");
+        b.node(i).ok(&format!("blob::!{}", n));
+    }
+    if baud > 1_000_000 {
+        // with 126-byte packets and these timeouts three senders at 4.5 Mbaud no longer fill 256
+        // frames (the run above measured a queue of 172); cut the port's queue so that it overflows
+        b.switch.set_queue_cap(64);
     }
     let before = b.switch.stats();
     let t0 = b.now_us();
     let r = m.ok("r::mgmt.all([:total]@0;,!1);x::mgmt.all(\"blob\";[]);#x");
     assert_eq!(r, "3");
     let shown = m.ok("x");
-    assert_eq!(m.ok("{(x@1)~!1200}'x"), "[1 1 1]", "{}", &shown[..shown.len().min(300)]);
+    assert_eq!(m.ok(&format!("{{(x@1)~!{}}}'x", n)), "[1 1 1]", "{}", &shown[..shown.len().min(300)]);
     let st = b.switch.stats();
-    println!("METRIC fan-in of 3 x 9.6 KB into one port: {:.2} s virtual, {} frames dropped by overflow, max queue {}", (b.now_us() - t0) as f64 / 1e6, st.overflow - before.overflow, st.max_queue);
+    println!("METRIC fan-in of 3 x {} bytes into one port (queue of {} frames): {:.2} s virtual, {} frames dropped by overflow, max queue {}", 8 * n, if baud > 1_000_000 { 64 } else { 256 }, (b.now_us() - t0) as f64 / 1e6, st.overflow - before.overflow, st.max_queue);
     assert!(st.overflow > before.overflow, "the queue should overflow");
     // with the random loss of a worse switch on top the results are still right
     b.switch.set_loss_ppm(3_000);
     m.ok("mgmt.timeout(\"n1\";120);mgmt.timeout(\"n2\";120);mgmt.timeout(\"n3\";120)");
-    assert_eq!(m.ok("x::mgmt.all(\"blob\";[]);{(x@1)~!1200}'x"), "[1 1 1]");
+    assert_eq!(m.ok(&format!("x::mgmt.all(\"blob\";[]);{{(x@1)~!{}}}'x", n)), "[1 1 1]");
     assert!(b.switch.stats().injected_loss > 0);
 }
 
-#[test]
-fn a_peer_that_resets_mid_message() {
+fn a_peer_that_resets_mid_message_body(baud: u32) {
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    let b = Bench::new(2, BenchOpts::default());
+    let b = Bench::new(2, opts(baud));
     let (a, c) = (b.node(0), b.node(1));
     serve(&b, 1);
     a.ok("h::.cli(\"node:1\");big::!800");
     assert_eq!(a.ok("h(:sq,,2)"), "4");
-    // node 1 loses power 1.5 s into a call that moves 6 KB each way
-    b.reset_node_at(1, b.now_us() + 1_500_000);
+    // node 1 loses power part-way into a call that moves 6 KB each way
+    let delay = if baud > 1_000_000 { 30_000 } else { 1_500_000 };
+    b.reset_node_at(1, b.now_us() + delay);
     let t0 = b.now_us();
     let e = a.run("h(:idf,,big)").unwrap_err();
     println!("METRIC reset mid-message: the call fails after {:.2} s virtual with: {}", ms(b.now_us() - t0) / 1000.0, e.1);
@@ -304,11 +321,10 @@ fn a_peer_that_resets_mid_message() {
     assert!(b.node(1).net.counters().restarts >= 1);
 }
 
-#[test]
-fn dropped_frames_cost_time_not_correctness() {
+fn dropped_frames_cost_time_not_correctness_body(baud: u32) {
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
     for ppm in [0u32, 2_000, 5_000] {
-        let b = Bench::new(2, BenchOpts::default());
+        let b = Bench::new(2, opts(baud));
         serve(&b, 1);
         let a = b.node(0);
         a.ok("h::.cli(\"node:1\");big::!300;.clit(h;120)");
@@ -321,10 +337,9 @@ fn dropped_frames_cost_time_not_correctness() {
     }
 }
 
-#[test]
-fn latency_and_throughput() {
+fn latency_and_throughput_body(baud: u32) {
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    let b = Bench::new(2, BenchOpts::default());
+    let b = Bench::new(2, opts(baud));
     serve(&b, 1);
     let a = b.node(0);
     let t0 = b.now_us();
@@ -357,11 +372,10 @@ fn latency_and_throughput() {
     println!("METRIC switch: {} frames in, max queue {}", st.frames_in, st.max_queue);
 }
 
-#[test]
-fn console_channel_between_lanes() {
+fn console_channel_between_lanes_body(baud: u32) {
     let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
     // the supervisor types on channel 1 of node 1; the node's console answers on the same channel
-    let b = Bench::new(2, BenchOpts::default());
+    let b = Bench::new(2, opts(baud));
     let n = b.node(1);
     let mut buf = [0u8; 64];
     assert!(b.sup.send(1, 1, b"1+1\r", false).unwrap());
@@ -387,4 +401,20 @@ fn console_channel_between_lanes() {
     n.net.console_write(b"nobody listens");
     b.spin_ms(300);
     assert_eq!(b.sup.console_read(&mut buf), 0);
+}
+
+both! {
+    two_nodes_calls_values_errors => two_nodes_calls_values_errors_body,
+    async_calls_and_hooks => async_calls_and_hooks_body,
+    call_timeout => call_timeout_body,
+    four_nodes_both_directions => four_nodes_both_directions_body,
+    messages_larger_than_one_datagram => messages_larger_than_one_datagram_body,
+    refused_connections_and_bad_addresses => refused_connections_and_bad_addresses_body,
+    supervisor_pings_are_answered_and_everything_else_ignored => supervisor_pings_are_answered_and_everything_else_ignored_body,
+    management_library_across_four_nodes => management_library_across_four_nodes_body,
+    queue_overflow_and_retries => queue_overflow_and_retries_body,
+    a_peer_that_resets_mid_message => a_peer_that_resets_mid_message_body,
+    dropped_frames_cost_time_not_correctness => dropped_frames_cost_time_not_correctness_body,
+    latency_and_throughput => latency_and_throughput_body,
+    console_channel_between_lanes => console_channel_between_lanes_body,
 }

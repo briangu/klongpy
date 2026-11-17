@@ -44,6 +44,8 @@ pub const CH_CONSOLE: u8 = 1;
 /// adapter adds two of its own, so a datagram is 128 bytes: 34 frames, 47 ms on a 115200 baud lane).
 pub const LINK_MTU: usize = 126;
 const HEAD: usize = 2;
+/// Bytes read from the lane per pump.
+const RX_PER_PUMP: usize = 8192;
 /// Reassembly buffers: sources that may be in the middle of a message at the same moment.
 pub const RX_SLOTS: usize = 6;
 const MSG_MAX: usize = klong_dgram::MAX_MSG;
@@ -55,6 +57,23 @@ pub trait LaneIo {
     fn read(&mut self, buf: &mut [u8]) -> usize;
     /// Bytes the transmitter took (may be fewer than given, 0 when it is full).
     fn write(&mut self, buf: &[u8]) -> usize;
+    /// What the UART driver counted (it lives below this layer).
+    fn counters(&self) -> UartCounters {
+        UartCounters::default()
+    }
+}
+
+/// Losses below the frame layer, counted by the driver.
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UartCounters {
+    /// Bytes thrown away because the receive ring was full (the main loop was away too long).
+    pub rx_ring_overruns: u32,
+    /// Bytes lost in the hardware FIFO (the interrupt was late).
+    pub rx_fifo_overruns: u32,
+    /// Framing, break and parity errors.
+    pub line_errors: u32,
+    /// Times a frame could not be queued for transmission because the transmit ring was full.
+    pub tx_ring_full: u32,
 }
 
 pub struct NodeConfig {
@@ -73,6 +92,30 @@ pub struct NodeConfig {
     pub epoch_seed: u16,
     /// Console output kept for a peer that reads slowly.
     pub console_out_bytes: usize,
+}
+
+impl NodeConfig {
+    /// Packet size, timeouts and retry budget for a lane of `baud` bits a second.
+    ///
+    /// * 115200 baud (a frame takes 1.4 ms): 126-byte packets (34 frames, 47 ms), first
+    ///   timeout 500 ms, 6 retries (31 s), handshake 10 s.
+    /// * 4.5 Mbaud (36 us a frame): the lane is 39 times faster and the endpoints are the
+    ///   limit, so what matters is how long a peer's main loop may be away (an evaluation
+    ///   between two `idle` calls, tens of milliseconds): first timeout 100 ms, 7 retries
+    ///   (about 25 s in all), handshake 3 s; the packet stays 126 bytes (34 frames, 1.2 ms):
+    ///   larger ones were no faster without loss (48 KB in 440 to 470 ms for every size from
+    ///   126 to 1022) and much slower with it (0.2% of frames lost: 7 s for 126, 16 s for 1022).
+    ///
+    /// Rates in between get the nearer set.
+    pub fn for_baud(baud: u32) -> NodeConfig {
+        let mut c = NodeConfig::default();
+        if baud >= 1_000_000 {
+            c.rto_ms = 100;
+            c.retries = 7;
+            c.handshake_timeout_us = 3_000_000;
+        }
+        c
+    }
 }
 
 impl Default for NodeConfig {
@@ -116,6 +159,7 @@ struct Core {
     cin: VecDeque<u8>,
     cpeer: Option<u8>,
     cout: VecDeque<u8>,
+    log: Option<(usize, VecDeque<(u8, u8, Vec<u8>)>)>,
     counters: NodeCounters,
     /// Resets that found the sender busy: (peer, header); they go out first.
     rst_out: Vec<(u8, u16)>,
@@ -154,6 +198,14 @@ impl Core {
     }
 
     fn dispatch(&mut self, src: u8, chan: u8, msg: Vec<u8>) {
+        if chan != CH_IPC {
+            if let Some((cap, log)) = self.log.as_mut() {
+                if log.len() >= *cap {
+                    log.pop_front();
+                }
+                log.push_back((src, chan, msg.clone()));
+            }
+        }
         match chan {
             CH_IPC => self.dispatch_ipc(src, msg),
             CH_CONSOLE => {
@@ -222,11 +274,15 @@ impl Core {
         let now = self.now_ms();
         let mut buf = [0u8; 64];
         let mut got: Vec<(u8, u8, Vec<u8>)> = Vec::new();
-        loop {
+        // at most RX_PER_PUMP bytes (512 frames) per call, so that sending and the callers' own work
+        // are not starved by a ring that holds many frames; the rest waits for the next call
+        let mut taken = 0;
+        while taken < RX_PER_PUMP {
             let n = self.io.read(&mut buf).min(buf.len());
             if n == 0 {
                 break;
             }
+            taken += n;
             self.lane.rx(&buf[..n], now, &mut |s, c, b| got.push((s, c, b.to_vec())));
         }
         for (s, c, m) in got {
@@ -291,6 +347,7 @@ impl NodeNet {
             cin: VecDeque::new(),
             cpeer: None,
             cout: VecDeque::new(),
+            log: None,
             counters: NodeCounters::default(),
             rst_out: Vec::new(),
         })))
@@ -312,6 +369,34 @@ impl NodeNet {
     /// This node's number, once it knows it.
     pub fn node(&self) -> Option<u8> {
         self.0.try_borrow().ok().and_then(|c| c.lane.node())
+    }
+
+    /// Keep the last `n` messages that arrive on channels other than IPC (what a supervisor
+    /// reads: the self-test's report, the console's text), with their sources.
+    pub fn keep_log(&self, n: usize) {
+        if let Ok(mut c) = self.0.try_borrow_mut() {
+            c.log = Some((n, VecDeque::new()));
+        }
+    }
+
+    /// The messages kept by [`NodeNet::keep_log`] since the last call.
+    pub fn take_log(&self) -> Vec<(u8, u8, Vec<u8>)> {
+        match self.0.try_borrow_mut() {
+            Ok(mut c) => c.log.as_mut().map(|(_, l)| l.drain(..).collect()).unwrap_or_default(),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// The flags byte of the STATUS frames (see `klong_dgram::lane::STATUS_*`).
+    pub fn set_status_flags(&self, flags: u8) {
+        if let Ok(mut c) = self.0.try_borrow_mut() {
+            c.lane.set_status_flags(flags);
+        }
+    }
+
+    /// The UART driver's counters (receive overruns and the like).
+    pub fn uart_counters(&self) -> UartCounters {
+        self.0.try_borrow().map(|c| c.io.counters()).unwrap_or_default()
     }
 
     pub fn lane_stats(&self) -> LaneStats {

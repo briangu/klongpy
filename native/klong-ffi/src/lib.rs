@@ -301,7 +301,11 @@ pub extern "C" fn klong_step() -> i32 {
     match unsafe { &mut *state } {
         Some(s) => {
             s.stepping = true;
-            let busy = klong_board::step(&mut s.console);
+            let mut busy = klong_board::step(&mut s.console);
+            #[cfg(feature = "lane")]
+            {
+                busy |= lane::selftest_step(&mut s.console.rt);
+            }
             s.stepping = false;
             busy as i32
         }
@@ -352,6 +356,7 @@ mod lane {
 
     pub const KLONG_LANE_NO_DUTIES: u32 = 1;
     pub const KLONG_LANE_NO_CONSOLE: u32 = 2;
+    pub const KLONG_LANE_SELFTEST: u32 = 4;
 
     /// `struct klong_lane_config` of klong.h.
     #[repr(C)]
@@ -367,6 +372,11 @@ mod lane {
         /// Random bits for message ids and connection epochs.
         pub seed: u32,
         pub flags: u32,
+        /// The lane's baud rate (0: 115200); picks the packet size and the timeouts.
+        pub baud: u32,
+        /// Four u32 counters the C driver keeps: receive ring overruns, FIFO overruns, line
+        /// errors, times the transmit ring was full. Null if it has none.
+        pub counters: *const u32,
     }
 
     /// `struct klong_lane_stats` of klong.h.
@@ -389,11 +399,25 @@ mod lane {
         pub inbox_overflow: u32,
         pub console_dropped: u32,
         pub console_peer: i32,
+        pub uart_rx_ring_overruns: u32,
+        pub uart_rx_fifo_overruns: u32,
+        pub uart_line_errors: u32,
+        pub uart_tx_ring_full: u32,
+        /// The self-test: 0 not running or undecided, 1 passed, 2 failed.
+        pub selftest: i32,
     }
 
     struct CLane(KlongLaneConfig);
 
     impl LaneIo for CLane {
+        fn counters(&self) -> klong_rt::node::UartCounters {
+            if self.0.counters.is_null() {
+                return Default::default();
+            }
+            // SAFETY: klong.h: `counters` points to four u32 that stay valid for the life of the program.
+            let c = unsafe { core::slice::from_raw_parts(self.0.counters, 4) };
+            klong_rt::node::UartCounters { rx_ring_overruns: c[0], rx_fifo_overruns: c[1], line_errors: c[2], tx_ring_full: c[3] }
+        }
         fn read(&mut self, buf: &mut [u8]) -> usize {
             match self.0.lane_read {
                 // SAFETY: klong.h: writes at most `cap` bytes into `buf` and returns the count.
@@ -413,8 +437,19 @@ mod lane {
     struct Lane {
         net: NodeNet,
         console: bool,
+        selftest: Option<klong_rt::selftest::SelfTest>,
     }
     static LANE: Global<Option<Lane>> = Global(UnsafeCell::new(None));
+
+    /// One turn of the boot self-test, if it was asked for; from `klong_step`.
+    pub fn selftest_step(rt: &mut klong_rt::Runtime<super::Board>) -> bool {
+        // SAFETY: one task (klong.h); the only mutable access to the lane's self-test is here.
+        let Some(l) = (unsafe { (*LANE.0.get()).as_mut() }) else { return false };
+        match l.selftest.as_mut() {
+            Some(st) => st.step(rt, &l.net),
+            None => false,
+        }
+    }
 
     fn get() -> Option<&'static Lane> {
         // SAFETY: one task (klong.h); written once by `klong_lane_init`, only read afterwards.
@@ -463,6 +498,7 @@ mod lane {
         }
         // SAFETY: one task; `STATE` is only read here and no reference outlives the statement.
         let Some(state) = (unsafe { &mut *STATE.0.get() }).as_mut() else { return KLONG_ERR_STATE };
+        let base = NodeConfig::for_baud(if cfg.baud == 0 { 115_200 } else { cfg.baud });
         let node = NodeConfig {
             lane: LaneConfig {
                 dgram: DgramConfig { first_id: cfg.seed as u16, ..DgramConfig::default() },
@@ -470,7 +506,7 @@ mod lane {
                 node: if cfg.node >= 0 { Some(cfg.node as u8) } else { None },
             },
             epoch_seed: (cfg.seed >> 16) as u16 ^ cfg.seed as u16,
-            ..NodeConfig::default()
+            ..base
         };
         let net = NodeNet::new(Box::new(CLane(cfg)), Box::new(|| CClock::now_ms().saturating_mul(1000)), node);
         match state.console.rt.shared.platform.try_borrow_mut() {
@@ -478,7 +514,7 @@ mod lane {
             Err(_) => return KLONG_ERR_STATE,
         }
         // SAFETY: as above; `LANE` is empty until this write.
-        unsafe { *LANE.0.get() = Some(Lane { net, console: cfg.flags & KLONG_LANE_NO_CONSOLE == 0 }) };
+        unsafe { *LANE.0.get() = Some(Lane { net, console: cfg.flags & KLONG_LANE_NO_CONSOLE == 0, selftest: if cfg.flags & KLONG_LANE_SELFTEST != 0 { Some(klong_rt::selftest::SelfTest::new()) } else { None } }) };
         KLONG_OK
     }
 
@@ -523,6 +559,16 @@ mod lane {
             s.inbox_overflow = c.inbox_overflow;
             s.console_dropped = c.console_dropped;
             s.console_peer = l.net.console_peer().map_or(-1, |p| p as i32);
+            let u = l.net.uart_counters();
+            s.uart_rx_ring_overruns = u.rx_ring_overruns;
+            s.uart_rx_fifo_overruns = u.rx_fifo_overruns;
+            s.uart_line_errors = u.line_errors;
+            s.uart_tx_ring_full = u.tx_ring_full;
+            s.selftest = match l.selftest.as_ref().map(|t| t.verdict()) {
+                Some(klong_rt::selftest::Verdict::Pass) => 1,
+                Some(klong_rt::selftest::Verdict::Fail) => 2,
+                _ => 0,
+            };
         }
         // SAFETY: non-null, valid for a write by the contract above.
         unsafe { out.write(s) }

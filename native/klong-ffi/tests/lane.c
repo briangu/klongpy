@@ -120,7 +120,53 @@ static size_t collect(size_t from, uint8_t chan, char *out, size_t cap, int *pon
 
 #define CHECK(cond, ...) do { if (!(cond)) { printf("FAIL line %d: ", __LINE__); printf(__VA_ARGS__); printf("\n"); failures++; } } while (0)
 
-int main(void) {
+/* The boot self-test on node 0: serving, STATUS flags 0x21, a report datagram to 16 on channel 1. */
+static int selftest_main(void) {
+    klong_config cfg;
+    klong_lane_config lane;
+    klong_lane_stats st;
+    char text[512];
+    int statuses = 0, flags_ok = 0;
+    size_t i;
+
+    memset(&cfg, 0, sizeof cfg);
+    cfg.abi_version = KLONG_ABI_VERSION;
+    cfg.size = sizeof cfg;
+    cfg.alloc = h_alloc;
+    cfg.free = h_free;
+    cfg.heap_limit = 4u << 20;
+    cfg.heap_reserve = 16384;
+    cfg.stack_bytes = 1u << 20;
+    cfg.write = h_write;
+    cfg.read = h_read;
+    cfg.now_ms = h_now;
+    cfg.name = "selftest";
+    cfg.flags = KLONG_FLAG_NO_FS;
+    CHECK(klong_init(&cfg) == KLONG_OK, "init");
+    memset(&lane, 0, sizeof lane);
+    lane.abi_version = KLONG_ABI_VERSION;
+    lane.size = sizeof lane;
+    lane.lane_read = l_read;
+    lane.lane_write = l_write;
+    lane.node = 0;
+    lane.seed = 7;
+    lane.baud = 4500000u;
+    lane.flags = KLONG_LANE_SELFTEST;
+    CHECK(klong_lane_init(&lane) == KLONG_OK, "lane init");
+    run(40, 100);
+    collect(0, 1, text, sizeof text, NULL, &statuses);
+    for (i = 0; i + 16 <= tx_len; i += 16)
+        if (tx[i + 3] == 3 && tx[i + 5] == 16 && tx[i + 9] == 4 && tx[i + 11] == 0x21) flags_ok++;
+    CHECK(statuses >= 3 && flags_ok == statuses, "STATUS frames with flags 0x21: %d of %d", flags_ok, statuses);
+    CHECK(strstr(text, "klong selftest serving node=0 calls=0") != NULL, "report: [%s]", text);
+    printf("report: [%s]\n", text);
+    klong_lane_stats_get(&st);
+    CHECK(st.selftest == 0, "no verdict for a server");
+    printf(failures ? "-- %d failures\n" : "-- ok\n", failures);
+    return failures ? 1 : 0;
+}
+
+int main(int argc, char **argv) {
     klong_config cfg;
     klong_lane_config lane;
     klong_lane_stats st;
@@ -128,6 +174,7 @@ int main(void) {
     int pongs = 0, statuses = 0;
     size_t mark;
 
+    if (argc > 1 && strcmp(argv[1], "selftest") == 0) return selftest_main();
     memset(&cfg, 0, sizeof cfg);
     cfg.abi_version = KLONG_ABI_VERSION;
     cfg.size = sizeof cfg;

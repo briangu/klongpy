@@ -21,6 +21,8 @@ pub mod memfs;
 pub mod memlink;
 #[cfg(feature = "ipc")]
 pub mod node;
+#[cfg(feature = "ipc")]
+pub mod selftest;
 pub mod platform;
 
 #[cfg(feature = "files")]
