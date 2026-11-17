@@ -352,8 +352,18 @@ static void kh_free(void *ctx, void *ptr, size_t size, size_t align) {
 static int kh_better_place(uint32_t off, size_t o, size_t n) {
     int low = n > KH_HIGH_MAX || KH_IS_TREE();
     for (uint32_t p = kh_head; p != KH_NIL; p = KH_AT(p)->next) {
-        if (KH_AT(p)->size < n) continue;
-        if (low ? p < off : p > off + (uint32_t)o) return 1;
+        uint32_t size = KH_AT(p)->size;
+        if (size < n) continue;
+        if (low) {
+            if (p < off) return 1;
+        } else if (p > off + (uint32_t)o) {
+            return 1;
+        } else if (p == off + (uint32_t)o && size >= 2 * (uint32_t)n) {
+            /* a chunk right after the block counts when it holds the block twice over: the block moves to its far end and what it leaves
+             * merges with what is below (the boards: a 2,720-byte table with 5,936 free right above it). A smaller one does not: moving
+             * for it only shifts the block a little and, in the model, costs more than it gives */
+            return 1;
+        }
     }
     return 0;
 }

@@ -39,7 +39,10 @@ const REPORT_EVERY_MS: u64 = 3000;
 const RETRY_FAIL_MS: u64 = 15_000;
 const RETRY_NO_PEER_MS: u64 = 10_000;
 const RETRY_SOON_MS: u64 = 1_500;
-const PROBE_HANDSHAKE_US: u64 = 400_000;
+/// How long a probe of a node below waits for its handshake. A node that is probing serves nobody (a blocked `.cli`), so this is the time it
+/// is deaf, for each mute node below it (the bench has two): 400 ms each deafened it for 800 ms and a call to it took 830 ms (measured on the
+/// boards, 2026-11-17); a Klong node answers in 5 ms (27 ms at 115200 baud), so 80 ms is a margin of three.
+const PROBE_HANDSHAKE_US: u64 = 80_000;
 /// Let the lower nodes start listening before the first connection attempt.
 const START_DELAY_MS: u64 = 1000;
 /// A node starts 600 ms later than the one above it (up to node 4): a node that probes a lower node that is mute waits for it

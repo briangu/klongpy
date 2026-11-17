@@ -147,8 +147,8 @@ fn compact<T>(v: &mut Vec<T>) {
 /// A function literal of at least this many bytes of text, in a loaded program, is kept as text.
 const LAZY_MIN: u32 = 24;
 /// How many parsed functions kept as text are kept, and about how many bytes of trees they may hold between programs.
-const LAZY_ENTRIES: usize = 12;
-const LAZY_BUDGET: usize = 6144;
+const LAZY_ENTRIES: usize = 24;
+const LAZY_BUDGET: usize = 12288;
 
 enum Prog<'a> {
     Text(&'a str),
@@ -193,6 +193,8 @@ pub struct Interp {
     /// The function values made for a few tree nodes lately (a function literal's body is made into one at every
     /// call: an allocation). Each entry keeps its tree alive, so a tree's address cannot be taken for another's.
     lazy_cache: core::cell::RefCell<Vec<(usize, u32, Rc<Tree>, NodeId, usize)>>,
+    /// How many functions kept as text were parsed again, how many bytes of trees (about) they were, and how many were let go to make room.
+    lazy_stats: core::cell::Cell<(u64, u64, u64)>,
     body_cache: core::cell::RefCell<[Option<(usize, NodeId, Value)>; 8]>,
     body_next: Cell<u8>,
     layer_pool: Vec<Vec<Layer>>,
@@ -241,6 +243,7 @@ impl Interp {
             ticks: 0,
             frame_pool: Vec::new(),
             lazy_cache: core::cell::RefCell::new(Vec::new()),
+            lazy_stats: core::cell::Cell::new((0, 0, 0)),
             body_cache: core::cell::RefCell::new([None, None, None, None, None, None, None, None]),
             body_next: Cell::new(0),
             layer_pool: Vec::new(),
@@ -897,9 +900,13 @@ impl Interp {
     #[inline(never)]
     fn materialize(&mut self, l: &crate::value::Lazy) -> Result<(Rc<Tree>, NodeId)> {
         let key = (Rc::as_ptr(&l.source) as usize, l.start);
-        if let Ok(c) = self.lazy_cache.try_borrow() {
-            if let Some((_, _, t, n, _)) = c.iter().find(|(p, s, _, _, _)| (*p, *s) == key) {
-                return Ok((t.clone(), *n));
+        if let Ok(mut c) = self.lazy_cache.try_borrow_mut() {
+            if let Some(i) = c.iter().position(|(p, s, _, _, _)| (*p, *s) == key) {
+                // (the newest last: what is let go to make room is what was used longest ago)
+                let e = c.remove(i);
+                let r = (e.2.clone(), e.3);
+                c.push(e);
+                return Ok(r);
             }
         }
         let stack = self.stack();
@@ -914,9 +921,14 @@ impl Interp {
             // (about what the tree holds: a node and its span, the ids of its calls)
             let bytes = p.tree.nodes.len() * 40 + p.tree.extra.len() * 4 + 64;
             c.push((key.0, key.1, p.tree.clone(), node, bytes));
+            let (mut n, mut b, mut ev) = self.lazy_stats.get();
+            n += 1;
+            b += bytes as u64;
             while c.len() > LAZY_ENTRIES || (c.len() > 1 && c.iter().map(|e| e.4).sum::<usize>() > LAZY_BUDGET) {
                 c.remove(0);
+                ev += 1;
             }
+            self.lazy_stats.set((n, b, ev));
         }
         Ok((p.tree, node))
     }
@@ -935,6 +947,11 @@ impl Interp {
 
     /// Let go of what the evaluator keeps for speed: the recent function bodies (each holds its whole parse tree
     /// alive, so the tree of a library that was loaded and dropped stays) and the pool of argument layers.
+    /// (parses, bytes of trees parsed, evictions) of the functions kept as text since the start.
+    pub fn lazy_stats(&self) -> (u64, u64, u64) {
+        self.lazy_stats.get()
+    }
+
     /// Let go of the functions kept as text that were parsed lately (the library that was dropped holds nothing, then).
     pub fn release_lazy(&mut self) {
         if let Ok(mut c) = self.lazy_cache.try_borrow_mut() {

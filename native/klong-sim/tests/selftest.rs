@@ -217,3 +217,35 @@ fn the_node_above_a_probing_node_is_not_left_without_a_peer() {
         assert!(took2 < 30.0);
     }
 }
+
+/// A serving node that has no peer below it probes the nodes below (a `.cli` that waits for the handshake: here nodes 0 and 1 are mute, so
+/// the node waits the handshake timeout for each) and serves nobody meanwhile: the boards measured it, a call to node 2 during its probe took
+/// 830 ms (`call=830ms` in node 3's self-test line). The simulator is cooperative: a node that blocks holds the whole simulation in one
+/// `spin`, whose virtual clock then jumps by the time it was blocked, and a request that arrived in the jump is answered at its end. So
+/// the deafness is the largest jump of the clock in one 5 ms turn, here over eight seconds with node 3 calling node 2 all the time.
+#[test]
+fn a_serving_node_is_deaf_only_briefly_while_it_probes_the_nodes_below() {
+    let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let b = bench(4, 4_500_000);
+    b.node(0).mute.set(true);
+    b.node(1).mute.set(true);
+    let mut r = Reports(vec![]);
+    until(&b, &mut r, 3, "klong selftest pass ", 60);
+    b.node(3).ok("h::.cli(\"node:2\");done::1;cb::{done::1;x}");
+    let (mut worst, mut worst_at, mut calls) = (0u64, 0u64, 0);
+    let start = b.now_us();
+    while b.now_us() - start < 8_000_000 {
+        b.node(3).ok("done::0;af::.async(h(:stping2);cb);af(1)");
+        while b.node(3).ok("done") != "1" {
+            let t = b.now_us();
+            b.spin(5_000);
+            if b.now_us() - t > worst {
+                worst = b.now_us() - t;
+                worst_at = t;
+            }
+        }
+        calls += 1;
+    }
+    println!("METRIC {} calls answered in eight seconds; the longest stop of the simulation in one turn, at {} ms: {} ms", calls, worst_at / 1000, worst / 1000);
+    assert!(worst < 350_000, "node 2 was deaf for {} ms while it probed", worst / 1000);
+}

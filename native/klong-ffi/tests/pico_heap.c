@@ -257,6 +257,20 @@ int main(void) {
         check(kh_diag(301, snap, 16) == 10 && snap[0] == 0, "starting the mark again clears it", NULL);
     }
 
+    /* a table that lies right below a hole that could hold it is moved up (the boards: a 2,720-byte table of the globals with 5.9 KB free right
+     * above it kept 2.7 KB out of the largest free chunk): the allocator says no to a resize in place, and the runtime moves it */
+    {
+        void *a = kh_alloc(NULL, 6000, 8), *t = kh_alloc(NULL, 2720, 8);
+        check(a && t && (char *)t < (char *)a, "a block of 6,000 bytes and then one of 2,720: the second lies below the first", NULL);
+        kh_free(NULL, a, 6000, 8);
+        check(kh_grow(NULL, t, 2720, 2728, 8) == 0, "a table with a free chunk right above it that holds it is not grown in place: it is moved", NULL);
+        check(kh_grow(NULL, t, 2720, 2640, 8) == 0, "nor shrunk in place", NULL);
+        void *u = kh_alloc(NULL, 2728, 8);
+        kh_free(NULL, t, 2720, 8);
+        check(u && (char *)u > (char *)t, "where it moves to is above, and what it left merges with what is below", NULL);
+        kh_free(NULL, u, 2728, 8);
+    }
+
     printf("-- %s\n", failures ? "FAILED" : "ok");
     return failures ? 1 : 0;
 }

@@ -220,3 +220,23 @@ fn liveness_over_packet_links_and_a_link_that_dies() {
     let log = m.out();
     assert!(!log.is_empty() && log.lines().all(|l| l.starts_with(".async: remote call failed: call timed out after 2s: ")), "{}", log);
 }
+
+/// A call of the management library uses seven functions kept as text (about 8 KB of trees on the host): they are parsed once, whatever the
+/// number of calls in a program and of programs (measured on the boards: ten calls in one expression took 242 ms, 24 a call, when a cache of
+/// 6 KB held less than one call needs and every call parsed all seven again; 96 ms with a cache that held them).
+#[test]
+fn a_call_of_the_library_parses_each_function_it_uses_once() {
+    let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let (m, _nodes, _clock, _hub) = cluster(Faults::default());
+    let st = |m: &Node| m.rt.borrow().interp.lazy_stats();
+    let s0 = st(&m);
+    m.ok("mgmt.call(\"n3\";[:sq]@0;[7])");
+    let s1 = st(&m);
+    assert!(s1.0 - s0.0 >= 5 && s1.0 - s0.0 <= 12, "a call parses {:?}", (s1.0 - s0.0, s1.1 - s0.1));
+    // a second program, then ten calls in one expression, then another program with three: nothing is parsed again, nothing is let go
+    m.ok("mgmt.call(\"n3\";[:sq]@0;[7])");
+    assert_eq!(m.ok("{mgmt.call(\"n3\";[:sq]@0;[7])}'!10"), "[49 49 49 49 49 49 49 49 49 49]");
+    m.ok("mgmt.call(\"n3\";[:sq]@0;[7]);mgmt.call(\"n3\";\"add\";[3 4]);mgmt.call(\"n3\";[:sq]@0;[7])");
+    let s2 = st(&m);
+    assert_eq!((s2.0 - s1.0, s2.2 - s1.2), (0, 0), "later calls parsed {:?} functions and let {:?} go", s2.0 - s1.0, s2.2 - s1.2);
+}

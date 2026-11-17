@@ -340,7 +340,7 @@ class TestPair(unittest.TestCase):
                     self.assertEqual(b.type(2, line)[1], "ok")
                 for n in (2, 3):
                     got, want = largest(b, n), ideal(b, n)
-                    self.assertGreaterEqual(got, 0.99 * want, (arena, n, got, want))
+                    self.assertGreaterEqual(got, 0.98 * want, (arena, n, got, want))  # (a kept tree of a few KB at the bottom costs up to 2%)
                     self.assertLessEqual(got, want + 300, (arena, n, got, want))  # (`ideal` reads `.mem()` while the evaluation of `.mem()` is in use)
                 l3 = largest(b, 3)
                 # a connection closed is gone at once: the memory after one cycle is the memory after the next
@@ -357,13 +357,15 @@ class TestPair(unittest.TestCase):
                 b.type(3, '.clic((mgmt.nodes?"p")?"h")')  # (as the self-test does, before it drops the library)
                 for line in mgmt_drop_lines():
                     self.assertEqual(b.type(3, line)[1], "ok")
+                b.spin(1.0)  # (the node lets go of the functions it parsed 300 ms after it has nothing to do)
                 dropped = largest(b, 3)
                 self.assertGreaterEqual(dropped, 0.97 * l3, (l3, dropped))  # (the names the library interned stay, counted)
                 self.assertEqual(b.type(3, '.l("mgmt")', timeout=60)[1], "ok")
                 for line in mgmt_drop_lines():
                     self.assertEqual(b.type(3, line)[1], "ok")
+                b.spin(1.0)
                 self.assertGreaterEqual(largest(b, 3), 0.97 * l3)
-                self.assertGreaterEqual(largest(b, 3), 0.99 * ideal(b, 3))
+                self.assertGreaterEqual(largest(b, 3), 0.98 * ideal(b, 3))  # (the kept trees at the bottom, a few KB, cost up to 2%)
             finally:
                 b.close()
 
@@ -414,6 +416,29 @@ class TestPair(unittest.TestCase):
             # the client holds the library's symbols and the evaluator's tables, tagged: there are blocks of the globals' and symbols' kinds
             kinds = {t for (_, _, t) in [heap(b, 3, 100)[i:i + 3] for i in range(0, len(heap(b, 3, 100)), 3)]}
             self.assertTrue(kinds, kinds)
+        finally:
+            b.close()
+
+    def test_a_node_with_the_library_loaded_and_called_keeps_its_largest_vector(self):
+        # The boards (2026-11-17, node 2 with the library loaded, `mgmt.add` and calls from the bridge): 34.6 KB in use, a count that allowed
+        # about 6,100 elements and a largest vector of 5,000, 58 KB free in 56 chunks, the largest 42 KB: a 2.7 KB table of the globals with 5.9 KB
+        # free right above it, small holes in the top. The model, with the arena where the library is the board's share of it, loses less (about
+        # 4 to 7%: the table was moved, the holes of the top zone are what they are) but in the same place; this keeps it from growing. The calls
+        # are separated by more than the 300 ms after which the node lets go of the functions it parsed.
+        b = Bench(200 * 1024)
+        try:
+            b.spin(40, until=lambda: (b.last_report(3) or "").startswith("klong selftest pass"))
+            b.spin(1)
+            self.assertEqual(b.type(2, '.l("mgmt")', timeout=60)[1], "ok")
+            self.assertEqual(b.type(2, 'mgmt.add("p";"node:3")', timeout=30)[1], "ok")
+            for _ in range(6):
+                self.assertEqual(b.type(2, 'mgmt.call("p";"1+1";[])', timeout=30), ("2", "ok"))
+                b.spin(0.5)
+            got, want = largest(b, 2), ideal(b, 2)
+            self.assertGreaterEqual(got, 0.93 * want, (got, want))
+            s = heap(b, 2, 0)
+            free, largest_free = s[7], s[8]
+            self.assertGreater(largest_free, 0.8 * free, (free, largest_free))
         finally:
             b.close()
 
