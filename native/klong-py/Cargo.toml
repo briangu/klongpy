@@ -1,0 +1,23 @@
+# SPIKE: the native Klong interpreter as a Python extension module (see the report). Not part of the native workspace on purpose:
+# the empty [workspace] table below keeps cargo from looking for one above, so native/Cargo.toml is untouched.
+[package]
+name = "klong-py"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[lib]
+name = "klong_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+klong-core = { path = "../klong-core" }
+klong-rt = { path = "../klong-rt" }
+klong-host = { path = "../klong-host" }
+pyo3 = { version = "0.25", features = ["abi3-py311", "extension-module"] }
+
+[workspace]
+
+[profile.release]
+opt-level = 3
+debug = false

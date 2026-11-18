@@ -115,8 +115,19 @@ impl Interp {
         }
     }
 
+    /// SPIKE: a host array handed to an adverb that is not forwarded becomes a native value.
+    fn unhost(v: Value) -> Result<Value> {
+        if let Value::Ext(e) = &v {
+            if let Some(r) = e.0.host_native() {
+                return r;
+            }
+        }
+        Ok(v)
+    }
+
     pub(crate) fn adverb1(&mut self, ch: &Chain, level: usize, glyph: SymId, a: Value) -> Result<Value> {
         let g = self.syms.name(glyph);
+        let a = if g == "/" { a } else { Self::unhost(a)? };
         match g {
             "'" => self.each(ch, level, a),
             "/" => self.over(ch, level, a),
@@ -150,6 +161,7 @@ impl Interp {
 
     pub(crate) fn adverb2(&mut self, ch: &Chain, level: usize, glyph: SymId, a: Value, b: Value) -> Result<Value> {
         let g = self.syms.name(glyph);
+        let (a, b) = (Self::unhost(a)?, Self::unhost(b)?);
         match g {
             "'" => {
                 if a.is_empty() || b.is_empty() {
@@ -304,6 +316,18 @@ impl Interp {
     }
 
     fn over(&mut self, ch: &Chain, level: usize, a: Value) -> Result<Value> {
+        if let Value::Ext(e) = &a {
+            if let (2, Some(op)) = (ch.verb_arity, self.verb_op(ch, level)) {
+                let op = alloc::string::String::from(op);
+                if let Some(r) = e.0.host_reduce(self, &op, &a) {
+                    return r;
+                }
+            }
+            let n = Self::unhost(a.clone())?;
+            if !matches!(n, Value::Ext(_)) {
+                return self.over(ch, level, n);
+            }
+        }
         if a.is_atom() {
             return Ok(a);
         }

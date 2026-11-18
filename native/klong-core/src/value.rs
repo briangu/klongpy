@@ -685,6 +685,21 @@ pub trait Ext {
     fn join(&self, _ip: &mut crate::interp::Interp, _y: &Value) -> Option<Result<Value>> {
         None
     }
+    /// SPIKE (host arrays): a primitive monad / dyad / reduce (`+/`) with this object among the operands. `None`: not handled
+    /// (the evaluator then raises its usual type error). `glyph` is the operator's text.
+    fn host_monad(&self, _ip: &mut crate::interp::Interp, _glyph: &str, _x: &Value) -> Option<Result<Value>> {
+        None
+    }
+    fn host_dyad(&self, _ip: &mut crate::interp::Interp, _glyph: &str, _x: &Value, _y: &Value) -> Option<Result<Value>> {
+        None
+    }
+    /// SPIKE: the same object as an ordinary native value (a copy), for the primitives that are not forwarded.
+    fn host_native(&self) -> Option<Result<Value>> {
+        None
+    }
+    fn host_reduce(&self, _ip: &mut crate::interp::Interp, _glyph: &str, _x: &Value) -> Option<Result<Value>> {
+        None
+    }
 }
 pub struct ExtBox(pub Box<dyn Ext>);
 

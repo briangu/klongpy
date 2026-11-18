@@ -2490,3 +2490,9 @@ class KlongInterpreter():
             raise
         finally:
             sources.pop()
+
+
+# Engine switch (spike): KLONGPY_ENGINE=rust evaluates through the native Rust interpreter (klongpy/rust_engine.py).
+PyKlongInterpreter = KlongInterpreter  # the Python engine, whatever the switch says (the Rust adapter borrows its parser)
+if os.environ.get('KLONGPY_ENGINE', '').lower() == 'rust':
+    from .rust_engine import RustInterpreter as KlongInterpreter  # noqa: F811

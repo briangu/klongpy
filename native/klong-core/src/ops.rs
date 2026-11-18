@@ -496,7 +496,11 @@ fn array_op(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> 
     }
     if int_result {
         let mut out: Vec<Int> = try_vec(n)?;
-        if op == Atomic::Pow {
+        if op == Atomic::Pow && matches!((&x, &y), (Operand::Ints(_), Operand::One(Num::I(2)))) {
+            if let Operand::Ints(p) = &x {
+                out.extend(p.iter().map(|a| a.wrapping_mul(*a)));
+            }
+        } else if op == Atomic::Pow {
             for i in 0..n {
                 if let (Num::I(p), Num::I(q)) = (x.get(i / xdiv), y.get(i / ydiv)) {
                     out.push(int_pow(p, q));
@@ -508,6 +512,11 @@ fn array_op(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> 
                 (Operand::Ints(p), Operand::Ints(q), Atomic::Add) if xdiv == 1 && ydiv == 1 => out.extend(p.iter().zip(q.iter()).map(|(a, b)| a.wrapping_add(*b))),
                 (Operand::Ints(p), Operand::One(Num::I(q)), Atomic::Add) => out.extend(p.iter().map(|a| a.wrapping_add(*q))),
                 (Operand::Ints(p), Operand::One(Num::I(q)), Atomic::Mul) => out.extend(p.iter().map(|a| a.wrapping_mul(*q))),
+                (Operand::One(Num::I(q)), Operand::Ints(p), Atomic::Add) => out.extend(p.iter().map(|a| q.wrapping_add(*a))),
+                (Operand::One(Num::I(q)), Operand::Ints(p), Atomic::Mul) => out.extend(p.iter().map(|a| q.wrapping_mul(*a))),
+                (Operand::Ints(p), Operand::Ints(q), Atomic::Sub) if xdiv == 1 && ydiv == 1 => out.extend(p.iter().zip(q.iter()).map(|(a, b)| a.wrapping_sub(*b))),
+                (Operand::Ints(p), Operand::Ints(q), Atomic::Mul) if xdiv == 1 && ydiv == 1 => out.extend(p.iter().zip(q.iter()).map(|(a, b)| a.wrapping_mul(*b))),
+                (Operand::Ints(p), Operand::One(Num::I(q)), Atomic::Sub) => out.extend(p.iter().map(|a| a.wrapping_sub(*q))),
                 _ => {
                     for i in 0..n {
                         if let Some(Num::I(v)) = num_op(op, x.get(i / xdiv), y.get(i / ydiv))? {
@@ -522,6 +531,46 @@ fn array_op(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> 
     // A power with a list operand that is not integers to non-negative integers is floats,
     // whole-valued or not, as `*` is (KlongPy); only the scalar power narrows a whole result.
     let mut out: Vec<Flt> = try_vec(n)?;
+    // the common float loops, written so that they vectorise (same-length operands or one scalar)
+    macro_rules! fast {
+        ($f:expr) => {{
+            let f = $f;
+            match (&x, &y) {
+                (Operand::Flts(p), Operand::Flts(q)) if xdiv == 1 && ydiv == 1 => {
+                    out.extend(p.iter().zip(q.iter()).map(|(a, b)| f(*a, *b)));
+                    true
+                }
+                (Operand::Flts(p), Operand::One(q)) => {
+                    let q = q.f();
+                    out.extend(p.iter().map(|a| f(*a, q)));
+                    true
+                }
+                (Operand::One(p), Operand::Flts(q)) => {
+                    let p = p.f();
+                    out.extend(q.iter().map(|b| f(p, *b)));
+                    true
+                }
+                _ => false,
+            }
+        }};
+    }
+    let done = match op {
+        Atomic::Add => fast!(|a: Flt, b: Flt| a + b),
+        Atomic::Sub => fast!(|a: Flt, b: Flt| a - b),
+        Atomic::Mul => fast!(|a: Flt, b: Flt| a * b),
+        Atomic::Div => fast!(|a: Flt, b: Flt| a / b),
+        Atomic::Pow if matches!(&y, Operand::One(Num::I(2))) => match &x {
+            Operand::Flts(p) => {
+                out.extend(p.iter().map(|a| a * a));
+                true
+            }
+            _ => false,
+        },
+        _ => false,
+    };
+    if done {
+        return Ok(shaped_like(like, None, Some(out)));
+    }
     for i in 0..n {
         if let Some(v) = num_op(op, x.get(i / xdiv), y.get(i / ydiv))? {
             out.push(v.f());

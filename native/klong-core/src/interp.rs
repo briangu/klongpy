@@ -160,6 +160,8 @@ enum Prog<'a> {
 pub struct Interp {
     pub syms: Interner,
     pub cfg: Config,
+    /// SPIKE: when set, the value of every statement of the program run at the top level is kept here (KlongPy's `exec`).
+    pub collect: Option<Vec<Value>>,
     globals: Vec<Option<Value>>,
     /// Per global: the scope it was created in (and the `JOURNALED` bit).
     gscope: Vec<u16>,
@@ -225,6 +227,7 @@ impl Interp {
         Interp {
             syms: Interner::new(),
             cfg,
+            collect: None,
             globals: Vec::new(),
             gscope: Vec::new(),
             scopes: alloc::vec![Scope::Plain],
@@ -271,6 +274,19 @@ impl Interp {
         }
         self.globals[i] = Some(v);
         self.generation = self.generation.wrapping_add(1);
+    }
+
+    /// SPIKE: remove a global (`del klong['x']`). True if it was defined.
+    pub fn undefine_global(&mut self, name: &str) -> bool {
+        let Some(s) = self.syms.lookup(name) else { return false };
+        match self.globals.get_mut(s.0 as usize) {
+            Some(slot) if slot.is_some() => {
+                *slot = None;
+                self.generation = self.generation.wrapping_add(1);
+                true
+            }
+            _ => false,
+        }
     }
 
     pub fn global(&self, name: &str) -> Option<Value> {
@@ -357,7 +373,14 @@ impl Interp {
         for &s in &p.stmts {
             self.void = false;
             match self.eval(&p.tree, s, true) {
-                Ok(v) => last = Some(v),
+                Ok(v) => {
+                    if self.running == 1 {
+                        if let Some(c) = self.collect.as_mut() {
+                            c.push(v.clone());
+                        }
+                    }
+                    last = Some(v)
+                }
                 Err(e) => {
                     // unwind whatever the failed statement left behind
                     while self.frames.len() > frames {
@@ -1158,7 +1181,13 @@ impl Interp {
         let def = self.op_def(op)?;
         let f = def.monad.ok_or_else(|| self.unknown_op(op))?;
         let r = match self.eval(tree, arg, false) {
-            Ok(x) => f(self, x),
+            Ok(x) => match &x {
+                Value::Ext(e) => match e.0.host_monad(self, def.glyph, &x) {
+                    Some(r) => r,
+                    None => f(self, x),
+                },
+                _ => f(self, x),
+            },
             Err(e) => Err(e),
         };
         if missing {
@@ -1217,13 +1246,35 @@ impl Interp {
         if self.syms.name(op) == ops::TRACK {
             return Ok(x);
         }
-        let f = self.op_def(op)?.monad.ok_or_else(|| self.unknown_op(op))?;
+        let def = self.op_def(op)?;
+        let f = def.monad.ok_or_else(|| self.unknown_op(op))?;
+        if let Value::Ext(e) = &x {
+            if let Some(r) = e.0.host_monad(self, def.glyph, &x) {
+                return r;
+            }
+        }
         f(self, x)
     }
 
     pub fn dyad(&mut self, op: SymId, x: Value, y: Value) -> Result<Value> {
-        let f = self.op_def(op)?.dyad.ok_or_else(|| self.unknown_op(op))?;
+        let def = self.op_def(op)?;
+        let f = def.dyad.ok_or_else(|| self.unknown_op(op))?;
+        if let Some(r) = self.ext_dyad(def.glyph, &x, &y) {
+            return r;
+        }
         f(self, x, y)
+    }
+
+    /// SPIKE: offer a dyad to the host object among its operands, if any.
+    #[inline]
+    fn ext_dyad(&mut self, glyph: &str, x: &Value, y: &Value) -> Option<Result<Value>> {
+        if let Value::Ext(e) = x {
+            return e.0.host_dyad(self, glyph, x, y);
+        }
+        if let Value::Ext(e) = y {
+            return e.0.host_dyad(self, glyph, x, y);
+        }
+        None
     }
 
     #[inline(never)]
@@ -1237,6 +1288,9 @@ impl Interp {
             return self.define(tree, l, y);
         }
         let x = self.eval(tree, l, false)?;
+        if let Some(r) = self.ext_dyad(def.glyph, &x, &y) {
+            return r;
+        }
         match def.atomic {
             Some(a) => ops::atomic(&self.syms, a, &x, &y),
             None => f(self, x, y),
@@ -1988,6 +2042,9 @@ impl Interp {
                     (1, None) => self.monad(*op, x),
                     (2, Some(y)) => {
                         let def = self.op_def(*op)?;
+                        if let Some(r) = self.ext_dyad(def.glyph, &x, &y) {
+                            return r;
+                        }
                         match def.atomic {
                             Some(a) => ops::atomic(&self.syms, a, &x, &y),
                             None => self.dyad(*op, x, y),
