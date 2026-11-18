@@ -41,8 +41,8 @@ Details are in [PyTorch Backend](torch_backend.md).
 ### Native runtime
 
 * **Recursion depth on small stacks.** The native runtime bounds the depth of nested evaluation and the stack it uses, and reports a range error when either is exceeded. The host binary has a default depth limit of 512 nested evaluations. On 2026-11-16, `f::{:[x;f(x-1);0]};f(240)` ran and `f(255)` gave a range error. A board with a small stack budget gets a smaller depth. The depth a real board allows has not been measured.
-* **Heap needed to load large libraries.** The management library (`.l("mgmt")`) needs a heap of at least 270 KiB on the 64-bit host build: with `--heap-limit 269K` it fails with a memory error and with `270K` it loads. A board whose Klong heap is smaller cannot load it. The figure for a 32-bit build has not been measured.
-* **IPC on a device has not run on hardware.** IPC and timers are tested against a simulated board and against the host binary, and the host build is tested against an open-source q implementation (PeachQ). The only hardware result is the conformance suite on an ESP32-P4 (1266 of 1266 over the serial port, 2026-11-16). IPC over a real link on a board has not been run.
+* **Heap needed to load large libraries.** A load reads one statement at a time and keeps functions as their text. On the 64-bit host the management library (`.l("mgmt")`) loads with `--heap-limit 44K` and fails with `43K` (measured 2026-11-17); `.l("nstat")` peaks at about 322 KB. On a Pico the library loads with about 5 to 6 KB more in use afterwards ([Pico bench](native/pico-bench.md)).
+* **IPC on a device has run only on two Picos.** IPC between nodes and management-library calls have run on two Raspberry Pi Picos of the [Pico bench](native/pico-bench.md) (2026-11-16 and 17). The ESP32-P4 has run the console conformance suite only (the firmware has no IPC), and nothing else has run on hardware. The host build is tested against an open-source q implementation (PeachQ).
 * **One flaky Rust test.** `data_nesting_is_bounded` in `native/klong-core/tests/full.rs` has failed about one run in ten on the development machine. In six runs on 2026-11-16 it passed every time, and the cause is not known.
 * The default native build does not declare the conformance tags `bigint`, `timers`, `ipc` or `desktop`, so the suite does not test those areas for it.
 
@@ -52,9 +52,8 @@ Details are in [PyTorch Backend](torch_backend.md).
 
 ## Planned
 
-None of the following is available.
+None of the following is available. (Hardware kernels on FPGA are not on this list: they exist, are experimental and have run on one Alveo U250, see [Hardware](hardware.md).)
 
-* **Hardware kernels on FPGA from static Klong.** Compile a function in the [static profile](static-profile.md) to a hardware kernel and call it from Klong. No code for it exists in the repository.
 * **A WebAssembly build of the emitted C.** The C emitter produces freestanding C99; compiling that to WebAssembly is not built. The WebAssembly import module name of an extern is reserved for it (see [Compiling Klong to C](embedded.md)).
 * **The native core as an engine under KlongPy.** KlongPy would call the Rust core for evaluation where it can. Today the two implementations are separate and agree only on what the conformance suite covers.
 * **Testing against real kdb+.** The IPC code would be run against a kdb+ server and client, which has not been done.

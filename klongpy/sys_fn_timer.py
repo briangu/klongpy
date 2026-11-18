@@ -52,7 +52,7 @@ def _call_periodic(loop: asyncio.BaseEventLoop, name, interval, callback):
 def eval_sys_fn_timer(klong, x, y, z):
     """
     
-        .timer(x, y, z)                                   [Create-timer]
+        .timer(x;y;z)                                     [Create-timer]
 
         Create a timer named by "x" that repeats every "y" seconds (fractional
         seconds are allowed) and calls function "z".
@@ -73,7 +73,7 @@ def eval_sys_fn_timer(klong, x, y, z):
             .timerc(th)
 
             The following example will create a timer which counts to 20 and then 
-            terminates the timer by return 0 from the callback.
+            terminates the timer by returning 0 from the callback.
 
             counter::0
             u::{counter::counter+1;.p(counter);1}

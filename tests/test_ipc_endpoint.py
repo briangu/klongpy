@@ -689,6 +689,37 @@ class TestLegacy(IPCCase):
         self.assertEqual(uuid.UUID(bytes=rid), mid)
         self.assertEqual(pickle.loads(self._read_exact(s, n)), 2)
 
+    def _legacy_roundtrip(self, port, command="1+1"):
+        """Send one raw legacy frame; the answer, or None when the server closes the connection."""
+        s = socket.create_connection(("127.0.0.1", port), timeout=5)
+        self.addCleanup(s.close)
+        s.sendall(legacy.encode_message(uuid.uuid4(), command))
+        try:
+            self._read_exact(s, 16)
+            (n,) = struct.unpack("!I", self._read_exact(s, 4))
+            return pickle.loads(self._read_exact(s, n))
+        except (AssertionError, ConnectionError):
+            return None
+
+    def test_a_server_with_srv_auth_refuses_legacy_clients(self):
+        # the pickle protocol carries no credentials, so .srv.auth cannot apply to it
+        server = self.repl()
+        port = free_port()
+        self.kg(server, f".srv({port})")
+        self.assertEqual(self._legacy_roundtrip(port), 2)           # no hook: served
+        self.kg(server, ".srv.auth::{0}")
+        self.assertIsNone(self._legacy_roundtrip(port))             # hook set: refused
+        self.kg(server, ".srv.auth::{1}")
+        self.assertIsNone(self._legacy_roundtrip(port))             # even a hook that accepts everyone
+
+    def test_the_size_limit_applies_to_legacy_clients(self):
+        server = self.repl()
+        server['.system']['ipc_max_message'] = 100
+        port = free_port()
+        self.kg(server, f".srv({port})")
+        self.assertEqual(self._legacy_roundtrip(port), 2)
+        self.assertIsNone(self._legacy_roundtrip(port, "1+1" + " " * 500))
+
     @staticmethod
     def _read_exact(s, n):
         buf = b""

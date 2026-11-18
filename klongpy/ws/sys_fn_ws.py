@@ -497,12 +497,9 @@ def eval_sys_fn_shutdown_client(x):
 
         .wsc(x)                                 [Close-Websocket-client]
 
-        Close a remote dictionary or function opened by .ws.
+        Close a WebSocket client opened by .ws.
 
         Returns 1 if closed, 0 if already closed.
-
-        When a connection is closed, all remote proxies / functions tied to this connection
-        will also close and will fail if called.
 
     """
     if isinstance(x, KGCall):

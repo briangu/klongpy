@@ -82,12 +82,18 @@ batch'!10
 .d("Final miss: ");.p(sqrt(loss(angle)))
 
 .p("")
-:" Analytical solution for verification"
+:" Analytical solutions for verification"
 :" For range R = v0^2*sin(2*theta)/g = target"
-:" sin(2*theta) = target*g/v0^2"
-:" theta = 0.5*arcsin(target*g/v0^2)"
-optAngle::0.5*(1.5708-((1-((tgtX*g)%v0sq)^2)^0.5))
-.d("Analytical optimal angle (approx): ");.p(optAngle*57.3)
+:" sin(2*theta) = target*g/v0^2, so there are two angles:"
+:" theta = 0.5*arcsin(target*g/v0^2)           (the flat shot)"
+:" theta = 0.5*(pi-arcsin(target*g/v0^2))      (the lobbed shot)"
+.pyf("math";["asin"])
+sinTwice::(tgtX*g)%v0sq
+flatAngle::0.5*asin(sinTwice)
+lobAngle::0.5*(3.141592653589793-asin(sinTwice))
+.d("Analytical angle, flat shot (deg): ");.p(flatAngle*57.29577951308232)
+.d("Analytical angle, lobbed shot (deg): ");.p(lobAngle*57.29577951308232)
+.p("(The guess of 1.2 rad is on the lobbed side, so descent finds the lobbed one.)")
 
 .p("")
 .p("The gradient propagated through physics equations!")

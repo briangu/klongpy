@@ -18,7 +18,7 @@ pip install yfinance
 
 ## Quick Start
 
-All examples require the torch backend for autograd:
+The examples are written for the torch backend, which computes the gradients with autograd (without it `:>` falls back to finite differences, see [Performance Notes](#performance-notes)):
 
 ```bash
 kgpy --backend torch <example>.kg
@@ -355,7 +355,7 @@ Small differences are expected due to:
 kgpy --backend torch differentiable_physics.kg
 ```
 
-**Expected output:**
+**Expected output** (torch backend on the CPU, float32; the last digits differ on other devices):
 ```
 Differentiable Physics: Projectile Targeting
 =============================================
@@ -366,27 +366,34 @@ Method: Backpropagate through physics equations!
 Target x: 50.0
 Initial velocity: 25.0
 
-Initial angle (rad): 0.5
-Initial angle (deg): 28.65
-Initial range: 53.61
-Initial miss: 3.61
+Initial angle (rad): 1.2
+Initial angle (deg): 68.76
+Initial range: 43.03409
+Initial miss: 6.965912
 
 Optimizing launch angle via gradient descent...
 (Gradients computed through physics equations!)
 
-Epoch 0: angle=25.80 deg, range=49.93, miss=0.07
-Epoch 20: angle=25.85 deg, range=50.0, miss=0.0
+Epoch 0: angle=65.35795 deg, range=48.296566, miss=1.703434
+Epoch 30: angle=64.51664 deg, range=49.495712, miss=0.5042877
 ...
+Epoch 270: angle=64.15372 deg, range=49.999878, miss=0.00012207031
 
 Optimization complete!
-Final angle (deg): 25.85
-Final range: 50.0
-Final miss: 0.0
+Final angle (rad): 1.1196111
+Final angle (deg): 64.15372
+Final range: 49.999878
+Final miss: 0.00012207031
 
-Analytical optimal angle (approx): 27.25
+Analytical angle, flat shot (deg): 25.851095
+Analytical angle, lobbed shot (deg): 64.1489
+(The guess of 1.2 rad is on the lobbed side, so descent finds the lobbed one.)
 
 The gradient propagated through physics equations!
+This technique enables: robot control, game AI, scientific inverse problems
 ```
+
+The target is hit by two angles, because `sin(2*angle)` is the same for `angle` and `90 - angle` degrees: the flat shot at 25.85 degrees and the lobbed shot at 64.15 degrees. Gradient descent starts at 1.2 radians (68.8 degrees) and ends at the lobbed one, within the step budget of the loop (the miss is 0.0001, so the angle is 64.1537 against the exact 64.1489).
 
 **Key concepts:**
 - Projectile range formula: R = (v0^2 * sin(2*angle)) / g
@@ -470,7 +477,7 @@ b::b-(0.1*grads@1)
 ## Performance Notes
 
 With `--backend torch`:
-- Exact gradients via PyTorch autograd
+- Gradients by PyTorch autograd, with no finite-difference error (float32 rounding remains)
 - GPU acceleration (CUDA/MPS) for large arrays
 - Optimized tensor operations
 
@@ -584,7 +591,7 @@ info::.export(f;2.0;"model.pt2")
 
 ## Troubleshooting
 
-**"undefined: ..."** - Variable name conflicts with Klong reserved words. Rename variables to avoid `x`, `y`, `z` in outer scopes.
+**"undefined: ..."** - A name was read before it was defined. Klong has no reserved words, but `x`, `y` and `z` are the arguments of a function, so a global with one of those names is shadowed inside every function body; use other names for globals.
 
 **MPS tensor errors** - Apple Silicon GPU tensors can't convert to numpy. Precompute constants or use CPU.
 

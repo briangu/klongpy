@@ -14,7 +14,7 @@ Each level includes the rules of the one below it. Rules that are errors at ever
 
 | From | How |
 |---|---|
-| The command line | `kgpy --strict` is level 1. `kgpy --strict=2` is level 2. `--strict=0` is the default. A level other than 0, 1 or 2 is refused. |
+| The command line | `kgpy --strict` is level 1. `kgpy --strict=2` is level 2 (`kgpy --strict 2` also, as a lone `0`, `1` or `2` after the bare flag is its level). `--strict=0` is the default. A level other than 0, 1 or 2 is refused. |
 | Python | `KlongInterpreter(strict=2)`. The level is the `strict` property of the interpreter, which can be assigned. Only the integers 0, 1 and 2 are accepted; anything else raises `ValueError`. |
 | Klong code | `.strict()` sets level 1, `.strict(n)` sets level `n`, `.unsafe()` sets level 0. Each returns the new level. |
 

@@ -298,7 +298,7 @@ error: ,: a dictionary can only be joined with a tuple (a list of two members) o
 [:foo :foo]
 ```
 
-**Integers beyond 64 bits are exact.** An operand outside the 64-bit range made `+ - * % < > | &` fail with a Python `OverflowError`, although the language already made such integers (`2^64`, a long literal). The operation is now done on exact integers, in a list as well as on a scalar, and a result that fits in 64 bits again is an ordinary integer. Operands that are both inside 64 bits keep their wrap-around, as before: `9223372036854775807+1` is `-9223372036854775808`. `^` is computed in floating point, so `10^400` is still an error, and `!` is an error for such an operand. The compiled fast path and the interpreter now give the same answer for these expressions.
+**Integers beyond 64 bits are exact.** An operand outside the 64-bit range made `+ - * < > | &` fail with a Python `OverflowError`, although the language already made such integers (`2^64`, a long literal). The operation is now done on exact integers, in a list as well as on a scalar, and a result that fits in 64 bits again is an ordinary integer. Operands that are both inside 64 bits keep their wrap-around, as before: `9223372036854775807+1` is `-9223372036854775808`. `^` of two integer scalars with a non-negative exponent is exact as well (`10^400`; a result beyond about a million bits is a range error), and `!` is an error for such an operand. The compiled fast path and the interpreter now give the same answer for these expressions.
 
 ```kgpy
 ?> 1+9223372036854775808

@@ -2,7 +2,7 @@
 
 KlongPy runs Klong, a small array language. In an array language you apply an operation to a whole list of numbers at once instead of writing a loop. The sum of the numbers 1 to 5 is written `+/1+!5`. This page takes you from installing KlongPy to writing a small script, then points to the part of the documentation that fits what you want to do.
 
-You need Python 3.9 or newer. You do not need to know any other array language.
+You need Python 3.9 to 3.14. You do not need to know any other array language.
 
 ## Install
 

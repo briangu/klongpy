@@ -125,7 +125,7 @@ Once the supervisor has the bridge (`GET /klong` is the page; the routes are `/k
 
 Only one client types at a time, as on the BASIC page: the first input claims control when nobody has it, `--take` asks the one that has it. During a page session only the supervisor should type into the nodes' consoles: output goes to whoever sent input last, so another node typing into a node's console takes its output away from the page. A node typing at the same time as the supervisor is refused (ACK status 2) while an evaluation of the supervisor's input is running.
 
-What works today only in simulation: all of it. `native/tools/bench_bridge_sim.py` serves the same routes in front of the simulator (`cargo build --release` in `native/` first), and `tests/test_native_bench_cli.py` and `native/klong-sim/tests/console_bridge.rs` run the sessions: a REPL, multi-line programs, errors, a runaway loop interrupted, 14 KB of output, upload and run of a file, two nodes in turn, the self-test staying off the console, IPC between nodes while a console is in use.
+What the tests run in simulation, besides the sessions on two Picos described above: `native/tools/bench_bridge_sim.py` serves the same routes in front of the simulator (`cargo build --release` in `native/` first), and `tests/test_native_bench_cli.py` and `native/klong-sim/tests/console_bridge.rs` run the sessions: a REPL, multi-line programs, errors, a runaway loop interrupted, 14 KB of output, upload and run of a file, two nodes in turn, the self-test staying off the console, IPC between nodes while a console is in use.
 
 ## Hardware test plan, two Picos
 

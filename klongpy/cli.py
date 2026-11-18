@@ -339,10 +339,8 @@ def make_evaluate(klong_loop, klong_thread, verbose=False):
 
 
 def _klongpy_version():
-    try:
-        return importlib.metadata.distribution('klongpy').version
-    except importlib.metadata.PackageNotFoundError:
-        return __version__
+    # The source is the one truth: an editable install's metadata can be stale.
+    return __version__
 
 
 def show_repl_header(backend_name, device_name=None, ipc_addr=None):
@@ -628,8 +626,16 @@ def main():
     parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
 
     # --strict[=N]: the bare flag means level 1 and never takes the next word
-    # (which may be the file name) for its value.
-    argv = ['--strict=1' if a == '--strict' else a for a in main_args[1:]]
+    # (which may be the file name) for its value, except a lone 0, 1 or 2, so
+    # that --strict 2 means level 2 instead of level 1 and a file named 2.
+    argv = []
+    bare_strict = False
+    for a in main_args[1:]:
+        if bare_strict and a in ('0', '1', '2'):
+            argv[-1] = f'--strict={a}'
+        else:
+            argv.append('--strict=1' if a == '--strict' else a)
+        bare_strict = a == '--strict'
     lint_rest = []
     if '--lint' in argv:
         # file names may be spread between the options: take what is left over

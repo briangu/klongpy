@@ -14,7 +14,7 @@ To stop the timer, it can be closed via:
 ```
 
 The following example will create a timer which counts to 5 and then 
-terminates the timer by return 0 from the callback.
+terminates the timer by returning 0 from the callback.
 
 ```
 counter::0

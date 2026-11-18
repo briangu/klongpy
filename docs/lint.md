@@ -24,7 +24,7 @@ $ echo 'my_var::5' | kgpy --lint - -v
 0 errors, 1 warning in 1 file
 ```
 
-The file name `-` reads standard input, which the examples on this page use to stay short. `-v` goes after the file names: `kgpy --lint -v demo.kg` is an error, because `--lint` needs at least one file name.
+The file name `-` reads standard input, which the examples on this page use to stay short. The options may come in any order: `kgpy --lint -v demo.kg` and `kgpy --lint demo.kg -v` are the same. `--lint` with no file name is an error.
 
 Lint finds the same sort of mistake as [strict mode](strict.md), but in a file, before it runs, and without needing the mistake to happen on the path that is taken.
 

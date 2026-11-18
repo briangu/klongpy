@@ -12,9 +12,9 @@
 
 # KlongPy: the Klong array language in Python
 
-KlongPy is a Python implementation of [Klong](https://t3x.org/klong), an [array language](https://en.wikipedia.org/wiki/Array_programming). You write `+/a` for the sum of an array instead of a loop, and the work runs on [NumPy](https://numpy.org/) or, optionally, [PyTorch](https://pytorch.org/) (CPU, CUDA and Apple MPS). With the torch backend `f:>x` gives the exact gradient of a Klong function; with NumPy it is computed numerically. You can call Python from Klong and Klong from Python.
+KlongPy is a Python implementation of [Klong](https://t3x.org/klong), an [array language](https://en.wikipedia.org/wiki/Array_programming). You write `+/a` for the sum of an array instead of a loop, and the work runs on [NumPy](https://numpy.org/) or, optionally, [PyTorch](https://pytorch.org/) (CPU, CUDA and Apple MPS). With the torch backend `f:>x` gives the gradient of a Klong function by autograd; with NumPy it is computed numerically (finite differences). You can call Python from Klong and Klong from Python.
 
-Full documentation: [https://briangu.github.io/klongpy](https://briangu.github.io/klongpy). New here? Read [Start Here](docs/getting-started.md).
+Full documentation: [https://www.klongpy.org/](https://www.klongpy.org/). New here? Read [Start Here](docs/getting-started.md).
 
 ## Install
 
@@ -80,14 +80,14 @@ f::{x^2}; s::5.0
 - **Readable [errors](docs/errors.md)** with a position, a kind and the source line
 - **[Strict mode](docs/strict.md)** in three levels and **[a linter](docs/lint.md)**: `kgpy --lint file.kg`
 - **[A better REPL](docs/repl.md)**: multi-line entry, completion, history and `it`
-- **[kdb+ compatible IPC](docs/ipc_capabilities.md)**: the default wire protocol is kdb+, with tables, timestamps and credentials
+- **[kdb+ compatible IPC](docs/ipc_capabilities.md)**: the default wire protocol is kdb+, with tables, timestamps and credentials (tested against PeachQ, a kdb+-compatible implementation, not against kdb+ itself)
 - **[The torch backend](docs/torch_backend.md)** and exact gradients
-- **[A conformance suite](docs/conformance.md)** of 1294 cases that does not depend on one implementation
+- **[A conformance suite](docs/conformance.md)** of 1294 cases that does not depend on one implementation (see [Conformance](docs/conformance.md#why-the-counts-differ) for the counts)
 - **[Compiling a static subset of Klong to C](docs/embedded.md)** for small targets
 - **[A native Rust runtime](docs/native/index.md)** that runs the full language without Python, including on an [ESP32-P4](docs/native/esp32-p4.md)
 - **Documentation that is checked by a tool**: the examples in the documentation are run by `scripts/check_docs.py`
 
-Planned and not available: hardware kernels on FPGA and a WebAssembly build. See the [roadmap](docs/roadmap.md).
+On hardware: FPGA kernels from the static subset are experimental and have run on one Alveo U250 ([hardware](docs/hardware.md)); the native runtime has run on an ESP32-P4 and on two Raspberry Pi Picos, and nothing else has been run on hardware ([status table](docs/native/index.md#status-what-has-and-has-not-been-proven)). Planned and not available: a WebAssembly build. See the [roadmap](docs/roadmap.md).
 
 ## More examples
 
@@ -135,7 +135,7 @@ KlongPy's network features assume every peer is trusted. Use them on a trusted n
 
 - **IPC (`.srv`, `.cli`)**: a connected peer can run arbitrary Klong, and through it arbitrary Python (`.py`, `.pyf`) and shell commands (`.sys`). It can also call any function you have defined and assign any variable.
 - **IPC wire format**: the default path speaks the kdb+ IPC protocol and does not unpickle anything from the network. Message size is limited (`.system` key `ipc_max_message`, 256 MiB by default). The legacy pickle mode (`KLONGPY_IPC=legacy`, or a `.srv` left on `auto` that sees an old client) still unpickles messages, which runs code chosen by the sender, and is deprecated. Use it on trusted networks only, or set `KLONGPY_IPC=kdb` to refuse it.
-- **No encryption, optional login**: IPC credentials (`"host:port:user:password"`) and all data are sent in clear text and there is no TLS. A server accepts every client unless the program defines `.srv.auth`. `.web` has no login or access control.
+- **No encryption, optional login**: IPC credentials (`"host:port:user:password"`) and all data are sent in clear text and there is no TLS. A server accepts every client unless the program defines `.srv.auth`; with it defined, a legacy pickle client (which has no credentials) is refused, and the message size limit applies to legacy clients too. `.web` has no login or access control.
 - **Bind address**: `.srv(8888)` and `.web(8888;...)` listen on all interfaces (`0.0.0.0`). Anyone who can reach the port has the access above. `.web` routes run the Klong functions you register with the request parameters.
 - **KVS and tables**: keys are used as file names under the store root without checking that they stay inside it, and values are pickled on disk. Treat the root directory as trusted storage and do not load stores you did not write.
 - **`.db`**: the string you pass is executed as SQL by DuckDB as given.

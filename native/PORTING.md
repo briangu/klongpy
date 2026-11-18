@@ -126,7 +126,7 @@ Static RAM is 48 bytes (`.data` + `.bss`) beside the heap. The Klong library is 
 `.rodata` (feature `lib`). These images have no IPC and no timers: IPC adds roughly 42 KB on
 thumbv7em and 59 KB on riscv32imac, timers 1.7 and 2.5 KB, the `mgmt` library 12.7 KB, and
 `.try` and `.err` 1.7 and 2.3 KB (older figures, not re-measured). The ESP32-P4 image is
-692 KB (speed profile, with ESP-IDF).
+691,328 bytes flashed (speed profile, with ESP-IDF).
 
 RAM:
 - Console state: 432 bytes (32-bit) inside the board's main structure, plus on the heap at

@@ -64,7 +64,7 @@ See [Python Integration](python_integration.md). `]T expression` at the REPL tim
 - **Readable [errors](errors.md)** with a position, a kind and the source line
 - **[Strict mode](strict.md)** in three levels and **[a linter](lint.md)**: `kgpy --lint file.kg`
 - **[A better REPL](repl.md)**: multi-line entry, completion, history and `it`
-- **[kdb+ compatible IPC](ipc_capabilities.md)**: the default wire protocol is kdb+, with tables, timestamps and credentials
+- **[kdb+ compatible IPC](ipc_capabilities.md)**: the default wire protocol is kdb+, with tables, timestamps and credentials (tested against PeachQ, a kdb+-compatible implementation, not against kdb+ itself)
 - **[The torch backend](torch_backend.md)** and exact gradients
 - **[A conformance suite](conformance.md)** of 1294 cases that does not depend on one implementation
 - **[Compiling a static subset of Klong to C](embedded.md)** for small targets
@@ -91,7 +91,7 @@ Planned and not available: hardware kernels on FPGA and a WebAssembly build. See
 
 KlongPy extends Klong. The list below is short; the cases where its behaviour differs, and the known bugs, are on [Differences from Klong](differences.md).
 
-* **Number precision**: Reals are doubles, where Klong's are arbitrary precision. Integers are 64 bits wide and wrap around on overflow, as in NumPy; an operand beyond 64 bits (a long literal, or `2^64`) makes `+ - * % < > | &` exact, but `^` is computed in floating point.
+* **Number precision**: Reals are doubles, where Klong's are arbitrary precision. Integers are 64 bits wide and wrap around on overflow, as in NumPy; an operand beyond 64 bits (a long literal, or `2^64`) makes `+ - * < > | &` exact (`%` gives a float). `^` of two integer scalars with a non-negative exponent is exact too (`10^400`), up to a result of about a million bits; a list operand wraps like the other operators. See [Differences](differences.md#numbers).
 * **Friendlier syntax**: Destructuring (`[a b]::v`), named parameters (`f(a;b;c;d)::{...}`), evaluated dictionaries (`:{;k;v}`), `d@k` on dictionaries, `.fmt`, `.grad`. Programs for classic Klong run unchanged apart from the cases in [Migrating to v2](migrating-to-v2.md). See [Friendlier Syntax](language-additions.md).
 * **Function arity**: A function has as many arguments as the highest of `x`, `y` and `z` its body uses, so `{-x}` is a monad. A call with fewer arguments is a projection.
 * **Strict mode and lint**: Three [strict levels](strict.md) and [`kgpy --lint`](lint.md) turn silent mistakes into errors or reports. The default is the classic behaviour.

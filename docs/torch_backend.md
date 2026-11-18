@@ -35,7 +35,7 @@ klong = KlongInterpreter(backend="torch", device="cuda")
 | Object dtype | Yes | No |
 | String operations | Yes | Yes (strings and mixed lists are numpy object arrays on the host, not tensors) |
 | GPU acceleration | No | Yes (CUDA/MPS) |
-| Autograd | Numeric only | Native autograd |
+| Autograd (`:>`, `∂`, monad `∇`) | Finite differences | Native autograd |
 | Small array performance | Faster | Slightly slower |
 | Large array performance | Good | Better (especially on GPU) |
 
@@ -50,7 +50,7 @@ Measured on 2026-11-16 on an Apple M2 Ultra (macOS, Python 3.12.9, numpy 2.5.5, 
 | `2*1+!1000000` | 0.698 ms | 0.390 ms | 0.072 ms |
 | `<!100000` (grade up) | 0.602 ms | 2.185 ms | 0.163 ms |
 
-On the CPU, torch is slower than NumPy at 100K elements and about 1.3 to 1.8 times faster for the 1M-element arithmetic; its grade up was 3.6 times slower than NumPy's in this run. The GPU is faster on all four rows. These numbers are from one machine and one run; other hardware and other torch versions will differ. Run `python tests/perf_backend.py --compare` for the full set on your machine (it uses the best device it finds and does not synchronize the GPU).
+On the CPU, torch is slower than NumPy at 100K elements and about 1.3 to 1.8 times faster for the 1M-element arithmetic; its grade up was 3.6 times slower than NumPy's in this run. The GPU is faster on all four rows, though only by a hair on the first. These numbers are from one machine and one run; other hardware and other torch versions will differ. Run `python tests/perf_backend.py --compare` for the full set on your machine (it uses the best device it finds and does not synchronize the GPU).
 
 ## Automatic Differentiation
 
@@ -67,7 +67,7 @@ On Mac, `∂` can be typed directly with **Option + d**. For `∇`, use the Char
 
 ### `:>` Autograd Operator (Recommended)
 
-The `:>` operator uses PyTorch autograd for exact gradients:
+The `:>` operator uses PyTorch autograd, which has no finite-difference error (the values are float32 tensors, so float32 rounding remains):
 
 ```klong
 f::{x^2}         :" Define f(x) = x^2
@@ -80,7 +80,7 @@ The syntax is `function:>point` where:
 
 ### `∇` Numeric Gradient Operator
 
-The `∇` operator **always** uses numeric differentiation (finite differences), regardless of backend:
+The dyad `point∇function` (and `.grad(function;point)`) **always** uses numeric differentiation (finite differences), regardless of backend. The monad `∇function` returns a gradient function that uses autograd on the torch backend:
 
 ```klong
 f::{x^2}         :" Define f(x) = x^2
@@ -93,14 +93,14 @@ The syntax is `point∇function`; the autograd operator `:>` takes the function 
 
 | Operator | Method | Precision | Speed |
 |----------|--------|-----------|-------|
-| `:>` with torch | PyTorch autograd | Exact | Fast |
-| `:>` without torch | Numeric | ~1e-6 error | Slower |
-| `∇` (any backend) | Always numeric | ~1e-6 error on the CPU (see note) | Slower |
+| `:>` with torch | PyTorch autograd | No finite-difference error (float32 rounding) | Fast |
+| `:>` without torch | Numeric | ~1e-9 error on smooth functions | Slower |
+| `point∇function` (any backend) | Always numeric | ~1e-9 error on the CPU (see note) | Slower |
 
 Under the torch backend values are float32 on every device, so the numeric result is coarser. With `f::{x^2}`, `3∇f` gave `6.000000000838668` on the CPU and `5.993843` on MPS (torch 2.15.0).
 
 With the torch backend (`--backend torch` or `backend='torch'`), prefer `:>` for:
-- Exact gradients (no floating-point approximation error)
+- Gradients without finite-difference approximation error (float32 rounding remains)
 - Complex computational graphs
 - Better performance on large arrays
 
@@ -289,7 +289,7 @@ The backend automatically selects the best available device:
 ### MPS Limitations
 
 Apple's MPS backend has some limitations:
-- No float64 support. Float values are float32. (The torch backend on the CPU also produces float32 tensors: `1.5+1e-9` prints `1.5000` on both.)
+- No float64 support. Float values are float32. (The torch backend on the CPU also produces float32 tensors: `1.5+1e-9` is exactly `1.5` on both.)
 - `.gradcheck()` requires the CPU; on MPS it raises `.gradcheck() requires CPU device, got 'mps'`. Run `kgpy --backend torch --device cpu` for it.
 
 ## Mixing with Python
@@ -313,7 +313,7 @@ np_result = result.cpu().numpy()
 
 ## Best Practices
 
-1. **Use torch for large computations**: Switch to torch backend for arrays >100K elements
+1. **Use torch for large computations**: On the CPU, torch is faster than NumPy from about a million elements; on a GPU from about 100K. Below that NumPy is as fast or faster (see [Performance](#performance))
 
 2. **Keep data as tensors**: Avoid unnecessary conversions between numpy and torch
 

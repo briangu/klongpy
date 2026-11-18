@@ -290,6 +290,14 @@ class TestCommandLine(unittest.TestCase):
         self.assertEqual(self.kgpy("--strict=2", "-e", "f::{x};f(1)").stdout.strip(), "1")
         self.assertEqual(self.kgpy("--strict", "-e", "a").stdout.strip(), ":a")
 
+    def test_space_separated_level(self):
+        # --strict 2 is level 2, not level 1 with 2 left over as a file name
+        r = self.kgpy("--strict", "2", "-e", "a")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("undefined: a", r.stderr)
+        self.assertEqual(self.kgpy("--strict", "0", "-e", "1::5").stdout.strip(), "5")
+        self.assertEqual(self.kgpy("--strict=1", "-e", "a").stdout.strip(), ":a")
+
     def test_invalid_level(self):
         for flag in ("--strict=3", "--strict=x", "--strict="):
             r = self.kgpy(flag, "-e", "1")

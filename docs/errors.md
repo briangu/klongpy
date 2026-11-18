@@ -211,7 +211,7 @@ error: unterminated dictionary: the closing } is missing
 error: unterminated comment: the closing " is missing
 ```
 
-A few inputs are errors at every level, because they were never valid: an adverb that does not directly follow a verb (`{1 '2}`, `(f)'3`), and a dictionary literal entry that is not a `[key value]` pair (`:{;1;2}`). They fail when the text is parsed, so a function that contains one now fails when it is defined, not when it is called.
+A few inputs are errors at every level, because they were never valid: an adverb that does not directly follow a verb (`{1 '2}`, `(f)'3`), and a dictionary literal entry that is not a `[key value]` pair (`:{1 2}`), and an evaluated literal with a key and no value (`:{;1;2;3}`). `:{;1;2}` is valid: it is `:{[1 2]}`. They fail when the text is parsed, so a function that contains one now fails when it is defined, not when it is called.
 
 #### From Python
 

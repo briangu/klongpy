@@ -8,7 +8,7 @@ The examples below were run with a second interpreter in the same process, as th
 
 ## The protocol
 
-The connection speaks the kdb+ IPC protocol: the same handshake, message framing and type codes, little-endian, with compression understood (capability 3). A q or other kdb+ client library can connect to a KlongPy `.srv`, send a string to evaluate, or call a Klong function by name, and a KlongPy `.cli` can connect to a q process. kdb+ is a trademark of KX. This is an independent implementation written from public documentation and Apache-licensed client code.
+The connection speaks the kdb+ IPC protocol: the same handshake, message framing and type codes, little-endian, with compression understood (capability 3). A q or other kdb+ client library can connect to a KlongPy `.srv`, send a string to evaluate, or call a Klong function by name, and a KlongPy `.cli` can connect to a q process. kdb+ is a trademark of KX. This is an independent implementation written from public documentation and Apache-licensed client code. It is tested against PeachQ, an open-source kdb+-compatible implementation, and not against kdb+ itself (see the [roadmap](roadmap.md)).
 
 What goes across, in each direction:
 
@@ -277,7 +277,7 @@ Failures of the connection itself are `KlongSystemError` (`KlongIPCException` an
 
 ## Credentials: `.srv.auth`
 
-A server accepts any client unless the program defines `.srv.auth`, a function of the user name and password (both strings) that returns 1 to accept and 0 to refuse. The client sends them in the address. They travel in clear text.
+A server accepts any client unless the program defines `.srv.auth`, a function of the user name and password (both strings) that returns 1 to accept and 0 to refuse. The client sends them in the address. They travel in clear text. A client of the old pickle protocol (see [`KLONGPY_IPC`](#klongpy_ipc-and-the-old-pickle-protocol)) sends no credentials, so a server with `.srv.auth` defined refuses it; the message size limit `ipc_max_message` applies to it as it does to kdb+ clients.
 
 ```kgpy
 server?> .srv.auth::{(x~"bob")&(y~"secret")}
@@ -543,7 +543,7 @@ Before this version, KlongPy sent Python pickles, which only another KlongPy cou
 | `kdb` (the default for `.cli`) | only the kdb+ protocol | the kdb+ protocol |
 | `legacy` | only the pickle protocol | the pickle protocol |
 
-The first use of the pickle protocol in a process prints a `FutureWarning`: "the pickle IPC protocol is deprecated and will be removed". Upgrade the servers first, then the clients. A server on `auto` that sees an old client works, with the warning; `KLONGPY_IPC=kdb` refuses it. A value other than these three is a system error. The unpickling that the old protocol does is why it must only be used on a trusted network.
+The first use of the pickle protocol in a process prints a `FutureWarning`: "the pickle IPC protocol is deprecated and will be removed". Upgrade the servers first, then the clients. A server on `auto` that sees an old client works, with the warning, unless it has `.srv.auth` defined (the old protocol has no credentials, so the client is refused); `KLONGPY_IPC=kdb` always refuses it. A value other than these three is a system error. The unpickling that the old protocol does is why it must only be used on a trusted network.
 
 Two `kgpy` processes, with the server on the default mode and the client on `legacy`:
 

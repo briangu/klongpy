@@ -13,9 +13,9 @@ The functions are the same ones, with the same names and the same wire protocol,
 |---|---|
 | The `klong` program on the desktop, over TCP | built in and tested: with KlongPy in both directions, native to native, and against PeachQ |
 | The simulated board `klong-sim` | built in (`.ver()` lists `ipc`), but it has no transport: `.srv` and `.cli` answer `system error: this platform has no tcp transport` |
-| An ESP32-P4 | **not built in.** The firmware has no IPC: the C interface has no transports yet. Nothing about IPC has run on a board |
-| The nodes of a packet switch that carries 16-byte frames (the Pico bench), `.cli("node:2")` | built in as the `node` transport; proven in the simulator, **not run on hardware**: see [the Pico bench](pico-bench.md) |
-| Links over a UART, or a lossy packet radio | the code is there and was tested in memory with seeded faults (see [below](#links-that-are-not-tcp)); it has not been run on any wire |
+| An ESP32-P4 | **not built in.** The firmware has no IPC: the C interface has no transports yet. The ESP32-P4 has run no IPC (see [the status table](index.md#status-what-has-and-has-not-been-proven)) |
+| The nodes of a packet switch that carries 16-byte frames (the Pico bench), `.cli("node:2")` | built in as the `node` transport; proven in the simulator and run on two Picos of the bench (2026-11-16): see [the Pico bench](pico-bench.md) |
+| Links over a UART, or a lossy packet radio | the code is there and was tested in memory with seeded faults (see [below](#links-that-are-not-tcp)); on a wire it has run only on the UART lanes of the Pico bench, between two Picos |
 
 The `klong` program registers one transport, TCP. A board would supply its own.
 

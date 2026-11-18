@@ -210,7 +210,7 @@ These gave a wrong or accidental result and now give the right one. Each is also
 - Take on a list of lists takes rows; `5#[[1 2] [3 4]]` gave `[[1 2 1 2] [3 4 3 4]]`. `3#7` was a Python `TypeError`, and `2#:foo` was `"fo"`.
 - `[:+]~[:+]` was 0.
 - `1:$"x"` was a `ValueError` and is `:undefined`. `$[1 2 3]` recursed until Python stopped it. `|5`, `&/"abc"` and `+/"abc"` were Python errors, and `[2 2]:^[]` a `ZeroDivisionError`. `:{[1 2]},[1 2 3]` was silently ignored and is an error.
-- Integers beyond 64 bits are exact for `+ - * % < > | &`, where they raised `OverflowError`. `10^400` is still an error, now a Klong one.
+- Integers beyond 64 bits are exact for `+ - * < > | &`, where they raised `OverflowError` (`%` gives a float). `^` of two integer scalars with a non-negative exponent is exact as well, so `10^400` is an integer; only a result too large for that (`10^100000000`) is an error, a Klong one. A list operand to `^` still wraps in 64 bits.
 
 ### A recursive call through `.f` has its own locals
 

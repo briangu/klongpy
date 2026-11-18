@@ -74,9 +74,11 @@ reset the board (DTR/RTS), the tool waits for the banner.
 | Files | RAM file system (`MemFs`) in the same heap: uploads are lost at reset. Flash storage is not done |
 | Features | `files`, `lib`, `timers`; no IPC (the C interface has no transports yet) |
 
-## Not yet verified on the board
+## Verified on the board
 
 The firmware has been built and its C interface tested on the host
 (`cargo test -p klong-ffi`); the same `main.c` was run for an ESP32-C3 under QEMU. On the
-P4 itself everything in the bring-up checklist of `native/PORTING.md` is still to do, in
-particular a runaway loop stopped by Ctrl-C (`{1}{x+1}:~0`) and the watchdogs while it runs.
+P4 itself (2026-11-16) the REPL, a runaway loop stopped by Ctrl-C (`{1}{x+1}:~0`), the embedded
+library, uploads and the conformance suite over the serial port (1266 of 1266) worked: see
+`docs/native/esp32-p4.md`, which has the measurements. IPC (the firmware has none)
+and flash storage (not done) are not there to check.

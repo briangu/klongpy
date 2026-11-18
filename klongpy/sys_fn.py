@@ -742,7 +742,7 @@ def eval_sys_python(klong, x):
 def eval_sys_python_call(klong, x, y, z):
     """
 
-        .pyc(x, y, z)                                      [Python-Call]
+        .pyc(x;y;z)                                        [Python-Call]
 
         Call a python function or class function with args and kwargs.
 
@@ -819,7 +819,7 @@ def eval_sys_python_call(klong, x, y, z):
 def eval_sys_python_attribute(klong, x, y):
     """
 
-        .pya(x, y)                                    [Python-Attribute]
+        .pya(x;y)                                     [Python-Attribute]
 
         Return the attribute named "y" of the Python object "x".
 
@@ -837,11 +837,11 @@ def eval_sys_python_attribute(klong, x, y):
 def eval_sys_python_from(klong, x, y):
     """
 
-        .pyf(x, y)                                         [Python-From]
+        .pyf(x;y)                                          [Python-From]
 
         Import selected sub-modules from a python module in to the current context.
 
-        [See .py() for detials on importing python modules]
+        [See .py() for details on importing python modules]
 
         Example:
 
@@ -1038,13 +1038,11 @@ def eval_sys_write(klong, x):
         For most types of object there is no difference. Only strings
         and characters are printed in a different way:
 
-        Object       | .d(Object) | .w(Object)
-        ----------------------------------------
-        0cx          |  x         | 0cx
-        "test"       |  test      | "test"
-        "say ""hi""\"|  say "hi"  | "say ""hi""\"
-
-        NOTE: the \" was added above to work in docstring
+        Object          | .d(Object) | .w(Object)
+        -------------------------------------------
+        0cx             |  x         | 0cx
+        "test"          |  test      | "test"
+        "say ""hi""\"  |  say "hi"  | "say ""hi""\"
 
         For some objects, there is no readable representation, including
         functions, operators, the undefined object, and the "end of file"

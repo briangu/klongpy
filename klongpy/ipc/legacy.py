@@ -183,10 +183,13 @@ async def stream_send_msg(writer: StreamWriter, msg_id, msg):
     await writer.drain()
 
 
-async def stream_recv_msg(reader: StreamReader):
+async def stream_recv_msg(reader: StreamReader, max_message=None):
     raw_msg_id = await reader.readexactly(16)
     raw_msglen = await reader.readexactly(4)
     msglen = decode_message_len(raw_msglen)
+    if max_message is not None and msglen > max_message:
+        # refused before the body is read or unpickled
+        raise ConnectionError(f"message of {msglen} bytes is larger than the limit of {max_message}")
     data = await reader.readexactly(msglen)
     return decode_message(raw_msg_id, data)
 
@@ -286,7 +289,7 @@ class LegacyConnectionMixin:
 
         """
         try:
-            msg_id, msg = await stream_recv_msg(self.reader)
+            msg_id, msg = await stream_recv_msg(self.reader, self.max_message)
             if msg_id in self.pending_responses:
                 future = self.pending_responses.pop(msg_id)
                 future.set_result(msg)

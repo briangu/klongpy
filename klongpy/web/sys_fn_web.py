@@ -28,11 +28,11 @@ class WebServerHandle:
 def eval_sys_fn_create_web_server(klong, x, y, z):
     """
 
-        .web(x, y, z)                                 [Start Web server]
+        .web(x;y;z)                                   [Start Web server]
 
         Start a web server and return its handle.
 
-        The web server is started at the address specifed by "x":
+        The web server is started at the address specified by "x":
 
         If "x" is an integer, then it is interpreted as a port in "0.0.0.0:<port>".
         if "x" is a string, then it is interpreted as a bind address "<bind>:<port>"

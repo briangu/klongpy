@@ -91,17 +91,22 @@ KlongPy provides two gradient operators and the Jacobian operator `∂`:
 
 ### Numeric Gradient: `∇` (nabla)
 
-The `∇` operator **always** computes gradients using numeric differentiation (finite differences), regardless of which backend is active.
+The dyad `point∇function` (and `.grad(function;point)`) **always** computes the gradient by numeric differentiation (finite differences), whichever backend is active. The monad `∇function` is different: it returns a gradient function that uses autograd on the torch backend and finite differences otherwise (see below).
 
 **Dyad syntax:** `point∇function`
 
-```klong
-f::{x^2}
-3∇f               :" Returns ~6.0 (derivative of x^2 at x=3)
-
-g::{+/x^2}
-[1 2 3]∇g         :" Returns [2 4 6] (gradient of sum of squares)
+```kgpy
+?> f::{x^2}
+:monad
+?> 3∇f
+6.000000000838668
+?> g::{+/x^2}
+:monad
+?> [1 2 3]∇g
+[2.000000000279556 3.9999999996709334 6.000000000838668]
 ```
+
+The first result is the derivative of `x^2` at 3 (about 6) and the second the gradient of the sum of squares (about `[2 4 6]`); finite differences leave an error near 1e-9 on the CPU.
 
 **ASCII form:** `.grad(function;point)` is the same computation with the function first, for keyboards without `∇`. The point is taken by value.
 
@@ -116,41 +121,48 @@ g::{+/x^2}
 [2.000000000279556 3.9999999996709334 6.000000000838668]
 ```
 
-**Monad syntax:** `∇function` returns a gradient function
+**Monad syntax:** `∇function` returns a gradient function. A name cannot contain `_` (it is the Drop operator), so the example calls it `gf`. On the numpy backend the result is by finite differences; on the torch backend it is by autograd and gives `6.0`.
 
-```klong
-f::{x^2}
-grad_f::∇f        :" Create gradient function
-grad_f(3)         :" Compute gradient at x=3
+```kgpy
+?> f::{x^2}
+:monad
+?> gf::∇f
+:monad
+?> gf(3)
+6.000000000838668
 ```
 
 ### PyTorch Autograd: `:>`
 
-The `:>` operator uses PyTorch's automatic differentiation when the torch backend is enabled (`--backend torch`). Falls back to numeric differentiation otherwise.
+The `:>` operator uses PyTorch's automatic differentiation when the torch backend is enabled (`--backend torch`). It falls back to finite differences otherwise. The examples show the numpy result; on torch they are `6.0` and `[2.0 4.0 6.0]` (float32 tensors).
 
 **Syntax:** `function:>point`
 
-```klong
-f::{x^2}
-f:>3              :" Returns 6.0 on torch; on numpy 6.000000000838668 (finite differences)
-
-g::{+/x^2}
-g:>[1 2 3]        :" Returns [2 4 6] (gradient of sum of squares; on numpy, values near these)
+```kgpy
+?> f::{x^2}
+:monad
+?> f:>3
+6.000000000838668
+?> g::{+/x^2}
+:monad
+?> g:>[1 2 3]
+[2.000000000279556 3.9999999996709334 6.000000000838668]
 ```
 
 ### Multi-Parameter Gradients
 
 The `:>` operator can compute gradients for multiple parameters simultaneously when given a list of symbols:
 
-```klong
-w::2.0;b::3.0
-loss::{(w^2)+(b^2)}
-
-:" A list of symbols returns a list of gradients
-loss:>[w b]           :" Returns [4.0 6.0]
+```kgpy
+?> w::2.0;b::3.0
+3.0
+?> loss::{(w^2)+(b^2)}
+:nilad
+?> loss:>[w b]
+[3.9999999996709334 6.000000000838668]
 ```
 
-On the numpy backend the same call returns finite-difference values (`[3.9999999996709334 6.000000000838668]`). The values were produced by running this example on both backends. A single symbol works the same way when `loss` takes no argument: `loss:>w` gives `4.0` (the gradient itself, not a one-element list; on numpy `3.9999999996709334`). A symbol that holds a vector gives the gradient vector. When the function does use its argument (`f::{x^2}`), a symbol on the right is just a variable holding the point: `p::3.0` then `f:>p` is `f:>3.0`.
+The result is a list of gradients, one for each symbol. This is the numpy result (finite differences); the torch backend returns `[4.0 6.0]`. The values were produced by running this example on both backends. A single symbol works the same way when `loss` takes no argument: `loss:>w` gives `3.9999999996709334` on numpy and `4.0` on torch (the gradient itself, not a one-element list). A symbol that holds a vector gives the gradient vector. When the function does use its argument (`f::{x^2}`), a symbol on the right is just a variable holding the point: `p::3.0` then `f:>p` is `f:>3.0`.
 
 ### Jacobian Operator: `∂`
 
@@ -158,13 +170,18 @@ The `∂` (partial derivative) operator computes the Jacobian matrix:
 
 **Syntax:** `point∂function`
 
-```klong
-f::{x^2}              :" Element-wise square
-[1 2]∂f               :" [[2 0] [0 4]] - diagonal Jacobian
-
-g::{+/x^2}            :" Sum of squares (scalar output)
-[1 2 3]∂g             :" [2 4 6] on torch; [[2 4 6]] on numpy (one row, finite differences)
+```kgpy
+?> f::{x^2}
+:monad
+?> [1 2]∂f
+[[2.000000000002 0.0] [0.0 4.000000000115023]]
+?> g::{+/x^2}
+:monad
+?> [1 2 3]∂g
+[[2.000000000279556 3.9999999996709334 6.000000000838668]]
 ```
+
+These are the numpy results (finite differences). On torch the first is the exact diagonal Jacobian `[[2.0 0.0] [0.0 4.0]]` and the second is `[2.0 4.0 6.0]`.
 
 Also available as `.jacobian(function;point)`.
 
@@ -172,14 +189,18 @@ Also available as `.jacobian(function;point)`.
 
 Like gradients, Jacobians can be computed for multiple parameters using a list of symbols:
 
-```klong
-w::[1.0 2.0]
-b::[3.0 4.0]
-f::{w^2}              :" Returns [w0^2, w1^2]
-
-:" Compute Jacobians for both w and b
-[w b]∂f               :" Returns [J_w, J_b]
+```kgpy
+?> w::[1.0 2.0]
+[1.0 2.0]
+?> b::[3.0 4.0]
+[3.0 4.0]
+?> f::{w^2}
+:nilad
+?> [w b]∂f
+[[[2.000000000002 0.0] [0.0 4.000000000115023]] [[0.0 0.0] [0.0 0.0]]]
 ```
+
+`f` returns `[w0^2 w1^2]`, so the result is the list `[J_w J_b]`; `b` does not appear in `f`, so its Jacobian is zero. This is the numpy result; on torch the values are `2.0`, `4.0` and `0.0`.
 
 ### Comparison
 
@@ -187,8 +208,8 @@ The two gradient operators take their arguments in opposite orders: `point∇fun
 
 | Feature | `∇` (nabla) | `:>` (autograd) | `∂` (jacobian) |
 |---------|-------------|-----------------|----------------|
-| Method | Numeric | PyTorch autograd | PyTorch/numeric |
-| Precision | Approximate | Exact | Exact |
+| Method | Numeric (finite differences) on every backend | Autograd on torch, finite differences on numpy | Autograd on torch, finite differences on numpy |
+| Precision | Approximate (about 1e-9 on the CPU) | Exact up to float32 rounding on torch; approximate on numpy | Same as `:>` |
 | Output | Scalar functions | Scalar functions | Vector functions |
 | Syntax | `point∇function` | `function:>point` | `point∂function` |
 | ASCII name | `.grad(function;point)` | `function:>point` | `.jacobian(function;point)` |
@@ -206,38 +227,40 @@ Additional system functions for autograd (require the PyTorch backend; `.gradche
 | `.cmodes()` | Query available compilation modes and backends |
 | `.export(fn;input;path)` | Export computation graph to file |
 
+These examples need the torch backend, so the checker does not run them (they are `klong` blocks, not `kgpy` transcripts).
+
 **Gradient Verification:**
 ```klong
 f::{x^2}
-.gradcheck(f;3.0)     :" Returns 1 if gradients are correct
+.gradcheck(f;3.0)     :" Returns 1 if gradients are correct "
 ```
 
 **Function Compilation:**
 ```klong
 f::{(x^3)+(2*x^2)+x}
-cf::.compile(f;2.0)   :" Returns compiled (faster) function
-cf(5.0)               :" Execute compiled function
+cf::.compile(f;2.0)   :" Returns a compiled function "
+cf(5.0)               :" Execute the compiled function: 180.0 "
 ```
 
 **Extended Compilation:**
 ```klong
-:" Fast compile for development
+:" Fast compile for development "
 cf::.compilex(f;2.0;:{["mode" "reduce-overhead"]})
 
-:" Maximum optimization for production
+:" Maximum optimization for production "
 cf::.compilex(f;2.0;:{["mode" "max-autotune"]})
 
-:" Debug mode (no C++ compiler needed)
+:" Debug mode (no C++ compiler needed) "
 cf::.compilex(f;2.0;:{["backend" "eager"]})
 
-:" Query available options
+:" Query available options "
 info::.cmodes()
 ```
 
 **Graph Export:**
 ```klong
 info::.export(f;2.0;"model.pt2")
-.p(info@"graph")      :" Print computation graph
+.p(info@"graph")      :" Print the computation graph "
 ```
 
 ## Adverbs
@@ -248,8 +271,8 @@ info::.export(f;2.0;"model.pt2")
 | `f@'a` | Each-Index | Apply f to [index;element] pairs |
 | `f/a` | Over | Reduce with f |
 | `f\a` | Scan | Scan with f |
-| `n f'a` | Each-n | Apply f to groups of n |
-| `a f'b` | Each-pair | Apply f to pairs |
+| `a f'b` | Each-2 | Apply f to corresponding elements of `a` and `b`, like a zip (`[1 2 3]{x+y}'[10 20 30]` is `[11 22 33]`) |
+| `f:'a` | Each-pair | Apply f to each pair of neighbours (`{x,y}:'[1 2 3 4]` is `[[1 2] [2 3] [3 4]]`) |
 | `n f:*a` | Iterate | Apply f to a, n times; n must be a non-negative integer |
 | `n f\*a` | Scan-Iterate | Like Iterate, returning every intermediate value |
 | `f:~a` | Converge | Apply f until the result stops changing |

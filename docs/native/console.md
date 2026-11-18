@@ -2,7 +2,7 @@
 
 This page describes the console that a board running the native Klong runtime offers on its serial port: the prompt and line editor, the `^A` command mode that uploads files and runs programs, the simulated board `klong-sim` that you can try all of it on without hardware, and `native/tools/kgupload.py`, the desktop tool that speaks the protocol. It is for people who use a board, write tools for one, or port the runtime to one.
 
-The transcripts below use the simulated board, because the checks of this documentation do not touch a serial device. The console is the same code on a simulated board and on a real one. What has been seen on real hardware is stated on the [ESP32-P4](esp32-p4.md) page, and it is little: the REPL, Ctrl-C and uploads worked on that one board on 2026-11-16.
+The transcripts below use the simulated board, because the checks of this documentation do not touch a serial device. The console is the same code on a simulated board and on a real one. What has been seen on real hardware is stated on the [ESP32-P4](esp32-p4.md) page, and it is little: the REPL, Ctrl-C, uploads and the conformance suite worked on that board on 2026-11-16.
 
 Commands are shown as if `klong-sim` is on your `PATH` (see [Building and Running](building.md)) and as run from the root of the repository.
 
@@ -343,6 +343,6 @@ $ python native/scripts/console_conformance.py | tail -1 | cut -c1-40
 total                         1293  1293
 ```
 
-That passed 1293 of 1293 on 2026-11-16 in about 2.4 seconds with 8 simulated boards. To make the simulation as small as a board, add `-- --stack-budget 64K --heap-limit 1M --crlf`; the simulated runs of the project gave 1265 of 1266 with a 64 KiB stack and 1264 with 32 KiB, because the missing cases recurse deeply and end with a `range` error. The same script ran against a real board, an ESP32-P4: 1266 of 1266 over the serial port in 1877 seconds, see the [ESP32-P4](esp32-p4.md) page.
+That passed 1293 of 1293 on 2026-11-16 in about 2.4 seconds with 8 simulated boards. To make the simulation as small as a board, add `-- --stack-budget 64K --heap-limit 1M --crlf`; the simulated runs of the project gave 1265 of 1266 (the suite of 2026-11-16; see [why the counts differ](../conformance.md#why-the-counts-differ)) with a 64 KiB stack and 1264 with 32 KiB, because the missing cases recurse deeply and end with a `range` error. The same script ran against a real board, an ESP32-P4: 1266 of 1266 over the serial port in 1877 seconds, see the [ESP32-P4](esp32-p4.md) page.
 
 The runner needs a `System::reset` that really resets, because without it all cases share one interpreter and some fail. It needs a banner within `--timeout`, and a `max_run` of at least the largest case (under 4 KiB). The `sysio` cases write files, and on a board without storage you leave them out with `--tags`. `--narrow` selects the cases of a build with `int32,float32`.

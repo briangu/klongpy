@@ -217,11 +217,14 @@ class NumpyBackendProvider(BackendProvider):
 
     def to_int_array(self, a):
         """Convert array to integer type."""
-        return np.asarray(a, dtype=int) if self.is_array(a) else int(a)
+        # a float beyond int64 wraps, as the integer operators do, without a cast warning
+        with np.errstate(invalid='ignore'):
+            return np.asarray(a, dtype=int) if self.is_array(a) else int(a)
 
     def power(self, a, b):
         """Compute a^b, returning integer if result is whole number."""
-        with np.errstate(divide='ignore'):
+        # overflow to inf is answered by the caller (a range error), not by a warning
+        with np.errstate(divide='ignore', over='ignore'):
             r = np.power(float(a) if isinstance(a, (int, np.integer)) else a, b)
         return r
 

@@ -593,6 +593,12 @@ class TcpServerConnectionHandler:
         logging.info(f"Connection error from {str(nc.conn_provider)}")
         self._call_hook('.srv.e', nc, e if isinstance(e, str) else str(e))
 
+    def _has_auth_hook(self):
+        try:
+            return callable(self.klong['.srv.auth'])
+        except KeyError:
+            return False
+
     async def _authenticate(self, nc, user, password):
         """``.srv.auth(user; password)``: 1 accepts, 0 refuses; no hook accepts everyone."""
         try:
@@ -663,9 +669,15 @@ class TcpServerConnectionHandler:
             return
         kwargs = {}
         if verdict == "legacy":
+            # The pickle protocol has no credentials, so it cannot honour .srv.auth: with a
+            # hook set, a legacy peer is refused rather than let in unauthenticated.
+            if self._has_auth_hook():
+                logging.info(f"Server: refusing a legacy pickle client from {host}:{port} (.srv.auth is set)")
+                return
             warn_legacy_once()
             reader = PrefixedReader(prefix, reader)
             kwargs["protocol"] = "legacy"
+            kwargs["max_message"] = self.max_message
         else:
             kwargs.update(protocol="kdb", initial=prefix, authenticate=self._authenticate,
                           max_message=self.max_message)
@@ -872,7 +884,7 @@ def eval_sys_fn_create_client(klong, x):
 
                    f(:avg,,!100)          --> 49.5
 
-            Similary:
+            Similarly:
 
                    b::!100
                    f(:avg,,b)             --> 49.5
@@ -896,7 +908,12 @@ def eval_sys_fn_create_client(klong, x):
             An error on the server is raised here as the error class of its kind, with the
             server's message: a range error there is a range error here. Text from a peer
             that is not a KlongPy server, or a name KlongPy does not know, is a remote error.
-            A connection that fails, is refused or times out is a system error.
+            A server that refuses the handshake (bad credentials, or it is not kdb+)
+            is a system error raised by .cli. When nothing listens on the port, .cli
+            blocks and retries, waiting 5, 10, 20, 40 and 80 seconds (about 155 s),
+            then returns the function as usual, and the first call through it is a
+            system error (connection not established). A call that times out, or whose
+            connection was lost, is a system error too.
 
     """
     x = x.a if isinstance(x,KGCall) else x
@@ -994,7 +1011,7 @@ def eval_sys_fn_shutdown_client(x):
 def eval_sys_fn_client_timeout(x, y):
     """
 
-        .clit(x,y)                                    [Set-IPC-call-timeout]
+        .clit(x;y)                                    [Set-IPC-call-timeout]
 
         Set the call timeout of a remote function or dictionary opened by .cli or .clid
         (or handed to a server hook) to "y" seconds. A call that gets no answer in time
@@ -1053,9 +1070,12 @@ def eval_sys_fn_create_ipc_server(klong, x):
         it disconnects, .srv.e(h;text) on an error that nobody is waiting for, and
         .srv.auth(user;password), which returns 1 to accept a client and 0 to refuse it
         (with no .srv.auth every client is accepted). The hooks run on the Klong loop.
+        The old pickle protocol carries no credentials, so while .srv.auth is defined
+        a pickle client is refused, whatever the hook would answer.
 
         A message larger than the .system key "ipc_max_message" (bytes, 256 MiB when not
-        set, read when a connection is made) closes the connection. Set it before .srv
+        set, read when a connection is made; it applies to pickle clients as well)
+        closes the connection. Set it before .srv
         and .cli, as in .system,"ipc_max_message",1000000.
 
         Security: a bare port listens on all interfaces (0.0.0.0), and a client can
@@ -1149,7 +1169,7 @@ class KGAsyncCall(KGLambda):
 def eval_sys_fn_create_async_wrapper(klong, x, y):
     """
 
-        .async(x,y)                             [Async-function-wrapper]
+        .async(x;y)                             [Async-function-wrapper]
 
         Returns an async functional wrapper for the function "x" and calls "y"
         when completed. The wrapper has the same arity as the wrapped function.

@@ -89,7 +89,7 @@ The `kgpy` executable supports a few useful flags:
 - `-t FILE` Run a test file (non-interactive), one line at a time. A failing line is reported and the run goes on; the process exits after the last line with status 1 if any line failed. It does not start the REPL.
 - `-v` Verbose output. Errors also print the Python traceback.
 - `--traceback` Print the Python traceback with an error, without the other verbose output.
-- `--strict N` Start at [strict level](strict.md) 0, 1 or 2.
+- `--strict=N` Start at [strict level](strict.md) 0, 1 or 2; `--strict` alone is level 1. A lone `0`, `1` or `2` after a bare `--strict` is read as its level (`--strict 2` is `--strict=2`); write `--strict=N` in scripts.
 - `--backend NAME` and `--device DEVICE` Choose the array backend and device (see [PyTorch Backend](torch_backend.md)). `--backend` offers `torch` only where torch is installed.
 - `--lint`, `--check-static`, `--emit-c` and `--dump-ast` check or translate files without running them: see [Lint](lint.md), [Static Profile](static-profile.md), [Compiling Klong to C](embedded.md) and [Conformance Suite](conformance.md).
 

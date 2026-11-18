@@ -192,13 +192,13 @@ def eval_sys_fn_create_table(x):
 def eval_sys_fn_index(x, y):
     """
 
-        .index(x)                                   [Create-Table-Index]
+        .index(x;y)                                 [Create-Table-Index]
 
-        Creates an index on a table as specified by the columns in array "x".
+        Creates an index on the table "x" as specified by the columns in array "y".
         An index may be one or more columns.
 
         t::.table(d)
-        .index(t, ["a"])
+        .index(t;["a"])
 
     """
     if not isinstance(x, Table):
@@ -250,21 +250,21 @@ def eval_sys_fn_schema(x):
 def eval_sys_fn_insert_table(x, y):
     """
 
-        .insert(x, y)                                     [Table-Insert]
+        .insert(x;y)                                      [Table-Insert]
 
         Insert values "y" into a table "x".  The values provided by "y" must be in the
-        corrensponding column position as specified when the table was created.
+        corresponding column position as specified when the table was created.
         If the table is indexed, then the appropriate columns will be used as keys when
         inserting values.  If the table is unindexed, then the values are appended.
 
         Examples:
 
             t::.table(d)
-            .insert(t, [1 2 3])
+            .insert(t;[1 2 3])
 
             for batch inserts supply an array of arrays:
 
-            .insert(t, [[1 2 3] [4 5 6]])
+            .insert(t;[[1 2 3] [4 5 6]])
 
     """
     if not isinstance(x,Table):

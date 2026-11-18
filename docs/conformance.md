@@ -66,7 +66,7 @@ A runtime runs a case only if it declares every tag of the case. There is no "ex
 | `string-fmt` | Depends on the exact float text (Python's `repr`). |
 | `width64` | Needs 64-bit integers or floats; a 32-bit build skips it. |
 | `bigint` | Needs integers beyond the build width. No case uses it yet. |
-| `unicode` | Counts or indexes non-ASCII text (KlongPy counts code points; the native runtime counts bytes). |
+| `unicode` | Counts or indexes non-ASCII text (KlongPy and the native runtime both count code points; a runtime that counts bytes does not declare the tag). |
 | `device` | Needs a depth limit, a heap limit or a console. |
 | `strict1`, `strict2` | The runner starts the interpreter at that strict level. |
 | `numpy-only`, `torch-only`, `kgpy-only` | Behaviour that belongs to one KlongPy backend. |
@@ -160,7 +160,11 @@ $ python native/scripts/console_conformance.py
 total                         1293  1293   in 2.4 s through console of native/target/release/klong-sim, 8 jobs
 ```
 
-`--narrow` runs the tags of a 32-bit build (1160 cases passed on 2026-11-16). With `--port /dev/ttyUSB0` the same script drives a real board over a serial port, one case at a time. On an ESP32-P4 the native runtime passed 1266 of 1266 this way on 2026-11-16 (see [ESP32-P4](native/esp32-p4.md)). That is the only hardware result so far.
+`--narrow` runs the tags of a 32-bit build (1160 cases passed on 2026-11-16). With `--port /dev/ttyUSB0` the same script drives a real board over a serial port, one case at a time. On an ESP32-P4 the native runtime passed 1266 of 1266 this way on 2026-11-16 (see [ESP32-P4](native/esp32-p4.md)). It is the only conformance run on a board; the other hardware results are on the [native status table](native/index.md#status-what-has-and-has-not-been-proven).
+
+### Why the counts differ
+
+The suite has 1294 cases: KlongPy runs all of them (1294 of 1294). The native runtime does not declare some tags (`bigint`, `torch-only`, `kgpy-only`, `timers`, `ipc`, `desktop`), so the host run of the native runtime is 1293 of 1293 with one case skipped by tags. The board run is 1266 of 1266 because the suite had 1266 cases when it was run, on 2026-11-16: 28 cases were added afterwards (mostly in `30-arith.cases` and `60-functions.cases`: exact integer power, calling a value that is not a function). The run takes about 31 minutes and has not been repeated on the board. The numbers are of different suites, not of different tag sets: the same console script declares the same tags on the board and on the host. Running the 1266-case suite of that commit against today's native binary gives 1265 of 1266, the miss being `functions.fn-as-argument-nilad`, whose answer was changed on purpose by the commit that made calling a non-function an error.
 
 ## The pending list
 

@@ -56,7 +56,7 @@ Integers are 64 bits wide. Reals are double precision floats. A number is a real
 
 `%` is real division and `:%` is integer division.
 
-An integer that does not fit in 64 bits wraps around when both operands are ordinary integers. An operand that is itself larger than 64 bits makes the arithmetic exact, so you can compute with large numbers:
+An integer that does not fit in 64 bits wraps around when both operands are ordinary integers. An operand that is itself larger than 64 bits makes the arithmetic exact, so you can compute with large numbers. `^` of two integer scalars with a non-negative exponent is exact too (`2^64` above); a list operand wraps in 64 bits instead:
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -770,7 +770,7 @@ None
 
 (The REPL prints nothing for the value `None`; the checker writes it out.)
 
-`.l("file.kg")` loads and runs a Klong file. The name is looked up in the current directory, then in the directories of the `KLONGPATH` environment variable, and `.kg` may be left off. `KLONGPATH` defaults to `.:lib`. The standard library files (`math`, `csv`, `set`, `nstat` and others) are in the `klongpy/lib` directory of the package, which is not on that path: set `KLONGPATH` to that directory, or copy the file you need, before you load one. The next example writes a small file, using a channel (`.oc` opens one, `.tc` sends output to it and `.cc` closes it), then loads it:
+`.l("file.kg")` loads and runs a Klong file. The name is looked up in the current directory, then in the directories of the `KLONGPATH` environment variable, and `.kg` may be left off. `KLONGPATH` defaults to `.:lib`. The standard library files (`math`, `csv`, `set`, `nstat` and others) are in the `klongpy/lib` directory of the package, which `kgpy` adds to `KLONGPATH` itself, so `.l("nstat")` works in the REPL and in `kgpy -e` without setting anything. A `KlongInterpreter` created from Python does not add it: there, set `KLONGPATH` to that directory, or copy the file you need, before you load one. The next example writes a small file, using a channel (`.oc` opens one, `.tc` sends output to it and `.cc` closes it), then loads it:
 
 <!-- check-docs: continue -->
 ```kgpy

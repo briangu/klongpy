@@ -473,7 +473,7 @@ empty) and `result` is a type or `void`. Types: `int`, `float`, `int[N]`,
 `float[N,M]`, and `str` (extern parameters only). Examples: `"int -> float"`,
 `"float[64] -> float"`, `"int float -> void"`, `"-> int"` (called as `name()`).
 
-- In C an extern is a prototype under the mapped name (`read.adc` is `read_adc`) and an entry is `prog_<name>`. In wasm an extern is an import from `module` and an entry is an export.
+- In C an extern is a prototype under the mapped name (`read.adc` is `read_adc`) and an entry is `prog_<name>`. There is no WebAssembly build yet; it is meant to make an extern an import from `module` and an entry an export.
 - An extern name must not map to a C keyword or start with `kg.`; an entry cannot be called `init`, `t`, `size` or `storage.t` (`prog_init` and the others are generated).
 - `.entry` needs the function to be defined before it and to take as many arguments as the signature has parameters. A function may have several entries with different shapes.
 - A `str` parameter takes a string literal.
@@ -515,7 +515,7 @@ By design, and exercised by tests.
 
 | Case | KlongPy on the host | Compiled |
 |---|---|---|
-| Integer overflow | Python ints do not overflow; numpy int64 wraps | wraps at `kg_int` width (two's complement) |
+| Integer overflow | 64-bit integers wrap, as numpy int64 does (only an operand beyond 64 bits is an exact Python integer) | wraps at `kg_int` width (two's complement) |
 | Float precision | float64 | `kg_float` width; exact with `--float64` |
 | `x%0` | `:undefined`, per element for arrays | `KG_DIV0=trap` calls `kg_trap`; `KG_DIV0=ieee` (default) gives inf or nan |
 | Integer `:%` or `!` by zero | `:undefined` | `kg_trap` always; a constant zero divisor is a compile error |

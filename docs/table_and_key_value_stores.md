@@ -81,7 +81,7 @@ A simple key-value store backed by disk is available via the .kvs() command.
 /tmp/kvs:kvs
 ```
 
-Now a file `/tmp/kvs/hello` exists with a pickled instance of "hello". Only unpickle data you trust.
+Now a file `/tmp/kvs/hello` exists holding the pickled value "world". Only unpickle data you trust.
 
 Retrieving a value is the same as reading from a dictionary:
 

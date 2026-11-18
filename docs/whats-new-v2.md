@@ -144,7 +144,7 @@ See [REPL](repl.md).
 
 ## kdb+ compatible IPC
 
-`.srv` and `.cli` speak the kdb+ IPC protocol by default, so a q process can connect to a KlongPy server and a KlongPy client can call a q process. The wire carries tables (as kdb+ tables), timestamps and timespans, and functions as their source text. A server can check credentials with `.srv.auth`, a call that gets no answer fails after 30 seconds (change it with `.clit`), and an error on the server comes back as a Klong error while the connection stays open. The earlier pickle protocol is still there for a transition and must be used on trusted networks only; `KLONGPY_IPC` chooses. See [Migrating to v2](migrating-to-v2.md#ipc-speaks-the-kdb-protocol).
+`.srv` and `.cli` speak the kdb+ IPC protocol by default, so a q process can connect to a KlongPy server and a KlongPy client can call a q process. The wire carries tables (as kdb+ tables), timestamps and timespans, and functions as their source text. It is tested against PeachQ, a kdb+-compatible implementation, not against kdb+ itself. A server can check credentials with `.srv.auth`, a call that gets no answer fails after 30 seconds (change it with `.clit`), and an error on the server comes back as a Klong error while the connection stays open. The earlier pickle protocol is still there for a transition and must be used on trusted networks only; `KLONGPY_IPC` chooses. See [Migrating to v2](migrating-to-v2.md#ipc-speaks-the-kdb-protocol).
 
 ```kgpy
 server?> .srv.auth::{(x~"bob")&(y~"secret")}
@@ -189,7 +189,7 @@ See [Compiling Klong to C](embedded.md) and [The Static Profile](static-profile.
 
 ## The native Rust runtime
 
-A separate implementation of Klong in Rust runs the full language without Python. It has a serial console and a way to upload programs, kdb+ IPC and timers, and a management node library. It passes all 1266 conformance cases on the host. On an ESP32-P4 the conformance suite passed 1266 of 1266 over the serial port, with a firmware image of 692 KB (measured 2026-11-16). Nothing else has been run on hardware. See [Native Runtime](native/index.md), [Building and Running](native/building.md), [Serial Console and Upload](native/console.md), [ESP32-P4](native/esp32-p4.md), [IPC and Timers](native/ipc.md) and [Management Node](native/management-node.md).
+A separate implementation of Klong in Rust runs the full language without Python. It has a serial console and a way to upload programs, kdb+ IPC and timers, and a management node library. It passes 1293 of 1293 of the conformance cases that it declares on the host (the suite has 1294). On an ESP32-P4 the conformance suite passed over the serial port (1266 of 1266: the suite had 1266 cases that day), with a firmware image of 691,328 bytes (measured 2026-11-16), and on two Raspberry Pi Picos IPC between nodes and management-library calls have run. Nothing else has been run on hardware. The [status table](native/index.md#status-what-has-and-has-not-been-proven) has the details. See [Native Runtime](native/index.md), [Building and Running](native/building.md), [Serial Console and Upload](native/console.md), [ESP32-P4](native/esp32-p4.md), [IPC and Timers](native/ipc.md) and [Management Node](native/management-node.md).
 
 ## Documentation that is checked by a tool
 
@@ -199,7 +199,8 @@ The examples in these pages are run. `scripts/check_docs.py` runs each REPL tran
 
 These do not exist yet. Nothing here can be used.
 
-- **Hardware kernels on FPGA.** Compiling a function of the static profile to a hardware kernel is planned and not started.
 - **A WebAssembly build.** Compiling the emitted C to WebAssembly is planned and not built.
+
+Hardware kernels on FPGA are not on this list: they exist, are experimental, and have run on one Alveo U250 (see [Klong functions as FPGA hardware](hardware.md)).
 
 See [Roadmap](roadmap.md).

@@ -344,7 +344,7 @@ Division by zero gives `:undefined`, not `inf` or an error.
 [1 2 3]
 ```
 
-**Integers are exact beyond 64 bits.** An operand outside the int64 range makes `+ - * % < > | &` use Python integers, where NumPy raises or wraps. Two int64 operands still wrap as in NumPy. `^` is computed in floating point, so `10^400` is an error.
+**Integers are exact beyond 64 bits.** An operand outside the int64 range makes `+ - * < > | &` use Python integers, where NumPy raises or wraps (`%` gives a float). Two int64 operands still wrap as in NumPy. `^` of two integer scalars with a non-negative exponent is exact (`10^400`); on a list it wraps in int64.
 
 ```kgpy
 ?> 9223372036854775807+1

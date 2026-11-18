@@ -138,13 +138,11 @@ is suitable for reading by .r.
 For most types of object there is no difference. Only strings
 and characters are printed in a different way:
 
-Object       | .d(Object) | .w(Object)
-----------------------------------------
-0cx          |  x         | 0cx
-"test"       |  test      | "test"
-"say ""hi"""|  say "hi"  | "say ""hi"""
-
-NOTE: the " was added above to work in docstring
+Object          | .d(Object) | .w(Object)
+-------------------------------------------
+0cx             |  x         | 0cx
+"test"          |  test      | "test"
+"say ""hi"""  |  say "hi"  | "say ""hi"""
 
 For some objects, there is no readable representation, including
 functions, operators, the undefined object, and the "end of file"
@@ -432,9 +430,9 @@ an error.
 | Name | Title | Description |
 |------|-------|-------------|
 | `.py(x)` | Python | Import a Python module and make its functions callable from Klong. |
-| `.pyf(x, y)` | Python-From | Import named functions from a Python module. |
-| `.pya(x, y)` | Python-Attribute | Return an attribute of a Python object, such as a function in an imported module. |
-| `.pyc(x, y, z)` | Python-Call | Call a Python function or method with positional and keyword arguments. |
+| `.pyf(x;y)` | Python-From | Import named functions from a Python module. |
+| `.pya(x;y)` | Python-Attribute | Return an attribute of a Python object, such as a function in an imported module. |
+| `.pyc(x;y;z)` | Python-Call | Call a Python function or method with positional and keyword arguments. |
 | `.bkf(x)` | Backend-Function | Import functions from the active backend's array module (NumPy or torch). |
 
 ### `.py`
@@ -472,12 +470,12 @@ Example:
 
 ### `.pyf`
 
-`.pyf(x, y)` [Python-From]
+`.pyf(x;y)` [Python-From]
 
 ```text
 Import selected sub-modules from a python module in to the current context.
 
-[See .py() for detials on importing python modules]
+[See .py() for details on importing python modules]
 
 Example:
 
@@ -500,7 +498,7 @@ Example:
 
 ### `.pya`
 
-`.pya(x, y)` [Python-Attribute]
+`.pya(x;y)` [Python-Attribute]
 
 ```text
 Return the attribute named "y" of the Python object "x".
@@ -508,7 +506,7 @@ Return the attribute named "y" of the Python object "x".
 
 ### `.pyc`
 
-`.pyc(x, y, z)` [Python-Call]
+`.pyc(x;y;z)` [Python-Call]
 
 ```text
 Call a python function or class function with args and kwargs.
@@ -811,12 +809,12 @@ Defined in the base interpreter. See [Timers](timer.md).
 
 | Name | Title | Description |
 |------|-------|-------------|
-| `.timer(x, y, z)` | Create-timer | Call a function every `y` seconds (fractions allowed) until it returns 0 or the timer is cancelled. |
+| `.timer(x;y;z)` | Create-timer | Call a function every `y` seconds (fractions allowed) until it returns 0 or the timer is cancelled. |
 | `.timerc(x)` | Cancel-timer | Cancel a timer. |
 
 ### `.timer`
 
-`.timer(x, y, z)` [Create-timer]
+`.timer(x;y;z)` [Create-timer]
 
 ```text
 Create a timer named by "x" that repeats every "y" seconds (fractional
@@ -838,7 +836,7 @@ Example:
     .timerc(th)
 
     The following example will create a timer which counts to 20 and then 
-    terminates the timer by return 0 from the callback.
+    terminates the timer by returning 0 from the callback.
 
     counter::0
     u::{counter::counter+1;.p(counter);1}
@@ -878,7 +876,7 @@ Defined in the base interpreter. See [IPC Capabilities](ipc_capabilities.md).
 | `.cli(x)` | Create-IPC-client | Connect to a KlongPy IPC server and return a function that evaluates code remotely. |
 | `.clid(x)` | Create-IPC-dict-client | Connect to a KlongPy IPC server and return a dictionary backed by its variables. |
 | `.clic(x)` | Close-IPC-client | Close a connection opened by `.cli` or `.clid`. |
-| `.async(x,y)` | Async-function-wrapper | Wrap a function so that it runs asynchronously and calls a completion function. |
+| `.async(x;y)` | Async-function-wrapper | Wrap a function so that it runs asynchronously and calls a completion function. |
 
 ### `.srv`
 
@@ -908,9 +906,12 @@ Hooks, set as global functions: .srv.o(h) when a client connects, .srv.c(h) when
 it disconnects, .srv.e(h;text) on an error that nobody is waiting for, and
 .srv.auth(user;password), which returns 1 to accept a client and 0 to refuse it
 (with no .srv.auth every client is accepted). The hooks run on the Klong loop.
+The old pickle protocol carries no credentials, so while .srv.auth is defined
+a pickle client is refused, whatever the hook would answer.
 
 A message larger than the .system key "ipc_max_message" (bytes, 256 MiB when not
-set, read when a connection is made) closes the connection. Set it before .srv
+set, read when a connection is made; it applies to pickle clients as well)
+closes the connection. Set it before .srv
 and .cli, as in .system,"ipc_max_message",1000000.
 
 Security: a bare port listens on all interfaces (0.0.0.0), and a client can
@@ -972,7 +973,7 @@ Evaluation examples:
 
            f(:avg,,!100)          --> 49.5
 
-    Similary:
+    Similarly:
 
            b::!100
            f(:avg,,b)             --> 49.5
@@ -996,7 +997,12 @@ Evaluation examples:
     An error on the server is raised here as the error class of its kind, with the
     server's message: a range error there is a range error here. Text from a peer
     that is not a KlongPy server, or a name KlongPy does not know, is a remote error.
-    A connection that fails, is refused or times out is a system error.
+    A server that refuses the handshake (bad credentials, or it is not kdb+)
+    is a system error raised by .cli. When nothing listens on the port, .cli
+    blocks and retries, waiting 5, 10, 20, 40 and 80 seconds (about 155 s),
+    then returns the function as usual, and the first call through it is a
+    system error (connection not established). A call that times out, or whose
+    connection was lost, is a system error too.
 ```
 
 ### `.clid`
@@ -1062,7 +1068,7 @@ will also close and will fail if called.
 
 ### `.async`
 
-`.async(x,y)` [Async-function-wrapper]
+`.async(x;y)` [Async-function-wrapper]
 
 ```text
 Returns an async functional wrapper for the function "x" and calls "y"
@@ -1563,8 +1569,8 @@ Load with `.py("klongpy.db")`. See [Fast Columnar Database](fast_columnar_databa
 |------|-------|-------------|
 | `.db(x)` | Create-db | Create a DuckDB database from a dictionary of tables. |
 | `.table(x)` | Table-Create | Create a table from column definitions. |
-| `.insert(x, y)` | Table-Insert | Insert rows into a table. |
-| `.index(x)` | Create-Table-Index | Create an index on columns of a table. |
+| `.insert(x;y)` | Table-Insert | Insert rows into a table. |
+| `.index(x;y)` | Create-Table-Index | Create an index on columns of a table. |
 | `.rindex(x)` | Reset-Table-Index | Remove the indexes of a table. |
 | `.schema(x)` | Table-Schema | Return the columns of a table, or the schemas of a database. |
 
@@ -1603,34 +1609,34 @@ Examples:
 
 ### `.insert`
 
-`.insert(x, y)` [Table-Insert]
+`.insert(x;y)` [Table-Insert]
 
 ```text
 Insert values "y" into a table "x".  The values provided by "y" must be in the
-corrensponding column position as specified when the table was created.
+corresponding column position as specified when the table was created.
 If the table is indexed, then the appropriate columns will be used as keys when
 inserting values.  If the table is unindexed, then the values are appended.
 
 Examples:
 
     t::.table(d)
-    .insert(t, [1 2 3])
+    .insert(t;[1 2 3])
 
     for batch inserts supply an array of arrays:
 
-    .insert(t, [[1 2 3] [4 5 6]])
+    .insert(t;[[1 2 3] [4 5 6]])
 ```
 
 ### `.index`
 
-`.index(x)` [Create-Table-Index]
+`.index(x;y)` [Create-Table-Index]
 
 ```text
-Creates an index on a table as specified by the columns in array "x".
+Creates an index on the table "x" as specified by the columns in array "y".
 An index may be one or more columns.
 
 t::.table(d)
-.index(t, ["a"])
+.index(t;["a"])
 ```
 
 ### `.rindex`
@@ -1714,17 +1720,17 @@ Load with `.py("klongpy.web")`. See [Web Server](web_server.md).
 
 | Name | Title | Description |
 |------|-------|-------------|
-| `.web(x, y, z)` | Start Web server | Start an HTTP server with GET and POST routes and return its handle. |
+| `.web(x;y;z)` | Start Web server | Start an HTTP server with GET and POST routes and return its handle. |
 | `.webc(x)` | Stop Web server | Stop a web server. |
 
 ### `.web`
 
-`.web(x, y, z)` [Start Web server]
+`.web(x;y;z)` [Start Web server]
 
 ```text
 Start a web server and return its handle.
 
-The web server is started at the address specifed by "x":
+The web server is started at the address specified by "x":
 
 If "x" is an integer, then it is interpreted as a port in "0.0.0.0:<port>".
 if "x" is a string, then it is interpreted as a bind address "<bind>:<port>"
@@ -1787,24 +1793,21 @@ client. Close it with .wsc.
 `.wsc(x)` [Close-Websocket-client]
 
 ```text
-Close a remote dictionary or function opened by .ws.
+Close a WebSocket client opened by .ws.
 
 Returns 1 if closed, 0 if already closed.
-
-When a connection is closed, all remote proxies / functions tied to this connection
-will also close and will fail if called.
 ```
 
 ## Other
 
 | Name | Title | Description |
 |------|-------|-------------|
-| `.clit(x,y)` | Set-IPC-call-timeout | Set the call timeout of a remote function or dictionary opened by .cli or .clid (or handed to a server hook) to "y" seconds. |
+| `.clit(x;y)` | Set-IPC-call-timeout | Set the call timeout of a remote function or dictionary opened by .cli or .clid (or handed to a server hook) to "y" seconds. |
 | `.grad(x;y)` | Grad | Compute the numeric gradient of function x at point y, using finite differences. |
 
 ### `.clit`
 
-`.clit(x,y)` [Set-IPC-call-timeout]
+`.clit(x;y)` [Set-IPC-call-timeout]
 
 ```text
 Set the call timeout of a remote function or dictionary opened by .cli or .clid

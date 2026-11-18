@@ -113,7 +113,7 @@ Why: the depth walk follows lists, and a string is not one. The test this comes 
 
 ### Numbers
 
-Reals are doubles, where Klong's are arbitrary precision. Integers are 64 bits wide and wrap on overflow, as in NumPy. An operand beyond 64 bits (a long literal, or `2^64`) makes `+ - * < > | &` exact. `%` gives a float. `^` of two integers with a non-negative exponent is exact on a scalar (`7^40`); a negative or fractional exponent gives a float, and a list operand is computed in 64-bit integers like the other operators.
+Reals are doubles, where Klong's are arbitrary precision. Integers are 64 bits wide and wrap on overflow, as in NumPy. An operand beyond 64 bits (a long literal, or `2^64`) makes `+ - * < > | &` exact. `%` gives a float. `^` of two integers with a non-negative exponent is exact on a scalar (`7^40`, `10^400`) while the operand's bit length times the exponent is at most 2^20 (`2^524288` works, `2^524289` does not); beyond that the answer is a float, which overflows to a range error (`10^100000000`). A negative or fractional exponent gives a float, and a list operand is computed in 64-bit integers like the other operators (`[2 3]^40` wraps).
 
 ```kgpy
 ?> 9223372036854775807+1

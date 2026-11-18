@@ -73,4 +73,4 @@ Now that you've installed KlongPy and run a simple session, you're ready to dive
 - [Performance](performance.md) - benchmarking and backend tips.
 - [What's New in v2](whats-new-v2.md) and [Migrating to v2](migrating-to-v2.md) - if you used an earlier release.
 
-For any issues or questions, visit our [Issues](https://github.com/briangu/klongpy/issues) page on GitHub.
+For questions or problems, start a [GitHub Discussion](https://github.com/briangu/klongpy/discussions); the project does not accept issues directly, and maintainers promote validated discussions to issues.

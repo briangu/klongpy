@@ -2,7 +2,7 @@
 
 This section describes the native Klong runtime: a second implementation of the Klong language, written in Rust, that runs on microcontrollers and on a desktop without Python. It is for people who want to run Klong on a small board, or who want to know how that implementation relates to KlongPy and how far it has been tested. This page says what it is, how it relates to KlongPy, what exists today, and what has and has not been proven.
 
-The source is in the `native/` directory of the KlongPy repository. The runtime is new, and it has been run on one real board.
+The source is in the `native/` directory of the KlongPy repository. The runtime is new. It has run its console conformance on an ESP32-P4 board and, on two Raspberry Pi Picos, IPC between nodes and management-library calls; nothing else has been run on hardware (see the [status](#status-what-has-and-has-not-been-proven)).
 
 ## What it is for
 
@@ -58,13 +58,22 @@ Two more things are worth knowing. The REPL of the desktop `klong` program is si
 | `klong-sim` | a simulated board: the real console over a pipe or a pseudo-terminal | [Serial Console and Upload](console.md) |
 | `tools/kgupload.py` | upload, run and reset over a serial port, from Python's standard library alone | [Serial Console and Upload](console.md) |
 | `klong-ffi` | the board runtime as a static library with a C interface, `klong.h` | [Porting to a Board](porting.md) |
-| the ESP32-P4 firmware | the console on the UART of one real board | [ESP32-P4](esp32-p4.md) |
+| the ESP32-P4 firmware | the console on the UART of a real board | [ESP32-P4](esp32-p4.md) |
 | IPC, timers | kdb+ IPC and `.timer`, on the desktop over TCP | [IPC and Timers](ipc.md) |
 | `mgmt` | the management library, `klongpy/lib/mgmt.kg` | [Management Node](management-node.md) |
 
 ## Status: what has and has not been proven
 
-"Proven" here means that it was run, with the result stated. Dates are 2026-11-16. An empty cell means no.
+"Proven" here means that it was run, with the result stated. Dates are 2026-11-16 unless a row says another. An empty cell means no.
+
+This is the one status of what has run on hardware; the other pages link here.
+
+| Hardware | What has run |
+|---|---|
+| An ESP32-P4 board | the console conformance suite over the serial port, the REPL, uploads, the embedded library |
+| Two Raspberry Pi Picos (the [Pico bench](pico-bench.md)) | IPC between nodes over the packet switch, and management-library calls |
+| An Alveo U250 FPGA | experimental kernels built from the static profile of KlongPy (not the native runtime; see [Hardware](../hardware.md)) |
+| Anything else | nothing |
 
 | Area | Result | Where it ran |
 |---|---|---|
@@ -72,18 +81,18 @@ Two more things are worth knowing. The REPL of the desktop `klong` program is si
 | The language, 32-bit build (`int32`, `float32`) | 1160 of 1160 cases that the build declares | desktop |
 | The embedded library | all twelve files load, at strict levels 0, 1 and 2 | desktop |
 | The serial console | 1293 of 1293 cases through `^A run` | simulated boards |
-| The serial console | 1266 of 1266 cases over the serial port, in 1877 seconds | **an ESP32-P4** |
+| The serial console | 1266 of 1266 cases over the serial port, in 1877 seconds (the suite had 1266 cases that day; it has 1294 now, see [Conformance](../conformance.md#why-the-counts-differ)) | **an ESP32-P4** |
 | REPL, line editing, Ctrl-C on a runaway loop, the embedded library, uploads | work | **an ESP32-P4** |
 | Speed | `fib(24)` 4.2 s on the board, against about 35 ms on an Apple-silicon Mac; **the cause is not investigated** | an ESP32-P4 and the Mac |
-| Firmware image | 692 KB | an ESP32-P4 |
+| Firmware image | 691,328 bytes flashed (the current build, not flashed, is 701,360) | an ESP32-P4 |
 | IPC with KlongPy, both directions, every mapped type | passes | desktop, localhost TCP |
 | IPC with a q implementation (PeachQ 0.92.20261115), both directions | passes when the tests are enabled; not run again for this documentation | desktop, localhost TCP |
 | IPC against a KX kdb+ process | not tried | |
-| IPC on a device | **not run**; the ESP32-P4 firmware has no IPC | |
-| IPC over a UART or a lossy link | tested in memory with seeded faults; **never on a wire** | in-process simulation |
+| IPC on a device | passes between two Picos of the Pico bench over a packet switch (2026-11-16, 17); **not run on the ESP32-P4**, whose firmware has no IPC | **two Raspberry Pi Picos** |
+| IPC over a UART or a lossy link | tested in memory with seeded faults; on a wire only the Pico bench's UART lanes, between two Picos | in-process simulation, two Picos |
 | Timers | work | desktop |
 | The management node | works with three native node processes on localhost, and in an in-process test over simulated lossy and serial links | desktop |
-| The management node on boards | **not run** | |
+| The management node on boards | the library loads and management-library calls (`mgmt.call`) work on Picos (2026-11-17); a management board with nodes on UARTs and a pulled cable were **not run** | **two Raspberry Pi Picos** |
 | Flash storage on a board | **not done**; the file system is RAM and is lost at reset | |
 | Arm Cortex-M (`thumbv7em-none-eabihf`) | the image links; it has no start-up code and was **never booted** | |
 | RISC-V without an ESP chip (`riscv32imac`) | the same | |
@@ -101,6 +110,6 @@ Known issues on the board:
 
 * To build it and try it on your computer: [Building and Running](building.md).
 * To see the board console without a board: [Serial Console and Upload](console.md).
-* To use the one real board: [ESP32-P4](esp32-p4.md).
+* To use the ESP32-P4: [ESP32-P4](esp32-p4.md). For the Picos: [Pico bench](pico-bench.md).
 * To connect nodes: [IPC and Timers](ipc.md), then [Management Node](management-node.md).
 * To put it on another chip: [Porting to a Board](porting.md).
