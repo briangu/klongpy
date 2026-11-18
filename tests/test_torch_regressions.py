@@ -1,5 +1,5 @@
 """
-The torch backend after the wave-1 changes.
+The torch backend: regressions found during the 2.0 work.
 
 Everything here runs only with `--backend torch` (the numpy run skips it).
 

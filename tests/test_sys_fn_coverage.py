@@ -4,6 +4,8 @@ import sys
 import tempfile
 import unittest
 
+from klongpy.core import KLONG_UNDEFINED
+
 from klongpy import KlongInterpreter, KlongException
 from tests.backend_compat import requires_strings
 from klongpy.core import KGChannel, KGChannelDir, KGSym, KGLambda
@@ -249,7 +251,7 @@ class TestReadEOF(unittest.TestCase):
             with eval_sys_input_channel(fname) as in_chan:
                 eval_sys_from_channel(klong, in_chan)
                 result = eval_sys_read(klong)
-                self.assertIsNone(result)
+                self.assertIs(result, KLONG_UNDEFINED)     # not Python None, which printed as "None"
                 self.assertTrue(in_chan.at_eof)
         finally:
             os.unlink(fname)

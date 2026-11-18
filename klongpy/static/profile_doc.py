@@ -72,7 +72,7 @@ def generated_block():
                 rule_rows.append((f"`{r.id}`", title, _cell(r.title)))
     parts.append("### Errors\n\nEvery rejection is a `static error` that ends in one of these rule ids.\n\n"
                  + _table(("Rule id", "Group", "Rejected"), rule_rows))
-    parts.append("### Rules for streaming kernels\n\n`kgpy --check-static --streamable` reports these as the same kind of error, for a program "
+    parts.append("### Rules for streaming kernels\n\n`kgpy check --streamable` reports these as the same kind of error, for a program "
                  "that is inside the profile but would not take one record per clock cycle in an FPGA kernel "
                  "(see [Extra rules for FPGA kernels](#extra-rules-for-fpga-kernels)).\n\n"
                  + _table(("Rule id", "Reported when", "Change"), [(f"`{r.id}`", _cell(r.title), _cell(r.hint)) for r in STREAM_RULES.values()]))
@@ -91,7 +91,7 @@ unchanged under KlongPy and gives the same answers when compiled; the
 [Klong functions as FPGA hardware](hardware.md).
 
 ```
-kgpy --check-static prog.kg
+kgpy check prog.kg
 ```
 
 checks a program against the profile without running it. Every problem is
@@ -340,7 +340,7 @@ A compiled program differs from the interpreter in a few specified ways: integer
 
 ## What is checked without running the program
 
-`kgpy --check-static` never evaluates anything. The type of a global is
+`kgpy check` never evaluates anything. The type of a global is
 known to it when the definition is a literal (`pos::0`,
 `buf::[0.0 0.0 0.0 0.0]`); the value of any other compile-time definition
 (`taps::raw%+/raw`) exists only once the host has evaluated it. Such a global
@@ -363,11 +363,11 @@ with the results KlongPy gives (`.expect`):
 
 ## Extra rules for FPGA kernels
 
-These rules apply only to programs built as FPGA kernels (`kgpy --emit-hls`, `kgpy --hw-build`); C does not need them. [Klong functions as FPGA hardware](hardware.md) shows the flow. A kernel is one of two kinds. A *streaming kernel*, the default, takes one record per clock cycle when the program allows it. A *wrapped kernel* (`--hls-wrapped`) runs the program's C unchanged once per record and is slower.
+These rules apply only to programs built as FPGA kernels (`kgpy fpga source`, `kgpy fpga build`); C does not need them. [Klong functions as FPGA hardware](hardware.md) shows the flow. A kernel is one of two kinds. A *streaming kernel*, the default, takes one record per clock cycle when the program allows it. A *wrapped kernel* (`--wrapped`) runs the program's C unchanged once per record and is slower.
 
 ### Parameters in a kernel
 
-A `.param` is a register of the kernel (an `s_axilite` argument). With `--lanes N` the kernel holds N copies of the program, the N values of every parameter are one table in card memory that the kernel reads when it starts, and `.hw.set` fills the table. The host runtime cannot write an array to a register, which is why a table is used.
+A `.param` is a register of the kernel (an `s_axilite` argument). With `--lanes N` the kernel holds N copies of the program, the N values of every parameter are one table in card memory that the kernel reads when it starts, and `.fpga.set` fills the table. The host runtime cannot write an array to a register, which is why a table is used.
 
 ### A summary entry
 
@@ -387,7 +387,7 @@ $ cat > sum_demo.kg <<'EOF'
 > .entry("step";"float -> void")
 > .entry("report";"-> float[2]")
 > EOF
-$ kgpy --check-static sum_demo.kg
+$ kgpy check sum_demo.kg
 sum_demo.kg: inside the static profile (2 functions, 2 entries, 0 externs, 2 globals)
 ```
 
@@ -395,7 +395,7 @@ Every other target does the same by hand: `call_entry(klong, "step", x)` for eac
 
 ### Checking that a kernel can stream
 
-`kgpy --check-static --streamable prog.kg` answers a second question about a program that is inside the profile: can a hardware kernel take one record per clock cycle? It reports, with the span of the construct and what to change, each of:
+`kgpy check --streamable prog.kg` answers a second question about a program that is inside the profile: can a hardware kernel take one record per clock cycle? It reports, with the span of the construct and what to change, each of:
 
 * a loop with a data-dependent bound (`stream-loop`);
 * state that is read and written back through a multi-cycle operation, a float operation or a division by a value that is not a constant (`stream-state`);

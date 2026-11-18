@@ -4,7 +4,7 @@ compiled ahead of time? (docs/static-profile.md.)
 
     check_source(text, name="<string>", **options) -> StaticReport
     check_file(path, **options)                    -> StaticReport
-    check_main(files, ...)                         -> exit status (kgpy --check-static)
+    check_main(files, ...)                         -> exit status (kgpy check)
 
 The checker reads a program; it never runs it. It parses at strict level 2,
 sorts the top-level statements into stages, and then walks every run-time
@@ -17,7 +17,7 @@ How the pass is built
 
 1. Parse (strict level 2), resuming at the next top-level statement after a
    syntax error. ``.l("file")`` is followed by reading and parsing that file
-   under the same rules (found the way kgpy --lint finds it).
+   under the same rules (found the way kgpy lint finds it).
 2. Classify each top-level statement by the root of its tree:
    ``name::{...}`` and ``name(a;b)::{...}`` are run-time functions; any other
    ``name::expr`` is a compile-time value (a global); ``.extern``, ``.entry``
@@ -2266,7 +2266,7 @@ def check_file(path, **options):
 
 def check_main(files, int_bits=32, verbose=False, stdout=None, stderr=None, color=False, streamable=False):
     """
-    The body of ``kgpy --check-static FILE...``. Every problem of every file is
+    The body of ``kgpy check FILE...``. Every problem of every file is
     printed to stderr, rendered like any KlongPy error; a file inside the
     profile gets one line on stdout. Returns the exit status: 1 if any file
     is outside the profile, 2 if a file could not be read (and none was

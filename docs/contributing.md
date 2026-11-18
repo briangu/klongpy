@@ -28,7 +28,7 @@ This page is for someone who has cloned the repository and wants to build it, ru
 | `autograd.py`, `sys_fn_autograd.py` | Gradients and the autograd system functions. |
 | `sys_fn.py`, `sys_var.py`, `sys_fn_timer.py`, `sys_fn_ipc.py`, `sys_fn_static.py` | System functions and variables. `.entry` and `.extern` are in `sys_fn_static.py`. |
 | `errors.py`, `writer.py` | The error classes with positions, and the output formatting. |
-| `lint.py`, `dump.py` | `kgpy --lint`, and the canonical parse-tree dump used by the golden trees. |
+| `lint.py`, `dump.py` | `kgpy lint`, and the canonical parse-tree dump used by the golden trees. |
 | `cli.py`, `repl.py`, `repl_input.py`, `help_index.py` | The `kgpy` command, the REPL and its help. |
 | `ipc/` | The kdb+ IPC codec, sessions, compression and endpoints. |
 | `static/` | The static profile: checker, type inference, the IR and the C emitter. |

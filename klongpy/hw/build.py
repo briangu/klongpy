@@ -1,19 +1,19 @@
 """
-``kgpy --hw-build FILE...``: a bitstream for the Alveo U250 from static Klong programs, cached by source.
+``kgpy fpga build FILE...``: a bitstream for the Alveo U250 from static Klong programs, cached by source.
 
-The work happens on the build machine ($KLONG_HW_BUILD, ``user@host``) under ``<root>/builds/<key>/``:
+The work happens on the build machine ($KLONG_FPGA_BUILD, ``user@host``) under ``<root>/builds/<key>/``:
 
-    src/<program>/   the files of ``--emit-hls`` (C, top function, test bench, tcl)
+    src/<program>/   the files of ``kgpy fpga source`` (C, top function, test bench, tcl)
     xo/              one Vitis kernel object per entry (Vitis HLS, ``KG_EXPORT=1``)
     link.cfg         connects every kernel's m_axi ports to DDR[0]
     build.sh         the whole flow; started detached (nohup, setsid), so a dropped ssh session changes nothing
-    build.log, phase, build.pid, started, exit-code     progress, read by ``--status`` and ``--wait``
+    build.log, phase, build.pid, started, exit-code     progress, read by ``kgpy fpga status`` and ``kgpy fpga build --wait``
     <image>.xclbin   the image (renamed ``*.timing-failed.xclbin`` when routed timing is not met)
     build.json       key, source hash, tools, clock, WNS, utilisation, wall time, SHA-256 (written by gate.py)
 
 The key is the cache key of emit_hls (one program) or the hash of the keys of the programs (several programs
 in one image). A finished passing build is reused; ``--force`` builds again. One build runs at a time on the
-machine: ``--hw-build`` refuses while another of ours runs or any Vivado or v++ process runs, and the script
+machine: ``kgpy fpga build`` refuses while another of ours runs or any Vivado or v++ process runs, and the script
 checks again when it starts. A failing image is never retried at another clock: the tool prints the clock
 that the slack suggests, and the next build is the caller's decision.
 """
@@ -36,13 +36,13 @@ BUSY = 75
 
 
 def env_vitis_settings(env=None):
-    """The Vitis settings script to source ($KLONG_HW_VITIS_SETTINGS), or None: v++ and vitis_hls are on the PATH of the machine."""
-    return (env if env is not None else os.environ).get("KLONG_HW_VITIS_SETTINGS", "").strip() or None
+    """The Vitis settings script to source ($KLONG_FPGA_VITIS_SETTINGS), or None: v++ and vitis_hls are on the PATH of the machine."""
+    return (env if env is not None else os.environ).get("KLONG_FPGA_VITIS_SETTINGS", "").strip() or None
 
 
 def env_platform_repo_paths(env=None):
-    """Where the U250 platform (xilinx_u250_gen3x16_xdma_4_1_202210_1) is installed ($KLONG_HW_PLATFORM_REPO_PATHS), or None."""
-    return (env if env is not None else os.environ).get("KLONG_HW_PLATFORM_REPO_PATHS", "").strip() or None
+    """Where the U250 platform (xilinx_u250_gen3x16_xdma_4_1_202210_1) is installed ($KLONG_FPGA_PLATFORM_REPO_PATHS), or None."""
+    return (env if env is not None else os.environ).get("KLONG_FPGA_PLATFORM_REPO_PATHS", "").strip() or None
 
 
 _KEY = re.compile(r"[0-9a-f]{64}(-hw_emu)?\Z")
@@ -51,7 +51,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 class Plan:
-    """What one ``--hw-build`` builds: the HLS outputs of the programs, the key, the image name."""
+    """What one ``kgpy fpga build`` builds: the HLS outputs of the programs, the key, the image name."""
     def __init__(self, outputs, clock_mhz, target="hw", lanes=1):
         from ..static.emit_hls import PLATFORM
         self.outputs = outputs
@@ -101,7 +101,7 @@ def plan_for(files, int_bits=32, clock_mhz=300, target="hw", wrapped=False, lane
 
 def find_image(files, host="env", int_bits=32, clock_mhz=300, lanes=None):
     """
-    The image built from exactly this source (by key) on ``host`` (default $KLONG_HW_HOST; the card host is the build
+    The image built from exactly this source (by key) on ``host`` (default $KLONG_FPGA_HOST; the card host is the build
     machine today): (path of the .xclbin, build.json dict). Raises StaleImage, with the build command, when there is none,
     when the build failed timing, or when it is not finished; an image of other source is never returned.
     """
@@ -109,13 +109,13 @@ def find_image(files, host="env", int_bits=32, clock_mhz=300, lanes=None):
     target = host_target() if host == "env" else host
     lanes = lanes if lanes and lanes > 1 else None
     plan = plan_for(files, int_bits, clock_mhz, lanes=lanes)
-    cmd = "kgpy --hw-build %s%s%s" % (" ".join(files), "" if clock_mhz == 300 else " --clock-mhz %d" % clock_mhz,
+    cmd = "kgpy fpga build %s%s%s" % (" ".join(files), "" if clock_mhz == 300 else " --clock-mhz %d" % clock_mhz,
                                       " --lanes %d" % lanes if lanes else "")
     b = Builder(Remote(target=target))
     st = b.state(plan.dirname)
     meta = st.get("build") or {}
     if st["state"] == "running":
-        raise StaleImage("the image for this source (key %s) is still being built; wait: kgpy --hw-build --wait" % plan.key[:16])
+        raise StaleImage("the image for this source (key %s) is still being built; wait: kgpy fpga build --wait" % plan.key[:16])
     if st["state"] != "passed" or not meta.get("passed"):
         why = "failed routed timing" if st["state"] == "failed" else "does not exist"
         raise StaleImage("no usable image for this source (key %s): the build %s. Build it with: %s" % (plan.key[:16], why, cmd))
@@ -130,7 +130,7 @@ def suggest_clock(clock_mhz, wns_ns):
 
 
 class Builder:
-    """The build machine side. ``remote`` is a Remote (default: $KLONG_HW_BUILD); ``root`` its fixed root."""
+    """The build machine side. ``remote`` is a Remote (default: $KLONG_FPGA_BUILD); ``root`` its fixed root."""
     def __init__(self, remote=None, vitis_settings="env", platform_repo="env", xrt=XRT_DIR):
         self.remote = remote or Remote()
         self.root = self.remote.root
@@ -153,7 +153,7 @@ class Builder:
     def script(self, plan):
         q = shlex.quote
         B = self.dir_of(plan.dirname)
-        L = ["#!/usr/bin/env bash", "# generated by kgpy --hw-build; do not edit", "set -u",
+        L = ["#!/usr/bin/env bash", "# generated by kgpy fpga build; do not edit", "set -u",
              "ROOT=" + q(self.root), "B=" + q(B), 'cd "$B" || exit 2', "echo $$ > build.pid", "date +%s > started",
              "rm -f exit-code", "mkdir -p logs xo",
              "log() { echo \"== $(date '+%F %T') $*\"; }",
@@ -168,11 +168,11 @@ class Builder:
                   "source %s >/dev/null 2>&1" % q(self.vitis_settings)]
         else:
             L += ["if ! command -v v++ >/dev/null 2>&1 || ! command -v vitis_hls >/dev/null 2>&1; then "
-                  "log 'v++ or vitis_hls not found: set KLONG_HW_VITIS_SETTINGS to the settings64.sh of Vitis'; finish 2; fi"]
+                  "log 'v++ or vitis_hls not found: set KLONG_FPGA_VITIS_SETTINGS to the settings64.sh of Vitis'; finish 2; fi"]
         if self.platform_repo:
             L += ["export PLATFORM_REPO_PATHS=" + q(self.platform_repo)]
         else:
-            L += ['if [ -z "${PLATFORM_REPO_PATHS:-}" ]; then log "PLATFORM_REPO_PATHS is not set: set KLONG_HW_PLATFORM_REPO_PATHS '
+            L += ['if [ -z "${PLATFORM_REPO_PATHS:-}" ]; then log "PLATFORM_REPO_PATHS is not set: set KLONG_FPGA_PLATFORM_REPO_PATHS '
                   'to the directory that holds the platform"; finish 2; fi']
         L += ["export XILINX_XRT=" + q(self.xrt)]
         # 1: one kernel object per entry
@@ -280,7 +280,7 @@ class Builder:
         """Upload and launch (detached). Returns the state dict after the launch. Raises RemoteError when refused."""
         ours, others = self.running()
         if ours:
-            raise RemoteError("a build is running (%s); wait for it: kgpy --hw-build --wait" % ours)
+            raise RemoteError("a build is running (%s); wait for it: kgpy fpga build --wait" % ours)
         if others:
             raise RemoteError("another Vivado, v++ or Vitis HLS process is running on the build machine (not started by "
                               "this tool); wait for it to finish:\n  " + others.replace("\n", "\n  "))
@@ -358,7 +358,7 @@ def format_result(plan_clock, st, builder=None):
         lines.append("build directory kept: %s" % d)
         if isinstance(wns, (int, float)) and wns < 0 and meta.get("clock_mhz_requested"):
             c = suggest_clock(meta["clock_mhz_requested"], wns)
-            lines.append("worst negative slack %s ns at %s MHz; to try again: kgpy --hw-build ... --clock-mhz %d" % (wns, meta["clock_mhz_requested"], c))
+            lines.append("worst negative slack %s ns at %s MHz; to try again: kgpy fpga build ... --clock-mhz %d" % (wns, meta["clock_mhz_requested"], c))
         elif not meta:
             lines.append("no build.json: the flow stopped before the gate (exit %s); see %s/build.log" % (st.get("exit"), d))
     return lines
@@ -367,7 +367,7 @@ def format_result(plan_clock, st, builder=None):
 def hw_build_main(files, int_bits=32, clock_mhz=300, lanes=None, force=False, status=False, wait=False, hw_emu=False,
                   stdout=None, stderr=None, builder=None, poll=60, wrapped=False, reassociate=False):
     """
-    The body of ``kgpy --hw-build [FILE...] [--status] [--wait] [--force]``. Returns 0 when the image is built (or
+    The body of ``kgpy fpga build [FILE...] [--wait] [--force]`` and ``kgpy fpga status [FILE...]``. Returns 0 when the image is built (or
     cached, or the build was started and --wait was not given), 1 when the build or the timing gate failed or a build is
     refused, 2 on a usage error.
     """
@@ -377,18 +377,18 @@ def hw_build_main(files, int_bits=32, clock_mhz=300, lanes=None, force=False, st
     if lanes == 1 and not wrapped:
         lanes = None            # one core, no lane dimension: the kernel without --lanes
     if lanes is not None and wrapped:
-        print("--lanes needs the streamable back end: it cannot be combined with --hls-wrapped", file=err)
+        print("--lanes needs the streamable back end: it cannot be combined with --wrapped", file=err)
         return 2
     try:
         b = builder or Builder()
         if b.remote.target is None and builder is None:
-            print("--hw-build needs $KLONG_HW_BUILD (user@host of the build machine)", file=err)
+            print("kgpy fpga needs $KLONG_FPGA_BUILD (user@host of the build machine)", file=err)
             return 2
         b.remote.check()
         target = "hw_emu" if hw_emu else "hw"
         if not files:
             if not (status or wait):
-                print("--hw-build needs FILEs (or --status, --wait for the build in progress)", file=err)
+                print("kgpy fpga build needs FILEs (or --wait for the build in progress; kgpy fpga status shows it)", file=err)
                 return 2
             ours, _ = b.running()
             dirname = ours or b.latest()
@@ -441,15 +441,15 @@ def hw_build_main(files, int_bits=32, clock_mhz=300, lanes=None, force=False, st
             if "is not empty" in str(e) and st["state"] == "stopped":
                 print("%s\n  an earlier build was stopped before it finished" % e, file=err)
             else:
-                print("--hw-build: %s" % e, file=err)
+                print("kgpy fpga build: %s" % e, file=err)
             return 1
         print("build started on %s: pid %s, directory %s" % (b.remote.target or "this machine", st["pid"], st["dir"]), file=out)
-        print("it takes hours and keeps running if this session ends: kgpy --hw-build --status, kgpy --hw-build --wait", file=out)
+        print("it takes hours and keeps running if this session ends: kgpy fpga status, kgpy fpga build --wait", file=out)
         if wait:
             return _report(b, plan.dirname, clock_mhz, True, out, err, poll)
         return 0
     except RemoteError as e:
-        print("--hw-build: %s" % e, file=err)
+        print("kgpy fpga build: %s" % e, file=err)
         return 1
 
 

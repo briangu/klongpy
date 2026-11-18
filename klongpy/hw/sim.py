@@ -1,5 +1,5 @@
 """
-The simulator behind ``KLONG_HW=sim``: the same session interface as the card, with no card.
+The simulator behind ``KLONG_FPGA=sim``: the same session interface as the card, with no card.
 
     s = SimSession()                    # an HwSession (klongpy/hw/client.py) that answers in this process
     path, build = s.prepare(["fir.kg"])  # compile the kernels; returns the pseudo image path and a build.json-like dict
@@ -51,7 +51,7 @@ def compilers():
     cc = find("KG_TEST_CC", ("cc", "clang", "gcc"))
     cxx = find("KG_TEST_CXX", ("c++", "clang++", "g++"))
     if not cc or not cxx:
-        raise SimUnavailable("KLONG_HW=sim needs a C compiler and a C++ compiler on the path (cc and c++, clang and clang++, "
+        raise SimUnavailable("KLONG_FPGA=sim needs a C compiler and a C++ compiler on the path (cc and c++, clang and clang++, "
                              "or gcc and g++); %s not found" % ("neither was" if not cc and not cxx else
                                                                   "the C compiler was" if not cc else "the C++ compiler was"))
     return cc, cxx

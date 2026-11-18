@@ -11,7 +11,7 @@ This page is the complete list of changes in version 2 compared with 0.7. [What'
 * The [static profile](static-profile.md) and [compiling Klong to C](embedded.md).
 * [FPGA kernels](hardware.md), experimental.
 * [Strict modes](strict.md), levels 0, 1 and 2.
-* The [linter](lint.md), `kgpy --lint`.
+* The [linter](lint.md), `kgpy lint`.
 * [Structured errors](errors.md) with a position, a kind and the source line.
 * [Language additions](language-additions.md): destructuring, named parameters, dictionary literals, calls with too few arguments, `.fmt`, `.pf` and `.grad`.
 * kdb+-protocol [IPC](ipc_capabilities.md), tested against PeachQ.
@@ -20,7 +20,7 @@ This page is the complete list of changes in version 2 compared with 0.7. [What'
 
 #### Static Klong and C
 
-**New: a subset of Klong that compiles to C.** [The static profile](static-profile.md) is the part of the language in which every type, shape and call target is known before the program runs. `kgpy --check-static FILE...` checks files against it without running them, and `kgpy --emit-c FILE... -o DIR` compiles a program inside it to freestanding C99 with no heap, no recursion and no C library. `.extern("name";"int -> float")` declares a function the target provides, and `.entry("name";"float -> float")` declares one the host calls. Under KlongPy an extern is a Python function (`klong.externs["name"] = f`), and `klongpy.static.load_program` and `call_entry` run a program the way the compiled one is called. A program that uses neither is unaffected. See [Compiling Klong to C](embedded.md).
+**New: a subset of Klong that compiles to C.** [The static profile](static-profile.md) is the part of the language in which every type, shape and call target is known before the program runs. `kgpy check FILE...` checks files against it without running them, and `kgpy compile c FILE... -o DIR` compiles a program inside it to freestanding C99 with no heap, no recursion and no C library. `.extern("name";"int -> float")` declares a function the target provides, and `.entry("name";"float -> float")` declares one the host calls. Under KlongPy an extern is a Python function (`klong.externs["name"] = f`), and `klongpy.static.load_program` and `call_entry` run a program the way the compiled one is called. A program that uses neither is unaffected. See [Compiling Klong to C](embedded.md).
 
 ```kgpy
 ?> .extern("read.adc";"int -> float")
@@ -29,7 +29,7 @@ This page is the complete list of changes in version 2 compared with 0.7. [What'
 error: .entry: the function f is not defined
 ```
 
-**Experimental: `.hw` calls a function of the static profile as FPGA hardware.** `fir::.hw("fir.kg")` binds the kernels of an image built with `kgpy --hw-build fir.kg` for an Alveo U250 and `fir.run(x)` runs on the card, with the arguments checked against the `.entry` signature, an extra leading dimension meaning several calls, resident buffers (`.hw.put`, `.hw.get`, `.hw.free`), `.hw.reset` and `.hw.info`. `KLONG_HW=sim` runs the same generated code on the host as a simulator, with no card. Nothing changes for a program that does not use `.hw`, and nothing of it is imported at start. This is experimental: it has been run on one Alveo U250 with two images. The strategy kernel (a streaming kernel) is about ten times faster than the same program as C on a 32-thread CPU, and `fir` (a wrapped kernel) is slower than numpy. See [Klong functions as FPGA hardware](hardware.md).
+**Experimental: `.fpga` calls a function of the static profile as FPGA hardware.** `fir::.fpga("fir.kg")` binds the kernels of an image built with `kgpy fpga build fir.kg` for an Alveo U250 and `fir.run(x)` runs on the card, with the arguments checked against the `.entry` signature, an extra leading dimension meaning several calls, resident buffers (`.fpga.put`, `.fpga.get`, `.fpga.free`), `.fpga.reset` and `.fpga.info`. `KLONG_FPGA=sim` runs the same generated code on the host as a simulator, with no card. Nothing changes for a program that does not use `.fpga`, and nothing of it is imported at start. This is experimental: it has been run on one Alveo U250 with two images. The strategy kernel (a streaming kernel) is about ten times faster than the same program as C on a 32-thread CPU, and `fir` (a wrapped kernel) is slower than numpy. See [Klong functions as FPGA hardware](hardware.md).
 
 
 #### Strict modes
@@ -94,6 +94,10 @@ error: the function takes 2 arguments, got 3
 See [Language additions](language-additions.md) for the forms. These are the changes in behaviour that come with them, apart from the ones in [Syntax that changed meaning](#syntax-that-changed-meaning).
 
 **New: `.fmt`, `.pf` and `.grad`.** `.fmt(template;args)` and `.pf(template;args)` format text with `{}` placeholders, and `.grad(f;x)` is the ASCII name of `x∇f`. See [Language Additions](language-additions.md#formatted-text).
+
+**New: `.split`, `.join`, `.words`, `.trim` and `.num`.** Five system functions for text, the same in KlongPy and the native runtime: `.split(s;sep)` and its inverse `.join(list;sep)`, `.words(s)`, `.trim(s)`, and `.num(s)`, which reads a number from the whole string and gives `:undefined` for anything else, where `.rs` stops after the first object. See [Language Additions](language-additions.md#strings).
+
+**`.l` also looks next to the file that calls it.** When `.l("common.kg")` finds nothing in the directories of `KLONGPATH`, a file being run or loaded looks in its own directory, so `kgpy path/to/prog.kg` can load its neighbours from any current directory. The search order is unchanged and still wins. See [`.l`](system-functions.md#l).
 
 **A destructuring at the start of a function declares its names as locals.** `{[s k]::x;s+k}` needs no locals list at any strict level, and does not change a global named `s`.
 
@@ -164,6 +168,8 @@ The old messages were NumPy's, such as `ufunc 'add' did not contain a loop with 
 
 **Persistent history and tab completion are built in.** Line editing existed in 0.7; history (`~/.kgpy_history`, or `KGPY_HISTORY`) and tab completion now come from `readline`, so `rlwrap` is not needed. See [the REPL](repl.md).
 
+**Tooling has subcommands.** `kgpy lint`, `kgpy check`, `kgpy compile c`, `kgpy fpga source`, `kgpy fpga build`, `kgpy fpga status` and `kgpy ast` check, compile and build programs without running them; running a file, `-e`, `-l`, `-s` and `-t` are as in 0.7. See [the command line](repl.md#command-line).
+
 
 #### kdb+ IPC
 
@@ -194,7 +200,7 @@ These changes can alter what an existing program does or prints. The old behavio
 
 #### Syntax that changed meaning
 
-These inputs were accepted by 0.7 and ran without an error, and now mean something else. [`kgpy --lint`](lint.md) and [strict mode](strict.md) point at some of them.
+These inputs were accepted by 0.7 and ran without an error, and now mean something else. [`kgpy lint`](lint.md) and [strict mode](strict.md) point at some of them.
 
 **`[a b]::v` binds the names.** A list of names on the left of `::` used to be accepted, to evaluate the right side and to bind nothing. It is now a [destructuring](language-additions.md#destructuring): `a` and `b` are set to the members of `v`, so a name that already held a value changes. `a::5;[a b]::[1 2];a` was 5 and is 1. A list on the left that is not a list of distinct plain names (nested, repeated, `x y z`, empty) still binds nothing at strict level 0, now with a warning, and is a syntax error at level 1 and 2. A wrong number of members is a `shape` error, and a right side that is not a list is a `type` error.
 
@@ -489,7 +495,7 @@ $ kgpy -e '1+"a"'
 
 #### IPC
 
-**The pickle protocol is removed.** A 0.7 client connecting to a 2.0 server is closed at once and the server logs the cause; a 2.0 client connecting to a 0.7 server fails after 5 seconds with `handshake timed out`. `KLONGPY_IPC=legacy` is a system error, and `kdb` and `auto` are accepted and mean the only protocol. A Python object that has no kdb+ form (a set, a complex number, `None`) was carried by pickle and is now a type error on the sending side. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. An integer beyond 64 bits was carried by pickle and is now `range error: integer does not fit 64 bits` on the sending side. See [0.7 peers](ipc_capabilities.md#07-peers).
+**The pickle protocol is removed.** A 0.7 client connecting to a 2.0 server is closed at once and the server logs the cause; a 2.0 client connecting to a 0.7 server fails after 5 seconds with `handshake timed out`. The environment variable `KLONGPY_IPC` no longer exists and is ignored. A Python object that has no kdb+ form (a set, a complex number, `None`) was carried by pickle and is now a type error on the sending side. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. An integer beyond 64 bits was carried by pickle and is now `range error: integer does not fit 64 bits` on the sending side. See [0.7 peers](ipc_capabilities.md#07-peers).
 
 **An error on the server comes back as a Klong error and the connection stays open.** It used to drop the connection (`connection lost`), and the next call failed with a Python `AttributeError`.
 

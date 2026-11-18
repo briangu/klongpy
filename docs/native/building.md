@@ -194,7 +194,7 @@ Options go before `FILE` or `-e`. Sizes accept the suffixes `K` and `M` (1024 an
 | `-h`, `--help` | print the usage and exit with status 0 |
 | `--version` | print the version and exit |
 
-`.l` looks for a file in the directories of the environment variable `KLONGPATH` (default `.:lib`, colon separated) and, when it finds none, in the library built into the program.
+`.l` looks for a file in the directories of the environment variable `KLONGPATH` (default `.:lib`, colon separated), then in the library built into the program, and last in the directory of the file that is being run or loaded.
 
 ## The embedded library
 
@@ -317,10 +317,10 @@ In the commands below, `python` is the interpreter you use for KlongPy, and the 
 <!-- check-docs: requires-file native/target/release/klong; link native conformance -->
 ```console
 $ python native/scripts/conformance.py | tail -1 | cut -c1-40
-total                         1301  1301
+total                         1338  1338
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1301 of 1301 on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1338 of 1338 on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
 KLONG_NATIVE=native/target/narrow/release/klong python native/scripts/conformance.py --narrow

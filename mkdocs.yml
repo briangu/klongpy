@@ -31,7 +31,7 @@ nav:
       - Operator Reference: 'operators.md'
       - Language Additions: 'language-additions.md'
       - Strict mode: 'strict.md'
-      - 'Lint: kgpy --lint': 'lint.md'
+      - 'Lint: kgpy lint': 'lint.md'
       - Errors: 'errors.md'
       - Differences from Klong: 'differences.md'
   - Reference:

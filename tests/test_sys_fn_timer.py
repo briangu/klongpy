@@ -242,7 +242,12 @@ class TestTimerArguments(LoopsBase, unittest.TestCase):
         def bad():
             count[0] += 1
             raise RuntimeError("boom")
-        with self.assertLogs(level="ERROR"):
+        import contextlib
+        import io
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
             h = self._call(klong, 0.05, bad, wait=0.3)
+        self.assertEqual(err.getvalue().count("callback failed; cancelling timer"), 1)
+        self.assertIn("RuntimeError: boom", err.getvalue())
         self.assertEqual(count[0], 1)
         self.assertEqual(eval_sys_fn_cancel_timer(h), 0)

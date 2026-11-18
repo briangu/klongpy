@@ -14,8 +14,8 @@ import importlib.util
 import importlib.metadata
 import os
 import re
+import signal
 import sys
-import threading
 import timeit
 
 import colorama
@@ -26,8 +26,8 @@ from klongpy.errors import KlongError, KlongSystemError
 from klongpy.help_index import apropos_text, help_text
 from klongpy.lexer import Source
 from klongpy.sys_fn import eval_sys_load
-from klongpy.repl import (cleanup_repl, create_repl, format_error, klong_warnings, use_color,
-                          write_stderr)
+from klongpy.repl import (cleanup_repl, create_repl, format_error, keeps_alive, klong_warnings, use_color,  # noqa: F401
+                          wait_while_alive, write_stderr)
 from klongpy.repl_input import Completer, History, check_text, history_path
 
 _READLINE_SPEC = importlib.util.find_spec("readline")
@@ -268,6 +268,14 @@ def _title(fn):
 
 success = lambda input: f"{colorama.Fore.GREEN}{input}"
 failure = lambda input: f"{colorama.Fore.RED}{input}"
+
+
+class Terminated(BaseException):
+    """SIGTERM arrived (raised by the signal handler of a file run)."""
+
+
+def _on_sigterm(signum, frame):
+    raise Terminated()
 
 
 class ExitRequest:
@@ -549,8 +557,227 @@ def run_test_file(klong, fname, report):
     return failed
 
 
+SUBCOMMANDS = ('lint', 'check', 'compile', 'fpga', 'ast')
+
+_SUBCOMMAND_HELP = """\
+subcommands (kgpy SUBCOMMAND --help lists the options of each):
+  lint FILE...          check programs for the classic Klong traps
+  check FILE...         check programs against the static profile
+  compile c FILE...     compile static-profile programs to C99
+  fpga source FILE...   (experimental) write the HLS source of FPGA kernels
+  fpga build [FILE...]  (experimental) build an Alveo U250 bitstream
+  fpga status [FILE...] report the progress of the build
+  ast FILE              print the canonical parse tree
+
+A file with the name of a subcommand is run as kgpy ./lint.
+For help, go to http://klongpy.org"""
+
+
+def _leaf_parser(name, description):
+    return argparse.ArgumentParser(prog=f'kgpy {name}', description=description)
+
+
+def _add_int64(p):
+    p.add_argument('--int64', action='store_true', help='kg_int is 64 bits wide (the default is 32)')
+
+
+def _add_files(p, help_text, optional=False):
+    p.add_argument('files', metavar='FILE', nargs='*' if optional else '+', help=help_text)
+
+
+def _lint_parser():
+    p = _leaf_parser('lint', 'Check FILEs for the classic Klong traps without running them, then exit '
+                             '(1 if any error was found).')
+    _add_files(p, 'the programs to check (- is stdin)')
+    p.add_argument('--select', metavar='CODES', help='report only these codes (comma-separated)')
+    p.add_argument('--ignore', metavar='CODES', help='leave these codes out (comma-separated)')
+    p.add_argument('--define', metavar='NAMES',
+                   help='names the host defines before the program runs (comma-separated)')
+    p.add_argument('-v', '--verbose', action='store_true', help='enable verbose output')
+    return p
+
+
+def _check_parser():
+    p = _leaf_parser('check', 'Check that FILEs are inside the static profile (the subset that compiles ahead of '
+                              'time) without running them, then exit (1 if any is outside).')
+    _add_files(p, 'the programs to check (- is stdin)')
+    _add_int64(p)
+    what = p.add_mutually_exclusive_group()
+    what.add_argument('--streamable', action='store_true',
+                      help='also say what keeps a kernel from taking one record per clock cycle')
+    what.add_argument('--dump-ir', action='store_true',
+                      help='evaluate the compile-time definitions and print the typed IR instead of checking')
+    p.add_argument('-v', '--verbose', action='store_true', help='list the functions, globals and declarations of each file')
+    return p
+
+
+def _compile_c_parser():
+    p = _leaf_parser('compile c', 'Compile FILEs of the static profile to C99 (<name>.c, <name>.h, klong_rt.h) in '
+                                  'the directory given by -o and print the size report.')
+    _add_files(p, 'the programs to compile')
+    p.add_argument('-o', '--output', metavar='DIR', help='the directory to write to (default: .)')
+    _add_int64(p)
+    p.add_argument('--float64', action='store_true', help='kg_float is double (the default is float)')
+    p.add_argument('--line-directives', action='store_true',
+                   help='emit #line so a debugger steps through the Klong source')
+    p.add_argument('--prefix', metavar='NAME', help='the C prefix of the public names (default: the file name)')
+    p.add_argument('--dump-ir', action='store_true',
+                   help='evaluate the compile-time definitions and print the typed IR')
+    return p
+
+
+def _add_fpga_options(p):
+    p.add_argument('--clock-mhz', metavar='N', type=int, default=300, help='the kernel clock in MHz (default: 300)')
+    p.add_argument('--lanes', metavar='N', type=int, default=None,
+                   help='N cores on one input stream; every .param becomes an array of N values and the result '
+                        'gains a leading dimension N')
+    p.add_argument('--wrapped', action='store_true',
+                   help='the stage A kernel (the C of compile c called once per record) instead of the streamable one')
+    p.add_argument('--reassociate', action='store_true',
+                   help='sum float reductions as a balanced tree (changes the rounding)')
+
+
+def _fpga_source_parser():
+    p = _leaf_parser('fpga source', '(experimental) Write what Vitis HLS needs to make a kernel of each .entry of '
+                                    'FILEs of the static profile (C, <name>_<entry>_top.cpp, test bench, tcl, '
+                                    'manifest.json) in the directory given by -o. There is no --float64: the card '
+                                    'has float32 only.')
+    _add_files(p, 'the programs to turn into kernels')
+    p.add_argument('-o', '--output', metavar='DIR', help='the directory to write to (default: .)')
+    _add_int64(p)
+    p.add_argument('--prefix', metavar='NAME', help='the C prefix of the public names (default: the file name)')
+    _add_fpga_options(p)
+    p.add_argument('--synth', action='store_true',
+                   help='run C synthesis on $KLONG_FPGA_BUILD (user@host; unset: here) and print the estimates')
+    return p
+
+
+def _fpga_build_parser():
+    p = _leaf_parser('fpga build', '(experimental) Build one Alveo U250 bitstream holding every .entry of FILEs on '
+                                 '$KLONG_FPGA_BUILD (user@host), cached by source; it takes hours and runs detached. '
+                                 'It generates the HLS source itself (see kgpy fpga source). With no FILE: --wait for the build in progress.')
+    _add_files(p, 'the programs to build', optional=True)
+    _add_int64(p)
+    _add_fpga_options(p)
+    p.add_argument('--wait', action='store_true', help='wait until the build finishes and report it')
+    p.add_argument('--force', action='store_true', help='build again although the image exists')
+    p.add_argument('--emu', action='store_true', help='a hardware emulation image (never loaded on the card)')
+    return p
+
+
+def _fpga_status_parser():
+    p = _leaf_parser('fpga status', '(experimental) Report the progress of the build in progress or, with FILEs, of the '
+                                  'build of their image on $KLONG_FPGA_BUILD (user@host).')
+    _add_files(p, 'the programs whose image to report', optional=True)
+    _add_int64(p)
+    _add_fpga_options(p)
+    p.add_argument('--emu', action='store_true', help='the hardware emulation image')
+    return p
+
+
+def _ast_parser():
+    p = _leaf_parser('ast', 'Print the canonical parse tree of FILE and exit.')
+    p.add_argument('file', metavar='FILE', help='the program to parse')
+    return p
+
+
+_LEAVES = {
+    ('lint',): _lint_parser, ('check',): _check_parser, ('ast',): _ast_parser,
+    ('compile', 'c'): _compile_c_parser, ('fpga', 'source'): _fpga_source_parser,
+    ('fpga', 'build'): _fpga_build_parser, ('fpga', 'status'): _fpga_status_parser,
+}
+_GROUPS = {'compile': {'c': 'compile static-profile programs to C99'},
+           'fpga': {'source': '(experimental) write the HLS source of FPGA kernels', 'build': '(experimental) build an Alveo U250 bitstream',
+                  'status': 'report the progress of the build'}}
+
+
+def _group_parser(group):
+    p = argparse.ArgumentParser(prog=f'kgpy {group}')
+    sub = p.add_subparsers(dest='target', metavar='{' + ','.join(_GROUPS[group]) + '}', required=True)
+    for name, text in _GROUPS[group].items():
+        sub.add_parser(name, help=text)
+    return p
+
+
+def _check_fpga_options(p, args):
+    if args.clock_mhz < 1:
+        p.error("--clock-mhz must be a positive number of MHz")
+    if args.lanes is not None and args.lanes < 1:
+        p.error("--lanes must be 1 or more")
+    if args.wrapped and (args.lanes is not None or args.reassociate):
+        p.error("--lanes and --reassociate belong to the streamable kernel, not to --wrapped")
+
+
+def subcommand_main(argv):
+    """Run `kgpy SUBCOMMAND ...`; argv starts with the subcommand's name. Returns the exit status."""
+    key = (argv[0],)
+    if argv[0] in _GROUPS:
+        if len(argv) < 2 or argv[1] not in _GROUPS[argv[0]]:
+            _group_parser(argv[0]).parse_args(argv[1:2])
+        key = (argv[0], argv[1])
+        argv = argv[2:]
+    else:
+        argv = argv[1:]
+    p = _LEAVES[key]()
+    args = p.parse_intermixed_args(argv)
+    bits = 64 if getattr(args, 'int64', False) else 32
+    if key == ('ast',):
+        from klongpy.dump import main as _dump_main
+        return _dump_main([args.file])
+    if key == ('lint',):
+        from klongpy.lint import lint_main
+        return lint_main(args.files, args.select, args.ignore, args.verbose, args.define)
+    if key == ('check',):
+        if args.dump_ir:
+            from klongpy.static.compile import emit_main
+            return emit_main(args.files, None, bits, 32, False, None, True, emit_c=False)
+        from klongpy.static import check_main
+        return check_main(args.files, bits, args.verbose, streamable=args.streamable)
+    if key == ('compile', 'c'):
+        from klongpy.static.compile import emit_main
+        return emit_main(args.files, args.output, bits, 64 if args.float64 else 32, args.line_directives,
+                         args.prefix, args.dump_ir, emit_c=True)
+    if key == ('fpga', 'source'):
+        _check_fpga_options(p, args)
+        from klongpy.static.compile import emit_hls_main
+        return emit_hls_main(args.files, args.output, bits, args.prefix, args.clock_mhz, args.synth,
+                             wrapped=args.wrapped, lanes=args.lanes, reassociate=args.reassociate)
+    _check_fpga_options(p, args)
+    from klongpy.hw.build import hw_build_main
+    status = key == ('fpga', 'status')
+    return hw_build_main(args.files, bits, args.clock_mhz, args.lanes, False if status else args.force, status,
+                         False if status else args.wait, args.emu, wrapped=args.wrapped,
+                         reassociate=args.reassociate)
+
+
+def run_parser():
+    """The parser of the run form: kgpy [FILE] and the options of 0.7, --strict and --traceback."""
+    parser = argparse.ArgumentParser(
+        prog='kgpy',
+        description='KlongPy REPL: with no FILE, an interactive session; with FILE, runs it (arguments for the '
+                    'program follow --).',
+        epilog=_SUBCOMMAND_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('-e', '--expr', help='evaluate expression, no interactive mode')
+    parser.add_argument('-l', '--load', help='load program from file')
+    parser.add_argument('-s', '--server', help='start the IPC server', type=str)
+    parser.add_argument('-t', '--test', help='test program from file')
+    parser.add_argument('-v', '--verbose', help='enable verbose output; errors also print the Python traceback', action="store_true")
+    parser.add_argument('--traceback', help='print the Python traceback with an error (what -v does, without the other output)',
+                        action="store_true")
+    parser.add_argument('-d', '--debug', help='enable debug mode', action="store_true")
+    parser.add_argument('--strict', metavar='N', type=int, choices=[0, 1, 2], default=0,
+                        help='strict level: 0 (the default), 1 or 2; --strict alone means 1. Written --strict=N')
+    parser.add_argument('--backend', help='set array backend', type=str.lower, choices=list_backends())
+    parser.add_argument('--device', help='set backend device (torch only)', type=str)
+    parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
+    return parser
+
+
 def main():
     """Main entry point for the KlongPy REPL."""
+    if len(sys.argv) > 1 and sys.argv[1] in SUBCOMMANDS:
+        sys.exit(subcommand_main(sys.argv[1:]))
     if '--' in sys.argv:
         index = sys.argv.index('--')
         main_args = sys.argv[:index]
@@ -559,71 +786,7 @@ def main():
         main_args = sys.argv
         extras = []
 
-    parser = argparse.ArgumentParser(
-        prog='KlongPy',
-        description='KlongPy REPL',
-        epilog='For help, go to http://klongpy.org')
-    parser.add_argument('-e', '--expr', help='evaluate expression, no interactive mode')
-    parser.add_argument('-l', '--load', help='load program from file')
-    parser.add_argument('-s', '--server', help='start the IPC server', type=str)
-    parser.add_argument('-t', '--test', help='test program from file')
-    parser.add_argument('-v', '--verbose', help='enable verbose output; errors also print the Python traceback', action="store_true")
-    parser.add_argument('--traceback', help='print the Python traceback with an error (what -v does, without the other output)',
-                        action="store_true")
-    parser.add_argument('--dump-ast', metavar='FILE', help='print the canonical parse tree of FILE and exit')
-    parser.add_argument('--lint', metavar='FILE', nargs='*', action='extend',
-                        help='check FILEs for the classic Klong traps without running them, then exit '
-                             '(1 if any error was found); with --select, --ignore, --define and -v')
-    parser.add_argument('--select', metavar='CODES', help='with --lint: report only these codes (comma-separated)')
-    parser.add_argument('--ignore', metavar='CODES', help='with --lint: leave these codes out (comma-separated)')
-    parser.add_argument('--define', metavar='NAMES',
-                        help='with --lint: names the host defines before the program runs (comma-separated)')
-    parser.add_argument('--check-static', metavar='FILE', nargs='+',
-                        help='check that FILEs are inside the static profile (the subset that compiles ahead of time) '
-                             'without running them, then exit (1 if any is outside); with --int64 and -v')
-    parser.add_argument('--int64', action='store_true',
-                        help='with --check-static and --emit-c: kg_int is 64 bits wide (the default is 32)')
-    parser.add_argument('--emit-c', metavar='FILE', nargs='+',
-                        help='compile FILEs of the static profile to C99 (<name>.c, <name>.h, klong_rt.h) in the directory '
-                             'given by -o, print the size report, then exit; with --int64, --float64, --line-directives, --prefix')
-    parser.add_argument('--emit-hls', metavar='FILE', nargs='+',
-                        help='(experimental) write what Vitis HLS needs to make a kernel of each .entry of FILEs of the static '
-                             'profile (C, <name>_<entry>_top.cpp, test bench, tcl, manifest.json) in the directory given by -o; '
-                             'with --int64, --prefix, --clock-mhz, --synth (not --float64: the card has float32 only)')
-    parser.add_argument('--clock-mhz', metavar='N', type=int, default=300, help='with --emit-hls: the kernel clock in MHz (default: 300)')
-    parser.add_argument('--synth', action='store_true',
-                        help='with --emit-hls: run C synthesis on $KLONG_HW_BUILD (user@host; unset: here) and print the estimates')
-    parser.add_argument('--hw-build', metavar='FILE', nargs='*',
-                        help='(experimental) build one Alveo U250 bitstream holding every .entry of FILEs on $KLONG_HW_BUILD '
-                             '(user@host), cached by source; it takes hours and runs detached. With no FILE: --status or --wait '
-                             'for the build in progress. With --int64, --clock-mhz, --lanes, --force, --hw-emu')
-    parser.add_argument('--status', action='store_true', help='with --hw-build: report the progress of the build')
-    parser.add_argument('--wait', action='store_true', help='with --hw-build: wait until the build finishes and report it')
-    parser.add_argument('--lanes', metavar='N', type=int, default=None,
-                        help='with --emit-hls and --hw-build: N cores on one input stream; every .param becomes an array of N '
-                             'values and the result gains a leading dimension N')
-    parser.add_argument('--hls-wrapped', action='store_true',
-                        help='with --emit-hls and --hw-build: the stage A kernel (the C of --emit-c called once per record) '
-                             'instead of the streamable one')
-    parser.add_argument('--hls-reassociate', action='store_true',
-                        help='with --emit-hls and --hw-build: sum float reductions as a balanced tree (changes the rounding)')
-    parser.add_argument('--streamable', action='store_true',
-                        help='with --check-static: also say what keeps a kernel from taking one record per clock cycle')
-    parser.add_argument('--force', action='store_true', help='with --hw-build: build again although the image exists')
-    parser.add_argument('--hw-emu', action='store_true', help='with --hw-build: a hardware emulation image (never loaded on the card)')
-    parser.add_argument('-o', '--output', metavar='DIR', help='with --emit-c and --emit-hls: the directory to write to (default: .)')
-    parser.add_argument('--float64', action='store_true', help='with --emit-c: kg_float is double (the default is float)')
-    parser.add_argument('--line-directives', action='store_true',
-                        help='with --emit-c: emit #line so a debugger steps through the Klong source')
-    parser.add_argument('--prefix', metavar='NAME', help='with --emit-c: the C prefix of the public names (default: the file name)')
-    parser.add_argument('--dump-ir', action='store_true',
-                        help='with --emit-c or --check-static: evaluate the compile-time definitions and print the typed IR')
-    parser.add_argument('-d', '--debug', help='enable debug mode', action="store_true")
-    parser.add_argument('--strict', metavar='N', type=int, choices=[0, 1, 2], default=0,
-                        help='strict level: 0 (the default), 1 or 2; --strict alone means 1. Written --strict=N')
-    parser.add_argument('--backend', help='set array backend', type=str.lower, choices=list_backends())
-    parser.add_argument('--device', help='set backend device (torch only)', type=str)
-    parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
+    parser = run_parser()
 
     # --strict[=N]: the bare flag means level 1 and never takes the next word
     # (which may be the file name) for its value, except a lone 0, 1 or 2, so
@@ -636,64 +799,7 @@ def main():
         else:
             argv.append('--strict=1' if a == '--strict' else a)
         bare_strict = a == '--strict'
-    lint_rest = []
-    if '--lint' in argv:
-        # file names may be spread between the options: take what is left over
-        args, lint_rest = parser.parse_known_args(argv)
-        bad = [a for a in lint_rest if a.startswith('-') and a != '-']
-        if bad:
-            parser.error(f"unrecognized arguments: {' '.join(bad)}")
-    else:
-        args = parser.parse_args(argv)
-    if args.dump_ast:
-        from klongpy.dump import main as _dump_main
-        sys.exit(_dump_main([args.dump_ast]))
-    if args.lint is not None:
-        # The options may come in any order: --lint -v FILE
-        # leaves FILE to the positional argument, and --lint A -v B leaves B
-        # there; a file after that is in the words argparse did not place.
-        lint_files = list(args.lint) + ([args.filename] if args.filename is not None else []) + lint_rest
-        if not lint_files:
-            parser.error("--lint needs at least one FILE")
-        from klongpy.lint import lint_main
-        sys.exit(lint_main(lint_files, args.select, args.ignore, args.verbose, args.define))
-    if args.emit_hls:
-        if args.float64:
-            parser.error("--float64 cannot be used with --emit-hls: the card has float32 only in this version")
-        if args.clock_mhz < 1:
-            parser.error("--clock-mhz must be a positive number of MHz")
-        from klongpy.static.compile import emit_hls_main
-        if args.lanes is not None and args.lanes < 1:
-            parser.error("--lanes must be 1 or more")
-        if args.hls_wrapped and (args.lanes is not None or args.hls_reassociate):
-            parser.error("--lanes and --hls-reassociate belong to the streamable kernel, not to --hls-wrapped")
-        sys.exit(emit_hls_main(args.emit_hls, args.output, 64 if args.int64 else 32, args.prefix, args.clock_mhz, args.synth,
-                               wrapped=args.hls_wrapped, lanes=args.lanes, reassociate=args.hls_reassociate))
-    if args.synth:
-        parser.error("--synth needs --emit-hls")
-    if args.streamable and not args.check_static:
-        parser.error("--streamable needs --check-static")
-    if (args.hls_wrapped or args.hls_reassociate or args.lanes is not None) and args.hw_build is None:
-        parser.error("--lanes, --hls-wrapped and --hls-reassociate need --emit-hls or --hw-build")
-    if args.hw_build is not None:
-        if args.float64:
-            parser.error("--float64 cannot be used with --hw-build: the card has float32 only in this version")
-        if args.clock_mhz < 1:
-            parser.error("--clock-mhz must be a positive number of MHz")
-        from klongpy.hw.build import hw_build_main
-        sys.exit(hw_build_main(args.hw_build, 64 if args.int64 else 32, args.clock_mhz, args.lanes, args.force,
-                               args.status, args.wait, args.hw_emu, wrapped=args.hls_wrapped,
-                               reassociate=args.hls_reassociate))
-    if args.status or args.wait or args.force or args.hw_emu:
-        parser.error("--status, --wait, --force and --hw-emu need --hw-build")
-    if args.emit_c or (args.check_static and args.dump_ir):
-        from klongpy.static.compile import emit_main
-        sys.exit(emit_main(args.emit_c or args.check_static, args.output, 64 if args.int64 else 32,
-                           64 if args.float64 else 32, args.line_directives, args.prefix, args.dump_ir,
-                           emit_c=bool(args.emit_c)))
-    if args.check_static:
-        from klongpy.static import check_main
-        sys.exit(check_main(args.check_static, 64 if args.int64 else 32, args.verbose, streamable=args.streamable))
+    args = parser.parse_args(argv)
 
     # Default to the numpy backend: fast and predictable for general array work
     # (and it never surprises non-autograd .kg scripts with MPS-tensor issues).
@@ -714,6 +820,11 @@ def main():
         write_stderr("interrupted")
         sys.exit(130)
 
+    def finish_interrupted(text, code):
+        """Ctrl-C or SIGTERM while a finished file run waits: say so; the common exit below closes what is open."""
+        write_stderr(text)
+        return code
+
     def start_interpreter():
         """
         The interpreter with the system context every run needs: the loops and
@@ -728,6 +839,7 @@ def main():
         klong['.helpdb'] = []
         klong['.os.env'] = dict(os.environ)
         klong['.os.argv'] = extras if extras else []
+        klong['.system']['traceback'] = show_traceback
         return klong, loops
 
     if args.expr:
@@ -772,32 +884,35 @@ def main():
         if args.filename:
             if args.verbose:
                 print(f"Running: {args.filename}")
+            try:
+                signal.signal(signal.SIGTERM, _on_sigterm)
+            except (ValueError, OSError):   # not the main thread, or no SIGTERM here
+                pass
             result = run_file(klong_loop, klong, args.filename, verbose=args.verbose)
             if isinstance(result, ExitRequest):
                 exit_code = result.code
 
-            def gather_io_tasks(io_loop):
-                done_event = threading.Event()
-                tasks = asyncio.all_tasks(loop=io_loop)
-                async def main_task():
-                    gathered_task = asyncio.gather(*tasks)
-                    gathered_task.add_done_callback(lambda x: done_event.set())
-                    await gathered_task
-                if len(tasks) > 1:
-                    io_loop.call_soon_threadsafe(asyncio.create_task, main_task())
-                else:
-                    done_event.set()
-                return done_event
-
             if exit_code is None:
                 # the program is over; what it printed must be visible even when the
-                # process now stays up for a server or a connection it holds open
+                # process now stays up for a server, a connection or a timer
                 sys.stdout.flush()
-                gather_io_tasks(io_loop).wait()
+                try:
+                    wait_while_alive(klong['.system'])
+                except KeyboardInterrupt:
+                    exit_code = finish_interrupted("interrupted", 130)
+                except Terminated:
+                    exit_code = finish_interrupted("terminated", 143)
+                else:
+                    exit_signal = klong['.system']['exitSignal']
+                    if exit_signal.code is not None:
+                        exit_code = exit_signal.code
         elif not args.test:
             run_repl = True
     except KeyboardInterrupt:
         interrupted()
+    except Terminated:
+        write_stderr("terminated")
+        sys.exit(143)
     except Exception as e:
         report(e)
         exit_code = 1
@@ -834,6 +949,17 @@ def main():
             sys_cmds = create_sys_cmd_functions()
             history = setup_readline(klong, sys_cmds)
             evaluate = make_evaluate(klong_loop, klong_thread, verbose=show_traceback)
+
+            def exit_from_callback(code):
+                # .x in a timer or an IPC callback while the prompt waits for input: the
+                # main thread cannot be woken from its read, so end the process here
+                try:
+                    history.save()
+                    sys.stdout.flush()
+                    sys.stderr.flush()
+                finally:
+                    os._exit(code)
+            klong['.system']['exitSignal'].handler = exit_from_callback
             try:
                 repl_loop(klong, evaluate, get_input, sys_cmds, history, exit_state,
                           cancel_on_blank=sys.stdin.isatty(), verbose=show_traceback)

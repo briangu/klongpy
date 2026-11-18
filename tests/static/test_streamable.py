@@ -1,5 +1,5 @@
 """
-kgpy --check-static --streamable: the constructs that keep a hardware kernel from taking one record per
+kgpy check --streamable: the constructs that keep a hardware kernel from taking one record per
 clock cycle, each with its span and what to change. Fixtures: tests/static/accept/stream-*.kg and reject/stream-*.kg.
 """
 import os
@@ -80,16 +80,16 @@ class TestCli(unittest.TestCase):
         return subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", *args], capture_output=True, text=True, cwd=ROOT)
 
     def test_streamable_flag(self):
-        r = self.cli("--check-static", os.path.join(EMBEDDED, "mavg.kg"), "--streamable")
+        r = self.cli("check", os.path.join(EMBEDDED, "mavg.kg"), "--streamable")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("streamable: nothing keeps a kernel", r.stdout)
-        r = self.cli("--check-static", os.path.join(HERE, "reject", "stream-loop.kg"), "--streamable")
+        r = self.cli("check", os.path.join(HERE, "reject", "stream-loop.kg"), "--streamable")
         self.assertEqual(r.returncode, 1)
         self.assertIn("[stream-loop]", r.stderr)
         self.assertIn("reject/stream-loop.kg:3:", r.stderr)
         # without the flag the same file is inside the profile
-        self.assertEqual(self.cli("--check-static", os.path.join(HERE, "reject", "stream-loop.kg")).returncode, 0)
-        self.assertEqual(self.cli("--streamable").returncode, 2)
+        self.assertEqual(self.cli("check", os.path.join(HERE, "reject", "stream-loop.kg")).returncode, 0)
+        self.assertEqual(self.cli("check", "--streamable").returncode, 2)
 
 
 if __name__ == "__main__":

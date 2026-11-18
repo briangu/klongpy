@@ -2,7 +2,7 @@
 
 `.timer` calls a Klong function at a fixed interval, for polling, heartbeats and periodic broadcasts. A timer fires on the interpreter's event loop, so it runs only while the process is alive.
 
-Timers fire while the REPL is open. Type the examples at the `kgpy` prompt, or load a file and stay in the REPL with `kgpy -l file.kg`. A file run as `kgpy file.kg` or `kgpy -e` can create timers, because they start the same system context as the REPL. The process exits when the file or the expression ends, though, and a timer that has not fired by then never does. A script that is meant to tick has to keep the process up, for example with a server (`.srv`), or be loaded with `-l`.
+Timers fire while the REPL is open and while a file run is up. Type the examples at the `kgpy` prompt, or load a file and stay in the REPL with `kgpy -l file.kg`. A file run as `kgpy file.kg` ends after its last line unless an IPC server (`.srv`) is listening or a `.cli` connection is open (see [The kgpy command](repl.md#options)); a timer alone does not keep it up, and a timer that has not fired by then never does, as with `kgpy -e EXPR`. To keep a timer-only program running, load it with `kgpy -l file.kg` or hold a server in it.
 
 ## Creating and stopping a timer
 
@@ -51,7 +51,11 @@ error: z must be a function
 
 If the callback is a named function, such as `cb` above, the timer looks the name up again on every tick, so redefining `cb` while the timer runs changes what the next tick calls.
 
-If the callback raises an error, the error is logged with its traceback and the line `timer NAME callback failed; cancelling timer`, where NAME is the name given to `.timer`, and the timer is cancelled.
+If the callback raises an error, the timer is cancelled and stderr gets the line `timer NAME callback failed; cancelling timer`, where NAME is the name given to `.timer`, followed by the error as the REPL shows it (with the Python traceback under `-v`). This holds for a Klong error and for a Python error alike, and the line appears once.
+
+A callback runs on the interpreter's event loop. A callback that waits for a synchronous call blocks that loop, so a call that this process would have to answer itself, such as a call to its own server, is a system error at once (see [Calling your own server](ipc_capabilities.md#calling-your-own-server)). Use `.async` there. A callback that merely takes long delays every other timer and request until it returns.
+
+`.x` in a callback ends the process, with the status `.x` gives, after flushing what was printed.
 
 ## See also
 

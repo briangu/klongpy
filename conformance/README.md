@@ -156,7 +156,7 @@ as above); `tests/test_conformance.py` drives it through the external path.
 
 ## Parse trees
 
-`kgpy --dump-ast FILE` prints the canonical dump (implemented by `klongpy/dump.py`) of every top-level form of FILE.
+`kgpy ast FILE` prints the canonical dump (implemented by `klongpy/dump.py`) of every top-level form of FILE.
 The golden files are `tests/golden/<group>/<name>.sexp`; groups and sources
 are listed in `tests/golden/README.md` and enumerated by
 `tests/golden/regen.py`. The native parser must print the same bytes:

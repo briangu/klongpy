@@ -1,5 +1,5 @@
 """
-kgpy --hw-build: the timing gate, the cache, the detached build script and the status of a build.
+kgpy fpga build: the timing gate, the cache, the detached build script and the status of a build.
 Everything here runs without a Xilinx tool: the build script runs on this machine with stand-ins for ``vitis_hls``
 and ``v++`` (shell scripts that write the files the real tools write), so what is tested is our flow: the guard,
 the phases, the gate, build.json, the cache. The real tools are exercised by tests/static/test_hw_card.py.
@@ -364,16 +364,16 @@ class CliTest(unittest.TestCase):
     def test_flags(self):
         import subprocess
         py = sys.executable
-        r = subprocess.run([py, "-W", "ignore", "-m", "klongpy.cli", "--hw-build", "--lanes", "2", "x.kg"], capture_output=True, text=True,
-                           env=dict(os.environ, KLONG_HW_BUILD=""))
+        r = subprocess.run([py, "-W", "ignore", "-m", "klongpy.cli", "fpga", "build", "--lanes", "2", "x.kg"], capture_output=True, text=True,
+                           env=dict(os.environ, KLONG_FPGA_BUILD=""))
         self.assertNotEqual(r.returncode, 0)
-        r = subprocess.run([py, "-W", "ignore", "-m", "klongpy.cli", "--status"], capture_output=True, text=True)
+        r = subprocess.run([py, "-W", "ignore", "-m", "klongpy.cli", "fpga", "status"], capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
-        self.assertIn("--hw-build", r.stderr)
-        r = subprocess.run([py, "-W", "ignore", "-m", "klongpy.cli", "--hw-build", "--status"], capture_output=True, text=True,
-                           env=dict(os.environ, KLONG_HW_BUILD=""))
+        self.assertIn("kgpy fpga", r.stderr)
+        r = subprocess.run([py, "-W", "ignore", "-m", "klongpy.cli", "fpga", "status"], capture_output=True, text=True,
+                           env=dict(os.environ, KLONG_FPGA_BUILD=""))
         self.assertEqual(r.returncode, 2)
-        self.assertIn("KLONG_HW_BUILD", r.stderr)
+        self.assertIn("KLONG_FPGA_BUILD", r.stderr)
 
 
 if __name__ == "__main__":

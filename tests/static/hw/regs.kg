@@ -1,4 +1,4 @@
-:" Three kinds of .param registers (float, int, fixed<32,16>) and a summary pair, for the tests of .hw.set and .hw.lanes. "
+:" Three kinds of .param registers (float, int, fixed<32,16>) and a summary pair, for the tests of .fpga.set and .fpga.lanes. "
 
 .param("gain";"float";2.0)
 .param("inc";"int";3)

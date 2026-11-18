@@ -20,14 +20,14 @@ This page is for anyone with code written for KlongPy 0.7. It lists what behaves
 
 Run these two on your programs before you upgrade, or right after.
 
-`kgpy --lint` reads files without running them and reports several classic traps, such as a leading minus that negates more than you meant:
+`kgpy lint` reads files without running them and reports several classic traps, such as a leading minus that negates more than you meant:
 
 ```console
 $ cat > old.kg <<'EOF'
 > total::0
 > -1+2
 > EOF
-$ kgpy --lint old.kg
+$ kgpy lint old.kg
 old.kg:2:1: W010 a leading - negates everything to its right: -1+... is -(1+...)
 0 errors, 1 warning in 1 file
 ```
@@ -380,9 +380,9 @@ Now: the kdb+ IPC protocol is the only protocol. A q process can talk to a `.srv
 
 - A 0.7 client connecting to a 2.0 server is closed at once, and the server logs that the client speaks the pickle protocol of 0.7. The client sees `connection lost`.
 - A 2.0 client connecting to a 0.7 server fails at the handshake after 5 seconds with `handshake timed out`.
-- `KLONGPY_IPC=legacy` is a system error. `kdb` and `auto` are accepted and mean the only protocol, so a script that sets `auto` keeps working.
+- The environment variable `KLONGPY_IPC` no longer exists and is ignored, whatever its value.
 
-What to do: upgrade every KlongPy process that talks IPC to 2.0 or later, then remove `KLONGPY_IPC=legacy` from environments. A Python object with no kdb+ form (a set, a complex number, `None`) used to travel by pickle and is now a type error on the sending side; send a list, a string or a dictionary instead. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. See [the protocol](ipc_capabilities.md#protocol-and-security) and [0.7 peers](ipc_capabilities.md#07-peers).
+What to do: upgrade every KlongPy process that talks IPC to 2.0 or later, then remove `KLONGPY_IPC` from environments if you set it. A Python object with no kdb+ form (a set, a complex number, `None`) used to travel by pickle and is now a type error on the sending side; send a list, a string or a dictionary instead. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. See [the protocol](ipc_capabilities.md#protocol-and-security) and [0.7 peers](ipc_capabilities.md#07-peers).
 
 Other changes that come with the new protocol:
 

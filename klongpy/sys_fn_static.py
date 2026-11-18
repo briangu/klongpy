@@ -393,7 +393,7 @@ def eval_sys_param(klong, *args):
         cannot depend on it: a parameter may bound a window only as "use
         the first p of a fixed maximum". Set it between runs with
         klongpy.static.set_param(klong;name;value) (the hardware binding
-        .hw.set does the same on the card).
+        .fpga.set does the same on the card).
 
         Returns the type in its canonical form.
 

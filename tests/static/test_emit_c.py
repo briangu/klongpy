@@ -385,12 +385,12 @@ class TestCli(unittest.TestCase):
     def test_kgpy_emit_c(self):
         import sys
         d = tempfile.mkdtemp(prefix="kgcli_")
-        r = subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", "--emit-c", os.path.join(EMBEDDED, "mavg.kg"),
+        r = subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", "compile", "c", os.path.join(EMBEDDED, "mavg.kg"),
                             "-o", d, "--float64"], capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("size report for mavg (kg_int 32 bits, kg_float 64 bits)", r.stdout)
         self.assertTrue(os.path.isfile(os.path.join(d, "mavg.c")))
-        r = subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", "--check-static",
+        r = subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", "check",
                             os.path.join(EMBEDDED, "fir.kg"), "--dump-ir"], capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("global const idx: int[16,241]", r.stdout)

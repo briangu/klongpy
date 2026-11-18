@@ -3,9 +3,11 @@
 A function of the [static profile](static-profile.md) becomes an FPGA kernel, and you call it from a KlongPy session with ordinary arrays. This page is for someone who has an FPGA card, or wants to know what the flow produces and how fast it is.
 
 !!! warning "Experimental"
-    This has been run on one card, an Alveo U250. The commands, the names `.hw` and `--hw-build`, and the file formats may change. The first kernel measured (`fir`) is slower than numpy. The strategy kernel is about ten times faster than a 32-thread CPU running the same program as C. Both are measured [below](#results), with the cases where the CPU wins.
+    This has been run on one card, an Alveo U250. The commands, the names `.fpga` and `kgpy fpga build`, and the file formats may change. The first kernel measured (`fir`) is slower than numpy. The strategy kernel is about ten times faster than a 32-thread CPU running the same program as C. Both are measured [below](#results), with the cases where the CPU wins.
 
-The same source runs three ways: interpreted, as C (see [Compiling Klong to C](embedded.md)) and on the card, with the same answers. Two kinds of kernel exist. A *streaming kernel*, the default, takes one record per clock cycle when the program allows it. A *wrapped kernel* (`--hls-wrapped`) runs the program's C unchanged once per record and is slower.
+The same source runs three ways: interpreted, as C (see [Compiling Klong to C](embedded.md)) and on the card, with the same answers. Two kinds of kernel exist. A *streaming kernel*, the default, takes one record per clock cycle when the program allows it. A *wrapped kernel* (`--wrapped`) runs the program's C unchanged once per record and is slower.
+
+The tools need no Python packages beyond KlongPy's own. The machine with the card also needs the Xilinx runtime (`pyxrt`, which is not on PyPI), and the build machine needs Vitis.
 
 ## Tested setup
 
@@ -21,12 +23,12 @@ The same source runs three ways: interpreted, as C (see [Compiling Klong to C](e
 
 ## What qualifies
 
-A program is a candidate when it is inside the static profile (`kgpy --check-static FILE`) and an `.entry` of it is a function that
+A program is a candidate when it is inside the static profile (`kgpy check FILE`) and an `.entry` of it is a function that
 
 * takes at least one argument and returns a value, or returns `void` and is the driver of a [summary pair](static-profile.md#a-summary-entry);
 * takes `int`, `float` and `fixed<W,I>` arguments and arrays of them with fixed shapes, not `str`;
 * does not reach an `.extern`: the card has nothing to call;
-* does not mix `int` and `float` arguments in one entry, for the host side (`.hw` refuses such an entry; the build accepts it);
+* does not mix `int` and `float` arguments in one entry, for the host side (`.fpga` refuses such an entry; the build accepts it);
 * computes in 32-bit `float` in a float program (the card has no `--float64`); `int` is 32 bits unless the program was built with `--int64`.
 
 Every `.entry` becomes one kernel. The program's globals are the kernel's state between calls. Two entries of one program are two kernels with a state each, and they do not share globals. The exception is a summary pair, which is one kernel.
@@ -35,36 +37,36 @@ Every `.entry` becomes one kernel. The program's globals are the kernel's state 
 
 ### 1. Emit
 
-`kgpy --emit-hls FILE... -o DIR` writes the HLS C++ of every entry, a C test bench, a script for Vitis HLS and `manifest.json`. It takes seconds and needs none of the tools.
+`kgpy fpga source FILE... -o DIR` writes the HLS C++ of every entry, a C test bench, a script for Vitis HLS and `manifest.json`. It takes seconds and needs none of the tools.
 
 <!-- check-docs: link examples -->
 ```console
-$ kgpy --emit-hls examples/embedded/fir.kg -o out/
+$ kgpy fpga source examples/embedded/fir.kg -o out/
 examples/embedded/fir.kg: wrote out/fir.c, out/fir.h, out/fir_run_tb.cpp, out/fir_run_top.cpp, out/hls_run.tcl, out/kg_hls_stub.h, out/klong_rt.h, out/manifest.json
   kernel fir_run_kernel: entry run (float[256] -> float[241]); record in 1024 bytes, out 964 bytes
 ```
 
-With `KLONG_HW_BUILD=user@host` set, `--synth` runs C synthesis on that machine and prints the estimates.
+With `KLONG_FPGA_BUILD=user@host` set, `--synth` runs C synthesis on that machine and prints the estimates.
 
 ### 2. Build, with the timing gate
 
-`kgpy --hw-build FILE... [--clock-mhz N]` builds the bitstream on the machine named by `KLONG_HW_BUILD` and keeps it in a cache there. The cache key is a hash of the program, the emitter version, the clock, the platform and the tool version. Several files make one image, so build together what you will use together:
+`kgpy fpga build FILE... [--clock-mhz N]` builds the bitstream on the machine named by `KLONG_FPGA_BUILD` and keeps it in a cache there. The cache key is a hash of the program, the emitter version, the clock, the platform and the tool version. Several files make one image, so build together what you will use together:
 
 ```
-kgpy --hw-build examples/embedded/mavg.kg examples/embedded/fir.kg
-kgpy --hw-build --status         # shows the build
-kgpy --hw-build --wait           # waits for it
+kgpy fpga build examples/embedded/mavg.kg examples/embedded/fir.kg
+kgpy fpga status                # shows the build
+kgpy fpga build --wait          # waits for it
 ```
 
-A source that has been built is not built again. A source that failed timing is not retried; the message gives the slack and a clock to try. A build is a full Vitis and Vivado run. One image of three small programs (four kernels) took 1 hour 27 minutes. Run one build at a time: `--hw-build` refuses to start while a Vivado, `v++` or Vitis HLS process of any user is running on the machine.
+A source that has been built is not built again. A source that failed timing is not retried; the message gives the slack and a clock to try. A build is a full Vitis and Vivado run. One image of three small programs (four kernels) took 1 hour 27 minutes. Run one build at a time: `kgpy fpga build` refuses to start while a Vivado, `v++` or Vitis HLS process of any user is running on the machine.
 
 A bitstream is loaded only if its routed timing was met: no failing endpoints and a worst negative slack at or above zero. The build records the result in `build.json` next to the image. An image that fails is renamed `*.timing-failed.xclbin`. The loader refuses that name, any image without a passing `build.json`, and any image whose SHA-256 differs from the recorded one.
 
 ### 3. Bind and call from Klong
 
-`.hw("fir.kg")` finds the image of that source, loads it on the card and returns a dictionary from entry name to function. A source with no image is an error that names the exact build command. `.hw` never runs an image that was built from other source.
+`.fpga("fir.kg")` finds the image of that source, loads it on the card and returns a dictionary from entry name to function. A source with no image is an error that names the exact build command. `.fpga` never runs an image that was built from other source.
 
-With `KLONG_HW=sim`, `.hw` needs no card and no build. It compiles the generated HLS code with the system C and C++ compilers (the HLS pragmas are ignored) and calls it with the same records and status word as the card. Its results show that the program and the binding work. They say nothing about speed.
+With `KLONG_FPGA=sim`, `.fpga` needs no card and no build. It compiles the generated HLS code with the system C and C++ compilers (the HLS pragmas are ignored) and calls it with the same records and status word as the card. Its results show that the program and the binding work. They say nothing about speed.
 
 `fir.kg` is a 16-tap filter over a block of 256 samples that gives 241 outputs. The program below loads it interpreted (`.l` defines `run`), binds the kernel (`fir.run`), runs three blocks both ways, prints the shape of the result, and prints 1 if the largest squared difference is below 1e-9.
 
@@ -72,14 +74,14 @@ With `KLONG_HW=sim`, `.hw` needs no card and no build. It compiles the generated
 ```console
 $ cat > fir_hw.kg <<'EOF'
 > .l("examples/embedded/fir.kg")
-> fir::.hw("examples/embedded/fir.kg")
+> fir::.fpga("examples/embedded/fir.kg")
 > x::{256#x}'1.0+!3
 > d::run'x
 > d::d-fir.run(x)
 > .p(^d)
 > .p((|/,/d*d)<1e-9)
 > EOF
-$ KLONG_HW=sim kgpy fir_hw.kg
+$ KLONG_FPGA=sim kgpy fir_hw.kg
 [3 241]
 1
 ```
@@ -91,40 +93,40 @@ State lives in the kernel. `mavg.kg` keeps the last four samples:
 <!-- check-docs: continue; requires-cmd cc c++ -->
 ```console
 $ cat > mavg_hw.kg <<'EOF'
-> mavg::.hw("examples/embedded/mavg.kg")
+> mavg::.fpga("examples/embedded/mavg.kg")
 > .p(mavg.step([4.0 8.0 12.0 16.0 20.0]))
 > .p(mavg.step(4.0))
-> .hw.reset(mavg.step)
+> .fpga.reset(mavg.step)
 > .p(mavg.step(4.0))
-> .p(.hw.info()@"mode")
+> .p(.fpga.info()@"mode")
 > EOF
-$ KLONG_HW=sim kgpy mavg_hw.kg
+$ KLONG_FPGA=sim kgpy mavg_hw.kg
 [1.0 3.0 6.0 10.0 14.0]
 13.0
 1.0
 sim
 ```
 
-The first call after `.hw` starts the program from its initial state; the five ticks are one run. The next call goes on from the window the run left. `.hw.reset(k)` makes the next call of `k` start from the initial state again.
+The first call after `.fpga` starts the program from its initial state; the five ticks are one run. The next call goes on from the window the run left. `.fpga.reset(k)` makes the next call of `k` start from the initial state again.
 
 ### 4. Lanes and parameters
 
-`--lanes N` builds N copies of the program, called lanes, that read one input stream. Each parameter (declared with `.param`) is then an array of N values, set with `.hw.set` between runs. `.hw.lanes("crossover.kg";n)` binds the image built with `--lanes n`.
+`--lanes N` builds N copies of the program, called lanes, that read one input stream. Each parameter (declared with `.param`) is then an array of N values, set with `.fpga.set` between runs. `.fpga.lanes("crossover.kg";n)` binds the image built with `--lanes n`.
 
 On the simulator, with two lanes (`fast` 2 and 1, `slow` 4 and 3) and the 20 ticks of a test series whose answer was worked out on paper:
 
 <!-- check-docs: link examples; requires-cmd cc c++ -->
 ```console
 $ cat > strategy.kg <<'EOF'
-> s::.hw.lanes("examples/hardware/crossover.kg";2)
-> .hw.set(s;"fast";[2 1])
-> .hw.set(s;"slow";[4 3])
-> .hw.set(s;"stop";[1.5 1.5])
+> s::.fpga.lanes("examples/hardware/crossover.kg";2)
+> .fpga.set(s;"fast";[2 1])
+> .fpga.set(s;"slow";[4 3])
+> .fpga.set(s;"stop";[1.5 1.5])
 > t::[10 10 10 10 11 9.25 9.5 9.75 11.5 12 12.5 13 13.5 14 14.5 15 15.5 16 16.5 17]
 > .p(crossover.step(t))
 > .p(crossover.summary())
 > EOF
-$ KLONG_HW=sim kgpy strategy.kg
+$ KLONG_FPGA=sim kgpy strategy.kg
 [[1.75 3.75 3.0] [5.0 2.25 3.0]]
 [[1.75 3.75 3.0] [5.0 2.25 3.0]]
 ```
@@ -155,41 +157,41 @@ This is a fragment: `step`, `profit`, `maxdd`, `trades` and `wide` are defined i
 Building and replaying it on the card:
 
 ```
-kgpy --hw-build examples/hardware/crossover.kg --lanes 32 --clock-mhz 250
+kgpy fpga build examples/hardware/crossover.kg --lanes 32 --clock-mhz 250
 python examples/hardware/crossover_bench.py gen history.bin params.bin --ticks 10000000 --lanes 32
-KLONG_HW_HOST=user@host python examples/hardware/crossover_card.py history.bin params.bin
+KLONG_FPGA_HOST=user@host python examples/hardware/crossover_card.py history.bin params.bin
 ```
 
 ## Settings
 
 | Setting | Meaning | Default |
 |---|---|---|
-| `KLONG_HW=sim` | use the simulator on this machine; no card, no image | unset |
-| `KLONG_HW_HOST=user@host` | the machine with the card, reached by key-based ssh; the server `klongpy/hw/server.py` is started there with Python 3.8, numpy and pyxrt | unset; with `pyxrt` importable, the card on this machine |
-| `KLONG_HW_BUILD=user@host` | where `--emit-hls --synth` and `--hw-build` run | unset |
-| `KLONG_HW_ROOT` | the directory on the build and card machine under which everything is written (`work/`, `builds/`, `server/`, `venv/`, `build.lock`); absolute, or starting with `~/`, the home directory of that machine; a path outside it is refused | `~/klong-hw` |
-| `KLONG_HW_VITIS_SETTINGS` | the `settings64.sh` of Vitis that a build sources before `v++` and `vitis_hls` | none: `v++` and `vitis_hls` must be on the `PATH` of the machine, or the build stops and names this variable |
-| `KLONG_HW_HLS_SETTINGS` | the `settings64.sh` of Vitis HLS that `--synth` and the remote tests source before `vitis_hls` | none: `vitis_hls` must be on the `PATH` |
-| `KLONG_HW_PLATFORM_REPO_PATHS` | the directory that holds the U250 platform, exported to the build as `PLATFORM_REPO_PATHS` | none: a build stops with an error naming this variable unless `PLATFORM_REPO_PATHS` is already set on the machine |
+| `KLONG_FPGA=sim` | use the simulator on this machine; no card, no image | unset |
+| `KLONG_FPGA_HOST=user@host` | the machine with the card, reached by key-based ssh; the server `klongpy/hw/server.py` is started there with Python 3.8, numpy and pyxrt | unset; with `pyxrt` importable, the card on this machine |
+| `KLONG_FPGA_BUILD=user@host` | where `kgpy fpga source --synth` and `kgpy fpga build` run | unset |
+| `KLONG_FPGA_ROOT` | the directory on the build and card machine under which everything is written (`work/`, `builds/`, `server/`, `venv/`, `build.lock`); absolute, or starting with `~/`, the home directory of that machine; a path outside it is refused | `~/klong-hw` |
+| `KLONG_FPGA_VITIS_SETTINGS` | the `settings64.sh` of Vitis that a build sources before `v++` and `vitis_hls` | none: `v++` and `vitis_hls` must be on the `PATH` of the machine, or the build stops and names this variable |
+| `KLONG_FPGA_HLS_SETTINGS` | the `settings64.sh` of Vitis HLS that `--synth` and the remote tests source before `vitis_hls` | none: `vitis_hls` must be on the `PATH` |
+| `KLONG_FPGA_PLATFORM_REPO_PATHS` | the directory that holds the U250 platform, exported to the build as `PLATFORM_REPO_PATHS` | none: a build stops with an error naming this variable unless `PLATFORM_REPO_PATHS` is already set on the machine |
 
-The build machine and the card machine may be the same machine but are separate settings. Nothing of this is imported when KlongPy starts. The settings are read where `kgpy` runs and used on the machine named by `KLONG_HW_BUILD` or `KLONG_HW_HOST`. The hash that names a build directory does not include the root, so images built under one root are found again when the root is set to that directory.
+The build machine and the card machine may be the same machine but are separate settings. Nothing of this is imported when KlongPy starts. The settings are read where `kgpy` runs and used on the machine named by `KLONG_FPGA_BUILD` or `KLONG_FPGA_HOST`. The hash that names a build directory does not include the root, so images built under one root are found again when the root is set to that directory.
 
 ### Trust
 
-The server runs on the card machine with your ssh identity, and the build runs there as you. Loading an image replaces what was on the card, including an image of someone else's, after checking that no other process has the card open. The loader does not program the base shell and never loads an image whose timing failed. All of its files are under `KLONG_HW_ROOT` (default `~/klong-hw/`) on that machine. Nothing is installed outside it, and nothing needs sudo.
+The server runs on the card machine with your ssh identity, and the build runs there as you. Loading an image replaces what was on the card, including an image of someone else's, after checking that no other process has the card open. The loader does not program the base shell and never loads an image whose timing failed. All of its files are under `KLONG_FPGA_ROOT` (default `~/klong-hw/`) on that machine. Nothing is installed outside it, and nothing needs sudo.
 
 ## Calling a kernel
 
-`h::.hw("fir.kg")` binds each entry twice: as `h@"run"` in the returned dictionary (`g::h@"run"; g(x)`), and as the name `fir.run`, the file name without `.kg`, then a dot, then the entry. A list of paths, `.hw(["mavg.kg" "fir.kg"])`, binds the programs of an image built from several files.
+`h::.fpga("fir.kg")` binds each entry twice: as `h@"run"` in the returned dictionary (`g::h@"run"; g(x)`), and as the name `fir.run`, the file name without `.kg`, then a dot, then the entry. A list of paths, `.fpga(["mavg.kg" "fir.kg"])`, binds the programs of an image built from several files.
 
 * A call checks the number, type and shape of its arguments against the entry's signature before anything is sent, with the errors `call_entry` gives: a wrong type is a `type` error, a wrong shape a `shape` error, a wrong count an `arity` error, an `int` outside the kernel's 32 bits a `range` error.
 * An argument with one extra leading dimension `n` is `n` calls in one run, and the result has the same leading dimension. All arguments of a call must agree on `n`.
 * A float result is returned as float64, an int as int64, in the array type of the session's backend (a torch tensor on the torch backend). The arrays cross to the card as numpy.
-* `.hw.put(k;x)` uploads the arguments of calls of `k` once and returns a buffer. For a kernel with several arguments `x` is a list of them. `k(b)` runs the stored calls without sending them again, `.hw.get(b)` downloads them and `.hw.free(b)` frees them. Buffers are freed when another image is loaded and when the session ends.
-* `.hw.lanes("fir.kg";n)` is `.hw` for the image built with `--lanes n`. Every parameter of the program (declared with `.param`) is then an array of n values, one per lane, set with `.hw.set(h;"name";values)` between runs, and a result has a leading dimension n. `.hw.set` converts the value as `klongpy.static.set_param` does for the interpreter, and an unknown name, a wrong shape (one value per lane) or a value that does not fit the register is an error. See [the summary pattern](#5-the-summary-pattern).
-* `.hw.info()` is a dictionary: `mode` (`card`, `local` or `sim`), `device`, `shell`, the loaded `image` and its `key`, the `kernels`, the `build` record (routed timing, utilisation, build time), and the number and size of the `buffers`.
+* `.fpga.put(k;x)` uploads the arguments of calls of `k` once and returns a buffer. For a kernel with several arguments `x` is a list of them. `k(b)` runs the stored calls without sending them again, `.fpga.get(b)` downloads them and `.fpga.free(b)` frees them. Buffers are freed when another image is loaded and when the session ends.
+* `.fpga.lanes("fir.kg";n)` is `.fpga` for the image built with `--lanes n`. Every parameter of the program (declared with `.param`) is then an array of n values, one per lane, set with `.fpga.set(h;"name";values)` between runs, and a result has a leading dimension n. `.fpga.set` converts the value as `klongpy.static.set_param` does for the interpreter, and an unknown name, a wrong shape (one value per lane) or a value that does not fit the register is an error. See [the summary pattern](#5-the-summary-pattern).
+* `.fpga.info()` is a dictionary: `mode` (`card`, `local` or `sim`), `device`, `shell`, the loaded `image` and its `key`, the `kernels`, the `build` record (routed timing, utilisation, build time), and the number and size of the `buffers`.
 
-Loading an image replaces whatever the card held, and one session holds one image: a second `.hw` that needs another image loads it, and the kernels bound earlier then raise an error that says to call `.hw` again. Bind everything that is used together in one image.
+Loading an image replaces whatever the card held, and one session holds one image: a second `.fpga` that needs another image loads it, and the kernels bound earlier then raise an error that says to call `.fpga` again. Bind everything that is used together in one image.
 
 ### Errors
 
@@ -198,12 +200,12 @@ All are `system` errors (a subclass of `KlongSystemError`) except the first, whi
 | Situation | What you see |
 |---|---|
 | The program is outside the profile, or an entry cannot be a kernel | a `static` error with the position and the rule |
-| No hardware: none of `KLONG_HW=sim`, `KLONG_HW_HOST`, `pyxrt` | a `system` error naming the three ways to get one |
-| No image for this source, or the build failed timing, or it is still being built | a `system` error with the exact `kgpy --hw-build ...` command |
+| No hardware: none of `KLONG_FPGA=sim`, `KLONG_FPGA_HOST`, `pyxrt` | a `system` error naming the three ways to get one |
+| No image for this source, or the build failed timing, or it is still being built | a `system` error with the exact `kgpy fpga build ...` command |
 | The server refused an image (timing, no passing `build.json`, hash mismatch) | a `system` error; nothing is loaded |
 | The card is in use by another process, or a unit is not idle | a `system` error; nothing is loaded |
-| The connection dropped or the server stopped answering | a `system` error; call `.hw` again to reconnect |
-| `.hw.set` of a name the program does not declare with `.param` | a `name` error that lists the parameters |
+| The connection dropped or the server stopped answering | a `system` error; call `.fpga` again to reconnect |
+| `.fpga.set` of a name the program does not declare with `.param` | a `name` error that lists the parameters |
 | A trap during a run: an index out of range, an integer division by zero | a `range` error naming the entry; the results of that run are not returned, and the next run starts clean |
 
 The trap is the compiled program's trap: the kernel does not stop, it sets a flag, and the host raises after the run. The interpreter raises at the first call that does it.
@@ -211,12 +213,12 @@ The trap is the compiled program's trap: the kernel does not stop, it sets a fla
 <!-- check-docs: link examples -->
 ```console
 $ cat > no_hw.kg <<'EOF'
-> .hw("examples/embedded/fir.kg")
+> .fpga("examples/embedded/fir.kg")
 > EOF
-$ env -u KLONG_HW -u KLONG_HW_HOST kgpy no_hw.kg
-no_hw.kg:1:1: system error: no hardware to run on: set KLONG_HW_HOST=user@host to use the Alveo card on that machine over ssh, run KlongPy on the machine with the card (pyxrt importable), or set KLONG_HW=sim for the simulator (no hardware)
-  .hw("examples/embedded/fir.kg")
-  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+$ env -u KLONG_FPGA -u KLONG_FPGA_HOST kgpy no_hw.kg
+no_hw.kg:1:1: system error: no hardware to run on: set KLONG_FPGA_HOST=user@host to use the Alveo card on that machine over ssh, run KlongPy on the machine with the card (pyxrt importable), or set KLONG_FPGA=sim for the simulator (no hardware)
+  .fpga("examples/embedded/fir.kg")
+  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ## Results
@@ -278,10 +280,10 @@ The summary of every lane after the first 100000 ticks equals the Python evaluat
 
 ## Known limits
 
-* Only the strategy image has been run on the card with the current emitter. The image of `mavg.kg`, `fir.kg` and `trap.kg` must be built again (`kgpy --hw-build examples/embedded/mavg.kg examples/embedded/fir.kg tests/static/hw/trap.kg`) before `tests/static/test_hw_card.py` and `test_hw_binding_card.py` stop skipping.
+* Only the strategy image has been run on the card with the current emitter. The image of `mavg.kg`, `fir.kg` and `trap.kg` must be built again (`kgpy fpga build examples/embedded/mavg.kg examples/embedded/fir.kg tests/static/hw/trap.kg`) before `tests/static/test_hw_card.py` and `test_hw_binding_card.py` stop skipping.
 * More than 32 lanes: a build with 64 lanes in one pipelined loop failed timing (estimated worst slack -6.4 ns at 250 MHz after placement, with five nets of more than 10000 loads) and was stopped during routing. 64 lanes as one process per lane (about 290000 LUTs) has not been built.
 * Hardware emulation: loading the emulated image did not complete in the time allowed. There is no co-simulation.
 * There are no network ports.
-* An entry that mixes `int` and `float` arguments is built but cannot be called by `.hw`, and a summary kernel with lanes needs records of one width.
+* An entry that mixes `int` and `float` arguments is built but cannot be called by `.fpga`, and a summary kernel with lanes needs records of one width.
 * One session holds one image. Loading an image replaces what the card held.
 * Builds take hours and one image at a time.

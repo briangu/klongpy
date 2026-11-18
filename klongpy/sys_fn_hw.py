@@ -1,10 +1,10 @@
 """
-.hw: call a built FPGA kernel from Klong like a function.
+.fpga: call a built FPGA kernel from Klong like a function.
 
-    fir::.hw("fir.kg")             bind the kernels of the image built from fir.kg (kgpy --hw-build fir.kg)
-    y::fir.run(x)                  runs on the card; the same program without .hw runs interpreted
+    fir::.fpga("fir.kg")             bind the kernels of the image built from fir.kg (kgpy fpga build fir.kg)
+    y::fir.run(x)                  runs on the card; the same program without .fpga runs interpreted
 
-See docs/hardware.md. The work is in klongpy/hw/binding.py; nothing from klongpy/hw is imported until .hw is used,
+See docs/hardware.md. The work is in klongpy/hw/binding.py; nothing from klongpy/hw is imported until .fpga is used,
 and torch is never imported here: arrays cross to the card as numpy and come back through the session's backend.
 """
 import os
@@ -21,7 +21,7 @@ __all__ = ["KlongHwError", "KlongHwImageError", "KlongHwBusyError", "KlongHwConn
 
 
 class KlongHwError(KlongSystemError):
-    """.hw cannot run: no hardware to run on, or the hardware answered with an error (kind "system")."""
+    """.fpga cannot run: no hardware to run on, or the hardware answered with an error (kind "system")."""
 
 
 class KlongHwImageError(KlongHwError):
@@ -60,7 +60,7 @@ def _translate(e, entry=None):
     if isinstance(e, HwNotAvailable):
         return KlongHwError(e.message)
     if isinstance(e, HwConnectionError):
-        return KlongHwConnectionError("%s; the session is closed, call .hw again to reconnect" % e.message)
+        return KlongHwConnectionError("%s; the session is closed, call .fpga again to reconnect" % e.message)
     if isinstance(e, HwRefused):
         if e.kind == "CardBusy":
             return KlongHwBusyError("%s" % e.message)
@@ -155,10 +155,10 @@ def _paths(x):
         except TypeError:
             files = []
         if not files or not all(type(f) is str for f in files):
-            raise KlongTypeError(".hw: the argument must be the path of a Klong program or a list of paths")
+            raise KlongTypeError(".fpga: the argument must be the path of a Klong program or a list of paths")
     for f in files:
         if not os.path.isfile(f):
-            raise KlongSystemError(".hw: no such file: %s" % f)
+            raise KlongSystemError(".fpga: no such file: %s" % f)
     return files
 
 
@@ -177,42 +177,42 @@ def _entry_of(x, who):
         if isinstance(x, dict) and len(x) == 1:
             b = getattr(next(iter(x.values())), "hw_entry", None)
         if b is None:
-            raise KlongTypeError("%s: the first argument must be a kernel from .hw, for example fir.run" % who)
+            raise KlongTypeError("%s: the first argument must be a kernel from .fpga, for example fir.run" % who)
     return b
 
 
 def eval_sys_hw(klong, x):
     """
 
-        .hw(x)                                                  [Hardware]
+        .fpga(x)                                                  [FPGA]
 
         Bind the FPGA kernels of a built program. "x" is the path of
         a Klong program of the static profile that has .entry
         declarations, or a list of paths for an image that was
-        built from several programs (kgpy --hw-build a.kg b.kg).
+        built from several programs (kgpy fpga build a.kg b.kg).
         The program is checked and compiled, the image built from
         exactly this source is looked up on the card machine
-        ($KLONG_HW_HOST; the build cache must be there) and loaded, and a dictionary
+        ($KLONG_FPGA_HOST; the build cache must be there) and loaded, and a dictionary
         from entry name to function is returned. Each entry is also
         bound as "program.entry", where "program" is the file name
-        without ".kg": fir::.hw("fir.kg") makes fir.run, which is
+        without ".kg": fir::.fpga("fir.kg") makes fir.run, which is
         also fir@"run".
 
         A call checks its arguments against the entry's signature
         and runs on the card; an argument with one extra leading
         dimension means that many calls in one run, and the result
         has that dimension too. The program's state is kept between
-        calls and starts fresh at the first call after .hw.
+        calls and starts fresh at the first call after .fpga.
 
-        With KLONG_HW=sim the kernels run on this machine's CPU: the
+        With KLONG_FPGA=sim the kernels run on this machine's CPU: the
         generated HLS code compiled with the C++ compiler. That is a
         simulator, not hardware. There is no image to build then.
 
-        Without KLONG_HW=sim, KLONG_HW_HOST or pyxrt, .hw is an
+        Without KLONG_FPGA=sim, KLONG_FPGA_HOST or pyxrt, .fpga is an
         error that says so. Loading an image replaces what the card
         held. See docs/hardware.md.
 
-        Examples:   fir::.hw("fir.kg")
+        Examples:   fir::.fpga("fir.kg")
                     fir.run(256#1.0)
 
     """
@@ -237,20 +237,20 @@ def _bind(klong, files, lanes):
 def eval_sys_hw_lanes(klong, x, y):
     """
 
-        .hw.lanes(x;y)                                        [Hw-Lanes]
+        .fpga.lanes(x;y)                                    [FPGA-Lanes]
 
         Bind the kernels of a program built with --lanes y
-        (kgpy --hw-build FILE --lanes y). Like .hw: "x" is a path
+        (kgpy fpga build FILE --lanes y). Like .fpga: "x" is a path
         or a list of paths. The kernel then runs y copies of the
         program on the same stream of calls: every .param is set
-        with .hw.set as an array of y values, and a result has a
+        with .fpga.set as an array of y values, and a result has a
         leading dimension y.
 
-        Example:   s::.hw.lanes("crossover.kg";64)
+        Example:   s::.fpga.lanes("crossover.kg";64)
 
     """
     if isinstance(y, bool) or not isinstance(y, (int, np.integer)) or y < 1:
-        raise KlongTypeError(".hw.lanes: the number of lanes must be an integer from 1")
+        raise KlongTypeError(".fpga.lanes: the number of lanes must be an integer from 1")
     return _bind(klong, _paths(x), int(y))
 
 
@@ -262,31 +262,31 @@ def _binding_of(x, who):
             if b is not None:
                 break
     if b is None:
-        raise KlongTypeError("%s: the first argument must be what .hw returned, or a kernel from it (fir.run)" % who)
+        raise KlongTypeError("%s: the first argument must be what .fpga returned, or a kernel from it (fir.run)" % who)
     return b.binding
 
 
 def eval_sys_hw_set(klong, x, y, z):
     """
 
-        .hw.set(x;y;z)                                        [Hw-Set]
+        .fpga.set(x;y;z)                                      [FPGA-Set]
 
         Set the parameter "y" (declared in the program with
         .param) of the kernels of "x" to the value "z", between
-        runs. "x" is what .hw returned, or one of its kernels.
+        runs. "x" is what .fpga returned, or one of its kernels.
         The value is converted as the interpreter converts it
         (a fixed-point parameter takes a number, truncating toward
-        minus infinity); for a kernel bound with .hw.lanes it is
+        minus infinity); for a kernel bound with .fpga.lanes it is
         an array with one value per lane. The kernel keeps the
         value, through resets, until it is set again. Returns the
         number of kernels set.
 
-        Example:   .hw.set(s;"fast";[3 5 8])
+        Example:   .fpga.set(s;"fast";[3 5 8])
 
     """
-    binding = _binding_of(x, ".hw.set")
+    binding = _binding_of(x, ".fpga.set")
     if type(y) is not str:
-        raise KlongTypeError(".hw.set: the name of the parameter must be a string")
+        raise KlongTypeError(".fpga.set: the name of the parameter must be a string")
     with _guard():
         return binding.set_register(str(y), z)
 
@@ -294,7 +294,7 @@ def eval_sys_hw_set(klong, x, y, z):
 def eval_sys_hw_put(klong, x, y):
     """
 
-        .hw.put(x;y)                                          [Hw-Put]
+        .fpga.put(x;y)                                        [FPGA-Put]
 
         Upload the arguments of calls of the kernel "x" to the
         card once and return a buffer. "y" is the argument of the
@@ -302,21 +302,21 @@ def eval_sys_hw_put(klong, x, y):
         or, for a kernel with several arguments, a list of them.
         A buffer is accepted by the kernel in place of its
         arguments: fir.run(b). It stays on the card until it is
-        freed with .hw.free or the image is unloaded or the session
+        freed with .fpga.free or the image is unloaded or the session
         ends.
 
-        Example:   b::.hw.put(fir.run;x)
+        Example:   b::.fpga.put(fir.run;x)
                    fir.run(b)
 
     """
-    bound = _entry_of(x, ".hw.put")
+    bound = _entry_of(x, ".fpga.put")
     if bound.arity == 1:
         args = [y]
     else:
         try:
             args = list(y)
         except TypeError:
-            raise KlongTypeError(".hw.put: %s takes %d arguments: pass them as a list" % (bound.qualified, bound.arity)) from None
+            raise KlongTypeError(".fpga.put: %s takes %d arguments: pass them as a list" % (bound.qualified, bound.arity)) from None
     with _guard(bound):
         buf = bound.put(args)
     bound.binding.buffers.append(buf)
@@ -326,21 +326,21 @@ def eval_sys_hw_put(klong, x, y):
 def eval_sys_hw_get(klong, x):
     """
 
-        .hw.get(x)                                            [Hw-Get]
+        .fpga.get(x)                                          [FPGA-Get]
 
-        Download a buffer made by .hw.put as an array of the
+        Download a buffer made by .fpga.put as an array of the
         arguments it holds (for a kernel with several arguments,
         the records: one row per call, the arguments flattened one
         after the other).
 
-        Example:   .hw.get(b)
+        Example:   .fpga.get(b)
 
     """
     from .hw.binding import Buffer
     if not isinstance(x, Buffer):
-        raise KlongTypeError(".hw.get: the argument must be a buffer from .hw.put")
+        raise KlongTypeError(".fpga.get: the argument must be a buffer from .fpga.put")
     if x.freed:
-        raise KlongTypeError(".hw.get: the buffer was freed")
+        raise KlongTypeError(".fpga.get: the buffer was freed")
     with _guard(x.entry):
         x.entry.binding.live_session()
         k = x.entry.kernel()
@@ -361,19 +361,19 @@ def eval_sys_hw_get(klong, x):
 def eval_sys_hw_free(klong, x):
     """
 
-        .hw.free(x)                                           [Hw-Free]
+        .fpga.free(x)                                        [FPGA-Free]
 
-        Free a buffer made by .hw.put. Returns 1. Freeing a buffer
+        Free a buffer made by .fpga.put. Returns 1. Freeing a buffer
         twice is an error.
 
-        Example:   .hw.free(b)
+        Example:   .fpga.free(b)
 
     """
     from .hw.binding import Buffer
     if not isinstance(x, Buffer):
-        raise KlongTypeError(".hw.free: the argument must be a buffer from .hw.put")
+        raise KlongTypeError(".fpga.free: the argument must be a buffer from .fpga.put")
     if x.freed:
-        raise KlongTypeError(".hw.free: the buffer was already freed")
+        raise KlongTypeError(".fpga.free: the buffer was already freed")
     x.freed = True
     b = x.entry.binding
     if x in b.buffers:
@@ -391,16 +391,16 @@ def eval_sys_hw_free(klong, x):
 def eval_sys_hw_reset(klong, x):
     """
 
-        .hw.reset(x)                                          [Hw-Reset]
+        .fpga.reset(x)                                      [FPGA-Reset]
 
         Make the next call of the kernel "x" start the program from
         its initial state (the program's globals as initialised
         when the program was loaded). Returns 1.
 
-        Example:   .hw.reset(mavg.step)
+        Example:   .fpga.reset(mavg.step)
 
     """
-    bound = _entry_of(x, ".hw.reset")
+    bound = _entry_of(x, ".fpga.reset")
     bound.reset_next()
     return 1
 
@@ -408,7 +408,7 @@ def eval_sys_hw_reset(klong, x):
 def eval_sys_hw_info(klong):
     """
 
-        .hw.info()                                            [Hw-Info]
+        .fpga.info()                                         [FPGA-Info]
 
         A dictionary describing the hardware in use: "mode"
         ("card", "local" or "sim"), "device", "shell", the loaded
@@ -417,7 +417,7 @@ def eval_sys_hw_info(klong):
         resident "buffers" and "buffer-bytes". It does not load
         anything. Without a hardware to use it is an error.
 
-        Example:   .hw.info()
+        Example:   .fpga.info()
 
     """
     from .hw import binding

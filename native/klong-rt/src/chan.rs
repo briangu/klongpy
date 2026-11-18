@@ -241,6 +241,25 @@ fn load_text<P: Platform + 'static>(sh: &Rc<Shared<P>>, name: &str) -> Result<(S
     if let Some((label, text)) = crate::library::find(name) {
         return Ok((String::from(label), Loaded::Static(text)));
     }
+    // last, next to the file that is being run or loaded
+    if tried_fs && !direct {
+        let home = sh.io.try_borrow().map_err(|_| busy())?.home.last().cloned().unwrap_or_default();
+        if !home.is_empty() {
+            let joined = format!("{}/{}", home.trim_end_matches('/'), name);
+            let mut near = alloc::vec![joined.clone()];
+            if !name.ends_with(".kg") {
+                near.push(format!("{}.kg", joined));
+            }
+            for c in &near {
+                match read_file(sh, c) {
+                    Ok(text) => return Ok((c.clone(), Loaded::Owned(text))),
+                    Err(e) if e.kind == klong_core::Kind::Memory => return Err(e),
+                    Err(e) if e.message.starts_with("not UTF-8") => return Err(e),
+                    Err(_) => {}
+                }
+            }
+        }
+    }
     let e = Error::system(klong_core::msg!("file does not exist: {}", name));
     Err(if tried_fs { e } else { e.with_hint("this platform has no file system") })
 }
@@ -425,10 +444,22 @@ pub(crate) fn register<P: Platform + 'static>(interp: &mut Interp, shared: &Rc<S
         1,
         Rc::new(move |ip: &mut Interp, a: &[Value]| {
             let (path, text) = load_text(&sh, text_arg(a, ".l")?)?;
-            let r = match text {
-                Loaded::Owned(t) => ip.load_owned(t, &path)?,
-                Loaded::Static(t) => ip.load_static(t, &path)?,
+            // while it runs, the directory of this file is where its own .l calls look last
+            let dir = match &text {
+                Loaded::Owned(_) => crate::chan_dir(&path),
+                Loaded::Static(_) => String::new(),
             };
+            if let Ok(mut io) = sh.io.try_borrow_mut() {
+                io.home.push(dir);
+            }
+            let r = match text {
+                Loaded::Owned(t) => ip.load_owned(t, &path),
+                Loaded::Static(t) => ip.load_static(t, &path),
+            };
+            if let Ok(mut io) = sh.io.try_borrow_mut() {
+                io.home.pop();
+            }
+            let r = r?;
             match r {
                 Some(v) => Ok(v),
                 None => Ok(ip.no_value()),

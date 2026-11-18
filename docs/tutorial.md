@@ -665,7 +665,7 @@ One trap comes from the pair rule. `,` with a dictionary on the right and a list
 [1 2 :{["k" 1]}]
 ```
 
-`kgpy --lint` reports the first form as W020 (see [Lint](lint.md)). The remaining rules, including nested dictionaries, are in [Language Additions](language-additions.md).
+`kgpy lint` reports the first form as W020 (see [Lint](lint.md)). The remaining rules, including nested dictionaries, are in [Language Additions](language-additions.md).
 
 ## 9. Printing and strings
 
@@ -770,7 +770,7 @@ None
 4
 ```
 
-`.l("file.kg")` loads and runs a Klong file. The name is looked up in the current directory, then in the directories of the `KLONGPATH` environment variable, and `.kg` may be left off. `KLONGPATH` defaults to `.:lib`. The standard library files (`math`, `csv`, `set`, `nstat` and others) are in the `klongpy/lib` directory of the package, which `kgpy` adds to `KLONGPATH` itself, so `.l("nstat")` works in the REPL and in `kgpy -e` without setting anything. A `KlongInterpreter` created from Python does not add it: there, set `KLONGPATH` to that directory, or copy the file you need, before you load one. The next example uses a file `lib.kg` with these two lines, and loads it:
+`.l("file.kg")` loads and runs a Klong file. The name is looked up in the current directory, then in the directories of the `KLONGPATH` environment variable, and `.kg` may be left off. `KLONGPATH` defaults to `.:lib`. When none of those has the file, a relative name is looked up last in the directory of the file that calls `.l`, so a program can load the files next to it from any current directory. The standard library files (`math`, `csv`, `set`, `nstat` and others) are in the `klongpy/lib` directory of the package, which `kgpy` adds to `KLONGPATH` itself, so `.l("nstat")` works in the REPL and in `kgpy -e` without setting anything. A `KlongInterpreter` created from Python does not add it: there, set `KLONGPATH` to that directory, or copy the file you need, before you load one. The next example uses a file `lib.kg` with these two lines, and loads it:
 
 ```console
 $ cat > lib.kg <<'EOF'
@@ -889,7 +889,7 @@ Klong has a few places where text that looks wrong is accepted and means somethi
 - Level 1 makes that input a syntax error, and makes an assignment or a read of a name that is not defined inside a function a name error.
 - Level 2 also makes the read of any undefined name, and extra arguments in a call, errors.
 
-[Strict mode](strict.md) lists each rule. The static checker [`kgpy --lint`](lint.md) finds the same kinds of mistakes in a file without running it, and some more. The traps that catch most newcomers:
+[Strict mode](strict.md) lists each rule. The static checker [`kgpy lint`](lint.md) finds the same kinds of mistakes in a file without running it, and some more. The traps that catch most newcomers:
 
 **Names cannot contain `_`.** `_` is the operator Drop, so `my_var` is `my _ var`:
 
@@ -969,7 +969,7 @@ error: unexpected '(' after the end of the expression
 error: undefined variable: c
 ```
 
-For new code, use level 2 (`kgpy --strict=2`) and run `kgpy --lint` on the files. Both report the mistakes above before the program runs or gives a wrong answer. See [Strict mode](strict.md#which-level-to-use).
+For new code, use level 2 (`kgpy --strict=2`) and run `kgpy lint` on the files. Both report the mistakes above before the program runs or gives a wrong answer. See [Strict mode](strict.md#which-level-to-use).
 
 ## Where to go next
 

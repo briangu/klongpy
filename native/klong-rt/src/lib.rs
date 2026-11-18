@@ -28,6 +28,7 @@ pub mod platform;
 #[cfg(feature = "files")]
 mod chan;
 mod fmtfn;
+mod strfn;
 #[cfg(feature = "lib")]
 pub mod library;
 
@@ -78,6 +79,10 @@ pub(crate) struct Io {
     pub start_us: u64,
     /// Directories `.l` looks in, in order.
     pub path: Vec<String>,
+    /// The directories of the files being run or loaded, the innermost last (empty text: a
+    /// file in the current directory, or a library file). A relative name that `path` and
+    /// the library do not have is looked for in the last one.
+    pub home: Vec<String>,
 }
 
 impl<P: Platform> Shared<P> {
@@ -180,7 +185,7 @@ impl<P: Platform + 'static> Runtime<P> {
             interrupt_armed: core::cell::Cell::new(false),
             ctrl_c_seen: core::cell::Cell::new(false),
             armed_hit: core::cell::Cell::new(false),
-            io: RefCell::new(Io { from: Value::Undefined, to: Value::Undefined, cin: Value::Undefined, cout: Value::Undefined, rng, start_us, path }),
+            io: RefCell::new(Io { from: Value::Undefined, to: Value::Undefined, cin: Value::Undefined, cout: Value::Undefined, rng, start_us, path, home: Vec::new() }),
         });
         let mut interp = Interp::new(cfg, Box::new(RtHooks { shared: shared.clone() }));
 
@@ -425,6 +430,7 @@ impl<P: Platform + 'static> Runtime<P> {
                 Err(Error::interrupt())
             }),
         );
+        strfn::register(&mut interp);
         // .e (Epsilon), as KlongPy has it
         let e = interp.syms.intern(".e");
         interp.set_global(e, Value::Flt(1e-18));
@@ -474,6 +480,16 @@ impl<P: Platform + 'static> Runtime<P> {
         }
     }
 
+    /// Tell `.l` which file the program being run comes from: a relative name that is found
+    /// neither in the load path nor in the library is then looked for next to that file.
+    pub fn set_program(&mut self, path: &str) {
+        if let Ok(mut io) = self.shared.io.try_borrow_mut() {
+            io.home.clear();
+            let dir = chan_dir(path);
+            io.home.push(dir);
+        }
+    }
+
     /// Start-up: run `boot.kg` if the file system has one. Returns whether there was one.
     #[cfg(feature = "files")]
     pub fn boot(&mut self) -> Result<bool> {
@@ -481,6 +497,15 @@ impl<P: Platform + 'static> Runtime<P> {
             Ok(text) => self.interp.load(&text, "boot.kg").map(|_| true),
             Err(_) => Ok(false),
         }
+    }
+}
+
+/// The directory part of a file name: "" when there is none.
+pub(crate) fn chan_dir(path: &str) -> String {
+    match path.rfind('/') {
+        Some(0) => String::from("/"),
+        Some(i) => String::from(&path[..i]),
+        None => String::new(),
     }
 }
 

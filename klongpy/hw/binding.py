@@ -1,5 +1,5 @@
 """
-The Python half of ``.hw`` (klongpy/sys_fn_hw.py is the Klong half): which hardware is used, which image holds a
+The Python half of ``.fpga`` (klongpy/sys_fn_hw.py is the Klong half): which hardware is used, which image holds a
 program, and calls of its entries with numpy arrays. Nothing here imports torch or klongpy's interpreter, and nothing
 is imported at KlongPy start.
 
@@ -8,8 +8,8 @@ is imported at KlongPy start.
 
 Where the kernels run (``choose_mode``):
 
-    KLONG_HW=sim            the simulator (klongpy/hw/sim.py): the HLS top functions compiled for this machine
-    KLONG_HW_HOST=user@host the card on that machine, over ssh (the server of klongpy/hw/server.py)
+    KLONG_FPGA=sim            the simulator (klongpy/hw/sim.py): the HLS top functions compiled for this machine
+    KLONG_FPGA_HOST=user@host the card on that machine, over ssh (the server of klongpy/hw/server.py)
     pyxrt importable        the card on this machine
     otherwise               HwNotAvailable, with the three ways to get hardware
 
@@ -32,7 +32,7 @@ __all__ = ["bind", "choose_mode", "close_all", "Binding", "BoundEntry", "Buffer"
            "session_for", "find_image_for"]
 
 DEFAULT_CLOCK = 300
-BUILD_COMMAND = "kgpy --hw-build"
+BUILD_COMMAND = "kgpy fpga build"
 
 
 class HwNotAvailable(HwError):
@@ -61,9 +61,9 @@ class BadCall(HwError):
 def choose_mode(env=None):
     """"sim", "card" (a machine over ssh), "local" (pyxrt here) or None."""
     env = os.environ if env is None else env
-    if env.get("KLONG_HW", "").strip().lower() == "sim":
+    if env.get("KLONG_FPGA", "").strip().lower() == "sim":
         return "sim"
-    if env.get("KLONG_HW_HOST", "").strip():
+    if env.get("KLONG_FPGA_HOST", "").strip():
         return "card"
     if importlib.util.find_spec("pyxrt") is not None:
         return "local"
@@ -72,8 +72,8 @@ def choose_mode(env=None):
 
 _LOCK = threading.RLock()
 _SESSIONS = {}
-_TEMPLATE_HINT = ("set KLONG_HW_HOST=user@host to use the Alveo card on that machine over ssh, run KlongPy on the machine "
-                  "with the card (pyxrt importable), or set KLONG_HW=sim for the simulator (no hardware)")
+_TEMPLATE_HINT = ("set KLONG_FPGA_HOST=user@host to use the Alveo card on that machine over ssh, run KlongPy on the machine "
+                  "with the card (pyxrt importable), or set KLONG_FPGA=sim for the simulator (no hardware)")
 
 
 def session_for(mode):
@@ -140,7 +140,7 @@ def _images_script(root):
 
 def find_image_for(files, host, clock_mhz=DEFAULT_CLOCK, lanes=None):
     """
-    The image of exactly these programs (kgpy --hw-build FILE... [--lanes N]), else, for programs built together with
+    The image of exactly these programs (kgpy fpga build FILE... [--lanes N]), else, for programs built together with
     others, the newest passing image that holds every one of them (same source hash). Returns (path, build.json dict).
     ``clock_mhz`` None looks at the default clock first and then at every clock an image on the machine was built for.
     Raises NoImage, with the build command, when there is none.
@@ -258,7 +258,7 @@ class BoundEntry:
 
     @property
     def pending_reset(self):
-        """The first call of a kernel after .hw (or .hw.reset) starts the program from its initial state; shared by the
+        """The first call of a kernel after .fpga (or .fpga.reset) starts the program from its initial state; shared by the
         entries of one kernel (a driver and its reader)."""
         return self.binding.pending.get(self.top, True)
 
@@ -365,7 +365,7 @@ class BoundEntry:
     def call(self, args, reset=False):
         """
         Run on the calls in ``args``: (array of shape (n,) + result shape, many). ``many`` is False for one plain call.
-        Raises HwTrap when a trap flag was set (the results are not returned). The first call after a ``.hw`` binding,
+        Raises HwTrap when a trap flag was set (the results are not returned). The first call after a ``.fpga`` binding,
         and the first after ``reset_next``, starts the program from its initial state.
         """
         cols, n, many = self.prepare(args)
@@ -386,7 +386,7 @@ class BoundEntry:
 
 
 class Binding:
-    """The programs of one ``.hw`` call, the image that holds them, and the session that runs them."""
+    """The programs of one ``.fpga`` call, the image that holds them, and the session that runs them."""
     def __init__(self, session, mode, files, outputs, path, build, loaded):
         self.session, self.mode, self.files, self.outputs = session, mode, list(files), outputs
         self.path, self.build, self.loaded = path, build, loaded
@@ -448,8 +448,8 @@ class Binding:
         """The session, if this binding's image is still the one loaded in it."""
         s = self.session
         if getattr(s, "image", None) != self.path or _SESSIONS.get(self.mode) is not s:
-            raise HwError("ImageReplaced", "the image of this binding is no longer loaded (another .hw call loaded a different "
-                          "image, or the session ended); call .hw again")
+            raise HwError("ImageReplaced", "the image of this binding is no longer loaded (another .fpga call loaded a different "
+                          "image, or the session ended); call .fpga again")
         return s
 
     def info(self):

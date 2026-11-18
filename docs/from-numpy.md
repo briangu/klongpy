@@ -314,7 +314,7 @@ For the torch backend, see [PyTorch Backend and Autograd](torch_backend.md).
 
 A negative number inside a list literal is a number: `[-1 2]` is `[-1 2]`.
 
-**Names do not contain underscores.** `my_var` is `my _ var`, with `_` the Drop operator. Use `myVar` or `my.var`. `kgpy --lint` reports this, see [Lint](lint.md).
+**Names do not contain underscores.** `my_var` is `my _ var`, with `_` the Drop operator. Use `myVar` or `my.var`. `kgpy lint` reports this, see [Lint](lint.md).
 
 **`%` is float division, `:%` is integer division, `!` is remainder.** The integer forms truncate toward zero, as C does (`np.fmod`). NumPy's `//` rounds toward minus infinity and its `%` takes the sign of the divisor:
 

@@ -80,9 +80,31 @@ A failed entry prints the position, the source line and a caret on stderr, and t
 | `--traceback` | Print the Python traceback with an error, without the other verbose output. |
 | `--strict=N` | Start at [strict level](strict.md) 0, 1 or 2. `--strict` alone is level 1. A lone `0`, `1` or `2` after a bare `--strict` is read as its level, so `--strict 2` is `--strict=2`; write `--strict=N` in scripts. |
 | `--backend NAME`, `--device DEVICE` | Choose the array backend and device (see [PyTorch Backend and Autograd](torch_backend.md)). `torch` is offered only where torch is installed. |
-| `--lint`, `--check-static`, `--emit-c`, `--dump-ast` | Check or translate files without running them: see [Lint](lint.md), [Static profile](static-profile.md), [Compiling Klong to C](embedded.md) and [Conformance suite](conformance.md). |
 
-A file run (`kgpy file.kg`) stops at the first error, prints it with the file name, line and column (`file.kg:3:6: ...`) and exits with status 1. When the last line has run the process exits, with two exceptions: it stays up while the file holds an IPC server (`.srv`) or an open connection (`.cli`, `.clid`), as the publish and subscribe scripts in [IPC Capabilities](ipc_capabilities.md) do, until Ctrl-C (status 130) or until the file closes the connection with `.clic`. What the file printed is flushed before it waits. A timer alone does not keep it up (see [Timer](timer.md)). Input piped into the REPL exits with status 1 if any entry failed.
+A file run (`kgpy file.kg`) stops at the first error, prints it with the file name, line and column (`file.kg:3:6: ...`) and exits with status 1. When the last line has run the process exits, unless one of these holds:
+
+- an IPC server is listening (`.srv`);
+- a connection opened with `.cli` or `.clid` is open.
+
+The publish and subscribe scripts in [IPC Capabilities](ipc_capabilities.md) rely on this. The run ends when neither is left: the server stopped with `.srv(0)`, the connection closed with `.clic` or by the peer. A callback may do either, and `.x` in a callback (a timer, a request or a hook) exits the process with the status `.x` gives. A [timer](timer.md) does not keep a file run up: it fires while the run is up for one of the two reasons above, and a file whose only live thing is a timer ends after its last line. What the file printed is flushed before it waits and before the exit.
+
+Ctrl-C ends a waiting run with `interrupted` on stderr and status 130. SIGTERM ends it with `terminated` and status 143. Both close the server and the connections first. Input piped into the REPL exits with status 1 if any entry failed.
+
+## Command line
+
+| Command | What it does |
+|---|---|
+| `kgpy` | Start the REPL. |
+| `kgpy FILE [-- ARGS]` | Run FILE; the words after `--` are in `.os.argv`, a list of strings (`kgpy feed.kg -- 8888` gives `["8888"]`; the empty list when there are none), and the process environment is in `.os.env`. The extension is optional. Accepts the options above. |
+| `kgpy lint FILE...` | Report the classic Klong traps without running the files: see [Lint](lint.md). Options `--select`, `--ignore`, `--define`, `-v`. |
+| `kgpy check FILE...` | Check that the files are inside the [static profile](static-profile.md). Options `--int64`, `--streamable`, `--dump-ir`, `-v`. |
+| `kgpy compile c FILE...` | Compile static-profile programs to C99: see [Compiling Klong to C](embedded.md). Options `-o`, `--int64`, `--float64`, `--line-directives`, `--prefix`, `--dump-ir`. |
+| `kgpy fpga source FILE...` | Experimental. Write the HLS C++ of each `.entry`: see [Klong functions as FPGA hardware](hardware.md). Options `-o`, `--int64`, `--prefix`, `--clock-mhz`, `--lanes`, `--wrapped`, `--reassociate`, `--synth`. |
+| `kgpy fpga build [FILE...]` | Experimental. Build an Alveo U250 bitstream. Options `--int64`, `--clock-mhz`, `--lanes`, `--wrapped`, `--reassociate`, `--wait`, `--force`, `--emu`. |
+| `kgpy fpga status [FILE...]` | Experimental. Report the progress of the build. |
+| `kgpy ast FILE` | Print the canonical parse tree of FILE: see [Conformance suite](conformance.md). |
+
+`kgpy SUBCOMMAND --help` lists the options of one subcommand, which may come before or after the file names. A file named like a subcommand is run as `kgpy ./lint`.
 
 ## See also
 

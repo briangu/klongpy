@@ -1,10 +1,10 @@
 """
 The Alveo U250: the kernels of ``mavg``, ``fir`` and the trap program run on the card and equal the
-interpreter. Skipped unless KLONG_HW_HOST names the machine with the card (user@host) and an image built from exactly
+interpreter. Skipped unless KLONG_FPGA_HOST names the machine with the card (user@host) and an image built from exactly
 this source passed routed timing there:
 
-    kgpy --hw-build examples/embedded/mavg.kg examples/embedded/fir.kg tests/static/hw/trap.kg --wait
-    KLONG_HW_HOST=user@fpga-host python -m pytest tests/static/test_hw_card.py
+    kgpy fpga build examples/embedded/mavg.kg examples/embedded/fir.kg tests/static/hw/trap.kg --wait
+    KLONG_FPGA_HOST=user@fpga-host python -m pytest tests/static/test_hw_card.py
 
 Loading the image replaces whatever user image the card holds; the tests skip when the card is in use. A result here
 is "working on hardware" for that image only (design: the image passed timing and its outputs matched the interpreter).
@@ -22,9 +22,9 @@ from .harness import Host, same
 from .test_emit_hls import program, special_floats
 from .test_ir import ROOT
 
-HOST = os.environ.get("KLONG_HW_HOST", "").strip() or None
-BAD_ROOT = os.environ.get("KLONG_HW_ROOT", "").strip() or "~/klong-hw"      # a root on the card host: only names matter here
-CLOCK = int(os.environ.get("KLONG_HW_CLOCK", "300"))
+HOST = os.environ.get("KLONG_FPGA_HOST", "").strip() or None
+BAD_ROOT = os.environ.get("KLONG_FPGA_ROOT", "").strip() or "~/klong-hw"      # a root on the card host: only names matter here
+CLOCK = int(os.environ.get("KLONG_FPGA_CLOCK", "300"))
 TRAP = os.path.join(ROOT, "tests", "static", "hw", "trap.kg")
 SOURCES = [program("mavg"), program("fir"), TRAP]
 
@@ -50,7 +50,7 @@ def interpreter(path, entry, calls):
 
 def _locate():
     if not HOST:
-        return None, "set KLONG_HW_HOST=user@host (the machine with the U250)"
+        return None, "set KLONG_FPGA_HOST=user@host (the machine with the U250)"
     try:
         return find_image(SOURCES, host=HOST, clock_mhz=CLOCK), ""
     except StaleImage as e:
@@ -167,10 +167,10 @@ class TestOnCard(unittest.TestCase):
             f.write(text.replace("buf::[0.0 0.0 0.0 0.0]", "buf::[0.0 0.0 0.0 0.0 0.0]"))
         with self.assertRaises(StaleImage) as cm:
             find_image([p, program("fir"), TRAP], host=HOST, clock_mhz=CLOCK)
-        self.assertIn("kgpy --hw-build", str(cm.exception))
+        self.assertIn("kgpy fpga build", str(cm.exception))
 
 
-@unittest.skipUnless(HOST, "set KLONG_HW_HOST=user@host")
+@unittest.skipUnless(HOST, "set KLONG_FPGA_HOST=user@host")
 class TestHostSideRefusals(unittest.TestCase):
     """What the server on the card host does before it touches the card."""
 

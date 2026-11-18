@@ -107,7 +107,7 @@ def record_interval(top, modules):
 
 def stream_summary(modules, in_words, out_words):
     """
-    The steady-state rate of a streamable kernel (kgpy --emit-hls, stage B), from the initiation intervals of the
+    The steady-state rate of a streamable kernel (kgpy fpga source, stage B), from the initiation intervals of the
     pipelined loops of its three processes: the core takes one record per ``core_ii`` cycles, the load process one
     word per ``load_ii`` (a record is in_words of them), the store one word per ``store_ii``. The kernel moves one
     record every ``interval`` cycles, the largest of the three; ``limit`` names which. None where the tool reported no

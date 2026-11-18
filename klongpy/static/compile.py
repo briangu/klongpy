@@ -3,7 +3,7 @@ The driver of the static compiler (docs/static-profile.md).
 
     compile_program(path, ...) -> Compiled      stages one to four: check, evaluate, check again, lower
     emit_program(path, out_dir, ...) -> Emitted the same, then emit C and write <prefix>.c, <prefix>.h, klong_rt.h
-    emit_main(...)                              the body of kgpy --emit-c and --dump-ir
+    emit_main(...)                              the body of kgpy compile c and --dump-ir
 
 Stage one runs the top-level definitions under KlongPy (numpy backend, strict
 level 2), exactly as kgpy would run the file; the values of the globals are
@@ -118,7 +118,7 @@ def emit_program(path, out_dir=None, *, text=None, int_bits=32, float_bits=32, l
 def emit_main(files, out_dir=None, int_bits=32, float_bits=32, line_directives=False, prefix=None, dump_ir=False,
               emit_c=True, stdout=None, stderr=None, color=False):
     """
-    The body of ``kgpy --emit-c FILE... -o DIR`` (and of ``--dump-ir``, with
+    The body of ``kgpy compile c FILE... -o DIR`` (and of ``--dump-ir``, with
     emit_c=False). Prints the size report of each program (or its IR) on
     stdout and errors on stderr. Returns 0, 1 when a program is outside the
     profile or fails at compile time, 2 when a file cannot be read.
@@ -165,14 +165,14 @@ def emit_hls_program(path, out_dir=None, *, text=None, int_bits=32, prefix=None,
     Compile a program to C and the Vitis HLS files around it (emit_hls). With out_dir, writes the C files and the HLS
     files there. Returns the HlsOutput, with the Emitted as its ``emitted`` attribute.
 
-        wrapped      stage A: the plain C of --emit-c is the core, called once per record (kgpy --hls-wrapped)
+        wrapped      stage A: the plain C of kgpy compile c is the core, called once per record (kgpy fpga source --wrapped)
         lanes        N cores on one stream (stage B only)
         reassociate  sum floats as a balanced tree (stage B only; changes the rounding)
     """
     from .emit_c import HLS_WORK_LIMIT, HlsOptions, hls_work
     from .emit_hls import DEFAULT_CLOCK_MHZ, emit_hls
     if wrapped and (lanes is not None or reassociate):
-        raise ValueError("--lanes and --hls-reassociate belong to the streamable back end, not to --hls-wrapped")
+        raise ValueError("--lanes and --reassociate belong to the streamable back end, not to --wrapped")
     options = None
     if not wrapped:
         compiled = compile_program(path, text=text, int_bits=int_bits, externs=externs, name=prefix)
@@ -196,8 +196,8 @@ def emit_hls_program(path, out_dir=None, *, text=None, int_bits=32, prefix=None,
 def emit_hls_main(files, out_dir=None, int_bits=32, prefix=None, clock_mhz=None, synth=False, stdout=None, stderr=None,
                   color=False, wrapped=False, lanes=None, reassociate=False):
     """
-    The body of ``kgpy --emit-hls FILE... -o DIR [--synth]``. Prints what it wrote and, with synth, runs C synthesis
-    on the build machine ($KLONG_HW_BUILD; unset: this machine) and prints the estimates. Returns 0, 1 when a program
+    The body of ``kgpy fpga source FILE... -o DIR [--synth]``. Prints what it wrote and, with synth, runs C synthesis
+    on the build machine ($KLONG_FPGA_BUILD; unset: this machine) and prints the estimates. Returns 0, 1 when a program
     is outside the profile or cannot be a kernel (or its synthesis fails), 2 when a file cannot be read.
     """
     out = stdout or sys.stdout

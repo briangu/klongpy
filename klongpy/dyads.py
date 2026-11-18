@@ -606,9 +606,9 @@ def eval_dyad_form(a, b, backend):
 
 def __e_dyad_format2(a, b, backend):
     if hasattr(a, 'ndim') and a.ndim == 0:
-        a = a.item()
+        a = backend.to_display(a)  # .item(), or the float32 number as it prints: 8.2, not 8.199999809265137
     if hasattr(b, 'ndim') and b.ndim == 0:
-        b = backend.to_display(b)  # .item(), or the float32 number as it prints
+        b = backend.to_display(b)
     if isinstance(a, float) and not (isinstance(b, float) and not isinstance(b, bool)):
         raise KlongTypeError(f"$: a real width needs a real number to format, got {b!r}")
     if safe_eq(int(a), 0):

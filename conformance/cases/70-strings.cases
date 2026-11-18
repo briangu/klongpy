@@ -401,3 +401,153 @@
 > 5.3$123.45
 = "  123.450"
 
+
+@ strings.split-basic strings
+> .split("a,b,c";",")
+= ["a" "b" "c"]
+
+@ strings.split-empty-pieces-kept strings
+> .split(",a,,b,";",")
+= ["" "a" "" "b" ""]
+
+@ strings.split-empty-string strings
+> .split("";",")
+= [""]
+
+@ strings.split-long-separator strings
+> .split("a::b::::c";"::")
+= ["a" "b" "" "c"]
+
+@ strings.split-char-separator strings
+> .split("a,b";0c,)
+= ["a" "b"]
+
+@ strings.split-unicode strings unicode
+> .split("hé,llo,é";",")
+= ["hé" "llo" "é"]
+
+@ strings.split-tab strings
+> .split("a	b";"	")
+= ["a" "b"]
+
+@ strings.split-empty-separator-range strings
+> .split("abc";"")
+! range
+
+@ strings.split-type-text strings
+> .split(5;",")
+! type
+
+@ strings.split-type-char-text strings
+> .split(0ca;",")
+! type
+
+@ strings.split-type-separator strings
+> .split("a,b";5)
+! type
+
+@ strings.join-basic strings
+> .join(["a" "b"];", ")
+= "a, b"
+
+@ strings.join-empty-list strings
+> .join([];",")
+= ""
+
+@ strings.join-empty-members strings
+> .join(["" ""];",")
+= ","
+
+@ strings.join-chars strings
+> .join([0ca "bc" 0cd];"-")
+= "a-bc-d"
+
+@ strings.join-char-separator strings
+> .join(["a" "b"];0c-)
+= "a-b"
+
+@ strings.join-inverse-of-split strings
+> .join(.split("a,,b,";",");",")
+= "a,,b,"
+
+@ strings.join-type-member strings
+> .join(["a" 1];",")
+! type
+
+@ strings.join-type-string-as-list strings
+> .join("ab";",")
+! type
+
+@ strings.join-type-separator strings
+> .join(["a"];1)
+! type
+
+@ strings.words-basic strings
+> .words("  a  bc d ")
+= ["a" "bc" "d"]
+
+@ strings.words-newline-tab strings
+> .words("a	b
+> c")
+= ["a" "b" "c"]
+
+@ strings.words-none strings
+> .words("   ")
+= []
+
+@ strings.words-type strings
+> .words(1)
+! type
+
+@ strings.trim-basic strings
+> .trim("  a b  ")
+= "a b"
+
+@ strings.trim-tab-newline strings
+> .trim("	a
+> ")
+= "a"
+
+@ strings.trim-unicode strings unicode
+> #.trim(" héllo ")
+= 5
+
+@ strings.trim-type strings
+> .trim(:a)
+! type
+
+@ strings.num-integer strings
+> .num("12")
+= 12
+
+@ strings.num-negative-float strings float
+> .num("-3.5")
+= -3.5
+
+@ strings.num-spaces strings
+> .num("  7 ")
+= 7
+
+@ strings.num-exponent strings float
+> .num("1e3")
+= 1000.0
+
+@ strings.num-two-numbers strings
+> .num("7 8")
+= :undefined
+
+@ strings.num-text strings
+> .num("x")
+= :undefined
+
+@ strings.num-empty strings
+> .num("")
+= :undefined
+
+@ strings.num-malformed strings
+> .num("1e")
+= :undefined
+
+@ strings.num-type strings
+> .num(5)
+! type

@@ -33,17 +33,18 @@ HEADER = re.compile(r"^(?P<head>.*?)\s{2,}\[(?P<title>[^\]]+)\]\s*$")
 GROUPS = [
     ("Evaluation and output", "", ".E .d .p .pf .fmt .w .bkd .bkp .x .l .module .pc .rn .sys"),
     ("Reading and files", "", ".r .rl .rls .rs .mi .ic .oc .ac .cc .fc .tc .fl .df"),
+    ("Strings", "", ".split .join .words .trim .num"),
     ("Python and backend", "", ".py .pyf .pya .pyc .bkf"),
     ("Strict mode", "", ".strict .unsafe"),
-    ("System variables", "", ".a .cin .cout .cerr .cols .e .edit .fastpow .h"),
+    ("System variables", "", ".a .cin .cout .cerr .cols .e .edit .fastpow .h .os.argv .os.env"),
     ("Timers", "Defined in the base interpreter. See [Timers](timer.md).", ".timer .timerc"),
     ("IPC", "Defined in the base interpreter. See [IPC Capabilities](ipc_capabilities.md).",
      ".srv .cli .clid .clic .async"),
     ("Autograd", "Defined in the base interpreter; most need the PyTorch backend. See [PyTorch Backend and Autograd](torch_backend.md).",
      ".jacobian .gradcheck .compile .compilex .cmodes .export"),
     ("Embedded programs", "Defined in the base interpreter. See [Compiling Klong to C](embedded.md).", ".extern .entry .param .fixed .float"),
-    ("Hardware (experimental)", "Defined in the base interpreter. See [Klong functions as FPGA hardware](hardware.md).",
-     ".hw .hw.lanes .hw.set .hw.put .hw.get .hw.free .hw.reset .hw.info"),
+    ("FPGA (experimental)", "Defined in the base interpreter. See [Klong functions as FPGA hardware](hardware.md).",
+     ".fpga .fpga.lanes .fpga.set .fpga.put .fpga.get .fpga.free .fpga.reset .fpga.info"),
     ("Database", 'Load with `.py("klongpy.db")`. See [Columnar tables and SQL](fast_columnar_database.md).',
      ".db .table .insert .index .rindex .schema"),
     ("Key-value and table storage", 'Load with `.py("klongpy.db")`. See [Table and Key-Value Stores](table_and_key_value_stores.md).',
@@ -62,11 +63,16 @@ DESC = {
     ".bkd": "Display a value in the backend's own format (a torch tensor stays a tensor).",
     ".bkp": "Print a value in the backend's own format, followed by a newline.",
     ".x": "Exit the interpreter with a success or failure status.",
-    ".l": "Load and run a Klong source file, searching `KLONGPATH`.",
+    ".l": "Load and run a Klong source file, searching `KLONGPATH` and then the directory of the calling file.",
     ".module": "Mark the start or end of a module; `.module(:name)` opens one and `.module(0)` closes it.",
     ".pc": "Return the process time used so far, in seconds.",
     ".rn": "Return a random real number in 0 <= x < 1.",
     ".sys": "Run a shell command and return its exit code.",
+    ".split": "Split a string at each occurrence of a separator into a list of strings; empty pieces are kept.",
+    ".join": "Join a list of strings with a separator between them (the inverse of `.split`).",
+    ".words": "The non-empty pieces of a string between runs of white space.",
+    ".trim": "A string without its leading and trailing white space.",
+    ".num": "The number a whole string spells, or `:undefined` when it is not exactly one number.",
     ".r": "Read one data object from the current input channel.",
     ".rl": "Read one line from the current input channel.",
     ".rls": "Read all remaining lines from the current input channel as a list of strings.",
@@ -87,7 +93,9 @@ DESC = {
     ".bkf": "Import functions from the active backend's array module (NumPy or torch).",
     ".strict": "Turn on strict mode (level 1): a function may not create a global by assignment.",
     ".unsafe": "Turn strict mode off (level 0).",
-    ".a": "The command line arguments of a Klong program.",
+    ".a": "Not defined in KlongPy; the program arguments are in `.os.argv`.",
+    ".os.argv": "The words after `--` on the `kgpy` command line, as a list of strings.",
+    ".os.env": "The environment variables of the process, as a dictionary of strings.",
     ".cin": "Standard input channel.",
     ".cout": "Standard output channel.",
     ".cerr": "Standard error channel.",
@@ -114,14 +122,14 @@ DESC = {
     ".param": "Declare a global of a compiled program as a parameter the host sets between runs (a register in hardware).",
     ".fixed": "Convert a number to a fixed-point type, `fixed<W,I>`, in a compiled program.",
     ".float": "Convert a fixed-point or integer value to a float in a compiled program.",
-    ".hw": "Bind the FPGA kernels of a built program (or the simulator's) and return a dictionary of functions.",
-    ".hw.lanes": "Bind the kernels of a program built with several lanes: copies of the program side by side.",
-    ".hw.set": "Set a parameter of a bound kernel between runs.",
-    ".hw.put": "Upload the arguments of calls of a kernel to the card once and return a buffer.",
-    ".hw.get": "Download a buffer made by `.hw.put`.",
-    ".hw.free": "Free a buffer made by `.hw.put`.",
-    ".hw.reset": "Make the next call of a kernel start the program from its initial state.",
-    ".hw.info": "A dictionary describing the hardware in use and the loaded image.",
+    ".fpga": "Bind the FPGA kernels of a built program (or the simulator's) and return a dictionary of functions.",
+    ".fpga.lanes": "Bind the kernels of a program built with several lanes: copies of the program side by side.",
+    ".fpga.set": "Set a parameter of a bound kernel between runs.",
+    ".fpga.put": "Upload the arguments of calls of a kernel to the card once and return a buffer.",
+    ".fpga.get": "Download a buffer made by `.fpga.put`.",
+    ".fpga.free": "Free a buffer made by `.fpga.put`.",
+    ".fpga.reset": "Make the next call of a kernel start the program from its initial state.",
+    ".fpga.info": "A dictionary describing the hardware in use and the loaded image.",
     ".db": "Create a DuckDB database from a dictionary of tables.",
     ".table": "Create a table from column definitions.",
     ".insert": "Insert rows into a table.",
@@ -142,11 +150,16 @@ EXAMPLES = {
     ".E": ['.E("a::123");a'],
     ".p": ['.p([1 2 3])'],
     ".fmt": ['.fmt("Spot: {}";3.5)', '.fmt("{1} {0}";[;1;2])', '.fmt("{:8}";"ab")',
-             '.fmt("{:-8}";"ab")', '.fmt("{:5.2}";3.0)', '.fmt("{{}}";1)', '.fmt("{}{}";1)'],
-    ".pf": ['.pf("a={}";1)'],
+             '.fmt("{:-8}";"ab")', '.fmt("{:5.2}";3.0)', '.fmt("{{}}";1)', '.fmt("{}{}";1)', '.fmt("done")'],
+    ".pf": ['.pf("a={}";1)', '.pf("done")'],
     ".sys": ['.sys("exit 3")', '.sys("true")', '.sys("false")'],
     ".rn": ['.rn()<1'],
-    ".rs": ['.rs("[1 2 3]")'],
+    ".rs": ['.rs("[1 2 3]")', '.rs("7 8")'],
+    ".split": ['.split("a,,b";",")', '.split("";",")', '.split("a::b";"::")', '.split("a b";0c )', '.split("abc";"")', '.split(5;",")'],
+    ".join": ['.join(["a" "b"];", ")', '.join([];",")', '.join(["a" 1];",")'],
+    ".words": ['.words("  to be  or not ")', '#.words("   ")'],
+    ".trim": ['.trim("  a b  ")'],
+    ".num": ['.num("12")', '.num("-3.5")', '.num(" 7 ")', '.num("7 8")', '.num("x")', '.num("")', '.num(5)'],
     ".pyf": ['.pyf("numpy";"sqrt");sqrt(4)'],
     ".bkf": ['.bkf("exp");exp(0.0)'],
     ".e": ['1+.e', '.e'],
@@ -158,7 +171,28 @@ EXAMPLES = {
 # Variables documented in the Klong manual that KlongPy does not define.
 UNDEFINED_VARS = {".a", ".cols", ".edit", ".fastpow", ".h"}
 
+# Variables that `kgpy` sets before a program runs. They have no docstring of their own.
+HOST_VARS = {
+    ".os.argv": dict(head=".os.argv", title="Program-Arguments", body=(
+        "The words after -- on the kgpy command line, as a list of strings: the\n"
+        "empty list when there are none. kgpy sets it before the program runs, for\n"
+        "a file run, -e, -l and the REPL. A program that embeds KlongInterpreter\n"
+        "does not have it unless the host sets it.")),
+    ".os.env": dict(head=".os.env", title="Environment", body=(
+        "The environment variables of the process when kgpy started, as a\n"
+        "dictionary from name to value, both strings. kgpy sets it with .os.argv.")),
+}
+
 NOTES = {
+    ".os.argv": (
+        "`kgpy script.kg -- 8888 AAPL` runs `script.kg` with `.os.argv` equal to "
+        "`[\"8888\" \"AAPL\"]`. Every word is a string: read a number with `.rs`, as in "
+        "`.rs(.os.argv@0)`. Words before `--` are options of `kgpy` or the file name."
+    ),
+    ".os.env": (
+        "`.os.env@\"HOME\"` is the home directory. A name that is not set is a key "
+        "error, so test with `.os.env?\"NAME\"` first."
+    ),
     ".e": (
         "KlongPy numbers are IEEE doubles, so the statement above about the smallest "
         "difference does not hold. `.e` is 1e-18, `1+.e` is 1.0, and the spacing "
@@ -172,15 +206,19 @@ NOTES = {
     ".timer": (
         "The interval `y` may be fractional. A negative, `NaN` or non-numeric `y`, "
         "or a `z` that is not a function, raises an error instead of returning a "
-        "message string. If the callback raises, the error is logged and the timer "
-        "is cancelled."
+        "message string. If the callback raises, the timer is cancelled and stderr "
+        "gets the line `timer NAME callback failed; cancelling timer` and the error. "
+        "A timer fires while a file run is up for a server or a connection, but does not keep it up by itself (see [Timer](timer.md))."
     ),
     ".srv": (
         "When the port cannot be bound (for example it is in use), `.srv` raises an "
         "error such as `cannot listen on 0.0.0.0:8888: ... address already in use`. "
         "A call over `.cli` or `.clid` that gets no reply within 30 seconds raises an "
         "error containing `timed out`, closes the connection, and fails any other "
-        "call waiting on it."
+        "call waiting on it. A synchronous call that this process would have to answer "
+        "itself, such as a call to its own server from a file, a timer or a hook, "
+        "is a system error at once: use `.async`. While a server listens, a file run "
+        "does not end (see [REPL and command line](repl.md))."
     ),
 }
 
@@ -235,6 +273,8 @@ def collect():
             name = re.match(r"\.\w+(?:\.\w+)*", head).group(0)
             body = "\n".join(lines[lines.index(first) + 1:]).strip("\n")
             items[name] = dict(name=name, head=head, title=mm.group("title"), body=body, module=m)
+    for name, it in HOST_VARS.items():
+        items[name] = dict(name=name, module="kgpy", **it)
     return items
 
 
@@ -310,7 +350,8 @@ def main():
             w(f"`{it['head']}` [{it['title']}]\n")
             if n in UNDEFINED_VARS:
                 w("**Not defined in KlongPy.** The name is documented in the Klong manual; in KlongPy it "
-                  f"evaluates to the symbol `{n}` and has no effect.\n")
+                  f"evaluates to the symbol `{n}` and has no effect."
+                  + (" The program arguments are in `.os.argv`." if n == ".a" else "") + "\n")
             body = fix_body(n, it["body"])
             if body.strip():
                 w("```text")

@@ -1,8 +1,8 @@
 """
 Vitis HLS on the build machine: C simulation of the generated kernels against the interpreter, C
-synthesis, and the trap flag. Skipped unless KLONG_HW_BUILD names a reachable machine (user@host, key-based ssh):
+synthesis, and the trap flag. Skipped unless KLONG_FPGA_BUILD names a reachable machine (user@host, key-based ssh):
 
-    KLONG_HW_BUILD=user@fpga-host python -m pytest tests/static/test_hls_remote.py
+    KLONG_FPGA_BUILD=user@fpga-host python -m pytest tests/static/test_hls_remote.py
 
 What these runs show is C simulation (the generated C++ run by the tool's compiler) and C synthesis estimates. They
 are not co-simulation and not hardware. No Vivado or v++ run is started.
@@ -26,7 +26,7 @@ from .test_emit_hls import pack, program, special_floats, unpack
 
 
 def _remote():
-    if not os.environ.get("KLONG_HW_BUILD"):
+    if not os.environ.get("KLONG_FPGA_BUILD"):
         return None
     try:
         r = Remote()
@@ -59,7 +59,7 @@ def float_rules(test, want, got, shape):
         test.assertIsNone(d, f"record {i}: {d}")
 
 
-@unittest.skipUnless(REMOTE, "set KLONG_HW_BUILD=user@host to run Vitis HLS on the build machine")
+@unittest.skipUnless(REMOTE, "set KLONG_FPGA_BUILD=user@host to run Vitis HLS on the build machine")
 class TestCsimAndSynthesis(unittest.TestCase):
     runs = {}
 
@@ -112,7 +112,7 @@ class TestCsimAndSynthesis(unittest.TestCase):
         self.assertEqual(again["out"], out[e["c_name"]]["out"])
 
 
-@unittest.skipUnless(REMOTE, "set KLONG_HW_BUILD=user@host to run Vitis HLS on the build machine")
+@unittest.skipUnless(REMOTE, "set KLONG_FPGA_BUILD=user@host to run Vitis HLS on the build machine")
 class TestTrapFlag(unittest.TestCase):
     def run_csim(self, text, name, calls):
         res = emit_hls_program(name + ".kg", None, text=text, prefix=name, wrapped=True)
@@ -190,20 +190,20 @@ class TestRemoteTool(unittest.TestCase):
             self.r.run("true", fetch=["../../etc/passwd"])
 
     def test_the_remote_root_is_fixed(self):
-        with mock.patch.dict(os.environ, {"KLONG_HW_ROOT": "/srv/klong-hw"}):
+        with mock.patch.dict(os.environ, {"KLONG_FPGA_ROOT": "/srv/klong-hw"}):
             with self.assertRaises(RemoteError):
                 Remote(target="someone@somewhere", root="/tmp/x")
             self.assertEqual(Remote(target="someone@somewhere").root, "/srv/klong-hw")
             self.assertEqual(Remote(target="someone@somewhere", root="/srv/klong-hw").root, "/srv/klong-hw")
 
     def test_the_default_root_is_under_the_home_of_the_machine(self):
-        env = {k: v for k, v in os.environ.items() if k != "KLONG_HW_ROOT"}
+        env = {k: v for k, v in os.environ.items() if k != "KLONG_FPGA_ROOT"}
         self.assertEqual(root_setting(env), "~/klong-hw")
-        self.assertEqual(root_setting({"KLONG_HW_ROOT": "/data/hw/"}), "/data/hw")
+        self.assertEqual(root_setting({"KLONG_FPGA_ROOT": "/data/hw/"}), "/data/hw")
         for bad in ("relative/dir", "/a/../b", "/with space", "~", "/", "~/../x"):
             with self.subTest(root=bad):
                 with self.assertRaises(RemoteError):
-                    root_setting({"KLONG_HW_ROOT": bad})
+                    root_setting({"KLONG_FPGA_ROOT": bad})
         self.assertEqual(resolve_root(None, "/data/hw"), "/data/hw")
         self.assertEqual(resolve_root(None, "~/klong-hw"), os.path.join(os.path.expanduser("~"), "klong-hw"))
 
@@ -220,8 +220,8 @@ class TestRemoteTool(unittest.TestCase):
 
     def test_the_hls_settings_come_from_the_environment(self):
         self.assertIsNone(hls_settings({}))
-        self.assertEqual(hls_settings({"KLONG_HW_HLS_SETTINGS": "/opt/hls/settings64.sh"}), "/opt/hls/settings64.sh")
-        with mock.patch.dict(os.environ, {"KLONG_HW_HLS_SETTINGS": "/opt/hls/settings64.sh"}):
+        self.assertEqual(hls_settings({"KLONG_FPGA_HLS_SETTINGS": "/opt/hls/settings64.sh"}), "/opt/hls/settings64.sh")
+        with mock.patch.dict(os.environ, {"KLONG_FPGA_HLS_SETTINGS": "/opt/hls/settings64.sh"}):
             self.assertEqual(Remote(target=None).settings, "/opt/hls/settings64.sh")
             self.assertIsNone(Remote(target=None, settings=None).settings)
 
@@ -230,8 +230,8 @@ class TestRemoteTool(unittest.TestCase):
             with self.subTest(target=bad):
                 with self.assertRaises(RemoteError):
                     Remote(target=bad)
-        self.assertEqual(build_target({"KLONG_HW_BUILD": ""}), None)
-        self.assertEqual(build_target({"KLONG_HW_BUILD": "user@fpga-host"}), "user@fpga-host")
+        self.assertEqual(build_target({"KLONG_FPGA_BUILD": ""}), None)
+        self.assertEqual(build_target({"KLONG_FPGA_BUILD": "user@fpga-host"}), "user@fpga-host")
 
     @unittest.skipUnless(shutil.which("flock"), "needs flock")
     def test_a_vivado_build_holds_the_lock(self):

@@ -1,9 +1,9 @@
 """
-Stage B of kgpy --emit-hls: the streamable kernel. Everything here runs without a Xilinx tool:
+Stage B of kgpy fpga source: the streamable kernel. Everything here runs without a Xilinx tool:
 the generated C++ is built with the system compiler (a stand-in for hls::stream is generated next to it) and its test
-bench runs the kernel in C simulation. The stage A kernel (--hls-wrapped) is the reference: for every reference
+bench runs the kernel in C simulation. The stage A kernel (--wrapped) is the reference: for every reference
 program and accept fixture the two give the same output, bit for bit for ints and fixed-point numbers and for floats
-without reassociation; with --hls-reassociate floats agree within the tolerance of the differential harness for +/.
+without reassociation; with --reassociate floats agree within the tolerance of the differential harness for +/.
 tests/static/test_hls_stream_remote.py runs the same files through Vitis HLS.
 """
 import glob
@@ -317,7 +317,7 @@ class TestTransformations(unittest.TestCase):
         c = HlsBuild(text='f::{+/x}\n.entry("f";"int[8] -> int")\n', name="t", wrapped=False).res.files["t.c"]
         self.assertNotIn("for (kg_int", c, "the reduction of 8 items is a tree, not a loop")
         c = HlsBuild(text='f::{+/x}\n.entry("f";"float[8] -> float")\n', name="t", wrapped=False).res.files["t.c"]
-        self.assertIn("for (kg_int", c, "a float reduction keeps its order unless --hls-reassociate")
+        self.assertIn("for (kg_int", c, "a float reduction keeps its order unless --reassociate")
 
     def test_a_float_reduction_keeps_its_order_unless_reassociation_is_asked_for(self):
         rng = np.random.default_rng(12)
@@ -462,16 +462,16 @@ class TestCli(unittest.TestCase):
         import json
         import tempfile
         d = tempfile.mkdtemp(prefix="kgcli_")
-        r = self.cli("--emit-hls", program("mavg"), "--lanes", "4", "--hls-reassociate", "-o", d)
+        r = self.cli("fpga", "source", program("mavg"), "--lanes", "4", "--reassociate", "-o", d)
         self.assertEqual(r.returncode, 0, r.stderr)
         m = json.load(open(os.path.join(d, "manifest.json")))
         self.assertEqual((m["stage"], m["lanes"], m["lane_dimension"], m["reassociate"]), ("B", 4, True, True))
         self.assertEqual(m["entries"][0]["result"]["shape"], [4])
-        r = self.cli("--emit-hls", program("mavg"), "--hls-wrapped", "-o", d)
+        r = self.cli("fpga", "source", program("mavg"), "--wrapped", "-o", d)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("stage", json.load(open(os.path.join(d, "manifest.json"))))
-        for bad in (["--hls-wrapped", "--lanes", "2"], ["--hls-wrapped", "--hls-reassociate"], ["--lanes", "0"]):
-            r = self.cli("--emit-hls", program("mavg"), *bad, "-o", d)
+        for bad in (["--wrapped", "--lanes", "2"], ["--wrapped", "--reassociate"], ["--lanes", "0"]):
+            r = self.cli("fpga", "source", program("mavg"), *bad, "-o", d)
             self.assertEqual(r.returncode, 2, bad)
-        r = self.cli("--emit-c", program("mavg"), "--lanes", "2", "-o", d)
+        r = self.cli("compile", "c", program("mavg"), "--lanes", "2", "-o", d)
         self.assertEqual(r.returncode, 2)

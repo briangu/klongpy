@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import sys
 
 from klongpy.core import KGCall, KGFn, KGFnWrapper, KlongException, KlongRangeError, KlongTypeError
@@ -22,15 +21,26 @@ class KGTimerHandler:
         return f"timer:{self.name}:{self.interval}"
 
 
-def _call_periodic(loop: asyncio.BaseEventLoop, name, interval, callback):
+def _report_failure(klong, name, exc):
+    """Say on stderr that the timer's callback failed and why: the rendered error, with the traceback under -v."""
+    from klongpy.repl import format_error, use_color, write_stderr
+    try:
+        traceback = bool(klong['.system'].get('traceback'))
+    except (KeyError, AttributeError, TypeError):
+        traceback = False
+    write_stderr(f"timer {name} callback failed; cancelling timer\n"
+                 + format_error(exc, use_color(sys.stderr), traceback))
+
+
+def _call_periodic(loop: asyncio.BaseEventLoop, name, interval, callback, klong=None):
     start = loop.time()
 
     def run(handle, fn=callback):
         try:
             r = fn()
-        except Exception:
-            logging.exception("timer %s callback failed; cancelling timer", name)
+        except Exception as e:
             handle.cancel()
+            _report_failure(klong, name, e)
             return
         if r:
             if interval == 0:
@@ -87,7 +97,7 @@ def eval_sys_fn_timer(klong, x, y, z):
 
     system = klong['.system']
     klongloop = system['klongloop']
-    return _call_periodic(klongloop, x, y, callback)
+    return _call_periodic(klongloop, x, y, callback, klong)
 
 
 def eval_sys_fn_cancel_timer(x):

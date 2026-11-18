@@ -434,9 +434,20 @@ client?> f(:callme,,5)
 
 Requests that arrive while no call is waiting are served on the Klong loop in the order they arrived, one at a time. Calls nest up to 8 levels; a request that would go deeper is answered with an `index` error. The supported model is one thread of control per connection. Callbacks that nest through a real kdb+ process are not supported, because kdb+ itself may return nested synchronous answers out of order.
 
+## Calling your own server
+
+A synchronous call waits for the answer on the thread that makes it. A file, a timer callback or a hook runs on the interpreter's event loop thread, which is also the thread that serves requests from the connections of the same interpreter. A synchronous call from there to a server in the same process, `c::.cli(PORT); c("1+1")` against its own `.srv(PORT)`, or a server hook that calls the handle of a client in the same process, could never be answered. It is a system error at once, naming the cause. Send the request without waiting instead, with [`.async`](system-functions.md#async):
+
+```text
+a::.async(c;{.p(x)})
+a("1+1")
+```
+
+The result is printed by the callback when it arrives. A call between two processes is not affected, and neither is a call between two interpreters in one Python process. The call timeout still applies to every other call (`.clit`, 30 seconds by default).
+
 ## Server Lifecycle
 
-`.srv(x)` returns 1 when the server is now listening and 0 when this interpreter was already serving. `.srv(0)` stops the server and drops its client connections; it returns 1 if a server was running and 0 if not. Each interpreter has its own server, so several interpreters can serve different ports.
+`.srv(x)` returns 1 when the server is now listening and 0 when this interpreter was already serving. `.srv(0)` stops the server and drops its client connections; it returns 1 if a server was running and 0 if not. Each interpreter has its own server, so several interpreters can serve different ports. A file run stays up while the server listens (see [The kgpy command](repl.md#options)).
 
 ```kgpy
 server?> .srv(8888)
@@ -572,14 +583,7 @@ KlongPy 0.7 spoke a different protocol, which sent Python pickles. It was remove
 - A 0.7 client connecting to a 2.0 server is closed at once, before anything is unpickled, and the server logs that the client speaks the pickle protocol of 0.7. The client sees `connection lost`.
 - A 2.0 client connecting to a 0.7 server waits for the handshake. The 0.7 server answers nothing, so `.cli` raises a system error after 5 seconds: `handshake timed out after 5.0s`, with a note that a 0.7 server does not speak the kdb+ protocol.
 
-The environment variable `KLONGPY_IPC` selected the protocol in the transition releases. It is read by `.srv` and `.cli`: unset, `kdb` and `auto` all mean the kdb+ protocol, `legacy` is a system error, and any other value is a system error.
-
-```console
-$ printf '.srv(8891)\n' | KLONGPY_IPC=legacy kgpy 2>&1 >/dev/null
-1:1: system error: KLONGPY_IPC=legacy: the pickle protocol was removed in 2.0; upgrade both ends to 2.0 or later (the kdb+ protocol is the only one), and unset KLONGPY_IPC
-  .srv(8891)
-  ^^^^^^^^^^
-```
+The environment variable `KLONGPY_IPC` of the transition releases no longer exists; it is ignored like any unknown variable.
 
 ## Known gaps
 

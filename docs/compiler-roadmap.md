@@ -21,7 +21,7 @@ When a reduce or scan is not compiled (an operator outside the table above, or o
 
 ### The static compiler (`klongpy/static/`)
 
-It compiles a restricted subset of Klong, the static profile, to C ahead of time. It is described in [Compiling Klong to C](embedded.md) and [The static profile](static-profile.md). It checks a program (`kgpy --check-static`), infers types and shapes, and emits C code with a runtime header. It is not used by the expression compiler and does not speed up a normal KlongPy run.
+It compiles a restricted subset of Klong, the static profile, to C ahead of time. It is described in [Compiling Klong to C](embedded.md) and [The static profile](static-profile.md). It checks a program (`kgpy check`), infers types and shapes, and emits C code with a runtime header. It is not used by the expression compiler and does not speed up a normal KlongPy run.
 
 ## Planned: compile a function as a unit
 

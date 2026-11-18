@@ -153,8 +153,8 @@ These are not repeated here. Each is a change from classic Klong that is documen
 
 - **Function arity.** A function has as many arguments as the highest of `x`, `y` and `z` its body uses, wherever it uses them, so `{-x}` is a monad. See [How many arguments a function takes](language-additions.md#how-many-arguments-a-function-takes).
 - **Calls with too few arguments are projections**, `f(1)` being `f(1;)`, at every strict level. See the [release notes](release-notes.md).
-- **Language additions.** Destructuring `[a b]::v`, named parameters `f(a;b;c;d)::{...}`, evaluated dictionaries, `d@k` on dictionaries, `.fmt`, `.grad`. The inputs whose meaning changed are in [Syntax that changed meaning](release-notes.md#syntax-that-changed-meaning). See [Language Additions](language-additions.md).
-- **Strict mode and lint.** Three [strict levels](strict.md) and [`kgpy --lint`](lint.md) report or reject silent mistakes. The default is the classic behaviour.
+- **Language additions.** Destructuring `[a b]::v`, named parameters `f(a;b;c;d)::{...}`, evaluated dictionaries, `d@k` on dictionaries, `.fmt`, `.grad`, `.split`, `.join`, `.words`, `.trim`, `.num`. The inputs whose meaning changed are in [Syntax that changed meaning](release-notes.md#syntax-that-changed-meaning). See [Language Additions](language-additions.md).
+- **Strict mode and lint.** Three [strict levels](strict.md) and [`kgpy lint`](lint.md) report or reject silent mistakes. The default is the classic behaviour.
 - **Errors** carry a position and a kind. See [Errors](errors.md).
 - **Python, IPC, autograd and the rest of the system functions**: `.py`, `.pyf`, `.srv`, `.cli`, `:>`, `.db` and others are additions. See [Python Integration](python_integration.md), [IPC](ipc_capabilities.md) and [PyTorch Backend and Autograd](torch_backend.md).
 - **A static subset that compiles to C.** See [Compiling Klong to C](embedded.md).

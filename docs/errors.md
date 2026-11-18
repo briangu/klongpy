@@ -106,7 +106,7 @@ internal error: AttributeError: 'int' object has no attribute 'channel_dir'
 | REPL on a terminal | results to stdout | rendered to stderr; the loop goes on | 0 at exit; `]q` gives 0 |
 | REPL on piped stdin | results to stdout | rendered to stderr; the loop goes on | 1 if any entry failed, else 0 |
 
-A file that cannot be read is a `system` error and exits 1. Ctrl-C ends a file, `-e` or `-t` run with `interrupted` on stderr and status 130.
+A file that cannot be read is a `system` error and exits 1. Ctrl-C ends a file, `-e` or `-t` run with `interrupted` on stderr and status 130; SIGTERM ends a file run that is waiting for a server or a connection with `terminated` and status 143.
 
 Piped input is the REPL reading from a pipe, so a failed entry does not stop the run; the status reports that something failed:
 

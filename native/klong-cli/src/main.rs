@@ -18,7 +18,8 @@
 //! in memory instead of the real one: for fuzzing). After FILE, further arguments are the program's (.a).
 //!
 //! `.l` looks in the directories of the environment variable KLONGPATH (default ".:lib"),
-//! then in the library built into the binary.
+//! then in the library built into the binary, and last in the directory of the file that
+//! is being run or loaded.
 use std::alloc::System;
 use std::io::{BufRead, Read, Write};
 use std::process::ExitCode;
@@ -304,6 +305,7 @@ fn run(o: Opts) -> ExitCode {
                 return ExitCode::from(1);
             }
         };
+        rt.set_program(path);
         let r = rt.run(&text, path);
         HEAP.set_limit(0, 0);
         HEAP.fail_every(0);

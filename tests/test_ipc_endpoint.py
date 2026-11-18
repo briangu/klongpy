@@ -2,8 +2,7 @@
 
 Two interpreters in one process talk over localhost (ports are chosen
 dynamically). Every potentially blocking step runs under a bounded wait, so a
-regression fails instead of hanging the suite. Run the whole IPC suite with
-``KLONGPY_IPC=kdb`` to check that the variable changes nothing.
+regression fails instead of hanging the suite.
 """
 import io
 import json
@@ -718,7 +717,6 @@ class TestOldProtocolRemoved(IPCCase):
         env = patch.dict(os.environ)
         env.start()
         self.addCleanup(env.stop)
-        os.environ.pop("KLONGPY_IPC", None)
 
     def closed_quickly(self, port, payload):
         """Send ``payload``; True when the server closes the connection without a byte in answer."""
@@ -733,27 +731,11 @@ class TestOldProtocolRemoved(IPCCase):
         self.assertLess(time.monotonic() - t0, 3)
         return data == b""
 
-    def test_legacy_mode_is_a_start_up_error(self):
-        os.environ["KLONGPY_IPC"] = "legacy"
-        server = self.repl()
-        with self.assertRaises(KlongException) as cm:
-            self.kg(server, f".srv({free_port()})")
-        self.assertIn("removed in 2.0", str(cm.exception))
-        with self.assertRaises(KlongException) as cm:
-            self.kg(server, f".cli({free_port()})")
-        self.assertIn("removed in 2.0", str(cm.exception))
-        self.assertEqual(self.kg(server, "1+1"), 2)
-
-    def test_kdb_and_auto_are_accepted_and_other_values_are_errors(self):
-        for value in ("kdb", "auto", " KDB ", ""):
+    def test_the_old_environment_variable_is_ignored(self):
+        for value in ("legacy", "bogus"):
             os.environ["KLONGPY_IPC"] = value
             server, client = self.pair_no_env()
             self.assertEqual(self.kg(client, 'c("1+1")'), 2)
-        os.environ["KLONGPY_IPC"] = "bogus"
-        server = self.repl()
-        with self.assertRaises(KlongException) as cm:
-            self.kg(server, f".srv({free_port()})")
-        self.assertIn("bogus", str(cm.exception))
 
     def pair_no_env(self):
         server = self.repl()

@@ -1,7 +1,7 @@
 """
 examples/hardware/crossover.kg, the strategy kernel, on every tier that needs no card: the 20-tick
 series checked by hand, the interpreter stand-in, the emitted C, the generated HLS kernel in C simulation, a numpy
-version of the strategy, and the kernel through ``.hw.lanes`` on the simulator. All of them give the same account,
+version of the strategy, and the kernel through ``.fpga.lanes`` on the simulator. All of them give the same account,
 bit for bit. The card itself is tests/static/test_crossover_card.py.
 """
 import os
@@ -109,7 +109,7 @@ class TestTiers(unittest.TestCase):
 
     def test_the_emitted_c_equals_numpy(self):
         d = tempfile.mkdtemp(prefix="kgxo_")
-        r = subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", "--emit-c", PROGRAM, "-o", d], capture_output=True,
+        r = subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", "compile", "c", PROGRAM, "-o", d], capture_output=True,
                            text=True, cwd=ROOT)
         self.assertEqual(r.returncode, 0, r.stderr)
         cb.main(["cfile", d])
@@ -143,14 +143,14 @@ class TestTiers(unittest.TestCase):
         from klongpy import KlongInterpreter
         from klongpy.hw import binding
         lanes = len(self.LANES)
-        with mock.patch.dict(os.environ, {"KLONG_HW": "sim"}):
-            os.environ.pop("KLONG_HW_HOST", None)
+        with mock.patch.dict(os.environ, {"KLONG_FPGA": "sim"}):
+            os.environ.pop("KLONG_FPGA_HOST", None)
             k = KlongInterpreter()
-            k('h::.hw.lanes("%s";%d)' % (PROGRAM, lanes))
+            k('h::.fpga.lanes("%s";%d)' % (PROGRAM, lanes))
             k['t'] = self.history.astype(np.float64) / 65536.0
             def setp(name, values):
                 k["pv"] = np.asarray(values)
-                return int(k('.hw.set(h;"%s";pv)' % name))
+                return int(k('.fpga.set(h;"%s";pv)' % name))
             self.assertEqual(setp("fast", self.fast.astype(np.int64)), 1)
             setp("slow", self.slow.astype(np.int64))
             setp("stop", self.stop.astype(np.float64) / 65536.0)
@@ -159,7 +159,7 @@ class TestTiers(unittest.TestCase):
             again = np.asarray(k._backend.to_numpy(k("crossover.summary()"))) * 2.0 ** 32
             self.assertTrue(np.array_equal(again.astype(np.int64), self.want), "summary() reads the state, it does not run ticks")
             # other parameters, the same history, a fresh start
-            k(".hw.reset(crossover.step)")
+            k(".fpga.reset(crossover.step)")
             setp("fast", self.fast[::-1].astype(np.int64))
             setp("slow", self.slow[::-1].astype(np.int64))
             setp("stop", self.stop[::-1].astype(np.float64) / 65536.0)
@@ -171,7 +171,7 @@ class TestTiers(unittest.TestCase):
 
 class TestCheckers(unittest.TestCase):
     def test_it_is_inside_the_profile_and_streamable(self):
-        r = subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", "--check-static", PROGRAM, "--streamable"],
+        r = subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", "check", PROGRAM, "--streamable"],
                            capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("nothing keeps a kernel from taking one record per clock cycle", r.stdout)

@@ -17,7 +17,7 @@ An error is shown as `error: message`, without the position the REPL adds; see [
 | `.bkd(x)` | Backend-Display | Display a value in the backend's own format (a torch tensor stays a tensor). |
 | `.bkp(x)` | Backend-Print | Print a value in the backend's own format, followed by a newline. |
 | `.x(x)` | Exit | Exit the interpreter with a success or failure status. |
-| `.l(x)` | Load | Load and run a Klong source file, searching `KLONGPATH`. |
+| `.l(x)` | Load | Load and run a Klong source file, searching `KLONGPATH` and then the directory of the calling file. |
 | `.module(x)` | Module | Mark the start or end of a module; `.module(:name)` opens one and `.module(0)` closes it. |
 | `.pc()` | Process-Clock | Return the process time used so far, in seconds. |
 | `.rn()` | Random-Number | Return a random real number in 0 <= x < 1. |
@@ -73,6 +73,8 @@ Use .bkp() for raw backend-specific print.
 `.pf(x;y)` [Print-Format]
 
 ```text
+.pf(x)
+
 Like Format (.fmt), but also write the result and a newline
 sequence to the current output channel. Return the string.
 
@@ -83,6 +85,9 @@ Example:   .pf("a={}";1)   writes  a=1
 ?> .pf("a={}";1)
 a=1
 "a=1"
+?> .pf("done")
+done
+"done"
 ```
 
 ### `.fmt`
@@ -90,10 +95,16 @@ a=1
 `.fmt(x;y)` [Format]
 
 ```text
+.fmt(x)
+
 Return the template string "x" with its placeholders replaced by
 the arguments in "y". If "y" is a list (not a string), its elements
 are the arguments; otherwise "y" is the single argument. To pass one
-list as the only argument, wrap it: .fmt("{}";,[1 2 3]).
+list as the only argument, wrap it: .fmt("{}";,[1 2 3]). A template
+with no placeholders may be given alone: .fmt("done") is "done". A
+template with placeholders and no arguments is a range error that
+counts the placeholders. A list of numbers is an array, so in
+.fmt("{} {}";[;3;2.5]) the 3 has already become 3.0 when .fmt sees it.
 
 Placeholders: "{}" takes the next argument, "{0}", "{1}" take by
 index (the two styles may not be mixed), "{{" and "}}" are literal
@@ -123,6 +134,8 @@ Examples:   .fmt("Spot: {}";3.5)       -->  "Spot: 3.5"
 "{}"
 ?> .fmt("{}{}";1)
 error: .fmt: 2 placeholder(s) but 1 argument(s) in template '{}{}'
+?> .fmt("done")
+"done"
 ```
 
 ### `.w`
@@ -193,6 +206,12 @@ specified in the KLONGPATH environment variable. Directory names
 in KLONGPATH are separated by colons.
 
 When KLONGPATH is undefined, it defaults to ".:lib".
+
+When a file is being run or loaded and none of those names is
+found, a relative "x" is looked for last in the directory of that
+file, so that a program can load the files next to it from any
+current directory. In a file loaded by .l this is the directory
+of the loaded file. The directories of KLONGPATH are tried first.
 
 A program can be loaded from an absolute or relative path
 (without a prefix from KLONGPATH) by starting "x" with a "/"
@@ -290,7 +309,7 @@ The exit code is returned as an integer. Output of the command goes to the termi
 Read a single data object from the currently selected input port
 and return it. The object being read may be an atom or a list.
 When it is a dictionary or list, the input may span multiple
-lines.
+lines. At the end of input the result is :undefined.
 ```
 
 ### `.rl`
@@ -321,12 +340,18 @@ be stripped from the string.
 .rs is like .r, but reads its input from the string "x". It is
 intended for converting serialized compound data objects,
 such as lists, arrays, and dictionaries, back to their internal
-forms.
+forms. "x" must be a string. Empty or blank text holds no
+object and gives :undefined, as does .r at the end of input.
+
+.rs stops after the first object: .rs("7 8") is 7. To read a
+number from text and refuse anything else, use .num.
 ```
 
 ```kgpy
 ?> .rs("[1 2 3]")
 [1 2 3]
+?> .rs("7 8")
+7
 ```
 
 ### `.mi`
@@ -421,6 +446,129 @@ written to the associated file or device ("flush" the channel).
 Delete the file specified in the string "x". When the file
 cannot be deleted (non-existent, no permission, etc), signal
 an error.
+```
+
+## Strings
+
+| Name | Title | Description |
+|------|-------|-------------|
+| `.split(x;y)` | Split | Split a string at each occurrence of a separator into a list of strings; empty pieces are kept. |
+| `.join(x;y)` | Join | Join a list of strings with a separator between them (the inverse of `.split`). |
+| `.words(x)` | Words | The non-empty pieces of a string between runs of white space. |
+| `.trim(x)` | Trim | A string without its leading and trailing white space. |
+| `.num(x)` | Number | The number a whole string spells, or `:undefined` when it is not exactly one number. |
+
+### `.split`
+
+`.split(x;y)` [Split]
+
+```text
+Return the pieces of the string "x" between the occurrences of
+"y", a string of one or more characters or a character, as a list
+of strings. Empty pieces are kept: there are as many pieces as
+occurrences of "y" plus one, and the split of "" is [""]. An
+empty "y" is a range error.
+
+.join is the inverse: .join(.split(x;y);y) is "x".
+```
+
+```kgpy
+?> .split("a,,b";",")
+["a" "" "b"]
+?> .split("";",")
+[""]
+?> .split("a::b";"::")
+["a" "b"]
+?> .split("a b";0c )
+["a" "b"]
+?> .split("abc";"")
+error: .split: y must not be empty
+?> .split(5;",")
+error: .split: x must be a string, got integer
+```
+
+### `.join`
+
+`.join(x;y)` [Join]
+
+```text
+Return the strings of the list "x" joined, with the string or
+character "y" between neighbours, as one string. The empty list
+gives "". A member of "x" may be a character. A member of any
+other type is a type error.
+
+.join is the inverse of .split.
+```
+
+```kgpy
+?> .join(["a" "b"];", ")
+"a, b"
+?> .join([];",")
+""
+?> .join(["a" 1];",")
+error: .join: x must be a list of strings, got a list with integer
+```
+
+### `.words`
+
+`.words(x)` [Words]
+
+```text
+Return the non-empty pieces of the string "x" between runs of
+white space (space, tab, newline and carriage return) as a list
+of strings. A string with no words gives the empty list.
+```
+
+```kgpy
+?> .words("  to be  or not ")
+["to" "be" "or" "not"]
+?> #.words("   ")
+0
+```
+
+### `.trim`
+
+`.trim(x)` [Trim]
+
+```text
+Return the string "x" without the white space (space, tab,
+newline and carriage return) at its start and end.
+```
+
+```kgpy
+?> .trim("  a b  ")
+"a b"
+```
+
+### `.num`
+
+`.num(x)` [Number]
+
+```text
+Return the number that the whole string "x" spells: an integer
+or a real in Klong's number syntax, with an optional "-" before
+it and optional white space around it. Return :undefined when
+"x" is not exactly one number, e.g. "7 8", "x" or "".
+
+Unlike .rs, which reads any data object and stops after the
+first, .num accepts nothing else: .rs("7 8") is 7.
+```
+
+```kgpy
+?> .num("12")
+12
+?> .num("-3.5")
+-3.5
+?> .num(" 7 ")
+7
+?> .num("7 8")
+:undefined
+?> .num("x")
+:undefined
+?> .num("")
+:undefined
+?> .num(5)
+error: .num: x must be a string, got integer
 ```
 
 ## Python and backend
@@ -666,7 +814,7 @@ Example:
 
 | Name | Title | Description |
 |------|-------|-------------|
-| `.a` | Arguments | The command line arguments of a Klong program. |
+| `.a` | Arguments | Not defined in KlongPy; the program arguments are in `.os.argv`. |
 | `.cin` | Input-Channel | Standard input channel. |
 | `.cout` | Output-Channel | Standard output channel. |
 | `.cerr` | Error-Channel | Standard error channel. |
@@ -675,16 +823,19 @@ Example:
 | `.edit` | Editor | Line editor switch. |
 | `.fastpow` | Fast-Power | Switch for compiling `x^y` to a faster power function. |
 | `.h` | Host | Symbol naming the host system (`:unix` or `:plan9`). |
+| `.os.argv` | Program-Arguments | The words after `--` on the `kgpy` command line, as a list of strings. |
+| `.os.env` | Environment | The environment variables of the process, as a dictionary of strings. |
 
 ### `.a`
 
 `.a` [Arguments]
 
-**Not defined in KlongPy.** The name is documented in the Klong manual; in KlongPy it evaluates to the symbol `.a` and has no effect.
+**Not defined in KlongPy.** The name is documented in the Klong manual; in KlongPy it evaluates to the symbol `.a` and has no effect. The program arguments are in `.os.argv`.
 
 ```text
-This variable holds a list of strings containing the command
-line arguments passed to a Klong program.
+In the Klong manual this variable holds the command line
+arguments of a program. KlongPy does not define it: the
+arguments after "--" on the kgpy command line are in .os.argv.
 ```
 
 ### `.cin`
@@ -798,6 +949,30 @@ running the Klong process. Currently, this is either :unix or
 :plan9.
 ```
 
+### `.os.argv`
+
+`.os.argv` [Program-Arguments]
+
+```text
+The words after -- on the kgpy command line, as a list of strings: the
+empty list when there are none. kgpy sets it before the program runs, for
+a file run, -e, -l and the REPL. A program that embeds KlongInterpreter
+does not have it unless the host sets it.
+```
+
+`kgpy script.kg -- 8888 AAPL` runs `script.kg` with `.os.argv` equal to `["8888" "AAPL"]`. Every word is a string: read a number with `.rs`, as in `.rs(.os.argv@0)`. Words before `--` are options of `kgpy` or the file name.
+
+### `.os.env`
+
+`.os.env` [Environment]
+
+```text
+The environment variables of the process when kgpy started, as a
+dictionary from name to value, both strings. kgpy sets it with .os.argv.
+```
+
+`.os.env@"HOME"` is the home directory. A name that is not set is a key error, so test with `.os.env?"NAME"` first.
+
 ## Timers
 
 Defined in the base interpreter. See [Timers](timer.md).
@@ -826,7 +1001,7 @@ Example:
     th::.timer("count";0.2;cb)
 ```
 
-The interval `y` may be fractional. A negative, `NaN` or non-numeric `y`, or a `z` that is not a function, raises an error instead of returning a message string. If the callback raises, the error is logged and the timer is cancelled.
+The interval `y` may be fractional. A negative, `NaN` or non-numeric `y`, or a `z` that is not a function, raises an error instead of returning a message string. If the callback raises, the timer is cancelled and stderr gets the line `timer NAME callback failed; cancelling timer` and the error. A timer fires while a file run is up for a server or a connection, but does not keep it up by itself (see [Timer](timer.md)).
 
 ```kgpy
 ?> cb::{0}
@@ -884,7 +1059,7 @@ network. See the IPC Capabilities page.
 Example:   .srv(8888)       -->  1
 ```
 
-When the port cannot be bound (for example it is in use), `.srv` raises an error such as `cannot listen on 0.0.0.0:8888: ... address already in use`. A call over `.cli` or `.clid` that gets no reply within 30 seconds raises an error containing `timed out`, closes the connection, and fails any other call waiting on it.
+When the port cannot be bound (for example it is in use), `.srv` raises an error such as `cannot listen on 0.0.0.0:8888: ... address already in use`. A call over `.cli` or `.clid` that gets no reply within 30 seconds raises an error containing `timed out`, closes the connection, and fails any other call waiting on it. A synchronous call that this process would have to answer itself, such as a call to its own server from a file, a timer or a hook, is a system error at once: use `.async`. While a server listens, a file run does not end (see [REPL and command line](repl.md)).
 
 ### `.cli`
 
@@ -1221,7 +1396,7 @@ may read it and may not assign it. Array shapes and loop bounds
 cannot depend on it: a parameter may bound a window only as "use
 the first p of a fixed maximum". Set it between runs with
 klongpy.static.set_param(klong;name;value) (the hardware binding
-.hw.set does the same on the card).
+.fpga.set does the same on the card).
 
 Returns the type in its canonical form.
 
@@ -1263,92 +1438,92 @@ has at most 53 bits; compiled code rounds it to float32.
 Examples:   .float(.fixed("fixed<32,16>";0.5))  -->  0.5
 ```
 
-## Hardware (experimental)
+## FPGA (experimental)
 
 Defined in the base interpreter. See [Klong functions as FPGA hardware](hardware.md).
 
 | Name | Title | Description |
 |------|-------|-------------|
-| `.hw(x)` | Hardware | Bind the FPGA kernels of a built program (or the simulator's) and return a dictionary of functions. |
-| `.hw.lanes(x;y)` | Hw-Lanes | Bind the kernels of a program built with several lanes: copies of the program side by side. |
-| `.hw.set(x;y;z)` | Hw-Set | Set a parameter of a bound kernel between runs. |
-| `.hw.put(x;y)` | Hw-Put | Upload the arguments of calls of a kernel to the card once and return a buffer. |
-| `.hw.get(x)` | Hw-Get | Download a buffer made by `.hw.put`. |
-| `.hw.free(x)` | Hw-Free | Free a buffer made by `.hw.put`. |
-| `.hw.reset(x)` | Hw-Reset | Make the next call of a kernel start the program from its initial state. |
-| `.hw.info()` | Hw-Info | A dictionary describing the hardware in use and the loaded image. |
+| `.fpga(x)` | FPGA | Bind the FPGA kernels of a built program (or the simulator's) and return a dictionary of functions. |
+| `.fpga.lanes(x;y)` | FPGA-Lanes | Bind the kernels of a program built with several lanes: copies of the program side by side. |
+| `.fpga.set(x;y;z)` | FPGA-Set | Set a parameter of a bound kernel between runs. |
+| `.fpga.put(x;y)` | FPGA-Put | Upload the arguments of calls of a kernel to the card once and return a buffer. |
+| `.fpga.get(x)` | FPGA-Get | Download a buffer made by `.fpga.put`. |
+| `.fpga.free(x)` | FPGA-Free | Free a buffer made by `.fpga.put`. |
+| `.fpga.reset(x)` | FPGA-Reset | Make the next call of a kernel start the program from its initial state. |
+| `.fpga.info()` | FPGA-Info | A dictionary describing the hardware in use and the loaded image. |
 
-### `.hw`
+### `.fpga`
 
-`.hw(x)` [Hardware]
+`.fpga(x)` [FPGA]
 
 ```text
 Bind the FPGA kernels of a built program. "x" is the path of
 a Klong program of the static profile that has .entry
 declarations, or a list of paths for an image that was
-built from several programs (kgpy --hw-build a.kg b.kg).
+built from several programs (kgpy fpga build a.kg b.kg).
 The program is checked and compiled, the image built from
 exactly this source is looked up on the card machine
-($KLONG_HW_HOST; the build cache must be there) and loaded, and a dictionary
+($KLONG_FPGA_HOST; the build cache must be there) and loaded, and a dictionary
 from entry name to function is returned. Each entry is also
 bound as "program.entry", where "program" is the file name
-without ".kg": fir::.hw("fir.kg") makes fir.run, which is
+without ".kg": fir::.fpga("fir.kg") makes fir.run, which is
 also fir@"run".
 
 A call checks its arguments against the entry's signature
 and runs on the card; an argument with one extra leading
 dimension means that many calls in one run, and the result
 has that dimension too. The program's state is kept between
-calls and starts fresh at the first call after .hw.
+calls and starts fresh at the first call after .fpga.
 
-With KLONG_HW=sim the kernels run on this machine's CPU: the
+With KLONG_FPGA=sim the kernels run on this machine's CPU: the
 generated HLS code compiled with the C++ compiler. That is a
 simulator, not hardware. There is no image to build then.
 
-Without KLONG_HW=sim, KLONG_HW_HOST or pyxrt, .hw is an
+Without KLONG_FPGA=sim, KLONG_FPGA_HOST or pyxrt, .fpga is an
 error that says so. Loading an image replaces what the card
 held. See docs/hardware.md.
 
-Examples:   fir::.hw("fir.kg")
+Examples:   fir::.fpga("fir.kg")
             fir.run(256#1.0)
 ```
 
-### `.hw.lanes`
+### `.fpga.lanes`
 
-`.hw.lanes(x;y)` [Hw-Lanes]
+`.fpga.lanes(x;y)` [FPGA-Lanes]
 
 ```text
 Bind the kernels of a program built with --lanes y
-(kgpy --hw-build FILE --lanes y). Like .hw: "x" is a path
+(kgpy fpga build FILE --lanes y). Like .fpga: "x" is a path
 or a list of paths. The kernel then runs y copies of the
 program on the same stream of calls: every .param is set
-with .hw.set as an array of y values, and a result has a
+with .fpga.set as an array of y values, and a result has a
 leading dimension y.
 
-Example:   s::.hw.lanes("crossover.kg";64)
+Example:   s::.fpga.lanes("crossover.kg";64)
 ```
 
-### `.hw.set`
+### `.fpga.set`
 
-`.hw.set(x;y;z)` [Hw-Set]
+`.fpga.set(x;y;z)` [FPGA-Set]
 
 ```text
 Set the parameter "y" (declared in the program with
 .param) of the kernels of "x" to the value "z", between
-runs. "x" is what .hw returned, or one of its kernels.
+runs. "x" is what .fpga returned, or one of its kernels.
 The value is converted as the interpreter converts it
 (a fixed-point parameter takes a number, truncating toward
-minus infinity); for a kernel bound with .hw.lanes it is
+minus infinity); for a kernel bound with .fpga.lanes it is
 an array with one value per lane. The kernel keeps the
 value, through resets, until it is set again. Returns the
 number of kernels set.
 
-Example:   .hw.set(s;"fast";[3 5 8])
+Example:   .fpga.set(s;"fast";[3 5 8])
 ```
 
-### `.hw.put`
+### `.fpga.put`
 
-`.hw.put(x;y)` [Hw-Put]
+`.fpga.put(x;y)` [FPGA-Put]
 
 ```text
 Upload the arguments of calls of the kernel "x" to the
@@ -1357,52 +1532,52 @@ kernel (with the extra leading dimension for many calls)
 or, for a kernel with several arguments, a list of them.
 A buffer is accepted by the kernel in place of its
 arguments: fir.run(b). It stays on the card until it is
-freed with .hw.free or the image is unloaded or the session
+freed with .fpga.free or the image is unloaded or the session
 ends.
 
-Example:   b::.hw.put(fir.run;x)
+Example:   b::.fpga.put(fir.run;x)
            fir.run(b)
 ```
 
-### `.hw.get`
+### `.fpga.get`
 
-`.hw.get(x)` [Hw-Get]
+`.fpga.get(x)` [FPGA-Get]
 
 ```text
-Download a buffer made by .hw.put as an array of the
+Download a buffer made by .fpga.put as an array of the
 arguments it holds (for a kernel with several arguments,
 the records: one row per call, the arguments flattened one
 after the other).
 
-Example:   .hw.get(b)
+Example:   .fpga.get(b)
 ```
 
-### `.hw.free`
+### `.fpga.free`
 
-`.hw.free(x)` [Hw-Free]
+`.fpga.free(x)` [FPGA-Free]
 
 ```text
-Free a buffer made by .hw.put. Returns 1. Freeing a buffer
+Free a buffer made by .fpga.put. Returns 1. Freeing a buffer
 twice is an error.
 
-Example:   .hw.free(b)
+Example:   .fpga.free(b)
 ```
 
-### `.hw.reset`
+### `.fpga.reset`
 
-`.hw.reset(x)` [Hw-Reset]
+`.fpga.reset(x)` [FPGA-Reset]
 
 ```text
 Make the next call of the kernel "x" start the program from
 its initial state (the program's globals as initialised
 when the program was loaded). Returns 1.
 
-Example:   .hw.reset(mavg.step)
+Example:   .fpga.reset(mavg.step)
 ```
 
-### `.hw.info`
+### `.fpga.info`
 
-`.hw.info()` [Hw-Info]
+`.fpga.info()` [FPGA-Info]
 
 ```text
 A dictionary describing the hardware in use: "mode"
@@ -1412,7 +1587,7 @@ of the image (timing, utilisation, build time), and the
 resident "buffers" and "buffer-bytes". It does not load
 anything. Without a hardware to use it is an error.
 
-Example:   .hw.info()
+Example:   .fpga.info()
 ```
 
 ## Database

@@ -1,7 +1,7 @@
 """
 .extern and .entry under KlongPy :
 the binding API (klong.externs), the checks at declaration and at call time,
-and what `kgpy --check-static` says about the same mistakes.
+and what `kgpy check` says about the same mistakes.
 
 Binding API, as specified here:
 

@@ -134,6 +134,10 @@ class BackendProvider(ABC):
             x = self.to_numpy(x)
         # Convert 0-dim arrays to Python scalars
         if hasattr(x, 'item') and hasattr(x, 'ndim') and x.ndim == 0:
+            if getattr(x, 'dtype', None) == np.float32:
+                # the shortest text that reads back as the same float32:
+                # 68.76, not the widened 68.76000213623047
+                return float(str(x[()] if isinstance(x, np.ndarray) else x))
             return x.item()
         return x
 

@@ -1,5 +1,5 @@
 """
-Tests for klongpy.lint and `kgpy --lint` (design in
+Tests for klongpy.lint and `kgpy lint` (design in
 docs/lint.md).
 
 Layout: the rule table (one positive and one negative case per code, with the
@@ -447,7 +447,7 @@ class TestNeverEvaluates(unittest.TestCase):
 
 
 class Cli(unittest.TestCase):
-    """kgpy --lint by subprocess. Time-bounded; stdin is closed so a REPL would end at once, and is detected by its output."""
+    """kgpy lint by subprocess. Time-bounded; stdin is closed so a REPL would end at once, and is detected by its output."""
 
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -462,7 +462,7 @@ class Cli(unittest.TestCase):
     def run_cli(self, *args, stdin=None):
         env = dict(os.environ, PYTHONPATH=ROOT + os.pathsep + os.environ.get("PYTHONPATH", ""))
         env.pop("KLONGPATH", None)
-        p = subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", "--lint", *args],
+        p = subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", "lint", *args],
                            capture_output=True, text=True, timeout=120, cwd=self.dir.name, env=env,
                            input=stdin if stdin is not None else "")
         return p.returncode, p.stdout, p.stderr

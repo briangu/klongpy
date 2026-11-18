@@ -126,7 +126,7 @@ SHELL_DOC = """```console
 $ cat > demo.kg <<'EOF'
 > my_var::5
 > EOF
-$ kgpy --lint demo.kg
+$ kgpy lint demo.kg
 demo.kg:1:1: W001 'my_var' reads as my _ var: _ is the Drop operator, names cannot contain underscores
 0 errors, 1 warning in 1 file
 $ kgpy -e '1+"a"'
@@ -205,7 +205,7 @@ klongpy
 
 <!-- check-docs: continue -->
 ```console
-$ kgpy --check-static examples/embedded/mavg.kg
+$ kgpy check examples/embedded/mavg.kg
 examples/embedded/mavg.kg: inside the static profile (1 function, 1 entry, 0 externs, 2 globals)
 ```
 """

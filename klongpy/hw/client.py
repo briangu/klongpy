@@ -1,8 +1,8 @@
 """
 The client of klongpy/hw/server.py: starts the server next to the card and moves numpy arrays.
 
-    with HwSession("user@fpga-host") as hw:          # None (or $KLONG_HW_HOST unset): a server on this machine
-        info = hw.load("<root>/builds/<key>/fir.xclbin")      # <root>: $KLONG_HW_ROOT on that machine, default ~/klong-hw
+    with HwSession("user@fpga-host") as hw:          # None (or $KLONG_FPGA_HOST unset): a server on this machine
+        info = hw.load("<root>/builds/<key>/fir.xclbin")      # <root>: $KLONG_FPGA_ROOT on that machine, default ~/klong-hw
         k = hw.kernel("fir_run_kernel")             # from the build.json of the loaded image
         y = k.run(x)                                # x: (n, 256) float32 -> (n, 241) float32
         k.last                                      # {"transfer_s", "kernel_s", "bytes_in", "bytes_out", ...}
@@ -63,8 +63,8 @@ class HwTrap(HwError):
 
 
 def host_target(env=None):
-    """The ssh destination of the card host from $KLONG_HW_HOST, or None (this machine)."""
-    v = (env if env is not None else os.environ).get("KLONG_HW_HOST", "").strip()
+    """The ssh destination of the card host from $KLONG_FPGA_HOST, or None (this machine)."""
+    v = (env if env is not None else os.environ).get("KLONG_FPGA_HOST", "").strip()
     return v or None
 
 
@@ -84,7 +84,7 @@ def frame(header, data=b""):
 
 class HwSession:
     """
-    host      ssh destination (user@host) or None for this machine (default: $KLONG_HW_HOST)
+    host      ssh destination (user@host) or None for this machine (default: $KLONG_FPGA_HOST)
     command   the command list that starts the server (tests give their own); default: see ``start``
     timeout   seconds to wait for any reply other than a run (a run waits as long as its own timeout plus a margin)
     """
@@ -92,7 +92,7 @@ class HwSession:
         self.host = host_target() if host == "env" else host
         self.command = command
         self.timeout = timeout
-        self._root = root                   # None: $KLONG_HW_ROOT or ~/klong-hw, found on the host when first needed
+        self._root = root                   # None: $KLONG_FPGA_ROOT or ~/klong-hw, found on the host when first needed
         self.fake = fake
         self.python = python
         self.env = dict(env or {})          # exported before the server starts (on the host)

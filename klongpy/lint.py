@@ -1,9 +1,9 @@
 """
-kgpy --lint: a static check for the classic Klong traps.
+kgpy lint: a static check for the classic Klong traps.
 
     lint_source(text, name="<string>") -> [Diagnostic, ...]
     lint_file(path)                    -> [Diagnostic, ...]
-    lint_main(files, select, ignore)   -> exit status (the body of ``kgpy --lint``)
+    lint_main(files, select, ignore)   -> exit status (the body of ``kgpy lint``)
     RULES                              code -> Rule(code, severity, title)
 
 The linter reads a program; it never runs it. It works on the token list of
@@ -13,7 +13,7 @@ executed (``.l("file")`` is resolved by reading and parsing that file), no
 Python module is imported, no REPL, event loop or thread is started. Only
 numpy is needed (as for the interpreter itself).
 
-Output of ``kgpy --lint FILE...``: one line per finding,
+Output of ``kgpy lint FILE...``: one line per finding,
 
     file:line:col: CODE message
 
@@ -175,7 +175,7 @@ _DATA_KINDS = ('data', 'dict')
 _ARGS = ('x', 'y', 'z')
 _EXTRA_BUILTINS = frozenset(('.comment', '.f', '.helpdb', '.os.env', '.os.argv', '.help_topic', '.system', '.cli.h'))
 # calls that bring in names the linter cannot see
-_UNKNOWN_DEFINERS = frozenset(('.py', '.pyf', '.pya', '.E', '.hw'))
+_UNKNOWN_DEFINERS = frozenset(('.py', '.pyf', '.pya', '.E', '.fpga'))
 _NOT_DYAD = frozenset(('*', '%'))   # -1*x is (-1)*x: the sign commutes, nothing to warn about
 
 
@@ -186,6 +186,20 @@ def _comment_end(text, i, marker):
     while text.startswith(marker, j + 1):
         j += 1
     return j + len(marker)
+
+
+def _matching_close(toks, j):
+    """Index of the token that closes the bracket opened at index j, or None."""
+    depth = 0
+    for i in range(j, len(toks)):
+        k = toks[i][0]
+        if k in ('LPAREN', 'CALLP', 'LBRACK', 'LBRACE', 'COND', 'DICT'):
+            depth += 1
+        elif k in ('RPAREN', 'RBRACK', 'RBRACE'):
+            depth -= 1
+            if depth == 0:
+                return i
+    return None
 
 
 def _tokenize(source):
@@ -1297,6 +1311,38 @@ class _Linter:
         return n
 
     # -- W002 -------------------------------------------------------------
+    def failed_named_defs(self):
+        """
+        (names, params) of the definitions f(a;b)::... that E001 rejects: the
+        names defined, and {(token index, name)} for each use of a parameter in
+        the statement.
+        """
+        an, toks = self.an, self.toks
+        starts = {t[1]: i for i, t in enumerate(toks)}
+        names, params = set(), set()
+        for span, message, _ in an.problems:
+            if not message.startswith("named-parameter definition needs"):
+                continue
+            i = None
+            for pos in range(span[0], span[0] - 3, -1):     # the span may start on a space
+                if pos in starts:
+                    i = starts[pos]
+                    break
+            if i is None:
+                continue
+            j = an.stmt_start(i)
+            if not (j + 1 < len(toks) and toks[j][0] == 'NAME' and toks[j + 1][0] in ('LPAREN', 'CALLP')):
+                continue
+            names.add(toks[j][3])
+            close = _matching_close(toks, j + 1)
+            if close is None:
+                continue
+            ps = {toks[k][3] for k in range(j + 2, close) if toks[k][0] == 'NAME'}
+            for k in range(j, an.stmt_end(i) + 1):
+                if toks[k][0] == 'NAME' and toks[k][3] in ps:
+                    params.add((k, toks[k][3]))
+        return names, params
+
     def w002(self):
         an = self.an
         if an.unknown:
@@ -1306,6 +1352,7 @@ class _Linter:
         first = self.first_available()
         anywhere = set(first) | an.fn_assigned | an.local_names | an.import_anywhere
         n = len(toks)
+        failed_names, failed_params = self.failed_named_defs()
         for i, t in enumerate(toks):
             if t[0] != 'NAME':
                 continue
@@ -1314,6 +1361,11 @@ class _Linter:
                 continue
             nm = t[3]
             if nm in _ARGS or nm in builtins or i in self.underscored:
+                continue
+            # E001 already reports a named-parameter definition whose right
+            # side is not a function: its name counts as defined, and its
+            # parameters are not reported
+            if nm in failed_names or (i, nm) in failed_params:
                 continue
             nxt = toks[i + 1] if i + 1 < n else None
             if nxt is not None and nxt[0] == 'COP' and nxt[3] == '::':
@@ -1478,7 +1530,7 @@ def lint_file(path, **kw):
 
 def lint_main(files, select=None, ignore=None, verbose=False, define=None, stdout=None, stderr=None):
     """
-    The body of ``kgpy --lint FILE...``. Prints the findings and a summary and
+    The body of ``kgpy lint FILE...``. Prints the findings and a summary and
     returns the exit status: 1 if any E finding was reported, 2 if a file could
     not be read (and no E finding), else 0. A file named - is read from stdin.
     """
@@ -1488,7 +1540,7 @@ def lint_main(files, select=None, ignore=None, verbose=False, define=None, stdou
         select = parse_codes(select)
         ignore = parse_codes(ignore)
     except ValueError as e:
-        print(f"kgpy --lint: {e}", file=err)
+        print(f"kgpy lint: {e}", file=err)
         return 2
     errors = warnings_ = 0
     unreadable = 0

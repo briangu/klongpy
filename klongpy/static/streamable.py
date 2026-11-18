@@ -1,10 +1,10 @@
 """
-``kgpy --check-static --streamable`` (docs/hardware.md): which constructs of a
+``kgpy check --streamable`` (docs/hardware.md): which constructs of a
 program inside the static profile keep a hardware kernel from taking one record per clock cycle.
 
     check_streamable(path, int_bits=32, text=None) -> [StaticDiagnostic]
 
-The program is checked and lowered as for --emit-c, and the typed IR of every function an entry reaches is searched.
+The program is checked and lowered as for kgpy compile c, and the typed IR of every function an entry reaches is searched.
 Each finding carries the source span of the construct, the rule id (klongpy.static.rules.STREAM_RULES), what is
 wrong and what to change. A program without findings can reach one record per cycle in the interval the tool
 reports; it is a statement about the program's dependences, not a promise about the tool.

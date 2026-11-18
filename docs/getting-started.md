@@ -200,7 +200,7 @@ Other places to look:
 - [Operators](operators.md) and [System Functions](system-functions.md) are the reference pages.
 - [Errors](errors.md) explains every message and exit status.
 
-`kgpy --lint file.kg` reports likely mistakes in a file without running it, and `kgpy --strict file.kg` turns silent mistakes into errors while it runs. See [Lint](lint.md) and [Strict Mode](strict.md).
+`kgpy lint file.kg` reports likely mistakes in a file without running it, and `kgpy --strict file.kg` turns silent mistakes into errors while it runs. See [Lint](lint.md) and [Strict Mode](strict.md).
 
 ## Choose your path
 

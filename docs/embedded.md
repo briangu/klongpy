@@ -9,7 +9,7 @@ This page walks through the whole path with two programs from `examples/embedded
 The rules of the profile (which operators, adverbs and forms are allowed, the types, the shape rules, the error ids) are on the [static profile page](static-profile.md). This page covers the tools around it.
 
 !!! note "Scope"
-    This page is about the generated C only. The HLS C++ that `--emit-hls` writes from the same programs is experimental; see [Klong functions as FPGA hardware](hardware.md). The native (non-Python) runtime is a separate Rust implementation of the language, described under [Native runtime](native/index.md). What was and was not compiled is listed [below](#what-has-not-been-done).
+    This page is about the generated C only. The HLS C++ that `kgpy fpga source` writes from the same programs is experimental; see [Klong functions as FPGA hardware](hardware.md). The native (non-Python) runtime is a separate Rust implementation of the language, described under [Native runtime](native/index.md). What was and was not compiled is listed [below](#what-has-not-been-done).
 
 ## The two programs
 
@@ -51,11 +51,11 @@ step::{[e u];e::x-read.adc(0);integ::clamp(integ+ki*e*dt);u::clamp((kp*e)+integ+
 
 ## Check a program
 
-`kgpy --check-static` checks files against the profile without running them. It exits 0 when every file is inside, 1 when one is outside and 2 when one cannot be read.
+`kgpy check` checks files against the profile without running them. It exits 0 when every file is inside, 1 when one is outside and 2 when one cannot be read.
 
 <!-- check-docs: link examples -->
 ```console
-$ kgpy --check-static examples/embedded/mavg.kg examples/embedded/pid.kg; echo $?
+$ kgpy check examples/embedded/mavg.kg examples/embedded/pid.kg; echo $?
 examples/embedded/mavg.kg: inside the static profile (1 function, 1 entry, 0 externs, 2 globals)
 examples/embedded/pid.kg: inside the static profile (2 functions, 1 entry, 2 externs, 8 globals)
 0
@@ -69,7 +69,7 @@ $ cat > bad.kg <<'EOF'
 > f::{y#x}
 > .entry("f";"float[4] int -> float[4]")
 > EOF
-$ kgpy --check-static bad.kg; echo $?
+$ kgpy check bad.kg; echo $?
 bad.kg:1:5: static error: the count of n#a (Take) is not a compile-time constant: the result length would depend on run-time data [const-count]
   f::{y#x}
       ^^^
@@ -119,11 +119,11 @@ These results are the ones the compiled code must reproduce. They are the refere
 
 ## Emit C
 
-`kgpy --emit-c FILE... -o DIR` writes `DIR/<prefix>.c`, `DIR/<prefix>.h` and a copy of the runtime header `DIR/klong_rt.h`, and prints a size report. The prefix is the file's stem made into a C identifier; `--prefix NAME` chooses another.
+`kgpy compile c FILE... -o DIR` writes `DIR/<prefix>.c`, `DIR/<prefix>.h` and a copy of the runtime header `DIR/klong_rt.h`, and prints a size report. The prefix is the file's stem made into a C identifier; `--prefix NAME` chooses another.
 
 <!-- check-docs: continue -->
 ```console
-$ kgpy --emit-c examples/embedded/mavg.kg -o mavg-c
+$ kgpy compile c examples/embedded/mavg.kg -o mavg-c
 examples/embedded/mavg.kg: wrote mavg-c/mavg.c, mavg.h and klong_rt.h
 size report for mavg (kg_int 32 bits, kg_float 32 bits)
   constants          16 bytes (static const data; flash on a microcontroller)
@@ -160,7 +160,7 @@ The type for `pid.kg` would be `pid_t`, which POSIX already defines, so a hosted
 
 <!-- check-docs: continue -->
 ```console
-$ kgpy --emit-c examples/embedded/pid.kg -o pid-c --prefix pidc
+$ kgpy compile c examples/embedded/pid.kg -o pid-c --prefix pidc
 examples/embedded/pid.kg: wrote pid-c/pidc.c, pidc.h and klong_rt.h
 size report for pidc (kg_int 32 bits, kg_float 32 bits)
   constants          0 bytes (static const data; flash on a microcontroller)
@@ -295,7 +295,7 @@ $ cat > policy.kg <<'EOF'
 > .entry("ratio";"float float -> float")
 > .entry("inc";"int -> int")
 > EOF
-$ kgpy --emit-c policy.kg -o policy-c
+$ kgpy compile c policy.kg -o policy-c
 policy.kg: wrote policy-c/policy.c, policy.h and klong_rt.h
 size report for policy (kg_int 32 bits, kg_float 32 bits)
   constants          12 bytes (static const data; flash on a microcontroller)
@@ -365,7 +365,7 @@ The default build is `int32_t` and `float`, the usual choice for a 32-bit microc
 
 <!-- check-docs: continue; requires-cmd clang -->
 ```console
-$ kgpy --emit-c examples/embedded/mavg.kg -o mavg-c64 --int64 --float64
+$ kgpy compile c examples/embedded/mavg.kg -o mavg-c64 --int64 --float64
 examples/embedded/mavg.kg: wrote mavg-c64/mavg.c, mavg.h and klong_rt.h
 size report for mavg (kg_int 64 bits, kg_float 64 bits)
   constants          32 bytes (static const data; flash on a microcontroller)
@@ -432,11 +432,11 @@ error: :*: count must not be negative, got -3
 
 ## Hardware (experimental)
 
-`kgpy --emit-hls` writes the same programs as HLS C++ for an FPGA kernel, and `.hw` calls the built kernel from Klong. This is experimental and has run on one Alveo U250 card. The flow, its settings and the measured results are on [Klong functions as FPGA hardware](hardware.md).
+`kgpy fpga source` writes the same programs as HLS C++ for an FPGA kernel, and `.fpga` calls the built kernel from Klong. This is experimental and has run on one Alveo U250 card. The flow, its settings and the measured results are on [Klong functions as FPGA hardware](hardware.md).
 
 ## What has not been done
 
-- The C that this tool generates has not been run on a microcontroller or in an emulator; the tests run it as a shared library on the host. Only the HLS C++ of `--emit-hls` has run on hardware, on one Alveo U250 ([Klong functions as FPGA hardware](hardware.md), experimental).
+- The C that this tool generates has not been run on a microcontroller or in an emulator; the tests run it as a shared library on the host. Only the HLS C++ of `kgpy fpga source` has run on hardware, on one Alveo U250 ([Klong functions as FPGA hardware](hardware.md), experimental).
 - Compile-only builds were made with clang (Conditions: Apple clang 21 on an Apple M-series desktop) for `thumbv6m-none-eabi` (no FPU, soft float), `thumbv7em-none-eabihf` (single-precision FPU), `armv7m`, big-endian `armebv7m`, `i386` and `aarch64`, all freestanding with `-Werror`, with `nm -u` limited to the declared externs and compiler-rt helpers. RISC-V and Xtensa were not compile-checked: that clang has no backend for either. `riscv32` is in the list of targets the test tries and is skipped where the compiler cannot build for it; Xtensa is not in the list. Cross builds with GCC toolchains were not made.
 - There is no WebAssembly build. The emitted C is meant to build with `--target=wasm32 -ffreestanding -nostdlib` and its externs to become imports, but that is not tested.
 - A constant index table is stored as `kg_int`. `fir.kg`'s table is 15.4 KB of its 15.5 KB of constants at 32 bits; storing it in the smallest type that holds it would make it about 3.9 KB. Not done.

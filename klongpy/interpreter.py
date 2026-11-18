@@ -726,6 +726,35 @@ class KlongInterpreter():
             self._not_assignable(a, st, lend)
         return a
 
+    @staticmethod
+    def _brace_in_list(toks, j0, j1):
+        """
+        The first '{' token between token indexes j0 and j1 that sits directly
+        inside a [ ] list literal (which holds data, so the '{' starts no
+        function), or None. [;...] lists and index brackets are not list literals.
+        """
+        stack = []
+        for i in range(j0, min(j1 + 1, len(toks))):
+            tok = toks[i]
+            k = tok[0]
+            if k == 'LBRACE':
+                if stack:
+                    t, b = stack[-1]
+                    if t == 'LBRACK' and toks[b + 1][0] != 'SEMI':
+                        prev = toks[b - 1][0] if b > 0 else None
+                        index = prev in ('NAME', 'QNAME', 'RBRACK', 'RPAREN', 'RBRACE') and not toks[b][4]
+                        # '{[a;b]' declares locals; '{[{' cannot, so it is a list
+                        decl = prev == 'LBRACE' and toks[b + 1][0] in ('NAME', 'QNAME')
+                        if not index and not decl:
+                            return tok
+                stack.append((k, i))
+            elif k in ('LPAREN', 'CALLP', 'LBRACK', 'COND', 'DICT'):
+                stack.append((k, i))
+            elif k in ('RPAREN', 'RBRACK', 'RBRACE'):
+                if stack:
+                    stack.pop()
+        return None
+
     def _named_def(self, lx, nd, r, rj, osp):
         """
         Finish f(a;b)::{...}. nd is the NamedDef of the left
@@ -738,6 +767,12 @@ class KlongInterpreter():
         """
         toks = lx.toks
         if not (type(r) is KGFn and r.args is None and r.body_spans is not None):
+            brace = self._brace_in_list(toks, rj, lx.pos)
+            if brace is not None:
+                raise KlongSyntaxError("a { inside a [ ] list is not a function: a list holds data",
+                                       span=(brace[1], brace[2]),
+                                       hint="use [;...] for a list of expressions (a function can be a member "
+                                            "there), or write the function outside the list")
             span = getattr(r, 'span', None)
             if span is None:
                 span = osp if r is None or isinstance(r, str) and r == ';' else (lx.start, toks[lx.pos-1][2])

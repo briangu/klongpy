@@ -9,7 +9,7 @@ Row 3   modules: the reference behaviour, pinned (see docs/operators.md)
 Row 4   .l("math.kg") in a session made by create_repl
 Row 5   a variable holding :undefined matches :undefined
 Row 6   lint W019 does not fire on a top-level assignment to x
-Row 7   kgpy --lint takes its options in any order
+Row 7   kgpy lint takes its options in any order
 Row 8   .pyf functions with optional positional parameters get every argument
 Row 9   a q lambda received over IPC prints as its text
 """
@@ -460,7 +460,7 @@ class TestLint(unittest.TestCase):
                               capture_output=True, text=True, timeout=120, cwd=ROOT)
 
     def test_stdin_top_level_assignment(self):
-        r = self.kgpy("--lint", "-", stdin="x::1\n")
+        r = self.kgpy("lint", "-", stdin="x::1\n")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("W019", r.stdout)
 
@@ -471,8 +471,8 @@ class TestLint(unittest.TestCase):
             with open(p, "w") as f:
                 f.write("f::{x::5;x}\n")
             outs = []
-            for argv in (["--lint", p, "-v"], ["--lint", "-v", p], ["-v", "--lint", p],
-                         ["--lint", "--select", "W019", "-v", p], ["--select=W019", "--lint", "-v", p]):
+            for argv in (["lint", p, "-v"], ["lint", "-v", p], ["lint", "-v", "--select", "W019", p],
+                         ["lint", "--select", "W019", "-v", p], ["lint", p, "--select=W019", "-v"]):
                 r = self.kgpy(*argv)
                 self.assertEqual(r.returncode, 0, (argv, r.stderr))
                 self.assertIn("W019", r.stdout, argv)
@@ -487,13 +487,13 @@ class TestLint(unittest.TestCase):
             for p in (a, b):
                 with open(p, "w") as f:
                     f.write("f::{x::5;x}\n")
-            r = self.kgpy("--lint", a, "-v", b)
+            r = self.kgpy("lint", a, "-v", b)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(r.stdout.count("W019"), 2)
             self.assertIn("in 2 files", r.stdout)
 
     def test_lint_without_a_file_is_a_usage_error(self):
-        r = self.kgpy("--lint")
+        r = self.kgpy("lint")
         self.assertEqual(r.returncode, 2)
 
 

@@ -8,8 +8,9 @@ def eval_sys_var_arguments():
 
         .a                                                   [Arguments]
 
-        This variable holds a list of strings containing the command
-        line arguments passed to a Klong program.
+        In the Klong manual this variable holds the command line
+        arguments of a program. KlongPy does not define it: the
+        arguments after "--" on the kgpy command line are in .os.argv.
 
     """
     return sys.argv

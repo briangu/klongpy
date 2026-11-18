@@ -10,6 +10,11 @@ KlongPy adds a few forms to Klong. Each one gives a meaning to input that fails 
 | `:{;k1;v1;k2;v2}` | An [evaluated dictionary](#dictionaries) | `:{[k1 v1] [k2 v2]}`, or `d,k,,v` |
 | `d@k`, `d@[k1 k2]`, `d,d2` | Dictionary lookup with `@`, several keys at once, merge | `d?k` |
 | `.fmt(template;args)`, `.pf(...)` | [Formatted text](#formatted-text) | joining strings with `,` and `$` |
+| `.split(s;sep)` | [Strings](#strings): the pieces of `s` between the occurrences of `sep` | a loop over `s?sep`, written for each program |
+| `.join(list;sep)` | The strings of `list` with `sep` between them | `{x,sep,y}/list`, which fails on an empty list |
+| `.words(s)` | The pieces of `s` between runs of white space | a hand-written split that drops the empty pieces |
+| `.trim(s)` | `s` without white space at either end | a loop that drops one blank at a time |
+| `.num(s)` | The number that `s` spells, or `:undefined` | `.rs(s)`, which reads any data and stops after the first |
 | `.grad(f;x)` | [Gradient](#gradient) in plain ASCII | `x∇f` |
 | `it` | The [last result](#the-it-variable) at the REPL | assign it yourself |
 
@@ -400,7 +405,7 @@ error: ,: a dictionary can only be joined with a tuple (a list of two members) o
 
 ## Formatted text
 
-`.fmt(template;args)` returns a string, and `.pf(template;args)` prints it with a newline and returns it. The classic way is to join strings:
+`.fmt(template;args)` returns a string, and `.pf(template;args)` prints it with a newline and returns it. A call can leave out `args` when the template has no placeholders. The classic way is to join strings:
 
 <!-- check-docs: strict 2 -->
 ```kgpy
@@ -444,6 +449,104 @@ error: .fmt: 1 placeholder(s) but 3 argument(s) in template '{}'
 error: .fmt: 2 placeholder(s) but 1 argument(s) in template '{} {}'
 ?> .fmt("{} {1}";[1 2])
 error: .fmt: cannot mix {} and {N} placeholders in template '{} {1}'
+```
+
+A template with no placeholders can be given alone, as in `.pf("done")`, which prints `done`. A template that has placeholders needs its arguments, and the error counts them. A list of numbers is an array, so mixed integers and floats in one argument list all print as floats: in `[;3;2.5]` the `3` is already `3.0` when `.fmt` sees it. Write `$n` to keep an integer's form.
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> .fmt("done")
+"done"
+?> .fmt("{}")
+error: .fmt: 1 placeholder(s) ({}) but no arguments; call .fmt(template;arguments) in template '{}'
+?> .fmt("{} {}";[;3;2.5])
+"3.0 2.5"
+?> .fmt("{} {}";[;$3;2.5])
+"3 2.5"
+```
+
+## Strings
+
+KlongPy has five functions for text that every program otherwise writes for itself. Each takes strings only; any other argument is a type error that names the function. Each counts characters, not bytes, as the rest of the language does. They are the same in the [native runtime](native/index.md), which runs the same [conformance cases](conformance.md).
+
+`.split(s;sep)` returns the pieces of `s` between the occurrences of `sep`, a string of one or more characters or a character. Empty pieces are kept, so there is one more piece than there are separators, and the split of `""` is `[""]`. The result is always a list of strings. An empty `sep` is a range error. The classic way is a function that finds the separators with `?` and cuts between them; this one handles a single-character separator only:
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> sp::{[p s e t];t::x;p::x?y;s::0,1+p;e::p,#x;{((e@x)-s@x)#(s@x)_t}'!#s}
+:dyad
+?> sp("a,,b";",")
+["a" "" "b"]
+?> .split("a,,b";",")
+["a" "" "b"]
+?> .split("";",")
+[""]
+?> .split("a::b::";"::")
+["a" "b" ""]
+?> .split("hé,é";0c,)
+["hé" "é"]
+?> .split("abc";"")
+error: .split: y must not be empty
+```
+
+`.join(list;sep)` is the inverse: the strings of `list` with `sep` between neighbours. The empty list gives `""`. A member may be a character; a member of any other type is a type error, and so is a string given as the list. The classic way is a fold, which fails on an empty list:
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> {x,", ",y}/["a" "b" "c"]
+"a, b, c"
+?> .join(["a" "b" "c"];", ")
+"a, b, c"
+?> .join([];", ")
+""
+?> .join([0ca "bc"];"-")
+"a-bc"
+?> .join(["a" 1];",")
+error: .join: x must be a list of strings, got a list with integer
+?> .join(.split("a,,b";",");",")
+"a,,b"
+```
+
+`.words(s)` returns the non-empty pieces of `s` between runs of white space, and `.trim(s)` returns `s` without white space at its start and end. White space is the space, the tab, the newline and the carriage return.
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> .words("  to be  or not ")
+["to" "be" "or" "not"]
+?> #.words("   ")
+0
+?> .trim("  a b  ")
+"a b"
+```
+
+`.num(s)` returns the number that the whole of `s` spells: an integer, or a real in Klong's number syntax, with an optional `-` and optional white space around it. Anything else is `:undefined`: two numbers, text, or nothing. The classic way is `.rs`, which reads any data object and stops after the first one, so `.rs("7 8")` is `7` and `.rs("x")` is the symbol `x`.
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> .num("12")
+12
+?> .num("-3.5")
+-3.5
+?> .num(" 7 ")
+7
+?> .num("7 8")
+:undefined
+?> .num("x")
+:undefined
+?> .num("")
+:undefined
+?> .rs("7 8")
+7
+```
+
+To read a column of numbers from text, apply `.num` to each piece. A piece that is not a number gives `:undefined`, which the match operator `~` tests for:
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> .num'.split("3,4.5";",")
+[3.0 4.5]
+?> :undefined~.num("x")
+1
 ```
 
 ## Gradient

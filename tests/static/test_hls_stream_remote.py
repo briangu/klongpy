@@ -1,8 +1,8 @@
 """
 Stage B on the build machine: C simulation of the streamable kernels in Vitis HLS against stage A and
-the interpreter, and C synthesis estimates. Skipped unless KLONG_HW_BUILD names a reachable machine:
+the interpreter, and C synthesis estimates. Skipped unless KLONG_FPGA_BUILD names a reachable machine:
 
-    KLONG_HW_BUILD=user@fpga-host python -m pytest tests/static/test_hls_stream_remote.py
+    KLONG_FPGA_BUILD=user@fpga-host python -m pytest tests/static/test_hls_stream_remote.py
 
 The numbers these tests look at are C simulation results (bit equality) and C synthesis estimates (the initiation interval of
 the pipelined loops, the area). They are not co-simulation and not hardware. No Vivado or v++ run is started.
@@ -21,7 +21,7 @@ from .test_emit_hls import HERE, pack, program, special_floats
 from .test_hls_remote import REMOTE
 from .test_hls_stream import LANES_EMA, regs_bytes, unpack_raw
 
-remote_only = unittest.skipUnless(REMOTE, "set KLONG_HW_BUILD=user@host to run Vitis HLS on the build machine")
+remote_only = unittest.skipUnless(REMOTE, "set KLONG_FPGA_BUILD=user@host to run Vitis HLS on the build machine")
 
 
 def csim(res, entry, calls, regs=None, synth=False, chunk=0):

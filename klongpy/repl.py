@@ -19,6 +19,7 @@ class LoopStopper:
     def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         self._loop = loop
         self._future = loop.create_future()
+        self.task = None        # the task that runs wait(): ends with the loop, not a leftover
 
     def set(self) -> None:
         if self._future.done():
@@ -32,18 +33,52 @@ class LoopStopper:
         await self._future
 
 
-def start_loop(loop: asyncio.AbstractEventLoop, stop_event: LoopStopper) -> None:
+class ExitSignal:
+    """
+    How a callback ends the process. `.x` raises SystemExit; inside a timer, a
+    request or a hook that would end the loop thread and leave the process
+    waiting, so the loop thread hands the exit status to this object instead and
+    whoever owns the process (the command line) acts on it. `handler`, when
+    set, is called with the status in place of setting the event.
+    """
+
+    def __init__(self) -> None:
+        self.event = threading.Event()
+        self.code: Optional[int] = None
+        self.handler = None
+
+    def request(self, code=0) -> None:
+        if self.code is not None:
+            return
+        if code is None:
+            code = 0
+        elif not isinstance(code, int):
+            code = 1
+        self.code = code
+        if self.handler is not None:
+            self.handler(code)
+        self.event.set()
+
+
+def start_loop(loop: asyncio.AbstractEventLoop, stop_event: LoopStopper, exit_signal: Optional[ExitSignal] = None) -> None:
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(stop_event.wait())
+    try:
+        stop_event.task = loop.create_task(stop_event.wait())
+        loop.run_until_complete(stop_event.task)
+    except SystemExit as exc:
+        # .x in a callback: the loop is stopped, the owner of the process ends it
+        if exit_signal is None:
+            raise
+        exit_signal.request(exc.code)
 
 
-def setup_async_loop(debug: bool = False, slow_callback_duration: float = 86400.0):
+def setup_async_loop(debug: bool = False, slow_callback_duration: float = 86400.0, exit_signal: Optional[ExitSignal] = None):
     loop = asyncio.new_event_loop()
     loop.slow_callback_duration = slow_callback_duration
     if debug:
         loop.set_debug(True)
     stop_event = LoopStopper(loop)
-    thread = threading.Thread(target=start_loop, args=(loop, stop_event), daemon=True)
+    thread = threading.Thread(target=start_loop, args=(loop, stop_event, exit_signal), daemon=True)
     thread.start()
     return loop, thread, stop_event
 
@@ -59,8 +94,9 @@ def cleanup_async_loop(loop: asyncio.AbstractEventLoop, loop_thread: threading.T
     # the cancelled tasks have finished (bounded, so a task that ignores
     # cancellation cannot hang the caller).
     pending_tasks = asyncio.all_tasks(loop=loop)
+    leftovers = [t for t in pending_tasks if t is not stop_event.task]
     if len(pending_tasks) > 0:
-        if name:
+        if name and leftovers:
             print(f"WARNING: pending tasks in {name} loop")
         for task in pending_tasks:
             task.cancel()
@@ -81,19 +117,44 @@ def append_pkg_resource_path_KLONGPATH() -> None:
 
 
 def create_repl(debug: bool = False, backend: Optional[str] = None, device: Optional[str] = None, strict: int = 0):
-    io_loop, io_thread, io_stop = setup_async_loop(debug=debug)
-    klong_loop, klong_thread, klong_stop = setup_async_loop(debug=debug)
+    exit_signal = ExitSignal()
+    io_loop, io_thread, io_stop = setup_async_loop(debug=debug, exit_signal=exit_signal)
+    klong_loop, klong_thread, klong_stop = setup_async_loop(debug=debug, exit_signal=exit_signal)
 
     append_pkg_resource_path_KLONGPATH()
 
     klong = KlongInterpreter(backend=backend, device=device, strict=strict)
     shutdown_event = CallbackEvent()
-    klong['.system'] = {'ioloop': io_loop, 'klongloop': klong_loop, 'closeEvent': shutdown_event}
+    klong['.system'] = {'ioloop': io_loop, 'klongloop': klong_loop, 'closeEvent': shutdown_event,
+                        'exitSignal': exit_signal}
     # the help database the library files add their entries to (math.kg and
     # the others load help.kg, which reads it): empty until one is loaded
     klong['.helpdb'] = []
 
     return klong, (io_loop, io_thread, io_stop, klong_loop, klong_thread, klong_stop)
+
+
+def keeps_alive(system) -> Optional[str]:
+    """
+    Why a file run must not end yet: "server" while an IPC server listens,
+    "connection" while a client connection opened by .cli or .clid is open;
+    None when nothing is left to wait for. A timer does not keep a file run up:
+    it fires while a server or a connection does, or in the REPL.
+    """
+    server = system.get('ipc_server')
+    if server is not None and server.server is not None:
+        return "server"
+    for nc in list(system.get('ipc_clients', ())):
+        if nc.running and nc.is_open():
+            return "connection"
+    return None
+
+
+def wait_while_alive(system, poll: float = 0.05) -> None:
+    """Block until nothing keeps the process up (see keeps_alive) or a callback asked to exit."""
+    signal = system['exitSignal']
+    while signal.code is None and keeps_alive(system) is not None:
+        signal.event.wait(poll)
 
 
 def cleanup_repl(loops, debug: bool = False) -> None:

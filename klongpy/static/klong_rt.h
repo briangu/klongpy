@@ -1,5 +1,5 @@
 /*
- * klong_rt.h - the run-time support of C emitted by KlongPy (kgpy --emit-c).
+ * klong_rt.h - the run-time support of C emitted by KlongPy (kgpy compile c).
  *
  * Header only, C99, no board, chip or vendor. It holds:
  *
@@ -50,7 +50,7 @@ typedef float kg_float;
 #if defined(__GNUC__) || defined(__clang__)
 #define KG_WEAK __attribute__((weak))
 #if defined(KG_TRAP_FLAG)
-/* hardware (kgpy --emit-hls): the helpers are always inlined, so that the tool sees constant widths and shifts and
+/* hardware (kgpy fpga source): the helpers are always inlined, so that the tool sees constant widths and shifts and
  * does not build one general module (two barrel shifters) per call */
 #define KG_UNUSED __attribute__((unused, always_inline))
 #else
@@ -97,7 +97,7 @@ typedef float kg_float;
 void kg_trap(int code, int line);
 
 /*
- * KG_TRAP_FLAG (hardware, kgpy --emit-hls): define it to the name of a counter. The generated
+ * KG_TRAP_FLAG (hardware, kgpy fpga source): define it to the name of a counter. The generated
  * <prog>.c then defines that counter and a kg_trap that sets bit <code> of it and returns, in
  * place of the default below (KG_TRAP_BOUNDS is bit 1, KG_TRAP_DIV0 bit 2); the caller reads and clears it.
  */

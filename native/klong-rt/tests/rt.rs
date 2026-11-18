@@ -177,3 +177,60 @@ fn try_gives_errors_as_values_and_err_raises_them() {
     let e = r.run(".err(\"range\";\"n2: index 9\")", "<test>").err().expect("an error");
     assert_eq!((e.kind, &*e.message), (Kind::Range, "n2: index 9"));
 }
+
+#[test]
+fn string_functions() {
+    let mut rt = rt();
+    let cases: &[(&str, Result<&str, Kind>)] = &[
+        (".split(\"a,,b\";\",\")", Ok("[\"a\" \"\" \"b\"]")),
+        (".split(\"\";\",\")", Ok("[\"\"]")),
+        (".split(\"aXYbXY\";\"XY\")", Ok("[\"a\" \"b\" \"\"]")),
+        (".split(\"hé,é\";0c,)", Ok("[\"hé\" \"é\"]")),
+        (".split(\"a\";\"\")", Err(Kind::Range)),
+        (".split(1;\",\")", Err(Kind::Type)),
+        (".split(0ca;\",\")", Err(Kind::Type)),
+        (".split(\"a\";1)", Err(Kind::Type)),
+        (".join([\"a\" \"b\"];\", \")", Ok("\"a, b\"")),
+        (".join([];\",\")", Ok("\"\"")),
+        (".join([0ca \"b\"];0c-)", Ok("\"a-b\"")),
+        (".join([\"a\" 1];\",\")", Err(Kind::Type)),
+        (".join(\"ab\";\",\")", Err(Kind::Type)),
+        (".words(\" a\tb\r\nc  \")", Ok("[\"a\" \"b\" \"c\"]")),
+        (".words(\"  \")", Ok("[]")),
+        (".trim(\" \t\r\nhé \")", Ok("\"hé\"")),
+        (".num(\"12\")", Ok("12")),
+        (".num(\" -3.5\r\n\")", Ok("-3.5")),
+        (".num(\"7 8\")", Ok(":undefined")),
+        (".num(\"x\")", Ok(":undefined")),
+        (".num(\"\")", Ok(":undefined")),
+        (".num(\"1e\")", Ok(":undefined")),
+        (".num(\"٣\")", Ok(":undefined")),
+        (".num(5)", Err(Kind::Type)),
+    ];
+    for (src, want) in cases {
+        assert_eq!(run(&mut rt, src), want.map(String::from), "{src}");
+    }
+}
+
+#[test]
+fn load_finds_a_file_next_to_the_program() {
+    let mut rt = rt();
+    {
+        let mut b = rt.shared.platform.borrow_mut();
+        b.fs.put("proj/common.kg", b"inc::{x+1}\n").expect("put");
+        b.fs.put("proj/a/outer.kg", b".l(\"inner\");outer::{inner(x)+1}\n").expect("put");
+        b.fs.put("proj/a/inner.kg", b"inner::{x*10}\n").expect("put");
+        b.fs.put("here.kg", b"inc::{x+1000}\n").expect("put");
+    }
+    // no program file: the name is not found
+    assert_eq!(run(&mut rt, ".l(\"common\")"), Err(Kind::System));
+    rt.set_program("proj/prog.kg");
+    assert_eq!(run(&mut rt, ".l(\"common\");inc(1)"), Ok("2".into()));
+    assert_eq!(run(&mut rt, ".l(\"common.kg\");inc(2)"), Ok("3".into()));
+    // a nested load looks next to the file it is in, not next to the program
+    assert_eq!(run(&mut rt, ".l(\"a/outer\");outer(4)"), Ok("41".into()));
+    assert_eq!(run(&mut rt, ".l(\"inner\")"), Err(Kind::System));
+    // the load path comes first
+    rt.shared.platform.borrow_mut().fs.put("common.kg", b"inc::{x+1000}\n").expect("put");
+    assert_eq!(run(&mut rt, ".l(\"common\");inc(1)"), Ok("1001".into()));
+}

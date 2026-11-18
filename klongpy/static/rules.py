@@ -133,7 +133,7 @@ assert len(RULES) == len(_R), "duplicate rule id"
 
 
 # ---------------------------------------------------------------------------
-# The streamable tier (kgpy --check-static --streamable): not violations of the
+# The streamable tier (kgpy check --streamable): not violations of the
 # profile, but constructs that keep a hardware kernel from taking one record per clock cycle.
 # ---------------------------------------------------------------------------
 

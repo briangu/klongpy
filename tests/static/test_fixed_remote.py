@@ -2,7 +2,7 @@
 Fixed-point numbers through Vitis HLS C simulation: the same vectors as test_fixed.py, run
 through the generated kernels on the build machine, must give the scaled integers of the reference semantics
 (klongpy/static/fixed.py, which test_fixed.py holds equal to the interpreter stand-in and to the C emitter).
-Skipped unless KLONG_HW_BUILD names a reachable machine. This is C simulation, not co-simulation and not hardware.
+Skipped unless KLONG_FPGA_BUILD names a reachable machine. This is C simulation, not co-simulation and not hardware.
 """
 import unittest
 
@@ -15,7 +15,7 @@ from klongpy.static.compile import emit_hls_program
 from .test_emit_hls import np_type, pack
 from .test_hls_remote import REMOTE
 
-remote_only = unittest.skipUnless(REMOTE, "set KLONG_HW_BUILD=user@host to run Vitis HLS on the build machine")
+remote_only = unittest.skipUnless(REMOTE, "set KLONG_FPGA_BUILD=user@host to run Vitis HLS on the build machine")
 
 OPS = ("add", "sub", "mul", "max", "min", "div")
 CMP = ("lt", "gt", "eq")

@@ -283,7 +283,7 @@ class KlongInterrupt(KlongError):
 
 
 class KlongStaticError(KlongError):
-    """A program is outside the static compile profile (--emit-c, --check-static)."""
+    """A program is outside the static compile profile (kgpy compile c, kgpy check)."""
     kind = 'static'
 
 

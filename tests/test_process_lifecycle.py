@@ -1,0 +1,264 @@
+"""What keeps a `kgpy FILE` run up, what ends it, and what a callback may do.
+
+A file run stays up while an IPC server listens or a connection opened with .cli is
+open; it ends when neither is left. A timer fires while the run is up for one of those
+reasons and does not keep it up by itself. .x in a callback ends the
+process. Every program runs as a subprocess with a timeout, and every process
+the test starts is ended by its handle.
+"""
+import os
+import signal
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENV = dict(os.environ, PYTHONPATH=ROOT, PYTHONUNBUFFERED="1")
+BACKEND = os.environ.get("_KLONGPY_TEST_BACKEND", "numpy")
+EXTRA = []
+if BACKEND != "numpy":
+    EXTRA = ["--backend", BACKEND]
+    if os.environ.get("_KLONGPY_TEST_DEVICE"):
+        EXTRA += ["--device", os.environ["_KLONGPY_TEST_DEVICE"]]
+WINDOWS = sys.platform == "win32"
+posix = unittest.skipIf(WINDOWS, "needs POSIX signals")
+
+
+def free_port():
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+class Proc:
+    """A kgpy process: its output is collected on a pipe, it is ended by its handle."""
+
+    def __init__(self, tc, source, *args, name="p.kg", mode="file"):
+        self.tc = tc
+        self.dir = tempfile.TemporaryDirectory()
+        tc.addCleanup(self.dir.cleanup)
+        path = os.path.join(self.dir.name, name)
+        with open(path, "w") as f:
+            f.write(source)
+        cmd = [sys.executable, "-W", "ignore", "-m", "klongpy.cli", *EXTRA, *args, path]
+        self.p = subprocess.Popen(cmd, cwd=self.dir.name, env=ENV, stdin=subprocess.DEVNULL,
+                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        self.started = time.monotonic()
+        tc.addCleanup(self.stop)
+
+    def stop(self):
+        if self.p.poll() is None:
+            self.p.kill()
+        self.p.wait()
+        if self.p.stdout:
+            self.p.stdout.close()
+
+    def stays_up(self, seconds=1.5):
+        """True when the process is still running after `seconds`."""
+        try:
+            self.p.wait(timeout=seconds)
+        except subprocess.TimeoutExpired:
+            return True
+        return False
+
+    def finish(self, timeout=30):
+        """Wait for the process to end on its own; return (status, output). A hang fails the test."""
+        try:
+            out, _ = self.p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self.p.kill()
+            out, _ = self.p.communicate()
+            self.tc.fail(f"the process did not end within {timeout} s; output:\n{out}")
+        return self.p.returncode, out
+
+    def end_with(self, sig, timeout=20):
+        self.p.send_signal(sig)
+        return self.finish(timeout)
+
+
+class TestWhatKeepsARunUp(unittest.TestCase):
+
+    def test_a_file_with_nothing_active_ends_at_once(self):
+        status, out = Proc(self, '.p("hi")\n').finish()
+        self.assertEqual((status, out), (0, "hi\n"))
+
+    def test_a_server_alone_keeps_the_run_up(self):
+        p = Proc(self, f'.srv({free_port()})\n.p("up")\n')
+        self.assertTrue(p.stays_up(), "a listening server must keep the run up")
+
+    def test_a_timer_alone_does_not_keep_the_run_up(self):
+        src = 'cb::{.p("tick");1}\n.timer("t";0.2;cb)\n.p("end")\n'
+        status, out = Proc(self, src).finish()
+        self.assertEqual(status, 0)
+        self.assertTrue(out.startswith("end\n"), out)
+
+    def test_a_connection_alone_keeps_the_run_up_until_it_closes(self):
+        port = free_port()
+        server = Proc(self, f'.srv({port})\n.p("serving")\n', name="server.kg")
+        self.assertEqual(server.p.stdout.readline(), "serving\n")
+        client = Proc(self, f'c::.cli({port})\n.p(c("1+1"))\n', name="client.kg")
+        self.assertEqual(client.p.stdout.readline(), "2\n")
+        self.assertTrue(client.stays_up(), "an open connection must keep the run up")
+        server.end_with(signal.SIGTERM if not WINDOWS else signal.SIGINT)
+        status, out = client.finish()          # the peer went away: nothing is left
+        self.assertEqual(status, 0, out)
+
+    def test_a_timer_that_stops_the_server_ends_the_run(self):
+        src = f'.srv({free_port()})\ncb::{{.p("stopping");.srv(0);0}}\n.timer("t";0.3;cb)\n'
+        status, out = Proc(self, src).finish()
+        self.assertEqual((status, out), (0, "stopping\n"))
+
+    def test_a_timer_ticks_while_a_server_keeps_the_run_up_and_stops_with_it(self):
+        src = (f'.srv({free_port()})\nn::0\ncb::{{n::n+1;.p(n);:[n=4;.srv(0);1]}}\n'
+               '.timer("t";0.1;cb)\n')
+        status, out = Proc(self, src).finish()
+        self.assertEqual((status, out), (0, "1\n2\n3\n4\n"))
+
+    @posix
+    def test_ctrl_c_ends_a_waiting_run_with_130(self):
+        p = Proc(self, f'.srv({free_port()})\n.p("up")\n')
+        self.assertEqual(p.p.stdout.readline(), "up\n")
+        status, out = p.end_with(signal.SIGINT)
+        self.assertEqual(status, 130)
+        self.assertIn("interrupted", out)
+
+    @posix
+    def test_sigterm_ends_a_waiting_run_with_143(self):
+        p = Proc(self, f'.srv({free_port()})\ncb::{{1}}\n.timer("t";0.1;cb)\n.p("up")\n')
+        self.assertEqual(p.p.stdout.readline(), "up\n")
+        status, out = p.end_with(signal.SIGTERM)
+        self.assertEqual(status, 143)
+        self.assertIn("terminated", out)
+
+
+class TestCallbacksEndARun(unittest.TestCase):
+
+    def test_exit_from_a_timer_callback(self):
+        for code, status in ((0, 0), (1, 1), (7, 1)):
+            with self.subTest(code=code):
+                src = f'.srv({free_port()})\nn::0\ncb::{{n::n+1;.p(n);:[n=3;.x({code});1]}}\n.timer("t";0.1;cb)\n'
+                st, out = Proc(self, src).finish()
+                self.assertEqual((st, out), (status, "1\n2\n3\n"))
+
+    def test_exit_output_is_flushed(self):
+        src = f'.srv({free_port()})\ncb::{{.d("no newline at the end");.x(0)}}\n.timer("t";0.1;cb)\n'
+        status, out = Proc(self, src).finish()
+        self.assertEqual((status, out), (0, "no newline at the end"))
+
+    def test_exit_from_an_ipc_callback(self):
+        port = free_port()
+        server = Proc(self, f'.srv({port})\nquit::{{x;.p("bye");.x(1)}}\n.p("serving")\n', name="server.kg")
+        self.assertEqual(server.p.stdout.readline(), "serving\n")
+        client = Proc(self, f'c::.cli({port})\na::.async(c;{{x}})\na(:quit,,0)\n', name="client.kg")
+        client.finish()
+        status, out = server.finish()
+        self.assertEqual((status, out), (1, "bye\n"))
+
+    def test_stopping_the_server_from_a_request_ends_the_run(self):
+        port = free_port()
+        server = Proc(self, f'.srv({port})\nstop::{{x;.srv(0)}}\n.p("serving")\n', name="server.kg")
+        self.assertEqual(server.p.stdout.readline(), "serving\n")
+        client = Proc(self, f'c::.cli({port})\na::.async(c;{{x}})\na(:stop,,0)\n', name="client.kg")
+        client.finish()
+        status, out = server.finish()
+        self.assertEqual(status, 0, out)
+
+    def test_the_last_client_leaving_lets_the_server_end_the_run(self):
+        port = free_port()
+        server = Proc(self, f'.srv({port})\n.srv.c::{{x;.srv(0)}}\n.p("serving")\n', name="server.kg")
+        self.assertEqual(server.p.stdout.readline(), "serving\n")
+        client = Proc(self, f'c::.cli({port})\n.p(c("1+1"))\n.clic(c)\n', name="client.kg")
+        self.assertEqual(client.finish(), (0, "2\n"))
+        status, out = server.finish()
+        self.assertEqual(status, 0, out)
+
+    def test_closing_the_last_connection_from_a_callback_ends_the_run(self):
+        port = free_port()
+        server = Proc(self, f'.srv({port})\n.p("serving")\n', name="server.kg")
+        self.assertEqual(server.p.stdout.readline(), "serving\n")
+        client = Proc(self, f'c::.cli({port})\ncb::{{.p("closing");.clic(c);0}}\n.timer("t";0.3;cb)\n', name="client.kg")
+        self.assertEqual(client.finish(), (0, "closing\n"))
+
+
+class TestTimerFailures(unittest.TestCase):
+
+    def check(self, body, expect, pre=""):
+        # a server keeps the run up while the timer ticks; a second timer stops it
+        src = (f'{pre}\n.srv({free_port()})\nn::0\ncb::{{n::n+1;.p(n);:[n=2;{body};1]}}\n.timer("tick";0.1;cb)\n'
+               'q::{.srv(0);0}\n.timer("q";0.8;q)\n')
+        status, out = Proc(self, src, name="timer.kg").finish()
+        self.assertEqual(status, 0, out)
+        self.assertEqual(out.count("timer tick callback failed; cancelling timer"), 1, out)
+        self.assertIn(expect, out)
+        self.assertNotIn("Traceback", out)
+        self.assertTrue(out.startswith("1\n2\n"), out)
+        self.assertNotIn("3\n", out, "the timer must stop after the failure")
+
+    def test_klong_error(self):
+        self.check('1+"a"', "type error")
+
+    def test_python_error(self):
+        self.check('truediv(1;0)', "ZeroDivisionError", pre='.pyf("operator";"truediv")')
+
+    def test_traceback_with_dash_v(self):
+        src = (f'.srv({free_port()})\nn::0\ncb::{{n::n+1;1+"a"}}\n.timer("tick";0.1;cb)\n'
+               'q::{.srv(0);0}\n.timer("q";0.8;q)\n')
+        status, out = Proc(self, src, "-v").finish()
+        self.assertIn("timer tick callback failed; cancelling timer", out)
+        self.assertIn("Traceback", out)
+
+
+class TestCallingYourOwnServer(unittest.TestCase):
+
+    def test_a_synchronous_call_to_its_own_server_is_an_error_at_once(self):
+        port = free_port()
+        src = f'.srv({port})\nc::.cli({port})\n.p(c("1+1"))\n.p("not reached")\n'
+        t0 = time.monotonic()
+        status, out = Proc(self, src).finish(timeout=20)
+        self.assertEqual(status, 1, out)
+        self.assertLess(time.monotonic() - t0, 15, "the error must not wait for the call timeout")
+        self.assertIn("system error", out)
+        self.assertIn(".async", out)
+        self.assertNotIn("not reached", out)
+
+    def test_the_same_from_a_timer_callback_stops_the_timer_with_a_message(self):
+        port = free_port()
+        src = (f'.srv({port})\nc::.cli({port})\ncb::{{.p(c("1+1"));1}}\n.timer("ask";0.1;cb)\n'
+               'q::{.srv(0);.clic(c);0}\n.timer("q";1;q)\n')
+        status, out = Proc(self, src).finish(timeout=20)
+        self.assertEqual(status, 0, out)
+        self.assertEqual(out.count("timer ask callback failed; cancelling timer"), 1, out)
+        self.assertIn(".async", out)
+
+    def test_a_server_pushing_to_a_client_in_its_own_process_is_an_error_at_once(self):
+        port = free_port()
+        src = (f'.srv.o::{{.p(x("1+1"))}}\n.srv({port})\nc::.cli({port})\n.p("connected")\n'
+               'q::{.srv(0);.clic(c);0}\n.timer("q";1;q)\n')
+        t0 = time.monotonic()
+        status, out = Proc(self, src).finish(timeout=20)
+        self.assertEqual(status, 0, out)
+        self.assertLess(time.monotonic() - t0, 15)
+        self.assertIn("connected", out)
+        self.assertIn(".async", out)
+
+    def test_async_to_its_own_server_works(self):
+        port = free_port()
+        src = (f'.srv({port})\nc::.cli({port})\na::.async(c;{{.p(x)}})\na("1+1")\n'
+               'q::{.srv(0);.clic(c);0}\n.timer("q";1;q)\n')
+        status, out = Proc(self, src).finish(timeout=20)
+        self.assertEqual((status, out), (0, "2\n"))
+
+    def test_a_call_from_expression_mode_still_works(self):
+        # -e evaluates outside the loop thread, so the server is answered
+        port = free_port()
+        cmd = [sys.executable, "-W", "ignore", "-m", "klongpy.cli", *EXTRA, "-e",
+               f'.srv({port});c::.cli({port});c("1+1")']
+        r = subprocess.run(cmd, env=ENV, capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "2"), r.stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -14,10 +14,10 @@ from inspect import Parameter
 import numpy
 
 from .errors import (KlongNameError, KlongRangeError, KlongSystemError, KlongTypeError, compat,
-                     python_error)
+                     describe, python_error)
 from .lexer import Source
 from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
-                   bknp, is_dict, is_empty, is_list, kg_read_array, kg_write,
+                   KLONG_UNDEFINED, bknp, is_dict, is_empty, is_list, kg_read_array, kg_write,
                    reserved_fn_args, reserved_fn_symbol_map, safe_eq, safe_inspect)
 
 
@@ -28,7 +28,12 @@ def _to_display_value(x, backend):
         return backend.to_numpy(x)
     # Handle numpy arrays with tensors inside (object arrays)
     if isinstance(x, numpy.ndarray) and x.dtype == object:
-        return numpy.array([_to_display_value(item, backend) for item in x], dtype=object)
+        # Fill element by element: numpy.array(list_of_arrays, dtype=object)
+        # tries to broadcast members of different shapes into one array.
+        out = numpy.empty(len(x), dtype=object)
+        for i, item in enumerate(x):
+            out[i] = _to_display_value(item, backend)
+        return out
     # Handle lists with tensors
     if isinstance(x, list):
         return [_to_display_value(item, backend) for item in x]
@@ -195,6 +200,15 @@ def eval_sys_input_channel(x):
         raise FileNotFoundError(f"file does not exist: {x}")
 
 
+def _program_dir(klong):
+    """The directory of the innermost file being run or loaded, or None (the REPL, -e, a string)."""
+    sources = getattr(klong, '_sources', None)
+    name = getattr(sources[-1], 'name', None) if sources else None
+    if isinstance(name, str) and not name.startswith('<') and os.path.isfile(name):
+        return os.path.dirname(name) or None
+    return None
+
+
 def eval_sys_load(klong, x):
     """
 
@@ -209,6 +223,12 @@ def eval_sys_load(klong, x):
 
         When KLONGPATH is undefined, it defaults to ".:lib".
 
+        When a file is being run or loaded and none of those names is
+        found, a relative "x" is looked for last in the directory of that
+        file, so that a program can load the files next to it from any
+        current directory. In a file loaded by .l this is the directory
+        of the loaded file. The directories of KLONGPATH are tried first.
+
         A program can be loaded from an absolute or relative path
         (without a prefix from KLONGPATH) by starting "x" with a "/"
         or "." character.
@@ -218,20 +238,39 @@ def eval_sys_load(klong, x):
 
     """
     # if not (os.path.isfile(x) or os.path.isfile(os.path.join(x,".kg"))):
-    alt_dirs = [x for x in str((os.environ.get('KLONGPATH') or ".:lib")).split(':') if x]
+    klongpath = os.environ.get('KLONGPATH')
+    alt_dirs = [x for x in str(klongpath or ".:lib").split(':') if x]
+    tried = []
     for ad in alt_dirs:
         adx = os.path.join(ad,x)
+        tried.append(adx)
         if os.path.isfile(adx):
             x = adx
             break
         if not adx.endswith(".kg"):
             adx = os.path.join(adx + ".kg")
+            tried.append(adx)
             if os.path.isfile(adx):
                 x = adx
                 break
 
+    home = None
+    if not os.path.isfile(x) and not os.path.isabs(x):
+        # not found by KLONGPATH: next to the file that is being run or loaded
+        home = _program_dir(klong)
+        if home:
+            for cand in (os.path.join(home, x), os.path.join(home, x) + ".kg"):
+                tried.append(cand)
+                if os.path.isfile(cand):
+                    x = cand
+                    break
+
     if not os.path.isfile(x):
-        raise FileNotFoundError(f"file does not exist: {x}")
+        where = (f", then in the directory of the file that calls .l, {home}" if home else
+                 "")
+        raise FileNotFoundError(f"file does not exist: {x} (looked for {', '.join(tried)}; a relative path is "
+                                f"searched in the directories of KLONGPATH, taken from the current directory, "
+                                f"{os.getcwd()}{where})")
 
     try:
         with open(x, "r") as f:
@@ -379,13 +418,34 @@ def _fmt_parse(template):
     return parts
 
 
+_NO_ARGS = object()
+
+
+def _fmt_check_call(name, template, extra):
+    if template is _NO_ARGS:
+        raise KlongTypeError(f"{name}: needs a template string (and its arguments)")
+    if extra:
+        raise KlongTypeError(f"{name}: takes a template and one argument (a list for several), "
+                             f"got {2 + len(extra)} arguments")
+
+
 def _fmt_render(klong, template, args):
     if not isinstance(template, str):
         raise KlongTypeError(f".fmt: template must be a string, got {type(template).__name__}")
     from .dyads import _e_dyad_format2
     backend = klong._backend
+    if args is _NO_ARGS:
+        # the arguments were left out: fine when the template needs none
+        holes = [p for p in _fmt_parse(template) if not isinstance(p, str)]
+        if holes:
+            names = ", ".join("{}" if h[0] is None else "{%d}" % h[0] for h in holes)
+            raise _fmt_error(template, f"{len(holes)} placeholder(s) ({names}) but no arguments; "
+                                       f"call .fmt(template;arguments)")
+        args = []
     args = _to_display_value(args, backend)
     args = list(args) if (is_list(args) and not isinstance(args, str)) else [args]
+    # a 0-d value (the result of a reduction on the torch backend) is a number
+    args = [backend.to_display(a) if hasattr(a, 'ndim') and a.ndim == 0 else a for a in args]
     parts = _fmt_parse(template)
     holes = [p for p in parts if not isinstance(p, str)]
     auto = [h for h in holes if h[0] is None]
@@ -416,15 +476,20 @@ def _fmt_render(klong, template, args):
     return "".join(out)
 
 
-def eval_sys_format(klong, x, y):
+def eval_sys_format(klong, x=_NO_ARGS, y=_NO_ARGS, *extra):
     """
 
         .fmt(x;y)                                               [Format]
+        .fmt(x)
 
         Return the template string "x" with its placeholders replaced by
         the arguments in "y". If "y" is a list (not a string), its elements
         are the arguments; otherwise "y" is the single argument. To pass one
-        list as the only argument, wrap it: .fmt("{}";,[1 2 3]).
+        list as the only argument, wrap it: .fmt("{}";,[1 2 3]). A template
+        with no placeholders may be given alone: .fmt("done") is "done". A
+        template with placeholders and no arguments is a range error that
+        counts the placeholders. A list of numbers is an array, so in
+        .fmt("{} {}";[;3;2.5]) the 3 has already become 3.0 when .fmt sees it.
 
         Placeholders: "{}" takes the next argument, "{0}", "{1}" take by
         index (the two styles may not be mixed), "{{" and "}}" are literal
@@ -439,13 +504,15 @@ def eval_sys_format(klong, x, y):
                     .fmt("{:5.2}";3)           -->  "    3.00"
 
     """
+    _fmt_check_call(".fmt", x, extra)
     return _fmt_render(klong, x, y)
 
 
-def eval_sys_print_format(klong, x, y):
+def eval_sys_print_format(klong, x=_NO_ARGS, y=_NO_ARGS, *extra):
     """
 
         .pf(x;y)                                          [Print-Format]
+        .pf(x)
 
         Like Format (.fmt), but also write the result and a newline
         sequence to the current output channel. Return the string.
@@ -453,6 +520,7 @@ def eval_sys_print_format(klong, x, y):
         Example:   .pf("a={}";1)   writes  a=1
 
     """
+    _fmt_check_call(".pf", x, extra)
     r = _fmt_render(klong, x, y)
     klong['.sys.cout'].raw.write(r + "\n")
     return r
@@ -925,7 +993,7 @@ def eval_sys_read(klong):
         Read a single data object from the currently selected input port
         and return it. The object being read may be an atom or a list.
         When it is a dictionary or list, the input may span multiple
-        lines.
+        lines. At the end of input the result is :undefined.
 
     """
     f = klong['.sys.cin']
@@ -933,11 +1001,11 @@ def eval_sys_read(klong):
     r = f.raw.read()
     if r == '':
         f.at_eof = True
-        return None
+        return KLONG_UNDEFINED
     else:
         i,a = kg_read_array(r, 0, klong._backend, module=klong.current_module())
         f.raw.seek(k+i,0)
-        return a
+        return KLONG_UNDEFINED if a is None else a
 
 
 def eval_sys_read_line(klong):
@@ -981,10 +1049,141 @@ def eval_sys_read_string(klong, x):
         .rs is like .r, but reads its input from the string "x". It is
         intended for converting serialized compound data objects,
         such as lists, arrays, and dictionaries, back to their internal
-        forms.
+        forms. "x" must be a string. Empty or blank text holds no
+        object and gives :undefined, as does .r at the end of input.
+
+        .rs stops after the first object: .rs("7 8") is 7. To read a
+        number from text and refuse anything else, use .num.
 
     """
+    from .types import KGChar, KGSym
+    if not isinstance(x, str) or isinstance(x, (KGChar, KGSym)):
+        raise KlongTypeError(f".rs: x must be a string, got {describe(x)}")
     _, a = kg_read_array(x, 0, klong._backend, module=klong.current_module(), read_neg=True)
+    # Empty or blank text holds no object: :undefined, like a number that
+    # cannot be read from text.
+    return KLONG_UNDEFINED if a is None else a
+
+
+_WS = " \t\n\r"
+_WORD = re.compile(r"[^ \t\n\r]+")
+_NUM_CHARS = frozenset("0123456789.e+-")
+
+
+def _text_arg(name, which, v):
+    """v if it is a string (a char is not one), else a type error naming the function."""
+    from .types import KGChar
+    if not isinstance(v, str) or isinstance(v, (KGChar, KGSym)):
+        raise KlongTypeError(f"{name}: {which} must be a string, got {describe(v)}")
+    return v
+
+
+def _sep_arg(name, which, v):
+    """v if it is a non-empty string or a char; an empty separator is a range error."""
+    from .types import KGChar
+    if not isinstance(v, str) or isinstance(v, KGSym):
+        raise KlongTypeError(f"{name}: {which} must be a string or a char, got {describe(v)}")
+    if not isinstance(v, KGChar) and v == "":
+        raise KlongRangeError(f"{name}: {which} must not be empty")
+    return str(v)
+
+
+def eval_sys_split(klong, x, y):
+    """
+
+        .split(x;y)                                               [Split]
+
+        Return the pieces of the string "x" between the occurrences of
+        "y", a string of one or more characters or a character, as a list
+        of strings. Empty pieces are kept: there are as many pieces as
+        occurrences of "y" plus one, and the split of "" is [""]. An
+        empty "y" is a range error.
+
+        .join is the inverse: .join(.split(x;y);y) is "x".
+
+    """
+    x = _text_arg(".split", "x", x)
+    y = _sep_arg(".split", "y", y)
+    return klong._backend.kg_asarray(str(x).split(y))
+
+
+def eval_sys_join(klong, x, y):
+    """
+
+        .join(x;y)                                                  [Join]
+
+        Return the strings of the list "x" joined, with the string or
+        character "y" between neighbours, as one string. The empty list
+        gives "". A member of "x" may be a character. A member of any
+        other type is a type error.
+
+        .join is the inverse of .split.
+
+    """
+    from .types import KGChar
+    if not is_list(x):
+        raise KlongTypeError(f".join: x must be a list of strings, got {describe(x)}")
+    if not isinstance(y, str) or isinstance(y, KGSym):
+        raise KlongTypeError(f".join: y must be a string or a char, got {describe(y)}")
+    parts = []
+    for e in x:
+        if not isinstance(e, str) or isinstance(e, KGSym):
+            raise KlongTypeError(f".join: x must be a list of strings, got a list with {describe(e)}")
+        parts.append(str(e))
+    return str(y).join(parts)
+
+
+def eval_sys_words(klong, x):
+    """
+
+        .words(x)                                                  [Words]
+
+        Return the non-empty pieces of the string "x" between runs of
+        white space (space, tab, newline and carriage return) as a list
+        of strings. A string with no words gives the empty list.
+
+    """
+    x = _text_arg(".words", "x", x)
+    return klong._backend.kg_asarray(_WORD.findall(x))
+
+
+def eval_sys_trim(x):
+    """
+
+        .trim(x)                                                    [Trim]
+
+        Return the string "x" without the white space (space, tab,
+        newline and carriage return) at its start and end.
+
+    """
+    return str(_text_arg(".trim", "x", x)).strip(_WS)
+
+
+def eval_sys_num(klong, x):
+    """
+
+        .num(x)                                                  [Number]
+
+        Return the number that the whole string "x" spells: an integer
+        or a real in Klong's number syntax, with an optional "-" before
+        it and optional white space around it. Return :undefined when
+        "x" is not exactly one number, e.g. "7 8", "x" or "".
+
+        Unlike .rs, which reads any data object and stops after the
+        first, .num accepts nothing else: .rs("7 8") is 7.
+
+    """
+    t = str(_text_arg(".num", "x", x)).strip(_WS)
+    if not t or not _NUM_CHARS.issuperset(t):
+        return KLONG_UNDEFINED
+    try:
+        i, a = kg_read_array(t, 0, klong._backend, read_neg=True)
+    except Exception:
+        return KLONG_UNDEFINED
+    if i != len(t) or isinstance(a, bool) or not isinstance(a, (int, float)):
+        return KLONG_UNDEFINED
+    if isinstance(a, float) and a - a != 0:
+        return KLONG_UNDEFINED
     return a
 
 
@@ -1159,5 +1358,9 @@ def create_system_functions():
     # .strict takes zero or one argument: a wildcard lambda is
     # handed whichever of x, y, z the call supplied.
     registry['.strict'] = KGLambda(eval_sys_strict, wildcard=True)
+    # .fmt and .pf take the template and its arguments; the arguments may be
+    # left out when the template has no placeholders: .pf("done").
+    registry['.fmt'] = KGLambda(eval_sys_format, wildcard=True)
+    registry['.pf'] = KGLambda(eval_sys_print_format, wildcard=True)
 
     return registry

@@ -1,12 +1,12 @@
 """
 Run a command on the build machine, or here.
 
-    r = Remote()                          # $KLONG_HW_BUILD names the machine (user@host); unset means this machine
+    r = Remote()                          # $KLONG_FPGA_BUILD names the machine (user@host); unset means this machine
     res = r.run("vitis_hls -f hls_f.tcl", files={"a.c": b"...", "dir/in.bin": "/path/on/disk"},
                 fetch=["data/out.bin", "proj_f/sol1/syn/report/*_csynth.xml"], timeout=1800)
     res.returncode, res.stdout, res.stderr, res.fetched (local directory), res.elapsed
 
-Each run gets a fresh directory under the fixed root ``<root>/work/`` (the root is $KLONG_HW_ROOT, default
+Each run gets a fresh directory under the fixed root ``<root>/work/`` (the root is $KLONG_FPGA_ROOT, default
 ``~/klong-hw``, resolved on the machine; here: a temporary directory), the files are copied in, the command runs there
 with the Vitis HLS settings sourced, and the files asked for are copied back. Files
 travel as a tar stream over ssh (nothing but ssh and tar is needed on either side).
@@ -79,25 +79,25 @@ def clean_stderr(text):
 
 
 def build_target(env=None):
-    """The ssh destination of the build machine from $KLONG_HW_BUILD, or None (this machine)."""
-    v = (env if env is not None else os.environ).get("KLONG_HW_BUILD", "").strip()
+    """The ssh destination of the build machine from $KLONG_FPGA_BUILD, or None (this machine)."""
+    v = (env if env is not None else os.environ).get("KLONG_FPGA_BUILD", "").strip()
     if not v:
         return None
     if not _TARGET.match(v):
-        raise RemoteError(f"KLONG_HW_BUILD='{v}' is not a user@host destination")
+        raise RemoteError(f"KLONG_FPGA_BUILD='{v}' is not a user@host destination")
     return v
 
 
 def root_setting(env=None):
     """
-    The fixed root on the build machine as written: $KLONG_HW_ROOT, default ``~/klong-hw``. An absolute path, or a
+    The fixed root on the build machine as written: $KLONG_FPGA_ROOT, default ``~/klong-hw``. An absolute path, or a
     path under ``~`` (the home directory of the machine it is used on; see ``resolve_root``).
     """
-    v = (env if env is not None else os.environ).get("KLONG_HW_ROOT", "").strip() or DEFAULT_ROOT
+    v = (env if env is not None else os.environ).get("KLONG_FPGA_ROOT", "").strip() or DEFAULT_ROOT
     ok = (v.startswith("/") or v == "~" or v.startswith("~/")) and "\0" not in v and ".." not in v.split("/") and \
         not any(c.isspace() for c in v)
     if not ok or v.rstrip("/") in ("", "~"):
-        raise RemoteError(f"KLONG_HW_ROOT='{v}' is not an absolute path (or a path under ~) without spaces or '..'")
+        raise RemoteError(f"KLONG_FPGA_ROOT='{v}' is not an absolute path (or a path under ~) without spaces or '..'")
     return v.rstrip("/")
 
 
@@ -120,15 +120,15 @@ def resolve_root(target, spec=None):
                 raise RemoteError(f"{target} did not answer")
             home = p.stdout.decode(errors="replace").strip()
             if p.returncode != 0 or not home.startswith("/"):
-                raise RemoteError(f"cannot find the home directory on {target} (set KLONG_HW_ROOT to an absolute path): "
+                raise RemoteError(f"cannot find the home directory on {target} (set KLONG_FPGA_ROOT to an absolute path): "
                                   f"{clean_stderr(p.stderr.decode(errors='replace')).strip()}")
             _HOMES[target] = home
     return home.rstrip("/") + spec[1:]
 
 
 def hls_settings(env=None):
-    """The Vitis HLS settings script to source before a command ($KLONG_HW_HLS_SETTINGS), or None: the tools are on PATH."""
-    return (env if env is not None else os.environ).get("KLONG_HW_HLS_SETTINGS", "").strip() or None
+    """The Vitis HLS settings script to source before a command ($KLONG_FPGA_HLS_SETTINGS), or None: the tools are on PATH."""
+    return (env if env is not None else os.environ).get("KLONG_FPGA_HLS_SETTINGS", "").strip() or None
 
 
 def _tar(files):
@@ -170,9 +170,9 @@ def _untar(data, dest):
 
 class Remote:
     """
-    A place to run commands: ``target`` is user@host (default: $KLONG_HW_BUILD), or None for this machine.
-    ``root`` is the fixed root on the machine ($KLONG_HW_ROOT, default ~/klong-hw, found on the machine when first
-    needed; here, a temporary directory). ``settings`` is sourced before each command (default $KLONG_HW_HLS_SETTINGS;
+    A place to run commands: ``target`` is user@host (default: $KLONG_FPGA_BUILD), or None for this machine.
+    ``root`` is the fixed root on the machine ($KLONG_FPGA_ROOT, default ~/klong-hw, found on the machine when first
+    needed; here, a temporary directory). ``settings`` is sourced before each command (default $KLONG_FPGA_HLS_SETTINGS;
     unset: Vitis HLS must be on the PATH of the machine).
     """
     def __init__(self, target="env", root=None, settings="env"):

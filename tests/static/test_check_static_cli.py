@@ -1,5 +1,5 @@
 """
-`kgpy --check-static FILE...` (the CLI of the static profile checker), the
+`kgpy check FILE...` (the CLI of the static profile checker), the
 package's independence from optional packages, and a run over the shipped
 .kg files (the checker must never fail on a program, whatever it holds).
 """
@@ -100,16 +100,16 @@ class TestCli(unittest.TestCase):
         return p.returncode, p.stdout, p.stderr
 
     def test_check_static(self):
-        rc, out, err = self.kgpy("--check-static", "examples/embedded/mavg.kg", "examples/embedded/pid.kg", "examples/embedded/fir.kg")
+        rc, out, err = self.kgpy("check", "examples/embedded/mavg.kg", "examples/embedded/pid.kg", "examples/embedded/fir.kg")
         self.assertEqual((rc, err), (0, ""))
         self.assertEqual(out.count("inside the static profile"), 3)
 
     def test_check_static_failure_and_flags(self):
-        rc, out, err = self.kgpy("--check-static", "tests/static/reject/where.kg")
+        rc, out, err = self.kgpy("check", "tests/static/reject/where.kg")
         self.assertEqual(rc, 1)
         self.assertIn("tests/static/reject/where.kg:3:5: static error: ", err)
         self.assertIn("[where]", err)
-        rc, out, err = self.kgpy("--check-static", "tests/static/reject/int-range.kg", "--int64", "-v")
+        rc, out, err = self.kgpy("check", "tests/static/reject/int-range.kg", "--int64", "-v")
         self.assertEqual(rc, 0)
         self.assertIn("  global  big: int (const)", out)
 
@@ -119,7 +119,7 @@ class TestCli(unittest.TestCase):
             path = os.path.join(d, "p.kg")
             with open(path, "w") as f:
                 f.write(f't::.sys("touch {mark}")\nf::{{x}}\n')
-            rc, out, err = self.kgpy("--check-static", path)
+            rc, out, err = self.kgpy("check", path)
             self.assertEqual(rc, 0, err)
             self.assertFalse(os.path.exists(mark))
 

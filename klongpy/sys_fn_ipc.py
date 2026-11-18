@@ -3,14 +3,14 @@
 The connection speaks the kdb+ IPC protocol (``klongpy.ipc``): see
 ``klongpy/ipc/endpoint.py`` for what a request means and how calls are matched
 and served.  It is the only protocol.  The pickle protocol of 0.7 was removed
-in 2.0; ``KLONGPY_IPC=legacy`` is a start-up error and a connection that starts
-like a 0.7 client is closed (see :func:`check_ipc_env`).
+in 2.0; a connection that starts like a 0.7 client is closed.
 """
 import asyncio
 import concurrent.futures
 import logging
 import sys
 import threading
+import weakref
 from asyncio import StreamReader, StreamWriter
 
 from klongpy.core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
@@ -28,24 +28,6 @@ from klongpy.ipc.endpoint import (CLOSE_TIMEOUT, DEFAULT_CALL_TIMEOUT, HANDSHAKE
 from klongpy.ipc import endpoint as _endpoint
 from klongpy.ipc.endpoint import (KGRemoteDictGetCall, KGRemoteDictSetCall,  # noqa: F401
                                   KGRemoteFnCall, KGRemoteFnRef, detect_handshake)
-
-
-def check_ipc_env():
-    """Validate ``KLONGPY_IPC``, read at each ``.srv`` and ``.cli``.
-
-    The kdb+ protocol is the only one.  Unset, ``kdb`` and ``auto`` (the 0.7 server default)
-    are accepted and mean the same.  ``legacy`` (the pickle protocol, removed in 2.0) and
-    any other value are system errors.
-    """
-    import os
-    v = os.environ.get("KLONGPY_IPC", "").strip().lower()
-    if v in ("", "kdb", "auto"):
-        return
-    if v == "legacy":
-        raise KlongSystemError("KLONGPY_IPC=legacy: the pickle protocol was removed in 2.0; "
-                               "upgrade both ends to 2.0 or later (the kdb+ protocol is the only one), "
-                               "and unset KLONGPY_IPC")
-    raise KlongSystemError(f"KLONGPY_IPC must be unset, kdb or auto (the kdb+ protocol is the only one), not {v!r}")
 
 
 def get_system(klong):
@@ -173,6 +155,22 @@ class ReaderWriterConnectionProvider(ConnectionProvider):
         return f"remote[{self.host}:{self.port}]"
 
 
+# Every connection of this process, to tell when a synchronous call would be
+# answered by the thread that is blocked making it (see NetworkClient.call).
+_CONNECTIONS = weakref.WeakSet()
+
+
+def _plain(klong, x):
+    """A 0-d array or tensor (a computed port, say) as the Python number it holds."""
+    if hasattr(x, 'ndim') and x.ndim == 0:
+        return klong._backend.to_display(x)
+    return x
+
+
+def _endpoint_address(info):
+    return tuple(info[:2]) if info else None
+
+
 class NetworkClient(KdbConnectionMixin, KGLambda):
     """
 
@@ -217,6 +215,7 @@ class NetworkClient(KdbConnectionMixin, KGLambda):
         self.authenticate = authenticate
         self._initial = bytes(initial)
         new_connection_state(self)
+        _CONNECTIONS.add(self)
 
         if shutdown_event is not None:
             self.shutdown_event.subscribe(self.close)
@@ -390,9 +389,37 @@ class NetworkClient(KdbConnectionMixin, KGLambda):
         """
         if not self.is_open():
             raise KlongSystemError("connection not established")
+        if self._is_own_loop_peer():
+            raise KlongSystemError(
+                f"a synchronous call to this process's own connection {str(self.conn_provider)} cannot be answered: "
+                "the call blocks the event loop that has to serve it. Send it without waiting, "
+                ".async(f;callback), or call from another process")
         if timeout is ...:
             timeout = self.call_timeout
         return self._call_kdb(msg, timeout)
+
+    def _is_own_loop_peer(self):
+        """True when the other end of this connection is in this process and its requests are served by the
+        thread that is calling now (the loop thread that runs this code)."""
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            return False
+        writer = self.writer
+        if writer is None:
+            return False
+        mine = _endpoint_address(writer.get_extra_info('sockname'))
+        theirs = _endpoint_address(writer.get_extra_info('peername'))
+        if mine is None or theirs is None:
+            return False
+        for other in list(_CONNECTIONS):
+            if other is self or other.klongloop is not running:
+                continue
+            w = other.writer
+            if w is not None and _endpoint_address(w.get_extra_info('sockname')) == theirs \
+                    and _endpoint_address(w.get_extra_info('peername')) == mine:
+                return True
+        return False
 
     @staticmethod
     def arg_to_msg(x):
@@ -828,7 +855,7 @@ def eval_sys_fn_create_client(klong, x):
                    f(:avg,,!100)    -->  49.5
 
     """
-    x = x.a if isinstance(x,KGCall) else x
+    x = _plain(klong, x.a if isinstance(x,KGCall) else x)
     if isinstance(x,NetworkClient):
         return x
     system = get_system(klong)
@@ -837,9 +864,11 @@ def eval_sys_fn_create_client(klong, x):
     shutdown_event = system.get('closeEvent')
     if isinstance(x, NetworkClientDictHandle):
         return x.nc
-    check_ipc_env()
-    return NetworkClient.create_from_addr(ioloop, klongloop, klong, shutdown_event, x,
-                                          max_message=system.get('ipc_max_message')).run_client()
+    nc = NetworkClient.create_from_addr(ioloop, klongloop, klong, shutdown_event, x,
+                                        max_message=system.get('ipc_max_message')).run_client()
+    # a file run stays up while a connection is open (see klongpy.repl.keeps_alive)
+    system.setdefault('ipc_clients', weakref.WeakSet()).add(nc)
+    return nc
 
 
 def eval_sys_fn_create_dict_client(klong, x):
@@ -946,8 +975,7 @@ def eval_sys_fn_create_ipc_server(klong, x):
         Example:   .srv(8888)       -->  1
 
     """
-    check_ipc_env()
-    x = str(x)
+    x = str(_plain(klong, x))
     parts = x.split(":")
     bind = parts[0] if len(parts) > 1 else None
     try:

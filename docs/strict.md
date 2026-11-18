@@ -26,7 +26,7 @@ $ kgpy --strict=2 -e 'a'
   a
   ^
 $ kgpy --strict=3 -e 'a' 2>&1 | tail -1
-KlongPy: error: argument --strict: invalid choice: '3' (choose from 0, 1, 2)
+kgpy: error: argument --strict: invalid choice: '3' (choose from 0, 1, 2)
 ```
 
 ```python
@@ -52,7 +52,7 @@ error: the strict level must be 0, 1 or 2
 
 A file run with `kgpy --strict=N file.kg`, and a file loaded with `.l`, run at the level of the session. The level in force when a text is parsed decides the syntax checks for that text; the level in force when a statement runs decides the run-time checks. The same text can therefore be accepted at level 0 and rejected at level 1 by the same interpreter (the first example under [Input that is left over](#input-that-is-left-over)).
 
-The default stays at level 0 so that existing programs keep their results. [`kgpy --lint`](lint.md) finds many of the same mistakes in a file without running it.
+The default stays at level 0 so that existing programs keep their results. [`kgpy lint`](lint.md) finds many of the same mistakes in a file without running it.
 
 ## Level 1
 
@@ -337,6 +337,6 @@ Leave level 0 on for programs written before these levels existed, and for a pro
 
 The standard library under `klongpy/lib` loads at levels 0, 1 and 2, so a strict program can load it with `.l`.
 
-Run [`kgpy --lint`](lint.md) over a file to see the same kinds of mistake without running anything.
+Run [`kgpy lint`](lint.md) over a file to see the same kinds of mistake without running anything.
 
 See also: [Errors](errors.md), [Conformance Suite](conformance.md) (the `strict1` and `strict2` cases), [Migrating to v2](migrating-to-v2.md).

@@ -27,11 +27,11 @@ Two routes put Klong on a small device. The generated C has not yet run on a dev
 
 **The native runtime** is a second implementation of the language in Rust that runs without Python. It has a serial console and an upload command, kdb+ IPC, timers and a management node library. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board, and two Raspberry Pi Picos have run it with IPC between them. See [Native Runtime](native/index.md) and, for the details of what has run on hardware, its [status table](native/index.md#status-what-has-and-has-not-been-proven).
 
-**Compiling to C** takes a subset of Klong, the static profile, in which every type, shape and call target is known before the program runs. It compiles to freestanding C99 with no heap, no recursion and no C library. `kgpy --check-static` tells you whether a file is inside the subset, and `kgpy --emit-c` writes the C.
+**Compiling to C** takes a subset of Klong, the static profile, in which every type, shape and call target is known before the program runs. It compiles to freestanding C99 with no heap, no recursion and no C library. `kgpy check` tells you whether a file is inside the subset, and `kgpy compile c` writes the C.
 
 <!-- check-docs: link examples -->
 ```console
-$ kgpy --check-static examples/embedded/mavg.kg
+$ kgpy check examples/embedded/mavg.kg
 examples/embedded/mavg.kg: inside the static profile (1 function, 1 entry, 0 externs, 2 globals)
 ```
 
@@ -44,7 +44,7 @@ The `conformance/` directory holds about 1,300 test cases that do not depend on 
 <!-- check-docs: link conformance -->
 ```console
 $ python conformance/run.py | tail -n 1
-1302 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
+1339 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 ```
 
 ## The stable core
@@ -156,7 +156,7 @@ See [Strict Mode](strict.md).
 
 ### The linter
 
-`kgpy --lint FILE...` reads programs without running them and reports constructs that parse but usually do not mean what they look like. An example is `my_var`, which reads as `my _ var` because `_` is an operator.
+`kgpy lint FILE...` reads programs without running them and reports constructs that parse but usually do not mean what they look like. An example is `my_var`, which reads as `my _ var` because `_` is an operator.
 
 ```console
 $ cat > demo.kg <<'EOF'
@@ -164,7 +164,7 @@ $ cat > demo.kg <<'EOF'
 > total::0
 > -1+2
 > EOF
-$ kgpy --lint demo.kg
+$ kgpy lint demo.kg
 demo.kg:1:1: W001 'my_var' reads as my _ var: _ is the Drop operator, names cannot contain underscores
 demo.kg:3:1: W010 a leading - negates everything to its right: -1+... is -(1+...)
 0 errors, 2 warnings in 1 file

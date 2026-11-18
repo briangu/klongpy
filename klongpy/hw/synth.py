@@ -1,5 +1,5 @@
 """
-``kgpy --emit-hls --synth``: run C synthesis of each kernel on the build machine ($KLONG_HW_BUILD; unset
+``kgpy fpga source --synth``: run C synthesis of each kernel on the build machine ($KLONG_FPGA_BUILD; unset
 means this machine) and print the estimates.
 """
 import os

@@ -1,5 +1,5 @@
 """
-kgpy --emit-hls: the files that Vitis HLS turns into a kernel. Everything here runs without a
+kgpy fpga source: the files that Vitis HLS turns into a kernel. Everything here runs without a
 Xilinx tool: the generated C++ is compiled with the system compiler (the pragmas are ``#pragma HLS``, which other
 compilers ignore, and the top function needs no Xilinx header), and the test bench built from it runs the
 program, whose outputs must equal the interpreter's. tests/static/test_hls_remote.py runs the same files in
@@ -39,7 +39,7 @@ def program(name):
 
 def emit(name_or_path, **kw):
     path = name_or_path if os.sep in name_or_path or name_or_path.endswith(".kg") else program(name_or_path)
-    kw.setdefault("wrapped", True)         # these tests are about stage A (kgpy --hls-wrapped); stage B is in test_hls_stream.py
+    kw.setdefault("wrapped", True)         # these tests are about stage A (kgpy fpga source --wrapped); stage B is in test_hls_stream.py
     return emit_hls_program(path, None, **kw)
 
 
@@ -369,7 +369,7 @@ class TestCli(unittest.TestCase):
     def test_emit_hls_writes_the_files(self):
         d = tempfile.mkdtemp(prefix="kghls_")
         _KEEP.append(d)
-        r = self.cli("--emit-hls", program("fir"), "--hls-wrapped", "-o", d, "--clock-mhz", "250")
+        r = self.cli("fpga", "source", program("fir"), "--wrapped", "-o", d, "--clock-mhz", "250")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("fir_run_kernel", r.stdout)
         self.assertEqual(sorted(os.listdir(d)), ["fir.c", "fir.h", "fir_run_tb.cpp", "fir_run_top.cpp", "hls_run.tcl",
@@ -380,24 +380,24 @@ class TestCli(unittest.TestCase):
     def test_extern_is_rejected_with_a_diagnostic(self):
         d = tempfile.mkdtemp(prefix="kghls_")
         _KEEP.append(d)
-        r = self.cli("--emit-hls", program("pid"), "-o", d)
+        r = self.cli("fpga", "source", program("pid"), "-o", d)
         self.assertEqual(r.returncode, 1)
         self.assertIn("no externs", r.stderr)
         self.assertEqual(os.listdir(d), [])
 
     def test_float64_is_rejected(self):
-        r = self.cli("--emit-hls", program("mavg"), "--float64")
+        r = self.cli("fpga", "source", program("mavg"), "--float64")
         self.assertEqual(r.returncode, 2)
-        self.assertIn("float32 only", r.stderr)
+        self.assertIn("unrecognized arguments: --float64", r.stderr)
 
-    def test_synth_needs_emit_hls(self):
-        r = self.cli("--synth", program("mavg"))
+    def test_synth_belongs_to_compile_fpga(self):
+        r = self.cli("compile", "c", program("mavg"), "--synth")
         self.assertEqual(r.returncode, 2)
-        self.assertIn("--emit-hls", r.stderr)
+        self.assertIn("unrecognized arguments: --synth", r.stderr)
 
     def test_help_names_the_options(self):
-        r = self.cli("--help")
-        self.assertIn("--emit-hls", r.stdout)
+        r = self.cli("fpga", "source", "--help")
+        self.assertIn("--synth", r.stdout)
         self.assertIn("--clock-mhz", r.stdout)
 
 
