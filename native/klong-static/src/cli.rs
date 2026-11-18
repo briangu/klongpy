@@ -193,16 +193,20 @@ pub fn check_main(prog: &str, args: &[String], out: &mut dyn Write, err: &mut dy
         Parsed::Run(a) => a,
         Parsed::Exit(c) => return c,
     };
-    if a.dump_ir || a.streamable {
-        let which = if a.dump_ir { "--dump-ir" } else { "--streamable" };
-        let _ = writeln!(err, "{}: {} needs the compiler's constant evaluation and inference, which are not in this build yet", prog, which);
-        return 2;
+    if a.dump_ir {
+        return crate::compile::dump_ir_main(&a.files, if a.int64 { 64 } else { 32 }, out, err);
     }
-    run_check(prog, &a.files, a.int64, a.verbose, Vec::new(), out, err)
+    run_check_ex(prog, &a.files, a.int64, a.verbose, a.streamable, Vec::new(), out, err)
 }
 
 /// What `check_main` does once the options are known: check each file, print what `kgpy check` prints, return its status.
-pub fn run_check(_prog: &str, files: &[String], int64: bool, verbose: bool, lib_dirs: Vec<String>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+pub fn run_check(prog: &str, files: &[String], int64: bool, verbose: bool, lib_dirs: Vec<String>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    run_check_ex(prog, files, int64, verbose, false, lib_dirs, out, err)
+}
+
+/// `run_check` with `--streamable`.
+#[allow(clippy::too_many_arguments)]
+pub fn run_check_ex(_prog: &str, files: &[String], int64: bool, verbose: bool, streamable: bool, lib_dirs: Vec<String>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let a = Args { files: files.to_vec(), int64, streamable: false, dump_ir: false, verbose };
     let opts = Options { int_bits: if a.int64 { 64 } else { 32 }, lib_dirs, ..Options::default() };
     let (mut bad, mut unreadable, mut total) = (0usize, 0usize, 0usize);
@@ -247,6 +251,29 @@ pub fn run_check(_prog: &str, files: &[String], int64: bool, verbose: bool, lib_
                 ));
             }
             let _ = writeln!(out, "{}: inside the static profile ({}){}", path, report.summary(), note);
+            if streamable && path != "-" {
+                match crate::compile::compile_program(path, None, if a.int64 { 64 } else { 32 }, None) {
+                    Err(f) => {
+                        for t in f.render() {
+                            let _ = writeln!(err, "{}", t);
+                        }
+                        bad += 1;
+                        total += 1;
+                    }
+                    Ok(c) => {
+                        let found = crate::streamable::check_streamable(&c.program, &c.report);
+                        if found.is_empty() {
+                            let _ = writeln!(out, "{}: streamable: nothing keeps a kernel from taking one record per clock cycle", path);
+                        } else {
+                            bad += 1;
+                            total += found.len();
+                            for d in &found {
+                                let _ = writeln!(err, "{}", render(d, &c.report));
+                            }
+                        }
+                    }
+                }
+            }
         }
         if a.verbose {
             describe(&report, out);

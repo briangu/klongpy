@@ -55,6 +55,8 @@ pub struct ExternDecl {
     pub name: String,
     pub signature: Signature,
     pub module: String,
+    pub span: (usize, usize),
+    pub src: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -341,7 +343,7 @@ fn check_name(name: &str, what: &str) -> Option<String> {
     None
 }
 
-const C_KEYWORDS: &[&str] = &[
+pub const C_KEYWORDS: &[&str] = &[
     "auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else", "enum", "extern", "float", "for", "goto", "if", "inline", "int", "long",
     "register", "restrict", "return", "short", "signed", "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", "while", "_Bool",
     "_Complex", "_Imaginary", "main", "memcpy", "memset", "NULL",

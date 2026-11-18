@@ -26,8 +26,9 @@ use klong_core::{Error, Interp};
 
 const MAX_RANK: usize = 4;
 
+/// The element type of a declared type.
 #[derive(Clone, PartialEq)]
-enum Elem {
+pub enum Elem {
     Int,
     Float,
     Str,
@@ -35,16 +36,18 @@ enum Elem {
     Fixed(u32, u32),
 }
 
+/// A declared type: an element type and the dimensions (none for a scalar). `Display` writes the canonical form.
 #[derive(Clone, PartialEq)]
-struct Ty {
-    elem: Elem,
-    shape: Vec<u32>,
+pub struct Ty {
+    pub elem: Elem,
+    pub shape: Vec<u32>,
 }
 
+/// A declared signature, `params -> result`; `Display` writes the canonical form.
 #[derive(Clone, PartialEq)]
-struct Sig {
-    params: Vec<Ty>,
-    result: Ty,
+pub struct Sig {
+    pub params: Vec<Ty>,
+    pub result: Ty,
 }
 
 impl core::fmt::Display for Ty {
@@ -420,13 +423,96 @@ fn plural(n: usize, word: &str) -> String {
 
 /// What `.extern` has declared: name, signature, module and, for a function of more than three parameters, what the named-parameter
 /// function that was defined for it calls (a native function takes at most x, y and z).
-type Declared = Rc<RefCell<Vec<Extern>>>;
+type Declared = Rc<RefCell<Tables>>;
 
-struct Extern {
-    name: String,
-    sig: Sig,
-    module: String,
+#[derive(Default)]
+struct Tables {
+    externs: Vec<Extern>,
+    entries: Vec<(String, Sig)>,
+    #[cfg(feature = "params")]
+    params: Vec<Param>,
+}
+
+/// An extern the program declared.
+pub struct Extern {
+    pub name: String,
+    pub sig: Sig,
+    pub module: String,
     call: Option<NativeFn>,
+}
+
+#[cfg(feature = "params")]
+/// A tunable input register the program declared with `.param`: its name, its scalar type and the value it started with. For
+/// `fixed<W,I>` the value is the number as declared (the interpreter has no fixed-point values).
+pub struct Param {
+    pub name: String,
+    pub ty: Ty,
+    pub default: Value,
+}
+
+/// What the program has declared (`.extern`, `.entry`, `.param`), for the host that runs it: a handle on the tables of one
+/// interpreter, from [`register`] (`Runtime::declarations`).
+#[derive(Clone)]
+pub struct Declarations(Declared);
+
+impl Declarations {
+    /// The declared externs, in order of declaration.
+    pub fn externs(&self) -> Vec<(String, Sig, String)> {
+        self.0.borrow().externs.iter().map(|e| (e.name.clone(), e.sig.clone(), e.module.clone())).collect()
+    }
+    /// The declared entries, (name, signature), in order of declaration.
+    pub fn entries(&self) -> Vec<(String, Sig)> {
+        self.0.borrow().entries.clone()
+    }
+    /// The declared parameters, in order of declaration.
+    #[cfg(feature = "params")]
+    pub fn params(&self) -> Vec<(String, Ty, Value)> {
+        self.0.borrow().params.iter().map(|p| (p.name.clone(), p.ty.clone(), p.default.clone())).collect()
+    }
+    /// Give the declared extern `name` its host function (replacing the one it had, or none): its calls are checked against the
+    /// signature as before. A name that is not a declared extern is a `name` error.
+    pub fn bind(&self, ip: &mut Interp, name: &str, host: NativeFn) -> Result<()> {
+        let (sig, wide) = match self.0.borrow().externs.iter().find(|e| e.name == name) {
+            Some(e) => (e.sig.clone(), e.sig.params.len() > 3),
+            None => return Err(Error::name(klong_core::msg!("{} is not a declared extern", name))),
+        };
+        let call = bound(name, sig, Some(host))?;
+        if wide {
+            if let Some(e) = self.0.borrow_mut().externs.iter_mut().find(|e| e.name == name) {
+                e.call = Some(call);
+            }
+            return Ok(());
+        }
+        let s = ip.syms.intern(name);
+        if let Some(e) = ip.syms.failure() {
+            return Err(e);
+        }
+        ip.define_global(name, Value::Fn(Rc::new(Func::Native { name: s, arity: WILDCARD, f: call })))
+    }
+    /// Set the parameter `name` between runs (`klongpy.static.set_param`): the value is checked against the declared type and
+    /// converted (`int` takes an int, `float` an int or a float, `fixed<W,I>` an int or a float, kept as the number), assigned to
+    /// the global and returned.
+    #[cfg(feature = "params")]
+    pub fn set_param(&self, ip: &mut Interp, name: &str, value: &Value) -> Result<Value> {
+        let ty = match self.0.borrow().params.iter().find(|p| p.name == name) {
+            Some(p) => p.ty.clone(),
+            None => {
+                return Err(Error::name(klong_core::msg!("{} is not a parameter of the program", name))
+                    .with_hint(klong_core::msg!("declare it: .param(\"{}\";\"int\")", name)))
+            }
+        };
+        let what = klong_core::msg!("the value of parameter {}", name);
+        let v = match (&ty.elem, value) {
+            (Elem::Fixed(..), Value::Int(_) | Value::Flt(_)) => value.clone(),
+            (Elem::Fixed(..), _) => return Err(Error::typ(klong_core::msg!("{} must be {}, got {}", what, ty, describe(value)))),
+            _ => conform(&ty, value, &what).map_err(|m| match m {
+                Mismatch::Type(s) => Error::typ(s),
+                Mismatch::Shape(s) => Error::shape(s),
+            })?,
+        };
+        ip.define_global(name, v.clone())?;
+        Ok(v)
+    }
 }
 
 /// The arguments `.extern.arg` has collected for the next `.extern.call`.
@@ -480,7 +566,7 @@ fn extern_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value>
         return Err(Error::typ(klong_core::msg!(".extern: {}", bad)));
     }
     let canonical = klong_core::msg!("{}", sig);
-    if let Some(old) = declared.borrow().iter().find(|e| e.name == name) {
+    if let Some(old) = declared.borrow().externs.iter().find(|e| e.name == name) {
         if old.sig != sig || old.module != module {
             return Err(Error::typ(klong_core::msg!(".extern: {} is already declared \"{}\" (module {})", name, old.sig, old.module)));
         }
@@ -497,7 +583,7 @@ fn extern_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value>
     };
     let n = sig.params.len();
     let call = bound(name, sig.clone(), host)?;
-    try_push(&mut declared.borrow_mut(), Extern { name: try_str(name)?, sig, module: try_str(module)?, call: (n > 3).then(|| call.clone()) })?;
+    try_push(&mut declared.borrow_mut().externs, Extern { name: try_str(name)?, sig, module: try_str(module)?, call: (n > 3).then(|| call.clone()) })?;
     if n <= 3 {
         // x, y and z: a wildcard function is given whichever of them the call supplied
         let s = ip.syms.intern(name);
@@ -506,7 +592,7 @@ fn extern_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value>
         }
         ip.define_global(name, Value::Fn(Rc::new(Func::Native { name: s, arity: WILDCARD, f: call })))?;
     } else if let Err(e) = define_wide(ip, declared, name, n) {
-        declared.borrow_mut().pop();
+        declared.borrow_mut().externs.pop();
         return Err(e);
     }
     Value::text(&canonical)
@@ -545,7 +631,7 @@ fn define_wide(ip: &mut Interp, declared: &Declared, name: &str, n: usize) -> Re
     Ok(())
 }
 
-fn entry_fn(ip: &mut Interp, a: &[Value]) -> Result<Value> {
+fn entry_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value> {
     if a.len() != 2 {
         return Err(Error::arity(klong_core::msg!(".entry takes 2 arguments, got {}", a.len())));
     }
@@ -583,7 +669,85 @@ fn entry_fn(ip: &mut Interp, a: &[Value]) -> Result<Value> {
             plural(sig.params.len(), "parameter")
         )));
     }
-    Value::text(&klong_core::msg!("{}", sig))
+    let canonical = klong_core::msg!("{}", sig);
+    let mut t = declared.borrow_mut();
+    if !t.entries.iter().any(|(n, s)| n == name && *s == sig) {
+        try_push(&mut t.entries, (try_str(name)?, sig))?;
+    }
+    drop(t);
+    Value::text(&canonical)
+}
+
+#[cfg(feature = "params")]
+fn float_fn(a: &[Value]) -> Result<Value> {
+    match a.first() {
+        Some(Value::Int(i)) => Ok(Value::Flt(*i as klong_core::Flt)),
+        Some(v @ (Value::Flt(_) | Value::Flts(_))) => Ok(v.clone()),
+        Some(Value::Ints(a)) => {
+            let mut data = try_vec(a.data.len())?;
+            data.extend(a.data.iter().map(|&i| i as klong_core::Flt));
+            Ok(Value::Flts(Rc::new(Arr::shaped(data, &dims_of(a)))))
+        }
+        _ => Err(Error::typ(".float: the argument must be a fixed-point number or an array of numbers")),
+    }
+}
+
+#[cfg(feature = "params")]
+fn param_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value> {
+    if !(2..=3).contains(&a.len()) {
+        return Err(Error::arity(klong_core::msg!(".param takes 2 or 3 arguments, got {}", a.len())));
+    }
+    let name = string(".param", &a[0], "name")?;
+    let text = string(".param", &a[1], "type")?;
+    let t = text.as_bytes();
+    let (pos, end) = (t.len() - text.trim_start().len(), text.trim_end().len());
+    let ty = if pos >= end {
+        Err(sig_err(String::from("expected a type but found nothing"), 0))
+    } else {
+        type_at(t, pos, end).and_then(|(ty, stop)| {
+            if stop == end {
+                Ok(ty)
+            } else {
+                Err(sig_err(klong_core::msg!("unexpected '{}' after the type", text[stop..end].trim()), stop))
+            }
+        })
+    };
+    let ty = ty.map_err(|e| {
+        Error::typ(klong_core::msg!(".param: {}", e.message)).with_hint("a type is int, float or fixed<W,I>, for example \"fixed<32,16>\"")
+    })?;
+    if !ty.shape.is_empty() || matches!(ty.elem, Elem::Str | Elem::Void) {
+        return Err(Error::typ(klong_core::msg!(".param: {} must be a scalar int, float or fixed<W,I>, not {}", name, ty)));
+    }
+    if let Some(bad) = check_extern_name(name) {
+        return Err(Error::typ(klong_core::msg!(".param: {}", bad.replace("an extern", "a parameter"))));
+    }
+    let default = match (a.get(2), &ty.elem) {
+        (None, Elem::Int) => Value::Int(0),
+        (None, Elem::Float) => Value::Flt(0.0),
+        (None, _) => Value::Int(0),
+        (Some(v @ Value::Int(_)), Elem::Int | Elem::Fixed(..)) => v.clone(),
+        (Some(Value::Int(i)), Elem::Float) => Value::Flt(*i as klong_core::Flt),
+        (Some(v @ Value::Flt(_)), Elem::Float | Elem::Fixed(..)) => v.clone(),
+        (Some(_), Elem::Int) => return Err(Error::typ(klong_core::msg!(".param: the default of {} must be an int", name))),
+        (Some(v), Elem::Fixed(..)) => {
+            return Err(Error::typ(klong_core::msg!(".param {}: the default must be a number or an array of numbers, got {}", name, describe(v))))
+        }
+        (Some(_), _) => return Err(Error::typ(klong_core::msg!(".param: the default of {} must be a number", name))),
+    };
+    let canonical = klong_core::msg!("{}", ty);
+    if let Some(old) = declared.borrow().params.iter().find(|p| p.name == name) {
+        if old.ty != ty {
+            return Err(Error::typ(klong_core::msg!(".param: {} is already declared as {}", name, old.ty)));
+        }
+        return Value::text(&canonical);
+    }
+    if ip.global(name).is_some() {
+        return Err(Error::name(klong_core::msg!(".param: {} is already defined in the program", name))
+            .with_hint("a parameter is defined by .param itself: remove the other definition"));
+    }
+    ip.define_global(name, default.clone())?;
+    try_push(&mut declared.borrow_mut().params, Param { name: try_str(name)?, ty, default })?;
+    Value::text(&canonical)
 }
 
 /// `.extern.arg` and `.extern.call`, which the body of a function of more than three parameters calls: defined with the first such
@@ -611,7 +775,7 @@ fn register_wide(ip: &mut Interp, declared: &Declared) {
         WILDCARD,
         Rc::new(move |ip: &mut Interp, a: &[Value]| {
             let name = string(".extern.call", a.first().ok_or_else(|| Error::arity(".extern.call takes a name"))?, "name")?;
-            let call = declared.borrow().iter().find(|e| e.name == name).and_then(|e| e.call.clone());
+            let call = declared.borrow().externs.iter().find(|e| e.name == name).and_then(|e| e.call.clone());
             let call = call.ok_or_else(|| Error::name(klong_core::msg!("{} is not a declared extern", name)))?;
             let mut args = core::mem::take(&mut *stash.try_borrow_mut().map_err(|_| Error::system("extern arguments are in use"))?);
             for v in &a[1..] {
@@ -622,17 +786,30 @@ fn register_wide(ip: &mut Interp, declared: &Declared) {
     );
 }
 
-/// Define `.extern`, `.entry` and `.fixed`.
+/// Define `.extern`, `.entry`, `.param`, `.float` and `.fixed`.
 ///
 /// `.fixed` is an error, not an emulation: KlongPy's interpreter gives `.fixed(type;x)` a fixed-point array that knows its type,
 /// and arithmetic on it follows the reference semantics of `klongpy/static/fixed.py` operation by operation (an add, a multiply
 /// and a divide that wrap to the width, floor on conversion, a reduction that wraps at each step, a refusal to mix with floats).
 /// The native values have no such kind and every operator would need a case for it, so a fixed-point program is compiled or run
 /// by KlongPy.
-pub fn register(ip: &mut Interp) {
-    let declared: Declared = Rc::new(RefCell::new(Vec::new()));
-    ip.register(".extern", WILDCARD, Rc::new(move |ip: &mut Interp, a: &[Value]| extern_fn(&declared, ip, a)));
-    ip.register(".entry", WILDCARD, Rc::new(|ip: &mut Interp, a: &[Value]| entry_fn(ip, a)));
+///
+/// With the `params` feature (on by default; the board images leave it off) there are `.param` and `.float`.
+///
+/// A fixed-point `.param` is declared and holds the number it was given: the value is not a fixed-point one, so a program that
+/// depends on the wrapping of the width runs in KlongPy. `.float` takes ints and number arrays only.
+pub fn register(ip: &mut Interp) -> Declarations {
+    let declared: Declared = Rc::new(RefCell::new(Tables::default()));
+    let d = declared.clone();
+    ip.register(".extern", WILDCARD, Rc::new(move |ip: &mut Interp, a: &[Value]| extern_fn(&d, ip, a)));
+    let d = declared.clone();
+    ip.register(".entry", WILDCARD, Rc::new(move |ip: &mut Interp, a: &[Value]| entry_fn(&d, ip, a)));
+    #[cfg(feature = "params")]
+    let d = declared.clone();
+    #[cfg(feature = "params")]
+    ip.register(".param", WILDCARD, Rc::new(move |ip: &mut Interp, a: &[Value]| param_fn(&d, ip, a)));
+    #[cfg(feature = "params")]
+    ip.register(".float", 1, Rc::new(|_: &mut Interp, a: &[Value]| float_fn(a)));
     ip.register(
         ".fixed",
         WILDCARD,
@@ -643,4 +820,5 @@ pub fn register(ip: &mut Interp) {
             )
         }),
     );
+    Declarations(declared)
 }

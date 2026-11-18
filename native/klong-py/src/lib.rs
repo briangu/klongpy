@@ -1645,7 +1645,7 @@ type StaticInfo = (Vec<(String, String)>, Vec<(String, String, String)>, Vec<(St
 #[pyo3(signature = (name, text, int64=false, base_dir=None, resolve=true, lib_dir=None, all_functions=false))]
 fn check_source(py: Python<'_>, name: String, text: String, int64: bool, base_dir: Option<String>, resolve: bool, lib_dir: Option<String>, all_functions: bool) -> PyResult<(Vec<StaticDiag>, StaticInfo)> {
     on_big_stack(py, move || {
-        let opts = klong_static::Options { int_bits: if int64 { 64 } else { 32 }, resolve, all_functions, base_dir, lib_dirs: lib_dir.into_iter().collect() };
+        let opts = klong_static::Options { int_bits: if int64 { 64 } else { 32 }, resolve, all_functions, base_dir, lib_dirs: lib_dir.into_iter().collect(), ..Default::default() };
         let r = klong_static::check_source(&text, &name, &opts);
         let diags = r
             .diagnostics
@@ -1670,6 +1670,353 @@ fn check_source(py: Python<'_>, name: String, text: String, int64: bool, base_di
     })
 }
 
+
+/// Diagnostics of a report as `StaticDiag` tuples (offsets in characters).
+fn static_diags(r: &klong_static::Report) -> Vec<StaticDiag> {
+    r.diagnostics.iter().map(|d| static_diag(d, r)).collect()
+}
+
+fn static_diag(d: &klong_static::check::Diag, r: &klong_static::Report) -> StaticDiag {
+    let src = &r.sources[d.src];
+    let t = &src.source.text;
+    let ch = |b: usize| t.get(..b.min(t.len())).map(|p| p.chars().count()).unwrap_or(b);
+    let (line, col) = src.source.line_col(d.span.0);
+    (d.rule.to_string(), ch(d.span.0), ch(d.span.1), line, col, d.message.clone(), d.hint.clone(), d.function.clone())
+}
+
+/// What a compile (stage one to lowering) gives: `(diags, error, program)`. `diags` are the rejections of the profile in source order (a
+/// lowering stops at the first); `error` is the text of an error of the interpreter while it evaluated the compile-time definitions.
+type CompileOutcome = (Vec<StaticDiag>, Option<String>);
+
+fn compile_failure(f: klong_static::compile::Failure) -> CompileOutcome {
+    use klong_static::compile::Failure;
+    match f {
+        Failure::Check(r) => (static_diags(&r), None),
+        Failure::Lower(fail, r) => {
+            let d = klong_static::check::Diag { rule: fail.rule, span: fail.span, src: fail.src, message: fail.message, hint: fail.hint, function: None };
+            (vec![static_diag(&d, &r)], None)
+        }
+        Failure::Run(e) => (Vec::new(), Some(e.render())),
+        Failure::Read(m) => (Vec::new(), Some(m)),
+    }
+}
+
+/// `kgpy check --dump-ir` of a program text: `(ok, text, diags, error)`; `text` is the typed IR. `prefix` names the program in the IR.
+#[pyfunction]
+#[pyo3(signature = (name, text, int64=false, prefix=None))]
+fn dump_ir_source(py: Python<'_>, name: String, text: String, int64: bool, prefix: Option<String>) -> PyResult<(bool, String, Vec<StaticDiag>, Option<String>)> {
+    on_big_stack(py, move || match klong_static::compile::compile_program(&name, Some(&text), if int64 { 64 } else { 32 }, prefix.as_deref()) {
+        Ok(c) => (true, klong_static::ir::dump(&c.program), Vec::new(), None),
+        Err(f) => {
+            let (d, e) = compile_failure(f);
+            (false, String::new(), d, e)
+        }
+    })
+}
+
+/// The size report of an emitted program: `(numbers, call_chain, entries, externs, need_math, text)`; `numbers` is a list of `(name, value)` for
+/// int_bits, float_bits, const_bytes, instance_bytes, state_bytes, slot_bytes, call_depth, stack_bytes and c_lines.
+type SizeReportT = (Vec<(String, usize)>, Vec<String>, Vec<String>, Vec<String>, bool, String);
+
+fn size_report(e: &klong_static::emit_c::Emitted) -> SizeReportT {
+    let r = &e.report;
+    let n = |k: &str, v: usize| (k.to_string(), v);
+    (
+        vec![n("int_bits", r.int_bits as usize), n("float_bits", r.float_bits as usize), n("const_bytes", r.const_bytes), n("instance_bytes", r.instance_bytes), n("state_bytes", r.state_bytes), n("slot_bytes", r.slot_bytes), n("call_depth", r.call_depth), n("stack_bytes", r.stack_bytes), n("c_lines", r.c_lines)],
+        r.call_chain.clone(),
+        r.entries.clone(),
+        r.externs.clone(),
+        r.need_math,
+        e.report_text(),
+    )
+}
+
+/// `kgpy compile c` of a program text: `(ok, prefix, c, h, report, diags, error)`. The files `<prefix>.c`, `<prefix>.h` and `klong_rt.h`
+/// (see `runtime_header`) are the caller's to write. `error` is the text of a refusal that is not a diagnostic (a bad prefix: the ValueError
+/// of the Python emitter) or of the interpreter.
+#[pyfunction]
+#[pyo3(signature = (name, text, int64=false, float64=false, line_directives=false, prefix=None))]
+fn compile_c_source(py: Python<'_>, name: String, text: String, int64: bool, float64: bool, line_directives: bool, prefix: Option<String>) -> PyResult<(bool, String, String, String, Option<SizeReportT>, Vec<StaticDiag>, Option<String>)> {
+    use klong_static::compile::EmitFailure;
+    on_big_stack(py, move || {
+        match klong_static::compile::emit_program(&name, None, Some(&text), if int64 { 64 } else { 32 }, if float64 { 64 } else { 32 }, line_directives, prefix.as_deref(), None) {
+            Ok(r) => (true, r.emitted.prefix.clone(), r.emitted.c.clone(), r.emitted.h.clone(), Some(size_report(&r.emitted)), Vec::new(), None),
+            Err(EmitFailure::Compile(f)) => {
+                let (d, e) = compile_failure(f);
+                (false, String::new(), String::new(), String::new(), None, d, e)
+            }
+            Err(f @ EmitFailure::Emit(..)) | Err(f @ EmitFailure::Io(..)) => {
+                let (lines, _) = f.render(&name);
+                (false, String::new(), String::new(), String::new(), None, Vec::new(), Some(lines.join("\n")))
+            }
+        }
+    })
+}
+
+/// `klong_rt.h`: the runtime header every compiled program includes.
+#[pyfunction]
+fn runtime_header() -> &'static str {
+    klong_static::compile::RUNTIME_HEADER
+}
+
+/// `kgpy compile c FILE... -o DIR` (and `--dump-ir`): what it prints. Returns `(status, stdout, stderr)`.
+#[pyfunction]
+#[pyo3(signature = (paths, output=None, int64=false, float64=false, line_directives=false, prefix=None, dump_ir=false))]
+fn compile_c_files(py: Python<'_>, paths: Vec<String>, output: Option<String>, int64: bool, float64: bool, line_directives: bool, prefix: Option<String>, dump_ir: bool) -> PyResult<(i32, String, String)> {
+    on_big_stack(py, move || {
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status = klong_static::compile::emit_main(&paths, output.as_deref(), if int64 { 64 } else { 32 }, if float64 { 64 } else { 32 }, line_directives, prefix.as_deref(), dump_ir, &mut out, &mut err);
+        (status, String::from_utf8_lossy(&out).into_owned(), String::from_utf8_lossy(&err).into_owned())
+    })
+}
+
+/// `kgpy check --dump-ir FILE...`: `(status, stdout, stderr)`.
+#[pyfunction]
+#[pyo3(signature = (paths, int64=false))]
+fn dump_ir_files(py: Python<'_>, paths: Vec<String>, int64: bool) -> PyResult<(i32, String, String)> {
+    on_big_stack(py, move || {
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status = klong_static::compile::dump_ir_main(&paths, if int64 { 64 } else { 32 }, &mut out, &mut err);
+        (status, String::from_utf8_lossy(&out).into_owned(), String::from_utf8_lossy(&err).into_owned())
+    })
+}
+
+/// `kgpy check --streamable` of a program text: the findings of the streamable tier as `StaticDiag`, or the diagnostics/error of the compile.
+/// Returns `(ok, findings, diags, error)`.
+#[pyfunction]
+#[pyo3(signature = (name, text, int64=false))]
+fn streamable_source(py: Python<'_>, name: String, text: String, int64: bool) -> PyResult<(bool, Vec<StaticDiag>, Vec<StaticDiag>, Option<String>)> {
+    on_big_stack(py, move || match klong_static::compile::compile_program(&name, Some(&text), if int64 { 64 } else { 32 }, None) {
+        Ok(c) => {
+            let found = klong_static::streamable::check_streamable(&c.program, &c.report);
+            (true, found.iter().map(|d| static_diag(d, &c.report)).collect(), Vec::new(), None)
+        }
+        Err(f) => {
+            let (d, e) = compile_failure(f);
+            (false, Vec::new(), d, e)
+        }
+    })
+}
+
+/// The block of docs/static-profile.md that is generated from the rule tables, and the whole page.
+#[pyfunction]
+fn profile_doc_block() -> String {
+    klong_static::profile_doc::generated_block()
+}
+
+#[pyfunction]
+fn profile_doc_page() -> String {
+    klong_static::profile_doc::render_page()
+}
+
+
+// ----- running a static program: call_entry, set_param ----------------------------------------------------------------------------------
+
+use klong_static::host::{HostFn, HostValue, Loaded};
+
+enum Leaf {
+    I(i64),
+    F(f64),
+}
+
+fn flatten(obj: &Bound<'_, PyAny>, depth: usize, shape: &mut Vec<usize>, out: &mut Vec<Leaf>) -> Result<(), String> {
+    use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PyTuple};
+    if obj.is_instance_of::<PyBool>() {
+        out.push(Leaf::I(obj.extract::<bool>().unwrap() as i64));
+        return if depth == shape.len() { Ok(()) } else { Err("a ragged list".to_string()) };
+    }
+    if obj.is_instance_of::<PyInt>() {
+        let v: i64 = obj.extract().map_err(|_| "an integer beyond 64 bits".to_string())?;
+        out.push(Leaf::I(v));
+        return if depth == shape.len() { Ok(()) } else { Err("a ragged list".to_string()) };
+    }
+    if obj.is_instance_of::<PyFloat>() {
+        out.push(Leaf::F(obj.extract::<f64>().unwrap()));
+        return if depth == shape.len() { Ok(()) } else { Err("a ragged list".to_string()) };
+    }
+    if obj.is_instance_of::<PyList>() || obj.is_instance_of::<PyTuple>() {
+        let items: Vec<Bound<'_, PyAny>> = obj.try_iter().map_err(|e| e.to_string())?.map(|x| x.unwrap()).collect();
+        if depth == shape.len() {
+            if out.is_empty() {
+                shape.push(items.len());
+            } else {
+                return Err("a ragged list".to_string());
+            }
+        } else if shape[depth] != items.len() {
+            return Err("a ragged list".to_string());
+        }
+        for it in &items {
+            flatten(it, depth + 1, shape, out)?;
+        }
+        return Ok(());
+    }
+    if obj.hasattr("tolist").unwrap_or(false) {
+        let l = obj.call_method0("tolist").map_err(|e| e.to_string())?;
+        return flatten(&l, depth, shape, out);
+    }
+    Err(format!("a {}", obj.get_type().name().map(|n| n.to_string()).unwrap_or_default()))
+}
+
+fn to_host(obj: &Bound<'_, PyAny>) -> HostValue {
+    use pyo3::types::PyString;
+    if obj.hasattr("spec").unwrap_or(false) && obj.hasattr("raw").unwrap_or(false) {
+        if let (Ok(spec), Ok(raw)) = (obj.getattr("spec"), obj.getattr("raw")) {
+            if let (Ok(elem), Ok(l)) = (spec.getattr("elem").and_then(|e| e.extract::<String>()), raw.call_method0("tolist")) {
+                let (mut shape, mut leaves) = (Vec::new(), Vec::new());
+                if flatten(&l, 0, &mut shape, &mut leaves).is_ok() {
+                    let raw: Vec<i64> = leaves.iter().map(|x| if let Leaf::I(i) = x { *i } else { 0 }).collect();
+                    return HostValue::Fixed { elem, shape, raw };
+                }
+            }
+        }
+    }
+    if let Ok(s) = obj.downcast::<PyString>() {
+        return HostValue::Str(s.to_string());
+    }
+    let (mut shape, mut leaves) = (Vec::new(), Vec::new());
+    match flatten(obj, 0, &mut shape, &mut leaves) {
+        Ok(()) => {
+            let any_f = leaves.iter().any(|l| matches!(l, Leaf::F(_)));
+            if leaves.is_empty() {
+                return HostValue::Other("an empty list".to_string());
+            }
+            if shape.is_empty() {
+                return match leaves[0] {
+                    Leaf::I(i) => HostValue::Int(i),
+                    Leaf::F(f) => HostValue::Float(f),
+                };
+            }
+            if any_f {
+                HostValue::Floats(shape, leaves.iter().map(|l| match l { Leaf::I(i) => *i as f64, Leaf::F(f) => *f }).collect())
+            } else {
+                HostValue::Ints(shape, leaves.iter().map(|l| if let Leaf::I(i) = l { *i } else { 0 }).collect())
+            }
+        }
+        Err(what) => HostValue::Other(what),
+    }
+}
+
+fn nested<'py>(py: Python<'py>, shape: &[usize], data: &mut dyn Iterator<Item = Bound<'py, PyAny>>) -> PyResult<Bound<'py, PyAny>> {
+    use pyo3::types::PyList;
+    if shape.is_empty() {
+        return Ok(data.next().unwrap());
+    }
+    let items: Vec<Bound<'py, PyAny>> = (0..shape[0]).map(|_| nested(py, &shape[1..], data)).collect::<PyResult<_>>()?;
+    Ok(PyList::new(py, items)?.into_any())
+}
+
+/// A host value as Python: an int, a float or a str; an array as nested lists; a fixed-point value as `(elem, nested raw list)`; None for void.
+fn from_host<'py>(py: Python<'py>, v: &HostValue) -> PyResult<Bound<'py, PyAny>> {
+    use pyo3::IntoPyObjectExt;
+    Ok(match v {
+        HostValue::Int(i) => i.into_bound_py_any(py)?,
+        HostValue::Float(f) => f.into_bound_py_any(py)?,
+        HostValue::Str(s) => s.into_bound_py_any(py)?,
+        HostValue::Void => py.None().into_bound(py),
+        HostValue::Other(s) => s.into_bound_py_any(py)?,
+        HostValue::Ints(shape, data) => {
+            let mut it = data.iter().map(|x| x.into_bound_py_any(py).unwrap());
+            nested(py, shape, &mut it)?
+        }
+        HostValue::Floats(shape, data) => {
+            let mut it = data.iter().map(|x| x.into_bound_py_any(py).unwrap());
+            nested(py, shape, &mut it)?
+        }
+        HostValue::Fixed { elem, shape, raw } => {
+            let mut it = raw.iter().map(|x| x.into_bound_py_any(py).unwrap());
+            let l = nested(py, shape, &mut it)?;
+            (elem.clone(), l).into_bound_py_any(py)?
+        }
+    })
+}
+
+#[pyclass(unsendable)]
+struct StaticProgram {
+    inner: Loaded,
+}
+
+fn host_err(e: Error) -> PyErr {
+    k2py(e)
+}
+
+#[pymethods]
+impl StaticProgram {
+    /// Run a static program (strict level 2) with Python callables bound as its externs; a program that uses fixed-point numbers runs its entries on the typed-IR evaluator.
+    #[new]
+    #[pyo3(signature = (name, text, externs=None))]
+    fn new(py: Python<'_>, name: String, text: String, externs: Option<Bound<'_, PyAny>>) -> PyResult<StaticProgram> {
+        use pyo3::types::PyDict;
+        let mut table: HashMap<String, HostFn> = HashMap::new();
+        if let Some(d) = externs {
+            let d = d.downcast::<PyDict>()?;
+            for (k, f) in d.iter() {
+                let name: String = k.extract()?;
+                let f: Py<PyAny> = f.unbind();
+                let cb: HostFn = Rc::new(move |_ip: &mut klong_core::Interp, a: &[klong_core::Value]| {
+                    Python::with_gil(|py| {
+                        let args: PyResult<Vec<Bound<'_, PyAny>>> = a
+                            .iter()
+                            .map(|v| {
+                                let h = HostValue::from_value(v);
+                                match &h {
+                                    HostValue::Ints(..) => py.import("numpy")?.call_method1("array", (from_host(py, &h)?, "int64")),
+                                    HostValue::Floats(..) => py.import("numpy")?.call_method1("array", (from_host(py, &h)?, "float64")),
+                                    _ => from_host(py, &h),
+                                }
+                            })
+                            .collect();
+                        let r = f.bind(py).call1(pyo3::types::PyTuple::new(py, args.map_err(|e| Error::system(e.to_string()))?).map_err(|e| Error::system(e.to_string()))?);
+                        match r {
+                            Ok(v) => Ok(to_host(&v).to_value()),
+                            Err(e) => Err(Error::system(e.to_string())),
+                        }
+                    })
+                });
+                table.insert(name, cb);
+            }
+        }
+        let _ = py;
+        let inner = klong_static::host::load_program(&name, Some(&text), table);
+        Ok(StaticProgram { inner: inner.map_err(host_err)? })
+    }
+
+    #[pyo3(signature = (name, args, signature=None, raw=false))]
+    fn call_entry<'py>(&mut self, py: Python<'py>, name: String, args: Vec<Bound<'py, PyAny>>, signature: Option<String>, raw: bool) -> PyResult<Bound<'py, PyAny>> {
+        let hv: Vec<HostValue> = args.iter().map(to_host).collect();
+        let r = klong_static::host::call_entry(&mut self.inner, &name, &hv, signature.as_deref(), raw).map_err(host_err)?;
+        from_host(py, &r)
+    }
+
+    fn set_param<'py>(&mut self, py: Python<'py>, name: String, value: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let r = klong_static::host::set_param(&mut self.inner, &name, &to_host(&value)).map_err(host_err)?;
+        from_host(py, &r)
+    }
+
+    /// The value of a global of the program, as `call_entry` returns values.
+    fn get<'py>(&self, py: Python<'py>, name: String) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner.get(&name).map(|v| from_host(py, &v)).transpose()
+    }
+}
+
+
+/// `kgpy fpga source` of a program text: `(ok, files, entries, error)`. `files` is `[(name, text)]` in sorted order, with `manifest.json`, the C, the
+/// HLS C++, the test benches, the tcl and `klong_rt.h`; `entries` is `[(name, top, signature, in_bytes, out_bytes)]`. `error` is the rendered text of a
+/// rejection (a program outside the profile, an entry that cannot be a kernel, a bad option).
+#[pyfunction]
+#[pyo3(signature = (name, text, int64=false, prefix=None, clock_mhz=300, wrapped=false, lanes=None, reassociate=false))]
+#[allow(clippy::type_complexity)]
+fn fpga_source(py: Python<'_>, name: String, text: String, int64: bool, prefix: Option<String>, clock_mhz: u32, wrapped: bool, lanes: Option<usize>, reassociate: bool) -> PyResult<(bool, Vec<(String, String)>, Vec<(String, String, String, usize, usize)>, Option<String>)> {
+    on_big_stack(py, move || match klong_static::emit_hls::emit_hls_program(&name, None, Some(&text), if int64 { 64 } else { 32 }, prefix.as_deref(), clock_mhz, wrapped, lanes, reassociate) {
+        Ok(r) => (
+            true,
+            r.out.files.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            r.out.entries.iter().map(|e| (e.name.clone(), e.top.clone(), e.signature.clone(), e.in_bytes, e.out_bytes)).collect(),
+            None,
+        ),
+        Err(f) => (false, Vec::new(), Vec::new(), Some(f.render(&name).0.join("\n"))),
+    })
+}
+
 #[pymodule]
 fn klong_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Klong>()?;
@@ -1677,11 +2024,21 @@ fn klong_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NativeVec>()?;
     m.add_class::<NativeObject>()?;
     m.add_class::<NativeDict>()?;
+    m.add_class::<StaticProgram>()?;
     m.add("NativeError", m.py().get_type::<NativeError>())?;
     m.add_function(wrap_pyfunction!(zero_copy, m)?)?;
     m.add_function(wrap_pyfunction!(lint_files, m)?)?;
     m.add_function(wrap_pyfunction!(lint_source, m)?)?;
     m.add_function(wrap_pyfunction!(check_files, m)?)?;
     m.add_function(wrap_pyfunction!(check_source, m)?)?;
+    m.add_function(wrap_pyfunction!(dump_ir_source, m)?)?;
+    m.add_function(wrap_pyfunction!(dump_ir_files, m)?)?;
+    m.add_function(wrap_pyfunction!(compile_c_source, m)?)?;
+    m.add_function(wrap_pyfunction!(compile_c_files, m)?)?;
+    m.add_function(wrap_pyfunction!(runtime_header, m)?)?;
+    m.add_function(wrap_pyfunction!(streamable_source, m)?)?;
+    m.add_function(wrap_pyfunction!(fpga_source, m)?)?;
+    m.add_function(wrap_pyfunction!(profile_doc_block, m)?)?;
+    m.add_function(wrap_pyfunction!(profile_doc_page, m)?)?;
     Ok(())
 }

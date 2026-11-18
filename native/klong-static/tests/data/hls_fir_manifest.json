@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "emitter": "klong-emit-hls/1",
+  "program": "fir",
+  "source": "fir.kg",
+  "int_bits": 32,
+  "float_bits": 32,
+  "lanes": 1,
+  "clock_mhz": 300,
+  "cache_key": "a3d85cc8a6be1f305bc0f9c2ce3ea82e8133e232d338bce3f2b657a8ab99f4a1",
+  "cflags": [
+    "-DKG_TRAP_FLAG=kg_hls_trap"
+  ],
+  "tool": {
+    "name": "Vitis HLS",
+    "version": "2022.2",
+    "flow_target": "vitis",
+    "part": "xcu250-figd2104-2L-e",
+    "platform": "xilinx_u250_gen3x16_xdma_4_1_202210_1"
+  },
+  "c_files": [
+    "fir.c",
+    "fir.h",
+    "klong_rt.h"
+  ],
+  "entries": [
+    {
+      "name": "run",
+      "c_name": "run",
+      "signature": "float[256] -> float[241]",
+      "top": "fir_run_kernel",
+      "params": [
+        {
+          "name": "x",
+          "elem": "float",
+          "shape": [
+            256
+          ],
+          "offset": 0,
+          "words": 256
+        }
+      ],
+      "result": {
+        "elem": "float",
+        "shape": [
+          241
+        ],
+        "words": 241
+      },
+      "in_words": 256,
+      "out_words": 241,
+      "in_type": "kg_float",
+      "out_type": "kg_float",
+      "in_bytes": 1024,
+      "out_bytes": 964,
+      "files": {
+        "top": "fir_run_top.cpp",
+        "tb": "fir_run_tb.cpp",
+        "tcl": "hls_run.tcl"
+      },
+      "kernel_args": [
+        "in",
+        "out",
+        "n",
+        "reset",
+        "status"
+      ]
+    }
+  ],
+  "status_bits": {
+    "any_trap": 0,
+    "bounds": 1,
+    "div_zero": 2
+  },
+  "kernel": "void <top>(const in_type *in, out_type *out, unsigned n, unsigned reset, unsigned *status)"
+}

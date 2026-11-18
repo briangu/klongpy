@@ -201,6 +201,8 @@ pub struct FunctionInfo {
 
 pub struct GlobalInfo {
     pub name: String,
+    pub span: Sp,
+    pub src: usize,
     pub at: At,
     pub assigned: bool,
     pub resolved: bool,
@@ -208,8 +210,8 @@ pub struct GlobalInfo {
 }
 
 impl GlobalInfo {
-    fn new(name: &str) -> GlobalInfo {
-        GlobalInfo { name: name.to_string(), at: At::num(None, None, Const::Cu), assigned: false, resolved: false, param: false }
+    fn new(name: &str, span: Sp, src: usize) -> GlobalInfo {
+        GlobalInfo { name: name.to_string(), span, src, at: At::num(None, None, Const::Cu), assigned: false, resolved: false, param: false }
     }
     pub fn ty(&self) -> Option<Ty> {
         self.at.ty()
@@ -333,7 +335,11 @@ enum Verb {
     Lit(Rc<Node>, usize),
 }
 
-enum LitVal {
+#[derive(Clone)]
+pub enum LitVal {
+    /// a fixed-point value of this type (raw values are not kept)
+    Fixed(Ty),
+    Undefined,
     QSym(String),
     Char,
     Func,
@@ -360,11 +366,13 @@ pub struct Options {
     pub base_dir: Option<String>,
     /// library directories searched after KLONGPATH; empty: the library built into the binary (and `KLONG_LIB_DIRS`)
     pub lib_dirs: Vec<String>,
+    /// the compile-time values of the globals (stage one of the compiler), by name
+    pub globals: HashMap<String, LitVal>,
 }
 
 impl Default for Options {
     fn default() -> Options {
-        Options { int_bits: 32, resolve: true, all_functions: false, base_dir: None, lib_dirs: Vec::new() }
+        Options { int_bits: 32, resolve: true, all_functions: false, base_dir: None, lib_dirs: Vec::new(), globals: HashMap::new() }
     }
 }
 
@@ -386,6 +394,7 @@ struct Checker {
     broken: BTreeSet<String>,
     frames: Vec<Frame>,
     sess: Session,
+    given: HashMap<String, LitVal>,
 }
 
 fn strip_module(msg: &str) -> String {
@@ -553,6 +562,7 @@ impl Checker {
     fn define_globals(&mut self, names: &[String], right: &Rc<Node>, node: &Rc<Node>, span: Sp, lsp: Sp, src: usize, single: bool) {
         let known = self.literal(right);
         for (i, name) in names.iter().enumerate() {
+            let given = self.given.get(name).cloned();
             if self.r.params.contains(name) {
                 self.diag("redefinition", lsp, format!("{} is a parameter (.param); it cannot be defined again", name), None);
                 continue;
@@ -560,8 +570,10 @@ impl Checker {
             if ARGS.contains(&name.as_str()) || !self.taken(name, TK::Global, lsp) {
                 continue;
             }
-            self.r.globals.set(name, GlobalInfo::new(name));
-            if let Some(v) = &known {
+            self.r.globals.set(name, GlobalInfo::new(name, span, src));
+            if let Some(v) = &given {
+                self.set_global(name, v, lsp, src);
+            } else if let Some(v) = &known {
                 let vsp = node.arg_span(1, span);
                 if single {
                     self.set_global(name, v, vsp, src);
@@ -579,7 +591,10 @@ impl Checker {
         for (name, _) in inner.assigns.clone() {
             if !self.kinds.contains_key(&name) && !ARGS.contains(&name.as_str()) && !name.starts_with('.') {
                 self.kinds.insert(name.clone(), TK::Global);
-                self.r.globals.set(&name, GlobalInfo::new(&name));
+                self.r.globals.set(&name, GlobalInfo::new(&name, span, src));
+                if let Some(v) = self.given.get(&name).cloned() {
+                    self.set_global(&name, &v, lsp, src);
+                }
             }
         }
     }
@@ -718,7 +733,7 @@ impl Checker {
             if !self.taken(&name, TK::Extern, nsp) {
                 return;
             }
-            self.r.externs.set(&name, ExternDecl { name: name.clone(), signature: sig, module });
+            self.r.externs.set(&name, ExternDecl { name: name.clone(), signature: sig, module, span, src });
             return;
         }
         if let Some(bad) = sig::check_entry_name(&name) {
@@ -822,7 +837,7 @@ impl Checker {
         if !self.taken(&name, TK::Global, nsp) {
             return;
         }
-        let mut g = GlobalInfo::new(&name);
+        let mut g = GlobalInfo::new(&name, span, src);
         g.at = At::n(&ty.elem, Vec::new());
         g.resolved = true;
         g.assigned = true;
@@ -2705,9 +2720,20 @@ fn row_of(l: &Lit, n: usize, i: usize) -> Option<LitVal> {
 }
 
 /// Is a compile-time value acceptable as an initialised global? Its type, or the rule and a one-line reason.
-fn validate_global(value: &LitVal, int_bits: u32) -> Result<Ty, (&'static str, String)> {
+pub fn validate_global(value: &LitVal, int_bits: u32) -> Result<Ty, (&'static str, String)> {
     let (lo, hi) = int_range(int_bits);
     match value {
+        LitVal::Fixed(t) => {
+            let size: usize = t.shape.iter().product();
+            if !t.shape.is_empty() && size == 0 {
+                return Err(("global-array", "an empty list cannot be a global value: every dimension is a positive integer".to_string()));
+            }
+            if t.shape.len() > MAX_RANK {
+                return Err(("global-array", format!("an array of rank {} cannot be a global value: the rank is 1 to {}", t.shape.len(), MAX_RANK)));
+            }
+            Ok(t.clone())
+        }
+        LitVal::Undefined => Err(("global-value", ":undefined cannot be a global".to_string())),
         LitVal::Int(v) => {
             if *v < lo || *v > hi {
                 return Err(("int-range", format!("{} is outside the range of a {}-bit kg_int", v, int_bits)));
@@ -2804,6 +2830,7 @@ pub fn check_source(text: &str, name: &str, opts: &Options) -> Report {
         broken: BTreeSet::new(),
         frames: Vec::new(),
         sess: Session::new(lib_dirs),
+        given: opts.globals.clone(),
     };
     c.run(name, text);
     c.r

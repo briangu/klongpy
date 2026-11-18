@@ -3,8 +3,8 @@
 
     KLONGPY_ENGINE=python .venv/bin/python native/klong-static/gen_tables.py > native/klong-static/src/tables.rs
 """
-from klongpy.static.rules import RULES, STREAM_RULES
-from klongpy.static.optable import OPTABLE
+from klongpy.static.rules import GROUPS, RULES, STREAM_RULES
+from klongpy.static.optable import FORMS, OPERAND_KINDS, OPTABLE, SHAPE_RULES, TYPE_RULES
 
 
 def q(s):
@@ -27,9 +27,44 @@ print("    pub section: &'static str,")
 print("    pub hint: Option<&'static str>,")
 print("}")
 print()
+def rule_line(r):
+    return f"    Rule {{ id: {qs(r.id)}, group: {qs(r.group)}, title: {qs(r.title)}, section: {qs(r.section)}, hint: {q(r.hint)} }},"
+
+
+print("/// Every rule: the profile's (`RULES` of rules.py) and then the streamable tier's.")
 print("pub static RULES: &[Rule] = &[")
 for r in list(RULES.values()) + list(STREAM_RULES.values()):
-    print(f"    Rule {{ id: {qs(r.id)}, group: {qs(r.group)}, title: {qs(r.title)}, section: {qs(r.section)}, hint: {q(r.hint)} }},")
+    print(rule_line(r))
+print("];")
+print()
+print("/// The streamable tier's rules alone (`STREAM_RULES` of rules.py); they are also the tail of `RULES`.")
+print("pub static STREAM_RULES: &[Rule] = &[")
+for r in STREAM_RULES.values():
+    print(rule_line(r))
+print("];")
+print()
+print("/// The groups of the error table, in order: (id, title).")
+print("pub static GROUPS: &[(&str, &str)] = &[")
+for g, t in GROUPS:
+    print(f"    ({qs(g)}, {qs(t)}),")
+print("];")
+print()
+for name, d in (("OPERAND_KINDS", OPERAND_KINDS), ("TYPE_RULES", TYPE_RULES), ("SHAPE_RULES", SHAPE_RULES)):
+    print(f"pub static {name}: &[(&str, &str)] = &[")
+    for k, v in d.items():
+        print(f"    ({qs(k)}, {qs(v)}),")
+    print("];")
+    print()
+print("/// An allowed form that is not an operator.")
+print("pub struct Form {")
+print("    pub id: &'static str,")
+print("    pub form: &'static str,")
+print("    pub note: &'static str,")
+print("}")
+print()
+print("pub static FORMS: &[Form] = &[")
+for f in FORMS:
+    print(f"    Form {{ id: {qs(f.id)}, form: {qs(f.form)}, note: {qs(f.note)} }},")
 print("];")
 print()
 print("/// A row of the operator table: how one glyph is used (`valence`: monad, dyad, adverb1 or adverb2).")
@@ -39,6 +74,7 @@ print("    pub glyph: &'static str,")
 print("    pub valence: &'static str,")
 print("    pub name: &'static str,")
 print("    pub allowed: bool,")
+print("    pub operands: &'static [&'static str],")
 print("    pub type_rule: Option<&'static str>,")
 print("    pub shape_rule: Option<&'static str>,")
 print("    pub rule: Option<&'static str>,")
@@ -47,7 +83,7 @@ print("}")
 print()
 print("pub static OPTABLE: &[Op] = &[")
 for o in OPTABLE:
-    print(f"    Op {{ id: {qs(o.id)}, glyph: {qs(o.glyph)}, valence: {qs(o.valence)}, name: {qs(o.name)}, allowed: {'true' if o.status == 'allowed' else 'false'}, "
+    print(f"    Op {{ id: {qs(o.id)}, glyph: {qs(o.glyph)}, valence: {qs(o.valence)}, name: {qs(o.name)}, allowed: {'true' if o.status == 'allowed' else 'false'}, operands: &[{', '.join(qs(x) for x in o.operands)}], "
           f"type_rule: {q(o.type_rule)}, shape_rule: {q(o.shape_rule)}, rule: {q(o.rule)}, note: {qs(o.note)} }},")
 print("];")
 print()

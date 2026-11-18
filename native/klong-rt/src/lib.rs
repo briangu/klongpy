@@ -11,7 +11,7 @@
 
 extern crate alloc;
 
-mod declare;
+pub mod declare;
 pub mod events;
 pub mod heap;
 #[cfg(feature = "ipc")]
@@ -156,6 +156,8 @@ pub struct Runtime<P: Platform + 'static> {
     pub shared: Rc<Shared<P>>,
     /// Timers, queued calls and IPC connections (`events.rs`).
     pub events: Rc<events::Events<P>>,
+    /// What the program has declared with `.extern`, `.entry` and `.param` (the static profile).
+    pub declarations: declare::Declarations,
 }
 
 pub(crate) fn one<'a>(a: &'a [Value], name: &str) -> Result<&'a Value> {
@@ -226,7 +228,7 @@ impl<P: Platform + 'static> Runtime<P> {
                 Ok(x.clone())
             }),
         );
-        declare::register(&mut interp);
+        let declarations = declare::register(&mut interp);
         interp.register(".fmt", klong_core::value::WILDCARD, Rc::new(|ip: &mut Interp, a: &[Value]| Ok(Value::str(fmtfn::render(ip, a, ".fmt")?))));
         let sh = shared.clone();
         interp.register(
@@ -464,7 +466,7 @@ impl<P: Platform + 'static> Runtime<P> {
         }
         let events = events::Events::new(shared.clone());
         events::register(&mut interp, &events);
-        Runtime { interp, shared, events }
+        Runtime { interp, shared, events, declarations }
     }
 
     /// Run a program that is handed over, statement by statement (see `Interp::run_streamed_owned`).

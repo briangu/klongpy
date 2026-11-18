@@ -1,0 +1,123 @@
+{
+  "format": 1,
+  "emitter": "klong-emit-hls/1",
+  "program": "ema",
+  "source": "ema.kg",
+  "int_bits": 32,
+  "float_bits": 32,
+  "lanes": 4,
+  "clock_mhz": 300,
+  "cache_key": "162e916f747337165f417075a8151d80e2df71d81f4bb6f4c6a162dfd7f272ff",
+  "cflags": [
+    "-DKG_TRAP_FLAG=kg_hls_trap"
+  ],
+  "tool": {
+    "name": "Vitis HLS",
+    "version": "2022.2",
+    "flow_target": "vitis",
+    "part": "xcu250-figd2104-2L-e",
+    "platform": "xilinx_u250_gen3x16_xdma_4_1_202210_1"
+  },
+  "c_files": [
+    "ema.c",
+    "ema.h",
+    "klong_rt.h",
+    "kg_hls_stub.h"
+  ],
+  "entries": [
+    {
+      "name": "step",
+      "c_name": "step",
+      "signature": "fixed<32,16> -> fixed<32,16>",
+      "top": "ema_step_kernel",
+      "params": [
+        {
+          "name": "x",
+          "elem": "fixed<32,16>",
+          "shape": [],
+          "offset": 0,
+          "words": 1
+        }
+      ],
+      "result": {
+        "elem": "fixed<32,16>",
+        "shape": [
+          4
+        ],
+        "words": 4
+      },
+      "in_words": 1,
+      "out_words": 4,
+      "in_type": "int32_t",
+      "out_type": "int32_t",
+      "in_bytes": 4,
+      "out_bytes": 16,
+      "files": {
+        "top": "ema_step_top.cpp",
+        "tb": "ema_step_tb.cpp",
+        "tcl": "hls_step.tcl"
+      },
+      "kernel_args": [
+        "in",
+        "out",
+        "n",
+        "reset",
+        "params",
+        "status"
+      ],
+      "register_table": {
+        "order": [
+          "alpha",
+          "depth"
+        ],
+        "lanes": 4,
+        "word_bytes": 4,
+        "words": 8,
+        "bytes": 32
+      },
+      "streams": {
+        "in": "record",
+        "out": "record"
+      }
+    }
+  ],
+  "status_bits": {
+    "any_trap": 0,
+    "bounds": 1,
+    "div_zero": 2
+  },
+  "kernel": "void <top>(const in_type *in, out_type *out, unsigned n, unsigned reset, const uint32_t *params, unsigned *status)",
+  "registers": [
+    {
+      "name": "alpha",
+      "elem": "fixed<32,16>",
+      "ctype": "int32_t",
+      "cid": "alpha",
+      "default": 32768,
+      "lanes": 4,
+      "bytes": 4
+    },
+    {
+      "name": "depth",
+      "elem": "int",
+      "ctype": "kg_int",
+      "cid": "depth",
+      "default": 2,
+      "lanes": 4,
+      "bytes": 4
+    }
+  ],
+  "register_table": {
+    "order": [
+      "alpha",
+      "depth"
+    ],
+    "lanes": 4,
+    "word_bytes": 4,
+    "words": 8,
+    "bytes": 32
+  },
+  "stage": "B",
+  "lane_dimension": true,
+  "reassociate": false
+}

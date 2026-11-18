@@ -7,7 +7,9 @@ license.workspace = true
 publish.workspace = true
 
 [features]
-default = ["files", "lib"]
+default = ["files", "lib", "params"]
+# .param and .float of the static profile, and Declarations::params and set_param for the host that runs such a program.
+params = []
 # Channels, .l and the file functions; they need Platform::fs.
 files = []
 # The pure-Klong library of klongpy/lib as text in the image.

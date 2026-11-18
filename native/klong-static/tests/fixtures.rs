@@ -1,6 +1,5 @@
 //! The fixtures of the static profile (tests/static/accept and reject): an accept file is inside the profile, a reject file has a
-//! violation of the rule its name gives, on the line its first line expects. The differential run against `kgpy check` (every
-//! fixture, every static program in the repository, the lint corpus) is in /tmp/kgprobe/static; these hold the line without Python.
+//! violation of the rule its name gives, on the line its first line expects. These tests need no Python.
 use klong_static::{check_source, check::Options};
 use std::path::PathBuf;
 

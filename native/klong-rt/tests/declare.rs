@@ -203,3 +203,66 @@ fn pid_runs_with_the_values_of_its_expect_file_and_writes_its_duty() {
         assert!((got - want).abs() < 1e-9, "{duty:?}");
     }
 }
+
+#[cfg(feature = "params")]
+#[test]
+fn float_converts_ints_and_number_arrays() {
+    let mut rt = rt();
+    assert_eq!(show(&mut rt, ".float(3)"), Ok("3.0".into()));
+    assert_eq!(show(&mut rt, ".float(2.5)"), Ok("2.5".into()));
+    assert_eq!(show(&mut rt, ".float([1 2 3])"), Ok("[1.0 2.0 3.0]".into()));
+    assert_eq!(show(&mut rt, ".float([[1 2] [3 4]])"), Ok("[[1.0 2.0] [3.0 4.0]]".into()));
+    assert_eq!(show(&mut rt, ".float(\"a\")"), Err(Kind::Type));
+}
+
+#[cfg(feature = "params")]
+#[test]
+fn param_declares_a_global_with_its_default() {
+    let mut rt = rt();
+    assert_eq!(show(&mut rt, ".param(\"window\";\"int\";4)"), Ok("\"int\"".into()));
+    assert_eq!(show(&mut rt, "window"), Ok("4".into()));
+    assert_eq!(show(&mut rt, ".param(\"g\";\"float\")"), Ok("\"float\"".into()));
+    assert_eq!(show(&mut rt, "g"), Ok("0.0".into()));
+    assert_eq!(show(&mut rt, ".param(\"h\";\"float\";2);h"), Ok("2.0".into()));
+    assert_eq!(show(&mut rt, ".param(\"stop\";\"fixed<32,16>\";0.5)"), Ok("\"fixed<32,16>\"".into()));
+    // the same type again keeps the first default; another type, a defined name, a bad type, a bad default are errors
+    assert_eq!(show(&mut rt, ".param(\"window\";\"int\";9);window"), Ok("4".into()));
+    assert_eq!(show(&mut rt, ".param(\"window\";\"float\")"), Err(Kind::Type));
+    assert_eq!(show(&mut rt, "k::1;.param(\"k\";\"int\")"), Err(Kind::Name));
+    assert_eq!(show(&mut rt, ".param(\"a\";\"int[4]\")"), Err(Kind::Type));
+    assert_eq!(show(&mut rt, ".param(\"a\";\"int\";0.5)"), Err(Kind::Type));
+    assert_eq!(show(&mut rt, ".param(\"a\";\"float\";\"s\")"), Err(Kind::Type));
+    assert_eq!(show(&mut rt, ".param(\"x\";\"int\")"), Err(Kind::Type));
+    assert_eq!(show(&mut rt, ".param(\"a\")"), Err(Kind::Arity));
+    assert_eq!(show(&mut rt, ".extern(\"window\";\"int -> int\")"), Err(Kind::Name));
+}
+
+#[cfg(feature = "params")]
+#[test]
+fn the_host_reads_the_declarations_and_sets_the_parameters() {
+    let mut rt = rt();
+    show(&mut rt, ".extern(\"read.adc\";\"int -> float\");.param(\"n\";\"int\";3);.param(\"g\";\"float\");.param(\"s\";\"fixed<16,8>\")").unwrap();
+    show(&mut rt, "step::{x*2};.entry(\"step\";\"int -> int\")").unwrap();
+    let d = rt.declarations.clone();
+    let ex = d.externs();
+    assert_eq!((ex[0].0.as_str(), ex[0].1.to_string().as_str(), ex[0].2.as_str()), ("read.adc", "int -> float", "env"));
+    let en = d.entries();
+    assert_eq!((en[0].0.as_str(), en[0].1.to_string().as_str()), ("step", "int -> int"));
+    let ps: Vec<(String, String)> = d.params().iter().map(|p| (p.0.clone(), p.1.to_string())).collect();
+    assert_eq!(ps, [("n".into(), "int".into()), ("g".into(), "float".into()), ("s".into(), "fixed<16,8>".into())]);
+    let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    assert!(matches!(d.set_param(&mut rt.interp, "n", &Value::Int(7)), Ok(Value::Int(7))));
+    assert!(matches!(d.set_param(&mut rt.interp, "g", &Value::Int(2)), Ok(Value::Flt(f)) if f == 2.0));
+    assert!(d.set_param(&mut rt.interp, "s", &Value::Flt(0.5)).is_ok());
+    assert_eq!(d.set_param(&mut rt.interp, "n", &Value::Flt(1.5)).err().map(|e| e.kind), Some(Kind::Type));
+    assert_eq!(d.set_param(&mut rt.interp, "nope", &Value::Int(1)).err().map(|e| e.kind), Some(Kind::Name));
+    drop(_one);
+    assert_eq!(show(&mut rt, "n"), Ok("7".into()));
+    assert_eq!(show(&mut rt, "g"), Ok("2.0".into()));
+    // a host function bound after the declaration is what the extern calls
+    let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    d.bind(&mut rt.interp, "read.adc", Rc::new(|_: &mut Interp, a: &[Value]| Ok(Value::Flt(match a[0] { Value::Int(i) => i as f64 * 0.5, _ => 0.0 })))).unwrap();
+    assert!(d.bind(&mut rt.interp, "other", Rc::new(|_: &mut Interp, _: &[Value]| Ok(Value::Undefined))).is_err());
+    drop(_one);
+    assert_eq!(show(&mut rt, "read.adc(5)"), Ok("2.5".into()));
+}

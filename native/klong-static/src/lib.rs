@@ -1,8 +1,19 @@
 //! klong-static: the static profile (docs/static-profile.md): the checker, ported from `klongpy/static/checker.py`. `klong check`.
+pub mod argp;
 pub mod ast;
 pub mod check;
 pub mod cli;
+pub mod compile;
+pub mod emit_c;
+pub mod emit_hls;
+pub mod eval_ir;
+pub mod fixed;
+pub mod host;
+pub mod infer;
+pub mod ir;
+pub mod profile_doc;
 pub mod sig;
+pub mod streamable;
 pub mod tables;
 pub mod util;
 

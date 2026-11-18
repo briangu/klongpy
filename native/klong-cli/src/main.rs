@@ -25,6 +25,8 @@ use std::io::{BufRead, Read, Write};
 use std::process::ExitCode;
 
 mod check;
+mod compile;
+mod profile_doc;
 mod lint;
 
 use klong_core::{Config, Error};
@@ -374,6 +376,15 @@ fn run(o: Opts) -> ExitCode {
 fn main() -> ExitCode {
     if std::env::args().nth(1).as_deref() == Some("check") {
         return check::main();
+    }
+    if std::env::args().nth(1).as_deref() == Some("compile") && std::env::args().nth(2).as_deref() == Some("c") {
+        return compile::main("compile");
+    }
+    if std::env::args().nth(1).as_deref() == Some("fpga") && std::env::args().nth(2).as_deref() == Some("source") {
+        return compile::main("fpga");
+    }
+    if std::env::args().nth(1).as_deref() == Some("profile-doc") {
+        return profile_doc::main();
     }
     if std::env::args().nth(1).as_deref() == Some("lint") {
         return lint::main();

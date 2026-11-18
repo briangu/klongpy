@@ -202,3 +202,125 @@
 @ static.entry-an-extern-is-not-defined-by-the-program strings static
 > .extern("f";"int -> int");.entry("f";"int -> int")
 ! type
+
+# .float converts an int or an array of numbers to float; .param declares a tunable input register.
+
+@ static.float-of-an-int strings static
+> .float(3)
+= 3.0
+
+@ static.float-of-a-float strings static
+> .float(2.5)
+= 2.5
+
+@ static.float-of-an-int-array strings static
+> .float([1 2 3])
+= [1.0 2.0 3.0]
+
+@ static.float-of-a-float-array strings static
+> .float([1.5 2.5])
+= [1.5 2.5]
+
+@ static.float-of-a-matrix strings static
+> .float([[1 2] [3 4]])
+= [[1.0 2.0] [3.0 4.0]]
+
+@ static.float-of-a-string strings static
+> .float("a")
+! type
+
+@ static.float-of-a-symbol strings static
+> .float(:a)
+! type
+
+@ static.param-returns-the-type strings static
+> .param("window";"int";4)
+= "int"
+
+@ static.param-defines-the-global-with-its-default strings static
+> .param("window";"int";4);window
+= 4
+
+@ static.param-default-is-zero strings static
+> .param("n";"int");n
+= 0
+
+@ static.param-float-default-is-zero strings static
+> .param("g";"float");g
+= 0.0
+
+@ static.param-float-takes-an-int-default strings static
+> .param("g";"float";2);g
+= 2.0
+
+@ static.param-float-default strings static
+> .param("g";"float";0.5);g
+= 0.5
+
+@ static.param-int-default-must-be-an-int strings static
+> .param("n";"int";0.5)
+! type
+
+@ static.param-float-default-must-be-a-number strings static
+> .param("g";"float";"a")
+! type
+
+@ static.param-fixed-returns-the-type strings static
+> .param("stop";"fixed<32,16>";0)
+= "fixed<32,16>"
+
+@ static.param-declared-twice-the-same strings static
+> .param("n";"int";1);.param("n";"int";2);n
+= 1
+
+@ static.param-declared-twice-differently strings static
+> .param("n";"int");.param("n";"float")
+! type
+
+@ static.param-name-already-defined strings static
+> n::5;.param("n";"int")
+! name
+
+@ static.param-name-of-an-extern strings static
+> .extern("f";"int -> int");.param("f";"int")
+! name
+
+@ static.extern-name-of-a-param strings static
+> .param("f";"int");.extern("f";"int -> int")
+! name
+
+@ static.param-array-type strings static
+> .param("n";"int[4]")
+! type
+
+@ static.param-str-type strings static
+> .param("n";"str")
+! type
+
+@ static.param-unknown-type strings static
+> .param("n";"bool")
+! type
+
+@ static.param-name-is-a-string strings static
+> .param(:n;"int")
+! type
+
+@ static.param-type-is-a-string strings static
+> .param("n";3)
+! type
+
+@ static.param-name-argument strings static
+> .param("x";"int")
+! type
+
+@ static.param-name-with-a-bad-character strings static
+> .param("1n";"int")
+! type
+
+@ static.param-reserved-c-name strings static
+> .param("int";"int")
+! type
+
+@ static.param-too-few-arguments strings static
+> .param("n")
+! arity
