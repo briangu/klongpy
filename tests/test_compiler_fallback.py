@@ -14,6 +14,7 @@ import warnings
 from klongpy import KlongInterpreter
 from klongpy.compiler import CACHE_LIMIT, LRUCache, compile_guarded
 from tests.backend_compat import plain
+from tests.backend_compat import on_rust_engine, requires_python_engine
 
 
 def _compiled_entry(klong, source):
@@ -41,6 +42,7 @@ class CountingBackendSpy:
 
 
 class TestCompileOnce(unittest.TestCase):
+    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
     def test_compile_once_per_function(self):
         k = KlongInterpreter()
         spy = CountingBackendSpy(k)
@@ -51,6 +53,7 @@ class TestCompileOnce(unittest.TestCase):
         self.assertEqual(list(r), [10] * 1000)
         self.assertEqual(spy.count, 1)
 
+    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
     def test_compile_once_reduce_body(self):
         k = KlongInterpreter()
         spy = CountingBackendSpy(k)
@@ -79,6 +82,7 @@ class TestErrorsSurface(unittest.TestCase):
     def setUp(self):
         warnings.simplefilter("ignore")
 
+    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
     def test_compile_failure_not_run_twice(self):
         k = KlongInterpreter()
         k("a::[1 2 3]")
@@ -101,6 +105,7 @@ class TestErrorsSurface(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(interp_calls, [])
 
+    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
     def test_runtime_error_from_compiled_fn_propagates(self):
         class Boom(Exception):
             pass
@@ -117,6 +122,7 @@ class TestErrorsSurface(unittest.TestCase):
         with self.assertRaises(Boom):
             k("a+1")
 
+    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
     def test_side_effects_in_function_run_once_when_it_raises(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
@@ -132,6 +138,7 @@ class TestErrorsSurface(unittest.TestCase):
         self.assertEqual(k("n"), 2)
         self.assertEqual(out.getvalue().count("effect"), 2)
 
+    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
     def test_side_effect_written_via_dot_d_runs_once(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
@@ -143,6 +150,7 @@ class TestErrorsSurface(unittest.TestCase):
                 k("f(0)")
         self.assertEqual(out.getvalue(), "x")
 
+    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
     def test_signal_exception_not_swallowed(self):
         k = KlongInterpreter()
         k("a::[1 2 3]")
@@ -237,6 +245,7 @@ class TestRebinding(unittest.TestCase):
                 fresh(rebind)
                 self.assertEqual(got, self._result_of(fresh, "f(1)"))
 
+    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
     def test_klong_rebind_does_not_use_stale_compiled_function(self):
         # Rebinding with ::  clears the top-level cache but not the compiled
         # function kept on a function body. The operand guard is what keeps

@@ -13,6 +13,7 @@ from klongpy import KlongInterpreter  # noqa: E402
 from klongpy.dump import dump, dump_text, parse_program  # noqa: E402
 from klongpy.types import KGQSym, KGSym  # noqa: E402
 from tests.backend_compat import is_torch_backend  # noqa: E402
+from tests.backend_compat import on_rust_engine, requires_python_engine
 
 
 _FLOAT_NUM = re.compile(r"\(num (-?(?:\d+\.\d*(?:[eE][-+]?\d+)?|\d+[eE][-+]?\d+))\)")
@@ -161,6 +162,7 @@ class TestDumpForms(unittest.TestCase):
     def test_comment_is_consumed(self):
         self.assertEqual(D('.comment("E")\nfoo\nE\n1'), "(num 1)")
 
+    @requires_python_engine("reads current_module() of the Python parser's state")
     def test_parse_program_does_not_evaluate_or_leak_module(self):
         k = KlongInterpreter()
         parse_program(k, ".module(:m);a::1")

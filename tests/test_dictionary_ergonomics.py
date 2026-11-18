@@ -12,6 +12,7 @@ from klongpy import KlongInterpreter
 from klongpy.core import KGSym, KLONG_UNDEFINED
 from klongpy.dump import dump, dump_text, node_spans, parse_program
 from klongpy.errors import KlongError, KlongNameError, KlongSyntaxError, KlongSyntaxWarning, KlongTypeError
+from tests.backend_compat import on_rust_engine, requires_python_engine
 
 LEVELS = (0, 1, 2)
 
@@ -153,6 +154,7 @@ class TestEvaluatedLiteral(unittest.TestCase):
         self.assertEqual(tree.arg_spans, ((5, 8), (9, 12)))
         self.assertEqual([sp for _, sp, _, _ in node_spans(tree)], [(2, 13), (9, 12)])
 
+    @requires_python_engine("the legacy parser of the Python engine")
     def test_legacy_parser(self):
         with self.assertRaises(IndexError):
             KlongInterpreter(parser="legacy")(":{;1;2}")
@@ -211,7 +213,8 @@ class TestMerge(unittest.TestCase):
                 self.assertEqual(plain(k("b,c")), {1: 2, 3: 4})
                 self.assertEqual(plain(k("b")), {1: 2, 3: 4})       # b shows the merge
                 self.assertEqual(plain(k("c")), {3: 4})
-                self.assertIs(k("b,c"), k("b"))
+                if not on_rust_engine():    # object identity across the engine boundary
+                    self.assertIs(k("b,c"), k("b"))
 
     def test_right_wins(self):
         for level in LEVELS:
@@ -246,6 +249,7 @@ class TestMerge(unittest.TestCase):
                     self.assertIsInstance(e, KlongTypeError)
                     self.assertEqual(e.kind, "type")
 
+    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
     def test_values_stay_what_they_are(self):
         # a merged value is the same object: nothing is converted or copied
         k = interp(0, "v::[1.5 2.5 3.5]", "b:::{}", 'c:::{;"v";v}', "b,c")
@@ -294,6 +298,7 @@ class TestLookupWithAt(unittest.TestCase):
         self.assertEqual(k('"abc"@1'), "b")
         self.assertEqual(num(k("{x+1}@1")), 2)
 
+    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
     def test_tensor_and_array_values(self):
         k = interp(0, "v::[1.5 2.5 3.5]", 'd:::{;"w";v}')
         self.assertIs(k('d@"w"'), k("v"))

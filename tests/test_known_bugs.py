@@ -10,6 +10,7 @@ from utils import *
 
 from klongpy import KlongInterpreter
 from klongpy.core import KGChar, KGSym
+from tests.backend_compat import on_rust_engine, requires_python_engine
 
 requires_pandas = unittest.skipUnless(HAS_PANDAS, "requires pandas")
 
@@ -50,6 +51,7 @@ class TestKnownBugsSuite(unittest.TestCase):
 class TestDocumentedDifferences(unittest.TestCase):
     """Intended KlongPy behaviour that differs from reference Klong (listed in docs/differences.md)."""
 
+    @requires_python_engine("asserts the Python class of the tokens in a list literal (KGOp)")
     def test_array_substitution(self):
         # Differs: a list literal takes tokens, so operators become KGOp objects and names become
         # symbols; use `[;...]` for an evaluated list. Reference Klong gives [:! 10].

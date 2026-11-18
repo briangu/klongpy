@@ -3,7 +3,7 @@ from klongpy import KlongInterpreter
 from utils import *
 from klongpy.backend import np
 from klongpy.backends import get_backend
-from backend_compat import requires_numpy_backend
+from backend_compat import requires_numpy_backend, requires_python_engine
 import numpy
 
 # Get backend for kg_equal (always numpy for these tests)
@@ -45,6 +45,7 @@ def get_reduce_data(data):
 # This approach isn't great because any usage of the thunked method will pass
 # We need a way to intercept the real call
 # Note: These tests use numpy ufunc monkey-patching, so only work with numpy backend
+@requires_python_engine("monkey-patches numpy.add and the other ufuncs to see that the Python engine takes its accelerated adverb paths")
 @requires_numpy_backend
 class TestAccelerate(unittest.TestCase):
     """

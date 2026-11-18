@@ -26,6 +26,7 @@ from klongpy.lexer import Source
 from klongpy.parser import KGExprArray
 from klongpy.types import (KGAdverb, KGBody, KGCall, KGCond, KGFn, KGFnWrapper, KGOp, KGSym, fn_metadata,
                            get_fn_arity, in_map, is_list, reserved_fn_symbols, split_locals)
+from tests.backend_compat import on_rust_engine, requires_python_engine
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 x, y, z = reserved_fn_symbols
@@ -75,6 +76,8 @@ class TestBehaviourIsUnchanged(unittest.TestCase):
         # a body that is only a list declares nothing: at least one statement must follow
         self.assertTrue(np.array_equal(run("{[a]}()"), np.array([KGSym("a")], dtype=object)))
         self.assertEqual(run("{[a];1}()"), 1)
+        if on_rust_engine():
+            self.skipTest("Python engine only: the rest is a quirk of the Python parser (a nested data list in a body)")
         # legacy accident, kept: a body that is one nested data list loses its first row
         r = run("{[[a b] [c d]]}()")
         self.assertEqual(r.shape, (1, 2))
@@ -95,6 +98,8 @@ class TestBehaviourIsUnchanged(unittest.TestCase):
         # .f is the function with its declaration, so a recursive call has its own locals.
         self.assertEqual(run("f::{[a];a::x;:[x>0;.f(x-1);0];a}", "f(3)"), 3)
         self.assertEqual(run("f::{[a];a::x;:[x<2;1;a*.f(x-1)]}", "f(5)"), 120)
+        if on_rust_engine():
+            self.skipTest("Python engine only: the rest reads .f as the KGBody of the Python parser")
         r = run("{[a];.f}()")
         self.assertIsInstance(r, KGBody)
         self.assertEqual((list(r), r.locals), ([KGSym(".f")], (KGSym("a"),)))
@@ -208,6 +213,7 @@ class TestMetadata(unittest.TestCase):
             self.assertEqual((n.locals, n.max_arg, n.uses_self, n.params), (None, None, None, None))
         self.assertIsNone(KGFn(x, None, 1).locals)
 
+    @requires_python_engine("pickles and copies the KGFn parse-tree node and reads its locals")
     def test_pickled_and_copied_functions_keep_their_locals(self):
         k = KlongInterpreter()
         k("f::{[a b];a::x;b::a+1;b}")
@@ -231,6 +237,7 @@ class TestHandBuiltFunctions(unittest.TestCase):
         a = KGSym("a")
         return [np.array([a], dtype=object), KGFn(KGOp("::", 2), [a, x], 2), KGFn(KGOp("+", 2), [a, 1], 2)]
 
+    @requires_python_engine("builds a KGFn node by hand and reads the metadata cached on it")
     def test_first_call_computes_and_caches(self):
         k = KlongInterpreter()
         f = KGFn(self.body(), None, 1)
@@ -251,11 +258,13 @@ class TestHandBuiltFunctions(unittest.TestCase):
         g = fn_metadata(KGFn(KGFn(KGOp("+", 2), [x, z], 2), None, 2))
         self.assertEqual((g.locals, g.max_arg), ((), 3))
 
+    @requires_python_engine("passes a hand-built parse-tree body to apply")
     def test_bare_body_passed_to_apply(self):
         k = KlongInterpreter()
         self.assertEqual(k.apply(self.body(), [2], 1), 3)
         self.assertEqual(k("a"), KGSym("a"))
 
+    @requires_python_engine("wraps a hand-built KGFn node")
     def test_wrapper_of_a_hand_built_function(self):
         k = KlongInterpreter()
         w = KGFnWrapper(k, KGFn(self.body(), None, 1))
@@ -266,6 +275,7 @@ class TestHandBuiltFunctions(unittest.TestCase):
 class TestArityCrashesFixed(unittest.TestCase):
     """The wrong cases: get_fn_arity failed on these bodies. Both parsers share the fix."""
 
+    @requires_python_engine("reads the arity of the node of the Python parser (parser=token and legacy)")
     def test_call_with_a_list_argument(self):
         for parser in ("token", "legacy"):
             k = KlongInterpreter(parser=parser)

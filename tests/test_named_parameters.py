@@ -15,6 +15,7 @@ from klongpy import KlongInterpreter
 from klongpy.core import KGBody, KGCall, KGFn, KGFnWrapper, KGSym
 from klongpy.dump import dump, dump_text, parse_program
 from klongpy.errors import (KlongArityError, KlongError, KlongNameError, KlongSyntaxError, KlongSyntaxWarning)
+from tests.backend_compat import on_rust_engine, requires_python_engine
 
 LEVELS = (0, 1, 2)
 
@@ -66,6 +67,7 @@ class TestDefinitionAndCall(unittest.TestCase):
                 self.assertEqual(num(run(level, "f(a;b;c)::{a-b-c};f(9;5;3)")), 7)
                 self.assertEqual(nums(run(level, "f(a;b;c;d;e;g)::{[;g;e;d;c;b;a]};f(1;2;3;4;5;6)")), [6, 5, 4, 3, 2, 1])
 
+    @requires_python_engine("reads params and the KGBody of the node in the Python context")
     def test_arity_is_the_number_of_parameters(self):
         k = interp(0, "f(a;b;c;d)::{a}", "g()::{1}", "h(a;b)::{1}")
         self.assertEqual([k._context[KGSym(n)].arity for n in "fgh"], [4, 0, 2])
@@ -119,6 +121,8 @@ class TestDefinitionAndCall(unittest.TestCase):
                 else:
                     with self.assertRaises(KlongNameError):
                         k("t")
+                if on_rust_engine():
+                    continue    # .locals of the node in the Python context: Python engine only
                 self.assertEqual(tuple(k._context[KGSym("f")].locals), (KGSym("t"),))
 
     def test_a_local_named_like_a_parameter_does_not_hide_the_argument(self):
@@ -186,6 +190,7 @@ class TestDefinitionAndCall(unittest.TestCase):
         k = interp(0, "f(a;\n  b)::{\n a+\n b}")
         self.assertEqual(num(k("f(1;2)")), 3)
 
+    @requires_python_engine("pickles and copies the KGFn parse-tree node")
     def test_copy_and_pickle(self):
         k = interp(0, "f(a;b;c;d)::{[t];t::a+b;t+c+d}")
         f = k._context[KGSym("f")]
@@ -511,6 +516,7 @@ class TestTree(unittest.TestCase):
         self.assertEqual(tree.arg_spans, ((0, 6), (8, 13)))
         self.assertEqual(tree.args[1].span, (8, 13))
 
+    @requires_python_engine("the legacy parser of the Python engine")
     def test_legacy_parser_keeps_its_behaviour(self):
         k = KlongInterpreter(parser="legacy")
         k("f(a;b)::{a+b}")

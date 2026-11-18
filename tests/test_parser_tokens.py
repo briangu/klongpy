@@ -21,6 +21,7 @@ from klongpy.dump import dump, dump_text, node_spans, parse_program
 from klongpy.lexer import Lexer, Source, tokenize
 from klongpy.parser import KGExprArray, ProgResult
 from klongpy.types import KGAdverb, KGBody, KGCall, KGCond, KGFn, KGLambda, KGOp
+from tests.backend_compat import requires_python_engine
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -710,12 +711,14 @@ class TestSpans(unittest.TestCase):
 
 
 class TestParserSelection(unittest.TestCase):
+    @requires_python_engine("reads the private _parser attribute of the Python interpreter")
     def test_default_is_the_token_parser(self):
         if os.environ.get("KLONGPY_PARSER"):
             self.skipTest("KLONGPY_PARSER is set")
         self.assertEqual(KlongInterpreter()._parser, "token")
         self.assertIsNotNone(KlongInterpreter().prog("1").stmt_spans)
 
+    @requires_python_engine("reads the private _parser attribute of the Python interpreter")
     def test_parameter(self):
         self.assertEqual(KlongInterpreter(parser="legacy")._parser, "legacy")
         self.assertEqual(KlongInterpreter(parser="token")._parser, "token")
@@ -727,6 +730,7 @@ class TestParserSelection(unittest.TestCase):
         self.assertEqual(dump_text('"{"', parser="legacy"), "(error UnexpectedChar)\n")
         self.assertEqual(dump_text('"{"', parser="token"), '(str "{")\n')
 
+    @requires_python_engine("reads the private _parser attribute of the Python interpreter")
     def test_environment_variable(self):
         code = ("from klongpy import KlongInterpreter as K;"
                 "print(K()._parser, K(parser='token')._parser, K().prog('1').stmt_spans)")
@@ -753,6 +757,7 @@ class CountingInterpreter(KlongInterpreter):
         return super().prog(t, i, ignore_newline)
 
 
+@requires_python_engine("reads the private _parse_cache and _compiled_cache of the Python interpreter")
 class TestParseCache(unittest.TestCase):
     def test_key_is_text_module_and_strict_level(self):
         k = CountingInterpreter()

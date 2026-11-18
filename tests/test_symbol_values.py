@@ -26,6 +26,7 @@ from klongpy.types import KGQSym
 from klongpy.sys_fn_ipc import KGAsyncCall
 from klongpy.writer import kg_write
 from tests.backend_compat import to_numpy
+from tests.backend_compat import on_rust_engine, requires_python_engine
 
 FOO = KGSym("foo")
 BAR = KGSym("bar")
@@ -220,6 +221,7 @@ class TestApplyAndProjection(SymbolValueCase):
         self.check("d:::{[1 :foo] [2 :bar]};{x}'{x@1}'d", [FOO, BAR])
         self.check("d:::{[:foo 1]};{(*x)}'d", [FOO])
 
+    @requires_python_engine("calls klongpy.autograd._invoke_fn with a node of the Python context")
     def test_grad_helper_does_not_evaluate_value(self):
         from klongpy.autograd import _invoke_fn
         f = self.klong._context[KGSym("f")] if self.klong("f::{x};1") else None
@@ -233,6 +235,7 @@ class TestApplyApi(SymbolValueCase):
         f = self.klong._context[KGSym("f")] if self.klong("f::{x,y};1") else None
         self.assertEqual(_plain(self.klong.apply(f, [FOO, BAR])), [FOO, BAR])
 
+    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
     def test_apply_symbol_naming_function(self):
         self.klong("f::{x}")
         self.assertIs(self.klong.apply(KGSym("f"), [FOO]), FOO)
@@ -256,6 +259,7 @@ class TestApplyApi(SymbolValueCase):
         self.klong("fact::{:[x<2;1;x*.f(x-1)]}")
         self.assertEqual(self.klong.apply(KGSym("fact"), [5]), 120)
 
+    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
     def test_apply_locals(self):
         self.klong("f::{[a];a::x;a}")
         self.assertIs(self.klong.apply(KGSym("f"), [FOO]), FOO)
@@ -264,6 +268,7 @@ class TestApplyApi(SymbolValueCase):
         self.klong("f::{x,y}")
         self.assertIsInstance(self.klong.apply(KGSym("f"), [1]), KGFn)
 
+    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
     def test_apply_does_not_run_list_values_as_programs(self):
         self.klong("f::{x}")
         v = [KGSym("foo")]
@@ -272,6 +277,7 @@ class TestApplyApi(SymbolValueCase):
 
 class TestFnWrapper(SymbolValueCase):
 
+    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
     def test_wrapper_from_getitem(self):
         self.klong("f::{x}")
         self.assertIs(self.klong['f'](FOO), FOO)
@@ -280,6 +286,7 @@ class TestFnWrapper(SymbolValueCase):
         self.klong("f::{x,y}")
         self.assertEqual(_plain(self.klong['f'](FOO, BAR)), [FOO, BAR])
 
+    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
     def test_wrapper_without_symbol(self):
         fn = self.klong("{x}")
         w = KGFnWrapper(self.klong, fn)
