@@ -17,6 +17,7 @@ import warnings
 from klongpy import KlongInterpreter
 from klongpy.core import KGLambda, KGSym, KlongException
 from klongpy.errors import KlongError, KlongNameError, KlongSyntaxError
+from tests.backend_compat import requires_python_engine
 from klongpy.interpreter import KlongContext
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
@@ -259,6 +260,7 @@ class TestAssignmentToANonName(unittest.TestCase):
             with self.assertRaises(KlongSyntaxError):
                 run(level, "f::{1::5}")
 
+    @requires_python_engine("the legacy parser of the Python engine")
     def test_legacy_parser_is_frozen(self):
         for level in LEVELS:
             self.assertEqual(run(level, "1::5", parser="legacy"), 5)

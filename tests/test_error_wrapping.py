@@ -18,6 +18,7 @@ from klongpy.errors import (
     describe, operator_error, operator_name,
 )
 from klongpy.types import KGCall, KGChar, KGLambda, KGOp, KGSym, KLONG_UNDEFINED
+from tests.backend_compat import requires_python_engine
 
 
 def raised(klong, text, cls=KlongError):
@@ -122,6 +123,7 @@ class TestOperatorErrors(unittest.TestCase):
         e = raised(k, "f(a)", KlongShapeError)
         self.assertEqual(e.source.text, "f::{x+b}")
 
+    @requires_python_engine("replaces an operator in the Python engine's private dispatch table _vd")
     def test_exits_and_interrupts_are_not_caught(self):
         k = KlongInterpreter()
 
@@ -136,6 +138,7 @@ class TestOperatorErrors(unittest.TestCase):
                     k("1+2")
                 self.assertIs(cm.exception, exc)
 
+    @requires_python_engine("replaces an operator in the Python engine's private dispatch table _vd")
     def test_timeout_from_a_signal_handler_is_not_relabelled(self):
         k = KlongInterpreter()
 

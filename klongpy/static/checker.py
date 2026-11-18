@@ -452,7 +452,7 @@ def _parse(source):
     defining (``name::`` at their start), so that a use of one is not
     reported a second time as undefined.
     """
-    from ..interpreter import KlongInterpreter
+    from ..interpreter import PyKlongInterpreter as KlongInterpreter     # the parser is the Python engine's
     from ..lint import _next_boundary, _scan, _tokenize
     klong = KlongInterpreter(strict=2, backend="numpy")  # parse only; literals must be numpy arrays whatever the default backend
     text = source.text

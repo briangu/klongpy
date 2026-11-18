@@ -20,6 +20,7 @@ from klongpy.errors import (
 )
 from klongpy.lexer import Source
 from klongpy.types import KGCall, KGFn, KGLambda, KGOp, KGSym
+from tests.backend_compat import requires_python_engine
 
 
 def raised(klong, text, cls=KlongError):
@@ -314,6 +315,7 @@ class TestRuntimePositions(unittest.TestCase):
         e = raised(k, "g()", KlongNameError)
         self.assertEqual(e.span, (8, 21))
 
+    @requires_python_engine("replaces __getitem__ on the class of the Python engine's context")
     def test_bare_leaf_statement_gets_its_statement_span(self):
         k = KlongInterpreter()
         real = k._context.__class__.__getitem__
@@ -347,6 +349,7 @@ class TestRuntimePositions(unittest.TestCase):
         self.assertIsNone(cm.exception.span)
         self.assertEqual(cm.exception.render(), "type error: cannot apply + (Plus) to integer and string")
 
+    @requires_python_engine("the legacy parser of the Python engine")
     def test_legacy_parser_has_no_runtime_position(self):
         e = raised(KlongInterpreter(parser="legacy"), '1+"a"', KlongTypeError)
         self.assertIsNone(e.span)

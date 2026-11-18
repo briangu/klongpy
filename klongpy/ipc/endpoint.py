@@ -354,6 +354,9 @@ def parse_function(klong, text):
         if len(prog) != 1:
             return None
         t = prog[0]
+        native = getattr(klong, '_function_from_text', None)
+        if native is not None:      # the native engine builds the function itself
+            return native(text, t)
         named = _named_function(t)
         if named is not None:
             return named
@@ -965,12 +968,14 @@ def function_source_text(fn):
     if getattr(fn, 'args', None) is not None:
         return None
     params = getattr(getattr(fn, 'a', None), 'params', None)
-    node = fn if getattr(fn, 'span', None) is not None else getattr(fn, '_origin', None)
-    span = getattr(node, 'span', None)
-    source = getattr(node, 'source', None)
-    if span is None or source is None:
-        return None
-    text = source.text[span[0]:span[1]]
+    text = getattr(fn, 'source_text', None)     # the native engine keeps the literal's text itself
+    if text is None:
+        node = fn if getattr(fn, 'span', None) is not None else getattr(fn, '_origin', None)
+        span = getattr(node, 'span', None)
+        source = getattr(node, 'source', None)
+        if span is None or source is None:
+            return None
+        text = source.text[span[0]:span[1]]
     if not (text.startswith('{') and text.endswith('}')):
         return None
     if params is not None:

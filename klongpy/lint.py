@@ -229,7 +229,7 @@ def _builtin_names():
     """The names a fresh interpreter binds (system functions and variables), plus what kgpy adds."""
     global _builtins
     if _builtins is None:
-        from .interpreter import KlongInterpreter
+        from .interpreter import PyKlongInterpreter as KlongInterpreter
         names = set(_EXTRA_BUILTINS)
         for d in KlongInterpreter()._context._context:
             names.update(str(k) for k in d.keys())
@@ -451,7 +451,7 @@ def _parse_level(source, strict, toks, ctx):
     reading stops at the first trailing input; at level 1 it raises. Either
     way the rest of the file is parsed from the next top-level separator.
     """
-    from .interpreter import KlongInterpreter
+    from .interpreter import PyKlongInterpreter as KlongInterpreter     # the parser is the Python engine's
     klong = KlongInterpreter(strict=strict, backend="numpy")   # parse only: the same result whatever the default backend
     text = source.text
     n = len(text)

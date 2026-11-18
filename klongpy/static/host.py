@@ -52,7 +52,8 @@ def load_program(path, externs=None, *, text=None, strict=2, klong=None, backend
     ``.extern`` binds each declared name to its stand-in and ``.entry``
     validates each signature. Errors are KlongError, positioned in the file.
     """
-    from ..interpreter import KlongInterpreter
+    # the static profile is checked, evaluated at compile time and lowered on the Python engine: its values are NumPy's
+    from ..interpreter import PyKlongInterpreter as KlongInterpreter
     if klong is None:
         klong = KlongInterpreter(backend=backend, strict=strict)
     if externs:

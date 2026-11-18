@@ -67,12 +67,13 @@ class TestDefinitionAndCall(unittest.TestCase):
                 self.assertEqual(num(run(level, "f(a;b;c)::{a-b-c};f(9;5;3)")), 7)
                 self.assertEqual(nums(run(level, "f(a;b;c;d;e;g)::{[;g;e;d;c;b;a]};f(1;2;3;4;5;6)")), [6, 5, 4, 3, 2, 1])
 
-    @requires_python_engine("reads params and the KGBody of the node in the Python context")
     def test_arity_is_the_number_of_parameters(self):
         k = interp(0, "f(a;b;c;d)::{a}", "g()::{1}", "h(a;b)::{1}")
         self.assertEqual([k._context[KGSym(n)].arity for n in "fgh"], [4, 0, 2])
         f = k._context[KGSym("f")]
         self.assertEqual(f.params, (KGSym("a"), KGSym("b"), KGSym("c"), KGSym("d")))
+        if on_rust_engine():
+            self.skipTest("Python engine only: the rest reads the KGBody of the Python parser")
         self.assertIsInstance(f.a, KGBody)
         self.assertEqual(f.a.params, f.params)
 
@@ -121,8 +122,6 @@ class TestDefinitionAndCall(unittest.TestCase):
                 else:
                     with self.assertRaises(KlongNameError):
                         k("t")
-                if on_rust_engine():
-                    continue    # .locals of the node in the Python context: Python engine only
                 self.assertEqual(tuple(k._context[KGSym("f")].locals), (KGSym("t"),))
 
     def test_a_local_named_like_a_parameter_does_not_hide_the_argument(self):
@@ -190,7 +189,6 @@ class TestDefinitionAndCall(unittest.TestCase):
         k = interp(0, "f(a;\n  b)::{\n a+\n b}")
         self.assertEqual(num(k("f(1;2)")), 3)
 
-    @requires_python_engine("pickles and copies the KGFn parse-tree node")
     def test_copy_and_pickle(self):
         k = interp(0, "f(a;b;c;d)::{[t];t::a+b;t+c+d}")
         f = k._context[KGSym("f")]

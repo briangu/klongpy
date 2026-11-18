@@ -12,16 +12,19 @@ or served by a Python-engine interpreter that only parses.
 """
 import sys
 import os
+import re
 import threading
 import time
+import warnings
 from types import FunctionType as _FunctionType
 
 import numpy as np
 
 from .backends import get_backend
-from .errors import compat, ERROR_KINDS, KlongError, KlongInternalError, python_error, system_error
+from .errors import (compat, ERROR_KINDS, KlongError, KlongInternalError, KlongSyntaxError, KlongSyntaxWarning, UnexpectedChar, UnexpectedEOF, python_error,
+                     system_error)
 from .lexer import Source
-from .types import (KGSym, KGChar, KLONG_UNDEFINED, KGFn, KGFnWrapper, KGLambda, KGOp, reserved_fn_args,
+from .types import (KGSym, KGChar, KLONG_UNDEFINED, KGCall, KGFn, KGFnWrapper, KGLambda, KGOp, reserved_fn_args,
                     _MISSING, _arity_error, _count, _named_arity_error)
 
 try:
@@ -35,38 +38,145 @@ except ImportError:  # the extension lives outside the package in the spike
 _KFn = klong_native.KFn
 _TYPES = {"KGSym": KGSym, "KGChar": KGChar, "undefined": KLONG_UNDEFINED}
 
-_ARITY = {":nilad": 0, ":monad": 1, ":dyad": 2, ":triad": 3}
-
-
 class _Body:
-    """What KGFn.a is for a native function: the function itself, so that apply(fn.a, ...) calls it (KGFnWrapper does)."""
+    """What KGFn.a is for a native function: the function itself, so that apply(fn.a, ...) calls it (KGFnWrapper does).
+    It carries the parameters and locals as KGBody does."""
 
     def __init__(self, fn):
         self.fn = fn
+
+    @property
+    def params(self):
+        return self.fn.params
+
+    @property
+    def locals(self):
+        return self.fn.locals
 
     def __repr__(self):
         return f"<body of {self.fn}>"
 
 
-class RustFn(KGFn):
-    """A Klong function value of the native engine, with the face of KlongPy's KGFn.
+def _build_function(k, text, named):
+    """The function a literal's text defines, built in the native interpreter k without defining anything: the plain
+    literal as `fn::{...}`, the named form as written (`fn(a;b)::{...}`); `fn` is restored afterwards."""
+    name = "fn"
+    had = name in k
+    saved = k[name] if had else None
+    try:
+        k.run(text if named else f"{name}::{text}")
+        return k[name]
+    finally:
+        if had:
+            k[name] = saved
+        elif name in k:
+            del k[name]
 
-    What the extension tells about a function today is its display (`:monad`, `:dyad`, `:fn/5`, which counts the open
-    slots of a projection) and that it can be called; the arity comes from the display. The parse-tree fields of KGFn
-    (locals, params, max_arg) are not available: they are None.
+
+_scratch_klong = None
+
+
+class _Detached:
+    """The owner of a function that was copied or unpickled: it belongs to no interpreter until it goes into one."""
+
+    def _out(self, v):
+        return v
+
+    def _call_value(self, kfn, args):
+        raise TypeError("a copied function of the native engine runs only once it is put into an interpreter")
+
+
+def _detached_fn(text, params):
+    """What unpickling or copying a RustFn gives: the function as a value of a scratch interpreter (its arity, params
+    and locals can be read), to be rebuilt from its text in the interpreter it is assigned to."""
+    global _scratch_klong
+    if _scratch_klong is None:
+        _scratch_klong = klong_native.Klong(0, _TYPES)
+    named = params is not None
+    if named:
+        text = "fn(%s)::%s" % (";".join(params), text)
+    kfn = _build_function(_scratch_klong, text, named)
+    f = (RustCall if kfn.is_projection else RustFn)(kfn, _Detached())
+    f._detached = (text, named)
+    return f
+
+
+def _syms(names):
+    return None if names is None else tuple(KGSym(n) for n in names)
+
+
+class RustFn(KGFn):
+    """A Klong function value of the native engine, with the face of KlongPy's KGFn, built on the accessors of the
+    extension's KFn: arity (the holes of a projection), params, locals, the source text of the literal, the bound
+    arguments of a projection (args: the value, None for a hole) and what it calls (callee).
+
+    Not available from the native engine, so None: the parse-tree fields max_arg and uses_self and the spans of the
+    original program (span, source). `source_text` is the literal as written.
     """
+    span = None
+    source = None
+    _detached = None    # (text, named) for a function that was copied or unpickled
 
     def __init__(self, kfn, owner):
-        shown = str(kfn)
-        arity = _ARITY.get(shown)
-        if arity is None:
-            try:
-                arity = int(shown.rsplit("/", 1)[1])
-            except (IndexError, ValueError):
-                arity = 1
-        super().__init__(_Body(self), None, arity)
+        self.a = _Body(self)
+        self.global_params = set()
         self._kfn = kfn
         self._owner = owner
+        self._cache = {}
+
+    def _get(self, name):
+        try:
+            return self._cache[name]
+        except KeyError:
+            v = self._cache[name] = getattr(self._kfn, name)
+            return v
+
+    @property
+    def arity(self):
+        return self._get("arity")
+
+    @property
+    def kind(self):
+        return self._get("kind")
+
+    @property
+    def is_projection(self):
+        return self._get("is_projection")
+
+    @property
+    def args(self):
+        """None for a function; for a projection the list of its arguments in order, None where a hole is."""
+        if not self.is_projection:
+            return None
+        v = self._cache.get("_args")
+        if v is None:
+            v = self._cache["_args"] = [self._owner._out(q) for q in self._kfn.bound_args()]
+        return v
+
+    @property
+    def locals(self):
+        return _syms(self._get("locals")) if self.kind == "function" and not self.is_projection else None
+
+    @property
+    def params(self):
+        return _syms(self._get("params")) if self.kind == "function" and not self.is_projection else None
+
+    @property
+    def source_text(self):
+        """The text of the function literal as it was written, or None (a projection, an operator, a system function)."""
+        if self.kind != "function" or self.is_projection:
+            return None
+        return self._get("source")
+
+    def callee(self):
+        c = self._kfn.callee()
+        return None if c is None else self._owner._out(c)
+
+    def is_op(self):
+        return self.kind == "operator"
+
+    def is_adverb_chain(self):
+        return False
 
     def __str__(self):
         return str(self._kfn)
@@ -75,7 +185,8 @@ class RustFn(KGFn):
 
     def __call__(self, *args, **kwargs):
         if kwargs:
-            names = reserved_fn_args[:self.arity]
+            params = self.params
+            names = [str.__str__(p).split('`')[0] for p in params] if params is not None else reserved_fn_args[:self.arity]
             slots = list(args)
             for k, v in kwargs.items():
                 if k not in names:
@@ -89,7 +200,17 @@ class RustFn(KGFn):
         return self._owner._call_value(self._kfn, args)
 
     def __reduce__(self):
-        raise TypeError("cannot pickle a function of the native engine")
+        """A function copies and pickles as its source text (and its parameter names), as KlongPy's KGFn does without
+        its spans. Only a function literal has a text: a projection or a system function does not."""
+        text = self.source_text
+        if text is None:
+            raise TypeError("cannot pickle a projection, an operator or a system function of the native engine")
+        params = self.params
+        return (_detached_fn, (text, None if params is None else [str.__str__(p) for p in params]))
+
+
+class RustCall(RustFn, KGCall):
+    """A projection (`f(1;)`, `{x+y}:(1;)`): what the Python engine holds as a KGCall."""
 
 
 class RustFnWrapper(KGFnWrapper):
@@ -99,6 +220,9 @@ class RustFnWrapper(KGFnWrapper):
         self.klong = klong
         self.fn = fn
         self._sym = sym
+
+    def __reduce__(self):
+        return self.fn.__reduce__()
 
     def __getattr__(self, name):
         if name in ("fn", "klong", "_sym") or name.startswith("__"):
@@ -111,23 +235,24 @@ class RustFnWrapper(KGFnWrapper):
             try:
                 current = self.klong._k[str(self._sym)]
                 if type(current) is _KFn:
-                    fn = self.klong._wrap_fn(current)
+                    now = self.klong._wrap_fn(current)
+                    if not isinstance(now, RustCall):
+                        fn = now        # the current definition of the name (a projection is not taken over)
             except KeyError:
                 pass
+        if type(fn.args) is list and not kwargs:
+            # a projection: it takes one argument for each empty slot
+            holes = sum(1 for q in fn.args if q is None)
+            if holes:
+                if len(args) != holes:
+                    raise _named_arity_error(f"{self._name()} takes {_count(holes)}, got {len(args)}")
+                return self.klong.apply(fn, self._as_values(args))
+        params = fn.params
         if kwargs:
-            names = reserved_fn_args[:fn.arity]
-            slots = list(args) + [_MISSING] * (len(names) - len(args))
-            for k, v in kwargs.items():
-                if k not in names:
-                    raise _named_arity_error(f"{self._name()} has no parameter named {k}")
-                i = names.index(k)
-                if i < len(args):
-                    raise _named_arity_error(f"{self._name()} got its parameter {k} twice")
-                slots[i] = v
-            if len(args) > len(names) or any(q is _MISSING for q in slots):
-                raise _named_arity_error(f"{self._name()} takes {_count(len(names))}, got {len(args) + len(kwargs)}")
-            args = tuple(slots)
+            args = self._with_keywords(fn, params, args, kwargs)
         if len(args) != fn.arity:
+            if params is not None:
+                raise _named_arity_error(f"{self._name()} takes {_count(fn.arity)}, got {len(args)}")
             raise _arity_error(len(args), fn.arity)
         return self.klong._call_value(fn._kfn, self._as_values(args))
 
@@ -173,8 +298,34 @@ class HostLambda:
 
 # system functions that exist natively and are replaced by KlongPy's own: they read and write the channels
 # (klong['.sys.cin'], klong['.sys.cout']), which are Python file objects (KGChannel), so a program can be given any file-like object
-_PYTHON_OWNED = frozenset({".ac", ".bkd", ".bkp", ".cc", ".d", ".fc", ".fl", ".ic", ".mi", ".oc", ".p", ".pf", ".r", ".rl",
-                           ".rls", ".tc", ".w"})
+_PYTHON_OWNED = frozenset({".ac", ".bkd", ".bkp", ".cc", ".d", ".fc", ".fixed", ".fl", ".ic", ".l", ".mi", ".oc", ".p", ".pf", ".r", ".rl",
+                           ".rls", ".strict", ".tc", ".unsafe", ".w"})
+
+
+# system functions of the native runtime that KlongPy does not have: a program that uses one gets KlongPy's "undefined function"
+_NATIVE_ONLY = (".err",)
+
+
+def _sys_load(klong, x):
+    """.l as KlongPy's eval_sys_load (the search order of KLONGPATH and the directory of the program that loads, the file
+    as the Source of what runs) without its manoeuvre with the Python engine's context stack."""
+    from .sys_fn import find_load_file, _program_dir
+    from .errors import KlongException, KlongSystemError
+    home = _program_dir(klong)
+    found, tried = find_load_file(x, home)
+    if found is None:
+        where = f", then in the directory of the file that calls .l, {home}" if home else ""
+        raise FileNotFoundError(f"file does not exist: {x} (looked for {', '.join(tried)}; a relative path is "
+                                f"searched in the directories of KLONGPATH, taken from the current directory, "
+                                f"{os.getcwd()}{where})")
+    try:
+        with open(found, "r") as f:
+            return klong(Source(found, f.read()))
+    except IOError as e:
+        if isinstance(e, KlongException):
+            raise
+        print(e)
+        raise compat(KlongSystemError, RuntimeError)(f"file could not be opened: {found}") from e
 
 
 # variables that hold Python objects the host mutates (the loops, events and registries of .system): kept on the Python side
@@ -186,10 +337,12 @@ def _error_for(f):
     return KlongTypeError(f"cannot apply {type(f).__name__}")
 
 
-def _compat_base(kind, message):
+def _compat_base(kind, message, entry=None):
     """The builtin exception the Python engine's error of this kind also is (it let numpy's through: `except IndexError`
     keeps working). The native engine does not carry the original exception, so the base is chosen by kind and message."""
     if kind == "type":
+        if message.startswith("!: enumerate needs an integer, not ") and not message.endswith("dictionary"):
+            return RuntimeError
         return TypeError
     if kind == "shape":
         return ValueError
@@ -198,22 +351,88 @@ def _compat_base(kind, message):
             return RecursionError
         if "index" in message or "out of range" in message:
             return IndexError
-        return ValueError
+        return None     # a range error of KlongPy's own (a count, a segment size) is not a numpy error
+    if kind == "syntax" and message.startswith("end of comment not found"):
+        return RuntimeError
+    if kind == "system" and "does not exist" in message:
+        return FileNotFoundError
     if kind == "syntax" and message.startswith("unknown operator"):
         return KeyError
+    if kind == "syntax" and "dictionary" in message:
+        # what the reader raised before KlongPy had a syntax error: a bad entry that is a list is an IndexError, an atom a TypeError
+        # (the native span is the literal, so `entry` is its text from the opening `:{`: the first entry decides)
+        body = entry[2:].lstrip() if entry else ""
+        return IndexError if "must be a [key value] pair" in message and (not body or body[0] in "[;") else TypeError
     return None
 
 
+_EXPECTED = re.compile(r"expected '(.*)' but found ")
+
+
+def _with_cause(err, base, message):
+    """The Python engine's operator errors carry the exception numpy raised as __cause__ (`raise ... from`): here the
+    native engine has no such exception, so the cause is a builtin of the class the error also is, with the message."""
+    if base is not None and err.__cause__ is None and issubclass(base, Exception):
+        try:
+            err.__cause__ = base(f"shape mismatch: {message}" if base is ValueError and "cannot apply" in message else message)
+        except Exception:
+            pass
+    return err
+
+
+_SOURCE_NAMES = {}      # text of a named Source that ran -> its name, for errors in functions it defined (bounded)
+
+
 def _error(e, origin=None):
+    err = _make_error(e, origin)
+    err.__suppress_context__ = True     # as `raise ... from None`: the native error is not shown as the context
+    return err
+
+
+def _make_error(e, origin=None):
     """A native error as the KlongPy exception of its kind, with the span and the source. `origin` is the name of the
     Source the program came from (the file, <expr>): the native engine names the text it was given <string>."""
     kind, message, start, end, name, text, hint = e.args
-    cls = compat(ERROR_KINDS.get(kind, KlongInternalError), _compat_base(kind, message))
+    cls = compat(ERROR_KINDS.get(kind, KlongInternalError),
+                 _compat_base(kind, message, text[start:end].lstrip() if start >= 0 else None))
     span = (start, end) if start >= 0 else None
-    if origin is not None and (not name or name == "<string>"):
-        name = origin
+    if kind == "syntax" and hint is None and '\\' in text:
+        try:    # a string that ends in a backslash: the writer meant \" for a quote
+            from .lexer import Lexer
+            from .parser import tk_escaped_quote_hint
+            hint = tk_escaped_quote_hint(Lexer(text))
+        except Exception:
+            pass
+    if not name or name == "<string>":
+        # the native engine names every text it was given <string>; the text of the error says which program it was
+        name = _SOURCE_NAMES.get(text, origin)
     source = Source(name or "<string>", text) if span is not None else None
-    return cls(message, span=span, source=source, hint=hint)
+    if kind == "syntax" and span is not None:
+        # the parser's two legacy classes, for code that catches them: "expected 'c' but found ..." is UnexpectedChar
+        m = _EXPECTED.match(message)
+        if m:
+            cls = compat(UnexpectedChar, _compat_base(kind, message))
+            e = cls.__new__(cls)
+            KlongSyntaxError.__init__(e, message, span=span, source=source, hint=hint)
+            e.t, e.i, e.expected = text, start, m.group(1)
+            e.legacy_text = f"t: {text[start-10:start+10]} pos: {start} char: {m.group(1)}"
+            return e
+    if kind == "syntax" and span is not None and message.startswith("expected a character after 0c"):
+        cls = compat(UnexpectedEOF, None)
+        e = cls.__new__(cls)
+        KlongSyntaxError.__init__(e, message, span=span, source=source, hint=hint)
+        e.t, e.i = text, end
+        e.legacy_text = f"t: {text[end-10:]} pos: {end}"
+        return e
+    err = cls(message, span=span, source=source, hint=hint)
+    if kind == "syntax" and message.startswith("malformed number '"):
+        err.legacy_text = f"could not convert string to float: {message[len('malformed number '):]}"
+    base = _compat_base(kind, message)
+    if kind == "syntax" and message.startswith("missing right operand"):
+        _with_cause(err, TypeError, message)    # the operator's own complaint, as the Python engine keeps it
+    if kind in ("type", "shape", "system") or base is RecursionError:
+        _with_cause(err, base, message)
+    return err
 
 
 def _program(x):
@@ -225,6 +444,8 @@ def _program(x):
 
 class RustInterpreter:
     """KlongInterpreter on the native engine (a drop-in for the parts that do not depend on Python internals)."""
+
+    DID_YOU_MEAN_CUTOFF = 0.7     # the engine's own rule of "did you mean": a difflib ratio of at least this
 
     def __init__(self, backend=None, device=None, parser=None, strict=0):
         from .interpreter import check_strict_level
@@ -244,6 +465,11 @@ class RustInterpreter:
         self._strict_level = strict
         self._start_time = time.time()
         self._primed = None
+        self._warn_registry = {}
+        for name in _NATIVE_ONLY:
+            if name in self._k:
+                del self._k[name]
+        self._native_strict = self._k[".strict"]    # the native function of the level: `.strict` itself is KlongPy's
         self._bridge_system_functions()
 
     def _bridge_system_functions(self):
@@ -254,6 +480,8 @@ class RustInterpreter:
             for name, kgl in create().items():
                 if name in self._k and not replaces and name not in _PYTHON_OWNED:
                     continue
+                if name == ".l":
+                    kgl = _sys_load     # KlongPy's search order and sources, loading through this interpreter
                 if not isinstance(kgl, KGLambda):
                     kgl = KGLambda(kgl)
                 self._register_kglambda(name, kgl)
@@ -269,7 +497,7 @@ class RustInterpreter:
     def __getattr__(self, name):
         # Everything that is about the PARSER (prog, _module, _vd, _context, lint, dump, the compiler caches) is served by a
         # Python-engine interpreter, created on first use. It shares no state with the native one: it only parses.
-        if name.startswith("__") or name in ("_py_engine", "_k", "_pyfns", "_strict_level", "_host_vars", "_start_time", "_primed", "_wrapped", "_parser_choice"):
+        if name.startswith("__") or name in ("_py_engine", "_k", "_pyfns", "_strict_level", "_host_vars", "_start_time", "_primed", "_wrapped", "_parser_choice", "_warn_registry", "_native_strict"):
             raise AttributeError(name)
         return getattr(self._python_engine(), name)
 
@@ -315,13 +543,13 @@ class RustInterpreter:
 
     # -- function values and the crossing --------------------------------------------------------------------------
     def _wrap_fn(self, kfn):
-        return RustFn(kfn, self)
+        return RustCall(kfn, self) if kfn.is_projection else RustFn(kfn, self)
 
     def _out(self, v):
         """A native result as KlongPy has it: function values are RustFn (also inside lists and object arrays)."""
         t = type(v)
         if t is _KFn:
-            return RustFn(v, self)
+            return self._wrap_fn(v)
         if t is HostLambda:
             return v.kgl
         if t is _FunctionType:
@@ -342,13 +570,20 @@ class RustInterpreter:
             return {k: self._out(q) for k, q in v.items()}
         return v
 
+    def _native_fn(self, f):
+        """The native function of a RustFn; a copied or unpickled one is rebuilt from its text here."""
+        if f._detached is None:
+            return f._kfn
+        text, named = f._detached
+        return _build_function(self._k, text, named)
+
     def _in(self, v):
         """A value on its way into the native engine: RustFn and its wrapper give back their native function."""
         t = type(v)
-        if t is RustFn:
-            return v._kfn
+        if isinstance(v, RustFn):
+            return self._native_fn(v)
         if t is RustFnWrapper:
-            return v.fn._kfn
+            return self._native_fn(v.fn)
         if isinstance(v, KGLambda):
             return HostLambda(self, v)
         if t is list:
@@ -357,7 +592,7 @@ class RustInterpreter:
             return tuple(self._in(q) for q in v)
         if t is dict:
             return {k: self._in(q) for k, q in v.items()}
-        if t is np.ndarray and v.dtype == object and v.size and any(type(q) in (RustFn, RustFnWrapper) for q in v.ravel()):
+        if t is np.ndarray and v.dtype == object and v.size and any(isinstance(q, (RustFn, RustFnWrapper)) for q in v.ravel()):
             r = np.empty(v.shape, dtype=object)
             rr = r.reshape(-1)
             for i, q in enumerate(v.ravel()):
@@ -379,30 +614,78 @@ class RustInterpreter:
             self._prime()
             return self._out(kfn(*[self._in(a) for a in args]))
         except klong_native.NativeError as e:
-            raise _error(e) from None
+            raise _error(e)
 
     # -- evaluation ---------------------------------------------------------------------------------------------
-    def __call__(self, x):
+    def _warn(self, origin):
+        """The syntax warnings the native parser recorded, issued through the warnings module as the Python engine does:
+        the name of the source as file name, the line of the span as line number, once per location."""
+        issued = self._k.take_warnings()
+        if not issued:
+            return
+        regs = self._warn_registry
+        if len(regs) > 256:
+            regs.clear()
+        for code, message, hint, start, end, name, text in issued:
+            source = Source(name if name and name != "<string>" else (origin or "<string>"), text)
+            w = KlongSyntaxWarning(message, span=(start, end), source=source, hint=hint, code=code)
+            warnings.warn_explicit(w, KlongSyntaxWarning, source.name, source.line_col(start)[0], module="klongpy",
+                                   registry=regs.setdefault(source, {}))
+
+    def _evaluate(self, run, x):
         x, origin = _program(x)
         self._primed = None
+        sources = self._sources
+        sources.append(Source(origin or "<string>", x))     # current_source(), and what .l looks next to
+        if origin is not None and origin != "<string>":
+            if len(_SOURCE_NAMES) > 512:
+                _SOURCE_NAMES.clear()
+            _SOURCE_NAMES[x] = origin
         try:
-            return self._out(self._k.eval(x))
+            r = self._out(run(x))
         except klong_native.NativeError as e:
-            raise _error(e, origin) from None
+            err = _error(e, origin)
+            if isinstance(err, KlongSyntaxError):
+                self._k.take_warnings()   # a program that did not parse issues none
+            else:
+                self._warn(origin)
+            raise err
+        finally:
+            sources.pop()
+        self._warn(origin)
+        return r
+
+    def current_source(self):
+        """The klongpy.lexer.Source of the program being run (the innermost one), or None."""
+        return self._sources[-1] if self._sources else None
+
+    def __call__(self, x):
+        return self._evaluate(self._k.eval, x)
 
     def exec(self, x):
-        x, origin = _program(x)
-        self._primed = None
-        try:
-            return self._out(self._k.exec(x))
-        except klong_native.NativeError as e:
-            raise _error(e, origin) from None
+        return self._evaluate(self._k.exec, x)
+
+    def _function_from_text(self, text, tree):
+        """The function a source text defines (IPC: a function arrives as text), built by the native engine without
+        defining anything: `tree` is the parse of the text (from the Python parser), which says whether it is one function
+        literal, plain or the named form `fn(a;b)::{...}` (klongpy.ipc.endpoint.function_source_text)."""
+        from .ipc.endpoint import _named_function
+        from .types import KGCall
+        named = _named_function(tree) is not None
+        if not named and (not isinstance(tree, KGFn) or isinstance(tree, KGCall) or tree.args is not None or tree.is_op()):
+            return None
+        kfn = _build_function(self._k, text, named)
+        return self._wrap_fn(kfn) if type(kfn) is _KFn else None
 
     def apply(self, f, values, arity=None):
         """Call a function value (what `klong['f']` returned, or a Klong function, a symbol naming one, a KGLambda or an
         operator) with a list of already evaluated arguments."""
         if isinstance(f, KGSym):
-            f = self[f]
+            try:
+                self._prime()
+                return self._out(self._k.call_sym(str(f), *[self._in(a) for a in values]))
+            except klong_native.NativeError as e:
+                raise _error(e)
         if isinstance(f, KGFnWrapper):
             f = f.fn
         if isinstance(f, _Body):
@@ -423,7 +706,7 @@ class RustInterpreter:
 
     # -- variables ---------------------------------------------------------------------------------------------
     def __getitem__(self, k):
-        if str(k) in _HOST_VARS and str(k) in self._host_vars:
+        if str(k) in self._host_vars:
             return self._host_vars[str(k)]
         try:
             v = self._k[str(k)]
@@ -433,7 +716,7 @@ class RustInterpreter:
             py = self._pyfns.get(str(k))
             if isinstance(py, KGLambda) and str(k) not in self._wrapped:
                 return py   # the KGLambda that was put there, as KlongPy hands it back
-            return RustFnWrapper(self, RustFn(v, self), KGSym(str(k)))
+            return RustFnWrapper(self, self._wrap_fn(v), KGSym(str(k)))
         return self._out(v)
 
     def __setitem__(self, k, v):
@@ -450,10 +733,17 @@ class RustInterpreter:
             kgl.name = str(k)
             self._register_kglambda(str(k), kgl, wrapped=True)
             return
+        self._host_vars.pop(str(k), None)
         try:
             self._k[str(k)] = self._in(v)
         except klong_native.NativeError as e:
-            raise _error(e) from None
+            raise _error(e)
+        except (TypeError, ValueError):
+            # a Python object the engine cannot hold (a tuple of classes: numpy.ScalarType): kept on the Python side
+            self._host_vars[str(k)] = v
+            if str(k) in self._k:
+                del self._k[str(k)]
+            return
         self._pyfns.pop(str(k), None)
 
     def __delitem__(self, k):
@@ -478,7 +768,7 @@ class RustInterpreter:
         from .interpreter import check_strict_level
         check_strict_level(n)
         self._strict_level = n
-        self._k.run(f".strict({int(n)})")
+        self._native_strict(int(n))
 
     @property
     def _context(self):
@@ -503,7 +793,7 @@ def _system_function_factories():
     # (factory, replaces the native function of the same name): the events are KlongPy's own (asyncio loops), the
     # native IPC and timers advance only while the native engine is evaluating
     return [(create_system_functions, False), (create_system_functions_autograd, False),
-            (create_system_functions_static, False), (create_system_functions_hw, False),
+            (create_system_functions_static, False), (create_system_functions_hw, True),
             (create_system_functions_ipc, True), (create_system_functions_timer, True)]
 
 

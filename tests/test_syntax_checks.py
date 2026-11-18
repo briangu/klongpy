@@ -22,7 +22,7 @@ from klongpy.dump import dump_text
 from klongpy.errors import UnexpectedChar
 from klongpy.lexer import Lexer, Source
 from klongpy.types import KGFn
-from tests.backend_compat import to_numpy
+from tests.backend_compat import on_rust_engine, requires_python_engine, to_numpy
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -259,6 +259,7 @@ class TestLevel0Warns(unittest.TestCase):
         self.assertEqual(p[0], 1)       # the offset where parsing stopped, as before
         self.assertEqual(k.prog("1+2").warnings, ())
 
+    @requires_python_engine("the legacy parser of the Python engine")
     def test_legacy_parser_is_unchanged(self):
         for level in (0, 1):
             k = KlongInterpreter(parser="legacy")
@@ -456,8 +457,9 @@ class TestWarningsAndTheParseCache(unittest.TestCase):
             warnings.simplefilter("always")
             self.assertEqual(k("1 2"), 1)
             self.assertEqual(k("1 2"), 1)       # from the parse cache
-            self.assertEqual(len(k._parse_cache), 1)
-            k._parse_cache.clear()
+            if not on_rust_engine():        # the private parse cache of the Python interpreter
+                self.assertEqual(len(k._parse_cache), 1)
+                k._parse_cache.clear()
             self.assertEqual(k("1 2"), 1)
         self.assertEqual(len(caught), 3)
 

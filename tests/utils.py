@@ -11,6 +11,7 @@ from klongpy import KlongInterpreter
 from klongpy.core import is_list
 from klongpy.backends import get_backend
 from klongpy.backend import UnsupportedDtypeError, np as backend_np
+from backend_compat import on_rust_engine
 
 
 # Tests print through the language's .p/.w. Under `python -m unittest discover tests`
@@ -123,6 +124,15 @@ def _is_torch_limitation_error(e):
     return any(pattern in error_msg for pattern in skip_patterns)
 
 
+def _statement_texts(prog, text):
+    """The source text of each statement of a parsed program (the parser's spans)."""
+    return [text[a:b] for a, b in prog.stmt_spans]
+
+
+def _first_statement(klong, text):
+    return _statement_texts(klong.prog(text), text)[0]
+
+
 def eval_cmp(expr_str, expected_str, klong=None, skip_unsupported=True):
     """
     Parse and execute both sides of a test.
@@ -139,6 +149,11 @@ def eval_cmp(expr_str, expected_str, klong=None, skip_unsupported=True):
     klong = klong or KlongInterpreter()
 
     try:
+        if on_rust_engine():
+            # the parse tree belongs to the Python engine: the text of the first statement is what the engine runs
+            a = klong(_first_statement(klong, expr_str))
+            b = klong(_first_statement(klong, expected_str))
+            return klong._backend.kg_equal(a, b)
         expr = klong.prog(expr_str)[1][0]
         expected = klong.prog(expected_str)[1][0]
         a = klong.call(expr)
@@ -172,11 +187,17 @@ def eval_test(a, klong=None, skip_unsupported=True):
             raise BackendSkipError(skip_reason)
 
     try:
-        i, p = klong.prog(s)
+        parsed = klong.prog(s)
+        i, p = parsed
         if i != len(s):
             return False
-        a = klong.call(p[1])
-        b = klong.call(p[2])
+        if on_rust_engine():
+            texts = _statement_texts(parsed, s)
+            a = klong(texts[1])
+            b = klong(texts[2])
+        else:
+            a = klong.call(p[1])
+            b = klong.call(p[2])
         if backend_np.isarray(a) and backend_np.isarray(b):
             c = a == b
             # Handle tensor/array result

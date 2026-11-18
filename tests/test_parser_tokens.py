@@ -399,6 +399,7 @@ class TestSameTreeAsLegacy(unittest.TestCase):
             i, p = KlongInterpreter(parser=parser).prog("1;2+3", 2)
             self.assertEqual((i, dump(p)), (5, '(d "+" (num 2) (num 3))\n'))
 
+    @requires_python_engine("compares the legacy and the token parser of the Python engine")
     def test_random_programs(self):
         """A seeded differential run over token soup; inputs with a bracket-in-string literal are skipped."""
         fragments = ["a", "f", "x", "y", ".comment", ".module", ".5", "é", "1", "23", "1.5", "1e3", "3e", "1.2.3", ":12",

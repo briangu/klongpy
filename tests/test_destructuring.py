@@ -269,17 +269,16 @@ class TestInFunctions(unittest.TestCase):
                 k("t::0;s::0;f::{[t];[s u]::x;t::s+u;t*2}")
                 self.assertEqual(num(k("f([1 2])")), 6)
                 self.assertEqual((k("t"), k("s")), (0, 0))
-                if on_rust_engine():
-                    continue    # .locals of the node in the Python context: Python engine only
                 self.assertEqual(tuple(k._context[KGSym("f")].locals), (KGSym("t"), KGSym("s"), KGSym("u")))
 
-    @requires_python_engine("reads .locals and .max_arg of the node in the Python context")
     def test_metadata(self):
         k = KlongInterpreter()
         k("f::{[s k r]::x;s+k+r}")
         f = k._context[KGSym("f")]
         self.assertEqual(tuple(f.locals), (KGSym("s"), KGSym("k"), KGSym("r")))
         self.assertEqual(f.arity, 1)
+        if on_rust_engine():
+            self.skipTest("Python engine only: max_arg is a field of the Python parser's node")
         self.assertEqual(f.max_arg, 1)
 
     def test_acceptance_atom_on_the_right_is_a_type_error(self):
@@ -370,7 +369,6 @@ class TestTree(unittest.TestCase):
         self.assertEqual(num(k("1+*[a b]::v")), 6)
         self.assertEqual(num(k("a+b")), 11)
 
-    @requires_python_engine("pickles and copies the KGFn parse-tree node")
     def test_function_survives_copy_and_pickle(self):
         import copy
         import pickle

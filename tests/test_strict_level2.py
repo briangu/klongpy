@@ -13,6 +13,7 @@ import unittest
 from klongpy import KlongInterpreter
 from klongpy.core import KGCall, KGSym, KlongException
 from klongpy.errors import KlongArityError, KlongError, KlongNameError, KlongTypeError
+from tests.backend_compat import requires_python_engine
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 LEVELS = (0, 1, 2)
@@ -196,6 +197,7 @@ class TestLocalReadBeforeAssignment(unittest.TestCase):
                 self.assertEqual(run(level, "{[x];x}(3)"), 3)          # a local named like a parameter
                 self.assertEqual(run(level, "{[a];:[x;a::1;a::2];a}(0)"), 2)
 
+    @requires_python_engine("iterates the context of the Python engine to look for its _Unset sentinel")
     def test_the_sentinel_is_never_a_value(self):
         k = KlongInterpreter(strict=2)
         seen = []

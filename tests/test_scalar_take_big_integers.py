@@ -19,7 +19,7 @@ import numpy as np
 import klongpy.interpreter as interp_mod
 from klongpy import KlongInterpreter
 from klongpy.errors import KlongRangeError
-from tests.backend_compat import TORCH_AVAILABLE, is_torch_backend, plain
+from tests.backend_compat import TORCH_AVAILABLE, is_torch_backend, plain, requires_python_engine
 
 if TORCH_AVAILABLE:
     import torch
@@ -249,6 +249,7 @@ class CompiledMatchesInterpreter(unittest.TestCase):
         for src in sources:
             self.check(kc, ki, src)
 
+    @requires_python_engine("reads the private _compiled_cache of the Python interpreter")
     def test_compiler_is_in_use(self):
         kc, ki = self.pair()
         kc("ia+ia")
