@@ -23,7 +23,7 @@ Full documentation: [https://www.klongpy.org/](https://www.klongpy.org/). New he
 | CPU (NumPy backend) | stable | [Start Here](docs/getting-started.md) |
 | GPU (PyTorch backend, autograd) | stable on CPU tensors; the GPU devices (CUDA, Apple MPS) use the same code and are not part of the automated tests | [PyTorch Backend and Autograd](docs/torch_backend.md) |
 | Native interpreter (desktop) | passes the conformance suite | [Native Runtime](docs/native/index.md) |
-| Compile to C (static profile) | works for a subset of the language; not run on a microcontroller | [Compiling Klong to C](docs/embedded.md) |
+| Compile to C (static profile) | works for a subset of the language; three examples run on Raspberry Pi Picos | [Compiling Klong to C](docs/embedded.md) |
 | Microcontrollers (native interpreter) | experimental; run on an ESP32-P4 and on two Raspberry Pi Picos | [Native Runtime status](docs/native/index.md#status-what-has-and-has-not-been-proven) |
 | FPGA kernels | experimental; run on one Alveo U250 | [Klong functions as FPGA hardware](docs/hardware.md) |
 

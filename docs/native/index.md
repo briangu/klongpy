@@ -89,6 +89,7 @@ This table is the status of every hardware target. Each row says what ran and it
 | IPC with KlongPy, both directions, every mapped type | passes | desktop, localhost TCP |
 | IPC with PeachQ 0.92.20261115 (a kdb+-compatible q implementation), both directions | passes when the tests are enabled | desktop, localhost TCP |
 | IPC against a KX kdb+ process | not tried | |
+| C compiled from Klong, on a device | three examples run on the Picos beside the interpreter and agree with it (2026-11-18): [on a Pico](../embedded.md#on-a-pico); **no other device** | **two Raspberry Pi Picos** |
 | IPC on a device | passes between two Picos over a UART link (2026-11-16, 17); **not run on the ESP32-P4**, whose firmware has no IPC | **two Raspberry Pi Picos** |
 | IPC over a UART or a lossy link | tested in memory with seeded faults; on a wire only the UART link between two Picos | in-process simulation, two Picos |
 | Timers | work | desktop |

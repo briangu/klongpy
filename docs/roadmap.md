@@ -7,7 +7,7 @@ This page lists what version 2 delivers, what is experimental, the limits you me
 * [Start Here](getting-started.md), [what's new in v2](whats-new-v2.md) and [migrating to v2](migrating-to-v2.md)
 * [Language Additions](language-additions.md), [strict mode](strict.md) and [lint](lint.md)
 * [Errors with positions and kinds](errors.md) and the [REPL](repl.md)
-* [Compiling Klong to C](embedded.md) for the [static profile](static-profile.md), a subset of the language. It has run with desktop C compilers and has not been run on a microcontroller
+* [Compiling Klong to C](embedded.md) for the [static profile](static-profile.md), a subset of the language. It has run with desktop C compilers and, for three examples, on two Raspberry Pi Picos
 * [The conformance suite](conformance.md)
 * The [native runtime](native/index.md): [building](native/building.md), the [serial console](native/console.md), [IPC and timers](native/ipc.md), the [management node](native/management-node.md) and [porting to a board](native/porting.md)
 * [kdb+ IPC](ipc_capabilities.md) and [timers](timer.md)

@@ -23,11 +23,11 @@ A function of the static profile can be built into a kernel for an FPGA card and
 
 ## Microcontrollers: the native runtime and compiling to C
 
-Two routes put Klong on a small device. The generated C has not yet run on a device.
+Two routes put Klong on a small device.
 
 **The native runtime** is a second implementation of the language in Rust that runs without Python. It has a serial console and an upload command, kdb+ IPC, timers and a management node library. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board, and two Raspberry Pi Picos have run it with IPC between them. See [Native Runtime](native/index.md) and, for the details of what has run on hardware, its [status table](native/index.md#status-what-has-and-has-not-been-proven).
 
-**Compiling to C** takes a subset of Klong, the static profile, in which every type, shape and call target is known before the program runs. It compiles to freestanding C99 with no heap, no recursion and no C library. `kgpy check` tells you whether a file is inside the subset, and `kgpy compile c` writes the C.
+**Compiling to C** takes a subset of Klong, the static profile, in which every type, shape and call target is known before the program runs. It compiles to freestanding C99 with no heap, no recursion and no C library. `kgpy check` tells you whether a file is inside the subset, and `kgpy compile c` writes the C. Three examples have run compiled on two Raspberry Pi Picos, about 100 times faster than the interpreter on the same board ([on a Pico](embedded.md#on-a-pico)).
 
 <!-- check-docs: link examples -->
 ```console

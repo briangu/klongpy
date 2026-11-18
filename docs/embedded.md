@@ -1,6 +1,6 @@
 # Compiling Klong to C
 
-Status: works for the static profile, a subset of the language. It is tested with desktop C compilers and compile-checked for bare Arm and x86 targets. It has not been run on a microcontroller. For hardware status see the [native runtime table](native/index.md#status-what-has-and-has-not-been-proven).
+Status: works for the static profile, a subset of the language. It is tested with desktop C compilers and compile-checked for bare Arm and x86 targets. Three examples have run compiled on two Raspberry Pi Picos, where they agree with the interpreter ([on a Pico](#on-a-pico)); no other microcontroller has run it. For hardware status see the [native runtime table](native/index.md#status-what-has-and-has-not-been-proven).
 
 A small part of Klong, the [static profile](static-profile.md), can be compiled ahead of time to C99 with no heap, no recursion and no C library. A program written in it runs unchanged under KlongPy, which is how it is developed and tested, and the generated C does the same work on a target with no interpreter. The target is a microcontroller or any other place where a small, fixed-size, dependency-free function is wanted: a filter, a controller, a state machine over a few sensors.
 
@@ -434,9 +434,21 @@ error: :*: count must not be negative, got -3
 
 `kgpy fpga source` writes the same programs as HLS C++ for an FPGA kernel, and `.fpga` calls the built kernel from Klong. This is experimental and has run on one Alveo U250 card. The flow, its settings and the measured results are on [Klong functions as FPGA hardware](hardware.md).
 
+## On a Pico
+
+The Pico firmware of the [native runtime](native/pico-bench.md) links the C compiled from `examples/embedded/mavg.kg`, `pid.kg` and `fir.kg` beside the interpreter, as the functions `.c.mavg`, `.c.pid` and `.c.fir`. `.c.check()` runs each example through the interpreter and through the compiled code on the same inputs, on the board, and gives one row per example: whether they agree, the number of values, the interpreter's time and the compiled code's time in microseconds, and the largest relative difference in parts per billion.
+
+| Example | Values | Interpreter | Compiled C | Largest difference |
+|---|---|---|---|---|
+| `mavg.kg`, one step per value | 64 | 21.2 ms | 0.198 ms | 0 |
+| `pid.kg`, one step per value | 32 | 34.7 ms | 0.344 ms | 101 parts per billion |
+| `fir.kg`, 256 samples through 16 taps | 241 | does not fit | 6.4 ms | 216 parts per billion |
+
+Conditions: two Raspberry Pi Picos (RP2040, Cortex-M0+ at 125 MHz, no FPU), 2026-11-18, one firmware image; both boards agree on every value and their times are within 2%. The compiled code is about 100 times faster than the interpreter on these two step functions. The differences are float32 in the compiled code against float64 in the interpreter. The interpreter cannot load `fir.kg` on this board: its 256-sample arrays do not fit the heap beside the firmware (`memory error: out of memory`), so the compiled FIR is compared with values computed by KlongPy on a desktop and stored in the image. The compiled FIR needs no heap.
+
 ## What has not been done
 
-- The C that this tool generates has not been run on a microcontroller or in an emulator; the tests run it as a shared library on the host. Only the HLS C++ of `kgpy fpga source` has run on hardware, on one Alveo U250 ([Klong functions as FPGA hardware](hardware.md), experimental).
+- The C that this tool generates has run on one kind of microcontroller, the RP2040 of a Raspberry Pi Pico (Cortex-M0+, no FPU), and only for the three examples above. It has not run on a Cortex-M4 or M7, RISC-V or Xtensa device, or in an emulator; the other tests run it as a shared library on the host. The HLS C++ of `kgpy fpga source` has run on one Alveo U250 ([Klong functions as FPGA hardware](hardware.md), experimental).
 - Compile-only builds were made with clang (Conditions: Apple clang 21 on an Apple M-series desktop) for `thumbv6m-none-eabi` (no FPU, soft float), `thumbv7em-none-eabihf` (single-precision FPU), `armv7m`, big-endian `armebv7m`, `i386` and `aarch64`, all freestanding with `-Werror`, with `nm -u` limited to the declared externs and compiler-rt helpers. RISC-V and Xtensa were not compile-checked: that clang has no backend for either. `riscv32` is in the list of targets the test tries and is skipped where the compiler cannot build for it; Xtensa is not in the list. Cross builds with GCC toolchains were not made.
 - There is no WebAssembly build. The emitted C is meant to build with `--target=wasm32 -ffreestanding -nostdlib` and its externs to become imports, but that is not tested.
 - A constant index table is stored as `kg_int`. `fir.kg`'s table is 15.4 KB of its 15.5 KB of constants at 32 bits; storing it in the smallest type that holds it would make it about 3.9 KB. Not done.

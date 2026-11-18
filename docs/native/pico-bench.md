@@ -43,7 +43,7 @@ At boot every node serves. A node that is not number 0 connects to the nearest n
 
 | Measure | Result |
 |---|---|
-| Image | about 650 KB of flash (430 KB with `KLONG_OPT=z`) |
+| Image | 734 KB of flash on 2026-11-18, with the compiled examples, the string functions and the static-profile declarations; the image the rows below were measured on was about 650 KB (430 KB with `KLONG_OPT=z`) |
 | Boot self-test, both boards started together | 0.52 s |
 | Largest integer vector on the node that ran the self-test | 5,500 |
 | Largest integer vector on the serving node, management library loaded | 5,500 |
@@ -54,6 +54,7 @@ At boot every node serves. A node that is not number 0 connects to the nearest n
 | A 4 KB echo | 94 ms (87 KB/s of the lane's 112) |
 | `fib(18)`, 8,361 calls | 0.39 s |
 | Recursion depth | 105 levels; the 106th is a `range` error and the node goes on |
+| Compiled C beside the interpreter (`.c.check()`, 2026-11-18) | the three embedded examples agree with the interpreter on both boards and run about 100 times faster: see [on a Pico](../embedded.md#on-a-pico) |
 
 Conditions: two boards, 2026-11-17, through the console client, one firmware image (Pico SDK 2.3.1, Arm GNU 15.3.1); the plain `.cli` call was measured on an earlier firmware image. Each vector size is the largest of the sizes tried, in steps of 300 to 500 elements.
 
