@@ -6,7 +6,7 @@ cli::.cli(8888)
 .p(cli)
 
 :" Called by server when there is a subscription update."
-update::{.d("subscription update: ");.p(x)}
+update(prices)::{.pf("subscription update: {}";,prices)}
 
 .comment("----")
 cli(:subscribe,,["AM.*"])

@@ -3,6 +3,7 @@ import json
 import logging
 import sys
 import threading
+import weakref
 
 import numpy as np
 import websockets
@@ -489,6 +490,8 @@ def eval_sys_fn_create_client(klong, x):
     klongloop = system['klongloop']
     shutdown_event = system['closeEvent']
     nc = NetworkClient.create_from_uri(ioloop, klongloop, klong, x, shutdown_event=shutdown_event).run_client()
+    # a file run stays up while the connection is open (see klongpy.repl.keeps_alive)
+    system.setdefault('ws_clients', weakref.WeakSet()).add(nc)
     return nc
 
 

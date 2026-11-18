@@ -262,7 +262,7 @@ A function is code in braces. Inside it, `x`, `y` and `z` are the first, second 
 7
 ```
 
-`::` defines a name. The REPL shows a function as `:nilad`, `:monad`, `:dyad` or `:triad` for the number of arguments it takes. That number is the highest of `x`, `y` and `z` that the body uses, so `{y}` is a dyad and `{-x}` is a monad. A function takes at most three arguments this way; for more, see [named parameters](#named-parameters).
+`::` defines a name. The REPL shows a function as `:nilad`, `:monad`, `:dyad` or `:triad` for the number of arguments it takes. That number is the highest of `x`, `y` and `z` that the body uses, so `{y}` is a dyad and `{-x}` is a monad. `x`, `y` and `z` are in every Klong program you will read, and they suit a one-line function given to an adverb, such as `{x*x}'[1 2 3]`. A function can take at most three arguments this way.
 
 A function that takes no arguments is a nilad. It is called with empty parentheses:
 
@@ -278,11 +278,33 @@ A function that takes no arguments is a nilad. It is called with empty parenthes
 2
 ```
 
+### Named parameters
+
+KlongPy adds a definition form that names the parameters, with no limit on how many there are. For a function whose arguments mean something, use it: write the call shape on the left of `::`, and use the names in the body:
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> area(w;h)::{w*h}
+:dyad
+?> area(3;4)
+12
+?> pv(rate;years;amount)::{amount%(1+rate)^years}
+:triad
+?> pv(0.05;10;100)
+61.39132535407592
+?> sum4(a;b;c;d)::{a+b+c+d}
+:fn/4
+?> sum4(1;2;3;4)
+10
+```
+
+The parameters are local to the function, so a global of the same name is left alone. Inside such a function `x`, `y` and `z` are not available, because the parameters replace them. The REPL shows a function of four or more parameters as `:fn/N`, here `:fn/4`. The rest of this tutorial uses named parameters for every function whose arguments have a meaning, and `x`, `y` and `z` for short functions given to adverbs. [Language Additions](language-additions.md#named-parameters) has the complete rules, including calls from Python.
+
 Calling a function with fewer arguments than it takes gives a new function that waits for the rest. This is called a projection. Leave the last arguments off, or leave any argument empty and keep its `;`:
 
 <!-- check-docs: continue -->
 ```kgpy
-?> add::{x+y}
+?> add(a;b)::{a+b}
 :dyad
 ?> inc::add(1)
 :monad
@@ -292,6 +314,10 @@ Calling a function with fewer arguments than it takes gives a new function that 
 :monad
 ?> dec(5)
 4
+?> p4::sum4(1;;3;4)
+:monad
+?> p4(2)
+10
 ```
 
 (The REPL shows a projection by the number of arguments it still takes.) A projection made inside a function keeps the values its arguments had there, so `{add(x)}'[1 2 3]` is a list of three different projections. Calling a function with more arguments than it takes is an error at strict level 2, and at levels 0 and 1 the extra arguments are dropped:
@@ -300,17 +326,19 @@ Calling a function with fewer arguments than it takes gives a new function that 
 ```kgpy
 ?> {x}(1;2)
 error: the function takes 1 argument, got 2
+?> sum4(1;2;3;4;5)
+error: sum4 takes 4 arguments, got 5
 ```
 
-Inside a function, `.f` is the function itself, which is how you write recursion without a name:
+Inside a function, `.f` is the function itself, which is how you write recursion without a name (a named function may also call itself by its name):
 
 <!-- check-docs: strict 2 -->
 ```kgpy
-?> fact::{:[x<2;1;x*.f(x-1)]}
+?> fact(n)::{:[n<2;1;n*.f(n-1)]}
 :monad
 ?> fact(10)
 3628800
-?> gcd::{:[y=0;x;.f(y;x!y)]}
+?> gcd(a;b)::{:[b=0;a;.f(b;a!b)]}
 :dyad
 ?> gcd(48;18)
 6
@@ -334,7 +362,7 @@ An assignment to a name that exists, anywhere, changes that name. This is how a 
 ```kgpy
 ?> total::0
 0
-?> add::{total::total+x}
+?> add(n)::{total::total+n}
 :monad
 ?> add(5)
 5
@@ -344,13 +372,13 @@ An assignment to a name that exists, anywhere, changes that name. This is how a 
 12
 ```
 
-A function that needs working variables of its own declares them in a list at the start of its body, `{[a b]; ...}`. They exist only during the call and do not touch a global of the same name:
+The parameters of a function are its own. A function that needs other working variables declares them in a list at the start of its body, `{[a b]; ...}`. They exist only during the call and do not touch a global of the same name:
 
 <!-- check-docs: continue -->
 ```kgpy
 ?> t::100
 100
-?> area::{[t];t::x*y;t+1}
+?> area(w;h)::{[t];t::w*h;t+1}
 :dyad
 ?> area(3;4)
 13
@@ -362,13 +390,45 @@ Without the declaration, a function cannot create a name by assigning to it. At 
 
 <!-- check-docs: continue -->
 ```kgpy
-?> bad::{u::x*2;u+1}
+?> bad(n)::{u::n*2;u+1}
 :monad
 ?> bad(5)
 error: undefined variable: u
 ```
 
 At the default level (0) the same function runs, and `u` is a hidden local that disappears when the call ends, so it is not visible from outside. Declare your locals. [Strict mode](strict.md) lists what each level rejects.
+
+### Dynamic scoping
+
+A function that reads a name looks for it in its own parameters and locals, then in the functions that called it, and last in the globals. The name means whatever the nearest caller gave it:
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> w::10
+10
+?> loss::{w*w}
+:nilad
+?> viaParam(w)::{loss()}
+:monad
+?> viaParam(3)
+9
+?> w
+10
+```
+
+`loss` has no `w` of its own. It finds the `w` of `viaParam`, which called it, so the answer is 9, and the global `w` is still 10. Locals and named parameters are both dynamically scoped, so a function that has a local `w` shows it to everything it calls.
+
+This is useful in one situation: taking the gradient of a loss with respect to one global. The one-argument function `lossW` fixes which name is being varied, and `:>` calls it with the point:
+
+<!-- check-docs: continue -->
+```kgpy
+?> lossW(w)::{loss()}
+:monad
+?> lossW:>3
+6.000000000838668
+```
+
+Prefer passing arguments. A function that reads a caller's name depends on text that is not in its own definition: renaming a local in the caller changes what the callee computes, and the callee fails when a caller does not define the name. `loss(w)::{w*w}` says what it depends on, and gives the same answers when called from anywhere. [Compiling Klong to C](embedded.md#differences-from-the-interpreter) does not support the other style: in code compiled by `kgpy compile c`, a callee that reads its caller's locals is a compile error.
 
 ### Destructuring
 
@@ -394,49 +454,19 @@ Both forms give the same names. The new form needs as many names as the list has
 error: cannot destructure 3 values into 2 names
 ```
 
-When it is the first statement of a function, the names are the function's locals and need no declaration:
+When it is the first statement of a function, the names are the function's locals and need no declaration. A function that takes one list, such as a state that a loop carries, takes it apart this way:
 
 <!-- check-docs: continue -->
 ```kgpy
-?> pv1::{[r n a];r::x@0;n::x@1;a::x@2;a%(1+r)^n}
+?> pv1(plan)::{[r n a];r::plan@0;n::plan@1;a::plan@2;a%(1+r)^n}
 :monad
-?> pv2::{[r n a]::x;a%(1+r)^n}
+?> pv2(plan)::{[r n a]::plan;a%(1+r)^n}
 :monad
 ?> pv1([0.05 10 100])
 61.39132535407592
 ?> pv2([0.05 10 100])
 61.39132535407592
 ```
-
-### Named parameters
-
-A Klong function sees its arguments as `x`, `y` and `z`, and three is the most. KlongPy adds a definition form that names the parameters and has no limit on how many there are. The classic way to pass more than three values is one list and the destructuring above. With names, you write the call shape on the left of `::`:
-
-<!-- check-docs: continue -->
-```kgpy
-?> pv3(r;n;a)::{a%(1+r)^n}
-:triad
-?> pv3(0.05;10;100)
-61.39132535407592
-?> sum4(a;b;c;d)::{a+b+c+d}
-:fn/4
-?> sum4(1;2;3;4)
-10
-```
-
-The parameters are locals. Inside such a function `x`, `y` and `z` are not available, because the parameters replace them. (The REPL shows a function of four or more parameters as `:fn/N`, here `:fn/4`.) Fewer arguments give a projection, as before, and more are an error:
-
-<!-- check-docs: continue -->
-```kgpy
-?> p4::sum4(1;;3;4)
-:monad
-?> p4(2)
-10
-?> sum4(1;2;3;4;5)
-error: sum4 takes 4 arguments, got 5
-```
-
-[Language Additions](language-additions.md) gives the complete rules for both, including the head form in more detail and how to call named-parameter functions from Python.
 
 ## 6. Adverbs
 
@@ -497,6 +527,38 @@ With a list on the left, `'` takes one element from each side, so it zips:
 [0 20 60]
 ```
 
+### The empty list
+
+Three facts about the empty list give a wrong answer without an error. They come from classic Klong, and each has an idiom that avoids it:
+
+- `+/[]` is `[]`, not 0: Over of an empty list returns the list unchanged. Give the fold a starting value. `0+/x` is the sum of `x`, and 0 when `x` is empty. `1*/x` is the product, and 1 when `x` is empty.
+- `@[]` is 1: an empty list is an atom, so `@x` cannot tell an empty list from a number.
+- `~[]` is 1: an empty list is false, as it is in a condition.
+
+To test whether a list is empty, count it: `0=#x`.
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> +/[]
+[]
+?> 0+/[]
+0
+?> 1*/[]
+1
+?> 1*/[2 3 4]
+24
+?> @[]
+1
+?> @[1 2]
+0
+?> ~[]
+1
+?> 0=#[]
+1
+?> 0=#[7]
+0
+```
+
 ### Loops
 
 Klong has no loop statement. Repetition is an adverb. `:*` (iterate) applies a function a given number of times, and `\*` does the same and keeps each step:
@@ -523,6 +585,92 @@ Klong has no loop statement. Repetition is an adverb. `:*` (iterate) applies a f
 
 The first is a while loop (double until it reaches 100 or more). The second is Newton's iteration for the square root of 2. Converge stops when two successive values agree within a small tolerance (relative 1e-5), so the result agrees with the square root of 2, 1.4142135623730951, to five digits and no further. The third halves with integer division and keeps each step (`\~` is scan-converge).
 
+### Loops with state
+
+The adverbs above carry one value from step to step. A loop that needs several values, such as a total and a count, makes the state a list. The step function takes the state, takes it apart with [destructuring](#destructuring), and returns the new state as a list. Build that list with `[;a;b]`, so that `a` and `b` are expressions.
+
+**Over and Scan.** `state f/inputs` folds `f` over `inputs`: `f` is a function of the state and the next input, and returns the new state. The left argument is the starting state. `\` keeps every state. This ledger starts at a balance of 0 and a count of 0:
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> post(st;amt)::{[bal n]::st;[;bal+amt;n+1]}
+:dyad
+?> [0 0]post/[100 -30 50]
+[120 3]
+?> [0 0]post\[100 -30 50]
+[[0 0] [100 1] [70 2] [120 3]]
+```
+
+**While.** `{cond}{step}:~start` runs the step on the state while the condition holds, and gives the state at which the condition fails. Both are functions of the state, and a name may stand for either: `going move:~[27 0]` is the same loop. The Collatz rule halves an even number and triples an odd one and adds 1. The state is the number and the steps taken so far, and the loop runs until the number is 1:
+
+<!-- check-docs: continue -->
+```kgpy
+?> going(st)::{[n k]::st;n>1}
+:monad
+?> move(st)::{[n k]::st;[;:[0=n!2;n:%2;(3*n)+1];k+1]}
+:monad
+?> going move:~[27 0]
+[1 111]
+```
+
+**Scan-While.** `\~` is the same loop, and keeps every state that passed the condition. The state at which the condition fails is not in the list:
+
+<!-- check-docs: continue -->
+```kgpy
+?> going move\~[6 0]
+[[6 0] [3 1] [10 2] [5 3] [16 4] [8 5] [4 6] [2 7]]
+```
+
+**Iterate.** `n f:*start` applies `f` to the state `n` times. The count comes first, then the function. `\*` keeps every state. Each step of this one turns the pair `[a b]` into `[b a+b]`, so the first member of the state is the Fibonacci number at that step:
+
+<!-- check-docs: continue -->
+```kgpy
+?> fibStep(p)::{[a b]::p;[;b;a+b]}
+:monad
+?> 10 fibStep:*[0 1]
+[55 89]
+?> 5 fibStep\*[0 1]
+[[0 1] [1 1] [1 2] [2 3] [3 5] [5 8]]
+```
+
+**Converge.** `f:~start` applies `f` until two successive states agree within the tolerance, and `f\~start` keeps the states. Newton's method for the square root of 2 improves a guess:
+
+<!-- check-docs: continue -->
+```kgpy
+?> better(g)::{(g+2%g)%2}
+:monad
+?> better:~1
+1.4142156862745097
+```
+
+**A worked example: breadth-first search.** The shortest walk through a maze is found by growing a frontier, the cells reached by the last step, until it reaches the goal. The maze is one string of 7 characters by 6 rows, with `#` for a wall; the border of walls means that the four neighbours of a cell are always inside the string, so `c+[-7 7 -1 1]` is all that moving costs. The state is the frontier, a mask of cells seen (walls count as seen) and the distance. Each step takes the neighbours of the frontier, keeps those not seen, and marks them. The loop runs while the frontier is not empty and the goal is not seen:
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> maze::,/["#######" "#S..#.#" "#.#...#" "#.#.#.#" "#...#E#" "#######"]
+"########S..#.##.#...##.#.#.##...#E########"
+?> goal::*maze?0cE
+33
+?> alive(st)::{[front seen d]::st;(0<#front)&0=seen@goal}
+:monad
+?> step(st)::{[n];[front seen d]::st;n::?,/{x+[-7 7 -1 1]}'front;n::n@&0=seen@n;[;n;seen:=1,n;d+1]}
+:monad
+?> *|alive step:~[;,*maze?0cS;{x=0c#}'maze;0]
+7
+```
+
+In `step`, `x+[-7 7 -1 1]` is applied to each cell of the frontier and `,/` joins the results, `?` drops repeated cells, `n@&0=seen@n` keeps those that are not seen, and `seen:=1,n` marks them. The state ends with the distance, so `*|` (the last member) is the answer: the goal is 7 steps from the start.
+
+**When no loop is needed.** A loop belongs where each step depends on the one before it. When it does not, an array expression says the same thing without a state. The running balance of the ledger is `+\[100 -30 50]`, and the sum of the first hundred squares is `+/(1+!100)^2`. A function applied to every element is `f'a`. The loop version of the ledger earns its keep because its state holds two numbers:
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> +\[100 -30 50]
+[100 70 120]
+?> +/(1+!100)^2
+338350
+```
+
 For a longer example of the adverbs at work, `klongpy/lib/csv.kg` is a complete CSV reader written with them.
 
 ## 7. Conditionals
@@ -535,7 +683,7 @@ For a longer example of the adverbs at work, `klongpy/lib/csv.kg` is a complete 
 "yes"
 ?> :[0;"yes";"no"]
 "no"
-?> abs::{:[x<0;-x;x]}
+?> abs(n)::{:[n<0;-n;n]}
 :monad
 ?> abs(-7)
 7
@@ -557,7 +705,7 @@ To test several cases in a row, write `:|` in place of the `;` before the next t
 
 <!-- check-docs: continue -->
 ```kgpy
-?> sign::{:[x<0;"neg":|x=0;"zero";"pos"]}
+?> sign(n)::{:[n<0;"neg":|n=0;"zero";"pos"]}
 :monad
 ?> sign'[-5 0 7]
 ["neg" "zero" "pos"]
@@ -567,7 +715,7 @@ The classic form nests the conditionals, and means the same:
 
 <!-- check-docs: continue -->
 ```kgpy
-?> sign2::{:[x<0;"neg";:[x=0;"zero";"pos"]]}
+?> sign2(n)::{:[n<0;"neg";:[n=0;"zero";"pos"]]}
 :monad
 ?> sign2'[-5 0 7]
 ["neg" "zero" "pos"]
@@ -575,37 +723,47 @@ The classic form nests the conditionals, and means the same:
 
 ## 8. Dictionaries
 
-A dictionary maps keys to values. The literal is `:{[key value] [key value] ...}`. `d?k` looks a key up, and gives `:undefined` for a key that is not there. `:_` tests for it:
+A dictionary maps keys to values. The literal is `:{[key value] [key value] ...}`. `d@k` looks a key up, and gives `:undefined` for a key that is not there. `:_` tests for it. The classic spelling of the lookup is `d?k`, which gives the same results:
 
 <!-- check-docs: strict 2 -->
 ```kgpy
 ?> d:::{["a" 1] ["b" 2]}
 :{["a" 1] ["b" 2]}
+?> d@"a"
+1
+?> d@"zz"
+:undefined
+?> :_d@"zz"
+1
+?> :_d@"a"
+0
 ?> d?"a"
 1
-?> d?"zz"
-:undefined
-?> :_d?"zz"
-1
-?> :_d?"a"
-0
 ```
 
-(`d:::{...}` is `d::` followed by the literal `:{...}`.) Keys can be strings, numbers or symbols. Adding an entry uses `,` with a `[key value]` pair. `,v` is the one-element list `[v]` and `k,[v]` is the pair `[k v]`, so `d,k,,v` adds the entry (read it from the right):
+(`d:::{...}` is `d::` followed by the literal `:{...}`.) Keys can be strings, numbers or symbols. `d@[k1 k2]` looks up a list of keys. Joining two dictionaries with `,` merges them, the right one winning, so adding an entry is a merge with a one-entry dictionary. Setting a key that exists replaces its value:
 
 <!-- check-docs: continue -->
 ```kgpy
-?> d::d,"c",,3
+?> d@["b" "a"]
+[2 1]
+?> d::d,:{["c" 3]}
 :{["a" 1] ["b" 2] ["c" 3]}
-?> d::d,"a",,100
+?> d::d,:{["a" 100]}
 :{["a" 100] ["b" 2] ["c" 3]}
 ?> #d
 3
 ```
 
-Setting a key that exists replaces its value. An empty dictionary is `:{}`.
+An empty dictionary is `:{}`. The classic way to add one entry joins a `[key value]` pair: `,v` is the one-element list `[v]` and `k,[v]` is the pair `[k v]`, so `d,k,,v` adds the entry (read it from the right):
 
-Keys that are written in a plain literal are data, as in a list literal, so a name there is a symbol and not its value:
+<!-- check-docs: continue -->
+```kgpy
+?> d::d,"e",,5
+:{["a" 100] ["b" 2] ["c" 3] ["e" 5]}
+```
+
+Keys and values that are written in a plain literal are data, as in a list literal, so a name there is a symbol and not its value:
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -615,7 +773,19 @@ Keys that are written in a plain literal are data, as in a list literal, so a na
 :{["n" :n]}
 ```
 
-The classic way around it is to build the dictionary from an empty one:
+KlongPy adds a literal whose keys and values are expressions, evaluated each time. Put a `;` right after `:{` and write `key;value;key;value`:
+
+<!-- check-docs: continue -->
+```kgpy
+?> :{;"n";n;"double";n*2}
+:{["n" 5] ["double" 10]}
+?> mk(k)::{:{;"n";k;"sq";k*k}}
+:monad
+?> mk(3)
+:{["n" 3] ["sq" 9]}
+```
+
+The classic way to build a dictionary from values is to start from an empty one and join pairs:
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -625,19 +795,7 @@ The classic way around it is to build the dictionary from an empty one:
 :{["n" 5]}
 ```
 
-KlongPy adds a literal whose keys and values are expressions, evaluated each time. Put a `;` right after `:{` and write `key;value;key;value`:
-
-<!-- check-docs: continue -->
-```kgpy
-?> :{;"n";n;"double";n*2}
-:{["n" 5] ["double" 10]}
-?> mk::{:{;"n";x;"sq";x*x}}
-:monad
-?> mk(3)
-:{["n" 3] ["sq" 9]}
-```
-
-It also adds `d@k`, which is the same as `d?k` (and `d@[k1 k2]` for a list of keys), and joining two dictionaries merges them, the right one winning:
+Merging works with the evaluated form too:
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -748,6 +906,30 @@ Placeholders and arguments must agree in number, and `{}` and `{0}` cannot be mi
 error: .fmt: 2 placeholder(s) but 1 argument(s) in template '{} {}'
 ```
 
+### Splitting and joining text
+
+KlongPy has functions for the text jobs that programs otherwise write themselves. `.split(s;sep)` cuts `s` at each `sep` and keeps the empty pieces, `.words(s)` cuts at runs of white space and drops the empty pieces, `.join(list;sep)` is the inverse of `.split`, and `.trim(s)` removes white space at both ends. `.num(s)` reads a number from text, and gives `:undefined` for anything else:
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> .split("a,b,,c";",")
+["a" "b" "" "c"]
+?> .words("  to be  or not ")
+["to" "be" "or" "not"]
+?> .join(["a" "b" "c"];", ")
+"a, b, c"
+?> .trim("  padded  ")
+"padded"
+?> .num("42")
+42
+?> .num("4x")
+:undefined
+?> .num'.split("3,4.5";",")
+[3.0 4.5]
+```
+
+[Language Additions](language-additions.md#strings) has the rules for each.
+
 ## 10. Files, modules, comments
 
 A comment starts with `:"` and ends at the next `"`. It can be a whole line or follow code:
@@ -774,11 +956,11 @@ None
 
 ```console
 $ cat > lib.kg <<'EOF'
-> shout.up::{x,"!"}
+> shout.up(s)::{s,"!"}
 > limit::99
 > EOF
 $ cat lib.kg
-shout.up::{x,"!"}
+shout.up(s)::{s,"!"}
 limit::99
 $ kgpy -e '.l("lib.kg");.p(limit);shout.up("hey")'
 99
@@ -787,10 +969,26 @@ $ kgpy -e '.l("lib.kg");.p(limit);shout.up("hey")'
 
 `.l` returns the value of the last statement of the file.
 
+To read the lines of a file, open it with `.ic`, select it as the input with `.fc`, and read all the lines with `.rls()`. Then `.fc(0)` selects standard input again and `.cc` closes the file. This program sums each line of a file of numbers separated by commas:
+
+```console
+$ printf '3,4.5\n5,6\n' > nums.csv
+$ cat > sums.kg <<'EOF'
+> c::.ic("nums.csv")
+> .fc(c)
+> rows::.rls()
+> .fc(0)
+> .cc(c)
+> .p({+/.num'.split(x;",")}'rows)
+> EOF
+$ kgpy sums.kg
+[7.5 11.0]
+```
+
 A library brackets its definitions with `.module(:name)` and `.module(0)`. Inside the module its names refer to the module's own variables, so a program that later assigns the same name does not change what the library's functions use. The names are not hidden, though: after the module is closed they can still be used by their plain names (see [Modules](operators.md#modules)). By convention a library names what it exports `name.function`, as `csv.split` and `csv.read` in `klongpy/lib/csv.kg` do, so that its names do not clash with yours:
 
 ```kgpy
-?> .module(:geom);geom.sq::{x*x};geom.cube::{x*geom.sq(x)};.module(0)
+?> .module(:geom);geom.sq(v)::{v*v};geom.cube(v)::{v*geom.sq(v)};.module(0)
 None
 ?> geom.cube(3)
 27
@@ -825,7 +1023,7 @@ klong = KlongInterpreter()
 klong['f'] = lambda x, y, z: x*1000 + y - z    # a Python function becomes a Klong function
 klong('f(3; 10; 20)')                          # 2990
 
-klong("g::{(x*1000) + y - z}")
+klong("g(a;b;c)::{(a*1000) + b - c}")
 klong['g'](3, 10, 20)                          # 2990: a Klong function becomes a Python callable
 
 klong("vol(a;b;c;d)::{a+b+c+d}")
@@ -871,8 +1069,8 @@ When an entry leaves a bracket, a string or a comment open, the REPL prompts wit
 
 <!-- check-docs: continue -->
 ```kgpy
-?> avg::{
-.. (+/x)%#x
+?> avg(v)::{
+.. (+/v)%#v
 .. }
 :monad
 ?> avg([2 4 9])
@@ -930,7 +1128,7 @@ At level 2 the same line stops earlier, on the undefined name `my`. Use `myVar` 
 
 <!-- check-docs: continue -->
 ```kgpy
-?> f::{x+1}
+?> f(n)::{n+1}
 :monad
 ?> f(1)
 2

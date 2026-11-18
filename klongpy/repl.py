@@ -137,8 +137,9 @@ def create_repl(debug: bool = False, backend: Optional[str] = None, device: Opti
 def keeps_alive(system) -> Optional[str]:
     """
     Why a file run must not end yet: "server" while an IPC server listens,
-    "connection" while a client connection opened by .cli or .clid is open;
-    None when nothing is left to wait for. A timer does not keep a file run up:
+    "connection" while a client connection opened by .cli or .clid is open,
+    "web server" while a .web server listens, "websocket" while a .ws
+    connection is open; None when nothing is left to wait for. A timer does not keep a file run up:
     it fires while a server or a connection does, or in the REPL.
     """
     server = system.get('ipc_server')
@@ -147,6 +148,12 @@ def keeps_alive(system) -> Optional[str]:
     for nc in list(system.get('ipc_clients', ())):
         if nc.running and nc.is_open():
             return "connection"
+    for web in list(system.get('web_servers', ())):
+        if web.is_listening():
+            return "web server"
+    for ws in list(system.get('ws_clients', ())):
+        if ws.running and ws.is_open():
+            return "websocket"
     return None
 
 

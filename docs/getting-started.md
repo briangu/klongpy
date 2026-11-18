@@ -102,11 +102,11 @@ Use parentheses to change the order. Read each expression from the right end: `2
 
 ### Your first function
 
-A function is code between braces. Inside it `x` is the first argument, `y` the second and `z` the third. The mean of a list is its sum divided by its length:
+A function is code between braces, and `name(parameters)::{...}` gives it a name and names its parameters. The mean of a list is its sum divided by its length:
 
 <!-- check-docs: continue -->
 ```kgpy
-?> avg::{(+/x)%#x}
+?> avg(v)::{(+/v)%#v}
 :monad
 ?> avg(a)
 3.875
@@ -114,11 +114,11 @@ A function is code between braces. Inside it `x` is the first argument, `y` the 
 3.0
 ```
 
-`%` is division. The REPL shows the value of the assignment: `:monad` means a function of one argument (`:dyad` is two, `:triad` is three). A function has as many arguments as the highest of `x`, `y` and `z` that its body uses, so `{x+y}` is a dyad. A call with fewer arguments than the function takes waits for the rest:
+`%` is division. The REPL shows the value of the definition: `:monad` means a function of one argument (`:dyad` is two, `:triad` is three, and `:fn/4` is four). The names are local to the function. A call with fewer arguments than the function takes waits for the rest:
 
 <!-- check-docs: continue -->
 ```kgpy
-?> add::{x+y}
+?> add(a;b)::{a+b}
 :dyad
 ?> add(2;3)
 5
@@ -127,6 +127,8 @@ A function is code between braces. Inside it `x` is the first argument, `y` the 
 ?> inc(10)
 11
 ```
+
+Klong also has unnamed arguments: inside a function written `{...}` alone, `x` is the first argument, `y` the second and `z` the third, so `{x+y}` is a dyad. They suit a one-line function given to an adverb, such as `{x*x}'!5`; the [Tutorial](tutorial.md#4-functions) teaches them first.
 
 `.p` prints a value followed by a newline. The REPL then shows the value that `.p` returned, which is why the text appears twice:
 
@@ -145,7 +147,7 @@ Put the program in a file whose name ends in `.kg`. Here the shell commands make
 
 ```console
 $ cat > stats.kg <<'EOF'
-> avg::{(+/x)%#x}
+> avg(v)::{(+/v)%#v}
 > data::[3 1 4 1 5 9 2 6]
 > .p("mean: ",$avg(data))
 > .p("largest: ",$|/data)

@@ -96,11 +96,11 @@ The dyad `point∇function` (and `.grad(function;point)`) **always** computes th
 **Dyad syntax:** `point∇function`
 
 ```kgpy
-?> f::{x^2}
+?> f(t)::{t^2}
 :monad
 ?> 3∇f
 6.000000000838668
-?> g::{+/x^2}
+?> g(v)::{+/v^2}
 :monad
 ?> [1 2 3]∇g
 [2.000000000279556 3.9999999996709334 6.000000000838668]
@@ -111,7 +111,7 @@ The first result is the derivative of `x^2` at 3 (about 6) and the second the gr
 **ASCII form:** `.grad(function;point)` is the same computation with the function first, for keyboards without `∇`. The point is taken by value.
 
 ```kgpy
-?> f::{x^2}
+?> f(t)::{t^2}
 :monad
 ?> 3∇f
 6.000000000838668
@@ -124,7 +124,7 @@ The first result is the derivative of `x^2` at 3 (about 6) and the second the gr
 **Monad syntax:** `∇function` returns a gradient function. A name cannot contain `_` (it is the Drop operator), so the example calls it `gf`. On the numpy backend the result is by finite differences; on the torch backend it is by autograd and gives `6.0`.
 
 ```kgpy
-?> f::{x^2}
+?> f(t)::{t^2}
 :monad
 ?> gf::∇f
 :monad
@@ -139,11 +139,11 @@ The first result is the derivative of `x^2` at 3 (about 6) and the second the gr
 **Syntax:** `function:>point`
 
 ```kgpy
-?> f::{x^2}
+?> f(t)::{t^2}
 :monad
 ?> f:>3
 6.000000000838668
-?> g::{+/x^2}
+?> g(v)::{+/v^2}
 :monad
 ?> g:>[1 2 3]
 [2.000000000279556 3.9999999996709334 6.000000000838668]
@@ -166,7 +166,7 @@ This is the numpy result; torch returns `[4.0 6.0]`. Rules:
 
 - A single symbol returns the gradient itself, not a one-element list: `loss:>w` is `3.9999999996709334` on numpy and `4.0` on torch.
 - A symbol that holds a vector gives the gradient vector.
-- When the function uses its argument (`f::{x^2}`), a symbol on the right is a variable holding the point: `p::3.0` then `f:>p` is `f:>3.0`.
+- When the function uses its argument (`f(t)::{t^2}`), a symbol on the right is a variable holding the point: `p::3.0` then `f:>p` is `f:>3.0`.
 
 ### Jacobian Operator: `∂`
 
@@ -175,11 +175,11 @@ The `∂` (partial derivative) operator computes the Jacobian matrix:
 **Syntax:** `point∂function`
 
 ```kgpy
-?> f::{x^2}
+?> f(t)::{t^2}
 :monad
 ?> [1 2]∂f
 [[2.000000000002 0.0] [0.0 4.000000000115023]]
-?> g::{+/x^2}
+?> g(v)::{+/v^2}
 :monad
 ?> [1 2 3]∂g
 [[2.000000000279556 3.9999999996709334 6.000000000838668]]
@@ -238,6 +238,14 @@ Five system functions need the PyTorch backend: `.gradcheck`, `.compile`, `.comp
 | `f:~a` | Converge | Apply f until the result stops changing |
 | `f\~a` | Scan-Converge | Like Converge, returning every intermediate value |
 
+### Over and the empty list
+
+Over of an empty list returns the empty list, not 0: `+/[]` is `[]`, and so is `*/[]`. A sum or a product that may see an empty list needs a starting value, which goes on the left: `0+/x` is 0 and `1*/x` is 1 for an empty list. `@[]` and `~[]` are both 1, because an empty list is an atom and is false, so test for emptiness with `0=#x`. [The tutorial](tutorial.md#the-empty-list) has the examples.
+
+### Loops with state
+
+A loop that carries several values uses a list as its state, with Over or Scan (`state f/inputs`), While (`{cond}{step}:~state`), Iterate (`n f:*state`) or Converge (`f:~state`). [Loops with state](tutorial.md#loops-with-state) in the tutorial teaches each, with a breadth-first search as the worked example.
+
 ### Each-Index Adverb: `@'`
 
 The `@'` adverb applies a function to `[index;element]` pairs, similar to Python's `enumerate()`:
@@ -269,12 +277,12 @@ a::10; b::20
 [;a;b;a+b]                  :" [10 20 30]"
 
 :" With function results"
-avg::{(+/x)%#x}
+avg(v)::{(+/v)%#v}
 arr::[1 2 3 4 5]
 [;avg(arr);+/arr;#arr]       :" [3.0 15 5]"
 
 :" Inside a function"
-make::{[;x;x*2;x*3]}
+make(n)::{[;n;n*2;n*3]}
 make(5)                      :" [5 10 15]"
 ```
 
@@ -298,7 +306,7 @@ A condition is false if it is a number equal to 0 (including `0.0`) or an empty 
 :[0;1:|1;2;3]                :" 2"
 :[0;1:|0;2;3]                :" 3"
 
-sign::{:[x<0;"neg":|x=0;"zero";"pos"]}
+sign(n)::{:[n<0;"neg":|n=0;"zero";"pos"]}
 sign(-5)                     :" neg"
 sign(0)                      :" zero"
 sign(7)                      :" pos"
@@ -331,6 +339,19 @@ A dictionary literal is `:{[key value] [key value]}`, and `:{}` is the empty dic
 :{["n" 7] ["sq" 0] ["z" 1]}
 ?> [1 2],,d
 [1 2 :{["n" 7] ["sq" 0] ["z" 1]}]
+```
+
+To remove a key, use Drop with the key on the left and the dictionary on the right. `k_d` deletes the entry in place and returns the dictionary; a key that is not there changes nothing. With the arguments the other way round, `d_k`, Drop is a type error, because on the right it drops that many elements from a list or string.
+
+```kgpy
+?> m:::{["a" 1] ["b" 2] ["c" 3]}
+:{["a" 1] ["b" 2] ["c" 3]}
+?> "b"_m
+:{["a" 1] ["c" 3]}
+?> m
+:{["a" 1] ["c" 3]}
+?> m_"a"
+error: cannot apply _ (Drop) to dict and string
 ```
 
 A list cannot be a key, and an odd number of expressions in `:{;...}` is a syntax error. [Language Additions](language-additions.md#dictionaries) has the details with the classic form beside each.
@@ -661,7 +682,7 @@ Three cases are not projections. A function whose whole body is a projection, `g
 The names are not hidden. After the module is closed, a module name is still reachable by its plain name, as long as the program has no variable of its own with that name:
 
 ```kgpy
-?> .module(:geo);unit::10;scale::{x*unit};.module(0)
+?> .module(:geo);unit::10;scale(n)::{n*unit};.module(0)
 None
 ?> scale(4)
 40
@@ -672,13 +693,13 @@ None
 Assigning the name outside the module makes a separate global variable. The module's functions keep using the module's own, so they cannot be broken by a program that happens to use the same name:
 
 ```kgpy
-?> .module(:geo);unit::10;scale::{x*unit};.module(0)
+?> .module(:geo);unit::10;scale(n)::{n*unit};.module(0)
 None
 ?> unit::2
 2
 ?> scale(4)
 40
-?> scale::{x}
+?> scale(n)::{n}
 :monad
 ?> unit,scale(4)
 [2 4]

@@ -331,6 +331,18 @@ def display_arity(text):
     return _DISPLAY_ARITY[m.group(1)] if m.group(1) else int(m.group(2))
 
 
+def _named_function(t):
+    """The function literal of a parsed ``fn(a;b)::{...}`` (function_source_text), else None."""
+    if not (isinstance(t, KGFn) and not isinstance(t, KGCall) and t.is_op() and t.a.a == "::"
+            and type(t.args) is list and len(t.args) == 2):
+        return None
+    name, lit = t.args
+    if not (type(name) is KGSym and str.__str__(name).split('`')[0] == _WIRE_NAME
+            and type(lit) is KGFn and lit.args is None and lit.params is not None):
+        return None
+    return lit
+
+
 def parse_function(klong, text):
     """The function a source text defines, or None.
 
@@ -342,6 +354,9 @@ def parse_function(klong, text):
         if len(prog) != 1:
             return None
         t = prog[0]
+        named = _named_function(t)
+        if named is not None:
+            return named
         if not isinstance(t, KGFn) or isinstance(t, KGCall) or t.args is not None or t.is_op():
             return None
         if t.arity == 0:
@@ -933,25 +948,35 @@ def new_connection_state(obj):
 # function source text
 # ----------------------------------------------------------------------------
 
+_WIRE_NAME = "fn"
+
+
 def function_source_text(fn):
     """Source text of a function literal as the parser recorded it, or None.
 
-    Only a plain function literal has text: a projection, an operator or a
-    function built by the legacy parser goes out in its display form.  The
-    receiver parses the text, so names in the body are the receiver's.
+    A function of x, y and z travels as its literal, ``{x+y}``.  A function with
+    named parameters travels as the definition that made it, ``fn(a;b)::{a+b}``
+    (the name ``fn`` is a placeholder: the receiver parses the text and keeps
+    only the function, it defines nothing).  Locals lists, head destructurings
+    and ``.f`` are part of the literal's text.  A projection, an operator or a
+    function with no recorded source goes out in its display form.  The receiver
+    parses the text, so names in the body are the receiver's.
     """
     if getattr(fn, 'args', None) is not None:
         return None
-    if getattr(getattr(fn, 'a', None), 'params', None) is not None:
-        # f(a;b)::{...}: the parameter list is not part of the literal's text
-        return None
+    params = getattr(getattr(fn, 'a', None), 'params', None)
     node = fn if getattr(fn, 'span', None) is not None else getattr(fn, '_origin', None)
     span = getattr(node, 'span', None)
     source = getattr(node, 'source', None)
     if span is None or source is None:
         return None
     text = source.text[span[0]:span[1]]
-    return text if text.startswith('{') and text.endswith('}') else None
+    if not (text.startswith('{') and text.endswith('}')):
+        return None
+    if params is not None:
+        names = ";".join(str.__str__(p).split('`')[0] for p in params)
+        return "%s(%s)::%s" % (_WIRE_NAME, names, text)
+    return text
 
 
 set_function_text_hook(function_source_text)

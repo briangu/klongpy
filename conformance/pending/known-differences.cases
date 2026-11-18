@@ -2,12 +2,6 @@
 # Each has `: reason` and `: actual` (what KlongPy answers now). The expectation is the correct result.
 # `python conformance/run.py --pending` runs them and reports any that now pass: move those to cases/.
 
-@ pending.where-of-empty-list core
-> &[]
-= []
-: reason Where of an empty list raises a type error; the result of `&` on `[]` is the empty list (nothing is selected), as for every other monad on `[]`.
-: actual error: type
-
 @ pending.find-symbol-in-list core
 > [:a :b]?:b
 = [1]

@@ -70,9 +70,11 @@ class TestTableStorage(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             _ = "key" in self.storage
 
-    def test_len_raises(self):
-        with self.assertRaises(NotImplementedError):
-            _ = len(self.storage)
+    def test_len_counts_the_entries(self):
+        self.assertEqual(len(self.storage), 0)
+        self.storage.set("one", Table(pd.DataFrame({'A': [1]})))
+        self.storage.set("two", Table(pd.DataFrame({'A': [2]})))
+        self.assertEqual(len(self.storage), 2)
 
     def test_str(self):
         result = str(self.storage)
@@ -118,9 +120,11 @@ class TestKeyValueStorage(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             _ = "key" in self.storage
 
-    def test_len_raises(self):
-        with self.assertRaises(NotImplementedError):
-            _ = len(self.storage)
+    def test_len_counts_the_entries(self):
+        self.assertEqual(len(self.storage), 0)
+        self.storage.set("one", [1, 2])
+        self.storage.set("two", "s")
+        self.assertEqual(len(self.storage), 2)
 
     def test_str(self):
         result = str(self.storage)

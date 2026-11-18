@@ -7,6 +7,7 @@ import pandas as pd
 from klongpy.core import (KGCall, KGLambda, KGSym, KlongException, KLONG_UNDEFINED,
                           reserved_fn_args, reserved_fn_symbol_map)
 from klongpy.backend import np as backend_np
+from klongpy.errors import KlongShapeError, KlongTypeError
 
 
 class KlongDbException(KlongException):
@@ -158,35 +159,57 @@ class Database(KGLambda):
         return ":db"
 
 
+def _table_from_dict(x):
+    """A table from a dictionary of column name to column values (insertion order is column order)."""
+    cols = {}
+    for k, v in x.items():
+        if not isinstance(k, str) or isinstance(k, KGSym):
+            raise KlongTypeError(f".table: column names must be strings, got {type(k).__name__ if not isinstance(k, KGSym) else 'a symbol'} {k!r}",
+                                 hint='use a string key, as in :{;"a";[1 2 3]}')
+        if isinstance(v, (str, bytes, dict)) or not hasattr(v, '__len__') or getattr(v, 'ndim', 1) == 0:
+            raise KlongTypeError(f'.table: column "{k}" must be a list of values',
+                                 hint="a column is a list or array, one value per row")
+        cols[k] = v
+    sizes = {k: len(v) for k, v in cols.items()}
+    if len(set(sizes.values())) > 1:
+        detail = ", ".join(f'"{k}" has {n}' for k, n in sizes.items())
+        raise KlongShapeError(f".table: columns have different lengths ({detail})",
+                              hint="every column needs the same number of rows")
+    return Table(cols, columns=list(cols))
+
+
 def eval_sys_fn_create_table(x):
     """
 
         .table(x)                                         [Table-Create]
 
-        Create a table from a sequence of tuples, each of which
-        describes a column and its values.  Column order is
-        determined by the order in the tuple sequence.
+        Create a table from a dictionary of column name to column values,
+        or from a sequence of tuples, each of which describes a column and
+        its values.  Column order is the dictionary's insertion order, or
+        the order in the tuple sequence.  Column names must be strings
+        and every column must have the same number of values.
 
         The table can be used like a dictionary, and key/value updates are
         column operations.
 
         Examples:
 
-            a::[1 2 3]
-            b::[2 3 4]
-            c::[3 4 5]
+            t::.table(:{;"a";[1 2 3];"b";[2 3 4]})
+            t,"c",,[3 4 5]
+
             d::[]
-            d::d,,"a",,a
-            d::d,,"b",,b
+            d::d,,"a",,[1 2 3]
+            d::d,,"b",,[2 3 4]
             t::.table(d)
-            t,"c",,c
 
     """
+    if type(x) is dict:
+        return _table_from_dict(x)
     if backend_np.isarray(x):
         return Table({k:v for k,v in x}, columns=[k for k,_ in x])
     elif isinstance(x, pd.DataFrame):
         return Table(x)
-    raise KlongDbException(x, "tables must be created from an array of column data map or a Pandas DataFrame.")
+    raise KlongDbException(x, "tables must be created from a dictionary of columns, an array of column data map or a Pandas DataFrame.")
 
 
 def eval_sys_fn_index(x, y):

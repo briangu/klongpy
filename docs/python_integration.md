@@ -51,27 +51,27 @@ A Klong function is a Python callable:
 $ python -W ignore <<'EOF'
 > from klongpy import KlongInterpreter
 > klong = KlongInterpreter()
-> klong("f::{(x*1000) + y - z}")
+> klong("f(a;b;c)::{(a*1000) + b - c}")
 > r = klong['f'](3, 10, 20)
 > print(r)
 > EOF
 2990
 ```
 
-Arguments may be passed by name. For a function written with `x`, `y` and `z` the names are `x`, `y` and `z`. A function defined with [named parameters](language-additions.md#named-parameters) takes any number of parameters, and its names are the ones in its definition:
+Arguments may be passed by name. A function defined with [named parameters](language-additions.md#named-parameters) takes any number of parameters, and its names are the ones in its definition. For a function written with `x`, `y` and `z` the names are `x`, `y` and `z`:
 
 ```console
 $ python -W ignore <<'EOF'
 > from klongpy import KlongInterpreter
 > from klongpy.errors import KlongArityError
 > klong = KlongInterpreter()
-> klong("f::{(x*1000) + y - z}")
-> print(klong['f'](3, 10, z=20))
+> klong("f(a;b;c)::{(a*1000) + b - c}")
+> print(klong['f'](3, 10, c=20))
 > klong("g(a;b;c;d)::{(a*1000)+b-c+d}")
 > print(klong['g'](3, 10, 20, 1))
 > print(klong['g'](3, 10, d=1, c=20))
 > for call in (lambda: klong['f'](1, 2), lambda: klong['f'](1, 2, 3, 4),
->              lambda: klong['f'](1, 2, q=3), lambda: klong['f'](1, 2, 3, z=3)):
+>              lambda: klong['f'](1, 2, q=3), lambda: klong['f'](1, 2, 3, c=3)):
 >     try:
 >         call()
 >     except KlongArityError as e:
@@ -132,7 +132,7 @@ $ python -W ignore <<'EOF'
 > klong("""
 >     a::strptime("21 June, 2018")
 >     .p(a)
->     d:::{};d,"timestamp",a
+>     d:::{;"timestamp";a}
 >     .p(d)
 > """)
 > EOF
@@ -154,7 +154,7 @@ $ python -W ignore <<'EOF'
 > klong("""
 >     a::strptime("21 June, 2018")
 >     myprint(a)
->     d:::{};d,"timestamp",a
+>     d:::{;"timestamp";a}
 >     myprint(d)
 > """)
 > EOF

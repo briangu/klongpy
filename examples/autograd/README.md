@@ -147,15 +147,20 @@ kgpy --backend torch neural_net.kg
 
 **Expected output:**
 ```
-Training AND gate perceptron...
-Training sin(x) approximator...
-Predictions vs actual sin values
+Example 1: Single Neuron Learning AND gate
+Initial loss: 0.2743102
+Step 20: loss=0.12762822
+...
+Example 2: Approximate sin(x) with Neural Network
+Final loss: 0.15257934
+Sample predictions vs actual sin(x):
 ```
 
 **Key concepts:**
 - Single neuron (perceptron) learning logic gates
 - Hidden layer networks
 - Sigmoid activation function
+- The loss takes its weights as arguments, `nnLoss(p1;p2;p3;p4;pb)`. The gradient with respect to one weight is the gradient of a one-argument function that fixes the others: `{nnLoss(x;o2;o3;o4;bo)}:>o1`. A reader can see which values the loss depends on, with no reliance on a function reading names from its caller.
 
 ---
 

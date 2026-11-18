@@ -55,7 +55,7 @@ processDay(day)::{[dayrets];
     dayrets::{x@day}'rets;
     portReturns::portReturns,+/w*dayrets;
     cumReturns::cumReturns,+/portReturns;
-    :[0=(day!50);{.d("Day ");.d(x);.d(": cumret=");.p(*|cumReturns)}@[];0];
+    :[0=(day!50);.pf("Day {}: cumret={}";[;$day;*|cumReturns]);0];
     0
 }
 

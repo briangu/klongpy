@@ -14,12 +14,43 @@ class WebServerHandle:
         self.port = port
         self.runner = runner
         self.task = task
+        self.ioloop = None
+        self.shutdown_event = None
+        self.registry = None
+
+    def is_listening(self):
+        """True from the moment .web returns until the server is stopped or failed to start.
+
+        A run of a file stays up while this holds (klongpy.repl.keeps_alive).
+        """
+        task = self.task
+        if self.runner is None or task is None:
+            return False
+        if task.done():
+            return not task.cancelled() and task.exception() is None
+        return True
 
     async def shutdown(self):
-        self.task.cancel()
-        await self.runner.cleanup()
+        runner, task = self.runner, self.task
         self.runner = None
         self.task = None
+        if self.shutdown_event is not None:
+            self.shutdown_event.unsubscribe(self.close)
+        if self.registry is not None:
+            self.registry.discard(self)
+        if task is not None:
+            task.cancel()
+        if runner is not None:
+            await runner.cleanup()
+
+    def close(self):
+        """Stop the server from any thread (the process is ending, or .webc)."""
+        if self.runner is None or self.ioloop is None or self.ioloop.is_closed():
+            return
+        try:
+            asyncio.run_coroutine_threadsafe(self.shutdown(), self.ioloop).result(10)
+        except Exception:  # noqa: BLE001 - the loop is going away
+            pass
 
     def __str__(self):
         return f"web[{self.bind or '0.0.0.0'}:{self.port}]"
@@ -142,7 +173,17 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
     server_loop.call_soon_threadsafe(_start)
     server_task = task_future.result()
 
-    return WebServerHandle(bind, port, runner, server_task)
+    handle = WebServerHandle(bind, port, runner, server_task)
+    system = klong['.system']
+    handle.ioloop = server_loop
+    # a file run stays up while the server listens (klongpy.repl.keeps_alive), and the
+    # server is stopped cleanly when the process ends
+    handle.registry = system.setdefault('web_servers', set())
+    handle.registry.add(handle)
+    handle.shutdown_event = system.get('closeEvent')
+    if handle.shutdown_event is not None:
+        handle.shutdown_event.subscribe(handle.close)
+    return handle
 
 
 def eval_sys_fn_shutdown_web_server(klong, x):

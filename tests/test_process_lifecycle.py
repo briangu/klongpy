@@ -1,7 +1,8 @@
 """What keeps a `kgpy FILE` run up, what ends it, and what a callback may do.
 
-A file run stays up while an IPC server listens or a connection opened with .cli is
-open; it ends when neither is left. A timer fires while the run is up for one of those
+A file run stays up while an IPC server listens, a connection opened with .cli is
+open, a web server (.web) listens or a websocket connection (.ws) is open; it ends when
+none is left. A timer fires while the run is up for one of those
 reasons and does not keep it up by itself. .x in a callback ends the
 process. Every program runs as a subprocess with a timeout, and every process
 the test starts is ended by its handle.
@@ -12,6 +13,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 
@@ -132,6 +134,129 @@ class TestWhatKeepsARunUp(unittest.TestCase):
         status, out = p.end_with(signal.SIGTERM)
         self.assertEqual(status, 143)
         self.assertIn("terminated", out)
+
+
+try:
+    import aiohttp  # noqa: F401
+    HAS_WEB = True
+except ImportError:
+    HAS_WEB = False
+try:
+    import websockets
+    HAS_WS = True
+except ImportError:
+    HAS_WS = False
+
+
+@unittest.skipUnless(HAS_WEB, "requires aiohttp")
+class TestAWebServerKeepsARunUp(unittest.TestCase):
+
+    def program(self, port, tail=""):
+        return (f'.py("klongpy.web")\nindex(r)::{{"hi"}}\nh::.web({port};:{{;"/";index}};:{{}})\n'
+                f'.p("ready")\n{tail}')
+
+    def test_a_web_server_alone_keeps_the_run_up_and_serves(self):
+        port = free_port()
+        p = Proc(self, self.program(port), name="web.kg")
+        self.assertEqual(p.p.stdout.readline(), "ready\n")
+        self.assertTrue(p.stays_up(), "a listening web server must keep the run up")
+        import urllib.request
+        for _ in range(50):
+            try:
+                body = urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5).read()
+                break
+            except OSError:
+                time.sleep(0.1)
+        self.assertEqual(body, b"hi")
+
+    def test_a_server_whose_handle_is_dropped_still_keeps_the_run_up(self):
+        src = f'.py("klongpy.web")\n.web({free_port()};:{{}};:{{}})\n.p("ready")\n'
+        self.assertTrue(Proc(self, src).stays_up())
+
+    def test_stopping_the_web_server_ends_the_run_cleanly(self):
+        tail = 'cb::{.p("stopping");.webc(h);0}\n.timer("t";0.5;cb)\n'
+        status, out = Proc(self, self.program(free_port(), tail), name="web.kg").finish()
+        self.assertEqual((status, out), (0, "ready\nstopping\n"))
+
+    @posix
+    def test_sigterm_and_ctrl_c_end_a_web_run_without_a_warning(self):
+        for sig, code, word in ((signal.SIGTERM, 143, "terminated"), (signal.SIGINT, 130, "interrupted")):
+            with self.subTest(sig=sig):
+                p = Proc(self, self.program(free_port()), name="web.kg")
+                self.assertEqual(p.p.stdout.readline(), "ready\n")
+                status, out = p.end_with(sig)
+                self.assertEqual(status, code)
+                self.assertIn(word, out)
+                self.assertNotIn("WARNING", out)
+                self.assertNotIn("Traceback", out)
+
+    def test_a_timer_does_not_change_this(self):
+        src = f'.py("klongpy.web")\ncb::{{1}}\n.timer("t";0.1;cb)\n.p("end")\n'
+        self.assertEqual(Proc(self, src).finish(), (0, "end\n"))
+
+
+@unittest.skipUnless(HAS_WS, "requires websockets")
+class TestAWebsocketConnectionKeepsARunUp(unittest.TestCase):
+
+    def serve(self, close_after=None):
+        """A websocket server in this process, on its own thread; returns its port."""
+        import asyncio
+        ready = threading.Event()
+        box = {}
+
+        async def handler(ws):
+            if close_after is not None:
+                await asyncio.sleep(close_after)
+                await ws.close()
+                return
+            async for _ in ws:
+                pass
+
+        async def main():
+            box["loop"] = asyncio.get_running_loop()
+            box["stop"] = asyncio.Event()
+            server = await websockets.serve(handler, "127.0.0.1", 0)
+            box["port"] = server.sockets[0].getsockname()[1]
+            ready.set()
+            await box["stop"].wait()
+            server.close()
+            await server.wait_closed()
+
+        t = threading.Thread(target=lambda: asyncio.run(main()), daemon=True)
+        t.start()
+        self.assertTrue(ready.wait(10))
+
+        def stop():
+            box["loop"].call_soon_threadsafe(box["stop"].set)
+            t.join(10)
+        self.addCleanup(stop)
+        return box["port"]
+
+    def program(self, port, tail=""):
+        return f'.py("klongpy.ws")\nw::.ws("ws://127.0.0.1:{port}")\n.p("connected")\n{tail}'
+
+    def test_an_open_connection_keeps_the_run_up_until_it_is_closed(self):
+        p = Proc(self, self.program(self.serve(), 'cb::{.p("closing");.wsc(w);0}\n.timer("t";1.5;cb)\n'), name="ws.kg")
+        self.assertEqual(p.p.stdout.readline(), "connected\n")
+        self.assertEqual(p.p.stdout.readline(), "closing\n")
+        status, out = p.finish()
+        self.assertEqual((status, out), (0, ""))
+
+    def test_the_peer_closing_the_connection_ends_the_run(self):
+        p = Proc(self, self.program(self.serve(close_after=1.0)), name="ws.kg")
+        self.assertEqual(p.p.stdout.readline(), "connected\n")
+        status, out = p.finish()
+        self.assertEqual(status, 0, out)
+        self.assertNotIn("WARNING", out)
+
+    @posix
+    def test_sigterm_ends_a_websocket_run_without_a_warning(self):
+        p = Proc(self, self.program(self.serve()), name="ws.kg")
+        self.assertEqual(p.p.stdout.readline(), "connected\n")
+        self.assertTrue(p.stays_up(), "an open websocket connection must keep the run up")
+        status, out = p.end_with(signal.SIGTERM)
+        self.assertEqual(status, 143)
+        self.assertNotIn("WARNING", out)
 
 
 class TestCallbacksEndARun(unittest.TestCase):

@@ -94,6 +94,26 @@
 > &0
 = []
 
+@ monads.where-empty-list core
+> &[]
+= []
+
+@ monads.where-empty-variable core
+> e::[];&e
+= []
+
+@ monads.where-empty-count core
+> #&[]
+= 0
+
+@ monads.where-empty-index core
+> [1 2 3]@&[]
+= []
+
+@ monads.where-empty-compare-result core
+> &[1 2 3]>5
+= []
+
 @ monads.where-compare core
 > &[1 5 2 7]>3
 = [1 3]

@@ -76,3 +76,11 @@ def serialize_df(df):
 def deserialize_df(data):
     bio = BytesIO(data)
     return pd.read_pickle(bio)
+
+
+def count_entries(root_path):
+    """The number of values stored under a store root: one file per key (a key may hold a path)."""
+    n = 0
+    for _, _, files in os.walk(root_path):
+        n += len(files)
+    return n

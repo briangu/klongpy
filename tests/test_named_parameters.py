@@ -546,22 +546,22 @@ class TestCompiledPath(unittest.TestCase):
 
 
 class TestIPCFunctionText(unittest.TestCase):
-    def test_a_named_parameter_function_goes_as_its_display_form(self):
-        # its text is "{a+b}": the parameter list is outside the braces, and a
-        # receiver parsing that would get a function of no arguments
+    def test_a_named_parameter_function_goes_with_its_parameter_list(self):
+        # the parameter list is outside the braces, so the text sent carries it:
+        # "{a+b}" alone would arrive as a function of no arguments
         from klongpy.ipc.endpoint import function_source_text, lambda_value
         from klongpy.ipc import codec
         k = KlongInterpreter()
         k("f(a;b)::{a+b}")
         k("g::{x+y}")
         f = k._context[KGSym("f")]
-        self.assertIsNone(function_source_text(f))
+        self.assertEqual(function_source_text(f), "fn(a;b)::{a+b}")
         self.assertEqual(function_source_text(k._context[KGSym("g")]), "{x+y}")
         got = codec.decode(codec.encode(f))
-        self.assertEqual(got.text, ":dyad")
+        self.assertEqual(got.text, "fn(a;b)::{a+b}")
         k("h(a;b;c;d;e)::{a}")
         got = codec.decode(codec.encode(k._context[KGSym("h")]))
-        self.assertEqual(got.text, ":fn/5")
+        self.assertEqual(got.text, "fn(a;b;c;d;e)::{a}")
         ref = lambda_value(KlongInterpreter(), got)
         self.assertEqual(ref.arity, 5)
 
@@ -575,12 +575,6 @@ class TestDisplayOfManyParameters(unittest.TestCase):
         self.assertEqual(str(k("f")), ":fn/4")
         self.assertEqual(str(k("g")), ":fn/6")
         self.assertEqual(str(k("h")), ":triad")
-
-    def test_display_is_the_form_ipc_sends(self):
-        from klongpy.ipc import codec
-        k = KlongInterpreter()
-        k("f(a;b;c;d)::{a+b+c+d}")
-        self.assertEqual(codec.decode(codec.encode(k("f"))).text, str(k("f")))
 
 
 if __name__ == "__main__":

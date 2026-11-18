@@ -27,12 +27,12 @@ The REPL needs no extra: `kgpy` starts it, and `kgpy --backend torch` selects th
 
 ## A first session
 
-An expression is read from right to left. `!5` is the list 0 to 4, `+/` sums a list, and `#` is the length:
+An expression is read from right to left. `!5` is the list 0 to 4, `+/` sums a list, `#` is the length, and `avg(v)::{...}` defines a function with the named parameter `v`:
 
 ```kgpy
 ?> +/1+!5
 15
-?> avg::{(+/x)%#x}
+?> avg(v)::{(+/v)%#v}
 :monad
 ?> avg(!1000000)
 499999.5
@@ -45,7 +45,7 @@ import numpy as np
 from klongpy import KlongInterpreter
 
 klong = KlongInterpreter()
-klong('avg::{(+/x)%#x}')
+klong('avg(v)::{(+/v)%#v}')
 print(klong['avg'](np.arange(10.0)))   # 4.5
 ```
 

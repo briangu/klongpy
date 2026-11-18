@@ -52,14 +52,14 @@ Known limit: some operations on mixed-type or ragged nested data raise "PyTorch 
 `function:>point` is the autograd operator, and so is the monad `∇function`, which returns the gradient as a function. The dyad `point∇function` and `.grad(function;point)` use finite differences on every backend. The table that compares all of them is in the [operator reference](operators.md#comparison); this page shows the torch-only use. The values are those of the torch backend on the CPU.
 
 ```klong
-f::{x^2}
+f(t)::{t^2}
 f:>3                           :" 6.0
-g::{+/x^2}
+g(v)::{+/v^2}
 g:>[1.0 2.0 3.0]               :" [2.0 4.0 6.0]
 [1 2]∂f                        :" [[2.0 0.0] [0.0 4.0]]
 ```
 
-A function that reads a global instead of `x` is differentiated with respect to that global by naming it in a list:
+A function that reads globals instead of taking an argument is differentiated with respect to them by naming them in a list. The function has no parameters, so what it reads is the value of each name at the time of the call (see [Dynamic scoping](tutorial.md#dynamic-scoping)):
 
 ```klong
 w::2.0
@@ -201,7 +201,7 @@ These functions exist only on the torch backend. They compile a Klong function w
 | `.gradcheck(fn;input)` | Returns 1 when the autograd gradient of `fn` at `input` matches the numeric one. CPU only. |
 
 ```klong
-f::{x^2}
+f(t)::{t^2}
 cf::.compile(f;3.0)
 cf(5.0)                                      :" tensor(25., grad_fn=<CompiledFunctionBackward>)
 ce::.compilex(f;3.0;:{["backend" "eager"]})  :" no compilation

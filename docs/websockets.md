@@ -9,8 +9,8 @@ Define the message handler before connecting:
 ```klong
 .py("klongpy.ws")
 
-:" Message handler: x is the client, y the decoded message"
-.ws.m::{.d("recv: "); .p(y)}
+:" Message handler: c is the client, msg the decoded message"
+.ws.m(c;msg)::{.pf("recv: {}";,msg)}
 
 :" Connect to a WebSocket URI"
 ws::.ws("ws://localhost:8765")
@@ -26,9 +26,9 @@ ws(["ping" 1])
 
 ## The message handler
 
-`.ws.m` is a dyadic function that every incoming message calls: `x` is the client and `y` is the decoded message. Its return value is ignored; nothing is sent back. If `.ws.m` is not defined, each message is dropped and the warning `symbol not found: :.ws.m` is logged.
+`.ws.m` is a dyadic function that every incoming message calls: the first argument is the client and the second is the decoded message. Define it with named parameters, `.ws.m(c;msg)::{...}`; the classic `.ws.m::{...}` reads them as `x` and `y`. Its return value is ignored; nothing is sent back. If `.ws.m` is not defined, each message is dropped and the warning `symbol not found: :.ws.m` is logged.
 
-Do not write the parameters as `{[c msg]; ...}`. A leading `[c msg]` declares local variables, not parameters, so the function takes no arguments and the call fails with `Klong function called with 2 but expected 0`.
+Do not write the parameters as `{[c msg]; ...}`. A leading `[c msg]` declares local variables, not parameters, so the function takes no arguments and the call fails with `Klong function called with 2 but expected 0`. In `{[c msg]::x; ...}` the list is a destructuring of one argument, which is not what `.ws` passes.
 
 ## Messages
 

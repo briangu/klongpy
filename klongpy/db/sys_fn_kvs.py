@@ -41,7 +41,8 @@ class TableStorage(dict):
         self.cache.update(key_to_file_path(x), y.get_dataframe())
 
     def __len__(self):
-        raise NotImplementedError("len not implemented")
+        # the number of entries: one file per stored key
+        return count_entries(self.cache.root_path)
     
     def __str__(self):
         return f"{self.cache.root_path}:tables"
@@ -75,7 +76,8 @@ class KeyValueStorage(dict):
         self.cache.update_file(key_to_file_path(x), serialize_obj(y), use_fsync=True)
     
     def __len__(self):
-        raise NotImplementedError("len not implemented")
+        # the number of entries: one file per stored key
+        return count_entries(self.cache.root_path)
     
     def __str__(self):
         return f"{self.cache.root_path}:kvs"

@@ -63,7 +63,7 @@ The same rule makes a slice from the end `(-2)#y` or `(0-2)#y`, not `-2#y`.
 
 ### Calls and indexing
 
-Square brackets build lists in Klong. They never index or call. A call is `f(x;y)`, indexing is `a@i`, and applying a function with `@` works too: `f@x`. A one-argument call needs no space and a space before the parenthesis is a [lint](lint.md) warning (W014).
+Square brackets build lists in Klong. They never index or call. A call is `f(a;b)`, indexing is `a@i`, and applying a function with `@` works too: `f@x`. A one-argument call needs no space and a space before the parenthesis is a [lint](lint.md) warning (W014).
 
 ```q
 q){x+y}[1;2]
@@ -74,7 +74,7 @@ q)3 1 2@1
 
 <!-- check-docs: strict 2 -->
 ```kgpy
-?> f::{x+y}
+?> f(a;b)::{a+b}
 :dyad
 ?> f(1;2)
 3
@@ -92,19 +92,19 @@ Assignment is `::` everywhere. In q, `::` inside a function assigns a global; in
 ```kgpy
 ?> total::0
 0
-?> bump::{total::total+x}
+?> bump(n)::{total::total+n}
 :monad
 ?> bump(5)
 5
 ?> total
 5
-?> scaled::{[t];t::x*2;t+1}
+?> scaled(n)::{[t];t::n*2;t+1}
 :monad
 ?> scaled(5)
 11
 ```
 
-For more than three parameters, and for names instead of `x y z`, Klong has [named parameters](language-additions.md#named-parameters): `f(a;b;c;d)::{...}`. [Destructuring](language-additions.md#destructuring) takes the place of q's `a:x 0;b:x 1`.
+Klong has [named parameters](language-additions.md#named-parameters), `f(a;b;c;d)::{...}`, with no limit on their number. The q names `x y z` also work in a bare `{...}`: `{x+y}` is a dyad, and it is the short form to give an adverb. [Destructuring](language-additions.md#destructuring) takes the place of q's `a:x 0;b:x 1`.
 
 ### No booleans
 
@@ -123,7 +123,7 @@ q)$[1<2;"yes";"no"]
 1
 ?> :[1<2;"yes";"no"]
 "yes"
-?> sign::{:[x<0;"neg":|x=0;"zero";"pos"]}
+?> sign(n)::{:[n<0;"neg":|n=0;"zero";"pos"]}
 :monad
 ?> sign'[-5 0 7]
 ["neg" "zero" "pos"]
@@ -418,7 +418,7 @@ The same expressions in KlongPy:
 | `-1+2` | `-1+2` | `1` |
 | `(-1)+2` | `(-1)+2` | `1` |
 | `$[1<2;"yes";"no"]` | `:[1<2;"yes";"no"]` | `"yes"` |
-| `f:{x+y};f[1;2]` | `f::{x+y};f(1;2)` | `3` |
+| `f:{x+y};f[1;2]` | `f(a;b)::{a+b};f(1;2)` | `3` |
 | `x@1` | `x@1` | `1` |
 
 The same expressions in KlongPy:
@@ -441,7 +441,7 @@ The same expressions in KlongPy:
 1
 ?> :[1<2;"yes";"no"]
 "yes"
-?> f::{x+y};f(1;2)
+?> f(a;b)::{a+b};f(1;2)
 3
 ?> x@1
 1
@@ -512,7 +512,7 @@ sym px
 ["sym" "px"]
 ?> t?"px"
 [1 2 3 4 5]
-?> db::.db(:{},"t",,t)
+?> db::.db(:{;"t";t})
 :db
 ?> db("select sym, sum(px) as s from t group by sym order by sym")
 [["a" 9.0] ["b" 6.0]]

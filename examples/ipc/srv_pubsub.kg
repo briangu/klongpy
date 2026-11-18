@@ -1,19 +1,19 @@
 :"broadcast fake stock data to all subscribed clients"
 
-:" Map of clients handles to their subscribed tickers "
+:" Map of client handles to their subscribed tickers "
 clients:::{}
 
 :" Called by clients to subscribe to ticker updates "
-subscribe::{.d("subscribing client: ");.p(x);clients,.cli.h,,(clients?.cli.h),,x;.p(clients)}
+subscribe(tickers)::{.pf("subscribing client {}: {}";[;.cli.h;tickers]);clients,.cli.h,,(clients@.cli.h),tickers;.p(clients)}
 
-:" Periodically called to broadcast updates to all subscribed clients "
-send::{.d("sending to client");.p(x);x(:update,,{x,.rn()*50}'y)}
-broadcast::{.p("sending messages to clients");{send(x@0;x@1)}'clients}
+:" Periodically called to send each subscribed client a random price per ticker "
+send(c;tickers)::{.pf("sending to client {}";c);c(:update,,{[;x;.rn()*50]}'tickers)}
+broadcast()::{.p("sending messages to clients");{[c tickers]::x;send(c;tickers)}'clients}
 cb::{:[(#clients)>0;broadcast();.p("no clients to broadcast to")];1}
 th::.timer("ticker";1;cb)
 
 :" Setup the IPC server and callbacks "
 .srv(8888)
-.srv.o::{.d("client connected: ");.p(x);clients,x,,[]}
-.srv.c::{.d("client disconnected: ");.p(x);x_clients;.d("clients left: ");.p(#clients)}
-.srv.e::{.d("error: ");.p(x);.p(y)}
+.srv.o::{.pf("client connected: {}";x);clients,x,,[]}
+.srv.c::{.pf("client disconnected: {}";x);x_clients;.pf("clients left: {}";#clients)}
+.srv.e::{.pf("error: {} {}";[;x;y])}

@@ -39,25 +39,22 @@ bias1::0.0
 sigmoid::{1%(1+exp(0-x))}
 
 :" Single neuron forward pass"
-neuron(inp)::{[a b]::inp;sigmoid(((w1*a)+(w2*b))+bias1)}
+neuron(inp;p1;p2;pb)::{[a b]::inp;sigmoid(((p1*a)+(p2*b))+pb)}
 
 :" Loss: MSE over all examples"
-andLoss::{[preds];preds::neuron'xAnd;(+/(preds-yAnd)^2)%4}
+andLoss(p1;p2;pb)::{[preds];preds::neuron(;p1;p2;pb)'xAnd;(+/(preds-yAnd)^2)%4}
 
 :" Train single neuron"
 lrAnd::1.0
 
 .pf("Initial weights: w1={}, w2={}, bias={}";[;w1;w2;bias1])
-.pf("Initial loss: {}";andLoss())
+.pf("Initial loss: {}";andLoss(w1;w2;bias1))
 .p("")
 
-:" The loss as a function of each parameter in turn: the parameter name shadows the global"
-lossW1(w1)::{andLoss()}
-lossW2(w2)::{andLoss()}
-lossBias1(bias1)::{andLoss()}
+printAnd(n)::{.d("Step ");.d(n);.pf(": loss={}";andLoss(w1;w2;bias1))}
 
-printAnd(n)::{.d("Step ");.d(n);.pf(": loss={}";andLoss())}
-trainAnd(n)::{[g1 g2 gb];g1::lossW1:>w1;g2::lossW2:>w2;gb::lossBias1:>bias1;w1::w1-(lrAnd*g1);w2::w2-(lrAnd*g2);bias1::bias1-(lrAnd*gb);:[0=(n!20);printAnd(n);0]}
+:" The gradient with respect to one weight: a function of that weight alone, the others fixed"
+trainAnd(n)::{[g1 g2 gb];g1::andLoss(;w2;bias1):>w1;g2::andLoss(w1;;bias1):>w2;gb::andLoss(w1;w2;):>bias1;w1::w1-(lrAnd*g1);w2::w2-(lrAnd*g2);bias1::bias1-(lrAnd*gb);:[0=(n!20);printAnd(n);0]}
 
 trainAnd'1+!100
 
@@ -65,7 +62,7 @@ trainAnd'1+!100
 .p("Trained AND gate:")
 .pf("Weights: w1={}, w2={}, bias={}";[;w1;w2;bias1])
 .p("Predictions:")
-showPredAnd(row)::{[inp];inp::xAnd@row;.d("  ");.d(inp);.d(" -> ");.d(neuron(inp));.pf(" expected: {}";yAnd@row)}
+showPredAnd(row)::{[inp];inp::xAnd@row;.d("  ");.d(inp);.d(" -> ");.d(neuron(inp;w1;w2;bias1));.pf(" expected: {}";yAnd@row)}
 showPredAnd'!4
 .p("")
 
@@ -102,36 +99,29 @@ o4::0.25
 bo::0.0
 
 :" Forward pass for single input"
-forward::{[a1 a2 a3 a4];a1::tanh((h1*x)+bh1);a2::tanh((h2*x)+bh2);a3::tanh((h3*x)+bh3);a4::tanh((h4*x)+bh4);((o1*a1)+(o2*a2)+(o3*a3)+(o4*a4))+bo}
+forward(v;p1;p2;p3;p4;pb)::{[a1 a2 a3 a4];a1::tanh((h1*v)+bh1);a2::tanh((h2*v)+bh2);a3::tanh((h3*v)+bh3);a4::tanh((h4*v)+bh4);((p1*a1)+(p2*a2)+(p3*a3)+(p4*a4))+pb}
 
 :" MSE loss over training data"
-nnLoss::{[preds];preds::forward'xTrain;(+/(preds-yTrain)^2)%npoints}
+nnLoss(p1;p2;p3;p4;pb)::{[preds];preds::forward(;p1;p2;p3;p4;pb)'xTrain;(+/(preds-yTrain)^2)%npoints}
 
-.pf("Initial loss: {}";nnLoss())
+.pf("Initial loss: {}";nnLoss(o1;o2;o3;o4;bo))
 .p("")
-
-:" Loss functions for each output weight: the parameter name shadows the global"
-lossO1(o1)::{nnLoss()}
-lossO2(o2)::{nnLoss()}
-lossO3(o3)::{nnLoss()}
-lossO4(o4)::{nnLoss()}
-lossBo(bo)::{nnLoss()}
 
 lrNN::0.1
 
-printNN(n)::{.d("Step ");.d(n);.pf(": loss={}";nnLoss())}
-trainNN(n)::{[g1 g2 g3 g4 gb];g1::lossO1:>o1;g2::lossO2:>o2;g3::lossO3:>o3;g4::lossO4:>o4;gb::lossBo:>bo;o1::o1-(lrNN*g1);o2::o2-(lrNN*g2);o3::o3-(lrNN*g3);o4::o4-(lrNN*g4);bo::bo-(lrNN*gb);:[0=(n!100);printNN(n);0]}
+printNN(n)::{.d("Step ");.d(n);.pf(": loss={}";nnLoss(o1;o2;o3;o4;bo))}
+trainNN(n)::{[g1 g2 g3 g4 gb];g1::nnLoss(;o2;o3;o4;bo):>o1;g2::nnLoss(o1;;o3;o4;bo):>o2;g3::nnLoss(o1;o2;;o4;bo):>o3;g4::nnLoss(o1;o2;o3;;bo):>o4;gb::nnLoss(o1;o2;o3;o4;):>bo;o1::o1-(lrNN*g1);o2::o2-(lrNN*g2);o3::o3-(lrNN*g3);o4::o4-(lrNN*g4);bo::bo-(lrNN*gb);:[0=(n!100);printNN(n);0]}
 
 .p("Training output layer weights...")
 trainNN'1+!500
 
 .p("")
-.pf("Final loss: {}";nnLoss())
+.pf("Final loss: {}";nnLoss(o1;o2;o3;o4;bo))
 .p("")
 
 :" Show some predictions"
 .p("Sample predictions vs actual sin(x):")
-showPredNN(i)::{[xv];xv::xTrain@i;.pf("  x={}: pred={}, actual={}";[;xv;forward(xv);yTrain@i])}
+showPredNN(i)::{[xv];xv::xTrain@i;.pf("  x={}: pred={}, actual={}";[;xv;forward(xv;o1;o2;o3;o4;bo);yTrain@i])}
 showPredNN'[0 5 10 15 19]
 .p("")
 

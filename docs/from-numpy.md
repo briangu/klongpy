@@ -6,7 +6,7 @@ KlongPy runs on NumPy arrays, so most of what you know about array shapes and dt
 
 There are no loops and no operator precedence. An expression is read from right to left, and each operator takes everything to its right as its right operand. A leading `-` is an operator too, which is the source of the most common mistake (see [Gotchas](#gotchas)).
 
-Adverbs take the place of loops: `'` applies a function to each element, `/` reduces, `\` scans. A function is `{...}` and its arguments are `x`, `y` and `z`. The examples below run at strict level 2 (see [Strict mode](strict.md)), the strictest setting.
+Adverbs take the place of loops: `'` applies a function to each element, `/` reduces, `\` scans. A function with named parameters is `f(a;b)::{...}`; a bare `{...}` is the short form for adverbs, and its arguments are `x`, `y` and `z`. The examples below run at strict level 2 (see [Strict mode](strict.md)), the strictest setting.
 
 <!-- check-docs: strict 2 -->
 ```kgpy
@@ -18,7 +18,7 @@ Adverbs take the place of loops: `'` applies a function to each element, `/` red
 [3 1 4 1 5]
 ?> +/a
 14
-?> avg::{(+/x)%#x}
+?> avg(v)::{(+/v)%#v}
 :monad
 ?> avg(a)
 2.8
@@ -38,9 +38,9 @@ The transcript after the table runs the rows in the same order. `a` and `b` are 
 |---|---|---|
 | `np.arange(n)` | `!n` | |
 | `len(a)` | `#a` | |
-| `a.sum()` | `+/a` | |
+| `a.sum()` | `+/a` | `0+/a` when `a` may be empty, see [Gotchas](#gotchas) |
 | `np.cumsum(a)` | `+\a` | |
-| `np.prod(a)` | `*/a` | |
+| `np.prod(a)` | `*/a` | `1*/a` when `a` may be empty |
 | `a.max()`, `a.min()` | `\|/a`, `&/a` | |
 | `a.mean()` | `(+/a)%#a` | `%` is float division |
 | `a[i]` | `a@i` | negative `i` counts from the end |
@@ -265,7 +265,7 @@ x.grad                        # tensor(6.)
 On the torch backend `f:>x` uses autograd. On the NumPy backend it falls back to finite differences, so the results below are close to the exact ones, not equal to them. `.grad(f;x)` is the ASCII spelling of `x∇f`, which is always numeric; note that the function comes first, as in `.jacobian(f;x)`, and the point first in `x∇f`. The comparison table is in [Operators](operators.md#comparison).
 
 ```kgpy
-?> f::{x^2}
+?> f(t)::{t^2}
 :monad
 ?> f:>3
 6.000000000838668
@@ -313,6 +313,19 @@ For the torch backend, see [PyTorch Backend and Autograd](torch_backend.md).
 ```
 
 A negative number inside a list literal is a number: `[-1 2]` is `[-1 2]`.
+
+**The sum of an empty list is `[]`.** `+/[]` is the empty list, not 0, because Over of an empty list returns it unchanged. Give the fold a starting value: `0+/a` is the sum and `1*/a` the product, and they are 0 and 1 for an empty list. `@[]` is 1 and `~[]` is 1, so test for an empty list with `0=#a` (see [the tutorial](tutorial.md#the-empty-list)):
+
+```kgpy
+?> +/[]
+[]
+?> 0+/[]
+0
+?> 1*/[]
+1
+?> 0=#[]
+1
+```
 
 **Names do not contain underscores.** `my_var` is `my _ var`, with `_` the Drop operator. Use `myVar` or `my.var`. `kgpy lint` reports this, see [Lint](lint.md).
 

@@ -164,8 +164,6 @@ These are not repeated here. Each is a change from classic Klong that is documen
 These are cases where KlongPy's answer is wrong and the right answer is known. Each is a case in `conformance/pending/known-differences.cases`, under the name given, with the expected result; `python conformance/run.py --pending` runs them and reports any that has started to pass. They are not differences to rely on.
 
 ```kgpy
-?> &[]
-error: cannot apply & (Expand/Where) to empty list
 ?> [:a :b]?:b
 []
 ?> [:a :b]=:b
@@ -180,7 +178,6 @@ error: cannot apply & (Expand/Where) to empty list
 error: cannot apply % (Reciprocal) to string
 ```
 
-- `pending.where-of-empty-list`: `&[]` should be `[]`, as every other monad on the empty list gives, and is a type error.
 - `pending.find-symbol-in-list`: `[:a :b]?:b` should be `[1]`; it is `[]`, although `[:a :b]=:b` finds the symbol.
 - `pending.first-of-string-is-a-char`, `pending.first-of-reversed-string-is-a-char`, `pending.scan-join-over-string-first-item-is-a-char`: the first element of a string should be a character (`0ca`, as `"abc"@0` gives), not a one-character string. `*"abc"`, `*|"hello"` and the first item of `,\"abc"` are strings. The reference suite passes only because `~` treats a character and a one-character string as equal.
 - `pending.index-by-float`: `[1 2 3]@1.0` should be a type error (an index must be an integer). It returns the whole list.

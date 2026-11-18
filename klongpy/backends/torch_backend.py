@@ -965,6 +965,8 @@ class TorchBackendProvider(BackendProvider):
         """Floor a value and convert to integer."""
         if not isinstance(a, torch.Tensor):
             a = self.kg_asarray(a)
+            if not isinstance(a, torch.Tensor):
+                raise TypeError("cannot floor a value that is not a number")    # a dictionary, a table: a type error
         return torch.floor(a.float()).to(int)
 
     @staticmethod

@@ -1617,23 +1617,24 @@ The keys are table names and values are the tables.
 `.table(x)` [Table-Create]
 
 ```text
-Create a table from a sequence of tuples, each of which
-describes a column and its values.  Column order is
-determined by the order in the tuple sequence.
+Create a table from a dictionary of column name to column values,
+or from a sequence of tuples, each of which describes a column and
+its values.  Column order is the dictionary's insertion order, or
+the order in the tuple sequence.  Column names must be strings
+and every column must have the same number of values.
 
 The table can be used like a dictionary, and key/value updates are
 column operations.
 
 Examples:
 
-    a::[1 2 3]
-    b::[2 3 4]
-    c::[3 4 5]
+    t::.table(:{;"a";[1 2 3];"b";[2 3 4]})
+    t,"c",,[3 4 5]
+
     d::[]
-    d::d,,"a",,a
-    d::d,,"b",,b
+    d::d,,"a",,[1 2 3]
+    d::d,,"b",,[2 3 4]
     t::.table(d)
-    t,"c",,c
 ```
 
 ### `.insert`

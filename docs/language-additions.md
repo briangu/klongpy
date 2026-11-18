@@ -151,7 +151,7 @@ Any number of parameters is allowed. Classic functions stop at three (`x y z`):
 21
 ```
 
-A function of four or more parameters displays as `:fn/N`, N being the number of parameters (`:fn/4`, `:fn/6`), which is also the form that goes over [IPC](ipc_capabilities.md); `:nilad`, `:monad`, `:dyad` and `:triad` stay for zero to three. A function with no parameters is written `h()::{...}`:
+A function of four or more parameters displays as `:fn/N`, N being the number of parameters (`:fn/4`, `:fn/6`), which is how it is shown (over [IPC](ipc_capabilities.md) a function travels as its source text, named parameters included); `:nilad`, `:monad`, `:dyad` and `:triad` stay for zero to three. A function with no parameters is written `h()::{...}`:
 
 <!-- check-docs: strict 2 -->
 ```kgpy
@@ -166,6 +166,8 @@ With four inputs and classic Klong, pass a list and take it apart with a head [d
 ### Rules
 
 The parameter names are local to the function. They shadow a global of the same name and leave it alone, and they need no locals list at strict level 1 or 2. The body may still start with a locals list, or with a head destructuring.
+
+Parameters and locals are dynamically scoped: a function that is called from the body sees them, before the globals. The tutorial shows it in [Dynamic scoping](tutorial.md#dynamic-scoping), and why to pass arguments instead.
 
 <!-- check-docs: strict 2 -->
 ```kgpy

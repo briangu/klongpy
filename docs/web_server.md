@@ -24,17 +24,17 @@ A server that stores values posted to `/p` and returns them from `/`:
 
 :" The data, returned by a GET of /"
 data::[]
-index::{x;data}
-get:::{}
-get,"/",index
+index(query)::{data}
+get:::{;"/";index}
 
 :" Append the form field p of a POST to /p, and return the new length"
-update::{[p];p::x?"p";data::data,p;#data}
-post:::{}
-post,"/p",update
+update(form)::{[p];p::form@"p";data::data,p;#data}
+post:::{;"/p";update}
 
 .web("127.0.0.1:8888";get;post)
 ```
+
+Save it as `web.kg` and run `kgpy web.kg`. The run stays up while the server listens, until Ctrl-C (or SIGTERM) or `.webc` on the handle.
 
 The requests and responses of a run (the headers other than `Content-Type` are left out):
 
@@ -62,9 +62,9 @@ The same server from the REPL, with a handler that returns a string and a list:
 1
 ?> data::!10
 [0 1 2 3 4 5 6 7 8 9]
-?> index::{x; "Hello, Klong World! ", data}
+?> index(query)::{"Hello, Klong World! ", data}
 :monad
-?> get:::{}; get,"/",index
+?> get:::{;"/";index}
 :{["/" :monad]}
 ?> post:::{}
 :{}

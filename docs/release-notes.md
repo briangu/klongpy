@@ -522,6 +522,8 @@ These were crashes, hangs or wrong results in 0.7 on features that existed then.
 
 #### Operators and the parser
 
+**`&[]` is `[]` on the NumPy backend.** Where of an empty list was a type error, although the manual says it returns nil and the torch backend and the native runtime did. `d_k` on a dictionary, the wrong order for removing a key, now says in a hint that the key goes on the left, `k_d`.
+
 **An adverb that does not touch its verb is a syntax error when the text is parsed.** It used to fail with a `KeyError` when it was evaluated, so a function that contained one only failed when called.
 
 ```kgpy

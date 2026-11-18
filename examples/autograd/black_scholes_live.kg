@@ -51,6 +51,7 @@ midPrice::(mktBid+mktAsk)%2
 .pf("  Market Mid:   ${}";midPrice)
 .pf("  Market Bid:   ${}";mktBid)
 .pf("  Market Ask:   ${}";mktAsk)
+.pf("  Last Trade:   ${}";mktPrice)
 .p("")
 
 priceDiff::modelPrice-midPrice

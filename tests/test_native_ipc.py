@@ -240,11 +240,17 @@ class TestKlongPyClientNativeServer(Case):
             self.kg(self.klong, "d::.clid(c);d,:got,,v")
             self.assertEqual(self.server.value(f"got~{lit}"), "1", name)
 
-    def test_a_function_of_four_parameters_round_trips(self):
-        # it travels as its display form, ":fn/4", and the server keeps it as a function
+    def test_a_function_with_named_parameters_round_trips(self):
+        # KlongPy sends it as the text "fn(a;b;c;d)::{...}"; the native runtime does not parse that form
+        # (its parse_function takes only a plain literal), so it keeps it as an opaque kdb lambda; it can
+        # send it back and KlongPy rebuilds the function with its parameters
         self.kg(self.klong, "f4(a;b;c;d)::{a+b+c+d};d::.clid(c);d,:ff,,f4")
         self.assertEqual(self.server.value("ff"), ":kdb-lambda")
-        self.assertNotIsInstance(self.kg(self.klong, "d?:ff"), Exception)
+        back = self.kg(self.klong, "d?:ff")
+        self.assertNotIsInstance(back, Exception)
+        # a classic function and one that KlongPy sends as text are real functions on the native side
+        self.kg(self.klong, "d,:cf,,{x+1}")
+        self.assertEqual(self.server.value("cf(1)"), "2")
 
     def test_special_floats_and_undefined(self):
         self.assertTrue(math.isnan(self.req(S("idf"), float("nan"))))

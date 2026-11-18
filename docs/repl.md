@@ -84,9 +84,11 @@ A failed entry prints the position, the source line and a caret on stderr, and t
 A file run (`kgpy file.kg`) stops at the first error, prints it with the file name, line and column (`file.kg:3:6: ...`) and exits with status 1. When the last line has run the process exits, unless one of these holds:
 
 - an IPC server is listening (`.srv`);
-- a connection opened with `.cli` or `.clid` is open.
+- a connection opened with `.cli` or `.clid` is open;
+- a web server is listening (`.web`);
+- a WebSocket connection opened with `.ws` is open.
 
-The publish and subscribe scripts in [IPC Capabilities](ipc_capabilities.md) rely on this. The run ends when neither is left: the server stopped with `.srv(0)`, the connection closed with `.clic` or by the peer. A callback may do either, and `.x` in a callback (a timer, a request or a hook) exits the process with the status `.x` gives. A [timer](timer.md) does not keep a file run up: it fires while the run is up for one of the two reasons above, and a file whose only live thing is a timer ends after its last line. What the file printed is flushed before it waits and before the exit.
+The publish and subscribe scripts in [IPC Capabilities](ipc_capabilities.md) rely on this. The run ends when none is left: the server stopped with `.srv(0)` or `.webc`, the connection closed with `.clic`, `.wsc` or by the peer. A callback may do either, and `.x` in a callback (a timer, a request or a hook) exits the process with the status `.x` gives. A [timer](timer.md) does not keep a file run up: it fires while the run is up for one of the reasons above, and a file whose only live thing is a timer ends after its last line. What the file printed is flushed before it waits and before the exit.
 
 Ctrl-C ends a waiting run with `interrupted` on stderr and status 130. SIGTERM ends it with `terminated` and status 143. Both close the server and the connections first. Input piped into the REPL exits with status 1 if any entry failed.
 

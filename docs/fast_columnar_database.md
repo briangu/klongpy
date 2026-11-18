@@ -14,19 +14,19 @@ pip install "klongpy[db]"
 ```
 ?> .py("klongpy.db")
 1
-?> t::.table([["a" [1 2 3]] ["b" [2 3 4]]])
+?> t::.table(:{;"a";[1 2 3];"b";[2 3 4]})
 a b
 1 2
 2 3
 3 4
-?> t,"c",,[3 4 5]
+?> t,:{;"c";[3 4 5]}
 a b c
 1 2 3
 2 3 4
 3 4 5
 ```
 
-A table can also be made from a pandas DataFrame (see [below](#pandas-dataframe-integration)).
+`.table` takes a dictionary of column name to column values: the columns are in the dictionary's order, the names must be strings and the columns must have the same length. It also takes a list of `[name values]` pairs, as `.table([["a" [1 2 3]] ["b" [2 3 4]]])`, and a pandas DataFrame (see [below](#pandas-dataframe-integration)).
 
 Indexes (one or more columns) can be created on a table. `.index` returns the indexed columns.
 
@@ -54,7 +54,7 @@ The two ways of writing into an indexed table treat a duplicate index value diff
 | Write | Row whose index value already exists |
 |---|---|
 | `.insert(t;row)` | The new row replaces the existing row (an update). |
-| `tbs,"name",,t` on a [table store](table_and_key_value_stores.md) | The stored row is kept and the new row is dropped. |
+| `tbs,:{;"name";t}` on a [table store](table_and_key_value_stores.md) | The stored row is kept and the new row is dropped. |
 
 A table with no index appends every row. An example of `.insert` on an indexed table:
 
@@ -85,12 +85,12 @@ a* b c
 ```
 ?> .py("klongpy.db")
 1
-?> T::.table(,"a",,[1 2 3])
+?> T::.table([["a" [1 2 3]]])
 a
 1
 2
 3
-?> db::.db(:{},"T",,T)
+?> db::.db(:{;"T";T})
 :db
 ?> db("select * from T")
 [1 2 3]
@@ -102,32 +102,17 @@ Any DuckDB SQL works, for example a join:
 ```
 ?> .py("klongpy.db")
 1
-?> d::[]
-[]
-?> d::d,,"a",,[1 2 3]
-[["a" [1 2 3]]]
-?> d::d,,"b",,[2 3 4]
-[["a" [1 2 3]] ["b" [2 3 4]]]
-?> T::.table(d)
+?> T::.table([["a" [1 2 3]] ["b" [2 3 4]]])
 a b
 1 2
 2 3
 3 4
-?> e::,"c",,[3 4 5]
-[["c" [3 4 5]]]
-?> G::.table(e)
+?> G::.table([["c" [3 4 5]]])
 c
 3
 4
 5
-?> q:::{}
-:{}
-?> q,"T",,T
-:{["T" a b
-1 2
-2 3
-3 4]}
-?> q,"G",,G
+?> q:::{;"T";T;"G";G}
 :{["T" a b
 1 2
 2 3
@@ -164,7 +149,7 @@ klong['df'] = df
 r = klong("""
 .py("klongpy.db")
 t::.table(df)
-db::.db(:{},"people",t)
+db::.db(:{;"people";t})
 db("select Age from people")
 """)
 ```

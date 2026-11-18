@@ -2,7 +2,7 @@
 
 `.timer` calls a Klong function at a fixed interval, for polling, heartbeats and periodic broadcasts. A timer fires on the interpreter's event loop, so it runs only while the process is alive.
 
-Timers fire while the REPL is open and while a file run is up. Type the examples at the `kgpy` prompt, or load a file and stay in the REPL with `kgpy -l file.kg`. A file run as `kgpy file.kg` ends after its last line unless an IPC server (`.srv`) is listening or a `.cli` connection is open (see [The kgpy command](repl.md#options)); a timer alone does not keep it up, and a timer that has not fired by then never does, as with `kgpy -e EXPR`. To keep a timer-only program running, load it with `kgpy -l file.kg` or hold a server in it.
+Timers fire while the REPL is open and while a file run is up. Type the examples at the `kgpy` prompt, or load a file and stay in the REPL with `kgpy -l file.kg`. A file run as `kgpy file.kg` ends after its last line unless an IPC server (`.srv`) or web server (`.web`) is listening or a `.cli` or `.ws` connection is open (see [The kgpy command](repl.md#options)); a timer alone does not keep it up, and a timer that has not fired by then never does, as with `kgpy -e EXPR`. To keep a timer-only program running, load it with `kgpy -l file.kg` or hold a server in it.
 
 ## Creating and stopping a timer
 

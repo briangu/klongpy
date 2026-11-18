@@ -82,6 +82,9 @@ def eval_monad_expand_where(a, backend):
     """
     arr = a if is_list(a) else [a]
     np_backend = backend.np
+    if is_list(a) and len(a) == 0:
+        # an empty list of any dtype (np.repeat rejects a float or object count array)
+        return np_backend.arange(0)
     return np_backend.repeat(np_backend.arange(len(arr)), arr)
 
 

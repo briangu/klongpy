@@ -15,7 +15,7 @@ A 'head.kg' client can be run to query the server and see the latest data.
 .py("klongpy.db")
 
 :" function timing utility "
-time0(f)::{[t0];t0::.pc();f@[];.pc()-t0}
+time0(f)::{[t0];t0::.pc();f();.pc()-t0}
 
 :" open the tables key-value store "
 tbs::.tables("/tmp/tables/stats")
@@ -41,7 +41,7 @@ writeStats::{[n];n::.pc();.pf("writes/sec: {}";(batchSize-lastSize)%(n-lastTime)
 :" Periodically flush the table to disk "
 flushTable::{tbs,"stats",statsT}
 store::{:[batchSize;flushTable();0];batchSize::0;lastSize::0;lastTime::.pc();1}
-timeStore::{[r];r::time0(store());.pf("store ms: {}";r)}
+timeStore::{[r];r::time0(store);.pf("store ms: {}";1000*r)}
 flush::{tableSize();timeStore();1}
 .timer("flush";300;flush)
 

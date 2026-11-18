@@ -450,3 +450,19 @@
 > :{[1 2]}:=9,1
 ! type
 
+
+@ dicts.dict-drop-key dicts strings
+> d:::{["a" 1] ["b" 2]};"a"_d
+= :{["b" 2]}
+
+@ dicts.dict-drop-key-in-place dicts strings
+> d:::{["a" 1] ["b" 2]};"a"_d;d
+= :{["b" 2]}
+
+@ dicts.dict-drop-absent-key dicts strings
+> d:::{["a" 1]};"z"_d
+= :{["a" 1]}
+
+@ dicts.dict-drop-wrong-order dicts strings
+> d:::{["a" 1] ["b" 2]};d_"a"
+! type

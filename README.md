@@ -44,12 +44,12 @@ The REPL needs no extra: `kgpy` starts it. `kgpy --backend torch` selects the to
 
 ## A first program
 
-An expression is read from right to left. `!5` is the list 0 to 4, and `+/` sums a list. Type `kgpy` and then:
+An expression is read from right to left. `!5` is the list 0 to 4, and `+/` sums a list. `avg(v)::{...}` defines a function with a named parameter. Type `kgpy` and then:
 
 ```kgpy
 ?> +/1+!5
 15
-?> avg::{(+/x)%#x}
+?> avg(v)::{(+/v)%#v}
 :monad
 ?> avg(1+!5)
 3.0

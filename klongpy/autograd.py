@@ -76,13 +76,17 @@ def _invoke_fn(klong, fn, args):
 
     Handles all function types uniformly:
     - KGSym, KGLambda: applied to args
-    - KGFn, KGCall: extract inner function, apply it to args
+    - KGFn, KGCall: extract inner function, apply it to args; a projection is
+      applied as it is, so the arguments it already holds are kept
     - callable: call directly with args
 
     args are values and are not evaluated again.
     """
     if callable(fn) and not isinstance(fn, (KGSym, KGLambda, KGFn)):
         return fn(*args)
+    if isinstance(fn, KGFn) and type(fn.args) is list and any(q is None for q in fn.args):
+        # a projection, f(;3): its bound arguments belong to the call, so apply the projection itself
+        return klong.apply(fn, list(args))
     inner = fn.a if isinstance(fn, KGFn) else fn
     return klong.apply(inner, list(args))
 

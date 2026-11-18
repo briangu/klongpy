@@ -291,7 +291,7 @@ def eval_dyad_at_index(klong, a, b):
     if isinstance(a, (KGFn, KGSym)) or issubclass(type(a), KGLambda):
         # b holds values: a list supplies one argument per member, an atom is
         # the single argument. apply() binds them without evaluating them again.
-        b = [x for x in b] if klong._backend.is_array(b) else b
+        b = [x for x in b] if klong._backend.is_array(b) and getattr(b, 'ndim', 1) > 0 else b
         return klong.apply(a, b if isinstance(b, list) else [b], 1)
     backend = klong._backend
     if is_dict(a):

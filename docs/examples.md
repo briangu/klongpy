@@ -2,7 +2,7 @@
 
 This page indexes the example programs in the `examples/` directory and shows a few snippets you can run in the REPL. For a first lesson in the language, use [Start Here](getting-started.md) and the [Tutorial](tutorial.md).
 
-A function has as many parameters as the highest of `x`, `y` and `z` that its body uses: a nilad has none, a monad one (`x`), a dyad two (`x` and `y`) and a triad three. So `{-x}` is a monad and `{y}` is a dyad. For more than three, or for names of your own, see [named parameters](language-additions.md#named-parameters).
+The snippets define functions with named parameters, `area(w;h)::{w*h}`, and use the short forms `x`, `y` and `z` for one-line functions given to adverbs. See [named parameters](language-additions.md#named-parameters).
 
 ## Example directories
 
@@ -38,11 +38,11 @@ An expression is read from right to left.
 Define sum and count functions over an array:
 
 ```kgpy
-?> sum::{+/x}  :" sum + over / the array x
+?> sum(v)::{+/v}  :" sum + over / the array v
 :monad
 ?> sum([1 2 3])
 6
-?> count::{#x}
+?> count(v)::{#v}
 :monad
 ?> count([1 2 3])
 3
@@ -179,7 +179,7 @@ index(request)::{"Hello, Klong World! ",data}
 .p("ready at http://localhost:8888")
 ```
 
-Run it:
+Run it with `kgpy web.kg`. The run stays up while the server listens, until Ctrl-C or `.webc`:
 
 ```bash
 $ kgpy web.kg
@@ -198,16 +198,16 @@ $ curl http://localhost:8888
 `f:>x` is the gradient of `f` at `x`. It is autograd on the torch backend (`kgpy --backend torch`, which needs `klongpy[torch]`) and numeric on NumPy, which is what the outputs below show:
 
 ```kgpy
-?> f::{x^2}        :" Define f(x) = x^2
+?> f(t)::{t^2}      :" Define f(t) = t^2
 :monad
-?> f:>3            :" f'(3) is 6, up to the numeric error of the NumPy backend
+?> f:>3            :" the derivative at 3 is 6, up to the numeric error of the NumPy backend
 6.000000000838668
 ```
 
 For a list input the gradient has one entry per element:
 
 ```kgpy
-?> h::{+/x^2}      :" h(x) = sum of squares
+?> h(v)::{+/v^2}    :" h(v) = sum of squares
 :monad
 ?> h:>[1.0 2.0 3.0]   :" Gradient: [2*1, 2*2, 2*3]
 [2.000000000279556 3.9999999996709334 6.000000000838668]
@@ -216,7 +216,7 @@ For a list input the gradient has one entry per element:
 Gradient descent on x^2 from 5.0, 100 steps of 0.1:
 
 ```kgpy
-?> f::{x^2}
+?> f(t)::{t^2}
 :monad
 ?> s::5.0
 5.0

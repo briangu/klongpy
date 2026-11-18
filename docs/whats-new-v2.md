@@ -44,7 +44,7 @@ The `conformance/` directory holds about 1,300 test cases that do not depend on 
 <!-- check-docs: link conformance -->
 ```console
 $ python conformance/run.py | tail -n 1
-1339 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
+1348 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 ```
 
 ## The stable core
@@ -62,7 +62,7 @@ Classic Klong programs run as before. v2 adds forms for things that needed worka
 [10 20 30]
 ?> b
 20
-?> swap::{[p q]::x;q,p}
+?> swap(pair)::{[p q]::pair;q,p}
 :monad
 ?> swap([1 2])
 [2 1]
@@ -93,12 +93,26 @@ Classic Klong programs run as before. v2 adds forms for things that needed worka
 **Projections for short calls.** A call with fewer arguments than the function takes gives a function that waits for the rest.
 
 ```kgpy
-?> add::{x+y}
+?> add(a;b)::{a+b}
 :dyad
 ?> inc::add(1)
 :monad
 ?> inc'[10 20 30]
 [11 21 31]
+```
+
+**Text functions.** `.split`, `.join`, `.words`, `.trim` and `.num` do what every program otherwise writes for itself, and `.pf` and `.fmt` fill a template. `.num` gives `:undefined` for text that is not a number.
+
+```kgpy
+?> .words("  to be  or not ")
+["to" "be" "or" "not"]
+?> .join(.split("a,b,c";",");"/")
+"a/b/c"
+?> .num'.split("3,4.5";",")
+[3.0 4.5]
+?> .pf("{} items";3)
+3 items
+"3 items"
 ```
 
 **`:undefined`.** A missing dictionary key, a division by zero and a number that cannot be read from text are all the one value `:undefined`, and `:_` tests for it. It is the same value everywhere, so you can compare against it.
@@ -177,8 +191,8 @@ See [Lint](lint.md).
 The REPL reads a definition that spans lines, completes names with Tab, keeps a history between sessions (`~/.kgpy_history`) and stores the last printed value in `it`. `rlwrap` is not needed.
 
 ```kgpy
-?> avg::{
-.. (+/x)%#x
+?> avg(v)::{
+.. (+/v)%#v
 .. }
 :monad
 ?> avg([2 4 9])
@@ -194,7 +208,7 @@ See [REPL](repl.md).
 `.srv` and `.cli` speak the kdb+ IPC protocol, so a q process can connect to a KlongPy server and a KlongPy client can call a q process. The wire carries tables (as kdb+ tables), timestamps and timespans, and functions as their source text. It is tested against PeachQ, a kdb+-compatible implementation, not against kdb+ itself. A server can check credentials with `.srv.auth`, a call that gets no answer fails after 30 seconds (change it with `.clit`), and an error on the server comes back as a Klong error while the connection stays open. The pickle protocol of 0.7 is gone, so 0.7 and 2.0 cannot talk to each other. See [Migrating to v2](migrating-to-v2.md#ipc-speaks-the-kdb-protocol).
 
 ```kgpy
-server?> .srv.auth::{(x~"bob")&(y~"secret")}
+server?> .srv.auth(user;pw)::{(user~"bob")&(pw~"secret")}
 :dyad
 server?> .srv(8888)
 1

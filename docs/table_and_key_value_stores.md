@@ -18,13 +18,13 @@ pip install "klongpy[db]"
 ```
 ?> .py("klongpy.db")
 1
-?> prices::.table([["sym" ["A" "B"]] ["px" [1.5 2.5]]])
+?> prices::.table(:{;"sym";["A" "B"];"px";[1.5 2.5]})
 sym  px
   A 1.5
   B 2.5
 ?> tbs::.tables("/tmp/tables")
 /tmp/tables:tables
-?> tbs,"prices",,prices
+?> tbs,:{;"prices";prices}
 /tmp/tables:tables
 ```
 
@@ -32,7 +32,7 @@ Reading a key returns the table:
 
 <!-- check-docs: continue -->
 ```
-?> prices::tbs?"prices"
+?> prices::tbs@"prices"
 sym  px
   A 1.5
   B 2.5
@@ -48,13 +48,13 @@ Writing a table under a key that is already stored merges the two by index: a ro
 /tmp/merge:tables
 ?> a::.table([["sym" ["A" "B"]] ["px" [1.5 2.5]]]);.index(a;["sym"])
 ["sym"]
-?> tbs,"p",,a
+?> tbs,:{;"p";a}
 /tmp/merge:tables
 ?> b::.table([["sym" ["B" "C"]] ["px" [9.0 3.5]]]);.index(b;["sym"])
 ["sym"]
-?> tbs,"p",,b
+?> tbs,:{;"p";b}
 /tmp/merge:tables
-?> tbs?"p"
+?> tbs@"p"
 sym  px
   A 1.5
   B 2.5
@@ -71,7 +71,7 @@ sym  px
 1
 ?> kvs::.kvs("/tmp/kvs")
 /tmp/kvs:kvs
-?> kvs,"hello",,"world"
+?> kvs,:{;"hello";"world"}
 /tmp/kvs:kvs
 ```
 
@@ -81,7 +81,7 @@ Read it back:
 
 <!-- check-docs: continue -->
 ```
-?> kvs?"hello"
+?> kvs@"hello"
 "world"
 ```
 

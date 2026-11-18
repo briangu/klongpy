@@ -394,6 +394,9 @@ class TestRepositoryGate(unittest.TestCase):
             "examples/autograd/optimizer_demo.kg",
             "examples/autograd/portfolio_opt.kg",
             "examples/ml/transformer.kg",
+            "examples/ipc/srv_pubsub.kg",
+            "examples/stocks/feed/consumer.kg",
+            "examples/stocks/feed/feed.kg",
             "tests/kgtests/language/test_destructuring.kg",
             "tests/golden/fixtures/s2_destructuring_slot.kg",
             # written on purpose by the named-parameter tests

@@ -11,7 +11,7 @@ The functions are `.srv` (serve), `.cli` (connect and call), `.clid` (connect an
 Run the server and the client as two processes, for example in two terminals, running `kgpy` in each. A `server?>` line below is typed in the serving terminal and a `client?>` line in the other; the port is 8888 throughout.
 
 ```kgpy
-server?> avg::{(+/x)%#x}
+server?> avg(v)::{(+/v)%#v}
 :monad
 server?> .srv(8888)
 1
@@ -68,9 +68,9 @@ server?> .srv(8888)
 1
 server?> store:::{}
 :{}
-server?> put::{store,x,,y;1}
+server?> put(k;v)::{store,:{;k;v};1}
 :dyad
-server?> get::{store?x}
+server?> get(k)::{store@k}
 :monad
 client?> .py("klongpy.db")
 1
@@ -88,11 +88,11 @@ a   b
 1 1.5
 2 2.5
 3 3.5
-client?> R?"a"
+client?> R@"a"
 [1 2 3]
 client?> .schema(R)
 ["a" "b"]
-server?> #store?"T"
+server?> #store@"T"
 3
 ```
 
@@ -121,7 +121,7 @@ client?> f::.cli(8888)
 remote[localhost:8888]:fn
 client?> f("1+1")
 2
-client?> f("avg::{(+/x)%#x}")
+client?> f("avg(v)::{(+/v)%#v}")
 :monad
 client?> f("avg(!100)")
 49.5
@@ -140,7 +140,7 @@ Applying a symbol with no arguments returns the remote value. For a function tha
 ```kgpy
 server?> .srv(8888)
 1
-server?> avg::{(+/x)%#x}
+server?> avg(v)::{(+/v)%#v}
 :monad
 server?> total::100
 100
@@ -200,7 +200,7 @@ server?> .srv(8888)
 1
 server?> k::7
 7
-server?> twice::{x@x@y}
+server?> twice(g;v)::{g@g@v}
 :dyad
 client?> k::100
 100
@@ -208,7 +208,7 @@ client?> f::.cli(8888)
 remote[localhost:8888]:fn
 client?> f(:twice,{x+k},1)
 15
-client?> inc::{x+k}
+client?> inc(n)::{n+k}
 :monad
 client?> inc(1)
 101
@@ -218,12 +218,14 @@ client?> f(inc,1)
 
 `f(:twice,{x+k},1)` calls the server's `twice` with the function and 1, which gives (1+7)+7. `f(inc,1)` sends the source of `inc` as the function to run remotely, and the server applies it to 1.
 
-A projection has no source text. It is sent as an opaque value with the number of arguments it still takes. The receiver can hold it, store it and send it back, but cannot call it:
+Every function with a source travels as text: a function of `x`, `y` and `z`, a function with named parameters (any number, as `fn(a;b)::{a+b}`: the text is the definition, `fn` is only a placeholder, and the receiver keeps the function and defines nothing), a function with a locals list or a head destructuring, and one that calls itself by `.f`. The receiver rebuilds a function with the same parameter names and arity. A KlongPy peer does this in both directions, as an argument and as a returned value. The native runtime parses only the plain `{...}` literal: it keeps a named-parameter function it receives as an opaque value that it can send back.
+
+A projection has no source text, and the format has no way to carry its bound arguments. It is sent as an opaque value with the number of arguments it still takes, not as an error. The receiver can hold it, store it and send it back, but cannot call it:
 
 ```kgpy
 server?> .srv(8888)
 1
-server?> show::{x}
+server?> show(v)::{v}
 :monad
 client?> f::.cli(8888)
 remote[localhost:8888]:fn
@@ -308,7 +310,7 @@ Failures of the connection itself are `KlongSystemError` (`KlongIPCException` an
 A server accepts any client unless the program defines `.srv.auth`, a function of the user name and password (both strings) that returns 1 to accept and 0 to refuse. The client sends them in the address. They travel in clear text.
 
 ```kgpy
-server?> .srv.auth::{(x~"bob")&(y~"secret")}
+server?> .srv.auth(user;pw)::{(user~"bob")&(pw~"secret")}
 :dyad
 server?> .srv(8888)
 1
@@ -364,7 +366,7 @@ The largest message a connection accepts is the `.system` key `ipc_max_message`,
 ```kgpy
 server?> .system,"ipc_max_message",1000;1
 1
-server?> echo::{x}
+server?> echo(v)::{v}
 :monad
 server?> .srv(8888)
 1
@@ -389,11 +391,11 @@ The decoder never runs anything. Decompression is always supported. Sending comp
 ```kgpy
 server?> .srv(8888)
 1
-server?> sq::{x*x}
+server?> sq(n)::{n*n}
 :monad
 client?> res::0
 0
-client?> cb::{res::x}
+client?> cb(r)::{res::r}
 :monad
 client?> f::.cli(8888)
 remote[localhost:8888]:fn
@@ -422,9 +424,9 @@ While a call is waiting for its answer, the connection keeps serving the request
 ```kgpy
 server?> .srv(8888)
 1
-server?> callme::{.cli.h(:hello,,x)*10}
+server?> callme(n)::{.cli.h(:hello,,n)*10}
 :monad
-client?> hello::{x+1}
+client?> hello(n)::{n+1}
 :monad
 client?> f::.cli(8888)
 remote[localhost:8888]:fn
@@ -482,9 +484,9 @@ The server has four hooks, assigned as global functions. They run on the Klong l
 ```kgpy
 server?> opened::[]
 []
-server?> .srv.o::{opened::opened,x}
+server?> .srv.o(h)::{opened::opened,h}
 :monad
-server?> .srv.c::{closed::x}
+server?> .srv.c(h)::{closed::h}
 :monad
 server?> .srv(8888)
 1
@@ -501,11 +503,11 @@ A hook may call back to the client as soon as it runs:
 ```kgpy
 server?> back::0
 0
-server?> .srv.o::{back::x(:hello,,41)}
+server?> .srv.o(h)::{back::h(:hello,,41)}
 :monad
 server?> .srv(8888)
 1
-client?> hello::{x+1}
+client?> hello(n)::{n+1}
 :monad
 client?> f::.cli(8888)
 remote[localhost:8888]:fn
@@ -522,26 +524,26 @@ Server:
 ```
 :"broadcast fake stock data to all subscribed clients"
 
-:" Map of clients handles to their subscribed tickers "
+:" Map of client handles to their subscribed tickers "
 clients:::{}
 
 :" Called by clients to subscribe to ticker updates "
-subscribe::{.d("subscribing client: ");.p(x);clients,.cli.h,,(clients?.cli.h),,x;.p(clients)}
+subscribe(tickers)::{.pf("subscribing client {}: {}";[;.cli.h;tickers]);clients,.cli.h,,(clients@.cli.h),tickers;.p(clients)}
 
-:" Periodically called to broadcast updates to all subscribed clients "
-send::{.d("sending to client");.p(x);x(:update,,{x,.rn()*50}'y)}
-broadcast::{.p("sending messages to clients");{send(x@0;x@1)}'clients}
+:" Periodically called to send each subscribed client a random price per ticker "
+send(c;tickers)::{.pf("sending to client {}";c);c(:update,,{[;x;.rn()*50]}'tickers)}
+broadcast()::{.p("sending messages to clients");{[c tickers]::x;send(c;tickers)}'clients}
 cb::{:[(#clients)>0;broadcast();.p("no clients to broadcast to")];1}
 th::.timer("ticker";1;cb)
 
 :" Setup the IPC server and callbacks "
 .srv(8888)
-.srv.o::{.d("client connected: ");.p(x);clients,x,,[]}
-.srv.c::{.d("client disconnected: ");.p(x);x_clients;.d("clients left: ");.p(#clients)}
-.srv.e::{.d("error: ");.p(x);.p(y)}
+.srv.o::{.pf("client connected: {}";x);clients,x,,[]}
+.srv.c::{.pf("client disconnected: {}";x);x_clients;.pf("clients left: {}";#clients)}
+.srv.e::{.pf("error: {} {}";[;x;y])}
 ```
 
-Client
+Client:
 
 ```
 :"Connect to the broadcast server"
@@ -552,9 +554,12 @@ cli::.cli(8888)
 .p(cli)
 
 :" Called by server when there is a subscription update."
-update::{.d("subscription update: ");.p(x)}
+update(prices)::{.pf("subscription update: {}";,prices)}
 
-cli(:subscribe,,["MSFT" "GOOG" "AAPL"])
+.comment("----")
+cli(:subscribe,,["AM.*"])
+----
+cli(:subscribe,,["AM.MSFT" "AM.GOOG" "AM.AAPL"])
 ```
 
 Run the server, then the client:
@@ -572,8 +577,8 @@ Once the client runs, the server begins to send updates to it:
 $ kgpy examples/ipc/cli_pubsub.kg
 connecting to server on port 8888
 remote[localhost:8888]:fn
-subscription update: [MSFT 16.310530573710896 GOOG 27.199690444331594 AAPL 35.81725374157503]
-subscription update: [MSFT 43.28567690091258 GOOG 32.06719233158067 AAPL 47.306031721530864]
+subscription update: [[AM.MSFT 7.167480584416302] [AM.GOOG 5.384861539663505] [AM.AAPL 31.692928854915532]]
+subscription update: [[AM.MSFT 41.134210064419605] [AM.GOOG 42.0242208432845] [AM.AAPL 24.240419848719025]]
 ```
 
 ## 0.7 peers
@@ -590,7 +595,7 @@ The environment variable `KLONGPY_IPC` of the transition releases no longer exis
 - There is no function to send a true asynchronous message (kdb+'s `neg[h]` form) from Klong. A KlongPy server does accept asynchronous messages from other clients.
 - Calling through a connection from a function that was itself called by a q process (nested callbacks with kdb+) is not supported.
 - There is no TLS. Anyone on the path can read the credentials and data.
-- On the wire a function is its source text and the receiver parses it, so a function that was never given a source text (a projection) arrives opaque, and a function of the sender that uses names the receiver lacks fails on the receiver.
+- On the wire a function is its source text and the receiver parses it, so a function that has no source text (a projection) arrives opaque, and a function of the sender that uses names the receiver lacks fails on the receiver.
 
 ## See also
 

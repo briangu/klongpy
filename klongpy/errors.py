@@ -633,7 +633,11 @@ def operator_error(exc, glyph, name, operands):
             message += ": out of memory"
         elif kcls is KlongInternalError:
             message += f": {type(exc).__name__}: {exc}"
-    return compat(kcls, _builtin_base(type(exc)))(message)
+    err = compat(kcls, _builtin_base(type(exc)))(message)
+    if glyph == '_' and len(operands) == 2 and isinstance(operands[0], dict) \
+            and not isinstance(operands[1], dict) and kcls is KlongTypeError:
+        err.hint = 'to remove a key write the key on the left and the dictionary on the right: "a"_d'
+    return err
 
 
 def python_error(exc):
