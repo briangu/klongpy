@@ -85,6 +85,14 @@ Read it back:
 "world"
 ```
 
+A key must be a string; any other key is an error:
+
+<!-- check-docs: continue -->
+```
+?> kvs@5
+error: key must be a str
+```
+
 ## See also
 
 - [Columnar tables and SQL](fast_columnar_database.md) for tables and SQL.

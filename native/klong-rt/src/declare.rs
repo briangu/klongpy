@@ -505,7 +505,7 @@ fn extern_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value>
             return Err(e);
         }
         ip.define_global(name, Value::Fn(Rc::new(Func::Native { name: s, arity: WILDCARD, f: call })))?;
-    } else if let Err(e) = define_wide(ip, name, n) {
+    } else if let Err(e) = define_wide(ip, declared, name, n) {
         declared.borrow_mut().pop();
         return Err(e);
     }
@@ -518,7 +518,8 @@ fn conflict(name: &str) -> Error {
 
 /// A function of more than three parameters is one with named parameters whose body hands its parameters to the declaration, three
 /// at a time (`.extern.arg`) and the last ones with the name (`.extern.call`).
-fn define_wide(ip: &mut Interp, name: &str, n: usize) -> Result<()> {
+fn define_wide(ip: &mut Interp, declared: &Declared, name: &str, n: usize) -> Result<()> {
+    register_wide(ip, declared);
     let mut text = String::new();
     let mut put = |t: &str| -> Result<()> { klong_core::value::try_push_str(&mut text, t) };
     put(name)?;
@@ -585,19 +586,15 @@ fn entry_fn(ip: &mut Interp, a: &[Value]) -> Result<Value> {
     Value::text(&klong_core::msg!("{}", sig))
 }
 
-/// Define `.extern`, `.entry` and `.fixed`.
-///
-/// `.fixed` is an error, not an emulation: KlongPy's interpreter gives `.fixed(type;x)` a fixed-point array that knows its type,
-/// and arithmetic on it follows the reference semantics of `klongpy/static/fixed.py` operation by operation (an add, a multiply
-/// and a divide that wrap to the width, floor on conversion, a reduction that wraps at each step, a refusal to mix with floats).
-/// The native values have no such kind and every operator would need a case for it, so a fixed-point program is compiled or run
-/// by KlongPy.
-pub fn register(ip: &mut Interp) {
-    let declared: Declared = Rc::new(RefCell::new(Vec::new()));
+/// `.extern.arg` and `.extern.call`, which the body of a function of more than three parameters calls: defined with the first such
+/// declaration, so that a program with none (and a board that has no use for them) pays for no names, functions or tables at start.
+fn register_wide(ip: &mut Interp, declared: &Declared) {
+    if ip.global(".extern.call").is_some() {
+        return;
+    }
     let stash: Stash = Rc::new(RefCell::new(Vec::new()));
-    let d = declared.clone();
-    ip.register(".extern", WILDCARD, Rc::new(move |ip: &mut Interp, a: &[Value]| extern_fn(&d, ip, a)));
     let st = stash.clone();
+    let declared = declared.clone();
     ip.register(
         ".extern.arg",
         WILDCARD,
@@ -623,6 +620,18 @@ pub fn register(ip: &mut Interp) {
             call(ip, &args)
         }),
     );
+}
+
+/// Define `.extern`, `.entry` and `.fixed`.
+///
+/// `.fixed` is an error, not an emulation: KlongPy's interpreter gives `.fixed(type;x)` a fixed-point array that knows its type,
+/// and arithmetic on it follows the reference semantics of `klongpy/static/fixed.py` operation by operation (an add, a multiply
+/// and a divide that wrap to the width, floor on conversion, a reduction that wraps at each step, a refusal to mix with floats).
+/// The native values have no such kind and every operator would need a case for it, so a fixed-point program is compiled or run
+/// by KlongPy.
+pub fn register(ip: &mut Interp) {
+    let declared: Declared = Rc::new(RefCell::new(Vec::new()));
+    ip.register(".extern", WILDCARD, Rc::new(move |ip: &mut Interp, a: &[Value]| extern_fn(&declared, ip, a)));
     ip.register(".entry", WILDCARD, Rc::new(|ip: &mut Interp, a: &[Value]| entry_fn(ip, a)));
     ip.register(
         ".fixed",

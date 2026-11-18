@@ -14,6 +14,27 @@ th::.timer("greeting";1;cb)
 .timerc(th)
 ```
 
+## What a callback is
+
+A callback is a function that takes no arguments, passed by name. Define it first, then pass the name:
+
+<!-- check-docs: render -->
+```kgpy
+?> cb::{.p("tick");1}
+:nilad
+?> th::.timer("t";1;cb)
+timer:t:1.0
+?> .timerc(th)
+1
+?> .timer("t";1;{x+1})
+1:1: type error: z must be a function that takes no arguments
+  .timer("t";1;{x+1})
+  ^^^^^^^^^^^^^^^^^^^
+  hint: name the function first, cb::{...}, and pass cb; an inline function is rejected, or run before .timer sees it if it takes no arguments
+```
+
+An inline function literal is not a safe argument. One that takes arguments is rejected, as above. A literal with no arguments, `.timer("t";1;{.p("tick");1})`, is run where the call is written, before `.timer` sees it, so `.timer` receives its result (here the number 1, which is not a function). A named function is passed as a function, not run.
+
 ## The callback's result
 
 The callback decides whether the timer runs again by its return value. A false value (0, an empty list or an empty string) stops the timer. Any other value runs it again after the interval. The callback in the example above prints and returns the string printed, which is true, so it keeps firing until `.timerc`.

@@ -72,6 +72,7 @@ A failed entry prints the position, the source line and a caret on stderr, and t
 
 | Option | Effect |
 |---|---|
+| `--version` | Print `kgpy` and the version number, and exit. |
 | `-e EXPR` | Evaluate an expression and exit. The value goes to stdout, an error to stderr with status 1. The system context is the same as for a file run, so `.timer`, `.srv` and `.cli` work, but the process ends after the expression and closes what it opened: a timer does not fire and a server stops. |
 | `-l FILE` | Load a file into the REPL on startup. If the load fails, the error is printed and the process exits with status 1 without starting the REPL. |
 | `-s PORT` | Start the IPC server, for example `kgpy -s 8888`. |
@@ -79,7 +80,7 @@ A failed entry prints the position, the source line and a caret on stderr, and t
 | `-v` | Verbose: an error also prints the Python traceback. |
 | `--traceback` | Print the Python traceback with an error, without the other verbose output. |
 | `--strict=N` | Start at [strict level](strict.md) 0, 1 or 2. `--strict` alone is level 1. A lone `0`, `1` or `2` after a bare `--strict` is read as its level, so `--strict 2` is `--strict=2`; write `--strict=N` in scripts. |
-| `--backend NAME`, `--device DEVICE` | Choose the array backend and device (see [PyTorch Backend and Autograd](torch_backend.md)). `torch` is offered only where torch is installed. |
+| `--backend NAME`, `--device DEVICE` | Choose the array backend and device (see [PyTorch Backend and Autograd](torch_backend.md)). `torch` needs the torch extra (`pip install "klongpy[torch]"`); without it `--backend torch` says so. |
 
 A file run (`kgpy file.kg`) stops at the first error, prints it with the file name, line and column (`file.kg:3:6: ...`) and exits with status 1. When the last line has run the process exits, unless one of these holds:
 

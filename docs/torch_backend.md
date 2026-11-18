@@ -85,13 +85,14 @@ ASCII alternatives need no special characters. Mind the argument order: `.grad`,
 | `x∂f` | `.jacobian(f;x)` |
 | `f:>x` | (already ASCII) |
 
-### Custom Optimizers
+### Optimizers
 
-The gradient primitives are `:>`, `∂` and `.jacobian()`. For optimizers, use the example classes in `examples/autograd/optimizers.py` which you can copy to your project and customize.
+The gradient primitives are `:>`, `∂` and `.jacobian()`. `klongpy.optimizers` provides two optimizers built on them, `SGDOptimizer` (with optional momentum) and `AdamOptimizer`. They are part of the package, so a `pip install` has them.
 
 `loss:>[w]` returns a list with one gradient, so `**` takes its first element: `lr**g` is `lr*(*g)`. (For a single parameter, `loss:>w` returns the gradient itself, so `w::w-(lr*loss:>w)` also works.)
 
-**Manual gradient descent (no optimizer needed):**
+Manual gradient descent needs no optimizer:
+
 ```klong
 w::10.0
 loss::{w^2}
@@ -102,59 +103,48 @@ lr::0.1
 w                        :" Close to 0 (about 0.0001 after 50 steps)
 ```
 
-**Using a custom optimizer class:**
+To use an optimizer, import it with `.pyf` from the package. The function receives the interpreter automatically; do not pass `klong` yourself. `SGDOptimizer(names;config)` returns a function that takes the loss function, makes one step and returns the loss before the step. The values are those of the torch backend on the CPU:
 
-1. Copy `examples/autograd/optimizers.py` to your project directory
-2. Import with `.pyf()` (the file is found in the current directory, or give its path). The optimizer receives the interpreter automatically; do not pass `klong` yourself:
-
-```klong
-:" Import the optimizer class
-.pyf("optimizers";"SGDOptimizer")
-
-:" Setup parameters and loss
-w::10.0
-loss::{w^2}
-
-:" Create optimizer with learning rate 0.1
-opt::SGDOptimizer(["w"];:{["lr" 0.1]})
-
-:" Run optimization steps
-{opt(loss)}'!50
-w                        :" Close to 0
+<!-- check-docs: requires torch -->
+```console
+$ cat > sgd.kg <<'EOF'
+> .pyf("klongpy.optimizers";"SGDOptimizer")
+> w::10.0
+> loss::{w^2}
+> opt::SGDOptimizer(["w"];:{;"lr";0.1})
+> .p(opt(loss))
+> {opt(loss)}'!49
+> .p(loss())
+> EOF
+$ kgpy --backend torch --device cpu sgd.kg
+100
+2.0370366153851167e-08
 ```
 
-**Available example optimizers:**
-- `SGDOptimizer` - Stochastic Gradient Descent with optional momentum
-- `AdamOptimizer` - Adam optimizer with adaptive learning rates
+An optimizer works on every device the backend supports: the updated parameters stay on the backend's device (a GPU tensor stays on the GPU).
 
-**SGD with momentum:**
-```klong
-.pyf("optimizers";"SGDOptimizer")
-opt::SGDOptimizer(["w"];:{["lr" 0.01] ["momentum" 0.9]})
-```
+| Name | Configuration (all optional) |
+|---|---|
+| `SGDOptimizer` | `"lr"` (0.01), `"momentum"` (0.0) |
+| `AdamOptimizer` | `"lr"` (0.001), `"beta1"` (0.9), `"beta2"` (0.999), `"eps"` (1e-8) |
 
-**Adam optimizer:**
-```klong
-.pyf("optimizers";"AdamOptimizer")
-opt::AdamOptimizer(["w" "b"];:{["lr" 0.001]})
-```
+Avoid `x`, `y` and `z` as parameter names: they are the argument names of every function and are shadowed in a call.
 
-**Training loop example:**
+An Adam step on two parameters:
+
 ```klong
-.pyf("optimizers";"AdamOptimizer")
+.pyf("klongpy.optimizers";"AdamOptimizer")
 
 w::1.0;b::0.0
 X::[1 2 3];Y::[3 5 7]
 loss::{(+/((w*X)+b-Y)^2)%3}
-opt::AdamOptimizer(["w" "b"];:{["lr" 0.1]})
+opt::AdamOptimizer(["w" "b"];:{;"lr";0.1})
 
 :" Train for 500 steps
 {opt(loss)}'!500
 ```
 
-**Creating your own optimizer:**
-
-The example optimizers use `multi_grad_of_fn` from `klongpy.autograd` to compute gradients for multiple parameters. Copy and modify the optimizer classes to implement custom update rules (RMSprop, AdaGrad, learning rate schedules, etc.).
+To write your own update rule (RMSprop, AdaGrad, a learning-rate schedule), copy `klongpy/optimizers.py`: it uses `multi_grad_of_fn` from `klongpy.autograd` to compute the gradients of several parameters at once. `examples/autograd/optimizers.py` re-exports the two optimizers for the example programs, which load them with `.pyf("./optimizers.py";...)`.
 
 ## Devices
 
@@ -203,7 +193,7 @@ These functions exist only on the torch backend. They compile a Klong function w
 ```klong
 f(t)::{t^2}
 cf::.compile(f;3.0)
-cf(5.0)                                      :" tensor(25., grad_fn=<CompiledFunctionBackward>)
+cf(5.0)                                      :" 25.0
 ce::.compilex(f;3.0;:{["backend" "eager"]})  :" no compilation
 .cmodes()@"modes"                            :" the modes, with a description of each
 .gradcheck(f;3.0)                            :" 1

@@ -781,11 +781,24 @@ def tk_finish(lx):
     if len(toks) >= 2:
         t = toks[-2]
         if t[0] == 'STR' and t[6]:
-            tk_issue(lx, 'unterminated-string', "unterminated string: the closing \" is missing", (t[1], t[2]), note=_TO_END)
+            tk_issue(lx, 'unterminated-string', "unterminated string: the closing \" is missing", (t[1], t[2]),
+                     hint=tk_escaped_quote_hint(lx), note=_TO_END)
     for c in lx.trivia:
         if c[6]:
             tk_issue(lx, 'unterminated-comment', "unterminated comment: the closing \" is missing", (c[1], c[2]),
                      note=_TO_END)
+
+
+ESCAPED_QUOTE_HINT = 'a quote inside a string is written twice: ""; a backslash is an ordinary character'
+
+
+def tk_escaped_quote_hint(lx):
+    """ESCAPED_QUOTE_HINT when a string scanned so far ends in a backslash (the writer meant \\" for a quote), else None."""
+    text = lx.text
+    for t in lx.toks:
+        if t[0] == 'STR' and not t[6] and t[2] - t[1] >= 2 and text[t[2] - 2] == '\\':
+            return ESCAPED_QUOTE_HINT
+    return None
 
 
 def tk_unterminated(lx, opener, close):

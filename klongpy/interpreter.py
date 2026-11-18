@@ -23,7 +23,7 @@ from .errors import (KlongArityError, KlongError, KlongInternalError, KlongNameE
                      python_error, system_error)
 from .lexer import Lexer, Source
 from .parser import (ADVERB_GLYPHS, SEMI, KGExprDict, NamedDef, ProgResult, copy_lambda, tk_adverb_error, tk_assign_hint,
-                     tk_check, tk_comment_end, tk_destructure, tk_direct_arg, tk_finish, tk_named_def,
+                     tk_check, tk_comment_end, tk_destructure, tk_direct_arg, tk_escaped_quote_hint, tk_finish, tk_named_def,
                      tk_index_hint, tk_juxtaposed, tk_missing_operand, tk_peek_adverb, tk_raise, tk_read_cond,
                      tk_read_data, tk_read_expr_array, tk_read_expr_dict, tk_stray, tk_warnings)
 from .utils import ReadonlyDict
@@ -1146,6 +1146,8 @@ class KlongInterpreter():
             # a syntax error knows its span (offsets into this text)
             if e.source is None and e.span is not None:
                 e.source = lx.source
+            if isinstance(e, KlongSyntaxError) and e.hint is None:
+                e.hint = tk_escaped_quote_hint(lx)
             raise
         r = ProgResult((end, arr))
         r.stmt_spans = spans

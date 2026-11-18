@@ -112,7 +112,8 @@ braces. A format may follow a colon, as in "{:8}", "{0:-8}" and
 "{:5.2}", and is applied like Format2 (n$value): a positive width
 pads on the right, a negative width on the left, and a fractional
 format such as 5.2 formats a number (an integer is converted to a
-real first). Arguments are rendered as Display does.
+real first). A width pads with spaces: a format with a leading zero,
+as in "{:02}", is a range error. Arguments are rendered as Display does.
 
 Examples:   .fmt("Spot: {}";3.5)       -->  "Spot: 3.5"
             .fmt("{1} {0}";[;1;2])     -->  "2 1"
@@ -571,6 +572,55 @@ first, .num accepts nothing else: .rs("7 8") is 7.
 error: .num: x must be a string, got integer
 ```
 
+## JSON
+
+See [JSON](language-additions.md#json).
+
+| Name | Title | Description |
+|------|-------|-------------|
+| `.json(x)` | JSON | The JSON text of a Klong value (dictionaries to objects, lists to arrays, `:undefined` to null). |
+| `.unjson(x)` | Un-JSON | The Klong value of a JSON text (the inverse of `.json`); bad text is a range error with the position. |
+
+### `.json`
+
+`.json(x)` [JSON]
+
+```text
+Return the JSON text of the Klong value "x". A dictionary becomes
+an object (its keys must be strings), a list or array becomes an
+array, a number (an integer, a real, or a NumPy or torch scalar)
+becomes a number, a string or a character becomes a string, and
+:undefined, NaN and the infinities become null. The text has no
+spaces after "," and ":". A symbol or a function is a type error
+that says where it is.
+
+.unjson is the inverse.
+
+Example:
+
+    .json(:{;"a";1;"b";[1 2 3]})
+```
+
+### `.unjson`
+
+`.unjson(x)` [Un-JSON]
+
+```text
+Return the Klong value of the JSON text "x": an object becomes a
+dictionary with string keys, an array a list (an array of numbers
+is an array), a string a string, a number an integer or a real,
+true and false the integers 1 and 0, and null :undefined. Text that
+is not exactly one JSON value (including NaN and Infinity) is a
+range error that gives the line, column and character position.
+
+.unjson is the inverse of .json, except that true and false are
+read as 1 and 0.
+
+Example:
+
+    .unjson("{""a"":1,""b"":[1,2,3]}")
+```
+
 ## Python and backend
 
 | Name | Title | Description |
@@ -991,8 +1041,11 @@ Create a timer named by "x" that calls the function "z" every "y"
 seconds (fractions allowed) and returns its handle. An interval of 0
 calls "z" at once, on the Klong loop. The result of the callback decides
 what happens next: a false value (0, an empty list or string) stops the
-timer, and any other value runs it again. A named function is looked up
-again on each tick, so a redefinition takes effect. Stop a timer with .timerc.
+timer, and any other value runs it again. The function takes no arguments
+and is passed by name (cb::{...}; .timer("t";1;cb)): a function written
+inline in the call is rejected, or run at the call site if it has no
+arguments. A named function is looked up again on each tick, so a
+redefinition takes effect. Stop a timer with .timerc, from any thread.
 
 Example:
 
@@ -1779,6 +1832,12 @@ Handler callbacks are called with a dictionary of parameters:
 GET handlers are provided a dictionary of query parameters.
 POST handlers are provided a dictionary of post body parameters.
 
+A handler returns text (status 200) or a dictionary with the optional
+keys "status", "type" and "body". A handler that fails answers 500 and
+logs one line. Handlers run on the Klong loop, so they may start timers
+and make .cli and .async calls. HEAD is answered as GET without a body;
+another method on a route answers 405.
+
 Example:
 
     .py("klongpy.web")
@@ -1797,7 +1856,9 @@ Example:
 `.webc(x)` [Stop Web server]
 
 ```text
-Stop and close the web server referenced by "x".
+Stop and close the web server referenced by "x". Called in a
+handler, it lets the reply being served finish and then stops
+the server.
 ```
 
 ## WebSockets

@@ -758,6 +758,8 @@ def run_parser():
                     'program follow --).',
         epilog=_SUBCOMMAND_HELP,
         formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--version', action='version', version=f'kgpy {_klongpy_version()}',
+                        help='print the version and exit')
     parser.add_argument('-e', '--expr', help='evaluate expression, no interactive mode')
     parser.add_argument('-l', '--load', help='load program from file')
     parser.add_argument('-s', '--server', help='start the IPC server', type=str)
@@ -768,7 +770,8 @@ def run_parser():
     parser.add_argument('-d', '--debug', help='enable debug mode', action="store_true")
     parser.add_argument('--strict', metavar='N', type=int, choices=[0, 1, 2], default=0,
                         help='strict level: 0 (the default), 1 or 2; --strict alone means 1. Written --strict=N')
-    parser.add_argument('--backend', help='set array backend', type=str.lower, choices=list_backends())
+    parser.add_argument('--backend', help='set array backend (torch needs the torch extra)', type=str.lower,
+                        choices=sorted(set(list_backends()) | {'numpy', 'torch'}))
     parser.add_argument('--device', help='set backend device (torch only)', type=str)
     parser.add_argument('filename', nargs='?', help='filename to be run if no flags are specified')
     return parser
@@ -800,6 +803,8 @@ def main():
             argv.append('--strict=1' if a == '--strict' else a)
         bare_strict = a == '--strict'
     args = parser.parse_args(argv)
+    if args.backend == 'torch' and 'torch' not in list_backends():
+        parser.error('the torch backend needs PyTorch, which is not installed: pip install "klongpy[torch]"')
 
     # Default to the numpy backend: fast and predictable for general array work
     # (and it never surprises non-autograd .kg scripts with MPS-tensor issues).

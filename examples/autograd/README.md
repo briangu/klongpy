@@ -480,14 +480,14 @@ Example 1: Compiling a simple function
 
 ### optimizers.py
 
-Reusable optimizer classes for gradient descent:
+The optimizers live in the package, as `klongpy.optimizers`; this file re-exports them so that the example programs can load them from this directory:
 
 ```python
 SGDOptimizer  # SGD with optional momentum
 AdamOptimizer # Adam with adaptive learning rates
 ```
 
-**Usage in Klong:**
+**Usage in Klong** (in your own programs, `.pyf("klongpy.optimizers";...)` needs no file):
 ```klong
 .pyf("./optimizers.py";"SGDOptimizer")
 opt::SGDOptimizer(["w" "b"];:{["lr" 0.1]})

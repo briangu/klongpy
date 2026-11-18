@@ -105,6 +105,10 @@ class KlongError(Exception):
         line, col = self.source.line_col(self.span[0])
         return self.source.name, line, col
 
+    def headline(self):
+        """The first line: "<kind> error: <message>"; the base class (kind "error") is "error: <message>"."""
+        return f"error: {self.message}" if self.kind == 'error' else f"{self.kind} error: {self.message}"
+
     def render(self, color=False):
         """
         The error as text for a person:
@@ -118,7 +122,7 @@ class KlongError(Exception):
         hint) are produced. A source read at the REPL has no name in the
         first line. color=True colours the first line only.
         """
-        return _render(f"{self.kind} error: {self.message}", self.span, self.source, self.hint,
+        return _render(self.headline(), self.span, self.source, self.hint,
                        _RED if color else None)
 
 

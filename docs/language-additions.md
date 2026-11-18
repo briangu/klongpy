@@ -15,6 +15,7 @@ KlongPy adds a few forms to Klong. Each one gives a meaning to input that fails 
 | `.words(s)` | The pieces of `s` between runs of white space | a hand-written split that drops the empty pieces |
 | `.trim(s)` | `s` without white space at either end | a loop that drops one blank at a time |
 | `.num(s)` | The number that `s` spells, or `:undefined` | `.rs(s)`, which reads any data and stops after the first |
+| `.json(x)`, `.unjson(s)` | [JSON](#json): a value as JSON text, and JSON text as a value | a hand-written writer and parser |
 | `.grad(f;x)` | [Gradient](#gradient) in plain ASCII | `x∇f` |
 | `it` | The [last result](#the-it-variable) at the REPL | assign it yourself |
 
@@ -423,7 +424,7 @@ x=3, y=4
 "x=3, y=4"
 ```
 
-`{}` takes the next argument, `{0}` and `{1}` take by position, and the two styles cannot be mixed. `{{` and `}}` are literal braces. A placeholder may carry a format after a colon, which is a number given to the [Format2](operators.md) operator `n$value`: a positive width pads on the right, a negative width on the left, and `5.2` means five integer digits and two decimals.
+`{}` takes the next argument, `{0}` and `{1}` take by position, and the two styles cannot be mixed. `{{` and `}}` are literal braces. A placeholder may carry a format after a colon, which is a number given to the [Format2](operators.md) operator `n$value`: a positive width pads on the right, a negative width on the left, and `5.2` means five integer digits and two decimals. The format is not Python's: a width pads with spaces, and a format with a leading zero, such as `{:02}`, is a range error.
 
 <!-- check-docs: strict 2 -->
 ```kgpy
@@ -437,6 +438,8 @@ x=3, y=4
 "    3.00"
 ?> .fmt("{{}} {}";7)
 "{} 7"
+?> .fmt("{:02}";5)
+error: .fmt: bad format '02' in placeholder '{:02}': zero padding is not supported, a width pads with spaces in template '{:02}'
 ```
 
 Each argument is shown as `.d` shows it: strings and characters without quotes, lists as `[1 2 3]`, `:undefined` as `undefined`. If `args` is a list, its members are the arguments; any other value is the single argument. To pass one list as the only argument, wrap it with `,`. Build an argument list from variables with `[;a;b]`; `[a b]` would hold the symbols.
@@ -549,6 +552,35 @@ To read a column of numbers from text, apply `.num` to each piece. A piece that 
 [3.0 4.5]
 ?> :undefined~.num("x")
 1
+```
+
+## JSON
+
+`.json(x)` returns the JSON text of a value, and `.unjson(s)` returns the value of JSON text. Both are built in and use no package. They are the same function pair that a [web handler](web_server.md#json) uses to answer and read JSON.
+
+| Klong | JSON |
+|---|---|
+| a dictionary | an object; every key must be a string |
+| a list or an array | an array |
+| an integer, a real, a NumPy or torch number | a number |
+| a string or a character | a string |
+| `:undefined`, NaN, an infinity | `null` |
+| a symbol or a function | a type error that says where it is |
+
+The text has no spaces after `,` and `:`. `.unjson` reads an object as a dictionary, an array as a list (an array of numbers is an array), `null` as `:undefined`, and `true` and `false` as 1 and 0, so `.json` after `.unjson` returns `1` and `0`, not `true` and `false`. Text that is not exactly one JSON value is a range error with the line, column and character position.
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> t::.json(:{;"name";"ada";"scores";[1 2 3];"mean";2.5;"note";:undefined})
+"{""name"":""ada"",""scores"":[1,2,3],""mean"":2.5,""note"":null}"
+?> d::.unjson(t)
+:{["name" "ada"] ["scores" [1 2 3]] ["mean" 2.5] ["note" :undefined]}
+?> d@"scores"
+[1 2 3]
+?> .json(:{;"f";{x}})
+error: .json: a function has no JSON form at key "f"
+?> .unjson("[1,")
+error: .unjson: Expecting value at line 1 column 4 (character 3)
 ```
 
 ## Gradient

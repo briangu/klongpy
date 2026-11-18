@@ -13,7 +13,7 @@ from klongpy.errors import KlongShapeError, KlongTypeError
 class KlongDbException(KlongException):
     def __init__(self, x, e):
         self.x = x
-        super().__init__(e)
+        super().__init__(str(e))
 
 
 class Table(dict):
@@ -144,10 +144,16 @@ class Database(KGLambda):
 
         try:
             df = self.con.execute(x).fetchdf()
-            return df.values.squeeze()
         except Exception as e:
             # TODO: we need to expose the sql errors in an actionable way
             raise KlongDbException(x, e)
+        # one row and one column squeezes to a 0-d array: a number stays one, any other cell
+        # (text, null) becomes the Python value, since a 0-d object array has no length
+        v = df.values.squeeze()
+        if isinstance(v, np.ndarray) and v.ndim == 0 and v.dtype == object:
+            v = v.item()
+            return KLONG_UNDEFINED if v is None or v is pd.NA or v is pd.NaT or (isinstance(v, float) and v != v) else v
+        return v
 
     def schema(self):
         return {k: v.schema() for k,v in self.tables.items()}

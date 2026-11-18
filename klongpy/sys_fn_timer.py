@@ -5,16 +5,24 @@ from klongpy.core import KGCall, KGFn, KGFnWrapper, KlongException, KlongRangeEr
 
 
 class KGTimerHandler:
-    def __init__(self, name, interval):
+    def __init__(self, name, interval, loop=None):
         self.name = name
         self.interval = interval
         self.delegate = None
+        self.loop = loop
+        self.active = True
 
     def cancel(self):
-        if self.delegate is None:
+        """Stop the timer from any thread; 1 if it was running, 0 if it had already stopped."""
+        if not self.active:
             return 0
-        self.delegate.cancel()
-        self.delegate = None
+        self.active = False
+        delegate, self.delegate = self.delegate, None
+        if delegate is not None:
+            if _on_loop(self.loop):
+                delegate.cancel()
+            else:
+                self.loop.call_soon_threadsafe(delegate.cancel)
         return 1
     
     def __str__(self):
@@ -30,6 +38,16 @@ def _report_failure(klong, name, exc):
         traceback = False
     write_stderr(f"timer {name} callback failed; cancelling timer\n"
                  + format_error(exc, use_color(sys.stderr), traceback))
+
+
+def _on_loop(loop):
+    """True when the caller is running on that event loop's thread (loop is None: yes)."""
+    if loop is None:
+        return True
+    try:
+        return asyncio.get_running_loop() is loop
+    except RuntimeError:
+        return False
 
 
 def _call_periodic(loop: asyncio.BaseEventLoop, name, interval, callback, klong=None):
@@ -50,11 +68,22 @@ def _call_periodic(loop: asyncio.BaseEventLoop, name, interval, callback, klong=
         else:
             handle.cancel()
 
-    periodic = KGTimerHandler(name, interval)
-    if interval == 0:
-        periodic.delegate = loop.call_soon(run, periodic)
+    periodic = KGTimerHandler(name, interval, loop)
+
+    def arm():
+        if not periodic.active:
+            return
+        if interval == 0:
+            periodic.delegate = loop.call_soon(run, periodic)
+        else:
+            periodic.delegate = loop.call_at(start + interval, run, periodic)
+
+    # A loop that is idle in select() only notices what is scheduled from another
+    # thread (a web handler, the main thread) through call_soon_threadsafe, which wakes it.
+    if _on_loop(loop):
+        arm()
     else:
-        periodic.delegate = loop.call_at(start + interval, run, periodic)
+        loop.call_soon_threadsafe(arm)
 
     return periodic
 
@@ -68,8 +97,11 @@ def eval_sys_fn_timer(klong, x, y, z):
         seconds (fractions allowed) and returns its handle. An interval of 0
         calls "z" at once, on the Klong loop. The result of the callback decides
         what happens next: a false value (0, an empty list or string) stops the
-        timer, and any other value runs it again. A named function is looked up
-        again on each tick, so a redefinition takes effect. Stop a timer with .timerc.
+        timer, and any other value runs it again. The function takes no arguments
+        and is passed by name (cb::{...}; .timer("t";1;cb)): a function written
+        inline in the call is rejected, or run at the call site if it has no
+        arguments. A named function is looked up again on each tick, so a
+        redefinition takes effect. Stop a timer with .timerc, from any thread.
 
         Example:
 
@@ -86,14 +118,17 @@ def eval_sys_fn_timer(klong, x, y, z):
         raise KlongRangeError("y must be a non-negative number")
 
     # Wrap the callback - KGFnWrapper now handles dynamic resolution automatically
+    hint = "name the function first, cb::{...}, and pass cb; an inline function is rejected, or run before .timer sees it if it takes no arguments"
     if isinstance(z, KGCall):
-        raise KlongTypeError("z must be a function (not a function call)")
+        raise KlongTypeError("z must be a function that takes no arguments", hint=hint)
     if isinstance(z, KGFn):
+        if z.arity != 0:
+            raise KlongTypeError(f"z must be a function that takes no arguments, not one of {z.arity}", hint=hint)
         callback = KGFnWrapper(klong, z)
     elif callable(z):
         callback = z
     else:
-        raise KlongTypeError("z must be a function")
+        raise KlongTypeError("z must be a function", hint=hint)
 
     system = klong['.system']
     klongloop = system['klongloop']

@@ -186,7 +186,26 @@ class TorchBackend:
                     converted_args.append(torch.tensor(arg, dtype=dtype, device=self.device))
                 else:
                     converted_args.append(arg)
-            return func(*converted_args, **kwargs)
+            # tensors of different float widths (a float32 literal in the function, a float64 input under
+            # .gradcheck): torch's matmul-like functions need one dtype, the arithmetic operators promote
+            floats = [a.dtype for a in converted_args if isinstance(a, torch.Tensor) and a.dtype.is_floating_point]
+            if len(set(floats)) > 1:
+                common = floats[0]
+                for d in floats[1:]:
+                    common = torch.promote_types(common, d)
+                converted_args = [a.to(common) if isinstance(a, torch.Tensor) and a.dtype.is_floating_point else a
+                                  for a in converted_args]
+            try:
+                return func(*converted_args, **kwargs)
+            except TypeError:
+                # a torch function that takes tensors only (tanh, log10, ...) is given a number:
+                # retry with the numbers made tensors, as for the functions listed above
+                if needs_tensor or not any(isinstance(a, (int, float)) and not isinstance(a, bool) for a in converted_args):
+                    raise
+                retried = [torch.tensor(a, dtype=torch.float32 if isinstance(a, float) else torch.int64, device=self.device)
+                           if isinstance(a, (int, float)) and not isinstance(a, bool) else a
+                           for a in converted_args]
+                return func(*retried, **kwargs)
         return wrapper
 
     def asarray(self, a, dtype=None):
@@ -1006,6 +1025,10 @@ class TorchBackendProvider(BackendProvider):
             if not bool((n > 0).any()):
                 break
             base = base * base
+        if not bool((bt < 0).any()):
+            # no reciprocal at all: torch.where would send 0 * inf = nan back through the unused
+            # 1/result branch, making the gradient of x^2 at x=0 nan on mps
+            return result
         return torch.where(bt < 0, 1.0 / result, result)
 
     def power(self, a, b):
@@ -1063,13 +1086,14 @@ class TorchBackendProvider(BackendProvider):
         return True
 
     def create_grad_tensor(self, x):
-        """Create a tensor that tracks gradients."""
+        """Create a tensor that tracks gradients. A tensor stays on its own device; a NumPy array or a number (a value written back as one) is put on the backend's device."""
         if isinstance(x, torch.Tensor):
-            return x.clone().detach().float().requires_grad_(True)
-        elif isinstance(x, numpy.ndarray):
-            return torch.from_numpy(x.astype(numpy.float64)).float().requires_grad_(True)
+            return x.clone().detach().float().requires_grad_(True)     # stays where the caller put it
+        if isinstance(x, numpy.ndarray):
+            t = torch.from_numpy(x.astype(numpy.float64)).float()
         else:
-            return torch.tensor(x, dtype=torch.float32, requires_grad=True)
+            t = torch.tensor(x, dtype=torch.float32)
+        return t.to(self.device).requires_grad_(True)
 
     def compute_autograd(self, func, x):
         """Compute gradient using PyTorch automatic differentiation."""
@@ -1223,11 +1247,20 @@ class TorchBackendProvider(BackendProvider):
         if dynamic is not None:
             compile_kwargs['dynamic'] = dynamic
 
-        # Compile the function with specified options
-        compiled_fn = torch.compile(func, **compile_kwargs)
+        # Compile the function with specified options. The interpreter's `^` reads a scalar with
+        # .item(), which makes dynamo log a multi-line "Graph break" warning from this one logger
+        # for each such function; it is silenced here, while the function compiles, and nowhere else.
+        import logging
+        dynamo_log = logging.getLogger("torch._dynamo.variables.tensor")
+        level = dynamo_log.level
+        dynamo_log.setLevel(logging.ERROR)
+        try:
+            compiled_fn = torch.compile(func, **compile_kwargs)
 
-        # Warm up the compiled function (triggers actual compilation)
-        _ = compiled_fn(example_input)
+            # Warm up the compiled function (triggers actual compilation)
+            _ = compiled_fn(example_input)
+        finally:
+            dynamo_log.setLevel(level)
 
         if output_path is None:
             # Wrap with Klong-convention parameter name (x) so that

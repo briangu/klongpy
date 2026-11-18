@@ -9,11 +9,52 @@
 `.web(address;get;post)` takes two dictionaries from route path to handler: `get` for GET routes and `post` for POST routes. It returns the server handle.
 
 - A handler is a function of one argument. A function of any other arity is skipped, and its route answers 404.
-- A GET handler receives a dictionary of the query parameters. A POST handler receives a dictionary of the form fields of the body. Keys and values are strings, so the value of `?p=100` is `"100"`. A missing key reads as `:undefined`.
-- The handler's value becomes the response body, as text, with status 200. A string is sent as it is. Any other value is converted with Python's `str`, so a list arrives in Python's notation (`['100']`).
-- A handler that raises an error answers 400 with the body `Invalid request`. A path with no route answers 404.
+- A GET handler receives a dictionary of the query parameters. A POST handler receives a dictionary of the form fields of the body (`application/x-www-form-urlencoded`). Keys and values are strings, so the value of `?p=100` is `"100"`. A missing key reads as `:undefined`.
+- A `HEAD` request to a GET route is answered as the GET, without the body.
+- A request to a path that has a route, with a method that route does not have, answers 405 (`Allow` names the methods that are served). A path with no route answers 404.
 
-Known limit: the response is always `text/plain`. To send JSON or another format, build the string in the handler.
+### The response
+
+A handler returns text, or a dictionary that chooses the status, the content type and the body.
+
+- Text is the body, with status 200 and the type `text/plain; charset=utf-8`. Any other value is converted with Python's `str`, so a list arrives in Python's notation (`['100']`).
+- A dictionary may have the keys `"status"` (an integer from 100 to 599, default 200), `"type"` (a content type, default `text/plain`) and `"body"` (text, default empty). Each key is optional. A dictionary with any other key, or a status or type of the wrong kind, is a type error: the request answers 500 and the error is logged.
+
+<!-- check-docs: requires aiohttp -->
+```kgpy
+?> .py("klongpy.web")
+1
+?> missing(q)::{:{;"status";404;"type";"application/json";"body";.json(:{;"error";"no such item"})}}
+:monad
+?> missing(:{})
+:{["status" 404] ["type" "application/json"] ["body" "{""error"":""no such item""}"]}
+```
+
+A client sees:
+
+```text
+$ curl -i http://127.0.0.1:8888/missing
+HTTP/1.1 404 Not Found
+Content-Type: application/json; charset=utf-8
+
+{"error":"no such item"}
+```
+
+### Errors
+
+A handler that fails (a Klong error, or an unusable response) answers 500 with the body `handler failed`. One line goes to stderr with the route and the error, and the server goes on:
+
+```text
+web POST /row: handler failed: type error: cannot apply + (Plus) to integer and string
+```
+
+The Python traceback follows it under `-v` or `--traceback`. A body that cannot be read answers 400 with `Invalid request`.
+
+### Where a handler runs
+
+KlongPy has two event loops, each on its own thread: the I/O loop, which serves the sockets, and the Klong loop, which runs Klong code. Handlers run on the Klong loop, one at a time, like timers, `.async` callbacks and IPC handlers. A handler can therefore start a timer, make `.cli` and `.async` calls, and stop the server. `.webc(h)` in a handler completes the reply being served and then stops the server; a file run with nothing else alive then ends with status 0.
+
+Known limit: the Klong loop runs one thing at a time, so a handler that takes long delays the other requests, and a program that requests its own server from the Klong loop waits for itself. Request another process's server instead.
 
 ## Example
 
@@ -86,6 +127,29 @@ Stop the server with:
 ?> .webc(h)
 1
 ```
+
+## JSON
+
+`.json` writes a Klong value as JSON text and `.unjson` reads it back (see [JSON](language-additions.md#json)). A handler that answers JSON sets the type:
+
+```kgpy
+?> stats(q)::{:{;"type";"application/json";"body";.json(:{;"count";3;"values";[1 2 3]})}}
+:monad
+?> stats(:{})@"body"
+"{""count"":3,""values"":[1,2,3]}"
+```
+
+## Requesting a server from Klong
+
+There is no HTTP client function. Use Python's standard library through `.pyf`: `urlopen` returns the response, `.pyc` calls its `read` method, and the bytes are decoded. This reads the JSON answer of another process's server:
+
+```
+.pyf("urllib.request";"urlopen")
+fetch(url)::{[r b];r::urlopen(url);b::.pyc(r,"read";[];:{});.pyc(b,"decode";[];:{})}
+.unjson(fetch("http://127.0.0.1:8888/stats"))
+```
+
+`.unjson` returns a dictionary with `count` 3 and `values` `[1 2 3]`. The call waits for the answer and fails with a Python error if the server cannot be reached.
 
 ## See also
 

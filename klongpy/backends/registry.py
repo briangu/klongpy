@@ -57,6 +57,10 @@ def get_backend(name: str = None, **kwargs) -> BackendProvider:
     if name == 'torch':
         _load_torch_backend()
 
+    if name == 'torch' and name not in _BACKENDS:
+        raise ValueError("the torch backend needs PyTorch, which is not installed: "
+                         'pip install "klongpy[torch]"')
+
     if name not in _BACKENDS:
         available = ', '.join(_BACKENDS.keys())
         raise ValueError(f"Unknown backend: '{name}'. Available: {available}")

@@ -5,8 +5,7 @@ Provides .grad() for the numeric gradient (the ASCII form of the nabla operator)
 Provides .jacobian() for Jacobian matrix computation.
 Provides .compile() for function compilation and graph export (torch only).
 
-For optimizers (SGD, Adam, etc.), see examples/autograd/optimizers.py
-which can be copied to your project and customized.
+For optimizers (SGD, Adam), see klongpy/optimizers.py: .pyf("klongpy.optimizers";"SGDOptimizer").
 """
 import sys
 

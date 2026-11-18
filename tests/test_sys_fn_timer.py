@@ -164,7 +164,7 @@ class TestSysFnTimer(LoopsBase, unittest.TestCase):
 
     def test_timer_rejects_function_call(self):
         klong = KlongInterpreter()
-        with self.assertRaisesRegex(KlongException, "not a function call"):
+        with self.assertRaisesRegex(KlongException, "takes no arguments"):
             eval_sys_fn_timer(klong, "test", 0, KGCall(KGSym("cb"), [], 1))
 
     def test_timer_rejects_non_callable(self):

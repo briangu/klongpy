@@ -397,6 +397,9 @@ def _fmt_parse(template):
             idx_s, colon, spec = body.partition(":")
             if idx_s != "" and not idx_s.isdigit():
                 raise _fmt_error(template, f"bad placeholder '{{{body}}}'")
+            if colon and re.match(r"-?0\d", spec):
+                raise _fmt_error(template, f"bad format '{spec}' in placeholder '{{{body}}}': "
+                                           f"zero padding is not supported, a width pads with spaces")
             if colon and not _FMT_SPEC_RE.fullmatch(spec):
                 raise _fmt_error(template, f"bad format '{spec}' in placeholder '{{{body}}}'")
             if lit:
@@ -497,7 +500,8 @@ def eval_sys_format(klong, x=_NO_ARGS, y=_NO_ARGS, *extra):
         "{:5.2}", and is applied like Format2 (n$value): a positive width
         pads on the right, a negative width on the left, and a fractional
         format such as 5.2 formats a number (an integer is converted to a
-        real first). Arguments are rendered as Display does.
+        real first). A width pads with spaces: a format with a leading zero,
+        as in "{:02}", is a range error. Arguments are rendered as Display does.
 
         Examples:   .fmt("Spot: {}";3.5)       -->  "Spot: 3.5"
                     .fmt("{1} {0}";[;1;2])     -->  "2 1"
@@ -711,6 +715,19 @@ def _handle_import(item):
     return item
 
 
+# the optional modules of the package and the extra that provides what they import
+_EXTRA_MODULES = {"klongpy.db": "db", "klongpy.web": "web", "klongpy.ws": "ws"}
+
+
+def _module_extra(name, error):
+    """The extra to install when importing the KlongPy module name failed for want of a package, else None."""
+    extra = _EXTRA_MODULES.get(name)
+    missing = getattr(error, "name", None)
+    if extra and missing and not missing.startswith("klongpy"):
+        return extra
+    return None
+
+
 def _import_module(klong, x, from_set=None):
     """
     Import a python module in to the current context.  All methods exposed in the module
@@ -762,6 +779,14 @@ def _import_module(klong, x, from_set=None):
             klong._context.push(ctx)
 
         return 1
+    except ImportError as e:
+        extra = _module_extra(x, e)
+        if extra:
+            raise compat(KlongSystemError, RuntimeError)(
+                f"{x} needs the {extra} extra, which is not installed (no module named {e.name}): "
+                f'pip install "klongpy[{extra}]"') from None
+        print(f".py: {e}")
+        raise compat(KlongSystemError, RuntimeError)(f"failed to load module: {x}")
     except Exception as e:
         print(f".py: {e}")
         raise compat(KlongSystemError, RuntimeError)(f"failed to load module: {x}")
@@ -1185,6 +1210,117 @@ def eval_sys_num(klong, x):
     if isinstance(a, float) and a - a != 0:
         return KLONG_UNDEFINED
     return a
+
+
+def _json_value(x, backend, path):
+    """x as a value the json module writes, or a type error naming where the unsupported member is."""
+    import math
+    from .types import KGChar, KGFn, KGFnWrapper, KGUndefined
+    if x is None or isinstance(x, KGUndefined):
+        return None
+    if isinstance(x, KGSym):
+        raise KlongTypeError(f".json: a symbol has no JSON form{path}", hint="convert it with $ first")
+    if isinstance(x, (KGFn, KGLambda, KGFnWrapper, KGChannel)) or callable(x):
+        raise KlongTypeError(f".json: a function has no JSON form{path}")
+    if isinstance(x, str):
+        return str(x)
+    if isinstance(x, (bool, numpy.bool_)):
+        return int(x)
+    if isinstance(x, dict):
+        out = {}
+        for k, v in x.items():
+            if not isinstance(k, str) or isinstance(k, KGSym):
+                raise KlongTypeError(f".json: a dictionary key must be a string, got {describe(k)}{path}",
+                                     hint="convert the key with $")
+            out[str(k)] = _json_value(v, backend, f"{path} at key \"{k}\"")
+        return out
+    if backend.is_backend_array(x):
+        x = backend.to_numpy(x)
+    if isinstance(x, numpy.ndarray):
+        if x.dtype != object:
+            return _json_value(x.tolist(), backend, path)
+        x = list(x)
+    if isinstance(x, (list, tuple)):
+        return [_json_value(v, backend, f"{path} at index {i}") for i, v in enumerate(x)]
+    if isinstance(x, numpy.integer):
+        return int(x)
+    if isinstance(x, (float, numpy.floating)):
+        x = float(x)
+        return x if math.isfinite(x) else None
+    if isinstance(x, int):
+        return x
+    raise KlongTypeError(f".json: a {describe(x)} has no JSON form{path}")
+
+
+def _from_json(x, backend):
+    if isinstance(x, dict):
+        return {k: _from_json(v, backend) for k, v in x.items()}
+    if isinstance(x, list):
+        return backend.kg_asarray([_from_json(v, backend) for v in x])
+    if x is None:
+        return KLONG_UNDEFINED
+    if isinstance(x, bool):
+        return int(x)
+    return x
+
+
+def eval_sys_json(klong, x):
+    """
+
+        .json(x)                                                  [JSON]
+
+        Return the JSON text of the Klong value "x". A dictionary becomes
+        an object (its keys must be strings), a list or array becomes an
+        array, a number (an integer, a real, or a NumPy or torch scalar)
+        becomes a number, a string or a character becomes a string, and
+        :undefined, NaN and the infinities become null. The text has no
+        spaces after "," and ":". A symbol or a function is a type error
+        that says where it is.
+
+        .unjson is the inverse.
+
+        Example:
+
+            .json(:{;"a";1;"b";[1 2 3]})
+
+    """
+    import json
+    return json.dumps(_json_value(x, klong._backend, ""), separators=(",", ":"), ensure_ascii=False)
+
+
+def eval_sys_unjson(klong, x):
+    """
+
+        .unjson(x)                                                [Un-JSON]
+
+        Return the Klong value of the JSON text "x": an object becomes a
+        dictionary with string keys, an array a list (an array of numbers
+        is an array), a string a string, a number an integer or a real,
+        true and false the integers 1 and 0, and null :undefined. Text that
+        is not exactly one JSON value (including NaN and Infinity) is a
+        range error that gives the line, column and character position.
+
+        .unjson is the inverse of .json, except that true and false are
+        read as 1 and 0.
+
+        Example:
+
+            .unjson("{""a"":1,""b"":[1,2,3]}")
+
+    """
+    import json
+
+    def reject(name):
+        raise ValueError(name)
+
+    text = _text_arg(".unjson", "x", x)
+    try:
+        value = json.loads(str(text), parse_constant=reject)
+    except json.JSONDecodeError as e:
+        raise KlongRangeError(f".unjson: {e.msg} at line {e.lineno} column {e.colno} (character {e.pos})") from None
+    except ValueError as e:
+        raise KlongRangeError(f".unjson: {e} is not JSON") from None
+    return _from_json(value, klong._backend)
 
 
 def eval_sys_system(x):

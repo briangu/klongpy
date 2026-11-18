@@ -6,6 +6,89 @@ import concurrent.futures
 from aiohttp import web
 
 from klongpy.core import KGCall, KGFn, KGFnWrapper, KGLambda
+from klongpy.errors import KlongError, KlongTypeError, classify
+
+RESPONSE_KEYS = ("status", "type", "body")
+SERVER_ERROR_BODY = "handler failed"
+
+
+def _on_klongloop(klong, running, fn, *args):
+    """
+    Run fn(*args) on the Klong loop (the thread timers, .async and IPC callbacks run on) and
+    return an awaitable for its result. Handlers run there, not on the io loop that serves the
+    sockets, so that what a handler starts (.timer, .async, .cli, .webc) belongs to the loop
+    that serves it and a blocking call in a handler does not stall the server's I/O.
+    """
+    try:
+        klongloop = klong['.system']['klongloop']
+    except (KeyError, TypeError):
+        klongloop = None
+    if klongloop is None or klongloop is running:
+        return None, fn(*args)
+    future = running.create_future()
+
+    def finish(setter, value):
+        if not future.done():
+            setter(value)
+
+    def run():
+        try:
+            result = fn(*args)
+        except Exception as e:  # noqa: BLE001 - handed back to the request
+            running.call_soon_threadsafe(finish, future.set_exception, e)
+        else:
+            running.call_soon_threadsafe(finish, future.set_result, result)
+
+    klongloop.call_soon_threadsafe(run)
+    return future, None
+
+
+def _log_handler_failure(klong, method, route, exc):
+    """One line on stderr: the route and the Klong error (kind and message); the traceback with -v/--traceback."""
+    from klongpy.repl import write_stderr
+    err = exc if isinstance(exc, KlongError) else classify(exc)(str(exc))
+    try:
+        traceback = bool(klong['.system'].get('traceback'))
+    except (KeyError, AttributeError, TypeError):
+        traceback = False
+    line = f"web {method} {route}: handler failed: {err.headline()}"
+    if traceback:
+        import traceback as tb
+        line += "\n" + "".join(tb.format_exception(type(exc), exc, exc.__traceback__)).rstrip("\n")
+    write_stderr(line)
+
+
+def _to_text(value):
+    return value if isinstance(value, str) else str(value)
+
+
+def _make_response(value):
+    """
+    The response for a handler's value: text is the body with status 200; a dictionary may carry
+    "status" (an integer from 100 to 599), "type" (the content type) and "body" (text), each
+    optional. Any other value is converted with str, as a body. An unknown key, or a value of
+    the wrong kind, is a type error.
+    """
+    if isinstance(value, dict):
+        for key in value:
+            if key not in RESPONSE_KEYS:
+                raise KlongTypeError(f'unknown response key "{key}"', hint='the keys are "status", "type" and "body"')
+        status = value.get("status", 200)
+        if isinstance(status, bool) or not isinstance(status, (int, float)) or int(status) != status or not 100 <= status <= 599:
+            raise KlongTypeError(f"response status must be an integer from 100 to 599, got {status!r}")
+        ctype = value.get("type")
+        if ctype is not None and not isinstance(ctype, str):
+            raise KlongTypeError("response type must be a string")
+        body = _to_text(value.get("body", ""))
+        kwargs = {"status": int(status), "text": body}
+        if ctype:
+            kwargs["content_type"] = ctype.split(";", 1)[0].strip()
+            if "charset=" in ctype:
+                kwargs["charset"] = ctype.split("charset=", 1)[1].split(";", 1)[0].strip()
+            else:
+                kwargs["charset"] = "utf-8"
+        return web.Response(**kwargs)
+    return web.Response(text=_to_text(value))
 
 
 class WebServerHandle:
@@ -43,6 +126,12 @@ class WebServerHandle:
         if runner is not None:
             await runner.cleanup()
 
+    def close_soon(self):
+        """Stop the server without waiting: from a handler or a timer, which the stop must not wait for."""
+        if self.runner is None or self.ioloop is None or self.ioloop.is_closed():
+            return
+        self.ioloop.call_soon_threadsafe(lambda: asyncio.ensure_future(self.shutdown()))
+
     def close(self):
         """Stop the server from any thread (the process is ending, or .webc)."""
         if self.runner is None or self.ioloop is None or self.ioloop.is_closed():
@@ -54,6 +143,24 @@ class WebServerHandle:
 
     def __str__(self):
         return f"web[{self.bind or '0.0.0.0'}:{self.port}]"
+
+
+async def _serve(klong, request, fn, route, get_params, is_post=False):
+    """Answer one request: read the parameters, run the handler on the Klong loop, build the response."""
+    method = "GET" if request.method == "HEAD" else request.method
+    try:
+        params = dict(await get_params()) if is_post else get_params()
+    except Exception as e:  # noqa: BLE001 - a body that cannot be read is the client's fault
+        logging.info("web %s %s: bad request: %s", method, route, e)
+        return web.Response(text="Invalid request", status=400)
+    try:
+        future, value = _on_klongloop(klong, asyncio.get_running_loop(), fn, params)
+        if future is not None:
+            value = await future
+        return _make_response(value)
+    except Exception as e:  # noqa: BLE001 - any handler failure answers 500
+        _log_handler_failure(klong, method, route, e)
+    return web.Response(text=SERVER_ERROR_BODY, status=500)
 
 
 def eval_sys_fn_create_web_server(klong, x, y, z):
@@ -81,6 +188,12 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
 
         GET handlers are provided a dictionary of query parameters.
         POST handlers are provided a dictionary of post body parameters.
+
+        A handler returns text (status 200) or a dictionary with the optional
+        keys "status", "type" and "body". A handler that fails answers 500 and
+        logs one line. Handlers run on the Klong loop, so they may start timers
+        and make .cli and .async calls. HEAD is answered as GET without a body;
+        another method on a route answers 405.
 
         Example:
 
@@ -114,12 +227,7 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
         fn_wrapped = KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
 
         async def _get(request: web.Request, fn=fn_wrapped, route=route):
-            try:
-                assert request.method == "GET"
-                return web.Response(text=str(fn(dict(request.rel_url.query))))
-            except Exception as e:
-                logging.info(f"failed web request: {route} with error {e}")
-                return web.Response(text="Invalid request", status=400)
+            return await _serve(klong, request, fn, route, lambda: dict(request.rel_url.query))
 
         logging.info("adding GET route: %s", route)
 
@@ -138,13 +246,7 @@ def eval_sys_fn_create_web_server(klong, x, y, z):
         fn_wrapped = KGFnWrapper(klong, fn) if isinstance(fn, KGFn) else fn
 
         async def _post(request: web.Request, fn=fn_wrapped, route=route):
-            try:
-                assert request.method == "POST"
-                parameters = dict(await request.post())
-                return web.Response(text=str(fn(parameters)))
-            except Exception as e:
-                logging.exception("failed web request: %s", route)
-                return web.Response(text="Invalid request", status=400)
+            return await _serve(klong, request, fn, route, request.post, is_post=True)
 
         logging.info("adding POST route: %s", route)
 
@@ -191,16 +293,30 @@ def eval_sys_fn_shutdown_web_server(klong, x):
 
             .webc(x)                                      [Stop Web server]
 
-            Stop and close the web server referenced by "x".
+            Stop and close the web server referenced by "x". Called in a
+            handler, it lets the reply being served finish and then stops
+            the server.
 
     """
     if isinstance(x, KGCall) and issubclass(type(x.a), KGLambda):
         x = x.a.fn
     if isinstance(x, WebServerHandle) and x.runner is not None:
         logging.info("shutting down web server")
-        asyncio.run_coroutine_threadsafe(x.shutdown(), klong['.system']['ioloop']).result()
+        if _on_loop_of(klong['.system'].get('klongloop')):
+            # called from a handler or a timer (on the Klong loop): waiting for the stop would wait for the
+            # request being served, which waits for this call. The reply is completed, then the server stops.
+            x.close_soon()
+        else:
+            asyncio.run_coroutine_threadsafe(x.shutdown(), klong['.system']['ioloop']).result()
         return 1
     return 0
+
+
+def _on_loop_of(loop):
+    try:
+        return loop is not None and asyncio.get_running_loop() is loop
+    except RuntimeError:
+        return False
 
 
 def create_system_functions_web():
