@@ -16,6 +16,8 @@ int32 = ["klong-core/int32"]
 float32 = ["klong-core/float32"]
 # .timer and .timerc.
 timers = []
+bigint = ["klong-core/bigint", "klong-ipc?/bigint"]
+diag = ["klong-core/diag"]
 # IPC over the kdb+ protocol: .cli .clid .clic .clit .srv .async.
 ipc = ["dep:klong-ipc", "dep:klong-dgram"]
 # Compress large IPC messages when sending (decompression is always there).

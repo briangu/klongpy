@@ -665,3 +665,35 @@
 > ^["abcd" "efgh"]
 = [2 4]
 
+
+@ lists.amend-in-depth-float-value-joined-to-the-path core float
+> [[1 2][3 4]]:-5.5,[1 1]
+= [[1.0 2.0] [3.0 5.5]]
+
+@ lists.amend-in-depth-float-path-not-whole-is-a-type-error core float
+> [[1 2][3 4]]:-5.5,[1 1.5]
+! type
+
+@ lists.index-by-a-float-leaves-the-list core float
+> [1 2 3]@1.5
+= [1 2 3]
+
+@ lists.index-vector-holds-a-non-integer-is-a-range-error core
+> [1 2 3]@[1 "a"]
+! range
+
+@ lists.index-vector-with-a-float-is-a-range-error core float
+> [1 2 3]@[1 1.5]
+! range
+
+@ lists.index-string-by-a-matrix-of-indexes strings
+> "hello"@[[0 1][2 3]]
+= ["he" "ll"]
+
+@ lists.index-string-by-a-ragged-index-is-a-type-error strings
+> "hello"@[1 [2 3]]
+! type
+
+@ lists.grade-up-of-an-empty-string-is-an-empty-list strings
+> <""
+= []

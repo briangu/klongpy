@@ -44,7 +44,7 @@ The `conformance/` directory holds about 1,500 test cases that do not depend on 
 <!-- check-docs: link conformance -->
 ```console
 $ python conformance/run.py | tail -n 1
-1559 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
+1708 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 ```
 
 ## The stable core

@@ -192,6 +192,8 @@ fn write_at<S: Sink>(syms: &Interner, v: &Value, display: bool, out: &mut S, dep
             let _ = write!(out, "{}", i);
         }
         Value::Flt(f) => write_float(*f, out),
+        #[cfg(feature = "bigint")]
+        Value::Big(b) => out.push_str(&crate::big::text(b)),
         Value::Sym(s) => {
             if !display {
                 out.push(':');

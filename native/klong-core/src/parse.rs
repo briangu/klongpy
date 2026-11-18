@@ -48,6 +48,9 @@ pub struct Parser<'a> {
     stack: Option<(usize, usize)>,
 }
 
+const REST: &str = "the rest of the input is not evaluated";
+const TO_END: &str = "it runs to the end of the input";
+
 const ADVERBS: [&str; 10] = ["'", "/", "\\", "\\~", "\\*", ":'", ":/", ":\\", ":~", ":*"];
 
 fn adverb_arity(s: &str, ctx: u8) -> u8 {
@@ -282,6 +285,8 @@ pub fn read_datum(text: &str, syms: &mut Interner, module: &mut Option<String>, 
             let v = match &tok.v {
                 TV::Int(i) => Value::Int(*i),
                 TV::Flt(f) => Value::Flt(*f),
+                #[cfg(feature = "bigint")]
+                TV::Big(b) => Value::Big(b.clone()),
                 TV::Str(s) => Value::text(s)?,
                 TV::Char(c) => Value::Char(*c),
                 _ => Value::Undefined,
@@ -297,6 +302,8 @@ pub fn read_datum(text: &str, syms: &mut Interner, module: &mut Option<String>, 
             match (nt.k, &nt.v, nt.ws) {
                 (K::Num, TV::Int(i), false) => Ok(Some((nt.end as usize, Value::Int(i.wrapping_neg())))),
                 (K::Num, TV::Flt(f), false) => Ok(Some((nt.end as usize, Value::Flt(-*f)))),
+                #[cfg(feature = "bigint")]
+                (K::Num, TV::Big(b), false) => Ok(Some((nt.end as usize, crate::big::negate(b)))),
                 _ => Err(Error::syntax("not a data object").with_span((tok.start, tok.end))),
             }
         }
@@ -392,26 +399,164 @@ impl<'a> Parser<'a> {
 
     /// Something the legacy grammar accepts and should not: an error at strict level 1 and
     /// above, accepted at level 0.
-    fn issue(&self, message: String, span: Span) -> Result<()> {
+    ///
+    /// `code` names the condition (KlongPy's `KlongSyntaxWarning.code`), `hint` is one line of advice (given by the error at level 1 and by
+    /// the warning at level 0) and `note` says what happens to the input at level 0 (part of the warning only). At level 0 the warning is
+    /// recorded in the interner (`Interner::warnings`) for the embedder to report.
+    fn issue(&mut self, code: &'static str, message: String, span: Span, hint: Option<String>, note: Option<&str>) -> Result<()> {
         if self.strict > 0 {
-            Err(Error::syntax(message).with_span(span))
+            let e = Error::syntax(message).with_span(span);
+            #[cfg(feature = "diag")]
+            if let Some(h) = hint {
+                return Err(e.with_hint(h));
+            }
+            return Err(e);
+        }
+        #[cfg(feature = "diag")]
+        {
+            let w = crate::sym::Warning { code, message, note: note.map(String::from), hint, span, source: self.tree.source.clone() };
+            self.syms.warn(w);
+        }
+        #[cfg(not(feature = "diag"))]
+        let _ = (code, hint, note);
+        Ok(())
+    }
+
+    /// The hint when a string scanned so far ends in a backslash (the writer meant `\"` for a quote).
+    #[cfg(feature = "diag")]
+    fn escaped_quote_hint(&self) -> Option<String> {
+        let text = self.lx.text.as_bytes();
+        let found = self.lx.toks.iter().any(|t| t.k == K::Str && !t.unterminated && t.end - t.start >= 2 && text[t.end as usize - 2] == b'\\');
+        if found {
+            Some("a quote inside a string is written twice: \"\"; a backslash is an ordinary character".to_string())
         } else {
-            Ok(())
+            None
         }
     }
 
+    /// A token as written, quoted and clipped, for a message (KlongPy `_lexeme`).
+    #[cfg(not(feature = "diag"))]
+    fn lexeme(&self, _tok: &Tok) -> String {
+        String::new()
+    }
+    #[cfg(not(feature = "diag"))]
+    fn index_hint(&self, _j: usize) -> Option<String> {
+        None
+    }
+    #[cfg(not(feature = "diag"))]
+    fn escaped_quote_hint(&self) -> Option<String> {
+        None
+    }
+
+    #[cfg(feature = "diag")]
+    fn lexeme(&self, tok: &Tok) -> String {
+        let s = &self.lx.text[tok.start as usize..tok.end as usize];
+        let clipped = s.chars().count() > 20 || s.contains('\n');
+        if clipped {
+            let first = s.split('\n').next().unwrap_or("");
+            let mut out: String = first.chars().take(20).collect();
+            out.push_str("...");
+            crate::msg!("'{}'", out)
+        } else {
+            crate::msg!("'{}'", s)
+        }
+    }
+
+    /// The hint for `name[...]` (token `j` is the `[`), or `None` (KlongPy `tk_index_hint`).
+    #[cfg(feature = "diag")]
+    fn index_hint(&self, j: usize) -> Option<String> {
+        let tok = self.tok(j);
+        if tok.k != K::LBrack || tok.ws || j == 0 {
+            return None;
+        }
+        let prev = self.tok(j - 1);
+        if !matches!(prev.k, K::Name | K::QName | K::RBrack | K::RParen) {
+            return None;
+        }
+        let text = self.lx.text;
+        let m = self.matching(j);
+        if prev.k == K::Name {
+            if let Some(m) = m {
+                let name = &text[prev.start as usize..prev.end as usize];
+                let inner = text[tok.end as usize..self.tok(m).start as usize].trim();
+                if m == j + 2 && matches!(self.tok(j + 1).k, K::Num | K::Name | K::Str | K::Char) {
+                    return Some(crate::msg!("use {}@{} to index", name, inner));
+                }
+                if inner.chars().count() <= 24 && !inner.contains('\n') {
+                    return Some(crate::msg!("use {}@[{}] to index", name, inner));
+                }
+            }
+        }
+        Some("use @ to index: a@1 for one element, a@[1 2] for several".to_string())
+    }
+
     fn unexpected(&self, at: u32, want: char) -> Error {
-        let found = match self.lx.text[(at as usize).min(self.lx.text.len())..].chars().next() {
-            Some(c) => crate::msg!("expected '{}' but found '{}'", want, c),
-            None => crate::msg!("expected '{}' but found end of input", want),
+        let text = self.lx.text;
+        let n = text.len();
+        let i = (at as usize).min(n);
+        // KlongPy `_found_at`: whitespace is skipped to name the lexeme after it, unless that is the expected one (then the whitespace is what is wrong)
+        let mut j = i;
+        for c in text[i..].chars() {
+            if c != '\n' && c.is_whitespace() {
+                j += c.len_utf8();
+            } else {
+                break;
+            }
+        }
+        let (found, span): (String, (u32, u32)) = if j >= n {
+            ("end of input".to_string(), (n as u32, n as u32))
+        } else if text.as_bytes()[j] == b'\n' {
+            ("end of line".to_string(), (j as u32, j as u32 + 1))
+        } else {
+            let rest = &text[j..];
+            let b = rest.as_bytes();
+            let name_start = |c: u8| c.is_ascii_alphabetic() || c == b'.';
+            let colon = (b[0] == b':') as usize;
+            let len = if b.len() > colon && name_start(b[colon]) {
+                let mut k = colon + 1;
+                while k < b.len() && (b[k].is_ascii_alphanumeric() || b[k] == b'.') {
+                    k += 1;
+                }
+                k
+            } else if b[0].is_ascii_digit() {
+                let mut k = 1;
+                while k < b.len() && (b[k].is_ascii_digit() || b[k] == b'.') {
+                    k += 1;
+                }
+                k
+            } else if b[0] == b'"' {
+                let mut k = 1;
+                while k < b.len() && k <= 16 && b[k] != b'"' && b[k] != b'\n' {
+                    k += 1;
+                }
+                if k < b.len() && b[k] == b'"' {
+                    k += 1;
+                }
+                k
+            } else {
+                colon + rest[colon..].chars().next().map(|c| c.len_utf8()).unwrap_or(0)
+            };
+            let lexeme = &rest[..len.min(rest.len())];
+            if j > i && lexeme.starts_with(want) {
+                ("whitespace".to_string(), (i as u32, j as u32))
+            } else {
+                (crate::msg!("'{}'", lexeme), (j as u32, (j + lexeme.len()) as u32))
+            }
         };
-        Error::syntax(found).with_span((at, at + 1))
+        let e = Error::syntax(crate::msg!("expected '{}' but found {}", want, found)).with_span(span);
+        #[cfg(feature = "diag")]
+        if let Some(j) = (0..self.lx.toks.len()).find(|&j| self.lx.toks[j].start == span.0) {
+            if let Some(h) = self.index_hint(j) {
+                return e.with_hint(h);
+            }
+        }
+        e
     }
 
     fn raise_tok(&self, tok: &Tok) -> Error {
         let m = match tok.v {
-            TV::CharEof => "character literal 0c at end of input".to_string(),
-            _ => crate::msg!("malformed number {}", &self.lx.text[tok.start as usize..tok.end as usize]),
+            TV::CharEof => "expected a character after 0c but found end of input".to_string(),
+            _ => crate::msg!("malformed number '{}'", &self.lx.text[tok.start as usize..tok.end as usize]),
         };
         Error::syntax(m).with_span((tok.start, tok.end))
     }
@@ -474,10 +619,8 @@ impl<'a> Parser<'a> {
         let mut r = self.expr(false)?;
         if r == NONE || r == SEMI {
             let what = &self.lx.text[ost as usize..oe as usize];
-            self.issue(
-                if dyad { crate::msg!("missing right operand for {}", what) } else { crate::msg!("missing operand for {}", what) },
-                (ost, oe),
-            )?;
+            let what = what.to_string();
+            self.issue("missing-operand", if dyad { crate::msg!("missing right operand for {}", what) } else { crate::msg!("missing operand for {}", what) }, (ost, oe), None, None)?;
             r = self.unsemi(r);
         }
         let advs = self.tree.range(&advs);
@@ -524,7 +667,9 @@ impl<'a> Parser<'a> {
                 _ => {}
             }
             if !fresh && tok.k != K::Eof {
-                self.issue("unexpected input after the end of the argument".to_string(), (tok.start, tok.end))?;
+                let hint = self.index_hint(j).unwrap_or_else(|| "arguments are separated by ;".to_string());
+                let m = crate::msg!("unexpected {} after the end of the argument", self.lexeme(&tok));
+                self.issue("trailing-input", m, (tok.start, tok.end), Some(hint), Some("it is passed as one more argument"))?;
             }
             if tok.k == K::LBrack {
                 let nt = self.tok(j + 1);
@@ -732,7 +877,8 @@ impl<'a> Parser<'a> {
 
     /// The list literal whose `[` is token `j` is the left side of `::`. True if it is a list
     /// of plain names: a destructuring assignment.
-    fn destructure_ok(&self, j: usize) -> Result<bool> {
+    fn destructure_ok(&mut self, j: usize) -> Result<bool> {
+        let mut skip_marker = false;
         let mut names: Vec<&str> = Vec::new();
         let mut why: Option<String> = None;
         let mut i = j + 1;
@@ -765,6 +911,9 @@ impl<'a> Parser<'a> {
                     if why.is_none() {
                         why = Some("the list on the left of :: must hold only names".to_string());
                     }
+                    if tok.k == K::Op && self.lx.text_of(tok) == "_" {
+                        skip_marker = true;
+                    }
                 }
             }
             i += 1;
@@ -775,7 +924,15 @@ impl<'a> Parser<'a> {
         match why {
             Some(w) => {
                 let end = self.matching(j).map(|m| self.tok(m).end).unwrap_or(self.tok(j).end);
-                self.issue(crate::msg!("cannot destructure: {}", w), (self.tok(j).start, end))?;
+                let start = self.tok(j).start;
+                let hint = if w.starts_with("nested lists") {
+                    "destructure in two steps: [a t]::value;[b c]::t"
+                } else if skip_marker {
+                    "there is no skip marker: name every element"
+                } else {
+                    "write [a b c]::value with plain names, one for each element of value"
+                };
+                self.issue("not-a-destructuring", crate::msg!("cannot destructure: {}", w), (start, end), Some(hint.to_string()), Some("nothing is assigned"))?;
                 Ok(false)
             }
             None => Ok(true),
@@ -784,7 +941,7 @@ impl<'a> Parser<'a> {
 
     /// `a`, the left side of `::`, is a call. `f(a;b)` with plain names defines `f` with those
     /// parameters.
-    fn named_def(&self, a: NodeId, st: u32, lend: u32) -> Result<Option<NamedDef>> {
+    fn named_def(&mut self, a: NodeId, st: u32, lend: u32) -> Result<Option<NamedDef>> {
         let (callee, args) = match self.tree.node(a) {
             Node::Fn { a: callee, args, has_args: true, call: true, .. } => (*callee, *args),
             _ => return Ok(None),
@@ -823,7 +980,13 @@ impl<'a> Parser<'a> {
         }
         if let Some(w) = why {
             let n = self.syms.name(name).split('`').next().unwrap_or("").to_string();
-            self.issue(crate::msg!("cannot define {} with named parameters: {}", n, w), (st, lend))?;
+            self.issue(
+                "not-a-definition",
+                crate::msg!("cannot define {} with named parameters: {}", n, w),
+                (st, lend),
+                Some("name each parameter once, with names other than x, y and z: f(a;b)::{a+b}".to_string()),
+                Some("nothing is defined"),
+            )?;
             return Ok(None);
         }
         Ok(Some(NamedDef { name, params: ids }))
@@ -852,13 +1015,30 @@ impl<'a> Parser<'a> {
             return Ok(Target::Named(nd));
         }
         if self.strict > 0 {
-            return Err(self.not_assignable(st, lend));
+            return Err(self.not_assignable(a, st, lend));
         }
         Ok(Target::Node(a))
     }
 
-    fn not_assignable(&self, st: u32, lend: u32) -> Error {
-        Error::syntax("cannot assign: the left side of :: must be a name").with_span((st, lend))
+    fn not_assignable(&self, a: NodeId, st: u32, lend: u32) -> Error {
+        let e = Error::syntax("cannot assign: the left side of :: must be a name").with_span((st, lend));
+        // KlongPy `tk_assign_hint`: what the writer probably meant
+        #[cfg(feature = "diag")]
+        if Tree::is_real(a) {
+            match self.tree.node(a) {
+                Node::Fn { a: callee, has_args: true, .. } if matches!(self.tree.node(*callee), Node::Sym(_)) => {
+                    if let Node::Sym(s) = self.tree.node(*callee) {
+                        let name = self.syms.name(*s).split('`').next().unwrap_or("");
+                        return e.with_hint(crate::msg!("to define a function write {}::{{...}} and use x, y and z for its arguments, or name its parameters: f(a;b)::{{...}}, with plain names between the parentheses", name));
+                    }
+                }
+                Node::Dyad { op, .. } if self.syms.name(*op) == "@" => return e.with_hint("to change an element use amend, a:=value,index"),
+                Node::Lit(v) if v.is_list() => return e.with_hint("assign one name at a time: a::1;b::2"),
+                _ => {}
+            }
+        }
+        let _ = a;
+        e
     }
 
     /// The first token that is x, y or z used by the function literal whose `{` is token `i`
@@ -931,7 +1111,7 @@ impl<'a> Parser<'a> {
         if let Some(tok) = self.direct_arg(rj, self.lx.pos) {
             return Err(Error::syntax(crate::msg!("{} is not available in a function with named parameters", self.lx.text_of(&tok)))
                 .with_span((tok.start, tok.end))
-                .with_hint("use the parameter names; x, y and z exist only in a function without a parameter list"));
+                .with_hint("use the parameter names; x, y and z exist only in a function without a parameter list (a nested {...} has its own)"));
         }
         let params = self.tree.range(&nd.params);
         let new_body = match self.tree.node(body) {
@@ -982,6 +1162,8 @@ impl<'a> Parser<'a> {
                     let v = match tok.v {
                         TV::Int(i) => Value::Int(i),
                         TV::Flt(f) => Value::Flt(f),
+                        #[cfg(feature = "bigint")]
+                        TV::Big(b) => Value::Big(b),
                         _ => Value::Undefined,
                     };
                     self.keep(&mut arr, v);
@@ -1012,6 +1194,8 @@ impl<'a> Parser<'a> {
                         match (&nt.k, &nt.v) {
                             (K::Num, TV::Int(i)) => self.keep(&mut arr, Value::Int(i.wrapping_neg())),
                             (K::Num, TV::Flt(f)) => self.keep(&mut arr, Value::Flt(-*f)),
+                            #[cfg(feature = "bigint")]
+                            (K::Num, TV::Big(b)) => self.keep(&mut arr, crate::big::negate(b)),
                             (K::Error, TV::BadNum) => return Err(self.raise_tok(&nt)),
                             // "-0cx" is the number -0 and the name cx in KlongPy (its number
                             // reader does not know the 0c prefix). Not reproduced.
@@ -1062,8 +1246,11 @@ impl<'a> Parser<'a> {
             j += 1;
         } else {
             self.lx.at_end = true;
-            let what = if close == K::RBrack { "unterminated list: the closing ] is missing" } else { "unterminated dictionary: the closing } is missing" };
-            self.issue(what.to_string(), (opener.start, opener.end))?;
+            if close == K::RBrack {
+                self.issue("unterminated-list", "unterminated list: the closing ] is missing".to_string(), (opener.start, opener.end), None, Some(TO_END))?;
+            } else {
+                self.issue("unterminated-dict", "unterminated dictionary: the closing } is missing".to_string(), (opener.start, opener.end), None, Some(TO_END))?;
+            }
         }
         Ok((j, arr))
     }
@@ -1180,7 +1367,7 @@ impl<'a> Parser<'a> {
             let k = self.kind(j);
             if k == K::Eof {
                 self.lx.at_end = true;
-                self.issue("unterminated list: the closing ] is missing".to_string(), (st, st + 1))?;
+                self.issue("unterminated-list", "unterminated list: the closing ] is missing".to_string(), (st, st + 1), None, Some(TO_END))?;
                 break;
             }
             if k == K::RBrack {
@@ -1229,7 +1416,7 @@ impl<'a> Parser<'a> {
                 match tok.k {
                     K::Eof => {
                         self.lx.at_end = true;
-                        self.issue("unterminated dictionary: the closing } is missing".to_string(), (st, st + 2))?;
+                        self.issue("unterminated-dict", "unterminated dictionary: the closing } is missing".to_string(), (st, st + 2), None, Some(TO_END))?;
                         break;
                     }
                     K::Semi | K::RBrace => {
@@ -1249,7 +1436,7 @@ impl<'a> Parser<'a> {
                     }
                     K::Eof => {
                         self.lx.at_end = true;
-                        self.issue("unterminated dictionary: the closing } is missing".to_string(), (st, st + 2))?;
+                        self.issue("unterminated-dict", "unterminated dictionary: the closing } is missing".to_string(), (st, st + 2), None, Some(TO_END))?;
                         break;
                     }
                     _ => {
@@ -1355,6 +1542,8 @@ impl<'a> Parser<'a> {
                 let n = match &tok.v {
                     TV::Int(i) => Node::Lit(Value::Int(*i)),
                     TV::Flt(f) => Node::Lit(Value::Flt(*f)),
+                    #[cfg(feature = "bigint")]
+                    TV::Big(b) => Node::Lit(Value::Big(b.clone())),
                     TV::Str(s) => Node::Lit(Value::text(s)?),
                     TV::Char(c) => Node::Lit(Value::Char(*c)),
                     _ => Node::Lit(Value::Undefined),
@@ -1373,7 +1562,8 @@ impl<'a> Parser<'a> {
                         let mut r = self.expr(ign)?;
                         let missing = r == NONE || r == SEMI;
                         if missing {
-                            self.issue(crate::msg!("missing operand for {}", v), (st, tok.end))?;
+                            let m = crate::msg!("missing operand for {}", v);
+                            self.issue("missing-operand", m, (st, tok.end), None, None)?;
                             r = self.unsemi(r);
                         }
                         let e = self.lx.end();
@@ -1441,9 +1631,12 @@ impl<'a> Parser<'a> {
             _ => {
                 // ) } ] :| where a factor was expected: read as the string it is written as
                 let v = self.lx.text_of(&tok);
-                self.issue(crate::msg!("unexpected '{}'", v), (tok.start, tok.end))?;
+                let v = v.to_string();
+                let m = crate::msg!("unexpected '{}'", v);
+                let note = crate::msg!("it is read as the string \"{}\"", v);
+                self.issue("stray-closer", m, (tok.start, tok.end), None, Some(note.as_str()))?;
                 self.lx.pos = j + 1;
-                a = self.lit_str(v);
+                a = self.lit_str(&v);
             }
         }
         self.lx.start = st;
@@ -1485,7 +1678,10 @@ impl<'a> Parser<'a> {
                     } else if ADVERBS.contains(&v) {
                         // an adverb glyph where a dyadic operator is expected
                         let m = if tok.ws { crate::msg!("adverb {} must directly follow its verb", v) } else { crate::msg!("adverb {} does not follow a verb", v) };
-                        return Err(Error::syntax(m).with_span((tok.start, tok.end)));
+                        let e = Error::syntax(m).with_span((tok.start, tok.end));
+                        #[cfg(feature = "diag")]
+                        let e = e.with_hint(if tok.ws { crate::msg!("an adverb follows its verb with no space: remove the space before {}", v) } else { crate::msg!("an adverb directly follows an operator, a name or a function literal") });
+                        return Err(e);
                     }
                     op = Some(self.syms.intern(v));
                     self.lx.pos = j + 1;
@@ -1519,7 +1715,7 @@ impl<'a> Parser<'a> {
             let ost = tok.start;
             if let Some(adv) = self.peek_adverb() {
                 if target && self.strict > 0 {
-                    return Err(self.not_assignable(st, lend));
+                    return Err(self.not_assignable(a, st, lend));
                 }
                 let verb = match op {
                     Some(o) => self.add(Node::OpVal { op: o, arity: 0 }, (tok.start, tok.end)),
@@ -1541,7 +1737,8 @@ impl<'a> Parser<'a> {
                 let missing = r == NONE || r == SEMI;
                 if missing {
                     let what = if tok.k == K::LBrace { "the function" } else { self.lx.text_of(&tok) };
-                    self.issue(crate::msg!("missing right operand for {}", what), osp)?;
+                    let m = crate::msg!("missing right operand for {}", what);
+                    self.issue("missing-operand", m, osp, None, None)?;
                     r = self.unsemi(r);
                 }
                 if let Some(nd) = named {
@@ -1635,27 +1832,52 @@ impl<'a> Parser<'a> {
     /// The top-level parse has stopped: whatever is left is input the legacy parser dropped,
     /// and a string or comment may run to the end of the input.
     fn finish(&mut self) -> Result<Vec<NodeId>> {
-        let tok = self.tok(self.lx.pos).clone();
+        let j = self.lx.pos;
+        let tok = self.tok(j).clone();
         if tok.k != K::Eof {
             let span = (tok.start, tok.end);
-            let v = &self.lx.text[tok.start as usize..tok.end as usize];
             if matches!(tok.k, K::RParen | K::RBrack | K::RBrace) {
-                self.issue(crate::msg!("unexpected '{}': nothing is open that it could close", v), span)?;
+                let v = self.lx.text[tok.start as usize..tok.end as usize].to_string();
+                let note = if self.tok(j + 1).k != K::Eof { REST } else { "it is ignored" };
+                self.issue("stray-closer", crate::msg!("unexpected '{}': nothing is open that it could close", v), span, None, Some(note))?;
             } else {
-                self.issue(crate::msg!("unexpected '{}' after the end of the expression", v.lines().next().unwrap_or("")), span)?;
+                let prev = if j > 0 { Some(self.tok(j - 1).clone()) } else { None };
+                let pk = prev.as_ref().map(|p| p.k);
+                let mut hint: Option<String> = None;
+                if matches!(tok.k, K::LParen | K::CallP) && matches!(pk, Some(K::Name | K::QName | K::RBrace)) && tok.ws {
+                    let text = self.lx.text;
+                    let args = self.matching(j).map(|m| &text[tok.start as usize..self.tok(m).end as usize]);
+                    let args = match args {
+                        Some(a) if a.chars().count() <= 24 && !a.contains('\n') => a.to_string(),
+                        _ => "(...)".to_string(),
+                    };
+                    let callee = match &prev {
+                        Some(p) if p.k != K::RBrace => text[p.start as usize..p.end as usize].to_string(),
+                        _ => "{...}".to_string(),
+                    };
+                    hint = Some(crate::msg!("no space may separate a function from its argument list: write {}{}", callee, args));
+                } else if matches!(tok.k, K::LParen | K::CallP) {
+                    hint = Some("only a name or a function literal can be followed by an argument list; assign the value to a name first".to_string());
+                } else if tok.k == K::LBrack && self.index_hint(j).is_some() {
+                    hint = self.index_hint(j);
+                } else if matches!(tok.k, K::Num | K::Str | K::Char | K::Name | K::QName) && matches!(pk, Some(K::Num | K::Str | K::Char | K::Name | K::QName)) {
+                    hint = Some("a list is written in brackets, [1 2 3]; statements are separated by ;".to_string());
+                }
+                let m = crate::msg!("unexpected {} after the end of the expression", self.lexeme(&tok));
+                self.issue("trailing-input", m, span, hint, Some(REST))?;
             }
         }
         let n = self.lx.toks.len();
         if n >= 2 {
-            let t = &self.lx.toks[n - 2];
+            let t = self.lx.toks[n - 2].clone();
             if t.k == K::Str && t.unterminated {
-                self.issue("unterminated string: the closing \" is missing".to_string(), (t.start, t.end))?;
+                let hint = self.escaped_quote_hint();
+                self.issue("unterminated-string", "unterminated string: the closing \" is missing".to_string(), (t.start, t.end), hint, Some(TO_END))?;
             }
         }
-        for c in &self.lx.trivia {
-            if c.unterminated {
-                self.issue("unterminated comment: the closing \" is missing".to_string(), (c.start, c.end))?;
-            }
+        let comments: Vec<(u32, u32)> = self.lx.trivia.iter().filter(|c| c.unterminated).map(|c| (c.start, c.end)).collect();
+        for (a, b) in comments {
+            self.issue("unterminated-comment", "unterminated comment: the closing \" is missing".to_string(), (a, b), None, Some(TO_END))?;
         }
         Ok(Vec::new())
     }

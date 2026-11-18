@@ -72,6 +72,9 @@ pub struct ErrorData {
     pub span: Option<Span>,
     pub source: Option<Rc<Source>>,
     pub hint: Option<Cow<'static, str>>,
+    /// Raised by an operator on operands it does not take (what NumPy's own exceptions are in KlongPy): the operator's application
+    /// rewrites the message to name the whole operands (`cannot apply + (Plus) to list of 3 and list of 2`).
+    pub generic: bool,
 }
 
 /// A Klong error. One pointer wide, so that `Result<Value, Error>` stays small.
@@ -92,12 +95,16 @@ impl core::ops::DerefMut for Error {
 
 impl Error {
     pub fn new(kind: Kind, message: impl Into<Cow<'static, str>>) -> Error {
-        Error(Box::new(ErrorData { kind, message: message.into(), span: None, source: None, hint: None }))
+        Error(Box::new(ErrorData { kind, message: message.into(), span: None, source: None, hint: None, generic: false }))
     }
     pub fn with_span(mut self, span: Span) -> Error {
         if self.0.span.is_none() {
             self.0.span = Some(span);
         }
+        self
+    }
+    pub fn generic(mut self) -> Error {
+        self.0.generic = true;
         self
     }
     pub fn with_hint(mut self, hint: impl Into<Cow<'static, str>>) -> Error {

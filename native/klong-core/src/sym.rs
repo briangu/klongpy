@@ -1,6 +1,8 @@
 //! Interned symbols. Names and operator glyphs share one table.
 use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
+#[cfg(feature = "diag")]
+use alloc::string::String;
 use alloc::vec::Vec;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -13,7 +15,29 @@ pub const DOT_F: SymId = SymId(3);
 /// Symbols 0..RESERVED are x, y, z and .f; the operator glyphs of `ops::OPS` follow, in order.
 pub const FIRST_OP: u32 = 4;
 
+#[cfg(feature = "diag")]
+/// What the parser accepted at strict level 0 that it should not have (KlongPy's `KlongSyntaxWarning`): the input still means what it
+/// always meant. At level 1 and above the same condition is a syntax error with the same message and hint.
+pub struct Warning {
+    /// The condition: `trailing-input`, `stray-closer`, `missing-operand`, `unterminated-string`, `unterminated-list`,
+    /// `unterminated-dict`, `unterminated-comment`, `not-a-destructuring` or `not-a-definition`.
+    pub code: &'static str,
+    pub message: String,
+    /// What happens to the input (it is part of the warning text, after a `; `).
+    pub note: Option<String>,
+    pub hint: Option<String>,
+    pub span: crate::error::Span,
+    pub source: Option<Rc<crate::error::Source>>,
+}
+
+/// The most warnings kept from one program.
+#[cfg(feature = "diag")]
+const MAX_WARNINGS: usize = 64;
+
 pub struct Interner {
+    /// The warnings of the parses since they were last taken (`Interp::take_warnings`).
+    #[cfg(feature = "diag")]
+    pub warnings: Vec<Warning>,
     names: Vec<Rc<str>>,
     map: BTreeMap<Rc<str>, u32>,
     /// A name could not be stored (no memory); `x` was returned in its place. The parser
@@ -30,7 +54,7 @@ pub const MAX_NAME: usize = 255;
 
 impl Interner {
     pub fn new() -> Interner {
-        let mut t = Interner { names: Vec::new(), map: BTreeMap::new(), oom: false, long: false };
+        let mut t = Interner { #[cfg(feature = "diag")] warnings: Vec::new(), names: Vec::new(), map: BTreeMap::new(), oom: false, long: false };
         for n in ["x", "y", "z", ".f"] {
             t.intern(n);
         }
@@ -38,6 +62,14 @@ impl Interner {
             t.intern(op.glyph);
         }
         t
+    }
+
+    /// Record a warning (dropped when there is no room: a warning is not worth a failure).
+    #[cfg(feature = "diag")]
+    pub fn warn(&mut self, w: Warning) {
+        if self.warnings.len() < MAX_WARNINGS && self.warnings.try_reserve(1).is_ok() {
+            self.warnings.push(w);
+        }
     }
 
     pub fn intern(&mut self, s: &str) -> SymId {

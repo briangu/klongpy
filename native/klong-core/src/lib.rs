@@ -12,6 +12,8 @@
 
 extern crate alloc;
 
+#[cfg(feature = "bigint")]
+pub mod big;
 pub mod dump;
 pub mod error;
 pub mod fmt;

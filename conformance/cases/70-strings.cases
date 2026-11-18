@@ -551,3 +551,28 @@
 @ strings.num-type strings
 > .num(5)
 ! type
+
+@ strings.fmt-template-alone strings
+> .fmt("plain text")
+= "plain text"
+
+@ strings.fmt-template-alone-with-a-placeholder-is-a-range-error strings
+> .fmt("{}")
+! range
+
+@ strings.fmt-three-arguments-is-a-type-error strings
+> .fmt("{} {}";1;2)
+! type
+
+@ strings.fmt-template-not-a-string-is-a-type-error strings
+> .fmt(5;1)
+! type
+
+@ strings.fmt-zero-padding-is-a-range-error strings
+> .fmt("{:05}";1)
+! range
+
+@ strings.pf-template-alone strings
+> .pf("hello");0
+= 0
+~ hello

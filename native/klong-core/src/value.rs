@@ -379,6 +379,16 @@ pub fn key_hash(k: &Value) -> Option<u32> {
                 mix(b as u32 ^ mix((b >> 32) as u32))
             }
         }
+        #[cfg(feature = "bigint")]
+        Value::Big(b) => {
+            let f = crate::big::to_f64(b);
+            if crate::big::cmp_flt(b, f) == Some(core::cmp::Ordering::Equal) {
+                let bits = f.to_bits();
+                mix(bits as u32 ^ mix((bits >> 32) as u32))
+            } else {
+                hash_bytes(&b.to_signed_bytes_le())
+            }
+        }
         Value::Char(c) => {
             let mut b = [0u8; 4];
             hash_bytes(c.encode_utf8(&mut b).as_bytes())
@@ -597,6 +607,10 @@ pub fn key_eq(a: &Value, b: &Value) -> bool {
         (Value::Str(x), Value::Str(y)) => x.as_str() == y.as_str(),
         (Value::Char(c), Value::Str(s)) | (Value::Str(s), Value::Char(c)) => s.len() == 1 && s.char_at(0) == *c,
         (Value::Undefined, Value::Undefined) => true,
+        #[cfg(feature = "bigint")]
+        (Value::Big(x), Value::Big(y)) => x == y,
+        #[cfg(feature = "bigint")]
+        (Value::Big(x), Value::Flt(f)) | (Value::Flt(f), Value::Big(x)) => crate::big::cmp_flt(x, *f as f64) == Some(core::cmp::Ordering::Equal),
         _ => false,
     }
 }
@@ -722,6 +736,9 @@ pub enum Value {
     /// An operator as a value; the id is the interned glyph.
     Prim(SymId),
     Ext(Rc<ExtBox>),
+    /// An integer beyond the build width (feature `bigint`); never one that fits `Int`.
+    #[cfg(feature = "bigint")]
+    Big(crate::big::Big),
 }
 
 fn try_copy<T: Copy>(xs: &[T]) -> Option<Vec<T>> {
@@ -980,6 +997,10 @@ impl Value {
             _ => None,
         }
     }
+    #[cfg(feature = "bigint")]
+    pub fn is_big(&self) -> bool {
+        matches!(self, Value::Big(_))
+    }
     pub fn as_flt(&self) -> Option<Flt> {
         match self {
             Value::Int(i) => Some(*i as Flt),
@@ -987,10 +1008,96 @@ impl Value {
             _ => None,
         }
     }
+    /// KlongPy's description of a value in an error message: `integer`, `string`, `list of 3`, `2x3 matrix`, `empty list`, `:undefined`.
+    pub fn describe_long(&self) -> alloc::string::String {
+        use alloc::string::ToString;
+        let dims = |rank: usize, len: usize, row: &[u32]| -> alloc::string::String {
+            if rank <= 1 {
+                if len == 0 {
+                    "empty list".to_string()
+                } else {
+                    crate::msg!("list of {}", len)
+                }
+            } else {
+                let mut s = len.to_string();
+                for d in row {
+                    s.push('x');
+                    s.push_str(&d.to_string());
+                }
+                crate::msg!("{} {}", s, if rank == 2 { "matrix" } else { "array" })
+            }
+        };
+        match self {
+            Value::Flt(f) if !f.is_finite() => ":undefined".to_string(),
+            Value::Ints(a) => dims(a.rank(), a.len(), a.row_dims()),
+            Value::Flts(a) => dims(a.rank(), a.len(), a.row_dims()),
+            Value::List(l) => dims(1, l.len(), &[]),
+            Value::Ext(_) => "channel".to_string(),
+            v => v.describe().to_string(),
+        }
+    }
+
+    #[cfg(feature = "diag")]
+    /// For a type error on a list: what it holds that is not a number (`:undefined`, `a string`), KlongPy `_odd_member`.
+    pub fn odd_member(&self, depth: u32) -> Option<alloc::string::String> {
+        let items: &[Value] = match self {
+            Value::List(l) => l,
+            _ => return None,
+        };
+        for el in items.iter().take(1000) {
+            let d = el.describe_long();
+            if d == ":undefined" || matches!(el, Value::Undefined) {
+                return Some(d);
+            }
+            if d.starts_with("list of") || d.ends_with("matrix") || d.ends_with("array") {
+                if depth < 3 {
+                    if let Some(o) = el.odd_member(depth + 1) {
+                        return Some(o);
+                    }
+                }
+            } else if !matches!(d.as_str(), "integer" | "float" | "empty list") {
+                let art = if matches!(d.as_bytes()[0], b'a' | b'e' | b'i' | b'o' | b'u') { "an " } else { "a " };
+                return Some(crate::msg!("{}{}", art, d));
+            }
+        }
+        None
+    }
+
+    /// How Python would `repr` the value, for the "got ..." of a message: `1`, `1.5`, `'a'`, `[-2, 3]`.
+    pub fn py_repr(&self, syms: Option<&crate::sym::Interner>) -> alloc::string::String {
+        use alloc::string::ToString;
+        match self {
+            Value::Int(i) => i.to_string(),
+            #[cfg(feature = "bigint")]
+            Value::Big(b) => crate::big::text(b),
+            Value::Flt(_) => crate::fmt::format_value(syms.unwrap_or(&crate::sym::Interner::new()), self, false).unwrap_or_default(),
+            Value::Str(s) => crate::msg!("'{}'", s.as_str()),
+            Value::Char(c) => crate::msg!("'{}'", c),
+            Value::Sym(s) => match syms {
+                Some(t) => crate::msg!(":{}", t.name(*s)),
+                None => "symbol".to_string(),
+            },
+            Value::Ints(_) | Value::Flts(_) | Value::List(_) => {
+                let mut out = alloc::string::String::from("[");
+                for i in 0..self.len().unwrap_or(0) {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    out.push_str(&self.item(i).py_repr(syms));
+                }
+                out.push(']');
+                out
+            }
+            v => v.describe().to_string(),
+        }
+    }
+
     /// A word for error messages.
     pub fn describe(&self) -> &'static str {
         match self {
             Value::Int(_) => "integer",
+            #[cfg(feature = "bigint")]
+            Value::Big(_) => "integer",
             Value::Flt(_) => "float",
             Value::Char(_) => "char",
             Value::Sym(_) => "symbol",
@@ -1077,6 +1184,10 @@ fn matches_at(a: &Value, b: &Value, depth: u32) -> bool {
                     return false;
                 }
                 return (0..n).all(|i| matches_at(&a.item(i), &b.item(i), depth + 1));
+            }
+            #[cfg(feature = "bigint")]
+            if (a.is_big() || b.is_big()) && matches!(a, Value::Int(_) | Value::Flt(_) | Value::Big(_)) && matches!(b, Value::Int(_) | Value::Flt(_) | Value::Big(_)) {
+                return is_close(crate::big::to_flt(a) as Flt, crate::big::to_flt(b) as Flt);
             }
             match (a.as_flt(), b.as_flt()) {
                 (Some(x), Some(y)) => match (a, b) {

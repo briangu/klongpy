@@ -109,6 +109,8 @@ fn num(ip: &mut Interp, a: &[Value]) -> Result<Value> {
     match ip.read_datum(&t) {
         Ok(Some((used, v))) if used == t.len() => match v {
             Value::Int(_) => Ok(v),
+            #[cfg(feature = "bigint")]
+            Value::Big(_) => Ok(v),
             Value::Flt(f) if f.is_finite() => Ok(v),
             _ => Ok(Value::Undefined),
         },

@@ -252,7 +252,7 @@ fn integer_power_is_exact_when_it_fits_and_wraps_when_it_does_not() {
     ok("3^0", "1");
     ok("0^0", "1");
     ok("[1 2 3]^2", "[1 4 9]");
-    #[cfg(not(feature = "int32"))]
+    #[cfg(all(not(feature = "int32"), not(feature = "bigint")))]
     {
         ok("2^62", "4611686018427387904");
         // wraps at 64 bits like `*`; it does not saturate at the largest integer
@@ -262,6 +262,18 @@ fn integer_power_is_exact_when_it_fits_and_wraps_when_it_does_not() {
         ok("(-2)^63", "-9223372036854775808");
         ok("10^19", "-8446744073709551616");
         ok("2^63", &run("2*2^62").unwrap());
+        ok("[2 3]^[63 40]", "[-9223372036854775808 -6289078614652622815]");
+    }
+    // with big integers a scalar power is exact (KlongPy); two machine integers still wrap in `*`, and a list wraps
+    #[cfg(all(not(feature = "int32"), feature = "bigint"))]
+    {
+        ok("2^62", "4611686018427387904");
+        ok("2^63", "9223372036854775808");
+        ok("2^64", "18446744073709551616");
+        ok("3^40", "12157665459056928801");
+        ok("(-2)^63", "-9223372036854775808");
+        ok("10^19", "10000000000000000000");
+        ok("2*2^62", "-9223372036854775808");
         ok("[2 3]^[63 40]", "[-9223372036854775808 -6289078614652622815]");
     }
     #[cfg(feature = "int32")]

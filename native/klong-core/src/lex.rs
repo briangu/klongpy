@@ -40,6 +40,9 @@ pub enum TV {
     None,
     Int(Int),
     Flt(Flt),
+    /// An integer beyond the build width (feature `bigint`).
+    #[cfg(feature = "bigint")]
+    Big(alloc::rc::Rc<num_bigint::BigInt>),
     Char(char),
     /// (shared: a token is cloned by the parser, and the text is as long as the program says)
     Str(alloc::rc::Rc<String>),
@@ -154,6 +157,12 @@ fn num_value(d: &str) -> TV {
         // (docs/native/index.md).
         match d.parse::<Int>() {
             Ok(i) => TV::Int(i),
+            #[cfg(feature = "bigint")]
+            Err(_) => match crate::big::from_str(d) {
+                Some(b) if d.bytes().all(|c| c.is_ascii_digit()) => TV::Big(alloc::rc::Rc::new(b)),
+                _ => TV::BadNum,
+            },
+            #[cfg(not(feature = "bigint"))]
             Err(_) => TV::BadNum,
         }
     }

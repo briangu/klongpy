@@ -30,16 +30,16 @@ fn converged(p: &Value, q: &Value) -> bool {
 fn iteration_count(a: &Value, name: &str) -> Result<usize> {
     match a {
         Value::Int(i) if *i >= 0 => Ok(*i as usize),
-        Value::Int(_) => Err(Error::range(crate::msg!("{}: count must not be negative", name))),
+        Value::Int(i) => Err(Error::range(crate::msg!("{}: count must not be negative, got {}", name, i))),
         Value::Flt(f) if f.is_finite() && *f == (*f as Int) as Flt => {
             if *f < 0.0 {
-                Err(Error::range(crate::msg!("{}: count must not be negative", name)))
+                Err(Error::range(crate::msg!("{}: count must not be negative, got {}", name, a.py_repr(None))))
             } else {
                 Ok(*f as usize)
             }
         }
-        Value::Flt(_) => Err(Error::range(crate::msg!("{}: count must be a non-negative integer", name))),
-        _ => Err(Error::typ(crate::msg!("{}: count must be a non-negative integer", name))),
+        Value::Flt(_) => Err(Error::range(crate::msg!("{}: count must be a non-negative integer, got {}", name, a.py_repr(None)))),
+        _ => Err(Error::typ(crate::msg!("{}: count must be a non-negative integer, got {}", name, a.py_repr(None)))),
     }
 }
 

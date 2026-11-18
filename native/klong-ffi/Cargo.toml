@@ -22,6 +22,8 @@ lib = ["klong-board/lib"]
 timers = ["klong-rt/timers"]
 int32 = ["klong-board/int32"]
 float32 = ["klong-board/float32"]
+bigint = ["klong-board/bigint"]
+diag = ["klong-board/diag"]
 # kdb+ IPC needs transports from the platform; the C ABI has none yet, so it is off.
 ipc = ["klong-rt/ipc"]
 # The lane of a packet switch (the Pico bench): datagrams over a UART of 16-byte frames, IPC and a

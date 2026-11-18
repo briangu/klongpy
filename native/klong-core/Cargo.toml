@@ -20,8 +20,15 @@ ram-hot = []
 # allocator reads (`KLONG_ALLOC_TAG`). Off, the calls compile to nothing.
 heap-tags = []
 dicts = []
+# Integers beyond the build width, exact (KlongPy has them): a value kind used only beyond it.
+bigint = ["dep:num-bigint", "dep:num-traits"]
+# Diagnostics for a desktop host: the parser's warnings and the hints of its errors, the whole-operand text of an operator's error
+# (`cannot apply + (Plus) to list of 3 and list of 2`) and the description of a function value. Off for boards (flash).
+diag = []
 
 [dependencies]
+num-bigint = { version = "0.5", default-features = false, optional = true }
+num-traits = { version = "0.2", default-features = false, optional = true }
 # The only dependency. pow, floor, trunc and fmod for f64/f32 are not in `core`;
 # libm is the pure-Rust, no_std port of musl's libm (the same code compiler-builtins uses).
 libm = { version = "0.2", default-features = false }

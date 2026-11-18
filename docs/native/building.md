@@ -257,7 +257,7 @@ $ klong -e '.ver()'
 
 The default build is 64 bits wide, as the first two lines show: `2147483647+1` is an ordinary number and `9223372036854775807+1` wraps. In the narrow build `.ver()` reports `["int" 32] ["float" 32]`, `2147483647+1` is `-2147483648`, and `1%3` prints `0.33333334`. (This paragraph is not a checked transcript: only the default build is run for the examples.)
 
-Integers wrap at the build width, with no error and no promotion to a larger type. KlongPy wraps at 64 bits too, but it promotes an operand beyond 64 bits (a long literal) to an exact integer for `+ - * < > | &`. The native runtime has no such promotion, and an integer literal that does not fit the build is a `syntax` error (`malformed number`). See [How it relates to KlongPy](index.md#how-it-relates-to-klongpy).
+Two integers within the build width wrap at it, with no error. As in KlongPy, an integer beyond 64 bits is exact: a long literal, a scalar `^` of two integers, and an operand beyond 64 bits in `+ - * % :% < > = | &`. The native runtime does it with the `num-bigint` crate behind the cargo feature `bigint`, which is on for `klong-cli` (the `klong` binary) and the Python extension. A result that fits goes back to an ordinary integer; ordinary integers stay machine integers, and the feature costs `fib(24)` about 2 percent. A board build leaves the feature off (it adds 22 KB of flash on `thumbv6m-none-eabi` and `thumbv7em-none-eabihf` and 32 KB on `riscv32imac-unknown-none-elf`), and there an integer literal that does not fit the build is a `syntax` error (`malformed number`); `klong-board` and `klong-ffi` have the feature `bigint` for a build that has the flash. See [How it relates to KlongPy](index.md#how-it-relates-to-klongpy).
 
 `strings` and `dicts` exist as features of `klong-core` but do not remove anything yet.
 
@@ -317,18 +317,18 @@ In the commands below, `python` is the interpreter you use for KlongPy, and the 
 <!-- check-docs: requires-file native/target/release/klong; link native conformance -->
 ```console
 $ python native/scripts/conformance.py | tail -1 | cut -c1-40
-total                         1556  1556
+total                         1708  1708
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1556 of 1556 on 2026-11-18, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1708 of 1708 on 2026-11-18, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
 KLONG_NATIVE=native/target/narrow/release/klong python native/scripts/conformance.py --narrow
 ```
 
-That gave 1396 of 1396 on 2026-11-18 with the narrow build above. The parse trees of the golden files match too: `python conformance/run.py --trees --cmd native/target/release/klong` reported `169 of 169 trees match`. The same suite runs through the serial console of a simulated board and of a real one, see [Serial Console and Upload](console.md).
+That gave 1408 of 1408 on 2026-11-18 with the narrow build above. The parse trees of the golden files match too: `python conformance/run.py --trees --cmd native/target/release/klong` reported `169 of 169 trees match`. The same suite runs through the serial console of a simulated board and of a real one, see [Serial Console and Upload](console.md).
 
-Not every case runs on every build. A case carries tags, and a build runs the cases whose tags it declares. The default build leaves out the tags `bigint` (it wraps), `torch-only` and `kgpy-only` (KlongPy's own), `desktop` (Python interop, databases, web) and the `timers` and `ipc` tiers, which have no cases. The narrow build also leaves out `float`, `string-fmt` and `width64`, the cases that pin 64-bit results.
+Not every case runs on every build. A case carries tags, and a build runs the cases whose tags it declares. The desktop binary declares `bigint`; a build without the feature leaves it out (it wraps), and so do all builds leave out `torch-only` and `kgpy-only` (KlongPy's own), `desktop` (Python interop, databases, web) and the `timers` and `ipc` tiers, which have no cases. The narrow build also leaves out `float`, `string-fmt` and `width64`, the cases that pin 64-bit results.
 
 The native tests that need KlongPy (`tests/test_native_conformance.py`, `tests/test_native_ipc.py`, `tests/test_native_mgmt.py`) skip themselves when `native/target/release/klong` does not exist, so building the binary turns them on. On the machine of the conditions above 96 passed and 11 were skipped; the 11 need a PeachQ executable (a kdb+-compatible q implementation), see [IPC and Timers](ipc.md). `cargo test --release --workspace` in `native/` runs the Rust tests.
 
@@ -356,6 +356,8 @@ The width features do not change the size of a 64-bit program in any useful way.
 | `riscv32imac-unknown-none-elf` | `files`, `lib` | 218,990 | 109,092 | 328,102 |
 | | `files`, `lib`, `int32`, `float32` | 205,518 | 107,984 | 313,522 |
 | | none | 207,056 | 63,664 | 270,740 |
+
+Two cargo features of `klong-core` are on for the desktop binary (`klong-cli`, and the Python extension) and off for these images. `bigint` (exact integers beyond 64 bits, with the `num-bigint` crate) adds 22.6 KB of flash on `thumbv6m-none-eabi`, 22.3 KB on `thumbv7em-none-eabihf` and 32.4 KB on `riscv32imac-unknown-none-elf`, more than a board is given for it, so the boards keep the range error (`klong-board` has the feature `bigint` for a build with the flash). `diag` (the parser's warnings and the hints of its errors, the whole-operand text of an operator's error, the description of a function value) is left out for flash too. Measured on 2026-11-18, `klong-board-image` without either: 309,092 bytes on `thumbv6m-none-eabi`, 299,168 on `thumbv7em-none-eabihf` and 395,220 on `riscv32imac-unknown-none-elf`, which is 5.7, 6.0 and 7.5 KB more than before the behaviours that KlongPy's tests found (`.fmt` with a template alone, an index vector that holds a float, and the like) and the messages.
 
 These images have no IPC and no timers. IPC adds about 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, and the `mgmt` library 12.6 KB. The firmware for the [ESP32-P4](esp32-p4.md) is 692 KB (691,328 bytes flashed), but it is built with `opt-level` 3 and carries ESP-IDF.
 

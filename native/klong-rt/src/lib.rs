@@ -165,7 +165,7 @@ pub(crate) fn one<'a>(a: &'a [Value], name: &str) -> Result<&'a Value> {
 pub(crate) fn text_arg<'a>(a: &'a [Value], name: &str) -> Result<&'a str> {
     match one(a, name)? {
         Value::Str(s) => Ok(s.as_str()),
-        v => Err(Error::typ(klong_core::msg!("{} needs a string, got {}", name, v.describe()))),
+        v => Err(Error::typ(klong_core::msg!("{}: x must be a string, got {}", name, v.describe_long()))),
     }
 }
 
@@ -227,11 +227,11 @@ impl<P: Platform + 'static> Runtime<P> {
             }),
         );
         declare::register(&mut interp);
-        interp.register(".fmt", 2, Rc::new(|ip: &mut Interp, a: &[Value]| Ok(Value::str(fmtfn::render(ip, a, ".fmt")?))));
+        interp.register(".fmt", klong_core::value::WILDCARD, Rc::new(|ip: &mut Interp, a: &[Value]| Ok(Value::str(fmtfn::render(ip, a, ".fmt")?))));
         let sh = shared.clone();
         interp.register(
             ".pf",
-            2,
+            klong_core::value::WILDCARD,
             Rc::new(move |ip: &mut Interp, a: &[Value]| {
                 let mut s = fmtfn::render(ip, a, ".pf")?;
                 s.try_reserve(1).map_err(|_| Error::memory())?;

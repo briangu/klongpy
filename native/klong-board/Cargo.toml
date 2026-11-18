@@ -18,6 +18,8 @@ files = ["klong-rt/files", "klong-console/files"]
 lib = ["klong-rt/lib", "klong-console/lib"]
 int32 = ["klong-rt/int32", "klong-console/int32"]
 float32 = ["klong-rt/float32", "klong-console/float32"]
+bigint = ["klong-rt/bigint", "klong-console/bigint"]
+diag = ["klong-rt/diag", "klong-console/diag"]
 # The image only: with it the console, without it one fixed program (to measure what the
 # console costs).
 console = []

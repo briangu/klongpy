@@ -386,6 +386,8 @@ impl Encoder<'_> {
         match v {
             Value::Int(i) => self.int_atom(*i),
             Value::Flt(f) => self.flt_atom(*f),
+            #[cfg(feature = "bigint")]
+            Value::Big(_) => Err(Error::range("integer does not fit 64 bits")),
             Value::Char(c) => {
                 if (*c as u32) < 0x80 {
                     self.put(&[0xf6, *c as u8])

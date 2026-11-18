@@ -218,9 +218,18 @@ fn json_functions() {
     // what a build cannot hold is a range error (the conformance cases cover the rest: KlongPy
     // has big integers and keeps a lone surrogate)
     let cases: &[(&str, Result<&str, Kind>)] = &[
+        #[cfg(not(feature = "bigint"))]
         (".unjson(\"12345678901234567890\")", Err(Kind::Range)),
+        #[cfg(feature = "bigint")]
+        (".unjson(\"12345678901234567890\")", Ok("12345678901234567890")),
+        #[cfg(not(feature = "bigint"))]
         (".unjson(\"[1,9223372036854775808]\")", Err(Kind::Range)),
+        #[cfg(not(feature = "bigint"))]
         (".unjson(\"-9223372036854775809\")", Err(Kind::Range)),
+        #[cfg(feature = "bigint")]
+        (".unjson(\"[1,9223372036854775808]\")", Ok("[1 9223372036854775808]")),
+        #[cfg(feature = "bigint")]
+        (".unjson(\"-9223372036854775809\")", Ok("-9223372036854775809")),
         (".unjson(\"-9223372036854775808\")", Ok("-9223372036854775808")),
         (".unjson(\"\"\"\\ud800\"\"\")", Err(Kind::Range)),
         (".unjson(\"\"\"\\ude00\"\"\")", Err(Kind::Range)),

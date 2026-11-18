@@ -12,6 +12,7 @@ default = []
 # was told capability 3 may compress anything it sends. Off on small devices: it costs flash
 # and a second buffer of half the message.
 compress = []
+bigint = ["klong-core/bigint"]
 
 [dependencies]
 klong-core = { path = "../klong-core" }

@@ -164,6 +164,8 @@ impl Enc {
             Value::Undefined => self.put("null"),
             Value::Int(i) => self.int(*i),
             Value::Flt(f) => self.flt(*f),
+            #[cfg(feature = "bigint")]
+            Value::Big(b) => self.put(&klong_core::big::text(b)),
             Value::Char(c) => {
                 let mut b = [0u8; 4];
                 self.quoted(c.encode_utf8(&mut b))
@@ -351,7 +353,16 @@ impl Parser<'_> {
         if real {
             text.parse::<Flt>().map(Value::Flt).map_err(|_| Error::range(".unjson: bad number"))
         } else {
-            text.parse::<Int>().map(Value::Int).or_else(|_| self.fail("Integer out of range for this build", start))
+            match text.parse::<Int>() {
+                Ok(i) => Ok(Value::Int(i)),
+                #[cfg(feature = "bigint")]
+                Err(_) => match klong_core::big::from_str(text) {
+                    Some(b) => Ok(klong_core::big::norm(b)),
+                    None => self.fail("Integer out of range for this build", start),
+                },
+                #[cfg(not(feature = "bigint"))]
+                Err(_) => self.fail("Integer out of range for this build", start),
+            }
         }
     }
 

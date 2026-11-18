@@ -556,7 +556,7 @@ To read a column of numbers from text, apply `.num` to each piece. A piece that 
 
 ## JSON
 
-`.json(x)` returns the JSON text of a value, and `.unjson(s)` returns the value of JSON text. Both are built in and use no package. They are the same function pair that a [web handler](web_server.md#json) uses to answer and read JSON, and the [native runtime](native/index.md) has them too, with the same [conformance cases](conformance.md). An integer beyond 64 bits and an escaped lone surrogate (`"\ud800"`) are a range error there.
+`.json(x)` returns the JSON text of a value, and `.unjson(s)` returns the value of JSON text. Both are built in and use no package. They are the same function pair that a [web handler](web_server.md#json) uses to answer and read JSON, and the [native runtime](native/index.md) has them too, with the same [conformance cases](conformance.md). An escaped lone surrogate (`"\ud800"`) is a range error there; an integer beyond 64 bits is exact, as in KlongPy, in a desktop build (a board build without the `bigint` feature gives a range error).
 
 | Klong | JSON |
 |---|---|

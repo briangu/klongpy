@@ -15,9 +15,9 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SPIKE = "core,float,string-fmt,width64,strict1,strict2,numpy-only,device"
-# Not declared: bigint (integers wrap at the build width), torch-only and kgpy-only (KlongPy's
-# own), timers, ipc, desktop.
-DECLARED = SPIKE + ",strings,dicts,unicode,sysio,static"
+# Not declared: torch-only and kgpy-only (KlongPy's own), timers, ipc, desktop. The desktop binary has big integers (bigint); a board
+# build has them off (flash), and the console runs and the 32-bit build do not declare it.
+DECLARED = SPIKE + ",strings,dicts,unicode,sysio,static,bigint"
 NARROW = "core,strings,dicts,unicode,sysio,static,strict1,strict2,numpy-only,device"
 
 

@@ -14,8 +14,50 @@ enum Part<'a> {
     Hole(Option<usize>, Option<&'a str>),
 }
 
+/// Python's `repr` of a string: single quotes, unless the text has a single quote and no double quote.
+fn py_repr(s: &str) -> String {
+    let q = if s.contains('\'') && !s.contains('"') { '"' } else { '\'' };
+    let mut out = String::new();
+    out.push(q);
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c == q => {
+                out.push('\\');
+                out.push(c);
+            }
+            c if (c as u32) < 0x20 || c as u32 == 0x7f => {
+                let _ = core::fmt::Write::write_fmt(&mut out, format_args!("\\x{:02x}", c as u32));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push(q);
+    out
+}
+
 fn bad(template: &str, what: String) -> Error {
-    Error::range(klong_core::msg!(".fmt: {} in template \"{}\"", what, template))
+    Error::range(klong_core::msg!(".fmt: {} in template {}", what, py_repr(template)))
+}
+
+/// What Python calls the type of a value (KlongPy's message for a template that is not a string).
+fn py_type(v: &Value) -> &'static str {
+    match v {
+        Value::Int(_) => "int",
+        #[cfg(feature = "bigint")]
+        Value::Big(_) => "int",
+        Value::Flt(_) => "float",
+        Value::Char(_) => "KGChar",
+        Value::Sym(_) => "KGSym",
+        Value::Str(_) => "str",
+        Value::Dict(_) => "KGDict",
+        Value::Ints(_) | Value::Flts(_) | Value::List(_) => "ndarray",
+        Value::Fn(_) | Value::Prim(_) => "KGFn",
+        _ => "object",
+    }
 }
 
 /// `-?digits(.digits)?`
@@ -64,6 +106,10 @@ fn parse(t: &str) -> Result<Vec<Part<'_>>> {
                     return Err(bad(t, klong_core::msg!("bad placeholder '{{{}}}'", body)));
                 }
                 if let Some(s) = spec {
+                    let sb = s.strip_prefix('-').unwrap_or(s).as_bytes();
+                    if sb.len() >= 2 && sb[0] == b'0' && sb[1].is_ascii_digit() {
+                        return Err(bad(t, klong_core::msg!("bad format '{}' in placeholder '{{{}}}': zero padding is not supported, a width pads with spaces", s, body)));
+                    }
                     if !spec_ok(s) {
                         return Err(bad(t, klong_core::msg!("bad format '{}' in placeholder '{{{}}}'", s, body)));
                     }
@@ -94,13 +140,39 @@ fn parse(t: &str) -> Result<Vec<Part<'_>>> {
 }
 
 pub fn render(ip: &mut Interp, a: &[Value], name: &str) -> Result<String> {
-    let (template, y) = match a {
-        [Value::Str(t), y] => (t.clone(), y),
-        [t, _] => return Err(Error::typ(klong_core::msg!("{}: template must be a string, got {}", name, t.describe()))),
-        _ => return Err(Error::arity(klong_core::msg!("{} takes 2 arguments, got {}", name, a.len()))),
+    // the arguments may be left out when the template needs none (KlongPy `_fmt_check_call`, `_fmt_render`)
+    if a.is_empty() {
+        return Err(Error::typ(klong_core::msg!("{}: needs a template string (and its arguments)", name)));
+    }
+    if a.len() > 2 {
+        return Err(Error::typ(klong_core::msg!("{}: takes a template and one argument (a list for several), got {} arguments", name, a.len())));
+    }
+    let template = match &a[0] {
+        Value::Str(t) => t.clone(),
+        t => return Err(Error::typ(klong_core::msg!(".fmt: template must be a string, got {}", py_type(t)))),
     };
     let template = template.as_str();
-    let args: Vec<Value> = if y.is_list() { y.items()? } else { alloc::vec![y.clone()] };
+    let args: Vec<Value> = match a.get(1) {
+        Some(y) if y.is_list() => y.items()?,
+        Some(y) => alloc::vec![y.clone()],
+        None => {
+            let holes: Vec<Option<usize>> = parse(template)?.iter().filter_map(|p| if let Part::Hole(i, _) = p { Some(*i) } else { None }).collect();
+            if !holes.is_empty() {
+                let mut names = String::new();
+                for (k, h) in holes.iter().enumerate() {
+                    if k > 0 {
+                        names.push_str(", ");
+                    }
+                    match h {
+                        None => names.push_str("{}"),
+                        Some(i) => names.push_str(&klong_core::msg!("{{{}}}", i)),
+                    }
+                }
+                return Err(bad(template, klong_core::msg!("{} placeholder(s) ({}) but no arguments; call .fmt(template;arguments)", holes.len(), names)));
+            }
+            Vec::new()
+        }
+    };
     let parts = parse(template)?;
     let holes = parts.iter().filter(|p| matches!(p, Part::Hole(..))).count();
     let auto = parts.iter().filter(|p| matches!(p, Part::Hole(None, _))).count();
@@ -134,7 +206,7 @@ pub fn render(ip: &mut Interp, a: &[Value], name: &str) -> Result<String> {
                         let x = match v {
                             Value::Int(i) => *i as Flt,
                             Value::Flt(f) => *f,
-                            _ => return Err(Error::typ(klong_core::msg!(".fmt: format '{}' needs a number, got {} in template \"{}\"", s, v.describe(), template))),
+                            _ => return Err(Error::typ(klong_core::msg!(".fmt: format '{}' needs a number, got {} in template {}", s, v.py_repr(Some(&ip.syms)), py_repr(template)))),
                         };
                         let w = s.parse::<Flt>().map_err(|_| bad(template, klong_core::msg!("bad format '{}'", s)))?;
                         match klong_core::ops::format2(ip, &Value::Flt(w), &Value::Flt(x))? {

@@ -238,6 +238,63 @@ impl KFn {
     fn __repr__(&self, py: Python<'_>) -> String {
         self.__str__(py)
     }
+
+    /// `function`, `projection`, `native` (a system function) or `operator`.
+    #[getter]
+    fn kind(&self, py: Python<'_>) -> String {
+        self.info(py).map(|i| i.kind.to_string()).unwrap_or_default()
+    }
+    /// The number of arguments it takes; for a projection, the holes it still has.
+    #[getter]
+    fn arity(&self, py: Python<'_>) -> u8 {
+        self.info(py).map(|i| i.arity).unwrap_or(0)
+    }
+    /// The named parameters of `f(a;b)::{...}` (a list of names), or None.
+    #[getter]
+    fn params(&self, py: Python<'_>) -> Option<Vec<String>> {
+        self.info(py).and_then(|i| i.params)
+    }
+    /// The locals declared by a leading `[a b]` in the body (a list of names).
+    #[getter]
+    fn locals(&self, py: Python<'_>) -> Vec<String> {
+        self.info(py).map(|i| i.locals).unwrap_or_default()
+    }
+    /// The text of the function literal as it was written, or None.
+    #[getter]
+    fn source(&self, py: Python<'_>) -> Option<String> {
+        self.info(py).and_then(|i| i.source)
+    }
+    /// (start, end) byte offsets of the literal in its source, or None.
+    #[getter]
+    fn span(&self, py: Python<'_>) -> Option<(i64, i64)> {
+        self.info(py).and_then(|i| i.span).map(|(a, b)| (a as i64, b as i64))
+    }
+    #[getter]
+    fn is_projection(&self, py: Python<'_>) -> bool {
+        self.info(py).map(|i| i.projection).unwrap_or(false)
+    }
+    /// A projection's arguments in order: the value, or None for a hole (an argument written as an expression is given as its source text).
+    fn bound_args(&self, py: Python<'_>) -> PyResult<Vec<Option<PyObject>>> {
+        let owner = self.owner.clone_ref(py);
+        let bound = self.info(py).map(|i| i.bound).unwrap_or_default();
+        let k = self.owner.borrow(py);
+        k.with_ip(py, |ip| -> PyResult<Vec<Option<PyObject>>> {
+            bound.iter().map(|b| b.as_ref().map(|v| Ok(to_py(py, ip, v, Some(&owner))?.unbind())).transpose()).collect()
+        })
+    }
+    /// What a projection calls (a function value), or None.
+    fn callee(&self, py: Python<'_>) -> PyResult<Option<PyObject>> {
+        let owner = self.owner.clone_ref(py);
+        let c = self.info(py).and_then(|i| i.callee);
+        let k = self.owner.borrow(py);
+        k.with_ip(py, |ip| -> PyResult<Option<PyObject>> { c.as_ref().map(|v| Ok(to_py(py, ip, v, Some(&owner))?.unbind())).transpose() })
+    }
+}
+
+impl KFn {
+    fn info(&self, py: Python<'_>) -> Option<klong_core::interp::FnInfo> {
+        self.owner.borrow(py).with_ip(py, |ip| ip.fn_info(&self.f))
+    }
 }
 
 /// An opaque host array: the primitives on it are forwarded to Python.
@@ -412,6 +469,11 @@ fn to_py<'py>(py: Python<'py>, ip: &Interp, v: &Value, owner: Option<&Py<Klong>>
 fn to_py_with<'py>(py: Python<'py>, ip: &Interp, v: &Value, owner: Option<&Py<Klong>>, view: bool) -> PyResult<Bound<'py, PyAny>> {
     Ok(match v {
         Value::Int(i) => i.into_pyobject(py)?.into_any(),
+        Value::Big(_) => {
+            // through hexadecimal text: Python limits the digits of a decimal one
+            let hex = klong_core::big::to_hex(v).unwrap_or_default();
+            py.get_type::<PyInt>().call1((hex, 16))?
+        }
         Value::Flt(f) => PyFloat::new(py, *f).into_any(),
         Value::Char(c) => host(py)?.kgchar.bind(py).call1((c.to_string(),))?,
         Value::Str(s) => PyString::new(py, s.as_str()).into_any(),
@@ -472,7 +534,11 @@ fn from_py(py: Python<'_>, ip: &mut Interp, o: &Bound<'_, PyAny>) -> PyResult<Va
         return Ok(Value::Int(b.is_true() as Int));
     }
     if o.is_instance_of::<PyInt>() {
-        return o.extract::<Int>().map(Value::Int).map_err(|_| PyOverflowError::new_err("integer does not fit in 64 bits (native has no big integers yet)"));
+        if let Ok(i) = o.extract::<Int>() {
+            return Ok(Value::Int(i));
+        }
+        let hex: String = o.call_method1("__format__", ("x",))?.extract()?;
+        return klong_core::big::from_hex(&hex).ok_or_else(|| PyOverflowError::new_err("integer does not convert"));
     }
     if o.is_instance_of::<PyFloat>() {
         return Ok(Value::Flt(o.extract::<f64>()?));
@@ -832,6 +898,50 @@ impl Klong {
     #[pyo3(signature = (name, *args))]
     fn call(&self, py: Python<'_>, name: &str, args: &Bound<'_, PyTuple>) -> PyResult<PyObject> {
         let f = self.with_ip(py, |ip| ip.global(name)).ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(name.to_string()))?;
+        self.apply(py, &f, args)
+    }
+
+    /// The syntax warnings the parser recorded since the last call (strict level 0: input the legacy grammar accepts and KlongPy
+    /// warns about), in source order: a list of (code, message, hint or None, start, end, source name, source text). `message` is
+    /// KlongPy's text of the warning (the condition, then `; ` and what happens to the input); `start` and `end` are byte offsets
+    /// into the source text, the same as an error's span.
+    fn take_warnings(&self, py: Python<'_>) -> Vec<(String, String, Option<String>, i64, i64, String, String)> {
+        self.with_ip(py, |ip| {
+            ip.take_warnings()
+                .into_iter()
+                .map(|w| {
+                    let msg = match &w.note {
+                        Some(n) => format!("{}; {}", w.message, n),
+                        None => w.message.clone(),
+                    };
+                    let (name, text) = match &w.source {
+                        Some(s) => (s.name.clone(), s.text.to_string()),
+                        None => (String::new(), String::new()),
+                    };
+                    (w.code.to_string(), msg, w.hint.clone(), w.span.0 as i64, w.span.1 as i64, name, text)
+                })
+                .collect()
+        })
+    }
+
+    /// Call the function a symbol's value is: `name` is a global; when its value is a symbol, that symbol's value is the function
+    /// (as `:name` called with arguments is in Klong). A name that is not defined is a `KeyError`.
+    #[pyo3(signature = (name, *args))]
+    fn call_sym(&self, py: Python<'_>, name: &str, args: &Bound<'_, PyTuple>) -> PyResult<PyObject> {
+        let mut f = self.with_ip(py, |ip| ip.global(name)).ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(name.to_string()))?;
+        for _ in 0..16 {
+            let next = match &f {
+                Value::Sym(s) => {
+                    let n = self.with_ip(py, |ip| ip.syms.name(*s).to_string());
+                    self.with_ip(py, |ip| ip.global(&n))
+                }
+                _ => None,
+            };
+            match next {
+                Some(v) => f = v,
+                None => break,
+            }
+        }
         self.apply(py, &f, args)
     }
 

@@ -1,8 +1,7 @@
 # .json and .unjson: a value as compact JSON text and JSON text as a value (docs/language-additions.md, "JSON").
 # KlongPy gets the text from Python's json module; the native runtime writes both by hand.
 # Float text is Python's repr (1e+22, 1e-07); strings are written with raw UTF-8, not \uXXXX.
-# Two differences are not cases: an integer beyond 64 bits (KlongPy has big integers: the `bigint` cases)
-# and an escaped lone surrogate ("\ud800": KlongPy keeps it, the native runtime gives a range error).
+# One difference is not a case: an escaped lone surrogate ("\ud800": KlongPy keeps it, the native runtime gives a range error).
 
 @ json.int strings
 > .json(42)

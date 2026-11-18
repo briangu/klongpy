@@ -461,6 +461,112 @@ impl Interp {
     /// Read one data object (a number, a string, a char, a symbol, a list or a dictionary
     /// literal) from the start of `text`: the number of bytes it took and the value, or `None`
     /// when there is nothing but blanks. For `.r` and `.rs`.
+    /// The warnings the parser has recorded since they were last taken (strict level 0), in source order, once each, as KlongPy lists
+    /// them: a list or dictionary left open inside another that is left open is one warning.
+    #[cfg(feature = "diag")]
+    pub fn take_warnings(&mut self) -> Vec<crate::sym::Warning> {
+        let mut ws = core::mem::take(&mut self.syms.warnings);
+        ws.sort_by_key(|w| w.span);
+        let mut out: Vec<crate::sym::Warning> = Vec::new();
+        let mut open_seen = false;
+        for w in ws {
+            if out.iter().any(|o| o.span == w.span && o.code == w.code) {
+                continue;
+            }
+            if w.code == "unterminated-list" || w.code == "unterminated-dict" {
+                if open_seen {
+                    continue;
+                }
+                open_seen = true;
+            }
+            out.push(w);
+        }
+        out
+    }
+
+    /// What Python-side code asks of a function value: arity, parameter names, locals, source text, whether it is a projection and what it
+    /// has bound. `None` for a value that is not a function.
+    #[cfg(feature = "diag")]
+    pub fn fn_info(&mut self, v: &Value) -> Option<FnInfo> {
+        let mut info = FnInfo::default();
+        let func = match v {
+            Value::Fn(f) => f.clone(),
+            Value::Prim(op) => {
+                info.arity = match ops::by_id(*op) {
+                    Some(d) if d.dyad.is_some() => 2,
+                    _ => 1,
+                };
+                info.kind = "operator";
+                return Some(info);
+            }
+            _ => return None,
+        };
+        info.arity = crate::fmt::func_arity(&func);
+        let (tree, node) = match &*func {
+            Func::Code { tree, node } => (tree.clone(), *node),
+            Func::Lazy(l) => match self.materialize(l) {
+                Ok(t) => t,
+                Err(_) => {
+                    info.kind = "function";
+                    return Some(info);
+                }
+            },
+            Func::Proj { f, args, .. } => {
+                info.kind = "projection";
+                info.projection = true;
+                info.callee = Some(f.clone());
+                for a in args {
+                    info.bound.push(match a {
+                        Slot::Val(v) => Some(v.clone()),
+                        _ => None,
+                    });
+                }
+                return Some(info);
+            }
+            Func::Native { name, arity, .. } => {
+                info.kind = "native";
+                info.name = Some(String::from(self.syms.name(*name)));
+                info.arity = if *arity == WILDCARD { 0 } else { *arity };
+                return Some(info);
+            }
+        };
+        let text: Option<&str> = tree.source.as_ref().map(|s| s.text.as_ref());
+        let name_of = |s: u32| String::from(self.syms.name(SymId(s)).split('`').next().unwrap_or(""));
+        let body = match tree.node(node) {
+            Node::Fn { a, args, has_args, .. } => {
+                if *has_args {
+                    info.projection = tree.ids(*args).iter().any(|&q| q == NONE.0);
+                    for &q in tree.ids(*args) {
+                        info.bound.push(if q == NONE.0 {
+                            None
+                        } else {
+                            match (tree.node(NodeId(q)), text, tree.span(NodeId(q))) {
+                                (Node::Lit(v), _, _) => Some(v.clone()),
+                                (_, Some(t), Some((s, e))) => Some(Value::Str(Rc::new(crate::value::Text::new(String::from(&t[s as usize..e as usize]))))),
+                                _ => Some(Value::Undefined),
+                            }
+                        });
+                    }
+                    info.callee = Some(self.node_value(&tree, *a));
+                }
+                *a
+            }
+            _ => node,
+        };
+        info.kind = if info.projection { "projection" } else { "function" };
+        if let Node::Body { locals, params, has_params, .. } = tree.node(body) {
+            info.locals = tree.ids(*locals).iter().map(|&s| name_of(s)).collect();
+            if *has_params {
+                info.params = Some(tree.ids(*params).iter().map(|&s| name_of(s)).collect());
+            }
+        }
+        if let (Some(t), Some((s, e))) = (text, tree.span(node)) {
+            info.source = Some(String::from(&t[s as usize..e as usize]));
+            info.span = Some((s, e));
+        }
+        Some(info)
+    }
+
     pub fn read_datum(&mut self, text: &str) -> Result<Option<(usize, Value)>> {
         let stack = self.stack();
         parse::read_datum(text, &mut self.syms, &mut self.module, self.cfg.max_depth, stack)
@@ -782,7 +888,7 @@ impl Interp {
                     if *k == s {
                         return match v {
                             Some(v) => Ok(Some(v.clone())),
-                            None => Err(Error::name(crate::msg!("local variable {} is read before it is assigned", self.syms.name(s)))),
+                            None => Err(Error::name(crate::msg!("local '{}' read before assignment", self.syms.name(s)))),
                         };
                     }
                 }
@@ -848,9 +954,71 @@ impl Interp {
     fn undefined(&mut self, s: SymId) -> Result<Value> {
         let level = self.cfg.strict;
         if level == 2 || (level == 1 && !self.frames.is_empty()) {
-            return Err(Error::name(crate::msg!("undefined: {}", self.syms.name(s))));
+            let e = Error::name(crate::msg!("undefined: {}", self.syms.name(s)));
+            #[cfg(feature = "diag")]
+            if level == 2 {
+                if let Some(h) = self.did_you_mean(s) {
+                    return Err(e.with_hint(h));
+                }
+            }
+            return Err(e);
         }
         Ok(Value::Sym(s))
+    }
+
+    /// The hint for an undefined name: the defined name closest to it, when one is (KlongPy `_did_you_mean`: difflib's ratio, at least 0.7).
+    #[cfg(feature = "diag")]
+    #[cold]
+    fn did_you_mean(&self, s: SymId) -> Option<String> {
+        fn matches(a: &[char], b: &[char]) -> usize {
+            // difflib's gestalt matching: the longest common block, then what lies before it and after it
+            if a.is_empty() || b.is_empty() {
+                return 0;
+            }
+            let (mut best, mut bi, mut bj) = (0, 0, 0);
+            for i in 0..a.len() {
+                for j in 0..b.len() {
+                    let mut k = 0;
+                    while i + k < a.len() && j + k < b.len() && a[i + k] == b[j + k] {
+                        k += 1;
+                    }
+                    if k > best {
+                        best = k;
+                        bi = i;
+                        bj = j;
+                    }
+                }
+            }
+            if best == 0 {
+                return 0;
+            }
+            best + matches(&a[..bi], &b[..bj]) + matches(&a[bi + best..], &b[bj + best..])
+        }
+        let name = self.syms.name(s).split('`').next().unwrap_or("");
+        let want: Vec<char> = name.chars().collect();
+        let mut best: Option<(f64, String)> = None;
+        for (i, slot) in self.globals.iter().enumerate() {
+            if slot.is_none() {
+                continue;
+            }
+            let other = self.syms.name(SymId(i as u32)).split('`').next().unwrap_or("");
+            if other == name || other.is_empty() {
+                continue;
+            }
+            let cand: Vec<char> = other.chars().collect();
+            let r = 2.0 * matches(&want, &cand) as f64 / (want.len() + cand.len()) as f64;
+            if r >= 0.7 {
+                // (the highest ratio; among equals the greater name, as `heapq.nlargest` on (ratio, name) gives)
+                let better = match &best {
+                    None => true,
+                    Some((br, bn)) => r > *br || (r == *br && other > bn.as_str()),
+                };
+                if better {
+                    best = Some((r, String::from(other)));
+                }
+            }
+        }
+        best.map(|(_, n)| crate::msg!("did you mean {}?", n))
     }
 
     // ----- evaluation --------------------------------------------------------------------------
@@ -1051,6 +1219,8 @@ impl Interp {
         let shown = self.syms.name(name).split('`').next().unwrap_or("");
         let what = match v {
             Value::Int(_) => crate::msg!("an integer"),
+            #[cfg(feature = "bigint")]
+            Value::Big(_) => crate::msg!("an integer"),
             Value::Flt(x) if !x.is_finite() => crate::msg!(":undefined"),
             Value::Flt(_) => crate::msg!("a float"),
             Value::Char(_) => crate::msg!("a char"),
@@ -1134,12 +1304,12 @@ impl Interp {
             },
             Node::QSym(s) => self.quoted(*s),
             Node::OpVal { op, .. } => Ok(Value::Prim(*op)),
-            Node::Monad { op, arg, missing } => self.eval_monad(tree, *op, *arg, *missing),
+            Node::Monad { op, arg, missing } => self.eval_monad(tree, id, *op, *arg, *missing),
             Node::Dyad { op, l, r, missing } => {
                 let (op, l, r, missing) = (*op, *l, *r, *missing);
-                let res = self.eval_dyad(tree, op, l, r);
+                let res = self.eval_dyad(tree, id, op, l, r);
                 if missing {
-                    return res.map_err(|_| Error::syntax(crate::msg!("missing right operand for {}", self.syms.name(op))));
+                    return res.map_err(|_| self.at_operator(tree, id, Error::syntax(crate::msg!("missing right operand for {}", self.syms.name(op)))));
                 }
                 res
             }
@@ -1177,7 +1347,7 @@ impl Interp {
     /// The arms of `eval_node` that are not on the way of a call, apart, so that its stack frame (one per
     /// level of Klong recursion, on a chip with a stack of tens of KB) is not made for them.
     #[inline(never)]
-    fn eval_monad(&mut self, tree: &Rc<Tree>, op: SymId, arg: NodeId, missing: bool) -> Result<Value> {
+    fn eval_monad(&mut self, tree: &Rc<Tree>, id: NodeId, op: SymId, arg: NodeId, missing: bool) -> Result<Value> {
         let def = self.op_def(op)?;
         let f = def.monad.ok_or_else(|| self.unknown_op(op))?;
         let r = match self.eval(tree, arg, false) {
@@ -1187,11 +1357,12 @@ impl Interp {
                     None => f(self, x),
                 },
                 _ => f(self, x),
-            },
+            }
+            .map_err(|e| self.at_operator(tree, id, e)),
             Err(e) => Err(e),
         };
         if missing {
-            return r.map_err(|_| Error::syntax(crate::msg!("missing operand for {}", self.syms.name(op))));
+            return r.map_err(|_| self.at_operator(tree, id, Error::syntax(crate::msg!("missing operand for {}", self.syms.name(op)))));
         }
         r
     }
@@ -1279,13 +1450,13 @@ impl Interp {
 
     #[inline(never)]
     #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_eval_dyad")]
-    fn eval_dyad(&mut self, tree: &Rc<Tree>, op: SymId, l: NodeId, r: NodeId) -> Result<Value> {
+    fn eval_dyad(&mut self, tree: &Rc<Tree>, id: NodeId, op: SymId, l: NodeId, r: NodeId) -> Result<Value> {
         let def = self.op_def(op)?;
         let f = def.dyad.ok_or_else(|| self.unknown_op(op))?;
         // right to left
         let y = self.eval(tree, r, false)?;
         if def.glyph == "::" {
-            return self.define(tree, l, y);
+            return self.define(tree, l, y).map_err(|e| self.at_operator(tree, id, e));
         }
         let x = self.eval(tree, l, false)?;
         if let Some(r) = self.ext_dyad(def.glyph, &x, &y) {
@@ -1294,6 +1465,60 @@ impl Interp {
         match def.atomic {
             Some(a) => ops::atomic(&self.syms, a, &x, &y),
             None => f(self, x, y),
+        }
+        .map_err(|e| self.at_operator(tree, id, e))
+    }
+
+    /// An error of an operator itself, as it comes without a position: the position of the operator (KlongPy `op_span`), not of the whole
+    /// expression (an error from an operand, or from a function the operator called, has its own).
+    #[cfg(not(feature = "diag"))]
+    #[inline(always)]
+    fn at_operator(&self, _tree: &Rc<Tree>, _id: NodeId, e: Error) -> Error {
+        e
+    }
+
+    #[cfg(feature = "diag")]
+    #[cold]
+    #[inline(never)]
+    fn at_operator(&self, tree: &Rc<Tree>, id: NodeId, mut e: Error) -> Error {
+        if e.span.is_some() || matches!(e.kind, Kind::Interrupt | Kind::Memory) {
+            return e;
+        }
+        if let Some(sp) = self.operator_span(tree, id) {
+            e.span = Some(sp);
+            e.source = tree.source.clone();
+        }
+        e
+    }
+
+    /// Where the operator of a monad, dyad or adverb-chain node is written.
+    #[cfg(feature = "diag")]
+    fn operator_span(&self, tree: &Tree, id: NodeId) -> Option<crate::error::Span> {
+        let text = tree.source.as_ref()?.text.as_ref();
+        let (st, _) = tree.span(id)?;
+        match tree.node(id) {
+            Node::Monad { op, .. } => {
+                let g = self.syms.name(*op);
+                text.get(st as usize..)?.starts_with(g).then(|| (st, st + g.len() as u32))
+            }
+            Node::Dyad { op, l, .. } => {
+                let g = self.syms.name(*op);
+                let (_, mut p) = tree.span(*l)?;
+                let b = text.as_bytes();
+                while (p as usize) < b.len() && (b[p as usize].is_ascii_whitespace() || b[p as usize] == b')') {
+                    p += 1;
+                }
+                text.get(p as usize..)?.starts_with(g).then(|| (p, p + g.len() as u32))
+            }
+            Node::Adv { verb, advs, .. } => {
+                let (vs, ve) = tree.span(*verb)?;
+                let mut e = ve;
+                for a in tree.ids(*advs) {
+                    e += self.syms.name(SymId(*a)).len() as u32;
+                }
+                Some((vs, e))
+            }
+            _ => None,
         }
     }
 
@@ -1527,6 +1752,10 @@ impl Interp {
     fn too_many(&self, callee: &Value, takes: usize, given: usize) -> Error {
         let name = match callee {
             Value::Sym(s) if !sym::is_arg(*s) && *s != sym::DOT_F => self.syms.name(*s).split('`').next().unwrap_or("").into(),
+            Value::Fn(f) => match &**f {
+                Func::Native { name, .. } => String::from(self.syms.name(*name)),
+                _ => String::from("the function"),
+            },
             _ => String::from("the function"),
         };
         let what = match takes {
@@ -1944,9 +2173,9 @@ impl Interp {
                 r
             }
             Func::Lazy(l) => self.run_lazy(l, &f, frame),
-            Func::Native { arity, f: native, .. } => {
-                let (arity, native) = (*arity, native.clone());
-                self.run_native(frame, arity, native)
+            Func::Native { arity, f: native, name } => {
+                let (arity, native, name) = (*arity, native.clone(), *name);
+                self.run_native(frame, arity, native, name)
             }
             // a projection that was given nothing more is the value it is
             Func::Proj { .. } => Ok(f),
@@ -1970,7 +2199,7 @@ impl Interp {
 
     /// A native function called with the arguments bound in `frame`.
     #[inline(never)]
-    fn run_native(&mut self, frame: Frame, arity: u8, native: NativeFn) -> Result<Value> {
+    fn run_native(&mut self, frame: Frame, arity: u8, native: NativeFn, name: SymId) -> Result<Value> {
         let mut args: Vec<Value> = Vec::new();
         for (k, v) in frame.iter() {
             if sym::is_arg(*k) {
@@ -1980,7 +2209,7 @@ impl Interp {
             }
         }
         if self.cfg.strict == 2 && arity != WILDCARD && args.len() > arity as usize {
-            return Err(self.too_many(&Value::Undefined, arity as usize, args.len()));
+            return Err(self.too_many(&Value::Sym(name), arity as usize, args.len()));
         }
         native(self, &args)
     }
@@ -2004,11 +2233,11 @@ impl Interp {
             } else {
                 self.eval(tree, r, false)?
             };
-            self.chain_call(&ch, advs.len(), x, None)
+            self.chain_call(&ch, advs.len(), x, None).map_err(|e| self.at_operator(tree, id, e))
         } else {
             let x = self.eval(tree, l, false)?;
             let y = self.eval(tree, r, false)?;
-            self.chain_call(&ch, advs.len(), x, Some(y))
+            self.chain_call(&ch, advs.len(), x, Some(y)).map_err(|e| self.at_operator(tree, id, e))
         }
     }
 
@@ -2068,6 +2297,30 @@ impl Interp {
             _ => Err(Error::typ("an adverb was given the wrong number of operands")),
         }
     }
+}
+
+/// What is known of a function value (`Interp::fn_info`).
+#[cfg(feature = "diag")]
+#[derive(Default)]
+pub struct FnInfo {
+    /// `function`, `projection`, `native` or `operator`.
+    pub kind: &'static str,
+    /// The number of arguments it takes (for a projection, the holes it still has).
+    pub arity: u8,
+    /// The named parameters of `f(a;b)::{...}`.
+    pub params: Option<Vec<String>>,
+    /// The locals declared by a leading `[a b]` in the body.
+    pub locals: Vec<String>,
+    /// The text of the function literal as written, and where.
+    pub source: Option<String>,
+    pub span: Option<crate::error::Span>,
+    pub projection: bool,
+    /// A projection's arguments in order: a value, or `None` for a hole (an argument written as an expression is its source text).
+    pub bound: Vec<Option<Value>>,
+    /// What a projection or a call node calls.
+    pub callee: Option<Value>,
+    /// A system function's name.
+    pub name: Option<String>,
 }
 
 fn same_value(a: &Value, b: &Value) -> bool {
