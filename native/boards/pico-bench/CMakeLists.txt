@@ -28,8 +28,37 @@ set(KLONG_STACK_KB "" CACHE STRING "interpreter stack in KB, empty for the defau
 # instruction cache costs about 60 cycles for 8 bytes. The W25Q16JV on the Pico runs quad reads at 133 MHz: /2 is
 # 62.5 MHz. (Set -DPICO_FLASH_CLKDIV=4 to go back.)
 set(PICO_FLASH_CLKDIV 2 CACHE STRING "flash clock divider of the boot loader, even")
+# The compiled static-profile examples (.c.mavg, .c.pid, .c.fir, .c.check): their C is made by the build from examples/embedded/*.kg, not kept in the
+# source tree (tools/gen_c_examples.py runs the compiler of klongpy.static: it needs a Python with numpy; the repository is found from the script).
+set(KLONG_C_EXAMPLES 1 CACHE STRING "link the compiled examples (.c.*): 1 (default) or 0")
+set(KLONG_PYTHON "python3" CACHE STRING "a Python with numpy, to generate the C of the examples (a command, arguments allowed)")
 add_executable(klong_pico_bench main.c)
-target_compile_definitions(klong_pico_bench PRIVATE KLONG_SELFTEST=${KLONG_SELFTEST} LANE_BAUD=${LANE_BAUD}u KLONG_HEAP_DIAG=${KLONG_HEAP_DIAG})
+target_compile_definitions(klong_pico_bench PRIVATE KLONG_SELFTEST=${KLONG_SELFTEST} LANE_BAUD=${LANE_BAUD}u KLONG_HEAP_DIAG=${KLONG_HEAP_DIAG} KLONG_C_EXAMPLES=${KLONG_C_EXAMPLES})
+if(KLONG_C_EXAMPLES)
+    set(KLONG_C_GEN "${CMAKE_CURRENT_BINARY_DIR}/generated/klong_c")
+    get_filename_component(KLONG_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
+    separate_arguments(KLONG_PYTHON_CMD UNIX_COMMAND "${KLONG_PYTHON}")
+    file(GLOB KLONG_COMPILER_SOURCES "${KLONG_ROOT}/klongpy/static/*.py" "${KLONG_ROOT}/klongpy/static/klong_rt.h")
+    set(KLONG_C_FILES mavg.c pidc.c fir.c klong_c_data.c)
+    list(TRANSFORM KLONG_C_FILES PREPEND "${KLONG_C_GEN}/" OUTPUT_VARIABLE KLONG_C_OUTPUTS)
+    add_custom_command(
+        OUTPUT ${KLONG_C_OUTPUTS} "${KLONG_C_GEN}/klong_c_data.h"
+        COMMAND ${KLONG_PYTHON_CMD} "${CMAKE_CURRENT_LIST_DIR}/tools/gen_c_examples.py" "${KLONG_C_GEN}"
+        DEPENDS "${CMAKE_CURRENT_LIST_DIR}/tools/gen_c_examples.py" ${KLONG_COMPILER_SOURCES}
+                "${KLONG_ROOT}/examples/embedded/mavg.kg" "${KLONG_ROOT}/examples/embedded/mavg.expect"
+                "${KLONG_ROOT}/examples/embedded/pid.kg" "${KLONG_ROOT}/examples/embedded/pid.expect"
+                "${KLONG_ROOT}/examples/embedded/fir.kg" "${KLONG_ROOT}/examples/embedded/fir.expect"
+        COMMENT "generating the C of the compiled examples (static-profile compiler)"
+        VERBATIM)
+    # The generated C is held to the runtime header's own standard (C99, pedantic, no warnings); KG_NO_DEFAULT_TRAP: klong_c.c defines kg_trap
+    add_library(klong_examples_c OBJECT ${KLONG_C_OUTPUTS})
+    set_target_properties(klong_examples_c PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+    target_include_directories(klong_examples_c PUBLIC "${KLONG_C_GEN}")
+    target_compile_definitions(klong_examples_c PRIVATE KG_NO_DEFAULT_TRAP)
+    target_compile_options(klong_examples_c PRIVATE -O2 -Wall -Wextra -Werror -pedantic)
+    target_sources(klong_pico_bench PRIVATE klong_c.c $<TARGET_OBJECTS:klong_examples_c>)
+    target_include_directories(klong_pico_bench PRIVATE "${KLONG_C_GEN}")
+endif()
 if(NOT "${KLONG_STACK_KB}" STREQUAL "")
     math(EXPR KLONG_STACK_BYTES "${KLONG_STACK_KB} * 1024")
     target_compile_definitions(klong_pico_bench PRIVATE KLONG_STACK_BYTES=${KLONG_STACK_BYTES}u)

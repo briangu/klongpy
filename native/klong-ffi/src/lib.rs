@@ -407,6 +407,308 @@ pub unsafe extern "C" fn klong_heap(used: *mut usize, peak: *mut usize, limit: *
     }
 }
 
+// ----- C functions as system functions ------------------------------------------------------
+
+/// `klong_cfun_register`: a C function becomes a system function (feature `cfun`). The arguments cross as `klong_val` structures
+/// (pointers into the interpreter's values, valid during the call), the result comes back in one, and an error is a non-zero return
+/// with a message. While the C function runs it may call `klong_eval` and `klong_load_static`, which run Klong text in the
+/// interpreter that called it. 64-bit integers and floats only (the Pico bench's build).
+#[cfg(feature = "cfun")]
+mod cfun {
+    use super::Global;
+    use alloc::rc::Rc;
+    use alloc::string::String;
+    use alloc::vec::Vec;
+    use core::cell::UnsafeCell;
+    use core::ffi::{c_char, c_void};
+    use klong_core::error::Error;
+    use klong_core::interp::Interp;
+    use klong_core::value::{Int, Value, WILDCARD};
+
+    #[cfg(any(feature = "int32", feature = "float32"))]
+    compile_error!("the cfun feature needs 64-bit integers and floats (no int32, no float32)");
+
+    const T_OTHER: i32 = 0;
+    const T_INT: i32 = 1;
+    const T_FLT: i32 = 2;
+    const T_INTS: i32 = 3;
+    const T_FLTS: i32 = 4;
+    const T_STR: i32 = 5;
+    /// A function takes at most this many arguments.
+    const MAX_ARGS: usize = 8;
+
+    /// `struct klong_val` of klong.h, field for field.
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct Val {
+        tag: i32,
+        rank: i32,
+        i: i64,
+        f: f64,
+        len: usize,
+        data: *const c_void,
+    }
+
+    impl Val {
+        const NONE: Val = Val { tag: T_OTHER, rank: 0, i: 0, f: 0.0, len: 0, data: core::ptr::null() };
+    }
+
+    /// `int32_t fn(void *ctx, const klong_val *args, size_t nargs, klong_val *out)`: 0, or an error code (1 type, 2 range, 3 system) with a
+    /// NUL-terminated message in `out->data` (4 memory and 5 interrupt, which `klong_eval` returns for those errors, are passed on as such).
+    type Cfun = unsafe extern "C" fn(*mut c_void, *const Val, usize, *mut Val) -> i32;
+
+    /// The interpreter a C function was called from: set for the length of the call, null otherwise.
+    static CUR: Global<*mut Interp> = Global(UnsafeCell::new(core::ptr::null_mut()));
+    /// What the last `klong_eval` returned, kept so that the pointers in its `klong_val` stay valid until the next one.
+    static KEEP: Global<Option<Value>> = Global(UnsafeCell::new(None));
+    /// The text of the last error `klong_eval` reported.
+    static MSG: Global<Option<String>> = Global(UnsafeCell::new(None));
+
+    fn describe(v: &Value) -> Val {
+        match v {
+            Value::Int(i) => Val { tag: T_INT, i: *i as i64, ..Val::NONE },
+            Value::Flt(f) => Val { tag: T_FLT, f: *f, ..Val::NONE },
+            Value::Ints(a) => Val { tag: T_INTS, rank: a.rank() as i32, len: a.data.len(), data: a.data.as_ptr() as *const c_void, ..Val::NONE },
+            Value::Flts(a) => Val { tag: T_FLTS, rank: a.rank() as i32, len: a.data.len(), data: a.data.as_ptr() as *const c_void, ..Val::NONE },
+            Value::Str(s) => Val { tag: T_STR, len: s.as_str().len(), data: s.as_str().as_ptr() as *const c_void, ..Val::NONE },
+            _ => Val::NONE,
+        }
+    }
+
+    /// The `Value` of what a C function returned. The vector data is copied. A result with `rank` 2 has `i` columns.
+    ///
+    /// # Safety
+    /// `out.data` is valid for `out.len` elements of the tag's type.
+    unsafe fn from_val(out: &Val) -> Result<Value, Error> {
+        use klong_core::value::Arr;
+        let shape = |len: usize| -> Result<Option<[u32; 2]>, Error> {
+            if out.rank != 2 {
+                return Ok(None);
+            }
+            let cols = out.i as usize;
+            if cols == 0 || len % cols != 0 || len / cols > u32::MAX as usize || cols > u32::MAX as usize {
+                return Err(Error::system("a C function returned a shape that does not fit its data"));
+            }
+            Ok(Some([(len / cols) as u32, cols as u32]))
+        };
+        match out.tag {
+            T_INT => Ok(Value::Int(out.i as Int)),
+            T_FLT => Ok(Value::Flt(out.f)),
+            T_INTS | T_FLTS | T_STR if out.len > 0 && out.data.is_null() => Err(Error::system("a C function returned a vector with no data")),
+            T_INTS => {
+                let dims = shape(out.len)?;
+                let mut v: Vec<Int> = klong_core::value::try_vec(out.len)?;
+                // SAFETY: by the contract above `data` has `len` aligned 64-bit integers.
+                v.extend_from_slice(unsafe { core::slice::from_raw_parts(out.data as *const i64, out.len) });
+                Ok(match dims {
+                    Some(d) => Value::Ints(Rc::new(Arr::shaped(v, &d))),
+                    None => Value::ints(v),
+                })
+            }
+            T_FLTS => {
+                let dims = shape(out.len)?;
+                let mut v: Vec<f64> = klong_core::value::try_vec(out.len)?;
+                // SAFETY: as above, for doubles.
+                v.extend_from_slice(unsafe { core::slice::from_raw_parts(out.data as *const f64, out.len) });
+                Ok(match dims {
+                    Some(d) => Value::Flts(Rc::new(Arr::shaped(v, &d))),
+                    None => Value::flts(v),
+                })
+            }
+            T_STR => {
+                // SAFETY: as above, `len` bytes.
+                let b = unsafe { core::slice::from_raw_parts(out.data as *const u8, out.len) };
+                match core::str::from_utf8(b) {
+                    Ok(s) => Value::text(s),
+                    Err(_) => Err(Error::system("a C function returned a string that is not UTF-8")),
+                }
+            }
+            _ => Err(Error::system("a C function returned no value")),
+        }
+    }
+
+    /// The message a C function gave for an error, as an `Error`.
+    ///
+    /// # Safety
+    /// `msg` is null or NUL-terminated.
+    unsafe fn error_of(code: i32, msg: *const c_void) -> Error {
+        let text = if msg.is_null() {
+            "C function failed"
+        } else {
+            // SAFETY: NUL-terminated by the contract above.
+            let mut n = 0;
+            while n < 200 && unsafe { *(msg as *const u8).add(n) } != 0 {
+                n += 1;
+            }
+            // SAFETY: the `n` bytes before the NUL (or the 200 we looked at) are readable.
+            core::str::from_utf8(unsafe { core::slice::from_raw_parts(msg as *const u8, n) }).unwrap_or("C function failed")
+        };
+        let m = match klong_core::value::try_str(text) {
+            Ok(m) => m,
+            Err(e) => return e,
+        };
+        match code {
+            1 => Error::typ(m),
+            2 => Error::range(m),
+            4 => Error::memory(),
+            5 => Error::interrupt(),
+            _ => Error::system(m),
+        }
+    }
+
+    /// See klong.h.
+    ///
+    /// # Safety
+    /// `name` is a NUL-terminated string; `f` keeps the contract of `Cfun`; called on the task of `klong_init`, not from a callback.
+    #[no_mangle]
+    pub unsafe extern "C" fn klong_cfun_register(name: *const c_char, arity: u32, f: Option<Cfun>, ctx: *mut c_void, out_cap: usize) -> i32 {
+        let Some(f) = f else { return super::KLONG_ERR_ARG };
+        if name.is_null() || arity as usize > MAX_ARGS && arity != WILDCARD as u32 {
+            return super::KLONG_ERR_ARG;
+        }
+        // SAFETY: NUL-terminated by the contract.
+        let name = match unsafe { core::ffi::CStr::from_ptr(name) }.to_str() {
+            Ok(n) => n,
+            Err(_) => return super::KLONG_ERR_ARG,
+        };
+        let state = super::STATE.0.get();
+        // SAFETY: one task; the console is not borrowed outside `klong_step`, which this is not called from (see above).
+        let Some(s) = (unsafe { &mut *state }).as_mut() else { return super::KLONG_ERR_STATE };
+        if s.stepping {
+            return super::KLONG_ERR_STATE;
+        }
+        let ctx = ctx as usize;
+        s.console.rt.interp.register(
+            name,
+            arity as u8,
+            Rc::new(move |ip: &mut Interp, a: &[Value]| {
+                if a.len() > MAX_ARGS {
+                    return Err(Error::arity("too many arguments for a C function"));
+                }
+                let mut args = [Val::NONE; MAX_ARGS];
+                for (slot, v) in args.iter_mut().zip(a) {
+                    *slot = describe(v);
+                }
+                // a function that returns a vector gets room for `out_cap` elements for the length of the call, so that it keeps no buffer
+                // of its own (RAM is what a board has least of)
+                let mut scratch: Vec<i64> = Vec::new();
+                let mut out = Val::NONE;
+                if out_cap > 0 {
+                    scratch = klong_core::value::try_vec(out_cap)?;
+                    scratch.resize(out_cap, 0);
+                    out.len = out_cap;
+                    out.data = scratch.as_ptr() as *const c_void;
+                }
+                // SAFETY (all three): one task; `CUR` is the interpreter calling, put back to what it was after the call (a C function
+                // may run Klong that calls another); `args` and the values behind them live to the end of the call.
+                let saved = unsafe { *CUR.0.get() };
+                unsafe { *CUR.0.get() = ip as *mut Interp };
+                let code = unsafe { f(ctx as *mut c_void, args.as_ptr(), a.len(), &mut out) };
+                unsafe { *CUR.0.get() = saved };
+                if code != 0 {
+                    // SAFETY: the C function's message, NUL-terminated by the contract.
+                    return Err(unsafe { error_of(code, out.data) });
+                }
+                if out_cap > 0 && out.data == scratch.as_ptr() as *const c_void && out.len > out_cap {
+                    return Err(Error::system("a C function returned more than the room it was given"));
+                }
+                // SAFETY: the C function's result, valid by the contract (and, in the room it was given, checked just above).
+                unsafe { from_val(&out) }
+            }),
+        );
+        super::KLONG_OK
+    }
+
+    /// Run `f` on the interpreter that called the C function; `None` outside a call.
+    fn with_interp<R>(f: impl FnOnce(&mut Interp) -> R) -> Option<R> {
+        // SAFETY: one task; the pointer is the interpreter of the closure above, which is still on the stack below us.
+        let p = unsafe { *CUR.0.get() };
+        if p.is_null() {
+            None
+        } else {
+            Some(f(unsafe { &mut *p }))
+        }
+    }
+
+    /// Put an evaluation's outcome in `out`: the value (kept until the next call), or an error code and its message.
+    ///
+    /// # Safety
+    /// `out` is valid for a write.
+    unsafe fn finish(r: Result<Option<Value>, Error>, out: *mut Val) -> i32 {
+        match r {
+            Ok(v) => {
+                let v = v.unwrap_or(Value::Undefined);
+                // SAFETY: one task; the old value is let go here, after the C function has stopped using it (its contract).
+                let slot = unsafe { &mut *KEEP.0.get() };
+                *slot = Some(v);
+                if !out.is_null() {
+                    if let Some(v) = slot.as_ref() {
+                        // SAFETY: `out` is valid for a write.
+                        unsafe { out.write(describe(v)) }
+                    }
+                }
+                0
+            }
+            Err(e) => {
+                // (a failure to copy the message is a failure of the evaluation all the same: the code below is the kind)
+                let mut m = String::new();
+                if m.try_reserve(e.message.len() + 1).is_ok() {
+                    m.push_str(&e.message);
+                }
+                m.push('\0');
+                // SAFETY: one task; as above.
+                let slot = unsafe { &mut *MSG.0.get() };
+                let ptr = slot.insert(m).as_ptr();
+                if !out.is_null() {
+                    // SAFETY: `out` is valid for a write.
+                    unsafe { out.write(Val { data: ptr as *const c_void, ..Val::NONE }) }
+                }
+                match e.kind {
+                    klong_core::error::Kind::Type => 1,
+                    klong_core::error::Kind::Range => 2,
+                    klong_core::error::Kind::Memory => 4,
+                    klong_core::error::Kind::Interrupt => 5,
+                    _ => 3,
+                }
+            }
+        }
+    }
+
+    /// See klong.h.
+    ///
+    /// # Safety
+    /// `text` is valid for `len` bytes; `out` is null or valid for a write.
+    #[no_mangle]
+    pub unsafe extern "C" fn klong_eval(text: *const c_char, len: usize, out: *mut Val) -> i32 {
+        // SAFETY: `len` readable bytes.
+        let bytes = unsafe { core::slice::from_raw_parts(text as *const u8, len) };
+        let Ok(src) = core::str::from_utf8(bytes) else { return 3 };
+        match with_interp(|ip| ip.run_global(src, "<C>")) {
+            // SAFETY: `out` as above.
+            Some(r) => unsafe { finish(r, out) },
+            None => 3,
+        }
+    }
+
+    /// See klong.h.
+    ///
+    /// # Safety
+    /// `text` is valid for `len` bytes for ever; `label` is NUL-terminated; `out` is null or valid for a write.
+    #[no_mangle]
+    pub unsafe extern "C" fn klong_load_static(text: *const c_char, len: usize, label: *const c_char, out: *mut Val) -> i32 {
+        // SAFETY: valid for ever by the contract, so the `'static` is true.
+        let bytes: &'static [u8] = unsafe { core::slice::from_raw_parts(text as *const u8, len) };
+        let Ok(src) = core::str::from_utf8(bytes) else { return 3 };
+        // SAFETY: NUL-terminated by the contract.
+        let label = unsafe { core::ffi::CStr::from_ptr(label) }.to_str().unwrap_or("<C>");
+        match with_interp(|ip| ip.load_static(src, label)) {
+            // SAFETY: `out` as above.
+            Some(r) => unsafe { finish(r, out) },
+            None => 3,
+        }
+    }
+}
+
 // ----- the lane of a packet switch -----------------------------------------------------------
 
 #[cfg(feature = "lane")]

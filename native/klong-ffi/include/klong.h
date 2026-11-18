@@ -124,6 +124,47 @@ void klong_run(void);
  * 3 symbols, 4 globals, 5 parse, 6 ipc, 7 console), set before the `alloc` callback is called. Call once, after klong_init. */
 void klong_set_diag(size_t (*diag)(uint32_t mode, int64_t *out, size_t cap));
 
+/*
+ * C functions as system functions (library built with the cargo feature `cfun`; the Pico bench). 64-bit integers and
+ * floats only (the default build). The application gives a function and a name, and Klong calls it like any system function
+ * (`.c.mavg(4.0)`). Only integers and pointers cross: a float travels in a klong_val, which is passed by pointer.
+ */
+#define KLONG_T_OTHER 0 /* a value that is not one of the following (a list of lists, a dictionary, a function): the function should refuse it */
+#define KLONG_T_INT 1   /* i */
+#define KLONG_T_FLT 2   /* f */
+#define KLONG_T_INTS 3  /* data: len int64_t, row-major; rank 1, or the rank of an array */
+#define KLONG_T_FLTS 4  /* data: len doubles, the same */
+#define KLONG_T_STR 5   /* data: len bytes of UTF-8, not NUL-terminated */
+
+typedef struct klong_val {
+    int32_t tag;      /* KLONG_T_* */
+    int32_t rank;     /* of an array: 1 for a vector; 0 otherwise */
+    int64_t i;        /* KLONG_T_INT */
+    double f;         /* KLONG_T_FLT */
+    size_t len;       /* elements of an array (all of them: the product of the dimensions), bytes of a string */
+    const void *data; /* arguments and results of klong_eval: the runtime's memory, valid until the function returns (an argument)
+                         or until the next klong_eval, klong_load_static or return (a result); a result of your function: yours,
+                         valid until the next call of it */
+} klong_val;
+
+/* Return codes of a C function, and of klong_eval and klong_load_static: 0 done; 1 type error, 2 range error, 3 any other error,
+ * 4 out of memory, 5 interrupted. For a code other than 0 the message is a NUL-terminated string in out->data (a function's own, which
+ * must stay valid until it returns, or the runtime's). 4 and 5 are passed on as those errors by the runtime. */
+typedef int32_t (*klong_cfun)(void *ctx, const klong_val *args, size_t nargs, klong_val *out);
+
+/* Define the system function `name` (it may contain dots) of `arity` arguments (0 to 8, or 255 for any number, in which case nargs says).
+ * `out_cap` is the most 8-byte elements the function returns as a vector: when it is not 0 the runtime gives the function a buffer of
+ * that many (zeroed, aligned for int64_t and double) in out->data, with out_cap in out->len, for the length of the call: the function fills it
+ * and sets tag (KLONG_T_INTS or KLONG_T_FLTS) and len; with tag KLONG_T_INTS or KLONG_T_FLTS and rank 2, `i` is the number of columns and len the
+ * rows times that. A function that keeps no buffer of its own costs no static RAM. Call after klong_init, not from a callback. Returns KLONG_OK, KLONG_ERR_ARG or KLONG_ERR_STATE (before klong_init or in a callback). */
+int32_t klong_cfun_register(const char *name, uint32_t arity, klong_cfun fn, void *ctx, size_t out_cap);
+
+/* From inside a C function only (3 is returned elsewhere): run Klong text where the function was called, at global scope, and return
+ * the value of its last statement in *out (may be NULL). klong_load_static does what `.l` does: it runs a text that lives for ever
+ * (a string in flash) as a load, one statement at a time, without copying it, and undoes its definitions if it fails; `label` names it in errors. */
+int32_t klong_eval(const char *text, size_t len, klong_val *out);
+int32_t klong_load_static(const char *text, size_t len, const char *label, klong_val *out);
+
 /* Heap figures of the runtime in bytes: in use, the highest so far, the limit. Any of
  * the pointers may be NULL. */
 void klong_heap(size_t *used, size_t *peak, size_t *limit);

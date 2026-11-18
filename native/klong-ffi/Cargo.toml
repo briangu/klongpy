@@ -32,6 +32,9 @@ lane = ["ipc", "klong-console/ipc"]
 # A diagnostic of the heap (the Pico bench build): `.heap(mode)` returns the board's allocator state as integers (the board supplies
 # `klong_diag`), and the runtime tells the allocator what each allocation is for (klong-core `heap-tags`).
 heapdiag = ["klong-core/heap-tags"]
+# C functions as system functions (klong_cfun_register, klong_eval, klong_load_static in klong.h): the Pico bench registers the
+# compiled static-profile examples with it. Needs the default 64-bit integers and floats.
+cfun = []
 
 [dependencies]
 klong-core = { path = "../klong-core" }

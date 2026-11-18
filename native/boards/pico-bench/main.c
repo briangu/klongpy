@@ -35,6 +35,12 @@
 #include "pico/stdio_usb.h"
 
 #include "klong.h"
+#ifndef KLONG_C_EXAMPLES
+#define KLONG_C_EXAMPLES 1 /* the compiled static-profile examples as `.c.*`: see klong_c.h */
+#endif
+#if KLONG_C_EXAMPLES
+#include "klong_c.h"
+#endif
 
 /* The runtime's memory is not newlib's: it has a pool of its own (klong_heap.h). What the SDK itself takes from malloc (stdio's
  * buffer when a console is on USB, a few small things) comes from the first KH_SDK_BYTES of the heap through `_sbrk` below; if
@@ -301,6 +307,11 @@ static uint64_t k_now_ms(void *ctx) {
     (void)ctx;
     return time_us_64() / 1000u;
 }
+#if KLONG_C_EXAMPLES
+static uint64_t c_now_us(void) {
+    return time_us_64();
+}
+#endif
 static uint64_t last_drain_ms;
 static void k_wait(void *ctx, uint32_t max_ms) {
     (void)ctx;
@@ -412,6 +423,9 @@ static void klong_main(void) {
     if (klong_init(&cfg) != KLONG_OK) k_fatal(NULL, "klong_init", 10);
 #if KLONG_HEAP_DIAG
     klong_set_diag(board_diag);
+#endif
+#if KLONG_C_EXAMPLES
+    if (klong_c_register(c_now_us) != KLONG_OK) k_fatal(NULL, "klong_c_register", 16);
 #endif
 
     memset(&lane, 0, sizeof lane);
