@@ -7,7 +7,7 @@ This page is the complete list of changes in version 2 compared with 0.7. [What'
 ### Headline additions
 
 * The [native runtime](native/index.md): the language in Rust, without Python, for desktops and boards.
-* The [conformance suite](conformance.md): about 1,300 cases that every implementation must pass.
+* The [conformance suite](conformance.md): about 1,500 cases that every implementation must pass.
 * The [static profile](static-profile.md) and [compiling Klong to C](embedded.md).
 * [FPGA kernels](hardware.md), experimental.
 * [Strict modes](strict.md), levels 0, 1 and 2.
@@ -21,6 +21,10 @@ This page is the complete list of changes in version 2 compared with 0.7. [What'
 #### Static Klong and C
 
 **New: a subset of Klong that compiles to C.** [The static profile](static-profile.md) is the part of the language in which every type, shape and call target is known before the program runs. `kgpy check FILE...` checks files against it without running them, and `kgpy compile c FILE... -o DIR` compiles a program inside it to freestanding C99 with no heap, no recursion and no C library. `.extern("name";"int -> float")` declares a function the target provides, and `.entry("name";"float -> float")` declares one the host calls. Under KlongPy an extern is a Python function (`klong.externs["name"] = f`), and `klongpy.static.load_program` and `call_entry` run a program the way the compiled one is called. A program that uses neither is unaffected. See [Compiling Klong to C](embedded.md).
+
+**The native runtime defines `.entry` and `.extern` with the checks and errors of KlongPy.** A program of the static profile loads there unchanged, and an extern resolves to a host function registered under its name. `.fixed` is an error there, because the native interpreter does not support fixed-point programs.
+
+**Compiled C has run on two Raspberry Pi Picos.** `mavg.kg`, `pid.kg` and `fir.kg`, compiled to C and linked into the firmware, agree with the interpreter on both boards. The compiled code runs about 100 times faster than the interpreter on the two step functions, and the interpreter cannot load `fir.kg` on that board. The C has run on no other device. See [On a Pico](embedded.md#on-a-pico).
 
 ```kgpy
 ?> .extern("read.adc";"int -> float")
@@ -93,9 +97,32 @@ error: the function takes 2 arguments, got 3
 
 See [Language additions](language-additions.md) for the forms. These are the changes in behaviour that come with them, apart from the ones in [Syntax that changed meaning](#syntax-that-changed-meaning).
 
-**New: `.fmt`, `.pf` and `.grad`.** `.fmt(template;args)` and `.pf(template;args)` format text with `{}` placeholders, and `.grad(f;x)` is the ASCII name of `x∇f`. See [Language Additions](language-additions.md#formatted-text).
+**New: `.fmt`, `.pf` and `.grad`.** `.fmt(template;args)` and `.pf(template;args)` format text with `{}` placeholders, and `.grad(f;x)` is the ASCII name of `x∇f`. A template with no placeholders needs no arguments, as in `.pf("done")`. A width with a leading zero, such as `{:05}`, is a range error, because a width pads with spaces. See [Language Additions](language-additions.md#formatted-text).
 
 **New: `.split`, `.join`, `.words`, `.trim` and `.num`.** Five system functions for text, the same in KlongPy and the native runtime: `.split(s;sep)` and its inverse `.join(list;sep)`, `.words(s)`, `.trim(s)`, and `.num(s)`, which reads a number from the whole string and gives `:undefined` for anything else, where `.rs` stops after the first object. See [Language Additions](language-additions.md#strings).
+
+**New: `.json` and `.unjson`.** `.json(x)` is the JSON text of a value and `.unjson(s)` the value of JSON text; neither needs a package. `null` reads as `:undefined`, and text that is not exactly one JSON value is a range error with its position. See [JSON](language-additions.md#json).
+
+```kgpy
+?> .json(:{;"a";[1 2]})
+"{""a"":[1,2]}"
+?> .unjson("{""a"":[1,2],""b"":null}")
+:{["a" [1 2]] ["b" :undefined]}
+```
+
+**The gradient operators accept a projection that leaves one argument open.** With `f(a;b)::{a*b}`, `3∇f(2;)` is the derivative of `a*2` at 3.
+
+**`.table` takes a dictionary of columns, and `#` of a store is its number of entries.**
+
+<!-- check-docs: requires duckdb pandas -->
+```kgpy
+?> .py("klongpy.db")
+1
+?> .table(:{;"a";[1 2];"b";[3 4]})
+a b
+1 3
+2 4
+```
 
 **`.l` also looks next to the file that calls it.** When `.l("common.kg")` finds nothing in the directories of `KLONGPATH`, a file being run or loaded looks in its own directory, so `kgpy path/to/prog.kg` can load its neighbours from any current directory. The search order is unchanged and still wins. See [`.l`](system-functions.md#l).
 
@@ -123,7 +150,6 @@ See [Language additions](language-additions.md) for the forms. These are the cha
 
 **Python callers can pass arguments by name, and a named-parameter function takes any number of them.** `KGFnWrapper` ignored keyword arguments. `klong['f'](1, 2, d=4, c=3)` passes parameters by name, for a function written with named parameters or with `x`, `y` and `z`. Too few, too many, an unknown or a repeated name raises `KlongArityError`.
 
-**A function with named parameters has no source text.** Over IPC it is sent like a projection, as an opaque value that the receiver can hold and send back but not call. See [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
 
 
 #### Structured errors
@@ -168,6 +194,10 @@ The old messages were NumPy's, such as `ufunc 'add' did not contain a loop with 
 
 **Persistent history and tab completion are built in.** Line editing existed in 0.7; history (`~/.kgpy_history`, or `KGPY_HISTORY`) and tab completion now come from `readline`, so `rlwrap` is not needed. See [the REPL](repl.md).
 
+**`kgpy --version` prints the version.** It is `kgpy 2.0.0rc1`.
+
+**A file run stays up while it serves or is connected.** `kgpy file.kg` ends after its last line unless an IPC server (`.srv`) is listening, a connection opened with `.cli` is open, a web server (`.web`) is listening or a WebSocket connection (`.ws`) is open. A timer alone does not keep it up. `.x` in a callback (a timer, a request or a hook) exits the process with its status. See [the command line](repl.md#options).
+
 **Tooling has subcommands.** `kgpy lint`, `kgpy check`, `kgpy compile c`, `kgpy fpga source`, `kgpy fpga build`, `kgpy fpga status` and `kgpy ast` check, compile and build programs without running them; running a file, `-e`, `-l`, `-s` and `-t` are as in 0.7. See [the command line](repl.md#command-line).
 
 
@@ -175,7 +205,7 @@ The old messages were NumPy's, such as `ufunc 'add' did not contain a loop with 
 
 **The wire protocol is kdb+ IPC.** `.srv` and `.cli` used pickled Python objects, which let a peer run code in your process when a message was unpickled. It is now the kdb+ protocol, and a q client can talk to a `.srv`. The pickle protocol was removed: a 0.7 and a 2.0 process cannot exchange IPC messages, so upgrade both ends. See [the protocol](ipc_capabilities.md#protocol-and-security).
 
-**Tables and functions cross the connection.** A `klongpy.db` table is sent as a kdb+ table and arrives as a table when `klongpy.db` is loaded; an index does not travel. A function literal is sent as its source text. See [the protocol](ipc_capabilities.md#protocol-and-security) and [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
+**Tables and functions cross the connection.** A `klongpy.db` table is sent as a kdb+ table and arrives as a table when `klongpy.db` is loaded; an index does not travel. A function literal is sent as its source text. A function with named parameters, locals or a destructuring at its head is sent as text with its parameter list, and arrives with the same names and arity; a KlongPy and a native peer do this in both directions. A projection has no source and is sent as an opaque value that the receiver can hold and send back but not call. See [the protocol](ipc_capabilities.md#protocol-and-security) and [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
 
 **A numpy `datetime64` or `timedelta64` can be sent.** It goes as a kdb+ timestamp or timespan, in nanoseconds (a date is nanoseconds since 2000-01-01), and `NaT` is the null. It used to be a type error on the sending side. It arrives as the integer, as every kdb+ temporal does, so the receiver of `2000-01-02` sees 86400000000000. A numpy unit is converted to nanoseconds, a calendar unit (years, months) of a timedelta is refused, and a value outside the range of a kdb+ temporal is a range error.
 
@@ -490,7 +520,7 @@ $ kgpy -e '1+"a"'
    ^
 ```
 
-**Exit status.** `kgpy file.kg` and `-e` exit with 1 after an error. Piped stdin exits 1 if any entry failed. `-t` runs every line, reports each failing line and exits after the last, with 1 if any failed; it no longer starts the REPL afterwards. Ctrl-C ends a file run with `interrupted` and status 130. A file that cannot be opened is `system error: cannot open ...`. See [the command line](errors.md#the-command-line).
+**Exit status.** `kgpy file.kg` and `-e` exit with 1 after an error. Piped stdin exits 1 if any entry failed. `-t` runs every line, reports each failing line and exits after the last, with 1 if any failed; it no longer starts the REPL afterwards. Ctrl-C ends a file run with `interrupted` and status 130, and SIGTERM ends one that is waiting for a server or a connection with `terminated` and status 143. A file that cannot be opened is `system error: cannot open ...`. See [the command line](errors.md#the-command-line).
 
 
 #### IPC
@@ -512,7 +542,26 @@ client?> f("1+1")
 
 **`.srv` raises when it cannot listen.** A second `.srv` on a port that is in use returned 0 and did nothing. It raises `cannot listen on 0.0.0.0:8888: ...` followed by the system's reason. `.srv` on a server that is already running still returns 0.
 
+**A synchronous call to the process's own server is an error.** The call would block the loop that has to answer it, so it is a `system` error that names `.async`. Use `.async(f;callback)`, or call from another process.
+
 **A call waits 30 seconds.** A call with no answer raises an error that contains `timed out`, closes the connection and fails every call waiting on it. Change the limit with `.clit`. See [Closing, Timeouts and `.clit`](ipc_capabilities.md#closing-timeouts-and-clit).
+
+
+#### Web server, files and examples
+
+**A web handler that returns a dictionary sends a response.** In 0.7 the dictionary was converted to Python's text and sent as the body. The keys `"status"`, `"type"` and `"body"` now choose the status, the content type and the body, and any other key is a type error. A handler that returns text is as before. See [The response](web_server.md#the-response).
+
+**A handler that fails answers 500, not 400.** The body is `handler failed`, and one line with the route and the error goes to stderr. It was 400 with the body `Invalid request`, and nothing said why. A body that cannot be read is still 400.
+
+**A `HEAD` request to a GET route is answered as the GET, without a body.**
+
+**Handlers run on the Klong loop.** A handler can start a timer, make an IPC call and call `.webc`. `.webc` in a handler completes the reply, stops the server and lets the run end. See [Where a handler runs](web_server.md#where-a-handler-runs).
+
+**`.rls()` strips the line end from each line.** The lines kept their `\n`.
+
+**The two broker examples are removed.** `examples/stocks` had a feed from Polygon and one from Alpaca, and both needed an account. A simulated price feed replaces them: a seeded random walk, a server that publishes each trade to the clients subscribed to its symbol, and a consumer that computes a volume-weighted average price and a moving average. It needs only `pip install klongpy`. See [`examples/stocks/feed`](https://github.com/briangu/klongpy/tree/main/examples/stocks/feed).
+
+**The example programs are written in version 2 forms.** They use named parameters, destructuring, evaluated dictionaries and `.pf` where those read better, and keep the classic forms where those are better Klong. Their output is the same.
 
 
 ### Fixes
@@ -633,7 +682,7 @@ error: cannot apply ^ (Power) to integer and integer
 3
 ```
 
-**`.timer` checks its arguments.** The interval may be a real number such as `0.5`. A negative or non-numeric interval, or a callback that is not a function, is an error; they were a returned string or a `ValueError`. An error in a callback is logged and cancels the timer.
+**`.timer` checks its arguments.** The interval may be a real number such as `0.5`. A negative or non-numeric interval, or a callback that is not a function, is an error; they were a returned string or a `ValueError`. An error in a callback is logged in one line and cancels the timer, and a callback that is not a function says what a callback must be.
 
 ```kgpy
 ?> .timer("t";-1;{1})
@@ -648,6 +697,10 @@ error: y must be a non-negative number
 ?> .pyc("hypot";[3 4];:{})
 5.0
 ```
+
+**`.rs` checks its argument.** A value that is not a string is a type error, and empty text gives `:undefined`.
+
+**A SQL result of one row and one string column displays, and a SQL or store error names its cause once.** The word `error` was printed twice. A module that needs an extra says which: `klongpy.db needs the db extra, which is not installed (no module named duckdb): pip install "klongpy[db]"`; the same holds for `klongpy.web` and the torch backend.
 
 **`.webc` stops a web server.** `.webc(h)` returned 0 and left the server running, because it did not recognise the handle that `.web` returns. It returns 1 and stops the server. See [the web server](web_server.md).
 
@@ -696,3 +749,9 @@ a b
 [[3.4143 1.9998 0.5859] [[0.4993 -0.7073 0.5004] [0.7073 -0.0008 -0.7069] [0.5004 0.7069 0.4999]]]
 ```
 
+
+#### Torch backend
+
+**The optimizers are in the package.** `SGDOptimizer` and `AdamOptimizer` are in `klongpy.optimizers`, so a `pip install` has them, and they work on Apple MPS, where the gradient of `x^2` at 0 is 0 and not NaN. See [Optimizers](torch_backend.md#optimizers).
+
+**`.bkf` functions accept scalars, `.gradcheck` accepts a constant matrix, and `.compile` no longer floods stderr with warnings.**

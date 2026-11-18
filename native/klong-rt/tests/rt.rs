@@ -213,6 +213,32 @@ fn string_functions() {
 }
 
 #[test]
+fn json_functions() {
+    let mut rt = rt();
+    // what a build cannot hold is a range error (the conformance cases cover the rest: KlongPy
+    // has big integers and keeps a lone surrogate)
+    let cases: &[(&str, Result<&str, Kind>)] = &[
+        (".unjson(\"12345678901234567890\")", Err(Kind::Range)),
+        (".unjson(\"[1,9223372036854775808]\")", Err(Kind::Range)),
+        (".unjson(\"-9223372036854775809\")", Err(Kind::Range)),
+        (".unjson(\"-9223372036854775808\")", Ok("-9223372036854775808")),
+        (".unjson(\"\"\"\\ud800\"\"\")", Err(Kind::Range)),
+        (".unjson(\"\"\"\\ude00\"\"\")", Err(Kind::Range)),
+        (".unjson(\"\"\"\\ud83d\\ude00\"\"\")", Ok("\"😀\"")),
+        (".json(.unjson(\"{\"\"a\"\":[1,2.5,null,true]}\"))", Ok("\"{\"\"a\"\":[1,2.5,null,1]}\"")),
+    ];
+    for (src, want) in cases {
+        assert_eq!(run(&mut rt, src), want.map(String::from), "{src}");
+    }
+    // the message of bad text, as Python's json module words it
+    let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let e = rt.run(".unjson(\"[1,\")", "<test>").err().expect("an error");
+    assert_eq!((e.kind, &*e.message), (Kind::Range, ".unjson: Expecting value at line 1 column 4 (character 3)"));
+    let e = rt.run(".json(:{;\"a\";[;1;:b]})", "<test>").err().expect("an error");
+    assert_eq!((e.kind, &*e.message), (Kind::Type, ".json: a symbol has no JSON form at key \"a\" at index 1"));
+}
+
+#[test]
 fn load_finds_a_file_next_to_the_program() {
     let mut rt = rt();
     {

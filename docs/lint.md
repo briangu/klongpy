@@ -295,7 +295,7 @@ $ printf 'f(a;b)::{a+b}\nf(1;2;3)\n' | kgpy lint -
 
 ## How names are resolved
 
-W002, W012 and E002 use a table of what the file defines: top-level `name::...`, the destructuring targets, the locals and parameters of each function, the names the system defines, and the names that the files it loads define. A file loaded with `.l("file")`, with a literal argument, is found as `.l` finds it (`file` and `file.kg` in each `KLONGPATH` directory) relative to the linted file, then the current directory, then `klongpy/lib`. It is parsed, not run.
+W002, W012 and E002 use a table of what the file defines: top-level `name::...`, the destructuring targets, the locals and parameters of each function, the names the system defines, and the names that the files it loads define. A file loaded with `.l("file")`, with a literal argument, is looked up as `.l` looks it up: `file` and `file.kg` in each `KLONGPATH` directory (by default `.` and `lib`, and the package library), taken from the current directory, then in the directory of the file that contains the `.l`. It is parsed, not run.
 
 ```console
 $ printf 'inc::{x+1}\n' > inc.kg

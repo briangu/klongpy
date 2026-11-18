@@ -92,7 +92,7 @@ A call of a Klong function costs about 28 us (4.2 s over the 150,049 calls of `f
 
 ## Uploading a file
 
-The tool is `native/tools/kgupload.py`, which uses only the Python standard library. On a board it works as on the simulated one:
+The tool is `native/tools/kgupload.py`, which uses only the Python standard library. On a board it works as on the simulated one, and it opens the port at 115200 baud, the speed of the console (`--baud N` changes that; at another speed the board does not answer):
 
 ```sh
 python native/tools/kgupload.py PORT ver

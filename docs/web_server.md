@@ -54,7 +54,7 @@ The Python traceback follows it under `-v` or `--traceback`. A body that cannot 
 
 KlongPy has two event loops, each on its own thread: the I/O loop, which serves the sockets, and the Klong loop, which runs Klong code. Handlers run on the Klong loop, one at a time, like timers, `.async` callbacks and IPC handlers. A handler can therefore start a timer, make `.cli` and `.async` calls, and stop the server. `.webc(h)` in a handler completes the reply being served and then stops the server; a file run with nothing else alive then ends with status 0.
 
-Known limit: the Klong loop runs one thing at a time, so a handler that takes long delays the other requests, and a program that requests its own server from the Klong loop waits for itself. Request another process's server instead.
+Known limit: the Klong loop runs one thing at a time, so a handler that takes long delays the other requests. A handler that requests its own server over HTTP waits for itself, so request another process's server instead.
 
 ## Example
 

@@ -517,7 +517,7 @@ class TestUploadTool(unittest.TestCase):
             self.assertEqual(ap.parse_args(["PORT", cmd, "--baud", "9600"]).baud, 9600)
         # defaults are unchanged
         d = ap.parse_args(["PORT", "ver"])
-        self.assertEqual((d.baud, d.timeout, d.chunk, d.chunk_delay, d.record, d.window, d.verbose), (None, 10.0, 1024, 0.0, 16, 32, False))
+        self.assertEqual((d.baud, d.timeout, d.chunk, d.chunk_delay, d.record, d.window, d.verbose), (115200, 10.0, 1024, 0.0, 16, 32, False))
         # and it works end to end, with the options after the subcommand
         s = self.sim()
         with tempfile.TemporaryDirectory() as t:

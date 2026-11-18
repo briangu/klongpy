@@ -220,7 +220,7 @@ Other places to look:
 
 **Talking between processes.** `.srv` serves a KlongPy process and `.cli` calls one, over the kdb+ IPC protocol, so a q process can be on either end. See [IPC Capabilities](ipc_capabilities.md).
 
-**Compiling to C for microcontrollers.** A static subset of Klong compiles to C99 with no heap. The generated C has not yet run on a device. See [Compiling Klong to C](embedded.md) and [The Static Profile](static-profile.md).
+**Compiling to C for microcontrollers.** A static subset of Klong compiles to C99 with no heap. Three examples have run compiled on two Raspberry Pi Picos, and the C has run on no other device. See [Compiling Klong to C](embedded.md) and [The Static Profile](static-profile.md).
 
 **The native runtime on boards.** A separate implementation in Rust runs the full language without Python, including on an ESP32-P4. See [Native Runtime](native/index.md), [Building and Running](native/building.md), [Serial Console and Upload](native/console.md) and [ESP32-P4](native/esp32-p4.md).
 

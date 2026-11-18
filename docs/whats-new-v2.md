@@ -15,7 +15,7 @@ The torch backend and the `:>` gradient operator are in 0.7. What changes in 2:
 * The conformance suite runs on the torch backend, and passes except the cases tagged as NumPy only (float32 text, and `:undefined` inside a list, which a tensor cannot hold).
 * An integer operand beyond 64 bits makes `+ - * < > | &` exact on both backends; two operands within 64 bits wrap.
 
-`kgpy --backend torch` runs the arrays on PyTorch (CPU, CUDA or Apple MPS). Floats are float32, and strings and mixed lists stay NumPy object arrays on the host. See [PyTorch Backend and Autograd](torch_backend.md), and [Performance](performance.md) for what is measured.
+`kgpy --backend torch` runs the arrays on PyTorch (CPU, CUDA or Apple MPS; the CPU is tested, MPS has been run by hand and CUDA is untested). Floats are float32, and strings and mixed lists stay NumPy object arrays on the host. See [PyTorch Backend and Autograd](torch_backend.md), and [Performance](performance.md) for what is measured.
 
 ## FPGA: Klong functions as hardware
 
@@ -27,7 +27,7 @@ Two routes put Klong on a small device.
 
 **The native runtime** is a second implementation of the language in Rust that runs without Python. It has a serial console and an upload command, kdb+ IPC, timers and a management node library. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board, and two Raspberry Pi Picos have run it with IPC between them. See [Native Runtime](native/index.md) and, for the details of what has run on hardware, its [status table](native/index.md#status-what-has-and-has-not-been-proven).
 
-**Compiling to C** takes a subset of Klong, the static profile, in which every type, shape and call target is known before the program runs. It compiles to freestanding C99 with no heap, no recursion and no C library. `kgpy check` tells you whether a file is inside the subset, and `kgpy compile c` writes the C. Three examples have run compiled on two Raspberry Pi Picos, about 100 times faster than the interpreter on the same board ([on a Pico](embedded.md#on-a-pico)).
+**Compiling to C** takes a subset of Klong, the static profile, in which every type, shape and call target is known before the program runs. It compiles to freestanding C99 with no heap, no recursion and no C library. `kgpy check` tells you whether a file is inside the subset, and `kgpy compile c` writes the C. Three examples have run compiled on two Raspberry Pi Picos and agree with the interpreter; the two step functions run about 100 times faster than the interpreter on the same board ([on a Pico](embedded.md#on-a-pico)).
 
 <!-- check-docs: link examples -->
 ```console
@@ -39,12 +39,12 @@ See [Compiling Klong to C](embedded.md) and [The Static Profile](static-profile.
 
 ## One language on every target: the conformance suite
 
-The `conformance/` directory holds about 1,300 test cases that do not depend on any implementation: a program, and the text the REPL prints or the kind of error it raises. KlongPy is the reference, and the native runtime runs the same files with no Python. See [Conformance Suite](conformance.md).
+The `conformance/` directory holds about 1,500 test cases that do not depend on any implementation: a program, and the text the REPL prints or the kind of error it raises. KlongPy is the reference, and the native runtime runs the same files with no Python. See [Conformance Suite](conformance.md).
 
 <!-- check-docs: link conformance -->
 ```console
 $ python conformance/run.py | tail -n 1
-1398 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
+1559 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 ```
 
 ## The stable core
@@ -102,6 +102,7 @@ Classic Klong programs run as before. v2 adds forms for things that needed worka
 ```
 
 **Text functions.** `.split`, `.join`, `.words`, `.trim` and `.num` do what every program otherwise writes for itself, and `.pf` and `.fmt` fill a template. `.num` gives `:undefined` for text that is not a number.
+`.json` and `.unjson` convert to and from JSON text.
 
 ```kgpy
 ?> .words("  to be  or not ")
@@ -221,6 +222,10 @@ error: remote[localhost:8888] closed the connection during the handshake (bad cr
 ```
 
 See [IPC Capabilities](ipc_capabilities.md) and [Klong for q Users](from-kdb.md#talking-to-q-ipc).
+
+### Web handlers
+
+A [web handler](web_server.md) runs on the same loop as timers and IPC callbacks, and may return a dictionary with a status, a content type and a body. A handler that fails answers 500 and logs one line. `examples/stocks/feed` is a simulated price feed over IPC that needs no account, and a file that serves or holds a connection stays up until it is stopped ([the command line](repl.md#options)).
 
 ## More
 

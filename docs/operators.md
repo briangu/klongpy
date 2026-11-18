@@ -64,7 +64,7 @@ and [discussion #82](https://github.com/briangu/klongpy/discussions/82).
 | `a?b` | Find | Find element |
 | `a:$b` | Form | Convert string `b` to the type of `a`; `:undefined` if it does not convert |
 | `a$b` | Format2 | Format with width: a positive `a` pads on the right, a negative `a` pads on the left; `a` of the form `5.2` formats a real |
-| `a@b` | Index/Apply | Index or apply function; negative indices count from the end. On a dictionary, the value of key `b` (`:undefined` if missing), or the list of values for a list of keys; see [Dictionaries](#dictionaries) |
+| `a@b` | Index/Apply | Index or apply function; negative indices count from the end. On a dictionary, the value of key `b` (`:undefined` if missing), or the list of values for a list of keys; see [Dictionaries](#dictionaries). `f@[]` supplies no arguments: a function of no parameters runs, and one of one or more returns a projection |
 | `a:@b` | Index-in-Depth | Deep indexing |
 | `a:%b` | Integer-Divide | Integer division; a zero divisor gives `:undefined` |
 | `a,b` | Join | Concatenate. A two-member list joined to a dictionary is an entry, and two dictionaries merge; see [Dictionaries](#dictionaries) |
@@ -639,7 +639,7 @@ Each over a symbol `s` is `f(s)`: the symbol is not iterated as a string.
 
 ### Projections
 
-A call that does not supply every argument is a projection: a function of the arguments that are missing. An argument is left empty, `f(1;)` and `f(;2)`, or left off the end, `f(1)`; arguments left off are the trailing ones, so for a function of three arguments `f(1)`, `f(1;)` and `f(1;;)` are the same projection. This holds at every strict level, for functions of `x`, `y` and `z` and for functions with named parameters, and when `@` or an adverb applies a function to fewer values than it takes. A projection is displayed by the number of arguments it still takes.
+A call that does not supply every argument is a projection: a function of the arguments that are missing. An argument is left empty, `f(1;)` and `f(;2)`, or left off the end, `f(1)`; arguments left off are the trailing ones, so for a function of three arguments `f(1)`, `f(1;)` and `f(1;;)` are the same projection. This holds at every strict level, for functions of `x`, `y` and `z` and for functions with named parameters, and when `@` or an adverb applies a function to fewer values than it takes. `f@[]` supplies no arguments, so a function of no parameters runs and one of one or more returns a projection. A projection is displayed by the number of arguments it still takes.
 
 ```kgpy
 ?> f::{x,y,z}

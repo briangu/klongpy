@@ -15,6 +15,9 @@ This page is for anyone with code written for KlongPy 0.7. It lists what behaves
 | Error classes and messages | None; `except KlongException` and the old Python classes still catch |
 | Errors on stderr, exit statuses | None |
 | Strict levels | `.strict(0)` or `.unsafe()`; the default is 0 |
+| A web handler that returns a dictionary sends a response; a failing handler answers 500, not 400 | None; [see below](#web-handlers) |
+| `.rls()` strips the line end from each line | None; [see below](#other-changes) |
+| The Polygon and Alpaca examples are removed | None; [a simulated feed replaces them](#other-changes) |
 
 ## Check your code first
 
@@ -396,7 +399,20 @@ Other changes that come with the new protocol:
 
 There is still no encryption. See the security model in the [README](https://github.com/briangu/klongpy#security-model-trusted-networks).
 
+## Web handlers
+
+Before: a handler that returned a dictionary sent Python's text for it as the body, and a handler that failed answered 400 with the body `Invalid request` and no log line. Now:
+
+- A dictionary is a response: `"status"` (default 200), `"type"` (default `text/plain`) and `"body"` (default empty). Any other key is a type error, so a handler that returned a dictionary of data to be shown as text must convert it first, with `$d` or `.json(d)`.
+- A handler that fails answers 500 with the body `handler failed` and logs one line with the route and the error. A client or a test that expected 400 needs 500.
+- A `HEAD` request to a GET route is answered as the GET, without a body.
+
+See [the web server](web_server.md#the-response).
+
 ## Other changes
+
+- **`.rls()` strips the line end.** It returned each line with its `\n`, and a program that cut it off with `-1_` now loses a real character. Remove that code.
+- **The Polygon and Alpaca examples are removed.** `examples/stocks/feed` is a simulated price feed that needs no account: a seeded random walk, a server with per-symbol subscriptions, and a consumer that computes a VWAP and a moving average.
 
 [Release notes](release-notes.md#system-functions) lists the fixes to system functions (`.sys`, `.timer`, `.webc`, `.kvs`, `.db`), the operators that used to crash, and the libraries that now work.
 

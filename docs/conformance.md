@@ -4,7 +4,7 @@ The conformance suite is a set of test cases for the Klong language that does no
 
 Each case is a program and the text the REPL prints for its value, or the kind of error it must raise. KlongPy runs the cases in process. The [native runtime](native/index.md) runs the same files through a small command-line protocol, with no Python. KlongPy is the reference: when it fails a case, either KlongPy has a bug (the case goes to the pending list, below) or the case is wrong.
 
-The suite has 1398 cases in 18 files under `conformance/cases/`, 7 pending cases under `conformance/pending/` (that KlongPy fails), and 169 golden parse trees under `tests/golden/`.
+The suite has 1559 cases in 19 files under `conformance/cases/`, 7 pending cases under `conformance/pending/` (that KlongPy fails), and 169 golden parse trees under `tests/golden/`.
 
 ## A case
 
@@ -39,14 +39,14 @@ error: range
 <!-- check-docs: link conformance -->
 ```console
 $ python conformance/run.py
-1398 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
+1559 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 ```
 
 The in-process run takes about a second. To run KlongPy through the same executable protocol that a native implementation uses, give the reference shim as the command (about 17 seconds with 8 jobs):
 
 ```text
 $ python conformance/run.py --cmd "python -W ignore conformance/shim/kgpy_shim.py" --jobs 8
-1398 passed, 0 failed, 0 skipped by tags (python -W ignore conformance/shim/kgpy_shim.py)
+1559 passed, 0 failed, 0 skipped by tags (python -W ignore conformance/shim/kgpy_shim.py)
 ```
 
 `--tags a,b` is the list of tags the implementation declares; other cases are skipped and counted. `--list` shows what would run. A file or directory argument limits the run. A failure prints the file, the line and the case name with the expected and the actual text.
@@ -70,10 +70,10 @@ $ cd native && cargo build --release
 $ cd ..
 $ python conformance/run.py --cmd "native/target/release/klong --conformance" \
       --tags core,strings,dicts,sysio,float,string-fmt,width64,strict1,strict2,numpy-only,device,unicode,static --jobs 8
-1397 passed, 0 failed, 1 skipped by tags (native/target/release/klong --conformance)
+1556 passed, 0 failed, 3 skipped by tags (native/target/release/klong --conformance)
 ```
 
-Measured on 2026-11-16 on an Apple M2 Ultra: 1397 of 1397 in about 2 seconds with 8 jobs. With `--tags core` alone, 777 cases run and 621 are skipped by tags. The native runtime does not declare `bigint`, `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`.
+Measured on 2026-11-18 on an Apple M2 Ultra: 1556 of 1556 in about 2 seconds with 8 jobs. With `--tags core` alone, 777 cases run and 782 are skipped by tags. The native runtime does not declare `bigint`, `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`.
 
 `native/scripts/conformance.py` prints the same run as a table of counts per file. The golden parse trees run the same way:
 
@@ -91,25 +91,25 @@ A board is driven through its serial console, not through the `klong` binary. `n
 ```text
 $ python native/scripts/console_conformance.py
 ...
-total                         1397  1397   in 2.4 s through console of native/target/release/klong-sim, 8 jobs
+total                         1556  1556   in 2.7 s through console of native/target/release/klong-sim, 8 jobs
 ```
 
-`--narrow` runs the tags of a 32-bit build (1160 cases passed on 2026-11-16). With `--port /dev/ttyUSB0` the same script drives a real board over a serial port, one case at a time. It is the only conformance run on a board; the other hardware results are on the [native status table](native/index.md#status-what-has-and-has-not-been-proven).
+`--narrow` runs the tags of a 32-bit build (1396 cases passed on 2026-11-18). With `--port /dev/ttyUSB0` the same script drives a real board over a serial port, one case at a time. It is the only conformance run on a board; the other hardware results are on the [native status table](native/index.md#status-what-has-and-has-not-been-proven).
 
 ## Counts
 
 | Implementation and run | Cases run | Passed | Date |
 |---|---|---|---|
-| KlongPy, in process | 1398 | 1398 | 2026-11-17 |
-| KlongPy through the executable shim | 1398 | 1398 | 2026-11-17 |
-| Native runtime, desktop, default build | 1397 (1 skipped by tags) | 1397 | 2026-11-16 |
-| Native runtime, simulated boards through the console | 1397 | 1397 | 2026-11-16 |
-| Native runtime, 32-bit build (`--narrow`) | 1160 | 1160 | 2026-11-16 |
+| KlongPy, in process | 1559 | 1559 | 2026-11-18 |
+| KlongPy through the executable shim | 1559 | 1559 | 2026-11-18 |
+| Native runtime, desktop, default build | 1556 (3 skipped by tags) | 1556 | 2026-11-18 |
+| Native runtime, simulated boards through the console | 1556 | 1556 | 2026-11-18 |
+| Native runtime, 32-bit build (`--narrow`) | 1396 | 1396 | 2026-11-18 |
 | Native runtime on an ESP32-P4 over the serial port | 1266 | 1266 | 2026-11-16 |
 
 ### Why the counts differ
 
-KlongPy declares every tag except a few, so it runs all 1398 cases. The native runtime does not declare `bigint`, `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`, so one case is skipped by tags. A 32-bit build declares fewer tags still. The board run is 1266 because the suite had 1266 cases when it was run. The 132 cases added since are mostly of exact integer power, of calling a value that is not a function, and of the string functions. The run takes about 31 minutes and has not been repeated on the board, so the board's count is of a smaller suite, not of a different tag set. Run against the current native binary, that 1266-case suite gives 1265 of 1266: the miss is `functions.fn-as-argument-nilad`, whose expected answer was changed when calling a non-function became an error.
+KlongPy declares every tag except a few, so it runs all 1559 cases. The native runtime does not declare `bigint`, `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`, so three cases are skipped by tags. A 32-bit build declares fewer tags still. The board run is 1266 because the suite had 1266 cases when it was run. The 293 cases added since are mostly of exact integer power, of calling a value that is not a function, of the string functions and of the JSON functions. The run takes about 31 minutes and has not been repeated on the board, so the board's count is of a smaller suite, not of a different tag set. Run against the current native binary, that 1266-case suite gives 1265 of 1266: the miss is `functions.fn-as-argument-nilad`, whose expected answer was changed when calling a non-function became an error.
 
 ## The pending list
 

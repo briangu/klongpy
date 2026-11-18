@@ -1,6 +1,8 @@
 # Columnar tables and SQL
 
-`klongpy.db` adds tables and SQL queries to Klong. A table is a set of named columns of equal length, stored as a pandas DataFrame; it behaves like a dictionary from column name to column, and key/value updates are column operations. A database is a set of named tables that DuckDB queries with SQL; DuckDB reads the NumPy arrays of the columns directly, and a query returns plain Klong values.
+`klongpy.db` adds tables and SQL queries to Klong. It is for programs that keep columns of data and want to select, join and aggregate them with SQL.
+
+A table is a set of named columns of equal length, stored as a pandas DataFrame. It behaves like a dictionary from column name to column, and key/value updates are column operations. A database is a set of named tables that DuckDB queries with SQL. DuckDB reads the NumPy arrays of the columns directly, and a query returns plain Klong values.
 
 Install the extra, which brings pandas and DuckDB, and load the module with `.py("klongpy.db")`:
 
@@ -134,7 +136,7 @@ The join:
 
 ### The shape of a result
 
-The shape of a result depends on how many rows and columns the query returns. The shapes are kept as they are for compatibility with KlongPy 0.7, so write code that tests the shape or fix it in the query. In the examples, `T` has the columns `id` (integers), `name` (strings) and `x` (reals); The REPL shows the value.
+The shape of a result depends on how many rows and columns the query returns, so write code that tests the shape or fix it in the query. In the examples, `T` has the columns `id` (integers), `name` (strings) and `x` (reals).
 
 | Rows by columns | Result |
 |---|---|

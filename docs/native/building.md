@@ -317,16 +317,16 @@ In the commands below, `python` is the interpreter you use for KlongPy, and the 
 <!-- check-docs: requires-file native/target/release/klong; link native conformance -->
 ```console
 $ python native/scripts/conformance.py | tail -1 | cut -c1-40
-total                         1397  1397
+total                         1556  1556
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1397 of 1397 on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1556 of 1556 on 2026-11-18, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
 KLONG_NATIVE=native/target/narrow/release/klong python native/scripts/conformance.py --narrow
 ```
 
-That gave 1160 of 1160 with the narrow build above. The parse trees of the golden files match too: `python conformance/run.py --trees --cmd native/target/release/klong` reported `169 of 169 trees match`. The same suite runs through the serial console of a simulated board and of a real one, see [Serial Console and Upload](console.md).
+That gave 1396 of 1396 on 2026-11-18 with the narrow build above. The parse trees of the golden files match too: `python conformance/run.py --trees --cmd native/target/release/klong` reported `169 of 169 trees match`. The same suite runs through the serial console of a simulated board and of a real one, see [Serial Console and Upload](console.md).
 
 Not every case runs on every build. A case carries tags, and a build runs the cases whose tags it declares. The default build leaves out the tags `bigint` (it wraps), `torch-only` and `kgpy-only` (KlongPy's own), `desktop` (Python interop, databases, web) and the `timers` and `ipc` tiers, which have no cases. The narrow build also leaves out `float`, `string-fmt` and `width64`, the cases that pin 64-bit results.
 

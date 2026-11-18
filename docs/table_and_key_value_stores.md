@@ -2,7 +2,14 @@
 
 > **Security:** keys are used as file names under the store root and values are pickled on disk. Treat the root as trusted storage. See the [security model](https://github.com/briangu/klongpy#security-model-trusted-networks).
 
-`klongpy.db` can keep [tables](fast_columnar_database.md) and other values on disk. A store behaves like a dictionary whose entries are files: setting a key writes the value, and reading a key returns it, or `:undefined` when it is not stored. There are two kinds. A table store (`.tables`) writes tables and merges a table with the one already stored under the same key. A key-value store (`.kvs`) writes any value as pickled bytes and does not look at its contents.
+`klongpy.db` can keep [tables](fast_columnar_database.md) and other values on disk. It is for data that must outlast the process.
+
+A store behaves like a dictionary whose entries are files. Setting a key writes the value, reading a key returns it, or `:undefined` when it is not stored, and `#` of a store is its number of entries.
+
+There are two kinds of store:
+
+* A table store (`.tables`) writes tables and merges a table with the one already stored under the same key.
+* A key-value store (`.kvs`) writes any value as pickled bytes and does not look at its contents.
 
 Install the extra, which brings pandas and DuckDB, and load the module with `.py("klongpy.db")`:
 
@@ -38,7 +45,9 @@ sym  px
   B 2.5
 ```
 
-Writing a table under a key that is already stored merges the two by index: a row with a new index value is added, and for a row whose index value is already stored the stored row is kept. (`.insert` into an indexed table behaves the other way: the new row replaces the old one; see [Duplicate index values](fast_columnar_database.md#duplicate-index-values).) Tables that have no index set (as `prices` above) are numbered from 0, so a second write of such a table finds every index value taken and adds nothing. To merge by a column, index it first:
+Writing a table under a key that is already stored merges the two by index. A row with a new index value is added, and for a row whose index value is already stored the stored row is kept. `.insert` into an indexed table does the opposite: see [Duplicate index values](fast_columnar_database.md#duplicate-index-values).
+
+A table with no index set, such as `prices` above, is numbered from 0. A second write of such a table finds every index value taken and adds nothing. To merge by a column, index it first:
 
 <!-- check-docs: requires duckdb pandas -->
 ```
@@ -83,6 +92,14 @@ Read it back:
 ```
 ?> kvs@"hello"
 "world"
+```
+
+A key that is not stored reads as `:undefined`:
+
+<!-- check-docs: continue -->
+```
+?> kvs@"nothing"
+:undefined
 ```
 
 A key must be a string; any other key is an error:

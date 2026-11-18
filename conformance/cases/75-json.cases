@@ -1,0 +1,658 @@
+# .json and .unjson: a value as compact JSON text and JSON text as a value (docs/language-additions.md, "JSON").
+# KlongPy gets the text from Python's json module; the native runtime writes both by hand.
+# Float text is Python's repr (1e+22, 1e-07); strings are written with raw UTF-8, not \uXXXX.
+# Two differences are not cases: an integer beyond 64 bits (KlongPy has big integers: the `bigint` cases)
+# and an escaped lone surrogate ("\ud800": KlongPy keeps it, the native runtime gives a range error).
+
+@ json.int strings
+> .json(42)
+= "42"
+
+@ json.int-negative strings
+> .json(0-17)
+= "-17"
+
+@ json.int-zero strings
+> .json(0)
+= "0"
+
+@ json.int-max strings width64
+> .json(9223372036854775807)
+= "9223372036854775807"
+
+@ json.int-min strings width64
+> .json((0-9223372036854775807)-1)
+= "-9223372036854775808"
+
+@ json.int-beyond-64-bits strings bigint width64
+> .json(2^70)
+= "1180591620717411303424"
+
+@ json.float strings float
+> .json(2.5)
+= "2.5"
+
+@ json.float-whole-keeps-point strings float
+> .json(3.0)
+= "3.0"
+
+@ json.float-negative strings float
+> .json(0-1.25)
+= "-1.25"
+
+@ json.float-negative-zero strings float string-fmt
+> .json(-0.0)
+= "-0.0"
+
+@ json.float-zero strings float
+> .json(0.0)
+= "0.0"
+
+@ json.float-exponent-positive strings float string-fmt
+> .json(1e22)
+= "1e+22"
+
+@ json.float-exponent-negative strings float string-fmt
+> .json(1e-7)
+= "1e-07"
+
+@ json.float-fixed-below-1e16 strings float string-fmt
+> .json(1e15)
+= "1000000000000000.0"
+
+@ json.float-exponent-at-1e16 strings float string-fmt
+> .json(1e16)
+= "1e+16"
+
+@ json.float-fixed-at-1e-4 strings float string-fmt
+> .json(0.0001)
+= "0.0001"
+
+@ json.float-exponent-below-1e-4 strings float string-fmt
+> .json(0.00001)
+= "1e-05"
+
+@ json.float-largest strings float string-fmt
+> .json(1.7976931348623157e308)
+= "1.7976931348623157e+308"
+
+@ json.float-smallest strings float string-fmt
+> .json(5e-324)
+= "5e-324"
+
+@ json.float-shortest-digits strings float string-fmt numpy-only
+# numpy-only: the sum is a float64 value; torch computes it in float32
+> .json(0.1+0.2)
+= "0.30000000000000004"
+
+@ json.float-repeating strings float string-fmt numpy-only
+# numpy-only: the quotient is a float64 value; torch computes it in float32
+> .json(1%3)
+= "0.3333333333333333"
+
+@ json.float-nan-is-null strings float
+> .json(0%0)
+= "null"
+
+@ json.float-infinity-is-null strings float
+> .json(1e300*1e300)
+= "null"
+
+@ json.float-negative-infinity-is-null strings float
+> .json(0-(1e300*1e300))
+= "null"
+
+@ json.undefined-is-null strings
+> .json(:undefined)
+= "null"
+
+@ json.string-empty strings
+> .json("")
+= """"""
+
+@ json.string-plain strings
+> .json("hello world")
+= """hello world"""
+
+@ json.string-quote strings
+> .json("say ""hi""")
+= """say \""hi\"""""
+
+@ json.string-backslash strings
+> .json("a\b")
+= """a\\b"""
+
+@ json.string-slash-not-escaped strings
+> .json("a/b")
+= """a/b"""
+
+@ json.string-tab strings
+> .json("a	b")
+= """a\tb"""
+
+@ json.string-newline strings
+> .json("a
+> b")
+= """a\nb"""
+
+@ json.string-control-short-forms strings
+> .json(.unjson("""\b\f\r"""))
+= """\b\f\r"""
+
+@ json.string-control-u-form strings
+> .json(.unjson("""\u0001\u001f"""))
+= """\u0001\u001f"""
+
+@ json.string-delete-not-escaped strings
+> #.json(.unjson("""\u007f"""))
+= 3
+
+@ json.string-non-ascii-raw strings unicode
+> .json("héllo 日本")
+= """héllo 日本"""
+
+@ json.string-astral-raw strings unicode
+> .json("a😀b")
+= """a😀b"""
+
+@ json.string-line-separator-raw strings unicode
+> #.json(.unjson("""\u2028"""))
+= 3
+
+@ json.char-is-string strings
+> .json(0ca)
+= """a"""
+
+@ json.char-space strings
+> .json(0c )
+= """ """
+
+@ json.char-quote strings
+> .json(0c")
+= """\"""""
+
+@ json.list-empty strings
+> .json([])
+= "[]"
+
+@ json.list-ints strings
+> .json([1 2 3])
+= "[1,2,3]"
+
+@ json.list-floats-promote strings float
+> .json([1.5 2 3])
+= "[1.5,2.0,3.0]"
+
+@ json.list-mixed strings float
+> .json([;1;"a";2.5;"b"])
+= "[1,""a"",2.5,""b""]"
+
+@ json.list-nested strings
+> .json([[1 2][3 4]])
+= "[[1,2],[3,4]]"
+
+@ json.list-ragged strings
+> .json([[1 2][3]])
+= "[[1,2],[3]]"
+
+@ json.list-rank-three strings
+> .json([[[1 2][3 4]][[5 6][7 8]]])
+= "[[[1,2],[3,4]],[[5,6],[7,8]]]"
+
+@ json.list-deep-mixed strings
+> .json([;1;[;2;[;3;[]]]])
+= "[1,[2,[3,[]]]]"
+
+@ json.list-strings strings
+> .json(["a" "b"])
+= "[""a"",""b""]"
+
+@ json.list-with-undefined strings
+> .json([;1;:undefined;3])
+= "[1,null,3]"
+
+@ json.list-with-nan strings float
+> .json([;1.5;0%0;2.5])
+= "[1.5,null,2.5]"
+
+@ json.list-of-dicts strings dicts
+> .json(,:{;"a";1})
+= "[{""a"":1}]"
+
+@ json.dict-empty strings dicts
+> .json(:{})
+= "{}"
+
+@ json.dict-simple strings dicts
+> .json(:{;"a";1;"b";2})
+= "{""a"":1,""b"":2}"
+
+@ json.dict-insertion-order strings dicts
+> .json(:{;"b";1;"a";2;"c";3})
+= "{""b"":1,""a"":2,""c"":3}"
+
+@ json.dict-nested strings dicts
+> .json(:{;"a";:{;"b";[1 2]}})
+= "{""a"":{""b"":[1,2]}}"
+
+@ json.dict-value-undefined strings dicts
+> .json(:{;"a";:undefined})
+= "{""a"":null}"
+
+@ json.dict-value-list strings dicts
+> .json(:{;"xs";[1 2 3];"n";2})
+= "{""xs"":[1,2,3],""n"":2}"
+
+@ json.dict-key-escaped strings dicts
+> .json(:{;"a""b";1})
+= "{""a\""b"":1}"
+
+@ json.dict-key-empty strings dicts
+> .json(:{;"";1})
+= "{"""":1}"
+
+@ json.dict-key-non-ascii strings dicts unicode
+> .json(:{;"é";"ü"})
+= "{""é"":""ü""}"
+
+@ json.dict-key-char strings dicts
+> .json(:{;0ca;1})
+= "{""a"":1}"
+
+@ json.dict-after-update strings dicts
+> d::.unjson("{""a"":1}");d,"b",,2;.json(d)
+= "{""a"":1,""b"":2}"
+
+@ json.error-key-integer strings dicts
+> .json(:{;1;2})
+! type
+
+@ json.error-key-real strings dicts float
+> .json(:{;1.5;2})
+! type
+
+@ json.error-key-symbol strings dicts
+> .json(:{;:a;2})
+! type
+
+@ json.error-symbol strings
+> .json(:a)
+! type
+
+@ json.error-function strings
+> .json({x})
+! type
+
+@ json.error-symbol-in-list strings
+> .json([;1;:a])
+! type
+
+@ json.error-symbol-deep strings dicts
+> .json(:{;"a";[;1;:{;"b";:a}]})
+! type
+
+@ json.error-function-in-dict strings dicts
+> .json(:{;"f";{x}})
+! type
+
+@ json.unjson-int strings
+> .unjson("42")
+= 42
+
+@ json.unjson-int-negative strings
+> .unjson("-17")
+= -17
+
+@ json.unjson-int-negative-zero strings
+> .unjson("-0")
+= 0
+
+@ json.unjson-int-max strings width64
+> .unjson("9223372036854775807")
+= 9223372036854775807
+
+@ json.unjson-int-min strings width64
+> .unjson("-9223372036854775808")
+= -9223372036854775808
+
+@ json.unjson-int-beyond-64-bits strings bigint width64
+> .unjson("12345678901234567890")
+= 12345678901234567890
+
+@ json.unjson-float strings float
+> .unjson("2.5")
+= 2.5
+
+@ json.unjson-float-whole strings float
+> .unjson("3.0")
+= 3.0
+
+@ json.unjson-float-exponent strings float
+> .unjson("1e3")
+= 1000.0
+
+@ json.unjson-float-exponent-capital-sign strings float
+> .unjson("25E-1")
+= 2.5
+
+@ json.unjson-float-negative-zero strings float string-fmt
+> .unjson("-0.0")
+= -0.0
+
+@ json.unjson-float-too-large-is-infinity strings float
+> .json(.unjson("[1e400,1]"))
+= "[null,1.0]"
+
+@ json.unjson-true strings
+> .unjson("true")
+= 1
+
+@ json.unjson-false strings
+> .unjson("false")
+= 0
+
+@ json.unjson-null strings
+> .unjson("null")
+= :undefined
+
+@ json.unjson-string strings
+> .unjson("""abc""")
+= "abc"
+
+@ json.unjson-string-empty strings
+> .unjson("""""")
+= ""
+
+@ json.unjson-string-escaped-quote-backslash strings
+> #.unjson("""\""\\""")
+= 2
+
+@ json.unjson-string-escaped-slash strings
+> .unjson("""a\/b""")
+= "a/b"
+
+@ json.unjson-string-escaped-newline-length strings
+> #.unjson("""a\nb""")
+= 3
+
+@ json.unjson-string-escaped-tab-form strings
+> .json(.unjson("""a\tb"""))
+= """a\tb"""
+
+@ json.unjson-string-u-escape strings unicode
+> .unjson("""\u00fc""")
+= "ü"
+
+@ json.unjson-string-u-escape-capitals strings unicode
+> .unjson("""\u00FC\u20AC""")
+= "ü€"
+
+@ json.unjson-string-surrogate-pair strings unicode
+> .unjson("""\ud83d\ude00""")
+= "😀"
+
+@ json.unjson-string-surrogate-pair-capitals strings unicode
+> #.unjson("""\uD83D\uDE00""")
+= 1
+
+@ json.unjson-string-raw-non-ascii strings unicode
+> .unjson("""héllo 日本""")
+= "héllo 日本"
+
+@ json.unjson-string-u0000 strings
+> #.unjson("""\u0000""")
+= 1
+
+@ json.unjson-array-empty strings
+> .unjson("[]")
+= []
+
+@ json.unjson-array-ints strings
+> .unjson("[1,2,3]")
+= [1 2 3]
+
+@ json.unjson-array-promotes-to-reals strings float
+> .unjson("[1,2.5]")
+= [1.0 2.5]
+
+@ json.unjson-array-strings strings
+> .unjson("[""a"",""b""]")
+= ["a" "b"]
+
+@ json.unjson-array-mixed strings dicts
+> .unjson("[1,""a"",{""k"":2}]")
+= [1 "a" :{["k" 2]}]
+
+@ json.unjson-array-nested-rectangle strings
+> .unjson("[[1,2],[3,4]]")
+= [[1 2] [3 4]]
+
+@ json.unjson-array-nested-ragged strings
+> .unjson("[[1,2],[3]]")
+= [[1 2] [3]]
+
+@ json.unjson-array-nested-empty strings
+> .unjson("[[],[[]]]")
+= [[] [[]]]
+
+@ json.unjson-array-booleans strings
+> .unjson("[true,false]")
+= [1 0]
+
+@ json.unjson-array-with-null strings
+> .unjson("[1,null,3]")
+= [1 :undefined 3]
+
+@ json.unjson-object-empty strings dicts
+> .unjson("{}")
+= :{}
+
+@ json.unjson-object-simple strings dicts
+> .unjson("{""a"":1,""b"":""x""}")
+= :{["a" 1] ["b" "x"]}
+
+@ json.unjson-object-order-kept strings dicts
+> .unjson("{""b"":1,""a"":2}")
+= :{["b" 1] ["a" 2]}
+
+@ json.unjson-object-nested strings dicts
+> .unjson("{""a"":{""b"":[1,2]}}")
+= :{["a" :{["b" [1 2]]}]}
+
+@ json.unjson-object-null-value strings dicts
+> .unjson("{""a"":null}")
+= :{["a" :undefined]}
+
+@ json.unjson-object-duplicate-key-last-wins strings dicts
+> .unjson("{""a"":1,""b"":2,""a"":3}")
+= :{["a" 3] ["b" 2]}
+
+@ json.unjson-object-empty-key strings dicts
+> .unjson("{"""":1}")
+= :{["" 1]}
+
+@ json.unjson-object-lookup strings dicts
+> .unjson("{""xs"":[10,20]}")@"xs"
+= [10 20]
+
+@ json.unjson-whitespace-around strings
+> .unjson(" 	
+> [ 1 ,
+>  2 ] 
+> ")
+= [1 2]
+
+@ json.unjson-whitespace-in-object strings dicts
+> .unjson("{ ""a"" : 1 ,
+>  ""b"" : [ ] }")
+= :{["a" 1] ["b" []]}
+
+@ json.roundtrip-text strings dicts float
+> .json(.unjson("{""name"":""ada"",""scores"":[1,2,3],""mean"":2.5,""ok"":{""a"":[[1,2],[3,4]]}}"))
+= "{""name"":""ada"",""scores"":[1,2,3],""mean"":2.5,""ok"":{""a"":[[1,2],[3,4]]}}"
+
+@ json.roundtrip-true-false-come-back-as-numbers strings
+> .json(.unjson("[true,false]"))
+= "[1,0]"
+
+@ json.roundtrip-value strings dicts
+> d:::{;"a";[1 2 3];"b";"x"};.unjson(.json(d))@"a"
+= [1 2 3]
+
+@ json.roundtrip-null-in-object strings dicts
+> .json(.unjson("{""a"":null,""b"":1}"))
+= "{""a"":null,""b"":1}"
+
+@ json.unjson-error-empty strings
+> .unjson("")
+! range
+
+@ json.unjson-error-white-space-only strings
+> .unjson("  
+>  ")
+! range
+
+@ json.unjson-error-truncated-array strings
+> .unjson("[1,")
+! range
+
+@ json.unjson-error-truncated-array-no-comma strings
+> .unjson("[1")
+! range
+
+@ json.unjson-error-truncated-object strings
+> .unjson("{""a"":1")
+! range
+
+@ json.unjson-error-trailing-comma-array strings
+> .unjson("[1,]")
+! range
+
+@ json.unjson-error-trailing-comma-object strings
+> .unjson("{""a"":1,}")
+! range
+
+@ json.unjson-error-leading-comma strings
+> .unjson("[,1]")
+! range
+
+@ json.unjson-error-missing-comma strings
+> .unjson("[1 2]")
+! range
+
+@ json.unjson-error-missing-colon strings
+> .unjson("{""a"" 1}")
+! range
+
+@ json.unjson-error-missing-value strings
+> .unjson("{""a"":}")
+! range
+
+@ json.unjson-error-key-not-string strings
+> .unjson("{1:2}")
+! range
+
+@ json.unjson-error-single-quotes strings
+> .unjson("{'a':1}")
+! range
+
+@ json.unjson-error-trailing-text strings
+> .unjson("[1] x")
+! range
+
+@ json.unjson-error-two-values strings
+> .unjson("1 2")
+! range
+
+@ json.unjson-error-leading-zero strings
+> .unjson("01")
+! range
+
+@ json.unjson-error-lone-minus strings
+> .unjson("-")
+! range
+
+@ json.unjson-error-plus-sign strings
+> .unjson("+1")
+! range
+
+@ json.unjson-error-leading-point strings
+> .unjson(".5")
+! range
+
+@ json.unjson-error-trailing-point strings
+> .unjson("1.")
+! range
+
+@ json.unjson-error-bare-word strings
+> .unjson("nul")
+! range
+
+@ json.unjson-error-capital-null strings
+> .unjson("Null")
+! range
+
+@ json.unjson-error-not-json strings
+> .unjson("hello")
+! range
+
+@ json.unjson-error-nan strings
+> .unjson("NaN")
+! range
+
+@ json.unjson-error-infinity strings
+> .unjson("Infinity")
+! range
+
+@ json.unjson-error-negative-infinity strings
+> .unjson("-Infinity")
+! range
+
+@ json.unjson-error-nan-in-array strings
+> .unjson("[NaN]")
+! range
+
+@ json.unjson-error-unterminated-string strings
+> .unjson("""abc")
+! range
+
+@ json.unjson-error-bad-escape strings
+> .unjson("""a\xb""")
+! range
+
+@ json.unjson-error-short-u-escape strings
+> .unjson("""\u12""")
+! range
+
+@ json.unjson-error-non-hex-u-escape strings
+> .unjson("""\u12g4""")
+! range
+
+@ json.unjson-error-raw-tab-in-string strings
+> .unjson("""a	b""")
+! range
+
+@ json.unjson-error-raw-newline-in-string strings
+> .unjson("""a
+> b""")
+! range
+
+@ json.unjson-error-extra-closing-bracket strings
+> .unjson("[1]]")
+! range
+
+@ json.unjson-error-type-integer strings
+> .unjson(5)
+! type
+
+@ json.unjson-error-type-char strings
+> .unjson(0ca)
+! type
+
+@ json.unjson-error-type-symbol strings
+> .unjson(:a)
+! type
+
+@ json.unjson-error-type-list strings
+> .unjson(["[]"])
+! type

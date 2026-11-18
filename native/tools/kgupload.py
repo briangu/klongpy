@@ -15,7 +15,8 @@ other); the remote path defaults to the file's name. `run` prints what the progr
 then its value; a Klong error is `error: <kind>: <message>` on standard error and exit
 status 1. A board that does not answer, or answers nonsense, is exit status 3.
 
-Options: --baud N (a real serial port; a pseudo-terminal has no speed), --timeout SECONDS
+Options: --baud N (the speed of a real serial port, default 115200, which is what the boards
+use; 0 leaves the port as it is; a pseudo-terminal has no speed), --timeout SECONDS
 (for one answer, default 10; for the result of `run`, --run-timeout, default 60), --retries N
 (default 3), --chunk BYTES and --chunk-delay MS (pace raw data for a board whose UART has no
 flow control), --record BYTES (data bytes per HEX record, default 16), --window N (HEX records
@@ -47,6 +48,7 @@ try:
 except ImportError:  # not a POSIX system
     termios = None
 
+DEFAULT_BAUD = 115200  # the console UART of the ESP32-P4 board (native/boards/esp32p4/main/main.c); at another speed the board does not answer
 BOARD_TIMEOUT = 5.0  # seconds without input after which a board abandons a transfer (ConsoleConfig::timeout_us)
 
 
@@ -512,7 +514,7 @@ def build_parser():
     common = _common_options()
     ap = argparse.ArgumentParser(prog="kgupload.py", description="Upload to and run on a Klong board over its serial console.", parents=[common])
     ap.add_argument("port", help="serial device or pseudo-terminal")
-    ap.set_defaults(baud=None, timeout=10.0, run_timeout=60.0, retries=3, chunk=1024, chunk_delay=0.0, record=16, window=32,
+    ap.set_defaults(baud=DEFAULT_BAUD, timeout=10.0, run_timeout=60.0, retries=3, chunk=1024, chunk_delay=0.0, record=16, window=32,
                     board_timeout=BOARD_TIMEOUT, verbose=False)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("ver", help="version, widths, features, free heap", parents=[_common_options()])

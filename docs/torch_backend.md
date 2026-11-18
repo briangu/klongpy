@@ -43,6 +43,8 @@ On the CPU, torch pays off only for large arrays and many threads. Sorting and l
 
 Float32 carries about 7 significant decimal digits. `1.5+1e-9` is exactly `1.5` on the torch backend, and sums of many terms lose digits sooner than on NumPy. Autograd has no finite-difference error; float32 rounding still applies.
 
+Tested devices: the CPU, in the automated tests. Apple MPS has been run by hand (arithmetic, gradients and the optimizers) and is not in the automated tests. CUDA has not been tested.
+
 Known limit: MPS has no float64, and `.gradcheck()` needs the CPU. On MPS it raises `.gradcheck() requires CPU device, got 'mps'`; run `kgpy --backend torch --device cpu` for it.
 
 Known limit: some operations on mixed-type or ragged nested data raise "PyTorch backend does not support object dtype". Simple cases work (`["a" 1]` and `[[1 2][3]]` both evaluate). Use the NumPy backend for the failing operation.

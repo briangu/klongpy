@@ -7,13 +7,13 @@ KlongPy is an implementation of [Klong](https://t3x.org/klong), an [array langua
 | Target | Status | More |
 |---|---|---|
 | CPU (NumPy backend) | stable | [Start Here](getting-started.md) |
-| GPU (PyTorch backend, autograd) | stable on CPU tensors; the GPU devices (CUDA, Apple MPS) use the same code and are not part of the automated tests | [PyTorch Backend and Autograd](torch_backend.md) |
+| GPU (PyTorch backend, autograd) | stable on the CPU, which the automated tests cover; Apple MPS has been run by hand and CUDA not at all, and neither is in the automated tests | [PyTorch Backend and Autograd](torch_backend.md) |
 | Native interpreter (desktop) | passes the conformance suite | [Native Runtime](native/index.md) |
 | Compile to C (static profile) | works for a subset of the language; three examples run on Raspberry Pi Picos | [Compiling Klong to C](embedded.md) |
 | Microcontrollers (native interpreter) | experimental; run on an ESP32-P4 and on two Raspberry Pi Picos | [Native Runtime status](native/index.md#status-what-has-and-has-not-been-proven) |
 | FPGA kernels | experimental; run on one Alveo U250 | [Klong functions as FPGA hardware](hardware.md) |
 
-KlongPy and the native Rust runtime run a [conformance suite](conformance.md) of about 1,300 cases. The C and FPGA paths compile a subset of the language, and that subset is checked against the interpreter.
+KlongPy and the native Rust runtime run a [conformance suite](conformance.md) of about 1,500 cases. The C and FPGA paths compile a subset of the language, and that subset is checked against the interpreter.
 
 ## Install
 

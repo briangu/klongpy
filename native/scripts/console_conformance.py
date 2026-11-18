@@ -176,6 +176,8 @@ def main(argv):
             return 2
         else:
             files.append(a)
+    if port and baud is None:
+        baud = 115200  # the boards' console speed, as in kgupload.py
     passed, total, _, _ = run(set(tags.split(",")), files or None, jobs, sim_args=sim_args, port=port, baud=baud)
     return 0 if passed == total and total > 0 else 1
 

@@ -29,6 +29,7 @@ pub mod platform;
 #[cfg(feature = "files")]
 mod chan;
 mod fmtfn;
+mod json;
 mod strfn;
 #[cfg(feature = "lib")]
 pub mod library;
@@ -433,6 +434,7 @@ impl<P: Platform + 'static> Runtime<P> {
             }),
         );
         strfn::register(&mut interp);
+        json::register(&mut interp);
         // .e (Epsilon), as KlongPy has it
         let e = interp.syms.intern(".e");
         interp.set_global(e, Value::Flt(1e-18));
