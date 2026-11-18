@@ -11,7 +11,7 @@ name = "klong_native"
 crate-type = ["cdylib"]
 
 [dependencies]
-klong-core = { path = "../klong-core", features = ["bigint", "diag"] }
+klong-core = { path = "../klong-core", features = ["bigint", "diag", "host"] }
 klong-rt = { path = "../klong-rt", features = ["bigint", "diag"] }
 klong-host = { path = "../klong-host", features = ["bigint", "diag"] }
 pyo3 = { version = "0.25", features = ["abi3-py311", "extension-module"] }

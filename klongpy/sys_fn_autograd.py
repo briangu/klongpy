@@ -15,6 +15,12 @@ from .errors import KlongTypeError, needs_torch_backend as _needs_torch
 from .types import KGSym
 
 
+def _records(klong):
+    """Whether the engine runs Klong outside Python bytecode (the native engine): torch.compile cannot read it, so the tensor
+    operations it executes are recorded instead (see TorchBackend.compile_function, trace)."""
+    return hasattr(getattr(klong, "_k", None), "set_host_table")
+
+
 def eval_sys_grad(klong, x, y):
     """
 
@@ -91,7 +97,7 @@ def eval_sys_compile(klong, x, y):
     def wrapped_fn(v):
         return _invoke_fn(klong, fn, [v])
 
-    return backend.compile_function(wrapped_fn, example_input, None)
+    return backend.compile_function(wrapped_fn, example_input, None, trace=_records(klong))
 
 
 def eval_sys_export(klong, x, y, z):
@@ -134,7 +140,7 @@ def eval_sys_export(klong, x, y, z):
     def wrapped_fn(v):
         return _invoke_fn(klong, fn, [v])
 
-    return backend.compile_function(wrapped_fn, example_input, output_path)
+    return backend.compile_function(wrapped_fn, example_input, output_path, trace=_records(klong))
 
 
 def eval_sys_compilex(klong, x, y, z):
@@ -204,7 +210,7 @@ def eval_sys_compilex(klong, x, y, z):
 
     return backend.compile_function(
         wrapped_fn, example_input, None,
-        mode=mode, backend=compile_backend, fullgraph=fullgraph, dynamic=dynamic
+        mode=mode, backend=compile_backend, fullgraph=fullgraph, dynamic=dynamic, trace=_records(klong)
     )
 
 

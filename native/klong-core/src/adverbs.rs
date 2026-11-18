@@ -21,6 +21,15 @@ fn is_close(a: Flt, b: Flt) -> bool {
 }
 
 fn converged(p: &Value, q: &Value) -> bool {
+    #[cfg(feature = "host")]
+    for v in [p, q] {
+        if let Value::Ext(e) = v {
+            if let Some(b) = e.0.host_converged(p, q) {
+                return b;
+            }
+            break;
+        }
+    }
     match (p.as_flt(), q.as_flt()) {
         (Some(a), Some(b)) => is_close(a, b),
         _ => core::mem::discriminant(p) == core::mem::discriminant(q) && matches(p, q) || (p.is_list() && q.is_list() && matches(p, q)),
@@ -115,19 +124,62 @@ impl Interp {
         }
     }
 
-    /// SPIKE: a host array handed to an adverb that is not forwarded becomes a native value.
-    fn unhost(v: Value) -> Result<Value> {
+    /// HOST: a host object handed to an adverb the embedder does not take becomes a native value (a copy; the embedder refuses when
+    /// the copy would be wrong).
+    #[cfg(feature = "host")]
+    fn unhost(v: Value, what: &str) -> Result<Value> {
         if let Value::Ext(e) = &v {
-            if let Some(r) = e.0.host_native() {
+            if let Some(r) = e.0.host_native(what) {
                 return r;
             }
         }
         Ok(v)
     }
+    #[cfg(not(feature = "host"))]
+    #[inline(always)]
+    fn unhost(v: Value, _what: &str) -> Result<Value> {
+        Ok(v)
+    }
+
+    /// HOST: the adverb at `level` of the chain, applied to an operand that is a host object, is the embedder's to do: it is given the
+    /// function the adverb modifies (`level - 1` of the chain, as a function value) and the operator text when that is a primitive.
+    #[cfg(feature = "host")]
+    fn host_adverb(&mut self, ch: &Chain, level: usize, glyph: &str, a: &Value, b: Option<&Value>) -> Option<Result<Value>> {
+        let e = match (a, b) {
+            (Value::Ext(e), _) => e.clone(),
+            (_, Some(Value::Ext(e))) => e.clone(),
+            _ => return None,
+        };
+        let verb_op = self.verb_op(ch, 1).map(alloc::string::String::from);
+        let (tree, verb, verb_arity, verb_val, advs, first_arity) = (ch.tree.clone(), ch.verb, ch.verb_arity, ch.verb_val.clone(), ch.advs.to_vec(), ch.first_arity);
+        let lv = level - 1;
+        let name = self.syms.intern("adverb");
+        let arity = if lv == 0 { verb_arity } else if lv == 1 { first_arity } else { 1 };
+        let f = Value::Fn(alloc::rc::Rc::new(crate::value::Func::Native {
+            name,
+            arity,
+            f: alloc::rc::Rc::new(move |ip: &mut Interp, args: &[Value]| -> Result<Value> {
+                let ch = Chain { tree: &tree, verb, verb_arity, verb_val: verb_val.clone(), advs: &advs, first_arity };
+                match args.len() {
+                    1 => ip.chain_call(&ch, lv, args[0].clone(), None),
+                    2 => ip.chain_call(&ch, lv, args[0].clone(), Some(args[1].clone())),
+                    _ => Err(Error::typ("the function of an adverb was given the wrong number of operands")),
+                }
+            }),
+        }));
+        e.0.host_adverb(self, glyph, &f, verb_op.as_deref(), a, b)
+    }
 
     pub(crate) fn adverb1(&mut self, ch: &Chain, level: usize, glyph: SymId, a: Value) -> Result<Value> {
+        #[cfg(feature = "host")]
+        if matches!(a, Value::Ext(_)) {
+            let g = alloc::string::String::from(self.syms.name(glyph));
+            if let Some(r) = self.host_adverb(ch, level, &g, &a, None) {
+                return r;
+            }
+        }
         let g = self.syms.name(glyph);
-        let a = if g == "/" { a } else { Self::unhost(a)? };
+        let a = Self::unhost(a, g)?;
         match g {
             "'" => self.each(ch, level, a),
             "/" => self.over(ch, level, a),
@@ -160,8 +212,15 @@ impl Interp {
     }
 
     pub(crate) fn adverb2(&mut self, ch: &Chain, level: usize, glyph: SymId, a: Value, b: Value) -> Result<Value> {
+        #[cfg(feature = "host")]
+        if matches!(a, Value::Ext(_)) || matches!(b, Value::Ext(_)) {
+            let g = alloc::string::String::from(self.syms.name(glyph));
+            if let Some(r) = self.host_adverb(ch, level, &g, &a, Some(&b)) {
+                return r;
+            }
+        }
         let g = self.syms.name(glyph);
-        let (a, b) = (Self::unhost(a)?, Self::unhost(b)?);
+        let (a, b) = (Self::unhost(a, g)?, Self::unhost(b, g)?);
         match g {
             "'" => {
                 if a.is_empty() || b.is_empty() {
@@ -316,18 +375,6 @@ impl Interp {
     }
 
     fn over(&mut self, ch: &Chain, level: usize, a: Value) -> Result<Value> {
-        if let Value::Ext(e) = &a {
-            if let (2, Some(op)) = (ch.verb_arity, self.verb_op(ch, level)) {
-                let op = alloc::string::String::from(op);
-                if let Some(r) = e.0.host_reduce(self, &op, &a) {
-                    return r;
-                }
-            }
-            let n = Self::unhost(a.clone())?;
-            if !matches!(n, Value::Ext(_)) {
-                return self.over(ch, level, n);
-            }
-        }
         if a.is_atom() {
             return Ok(a);
         }

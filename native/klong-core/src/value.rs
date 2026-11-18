@@ -699,19 +699,55 @@ pub trait Ext {
     fn join(&self, _ip: &mut crate::interp::Interp, _y: &Value) -> Option<Result<Value>> {
         None
     }
-    /// SPIKE (host arrays): a primitive monad / dyad / reduce (`+/`) with this object among the operands. `None`: not handled
-    /// (the evaluator then raises its usual type error). `glyph` is the operator's text.
+    /// HOST VALUES (feature `host`): an object of the embedder that stands for an array the embedder computes with (a NumPy array, a
+    /// torch tensor). Each method is the object's answer to what the evaluator asks of an operand; `None` means "not handled"
+    /// and the evaluator then goes on as it does for any value.
+    ///
+    /// A primitive monad / dyad with this object among the operands (`glyph` is the operator's text).
+    #[cfg(feature = "host")]
     fn host_monad(&self, _ip: &mut crate::interp::Interp, _glyph: &str, _x: &Value) -> Option<Result<Value>> {
         None
     }
+    #[cfg(feature = "host")]
     fn host_dyad(&self, _ip: &mut crate::interp::Interp, _glyph: &str, _x: &Value, _y: &Value) -> Option<Result<Value>> {
         None
     }
-    /// SPIKE: the same object as an ordinary native value (a copy), for the primitives that are not forwarded.
-    fn host_native(&self) -> Option<Result<Value>> {
+    /// An adverb applied to this object: `glyph` the adverb, `verb` the function value it modifies, `op` the verb's operator text when
+    /// the verb is a primitive, `x` the operand (this object) and `y` the second operand of a dyadic form.
+    #[cfg(feature = "host")]
+    fn host_adverb(&self, _ip: &mut crate::interp::Interp, _glyph: &str, _verb: &Value, _op: Option<&str>, _x: &Value, _y: Option<&Value>) -> Option<Result<Value>> {
         None
     }
-    fn host_reduce(&self, _ip: &mut crate::interp::Interp, _glyph: &str, _x: &Value) -> Option<Result<Value>> {
+    /// The same object as an ordinary native value (a copy), for what is not forwarded. `what` names the operation that asks (for the
+    /// error the embedder raises when a copy would be wrong: a tensor that requires gradients).
+    #[cfg(feature = "host")]
+    fn host_native(&self, _what: &str) -> Option<Result<Value>> {
+        None
+    }
+    /// The truth of this object as the condition of `:[`.
+    #[cfg(feature = "host")]
+    fn host_truthy(&self) -> Option<bool> {
+        None
+    }
+    /// Whether `p` and `q` (one of them this object) are equal as the converging adverbs (`:~`, `\\~`) compare successive values.
+    #[cfg(feature = "host")]
+    fn host_converged(&self, _p: &Value, _q: &Value) -> Option<bool> {
+        None
+    }
+    /// The elements of this object (along its first dimension) as a list value, whose elements may be host objects themselves: what
+    /// destructuring `[a b]::x` takes apart.
+    #[cfg(feature = "host")]
+    fn host_items(&self) -> Option<Result<Value>> {
+        None
+    }
+    /// The text of this object as `.p` and `$` show it.
+    #[cfg(feature = "host")]
+    fn host_format(&self, _display: bool) -> Option<alloc::string::String> {
+        None
+    }
+    /// The list `items` (at least one of them a host object, this one) as one value: a stacked array when the embedder can.
+    #[cfg(feature = "host")]
+    fn host_collect(&self, _items: &[Value]) -> Option<Result<Value>> {
         None
     }
 }
@@ -856,6 +892,15 @@ impl Value {
             }
             return Ok(Value::flts(v));
         }
+        #[cfg(feature = "host")]
+        for q in &items {
+            if let Value::Ext(e) = q {
+                if let Some(r) = e.0.host_collect(&items) {
+                    return r;
+                }
+                break;
+            }
+        }
         // A rectangular nest of numeric rows becomes one array of higher rank.
         let (rank, len, any_flt) = match &items[0] {
             Value::Ints(a) => (a.rank(), a.len(), false),
@@ -988,6 +1033,8 @@ impl Value {
         match self {
             Value::Int(i) => *i != 0,
             Value::Flt(f) => *f != 0.0,
+            #[cfg(feature = "host")]
+            Value::Ext(e) => e.0.host_truthy().unwrap_or(true),
             _ => !self.is_empty(),
         }
     }
@@ -1032,6 +1079,8 @@ impl Value {
             Value::Ints(a) => dims(a.rank(), a.len(), a.row_dims()),
             Value::Flts(a) => dims(a.rank(), a.len(), a.row_dims()),
             Value::List(l) => dims(1, l.len(), &[]),
+            #[cfg(feature = "host")]
+            Value::Ext(e) if e.0.host_format(false).is_some() => "host array".to_string(),
             Value::Ext(_) => "channel".to_string(),
             v => v.describe().to_string(),
         }

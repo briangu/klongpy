@@ -8,7 +8,6 @@
 //!   copies it into a native vector first. Smaller arrays and other dtypes are copied into native vectors on the way in.
 //! * Python callables become system functions; they may call back into the interpreter.
 use std::cell::{Cell, RefCell, UnsafeCell};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use klong_core::value::{Arr, Dict, Ext, Func, Int};
@@ -33,9 +32,8 @@ struct Host {
     float64: Py<PyAny>,
     ascontig: Py<PyAny>,
     mk_obj: Py<PyAny>,
-    dyad: HashMap<String, Py<PyAny>>,
-    monad: HashMap<String, Py<PyAny>>,
-    reduce: HashMap<String, Py<PyAny>>,
+    /// The table used by an interpreter that was given none: NumPy only (see `DefaultTable` in HOST_PY).
+    default_table: Py<PyAny>,
     kgsym: Py<PyAny>,
     kgchar: Py<PyAny>,
     undefined: Py<PyAny>,
@@ -51,8 +49,21 @@ thread_local! {
     /// The interpreter that is running (for conversions that need its symbol table and have no `ip` at hand).
     static CURRENT: Cell<*mut Interp> = const { Cell::new(std::ptr::null_mut()) };
     static OWNER: RefCell<Option<Py<Klong>>> = const { RefCell::new(None) };
+    /// While set, a Python value converts to a NATIVE value only (an array is copied, never kept as a host value).
+    static NATIVE_ONLY: Cell<bool> = const { Cell::new(false) };
 }
 
+// The callable table of a backend (what the embedder supplies; see klongpy/rust_host.py). The extension knows nothing of the
+// backend's array type: it holds the object and asks the table. Methods, each given the glyph or object and the operands as Python
+// values (a native vector is a NumPy array, a number a Python number, a host object itself):
+//   is_host(o) -> bool             is this Python object a host value (a tensor)?
+//   monad(glyph, x), dyad(glyph, x, y) -> value or NotImplemented
+//   adverb(glyph, f, op, x, y) -> value or NotImplemented  (f: the function the adverb modifies, op: its operator text or None)
+//   to_native(obj, what) -> a NumPy array or Python value to be copied into native form (raises when that would be wrong)
+//   converged(p, q) -> bool or None (the converging adverbs),
+//   items(obj) -> an iterable of the elements, or None,
+//   truthy(obj) -> bool or None, format(obj, display) -> str or None, collect(items) -> value or None
+// The default table below is what an interpreter has when none was installed: NumPy arrays of 256 or more elements.
 const HOST_PY: &str = r#"
 import numpy as np
 i64 = np.int64
@@ -63,7 +74,7 @@ def mk_obj(items):
     return a
 def _cmp(f):
     return lambda a, b: f(a, b).astype(i64)
-dyad = {
+_dyad = {
     '+': np.add, '-': np.subtract, '*': np.multiply, '%': np.true_divide, '^': np.power,
     '&': np.minimum, '|': np.maximum, ':%': np.floor_divide, '!': np.mod,
     '<': _cmp(np.less), '>': _cmp(np.greater), '=': _cmp(np.equal),
@@ -72,7 +83,7 @@ dyad = {
     '#': lambda n, a: (a[:n] if n >= 0 else a[n:]) if abs(n) <= len(a) else np.resize(a, abs(n)),
     '_': lambda n, a: a[n:] if n >= 0 else a[:n],
 }
-monad = {
+_monad = {
     '-': np.negative,
     '<': lambda a: np.argsort(a, kind='stable'),
     '>': lambda a: np.argsort(-a, kind='stable'),
@@ -82,7 +93,37 @@ monad = {
     '_': lambda a: np.floor(a).astype(i64),
     '%': lambda a: 1.0 / a,
 }
-reduce = {'+': np.add.reduce, '*': np.multiply.reduce, '&': np.minimum.reduce, '|': np.maximum.reduce}
+_reduce = {'+': np.add.reduce, '*': np.multiply.reduce, '&': np.minimum.reduce, '|': np.maximum.reduce}
+def _num(v):
+    return (type(v) in (int, float)) or (type(v) is np.ndarray and v.ndim == 1 and v.dtype.kind in 'if')
+class DefaultTable:
+    def is_host(self, o):
+        return False
+    def monad(self, g, x):
+        f = _monad.get(g)
+        return NotImplemented if f is None else f(x)
+    def dyad(self, g, x, y):
+        f = _dyad.get(g)
+        if f is None:
+            return NotImplemented
+        ok = (type(x) is np.ndarray and _num(y)) if g == '@' else (type(x) is int and type(y) is np.ndarray) if g in ('#', '_') else (_num(x) and _num(y))
+        return f(x, y) if ok else NotImplemented
+    def adverb(self, g, f, op, x, y):
+        if g == '/' and y is None and op in _reduce and len(x):
+            return _reduce[op](x)
+        return NotImplemented
+    def to_native(self, o, what):
+        return o
+    def truthy(self, o):
+        return None
+    def converged(self, p, q):
+        return None
+    def items(self, o):
+        return None
+    def format(self, o, display):
+        return None
+    def collect(self, items):
+        return None
 "#;
 
 fn host(_py: Python<'_>) -> PyResult<&'static Host> {
@@ -95,11 +136,6 @@ fn init_host(py: Python<'_>, types: &Bound<'_, PyDict>) -> PyResult<&'static Hos
     }
     let np = py.import("numpy")?;
     let m = PyModule::from_code(py, std::ffi::CString::new(HOST_PY).unwrap().as_c_str(), c"host.py", c"klong_host_tables")?;
-    let tab = |name: &str| -> PyResult<HashMap<String, Py<PyAny>>> {
-        let d = m.getattr(name)?;
-        let d = d.downcast::<PyDict>()?;
-        d.iter().map(|(k, v)| Ok((k.extract::<String>()?, v.unbind()))).collect()
-    };
     let ty = |k: &str| -> PyResult<Py<PyAny>> { Ok(types.get_item(k)?.ok_or_else(|| PyTypeError::new_err(format!("types[{k:?}] missing")))?.unbind()) };
     let h: &'static Host = Box::leak(Box::new(Host {
         ndarray: np.getattr("ndarray")?.unbind(),
@@ -109,9 +145,7 @@ fn init_host(py: Python<'_>, types: &Bound<'_, PyDict>) -> PyResult<&'static Hos
         float64: np.getattr("float64")?.unbind(),
         ascontig: np.getattr("ascontiguousarray")?.unbind(),
         mk_obj: m.getattr("mk_obj")?.unbind(),
-        dyad: tab("dyad")?,
-        monad: tab("monad")?,
-        reduce: tab("reduce")?,
+        default_table: m.getattr("DefaultTable")?.call0()?.unbind(),
         kgsym: ty("KGSym")?,
         kgchar: ty("KGChar")?,
         undefined: ty("undefined")?,
@@ -297,9 +331,11 @@ impl KFn {
     }
 }
 
-/// An opaque host array: the primitives on it are forwarded to Python.
+/// An opaque host value (a NumPy array, a tensor: any Python object the interpreter's table says is one): the primitives and adverbs
+/// that have it as an operand are forwarded to the table. `table` is the table of the interpreter that made it.
 struct HostArr {
     obj: Py<PyAny>,
+    table: Py<PyAny>,
 }
 
 /// Any other Python object (a datetime, a DataFrame, an instance) as an opaque value that Klong can hold and pass back.
@@ -316,27 +352,33 @@ impl Ext for PyObj {
     }
 }
 
-fn is_host(v: &Value) -> bool {
-    matches!(v, Value::Ext(e) if e.0.as_any().is::<HostArr>())
-}
-
-/// A native value or a host array that NumPy can combine with a host array without changing what Klong means.
-fn numeric_operand(v: &Value) -> bool {
-    match v {
-        Value::Int(_) | Value::Flt(_) => true,
-        Value::Ints(a) => a.rank() == 1,
-        Value::Flts(a) => a.rank() == 1,
-        _ => is_host(v),
+/// The table of the interpreter that is running.
+fn current_table(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    let t = OWNER.with(|o| o.borrow().as_ref().and_then(|k| k.borrow(py).table.borrow().as_ref().map(|t| t.clone_ref(py))));
+    match t {
+        Some(t) => Ok(t),
+        None => Ok(host(py)?.default_table.clone_ref(py)),
     }
 }
 
-fn unhost(v: &Value) -> klong_core::error::Result<Value> {
+fn unhost(v: &Value, what: &str) -> klong_core::error::Result<Value> {
     if let Value::Ext(e) = v {
-        if let Some(r) = e.0.host_native() {
+        if let Some(r) = e.0.host_native(what) {
             return r;
         }
     }
     Ok(v.clone())
+}
+
+impl HostArr {
+    /// Ask the table: `Ok(None)` when it answers NotImplemented.
+    fn forward(&self, py: Python<'_>, ip: &mut Interp, method: &str, args: Vec<Bound<'_, PyAny>>) -> PyResult<Option<Value>> {
+        let r = self.table.bind(py).call_method1(method, PyTuple::new(py, args)?)?;
+        if r.is(&py.NotImplemented()) {
+            return Ok(None);
+        }
+        from_py_host(py, ip, &r).map(Some)
+    }
 }
 
 impl Ext for HostArr {
@@ -346,27 +388,27 @@ impl Ext for HostArr {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
-    fn host_native(&self) -> Option<klong_core::error::Result<Value>> {
+    fn host_native(&self, what: &str) -> Option<klong_core::error::Result<Value>> {
         Some(
             Python::with_gil(|py| -> PyResult<Value> {
-                let h = host(py)?;
-                ndarray_to_native(py, &h, self.obj.bind(py))
+                let r = self.table.bind(py).call_method1("to_native", (self.obj.bind(py), what))?;
+                let prev = NATIVE_ONLY.with(|n| n.replace(true));
+                let v = with_ip_of(|ip| from_py(py, ip, &r));
+                NATIVE_ONLY.with(|n| n.set(prev));
+                v
             })
             .map_err(py2k),
         )
     }
     fn host_monad(&self, ip: &mut Interp, glyph: &str, x: &Value) -> Option<klong_core::error::Result<Value>> {
         let forwarded = Python::with_gil(|py| -> PyResult<Option<Value>> {
-            let h = host(py)?;
-            let Some(f) = h.monad.get(glyph) else { return Ok(None) };
             let a = operand(py, ip, x)?;
-            let r = f.bind(py).call1((a,))?;
-            from_host_result(py, ip, &h, &r).map(Some)
+            self.forward(py, ip, "monad", vec![PyString::new(py, glyph).into_any(), a])
         });
         match forwarded {
             Ok(Some(v)) => Some(Ok(v)),
             Ok(None) => {
-                let nx = match unhost(x) {
+                let nx = match unhost(x, &format!("the monad {glyph}")) {
                     Ok(v) => v,
                     Err(e) => return Some(Err(e)),
                 };
@@ -377,63 +419,129 @@ impl Ext for HostArr {
         }
     }
     fn host_dyad(&self, ip: &mut Interp, glyph: &str, x: &Value, y: &Value) -> Option<klong_core::error::Result<Value>> {
-        // forward when the operator is in the table and the other operand is numeric (a scalar, a vector or another host array)
-        let ok = match glyph {
-            "@" => is_host(x) && numeric_operand(y),
-            "#" => matches!(x, Value::Int(_)) && is_host(y),
-            "_" => matches!(x, Value::Int(_)) && is_host(y),
-            _ => numeric_operand(x) && numeric_operand(y),
-        };
-        if ok {
-            let forwarded = Python::with_gil(|py| -> PyResult<Option<Value>> {
-                let h = host(py)?;
-                let Some(f) = h.dyad.get(glyph) else { return Ok(None) };
-                let a = operand(py, ip, x)?;
-                let b = operand(py, ip, y)?;
-                let r = f.bind(py).call1((a, b))?;
-                from_host_result(py, ip, &h, &r).map(Some)
-            });
-            match forwarded {
-                Ok(Some(v)) => return Some(Ok(v)),
-                Ok(None) => {}
-                Err(e) => return Some(Err(py2k(e))),
-            }
+        let forwarded = Python::with_gil(|py| -> PyResult<Option<Value>> {
+            let a = operand(py, ip, x)?;
+            let b = operand(py, ip, y)?;
+            self.forward(py, ip, "dyad", vec![PyString::new(py, glyph).into_any(), a, b])
+        });
+        match forwarded {
+            Ok(Some(v)) => return Some(Ok(v)),
+            Ok(None) => {}
+            Err(e) => return Some(Err(py2k(e))),
         }
-        let nx = match unhost(x) {
+        let what = format!("the dyad {glyph}");
+        let nx = match unhost(x, &what) {
             Ok(v) => v,
             Err(e) => return Some(Err(e)),
         };
-        let ny = match unhost(y) {
+        let ny = match unhost(y, &what) {
             Ok(v) => v,
             Err(e) => return Some(Err(e)),
         };
         let op = ip.syms.lookup(glyph)?;
         Some(ip.dyad(op, nx, ny))
     }
-    fn host_reduce(&self, ip: &mut Interp, glyph: &str, x: &Value) -> Option<klong_core::error::Result<Value>> {
-        let r = Python::with_gil(|py| -> PyResult<Option<Value>> {
-            let h = host(py)?;
-            let Some(f) = h.reduce.get(glyph) else { return Ok(None) };
+    fn host_adverb(&self, ip: &mut Interp, glyph: &str, verb: &Value, op: Option<&str>, x: &Value, y: Option<&Value>) -> Option<klong_core::error::Result<Value>> {
+        let forwarded = Python::with_gil(|py| -> PyResult<Option<Value>> {
+            let f = to_py_owner(py, ip, verb)?;
             let a = operand(py, ip, x)?;
-            if a.len()? == 0 {
-                return Ok(None);
-            }
-            let r = f.bind(py).call1((a,))?;
-            from_host_result(py, ip, &h, &r).map(Some)
+            let b = match y {
+                Some(y) => operand(py, ip, y)?,
+                None => py.None().into_bound(py),
+            };
+            let op = match op {
+                Some(o) => PyString::new(py, o).into_any(),
+                None => py.None().into_bound(py),
+            };
+            self.forward(py, ip, "adverb", vec![PyString::new(py, glyph).into_any(), f, op, a, b])
+        });
+        match forwarded {
+            Ok(v) => v.map(Ok),
+            Err(e) => Some(Err(py2k(e))),
+        }
+    }
+    fn host_converged(&self, p: &Value, q: &Value) -> Option<bool> {
+        Python::with_gil(|py| -> PyResult<Option<bool>> {
+            with_ip_of(|ip| {
+                let (a, b) = (to_py_owner(py, ip, p)?, to_py_owner(py, ip, q)?);
+                let r = self.table.bind(py).call_method1("converged", (a, b))?;
+                if r.is_none() {
+                    Ok(None)
+                } else {
+                    r.extract::<bool>().map(Some)
+                }
+            })
+        })
+        .unwrap_or(None)
+    }
+    fn host_items(&self) -> Option<klong_core::error::Result<Value>> {
+        let r = Python::with_gil(|py| -> PyResult<Option<Value>> {
+            with_ip_of(|ip| {
+                let r = self.table.bind(py).call_method1("items", (self.obj.bind(py),))?;
+                if r.is_none() {
+                    return Ok(None);
+                }
+                let mut items = Vec::new();
+                for q in r.try_iter()? {
+                    items.push(from_py_host(py, ip, &q?)?);
+                }
+                Value::raw_list(items).map(Some).map_err(k2py)
+            })
         });
         match r {
-            Ok(Some(v)) => Some(Ok(v)),
-            Ok(None) => None,
+            Ok(v) => v.map(Ok),
+            Err(e) => Some(Err(py2k(e))),
+        }
+    }
+    fn host_truthy(&self) -> Option<bool> {
+        Python::with_gil(|py| -> PyResult<Option<bool>> {
+            let r = self.table.bind(py).call_method1("truthy", (self.obj.bind(py),))?;
+            if r.is_none() {
+                Ok(None)
+            } else {
+                r.extract::<bool>().map(Some)
+            }
+        })
+        .unwrap_or(None)
+    }
+    fn host_format(&self, display: bool) -> Option<String> {
+        Python::with_gil(|py| -> PyResult<Option<String>> {
+            let r = self.table.bind(py).call_method1("format", (self.obj.bind(py), display))?;
+            if r.is_none() {
+                Ok(None)
+            } else {
+                r.extract::<String>().map(Some)
+            }
+        })
+        .unwrap_or(None)
+    }
+    fn host_collect(&self, items: &[Value]) -> Option<klong_core::error::Result<Value>> {
+        let r = Python::with_gil(|py| -> PyResult<Option<Value>> {
+            with_ip_of(|ip| {
+                let l = PyList::empty(py);
+                for q in items {
+                    l.append(to_py_owner(py, ip, q)?)?;
+                }
+                let r = self.table.bind(py).call_method1("collect", (l,))?;
+                if r.is_none() {
+                    return Ok(None);
+                }
+                from_py_host(py, ip, &r).map(Some)
+            })
+        });
+        match r {
+            Ok(v) => v.map(Ok),
             Err(e) => Some(Err(py2k(e))),
         }
     }
 }
 
-fn host_value(obj: Py<PyAny>) -> Value {
-    Value::Ext(Rc::new(klong_core::value::ExtBox(Box::new(HostArr { obj }))))
+fn host_value(py: Python<'_>, obj: Py<PyAny>) -> PyResult<Value> {
+    let table = current_table(py)?;
+    Ok(Value::Ext(Rc::new(klong_core::value::ExtBox(Box::new(HostArr { obj, table })))))
 }
 
-/// An operand of a forwarded primitive as a Python object: the host array itself, or a native value converted.
+/// An operand of a forwarded primitive as a Python object: the host value itself, or a native value converted.
 fn operand<'py>(py: Python<'py>, ip: &Interp, v: &Value) -> PyResult<Bound<'py, PyAny>> {
     if let Value::Ext(e) = v {
         if let Some(h) = e.0.as_any().downcast_ref::<HostArr>() {
@@ -443,19 +551,18 @@ fn operand<'py>(py: Python<'py>, ip: &Interp, v: &Value) -> PyResult<Bound<'py, 
     to_py_with(py, ip, v, None, true)
 }
 
-/// The result of a forwarded primitive: 1-d numeric arrays stay host arrays, scalars become native scalars.
-fn from_host_result(py: Python<'_>, ip: &mut Interp, h: &Host, r: &Bound<'_, PyAny>) -> PyResult<Value> {
-    if r.is_instance(h.ndarray.bind(py))? {
-        let nd: usize = r.getattr("ndim")?.extract()?;
-        if nd == 0 {
-            return from_py(py, ip, &r.call_method0("item")?);
+/// A Python value as a Klong value, where a NumPy array of at least `host_threshold` elements stays a host value (the result of a
+/// forwarded primitive, a value assigned from Python). Anything else is as in `from_py`.
+fn from_py_host(py: Python<'_>, ip: &mut Interp, o: &Bound<'_, PyAny>) -> PyResult<Value> {
+    let h = host(py)?;
+    if !NATIVE_ONLY.with(|n| n.get()) && o.is_instance(h.ndarray.bind(py))? {
+        let ndim: usize = o.getattr("ndim")?.extract()?;
+        let kind: String = o.getattr("dtype")?.getattr("kind")?.extract()?;
+        if ndim >= 1 && matches!(kind.as_str(), "i" | "u" | "f" | "b") && o.getattr("size")?.extract::<usize>()? >= h.threshold.load(std::sync::atomic::Ordering::Relaxed) {
+            return host_value(py, o.clone().unbind());
         }
-        if nd == 1 && matches!(r.getattr("dtype")?.getattr("kind")?.extract::<String>()?.as_str(), "i" | "f") {
-            return Ok(host_value(r.clone().unbind()));
-        }
-        return ndarray_to_native(py, h, r);
     }
-    from_py(py, ip, r)
+    from_py(py, ip, o)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -587,6 +694,12 @@ fn from_py(py: Python<'_>, ip: &mut Interp, o: &Bound<'_, PyAny>) -> PyResult<Va
         }
         return Ok(Value::dict(out));
     }
+    if !NATIVE_ONLY.with(|n| n.get()) {
+        let t = current_table(py)?;
+        if t.bind(py).call_method1("is_host", (o,))?.is_truthy()? {
+            return Ok(Value::Ext(Rc::new(klong_core::value::ExtBox(Box::new(HostArr { obj: o.clone().unbind(), table: t })))));
+        }
+    }
     if o.hasattr("dtype")? && o.hasattr("item")? {
         // a NumPy scalar
         return from_py(py, ip, &o.call_method0("item")?);
@@ -683,6 +796,8 @@ struct Klong {
     /// Set while the interpreter is running: a callback that re-enters (`Klong -> Python -> Klong`) uses it instead of borrowing again.
     cur: Cell<*mut Interp>,
     me: RefCell<Option<Py<Klong>>>,
+    /// The callable table of the backend (see HOST_PY); None: the default NumPy table.
+    table: RefCell<Option<Py<PyAny>>>,
 }
 
 unsafe impl Send for Klong {}
@@ -781,7 +896,7 @@ impl Klong {
         let mut rt = Runtime::new(HostPlatform::new(Console::Buffer(Vec::new())), cfg, None);
         let path = std::env::var("KLONGPATH").ok().filter(|p| !p.is_empty()).unwrap_or_else(|| String::from(".:lib"));
         rt.set_load_path(path.split(':').filter(|d| !d.is_empty()).map(String::from).collect());
-        let me = Py::new(py, Klong { rt: UnsafeCell::new(rt), cur: Cell::new(std::ptr::null_mut()), me: RefCell::new(None) })?;
+        let me = Py::new(py, Klong { rt: UnsafeCell::new(rt), cur: Cell::new(std::ptr::null_mut()), me: RefCell::new(None), table: RefCell::new(None) })?;
         *me.borrow(py).me.borrow_mut() = Some(me.clone_ref(py));
         Ok(me)
     }
@@ -856,14 +971,7 @@ impl Klong {
         self.with_ip(py, |ip| -> PyResult<()> {
             let h = host(py)?;
             let v = if value.is_instance(h.ndarray.bind(py))? {
-                let ndim: usize = value.getattr("ndim")?.extract()?;
-                let kind: String = value.getattr("dtype")?.getattr("kind")?.extract()?;
-                let n: usize = value.getattr("size")?.extract()?;
-                if ndim == 1 && matches!(kind.as_str(), "i" | "f") && n >= h.threshold.load(std::sync::atomic::Ordering::Relaxed) {
-                    host_value(value.clone().unbind())
-                } else {
-                    from_py(py, ip, value)?
-                }
+                from_py_host(py, ip, value)?
             } else if value.is_callable() && !value.is_instance_of::<KFn>() {
                 let ar = value.getattr("__code__").and_then(|c| c.getattr("co_argcount")).and_then(|n| n.extract::<u8>()).unwrap_or(255);
                 callable_value(ip, name, value.clone().unbind(), ar)
@@ -883,9 +991,34 @@ impl Klong {
         .map_err(k2py)
     }
 
+    /// Install the backend's callable table (see HOST_PY for its methods).
+    fn set_host_table(&self, table: Py<PyAny>) {
+        *self.table.borrow_mut() = Some(table);
+    }
+
+    /// Install the implementation of the gradient operators (`∇`, `∂`, `:>`): `f(glyph, *operands)`, the operands as Python values.
+    /// For `:>` the third operand is the right operand's name when it was written as one, else None.
+    fn set_host_ops(&self, py: Python<'_>, f: Py<PyAny>) {
+        let owner = self.owner(py);
+        self.with_ip(py, |ip| {
+            ip.host_op = Some(Rc::new(move |ip: &mut Interp, glyph: &str, args: &[Value]| -> klong_core::error::Result<Value> {
+                Python::with_gil(|py| -> PyResult<Value> {
+                    let mut pa: Vec<Bound<'_, PyAny>> = vec![PyString::new(py, glyph).into_any()];
+                    for a in args {
+                        pa.push(to_py(py, ip, a, Some(&owner))?);
+                    }
+                    let r = f.bind(py).call1(PyTuple::new(py, pa)?)?;
+                    from_py_host(py, ip, &r)
+                })
+                .map_err(py2k)
+            }));
+        });
+    }
+
     /// Always keep this array as a host array, whatever its size.
     fn set_host(&self, py: Python<'_>, name: &str, arr: Bound<'_, PyAny>) -> PyResult<()> {
-        self.with_ip(py, |ip| ip.define_global(name, host_value(arr.unbind()))).map_err(k2py)
+        let v = host_value(py, arr.unbind())?;
+        self.with_ip(py, |ip| ip.define_global(name, v)).map_err(k2py)
     }
 
     #[setter]

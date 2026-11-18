@@ -25,6 +25,9 @@ bigint = ["dep:num-bigint", "dep:num-traits"]
 # Diagnostics for a desktop host: the parser's warnings and the hints of its errors, the whole-operand text of an operator's error
 # (`cannot apply + (Plus) to list of 3 and list of 2`) and the description of a function value. Off for boards (flash).
 diag = []
+# Host values: objects of the embedder (arrays of NumPy or torch) that take part in primitives and adverbs through hooks (`Ext::host_*`),
+# and operators the embedder implements (`Interp::host_op`). Off for boards: no hook is compiled.
+host = []
 
 [dependencies]
 num-bigint = { version = "0.5", default-features = false, optional = true }

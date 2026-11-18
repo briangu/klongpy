@@ -162,6 +162,10 @@ pub struct Interp {
     pub cfg: Config,
     /// SPIKE: when set, the value of every statement of the program run at the top level is kept here (KlongPy's `exec`).
     pub collect: Option<Vec<Value>>,
+    /// HOST (feature `host`): the embedder's implementation of the operators the core does not have (the gradient operators): called
+    /// with the operator's glyph and its operands.
+    #[cfg(feature = "host")]
+    pub host_op: Option<Rc<HostOp>>,
     globals: Vec<Option<Value>>,
     /// Per global: the scope it was created in (and the `JOURNALED` bit).
     gscope: Vec<u16>,
@@ -205,6 +209,10 @@ pub struct Interp {
     pub max_depth_seen: u32,
 }
 
+/// An operator the embedder implements (see `Interp::host_op`).
+#[cfg(feature = "host")]
+pub type HostOp = dyn Fn(&mut Interp, &str, &[Value]) -> Result<Value>;
+
 struct Journal {
     old: Vec<(SymId, Option<Value>)>,
     scopes: usize,
@@ -228,6 +236,8 @@ impl Interp {
             syms: Interner::new(),
             cfg,
             collect: None,
+            #[cfg(feature = "host")]
+            host_op: None,
             globals: Vec::new(),
             gscope: Vec::new(),
             scopes: alloc::vec![Scope::Plain],
@@ -1348,10 +1358,16 @@ impl Interp {
     /// level of Klong recursion, on a chip with a stack of tens of KB) is not made for them.
     #[inline(never)]
     fn eval_monad(&mut self, tree: &Rc<Tree>, id: NodeId, op: SymId, arg: NodeId, missing: bool) -> Result<Value> {
-        let def = self.op_def(op)?;
+        let def = match ops::by_id(op) {
+            Some(d) => d,
+            // `˙` (Track) is the identity
+            None if !missing && self.syms.name(op) == ops::TRACK => return self.eval(tree, arg, false),
+            None => return Err(self.unknown_op(op)),
+        };
         let f = def.monad.ok_or_else(|| self.unknown_op(op))?;
         let r = match self.eval(tree, arg, false) {
             Ok(x) => match &x {
+                #[cfg(feature = "host")]
                 Value::Ext(e) => match e.0.host_monad(self, def.glyph, &x) {
                     Some(r) => r,
                     None => f(self, x),
@@ -1365,6 +1381,29 @@ impl Interp {
             return r.map_err(|_| self.at_operator(tree, id, Error::syntax(crate::msg!("missing operand for {}", self.syms.name(op)))));
         }
         r
+    }
+
+    /// HOST: `x\u{2207}f` takes its left operand as a name when it is one (the variable to perturb) and `f:>w` tells the host that
+    /// the right operand was written as a name (`loss:>w` with a niladic `loss` differentiates with respect to `w`).
+    #[cfg(feature = "host")]
+    #[inline(never)]
+    fn eval_gradient_dyad(&mut self, tree: &Rc<Tree>, id: NodeId, glyph: &str, l: NodeId, r: NodeId, y: Value) -> Result<Value> {
+        let h = self.host_op.clone().ok_or_else(|| Error::internal("no host operator"))?;
+        let res = if glyph == ":>" {
+            let x = self.eval(tree, l, false)?;
+            let named = match tree.node(r) {
+                Node::Sym(s) => Value::Sym(*s),
+                _ => Value::Undefined,
+            };
+            h(self, glyph, &[x, y, named])
+        } else {
+            let x = match tree.node(l) {
+                Node::Sym(s) => Value::Sym(*s),
+                _ => self.eval(tree, l, false)?,
+            };
+            h(self, glyph, &[x, y])
+        };
+        res.map_err(|e| self.at_operator(tree, id, e))
     }
 
     #[inline(never)]
@@ -1419,6 +1458,7 @@ impl Interp {
         }
         let def = self.op_def(op)?;
         let f = def.monad.ok_or_else(|| self.unknown_op(op))?;
+        #[cfg(feature = "host")]
         if let Value::Ext(e) = &x {
             if let Some(r) = e.0.host_monad(self, def.glyph, &x) {
                 return r;
@@ -1430,13 +1470,15 @@ impl Interp {
     pub fn dyad(&mut self, op: SymId, x: Value, y: Value) -> Result<Value> {
         let def = self.op_def(op)?;
         let f = def.dyad.ok_or_else(|| self.unknown_op(op))?;
+        #[cfg(feature = "host")]
         if let Some(r) = self.ext_dyad(def.glyph, &x, &y) {
             return r;
         }
         f(self, x, y)
     }
 
-    /// SPIKE: offer a dyad to the host object among its operands, if any.
+    /// HOST: offer a dyad to the host object among its operands, if any.
+    #[cfg(feature = "host")]
     #[inline]
     fn ext_dyad(&mut self, glyph: &str, x: &Value, y: &Value) -> Option<Result<Value>> {
         if let Value::Ext(e) = x {
@@ -1458,7 +1500,12 @@ impl Interp {
         if def.glyph == "::" {
             return self.define(tree, l, y).map_err(|e| self.at_operator(tree, id, e));
         }
+        #[cfg(feature = "host")]
+        if self.host_op.is_some() && matches!(def.glyph, "\u{2207}" | ":>") {
+            return self.eval_gradient_dyad(tree, id, def.glyph, l, r, y);
+        }
         let x = self.eval(tree, l, false)?;
+        #[cfg(feature = "host")]
         if let Some(r) = self.ext_dyad(def.glyph, &x, &y) {
             return r;
         }
@@ -1536,6 +1583,14 @@ impl Interp {
             Node::Destructure(names) => {
                 let names = tree.ids(*names);
                 let n = names.len();
+                #[cfg(feature = "host")]
+                let v = match &v {
+                    Value::Ext(e) => match e.0.host_items() {
+                        Some(r) => r?,
+                        None => v,
+                    },
+                    _ => v,
+                };
                 if !v.is_iterable() {
                     return Err(Error::typ(crate::msg!("cannot destructure {} into {} name{}", v.describe(), n, if n != 1 { "s" } else { "" }))
                         .with_hint("the right side of [a b c]::value must be a list or a string"));
@@ -2271,6 +2326,7 @@ impl Interp {
                     (1, None) => self.monad(*op, x),
                     (2, Some(y)) => {
                         let def = self.op_def(*op)?;
+                        #[cfg(feature = "host")]
                         if let Some(r) = self.ext_dyad(def.glyph, &x, &y) {
                             return r;
                         }

@@ -48,12 +48,27 @@ macro_rules! op {
     };
 }
 
-fn absent_m(_: &mut Interp, _: Value) -> Result<Value> {
+fn absent_m(_ip: &mut Interp, _x: Value) -> Result<Value> {
+    #[cfg(feature = "host")]
+    if let Some(h) = _ip.host_op.clone() {
+        return h(_ip, "\u{2207}", &[_x]);
+    }
     Err(Error::name("operator not available on this build").with_hint("automatic differentiation is desktop only"))
 }
-fn absent_d(_: &mut Interp, _: Value, _: Value) -> Result<Value> {
-    Err(Error::name("operator not available on this build").with_hint("automatic differentiation is desktop only"))
+macro_rules! absent_dyad {
+    ($name:ident, $glyph:expr) => {
+        fn $name(_ip: &mut Interp, _x: Value, _y: Value) -> Result<Value> {
+            #[cfg(feature = "host")]
+            if let Some(h) = _ip.host_op.clone() {
+                return h(_ip, $glyph, &[_x, _y]);
+            }
+            Err(Error::name("operator not available on this build").with_hint("automatic differentiation is desktop only"))
+        }
+    };
 }
+absent_dyad!(absent_grad, "\u{2207}");
+absent_dyad!(absent_jac, "\u{2202}");
+absent_dyad!(absent_auto, ":>");
 fn define_d(_: &mut Interp, _: Value, y: Value) -> Result<Value> {
     // `::` is evaluated by the interpreter (its left operand is not evaluated); as a function
     // value applied to two values it binds nothing.
@@ -112,9 +127,9 @@ pub static OPS: [OpDef; 31] = [
     op!(":+", "", None, "Rotate", Some(d_rotate), None),
     op!("::", "", None, "Define", Some(define_d), None),
     // Desktop only (autograd): known to the parser so that trees agree; absent at run time.
-    op!("\u{2207}", "Grad", Some(absent_m), "Grad", Some(absent_d), None),
-    op!("\u{2202}", "", None, "Jacobian", Some(absent_d), None),
-    op!(":>", "", None, "Autograd", Some(absent_d), None),
+    op!("\u{2207}", "Grad", Some(absent_m), "Grad", Some(absent_grad), None),
+    op!("\u{2202}", "", None, "Jacobian", Some(absent_jac), None),
+    op!(":>", "", None, "Autograd", Some(absent_auto), None),
 ];
 
 /// `˙` (Track) is a monad in KlongPy; it is the identity.

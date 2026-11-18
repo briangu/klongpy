@@ -260,6 +260,11 @@ fn write_at<S: Sink>(syms: &Interner, v: &Value, display: bool, out: &mut S, dep
         Value::Fn(f) => write_arity(func_arity(f), out),
         Value::Prim(p) => out.push_str(syms.name(*p)),
         Value::Ext(e) => {
+            #[cfg(feature = "host")]
+            if let Some(t) = e.0.host_format(display) {
+                out.push_str(&t);
+                return;
+            }
             out.push(':');
             out.push_str(e.0.type_name());
         }
