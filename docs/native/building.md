@@ -119,9 +119,9 @@ $ klong -e '.p("sum of squares");+/{x*x}'"'"'!10'
 sum of squares
 285
 $ klong -e '1+"a"'
-1:1: type error: cannot apply + (Plus) to integer and string
+1:2: type error: cannot apply + (Plus) to integer and string
   1+"a"
-  ^^^^^
+   ^
 $ klong -e '1+"a"' 2>/dev/null; echo $?
 1
 ```
@@ -286,9 +286,9 @@ $ klong --max-depth 100000 -e 'f::{:[x<1;0;1+f(x-1)]};f(5000)'
 $ klong --stack-budget 64K -e 'f::{:[x<1;0;1+f(x-1)]};f(20)'
 20
 $ klong --stack-budget 64K -e 'f::{:[x<1;0;1+f(x-1)]};f(40)'
-1:7: range error: expression nested too deeply
+1:15: range error: expression nested too deeply
   f::{:[x<1;0;1+f(x-1)]};f(40)
-        ^^^
+                ^^^^^^
   hint: the native stack budget of this build is used up
 $ klong --steps 1000 -e '{1}{x+1}:~0'
 1:1: interrupt error: interrupted
@@ -305,7 +305,7 @@ With `--stats` the program reports what it used, on standard error: the peak hea
 $ klong --stats -e '+/!1000' 2>&1 | grep -v '^heap'
 499500
 depth: 3 nested evaluations at most
-stack: 696 bytes of native stack at most
+stack: 736 bytes of native stack at most
 ```
 
 ## Running the conformance suite

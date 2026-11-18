@@ -507,25 +507,8 @@ class TestGradcheck:
         assert 'USE_TORCH' not in str(e.value) + (e.value.hint or '')
 
 
-class TestCompile:
-    """Tests for torch.compile functionality."""
-
-    def test_compile_basic(self, klong, backend):
-        """Test .compile() returns a compiled function."""
-        if backend != 'torch':
-            pytest.skip("Requires torch backend")
-        klong('f::{x^2}')
-        try:
-            result = klong('.compile(f;3.0)')
-        except Exception as e:
-            # torch.compile may fail on some systems (missing C++ compiler, etc.)
-            if 'CppCompileError' in str(type(e).__name__) or 'InductorError' in str(type(e).__name__):
-                pytest.skip(f"torch.compile not available on this system: {e}")
-            raise
-        # Compiled function should still work
-        test_input = torch.tensor(5.0)
-        output = result(test_input)
-        assert np.isclose(float(output), 25.0, atol=1e-5)
+class TestExport:
+    """Tests for .export."""
 
     def test_export_with_path(self, klong, backend):
         """Test .export() returns dict with graph info."""
@@ -536,10 +519,7 @@ class TestCompile:
             path = os.path.join(tmpdir, 'model.pt2')
             try:
                 result = klong(f'.export(f;3.0;"{path}")')
-            except Exception as e:
-                # torch.compile/export may fail on some systems
-                if 'CppCompileError' in str(type(e).__name__) or 'InductorError' in str(type(e).__name__):
-                    pytest.skip(f"torch.compile not available on this system: {e}")
+            except Exception:
                 raise
             # Should return a dict
             assert isinstance(result, dict)
@@ -557,9 +537,7 @@ class TestCompile:
             path = os.path.join(tmpdir, 'model.pt2')
             try:
                 result = klong(f'.export(f;3.0;"{path}")')
-            except Exception as e:
-                if 'CppCompileError' in str(type(e).__name__) or 'InductorError' in str(type(e).__name__):
-                    pytest.skip(f"torch.compile not available on this system: {e}")
+            except Exception:
                 raise
             assert not result.get('export_error'), result.get('export_error')
             assert result['export_path'] == path
@@ -569,28 +547,12 @@ class TestCompile:
             loaded = torch.export.load(path).module()
             assert np.isclose(float(loaded(torch.tensor(3.0))), 9.0, atol=1e-5)
 
-    def test_compile_assigned_twice_is_still_callable(self, klong, backend):
-        """cf::.compile(f;3.0) a second time must not leave cf holding the function object."""
-        if backend != 'torch':
-            pytest.skip("Requires torch backend")
-        klong('f::{x^2}')
-        try:
-            klong('cf::.compile(f;3.0)')
-            klong('cf::.compile(f;3.0)')
-        except Exception as e:
-            if 'CppCompileError' in str(type(e).__name__) or 'InductorError' in str(type(e).__name__):
-                pytest.skip(f"torch.compile not available on this system: {e}")
-            raise
-        assert np.isclose(float(klong('cf(2.0)')), 4.0, atol=1e-5)
-        assert np.isclose(float(klong('cf(5.0)')), 25.0, atol=1e-5)
-
-    def test_compile_fails_on_numpy(self, klong, backend):
-        """Test that .compile() raises error on numpy backend."""
-        if backend != 'numpy':
-            pytest.skip("Test for numpy backend only")
-        klong('f::{x^2}')
-        with pytest.raises(KlongError):
-            klong('.compile(f;3.0)')
+    def test_compile_is_gone(self, klong, backend):
+        """.compile, .compilex and .cmodes were removed: a call is the ordinary undefined-function error."""
+        for src in ('.compile(f;3.0)', '.compilex(f;3.0;:{["mode" "default"]})', '.cmodes()'):
+            klong('f::{x^2}')
+            with pytest.raises(KlongError):
+                klong(src)
 
     def test_export_fails_on_numpy(self, klong, backend):
         """Test that .export() raises error on numpy backend."""
@@ -599,66 +561,6 @@ class TestCompile:
         klong('f::{x^2}')
         with pytest.raises(KlongError):
             klong('.export(f;3.0;"test.pt2")')
-
-
-class TestCompileModes:
-    """Tests for extended compile options."""
-
-    def test_cmodes_returns_dict(self, klong, backend):
-        """Test .cmodes() returns mode information."""
-        if backend != 'torch':
-            pytest.skip("Requires torch backend")
-        result = klong('.cmodes()')
-        assert isinstance(result, dict)
-        assert 'modes' in result
-        assert 'backends' in result
-        assert 'recommendations' in result
-
-    def test_cmodes_has_expected_modes(self, klong, backend):
-        """Test .cmodes() includes standard modes."""
-        if backend != 'torch':
-            pytest.skip("Requires torch backend")
-        result = klong('.cmodes()')
-        modes = result['modes']
-        assert 'default' in modes
-        assert 'reduce-overhead' in modes
-        assert 'max-autotune' in modes
-
-    def test_cmodes_has_expected_backends(self, klong, backend):
-        """Test .cmodes() includes standard backends."""
-        if backend != 'torch':
-            pytest.skip("Requires torch backend")
-        result = klong('.cmodes()')
-        backends = result['backends']
-        assert 'inductor' in backends
-        assert 'eager' in backends
-
-    def test_compilex_eager_backend(self, klong, backend):
-        """Test .compilex() with eager backend (no actual compilation)."""
-        if backend != 'torch':
-            pytest.skip("Requires torch backend")
-        klong('f::{x^2}')
-        # Eager backend should work without C++ compiler
-        result = klong('.compilex(f;3.0;:{["backend" "eager"]})')
-        # Should return a callable
-        test_input = torch.tensor(5.0)
-        output = result(test_input)
-        assert np.isclose(float(output), 25.0, atol=1e-5)
-
-    def test_compilex_fails_on_numpy(self, klong, backend):
-        """Test that .compilex() raises error on numpy backend."""
-        if backend != 'numpy':
-            pytest.skip("Test for numpy backend only")
-        klong('f::{x^2}')
-        with pytest.raises(KlongError):
-            klong('.compilex(f;3.0;:{["mode" "default"]})')
-
-    def test_cmodes_fails_on_numpy(self, klong, backend):
-        """Test that .cmodes() raises error on numpy backend."""
-        if backend != 'numpy':
-            pytest.skip("Test for numpy backend only")
-        with pytest.raises(KlongError):
-            klong('.cmodes()')
 
 
 class TestMatrixVectorGradient:

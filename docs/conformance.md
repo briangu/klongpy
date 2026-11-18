@@ -56,7 +56,7 @@ $ python conformance/run.py --cmd "python -W ignore conformance/shim/kgpy_shim.p
 $ python conformance/run.py conformance/cases/90-errors.cases
 57 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 $ python conformance/run.py --list --tags core | wc -l
-     777
+     778
 ```
 
 `python -m pytest tests/test_conformance.py --backend torch --device cpu` runs the in-process cases on the torch backend. The numpy backend declares every tag except `torch-only`, `timers`, `ipc` and `desktop`. The torch backend declares `torch-only` instead of `numpy-only`, because float32 text and `:undefined` inside a list differ there by design.

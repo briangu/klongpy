@@ -68,7 +68,7 @@ RUNNABLE = {
     "examples/autograd/optimizer_demo.kg": PLAIN,
     "examples/autograd/rolling_portfolio_opt_simple.kg": PLAIN,
     "examples/autograd/black_scholes_greeks.kg": TORCH,  # needs erf from the torch backend
-    "examples/autograd/compile_demo.kg": TORCH,          # .cmodes needs the torch backend
+    "examples/autograd/export_demo.kg": TORCH,           # .export needs the torch backend
     "examples/autograd/gradcheck_demo.kg": TORCH,        # .gradcheck needs the torch backend on cpu
     "examples/math/fft.kg": PLAIN,
     "examples/math/trig.kg": PLAIN,

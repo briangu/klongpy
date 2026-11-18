@@ -180,36 +180,25 @@ See [Python integration](python_integration.md) for the type mapping.
 - Combine operations so that fewer, larger ones run.
 - Use `:>` for gradients of functions on the torch backend.
 
-## Function compilation and gradient checks
+## Graph export and gradient checks
 
-These functions exist only on the torch backend. They compile a Klong function with `torch.compile`, export its graph and check its gradient. The examples need the torch backend; the values are from torch 2.15.0 on the CPU. Compilation needs a C++ compiler; `"backend" "eager"` skips compilation.
+These functions exist only on the torch backend. They export a Klong function's computation graph and check its gradient. The examples need the torch backend; the values are from torch 2.15.0 on the CPU.
 
 | Function | Does |
 |---|---|
-| `.compile(fn;input)` | Compiles `fn` for the shape and type of `input` and returns a callable. |
-| `.compilex(fn;input;options)` | The same with a dictionary of options: `"mode"`, `"backend"`, `"fullgraph"` (1 to require one graph) and `"dynamic"` (1 for dynamic shapes, 0 for static). |
-| `.cmodes()` | A dictionary with the keys `modes`, `backends` and `recommendations`. |
-| `.export(fn;input;path)` | Exports the computation graph to `path` and returns a dictionary with `compiled_fn`, `export_path`, `graph`, `graph_module`, `mode` and `backend`. |
+| `.export(fn;input;path)` | Runs `fn` once on `input`, records every tensor operation it executes (`torch.export`, non-strict), saves the exported program to `path` and returns a dictionary with `compiled_fn` (the exported module), `export_path`, `graph` (its text) and `graph_module`. |
 | `.gradcheck(fn;input)` | Returns 1 when the autograd gradient of `fn` at `input` matches the numeric one. CPU only. |
 
 ```klong
 f(t)::{t^2}
-cf::.compile(f;3.0)
-cf(5.0)                                      :" 25.0
-ce::.compilex(f;3.0;:{["backend" "eager"]})  :" no compilation
-.cmodes()@"modes"                            :" the modes, with a description of each
+info::.export(f;3.0;"model.pt2")
 .gradcheck(f;3.0)                            :" 1
 ```
 
-The modes are `default`, `reduce-overhead` (faster to compile, less optimisation) and `max-autotune` (slowest to compile, most optimisation). The backends are `inductor` (the default, C++ or Triton code), `eager` (no compilation), `aot_eager` (eager with the autograd graph) and `cudagraphs` (GPU only).
-
-`.export` writes a file that `torch.export.load(path).module()` reads back. If torch cannot export the function, `export_path` is empty, `export_error` holds the reason and `compiled_fn` is still usable.
-
-Known limit: give each compiled function its own name; assigning a second compiled function to the same name is not supported.
+`.export` works the same on the Python and the native engine, because it records what the function does and does not read its source. The file is read back with `torch.export.load(path).module()`. To compile the function, compile that module: `torch.compile(torch.export.load("model.pt2").module())`. If torch cannot export the function (a branch on a tensor's value), `export_path` is empty and `export_error` holds the reason.
 
 ## Troubleshooting
 
-- `.compile()` fails with C++ errors: install a C++ compiler (clang++ or g++) and, on macOS, the Xcode Command Line Tools. `"backend" "eager"` skips compilation.
 - Results differ from NumPy in the last digits: float32 (see above).
 
 ## See also

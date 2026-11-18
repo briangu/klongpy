@@ -41,7 +41,7 @@ kgpy --backend torch <example>.kg
 | `black_scholes_live.kg` | Live market verification | torch, yfinance |
 | `differentiable_physics.kg` | Projectile targeting | torch |
 | `gradcheck_demo.kg` | Verify gradient correctness | torch |
-| `compile_demo.kg` | Function compilation for speed | torch |
+| `export_demo.kg` | Export a function's graph | torch |
 
 ---
 
@@ -443,36 +443,19 @@ All gradient checks passed!
 
 ---
 
-### compile_demo.kg
+### export_demo.kg
 
-**What it does:** Shows how to compile Klong functions for optimized execution using `torch.compile`.
+**What it does:** Exports a Klong function's computation graph with `.export`, prints the graph and runs the exported module.
 
 **Run:**
 ```bash
-kgpy --backend torch compile_demo.kg
-```
-
-**Expected output:**
-```
-Function Compilation Demo
-=========================
-
-Example 1: Compiling a simple function
----------------------------------------
-  Original function: f(x) = x^2
-  Compiled with: .compile(f;3.0)
-
-  f(5.0) = 25.0
-  cf(5.0) = 25.0
-  Both give the same result!
-...
+kgpy --backend torch export_demo.kg
 ```
 
 **Key concepts:**
-- `.compile(fn;input)` returns an optimized function
-- Compiled functions run faster for complex computations
-- First call has compilation overhead
-- Best for functions called many times (training loops)
+- `.export(fn;input;path)` runs the function once and records the tensor operations it executes (`torch.export`)
+- The result holds `compiled_fn` (the exported module), `export_path`, `graph` and `graph_module`
+- To compile the function, compile the exported program: `torch.compile(torch.export.load(path).module())`
 
 ---
 
@@ -575,15 +558,7 @@ This compares autograd gradients against numeric gradients using `torch.autograd
 
 ---
 
-## Function Compilation
-
-Compile functions for optimized execution:
-
-```klong
-f::{(x^3)+(2*x^2)+x}
-cf::.compile(f;2.0)          :" Returns compiled function
-cf(5.0)                       :" Faster execution
-```
+## Graph Export
 
 Export computation graphs for inspection:
 
@@ -604,4 +579,3 @@ info::.export(f;2.0;"model.pt2")
 
 **Gradient is NaN** - Learning rate too high or loss function has issues. Try smaller learning rate.
 
-**torch.compile errors** - Requires C++ compiler. On macOS, install Xcode Command Line Tools.

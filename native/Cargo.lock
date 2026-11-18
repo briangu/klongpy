@@ -23,6 +23,7 @@ version = "0.0.1"
 dependencies = [
  "klong-core",
  "klong-host",
+ "klong-lint",
  "klong-rt",
 ]
 
@@ -68,6 +69,13 @@ dependencies = [
 
 [[package]]
 name = "klong-ipc"
+version = "0.0.1"
+dependencies = [
+ "klong-core",
+]
+
+[[package]]
+name = "klong-lint"
 version = "0.0.1"
 dependencies = [
  "klong-core",

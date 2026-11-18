@@ -494,6 +494,20 @@ impl<P: Platform + 'static> Runtime<P> {
         }
     }
 
+    /// A program from the file in `dir` begins (`""` for the current directory): a relative `.l` that nothing else finds is looked
+    /// for there, until `pop_home`.
+    pub fn push_home(&self, dir: &str) {
+        if let Ok(mut io) = self.shared.io.try_borrow_mut() {
+            io.home.push(String::from(dir));
+        }
+    }
+
+    pub fn pop_home(&self) {
+        if let Ok(mut io) = self.shared.io.try_borrow_mut() {
+            io.home.pop();
+        }
+    }
+
     /// Start-up: run `boot.kg` if the file system has one. Returns whether there was one.
     #[cfg(feature = "files")]
     pub fn boot(&mut self) -> Result<bool> {

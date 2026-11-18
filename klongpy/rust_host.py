@@ -84,9 +84,9 @@ class HostTable:
         nd = self._np.ndarray
         if ba(x):
             if type(y) is nd and y.dtype.kind in "ifb":
-                y = _array(self.backend, y)
+                y = self._asarray(y)
         elif ba(y) and type(x) is nd and x.dtype.kind in "ifb":
-            x = _array(self.backend, x)
+            x = self._asarray(x)
         return x, y
 
     # -- primitives ---------------------------------------------------------------------------------------------------
@@ -129,6 +129,11 @@ class HostTable:
                 f"{what}: a tensor that requires gradients cannot be copied into a native value (the graph would be cut); "
                 f"the operation has no counterpart on the {b.name} backend")
         return b.to_numpy(o)
+
+    def adopt(self, a):
+        """A native numeric vector (a NumPy array) as the backend's array: what the Python engine holds every numeric array as."""
+        r = _array(self.backend, a)
+        return r if self._is_backend_array(r) else None
 
     def truthy(self, o):
         if not self._is_backend_array(o):
@@ -206,4 +211,7 @@ def install(engine, backend=None):
     engine: a RustInterpreter (it has `_k`, the native interpreter, `_backend`, `_in`, `_out`, `apply`)."""
     backend = backend or engine._backend
     engine._k.set_host_table(HostTable(engine, backend))
+    if backend.name != "numpy":
+        # the torch value model: every numeric vector the engine makes is a tensor on the device, as on the Python engine
+        engine._k.set_adopt(1)
     engine._k.set_host_ops(HostOps(engine))

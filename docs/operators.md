@@ -221,7 +221,7 @@ The two gradient operators take their arguments in opposite orders: `point∇fun
 
 ### Autograd System Functions
 
-Five system functions need the PyTorch backend: `.gradcheck`, `.compile`, `.compilex`, `.cmodes` and `.export`. `.gradcheck` also needs the CPU device. [PyTorch Backend and Autograd](torch_backend.md#function-compilation-and-gradient-checks) describes them and has an example.
+Two system functions need the PyTorch backend: `.gradcheck` and `.export`. `.gradcheck` also needs the CPU device. [PyTorch Backend and Autograd](torch_backend.md#graph-export-and-gradient-checks) describes them and has an example.
 
 ## Adverbs
 

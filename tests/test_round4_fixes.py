@@ -1,6 +1,6 @@
 """
 Fixes from writing programs against the docs: JSON, .fmt, .timer, --version, the escaped-quote hint,
-SQL results, optional-module messages, and (torch runs only) .bkf scalars, .gradcheck, optimizers, .compile.
+SQL results, optional-module messages, and (torch runs only) .bkf scalars, .gradcheck, optimizers.
 """
 import importlib.util
 import io
@@ -338,19 +338,6 @@ class TestTorchFixes(unittest.TestCase):
     def test_optimizers_module_is_importable_without_torch_at_import(self):
         code, out, err = run_py("import sys\nimport klongpy.optimizers\nprint(sys.modules.get('torch') is not None)", hide=("torch",))
         self.assertEqual((code, out.strip()), (0, "False"), err)
-
-    def test_compile_does_not_flood_stderr_and_restores_logging(self):
-        import logging
-        log = logging.getLogger("torch._dynamo.variables.tensor")
-        before = log.level
-        buf = io.StringIO()
-        with redirect_stderr(buf):
-            self.k('f(t)::{t^2}')
-            self.k('cf::.compilex(f;3.0;:{;"backend";"eager"})')
-            r = self.k('cf(5.0)')
-        self.assertEqual(float(self.k._backend.to_numpy(r)), 25.0)
-        self.assertEqual(log.level, before)
-        self.assertNotIn("Graph break", buf.getvalue())
 
 
 class TestOptimizersModule(unittest.TestCase):

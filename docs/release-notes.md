@@ -561,6 +561,8 @@ client?> f("1+1")
 
 **`.rls()` strips the line end from each line.** The lines kept their `\n`.
 
+**`.compile`, `.compilex` and `.cmodes` are removed.** They wrapped `torch.compile`, which needs a C++ compiler and cannot read a function that runs in the native engine. `.export(fn;input;path)` stays and now works the same way on both engines: the function is run once and every tensor operation it executes is recorded with `torch.export` (non-strict). To compile a function, export it and compile the exported program with torch: `torch.compile(torch.export.load(path).module())`. Calling a removed function is the ordinary undefined-function error.
+
 **The two broker examples are removed.** `examples/stocks` had a feed from Polygon and one from Alpaca, and both needed an account. A simulated price feed replaces them: a seeded random walk, a server that publishes each trade to the clients subscribed to its symbol, and a consumer that computes a volume-weighted average price and a moving average. It needs only `pip install klongpy`. See [`examples/stocks/feed`](https://github.com/briangu/klongpy/tree/main/examples/stocks/feed).
 
 **The example programs are written in version 2 forms.** They use named parameters, destructuring, evaluated dictionaries and `.pf` where those read better, and keep the classic forms where those are better Klong. Their output is the same.
@@ -760,4 +762,4 @@ a b
 
 **The optimizers are in the package.** `SGDOptimizer` and `AdamOptimizer` are in `klongpy.optimizers`, so a `pip install` has them, and they work on Apple MPS, where the gradient of `x^2` at 0 is 0 and not NaN. See [Optimizers](torch_backend.md#optimizers).
 
-**`.bkf` functions accept scalars, `.gradcheck` accepts a constant matrix, and `.compile` no longer floods stderr with warnings.**
+**`.bkf` functions accept scalars and `.gradcheck` accepts a constant matrix.**

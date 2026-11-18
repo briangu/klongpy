@@ -18,6 +18,7 @@ This page is for anyone with code written for KlongPy 0.7. It lists what behaves
 | A web handler that returns a dictionary sends a response; a failing handler answers 500, not 400 | None; [see below](#web-handlers) |
 | `.rls()` strips the line end from each line | None; [see below](#other-changes) |
 | The Polygon and Alpaca examples are removed | None; [a simulated feed replaces them](#other-changes) |
+| `.compile`, `.compilex` and `.cmodes` are removed | None; [use `.export`](#other-changes) |
 
 ## Check your code first
 
@@ -412,6 +413,7 @@ See [the web server](web_server.md#the-response).
 ## Other changes
 
 - **`.rls()` strips the line end.** It returned each line with its `\n`, and a program that cut it off with `-1_` now loses a real character. Remove that code.
+- **`.compile`, `.compilex` and `.cmodes` are removed.** They wrapped `torch.compile`, which needs a C++ compiler and cannot read a function that runs in the native engine. Use `.export(fn;input;path)`, which records the tensor operations the function executes, and compile the exported program with torch: `torch.compile(torch.export.load(path).module())`. A call to a removed function is an undefined-function error.
 - **The Polygon and Alpaca examples are removed.** `examples/stocks/feed` is a simulated price feed that needs no account: a seeded random walk, a server with per-symbol subscriptions, and a consumer that computes a VWAP and a moving average.
 
 [Release notes](release-notes.md#system-functions) lists the fixes to system functions (`.sys`, `.timer`, `.webc`, `.kvs`, `.db`), the operators that used to crash, and the libraries that now work.

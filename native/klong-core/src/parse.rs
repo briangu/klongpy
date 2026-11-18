@@ -550,13 +550,29 @@ impl<'a> Parser<'a> {
                 return e.with_hint(h);
             }
         }
+        #[cfg(feature = "diag")]
+        if let Some(h) = self.escaped_quote_hint() {
+            return e.with_hint(h);
+        }
         e
     }
 
     fn raise_tok(&self, tok: &Tok) -> Error {
         let m = match tok.v {
             TV::CharEof => "expected a character after 0c but found end of input".to_string(),
-            _ => crate::msg!("malformed number '{}'", &self.lx.text[tok.start as usize..tok.end as usize]),
+            _ => {
+                #[cfg(feature = "diag")]
+                {
+                    // `[1 -1.2.3]`: a minus that follows a space or an opening bracket is part of the number (KlongPy's lexer)
+                    let b = self.lx.text.as_bytes();
+                    let st = tok.start as usize;
+                    if st >= 1 && b[st - 1] == b'-' && (st == 1 || matches!(b[st - 2], b' ' | b'\t' | b'\n' | b'[' | b'(' | b';')) {
+                        let m = crate::msg!("malformed number '{}'", &self.lx.text[st - 1..tok.end as usize]);
+                        return Error::syntax(m).with_span((tok.start - 1, tok.end));
+                    }
+                }
+                crate::msg!("malformed number '{}'", &self.lx.text[tok.start as usize..tok.end as usize])
+            }
         };
         Error::syntax(m).with_span((tok.start, tok.end))
     }
@@ -1271,7 +1287,10 @@ impl<'a> Parser<'a> {
             };
             let k = conv(e.item(0));
             if k.is_list() || matches!(k, Value::Dict(_)) {
-                return Err(Error::syntax("a list cannot be a dictionary key").with_span(span));
+                let e = Error::syntax("a list cannot be a dictionary key").with_span(span);
+                #[cfg(feature = "diag")]
+                let e = e.with_hint("write :{[key1 value1] [key2 value2]}, or :{;key1;value1;key2;value2} to have the keys and values evaluated");
+                return Err(e);
             }
             let v = conv(e.item(1));
             // a value that is itself a list was read as one and is normalised now

@@ -34,9 +34,9 @@ klong> f::{x*x}
 klong> f(12)
 144
 klong> 1+"a"
-1:1: type error: cannot apply + (Plus) to integer and string
+1:2: type error: cannot apply + (Plus) to integer and string
   1+"a"
-  ^^^^^
+   ^
 klong>
 ```
 
@@ -273,7 +273,7 @@ A Klong error comes back as `error: KIND: MESSAGE at LINE:COL` and status 1:
 <!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native; continue -->
 ```console
 $ python native/tools/kgupload.py $(cat port) run -e '1+"a"'; echo $?
-error: type: cannot apply + (Plus) to integer and string at 1:1
+error: type: cannot apply + (Plus) to integer and string at 1:2
 1
 ```
 

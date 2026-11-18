@@ -3,7 +3,7 @@ Autograd system functions for KlongPy.
 
 Provides .grad() for the numeric gradient (the ASCII form of the nabla operator).
 Provides .jacobian() for Jacobian matrix computation.
-Provides .compile() for function compilation and graph export (torch only).
+Provides .export() for graph export (torch only).
 
 For optimizers (SGD, Adam), see klongpy/optimizers.py: .pyf("klongpy.optimizers";"SGDOptimizer").
 """
@@ -13,12 +13,6 @@ from .autograd import jacobian_of_fn, _invoke_fn
 from .dyads import eval_dyad_grad
 from .errors import KlongTypeError, needs_torch_backend as _needs_torch
 from .types import KGSym
-
-
-def _records(klong):
-    """Whether the engine runs Klong outside Python bytecode (the native engine): torch.compile cannot read it, so the tensor
-    operations it executes are recorded instead (see TorchBackend.compile_function, trace)."""
-    return hasattr(getattr(klong, "_k", None), "set_host_table")
 
 
 def eval_sys_grad(klong, x, y):
@@ -61,45 +55,6 @@ def eval_sys_jacobian(klong, x, y):
     return jacobian_of_fn(klong, x, y)
 
 
-def eval_sys_compile(klong, x, y):
-    """
-
-        .compile(x;y)                                           [Compile]
-
-        Compile a function for optimized execution using torch.compile.
-        Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
-
-        Arguments:
-            x           - Function to compile
-            y           - Example input for tracing the computation graph
-
-        Returns:
-            Compiled function (faster execution)
-
-        Examples:
-            f::{x^2}
-            cf::.compile(f;3.0)          :" Returns compiled function
-            cf(5.0)                       :" 25.0 (optimized)
-
-        Notes:
-            - Only supported with PyTorch backend
-            - Raises error on NumPy backend
-            - See .export() for saving graphs to files
-
-    """
-    fn, example_input = x, y
-
-    backend = klong._backend
-    if not backend.supports_autograd():
-        raise _needs_torch(".compile()")
-
-    # Wrap the Klong function for torch
-    def wrapped_fn(v):
-        return _invoke_fn(klong, fn, [v])
-
-    return backend.compile_function(wrapped_fn, example_input, None, trace=_records(klong))
-
-
 def eval_sys_export(klong, x, y, z):
     """
 
@@ -115,7 +70,7 @@ def eval_sys_export(klong, x, y, z):
 
         Returns:
             Dictionary with:
-                "compiled_fn" - The compiled function
+                "compiled_fn" - The exported module, callable on tensors
                 "export_path" - Path where graph was saved
                 "graph"       - String representation of computation graph
 
@@ -127,7 +82,8 @@ def eval_sys_export(klong, x, y, z):
         Notes:
             - Only supported with PyTorch backend
             - The exported graph can be loaded with torch.export.load()
-            - Use .compile() for just compiling without export
+            - The function is run once on fake tensors and every tensor operation it executes is recorded (torch.export, non-strict), on both engines
+            - Compile the exported program with torch: torch.compile(torch.export.load(path).module())
 
     """
     fn, example_input, output_path = x, y, z
@@ -140,105 +96,7 @@ def eval_sys_export(klong, x, y, z):
     def wrapped_fn(v):
         return _invoke_fn(klong, fn, [v])
 
-    return backend.compile_function(wrapped_fn, example_input, output_path, trace=_records(klong))
-
-
-def eval_sys_compilex(klong, x, y, z):
-    """
-
-        .compilex(x;y;z)                                        [Compile-Extended]
-
-        Compile a function with extended options for mode and backend.
-        Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
-
-        Arguments:
-            x           - Function to compile
-            y           - Example input for tracing the computation graph
-            z           - Options dictionary with compile settings
-
-        Options (z):
-            "mode"      - Compilation mode:
-                          "default"         - Balanced (default)
-                          "reduce-overhead" - Faster compile, less optimization
-                          "max-autotune"    - Slower compile, best runtime
-            "backend"   - Compilation backend:
-                          "inductor"   - Default with C++/Triton codegen
-                          "eager"      - No compilation (debugging)
-                          "cudagraphs" - CUDA graphs (GPU only)
-            "fullgraph" - 1 to require full graph compilation
-            "dynamic"   - 1 for dynamic shapes, 0 for static
-
-
-        Returns:
-            Compiled function
-
-        Examples:
-            f::{x^2}
-
-            :" Fast compilation for development
-            cf::.compilex(f;3.0;:{["mode" "reduce-overhead"]})
-
-            :" Maximum optimization for production
-            cf::.compilex(f;3.0;:{["mode" "max-autotune"]})
-
-            :" Debug mode (no compilation)
-            cf::.compilex(f;3.0;:{["backend" "eager"]})
-
-        Notes:
-            - Only supported with PyTorch backend
-            - Requires C++ compiler for inductor backend
-            - Use .cmodes() to see all available options
-
-    """
-    fn, example_input, options = x, y, z
-
-    backend = klong._backend
-    if not backend.supports_autograd():
-        raise _needs_torch(".compilex()")
-
-    # Extract options from dictionary
-    mode = options.get("mode", "default") if isinstance(options, dict) else "default"
-    compile_backend = options.get("backend", "inductor") if isinstance(options, dict) else "inductor"
-    fullgraph = bool(options.get("fullgraph", 0)) if isinstance(options, dict) else False
-    dynamic = None
-    if isinstance(options, dict) and "dynamic" in options:
-        dynamic = bool(options["dynamic"])
-
-    # Wrap the Klong function for torch
-    def wrapped_fn(v):
-        return _invoke_fn(klong, fn, [v])
-
-    return backend.compile_function(
-        wrapped_fn, example_input, None,
-        mode=mode, backend=compile_backend, fullgraph=fullgraph, dynamic=dynamic, trace=_records(klong)
-    )
-
-
-def eval_sys_cmodes(klong):
-    """
-
-        .cmodes()                                               [Compile-Modes]
-
-        Get information about available torch.compile modes and backends.
-        Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
-
-        Returns:
-            Dictionary with:
-                "modes"           - Available compilation modes
-                "backends"        - Available compilation backends
-                "recommendations" - Suggested settings for common use cases
-
-        Examples:
-            info::.cmodes()
-            .p(info@"modes")          :" Print available modes
-            .p(info@"recommendations") :" Print recommended settings
-
-    """
-    backend = klong._backend
-    if not backend.supports_autograd():
-        raise _needs_torch(".cmodes()")
-
-    return backend.get_compile_modes()
+    return backend.export_function(wrapped_fn, example_input, output_path)
 
 
 def eval_sys_gradcheck(klong, x, y):

@@ -325,33 +325,16 @@ class BackendProvider(ABC):
         """
         raise NotImplementedError("This backend does not support Jacobian computation")
 
-    def compile_function(self, func, example_input, output_path=None, mode="default",
-                         backend="inductor", fullgraph=False, dynamic=None):
+    def export_function(self, func, example_input, output_path):
         """
-        Compile a function for optimized execution and optionally export for inspection.
+        Export a function's computation graph to a file (torch.export) and return a dict describing it.
 
         Args:
-            func: Callable to compile
-            example_input: Example input for tracing the function
-            output_path: Optional path to export the compiled graph
-            mode: Compilation mode ("default", "reduce-overhead", "max-autotune")
-            backend: Compilation backend ("inductor", "eager", "cudagraphs")
-            fullgraph: If True, requires entire function to compile as one graph
-            dynamic: If True, enables dynamic shapes
-
-        Returns:
-            Compiled function or export info dict
+            func: Callable to export
+            example_input: Example input for recording the function
+            output_path: Path to save the exported program to
         """
-        raise NotImplementedError("This backend does not support function compilation")
-
-    def get_compile_modes(self):
-        """
-        Return information about available compilation modes.
-
-        Returns:
-            Dict with mode descriptions and recommendations
-        """
-        raise NotImplementedError("This backend does not support function compilation")
+        raise NotImplementedError("This backend does not support graph export")
 
     def gradcheck(self, func, inputs, eps=1e-6, atol=1e-5, rtol=1e-3):
         """

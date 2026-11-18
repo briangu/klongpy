@@ -413,7 +413,13 @@ impl Interp {
         }
         let mut acc = a.item(0);
         for i in 1..n {
-            acc = self.f2(ch, level, acc, a.item(i))?;
+            acc = match self.f2(ch, level, acc, a.item(i)) {
+                Ok(v) => v,
+                #[cfg(feature = "diag")]
+                Err(e) => return Err(self.chain_error(ch, &[&a], e)),
+                #[cfg(not(feature = "diag"))]
+                Err(e) => return Err(e),
+            };
         }
         Ok(acc)
     }

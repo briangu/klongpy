@@ -166,6 +166,13 @@ pub struct Interp {
     /// with the operator's glyph and its operands.
     #[cfg(feature = "host")]
     pub host_op: Option<Rc<HostOp>>,
+    /// HOST: the embedder takes over a numeric vector a primitive or a literal has produced (a torch backend wants its arrays on its
+    /// device): called on every value `eval` returns that is a native vector; `None` leaves it as it is.
+    #[cfg(feature = "host")]
+    pub adopt: Option<Rc<dyn Fn(&mut Interp, &Value) -> Option<Value>>>,
+    /// HOST: the arguments beyond the third of the call of a system function that is being made (set just before it runs).
+    #[cfg(feature = "host")]
+    pub extra_args: Vec<Value>,
     globals: Vec<Option<Value>>,
     /// Per global: the scope it was created in (and the `JOURNALED` bit).
     gscope: Vec<u16>,
@@ -238,6 +245,10 @@ impl Interp {
             collect: None,
             #[cfg(feature = "host")]
             host_op: None,
+            #[cfg(feature = "host")]
+            extra_args: Vec::new(),
+            #[cfg(feature = "host")]
+            adopt: None,
             globals: Vec::new(),
             gscope: Vec::new(),
             scopes: alloc::vec![Scope::Plain],
@@ -297,6 +308,18 @@ impl Interp {
             }
             _ => false,
         }
+    }
+
+    /// HOST: the names of every global that is defined (the embedder's `names()`), in symbol order.
+    #[cfg(feature = "host")]
+    pub fn global_names(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        for (i, g) in self.globals.iter().enumerate() {
+            if g.is_some() {
+                out.push(String::from(self.syms.name(SymId(i as u32))));
+            }
+        }
+        out
     }
 
     pub fn global(&self, name: &str) -> Option<Value> {
@@ -1290,7 +1313,13 @@ impl Interp {
             }
         }
         match r {
-            Ok(v) => Ok(v),
+            Ok(v) => {
+                #[cfg(feature = "host")]
+                if self.adopt.is_some() && matches!(v, Value::Ints(_) | Value::Flts(_)) {
+                    return Ok(self.adopted(v));
+                }
+                Ok(v)
+            }
             Err(mut e) => {
                 if e.span.is_none() {
                     if let Some(sp) = tree.span(id) {
@@ -1300,6 +1329,16 @@ impl Interp {
                 }
                 Err(e)
             }
+        }
+    }
+
+    #[cfg(feature = "host")]
+    #[cold]
+    #[inline(never)]
+    fn adopted(&mut self, v: Value) -> Value {
+        match self.adopt.clone() {
+            Some(h) => h(self, &v).unwrap_or(v),
+            None => v,
         }
     }
 
@@ -1682,7 +1721,7 @@ impl Interp {
                         let name = self.syms.name(s);
                         let e = Error::name(crate::msg!("undefined function: {}", name));
                         // a system function this build does not have (docs/native/index.md)
-                        return Err(if name.starts_with('.') { e.with_hint(crate::msg!("{} is not available on this build", name)) } else { e });
+                        return Err(if name.starts_with('.') && cfg!(not(feature = "host")) { e.with_hint(crate::msg!("{} is not available on this build", name)) } else { e });
                     }
                 }
             }
@@ -1834,6 +1873,11 @@ impl Interp {
         None
     }
 
+    #[cfg(feature = "host")]
+    fn is_wild(f: &Value) -> bool {
+        matches!(f, Value::Fn(func) if matches!(&**func, Func::Native { arity, .. } if *arity == WILDCARD))
+    }
+
     fn is_native(f: &Value) -> bool {
         matches!(f, Value::Fn(func) if matches!(&**func, Func::Native { .. }))
     }
@@ -1958,6 +2002,15 @@ impl Interp {
                 let v = self.eval(tree, NodeId(q), true)?;
                 try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
+            #[cfg(feature = "host")]
+            if n > 3 && Self::is_wild(&f) {
+                // HOST: a system function of any arity is given every argument written
+                let mut extra = Vec::new();
+                for &q in &ids[3..] {
+                    extra.push(self.eval(tree, NodeId(q), true)?);
+                }
+                self.extra_args = extra;
+            }
             return self.run_fn(f, frame);
         }
 
@@ -2014,6 +2067,14 @@ impl Interp {
                 let v = self.eval_arg(a)?;
                 try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
+        }
+        #[cfg(feature = "host")]
+        if n > 3 && Self::is_wild(&f) {
+            let mut extra = Vec::new();
+            for a in merged.iter().skip(3).flatten() {
+                extra.push(self.eval_arg(a)?);
+            }
+            self.extra_args = extra;
         }
         self.run_fn(f, frame)
     }
@@ -2093,6 +2154,32 @@ impl Interp {
     /// callbacks of the embedder) goes through here. With fewer values than the function takes,
     /// the unapplied call is the result.
     pub fn apply(&mut self, f: &Value, values: Vec<Value>, arity: Option<u8>) -> Result<Value> {
+        #[cfg(feature = "host")]
+        if self.running == 0 {
+            // HOST: a call made from outside an evaluation (another thread, Python) is a program of its own: it sets the stack
+            // base as `run` does
+            return self.apply_top(f, values, arity);
+        }
+        self.apply_in(f, values, arity)
+    }
+
+    #[cfg(feature = "host")]
+    #[cold]
+    #[inline(never)]
+    fn apply_top(&mut self, f: &Value, values: Vec<Value>, arity: Option<u8>) -> Result<Value> {
+        crate::value::set_max_nest(self.cfg.max_nest);
+        self.stack_base = stack_here();
+        let _ = crate::value::take_deferred();
+        self.running += 1;
+        let r = self.apply_in(f, values, arity);
+        self.running -= 1;
+        if self.running == 0 {
+            self.release_caches();
+        }
+        r
+    }
+
+    fn apply_in(&mut self, f: &Value, values: Vec<Value>, arity: Option<u8>) -> Result<Value> {
         if let Value::Prim(op) = f {
             let mut it = values.into_iter();
             return match (it.next(), it.next()) {
@@ -2134,6 +2221,12 @@ impl Interp {
                 return Err(self.too_many(f, f_arity as usize, given));
             }
             let mut frame: Frame = try_vec(given.min(3) + 2)?;
+            #[cfg(feature = "host")]
+            let mut values = values;
+            #[cfg(feature = "host")]
+            if given > 3 && Self::is_wild(&g) {
+                self.extra_args = values.split_off(3);
+            }
             for (k, v) in values.into_iter().take(3).enumerate() {
                 try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
@@ -2183,6 +2276,14 @@ impl Interp {
                 let v = self.eval_arg(a)?;
                 try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
+        }
+        #[cfg(feature = "host")]
+        if n > 3 && Self::is_wild(&g) {
+            let mut extra = Vec::new();
+            for a in merged.iter().skip(3).flatten() {
+                extra.push(self.eval_arg(a)?);
+            }
+            self.extra_args = extra;
         }
         self.run_fn(g, frame)
     }
@@ -2263,6 +2364,10 @@ impl Interp {
                 }
             }
         }
+        #[cfg(feature = "host")]
+        if !self.extra_args.is_empty() {
+            args.append(&mut self.extra_args);
+        }
         if self.cfg.strict == 2 && arity != WILDCARD && args.len() > arity as usize {
             return Err(self.too_many(&Value::Sym(name), arity as usize, args.len()));
         }
@@ -2294,6 +2399,53 @@ impl Interp {
             let y = self.eval(tree, r, false)?;
             self.chain_call(&ch, advs.len(), x, Some(y)).map_err(|e| self.at_operator(tree, id, e))
         }
+    }
+
+    /// The error of an adverb chain (KlongPy `_chain_error`): an operator error that came without a position of its own (the verb
+    /// applied by the adverb itself) names the whole chain and its operands: `cannot apply +/ (Plus-Over) to list of 2`.
+    #[cfg(feature = "diag")]
+    #[cold]
+    #[inline(never)]
+    pub(crate) fn chain_error(&self, ch: &Chain, operands: &[&Value], e: Error) -> Error {
+        let mut e = e;
+        let tree = ch.tree;
+        if e.generic && e.span.is_none() {
+            let (mut glyph, mut name) = match tree.node(ch.verb) {
+                Node::OpVal { op, .. } => match ops::by_id(*op) {
+                    Some(d) => (String::from(d.glyph), String::from(if ch.verb_arity == 1 { d.monad_name } else { d.dyad_name })),
+                    None => (String::from(self.syms.name(*op)), String::new()),
+                },
+                _ => (String::from("f"), String::new()),
+            };
+            for (i, a) in ch.advs.iter().enumerate() {
+                let g = self.syms.name(SymId(*a));
+                glyph.push_str(g);
+                let two = if i == 0 { ch.first_arity == 2 } else { false };
+                let n = match (g, two) {
+                    ("/", false) => "Over",
+                    ("/", true) => "Over-Neutral",
+                    ("\\", false) => "Scan-Over",
+                    ("\\", true) => "Scan-Over-Neutral",
+                    ("'", false) => "Each",
+                    ("'", true) => "Each-2",
+                    (":'", _) => "Each-Pair",
+                    (":\\", _) => "Each-Left",
+                    (":/", _) => "Each-Right",
+                    (":*", _) => "Iterate",
+                    ("\\~", false) => "Scan-Converging",
+                    ("\\~", true) => "Scan-While",
+                    _ => "",
+                };
+                if !n.is_empty() {
+                    if !name.is_empty() {
+                        name.push('-');
+                    }
+                    name.push_str(n);
+                }
+            }
+            e = ops::whole_error(e, (&glyph, &name), operands);
+        }
+        e
     }
 
     /// Call level `level` of a chain: level 0 is the verb, level i the verb modified by the

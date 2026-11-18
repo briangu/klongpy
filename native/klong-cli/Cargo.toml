@@ -21,3 +21,4 @@ float32 = ["klong-rt/float32", "klong-host/float32", "klong-core/float32"]
 klong-core = { path = "../klong-core" }
 klong-rt = { path = "../klong-rt" }
 klong-host = { path = "../klong-host" }
+klong-lint = { path = "../klong-lint" }

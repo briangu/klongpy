@@ -1201,127 +1201,21 @@ class TorchBackendProvider(BackendProvider):
         (text is never a tensor)."""
         return numpy.asarray([KGChar(x) for x in s], dtype=object)
 
-    def compile_function(self, func, example_input, output_path=None, mode="default",
-                         backend="inductor", fullgraph=False, dynamic=None, trace=False):
+    def export_function(self, func, example_input, output_path):
         """
-        Compile a function using torch.compile with configurable options.
+        Export a function's computation graph with torch.export and save it to `output_path` (a .pt2 file).
 
-        Args:
-            func: Callable to compile
-            example_input: Example input for tracing the function
-            output_path: Optional path to save the exported graph (.pt2 file)
-            mode: Compilation mode - affects speed/quality tradeoff
-                - "default": Balanced compilation (default)
-                - "reduce-overhead": Faster compile, less optimization
-                - "max-autotune": Slower compile, maximum runtime performance
-            backend: Compilation backend
-                - "inductor": Default backend with C++/Triton codegen
-                - "eager": No compilation (for debugging)
-                - "aot_eager": Ahead-of-time eager (debugging with autograd)
-                - "cudagraphs": CUDA graphs for GPU (reduces launch overhead)
-            fullgraph: If True, requires entire function to compile as one graph
-            dynamic: If True, enables dynamic shapes; if False, assumes static shapes
-            trace: For a function that runs outside Python bytecode (the native engine: torch.compile cannot see inside it, and
-                would compile each primitive's callback as a graph of its own). The tensor operations the function executes
-                are recorded (torch.export, non-strict) and the recorded graph is what is compiled and exported. A function
-                that cannot be recorded (a branch on a tensor's value) falls back to the path below.
+        The function is run once on fake tensors (non-strict export) and every tensor operation it executes is recorded: that is
+        how the function is read on both engines, whether it runs as Python bytecode or inside the native engine.
 
-        Returns:
-            If output_path is None: compiled function
-            If output_path is provided: dict with compiled function and export info
-
-        Compilation Modes Comparison:
-            | Mode            | Compile Time | Runtime Speed | Best For           |
-            |-----------------|--------------|---------------|---------------------|
-            | default         | Medium       | Good          | General use         |
-            | reduce-overhead | Fast         | Moderate      | Quick iteration     |
-            | max-autotune    | Slow         | Best          | Production/training |
-            | (eager backend) | None         | Baseline      | Debugging           |
+        Returns a dict: `compiled_fn` (the exported module, callable on tensors), `export_path`, `graph` (the text of the graph) and
+        `graph_module`. When torch cannot export the function (a branch on a tensor's value), `export_path` is None and
+        `export_error` says why.
         """
-        # Convert example input to tensor if needed
         if not isinstance(example_input, torch.Tensor):
             example_input = self.create_grad_tensor(example_input)
 
-        # Build compile options
-        compile_kwargs = {
-            'mode': mode,
-            'backend': backend,
-            'fullgraph': fullgraph,
-        }
-        if dynamic is not None:
-            compile_kwargs['dynamic'] = dynamic
-
-        if trace:
-            traced = self._compile_traced(func, example_input, output_path, compile_kwargs)
-            if traced is not None:
-                return traced
-
-        # Compile the function with specified options. The interpreter's `^` reads a scalar with
-        # .item(), which makes dynamo log a multi-line "Graph break" warning from this one logger
-        # for each such function; it is silenced here, while the function compiles, and nowhere else.
-        import logging
-        dynamo_log = logging.getLogger("torch._dynamo.variables.tensor")
-        level = dynamo_log.level
-        dynamo_log.setLevel(logging.ERROR)
-        try:
-            compiled_fn = torch.compile(func, **compile_kwargs)
-
-            # Warm up the compiled function (triggers actual compilation)
-            _ = compiled_fn(example_input)
-        finally:
-            dynamo_log.setLevel(level)
-
-        if output_path is None:
-            # Wrap with Klong-convention parameter name (x) so that
-            # KGLambda introspection binds the argument correctly when
-            # the compiled function is stored via ::
-            def klong_compiled(x):
-                if not isinstance(x, torch.Tensor):
-                    x = self.create_grad_tensor(x)
-                return compiled_fn(x)
-            return klong_compiled
-
-        # Export the function graph for inspection
-        try:
-            # Use torch.export for graph capture
-            # torch.export takes a torch.nn.Module (torch 2.15 rejects a plain function)
-            class _Exported(torch.nn.Module):
-                def __init__(self, fn):
-                    super().__init__()
-                    self.fn = fn
-
-                def forward(self, x):
-                    return self.fn(x)
-
-            exported = torch.export.export(_Exported(func), (example_input,))
-
-            # Save the exported program
-            torch.export.save(exported, output_path)
-
-            # Get graph representation for inspection
-            graph_str = str(exported.graph_module.graph)
-
-            return {
-                'compiled_fn': compiled_fn,
-                'export_path': output_path,
-                'graph': graph_str,
-                'graph_module': exported.graph_module,
-                'mode': mode,
-                'backend': backend,
-            }
-        except Exception as e:
-            # If export fails, still return the compiled function
-            return {
-                'compiled_fn': compiled_fn,
-                'export_path': None,
-                'export_error': str(e),
-                'mode': mode,
-                'backend': backend,
-            }
-
-    def _compile_traced(self, func, example_input, output_path, compile_kwargs):
-        """compile_function for a function that is recorded, not read: export it (non-strict: the function runs on fake tensors and
-        every tensor operation it executes is recorded), compile the recorded module. None when it cannot be recorded."""
+        # torch.export takes a torch.nn.Module (torch 2.15 rejects a plain function)
         class _Exported(torch.nn.Module):
             def __init__(self, fn):
                 super().__init__()
@@ -1332,20 +1226,10 @@ class TorchBackendProvider(BackendProvider):
 
         try:
             exported = torch.export.export(_Exported(func), (example_input,), strict=False)
-            module = exported.module()
-            compiled_fn = torch.compile(module, **compile_kwargs)
-            _ = compiled_fn(example_input)
-        except Exception:
-            return None
-        if output_path is None:
-            def klong_compiled(x):
-                if not isinstance(x, torch.Tensor):
-                    x = self.create_grad_tensor(x)
-                return compiled_fn(x)
-            klong_compiled.graph = str(exported.graph_module.graph)
-            return klong_compiled
-        info = {'compiled_fn': compiled_fn, 'mode': compile_kwargs['mode'], 'backend': compile_kwargs['backend'],
-                'graph': str(exported.graph_module.graph), 'graph_module': exported.graph_module, 'traced': True}
+        except Exception as e:
+            return {'export_path': None, 'export_error': str(e)}
+        info = {'compiled_fn': exported.module(), 'graph': str(exported.graph_module.graph),
+                'graph_module': exported.graph_module}
         try:
             torch.export.save(exported, output_path)
             info['export_path'] = output_path
@@ -1353,33 +1237,6 @@ class TorchBackendProvider(BackendProvider):
             info['export_path'] = None
             info['export_error'] = str(e)
         return info
-
-    def get_compile_modes(self):
-        """
-        Return information about available compilation modes.
-
-        Returns:
-            Dict with mode descriptions and recommendations
-        """
-        return {
-            'modes': {
-                'default': 'Balanced compilation - good for most cases',
-                'reduce-overhead': 'Faster compile time, less optimization - good for development',
-                'max-autotune': 'Maximum optimization - best for production/training loops',
-            },
-            'backends': {
-                'inductor': 'Default backend with C++/Triton code generation',
-                'eager': 'No compilation - runs original Python (for debugging)',
-                'aot_eager': 'Ahead-of-time eager - captures autograd graph (debugging)',
-                'cudagraphs': 'CUDA graphs - reduces kernel launch overhead (GPU only)',
-            },
-            'recommendations': {
-                'development': {'mode': 'reduce-overhead', 'backend': 'inductor'},
-                'production': {'mode': 'max-autotune', 'backend': 'inductor'},
-                'debugging': {'mode': 'default', 'backend': 'eager'},
-                'gpu_inference': {'mode': 'max-autotune', 'backend': 'cudagraphs'},
-            }
-        }
 
     def gradcheck(self, func, inputs, eps=1e-6, atol=1e-5, rtol=1e-3):
         """

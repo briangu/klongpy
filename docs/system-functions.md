@@ -1194,9 +1194,6 @@ Defined in the base interpreter; most need the PyTorch backend. See [PyTorch Bac
 |------|-------|-------------|
 | `.jacobian(x;y)` | Jacobian | Jacobian of a function at a point. |
 | `.gradcheck(x;y)` | Gradcheck | Check autograd gradients against numeric ones (PyTorch backend). |
-| `.compile(x;y)` | Compile | Compile a function with `torch.compile` (PyTorch backend). |
-| `.compilex(x;y;z)` | Compile-Extended | Compile a function with a chosen mode and backend (PyTorch backend). |
-| `.cmodes()` | Compile-Modes | List the available `torch.compile` modes and backends (PyTorch backend). |
 | `.export(x;y;z)` | Export | Export a function's computation graph to a file (PyTorch backend). |
 
 ### `.jacobian`
@@ -1244,99 +1241,6 @@ Notes:
     - Useful for verifying custom gradient implementations
 ```
 
-### `.compile`
-
-`.compile(x;y)` [Compile]
-
-```text
-Compile a function for optimized execution using torch.compile.
-Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
-
-Arguments:
-    x           - Function to compile
-    y           - Example input for tracing the computation graph
-
-Returns:
-    Compiled function (faster execution)
-
-Examples:
-    f::{x^2}
-    cf::.compile(f;3.0)          :" Returns compiled function
-    cf(5.0)                       :" 25.0 (optimized)
-
-Notes:
-    - Only supported with PyTorch backend
-    - Raises error on NumPy backend
-    - See .export() for saving graphs to files
-```
-
-### `.compilex`
-
-`.compilex(x;y;z)` [Compile-Extended]
-
-```text
-Compile a function with extended options for mode and backend.
-Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
-
-Arguments:
-    x           - Function to compile
-    y           - Example input for tracing the computation graph
-    z           - Options dictionary with compile settings
-
-Options (z):
-    "mode"      - Compilation mode:
-                  "default"         - Balanced (default)
-                  "reduce-overhead" - Faster compile, less optimization
-                  "max-autotune"    - Slower compile, best runtime
-    "backend"   - Compilation backend:
-                  "inductor"   - Default with C++/Triton codegen
-                  "eager"      - No compilation (debugging)
-                  "cudagraphs" - CUDA graphs (GPU only)
-    "fullgraph" - 1 to require full graph compilation
-    "dynamic"   - 1 for dynamic shapes, 0 for static
-
-
-Returns:
-    Compiled function
-
-Examples:
-    f::{x^2}
-
-    :" Fast compilation for development
-    cf::.compilex(f;3.0;:{["mode" "reduce-overhead"]})
-
-    :" Maximum optimization for production
-    cf::.compilex(f;3.0;:{["mode" "max-autotune"]})
-
-    :" Debug mode (no compilation)
-    cf::.compilex(f;3.0;:{["backend" "eager"]})
-
-Notes:
-    - Only supported with PyTorch backend
-    - Requires C++ compiler for inductor backend
-    - Use .cmodes() to see all available options
-```
-
-### `.cmodes`
-
-`.cmodes()` [Compile-Modes]
-
-```text
-Get information about available torch.compile modes and backends.
-Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
-
-Returns:
-    Dictionary with:
-        "modes"           - Available compilation modes
-        "backends"        - Available compilation backends
-        "recommendations" - Suggested settings for common use cases
-
-Examples:
-    info::.cmodes()
-    .p(info@"modes")          :" Print available modes
-    .p(info@"recommendations") :" Print recommended settings
-```
-
 ### `.export`
 
 `.export(x;y;z)` [Export]
@@ -1352,7 +1256,7 @@ Arguments:
 
 Returns:
     Dictionary with:
-        "compiled_fn" - The compiled function
+        "compiled_fn" - The exported module, callable on tensors
         "export_path" - Path where graph was saved
         "graph"       - String representation of computation graph
 
@@ -1364,7 +1268,8 @@ Examples:
 Notes:
     - Only supported with PyTorch backend
     - The exported graph can be loaded with torch.export.load()
-    - Use .compile() for just compiling without export
+    - The function is run once on fake tensors and every tensor operation it executes is recorded (torch.export, non-strict), on both engines
+    - Compile the exported program with torch: torch.compile(torch.export.load(path).module())
 ```
 
 ## Embedded programs

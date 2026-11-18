@@ -229,11 +229,12 @@ def run_jit_benchmarks(iterations=20, mode="default", use_eager=False):
 
         # Try to compile with JIT
         try:
-            # Use compilex with specified backend (mode only matters for inductor)
-            if use_eager:
-                compiled_fn = klong(f'.compilex(f;{example_input};:{{["backend" "eager"]}})')
-            else:
-                compiled_fn = klong(f'.compilex(f;{example_input};:{{["mode" "{mode}"]}})')
+            # .export records the function's tensor operations; the exported module is compiled with torch
+            import tempfile, os, torch
+            with tempfile.TemporaryDirectory() as d:
+                info = klong(f'.export(f;{example_input};"{os.path.join(d, "f.pt2")}")')
+            module = info['compiled_fn']
+            compiled_fn = module if use_eager else torch.compile(module, mode=mode)
 
             avg_ms, err = benchmark_fn(name, compiled_fn, tensor_input, iterations=iterations)
             if avg_ms is not None:

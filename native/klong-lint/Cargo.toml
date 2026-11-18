@@ -1,0 +1,10 @@
+[package]
+name = "klong-lint"
+description = "klong lint: the static check for the classic Klong traps, on the tokens and tree of klong-core. std; not for boards."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+klong-core = { path = "../klong-core", features = ["bigint", "diag"] }

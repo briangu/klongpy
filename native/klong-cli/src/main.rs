@@ -24,6 +24,8 @@ use std::alloc::System;
 use std::io::{BufRead, Read, Write};
 use std::process::ExitCode;
 
+mod lint;
+
 use klong_core::{Config, Error};
 use klong_host::{Console, HostPlatform};
 use klong_rt::heap::Counting;
@@ -369,6 +371,9 @@ fn run(o: Opts) -> ExitCode {
 }
 
 fn main() -> ExitCode {
+    if std::env::args().nth(1).as_deref() == Some("lint") {
+        return lint::main();
+    }
     let o = match parse_args() {
         Some(o) => o,
         None => return usage(),
