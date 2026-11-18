@@ -1,6 +1,6 @@
 # Tutorial
 
-This page takes you from the first expression to functions, adverbs, dictionaries and files. It assumes you can program in some language and have never seen Klong. Every example is a transcript you can type at the REPL (`kgpy`); lines that start with `?> ` are what you type, and the line below is what the interpreter prints. The examples are run when the documentation is checked, so the output shown is real.
+This page takes you from the first expression to functions, adverbs, dictionaries and files. It assumes you can program in some language and have never seen Klong. Every example is a transcript you can type at the REPL (`kgpy`); lines that start with `?> ` are what you type, and the line below is what the interpreter prints. The output shown is real.
 
 All the code on this page is accepted at strict level 2, the strictest setting (see [Strict mode](strict.md)). The few examples that show a mistake say so and run at the default level.
 
@@ -434,7 +434,7 @@ The parameters are locals. Inside such a function `x`, `y` and `z` are not avail
 error: sum4 takes 4 arguments, got 5
 ```
 
-[Friendlier syntax](language-additions.md) gives the complete rules for both, including the head form in more detail and how to call named-parameter functions from Python.
+[Language Additions](language-additions.md) gives the complete rules for both, including the head form in more detail and how to call named-parameter functions from Python.
 
 ## 6. Adverbs
 
@@ -519,7 +519,7 @@ Klong has no loop statement. Repetition is an adverb. `:*` (iterate) applies a f
 [100 50 25 12 6 3 1 0]
 ```
 
-The first is a while loop (double until it reaches 100 or more). The second is Newton's iteration for the square root of 2, run until the value settles. The third halves with integer division and keeps each step (`\~` is scan-converge).
+The first is a while loop (double until it reaches 100 or more). The second is Newton's iteration for the square root of 2. Converge stops when two successive values agree within a small tolerance (relative 1e-5), so the result agrees with the square root of 2, 1.4142135623730951, to five digits and no further. The third halves with integer division and keeps each step (`\~` is scan-converge).
 
 For a longer example of the adverbs at work, `klongpy/lib/csv.kg` is a complete CSV reader written with them.
 
@@ -663,7 +663,7 @@ One trap comes from the pair rule. `,` with a dictionary on the right and a list
 [1 2 :{["k" 1]}]
 ```
 
-`kgpy --lint` reports the first form as W020 (see [Lint](lint.md)). The remaining rules, including nested dictionaries, are in [Friendlier syntax](language-additions.md).
+`kgpy --lint` reports the first form as W020 (see [Lint](lint.md)). The remaining rules, including nested dictionaries, are in [Language Additions](language-additions.md).
 
 ## 9. Printing and strings
 
@@ -768,29 +768,25 @@ None
 4
 ```
 
-(The REPL prints nothing for the value `None`; the checker writes it out.)
+`.l("file.kg")` loads and runs a Klong file. The name is looked up in the current directory, then in the directories of the `KLONGPATH` environment variable, and `.kg` may be left off. `KLONGPATH` defaults to `.:lib`. The standard library files (`math`, `csv`, `set`, `nstat` and others) are in the `klongpy/lib` directory of the package, which `kgpy` adds to `KLONGPATH` itself, so `.l("nstat")` works in the REPL and in `kgpy -e` without setting anything. A `KlongInterpreter` created from Python does not add it: there, set `KLONGPATH` to that directory, or copy the file you need, before you load one. The next example uses a file `lib.kg` with these two lines, and loads it:
 
-`.l("file.kg")` loads and runs a Klong file. The name is looked up in the current directory, then in the directories of the `KLONGPATH` environment variable, and `.kg` may be left off. `KLONGPATH` defaults to `.:lib`. The standard library files (`math`, `csv`, `set`, `nstat` and others) are in the `klongpy/lib` directory of the package, which `kgpy` adds to `KLONGPATH` itself, so `.l("nstat")` works in the REPL and in `kgpy -e` without setting anything. A `KlongInterpreter` created from Python does not add it: there, set `KLONGPATH` to that directory, or copy the file you need, before you load one. The next example writes a small file, using a channel (`.oc` opens one, `.tc` sends output to it and `.cc` closes it), then loads it:
-
-<!-- check-docs: continue -->
-```kgpy
-?> c::.oc("/tmp/lib.kg");.tc(c);.p("shout.up::{x,""!""}");.p("limit::99");.tc(0);.cc(c)
-None
-?> .l("/tmp/lib.kg")
+```console
+$ cat > lib.kg <<'EOF'
+> shout.up::{x,"!"}
+> limit::99
+> EOF
+$ cat lib.kg
+shout.up::{x,"!"}
+limit::99
+$ kgpy -e '.l("lib.kg");.p(limit);shout.up("hey")'
 99
-?> limit
-99
-?> shout.up("hey")
 "hey!"
-?> .df("/tmp/lib.kg")
-None
 ```
 
 `.l` returns the value of the last statement of the file.
 
 A library brackets its definitions with `.module(:name)` and `.module(0)`. Inside the module its names refer to the module's own variables, so a program that later assigns the same name does not change what the library's functions use. The names are not hidden, though: after the module is closed they can still be used by their plain names (see [Modules](operators.md#modules)). By convention a library names what it exports `name.function`, as `csv.split` and `csv.read` in `klongpy/lib/csv.kg` do, so that its names do not clash with yours:
 
-<!-- check-docs: continue -->
 ```kgpy
 ?> .module(:geom);geom.sq::{x*x};geom.cube::{x*geom.sq(x)};.module(0)
 None
@@ -818,7 +814,7 @@ KlongPy is a Python package, so Klong code and Python code share one interpreter
 
 Python functions are called with the Klong rules: at most three arguments, and they are named `x`, `y` and `z`.
 
-From Python, the interpreter is an object. Calling it runs Klong code, and indexing it reads and writes the variables. These lines are Python, not transcripts, so the documentation check does not run them; they were run once when this page was written and gave the values in the comments.
+From Python, the interpreter is an object. Calling it runs Klong code, and indexing it reads and writes the variables. The values are in the comments.
 
 ```python
 from klongpy import KlongInterpreter
@@ -976,7 +972,7 @@ For new code, use level 2 (`kgpy --strict=2`) and run `kgpy --lint` on the files
 ## Where to go next
 
 - [Operators](operators.md): every operator, adverb and system function by name, with edge cases.
-- [Friendlier syntax](language-additions.md): the complete rules for the additions marked "KlongPy adds".
+- [Language Additions](language-additions.md): the complete rules for the additions marked "KlongPy adds".
 - [System functions](system-functions.md): files, channels, timers, IPC, the database and more.
 - [Examples](examples.md): short programs.
 - Coming from another tool? [From NumPy](from-numpy.md) and [From kdb+/q](from-kdb.md) map their idioms to Klong.

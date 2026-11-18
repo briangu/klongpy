@@ -1,6 +1,6 @@
-# Friendlier syntax
+# Language Additions
 
-KlongPy adds a few forms to Klong. Each one gives a meaning to input that used to fail or to do nothing useful, so a program written for classic Klong runs as it did, with the exceptions listed under [Syntax that changed meaning](release-notes.md#syntax-that-changed-meaning). Next to every new form this page shows the classic Klong that does the same thing, so you can use either.
+KlongPy adds a few forms to Klong. Each one gives a meaning to input that fails or does nothing useful in classic Klong, so a program written for classic Klong runs as it did, with the exceptions listed under [Syntax that changed meaning](release-notes.md#syntax-that-changed-meaning). Next to every new form this page shows the classic Klong that does the same thing, so you can use either.
 
 | Form | Does | Classic Klong |
 |---|---|---|
@@ -97,7 +97,7 @@ This is the way to give an anonymous function more than three inputs: pass one l
 
 ### What is not a destructuring
 
-A list on the left of `::` is a destructuring only when it holds at least one name, and every member is a plain name, none is `x`, `y` or `z`, and no name is repeated. Any other list was accepted before this form existed, and bound nothing. At strict level 0 it still does, with a warning that says why. At level 1 and 2 it is a syntax error:
+A list on the left of `::` is a destructuring only when it holds at least one name, and every member is a plain name, none is `x`, `y` or `z`, and no name is repeated. Any other list binds nothing. At strict level 0 it is accepted with a warning that says why. At level 1 and 2 it is a syntax error:
 
 ```kgpy
 ?> .strict(1)
@@ -174,7 +174,7 @@ The parameter names are local to the function. They shadow a global of the same 
 100
 ```
 
-The parameters are `x`, `y` and `z` no longer. In such a function they are not available, and using one directly is a syntax error found when the function is defined. A nested function literal has its own `x y z`, so it may use them:
+`x`, `y` and `z` are not parameters of such a function. Using one directly is a syntax error found when the function is defined. A nested function literal has its own `x y z`, so it may use them:
 
 <!-- check-docs: strict 2 -->
 ```kgpy
@@ -285,7 +285,7 @@ The arity of a function written with `x`, `y` and `z` is the highest of the thre
 3
 ```
 
-A function that uses `x` only under a monad such as `-x` has one argument. It used to be counted as having none, which made `f::{-x}` display as `:nilad` and made Python callers pass the wrong number of arguments. `{y}` has two, so a call with one argument is a projection that waits for the second: `p::{y}(1);p(2)` is 2, and so is `{y}(1;2)`.
+A function that uses `x` only under a monad such as `-x` has one argument, so `f::{-x}` displays as `:monad`. `{y}` has two, so a call with one argument is a projection that waits for the second: `p::{y}(1);p(2)` is 2, and so is `{y}(1;2)`.
 
 ## Dictionaries
 
@@ -359,8 +359,6 @@ A dictionary literal inside a dictionary or list literal is a dictionary:
 ?> :_d@"zz"
 1
 ```
-
-`d@k` used to return the dictionary itself for a string, symbol or real key, and was an error for a missing integer key. The classic `d?k` is unchanged.
 
 ### Merge, and the pair rule
 
@@ -450,13 +448,9 @@ error: .fmt: cannot mix {} and {N} placeholders in template '{} {1}'
 
 ## Gradient
 
-`.grad(f;x)` is the numeric gradient of `f` at `x`, the same as `x∇f`, for people who do not type the `∇` character. It takes the function first, like `.jacobian(f;x)`. The `:>` operator is already ASCII and takes the function first.
+`.grad(f;x)` is the numeric gradient of `f` at `x`, the same as `x∇f`, for keyboards without the `∇` character.
 
-| Unicode | ASCII | Order |
-|---|---|---|
-| `x∇f` | `.grad(f;x)` | point first for the operator, function first for the function |
-| `x∂f` | `.jacobian(f;x)` | |
-| `f:>x` | `f:>x` | function first |
+The ASCII forms are `.grad(f;x)` for `x∇f` and `.jacobian(f;x)` for `x∂f`; both take the function first, and the operators take the point first. [Operators](operators.md#comparison) has the table that compares all the gradient operators.
 
 The monad `∇f` and the multi-parameter `[w b]∂f` are available only as glyphs. The point is taken by value, so `.grad(f;p)` with a variable `p` uses its value.
 
@@ -474,7 +468,7 @@ The monad `∇f` and the multi-parameter `[w b]∂f` are available only as glyph
 [2.000000000279556 3.9999999996709334 6.000000000838668]
 ```
 
-The operator table is in [Operators](operators.md#gradient-operators).
+How to type `∇` and `∂` is in [PyTorch backend](torch_backend.md#typing-the-gradient-symbols).
 
 ## The `it` variable
 

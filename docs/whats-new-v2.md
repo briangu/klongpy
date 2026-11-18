@@ -1,12 +1,55 @@
 # What's New in v2
 
-This page lists what v2 adds, grouped by theme. Each section says what the feature is, shows a checked example where the feature is a language or REPL feature, and links to the page that covers it. If you have code written for the released version, read [Migrating to v2](migrating-to-v2.md) as well: some inputs now mean something different.
+KlongPy 2: one array language from GPU to FPGA to microcontroller. This page is a tour of what version 2 adds, in that order, and then of the stable core. Each section is short and links to the page that covers it. If you have code written for 0.7, read [Migrating to v2](migrating-to-v2.md) as well. If you are new, start with [Start Here](getting-started.md).
 
-New here? Start with [Start Here](getting-started.md).
+The status of each target (stable, passes conformance, subset, experimental) is in the table on the [home page](index.md#targets-and-status), and the hardware status is in the [native runtime status table](native/index.md#status-what-has-and-has-not-been-proven).
 
-## A friendlier language
+## GPU: the torch backend
 
-Classic Klong programs run as before. v2 adds forms for things that used to need clumsy workarounds, and gives a meaning to input that used to do nothing. The full description is in [Friendlier Syntax](language-additions.md).
+The torch backend and the `:>` gradient operator are in 0.7. What changes in 2:
+
+* The conformance suite runs on the torch backend, and passes except the cases tagged as NumPy only (float32 text, and `:undefined` inside a list, which a tensor cannot hold).
+* Integers beyond 64 bits are exact on both backends.
+
+`kgpy --backend torch` runs the arrays on PyTorch (CPU, CUDA or Apple MPS). Floats are float32, and strings and mixed lists stay NumPy object arrays on the host. See [PyTorch Backend](torch_backend.md), and [Performance](performance.md) for what is measured.
+
+## FPGA: Klong functions as hardware
+
+A function of the static profile can be built into a kernel for an FPGA card and called from a KlongPy session with ordinary arrays. The same source runs interpreted, as C and on the card. This is experimental: it has run on one Alveo U250. See [Klong functions as FPGA hardware](hardware.md).
+
+## Microcontrollers: the native runtime and compiling to C
+
+Two routes put Klong on a small device.
+
+**The native runtime** is a second implementation of the language in Rust that runs without Python. It has a serial console and an upload command, kdb+ IPC, timers and a management node library. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board, and two Raspberry Pi Picos have run it with IPC between them. See [Native Runtime](native/index.md) and, for the details of what has run on hardware, its [status table](native/index.md#status-what-has-and-has-not-been-proven).
+
+**Compiling to C** takes a subset of Klong, the static profile, in which every type, shape and call target is known before the program runs. It compiles to freestanding C99 with no heap, no recursion and no C library. `kgpy --check-static` tells you whether a file is inside the subset, and `kgpy --emit-c` writes the C.
+
+<!-- check-docs: link examples -->
+```console
+$ kgpy --check-static examples/embedded/mavg.kg
+examples/embedded/mavg.kg: inside the static profile (1 function, 1 entry, 0 externs, 2 globals)
+```
+
+See [Compiling Klong to C](embedded.md) and [The Static Profile](static-profile.md).
+
+## One language on every target: the conformance suite
+
+The `conformance/` directory holds about 1,300 test cases that do not depend on any implementation: a program, and the text the REPL prints or the kind of error it raises. KlongPy is the reference, and the native runtime runs the same files with no Python. See [Conformance Suite](conformance.md).
+
+<!-- check-docs: link conformance -->
+```console
+$ python conformance/run.py | tail -n 1
+1294 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
+```
+
+## The stable core
+
+These are in the NumPy and torch backends, on every platform that runs Python.
+
+### A friendlier language
+
+Classic Klong programs run as before. v2 adds forms for things that needed workarounds, and gives a meaning to input that did nothing. The full description is in [Language Additions](language-additions.md).
 
 **Destructuring.** A list of names on the left of `::` binds each name to the member of the right side in the same position. At the start of a function it also declares the names as locals.
 
@@ -78,7 +121,7 @@ Classic Klong programs run as before. v2 adds forms for things that used to need
 :triad
 ```
 
-## Readable errors with source positions
+### Readable errors with source positions
 
 Every error KlongPy raises on purpose has a position, a kind and the source line with a caret. The kinds are `syntax`, `name`, `type`, `range`, `shape`, `arity`, `system`, `python` and a few others. From Python each is a class under `KlongError` (`KlongTypeError`, `KlongRangeError`, and so on), and an old `except IndexError` or `except ValueError` still catches the ones that replace those. A file run stops at the first error with exit status 1 and prints a traceback only with `-v` or `--traceback`.
 
@@ -92,9 +135,9 @@ Every error KlongPy raises on purpose has a position, a kind and the source line
 
 See [Errors](errors.md).
 
-## Strict mode levels
+### Strict modes
 
-Klong accepts input that is almost certainly a mistake: `1 2 3` evaluates to `1` and drops the rest, and an undefined name is its own symbol. At the default level 0 these still run, and the common ones now print a warning. Level 1 makes them syntax errors, and level 2 also makes reading an undefined name an error and rejects a call with too many arguments. Choose the level with `kgpy --strict=N`, `KlongInterpreter(strict=N)` or `.strict(N)`.
+Klong accepts input that is almost certainly a mistake: `1 2 3` evaluates to `1` and drops the rest, and an undefined name is its own symbol. At the default level 0 these still run, and the common ones print a warning. Level 1 makes them syntax errors, and level 2 also makes reading an undefined name an error and rejects a call with too many arguments. Choose the level with `kgpy --strict=N`, `KlongInterpreter(strict=N)` or `.strict(N)`.
 
 ```console
 $ kgpy -e 'a'
@@ -107,7 +150,7 @@ $ kgpy --strict=2 -e 'a'
 
 See [Strict Mode](strict.md).
 
-## The linter
+### The linter
 
 `kgpy --lint FILE...` reads programs without running them and reports constructs that parse but usually do not mean what they look like. An example is `my_var`, which reads as `my _ var` because `_` is an operator.
 
@@ -125,7 +168,7 @@ demo.kg:3:1: W010 a leading - negates everything to its right: -1+... is -(1+...
 
 See [Lint](lint.md).
 
-## The REPL
+### The REPL
 
 The REPL reads a definition that spans lines, completes names with Tab, keeps a history between sessions (`~/.kgpy_history`) and stores the last printed value in `it`. `rlwrap` is not needed.
 
@@ -142,9 +185,9 @@ The REPL reads a definition that spans lines, completes names with Tab, keeps a 
 
 See [REPL](repl.md).
 
-## kdb+ compatible IPC
+### kdb+ IPC
 
-`.srv` and `.cli` speak the kdb+ IPC protocol by default, so a q process can connect to a KlongPy server and a KlongPy client can call a q process. The wire carries tables (as kdb+ tables), timestamps and timespans, and functions as their source text. It is tested against PeachQ, a kdb+-compatible implementation, not against kdb+ itself. A server can check credentials with `.srv.auth`, a call that gets no answer fails after 30 seconds (change it with `.clit`), and an error on the server comes back as a Klong error while the connection stays open. The earlier pickle protocol is still there for a transition and must be used on trusted networks only; `KLONGPY_IPC` chooses. See [Migrating to v2](migrating-to-v2.md#ipc-speaks-the-kdb-protocol).
+`.srv` and `.cli` speak the kdb+ IPC protocol by default, so a q process can connect to a KlongPy server and a KlongPy client can call a q process. The wire carries tables (as kdb+ tables), timestamps and timespans, and functions as their source text. It is tested against PeachQ, a kdb+-compatible implementation, not against kdb+ itself. A server can check credentials with `.srv.auth`, a call that gets no answer fails after 30 seconds (change it with `.clit`), and an error on the server comes back as a Klong error while the connection stays open. The pickle protocol of 0.7 is still there for a transition and must be used on trusted networks only; `KLONGPY_IPC` chooses. See [Migrating to v2](migrating-to-v2.md#ipc-speaks-the-kdb-protocol).
 
 ```kgpy
 server?> .srv.auth::{(x~"bob")&(y~"secret")}
@@ -161,46 +204,6 @@ error: remote[localhost:8888] closed the connection during the handshake (bad cr
 
 See [IPC Capabilities](ipc_capabilities.md) and [Klong for q Users](from-kdb.md#talking-to-q-ipc).
 
-## The torch backend
+## More
 
-`kgpy --backend torch` runs the arrays on PyTorch (CPU, CUDA or Apple MPS) and gives exact gradients with `:>`. Strings and mixed lists stay NumPy object arrays on the host. The conformance suite passes on it, apart from the cases tagged as NumPy only, such as `:undefined` inside a list, because a tensor cannot hold it. Floats are float32. [PyTorch Backend](torch_backend.md) has the comparison with NumPy, the measured timings and the limits, and [Roadmap](roadmap.md) lists what is still open.
-
-## The conformance suite
-
-The `conformance/` directory holds 1294 test cases for the language that do not depend on any implementation: a program, and the text the REPL prints or the kind of error it raises. KlongPy is the reference, and the native runtime runs the same files with no Python. See [Conformance Suite](conformance.md).
-
-<!-- check-docs: link conformance -->
-```console
-$ python conformance/run.py | tail -n 1
-1294 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
-```
-
-## Compiling static Klong to C
-
-A subset of Klong in which every type, shape and call target is known before the program runs, the static profile, compiles to freestanding C99 with no heap, no recursion and no C library. `kgpy --check-static` tells you whether a file is inside it, and `kgpy --emit-c` writes the C.
-
-<!-- check-docs: link examples -->
-```console
-$ kgpy --check-static examples/embedded/mavg.kg
-examples/embedded/mavg.kg: inside the static profile (1 function, 1 entry, 0 externs, 2 globals)
-```
-
-See [Compiling Klong to C](embedded.md) and [The Static Profile](static-profile.md).
-
-## The native Rust runtime
-
-A separate implementation of Klong in Rust runs the full language without Python. It has a serial console and a way to upload programs, kdb+ IPC and timers, and a management node library. It passes 1293 of 1293 of the conformance cases that it declares on the host (the suite has 1294). On an ESP32-P4 the conformance suite passed over the serial port (1266 of 1266: the suite had 1266 cases that day), with a firmware image of 691,328 bytes (measured 2026-11-16), and on two Raspberry Pi Picos IPC between nodes and management-library calls have run. Nothing else has been run on hardware. The [status table](native/index.md#status-what-has-and-has-not-been-proven) has the details. See [Native Runtime](native/index.md), [Building and Running](native/building.md), [Serial Console and Upload](native/console.md), [ESP32-P4](native/esp32-p4.md), [IPC and Timers](native/ipc.md) and [Management Node](native/management-node.md).
-
-## Documentation that is checked by a tool
-
-The examples in these pages are run. `scripts/check_docs.py` runs each REPL transcript and shell session in the documentation and compares the output with what the page shows, and `tests/test_docs_examples.py` runs it as part of the tests. A page that disagrees with the program fails the check. See [Contributing](contributing.md).
-
-## Planned, not in this release
-
-These do not exist yet. Nothing here can be used.
-
-- **A WebAssembly build.** Compiling the emitted C to WebAssembly is planned and not built.
-
-Hardware kernels on FPGA are not on this list: they exist, are experimental, and have run on one Alveo U250 (see [Klong functions as FPGA hardware](hardware.md)).
-
-See [Roadmap](roadmap.md).
+[Roadmap](roadmap.md) lists what is experimental and what is planned. [Release notes](release-notes.md) has the complete list of changes.

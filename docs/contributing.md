@@ -1,8 +1,6 @@
 # Contributing
 
-This page is for someone who has cloned the repository and wants to build it, run the tests and change something. The discussion-first workflow for ideas, bug reports and pull requests is in `CONTRIBUTING.md` at the root of the repository. Read that first.
-
-Durations below were measured on 2026-11-16 on an Apple M2 Ultra (macOS, Python 3.12.9, Rust stable and nightly toolchains) with a warm cache. Other machines will differ.
+This page is for someone who has cloned the repository and wants to build it, run the tests and change something. How to propose a change (discussion first, then pull request) is in `CONTRIBUTING.md` at the root of the repository. Read that first.
 
 ## Repository layout
 
@@ -25,7 +23,7 @@ Durations below were measured on 2026-11-16 on an Apple M2 Ultra (macOS, Python 
 | `interpreter.py`, `core.py`, `types.py` | The interpreter, its core types and type checks. |
 | `lexer.py`, `parser.py` | The tokenizer with source spans and the parser. |
 | `monads.py`, `dyads.py`, `adverbs.py` | The operators. |
-| `compiler.py` | The expression compiler that turns operator chains into backend code. See [Compiler Roadmap](compiler-roadmap.md). |
+| `compiler.py` | The expression compiler that turns operator chains into backend code. See [Expression Compiler Notes](compiler-roadmap.md). |
 | `backends/` | The array backends: `numpy_backend.py`, `torch_backend.py`, the shared `base.py` and the `registry.py`. `backend.py` selects one. |
 | `autograd.py`, `sys_fn_autograd.py` | Gradients and the autograd system functions. |
 | `sys_fn.py`, `sys_var.py`, `sys_fn_timer.py`, `sys_fn_ipc.py`, `sys_fn_static.py` | System functions and variables. `.entry` and `.extern` are in `sys_fn_static.py`. |
@@ -66,7 +64,7 @@ $ .venv/bin/pip install -e ".[full]"
 $ .venv/bin/pip install pytest-asyncio
 ```
 
-The editable install with `[full]` took about 28 seconds with a warm pip cache. `[full]` includes `pytest`, which the test suite needs (see below); the second line adds `pytest-asyncio`, the other half of the `dev` extra. The extras in `pyproject.toml`:
+`[full]` includes `pytest`, which the test suite needs (see below); the second line adds `pytest-asyncio`, the other half of the `dev` extra. The extras in `pyproject.toml`:
 
 | Extra | Adds |
 |---|---|
@@ -85,7 +83,7 @@ Torch is optional. KlongPy runs without it, and tests and examples that need it 
 
 ## Running the tests
 
-The full suite per `CLAUDE.md`:
+Run the full suite with:
 
 ```text
 $ python -m unittest discover tests
@@ -97,7 +95,7 @@ or with pytest:
 $ python -m pytest tests -q
 ```
 
-Durations on 2026-11-16 with torch, pandas, duckdb, aiohttp and websockets installed, the native binary built, and `pytest` installed: `python -m pytest tests -q` took about 7 minutes (2614 passed, 186 skipped, 7777 subtests passed; one failure was a page under `docs/native/` that was still being written). `python -m unittest discover tests` took about 6 minutes. The machine was in use for other work, so expect less on an idle one. Single files are much faster, for example `tests/test_conformance.py` took 11 seconds.
+The full suite takes several minutes: about 7 minutes with pytest and about 6 with `unittest discover` when torch, pandas, duckdb, aiohttp and websockets are installed and the native binary is built. Single files are much faster; `tests/test_conformance.py` takes about 11 seconds.
 
 Four test modules (`test_atomic_broadcasting`, `test_autograd_parametrized`, `test_nested_grade` and `test_ascii_gradient_names`) import `pytest`, so `unittest discover` needs it installed too; the `full` extra includes it. Without torch installed, the 33 tests of `tests/test_compiler.py` that use torch are skipped.
 
@@ -108,7 +106,7 @@ $ python -m pytest tests -q --backend torch --device cpu
 $ python -m pytest tests -q --backend torch --device mps
 ```
 
-`--backend` is `numpy` (the default), `torch` or `test_backend` (a stub backend in `tests/custom_backend.py`). `--device` is `cpu`, `cuda` or `mps`, and applies to torch only. These options need pytest; `unittest discover` always uses numpy. On 2026-11-16, `tests/test_backend.py` and `tests/test_compiler.py` passed with `--backend torch --device cpu` (134 tests, about 1 second), and `tests/test_backend.py` passed with `--device mps` (65 tests).
+`--backend` is `numpy` (the default), `torch` or `test_backend` (a stub backend in `tests/custom_backend.py`). `--device` is `cpu`, `cuda` or `mps`, and applies to torch only. These options need pytest; `unittest discover` always uses numpy.
 
 To run one file or one test:
 
@@ -130,7 +128,7 @@ $ python -m unittest tests.test_cli_errors.TestInterrupt -v
 | Tests of `.db`, `.web` and `.ws` | `pandas`, `duckdb`, `aiohttp`, `websockets`. | Skipped. |
 | `tests/test_docs_examples.py` | Blocks in the docs that need an optional package or a PeachQ session. | The checker skips those blocks. |
 
-The native tests that need the binary run the conformance suite against it and the IPC tests against a simulated board. Build it first (see [Building and running](native/building.md)); with it built, `tests/test_native_conformance.py`, `tests/test_native_mgmt.py` and `tests/test_native_ipc.py` gave 86 passed and 11 skipped (the PeachQ ones) in 63 seconds, and `native/tests/test_console.py` gave 19 passed in 19 seconds.
+The native tests that need the binary run the conformance suite against it and the IPC tests against a simulated board. Build it first (see [Building and running](native/building.md)). With it built, `tests/test_native_conformance.py`, `tests/test_native_mgmt.py` and `tests/test_native_ipc.py` pass in about a minute, skipping the PeachQ tests, and `native/tests/test_console.py` takes about 20 seconds.
 
 ## The golden parse trees
 
@@ -143,18 +141,20 @@ $ python tests/golden/regen.py --check
 all golden files match
 ```
 
-`--check` lists the files that differ and exits 1 if any does (under 2 seconds). Running `python tests/golden/regen.py` without `--check` rewrites every snapshot; review the diff. To see the tree of one file, run `python -m klongpy.dump FILE`. `tests/golden/README.md` has the history of intended changes.
+`--check` lists the files that differ and exits 1 if any does. Running `python tests/golden/regen.py` without `--check` rewrites every snapshot; review the diff. To see the tree of one file, run `python -m klongpy.dump FILE`. `tests/golden/README.md` lists the intended changes.
 
-## The documentation checker
+## How documentation examples are checked
+
+This is the one page that explains how examples in the docs are verified.
 
 `scripts/check_docs.py` runs the examples in `README.md` and `docs/*.md` and compares what they print with what the page says. `tests/test_docs_examples.py` runs it on every page, so the pytest and unittest runs include it.
 
 ```text
-$ python scripts/check_docs.py                  # every page (about 35 seconds)
+$ python scripts/check_docs.py                  # every page (under a minute)
 $ python scripts/check_docs.py docs/errors.md   # one page
 ```
 
-It prints a line like `1262 examples checked, 0 mismatches; 7 blocks skipped (...)` and exits 1 on a mismatch. Run it with an environment that has the extras installed, or the blocks that need `aiohttp`, `duckdb` or `pandas` are skipped. The docstring at the top of the script lists every block form and directive. The short version:
+It prints a line like `1512 examples checked, 0 mismatches; 7 blocks skipped (...)` and exits 1 on a mismatch. Run it with an environment that has the extras installed, or the blocks that need `aiohttp`, `duckdb` or `pandas` are skipped. The docstring at the top of the script lists every block form and directive. The short version:
 
 A fenced block whose first line starts with `?> ` runs in a fresh REPL. The lines after an input line, up to the next `?> `, are what the REPL must print, ending with the value:
 
@@ -218,7 +218,7 @@ This keeps torch optional and avoids import-time failures where it is not instal
 
 ## The Rust workspace
 
-You need a Rust toolchain (the workspace builds with the stable and the nightly toolchains installed here). Dependencies other than the workspace crates are one crate, `libm`.
+You need a Rust toolchain (stable; the bare-metal checks below also use the nightly toolchain). Dependencies other than the workspace crates are one crate, `libm`.
 
 ```text
 $ cd native
@@ -226,9 +226,9 @@ $ cargo build --release
 $ cargo test --release --workspace
 ```
 
-`cargo build --release` produces `native/target/release/klong` (the language), `klong-sim` and `klong-board-image`. On 2026-11-16 the build was already cached (under a second) and the test run took about 4 seconds: 132 tests, 0 failed. A cold build takes longer; it was not measured. See [Building and running](native/building.md).
+`cargo build --release` produces `native/target/release/klong` (the language), `klong-sim` and `klong-board-image`. The test run takes a few seconds once the build is cached. See [Building and running](native/building.md).
 
-One test, `data_nesting_is_bounded` in `native/klong-core/tests/full.rs`, has failed about one run in ten on the development machine. It passed in six consecutive runs on 2026-11-16. If it fails and you did not touch the evaluator, rerun it. See [Roadmap](roadmap.md#known-limits).
+One test, `data_nesting_is_bounded` in `native/klong-core/tests/full.rs`, fails about one run in ten. If it fails and you did not touch the evaluator, rerun it. See [Roadmap](roadmap.md#known-limits).
 
 ### Bare-metal link checks
 
@@ -238,7 +238,7 @@ The core and the board skeleton must link for bare-metal targets. `native/script
 $ sh native/scripts/measure.sh
 ```
 
-It took about 90 seconds with a warm cache and printed 330 lines. To check one target only:
+The script takes about a minute and a half with a warm cache. To check one target only:
 
 ```text
 $ cd native
@@ -248,7 +248,7 @@ $ cargo +stable build -p klong-core --no-default-features
 
 ### The firmware build
 
-The ESP32-P4 firmware is built by `native/boards/esp32p4/build.sh`, which needs Docker with the ESP-IDF image pinned in the script and the `riscv32imafc-unknown-none-elf` Rust target. The steps, the flashing commands and the board's facts are in `native/boards/esp32p4/README.md` and [ESP32-P4](native/esp32-p4.md). The firmware build was not run when this page was written.
+The ESP32-P4 firmware is built by `native/boards/esp32p4/build.sh`, which needs Docker with the ESP-IDF image pinned in the script and the `riscv32imafc-unknown-none-elf` Rust target. The steps, the flashing commands and the board's facts are in `native/boards/esp32p4/README.md` and [ESP32-P4](native/esp32-p4.md).
 
 ### Conformance runs
 
@@ -262,7 +262,7 @@ The site is built with MkDocs and the Material theme. `mkdocs.yml` holds the nav
 $ mkdocs build --strict -d /tmp/site
 ```
 
-To preview while you edit, run `mkdocs serve` and open the address it prints (`mkdocs serve -a 127.0.0.1:18766` answered with status 200 for a page when it was tried).
+To preview while you edit, run `mkdocs serve` and open the address it prints .
 
 ### Versioned docs
 
@@ -272,8 +272,6 @@ The published site keeps one directory per release line, built with [mike](https
 * A manual run (`workflow_dispatch`) takes two optional inputs: `ref`, a commit, tag or branch, and `version`, the name to publish it as, for example `0.7`. With a `version` it runs `mike deploy --push VERSION` and leaves `latest` where it is. Use it to keep the docs of the previous release. If the older tree has no version selector in its `mkdocs.yml`, the workflow adds `extra.version.provider: mike` for that build.
 
 `mkdocs.yml` sets `extra.version.provider: mike`, which adds the version selector to the header. The site URL is `https://www.klongpy.org/`.
-
-The versioned workflow has not yet run on GitHub. What follows was run only locally.
 
 To preview the versioned site without touching the real `gh-pages` branch, deploy to a scratch branch, serve it, and delete the branch afterwards. Do not push it.
 
@@ -285,11 +283,11 @@ $ mike serve -b mike-scratch -a 127.0.0.1:18765
 $ git branch -D mike-scratch
 ```
 
-`mike serve` answered with status 200 for `/latest/` and served `versions.json`. `mike deploy` only writes to the named branch; it does not change your working tree.
+`mike deploy` only writes to the named branch; it does not change your working tree.
 
 ## What CI runs
 
-Two workflows in `.github/workflows/`. This is what they do today.
+Two workflows in `.github/workflows/`.
 
 `unittests.yml` runs on a push to `main`, on every pull request and by hand:
 

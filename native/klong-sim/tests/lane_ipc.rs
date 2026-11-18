@@ -479,7 +479,7 @@ fn a_late_reset_of_an_old_connection_is_ignored_body(baud: u32) {
 }
 
 /// The model's costs are fitted to two measurements (fib(18) exactly; the call latency only to about half, see below) on the bench (2026-11-16, Picos 2 and 3 running this runtime):
-/// Measured on Picos 2 and 3 (2026-11-16, image 463a5f28): 100 synchronous calls `h("1+1")` from one to the other took
+/// Measured on Picos 2 and 3 (2026-11-16): 100 synchronous calls `h("1+1")` from one to the other took
 /// 3.36 ms each, `fib(18)` 0.385 s (46 us a call), a 4 KB echo 92 ms. See `bench::FIT_*`: this keeps the model where
 /// the hardware put it, within 15% for the call and for `fib(18)`.
 #[test]

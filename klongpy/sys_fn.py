@@ -312,8 +312,6 @@ def eval_sys_process_clock(klong):
         The program {[t0];t0::.pc();x@[];.pc()-t0} measures the process
         time consumed by the nilad passed to it.
 
-        This function is not avaliable in the Plan 9 port of Klong.
-
     """
     return time.time() - klong.process_start_time()
 
@@ -717,16 +715,16 @@ def eval_sys_python(klong, x):
 
         Example:
 
-            Consider a python module called Greetings that exports the "hello" method such as:
+            Consider a Python package called greetings that exports the "hello" function:
 
                 def hello():
                     print("Hello, World!")
 
-            The following will load the "greetings" module from the Python modules in the same
-            way that 'import hello' would do.  Then we can call 'hello'
+            This loads the package, as 'import greetings' does, and then calls 'hello',
+            which prints Hello, World!
 
                 .py("greetings")
-                hello() --> "Hello, World!"
+                hello()
 
             Additionally, a full path to a module can be specified.  This can be useful for
             when creating custom modules that don't need to be installed into Python modules.
@@ -749,21 +747,21 @@ def eval_sys_python_call(klong, x, y, z):
         This is a utility function to allow for Klong programs to call Python classes,
         or functions, with positional and keyword arguments.
 
-        x may be a list with the first element reference the object symbol and the second reference the function name to call.
+        x may be a list: the object symbol, then the name of the method to call.
         x may also be a symbol that references the function name to call.
 
-        y is either a list of or a single positional arguments to pass to the function.
+        y is a list of positional arguments, or a single positional argument.
         z is a dictionary of keyword arguments to pass to the function.
 
         Example:
 
             Python objects may be directly called:
 
-                .pyc(obj;[1 2 3];:{"a":1,"b":2,"c":3})
+                .pyc(obj;[1 2 3];:{["a" 1] ["b" 2] ["c" 3]})
 
             or a method on the object may be called:
 
-                .pyc(obj,"method";[1 2 3];:{"a":1,"b":2,"c":3})
+                .pyc(obj,"method";[1 2 3];:{["a" 1] ["b" 2] ["c" 3]})
 
             if the python object name is snake case, then the quote is not needed:
 
@@ -839,21 +837,20 @@ def eval_sys_python_from(klong, x, y):
 
         .pyf(x;y)                                          [Python-From]
 
-        Import selected sub-modules from a python module in to the current context.
+        Import the named functions of a Python module into the current context.
 
         [See .py() for details on importing python modules]
 
         Example:
 
-            To import a single sub-module:
+            To import one function:
 
             .pyf("numpy"; "sqrt")
             sqrt(4) --> 2.0
 
-            Multiple sub-modules can be imported at once:
+            To import several:
 
             .pyf("numpy"; ["sqrt" "sin"])
-            sqrt(4) --> 2.0
             sin(1) --> 0.8414709848078965
 
     """
@@ -982,7 +979,7 @@ def eval_sys_read_string(klong, x):
         .rs(x)                                             [Read-String]
 
         .rs is like .r, but reads its input from the string "x". It is
-        intended for the converting sequentialized compound data objects,
+        intended for converting serialized compound data objects,
         such as lists, arrays, and dictionaries, back to their internal
         forms.
 

@@ -1,57 +1,41 @@
-# KlongPy Examples
+# Examples
 
-Explore the power and simplicity of KlongPy with these engaging examples. Each snippet highlights a unique aspect of Klong, demonstrating its versatility in various programming scenarios.
+This page indexes the example programs in the `examples/` directory and shows a few snippets you can run in the REPL. For a first lesson in the language, use [Start Here](getting-started.md) and the [Tutorial](tutorial.md).
 
-Before we get started, you may be wondering: *Why is the syntax so terse?*
+A function has as many parameters as the highest of `x`, `y` and `z` that its body uses: a nilad has none, a monad one (`x`), a dyad two (`x` and `y`) and a triad three. So `{-x}` is a monad and `{y}` is a dyad. For more than three, or for names of your own, see [named parameters](language-additions.md#named-parameters).
 
-The answer is that it's based on the APL style array language programming and there's a good reason why its compact nature is actually helpful.
+## Example directories
 
-Array language style lets you describe WHAT you want the computer to do and it lets the computer figure out HOW to do it.  This frees you up from the details while letting the computer figure out how to go as fast as possible.
+Each directory is under [`examples/`](https://github.com/briangu/klongpy/tree/main/examples). The extra column names the install extra or package the example needs beyond `pip install klongpy`.
 
-Less code to write and faster execution.
+| Directory | What it shows | Needs |
+|---|---|---|
+| [1brc](https://github.com/briangu/klongpy/tree/main/examples/1brc) | A One Billion Row Challenge pipeline: files read in parallel by Python, statistics aggregated by a KlongPy function. | |
+| [autograd](https://github.com/briangu/klongpy/tree/main/examples/autograd) | Gradients, optimizers, linear regression, neural nets, finance and differentiable physics. | `klongpy[torch]`; `yfinance` for the live options examples |
+| [db](https://github.com/briangu/klongpy/tree/main/examples/db) | DuckDB table interop, a persisted table store, and a web and database server. | `klongpy[db,web]` |
+| [embedded](https://github.com/briangu/klongpy/tree/main/examples/embedded) | Static-profile programs (a moving average, a FIR filter, a PID step) with their expected output, compiled to C as in [Compiling Klong to C](embedded.md). | |
+| [hardware](https://github.com/briangu/klongpy/tree/main/examples/hardware) | A moving-average crossover strategy for the FPGA, with the scripts that measure it. See [Klong functions as FPGA hardware](hardware.md). | an FPGA toolchain and card |
+| [deploy](https://github.com/briangu/klongpy/tree/main/examples/deploy) | A Docker image that runs `kgpy` on the script named by `KG_FILE_PATH`, and Kubernetes files. | Docker |
+| [ipc](https://github.com/briangu/klongpy/tree/main/examples/ipc) | IPC clients and servers, broadcast and publish/subscribe with `.srv`, `.cli` and timers. | |
+| [math](https://github.com/briangu/klongpy/tree/main/examples/math) | NumPy interop for FFT and trigonometry through `.pyf`. | |
+| [ml](https://github.com/briangu/klongpy/tree/main/examples/ml) | K-nearest neighbours, cosine similarity, a transformer and an LSTM. | `torch` for the transformer and LSTM |
+| [python](https://github.com/briangu/klongpy/tree/main/examples/python) | Calling Python from Klong and Klong from Python; multiprocessing and threading. | |
+| [stats_logging](https://github.com/briangu/klongpy/tree/main/examples/stats_logging) | Statistics ingested over IPC into table storage, with periodic flush and reporting. | `klongpy[db]`, `pytz` |
+| [stocks](https://github.com/briangu/klongpy/tree/main/examples/stocks) | Market data ingestion, Black-Scholes and LSTM forecasting. | `yfinance`, `alpaca-py` or `polygon-api-client`, depending on the example |
+| [web](https://github.com/briangu/klongpy/tree/main/examples/web) | An HTTP server with GET and POST handlers. | `klongpy[web]` |
 
----
+## Snippets
 
-Just so the following examples make more sense when you see the REPL outputs, there are a few quick rules about Klong functions.  Functions written with `x`, `y` and `z` take up to 3 parameters, named for you. (For more, or for names of your own, see [named parameters](language-additions.md#named-parameters).)
+### Arithmetic
 
-A function with
-
-* no parameters is called a nilad
-* one parameter is called a monad (x)
-* two parameters: dyad (x and y)
-* three parameters: a triad (x, y and z)
-
-A function has as many parameters as the highest of `x`, `y` and `z` that its body uses, so `{-x}` is a monad and `{y}` is a dyad. Naming the parameters for you is both convenience and compactness.
-
----
-
-## Example Projects
-
-Looking for full, runnable projects? These directories under `examples/` show end-to-end usage:
-
-- [1brc](https://github.com/briangu/klongpy/tree/main/examples/1brc): One Billion Row Challenge-style pipeline; parallel file reads in Python with vectorized KlongPy stats aggregation.
-- [autograd](https://github.com/briangu/klongpy/tree/main/examples/autograd): PyTorch-backed automatic differentiation; gradients, optimizers, neural nets, finance, and differentiable physics.
-- [db](https://github.com/briangu/klongpy/tree/main/examples/db): DuckDB/columnar table interop, persisted table store, and a web+db server for ingest/query.
-- [embedded](https://github.com/briangu/klongpy/tree/main/examples/embedded): Small static-profile programs (a moving average, a FIR filter, a PID step) with their expected output, compiled to C as described in [Compiling Klong to C](embedded.md).
-- [deploy](https://github.com/briangu/klongpy/tree/main/examples/deploy): Minimal Docker image that runs `kgpy` with a script path from `KG_FILE_PATH`.
-- [ipc](https://github.com/briangu/klongpy/tree/main/examples/ipc): IPC clients/servers, broadcast, and pub/sub patterns using `.srv`, `.cli`, and timers.
-- [math](https://github.com/briangu/klongpy/tree/main/examples/math): NumPy interop for FFT/trig; quick numeric examples using `.pyf`.
-- [ml](https://github.com/briangu/klongpy/tree/main/examples/ml): KNN, cosine similarity, transformer, and LSTM demos illustrating vectorized ML primitives.
-- [python](https://github.com/briangu/klongpy/tree/main/examples/python): Calling Python from Klong and Klong from Python; multiprocessing/threading patterns.
-- [stats_logging](https://github.com/briangu/klongpy/tree/main/examples/stats_logging): High-throughput stats ingestion with IPC + table storage, periodic flush and reporting.
-- [stocks](https://github.com/briangu/klongpy/tree/main/examples/stocks): Market data ingestion (yfinance/Alpaca/Polygon), Black-Scholes, and LSTM forecasting.
-- [web](https://github.com/briangu/klongpy/tree/main/examples/web): Minimal HTTP server with GET/POST handlers using `klongpy.web`.
-
-## 1. Basic Arithmetic
-
-Let's get started with the basics and build up to some more interesting math.
+An expression is read from right to left.
 
 ```kgpy
 ?> 5+3*2 :" Expressions are evaluated from right to left: 3*2 and then + 5
 11
 ```
 
-KlongPy is more about arrays of things, so let's define sum and count functions over an array:
+Define sum and count functions over an array:
 
 ```kgpy
 ?> sum::{+/x}  :" sum + over / the array x
@@ -64,7 +48,7 @@ KlongPy is more about arrays of things, so let's define sum and count functions 
 3
 ```
 
-Now that we know the sum and number of elements we can compute the average:
+The average is the sum divided by the number of elements:
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -74,50 +58,27 @@ Now that we know the sum and number of elements we can compute the average:
 2.0
 ```
 
-## 2. Math on arrays
+### Math on arrays
 
-Let's dig into more interesting operations over array elements.  There's really big performance differences in how you approach the problem and it's important to see the difference.
-
-For the simple case of squaring numbers in a list, let's try a couple solutions:
+An operator applied to a whole array does the loop in the array library. `{x*x}'` calls a function once per element:
 
 ```kgpy
 ?> {x*x}'[1 2 3 4 5] :" square each element as we iterate over the array
 [1 4 9 16 25]
 ```
 
-The vectorized approach will do an element-wise multiplication in bulk:
+`a*a` multiplies the arrays element by element in one step:
 
 ```kgpy
 ?> a::[1 2 3 4 5];a*a  :" a*a multiplies the arrays
 [1 4 9 16 25]
 ```
 
-The vectorized approach is going to be MUCH faster.  Let's crank up the size of the array and time it:
+The whole-array form is much faster on large arrays. [Performance](performance.md) has measurements.
 
-The timing function `time` is defined in `klongpy/lib/time.kg`; to keep this example self-contained it is written out here (it runs the nilad once and returns the elapsed process time in seconds):
+### Python integration
 
-```text
-time::{[t0];t0::.pc();x@[];.pc()-t0}
-a::!1000
-fast::{{a*a}'!1000}
-slow::{{{x*x}'a}'!1000}
-time(fast)
-time(slow)
-```
-
-Measured on 2026-11-16 (Apple M2 Ultra, Python 3.12.9, NumPy 2.5.5, numpy backend), three runs each: `fast` took 0.005 to 0.006 seconds and `slow` took 3.37 to 3.40 seconds, so the vector form was about 700 times faster. The numbers depend on the machine and the versions; the ratio, not the seconds, is the point.
-
-Vectors win by a wide margin.
-
-KlongPy aims to give you tools that let you conveniently exploit this vectorization property - and go FAST!
-
-Less code to write AND faster to compute.
-
-## 3. Data Analysis with Python Integration
-
-KlongPy integrates seamlessly with Python so that the strengths of both can be combined. It's easy to use KlongPy from Python and vice versa.
-
-For example, let's say we have some data in Python that we want to operate on in KlongPy.  We can just directly use the interpreter in Python and run functions on data we put into the KlongPy context:
+Python data can be put into the interpreter, and Klong functions called on it:
 
 ```python
 from klongpy import KlongInterpreter
@@ -135,9 +96,7 @@ r = klong('avg(data)')
 print(r) # expected value: 3
 ```
 
-It doesn't make sense to write code in Klong that already exists in other libraries. We can directly access them via the Python import functions (.py and .pyf).
-
-How about we use the NumPy FFT?
+`.py` and `.pyf` import Python modules and functions, so Klong can call libraries that already exist. This uses the NumPy FFT:
 
 ```kgpy
 ?> .pyf("numpy";"fft");fft::.pya(fft;"fft")
@@ -148,15 +107,9 @@ How about we use the NumPy FFT?
 [0j -2j 0j 2j]
 ```
 
-Now you can use NumPy or other libraries to provide complex functions while KlongPy lets you quickly prepare and process the vectors.
+### Tables and SQL
 
-There's a lot more we can do with interop but let's move on for now!
-
-## 4. Database Functionality
-
-KlongPy leverages a high-performance columnar store called DuckDB that uses zero-copy NumPy array operations behind the scenes. This database allows fast interop between KlongPy and DuckDB (the arrays are not copied) so that applications can manage arrays in KlongPy and then instantly perform SQL on the data for deeper insights.
-
-It's easy to create a table and a db to query:
+This needs `pip install "klongpy[db]"`. DuckDB queries the arrays of a table without copying them.
 
 <!-- check-docs: requires duckdb pandas -->
 ```kgpy
@@ -172,13 +125,9 @@ Alice  25
 ["Bob" 30]
 ```
 
-## 5. IPC, Remote Function Calls and Asynchronous operations
+### IPC and remote calls
 
-Inter Process Communication (IPC) lets you build distributed and interconnected KlongPy programs and services.
-
-KlongPy treats IPC connections to servers as functions. These functions let you call the server and ask for things it has in its memory - they can be other functions or values, etc. For example you can ask for a reference to a remote function and you will get a local function that when you call it runs on the server with your arguments. This general "remote proxy" approach allows you to write your client code in the same way as if all the code were running locally.
-
-To see this in action, let's setup a simple scenario where the server has an "avg" function and the client wants to call it.
+An IPC connection to a server is a function. Calling a remote function by name runs it on the server with your arguments. The server here has an `avg` function.
 
 Start a server in one terminal:
 
@@ -189,7 +138,7 @@ server?> .srv(8888)
 1
 ```
 
-Start the client and make the connection to the server as 'f'.  In order to pass parameters to a remote function we form an array of the function symbol followed by the parameters (e.g. :avg,,!100)
+Start the client and connect to the server as `f`. To pass parameters to a remote function, form a list of the function symbol followed by the parameters, such as `:avg,,!100`:
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -199,7 +148,7 @@ client?> f(:avg,,!100) :" call the remote function avg directly with the paramet
 49.5
 ```
 
-Let's get fancy and make a local proxy to the remote function:
+A local proxy for the remote function:
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -209,7 +158,7 @@ client?> myavg(!100) :" this runs on the server with !100 array passed to it as 
 49.5
 ```
 
-Since remote functions may take a while we can wrap them with an async wrapper and have it call our callback when completed:
+A remote call can be wrapped so that a callback runs when it completes:
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -220,11 +169,11 @@ Avg calculated: 49.5
 1
 ```
 
-## 6. Web Server Implementation
+### A web server
 
-In addition to IPC we can also expose data via a standard web server.  This capability lets you have other ways of serving content that can be either exposing interesting details about some computation or just a simple web server for other reasons.
+This needs `pip install "klongpy[web]"`.
 
-Let's create a file called web.kg with the following code that adds one index handler:
+Put this in `web.kg`. It adds one index handler:
 
 ```text
 .py("klongpy.web")
@@ -234,7 +183,7 @@ index::{x; "Hello, Klong World! ",data}
 .p("ready at http://localhost:8888")
 ```
 
-We can run this web server as follows:
+Run it:
 
 ```bash
 $ kgpy web.kg
@@ -248,70 +197,40 @@ $ curl http://localhost:8888
 ['Hello, Klong World! ' 0 1 2 3 4 5 6 7 8 9]
 ```
 
-## 7. Automatic Differentiation (Autograd)
+### Gradients
 
-KlongPy supports automatic differentiation, enabling gradient-based optimization and machine learning workflows.
-
-### Numeric Gradient with `∇` (always numeric, any backend)
-
-The `∇` operator **always** computes gradients using numeric differentiation, so the result is close to the exact value but not equal to it:
+`f:>x` is the gradient of `f` at `x`. It is autograd on the torch backend (`kgpy --backend torch`, which needs `klongpy[torch]`) and numeric on NumPy, which is what the outputs below show:
 
 ```kgpy
 ?> f::{x^2}        :" Define f(x) = x^2
 :monad
-?> 3∇f             :" Compute f'(3), which is about 6
+?> f:>3            :" f'(3) is 6, up to the numeric error of the NumPy backend
 6.000000000838668
 ```
 
-### PyTorch Autograd with `:>` (recommended with torch backend)
+For a list input the gradient has one entry per element:
 
-Enable the torch backend for exact gradients:
-
-```bash
-$ kgpy --backend torch
-```
-
-Use the `:>` operator for PyTorch autograd. The syntax is `function:>point`:
-
-<!-- check-docs: skip: shows the torch backend output (exact gradients), and torch is not installed where the docs are checked -->
-```kgpy
-?> f::{x^2}        :" Define f(x) = x^2
-:monad
-?> f:>3            :" Compute f'(3) = 2*3 = 6
-6.0
-```
-
-For vector-valued inputs, the gradient is computed element-wise:
-
-<!-- check-docs: skip: shows the torch backend output (exact gradients), and torch is not installed where the docs are checked -->
 ```kgpy
 ?> h::{+/x^2}      :" h(x) = sum of squares
 :monad
 ?> h:>[1.0 2.0 3.0]   :" Gradient: [2*1, 2*2, 2*3]
-[2.0 4.0 6.0]
+[2.000000000279556 3.9999999996709334 6.000000000838668]
 ```
 
-Simple gradient descent to minimize x^2:
+Gradient descent on x^2 from 5.0, 100 steps of 0.1:
 
-<!-- check-docs: skip: shows the torch backend output (exact gradients), and torch is not installed where the docs are checked -->
 ```kgpy
 ?> f::{x^2}
 :monad
-?> x::5.0; lr::0.1
-0.1
-?> x::x-(lr*f:>x); x  :" One gradient step
-4.0
-?> x::x-(lr*f:>x); x  :" Another step
-3.2
+?> s::5.0
+5.0
+?> {s::s-(0.1*f:>s)}'!100;s
+1.0185179880729389e-09
 ```
 
-For complete examples including linear regression and neural networks, see the [autograd examples](https://github.com/briangu/klongpy/tree/main/examples/autograd).
+The `∇` operator is numeric on every backend, and the other spellings are in [PyTorch Backend](torch_backend.md).
 
-## Conclusion
-
-These examples are designed to illustrate the ease of use and diverse applications of Klong, making it a versatile choice for various programming needs.
-
-Check out the references for details and deep dives on specific functionality.
+Linear regression and neural networks are in the [autograd examples](https://github.com/briangu/klongpy/tree/main/examples/autograd).
 
 ## See also
 

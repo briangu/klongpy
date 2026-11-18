@@ -12,9 +12,8 @@ site_dir: 'site'
 # Navigation structure
 nav:
   - Home: 'index.md'
-  - Getting Started:
+  - Learn:
       - Start Here: 'getting-started.md'
-      - Quick Start: 'quick-start.md'
       - Tutorial: 'tutorial.md'
       - Examples: 'examples.md'
   - What's New:
@@ -22,46 +21,46 @@ nav:
       - Migrating to v2: 'migrating-to-v2.md'
       - Release Notes: 'release-notes.md'
   - Guides:
-      - Klong for NumPy Users: 'from-numpy.md'
-      - Klong for q Users: 'from-kdb.md'
+      - Klong for NumPy users: 'from-numpy.md'
+      - Klong for q users: 'from-kdb.md'
       - Python Integration: 'python_integration.md'
-      - PyTorch Backend & Autograd: 'torch_backend.md'
+      - PyTorch Backend and Autograd: 'torch_backend.md'
       - Performance: 'performance.md'
-      - Compiler Roadmap: 'compiler-roadmap.md'
   - Language:
-      - Friendlier Syntax: 'language-additions.md'
-      - Strict Mode: 'strict.md'
+      - Operator Reference: 'operators.md'
+      - Language Additions: 'language-additions.md'
+      - Strict mode: 'strict.md'
       - Lint: 'lint.md'
-      - Differences from Klong: 'differences.md'
-  - Native Runtime:
-      - Overview: 'native/index.md'
-      - Building and Running: 'native/building.md'
-      - Serial Console and Upload: 'native/console.md'
-      - ESP32-P4: 'native/esp32-p4.md'
-      - Pico Bench: 'native/pico-bench.md'
-      - IPC and Timers: 'native/ipc.md'
-      - Management Node: 'native/management-node.md'
-      - Porting to a Board: 'native/porting.md'
-  - Embedded C:
-      - Compiling Klong to C: 'embedded.md'
-      - Static Profile: 'static-profile.md'
-      - Klong as FPGA Hardware: 'hardware.md'
-  - Reference:
-      - Operators: 'operators.md'
-      - REPL: 'repl.md'
       - Errors: 'errors.md'
-      - System Functions: 'system-functions.md'
+      - Differences from Klong: 'differences.md'
+      - The kgpy command and the REPL: 'repl.md'
+  - Reference:
+      - System Functions and Variables: 'system-functions.md'
+      - Conformance suite: 'conformance.md'
   - Data & Systems:
-      - Fast Columnar Database: 'fast_columnar_database.md'
-      - Table & Key-Value Store: 'table_and_key_value_stores.md'
-      - IPC Capabilities: 'ipc_capabilities.md'
+      - Inter-Process Communication (IPC) Capabilities: 'ipc_capabilities.md'
+      - Timer: 'timer.md'
       - Web Server: 'web_server.md'
       - WebSockets: 'websockets.md'
-      - Timers: 'timer.md'
+      - Columnar tables and SQL: 'fast_columnar_database.md'
+      - Table and Key-Value Stores: 'table_and_key_value_stores.md'
+  - Native Runtime:
+      - Native Runtime: 'native/index.md'
+      - Building and Running: 'native/building.md'
+      - Serial Console and Upload: 'native/console.md'
+      - Porting to a Board: 'native/porting.md'
+      - ESP32-P4: 'native/esp32-p4.md'
+      - Two Raspberry Pi Picos: 'native/pico-bench.md'
+      - IPC and Timers: 'native/ipc.md'
+      - Management Node: 'native/management-node.md'
+  - 'Static Klong: C and FPGA':
+      - The static profile: 'static-profile.md'
+      - Compiling Klong to C: 'embedded.md'
+      - Klong functions as FPGA hardware: 'hardware.md'
   - Project:
-      - Contributing: 'contributing.md'
-      - Conformance Suite: 'conformance.md'
       - Roadmap: 'roadmap.md'
+      - Expression Compiler Notes: 'compiler-roadmap.md'
+      - Contributing: 'contributing.md'
 
 # Theme configuration
 theme:

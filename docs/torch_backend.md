@@ -1,203 +1,93 @@
 # PyTorch Backend and Autograd
 
-KlongPy supports multiple array backends. The PyTorch backend enables GPU acceleration and automatic differentiation (autograd) for gradient-based computations.
+The PyTorch backend runs array operations as torch tensors, on the CPU or a GPU, and gives the gradient operators exact derivatives through autograd. Read this page to decide whether to use it, what changes when you do, and how to use the torch-only functions. NumPy is the default backend and needs no extra install; the torch backend needs `pip install "klongpy[torch]"`.
 
-## Enabling the PyTorch Backend
-
-### Command Line
+## Enabling the backend
 
 ```bash
-# Use --backend flag
-kgpy --backend torch
-
-# With GPU device selection
-kgpy --backend torch --device cuda
+kgpy --backend torch                  # best device found: CUDA, MPS or CPU
+kgpy --backend torch --device cpu     # a named device
 ```
 
-### Programmatically
+From Python:
 
 ```python
 from klongpy import KlongInterpreter
 
-# Create interpreter with torch backend
-klong = KlongInterpreter(backend="torch")
-print(klong._backend.name)  # 'torch'
-
-# With specific device
-klong = KlongInterpreter(backend="torch", device="cuda")
+klong = KlongInterpreter(backend="torch", device="cpu")
+print(klong._backend.name)
 ```
 
-## Backend Comparison
+`device` is `cuda`, `mps` or `cpu`. Without it the backend picks CUDA, then MPS, then the CPU.
 
-| Feature | NumPy Backend | PyTorch Backend |
-|---------|---------------|-----------------|
-| Default | Yes | No (use `--backend torch`) |
-| Object dtype | Yes | No |
-| String operations | Yes | Yes (strings and mixed lists are numpy object arrays on the host, not tensors) |
-| GPU acceleration | No | Yes (CUDA/MPS) |
-| Autograd (`:>`, `∂`, monad `∇`) | Finite differences | Native autograd |
-| Small array performance | Faster | Slightly slower |
-| Large array performance | Good | Better (especially on GPU) |
+## When to use it
 
-## Performance
+| Workload | Backend |
+|---|---|
+| Gradients, Jacobians, optimization (`:>`, `∂`, `∇`) | torch |
+| Arithmetic on arrays of about a million elements or more, on a CPU with many threads | torch |
+| Arrays of a few thousand elements, loops, sorting, strings, dictionaries | NumPy |
+| Values that need float64 | NumPy |
+| GPU | torch; this page has no GPU speed figures, see [Performance](performance.md) for what is measured |
 
-Measured on 2026-11-16 on an Apple M2 Ultra (macOS, Python 3.12.9, numpy 2.5.5, torch 2.15.0). Each figure is the mean of 20 runs after 3 warm-up runs, for the expression `1+!100000` and so on, using the benchmark expressions of `tests/perf_backend.py`. The MPS column calls `torch.mps.synchronize()` before and after the timed runs; without it the GPU timings only measure queueing.
+On the CPU, torch is slower than NumPy at 100K elements and about 1.3 to 1.8 times faster at 1M-element arithmetic; grade (`<`) is several times slower. Sorting and loops dispatch many small operations, which costs more on torch than on NumPy. Measurements, with their conditions, are in [Performance](performance.md); `python tests/perf_backend.py --compare` repeats them on your machine.
 
-| Expression | NumPy | Torch, CPU | Torch, MPS |
-|---|---|---|---|
-| `1+!100000` | 0.039 ms | 0.169 ms | 0.038 ms |
-| `1+!1000000` | 0.383 ms | 0.292 ms | 0.051 ms |
-| `2*1+!1000000` | 0.698 ms | 0.390 ms | 0.072 ms |
-| `<!100000` (grade up) | 0.602 ms | 2.185 ms | 0.163 ms |
+## What differs from NumPy
 
-On the CPU, torch is slower than NumPy at 100K elements and about 1.3 to 1.8 times faster for the 1M-element arithmetic; its grade up was 3.6 times slower than NumPy's in this run. The GPU is faster on all four rows, though only by a hair on the first. These numbers are from one machine and one run; other hardware and other torch versions will differ. Run `python tests/perf_backend.py --compare` for the full set on your machine (it uses the best device it finds and does not synchronize the GPU).
+| | NumPy | Torch |
+|---|---|---|
+| Float width | float64 | float32 on every device, CPU included |
+| Gradients (`:>`, `∂`, monad `∇`) | Finite differences | Autograd |
+| Strings, mixed lists | numpy object arrays | numpy object arrays on the host, not tensors |
+| Results | `numpy.ndarray` | `torch.Tensor` |
 
-## Automatic Differentiation
+Float32 carries about 7 significant decimal digits. `1.5+1e-9` is exactly `1.5` on the torch backend, and sums of many terms lose digits sooner than on NumPy. Autograd has no finite-difference error; float32 rounding still applies.
 
-KlongPy provides several gradient and differentiation operators:
+Known limit: MPS has no float64, and `.gradcheck()` needs the CPU. On MPS it raises `.gradcheck() requires CPU device, got 'mps'`; run `kgpy --backend torch --device cpu` for it.
 
-### Typing Special Characters
+Known limit: some operations on mixed-type or ragged nested data raise "PyTorch backend does not support object dtype". Simple cases work (`["a" 1]` and `[[1 2][3]]` both evaluate). Use the NumPy backend for the failing operation.
 
-| Symbol | Name | Mac | Windows |
-|--------|------|-----|---------|
-| `∇` | Nabla | Character Viewer (Ctrl+Cmd+Space) | Alt+8711 |
-| `∂` | Partial | **Option + d** | Alt+8706 |
+## Gradient operators
 
-On Mac, `∂` can be typed directly with **Option + d**. For `∇`, use the Character Viewer or copy-paste.
+`function:>point` is the autograd operator. The dyad `point∇function` always uses finite differences, on every backend. The table that compares all of them is in the [operator reference](operators.md#comparison); this page shows the torch-only use. The values are those of the torch backend on the CPU.
 
-### `:>` Autograd Operator (Recommended)
-
-The `:>` operator uses PyTorch autograd, which has no finite-difference error (the values are float32 tensors, so float32 rounding remains):
-
-```klong
-f::{x^2}         :" Define f(x) = x^2
-f:>3             :" Compute f'(3) = 6.0
-```
-
-The syntax is `function:>point` where:
-- `function` is a scalar-valued function (must return a single number)
-- `point` is the input at which to compute the gradient
-
-### `∇` Numeric Gradient Operator
-
-The dyad `point∇function` (and `.grad(function;point)`) **always** uses numeric differentiation (finite differences), regardless of backend. The monad `∇function` returns a gradient function that uses autograd on the torch backend:
-
-```klong
-f::{x^2}         :" Define f(x) = x^2
-3∇f              :" Compute f'(3) ≈ 6.0
-```
-
-The syntax is `point∇function`; the autograd operator `:>` takes the function first (`function:>point`). The [operator reference](operators.md#comparison) has the table that compares the gradient operators.
-
-### How They Work
-
-| Operator | Method | Precision | Speed |
-|----------|--------|-----------|-------|
-| `:>` with torch | PyTorch autograd | No finite-difference error (float32 rounding) | Fast |
-| `:>` without torch | Numeric | ~1e-9 error on smooth functions | Slower |
-| `point∇function` (any backend) | Always numeric | ~1e-9 error on the CPU (see note) | Slower |
-
-Under the torch backend values are float32 on every device, so the numeric result is coarser. With `f::{x^2}`, `3∇f` gave `6.000000000838668` on the CPU and `5.993843` on MPS (torch 2.15.0).
-
-With the torch backend (`--backend torch` or `backend='torch'`), prefer `:>` for:
-- Gradients without finite-difference approximation error (float32 rounding remains)
-- Complex computational graphs
-- Better performance on large arrays
-
-### Examples
-
-**Scalar function:**
-```klong
-f::{x^3}          :" f(x) = x^3
-f:>2              :" f'(2) = 3*4 = 12.0
-```
-
-**Polynomial:**
-```klong
-p::{((3*x^4)-(2*x^2))+x}   :" p(x) = 3x^4 - 2x^2 + x
-p:>1                        :" p'(1) = 12 - 4 + 1 = 9.0
-```
-
-**Vector function (sum of squares):**
-```klong
-g::{+/x^2}             :" g(x) = sum(x_i^2)
-g:>[1.0 2.0 3.0]       :" [2 4 6] = 2*x
-```
-
-**Gradient descent:**
 ```klong
 f::{x^2}
-x::5.0
-lr::0.1
-
-:" Update rule: x = x - lr * grad
-x::x-(lr*f:>x)           :" x is now 4.0
+f:>3                           :" 6.0
+g::{+/x^2}
+g:>[1.0 2.0 3.0]               :" [2.0 4.0 6.0]
+[1 2]∂f                        :" [[2.0 0.0] [0.0 4.0]]
 ```
 
-`function:>point` differentiates a function of its argument. A function that reads a global variable instead of `x` must be differentiated with respect to that variable by naming it in a list, as in the next section.
-
-### Multi-Parameter Gradients
-
-Compute gradients for multiple parameters simultaneously using a list of symbols:
+A function that reads a global instead of `x` is differentiated with respect to that global by naming it in a list:
 
 ```klong
 w::2.0
 b::3.0
 loss::{(w^2)+(b^2)}
-
-:" Compute gradients for both w and b
-grads::loss:>[w b]    :" [4.0 6.0] = [2w, 2b]
+loss:>[w b]                    :" [4.0 6.0]
 ```
 
-This is especially useful for neural network training:
+`[w b]∂f` returns one Jacobian per name in the same way. For a function R^n to R^m the Jacobian is an m by n matrix with J[i,j] = df_i/dx_j.
 
-```klong
-w::1.0
-b::0.0
-X::[1 2 3]
-Y::[3 5 7]
+### Typing the gradient symbols
 
-:" MSE loss
-loss::{(+/((w*X)+b-Y)^2)%3}
+| Symbol | Name | macOS | Linux | Windows |
+|---|---|---|---|---|
+| `∇` | Nabla (gradient) | Character Viewer: Ctrl+Cmd+Space, search "nabla" | Ctrl+Shift+U, then `2207`, then Enter (GTK and many desktops), or copy-paste | Alt+8711 on the numeric keypad |
+| `∂` | Partial (Jacobian) | Option+d | Ctrl+Shift+U, then `2202`, then Enter | Alt+8706 on the numeric keypad |
 
-:" Compute both gradients in one call
-grads::loss:>[w b]
-```
+ASCII alternatives need no special characters. Note the argument order: the functions take the function first, the operators take the point first.
 
-### Jacobian Computation
-
-Compute the Jacobian matrix (matrix of partial derivatives) using the `∂` operator or `.jacobian()` function:
-
-```klong
-f::{x^2}                 :" Element-wise square
-
-:" Using ∂ operator (point∂function)
-[1 2]∂f                  :" [[2 0] [0 4]] diagonal matrix
-
-:" Using .jacobian() function
-.jacobian(f;[1 2])       :" Same result
-```
-
-For vector-valued functions f: R^n -> R^m, the Jacobian is an m x n matrix where J[i,j] = df_i/dx_j.
-
-### Multi-Parameter Jacobians
-
-Just like gradients, you can compute Jacobians with respect to multiple parameters using a list of symbols:
-
-```klong
-w::[1.0 2.0]
-b::[3.0 4.0]
-f::{w^2}                 :" Returns [w0^2, w1^2]
-
-:" Compute Jacobians for both w and b
-jacobians::[w b]∂f       :" Returns [J_w, J_b]
-```
-
-This returns a list of Jacobian matrices, one per parameter. Useful for analyzing how vector-valued functions depend on multiple parameter sets.
+| Symbol form | ASCII form |
+|---|---|
+| `3∇f` | `.grad(f;3)` |
+| `x∂f` | `.jacobian(f;x)` |
+| `f:>x` | (already ASCII) |
 
 ### Custom Optimizers
 
-KlongPy provides the gradient primitives (`:>`, `∂`, `.jacobian()`). For optimizers, use the example classes in `examples/autograd/optimizers.py` which you can copy to your project and customize.
+The gradient primitives are (`:>`, `∂`, `.jacobian()`). For optimizers, use the example classes in `examples/autograd/optimizers.py` which you can copy to your project and customize.
 
 `loss:>[w]` returns a list with one gradient, so `**` takes its first element: `lr**g` is `lr*(*g)`. (For a single parameter, `loss:>w` returns the gradient itself, so `w::w-(lr*loss:>w)` also works.)
 
@@ -266,9 +156,7 @@ opt::AdamOptimizer(["w" "b"];:{["lr" 0.1]})
 
 The example optimizers use `multi_grad_of_fn` from `klongpy.autograd` to compute gradients for multiple parameters. Copy and modify the optimizer classes to implement custom update rules (RMSprop, AdaGrad, learning rate schedules, etc.).
 
-## GPU Acceleration
-
-When CUDA or Apple MPS is available, tensors automatically use GPU:
+## Devices
 
 ```python
 from klongpy import KlongInterpreter
@@ -277,55 +165,36 @@ klong = KlongInterpreter(backend='torch')
 print(klong._backend.device)  # 'cuda', 'mps' or 'cpu'
 ```
 
-Tensors then report their device with an index, for example `mps:0`.
-
-### Device Selection
-
-The backend automatically selects the best available device:
-1. CUDA (NVIDIA GPU) - if available
-2. MPS (Apple Silicon) - if available
-3. CPU - fallback
-
-### MPS Limitations
-
-Apple's MPS backend has some limitations:
-- No float64 support. Float values are float32. (The torch backend on the CPU also produces float32 tensors: `1.5+1e-9` is exactly `1.5` on both.)
-- `.gradcheck()` requires the CPU; on MPS it raises `.gradcheck() requires CPU device, got 'mps'`. Run `kgpy --backend torch --device cpu` for it.
+Tensors report their device with an index, for example `mps:0`.
 
 ## Mixing with Python
 
-Access torch tensors directly:
+`klong(...)` returns a `torch.Tensor` for numeric arrays. Move it to the host before using NumPy:
 
 ```python
 from klongpy import KlongInterpreter
 
 klong = KlongInterpreter(backend='torch')
-
-# KlongPy operations return torch tensors
 result = klong('2*1+!1000000')
-print(type(result))  # <class 'torch.Tensor'>
-print(result.device)  # cuda:0, mps:0, or cpu
-
-# Convert to numpy when needed
-import numpy as np
+print(type(result))   # <class 'torch.Tensor'>
 np_result = result.cpu().numpy()
 ```
 
-## Best Practices
+See [Python integration](python_integration.md) for the type mapping.
 
-1. **Use torch for large computations**: On the CPU, torch is faster than NumPy from about a million elements; on a GPU from about 100K. Below that NumPy is as fast or faster (see [Performance](#performance))
+## Practices
 
-2. **Keep data as tensors**: Avoid unnecessary conversions between numpy and torch
-
-3. **Batch operations**: Combine operations to minimize dispatch overhead
-
-4. **Use autograd for gradients**: Native autograd is faster and more accurate than numeric differentiation
+- Keep data as tensors; each conversion to NumPy copies.
+- Combine operations so that fewer, larger ones run.
+- Use `:>` for gradients of functions on the torch backend.
 
 ## Function Compilation
 
 The torch backend supports compiling Klong functions for optimized execution using `torch.compile`:
 
-The examples in this section were run with torch 2.15.0 on the CPU and on MPS. Re-assigning a name that already holds a compiled function (`cf::.compile(f;3.0)` a second time in the same session) and then calling it returned the function instead of calling it in the run below; give each compiled function a new name.
+Known issue: re-assigning a name that already holds a compiled function (`cf::.compile(f;3.0)` a second time in one session) and then calling it once returned the function instead of calling it. The current check did not reproduce it on the CPU or on MPS; give each compiled function a new name to avoid it.
+
+These functions exist only on the torch backend; the values shown are from torch 2.15.0.
 
 ### `.compile(fn;input)` - Compile Function
 
@@ -384,7 +253,7 @@ info::.cmodes()
 .p(info@"recommendations") :" Suggested settings
 ```
 
-### Compilation Mode Comparison
+### Compilation modes
 
 These are the descriptions that `.cmodes()` returns; compile times were not measured.
 
@@ -394,7 +263,7 @@ These are the descriptions that `.cmodes()` returns; compile times were not meas
 | `reduce-overhead` | Faster compile time, less optimization - good for development |
 | `max-autotune`    | Maximum optimization - best for production/training loops |
 
-### Backend Comparison
+### Compilation backends
 
 | Backend      | Description                                      |
 |--------------|--------------------------------------------------|
@@ -430,23 +299,8 @@ This uses `torch.autograd.gradcheck` internally for rigorous verification.
 
 ## Troubleshooting
 
-### "PyTorch backend does not support object dtype"
-
-Some operations on mixed-type arrays or nested structures of varying shape raise this error. Simple cases work, because the torch backend keeps strings and mixed lists as numpy object arrays on the host (`["a" 1]` and `[[1 2][3]]` both evaluate). When an operation fails with this message, use the numpy backend.
-
-### MPS float64 errors
-
-MPS doesn't support float64. The backend converts to float32, so results differ from the numpy backend in the last digits (see the `3∇f` example above).
-
-### Slow small array operations
-
-For arrays <10K elements, numpy may be faster. Consider using numpy backend for small array workloads or batching small operations together.
-
-### torch.compile errors
-
-If `.compile()` fails with C++ errors, ensure you have:
-- A C++ compiler installed (clang++ or g++)
-- The required header files (may need Xcode Command Line Tools on macOS)
+- `.compile()` fails with C++ errors: install a C++ compiler (clang++ or g++) and, on macOS, the Xcode Command Line Tools. `"backend" "eager"` skips compilation.
+- Results differ from NumPy in the last digits: float32 (see above).
 
 ## See also
 

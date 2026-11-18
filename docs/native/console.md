@@ -2,7 +2,7 @@
 
 This page describes the console that a board running the native Klong runtime offers on its serial port: the prompt and line editor, the `^A` command mode that uploads files and runs programs, the simulated board `klong-sim` that you can try all of it on without hardware, and `native/tools/kgupload.py`, the desktop tool that speaks the protocol. It is for people who use a board, write tools for one, or port the runtime to one.
 
-The transcripts below use the simulated board, because the checks of this documentation do not touch a serial device. The console is the same code on a simulated board and on a real one. What has been seen on real hardware is stated on the [ESP32-P4](esp32-p4.md) page, and it is little: the REPL, Ctrl-C, uploads and the conformance suite worked on that board on 2026-11-16.
+The transcripts below use the simulated board, because a serial device is not available to everyone. The console is the same code on a simulated board and on a real one. What has run on real hardware is in the [status table](index.md#status-what-has-and-has-not-been-proven).
 
 Commands are shown as if `klong-sim` is on your `PATH` (see [Building and Running](building.md)) and as run from the root of the repository.
 

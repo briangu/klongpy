@@ -1,8 +1,8 @@
 # Porting to a Board
 
-This page is a summary of what it takes to run the native Klong runtime on a new board: what a port has to supply, the C interface that lets a vendor SDK application drive the runtime, and how much flash and RAM to plan for. It is for someone who has a microcontroller and wants to know what the work is before reading the full checklist, which is `native/PORTING.md` in the repository, along with `native/klong-ffi/include/klong.h`, the header that defines the C interface.
+This page is a summary of what it takes to run the native Klong runtime on a new board: what a port has to supply, the C interface that lets a vendor SDK application drive the runtime, and how much flash and RAM to plan for. It is for someone who has a microcontroller and wants to know what the work is before reading the header that defines the C interface, `native/klong-ffi/include/klong.h`. `native/PORTING.md` in the repository has the notes for a port in Rust.
 
-Two kinds of board have been ported and run: the [ESP32-P4](esp32-p4.md) (the console conformance suite) and, for IPC and the management library, two Raspberry Pi Picos ([Pico bench](pico-bench.md)). The Arm Cortex-M and RISC-V images link but were never booted. Everything below is therefore tested on the host, on a simulated board, and on those chips, and the last section lists what only a new board can show. The [status table](index.md#status-what-has-and-has-not-been-proven) is the one summary.
+Two kinds of board have run the runtime: the [ESP32-P4](esp32-p4.md) and [two Raspberry Pi Picos](pico-bench.md). The Arm Cortex-M and RISC-V images link but were never booted. The [status table](index.md#status-what-has-and-has-not-been-proven) says what has run where, and the last section here lists what only a new board can show.
 
 ## What a port is
 
@@ -63,7 +63,7 @@ The interface is the header `native/klong-ffi/include/klong.h`, which has `KLONG
 | `int32_t klong_step(void)` | one turn of the main loop: console input, then timers. 1 when something was done, 0 when there was nothing to do (the caller may sleep), -1 before `klong_init` |
 | `void klong_run(void)` | the main loop: `klong_step`, and the `wait` callback when there was nothing to do. Returns only if `klong_init` was not called |
 | `void klong_heap(size_t *used, size_t *peak, size_t *limit)` | heap figures in bytes; any pointer may be NULL |
-| `void klong_set_diag(size_t (*diag)(uint32_t mode, int64_t *out, size_t cap))` | a diagnostic of the heap, in a library built with the cargo feature `heapdiag` (the Pico bench): the board's function fills the integers of a mode and the system function `.heap(mode)` returns them; the runtime also says what each allocation is for in `volatile uint8_t KLONG_ALLOC_TAG`. See [the Pico bench page](pico-bench.md#the-heap-what-the-boards-showed-and-the-allocator-that-followed-the-ninth-round) |
+| `void klong_set_diag(size_t (*diag)(uint32_t mode, int64_t *out, size_t cap))` | a diagnostic of the heap, in a library built with the cargo feature `heapdiag` (the Pico bench): the board's function fills the integers of a mode and the system function `.heap(mode)` returns them; the runtime also says what each allocation is for in `volatile uint8_t KLONG_ALLOC_TAG`. See [the Pico page](pico-bench.md#memory) |
 
 The configuration structure, `klong_config`:
 
@@ -111,18 +111,18 @@ The C interface of the firmware has `files`, `lib` and `timers`. It has no IPC: 
 | | `files`, `lib`, `int32`, `float32` | 205,518 | 107,984 | 313,522 |
 | | no `files`, no `lib` | 207,056 | 63,664 | 270,740 |
 
-These include the console. Static RAM (`.data` and `.bss`) is 48 bytes beside the heap. The Klong library is about 42 KiB of `.rodata` (the `lib` feature). IPC adds roughly 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, the `mgmt` library 12.7 KB, and `.try` and `.err` 1.7 and 2.3 KB (figures from the work on those features, not re-measured for this page). The ESP32-P4 image is 691,328 bytes (the current build is 701,360, not flashed), but it is built with the speed profile and includes ESP-IDF.
+These include the console. Static RAM (`.data` and `.bss`) is 48 bytes beside the heap. The Klong library is about 42 KiB of `.rodata` (the `lib` feature). IPC adds roughly 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, the `mgmt` library 12.7 KB, and `.try` and `.err` 1.7 and 2.3 KB (older figures). The ESP32-P4 image is 691,328 bytes flashed; it is built with the speed profile and includes ESP-IDF.
 
 **RAM.**
 
 * The console keeps 432 bytes of state (32-bit) inside the board's main structure. On the heap it takes at most `max_line` (1024) for the line, `history_bytes` (2048) for 32 lines of history, `max_entry` (8192) while a multi-line entry is open, 4096 for typed-ahead input, and `max_run` (64 KiB) only while a program sent with `run` is held. `put` and `hex` stream to the file system through a 128-byte buffer. The limits are fields of `ConsoleConfig`; a board with a small heap lowers `max_run` and `max_entry`.
-* The interpreter needs about 12 KiB after start-up (about 15 KiB on the 64-bit host in the transcripts of [Building and Running](building.md)). `1+1` needs 1.5 KiB more, a dictionary of 100 entries 26 KiB, a load reads one statement at a time and keeps functions as their text, so `.l("csv")` peaks at about 29 KB, `.l("math")` at about 139 KB, `.l("mgmt")` at about 40 KB and `.l("nstat")` at about 322 KB (a whole-file load needed 50 KiB, 495 KiB and 1.04 MiB for `csv`, `math` and `nstat`; see [Building and Running](building.md)). Parsed source costs 20 to 30 bytes of heap per byte of source.
+* The interpreter needs about 12 KiB after start-up (about 15 KiB on the 64-bit host in the transcripts of [Building and Running](building.md)). `1+1` needs 1.5 KiB more, a dictionary of 100 entries 26 KiB, a load reads one statement at a time and keeps functions as their text, so `.l("csv")` peaks at about 29 KB, `.l("math")` at about 139 KB, `.l("mgmt")` at about 40 KB and `.l("nstat")` at about 322 KB (see [Building and Running](building.md)). Parsed source costs 20 to 30 bytes of heap per byte of source.
 * Practical floors: 64 KiB of heap runs expressions and small programs (the whole conformance suite but one case); 256 KiB runs the whole suite; about 350 KiB covers the largest library file, `nstat`.
-* **Stack.** 32 KiB or more for the interpreter task. A level of Klong recursion costs about 0.8 KiB of native stack on a 32-bit target (16 KiB of budget: about 14 levels, 64 KiB: about 60, 256 KiB: about 250), so recursion that goes deeper ends as a `range` error. Through the console, the conformance suite (1266 cases that day, see [why the counts differ](../conformance.md#why-the-counts-differ)) passed 1265 of 1266 with a 64 KiB stack and 1264 of 1266 with 32 KiB on the simulated board (`klong-sim --stack-budget`); the misses are cases that recurse deeply. These stack figures were measured on aarch64 and wasm32 only. On the ESP32-P4 the budget is 120 KiB.
+* **Stack.** 32 KiB or more for the interpreter task. A level of Klong recursion costs about 0.85 KiB of native stack on a 32-bit target (864 bytes measured on a Pico). At the default of keeping a quarter of the budget back, 16 KiB gives about 12 levels, 64 KiB about 50 and 256 KiB about 200. Deeper recursion ends as a `range` error. On the simulated board (`klong-sim --stack-budget`) the console conformance suite passes all but one case with a 64 KiB stack and all but two with 32 KiB; the misses recurse deeply. On the ESP32-P4 the budget is 120 KiB; the Pico firmware keeps 16 KiB of 108 KiB and reaches 105 levels.
 
 ## Bring-up, in short
 
-The full list of twelve steps is in `native/PORTING.md`. In outline:
+The steps:
 
 1. Build the core for the target with `cargo build -p klong-board --lib --profile min-size --target TRIPLE` (stock Rust for Arm and RISC-V; the Espressif fork for Xtensa).
 2. Write and test the UART alone: echo bytes, send 4 KiB in one burst and count them back. Write the clock and check it against a stopwatch for a minute.
@@ -147,6 +147,6 @@ These were not and could not be checked on a host:
 * watchdog and RTOS behaviour of `idle` and `wait`, soft-float `f64` speed, timings;
 * reset through `.x`, and whether opening the serial port resets the board.
 
-On the ESP32-P4 the first group of results exists, as described on its page: the image boots, the console works, Ctrl-C stops a runaway loop, uploads work and the conformance suite passes over the wire. That board's storage is RAM, so the flash file system, power loss and IPC on a device remain untested anywhere.
+The ESP32-P4 has answered the first group: the image boots, the console works, Ctrl-C stops a runaway loop, uploads work and the conformance suite passes over the wire. The flash file system and power loss are untested anywhere, because that board's storage is RAM.
 
 The known weak spots of the protocol are listed on the [console page](console.md#weak-spots).

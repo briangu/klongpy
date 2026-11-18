@@ -14,7 +14,7 @@ That installs the interpreter, the `kgpy` command and its two requirements, NumP
 
 | Install | Adds | Use it for |
 |---|---|---|
-| `pip install "klongpy[torch]"` | PyTorch | The torch backend: GPU arrays and exact gradients with `:>`. See [PyTorch Backend](torch_backend.md). |
+| `pip install "klongpy[torch]"` | PyTorch | The torch backend: GPU arrays and gradients with `:>`. Start it with `kgpy --backend torch`. See [PyTorch Backend](torch_backend.md). |
 | `pip install "klongpy[db]"` | pandas and DuckDB | Tables, SQL on arrays, and the key-value store. See [Fast Columnar Database](fast_columnar_database.md). |
 | `pip install "klongpy[web]"` | aiohttp | The `.web` HTTP server. See [Web Server](web_server.md). |
 | `pip install "klongpy[ws]"` | websockets | WebSocket clients and servers. See [WebSockets](websockets.md). |
@@ -36,11 +36,11 @@ $ kgpy -e '1+1'
 2
 ```
 
-`kgpy -e` evaluates one expression, prints the value and exits.
+`kgpy -e` evaluates one expression, prints the value and exits. `kgpy file.kg` runs a file.
 
 ## Your first five minutes
 
-Type `kgpy` to start the REPL. It reads one entry, evaluates it and prints the value. Quit with Ctrl-D or `]q`. The lines below that start with `?> ` are what you type, and the line after each is what KlongPy prints.
+Type `kgpy` to start the REPL. The banner shows the version and the backend. The REPL has line editing, history and tab completion built in, so `rlwrap` is not needed. It reads one entry, evaluates it and prints the value. Quit with Ctrl-D or `]q`. The lines below that start with `?> ` are what you type, and the line after each is what KlongPy prints.
 
 ```kgpy
 ?> 1+1
@@ -188,11 +188,10 @@ bad.kg:2:5: range error: index 5 out of range for list of 3
 At the REPL, `]h` lists every topic and `]h` followed by an operator or a name explains it, with examples. `]a` searches the help for a word. The help covers the operators, the adverbs and the system functions, which are the names that start with a dot, such as `.p`:
 
 ```console
-$ printf ']h +\n' | kgpy 2>&1 | tail -n +8 | head -4
-?> +a                  [Transpose]
+$ printf ']h #\n' | kgpy 2>&1 | tail -n +8 | head -3
+?> #a                  [Size]
 
-    Return the transpose of the matrix (2-array) "a".
-
+    Return the size/magnitude of "a".
 ```
 
 Other places to look:
@@ -209,7 +208,7 @@ Other places to look:
 
 **Coming from q or kdb+.** [Klong for q Users](from-kdb.md) shows what carries over, what is different (a leading minus, no booleans, division), and how a KlongPy process and a q process talk to each other.
 
-**Learning the language.** The [Tutorial](tutorial.md) takes you from the first expression to functions, adverbs, dictionaries and files. [Quick Start](quick-start.md) is the short install and first-session page, and [Examples](examples.md) has programs to read.
+**Learning the language.** The [Tutorial](tutorial.md) takes you from the first expression to functions, adverbs, dictionaries and files. [Examples](examples.md) has programs to read.
 
 **Using Python.** `.py` and `.pyf` import Python modules and functions into Klong, and a Klong function can be called from Python code. See [Python Integration](python_integration.md).
 
@@ -224,3 +223,5 @@ Other places to look:
 **The native runtime on boards.** A separate implementation in Rust runs the full language without Python, including on an ESP32-P4. See [Native Runtime](native/index.md), [Building and Running](native/building.md), [Serial Console and Upload](native/console.md) and [ESP32-P4](native/esp32-p4.md).
 
 If you used an earlier KlongPy, read [What's New in v2](whats-new-v2.md) and [Migrating to v2](migrating-to-v2.md).
+
+For a question or a problem, start a [GitHub Discussion](https://github.com/briangu/klongpy/discussions). The project does not accept issues directly; maintainers promote discussions to issues.

@@ -1,17 +1,23 @@
 # Roadmap
 
-This page lists what v2 delivered, the limits you will meet today, and what is planned but does not exist. Nothing in "Planned" is available, and none of it has a date.
+This page lists what version 2 delivers, what is experimental, the limits you meet today and what is planned. Nothing under "Planned" exists, and none of it has a date.
 
-## Done in v2
+## Delivered in version 2
 
 * [Getting started](getting-started.md), [what's new in v2](whats-new-v2.md) and [migrating to v2](migrating-to-v2.md)
-* [Friendlier syntax](language-additions.md), [strict mode](strict.md) and [lint](lint.md)
+* [Language Additions](language-additions.md), [strict mode](strict.md) and [lint](lint.md)
 * [Errors with positions and kinds](errors.md) and the [REPL](repl.md)
 * [Compiling a static subset of Klong to C](embedded.md) and the [static profile](static-profile.md)
 * [The conformance suite](conformance.md)
 * The [native runtime](native/index.md): [building](native/building.md), the [serial console](native/console.md), the [ESP32-P4 port](native/esp32-p4.md), [IPC and timers](native/ipc.md), the [management node](native/management-node.md) and [porting to a board](native/porting.md)
 * [kdb+ IPC](ipc_capabilities.md) and [timers](timer.md)
 * [Contributing](contributing.md)
+
+## Experimental
+
+* [FPGA kernels](hardware.md): Klong functions compiled to hardware. They have run on one Alveo U250.
+* [The native runtime on boards](native/index.md): it passes the conformance suite on a desktop and has run it on one ESP32-P4 board ([ESP32-P4](native/esp32-p4.md)). Two Raspberry Pi Picos have run it with IPC between them ([Pico bench](native/pico-bench.md)).
+* [Compiling Klong to C](embedded.md): works for the static profile, a subset of the language.
 
 ## Known limits
 
@@ -25,7 +31,7 @@ The cases below are KlongPy answers that are wrong and whose correct answer is k
 * `[1 2 3]@1.0` returns the whole list where it should be a type error.
 * `%"a"` and `&"a"` are range errors where they should be type errors.
 
-A Klong function that calls itself is limited by Python's recursion limit under KlongPy. On 2026-11-16 with the numpy backend, `f::{:[x;f(x-1);0]};f(160)` ran and `f(165)` gave `range error: expression nested too deeply`.
+Known limit: a Klong function that calls itself is bounded by Python's recursion limit under KlongPy. With the NumPy backend, `f::{:[x;f(x-1);0]};f(160)` runs and `f(165)` gives `range error: expression nested too deeply`.
 
 ### PyTorch backend
 
@@ -36,14 +42,14 @@ Details are in [PyTorch Backend](torch_backend.md).
 * MPS has no float64.
 * `.gradcheck` needs the CPU device and raises on MPS.
 * A name that already holds a compiled function should not be assigned a second compiled function in the same session; use a new name.
-* The export of a compiled function (`.export`) did not complete for a Klong function in the test run; check the `export_error` entry of its result.
+* The export of a compiled function (`.export`) does not complete for some Klong functions; check the `export_error` entry of its result.
 
 ### Native runtime
 
-* **Recursion depth on small stacks.** The native runtime bounds the depth of nested evaluation and the stack it uses, and reports a range error when either is exceeded. The host binary has a default depth limit of 512 nested evaluations. On 2026-11-16, `f::{:[x;f(x-1);0]};f(240)` ran and `f(255)` gave a range error. A board with a small stack budget gets a smaller depth. The depth a real board allows has not been measured.
-* **Heap needed to load large libraries.** A load reads one statement at a time and keeps functions as their text. On the 64-bit host the management library (`.l("mgmt")`) loads with `--heap-limit 44K` and fails with `43K` (measured 2026-11-17); `.l("nstat")` peaks at about 322 KB. On a Pico the library loads with about 5 to 6 KB more in use afterwards ([Pico bench](native/pico-bench.md)).
-* **IPC on a device has run only on two Picos.** IPC between nodes and management-library calls have run on two Raspberry Pi Picos of the [Pico bench](native/pico-bench.md) (2026-11-16 and 17). The ESP32-P4 has run the console conformance suite only (the firmware has no IPC), and nothing else has run on hardware. The host build is tested against an open-source q implementation (PeachQ).
-* **One flaky Rust test.** `data_nesting_is_bounded` in `native/klong-core/tests/full.rs` has failed about one run in ten on the development machine. In six runs on 2026-11-16 it passed every time, and the cause is not known.
+* **Recursion depth on small stacks.** The native runtime bounds the depth of nested evaluation and the stack it uses, and reports a range error when either is exceeded. The host binary allows 512 nested evaluations: `f::{:[x;f(x-1);0]};f(240)` runs and `f(255)` gives a range error. A board with a small stack gets a smaller depth, which has not been measured on a real board.
+* **Heap needed to load large libraries.** A load reads one statement at a time and keeps functions as their text. On the 64-bit host the management library (`.l("mgmt")`) loads with `--heap-limit 44K` and fails with `43K`; `.l("nstat")` peaks at about 322 KB. On a Pico the library loads with about 5 to 6 KB more in use afterwards ([Pico bench](native/pico-bench.md)).
+* **IPC on a device has run only on two Picos.** IPC between nodes and management-library calls have run on two Raspberry Pi Picos. The ESP32-P4 has run the console conformance suite only (the firmware has no IPC). The host build is tested against an open-source q implementation (PeachQ).
+* **One flaky Rust test.** `data_nesting_is_bounded` in `native/klong-core/tests/full.rs` has failed about one run in ten on the development machine. The cause is not known.
 * The default native build does not declare the conformance tags `bigint`, `timers`, `ipc` or `desktop`, so the suite does not test those areas for it.
 
 ### Interop
@@ -52,7 +58,7 @@ Details are in [PyTorch Backend](torch_backend.md).
 
 ## Planned
 
-None of the following is available. (Hardware kernels on FPGA are not on this list: they exist, are experimental and have run on one Alveo U250, see [Hardware](hardware.md).)
+None of the following exists.
 
 * **A WebAssembly build of the emitted C.** The C emitter produces freestanding C99; compiling that to WebAssembly is not built. The WebAssembly import module name of an extern is reserved for it (see [Compiling Klong to C](embedded.md)).
 * **The native core as an engine under KlongPy.** KlongPy would call the Rust core for evaluation where it can. Today the two implementations are separate and agree only on what the conformance suite covers.

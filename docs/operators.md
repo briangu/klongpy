@@ -48,7 +48,7 @@ and [discussion #82](https://github.com/briangu/klongpy/discussions/82).
 | `+a` | Transpose | Transpose matrix |
 | `:_a` | Undefined | Check if undefined |
 | `∇a` | Grad | Gradient function of `a`: by autograd on the torch backend, by finite differences otherwise. Glyph only |
-| `˙a` | Track | Identity. Internal: reserved for marking a value for gradient tracking, and currently has no effect. No ASCII form |
+| `˙a` | Track | Identity. Reserved for marking a value for gradient tracking; it returns its argument. No ASCII form |
 
 ## Dyads (Two Arguments)
 
@@ -87,7 +87,7 @@ and [discussion #82](https://github.com/briangu/klongpy/discussions/82).
 
 ## Gradient Operators
 
-KlongPy provides two gradient operators and the Jacobian operator `∂`:
+`∇` and `:>` compute gradients and `∂` computes Jacobians. On the numpy backend all three use finite differences; the torch backend uses autograd for `:>`, `∂` and the monad `∇`. The torch examples (`6.0` instead of `6.000000000838668`) are on [PyTorch backend](torch_backend.md). The [comparison table](#comparison) is the summary.
 
 ### Numeric Gradient: `∇` (nabla)
 
@@ -134,7 +134,7 @@ The first result is the derivative of `x^2` at 3 (about 6) and the second the gr
 
 ### PyTorch Autograd: `:>`
 
-The `:>` operator uses PyTorch's automatic differentiation when the torch backend is enabled (`--backend torch`). It falls back to finite differences otherwise. The examples show the numpy result; on torch they are `6.0` and `[2.0 4.0 6.0]` (float32 tensors).
+`function:>point` uses autograd on the torch backend and finite differences on numpy. The examples show the numpy result; on torch they are `6.0` and `[2.0 4.0 6.0]` (float32 tensors).
 
 **Syntax:** `function:>point`
 
@@ -151,7 +151,7 @@ The `:>` operator uses PyTorch's automatic differentiation when the torch backen
 
 ### Multi-Parameter Gradients
 
-The `:>` operator can compute gradients for multiple parameters simultaneously when given a list of symbols:
+A list of symbols on the right gives one gradient per symbol:
 
 ```kgpy
 ?> w::2.0;b::3.0
@@ -162,7 +162,11 @@ The `:>` operator can compute gradients for multiple parameters simultaneously w
 [3.9999999996709334 6.000000000838668]
 ```
 
-The result is a list of gradients, one for each symbol. This is the numpy result (finite differences); the torch backend returns `[4.0 6.0]`. The values were produced by running this example on both backends. A single symbol works the same way when `loss` takes no argument: `loss:>w` gives `3.9999999996709334` on numpy and `4.0` on torch (the gradient itself, not a one-element list). A symbol that holds a vector gives the gradient vector. When the function does use its argument (`f::{x^2}`), a symbol on the right is just a variable holding the point: `p::3.0` then `f:>p` is `f:>3.0`.
+This is the numpy result; torch returns `[4.0 6.0]`. Rules:
+
+- A single symbol returns the gradient itself, not a one-element list: `loss:>w` is `3.9999999996709334` on numpy and `4.0` on torch.
+- A symbol that holds a vector gives the gradient vector.
+- When the function uses its argument (`f::{x^2}`), a symbol on the right is a variable holding the point: `p::3.0` then `f:>p` is `f:>3.0`.
 
 ### Jacobian Operator: `∂`
 
@@ -187,7 +191,7 @@ Also available as `.jacobian(function;point)`.
 
 ### Multi-Parameter Jacobians
 
-Like gradients, Jacobians can be computed for multiple parameters using a list of symbols:
+A list of symbols gives one Jacobian per symbol:
 
 ```kgpy
 ?> w::[1.0 2.0]
@@ -227,7 +231,7 @@ Additional system functions for autograd (require the PyTorch backend; `.gradche
 | `.cmodes()` | Query available compilation modes and backends |
 | `.export(fn;input;path)` | Export computation graph to file |
 
-These examples need the torch backend, so the checker does not run them (they are `klong` blocks, not `kgpy` transcripts).
+These examples need the torch backend.
 
 **Gradient Verification:**
 ```klong
@@ -373,11 +377,11 @@ A dictionary literal is `:{[key value] [key value]}`, and `:{}` is the empty dic
 [1 2 :{["n" 7] ["sq" 0] ["z" 1]}]
 ```
 
-A list cannot be a key, and an odd number of expressions in `:{;...}` is a syntax error. [Friendlier syntax](language-additions.md#dictionaries) has the details with the classic form beside each.
+A list cannot be a key, and an odd number of expressions in `:{;...}` is a syntax error. [Language Additions](language-additions.md#dictionaries) has the details with the classic form beside each.
 
 ## Language Forms
 
-Two forms bind names with `::`. Both are described with examples, and with the classic equivalent, in [Friendlier syntax](language-additions.md).
+Two forms bind names with `::`. Both are described with examples, and with the classic equivalent, in [Language Additions](language-additions.md).
 
 | Form | Meaning |
 |---|---|

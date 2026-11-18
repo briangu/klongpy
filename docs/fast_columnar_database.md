@@ -1,8 +1,8 @@
-# Fast Columnar Database
+# Columnar tables and SQL
 
-KlongPy provides a module `klongpy.db` that includes DuckDB integration. DuckDB can operate directly on NumPy arrays, which allows for zero-copy SQL execution over pre-existing NumPy data.
+`klongpy.db` adds tables and SQL queries to Klong. A table is a set of named columns of equal length, stored as a pandas DataFrame; it behaves like a dictionary from column name to column, and key/value updates are column operations. A database is a set of named tables that DuckDB queries with SQL; DuckDB reads the NumPy arrays of the columns directly, and a query returns plain Klong values.
 
-Install the database extras first:
+Install the extra, which brings pandas and DuckDB, and load the module with `.py("klongpy.db")`:
 
 ```bash
 pip install "klongpy[db]"
@@ -26,7 +26,7 @@ a b c
 3 4 5
 ```
 
-You can also create a table directly from a Pandas DataFrame.
+A table can also be made from a pandas DataFrame (see [below](#pandas-dataframe-integration)).
 
 Indexes (one or more columns) can be created on a table. `.index` returns the indexed columns.
 
@@ -47,7 +47,16 @@ a* b c
  3 4 5
 ```
 
-Inserting a row with a pre-existing value at an index results in an update:
+### Duplicate index values
+
+The two ways of writing into an indexed table treat a duplicate index value differently:
+
+| Write | Row whose index value already exists |
+|---|---|
+| `.insert(t;row)` | The new row replaces the existing row (an update). |
+| `tbs,"name",,t` on a [table store](table_and_key_value_stores.md) | The stored row is kept and the new row is dropped. |
+
+A table with no index appends every row. An example of `.insert` on an indexed table:
 
 <!-- check-docs: continue -->
 ```
@@ -58,7 +67,7 @@ a* b c
  3 5 6
 ```
 
-Indexes may be reset via .rindex(). 1 is returned if an index was reset and 0 if there was none.
+`.rindex` removes the indexes. It returns 1 if an index was removed and 0 if there was none.
 
 <!-- check-docs: continue -->
 ```
@@ -70,7 +79,7 @@ Indexes may be reset via .rindex(). 1 is returned if an index was reset and 0 if
 
 ## Database
 
-Databases are created from a map of table names to table instances.  A database instance is a function which accepts SQL and runs it over the underlying tables.  SQL results are NumPy arrays and can be directly used in normal KlongPy operations.
+`.db` takes a dictionary from table name to table and returns a database. A database is a function that takes an SQL string and runs it over the tables. The result is a NumPy array (one column), a list of rows (several columns) or a number, and can be used in ordinary Klong code.
 
 <!-- check-docs: requires duckdb pandas -->
 ```
@@ -87,9 +96,7 @@ a
 [1 2 3]
 ```
 
-Since KlongPy uses DuckDB under the hood, you can perform sophisticated SQL over the underlying NumPy arrays.
-
-For example, it's easy to use JOIN with this setup:
+Any DuckDB SQL works, for example a join:
 
 <!-- check-docs: requires duckdb pandas -->
 ```
@@ -132,7 +139,7 @@ c
 :db
 ```
 
-We can now issue a JOIN SQL:
+The join:
 
 <!-- check-docs: continue -->
 ```
@@ -142,9 +149,7 @@ We can now issue a JOIN SQL:
 
 ## Pandas DataFrame integration
 
-Tables are backed by Pandas DataFrames, so it's easy to integrate Pandas directly into KlongPy via DuckDB.
-
-Run on 2026-11-16 with pandas and duckdb installed, this prints `[25 30 35 40]`:
+A pandas DataFrame stored in the interpreter becomes a table with `.table`. This returns `[25 30 35 40]`:
 
 ```Python
 from klongpy import KlongInterpreter

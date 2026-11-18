@@ -1,17 +1,23 @@
 # ESP32-P4
 
-This page covers the ESP32-P4, the board on which the native Klong runtime has run its console conformance. (The other hardware is two Raspberry Pi Picos, see [Pico bench](pico-bench.md).) It says how the firmware is built and flashed, how to connect to it, what you see, how to upload a file, how to run the conformance suite over the serial port, and which results were measured on the board and which were not. It is for someone who has an ESP32-P4 board and wants to try it, or who wants to know what "runs on a board" means here.
+This page shows how to build and flash the native Klong runtime on an ESP32-P4 development board, connect to its serial console, upload files and run the conformance suite over the serial port. It is for someone who has such a board and wants to try it. What has run on this and other hardware is in the [status table](index.md#status-what-has-and-has-not-been-proven).
 
 !!! note "What was measured on hardware"
-    On 2026-11-16, on an ESP32-P4 (chip revision v3.2, 32 MB flash, 32 MB PSRAM, ESP-IDF v5.5.4): the REPL works, Ctrl-C stops a runaway loop, the embedded library loads, uploads work, and the conformance suite passed 1266 of 1266 over the serial port in 1877 seconds. The firmware image that was flashed is 691,328 bytes (the current build is 701,360 bytes and has not been flashed; see [Building the firmware](#building-the-firmware)). `fib(24)` took 4.2 seconds on the board, against about 35 ms on an Apple-silicon Mac; the cause has not been investigated. That is all that has been seen on this board. The firmware has no IPC; IPC between nodes and management-library calls have run on two Raspberry Pi Picos ([Pico bench](pico-bench.md)), and the `thumbv7em` target beyond linking has not run on any hardware.
+    Board: an ESP32-P4 development board, chip revision v3.2, 32 MB flash, 32 MB PSRAM; ESP-IDF v5.5.4; measured on 2026-11-16 with the image of that day (691,328 bytes).
 
-Commands on this page that need the board, Docker or the toolchain were not run for the page. They are the commands of the board's own README (`native/boards/esp32p4/README.md`), and what is said about their results is what was observed on that date. The checked transcripts of this section use the [simulated board](console.md).
+    * The REPL works, Ctrl-C stops a runaway loop, the embedded library loads and uploads work.
+    * The conformance suite passed 1266 of 1266 cases over the serial port in 1877 seconds.
+    * `fib(24)` took 4.2 seconds, against about 35 ms on an Apple-silicon Mac. The cause is not known.
+
+    The firmware has no IPC. The `thumbv7em` target has not run on any hardware.
+
+Commands on this page that need the board, Docker or the toolchain are the commands of `native/boards/esp32p4/README.md`. The checked transcripts of this section use the [simulated board](console.md).
 
 ## What the firmware is
 
-The firmware is an ESP-IDF application. ESP-IDF supplies the boot code, the UART driver, the clock and the heap. The runtime is the Rust static library `native/klong-ffi`, which is linked through the C interface in `native/klong-ffi/include/klong.h` (see [Porting to a Board](porting.md)). The firmware gives you the [serial console](console.md) on the board's serial port, and nothing else: there is no network and no IPC in it.
+The firmware is an ESP-IDF application. ESP-IDF supplies the boot code, the UART driver, the clock and the heap. The runtime is the Rust static library `native/klong-ffi`, which is linked through the C interface in `native/klong-ffi/include/klong.h` (see [Porting to a Board](porting.md)). The firmware gives you the [serial console](console.md) on the board's serial port and nothing else. It has no network and no IPC.
 
-It is built for an ESP32-P4 of chip revision v3.1 or later (the board at hand reads v3.2), with 32 MB of flash and in-package PSRAM, with the console on UART0 (TX on GPIO37, RX on GPIO38), which is the board's USB-serial bridge, at 115200 baud, 8 data bits, no parity, one stop bit. A chip below revision v3.0 needs another build (`CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y` in `sdkconfig.defaults`), and the bootloader refuses this image on such a chip.
+It is built for an ESP32-P4 of chip revision v3.1 or later (a v3.2 chip was tested), with 32 MB of flash and in-package PSRAM, with the console on UART0 (TX on GPIO37, RX on GPIO38), which is the board's USB-serial bridge, at 115200 baud, 8 data bits, no parity, one stop bit. A chip below revision v3.0 needs another build (`CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y` in `sdkconfig.defaults`), and the bootloader refuses this image on such a chip.
 
 | | |
 |---|---|
@@ -39,7 +45,7 @@ cd native/boards/esp32p4
 
 The Rust target is `riscv32imafc` and not the more common `riscv32imac` because every ESP-IDF build for the P4 uses the `ilp32f` calling convention, and the linker refuses to mix it with the soft-float objects of `riscv32imac-unknown-none-elf`. The C interface passes only integers and pointers. Doubles are computed in software on both sides (the P4 has single-precision hardware only).
 
-The image `klong_esp32p4.bin` is 701,360 bytes (built 2026-11-17, not flashed; 691,328 before the allocator and the optimisation level below) in a partition of 1.5 MB, so 55 percent of the partition is free. The bootloader is 23,072 bytes and the partition table 3,072. The Rust library is about 481 KB of the image. It is built with the speed optimisation level (`opt-level` 3) and not for size, since flash is not scarce on this board.
+The current build's image `klong_esp32p4.bin` is 701,360 bytes in a partition of 1.5 MB, so 55 percent of the partition is free. The image that was flashed and measured is 691,328 bytes. The bootloader is 23,072 bytes and the partition table 3,072. The Rust library is about 481 KB of the image. It is built with the speed optimisation level (`opt-level` 3) and not for size, since flash is not scarce on this board.
 
 ## Flashing
 
@@ -67,7 +73,7 @@ esptool --chip esp32p4 -p PORT -b 460800 --before default-reset --after hard-res
 Open the port at 115200 8N1 with no flow control, with any terminal program that opens a serial device. Two things are worth knowing before you do.
 
 * **Opening the port resets the board.** The USB-serial bridge toggles DTR and RTS, which reset the chip, so you see the boot log every time you open the port. A program that holds the board's state in RAM loses it. The upload tool waits for the banner after it opens the port.
-* **After a reset the first line you send can fail** with `input is not valid UTF-8`. A stray byte arrives with or after the boot, and the console takes it into the line you type. This is a known issue on the image that was flashed on 2026-11-16. The firmware source now discards the receive buffer, waits 30 ms and checks again, before the banner is printed (`drain_rx` in `main.c`); that has been built but not yet tried on the board. With an image from before that change, press Enter once, or Ctrl-C, and type the line again.
+* **After a reset the first line you send can fail** with `input is not valid UTF-8`. A stray byte arrives with or after the boot, and the console takes it into the line you type. Known limit: press Enter once, or Ctrl-C, and type the line again. The firmware source discards the receive buffer before it prints the banner (`drain_rx` in `main.c`); the flashed image predates that.
 
 ## What you see
 
@@ -78,11 +84,13 @@ Klong 0.0.1 (esp32p4, int64 float64)
 klong>
 ```
 
-From here it is the console described on the [Serial Console and Upload](console.md) page, with the line editor, the history and the continuation lines. On 2026-11-16 the board did what that page shows: expressions are evaluated, an error shows its position and the prompt returns, `.l("nstat")` loads the embedded library, and a runaway loop such as `{1}{x+1}:~0` is stopped by Ctrl-C with an `interrupt` error.
+From here it is the console described on the [Serial Console and Upload](console.md) page, with the line editor, the history and the continuation lines. The board does what that page shows: expressions are evaluated, an error shows its position and the prompt returns, `.l("nstat")` loads the embedded library, and a runaway loop such as `{1}{x+1}:~0` is stopped by Ctrl-C with an `interrupt` error.
 
 Integers and floats are 64 bits wide in this firmware (`int64 float64` in the banner); the P4 has single-precision floating point hardware only, so doubles are computed in software. `fib(24)` (`f::{:[x<2;x;f(x-1)+f(x-2)]};f(24)`) took 4.2 seconds on the board, and about 35 ms on an Apple-silicon Mac, a factor of about 120. The program uses integers only, and the cause of the difference has not been investigated. Treat the board's speed as unmeasured beyond that one figure.
 
-Two changes aim at the cost of a call, which is mostly memory: ESP-IDF's own C is compiled for speed (`CONFIG_COMPILER_OPTIMIZATION_PERF`, `-O2`; it was `-Og`), and the blocks of up to 128 bytes that a call of a Klong function allocates and frees (argument frames, boxed values) come from free lists by size class in 4 KB slabs of internal RAM (`main.c`, up to 96 KiB of slabs), not from `heap_caps_malloc` and `heap_caps_free`, which take a lock, walk the heap's tables and miss the cache on the bookkeeping in PSRAM. Safety: a slab that internal RAM cannot give (`heap_caps_malloc` returns NULL) is replaced by a block from the heap in PSRAM, 8-aligned, which `free` recognises by its address (`esp_ptr_external_ram`) and gives back to the heap; vectors and everything over 128 bytes still come from PSRAM, so the 32 MB heap is whole for large vectors; the slabs are never returned, so at most 96 KiB of internal RAM are held for small blocks. *Predicted, not measured*: `fib(24)` in 2.0 to 3.8 s, 3 s as the single estimate, against 4.2 s. The call is 28 us (4.2 s over its 150,049 calls), about 10,000 cycles at 360 MHz; each call does about three allocations and three frees, and the blocks it touches were in PSRAM (a miss there costs more than a hundred cycles) and are now in internal RAM; the lower end is if the allocator and PSRAM misses were most of the call, the upper end if they were a seventh of it and only the `-O2` of the IDF helped. The figure has to be measured on a flashed board.
+Measured on the flashed image: a call of a Klong function costs about 28 us (4.2 s over the 150,049 calls of `fib(24)`), about 10,000 cycles at 360 MHz.
+
+The current source builds ESP-IDF's C with `-O2` and serves the blocks of up to 128 bytes that a call allocates from free lists in internal RAM instead of `heap_caps_malloc`. Not yet measured: `fib(24)` with that build on a board.
 
 ## Uploading a file
 

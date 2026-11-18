@@ -32,7 +32,7 @@ Adverbs take the place of loops: `'` applies a function to each element, `/` red
 
 ## Translation table
 
-Each row is checked in the transcript that follows the table, in the same order. `a` and `b` are integer lists, `m` is the 2 by 3 matrix `[[1 2 3] [4 5 6]]`.
+The transcript after the table runs the rows in the same order. `a` and `b` are integer lists, `m` is the 2 by 3 matrix `[[1 2 3] [4 5 6]]`, and `A` and `B` are matrices of shape 2 by 3 and 3 by 2.
 
 | NumPy | KlongPy | Note |
 |---|---|---|
@@ -62,6 +62,7 @@ Each row is checked in the transcript that follows the table, in the same order.
 | `np.sort(a)` | `a@<a` | |
 | `np.argmax(a)` | `*>a` | first index of the grade-down |
 | `np.dot(a,b)` | `+/a*b` | |
+| `A @ B` (matrix product) | `{+/x*B}'A` | each row of `A` times `B`, summed down the leading axis; `B` is a global. `.l("math")` then `matp(A;B)` is the same |
 | `np.maximum(a,b)`, `np.minimum(a,b)` | `a\|b`, `a&b` | |
 | `a>1` | `a>1` | a list of 0 and 1 |
 | `(a>1).sum()` | `+/a>1` | |
@@ -134,6 +135,12 @@ Each row is checked in the transcript that follows the table, in the same order.
 1
 ?> +/[1 2 3]*[4 5 6]
 32
+?> A::[[1 2 3] [4 5 6]]
+[[1 2 3] [4 5 6]]
+?> B::[[1 2] [3 4] [5 6]]
+[[1 2] [3 4] [5 6]]
+?> {+/x*B}'A
+[[22 28] [49 64]]
 ?> [1 5 3]|[4 2 6]
 [4 5 6]
 ?> [1 5 3]&[4 2 6]
@@ -278,7 +285,7 @@ As with `.backward()`, the function must return a scalar. A vector-valued functi
 error: Loss function must return a scalar, got shape (2,). Use sum (+/) or mean (%#) to reduce to a scalar.
 ```
 
-Gradient descent by iterating the update three times from 5.0, where the exact answer for a step of 0.1 on `x^2` is 2.56:
+Gradient descent by iterating the update three times from 5.0 (`3{...}:*5.0` applies the function three times to `5.0`), where the exact answer for a step of 0.1 on `x^2` is 2.56:
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -376,7 +383,7 @@ Division by zero gives `:undefined`, not `inf` or an error.
 
 ## Features NumPy code tends to want
 
-These forms exist in KlongPy beside the classic ones. See [Friendlier syntax](language-additions.md) for each with its classic equivalent.
+These forms exist in KlongPy beside the classic ones. See [Language Additions](language-additions.md) for each with its classic equivalent.
 
 Destructuring takes the place of tuple unpacking, and fails when the count is wrong:
 

@@ -1,9 +1,13 @@
 # The static profile
 
-Static Klong is the part of Klong that can be compiled ahead of time: every
-type, every shape and every call target is known before the program runs. A
-program inside the profile runs unchanged under KlongPy and gives the same
-answers when compiled (the differences are listed [below](#differences-from-klongpy)).
+This page is the reference for the part of Klong that can be compiled ahead of
+time to C or to an FPGA kernel: every type, every shape and every call target is
+known before the program runs. It is for someone who writes such a program or
+needs to know why the checker rejected one. A program inside the profile runs
+unchanged under KlongPy and gives the same answers when compiled; the
+[differences](#differences-from-klongpy) are few. For the tools around it see
+[Compiling Klong to C](embedded.md); for FPGA kernels see
+[Klong functions as FPGA hardware](hardware.md).
 
 ```
 kgpy --check-static prog.kg
@@ -27,11 +31,11 @@ against a 64-bit `kg_int`. From Python: `klongpy.static.check_file(path)`
 returns a report with `ok`, `diagnostics`, `functions`, `globals`, `externs`
 and `entries`.
 
-## Two stages
+## Compile time and run time
 
 A program is split by what kind of top-level statement it is.
 
-| Top-level statement | Stage | Meaning |
+| Top-level statement | When | Meaning |
 |---|---|---|
 | `name::{...}` or `name(p;q)::{...}` | run time | a function to compile, if reachable from an entry |
 | `name::<any other expression>` | compile time | evaluated once by KlongPy on the host; the result becomes an initialised global |
@@ -81,14 +85,14 @@ compile-time constant wherever one is required (a take count, for example).
 | Arithmetic dyads | `+ - * %` (`%` always gives float), `:%` integer divide, `!` remainder, `^` power, <code>&#124;</code> max, `&` min |
 | Comparison dyads | `< > =`, giving int; `~` match on equal-shaped operands, giving int |
 | Monads | `-` negate, `_` floor (gives int), `%` reciprocal, `~` not, `#` size and `^` shape (arrays only; `#` is the first dimension), `*` first, <code>&#124;</code> reverse, `+` transpose (rank 2), `!n` enumerate with constant `n`, `,` wrap as one-element list |
-| Structure | `a@i` index with a scalar or an int array; `n#a` take and `n_a` drop with constant `n`, negative meaning from the end; take is rank 1 only in version 1; `a,b` join; `n:+a` rotate (rank 1); `s:^a` reshape with constant `s`; `a:=v,i` amend of a rank-1 array with one scalar value and either a scalar index or an index list of known length; other forms are rejected |
+| Structure | `a@i` index with a scalar or an int array; `n#a` take and `n_a` drop with constant `n`, negative meaning from the end; take is rank 1 only; `a,b` join; `n:+a` rotate (rank 1); `s:^a` reshape with constant `s`; `a:=v,i` amend of a rank-1 array with one scalar value and either a scalar index or an index list of known length; other forms are rejected |
 | Control | `:[c;a;b]` and its chain form `:[c1;a:|c2;b;else]`; statement sequences; `name::expr` to a local or a global |
 | Adverbs | `f'a` each; `a f'b` each-2; `f/a` over; `a f/b` over with seed; `f\a` scan; `a f\b` scan with seed; `f:'a` each-pair; `n f:*a` iterate; `p f:~a` while |
 | Calls | compiled functions and externs with all arguments supplied |
 
 Rejected, each with a positioned error naming the rule:
 
-- Anything whose result length depends on run-time data: `&a` where, `a?b` find, `?a` range, `=a` group, `<a` and `>a` grade (grade is fixed-length and can be added later; it is left out of version 1 because it needs a sort routine in the runtime), `:#` split, `:_` cut, take or drop or reshape with a non-constant count.
+- Anything whose result length depends on run-time data: `&a` where, `a?b` find, `?a` range, `=a` group, `<a` and `>a` grade (grade has a fixed length but is not in the profile, because it needs a sort routine in the runtime), `:#` split, `:_` cut, take or drop or reshape with a non-constant count.
 - `f:~a` converge and the `\~` `\*` scan forms (result length unknown).
 - Strings, chars, symbols, dicts, `:undefined` as run-time values.
 - Functions as values: a function stored in a variable, returned, or passed as an argument other than directly as the verb of an adverb. Projections.
@@ -97,7 +101,7 @@ Rejected, each with a positioned error naming the rule:
 - A variable whose type or shape differs between two assignments, or a conditional whose branches have different shapes.
 - Division of an int by zero when both are constants.
 
-The tables below are generated from the checker's own data; each row and each
+The tables below are generated from the checker's own data, so they cannot disagree with it. Each row and each
 error has a stable id.
 
 <!-- BEGIN GENERATED -->
@@ -119,7 +123,7 @@ error has a stable id.
 | a<code>=</code>b | `eq` | Equal | num , num | int | prefix |  |
 | a<code>~</code>b | `match` | Match | num , same-shape | int | scalar | operands of different shapes are an error (KlongPy answers 0) |
 | a<code>@</code>b | `index` | At/Index | array , index | left | index | a negative index counts from the end; f@x (apply) is not in the profile |
-| a<code>#</code>b | `take` | Take | const-int , rank1 | right | take | rank 1 only in version 1; -2#a is -(2#a): write (-2)#a |
+| a<code>#</code>b | `take` | Take | const-int , rank1 | right | take | rank 1 only; -2#a is -(2#a): write (-2)#a |
 | a<code>_</code>b | `drop` | Drop | const-int , array | right | drop | negative n drops from the end |
 | a<code>,</code>b | `join` | Join | num , num | promote | join | joining ints with floats gives floats |
 | a<code>:+</code>b | `rotate` | Rotate | int-scalar , rank1 | right | same | rank 1 only (KlongPy rotates the flattened data of a matrix); negative n rotates left |
@@ -179,25 +183,25 @@ The verb `f` is an operator, the name of a function or extern, or a function lit
 | a<code>?</code>b | Find | `find` | result length depends on the data |
 | <code>?</code>a | Range | `range` | result length depends on the data |
 | <code>=</code>a | Group | `group` | result is ragged |
-| <code>&lt;</code>a | Grade-Up | `grade` | fixed length; left out of version 1 (needs a sort routine) |
-| <code>&gt;</code>a | Grade-Down | `grade` | fixed length; left out of version 1 (needs a sort routine) |
+| <code>&lt;</code>a | Grade-Up | `grade` | fixed length; not in the profile (it needs a sort routine in the runtime) |
+| <code>&gt;</code>a | Grade-Down | `grade` | fixed length; not in the profile (it needs a sort routine in the runtime) |
 | a<code>:#</code>b | Split | `split` | result is ragged |
 | a<code>:_</code>b | Cut | `cut` | result is ragged |
 | f<code>:~</code>a | Converge | `converge` | number of steps unknown |
 | f<code>\~</code>a | Scan-Converging | `scan-dynamic` | result length unknown |
 | a f<code>\~</code>b | Scan-While | `scan-dynamic` | result length unknown |
-| a f<code>\*</code>b | Scan-Iterating | `scan-dynamic` | fixed length for a constant count, but not in the design's list; left out of version 1 |
+| a f<code>\*</code>b | Scan-Iterating | `scan-dynamic` | fixed length for a constant count, but not in the profile |
 | <code>$</code>a | Format | `string` | makes a string |
 | a<code>$</code>b | Format2 | `string` | makes a string |
 | a<code>:$</code>b | Form | `string` | reads a string |
 | <code>:#</code>a | Char | `string` | makes a character |
 | <code>@</code>a | Atom | `unsupported-op` | always a constant in a typed program |
 | <code>:_</code>a | Undefined | `unsupported-op` | :undefined is not a run-time value |
-| a<code>:-</code>b | Amend-in-Depth | `unsupported-op` | not in the design's list |
-| a<code>:@</code>b | Index-in-Depth | `unsupported-op` | not in the design's list; write (a@i)@j |
-| a f<code>:\</code>b | Each-Left | `unsupported-op` | not in the design's list; write {a f x}'b |
-| a f<code>:/</code>b | Each-Right | `unsupported-op` | not in the design's list; write {x f b}'a |
-| f<code>@'</code>a | Each-Index | `unsupported-op` | not in the design's list |
+| a<code>:-</code>b | Amend-in-Depth | `unsupported-op` | not in the profile |
+| a<code>:@</code>b | Index-in-Depth | `unsupported-op` | not in the profile; write (a@i)@j |
+| a f<code>:\</code>b | Each-Left | `unsupported-op` | not in the profile; write {a f x}'b |
+| a f<code>:/</code>b | Each-Right | `unsupported-op` | not in the profile; write {x f b}'a |
+| f<code>@'</code>a | Each-Index | `unsupported-op` | not in the profile |
 | <code>˙</code>a | Track | `unsupported-op` | autograd |
 | <code>∇</code>a | Grad | `unsupported-op` | autograd |
 | a<code>∇</code>b | Grad | `unsupported-op` | autograd |
@@ -291,7 +295,7 @@ Every rejection is a `static error` that ends in one of these rule ids.
 | `find` | Results whose length depends on run-time data | a?b (Find): the result length depends on the data |
 | `range` | Results whose length depends on run-time data | ?a (Range): the result length depends on the data |
 | `group` | Results whose length depends on run-time data | =a (Group): the result length depends on the data |
-| `grade` | Results whose length depends on run-time data | <a and >a (Grade): left out of version 1 (needs a sort routine in the runtime) |
+| `grade` | Results whose length depends on run-time data | <a and >a (Grade): not in the profile (it needs a sort routine in the runtime) |
 | `split` | Results whose length depends on run-time data | a:#b (Split): the result is ragged |
 | `cut` | Results whose length depends on run-time data | a:_b (Cut): the result is ragged |
 | `const-count` | Results whose length depends on run-time data | take, drop, reshape or enumerate with a count that is not a compile-time constant |
@@ -319,9 +323,9 @@ Every rejection is a `static error` that ends in one of these rule ids.
 | `extern-call` | Types and shapes | a call of an extern that does not match its signature |
 | `fixed` | Types and shapes | a fixed-point number used in a way that is not defined: mixed with a float or another fixed type, an operator it does not have, a conversion that is not exact |
 
-### The streamable tier
+### Rules for streaming kernels
 
-`kgpy --check-static --streamable` reports these as the same kind of error, for a program that is inside the profile but would not take one record per clock cycle in hardware.
+`kgpy --check-static --streamable` reports these as the same kind of error, for a program that is inside the profile but would not take one record per clock cycle in an FPGA kernel (see [Extra rules for FPGA kernels](#extra-rules-for-fpga-kernels)).
 
 | Rule id | Reported when | Change |
 |---|---|---|
@@ -388,42 +392,10 @@ declares a global that is an input register: the host writes it between runs and
 scalar `int`, `float` or `fixed<W,I>`; the name is defined by `.param` itself and a compiled function may read it,
 not assign it (rule `param`). It is not a compile-time constant, so a shape or a loop count cannot depend on it; a
 parameter bounds a window only as "use the first p of a fixed maximum": `+/buf*(!8)<p`. Under KlongPy it is an
-an ordinary global; `klongpy.static.set_param(klong, "gain", 0.75)` sets it between calls (`call_entry` reads it at each
+ordinary global; `klongpy.static.set_param(klong, "gain", 0.75)` sets it between calls (`call_entry` reads it at each
 call). In C it is a field of the instance with a setter, `prog_set_gain(p, value)`; `prog_init` restores the
-default. In the hardware kernel it is an `s_axilite` argument; with `--lanes N` the N values of every parameter
-are one table in card memory that the kernel reads when it starts (the host runtime cannot write an array to a
-register), which `.hw.set` fills.
-
-## A summary entry
-
-An entry reads or changes the program's state, and every entry of a program works on the same state: under KlongPy
-the same globals, in C the same instance. A hardware kernel is one entry, so that sharing needs one more rule, for
-the case where a run is "feed many records, read a small result at the end" (a strategy replayed over a tick history,
-where a result per tick would cost more than the computation):
-
-```
-step::{...update the state...;0}                       .entry("step";"fixed<32,16> -> void")
-summary::{profit,maxdd,wide(trades)}                   .entry("summary";"-> fixed<64,32>[3]")
-```
-
-A `void` entry with arguments (the driver) and one entry without arguments that returns a value (the reader) form a
-summary pair. The hardware kernel of the driver makes its n calls, writes nothing for them, then calls the reader
-once and writes that one result record (with `--lanes N`, one per lane, lane first). n may be 0: the kernel then
-reads the state as it is. The reader is not a kernel of its own, and the pair is only for the streamable kernel (the
-wrapped stage rejects it). Without a reader a `void` entry still cannot be a kernel, and a reader without a driver
-is an entry that takes no argument; both are `[hls]` errors that say so. Every other tier does the same by hand:
-`call_entry(klong, "step", x)` for each record, then `call_entry(klong, "summary")`; the C emitter has
-`prog_step(p, x)` and `prog_summary(p, out)` on one instance. `examples/hardware/crossover.kg` is a worked pair.
-
-## The streamable tier
-
-`kgpy --check-static --streamable prog.kg` answers a second question about a program that is inside the profile:
-can a hardware kernel take one record per clock cycle? It reports, with the span of the construct and what to
-change, each of: a loop with a data-dependent bound (`stream-loop`), state that is read and written back through a
-multi-cycle operation, a float operation or a division by a value that is not a constant (`stream-state`), a data-dependent index into an array of more than
-1024 items (`stream-table`), and an entry that does more than 4096 element operations per call and is not a sliding
-window (`stream-block`). A sliding window is `+/taps*x@idx` with the index table `k+!w`: the kernel keeps the last `w`
-samples in a shift register and makes one output per input word.
+default. In an FPGA kernel it is a register or, with lanes, a table; see
+[Extra rules for FPGA kernels](#extra-rules-for-fpga-kernels).
 
 ## Typing rules
 
@@ -511,24 +483,7 @@ call_entry(klong, "step", 0.31)          # 0.12005, checked against the .entry s
 
 ## Differences from KlongPy
 
-By design, and exercised by tests.
-
-| Case | KlongPy on the host | Compiled |
-|---|---|---|
-| Integer overflow | 64-bit integers wrap, as numpy int64 does (only an operand beyond 64 bits is an exact Python integer) | wraps at `kg_int` width (two's complement) |
-| Float precision | float64 | `kg_float` width; exact with `--float64` |
-| `x%0` | `:undefined`, per element for arrays | `KG_DIV0=trap` calls `kg_trap`; `KG_DIV0=ieee` (default) gives inf or nan |
-| Integer `:%` or `!` by zero | `:undefined` | `kg_trap` always; a constant zero divisor is a compile error |
-| `a@i` out of range | error; negative `i` counts from the end | with `KG_BOUNDS=1` (default) `kg_trap`; negative indices count from the end as in KlongPy; with `KG_BOUNDS=0` unchecked. A constant index out of range is a compile error |
-| `^` result type | int when the result is whole (`2.0^2` is the int 4) | int only for int operands and a non-negative constant exponent, else float |
-| `:%` of floats | accepted (`7.0:%2` is 3) | compile error: floor the operands first |
-| `_` of a huge float | saturates to the int64 range | saturates to the `kg_int` range |
-| `a~b` with different shapes | 0 | compile error |
-| `a f'b` with different lengths | stops at the shorter | compile error |
-| `n:+a` on a matrix | rotates the flattened data | compile error (rank 1 only) |
-| Over on one item (`f/[5]`) | the item itself, whatever `f` returns | the item converted to the accumulator's type |
-| A conditional with an int and a float branch | the type of the branch taken | float (the value is the same) |
-| A callee reading its caller's locals | works (dynamic scope) | compile error (`undefined-name`) |
+A compiled program differs from the interpreter in a few specified ways: integer width, float width, division by zero, indexing out of range, and shapes that the checker rejects at compile time. They are in one table on the page [Compiling Klong to C](embedded.md#differences-from-the-interpreter).
 
 ## What is checked without running the program
 
@@ -552,3 +507,46 @@ with the results KlongPy gives (`.expect`):
 - `mavg.kg`: a moving average over the last four samples; the window and its write position are state.
 - `pid.kg`: one step of a PID controller that reads a sensor and writes an output through two externs.
 - `fir.kg`: a 16-tap FIR filter over a block of 256 samples; the taps and the index table are built on the host.
+
+## Extra rules for FPGA kernels
+
+These rules apply only to programs built as FPGA kernels (`kgpy --emit-hls`, `kgpy --hw-build`); C does not need them. [Klong functions as FPGA hardware](hardware.md) shows the flow. A kernel is one of two kinds. A *streaming kernel*, the default, takes one record per clock cycle when the program allows it. A *wrapped kernel* (`--hls-wrapped`) runs the program's C unchanged once per record and is slower.
+
+### Parameters in a kernel
+
+A `.param` is a register of the kernel (an `s_axilite` argument). With `--lanes N` the kernel holds N copies of the program, the N values of every parameter are one table in card memory that the kernel reads when it starts, and `.hw.set` fills the table. The host runtime cannot write an array to a register, which is why a table is used.
+
+### A summary entry
+
+An entry reads or changes the program's state, and every entry of a program works on the same state: under KlongPy the same globals, in C the same instance. A hardware kernel is one entry, so that sharing needs one more rule, for the case where a run feeds many records and reads a small result at the end (a strategy replayed over a tick history, where a result per tick would cost more than the computation).
+
+A `void` entry with arguments (the driver) and one entry without arguments that returns a value (the reader) form a *summary pair*. The kernel of the driver makes its n calls, writes nothing for them, then calls the reader once and writes that one result record (with `--lanes N`, one per lane, lane first). n may be 0: the kernel then reads the state as it is. The reader is not a kernel of its own. Only a streaming kernel can have a summary pair; a wrapped kernel rejects it. A `void` entry without a reader cannot be a kernel, and a reader without a driver is an entry that takes no argument. Both are `[hls]` errors that say so.
+
+A complete pair:
+
+<!-- check-docs: link examples -->
+```console
+$ cat > sum_demo.kg <<'EOF'
+> total::0.0
+> count::0
+> step::{total::total+x;count::count+1;0}
+> report::{total,count}
+> .entry("step";"float -> void")
+> .entry("report";"-> float[2]")
+> EOF
+$ kgpy --check-static sum_demo.kg
+sum_demo.kg: inside the static profile (2 functions, 2 entries, 0 externs, 2 globals)
+```
+
+Every other target does the same by hand: `call_entry(klong, "step", x)` for each record, then `call_entry(klong, "report")`, and the C emitter has `prog_step(p, x)` and `prog_report(p, out)` on one instance. `examples/hardware/crossover.kg` is a worked pair.
+
+### Checking that a kernel can stream
+
+`kgpy --check-static --streamable prog.kg` answers a second question about a program that is inside the profile: can a hardware kernel take one record per clock cycle? It reports, with the span of the construct and what to change, each of:
+
+* a loop with a data-dependent bound (`stream-loop`);
+* state that is read and written back through a multi-cycle operation, a float operation or a division by a value that is not a constant (`stream-state`);
+* a data-dependent index into an array of more than 1024 items (`stream-table`);
+* an entry that does more than 4096 element operations per call and is not a sliding window (`stream-block`).
+
+A sliding window is `+/taps*x@idx` with the index table `k+!w`. The kernel keeps the last `w` samples in a shift register and makes one output per input word.

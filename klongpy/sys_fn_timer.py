@@ -54,32 +54,18 @@ def eval_sys_fn_timer(klong, x, y, z):
     
         .timer(x;y;z)                                     [Create-timer]
 
-        Create a timer named by "x" that repeats every "y" seconds (fractional
-        seconds are allowed) and calls function "z".
-
-        An interval value of 0 indicates immediately callback (async).
-
-        The callback function returns 1 to continue, 0 to stop time timer.
-
-        If "z" is a named function, the timer re-resolves it on each tick so redefinitions take effect.
+        Create a timer named by "x" that calls the function "z" every "y"
+        seconds (fractions allowed) and returns its handle. An interval of 0
+        calls "z" at once, on the Klong loop. The result of the callback decides
+        what happens next: a false value (0, an empty list or string) stops the
+        timer, and any other value runs it again. A named function is looked up
+        again on each tick, so a redefinition takes effect. Stop a timer with .timerc.
 
         Example:
 
-            cb::{.p("hello")}
-            th::.timer("greeting";1;cb)
-
-            To stop the timer, it can be closed via:
-
-            .timerc(th)
-
-            The following example will create a timer which counts to 20 and then 
-            terminates the timer by returning 0 from the callback.
-
-            counter::0
-            u::{counter::counter+1;.p(counter);1}
-            c::{.p("stopping timer");0}
-            cb::{:[counter<20;u();c()]}
-            th::.timer("count";1;cb)
+            n::0
+            cb::{n::n+1;.p(n);:[n<3;1;0]}
+            th::.timer("count";0.2;cb)
 
     """
     try:

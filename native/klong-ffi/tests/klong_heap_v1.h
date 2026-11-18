@@ -1,4 +1,4 @@
-/* FROZEN: the allocator of the image a232666c (the sixth to eighth rounds of the pico bench), kept so that the host model of newlib's malloc
+/* FROZEN: an earlier allocator of the Pico firmware, kept so that the host model of newlib's malloc
  * (klong_heap_arena.h) can be checked against what that image did on the boards: the largest vector of the client of the self-test
  * smaller than the server's, and `.l("mgmt")` refused after it. Not the firmware's: that is boards/pico-bench/klong_heap.h. Built with
  * pico_node.c -DPICO_V1. */

@@ -7,7 +7,7 @@
  *
  *   pico_node ARENA_BYTES
  *
- * Built with -DPICO_V1 it is the allocator of the image a232666c instead (klong_heap_v1.h over a model of newlib's malloc,
+ * Built with -DPICO_V1 it is an earlier allocator of the firmware instead (klong_heap_v1.h over a model of newlib's malloc,
  * klong_heap_arena.h), which the boards showed to leave the client of the self-test with a smaller largest vector than the
  * server's and no room for the management library. A NULL is an answer in both (the firmware takes memory from `__real_malloc`);
  * what cannot fail and does ends in `fatal`: the process prints FATAL and exits, as the board reboots.

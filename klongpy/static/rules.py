@@ -6,7 +6,7 @@ The rules of the static profile, as data: one stable id per rejection.
 A profile violation is reported as a KlongStaticError whose ``rule`` attribute
 is one of these ids (docs/static-profile.md; ``section`` is the
 section of that document the rule comes from, "+" marks a rule this checker
-adds because the design implies it without naming it). The ids are part of
+adds beyond the original list of rules). The ids are part of
 the contract with the reject fixtures (tests/static/reject/<id>.kg) and with
 the profile document; do not rename one without renaming both.
 """
@@ -70,7 +70,7 @@ _R = (
     ("find", "length", "a?b (Find): the result length depends on the data", "3", None),
     ("range", "length", "?a (Range): the result length depends on the data", "3", None),
     ("group", "length", "=a (Group): the result length depends on the data", "3", None),
-    ("grade", "length", "<a and >a (Grade): left out of version 1 (needs a sort routine in the runtime)", "3, 13", None),
+    ("grade", "length", "<a and >a (Grade): not in the profile (it needs a sort routine in the runtime)", "3, 13", None),
     ("split", "length", "a:#b (Split): the result is ragged", "3", None),
     ("cut", "length", "a:_b (Cut): the result is ragged", "3", None),
     ("const-count", "length", "take, drop, reshape or enumerate with a count that is not a compile-time constant", "3",
@@ -80,7 +80,7 @@ _R = (
     ("scan-dynamic", "length", "the \\~ and \\* scan forms: the result length is not known", "3", None),
     # -- forms ---------------------------------------------------------------
     ("take-rank", "form", "take from anything but a rank-1 array", "3",
-     "version 1 takes from rank-1 arrays only; index the rows instead: a@!n"),
+     "take works on rank-1 arrays only; index the rows instead: a@!n"),
     ("amend-form", "form", "an amend other than a:=v,i on a rank-1 array with one scalar value", "3",
      "write a:=v,i with a scalar v and either a scalar index i or an index list of known length"),
     ("size-of-atom", "form", "# or ^ of an atom", "3",

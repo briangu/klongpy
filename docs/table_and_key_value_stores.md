@@ -2,21 +2,17 @@
 
 > **Security:** keys are used as file names under the store root and values are pickled on disk. Treat the root as trusted storage. See the [security model](https://github.com/briangu/klongpy#security-model-trusted-networks).
 
-To support the KlongPy database capabilities, the `klongpy.db` module includes a key-value store capability that allows for saving and retrieving tables from disk. There is a more generic key-value store as well as a TableStore. The TableStore merges tables when writing to disk, while the generic key-value store writes raw serialized data and doesn't consider the contents.
+`klongpy.db` can keep [tables](fast_columnar_database.md) and other values on disk. A store behaves like a dictionary whose entries are files: setting a key writes the value, and reading a key returns it, or `:undefined` when it is not stored. There are two kinds. A table store (`.tables`) writes tables and merges a table with the one already stored under the same key. A key-value store (`.kvs`) writes any value as pickled bytes and does not look at its contents.
 
-Install the database extras first:
+Install the extra, which brings pandas and DuckDB, and load the module with `.py("klongpy.db")`:
 
 ```bash
 pip install "klongpy[db]"
 ```
 
-Key-value stores operate as dictionaries, so setting a value updates the contents on disk and reading a value retrieves it.  Similar to Klong dictionaries, if the value does not exist, then the undefined value is returned.
-
 ### TableStore
 
-Since KlongPy Tables are backed by Pandas DataFrames, it's convenient to be able to save/load them from disk.  For this we use the .tables() command.  If table is already present on disk, then the set results in the merge of the two DataFrames.
-
-Let's consider that we have a table called 'prices' and we want to store it on disk.
+`.tables(path)` opens a table store under a directory. This stores a table called `prices`:
 
 <!-- check-docs: requires duckdb pandas -->
 ```
@@ -32,7 +28,7 @@ sym  px
 /tmp/tables:tables
 ```
 
-Similarly, reading values is the same as getting a value from a dict:
+Reading a key returns the table:
 
 <!-- check-docs: continue -->
 ```
@@ -42,7 +38,7 @@ sym  px
   B 2.5
 ```
 
-When a table is written under a name that is already on disk, the two are combined by their index: rows with a new index value are added, and a row whose index value is already stored keeps the stored row. Tables that have no index set (as `prices` above) are numbered from 0, so a second write of such a table finds every index value taken and adds nothing. To merge by a column, index it first:
+Writing a table under a key that is already stored merges the two by index: a row with a new index value is added, and for a row whose index value is already stored the stored row is kept. (`.insert` into an indexed table behaves the other way: the new row replaces the old one; see [Duplicate index values](fast_columnar_database.md#duplicate-index-values).) Tables that have no index set (as `prices` above) are numbered from 0, so a second write of such a table finds every index value taken and adds nothing. To merge by a column, index it first:
 
 <!-- check-docs: requires duckdb pandas -->
 ```
@@ -65,11 +61,9 @@ sym  px
   C 3.5
 ```
 
-Reading a name that is not stored returns the undefined value (`:undefined`), for tables and for the generic store below.
-
 ### Generic key-value store
 
-A simple key-value store backed by disk is available via the .kvs() command.
+`.kvs(path)` opens a key-value store under a directory:
 
 <!-- check-docs: requires duckdb pandas -->
 ```
@@ -81,9 +75,9 @@ A simple key-value store backed by disk is available via the .kvs() command.
 /tmp/kvs:kvs
 ```
 
-Now a file `/tmp/kvs/hello` exists holding the pickled value "world". Only unpickle data you trust.
+The file `/tmp/kvs/hello` now holds the pickled value `"world"`. Only read stores that you trust.
 
-Retrieving a value is the same as reading from a dictionary:
+Read it back:
 
 <!-- check-docs: continue -->
 ```

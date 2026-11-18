@@ -1,14 +1,14 @@
-# Expression Compiler Roadmap
+# Expression Compiler Notes
 
-Checked against the code on 2026-11-16 (`klongpy/compiler.py`, the call sites in `klongpy/interpreter.py`, and `klongpy/static/`). The "Current state" section describes what runs today. The sections after it are plans, not features: none of that work exists.
+This page is a note for contributors about the expression compiler inside the KlongPy interpreter (`klongpy/compiler.py`). It is not about compiling Klong to C; for that, see [Compiling Klong to C](embedded.md). The first section says what the compiler does, and the sections after it are plans: none of that work exists.
 
-## Current state
+## What exists
 
 KlongPy has two separate compilers. They share no code and do different jobs.
 
 ### The expression compiler (`klongpy/compiler.py`)
 
-It speeds up arithmetic and reductions on numbers and arrays while a program runs under KlongPy.
+It speeds up arithmetic and reductions on numbers and arrays while a program runs.
 
 - The interpreter asks the compiler about each operator node and each adverb-chain node it evaluates. The result, including "not compilable", is cached on the node, so the work is done once per node.
 - The compiler turns a node into a small backend-neutral tree (the IR) and the active backend (`compile_expr_ir` in `klongpy/backends/numpy_backend.py` and `torch_backend.py`) generates a Python function from it.

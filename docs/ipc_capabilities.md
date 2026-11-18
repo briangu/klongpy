@@ -2,15 +2,41 @@
 
 > **Security:** a peer that can reach this port can run any Klong code in your interpreter, including `.py` and `.sys`. Credentials and data are sent in clear text and there is no encryption. Use it on trusted networks only and bind to localhost where you can. See the [security model](https://github.com/briangu/klongpy#security-model-trusted-networks).
 
-KlongPy interpreters can connect to each other, run code and call functions remotely, read and write remote variables, and receive callbacks. The functions are `.srv` (serve), `.cli` (connect and call), `.clid` (connect and treat the remote context as a dictionary), `.clic` (close), `.clit` (call timeout) and `.async` (call without waiting).
+KlongPy interpreters, and q processes, can connect to each other, run code and call functions remotely, read and write remote variables, and receive callbacks. This page is for someone who runs a KlongPy server or client and needs the details: an example, the protocol and its security settings, the types that cross the wire, and each function.
 
-The examples below were run with a second interpreter in the same process, as the tests do. A line starting with `server?>` ran in the serving interpreter and a line starting with `client?>` in the connecting one. The port is 8888 throughout; where a result is an error, the line shows `error:` and the message.
+The functions are `.srv` (serve), `.cli` (connect and call), `.clid` (connect and treat the remote context as a dictionary), `.clic` (close), `.clit` (call timeout) and `.async` (call without waiting).
 
-## The protocol
+## Example
 
-The connection speaks the kdb+ IPC protocol: the same handshake, message framing and type codes, little-endian, with compression understood (capability 3). A q or other kdb+ client library can connect to a KlongPy `.srv`, send a string to evaluate, or call a Klong function by name, and a KlongPy `.cli` can connect to a q process. kdb+ is a trademark of KX. This is an independent implementation written from public documentation and Apache-licensed client code. It is tested against PeachQ, an open-source kdb+-compatible implementation, and not against kdb+ itself (see the [roadmap](roadmap.md)).
+A server and a client in one process. A `server?>` line runs in the serving interpreter and a `client?>` line in the connecting one; the port is 8888 throughout.
 
-What goes across, in each direction:
+```kgpy
+server?> avg::{(+/x)%#x}
+:monad
+server?> .srv(8888)
+1
+client?> f::.cli(8888)
+remote[localhost:8888]:fn
+client?> f("1+1")
+2
+client?> f(:avg,,!100)
+49.5
+```
+
+`.cli` returns a function. A string argument is Klong source for the server to run. A symbol is the name of a server function, followed by its arguments. To start a server from the shell, `kgpy -s 8888` runs the REPL with `.srv(8888)` evaluated first.
+
+## Protocol and security
+
+- **Protocol.** The connection speaks the kdb+ IPC protocol: the same handshake, message framing and type codes, little-endian, with compression understood (capability 3). A q or other kdb+ client can connect to `.srv`, and `.cli` can connect to a q process.
+- **Independence.** kdb+ is a trademark of KX. This is an independent implementation written from public documentation and Apache-licensed client code. It is tested against PeachQ, an open-source kdb+-compatible implementation, and not against kdb+ itself (see the [roadmap](roadmap.md)).
+- **Credentials.** A server accepts any client unless the program defines `.srv.auth`; see [Credentials](#credentials-srvauth). A server with `.srv.auth` refuses clients of the old pickle protocol, because they send no credentials.
+- **Message size.** `ipc_max_message` limits the size of a message; see [Limits and compression](#limits-and-compression).
+- **Pickle protocol.** The old protocol sent Python pickles, which let any peer run Python in the receiving process. It is deprecated. `KLONGPY_IPC=kdb` makes a process refuse it always; see [`KLONGPY_IPC`](#klongpy_ipc-and-the-old-pickle-protocol).
+- **No encryption.** There is no TLS, and a peer that can reach the port can run Klong code, including `.py` and `.sys`.
+
+## Types across the wire
+
+What goes across in each direction:
 
 | Klong value | kdb+ type sent | Klong value received |
 |---|---|---|
@@ -30,7 +56,7 @@ What goes across, in each direction:
 
 A `klongpy.db` table is sent as a kdb+ table (type 98) of its columns, after any pending inserts are committed. A table received becomes a `Table` when `klongpy.db` is loaded in the receiving process (`.py("klongpy.db")`), and otherwise a dictionary from column symbol to column. The table's index is not carried: the receiver must apply `.index` again. A keyed table from q arrives as a two-element list of the key table and the value table.
 
-Storing a table on a server and reading it back (needs pandas and DuckDB, `pip install "klongpy[db]"`):
+Storing a table on a server and reading it back. This needs the `db` extra, `pip install "klongpy[db]"`. `,,` in `f(:get,,"T")` makes the one argument a list of one; with two arguments, as in `f(:put,"T",T)`, list them separately.
 
 <!-- check-docs: requires duckdb pandas -->
 ```kgpy
@@ -234,7 +260,7 @@ client?> {x@,!100}'[a b c]
 [49.5 4950.0 99.0]
 ```
 
-Each proxy runs on the server with the range 0 to 99 as its argument, and the results come back as an array.
+Each proxy runs on the server with `!100` as its argument, and the results come back as an array.
 
 ## Errors
 
@@ -296,7 +322,11 @@ error: remote[localhost:8888] closed the connection during the handshake (bad cr
 
 A refused client raises a system error from `.cli`. The server also drops a connection that does not complete the handshake within 5 seconds, and reads at most 256 bytes of it.
 
-When nothing listens on the port (the connection is refused), `.cli` does not fail at once, and it does not raise. It tries up to 5 times and waits after each failed attempt, 5 seconds first and twice as long each time: 5, 10, 20, 40 and 80 seconds. The interpreter is blocked meanwhile (Ctrl-C stops the wait). After the fifth wait, about 155 seconds after the call (155.1 s measured), `.cli` returns the connection function as usual, and the failure shows on the first call through it: a system error, `connection not established`. A wrong password or a server that is not kdb+ is different: that is the handshake error above, raised from `.cli`. The retry numbers are the defaults `max_retries=5` and `retry_delay=5.0` of `HostPortConnectionProvider` in `klongpy/sys_fn_ipc.py`, which `.cli` uses without passing others; there is no Klong-level way to change them.
+## Connecting to a port where nothing listens
+
+When the connection is refused, `.cli` blocks and retries up to 5 times, waiting 5, 10, 20, 40 and 80 seconds (about 155 seconds in all; Ctrl-C stops the wait). It then returns the connection function as usual, and the first call through it fails with a system error, `connection not established`.
+
+A wrong password or a server that is not kdb+ is different: that is the handshake error above, raised from `.cli`. The retry numbers are the defaults `max_retries=5` and `retry_delay=5.0` of `HostPortConnectionProvider` in `klongpy/sys_fn_ipc.py`; Klong code cannot change them.
 
 ## Closing, Timeouts and `.clit`
 
@@ -472,7 +502,7 @@ server?> back
 
 ## Building a pub-sub example
 
-Using the server callbacks, it is easy to set up a pub-sub example where a client connects and subscribes to a server. Periodically the server calls the `update` function on the client with new data. The complete programs are in `examples/ipc/`, and the tests run them over the kdb+ protocol.
+A pub-sub pair uses the server callbacks: a client connects and subscribes, and the server periodically calls the `update` function on the client with new data. The complete programs are in `examples/ipc/`, and the tests run them over the kdb+ protocol.
 
 Server:
 
@@ -514,7 +544,7 @@ update::{.d("subscription update: ");.p(x)}
 cli(:subscribe,,["MSFT" "GOOG" "AAPL"])
 ```
 
-Running these is easy:
+Run the server, then the client:
 
 ```bash
 $ kgpy examples/ipc/srv_pubsub.kg
@@ -535,7 +565,7 @@ subscription update: [MSFT 43.28567690091258 GOOG 32.06719233158067 AAPL 47.3060
 
 ## `KLONGPY_IPC` and the old pickle protocol
 
-Before this version, KlongPy sent Python pickles, which only another KlongPy could read and which let any peer run arbitrary Python in the receiving process. That protocol is deprecated and will be removed. It is still there for a transition, selected by the environment variable `KLONGPY_IPC`:
+The old protocol sent Python pickles, which only another KlongPy could read. It is deprecated and will be removed. It is selected by the environment variable `KLONGPY_IPC`:
 
 | Value | `.srv` accepts | `.cli` and `.clid` speak |
 |---|---|---|
@@ -543,7 +573,7 @@ Before this version, KlongPy sent Python pickles, which only another KlongPy cou
 | `kdb` (the default for `.cli`) | only the kdb+ protocol | the kdb+ protocol |
 | `legacy` | only the pickle protocol | the pickle protocol |
 
-The first use of the pickle protocol in a process prints a `FutureWarning`: "the pickle IPC protocol is deprecated and will be removed". Upgrade the servers first, then the clients. A server on `auto` that sees an old client works, with the warning, unless it has `.srv.auth` defined (the old protocol has no credentials, so the client is refused); `KLONGPY_IPC=kdb` always refuses it. A value other than these three is a system error. The unpickling that the old protocol does is why it must only be used on a trusted network.
+The first use of the pickle protocol in a process prints a `FutureWarning`: "the pickle IPC protocol is deprecated and will be removed". Upgrade servers before clients. A server on `auto` that sees an old client works, with the warning, unless it has `.srv.auth` defined (the old protocol has no credentials, so the client is refused); `KLONGPY_IPC=kdb` always refuses it. A value other than these three is a system error. The unpickling that the old protocol does is why it must only be used on a trusted network.
 
 Two `kgpy` processes, with the server on the default mode and the client on `legacy`:
 

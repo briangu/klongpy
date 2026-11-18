@@ -1,10 +1,11 @@
 # Python Integration Examples
 
-This directory contains small examples showing how to mix Python and KlongPy.
-Run any of the ``.kg`` files with ``kgpy``:
+These examples mix Python and KlongPy. Each ``.kg`` file loads the Python module next to it with a relative path, so run it from the directory that holds it.
+From this directory:
 
 ```bash
 $ kgpy hello.kg
+hello, world
 ```
 
 ## Basic examples
@@ -22,10 +23,11 @@ Demonstrates using Python's ``multiprocessing`` module.
 * **callback.kg** – marshal a Klong callback to a worker process.
 * **worker/** – load another Klong program inside a worker process.
 
-Run with:
+Run from the `multiprocessing` directory:
 
 ```bash
-$ kgpy multiprocessing/pool.kg
+$ cd multiprocessing
+$ kgpy pool.kg
 ```
 
 ## threading
@@ -37,21 +39,22 @@ Examples that rely on ``multiprocessing.pool.ThreadPool``.
 * **callback.kg** – use a Klong callback on a thread.
 * **callback_async.kg** – asynchronous callback version.
 
-Run with:
+Run from the `threading` directory:
 
 ```bash
-$ kgpy threading/pool.kg
+$ cd threading
+$ kgpy pool.kg
 ```
 
 ## Calling from Python
 
-Instantiate a ``KlongInterpreter`` and execute a Klong script:
+Create a ``KlongInterpreter`` and load a Klong script. Run this from this directory, so that `hello.kg` finds `hello.py`:
 
 ```python
 from klongpy import KlongInterpreter
 
 klong = KlongInterpreter()
-klong('.l("examples/python/hello.kg")')
+klong('.l("hello.kg")')
 ```
 
 A ``.kg`` file pulls in its companion Python module using ``.py``:

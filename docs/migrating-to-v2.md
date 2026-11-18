@@ -1,12 +1,24 @@
 # Migrating to v2
 
-This page lists what behaves differently from the released version, 0.7.0, for code that already exists. Each item gives what the old version did, what v2 does, why, and how to keep the old behaviour where a switch exists. The "before" results were run on the 0.7.0 source and the "now" results are the examples on this page, which are run when the documentation is checked.
+This page is for anyone with code written for KlongPy 0.7. It lists what behaves differently in v2, with the 0.7 behaviour, the v2 behaviour, why, and a switch to keep the old behaviour where one exists. [Release notes](release-notes.md) has the complete list of changes. Most programs need no change. The risk is in "Results that change without an error", where the same input gives a different result and nothing complains.
 
-Most programs need no change. The risk is in the first group, where the same input gives a different result and nothing complains.
+## Quick list
+
+| Change | Switch to keep the old behaviour |
+|---|---|
+| `[a b]::v` binds; `f(a;b)::{...}` defines | `KLONGPY_PARSER=legacy` |
+| Strings such as `"{"`; whitespace before `;` in a conditional | `KLONGPY_PARSER=legacy` |
+| Left-over input warns (level 0) or fails (strict) | Level 0 is the default; `warnings.filterwarnings("ignore", category=KlongSyntaxWarning)` hides the warning |
+| A call on a number, string, list or dictionary is a `type` error | None |
+| Arity, projections, `d@k`, `:undefined`, `x%0`, conditional monads, symbols as data, operator results | None |
+| Error classes and messages | None; `except KlongException` and the old Python classes still catch |
+| Errors on stderr, exit statuses | None |
+| IPC protocol | `KLONGPY_IPC=legacy` (or `auto` on the server), trusted networks only |
+| Strict levels | `.strict(0)` or `.unsafe()`; the default is 0 |
 
 ## Check your code first
 
-Before you upgrade, or right after, run these two on your programs.
+Run these two on your programs before you upgrade, or right after.
 
 `kgpy --lint` reads files without running them and reports several classic traps, such as a leading minus that negates more than you meant:
 
@@ -95,7 +107,7 @@ Before: the call bound `1` to `x` and returned the unbound `y` as the symbol `:y
 
 ### A call with too few arguments is a projection
 
-Before: `r::{x+y};s::r(1)` gave a value that could never be completed; `s(10)` returned it unchanged. Now `r(1)` is the same as `r(1;)`, a function that waits for the rest. It is allowed at every strict level. A function applied to too few values by `@` or an adverb gives a projection in the same way, so `{x+y}'[1 2 3]` is a list of three projections.
+Before: `r::{x+y};s::r(1)` gave a value that could never be completed; `s(10)` returned it unchanged. Now `r(1)` is the same as `r(1;)`, a function that waits for the rest. It is allowed at every strict level.
 
 ```kgpy
 ?> r::{x+y}
@@ -106,7 +118,12 @@ Before: `r::{x+y};s::r(1)` gave a value that could never be completed; `s(10)` r
 11
 ```
 
-Related changes that follow from one rule: a projection of a projection fills the first open slot (`f::{x,y,z};p::f(1;;);q::p(;3);q(2)` was `[1 None 3]` and is `[1 2 3]`), and a projection made inside a function keeps the values its arguments had there. A function that is passed as a parameter still does not curry; see [Differences from Klong](differences.md#a-function-passed-as-a-parameter-does-not-curry).
+The same rule has these consequences:
+
+* A function applied to too few values by `@` or an adverb gives a projection in the same way, so `{x+y}'[1 2 3]` is a list of three projections.
+* A projection of a projection fills the first open slot: `f::{x,y,z};p::f(1;;);q::p(;3);q(2)` was `[1 None 3]` and is `[1 2 3]`.
+* A projection made inside a function keeps the values its arguments had there.
+* A function that is passed as a parameter still does not curry; see [Differences from Klong](differences.md#a-function-passed-as-a-parameter-does-not-curry).
 
 ### `d@k` on a dictionary gives the value
 
@@ -188,7 +205,7 @@ Before: a symbol that passed through an adverb, `@`, a projection or a callback 
 
 ### Operators with new results
 
-These gave a wrong or accidental result and now give the right one. Each is also in the [release notes](release-notes.md#operators).
+These gave a different result in 0.7. Each is also in the [release notes](release-notes.md#operators).
 
 ```kgpy
 ?> "abc":="x",-1
@@ -205,12 +222,11 @@ These gave a wrong or accidental result and now give the right one. Each is also
 1
 ```
 
-- Amend with a negative index counts from the end. It used to change nothing (`"abc":="x",-1` was `"abc"`). A real put into an integer list turns the list into reals; the value was truncated. An index out of range is a range error, not a NumPy `IndexError`.
-- Group lists the groups in the order the values first appear; `=[3 1 3 2 1]` listed the group of 1 first. `=[10 "10" 10]` was a `TypeError`.
-- Take on a list of lists takes rows; `5#[[1 2] [3 4]]` gave `[[1 2 1 2] [3 4 3 4]]`. `3#7` was a Python `TypeError`, and `2#:foo` was `"fo"`.
+- Amend with a negative index counts from the end; it changed nothing (`"abc":="x",-1` was `"abc"`). A real put into an integer list turns the list into reals; the value was truncated.
+- Group lists the groups in the order the values first appear; `=[3 1 3 2 1]` listed the group of 1 first.
+- Take on a list of lists takes rows; `5#[[1 2] [3 4]]` gave `[[1 2 1 2] [3 4 3 4]]`. `2#:foo` was `"fo"`.
 - `[:+]~[:+]` was 0.
-- `1:$"x"` was a `ValueError` and is `:undefined`. `$[1 2 3]` recursed until Python stopped it. `|5`, `&/"abc"` and `+/"abc"` were Python errors, and `[2 2]:^[]` a `ZeroDivisionError`. `:{[1 2]},[1 2 3]` was silently ignored and is an error.
-- Integers beyond 64 bits are exact for `+ - * < > | &`, where they raised `OverflowError` (`%` gives a float). `^` of two integer scalars with a non-negative exponent is exact as well, so `10^400` is an integer; only a result too large for that (`10^100000000`) is an error, a Klong one. A list operand to `^` still wraps in 64 bits.
+- `:{[1 2]},[1 2 3]` was silently ignored and is an error.
 
 ### A recursive call through `.f` has its own locals
 
@@ -225,13 +241,22 @@ Before: `.f` called itself without declaring the function's locals, so the inner
 
 ### A Python function brought in with `.py` gets every argument
 
-Before: a function with optional parameters was called with its required ones only, so `linspace(0;1;5)` made 50 points and `arange(2;8)` was `[0 1]`.
+Before: a function with optional parameters was called with its required ones only, so `linspace(0;1;5)` made 50 points and `arange(2;8)` was `[0 1]`. Now it gets every argument.
 
 ```kgpy
 ?> .pyf("numpy";"linspace")
 1
 ?> #linspace(0;1;5)
 5
+```
+
+`.pyc` passes positional arguments in the same way: `hypot(3;4)` gave 0.0.
+
+```kgpy
+?> .pyf("math";"hypot")
+1
+?> .pyc("hypot";[3 4];:{})
+5.0
 ```
 
 ## Input that is now reported
@@ -251,17 +276,6 @@ error: unexpected '2' after the end of the expression
 
 Why: `1 2 3` is nearly always a list written without brackets. To silence the warning from Python, use `warnings.filterwarnings("ignore", category=KlongSyntaxWarning)`. The legacy parser does not warn.
 
-### Two syntax errors are caught when the text is read
-
-An adverb that does not touch its verb (`{1 '2}`) and a dictionary literal entry that is not a `[key value]` pair (`:{1}`) used to fail with a `KeyError` or `TypeError` when the code ran, so a function that held one failed only when called. Both are syntax errors when the text is parsed, at every level.
-
-```kgpy
-?> {1 '2}
-error: adverb ' must directly follow its verb
-?> :{1}
-error: each entry of a dictionary literal must be a [key value] pair
-```
-
 ### Strings that look like punctuation are strings
 
 Before: `"{"`, `";"`, `")"` and `":["` were taken for the opener, separator or closer they spell. `"{"` was a syntax error, `";"` at the start of a statement was an empty statement, `f(")")` was a syntax error, and `["[" 1 2]` was the nested list `[[1 2]]`. Whitespace before the `;` of a conditional was a syntax error and is accepted.
@@ -279,7 +293,9 @@ A program that worked around the old behaviour (a string written another way to 
 
 ### Calling a value that is not a function
 
-Before: `a::1.0;a([3 4])` returned 1.0. The arguments were dropped and the value of `a` came back, so a definition written without braces, `avg::(+/x)%#x`, failed silently: `avg(list)` printed the number that `avg` held. Now the call is a `type` error, at every strict level, and the message says what was called and what it is.
+Before: `a::1.0;a([3 4])` returned 1.0. The arguments were dropped and the value of `a` came back, so a definition written without braces, `avg::(+/x)%#x`, failed silently: `avg(list)` printed the number that `avg` held.
+
+Now: the call is a `type` error at every strict level, and the message says what was called and what it is.
 
 ```kgpy
 ?> a::1.0
@@ -294,7 +310,13 @@ error: cannot call a: it is a list of 3, not a function
 2
 ```
 
-Search your code for a call on a name that holds a value. A list or a dictionary is read with `a@i` or `d@k`. The one idiom that relied on the old behaviour is a function literal passed as an argument and then called: `time({work()})` evaluates the literal where it stands, so the callee `x()` called its value. Give the function a name and pass the name, `w::{work()};time(w)`. A call on a function, a projection, a Python function, an IPC connection or a database is unchanged. There is no switch.
+Fix: search your code for a call on a name that holds a value.
+
+* Read a list or a dictionary with `a@i` or `d@k`.
+* A call on a function, a projection, a Python function, an IPC connection or a database is unchanged.
+* One idiom relied on the old behaviour: a function literal passed as an argument and then called. `time({work()})` evaluates the literal where it stands, so the callee `x()` called its value. Give the function a name and pass the name: `w::{work()};time(w)`.
+
+There is no switch.
 
 ## Strict mode
 
@@ -351,7 +373,7 @@ $ kgpy -e '1+"a"'; echo $?
 
 ## IPC speaks the kdb+ protocol
 
-Before: `.srv` and `.cli` sent pickled Python objects. A peer could run code in your process when its message was unpickled. Now the default is the kdb+ IPC protocol: a q process can talk to a `.srv`, and nothing is unpickled from the network. See [the protocol](ipc_capabilities.md#the-protocol).
+Before: `.srv` and `.cli` sent pickled Python objects. A peer could run code in your process when its message was unpickled. Now the default is the kdb+ IPC protocol: a q process can talk to a `.srv`, and nothing is unpickled from the network. See [the protocol](ipc_capabilities.md#protocol-and-security).
 
 The old protocol remains for a transition and is deprecated. It still unpickles what it receives, which runs code chosen by the sender, so use it on trusted networks only. `KLONGPY_IPC` chooses:
 
@@ -381,28 +403,9 @@ Other changes that come with the new protocol:
 
 There is still no encryption. See the security model in the [README](https://github.com/briangu/klongpy#security-model-trusted-networks).
 
-## System functions
+## Other changes
 
-These were wrong or crashed. Each is in the [release notes](release-notes.md#system-functions).
-
-```kgpy
-?> .sys("exit 3")
-3
-?> .pyf("math";"hypot")
-1
-?> .pyc("hypot";[3 4];:{})
-5.0
-?> .timer("t";-1;{1})
-error: y must be a non-negative number
-```
-
-- `.sys` runs a shell command and returns its exit status. It tried to start a program named by the whole string and raised `FileNotFoundError`.
-- `.pyc` passes positional arguments. `hypot(3;4)` gave 0.0.
-- `.timer` checks its arguments. A negative or non-numeric interval is a `KlongTypeError`; the non-numeric one was a `ValueError`.
-- `.webc(h)` stops a web server. It returned 0 and left the server running.
-- A missing key in a `.kvs` store is `:undefined`. It raised an error.
-- `.db(:{["T" T]})` works. It built a database whose queries failed.
-- `.l` of a missing file is a `KlongSystemError`, which is still a `FileNotFoundError`.
+[Release notes](release-notes.md#system-functions) lists the fixes to system functions (`.sys`, `.timer`, `.webc`, `.kvs`, `.db`), the operators that used to crash, and the libraries that now work.
 
 ## Keep the old reader
 
@@ -416,19 +419,5 @@ $ KLONGPY_PARSER=legacy kgpy -e 'a::5;[a b]::[1 2];a'
 ```
 
 From Python it is `KlongInterpreter(parser="legacy")`. It restores the old reading of the text: `[a b]::v` binds nothing, `f(a;b)::{...}` is a call, `"{"` is a syntax error, whitespace before the `;` of a conditional is an error, and left-over input is dropped without a warning. It does not bring back the old arity, projections, `:undefined`, division, operator or error behaviour, which are in the evaluator. Those have no switch.
-
-## Quick list
-
-| Change | Switch to keep the old behaviour |
-|---|---|
-| `[a b]::v` binds; `f(a;b)::{...}` defines | `KLONGPY_PARSER=legacy` |
-| Strings such as `"{"`; whitespace before `;` in a conditional | `KLONGPY_PARSER=legacy` |
-| Left-over input warns (level 0) or fails (strict) | Level 0 is the default; `warnings.filterwarnings("ignore", category=KlongSyntaxWarning)` hides the warning |
-| A call on a number, string, list or dictionary is a `type` error | None |
-| Arity, projections, `d@k`, `:undefined`, `x%0`, conditional monads, symbols as data, operator results | None |
-| Error classes and messages | None; `except KlongException` and the old Python classes still catch |
-| Errors on stderr, exit statuses | None |
-| IPC protocol | `KLONGPY_IPC=legacy` (or `auto` on the server), trusted networks only |
-| Strict levels | `.strict(0)` or `.unsafe()`; the default is 0 |
 
 The rest of v2 is in [What's New in v2](whats-new-v2.md).

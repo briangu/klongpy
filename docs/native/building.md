@@ -2,11 +2,11 @@
 
 This page covers building the native Klong runtime from source on a desktop computer, running the `klong` program (a REPL, `-e`, and files), the build options, and running the shared conformance suite against it. It is for anyone who wants to try the native runtime before putting it on a board. For what the runtime is, start with the [overview](index.md).
 
-Every command and every output below was run on 2026-11-16 on an Apple-silicon Mac, and the transcripts are run again whenever the documentation is checked and the binary has been built. Paths are relative to the root of the KlongPy repository.
+Conditions for the measured figures: Apple-silicon Mac, 2026-11-16. Paths are relative to the root of the KlongPy repository.
 
 ## Prerequisites
 
-You need a Rust toolchain with `cargo`. The host build was run here with a nightly `rustc` 1.90 and also with stable 1.88. The runtime has one dependency, the `libm` crate, which `cargo` fetches. You do not need Python for the build. Python is needed only for the scripts that run the conformance suite and talk to a board, and for the tests that connect the runtime to KlongPy.
+You need a Rust toolchain with `cargo`. The host build has been run with a nightly `rustc` 1.90 and also with stable 1.88. The runtime has one dependency, the `libm` crate, which `cargo` fetches. You do not need Python for the build. Python is needed only for the scripts that run the conformance suite and talk to a board, and for the tests that connect the runtime to KlongPy.
 
 ## Build
 
@@ -255,7 +255,7 @@ $ klong -e '.ver()'
 :{["version" "0.0.1"] ["int" 64] ["float" 64] ["features" ["files" "lib" "timers" "ipc"]] ["platform" "host"]}
 ```
 
-The default build is 64 bits wide, as the first two lines show: `2147483647+1` is an ordinary number and `9223372036854775807+1` wraps. In the narrow build `.ver()` reports `["int" 32] ["float" 32]`, `2147483647+1` is `-2147483648`, and `1%3` prints `0.33333334`. (The narrow program was built and run for this page, but the checker runs only the default build, so this paragraph is not a checked transcript.)
+The default build is 64 bits wide, as the first two lines show: `2147483647+1` is an ordinary number and `9223372036854775807+1` wraps. In the narrow build `.ver()` reports `["int" 32] ["float" 32]`, `2147483647+1` is `-2147483648`, and `1%3` prints `0.33333334`. (This paragraph is not a checked transcript: only the default build is run for the examples.)
 
 Integers wrap at the build width, with no error and no promotion to a larger type. KlongPy wraps at 64 bits too, but it promotes an operand beyond 64 bits (a long literal) to an exact integer for `+ - * < > | &`. The native runtime has no such promotion, and an integer literal that does not fit the build is a `syntax` error (`malformed number`). See [How it relates to KlongPy](index.md#how-it-relates-to-klongpy).
 
@@ -296,9 +296,9 @@ $ klong --steps 1000 -e '{1}{x+1}:~0'
   ^^^^^^^^^^^
 ```
 
-The figures in the stack-budget lines are for this 64-bit host. On a 32-bit board a level of Klong recursion costs about 0.85 KiB: 864 bytes by the frames of the thumbv6m image (`f::{:[x;1+f(x-1);0]}`: it reached 90 levels and failed at 95 on a Pico at a limit of 80,640 bytes, 2026-11-16), against about 0.8 to 2 KiB on the host. The stack budget is used as `bytes` less what is kept below the deepest level (a quarter by default; a board can say, `Config::for_stack_keep`: the Pico keeps 16 KiB of 133 KiB), so 64 KiB gives about 60 levels and 256 KiB about 250 at the default.
+The figures in the stack-budget lines are for this 64-bit host. On a 32-bit board a level of Klong recursion costs about 0.85 KiB: 864 bytes by the frames of the thumbv6m image, against about 0.8 to 2 KiB on the host. The stack budget is used as `bytes` less what is kept below the deepest level (a quarter by default; a board can say, `Config::for_stack_keep`: the Pico keeps 16 KiB of 108 KiB), so 64 KiB gives about 60 levels and 256 KiB about 250 at the default.
 
-With `--stats` the program reports what it used, on standard error: the peak heap, the heap in use, the limit and the number of refused allocations (`heap: peak 23174 bytes, in use 15679 bytes, limit 0, refused 0` for the program below, on the machine of this page; the heap numbers vary a little), the deepest nesting of evaluations and the native stack. The heap figures are bytes requested from the allocator and include the interpreter's own state of about 15 KiB on the desktop.
+With `--stats` the program reports what it used, on standard error: the peak heap, the heap in use, the limit and the number of refused allocations (`heap: peak 23174 bytes, in use 15679 bytes, limit 0, refused 0` for the program below, on the Mac; the heap numbers vary a little), the deepest nesting of evaluations and the native stack. The heap figures are bytes requested from the allocator and include the interpreter's own state of about 15 KiB on the desktop.
 
 <!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
 ```console
@@ -312,7 +312,7 @@ stack: 696 bytes of native stack at most
 
 The language is checked by the cases in `conformance/cases`, which KlongPy and the native runtime both run (see the repository's `conformance/README.md` for the case format). Each case runs a program in a fresh interpreter and compares the printed value, the console output and the kind of the error. `native/scripts/conformance.py` runs the cases that the default build declares, with the `klong --conformance` protocol, one process per case, and prints counts per file and a total.
 
-`link` and the `python` below are as the repository's own checker runs them: `python` is the interpreter you use for KlongPy, and the scripts are in the repository.
+In the commands below, `python` is the interpreter you use for KlongPy, and the scripts are in the repository.
 
 <!-- check-docs: requires-file native/target/release/klong; link native conformance -->
 ```console
@@ -320,7 +320,7 @@ $ python native/scripts/conformance.py | tail -1 | cut -c1-40
 total                         1293  1293
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1293 of 1293 on this machine on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1293 of 1293 on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
 KLONG_NATIVE=native/target/narrow/release/klong python native/scripts/conformance.py --narrow
@@ -330,7 +330,7 @@ That gave 1160 of 1160 with the narrow build above. The parse trees of the golde
 
 Not every case runs on every build. A case carries tags, and a build runs the cases whose tags it declares. The default build leaves out the tags `bigint` (it wraps), `torch-only` and `kgpy-only` (KlongPy's own), `desktop` (Python interop, databases, web) and the `timers` and `ipc` tiers, which have no cases. The narrow build also leaves out `float`, `string-fmt` and `width64`, the cases that pin 64-bit results.
 
-The native tests that need KlongPy (`tests/test_native_conformance.py`, `tests/test_native_ipc.py`, `tests/test_native_mgmt.py`) skip themselves when `native/target/release/klong` does not exist, so building the binary turns them on. On this machine 86 passed and 11 were skipped; the 11 need a PeachQ executable, see [IPC and Timers](ipc.md). `cargo test --release --workspace` in `native/` runs the Rust tests.
+The native tests that need KlongPy (`tests/test_native_conformance.py`, `tests/test_native_ipc.py`, `tests/test_native_mgmt.py`) skip themselves when `native/target/release/klong` does not exist, so building the binary turns them on. On the Mac 86 passed and 11 were skipped; the 11 need a PeachQ executable (a kdb+-compatible q implementation), see [IPC and Timers](ipc.md). `cargo test --release --workspace` in `native/` runs the Rust tests.
 
 ## Sizes and speed
 
@@ -357,7 +357,7 @@ The width features do not change the size of a 64-bit program in any useful way.
 | | `files`, `lib`, `int32`, `float32` | 205,518 | 107,984 | 313,522 |
 | | none | 207,056 | 63,664 | 270,740 |
 
-These images have no IPC and no timers. IPC adds about 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, and the `mgmt` library 12.7 KB (figures from the work on those features; they were not re-measured for this page). The firmware for the [ESP32-P4](esp32-p4.md) is 692 KB, but it is built with `opt-level` 3 and carries ESP-IDF.
+These images have no IPC and no timers. IPC adds about 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, and the `mgmt` library 12.7 KB (older figures). The firmware for the [ESP32-P4](esp32-p4.md) is 692 KB (691,328 bytes flashed), but it is built with `opt-level` 3 and carries ESP-IDF.
 
 **Speed** (`python native/scripts/bench.py`: best of five, in process, parse and run, KlongPy on numpy against the native `release` build):
 

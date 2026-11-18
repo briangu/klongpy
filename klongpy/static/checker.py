@@ -2091,7 +2091,7 @@ class _Checker:
         if k == "take":
             c = self.count(a, sp, "n#a (Take)")
             if b.shape is not None and len(b.shape) != 1:
-                self.diag("take-rank", sp, f"n#a (Take) from {b}: version 1 takes from rank-1 arrays only")
+                self.diag("take-rank", sp, f"n#a (Take) from {b}: take works on rank-1 arrays only")
                 return ANY
             if c is None:
                 return ANY

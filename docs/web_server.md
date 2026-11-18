@@ -2,62 +2,59 @@
 
 > **Security:** `.web` listens on all interfaces by default and has no authentication or encryption. Bind to localhost (`.web("127.0.0.1:8080";get;post)`) and use it on trusted networks only. See the [security model](https://github.com/briangu/klongpy#security-model-trusted-networks).
 
-KlongPy includes a simple web server module. It's optional so you need to install the dependencies:
+`.web` serves Klong functions as HTTP GET and POST routes, for a small API or a status page. The module is optional; install its dependency with `pip3 install "klongpy[web]"` and load it with `.py("klongpy.web")`.
 
-```bash
-pip3 install "klongpy[web]"
+## What a handler receives and returns
+
+`.web(address;get;post)` takes two dictionaries from route path to handler: `get` for GET routes and `post` for POST routes. It returns the server handle.
+
+- A handler is a function of one argument. A function of any other arity is skipped, and its route answers 404.
+- A GET handler receives a dictionary of the query parameters. A POST handler receives a dictionary of the form fields of the body. Keys and values are strings, so the value of `?p=100` is `"100"`. A missing key reads as `:undefined`.
+- The handler's value becomes the response body, as text, with status 200. A string is sent as it is. Any other value is converted with Python's `str`, so a list arrives in Python's notation (`['100']`).
+- A handler that raises an error answers 400 with the body `Invalid request`. A path with no route answers 404.
+
+Known limit: the response is always `text/plain`. To send JSON or another format, build the string in the handler.
+
+## Example
+
+A server that stores values posted to `/p` and returns them from `/`:
+
 ```
-
-The web server allows you to implement KlongPy functions as GET/POST handlers for registered routes.
-Handlers must be monadic functions (arity 1).
-
-
-Here's a simple example that lets you fetch and update a data array:
-
-```
-:" Import the Klongpy web module.  Requires pip3 install klongpy[web] first"
 .py("klongpy.web")
 
-:" Array of data to display"
+:" The data, returned by a GET of /"
 data::[]
-
-:" Return the data for a GET method at /"
 index::{x;data}
-
-:" Create the GET route handlers"
 get:::{}
 get,"/",index
 
-:" Append the query param q value to data"
-update::{[p];p::x?"p";.p(p);data::data,p}
-
-:" Create the POST route handlers"
+:" Append the form field p of a POST to /p, and return the new length"
+update::{[p];p::x?"p";data::data,p;#data}
 post:::{}
 post,"/p",update
 
-:" Start the web server with the GET and POST handlers"
-.web(8888;get;post)
-
-.p("curl -X POST -d\"p=100\" \"http://localhost:8888/p\"")
-.p("curl \"http://localhost:8888\"")
-
-data
+.web("127.0.0.1:8888";get;post)
 ```
 
-Test it out:
+The requests and responses of a run (the headers other than `Content-Type` are left out):
 
-```bash
-$ curl "http://localhost:8888"
+```text
+$ curl -i "http://127.0.0.1:8888/"
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+
 []
-$ curl -X POST -d"p=100" "http://localhost:8888/p"
+$ curl -X POST -d "p=100" "http://127.0.0.1:8888/p"
+1
+$ curl "http://127.0.0.1:8888/"
 ['100']
-$ curl "http://localhost:8888"
-['100']
+$ curl -i "http://127.0.0.1:8888/nope"
+HTTP/1.1 404 Not Found
 ```
 
-The posted value is a string, so `data` holds `'100'`, not the number 100. A path with no handler returns HTTP 404.
+The posted value is a string, so `data` holds `'100'`, not the number 100. `.web(8888;get;post)` with a bare port listens on all interfaces; the address string above listens on localhost only.
 
-You can also launch the same web server directly from the REPL:
+The same server from the REPL, with a handler that returns a string and a list:
 
 <!-- check-docs: requires aiohttp -->
 ```kgpy
@@ -75,7 +72,7 @@ You can also launch the same web server directly from the REPL:
 web[0.0.0.0:8888]
 ```
 
-Now in another terminal:
+From another terminal:
 
 ```bash
 $ curl http://localhost:8888

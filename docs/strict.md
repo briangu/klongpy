@@ -50,16 +50,7 @@ In a session, `.strict` and `.unsafe` set the level for what runs afterwards:
 error: the strict level must be 0, 1 or 2
 ```
 
-A file run with `kgpy --strict=N file.kg`, and a file loaded with `.l`, run at the level of the session. The level in force when a text is parsed decides the syntax checks for that text; the level in force when a statement runs decides the run-time checks. The same text can therefore be accepted at level 0 and rejected at level 1 by the same interpreter:
-
-```kgpy
-?> 1 2 3
-1
-?> .strict(1)
-1
-?> 1 2 3
-error: unexpected '2' after the end of the expression
-```
+A file run with `kgpy --strict=N file.kg`, and a file loaded with `.l`, run at the level of the session. The level in force when a text is parsed decides the syntax checks for that text; the level in force when a statement runs decides the run-time checks. The same text can therefore be accepted at level 0 and rejected at level 1 by the same interpreter (the first example under [Input that is left over](#input-that-is-left-over)).
 
 The default stays at level 0 so that existing programs keep their results. [`kgpy --lint`](lint.md) finds many of the same mistakes in a file without running it.
 
@@ -191,7 +182,7 @@ At level 0 `::` on an unknown name inside a function creates a variable that bel
 error: undefined variable: c
 ```
 
-Declare the name as a local, `{[c];c::1}`, or define the global before the function runs. There is no `global:` prefix. To create a global from inside a function, use [`.E`](system-functions.md).
+Declare the name as a local, `{[c];c::1}`, or define the global before the function runs. To create a global from inside a function, use [`.E`](system-functions.md).
 
 ```kgpy
 ?> .strict(1)
@@ -233,7 +224,7 @@ At level 1 a name read at the top level that is not defined is still its own sym
 
 ### Undefined names
 
-Reading a name that is not defined is a name error, at the top level too. The message carries a "did you mean" hint when one defined name is close to it. The hint uses the names defined in the interpreter and a similarity cutoff of 0.7, so a one-letter slip is caught and a very different name gets no hint. The examples here use the `render` directive of the documentation checker, which shows an error as the REPL prints it, with the hint line.
+Reading a name that is not defined is a name error, at the top level too. The message carries a "did you mean" hint when one defined name is close to it. The hint uses the names defined in the interpreter and a similarity cutoff of 0.7, so a one-letter slip is caught and a very different name gets no hint. The first example shows the error as the REPL prints it, with the hint line.
 
 <!-- check-docs: strict 2; render -->
 ```kgpy

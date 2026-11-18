@@ -1,16 +1,198 @@
 # Release Notes
 
-For the overview of version 2 see [What's new in v2](whats-new-v2.md), and for what to change in an existing program see [Migrating to v2](migrating-to-v2.md). This page is the detailed list of behaviour changes.
+This page is the complete list of changes in version 2 compared with 0.7. [What's new in v2](whats-new-v2.md) is the tour of the features, and [Migrating to v2](migrating-to-v2.md) lists what to change in an existing program. In this page "0.7" means KlongPy 0.7.0, and "before" means that version. Where the old behaviour was an unrelated Python error, only its kind is given.
 
-## Next release: behaviour changes
+## 2.0.0 (release candidate)
 
-This list is the changes that can alter what an existing program does or prints. Each item gives the old behaviour, the new one and an example. The examples are run against the interpreter when the documentation is checked, so the new output shown is what it prints.
+### Headline additions
 
-"Old" means the last release, 0.7.0. Where the old behaviour was an unrelated Python error, only its kind is given.
+* The [native runtime](native/index.md): the language in Rust, without Python, for desktops and boards.
+* The [conformance suite](conformance.md): about 1,300 cases that every implementation must pass.
+* The [static profile](static-profile.md) and [compiling Klong to C](embedded.md).
+* [FPGA kernels](hardware.md), experimental.
+* [Strict modes](strict.md), levels 0, 1 and 2.
+* The [linter](lint.md), `kgpy --lint`.
+* [Structured errors](errors.md) with a position, a kind and the source line.
+* [Language additions](language-additions.md): destructuring, named parameters, dictionary literals, projections, `.fmt`, `.pf` and `.grad`.
+* kdb+-protocol [IPC](ipc_capabilities.md), tested against PeachQ.
+* A [REPL](repl.md) with multi-line entry, history, completion and `it`.
 
-### Syntax that changed meaning
 
-These inputs were accepted by the last release and ran without an error, and now mean something else. A program that contains one of them can give a different result. [`kgpy --lint`](lint.md) and [strict mode](strict.md) point at some of them. The old behaviour shown is that of the last release; the examples print what the interpreter now does.
+#### Static Klong and C
+
+**New: a subset of Klong that compiles to C.** [The static profile](static-profile.md) is the part of the language in which every type, shape and call target is known before the program runs. `kgpy --check-static FILE...` checks files against it without running them, and `kgpy --emit-c FILE... -o DIR` compiles a program inside it to freestanding C99 with no heap, no recursion and no C library. `.extern("name";"int -> float")` declares a function the target provides, and `.entry("name";"float -> float")` declares one the host calls. Under KlongPy an extern is a Python function (`klong.externs["name"] = f`), and `klongpy.static.load_program` and `call_entry` run a program the way the compiled one is called. A program that uses neither is unaffected. See [Compiling Klong to C](embedded.md).
+
+```kgpy
+?> .extern("read.adc";"int -> float")
+"int -> float"
+?> .entry("f";"-> int")
+error: .entry: the function f is not defined
+```
+
+**Experimental: `.hw` calls a function of the static profile as FPGA hardware.** `fir::.hw("fir.kg")` binds the kernels of an image built with `kgpy --hw-build fir.kg` for an Alveo U250 and `fir.run(x)` runs on the card, with the arguments checked against the `.entry` signature, an extra leading dimension meaning several calls, resident buffers (`.hw.put`, `.hw.get`, `.hw.free`), `.hw.reset` and `.hw.info`. `KLONG_HW=sim` runs the same generated code on the host as a simulator, with no card. Nothing changes for a program that does not use `.hw`, and nothing of it is imported at start. This is experimental: it has been run on one card with one image, and in that first stage the hardware is slower than numpy on the kernel that was measured. See [Klong functions as FPGA hardware](hardware.md).
+
+
+#### Strict modes
+
+The default stays level 0, which behaves as before. See [Strict mode](strict.md) for the rules.
+
+**`.strict(n)` sets level `n`.** `.strict(2)` and `.strict(0)` were accepted and silently set level 1, because the extra argument was dropped. The level is one of 0, 1 and 2, and anything else is an error. `.strict()` is still level 1, and `.unsafe()` is level 0. Each returns the level.
+
+```kgpy
+?> .strict(2)
+2
+?> .strict(0)
+0
+?> .strict(3)
+error: the strict level must be 0, 1 or 2
+```
+
+**`kgpy --strict[=N]` and `KlongInterpreter(strict=N)` choose the level.** There was no flag and no constructor argument; the level could only be set from Klong code. Bare `--strict` is level 1. Files loaded with `.l` run at the level of the session.
+
+```
+$ kgpy --strict=2 -e 'a+1'
+<expr>:1:1: name error: undefined: a
+  a+1
+  ^
+```
+
+**At level 1, `1::5` is a syntax error, and a read in a function reports the read.** The left side of `::` that is not a name was accepted and stored a meaningless entry. A function that read a name that was not defined was told to declare it in the parameter list, which is advice for an assignment. The message is now `undefined: a`. Level 1 also turns the parser's warnings into errors, as [Errors](errors.md#syntax-warnings) lists.
+
+```kgpy
+?> .strict(1)
+1
+?> 1::5
+error: cannot assign: the left side of :: must be a name
+?> f::{a+1}
+:nilad
+?> f()
+error: undefined: a
+```
+
+**Level 2 is new.** Reading an undefined name is a name error with a "did you mean" hint, `:foo` is always the symbol, a declared local read before it is assigned is an error, and a call with more arguments than the function takes is an arity error.
+
+```kgpy
+?> a+1
+error: cannot apply + (Plus) to symbol and integer
+?> .strict(2)
+2
+?> c+1
+error: undefined: c
+?> foo::5
+5
+?> :foo
+:foo
+?> {x+y}(1;2;3)
+error: the function takes 2 arguments, got 3
+```
+
+**There is no `global:` prefix.** The `.strict()` documentation promised that a function could create a global with `[global:counter]`. Nothing implemented it; `[global:counter]` was an ordinary locals list holding the names `global` and `counter`. The promise is deleted. To change a global from a function, define it first at the top level; to create one from inside a function, use `.E`.
+
+
+#### Language additions
+
+See [Language additions](language-additions.md) for the forms. These are the changes in behaviour that come with them, apart from the ones in [Syntax that changed meaning](#syntax-that-changed-meaning).
+
+**New: `.fmt`, `.pf` and `.grad`.** `.fmt(template;args)` and `.pf(template;args)` format text with `{}` placeholders, and `.grad(f;x)` is the ASCII name of `x∇f`. See [Language Additions](language-additions.md#formatted-text).
+
+**A destructuring at the start of a function declares its names as locals.** `{[s k]::x;s+k}` needs no locals list at any strict level, and does not change a global named `s`.
+
+**A dictionary literal inside a dictionary or list literal is a dictionary.** It was stored as an unusable call object. A list literal that holds one is copied each time it is evaluated, as a dictionary literal is.
+
+```kgpy
+?> d:::{["GET" :{["/" 2]}]}
+:{["GET" :{["/" 2]}]}
+?> d@"GET"
+:{["/" 2]}
+```
+
+**`d,d2` merges two dictionaries.** It raised a Python `KeyError`. The entries of `d2` are copied into `d`, which changes in place, and an entry of `d2` replaces one with the same key. A right operand that is not a pair or a dictionary is still an error.
+
+```kgpy
+?> a:::{["x" 1]}
+:{["x" 1]}
+?> b:::{["y" 2]}
+:{["y" 2]}
+?> a,b
+:{["x" 1] ["y" 2]}
+```
+
+**Python callers can pass arguments by name, and a named-parameter function takes any number of them.** `KGFnWrapper` ignored keyword arguments. `klong['f'](1, 2, d=4, c=3)` passes parameters by name, for a function written with named parameters or with `x`, `y` and `z`. Too few, too many, an unknown or a repeated name raises `KlongArityError`.
+
+**A function with named parameters has no source text.** Over IPC it is sent like a projection, as an opaque value that the receiver can hold and send back but not call. See [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
+
+
+#### Structured errors
+
+**Errors are `KlongError` classes with a position.** Every error KlongPy raises on purpose is a `KlongError` (`KlongTypeError`, `KlongRangeError` and so on, listed in [Errors](errors.md)), and an exception from NumPy inside an operator is reported as one, naming the operator. A Klong error that replaces a Python one is also an instance of the old class, so `except IndexError` and `except ValueError` still catch it.
+
+```kgpy
+?> 1+"a"
+error: cannot apply + (Plus) to integer and string
+?> [1 2 3]@3
+error: index 3 out of range for list of 3
+?> [1 2 3]+[1 2]
+error: cannot apply + (Plus) to list of 3 and list of 2
+```
+
+The old messages were NumPy's, such as `ufunc 'add' did not contain a loop with signature matching types ...`, and `index 3 is out of bounds for axis 0 with size 3`.
+
+
+#### REPL and command line
+
+**A multi-line entry is one entry.** When a bracket, string or comment is left open, the REPL prompts with `..` and reads on. Before, each line was evaluated alone, so `f::{` was an error. Piped input does the same.
+
+```kgpy
+?> f::{
+.. x+1
+.. }
+:monad
+?> f(2)
+3
+```
+
+**`it` holds the last result.** `it` was an undefined name.
+
+```kgpy
+?> 1+2
+3
+?> it*2
+6
+```
+
+**Line editing is built in.** History (`~/.kgpy_history`, or `KGPY_HISTORY`) and tab completion come from `readline`, so `rlwrap` is no longer needed. See [the REPL](repl.md).
+
+
+#### kdb+ IPC
+
+**The wire protocol is kdb+ IPC.** `.srv` and `.cli` used pickled Python objects, which let a peer run code in your process when a message was unpickled. The default is now the kdb+ protocol, and a q client can talk to a `.srv`. The old protocol remains for a transition and is deprecated: `KLONGPY_IPC=legacy` selects it, `auto` (the server default) accepts an old client, and `KLONGPY_IPC=kdb` refuses it. Upgrade servers first, then clients. See [the protocol](ipc_capabilities.md#protocol-and-security).
+
+**Tables and functions cross the connection.** A `klongpy.db` table is sent as a kdb+ table and arrives as a table when `klongpy.db` is loaded; an index does not travel. A function literal is sent as its source text. See [the protocol](ipc_capabilities.md#protocol-and-security) and [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
+
+**A numpy `datetime64` or `timedelta64` can be sent.** It goes as a kdb+ timestamp or timespan, in nanoseconds (a date is nanoseconds since 2000-01-01), and `NaT` is the null. It used to be a type error on the sending side. It arrives as the integer, as every kdb+ temporal does, so the receiver of `2000-01-02` sees 86400000000000. A numpy unit is converted to nanoseconds, a calendar unit (years, months) of a timedelta is refused, and a value outside the range of a kdb+ temporal is a range error.
+
+```kgpy
+server?> .py("numpy")
+1
+server?> .pyf("numpy";"datetime64")
+1
+server?> .srv(8888)
+1
+client?> f::.cli(8888)
+remote[localhost:8888]:fn
+client?> f("datetime64(""2000-01-02"")")
+86400000000000
+```
+
+
+### Behaviour changes
+
+These changes can alter what an existing program does or prints. The old behaviour is that of 0.7.
+
+
+#### Syntax that changed meaning
+
+These inputs were accepted by 0.7 and ran without an error, and now mean something else. [`kgpy --lint`](lint.md) and [strict mode](strict.md) point at some of them.
 
 **`[a b]::v` binds the names.** A list of names on the left of `::` used to be accepted, to evaluate the right side and to bind nothing. It is now a [destructuring](language-additions.md#destructuring): `a` and `b` are set to the members of `v`, so a name that already held a value changes. `a::5;[a b]::[1 2];a` was 5 and is 1. A list on the left that is not a list of distinct plain names (nested, repeated, `x y z`, empty) still binds nothing at strict level 0, now with a warning, and is a syntax error at level 1 and 2. A wrong number of members is a `shape` error, and a right side that is not a list is a `type` error.
 
@@ -130,18 +312,8 @@ A function of four or more parameters displays as `:fn/N` (here `:fn/4`), the fo
 
 **`x`, `y` and `z` can be assigned at strict levels 1 and 2.** `h::{x::7};h(1)` was `undefined variable: x` at level 1 and 2. The arguments are locals of the call, as named parameters are, and the caller's value is not changed.
 
-**A Python function with optional parameters gets every argument.** A function brought in with `.py` or `.pyf` was called with its required parameters only, so `linspace(0;1;5)` made 50 points and `arange(2;8)` was `[0 1]`. It now gets each argument written. It is displayed by its required parameters, as before.
 
-**A recursive call through `.f` has its own locals.** `.f` called itself without declaring the function's locals, so the inner call changed the outer call's variable. `f::{[t];t::x;:[x<2;t;t+.f(x-1)]};f(3)` was 3, where the same function written with its own name gives 6.
-
-```kgpy
-?> f::{[t];t::x;:[x<2;t;t+.f(x-1)]}
-:monad
-?> f(3)
-6
-```
-
-### Parser
+#### Parser
 
 **A string or character that looks like punctuation is a string or character.** `"{"`, `";"`, `")"`, `":["`, `0c{` and the like were taken for the opener, separator or closer they spell. `"{"` was a syntax error, `";"` at the start of a statement was an empty statement, `f(")")` was a syntax error and `["[" 1 2]` was the nested list `[[1 2]]`.
 
@@ -174,21 +346,8 @@ A function of four or more parameters displays as `:fn/N` (here `:fn/4`), the fo
 error: unexpected '2' after the end of the expression
 ```
 
-**An adverb that does not touch its verb is a syntax error when the text is parsed.** It used to fail with a `KeyError` when it was evaluated, so a function that contained one only failed when called.
 
-```kgpy
-?> {1 '2}
-error: adverb ' must directly follow its verb
-```
-
-**A dictionary literal entry that is not a `[key value]` pair is a syntax error.** It was an `IndexError` or `TypeError`.
-
-```kgpy
-?> :{1}
-error: each entry of a dictionary literal must be a [key value] pair
-```
-
-### Operators
+#### Operators
 
 **A symbol held as data is not looked up as a variable.** It stays a symbol when it passes through an adverb, `@`, a projection or a callback. `{x}'[:foo :bar]` gave `[5 :bar]` when `foo` was 5. To pass the values of variables, build the list from values with `[;a;b]`.
 
@@ -248,6 +407,125 @@ error: :=: index 5 out of range for length 3
 [:undefined 0]
 ```
 
+**Each on a symbol passes the symbol.** `f'x` with a symbol `x` is `f(x)`. The symbol was taken for the string of its name and iterated over its characters.
+
+```kgpy
+?> s:::foo
+:foo
+?> {x}'s
+:foo
+```
+
+**A monad applied to a conditional or an evaluated list gets the value.** `-:[0;2;3]` applied the monad to the condition and was 0; the conditional gives 2 or 3 and the monad applies to that, so it is -3. In the same way `#[;a;b;c]` was the size of `a` and is 3. A function call whose argument is a conditional was not affected.
+
+```kgpy
+?> -:[0;2;3]
+-3
+?> -:[1;2;3]
+-2
+?> a::[7 8 9]
+[7 8 9]
+?> #[;a;1;2]
+3
+```
+
+
+#### Calling a value that is not a function
+
+Before: `name(args)` returned the value of `name` and dropped the arguments when `name` held a number, a string, a list or a dictionary, at every strict level. A definition written without its braces, `avg::(+/x)%#x`, made `avg` the number 1.0, and `avg([3 3 3 4 5 7])` printed 1.0.
+
+Now:
+
+* The call is a `type` error that names the callee and what it holds, with the source span of the call.
+* It applies to every written call (`a(1)`, `a()`, `a(1;2)`, a name inside a function, `x(1)` on a parameter that holds a value) and to a name given to an adverb (`a'[1 2]`, `a/[1 2]`).
+* A function, a projection, an operator, a Python function brought in with `.py` or `.pyf`, an IPC connection from `.cli` and a database from `.db` are called as before.
+* A name that is not defined is still `undefined function`. A symbol that names a function is still called through (`g:::f;g(2)`).
+* A dictionary is read with `d@k`; `d(k)` gave the dictionary and now fails.
+
+```kgpy
+?> avg::1.0
+1.0
+?> avg([3 3 3 4 5 7])
+error: cannot call avg: it is a float, not a function
+?> avg::{(+/x)%#x}
+:monad
+?> avg([3 3 3 4 5 7])
+4.166666666666667
+```
+
+Fix: a function literal passed as an argument is evaluated where it stands, so `ap::{x()}` called as `ap({7})` calls the number 7 and now fails. Pass the function by name, `g::{7};ap(g)`.
+
+
+
+#### Messages changed
+
+A program that matches on message text needs the new text.
+
+```kgpy
+?> 1 f
+error: undefined function: f
+?> 1.2.3
+error: malformed number '1.2.3'
+```
+
+These were `undefined: f` and a `ValueError` from `float()`. The error carries its position, its kind and the source: see [Reading an error](errors.md#reading-an-error).
+
+
+#### Command line
+
+**Errors go to stderr, with the position and a caret.** At the REPL they were printed on stdout as `Error: (args...)`. A file run or `-e` printed a Python traceback; a traceback is now printed only with `-v` or `--traceback`.
+
+```
+$ kgpy -e '1+"a"'
+<expr>:1:2: type error: cannot apply + (Plus) to integer and string
+  1+"a"
+   ^
+```
+
+**Exit status.** `kgpy file.kg` and `-e` exit with 1 after an error. Piped stdin exits 1 if any entry failed. `-t` runs every line, reports each failing line and exits after the last, with 1 if any failed; it no longer starts the REPL afterwards. Ctrl-C ends a file run with `interrupted` and status 130. A file that cannot be opened is `system error: cannot open ...`. See [the command line](errors.md#the-command-line).
+
+
+#### IPC
+
+**An error on the server comes back as a Klong error and the connection stays open.** It used to drop the connection (`connection lost`), and the next call failed with a Python `AttributeError`.
+
+```kgpy
+server?> .srv(8888)
+1
+client?> f::.cli(8888)
+remote[localhost:8888]:fn
+client?> f("[1 2 3]@10")
+error: index 10 out of range for list of 3
+client?> f("1+1")
+2
+```
+
+**`.srv` raises when it cannot listen.** A second `.srv` on a port that is in use returned 0 and did nothing. It raises `cannot listen on 0.0.0.0:8888: ...` followed by the system's reason. `.srv` on a server that is already running still returns 0.
+
+**A call waits 30 seconds.** A call with no answer raises an error that contains `timed out`, closes the connection and fails every call waiting on it. Change the limit with `.clit`. See [Closing, Timeouts and `.clit`](ipc_capabilities.md#closing-timeouts-and-clit).
+
+
+### Fixes
+
+These were crashes, hangs or wrong results in 0.7 on features that existed then.
+
+
+#### Operators and the parser
+
+**An adverb that does not touch its verb is a syntax error when the text is parsed.** It used to fail with a `KeyError` when it was evaluated, so a function that contained one only failed when called.
+
+```kgpy
+?> {1 '2}
+error: adverb ' must directly follow its verb
+```
+
+**A dictionary literal entry that is not a `[key value]` pair is a syntax error.** It was an `IndexError` or `TypeError`.
+
+```kgpy
+?> :{1}
+error: each entry of a dictionary literal must be a [key value] pair
+```
+
 **Iterate, scan-iterate and split check their counts.** A count that is negative or not a whole number looped without end; split sizes of 0 raised a `ZeroDivisionError`. Whole-number reals such as `2.0` are accepted.
 
 ```kgpy
@@ -298,7 +576,7 @@ error: ,: a dictionary can only be joined with a tuple (a list of two members) o
 [:foo :foo]
 ```
 
-**Integers beyond 64 bits are exact.** An operand outside the 64-bit range made `+ - * < > | &` fail with a Python `OverflowError`, although the language already made such integers (`2^64`, a long literal). The operation is now done on exact integers, in a list as well as on a scalar, and a result that fits in 64 bits again is an ordinary integer. Operands that are both inside 64 bits keep their wrap-around, as before: `9223372036854775807+1` is `-9223372036854775808`. `^` of two integer scalars with a non-negative exponent is exact as well (`10^400`; a result beyond about a million bits is a range error), and `!` is an error for such an operand. The compiled fast path and the interpreter now give the same answer for these expressions.
+**Integers beyond 64 bits are exact.** An operand outside the 64-bit range made `+ - * < > | &` fail with a Python `OverflowError`, although the language already made such integers (`2^64`, a long literal). The operation is now done on exact integers, in a list as well as on a scalar, and a result that fits in 64 bits again is an ordinary integer. Operands that are both inside 64 bits keep their wrap-around, as before: `9223372036854775807+1` is `-9223372036854775808`. `^` of two integer scalars with a non-negative exponent is exact as well (`10^400`; a result beyond about a million bits is a range error), and `!` is an error for such an operand.
 
 ```kgpy
 ?> 1+9223372036854775808
@@ -315,29 +593,19 @@ error: ,: a dictionary can only be joined with a tuple (a list of two members) o
 error: cannot apply ^ (Power) to integer and integer
 ```
 
-**Each on a symbol passes the symbol.** `f'x` with a symbol `x` is `f(x)`. The symbol was taken for the string of its name and iterated over its characters.
+**A recursive call through `.f` has its own locals.** `.f` called itself without declaring the function's locals, so the inner call changed the outer call's variable. `f::{[t];t::x;:[x<2;t;t+.f(x-1)]};f(3)` was 3, where the same function written with its own name gives 6.
 
 ```kgpy
-?> s:::foo
-:foo
-?> {x}'s
-:foo
+?> f::{[t];t::x;:[x<2;t;t+.f(x-1)]}
+:monad
+?> f(3)
+6
 ```
 
-**A monad applied to a conditional or an evaluated list gets the value.** `-:[0;2;3]` applied the monad to the condition and was 0; the conditional gives 2 or 3 and the monad applies to that, so it is -3. In the same way `#[;a;b;c]` was the size of `a` and is 3. A function call whose argument is a conditional was not affected.
+**A Python function with optional parameters gets every argument.** A function brought in with `.py` or `.pyf` was called with its required parameters only, so `linspace(0;1;5)` made 50 points and `arange(2;8)` was `[0 1]`. It now gets each argument written. It is displayed by its required parameters, as before.
 
-```kgpy
-?> -:[0;2;3]
--3
-?> -:[1;2;3]
--2
-?> a::[7 8 9]
-[7 8 9]
-?> #[;a;1;2]
-3
-```
 
-### System functions
+#### System functions
 
 **`.sys` runs a shell command and returns its exit status.** It tried to start a program named by the whole string.
 
@@ -393,9 +661,8 @@ a b
 6.0
 ```
 
-**New: `.fmt`, `.pf` and `.grad`.** `.fmt(template;args)` and `.pf(template;args)` format text with `{}` placeholders, and `.grad(f;x)` is the ASCII name of `x∇f`. See [Friendlier syntax](language-additions.md#formatted-text).
 
-### Libraries
+#### Libraries
 
 **`fft` and `eigenv` work.** `fft` in `math.kg` and `eigenv` in `eigenv.kg` raised errors. `eigenv` needed two operators to accept more than they did: amend in depth (`:-`) with a real value joined to integer indices, and join (`,`) of lists of different shape. Both do now. The library computes with its own sine and cosine, so `fft` is accurate to about four decimals, not to the last digit of a double.
 
@@ -410,218 +677,3 @@ a b
 [[3.4143 1.9998 0.5859] [[0.4993 -0.7073 0.5004] [0.7073 -0.0008 -0.7069] [0.5004 0.7069 0.4999]]]
 ```
 
-### Strict mode
-
-The default stays level 0, which behaves as before. See [Strict mode](strict.md) for the rules.
-
-**`.strict(n)` sets level `n`.** `.strict(2)` and `.strict(0)` were accepted and silently set level 1, because the extra argument was dropped. The level is one of 0, 1 and 2, and anything else is an error. `.strict()` is still level 1, and `.unsafe()` is level 0. Each returns the level.
-
-```kgpy
-?> .strict(2)
-2
-?> .strict(0)
-0
-?> .strict(3)
-error: the strict level must be 0, 1 or 2
-```
-
-**`kgpy --strict[=N]` and `KlongInterpreter(strict=N)` choose the level.** There was no flag and no constructor argument; the level could only be set from Klong code. Bare `--strict` is level 1. Files loaded with `.l` run at the level of the session.
-
-```
-$ kgpy --strict=2 -e 'a+1'
-<expr>:1:1: name error: undefined: a
-  a+1
-  ^
-```
-
-**At level 1, `1::5` is a syntax error, and a read in a function reports the read.** The left side of `::` that is not a name was accepted and stored a meaningless entry. A function that read a name that was not defined was told to declare it in the parameter list, which is advice for an assignment. The message is now `undefined: a`. Level 1 also turns the parser's warnings into errors, as [Errors](errors.md#syntax-warnings) lists.
-
-```kgpy
-?> .strict(1)
-1
-?> 1::5
-error: cannot assign: the left side of :: must be a name
-?> f::{a+1}
-:nilad
-?> f()
-error: undefined: a
-```
-
-**Level 2 is new.** Reading an undefined name is a name error with a "did you mean" hint, `:foo` is always the symbol, a declared local read before it is assigned is an error, and a call with more arguments than the function takes is an arity error.
-
-```kgpy
-?> a+1
-error: cannot apply + (Plus) to symbol and integer
-?> .strict(2)
-2
-?> c+1
-error: undefined: c
-?> foo::5
-5
-?> :foo
-:foo
-?> {x+y}(1;2;3)
-error: the function takes 2 arguments, got 3
-```
-
-**There is no `global:` prefix.** The `.strict()` documentation promised that a function could create a global with `[global:counter]`. Nothing implemented it; `[global:counter]` was an ordinary locals list holding the names `global` and `counter`. The promise is deleted. To change a global from a function, define it first at the top level; to create one from inside a function, use `.E`.
-
-### Friendlier syntax
-
-New forms are described in [Friendlier syntax](language-additions.md). These are the changes in behaviour that come with them, apart from the five in [Syntax that changed meaning](#syntax-that-changed-meaning).
-
-**A destructuring at the start of a function declares its names as locals.** `{[s k]::x;s+k}` needs no locals list at any strict level, and does not change a global named `s`.
-
-**A dictionary literal inside a dictionary or list literal is a dictionary.** It was stored as an unusable call object. A list literal that holds one is copied each time it is evaluated, as a dictionary literal is.
-
-```kgpy
-?> d:::{["GET" :{["/" 2]}]}
-:{["GET" :{["/" 2]}]}
-?> d@"GET"
-:{["/" 2]}
-```
-
-**`d,d2` merges two dictionaries.** It raised a Python `KeyError`. The entries of `d2` are copied into `d`, which changes in place, and an entry of `d2` replaces one with the same key. A right operand that is not a pair or a dictionary is still an error.
-
-```kgpy
-?> a:::{["x" 1]}
-:{["x" 1]}
-?> b:::{["y" 2]}
-:{["y" 2]}
-?> a,b
-:{["x" 1] ["y" 2]}
-```
-
-**Python callers can pass arguments by name, and a named-parameter function takes any number of them.** `KGFnWrapper` ignored keyword arguments. `klong['f'](1, 2, d=4, c=3)` passes parameters by name, for a function written with named parameters or with `x`, `y` and `z`. Too few, too many, an unknown or a repeated name raises `KlongArityError`.
-
-**A function with named parameters has no source text.** Over IPC it is sent like a projection, as an opaque value that the receiver can hold and send back but not call. See [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
-
-### Errors
-
-**Errors are `KlongError` classes with a position.** Every error KlongPy raises on purpose is a `KlongError` (`KlongTypeError`, `KlongRangeError` and so on, listed in [Errors](errors.md)), and an exception from NumPy inside an operator is reported as one, naming the operator. A Klong error that replaces a Python one is also an instance of the old class, so `except IndexError` and `except ValueError` still catch it.
-
-```kgpy
-?> 1+"a"
-error: cannot apply + (Plus) to integer and string
-?> [1 2 3]@3
-error: index 3 out of range for list of 3
-?> [1 2 3]+[1 2]
-error: cannot apply + (Plus) to list of 3 and list of 2
-```
-
-The old messages were NumPy's, such as `ufunc 'add' did not contain a loop with signature matching types ...`, and `index 3 is out of bounds for axis 0 with size 3`.
-
-**Messages changed.** A program that matches on message text needs the new text.
-
-```kgpy
-?> 1 f
-error: undefined function: f
-?> 1.2.3
-error: malformed number '1.2.3'
-```
-
-These were `undefined: f` and a `ValueError` from `float()`. The error carries its position, its kind and the source: see [Reading an error](errors.md#reading-an-error).
-
-**Calling a value that is not a function is a type error.** `name(args)` used to return the value of `name` and drop the arguments when `name` held a number, a string, a list or a dictionary, at every strict level. A definition written without its braces, `avg::(+/x)%#x`, made `avg` the number 1.0, and `avg([3 3 3 4 5 7])` printed 1.0. The call is now a `type` error that names the callee and what it holds, with the source span of the call. It applies to every written call (`a(1)`, `a()`, `a(1;2)`, a name inside a function, `x(1)` on a parameter that holds a value) and to a name given to an adverb (`a'[1 2]`, `a/[1 2]`). A function, a projection, an operator, a Python function brought in with `.py` or `.pyf` or stored from Python, an IPC connection from `.cli` and a database from `.db` are called as before; a name that is not defined is still `undefined function`. A symbol that names a function is still called through (`g:::f;g(2)`). A dictionary is read with `d@k`; `d(k)` gave the dictionary and now fails. A function literal passed as an argument is evaluated where it stands, so `ap::{x()}` called as `ap({7})` calls the number 7 and now fails: pass the function by name, `g::{7};ap(g)`. A value that is not called is not affected.
-
-```kgpy
-?> avg::1.0
-1.0
-?> avg([3 3 3 4 5 7])
-error: cannot call avg: it is a float, not a function
-?> avg::{(+/x)%#x}
-:monad
-?> avg([3 3 3 4 5 7])
-4.166666666666667
-```
-
-### REPL and CLI
-
-**Errors go to stderr, with the position and a caret.** At the REPL they were printed on stdout as `Error: (args...)`. A file run or `-e` printed a Python traceback; a traceback is now printed only with `-v` or `--traceback`.
-
-```
-$ kgpy -e '1+"a"'
-<expr>:1:2: type error: cannot apply + (Plus) to integer and string
-  1+"a"
-   ^
-```
-
-**Exit status.** `kgpy file.kg` and `-e` exit with 1 after an error. Piped stdin exits 1 if any entry failed. `-t` runs every line, reports each failing line and exits after the last, with 1 if any failed; it no longer starts the REPL afterwards. Ctrl-C ends a file run with `interrupted` and status 130. A file that cannot be opened is `system error: cannot open ...`. See [the command line](errors.md#the-command-line).
-
-**A multi-line entry is one entry.** When a bracket, string or comment is left open, the REPL prompts with `..` and reads on. Before, each line was evaluated alone, so `f::{` was an error. Piped input does the same.
-
-```kgpy
-?> f::{
-.. x+1
-.. }
-:monad
-?> f(2)
-3
-```
-
-**`it` holds the last result.** `it` was an undefined name.
-
-```kgpy
-?> 1+2
-3
-?> it*2
-6
-```
-
-**Line editing is built in.** History (`~/.kgpy_history`, or `KGPY_HISTORY`) and tab completion come from `readline`, so `rlwrap` is no longer needed. See [the REPL](repl.md).
-
-### IPC
-
-**The wire protocol is kdb+ IPC.** `.srv` and `.cli` used pickled Python objects, which let a peer run code in your process when a message was unpickled. The default is now the kdb+ protocol, and a q client can talk to a `.srv`. The old protocol remains for a transition and is deprecated: `KLONGPY_IPC=legacy` selects it, `auto` (the server default) accepts an old client, and `KLONGPY_IPC=kdb` refuses it. Upgrade servers first, then clients. See [the protocol](ipc_capabilities.md#the-protocol).
-
-**An error on the server comes back as a Klong error and the connection stays open.** It used to drop the connection (`connection lost`), and the next call failed with a Python `AttributeError`.
-
-```kgpy
-server?> .srv(8888)
-1
-client?> f::.cli(8888)
-remote[localhost:8888]:fn
-client?> f("[1 2 3]@10")
-error: index 10 out of range for list of 3
-client?> f("1+1")
-2
-```
-
-**`.srv` raises when it cannot listen.** A second `.srv` on a port that is in use returned 0 and did nothing. It raises `cannot listen on 0.0.0.0:8888: ...` followed by the system's reason. `.srv` on a server that is already running still returns 0.
-
-**A call waits 30 seconds.** A call with no answer raises an error that contains `timed out`, closes the connection and fails every call waiting on it. Change the limit with `.clit`. See [Closing, Timeouts and `.clit`](ipc_capabilities.md#closing-timeouts-and-clit).
-
-**Tables and functions cross the connection.** A `klongpy.db` table is sent as a kdb+ table and arrives as a table when `klongpy.db` is loaded; an index does not travel. A function literal is sent as its source text. See [the protocol](ipc_capabilities.md#the-protocol) and [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
-
-**A numpy `datetime64` or `timedelta64` can be sent.** It goes as a kdb+ timestamp or timespan, in nanoseconds (a date is nanoseconds since 2000-01-01), and `NaT` is the null. It used to be a type error on the sending side. It arrives as the integer, as every kdb+ temporal does, so the receiver of `2000-01-02` sees 86400000000000. A numpy unit is converted to nanoseconds, a calendar unit (years, months) of a timedelta is refused, and a value outside the range of a kdb+ temporal is a range error.
-
-```kgpy
-server?> .py("numpy")
-1
-server?> .pyf("numpy";"datetime64")
-1
-server?> .srv(8888)
-1
-client?> f::.cli(8888)
-remote[localhost:8888]:fn
-client?> f("datetime64(""2000-01-02"")")
-86400000000000
-```
-
-
-### Static Klong and C
-
-**New: a subset of Klong that compiles to C.** [The static profile](static-profile.md) is the part of the language in which every type, shape and call target is known before the program runs. `kgpy --check-static FILE...` checks files against it without running them, and `kgpy --emit-c FILE... -o DIR` compiles a program inside it to freestanding C99 with no heap, no recursion and no C library. `.extern("name";"int -> float")` declares a function the target provides, and `.entry("name";"float -> float")` declares one the host calls. Under KlongPy an extern is a Python function (`klong.externs["name"] = f`), and `klongpy.static.load_program` and `call_entry` run a program the way the compiled one is called. A program that uses neither is unaffected. See [Compiling Klong to C](embedded.md).
-
-```kgpy
-?> .extern("read.adc";"int -> float")
-"int -> float"
-?> .entry("f";"-> int")
-error: .entry: the function f is not defined
-```
-
-**Experimental: `.hw` calls a function of the static profile as FPGA hardware.** `fir::.hw("fir.kg")` binds the kernels of an image built with `kgpy --hw-build fir.kg` for an Alveo U250 and `fir.run(x)` runs on the card, with the arguments checked against the `.entry` signature, an extra leading dimension meaning several calls, resident buffers (`.hw.put`, `.hw.get`, `.hw.free`), `.hw.reset` and `.hw.info`. `KLONG_HW=sim` runs the same generated code on the host as a simulator, with no card. Nothing changes for a program that does not use `.hw`, and nothing of it is imported at start. This is experimental: it has been run on one card with one image, and in that first stage the hardware is slower than numpy on the kernel that was measured. See [Klong functions as FPGA hardware](hardware.md).
-
-**`kgpy --lint` knows `.extern`.** A name declared by a top-level `.extern` is defined, so calls to it are no longer reported by W002.
-
-**`kgpy --lint` takes several files after one flag, and W019 needs an enclosing function.** `kgpy --lint a.kg b.kg` lints both; W019 was reported for a top-level expression too.

@@ -806,7 +806,7 @@ class _Lower:
         if k == "take":
             c = self.count(a, sp, "n#a (Take)")
             if len(b.ty.shape) != 1:
-                self.fail("take-rank", sp, f"n#a (Take) from {b.ty}: version 1 takes from rank-1 arrays only")
+                self.fail("take-rank", sp, f"n#a (Take) from {b.ty}: take works on rank-1 arrays only")
             if c == 0:
                 self.fail("array-shape", sp, "0#a would be empty: every dimension is a positive integer")
             return ir.Take(Ty(eb, (abs(c),)), sp, a=b, n=c)

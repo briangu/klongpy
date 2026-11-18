@@ -840,80 +840,22 @@ def eval_sys_fn_create_client(klong, x):
 
         .cli(x)                                      [Create-IPC-client]
 
-        Return a function which evaluates commands on a remote KlongPy server.
+        Connect to a server and return a function that runs code there. "x" is a
+        port (on localhost), "<host>:<port>", or "<host>:<port>:<user>:<password>"
+        (credentials travel in clear text); a remote dictionary from .clid shares
+        its connection. A string argument is Klong source for the server to run.
+        A symbol argument is the name of a server function, followed by its
+        arguments: f(:avg,,!100). A symbol alone returns the remote value, and
+        a remote function proxy for a function. The connection speaks the kdb+
+        IPC protocol (KLONGPY_IPC=legacy selects the deprecated pickle protocol).
+        A call waits 30 seconds at most (see .clit). An error on the server is
+        raised here as the error of its kind. If nothing listens on the port,
+        .cli blocks for about 155 seconds, then returns the function, and the
+        first call through it is a system error. See the IPC Capabilities page.
 
-        If "x" is an integer, then it is interpreted as a port in "localhost:<port>".
-        if "x" is a string, then it is interpreted as a host address "<host>:<port>",
-        or "<host>:<port>:<user>:<password>" to send credentials (the order of kdb+'s hopen).
-
-        If "x" is a remote dictionary, the underlying network connection
-        is shared and a remote function is returned.
-
-        The connection speaks the kdb+ IPC protocol (KLONGPY_IPC=legacy selects the
-        deprecated pickle protocol, for talking to an old server). Credentials are
-        sent in clear text. If the server refuses the handshake, an error is raised.
-
-        Calls wait for the answer, 30 seconds at most (see .clit); a call that times
-        out closes the connection. While a call waits, requests the server makes on
-        this connection (callbacks) are served.
-
-        Connection examples:
-
-                   .cli(8888)            --> remote function to localhost:8888
-                   .cli("localhost:8888") --> remote function to localhost:8888
-                   .cli("localhost:8888:bob:secret") --> same, as user bob
-
-                   d::.clid(8888)
-                   .cli(d)                --> remote function to same connection as d
-
-        Evaluation examples:
-
-                   f::.cli(8888)
-
-            A string is evaluated remotely as Klong source:
-
-                   f("1+1")               --> 2 (computed remotely)
-                   f("avg::{(+/x)%#x}")   --> "avg" function is defined remotely
-                   f("avg(!100)")         --> 49.5 (computed remotely)
-
-            Remote functions may be evaluated by passing an array with the first element
-            being the symbol of the remote function to execute.  The remaining elements
-            are supplied as parameters (as they are: symbols stay symbols):
-
-            Example: call :avg with a locally generated !100 range which is passed to the remote server.
-
-                   f(:avg,,!100)          --> 49.5
-
-            Similarly:
-
-                   b::!100
-                   f(:avg,,b)             --> 49.5
-
-            When a symbol is applied, the remote value is returned.
-            For functions, a remote function proxy is returned.
-
-            Example: retrieve a function proxy to :avg and then call it as if it were local function.
-
-                   q::f(:avg)
-                   q(!100)                --> 49.5
-
-            Example: retrieve a copy of a remote array.
-
-                   f("b::!100")
-                   p::f(:b)               --> "p: now holds a copy of the remote array "b"
-
-            A function is sent as its source text and the receiver parses it, so the
-            names in its body are the receiver's. A projection is sent as an opaque value.
-
-            An error on the server is raised here as the error class of its kind, with the
-            server's message: a range error there is a range error here. Text from a peer
-            that is not a KlongPy server, or a name KlongPy does not know, is a remote error.
-            A server that refuses the handshake (bad credentials, or it is not kdb+)
-            is a system error raised by .cli. When nothing listens on the port, .cli
-            blocks and retries, waiting 5, 10, 20, 40 and 80 seconds (about 155 s),
-            then returns the function as usual, and the first call through it is a
-            system error (connection not established). A call that times out, or whose
-            connection was lost, is a system error too.
+        Example:   f::.cli(8888)
+                   f("1+1")         -->  2
+                   f(:avg,,!100)    -->  49.5
 
     """
     x = x.a if isinstance(x,KGCall) else x
@@ -937,47 +879,16 @@ def eval_sys_fn_create_dict_client(klong, x):
 
         .clid(x)                                [Create-IPC-dict-client]
 
-        Return a dictionary which evaluates set/get operations on a remote KlongPy server.
+        Connect to a server and return a dictionary of its variables. "x" is
+        an address as for .cli, or a remote function from .cli, whose
+        connection is shared. Setting a key sets a global on the server, and a
+        get of a name the server does not have is a name error. A function set
+        on the server is read back as a remote function proxy. The protocol,
+        timeout and errors are those of .cli.
 
-        If "x" is an integer, then it is interpreted as a port in "localhost:<port>".
-        if "x" is a string, then it is interpreted as a host address "<host>:<port>" or
-        "<host>:<port>:<user>:<password>".
-
-        If "x" is a remote function (from .cli), the underlying network connection
-        is shared and a remote dictionary is returned. The protocol, timeout and errors
-        are those of .cli.
-
-        Connection examples:
-
-                   .clid(8888)            --> remote dictionary to localhost:8888
-                   .clid("localhost:8888") --> remote dictionary to localhost:8888
-
-                   f::.cli(8888)
-                   .clid(f)               --> remote dictionary on the same connection as f
-
-        Evaluation examples:
-
-                   d::.clid(8888)
-
-            Set a remote key/value pair :foo -> 2 on the remote server.
-
-                   d,[:foo 2]             --> sets :foo to 2
-                   d,[:bar "hello"]       --> sets :bar to "hello"
-                   d,:fn,{x+1}            --> sets :fn to the monad {x+1}
-
-            Get a remote value:
-
-                   d?:foo                 --> 2
-                   d?:bar                 --> "hello"
-                   d?:fn                  --> remote function proxy to :fn
-
-            To use the remote function proxy:
-                   q::d?:fn
-                   q(2)                   --> 3 (remotely executed after passing 2)
-
-            A get of a name the server does not have is a name error. A set sends the
-            three-item request ("set"; name; value), which a KlongPy server treats as an
-            assignment of a global.
+        Example:   d::.clid(8888)
+                   d,[:foo 2]       -->  sets :foo to 2 on the server
+                   d?:foo           -->  2
 
     """
     x = x.a if isinstance(x,KGCall) else x
@@ -1047,43 +958,24 @@ def eval_sys_fn_create_ipc_server(klong, x):
 
         .srv(x)                                       [Start-IPC-server]
 
-        Open a server port to accept IPC connections.
+        Listen for IPC connections. "x" is a port (all interfaces, 0.0.0.0), a
+        string "<bind>:<port>" for one interface, or 0 to stop the server and
+        drop its clients. Returns 1 when the server is now listening and 0 when
+        it was already started (for 0, when there was no server). If the port
+        cannot be bound, an error is raised. Clients speak the kdb+ IPC protocol.
+        Hooks, set as global functions: .srv.o(h) when a client connects,
+        .srv.c(h) when it disconnects, .srv.e(h;text) on an error that nobody
+        is waiting for, and .srv.auth(user;password), which returns 1 to
+        accept a client and 0 to refuse it. With .srv.auth defined, a client of
+        the deprecated pickle protocol is refused. The .system key
+        "ipc_max_message" limits the message size (256 MiB by default).
 
-        If "x" is an integer, then it is interpreted as a port in "<all>:<port>".
-        if "x" is a string, then it is interpreted as a bind address "<bind>:<port>"
+        Security: a client can run any Klong code in this interpreter, and
+        credentials are sent in clear text. Bind to localhost, as in
+        .srv("127.0.0.1:8888"), and never expose the port to an untrusted
+        network. See the IPC Capabilities page.
 
-        if "x" is 0, then the server is closed and existing client connections are dropped.
-
-        Returns 1 when the server is listening and 0 if it was already started
-        (or, for 0, if there was no server). If the port cannot be bound, an error
-        is raised.
-
-        Each interpreter has its own server, so several interpreters may serve
-        different ports.
-
-        Clients speak the kdb+ IPC protocol, so q and other kdb+ client libraries can
-        connect. A client that speaks the deprecated pickle protocol of earlier KlongPy
-        releases is recognised and served too (with a one-time warning), unless
-        KLONGPY_IPC=kdb; KLONGPY_IPC=legacy accepts only that protocol.
-
-        Hooks, set as global functions: .srv.o(h) when a client connects, .srv.c(h) when
-        it disconnects, .srv.e(h;text) on an error that nobody is waiting for, and
-        .srv.auth(user;password), which returns 1 to accept a client and 0 to refuse it
-        (with no .srv.auth every client is accepted). The hooks run on the Klong loop.
-        The old pickle protocol carries no credentials, so while .srv.auth is defined
-        a pickle client is refused, whatever the hook would answer.
-
-        A message larger than the .system key "ipc_max_message" (bytes, 256 MiB when not
-        set, read when a connection is made; it applies to pickle clients as well)
-        closes the connection. Set it before .srv
-        and .cli, as in .system,"ipc_max_message",1000000.
-
-        Security: a bare port listens on all interfaces (0.0.0.0), and a client can
-        run any Klong code in this interpreter. KlongPy assumes every peer is
-        trusted. Credentials are sent in clear text and there is no encryption.
-        To limit access, bind to localhost, as in .srv("127.0.0.1:8888"),
-        and firewall the port. Never expose it to an untrusted network or the
-        internet.
+        Example:   .srv(8888)       -->  1
 
     """
     x = str(x)

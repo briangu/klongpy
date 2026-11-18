@@ -1,23 +1,21 @@
-# REPL Reference
+# The kgpy command and the REPL
 
-KlongPy comes with an interactive Read Eval Print Loop (REPL) which is helpful for experimenting with the language.
+`kgpy` runs Klong files and expressions and starts an interactive Read Eval Print Loop (REPL). This page lists its commands, entry rules and options. It ships with `pip install klongpy`.
 
-`kgpy` is installed with the package (`pip install klongpy`); its one extra requirement, `colorama`, is a core dependency, so the `repl` extra adds nothing and is kept only so that `pip install "klongpy[repl]"` still works.
-
-Launch the REPL using `kgpy`. Line editing, history and tab completion come from Python's `readline` module, so `rlwrap` is not needed:
+Start the REPL with `kgpy`. Line editing, history and tab completion come from Python's `readline` module, so `rlwrap` is not needed:
 
 ```bash
 $ kgpy
 ```
 
-Once running you can evaluate expressions directly:
+Type an expression to evaluate it:
 
 ```kgpy
 ?> 1+1
 2
 ```
 
-Several system commands prefixed with `]` are available:
+Commands that start with `]`:
 
 | Command | Description |
 |---------|-------------|
@@ -68,30 +66,21 @@ Tab completes defined names (including system functions such as `.p` to `.pc .py
 
 ### Errors
 
-A failed entry prints the position, the source line and a caret on stderr, and the REPL stays in the loop. The first line is red on a terminal (never when `NO_COLOR` is set). In a multi-line entry the line number counts inside the entry. This entry is typed over three prompts; piped in, it gives the same output:
+A failed entry prints the position, the source line and a caret on stderr, and the REPL stays in the loop. In a multi-line entry the line number counts inside the entry. [Errors](errors.md) shows the layout, the kinds, the flags and the exit statuses. Ctrl-C during a long evaluation stops it and prints `interrupted`.
 
-```
-$ printf ':[1=1;\n2+"b";\n3]\n' | kgpy >/dev/null
-2:2: type error: cannot apply + (Plus) to integer and string
-  2+"b";
-   ^
-```
+### Options
 
-An exception that is a bug in KlongPy prints one `internal error: Type: message` line and how to get the traceback (`-v`). Ctrl-C during a long evaluation stops it and prints `interrupted`. [Errors](errors.md) lists the kinds, the flags and the exit statuses.
-
-### CLI options
-
-The `kgpy` executable supports a few useful flags:
-
-- `-e EXPR` Evaluate an expression and exit. The value goes to stdout, an error to stderr with status 1. It starts the same system context as a file run and the REPL, so `.timer`, `.srv` and `.cli` work in it, but the process ends when the expression has been evaluated and closes whatever it opened: a timer does not fire after that, and a server stops.
-- `-l FILE` Load a file into the REPL on startup. If the load fails, the error is printed and the process exits with status 1 without starting the REPL.
-- `-s PORT` Start the IPC server (e.g., `kgpy -s 8888`).
-- `-t FILE` Run a test file (non-interactive), one line at a time. A failing line is reported and the run goes on; the process exits after the last line with status 1 if any line failed. It does not start the REPL.
-- `-v` Verbose output. Errors also print the Python traceback.
-- `--traceback` Print the Python traceback with an error, without the other verbose output.
-- `--strict=N` Start at [strict level](strict.md) 0, 1 or 2; `--strict` alone is level 1. A lone `0`, `1` or `2` after a bare `--strict` is read as its level (`--strict 2` is `--strict=2`); write `--strict=N` in scripts.
-- `--backend NAME` and `--device DEVICE` Choose the array backend and device (see [PyTorch Backend](torch_backend.md)). `--backend` offers `torch` only where torch is installed.
-- `--lint`, `--check-static`, `--emit-c` and `--dump-ast` check or translate files without running them: see [Lint](lint.md), [Static Profile](static-profile.md), [Compiling Klong to C](embedded.md) and [Conformance Suite](conformance.md).
+| Option | Effect |
+|---|---|
+| `-e EXPR` | Evaluate an expression and exit. The value goes to stdout, an error to stderr with status 1. The system context is the same as for a file run, so `.timer`, `.srv` and `.cli` work, but the process ends after the expression and closes what it opened: a timer does not fire and a server stops. |
+| `-l FILE` | Load a file into the REPL on startup. If the load fails, the error is printed and the process exits with status 1 without starting the REPL. |
+| `-s PORT` | Start the IPC server, for example `kgpy -s 8888`. |
+| `-t FILE` | Run a test file one line at a time, without the REPL. A failing line is reported and the run goes on; the exit status is 1 if any line failed. |
+| `-v` | Verbose: an error also prints the Python traceback. |
+| `--traceback` | Print the Python traceback with an error, without the other verbose output. |
+| `--strict=N` | Start at [strict level](strict.md) 0, 1 or 2. `--strict` alone is level 1. A lone `0`, `1` or `2` after a bare `--strict` is read as its level, so `--strict 2` is `--strict=2`; write `--strict=N` in scripts. |
+| `--backend NAME`, `--device DEVICE` | Choose the array backend and device (see [PyTorch backend](torch_backend.md)). `torch` is offered only where torch is installed. |
+| `--lint`, `--check-static`, `--emit-c`, `--dump-ast` | Check or translate files without running them: see [Lint](lint.md), [Static profile](static-profile.md), [Compiling Klong to C](embedded.md) and [Conformance suite](conformance.md). |
 
 A file run (`kgpy file.kg`) stops at the first error, prints it with the file name, line and column (`file.kg:3:6: ...`) and exits with status 1. When the last line has run the process exits, with two exceptions: it stays up while the file holds an IPC server (`.srv`) or an open connection (`.cli`, `.clid`), as the publish and subscribe scripts in [IPC Capabilities](ipc_capabilities.md) do, until Ctrl-C (status 130) or until the file closes the connection with `.clic`. What the file printed is flushed before it waits. A timer alone does not keep it up (see [Timer](timer.md)). Input piped into the REPL exits with status 1 if any entry failed.
 

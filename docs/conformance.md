@@ -1,40 +1,14 @@
 # Conformance suite
 
-The conformance suite is a set of test cases for the Klong language that does not depend on any implementation. Each case is a program and the text the REPL prints for its value, or the kind of error it must raise. KlongPy runs the cases in process. The [native runtime](native/index.md) runs the same files through a small command-line protocol, with no Python involved. A third implementation would do the same.
+The conformance suite is a set of test cases for the Klong language that does not depend on any implementation. This page is for someone who wants to run the suite, read its counts, or add a case. `conformance/README.md` is the specification of the case format, the tags and the runner protocol.
 
-KlongPy is the reference. When KlongPy fails a case, either KlongPy has a bug (the case goes to the pending list, below) or the case is wrong.
+Each case is a program and the text the REPL prints for its value, or the kind of error it must raise. KlongPy runs the cases in process. The [native runtime](native/index.md) runs the same files through a small command-line protocol, with no Python. KlongPy is the reference: when it fails a case, either KlongPy has a bug (the case goes to the pending list, below) or the case is wrong.
 
-The suite has 1294 cases in 17 files under `conformance/cases/`, 8 pending cases under `conformance/pending/` (that KlongPy fails), and the golden parse trees under `tests/golden/` (169 pairs of source and tree). The full specification is `conformance/README.md`; this page is the short version for users and implementers.
+The suite has 1294 cases in 17 files under `conformance/cases/`, 8 pending cases under `conformance/pending/` (that KlongPy fails), and 169 golden parse trees under `tests/golden/`.
 
-## What is in the repository
+## A case
 
-```text
-conformance/
-  README.md            the specification of the format and the protocol
-  run.py               case parser, runner and authoring aid (Python 3, standard library only)
-  shim/kgpy_shim.py    KlongPy as an executable of the runner protocol
-  cases/*.cases        the cases, one area per file
-  pending/*.cases      cases whose correct result KlongPy does not give yet
-```
-
-`tests/test_conformance.py` runs the suite as part of the KlongPy tests. `tests/test_native_conformance.py` runs it against the native binary and is skipped when the binary is not built.
-
-## Case file format
-
-A case file is plain UTF-8 text. Each line is blank, a comment, or a one-character sigil followed by an optional space and the text.
-
-| Sigil | Meaning |
-|---|---|
-| `#` | Comment (only at the start of a line). |
-| `@ NAME TAG...` | Starts a case. `NAME` is `area.topic` and is unique in the suite; the area is the file name without its number. |
-| `> TEXT` | One line of source. The lines are joined with newlines. A bare `>` is an empty line. |
-| `= TEXT` | One line of the expected result, which is what the REPL prints for the value of the last statement. Several lines are joined with newlines. |
-| `! KIND` | Instead of `=`: the program must fail with this error kind. |
-| `~ TEXT` | Optional: the expected console output (what the program writes with `.p`, `.d` and `.w`). |
-| `: KEY TEXT` | Metadata (`reason`, `actual`, `issue`), used in `pending/`. |
-| `?` | Authoring only: "fill the expectation in". Never committed. |
-
-A case with neither `=` nor `!` expects a program that produces no value. Examples from the suite:
+A case is a name, some tags, the source and the expected result:
 
 ```text
 @ lists.take-last-more-cycles core
@@ -44,51 +18,11 @@ A case with neither `=` nor `!` expects a program that produces no value. Exampl
 @ errors.err-range-index core
 > [1 2 3]@3
 ! range
-
-@ printing.console-d-no-newline-then-p strings
-> .d("a");.d("b");.p("");0
-= 0
-~ ab
 ```
 
-Every case runs in a fresh interpreter with the default library and no other state. The source is a whole program: the statements run in order and the value of the last one is the result. The result is compared as printed text, byte for byte. An error is compared by kind only, never by message. The kinds are `syntax`, `name`, `arity`, `type`, `shape`, `range`, `system`, `memory` and `interrupt`.
+Each case runs in a fresh interpreter. The result is compared as printed text, byte for byte. An error is compared by kind only, never by message. A runtime runs a case only if it declares every tag of the case; a tag says "skip this case here" (for example `width64` for a 32-bit build). There is no "expected failure". `tests/test_conformance.py` checks that the tags are honest.
 
-## Tags
-
-A runtime runs a case only if it declares every tag of the case. There is no "expected failure": a tag says "skip this case here".
-
-| Tag | Meaning |
-|---|---|
-| `core` | Parsing, numbers, lists, symbols, functions, adverbs, conditionals. |
-| `strings`, `dicts`, `sysio` | Strings and chars; dictionaries; files and channels. |
-| `timers`, `ipc`, `desktop` | Tiers with no cases yet. |
-| `float` | Needs floating point numbers. |
-| `string-fmt` | Depends on the exact float text (Python's `repr`). |
-| `width64` | Needs 64-bit integers or floats; a 32-bit build skips it. |
-| `bigint` | Needs integers beyond the build width. No case uses it yet. |
-| `unicode` | Counts or indexes non-ASCII text (KlongPy and the native runtime both count code points; a runtime that counts bytes does not declare the tag). |
-| `device` | Needs a depth limit, a heap limit or a console. |
-| `strict1`, `strict2` | The runner starts the interpreter at that strict level. |
-| `numpy-only`, `torch-only`, `kgpy-only` | Behaviour that belongs to one KlongPy backend. |
-
-Every case has at least one tier tag (`core` alone, or the other tiers it needs). `tests/test_conformance.py` checks that the tags are honest: a `core` case may not use a string literal, `$` or a dictionary literal, and a case that uses a float without the `float` tag is rejected.
-
-## The runner protocol
-
-An implementation is an executable. The runner starts it once per case:
-
-```text
-CMD [--strict N]        program text on stdin (UTF-8)
-CMD --dump-ast FILE     the parse trees of FILE
-```
-
-* On success the exit status is 0 and stdout holds the printed value and one newline (nothing at all if the program has no value).
-* On a Klong error the exit status is 1 and stdout holds one line, `error: <kind>`.
-* stderr holds only what the program wrote with `.p`, `.d` and `.w`, byte for byte.
-* Anything else (another exit status, a signal, no answer within 20 seconds) is a crash and fails the case.
-* `--strict N` runs the program at strict level N for the whole program.
-
-You can try the protocol by hand with the native binary:
+An implementation is an executable that reads the program on stdin and prints the value, or `error: KIND` with exit status 1. You can try the protocol with the native binary:
 
 ```text
 $ echo '1+2' | native/target/release/klong --conformance
@@ -98,9 +32,9 @@ error: range
 1
 ```
 
-## Running it against KlongPy
+`tests/test_conformance.py` runs the suite as part of the KlongPy tests. `tests/test_native_conformance.py` runs it against the native binary and is skipped when the binary is not built.
 
-The commands below are checked by `scripts/check_docs.py`, so the counts are what the code gives today.
+## Running it against KlongPy
 
 <!-- check-docs: link conformance -->
 ```console
@@ -108,7 +42,7 @@ $ python conformance/run.py
 1294 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 ```
 
-The in-process run takes about a second. To run KlongPy through the same executable protocol that a native implementation uses, give the reference shim as the command (about 17 seconds with 8 jobs on the machine of the measurements below):
+The in-process run takes about a second. To run KlongPy through the same executable protocol that a native implementation uses, give the reference shim as the command (about 17 seconds with 8 jobs):
 
 ```text
 $ python conformance/run.py --cmd "python -W ignore conformance/shim/kgpy_shim.py" --jobs 8
@@ -160,11 +94,22 @@ $ python native/scripts/console_conformance.py
 total                         1293  1293   in 2.4 s through console of native/target/release/klong-sim, 8 jobs
 ```
 
-`--narrow` runs the tags of a 32-bit build (1160 cases passed on 2026-11-16). With `--port /dev/ttyUSB0` the same script drives a real board over a serial port, one case at a time. On an ESP32-P4 the native runtime passed 1266 of 1266 this way on 2026-11-16 (see [ESP32-P4](native/esp32-p4.md)). It is the only conformance run on a board; the other hardware results are on the [native status table](native/index.md#status-what-has-and-has-not-been-proven).
+`--narrow` runs the tags of a 32-bit build (1160 cases passed on 2026-11-16). With `--port /dev/ttyUSB0` the same script drives a real board over a serial port, one case at a time. It is the only conformance run on a board; the other hardware results are on the [native status table](native/index.md#status-what-has-and-has-not-been-proven).
+
+## Counts
+
+| Implementation and run | Cases run | Passed | Date |
+|---|---|---|---|
+| KlongPy, in process | 1294 | 1294 | today's suite |
+| KlongPy through the executable shim | 1294 | 1294 | today's suite |
+| Native runtime, desktop, default build | 1293 (1 skipped by tags) | 1293 | 2026-11-16 |
+| Native runtime, simulated boards through the console | 1293 | 1293 | 2026-11-16 |
+| Native runtime, 32-bit build (`--narrow`) | 1160 | 1160 | 2026-11-16 |
+| Native runtime on an ESP32-P4 over the serial port | 1266 | 1266 | 2026-11-16 |
 
 ### Why the counts differ
 
-The suite has 1294 cases: KlongPy runs all of them (1294 of 1294). The native runtime does not declare some tags (`bigint`, `torch-only`, `kgpy-only`, `timers`, `ipc`, `desktop`), so the host run of the native runtime is 1293 of 1293 with one case skipped by tags. The board run is 1266 of 1266 because the suite had 1266 cases when it was run, on 2026-11-16: 28 cases were added afterwards (mostly in `30-arith.cases` and `60-functions.cases`: exact integer power, calling a value that is not a function). The run takes about 31 minutes and has not been repeated on the board. The numbers are of different suites, not of different tag sets: the same console script declares the same tags on the board and on the host. Running the 1266-case suite of that commit against today's native binary gives 1265 of 1266, the miss being `functions.fn-as-argument-nilad`, whose answer was changed on purpose by the commit that made calling a non-function an error.
+KlongPy declares every tag except a few, so it runs all 1294 cases. The native runtime does not declare `bigint`, `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`, so one case is skipped by tags. A 32-bit build declares fewer tags still. The board run is 1266 because the suite had 1266 cases on the day of that run: 28 cases were added after it, mostly of exact integer power and of calling a value that is not a function. The run takes about 31 minutes and has not been repeated on the board. So the board's count is of a smaller suite, not of a different tag set. Against today's native binary the 1266-case suite gives 1265 of 1266: the miss is `functions.fn-as-argument-nilad`, whose expected answer was changed on purpose when calling a non-function became an error.
 
 ## The pending list
 
@@ -180,7 +125,7 @@ The eight cases that KlongPy fails today: `&` of an empty list and of a string, 
 
 `tests/test_conformance.py` checks that each pending case still fails and prints a warning when one starts to pass. When that happens, move the case to `cases/`. Setting `CONFORMANCE_STRICT_PENDING=1` turns the warning into a failure. A runtime that is not KlongPy does not run the pending list.
 
-A pending case of another kind is possible: when KlongPy changes first, the cases for the change pass in KlongPy and fail in the native runtime. Their `: reason` starts with `native:`, and `run.py --pending` and the test count them apart (`N more pass in KlongPy and wait for the native runtime`) instead of asking to move them; they move to `cases/` when the native runtime gives the same result. There are none now: the 15 cases for calling a value that is not a function (a `type` error, see [Differences from Klong](differences.md#calling-a-value-that-is-not-a-function-is-an-error)) waited for the native runtime, which gives the same error since 2026-11-16, and are in `cases/60-functions.cases`.
+A pending case of another kind passes in KlongPy and fails in the native runtime, because the language changed in KlongPy first. Its `: reason` starts with `native:`. `run.py --pending` and the test count these apart and do not ask to move them; they move to `cases/` when the native runtime gives the same result. There are none at present.
 
 ## Adding a case
 

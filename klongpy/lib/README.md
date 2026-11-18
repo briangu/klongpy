@@ -1,17 +1,9 @@
 # Library code
 
-These KlongPy modules are available when running in the REPL.
+These Klong library files (`math.kg`, `csv.kg`, `set.kg` and others) are loaded with `.l("name")`. `kgpy` adds this directory to `KLONGPATH`, so `.l("math")` works in the REPL and in `kgpy -e`. Set the `KLONGPATH` environment variable to look elsewhere, or to add directories.
 
-You may override the location of the library files by setting the KLONGPATH environment variable.
-
-## Note
-
-This lib directory is currently under the KlongPy source so that the package manager can include it with the release.  If a better solution can be found, this will be moved into the examples directory.
+The directory is inside the package so that `pip install` includes it.
 
 ## Acknowledgement
 
-These example lib files are included from the Klong lib files in the [original Klong distribution](https://t3x.org/klong/index.html).
-
-The plotting libs were removed due to lack of support (so far).
-
-There are some small modifications to deal with Unicode, but otherwise should be the same.
+These files come from the Klong library in the [original Klong distribution](https://t3x.org/klong/index.html), with small changes for Unicode. The plotting libraries of that distribution are not included.

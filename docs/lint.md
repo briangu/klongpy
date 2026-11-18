@@ -26,7 +26,7 @@ $ echo 'my_var::5' | kgpy --lint - -v
 
 The file name `-` reads standard input, which the examples on this page use to stay short. The options may come in any order: `kgpy --lint -v demo.kg` and `kgpy --lint demo.kg -v` are the same. `--lint` with no file name is an error.
 
-Lint finds the same sort of mistake as [strict mode](strict.md), but in a file, before it runs, and without needing the mistake to happen on the path that is taken.
+Lint finds the same sort of mistake as [strict mode](strict.md), but in a file, before it runs, and without needing the mistake to happen on the path that is taken. [Lint codes and runtime errors](#lint-codes-and-runtime-errors) maps each finding to the error or warning the interpreter gives for the same input.
 
 ## Options and exit status
 
@@ -70,7 +70,7 @@ kgpy --lint: unknown lint code 'W999'; codes are W001, W002, W003, W010, W011, W
 2
 ```
 
-The `--select W001` example reads `demo.kg`, written by the first example on this page.
+The `--select W001` example reads `demo.kg` from the first example on this page.
 
 ## Suppressing a finding
 
@@ -89,6 +89,21 @@ ignore.kg:2:4: W012 'a' in a list is the symbol :a, not the value of a
 ```
 
 The third line is clean. A code can also be left out for the whole run with `--ignore`.
+
+## Lint codes and runtime errors
+
+Lint reports from the text what the interpreter reports when it runs. This table pairs them. The error kinds are those of [Errors](errors.md#kinds-of-error); the warning codes (`trailing-input` and the rest) are in [syntax warnings](errors.md#syntax-warnings); the levels are in [Strict mode](strict.md).
+
+| Lint code | Interpreter, same input |
+|---|---|
+| `E001` | At strict level 1 and 2, a `syntax` error with the same message. At level 0, a syntax warning: `trailing-input`, `stray-closer`, `missing-operand`, `unterminated-string`, `unterminated-list`, `unterminated-dict` or `unterminated-comment`. |
+| `E002` | At strict level 2, an `arity` error. Below level 2 the extra arguments are dropped. |
+| `W002` | At strict level 2, a `name` error (`undefined: a`). Below level 2 the name evaluates to its own symbol. |
+| `W003`, `W010`, `W011`, `W012`, `W016`, `W017`, `W018`, `W019`, `W020` | None. The program runs and gives a value that is probably not the one intended. |
+| `W001` | None. `my_var` runs as `my _ var`. |
+| `W013` | None. The nested conditional is correct; the chain form is shorter. |
+| `W014` | The parenthesised part is dropped; a space before an adverb is a `syntax` error (also `E001`). |
+| `W015` | At strict level 1 and 2 the newline after a comment is an ordinary newline; at level 0 it acts as `;`. |
 
 ## Codes
 
@@ -299,7 +314,7 @@ $ printf '.pyf("math";"sqrt")\nsqrt(2)\n' | kgpy --lint -
 0 errors, 0 warnings in 1 file
 ```
 
-Test files that call a helper defined by the harness (`t(...)` in the repository's own tests) are linted with `--define t`.
+A name that the host defines before the program runs is given with `--define`, as in `--define t`.
 
 ## What is not reported
 

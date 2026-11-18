@@ -35,7 +35,7 @@ _binaries = {}
 
 
 def build_node(legacy=False):
-    """The node program: the firmware's allocator (`legacy`: the one of the image a232666c over a model of newlib's malloc)."""
+    """The node program: the firmware's allocator (`legacy`: an earlier one over a model of newlib's malloc)."""
     if legacy in _binaries:
         return _binaries[legacy]
     if not (shutil.which("cargo") and shutil.which("cc")):
@@ -294,7 +294,7 @@ class TestPair(unittest.TestCase):
         self.assertIn("klong selftest pass", " ".join(outcomes), outcomes)
 
     def test_the_model_of_the_previous_allocator_shows_the_direction_of_what_the_boards_showed(self):
-        # Image a232666c on the boards (2026-11-17): the server's largest vector 6,421 against 7,633 that its use of 22,232 bytes allowed
+        # That firmware on the boards (2026-11-17): the server's largest vector 6,421 against 7,633 that its use of 22,232 bytes allowed
         # (84%), the client's 4,359 against 6,178 for 33,872 (71%), `.l("mgmt")` refused on the client after its self-test, and both
         # unchanged by later activity. The model of newlib's malloc under that allocator, with the library's peak the same share of the
         # arena, loses less (a few per cent, not a third) but in the same places: the client's below the server's.

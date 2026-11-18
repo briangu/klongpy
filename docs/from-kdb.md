@@ -2,7 +2,7 @@
 
 This page is for people who know q and want to read or write Klong. It maps the idioms, lists the differences that cause mistakes, and describes how a KlongPy program and a q process talk to each other over the kdb+ IPC protocol.
 
-The q examples on this page were checked with PeachQ 0.92, a third-party open-source implementation of q. PeachQ is not kdb+: where the page says what q prints, it means what PeachQ 0.92 printed, and the page makes no claim about kdb+ beyond that. The q blocks are plain `q` fences that the documentation checker does not run; they were run by hand against PeachQ. The Klong examples are checked transcripts, run at [strict level 2](strict.md) except the sessions that need a q process, which the checker skips and which were run by hand.
+The q examples on this page were checked with PeachQ 0.92, a third-party open-source implementation of q. PeachQ is not kdb+: where the page says what q prints, it means what PeachQ 0.92 printed, and the page makes no claim about kdb+ beyond that. The q blocks were run by hand against PeachQ. The Klong examples run at [strict level 2](strict.md) except the sessions that need a q process, which were also run by hand.
 
 kdb+ is a trademark of KX. KlongPy's IPC is an independent implementation, written from public documentation and Apache-licensed client code. It speaks the kdb+ IPC protocol and interoperates with q processes; it is not a KX product and uses no KX code.
 
@@ -86,7 +86,7 @@ q)3 1 2@1
 
 A call with fewer arguments than the function takes is a projection, as in q. Klong writes the missing argument as an empty slot or leaves it off: `f(1;)` and `f(1)` both give a projection. A call with too many arguments drops the extras at strict levels 0 and 1 and is an arity error at level 2.
 
-Assignment is `::` everywhere. A function body that assigns to a name that is not a parameter, not declared as a local (`{[t];...}`) and not already global creates a local at level 0 and is an error at levels 1 and 2. See [strict mode](strict.md).
+Assignment is `::` everywhere. In q, `::` inside a function assigns a global; in Klong it is plain assignment, and a name that is not a parameter or a declared local becomes a local of that call (an error at strict levels 1 and 2). A global is created by assigning at the top level. Outside functions, `d:::{...}` is the assignment `d::` followed by the dictionary literal `:{...}`. A function body that assigns to a name that is not a parameter, not declared as a local (`{[t];...}`) and not already global creates a local at level 0 and is an error at levels 1 and 2. See [strict mode](strict.md).
 
 <!-- check-docs: strict 2 -->
 ```kgpy
@@ -228,7 +228,7 @@ A list literal holds what is written in it. To evaluate expressions inside a lis
 
 ### Dictionaries
 
-A dictionary literal lists `[key value]` pairs. Lookup is `d@k` or `d?k`, and a missing key gives `:undefined`. `d@[k1 k2]` looks up several keys. Joining a pair or another dictionary with `,` adds entries, and it changes the dictionary in place (q's `,` returns a new one). A dictionary literal whose keys and values are expressions is `:{;k;v;...}`. See [Friendlier syntax](language-additions.md#dictionaries).
+A dictionary literal lists `[key value]` pairs. Lookup is `d@k` or `d?k`, and a missing key gives `:undefined`. `d@[k1 k2]` looks up several keys. Joining a pair or another dictionary with `,` adds entries, and it changes the dictionary in place (q's `,` returns a new one). A dictionary literal whose keys and values are expressions is `:{;k;v;...}`. See [Language Additions](language-additions.md#dictionaries).
 
 ```q
 q)d:`a`b!1 2
@@ -265,92 +265,60 @@ d| 4
 
 ## Translation table
 
-Each group below has the table, the q results from PeachQ 0.92 and the same expressions run in KlongPy. The Klong blocks continue each other, so the variables set in the first one are available in the others.
+Each group is one table of q expressions, their Klong forms and the q result (from PeachQ 0.92), followed by the Klong expressions run in a session. The Klong blocks continue each other, so the variables set in the first are available in the others. The q expressions use these definitions:
+
+```q
+x:3 1 2
+y:1 2 3 4
+z:3 1 3 2 1
+w:(1 2;3 4 5)
+m:(1 2 3;4 5 6)
+d:`a`b!1 2
+b:10110b
+```
+
+Where the Klong result differs from the q result in a table:
+
+| Expression | q | Klong |
+|---|---|---|
+| `avg x` | `2f` | `2.0` |
+| `group z` | a dictionary from value to positions | the list of position lists `[[0 2] [1 4] [3]]` |
+| `z?3` | `0`, the first position | `[0 2]`, all positions |
+| `z?7` | `5`, the count when not found | `[]` |
+| `` d`zz `` | `0N` | `:undefined` |
+| `1%0` | `0w` | `:undefined` |
+| `-1+2` | `1` | `-3`, a leading minus is a verb |
+| `3>2` | `1b` | `1` |
+| `10 +\ 1 2 3` | `11 13 16` | `[10 11 13 16]`, the seed is included |
+
 
 ### Lists
 
-| q | Klong |
-|---|---|
-| `til 5` | `!5` |
-| `count x` | `#x` |
-| `sum x` | `+/x` |
-| `sums x` | `+\x` |
-| `avg x` | `(+/x)%#x` |
-| `where b` | `&b` |
-| `iasc x` | `<x` |
-| `x@iasc x` | `x@<x` |
-| `x@idesc x` | `x@>x` |
-| `distinct z` | `?z` |
-| `reverse x` | `\|x` |
-| `first x` | `*x` |
-| `2#y` | `2#y` |
-| `2_y` | `2_y` |
-| `-2#y` | `(-2)#y` |
-| `neg x` | `-x` |
-| `x,y` | `x,y` |
-| `raze w` | `,/w` |
-| `count each w` | `#'w` |
-| `flip m` | `+m` |
-| `2 3#til 6` | `[2 3]:^!6` |
+| q | Klong | Result in q |
+|---|---|---|
+| `til 5` | `!5` | `0 1 2 3 4` |
+| `count x` | `#x` | `3` |
+| `sum x` | `+/x` | `6` |
+| `sums x` | `+\x` | `3 4 6` |
+| `avg x` | `(+/x)%#x` | `2f` |
+| `where b` | `&b` | `0 2 3` |
+| `iasc x` | `<x` | `1 2 0` |
+| `x@iasc x` | `x@<x` | `1 2 3` |
+| `x@idesc x` | `x@>x` | `3 2 1` |
+| `distinct z` | `?z` | `3 1 2` |
+| `reverse x` | `\|x` | `2 1 3` |
+| `first x` | `*x` | `3` |
+| `2#y` | `2#y` | `1 2` |
+| `2_y` | `2_y` | `3 4` |
+| `-2#y` | `(-2)#y` | `3 4` |
+| `neg x` | `-x` | `-3 -1 -2` |
+| `x,y` | `x,y` | `3 1 2 1 2 3 4` |
+| `raze w` | `,/w` | `1 2 3 4 5` |
+| `count each w` | `#'w` | `2 3` |
+| `flip m` | `+m` | `1 4` / `2 5` / `3 6` |
+| `2 3#til 6` | `[2 3]:^!6` | `0 1 2` / `3 4 5` |
 
-In PeachQ 0.92:
-
-```q
-q)x:3 1 2
-q)y:1 2 3 4
-q)z:3 1 3 2 1
-q)w:(1 2;3 4 5)
-q)m:(1 2 3;4 5 6)
-q)d:`a`b!1 2
-q)b:10110b
-q)til 5
-0 1 2 3 4
-q)count x
-3
-q)sum x
-6
-q)sums x
-3 4 6
-q)avg x
-2f
-q)where b
-0 2 3
-q)iasc x
-1 2 0
-q)x@iasc x
-1 2 3
-q)x@idesc x
-3 2 1
-q)distinct z
-3 1 2
-q)reverse x
-2 1 3
-q)first x
-3
-q)2#y
-1 2
-q)2_y
-3 4
-q)-2#y
-3 4
-q)neg x
--3 -1 -2
-q)x,y
-3 1 2 1 2 3 4
-q)raze w
-1 2 3 4 5
-q)count each w
-2 3
-q)flip m
-1 4
-2 5
-3 6
-q)2 3#til 6
-0 1 2
-3 4 5
-```
-
-In KlongPy:
+The same expressions in KlongPy:
 
 <!-- check-docs: strict 2 -->
 ```kgpy
@@ -414,32 +382,15 @@ In KlongPy:
 
 ### Finding, grouping and dictionaries
 
-| q | Klong |
-|---|---|
-| `group z` | `=z` |
-| `z?3` | `z?3` |
-| `z?7` | `z?7` |
-| `d`a` | `d@:a` |
-| `d`zz` | `d@:zz` |
+| q | Klong | Result in q |
+|---|---|---|
+| `group z` | `=z` | `3\| 0 2` / `1\| 1 4` / `2\| ,3` |
+| `z?3` | `z?3` | `0` |
+| `z?7` | `z?7` | `5` |
+| `` d`a `` | `d@:a` | `1` |
+| `` d`zz `` | `d@:zz` | `0N` |
 
-In PeachQ 0.92:
-
-```q
-q)group z
-3| 0 2
-1| 1 4
-2| ,3
-q)z?3
-0
-q)z?7
-5
-q)d`a
-1
-q)d`zz
-0N
-```
-
-In KlongPy:
+The same expressions in KlongPy:
 
 <!-- check-docs: strict 2; continue -->
 ```kgpy
@@ -457,45 +408,20 @@ In KlongPy:
 
 ### Arithmetic, conditions and functions
 
-| q | Klong |
-|---|---|
-| `7 mod 3` | `7!3` |
-| `7 div 2` | `7:%2` |
-| `7%2` | `7%2` |
-| `3>2` | `3>2` |
-| `1%0` | `1%0` |
-| `-1+2` | `-1+2` |
-| `(-1)+2` | `(-1)+2` |
-| `$[1<2;"yes";"no"]` | `:[1<2;"yes";"no"]` |
-| `f:{x+y};f[1;2]` | `f::{x+y};f(1;2)` |
-| `x@1` | `x@1` |
+| q | Klong | Result in q |
+|---|---|---|
+| `7 mod 3` | `7!3` | `1` |
+| `7 div 2` | `7:%2` | `3` |
+| `7%2` | `7%2` | `3.5` |
+| `3>2` | `3>2` | `1b` |
+| `1%0` | `1%0` | `0w` |
+| `-1+2` | `-1+2` | `1` |
+| `(-1)+2` | `(-1)+2` | `1` |
+| `$[1<2;"yes";"no"]` | `:[1<2;"yes";"no"]` | `"yes"` |
+| `f:{x+y};f[1;2]` | `f::{x+y};f(1;2)` | `3` |
+| `x@1` | `x@1` | `1` |
 
-In PeachQ 0.92:
-
-```q
-q)7 mod 3
-1
-q)7 div 2
-3
-q)7%2
-3.5
-q)3>2
-1b
-q)1%0
-0w
-q)-1+2
-1
-q)(-1)+2
-1
-q)$[1<2;"yes";"no"]
-"yes"
-q)f:{x+y};f[1;2]
-3
-q)x@1
-1
-```
-
-In KlongPy:
+The same expressions in KlongPy:
 
 <!-- check-docs: strict 2; continue -->
 ```kgpy
@@ -523,36 +449,17 @@ In KlongPy:
 
 ### Adverbs
 
-| q | Klong |
-|---|---|
-| `{x*2} each x` | `{x*2}'x` |
-| `max x` | `\|/x` |
-| `min x` | `&/x` |
-| `10 +/ 1 2 3` | `10+/[1 2 3]` |
-| `10 +\ 1 2 3` | `10+\[1 2 3]` |
-| `3 {x*2}/ 1` | `3{x*2}:*1` |
-| `({x div 2}/) 100` | `{x:%2}:~100` |
+| q | Klong | Result in q |
+|---|---|---|
+| `{x*2} each x` | `{x*2}'x` | `6 2 4` |
+| `max x` | `\|/x` | `3` |
+| `min x` | `&/x` | `1` |
+| `10 +/ 1 2 3` | `10+/[1 2 3]` | `16` |
+| `10 +\ 1 2 3` | `10+\[1 2 3]` | `11 13 16` |
+| `3 {x*2}/ 1` | `3{x*2}:*1` | `8` |
+| `({x div 2}/) 100` | `{x:%2}:~100` | `0` |
 
-In PeachQ 0.92:
-
-```q
-q){x*2} each x
-6 2 4
-q)max x
-3
-q)min x
-1
-q)10 +/ 1 2 3
-16
-q)10 +\ 1 2 3
-11 13 16
-q)3 {x*2}/ 1
-8
-q)({x div 2}/) 100
-0
-```
-
-In KlongPy:
+The same expressions in KlongPy:
 
 <!-- check-docs: strict 2; continue -->
 ```kgpy
@@ -627,7 +534,7 @@ n:0
 system"t 200"
 ```
 
-That q script prints `1`, `2` and `3`, one per line, and then stops the timer. The Klong version, which prints the same:
+That q script prints `1`, `2` and `3`, one per line, and then stops the timer. The Klong version prints the same:
 
 ```
 n::0
@@ -635,15 +542,15 @@ cb::{n::n+1;.p(n);:[n<3;1;0]}
 th::.timer("t";0.2;cb)
 ```
 
-This Klong block is not a checked transcript because a timer fires on the interpreter's event loop and the documentation checker does not run one. It was run with `kgpy -l file.kg`, which stays in the REPL while the timer fires, and printed 1, 2 and 3. `kgpy file.kg` runs the file and exits without waiting for a timer, so it prints nothing for this program.
+Run it with `kgpy -l file.kg`, which stays in the REPL while the timer fires. `kgpy file.kg` runs the file and exits without waiting for a timer, so it prints nothing for this program.
 
 ## Talking to q: IPC
 
 KlongPy's `.srv`, `.cli`, `.clid`, `.clic`, `.clit` and `.async` speak the kdb+ IPC protocol. A Klong program can connect to a q process, and a q process can connect to a Klong server. The full description, including how functions cross the wire, is in [IPC Capabilities](ipc_capabilities.md). This section is what a q user needs.
 
-Limits of this release: there is no TLS, so a user name and password travel in clear text, and a peer that can reach the port can run Klong code in your interpreter, including `.py` and `.sys`. Use it on trusted networks. The largest message accepted is 256 MiB by default (the `.system` key `ipc_max_message`); KlongPy does not handle messages over 2 GB. Protocol capability 3 is used: compressed messages are understood, and sent only when `klong.ipc_compress` is set from Python.
+Limits: no TLS, so a user name and password travel in clear text, and a peer that can reach the port can run Klong code in your interpreter, including `.py` and `.sys`. The other limits (message size, compression, the pickle protocol) are in [IPC Capabilities](ipc_capabilities.md#protocol-and-security).
 
-What was tested: KlongPy against PeachQ 0.92 in both directions, and against a protocol-level fake of a kdb+ server. It was not tested against a KX kdb+ process, so the behaviours below are those of PeachQ. The protocol tests live in `tests/test_ipc_peachq.py` and run when `KLONG_TEST_PEACHQ` names a PeachQ executable.
+Tested: KlongPy against PeachQ 0.92 in both directions, and against a protocol-level fake of a kdb+ server; not against a KX kdb+ process, so the behaviours below are those of PeachQ. The tests are in `tests/test_ipc_peachq.py` and run when `KLONG_TEST_PEACHQ` names a PeachQ executable.
 
 ### Addresses
 
@@ -661,7 +568,7 @@ What was tested: KlongPy against PeachQ 0.92 in both directions, and against a p
 
 Start a q process that listens on port 8888, for example `q -p 8888`, and then, in a Klong session:
 
-<!-- check-docs: skip: shows a session with a q process (PeachQ 0.92), which the checker does not start -->
+<!-- check-docs: skip: needs a running q process (PeachQ 0.92) -->
 ```kgpy
 ?> h::.cli("localhost:8888")
 remote[localhost:8888]:fn
@@ -683,7 +590,7 @@ remote[localhost:8888]:fn
 
 An error in q comes back as a Klong error of kind `remote` whose message is the text of the q signal. The connection stays open.
 
-<!-- check-docs: skip: shows a session with a q process (PeachQ 0.92), which the checker does not start -->
+<!-- check-docs: skip: needs a running q process (PeachQ 0.92) -->
 ```kgpy
 ?> h("nosuch")
 error: nosuch
@@ -697,7 +604,7 @@ error: length
 
 A table from q arrives as a table when `klongpy.db` is loaded in the Klong process, and as a dictionary from column symbol to column array otherwise. `.clid` gives the remote context as a dictionary, which sets and gets variables in the q process:
 
-<!-- check-docs: skip: shows a session with a q process (PeachQ 0.92), which the checker does not start -->
+<!-- check-docs: skip: needs a running q process (PeachQ 0.92) -->
 ```kgpy
 ?> .py("klongpy.db")
 1
@@ -786,42 +693,28 @@ Hooks and the client's view of the connection are covered below. An open connect
 
 ### Types across the connection
 
-What `.cli` returns for a q value, and what q makes of a Klong value. Both columns were observed against PeachQ 0.92; the type numbers are the q type numbers (negative for an atom, positive for a vector).
+One table for both directions, as observed against PeachQ 0.92. The type numbers are q's (negative for an atom, positive for a vector). The full table, with the 32-bit and character details, is in [IPC Capabilities](ipc_capabilities.md#types-across-the-wire).
 
-| q value | Klong value received |
-|---|---|
-| long atom, int atom, short atom, boolean atom | integer (`1b` is `1`) |
-| float atom | float |
-| char atom (`"a"`) | char (`0ca`) |
-| char vector (`"abc"`) | string |
-| symbol (`` `abc ``) | symbol (`:abc`) |
-| long vector, float vector | integer array, float array |
-| symbol vector | list of symbols |
-| general list | list (`(1;"ab";`c)` is `[1 "ab" :c]`) |
-| dictionary | dictionary |
-| table | `Table` with `klongpy.db` loaded, else a dictionary of column arrays |
-| keyed table | a two-element list of the key table and the value table |
-| date, time and the other temporal types | the underlying number (`2000.01.01` is `0`, `12:30:00.000` is `45000000`) |
-| `0N`, `0n`, `0w` | not translated: `-9223372036854775808`, `nan`, `inf` |
-| the generic null `(::)` | `:undefined` |
-| a function other than a lambda | an opaque value that prints as `:kdb-function` and can be sent back |
+| Klong value | q type the q process sees | q value | Klong value `.cli` returns |
+|---|---|---|---|
+| integer | `-7h`, long atom | long, int, short or boolean atom | integer (`1b` is `1`) |
+| float | `-9h`, float atom | float atom | float |
+| char | char atom | char atom (`"a"`) | char (`0ca`) |
+| string | `10h`, char vector | char vector (`"abc"`) | string |
+| symbol | `-11h`, symbol atom | symbol (`` `abc ``) | symbol (`:abc`) |
+| integer or float array | `7h` or `9h`, vector | long or float vector | integer or float array |
+| list of symbols | `11h`, symbol vector | symbol vector | list of symbols |
+| list of strings, mixed list | `0h`, general list | general list | list (`(1;"ab";`c)` is `[1 "ab" :c]`) |
+| dictionary | `99h` | dictionary | dictionary |
+| function | `100h`, lambda; its source text is sent | function other than a lambda | an opaque value, `:kdb-function`, that can be sent back |
+| `:undefined` | `101h`, the generic null | generic null `(::)` | `:undefined` |
+| | | table | `Table` with `klongpy.db` loaded, else a dictionary of column arrays |
+| | | keyed table | a two-element list of the key table and the value table |
+| | | date, time and other temporal types | the underlying number (`2000.01.01` is `0`) |
+| | | `0N`, `0n`, `0w` | not translated: `-9223372036854775808`, `nan`, `inf` |
+| a Python object, a connection handle | not sent: a type error | | |
 
-| Klong value | q type seen by the q process |
-|---|---|
-| integer | `-7h`, a long atom |
-| float | `-9h`, a float atom |
-| string | `10h`, a char vector |
-| symbol | `-11h`, a symbol atom |
-| integer array | `7h`, a long vector |
-| float array | `9h`, a float vector |
-| list of symbols | `11h`, a symbol vector |
-| list of strings, a mixed list | `0h`, a general list |
-| dictionary | `99h` |
-| function | `100h`, a lambda; its source text is sent |
-| `:undefined` | `101h`, the generic null |
-| a Python object, a connection handle | not sent: a type error |
-
-<!-- check-docs: skip: shows a session with a q process (PeachQ 0.92), which the checker does not start -->
+<!-- check-docs: skip: needs a running q process (PeachQ 0.92) -->
 ```kgpy
 ?> h::.cli("localhost:8888")
 remote[localhost:8888]:fn
@@ -861,53 +754,15 @@ remote[localhost:8888]:fn
 
 A function sent to q is its Klong source text, parsed by q. It runs only if that text is also valid q.
 
-### Klong to Klong
+### Between two KlongPy interpreters
 
-The same calls work between two KlongPy interpreters, and the checked transcripts below use two interpreters in one process. A line starting `server?>` runs in the serving interpreter and `client?>` in the connecting one.
-
-<!-- check-docs: strict 2 -->
-```kgpy
-server?> avg::{(+/x)%#x}
-:monad
-server?> .srv(8888)
-1
-client?> h::.cli(8888)
-remote[localhost:8888]:fn
-client?> h("avg(!100)")
-49.5
-client?> h(:avg,,!100)
-49.5
-client?> h("[1 2 3]@10")
-error: index 10 out of range for list of 3
-client?> h("1+1")
-2
-```
+The same calls work between two KlongPy interpreters; see the example in [IPC Capabilities](ipc_capabilities.md#example).
 
 ### Hooks
 
-q's `.z.po` and `.z.pc` run when a client opens and closes a connection, and `.z.pw` checks credentials. The Klong names are `.srv.o`, `.srv.c` and `.srv.auth`. `.srv.o` and `.srv.c` are called with the client's handle; `.srv.auth` is called with the user name and the password, both strings, and returns 1 to accept. `.srv.e` is called for an error that nobody is waiting for. There is no equivalent of q's `.z.pg` and `.z.ps`: a request is always evaluated as Klong source or as a call by name.
+q's `.z.po` and `.z.pc` run when a client opens and closes a connection, and `.z.pw` checks credentials. The Klong names are `.srv.o`, `.srv.c` and `.srv.auth`. `.srv.e` is called for an error that nobody is waiting for. There is no equivalent of q's `.z.pg` and `.z.ps`: a request is always evaluated as Klong source or as a call by name. The arguments and examples are in [Server Callbacks](ipc_capabilities.md#server-callbacks) and [Credentials](ipc_capabilities.md#credentials-srvauth).
 
-<!-- check-docs: strict 2 -->
-```kgpy
-server?> opened::[]
-[]
-server?> .srv.o::{opened::opened,x}
-:monad
-server?> .srv.auth::{(x~"bob")&(y~"secret")}
-:dyad
-server?> .srv(8888)
-1
-client?> f::.cli("localhost:8888:bob:secret")
-remote[localhost:8888]:fn
-client?> f("1+1")
-2
-client?> .cli("localhost:8888:bob:wrong")
-error: remote[localhost:8888] closed the connection during the handshake (bad credentials, or it does not speak the kdb+ protocol)
-server?> #opened
-1
-```
-
-`.timer` replaces `.z.ts` as shown above, and a call that gets no answer in 30 seconds fails with a `timed out` error (`.clit(h;seconds)` changes the limit).
+`.timer` replaces `.z.ts`, as shown above. A call that gets no answer in 30 seconds fails with a `timed out` error; `.clit(h;seconds)` changes the limit.
 
 ## What is missing
 
@@ -916,10 +771,9 @@ Compared with a q process:
 - No q-sql (`select`, `update`, `exec`, `delete`) and no `by` clause; use SQL strings over `klongpy.db` tables.
 - No typed nulls, no boolean, byte, short, int, real or temporal types. Temporal values from q arrive as plain numbers and `0N` is not null.
 - No keyed tables in the q sense (an `.index` on a table makes an insert update the matching row, which is not the same), no attributes, no enumerations, and no splayed or partitioned tables.
-- No `.z.pg`, `.z.ps`, `.z.pi` or other message handlers; `.srv.o`, `.srv.c`, `.srv.e` and `.srv.auth` are the hooks.
+- No `.z.pg`, `.z.ps`, `.z.pi` or other message handlers; see Hooks above.
 - No true asynchronous send from Klong (q's `neg[h]`). `.async(f;cb)` sends a request and calls `cb` with the answer when it arrives; a KlongPy server does accept asynchronous messages from q clients.
 - Nested callbacks through a real kdb+ process are not supported.
-- No TLS: credentials and data are sent in clear text.
 - A function is sent as its source text. A projection arrives opaque and cannot be called by the receiver.
 
 ## See also
@@ -927,5 +781,5 @@ Compared with a q process:
 - [Tutorial](tutorial.md) for the language from the first expression.
 - [Klong for NumPy users](from-numpy.md) for the Python array side.
 - [IPC Capabilities](ipc_capabilities.md), [IPC and timers in the native runtime](native/ipc.md), [Timers](timer.md), [Fast Columnar Database](fast_columnar_database.md).
-- [Friendlier syntax](language-additions.md) for destructuring, named parameters and dictionaries.
+- [Language Additions](language-additions.md) for destructuring, named parameters and dictionaries.
 - [Strict mode](strict.md) and [Lint](lint.md) for the checks that catch the q habits above.

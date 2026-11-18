@@ -163,12 +163,6 @@ def eval_sys_compilex(klong, x, y, z):
             "fullgraph" - 1 to require full graph compilation
             "dynamic"   - 1 for dynamic shapes, 0 for static
 
-        Mode Comparison:
-            | Mode            | Compile | Runtime | Use Case          |
-            |-----------------|---------|---------|-------------------|
-            | default         | Medium  | Good    | General use       |
-            | reduce-overhead | Fast    | OK      | Development       |
-            | max-autotune    | Slow    | Best    | Production        |
 
         Returns:
             Compiled function
@@ -233,20 +227,6 @@ def eval_sys_cmodes(klong):
             info::.cmodes()
             .p(info@"modes")          :" Print available modes
             .p(info@"recommendations") :" Print recommended settings
-
-        Mode Comparison:
-            | Mode            | Compile Time | Runtime Speed | Best For     |
-            |-----------------|--------------|---------------|--------------|
-            | default         | Medium       | Good          | General use  |
-            | reduce-overhead | Fast         | Moderate      | Development  |
-            | max-autotune    | Slow         | Best          | Production   |
-
-        Backend Comparison:
-            | Backend    | Description                              |
-            |------------|------------------------------------------|
-            | inductor   | Default - C++/Triton code generation     |
-            | eager      | No compilation - for debugging           |
-            | cudagraphs | CUDA graphs - reduces GPU launch overhead|
 
     """
     backend = klong._backend

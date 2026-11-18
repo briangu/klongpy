@@ -1,13 +1,15 @@
 # Compiling Klong to C
 
+Status: tested on the host and compile-checked for bare ARM and x86 targets; not run on a microcontroller. For hardware status see the [native runtime table](native/index.md#status-what-has-and-has-not-been-proven).
+
 A small part of Klong, the [static profile](static-profile.md), can be compiled ahead of time to C99 with no heap, no recursion and no C library. A program written in it runs unchanged under KlongPy, which is how it is developed and tested, and the generated C does the same work on a target with no interpreter. The target is a microcontroller or any other place where a small, fixed-size, dependency-free function is wanted: a filter, a controller, a state machine over a few sensors.
 
-This page walks through the whole path with two programs from `examples/embedded/`: check the program, run it under the interpreter, emit C, build it for the host and for a bare target, and call it from a `main`. Every command and every output below was produced by running it, and the commands are run again when the documentation is checked wherever a C compiler is installed.
+This page walks through the whole path with two programs from `examples/embedded/`: check the program, run it under the interpreter, emit C, build it for the host and for a bare target, and call it from a `main`. Every command and every output below was produced by running it. The commands need a C compiler.
 
 The rules of the profile (which operators, adverbs and forms are allowed, the types, the shape rules, the error ids) are on the [static profile page](static-profile.md). That page is generated from the checker's own tables, so it cannot disagree with it. This page covers the tools around it.
 
-!!! note "State of this work"
-    The generated C has not been run on a microcontroller or in an emulator. (The HLS C++ that `--emit-hls` writes from the same programs is experimental and has run on one Alveo U250 FPGA: see [Hardware](hardware.md).) The generated C was compiled, with `-Werror`, for the host and, compile only, for the bare ARM and x86 targets that the installed clang supports (listed [below](#what-has-not-been-done)). RISC-V and Xtensa were not compile-checked because that clang has no backend for them. There is no WebAssembly build yet. This page is about the generated C only. The native (non-Python) runtime is a separate Rust implementation of the language, described under [Native runtime](native/index.md); hardware results for it are reported there, not here.
+!!! note "Scope"
+    This page is about the generated C only. The HLS C++ that `--emit-hls` writes from the same programs is experimental; see [Hardware](hardware.md). The native (non-Python) runtime is a separate Rust implementation of the language, described under [Native runtime](native/index.md). What was and was not compiled is listed [below](#what-has-not-been-done).
 
 ## The two programs
 
@@ -383,20 +385,31 @@ sizeof 40, mavg_size() 40
 
 ## Differences from the interpreter
 
-A compiled program gives the interpreter's answers except in the ways below. Each is specified, and each is pinned by a test in `tests/static/test_differential.py`, which builds the generated C into a shared library and compares it with the interpreter bit for bit on random and edge inputs. The [static profile page](static-profile.md#differences-from-klongpy) has the table of language-level differences (the `^` result type, `:%` of floats, mismatched shapes and so on), most of which the checker turns into compile errors instead.
+A compiled program gives the interpreter's answers except in the ways below. Each is specified, and each is pinned by a test in `tests/static/test_differential.py`, which builds the generated C into a shared library and compares it with the interpreter bit for bit on random and edge inputs. The checker turns the language-level rows (the ones marked "compile error") into errors, so that no program inside the profile meets them. The [static profile](static-profile.md) has the rules.
 
 | Case | KlongPy | Compiled |
 |---|---|---|
-| Integer overflow | 64-bit integers; `2147483647+1` is 2147483648 | wraps at the width of `kg_int`: `-2147483648` with `int32_t` |
+| Integer overflow | 64-bit integers wrap, as numpy int64 does; `2147483647+1` is 2147483648 | wraps at the width of `kg_int`: `-2147483648` with `int32_t` |
 | Float width | doubles | `kg_float`: `float` by default. The tests compare a float32 result bit for bit when every operation is exact, and to 1e-5 otherwise. `--float64` is bit for bit except `^` (1e-15) |
-| `x%0`, `x!0`, `x:%0` | `:undefined` | float: IEEE (inf or nan) or `kg_trap` under `KG_DIV0=trap`. Integer: always `kg_trap` |
-| Index out of range | a range error | `kg_trap(KG_TRAP_BOUNDS, line)`; undefined behaviour with `KG_BOUNDS=0` |
+| `x%0` | `:undefined`, per element for arrays | IEEE (inf or nan) by default, `kg_trap` under `KG_DIV0=trap` |
+| Integer `:%` or `!` by zero | `:undefined` | `kg_trap` always; a constant zero divisor is a compile error |
+| Index out of range | a range error; a negative index counts from the end | `kg_trap(KG_TRAP_BOUNDS, line)`; negative indices count from the end as in KlongPy; undefined behaviour with `KG_BOUNDS=0`; a constant index out of range is a compile error |
 | `_x` beyond the range of `kg_int`, or of nan | saturates to the int64 range | saturates to the range of `kg_int`; nan gives 0 |
 | `x~y` of one nan with itself | 1 | 0 |
 | `+/` of floats | numpy adds pairwise from eight items and answers `+0.0` for a sum of negative zeros | adds left to right from the first item. `{x+y}/a` and `+\a` agree in both |
 | `n{f}:*x` with a negative `n` | an error | zero iterations |
 | `kg_pow` freestanding | libm | about 1e-6 relative (float), 1e-13 (double) |
 | Comparison `~` of two scalars | tolerant (relative 1e-5, absolute 1e-8); exact for two arrays | the same |
+| `^` result type | int when the result is whole (`2.0^2` is the int 4) | int only for int operands and a non-negative constant exponent, else float |
+| `:%` of floats | accepted (`7.0:%2` is 3) | compile error: floor the operands first |
+| `a~b` with different shapes | 0 | compile error |
+| `a f'b` with different lengths | stops at the shorter | compile error |
+| `n:+a` on a matrix | rotates the flattened data | compile error (rank 1 only) |
+| Over on one item (`f/[5]`) | the item itself, whatever `f` returns | the item converted to the accumulator's type |
+| A conditional with an int and a float branch | the type of the branch taken | float (the value is the same) |
+| A callee reading its caller's locals | works (dynamic scope) | compile error (`undefined-name`) |
+
+Programs written so that no value comes near these cases (small integers, no zero divisors, indices in range) give the same answers everywhere. The tests also include random programs: a seeded generator writes functions over floats, ints, short arrays, state globals, constant tables, locals, conditionals, every adverb, amend, index, take, drop, rotate, reshape and join, with values chosen to be exact in single precision, and compares the compiled result with the interpreter's for thousands of calls.
 
 Some of the rows, run in the interpreter:
 
@@ -417,16 +430,14 @@ error: :*: count must not be negative, got -3
 0
 ```
 
-Programs written so that no value comes near these cases (small integers, no zero divisors, indices in range) give the same answers everywhere. The tests also include random programs: a seeded generator writes functions over floats, ints, short arrays, state globals, constant tables, locals, conditionals, every adverb, amend, index, take, drop, rotate, reshape and join, with values chosen to be exact in single precision, and compares the compiled result with the interpreter's for thousands of calls. As a check on the tests, swapping the operands of `-` in the C expansion table made 11 of the 36 differential tests fail.
-
 ## Hardware (experimental)
 
-`kgpy --emit-hls FILE -o DIR` writes, next to the C of `--emit-c`, the files that Vitis HLS needs to turn each `.entry` into a kernel for an Alveo U250: a top function (`<name>_<entry>_top.cpp`), a C test bench, a `hls_<entry>.tcl` script and `manifest.json`. `--clock-mhz N` sets the clock (default 300), `--int64` and `--prefix` work as with `--emit-c`, `--float64` is rejected (the card has float32 only), and an entry that calls an `.extern` is rejected. With `KLONG_HW_BUILD=user@host` set, `--synth` runs C synthesis on that machine and prints the estimates. By default the kernel is the streamable one: loads and stores move one word per cycle, a sliding-window filter (`+/taps*x@idx`) becomes a shift register, and the core is one pipelined loop that takes a record every cycle when the program allows it (`kgpy --check-static --streamable` says what prevents it). `--hls-wrapped` writes the first, slow kernel instead, whose core is the unchanged output of `--emit-c`. `--lanes N` puts N cores on one input stream, `--hls-reassociate` lets float reductions be summed as a tree, and `fixed<W,I>` numbers and `.param` registers are described in [the static profile](static-profile.md#fixed-point-numbers). `kgpy --hw-build` builds the bitstream and `.hw` calls the kernel from Klong: see [Klong functions as FPGA hardware](hardware.md).
+`kgpy --emit-hls` writes the same programs as HLS C++ for an FPGA kernel, and `.hw` calls the built kernel from Klong. This is experimental and has run on one Alveo U250 card. The flow, its settings and the measured results are on [Klong functions as FPGA hardware](hardware.md).
 
 ## What has not been done
 
 - The C that this tool generates has not been run on a microcontroller or in an emulator; the tests run it as a shared library on the host. Only the HLS C++ of `--emit-hls` has run on hardware, on one Alveo U250 ([Hardware](hardware.md), experimental).
-- Compile-only builds were made with the installed clang for `thumbv6m-none-eabi` (no FPU, soft float), `thumbv7em-none-eabihf` (single-precision FPU), `armv7m`, big-endian `armebv7m`, `i386` and `aarch64`, all freestanding with `-Werror`, with `nm -u` limited to the declared externs and compiler-rt helpers. RISC-V and Xtensa were not compile-checked: the installed clang (Apple clang 21) has no backend for either. `riscv32` is in the list of targets the test tries and is skipped where the compiler cannot build for it; Xtensa is not in the list. Cross builds with GCC toolchains were not made.
+- Compile-only builds were made with clang (Apple clang 21, on the Mac that ran the tests) for `thumbv6m-none-eabi` (no FPU, soft float), `thumbv7em-none-eabihf` (single-precision FPU), `armv7m`, big-endian `armebv7m`, `i386` and `aarch64`, all freestanding with `-Werror`, with `nm -u` limited to the declared externs and compiler-rt helpers. RISC-V and Xtensa were not compile-checked: that clang has no backend for either. `riscv32` is in the list of targets the test tries and is skipped where the compiler cannot build for it; Xtensa is not in the list. Cross builds with GCC toolchains were not made.
 - There is no WebAssembly build. The emitted C is meant to build with `--target=wasm32 -ffreestanding -nostdlib` and its externs to become imports, but that is not tested.
 - A constant index table is stored as `kg_int`. `fir.kg`'s table is 15.4 KB of its 15.5 KB of constants at 32 bits; storing it in the smallest type that holds it would make it about 3.9 KB. Not done.
 - The tests need a C compiler and skip without one. Set `KG_TEST_CC` to choose it and `KG_TEST_SANITIZE=undefined` to run them under UBSan.
@@ -436,6 +447,6 @@ Reference programs, with the results the interpreter gives and the size of the g
 ## See also
 
 - [Static profile](static-profile.md) for the rules of the subset.
-- [Compiler roadmap](compiler-roadmap.md) for how this compiler differs from the expression compiler inside KlongPy.
+- [Expression Compiler Notes](compiler-roadmap.md) for how this compiler differs from the expression compiler inside KlongPy.
 - [Native runtime](native/index.md) and [Porting to a board](native/porting.md) for running Klong itself on a microcontroller, without generating C.
 - [Roadmap](roadmap.md) for what is planned and not available.

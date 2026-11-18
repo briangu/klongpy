@@ -54,10 +54,10 @@ class TestProfileDoc(unittest.TestCase):
 
     def test_the_page_contains_the_hand_written_sections(self):
         page = render_page()
-        for heading in ("## Two stages", "## Types", "## What a run-time function may contain", "## Typing rules",
-                        "## Host functions and entry points", "## Differences from KlongPy", "## Reference programs"):
+        for heading in ("## Compile time and run time", "## Types", "## What a run-time function may contain", "## Typing rules",
+                        "## Host functions and entry points", "## Differences from KlongPy", "## Reference programs", "## Extra rules for FPGA kernels"):
             self.assertIn(heading, page)
-        self.assertIn("| Integer overflow |", page)             # the differences table
+        self.assertIn("embedded.md#differences-from-the-interpreter", page)   # the differences table lives there
         self.assertIn("`(-7):%2` is -3", page)
 
     def test_check_is_0_when_fresh_1_after_a_hand_edit_2_when_missing(self):
@@ -75,7 +75,7 @@ class TestProfileDoc(unittest.TestCase):
             self.assertEqual(rc, 1)
             self.assertIn("out of date", err)
             with open(path, "w") as f:
-                f.write(text.replace("## Two stages", "## Stages"))     # outside it: hand-written text is free
+                f.write(text.replace("## Compile time and run time", "## Stages"))     # outside it: hand-written text is free
             self.assertEqual(run("--check", path)[0], 0)
 
     def test_write_refreshes_the_block_and_keeps_the_text_around_it(self):

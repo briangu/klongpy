@@ -21,7 +21,7 @@ use crate::switch::Switch;
 
 type Hook = Rc<RefCell<Option<Box<dyn FnMut()>>>>;
 
-/// Costs of an RP2040 at 125 MHz, fitted to measurements on the bench (2026-11-16, Picos 2 and 3, image 463a5f28 with
+/// Costs of an RP2040 at 125 MHz, fitted to measurements on the bench (2026-11-16, two Picos with
 /// the evaluator in RAM and the flash at 62.5 MHz; `docs/native/pico-bench.md` has the measurements):
 ///
 /// * `fib(18)`: 8361 calls in 0.385 s, 46 us a call (the first image: 94 us), so the evaluator's slow tick, every 128

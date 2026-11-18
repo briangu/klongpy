@@ -163,11 +163,11 @@ def eval_sys_fn_create_table(x):
 
         .table(x)                                         [Table-Create]
 
-        Creates a table created from a sequence of tuples where each tuple
-        describes a column and it's associated values.  Column order is
+        Create a table from a sequence of tuples, each of which
+        describes a column and its values.  Column order is
         determined by the order in the tuple sequence.
 
-        The resulting table treatable as a dict and key/value updates are
+        The table can be used like a dictionary, and key/value updates are
         column operations.
 
         Examples:

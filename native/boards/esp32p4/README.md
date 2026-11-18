@@ -1,10 +1,10 @@
 # Klong on the ESP32-P4
 
-The serial console of the native Klong runtime (`native/PORTING.md`) as an ESP-IDF
+The serial console of the native Klong runtime (`docs/native/porting.md`) as an ESP-IDF
 application: ESP-IDF supplies boot, the UART driver, the clock and the heap; the runtime is
 the Rust static library `native/klong-ffi` behind `klong-ffi/include/klong.h`.
 
-Built for: ESP32-P4 chip revision v3.1 or later (the board at hand reads v3.2), 32 MB flash,
+Built for: ESP32-P4 chip revision v3.1 or later (an ESP32-P4 development board with a v3.2 chip was tested), 32 MB flash,
 in-package PSRAM, console on UART0 (TX GPIO37, RX GPIO38: the board's USB-serial bridge),
 115200 8N1. A chip below v3.0 needs another build (`CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y`
 in `sdkconfig.defaults`); the bootloader refuses this image on such a chip.
@@ -76,9 +76,9 @@ reset the board (DTR/RTS), the tool waits for the banner.
 
 ## Verified on the board
 
-The firmware has been built and its C interface tested on the host
-(`cargo test -p klong-ffi`); the same `main.c` was run for an ESP32-C3 under QEMU. On the
-P4 itself (2026-11-16) the REPL, a runaway loop stopped by Ctrl-C (`{1}{x+1}:~0`), the embedded
+The status of every board is in the table of `docs/native/index.md`. The C interface is
+tested on the host (`cargo test -p klong-ffi`), and the same `main.c` ran for an ESP32-C3
+under QEMU. On the P4 itself (2026-11-16) the REPL, a runaway loop stopped by Ctrl-C (`{1}{x+1}:~0`), the embedded
 library, uploads and the conformance suite over the serial port (1266 of 1266) worked: see
 `docs/native/esp32-p4.md`, which has the measurements. IPC (the firmware has none)
 and flash storage (not done) are not there to check.

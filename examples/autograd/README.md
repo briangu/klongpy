@@ -281,7 +281,7 @@ Autograd computes exact derivatives automatically!
 **Key concepts:**
 - Greeks are derivatives of option price
 - `delta::priceOfSpot:>spot` - no formula derivation needed
-- Works for ANY pricing model (exotic options, stochastic vol, etc.)
+- Works for a pricing model written with differentiable operations, such as a closed-form formula; a step in the model (a barrier or an exercise decision) has no useful derivative
 - Uses backend `erf` for accurate normal CDF
 
 **Why this matters:** Traditional quant work requires deriving Greek formulas by hand. With autograd, you just define the price function and differentiate automatically.
@@ -405,6 +405,72 @@ The target is hit by two angles, because `sin(2*angle)` is the same for `angle` 
 
 ---
 
+### gradcheck_demo.kg
+
+**What it does:** Demonstrates gradient verification using `.gradcheck()` to ensure autograd computes mathematically correct gradients.
+
+**Run:**
+```bash
+kgpy --backend torch gradcheck_demo.kg
+```
+
+**Expected output:**
+```
+Gradient Verification Demo
+==========================
+
+Example 1: Verifying f(x) = x^2
+--------------------------------
+  Function: f(x) = x^2
+  .gradcheck(f;3.0) = 1
+  PASSED: Gradient is correct!
+
+Example 2: Verifying p(x) = x^3 + 2x^2 - 5x + 3
+...
+All gradient checks passed!
+```
+
+**Key concepts:**
+- `.gradcheck(fn;input)` returns 1 if gradients are correct
+- Uses `torch.autograd.gradcheck` internally
+- Compares autograd vs numeric differentiation
+- Essential for verifying custom functions
+
+---
+
+### compile_demo.kg
+
+**What it does:** Shows how to compile Klong functions for optimized execution using `torch.compile`.
+
+**Run:**
+```bash
+kgpy --backend torch compile_demo.kg
+```
+
+**Expected output:**
+```
+Function Compilation Demo
+=========================
+
+Example 1: Compiling a simple function
+---------------------------------------
+  Original function: f(x) = x^2
+  Compiled with: .compile(f;3.0)
+
+  f(5.0) = 25.0
+  cf(5.0) = 25.0
+  Both give the same result!
+...
+```
+
+**Key concepts:**
+- `.compile(fn;input)` returns an optimized function
+- Compiled functions run faster for complex computations
+- First call has compilation overhead
+- Best for functions called many times (training loops)
+
+---
+
 ## Helper Files
 
 ### optimizers.py
@@ -485,72 +551,6 @@ Without torch:
 - Falls back to numeric differentiation
 - Uses finite differences: f'(x) ~ (f(x+e) - f(x-e)) / 2e
 - Slower and less precise
-
----
-
-### gradcheck_demo.kg
-
-**What it does:** Demonstrates gradient verification using `.gradcheck()` to ensure autograd computes mathematically correct gradients.
-
-**Run:**
-```bash
-kgpy --backend torch gradcheck_demo.kg
-```
-
-**Expected output:**
-```
-Gradient Verification Demo
-==========================
-
-Example 1: Verifying f(x) = x^2
---------------------------------
-  Function: f(x) = x^2
-  .gradcheck(f;3.0) = 1
-  PASSED: Gradient is correct!
-
-Example 2: Verifying p(x) = x^3 + 2x^2 - 5x + 3
-...
-All gradient checks passed!
-```
-
-**Key concepts:**
-- `.gradcheck(fn;input)` returns 1 if gradients are correct
-- Uses `torch.autograd.gradcheck` internally
-- Compares autograd vs numeric differentiation
-- Essential for verifying custom functions
-
----
-
-### compile_demo.kg
-
-**What it does:** Shows how to compile Klong functions for optimized execution using `torch.compile`.
-
-**Run:**
-```bash
-kgpy --backend torch compile_demo.kg
-```
-
-**Expected output:**
-```
-Function Compilation Demo
-=========================
-
-Example 1: Compiling a simple function
----------------------------------------
-  Original function: f(x) = x^2
-  Compiled with: .compile(f;3.0)
-
-  f(5.0) = 25.0
-  cf(5.0) = 25.0
-  Both give the same result!
-...
-```
-
-**Key concepts:**
-- `.compile(fn;input)` returns an optimized function
-- Compiled functions run faster for complex computations
-- First call has compilation overhead
-- Best for functions called many times (training loops)
 
 ---
 

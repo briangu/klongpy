@@ -17,7 +17,8 @@ conformance/
 ```
 
 Golden parse trees are not copied: `tests/golden/{language,lib,fixtures}/*.sexp`
-(with their sources) are part of the suite. See "Parse trees" below.
+(with their sources) are part of the suite. See "Parse trees" below. The reader's view of
+the suite, with the counts per implementation, is `docs/conformance.md`.
 
 ## Case file format
 
@@ -85,7 +86,7 @@ needs, `core` being implied by them):
 | `sysio` | files and channels (`.ic`, `.l`, ...) |
 | `timers`, `ipc`, `desktop` | tiers with no cases yet |
 
-Marks (documented differences, `docs/native/index.md`):
+Marks (documented differences, listed in `docs/native/index.md`):
 
 | Tag | Meaning |
 |---|---|
@@ -201,4 +202,4 @@ Rules of thumb:
   uses a string literal, `$` or a dictionary literal, and a case with a float
   literal or result that lacks `float`.
 * Do not test operator values, function display (`:monad`, `:dyad`) or
-  anything printed with a Python object repr; they are being changed.
+  anything printed with a Python object repr; their form is not fixed.

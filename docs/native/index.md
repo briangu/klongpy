@@ -2,7 +2,7 @@
 
 This section describes the native Klong runtime: a second implementation of the Klong language, written in Rust, that runs on microcontrollers and on a desktop without Python. It is for people who want to run Klong on a small board, or who want to know how that implementation relates to KlongPy and how far it has been tested. This page says what it is, how it relates to KlongPy, what exists today, and what has and has not been proven.
 
-The source is in the `native/` directory of the KlongPy repository. The runtime is new. It has run its console conformance on an ESP32-P4 board and, on two Raspberry Pi Picos, IPC between nodes and management-library calls; nothing else has been run on hardware (see the [status](#status-what-has-and-has-not-been-proven)).
+The source is in the `native/` directory of the KlongPy repository. The runtime is new. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board. Two Raspberry Pi Picos have run it with IPC between them. The [status table](#status-what-has-and-has-not-been-proven) below says what has run where.
 
 ## What it is for
 
@@ -70,8 +70,9 @@ This is the one status of what has run on hardware; the other pages link here.
 
 | Hardware | What has run |
 |---|---|
-| An ESP32-P4 board | the console conformance suite over the serial port, the REPL, uploads, the embedded library |
-| Two Raspberry Pi Picos (the [Pico bench](pico-bench.md)) | IPC between nodes over the packet switch, and management-library calls |
+| A desktop (macOS and Linux) | the whole conformance suite, the 32-bit build, IPC over TCP, timers, the management node |
+| An ESP32-P4 development board (chip revision v3.2; see [ESP32-P4](esp32-p4.md)) | the console conformance suite over the serial port, the REPL, uploads, the embedded library |
+| Two Raspberry Pi Picos ([two Picos calling each other](pico-bench.md)) | IPC between the nodes over a UART link, and management-library calls |
 | An Alveo U250 FPGA | experimental kernels built from the static profile of KlongPy (not the native runtime; see [Hardware](../hardware.md)) |
 | Anything else | nothing |
 
@@ -86,10 +87,10 @@ This is the one status of what has run on hardware; the other pages link here.
 | Speed | `fib(24)` 4.2 s on the board, against about 35 ms on an Apple-silicon Mac; **the cause is not investigated** | an ESP32-P4 and the Mac |
 | Firmware image | 691,328 bytes flashed (the current build, not flashed, is 701,360) | an ESP32-P4 |
 | IPC with KlongPy, both directions, every mapped type | passes | desktop, localhost TCP |
-| IPC with a q implementation (PeachQ 0.92.20261115), both directions | passes when the tests are enabled; not run again for this documentation | desktop, localhost TCP |
+| IPC with PeachQ 0.92.20261115 (a kdb+-compatible q implementation), both directions | passes when the tests are enabled; not run again for this documentation | desktop, localhost TCP |
 | IPC against a KX kdb+ process | not tried | |
-| IPC on a device | passes between two Picos of the Pico bench over a packet switch (2026-11-16, 17); **not run on the ESP32-P4**, whose firmware has no IPC | **two Raspberry Pi Picos** |
-| IPC over a UART or a lossy link | tested in memory with seeded faults; on a wire only the Pico bench's UART lanes, between two Picos | in-process simulation, two Picos |
+| IPC on a device | passes between two Picos over a UART link (2026-11-16, 17); **not run on the ESP32-P4**, whose firmware has no IPC | **two Raspberry Pi Picos** |
+| IPC over a UART or a lossy link | tested in memory with seeded faults; on a wire only the UART link between two Picos | in-process simulation, two Picos |
 | Timers | work | desktop |
 | The management node | works with three native node processes on localhost, and in an in-process test over simulated lossy and serial links | desktop |
 | The management node on boards | the library loads and management-library calls (`mgmt.call`) work on Picos (2026-11-17); a management board with nodes on UARTs and a pulled cable were **not run** | **two Raspberry Pi Picos** |
@@ -100,16 +101,16 @@ This is the one status of what has run on hardware; the other pages link here.
 | Fuzzing | seeded fuzzers of the parser, evaluator, IPC decoder and console, no crash or hang found after fixes; not a coverage-guided fuzzer | desktop |
 | Memory safety under out-of-memory | with every large allocation failing in turn, every failure is a `memory` error, no abort | desktop |
 
-Known issues on the board:
+Known limits on the board:
 
-* After a reset the first line can fail with `input is not valid UTF-8`, because of a stray byte. Send the line again. (The firmware source flushes the receive buffer at start-up now; not yet tried on the board.)
-* Opening the serial port resets the board, and the RAM file system is lost at every reset.
-* `fib(24)` is far slower on the board than the clock would suggest, and nobody has found out why.
+* Known limit: after a reset the first line can fail with `input is not valid UTF-8`, because of a stray byte. Send the line again.
+* Known limit: opening the serial port resets the board, and the RAM file system is lost at every reset.
+* Known limit: `fib(24)` is far slower on the board than the clock would suggest, and the cause is not known.
 
 ## Where to go next
 
 * To build it and try it on your computer: [Building and Running](building.md).
 * To see the board console without a board: [Serial Console and Upload](console.md).
-* To use the ESP32-P4: [ESP32-P4](esp32-p4.md). For the Picos: [Pico bench](pico-bench.md).
+* To use the ESP32-P4: [ESP32-P4](esp32-p4.md). For the Picos: [two Picos calling each other](pico-bench.md).
 * To connect nodes: [IPC and Timers](ipc.md), then [Management Node](management-node.md).
 * To put it on another chip: [Porting to a Board](porting.md).

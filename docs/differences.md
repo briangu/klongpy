@@ -1,6 +1,6 @@
 # Differences from Klong
 
-KlongPy runs the Klong test suite, and a program written for Klong runs unchanged apart from the cases below. This page lists where KlongPy's behaviour differs from reference Klong (Nils M Holm's implementation, described at [t3x.org/klong](https://t3x.org/klong)) and why. Each example shows what KlongPy does and is run when the documentation is checked.
+KlongPy runs the Klong test suite, and a program written for Klong runs unchanged apart from the cases below. This page lists where KlongPy's behaviour differs from reference Klong (Nils M Holm's implementation, described at [t3x.org/klong](https://t3x.org/klong)) and why. Each example shows what KlongPy does.
 
 The page has three parts. The first lists differences that are intended and tested. The second points to extensions and changes of meaning that are described elsewhere. The last lists known bugs: places where KlongPy gives a wrong answer and the right one is known. A bug is not a difference, and it is listed so that nobody relies on it.
 
@@ -36,7 +36,7 @@ Why: a list literal is data, not code, and `[;...]` is the form that marks its e
 
 ### Joining a two-element list and a dictionary
 
-`list,dict` follows the [pair rule](language-additions.md#merge-and-the-pair-rule): a list of two members joined to a dictionary is read as a key and a value to add, not as an element to append. The Klong test this comes from expects the dictionary to be appended, so appending an empty dictionary to a list that already holds two items fails here at the third append.
+`list,dict` follows the [pair rule](language-additions.md#merge-and-the-pair-rule): a list of two members joined to a dictionary is read as a key and a value to add, not as an element to append. Reference Klong appends the dictionary, so appending an empty dictionary to a list that already holds two items fails in KlongPy at the third append.
 
 ```kgpy
 ?> [1 2],:{}
@@ -87,7 +87,7 @@ Why: arity is a property of the function that the reader knows from its text, an
 
 ### Calling a value that is not a function is an error
 
-`a(args)` where `a` holds a number, a string, a list or a dictionary is a `type` error that names `a` and says what it holds. The call used to return the value. A dictionary is read with `d@k`. This page does not state what reference Klong does here, because no source in this repository says.
+`a(args)` where `a` holds a number, a string, a list or a dictionary is a `type` error that names `a` and says what it holds. A dictionary is read with `d@k`.
 
 ```kgpy
 ?> a::5
@@ -109,7 +109,7 @@ error: cannot apply :@ (Index-in-Depth) to list of 2 and list of 2
 0c2
 ```
 
-Why: the depth walk follows lists, and a string is not one. The test this comes from was already marked unsupported in Klong.
+Why: the depth walk follows lists, and a string is not one.
 
 ### Numbers
 
@@ -132,7 +132,7 @@ These are not repeated here. Each is a change from classic Klong that is documen
 
 - **Function arity.** A function has as many arguments as the highest of `x`, `y` and `z` its body uses, wherever it uses them, so `{-x}` is a monad. See [How many arguments a function takes](language-additions.md#how-many-arguments-a-function-takes).
 - **Calls with too few arguments are projections**, `f(1)` being `f(1;)`, at every strict level. See the [release notes](release-notes.md).
-- **Friendlier syntax.** Destructuring `[a b]::v`, named parameters `f(a;b;c;d)::{...}`, evaluated dictionaries, `d@k` on dictionaries, `.fmt`, `.grad`. The inputs whose meaning changed are in [Syntax that changed meaning](release-notes.md#syntax-that-changed-meaning). See [Friendlier Syntax](language-additions.md).
+- **Language additions.** Destructuring `[a b]::v`, named parameters `f(a;b;c;d)::{...}`, evaluated dictionaries, `d@k` on dictionaries, `.fmt`, `.grad`. The inputs whose meaning changed are in [Syntax that changed meaning](release-notes.md#syntax-that-changed-meaning). See [Language Additions](language-additions.md).
 - **Strict mode and lint.** Three [strict levels](strict.md) and [`kgpy --lint`](lint.md) report or reject silent mistakes. The default is the classic behaviour.
 - **Errors** carry a position and a kind. See [Errors](errors.md).
 - **Python, IPC, autograd and the rest of the system functions**: `.py`, `.pyf`, `.srv`, `.cli`, `:>`, `.db` and others are additions. See [Python Integration](python_integration.md), [IPC](ipc_capabilities.md) and [PyTorch Backend](torch_backend.md).

@@ -1,9 +1,34 @@
 # Python Integration
 
+KlongPy runs inside Python: Klong code can call Python functions, Python code can call Klong functions, and both read and write the same variables. This page is for someone embedding the interpreter in a Python program or using Python libraries from Klong.
 
-KlongPy runs inside Python. You can call Python functions from Klong, call Klong functions from Python, and move data between the two.
+The interpreter object behaves like a dictionary: `klong['name'] = value` defines a name for Klong code, and `klong['name']` reads one back. A Python function or lambda stored this way is a Klong function.
 
-The interpreter object behaves like a dictionary that holds the current state: `klong['name'] = value` defines a name for Klong code, and `klong['name']` reads one back. A Python function or lambda stored this way is a Klong function.
+## The parameter rule
+
+A Python function called from Klong takes at most three parameters, and they must be named `x`, `y` and `z`. Klong passes its arguments to the parameters with those names. A function defined as `lambda x, y: ...` works; `lambda a, b: ...` does not.
+
+Known limit: a parameter with another name fails with a raw Python `TypeError` (`<lambda>() missing 2 required positional arguments: 'a' and 'b'`), not a Klong error, and the Python traceback is shown. Rename the parameters, or wrap the function: `klong['f'] = lambda x, y: g(x, y)`.
+
+Functions loaded with `.py` and `.pyf` are remapped to this rule for you (see [Python library access](#python-library-access)).
+
+## Types
+
+Values cross the boundary as the objects in this table. Klong numbers and strings are plain Python values; lists are arrays of the active backend.
+
+| Klong | Python on NumPy | Python on torch |
+|---|---|---|
+| integer `3` | `int` | `int` |
+| real `1.5` | `float` | `float` |
+| string `"ab"` | `str` | `str` |
+| character `0cx` | `KGChar` | `KGChar` |
+| symbol `:a` | `KGSym` | `KGSym` |
+| list of numbers `[1 2 3]`, matrix `[[1 2][3 4]]` | `numpy.ndarray` | `torch.Tensor` |
+| list of strings or mixed `["a" 1]` | `numpy.ndarray`, dtype `object` | `numpy.ndarray`, dtype `object` |
+| dictionary `:{[1 2]}` | `dict` | `dict` |
+| function | callable | callable |
+
+A Python `int`, `float`, `str`, `dict`, `list`, `tuple` or `numpy.ndarray` stored with `klong['v'] = ...` is the Klong value of that name. A Python `list` or `tuple` is a list in Klong (`#v` is its length), and a Klong operation on it returns an array of the active backend. `bool` and `None` are kept as Python objects. Results of Klong operations are NumPy scalars (`numpy.int64`) when they are comparisons, so convert with `int(...)` when a plain `int` matters.
 
 ## Function example
 
@@ -33,7 +58,7 @@ $ python -W ignore <<'EOF'
 2990
 ```
 
-Arguments may also be passed by name. For a function written with `x`, `y` and `z` the names are `x`, `y` and `z`. A function defined with [named parameters](language-additions.md#named-parameters) takes any number of parameters, and its names are the ones in its definition:
+Arguments may be passed by name. For a function written with `x`, `y` and `z` the names are `x`, `y` and `z`. A function defined with [named parameters](language-additions.md#named-parameters) takes any number of parameters, and its names are the ones in its definition:
 
 ```console
 $ python -W ignore <<'EOF'
@@ -65,7 +90,7 @@ A call from Python does not make a projection. Too few arguments, too many, an u
 
 ## Data example
 
-Since the Klong interpreter context is dictionary-like, you can store values there for access in Klong:
+Store a value in the interpreter to use it in Klong:
 
 ```console
 $ python -W ignore <<'EOF'
@@ -79,7 +104,7 @@ $ python -W ignore <<'EOF'
 [ 1  2  3  4  5  6  7  8  9 10]
 ```
 
-Variables may be directly retrieved from KlongPy context:
+Read a Klong variable back from Python:
 
 ```console
 $ python -W ignore <<'EOF'
@@ -96,9 +121,7 @@ ndarray [1 2 3 4 5]
 
 ## Python library access
 
-Python functions, including lambdas, can be easily added to support common operations.
-
-A Python function that you add by assigning it (`klong['f'] = lambda ...`) is a Klong function of at most three parameters, which must be named x, y and z, as for any function written with `x y z`.
+A function imported with `.py` or `.pyf` is called as follows.
 
 A function imported with `.py` or `.pyf` that has optional parameters is called with every argument written in the call, however many: `.pyf("numpy";"linspace")` then `linspace(0;1;4;0)` passes the fourth argument too (`endpoint=0`). Too many or too few arguments are the Python `TypeError`, reported as a Klong error of kind `python`. A function with no optional parameters takes its required ones by position, at most three of them, and extra arguments are dropped (an arity error at [strict level 2](strict.md)). One with more than three required parameters is called with a list of the positional arguments and a dictionary of the keyword arguments, `f([1 2 3 4];:{})`, or through `.pyc`.
 
@@ -121,7 +144,7 @@ $ python -W ignore <<'EOF'
 
 `.p` prints the dictionary in Klong form. A Python function sees the Python objects, as the next example shows.
 
-You can go one step further and call back into Python from Klong with the result:
+A Python function can also receive Python objects from Klong and print them:
 
 ```console
 $ python -W ignore <<'EOF'
@@ -141,11 +164,9 @@ called from KlongPy: 2018-06-21 00:00:00
 called from KlongPy: {'timestamp': datetime.datetime(2018, 6, 21, 0, 0)}
 ```
 
-## Loading Python Modules directly into KlongPy
+## Loading Python modules
 
-KlongPy has the powerful ability to load Python modules directly. This can be extremely useful when you want to utilize the functionality offered by various Python libraries, and seamlessly integrate them into your KlongPy programs.  
-
-Here is an example of how you can load a Python module into KlongPy:
+`.py("module")` loads a Python module and defines its public functions in Klong:
 
 ```kgpy
 ?> .py("math")
@@ -156,15 +177,12 @@ Here is an example of how you can load a Python module into KlongPy:
 4950.0
 ```
 
-In order to keep consistency with Klong 3-parameter function rules, KlongPy will attempt to remap loaded functions to use the x,y and z convention.  For example, in the Python math module, fsum is defined as fsum(seq), so KlongPy remaps this to fsum(x) so that it works within the runtime.
+To follow the [parameter rule](#the-parameter-rule), loaded functions are remapped to `x`, `y` and `z`. The Python `math.fsum(seq)` is called as `fsum(x)`.
 
 
-## Loading Custom Python Modules
+## Loading custom Python modules
 
-Custom modules can be written for KlongPy in the same way as any Python module, the main
-difference is that they don't need to be installed (e.g. via pip).
-
-Simply create a directory with a `__init__.py` and appropriate files. The names that `__init__.py` imports are the functions that become available in Klong. Here the directory is `greetings`:
+A custom module is an ordinary Python package that needs no installation. Create a directory with a `__init__.py` and appropriate files. The names that `__init__.py` imports are the functions that become available in Klong. Here the directory is `greetings`:
 
 ```console
 $ mkdir greetings

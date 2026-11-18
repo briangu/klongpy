@@ -6,7 +6,7 @@ This page covers the `mgmt` library (`klongpy/lib/mgmt.kg`), which turns one nod
     Anyone who can reach the management node can run any code on it **and on every node behind it**, and can read and replace the files of each of them. Nothing is encrypted, and `.srv.auth` sees a user name and a password that travel in clear text. Let the management node listen on an isolated or trusted network only, preferably on `127.0.0.1` or a private link. This is the trust model of [IPC and Timers](ipc.md), made larger: one connection to the management node is a connection to all of them.
 
 !!! note "What has been run"
-    Most of this page ran on one computer: the nodes and the management node are `klong` processes that talk over localhost TCP, and a second set of tests runs several runtimes in one thread over simulated lossy and serial links. On hardware, the library has loaded and management-library calls (`mgmt.call`) have run between two Raspberry Pi Picos of the [Pico bench](pico-bench.md). **Not run on a board**: a management board with nodes on UARTs, and a pulled cable. The hooks `node.reset` and `node.power` (below) are a place for a board to plug into, and no board does yet. The [status table](index.md#status-what-has-and-has-not-been-proven) has the one summary.
+    Most of this page ran on one computer: the nodes and the management node are `klong` processes that talk over localhost TCP, and a second set of tests runs several runtimes in one thread over simulated lossy and serial links. On hardware, the library has loaded and management-library calls (`mgmt.call`) have run between two Raspberry Pi Picos (see [two Picos calling each other](pico-bench.md)). **Not run on a board**: a management board with nodes on UARTs, and a pulled cable. The hooks `node.reset` and `node.power` (below) are a place for a board to plug into, and no board does yet. The [status table](index.md#status-what-has-and-has-not-been-proven) has the one summary.
 
 ## The pieces
 
@@ -233,7 +233,7 @@ The nodes behind it are native runtimes in every case.
 
 ## Limits and what is not done
 
-* **Resources.** A load reads one statement at a time and keeps functions as their text. On the 64-bit host the library loads with `--heap-limit 44K` (it fails with `43K`; measured 2026-11-17), peaks at about 40 KB in all and holds about 18 KB more afterwards (`.mem()`). On a Pico it grew the resident memory by 5 to 6.4 KB ([Pico bench](pico-bench.md)). It is 12.6 KB of text in the image, of which about half is the header that is also in this page. A 32-bit build has not been measured.
+* **Resources.** A load reads one statement at a time and keeps functions as their text. On the 64-bit host the library loads with `--heap-limit 44K` (it fails with `43K`; measured 2026-11-17), peaks at about 40 KB in all and holds about 18 KB more afterwards (`.mem()`). On a Pico it keeps 5 to 10 KB in use ([two Picos calling each other](pico-bench.md)). It is 12.6 KB of text in the image, of which about half is the header that is also in this page. A 32-bit build has not been measured.
 * **Defaults.** The probe interval of 5 seconds in the library's example and the call timeout of 30 seconds are provisional. The keepalive of the packet layer and the probe do similar jobs, and one of them may be enough on a real UART.
 * **Reconnect.** A node comes back only at a check, so a management node without `mgmt.start` does not reconnect a node by itself; `mgmt.open(name)` does.
 * **Hooks.** `node.reset` and `node.power` are looked up by name when called. No board defines them.
