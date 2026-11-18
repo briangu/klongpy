@@ -24,6 +24,7 @@ use std::alloc::System;
 use std::io::{BufRead, Read, Write};
 use std::process::ExitCode;
 
+mod check;
 mod lint;
 
 use klong_core::{Config, Error};
@@ -371,6 +372,9 @@ fn run(o: Opts) -> ExitCode {
 }
 
 fn main() -> ExitCode {
+    if std::env::args().nth(1).as_deref() == Some("check") {
+        return check::main();
+    }
     if std::env::args().nth(1).as_deref() == Some("lint") {
         return lint::main();
     }

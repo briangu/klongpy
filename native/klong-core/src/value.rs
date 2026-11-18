@@ -478,6 +478,19 @@ impl Dict {
     /// dictionary cannot grow (it is unchanged then).
     pub fn set(&mut self, k: Value, v: Value) -> Result<()> {
         let h = key_hash(&k).ok_or_else(|| bad_key(&k))?;
+        self.set_hashed(k, v, h)
+    }
+
+    /// `set` for the key of a `:{[key value]}` literal, where an operator written in the text (`[+ 1]`) is a key too.
+    pub fn set_literal(&mut self, k: Value, v: Value) -> Result<()> {
+        let h = match &k {
+            Value::Prim(s) => mix(s.0 ^ 0x2545_f491),
+            _ => key_hash(&k).ok_or_else(|| bad_key(&k))?,
+        };
+        self.set_hashed(k, v, h)
+    }
+
+    fn set_hashed(&mut self, k: Value, v: Value, h: u32) -> Result<()> {
         let (found, mut slot) = self.probe(&k, h);
         if let Some(i) = found {
             self.vals[i] = v;
@@ -607,6 +620,7 @@ pub fn key_eq(a: &Value, b: &Value) -> bool {
         (Value::Str(x), Value::Str(y)) => x.as_str() == y.as_str(),
         (Value::Char(c), Value::Str(s)) | (Value::Str(s), Value::Char(c)) => s.len() == 1 && s.char_at(0) == *c,
         (Value::Undefined, Value::Undefined) => true,
+        (Value::Prim(x), Value::Prim(y)) => x == y,
         #[cfg(feature = "bigint")]
         (Value::Big(x), Value::Big(y)) => x == y,
         #[cfg(feature = "bigint")]

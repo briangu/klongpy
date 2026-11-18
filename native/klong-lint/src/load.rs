@@ -74,6 +74,14 @@ impl Session {
         Some(an)
     }
 
+    /// The text of a file `find_load` found: the library built into the binary, or a file read as Python reads one.
+    pub fn read_loaded(&self, path: &str) -> Result<String, String> {
+        if let Some(rest) = path.strip_prefix(EMBEDDED_ROOT).and_then(|r| r.strip_prefix('/')) {
+            return EMBEDDED_LIB.iter().find(|(n, _)| *n == rest).map(|(_, t)| t.to_string()).ok_or_else(|| "No such file or directory".to_string());
+        }
+        crate::read_text(path)
+    }
+
     fn is_file(&self, p: &str) -> bool {
         if let Some(rest) = p.strip_prefix(EMBEDDED_ROOT).and_then(|r| r.strip_prefix('/')) {
             return EMBEDDED_LIB.iter().any(|(n, _)| *n == rest);

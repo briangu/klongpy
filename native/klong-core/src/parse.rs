@@ -46,6 +46,17 @@ pub struct Parser<'a> {
     max_depth: u32,
     /// (stack address the budget is measured from, bytes allowed): `Config::stack_limit`.
     stack: Option<(usize, usize)>,
+    /// The span of the expression `expr` read last: from the start of its first factor to the end of its last token.
+    last_sp: Span,
+    /// Spans written to `tree.aux`.
+    #[cfg(feature = "diag")]
+    rec: bool,
+    /// The spans of the arguments `read_fn_args` read last.
+    #[cfg(feature = "diag")]
+    args_sp: Vec<Span>,
+    /// The spans of the statements `prog` read last.
+    #[cfg(feature = "diag")]
+    prog_sp: Vec<Span>,
 }
 
 const REST: &str = "the rest of the input is not evaluated";
@@ -108,6 +119,13 @@ pub fn parse_owned(
         depth: 0,
         max_depth,
         stack,
+        last_sp: (0, 0),
+        #[cfg(feature = "diag")]
+        rec: false,
+        #[cfg(feature = "diag")]
+        args_sp: Vec::new(),
+        #[cfg(feature = "diag")]
+        prog_sp: Vec::new(),
     };
     if p.lx.toks.is_empty() || !p.tree.reserve() {
         return Err(Error::memory());
@@ -150,6 +168,11 @@ pub struct Next {
     pub parsed: Option<Parsed>,
     pub end: usize,
     pub last: bool,
+    /// Where the statement's last token ends (the offset just after the last token read; `end` is the end of the text when `last`).
+    /// `end` itself when `parsed` is `None`.
+    pub stmt_end: usize,
+    /// The span of the statement as an operand: from the start of its first factor to the end of its last token (`stmt_end`).
+    pub stmt_span: (usize, usize),
 }
 
 pub fn parse_next(
@@ -167,8 +190,10 @@ pub fn parse_next(
     let _tag = crate::htag::Scope::new(crate::htag::TREE);
     let full: &str = &source.text[..limit];
     if let Some(end) = skip_comment(full, start) {
-        return Ok(Next { skipped: true, parsed: None, end, last: false });
+        return Ok(Next { skipped: true, parsed: None, end, last: false, stmt_end: end, stmt_span: (end, end) });
     }
+    #[cfg(feature = "diag")]
+    let warned = syms.warnings.len();
     loop {
         let mut wend = start.saturating_add(*window).min(full.len());
         while !full.is_char_boundary(wend) {
@@ -187,7 +212,21 @@ pub fn parse_next(
             depth: 0,
             max_depth,
             stack,
+            last_sp: (0, 0),
+            #[cfg(feature = "diag")]
+            rec: false,
+            #[cfg(feature = "diag")]
+            args_sp: Vec::new(),
+            #[cfg(feature = "diag")]
+            prog_sp: Vec::new(),
         };
+        #[cfg(feature = "diag")]
+        {
+            p.rec = p.syms.record_spans;
+            if p.rec {
+                p.tree.aux = Some(alloc::boxed::Box::default());
+            }
+        }
         if p.lx.toks.is_empty() || !p.tree.reserve() {
             return Err(Error::memory());
         }
@@ -199,6 +238,9 @@ pub fn parse_next(
             // the parser reached the end of the window: what it made of it means nothing; undo the module switch and take a larger one
             *p.module = saved;
             drop(p);
+            // (and what it warned about, which was about the window's end and not the text's)
+            #[cfg(feature = "diag")]
+            syms.warnings.truncate(warned);
             *window = window.saturating_mul(2);
             continue;
         }
@@ -210,14 +252,16 @@ pub fn parse_next(
             return Err(if e.kind == crate::error::Kind::Range { Error::syntax("a name is longer than 255 bytes") } else { e });
         }
         return match r {
-            Ok(None) => Ok(Next { skipped: false, parsed: None, end: full.len(), last: true }),
+            Ok(None) => Ok(Next { skipped: false, parsed: None, end: full.len(), last: true, stmt_end: full.len(), stmt_span: (full.len(), full.len()) }),
             Ok(Some((q, last))) => {
                 let end = if last { full.len() } else { p.lx.offset() as usize };
+                let stmt_end = p.lx.end() as usize;
+                let stmt_span = (p.last_sp.0 as usize, p.last_sp.1 as usize);
                 let mut ids = crate::value::try_vec(1)?;
                 ids.push(NodeId(q));
                 p.tree.shrink();
                 p.tree.lazy = lazy;
-                Ok(Next { skipped: false, parsed: Some(Parsed { tree: Rc::new(p.tree), stmts: ids }), end, last })
+                Ok(Next { skipped: false, parsed: Some(Parsed { tree: Rc::new(p.tree), stmts: ids }), end, last, stmt_end, stmt_span })
             }
             Err(mut e) => {
                 if e.source.is_none() && e.span.is_some() {
@@ -269,7 +313,7 @@ fn skip_comment(full: &str, start: usize) -> Option<usize> {
 
 /// One data object from the start of `text` (`Interp::read_datum`).
 pub fn read_datum(text: &str, syms: &mut Interner, module: &mut Option<String>, max_depth: u32, stack: Option<(usize, usize)>) -> Result<Option<(usize, Value)>> {
-    let mut p = Parser { lx: Lexer::new(text, true), tree: Tree::new(None), syms, module, strict: 0, last_list: None, dicts_read: 0, depth: 0, max_depth, stack };
+    let mut p = Parser { lx: Lexer::new(text, true), tree: Tree::new(None), syms, module, strict: 0, last_list: None, dicts_read: 0, depth: 0, max_depth, stack, last_sp: (0, 0), #[cfg(feature = "diag")] rec: false, #[cfg(feature = "diag")] args_sp: Vec::new(), #[cfg(feature = "diag")] prog_sp: Vec::new() };
     if p.lx.toks.is_empty() || !p.tree.reserve() {
         return Err(Error::memory());
     }
@@ -307,7 +351,7 @@ pub fn read_datum(text: &str, syms: &mut Interner, module: &mut Option<String>, 
                 _ => Err(Error::syntax("not a data object").with_span((tok.start, tok.end))),
             }
         }
-        K::Error => Err(p.raise_tok(&tok)),
+        K::Error => Err(p.raise_tok(&tok, false)),
         _ => Err(Error::syntax("not a data object").with_span((tok.start, tok.end))),
     };
     if p.lx.oom || p.tree.oom {
@@ -359,6 +403,28 @@ impl<'a> Parser<'a> {
             }
         }
     }
+
+    /// Remember where the operands of `id` were written (a no-op unless the interner asks for spans).
+    #[cfg(feature = "diag")]
+    fn rec_args(&mut self, id: NodeId, spans: Vec<Span>) {
+        if self.rec {
+            if let Some(a) = self.tree.aux.as_deref_mut() {
+                a.args.insert(id.0, spans);
+            }
+        }
+    }
+    #[cfg(not(feature = "diag"))]
+    fn rec_args(&mut self, _id: NodeId, _spans: Vec<Span>) {}
+    #[cfg(feature = "diag")]
+    fn rec_op(&mut self, id: NodeId, span: Span) {
+        if self.rec {
+            if let Some(a) = self.tree.aux.as_deref_mut() {
+                a.ops.insert(id.0, span);
+            }
+        }
+    }
+    #[cfg(not(feature = "diag"))]
+    fn rec_op(&mut self, _id: NodeId, _span: Span) {}
 
     fn add(&mut self, n: Node, span: Span) -> NodeId {
         self.tree.add(n, span)
@@ -490,7 +556,10 @@ impl<'a> Parser<'a> {
         Some("use @ to index: a@1 for one element, a@[1 2] for several".to_string())
     }
 
-    fn unexpected(&self, at: u32, want: char) -> Error {
+    /// `index`: this is where a `name[...]` that was meant as an index is noticed, and the hint says so (the end of a function body and of a
+    /// parenthesised expression; an argument list or a `;` expected does not).
+    fn unexpected(&self, at: u32, want: char, index: bool) -> Error {
+        let _ = index;
         let text = self.lx.text;
         let n = text.len();
         let i = (at as usize).min(n);
@@ -545,7 +614,7 @@ impl<'a> Parser<'a> {
         };
         let e = Error::syntax(crate::msg!("expected '{}' but found {}", want, found)).with_span(span);
         #[cfg(feature = "diag")]
-        if let Some(j) = (0..self.lx.toks.len()).find(|&j| self.lx.toks[j].start == span.0) {
+        if let Some(j) = (0..self.lx.toks.len()).filter(|_| index).find(|&j| self.lx.toks[j].start == span.0) {
             if let Some(h) = self.index_hint(j) {
                 return e.with_hint(h);
             }
@@ -557,24 +626,23 @@ impl<'a> Parser<'a> {
         e
     }
 
-    fn raise_tok(&self, tok: &Tok) -> Error {
+    /// What the legacy readers raised for an error token; `neg`: the token follows a `-` that the data-list reader took as its sign.
+    fn raise_tok(&self, tok: &Tok, neg: bool) -> Error {
         let m = match tok.v {
             TV::CharEof => "expected a character after 0c but found end of input".to_string(),
             _ => {
-                #[cfg(feature = "diag")]
-                {
-                    // `[1 -1.2.3]`: a minus that follows a space or an opening bracket is part of the number (KlongPy's lexer)
-                    let b = self.lx.text.as_bytes();
-                    let st = tok.start as usize;
-                    if st >= 1 && b[st - 1] == b'-' && (st == 1 || matches!(b[st - 2], b' ' | b'\t' | b'\n' | b'[' | b'(' | b';')) {
-                        let m = crate::msg!("malformed number '{}'", &self.lx.text[st - 1..tok.end as usize]);
-                        return Error::syntax(m).with_span((tok.start - 1, tok.end));
-                    }
+                // (a `:` directly before the digits is part of the token's span, not of the number)
+                let t = &self.lx.text[tok.start as usize..tok.end as usize];
+                let t = t.strip_prefix(':').unwrap_or(t);
+                if neg {
+                    crate::msg!("malformed number '-{}'", t)
+                } else {
+                    crate::msg!("malformed number '{}'", t)
                 }
-                crate::msg!("malformed number '{}'", &self.lx.text[tok.start as usize..tok.end as usize])
             }
         };
-        Error::syntax(m).with_span((tok.start, tok.end))
+        let start = if neg { tok.start - 1 } else { tok.start };
+        Error::syntax(m).with_span((start, tok.end))
     }
 
     // ----- adverbs -----------------------------------------------------------------------
@@ -620,7 +688,7 @@ impl<'a> Parser<'a> {
 
     /// The read position is just after the first adverb `aa` of the verb `a`.
     #[allow(clippy::too_many_arguments)]
-    fn apply_adverbs(&mut self, a: NodeId, aa: &'static str, arity: u8, st: u32, ost: u32, dyad: bool, l: NodeId) -> Result<NodeId> {
+    fn apply_adverbs(&mut self, a: NodeId, aa: &'static str, arity: u8, st: u32, ost: u32, dyad: bool, l: NodeId, lsp: Span) -> Result<NodeId> {
         let verb_arity = adverb_arity(aa, arity);
         if let Node::OpVal { arity: oa, .. } = self.tree.node_mut(a) {
             *oa = verb_arity;
@@ -633,6 +701,7 @@ impl<'a> Parser<'a> {
         let oe = self.lx.end();
         // legacy: the operand is read without newline skipping, wherever we are
         let mut r = self.expr(false)?;
+        let rsp = if r == NONE || r == SEMI { (0, 0) } else { self.last_sp };
         if r == NONE || r == SEMI {
             let what = &self.lx.text[ost as usize..oe as usize];
             let what = what.to_string();
@@ -641,7 +710,12 @@ impl<'a> Parser<'a> {
         }
         let advs = self.tree.range(&advs);
         let e = self.lx.end();
-        Ok(self.add(Node::Adv { verb: a, verb_arity, advs, first_arity: arity, dyad, l, r }, (st, e)))
+        let id = self.add(Node::Adv { verb: a, verb_arity, advs, first_arity: arity, dyad, l, r }, (st, e));
+        #[cfg(feature = "diag")]
+        self.rec_args(id, if dyad { alloc::vec![lsp, rsp] } else { alloc::vec![rsp] });
+        let _ = (lsp, rsp);
+        self.rec_op(id, (ost, oe));
+        Ok(id)
     }
 
     // ----- argument lists ----------------------------------------------------------------
@@ -655,12 +729,16 @@ impl<'a> Parser<'a> {
         let tok = self.tok(j);
         if tok.k == K::RParen && !tok.ws {
             self.lx.pos = j + 1;
+            #[cfg(feature = "diag")]
+            self.args_sp.clear();
             return Ok(arr);
         }
         // legacy: an argument is omitted only where a ';' or the ')' directly follows the
         // previous separator, with nothing in between.
         let mut sep = j;
         let mut fresh = true;
+        #[cfg(feature = "diag")]
+        let mut asp: Vec<Span> = Vec::new();
         loop {
             j = self.skip_nl(self.lx.pos);
             let tok = self.tok(j).clone();
@@ -668,6 +746,8 @@ impl<'a> Parser<'a> {
                 K::Semi | K::Newline => {
                     if j == sep && !tok.ws {
                         self.keep(&mut arr, NONE.0);
+                        #[cfg(feature = "diag")]
+                        asp.push((0, 0));
                     }
                     sep = j + 1;
                     self.lx.pos = sep;
@@ -677,6 +757,8 @@ impl<'a> Parser<'a> {
                 K::RParen => {
                     if j == sep && !tok.ws {
                         self.keep(&mut arr, NONE.0);
+                        #[cfg(feature = "diag")]
+                        asp.push((0, 0));
                     }
                     break;
                 }
@@ -699,12 +781,18 @@ impl<'a> Parser<'a> {
             }
             let a = self.unsemi(a);
             self.keep(&mut arr, a.0);
+            #[cfg(feature = "diag")]
+            asp.push(self.last_sp);
             fresh = false;
+        }
+        #[cfg(feature = "diag")]
+        {
+            self.args_sp = asp;
         }
         // legacy: the ')' must follow the last argument directly
         let tok = self.tok(self.lx.pos);
         if tok.k != K::RParen || tok.ws {
-            return Err(self.unexpected(self.lx.offset(), ')'));
+            return Err(self.unexpected(self.lx.offset(), ')', false));
         }
         self.lx.pos += 1;
         Ok(arr)
@@ -793,6 +881,8 @@ impl<'a> Parser<'a> {
     /// just after the `{` whose offset is `st`.
     fn read_fn(&mut self, st: u32) -> Result<NodeId> {
         let body = self.prog(true)?;
+        #[cfg(feature = "diag")]
+        let mut bsp = core::mem::take(&mut self.prog_sp);
         // A body of one statement is that statement, except an evaluated dictionary literal.
         let mut a = if body.len() == 1 && !matches!(self.tree.node(NodeId(body[0])), Node::EDict(_)) {
             NodeId(body[0])
@@ -800,11 +890,14 @@ impl<'a> Parser<'a> {
             let r = self.tree.range(&body);
             self.add(Node::Seq(r), (0, 0))
         };
+        #[cfg(feature = "diag")]
+        let mut locals_sp: Option<Span> = None;
         let j = self.skip_nl(self.lx.pos);
         let tok = self.tok(j);
         if tok.k != K::RBrace {
-            return Err(self.unexpected(tok.start, '}'));
+            return Err(self.unexpected(tok.start, '}', true));
         }
+        let rbrace_end = tok.end;
         self.lx.pos = j + 1;
         let arity = self.fn_arity(a);
         // Function metadata: a locals declaration leaves the stored body.
@@ -815,13 +908,18 @@ impl<'a> Parser<'a> {
                     let locals = self.tree.range(&names);
                     let stmts = Range { start: r.start + 1, len: r.len - 1 };
                     a = self.add(Node::Body { stmts, locals, params: Range::default(), has_params: false }, (0, 0));
+                    #[cfg(feature = "diag")]
+                    if !bsp.is_empty() {
+                        locals_sp = Some(bsp.remove(0));
+                    }
                 }
             }
         }
         // The targets of a destructuring that heads the body are locals.
         a = self.head_destructuring(a);
         let nt = self.tok(j + 1);
-        let node = if matches!(nt.k, K::LParen | K::CallP) && !nt.ws {
+        let called = matches!(nt.k, K::LParen | K::CallP) && !nt.ws;
+        let node = if called {
             let fa = self.read_fn_args()?;
             let call = !fa.contains(&NONE.0);
             let args = self.tree.range(&fa);
@@ -830,7 +928,23 @@ impl<'a> Parser<'a> {
             Node::Fn { a, args: Range::default(), has_args: false, arity, call: false, literal: false }
         };
         let e = self.lx.end();
-        Ok(self.add(node, (st, e)))
+        let id = self.add(node, (st, e));
+        #[cfg(feature = "diag")]
+        if self.rec {
+            let asp = if called { core::mem::take(&mut self.args_sp) } else { Vec::new() };
+            if let Some(x) = self.tree.aux.as_deref_mut() {
+                x.stmts.insert(id.0, bsp);
+                if let Some(l) = locals_sp {
+                    x.locals.insert(id.0, l);
+                }
+                if called {
+                    x.args.insert(id.0, asp);
+                    x.ops.insert(id.0, (st, rbrace_end));
+                }
+            }
+        }
+        let _ = rbrace_end;
+        Ok(id)
     }
 
     fn head_destructuring(&mut self, a: NodeId) -> NodeId {
@@ -1042,14 +1156,15 @@ impl<'a> Parser<'a> {
         #[cfg(feature = "diag")]
         if Tree::is_real(a) {
             match self.tree.node(a) {
-                Node::Fn { a: callee, has_args: true, .. } if matches!(self.tree.node(*callee), Node::Sym(_)) => {
-                    if let Node::Sym(s) = self.tree.node(*callee) {
-                        let name = self.syms.name(*s).split('`').next().unwrap_or("");
+                Node::Fn { a: callee, has_args: true, .. } if matches!(self.tree.node(*callee), Node::Sym(_) | Node::QSym(_)) => {
+                    if let Node::Sym(s) | Node::QSym(s) = self.tree.node(*callee) {
+                        let name = self.syms.name(*s);
                         return e.with_hint(crate::msg!("to define a function write {}::{{...}} and use x, y and z for its arguments, or name its parameters: f(a;b)::{{...}}, with plain names between the parentheses", name));
                     }
                 }
                 Node::Dyad { op, .. } if self.syms.name(*op) == "@" => return e.with_hint("to change an element use amend, a:=value,index"),
                 Node::Lit(v) if v.is_list() => return e.with_hint("assign one name at a time: a::1;b::2"),
+                Node::Cond(..) | Node::EList(_) | Node::EDict(_) | Node::CopyList(_) => return e.with_hint("assign one name at a time: a::1;b::2"),
                 _ => {}
             }
         }
@@ -1108,13 +1223,65 @@ impl<'a> Parser<'a> {
         None
     }
 
+    /// The first `{` token between token indexes `j0` and `j1` that sits directly inside a `[ ]` list literal (which holds data, so the `{`
+    /// starts no function), or `None`. `[;...]` lists and index brackets are not list literals.
+    #[cfg(feature = "diag")]
+    fn brace_in_list(&mut self, j0: usize, j1: usize) -> Option<usize> {
+        let mut stack: Vec<(K, usize)> = Vec::new();
+        let mut i = j0;
+        while i <= j1 {
+            let k = self.kind(i);
+            if k == K::Eof {
+                break;
+            }
+            if k == K::LBrace {
+                if let Some(&(t, b)) = stack.last() {
+                    if t == K::LBrack && self.kind(b + 1) != K::Semi {
+                        let prev = if b > 0 { Some(self.kind(b - 1)) } else { None };
+                        let index = matches!(prev, Some(K::Name | K::QName | K::RBrack | K::RParen | K::RBrace)) && !self.tok(b).ws;
+                        let decl = prev == Some(K::LBrace) && matches!(self.kind(b + 1), K::Name | K::QName);
+                        if !index && !decl {
+                            return Some(i);
+                        }
+                    }
+                }
+                stack.push((k, i));
+            } else if matches!(k, K::LParen | K::CallP | K::LBrack | K::Cond | K::Dict) {
+                stack.push((k, i));
+            } else if matches!(k, K::RParen | K::RBrack | K::RBrace) {
+                stack.pop();
+            }
+            i += 1;
+        }
+        None
+    }
+
     /// Finish `f(a;b)::{...}`: the right side `r` (read from token `rj` on) must be a function
     /// literal that does not use x, y or z itself; it becomes a function of the parameters.
     fn finish_named_def(&mut self, nd: NamedDef, r: NodeId, mut rj: usize, osp: Span) -> Result<NodeId> {
         let body = match (Tree::is_real(r), if Tree::is_real(r) { Some(self.tree.node(r)) } else { None }) {
             (true, Some(Node::Fn { a, has_args: false, .. })) => *a,
             _ => {
-                let span = if Tree::is_real(r) { self.tree.span(r).unwrap_or(osp) } else { osp };
+                #[cfg(feature = "diag")]
+                if let Some(b) = self.brace_in_list(rj, self.lx.pos) {
+                    let t = self.tok(b);
+                    return Err(Error::syntax("a { inside a [ ] list is not a function: a list holds data")
+                        .with_span((t.start, t.end))
+                        .with_hint("use [;...] for a list of expressions (a function can be a member there), or write the function outside the list"));
+                }
+                // a node the reader gives a span (a call, an operation, a conditional, a literal expression list or dictionary); any
+                // other right side (a number, a string, a name, a stray closer read as a string) is the text from the start of the
+                // factor to the last token read
+                let spanned = Tree::is_real(r)
+                    && !matches!(self.tree.node(r), Node::Lit(_) | Node::Sym(_) | Node::QSym(_) | Node::OpVal { .. } | Node::CopyList(_) | Node::Destructure(_));
+                let semi = Tree::is_real(r) && matches!(self.tree.node(r), Node::Lit(Value::Str(s)) if s.len() == 1 && s.char_at(0) == ';');
+                let span = if !Tree::is_real(r) || semi {
+                    osp
+                } else if spanned {
+                    self.tree.span(r).unwrap_or(osp)
+                } else {
+                    (self.lx.start, self.lx.end())
+                };
                 return Err(Error::syntax("named-parameter definition needs a function body in braces")
                     .with_span(span)
                     .with_hint("write f(a;b)::{a+b}: the right side is one function literal"));
@@ -1212,7 +1379,7 @@ impl<'a> Parser<'a> {
                             (K::Num, TV::Flt(f)) => self.keep(&mut arr, Value::Flt(-*f)),
                             #[cfg(feature = "bigint")]
                             (K::Num, TV::Big(b)) => self.keep(&mut arr, crate::big::negate(b)),
-                            (K::Error, TV::BadNum) => return Err(self.raise_tok(&nt)),
+                            (K::Error, TV::BadNum) => return Err(self.raise_tok(&nt, true)),
                             // "-0cx" is the number -0 and the name cx in KlongPy (its number
                             // reader does not know the 0c prefix). Not reproduced.
                             _ => return Err(Error::syntax("a negative sign before a character literal").with_span((tok.start, nt.end))),
@@ -1243,7 +1410,7 @@ impl<'a> Parser<'a> {
                     self.keep(&mut arr, v);
                     j += 1;
                 }
-                K::Error => return Err(self.raise_tok(&tok)),
+                K::Error => return Err(self.raise_tok(&tok, false)),
                 K::Newline => {
                     self.keep(&mut arr, Value::text(";")?);
                     j += 1;
@@ -1298,7 +1465,7 @@ impl<'a> Parser<'a> {
                 Value::List(_) => Value::from_items(v.items()?)?,
                 v => v,
             };
-            d.set(k, v).map_err(|e| if e.kind == crate::error::Kind::Type { Error::syntax("this value cannot be a dictionary key").with_span(span) } else { e })?;
+            d.set_literal(k, v).map_err(|e| if e.kind == crate::error::Kind::Type { Error::syntax("this value cannot be a dictionary key").with_span(span) } else { e })?;
         }
         Ok(Value::dict(d))
     }
@@ -1331,7 +1498,7 @@ impl<'a> Parser<'a> {
     fn check(&mut self, j: usize) -> Result<()> {
         let tok = self.tok(j).clone();
         if tok.k == K::Error {
-            return Err(self.raise_tok(&tok));
+            return Err(self.raise_tok(&tok, false));
         }
         let n = self.dicts_read;
         let r = self.read_data(j, false).map(|_| ());
@@ -1344,14 +1511,18 @@ impl<'a> Parser<'a> {
     /// The read position is just after `:[` (or `:|`); `st` is the offset of that token.
     fn read_cond(&mut self, st: u32) -> Result<NodeId> {
         let n = self.expr(true)?;
+        #[cfg(feature = "diag")]
+        let mut csp: Vec<Span> = alloc::vec![if n == NONE { (0, 0) } else { self.last_sp }];
         let c = self.unsemi(n);
         // Whitespace and newlines may come between the condition and its ';'.
         let j = self.skip_nl(self.lx.pos);
         if self.kind(j) != K::Semi {
-            return Err(self.unexpected(self.lx.offset(), ';'));
+            return Err(self.unexpected(self.lx.offset(), ';', false));
         }
         self.lx.pos = j + 1;
         let n = self.expr(true)?;
+        #[cfg(feature = "diag")]
+        csp.push(if n == NONE { (0, 0) } else { self.last_sp });
         let t = self.unsemi(n);
         let j = self.skip_nl(self.lx.pos);
         let tok = self.tok(j).clone();
@@ -1359,27 +1530,36 @@ impl<'a> Parser<'a> {
         if tok.k == K::Elif {
             self.lx.pos = j + 1;
             e = self.read_cond(tok.start)?;
+            #[cfg(feature = "diag")]
+            csp.push(self.tree.span(e).unwrap_or((0, 0)));
         } else {
             if tok.k != K::Semi {
-                return Err(self.unexpected(tok.start, ';'));
+                return Err(self.unexpected(tok.start, ';', false));
             }
             self.lx.pos = j + 1;
             let n = self.expr(true)?;
+            #[cfg(feature = "diag")]
+            csp.push(if n == NONE { (0, 0) } else { self.last_sp });
             e = self.unsemi(n);
             let j = self.skip_nl(self.lx.pos);
             let tok = self.tok(j);
             if tok.k != K::RBrack {
-                return Err(self.unexpected(tok.start, ']'));
+                return Err(self.unexpected(tok.start, ']', false));
             }
             self.lx.pos = j + 1;
         }
         let end = self.lx.end();
-        Ok(self.add(Node::Cond(c, t, e), (st, end)))
+        let id = self.add(Node::Cond(c, t, e), (st, end));
+        #[cfg(feature = "diag")]
+        self.rec_args(id, csp);
+        Ok(id)
     }
 
     /// The read position is just after `[;`; `st` is the offset of the `[`.
     fn read_expr_array(&mut self, st: u32) -> Result<NodeId> {
         let mut r: Vec<u32> = Vec::new();
+        #[cfg(feature = "diag")]
+        let mut esp: Vec<Span> = Vec::new();
         let mut j = self.skip_nl(self.lx.pos);
         self.lx.pos = j;
         loop {
@@ -1399,6 +1579,8 @@ impl<'a> Parser<'a> {
             if expr != NONE {
                 let expr = self.unsemi(expr);
                 self.keep(&mut r, expr.0);
+                #[cfg(feature = "diag")]
+                esp.push(self.last_sp);
             }
             j = self.skip_nl(self.lx.pos);
             if self.kind(j) == K::Semi {
@@ -1411,12 +1593,17 @@ impl<'a> Parser<'a> {
         }
         let range = self.tree.range(&r);
         let end = self.lx.end();
-        Ok(self.add(Node::EList(range), (st, end)))
+        let id = self.add(Node::EList(range), (st, end));
+        #[cfg(feature = "diag")]
+        self.rec_args(id, esp);
+        Ok(id)
     }
 
     /// The read position is just after `:{;`; `st` is the offset of the `:{`.
     fn read_expr_dict(&mut self, st: u32) -> Result<NodeId> {
         let mut r: Vec<u32> = Vec::new();
+        #[cfg(feature = "diag")]
+        let mut dsp: Vec<Span> = Vec::new();
         let hint = "write :{;key1;value1;key2;value2}";
         let skip = |p: &mut Self| {
             let mut j = p.lx.pos;
@@ -1444,6 +1631,8 @@ impl<'a> Parser<'a> {
                     _ => {}
                 }
                 let expr = self.expr(true)?;
+                #[cfg(feature = "diag")]
+                dsp.push(self.last_sp);
                 let expr = self.unsemi(expr);
                 self.keep(&mut r, expr.0);
                 let tok = skip(self);
@@ -1459,17 +1648,20 @@ impl<'a> Parser<'a> {
                         break;
                     }
                     _ => {
-                        return Err(Error::syntax("expected ';' or '}' in a dictionary literal").with_span((tok.start, tok.end)).with_hint(hint));
+                        return Err(Error::syntax(crate::msg!("expected ';' or '}}' but found {}", self.lexeme(&tok))).with_span((tok.start, tok.end)).with_hint(hint));
                     }
                 }
             }
         }
         let end = self.lx.end();
         if r.len() % 2 == 1 {
-            return Err(Error::syntax("the last key of the dictionary literal has no value").with_span((st, end)).with_hint(hint));
+            return Err(Error::syntax("the last key of the dictionary literal has no value").with_span((st, end)).with_hint(crate::msg!("{}: keys and values alternate", hint)));
         }
         let range = self.tree.range(&r);
-        Ok(self.add(Node::EDict(range), (st, end)))
+        let id = self.add(Node::EDict(range), (st, end));
+        #[cfg(feature = "diag")]
+        self.rec_args(id, dsp);
+        Ok(id)
     }
 
     // ----- the grammar -----------------------------------------------------------------------
@@ -1551,9 +1743,15 @@ impl<'a> Parser<'a> {
                     let args = self.tree.range(&fa);
                     let e = self.lx.end();
                     a = self.add(Node::Fn { a, args, has_args: true, arity, call, literal: false }, (st, e));
+                    #[cfg(feature = "diag")]
+                    {
+                        let sp = core::mem::take(&mut self.args_sp);
+                        self.rec_args(a, sp);
+                    }
+                    self.rec_op(a, (st, tok.end));
                 }
                 if let Some(aa) = self.peek_adverb() {
-                    a = self.apply_adverbs(a, aa, 1, st, st, false, NONE)?;
+                    a = self.apply_adverbs(a, aa, 1, st, st, false, NONE, (0, 0))?;
                 }
             }
             K::Num | K::Str | K::Char => {
@@ -1576,7 +1774,7 @@ impl<'a> Parser<'a> {
                 if ops::is_monad(v) {
                     if let Some(aa) = self.peek_adverb() {
                         let verb = self.add(Node::OpVal { op, arity: 1 }, (tok.start, tok.end));
-                        a = self.apply_adverbs(verb, aa, 1, st, st, false, NONE)?;
+                        a = self.apply_adverbs(verb, aa, 1, st, st, false, NONE, (0, 0))?;
                     } else {
                         let mut r = self.expr(ign)?;
                         let missing = r == NONE || r == SEMI;
@@ -1586,7 +1784,12 @@ impl<'a> Parser<'a> {
                             r = self.unsemi(r);
                         }
                         let e = self.lx.end();
+                        #[cfg(feature = "diag")]
+                        let rsp = if missing { (0, 0) } else { self.last_sp };
                         a = self.add(Node::Monad { op, arg: r, missing }, (st, e));
+                        #[cfg(feature = "diag")]
+                        self.rec_args(a, alloc::vec![rsp]);
+                        self.rec_op(a, (st, tok.end));
                     }
                 } else {
                     a = self.add(Node::OpVal { op, arity: 0 }, (tok.start, tok.end));
@@ -1611,7 +1814,7 @@ impl<'a> Parser<'a> {
                 a = self.expr(ign)?;
                 let tok = self.tok(self.lx.pos);
                 if tok.k != K::RParen || tok.ws {
-                    return Err(self.unexpected(self.lx.offset(), ')'));
+                    return Err(self.unexpected(self.lx.offset(), ')', true));
                 }
                 self.lx.pos += 1;
             }
@@ -1619,7 +1822,7 @@ impl<'a> Parser<'a> {
                 self.lx.pos = j + 1;
                 a = self.read_fn(st)?;
                 if let Some(aa) = self.peek_adverb() {
-                    a = self.apply_adverbs(a, aa, 1, st, st, false, NONE)?;
+                    a = self.apply_adverbs(a, aa, 1, st, st, false, NONE, (0, 0))?;
                 }
             }
             K::Semi | K::Newline => {
@@ -1646,7 +1849,7 @@ impl<'a> Parser<'a> {
                     a = self.add(Node::DictLit(v), (st, e));
                 }
             }
-            K::Error => return Err(self.raise_tok(&tok)),
+            K::Error => return Err(self.raise_tok(&tok, false)),
             _ => {
                 // ) } ] :| where a factor was expected: read as the string it is written as
                 let v = self.lx.text_of(&tok);
@@ -1669,6 +1872,7 @@ impl<'a> Parser<'a> {
         }
         let r = self.expr_inner(ign);
         self.depth -= 1;
+        self.last_sp = (self.lx.start, self.lx.end());
         r
     }
 
@@ -1717,6 +1921,12 @@ impl<'a> Parser<'a> {
                         let args = self.tree.range(&fa);
                         let e = self.lx.end();
                         aa = self.add(Node::Fn { a: aa, args, has_args: true, arity, call, literal: false }, (tok.start, e));
+                        #[cfg(feature = "diag")]
+                        {
+                            let sp = core::mem::take(&mut self.args_sp);
+                            self.rec_args(aa, sp);
+                        }
+                        self.rec_op(aa, (tok.start, tok.end));
                     }
                 }
                 K::LBrace => {
@@ -1740,7 +1950,7 @@ impl<'a> Parser<'a> {
                     Some(o) => self.add(Node::OpVal { op: o, arity: 0 }, (tok.start, tok.end)),
                     None => aa,
                 };
-                a = self.apply_adverbs(verb, adv, 2, st, ost, true, a)?;
+                a = self.apply_adverbs(verb, adv, 2, st, ost, true, a, (st, lend))?;
             } else {
                 let osp = (ost, self.lx.end());
                 let mut named = None;
@@ -1753,6 +1963,8 @@ impl<'a> Parser<'a> {
                     rj = self.lx.pos;
                 }
                 let mut r = self.expr(ign)?;
+                #[cfg(feature = "diag")]
+                let rsp = self.last_sp;
                 let missing = r == NONE || r == SEMI;
                 if missing {
                     let what = if tok.k == K::LBrace { "the function" } else { self.lx.text_of(&tok) };
@@ -1764,6 +1976,8 @@ impl<'a> Parser<'a> {
                     a = self.finish_named_def(nd, r, rj, osp)?;
                 }
                 let e = self.lx.end();
+                #[cfg(feature = "diag")]
+                let rsp = if missing { (0, 0) } else { rsp };
                 a = match op {
                     Some(o) => self.add(Node::Dyad { op: o, l: a, r, missing }, (st, e)),
                     None => {
@@ -1771,6 +1985,9 @@ impl<'a> Parser<'a> {
                         self.add(Node::Fn { a: aa, args, has_args: true, arity: 2, call: false, literal: false }, (st, e))
                     }
                 };
+                #[cfg(feature = "diag")]
+                self.rec_args(a, alloc::vec![(st, lend), rsp]);
+                self.rec_op(a, osp);
             }
         }
         if ign && Tree::is_real(a) {
@@ -1795,6 +2012,20 @@ impl<'a> Parser<'a> {
     /// A `;`-separated sequence of expressions.
     fn prog(&mut self, ign: bool) -> Result<Vec<u32>> {
         let mut arr = Vec::new();
+        #[cfg(feature = "diag")]
+        let mut psp: Vec<Span> = Vec::new();
+        #[cfg(feature = "diag")]
+        let r = self.prog_inner(ign, &mut arr, &mut psp);
+        #[cfg(not(feature = "diag"))]
+        let r = self.prog_inner(ign, &mut arr);
+        #[cfg(feature = "diag")]
+        {
+            self.prog_sp = psp;
+        }
+        r.map(|_| arr)
+    }
+
+    fn prog_inner(&mut self, ign: bool, arr: &mut Vec<u32>, #[cfg(feature = "diag")] psp: &mut Vec<Span>) -> Result<()> {
         loop {
             let q = self.expr(ign)?;
             if q == NONE {
@@ -1803,7 +2034,9 @@ impl<'a> Parser<'a> {
             if q == SEMI {
                 continue;
             }
-            self.keep(&mut arr, q.0);
+            self.keep(arr, q.0);
+            #[cfg(feature = "diag")]
+            psp.push(self.last_sp);
             let mut j = self.lx.pos;
             if ign {
                 j = self.skip_nl(j);
@@ -1819,7 +2052,7 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        Ok(arr)
+        Ok(())
     }
 
     /// One top-level statement: its node, and whether it was followed by something that is not a separator (nothing more is parsed then).

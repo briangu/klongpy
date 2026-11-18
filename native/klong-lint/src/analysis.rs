@@ -437,6 +437,8 @@ enum Seg {
 fn prog_from(source: &Rc<CoreSource>, pos: usize, strict: u8, syms: &mut Interner, module: &mut Option<String>, metas: &mut HashMap<usize, Meta>) -> Seg {
     let n = source.text.len();
     let w0 = syms.warnings.len();
+    // every warning of the segment is kept: a diagnostic lost to the interpreter's cap is a finding the user never sees
+    syms.max_warnings = usize::MAX;
     let mut cur = pos;
     let mut end_so_far = pos;
     let seg_end;
@@ -477,8 +479,7 @@ fn prog_from(source: &Rc<CoreSource>, pos: usize, strict: u8, syms: &mut Interne
                     Some(p) => {
                         collect_meta(&p.tree, &mut seg_metas);
                         if next.last {
-                            let e = p.stmts.first().and_then(|&s| p.tree.span(s)).map(|s| s.1 as usize).unwrap_or(cur);
-                            seg_end = e;
+                            seg_end = next.stmt_end;
                             break;
                         }
                         cur = next.end;
@@ -511,7 +512,7 @@ fn prog_from(source: &Rc<CoreSource>, pos: usize, strict: u8, syms: &mut Interne
 }
 
 /// Offset just after the first top-level `;` or newline at or after `offset`.
-fn next_boundary(toks: &[Tok], ctx: &[usize], offset: usize) -> Option<usize> {
+pub fn next_boundary(toks: &[Tok], ctx: &[usize], offset: usize) -> Option<usize> {
     let mut i = match toks.binary_search_by(|t| t.s.cmp(&offset)) {
         Ok(mut k) => {
             // the last token that starts at or before offset (bisect_right - 1)

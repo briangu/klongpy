@@ -8,3 +8,5 @@ publish.workspace = true
 
 [dependencies]
 klong-core = { path = "../klong-core", features = ["bigint", "diag"] }
+klong-rt = { path = "../klong-rt", features = ["bigint", "diag"] }
+klong-host = { path = "../klong-host", features = ["bigint", "diag"] }

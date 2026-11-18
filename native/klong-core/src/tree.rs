@@ -65,6 +65,22 @@ pub enum Node {
     Destructure(Range),
 }
 
+/// Where the operands of a node were written, kept for the tools that point at them (`Interner::record_spans`): an operand's span is
+/// from the start of its first factor, parentheses included, to the end of its last token.
+#[cfg(feature = "diag")]
+#[derive(Default)]
+pub struct Aux {
+    /// Dyad: left and right; Monad: the operand; call, projection and infix call: each argument (`(0, 0)` for an omitted one); adverb: the
+    /// left operand (if dyadic) and the right one; conditional: the three parts; `[;...]` and `:{;...}`: each element.
+    pub args: alloc::collections::BTreeMap<u32, Vec<Span>>,
+    /// Call, infix call, adverb and dyad: where the verb or the callee was written; a function literal called in place: from its `{` to its `}`.
+    pub ops: alloc::collections::BTreeMap<u32, Span>,
+    /// A function literal: the span of each statement of its body (without a locals declaration).
+    pub stmts: alloc::collections::BTreeMap<u32, Vec<Span>>,
+    /// A function literal that starts with a locals declaration: the span of that declaration.
+    pub locals: alloc::collections::BTreeMap<u32, Span>,
+}
+
 pub struct Tree {
     pub nodes: Vec<Node>,
     pub spans: Vec<Span>,
@@ -74,11 +90,13 @@ pub struct Tree {
     pub lazy: Option<Rc<crate::value::LazyCtx>>,
     /// The arena could not grow: the tree is incomplete and the parse is a `memory` error.
     pub oom: bool,
+    #[cfg(feature = "diag")]
+    pub aux: Option<alloc::boxed::Box<Aux>>,
 }
 
 impl Tree {
     pub fn new(source: Option<Rc<Source>>) -> Tree {
-        Tree { nodes: Vec::new(), spans: Vec::new(), extra: Vec::new(), source, lazy: None, oom: false }
+        Tree { nodes: Vec::new(), spans: Vec::new(), extra: Vec::new(), source, lazy: None, oom: false, #[cfg(feature = "diag")] aux: None }
     }
     pub fn node(&self, id: NodeId) -> &Node {
         &self.nodes[id.0 as usize]

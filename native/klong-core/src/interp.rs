@@ -310,8 +310,7 @@ impl Interp {
         }
     }
 
-    /// HOST: the names of every global that is defined (the embedder's `names()`), in symbol order.
-    #[cfg(feature = "host")]
+    /// The names of every global that is defined (the embedder's `names()`), in symbol order.
     pub fn global_names(&self) -> Vec<String> {
         let mut out = Vec::new();
         for (i, g) in self.globals.iter().enumerate() {

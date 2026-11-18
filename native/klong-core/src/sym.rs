@@ -30,14 +30,21 @@ pub struct Warning {
     pub source: Option<Rc<crate::error::Source>>,
 }
 
-/// The most warnings kept from one program.
+/// The most warnings kept from one program unless the embedder says otherwise (`Interner::max_warnings`).
 #[cfg(feature = "diag")]
-const MAX_WARNINGS: usize = 64;
+pub const MAX_WARNINGS: usize = 64;
 
 pub struct Interner {
     /// The warnings of the parses since they were last taken (`Interp::take_warnings`).
     #[cfg(feature = "diag")]
     pub warnings: Vec<Warning>,
+    /// How many warnings `warn` keeps before it drops the rest (`MAX_WARNINGS`: an interpreter must not grow without bound on a program
+    /// that warns at every token; a tool that reports them all, such as the linter, raises it).
+    #[cfg(feature = "diag")]
+    pub max_warnings: usize,
+    /// Keep, in each tree, where the operands of its nodes were written (`tree::Aux`): for the tools that point at them.
+    #[cfg(feature = "diag")]
+    pub record_spans: bool,
     names: Vec<Rc<str>>,
     map: BTreeMap<Rc<str>, u32>,
     /// A name could not be stored (no memory); `x` was returned in its place. The parser
@@ -54,7 +61,7 @@ pub const MAX_NAME: usize = 255;
 
 impl Interner {
     pub fn new() -> Interner {
-        let mut t = Interner { #[cfg(feature = "diag")] warnings: Vec::new(), names: Vec::new(), map: BTreeMap::new(), oom: false, long: false };
+        let mut t = Interner { #[cfg(feature = "diag")] warnings: Vec::new(), #[cfg(feature = "diag")] max_warnings: MAX_WARNINGS, #[cfg(feature = "diag")] record_spans: false, names: Vec::new(), map: BTreeMap::new(), oom: false, long: false };
         for n in ["x", "y", "z", ".f"] {
             t.intern(n);
         }
@@ -67,7 +74,7 @@ impl Interner {
     /// Record a warning (dropped when there is no room: a warning is not worth a failure).
     #[cfg(feature = "diag")]
     pub fn warn(&mut self, w: Warning) {
-        if self.warnings.len() < MAX_WARNINGS && self.warnings.try_reserve(1).is_ok() {
+        if self.warnings.len() < self.max_warnings && self.warnings.try_reserve(1).is_ok() {
             self.warnings.push(w);
         }
     }

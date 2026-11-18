@@ -1,5 +1,6 @@
 //! `klong lint FILE...`: the options of `kgpy lint`, the output and the exit status.
 use crate::{lint_files, parse_codes, parse_names, Options};
+use std::collections::BTreeSet;
 use std::io::Write;
 
 /// Python's `repr` of a str, for the error text of an unknown code.
@@ -168,26 +169,44 @@ pub fn lint_main(prog: &str, args: &[String], lib_dirs: Vec<String>, out: &mut d
         Parsed::Run { files, select, ignore, define, verbose } => (files, select, ignore, define, verbose),
         Parsed::Exit(c) => return c,
     };
-    let mut opts = Options { lib_dirs, ..Options::default() };
-    match select.as_deref().map(parse_codes).transpose() {
+    run_files(prog, &files, select.as_deref(), ignore.as_deref(), define.as_deref(), verbose, lib_dirs, BTreeSet::new(), out, err)
+}
+
+/// The body of `kgpy lint` once the options are known: `select`, `ignore` and `define` are the comma- or space-separated strings of
+/// the command line; `extra_builtins` the system names the embedding adds. Prints what `lint_main` prints; returns its status.
+#[allow(clippy::too_many_arguments)]
+pub fn run_files(
+    prog: &str,
+    files: &[String],
+    select: Option<&str>,
+    ignore: Option<&str>,
+    define: Option<&str>,
+    verbose: bool,
+    lib_dirs: Vec<String>,
+    extra_builtins: BTreeSet<String>,
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+) -> i32 {
+    let mut opts = Options { lib_dirs, extra_builtins, ..Options::default() };
+    match select.map(parse_codes).transpose() {
         Ok(s) => opts.select = s,
         Err(e) => {
             let _ = writeln!(err, "{}: {}", prog, e);
             return 2;
         }
     }
-    match ignore.as_deref().map(parse_codes).transpose() {
+    match ignore.map(parse_codes).transpose() {
         Ok(s) => opts.ignore = s.unwrap_or_default(),
         Err(e) => {
             let _ = writeln!(err, "{}: {}", prog, e);
             return 2;
         }
     }
-    opts.define = define.as_deref().map(parse_names).unwrap_or_default();
+    opts.define = define.map(parse_names).unwrap_or_default();
     let mut errors = 0usize;
     let mut warnings = 0usize;
     let mut unreadable = 0usize;
-    for r in lint_files(&files, &opts) {
+    for r in lint_files(files, &opts) {
         match r.result {
             Err(why) => {
                 let _ = writeln!(err, "{}: cannot read: {}", r.path, why);

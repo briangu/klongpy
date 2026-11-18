@@ -1,7 +1,7 @@
 //! The rules. Each works on the tokens and frames of an [`Analysis`] (so it also runs when the parse fails); only E001
 //! (the parser's own message) and the arity of function literals (E002) come from the parse.
 use crate::analysis::{Analysis, ARGS};
-use crate::builtins::BUILTINS;
+use crate::builtins::builtin_names;
 use crate::scan::FK;
 use klong_core::lex::K;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -797,7 +797,7 @@ impl<'a> Linter<'a> {
         anywhere.extend(an.fn_assigned.iter().map(|s| s.as_str()));
         anywhere.extend(an.local_names.iter().map(|s| s.as_str()));
         anywhere.extend(an.import_anywhere.iter().map(|s| s.as_str()));
-        let builtins: HashSet<&str> = BUILTINS.iter().copied().collect();
+        let builtins: HashSet<&str> = builtin_names().iter().map(|s| s.as_str()).collect();
         let n = toks.len();
         let (failed_names, failed_params) = self.failed_named_defs();
         for i in 0..n {

@@ -7,8 +7,19 @@ use klong_lint::{lint_files, lint_main, lint_source, parse_codes, Diagnostic, Op
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
+/// What the Python package binds beyond the runtime's own system names: the list its adapter passes as `extra_builtins`.
+const PYTHON_NAMES: &[&str] = &[
+    ".bkd", ".bkf", ".bkp", ".export", ".float", ".fpga", ".fpga.free", ".fpga.get", ".fpga.info", ".fpga.lanes", ".fpga.put", ".fpga.reset",
+    ".fpga.set", ".grad", ".gradcheck", ".help_topic", ".helpdb", ".jacobian", ".os.argv", ".os.env", ".param", ".py", ".pya", ".pyc", ".pyf",
+    ".rls", ".sys", ".sys.cerr", ".sys.cin", ".sys.cout", ".system",
+];
+
+fn base() -> Options {
+    Options { extra_builtins: PYTHON_NAMES.iter().map(|s| s.to_string()).collect(), ..Default::default() }
+}
+
 fn lint(text: &str) -> Vec<Diagnostic> {
-    lint_source("t.kg", text, &Options::default())
+    lint_source("t.kg", text, &base())
 }
 
 fn found(text: &str, code: &str) -> Vec<(usize, usize)> {
@@ -50,7 +61,7 @@ fn messages_and_hints_are_one_line_and_severities_match() {
         if want.is_empty() {
             continue;
         }
-        let opts = Options { select: Some(set(&[code])), ..Options::default() };
+        let opts = Options { select: Some(set(&[code])), ..base() };
         for d in lint_source("t.kg", text, &opts) {
             assert!(!d.message.contains('\n'), "{:?}", d);
             assert!(d.hint.as_deref().map(|h| !h.contains('\n')).unwrap_or(true));
@@ -91,7 +102,7 @@ fn parsing_resumes_after_an_error() {
 
 #[test]
 fn diagnostic_fields() {
-    let opts = Options { select: Some(set(&["W010"])), ..Options::default() };
+    let opts = Options { select: Some(set(&["W010"])), ..base() };
     let ds = lint_source("dir/x.kg", "a::1\nb::-1+2", &opts);
     assert_eq!(ds.len(), 1);
     let d = &ds[0];
@@ -105,7 +116,7 @@ fn diagnostic_fields() {
 #[test]
 fn columns_count_characters_not_bytes() {
     // é and → are 2 and 3 bytes
-    let ds = lint_source("t.kg", "é::1;→::2;my_var::5\n\"é→\" 10c", &Options::default());
+    let ds = lint_source("t.kg", "é::1;→::2;my_var::5\n\"é→\" 10c", &base());
     let w001 = ds.iter().find(|d| d.code == "W001").unwrap();
     assert_eq!((w001.line, w001.col), (1, 11));
     let w018 = ds.iter().find(|d| d.code == "W018").unwrap();
@@ -179,7 +190,7 @@ fn inside_a_function_body_and_after_a_multiline_statement() {
 const TEXT: &str = "my_var::5\n[1;2]\n-1+2\n";
 
 fn with(select: Option<&[&str]>, ignore: &[&str]) -> Vec<&'static str> {
-    let opts = Options { select: select.map(set), ignore: set(ignore), ..Options::default() };
+    let opts = Options { select: select.map(set), ignore: set(ignore), ..base() };
     lint_source("t.kg", TEXT, &opts).iter().map(|d| d.code).collect()
 }
 
@@ -222,7 +233,7 @@ impl Dir {
         std::fs::write(p, text).unwrap();
     }
     fn lint(&self, name: &str) -> Vec<(&'static str, usize, usize)> {
-        self.lint_with(name, &Options::default())
+        self.lint_with(name, &base())
     }
     fn lint_with(&self, name: &str, opts: &Options) -> Vec<(&'static str, usize, usize)> {
         let p = self.0.join(name).to_string_lossy().into_owned();
@@ -307,7 +318,7 @@ fn no_resolve_never_reads_files() {
     let d = Dir::new("h");
     d.write("lib.kg", "helper::{x+1}\n");
     d.write("main.kg", ".l(\"lib.kg\")\nunknown(1)\n");
-    assert!(d.lint_with("main.kg", &Options { no_resolve: true, ..Options::default() }).is_empty());
+    assert!(d.lint_with("main.kg", &Options { no_resolve: true, ..base() }).is_empty());
 }
 
 #[test]
@@ -318,7 +329,7 @@ fn the_library_is_found() {
     assert_eq!(d.lint("main.kg"), vec![("W002", 3, 1)]);
     // and from a directory, as the extension passes it
     let lib = format!("{}/../../klongpy/lib", env!("CARGO_MANIFEST_DIR"));
-    assert_eq!(d.lint_with("main.kg", &Options { lib_dirs: vec![lib], ..Options::default() }), vec![("W002", 3, 1)]);
+    assert_eq!(d.lint_with("main.kg", &Options { lib_dirs: vec![lib], ..base() }), vec![("W002", 3, 1)]);
 }
 
 #[test]
@@ -421,7 +432,7 @@ fn strange_input_does_not_crash() {
         "f(a;b)::", "[a b]::", "\"", ":\"abc", "é::1", "a::²", "1e", "1.2.3", ".comment(\"X\")", ".l(", ".l(\"", ".bkf(", ".bkf([\"a\"",
         "x::{", ":[1;2;:[", ",:{", "[1 2],:{", "a\u{0}b", "\t\r\n", "}{", "][", "){", "f(\n", "{x}(1;2;3;4;5;6)", "∇", "[a b]∇f",
     ];
-    let opts = Options { no_resolve: true, ..Options::default() };
+    let opts = Options { no_resolve: true, ..base() };
     for t in texts {
         for d in lint_source("t.kg", t, &opts) {
             assert!(RULES.iter().any(|r| r.code == d.code));
@@ -446,7 +457,7 @@ fn mutated_library_sources_do_not_crash() {
         state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
         ((state >> 33) as usize) % n.max(1)
     };
-    let opts = Options { no_resolve: true, ..Options::default() };
+    let opts = Options { no_resolve: true, ..base() };
     for _ in 0..250 {
         let t = &texts[rnd(texts.len())];
         let cs: Vec<char> = t.chars().collect();
@@ -470,7 +481,7 @@ fn shipped_library_has_no_errors() {
     let dir = format!("{}/../../klongpy/lib", env!("CARGO_MANIFEST_DIR"));
     let mut paths: Vec<String> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path().to_string_lossy().into_owned()).filter(|p| p.ends_with(".kg")).collect();
     paths.sort();
-    for r in lint_files(&paths, &Options::default()) {
+    for r in lint_files(&paths, &base()) {
         let errs: Vec<_> = r.result.unwrap().into_iter().filter(|d| d.severity == "error").collect();
         assert!(errs.is_empty(), "{}: {:?}", r.path, errs);
     }
@@ -482,4 +493,52 @@ fn help_and_usage_are_argparses() {
     let want = "usage: kgpy lint [-h] [--select CODES] [--ignore CODES] [--define NAMES] [-v]\n                 FILE [FILE ...]\n\nCheck FILEs for the classic Klong traps without running them, then exit (1 if\nany error was found).\n\npositional arguments:\n  FILE            the programs to check (- is stdin)\n\noptions:\n  -h, --help      show this help message and exit\n  --select CODES  report only these codes (comma-separated)\n  --ignore CODES  leave these codes out (comma-separated)\n  --define NAMES  names the host defines before the program runs (comma-\n                  separated)\n  -v, --verbose   enable verbose output\n";
     let (rc, out, _) = run(&["--help"]);
     assert_eq!((rc, out.as_str()), (0, want));
+}
+
+fn e001(text: &str) -> Vec<(usize, usize, String, Option<String>)> {
+    lint(text).into_iter().filter(|d| d.code == "E001").map(|d| (d.line, d.col, d.message, d.hint)).collect()
+}
+
+/// Parser messages as the Python linter words them (found by the differential run over 15,049 programs).
+#[test]
+fn parser_messages_match_the_python_linter() {
+    let d = e001(":{;1;2 )}");
+    assert_eq!(d[0].2, "expected ';' or '}' but found ')'");
+    let d = e001(":{;1;2;3}");
+    assert!(d[0].3.as_deref().unwrap().ends_with(": keys and values alternate"));
+    // an operator is a key of a dictionary literal
+    assert!(e001(":{[:: 1] [:b 2]}").is_empty());
+    assert!(e001(":{[_ 1 2] [\"k\" [1 2]] [:a \"v\"]}").is_empty());
+    // a named-parameter definition whose right side is not a function: the span of what was read
+    assert_eq!(e001("g(f(a;b)::(30))")[0].1, 11);
+    assert_eq!(e001("g(f(a;b)::)")[0].1, 11);
+    assert_eq!(e001("f(a;b)::;1")[0].1, 7);
+    assert_eq!(e001("f(a;b)::[{1}]")[0].2, "a { inside a [ ] list is not a function: a list holds data");
+    // the text of a malformed number leaves out a ':' before it, and the '-' of an operator
+    assert_eq!(e001(":123.e")[0].2, "malformed number '123.e'");
+    assert_eq!(e001("(-101e+)$1")[0].2, "malformed number '101e+)'");
+    assert_eq!(e001("[1 -1.2.3]")[0].2, "malformed number '-1.2.3'");
+    // hints
+    assert_eq!(e001("a(b[1 2])")[0].3.as_deref(), Some("use b@[1 2] to index"));
+    assert_eq!(e001("(q[0)")[0].3.as_deref(), Some("use q@0 to index"));
+    assert_eq!(e001("f::{:[x;1;2]::3}")[0].3.as_deref(), Some("assign one name at a time: a::1;b::2"));
+}
+
+/// The parser's cap of 64 warnings must not cut what the linter reports.
+#[test]
+fn more_than_64_findings_in_one_statement_are_all_reported() {
+    let text = format!("f({})", (0..150).map(|i| i.to_string()).collect::<Vec<_>>().join(" "));
+    assert_eq!(e001(&text).len(), 149);
+}
+
+#[test]
+fn the_builtin_names_come_from_the_runtime() {
+    let n = klong_lint::builtin_names();
+    for want in [".p", ".l", ".rn", ".srv", ".comment", ".f", ".module"] {
+        assert!(n.contains(want), "{}", want);
+    }
+    assert!(!n.contains(".fpga"));
+    let o = Options { extra_builtins: set(&[".mine"]), ..Default::default() };
+    assert!(lint_source("t.kg", ".mine(1);.p(2)", &o).is_empty());
+    assert!(!lint_source("t.kg", ".mine(1)", &Options::default()).is_empty());
 }

@@ -1510,6 +1510,166 @@ fn zero_copy(on: bool) {
     ZERO_COPY.store(on, std::sync::atomic::Ordering::Relaxed);
 }
 
+
+// ----- the tools: lint ------------------------------------------------------------------------------------------------------------
+
+/// A set of names or codes from Python: None, a string (comma- or space-separated) or any iterable of strings.
+fn names_arg(o: Option<&Bound<'_, PyAny>>) -> PyResult<Option<Vec<String>>> {
+    let Some(o) = o else { return Ok(None) };
+    if o.is_none() {
+        return Ok(None);
+    }
+    if let Ok(s) = o.extract::<String>() {
+        return Ok(Some(s.split(|c: char| c == ',' || c.is_whitespace()).filter(|s| !s.is_empty()).map(String::from).collect()));
+    }
+    let mut out = Vec::new();
+    for item in o.try_iter()? {
+        out.push(item?.extract::<String>()?);
+    }
+    Ok(Some(out))
+}
+
+/// Run `f` on a thread with a large stack (the parser recurses on the native stack, as the `klong` binary's does), with the GIL released.
+fn on_big_stack<T: Send + 'static>(py: Python<'_>, f: impl FnOnce() -> T + Send + 'static) -> PyResult<T> {
+    py.allow_threads(move || {
+        std::thread::Builder::new()
+            .stack_size(256 << 20)
+            .spawn(f)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("cannot start the lint thread: {e}")))?
+            .join()
+            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("internal error in the linter"))
+    })
+}
+
+/// `kgpy lint`: lint files and print the findings. Returns `(status, stdout, stderr)`; status as `klong lint`'s: 1 when an error was
+/// found, 2 when a file could not be read or an option was wrong, else 0. `select`, `ignore` and `define` are strings or iterables of
+/// codes or names; `lib_dir` is the library directory searched after KLONGPATH (None: the library built in); `extra_builtins` the
+/// system names the Python package binds beyond the runtime's own.
+#[pyfunction]
+#[pyo3(signature = (paths, select=None, ignore=None, define=None, verbose=false, lib_dir=None, extra_builtins=None))]
+fn lint_files(
+    py: Python<'_>,
+    paths: Vec<String>,
+    select: Option<Bound<'_, PyAny>>,
+    ignore: Option<Bound<'_, PyAny>>,
+    define: Option<Bound<'_, PyAny>>,
+    verbose: bool,
+    lib_dir: Option<String>,
+    extra_builtins: Option<Bound<'_, PyAny>>,
+) -> PyResult<(i32, String, String)> {
+    let join = |v: Option<Vec<String>>| v.map(|v| v.join(","));
+    let select = join(names_arg(select.as_ref())?);
+    let ignore = join(names_arg(ignore.as_ref())?);
+    let define = join(names_arg(define.as_ref())?);
+    let extra: std::collections::BTreeSet<String> = names_arg(extra_builtins.as_ref())?.unwrap_or_default().into_iter().collect();
+    let lib_dirs: Vec<String> = lib_dir.into_iter().collect();
+    on_big_stack(py, move || {
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status =
+            klong_lint::run_files("kgpy lint", &paths, select.as_deref(), ignore.as_deref(), define.as_deref(), verbose, lib_dirs, extra, &mut out, &mut err);
+        (status, String::from_utf8_lossy(&out).into_owned(), String::from_utf8_lossy(&err).into_owned())
+    })
+}
+
+/// A finding: `(code, severity, start, end, line, col, message, hint)`; start and end are offsets and col a column, all in characters
+/// of the text as Python indexes a str; line and col count from 1; hint is None when there is none.
+type Finding = (String, String, usize, usize, usize, usize, String, Option<String>);
+
+/// Lint a program text (nothing in it is evaluated and no other file is run): the findings sorted by position. `name` is the name in the
+/// findings and, when it is a file, where `.l("file")` is looked up (its directory; or `base_dir`); `resolve=False` never reads another
+/// file (every `.l` then counts as one that defines unknown names). A code that does not exist raises ValueError.
+#[pyfunction]
+#[pyo3(signature = (name, text, select=None, ignore=None, define=None, base_dir=None, resolve=true, lib_dir=None, extra_builtins=None))]
+#[allow(clippy::too_many_arguments)]
+fn lint_source(
+    py: Python<'_>,
+    name: String,
+    text: String,
+    select: Option<Bound<'_, PyAny>>,
+    ignore: Option<Bound<'_, PyAny>>,
+    define: Option<Bound<'_, PyAny>>,
+    base_dir: Option<String>,
+    resolve: bool,
+    lib_dir: Option<String>,
+    extra_builtins: Option<Bound<'_, PyAny>>,
+) -> PyResult<Vec<Finding>> {
+    let codes = |v: Option<Vec<String>>| -> PyResult<Option<std::collections::BTreeSet<String>>> {
+        v.map(|v| klong_lint::parse_codes(&v.join(",")).map_err(pyo3::exceptions::PyValueError::new_err)).transpose()
+    };
+    let opts = klong_lint::Options {
+        select: codes(names_arg(select.as_ref())?)?,
+        ignore: codes(names_arg(ignore.as_ref())?)?.unwrap_or_default(),
+        define: names_arg(define.as_ref())?.unwrap_or_default().into_iter().collect(),
+        extra_builtins: names_arg(extra_builtins.as_ref())?.unwrap_or_default().into_iter().collect(),
+        base_dir,
+        no_resolve: !resolve,
+        lib_dirs: lib_dir.into_iter().collect(),
+    };
+    on_big_stack(py, move || {
+        let found = klong_lint::lint_source(&name, &text, &opts);
+        // byte offsets to character offsets
+        let ascii = text.is_ascii();
+        let starts: Vec<usize> = if ascii { Vec::new() } else { text.char_indices().map(|(b, _)| b).collect() };
+        let ch = |b: usize| if ascii { b } else { starts.partition_point(|&s| s < b) };
+        found
+            .into_iter()
+            .map(|d| (d.code.to_string(), d.severity.to_string(), ch(d.span.0), ch(d.span.1), d.line, d.col, d.message, d.hint))
+            .collect()
+    })
+}
+
+// ----- the tools: the static profile ------------------------------------------------------------------------------------------------
+
+/// `kgpy check`: check files against the static profile and print what `kgpy check` prints. Returns `(status, stdout, stderr)`; status
+/// 1 when a file is outside the profile, 2 when a file could not be read, else 0. (`--streamable` and `--dump-ir` are not here yet.)
+#[pyfunction]
+#[pyo3(signature = (paths, int64=false, verbose=false, lib_dir=None))]
+fn check_files(py: Python<'_>, paths: Vec<String>, int64: bool, verbose: bool, lib_dir: Option<String>) -> PyResult<(i32, String, String)> {
+    let lib_dirs: Vec<String> = lib_dir.into_iter().collect();
+    on_big_stack(py, move || {
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status = klong_static::run_check("kgpy check", &paths, int64, verbose, lib_dirs, &mut out, &mut err);
+        (status, String::from_utf8_lossy(&out).into_owned(), String::from_utf8_lossy(&err).into_owned())
+    })
+}
+
+/// A violation of the profile: `(rule, start, end, line, col, message, hint, function)`; offsets and column in characters; `function` is the
+/// top-level function the span lies in, or None.
+type StaticDiag = (String, usize, usize, usize, usize, String, Option<String>, Option<String>);
+/// What a check found beyond its diagnostics: `(entries, externs, globals, functions)`.
+type StaticInfo = (Vec<(String, String)>, Vec<(String, String, String)>, Vec<(String, Option<String>, bool, bool, bool)>, Vec<(String, bool, bool, Vec<(Vec<Option<String>>, Option<String>)>)>);
+
+/// Check a program text against the static profile (nothing in it is evaluated): its diagnostics in source order, the declarations and the
+/// functions with the argument types each was checked with. `name` is the name in the diagnostics and where `.l("file")` is looked up.
+#[pyfunction]
+#[pyo3(signature = (name, text, int64=false, base_dir=None, resolve=true, lib_dir=None, all_functions=false))]
+fn check_source(py: Python<'_>, name: String, text: String, int64: bool, base_dir: Option<String>, resolve: bool, lib_dir: Option<String>, all_functions: bool) -> PyResult<(Vec<StaticDiag>, StaticInfo)> {
+    on_big_stack(py, move || {
+        let opts = klong_static::Options { int_bits: if int64 { 64 } else { 32 }, resolve, all_functions, base_dir, lib_dirs: lib_dir.into_iter().collect() };
+        let r = klong_static::check_source(&text, &name, &opts);
+        let diags = r
+            .diagnostics
+            .iter()
+            .map(|d| {
+                let src = &r.sources[d.src];
+                let t = &src.source.text;
+                let ch = |b: usize| t.get(..b.min(t.len())).map(|p| p.chars().count()).unwrap_or(b);
+                let (line, col) = src.source.line_col(d.span.0);
+                (d.rule.to_string(), ch(d.span.0), ch(d.span.1), line, col, d.message.clone(), d.hint.clone(), d.function.clone())
+            })
+            .collect();
+        let entries = r.entries.iter().map(|e| (e.name.clone(), e.signature.to_string())).collect();
+        let externs = r.externs.values().map(|x| (x.name.clone(), x.signature.to_string(), x.module.clone())).collect();
+        let globals = r.globals.values().map(|g| (g.name.clone(), g.ty().map(|t| t.to_string()), g.assigned, g.resolved, g.param)).collect();
+        let functions = r
+            .functions
+            .values()
+            .map(|f| (f.name.clone(), f.reachable, f.in_profile, f.specializations.iter().map(|(a, b)| (a.iter().map(|t| t.as_ref().map(|t| t.to_string())).collect(), b.as_ref().map(|t| t.to_string()))).collect()))
+            .collect();
+        (diags, (entries, externs, globals, functions))
+    })
+}
+
 #[pymodule]
 fn klong_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Klong>()?;
@@ -1519,5 +1679,9 @@ fn klong_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NativeDict>()?;
     m.add("NativeError", m.py().get_type::<NativeError>())?;
     m.add_function(wrap_pyfunction!(zero_copy, m)?)?;
+    m.add_function(wrap_pyfunction!(lint_files, m)?)?;
+    m.add_function(wrap_pyfunction!(lint_source, m)?)?;
+    m.add_function(wrap_pyfunction!(check_files, m)?)?;
+    m.add_function(wrap_pyfunction!(check_source, m)?)?;
     Ok(())
 }

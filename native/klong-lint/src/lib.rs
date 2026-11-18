@@ -11,14 +11,16 @@
 //! parsing that file. Positions are byte offsets in `Diagnostic::span`; `line` and `col` are 1-based, the column in
 //! characters.
 mod analysis;
+pub mod recover;
 mod builtins;
+pub use builtins::builtin_names;
 mod cli;
 mod load;
 mod rules;
 mod scan;
 mod tok;
 
-pub use cli::lint_main;
+pub use cli::{lint_main, run_files};
 pub use load::Session;
 
 use analysis::Analysis;
@@ -93,6 +95,9 @@ pub struct Options {
     pub ignore: BTreeSet<String>,
     /// names the host defines before the program runs: W002 does not report them
     pub define: BTreeSet<String>,
+    /// the system names of an embedding beyond the runtime's own (the Python package's `.py`, `.fpga`, ...), as the caller lists them:
+    /// like `define`, W002 does not report them
+    pub extra_builtins: BTreeSet<String>,
     /// directory for `.l` lookups, instead of the directory of the name
     pub base_dir: Option<String>,
     /// false: never read other files; every `.l` then counts as one that defines unknown names (W002 off)
@@ -215,7 +220,8 @@ pub fn lint_source_in(sess: &mut Session, name: &str, text: &str, opts: &Options
         }
     };
     let an = Analysis::new(Source::new(name, text.to_string()), &base_dir, !opts.no_resolve, &[], 0, true, sess);
-    let mut lin = rules::Linter::new(&an, &opts.define);
+    let known: BTreeSet<String> = opts.define.union(&opts.extra_builtins).cloned().collect();
+    let mut lin = rules::Linter::new(&an, &known);
     lin.run();
     let sup = suppressed(&an);
     let mut out: Vec<Diagnostic> = Vec::new();

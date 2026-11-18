@@ -25,6 +25,7 @@ dependencies = [
  "klong-host",
  "klong-lint",
  "klong-rt",
+ "klong-static",
 ]
 
 [[package]]
@@ -79,6 +80,8 @@ name = "klong-lint"
 version = "0.0.1"
 dependencies = [
  "klong-core",
+ "klong-host",
+ "klong-rt",
 ]
 
 [[package]]
@@ -98,6 +101,14 @@ dependencies = [
  "klong-core",
  "klong-dgram",
  "klong-rt",
+]
+
+[[package]]
+name = "klong-static"
+version = "0.0.1"
+dependencies = [
+ "klong-core",
+ "klong-lint",
 ]
 
 [[package]]

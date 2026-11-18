@@ -1,7 +1,7 @@
 # Native Klong runtime. Design: docs/native/index.md.
 [workspace]
 resolver = "2"
-members = ["klong-core", "klong-dgram", "klong-ipc", "klong-rt", "klong-host", "klong-cli", "klong-lint", "klong-console", "klong-sim", "klong-board", "klong-ffi"]
+members = ["klong-core", "klong-dgram", "klong-ipc", "klong-rt", "klong-host", "klong-cli", "klong-lint", "klong-static", "klong-console", "klong-sim", "klong-board", "klong-ffi"]
 
 [workspace.package]
 version = "0.0.1"
