@@ -14,6 +14,7 @@ nav:
   - Home: 'index.md'
   - Learn:
       - Start Here: 'getting-started.md'
+      - The kgpy command and the REPL: 'repl.md'
       - Tutorial: 'tutorial.md'
       - Examples: 'examples.md'
   - What's New:
@@ -33,7 +34,6 @@ nav:
       - Lint: 'lint.md'
       - Errors: 'errors.md'
       - Differences from Klong: 'differences.md'
-      - The kgpy command and the REPL: 'repl.md'
   - Reference:
       - System Functions and Variables: 'system-functions.md'
       - Conformance suite: 'conformance.md'
@@ -54,8 +54,8 @@ nav:
       - IPC and Timers: 'native/ipc.md'
       - Management Node: 'native/management-node.md'
   - 'Static Klong: C and FPGA':
-      - The static profile: 'static-profile.md'
       - Compiling Klong to C: 'embedded.md'
+      - The static profile: 'static-profile.md'
       - Klong functions as FPGA hardware: 'hardware.md'
   - Project:
       - Roadmap: 'roadmap.md'

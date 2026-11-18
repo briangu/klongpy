@@ -72,7 +72,7 @@ reset the board (DTR/RTS), the tool waits for the banner.
 | Idle | `esp_task_wdt_reset` (the task is subscribed to the task watchdog, 30 s, panic); nothing to do: `vTaskDelay(1)`, 1 ms |
 | `.x()` | `esp_restart` |
 | Files | RAM file system (`MemFs`) in the same heap: uploads are lost at reset. Flash storage is not done |
-| Features | `files`, `lib`, `timers`; no IPC (the C interface has no transports yet) |
+| Features | `files`, `lib`, `timers`; no IPC (this firmware does not use the `lane` transport that the C interface offers, a UART link of 16-byte frames; the Pico firmware does) |
 
 ## Verified on the board
 
@@ -81,4 +81,4 @@ tested on the host (`cargo test -p klong-ffi`), and the same `main.c` ran for an
 under QEMU. On the P4 itself (2026-11-16) the REPL, a runaway loop stopped by Ctrl-C (`{1}{x+1}:~0`), the embedded
 library, uploads and the conformance suite over the serial port (1266 of 1266) worked: see
 `docs/native/esp32-p4.md`, which has the measurements. IPC (the firmware has none)
-and flash storage (not done) are not there to check.
+and flash storage (not done) are not there to check. The firmware prints `Klong 0.0.1`: that is the version of the native runtime, not of KlongPy.

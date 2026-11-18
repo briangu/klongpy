@@ -181,7 +181,15 @@ def eval_monad_grade_up(a, backend):
                     >[[1] [2] [3]]  -->  [2 1 0]
 
     """
+    if isinstance(a, str) and a:
+        return _grade_string(a, backend)
     return kg_argsort(backend.kg_asarray(a), backend)
+
+
+def _grade_string(a, backend, descending=False):
+    """The grade of a string by code point, ties by position (descending: the reverse of the
+    ascending order), without making a list of characters."""
+    return backend.grade_string(a, descending)
 
 
 def eval_monad_grade_down(a, backend):
@@ -192,6 +200,8 @@ def eval_monad_grade_down(a, backend):
         See [Grade-Up].
 
     """
+    if isinstance(a, str) and a:
+        return _grade_string(a, backend, descending=True)
     return kg_argsort(backend.kg_asarray(a), backend, descending=True)
 
 

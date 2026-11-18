@@ -28,7 +28,7 @@ Values cross the boundary as the objects in this table. Klong numbers and string
 | dictionary `:{[1 2]}` | `dict` | `dict` |
 | function | callable | callable |
 
-A Python `int`, `float`, `str`, `dict`, `list`, `tuple` or `numpy.ndarray` stored with `klong['v'] = ...` is the Klong value of that name. A Python `list` or `tuple` is a list in Klong (`#v` is its length), and a Klong operation on it returns an array of the active backend. `bool` and `None` are kept as Python objects. Results of Klong operations are NumPy scalars (`numpy.int64`) when they are comparisons, so convert with `int(...)` when a plain `int` matters.
+A Python `int`, `float`, `str`, `dict`, `list`, `tuple` or `numpy.ndarray` stored with `klong['v'] = ...` is the Klong value of that name. A Python `list` or `tuple` is a list in Klong (`#v` is its length), and a Klong operation on it returns an array of the active backend. `bool` and `None` are kept as Python objects. A number that is only a literal, a stored value or a length (`3`, `#v`) comes back as `int` or `float`. The result of an operation that computes on numbers, such as arithmetic, a comparison, a reduction or an element taken from an array (`1+1`, `3>2`, `+/[1 2 3]`), is a NumPy scalar (`numpy.int64`, `numpy.float64`) on the NumPy backend and a 0-dimensional tensor on torch. Convert with `int(...)` or `float(...)` when a plain Python number matters.
 
 ## Function example
 
@@ -45,7 +45,7 @@ $ python -W ignore <<'EOF'
 2990
 ```
 
-and vice versa, you can call a Klong function from Python:
+A Klong function is a Python callable:
 
 ```console
 $ python -W ignore <<'EOF'
@@ -120,8 +120,6 @@ ndarray [1 2 3 4 5]
 ```
 
 ## Python library access
-
-A function imported with `.py` or `.pyf` is called as follows.
 
 A function imported with `.py` or `.pyf` that has optional parameters is called with every argument written in the call, however many: `.pyf("numpy";"linspace")` then `linspace(0;1;4;0)` passes the fourth argument too (`endpoint=0`). Too many or too few arguments are the Python `TypeError`, reported as a Klong error of kind `python`. A function with no optional parameters takes its required ones by position, at most three of them, and extra arguments are dropped (an arity error at [strict level 2](strict.md)). One with more than three required parameters is called with a list of the positional arguments and a dictionary of the keyword arguments, `f([1 2 3 4];:{})`, or through `.pyc`.
 
@@ -206,4 +204,4 @@ world!
 
 `.py` takes a module name or the path of a directory that holds such a package. Only the names imported in `__init__.py` are defined in Klong; `not_exported` is not.
 
-See also: [PyTorch backend](torch_backend.md), [System functions](system-functions.md) (`.py`, `.pyc`, `.pyf`) and the [roadmap](roadmap.md) for known limits.
+See also: [PyTorch Backend and Autograd](torch_backend.md), [System functions](system-functions.md) (`.py`, `.pyc`, `.pyf`) and the [roadmap](roadmap.md) for known limits.

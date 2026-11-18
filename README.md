@@ -10,7 +10,7 @@
 [![Downloads](https://static.pepy.tech/badge/klongpy/month)](https://pepy.tech/project/klongpy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-# KlongPy 2: one array language from GPU to FPGA to microcontroller
+# KlongPy 2: one array language from CPU and GPU to FPGA and microcontroller
 
 KlongPy is an implementation of [Klong](https://t3x.org/klong), an [array language](https://en.wikipedia.org/wiki/Array_programming), in Python. You write `+/a` for the sum of an array instead of a loop. It is for array and time-series work, for people coming from NumPy or kdb+/q, for gradient-based work, and for small devices.
 
@@ -20,14 +20,14 @@ Full documentation: [https://www.klongpy.org/](https://www.klongpy.org/). New he
 
 | Target | Status | More |
 |---|---|---|
-| CPU, with [NumPy](https://numpy.org/) | stable | [Start Here](docs/getting-started.md) |
-| GPU, with [PyTorch](https://pytorch.org/) and autograd | stable | [PyTorch Backend](docs/torch_backend.md) |
-| Native interpreter (Rust) on a desktop | passes conformance | [Native Runtime](docs/native/index.md) |
-| Compile to C | works for a subset of the language | [Compiling Klong to C](docs/embedded.md) |
-| Microcontrollers (native runtime on an ESP32-P4 and on Raspberry Pi Picos) | experimental, one board | [Native Runtime status](docs/native/index.md#status-what-has-and-has-not-been-proven) |
-| FPGA (an Alveo U250) | experimental, one board | [Klong as FPGA Hardware](docs/hardware.md) |
+| CPU (NumPy backend) | stable | [Start Here](docs/getting-started.md) |
+| GPU (PyTorch backend, autograd) | stable on CPU tensors; the GPU devices (CUDA, Apple MPS) use the same code and are not part of the automated tests | [PyTorch Backend and Autograd](docs/torch_backend.md) |
+| Native interpreter (desktop) | passes the conformance suite | [Native Runtime](docs/native/index.md) |
+| Compile to C (static profile) | works for a subset of the language; not run on a microcontroller | [Compiling Klong to C](docs/embedded.md) |
+| Microcontrollers (native interpreter) | experimental; run on an ESP32-P4 and on two Raspberry Pi Picos | [Native Runtime status](docs/native/index.md#status-what-has-and-has-not-been-proven) |
+| FPGA kernels | experimental; run on one Alveo U250 | [Klong functions as FPGA hardware](docs/hardware.md) |
 
-A [conformance suite](docs/conformance.md) of about 1,300 cases, each a program and its expected output, is what makes it the same language on every target.
+The two interpreters run a [conformance suite](docs/conformance.md) of about 1,300 cases, each a program and its expected output. The C and FPGA paths compile a subset of the language, and that subset is checked against the interpreter.
 
 ## Install
 
@@ -68,13 +68,13 @@ A gradient is an operator: `f:>x` is the gradient of `f` at `x`. It is autograd 
 1.0185179880729389e-09
 ```
 
-The other spellings of the gradient and the Unicode operators are in [PyTorch Backend](docs/torch_backend.md).
+The other spellings of the gradient and the Unicode operators are in [PyTorch Backend and Autograd](docs/torch_backend.md).
 
 ## What is new in 2
 
 Version 2 adds the native runtime, the conformance suite, compiling to C, experimental FPGA kernels, strict modes, a linter, errors with positions, language additions (destructuring, named parameters, dictionary literals) and kdb+-protocol IPC. [What's New in v2](docs/whats-new-v2.md) is the tour, and [Migrating to v2](docs/migrating-to-v2.md) lists what changes for existing code.
 
-## Staying on version 1
+## Staying on 0.7
 
 Version 2 changes how some existing code behaves. To stay on the 0.7 line:
 
@@ -89,8 +89,8 @@ The documentation of each release line stays online: pick the version in the hea
 KlongPy's network features assume every peer is trusted. Use them on a trusted network only.
 
 - **IPC (`.srv`, `.cli`)**: a connected peer can run arbitrary Klong, and through it arbitrary Python (`.py`, `.pyf`) and shell commands (`.sys`). It can also call any function you have defined and assign any variable.
-- **IPC wire format**: the default path speaks the kdb+ IPC protocol and does not unpickle anything from the network. Message size is limited (`.system` key `ipc_max_message`, 256 MiB by default). The legacy pickle mode (`KLONGPY_IPC=legacy`, or a `.srv` left on `auto` that sees an old client) unpickles messages, which runs code chosen by the sender. It is deprecated. Use it on trusted networks only, or set `KLONGPY_IPC=kdb` to refuse it.
-- **No encryption, optional login**: IPC credentials (`"host:port:user:password"`) and all data are sent in clear text and there is no TLS. A server accepts every client unless the program defines `.srv.auth`. With `.srv.auth` defined, a legacy pickle client, which has no credentials, is refused, and the message size limit applies to legacy clients too. `.web` has no login or access control.
+- **IPC wire format**: the kdb+ IPC protocol, and nothing from the network is unpickled. Message size is limited (`.system` key `ipc_max_message`, 256 MiB by default). The pickle protocol of 0.7 was removed in 2.0; a 0.7 peer cannot connect.
+- **No encryption, optional login**: IPC credentials (`"host:port:user:password"`) and all data are sent in clear text and there is no TLS. A server accepts every client unless the program defines `.srv.auth`. `.web` has no login or access control.
 - **Bind address**: `.srv(8888)` and `.web(8888;...)` listen on all interfaces (`0.0.0.0`). Anyone who can reach the port has the access above. `.web` routes run the Klong functions you register with the request parameters.
 - **KVS and tables**: keys are used as file names under the store root without checking that they stay inside it, and values are pickled on disk. Treat the root directory as trusted storage and do not load stores you did not write.
 - **`.db`**: DuckDB runs the string you pass as SQL, as given.

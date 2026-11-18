@@ -2,7 +2,7 @@
 
 This page is a summary of what it takes to run the native Klong runtime on a new board: what a port has to supply, the C interface that lets a vendor SDK application drive the runtime, and how much flash and RAM to plan for. It is for someone who has a microcontroller and wants to know what the work is before reading the header that defines the C interface, `native/klong-ffi/include/klong.h`. `native/PORTING.md` in the repository has the notes for a port in Rust.
 
-Two kinds of board have run the runtime: the [ESP32-P4](esp32-p4.md) and [two Raspberry Pi Picos](pico-bench.md). The Arm Cortex-M and RISC-V images link but were never booted. The [status table](index.md#status-what-has-and-has-not-been-proven) says what has run where, and the last section here lists what only a new board can show.
+Two kinds of board have run the runtime: the [ESP32-P4](esp32-p4.md) and [two Raspberry Pi Picos](pico-bench.md). The images for `thumbv7em-none-eabihf` and `riscv32imac-unknown-none-elf` link but have never been booted. The Picos are Cortex-M0+ (`thumbv6m-none-eabi`). The [status table](index.md#status-what-has-and-has-not-been-proven) says what has run where, and the last section here lists what only a new board can show.
 
 ## What a port is
 
@@ -96,7 +96,7 @@ klong_config cfg = {
 if (klong_init(&cfg) == KLONG_OK) klong_run();
 ```
 
-The C interface of the firmware has `files`, `lib` and `timers`. It has no IPC: IPC needs transports from the platform, and the C interface has none yet. A port in Rust can provide them (`Platform::transports()`), and then calls `poll_events` from its loop.
+The C interface has the features `files`, `lib` and `timers`. IPC needs a transport from the platform. The C interface has one, built with `klong-ffi --features lane`: the functions `klong_lane_init`, `klong_lane_pump`, `klong_lane_node` and `klong_lane_stats_get` of `klong.h`. A lane is a UART link that carries 16-byte frames, to a switch or a peer node. Over it the library provides IPC (`.cli("node:2")`, `.srv("node:")`) and a console channel. The Pico firmware is a C application that uses it ([two Picos](pico-bench.md)). The ESP32-P4 firmware does not, and has no IPC. The C interface has no other transport, such as TCP. A port in Rust can provide any transport (`Platform::transports()`) and then calls `poll_events` from its loop.
 
 ## Memory budgets
 
@@ -139,7 +139,7 @@ If the board resets when the serial port is opened (DTR and RTS on ESP32 develop
 
 These were not and could not be checked on a host:
 
-* that the image boots: start-up code, linker script, vector table, clock setup, and a `-march` that matches the silicon. The images for `thumbv7em` and `riscv32imac` have none of these, and are not bootable;
+* that the image boots: start-up code, linker script, vector table, clock setup, and a `-march` that matches the silicon. The images for `thumbv7em` and `riscv32imac` have none of these, and are not bootable (the Pico firmware supplies them for `thumbv6m`);
 * UART behaviour at speed: overruns during evaluation and during flash writes, the highest reliable baud rate, whether flow control or pacing is needed;
 * the real stack use per recursion level on the target, and so the right `stack_bytes`;
 * the allocator on real RAM: PSRAM mapping, fragmentation over days, and whether the heap limit leaves the SDK what it needs;

@@ -2,7 +2,7 @@
 
 This page is the complete list of changes in version 2 compared with 0.7. [What's new in v2](whats-new-v2.md) is the tour of the features, and [Migrating to v2](migrating-to-v2.md) lists what to change in an existing program. In this page "0.7" means KlongPy 0.7.0, and "before" means that version. Where the old behaviour was an unrelated Python error, only its kind is given.
 
-## 2.0.0 (release candidate)
+## 2.0.0rc1
 
 ### Headline additions
 
@@ -13,7 +13,7 @@ This page is the complete list of changes in version 2 compared with 0.7. [What'
 * [Strict modes](strict.md), levels 0, 1 and 2.
 * The [linter](lint.md), `kgpy --lint`.
 * [Structured errors](errors.md) with a position, a kind and the source line.
-* [Language additions](language-additions.md): destructuring, named parameters, dictionary literals, projections, `.fmt`, `.pf` and `.grad`.
+* [Language additions](language-additions.md): destructuring, named parameters, dictionary literals, calls with too few arguments, `.fmt`, `.pf` and `.grad`.
 * kdb+-protocol [IPC](ipc_capabilities.md), tested against PeachQ.
 * A [REPL](repl.md) with multi-line entry, history, completion and `it`.
 
@@ -29,7 +29,7 @@ This page is the complete list of changes in version 2 compared with 0.7. [What'
 error: .entry: the function f is not defined
 ```
 
-**Experimental: `.hw` calls a function of the static profile as FPGA hardware.** `fir::.hw("fir.kg")` binds the kernels of an image built with `kgpy --hw-build fir.kg` for an Alveo U250 and `fir.run(x)` runs on the card, with the arguments checked against the `.entry` signature, an extra leading dimension meaning several calls, resident buffers (`.hw.put`, `.hw.get`, `.hw.free`), `.hw.reset` and `.hw.info`. `KLONG_HW=sim` runs the same generated code on the host as a simulator, with no card. Nothing changes for a program that does not use `.hw`, and nothing of it is imported at start. This is experimental: it has been run on one card with one image, and in that first stage the hardware is slower than numpy on the kernel that was measured. See [Klong functions as FPGA hardware](hardware.md).
+**Experimental: `.hw` calls a function of the static profile as FPGA hardware.** `fir::.hw("fir.kg")` binds the kernels of an image built with `kgpy --hw-build fir.kg` for an Alveo U250 and `fir.run(x)` runs on the card, with the arguments checked against the `.entry` signature, an extra leading dimension meaning several calls, resident buffers (`.hw.put`, `.hw.get`, `.hw.free`), `.hw.reset` and `.hw.info`. `KLONG_HW=sim` runs the same generated code on the host as a simulator, with no card. Nothing changes for a program that does not use `.hw`, and nothing of it is imported at start. This is experimental: it has been run on one Alveo U250 with two images. The strategy kernel (a streaming kernel) is about ten times faster than the same program as C on a 32-thread CPU, and `fir` (a wrapped kernel) is slower than numpy. See [Klong functions as FPGA hardware](hardware.md).
 
 
 #### Strict modes
@@ -124,6 +124,8 @@ See [Language additions](language-additions.md) for the forms. These are the cha
 
 #### Structured errors
 
+Transcripts on this page and on [Migrating to v2](migrating-to-v2.md) often show a REPL error as `error: MESSAGE`, the message alone. [Reading an error](errors.md#reading-an-error) describes the full form with position and source line.
+
 **Errors are `KlongError` classes with a position.** Every error KlongPy raises on purpose is a `KlongError` (`KlongTypeError`, `KlongRangeError` and so on, listed in [Errors](errors.md)), and an exception from NumPy inside an operator is reported as one, naming the operator. A Klong error that replaces a Python one is also an instance of the old class, so `except IndexError` and `except ValueError` still catch it.
 
 ```kgpy
@@ -165,7 +167,7 @@ The old messages were NumPy's, such as `ufunc 'add' did not contain a loop with 
 
 #### kdb+ IPC
 
-**The wire protocol is kdb+ IPC.** `.srv` and `.cli` used pickled Python objects, which let a peer run code in your process when a message was unpickled. The default is now the kdb+ protocol, and a q client can talk to a `.srv`. The old protocol remains for a transition and is deprecated: `KLONGPY_IPC=legacy` selects it, `auto` (the server default) accepts an old client, and `KLONGPY_IPC=kdb` refuses it. Upgrade servers first, then clients. See [the protocol](ipc_capabilities.md#protocol-and-security).
+**The wire protocol is kdb+ IPC.** `.srv` and `.cli` used pickled Python objects, which let a peer run code in your process when a message was unpickled. It is now the kdb+ protocol, and a q client can talk to a `.srv`. The pickle protocol was removed: a 0.7 and a 2.0 process cannot exchange IPC messages, so upgrade both ends. See [the protocol](ipc_capabilities.md#protocol-and-security).
 
 **Tables and functions cross the connection.** A `klongpy.db` table is sent as a kdb+ table and arrives as a table when `klongpy.db` is loaded; an index does not travel. A function literal is sent as its source text. See [the protocol](ipc_capabilities.md#protocol-and-security) and [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
 
@@ -487,6 +489,8 @@ $ kgpy -e '1+"a"'
 
 #### IPC
 
+**The pickle protocol is removed.** A 0.7 client connecting to a 2.0 server is closed at once and the server logs the cause; a 2.0 client connecting to a 0.7 server fails after 5 seconds with `handshake timed out`. `KLONGPY_IPC=legacy` is a system error, and `kdb` and `auto` are accepted and mean the only protocol. A Python object that has no kdb+ form (a set, a complex number, `None`) was carried by pickle and is now a type error on the sending side. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. See [0.7 peers](ipc_capabilities.md#07-peers).
+
 **An error on the server comes back as a Klong error and the connection stays open.** It used to drop the connection (`connection lost`), and the next call failed with a Python `AttributeError`.
 
 ```kgpy
@@ -576,6 +580,8 @@ error: ,: a dictionary can only be joined with a tuple (a list of two members) o
 [:foo :foo]
 ```
 
+**`^` with a list operand follows one rule.** Integers wrap in 64 bits for a non-negative integer exponent, and a negative exponent or any float gives floats. Two integer scalars stay exact, so `2^64` is exact and `[2 3]^64` wraps. The rule is the same for `list^scalar`, `scalar^list` and `list^list`; see [Numbers](differences.md#numbers).
+
 **Integers beyond 64 bits are exact.** An operand outside the 64-bit range made `+ - * < > | &` fail with a Python `OverflowError`, although the language already made such integers (`2^64`, a long literal). The operation is now done on exact integers, in a list as well as on a scalar, and a result that fits in 64 bits again is an ordinary integer. Operands that are both inside 64 bits keep their wrap-around, as before: `9223372036854775807+1` is `-9223372036854775808`. `^` of two integer scalars with a non-negative exponent is exact as well (`10^400`; a result beyond about a million bits is a range error), and `!` is an error for such an operand.
 
 ```kgpy
@@ -603,6 +609,11 @@ error: cannot apply ^ (Power) to integer and integer
 ```
 
 **A Python function with optional parameters gets every argument.** A function brought in with `.py` or `.pyf` was called with its required parameters only, so `linspace(0;1;5)` made 50 points and `arange(2;8)` was `[0 1]`. It now gets each argument written. It is displayed by its required parameters, as before.
+
+
+#### Performance
+
+**Indexing and appending are faster.** Indexing a vector or a string by an integer vector is a whole-array operation, so `x@<x` sorts in about the time of the grade. Appending a number to a vector and `^` on integer arrays are faster, most of all on the torch backend. [Performance](performance.md) has the measurements and says which rows predate the change.
 
 
 #### System functions

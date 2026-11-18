@@ -2,23 +2,15 @@
 
 The connection speaks the kdb+ IPC protocol (``klongpy.ipc``): see
 ``klongpy/ipc/endpoint.py`` for what a request means and how calls are matched
-and served.  The pickle protocol of earlier releases is kept for one transition
-release in ``klongpy/ipc/legacy.py`` and selected with ``KLONGPY_IPC``:
-
-    KLONGPY_IPC=kdb      speak and accept only the kdb+ protocol
-    KLONGPY_IPC=legacy   speak and accept only the legacy pickle protocol
-    KLONGPY_IPC=auto     (server default) accept both, telling them apart on accept
-
-``.cli``/``.clid`` default to the kdb+ protocol.
+and served.  It is the only protocol.  The pickle protocol of 0.7 was removed
+in 2.0; ``KLONGPY_IPC=legacy`` is a start-up error and a connection that starts
+like a 0.7 client is closed (see :func:`check_ipc_env`).
 """
 import asyncio
 import concurrent.futures
 import logging
-import pickle  # noqa: F401  (legacy names stay importable from here)
-import struct  # noqa: F401
 import sys
 import threading
-import uuid  # noqa: F401
 from asyncio import StreamReader, StreamWriter
 
 from klongpy.core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
@@ -34,13 +26,26 @@ from klongpy.ipc.endpoint import (CLOSE_TIMEOUT, DEFAULT_CALL_TIMEOUT, HANDSHAKE
                                   KdbConnectionMixin, KGRemoteFnProxy, KlongRemoteException,
                                   auth_accepts, new_connection_state)
 from klongpy.ipc import endpoint as _endpoint
-from klongpy.ipc.legacy import (KGRemoteCloseConnection, KGRemoteCloseConnectionException,  # noqa: F401  (legacy names)
-                                KGRemoteDictGetCall, KGRemoteDictSetCall, KGRemoteFnCall,
-                                KGRemoteFnRef, LegacyConnectionMixin, PrefixedReader,
-                                decode_message, decode_message_len, detect_protocol,
-                                encode_message, execute_server_command, ipc_mode,
-                                run_command_on_klongloop, stream_recv_msg, stream_send_msg,
-                                warn_legacy_once)
+from klongpy.ipc.endpoint import (KGRemoteDictGetCall, KGRemoteDictSetCall,  # noqa: F401
+                                  KGRemoteFnCall, KGRemoteFnRef, detect_handshake)
+
+
+def check_ipc_env():
+    """Validate ``KLONGPY_IPC``, read at each ``.srv`` and ``.cli``.
+
+    The kdb+ protocol is the only one.  Unset, ``kdb`` and ``auto`` (the 0.7 server default)
+    are accepted and mean the same.  ``legacy`` (the pickle protocol, removed in 2.0) and
+    any other value are system errors.
+    """
+    import os
+    v = os.environ.get("KLONGPY_IPC", "").strip().lower()
+    if v in ("", "kdb", "auto"):
+        return
+    if v == "legacy":
+        raise KlongSystemError("KLONGPY_IPC=legacy: the pickle protocol was removed in 2.0; "
+                               "upgrade both ends to 2.0 or later (the kdb+ protocol is the only one), "
+                               "and unset KLONGPY_IPC")
+    raise KlongSystemError(f"KLONGPY_IPC must be unset, kdb or auto (the kdb+ protocol is the only one), not {v!r}")
 
 
 def get_system(klong):
@@ -168,7 +173,7 @@ class ReaderWriterConnectionProvider(ConnectionProvider):
         return f"remote[{self.host}:{self.port}]"
 
 
-class NetworkClient(LegacyConnectionMixin, KdbConnectionMixin, KGLambda):
+class NetworkClient(KdbConnectionMixin, KGLambda):
     """
 
     This network client is used to either connect to a remote server or to handle a connection by a remote client.
@@ -180,21 +185,20 @@ class NetworkClient(LegacyConnectionMixin, KdbConnectionMixin, KGLambda):
     Similarly, if a KlongPy client connects to a remote server, the client will create a NetworkClient so that it
     can be used in KlongPy as a remote dictionary or a remote function.
 
-    ``protocol`` is ``"kdb"`` (default) or ``"legacy"`` (pickle, deprecated). ``role`` is ``"client"`` for a
-    connection this process opened and ``"server"`` for one it accepted; the server side of a kdb+ connection
-    starts from the bytes ``initial`` that were read to recognise the protocol and calls
+    ``role`` is ``"client"`` for a connection this process opened and ``"server"`` for one it accepted; the
+    server side of a connection starts from the bytes ``initial`` that were read to check the handshake and calls
     ``authenticate(nc, user, password)`` (a coroutine returning a bool) before accepting.
 
     """
     def __init__(self, ioloop, klongloop, klong, conn_provider, shutdown_event=None, on_connect=None, on_close=None,
-                 on_error=None, *, protocol="kdb", role="client", user="", password="", initial=b"",
+                 on_error=None, *, role="client", user="", password="", initial=b"",
                  max_message=None, authenticate=None):
         self.ioloop = ioloop
         self.klongloop = klongloop
         self.klong = klong
         self.shutdown_event = shutdown_event
         self.conn_provider = conn_provider
-        # outstanding requests: Pending (kdb+) or message id (legacy) -> waiter / future
+        # outstanding requests: Pending -> waiter
         self.pending_responses = {}
         self.running = False
         self.run_task = None
@@ -206,7 +210,6 @@ class NetworkClient(LegacyConnectionMixin, KdbConnectionMixin, KGLambda):
         self._run_exit_event = threading.Event()
         # deadline in seconds for each call; None disables it. Settable per handle.
         self.call_timeout = DEFAULT_CALL_TIMEOUT
-        self.protocol = protocol
         self.role = role
         self.user = user
         self.password = password
@@ -313,8 +316,7 @@ class NetworkClient(LegacyConnectionMixin, KdbConnectionMixin, KGLambda):
                 self.reader, self.writer = await self.conn_provider.connect()
                 if self.reader is None or self.writer is None:
                     break
-                if self.protocol == "kdb":
-                    await self._handshake()
+                await self._handshake()
                 if on_connect is not None:
                     try:
                         await on_connect(self)
@@ -336,11 +338,6 @@ class NetworkClient(LegacyConnectionMixin, KdbConnectionMixin, KGLambda):
                 break
             except KlongIPCConnectionClosedException as e:
                 logging.info(f"Remote peer closed the connection: {str(self.conn_provider)}")
-                self.running = False
-                close_exception = e
-                break
-            except KGRemoteCloseConnectionException as e:
-                logging.info(f"Remote client closing connection: {str(self.conn_provider)}")
                 self.running = False
                 close_exception = e
                 break
@@ -375,9 +372,7 @@ class NetworkClient(LegacyConnectionMixin, KdbConnectionMixin, KGLambda):
         self._run_exit_event.set()
 
     async def _listen(self):
-        """Read from the connection once and act on what arrives (see KdbConnectionMixin / LegacyConnectionMixin)."""
-        if self.protocol == "legacy":
-            return await self._listen_legacy()
+        """Read from the connection once and act on what arrives (see KdbConnectionMixin)."""
         return await self._listen_kdb()
 
     def call(self, msg, timeout=...):
@@ -397,8 +392,6 @@ class NetworkClient(LegacyConnectionMixin, KdbConnectionMixin, KGLambda):
             raise KlongSystemError("connection not established")
         if timeout is ...:
             timeout = self.call_timeout
-        if self.protocol == "legacy":
-            return self._call_legacy(msg, timeout)
         return self._call_kdb(msg, timeout)
 
     @staticmethod
@@ -463,15 +456,11 @@ class NetworkClient(LegacyConnectionMixin, KdbConnectionMixin, KGLambda):
 
         Close the network client and the underlying connection.
 
-        A kdb+ connection is just closed (the peer sees the end of the stream). On the legacy protocol
-        a message is sent first to tell the peer to close gracefully. If the connection is already gone
-        or the peer does not answer, the client is closed anyway.
+        The connection is just closed (the peer sees the end of the stream).
 
         """
         if not self.running:
             return
-        if self.protocol == "legacy":
-            self._close_legacy()
         self.cleanup()
 
     def is_open(self):
@@ -493,7 +482,7 @@ class NetworkClient(LegacyConnectionMixin, KdbConnectionMixin, KGLambda):
         :param klongloop: the klong loop
         :param klong: the klong interpreter
         :param conn_provider: where the connection comes from
-        :param kwargs: protocol, role, user, password, initial, max_message, authenticate (see the class)
+        :param kwargs: role, user, password, initial, max_message, authenticate (see the class)
         :return: a network client
 
         """
@@ -593,12 +582,6 @@ class TcpServerConnectionHandler:
         logging.info(f"Connection error from {str(nc.conn_provider)}")
         self._call_hook('.srv.e', nc, e if isinstance(e, str) else str(e))
 
-    def _has_auth_hook(self):
-        try:
-            return callable(self.klong['.srv.auth'])
-        except KeyError:
-            return False
-
     async def _authenticate(self, nc, user, password):
         """``.srv.auth(user; password)``: 1 accepts, 0 refuses; no hook accepts everyone."""
         try:
@@ -622,11 +605,12 @@ class TcpServerConnectionHandler:
             return False
 
     async def _detect(self, reader):
-        """Read the first bytes of a connection until the protocol is known (bounded by the handshake timeout)."""
+        """Read the first bytes of a connection until they are known to be a kdb+ handshake or not
+        (bounded by the handshake timeout)."""
         buf = b""
         deadline = asyncio.get_running_loop().time() + _endpoint.HANDSHAKE_TIMEOUT
         while True:
-            verdict = detect_protocol(buf)
+            verdict = detect_handshake(buf)
             if verdict is not None:
                 return verdict, buf
             remaining = deadline - asyncio.get_running_loop().time()
@@ -645,8 +629,9 @@ class TcpServerConnectionHandler:
 
         Handle a client connection.  Messages are read from the client and executed on the klong loop.
 
-        The first bytes tell a kdb+ handshake from a legacy pickle frame (KLONGPY_IPC selects which
-        are accepted); anything else, or a peer that says nothing for the handshake timeout, is dropped.
+        The first bytes must be a kdb+ handshake.  A client of the removed 0.7 pickle protocol
+        is closed at once with a log line that names it; anything else, or a peer that says
+        nothing for the handshake timeout, is dropped.  Nothing is unpickled.
 
         """
         results = writer.get_extra_info('peername')
@@ -656,31 +641,15 @@ class TcpServerConnectionHandler:
         host, port = results[0], results[1]
         if host == "::1":
             host = "localhost"
-        mode = ipc_mode("auto")
         verdict, prefix = await self._detect(reader)
-        if verdict not in ("kdb", "legacy"):
+        if verdict == "pickle":
+            logging.warning(f"Server: refusing {host}:{port}: it speaks the pickle protocol of KlongPy 0.7, "
+                            "which was removed in 2.0; upgrade that client to 2.0 or later")
+            return
+        if verdict != "kdb":
             logging.info(f"Server: no recognisable handshake from {host}:{port}; dropping")
             return
-        if verdict == "kdb" and mode == "legacy":
-            logging.info(f"Server: refusing a kdb+ client from {host}:{port} (KLONGPY_IPC=legacy)")
-            return
-        if verdict == "legacy" and mode == "kdb":
-            logging.info(f"Server: refusing a legacy pickle client from {host}:{port} (KLONGPY_IPC=kdb)")
-            return
-        kwargs = {}
-        if verdict == "legacy":
-            # The pickle protocol has no credentials, so it cannot honour .srv.auth: with a
-            # hook set, a legacy peer is refused rather than let in unauthenticated.
-            if self._has_auth_hook():
-                logging.info(f"Server: refusing a legacy pickle client from {host}:{port} (.srv.auth is set)")
-                return
-            warn_legacy_once()
-            reader = PrefixedReader(prefix, reader)
-            kwargs["protocol"] = "legacy"
-            kwargs["max_message"] = self.max_message
-        else:
-            kwargs.update(protocol="kdb", initial=prefix, authenticate=self._authenticate,
-                          max_message=self.max_message)
+        kwargs = dict(initial=prefix, authenticate=self._authenticate, max_message=self.max_message)
         conn_provider = ReaderWriterConnectionProvider(reader, writer, host, port)
         nc = NetworkClient.create_from_conn_provider(self.ioloop, self.klongloop, self.klong, conn_provider, shutdown_event=self.shutdown_event, on_connect=self._on_connect, on_close=self._on_close, on_error=self._on_error, **kwargs)
         try:
@@ -847,7 +816,8 @@ def eval_sys_fn_create_client(klong, x):
         A symbol argument is the name of a server function, followed by its
         arguments: f(:avg,,!100). A symbol alone returns the remote value, and
         a remote function proxy for a function. The connection speaks the kdb+
-        IPC protocol (KLONGPY_IPC=legacy selects the deprecated pickle protocol).
+        IPC protocol, the only one; the pickle protocol of 0.7 was removed, and a
+        2.0 client cannot talk to a 0.7 server (the handshake times out).
         A call waits 30 seconds at most (see .clit). An error on the server is
         raised here as the error of its kind. If nothing listens on the port,
         .cli blocks for about 155 seconds, then returns the function, and the
@@ -867,10 +837,8 @@ def eval_sys_fn_create_client(klong, x):
     shutdown_event = system.get('closeEvent')
     if isinstance(x, NetworkClientDictHandle):
         return x.nc
-    protocol = "legacy" if ipc_mode("kdb") == "legacy" else "kdb"
-    if protocol == "legacy":
-        warn_legacy_once()
-    return NetworkClient.create_from_addr(ioloop, klongloop, klong, shutdown_event, x, protocol=protocol,
+    check_ipc_env()
+    return NetworkClient.create_from_addr(ioloop, klongloop, klong, shutdown_event, x,
                                           max_message=system.get('ipc_max_message')).run_client()
 
 
@@ -966,9 +934,9 @@ def eval_sys_fn_create_ipc_server(klong, x):
         Hooks, set as global functions: .srv.o(h) when a client connects,
         .srv.c(h) when it disconnects, .srv.e(h;text) on an error that nobody
         is waiting for, and .srv.auth(user;password), which returns 1 to
-        accept a client and 0 to refuse it. With .srv.auth defined, a client of
-        the deprecated pickle protocol is refused. The .system key
-        "ipc_max_message" limits the message size (256 MiB by default).
+        accept a client and 0 to refuse it. The .system key "ipc_max_message"
+        limits the message size (256 MiB by default). A 0.7 client (pickle
+        protocol, removed in 2.0) is closed at once and the cause is logged.
 
         Security: a client can run any Klong code in this interpreter, and
         credentials are sent in clear text. Bind to localhost, as in
@@ -978,6 +946,7 @@ def eval_sys_fn_create_ipc_server(klong, x):
         Example:   .srv(8888)       -->  1
 
     """
+    check_ipc_env()
     x = str(x)
     parts = x.split(":")
     bind = parts[0] if len(parts) > 1 else None
@@ -1012,7 +981,7 @@ class KGAsyncCall(KGLambda):
     def _is_kdb_remote(self):
         fn = self.fn
         nc = fn.nc if isinstance(fn, KGRemoteFnProxy) else fn
-        return isinstance(nc, NetworkClient) and nc.protocol == "kdb"
+        return isinstance(nc, NetworkClient)
 
     def _call_remote(self, params):
         """Send the call without blocking; the callback runs on the klong loop when the answer arrives."""

@@ -159,14 +159,6 @@ class TestArgumentErrors(IPCCase):
             self.kg(client, f".srv({self.port})")
         self.assertIn("cannot listen", str(cm.exception))
 
-    def test_ipc_mode_value(self):
-        import os
-        from unittest.mock import patch
-        from klongpy.ipc.legacy import ipc_mode
-        with patch.dict(os.environ, {"KLONGPY_IPC": "bogus"}):
-            with self.assertRaises(KlongSystemError):
-                ipc_mode("kdb")
-
 
 class TestWireNames(unittest.TestCase):
     def test_name_comes_from_the_kind(self):

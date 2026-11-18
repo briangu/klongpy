@@ -227,7 +227,7 @@ What differs:
 * A link that fails or a node that is too slow during a fan-out fails the whole call.
 * The check does not connect a node again; `mgmt.open(name)` does. The reason is that `.cli` in KlongPy blocks for minutes when nobody listens at the address.
 * An error of the management node itself is a `name` error about `mgmt.error`, after the message is printed.
-* At strict level 2 KlongPy cannot be asked whether `.try` exists, so set `mgmt.trap::0` by hand after loading the library.
+* At strict level 2 KlongPy cannot be asked whether `.try` exists, so set `mgmt.trap::0` yourself after loading the library.
 
 The nodes behind it are native runtimes in every case.
 

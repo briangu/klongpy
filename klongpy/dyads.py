@@ -202,6 +202,54 @@ def _dict_lookup(d, k, backend):
     return KLONG_UNDEFINED if v is None else v
 
 
+def _is_int_vector(b, backend):
+    """True for a non-empty one-dimensional integer array (not a boolean mask, not a scalar)."""
+    return (backend.is_array(b) and b.ndim == 1 and len(b) > 0
+            and backend.get_dtype_kind(b) in ('i', 'u'))
+
+
+def _take_by_index(a, b, backend):
+    """a[b] for a numeric array a and an integer vector b with -len(a) <= b < len(a), else None
+    (the caller then reports the error the slow way)."""
+    n = len(a)
+    lo, hi = int(b.min()), int(b.max())
+    if lo < -n or hi >= n:
+        return None
+    if lo < 0:
+        b = backend.np.where(b < 0, b + n, b)
+    if backend.get_dtype_kind(a) == 'O':
+        # members of any type: the result is typed from its members, as for any list
+        if a.ndim != 1:
+            return None
+        if backend.is_backend_array(b):
+            b = backend.to_numpy(b)
+        return backend.kg_asarray(a[b].tolist())
+    return a[b]
+
+
+def _index_string(a, b, backend):
+    """a@b for a string a, indexing the string directly (code points, O(1) per index): a character
+    for an integer index, a string of characters for an integer vector. None for anything else
+    (nested or non-integer indices and errors), which the caller handles the general way."""
+    n = len(a)
+    if backend.is_integer(b):
+        i = _normalize_index(b, n, 'string')
+        return KGChar(a[i])
+    if _is_int_vector(b, backend):
+        idx = b.tolist()
+        if min(idx) < -n or max(idx) >= n:
+            return None
+        return "".join([a[i] for i in idx])
+    if (backend.is_array(b) and b.ndim == 2 and b.shape[0] > 0 and b.shape[1] > 0
+            and backend.get_dtype_kind(b) in ('i', 'u')):
+        rows = b.tolist()
+        lo, hi = min(map(min, rows)), max(map(max, rows))
+        if lo < -n or hi >= n:
+            return None
+        return backend.object_array(["".join([a[i] for i in row]) for row in rows])
+    return None
+
+
 def eval_dyad_at_index(klong, a, b):
     """
 
@@ -256,6 +304,15 @@ def eval_dyad_at_index(klong, a, b):
             return backend.kg_asarray([_dict_lookup(a, x, backend) for x in b])
         return _dict_lookup(a, b, backend)
     j = isinstance(a,str)
+    if j:
+        fast = _index_string(a, b, backend)
+        if fast is not None:
+            return fast
+    elif _is_int_vector(b, backend) and backend.is_array(a) and a.ndim > 0 and backend.get_dtype_kind(a) in ('i', 'f', 'O'):
+        # an array indexed by an integer vector within range: one take
+        fast = _take_by_index(a, b, backend)
+        if fast is not None:
+            return fast
     a = backend.str_to_chr_arr(a) if j else a
     n = None if not hasattr(a, '__len__') else len(a)
     if is_list(b):
@@ -658,6 +715,32 @@ def _arr_to_list(a):
     return a if is_list(a) else [a]# if not is_list(a) else a
 
 
+def _numeric_atom_vector(x, backend):
+    """A numeric atom (an int64-range integer, a float, a numeric 0-d array) as a one-element array,
+    else None. Booleans and big integers are not (they take the general path)."""
+    if type(x) is int:
+        return backend.np.asarray([x]) if -2**63 <= x < 2**63 else None
+    if isinstance(x, numbers.Real) and not isinstance(x, bool):
+        return backend.np.asarray([x])
+    if backend.is_array(x) and x.ndim == 0 and backend.get_dtype_kind(x) in ('i', 'f'):
+        return x.reshape(1)
+    return None
+
+
+def _join_numeric_atom(a, b, backend):
+    """a,b for a numeric vector and a numeric atom (either order): one concatenation instead of
+    a round trip through a list of elements. None when the pair is anything else."""
+    if backend.is_array(a) and a.ndim == 1 and len(a) > 0 and backend.get_dtype_kind(a) in ('i', 'f'):
+        v = _numeric_atom_vector(b, backend)
+        if v is not None:
+            return backend.np.concatenate((a, v))
+    elif backend.is_array(b) and b.ndim == 1 and len(b) > 0 and backend.get_dtype_kind(b) in ('i', 'f'):
+        v = _numeric_atom_vector(a, backend)
+        if v is not None:
+            return backend.np.concatenate((v, b))
+    return None
+
+
 def eval_dyad_join(a, b, backend):
     """
 
@@ -723,6 +806,10 @@ def eval_dyad_join(a, b, backend):
     if isinstance(b,dict) and is_list(a) and len(a) == 2:
         b[backend.dict_key(a[0])] = a[1]
         return b
+
+    fast = _join_numeric_atom(a, b, backend)
+    if fast is not None:
+        return fast
 
     if backend.np.isarray(a) and backend.np.isarray(b):
         # Only use fast path for 1D+ arrays (not 0D scalars)
@@ -934,12 +1021,47 @@ def _exact_int_power(a, b):
     return a ** b
 
 
+def _power_kind(x, backend):
+    """'i' or 'f' for a numeric operand of an array power (a plain or 0-d number, or a numeric
+    array), else None: booleans, big integers, objects and anything with a gradient."""
+    if isinstance(x, bool) or backend.has_gradient(x):
+        return None
+    if type(x) is int:
+        return 'i' if -2**63 <= x < 2**63 else None
+    if isinstance(x, numbers.Real):
+        return 'i' if isinstance(x, numbers.Integral) else 'f'
+    if backend.is_array(x):
+        k = backend.get_dtype_kind(x)
+        return k if k in ('i', 'f') else None
+    return None
+
+
+def _array_power(a, b, backend):
+    """a^b when an operand is a numeric array, one rule for every arrangement (scalar^list,
+    list^scalar, list^list): integers to non-negative integer powers wrap in int64 (integer
+    arithmetic, never through float); a negative integer exponent or any float gives floats
+    (as * does). None when this does not apply (the general path then)."""
+    if not ((backend.is_array(a) and a.ndim > 0) or (backend.is_array(b) and b.ndim > 0)):
+        return None
+    ka, kb = _power_kind(a, backend), _power_kind(b, backend)
+    if ka is None or kb is None:
+        return None
+    np_ = backend.np
+    a, b = np_.asarray(a), np_.asarray(b)
+    if ka == 'i' and kb == 'i' and not (b < 0).any():
+        return backend.power(a, b)
+    return backend.power(a * 1.0 if ka == 'i' else a, b * 1.0 if kb == 'i' else b)
+
+
 def _e_dyad_power(a, b, backend):
     # An integer to a non-negative integer power is exact (Python integers do not
     # wrap); a negative or fractional exponent gives a float.
     exact = _exact_int_power(a, b)
     if exact is not None:
         return exact
+    fast = _array_power(a, b, backend)
+    if fast is not None:
+        return fast
     # Check if input requires grad - if so, preserve float for autograd
     input_has_grad = backend.has_gradient(a)
     # Use backend power function which handles gradient-aware power
@@ -949,6 +1071,8 @@ def _e_dyad_power(a, b, backend):
         return r
     # Check if result is integer using vectorized operations
     r_val = backend.detach_if_needed(r)
+    if backend.is_array(r_val) and backend.get_dtype_kind(r_val) in ('i', 'u'):
+        return r  # an integer array power is already integers (wrapping, as documented)
     if is_list(r_val):
         # Vectorized check: trunc(r) == r for all elements
         trunc_r = numpy.trunc(r_val) if isinstance(r_val, numpy.ndarray) else r_val.trunc()

@@ -32,15 +32,13 @@ from collections import deque
 import numpy as np
 
 from ..core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
-                    KLONG_UNDEFINED, reserved_fn_args, reserved_fn_symbol_map)
+                    KLONG_UNDEFINED, get_fn_arity_str, reserved_fn_args, reserved_fn_symbol_map)
 from ..errors import (ERROR_KINDS, KlongError, KlongInternalError, KlongRemoteError,
                       KlongSystemError, KlongTypeError, classify)
 from .codec import KdbError, KdbLambda, set_function_text_hook
 from .errors import (IPCError, IPCStateError, KlongIPCConnectionClosedException,
                      KlongIPCConnectionFailureException, KlongIPCHandshakeException,
                      KlongIPCTimeoutException, ProtocolError)
-from .legacy import (KGRemoteDictGetCall, KGRemoteDictSetCall, KGRemoteFnCall,
-                     KGRemoteFnRef)
 from .session import (Closed, Failure, Handshake, HandshakeAccepted, HandshakeRejected,
                       Message, NestingLimit, Session)
 
@@ -185,6 +183,70 @@ class CallbackWaiter:
     def set_exception(self, exc):
         self._done = True
         self._finish(None, exc)
+
+
+# ----------------------------------------------------------------------------
+# request values
+# ----------------------------------------------------------------------------
+
+class KGRemoteFnRef:
+    """A remote function that arrived as its display form: only its arity is known."""
+
+    def __init__(self, arity):
+        self.arity = arity
+
+    def __str__(self):
+        return get_fn_arity_str(self.arity)
+
+
+class KGRemoteFnCall:
+    """Call the remote function ``sym`` with ``params``."""
+
+    def __init__(self, sym: KGSym, params):
+        self.sym = sym
+        self.params = params
+
+
+class KGRemoteDictSetCall:
+    """Set the remote global ``key`` to ``value``."""
+
+    def __init__(self, key, value):
+        self.key = key
+        self.value = value
+
+
+class KGRemoteDictGetCall:
+    """Read the remote global ``key``."""
+
+    def __init__(self, key):
+        self.key = key
+
+
+# ----------------------------------------------------------------------------
+# the first bytes of a connection
+# ----------------------------------------------------------------------------
+
+def detect_handshake(buf):
+    """Tell a kdb+ handshake from a frame of the removed 0.7 pickle protocol.
+
+    A 0.7 client starts with a 16-byte binary message id (a version-4 UUID, whose
+    byte 8 is always 0x80 or above) and a 4-byte length.  A kdb+ handshake is ASCII
+    ``user:password``, a capability byte from 1 to 6 and a zero.  Scan forward: a
+    byte of 0x80 or above before any zero is ``"pickle"``; a zero preceded by a byte
+    from 1 to 6, with a ``:`` earlier, is ``"kdb"``; any other zero is ``"pickle"``.
+    Returns ``"kdb"``, ``"pickle"``, ``None`` (need more bytes) or ``"bad"`` (256
+    bytes with neither: not a handshake of either kind).  Nothing is unpickled.
+    """
+    for i, b in enumerate(buf):
+        if b >= 0x80:
+            return "pickle"
+        if b == 0:
+            if i > 0 and 1 <= buf[i - 1] <= 6 and b":" in bytes(buf[:i - 1]):
+                return "kdb"
+            return "pickle"
+        if i >= 255:
+            return "bad"
+    return None
 
 
 # ----------------------------------------------------------------------------
@@ -435,7 +497,7 @@ def _is_loopback(host):
 
 
 class KdbConnectionMixin:
-    """The kdb+ protocol half of ``NetworkClient`` (``protocol == "kdb"``).
+    """The protocol half of ``NetworkClient``.
 
     Needs from the host class: ``ioloop``, ``klongloop``, ``klong``,
     ``conn_provider``, ``reader``, ``writer``, ``session``, ``role``, ``user``,
@@ -492,12 +554,14 @@ class KdbConnectionMixin:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise KlongIPCHandshakeException(
-                f"handshake timed out after {HANDSHAKE_TIMEOUT}s: {str(self.conn_provider)}")
+                f"handshake timed out after {HANDSHAKE_TIMEOUT}s: {str(self.conn_provider)} "
+            "(a peer that does not speak the kdb+ protocol, such as a KlongPy 0.7 server, never answers)")
         try:
             return await asyncio.wait_for(self.reader.read(READ_SIZE), remaining)
         except asyncio.TimeoutError:
             raise KlongIPCHandshakeException(
-                f"handshake timed out after {HANDSHAKE_TIMEOUT}s: {str(self.conn_provider)}") from None
+                f"handshake timed out after {HANDSHAKE_TIMEOUT}s: {str(self.conn_provider)} "
+            "(a peer that does not speak the kdb+ protocol, such as a KlongPy 0.7 server, never answers)") from None
         except (OSError, ConnectionError):
             raise KlongIPCHandshakeException(
                 f"connection lost during the handshake: {str(self.conn_provider)}") from None
@@ -798,8 +862,6 @@ class KdbConnectionMixin:
         """
         if not self.is_open():
             raise KlongSystemError("connection not established")
-        if self.protocol == "legacy":
-            raise KlongSystemError("call_async needs the kdb+ protocol")
         if timeout is ...:
             timeout = self.call_timeout
         lookup_holder = []

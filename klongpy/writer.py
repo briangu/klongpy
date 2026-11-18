@@ -123,6 +123,16 @@ def kg_argsort(a, backend, descending=False):
         if dtype_kind in ('i', 'f', 'u'):
             return backend.argsort(a, descending=descending)
 
+    # Strings (a list of them, or characters) compare as Python strings: sort the keys
+    # themselves. Ties keep position order; descending is the exact reverse (later first).
+    if hasattr(a, 'ndim') and a.ndim == 1 and a.dtype == object:
+        items = a.tolist()
+        if all(isinstance(x, str) and x for x in items):  # (an empty string takes the general path)
+            n = len(items)
+            if descending:
+                return np.asarray(sorted(range(n - 1, -1, -1), key=items.__getitem__, reverse=True))
+            return np.asarray(sorted(range(n), key=items.__getitem__))
+
     # Slow path: nested arrays or strings need element-by-element comparison
     # NumPy reductions must receive host arrays, not backend tensor methods.
     def _e(x):

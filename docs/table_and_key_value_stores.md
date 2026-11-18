@@ -10,7 +10,7 @@ Install the extra, which brings pandas and DuckDB, and load the module with `.py
 pip install "klongpy[db]"
 ```
 
-### TableStore
+## TableStore
 
 `.tables(path)` opens a table store under a directory. This stores a table called `prices`:
 
@@ -61,7 +61,7 @@ sym  px
   C 3.5
 ```
 
-### Generic key-value store
+## Generic key-value store
 
 `.kvs(path)` opens a key-value store under a directory:
 
@@ -87,5 +87,5 @@ Read it back:
 
 ## See also
 
-- [Fast columnar database](fast_columnar_database.md) for tables and SQL.
+- [Columnar tables and SQL](fast_columnar_database.md) for tables and SQL.
 - [IPC capabilities](ipc_capabilities.md) and [Roadmap](roadmap.md).

@@ -16,7 +16,6 @@ held in list literals, which are data and are never evaluated.
 import asyncio
 import pickle
 import unittest
-import uuid
 
 import numpy as np
 
@@ -24,8 +23,7 @@ from klongpy import KlongInterpreter
 from klongpy.errors import KlongError
 from klongpy.core import KGCall, KGFn, KGFnWrapper, KGLambda, KGSym
 from klongpy.types import KGQSym
-from klongpy.sys_fn_ipc import (KGAsyncCall, KGRemoteFnCall, decode_message,
-                                encode_message, execute_server_command)
+from klongpy.sys_fn_ipc import KGAsyncCall
 from klongpy.writer import kg_write
 from tests.backend_compat import to_numpy
 
@@ -376,29 +374,6 @@ class TestIPC(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.klong = KlongInterpreter()
         self.klong("foo::5;update::99")
-
-    async def _serve(self, command):
-        loop = asyncio.get_running_loop()
-        fut = loop.create_future()
-        await execute_server_command(loop, fut, self.klong, command, None)
-        return await fut
-
-    async def test_remote_call_round_trip(self):
-        self.klong("handler::{x,y}")
-        msg_id = uuid.uuid4()
-        wire = encode_message(msg_id, KGRemoteFnCall(KGSym("handler"), [KGSym("update"), KGQSym("foo")]))
-        _, command = decode_message(wire[:16], wire[20:])
-        for p in command.params:
-            self.assertIs(type(p), KGSym)
-        r = await self._serve(command)
-        self.assertEqual(_plain(r), [KGSym("update"), FOO])
-
-    async def test_remote_call_message_tags_in_list(self):
-        self.klong("handler::{x}")
-        wire = encode_message(uuid.uuid4(), KGRemoteFnCall(KGSym("handler"), [np.asarray([KGSym("update"), 1], dtype=object)]))
-        _, command = decode_message(wire[:16], wire[20:])
-        r = await self._serve(command)
-        self.assertEqual(_plain(r), [KGSym("update"), 1])
 
     async def test_async_call_passes_symbols(self):
         self.klong("result::0;fn::{x};cb::{result::x}")

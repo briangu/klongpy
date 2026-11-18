@@ -15,6 +15,8 @@ demo.kg:5:4: range error: index 5 out of range for list of 2
 - The third line puts carets under the part of the program that failed. An operator error points at the operator; a failed call points at the whole call.
 - A `hint:` line follows when there is a piece of advice.
 
+Two forms of an error appear in these docs. The full form above is what the REPL, `-e` and a file run print, on stderr. A transcript of a `?> ` session often shortens it to `error: MESSAGE`, the message without the position, kind, source line and caret, so that the example stays short. At the REPL the real output of `1+"a"` is `1:2: type error: cannot apply + (Plus) to integer and string` followed by the source line and the caret.
+
 Without a position (a file that cannot be opened, for example) only the first line is printed, without the name and numbers:
 
 ```

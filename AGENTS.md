@@ -47,7 +47,7 @@ python3 -m pytest tests/
 ## Optional subsystems and how they wire in
 
 - REPL (`klongpy/repl.py`) sets `.system` in the interpreter with asyncio loops; IPC/web/ws modules expect this.
-- IPC (`klongpy/sys_fn_ipc.py`): asyncio TCP + pickle; remote calls marshal `KGFn`/`KGLambda`.
+- IPC (`klongpy/sys_fn_ipc.py`): asyncio TCP, kdb+ IPC protocol only (`klongpy/ipc/`); the 0.7 pickle protocol was removed in 2.0.
 - Web server (`klongpy/web/sys_fn_web.py`): aiohttp handlers that wrap Klong functions.
 - WebSockets (`klongpy/ws/sys_fn_ws.py`): websockets client/server helpers; dispatches into the Klong loop.
 - DB (`klongpy/db/sys_fn_db.py` + `sys_fn_kvs.py`): DuckDB + pandas tables; `Table` and `Database` types.

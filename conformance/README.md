@@ -72,8 +72,9 @@ A runtime maps its own errors to these.
 
 ### Tags
 
-A case runs on a runtime if **every tag is one the runtime declares**. There
-is no "expected failure": a tag says "skip me here".
+A tag names a capability the case needs; a runtime that does not declare it
+skips the case. A case runs on a runtime if **every tag is one the runtime
+declares**. There is no "expected failure".
 
 Tier tags (at least one per case; `core` alone, or the other tiers the case
 needs, `core` being implied by them):
@@ -140,7 +141,7 @@ Run it:
 python conformance/run.py                                   all cases against KlongPy, in process
 python conformance/run.py --cmd "CMD" --tags core,strings --jobs 8
 python conformance/run.py --list --tags core                what would run
-python conformance/run.py --pending                         the pending list; reports any that now pass
+python conformance/run.py --pending                         the pending list; reports any that pass
 python conformance/run.py conformance/cases/40-lists.cases  one file
 ```
 
@@ -171,7 +172,7 @@ means the implementation must exit 1 with `error: syntax` on stdout.
 
 `pending/*.cases` hold cases whose **correct** result is known but KlongPy does
 not produce it. Each has `: reason` (why it is a bug, or which change will
-fix it) and `: actual` (what KlongPy answers today). The expectation is the
+fix it) and `: actual` (what KlongPy answers). The expectation is the
 correct result. `tests/test_conformance.py` checks that each still fails and
 prints a note when one starts to pass; move it to `cases/` then
 (`CONFORMANCE_STRICT_PENDING=1` makes that a failure).

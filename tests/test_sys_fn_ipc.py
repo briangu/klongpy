@@ -1,9 +1,6 @@
 import asyncio
-import pickle
-import struct
 import threading
 import unittest
-import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from ipc_helpers import FakeKdbServer, bounded, wait_until
@@ -16,60 +13,13 @@ from klongpy.ipc.endpoint import Waiter
 from klongpy.sys_fn_ipc import (ConnectionProvider, HostPortConnectionProvider,
                                 KGAsyncCall, KlongIPCCreateConnectionException,
                                 KlongIPCHandshakeException, NetworkClient,
-                                ReaderWriterConnectionProvider, decode_message,
-                                decode_message_len, encode_message, stream_recv_msg,
-                                stream_send_msg)
+                                ReaderWriterConnectionProvider)
 from klongpy.utils import CallbackEvent
 
 
 def run_coroutine_threadsafe(coro, loop):
     future = asyncio.run_coroutine_threadsafe(coro, loop)
     return future.result()
-
-
-class TestLegacyEncodeDecode(unittest.TestCase):
-    """The deprecated pickle framing, kept for the legacy protocol (klongpy.ipc.legacy)."""
-
-    def test_encode_decode(self):
-        msg_id = uuid.uuid4()
-        msg = {'key': 'value'}
-        encoded_message = encode_message(msg_id, msg)
-        decoded_msglen = decode_message_len(encoded_message[16:20])
-        decoded_msg_id, decoded_message = decode_message(encoded_message[:16], encoded_message[20:])
-
-        self.assertEqual(decoded_msglen, len(pickle.dumps(msg)))
-        self.assertEqual(decoded_msg_id, msg_id)
-        self.assertEqual(decoded_message, msg)
-
-
-class TestLegacyStreamSendRecv(unittest.IsolatedAsyncioTestCase):
-    async def test_stream_send_recv(self):
-        msg_id = uuid.uuid4()
-        msg = {'key': 'value'}
-
-        # Mock writer
-        writer = AsyncMock()
-        writer.write = MagicMock()
-        writer.close = MagicMock()
-
-        # Mock reader
-        reader = AsyncMock()
-        reader.readexactly = AsyncMock(side_effect=[
-            msg_id.bytes, # raw_msg_id
-            struct.pack("!I", len(pickle.dumps(msg))), # raw_msglen
-            pickle.dumps(msg) # data
-        ])
-
-        # Simulate sending the message
-        await stream_send_msg(writer, msg_id, msg)
-        writer.write.assert_called_once()
-        writer.drain.assert_awaited_once()
-
-        # Simulate receiving the message
-        received_msg_id, received_message = await stream_recv_msg(reader)
-
-        self.assertEqual(received_msg_id, msg_id)
-        self.assertEqual(received_message, msg)
 
 
 class TestAsync(LoopsBase, unittest.TestCase):
@@ -146,27 +96,6 @@ class TestAsync(LoopsBase, unittest.TestCase):
         # ensure that the nc was called with the correct arguments
         nc.call_async.assert_called_once()
         nc.call.assert_not_called()
-
-    def test_async_legacy_remote_fn_runs_call_as_a_task(self):
-        """The legacy protocol has no non-blocking call: .async keeps its old behaviour there."""
-        klong = KlongInterpreter()
-        klong['.system'] = {'ioloop': self.ioloop, 'klongloop': self.klongloop}
-        nc = NetworkClient(self.ioloop, self.klongloop, klong, None, protocol="legacy")
-        nc.call = MagicMock(return_value=3)
-
-        async def _test():
-            klong["fn"] = nc
-            klong("result::0")
-            klong("cb::{result::x}")
-            klong("afn::.async(fn;cb)")
-            self.assertEqual(klong("afn(2)"), 1)
-
-        async def _test_result():
-            self.assertEqual(klong("result"), 3)
-
-        run_coroutine_threadsafe(_test(), self.klongloop)
-        run_coroutine_threadsafe(_test_result(), self.klongloop)
-        nc.call.assert_called_once_with(2)
 
     def test_async_callback_resolves_latest(self):
         """Test that async wrapper picks up callback redefinitions"""

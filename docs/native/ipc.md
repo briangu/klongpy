@@ -13,11 +13,11 @@ The functions are the same ones, with the same names and the same wire protocol,
 |---|---|
 | The `klong` program on the desktop, over TCP | built in and tested: with KlongPy in both directions, native to native, and against PeachQ (a kdb+-compatible q implementation) |
 | The simulated board `klong-sim` | built in (`.ver()` lists `ipc`), but it has no transport: `.srv` and `.cli` answer `system error: this platform has no tcp transport` |
-| An ESP32-P4 | **not built in.** The firmware has no IPC: the C interface has no transports yet. The ESP32-P4 has run no IPC (see [the status table](index.md#status-what-has-and-has-not-been-proven)) |
+| An ESP32-P4 | **not built in.** The firmware has no IPC, and the ESP32-P4 has run no IPC (see [the status table](index.md#status-what-has-and-has-not-been-proven)). The C interface has one transport, the lane (a UART link of 16-byte frames; `klong-ffi --features lane`), and the ESP32-P4 firmware does not use it |
 | The nodes of a packet switch that carries 16-byte frames, `.cli("node:2")` | built in as the `node` transport; proven in the simulator and run on two Picos (2026-11-16): see [two Picos calling each other](pico-bench.md) |
 | Links over a UART, or a lossy packet radio | the code is there and was tested in memory with seeded faults (see [below](#links-that-are-not-tcp)); on a wire it has run only on the UART link between two Picos |
 
-The `klong` program registers one transport, TCP. A board would supply its own.
+The `klong` program registers one transport, TCP, and the examples on this page use it. The C interface has the `lane` transport (`klong-ffi --features lane`), which carries IPC over a UART link of 16-byte frames and the Pico firmware uses; a board port can supply another.
 
 ## The functions
 
@@ -182,7 +182,7 @@ While a call waits, the node does nothing else: no timer fires and other clients
 
 The native runtime speaks the kdb+ IPC protocol, as KlongPy does: the handshake, the framing, the type codes, little endian, compression understood (capability 3), compression of what is sent when it pays. A q client library can connect to `.srv` and send a string or call a function by name, and `.cli` can connect to a q process.
 
-What was tested: the codec against 119 shared test vectors (decode, reject, round trip byte for byte), through both the codec and the session. And, with the process tests of `tests/test_native_ipc.py`, a native client with **PeachQ 0.92.20261115** (a third-party, kdb+-compatible implementation of q) as the server, and PeachQ's `hopen` as a client of a native `.srv`. The tests run only when the environment variable `KLONG_TEST_PEACHQ` names a PeachQ executable. Those 11 tests are skipped by default and were last run when the feature was built. The runtime has not been tested against a KX kdb+ process. What a kdb+ server prints or accepts that PeachQ does not is not known.
+What was tested: the codec against 119 shared test vectors (decode, reject, round trip byte for byte), through both the codec and the session. And, with the process tests of `tests/test_native_ipc.py`, a native client with **PeachQ 0.92.20261115** (a third-party, kdb+-compatible implementation of q) as the server, and PeachQ's `hopen` as a client of a native `.srv`. The tests run only when the environment variable `KLONG_TEST_PEACHQ` names a PeachQ executable. Those 11 tests are skipped by default. The runtime has not been tested against a KX kdb+ process. What a kdb+ server prints or accepts that PeachQ does not is not known.
 
 ## Differences from KlongPy
 
@@ -206,7 +206,7 @@ The error kinds an error takes on the way: each kind of the language arrives as 
 * **Nesting.** Values nest at most 64 levels on the wire, calls at most 8.
 * **Memory per connection.** About 1 to 2.5 KB of heap per connection, plus one read buffer shared by all connections (64 KiB on a 64-bit host, 1 KiB on a 32-bit target) and the message being received. `native/scripts/ipc_bench.py` measured on 2026-11-16 2149 bytes per idle connection on a server and 2303 on a client, and 66 KB left over after 100 connections had closed.
 * **Symbols from peers are never freed.** A peer can grow the symbol table; the heap limit bounds it.
-* **Speed.** One megabyte of integers echoed over localhost TCP took 1.95 ms per round trip between two native nodes, 1.97 ms from KlongPy to native, 1.42 ms from native to KlongPy and 1.35 ms from KlongPy to KlongPy (the same script, 20 repetitions, measured on the same day). A native node polls its sockets without being told they are ready and sleeps between polls.
+* **Speed.** One megabyte of integers echoed over localhost TCP took 1.95 ms per round trip between two native nodes, 1.97 ms from KlongPy to native, 1.42 ms from native to KlongPy and 1.35 ms from KlongPy to KlongPy (the same script, 20 repetitions, on one machine). A native node polls its sockets without being told they are ready and sleeps between polls.
 * **Known limit: a port in the OS's ephemeral range.** `.cli("localhost:PORT")` tries the addresses `localhost` has in order, the IPv6 one first. With nothing listening there and PORT among the ports the OS gives to outgoing connections, a socket can be given PORT as its own port and connect to itself (TCP's simultaneous open), and then reads its own greeting as the server's: `bad capability byte in the server's reply`. The host transport refuses a connection whose two ends are the same address, and goes on to the next address.
 * **A long evaluation moves no bytes.** A peer on a packet link sees no acknowledgements meanwhile, and with the keepalive on, an evaluation longer than the keepalive budget looks like a dead link.
 * **Callbacks within one process.** Two runtimes on one thread cannot call each other, because each waits for the other. Calls between processes nest as described.

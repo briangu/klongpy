@@ -2,7 +2,7 @@
 
 This page is for people who know q and want to read or write Klong. It maps the idioms, lists the differences that cause mistakes, and describes how a KlongPy program and a q process talk to each other over the kdb+ IPC protocol.
 
-The q examples on this page were checked with PeachQ 0.92, a third-party open-source implementation of q. PeachQ is not kdb+: where the page says what q prints, it means what PeachQ 0.92 printed, and the page makes no claim about kdb+ beyond that. The q blocks were run by hand against PeachQ. The Klong examples run at [strict level 2](strict.md) except the sessions that need a q process, which were also run by hand.
+The q examples on this page were checked with PeachQ 0.92, a third-party open-source implementation of q. PeachQ is not kdb+: where the page says what q prints, it means what PeachQ 0.92 printed, and the page makes no claim about kdb+ beyond that. Conditions: every q result shown is from PeachQ 0.92. The Klong examples run at [strict level 2](strict.md), except the sessions that need a q process.
 
 kdb+ is a trademark of KX. KlongPy's IPC is an independent implementation, written from public documentation and Apache-licensed client code. It speaks the kdb+ IPC protocol and interoperates with q processes; it is not a KX product and uses no KX code.
 
@@ -261,7 +261,7 @@ d| 4
 
 ### Division
 
-`%` is float division in both languages. `x div y` is `x:%y` and `x mod y` is `x!y`.
+`%` is float division in both languages. `x div y` is `x:%y` and `x mod y` is `x!y`, with one difference for negative numbers: Klong truncates toward zero where q floors. `(-7):%2` is -3 in Klong and -4 in q, and `(-7)!2` is -1 in Klong and 1 in q.
 
 ## Translation table
 
@@ -482,7 +482,7 @@ The same expressions in KlongPy:
 
 ## Tables and queries
 
-q has tables and q-sql in the core. Klong does not. With the database extras installed (`pip install "klongpy[db]"`), `klongpy.db` provides tables backed by pandas, and queries are SQL strings run by DuckDB over those tables. See [Fast Columnar Database](fast_columnar_database.md) and [Table and Key-Value Stores](table_and_key_value_stores.md). There is no `select ... by` syntax, no keyed tables, no attributes, and no splayed or partitioned tables.
+q has tables and q-sql in the core. Klong does not. With the database extras installed (`pip install "klongpy[db]"`), `klongpy.db` provides tables backed by pandas, and queries are SQL strings run by DuckDB over those tables. See [Columnar tables and SQL](fast_columnar_database.md) and [Table and Key-Value Stores](table_and_key_value_stores.md). There is no `select ... by` syntax, no keyed tables, no attributes, and no splayed or partitioned tables.
 
 ```q
 q)t:([] sym:`a`b`a`b`a; px:1 2 3 4 5)
@@ -548,7 +548,7 @@ Run it with `kgpy -l file.kg`, which stays in the REPL while the timer fires. `k
 
 KlongPy's `.srv`, `.cli`, `.clid`, `.clic`, `.clit` and `.async` speak the kdb+ IPC protocol. A Klong program can connect to a q process, and a q process can connect to a Klong server. The full description, including how functions cross the wire, is in [IPC Capabilities](ipc_capabilities.md). This section is what a q user needs.
 
-Limits: no TLS, so a user name and password travel in clear text, and a peer that can reach the port can run Klong code in your interpreter, including `.py` and `.sys`. The other limits (message size, compression, the pickle protocol) are in [IPC Capabilities](ipc_capabilities.md#protocol-and-security).
+Limits: no TLS, so a user name and password travel in clear text, and a peer that can reach the port can run Klong code in your interpreter, including `.py` and `.sys`. The other limits (message size, compression) are in [IPC Capabilities](ipc_capabilities.md#protocol-and-security).
 
 Tested: KlongPy against PeachQ 0.92 in both directions, and against a protocol-level fake of a kdb+ server; not against a KX kdb+ process, so the behaviours below are those of PeachQ. The tests are in `tests/test_ipc_peachq.py` and run when `KLONG_TEST_PEACHQ` names a PeachQ executable.
 
@@ -780,6 +780,6 @@ Compared with a q process:
 
 - [Tutorial](tutorial.md) for the language from the first expression.
 - [Klong for NumPy users](from-numpy.md) for the Python array side.
-- [IPC Capabilities](ipc_capabilities.md), [IPC and timers in the native runtime](native/ipc.md), [Timers](timer.md), [Fast Columnar Database](fast_columnar_database.md).
+- [IPC Capabilities](ipc_capabilities.md), [IPC and timers in the native runtime](native/ipc.md), [Timers](timer.md), [Columnar tables and SQL](fast_columnar_database.md).
 - [Language Additions](language-additions.md) for destructuring, named parameters and dictionaries.
 - [Strict mode](strict.md) and [Lint](lint.md) for the checks that catch the q habits above.

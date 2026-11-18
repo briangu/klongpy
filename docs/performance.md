@@ -2,7 +2,7 @@
 
 This page says where KlongPy is fast, where it is slow and what to write to stay on the fast side. Read it before you choose a backend or move a loop into a program.
 
-KlongPy is fast when one operator works on a whole array: from 100,000 to a million elements it takes about as long as NumPy (at most 1.4 times as long). It is slow when the interpreter does the work itself, in loops, recursion, per-element lambdas and dictionaries, where it takes 60 to 440 times as long as CPython. The [native runtime](native/index.md) is about 24 to 66 times faster than KlongPy on that interpreter work and 2 to 22 times slower on array work. The torch backend on the CPU pays off from about a million elements, and only with many threads.
+KlongPy is fast when one operator works on a whole array: for element-wise arithmetic and reductions on 100,000 to a million elements it takes about as long as NumPy (at most 1.4 times as long). Power and sorting by indexing took longer when measured, and later changes sped them up (see the note under the first table). KlongPy is slow when the interpreter does the work itself, in loops, recursion, per-element lambdas and dictionaries, where it takes 60 to 440 times as long as CPython. The [native runtime](native/index.md) is about 24 to 66 times faster than KlongPy on that interpreter work and 2 to 22 times slower on array work (the tables below). The torch backend on the CPU pays off from about a million elements, and only with many threads.
 
 ## Conditions
 
@@ -48,7 +48,8 @@ What the table shows:
 * On the NumPy backend, KlongPy takes 60 to 440 times as long as CPython on recursion, loops, lambdas, appends and dictionaries. Finding text takes 176 times as long and formatting numbers 24 times.
 * The native runtime is 24 to 66 times faster than KlongPy on recursion, loops, lambdas and dictionaries, and 11 times faster on formatting numbers. It is 189 times faster on appending in a loop and 1,400 times faster on indexing a non-ASCII string.
 * The torch backend takes 1.2 to 2.5 times as long as the NumPy backend on these programs, and 10.9 times as long for appending.
-* Known limit: indexing a long non-ASCII string element by element is slow, and the cost grows with the square of the length (the last row).
+
+Later changes made four operations faster: indexing by a vector, indexing a non-ASCII string, appending a number to a vector and array power by a small integer. The rows for them (the `r@<r` rows, the `(1+!N)^2` rows, "index a non-ASCII string, 2000" and "append in a loop, 2000") overstate their cost today and have not been remeasured.
 
 ## Vector arithmetic
 
@@ -76,7 +77,7 @@ Default threads:
 
 * The NumPy backend is 3.2 times slower than NumPy at 1,000 elements, because the interpreter costs a few microseconds per expression. At 100,000 and 1,000,000 elements it is 1.2 to 1.3 times slower, and at 10,000,000 it is 1.8 times slower on one thread.
 * The torch backend is slower than NumPy on one thread up to a million elements. With 16 threads it is 3.6 times faster at 1,000,000 elements and 2 times faster at 10,000,000.
-* The native runtime is 4 to 22 times slower than the NumPy backend on this work.
+* On this expression the native runtime is 4 to 22 times slower than the NumPy backend. Over all the array tables on this page the range is 2 to 22.
 
 ## Reduce, scan and power
 
@@ -145,7 +146,6 @@ Default threads:
 | `r@<r` (sort, random floats) | 1,000,000 | 64.2 ms / 66.4 ms | 647 ms / 656 ms | 2.26 s / 2.64 s |
 
 * Grade takes as long as `np.argsort`. The torch backend takes 1.6 to 3.5 times longer at every size, with one or many threads, and 8 times longer on one thread for a sorted range of a million.
-* `r@<r` takes 14 to 26 times as long as `r[np.argsort(r)]`. Known limit: indexing by a vector is slow. A library call sorts the same data much faster: after `.pyf("numpy";"sort")`, `sort(r)` took 49 ms for a million random floats in a trial run.
 
 ## Matrix multiply through `.pyf`
 
@@ -172,14 +172,13 @@ On the CPU, NumPy is as fast as torch or faster for this float32 product: torch 
 * Write whole-array expressions. `+/x*x` does the work in the array library; `+/{x*x}'x` calls a lambda per element and takes 112 times as long as the same loop in CPython.
 * Avoid per-element lambdas (`f'x`) on large arrays when an operator does the job.
 * Avoid appending to a list in a loop; build the result with one expression.
-* Use the grade `<x` when you need the order. `x@<x` is slow (known limit: indexing by a vector).
-* Avoid indexing a long non-ASCII string one element at a time.
-* Use the NumPy backend for arrays under a million elements. Use the torch backend on the CPU for reductions, dot products and element-wise work on arrays of a million elements or more, with several threads, and for gradients (see [PyTorch backend](torch_backend.md)). It is slower for sorting and for scalar programs.
+* Use the grade `<x` when you need the order, and `x@<x` to sort.
+* Use the NumPy backend for arrays under a million elements. Use the torch backend on the CPU for reductions, dot products and element-wise work on arrays of a million elements or more, with several threads, and for gradients (see [PyTorch Backend and Autograd](torch_backend.md)). It is slower for sorting and for scalar programs.
 * For a loop that must be fast, use the [native runtime](native/index.md) when the program fits, or compile a [static-profile](static-profile.md) function to C.
 
 ## GPU
 
-No GPU was measured in this run, so this page gives no GPU numbers. To time your own, create the interpreter with `device="cuda"` (or `"mps"`) and wait for the device before you stop the clock, because GPU calls return before the work finishes:
+This page has no GPU numbers. To time your own, create the interpreter with `device="cuda"` (or `"mps"`) and wait for the device before you stop the clock, because GPU calls return before the work finishes:
 
 ```python
 import time, torch

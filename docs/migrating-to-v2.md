@@ -6,6 +6,7 @@ This page is for anyone with code written for KlongPy 0.7. It lists what behaves
 
 | Change | Switch to keep the old behaviour |
 |---|---|
+| IPC: 0.7 and 2.0 cannot talk to each other (the pickle protocol is removed) | None; [upgrade both ends](#ipc-speaks-the-kdb-protocol) |
 | `[a b]::v` binds; `f(a;b)::{...}` defines | `KLONGPY_PARSER=legacy` |
 | Strings such as `"{"`; whitespace before `;` in a conditional | `KLONGPY_PARSER=legacy` |
 | Left-over input warns (level 0) or fails (strict) | Level 0 is the default; `warnings.filterwarnings("ignore", category=KlongSyntaxWarning)` hides the warning |
@@ -13,7 +14,6 @@ This page is for anyone with code written for KlongPy 0.7. It lists what behaves
 | Arity, projections, `d@k`, `:undefined`, `x%0`, conditional monads, symbols as data, operator results | None |
 | Error classes and messages | None; `except KlongException` and the old Python classes still catch |
 | Errors on stderr, exit statuses | None |
-| IPC protocol | `KLONGPY_IPC=legacy` (or `auto` on the server), trusted networks only |
 | Strict levels | `.strict(0)` or `.unsafe()`; the default is 0 |
 
 ## Check your code first
@@ -227,6 +227,7 @@ These gave a different result in 0.7. Each is also in the [release notes](releas
 - Take on a list of lists takes rows; `5#[[1 2] [3 4]]` gave `[[1 2 1 2] [3 4 3 4]]`. `2#:foo` was `"fo"`.
 - `[:+]~[:+]` was 0.
 - `:{[1 2]},[1 2 3]` was silently ignored and is an error.
+- `^` with a list operand follows one rule in 2.0: integers wrap in 64 bits for a non-negative integer exponent, and a negative exponent or any float gives floats. Two integer scalars stay exact. A program that raises a list to a power beyond 64 bits gets wrapped integers, so use a scalar base and exponent for an exact result. See [Numbers](differences.md#numbers).
 
 ### A recursive call through `.f` has its own locals
 
@@ -338,7 +339,7 @@ error: the function takes 2 arguments, got 3
 
 ## Errors
 
-Every error KlongPy raises on purpose is a `KlongError` with a position, a kind and the source line. An exception from NumPy inside an operator is reported as one too, naming the operator. A Klong error that replaces a Python one is also an instance of the old class, so `except IndexError`, `except ValueError`, `except TypeError` and `except FileNotFoundError` still catch it, and `except KlongException` still catches every one. The classes are exported from `klongpy` (`KlongTypeError`, `KlongRangeError`, `KlongNameError` and so on).
+Every error KlongPy raises on purpose is a `KlongError` with a kind, and almost all have a position and the source line. A transcript in this page often shows a REPL error as `error: MESSAGE`, the message alone; [Reading an error](errors.md#reading-an-error) describes the full form. An exception from NumPy inside an operator is reported as one too, naming the operator. A Klong error that replaces a Python one is also an instance of the old class, so `except IndexError`, `except ValueError`, `except TypeError` and `except FileNotFoundError` still catch it, and `except KlongException` still catches every one. The classes are exported from `klongpy` (`KlongTypeError`, `KlongRangeError`, `KlongNameError` and so on).
 
 ```kgpy
 ?> 1+"a"
@@ -373,24 +374,15 @@ $ kgpy -e '1+"a"'; echo $?
 
 ## IPC speaks the kdb+ protocol
 
-Before: `.srv` and `.cli` sent pickled Python objects. A peer could run code in your process when its message was unpickled. Now the default is the kdb+ IPC protocol: a q process can talk to a `.srv`, and nothing is unpickled from the network. See [the protocol](ipc_capabilities.md#protocol-and-security).
+Before: `.srv` and `.cli` sent pickled Python objects, and a peer could run code in your process when its message was unpickled. A 0.7 server could only be reached by a 0.7 client.
 
-The old protocol remains for a transition and is deprecated. It still unpickles what it receives, which runs code chosen by the sender, so use it on trusted networks only. `KLONGPY_IPC` chooses:
+Now: the kdb+ IPC protocol is the only protocol. A q process can talk to a `.srv`, and nothing is unpickled from the network. A 0.7 process and a 2.0 process cannot exchange IPC messages in either direction:
 
-| Value | `.srv` accepts | `.cli` and `.clid` speak |
-|---|---|---|
-| `auto` (the default for `.srv`) | both | |
-| `kdb` (the default for `.cli`) | the kdb+ protocol only | the kdb+ protocol |
-| `legacy` | the pickle protocol only | the pickle protocol |
+- A 0.7 client connecting to a 2.0 server is closed at once, and the server logs that the client speaks the pickle protocol of 0.7. The client sees `connection lost`.
+- A 2.0 client connecting to a 0.7 server fails at the handshake after 5 seconds with `handshake timed out`.
+- `KLONGPY_IPC=legacy` is a system error. `kdb` and `auto` are accepted and mean the only protocol, so a script that sets `auto` keeps working.
 
-Upgrade servers first, then clients. A server on `auto` still accepts an old client, with a `FutureWarning` on its first use of the pickle protocol. Set `KLONGPY_IPC=kdb` on the server to refuse old clients, or `KLONGPY_IPC=legacy` on a new client to talk to a server that has not been upgraded. A value other than the three is a system error:
-
-```console
-$ printf '.cli(8891)\n' | KLONGPY_IPC=bogus kgpy 2>&1 >/dev/null
-1:1: system error: KLONGPY_IPC must be one of kdb, legacy, auto, not 'bogus'
-  .cli(8891)
-  ^^^^^^^^^^
-```
+What to do: upgrade every KlongPy process that talks IPC to 2.0 or later, then remove `KLONGPY_IPC=legacy` from environments. A Python object with no kdb+ form (a set, a complex number, `None`) used to travel by pickle and is now a type error on the sending side; send a list, a string or a dictionary instead. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. See [the protocol](ipc_capabilities.md#protocol-and-security) and [0.7 peers](ipc_capabilities.md#07-peers).
 
 Other changes that come with the new protocol:
 

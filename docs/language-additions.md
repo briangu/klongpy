@@ -468,7 +468,7 @@ The monad `∇f` and the multi-parameter `[w b]∂f` are available only as glyph
 [2.000000000279556 3.9999999996709334 6.000000000838668]
 ```
 
-How to type `∇` and `∂` is in [PyTorch backend](torch_backend.md#typing-the-gradient-symbols).
+How to type `∇` and `∂` is in [PyTorch Backend and Autograd](torch_backend.md#typing-the-gradient-symbols).
 
 ## The `it` variable
 

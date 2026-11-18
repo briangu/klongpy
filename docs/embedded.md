@@ -1,15 +1,15 @@
 # Compiling Klong to C
 
-Status: tested on the host and compile-checked for bare ARM and x86 targets; not run on a microcontroller. For hardware status see the [native runtime table](native/index.md#status-what-has-and-has-not-been-proven).
+Status: works for the static profile, a subset of the language. It is tested with desktop C compilers and compile-checked for bare Arm and x86 targets. It has not been run on a microcontroller. For hardware status see the [native runtime table](native/index.md#status-what-has-and-has-not-been-proven).
 
 A small part of Klong, the [static profile](static-profile.md), can be compiled ahead of time to C99 with no heap, no recursion and no C library. A program written in it runs unchanged under KlongPy, which is how it is developed and tested, and the generated C does the same work on a target with no interpreter. The target is a microcontroller or any other place where a small, fixed-size, dependency-free function is wanted: a filter, a controller, a state machine over a few sensors.
 
-This page walks through the whole path with two programs from `examples/embedded/`: check the program, run it under the interpreter, emit C, build it for the host and for a bare target, and call it from a `main`. Every command and every output below was produced by running it. The commands need a C compiler.
+This page walks through the whole path with two programs from `examples/embedded/`: check the program, run it under the interpreter, emit C, build it for the host and for a bare target, and call it from a `main`. The commands need a C compiler.
 
-The rules of the profile (which operators, adverbs and forms are allowed, the types, the shape rules, the error ids) are on the [static profile page](static-profile.md). That page is generated from the checker's own tables, so it cannot disagree with it. This page covers the tools around it.
+The rules of the profile (which operators, adverbs and forms are allowed, the types, the shape rules, the error ids) are on the [static profile page](static-profile.md). This page covers the tools around it.
 
 !!! note "Scope"
-    This page is about the generated C only. The HLS C++ that `--emit-hls` writes from the same programs is experimental; see [Hardware](hardware.md). The native (non-Python) runtime is a separate Rust implementation of the language, described under [Native runtime](native/index.md). What was and was not compiled is listed [below](#what-has-not-been-done).
+    This page is about the generated C only. The HLS C++ that `--emit-hls` writes from the same programs is experimental; see [Klong functions as FPGA hardware](hardware.md). The native (non-Python) runtime is a separate Rust implementation of the language, described under [Native runtime](native/index.md). What was and was not compiled is listed [below](#what-has-not-been-done).
 
 ## The two programs
 
@@ -436,8 +436,8 @@ error: :*: count must not be negative, got -3
 
 ## What has not been done
 
-- The C that this tool generates has not been run on a microcontroller or in an emulator; the tests run it as a shared library on the host. Only the HLS C++ of `--emit-hls` has run on hardware, on one Alveo U250 ([Hardware](hardware.md), experimental).
-- Compile-only builds were made with clang (Apple clang 21, on the Mac that ran the tests) for `thumbv6m-none-eabi` (no FPU, soft float), `thumbv7em-none-eabihf` (single-precision FPU), `armv7m`, big-endian `armebv7m`, `i386` and `aarch64`, all freestanding with `-Werror`, with `nm -u` limited to the declared externs and compiler-rt helpers. RISC-V and Xtensa were not compile-checked: that clang has no backend for either. `riscv32` is in the list of targets the test tries and is skipped where the compiler cannot build for it; Xtensa is not in the list. Cross builds with GCC toolchains were not made.
+- The C that this tool generates has not been run on a microcontroller or in an emulator; the tests run it as a shared library on the host. Only the HLS C++ of `--emit-hls` has run on hardware, on one Alveo U250 ([Klong functions as FPGA hardware](hardware.md), experimental).
+- Compile-only builds were made with clang (Conditions: Apple clang 21 on an Apple M-series desktop) for `thumbv6m-none-eabi` (no FPU, soft float), `thumbv7em-none-eabihf` (single-precision FPU), `armv7m`, big-endian `armebv7m`, `i386` and `aarch64`, all freestanding with `-Werror`, with `nm -u` limited to the declared externs and compiler-rt helpers. RISC-V and Xtensa were not compile-checked: that clang has no backend for either. `riscv32` is in the list of targets the test tries and is skipped where the compiler cannot build for it; Xtensa is not in the list. Cross builds with GCC toolchains were not made.
 - There is no WebAssembly build. The emitted C is meant to build with `--target=wasm32 -ffreestanding -nostdlib` and its externs to become imports, but that is not tested.
 - A constant index table is stored as `kg_int`. `fir.kg`'s table is 15.4 KB of its 15.5 KB of constants at 32 bits; storing it in the smallest type that holds it would make it about 3.9 KB. Not done.
 - The tests need a C compiler and skip without one. Set `KG_TEST_CC` to choose it and `KG_TEST_SANITIZE=undefined` to run them under UBSan.

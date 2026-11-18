@@ -174,6 +174,13 @@ class BackendProvider(ABC):
         """Check if a is a number (integer or float)."""
         return self.is_float(a) or self.is_integer(a)
 
+    def grade_string(self, s, descending=False):
+        """The indices that order the code points of a non-empty string, ties by position
+        (descending is the exact reverse of ascending)."""
+        codes = np.frombuffer(s.encode('utf-32-le', 'surrogatepass'), dtype=np.uint32)
+        order = np.argsort(codes, kind='stable')
+        return order[::-1].copy() if descending else order
+
     def str_to_chr_arr(self, s):
         """Convert string to character array (alias for str_to_char_array)."""
         return self.str_to_char_array(s)

@@ -7,7 +7,6 @@ Three layers; only the endpoint does I/O:
 ``klongpy.ipc.session``   handshake, framing and response matching (state machine)
 ``klongpy.ipc.endpoint``  requests, serving, calls, errors on the wire, handshake glue
                           (used by ``klongpy.sys_fn_ipc``; imported from there, not here)
-``klongpy.ipc.legacy``    the deprecated pickle protocol, kept for one transition release
 
 This is an independent implementation of the protocol as described by public
 documentation and Apache-licensed client code; kdb+ is a trademark of KX.

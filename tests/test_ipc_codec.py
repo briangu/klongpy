@@ -309,7 +309,7 @@ class TestEncode(unittest.TestCase):
             encode([2 ** 63, 1])
 
     def test_type_errors(self):
-        for bad in (None, object(), {1, 2}, b"bytes", np.array([1 + 2j]), np.array([(1, 2)], dtype=[("a", "i4"), ("b", "i4")])):
+        for bad in (None, object(), {1, 2}, np.array([1 + 2j]), np.array([(1, 2)], dtype=[("a", "i4"), ("b", "i4")])):
             with self.assertRaises(IPCTypeError, msg=repr(bad)):
                 encode(bad)
         with self.assertRaises(IPCTypeError):
@@ -410,6 +410,55 @@ class TestEncode(unittest.TestCase):
         e = encode(a)
         self.assertEqual(len(e), 6 + 8000)
         self.assertTrue(np.array_equal(np.frombuffer(e, dtype="<i8", offset=6), a))
+
+
+class TestBytes(unittest.TestCase):
+    """Python bytes and bytearray are a kdb+ byte vector (type 4); it decodes to an integer array."""
+
+    def test_encode(self):
+        self.assertEqual(bytes(encode(b"")), b"\x04\x00\x00\x00\x00\x00")
+        self.assertEqual(bytes(encode(b"\x00\xff")), b"\x04\x00\x02\x00\x00\x00\x00\xff")
+        self.assertEqual(bytes(encode(bytearray(b"\x00\xff"))), bytes(encode(b"\x00\xff")))
+        self.assertEqual(bytes(encode(np.array([0, 255], dtype=np.uint8))), bytes(encode(b"\x00\xff")))
+
+    def test_decode_vector_and_atom(self):
+        v = decode(bytes([4, 0, 3, 0, 0, 0, 0, 1, 255]))
+        self.assertEqual(list(v), [0, 1, 255])
+        self.assertEqual(decode(bytes([4, 0, 0, 0, 0, 0])).shape, (0,))
+        a = decode(bytes([0xfc, 7]))
+        self.assertEqual(a, 7)
+        self.assertIsInstance(a, int)
+
+    def test_roundtrip_values(self):
+        for b in (b"", b"\x00\xff", bytearray(range(256))):
+            self.assertEqual(list(decode(bytes(encode(b)))), list(b))
+
+    def test_nested(self):
+        got = decode(bytes(encode([1, b"ab", [b"\xff"]])))
+        self.assertEqual(got[0], 1)
+        self.assertEqual(list(got[1]), [97, 98])
+        self.assertEqual(list(got[2][0]), [255])
+        d = decode(bytes(encode({KGSym("k"): b"\x01\x02", KGSym("j"): 5})))
+        self.assertEqual(list(d[KGSym("k")]), [1, 2])
+
+    def test_large_and_limit(self):
+        big = bytes(range(256)) * 4096                      # 1 MiB
+        body = bytes(encode(big))
+        self.assertEqual(len(body), 6 + len(big))
+        self.assertEqual(bytes(decode(body).astype(np.uint8)), big)
+
+    def test_compressed(self):
+        data = b"abcd" * 5000
+        msg = _msg(bytes(encode(data)))
+        c = compress(msg)
+        self.assertEqual(c[2], 1)
+        self.assertEqual(bytes(decode(decompress(c)[8:]).astype(np.uint8)), data)
+
+    def test_other_kinds_still_a_type_error(self):
+        for bad, kind in ((None, "None"), ({1}, "set"), (1j, "complex"), (object(), "object")):
+            with self.assertRaises(IPCTypeError) as cm:
+                encode(bad)
+            self.assertEqual(str(cm.exception), "cannot send None" if bad is None else "cannot send a value of kind %s" % kind)
 
 
 class TestTemporalEncode(unittest.TestCase):

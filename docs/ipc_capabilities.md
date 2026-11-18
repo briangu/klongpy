@@ -8,7 +8,7 @@ The functions are `.srv` (serve), `.cli` (connect and call), `.clid` (connect an
 
 ## Example
 
-A server and a client in one process. A `server?>` line runs in the serving interpreter and a `client?>` line in the connecting one; the port is 8888 throughout.
+Run the server and the client as two processes, for example in two terminals: `kgpy -s 8888` in the first and `kgpy` in the second. A `server?>` line below is typed in the serving terminal and a `client?>` line in the other; the port is 8888 throughout.
 
 ```kgpy
 server?> avg::{(+/x)%#x}
@@ -23,15 +23,15 @@ client?> f(:avg,,!100)
 49.5
 ```
 
-`.cli` returns a function. A string argument is Klong source for the server to run. A symbol is the name of a server function, followed by its arguments. To start a server from the shell, `kgpy -s 8888` runs the REPL with `.srv(8888)` evaluated first.
+`.cli` returns a function. A string argument is Klong source for the server to run. A symbol is the name of a server function, followed by its arguments.  `kgpy -s 8888` runs the REPL with `.srv(8888)` evaluated first.
 
 ## Protocol and security
 
 - **Protocol.** The connection speaks the kdb+ IPC protocol: the same handshake, message framing and type codes, little-endian, with compression understood (capability 3). A q or other kdb+ client can connect to `.srv`, and `.cli` can connect to a q process.
 - **Independence.** kdb+ is a trademark of KX. This is an independent implementation written from public documentation and Apache-licensed client code. It is tested against PeachQ, an open-source kdb+-compatible implementation, and not against kdb+ itself (see the [roadmap](roadmap.md)).
-- **Credentials.** A server accepts any client unless the program defines `.srv.auth`; see [Credentials](#credentials-srvauth). A server with `.srv.auth` refuses clients of the old pickle protocol, because they send no credentials.
+- **Credentials.** A server accepts any client unless the program defines `.srv.auth`; see [Credentials](#credentials-srvauth).
 - **Message size.** `ipc_max_message` limits the size of a message; see [Limits and compression](#limits-and-compression).
-- **Pickle protocol.** The old protocol sent Python pickles, which let any peer run Python in the receiving process. It is deprecated. `KLONGPY_IPC=kdb` makes a process refuse it always; see [`KLONGPY_IPC`](#klongpy_ipc-and-the-old-pickle-protocol).
+- **One protocol.** KlongPy 0.7 sent Python pickles, which let any peer run Python in the receiving process. That protocol was removed in 2.0, so nothing received is unpickled, and a 0.7 peer cannot connect; see [0.7 peers](#07-peers).
 - **No encryption.** There is no TLS, and a peer that can reach the port can run Klong code, including `.py` and `.sys`.
 
 ## Types across the wire
@@ -48,11 +48,12 @@ What goes across in each direction:
 | symbol | symbol atom | symbol |
 | `:undefined` | the generic null `(::)` | `:undefined` |
 | 1-D integer or float array | long or float vector | integer or float array |
+| Python `bytes` or `bytearray` (also a `uint8` array) | byte vector (type 4) | integer array (a byte atom arrives as an integer) |
 | list of symbols | symbol vector | list of symbols |
 | array of rank 2 or more, mixed or ragged list, list of strings | general list, elements encoded one by one | list; a rectangular numeric one becomes an array |
 | dictionary | dictionary (99) | dictionary |
 | function | lambda (100), context `kg`, source text | remote function (see below) |
-| anything else (a Python object, a connection handle) | not sent: a type error | |
+| anything else (a Python object such as a set, complex number or `None`, a connection handle) | not sent: a type error that names the kind | |
 
 A `klongpy.db` table is sent as a kdb+ table (type 98) of its columns, after any pending inserts are committed. A table received becomes a `Table` when `klongpy.db` is loaded in the receiving process (`.py("klongpy.db")`), and otherwise a dictionary from column symbol to column. The table's index is not carried: the receiver must apply `.index` again. A keyed table from q arrives as a two-element list of the key table and the value table.
 
@@ -303,7 +304,7 @@ Failures of the connection itself are `KlongSystemError` (`KlongIPCException` an
 
 ## Credentials: `.srv.auth`
 
-A server accepts any client unless the program defines `.srv.auth`, a function of the user name and password (both strings) that returns 1 to accept and 0 to refuse. The client sends them in the address. They travel in clear text. A client of the old pickle protocol (see [`KLONGPY_IPC`](#klongpy_ipc-and-the-old-pickle-protocol)) sends no credentials, so a server with `.srv.auth` defined refuses it; the message size limit `ipc_max_message` applies to it as it does to kdb+ clients.
+A server accepts any client unless the program defines `.srv.auth`, a function of the user name and password (both strings) that returns 1 to accept and 0 to refuse. The client sends them in the address. They travel in clear text.
 
 ```kgpy
 server?> .srv.auth::{(x~"bob")&(y~"secret")}
@@ -563,31 +564,21 @@ subscription update: [MSFT 16.310530573710896 GOOG 27.199690444331594 AAPL 35.81
 subscription update: [MSFT 43.28567690091258 GOOG 32.06719233158067 AAPL 47.306031721530864]
 ```
 
-## `KLONGPY_IPC` and the old pickle protocol
+## 0.7 peers
 
-The old protocol sent Python pickles, which only another KlongPy could read. It is deprecated and will be removed. It is selected by the environment variable `KLONGPY_IPC`:
+KlongPy 0.7 spoke a different protocol, which sent Python pickles. It was removed in 2.0, so a 0.7 process and a 2.0 process cannot exchange IPC messages in either direction. Upgrade both ends to 2.0 or later; see [Migrating to v2](migrating-to-v2.md#ipc-speaks-the-kdb-protocol).
 
-| Value | `.srv` accepts | `.cli` and `.clid` speak |
-|---|---|---|
-| `auto` (the default for `.srv`) | both, telling them apart by the first bytes | |
-| `kdb` (the default for `.cli`) | only the kdb+ protocol | the kdb+ protocol |
-| `legacy` | only the pickle protocol | the pickle protocol |
+- A 0.7 client connecting to a 2.0 server is closed at once, before anything is unpickled, and the server logs that the client speaks the pickle protocol of 0.7. The client sees `connection lost`.
+- A 2.0 client connecting to a 0.7 server waits for the handshake. The 0.7 server answers nothing, so `.cli` raises a system error after 5 seconds: `handshake timed out after 5.0s`, with a note that a 0.7 server does not speak the kdb+ protocol.
 
-The first use of the pickle protocol in a process prints a `FutureWarning`: "the pickle IPC protocol is deprecated and will be removed". Upgrade servers before clients. A server on `auto` that sees an old client works, with the warning, unless it has `.srv.auth` defined (the old protocol has no credentials, so the client is refused); `KLONGPY_IPC=kdb` always refuses it. A value other than these three is a system error. The unpickling that the old protocol does is why it must only be used on a trusted network.
+The environment variable `KLONGPY_IPC` selected the protocol in the transition releases. It is read by `.srv` and `.cli`: unset, `kdb` and `auto` all mean the kdb+ protocol, `legacy` is a system error, and any other value is a system error.
 
-Two `kgpy` processes, with the server on the default mode and the client on `legacy`:
-
-```bash
-$ kgpy -s 8888
-$ KLONGPY_IPC=legacy kgpy
-?> f::.cli(8888)
-... FutureWarning: the pickle IPC protocol is deprecated and will be removed ...
-remote[localhost:8888]:fn
-?> f("1+1")
-2
+```console
+$ printf '.srv(8891)\n' | KLONGPY_IPC=legacy kgpy 2>&1 >/dev/null
+1:1: system error: KLONGPY_IPC=legacy: the pickle protocol was removed in 2.0; upgrade both ends to 2.0 or later (the kdb+ protocol is the only one), and unset KLONGPY_IPC
+  .srv(8891)
+  ^^^^^^^^^^
 ```
-
-With the server on `KLONGPY_IPC=kdb` the same client connects and its first call fails with `connection lost`. With the server on `legacy` and a default client, `.cli` raises a system error from the handshake.
 
 ## Known gaps
 

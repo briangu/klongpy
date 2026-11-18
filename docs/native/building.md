@@ -2,7 +2,7 @@
 
 This page covers building the native Klong runtime from source on a desktop computer, running the `klong` program (a REPL, `-e`, and files), the build options, and running the shared conformance suite against it. It is for anyone who wants to try the native runtime before putting it on a board. For what the runtime is, start with the [overview](index.md).
 
-Conditions for the measured figures: Apple-silicon Mac, 2026-11-16. Paths are relative to the root of the KlongPy repository.
+Conditions for the measured figures: an Apple M2 Ultra desktop, 2026-11-16, `cargo build --release`. Paths are relative to the root of the KlongPy repository.
 
 ## Prerequisites
 
@@ -50,7 +50,7 @@ $ klong -e '+/!100'
 | `klong --dump-ast FILE` | print the canonical parse tree of a file and exit |
 | `klong --conformance` | the runner protocol of the conformance suite: the program is read from standard input |
 
-`klong --help` (or `-h`) prints the forms and every option and exits with status 0; `klong --version` prints the version. An option that `klong` does not know prints the same text on standard error and exits with status 2. This is the output, and it is checked against the program:
+`klong --help` (or `-h`) prints the forms and every option and exits with status 0; `klong --version` prints the version. An option that `klong` does not know prints the same text on standard error and exits with status 2. The output:
 
 <!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
 ```console
@@ -298,7 +298,7 @@ $ klong --steps 1000 -e '{1}{x+1}:~0'
 
 The figures in the stack-budget lines are for this 64-bit host. On a 32-bit board a level of Klong recursion costs about 0.85 KiB: 864 bytes by the frames of the thumbv6m image, against about 0.8 to 2 KiB on the host. The stack budget is used as `bytes` less what is kept below the deepest level (a quarter by default; a board can say, `Config::for_stack_keep`: the Pico keeps 16 KiB of 108 KiB), so 64 KiB gives about 60 levels and 256 KiB about 250 at the default.
 
-With `--stats` the program reports what it used, on standard error: the peak heap, the heap in use, the limit and the number of refused allocations (`heap: peak 23174 bytes, in use 15679 bytes, limit 0, refused 0` for the program below, on the Mac; the heap numbers vary a little), the deepest nesting of evaluations and the native stack. The heap figures are bytes requested from the allocator and include the interpreter's own state of about 15 KiB on the desktop.
+With `--stats` the program reports what it used, on standard error: the peak heap, the heap in use, the limit and the number of refused allocations (`heap: peak 23174 bytes, in use 15679 bytes, limit 0, refused 0` for the program below; the heap numbers vary a little), the deepest nesting of evaluations and the native stack. The heap figures are bytes requested from the allocator and include the interpreter's own state of about 15 KiB on the desktop.
 
 <!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
 ```console
@@ -317,10 +317,10 @@ In the commands below, `python` is the interpreter you use for KlongPy, and the 
 <!-- check-docs: requires-file native/target/release/klong; link native conformance -->
 ```console
 $ python native/scripts/conformance.py | tail -1 | cut -c1-40
-total                         1293  1293
+total                         1301  1301
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1293 of 1293 on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1301 of 1301 on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
 KLONG_NATIVE=native/target/narrow/release/klong python native/scripts/conformance.py --narrow
@@ -330,11 +330,11 @@ That gave 1160 of 1160 with the narrow build above. The parse trees of the golde
 
 Not every case runs on every build. A case carries tags, and a build runs the cases whose tags it declares. The default build leaves out the tags `bigint` (it wraps), `torch-only` and `kgpy-only` (KlongPy's own), `desktop` (Python interop, databases, web) and the `timers` and `ipc` tiers, which have no cases. The narrow build also leaves out `float`, `string-fmt` and `width64`, the cases that pin 64-bit results.
 
-The native tests that need KlongPy (`tests/test_native_conformance.py`, `tests/test_native_ipc.py`, `tests/test_native_mgmt.py`) skip themselves when `native/target/release/klong` does not exist, so building the binary turns them on. On the Mac 86 passed and 11 were skipped; the 11 need a PeachQ executable (a kdb+-compatible q implementation), see [IPC and Timers](ipc.md). `cargo test --release --workspace` in `native/` runs the Rust tests.
+The native tests that need KlongPy (`tests/test_native_conformance.py`, `tests/test_native_ipc.py`, `tests/test_native_mgmt.py`) skip themselves when `native/target/release/klong` does not exist, so building the binary turns them on. On the machine of the conditions above 86 passed and 11 were skipped; the 11 need a PeachQ executable (a kdb+-compatible q implementation), see [IPC and Timers](ipc.md). `cargo test --release --workspace` in `native/` runs the Rust tests.
 
 ## Sizes and speed
 
-Measured on 2026-11-16, Apple-silicon Mac, nightly `rustc` 1.90.
+Conditions: an Apple M2 Ultra desktop, 2026-11-16, nightly `rustc` 1.90.
 
 **Programs on the desktop** (`ls -l`; the `release` profile, and the `min-size` profile that `cargo build --profile min-size -p klong-cli` selects: opt-level `z`, LTO, one code generation unit, `panic = "abort"`, stripped):
 
@@ -357,20 +357,6 @@ The width features do not change the size of a 64-bit program in any useful way.
 | | `files`, `lib`, `int32`, `float32` | 205,518 | 107,984 | 313,522 |
 | | none | 207,056 | 63,664 | 270,740 |
 
-These images have no IPC and no timers. IPC adds about 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, and the `mgmt` library 12.7 KB (older figures). The firmware for the [ESP32-P4](esp32-p4.md) is 692 KB (691,328 bytes flashed), but it is built with `opt-level` 3 and carries ESP-IDF.
+These images have no IPC and no timers. IPC adds about 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, and the `mgmt` library 12.7 KB. The firmware for the [ESP32-P4](esp32-p4.md) is 692 KB (691,328 bytes flashed), but it is built with `opt-level` 3 and carries ESP-IDF.
 
-**Speed** (`python native/scripts/bench.py`: best of five, in process, parse and run, KlongPy on numpy against the native `release` build):
-
-| Program | KlongPy | native | ratio |
-|---|---|---|---|
-| `fib(24)`, `f::{:[x<2;x;f(x-1)+f(x-2)]}` | 1440 ms | 36.0 ms | 40 times |
-| `+/!100000` | 0.029 ms | 0.021 ms | 1.4 times |
-| `{x+y}/!100000` | 341 ms | 17.7 ms | 19 times |
-| `#{x*x}'!100000` | 338 ms | 17.1 ms | 20 times |
-| `+/{x*x}'!1000000` | 3396 ms | 169 ms | 20 times |
-| append 2000 items one by one | 124 ms | 1.6 ms | 79 times |
-| `#,/$'!20000` | 29.5 ms | 1.5 ms | 20 times |
-| index a non-ASCII string 2000 times | 569 ms | 0.42 ms | 1356 times |
-| dictionary, 50000 integer keys | 510 ms | 27.1 ms | 19 times |
-
-Starting the program and exiting takes about 4 ms. KlongPy is faster for whole-array work that numpy does in one call, which is why the ratio of `+/!100000` is close to 1. These are desktop figures. On the ESP32-P4, measured on the board on 2026-11-16, `fib(24)` took 4.2 seconds against about 35 ms on the Mac. The cause of that difference has not been investigated. See [ESP32-P4](esp32-p4.md).
+**Speed.** The native runtime is much faster than KlongPy on interpreter work (recursion, loops, lambdas, dictionaries) and slower on whole-array work that NumPy does in one call. [Performance](../performance.md) has the measured table. `python native/scripts/bench.py` repeats the comparison, and `klong --bench N -e PROGRAM` times one program in process. Starting the program and exiting takes about 4 ms. On the ESP32-P4 `fib(24)` takes 4.2 seconds, against about 35 ms on the desktop; see [ESP32-P4](esp32-p4.md).

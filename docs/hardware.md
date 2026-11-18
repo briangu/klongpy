@@ -17,6 +17,7 @@ The same source runs three ways: interpreted, as C (see [Compiling Klong to C](e
 | Host | Ryzen 9 7950X3D (16 cores, 32 threads), gcc 9.4, numpy 1.24 |
 | Link | the card sits on a PCIe link of one lane, so transfers are slower than on a full slot |
 | Dates | `fir` image built 2026-11-16, strategy image measured 2026-11-17 |
+| Images run | two: `fir` (a wrapped kernel) and the strategy (a streaming kernel) |
 
 ## What qualifies
 
@@ -65,7 +66,7 @@ A bitstream is loaded only if its routed timing was met: no failing endpoints an
 
 With `KLONG_HW=sim`, `.hw` needs no card and no build. It compiles the generated HLS code with the system C and C++ compilers (the HLS pragmas are ignored) and calls it with the same records and status word as the card. Its results show that the program and the binding work. They say nothing about speed.
 
-`fir.kg` is a 16-tap filter over a block of 256 samples that gives 241 outputs. The program below loads it interpreted (`.l` defines `run`), binds the kernel (`fir.run`), runs three blocks both ways and prints the largest squared difference test.
+`fir.kg` is a 16-tap filter over a block of 256 samples that gives 241 outputs. The program below loads it interpreted (`.l` defines `run`), binds the kernel (`fir.run`), runs three blocks both ways, prints the shape of the result, and prints 1 if the largest squared difference is below 1e-9.
 
 <!-- check-docs: link examples; requires-cmd cc c++ -->
 ```console
@@ -108,9 +109,9 @@ The first call after `.hw` starts the program from its initial state; the five t
 
 ### 4. Lanes and parameters
 
-`--lanes N` builds N copies of the program that read one input stream. Each parameter (declared with `.param`) is then an array of N values, set with `.hw.set` between runs. `.hw.lanes("crossover.kg";n)` binds the image built with `--lanes n`.
+`--lanes N` builds N copies of the program, called lanes, that read one input stream. Each parameter (declared with `.param`) is then an array of N values, set with `.hw.set` between runs. `.hw.lanes("crossover.kg";n)` binds the image built with `--lanes n`.
 
-On the simulator, with two lanes (`fast` 2 and 1, `slow` 4 and 3) and the 20 ticks that the tests check by hand:
+On the simulator, with two lanes (`fast` 2 and 1, `slow` 4 and 3) and the 20 ticks of a test series whose answer was worked out on paper:
 
 <!-- check-docs: link examples; requires-cmd cc c++ -->
 ```console
@@ -128,8 +129,8 @@ $ KLONG_HW=sim kgpy strategy.kg
 [[1.75 3.75 3.0] [5.0 2.25 3.0]]
 ```
 
-Each row is one lane: profit, largest drawdown, number of trades. The first lane is the series worked by hand in the test
-(`tests/static/test_crossover.py`); the same account comes out of the interpreter stand-in, the emitted C, the kernel in
+Each row is one lane: profit, largest drawdown, number of trades. The first lane is that series
+(`tests/static/test_crossover.py`); the same account comes out of the Python evaluator of the static profile (`klongpy.static.eval_ir`), the emitted C, the kernel in
 C simulation and this simulator, bit for bit.
 
 ### 5. The summary pattern
@@ -232,7 +233,7 @@ A 16-tap filter over blocks of 256 samples, built 2026-11-16 at 300 MHz (met, wo
 
 The kernel takes about 12.9 microseconds per block, about 3886 cycles at 300 MHz. A wrapped kernel cannot do a floating-point sum at one result per cycle. Numpy takes about 10 microseconds per block on the same gather and weighted sum. The card is slower than numpy at every size, even before the transfer is counted. A kernel rebuilt as a shift register with a pipelined reduction is where speed would have to come from; the streaming kernel does this, and `fir` has not been rebuilt that way.
 
-The image of `mavg.kg`, `fir.kg` and the trap program uses 126578 LUT (7.33 percent of the device with the shell), 199444 FF, 276.5 BRAM tiles and 18 DSP.
+The image of `mavg.kg`, `fir.kg` and `tests/static/hw/trap.kg` (a program that traps on purpose) uses 126578 LUT (7.33 percent of the device with the shell), 199444 FF, 276.5 BRAM tiles and 18 DSP.
 
 ### The strategy kernel
 
@@ -273,13 +274,13 @@ Card: best of 9 calls; CPU: best of 5; 32 lanes. The CPU's processes start toget
 
 ### Correctness
 
-The summary of every lane after the first 100000 ticks equals the interpreter stand-in's (`klongpy.static.eval_ir`, which `call_entry` uses). After all 10 million ticks it equals the emitted C's, bit for bit, on the card. The hand-checked 20-tick series give the worked results in every lane. `tests/static/test_crossover_card.py` runs the hand series and 200000 ticks against the card. For `fir`, floats agree within 1e-5 relative.
+The summary of every lane after the first 100000 ticks equals the Python evaluator's (`klongpy.static.eval_ir`, which `call_entry` uses). After all 10 million ticks it equals the emitted C's, bit for bit, on the card. The hand-checked 20-tick series give the worked results in every lane. `tests/static/test_crossover_card.py` runs the hand series and 200000 ticks against the card. For `fir`, floats agree within 1e-5 relative.
 
 ## Known limits
 
-* Only the strategy image has been run on the card since the emitter last changed. The image of `mavg.kg`, `fir.kg` and the trap program must be built again (`kgpy --hw-build examples/embedded/mavg.kg examples/embedded/fir.kg tests/static/hw/trap.kg`) before `tests/static/test_hw_card.py` and `test_hw_binding_card.py` stop skipping.
+* Only the strategy image has been run on the card with the current emitter. The image of `mavg.kg`, `fir.kg` and `trap.kg` must be built again (`kgpy --hw-build examples/embedded/mavg.kg examples/embedded/fir.kg tests/static/hw/trap.kg`) before `tests/static/test_hw_card.py` and `test_hw_binding_card.py` stop skipping.
 * More than 32 lanes: a build with 64 lanes in one pipelined loop failed timing (estimated worst slack -6.4 ns at 250 MHz after placement, with five nets of more than 10000 loads) and was stopped during routing. 64 lanes as one process per lane (about 290000 LUTs) has not been built.
-* Hardware emulation: loading the emulated image did not return within the time given. There is no co-simulation.
+* Hardware emulation: loading the emulated image did not complete in the time allowed. There is no co-simulation.
 * There are no network ports.
 * An entry that mixes `int` and `float` arguments is built but cannot be called by `.hw`, and a summary kernel with lanes needs records of one width.
 * One session holds one image. Loading an image replaces what the card held.

@@ -6,7 +6,7 @@ KlongPy runs on NumPy arrays, so most of what you know about array shapes and dt
 
 There are no loops and no operator precedence. An expression is read from right to left, and each operator takes everything to its right as its right operand. A leading `-` is an operator too, which is the source of the most common mistake (see [Gotchas](#gotchas)).
 
-Adverbs take the place of loops: `'` applies a function to each element, `/` reduces, `\` scans. A function is `{...}` and its arguments are `x`, `y` and `z`. The examples below are checked at strict level 2 (see [Strict mode](strict.md)).
+Adverbs take the place of loops: `'` applies a function to each element, `/` reduces, `\` scans. A function is `{...}` and its arguments are `x`, `y` and `z`. The examples below run at strict level 2 (see [Strict mode](strict.md)), the strictest setting.
 
 <!-- check-docs: strict 2 -->
 ```kgpy
@@ -293,7 +293,7 @@ Gradient descent by iterating the update three times from 5.0 (`3{...}:*5.0` app
 2.559999999818814
 ```
 
-For the torch backend, see [PyTorch Backend & Autograd](torch_backend.md).
+For the torch backend, see [PyTorch Backend and Autograd](torch_backend.md).
 
 ## Gotchas
 

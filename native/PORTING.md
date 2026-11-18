@@ -36,6 +36,6 @@ klong_board::run(platform, BoardConfig { stack_bytes, mem: Some(mem), mem_presse
 
 ## A network that carries messages
 
-`klong-rt::node` is a `Transport` (`node:N`) over a lane of 16-byte frames, `klong-dgram` is its `no_std` datagram layer, and `klong-ffi --features lane` exposes both to a C shell through the `klong_lane_*` functions of `klong.h`. `boards/pico-bench/` is that shell for the RP2040 (`thumbv6m-none-eabi`, which has no compare-and-swap, divide or FPU; the runtime needs none of them).
+`klong-rt::node` is a `Transport` (`node:N`) over a lane of 16-byte frames, `klong-dgram` is its `no_std` datagram layer, and `klong-ffi --features lane` exposes both to a C shell through the `klong_lane_*` functions of `klong.h`; that is the one transport of the C interface. A lane is a UART link of 16-byte frames. `boards/pico-bench/` is that shell for the RP2040 (`thumbv6m-none-eabi`, which has no compare-and-swap, divide or FPU; the runtime needs none of them).
 
 A port wires the lane's console with `klong_console::Console::lane_begin` and `lane_end` around each turn of its main loop, as `klong_ffi` does, and calls `NodeNet::console_local_input` when somebody types on the local console. The results on two Picos and the design are in `docs/native/pico-bench.md`.

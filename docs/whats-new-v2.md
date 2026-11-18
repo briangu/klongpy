@@ -1,8 +1,12 @@
 # What's New in v2
 
-KlongPy 2: one array language from GPU to FPGA to microcontroller. This page is a tour of what version 2 adds, in that order, and then of the stable core. Each section is short and links to the page that covers it. If you have code written for 0.7, read [Migrating to v2](migrating-to-v2.md) as well. If you are new, start with [Start Here](getting-started.md).
+This page tours what version 2 adds, from CPU and GPU to FPGA and microcontroller, and then the stable core. Each section is short and links to the page that covers it. If you have code written for 0.7, read [Migrating to v2](migrating-to-v2.md) as well. If you are new, start with [Start Here](getting-started.md).
 
 The status of each target (stable, passes conformance, subset, experimental) is in the table on the [home page](index.md#targets-and-status), and the hardware status is in the [native runtime status table](native/index.md#status-what-has-and-has-not-been-proven).
+
+## CPU: the NumPy backend
+
+For plain NumPy users, version 2 adds [strict modes](strict.md), a [linter](lint.md), [errors with positions](errors.md), [language additions](language-additions.md) and [IPC](ipc_capabilities.md) in the kdb+ protocol. Integers beyond 64 bits are exact, and indexing a vector by an integer vector is a whole-array operation, so `x@<x` sorts in about the time of the grade. [Migrating to v2](migrating-to-v2.md) lists what changes for 0.7 code.
 
 ## GPU: the torch backend
 
@@ -11,7 +15,7 @@ The torch backend and the `:>` gradient operator are in 0.7. What changes in 2:
 * The conformance suite runs on the torch backend, and passes except the cases tagged as NumPy only (float32 text, and `:undefined` inside a list, which a tensor cannot hold).
 * Integers beyond 64 bits are exact on both backends.
 
-`kgpy --backend torch` runs the arrays on PyTorch (CPU, CUDA or Apple MPS). Floats are float32, and strings and mixed lists stay NumPy object arrays on the host. See [PyTorch Backend](torch_backend.md), and [Performance](performance.md) for what is measured.
+`kgpy --backend torch` runs the arrays on PyTorch (CPU, CUDA or Apple MPS). Floats are float32, and strings and mixed lists stay NumPy object arrays on the host. See [PyTorch Backend and Autograd](torch_backend.md), and [Performance](performance.md) for what is measured.
 
 ## FPGA: Klong functions as hardware
 
@@ -40,7 +44,7 @@ The `conformance/` directory holds about 1,300 test cases that do not depend on 
 <!-- check-docs: link conformance -->
 ```console
 $ python conformance/run.py | tail -n 1
-1294 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
+1302 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 ```
 
 ## The stable core
@@ -123,7 +127,7 @@ Classic Klong programs run as before. v2 adds forms for things that needed worka
 
 ### Readable errors with source positions
 
-Every error KlongPy raises on purpose has a position, a kind and the source line with a caret. The kinds are `syntax`, `name`, `type`, `range`, `shape`, `arity`, `system`, `python` and a few others. From Python each is a class under `KlongError` (`KlongTypeError`, `KlongRangeError`, and so on), and an old `except IndexError` or `except ValueError` still catches the ones that replace those. A file run stops at the first error with exit status 1 and prints a traceback only with `-v` or `--traceback`.
+Almost every error KlongPy raises on purpose has a position, a kind and the source line with a caret. The exception is the range error for an expression nested too deeply, which has no position. The kinds are `syntax`, `name`, `type`, `range`, `shape`, `arity`, `system`, `python` and a few others. From Python each is a class under `KlongError` (`KlongTypeError`, `KlongRangeError`, and so on), and an old `except IndexError` or `except ValueError` still catches the ones that replace those. A file run stops at the first error with exit status 1 and prints a traceback only with `-v` or `--traceback`.
 
 <!-- check-docs: render -->
 ```kgpy
@@ -187,7 +191,7 @@ See [REPL](repl.md).
 
 ### kdb+ IPC
 
-`.srv` and `.cli` speak the kdb+ IPC protocol by default, so a q process can connect to a KlongPy server and a KlongPy client can call a q process. The wire carries tables (as kdb+ tables), timestamps and timespans, and functions as their source text. It is tested against PeachQ, a kdb+-compatible implementation, not against kdb+ itself. A server can check credentials with `.srv.auth`, a call that gets no answer fails after 30 seconds (change it with `.clit`), and an error on the server comes back as a Klong error while the connection stays open. The pickle protocol of 0.7 is still there for a transition and must be used on trusted networks only; `KLONGPY_IPC` chooses. See [Migrating to v2](migrating-to-v2.md#ipc-speaks-the-kdb-protocol).
+`.srv` and `.cli` speak the kdb+ IPC protocol, so a q process can connect to a KlongPy server and a KlongPy client can call a q process. The wire carries tables (as kdb+ tables), timestamps and timespans, and functions as their source text. It is tested against PeachQ, a kdb+-compatible implementation, not against kdb+ itself. A server can check credentials with `.srv.auth`, a call that gets no answer fails after 30 seconds (change it with `.clit`), and an error on the server comes back as a Klong error while the connection stays open. The pickle protocol of 0.7 is gone, so 0.7 and 2.0 cannot talk to each other. See [Migrating to v2](migrating-to-v2.md#ipc-speaks-the-kdb-protocol).
 
 ```kgpy
 server?> .srv.auth::{(x~"bob")&(y~"secret")}

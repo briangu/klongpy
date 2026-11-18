@@ -1,3 +1,5 @@
+# faiss from Klong
+
 Setup:
 
 ```bash
@@ -12,5 +14,6 @@ From this directory:
 
 ```bash
 kgpy 1-flat.kg
-python 1-flat.py
 ```
+
+`1-flat.kg` follows the first tutorial of [faiss](https://github.com/facebookresearch/faiss) (`tutorial/python/1-Flat.py`, Copyright (c) Facebook, Inc. and its affiliates, [MIT licence](https://github.com/facebookresearch/faiss/blob/main/LICENSE)). Compare the two to see how a Python library is called from Klong.

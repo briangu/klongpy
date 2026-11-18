@@ -18,7 +18,7 @@ Each directory is under [`examples/`](https://github.com/briangu/klongpy/tree/ma
 | [deploy](https://github.com/briangu/klongpy/tree/main/examples/deploy) | A Docker image that runs `kgpy` on the script named by `KG_FILE_PATH`, and Kubernetes files. | Docker |
 | [ipc](https://github.com/briangu/klongpy/tree/main/examples/ipc) | IPC clients and servers, broadcast and publish/subscribe with `.srv`, `.cli` and timers. | |
 | [math](https://github.com/briangu/klongpy/tree/main/examples/math) | NumPy interop for FFT and trigonometry through `.pyf`. | |
-| [ml](https://github.com/briangu/klongpy/tree/main/examples/ml) | K-nearest neighbours, cosine similarity, a transformer and an LSTM. | `torch` for the transformer and LSTM |
+| [ml](https://github.com/briangu/klongpy/tree/main/examples/ml) | K-nearest neighbours, cosine similarity, a transformer and an LSTM. | `torch` for the LSTM only |
 | [python](https://github.com/briangu/klongpy/tree/main/examples/python) | Calling Python from Klong and Klong from Python; multiprocessing and threading. | |
 | [stats_logging](https://github.com/briangu/klongpy/tree/main/examples/stats_logging) | Statistics ingested over IPC into table storage, with periodic flush and reporting. | `klongpy[db]`, `pytz` |
 | [stocks](https://github.com/briangu/klongpy/tree/main/examples/stocks) | Market data ingestion, Black-Scholes and LSTM forecasting. | `yfinance`, `alpaca-py` or `polygon-api-client`, depending on the example |
@@ -86,14 +86,10 @@ import numpy as np
 
 data = np.array([1, 2, 3, 4, 5])
 klong = KlongInterpreter()
-# make the data NumPy array available to KlongPy code by passing it into the interpreter
-# we are creating a symbol in KlongPy called 'data' and assigning the external NumPy array value
-klong['data'] = data
-# define the average function in KlongPY
-klong('avg::{(+/x)%#x}')
-# call the average function with the external data and return the result.
-r = klong('avg(data)')
-print(r) # expected value: 3
+klong['data'] = data         # the Klong name data now holds the array
+klong('avg::{(+/x)%#x}')     # define a function in Klong
+r = klong('avg(data)')       # call it on the array
+print(r)                     # 3.0
 ```
 
 `.py` and `.pyf` import Python modules and functions, so Klong can call libraries that already exist. This uses the NumPy FFT:
@@ -228,7 +224,7 @@ Gradient descent on x^2 from 5.0, 100 steps of 0.1:
 1.0185179880729389e-09
 ```
 
-The `∇` operator is numeric on every backend, and the other spellings are in [PyTorch Backend](torch_backend.md).
+Here `f:>s` is the gradient of `f` at `s`, by autograd on the torch backend and by finite differences on NumPy. The dyad `s∇f` and `.grad` are finite differences on every backend. The other spellings are in [PyTorch Backend and Autograd](torch_backend.md).
 
 Linear regression and neural networks are in the [autograd examples](https://github.com/briangu/klongpy/tree/main/examples/autograd).
 

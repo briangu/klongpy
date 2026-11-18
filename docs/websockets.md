@@ -46,7 +46,7 @@ Messages are JSON. Klong values are encoded when sent and JSON is decoded when r
 | `{"a":1}` | `:{[a 1]}` |
 | `["echo",["ping",1]]` | `[echo [ping 1]]` |
 
-These pairs are from a run against a Python `websockets` server on localhost; the examples above are not run automatically because they need a WebSocket server.
+Conditions: these pairs were observed against a Python `websockets` server on localhost.
 
 Known limit: the module provides a client only. A WebSocket server is not exposed.
 

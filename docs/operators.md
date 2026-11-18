@@ -87,7 +87,7 @@ and [discussion #82](https://github.com/briangu/klongpy/discussions/82).
 
 ## Gradient Operators
 
-`∇` and `:>` compute gradients and `∂` computes Jacobians. On the numpy backend all three use finite differences; the torch backend uses autograd for `:>`, `∂` and the monad `∇`. The torch examples (`6.0` instead of `6.000000000838668`) are on [PyTorch backend](torch_backend.md). The [comparison table](#comparison) is the summary.
+`∇` and `:>` compute gradients and `∂` computes Jacobians. On the numpy backend all three use finite differences; the torch backend uses autograd for `:>`, `∂` and the monad `∇`. The torch examples (`6.0` instead of `6.000000000838668`) are on [PyTorch Backend and Autograd](torch_backend.md). The [comparison table](#comparison) is the summary.
 
 ### Numeric Gradient: `∇` (nabla)
 
@@ -212,8 +212,8 @@ The two gradient operators take their arguments in opposite orders: `point∇fun
 
 | Feature | `∇` (nabla) | `:>` (autograd) | `∂` (jacobian) |
 |---------|-------------|-----------------|----------------|
-| Method | Numeric (finite differences) on every backend | Autograd on torch, finite differences on numpy | Autograd on torch, finite differences on numpy |
-| Precision | Approximate (about 1e-9 on the CPU) | Exact up to float32 rounding on torch; approximate on numpy | Same as `:>` |
+| Method | The dyad `point∇function` and `.grad`: finite differences on every backend. The monad `∇function`: autograd on torch, finite differences on numpy | Autograd on torch, finite differences on numpy | Autograd on torch, finite differences on numpy |
+| Precision | The dyad is approximate (about 1e-9 on the CPU) | Exact up to float32 rounding on torch; approximate on numpy | Same as `:>` |
 | Output | Scalar functions | Scalar functions | Vector functions |
 | Syntax | `point∇function` | `function:>point` | `point∂function` |
 | ASCII name | `.grad(function;point)` | `function:>point` | `.jacobian(function;point)` |
@@ -221,51 +221,7 @@ The two gradient operators take their arguments in opposite orders: `point∇fun
 
 ### Autograd System Functions
 
-Additional system functions for autograd (require the PyTorch backend; `.gradcheck` also needs the CPU device, `kgpy --backend torch --device cpu`):
-
-| Function | Description |
-|----------|-------------|
-| `.gradcheck(fn;input)` | Verify gradients against numeric computation |
-| `.compile(fn;input)` | Compile function for optimized execution |
-| `.compilex(fn;input;opts)` | Compile with extended options (mode, backend) |
-| `.cmodes()` | Query available compilation modes and backends |
-| `.export(fn;input;path)` | Export computation graph to file |
-
-These examples need the torch backend.
-
-**Gradient Verification:**
-```klong
-f::{x^2}
-.gradcheck(f;3.0)     :" Returns 1 if gradients are correct "
-```
-
-**Function Compilation:**
-```klong
-f::{(x^3)+(2*x^2)+x}
-cf::.compile(f;2.0)   :" Returns a compiled function "
-cf(5.0)               :" Execute the compiled function: 180.0 "
-```
-
-**Extended Compilation:**
-```klong
-:" Fast compile for development "
-cf::.compilex(f;2.0;:{["mode" "reduce-overhead"]})
-
-:" Maximum optimization for production "
-cf::.compilex(f;2.0;:{["mode" "max-autotune"]})
-
-:" Debug mode (no C++ compiler needed) "
-cf::.compilex(f;2.0;:{["backend" "eager"]})
-
-:" Query available options "
-info::.cmodes()
-```
-
-**Graph Export:**
-```klong
-info::.export(f;2.0;"model.pt2")
-.p(info@"graph")      :" Print the computation graph "
-```
+Five system functions need the PyTorch backend: `.gradcheck`, `.compile`, `.compilex`, `.cmodes` and `.export`. `.gradcheck` also needs the CPU device. [PyTorch Backend and Autograd](torch_backend.md#function-compilation-and-gradient-checks) describes them and has an example.
 
 ## Adverbs
 

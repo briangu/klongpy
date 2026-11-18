@@ -483,11 +483,6 @@ fn array_op(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> 
         Atomic::Pow => both_int && matches!(&y, Operand::Ints(_) | Operand::One(Num::I(_))) && (0..n).all(|i| matches!(y.get(i / ydiv), Num::I(e) if e >= 0)),
         Atomic::Div => false,
     };
-    if op == Atomic::Pow && both_int && !int_result {
-        if matches!(x, Operand::Ints(_)) {
-            return Err(Error::range("integers to negative integer powers are not allowed"));
-        }
-    }
     // Zero divisors give :undefined for that element, so the result is a mixed list.
     if matches!(op, Atomic::Div | Atomic::Rem | Atomic::IDiv) && (0..n).any(|i| y.get(i / ydiv).is_zero()) {
         let mut out = try_vec(n)?;
@@ -524,17 +519,13 @@ fn array_op(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> 
         }
         return Ok(shaped_like(like, Some(out), None));
     }
+    // A power with a list operand that is not integers to non-negative integers is floats,
+    // whole-valued or not, as `*` is (KlongPy); only the scalar power narrows a whole result.
     let mut out: Vec<Flt> = try_vec(n)?;
     for i in 0..n {
         if let Some(v) = num_op(op, x.get(i / xdiv), y.get(i / ydiv))? {
             out.push(v.f());
         }
-    }
-    if op == Atomic::Pow && out.iter().all(|f| f.is_finite() && m::trunc(*f) == *f) {
-        // KlongPy: a power array of whole numbers is an integer array.
-        let mut ints: Vec<Int> = try_vec(n)?;
-        ints.extend(out.iter().map(|f| *f as Int));
-        return Ok(shaped_like(like, Some(ints), None));
     }
     Ok(shaped_like(like, None, Some(out)))
 }

@@ -39,12 +39,12 @@ GROUPS = [
     ("Timers", "Defined in the base interpreter. See [Timers](timer.md).", ".timer .timerc"),
     ("IPC", "Defined in the base interpreter. See [IPC Capabilities](ipc_capabilities.md).",
      ".srv .cli .clid .clic .async"),
-    ("Autograd", "Defined in the base interpreter; most need the PyTorch backend. See [PyTorch Backend](torch_backend.md).",
+    ("Autograd", "Defined in the base interpreter; most need the PyTorch backend. See [PyTorch Backend and Autograd](torch_backend.md).",
      ".jacobian .gradcheck .compile .compilex .cmodes .export"),
     ("Embedded programs", "Defined in the base interpreter. See [Compiling Klong to C](embedded.md).", ".extern .entry .param .fixed .float"),
     ("Hardware (experimental)", "Defined in the base interpreter. See [Klong functions as FPGA hardware](hardware.md).",
      ".hw .hw.lanes .hw.set .hw.put .hw.get .hw.free .hw.reset .hw.info"),
-    ("Database", 'Load with `.py("klongpy.db")`. See [Fast Columnar Database](fast_columnar_database.md).',
+    ("Database", 'Load with `.py("klongpy.db")`. See [Columnar tables and SQL](fast_columnar_database.md).',
      ".db .table .insert .index .rindex .schema"),
     ("Key-value and table storage", 'Load with `.py("klongpy.db")`. See [Table and Key-Value Stores](table_and_key_value_stores.md).',
      ".kvs .tables"),
@@ -169,10 +169,6 @@ NOTES = {
         "terminal of the interpreter process, not to the Klong output channel, so "
         "`.tc` does not capture it."
     ),
-    ".strict": (
-        "KlongPy has no `global:` prefix. A function that needs to create a global "
-        "uses `.E`, which evaluates its string at global scope."
-    ),
     ".timer": (
         "The interval `y` may be fractional. A negative, `NaN` or non-numeric `y`, "
         "or a `z` that is not a function, raises an error instead of returning a "
@@ -285,9 +281,9 @@ def main():
     w("# System Functions and Variables\n")
     w("This page lists every system function and variable that KlongPy defines, with a one-line "
       "description and the full text of its docstring. It is generated from the "
-      "`eval_sys_*` docstrings, and the examples were run when the page was generated; "
-      "the output shown is what the interpreter printed. The REPL command `]h .name` shows the docstring.\n")
-    w("An error is shown as `error: message`. The REPL adds its own prefix to errors.\n")
+      "`eval_sys_*` docstrings, and the output shown is what the interpreter prints. "
+      "The REPL command `]h .name` shows the docstring.\n")
+    w("An error is shown as `error: message`, without the position the REPL adds; see [Reading an error](errors.md#reading-an-error).\n")
     groups = list(GROUPS)
     listed = {n for _, _, names in groups for n in names.split()}
     extra = sorted(set(items) - listed)

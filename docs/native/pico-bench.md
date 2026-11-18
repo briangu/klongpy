@@ -4,9 +4,9 @@ Two Raspberry Pi Pico boards (RP2040, 264 KB of RAM) run the native Klong interp
 
 ## The setup
 
-Each Pico has one UART lane, GP16 (TX) and GP17 (RX) of `uart0`, 8N1, no flow control, at 4.5 Mbaud. The two lanes are joined through a frame switch that forwards fixed 16-byte frames, 4 bytes of payload each, and a supervisor board numbers the nodes and reads their status. The lane carries 112 KB/s of data at best.
+Each Pico has one lane: a UART link, GP16 (TX) and GP17 (RX) of `uart0`, 8N1, no flow control, at 4.5 Mbaud. The two lanes are joined through a frame switch that forwards fixed 16-byte frames, 4 bytes of payload each, and a supervisor board numbers the nodes and reads their status. The lane carries 112 KB/s of data at best.
 
-The switch and the supervisor, which provides a web console, belong to a private test bench and are not published. To reproduce the setup you do not need them:
+The switch and the supervisor, which provides a web console, are part of a test bench that is not published, so the two-Pico result used a serial frame switch that you cannot build from this repository. The firmware, the simulator and the host tools are in the repository. To reproduce the setup you do not need them:
 
 * The `node` transport needs any byte link between two UARTs and something that numbers the nodes. A node learns its number from the destination of the first frame it receives.
 * The simulator in `native/klong-sim` models the switch, with a clock for each lane, and runs the same runtime and the same self-test. `klong-bench` runs it from a script.
@@ -55,7 +55,7 @@ At boot every node serves. A node that is not number 0 connects to the nearest n
 | `fib(18)`, 8,361 calls | 0.39 s |
 | Recursion depth | 105 levels; the 106th is a `range` error and the node goes on |
 
-Conditions: measured on 2026-11-17 on two boards through the console client, with one firmware image built from this source (Pico SDK 2.3.1, Arm GNU 15.3.1). The plain `.cli` call was measured on an earlier build of the same day. Each vector size is the largest of the sizes tried, in steps of 300 to 500 elements.
+Conditions: two boards, 2026-11-17, through the console client, one firmware image (Pico SDK 2.3.1, Arm GNU 15.3.1); the plain `.cli` call was measured on an earlier build. Each vector size is the largest of the sizes tried, in steps of 300 to 500 elements.
 
 ## Memory
 
@@ -85,7 +85,7 @@ Functions from a loaded file are kept as text. Calling one parses it again from 
 * Recursion stops at about 105 levels.
 * The receive ring under sustained traffic in both directions at once has not been measured on the boards. `rx ring overruns` in the console's Ctrl-T output counts losses.
 * Floating-point arithmetic is in software on the RP2040 and has been measured only through integer code (`fib`).
-* The USB console has not been tested on the two boards; they had no USB cable.
+* The USB console has not been tested.
 
 ## Run the host tools
 

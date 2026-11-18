@@ -299,7 +299,7 @@ Autograd computes exact derivatives automatically!
 kgpy --backend torch black_scholes_live.kg
 ```
 
-**Expected output:**
+**Illustrative output** (the figures come from live market data and differ on every run):
 ```
 Black-Scholes Greeks - LIVE Market Verification
 ================================================
@@ -307,7 +307,7 @@ Black-Scholes Greeks - LIVE Market Verification
 Fetching live AAPL option data from Yahoo Finance...
 
 Live Option Parameters:
-  Ticker: AAPL, Expiration: 2026-02-20
+  Ticker: AAPL, Expiration: (a listed expiry date)
   Spot: $259.48
   Strike: $260.0
   Time to expiry: 0.055 years

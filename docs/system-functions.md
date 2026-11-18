@@ -1,8 +1,8 @@
 # System Functions and Variables
 
-This page lists every system function and variable that KlongPy defines, with a one-line description and the full text of its docstring. It is generated from the `eval_sys_*` docstrings, and the examples were run when the page was generated; the output shown is what the interpreter printed. The REPL command `]h .name` shows the docstring.
+This page lists every system function and variable that KlongPy defines, with a one-line description and the full text of its docstring. It is generated from the `eval_sys_*` docstrings, and the output shown is what the interpreter prints. The REPL command `]h .name` shows the docstring.
 
-An error is shown as `error: message`. The REPL adds its own prefix to errors.
+An error is shown as `error: message`, without the position the REPL adds; see [Reading an error](errors.md#reading-an-error).
 
 ## Evaluation and output
 
@@ -618,8 +618,6 @@ Example:
     g()  :" OK - t is declared local"
 ```
 
-KlongPy has no `global:` prefix. A function that needs to create a global uses `.E`, which evaluates its string at global scope.
-
 ```kgpy
 ?> .strict()
 1
@@ -874,9 +872,9 @@ cannot be bound, an error is raised. Clients speak the kdb+ IPC protocol.
 Hooks, set as global functions: .srv.o(h) when a client connects,
 .srv.c(h) when it disconnects, .srv.e(h;text) on an error that nobody
 is waiting for, and .srv.auth(user;password), which returns 1 to
-accept a client and 0 to refuse it. With .srv.auth defined, a client of
-the deprecated pickle protocol is refused. The .system key
-"ipc_max_message" limits the message size (256 MiB by default).
+accept a client and 0 to refuse it. The .system key "ipc_max_message"
+limits the message size (256 MiB by default). A 0.7 client (pickle
+protocol, removed in 2.0) is closed at once and the cause is logged.
 
 Security: a client can run any Klong code in this interpreter, and
 credentials are sent in clear text. Bind to localhost, as in
@@ -900,7 +898,8 @@ its connection. A string argument is Klong source for the server to run.
 A symbol argument is the name of a server function, followed by its
 arguments: f(:avg,,!100). A symbol alone returns the remote value, and
 a remote function proxy for a function. The connection speaks the kdb+
-IPC protocol (KLONGPY_IPC=legacy selects the deprecated pickle protocol).
+IPC protocol, the only one; the pickle protocol of 0.7 was removed, and a
+2.0 client cannot talk to a 0.7 server (the handshake times out).
 A call waits 30 seconds at most (see .clit). An error on the server is
 raised here as the error of its kind. If nothing listens on the port,
 .cli blocks for about 155 seconds, then returns the function, and the
@@ -960,7 +959,7 @@ wrapper takes the one request argument, as the connection does.
 
 ## Autograd
 
-Defined in the base interpreter; most need the PyTorch backend. See [PyTorch Backend](torch_backend.md).
+Defined in the base interpreter; most need the PyTorch backend. See [PyTorch Backend and Autograd](torch_backend.md).
 
 | Name | Title | Description |
 |------|-------|-------------|
@@ -1418,7 +1417,7 @@ Example:   .hw.info()
 
 ## Database
 
-Load with `.py("klongpy.db")`. See [Fast Columnar Database](fast_columnar_database.md).
+Load with `.py("klongpy.db")`. See [Columnar tables and SQL](fast_columnar_database.md).
 
 | Name | Title | Description |
 |------|-------|-------------|

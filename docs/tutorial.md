@@ -1,6 +1,6 @@
 # Tutorial
 
-This page takes you from the first expression to functions, adverbs, dictionaries and files. It assumes you can program in some language and have never seen Klong. Every example is a transcript you can type at the REPL (`kgpy`); lines that start with `?> ` are what you type, and the line below is what the interpreter prints. The output shown is real.
+This page takes you from the first expression to functions, adverbs, dictionaries and files. It assumes you can program in some language and have never seen Klong. Every example is a transcript you can type at the REPL (`kgpy`); lines that start with `?> ` are what you type, and the line below is what the interpreter prints.
 
 All the code on this page is accepted at strict level 2, the strictest setting (see [Strict mode](strict.md)). The few examples that show a mistake say so and run at the default level.
 
@@ -56,7 +56,7 @@ Integers are 64 bits wide. Reals are double precision floats. A number is a real
 
 `%` is real division and `:%` is integer division.
 
-An integer that does not fit in 64 bits wraps around when both operands are ordinary integers. An operand that is itself larger than 64 bits makes the arithmetic exact, so you can compute with large numbers. `^` of two integer scalars with a non-negative exponent is exact too (`2^64` above); a list operand wraps in 64 bits instead:
+An integer that does not fit in 64 bits wraps around when both operands are ordinary integers. An operand that is itself larger than 64 bits makes the arithmetic exact, so you can compute with large numbers. `^` of two integer scalars with a non-negative exponent is exact too (`2^64` below). With a list operand `^` wraps in 64 bits like `+` and `*`, so `[2 3]^64` wraps (see [Numbers](differences.md#numbers)):
 
 <!-- check-docs: continue -->
 ```kgpy
@@ -66,6 +66,8 @@ An integer that does not fit in 64 bits wraps around when both operands are ordi
 18446744073709551616
 ?> (2^64)+1
 18446744073709551617
+?> [2 3]^64
+[0 8733086111712066817]
 ```
 
 ### Lists
@@ -975,6 +977,6 @@ For new code, use level 2 (`kgpy --strict=2`) and run `kgpy --lint` on the files
 - [Language Additions](language-additions.md): the complete rules for the additions marked "KlongPy adds".
 - [System functions](system-functions.md): files, channels, timers, IPC, the database and more.
 - [Examples](examples.md): short programs.
-- Coming from another tool? [From NumPy](from-numpy.md) and [From kdb+/q](from-kdb.md) map their idioms to Klong.
+- Coming from another tool? [Klong for NumPy users](from-numpy.md) and [Klong for q users](from-kdb.md) map their idioms to Klong.
 - [Start Here](getting-started.md) and [What's new in v2](whats-new-v2.md) for what v2 adds, and [Migrating to v2](migrating-to-v2.md) for existing programs.
 - [Native runtime](native/index.md): the same language on small devices, with no Python.

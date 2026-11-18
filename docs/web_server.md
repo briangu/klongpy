@@ -2,7 +2,7 @@
 
 > **Security:** `.web` listens on all interfaces by default and has no authentication or encryption. Bind to localhost (`.web("127.0.0.1:8080";get;post)`) and use it on trusted networks only. See the [security model](https://github.com/briangu/klongpy#security-model-trusted-networks).
 
-`.web` serves Klong functions as HTTP GET and POST routes, for a small API or a status page. The module is optional; install its dependency with `pip3 install "klongpy[web]"` and load it with `.py("klongpy.web")`.
+`.web` serves Klong functions as HTTP GET and POST routes, for a small API or a status page. The module is optional; install its dependency with `pip install "klongpy[web]"` and load it with `.py("klongpy.web")`.
 
 ## What a handler receives and returns
 

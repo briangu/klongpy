@@ -113,7 +113,7 @@ Why: the depth walk follows lists, and a string is not one.
 
 ### Numbers
 
-Reals are doubles, where Klong's are arbitrary precision. Integers are 64 bits wide and wrap on overflow, as in NumPy. An operand beyond 64 bits (a long literal, or `2^64`) makes `+ - * < > | &` exact. `%` gives a float. `^` of two integers with a non-negative exponent is exact on a scalar (`7^40`, `10^400`) while the operand's bit length times the exponent is at most 2^20 (`2^524288` works, `2^524289` does not); beyond that the answer is a float, which overflows to a range error (`10^100000000`). A negative or fractional exponent gives a float, and a list operand is computed in 64-bit integers like the other operators (`[2 3]^40` wraps).
+Reals are doubles, where Klong's are arbitrary precision. Integers are 64 bits wide and wrap on overflow, as in NumPy. An operand beyond 64 bits (a long literal, or `2^64`) makes `+ - * < > | &` exact. `%` gives a float. `^` of two integers with a non-negative exponent is exact on a scalar (`7^40`, `10^400`) while the operand's bit length times the exponent is at most 2^20 (`2^524288` works, `2^524289` does not); beyond that the answer is a float, which overflows to a range error (`10^100000000`). A negative or fractional exponent gives a float, and a list operand is computed in 64-bit integers like the other operators (`[2 3]^40` wraps), with the exceptions below.
 
 ```kgpy
 ?> 9223372036854775807+1
@@ -126,6 +126,27 @@ inf
 
 Why: the numbers are NumPy's, which is what makes array operations fast. Programs that need more digits than a double has will differ.
 
+`^` follows one rule for a list operand, in every arrangement (`list^scalar`, `scalar^list`, `list^list`): integers to a non-negative integer power are computed in 64-bit integer arithmetic and wrap, as `+` and `*` do; a negative integer exponent, or a float anywhere, gives floats. Two integer scalars are exact instead (`2^64`). With the NumPy backend:
+
+```kgpy
+?> 2^64
+18446744073709551616
+?> [2 3]^64
+[0 8733086111712066817]
+?> 2^[62 63 64]
+[4611686018427387904 -9223372036854775808 0]
+?> [2 3]^[64 64]
+[0 8733086111712066817]
+?> [2 3]^(0-1)
+[0.5 0.3333333333333333]
+?> 2^[0 -1]
+[1.0 0.5]
+?> [2.0 3]^2
+[4.0 9.0]
+```
+
+Use a scalar base and exponent when the result can exceed 64 bits. A list result of whole floats stays floats (`[4 9]^0.5` is `[2.0 3.0]`), where the scalar `4^0.5` gives the integer `2`.
+
 ## Described elsewhere
 
 These are not repeated here. Each is a change from classic Klong that is documented where it is used.
@@ -135,7 +156,7 @@ These are not repeated here. Each is a change from classic Klong that is documen
 - **Language additions.** Destructuring `[a b]::v`, named parameters `f(a;b;c;d)::{...}`, evaluated dictionaries, `d@k` on dictionaries, `.fmt`, `.grad`. The inputs whose meaning changed are in [Syntax that changed meaning](release-notes.md#syntax-that-changed-meaning). See [Language Additions](language-additions.md).
 - **Strict mode and lint.** Three [strict levels](strict.md) and [`kgpy --lint`](lint.md) report or reject silent mistakes. The default is the classic behaviour.
 - **Errors** carry a position and a kind. See [Errors](errors.md).
-- **Python, IPC, autograd and the rest of the system functions**: `.py`, `.pyf`, `.srv`, `.cli`, `:>`, `.db` and others are additions. See [Python Integration](python_integration.md), [IPC](ipc_capabilities.md) and [PyTorch Backend](torch_backend.md).
+- **Python, IPC, autograd and the rest of the system functions**: `.py`, `.pyf`, `.srv`, `.cli`, `:>`, `.db` and others are additions. See [Python Integration](python_integration.md), [IPC](ipc_capabilities.md) and [PyTorch Backend and Autograd](torch_backend.md).
 - **A static subset that compiles to C.** See [Compiling Klong to C](embedded.md).
 
 ## Known bugs

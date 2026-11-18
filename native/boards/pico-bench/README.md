@@ -2,7 +2,7 @@
 
 Firmware that runs the native Klong interpreter on a Raspberry Pi Pico (RP2040) as one node of a small network, with IPC between nodes. This README is for someone with two Picos who wants to build the image and flash it. Results, memory design and known limits are in `docs/native/pico-bench.md`; the status of every board is in the table of `docs/native/index.md`.
 
-Each node has one UART lane on GP16 (TX) and GP17 (RX) of `uart0`. The lane carries 16-byte frames, so a node needs a switch or a peer that speaks them; `docs/native/pico-bench.md` says what to use without the original test bench. The node learns its number from the lane, answers PING, sends STATUS once a second and carries messages of up to 1024 bytes. Above that it runs the kdb+ IPC (`.cli("node:1")`, `.srv("node:")`) and the management library. One image is flashed to every Pico.
+Each node has one lane, a UART link on GP16 (TX) and GP17 (RX) of `uart0`. The lane carries 16-byte frames, so a node needs a switch or a peer that speaks them; `docs/native/pico-bench.md` says what to use when you do not have the switch and supervisor of the published result (they are not in the repository). The node learns its number from the lane, answers PING, sends STATUS once a second and carries messages of up to 1024 bytes. Above that it runs the kdb+ IPC (`.cli("node:1")`, `.srv("node:")`) and the management library. One image is flashed to every Pico.
 
 ## Requirements
 
@@ -41,7 +41,7 @@ Hold BOOTSEL while connecting the Pico over USB and copy `build/klong_pico_bench
 | USB | a CDC console (`pico_stdio_usb`), raw bytes |
 | Not touched | RUN, SWD, every other GPIO, the second core, flash |
 | Node number | the destination of the first unicast frame that arrives. The node is silent until then. |
-| Frames | answers PING with PONG; sends STATUS to address 16 once a second; takes datagram frames (APP_DATA sub-types `0xD0` to `0xD3`); ignores every other valid frame |
+| Frames | answers PING with PONG; sends STATUS once a second to address 16, which is the supervisor's address; takes datagram frames (APP_DATA sub-types `0xD0` to `0xD3`); ignores every other valid frame |
 | Reset | `.x(0)` restarts the chip through the watchdog |
 | Safety net | a HardFault handler, a watchdog of 8 s fed in the idle path, and a canary at the bottom of the stack. The reason for a restart appears in the self-test report as `boot=hardfault`, `boot=stack`, `boot=fatal`, `boot=watchdog` or `boot=reset`. |
 
@@ -49,7 +49,7 @@ Ctrl-T (0x14) on the USB console prints the counters instead of passing it to Kl
 
 ## The console
 
-* **USB.** Open the Pico's USB port with a terminal at any speed and press Enter for the prompt `klong> `. `native/tools/kgupload.py PORT ver` works, and so do `put` and `run`.
+* **USB.** (The USB console has not been tested on the two boards of the published result.) Open the Pico's USB port with a terminal at any speed and press Enter for the prompt `klong> `. `native/tools/kgupload.py PORT ver` works, and so do `put` and `run`.
 * **The lane.** Datagram channel 1 is a console. Input is a datagram with the ACK flag that ends at a line end; output is text sent to the node that last sent input. Channel 2 carries control (`done ID STATUS`, `int`, `hello`) and channel 3 the self-test report. `native/tools/klong_bench.py` is a client; `tools/lane_frames.py send 0 '1+2\n' --ack` prints the frames of an input for any other tool to put on a lane.
 
 ## The boot self-test
@@ -81,7 +81,7 @@ With two flashed Picos on a lane that reaches a numbering source, check in this 
 1. Both nodes are numbered and alive, with STATUS flags `0x31`.
 2. Within about 10 s the higher node's flags change to `0x51` and its report reads `klong selftest pass ...`. The lower node stays at `0x31` and reports `calls=5`.
 3. If after 30 s no node has left `0x31`, or a flag is `0x91`, read the failing step in the `fail` text. `0x91` repeats the test every 15 s.
-4. On the USB console, Enter gives `klong> ` and `1+2` gives `3`. On the higher node, after the self-test, `h::.cli("node:0");t::.pc();h(:stping0,,5);.pc()-t` gives the round trip in seconds, about 0.0034. `f::{:[x;1+f(x-1);0]};f(105)` works and `f(109)` is a `range` error.
+4. On the USB console, Enter gives `klong> ` and `1+2` gives `3`. A plain `.cli` call to the other node takes about 3.4 ms. `f::{:[x;1+f(x-1);0]};f(105)` works and `f(109)` is a `range` error.
 5. `{1}{x+1}:~0` runs until Ctrl-C. Ctrl-T afterwards shows `rx ring overruns 0`.
 
 Record the `pass` line, the round trip and the counters `rx ring overruns`, `fifo overruns`, `line errors`, `bad crc` and `tx ring full`, all expected to be 0 on a clean lane. For the results of one such run see `docs/native/pico-bench.md`.

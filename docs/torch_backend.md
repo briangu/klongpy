@@ -15,7 +15,7 @@ From Python:
 from klongpy import KlongInterpreter
 
 klong = KlongInterpreter(backend="torch", device="cpu")
-print(klong._backend.name)
+print(klong.backend.name)   # torch
 ```
 
 `device` is `cuda`, `mps` or `cpu`. Without it the backend picks CUDA, then MPS, then the CPU.
@@ -30,7 +30,7 @@ print(klong._backend.name)
 | Values that need float64 | NumPy |
 | GPU | torch; this page has no GPU speed figures, see [Performance](performance.md) for what is measured |
 
-On the CPU, torch is slower than NumPy at 100K elements and about 1.3 to 1.8 times faster at 1M-element arithmetic; grade (`<`) is several times slower. Sorting and loops dispatch many small operations, which costs more on torch than on NumPy. Measurements, with their conditions, are in [Performance](performance.md); `python tests/perf_backend.py --compare` repeats them on your machine.
+On the CPU, torch pays off only for large arrays and many threads. Sorting and loops dispatch many small operations, which costs more on torch than on NumPy. [Performance](performance.md) has the figures and their conditions; `python tests/perf_backend.py --compare` repeats them on your machine.
 
 ## What differs from NumPy
 
@@ -49,7 +49,7 @@ Known limit: some operations on mixed-type or ragged nested data raise "PyTorch 
 
 ## Gradient operators
 
-`function:>point` is the autograd operator. The dyad `point∇function` always uses finite differences, on every backend. The table that compares all of them is in the [operator reference](operators.md#comparison); this page shows the torch-only use. The values are those of the torch backend on the CPU.
+`function:>point` is the autograd operator, and so is the monad `∇function`, which returns the gradient as a function. The dyad `point∇function` and `.grad(function;point)` use finite differences on every backend. The table that compares all of them is in the [operator reference](operators.md#comparison); this page shows the torch-only use. The values are those of the torch backend on the CPU.
 
 ```klong
 f::{x^2}
@@ -77,7 +77,7 @@ loss:>[w b]                    :" [4.0 6.0]
 | `∇` | Nabla (gradient) | Character Viewer: Ctrl+Cmd+Space, search "nabla" | Ctrl+Shift+U, then `2207`, then Enter (GTK and many desktops), or copy-paste | Alt+8711 on the numeric keypad |
 | `∂` | Partial (Jacobian) | Option+d | Ctrl+Shift+U, then `2202`, then Enter | Alt+8706 on the numeric keypad |
 
-ASCII alternatives need no special characters. Note the argument order: the functions take the function first, the operators take the point first.
+ASCII alternatives need no special characters. Mind the argument order: `.grad`, `.jacobian` and `:>` take the function first, and the glyphs `∇` and `∂` take the point first.
 
 | Symbol form | ASCII form |
 |---|---|
@@ -87,7 +87,7 @@ ASCII alternatives need no special characters. Note the argument order: the func
 
 ### Custom Optimizers
 
-The gradient primitives are (`:>`, `∂`, `.jacobian()`). For optimizers, use the example classes in `examples/autograd/optimizers.py` which you can copy to your project and customize.
+The gradient primitives are `:>`, `∂` and `.jacobian()`. For optimizers, use the example classes in `examples/autograd/optimizers.py` which you can copy to your project and customize.
 
 `loss:>[w]` returns a list with one gradient, so `**` takes its first element: `lr**g` is `lr*(*g)`. (For a single parameter, `loss:>w` returns the gradient itself, so `w::w-(lr*loss:>w)` also works.)
 
@@ -130,7 +130,7 @@ w                        :" Close to 0
 **SGD with momentum:**
 ```klong
 .pyf("optimizers";"SGDOptimizer")
-opt::SGDOptimizer(["w"];:{["lr" 0.01 "momentum" 0.9]})
+opt::SGDOptimizer(["w"];:{["lr" 0.01] ["momentum" 0.9]})
 ```
 
 **Adam optimizer:**
@@ -162,7 +162,7 @@ The example optimizers use `multi_grad_of_fn` from `klongpy.autograd` to compute
 from klongpy import KlongInterpreter
 
 klong = KlongInterpreter(backend='torch')
-print(klong._backend.device)  # 'cuda', 'mps' or 'cpu'
+print(klong.backend.device)  # 'cuda', 'mps' or 'cpu'
 ```
 
 Tensors report their device with an index, for example `mps:0`.
@@ -188,114 +188,32 @@ See [Python integration](python_integration.md) for the type mapping.
 - Combine operations so that fewer, larger ones run.
 - Use `:>` for gradients of functions on the torch backend.
 
-## Function Compilation
+## Function compilation and gradient checks
 
-The torch backend supports compiling Klong functions for optimized execution using `torch.compile`:
+These functions exist only on the torch backend. They compile a Klong function with `torch.compile`, export its graph and check its gradient. The examples need the torch backend; the values are from torch 2.15.0 on the CPU. Compilation needs a C++ compiler; `"backend" "eager"` skips compilation.
 
-Known issue: re-assigning a name that already holds a compiled function (`cf::.compile(f;3.0)` a second time in one session) and then calling it once returned the function instead of calling it. The current check did not reproduce it on the CPU or on MPS; give each compiled function a new name to avoid it.
-
-These functions exist only on the torch backend; the values shown are from torch 2.15.0.
-
-### `.compile(fn;input)` - Compile Function
-
-Compiles a function for faster execution:
-
-```klong
-f::{x^2}
-cf::.compile(f;3.0)      :" Returns compiled function
-cf(5.0)                   :" 25.0 (optimized)
-```
-
-The result is a tensor, `tensor(25., grad_fn=<CompiledFunctionBackward>)` in the run above.
-
-### `.export(fn;input;path)` - Export Computation Graph
-
-Asks torch to export the function's computation graph to a file:
-
-```klong
-f::{(x^3)+(2*x^2)+x}
-info::.export(f;2.0;"model.pt2")
-```
-
-The result is a dictionary with the keys `compiled_fn`, `export_path`, `graph`, `graph_module`, `mode` and `backend`. The file at `export_path` can be read back with `torch.export.load(path).module()`. If torch cannot export the function, the dictionary has `export_path` empty and the reason in `export_error` instead, and `compiled_fn` is still usable: check `export_error` before relying on the file.
-
-### `.compilex(fn;input;options)` - Extended Compilation
-
-Compile with advanced options for mode and backend:
+| Function | Does |
+|---|---|
+| `.compile(fn;input)` | Compiles `fn` for the shape and type of `input` and returns a callable. |
+| `.compilex(fn;input;options)` | The same with a dictionary of options: `"mode"`, `"backend"`, `"fullgraph"` (1 to require one graph) and `"dynamic"` (1 for dynamic shapes, 0 for static). |
+| `.cmodes()` | A dictionary with the keys `modes`, `backends` and `recommendations`. |
+| `.export(fn;input;path)` | Exports the computation graph to `path` and returns a dictionary with `compiled_fn`, `export_path`, `graph`, `graph_module`, `mode` and `backend`. |
+| `.gradcheck(fn;input)` | Returns 1 when the autograd gradient of `fn` at `input` matches the numeric one. CPU only. |
 
 ```klong
 f::{x^2}
-
-:" Fast compilation for development
-cf::.compilex(f;3.0;:{["mode" "reduce-overhead"]})
-
-:" Maximum optimization for production
-cf::.compilex(f;3.0;:{["mode" "max-autotune"]})
-
-:" Debug mode (no compilation)
-cf::.compilex(f;3.0;:{["backend" "eager"]})
+cf::.compile(f;3.0)
+cf(5.0)                                      :" tensor(25., grad_fn=<CompiledFunctionBackward>)
+ce::.compilex(f;3.0;:{["backend" "eager"]})  :" no compilation
+.cmodes()@"modes"                            :" the modes, with a description of each
+.gradcheck(f;3.0)                            :" 1
 ```
 
-**Options dictionary:**
-- `"mode"` - Compilation mode (see table below)
-- `"backend"` - Compilation backend (see table below)
-- `"fullgraph"` - Set to 1 to require full graph compilation
-- `"dynamic"` - Set to 1 for dynamic shapes, 0 for static
+The modes are `default`, `reduce-overhead` (faster to compile, less optimisation) and `max-autotune` (slowest to compile, most optimisation). The backends are `inductor` (the default, C++ or Triton code), `eager` (no compilation), `aot_eager` (eager with the autograd graph) and `cudagraphs` (GPU only).
 
-### `.cmodes()` - Query Compilation Modes
+`.export` writes a file that `torch.export.load(path).module()` reads back. If torch cannot export the function, `export_path` is empty, `export_error` holds the reason and `compiled_fn` is still usable.
 
-Get information about available modes and backends:
-
-```klong
-info::.cmodes()
-.p(info@"modes")          :" Available compilation modes
-.p(info@"backends")       :" Available backends
-.p(info@"recommendations") :" Suggested settings
-```
-
-### Compilation modes
-
-These are the descriptions that `.cmodes()` returns; compile times were not measured.
-
-| Mode              | Description (from `.cmodes()`) |
-|-------------------|--------------------------------|
-| `default`         | Balanced compilation - good for most cases |
-| `reduce-overhead` | Faster compile time, less optimization - good for development |
-| `max-autotune`    | Maximum optimization - best for production/training loops |
-
-### Compilation backends
-
-| Backend      | Description                                      |
-|--------------|--------------------------------------------------|
-| `inductor`   | Default - C++/Triton code generation (fastest)   |
-| `eager`      | No compilation - runs original Python (debugging)|
-| `aot_eager`  | Ahead-of-time eager (debugging + autograd)       |
-| `cudagraphs` | CUDA graphs - reduces GPU kernel launch overhead |
-
-**Note:** Compilation requires a C++ compiler on your system. Use `"backend" "eager"` to bypass compilation for debugging. If compilation fails, an error message will indicate the issue.
-
-## Gradient Verification
-
-Use `.gradcheck()` to verify that autograd gradients are correct:
-
-### `.gradcheck(fn;inputs)` - Verify Gradients
-
-Verifies autograd gradients against numeric gradients:
-
-```klong
-f::{x^2}
-.gradcheck(f;3.0)        :" Returns 1 if correct (CPU only)
-
-g::{+/x^2}
-.gradcheck(g;[1.0 2.0 3.0])  :" Returns 1
-```
-
-This uses `torch.autograd.gradcheck` internally for rigorous verification.
-
-**Use cases:**
-- Verifying custom gradient implementations
-- Debugging gradient computation issues
-- Ensuring numerical stability
+Known limit: give each compiled function its own name; assigning a second compiled function to the same name is not supported.
 
 ## Troubleshooting
 

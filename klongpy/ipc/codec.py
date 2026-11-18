@@ -530,6 +530,9 @@ class _Encoder:
             self._numpy_scalar(v)
         elif isinstance(v, np.ndarray):
             self._array(v, depth)
+        elif isinstance(v, (bytes, bytearray)):     # a kdb+ byte vector (type 4), empty included
+            self.out.append(_VEC_HDR.pack(4, 0, self._count(len(v))))
+            self.out.append(memoryview(v))
         elif isinstance(v, KdbTable):
             self._table(list(v.keys()), list(v.values()), depth)
         elif hasattr(v, "get_dataframe") and hasattr(v, "columns"):

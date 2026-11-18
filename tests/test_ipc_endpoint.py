@@ -3,7 +3,7 @@
 Two interpreters in one process talk over localhost (ports are chosen
 dynamically). Every potentially blocking step runs under a bounded wait, so a
 regression fails instead of hanging the suite. Run the whole IPC suite with
-``KLONGPY_IPC=kdb`` to make sure nothing here depends on the legacy protocol.
+``KLONGPY_IPC=kdb`` to check that the variable changes nothing.
 """
 import io
 import json
@@ -17,7 +17,6 @@ import threading
 import time
 import unittest
 import uuid
-import warnings
 from unittest.mock import patch
 
 import numpy as np
@@ -27,12 +26,11 @@ from ipc_helpers import FakeKdbServer, bounded, free_port, wait_until
 from klongpy import KlongInterpreter
 from klongpy.core import KGSym, KlongException
 from klongpy.ipc import KdbLambda, Session, decode, encode
-from klongpy.ipc import legacy
 from klongpy.ipc.endpoint import (KlongRemoteException, call_items, display_arity,
                                   lambda_value, wire_error_text)
 from klongpy.repl import cleanup_repl, create_repl
 from klongpy.sys_fn_ipc import (KGRemoteFnCall, KGRemoteFnProxy, KlongIPCException, NetworkClient,
-                                detect_protocol, parse_address)
+                                detect_handshake, parse_address)
 
 EXAMPLES = os.path.join(os.path.dirname(__file__), "..", "examples", "ipc")
 VECTORS = os.path.join(os.path.dirname(__file__), "ipc_vectors", "vectors.json")
@@ -567,6 +565,60 @@ class TestAuth(IPCCase):
             parse_address("h:notaport")
 
 
+class TestBytesOverIPC(IPCCase):
+    def test_bytes_cross_and_arrive_as_integers(self):
+        server, client = self.pair()
+        self.kg(server, "idf::{x}")
+        for b in (b"", b"\x00\xff", bytearray(b"hi")):
+            client["v"] = b
+            r = self.kg(client, "c(:idf,,v)")
+            self.assertEqual([int(x) for x in r], list(b))
+        client["v"] = [1, b"\x07\x08", {"k": 1}]
+        r = self.kg(client, "c(:idf,,v)")
+        self.assertEqual([int(x) for x in r[1]], [7, 8])
+
+    def test_bytes_as_a_dictionary_value_and_large(self):
+        server, client = self.pair()
+        self.kg(server, "idf::{x}")
+        client["v"] = {"k": b"\x01\x02"}
+        r = self.kg(client, "c(:idf,,v)")
+        self.assertEqual([int(x) for x in r["k"]], [1, 2])
+        big = bytes(range(256)) * 4096
+        client["v"] = big
+        r = self.kg(client, "c(:idf,,v)", 30)
+        self.assertEqual(bytes(np.asarray(r).astype(np.uint8)), big)
+
+    def test_large_bytes_over_the_limit_close_the_connection(self):
+        server, client = self.pair(ipc_max_message=100000)
+        client["v"] = bytes(200000)
+        with self.assertRaises(Exception):
+            self.kg(client, "c(:idf,,v)", 8)
+        self.assertTrue(wait_until(lambda: not client["c"].is_open(), 5))
+
+    def test_compressed_bytes(self):
+        server, client = self.pair()
+        self.kg(server, "idf::{x}")
+        client.ipc_compress = server.ipc_compress = True
+        client["v"] = b"abcd" * 20000
+        sent = []
+        real_send = NetworkClient._send
+
+        def spy(nc, data):
+            sent.append(data)
+            return real_send(nc, data)
+        with patch.object(NetworkClient, "_send", spy), patch("klongpy.ipc.endpoint._is_loopback", return_value=False):
+            r = self.kg(client, "c(:idf,,v)", 20)
+        self.assertTrue(any(d[2] == 1 for d in sent))
+        self.assertEqual(bytes(np.asarray(r).astype(np.uint8)), b"abcd" * 20000)
+
+    def test_a_set_is_still_a_type_error(self):
+        server, client = self.pair()
+        client["v"] = {1, 2}
+        with self.assertRaises(Exception) as cm:
+            self.kg(client, "c(:idf,,v)")
+        self.assertIn("set", str(cm.exception))
+
+
 class TestLimits(IPCCase):
     def test_oversize_request_is_refused_and_the_connection_closed(self):
         server, client = self.pair(ipc_max_message=2000)
@@ -643,160 +695,172 @@ class TestCompression(IPCCase):
         self.assertEqual(self.kg(client, 'c("1+1")'), 2)
 
 
-class TestLegacy(IPCCase):
+def old_client_frame(command="1+1"):
+    """What a 0.7 client sends first: a 16-byte id, a 4-byte length and a pickle."""
+    data = pickle.dumps(command)
+    return uuid.uuid4().bytes + struct.pack("!I", len(data)) + data
+
+
+class Marker:
+    """Unpickling this creates ``path``: it shows whether a peer's bytes were unpickled."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def __reduce__(self):
+        return (open, (self.path, "w"))
+
+
+class TestOldProtocolRemoved(IPCCase):
+    """The pickle protocol of 0.7 is gone: there is one protocol."""
+
     def setUp(self):
-        legacy._warned = False
         env = patch.dict(os.environ)
         env.start()
         self.addCleanup(env.stop)
         os.environ.pop("KLONGPY_IPC", None)
 
-    def test_a_legacy_client_is_served_by_an_auto_server_and_warns_once(self):
-        server = self.repl()
-        port = free_port()
-        self.kg(server, f".srv({port})")
-        self.kg(server, "sq::{x*x}")
-        client = self.repl()
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            os.environ["KLONGPY_IPC"] = "legacy"
-            self.kg(client, f"c::.cli({port})")
-            self.assertEqual(client["c"].protocol, "legacy")
-            self.assertEqual(self.kg(client, 'c("1+1")'), 2)
-            self.kg(client, f"c2::.cli({port})")
-            self.assertEqual(self.kg(client, "c2(:sq,,6)"), 36)
-            self.kg(client, "d::.clid(c)")
-            self.kg(client, "d,[:v 3]")
-            self.assertEqual(self.kg(server, "v"), 3)
-            self.assertEqual(self.kg(client, "d?:v"), 3)
-            q = self.kg(client, "q::c(:sq)")
-            self.assertIsInstance(q, KGRemoteFnProxy)
-            self.assertEqual(self.kg(client, "q(5)"), 25)
-        dep = [x for x in w if "deprecated" in str(x.message)]
-        self.assertEqual(len(dep), 1, [str(x.message) for x in w])
-
-    def test_raw_pickle_frames_are_served(self):
-        """Hand-written legacy bytes: 16-byte id, 4-byte length, pickle."""
-        server = self.repl()
-        port = free_port()
-        self.kg(server, f".srv({port})")
+    def closed_quickly(self, port, payload):
+        """Send ``payload``; True when the server closes the connection without a byte in answer."""
         s = socket.create_connection(("127.0.0.1", port), timeout=5)
         self.addCleanup(s.close)
-        mid = uuid.uuid4()
-        s.sendall(legacy.encode_message(mid, "1+1"))
-        rid = self._read_exact(s, 16)
-        (n,) = struct.unpack("!I", self._read_exact(s, 4))
-        self.assertEqual(uuid.UUID(bytes=rid), mid)
-        self.assertEqual(pickle.loads(self._read_exact(s, n)), 2)
-
-    def _legacy_roundtrip(self, port, command="1+1"):
-        """Send one raw legacy frame; the answer, or None when the server closes the connection."""
-        s = socket.create_connection(("127.0.0.1", port), timeout=5)
-        self.addCleanup(s.close)
-        s.sendall(legacy.encode_message(uuid.uuid4(), command))
-        try:
-            self._read_exact(s, 16)
-            (n,) = struct.unpack("!I", self._read_exact(s, 4))
-            return pickle.loads(self._read_exact(s, n))
-        except (AssertionError, ConnectionError):
-            return None
-
-    def test_a_server_with_srv_auth_refuses_legacy_clients(self):
-        # the pickle protocol carries no credentials, so .srv.auth cannot apply to it
-        server = self.repl()
-        port = free_port()
-        self.kg(server, f".srv({port})")
-        self.assertEqual(self._legacy_roundtrip(port), 2)           # no hook: served
-        self.kg(server, ".srv.auth::{0}")
-        self.assertIsNone(self._legacy_roundtrip(port))             # hook set: refused
-        self.kg(server, ".srv.auth::{1}")
-        self.assertIsNone(self._legacy_roundtrip(port))             # even a hook that accepts everyone
-
-    def test_the_size_limit_applies_to_legacy_clients(self):
-        server = self.repl()
-        server['.system']['ipc_max_message'] = 100
-        port = free_port()
-        self.kg(server, f".srv({port})")
-        self.assertEqual(self._legacy_roundtrip(port), 2)
-        self.assertIsNone(self._legacy_roundtrip(port, "1+1" + " " * 500))
-
-    @staticmethod
-    def _read_exact(s, n):
-        buf = b""
-        while len(buf) < n:
-            chunk = s.recv(n - len(buf))
-            if not chunk:
-                raise AssertionError("connection closed")
-            buf += chunk
-        return buf
-
-    def test_kdb_mode_server_refuses_a_legacy_client(self):
-        server = self.repl()
-        port = free_port()
-        self.kg(server, f".srv({port})")
-        os.environ["KLONGPY_IPC"] = "kdb"
-        s = socket.create_connection(("127.0.0.1", port), timeout=5)
-        self.addCleanup(s.close)
-        s.sendall(legacy.encode_message(uuid.uuid4(), "1+1"))
-        s.settimeout(5)
+        s.sendall(payload)
         t0 = time.monotonic()
         try:
             data = s.recv(100)
         except ConnectionResetError:
             data = b""
-        self.assertEqual(data, b"")
-        self.assertLess(time.monotonic() - t0, 4)
+        self.assertLess(time.monotonic() - t0, 3)
+        return data == b""
 
-    def test_legacy_mode_server_refuses_a_kdb_client_in_bounded_time(self):
+    def test_legacy_mode_is_a_start_up_error(self):
+        os.environ["KLONGPY_IPC"] = "legacy"
+        server = self.repl()
+        with self.assertRaises(KlongException) as cm:
+            self.kg(server, f".srv({free_port()})")
+        self.assertIn("removed in 2.0", str(cm.exception))
+        with self.assertRaises(KlongException) as cm:
+            self.kg(server, f".cli({free_port()})")
+        self.assertIn("removed in 2.0", str(cm.exception))
+        self.assertEqual(self.kg(server, "1+1"), 2)
+
+    def test_kdb_and_auto_are_accepted_and_other_values_are_errors(self):
+        for value in ("kdb", "auto", " KDB ", ""):
+            os.environ["KLONGPY_IPC"] = value
+            server, client = self.pair_no_env()
+            self.assertEqual(self.kg(client, 'c("1+1")'), 2)
+        os.environ["KLONGPY_IPC"] = "bogus"
+        server = self.repl()
+        with self.assertRaises(KlongException) as cm:
+            self.kg(server, f".srv({free_port()})")
+        self.assertIn("bogus", str(cm.exception))
+
+    def pair_no_env(self):
         server = self.repl()
         port = free_port()
-        os.environ["KLONGPY_IPC"] = "legacy"
         self.kg(server, f".srv({port})")
-        os.environ["KLONGPY_IPC"] = "auto"                       # the client itself speaks kdb
         client = self.repl()
-        # the server mode is read when a connection arrives
-        os.environ["KLONGPY_IPC"] = "legacy"
+        self.kg(client, f"c::.cli({port})")
+        return server, client
+
+    def test_an_old_client_frame_is_refused_and_not_unpickled(self):
+        server = self.repl()
+        port = free_port()
+        self.kg(server, f".srv({port})")
+        with tempfile.TemporaryDirectory() as d:
+            marker = os.path.join(d, "unpickled")
+            with self.assertLogs(level="WARNING") as logs:
+                self.assertTrue(self.closed_quickly(port, old_client_frame(Marker(marker))))
+            self.assertFalse(os.path.exists(marker))
+        self.assertTrue(any("pickle protocol of KlongPy 0.7" in m and "removed in 2.0" in m for m in logs.output),
+                        logs.output)
+        # the server is still serving kdb+ clients
+        client = self.repl()
+        self.kg(client, f"c::.cli({port})")
+        self.assertEqual(self.kg(client, 'c("2+3")'), 5)
+
+    def test_a_first_frame_of_any_old_client_is_refused(self):
+        server = self.repl()
+        port = free_port()
+        self.kg(server, f".srv({port})")
+        for _ in range(5):
+            self.assertTrue(self.closed_quickly(port, old_client_frame()))
+
+    def test_legacy_frames_are_refused_with_srv_auth_and_without(self):
+        server = self.repl()
+        port = free_port()
+        self.kg(server, f".srv({port})")
+        self.assertTrue(self.closed_quickly(port, old_client_frame()))
+        self.kg(server, ".srv.auth::{1}")
+        self.assertTrue(self.closed_quickly(port, old_client_frame()))
+        self.kg(server, ".srv.auth::{0}")
+        self.assertTrue(self.closed_quickly(port, old_client_frame()))
+
+    def test_legacy_frames_are_refused_whatever_the_size_limit(self):
+        server = self.repl()
+        server['.system']['ipc_max_message'] = 100
+        port = free_port()
+        self.kg(server, f".srv({port})")
+        self.assertTrue(self.closed_quickly(port, old_client_frame()))
+        self.assertTrue(self.closed_quickly(port, old_client_frame("1+1" + " " * 500)))
+
+    def test_a_server_with_srv_auth_still_checks_kdb_clients(self):
+        server = self.repl()
+        port = free_port()
+        self.kg(server, f".srv({port})")
+        self.kg(server, '.srv.auth::{(x="bob")&(y="pw")}')
+        client = self.repl()
+        self.kg(client, f'c::.cli("127.0.0.1:{port}:bob:pw")')
+        self.assertEqual(self.kg(client, 'c("1+1")'), 2)
+        with self.assertRaises(KlongException):
+            self.kg(client, f'.cli("127.0.0.1:{port}:bob:wrong")', 12)
+
+    def test_a_client_of_an_old_server_fails_at_the_handshake(self):
+        """A 0.7 server reads a 16-byte id first and answers nothing to a kdb+ hello."""
+        listener = socket.socket()
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        port = listener.getsockname()[1]
+        received = []
+        conns = []
+
+        def old_server():
+            c, _ = listener.accept()
+            conns.append(c)
+            c.settimeout(5)
+            try:
+                received.append(c.recv(16))     # waits for its 16-byte message id, never replies
+            except OSError:
+                pass
+
+        t = threading.Thread(target=old_server, daemon=True)
+        t.start()
+        self.addCleanup(listener.close)
+        self.addCleanup(lambda: [c.close() for c in conns])
+        client = self.repl()
         t0 = time.monotonic()
-        client_mode = patch("klongpy.sys_fn_ipc.ipc_mode", side_effect=lambda default: "kdb" if default == "kdb" else "legacy")
-        with client_mode:
+        with patch("klongpy.ipc.endpoint.HANDSHAKE_TIMEOUT", 1.0):
             with self.assertRaises(KlongException) as cm:
                 self.kg(client, f".cli({port})", 8)
         self.assertLess(time.monotonic() - t0, 4)
-        self.assertIn("handshake", str(cm.exception))
+        self.assertIn("handshake timed out", str(cm.exception))
+        self.assertIn("0.7", str(cm.exception))
+        t.join(6)
 
-    def test_auto_server_serves_both_protocols_at_once(self):
-        server = self.repl()
-        port = free_port()
-        self.kg(server, f".srv({port})")
-        k1, k2 = self.repl(), self.repl()
-        self.kg(k1, f"c::.cli({port})")
-        os.environ["KLONGPY_IPC"] = "legacy"
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            self.kg(k2, f"c::.cli({port})")
-        os.environ.pop("KLONGPY_IPC")
-        self.assertEqual(self.kg(k1, 'c("2+3")'), 5)
-        self.assertEqual(self.kg(k2, 'c("2+4")'), 6)
-
-    def test_bad_mode_value_is_an_error(self):
-        os.environ["KLONGPY_IPC"] = "bogus"
-        with self.assertRaises(KlongException):
-            legacy.ipc_mode("kdb")
-
-    def test_detect_protocol(self):
-        d = detect_protocol
+    def test_detect_handshake(self):
+        d = detect_handshake
         self.assertEqual(d(b":\x03\x00"), "kdb")
         self.assertEqual(d(b"user:pass\x03\x00"), "kdb")
         self.assertIsNone(d(b"user:pa"))                             # need more
-        self.assertEqual(d(b"user:pass\x03"), None)
-        self.assertEqual(d(legacy.encode_message(uuid.uuid4(), "x")[:9]), "legacy")
-        self.assertEqual(d(b"\x81"), "legacy")
-        self.assertEqual(d(b"abc\x00"), "legacy")                    # a zero not preceded by 1..6
-        self.assertEqual(d(b"ab\x03\x00"), "legacy")                 # no ':' before it
+        self.assertIsNone(d(b"user:pass\x03"))
+        self.assertEqual(d(old_client_frame()[:9]), "pickle")
+        self.assertEqual(d(b"\x81"), "pickle")
+        self.assertEqual(d(b"abc\x00"), "pickle")                    # a zero not preceded by 1..6
+        self.assertEqual(d(b"ab\x03\x00"), "pickle")                 # no ':' before it
         self.assertEqual(d(b"a" * 300), "bad")
-        # a version-4 UUID always has byte 8 >= 0x80, so 9 bytes decide every legacy frame
+        # a version-4 UUID always has byte 8 >= 0x80, so 9 bytes decide every old frame
         for _ in range(2000):
-            self.assertNotEqual(d(uuid.uuid4().bytes[:9]), None)
+            self.assertEqual(d(uuid.uuid4().bytes[:9]), "pickle")
 
 
 class TestRawQClient(IPCCase):

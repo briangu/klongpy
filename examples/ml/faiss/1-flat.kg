@@ -1,4 +1,4 @@
-:" KlongPy varaint of 1-flat.py "
+:" The first faiss tutorial (1-Flat) in Klong: an exact L2 index, called through .pyf and .pya "
 
 .pyf("faiss";"IndexFlatL2")
 .pyf("numpy";"random");rns::.pya(random;"seed");rna::.pya(random;"random")

@@ -1,8 +1,10 @@
 # Native Runtime
 
-This section describes the native Klong runtime: a second implementation of the Klong language, written in Rust, that runs on microcontrollers and on a desktop without Python. It is for people who want to run Klong on a small board, or who want to know how that implementation relates to KlongPy and how far it has been tested. This page says what it is, how it relates to KlongPy, what exists today, and what has and has not been proven.
+This section describes the native Klong runtime: a second implementation of the Klong language, written in Rust, that runs on microcontrollers and on a desktop without Python. It is for people who want to run Klong on a small board, or who want to know how that implementation relates to KlongPy and how far it has been tested. This page says what it is, how it relates to KlongPy, what exists today, and what has run on which hardware.
 
-The source is in the `native/` directory of the KlongPy repository. The runtime is new. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board. Two Raspberry Pi Picos have run it with IPC between them. The [status table](#status-what-has-and-has-not-been-proven) below says what has run where.
+The source is in the `native/` directory of the KlongPy repository. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board. Two Raspberry Pi Picos have run it with IPC between them. The [status table](#status-what-has-and-has-not-been-proven) below says what has run where.
+
+The runtime has its own version, 0.0.1. `klong --version` and the banner of a board print it. It is not the version of KlongPy (2.0.0rc1).
 
 ## What it is for
 
@@ -28,7 +30,7 @@ $ klong -e '.l("nstat");.p(sd([1 2 3 4]))'
 
 ## How it relates to KlongPy
 
-It is the **same language**, and that is checked and not only intended. The repository has a conformance suite, `conformance/cases`, of 1294 cases at the time of writing for the default build. Each case is a program, the printed value or the error kind it must produce, and optionally the console output. KlongPy runs the suite and the native runtime runs the same files, through a small command-line protocol, with no Python. KlongPy is the reference: a case that KlongPy fails is either a KlongPy bug, which goes to a pending list, or a wrong case. The 169 golden parse trees of KlongPy's own tests are matched byte for byte as well.
+It is the **same language**, and that is checked and not only intended. The repository has a conformance suite, `conformance/cases`, of 1302 cases for the default build. Each case is a program, the printed value or the error kind it must produce, and optionally the console output. KlongPy runs the suite and the native runtime runs the same files, through a small command-line protocol, with no Python. KlongPy is the reference: a case that KlongPy fails is either a KlongPy bug, which goes to a pending list, or a wrong case. The 169 golden parse trees of KlongPy's own tests are matched byte for byte as well.
 
 These are the differences. All of them follow from having no Python and no numpy, or from running on a small device.
 
@@ -64,30 +66,28 @@ Two more things are worth knowing. The REPL of the desktop `klong` program is si
 
 ## Status: what has and has not been proven
 
-"Proven" here means that it was run, with the result stated. Dates are 2026-11-16 unless a row says another. An empty cell means no.
-
-This is the one status of what has run on hardware; the other pages link here.
+This table is the status of every hardware target. Each row says what ran and its result. An empty cell means no. Conditions: dates are 2026-11-16 unless a row says another; a desktop is macOS or Linux.
 
 | Hardware | What has run |
 |---|---|
 | A desktop (macOS and Linux) | the whole conformance suite, the 32-bit build, IPC over TCP, timers, the management node |
 | An ESP32-P4 development board (chip revision v3.2; see [ESP32-P4](esp32-p4.md)) | the console conformance suite over the serial port, the REPL, uploads, the embedded library |
-| Two Raspberry Pi Picos ([two Picos calling each other](pico-bench.md)) | IPC between the nodes over a UART link, and management-library calls |
-| An Alveo U250 FPGA | experimental kernels built from the static profile of KlongPy (not the native runtime; see [Hardware](../hardware.md)) |
+| Two Raspberry Pi Picos ([two Picos calling each other](pico-bench.md)) | IPC between the nodes over a UART link, and management-library calls, through an unpublished serial switch and supervisor (the firmware, the simulator and the host tools are in the repository) |
+| An Alveo U250 FPGA | experimental kernels built from the static profile of KlongPy (not the native runtime; see [Klong functions as FPGA hardware](../hardware.md)) |
 | Anything else | nothing |
 
 | Area | Result | Where it ran |
 |---|---|---|
-| The language, default build (64-bit) | 1293 of 1293 conformance cases; 169 of 169 parse trees | desktop |
+| The language, default build (64-bit) | 1301 of 1301 conformance cases; 169 of 169 parse trees | desktop |
 | The language, 32-bit build (`int32`, `float32`) | 1160 of 1160 cases that the build declares | desktop |
 | The embedded library | all twelve files load, at strict levels 0, 1 and 2 | desktop |
-| The serial console | 1293 of 1293 cases through `^A run` | simulated boards |
-| The serial console | 1266 of 1266 cases over the serial port, in 1877 seconds (the suite had 1266 cases that day; it has 1294 now, see [Conformance](../conformance.md#why-the-counts-differ)) | **an ESP32-P4** |
+| The serial console | 1301 of 1301 cases through `^A run` | simulated boards |
+| The serial console | 1266 of 1266 cases over the serial port, in 1877 seconds (the suite had 1266 cases when it was run; see [Conformance](../conformance.md#why-the-counts-differ)) | **an ESP32-P4** |
 | REPL, line editing, Ctrl-C on a runaway loop, the embedded library, uploads | work | **an ESP32-P4** |
-| Speed | `fib(24)` 4.2 s on the board, against about 35 ms on an Apple-silicon Mac; **the cause is not investigated** | an ESP32-P4 and the Mac |
-| Firmware image | 691,328 bytes flashed (the current build, not flashed, is 701,360) | an ESP32-P4 |
+| Speed | `fib(24)` 4.2 s on the board, against about 35 ms on a desktop (Apple M2 Ultra); **the cause is not investigated** | an ESP32-P4 and the desktop |
+| Firmware image | 691,328 bytes; this is the image that was flashed and measured, and the ESP32-P4 figures are for it | an ESP32-P4 |
 | IPC with KlongPy, both directions, every mapped type | passes | desktop, localhost TCP |
-| IPC with PeachQ 0.92.20261115 (a kdb+-compatible q implementation), both directions | passes when the tests are enabled; not run again for this documentation | desktop, localhost TCP |
+| IPC with PeachQ 0.92.20261115 (a kdb+-compatible q implementation), both directions | passes when the tests are enabled | desktop, localhost TCP |
 | IPC against a KX kdb+ process | not tried | |
 | IPC on a device | passes between two Picos over a UART link (2026-11-16, 17); **not run on the ESP32-P4**, whose firmware has no IPC | **two Raspberry Pi Picos** |
 | IPC over a UART or a lossy link | tested in memory with seeded faults; on a wire only the UART link between two Picos | in-process simulation, two Picos |
@@ -95,17 +95,18 @@ This is the one status of what has run on hardware; the other pages link here.
 | The management node | works with three native node processes on localhost, and in an in-process test over simulated lossy and serial links | desktop |
 | The management node on boards | the library loads and management-library calls (`mgmt.call`) work on Picos (2026-11-17); a management board with nodes on UARTs and a pulled cable were **not run** | **two Raspberry Pi Picos** |
 | Flash storage on a board | **not done**; the file system is RAM and is lost at reset | |
-| Arm Cortex-M (`thumbv7em-none-eabihf`) | the image links; it has no start-up code and was **never booted** | |
-| RISC-V without an ESP chip (`riscv32imac`) | the same | |
-| An ESP32-C3 under QEMU | the firmware's glue booted and ran expressions, uploads, timers and `.x`; a runaway loop ended in a watchdog timeout, taken to be a fault of the emulator and not investigated | QEMU |
+| Arm Cortex-M4F and M7 (`thumbv7em-none-eabihf`) | the image links; it has no start-up code and was **never booted**. The Picos are Cortex-M0+ (`thumbv6m-none-eabi`) and did boot | |
+| RISC-V without an ESP chip (`riscv32imac-unknown-none-elf`) | the same | |
+| An ESP32-C3 under QEMU | the firmware's glue booted and ran expressions, uploads, timers and `.x`; a runaway loop ended in a watchdog timeout (see the known limits) | QEMU |
 | Fuzzing | seeded fuzzers of the parser, evaluator, IPC decoder and console, no crash or hang found after fixes; not a coverage-guided fuzzer | desktop |
 | Memory safety under out-of-memory | with every large allocation failing in turn, every failure is a `memory` error, no abort | desktop |
 
 Known limits on the board:
 
-* Known limit: after a reset the first line can fail with `input is not valid UTF-8`, because of a stray byte. Send the line again.
-* Known limit: opening the serial port resets the board, and the RAM file system is lost at every reset.
-* Known limit: `fib(24)` is far slower on the board than the clock would suggest, and the cause is not known.
+* After a reset the first line can fail with `input is not valid UTF-8`, because of a stray byte. Send the line again.
+* Opening the serial port resets the board, and the RAM file system is lost at every reset.
+* `fib(24)` is far slower on the board than the clock would suggest. The cause is not known.
+* A runaway loop under the ESP32-C3 emulator (QEMU) ends in a watchdog timeout. The cause is not investigated.
 
 ## Where to go next
 

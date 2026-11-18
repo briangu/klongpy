@@ -1,4 +1,4 @@
-# KlongPy 2: one array language from GPU to FPGA to microcontroller
+# KlongPy 2: one array language from CPU and GPU to FPGA and microcontroller
 
 KlongPy is an implementation of [Klong](https://t3x.org/klong), an [array language](https://en.wikipedia.org/wiki/Array_programming), in Python. You write `+/a` for the sum of an array instead of a loop. It is for array and time-series work, for people coming from NumPy or kdb+/q, for gradient-based work, and for small devices. Source code: [briangu/klongpy](https://github.com/briangu/klongpy).
 
@@ -6,14 +6,14 @@ KlongPy is an implementation of [Klong](https://t3x.org/klong), an [array langua
 
 | Target | Status | More |
 |---|---|---|
-| CPU, with NumPy | stable | [Start Here](getting-started.md) |
-| GPU, with PyTorch and autograd | stable | [PyTorch Backend](torch_backend.md) |
-| Native interpreter (Rust) on a desktop | passes conformance | [Native Runtime](native/index.md) |
-| Compile to C | works for a subset of the language | [Compiling Klong to C](embedded.md) |
-| Microcontrollers (native runtime) | experimental, one board | [Native Runtime status](native/index.md#status-what-has-and-has-not-been-proven) |
-| FPGA | experimental, one board | [Klong as FPGA Hardware](hardware.md) |
+| CPU (NumPy backend) | stable | [Start Here](getting-started.md) |
+| GPU (PyTorch backend, autograd) | stable on CPU tensors; the GPU devices (CUDA, Apple MPS) use the same code and are not part of the automated tests | [PyTorch Backend and Autograd](torch_backend.md) |
+| Native interpreter (desktop) | passes the conformance suite | [Native Runtime](native/index.md) |
+| Compile to C (static profile) | works for a subset of the language; not run on a microcontroller | [Compiling Klong to C](embedded.md) |
+| Microcontrollers (native interpreter) | experimental; run on an ESP32-P4 and on two Raspberry Pi Picos | [Native Runtime status](native/index.md#status-what-has-and-has-not-been-proven) |
+| FPGA kernels | experimental; run on one Alveo U250 | [Klong functions as FPGA hardware](hardware.md) |
 
-A [conformance suite](conformance.md) of about 1,300 cases is what makes it the same language on every target.
+The two interpreters run a [conformance suite](conformance.md) of about 1,300 cases. The C and FPGA paths compile a subset of the language, and that subset is checked against the interpreter.
 
 ## Install
 
@@ -55,8 +55,8 @@ print(klong['avg'](np.arange(10.0)))   # 4.5
 * **From NumPy:** [Klong for NumPy Users](from-numpy.md).
 * **From kdb+ or q:** [Klong for q Users](from-kdb.md) and [IPC Capabilities](ipc_capabilities.md).
 * **Upgrading from 0.7:** [What's New in v2](whats-new-v2.md), [Migrating to v2](migrating-to-v2.md) and [Release Notes](release-notes.md).
-* **Embedding in Python:** [Python Integration](python_integration.md) and [PyTorch Backend](torch_backend.md).
-* **Small devices and hardware:** [Native Runtime](native/index.md), [Compiling Klong to C](embedded.md) and [Klong as FPGA Hardware](hardware.md).
+* **Embedding in Python:** [Python Integration](python_integration.md) and [PyTorch Backend and Autograd](torch_backend.md).
+* **Small devices and hardware:** [Native Runtime](native/index.md), [Compiling Klong to C](embedded.md) and [Klong functions as FPGA hardware](hardware.md).
 * **Performance:** [Performance](performance.md).
 * **Language reference:** [Operators](operators.md), [System Functions](system-functions.md), [Errors](errors.md) and [Differences from Klong](differences.md).
 
@@ -66,7 +66,7 @@ KlongPy's network features assume every peer is trusted.
 
 * A connected IPC peer can run arbitrary Klong, and through it Python and shell commands.
 * A server accepts every client unless the program defines `.srv.auth`, and nothing is encrypted.
-* The default protocol is kdb+ IPC and unpickles nothing. The 0.7 pickle protocol runs code chosen by the sender, is deprecated, and is refused by a server that has `.srv.auth` defined or `KLONGPY_IPC=kdb` set.
+* The protocol is kdb+ IPC and nothing is unpickled. The pickle protocol of 0.7 was removed in 2.0.
 * `.srv` and `.web` listen on all interfaces unless you bind to localhost.
 
 Use them on a trusted network only. See [IPC Capabilities](ipc_capabilities.md), and the security model in the [README](https://github.com/briangu/klongpy#security-model-trusted-networks).

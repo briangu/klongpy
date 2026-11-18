@@ -1,18 +1,19 @@
-Example for 1 Billion Row contest.
+# One Billion Row Challenge
 
-KlongPy isn't very suited to this problem because most of the problem is processing the data as it's read.  For KlongPy to shine here, the data needs to already be loaded into memory so NumPy can do its magic.
+A One Billion Row Challenge pipeline: Python reads the file in parallel and a KlongPy function computes the statistics. This README is for someone who wants to run it and see how the work is split.
 
-So for this example, we show a few neat things you can do with KlongPy.
+KlongPy is not well suited to this problem, because most of the work is processing the data as it is read. KlongPy is fast when the data is already in memory and NumPy can work on a whole array. The example therefore splits the job:
 
-1. Use Python multiprocessing to parallel read the data.  This is part of the normal fast solution.
-2. Instead of processing the data as its read, we buffer the data into chunks and pass it to a KlongPy function which does vector processing on it to compute stats.
-3. Results are aggregated in the primary process and reported.
+1. Python multiprocessing reads the file in parallel, as the fast solutions do.
+2. Each process buffers its data in chunks and passes a chunk to a KlongPy function, which computes the statistics with vector operations.
+3. The main process aggregates the results and prints them.
 
+## Run
 
-To run:
+From this directory, with a `measurements.txt` in the challenge's format:
 
 ```bash
-$ kgpy par.kg -- measurements.txt
+kgpy par.kg -- measurements.txt
 ```
 
-
+`par.kg` aggregates and prints; `par.py` reads and chunks the file; `worker.kg` is the KlongPy code that each process runs on a chunk.

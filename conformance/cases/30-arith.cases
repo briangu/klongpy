@@ -300,6 +300,40 @@
 > [7 10]^[22 18]
 = [3909821048582988049 1000000000000000000]
 
+# A power with a list operand: integers to non-negative integer powers wrap at 64 bits
+# (integer arithmetic, as `*` does); a negative integer exponent or any float operand gives floats.
+@ arith.pow-list-base-wraps-int64 core width64
+> [2 3]^64
+= [0 8733086111712066817]
+
+@ arith.pow-list-exp-wraps-int64 core width64
+> 2^[62 63 64]
+= [4611686018427387904 -9223372036854775808 0]
+
+@ arith.pow-list-float-base-is-float core float
+> [2.0 3]^2
+= [4.0 9.0]
+
+@ arith.pow-list-float-exp-is-float core float
+> [1 2 3]^2.0
+= [1.0 4.0 9.0]
+
+@ arith.pow-list-whole-result-stays-float core float
+> [4 9]^0.5
+= [2.0 3.0]
+
+@ arith.pow-list-negative-exp-is-float core float string-fmt numpy-only
+> [2 4]^-1
+= [0.5 0.25]
+
+@ arith.pow-list-nested-float-exp core float
+> [[4 9][16 25]]^0.5
+= [[2.0 3.0] [4.0 5.0]]
+
+@ arith.pow-list-zero-exp-is-int core
+> [0 5]^0
+= [1 1]
+
 # Comparison
 @ arith.less core
 > 1<2

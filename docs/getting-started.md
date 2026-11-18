@@ -14,11 +14,11 @@ That installs the interpreter, the `kgpy` command and its two requirements, NumP
 
 | Install | Adds | Use it for |
 |---|---|---|
-| `pip install "klongpy[torch]"` | PyTorch | The torch backend: GPU arrays and gradients with `:>`. Start it with `kgpy --backend torch`. See [PyTorch Backend](torch_backend.md). |
-| `pip install "klongpy[db]"` | pandas and DuckDB | Tables, SQL on arrays, and the key-value store. See [Fast Columnar Database](fast_columnar_database.md). |
+| `pip install "klongpy[torch]"` | PyTorch | The torch backend: GPU arrays and gradients with `:>`. Start it with `kgpy --backend torch`. See [PyTorch Backend and Autograd](torch_backend.md). |
+| `pip install "klongpy[db]"` | pandas and DuckDB | Tables, SQL on arrays, and the key-value store. See [Columnar tables and SQL](fast_columnar_database.md). |
 | `pip install "klongpy[web]"` | aiohttp | The `.web` HTTP server. See [Web Server](web_server.md). |
-| `pip install "klongpy[ws]"` | websockets | WebSocket clients and servers. See [WebSockets](websockets.md). |
-| `pip install "klongpy[all]"` | Everything above | One command for all of it. `klongpy[full]` is the same. |
+| `pip install "klongpy[ws]"` | websockets | WebSocket clients; there is no server. See [WebSockets](websockets.md). |
+| `pip install "klongpy[all]"` | Everything above | One command for all of it. `klongpy[full]` adds pytest to that, for running the tests. |
 | `pip install "klongpy[repl]"` | Nothing new | Kept so that older instructions still work. The REPL needs no extra. |
 
 Two more extras are for people who work on KlongPy itself: `dev` (the test tools) and `docs` (the documentation build). Work in a virtual environment if you want the packages kept apart from other projects:
@@ -169,7 +169,7 @@ An error says where it happened, what kind of mistake it is, and shows the line 
    ^
 ```
 
-The position is `line:column`. The word before `error` is the kind: `type`, `name` (an undefined function), `syntax`, `range` (an index out of bounds), `shape` (lists of different lengths) and a few more. [Errors](errors.md) lists them all. The REPL stays open after an error. In a script the error also names the file, and the run stops at the first error with exit status 1:
+The position is `line:column`. The word before `error` is the kind: `type`, `name` (an undefined function), `syntax`, `range` (an index out of bounds), `shape` (lists of different lengths) and a few more. [Errors](errors.md) lists them all and says how the short form `error: MESSAGE`, which other pages use in transcripts, relates to this one. The REPL stays open after an error. In a script the error also names the file, and the run stops at the first error with exit status 1:
 
 ```console
 $ cat > bad.kg <<'EOF'
@@ -214,7 +214,7 @@ Other places to look:
 
 **Gradients with torch.** With the torch backend, `f:>x` gives the exact gradient of a function. See [PyTorch Backend and Autograd](torch_backend.md).
 
-**Tables and the database.** `.table` makes a table from arrays, and `.db` runs SQL on it with DuckDB. See [Fast Columnar Database](fast_columnar_database.md) and [Table and Key-Value Stores](table_and_key_value_stores.md).
+**Tables and the database.** `.table` makes a table from arrays, and `.db` runs SQL on it with DuckDB. See [Columnar tables and SQL](fast_columnar_database.md) and [Table and Key-Value Stores](table_and_key_value_stores.md).
 
 **Talking between processes.** `.srv` serves a KlongPy process and `.cli` calls one, over the kdb+ IPC protocol, so a q process can be on either end. See [IPC Capabilities](ipc_capabilities.md).
 
