@@ -11,6 +11,7 @@
 
 extern crate alloc;
 
+mod declare;
 pub mod events;
 pub mod heap;
 #[cfg(feature = "ipc")]
@@ -224,6 +225,7 @@ impl<P: Platform + 'static> Runtime<P> {
                 Ok(x.clone())
             }),
         );
+        declare::register(&mut interp);
         interp.register(".fmt", 2, Rc::new(|ip: &mut Interp, a: &[Value]| Ok(Value::str(fmtfn::render(ip, a, ".fmt")?))));
         let sh = shared.clone();
         interp.register(

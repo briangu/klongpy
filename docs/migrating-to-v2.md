@@ -390,7 +390,7 @@ Other changes that come with the new protocol:
 - An error on the server comes back to the client as a Klong error and the connection stays open. It used to drop the connection (`connection lost`), and the next call failed with an `AttributeError`.
 - `.srv` raises when it cannot listen. A second `.srv` on a port in use returned 0 and did nothing; it now raises `cannot listen on 0.0.0.0:8888: ...`. `.srv` on a server that is already running still returns 0.
 - A call waits 30 seconds and then raises an error that contains `timed out`, closes the connection and fails every call waiting on it. Change the limit with `.clit`.
-- A `klongpy.db` table is sent as a kdb+ table. A function is sent as its source text. A function with named parameters has no source text, so it is sent as an opaque value that the receiver can hold and send back but not call. See [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
+- A `klongpy.db` table is sent as a kdb+ table. A function is sent as its source text, a function with named parameters included. A projection has none and is sent as an opaque value. See [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
 - A numpy `datetime64` or `timedelta64` can be sent, as a kdb+ timestamp or timespan in nanoseconds. It was a type error.
 - A server accepts every client unless the program defines `.srv.auth`. See [Credentials](ipc_capabilities.md#credentials-srvauth).
 

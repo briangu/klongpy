@@ -29,7 +29,7 @@ GOLDEN_DIR = os.path.join(ROOT, "tests", "golden")
 
 TIERS = ("core", "strings", "dicts", "sysio", "timers", "ipc", "desktop")
 MARKS = ("width64", "bigint", "unicode", "device", "sysio", "device")
-CAPABILITIES = ("float", "string-fmt", "strict1", "strict2")
+CAPABILITIES = ("float", "string-fmt", "strict1", "strict2", "static")
 IMPLEMENTATION = ("numpy-only", "torch-only", "kgpy-only")
 ALL_TAGS = TIERS + MARKS + CAPABILITIES + IMPLEMENTATION
 KINDS = ("syntax", "name", "arity", "type", "shape", "range", "system", "memory", "interrupt")
@@ -38,7 +38,7 @@ META_KEYS = ("reason", "actual", "issue")
 # What KlongPy (numpy backend) declares. `device` needs a heap limit and a console;
 # the other tiers have no cases in this suite yet.
 KLONGPY_TAGS = frozenset(("core", "strings", "dicts", "float", "string-fmt", "strict1", "strict2",
-                          "width64", "bigint", "unicode", "device", "sysio", "numpy-only", "kgpy-only"))
+                          "width64", "bigint", "unicode", "device", "sysio", "numpy-only", "kgpy-only", "static"))
 # KlongPy on the torch backend: floats are 32 bits wide by default and a tensor cannot
 # hold :undefined, so it does not declare `numpy-only` (README, "Tags").
 KLONGPY_TORCH_TAGS = (KLONGPY_TAGS - {"numpy-only"}) | {"torch-only"}

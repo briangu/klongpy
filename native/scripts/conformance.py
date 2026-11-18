@@ -17,8 +17,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 SPIKE = "core,float,string-fmt,width64,strict1,strict2,numpy-only,device"
 # Not declared: bigint (integers wrap at the build width), torch-only and kgpy-only (KlongPy's
 # own), timers, ipc, desktop.
-DECLARED = SPIKE + ",strings,dicts,unicode,sysio"
-NARROW = "core,strings,dicts,unicode,sysio,strict1,strict2,numpy-only,device"
+DECLARED = SPIKE + ",strings,dicts,unicode,sysio,static"
+NARROW = "core,strings,dicts,unicode,sysio,static,strict1,strict2,numpy-only,device"
 
 
 def main(argv):

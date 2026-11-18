@@ -24,7 +24,7 @@ BINARY = os.environ.get("KLONG_NATIVE") or os.path.join(ROOT, "native", "target"
 # tiers timers, ipc and desktop.
 TAGS = set(
     (os.environ.get("KLONG_NATIVE_TAGS")
-     or "core,strings,dicts,unicode,sysio,float,string-fmt,width64,strict1,strict2,numpy-only,device").split(",")
+     or "core,strings,dicts,unicode,sysio,float,string-fmt,width64,strict1,strict2,numpy-only,device,static").split(",")
 )
 JOBS = int(os.environ.get("KLONG_NATIVE_JOBS") or (os.cpu_count() or 2))
 BUILT = os.path.isfile(BINARY) and os.access(BINARY, os.X_OK)

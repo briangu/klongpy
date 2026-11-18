@@ -30,7 +30,7 @@ TOOL = os.path.join(ROOT, "native", "tools", "kgupload.py")
 BUILT = os.path.isfile(SIM) and os.access(SIM, os.X_OK)
 TAGS = set(
     (os.environ.get("KLONG_NATIVE_TAGS")
-     or "core,strings,dicts,unicode,sysio,float,string-fmt,width64,strict1,strict2,numpy-only,device").split(",")
+     or "core,strings,dicts,unicode,sysio,float,string-fmt,width64,strict1,strict2,numpy-only,device,static").split(",")
 )
 
 

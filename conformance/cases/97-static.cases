@@ -1,0 +1,204 @@
+# The declarations of the static profile that an interpreter runs as they stand (docs/static-profile.md):
+# .extern declares a function the host provides, .entry declares a function the program defines.
+# A case runs in a fresh interpreter with no host function, so a call of an extern is a system error.
+# Fixed-point values (.fixed) are not part of the suite.
+
+@ static.extern-returns-the-signature strings static
+> .extern("read.adc";"int -> float")
+= "int -> float"
+
+@ static.extern-canonical-form strings static
+> .extern("f";"int   float[8]->  void")
+= "int float[8] -> void"
+
+@ static.extern-array-result strings static
+> .extern("fill";"float[64] -> float[16,4]")
+= "float[64] -> float[16,4]"
+
+@ static.extern-str-parameter strings static
+> .extern("log";"str int -> void")
+= "str int -> void"
+
+@ static.extern-no-parameters strings static
+> .extern("tick";"-> int")
+= "-> int"
+
+@ static.extern-module-argument strings static
+> .extern("fill";"float[64] -> float[64]";"dsp")
+= "float[64] -> float[64]"
+
+@ static.extern-declared-twice-the-same strings static
+> .extern("f";"int -> int");.extern("f";"int -> int")
+= "int -> int"
+
+@ static.extern-declared-twice-differently strings static
+> .extern("f";"int -> int");.extern("f";"float -> int")
+! type
+
+@ static.extern-module-differs strings static
+> .extern("f";"int -> int";"a");.extern("f";"int -> int";"b")
+! type
+
+@ static.extern-defines-its-name strings static
+> .extern("read.adc";"int -> float");(read.adc)~(read.adc)
+= 1
+
+@ static.extern-call-without-a-host-function strings static
+> .extern("read.adc";"int -> float");read.adc(0)
+! system
+
+@ static.extern-call-with-too-many-arguments strings static
+> .extern("f";"int -> int");f(1;2)
+! arity
+
+@ static.extern-call-with-no-argument strings static
+> .extern("f";"int -> int");f()
+! arity
+
+@ static.extern-more-than-three-parameters strings static
+> .extern("g";"int int int int -> int");g(1;2;3;4)
+! system
+
+@ static.extern-more-than-three-too-many strings static
+> .extern("g";"int int int int -> int");g(1;2;3;4;5)
+! arity
+
+@ static.extern-on-a-defined-name strings static
+> f::1;.extern("f";"int -> int")
+! name
+
+@ static.extern-name-is-a-string strings static
+> .extern(1;"int -> int")
+! type
+
+@ static.extern-signature-is-a-string strings static
+> .extern("f";1)
+! type
+
+@ static.extern-too-few-arguments strings static
+> .extern("f")
+! arity
+
+@ static.extern-signature-without-arrow strings static
+> .extern("f";"int")
+! type
+
+@ static.extern-signature-two-arrows strings static
+> .extern("f";"int -> int -> int")
+! type
+
+@ static.extern-signature-unknown-type strings static
+> .extern("f";"quux -> int")
+! type
+
+@ static.extern-signature-no-result strings static
+> .extern("f";"int ->")
+! type
+
+@ static.extern-signature-void-parameter strings static
+> .extern("f";"void -> int")
+! type
+
+@ static.extern-signature-str-result strings static
+> .extern("f";"int -> str")
+! type
+
+@ static.extern-signature-zero-dimension strings static
+> .extern("f";"int[0] -> int")
+! type
+
+@ static.extern-signature-five-dimensions strings static
+> .extern("f";"int[1,2,3,4,5] -> int")
+! type
+
+@ static.extern-name-with-an-underscore strings static
+> .extern("a_b";"int -> int")
+! type
+
+@ static.extern-name-starts-with-a-digit strings static
+> .extern("1a";"int -> int")
+! type
+
+@ static.extern-name-is-an-argument strings static
+> .extern("x";"int -> int")
+! type
+
+@ static.extern-name-is-a-c-keyword strings static
+> .extern("int";"int -> int")
+! type
+
+@ static.extern-name-of-the-runtime strings static
+> .extern("kg.a";"int -> int")
+! type
+
+@ static.entry-returns-the-signature strings static
+> step::{x*2};.entry("step";"float -> float")
+= "float -> float"
+
+@ static.entry-canonical-form strings static
+> step::{x+y};.entry("step";"int   int->int")
+= "int int -> int"
+
+@ static.entry-named-parameters strings static
+> step(a;b;c;d)::{a+b+c+d};.entry("step";"int int int int -> int")
+= "int int int int -> int"
+
+@ static.entry-no-parameters strings static
+> step()::{7};.entry("step";"-> int")
+= "-> int"
+
+@ static.entry-array-types strings static
+> run::{+/x};.entry("run";"float[256] -> float")
+= "float[256] -> float"
+
+@ static.entry-twice-with-different-shapes strings static
+> step::{x*2};.entry("step";"int -> int");.entry("step";"float -> float")
+= "float -> float"
+
+@ static.entry-does-not-change-the-function strings static
+> step::{x*2};.entry("step";"int -> int");step(21)
+= 42
+
+@ static.entry-undefined-function strings static
+> .entry("nope";"int -> int")
+! name
+
+@ static.entry-not-a-function strings static
+> v::3;.entry("v";"int -> int")
+! type
+
+@ static.entry-projection strings static
+> h::{x+y};p::h(1;);.entry("p";"int -> int")
+! type
+
+@ static.entry-system-function strings static
+> .entry(".p";"int -> int")
+! type
+
+@ static.entry-too-many-parameters strings static
+> step::{x*2};.entry("step";"int int -> int")
+! arity
+
+@ static.entry-too-few-parameters strings static
+> step::{x+y};.entry("step";"int -> int")
+! arity
+
+@ static.entry-str-parameter strings static
+> step::{x};.entry("step";"str -> int")
+! type
+
+@ static.entry-signature-without-arrow strings static
+> step::{x};.entry("step";"int")
+! type
+
+@ static.entry-reserved-name strings static
+> init::{x};.entry("init";"int -> int")
+! type
+
+@ static.entry-name-is-a-string strings static
+> step::{x};.entry(:step;"int -> int")
+! type
+
+@ static.entry-an-extern-is-not-defined-by-the-program strings static
+> .extern("f";"int -> int");.entry("f";"int -> int")
+! type

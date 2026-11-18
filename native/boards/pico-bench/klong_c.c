@@ -177,7 +177,15 @@ static int32_t cf_us(void *ctx, const klong_val *a, size_t n, klong_val *out) {
     return 0;
 }
 
-static int32_t cf_declaration(void *ctx, const klong_val *a, size_t n, klong_val *out) {
+/* The same stand-ins for the interpreter: pid.kg's `.extern` lines resolve to these, registered under the Klong names. */
+static int32_t cf_read_adc(void *ctx, const klong_val *a, size_t n, klong_val *out) {
+    (void)ctx, (void)a, (void)n;
+    out->tag = KLONG_T_FLT;
+    out->f = 0.3;
+    return 0;
+}
+
+static int32_t cf_write_pwm(void *ctx, const klong_val *a, size_t n, klong_val *out) {
     (void)ctx, (void)a, (void)n;
     out->tag = KLONG_T_INT;
     out->i = 0;
@@ -301,8 +309,8 @@ int32_t klong_c_register(uint64_t (*now_us)(void)) {
         {".c.load", 1, cf_load, NULL, 0},
         {".c.us", 0, cf_us, NULL, 0},
         {".c.check", 0, cf_check, NULL, NEX * ROW},
-        {".entry", 255, cf_declaration, NULL, 0},
-        {".extern", 255, cf_declaration, NULL, 0},
+        {"read.adc", 1, cf_read_adc, NULL, 0},
+        {"write.pwm", 2, cf_write_pwm, NULL, 0},
     };
     g_now = now_us;
     reset_compiled(MAVG);

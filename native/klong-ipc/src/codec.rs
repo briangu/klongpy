@@ -69,7 +69,16 @@ pub struct KdbError {
 }
 
 impl Ext for KdbLambda {
+    /// A function of the peer that has no source text arrives as its display form (`:monad`, `:fn/4`) and prints as it does
+    /// there; any other lambda prints as `:kdb-lambda`.
     fn type_name(&self) -> &str {
+        if self.is_klong() {
+            if let Some(name) = self.text_str().and_then(|t| t.strip_prefix(':')) {
+                if matches!(name, "nilad" | "monad" | "dyad" | "triad") || name.strip_prefix("fn/").is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())) {
+                    return name;
+                }
+            }
+        }
         "kdb-lambda"
     }
     fn as_any(&self) -> &dyn core::any::Any {
@@ -125,34 +134,51 @@ pub fn lambda_value(context: &[u8], text: &[u8]) -> Result<Value> {
 // encoder
 // ---------------------------------------------------------------------------------------
 
-/// The source text of a function literal (`{...}` as written), if the function is one.
-/// A projection, an operator, a system function or a function defined with a parameter list
-/// has none and goes out in its display form (`:monad`).
-pub fn function_text(f: &Func) -> Option<&str> {
+/// The name a function takes in the text of a function with named parameters (`fn(a;b)::{a+b}`). It is a placeholder: the
+/// receiver parses the text, keeps the function and defines nothing.
+pub const WIRE_NAME: &str = "fn";
+
+/// What goes out for a function that has a source: the literal as written (`{...}`) and, for a function with named
+/// parameters, their names. A projection, an operator or a system function has none and goes out in its display form
+/// (`:monad`).
+pub struct FunctionText<'a> {
+    pub literal: &'a str,
+    pub params: Option<Vec<&'a str>>,
+}
+
+/// The source text of a function literal (`{...}` as written) and the names of its parameters, if the function is one.
+pub fn function_text<'a>(f: &'a Func, syms: &'a Interner) -> Result<Option<FunctionText<'a>>> {
     if let Func::Lazy(l) = f {
-        // (kept as its text: the text is the answer)
+        // (kept as its text: the text is the answer; a function with parameters is never kept so)
         if l.has_params {
-            return None;
+            return Ok(None);
         }
-        let t = l.source.text.get(l.start as usize..l.end as usize)?;
-        return if t.starts_with('{') && t.ends_with('}') { Some(t) } else { None };
+        let t = l.source.text.get(l.start as usize..l.end as usize);
+        return Ok(t.filter(|t| t.starts_with('{') && t.ends_with('}')).map(|literal| FunctionText { literal, params: None }));
     }
     if let Func::Code { tree, node } = f {
         if let Node::Fn { a, has_args: false, call: false, .. } = tree.node(*node) {
+            let mut params = None;
             if Tree::is_real(*a) {
-                if let Node::Body { has_params: true, .. } = tree.node(*a) {
-                    return None;
+                if let Node::Body { params: r, has_params: true, .. } = tree.node(*a) {
+                    let ids = tree.ids(*r);
+                    let mut names = try_vec(ids.len())?;
+                    for &i in ids {
+                        names.push(syms.name(klong_core::SymId(i)).split('`').next().unwrap_or(""));
+                    }
+                    params = Some(names);
                 }
             }
-            let (s, e) = tree.span(*node)?;
-            let src = tree.source.as_ref()?;
-            let t = src.text.get(s as usize..e as usize)?;
-            if t.starts_with('{') && t.ends_with('}') {
-                return Some(t);
+            let Some((s, e)) = tree.span(*node) else { return Ok(None) };
+            let Some(src) = tree.source.as_ref() else { return Ok(None) };
+            if let Some(t) = src.text.get(s as usize..e as usize) {
+                if t.starts_with('{') && t.ends_with('}') {
+                    return Ok(Some(FunctionText { literal: t, params }));
+                }
             }
         }
     }
-    None
+    Ok(None)
 }
 
 /// `:nilad :monad :dyad :triad` or `:fn/N`.
@@ -328,9 +354,26 @@ impl Encoder<'_> {
         self.charvec(text)
     }
 
-    fn function(&mut self, text: Option<&str>, arity: u8) -> Result<()> {
+    fn function(&mut self, text: Option<FunctionText>, arity: u8) -> Result<()> {
         match text {
-            Some(t) => self.lambda(b"kg", t.as_bytes()),
+            Some(FunctionText { literal, params: None }) => self.lambda(b"kg", literal.as_bytes()),
+            Some(FunctionText { literal, params: Some(names) }) => {
+                // `fn(a;b)::{...}`
+                let n = WIRE_NAME.len() + 1 + names.iter().map(|n| n.len()).sum::<usize>() + names.len().saturating_sub(1) + 3 + literal.len();
+                self.put(&[0x64])?;
+                self.put(b"kg\0")?;
+                self.head(10, n)?;
+                self.put(WIRE_NAME.as_bytes())?;
+                self.put(b"(")?;
+                for (i, name) in names.iter().enumerate() {
+                    if i > 0 {
+                        self.put(b";")?;
+                    }
+                    self.put(name.as_bytes())?;
+                }
+                self.put(b")::")?;
+                self.put(literal.as_bytes())
+            }
             None => {
                 let mut d = Vec::new();
                 display_form(arity, &mut d)?;
@@ -370,7 +413,7 @@ impl Encoder<'_> {
                 self.seq(d.keys(), depth + 1)?;
                 self.seq(d.vals(), depth + 1)
             }
-            Value::Fn(f) => self.function(function_text(f), klong_core::fmt::func_arity(f)),
+            Value::Fn(f) => self.function(function_text(f, self.syms)?, klong_core::fmt::func_arity(f)),
             Value::Prim(_) => self.function(None, 2),
             Value::Ext(e) => {
                 let any = e.0.as_any();

@@ -30,7 +30,7 @@ $ klong -e '.l("nstat");.p(sd([1 2 3 4]))'
 
 ## How it relates to KlongPy
 
-It is the **same language**, and that is checked and not only intended. The repository has a conformance suite, `conformance/cases`, of 1348 cases for the default build. Each case is a program, the printed value or the error kind it must produce, and optionally the console output. KlongPy runs the suite and the native runtime runs the same files, through a small command-line protocol, with no Python. KlongPy is the reference: a case that KlongPy fails is either a KlongPy bug, which goes to a pending list, or a wrong case. The 169 golden parse trees of KlongPy's own tests are matched byte for byte as well.
+It is the **same language**, and that is checked and not only intended. The repository has a conformance suite, `conformance/cases`, of 1398 cases for the default build. Each case is a program, the printed value or the error kind it must produce, and optionally the console output. KlongPy runs the suite and the native runtime runs the same files, through a small command-line protocol, with no Python. KlongPy is the reference: a case that KlongPy fails is either a KlongPy bug, which goes to a pending list, or a wrong case. The 169 golden parse trees of KlongPy's own tests are matched byte for byte as well.
 
 These are the differences. All of them follow from having no Python and no numpy, or from running on a small device.
 
@@ -78,10 +78,10 @@ This table is the status of every hardware target. Each row says what ran and it
 
 | Area | Result | Where it ran |
 |---|---|---|
-| The language, default build (64-bit) | 1347 of 1347 conformance cases; 169 of 169 parse trees | desktop |
+| The language, default build (64-bit) | 1397 of 1397 conformance cases; 169 of 169 parse trees | desktop |
 | The language, 32-bit build (`int32`, `float32`) | 1160 of 1160 cases that the build declares | desktop |
 | The embedded library | all twelve files load, at strict levels 0, 1 and 2 | desktop |
-| The serial console | 1347 of 1347 cases through `^A run` | simulated boards |
+| The serial console | 1397 of 1397 cases through `^A run` | simulated boards |
 | The serial console | 1266 of 1266 cases over the serial port, in 1877 seconds (the suite had 1266 cases when it was run; see [Conformance](../conformance.md#why-the-counts-differ)) | **an ESP32-P4** |
 | REPL, line editing, Ctrl-C on a runaway loop, the embedded library, uploads | work | **an ESP32-P4** |
 | Speed | `fib(24)` 4.2 s on the board, against about 35 ms on a desktop (Apple M2 Ultra); **the cause is not investigated** | an ESP32-P4 and the desktop |

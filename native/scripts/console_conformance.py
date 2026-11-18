@@ -32,8 +32,8 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-DECLARED = "core,float,string-fmt,width64,strict1,strict2,numpy-only,device,strings,dicts,unicode,sysio"
-NARROW = "core,strings,dicts,unicode,sysio,strict1,strict2,numpy-only,device"
+DECLARED = "core,float,string-fmt,width64,strict1,strict2,numpy-only,device,strings,dicts,unicode,sysio,static"
+NARROW = "core,strings,dicts,unicode,sysio,static,strict1,strict2,numpy-only,device"
 
 
 def _load(name, path):

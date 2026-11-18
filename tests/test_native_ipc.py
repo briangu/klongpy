@@ -175,6 +175,43 @@ SETUP = ("idf::{x};sq::{x*x};add::{x+y};nil::{42};fail::{1+\"a\"};"
          "wait::{[t];t::.pc()+x;{.pc()<t}{x}:~0;x};" + ";".join(f"{n}::{lit}" for n, lit, _ in VALUES))
 
 
+#: Every shape of function that crosses the wire as text (the same list as tests/test_ipc_function_wire.py):
+#: name, definition, arity, a call (argument text) and its result
+FUNCS = [
+    ("c0", "c0::{42}", 0, "()", 42),
+    ("c1", "c1::{x+1}", 1, "(10)", 11),
+    ("c2", "c2::{x*y}", 2, "(3;4)", 12),
+    ("c3", "c3::{x+y+z}", 3, "(1;2;3)", 6),
+    ("n0", "n0()::{7}", 0, "()", 7),
+    ("n1", "n1(a)::{a+1}", 1, "(1)", 2),
+    ("n2", "n2(a;b)::{a-b}", 2, "(5;2)", 3),
+    ("n3", "n3(a;b;c)::{a+b+c}", 3, "(1;2;3)", 6),
+    ("n4", "n4(a;b;c;d)::{(a*b)+c*d}", 4, "(1;2;3;4)", 14),
+    ("n5", "n5(a;b;c;d;e)::{a+b+c+d+e}", 5, "(1;2;3;4;5)", 15),
+    ("n6", "n6(a;b;c;d;e;f)::{a+b+c+d+e+f}", 6, "(1;2;3;4;5;6)", 21),
+    ("hd", "hd::{[a b]::x;a-b}", 1, "([9 4])", 5),
+    ("hn", "hn(p)::{[a b]::p;a-b}", 1, "([9 4])", 5),
+    ("lc", "lc::{[t];t::x*2;t+1}", 1, "(5)", 11),
+    ("ln", "ln(a)::{[t];t::a*2;t+1}", 1, "(5)", 11),
+    ("rc", "rc::{:[x<1;0;x+.f(x-1)]}", 1, "(4)", 10),
+    ("rn", "rn(a)::{:[a<1;0;a+.f(a-1)]}", 1, "(4)", 10),
+]
+DISPLAY = {0: ":nilad", 1: ":monad", 2: ":dyad", 3: ":triad"}
+
+
+def display(arity):
+    """What a function without a call prints as on the native runtime."""
+    return DISPLAY.get(arity) or f":fn/{arity}"
+
+
+def klongpy_params(src, name):
+    """The parameter names KlongPy gives the function that `src` defines (None for a classic function)."""
+    from klongpy import KlongInterpreter
+    k = KlongInterpreter()
+    k(src)
+    return getattr(k(name).a, "params", None)
+
+
 class Case(unittest.TestCase):
     def repl(self):
         klong, loops = create_repl()
@@ -240,17 +277,41 @@ class TestKlongPyClientNativeServer(Case):
             self.kg(self.klong, "d::.clid(c);d,:got,,v")
             self.assertEqual(self.server.value(f"got~{lit}"), "1", name)
 
-    def test_a_function_with_named_parameters_round_trips(self):
-        # KlongPy sends it as the text "fn(a;b;c;d)::{...}"; the native runtime does not parse that form
-        # (its parse_function takes only a plain literal), so it keeps it as an opaque kdb lambda; it can
-        # send it back and KlongPy rebuilds the function with its parameters
-        self.kg(self.klong, "f4(a;b;c;d)::{a+b+c+d};d::.clid(c);d,:ff,,f4")
-        self.assertEqual(self.server.value("ff"), ":kdb-lambda")
-        back = self.kg(self.klong, "d?:ff")
-        self.assertNotIsInstance(back, Exception)
-        # a classic function and one that KlongPy sends as text are real functions on the native side
-        self.kg(self.klong, "d,:cf,,{x+1}")
-        self.assertEqual(self.server.value("cf(1)"), "2")
+    def test_every_shape_of_function_runs_on_the_server(self):
+        # KlongPy sends `fn(a;b)::{...}` for a function with named parameters and `{...}` for a classic one;
+        # the native server rebuilds a function with the same arity and parameters
+        self.kg(self.klong, "d::.clid(c)")
+        for name, src, arity, args, want in FUNCS:
+            self.kg(self.klong, src)
+            self.kg(self.klong, f"d,:w{name},,{name}")             # (a name that is a local function is that function)
+            self.assertEqual(self.server.value(f"w{name}"), display(arity), name)
+            self.assertEqual(self.server.value(f"w{name}{args}"), str(want), name)
+            self.server.run(f"run::{{[f];f::x;f{args}}}")
+            self.assertEqual(self.kg(self.klong, f"c(:run,,{name})"), want, name)      # as an argument
+            self.server.run("mk::{%s}" % src)                                          # as a returned value
+            back = self.kg(self.klong, "r::c(:mk,,0)")
+            self.assertEqual(self.kg(self.klong, f"r{args}"), want, name)
+            self.assertEqual(getattr(back.a, "params", None), klongpy_params(src, name), name)
+            self.assertEqual(back.arity, arity, name)
+
+    def test_a_wrong_number_of_arguments_is_an_arity_error(self):
+        self.kg(self.klong, "n2(a;b)::{a-b}")
+        self.kg(self.klong, "d::.clid(c);d,:wn2,,n2")
+        self.native_error(self.server, "wn2(1;2;3)", "arity")
+
+    def test_a_function_with_named_parameters_is_not_defined_by_its_wire_name(self):
+        self.kg(self.klong, "n2(a;b)::{a-b}")
+        self.kg(self.klong, "d::.clid(c);d,:wn2,,n2")
+        self.assertEqual(self.server.value("wn2(5;2)"), "3")
+        self.native_error(self.server, "fn(1)", "name")
+
+    def test_a_projection_stays_opaque(self):
+        self.kg(self.klong, "g::{x+y};p::g(1;);d::.clid(c);d,:pp,,p")
+        self.assertEqual(self.server.value("pp"), ":monad")
+        self.native_error(self.server, "pp(2)", "type")
+        self.assertEqual(str(self.kg(self.klong, "d?:pp")), "remote[localhost:%d]:fn:pp:monad" % self.port)
+        self.assertEqual(self.server.value("idf(pp)"), ":monad")
+        self.assertEqual(self.server.value("pq::pp;pq"), ":monad")
 
     def test_special_floats_and_undefined(self):
         self.assertTrue(math.isnan(self.req(S("idf"), float("nan"))))
@@ -386,6 +447,39 @@ class TestNativeClientKlongPyServer(Case):
         self.assertEqual(self.kg(self.server, "twice(21)"), 42)
         self.assertEqual(c.value("c(:twice,,4)"), "8")
 
+    def test_every_shape_of_function_runs_on_the_server(self):
+        # the native client sends `fn(a;b)::{...}` for a function with named parameters and `{...}` for a classic
+        # one; KlongPy rebuilds a function with the same arity and parameters
+        c = self.client
+        c.run("d::.clid(c)")
+        for name, src, arity, args, want in FUNCS:
+            c.run(src)
+            c.run(f"d,:w{name},,{name}")                                  # (a name that is a local function is that function)
+            got = self.kg(self.server, f"w{name}")
+            self.assertEqual(got.arity, arity, name)
+            self.assertEqual(getattr(got.a, "params", None), klongpy_params(src, name), name)
+            self.assertEqual(self.kg(self.server, f"w{name}{args}"), want, name)
+            self.kg(self.server, f"run::{{[f];f::x;f{args}}}")
+            self.assertEqual(c.value(f"c(:run,,{name})"), str(want), name)    # as an argument
+            self.kg(self.server, "mk::{%s}" % src)                            # as a returned value
+            c.run("r::c(:mk,,0)")
+            self.assertEqual(c.value(f"r{args}"), str(want), name)
+            self.assertEqual(c.value("r"), display(arity), name)
+
+    def test_a_projection_stays_opaque(self):
+        from klongpy.ipc.endpoint import KGRemoteFnRef
+        c = self.client
+        c.run("g::{x+y};p::g(1;);d::.clid(c);d,:pp,,p")
+        held = self.server["pp"]
+        self.assertIsInstance(held, KGRemoteFnRef)
+        self.assertEqual(held.arity, 1)
+        with self.assertRaises(KlongTypeError):
+            self.kg(self.server, "pp(2)")
+        self.assertEqual(c.value("c(:idf,,p)"), ":monad")                 # held and sent back
+        c.run("q::d?:pp")
+        self.assertEqual(c.value("q"), ":monad")
+        self.native_error(c, "q(2)", "type")
+
     def test_errors_arrive_as_the_right_kind(self):
         c = self.client
         self.native_error(c, 'c("1+""a""")', "type", "cannot apply + (Plus) to integer and string")
@@ -465,6 +559,39 @@ class TestNativeToNative(Case):
         self.assertEqual(c.value("f::c(:sq);f'[1 2 3]"), "[1 4 9]")
         self.native_error(c, "c(:fail,,1)", "type")
         self.native_error(c, "c(:nosuch,,1)", "name")
+
+    def test_every_shape_of_function_runs_on_the_peer(self):
+        # `fn(a;b)::{...}` for a function with named parameters, `{...}` for a classic one; the receiver rebuilds a
+        # function of the same arity and parameters (so it can send it on, and it prints as it would on the sender)
+        s, c = self.server, self.client
+        c.run("d::.clid(c)")
+        for name, src, arity, args, want in FUNCS:
+            c.run(src)
+            c.run(f"d,:w{name},,{name}")
+            self.assertEqual(s.value(f"w{name}"), display(arity), name)
+            self.assertEqual(s.value(f"w{name}{args}"), str(want), name)
+            s.run(f"run::{{[f];f::x;f{args}}}")
+            self.assertEqual(c.value(f"c(:run,,{name})"), str(want), name)    # as an argument
+            s.run("mk::{%s}" % src)                                           # as a returned value
+            c.run("r::c(:mk,,0)")
+            self.assertEqual(c.value("r"), display(arity), name)
+            self.assertEqual(c.value(f"r{args}"), str(want), name)
+            s.run("back::{x}")                                                # and on again, unchanged
+            c.run(f"r2::c(:back,,{name})")
+            self.assertEqual(c.value(f"r2{args}"), str(want), name)
+        self.native_error(s, "wn2(1;2;3)", "arity")
+        self.native_error(s, "fn(1)", "name")
+
+    def test_a_projection_stays_opaque(self):
+        s, c = self.server, self.client
+        c.run("g::{x+y};p::g(1;);d::.clid(c);d,:pp,,p")
+        self.assertEqual(s.value("pp"), ":monad")
+        self.native_error(s, "pp(2)", "type")
+        s.run("back::{x}")
+        self.assertEqual(c.value("c(:back,,p)"), ":monad")
+        c.run("q::d?:pp")
+        self.assertEqual(c.value("q"), ":monad")
+        self.native_error(c, "q(2)", "type")
 
     def test_a_symbol_that_names_a_local_function_is_that_function(self):
         # Both runtimes: `:f` is the function `f` when one is defined here, and calling the peer with a function

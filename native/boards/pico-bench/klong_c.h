@@ -5,8 +5,8 @@
  * about the Pico: the board gives a microsecond clock, and the host test (tests/static/test_pico_check.py) links the same two files
  * into a program on the desktop.
  *
- * System functions (the `.c.` prefix is the board's; `.entry` and `.extern` are KlongPy's declarations of a static-profile file,
- * accepted and ignored so that the interpreter can load the same text):
+ * System functions (the `.c.` prefix is the board's; the runtime's own `.entry` and `.extern` let the interpreter load the same
+ * text, and `read.adc` and `write.pwm` are registered as C functions so that the externs of pid.kg resolve):
  *
  *   .c.mavg(x)    one step of mavg.kg (float -> float), the compiled instance keeps the window
  *   .c.pid(x)     one step of pid.kg (float -> float); the externs are stand-ins: read.adc gives 0.3, write.pwm remembers the duty

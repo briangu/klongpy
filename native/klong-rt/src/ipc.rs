@@ -19,7 +19,7 @@ use core::cell::{Cell, RefCell};
 
 use klong_core::error::{Kind as ErrKind, Result};
 use klong_core::fmt::format_value;
-use klong_core::tree::Node;
+use klong_core::tree::{Node, NodeId, Tree};
 use klong_core::value::{try_push, try_str, try_vec, Ext, ExtBox, Func, NativeFn, Value};
 use klong_core::{Error, Interp, SymId};
 use klong_ipc::codec::{ext_ref, KdbError, KdbLambda};
@@ -284,14 +284,35 @@ fn display_arity(text: &str) -> Option<u8> {
 }
 
 /// The function a source text defines: the text is parsed (nothing runs) and must be exactly
-/// one function literal.
+/// one function literal, or the definition `fn(a;b)::{...}` of one with named parameters
+/// (`fn` is a placeholder: the function is kept and nothing is defined).
 fn parse_function(ip: &mut Interp, text: &str) -> Option<Value> {
     let p = ip.parse(text, "<ipc>").ok()?;
     if p.stmts.len() != 1 {
         return None;
     }
-    match p.tree.node(p.stmts[0]) {
-        Node::Fn { has_args: false, call: false, .. } => Some(Value::Fn(Rc::new(Func::Code { tree: p.tree.clone(), node: p.stmts[0] }))),
+    let literal = |id: NodeId| matches!(p.tree.node(id), Node::Fn { has_args: false, call: false, .. });
+    let id = p.stmts[0];
+    let node = match p.tree.node(id) {
+        _ if literal(id) => id,
+        Node::Dyad { op, l, r, missing: false } if ip.syms.name(*op) == "::" => named_literal(ip, &p.tree, *l, *r)?,
+        Node::Fn { has_args: true, call: false, arity: 2, args, .. } => {
+            let ids = p.tree.ids(*args);
+            named_literal(ip, &p.tree, NodeId(*ids.first()?), NodeId(*ids.get(1)?))?
+        }
+        _ => return None,
+    };
+    Some(Value::Fn(Rc::new(Func::Code { tree: p.tree.clone(), node })))
+}
+
+/// The literal `r` of `fn(a;b)::r` (`l` is the placeholder name), when `r` has named parameters.
+fn named_literal(ip: &Interp, tree: &Tree, l: NodeId, r: NodeId) -> Option<NodeId> {
+    let Node::Sym(s) = tree.node(l) else { return None };
+    if ip.syms.name(*s).split('`').next() != Some(klong_ipc::codec::WIRE_NAME) || !Tree::is_real(r) {
+        return None;
+    }
+    match tree.node(r) {
+        Node::Fn { a, has_args: false, call: false, .. } if Tree::is_real(*a) && matches!(tree.node(*a), Node::Body { has_params: true, .. }) => Some(r),
         _ => None,
     }
 }

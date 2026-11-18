@@ -218,7 +218,7 @@ client?> f(inc,1)
 
 `f(:twice,{x+k},1)` calls the server's `twice` with the function and 1, which gives (1+7)+7. `f(inc,1)` sends the source of `inc` as the function to run remotely, and the server applies it to 1.
 
-Every function with a source travels as text: a function of `x`, `y` and `z`, a function with named parameters (any number, as `fn(a;b)::{a+b}`: the text is the definition, `fn` is only a placeholder, and the receiver keeps the function and defines nothing), a function with a locals list or a head destructuring, and one that calls itself by `.f`. The receiver rebuilds a function with the same parameter names and arity. A KlongPy peer does this in both directions, as an argument and as a returned value. The native runtime parses only the plain `{...}` literal: it keeps a named-parameter function it receives as an opaque value that it can send back.
+Every function with a source travels as text: a function of `x`, `y` and `z`, a function with named parameters (any number, as `fn(a;b)::{a+b}`: the text is the definition, `fn` is only a placeholder, and the receiver keeps the function and defines nothing), a function with a locals list or a head destructuring, and one that calls itself by `.f`. The receiver rebuilds a function with the same parameter names and arity. A KlongPy peer and a native peer do this in both directions, as an argument and as a returned value.
 
 A projection has no source text, and the format has no way to carry its bound arguments. It is sent as an opaque value with the number of arguments it still takes, not as an error. The receiver can hold it, store it and send it back, but cannot call it:
 

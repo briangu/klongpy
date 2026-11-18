@@ -317,10 +317,10 @@ In the commands below, `python` is the interpreter you use for KlongPy, and the 
 <!-- check-docs: requires-file native/target/release/klong; link native conformance -->
 ```console
 $ python native/scripts/conformance.py | tail -1 | cut -c1-40
-total                         1347  1347
+total                         1397  1397
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1347 of 1347 on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1397 of 1397 on 2026-11-16, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
 KLONG_NATIVE=native/target/narrow/release/klong python native/scripts/conformance.py --narrow
@@ -330,7 +330,7 @@ That gave 1160 of 1160 with the narrow build above. The parse trees of the golde
 
 Not every case runs on every build. A case carries tags, and a build runs the cases whose tags it declares. The default build leaves out the tags `bigint` (it wraps), `torch-only` and `kgpy-only` (KlongPy's own), `desktop` (Python interop, databases, web) and the `timers` and `ipc` tiers, which have no cases. The narrow build also leaves out `float`, `string-fmt` and `width64`, the cases that pin 64-bit results.
 
-The native tests that need KlongPy (`tests/test_native_conformance.py`, `tests/test_native_ipc.py`, `tests/test_native_mgmt.py`) skip themselves when `native/target/release/klong` does not exist, so building the binary turns them on. On the machine of the conditions above 86 passed and 11 were skipped; the 11 need a PeachQ executable (a kdb+-compatible q implementation), see [IPC and Timers](ipc.md). `cargo test --release --workspace` in `native/` runs the Rust tests.
+The native tests that need KlongPy (`tests/test_native_conformance.py`, `tests/test_native_ipc.py`, `tests/test_native_mgmt.py`) skip themselves when `native/target/release/klong` does not exist, so building the binary turns them on. On the machine of the conditions above 96 passed and 11 were skipped; the 11 need a PeachQ executable (a kdb+-compatible q implementation), see [IPC and Timers](ipc.md). `cargo test --release --workspace` in `native/` runs the Rust tests.
 
 ## Sizes and speed
 

@@ -103,6 +103,7 @@ Capability tags:
 | `float` | needs floating point numbers; the cases expect `f64` (64-bit) results, so a build with 32-bit floats (the native `float32` feature) does not declare it |
 | `string-fmt` | depends on the exact float text (Python `repr`: `1e+22`, `1e-07`, `0.30000000000000004`) |
 | `strict1`, `strict2` | the runner starts the interpreter at that strict level (`--strict N`) |
+| `static` | the declarations of the static profile run as they stand, `.extern` and `.entry` (docs/static-profile.md); a case runs with no host function, so calling an extern is a `system` error |
 
 Implementation tags: `numpy-only`, `torch-only`, `kgpy-only` mark behaviour
 that belongs to one KlongPy backend. `numpy-only` is the result of the

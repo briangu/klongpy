@@ -52,9 +52,9 @@ def pid_case():
     pins = [(float(m.group(1)), float(m.group(2))) for m in (re.match(r"step\((.*)\) => (.*)$", ln) for ln in expect_lines("pid")) if m]
     assert len(pins) == 3, pins
     inputs = [p[0] for p in pins] + [PID_TAIL[i % len(PID_TAIL)] for i in range(29)]
-    # the externs of pid.expect: read.adc is 0.3 and write.pwm is 0 (the board's C stand-ins and the interpreter's give the same)
+    # the externs of pid.expect: read.adc is 0.3 and write.pwm is 0 (the board registers C stand-ins for the interpreter that give the same as the compiled code's)
     return dict(name="pid", prefix="pidc", entry="step", inputs=inputs, setup=".c.in::" + klist(inputs), expr="step'.c.in",
-                prelude="read.adc::{0.3};write.pwm::{0}", cleanup="kp::0;ki::0;kd::0;dt::0;lo::0;hi::0;integ::0;prev::0;clamp::0;step::0;read.adc::0;write.pwm::0",
+                prelude="", cleanup="kp::0;ki::0;kd::0;dt::0;lo::0;hi::0;integ::0;prev::0;clamp::0;step::0",
                 pins=[(i, p[1]) for i, p in enumerate(pins)], externs={"read.adc": lambda channel: 0.3, "write.pwm": lambda channel, duty: 0})
 
 
