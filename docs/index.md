@@ -13,7 +13,7 @@ KlongPy is an implementation of [Klong](https://t3x.org/klong), an [array langua
 | Microcontrollers (native interpreter) | experimental; run on an ESP32-P4 and on two Raspberry Pi Picos | [Native Runtime status](native/index.md#status-what-has-and-has-not-been-proven) |
 | FPGA kernels | experimental; run on one Alveo U250 | [Klong functions as FPGA hardware](hardware.md) |
 
-The two interpreters run a [conformance suite](conformance.md) of about 1,300 cases. The C and FPGA paths compile a subset of the language, and that subset is checked against the interpreter.
+KlongPy and the native Rust runtime run a [conformance suite](conformance.md) of about 1,300 cases. The C and FPGA paths compile a subset of the language, and that subset is checked against the interpreter.
 
 ## Install
 

@@ -154,16 +154,16 @@ class TestTiers(unittest.TestCase):
             self.assertEqual(setp("fast", self.fast.astype(np.int64)), 1)
             setp("slow", self.slow.astype(np.int64))
             setp("stop", self.stop.astype(np.float64) / 65536.0)
-            got = np.asarray(k("crossover.step(t)")) * 2.0 ** 32
+            got = np.asarray(k._backend.to_numpy(k("crossover.step(t)"))) * 2.0 ** 32
             self.assertTrue(np.array_equal(got.astype(np.int64), self.want))
-            again = np.asarray(k("crossover.summary()")) * 2.0 ** 32
+            again = np.asarray(k._backend.to_numpy(k("crossover.summary()"))) * 2.0 ** 32
             self.assertTrue(np.array_equal(again.astype(np.int64), self.want), "summary() reads the state, it does not run ticks")
             # other parameters, the same history, a fresh start
             k(".hw.reset(crossover.step)")
             setp("fast", self.fast[::-1].astype(np.int64))
             setp("slow", self.slow[::-1].astype(np.int64))
             setp("stop", self.stop[::-1].astype(np.float64) / 65536.0)
-            got = np.asarray(k("crossover.step(t)")) * 2.0 ** 32
+            got = np.asarray(k._backend.to_numpy(k("crossover.step(t)"))) * 2.0 ** 32
             want = cb.numpy_run(self.history, self.fast[::-1], self.slow[::-1], self.stop[::-1])
             self.assertTrue(np.array_equal(got.astype(np.int64), want))
             binding.close_all()

@@ -296,7 +296,7 @@ $ klong --steps 1000 -e '{1}{x+1}:~0'
   ^^^^^^^^^^^
 ```
 
-The figures in the stack-budget lines are for this 64-bit host. On a 32-bit board a level of Klong recursion costs about 0.85 KiB: 864 bytes by the frames of the thumbv6m image, against about 0.8 to 2 KiB on the host. The stack budget is used as `bytes` less what is kept below the deepest level (a quarter by default; a board can say, `Config::for_stack_keep`: the Pico keeps 16 KiB of 108 KiB), so 64 KiB gives about 60 levels and 256 KiB about 250 at the default.
+The figures in the stack-budget lines are for this 64-bit host. On a 32-bit board a level of Klong recursion costs about 0.85 KiB: 864 bytes by the frames of the thumbv6m image, against about 0.8 to 2 KiB on the host. The stack budget is used as `bytes` less what is kept below the deepest level (a quarter by default; a board can say, `Config::for_stack_keep`: the Pico keeps 16 KiB of a 108 KiB budget), so 64 KiB gives about 57 levels and 256 KiB about 228 at the default.
 
 With `--stats` the program reports what it used, on standard error: the peak heap, the heap in use, the limit and the number of refused allocations (`heap: peak 23174 bytes, in use 15679 bytes, limit 0, refused 0` for the program below; the heap numbers vary a little), the deepest nesting of evaluations and the native stack. The heap figures are bytes requested from the allocator and include the interpreter's own state of about 15 KiB on the desktop.
 
@@ -357,6 +357,6 @@ The width features do not change the size of a 64-bit program in any useful way.
 | | `files`, `lib`, `int32`, `float32` | 205,518 | 107,984 | 313,522 |
 | | none | 207,056 | 63,664 | 270,740 |
 
-These images have no IPC and no timers. IPC adds about 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, and the `mgmt` library 12.7 KB. The firmware for the [ESP32-P4](esp32-p4.md) is 692 KB (691,328 bytes flashed), but it is built with `opt-level` 3 and carries ESP-IDF.
+These images have no IPC and no timers. IPC adds about 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, and the `mgmt` library 12.6 KB. The firmware for the [ESP32-P4](esp32-p4.md) is 692 KB (691,328 bytes flashed), but it is built with `opt-level` 3 and carries ESP-IDF.
 
 **Speed.** The native runtime is much faster than KlongPy on interpreter work (recursion, loops, lambdas, dictionaries) and slower on whole-array work that NumPy does in one call. [Performance](../performance.md) has the measured table. `python native/scripts/bench.py` repeats the comparison, and `klong --bench N -e PROGRAM` times one program in process. Starting the program and exiting takes about 4 ms. On the ESP32-P4 `fib(24)` takes 4.2 seconds, against about 35 ms on the desktop; see [ESP32-P4](esp32-p4.md).

@@ -968,7 +968,7 @@ def eval_sys_read_lines(klong):
 
     """
     f = klong['.sys.cin']
-    r = f.raw.readlines()
+    r = [s.rstrip() for s in f.raw.readlines()]  # as .rl does for one line
     f.at_eof = True
     return klong._backend.kg_asarray(r)
 

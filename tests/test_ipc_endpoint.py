@@ -586,7 +586,7 @@ class TestBytesOverIPC(IPCCase):
         big = bytes(range(256)) * 4096
         client["v"] = big
         r = self.kg(client, "c(:idf,,v)", 30)
-        self.assertEqual(bytes(np.asarray(r).astype(np.uint8)), big)
+        self.assertEqual(bytes(np.asarray(client._backend.to_numpy(r)).astype(np.uint8)), big)
 
     def test_large_bytes_over_the_limit_close_the_connection(self):
         server, client = self.pair(ipc_max_message=100000)
@@ -609,7 +609,7 @@ class TestBytesOverIPC(IPCCase):
         with patch.object(NetworkClient, "_send", spy), patch("klongpy.ipc.endpoint._is_loopback", return_value=False):
             r = self.kg(client, "c(:idf,,v)", 20)
         self.assertTrue(any(d[2] == 1 for d in sent))
-        self.assertEqual(bytes(np.asarray(r).astype(np.uint8)), b"abcd" * 20000)
+        self.assertEqual(bytes(np.asarray(client._backend.to_numpy(r)).astype(np.uint8)), b"abcd" * 20000)
 
     def test_a_set_is_still_a_type_error(self):
         server, client = self.pair()

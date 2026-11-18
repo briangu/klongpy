@@ -233,7 +233,7 @@ The nodes behind it are native runtimes in every case.
 
 ## Limits and what is not done
 
-* **Resources.** A load reads one statement at a time and keeps functions as their text. On the 64-bit host the library loads with `--heap-limit 44K` (it fails with `43K`; measured 2026-11-17), peaks at about 40 KB in all and holds about 18 KB more afterwards (`.mem()`). On a Pico it keeps 5 to 10 KB in use ([two Picos calling each other](pico-bench.md)). It is 12.6 KB of text in the image, of which about half is the header that is also in this page. A 32-bit build has not been measured.
+* **Resources.** A load reads one statement at a time and keeps functions as their text. On the 64-bit host the library needs a heap of about 43 KiB to load, peaks at about 40 KB in all and holds about 18 KB more afterwards (`.mem()`). On a Pico it keeps about 10 KB in use ([two Picos calling each other](pico-bench.md)). It is 12.6 KB of text in the image, of which about half is the header that is also in this page. A 32-bit build has not been measured.
 * **Defaults.** The probe interval of 5 seconds in the library's example and the call timeout of 30 seconds are provisional. The keepalive of the packet layer and the probe do similar jobs, and one of them may be enough on a real UART.
 * **Reconnect.** A node comes back only at a check, so a management node without `mgmt.start` does not reconnect a node by itself; `mgmt.open(name)` does.
 * **Hooks.** `node.reset` and `node.power` are looked up by name when called. No board defines them.

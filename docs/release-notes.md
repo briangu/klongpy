@@ -162,7 +162,7 @@ The old messages were NumPy's, such as `ufunc 'add' did not contain a loop with 
 6
 ```
 
-**Line editing is built in.** History (`~/.kgpy_history`, or `KGPY_HISTORY`) and tab completion come from `readline`, so `rlwrap` is no longer needed. See [the REPL](repl.md).
+**Persistent history and tab completion are built in.** Line editing existed in 0.7; history (`~/.kgpy_history`, or `KGPY_HISTORY`) and tab completion now come from `readline`, so `rlwrap` is not needed. See [the REPL](repl.md).
 
 
 #### kdb+ IPC
@@ -489,7 +489,7 @@ $ kgpy -e '1+"a"'
 
 #### IPC
 
-**The pickle protocol is removed.** A 0.7 client connecting to a 2.0 server is closed at once and the server logs the cause; a 2.0 client connecting to a 0.7 server fails after 5 seconds with `handshake timed out`. `KLONGPY_IPC=legacy` is a system error, and `kdb` and `auto` are accepted and mean the only protocol. A Python object that has no kdb+ form (a set, a complex number, `None`) was carried by pickle and is now a type error on the sending side. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. See [0.7 peers](ipc_capabilities.md#07-peers).
+**The pickle protocol is removed.** A 0.7 client connecting to a 2.0 server is closed at once and the server logs the cause; a 2.0 client connecting to a 0.7 server fails after 5 seconds with `handshake timed out`. `KLONGPY_IPC=legacy` is a system error, and `kdb` and `auto` are accepted and mean the only protocol. A Python object that has no kdb+ form (a set, a complex number, `None`) was carried by pickle and is now a type error on the sending side. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. An integer beyond 64 bits was carried by pickle and is now `range error: integer does not fit 64 bits` on the sending side. See [0.7 peers](ipc_capabilities.md#07-peers).
 
 **An error on the server comes back as a Klong error and the connection stays open.** It used to drop the connection (`connection lost`), and the next call failed with a Python `AttributeError`.
 

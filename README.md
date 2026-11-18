@@ -27,7 +27,7 @@ Full documentation: [https://www.klongpy.org/](https://www.klongpy.org/). New he
 | Microcontrollers (native interpreter) | experimental; run on an ESP32-P4 and on two Raspberry Pi Picos | [Native Runtime status](docs/native/index.md#status-what-has-and-has-not-been-proven) |
 | FPGA kernels | experimental; run on one Alveo U250 | [Klong functions as FPGA hardware](docs/hardware.md) |
 
-The two interpreters run a [conformance suite](docs/conformance.md) of about 1,300 cases, each a program and its expected output. The C and FPGA paths compile a subset of the language, and that subset is checked against the interpreter.
+KlongPy and the native Rust runtime run a [conformance suite](docs/conformance.md) of about 1,300 cases, each a program and its expected output. The C and FPGA paths compile a subset of the language, and that subset is checked against the interpreter.
 
 ## Install
 

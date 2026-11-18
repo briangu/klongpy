@@ -967,6 +967,45 @@ class TorchBackendProvider(BackendProvider):
             a = self.kg_asarray(a)
         return torch.floor(a.float()).to(int)
 
+    @staticmethod
+    def _mps_integer_power(a, b):
+        """a^b for a float tensor on mps and integer-valued exponents, by repeated squaring (and
+        a reciprocal for a negative exponent), else None. mps computes pow as exp(b*log(a)) in
+        float32, so 2^-1 came out 0.49999994 and 10^3 999.99994 where the cpu gives exactly 0.5
+        and 1000; products of float32 values are correctly rounded on every device."""
+        if a.device.type != 'mps' or not a.is_floating_point() or a.dtype == torch.float64:
+            return None
+        if isinstance(b, torch.Tensor):
+            if b.requires_grad or b.dtype == torch.bool:
+                return None
+            bt = b.to(a.device)
+        elif isinstance(b, (int, float, numpy.integer, numpy.floating)) and not isinstance(b, bool):
+            bt = torch.tensor(float(b) if isinstance(b, (float, numpy.floating)) else int(b), device=a.device)
+        else:
+            return None
+        if bt.numel() == 0:
+            return None
+        if bt.is_floating_point():
+            if not bool(torch.isfinite(bt).all()) or bool((bt != bt.round()).any()):
+                return None
+        mag = bt.abs()
+        if bool((mag > 4096).any()):
+            return None
+        n = mag.to(torch.int64)
+        try:
+            n = n.expand(torch.broadcast_shapes(n.shape, a.shape))
+        except RuntimeError:
+            return None
+        base = a
+        result = torch.ones_like(a * n)  # the broadcast shape, float
+        while True:
+            result = torch.where((n & 1) == 1, result * base, result)
+            n = n >> 1
+            if not bool((n > 0).any()):
+                break
+            base = base * base
+        return torch.where(bt < 0, 1.0 / result, result)
+
     def power(self, a, b):
         """Compute a^b, handling gradient tracking for torch tensors."""
         if isinstance(a, torch.Tensor):
@@ -978,6 +1017,9 @@ class TorchBackendProvider(BackendProvider):
             b_val = b.item() if isinstance(b, torch.Tensor) and b.ndim == 0 else b
             if isinstance(b_val, (int, numpy.integer)) and b_val < 0:
                 a = a.float()
+            exact = self._mps_integer_power(a, b)
+            if exact is not None:
+                return exact
             try:
                 return a.pow(b)
             except RuntimeError:

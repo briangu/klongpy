@@ -3,7 +3,7 @@
 This page shows how to build and flash the native Klong runtime on an ESP32-P4 development board, connect to its serial console, upload files and run the conformance suite over the serial port. It is for someone who has such a board and wants to try it. What has run on this and other hardware is in the [status table](index.md#status-what-has-and-has-not-been-proven).
 
 !!! note "What was measured on hardware"
-    Conditions: an ESP32-P4 development board, chip revision v3.2, 32 MB flash, 32 MB PSRAM; ESP-IDF v5.5.4; measured on 2026-11-16 with one image of 691,328 bytes. Every figure on this page that comes from a board is for that image.
+    Conditions: an ESP32-P4 development board, chip revision v3.2, 32 MB flash, 32 MB PSRAM; ESP-IDF v5.5.4; measured on 2026-11-16 with one image of 691,328 bytes. Every figure on this page that comes from a board is for that image. The image predates the current source: the source differs in the receive-buffer drain at boot and in the C optimisation level and small-block allocation described below, and those differences have not been run on a board.
 
     * The REPL works, Ctrl-C stops a runaway loop, the embedded library loads and uploads work.
     * The conformance suite passed 1266 of 1266 cases over the serial port in 1877 seconds.
@@ -73,7 +73,7 @@ esptool --chip esp32p4 -p PORT -b 460800 --before default-reset --after hard-res
 Open the port at 115200 8N1 with no flow control, with any terminal program that opens a serial device. Two things are worth knowing before you do.
 
 * **Opening the port resets the board.** The USB-serial bridge toggles DTR and RTS, which reset the chip, so you see the boot log every time you open the port. A program that holds the board's state in RAM loses it. The upload tool waits for the banner after it opens the port.
-* **After a reset the first line you send can fail** with `input is not valid UTF-8`. A stray byte arrives with or after the boot, and the console takes it into the line you type. Known limit: press Enter once, or Ctrl-C, and type the line again. The source of `main.c` discards the receive buffer before it prints the banner (`drain_rx`); that change has not been tried on a board.
+* **After a reset the first line you send can fail** with `input is not valid UTF-8`. A stray byte arrives with or after the boot, and the console takes it into the line you type. Known limit: press Enter once, or Ctrl-C, and type the line again. The current `main.c` discards the receive buffer before it prints the banner (`drain_rx`).
 
 ## What you see
 
@@ -124,5 +124,5 @@ The runner needs `.x` to really reset the board, a banner within `--timeout` and
 * **Flash storage.** Files live in RAM and are lost at reset.
 * **The stack and heap on the board.** The firmware's numbers (a budget of 120 KiB of the 128 KiB stack, a heap limit of three quarters of the free PSRAM) come from the porting rules and the build; how much a level of recursion costs on this chip, how the heap behaves in PSRAM under load, and whether the 30 second task watchdog is long enough for the longest single operation, have not been measured.
 * **The receive path at speed.** Whether bytes are lost during long evaluations at 115200 baud with the 32 KiB buffer is not known beyond the conformance run, which passed.
-* **Why `fib(24)` is slow**, as said above. The current source builds ESP-IDF's C with `-O2` and serves the small blocks that a call allocates from free lists in internal RAM; `fib(24)` with that build has not been measured on a board.
+* **Why `fib(24)` is slow**, as said above. The current source builds ESP-IDF's C with `-O2` and serves the small blocks that a call allocates from free lists in internal RAM; `fib(24)` with it has not been measured.
 * **The `thumbv7em` target and the other boards.** The code links for `thumbv7em-none-eabihf` and `riscv32imac-unknown-none-elf`, but those images have no start-up code and were never booted. The same `main.c` ran for an ESP32-C3 under QEMU, which is not hardware: it booted and ran expressions, uploads, timers and `.x`. Known limit: a runaway loop there ends in an interrupt watchdog timeout, and the cause is not investigated.

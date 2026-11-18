@@ -31,7 +31,7 @@ nav:
       - Operator Reference: 'operators.md'
       - Language Additions: 'language-additions.md'
       - Strict mode: 'strict.md'
-      - Lint: 'lint.md'
+      - 'Lint: kgpy --lint': 'lint.md'
       - Errors: 'errors.md'
       - Differences from Klong: 'differences.md'
   - Reference:
@@ -50,7 +50,7 @@ nav:
       - Serial Console and Upload: 'native/console.md'
       - Porting to a Board: 'native/porting.md'
       - ESP32-P4: 'native/esp32-p4.md'
-      - Two Raspberry Pi Picos: 'native/pico-bench.md'
+      - Two Raspberry Pi Picos calling each other: 'native/pico-bench.md'
       - IPC and Timers: 'native/ipc.md'
       - Management Node: 'native/management-node.md'
   - 'Static Klong: C and FPGA':

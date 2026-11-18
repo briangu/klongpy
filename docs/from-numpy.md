@@ -338,7 +338,7 @@ A negative number inside a list literal is a number: `[-1 2]` is `[-1 2]`.
 
 Division by zero gives `:undefined`, not `inf` or an error.
 
-**`^` gives an integer when the result is a whole number.** `[1 4 9]^0.5` is `[1 2 3]` and `[2 3]^0.5` is a list of floats. NumPy's `**` with a float exponent always returns floats.
+**A scalar `^` gives an integer when the result is a whole number.** `4^0.5` is `2`, while a list result stays floats: `[1 4 9]^0.5` is `[1.0 2.0 3.0]`. NumPy's `**` with a float exponent always returns floats.
 
 **Amend does not change its argument.** `a:=9,1` is the list with `9` at index 1 and leaves `a` as it was. There is no `a[1]=9`:
 

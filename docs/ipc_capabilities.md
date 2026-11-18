@@ -8,7 +8,7 @@ The functions are `.srv` (serve), `.cli` (connect and call), `.clid` (connect an
 
 ## Example
 
-Run the server and the client as two processes, for example in two terminals: `kgpy -s 8888` in the first and `kgpy` in the second. A `server?>` line below is typed in the serving terminal and a `client?>` line in the other; the port is 8888 throughout.
+Run the server and the client as two processes, for example in two terminals, running `kgpy` in each. A `server?>` line below is typed in the serving terminal and a `client?>` line in the other; the port is 8888 throughout.
 
 ```kgpy
 server?> avg::{(+/x)%#x}
@@ -23,12 +23,12 @@ client?> f(:avg,,!100)
 49.5
 ```
 
-`.cli` returns a function. A string argument is Klong source for the server to run. A symbol is the name of a server function, followed by its arguments.  `kgpy -s 8888` runs the REPL with `.srv(8888)` evaluated first.
+`.cli` returns a function. A string argument is Klong source for the server to run. A symbol is the name of a server function, followed by its arguments.  `kgpy -s 8888` starts the REPL with `.srv(8888)` already evaluated, so a call to `.srv(8888)` there returns 0.
 
 ## Protocol and security
 
 - **Protocol.** The connection speaks the kdb+ IPC protocol: the same handshake, message framing and type codes, little-endian, with compression understood (capability 3). A q or other kdb+ client can connect to `.srv`, and `.cli` can connect to a q process.
-- **Independence.** kdb+ is a trademark of KX. This is an independent implementation written from public documentation and Apache-licensed client code. It is tested against PeachQ, an open-source kdb+-compatible implementation, and not against kdb+ itself (see the [roadmap](roadmap.md)).
+- **Independence.** kdb+ is a trademark of KX. This is an independent implementation written from public documentation and Apache-licensed client code. It is tested against [PeachQ](https://www.timestored.com/peachq/), an open-source kdb+-compatible implementation, and not against kdb+ itself (see the [roadmap](roadmap.md)).
 - **Credentials.** A server accepts any client unless the program defines `.srv.auth`; see [Credentials](#credentials-srvauth).
 - **Message size.** `ipc_max_message` limits the size of a message; see [Limits and compression](#limits-and-compression).
 - **One protocol.** KlongPy 0.7 sent Python pickles, which let any peer run Python in the receiving process. That protocol was removed in 2.0, so nothing received is unpickled, and a 0.7 peer cannot connect; see [0.7 peers](#07-peers).
@@ -40,7 +40,7 @@ What goes across in each direction:
 
 | Klong value | kdb+ type sent | Klong value received |
 |---|---|---|
-| integer | long atom (int atom from a 32-bit build) | integer (boolean, byte, short, int and long atoms all arrive as integers) |
+| integer within 64 bits | long atom (int atom from a 32-bit build) | integer (boolean, byte, short, int and long atoms all arrive as integers) |
 | float | float atom (real from a 32-bit build) | float |
 | char below U+0080 | char atom | char |
 | any other char | char vector of its UTF-8 bytes | string |
@@ -53,6 +53,7 @@ What goes across in each direction:
 | array of rank 2 or more, mixed or ragged list, list of strings | general list, elements encoded one by one | list; a rectangular numeric one becomes an array |
 | dictionary | dictionary (99) | dictionary |
 | function | lambda (100), context `kg`, source text | remote function (see below) |
+| integer beyond 64 bits (`2^64`) | not sent: `range error: integer does not fit 64 bits` (0.7 sent it by pickle) | |
 | anything else (a Python object such as a set, complex number or `None`, a connection handle) | not sent: a type error that names the kind | |
 
 A `klongpy.db` table is sent as a kdb+ table (type 98) of its columns, after any pending inserts are committed. A table received becomes a `Table` when `klongpy.db` is loaded in the receiving process (`.py("klongpy.db")`), and otherwise a dictionary from column symbol to column. The table's index is not carried: the receiver must apply `.index` again. A keyed table from q arrives as a two-element list of the key table and the value table.
@@ -132,7 +133,7 @@ client?> f(:avg,,data)
 49.5
 ```
 
-To start a server from the shell, `kgpy -s 8888` runs the REPL with `.srv(8888)` evaluated first.
+To start a server from the shell, `kgpy -s 8888` starts the REPL with `.srv(8888)` already evaluated, so a call to `.srv(8888)` there returns 0.
 
 Applying a symbol with no arguments returns the remote value. For a function that value is a remote function proxy, which you call as if it were local:
 

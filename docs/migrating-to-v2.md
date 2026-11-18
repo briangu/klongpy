@@ -386,6 +386,7 @@ What to do: upgrade every KlongPy process that talks IPC to 2.0 or later, then r
 
 Other changes that come with the new protocol:
 
+- An integer beyond 64 bits (`2^64`, a long literal) cannot cross the wire. Sending one is `range error: integer does not fit 64 bits`; 0.7's pickle carried it. Send it as a string or a float.
 - An error on the server comes back to the client as a Klong error and the connection stays open. It used to drop the connection (`connection lost`), and the next call failed with an `AttributeError`.
 - `.srv` raises when it cannot listen. A second `.srv` on a port in use returned 0 and did nothing; it now raises `cannot listen on 0.0.0.0:8888: ...`. `.srv` on a server that is already running still returns 0.
 - A call waits 30 seconds and then raises an error that contains `timed out`, closes the connection and fails every call waiting on it. Change the limit with `.clit`.

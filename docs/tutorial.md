@@ -4,7 +4,7 @@ This page takes you from the first expression to functions, adverbs, dictionarie
 
 All the code on this page is accepted at strict level 2, the strictest setting (see [Strict mode](strict.md)). The few examples that show a mistake say so and run at the default level.
 
-Klong is a small array language by Nils Holm. KlongPy is a Python implementation of it that runs the same programs and adds a few conveniences, which are marked "KlongPy adds" below. Each one is shown beside the classic form, so a program written for any Klong runs here unchanged. The full reference is the [Klong manual](https://t3x.org/klong/klong-ref.txt.html); [Operators](operators.md) lists every operator.
+Klong is a small array language by Nils Holm. KlongPy is a Python implementation of it that runs the same programs and adds a few conveniences, which are marked "KlongPy adds" below. Each one is shown beside the classic form, so a program written for any Klong runs here unchanged, apart from the cases in [Differences from Klong](differences.md). The full reference is the [Klong manual](https://t3x.org/klong/klong-ref.txt.html); [Operators](operators.md) lists every operator.
 
 ## 1. Reading right to left
 

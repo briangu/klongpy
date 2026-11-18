@@ -20,8 +20,36 @@ def kg_write_symbol(x, display=False):
     return str(x) if display else f":{x}"
 
 
+# Python 3.11+ refuses str() of an integer above 4300 digits (the limit is
+# process-global and a library must not change it), but exact powers can be
+# ~315000 digits. Below this many bits str() always works.
+_STR_SAFE_BITS = 12000
+
+
+def _big_int_str(x):
+    """Decimal text of a non-negative int of any size, without int->str conversion limits (divide and conquer)."""
+    pows = {}
+
+    def rec(v, k):
+        # v < 10**k, returned as exactly k digits
+        if k <= 1000:
+            return str(v).zfill(k)
+        h = k // 2
+        p = pows.get(h)
+        if p is None:
+            p = pows[h] = 10 ** h
+        q, r = divmod(v, p)
+        return rec(q, k - h) + rec(r, h)
+
+    k = int(x.bit_length() * 0.30103) + 2
+    return rec(x, k).lstrip('0') or '0'
+
+
 def kg_write_integer(x, display=False):
-    return str(int(x))
+    x = int(x)
+    if x.bit_length() <= _STR_SAFE_BITS:
+        return str(x)
+    return '-' + _big_int_str(-x) if x < 0 else _big_int_str(x)
 
 
 def kg_write_float(x, display=False):

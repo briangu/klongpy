@@ -1288,8 +1288,8 @@ a Klong program of the static profile that has .entry
 declarations, or a list of paths for an image that was
 built from several programs (kgpy --hw-build a.kg b.kg).
 The program is checked and compiled, the image built from
-exactly this source is found on the build machine
-($KLONG_HW_HOST) and loaded on the card, and a dictionary
+exactly this source is looked up on the card machine
+($KLONG_HW_HOST; the build cache must be there) and loaded, and a dictionary
 from entry name to function is returned. Each entry is also
 bound as "program.entry", where "program" is the file name
 without ".kg": fir::.hw("fir.kg") makes fir.run, which is

@@ -239,7 +239,7 @@ The image of `mavg.kg`, `fir.kg` and `tests/static/hw/trap.kg` (a program that t
 
 Measured 2026-11-17. The image is `crossover.kg` built with `--lanes 32 --clock-mhz 250`. It passed routed timing at 250 MHz (worst setup and hold slack 0.009 ns, no failing endpoints; the margin is thin) after a build of 1 hour 54 minutes. It uses 13.6 percent of the device's LUTs (234315, the shell's 118282 included), 7.0 percent of its registers, 258 block RAM tiles and 135 DSPs. The history is 10 million synthetic ticks, a random walk with rare jumps folded into the band 5 to 15 (`crossover_bench.py gen`), held as a file on the card machine. The 32 parameter sets are 4 values of `fast`, 4 of `slow` and 2 stops. Every lane replays all 10 million ticks, 320 million lane-ticks in all.
 
-| | time for 10 M ticks x 32 lanes | lane-ticks per second, total | ticks per second per lane |
+| | time for 10 M ticks x 32 lanes | lane-ticks per second, total | ticks per second per lane (card) or per process (CPU) |
 |---|---:|---:|---:|
 | card, kernel only (the server's clock; best of 7) | 40.2 ms | 7.97 G | 249 M |
 | card, history already on the card, wall time of the call over ssh (best of 7) | 42.7 ms | 7.50 G | 234 M |
@@ -247,7 +247,7 @@ Measured 2026-11-17. The image is `crossover.kg` built with `--lanes 32 --clock-
 | emitted C, `gcc -O3`, one core, 32 lanes in turn (best and worst of 5) | 6.0 s to 6.8 s | 47 M to 53 M | 47 M to 53 M |
 | the same, 8 processes of 4 lanes | 0.87 s | 366 M | 46 M |
 | the same, 16 processes of 2 lanes (one per core; best of 5) | 0.46 s to 0.47 s | 691 M | 43 M |
-| the same, 32 processes of 1 lane (one per thread; best of 5) | 0.42 s | 758 M | 31 M |
+| the same, 32 processes of 1 lane (one per thread; best of 5) | 0.42 s | 758 M | 24 M |
 | numpy (the sums and the signal for all lanes at once, the position stepped one tick at a time), on 1 M ticks | 20.3 s for 1 M ticks | 1.6 M | 50 k |
 
 The card replays one tick per clock cycle in every lane, 250 M a second at 250 MHz, with 32 lanes at once. Against the C that the same Klong source compiles to, it is 10 times faster than all 32 threads of the CPU (40.2 ms against 0.42 s) and 150 times faster than one core. A lane on the card is five times a core.

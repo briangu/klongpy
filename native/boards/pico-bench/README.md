@@ -2,7 +2,15 @@
 
 Firmware that runs the native Klong interpreter on a Raspberry Pi Pico (RP2040) as one node of a small network, with IPC between nodes. This README is for someone with two Picos who wants to build the image and flash it. Results, memory design and known limits are in `docs/native/pico-bench.md`; the status of every board is in the table of `docs/native/index.md`.
 
-Each node has one lane, a UART link on GP16 (TX) and GP17 (RX) of `uart0`. The lane carries 16-byte frames, so a node needs a switch or a peer that speaks them; `docs/native/pico-bench.md` says what to use when you do not have the switch and supervisor of the published result (they are not in the repository). The node learns its number from the lane, answers PING, sends STATUS once a second and carries messages of up to 1024 bytes. Above that it runs the kdb+ IPC (`.cli("node:1")`, `.srv("node:")`) and the management library. One image is flashed to every Pico.
+Each node has one lane, a UART link on GP16 (TX) and GP17 (RX) of `uart0`. The lane carries 16-byte frames, so a node needs a switch or a peer that speaks them. The published two-Pico result used a serial switch of 16-byte frames that is not part of this repository; the frame format is below and `klong-sim` models the switch. Without that hardware you can build and flash the firmware, run the same runtime and self-test in the simulator, and drive a node from any program that writes the frames; you cannot reproduce the measured two-board numbers. `docs/native/pico-bench.md` says what to use instead.
+
+```text
+[0..1] A5 5A  [2] 01  [3] type  [4] source  [5] destination  [6..7] sequence, u16 little-endian
+[8] sub-type  [9] payload length 0..4  [10..13] payload, unused bytes 0
+[14..15] CRC-16/CCITT-FALSE over bytes 2..13, little-endian
+```
+
+The types are PING 1, PONG 2, STATUS 3 and APP_DATA 9. Address 16 is the supervisor, the peer that numbers the nodes and reads their STATUS. The node learns its number from the lane, answers PING, sends STATUS once a second and carries messages of up to 1024 bytes. Above that it runs the kdb+ IPC (`.cli("node:1")`, `.srv("node:")`) and the management library. One image is flashed to every Pico.
 
 ## Requirements
 
@@ -41,7 +49,7 @@ Hold BOOTSEL while connecting the Pico over USB and copy `build/klong_pico_bench
 | USB | a CDC console (`pico_stdio_usb`), raw bytes |
 | Not touched | RUN, SWD, every other GPIO, the second core, flash |
 | Node number | the destination of the first unicast frame that arrives. The node is silent until then. |
-| Frames | answers PING with PONG; sends STATUS once a second to address 16, which is the supervisor's address; takes datagram frames (APP_DATA sub-types `0xD0` to `0xD3`); ignores every other valid frame |
+| Frames | answers PING with PONG; sends STATUS once a second to address 16 (the supervisor); takes datagram frames (APP_DATA sub-types `0xD0` to `0xD3`); ignores every other valid frame |
 | Reset | `.x(0)` restarts the chip through the watchdog |
 | Safety net | a HardFault handler, a watchdog of 8 s fed in the idle path, and a canary at the bottom of the stack. The reason for a restart appears in the self-test report as `boot=hardfault`, `boot=stack`, `boot=fatal`, `boot=watchdog` or `boot=reset`. |
 
@@ -49,7 +57,7 @@ Ctrl-T (0x14) on the USB console prints the counters instead of passing it to Kl
 
 ## The console
 
-* **USB.** (The USB console has not been tested on the two boards of the published result.) Open the Pico's USB port with a terminal at any speed and press Enter for the prompt `klong> `. `native/tools/kgupload.py PORT ver` works, and so do `put` and `run`.
+* **USB.** (The USB console has not been tested on the two boards of the two-Pico result.) Open the Pico's USB port with a terminal at any speed and press Enter for the prompt `klong> `. `native/tools/kgupload.py PORT ver` works, and so do `put` and `run`.
 * **The lane.** Datagram channel 1 is a console. Input is a datagram with the ACK flag that ends at a line end; output is text sent to the node that last sent input. Channel 2 carries control (`done ID STATUS`, `int`, `hello`) and channel 3 the self-test report. `native/tools/klong_bench.py` is a client; `tools/lane_frames.py send 0 '1+2\n' --ack` prints the frames of an input for any other tool to put on a lane.
 
 ## The boot self-test

@@ -737,13 +737,14 @@ def main():
             try:
                 with klong_warnings():
                     result = klong(Source("<expr>", args.expr))
+                if result is not None:
+                    # writing the result can fail too: report it like an evaluation error
+                    print(kg_write(result, klong._backend, display=False))
             except KeyboardInterrupt:
                 interrupted()
             except Exception as e:
                 report(e)
                 sys.exit(1)
-            if result is not None:
-                print(kg_write(result, klong._backend, display=False))
         finally:
             # -e evaluates the expression and exits: a timer, a server or a
             # connection it opened is closed with the process

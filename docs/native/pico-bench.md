@@ -6,7 +6,7 @@ Two Raspberry Pi Pico boards (RP2040, 264 KB of RAM) run the native Klong interp
 
 Each Pico has one lane: a UART link, GP16 (TX) and GP17 (RX) of `uart0`, 8N1, no flow control, at 4.5 Mbaud. The two lanes are joined through a frame switch that forwards fixed 16-byte frames, 4 bytes of payload each, and a supervisor board numbers the nodes and reads their status. The lane carries 112 KB/s of data at best.
 
-The switch and the supervisor, which provides a web console, are part of a test bench that is not published, so the two-Pico result used a serial frame switch that you cannot build from this repository. The firmware, the simulator and the host tools are in the repository. To reproduce the setup you do not need them:
+The two-Pico result used a serial switch of 16-byte frames that is not part of this repository. Its frame format is in `native/boards/pico-bench/README.md` and `klong-sim` models it. The firmware, the simulator and the host tools are in the repository. Without the switch you can run the same runtime and self-test in the simulator and drive a node from your own frame source, but you cannot reproduce the measured two-board numbers. To set up a link of your own:
 
 * The `node` transport needs any byte link between two UARTs and something that numbers the nodes. A node learns its number from the destination of the first frame it receives.
 * The simulator in `native/klong-sim` models the switch, with a clock for each lane, and runs the same runtime and the same self-test. `klong-bench` runs it from a script.
@@ -49,13 +49,13 @@ At boot every node serves. A node that is not number 0 connects to the nearest n
 | Largest integer vector on the serving node, management library loaded | 5,500 |
 | Loading the management library (`.l("mgmt")`) | 0.16 s; about 10 KB stay in use once it has been used |
 | A call to the other node through the library, first | 26 ms |
-| The same call, repeated in one program | 11 ms (ten calls in 84 ms) |
+| The same call, repeated in one program | 11 ms for one call; ten calls in one request take 84 ms |
 | A plain `.cli` call, no library | 3.4 ms |
 | A 4 KB echo | 94 ms (87 KB/s of the lane's 112) |
 | `fib(18)`, 8,361 calls | 0.39 s |
 | Recursion depth | 105 levels; the 106th is a `range` error and the node goes on |
 
-Conditions: two boards, 2026-11-17, through the console client, one firmware image (Pico SDK 2.3.1, Arm GNU 15.3.1); the plain `.cli` call was measured on an earlier build. Each vector size is the largest of the sizes tried, in steps of 300 to 500 elements.
+Conditions: two boards, 2026-11-17, through the console client, one firmware image (Pico SDK 2.3.1, Arm GNU 15.3.1); the plain `.cli` call was measured on an earlier firmware image. Each vector size is the largest of the sizes tried, in steps of 300 to 500 elements.
 
 ## Memory
 

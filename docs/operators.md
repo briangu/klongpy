@@ -106,7 +106,7 @@ The dyad `point∇function` (and `.grad(function;point)`) **always** computes th
 [2.000000000279556 3.9999999996709334 6.000000000838668]
 ```
 
-The first result is the derivative of `x^2` at 3 (about 6) and the second the gradient of the sum of squares (about `[2 4 6]`); finite differences leave an error near 1e-9 on the CPU.
+The first result is the derivative of `x^2` at 3 (about 6) and the second the gradient of the sum of squares (about `[2 4 6]`); finite differences leave an error near 1e-9 with float64 (NumPy, or torch on the CPU). On a torch device that computes in float32, such as a GPU, the error is near 1e-2: `3∇f` prints `5.993843`.
 
 **ASCII form:** `.grad(function;point)` is the same computation with the function first, for keyboards without `∇`. The point is taken by value.
 
@@ -213,7 +213,7 @@ The two gradient operators take their arguments in opposite orders: `point∇fun
 | Feature | `∇` (nabla) | `:>` (autograd) | `∂` (jacobian) |
 |---------|-------------|-----------------|----------------|
 | Method | The dyad `point∇function` and `.grad`: finite differences on every backend. The monad `∇function`: autograd on torch, finite differences on numpy | Autograd on torch, finite differences on numpy | Autograd on torch, finite differences on numpy |
-| Precision | The dyad is approximate (about 1e-9 on the CPU) | Exact up to float32 rounding on torch; approximate on numpy | Same as `:>` |
+| Precision | The dyad is approximate: about 1e-9 in float64 (NumPy, torch on the CPU), about 1e-2 in float32 (torch on a GPU) | Exact up to float32 rounding on torch; approximate on numpy | Same as `:>` |
 | Output | Scalar functions | Scalar functions | Vector functions |
 | Syntax | `point∇function` | `function:>point` | `point∂function` |
 | ASCII name | `.grad(function;point)` | `function:>point` | `.jacobian(function;point)` |
@@ -520,7 +520,7 @@ Integers are 64 bits wide. A sum, difference or product of two such integers tha
 1
 ```
 
-`^` of two integers with a non-negative exponent is exact (`10^400` has all its digits) unless the result would need more than a million bits, which is an error. A negative or fractional exponent gives a float, and an error where the result does not fit a float. `!` is an error for an operand that does not fit 64 bits. Floats are doubles.
+`^` of two integer scalars with a non-negative exponent is exact (`10^400` has all its digits) unless the result would need more than a million bits, which is an error. A negative or fractional exponent gives a float, and an error where the result does not fit a float. `!` is an error for an operand that does not fit 64 bits. Floats are doubles.
 
 ```kgpy
 ?> 2^64

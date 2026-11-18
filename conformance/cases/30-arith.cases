@@ -322,7 +322,7 @@
 > [4 9]^0.5
 = [2.0 3.0]
 
-@ arith.pow-list-negative-exp-is-float core float string-fmt numpy-only
+@ arith.pow-list-negative-exp-is-float core float string-fmt
 > [2 4]^-1
 = [0.5 0.25]
 

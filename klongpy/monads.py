@@ -153,6 +153,8 @@ def eval_monad_format(a, backend):
         return backend.kg_asarray([eval_monad_format(x, backend) for x in a])
     if backend.is_backend_array(a):
         a = backend.to_display(a)  # the number as it prints, not the repr of a 0-d tensor
+    if isinstance(a, int) and not isinstance(a, bool):
+        return kg_write_integer(a)  # an exact power can exceed Python's 4300-digit str() limit
     return str(a)
 
 

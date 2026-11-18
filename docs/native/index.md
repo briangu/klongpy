@@ -10,8 +10,8 @@ The runtime has its own version, 0.0.1. `klong --version` and the banner of a bo
 
 KlongPy is Python, numpy and optionally torch. That is the right tool on a computer, and the wrong one on a microcontroller with a few hundred kilobytes of RAM. The native runtime is the same language with none of that underneath:
 
-* **The language.** The same parser, the same operators, adverbs, strings, dictionaries, modules and error kinds, the same strict levels, and the twelve library files of `klongpy/lib`. A program that avoids the differences below gives the same answer.
-* **A small program.** The interpreter is `no_std` Rust with one dependency (`libm`). The linked image for a Cortex-M or RISC-V board with the serial console and the library is between 235 and 330 KB of flash, and it needs 64 KiB of heap for small programs. See [Building and Running](building.md#sizes-and-speed).
+* **The language.** The same parser, the same operators, adverbs, strings, dictionaries, modules and error kinds, the same strict levels, and the twelve library files of `klongpy/lib` (the thirteenth, `mgmt`, is carried by builds with IPC). A program that avoids the differences below gives the same answer.
+* **A small program.** The interpreter is `no_std` Rust with one dependency (`libm`). The linked image for a Cortex-M or RISC-V board with the serial console and the library is between 235 and 330 KB of flash without IPC or timers (IPC adds 42 to 59 KB; the Pico firmware of the [two-Pico test](pico-bench.md), built for speed with IPC and diagnostics, is about 650 KB), and it needs 64 KiB of heap for small programs. See [Building and Running](building.md#sizes-and-speed).
 * **A console on a serial line.** A REPL with line editing over a UART, Ctrl-C for a program that does not stop, and a command mode for uploading files and running programs from a desktop, so that you can develop on a board without a debugger. See [Serial Console and Upload](console.md).
 * **Nodes that talk.** The kdb+ IPC protocol, as KlongPy speaks it, timers, and a management library for reaching several nodes from one. See [IPC and Timers](ipc.md) and [Management Node](management-node.md).
 
@@ -72,7 +72,7 @@ This table is the status of every hardware target. Each row says what ran and it
 |---|---|
 | A desktop (macOS and Linux) | the whole conformance suite, the 32-bit build, IPC over TCP, timers, the management node |
 | An ESP32-P4 development board (chip revision v3.2; see [ESP32-P4](esp32-p4.md)) | the console conformance suite over the serial port, the REPL, uploads, the embedded library |
-| Two Raspberry Pi Picos ([two Picos calling each other](pico-bench.md)) | IPC between the nodes over a UART link, and management-library calls, through an unpublished serial switch and supervisor (the firmware, the simulator and the host tools are in the repository) |
+| Two Raspberry Pi Picos ([two Picos calling each other](pico-bench.md)) | IPC between the nodes over a UART link, and management-library calls, through a serial switch of 16-byte frames that is not part of this repository (its frame format is in `native/boards/pico-bench/README.md` and `klong-sim` models it) |
 | An Alveo U250 FPGA | experimental kernels built from the static profile of KlongPy (not the native runtime; see [Klong functions as FPGA hardware](../hardware.md)) |
 | Anything else | nothing |
 

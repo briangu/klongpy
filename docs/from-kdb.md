@@ -2,7 +2,7 @@
 
 This page is for people who know q and want to read or write Klong. It maps the idioms, lists the differences that cause mistakes, and describes how a KlongPy program and a q process talk to each other over the kdb+ IPC protocol.
 
-The q examples on this page were checked with PeachQ 0.92, a third-party open-source implementation of q. PeachQ is not kdb+: where the page says what q prints, it means what PeachQ 0.92 printed, and the page makes no claim about kdb+ beyond that. Conditions: every q result shown is from PeachQ 0.92. The Klong examples run at [strict level 2](strict.md), except the sessions that need a q process.
+The q examples on this page were checked with [PeachQ](https://www.timestored.com/peachq/) 0.92, a third-party open-source implementation of q. PeachQ is not kdb+: where the page says what q prints, it means what PeachQ 0.92 printed, and the page makes no claim about kdb+ beyond that. Conditions: every q result shown is from PeachQ 0.92. The Klong examples run at [strict level 2](strict.md), except the sessions that need a q process.
 
 kdb+ is a trademark of KX. KlongPy's IPC is an independent implementation, written from public documentation and Apache-licensed client code. It speaks the kdb+ IPC protocol and interoperates with q processes; it is not a KX product and uses no KX code.
 
@@ -86,7 +86,7 @@ q)3 1 2@1
 
 A call with fewer arguments than the function takes is a projection, as in q. Klong writes the missing argument as an empty slot or leaves it off: `f(1;)` and `f(1)` both give a projection. A call with too many arguments drops the extras at strict levels 0 and 1 and is an arity error at level 2.
 
-Assignment is `::` everywhere. In q, `::` inside a function assigns a global; in Klong it is plain assignment, and a name that is not a parameter or a declared local becomes a local of that call (an error at strict levels 1 and 2). A global is created by assigning at the top level. Outside functions, `d:::{...}` is the assignment `d::` followed by the dictionary literal `:{...}`. A function body that assigns to a name that is not a parameter, not declared as a local (`{[t];...}`) and not already global creates a local at level 0 and is an error at levels 1 and 2. See [strict mode](strict.md).
+Assignment is `::` everywhere. In q, `::` inside a function assigns a global; in Klong it is plain assignment, and a name that is not a parameter, not declared as a local (`{[t];...}`) and not already global becomes a local of that call at level 0 and is an error at strict levels 1 and 2. A global is created by assigning at the top level. Outside functions, `d:::{...}` is the assignment `d::` followed by the dictionary literal `:{...}`. See [strict mode](strict.md).
 
 <!-- check-docs: strict 2 -->
 ```kgpy
@@ -773,7 +773,7 @@ Compared with a q process:
 - No keyed tables in the q sense (an `.index` on a table makes an insert update the matching row, which is not the same), no attributes, no enumerations, and no splayed or partitioned tables.
 - No `.z.pg`, `.z.ps`, `.z.pi` or other message handlers; see Hooks above.
 - No true asynchronous send from Klong (q's `neg[h]`). `.async(f;cb)` sends a request and calls `cb` with the answer when it arrives; a KlongPy server does accept asynchronous messages from q clients.
-- Nested callbacks through a real kdb+ process are not supported.
+- Nested callbacks through a q process are not supported.
 - A function is sent as its source text. A projection arrives opaque and cannot be called by the receiver.
 
 ## See also

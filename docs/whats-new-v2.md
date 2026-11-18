@@ -6,14 +6,14 @@ The status of each target (stable, passes conformance, subset, experimental) is 
 
 ## CPU: the NumPy backend
 
-For plain NumPy users, version 2 adds [strict modes](strict.md), a [linter](lint.md), [errors with positions](errors.md), [language additions](language-additions.md) and [IPC](ipc_capabilities.md) in the kdb+ protocol. Integers beyond 64 bits are exact, and indexing a vector by an integer vector is a whole-array operation, so `x@<x` sorts in about the time of the grade. [Migrating to v2](migrating-to-v2.md) lists what changes for 0.7 code.
+For plain NumPy users, version 2 adds [strict modes](strict.md), a [linter](lint.md), [errors with positions](errors.md), [language additions](language-additions.md) and [IPC](ipc_capabilities.md) in the kdb+ protocol. An integer operand beyond 64 bits makes arithmetic exact, and indexing a vector by an integer vector is a whole-array operation, so `x@<x` sorts in about the time of the grade. [Migrating to v2](migrating-to-v2.md) lists what changes for 0.7 code.
 
 ## GPU: the torch backend
 
 The torch backend and the `:>` gradient operator are in 0.7. What changes in 2:
 
 * The conformance suite runs on the torch backend, and passes except the cases tagged as NumPy only (float32 text, and `:undefined` inside a list, which a tensor cannot hold).
-* Integers beyond 64 bits are exact on both backends.
+* An integer operand beyond 64 bits makes `+ - * < > | &` exact on both backends; two operands within 64 bits wrap.
 
 `kgpy --backend torch` runs the arrays on PyTorch (CPU, CUDA or Apple MPS). Floats are float32, and strings and mixed lists stay NumPy object arrays on the host. See [PyTorch Backend and Autograd](torch_backend.md), and [Performance](performance.md) for what is measured.
 
@@ -23,7 +23,7 @@ A function of the static profile can be built into a kernel for an FPGA card and
 
 ## Microcontrollers: the native runtime and compiling to C
 
-Two routes put Klong on a small device.
+Two routes put Klong on a small device. The generated C has not yet run on a device.
 
 **The native runtime** is a second implementation of the language in Rust that runs without Python. It has a serial console and an upload command, kdb+ IPC, timers and a management node library. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board, and two Raspberry Pi Picos have run it with IPC between them. See [Native Runtime](native/index.md) and, for the details of what has run on hardware, its [status table](native/index.md#status-what-has-and-has-not-been-proven).
 
