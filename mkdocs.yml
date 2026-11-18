@@ -58,6 +58,7 @@ nav:
       - The static profile: 'static-profile.md'
       - Klong functions as FPGA hardware: 'hardware.md'
   - Project:
+      - Design Principles: 'design-principles.md'
       - Roadmap: 'roadmap.md'
       - Expression Compiler Notes: 'compiler-roadmap.md'
       - Contributing: 'contributing.md'
