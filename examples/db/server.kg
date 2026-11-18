@@ -11,30 +11,25 @@ newt::{[c];c::[["t" []] ["p" []] ["v" []]];.table(c)}
 prices::tbs?"prices"
 prices:::[:_prices;newt();prices]
 
-q:::{}
-q,"prices",,prices
-db::.db(q)
+db::.db(:{;"prices";prices})
 
 :" Return the data for a GET method at /"
-index::{x;db("select * from prices")}
+index(request)::{db("select * from prices")}
 
 :" Create the GET route handlers"
-get:::{}
-get,"/",index
+get:::{;"/";index}
 
-upd::{.insert(prices;x)}
+upd(row)::{.insert(prices;row)}
 
-:" Append the query param q value to data"
-update::{[t p v d];t::1:$x?"t";p::1.0:$x?"p";v::1.0:$x?"v";d::t,p,v;upd(d);d}
+:" Append the form fields t, p and v as a row of the prices table"
+update(form)::{[row];row::(1:$form@"t"),(1.0:$form@"p"),1.0:$form@"v";upd(row);row}
 
 :" Flush the prices table every minute "
 store::{.p("flushing prices table");tbs,"prices",prices;1}
 th::.timer("store";60;store)
 
 :" Create the POST route handlers"
-post:::{}
-post,"/p",update
-post,"/s",store
+post:::{;"/p";update;"/s";store}
 
 :" Start the web server with the GET and POST handlers"
 .web(8080;get;post)

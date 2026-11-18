@@ -1,12 +1,12 @@
 """
 Replay a tick history on the card with the 32-lane image of crossover.kg and time it (docs/hardware.md, Strategies).
 
-    KLONG_HW_HOST=user@host python examples/hardware/crossover_card.py HISTORY.bin PARAMS.bin [--json OUT.json]
+    KLONG_FPGA_HOST=user@host python examples/hardware/crossover_card.py HISTORY.bin PARAMS.bin [--json OUT.json]
                                                 [--expect SUMMARY.bin] [--prefix N --expect-prefix SUMMARY.bin] [--runs R]
 
 HISTORY.bin and PARAMS.bin are the files of crossover_bench.py (the history as fixed<32,16> raw int32, one row of
-fast, slow, stop per lane). The image must have been built:  kgpy --hw-build examples/hardware/crossover.kg --lanes 32
-(with the clock you chose); this script binds it the way Klong does (``.hw.lanes``), sets the parameters of the lanes,
+fast, slow, stop per lane). The image must have been built:  kgpy fpga build examples/hardware/crossover.kg --lanes 32
+(with the clock you chose); this script binds it the way Klong does (``.fpga.lanes``), sets the parameters of the lanes,
 uploads the history once and runs it. ``--expect`` is a summary file (int64 [lanes, 3]) that the full replay must equal
 (for example the output of the emitted C); ``--expect-prefix`` the same for the first ``--prefix`` ticks. The exit
 status is 1 if one differs. The times are the server's clock on the machine with the card ("kernel", from the

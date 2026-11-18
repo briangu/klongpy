@@ -30,14 +30,14 @@ a
 
 .py("klongpy.db")
 
-.d("serving the following tables:");.p(.os.argv@0)
+.pf("serving the following tables:{}";.os.argv@0)
 
 tbs::.tables(.os.argv@0)
 
 :" TODO: we need this because we don't yet proxy tbs to the client "
 :" read::{[d];d::tbs?x;:[:_d;d;.rindex(d)];d} "
-read::{tbs?x}
-write::{:[(#x)>0;tbs,x,y;0];1}
+read(name)::{tbs?name}
+write(name;t)::{:[(#name)>0;tbs,name,t;0];1}
 
 .srv(8888)
 

@@ -2,7 +2,7 @@
 Every shipped .kg file under klongpy/lib/ and examples/ is clean.
 
 For each file:
-  1. `kgpy --lint` reports no error-level finding (E001, E002);
+  1. `kgpy lint` reports no error-level finding (E001, E002);
   2. the token parser reports no KlongSyntaxWarning (parse only, strict 0);
   3. it is accepted by strict level 1's parse-time checks (parse only).
 For the examples that can run offline, a fourth check runs the file at strict
@@ -93,8 +93,10 @@ RUNNABLE = {
 PORT = "starts a server on the fixed port 8888 (a test must not bind it); loads and exits 0 at strict 2 when run by hand"
 SERVER = "long-running server (binds a fixed port, runs until killed); loaded to its serve point at strict 2 in a timed run"
 CLIENT = "client that waits for a server on port 8888 (timed out at strict 2 after connecting nowhere)"
-NETWORK = "network and API keys (a live market-data feed or broker); not run offline"
 EXCLUDED = {
+    "examples/stocks/feed/consumer.kg": "needs a running feed.kg (a server on port 8888); tests/test_example_feed.py runs it with demo.kg",
+    "examples/stocks/feed/feed.kg": SERVER + "; tests/test_example_feed.py runs it with demo.kg",
+    "examples/stocks/feed/demo.kg": "the process stays up after its output, by design; tests/test_example_feed.py runs it and stops it after the last line",
     "examples/1brc/par.kg": "needs a measurements file as its argument and the par.py worker pool",
     "examples/autograd/black_scholes_live.kg": "network: live option data through yfinance (live_options.py)",
     "examples/autograd/portfolio_opt.kg": "network: stock_data.py downloads prices through yfinance",
@@ -113,14 +115,6 @@ EXCLUDED = {
     "examples/stats_logging/head.kg": CLIENT,
     "examples/stats_logging/stats_client.kg": CLIENT + "; also needs pytz",
     "examples/stats_logging/stats_server.kg": PORT + "; also writes /tmp/tables/stats",
-    "examples/stocks/alpaca/update_data.kg": NETWORK,
-    "examples/stocks/alpaca/ws/feed.kg": NETWORK,
-    "examples/stocks/alpaca/ws/feed_consumer.kg": NETWORK + " (consumer of feed.kg on port 8888)",
-    "examples/stocks/alpaca/ws/stream.kg": NETWORK,
-    "examples/stocks/polygon/update_data.kg": NETWORK,
-    "examples/stocks/polygon/ws/feed.kg": NETWORK,
-    "examples/stocks/polygon/ws/feed_consumer.kg": NETWORK + " (consumer of feed.kg on port 8888)",
-    "examples/stocks/polygon/ws/stream.kg": NETWORK,
     "examples/stocks/yfinance/compact_lstm.kg": "network (yfinance) and torch (lstm.py)",
     "examples/stocks/yfinance/fetch.kg": "network: downloads prices through yfinance",
     "examples/stocks/yfinance/lstm.kg": "network (yfinance) and torch (lstm.py)",
@@ -159,7 +153,7 @@ def strict1_parse_error(rel):
 class TestEveryKgFileIsClean(unittest.TestCase):
 
     def test_files_found(self):
-        self.assertGreaterEqual(len(FILES), 70)
+        self.assertGreaterEqual(len(FILES), 69)
         self.assertIn("klongpy/lib/math.kg", FILES)
         self.assertIn("examples/ml/knn.kg", FILES)
 

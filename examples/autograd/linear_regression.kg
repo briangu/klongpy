@@ -25,47 +25,34 @@ yTrue::(wTrue*X)+bTrue
 w::0.0
 b::0.0
 
-.d("Initial parameters: w=")
-.d(w)
-.d(", b=")
-.p(b)
+.pf("Initial parameters: w={}, b={}";[;w;b])
 
-:" Define separate loss functions for gradient computation"
-lossW::{((+/((x*X)+b-yTrue)^2))%N}
-lossB::{((+/((w*X)+x-yTrue)^2))%N}
+:" The loss as a function of w (b held fixed) and of b (w held fixed), for gradient computation"
+lossW(w)::{((+/((w*X)+b-yTrue)^2))%N}
+lossB(b)::{((+/((w*X)+b-yTrue)^2))%N}
 
 :" Compute initial loss"
-.d("Initial loss: ")
-.p(lossW(w))
+.pf("Initial loss: {}";lossW(w))
 .p("")
 
 :" Training parameters"
 lr::0.1
 epochs::30
 
-.d("Training for ")
-.d(epochs)
-.d(" epochs with learning_rate=")
-.p(lr)
+.pf("Training for {} epochs with learning_rate={}";[;$epochs;lr])
 .p("--------------------------------------------------")
 
 :" Helper to print epoch info"
-printEpoch::{.d("Epoch ");.d(x);.d(": loss=");.d(lossW(w));.d(", w=");.d(w);.d(", b=");.p(b)}
+printEpoch(n)::{.d("Epoch ");.d(n);.pf(": loss={}, w={}, b={}";[;lossW(w);w;b])}
 
 :" Training step function"
-step::{[gw gb];x;gw::lossW:>w;gb::lossB:>b;w::w-(lr*gw);b::b-(lr*gb);0}
+step(i)::{[gw gb];gw::lossW:>w;gb::lossB:>b;w::w-(lr*gw);b::b-(lr*gb);0}
 
 :" Run training (batches of 5, print progress between batches)"
-batch::{step'!5;printEpoch(x*5)}
+batch(n)::{step'!5;printEpoch(n*5)}
 batch'!6
 
 .p("")
 .p("Final parameters:")
-.d("  Learned: w=")
-.d(w)
-.d(", b=")
-.p(b)
-.d("  True:    w=")
-.d(wTrue)
-.d(", b=")
-.p(bTrue)
+.pf("  Learned: w={}, b={}";[;w;b])
+.pf("  True:    w={}, b={}";[;wTrue;bTrue])

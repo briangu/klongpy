@@ -18,6 +18,6 @@ add(xb)
 
 k::4
 DI::search(5#xb;k)
-.d("DI: ");.p(DI)
+.pf("DI: {}";,DI)
 DI::search(xq;k)
-.d("DI: ");.p(DI)
+.pf("DI: {}";,DI)

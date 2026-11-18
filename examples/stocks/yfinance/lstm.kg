@@ -26,7 +26,7 @@ labels::{x@-1}'1_windows
 windows::(-1)_windows
 
 :" show unnormalized windows and labels "
-.d("series ");.d(1#windows);.d(" predicts ");.p(1#labels)
+.d("series ");.d(1#windows);.pf(" predicts {}";,1#labels)
 
 :" normalize windows and labels to the corresponding window max"
 wmax::{(x@>x)@0}'windows
@@ -38,7 +38,7 @@ trainx::(-1)_windows;trainy::(-1)_labels
 testx::windows@-1;testy::labels@-1
 
 :" print the first window and label "
-.d("series ");.d(1#trainx);.d(" predicts ");.p(1#trainy)
+.d("series ");.d(1#trainx);.pf(" predicts {}";,1#trainy)
 
 :" create the stateful model trainer "
 t::trainer(m)
@@ -47,8 +47,8 @@ t::trainer(m)
 loss::trainx t'trainy
 
 :" show that the training loss decreases "
-.d("training loss: ");.d(loss@0);.d(" --> ");.p(loss@-1)
+.pf("training loss: {} --> {}";[;loss@0;loss@-1])
 
 :" predict using the model "
 p::predictor(m)
-.d("prediction: ");.d((wmax@-1)*p(testx));.d(" should be close to ");.p((wmax@-1)*testy)
+.pf("prediction: {} should be close to {}";[;(wmax@-1)*p(testx);(wmax@-1)*testy])

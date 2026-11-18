@@ -486,7 +486,7 @@ AdamOptimizer # Adam with adaptive learning rates
 ```klong
 .pyf("./optimizers.py";"SGDOptimizer")
 opt::SGDOptimizer(["w" "b"];:{["lr" 0.1]})
-{opt(loss)}'!100
+{x;opt(loss)}'!100
 ```
 
 ### stock_data.py
@@ -515,8 +515,8 @@ theta::10.0
 lr::0.1
 loss::{(theta-5)^2}
 
-:" Training step
-step::{grad::loss:>theta; theta::theta-(lr*grad)}
+:" Training step: the parameter i is the step number, which the step does not use
+step(i)::{[grad];grad::loss:>theta;theta::theta-(lr*grad)}
 
 :" Train
 step'!100
@@ -531,11 +531,11 @@ b::3.0
 loss::{(w^2)+(b^2)}
 
 :" Get gradients for both parameters
-grads::loss:>[w b]    :" Returns [4.0, 6.0]
+[dw db]::loss:>[w b]    :" dw is 4.0, db is 6.0
 
 :" Update
-w::w-(0.1*grads@0)
-b::b-(0.1*grads@1)
+w::w-(0.1*dw)
+b::b-(0.1*db)
 ```
 
 ---
@@ -591,7 +591,7 @@ info::.export(f;2.0;"model.pt2")
 
 ## Troubleshooting
 
-**"undefined: ..."** - A name was read before it was defined. Klong has no reserved words, but `x`, `y` and `z` are the arguments of a function, so a global with one of those names is shadowed inside every function body; use other names for globals.
+**"undefined: ..."** - A name was read before it was defined. Klong has no reserved words, but `x`, `y` and `z` are the arguments of a function, so a global with one of those names is shadowed inside every function body; use other names for globals. A function written with named parameters, such as `f(a;b)::{a+b}`, does not use `x`, `y` or `z`.
 
 **MPS tensor errors** - Apple Silicon GPU tensors can't convert to numpy. Precompute constants or use CPU.
 

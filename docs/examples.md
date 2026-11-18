@@ -21,7 +21,7 @@ Each directory is under [`examples/`](https://github.com/briangu/klongpy/tree/ma
 | [ml](https://github.com/briangu/klongpy/tree/main/examples/ml) | K-nearest neighbours, cosine similarity, a transformer and an LSTM. | `torch` for the LSTM only |
 | [python](https://github.com/briangu/klongpy/tree/main/examples/python) | Calling Python from Klong and Klong from Python; multiprocessing and threading. | |
 | [stats_logging](https://github.com/briangu/klongpy/tree/main/examples/stats_logging) | Statistics ingested over IPC into table storage, with periodic flush and reporting. | `klongpy[db]`, `pytz` |
-| [stocks](https://github.com/briangu/klongpy/tree/main/examples/stocks) | Market data ingestion, Black-Scholes and LSTM forecasting. | `yfinance`, `alpaca-py` or `polygon-api-client`, depending on the example |
+| [stocks](https://github.com/briangu/klongpy/tree/main/examples/stocks) | A simulated market feed published over IPC with VWAP and a moving average, Black-Scholes, and LSTM forecasting on Yahoo Finance data. | `yfinance` for the Yahoo Finance examples only; the feed needs nothing |
 | [web](https://github.com/briangu/klongpy/tree/main/examples/web) | An HTTP server with GET and POST handlers. | `klongpy[web]` |
 
 ## Snippets
@@ -52,7 +52,7 @@ The average is the sum divided by the number of elements:
 
 <!-- check-docs: continue -->
 ```kgpy
-?> avg::{sum(x)%count(x)} :" average is the sum divided by the number of elements
+?> avg(v)::{sum(v)%count(v)} :" average is the sum divided by the number of elements
 :monad
 ?> avg([1 2 3])
 2.0
@@ -87,7 +87,7 @@ import numpy as np
 data = np.array([1, 2, 3, 4, 5])
 klong = KlongInterpreter()
 klong['data'] = data         # the Klong name data now holds the array
-klong('avg::{(+/x)%#x}')     # define a function in Klong
+klong('avg(v)::{(+/v)%#v}')  # define a function in Klong
 r = klong('avg(data)')       # call it on the array
 print(r)                     # 3.0
 ```
@@ -115,7 +115,7 @@ This needs `pip install "klongpy[db]"`. DuckDB queries the arrays of a table wit
  name age
 Alice  25
   Bob  30
-?> db::.db(:{},"T",,t)
+?> db::.db(:{;"T";t})
 :db
 ?> db("select * from T where age > 27")
 ["Bob" 30]
@@ -128,7 +128,7 @@ An IPC connection to a server is a function. Calling a remote function by name r
 Start a server in one terminal:
 
 ```kgpy
-server?> avg::{(+/x)%#x}
+server?> avg(v)::{(+/v)%#v}
 :monad
 server?> .srv(8888)
 1
@@ -158,7 +158,7 @@ A remote call can be wrapped so that a callback runs when it completes:
 
 <!-- check-docs: continue -->
 ```kgpy
-client?> afn::.async(myavg;{.d("Avg calculated: ");.p(x)})
+client?> afn::.async(myavg;{.pf("Avg calculated: {}";x)})
 async::monad
 client?> afn(!100)
 Avg calculated: 49.5
@@ -174,8 +174,8 @@ Put this in `web.kg`. It adds one index handler:
 ```text
 .py("klongpy.web")
 data::!10
-index::{x; "Hello, Klong World! ",data}
-.web(8888;:{},"/",index;:{})
+index(request)::{"Hello, Klong World! ",data}
+.web(8888;:{;"/";index};:{})
 .p("ready at http://localhost:8888")
 ```
 

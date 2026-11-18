@@ -6,6 +6,6 @@
 run(256:^1.0) => 241:^1.0
 *run(0.5*!256) => 3.75
 run(0.5*!256)@240 => 123.75
-# Size report of kgpy --emit-c (bytes; a test fails when one grows by more than 10 percent):
+# Size report of kgpy compile c (bytes; a test fails when one grows by more than 10 percent):
 # size int32/float32: constants=15488 instance=4 stack=68 c_lines=213
 # size int64/float64: constants=30976 instance=8 stack=104 c_lines=213

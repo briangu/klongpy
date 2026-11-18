@@ -14,6 +14,7 @@ so where they changed; tests/test_fn_arity.py has the new behaviour.
 import copy
 import os
 import pickle
+import re
 import unittest
 
 import numpy as np
@@ -350,8 +351,13 @@ class TestCorpus(unittest.TestCase):
     # Written with the syntax of destructuring, named parameters and the evaluated dictionary (destructuring, named parameters,
     # evaluated dictionary literal), which the old code and the legacy parser do not have.
     NEW_SYNTAX = ("tests/kgtests/language/test_destructuring.kg", "tests/kgtests/language/test_named_params.kg",
-                  "tests/kgtests/language/test_dict.kg", "examples/1brc/worker.kg",
-                  "examples/stocks/options/black-scholes.kg", "examples/autograd/compile_demo.kg")
+                  "tests/kgtests/language/test_dict.kg")
+
+    # The examples are written in the new forms to a large extent, so they are not listed: an example is left out
+    # when its text has one of the forms the old code and the legacy parser do not have: a destructuring
+    # (]::), a named-parameter head (name(a;b)::), an evaluated dictionary (:{[ or :::{;). The same pattern is
+    # checked against the legacy parser in test_parser_tokens (TestSameTreeAsLegacy.test_new_form_pattern_*).
+    NEW_FORMS = re.compile(r"\]\s*::|^[ \t]*[\w.]+\([^()\n]*\)[ \t]*::|(?<!:):\{\s*\[|:::?\{\s*;", re.M)
 
     def sources(self):
         skip = {os.path.join(ROOT, *q.split("/")) for q in self.NEW_SYNTAX}
@@ -361,7 +367,10 @@ class TestCorpus(unittest.TestCase):
                     if name.endswith(".kg") and os.path.join(dp, name) not in skip:
                         path = os.path.join(dp, name)
                         with open(path, newline="") as f:
-                            yield os.path.relpath(path, ROOT), f.read()
+                            text = f.read()
+                        if d == "examples" and self.NEW_FORMS.search(text):
+                            continue
+                        yield os.path.relpath(path, ROOT), text
 
     def test_arity_and_locals_are_what_the_old_code_computed(self):
         # Locals: identical to the old scan. Arity: it is max_arg; the

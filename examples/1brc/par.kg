@@ -1,8 +1,8 @@
 .py("par.py")
 
 :" summarize results "
-stations::{[s];s::{x@0}'x;s@<s}
-result::{(1.1$x@0),"/",(1.1$(:[x@3;(x@2)%x@3;0])),"/",(1.1$x@1)}
-stats::{[m r];m::x;r:::{};{r,x,,result(m?x)}'stations(m);r}
+stations(m)::{[s];s::{x@0}'m;s@<s}
+result(r)::{[lo hi total n]::r;(1.1$lo),"/",(1.1$(:[n;total%n;0])),"/",(1.1$hi)}
+stats(m)::{[r];r:::{};{r,x,,result(m@x)}'stations(m);r}
 
 .p(stats(load(.os.argv@0)))

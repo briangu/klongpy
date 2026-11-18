@@ -7,6 +7,7 @@ import copy
 import os
 import pickle
 import random
+import re
 import subprocess
 import sys
 import unittest
@@ -23,7 +24,7 @@ from klongpy.types import KGAdverb, KGBody, KGCall, KGCond, KGFn, KGLambda, KGOp
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-SOURCE_DIRS = ("tests/kgtests", "klongpy/lib", "examples")
+SOURCE_DIRS = ("tests/kgtests", "klongpy/lib", "examples", "tests/fixtures/classic_examples")
 FIXTURES = "tests/golden/fixtures"
 
 
@@ -41,14 +42,18 @@ FIXTURES_SYNTAX_CHECKS = {"s2_cond_ws_before_second_semi.kg", "s2_cond_ws_both.k
 FILES_NEW_SYNTAX = {"s2_destructuring_slot.kg", "s2_named_params_slot.kg", "s2_dict_empty_slot.kg", "x_dict_nested.kg",
              "test_destructuring.kg", "test_named_params.kg", "test_dict.kg"}
 PREFIXES_NEW_SYNTAX = ("dst_", "named_", "dict_")
-EXAMPLES_06X = (os.path.join("examples", "1brc", "worker.kg"),
-                os.path.join("examples", "stocks", "options", "black-scholes.kg"),
-                os.path.join("examples", "autograd", "compile_demo.kg"))
+# Most of the examples are written in the new forms too, so they are found by their text, not listed: a destructuring
+# (]::), a named-parameter head (name(a;b)::), an evaluated dictionary (:{[ or :::{;). The pattern is held to the
+# legacy parser by test_new_form_pattern_is_exactly_the_examples_the_legacy_parser_cannot_match.
+NEW_FORMS = re.compile(r"\]\s*::|^[ \t]*[\w.]+\([^()\n]*\)[ \t]*::|(?<!:):\{\s*\[|:::?\{\s*;", re.M)
 
 
 def is_new_syntax(path):
     fn = os.path.basename(path)
-    return fn in FILES_NEW_SYNTAX or fn.startswith(PREFIXES_NEW_SYNTAX) or path.endswith(EXAMPLES_06X)
+    if fn in FILES_NEW_SYNTAX or fn.startswith(PREFIXES_NEW_SYNTAX):
+        return True
+    rel = os.path.relpath(path, ROOT).split(os.sep)
+    return rel[0] == "examples" and bool(NEW_FORMS.search(read(path)))
 
 
 def kg_files(*dirs, brackets=False, syntax_checks=False, new_syntax=False):
@@ -258,10 +263,27 @@ class TestSameTreeAsLegacy(unittest.TestCase):
 
     def test_destructuring_and_named_parameter_files_parse_on_the_token_parser(self):
         paths = [p for p in kg_files(*SOURCE_DIRS, new_syntax=True) if is_new_syntax(p)]
-        self.assertEqual(len(paths), 6)
+        examples = [p for p in paths if os.path.relpath(p, ROOT).startswith("examples" + os.sep)]
+        # 3 sources under tests/kgtests (the dst, named and dict language tests) and the examples written with the new forms
+        self.assertEqual(len(paths) - len(examples), 3)
+        self.assertGreaterEqual(len(examples), 33)
         for path in paths:
             with self.subTest(path=os.path.relpath(path, ROOT)):
                 self.assertEqual(parse(read(path), "token")[0], "ok")
+
+    def test_new_form_pattern_is_exactly_the_examples_the_legacy_parser_cannot_match(self):
+        """The examples left out of the comparison are not hand-listed: an example is out iff it has a new form, and
+        that is checked against the legacy parser, so a new form that the legacy parser reads the same, or an old
+        file that the pattern takes for a new form, fails here instead of leaving the corpus unnoticed."""
+        for dp, _, fns in os.walk(os.path.join(ROOT, "examples")):
+            for fn in sorted(fns):
+                if not fn.endswith(".kg"):
+                    continue
+                path = os.path.join(dp, fn)
+                text = read(path)
+                with self.subTest(path=os.path.relpath(path, ROOT)):
+                    self.assertEqual(bool(NEW_FORMS.search(text)),
+                                     dump_text(text, parser="token") != dump_text(text, parser="legacy"))
 
     def test_files_compat_dump(self):
         """Old and new parser give identical dump(compat=True) for every .kg file and every fixture."""
@@ -272,7 +294,7 @@ class TestSameTreeAsLegacy(unittest.TestCase):
                 self.assertEqual(dump_text(text, compat=True, parser="token"),
                                  dump_text(text, compat=True, parser="legacy"))
             n += 1
-        self.assertGreater(n, 184)
+        self.assertGreaterEqual(n, 155)  # 191 when every example was in; the 36 examples newly written in the new forms left
 
     def test_files_full_dump(self):
         """The full dump (quoted symbols shown) agrees too: KGQSym is built by both."""

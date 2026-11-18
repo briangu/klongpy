@@ -19,9 +19,9 @@
    than `stop`, and not reopened until the signal has turned (or gone flat).
    Nothing is traded before `slow` ticks have been seen.
 
-   Check it:   kgpy --check-static --streamable examples/hardware/crossover.kg
-   As C:       kgpy --emit-c examples/hardware/crossover.kg -o out/
-   As a kernel kgpy --hw-build examples/hardware/crossover.kg --lanes 32
+   Check it:   kgpy check --streamable examples/hardware/crossover.kg
+   As C:       kgpy compile c examples/hardware/crossover.kg -o out/
+   As a kernel kgpy fpga build examples/hardware/crossover.kg --lanes 32
    Run it:     docs/hardware.md, section Strategies
 "
 

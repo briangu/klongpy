@@ -27,13 +27,11 @@ h::{+/x^2}
 
 :" Using ∇ (numeric gradient): syntax is point∇function"
 numGrad1::3∇f
-.d("  3∇f (numeric) = ")
-.p(numGrad1)
+.pf("  3∇f (numeric) = {}";numGrad1)
 
 :" Using :> (autograd): syntax is function:>point"
 autoGrad1::f:>3
-.d("  f:>3 (autograd) = ")
-.p(autoGrad1)
+.pf("  f:>3 (autograd) = {}";autoGrad1)
 
 .p("  Expected: 6.0")
 .p("")
@@ -48,12 +46,10 @@ autoGrad1::f:>3
 .p("----------------------------------------------------------")
 
 numGrad2::2∇g
-.d("  2∇g (numeric) = ")
-.p(numGrad2)
+.pf("  2∇g (numeric) = {}";numGrad2)
 
 autoGrad2::g:>2
-.d("  g:>2 (autograd) = ")
-.p(autoGrad2)
+.pf("  g:>2 (autograd) = {}";autoGrad2)
 
 .p("  Expected: 15.0")
 .p("")
@@ -71,8 +67,7 @@ numGrad3::[1 2 3]∇h
 .p(numGrad3)
 
 autoGrad3::h:>[1 2 3]
-.d("  h:>[1 2 3] (autograd) = ")
-.p(autoGrad3)
+.pf("  h:>[1 2 3] (autograd) = {}";,autoGrad3)
 
 .p("  Expected: [2 4 6]")
 .p("")

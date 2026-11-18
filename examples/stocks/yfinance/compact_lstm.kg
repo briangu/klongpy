@@ -10,4 +10,4 @@ m::model(1;10;1);t::trainer(m);p::predictor(m)
 
 trainx t'trainy
 
-.d("prediction: ");.d((wmax@-1)*p(testx));.d(" should be close to ");.p((wmax@-1)*testy)
+.pf("prediction: {} should be close to {}";[;(wmax@-1)*p(testx);(wmax@-1)*testy])

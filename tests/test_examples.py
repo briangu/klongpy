@@ -45,9 +45,6 @@ class TestExamples(unittest.TestCase):
             os.chdir("examples")
             for x in glob.glob("./**/*.kg", recursive=True):
                 fname = os.path.basename(x)
-                if fname == "update_data.kg":
-                    # requires polygon module
-                    continue
                 print(f"loading example {fname}")
                 klong = KlongInterpreter()
                 klong['.system'] = {}

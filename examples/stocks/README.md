@@ -1,52 +1,29 @@
 # Stocks Examples
 
-Market data ingestion and finance models.
+Market data feeds and finance models.
 
-## Requirements
+## Simulated feed
 
-```bash
-pip install yfinance
-```
-
-For broker/data APIs:
+`feed/` publishes simulated trades over IPC to a consumer that computes VWAP and a moving average. It needs only `pip install klongpy`. See [feed/README.md](feed/README.md).
 
 ```bash
-pip install alpaca-py polygon-api-client requests
+cd feed
+kgpy demo.kg
 ```
 
-## Run
-
-### Yahoo Finance data + stats
-
-```bash
-kgpy yfinance/fetch.kg
-```
-
-### LSTM forecasting (uses yfinance data)
-
-```bash
-kgpy yfinance/lstm.kg
-kgpy yfinance/compact_lstm.kg
-```
-
-### Black-Scholes (Klong and Python)
+## Black-Scholes (Klong and Python)
 
 ```bash
 kgpy options/black-scholes.kg
 python options/black-scholes.py
 ```
 
-### Alpaca data (requires API keys)
+## Yahoo Finance data and LSTM forecasting
+
+These programs download prices over the network and need `pip install yfinance`; the LSTM programs also need `torch`.
 
 ```bash
-export ALPACA_API_KEY=...
-export ALPACA_SECRET_KEY=...
-kgpy alpaca/update_data.kg
-```
-
-### Polygon data (requires API key)
-
-```bash
-export POLYGON_API_KEY=...
-kgpy polygon/update_data.kg
+kgpy yfinance/fetch.kg
+kgpy yfinance/lstm.kg
+kgpy yfinance/compact_lstm.kg
 ```

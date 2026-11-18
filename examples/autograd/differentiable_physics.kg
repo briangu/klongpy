@@ -34,22 +34,22 @@ tgtX::50.0
 :" Launch angle (this is what we optimize)"
 angle::1.2       :" Initial guess: ~69 degrees (way off!)"
 
-.d("Target x: ");.p(tgtX)
-.d("Initial velocity: ");.p(v0)
+.pf("Target x: {}";tgtX)
+.pf("Initial velocity: {}";v0)
 .p("")
 
 :" Projectile range formula: R = (v0^2 * sin(2*angle)) / g"
 :" This computes where the projectile lands (y=0)"
-range::{(v0sq*sin(2*x))%g}
+range(angle)::{(v0sq*sin(2*angle))%g}
 
 :" Loss = squared distance from target"
-loss::{(range(x)-tgtX)^2}
+loss(angle)::{(range(angle)-tgtX)^2}
 
 :" Initial state"
-.d("Initial angle (rad): ");.p(angle)
-.d("Initial angle (deg): ");.p(angle*57.3)
-.d("Initial range: ");.p(range(angle))
-.d("Initial miss: ");.p(sqrt(loss(angle)))
+.pf("Initial angle (rad): {}";angle)
+.pf("Initial angle (deg): {}";angle*57.3)
+.pf("Initial range: {}";range(angle))
+.pf("Initial miss: {}";sqrt(loss(angle)))
 .p("")
 
 :" ============================================"
@@ -65,21 +65,21 @@ epochs::300
 
 :" Training step - update angle using gradient"
 :" Constrain angle to valid range (0.1 to 1.4 radians)"
-step::{[grad];x;grad::loss:>angle;angle::(0.1|(angle-(lr*grad)))&1.4;0}
+step(i)::{[grad];grad::loss:>angle;angle::(0.1|(angle-(lr*grad)))&1.4;0}
 
 :" Progress printing"
-printProg::{.d("Epoch ");.d(x);.d(": angle=");.d(angle*57.3);.d(" deg, range=");.d(range(angle));.d(", miss=");.p(sqrt(loss(angle)))}
+printProg(epoch)::{.d("Epoch ");.d(epoch);.pf(": angle={} deg, range={}, miss={}";[;angle*57.3;range(angle);sqrt(loss(angle))])}
 
 :" Training loop (run in batches of 30, print progress between batches)"
-batch::{step'!30;printProg(x*30)}
+batch(n)::{step'!30;printProg(n*30)}
 batch'!10
 
 .p("")
 .p("Optimization complete!")
-.d("Final angle (rad): ");.p(angle)
-.d("Final angle (deg): ");.p(angle*57.3)
-.d("Final range: ");.p(range(angle))
-.d("Final miss: ");.p(sqrt(loss(angle)))
+.pf("Final angle (rad): {}";angle)
+.pf("Final angle (deg): {}";angle*57.3)
+.pf("Final range: {}";range(angle))
+.pf("Final miss: {}";sqrt(loss(angle)))
 
 .p("")
 :" Analytical solutions for verification"
@@ -91,8 +91,8 @@ batch'!10
 sinTwice::(tgtX*g)%v0sq
 flatAngle::0.5*asin(sinTwice)
 lobAngle::0.5*(3.141592653589793-asin(sinTwice))
-.d("Analytical angle, flat shot (deg): ");.p(flatAngle*57.29577951308232)
-.d("Analytical angle, lobbed shot (deg): ");.p(lobAngle*57.29577951308232)
+.pf("Analytical angle, flat shot (deg): {}";flatAngle*57.29577951308232)
+.pf("Analytical angle, lobbed shot (deg): {}";lobAngle*57.29577951308232)
 .p("(The guess of 1.2 rad is on the lobbed side, so descent finds the lobbed one.)")
 
 .p("")

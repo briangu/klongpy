@@ -1,0 +1,42 @@
+:" A feed server: a simulated ticker that publishes trades to subscribers over IPC.
+
+   kgpy feed.kg [-- port rate count seed]
+
+   Defaults: port 8888, 20 trades a second, 60 trades (0 = no end), seed 7.
+   The source starts when the first client subscribes. "
+
+arg(i;d)::{:[(#.os.argv)>i;.rs(.os.argv@i);d]}
+port::arg(0;8888)
+rate::arg(1;20)
+count::arg(2;60)
+seed::arg(3;7)
+
+:" The source. A seeded random walk: next() returns one trade as a dictionary.
+   This is the function to replace to publish a real feed. "
+syms::["AAPL" "MSFT" "NVDA" "TSLA"]
+px:::{;"AAPL";190.0;"MSFT";420.0;"NVDA";120.0;"TSLA";250.0}
+n::0
+rnd()::{seed::(seed*48271)!2147483647;seed%2147483647}
+next()::{[s p];s::syms@_(rnd()*#syms);p::(px@s)*1+0.01*(rnd()-0.5);p::0.01*_0.5+100*p;px,s,,p;n::n+1;
+         :{;"sym";s;"t";n%rate;"px";p;"qty";100*1+_9*rnd()}}
+
+:" Subscriptions: client handle -> list of symbols; "*" means every symbol. "
+subs:::{}
+has(w;s)::{0<#w?s}
+send(h;msg)::{[a];a::.async(h;{x});a(msg)}
+deliver(t;sub)::{[h w]::sub;:[has(w;"*")|has(w;t@"sym");send(h;:update,,t);0]}
+publish(t)::{deliver(t;)'subs}
+
+subscribe::{subs,.cli.h,,x;:[started;0;begin()];#x}
+
+:" The timer takes one trade every 1/rate seconds and ends the run after count trades. "
+started::0
+emit()::{publish(next());:[(n<count)|count=0;1;finish()]}
+begin()::{started::1;.timer("source";1%rate;emit)}
+bye(sub)::{[h w]::sub;send(h;:done,,n)}
+finish()::{.pf("feed: published {} trades";n);bye'subs;started::0;n::0;0}
+
+.srv(port)
+keep(h;sub)::{:[(sub@0)~h;:{};:{;sub@0;sub@1}]}
+.srv.c::{subs::,/keep(x;)'subs}
+.pf("feed on port {}: {} trades/s, {} trades, seed {}";[;port;rate;count;seed])

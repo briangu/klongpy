@@ -1,6 +1,6 @@
 .py("callback.py")
 
-fn::{[a];a::x*x;.p(a);a}
+fn(n)::{[sq];sq::n*n;.p(sq);sq}
 
 .p("running callback in parallel processes: ")
 runit(!10;fn)

@@ -8,15 +8,15 @@ T::fetch("MSFT";"2020-01-01"; "2023-01-01")
 close::T?"Close"
 
 :" compute close price stats "
-.d("average close");.p(mean(close))
-.d("standard deviation");.p(std(close))
+.pf("average close{}";mean(close))
+.pf("standard deviation{}";std(close))
 
 :" break the close array up intow windows of size k "
 .py("mkwindows.py")
 k::10
 windows::mkwindows(close;k)
-.d("windows");.p(5#windows)
+.pf("windows{}";,5#windows)
 
 :" compute the average close price for each window "
 acw::mean'windows
-.d("average close windows");.p(5#acw)
+.pf("average close windows{}";,5#acw)

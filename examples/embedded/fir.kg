@@ -6,7 +6,7 @@
    floats that sum to 1) and idx (a 16 by 241 table of sample positions)
    become constant data.
 
-   Check it:   kgpy --check-static examples/embedded/fir.kg
+   Check it:   kgpy check examples/embedded/fir.kg
    Expected:   examples/embedded/fir.expect
 "
 

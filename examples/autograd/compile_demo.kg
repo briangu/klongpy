@@ -75,10 +75,10 @@
 .p("----------------------------")
 
 f1::{x^2}
-.d("  f(x) = x^2, f(5) = ");.p(f1(5.0))
+.pf("  f(x) = x^2, f(5) = {}";f1(5.0))
 
 poly::{(x^4)-(3*x^3)+(2*x^2)-x+1}
-.d("  poly(x), poly(3) = ");.p(poly(3.0))
+.pf("  poly(x), poly(3) = {}";poly(3.0))
 
 .p("")
 .p("To compile these functions:")
@@ -96,8 +96,8 @@ poly::{(x^4)-(3*x^3)+(2*x^2)-x+1}
 
 :" Show available modes and backends"
 info::.cmodes()
-.d("  modes: ");.p(info?"modes")
-.d("  backends: ");.p(info?"backends")
+.pf("  modes: {}";info?"modes")
+.pf("  backends: {}";info?"backends")
 .p("")
 
 :" Choose backend/mode for the demo"
@@ -105,8 +105,8 @@ info::.cmodes()
 compilebackend::"eager"
 compilemode::"default"
 
-.d("  demo backend: ");.p(compilebackend)
-.d("  demo mode: ");.p(compilemode)
+.pf("  demo backend: {}";compilebackend)
+.pf("  demo mode: {}";compilemode)
 .p("")
 
 :" Compile with selectable options"
@@ -114,18 +114,18 @@ compileopts:::{;"mode";compilemode;"backend";compilebackend}
 cf::.compilex(f1;3.0;compileopts)
 cpoly::.compilex(poly;2.0;compileopts)
 
-.d("  f1(5)    = ");.p(f1(5.0))
-.d("  cf(5)    = ");.p(cf(5.0))
-.d("  poly(3)  = ");.p(poly(3.0))
-.d("  cpoly(3) = ");.p(cpoly(3.0))
+.pf("  f1(5)    = {}";f1(5.0))
+.pf("  cf(5)    = {}";cf(5.0))
+.pf("  poly(3)  = {}";poly(3.0))
+.pf("  cpoly(3) = {}";cpoly(3.0))
 .p("")
 
 :" Extended compilation options (mode is ignored by eager backend)"
 fastcf::.compilex(f1;3.0;:{["backend" "eager"]})
 eagercf::.compilex(f1;3.0;:{["backend" "eager"]})
 
-.d("  fastcf(7) = ");.p(fastcf(7.0))
-.d("  eagercf(7)= ");.p(eagercf(7.0))
+.pf("  fastcf(7) = {}";fastcf(7.0))
+.pf("  eagercf(7)= {}";eagercf(7.0))
 .p("")
 
 :" ============================================================"

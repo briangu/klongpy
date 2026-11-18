@@ -18,66 +18,59 @@
 .p("Fetching live AAPL option data from Yahoo Finance...")
 data::fetchOptionData("AAPL")
 
-spot::data@0
-strike::data@1
-rate::data@2
-time::data@3
-vol::data@4
-mktBid::data@5
-mktAsk::data@6
-mktPrice::data@7
+[spot strike rate time vol mktBid mktAsk mktPrice expiry]::data
 div::0.005     :" AAPL dividend yield ~0.5%"
 
 .p("")
 .p("Live Option Parameters:")
-.d("  Ticker: AAPL, Expiration: ");.p(data@8)
-.d("  Spot: $");.p(spot)
-.d("  Strike: $");.p(strike)
-.d("  Time to expiry: ");.d(time);.p(" years")
-.d("  Implied Vol: ");.d(vol*100);.p("%")
-.d("  Risk-free Rate: ");.d(rate*100);.p("%")
-.d("  Dividend Yield: ");.d(div*100);.p("%")
+.pf("  Ticker: AAPL, Expiration: {}";expiry)
+.pf("  Spot: ${}";spot)
+.pf("  Strike: ${}";strike)
+.pf("  Time to expiry: {} years";time)
+.pf("  Implied Vol: {}%";vol*100)
+.pf("  Risk-free Rate: {}%";rate*100)
+.pf("  Dividend Yield: {}%";div*100)
 .p("")
 
 :" Normal CDF using backend erf"
 ncdf::{(1+erf(x%1.4142135623730951))%2}
 
 :" Black-Scholes with dividends: use S*e^(-q*T) instead of S"
-spotAdj::{x*exp((0-div)*time)}
-priceOfSpot::{[sa d1 d2];sa::spotAdj(x);d1::(log(sa%strike)+(rate+0.5*vol*vol)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(sa*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
-priceOfVol::{[d1 d2];d1::(log(spot%strike)+(rate+0.5*x*x)*time)%(x*sqrt(time));d2::d1-x*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
-priceOfTime::{[d1 d2];d1::(log(spot%strike)+(rate+0.5*vol*vol)*x)%(vol*sqrt(x));d2::d1-vol*sqrt(x);(spot*ncdf(d1))-(strike*exp((0-rate)*x)*ncdf(d2))}
-priceOfRate::{[d1 d2];d1::(log(spot%strike)+(x+0.5*vol*vol)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-x)*time)*ncdf(d2))}
+spotAdj(s)::{s*exp((0-div)*time)}
+priceOfSpot(s)::{[sa d1 d2];sa::spotAdj(s);d1::(log(sa%strike)+(rate+0.5*vol*vol)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(sa*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
+priceOfVol(v)::{[d1 d2];d1::(log(spot%strike)+(rate+0.5*v*v)*time)%(v*sqrt(time));d2::d1-v*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
+priceOfTime(t)::{[d1 d2];d1::(log(spot%strike)+(rate+0.5*vol*vol)*t)%(vol*sqrt(t));d2::d1-vol*sqrt(t);(spot*ncdf(d1))-(strike*exp((0-rate)*t)*ncdf(d2))}
+priceOfRate(r)::{[d1 d2];d1::(log(spot%strike)+(r+0.5*vol*vol)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-r)*time)*ncdf(d2))}
 
 :" Compute model price"
 modelPrice::priceOfSpot(spot)
 midPrice::(mktBid+mktAsk)%2
 
 .p("=== PRICE COMPARISON ===")
-.d("  Model Price:  $");.p(modelPrice)
-.d("  Market Mid:   $");.p(midPrice)
-.d("  Market Bid:   $");.p(mktBid)
-.d("  Market Ask:   $");.p(mktAsk)
+.pf("  Model Price:  ${}";modelPrice)
+.pf("  Market Mid:   ${}";midPrice)
+.pf("  Market Bid:   ${}";mktBid)
+.pf("  Market Ask:   ${}";mktAsk)
 .p("")
 
 priceDiff::modelPrice-midPrice
-.d("  Difference: $");.p(priceDiff)
-.d("  Error: ");.d((priceDiff%midPrice)*100);.p("%")
+.pf("  Difference: ${}";priceDiff)
+.pf("  Error: {}%";(priceDiff%midPrice)*100)
 .p("")
 
 :" Compute Greeks via autograd"
 .p("=== GREEKS (via Autograd) ===")
 delta::priceOfSpot:>spot
-.d("  Delta: ");.p(delta)
+.pf("  Delta: {}";delta)
 
 vega::priceOfVol:>vol
-.d("  Vega (per 1% vol): ");.p(vega%100)
+.pf("  Vega (per 1% vol): {}";vega%100)
 
 theta::0-(priceOfTime:>time)
-.d("  Theta (per day): ");.p(theta%365)
+.pf("  Theta (per day): {}";theta%365)
 
 rho::priceOfRate:>rate
-.d("  Rho (per 1%): ");.p(rho%100)
+.pf("  Rho (per 1%): {}";rho%100)
 
 .p("")
 withinSpread::((modelPrice>mktBid)&(modelPrice<mktAsk))

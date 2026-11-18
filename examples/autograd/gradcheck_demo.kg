@@ -22,7 +22,7 @@ f1::{x^2}
 
 :" Verify at x = 3.0"
 r1::.gradcheck(f1;3.0)
-.d("  .gradcheck(f;3.0) = ");.p(r1)
+.pf("  .gradcheck(f;3.0) = {}";r1)
 
 .p("")
 
@@ -39,7 +39,7 @@ poly::{(x^3)+(2*x^2)-(5*x)+3}
 .p("  At x=2: p'(2) = 12 + 8 - 5 = 15")
 
 r2::.gradcheck(poly;2.0)
-.d("  .gradcheck(poly;2.0) = ");.p(r2)
+.pf("  .gradcheck(poly;2.0) = {}";r2)
 
 .p("")
 
@@ -55,7 +55,7 @@ sumSq::{+/x^2}
 .p("  Gradient should be 2*x")
 
 r3::.gradcheck(sumSq;[1.0 2.0 3.0])
-.d("  .gradcheck(sumSq;[1.0 2.0 3.0]) = ");.p(r3)
+.pf("  .gradcheck(sumSq;[1.0 2.0 3.0]) = {}";r3)
 
 .p("")
 
@@ -71,7 +71,7 @@ quartic::{(x^4)-(2*x^3)+(x^2)-x+1}
 .p("  Analytical: q'(x) = 4x^3 - 6x^2 + 2x - 1")
 
 r4::.gradcheck(quartic;1.5)
-.d("  .gradcheck(quartic;1.5) = ");.p(r4)
+.pf("  .gradcheck(quartic;1.5) = {}";r4)
 
 .p("")
 
@@ -85,11 +85,11 @@ r4::.gradcheck(quartic;1.5)
 targets::[3.0 5.0 7.0]
 mseLoss::{(+/(x-targets)^2)%3}
 .p("  Function: MSE(pred) = mean((pred - target)^2)")
-.d("  Targets: ");.p(targets)
+.pf("  Targets: {}";,targets)
 
 preds::[2.5 5.2 6.8]
 r5::.gradcheck(mseLoss;preds)
-.d("  .gradcheck(mseLoss;preds) = ");.p(r5)
+.pf("  .gradcheck(mseLoss;preds) = {}";r5)
 
 .p("")
 

@@ -23,26 +23,22 @@
 .p("Minimum should be at t = 3")
 .p("")
 
-f1::{(x-3)^2}
+f1(t)::{(t-3)^2}
 
 t::10.0
 lr1::0.1
 
-.d("Starting t = ")
-.p(t)
-.d("Learning rate = ")
-.p(lr1)
+.pf("Starting t = {}";t)
+.pf("Learning rate = {}";lr1)
 .p("")
 
-print1::{.d("Step ");.d(x);.d(": t=");.d(t);.d(", f(t)=");.d(f1(t));.d(", grad=");.p(y)}
-step1::{[grad1];grad1::f1:>t;t::t-(lr1*grad1);:[0=(x!2);print1(x;grad1);0]}
+print1(n;grad)::{.d("Step ");.d(n);.pf(": t={}, f(t)={}, grad={}";[;t;f1(t);grad])}
+step1(n)::{[grad1];grad1::f1:>t;t::t-(lr1*grad1);:[0=(n!2);print1(n;grad1);0]}
 
 step1'1+!10
 
 .p("")
-.d("Final t = ")
-.d(t)
-.p(" (target: 3.0)")
+.pf("Final t = {} (target: 3.0)";t)
 .p("")
 
 :" ============================================================"
@@ -55,26 +51,22 @@ step1'1+!10
 .p("Minimum at (1, 1)")
 .p("")
 
-rosenbrock::{[pa pb];pa::*x;pb::x@1;((1-pa)^2)+100*((pb-(pa^2))^2)}
+rosenbrock(p)::{[pa pb]::p;((1-pa)^2)+100*((pb-(pa^2))^2)}
 
 pt::[0.0 0.0]
 lr2::0.001
 
-.d("Starting point: ")
-.p(pt)
-.d("Learning rate: ")
-.p(lr2)
+.pf("Starting point: {}";,pt)
+.pf("Learning rate: {}";lr2)
 .p("")
 
-print2::{.d("Step ");.d(x);.d(": pt=");.d(pt);.d(", f(pt)=");.p(rosenbrock(pt))}
-step2::{[grad2];grad2::rosenbrock:>pt;pt::pt-(lr2*grad2);:[0=(x!20);print2(x);0]}
+print2(n)::{.d("Step ");.d(n);.d(": pt=");.d(pt);.pf(", f(pt)={}";rosenbrock(pt))}
+step2(n)::{[grad2];grad2::rosenbrock:>pt;pt::pt-(lr2*grad2);:[0=(n!20);print2(n);0]}
 
 step2'1+!100
 
 .p("")
-.d("Final point: ")
-.d(pt)
-.p(" (target: [1, 1])")
+.pf("Final point: {} (target: [1, 1])";,pt)
 .p("")
 
 :" ============================================================"
@@ -94,39 +86,27 @@ wTrue::2.0
 bTrue::3.0
 yTrue::(wTrue*Xd)+bTrue
 
-.d("True parameters: w=")
-.d(wTrue)
-.d(", b=")
-.p(bTrue)
+.pf("True parameters: w={}, b={}";[;wTrue;bTrue])
 
 w3::0.0
 b3::0.0
 
-lossW3::{((+/((x*Xd)+b3-yTrue)^2))%N}
-lossB3::{((+/((w3*Xd)+x-yTrue)^2))%N}
+lossW3(w)::{((+/((w*Xd)+b3-yTrue)^2))%N}
+lossB3(b)::{((+/((w3*Xd)+b-yTrue)^2))%N}
 
 lr3::0.1
 
-.d("Initial: w=")
-.d(w3)
-.d(", b=")
-.p(b3)
+.pf("Initial: w={}, b={}";[;w3;b3])
 .p("")
 
-print3::{.d("Step ");.d(x);.d(": w=");.d(w3);.d(", b=");.d(b3);.d(", loss=");.p(lossW3(w3))}
-step3::{[gw3 gb3];gw3::lossW3:>w3;gb3::lossB3:>b3;w3::w3-(lr3*gw3);b3::b3-(lr3*gb3);:[0=(x!5);print3(x);0]}
+print3(n)::{.d("Step ");.d(n);.pf(": w={}, b={}, loss={}";[;w3;b3;lossW3(w3)])}
+step3(n)::{[gw3 gb3];gw3::lossW3:>w3;gb3::lossB3:>b3;w3::w3-(lr3*gw3);b3::b3-(lr3*gb3);:[0=(n!5);print3(n);0]}
 
 step3'1+!30
 
 .p("")
-.d("Learned: w=")
-.d(w3)
-.d(", b=")
-.p(b3)
-.d("True:    w=")
-.d(wTrue)
-.d(", b=")
-.p(bTrue)
+.pf("Learned: w={}, b={}";[;w3;b3])
+.pf("True:    w={}, b={}";[;wTrue;bTrue])
 .p("")
 
 :" ============================================================"
@@ -150,41 +130,21 @@ c4::0.0
 quadPred::{((a4*(Xd^2))+(b4*Xd))+c4}
 quadLoss::{(+/(quadPred()-yQuad)^2)%N}
 
-lossA::{((+/((((x*(Xd^2))+(b4*Xd))+c4)-yQuad)^2))%N}
-lossB4::{((+/(((a4*(Xd^2))+(x*Xd))+c4-yQuad)^2))%N}
-lossC::{((+/(((a4*(Xd^2))+(b4*Xd))+x-yQuad)^2))%N}
+lossA(a)::{((+/((((a*(Xd^2))+(b4*Xd))+c4)-yQuad)^2))%N}
+lossB4(b)::{((+/(((a4*(Xd^2))+(b*Xd))+c4-yQuad)^2))%N}
+lossC(c)::{((+/(((a4*(Xd^2))+(b4*Xd))+c-yQuad)^2))%N}
 
 lr4::0.01
 
-.d("True: a=")
-.d(aTrue)
-.d(", b=")
-.d(bTrue2)
-.d(", c=")
-.p(cTrue)
-.d("Initial: a=")
-.d(a4)
-.d(", b=")
-.d(b4)
-.d(", c=")
-.p(c4)
+.pf("True: a={}, b={}, c={}";[;aTrue;bTrue2;cTrue])
+.pf("Initial: a={}, b={}, c={}";[;a4;b4;c4])
 .p("")
 
-print4::{.d("Step ");.d(x);.d(": a=");.d(a4);.d(", b=");.d(b4);.d(", c=");.p(c4)}
-step4::{[ga4 gb4 gc4];ga4::lossA:>a4;gb4::lossB4:>b4;gc4::lossC:>c4;a4::a4-(lr4*ga4);b4::b4-(lr4*gb4);c4::c4-(lr4*gc4);:[0=(x!20);print4(x);0]}
+print4(n)::{.d("Step ");.d(n);.pf(": a={}, b={}, c={}";[;a4;b4;c4])}
+step4(n)::{[ga4 gb4 gc4];ga4::lossA:>a4;gb4::lossB4:>b4;gc4::lossC:>c4;a4::a4-(lr4*ga4);b4::b4-(lr4*gb4);c4::c4-(lr4*gc4);:[0=(n!20);print4(n);0]}
 
 step4'1+!100
 
 .p("")
-.d("Learned: a=")
-.d(a4)
-.d(", b=")
-.d(b4)
-.d(", c=")
-.p(c4)
-.d("True:    a=")
-.d(aTrue)
-.d(", b=")
-.d(bTrue2)
-.d(", c=")
-.p(cTrue)
+.pf("Learned: a={}, b={}, c={}";[;a4;b4;c4])
+.pf("True:    a={}, b={}, c={}";[;aTrue;bTrue2;cTrue])

@@ -7,4 +7,4 @@ signal::[0.0 1.0 0.0 -1.0]
 result::fft(signal)
 
 :" Display the FFT result "
-.d("FFT Result: ");.p(result)
+.pf("FFT Result: {}";,result)

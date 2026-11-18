@@ -4,7 +4,7 @@
    runs under KlongPy as it stands and is inside the subset that compiles to
    C. The window and the write position are state, kept between calls.
 
-   Check it:   kgpy --check-static examples/embedded/mavg.kg
+   Check it:   kgpy check examples/embedded/mavg.kg
    Run it:     kgpy -l examples/embedded/mavg.kg, then step(4.0)
    Expected:   examples/embedded/mavg.expect
 "

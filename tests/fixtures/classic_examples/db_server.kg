@@ -1,0 +1,73 @@
+:" Import the Klongpy web and db modules.  Requires pip3 install klongpy[db, web] first"
+.py("klongpy.web")
+.py("klongpy.db")
+
+tbs::.tables("/tmp/tables")
+
+:" Create a new table with time, price, volume columns "
+newt::{[c];c::[["t" []] ["p" []] ["v" []]];.table(c)}
+
+:" Attempt to load the prices table from disk "
+prices::tbs?"prices"
+prices:::[:_prices;newt();prices]
+
+q:::{}
+q,"prices",,prices
+db::.db(q)
+
+:" Return the data for a GET method at /"
+index::{x;db("select * from prices")}
+
+:" Create the GET route handlers"
+get:::{}
+get,"/",index
+
+upd::{.insert(prices;x)}
+
+:" Append the query param q value to data"
+update::{[t p v d];t::1:$x?"t";p::1.0:$x?"p";v::1.0:$x?"v";d::t,p,v;upd(d);d}
+
+:" Flush the prices table every minute "
+store::{.p("flushing prices table");tbs,"prices",prices;1}
+th::.timer("store";60;store)
+
+:" Create the POST route handlers"
+post:::{}
+post,"/p",update
+post,"/s",store
+
+:" Start the web server with the GET and POST handlers"
+.web(8080;get;post)
+
+.p("running web server")
+
+.comment("****")
+
+To call the web server to create data and fetch it:
+
+curl -X POST -d "t=1691111164807793000&p=100&v=10000" "http://localhost:8080/p"
+curl "http://localhost:8080"
+
+To call the server via IPC and operate on the prices table:
+
+start the web server:
+
+$ kgpy -s 8888 server.kg
+
+and on a client repl:
+
+?> c::.cli(8888)
+?> upd::c(:upd)
+?> db::c(:db)
+?> upd([1691111164807793000 100 10000])
+?> db("select * from prices")
+
+Fun fact: you can copy the table locally via:
+
+?> prices::c(:prices)
+
+You now have a local copy of the table.
+
+<TODO Example>
+
+****

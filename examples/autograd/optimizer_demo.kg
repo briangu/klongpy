@@ -53,8 +53,8 @@ opt2::AdamOptimizer(["w" "b"];:{["lr" 0.1]})
 {x;opt2(mse)}'!500
 
 .p("Learned parameters:")
-.d("  w = ");.p(w)
-.d("  b = ");.p(b)
+.pf("  w = {}";w)
+.pf("  b = {}";b)
 .p("Expected: w ~ 2.0, b ~ 1.0")
 .p("")
 
@@ -70,10 +70,11 @@ f::{(a^2)+(c^2)}
 
 lr::0.1
 .p("Minimizing f(a,c) = a^2 + c^2")
-.d("Initial: a=");.d(a);.d(", c=");.p(c)
+.pf("Initial: a={}, c={}";[;a;c])
 
 :" Manual gradient descent using :>[a c] syntax"
-{[grads];x;grads::f:>[a c]; a::a-(lr*grads@0); c::c-(lr*grads@1)}'!50
+step(i)::{[ga gc]::f:>[a c];a::a-(lr*ga);c::c-(lr*gc)}
+step'!50
 
-.d("Final: a=");.d(a);.d(", c=");.p(c)
+.pf("Final: a={}, c={}";[;a;c])
 .p("Expected: both close to 0")

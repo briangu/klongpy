@@ -1,8 +1,8 @@
 :" euclidean distance "
-ed::{[p];p::x;{(+/(x-p)^2)^0.5}'y}
+ed(p;pts)::{{(+/(x-p)^2)^0.5}'pts}
 
-:" compute knn between point x and data y "
-knn::{[distances];distances::ed(y;z);x#<distances}
+:" the indices of the k points of pts nearest to point "
+knn(k;point;pts)::{k#<ed(point;pts)}
 
 :" test data "
 data::[[1 2] [2 3] [3 4] [5 5] [1 4] [2 5]]
@@ -17,4 +17,4 @@ k::3
 neighbors::knn(k;tp;data)
 
 :" Output the indices of the nearest neighbors "
-.d("Indices of the k-nearest neighbors: ");.p(neighbors)
+.pf("Indices of the k-nearest neighbors: {}";,neighbors)

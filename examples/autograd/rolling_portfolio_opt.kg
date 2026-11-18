@@ -10,14 +10,14 @@
 syms::["AAPL" "MSFT" "WMT" "JPM"]
 .p("Fetching stock data...")
 prices::fetchStockPrices(syms;"2024-01-01";"2024-12-31")
-.d("Stocks: "); .p(syms)
+.pf("Stocks: {}";,syms)
 
 :" Compute returns from prices: (p[1:] - p[:-1]) / p[:-1]"
-calcReturns::{[n;prev;curr];n::#x;prev::(n-1)#x;curr::1_x;(curr-prev)%prev}
+calcReturns(p)::{[n prev curr];n::#p;prev::(n-1)#p;curr::1_p;(curr-prev)%prev}
 rets::calcReturns'prices
 
 ndays::#(rets@0)
-.d("Days: "); .p(ndays)
+.pf("Days: {}";ndays)
 .p("")
 
 lookback::30
@@ -27,16 +27,16 @@ minp::0.08
 maxp::0.15
 
 avg::{(+/x)%#x}
-stddev::{[r];r::x-avg(x);((+/r^2)%#x)^0.5}
+stddev(v)::{[r];r::v-avg(v);((+/r^2)%#v)^0.5}
 
-portReturn::{+/x*mu}
-portVol::{+/((x*vols)^2)^0.5}
-sharpe::{portReturn(x)%(portVol(x)+0.0001)}
-negSharpe::{0-sharpe(x)}
-minPenalty::{10*+/((minp-x)|(0*x))^2}
-maxPenalty::{10*+/((x-maxp)|(0*x))^2}
-sumPenalty::{10*((1-+/x)^2)}
-loss::{negSharpe(x)+minPenalty(x)+maxPenalty(x)+sumPenalty(x)}
+portReturn(w)::{+/w*mu}
+portVol(w)::{+/((w*vols)^2)^0.5}
+sharpe(w)::{portReturn(w)%(portVol(w)+0.0001)}
+negSharpe(w)::{0-sharpe(w)}
+minPenalty(w)::{10*+/((minp-w)|(0*w))^2}
+maxPenalty(w)::{10*+/((w-maxp)|(0*w))^2}
+sumPenalty(w)::{10*((1-+/w)^2)}
+loss(w)::{negSharpe(w)+minPenalty(w)+maxPenalty(w)+sumPenalty(w)}
 
 w::[0.25 0.25 0.25 0.25]
 mu::[0.0 0.0 0.0 0.0]
@@ -44,53 +44,34 @@ vols::[0.01 0.01 0.01 0.01]
 portReturns::[]
 cumReturns::[]
 
-optim::{w::w-(lr*(loss:>w));w::0|w;w::w%(+/w);0}
+optim(i)::{w::w-(lr*(loss:>w));w::0|w;w::w%(+/w);0}
 
 :" Simple version: compute stats for a specific day outside the loop"
-computeStats::{[day;r0;r1;r2;r3;win0;win1;win2;win3;m0;m1;m2;m3;v0;v1;v2;v3];
-    day::x;
-    r0::(rets@0)@(!day);
-    r1::(rets@1)@(!day);
-    r2::(rets@2)@(!day);
-    r3::(rets@3)@(!day);
-    win0::(0-lookback)#r0;
-    win1::(0-lookback)#r1;
-    win2::(0-lookback)#r2;
-    win3::(0-lookback)#r3;
-    m0::avg(win0);m1::avg(win1);m2::avg(win2);m3::avg(win3);
-    v0::stddev(win0);v1::stddev(win1);v2::stddev(win2);v3::stddev(win3);
-    mu::m0,m1,m2,m3;
-    vols::v0,v1,v2,v3;
-    0
-}
+computeStats(day)::{[wins];wins::{(0-lookback)#x@!day}'rets;mu::avg'wins;vols::stddev'wins;0}
 
-processDay::{[dayrets;d0;d1;d2;d3];
-    computeStats(x);
+processDay(day)::{[dayrets];
+    computeStats(day);
     optim'!optsteps;
-    d0::(rets@0)@x;d1::(rets@1)@x;d2::(rets@2)@x;d3::(rets@3)@x;
-    dayrets::d0,d1,d2,d3;
+    dayrets::{x@day}'rets;
     portReturns::portReturns,+/w*dayrets;
     cumReturns::cumReturns,+/portReturns;
-    :[0=(x!50);{.d("Day ");.d(x);.d(": cumret=");.p(*|cumReturns)}@[];0];
+    :[0=(day!50);{.d("Day ");.d(x);.d(": cumret=");.p(*|cumReturns)}@[];0];
     0
 }
 
 .p("Running walk-forward optimization...")
-.d("Lookback: ");.d(lookback);.p(" days")
-.d("Limits: [");.d(100*minp);.d("%, ");.d(100*maxp);.p("%]")
+.pf("Lookback: {} days";lookback)
+.pf("Limits: [{}%, {}%]";[;100*minp;100*maxp])
 .p("")
 
 processDay'lookback+!ndays-lookback
 
 .p("")
 .p("Complete!")
-.d("Trading days: ");.p(#portReturns)
-lastIdx::(#cumReturns)-1
-.d("Cumulative return: ");.p(cumReturns@lastIdx)
+.pf("Trading days: {}";#portReturns)
+.pf("Cumulative return: {}";*|cumReturns)
 .p("")
 .p("Final allocation:")
 pct::100
-.d("  ");.d(syms@0);.d(": ");.d(pct*w@0);.p("%")
-.d("  ");.d(syms@1);.d(": ");.d(pct*w@1);.p("%")
-.d("  ");.d(syms@2);.d(": ");.d(pct*w@2);.p("%")
-.d("  ");.d(syms@3);.d(": ");.d(pct*w@3);.p("%")
+show(i)::{.d("  ");.d(syms@i);.pf(": {}%";pct*w@i)}
+show'!4

@@ -15,7 +15,7 @@ A 'head.kg' client can be run to query the server and see the latest data.
 .py("klongpy.db")
 
 :" function timing utility "
-time0::{[t0];t0::.pc();x@[];.pc()-t0}
+time0(f)::{[t0];t0::.pc();f@[];.pc()-t0}
 
 :" open the tables key-value store "
 tbs::.tables("/tmp/tables/stats")
@@ -27,29 +27,29 @@ colsFromNames::{{x,,[]}'x}
 statsT:::[:_(tbs?"stats");.table(colsFromNames(cols));tbs?"stats"]
 
 :" Create a database so we can inspect the data "
-db::.db(:{},"stats",,statsT)
+db::.db(:{;"stats";statsT})
 
 :" Read and print the table size "
-tableSize::{[q];q::db("select count(*) from stats");.d("rows: ");.p(q);q}
+tableSize::{[q];q::db("select count(*) from stats");.pf("rows: {}";,q);q}
 tableSize()
 
 :" Periodically report write stats "
 lastTime::.pc();lastSize::0;batchSize::0
-writeStats::{[n];n::.pc();.d("writes/sec: ");.p((batchSize-lastSize)%(n-lastTime));lastTime::n;lastSize::batchSize;1}
+writeStats::{[n];n::.pc();.pf("writes/sec: {}";(batchSize-lastSize)%(n-lastTime));lastTime::n;lastSize::batchSize;1}
 .timer("write stats";60;writeStats)
 
 :" Periodically flush the table to disk "
 flushTable::{tbs,"stats",statsT}
 store::{:[batchSize;flushTable();0];batchSize::0;lastSize::0;lastTime::.pc();1}
-timeStore::{[r];r::time0(store());.d("store ms: ");.p(r)}
+timeStore::{[r];r::time0(store());.pf("store ms: {}";r)}
 flush::{tableSize();timeStore();1}
 .timer("flush";300;flush)
 
 :" Called by clients to add new data to the server "
-update::{{[u];u::x;.insert(statsT;{u?x}'cols)}'x}
+update(rows)::{{.insert(statsT;x@cols)}'rows}
 
 :" Raw bulk update (without column mapping) "
-rupdate::{.insert(statsT;x);batchSize::batchSize+#x}
+rupdate(rows)::{.insert(statsT;rows);batchSize::batchSize+#rows}
 
 :" Start the IPC server so clients can connect and add data (via update) "
 .srv(8888)

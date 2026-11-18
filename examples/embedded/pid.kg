@@ -8,7 +8,7 @@
        klong.externs['read.adc'] = lambda channel: 0.3
        klong.externs['write.pwm'] = lambda channel, duty: 0
 
-   Check it:   kgpy --check-static examples/embedded/pid.kg
+   Check it:   kgpy check examples/embedded/pid.kg
    Expected:   examples/embedded/pid.expect
 "
 

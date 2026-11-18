@@ -1,6 +1,6 @@
 .py("callback.py")
 
-cb::{.p(x);x*x}
+cb(n)::{.p(n);n*n}
 
 .p("running callback in parallel processes: ")
 .p(runit(!10;cb))

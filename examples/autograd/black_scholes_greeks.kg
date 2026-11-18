@@ -25,28 +25,28 @@ time::1.0      :" Time to expiry (years)"
 vol::0.2       :" Volatility"
 
 .p("Option parameters:")
-.d("  Spot: ");.p(spot)
-.d("  Strike: ");.p(strike)
-.d("  Rate: ");.p(rate)
-.d("  Time: ");.p(time)
-.d("  Vol: ");.p(vol)
+.pf("  Spot: {}";spot)
+.pf("  Strike: {}";strike)
+.pf("  Rate: {}";rate)
+.pf("  Time: {}";time)
+.pf("  Vol: {}";vol)
 .p("")
 
 :" Black-Scholes price as function of spot (for delta)"
-priceOfSpot::{[d1 d2];d1::(log(x%strike)+(rate+0.5*vol^2)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(x*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
+priceOfSpot(s)::{[d1 d2];d1::(log(s%strike)+(rate+0.5*vol^2)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(s*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
 
 :" Black-Scholes price as function of vol (for vega)"
-priceOfVol::{[d1 d2];d1::(log(spot%strike)+(rate+0.5*x^2)*time)%(x*sqrt(time));d2::d1-x*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
+priceOfVol(v)::{[d1 d2];d1::(log(spot%strike)+(rate+0.5*v^2)*time)%(v*sqrt(time));d2::d1-v*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-rate)*time)*ncdf(d2))}
 
 :" Black-Scholes price as function of time (for theta)"
-priceOfTime::{[d1 d2];d1::(log(spot%strike)+(rate+0.5*vol^2)*x)%(vol*sqrt(x));d2::d1-vol*sqrt(x);(spot*ncdf(d1))-(strike*exp((0-rate)*x)*ncdf(d2))}
+priceOfTime(t)::{[d1 d2];d1::(log(spot%strike)+(rate+0.5*vol^2)*t)%(vol*sqrt(t));d2::d1-vol*sqrt(t);(spot*ncdf(d1))-(strike*exp((0-rate)*t)*ncdf(d2))}
 
 :" Black-Scholes price as function of rate (for rho)"
-priceOfRate::{[d1 d2];d1::(log(spot%strike)+(x+0.5*vol^2)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-x)*time)*ncdf(d2))}
+priceOfRate(r)::{[d1 d2];d1::(log(spot%strike)+(r+0.5*vol^2)*time)%(vol*sqrt(time));d2::d1-vol*sqrt(time);(spot*ncdf(d1))-(strike*exp((0-r)*time)*ncdf(d2))}
 
 :" Compute price"
 price::priceOfSpot(spot)
-.d("Option Price: ");.p(price)
+.pf("Option Price: {}";price)
 .p("")
 
 :" ============================================"
@@ -59,19 +59,19 @@ price::priceOfSpot(spot)
 
 :" Delta = dPrice/dSpot"
 delta::priceOfSpot:>spot
-.d("  Delta (dP/dS): ");.p(delta)
+.pf("  Delta (dP/dS): {}";delta)
 
 :" Vega = dPrice/dVol"
 vega::priceOfVol:>vol
-.d("  Vega (dP/dVol): ");.p(vega)
+.pf("  Vega (dP/dVol): {}";vega)
 
 :" Theta = -dPrice/dTime"
 theta::0-(priceOfTime:>time)
-.d("  Theta (-dP/dT): ");.p(theta)
+.pf("  Theta (-dP/dT): {}";theta)
 
 :" Rho = dPrice/dRate"
 rho::priceOfRate:>rate
-.d("  Rho (dP/dR): ");.p(rho)
+.pf("  Rho (dP/dR): {}";rho)
 
 .p("")
 
@@ -84,13 +84,13 @@ rho::priceOfRate:>rate
 :" Analytical delta"
 d1Ana::(log(spot%strike)+(rate+0.5*vol^2)*time)%(vol*sqrt(time))
 analyticDelta::ncdf(d1Ana)
-.d("  Delta: ");.p(analyticDelta)
+.pf("  Delta: {}";analyticDelta)
 
 :" Analytical vega"
 pi::3.141592653589793
 npdf::{exp(0-0.5*x^2)%sqrt(2*pi)}
 analyticVega::spot*npdf(d1Ana)*sqrt(time)
-.d("  Vega: ");.p(analyticVega)
+.pf("  Vega: {}";analyticVega)
 
 .p("")
 .p("Autograd computes exact derivatives automatically!")

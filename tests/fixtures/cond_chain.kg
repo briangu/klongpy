@@ -1,0 +1,8 @@
+:" Else-if chains as the removed broker examples wrote them (one statement per line). "
+:[msg="connected";sendAuth(x):|msg="authenticated";handleLogin();handleAuthFailure()]
+:[subscription?all;1:|subscription?k;1;0]
+:[p<lower;"buy":|p>upper;"sell";"hold"]
+:[msg="connected";sendAuth(x):|msg="authenticated";handleLogin(x);handleAuthFailure()]
+:[T="success";handleControl(x;y):|T="error";handleError(x;y);handleData(x;y)]
+:[:_x;startdate:|(#x)>0;0$(((x?"t")@-1):%1);startdate]
+:[q="connected";sendAuth(x):|q="auth_success";handleLogin();handleAuthFailure()]

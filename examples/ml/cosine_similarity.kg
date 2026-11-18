@@ -11,25 +11,25 @@ def cosine_distance(a, b):
 
 ****
 
-time::{[t0];t0::.pc();x();.pc()-t0}
+time(f)::{[t0];t0::.pc();f();.pc()-t0}
 
 
-:" dot product of x and y "
-dot::{+/x*y}
+:" dot product of u and v "
+dot(u;v)::{+/u*v}
 
-:" magnitude of x "
-mag::{(+/x*x)^0.5}
+:" magnitude of u "
+mag(u)::{(+/u*u)^0.5}
 
-:" cosine similarity of x and y "
-cossim::{dot(x;y)%mag(x)*mag(y)}
+:" cosine similarity of u and v "
+cossim(u;v)::{dot(u;v)%mag(u)*mag(v)}
 
 :" cosine distance "
-cd::{1-cossim(x;y)}
+cd(u;v)::{1-cossim(u;v)}
 
 a::[0.2242275924404239 0.882144226374053 0.9906177571863527 0.4108451091093793 0.9804472187642895 0.4060536401874264 0.3002237000518012 0.8514871407116807 0.6532517687913413 0.8627410006208077]
 b::[0.30545495121740496 0.3771115787379501 0.7078223604498113 0.019355013585787284 0.16809292508968254 0.20411410383993234 0.09404528697075443 0.8849676641314673 0.9028064826465457 0.8102216701662028]
 
-.d("test: ");.p(cd(a;b))
+.pf("test: {}";cd(a;b))
 
 a::{x;.rn()}'!1536
 b::{x;.rn()}'!1536
@@ -37,5 +37,5 @@ b::{x;.rn()}'!1536
 r::10000
 passes::{{x;cd(a;b)}'!r}
 t::time(passes)
-.d("time (s) per pass: ");.p(t%r)
-.d("iter per second: ");.p(1%(t%r))
+.pf("time (s) per pass: {}";t%r)
+.pf("iter per second: {}";1%(t%r))

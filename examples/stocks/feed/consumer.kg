@@ -1,0 +1,35 @@
+:" A consumer: subscribes to the feed, keeps the latest price per symbol and
+   prints a summary when the run ends. It then closes the connection, which ends the program.
+
+   kgpy consumer.kg [-- port symbol ...]
+
+   Defaults: port 8888, every symbol. Per symbol it reports the last price, the
+   volume-weighted average price (vwap), a 5-trade moving average and the volume. "
+
+port:::[(#.os.argv);.rs(.os.argv@0);8888]
+wanted:::[(#.os.argv)>1;1_.os.argv;,"*"]
+
+:" State: for each symbol the latest price, and its prices and sizes so far. "
+latest:::{}
+prices:::{}
+sizes:::{}
+hist(d;s)::{:[:_d@s;[];d@s]}
+
+:" Called by the server with each trade. "
+update(t)::{[s p q]::t@["sym" "px" "qty"];latest,s,,p;prices,s,,(hist(prices;s)),p;sizes,s,,(hist(sizes;s)),q;1}
+
+vwap(p;q)::{(+/p*q)%+/q}
+sma(p;k)::{[m];m::k&#p;(+/(-m)#p)%m}
+money(v)::{[c];c::_0.5+100*v;($_c%100),".",1_$100+c!100}
+show(s)::{[p q];p::prices@s;q::sizes@s;
+          .pf("{:8} last {:-8} vwap {:-8} sma5 {:-8} volume {:-6} trades {}";[;s;money(latest@s);money(vwap(p;q));money(sma(p;5));$+/q;#p])}
+
+:" Called by the server when the run ends. "
+done(n)::{.pf("summary of {} trades published";n);show'{x@0}'latest;.timer("leave";0;leave);1}
+
+:" The connection is closed once the answer to done has gone out, which ends the program. "
+leave()::{.clic(feed);0}
+
+feed::.cli(port)
+ask::.async(feed;{x})
+ask(:subscribe,,wanted)

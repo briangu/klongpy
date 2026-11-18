@@ -3,9 +3,9 @@
 .p("async parallel squared numbers: ");
 
 :" create an async wrapper for the parallel task "
-cb::{.p("done!");.p(x)}
+cb(result)::{.p("done!");.p(result)}
 arunit::.async(runit; cb)
 
 arunit(!100)
-.d("doing other work: ");.p(24*24)
+.pf("doing other work: {}";24*24)
 

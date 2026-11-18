@@ -14,33 +14,33 @@ syms::["AAPL" "MSFT" "WMT" "JPM"]
 mu::[0.0013 0.0007 0.0022 0.0015]     :" Mean returns (annual)"
 vols::[0.0141 0.0126 0.0111 0.0148]   :" Volatilities (annual)"
 
-.d("Stocks: "); .p(syms)
+.pf("Stocks: {}";,syms)
 .p("")
 
 .d("Estimated parameters:")
-.d("Means: "); .p(mu)
-.d("Vols:  "); .p(vols)
+.pf("Means: {}";,mu)
+.pf("Vols:  {}";,vols)
 .p("")
 
 :" --- Klong functions for portfolio optimization ---"
 
-:" Sharpe ratio: mean return / volatility (uses global mu, vols)"
-portReturn::{+/x*mu}
-portVol::{+/((x*vols)^2)^0.5}
-sharpe::{portReturn(x)%(portVol(x)+0.0001)}
+:" Sharpe ratio: mean return / volatility, for weights w (uses global mu, vols)"
+portReturn(w)::{+/w*mu}
+portVol(w)::{+/((w*vols)^2)^0.5}
+sharpe(w)::{portReturn(w)%(portVol(w)+0.0001)}
 
 :" Negative Sharpe for minimization"
-negSharpe::{0-sharpe(x)}
+negSharpe(w)::{0-sharpe(w)}
 
 :" Position constraints as penalties"
 minp::0.08
 maxp::0.15
-minPenalty::{10*+/((minp-x)|(0*x))^2}   :" Penalty for weights below min"
-maxPenalty::{10*+/((x-maxp)|(0*x))^2}   :" Penalty for weights above max"
-sumPenalty::{10*((1-+/x)^2)}            :" Penalty if weights don't sum to 1"
+minPenalty(w)::{10*+/((minp-w)|(0*w))^2}   :" Penalty for weights below min"
+maxPenalty(w)::{10*+/((w-maxp)|(0*w))^2}   :" Penalty for weights above max"
+sumPenalty(w)::{10*((1-+/w)^2)}            :" Penalty if weights don't sum to 1"
 
 :" Combined loss function"
-loss::{negSharpe(x)+minPenalty(x)+maxPenalty(x)+sumPenalty(x)}
+loss(w)::{negSharpe(w)+minPenalty(w)+maxPenalty(w)+sumPenalty(w)}
 
 :" --- Optimization ---"
 
@@ -49,12 +49,12 @@ w::[0.25 0.25 0.25 0.25]
 lr::0.001
 epochs::200
 
-.d("Initial weights: "); .p(w)
-.d("Initial Sharpe:  "); .p(sharpe(w))
+.pf("Initial weights: {}";,w)
+.pf("Initial Sharpe:  {}";sharpe(w))
 .p("")
 
 :" Optimization step"
-step::{x;w::w-(lr*(loss:>w));w::0|w;w::w%(+/w);0}
+step(i)::{w::w-(lr*(loss:>w));w::0|w;w::w%(+/w);0}
 
 .p("Optimizing with constraints [8%, 15%]...")
 .p("Running 200 optimization steps...")
@@ -63,16 +63,14 @@ step::{x;w::w-(lr*(loss:>w));w::0|w;w::w%(+/w);0}
 step'!epochs
 
 .p("")
-.d("Final weights: "); .p(w)
-.d("Final Sharpe:  "); .p(sharpe(w))
+.pf("Final weights: {}";,w)
+.pf("Final Sharpe:  {}";sharpe(w))
 .p("")
 
 .p("Allocation:")
 pct::100
-.d("  "); .d(syms@0); .d(": "); .d(pct*w@0); .p("%")
-.d("  "); .d(syms@1); .d(": "); .d(pct*w@1); .p("%")
-.d("  "); .d(syms@2); .d(": "); .d(pct*w@2); .p("%")
-.d("  "); .d(syms@3); .d(": "); .d(pct*w@3); .p("%")
+show(i)::{.d("  ");.d(syms@i);.pf(": {}%";pct*w@i)}
+show'!4
 
 .p("")
 .p("Key takeaways:")

@@ -15,27 +15,22 @@ sum::{{,+/x}'x}
 softmax::{{[ex];ex::exp(x-|/x);ex%+/ex}'x}
 
 :"Define dot product"
-dot::{[T];T::+y;{{+/x*y}(x;)'T}'x}
+dot(a;b)::{[T];T::+b;{{+/x*y}(x;)'T}'a}
 
 :"Square root"
-sqr::{[a];a::x;:[0=x;0;{(x+a%x)%2}:~a]}
+sqr(n)::{:[0=n;0;{(x+n%x)%2}:~n]}
 
 :"Define the scaled dot-product attention"
-attention::{[Q K V dk scores weights];
-    Q::x;K::y;V::z;
+attention(Q;K;V)::{[dk scores weights];
     dk::#Q@1;
     scores::dot(Q;+K)%sqr(dk);
     weights::softmax(scores);
     dot(weights; V)
 }
 
-:" Define a simple transformer "
-transformer::{[Q K V attended];
-    Q::dot(x; y@0);
-    K::dot(x; y@1);
-    V::dot(x; y@2);
-    attended::attention(Q; K; V);
-    dot(attended; y@3)
+:" Define a simple transformer: the input, and the weights q, k, v, o as one list "
+transformer(input;w)::{[wq wk wv wo]::w;
+    dot(attention(dot(input;wq);dot(input;wk);dot(input;wv));wo)
 }
 
 :"Initialize parameters"
@@ -55,4 +50,4 @@ inputdata::rna(batchsize;inputdim)
 :"Run the forward pass"
 output::transformer(inputdata; (,q),(,k),(,v),(,o))
 
-.d("output: ");.p(output)
+.pf("output: {}";,output)

@@ -1,0 +1,14 @@
+:" The feed and a consumer in one process: 200 trades at 400 a second with seed 7.
+   The output is the same on every run. The program ends after the summary: the
+   consumer closes its connection, and the last client leaving stops the server.
+
+   kgpy demo.kg [-- port] "
+
+where:::[(#.os.argv);.os.argv@0;"18888"]
+.os.argv::[;where;"400";"200";"7"]
+.l("feed.kg")
+.os.argv::[;where;"AAPL";"NVDA";"TSLA"]
+.l("consumer.kg")
+
+closed::.srv.c
+.srv.c::{closed(x);:[0=#subs;.srv(0);0]}

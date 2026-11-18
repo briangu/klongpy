@@ -7,7 +7,7 @@ the card as well as on the workstation. See docs/hardware.md, section Strategies
     python3 crossover_bench.py numpy HISTORY.bin PARAMS.bin [--ticks N] [--out SUMMARY.bin]
     python3 crossover_bench.py cfile DIR       writes DIR/cpu_bench.c, the harness of the emitted C
     python3 crossover_bench.py cpu DIR HISTORY.bin PARAMS.bin [--procs 1,16,32] [--cflags "-O3"] [--json OUT.json]
-                                               compile DIR/crossover.c (kgpy --emit-c) with the harness and time it
+                                               compile DIR/crossover.c (kgpy compile c) with the harness and time it
     python3 crossover_bench.py interp HISTORY.bin PARAMS.bin --ticks N --out SUMMARY.bin [--procs P]
                                                the interpreter stand-in (needs klongpy), one process per lane at a time
 

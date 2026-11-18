@@ -23,15 +23,11 @@ nassets::4
 :" Fetch returns for all 4 stocks"
 allReturns::fetchStockData("2023-01-01";"2025-01-01")
 
-r0::allReturns@0
-r1::allReturns@1
-r2::allReturns@2
-r3::allReturns@3
-
+[r0 r1 r2 r3]::allReturns
 rets::[;r0;r1;r2;r3]
 
 ndays::#r0
-.d("Loaded ");.d(ndays);.p(" days of returns")
+.pf("Loaded {} days of returns";ndays)
 .p("")
 
 :" --- Compute Statistics ---"
@@ -46,10 +42,8 @@ mu::252*{avg(x)}'rets
 vars::{+/((x-avg(x))^2)%#x}'rets
 vols::15.87*{x^0.5}'vars
 
-.d("Expected annual returns: ")
-.p(mu)
-.d("Annual volatilities: ")
-.p(vols)
+.pf("Expected annual returns: {}";,mu)
+.pf("Annual volatilities: {}";,vols)
 .p("")
 
 :" --- Portfolio Functions ---"
@@ -59,22 +53,20 @@ wts::[0.25 0.25 0.25 0.25]
 :" Annualized variance (daily var * 252)"
 annVars::252*vars
 
-portReturn::{+/x*mu}
-portVar::{+/((x^2)*annVars)}
-portVol::{(portVar(x))^0.5}
-sharpe::{portReturn(x)%((portVol(x))+0.0001)}
+portReturn(w)::{+/w*mu}
+portVar(w)::{+/((w^2)*annVars)}
+portVol(w)::{(portVar(w))^0.5}
+sharpe(w)::{portReturn(w)%((portVol(w))+0.0001)}
 
-.d("Initial weights: ")
-.p(wts)
-.d("Initial Sharpe: ")
-.p(sharpe(wts))
+.pf("Initial weights: {}";,wts)
+.pf("Initial Sharpe: {}";sharpe(wts))
 .p("")
 
 :" --- Constraint Penalties ---"
 
-sumPenalty::{100*((1-+/x)^2)}
-longPenalty::{100*+/((0|0-x)^2)}
-loss::{(0-sharpe(x))+sumPenalty(x)+longPenalty(x)}
+sumPenalty(w)::{100*((1-+/w)^2)}
+longPenalty(w)::{100*+/((0|0-w)^2)}
+loss(w)::{(0-sharpe(w))+sumPenalty(w)+longPenalty(w)}
 
 :" --- Optimization ---"
 
@@ -84,35 +76,29 @@ round2::{(_x*100)%100}
 lrp::0.01
 epochs::200
 
-.d("Training for ")
-.d(epochs)
-.d(" epochs with lr=")
-.p(lrp)
+.pf("Training for {} epochs with lr={}";[;$epochs;lrp])
 .p("--------------------------------------------------")
 
 :" Training step - update weights using gradient descent"
-step::{wts::wts-(lrp*(loss:>wts));wts::0|wts;wts::wts%(+/wts);0}
+step(i)::{wts::wts-(lrp*(loss:>wts));wts::0|wts;wts::wts%(+/wts);0}
 
 :" Progress printing function"
-printProg::{.d("Epoch ");.d(x);.d(": Sharpe=");.d(round2(sharpe(wts)));.d(", weights=");.p(wts)}
+printProg(n)::{.d("Epoch ");.d(n);.d(": Sharpe=");.d(round2(sharpe(wts)));.pf(", weights={}";,wts)}
 
 :" Run optimization loop (batches of 50, print progress between batches)"
-batch::{step'!50;printProg(x*50)}
+batch(n)::{step'!50;printProg(n*50)}
 batch'!4
 
 .p("")
 .p("Optimization complete!")
-.d("Final weights: ")
-.p(wts)
-.d("Final Sharpe: ")
-.p(sharpe(wts))
-.d("Sum of weights: ")
-.p(+/wts)
+.pf("Final weights: {}";,wts)
+.pf("Final Sharpe: {}";sharpe(wts))
+.pf("Sum of weights: {}";+/wts)
 .p("")
 
 :" --- Analysis ---"
 .p("Weight allocation:")
-.d("  AAPL: ");.d(round2(100*(wts@0)));.p("%")
-.d("  MSFT: ");.d(round2(100*(wts@1)));.p("%")
-.d("  GOOGL: ");.d(round2(100*(wts@2)));.p("%")
-.d("  JPM: ");.d(round2(100*(wts@3)));.p("%")
+.pf("  AAPL: {}%";round2(100*(wts@0)))
+.pf("  MSFT: {}%";round2(100*(wts@1)))
+.pf("  GOOGL: {}%";round2(100*(wts@2)))
+.pf("  JPM: {}%";round2(100*(wts@3)))

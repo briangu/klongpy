@@ -7,6 +7,6 @@ step(16.0) => 10.0
 step(20.0) => 14.0
 buf => [20.0 8.0 12.0 16.0]
 pos => 1
-# Size report of kgpy --emit-c (bytes; a test fails when one grows by more than 10 percent):
+# Size report of kgpy compile c (bytes; a test fails when one grows by more than 10 percent):
 # size int32/float32: constants=16 instance=20 stack=68 c_lines=43
 # size int64/float64: constants=32 instance=40 stack=104 c_lines=43

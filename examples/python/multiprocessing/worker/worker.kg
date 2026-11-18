@@ -1,2 +1,2 @@
-worker::{.p(x);x*x}
+worker(n)::{.p(n);n*n}
 

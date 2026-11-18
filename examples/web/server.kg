@@ -5,18 +5,16 @@
 data::[]
 
 :" Return the data for a GET method at /"
-index::{x;data}
+index(request)::{data}
 
 :" Create the GET route handlers"
-get:::{}
-get,"/",index
+get:::{;"/";index}
 
-:" Append the query param q value to data"
-update::{[p];p::x?"p";.p(p);data::data,p}
+:" Append the form field p to data"
+update(form)::{[p];p::form@"p";.p(p);data::data,p}
 
 :" Create the POST route handlers"
-post:::{}
-post,"/p",update
+post:::{;"/p";update}
 
 :" Start the web server with the GET and POST handlers"
 .web(8888;get;post)

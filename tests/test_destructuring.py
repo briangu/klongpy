@@ -386,6 +386,14 @@ class TestRepositoryGate(unittest.TestCase):
         allowed = {
             "examples/stocks/options/black-scholes.kg",
             "examples/1brc/worker.kg",
+            # the examples written with destructuring
+            "examples/1brc/par.kg",
+            "examples/autograd/black_scholes_live.kg",
+            "examples/autograd/gradient_descent.kg",
+            "examples/autograd/neural_net.kg",
+            "examples/autograd/optimizer_demo.kg",
+            "examples/autograd/portfolio_opt.kg",
+            "examples/ml/transformer.kg",
             "tests/kgtests/language/test_destructuring.kg",
             "tests/golden/fixtures/s2_destructuring_slot.kg",
             # written on purpose by the named-parameter tests
