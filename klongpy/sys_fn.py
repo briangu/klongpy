@@ -209,6 +209,42 @@ def _program_dir(klong):
     return None
 
 
+def find_load_file(x, home=None, extra_dirs=()):
+    """
+    The one search order of ``.l``, used by the interpreter, the linter and the static checker and compiler.
+
+    Returns ``(path, tried)``: the file that ``.l(x)`` reads (or None) and the paths looked at. The names "x" and
+    "x.kg" are tried in each directory of KLONGPATH (default ``.:lib``) taken from the current directory, then in
+    ``extra_dirs`` (the library directory that kgpy appends to KLONGPATH), and, for a relative x, last in
+    ``home``, the directory of the file that is being run or loaded.
+    """
+    klongpath = os.environ.get('KLONGPATH')
+    dirs = [d for d in str(klongpath or ".:lib").split(':') if d]
+    dirs += [d for d in extra_dirs if d not in dirs]
+    tried = []
+
+    def look(base):
+        cand = os.path.join(base, x)
+        tried.append(cand)
+        if os.path.isfile(cand):
+            return cand
+        if not cand.endswith(".kg"):
+            tried.append(cand + ".kg")
+            if os.path.isfile(cand + ".kg"):
+                return cand + ".kg"
+        return None
+
+    for d in dirs:
+        r = look(d)
+        if r is not None:
+            return r, tried
+    if home and not os.path.isabs(x):
+        r = look(home)
+        if r is not None:
+            return r, tried
+    return None, tried
+
+
 def eval_sys_load(klong, x):
     """
 
@@ -237,35 +273,11 @@ def eval_sys_load(klong, x):
         used to load the value of a single expression from a file.
 
     """
-    # if not (os.path.isfile(x) or os.path.isfile(os.path.join(x,".kg"))):
-    klongpath = os.environ.get('KLONGPATH')
-    alt_dirs = [x for x in str(klongpath or ".:lib").split(':') if x]
-    tried = []
-    for ad in alt_dirs:
-        adx = os.path.join(ad,x)
-        tried.append(adx)
-        if os.path.isfile(adx):
-            x = adx
-            break
-        if not adx.endswith(".kg"):
-            adx = os.path.join(adx + ".kg")
-            tried.append(adx)
-            if os.path.isfile(adx):
-                x = adx
-                break
-
-    home = None
-    if not os.path.isfile(x) and not os.path.isabs(x):
-        # not found by KLONGPATH: next to the file that is being run or loaded
-        home = _program_dir(klong)
-        if home:
-            for cand in (os.path.join(home, x), os.path.join(home, x) + ".kg"):
-                tried.append(cand)
-                if os.path.isfile(cand):
-                    x = cand
-                    break
-
-    if not os.path.isfile(x):
+    home = _program_dir(klong)
+    found, tried = find_load_file(x, home)
+    if found is not None:
+        x = found
+    else:
         where = (f", then in the directory of the file that calls .l, {home}" if home else
                  "")
         raise FileNotFoundError(f"file does not exist: {x} (looked for {', '.join(tried)}; a relative path is "
@@ -1256,7 +1268,14 @@ def _from_json(x, backend):
     if isinstance(x, dict):
         return {k: _from_json(v, backend) for k, v in x.items()}
     if isinstance(x, list):
-        return backend.kg_asarray([_from_json(v, backend) for v in x])
+        items = [_from_json(v, backend) for v in x]
+        if any(type(v) is int and not -2**63 <= v < 2**63 for v in items):
+            # an integer beyond 64 bits: a float array would round it, so the list is an object list
+            a = numpy.empty(len(items), dtype=object)
+            for i, v in enumerate(items):
+                a[i] = v
+            return a
+        return backend.kg_asarray(items)
     if x is None:
         return KLONG_UNDEFINED
     if isinstance(x, bool):
@@ -1295,7 +1314,8 @@ def eval_sys_unjson(klong, x):
 
         Return the Klong value of the JSON text "x": an object becomes a
         dictionary with string keys, an array a list (an array of numbers
-        is an array), a string a string, a number an integer or a real,
+        is an array; a list that holds an integer beyond 64 bits is a list
+        of objects, so that every integer stays exact), a string a string, a number an integer or a real,
         true and false the integers 1 and 0, and null :undefined. Text that
         is not exactly one JSON value (including NaN and Infinity) is a
         range error that gives the line, column and character position.

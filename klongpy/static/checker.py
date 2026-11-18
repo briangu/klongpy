@@ -872,7 +872,7 @@ class _Checker:
         path = _find_load(name, base_dir)
         if path is None:
             self.diag("load", nsp, f"cannot find the file \"{name}\" named by .l",
-                      "it is looked up like .l does: in the directory of the program, the KLONGPATH directories, then klongpy/lib")
+                      "it is looked up like .l does: in the KLONGPATH directories (default .:lib) from the current directory, then klongpy/lib, then the directory of the program")
             return
         real = os.path.realpath(path)
         if real in self.loaded:
@@ -887,7 +887,7 @@ class _Checker:
         except (OSError, UnicodeDecodeError) as e:
             self.diag("load", nsp, f"cannot read \"{path}\": {getattr(e, 'strerror', None) or e}")
             return
-        self.load(Source(path, text), os.path.dirname(real), depth + 1)
+        self.load(Source(path, text), os.path.dirname(path), depth + 1)
 
     # -- call graph --------------------------------------------------------------------
     def graph(self):

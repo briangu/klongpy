@@ -557,6 +557,8 @@ client?> f("1+1")
 
 **Handlers run on the Klong loop.** A handler can start a timer, make an IPC call and call `.webc`. `.webc` in a handler completes the reply, stops the server and lets the run end. See [Where a handler runs](web_server.md#where-a-handler-runs).
 
+**A program that waits for its own server on the Klong loop gets a 503, not a hang.** A blocking HTTP request from Klong code to the program's own `.web` server (`urlopen` through `.pyf`) waited for ever, because the Klong loop that had to answer was the one waiting. The server now answers such a request, after one second, with status 503 and a body that says why, and writes one line to stderr. Slow handlers and clients in other processes are not affected. See [Where a handler runs](web_server.md#where-a-handler-runs).
+
 **`.rls()` strips the line end from each line.** The lines kept their `\n`.
 
 **The two broker examples are removed.** `examples/stocks` had a feed from Polygon and one from Alpaca, and both needed an account. A simulated price feed replaces them: a seeded random walk, a server that publishes each trade to the clients subscribed to its symbol, and a consumer that computes a volume-weighted average price and a moving average. It needs only `pip install klongpy`. See [`examples/stocks/feed`](https://github.com/briangu/klongpy/tree/main/examples/stocks/feed).
@@ -699,6 +701,10 @@ error: y must be a non-negative number
 ```
 
 **`.rs` checks its argument.** A value that is not a string is a type error, and empty text gives `:undefined`.
+
+**`.l`, `kgpy lint`, `kgpy check` and `kgpy compile c` look for a file in one order.** The directories of `KLONGPATH` (default `.:lib`) from the current directory, then the package library, then the directory of the file that contains the `.l`. The linter tried the directory of the linted file first, `kgpy compile c` changed to that directory, and a checker message named a third order. A file in the current directory now wins everywhere.
+
+**`.unjson` keeps every integer of a list exact.** `.unjson("[9223372036854775808,0.5]")` turned the large integer into a float, because the list became a float array. A list that holds an integer beyond 64 bits is now a list of objects, as it is when it holds only integers.
 
 **A SQL result of one row and one string column displays, and a SQL or store error names its cause once.** The word `error` was printed twice. A module that needs an extra says which: `klongpy.db needs the db extra, which is not installed (no module named duckdb): pip install "klongpy[db]"`; the same holds for `klongpy.web` and the torch backend.
 

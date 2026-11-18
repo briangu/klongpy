@@ -73,8 +73,8 @@ How the pass is built
 Cross-file names. ``.l("file")`` with a literal argument adds the names that
 file defines at its top level, read the same way (recursively, without
 running it). The file is looked up as ``.l`` does (``x`` and ``x.kg`` in each
-directory of KLONGPATH, default ``.:lib``), tried relative to the linted
-file's directory first, then to the current directory, then in klongpy/lib.
+directory of KLONGPATH, default ``.:lib``, relative to the current directory),
+then in klongpy/lib, and last in the directory of the linted file.
 ``.py``, ``.pyf``, ``.pya``, ``.E``, a ``.l`` whose argument is not a string
 literal and a ``.l`` whose file cannot be found "define unknown names": W002
 is switched off for the file. Everything else keeps working.
@@ -785,26 +785,9 @@ def _find_load(x, base_dir):
     """The path ``.l(x)`` would read, or None. See the module docstring for the search order."""
     if not x:
         return None
-    paths = [p for p in str(os.environ.get('KLONGPATH') or ".:lib").split(':') if p]
-    roots = []
-    if base_dir:
-        roots.append(base_dir)
-    roots.append(os.getcwd())
+    from .sys_fn import find_load_file
     pkg = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib')
-    cands = []
-    for ad in paths:
-        for root in roots:
-            d = ad if os.path.isabs(ad) else os.path.join(root, ad)
-            cands.append(os.path.join(d, x))
-    cands.append(os.path.join(pkg, x))
-    for root in roots:
-        cands.append(os.path.join(root, x))
-    for c in cands:
-        if os.path.isfile(c):
-            return c
-        if not c.endswith('.kg') and os.path.isfile(c + '.kg'):
-            return c + '.kg'
-    return None
+    return find_load_file(x, base_dir, (pkg,))[0]
 
 
 _load_cache = {}
@@ -827,7 +810,7 @@ def _load_info(path, seen, depth):
             text = f.read()
     except (OSError, UnicodeDecodeError):
         return None
-    info = _Analysis(Source(path, text), os.path.dirname(real), True, seen + (real,), depth, full=False)
+    info = _Analysis(Source(path, text), os.path.dirname(path), True, seen + (real,), depth, full=False)
     if len(_load_cache) > 64:
         _load_cache.clear()
     _load_cache[key] = info

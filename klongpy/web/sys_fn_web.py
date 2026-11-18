@@ -2,6 +2,8 @@ import logging
 import sys
 import asyncio
 import concurrent.futures
+import socket
+import threading
 
 from aiohttp import web
 
@@ -10,9 +12,12 @@ from klongpy.errors import KlongError, KlongTypeError, classify
 
 RESPONSE_KEYS = ("status", "type", "body")
 SERVER_ERROR_BODY = "handler failed"
+SELF_WAIT_BODY = ("a program cannot wait for its own server from the Klong loop: the request blocks the loop "
+                  "that has to answer it. Use .async or call from another process")
+SELF_WAIT_GRACE = 1.0   # seconds a request waits for the Klong loop before the self-wait test is made
 
 
-def _on_klongloop(klong, running, fn, *args):
+def _on_klongloop(klong, running, fn, *args, skip=None):
     """
     Run fn(*args) on the Klong loop (the thread timers, .async and IPC callbacks run on) and
     return an awaitable for its result. Handlers run there, not on the io loop that serves the
@@ -32,6 +37,8 @@ def _on_klongloop(klong, running, fn, *args):
             setter(value)
 
     def run():
+        if skip is not None and skip.is_set():
+            return          # the request was answered without the handler
         try:
             result = fn(*args)
         except Exception as e:  # noqa: BLE001 - handed back to the request
@@ -41,6 +48,65 @@ def _on_klongloop(klong, running, fn, *args):
 
     klongloop.call_soon_threadsafe(run)
     return future, None
+
+
+def _same_address(a, b):
+    return a is not None and b is not None and tuple(a[:2]) == tuple(b[:2])
+
+
+def _sockets_of(value):
+    """The sockets a Python value stands for: a socket, an HTTP connection (sock), a socket stream (_sock, raw, fp)."""
+    found = []
+    for v in (value, getattr(value, 'sock', None), getattr(value, '_sock', None),
+              getattr(getattr(value, 'raw', None), '_sock', None),
+              getattr(getattr(getattr(value, 'fp', None), 'raw', None), '_sock', None)):
+        if isinstance(v, socket.socket):
+            found.append(v)
+    return found
+
+
+def _waits_for_itself(klong, request):
+    """
+    True when the thread of the Klong loop holds, in its Python stack, the client end of the connection this
+    request arrived on: Klong code is waiting for this very request, which only the Klong loop can answer.
+
+    A slow handler, a client in another process and a client on another thread never match, because the test
+    is the identity of the socket. It sees clients that keep their socket in a local variable of the stack:
+    urllib, http.client and what is built on them (requests); a client that hides its socket elsewhere is not
+    detected.
+    """
+    try:
+        transport = request.transport
+        client = transport.get_extra_info('peername')
+        server = transport.get_extra_info('sockname')
+        if client is None or server is None:
+            return False
+        tid = getattr(klong['.system']['klongloop'], '_thread_id', None)
+        frame = sys._current_frames().get(tid)
+        while frame is not None:
+            for v in list(frame.f_locals.values()):
+                for sock in _sockets_of(v):
+                    try:
+                        if _same_address(sock.getsockname(), client) and _same_address(sock.getpeername(), server):
+                            return True
+                    except OSError:
+                        continue
+            frame = frame.f_back
+    except Exception:  # noqa: BLE001 - a failed test means "not proven": keep waiting
+        return False
+    return False
+
+
+async def _wait_for_klongloop(klong, request, future, skip):
+    """Wait for the handler's result. Returns (True, result), or (False, None) when the Klong loop is waiting for this request."""
+    while True:
+        done, _ = await asyncio.wait({future}, timeout=SELF_WAIT_GRACE)
+        if done:
+            return True, future.result()
+        if _waits_for_itself(klong, request):
+            skip.set()
+            future.cancel()
+            return False, None
 
 
 def _log_handler_failure(klong, method, route, exc):
@@ -154,9 +220,14 @@ async def _serve(klong, request, fn, route, get_params, is_post=False):
         logging.info("web %s %s: bad request: %s", method, route, e)
         return web.Response(text="Invalid request", status=400)
     try:
-        future, value = _on_klongloop(klong, asyncio.get_running_loop(), fn, params)
+        skip = threading.Event()
+        future, value = _on_klongloop(klong, asyncio.get_running_loop(), fn, params, skip=skip)
         if future is not None:
-            value = await future
+            answered, value = await _wait_for_klongloop(klong, request, future, skip)
+            if not answered:
+                from klongpy.repl import write_stderr
+                write_stderr(f"web {method} {route}: refused with 503: {SELF_WAIT_BODY}")
+                return web.Response(text=SELF_WAIT_BODY, status=503)
         return _make_response(value)
     except Exception as e:  # noqa: BLE001 - any handler failure answers 500
         _log_handler_failure(klong, method, route, e)

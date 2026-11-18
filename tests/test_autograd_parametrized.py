@@ -564,7 +564,8 @@ class TestCompile:
             assert not result.get('export_error'), result.get('export_error')
             assert result['export_path'] == path
             assert os.path.exists(path)
-            assert 'pow' in result['graph']
+            # on MPS a whole-number power is computed by multiplication, so the graph has mul and no pow
+            assert 'pow' in result['graph'] or 'mul' in result['graph']
             loaded = torch.export.load(path).module()
             assert np.isclose(float(loaded(torch.tensor(3.0))), 9.0, atol=1e-5)
 

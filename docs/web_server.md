@@ -54,7 +54,11 @@ The Python traceback follows it under `-v` or `--traceback`. A body that cannot 
 
 KlongPy has two event loops, each on its own thread: the I/O loop, which serves the sockets, and the Klong loop, which runs Klong code. Handlers run on the Klong loop, one at a time, like timers, `.async` callbacks and IPC handlers. A handler can therefore start a timer, make `.cli` and `.async` calls, and stop the server. `.webc(h)` in a handler completes the reply being served and then stops the server; a file run with nothing else alive then ends with status 0.
 
-Known limit: the Klong loop runs one thing at a time, so a handler that takes long delays the other requests. A handler that requests its own server over HTTP waits for itself, so request another process's server instead.
+Known limit: the Klong loop runs one thing at a time, so a handler that takes long delays the other requests.
+
+A program cannot wait for an answer from its own server on the Klong loop, because the answer has to be given by the loop that is waiting. This holds for a handler and for the main program alike. When a request has waited more than a second and the Klong loop holds the client end of that connection in its Python stack (`urlopen`, `http.client` and `requests` do), the server answers it with status 503 and the body `a program cannot wait for its own server from the Klong loop`, and writes one line to stderr. The caller gets an HTTP error instead of a hang. A slow handler, a client in another process and a client on another thread are not refused. A client that keeps its socket out of sight of the Python stack is not detected and waits for ever.
+
+To call your own server, send the request from another process, or from a Python thread that is not the Klong loop; the request then waits only until the Klong loop is free.
 
 ## Example
 

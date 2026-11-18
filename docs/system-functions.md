@@ -608,7 +608,8 @@ Example:
 ```text
 Return the Klong value of the JSON text "x": an object becomes a
 dictionary with string keys, an array a list (an array of numbers
-is an array), a string a string, a number an integer or a real,
+is an array; a list that holds an integer beyond 64 bits is a list
+of objects, so that every integer stays exact), a string a string, a number an integer or a real,
 true and false the integers 1 and 0, and null :undefined. Text that
 is not exactly one JSON value (including NaN and Infinity) is a
 range error that gives the line, column and character position.

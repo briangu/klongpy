@@ -16,6 +16,13 @@ class KlongDbException(KlongException):
         super().__init__(str(e))
 
 
+def _host_column(v):
+    """A column as something pandas can hold: a tensor becomes a NumPy array, anything else is unchanged."""
+    if hasattr(v, "detach") and hasattr(v, "cpu"):
+        return v.detach().cpu().numpy()
+    return v
+
+
 class Table(dict):
     def __init__(self, data, columns=None):
         # If the input is a pandas DataFrame, use it directly
@@ -24,6 +31,8 @@ class Table(dict):
             self.columns = data.columns.tolist()
         # If the input is a dictionary, create a DataFrame using the provided columns
         elif isinstance(data, dict) and columns is not None:
+            # a column held on a device (a tensor on a GPU) is copied to host memory: a DataFrame holds NumPy arrays
+            data = {k: _host_column(v) for k, v in data.items()}
             self._df = pd.DataFrame(data, columns=columns, copy=False)
             self.columns = columns
         else:

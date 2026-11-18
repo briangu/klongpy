@@ -15,7 +15,6 @@ import os
 import re
 import shutil
 import sys
-import threading
 
 from ..errors import KlongError
 from .checker import check_source
@@ -27,9 +26,6 @@ from .signature import _C_KEYWORDS
 
 __all__ = ["compile_program", "emit_program", "emit_main", "Compiled", "runtime_header", "c_prefix", "emit_hls_program",
            "emit_hls_main"]
-
-
-_CHDIR = threading.RLock()
 
 
 def runtime_header():
@@ -76,16 +72,10 @@ def compile_program(path, *, text=None, int_bits=32, externs=None, name=None):
     first = check_source(text, path, int_bits=int_bits, base_dir=base_dir)
     # form errors are decided without running anything: stop before stage one if there are any
     first.raise_first()
-    # .l("file") is looked up from the directory of the program, as the checker does
-    with _CHDIR:        # the working directory is the process's: two threads compiling must not interleave their chdirs
-        cwd = os.getcwd()
-        try:
-            if base_dir:
-                os.chdir(base_dir)
-            klong = load_program(os.path.abspath(os.path.join(cwd, path)) if base_dir else path, externs=externs, text=text,
-                                 strict=2, backend="numpy")
-        finally:
-            os.chdir(cwd)
+    # .l("file") is resolved by .l itself: KLONGPATH from the working directory, then beside the program (the
+    # program is run under its absolute path, so the interpreter knows its directory)
+    klong = load_program(os.path.abspath(path) if base_dir else path, externs=externs, text=text,
+                         strict=2, backend="numpy")
     values = {}
     for gname in first.globals:
         values[gname] = klong[gname]

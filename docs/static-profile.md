@@ -57,6 +57,8 @@ function, with arguments of unknown type.
 
 The program must parse at strict level 2 (`kgpy --strict=2`).
 
+`kgpy check` and `kgpy compile c` find the file of a `.l` the way the interpreter does: in the directories of `KLONGPATH` (default `.:lib`) from the current directory, then in the package library, then in the directory of the file that contains the `.l`. A file in the current directory wins over one beside the program.
+
 ## Types
 
 | Type | C type | Notes |
