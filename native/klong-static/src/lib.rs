@@ -8,6 +8,7 @@ pub mod emit_c;
 pub mod emit_hls;
 pub mod eval_ir;
 pub mod fixed;
+mod fixed_ext;
 pub mod host;
 pub mod infer;
 pub mod ir;

@@ -1,25 +1,28 @@
 #!/usr/bin/env python3
 """Generate what the firmware needs of the compiled examples: the C of examples/embedded/{mavg,pid,fir}.kg, their Klong text, and the
-reference results KlongPy gives for the fixed inputs of the board check.
+reference results the native host gives for the fixed inputs of the board check.
 
     gen_c_examples.py OUT_DIR
 
 writes into OUT_DIR (the build directory; nothing here is checked in):
 
-    mavg.c mavg.h  pidc.c pidc.h  fir.c fir.h  klong_rt.h    the static-profile compiler's C, as `kgpy compile c` writes it (32-bit
+    mavg.c mavg.h  pidc.c pidc.h  fir.c fir.h  klong_rt.h    the static-profile compiler's C, as `klong compile c` writes it (32-bit
                                                              kg_int, 32-bit kg_float: a Cortex-M0+ has neither a 64-bit divide
-                                                             nor an FPU), through the Python API of klongpy.static.compile
+                                                             nor an FPU)
     klong_c_data.c klong_c_data.h                            the three sources as C strings (they are loaded by the interpreter
                                                              on the board, from flash, without a copy), the fixed inputs of the
-                                                             check, KlongPy's results for them and the values pinned by the
+                                                             check, the host's results for them and the values pinned by the
                                                              .expect files
 
-KlongPy must be importable (`pip install -e .` of this repository, or PYTHONPATH). The tool fails, and so the build does, when
-KlongPy no longer gives the values the .expect files pin, so the board is never checked against a stale reference.
+It needs the `klong` binary (`cd native && cargo build --release`; or its path in $KLONG) and the extension of native/klong-py (its
+directory in $KLONGPY_NATIVE_PATH, or klong_native importable) for the expected values, and NumPy, which the extension needs. KlongPy
+itself is not imported. The tool fails, and so the build does, when the host no longer gives the values the .expect files pin, so the
+board is never checked against a stale reference.
 """
 import math
 import os
 import re
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -95,25 +98,61 @@ def cdoubles(xs):
     return ", ".join(repr(float(x)) for x in xs)
 
 
-def reference(case):
-    """KlongPy's results for the case: the expression the board's interpreter runs, and the entry called point by point."""
-    import numpy as np
-    from klongpy.static import call_entry, load_program
+def native_extension():
+    """The extension module of native/klong-py: $KLONGPY_NATIVE_PATH (a directory that holds it), else klong_native on the path."""
+    d = os.environ.get("KLONGPY_NATIVE_PATH")
+    if d:
+        sys.path.insert(0, d)
+    try:
+        import klong_native
+    except ImportError:
+        sys.exit("gen_c_examples: the extension klong_native is needed (build native/klong-py and put its directory on KLONGPY_NATIVE_PATH)")
+    return klong_native
 
+
+def klong_binary():
+    """The `klong` binary: $KLONG, else native/target/release/klong."""
+    path = os.environ.get("KLONG") or os.path.join(ROOT, "native", "target", "release", "klong")
+    if not os.access(path, os.X_OK):
+        sys.exit("gen_c_examples: %s is not an executable `klong` (cd native && cargo build --release, or set KLONG)" % path)
+    return path
+
+
+def reference(case):
+    """The host's results for the case: the expression the board's interpreter runs, and the entry called point by point."""
+    import numpy as np
+
+    kn = native_extension()
     path = os.path.join(EMBEDDED, case["name"] + ".kg")
-    klong = load_program(path, externs=case["externs"])
-    klong(case["setup"])
-    got = klong(case["expr"])
+    with open(path) as f:
+        text = f.read()
+    externs = case["externs"] or {}
+    klong = kn.Klong(2)
+    for name, fn in externs.items():
+        # the stand-ins are bound by the declaration that follows: .extern takes the function registered under its name
+        klong.register(name, fn, fn.__code__.co_argcount)
+    klong.run(text, path)
+    klong.run(case["setup"])
+    got = klong.eval(case["expr"])
     ref = [float(x) for x in np.asarray(got, dtype=float).ravel()]
-    klong2 = load_program(path, externs=case["externs"])
+    prog = kn.StaticProgram(path, text, externs)
     if case["name"] == "fir":
-        again = [float(x) for x in np.asarray(call_entry(klong2, case["entry"], np.array(case["inputs"])), dtype=float)]
+        again = [float(x) for x in np.asarray(prog.call_entry(case["entry"], [list(case["inputs"])]), dtype=float)]
     else:
-        again = [float(call_entry(klong2, case["entry"], x)) for x in case["inputs"]]
+        again = [float(prog.call_entry(case["entry"], [x])) for x in case["inputs"]]
     assert len(ref) == len(again) and all(abs(a - b) <= 1e-12 * max(1.0, abs(a)) for a, b in zip(ref, again)), "the expression and call_entry disagree"
     for i, v in case["pins"]:
-        assert math.isclose(ref[i], v, rel_tol=1e-9, abs_tol=1e-12), "%s: KlongPy gives %r at %d but %s.expect pins %r" % (case["name"], ref[i], i, case["name"], v)
+        assert math.isclose(ref[i], v, rel_tol=1e-9, abs_tol=1e-12), "%s: the host gives %r at %d but %s.expect pins %r" % (case["name"], ref[i], i, case["name"], v)
     return ref
+
+
+def emit(klong, kg, out, prefix):
+    """`klong compile c` of one program with 32-bit ints and floats: the files in out; returns the size report."""
+    r = subprocess.run([klong, "compile", "c", kg, "-o", out, "--prefix", prefix], capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.exit("gen_c_examples: klong compile c %s failed:\n%s%s" % (kg, r.stdout, r.stderr))
+    # the first line says what was written, then the size report
+    return r.stdout.split("\n", 1)[1].rstrip("\n") if "\n" in r.stdout else ""
 
 
 def main(argv):
@@ -122,13 +161,11 @@ def main(argv):
         return 2
     out = os.path.abspath(argv[1])
     os.makedirs(out, exist_ok=True)
-    sys.path.insert(0, ROOT) if ROOT not in sys.path else None
-    from klongpy.static.compile import emit_program
+    klong = klong_binary()
 
     cases = [mavg_case(), pid_case(), fir_case()]
     for c in cases:
-        res = emit_program(os.path.join(EMBEDDED, c["name"] + ".kg"), out, int_bits=32, float_bits=32, prefix=c["prefix"])
-        c["report"] = res.report_text()
+        c["report"] = emit(klong, os.path.join(EMBEDDED, c["name"] + ".kg"), out, c["prefix"])
         c["ref"] = reference(c)
         with open(os.path.join(EMBEDDED, c["name"] + ".kg")) as f:
             c["src"] = f.read()

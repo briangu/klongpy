@@ -78,15 +78,6 @@ pub struct FixedBox {
     pub raw: Vec<i64>,
 }
 
-impl klong_core::value::Ext for FixedBox {
-    fn type_name(&self) -> &str {
-        "fixed"
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
 fn fixed_box(v: &Value) -> Option<&FixedBox> {
     if let Value::Ext(e) = v {
         e.0.as_any().downcast_ref::<FixedBox>()

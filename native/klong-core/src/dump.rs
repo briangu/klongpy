@@ -66,6 +66,10 @@ impl<'a> Dumper<'a> {
             Value::Int(i) => {
                 let _ = write!(out, "(num {})", i);
             }
+            #[cfg(feature = "bigint")]
+            Value::Big(b) => {
+                let _ = write!(out, "(num {})", crate::big::text(b));
+            }
             Value::Flt(f) => {
                 out.push_str("(num ");
                 write_float(*f, out);

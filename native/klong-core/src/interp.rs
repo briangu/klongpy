@@ -171,7 +171,7 @@ pub struct Interp {
     #[cfg(feature = "host")]
     pub adopt: Option<Rc<dyn Fn(&mut Interp, &Value) -> Option<Value>>>,
     /// HOST: the arguments beyond the third of the call of a system function that is being made (set just before it runs).
-    #[cfg(feature = "host")]
+    #[cfg(feature = "wide-args")]
     pub extra_args: Vec<Value>,
     globals: Vec<Option<Value>>,
     /// Per global: the scope it was created in (and the `JOURNALED` bit).
@@ -245,7 +245,7 @@ impl Interp {
             collect: None,
             #[cfg(feature = "host")]
             host_op: None,
-            #[cfg(feature = "host")]
+            #[cfg(feature = "wide-args")]
             extra_args: Vec::new(),
             #[cfg(feature = "host")]
             adopt: None,
@@ -1872,7 +1872,7 @@ impl Interp {
         None
     }
 
-    #[cfg(feature = "host")]
+    #[cfg(feature = "wide-args")]
     fn is_wild(f: &Value) -> bool {
         matches!(f, Value::Fn(func) if matches!(&**func, Func::Native { arity, .. } if *arity == WILDCARD))
     }
@@ -2001,7 +2001,7 @@ impl Interp {
                 let v = self.eval(tree, NodeId(q), true)?;
                 try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
-            #[cfg(feature = "host")]
+            #[cfg(feature = "wide-args")]
             if n > 3 && Self::is_wild(&f) {
                 // HOST: a system function of any arity is given every argument written
                 let mut extra = Vec::new();
@@ -2067,7 +2067,7 @@ impl Interp {
                 try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
         }
-        #[cfg(feature = "host")]
+        #[cfg(feature = "wide-args")]
         if n > 3 && Self::is_wild(&f) {
             let mut extra = Vec::new();
             for a in merged.iter().skip(3).flatten() {
@@ -2220,9 +2220,9 @@ impl Interp {
                 return Err(self.too_many(f, f_arity as usize, given));
             }
             let mut frame: Frame = try_vec(given.min(3) + 2)?;
-            #[cfg(feature = "host")]
+            #[cfg(feature = "wide-args")]
             let mut values = values;
-            #[cfg(feature = "host")]
+            #[cfg(feature = "wide-args")]
             if given > 3 && Self::is_wild(&g) {
                 self.extra_args = values.split_off(3);
             }
@@ -2276,7 +2276,7 @@ impl Interp {
                 try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
         }
-        #[cfg(feature = "host")]
+        #[cfg(feature = "wide-args")]
         if n > 3 && Self::is_wild(&g) {
             let mut extra = Vec::new();
             for a in merged.iter().skip(3).flatten() {
@@ -2363,7 +2363,7 @@ impl Interp {
                 }
             }
         }
-        #[cfg(feature = "host")]
+        #[cfg(feature = "wide-args")]
         if !self.extra_args.is_empty() {
             args.append(&mut self.extra_args);
         }

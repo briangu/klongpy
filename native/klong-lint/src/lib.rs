@@ -18,7 +18,7 @@ mod cli;
 mod load;
 mod rules;
 mod scan;
-mod tok;
+pub mod tok;
 
 pub use cli::{lint_main, run_files};
 pub use load::Session;

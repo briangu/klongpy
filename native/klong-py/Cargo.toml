@@ -16,6 +16,7 @@ klong-rt = { path = "../klong-rt", features = ["bigint", "diag"] }
 klong-host = { path = "../klong-host", features = ["bigint", "diag"] }
 klong-lint = { path = "../klong-lint" }
 klong-static = { path = "../klong-static" }
+klong-tools = { path = "../klong-tools" }
 pyo3 = { version = "0.25", features = ["abi3-py311", "extension-module"] }
 
 [workspace]

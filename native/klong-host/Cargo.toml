@@ -13,5 +13,5 @@ bigint = ["klong-rt/bigint", "klong-core/bigint"]
 diag = ["klong-rt/diag", "klong-core/diag"]
 
 [dependencies]
-klong-core = { path = "../klong-core" }
+klong-core = { path = "../klong-core", features = ["wide-args"] }
 klong-rt = { path = "../klong-rt", features = ["timers", "ipc", "compress"] }

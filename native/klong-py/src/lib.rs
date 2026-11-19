@@ -229,7 +229,17 @@ fn init_host(py: Python<'_>, types: &Bound<'_, PyDict>) -> PyResult<&'static Hos
 // errors
 // ------------------------------------------------------------------------------------------------
 
-/// A native error as a Python exception: args = (kind, message, start, end, source name, source text, hint).
+/// A span of byte offsets into `text` as offsets in characters, which is how Python indexes a str.
+fn char_span(text: &str, a: usize, b: usize) -> (i64, i64) {
+    if text.is_ascii() {
+        return (a as i64, b as i64);
+    }
+    let co = klong_tools::CharOffsets::new(text);
+    (co.at(a) as i64, co.at(b) as i64)
+}
+
+/// A native error as a Python exception: args = (kind, message, start, end, source name, source text, hint); start and end are offsets in
+/// characters of the source text.
 fn k2py(e: Error) -> PyErr {
     if let Some(p) = PENDING.with(|p| p.borrow_mut().take()) {
         // the span of the expression that called the Python function that failed: `_klong_span` = (start, end, source name,
@@ -242,7 +252,8 @@ fn k2py(e: Error) -> PyErr {
                         Some(s) => (s.name.clone(), s.text.to_string()),
                         None => (String::new(), String::new()),
                     };
-                    let _ = v.setattr("_klong_span", (a as i64, b as i64, name, text));
+                    let (ca, cb) = char_span(&text, a as usize, b as usize);
+                    let _ = v.setattr("_klong_span", (ca, cb, name, text));
                 }
             });
         }
@@ -252,7 +263,7 @@ fn k2py(e: Error) -> PyErr {
         Some(s) => (s.name.clone(), s.text.to_string()),
         None => (String::new(), String::new()),
     };
-    let (a, b) = e.span.map(|(a, b)| (a as i64, b as i64)).unwrap_or((-1, -1));
+    let (a, b) = e.span.map(|(a, b)| char_span(&text, a as usize, b as usize)).unwrap_or((-1, -1));
     NativeError::new_err((e.kind.name().to_string(), e.message.to_string(), a, b, name, text, e.hint.as_ref().map(|h| h.to_string())))
 }
 
@@ -1457,8 +1468,8 @@ impl Klong {
 
     /// The syntax warnings the parser recorded since the last call (strict level 0: input the legacy grammar accepts and KlongPy
     /// warns about), in source order: a list of (code, message, hint or None, start, end, source name, source text). `message` is
-    /// KlongPy's text of the warning (the condition, then `; ` and what happens to the input); `start` and `end` are byte offsets
-    /// into the source text, the same as an error's span.
+    /// KlongPy's text of the warning (the condition, then `; ` and what happens to the input); `start` and `end` are offsets in characters
+    /// of the source text, the same as an error's span.
     fn take_warnings(&self, py: Python<'_>) -> Vec<(String, String, Option<String>, i64, i64, String, String)> {
         self.with_ip(py, |ip| {
             ip.take_warnings()
@@ -1472,7 +1483,8 @@ impl Klong {
                         Some(s) => (s.name.clone(), s.text.to_string()),
                         None => (String::new(), String::new()),
                     };
-                    (w.code.to_string(), msg, w.hint.clone(), w.span.0 as i64, w.span.1 as i64, name, text)
+                    let (a, b) = char_span(&text, w.span.0 as usize, w.span.1 as usize);
+                    (w.code.to_string(), msg, w.hint.clone(), a, b, name, text)
                 })
                 .collect()
         })
@@ -1616,6 +1628,71 @@ fn lint_source(
             .map(|d| (d.code.to_string(), d.severity.to_string(), ch(d.span.0), ch(d.span.1), d.line, d.col, d.message, d.hint))
             .collect()
     })
+}
+
+// ----- the tools that read Klong text: ast, REPL input, IPC function text ---------------------------------------------------------
+
+/// A `klong_tools::ToolError` as the exception the engine raises (`NativeError`): args = (kind, message, start, end, source name, source
+/// text, hint), the offsets in characters of the source text (start is -1 when the error has no span).
+fn tool_err(e: klong_tools::ToolError) -> PyErr {
+    let (a, b) = match e.span {
+        Some((a, b)) => {
+            let co = klong_tools::CharOffsets::new(&e.source_text);
+            (co.at(a) as i64, co.at(b) as i64)
+        }
+        None => (-1, -1),
+    };
+    NativeError::new_err((e.kind.to_string(), e.message, a, b, e.source_name, e.source_text, e.hint))
+}
+
+/// `kgpy ast`: the canonical parse tree of a program (`klongpy/dump.py`: `dump(parse_program(...))`), one line per statement. Nothing runs.
+/// A text that does not parse raises `NativeError`, as evaluating it would.
+#[pyfunction]
+#[pyo3(signature = (text, name=None))]
+fn ast_text(py: Python<'_>, text: String, name: Option<String>) -> PyResult<String> {
+    let name = name.unwrap_or_else(|| "<string>".to_string());
+    py.allow_threads(move || klong_tools::ast::ast_text(&text, &name)).map_err(tool_err)
+}
+
+/// The REPL's completeness check of an entry (`klongpy/repl_input.py`, `check_text`): "complete", "incomplete" or "error".
+/// `comments=False` leaves out the two things only the text shows (a `:"` comment or `.comment("X")` left open), as
+/// `check_complete(tokens)` without a source does.
+#[pyfunction]
+#[pyo3(signature = (text, comments=true))]
+fn repl_check(py: Python<'_>, text: String, comments: bool) -> PyResult<&'static str> {
+    on_big_stack(py, move || klong_tools::repl::check_complete(&text, comments).name())
+}
+
+/// Tab completion (`Completer.matches`): `(start, words)` for the text before the cursor, `start` in characters. `names` are the defined
+/// names, `commands` the `]` commands without the bracket; `klongpath` (None: the environment's KLONGPATH) lists the directories searched
+/// for `.kg` files. Reads the file system, evaluates nothing.
+#[pyfunction]
+#[pyo3(signature = (line, names, commands, klongpath=None))]
+fn repl_complete(line: &str, names: Vec<String>, commands: Vec<String>, klongpath: Option<String>) -> (usize, Vec<String>) {
+    let kp = klongpath.unwrap_or_else(|| std::env::var("KLONGPATH").unwrap_or_default());
+    klong_tools::repl::complete(line, &names, &commands, &kp)
+}
+
+/// `parse_function` of the IPC endpoint, the parse step: `(named, arity, params, locals)` when the text is exactly one function literal,
+/// plain (`{x+y}`) or named (`fn(a;b)::{a+b}`), else None. Nothing runs and nothing is defined; the function itself is then built by
+/// evaluating `fn::TEXT` (plain) or TEXT (named) and restoring `fn`.
+#[pyfunction]
+fn function_form(py: Python<'_>, text: String) -> Option<(bool, u8, Option<Vec<String>>, Vec<String>)> {
+    py.allow_threads(move || klong_tools::func::function_form(&text)).map(|f| (f.named, f.arity, f.params, f.locals))
+}
+
+/// The text a function goes out as over IPC: its literal, with `fn(a;b)::` in front when it has named parameters. None when the text
+/// is not a literal (`{...}`).
+#[pyfunction]
+#[pyo3(signature = (literal, params=None))]
+fn function_wire_text(literal: &str, params: Option<Vec<String>>) -> Option<String> {
+    klong_tools::func::wire_text(literal, params.as_deref())
+}
+
+/// The arity named by a display form (`:nilad`, `:monad`, `:dyad`, `:triad`, `:fn/5`), else None.
+#[pyfunction]
+fn function_display_arity(text: &str) -> Option<u32> {
+    klong_tools::func::display_arity(text)
 }
 
 // ----- the tools: the static profile ------------------------------------------------------------------------------------------------
@@ -1930,6 +2007,20 @@ fn from_host<'py>(py: Python<'py>, v: &HostValue) -> PyResult<Bound<'py, PyAny>>
     })
 }
 
+/// A static program (strict level 2) loaded on the native interpreter: `StaticProgram(name, text, externs=None)`, then `call_entry`,
+/// `set_param` and `get`.
+///
+/// Values cross as: an int or a float as itself; a `str` as itself; an array as nested lists of ints or floats (a NumPy array of dtype
+/// int64 or float64 is accepted on the way in, and is what an extern is called with); `None` for a void result.
+///
+/// A fixed-point value (`fixed<W,I>`, scalar or array) is the tuple `(elem, raw)` on the way out of `get`: `elem` is the type text in its
+/// canonical form (`"fixed<32,16>"`), `raw` the scaled integers as Python ints, a bare int for a scalar and one level of nested lists
+/// for each dimension. Each integer is the W-bit two's complement value, so it fits an int64 (W is at most 64) and nothing is lost.
+/// Python builds its `klongpy.static.fixed.FixedArray` from it as
+/// `FixedArray(numpy.array(raw, dtype=numpy.int64), spec_of(elem))`, scalars included. On the way in, `set_param` and `call_entry`
+/// take any object with a `spec` that has `elem` and a `raw` that has `tolist()` (a `FixedArray` is one) as a fixed-point value, and a
+/// number or an array of numbers for a parameter or argument of fixed type (converted as `.fixed(type;x)` does). `call_entry(...,
+/// raw=True)` answers a fixed-point result as its raw integers in nested lists, without `elem`; without `raw` it is the float value.
 #[pyclass(unsendable)]
 struct StaticProgram {
     inner: Loaded,
@@ -2027,6 +2118,12 @@ fn klong_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StaticProgram>()?;
     m.add("NativeError", m.py().get_type::<NativeError>())?;
     m.add_function(wrap_pyfunction!(zero_copy, m)?)?;
+    m.add_function(wrap_pyfunction!(ast_text, m)?)?;
+    m.add_function(wrap_pyfunction!(repl_check, m)?)?;
+    m.add_function(wrap_pyfunction!(repl_complete, m)?)?;
+    m.add_function(wrap_pyfunction!(function_form, m)?)?;
+    m.add_function(wrap_pyfunction!(function_wire_text, m)?)?;
+    m.add_function(wrap_pyfunction!(function_display_arity, m)?)?;
     m.add_function(wrap_pyfunction!(lint_files, m)?)?;
     m.add_function(wrap_pyfunction!(lint_source, m)?)?;
     m.add_function(wrap_pyfunction!(check_files, m)?)?;

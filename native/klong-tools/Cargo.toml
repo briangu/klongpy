@@ -1,0 +1,13 @@
+[package]
+name = "klong-tools"
+description = "The tools that read Klong text: klong ast, the checks of the REPL input, the text of a function sent over IPC. std; not for boards."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+klong-core = { path = "../klong-core", features = ["bigint", "diag"] }
+klong-rt = { path = "../klong-rt", features = ["bigint", "diag"] }
+klong-host = { path = "../klong-host", features = ["bigint", "diag"] }
+klong-lint = { path = "../klong-lint" }

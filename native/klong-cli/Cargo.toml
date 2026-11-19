@@ -23,3 +23,4 @@ klong-rt = { path = "../klong-rt" }
 klong-host = { path = "../klong-host" }
 klong-lint = { path = "../klong-lint" }
 klong-static = { path = "../klong-static" }
+klong-tools = { path = "../klong-tools" }

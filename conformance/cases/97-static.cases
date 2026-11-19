@@ -324,3 +324,15 @@
 @ static.param-too-few-arguments strings static
 > .param("n")
 ! arity
+
+@ static.extern-too-many-arguments strings static
+> .extern("f";"int -> int";"env";1)
+! arity
+
+@ static.extern-five-arguments strings static
+> .extern("f";"int -> int";"env";1;2)
+! arity
+
+@ static.param-too-many-arguments strings static
+> .param("n";"int";1;2)
+! arity

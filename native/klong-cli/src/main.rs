@@ -4,6 +4,7 @@
 //!     klong -e EXPR                   evaluate and print
 //!     klong                           read-eval-print loop
 //!     klong --dump-ast FILE           canonical parse tree (conformance/README.md)
+//!     klong ast FILE|-e EXPR          the same, as `kgpy ast` prints it
 //!     klong --conformance [--strict N]
 //!                                     the runner protocol of conformance/README.md: program
 //!                                     on stdin; printed result on stdout and exit 0, or
@@ -388,6 +389,14 @@ fn main() -> ExitCode {
     }
     if std::env::args().nth(1).as_deref() == Some("lint") {
         return lint::main();
+    }
+    if std::env::args().nth(1).as_deref() == Some("ast") {
+        let args: Vec<String> = std::env::args().skip(2).collect();
+        let (out, err) = (std::io::stdout(), std::io::stderr());
+        let (mut o, mut e) = (std::io::BufWriter::new(out.lock()), err.lock());
+        let status = klong_tools::ast::ast_main(&args, &mut std::io::stdin().lock(), &mut o, &mut e);
+        let _ = o.flush();
+        return ExitCode::from(status as u8);
     }
     let o = match parse_args() {
         Some(o) => o,
