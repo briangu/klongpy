@@ -131,6 +131,33 @@ fn version_and_misc() {
     assert_eq!(run(&mut rt, ".py(\"math\")"), Err(Kind::Name));
 }
 
+/// `.seed(n)`: the sequence of `.rn()` after it is the same on every target (xorshift64* from splitmix64 of n); 64-bit floats below.
+#[test]
+fn seed_makes_the_random_numbers_reproducible() {
+    let ok = |text: &str, want: &str| assert_eq!(run(&mut rt(), text).as_deref(), Ok(want), "{}", text);
+    ok(".seed(7)", "7");
+    ok(".seed(42);a::.rn();.seed(42);a=.rn()", "1");
+    ok(".seed(42);a::.rn();.seed(43);a=.rn()", "0");
+    ok(".seed(1);a::.rn();b::.rn();.seed(1);c::.rn();d::.rn();(a=c)&b=d", "1");
+    ok(".seed(-1);a::.rn();.seed(-1);a=.rn()", "1");
+    ok(".seed(0);a::.rn();(a>0)&a<1", "1");
+    #[cfg(not(feature = "float32"))]
+    {
+        ok(".seed(42);.rn()", "0.1941059175341826");
+        ok(".seed(42);.rn();.rn()", "0.5626318272656207");
+        ok(".seed(42);.rn();.rn();.rn()", "0.4861061377100522");
+    }
+    assert_eq!(run(&mut rt(), ".seed(1.5)"), Err(Kind::Type));
+    assert_eq!(run(&mut rt(), ".seed(\"a\")"), Err(Kind::Type));
+    assert_eq!(run(&mut rt(), ".seed()"), Err(Kind::Arity));
+}
+
+/// `.now()` is the date and time as seconds since 1970, where the platform has a clock that knows them; a board that does not says so.
+#[test]
+fn now_needs_a_wall_clock() {
+    assert_eq!(run(&mut rt(), ".now()"), Err(Kind::System));
+}
+
 #[test]
 fn modules() {
     let ok = |text: &str, want: &str| assert_eq!(run(&mut rt(), text).as_deref(), Ok(want), "{}", text);
@@ -149,17 +176,26 @@ fn try_gives_errors_as_values_and_err_raises_them() {
     ok(".try({x+y};[1 2])", "[1 3]");
     ok(".try({x};,[1 2 3])", "[1 [1 2 3]]");
     ok("f::{42};.try(f;[])", "[1 42]");
-    ok(".try({x+y};[1 \"a\"])", "[0 \"type\" \"cannot apply + (Plus) to integer and string\"]");
-    ok(".try({[1 2 3]@x};,9)", "[0 \"range\" \"index 9 out of range for list of 3\"]");
-    ok("(.try(.E;,\"1+\"))@1", "\"syntax\"");
-    ok("(.try({nosuch(x)};,1))@1", "\"name\"");
+    // the caught error is a dictionary: kind, message, source, line and col
+    ok("e::(.try({x+y};[1 \"a\"]))@1;(e@\"kind\"),\"/\",e@\"message\"", "\"type/cannot apply + (Plus) to integer and string\"");
+    ok("e::(.try({[1 2 3]@x};,9))@1;(e@\"kind\"),\"/\",e@\"message\"", "\"range/index 9 out of range for list of 3\"");
+    ok("((.try(.E;,\"1+\"))@1)@\"kind\"", "\"syntax\"");
+    ok("((.try({nosuch(x)};,1))@1)@\"kind\"", "\"name\"");
+    // where: the program text, and the line and the column of what failed (a build with diag points at the operator, one without at the
+    // start of the expression: the column of the operator is 12 there, of its first operand 11)
+    ok("e::(.try({x+y};[1 \"a\"]))@1;(e@\"source\"),\"/\",$e@\"line\"", "\"<test>/1\"");
+    let col = run(&mut rt(), "e::(.try({x+y};[1 \"a\"]))@1;e@\"col\"").expect("a column");
+    assert!(col == "11" || col == "12", "{col}");
+    ok("(.try({x+y};[1 \"a\"]))@0", "0");
     // every kind a program may raise comes back as itself, with its message
     for kind in ["syntax", "name", "arity", "type", "shape", "range", "system", "memory", "internal", "remote"] {
-        ok(&format!(".try({{.err(x;\"n1: gone\")}};,\"{kind}\")"), &format!("[0 \"{kind}\" \"n1: gone\"]"));
-        ok(&format!(".try({{.err(x;\"m\")}};,:{kind})"), &format!("[0 \"{kind}\" \"m\"]"));
+        ok(&format!("e::(.try({{.err(x;\"n1: gone\")}};,\"{kind}\"))@1;(e@\"kind\"),\"/\",e@\"message\""), &format!("\"{kind}/n1: gone\""));
+        ok(&format!("e::(.try({{.err(x;\"m\")}};,:{kind}))@1;(e@\"kind\"),\"/\",e@\"message\""), &format!("\"{kind}/m\""));
+        // what `.try` caught is raised again by `.err` as what it was
+        ok(&format!("e::(.try({{.err(x;\"m\")}};,:{kind}))@1;(.try({{.err(x)}};,e))@1;((.try({{.err(x)}};,e))@1)@\"kind\""), &format!("\"{kind}\""));
     }
     // the evaluation goes on after a trapped error, at any depth
-    ok("g::{.try({.err(\"system\";x)};,x)};a::g(\"one\");b::.try({1+g(x)};,\"two\");(a@2),\"/\",b@1", "\"one/type\"");
+    ok("g::{.try({.err(\"system\";x)};,x)};a::g(\"one\");b::.try({1+g(x)};,\"two\");((a@1)@\"message\"),\"/\",(b@1)@\"kind\"", "\"one/type\"");
     let err = |text: &str, want: Kind| assert_eq!(run(&mut rt(), text), Err(want), "{}", text);
     err(".err(\"type\";\"bad\")", Kind::Type);
     err(".err(\"system\";\"n1: link down\")", Kind::System);
@@ -167,6 +203,10 @@ fn try_gives_errors_as_values_and_err_raises_them() {
     err(".err(\"interrupt\";\"x\")", Kind::Range);
     err(".err(\"type\";5)", Kind::Type);
     err(".err(5;\"x\")", Kind::Type);
+    err(".err(5)", Kind::Arity);
+    err(".err(:{;\"kind\";\"range\"})", Kind::Type);
+    err(".err(:{;\"kind\";\"range\";\"message\";\"from a dictionary\"})", Kind::Range);
+    err(".err()", Kind::Arity);
     err(".try(5;[])", Kind::Type);
     err(".try({x};\"ab\")", Kind::Type);
     // a stop is not for the program to swallow

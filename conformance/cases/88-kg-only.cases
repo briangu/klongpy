@@ -1,0 +1,88 @@
+# The system functions that only the Python-hosted command (kgpy) has. The standalone binary (kg) gives a `name` error that says so
+# ("NAME needs kgpy (the Python-hosted command)"), not "undefined function": principle 2, a function of the host is named as one.
+# Tag kg-only: KlongPy has these functions, so only the standalone binary runs the cases. The table is native/klong-cli/src/kgpy_only.rs.
+
+@ kg-only.python strings kg-only
+> .py("math")
+! name
+
+@ kg-only.python-from strings kg-only
+> .pyf("math";"sqrt")
+! name
+
+@ kg-only.python-attr strings kg-only
+> .pya("x";"y")
+! name
+
+@ kg-only.python-call strings kg-only
+> .pyc("x";"y";[])
+! name
+
+@ kg-only.system strings kg-only
+> .sys("ls")
+! name
+
+@ kg-only.read-lines core kg-only
+> .rls()
+! name
+
+@ kg-only.grad core kg-only float
+> .grad({x*x};3.0)
+! name
+
+@ kg-only.jacobian core kg-only float
+> .jacobian({x*x};[1.0 2.0])
+! name
+
+@ kg-only.gradcheck core kg-only float
+> .gradcheck({x*x};3.0)
+! name
+
+@ kg-only.backend-fn strings kg-only
+> .bkf("x")
+! name
+
+@ kg-only.backend-display core kg-only
+> .bkd(1)
+! name
+
+@ kg-only.backend-print core kg-only
+> .bkp(1)
+! name
+
+@ kg-only.backend-x core kg-only
+> .bkx(1)
+! name
+
+@ kg-only.table strings dicts kg-only
+> .table(:{;"a";[1 2]})
+! name
+
+@ kg-only.sql strings kg-only
+> .db("x")
+! name
+
+@ kg-only.web strings kg-only
+> .web(8080;"x";"y")
+! name
+
+@ kg-only.websocket strings kg-only
+> .ws("ws://localhost")
+! name
+
+@ kg-only.fpga strings kg-only
+> .fpga("x")
+! name
+
+@ kg-only.fpga-info core kg-only
+> .fpga.info()
+! name
+
+@ kg-only.inside-a-function core kg-only
+> f::{.grad(x;1)}
+> f({x})
+! name
+
+@ kg-only.a-name-kg-has-is-not-in-the-table core kg-only
+> .foo(1)
+! name

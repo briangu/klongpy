@@ -7,7 +7,7 @@ fn dir() -> PathBuf {
 }
 
 fn run(file: &str) -> (i32, String, String) {
-    let o = Command::new(env!("CARGO_BIN_EXE_klong")).arg(file).current_dir(dir()).env_remove("KLONGPATH").output().expect("run klong");
+    let o = Command::new(env!("CARGO_BIN_EXE_kg")).arg(file).current_dir(dir()).env_remove("KLONGPATH").output().expect("run kg");
     (o.status.code().unwrap_or(-1), String::from_utf8_lossy(&o.stdout).into_owned(), String::from_utf8_lossy(&o.stderr).into_owned())
 }
 

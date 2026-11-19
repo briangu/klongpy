@@ -14,7 +14,7 @@ KlongPy is fast when one operator works on a whole array: for element-wise arith
 | Python | 3.12.16 |
 | NumPy | 2.5.5 (OpenBLAS) |
 | PyTorch | 2.15.0, CPU build; 16 threads by default |
-| Native runtime | the `--release` build of `native/` (rustc 1.100.0), run as `klong --bench 1 -e PROGRAM` |
+| Native runtime | the `--release` build of `native/` (rustc 1.100.0), run as `kg --bench 1 -e PROGRAM` |
 | GPU | none measured |
 | Load | idle (load average below 0.1) before the run |
 
@@ -213,7 +213,7 @@ print((time.perf_counter() - t) / 9, "seconds per run")
 python scripts/bench_performance.py --help
 python scripts/bench_performance.py --backend numpy --out numpy.json
 python scripts/bench_performance.py --backend torch --out torch.json
-python scripts/bench_performance.py --native native/target/release/klong --out native.json
+python scripts/bench_performance.py --native native/target/release/kg --out native.json
 python scripts/bench_performance.py --baseline --out baseline.json
 ```
 

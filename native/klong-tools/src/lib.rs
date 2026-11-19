@@ -2,8 +2,8 @@
 //! language; it asks these.
 //!
 //! ```text
-//!     ast::ast_text(text, name)            the canonical parse tree (`klong ast`, `kgpy ast`)
-//!     ast::ast_main(prog, args, ..)        the body of `klong ast`
+//!     ast::ast_text(text, name)            the canonical parse tree (`kg ast`, `kgpy ast`)
+//!     ast::ast_main(prog, args, ..)        the body of `kg ast`
 //!     repl::check_text(text)               is a REPL entry complete, incomplete or in error
 //!     repl::complete(line, names, cmds, ..) tab completion
 //!     func::function_form(text)            is a text one function literal, as an IPC peer sends it

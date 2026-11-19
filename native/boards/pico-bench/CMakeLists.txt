@@ -29,9 +29,9 @@ set(KLONG_STACK_KB "" CACHE STRING "interpreter stack in KB, empty for the defau
 # 62.5 MHz. (Set -DPICO_FLASH_CLKDIV=4 to go back.)
 set(PICO_FLASH_CLKDIV 2 CACHE STRING "flash clock divider of the boot loader, even")
 # The compiled static-profile examples (.c.mavg, .c.pid, .c.fir, .c.check): their C is made by the build from examples/embedded/*.kg, not kept in the
-# source tree (tools/gen_c_examples.py runs `klong compile c` and the native host: it needs the klong binary, the extension of native/klong-py and a Python with numpy; the repository is found from the script).
+# source tree (tools/gen_c_examples.py runs `kg compile c` and the native host: it needs the kg binary, the extension of native/klong-py and a Python with numpy; the repository is found from the script).
 set(KLONG_C_EXAMPLES 1 CACHE STRING "link the compiled examples (.c.*): 1 (default) or 0")
-set(KLONG_PYTHON "python3" CACHE STRING "a Python with numpy, to generate the C of the examples (a command, arguments allowed); KLONG names the klong binary and KLONGPY_NATIVE_PATH the extension's directory")
+set(KLONG_PYTHON "python3" CACHE STRING "a Python with numpy, to generate the C of the examples (a command, arguments allowed); KLONG names the kg binary and KLONGPY_NATIVE_PATH the extension's directory")
 add_executable(klong_pico_bench main.c)
 target_compile_definitions(klong_pico_bench PRIVATE KLONG_SELFTEST=${KLONG_SELFTEST} LANE_BAUD=${LANE_BAUD}u KLONG_HEAP_DIAG=${KLONG_HEAP_DIAG} KLONG_C_EXAMPLES=${KLONG_C_EXAMPLES})
 if(KLONG_C_EXAMPLES)
@@ -48,7 +48,7 @@ if(KLONG_C_EXAMPLES)
                 "${KLONG_ROOT}/examples/embedded/mavg.kg" "${KLONG_ROOT}/examples/embedded/mavg.expect"
                 "${KLONG_ROOT}/examples/embedded/pid.kg" "${KLONG_ROOT}/examples/embedded/pid.expect"
                 "${KLONG_ROOT}/examples/embedded/fir.kg" "${KLONG_ROOT}/examples/embedded/fir.expect"
-        COMMENT "generating the C of the compiled examples (klong compile c)"
+        COMMENT "generating the C of the compiled examples (kg compile c)"
         VERBATIM)
     # The generated C is held to the runtime header's own standard (C99, pedantic, no warnings); KG_NO_DEFAULT_TRAP: klong_c.c defines kg_trap
     add_library(klong_examples_c OBJECT ${KLONG_C_OUTPUTS})

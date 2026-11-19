@@ -2493,16 +2493,42 @@
 > kgr
 = 2
 
-@ modules.module-function-sees-its-callers-module-frames strings dicts sysio qualified modules
-# D4: classic dynamic scope between the functions of one module
+@ modules.module-function-does-not-see-its-callers-module-frames strings dicts sysio qualified modules
+# principle 4: a function with named parameters reads its own locals and its module's globals, never its caller's locals, in a module too; level 0 reads an unknown name as its symbol
 # m.kg: inner()::{p}
 # m.kg: outer(p)::{inner()}
 # m.kg: .export(:{;"outer";outer})
 > kgw(p;t)::{[c];c::.oc(p);.tc(c);{.p(x)}'t;.tc(0);.cc(c)}
-> kgw("/tmp/kgm87-module-function-sees-its-callers-module-frames-m.kg";["inner()::{p}" "outer(p)::{inner()}" ".export(:{;""outer"";outer})"])
-> m::.import("/tmp/kgm87-module-function-sees-its-callers-module-frames-m")
+> kgw("/tmp/kgm87-module-function-does-not-see-its-callers-module-frames-m.kg";["inner()::{p}" "outer(p)::{inner()}" ".export(:{;""outer"";outer})"])
+> m::.import("/tmp/kgm87-module-function-does-not-see-its-callers-module-frames-m")
 > kgr::m.outer(3)
-> .df("/tmp/kgm87-module-function-sees-its-callers-module-frames-m.kg")
+> .df("/tmp/kgm87-module-function-does-not-see-its-callers-module-frames-m.kg")
+> kgr
+= :p
+
+@ modules.module-function-does-not-see-its-callers-module-frames-strict1 strings dicts sysio qualified modules strict1
+# the same, loud at strict level 1
+# m.kg: inner()::{p}
+# m.kg: outer(p)::{inner()}
+# m.kg: .export(:{;"outer";outer})
+> kgw(p;t)::{[c];c::.oc(p);.tc(c);{.p(x)}'t;.tc(0);.cc(c)}
+> kgw("/tmp/kgm87-module-function-does-not-see-its-callers-module-frames-strict1-m.kg";["inner()::{p}" "outer(p)::{inner()}" ".export(:{;""outer"";outer})"])
+> m::.import("/tmp/kgm87-module-function-does-not-see-its-callers-module-frames-strict1-m")
+> kgr::m.outer(3)
+> .df("/tmp/kgm87-module-function-does-not-see-its-callers-module-frames-strict1-m.kg")
+> kgr
+! name
+
+@ modules.classic-module-function-sees-its-callers-module-frames strings dicts sysio qualified modules
+# D4: a function without a parameter list keeps classic dynamic scope between the functions of one module
+# m.kg: inner::{p}
+# m.kg: outer::{[p];p::3;inner()}
+# m.kg: .export(:{;"outer";outer})
+> kgw(p;t)::{[c];c::.oc(p);.tc(c);{.p(x)}'t;.tc(0);.cc(c)}
+> kgw("/tmp/kgm87-classic-module-function-sees-its-callers-module-frames-m.kg";["inner::{p}" "outer::{[p];p::3;inner()}" ".export(:{;""outer"";outer})"])
+> m::.import("/tmp/kgm87-classic-module-function-sees-its-callers-module-frames-m")
+> kgr::m.outer(3)
+> .df("/tmp/kgm87-classic-module-function-sees-its-callers-module-frames-m.kg")
 > kgr
 = 3
 

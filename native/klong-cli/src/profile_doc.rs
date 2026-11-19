@@ -1,4 +1,4 @@
-//! `klong profile-doc [--check|--write] [PATH]`: the generator of docs/static-profile.md, of `klong-static`
+//! `kg profile-doc [--check|--write] [PATH]`: the generator of docs/static-profile.md, of `klong-static`
 //! (the Python is a module: `python -m klongpy.static.profile_doc`).
 use std::io::Write;
 use std::process::ExitCode;

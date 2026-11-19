@@ -30,6 +30,8 @@ diag = []
 host = ["wide-args"]
 # Natives that take any number of arguments are given every one written, not the first three (a std build: .extern and .param refuse a fourth)
 wide-args = []
+# A host that lists the system functions only its sibling program has (`Interp::kgpy_only`): calling one is a name error that says which program has it.
+kgpy-only = []
 
 [dependencies]
 num-bigint = { version = "0.5", default-features = false, optional = true }

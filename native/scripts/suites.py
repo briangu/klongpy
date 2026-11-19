@@ -30,7 +30,7 @@ DESKTOP = {"test_reassign.kg": "uses .pyf (Python interop)"}
 def klong_bin(argv):
     if "--klong" in argv:
         return argv[argv.index("--klong") + 1]
-    return os.environ.get("KLONG_NATIVE") or os.path.join(ROOT, "native", "target", "release", "klong")
+    return os.environ.get("KLONG_NATIVE") or os.path.join(ROOT, "native", "target", "release", "kg")
 
 
 def run(binary, level, program, cwd=ROOT, timeout=300):

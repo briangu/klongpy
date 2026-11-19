@@ -1,6 +1,6 @@
 # Building and Running
 
-This page covers building the native Klong runtime from source on a desktop computer, running the `klong` program (a REPL, `-e`, and files), the build options, and running the shared conformance suite against it. It is for anyone who wants to try the native runtime before putting it on a board. For what the runtime is, start with the [overview](index.md).
+This page covers building the native Klong runtime from source on a desktop computer, running the `kg` program (a REPL, `-e`, and files), the build options, and running the shared conformance suite against it. It is for anyone who wants to try the native runtime before putting it on a board. For what the runtime is, start with the [overview](index.md).
 
 Conditions for the measured figures: an Apple M2 Ultra desktop, 2026-11-16, `cargo build --release`. Paths are relative to the root of the KlongPy repository.
 
@@ -15,14 +15,14 @@ cd native
 cargo build --release
 ```
 
-This builds the whole workspace, and it produces two programs in `native/target/release/`:
+This builds the whole workspace, and it produces two programs in `native/target/release/` (the program `kg` is also built under its old name, `klong`, for a while; it is the same program):
 
 | Program | What it is |
 |---|---|
-| `klong` | the runtime on the desktop: a REPL, `-e EXPR`, and running a file |
+| `kg` | the runtime on the desktop: a REPL, `-e EXPR`, and running a file |
 | `klong-sim` | a simulated board with the serial console, see [Serial Console and Upload](console.md) |
 
-The examples on this page, and on the other pages of this section, use `klong` and `klong-sim` by name. Put the release directory on your `PATH` for the shell you work in:
+The examples on this page, and on the other pages of this section, use `kg` and `klong-sim` by name. Put the release directory on your `PATH` for the shell you work in:
 
 ```sh
 export PATH="$PWD/native/target/release:$PATH"
@@ -30,32 +30,32 @@ export PATH="$PWD/native/target/release:$PATH"
 
 (run from the root of the repository, after `cd ..` if you are still in `native/`).
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e '1+1'
+$ kg -e '1+1'
 2
-$ klong -e '+/!100'
+$ kg -e '+/!100'
 4950
 ```
 
 ## Running
 
-`klong` takes one of these forms.
+`kg` takes one of these forms.
 
 | Form | What it does |
 |---|---|
-| `klong` | read-eval-print loop on standard input |
-| `klong -e EXPR` | evaluate `EXPR`, print its value |
-| `klong FILE [ARG ...]` | run a file; the arguments are in `.a` |
-| `klong --dump-ast FILE` | print the canonical parse tree of a file and exit |
-| `klong --conformance` | the runner protocol of the conformance suite: the program is read from standard input |
+| `kg` | read-eval-print loop on standard input |
+| `kg -e EXPR` | evaluate `EXPR`, print its value |
+| `kg FILE [ARG ...]` | run a file; the arguments are in `.a` |
+| `kg --dump-ast FILE` | print the canonical parse tree of a file and exit |
+| `kg --conformance` | the runner protocol of the conformance suite: the program is read from standard input |
 
-`klong --help` (or `-h`) prints the forms and every option and exits with status 0; `klong --version` prints the version. An option that `klong` does not know prints the same text on standard error and exits with status 2. The output:
+`kg --help` (or `-h`) prints the forms and every option and exits with status 0; `kg --version` prints the version. An option that `kg` does not know prints the same text on standard error and exits with status 2. The output:
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong --help
-usage: klong [OPTIONS] [FILE [ARG ...] | -e EXPR | --conformance | --dump-ast FILE]
+$ kg --help
+usage: kg [OPTIONS] [FILE [ARG ...] | -e EXPR | --conformance | --dump-ast FILE]
 
 Without FILE or -e: a read-eval-print loop on standard input.
   FILE [ARG ...]        run a file; the arguments are in .a
@@ -77,8 +77,8 @@ Options (before FILE or -e; sizes accept the suffixes K and M):
   --fail-every N        make every Nth large allocation fail (out-of-memory testing)
   -h, --help            print this text and exit
   --version             print the version and exit
-$ klong --version
-klong 0.0.1
+$ kg --version
+kg 0.0.1
 ```
 
 `klong-sim` has the same two options:
@@ -113,28 +113,28 @@ Sizes take the suffixes K and M. End of input ends the program.
 
 `-e` evaluates an expression and prints its value in the form the REPL uses, so a string is shown with its quotes. Output that the program writes with `.p`, `.d` and `.w` comes first. An error is printed to standard error, with the position and the source line, and the exit status is 1.
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e '.p("sum of squares");+/{x*x}'"'"'!10'
+$ kg -e '.p("sum of squares");+/{x*x}'"'"'!10'
 sum of squares
 285
-$ klong -e '1+"a"'
+$ kg -e '1+"a"'
 1:2: type error: cannot apply + (Plus) to integer and string
   1+"a"
    ^
-$ klong -e '1+"a"' 2>/dev/null; echo $?
+$ kg -e '1+"a"' 2>/dev/null; echo $?
 1
 ```
 
 ### The REPL
 
-With no argument `klong` reads one line at a time from standard input and evaluates each line as a program. The prompt is two blanks. A value is printed after the prompt, an error goes to standard error and the loop continues. The line `]q` or the end of input leaves.
+With no argument `kg` reads one line at a time from standard input and evaluates each line as a program. The prompt is two blanks. A value is printed after the prompt, an error goes to standard error and the loop continues. The line `]q` or the end of input leaves.
 
-There is no line editing, no history and no continuation: a definition has to fit on one line. (The [serial console](console.md) of a board has all three.) While the REPL waits for a line it still runs timers and serves IPC connections, so a `klong` that was told `.srv(...)` is a working server.
+There is no line editing, no history and no continuation: a definition has to fit on one line. (The [serial console](console.md) of a board has all three.) While the REPL waits for a line it still runs timers and serves IPC connections, so a `kg` that was told `.srv(...)` is a working server.
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ printf 'x::5\nx*x\n"abc"\n1%%0\n]q\n' | klong | grep -v '^ *$'
+$ printf 'x::5\nx*x\n"abc"\n1%%0\n]q\n' | kg | grep -v '^ *$'
   5
   25
   "abc"
@@ -145,15 +145,15 @@ The two leading blanks are the prompt. The last prompt, before `]q`, is removed 
 
 ### Running a file
 
-`klong FILE` runs the file and prints only what the program writes. It does not print the value of the last statement. The remaining arguments are available as the list of strings `.a`. After the file has run, `klong` keeps going while there is something to wait for: a timer, a server that listens, a queued call. It exits when there is not.
+`kg FILE` runs the file and prints only what the program writes. It does not print the value of the last statement. The remaining arguments are available as the list of strings `.a`. After the file has run, `kg` keeps going while there is something to wait for: a timer, a server that listens, a queued call. It exits when there is not.
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
 $ cat > hello.kg <<'EOF'
 > greet::{.p("hello, ",x)}
 > greet'.a
 > EOF
-$ klong hello.kg world klong
+$ kg hello.kg world klong
 hello, world
 hello, klong
 ```
@@ -164,11 +164,11 @@ An error stops the file, is printed in the same form as above, and the status is
 
 `--strict N` (0, 1 or 2) sets the [strict level](../strict.md) before the program is parsed, as `.strict(N)` does.
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e 'zz'
+$ kg -e 'zz'
 :zz
-$ klong --strict 2 -e 'zz'
+$ kg --strict 2 -e 'zz'
 1:1: name error: undefined: zz
   zz
   ^^
@@ -200,25 +200,25 @@ Options go before `FILE` or `-e`. Sizes accept the suffixes `K` and `M` (1024 an
 
 The twelve library files of `klongpy/lib` (`csv`, `edt`, `eigenv`, `help`, `huffman`, `math`, `nstat`, `print`, `set`, `spline`, `time`, `util`) are part of the program as text, and `.l` loads them by name. A file of the same name on the load path is used in preference. In a build with IPC the management library `mgmt` is carried too, see [Management Node](management-node.md).
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e '.l("nstat");.p(mu([1 2 3 4]));.p(sd([1 2 3 4]))'
+$ kg -e '.l("nstat");.p(mu([1 2 3 4]));.p(sd([1 2 3 4]))'
 2.5
 1.1180339889579018
 "1.1180339889579018"
-$ klong -e '.l("nosuch")'
+$ kg -e '.l("nosuch")' 2>&1 | sed -n '1s/ (looked for.*//p'
 1:1: system error: file does not exist: nosuch
-  .l("nosuch")
-  ^^^^^^^^^^^^
 ```
+
+(The message goes on to list the places `.l` looked in; the example cuts it after the name.)
 
 (The third line is the value of the expression, which `-e` prints.) Loading costs heap, because parsed code takes 20 to 30 bytes per byte of source, but a load reads one statement at a time, so the peak is about what stays: `.l("csv")` peaks at about 29 KB, `.l("math")` at about 139 KB and `.l("nstat")`, which loads `math`, at about 322 KB (a whole-file load needed 50 KiB, 495 KiB and 1.04 MiB): the functions of a loaded file are kept as the place of their text and parsed when called. `.mem()` returns `[in use, peak, limit]` in bytes. The interpreter itself is about 15 KiB after start-up, and `nstat` takes the peak over 300 KB. The exact numbers change a little from run to run and between builds, so the transcript tests them:
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e '(.mem()@0)<20000'
+$ kg -e '(.mem()@0)<20000'
 1
-$ klong -e '.l("nstat");(.mem()@1)>300000'
+$ kg -e '.l("nstat");(.mem()@1)>300000'
 1
 ```
 
@@ -245,19 +245,19 @@ cargo build --release -p klong-cli --features int32,float32 --target-dir target/
 
 A narrow build wraps integers at 32 bits and computes floats in 32 bits:
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e '2147483647+1'
+$ kg -e '2147483647+1'
 2147483648
-$ klong -e '9223372036854775807+1'
+$ kg -e '9223372036854775807+1'
 -9223372036854775808
-$ klong -e '.ver()'
+$ kg -e '.ver()'
 :{["version" "0.0.1"] ["int" 64] ["float" 64] ["features" ["files" "lib" "timers" "ipc"]] ["platform" "host"]}
 ```
 
 The default build is 64 bits wide, as the first two lines show: `2147483647+1` is an ordinary number and `9223372036854775807+1` wraps. In the narrow build `.ver()` reports `["int" 32] ["float" 32]`, `2147483647+1` is `-2147483648`, and `1%3` prints `0.33333334`. (This paragraph is not a checked transcript: only the default build is run for the examples.)
 
-Two integers within the build width wrap at it, with no error. As in KlongPy, an integer beyond 64 bits is exact: a long literal, a scalar `^` of two integers, and an operand beyond 64 bits in `+ - * % :% < > = | &`. The native runtime does it with the `num-bigint` crate behind the cargo feature `bigint`, which is on for `klong-cli` (the `klong` binary) and the Python extension. A result that fits goes back to an ordinary integer; ordinary integers stay machine integers, and the feature costs `fib(24)` about 2 percent. A board build leaves the feature off (it adds 22 KB of flash on `thumbv6m-none-eabi` and `thumbv7em-none-eabihf` and 32 KB on `riscv32imac-unknown-none-elf`), and there an integer literal that does not fit the build is a `syntax` error (`malformed number`); `klong-board` and `klong-ffi` have the feature `bigint` for a build that has the flash. See [How it relates to KlongPy](index.md#how-it-relates-to-klongpy).
+Two integers within the build width wrap at it, with no error. As in KlongPy, an integer beyond 64 bits is exact: a long literal, a scalar `^` of two integers, and an operand beyond 64 bits in `+ - * % :% < > = | &`. The native runtime does it with the `num-bigint` crate behind the cargo feature `bigint`, which is on for `klong-cli` (the `kg` binary) and the Python extension. A result that fits goes back to an ordinary integer; ordinary integers stay machine integers, and the feature costs `fib(24)` about 2 percent. A board build leaves the feature off (it adds 22 KB of flash on `thumbv6m-none-eabi` and `thumbv7em-none-eabihf` and 32 KB on `riscv32imac-unknown-none-elf`), and there an integer literal that does not fit the build is a `syntax` error (`malformed number`); `klong-board` and `klong-ffi` have the feature `bigint` for a build that has the flash. See [How it relates to KlongPy](index.md#how-it-relates-to-klongpy).
 
 `strings` and `dicts` exist as features of `klong-core` but do not remove anything yet.
 
@@ -269,28 +269,28 @@ The runtime recurses on the native stack of the thread that evaluates, and it al
 * **Recursion.** Without `--stack-budget` the limit is `--max-depth`, 512 nested evaluations. A Klong call is two or three evaluations, so a function can call itself about 160 times deep with the defaults. `--max-depth` and `--stack` raise it.
 * **Stack budget.** `--stack-budget BYTES` sets the limits the way a board with a task stack of that size would: recursion is checked against the real stack address and a quarter of the budget is kept for leaf work. This is how you check on the desktop whether a program fits a board.
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong --heap-limit 100K -e '!1000000'
+$ kg --heap-limit 100K -e '!1000000'
 1:1: memory error: out of memory
   !1000000
   ^^^^^^^^
-$ klong -e 'f::{:[x<1;0;1+f(x-1)]};f(150)'
+$ kg -e 'f::{:[x<1;0;1+f(x-1)]};f(150)'
 150
-$ klong -e 'f::{:[x<1;0;1+f(x-1)]};f(200)'
+$ kg -e 'f::{:[x<1;0;1+f(x-1)]};f(200)'
 1:17: range error: expression nested too deeply
   f::{:[x<1;0;1+f(x-1)]};f(200)
                   ^^^
-$ klong --max-depth 100000 -e 'f::{:[x<1;0;1+f(x-1)]};f(5000)'
+$ kg --max-depth 100000 -e 'f::{:[x<1;0;1+f(x-1)]};f(5000)'
 5000
-$ klong --stack-budget 64K -e 'f::{:[x<1;0;1+f(x-1)]};f(20)'
+$ kg --stack-budget 64K -e 'f::{:[x<1;0;1+f(x-1)]};f(20)'
 20
-$ klong --stack-budget 64K -e 'f::{:[x<1;0;1+f(x-1)]};f(40)'
-1:15: range error: expression nested too deeply
+$ kg --stack-budget 64K -e 'f::{:[x<1;0;1+f(x-1)]};f(40)'
+1:7: range error: expression nested too deeply
   f::{:[x<1;0;1+f(x-1)]};f(40)
-                ^^^^^^
+        ^^^
   hint: the native stack budget of this build is used up
-$ klong --steps 1000 -e '{1}{x+1}:~0'
+$ kg --steps 1000 -e '{1}{x+1}:~0'
 1:1: interrupt error: interrupted
   {1}{x+1}:~0
   ^^^^^^^^^^^
@@ -300,37 +300,37 @@ The figures in the stack-budget lines are for this 64-bit host. On a 32-bit boar
 
 With `--stats` the program reports what it used, on standard error: the peak heap, the heap in use, the limit and the number of refused allocations (`heap: peak 23174 bytes, in use 15679 bytes, limit 0, refused 0` for the program below; the heap numbers vary a little), the deepest nesting of evaluations and the native stack. The heap figures are bytes requested from the allocator and include the interpreter's own state of about 15 KiB on the desktop.
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong --stats -e '+/!1000' 2>&1 | grep -v '^heap'
+$ kg --stats -e '+/!1000' 2>&1 | grep -v '^heap'
 499500
 depth: 3 nested evaluations at most
-stack: 736 bytes of native stack at most
+stack: 752 bytes of native stack at most
 ```
 
 ## Running the conformance suite
 
-The language is checked by the cases in `conformance/cases`, which KlongPy and the native runtime both run (see the repository's `conformance/README.md` for the case format). Each case runs a program in a fresh interpreter and compares the printed value, the console output and the kind of the error. `native/scripts/conformance.py` runs the cases that the default build declares, with the `klong --conformance` protocol, one process per case, and prints counts per file and a total.
+The language is checked by the cases in `conformance/cases`, which KlongPy and the native runtime both run (see the repository's `conformance/README.md` for the case format). Each case runs a program in a fresh interpreter and compares the printed value, the console output and the kind of the error. `native/scripts/conformance.py` runs the cases that the default build declares, with the `kg --conformance` protocol, one process per case, and prints counts per file and a total.
 
 In the commands below, `python` is the interpreter you use for KlongPy, and the scripts are in the repository.
 
-<!-- check-docs: requires-file native/target/release/klong; link native conformance -->
+<!-- check-docs: requires-file native/target/release/kg; link native conformance -->
 ```console
 $ python native/scripts/conformance.py | tail -1 | cut -c1-40
-total                         1708  1708
+total                         2142  2142
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 1708 of 1708 on 2026-11-18, in about two seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 2142 of 2142 on 2026-11-18, in about three seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
-KLONG_NATIVE=native/target/narrow/release/klong python native/scripts/conformance.py --narrow
+KLONG_NATIVE=native/target/narrow/release/kg python native/scripts/conformance.py --narrow
 ```
 
-That gave 1408 of 1408 on 2026-11-18 with the narrow build above. The parse trees of the golden files match too: `python conformance/run.py --trees --cmd native/target/release/klong` reported `169 of 169 trees match`. The same suite runs through the serial console of a simulated board and of a real one, see [Serial Console and Upload](console.md).
+That gave 1408 of 1408 on 2026-11-18 with the narrow build above. The parse trees of the golden files match too: `python conformance/run.py --trees --cmd native/target/release/kg` reported `169 of 169 trees match`. The same suite runs through the serial console of a simulated board and of a real one, see [Serial Console and Upload](console.md).
 
 Not every case runs on every build. A case carries tags, and a build runs the cases whose tags it declares. The desktop binary declares `bigint`; a build without the feature leaves it out (it wraps), and so do all builds leave out `torch-only` and `kgpy-only` (KlongPy's own), `desktop` (Python interop, databases, web) and the `timers` and `ipc` tiers, which have no cases. The narrow build also leaves out `float`, `string-fmt` and `width64`, the cases that pin 64-bit results.
 
-The native tests that need KlongPy (`tests/test_native_conformance.py`, `tests/test_native_ipc.py`, `tests/test_native_mgmt.py`) skip themselves when `native/target/release/klong` does not exist, so building the binary turns them on. On the machine of the conditions above 96 passed and 11 were skipped; the 11 need a PeachQ executable (a kdb+-compatible q implementation), see [IPC and Timers](ipc.md). `cargo test --release --workspace` in `native/` runs the Rust tests.
+The native tests that need KlongPy (`tests/test_native_conformance.py`, `tests/test_native_ipc.py`, `tests/test_native_mgmt.py`) skip themselves when `native/target/release/kg` does not exist, so building the binary turns them on. On the machine of the conditions above 96 passed and 11 were skipped; the 11 need a PeachQ executable (a kdb+-compatible q implementation), see [IPC and Timers](ipc.md). `cargo test --release --workspace` in `native/` runs the Rust tests.
 
 ## Sizes and speed
 
@@ -338,7 +338,7 @@ Conditions: an Apple M2 Ultra desktop, 2026-11-16, nightly `rustc` 1.90.
 
 **Programs on the desktop** (`ls -l`; the `release` profile, and the `min-size` profile that `cargo build --profile min-size -p klong-cli` selects: opt-level `z`, LTO, one code generation unit, `panic = "abort"`, stripped):
 
-| Build | `klong` size |
+| Build | `kg` size |
 |---|---|
 | `release` | 1,566,816 bytes |
 | `min-size` | 753,808 bytes |
@@ -361,4 +361,4 @@ Two cargo features of `klong-core` are on for the desktop binary (`klong-cli`, a
 
 These images have no IPC and no timers. IPC adds about 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, and the `mgmt` library 12.6 KB. The firmware for the [ESP32-P4](esp32-p4.md) is 692 KB (691,328 bytes flashed), but it is built with `opt-level` 3 and carries ESP-IDF.
 
-**Speed.** The native runtime is much faster than KlongPy on interpreter work (recursion, loops, lambdas, dictionaries) and slower on whole-array work that NumPy does in one call. [Performance](../performance.md) has the measured table. `python native/scripts/bench.py` repeats the comparison, and `klong --bench N -e PROGRAM` times one program in process. Starting the program and exiting takes about 4 ms. On the ESP32-P4 `fib(24)` takes 4.2 seconds, against about 35 ms on the desktop; see [ESP32-P4](esp32-p4.md).
+**Speed.** The native runtime is much faster than KlongPy on interpreter work (recursion, loops, lambdas, dictionaries) and slower on whole-array work that NumPy does in one call. [Performance](../performance.md) has the measured table. `python native/scripts/bench.py` repeats the comparison, and `kg --bench N -e PROGRAM` times one program in process. Starting the program and exiting takes about 4 ms. On the ESP32-P4 `fib(24)` takes 4.2 seconds, against about 35 ms on the desktop; see [ESP32-P4](esp32-p4.md).

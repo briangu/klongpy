@@ -1,11 +1,11 @@
-//! The `klong` binary.
+//! The `kg` binary.
 //!
-//!     klong FILE                      run a file
-//!     klong -e EXPR                   evaluate and print
-//!     klong                           read-eval-print loop
-//!     klong --dump-ast FILE           canonical parse tree (conformance/README.md)
-//!     klong ast FILE|-e EXPR          the same, as `kgpy ast` prints it
-//!     klong --conformance [--strict N]
+//!     kg FILE                      run a file
+//!     kg -e EXPR                   evaluate and print
+//!     kg                              read-eval-print loop
+//!     kg --dump-ast FILE           canonical parse tree (conformance/README.md)
+//!     kg ast FILE|-e EXPR          the same, as `kgpy ast` prints it
+//!     kg --conformance [--strict N]
 //!                                     the runner protocol of conformance/README.md: program
 //!                                     on stdin; printed result on stdout and exit 0, or
 //!                                     `error: <kind>` and exit 1; console output on stderr
@@ -27,6 +27,7 @@ use std::process::ExitCode;
 
 mod check;
 mod compile;
+mod kgpy_only;
 mod profile_doc;
 mod lint;
 
@@ -79,7 +80,7 @@ fn size_arg(s: &str) -> Option<usize> {
 }
 
 const HELP: &str = "\
-usage: klong [OPTIONS] [FILE [ARG ...] | -e EXPR | --conformance | --dump-ast FILE]
+usage: kg [OPTIONS] [FILE [ARG ...] | -e EXPR | --conformance | --dump-ast FILE]
 
 Without FILE or -e: a read-eval-print loop on standard input.
   FILE [ARG ...]        run a file; the arguments are in .a
@@ -119,7 +120,7 @@ fn parse_args() -> Option<Opts> {
                 std::process::exit(0);
             }
             "--version" if o.file.is_none() => {
-                println!("klong {}", env!("CARGO_PKG_VERSION"));
+                println!("kg {}", env!("CARGO_PKG_VERSION"));
                 std::process::exit(0);
             }
             "--conformance" => o.conformance = true,
@@ -173,9 +174,11 @@ fn runtime(o: &Opts, console: Console) -> Runtime<HostPlatform> {
         platform.fs = klong_host::Files::Mem(fs);
     }
     let mut rt = Runtime::new(platform, cfg, Some(mem_stats));
+    rt.interp.kgpy_only = Some(kgpy_only::is);
     let given = std::env::var("KLONGPATH").ok().filter(|p| !p.is_empty());
     let path = given.clone().unwrap_or_else(|| String::from(".:lib"));
-    rt.set_load_path(path.split(':').filter(|d| !d.is_empty()).map(String::from).collect());
+    // (the file system in memory has no directory called `.`: its files are named as they are, so the current directory is the empty name)
+    rt.set_load_path(path.split(':').filter(|d| !d.is_empty()).map(|d| if o.memfs && d == "." { String::new() } else { String::from(d) }).collect());
     // (a bare name of .import is looked for in KLONGPATH when it is set and in the library, never in the working directory by default)
     if let Some(g) = given {
         rt.set_import_path(g.split(':').filter(|d| !d.is_empty()).map(String::from).collect());
@@ -312,7 +315,7 @@ fn run(o: Opts) -> ExitCode {
         let text = match std::fs::read_to_string(path) {
             Ok(t) => t,
             Err(e) => {
-                eprintln!("klong: {}: {}", path, e);
+                eprintln!("kg: {}: {}", path, e);
                 return ExitCode::from(1);
             }
         };
@@ -379,7 +382,7 @@ fn run(o: Opts) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn main() -> ExitCode {
+pub fn main() -> ExitCode {
     if std::env::args().nth(1).as_deref() == Some("check") {
         return check::main();
     }

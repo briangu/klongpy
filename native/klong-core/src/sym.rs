@@ -34,12 +34,6 @@ pub struct Warning {
 #[cfg(feature = "diag")]
 pub const MAX_WARNINGS: usize = 64;
 
-/// A qualified name `a.b.c` (`a@"b"@"c"`): the symbol of its first segment and the keys of the rest, as strings.
-pub struct Qual {
-    pub base: SymId,
-    pub keys: Vec<crate::value::Value>,
-}
-
 pub struct Interner {
     /// The warnings of the parses since they were last taken (`Interp::take_warnings`).
     #[cfg(feature = "diag")]
@@ -52,8 +46,8 @@ pub struct Interner {
     #[cfg(feature = "diag")]
     pub record_spans: bool,
     names: Vec<Rc<str>>,
-    /// The qualified names the parser has read (empty in a program that has none).
-    quals: Vec<(u32, Rc<Qual>)>,
+    /// The qualified names the parser has read and the symbol of the first segment of each (empty in a program that has none).
+    quals: Vec<(u32, u32)>,
     map: BTreeMap<Rc<str>, u32>,
     /// A name could not be stored (no memory); `x` was returned in its place. The parser
     /// reports it as a `memory` error.
@@ -108,11 +102,13 @@ impl Interner {
         SymId(i)
     }
 
-    /// Record that `s` is the qualified name with this base and these keys.
-    pub fn set_qual(&mut self, s: SymId, base: SymId, keys: Vec<crate::value::Value>) {
+    /// Record that `s` is a qualified name whose first segment is the symbol `base` and that has `keys` keys after it.
+    pub fn set_qual(&mut self, s: SymId, base: SymId, keys: usize) {
+        let _tag = crate::htag::Scope::new(crate::htag::SYMBOLS);
         if let Err(i) = self.quals.binary_search_by_key(&s.0, |e| e.0) {
             if self.quals.try_reserve(1).is_ok() {
-                self.quals.insert(i, (s.0, Rc::new(Qual { base, keys })));
+                // (the number of keys in the top byte of the base: a name has at most 127 segments)
+                self.quals.insert(i, (s.0, base.0 | (keys.min(255) as u32) << 24));
             }
         }
     }
@@ -121,12 +117,21 @@ impl Interner {
         !self.quals.is_empty()
     }
 
-    /// The parts of `s` when it is a qualified name.
-    pub fn qual(&self, s: SymId) -> Option<&Rc<Qual>> {
+    /// The symbol of the first segment of `s` when it is a qualified name.
+    pub fn qual_base(&self, s: SymId) -> Option<SymId> {
+        self.qual_entry(s).map(|e| SymId(e & 0x00ff_ffff))
+    }
+
+    /// How many keys the qualified name `s` has after its base (0 for a name that is not qualified).
+    pub fn qual_keys(&self, s: SymId) -> usize {
+        self.qual_entry(s).map_or(0, |e| (e >> 24) as usize)
+    }
+
+    fn qual_entry(&self, s: SymId) -> Option<u32> {
         if self.quals.is_empty() {
             return None;
         }
-        self.quals.binary_search_by_key(&s.0, |e| e.0).ok().map(|i| &self.quals[i].1)
+        self.quals.binary_search_by_key(&s.0, |e| e.0).ok().map(|i| self.quals[i].1)
     }
 
     /// The failure of the interning since the last call, if any.
@@ -195,3 +200,4 @@ pub fn qual_segments(v: &str) -> Option<Result<Vec<&str>, &'static str>> {
     }
     Some(Ok(out))
 }
+

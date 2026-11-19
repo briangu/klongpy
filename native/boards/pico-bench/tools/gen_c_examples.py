@@ -6,7 +6,7 @@ reference results the native host gives for the fixed inputs of the board check.
 
 writes into OUT_DIR (the build directory; nothing here is checked in):
 
-    mavg.c mavg.h  pidc.c pidc.h  fir.c fir.h  klong_rt.h    the static-profile compiler's C, as `klong compile c` writes it (32-bit
+    mavg.c mavg.h  pidc.c pidc.h  fir.c fir.h  klong_rt.h    the static-profile compiler's C, as `kg compile c` writes it (32-bit
                                                              kg_int, 32-bit kg_float: a Cortex-M0+ has neither a 64-bit divide
                                                              nor an FPU)
     klong_c_data.c klong_c_data.h                            the three sources as C strings (they are loaded by the interpreter
@@ -14,7 +14,7 @@ writes into OUT_DIR (the build directory; nothing here is checked in):
                                                              check, the host's results for them and the values pinned by the
                                                              .expect files
 
-It needs the `klong` binary (`cd native && cargo build --release`; or its path in $KLONG) and the extension of native/klong-py (its
+It needs the `kg` binary (`cd native && cargo build --release`; or its path in $KLONG) and the extension of native/klong-py (its
 directory in $KLONGPY_NATIVE_PATH, or klong_native importable) for the expected values, and NumPy, which the extension needs. KlongPy
 itself is not imported. The tool fails, and so the build does, when the host no longer gives the values the .expect files pin, so the
 board is never checked against a stale reference.
@@ -111,8 +111,8 @@ def native_extension():
 
 
 def klong_binary():
-    """The `klong` binary: $KLONG, else native/target/release/klong."""
-    path = os.environ.get("KLONG") or os.path.join(ROOT, "native", "target", "release", "klong")
+    """The `kg` binary: $KLONG, else native/target/release/kg."""
+    path = os.environ.get("KLONG") or os.path.join(ROOT, "native", "target", "release", "kg")
     if not os.access(path, os.X_OK):
         sys.exit("gen_c_examples: %s is not an executable `klong` (cd native && cargo build --release, or set KLONG)" % path)
     return path
@@ -147,10 +147,10 @@ def reference(case):
 
 
 def emit(klong, kg, out, prefix):
-    """`klong compile c` of one program with 32-bit ints and floats: the files in out; returns the size report."""
+    """`kg compile c` of one program with 32-bit ints and floats: the files in out; returns the size report."""
     r = subprocess.run([klong, "compile", "c", kg, "-o", out, "--prefix", prefix], capture_output=True, text=True)
     if r.returncode != 0:
-        sys.exit("gen_c_examples: klong compile c %s failed:\n%s%s" % (kg, r.stdout, r.stderr))
+        sys.exit("gen_c_examples: kg compile c %s failed:\n%s%s" % (kg, r.stdout, r.stderr))
     # the first line says what was written, then the size report
     return r.stdout.split("\n", 1)[1].rstrip("\n") if "\n" in r.stdout else ""
 

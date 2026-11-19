@@ -1,4 +1,4 @@
-//! `klong check FILE...`: the options, the output and the exit status of `kgpy check`.
+//! `kg check FILE...`: the options, the output and the exit status of `kgpy check`.
 use crate::check::{check_source, Diag, Options, Report};
 use crate::util::plural;
 use std::io::Write;
@@ -185,7 +185,7 @@ fn parse_args(prog: &str, args: &[String], out: &mut dyn Write, err: &mut dyn Wr
     Parsed::Run(a)
 }
 
-/// The body of `klong check FILE...` (`args` follow the word `check`). Every problem of every file is printed to stderr; a file inside
+/// The body of `kg check FILE...` (`args` follow the word `check`). Every problem of every file is printed to stderr; a file inside
 /// the profile gets one line on stdout. Returns the exit status: 1 if any file is outside the profile, 2 if a file could not be read
 /// (and none was outside), else 0.
 pub fn check_main(prog: &str, args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {

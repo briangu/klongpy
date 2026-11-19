@@ -15,7 +15,7 @@ Klong 0.0.1 (esp32p4, int64 float64)
 klong>
 ```
 
-The banner is `Klong VERSION (BOARD, int INTWIDTH float FLOATWIDTH)`, and `BOARD` is the name the port gives. You type a line, press Enter, and the board evaluates it and prints the value or the error, then a new prompt. The REPL of the desktop `klong` program has no editor. This one has an editor, history, and continuation lines.
+The banner is `Klong VERSION (BOARD, int INTWIDTH float FLOATWIDTH)`, and `BOARD` is the name the port gives. You type a line, press Enter, and the board evaluates it and prints the value or the error, then a new prompt. The REPL of the desktop `kg` program has no editor. This one has an editor, history, and continuation lines.
 
 ### A first session
 
@@ -111,7 +111,7 @@ klong> 1+1
 klong>
 ```
 
-A Ctrl-C that arrives after the program has already finished is read at the prompt like any other. The `klong` program's own REPL has no Ctrl-C byte: on a pipe nothing can interrupt a runaway loop, and on a terminal Ctrl-C is the terminal's signal and ends the process.
+A Ctrl-C that arrives after the program has already finished is read at the prompt like any other. The `kg` program's own REPL has no Ctrl-C byte: on a pipe nothing can interrupt a runaway loop, and on a terminal Ctrl-C is the terminal's signal and ends the process.
 
 While a program runs the console is not answering anything else. A program that blocks the board for longer than the watchdog allows is reset by the watchdog: on the ESP32-P4 firmware the task watchdog is 30 seconds. Whether a runaway loop survives that on a board has not been tested; see the [porting checklist](porting.md).
 
@@ -187,7 +187,7 @@ klong> ^Aerr range: 1 bytes is more than a program sent with run may have (0)
 | `--crlf` | end output lines with CR LF, as a board does |
 | `--no-fs` | no file system: `put` and `hex` fail |
 | `--fs-bytes N` | size of the RAM file system (default 8M) |
-| `--heap-limit N` | heap budget, as `klong --heap-limit` |
+| `--heap-limit N` | heap budget, as `kg --heap-limit` |
 | `--stack-budget N` | recursion limits as a board with a task stack of `N` bytes would have (see [Building and Running](building.md#memory-and-stack)) |
 | `--stack N` | native stack of the evaluating thread |
 | `--strict N` | strict level 0, 1 or 2 |
@@ -302,7 +302,7 @@ A `.kg` file that does not parse is stored all the same, with the warning. The f
 $ python native/tools/kgupload.py $(cat port) reset | cut -d' ' -f1-5
 ver=0.0.1 int=64 float=64 features=files,lib,timers,ipc platform=sim
 $ python native/tools/kgupload.py $(cat port) run -e '.l("lib.kg")'; echo $?
-error: system: file does not exist: lib.kg at 1:1
+error: system: file does not exist: lib.kg (looked for lib.kg, lib/lib.kg; a relative path is searched in the directories of KLONGPATH, taken from the current directory) at 1:1
 1
 ```
 
@@ -340,7 +340,7 @@ Without `--port` it starts simulated boards, one per job, and talks to each thro
 <!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native conformance -->
 ```console
 $ python native/scripts/console_conformance.py | tail -1 | cut -c1-40
-total                         1570  1570
+total                         1696  1696
 ```
 
 That passed 1570 of 1570 on 2026-11-18 in about 2.7 seconds with 8 simulated boards. To make the simulation as small as a board, add `-- --stack-budget 64K --heap-limit 1M --crlf`; the simulated runs of the project gave 1265 of 1266 (the suite of 2026-11-16; see [why the counts differ](../conformance.md#why-the-counts-differ)) with a 64 KiB stack and 1264 with 32 KiB, because the missing cases recurse deeply and end with a `range` error. The same script ran against a real board, an ESP32-P4: 1266 of 1266 over the serial port in 1877 seconds, see the [ESP32-P4](esp32-p4.md) page.

@@ -4,7 +4,7 @@
 //! ```text
 //!     lint_source(name, text, &options) -> Vec<Diagnostic>
 //!     lint_files(&paths, &options)      -> Vec<FileResult>
-//!     lint_main(args, ...)              -> exit status (the body of `klong lint` and `kgpy lint`)
+//!     lint_main(args, ...)              -> exit status (the body of `kg lint` and `kgpy lint`)
 //! ```
 //!
 //! The linter reads a program; it never runs it. No user code is evaluated; `.l("file")` is resolved by reading and

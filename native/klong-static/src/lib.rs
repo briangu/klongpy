@@ -1,4 +1,4 @@
-//! klong-static: the static profile (docs/static-profile.md): the checker, ported from `klongpy/static/checker.py`. `klong check`.
+//! klong-static: the static profile (docs/static-profile.md): the checker, ported from `klongpy/static/checker.py`. `kg check`.
 pub mod argp;
 pub mod ast;
 pub mod check;

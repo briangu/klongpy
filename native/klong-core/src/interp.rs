@@ -194,6 +194,9 @@ pub struct Interp {
     /// HOST: the arguments beyond the third of the call of a system function that is being made (set just before it runs).
     #[cfg(feature = "wide-args")]
     pub extra_args: Vec<Value>,
+    /// KGPY-ONLY: says whether a system function is one the Python-hosted command has and this program does not (`klong-cli`: `kgpy_only.rs`).
+    #[cfg(feature = "kgpy-only")]
+    pub kgpy_only: Option<fn(&str) -> bool>,
     globals: Vec<Option<Value>>,
     /// Per global: the scope it was created in (and the `JOURNALED` bit).
     gscope: Vec<u16>,
@@ -216,6 +219,11 @@ pub struct Interp {
     /// High-water mark of native stack used below `stack_base`, in bytes.
     pub max_stack_seen: usize,
     frames: Vec<Frame>,
+    /// The first frame a name is looked for in by the code that is running: when it is the body of a function with named parameters
+    /// (`f(a;b)::{...}`), the frame of that function, which sees its own locals and then the globals of its module and never the locals
+    /// of whatever called it (docs/design-principles.md, principle 4). 0 for any other code: a function without a parameter list
+    /// (`{x+y}`) sees every frame, as in Klong, so a callback written in a function still reads that function's locals.
+    lex_base: usize,
     /// The module scope each frame belongs to (parallel to `frames`): a function sees the frames of its own module only.
     fmods: Vec<u16>,
     /// The module scope that is running (0: the program's own).
@@ -280,6 +288,8 @@ impl Interp {
             extra_args: Vec::new(),
             #[cfg(feature = "host")]
             adopt: None,
+            #[cfg(feature = "kgpy-only")]
+            kgpy_only: None,
             globals: Vec::new(),
             gscope: Vec::new(),
             scopes: alloc::vec![Scope::Plain],
@@ -292,6 +302,7 @@ impl Interp {
             void: false,
             max_stack_seen: 0,
             frames: Vec::new(),
+            lex_base: 0,
             fmods: Vec::new(),
             cur_mod: 0,
             modules: Vec::new(),
@@ -934,7 +945,9 @@ impl Interp {
         let frames = core::mem::take(&mut self.frames);
         let fmods = core::mem::take(&mut self.fmods);
         let shadow = core::mem::take(&mut self.shadow);
+        let base = core::mem::take(&mut self.lex_base);
         let r = self.run(text, name);
+        self.lex_base = base;
         self.frames = frames;
         self.fmods = fmods;
         self.shadow = shadow;
@@ -1277,10 +1290,13 @@ impl Interp {
     /// The value of a name: the innermost frame of the running module that binds it, else the module's global, else (a name that starts
     /// with a dot) the system's; `a.b` is `a@"b"` (design point 4).
     #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_lookup")]
-    pub fn lookup(&self, s: SymId) -> Result<Option<Value>> {
+    pub fn lookup(&mut self, s: SymId) -> Result<Option<Value>> {
         if self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0 {
             let tagged = !self.modules.is_empty();
             for (i, f) in self.frames.iter().enumerate().rev() {
+                if i < self.lex_base {
+                    break;
+                }
                 if tagged && self.fmods[i] != self.cur_mod {
                     continue;
                 }
@@ -1301,9 +1317,8 @@ impl Interp {
         } else if let Some(v) = self.module_var(s) {
             return Ok(Some(v));
         }
-        if let Some(q) = self.syms.qual(s) {
-            let q = q.clone();
-            return self.qual_get(s, &q).map(Some);
+        if let Some(base) = self.syms.qual_base(s) {
+            return self.qual_get(s, base).map(Some);
         }
         Ok(None)
     }
@@ -1330,6 +1345,10 @@ impl Interp {
     }
 
     fn module_set(&mut self, id: u16, s: SymId, v: Value) -> Result<()> {
+        // (the table of a module is kept as long as the module is, and given back with it: placed with what is thrown away, the parse, not
+        // among the names and tables that stay for good, between which the doublings of a table that grows while a library loads would
+        // leave holes: the largest vector of a node that loaded the management library and dropped it lost 6% to them)
+        let _tag = crate::htag::Scope::new(crate::htag::TREE);
         let classic = self.syms.name(s).contains('`');
         let Some(m) = self.mslot(id).and_then(|i| self.modules.get_mut(i)) else {
             return Err(Error::system("the module this function belongs to was let go"));
@@ -1371,97 +1390,129 @@ impl Interp {
         self.try_set_global(s, v)
     }
 
+    /// The text of the segment `i` of the qualified name `s` (0 is the base, 1 the first key): the text of the name, cut at its dots.
+    fn qseg(&self, s: SymId, i: usize) -> &str {
+        let name = self.syms.name(s);
+        let name = &name[..name.find('`').unwrap_or(name.len())];
+        // (the last key is the common one: cut from the end)
+        if i == self.syms.qual_keys(s) {
+            return name.rsplit('.').next().unwrap_or("");
+        }
+        name.split('.').nth(i).unwrap_or("")
+    }
+
     #[cold]
     #[cfg_attr(not(feature = "diag"), allow(unused_variables))]
-    fn not_a_dict(&self, s: SymId, q: &sym::Qual, i: usize, v: &Value) -> Error {
-        Error::typ(crate::dmsg!("not a dictionary", "{}: {} is not a dictionary (it is {})", self.plain(s), self.qual_path(q, i), v.describe()))
+    fn not_a_dict(&self, s: SymId, i: usize, v: &Value) -> Error {
+        Error::typ(crate::dmsg!("not a dictionary", "{}: {} is not a dictionary (it is {})", self.plain(s), self.qual_path(s, i), v.describe()))
     }
 
     /// The text of `a.b` up to the segment `n` (the base is segment 0).
     #[cfg(feature = "diag")]
-    fn qual_path(&self, q: &sym::Qual, n: usize) -> String {
-        let mut p = String::from(self.plain(q.base));
-        for k in q.keys.iter().take(n) {
+    fn qual_path(&self, s: SymId, n: usize) -> String {
+        let mut p = String::from(self.qseg(s, 0));
+        for i in 1..=n {
             p.push('.');
-            if let Value::Str(t) = k {
-                p.push_str(t.as_str());
-            }
+            p.push_str(self.qseg(s, i));
         }
         p
     }
 
-    /// The dictionary at the end of the walk of `q` over `n` of its keys (0: the base itself); an error that names the place when a name
-    /// is not defined, an entry is missing, or the value is not a dictionary.
-    fn qual_dict(&self, s: SymId, q: &sym::Qual, n: usize) -> Result<Rc<core::cell::RefCell<Dict>>> {
-        let mut cur = match self.lookup(q.base)? {
+    /// The dictionary, or the host value that answers as one (a remote dictionary), at the end of the walk of the qualified name `s` over
+    /// `n` of its keys (0: the base itself); an error that names the place when a name is not defined, an entry is missing, or the value
+    /// is not a dictionary. A host value is read as `x@key` is: through the host (the host table of an embedder). The keys are read from
+    /// the text of the name, as it is (nothing is made for them on the way: a read of `d.a` allocates nothing).
+    fn qual_container(&mut self, s: SymId, base: SymId, n: usize) -> Result<Value> {
+        let mut cur = match self.lookup(base)? {
             // (a declared local that was never assigned holds its own name)
-            Some(Value::Sym(t)) if t == q.base => None,
+            Some(Value::Sym(t)) if t == base => None,
             v => v,
         }
         .ok_or_else(|| {
             #[cfg(feature = "diag")]
-            let (b, full) = (self.plain(q.base), self.plain(s));
+            let (b, full) = (self.qseg(s, 0), self.plain(s));
             Error::name(crate::dmsg!("undefined", "{} is not defined ({} means {}@\"{}\")", b, full, b, full.split('.').nth(1).unwrap_or("")))
         })?;
         for i in 0..=n {
             match &cur {
-                Value::Dict(d) if i == n => return Ok(d.clone()),
+                Value::Dict(_) | Value::Ext(_) if i == n => return Ok(cur),
                 Value::Dict(d) => {
-                    let next = d.borrow().get(&q.keys[i]).cloned();
-                    cur = next.ok_or_else(|| self.no_entry(q, i))?;
+                    let next = d.borrow().get_str(self.qseg(s, i + 1)).cloned();
+                    cur = next.ok_or_else(|| self.no_entry(s, i))?;
                 }
-                other => return Err(self.not_a_dict(s, q, i, other)),
+                Value::Ext(_) => {
+                    let at = self.syms.intern("@");
+                    let key = Value::text(self.qseg(s, i + 1))?;
+                    cur = self.dyad(at, cur, key)?;
+                }
+                other => return Err(self.not_a_dict(s, i, other)),
             }
         }
         Err(Error::internal("qualified name"))
     }
 
     #[cfg_attr(not(feature = "diag"), allow(unused_variables))]
-    fn no_entry(&self, q: &sym::Qual, i: usize) -> Error {
-        #[cfg(feature = "diag")]
-        let key = match &q.keys[i] {
-            Value::Str(t) => t.as_str(),
-            _ => "",
-        };
-        Error::name(crate::dmsg!("no such entry", "{} has no entry \"{}\"", self.qual_path(q, i), key))
+    fn no_entry(&self, s: SymId, i: usize) -> Error {
+        Error::name(crate::dmsg!("no such entry", "{} has no entry \"{}\"", self.qual_path(s, i), self.qseg(s, i + 1)))
     }
 
     /// The value of `a.b.c`.
     #[inline(never)]
-    fn qual_get(&self, s: SymId, q: &sym::Qual) -> Result<Value> {
-        let n = q.keys.len() - 1;
-        let d = self.qual_dict(s, q, n)?;
-        let v = d.borrow().get(&q.keys[n]).cloned();
-        v.ok_or_else(|| self.no_entry(q, n))
+    fn qual_get(&mut self, s: SymId, base: SymId) -> Result<Value> {
+        let n = self.syms.qual_keys(s) - 1;
+        match self.qual_container(s, base, n)? {
+            Value::Dict(d) => {
+                let v = d.borrow().get_str(self.qseg(s, n + 1)).cloned();
+                v.ok_or_else(|| self.no_entry(s, n))
+            }
+            host => {
+                let at = self.syms.intern("@");
+                let key = Value::text(self.qseg(s, n + 1))?;
+                self.dyad(at, host, key)
+            }
+        }
     }
 
-    /// `a.b::v`: the entry `b` of the dictionary `a` is set (a new key is added); `a.b.c::v` needs `a.b` to be there.
+    /// `a.b::v`: the entry `b` of the dictionary `a` is set (a new key is added); `a.b.c::v` needs `a.b` to be there. A host value takes
+    /// the pair as `a,[key value]` does.
     #[inline(never)]
-    fn qual_set(&mut self, s: SymId, q: &sym::Qual, v: Value) -> Result<()> {
-        let n = q.keys.len() - 1;
-        let d = self.qual_dict(s, q, n)?;
+    fn qual_set(&mut self, s: SymId, base: SymId, v: Value) -> Result<()> {
+        let n = self.syms.qual_keys(s) - 1;
+        let key = Value::text(self.qseg(s, n + 1))?;
+        let d = match self.qual_container(s, base, n)? {
+            Value::Dict(d) => d,
+            host => {
+                let comma = self.syms.intern(",");
+                let pair = Value::from_items(alloc::vec![key, v])?;
+                self.dyad(comma, host, pair)?;
+                return Ok(());
+            }
+        };
         let mut d = d.borrow_mut();
         if d.is_readonly() {
-            let e = Error::typ(crate::dmsg!("read-only dictionary", "cannot assign {}: {} is read-only (it was returned by .import)", self.plain(s), self.qual_path(q, n)));
+            let e = Error::typ(crate::dmsg!("read-only dictionary", "cannot assign {}: {} is read-only (it was returned by .import)", self.plain(s), self.qual_path(s, n)));
             #[cfg(feature = "diag")]
             let e = e.with_hint("copy it with  e:::{};e::e,m  or change the module's file");
             return Err(e);
         }
-        d.set(q.keys[n].clone(), v)
+        d.set(key, v)
     }
 
     /// `name::value` (KlongPy `KlongContext.__setitem__`): assign where the name lives; a new
     /// name is created in the innermost frame.
     pub fn assign(&mut self, s: SymId, v: Value) -> Result<()> {
-        if let Some(q) = self.syms.qual(s) {
-            let q = q.clone();
-            return self.qual_set(s, &q, v);
+        if let Some(base) = self.syms.qual_base(s) {
+            return self.qual_set(s, base, v);
         }
         if !sym::is_arg(s) {
             if self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0 {
                 let cm = self.cur_mod;
                 let tagged = !self.modules.is_empty();
+                let base = self.lex_base;
                 for (i, f) in self.frames.iter_mut().enumerate().rev() {
+                    if i < base {
+                        break;
+                    }
                     if tagged && self.fmods[i] != cm {
                         continue;
                     }
@@ -1527,12 +1578,18 @@ impl Interp {
         self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0
             || if self.cur_mod == 0 { self.global_ref(s).is_some() } else { self.module_var(s).is_some() }
             // (a qualified name is looked up when it is used, and says what is missing then)
-            || self.syms.qual(s).is_some()
+            || self.syms.qual_base(s).is_some()
     }
 
     /// The value of a name that is not defined.
     #[inline(never)]
     fn undefined(&mut self, s: SymId) -> Result<Value> {
+        #[cfg(feature = "kgpy-only")]
+        if let Some(e) = self.needs_kgpy(s) {
+            if self.cfg.strict == 2 || (self.cfg.strict == 1 && self.in_fn()) {
+                return Err(e);
+            }
+        }
         let level = self.cfg.strict;
         if level == 2 || (level == 1 && self.in_fn()) {
             let e = Error::name(crate::msg!("undefined: {}", self.syms.name(s)));
@@ -1545,6 +1602,17 @@ impl Interp {
             return Err(e);
         }
         Ok(Value::Sym(s))
+    }
+
+    /// The error for a system function that only the Python-hosted command has (`Interp::kgpy_only`).
+    #[cfg(feature = "kgpy-only")]
+    #[cold]
+    fn needs_kgpy(&self, s: SymId) -> Option<Error> {
+        let name = self.syms.name(s);
+        if self.kgpy_only.is_some_and(|f| f(name)) {
+            return Some(Error::name(crate::msg!("{} needs kgpy (the Python-hosted command)", name)));
+        }
+        None
     }
 
     /// The hint for an undefined name: the defined name closest to it, when one is (KlongPy `_did_you_mean`: difflib's ratio, at least 0.7).
@@ -1662,6 +1730,7 @@ impl Interp {
         let (tree, node) = self.materialize(l)?;
         try_push(&mut frame, (sym::DOT_F, Some(f.clone())))?;
         let saved = core::mem::replace(&mut self.cur_mod, tree.module.get());
+        let base = core::mem::replace(&mut self.lex_base, 0);
         let r = match self.push_frame(frame) {
             Ok(()) => {
                 let r = self.eval(&tree, node, true);
@@ -1670,6 +1739,7 @@ impl Interp {
             }
             Err(e) => Err(e),
         };
+        self.lex_base = base;
         self.cur_mod = saved;
         r
     }
@@ -1775,7 +1845,7 @@ impl Interp {
     /// fails as an undefined function, as it always has). False for any other value, and for a symbol
     /// that names itself (what an undefined name is at strict level 0).
     #[inline(never)]
-    fn names_function(&self, v: &Value, name: SymId) -> Result<bool> {
+    fn names_function(&mut self, v: &Value, name: SymId) -> Result<bool> {
         let mut seen = [name; 4];
         let mut n = 1;
         let mut v = v.clone();
@@ -2234,7 +2304,7 @@ impl Interp {
         if self.syms.name(s) == "undefined" {
             return Ok(Value::Undefined);
         }
-        if self.cfg.strict == 2 || self.syms.qual(s).is_some() {
+        if self.cfg.strict == 2 || self.syms.qual_base(s).is_some() {
             // (a quoted `a.b` is a symbol: only an expression `a.b` reads an entry)
             return Ok(Value::Sym(s));
         }
@@ -2254,7 +2324,7 @@ impl Interp {
         if let Value::Sym(s) = *f {
             // (`x.a` as the body of a function names an entry of its argument, which is bound only when the body runs: like `x`)
             let found = match self.lookup(s) {
-                Err(e) if e.kind == Kind::Name && self.syms.qual(s).is_some_and(|q| sym::is_arg(q.base)) => None,
+                Err(e) if e.kind == Kind::Name && self.syms.qual_base(s).is_some_and(sym::is_arg) => None,
                 r => r?,
             };
             match found {
@@ -2294,8 +2364,12 @@ impl Interp {
                     }
                 }
                 None => {
-                    if !sym::is_arg(s) && !self.syms.qual(s).is_some_and(|q| sym::is_arg(q.base)) {
+                    if !sym::is_arg(s) && !self.syms.qual_base(s).is_some_and(sym::is_arg) {
                         let name = self.syms.name(s);
+                        #[cfg(feature = "kgpy-only")]
+                        if let Some(e) = self.needs_kgpy(s) {
+                            return Err(e);
+                        }
                         let e = Error::name(crate::msg!("undefined function: {}", name));
                         // a system function this build does not have (docs/native/index.md)
                         return Err(if name.starts_with('.') && cfg!(not(feature = "host")) { e.with_hint(crate::msg!("{} is not available on this build", name)) } else { e });
@@ -2693,10 +2767,10 @@ impl Interp {
 
     /// The callee to store in a projection: as written, except that x, y, z and .f are
     /// replaced by what they hold now (they mean something else when it is completed).
-    fn projected_callee(&self, a: Value) -> Value {
+    fn projected_callee(&mut self, a: Value) -> Value {
         if let Value::Sym(s) = a {
             // (a projection made in a module, or of a qualified name, holds the function: it is completed wherever it was passed to)
-            if sym::is_arg(s) || s == sym::DOT_F || self.cur_mod != 0 || self.syms.qual(s).is_some() {
+            if sym::is_arg(s) || s == sym::DOT_F || self.cur_mod != 0 || self.syms.qual_base(s).is_some() {
                 if let Ok(Some(v)) = self.lookup(s) {
                     if sym::is_arg(s) || s == sym::DOT_F || Self::is_fn_value(&v) {
                         return v;
@@ -2922,7 +2996,7 @@ impl Interp {
             Func::Code { tree, node } => {
                 try_push(&mut frame, (sym::DOT_F, Some(f.clone())))?;
                 let r = match tree.node(*node) {
-                    Node::Body { stmts, locals, .. } => {
+                    Node::Body { stmts, locals, has_params, .. } => {
                         for &q in tree.ids(*locals) {
                             let s = SymId(q);
                             if !frame.iter().any(|(k, _)| *k == s) {
@@ -2932,17 +3006,26 @@ impl Interp {
                                 try_push(&mut frame, (s, if self.cfg.strict == 2 { None } else { Some(Value::Sym(s)) }))?;
                             }
                         }
-                        self.enter(tree.module.get(), frame).and_then(|saved| {
+                        // (a function with named parameters sees its own frame and not the callers': nothing between here and the restore returns early)
+                        let base = core::mem::replace(&mut self.lex_base, if *has_params { self.frames.len() } else { 0 });
+                        let r = self.enter(tree.module.get(), frame).and_then(|saved| {
                             let r = self.eval_seq(tree, *stmts);
                             self.leave(saved);
                             r
-                        })
-                    }
-                    _ => self.enter(tree.module.get(), frame).and_then(|saved| {
-                        let r = self.eval(tree, *node, true);
-                        self.leave(saved);
+                        });
+                        self.lex_base = base;
                         r
-                    }),
+                    }
+                    _ => {
+                        let base = core::mem::replace(&mut self.lex_base, 0);
+                        let r = self.enter(tree.module.get(), frame).and_then(|saved| {
+                            let r = self.eval(tree, *node, true);
+                            self.leave(saved);
+                            r
+                        });
+                        self.lex_base = base;
+                        r
+                    }
                 };
                 r
             }

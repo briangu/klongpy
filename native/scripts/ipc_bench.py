@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Measurements: IPC throughput over localhost TCP and memory per connection.
 
-    .venv/bin/python native/scripts/ipc_bench.py [--binary native/target/release/klong] [--reps 30]
+    .venv/bin/python native/scripts/ipc_bench.py [--binary native/target/release/kg] [--reps 30]
 
 Throughput: a client sends a vector of 125000 64-bit integers (1 MB on the wire) to `idf::{x}` and gets it
 back, `reps` times; the figure is megabytes of payload per second counting both directions. Pairs: native

@@ -1,4 +1,4 @@
-//! `klong check --streamable` (`klongpy/static/streamable.py`, docs/hardware.md): which constructs of a program inside the static
+//! `kg check --streamable` (`klongpy/static/streamable.py`, docs/hardware.md): which constructs of a program inside the static
 //! profile keep a hardware kernel from taking one record per clock cycle.
 use crate::check::{Diag, Report};
 use crate::emit_c::{hls_work, match_window, HLS_WORK_LIMIT};

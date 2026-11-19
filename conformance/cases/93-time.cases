@@ -1,0 +1,19 @@
+# The wall clock.
+#
+#   .now()     seconds since 1970-01-01 00:00:00 UTC, a float, where the platform has a clock that knows the date (tag clock); a platform
+#              that has none raises a `system` error. .pc() is the clock for measuring and starts at 0.
+
+@ time.now-is-a-float core clock float
+> x::.now()
+> x>1700000000.0
+= 1
+
+@ time.now-moves-forward core clock float
+> a::.now()
+> b::.now()
+> ~b<a
+= 1
+
+@ time.now-is-not-the-process-clock core clock float
+> .now()>.pc()
+= 1

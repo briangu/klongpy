@@ -106,9 +106,12 @@ Capability tags:
 | `static` | the declarations of the static profile run as they stand, `.extern` and `.entry` (docs/static-profile.md); a case runs with no host function, so calling an extern is a `system` error |
 | `qualified` | the qualified name `a.b`, which means `a@"b"` (reading, writing `a.b::v`, calling `a.b(x)`, nesting `a.b.c`); a missing key is a `name` error, a base that is not a dictionary a `type` error |
 | `modules` | `.import` and `.export` (a file is a module and a module is a value). The cases need files: see "Module cases" |
+| `clock` | the platform has a wall clock that knows the date (`.now()`): a desktop does, a board that was not told the time does not |
 
 Implementation tags: `numpy-only`, `torch-only`, `kgpy-only` mark behaviour
-that belongs to one KlongPy backend. `numpy-only` is the result of the
+that belongs to one KlongPy backend, and `kg-only` marks what only the standalone binary `kg` does: a system function that exists only in the
+Python-hosted command (`kgpy`) is a `name` error there that says so (`.py needs kgpy (the Python-hosted command)`). KlongPy does not declare
+`kg-only`; `run.py --cmd CMD` declares it for any executable but the KlongPy shim. `numpy-only` is the result of the
 reference (numpy) backend that the torch backend cannot give by design: text
 of a float64 value (torch computes in float32 by default) and `:undefined`
 inside a list (a tensor cannot hold it and keeps the IEEE `inf`/`nan`). Each such case has a `# numpy-only:` comment with the reason; the

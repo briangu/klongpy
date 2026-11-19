@@ -1,4 +1,4 @@
-//! `klong ast`: the golden parse trees of the repository (`tests/golden`), and the command line.
+//! `kg ast`: the golden parse trees of the repository (`tests/golden`), and the command line.
 use klong_tools::ast::{ast_main, ast_text};
 use std::path::{Path, PathBuf};
 
@@ -82,7 +82,7 @@ fn usage_errors() {
     assert_eq!(run(&["a", "-e", "1"], "").0, 2);
     let (st, out, _) = run(&["-h"], "");
     assert_eq!(st, 0);
-    assert!(out.starts_with("usage: klong ast"));
+    assert!(out.starts_with("usage: kg ast"));
     let (st, _, err) = run(&["/nonexistent/x.kg"], "");
     assert_eq!(st, 1);
     assert!(err.contains("No such file"), "{}", err);

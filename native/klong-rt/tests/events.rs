@@ -267,6 +267,11 @@ fn calls_lookups_remote_dictionaries_and_errors_over_a_stream() {
     // a remote dictionary
     assert_eq!(a.ok("d::.clid(c);d,[:zz 42];d?:zz"), "42");
     assert_eq!(b.ok("zz"), "42");
+    // d.zz is d@"zz" (docs/design-principles.md, principle 2: the same on a remote dictionary as on one here), and a write is d,["zz" v]
+    assert_eq!(a.ok("d::.clid(c);d@:zz"), "42");
+    assert_eq!(a.ok("d::.clid(c);d.zz"), "42");
+    assert_eq!(a.ok("d::.clid(c);d.zy::7"), "7");
+    assert_eq!(b.ok("zy"), "7");
     assert_eq!(a.ok("e::.clid(7002);e?:v"), "[0 1 2 3 4 5 6 7 8 9]");
     // errors of the peer are errors of the same kind here
     assert_eq!(a.run("c(:fail,1)").map_err(|e| e.0), Err(Kind::Type));

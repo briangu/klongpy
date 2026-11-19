@@ -1,0 +1,83 @@
+# Seeded random numbers.
+#
+#   .seed(n)   make .rn() reproducible: the integer n sets the state of the generator, which is xorshift64* (one 64-bit word) started from
+#              splitmix64(n); the sequence after .seed(n) is the same on every target (the interpreter, compiled C and a board). A 64-bit float
+#              is the top 53 bits of an output over 2^53; a 32-bit float is the same value cut to 24 bits. Without .seed the generator starts
+#              from whatever entropy the platform has. Returns n.
+
+@ random.seed-returns-its-argument core
+> .seed(7)
+= 7
+
+@ random.seed-repeats core float
+> .seed(42)
+> a::.rn()
+> b::.rn()
+> .seed(42)
+> c::.rn()
+> d::.rn()
+> (a=c)&b=d
+= 1
+
+@ random.seeds-differ core float
+> .seed(1)
+> a::.rn()
+> .seed(2)
+> a=.rn()
+= 0
+
+@ random.a-negative-seed core float
+> .seed(-5)
+> a::.rn()
+> .seed(-5)
+> a=.rn()
+= 1
+
+@ random.seed-zero-is-a-seed core float
+> .seed(0)
+> a::.rn()
+> (a>0)&a<1
+= 1
+
+@ random.draws-in-the-unit-interval core float
+> .seed(3)
+> x::{.rn()}'!100
+> (&/x>-1)&(&/x<1)&(&/x>0.0)
+= 1
+
+@ random.seed-fixes-a-whole-run core float
+> .seed(9)
+> a::{.rn()}'!5
+> .seed(9)
+> a~{.rn()}'!5
+= 1
+
+@ random.sequence-of-seed-42 core float string-fmt
+> .seed(42)
+> .rn()
+= 0.1941059175341826
+
+@ random.second-of-seed-42 core float string-fmt
+> .seed(42)
+> .rn()
+> .rn()
+= 0.5626318272656207
+
+@ random.third-of-seed-42 core float string-fmt
+> .seed(42)
+> .rn()
+> .rn()
+> .rn()
+= 0.4861061377100522
+
+@ random.seed-of-a-float-is-a-type-error core float
+> .seed(1.5)
+! type
+
+@ random.seed-of-a-string-is-a-type-error strings
+> .seed("a")
+! type
+
+@ random.seed-needs-an-argument core
+> .seed()
+! arity

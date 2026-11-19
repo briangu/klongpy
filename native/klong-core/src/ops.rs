@@ -1293,6 +1293,12 @@ fn index_string_nested(a: &Value, b: &Value) -> Result<Value> {
 }
 
 fn d_at(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
+    // a host value that answers as a dictionary (a remote dictionary) answers `@` as it answers `?`
+    if let Value::Ext(e) = &a {
+        if let Some(r) = e.0.find(ip, &b) {
+            return r;
+        }
+    }
     match &a {
         Value::Fn(_) | Value::Sym(_) => {
             let args = if b.is_list() { b.items()? } else { alloc::vec![b] };

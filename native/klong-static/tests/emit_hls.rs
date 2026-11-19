@@ -1,4 +1,4 @@
-//! `klong fpga source` (src/emit_hls.rs): the golden files of tests/static/test_emit_hls.py and test_hls_stream.py, regenerated from
+//! `kg fpga source` (src/emit_hls.rs): the golden files of tests/static/test_emit_hls.py and test_hls_stream.py, regenerated from
 //! the programs and compared with the copies in tests/data/ (copied from tests/static/golden/hls_* and hlsb_*, so that this proof
 //! survives the deletion of the Python tests), and the error texts the Python tests pin.
 use klong_static::compile::{Failure, EmitFailure};

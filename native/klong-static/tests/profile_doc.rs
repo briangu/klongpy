@@ -130,7 +130,7 @@ fn printing_the_page_and_bad_usage() {
 #[test]
 fn the_checked_in_page_is_up_to_date() {
     let text = std::fs::read_to_string(PAGE).expect("docs/static-profile.md, relative to the crate");
-    assert!(check_text(&text), "run: klong profile-doc --write docs/static-profile.md");
+    assert!(check_text(&text), "run: kg profile-doc --write docs/static-profile.md");
     let a = text.find(BEGIN).unwrap() + BEGIN.len();
     let b = text.find(END).unwrap();
     assert_eq!(text[a..b].trim_matches('\n'), generated_block().trim_matches('\n'));

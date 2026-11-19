@@ -1,6 +1,6 @@
 //! The profile document, docs/static-profile.md: the generator of the block between `<!-- BEGIN GENERATED -->` and
 //! `<!-- END GENERATED -->`, ported from `klongpy/static/profile_doc.py` (`python -m klongpy.static.profile_doc`),
-//! from the tables of `tables.rs`. `klong profile-doc [--check|--write] [PATH]`.
+//! from the tables of `tables.rs`. `kg profile-doc [--check|--write] [PATH]`.
 //!
 //! The text around the block (`HEAD`, `TAIL`) is hand-written and kept here verbatim.
 use std::io::Write;
@@ -11,7 +11,7 @@ pub const BEGIN: &str = "<!-- BEGIN GENERATED -->";
 pub const END: &str = "<!-- END GENERATED -->";
 pub const DEFAULT_PATH: &str = "docs/static-profile.md";
 
-const USAGE: &str = "usage: klong profile-doc [--check [PATH] | --write [PATH]]";
+const USAGE: &str = "usage: kg profile-doc [--check [PATH] | --write [PATH]]";
 
 /// A glyph as inline code that survives a Markdown table.
 fn code(glyph: &str) -> String {
@@ -465,7 +465,7 @@ pub fn check_text(text: &str) -> bool {
     }
 }
 
-/// `klong profile-doc [--check [PATH] | --write [PATH]]`, as `python -m klongpy.static.profile_doc`:
+/// `kg profile-doc [--check [PATH] | --write [PATH]]`, as `python -m klongpy.static.profile_doc`:
 /// no mode prints the page; `--check` exits 0 if the block of PATH is up to date, 1 if not, 2 if PATH is missing;
 /// `--write` refreshes the block of PATH (or creates the page). A bad command line exits 2.
 pub fn main(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
@@ -490,12 +490,12 @@ pub fn main(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     if mode == "--check" {
         return match text {
             None => {
-                let _ = writeln!(err, "{path}: not found; create it with: klong profile-doc --write {path}");
+                let _ = writeln!(err, "{path}: not found; create it with: kg profile-doc --write {path}");
                 2
             }
             Some(t) if check_text(&t) => 0,
             Some(_) => {
-                let _ = writeln!(err, "{path}: the generated block is out of date; run: klong profile-doc --write {path}");
+                let _ = writeln!(err, "{path}: the generated block is out of date; run: kg profile-doc --write {path}");
                 1
             }
         };

@@ -2,11 +2,11 @@
 """
 Micro-benchmarks of the native runtime against KlongPy, and peak heap.
 
-    .venv/bin/python native/scripts/bench.py [path to klong]
+    .venv/bin/python native/scripts/bench.py [path to kg]
 
 Both are timed in process, parse and evaluation of the source text, best of 5 (KlongPy with
-`time.perf_counter` around `klong(src)`, the native binary with `klong --bench 5 -e src`).
-The last column but one is the native binary as a whole process (start, parse, run, print, exit). Peak heap is what `klong --stats` reports:
+`time.perf_counter` around `klong(src)`, the native binary with `kg --bench 5 -e src`).
+The last column but one is the native binary as a whole process (start, parse, run, print, exit). Peak heap is what `kg --stats` reports:
 bytes requested from the allocator by the program, above the interpreter's own start-up state.
 """
 import os
@@ -17,7 +17,7 @@ import time
 import warnings
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-KLONG = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "native", "target", "release", "klong")
+KLONG = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "native", "target", "release", "kg")
 
 PROGRAMS = [
     ("start-up", "1"),

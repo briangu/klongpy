@@ -80,7 +80,7 @@ def run_node(cli, host, node, name, setup, expr, n):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--host-bin", default=os.path.join(NATIVE, "target", "release", "klong"))
+    ap.add_argument("--host-bin", default=os.path.join(NATIVE, "target", "release", "kg"))
     ap.add_argument("--sim", action="store_true", help="also the simulator's model of a board (virtual time)")
     ap.add_argument("--node", type=int, help="also this node, through the bridge named by KLONG_BENCH_HOST")
     ap.add_argument("--json", help="write the numbers to this file")

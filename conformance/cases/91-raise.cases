@@ -1,0 +1,209 @@
+# Raising and catching errors: .err and .try, one pair of functions (docs/design-principles.md: principle 3, the caught error is a
+# dictionary; principle 5, it says where; principle 2, the same on every target).
+#
+#   .try(f;args)    apply the function f to the list args: [1 result] when it works, [0 e] when it raises an error. e is a
+#                   dictionary: "kind" (a string, one of the kinds of docs/errors.md), "message", "source" (the name of the program
+#                   text, which differs between runtimes: no case reads it), "line" and "col" (1-based; 0 when the error has no place).
+#                   An interrupt (Ctrl-C, .x) is not caught.
+#   .err(kind;message) or .err(e)
+#                   raise an error of that kind with that message, or raise again what .try caught.
+
+@ raise.try-result-of-a-call-that-works strings dicts
+> f::{x+1}
+> .try(f;,1)
+= [1 2]
+
+@ raise.try-the-flag-of-a-failure strings dicts
+> f::{x+"a"}
+> (.try(f;,1))@0
+= 0
+
+@ raise.try-kind-is-a-string strings dicts
+> f::{x+"a"}
+> ((.try(f;,1))@1)@"kind"
+= "type"
+
+@ raise.try-message-is-a-string strings dicts
+> f::{.err("range";"too far")}
+> ((.try(f;,1))@1)@"message"
+= "too far"
+
+@ raise.try-position-is-a-line strings dicts
+> f::{x+"a"}
+> e::(.try(f;,1))@1
+> e@"line"
+= 1
+
+@ raise.try-position-has-a-column strings dicts
+> f::{x+"a"}
+> e::(.try(f;,1))@1
+> 0<e@"col"
+= 1
+
+@ raise.try-position-of-an-error-in-a-later-line strings dicts
+> f::{x+1}
+> g::{
+>   x+"a"}
+> e::(.try(g;,1))@1
+> e@"line"
+= 3
+
+@ raise.try-error-is-a-dictionary-with-five-entries strings dicts
+> f::{x+"a"}
+> e::(.try(f;,1))@1
+> #e
+= 5
+
+@ raise.try-a-function-of-two-arguments strings dicts
+> f::{x+y}
+> .try(f;[1 2])
+= [1 3]
+
+@ raise.try-a-function-of-two-arguments-that-fails strings dicts
+> f::{x+y}
+> ((.try(f;[1 "a"]))@1)@"kind"
+= "type"
+
+@ raise.try-without-arguments strings dicts
+> f::{1+"a"}
+> ((.try(f;[]))@1)@"kind"
+= "type"
+
+@ raise.try-name-error strings dicts
+> f::{nosuch(x)}
+> ((.try(f;,1))@1)@"kind"
+= "name"
+
+@ raise.try-range-error strings dicts
+> f::{[1 2 3]@x}
+> ((.try(f;,9))@1)@"kind"
+= "range"
+
+@ raise.try-leaves-the-program-running strings dicts
+> f::{x+"a"}
+> .try(f;,1)
+> 7+1
+= 8
+
+@ raise.try-nested strings dicts
+> inner::{.err("range";"inner")}
+> outer::{(.try(inner;,x))@0}
+> (.try(outer;,0))
+= [1 0]
+
+@ raise.try-x-must-be-a-function core
+> .try(1;,2)
+! type
+
+@ raise.try-args-must-be-a-list strings dicts
+> f::{x}
+> .try(f;"ab")
+! type
+
+@ raise.try-arity core
+> .try({x})
+! arity
+
+@ raise.err-kind-and-message strings
+> .err("range";"bad index")
+! range
+
+@ raise.err-every-kind-is-the-error-of-that-kind strings
+> .err("syntax";"m")
+! syntax
+
+@ raise.err-name strings
+> .err("name";"m")
+! name
+
+@ raise.err-arity strings
+> .err("arity";"m")
+! arity
+
+@ raise.err-type strings
+> .err("type";"m")
+! type
+
+@ raise.err-shape strings
+> .err("shape";"m")
+! shape
+
+@ raise.err-system strings
+> .err("system";"m")
+! system
+
+@ raise.err-memory strings
+> .err("memory";"m")
+! memory
+
+@ raise.err-the-kind-can-be-a-symbol strings
+> .err(:type;"m")
+! type
+
+@ raise.err-an-unknown-kind-is-a-range-error strings
+> .err("nosuch";"m")
+! range
+
+@ raise.err-interrupt-cannot-be-raised strings
+> .err("interrupt";"m")
+! range
+
+@ raise.err-the-kind-must-be-text strings
+> .err(1;"m")
+! type
+
+@ raise.err-the-message-must-be-a-string strings
+> .err("range";1)
+! type
+
+@ raise.err-one-argument-must-be-an-error-dictionary strings dicts
+> .err(1)
+! arity
+
+@ raise.err-needs-the-kind-and-the-message-entries strings dicts
+> .err(:{;"kind";"range"})
+! type
+
+@ raise.err-takes-what-try-caught strings dicts
+> f::{x+"a"}
+> e::(.try(f;,1))@1
+> .err(e)
+! type
+
+@ raise.err-then-try-round-trips-the-kind strings dicts
+> f::{.err("shape";"flat")}
+> e::(.try(f;,1))@1
+> g::{.err(x)}
+> (((.try(g;,e))@1))@"kind"
+= "shape"
+
+@ raise.err-then-try-round-trips-the-message strings dicts
+> f::{.err("shape";"flat")}
+> e::(.try(f;,1))@1
+> g::{.err(x)}
+> (((.try(g;,e))@1))@"message"
+= "flat"
+
+@ raise.a-program-raises-its-own-error-and-catches-it strings dicts
+> check::{:[x<0;.err("range";"negative");x]}
+> r::.try(check;,-3)
+> r@0
+= 0
+
+@ raise.a-program-uses-the-result-of-a-failure strings dicts float
+> half::{:[x=0;.err("range";"zero");1%x]}
+> v::{:[(x@0)=1;x@1;-1]}
+> v'{.try(half;,x)}'[2 0]
+= [0.5 -1.0]
+
+@ raise.try-with-an-adverb-over-the-arguments strings dicts
+> f::{x+"a"}
+> g::{x+1}
+> {x@0}'{.try(g;,x)}'[1 2]
+= [1 1]
+
+@ raise.a-program-reads-the-kind-and-the-message-of-its-own-error strings dicts
+> check::{:[x<0;.err("range";"negative");x]}
+> e::((.try(check;,-3))@1)
+> ((,e@"kind"),,e@"message")
+= ["range" "negative"]

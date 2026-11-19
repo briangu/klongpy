@@ -895,7 +895,8 @@ impl<P: Platform + 'static> Events<P> {
         let target = match &callee {
             Value::Sym(s) => {
                 let name = try_str(ip.syms.name(*s))?;
-                ip.global(&name).ok_or_else(|| Error::name(klong_core::msg!("symbol not found: {}", name)))?
+                // (a name of segments, `mgmt.call`, is the entry of a dictionary, as it is where a request is a symbol alone)
+                ip.global_path(&name).ok_or_else(|| Error::name(klong_core::msg!("symbol not found: {}", name)))?
             }
             Value::Str(text) => {
                 let text = try_str(text.as_str())?;

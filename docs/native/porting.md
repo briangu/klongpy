@@ -113,6 +113,16 @@ The C interface has the features `files`, `lib` and `timers`. IPC needs a transp
 
 These include the console. Static RAM (`.data` and `.bss`) is 48 bytes beside the heap. The Klong library is about 42 KiB of `.rodata` (the `lib` feature). IPC adds roughly 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, the `mgmt` library 12.6 KB, and `.try` and `.err` 1.7 and 2.3 KB (older figures). The ESP32-P4 image is 691,328 bytes flashed; it is built with the speed profile and includes ESP-IDF.
 
+The images of the board skeleton, linked with the `min-size` profile (`cargo +stable build -p klong-board --profile min-size`), measured on 2026-11-18. The first column is the console and the embedded library (`files`, `lib`, `ipc`, `timers`), the second the same with `int32,float32`, the third no console and no default features (no files, no library, no IPC):
+
+| Target | Console | Console, 32-bit | No console, bare |
+|---|---|---|---|
+| `thumbv7em-none-eabihf` | 315,876 | 299,996 | 236,964 |
+| `riscv32imac-unknown-none-elf` | 418,192 | 401,072 | 326,510 |
+| `thumbv7em-none-eabihf` before the module system (`.import`, `.export`, `a.b`) | 300,948 | 285,032 | 226,916 |
+
+The module system costs 12.5 KB on the console image and 7.7 KB on the bare one (the image without files or library has no `.import`: the loader is not built there, which saves 1.4 KB). By part, on `thumbv7em` with the console: the loader and `.import`/`.export` of the runtime 4.0 KB, the module scopes and their release in the core 2.1 KB, qualified names `a.b` 1.1 KB, the lookup and assignment rules 1.4 KB, the parser 0.6 KB, the library files written as modules 1.5 KB of text, the rest in what the other changes pull in. `.try`, `.err` (the error as a dictionary), `.seed`, `.now` and reading a qualified name on a host value add 2.4 KB to the console image, 2.3 KB to the 32-bit one and 2.4 KB to the bare one (1.0 KB net of the loader that the bare image no longer has).
+
 **RAM.**
 
 * The console keeps 432 bytes of state (32-bit) inside the board's main structure. On the heap it takes at most `max_line` (1024) for the line, `history_bytes` (2048) for 32 lines of history, `max_entry` (8192) while a multi-line entry is open, 4096 for typed-ahead input, and `max_run` (64 KiB) only while a program sent with `run` is held. `put` and `hex` stream to the file system through a 128-byte buffer. The limits are fields of `ConsoleConfig`; a board with a small heap lowers `max_run` and `max_entry`.

@@ -1,4 +1,4 @@
-//! `klong ast FILE|-e EXPR`: the canonical parse tree of a program (`conformance/README.md`), the text `kgpy ast` printed.
+//! `kg ast FILE|-e EXPR`: the canonical parse tree of a program (`conformance/README.md`), the text `kgpy ast` printed.
 use crate::ToolError;
 use klong_core::Config;
 use klong_host::{Console, HostPlatform};
@@ -26,9 +26,9 @@ pub fn ast_text(text: &str, name: &str) -> Result<String, ToolError> {
     with_parse(text, name, |ip, p| klong_core::dump::dump(&p.tree, &ip.syms, &p.stmts))
 }
 
-const USAGE: &str = "usage: klong ast [-h] (FILE | -e EXPR)\n";
+const USAGE: &str = "usage: kg ast [-h] (FILE | -e EXPR)\n";
 
-const HELP: &str = "usage: klong ast [-h] (FILE | -e EXPR)
+const HELP: &str = "usage: kg ast [-h] (FILE | -e EXPR)
 
 Print the canonical parse tree of FILE (or of EXPR) and exit. Nothing is run.
 
@@ -41,14 +41,14 @@ options:
               parse this text instead of a file
 ";
 
-/// The body of `klong ast`: `args` follow the word `ast`. Returns the exit status: 0, 1 when the text does not parse or the file
+/// The body of `kg ast`: `args` follow the word `ast`. Returns the exit status: 0, 1 when the text does not parse or the file
 /// cannot be read, 2 for a wrong command line.
 pub fn ast_main(args: &[String], stdin: &mut dyn Read, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let (mut file, mut expr): (Option<String>, Option<String>) = (None, None);
     let mut i = 0;
     let mut only_files = false;
     let bad = |err: &mut dyn Write, m: String| -> i32 {
-        let _ = write!(err, "{}klong ast: error: {}\n", USAGE, m);
+        let _ = write!(err, "{}kg ast: error: {}\n", USAGE, m);
         2
     };
     while i < args.len() {
@@ -96,13 +96,13 @@ pub fn ast_main(args: &[String], stdin: &mut dyn Read, out: &mut dyn Write, err:
             if let Err(e) = read {
                 let why = e.to_string();
                 let why = why.split(" (os error").next().unwrap_or(&why).to_string();
-                let _ = writeln!(err, "klong ast: {}: {}", f, why);
+                let _ = writeln!(err, "kg ast: {}: {}", f, why);
                 return 1;
             }
             match klong_lint::decode(&bytes) {
                 Ok(t) => (t, if f == "-" { "<stdin>".to_string() } else { f.clone() }),
                 Err(why) => {
-                    let _ = writeln!(err, "klong ast: {}: {}", f, why);
+                    let _ = writeln!(err, "kg ast: {}: {}", f, why);
                     return 1;
                 }
             }

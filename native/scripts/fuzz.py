@@ -121,7 +121,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=102)
     ap.add_argument("--count", type=int, default=5000)
-    ap.add_argument("--klong", default=os.path.join(ROOT, "native", "target", "release", "klong"))
+    ap.add_argument("--klong", default=os.path.join(ROOT, "native", "target", "release", "kg"))
     ap.add_argument("--extra", default="", help="more options for the binary, e.g. '--stack 64K --stack-budget 64K'")
     a = ap.parse_args()
     rng = random.Random(a.seed)

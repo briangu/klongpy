@@ -174,6 +174,24 @@ pub(crate) fn text_arg<'a>(a: &'a [Value], name: &str) -> Result<&'a str> {
     }
 }
 
+/// The dictionary `.try` hands back for an error: "kind", "message", "source", "line" and "col" (see `.try`).
+fn error_dict(e: &Error) -> Result<Value> {
+    let (source, line, col) = match (&e.source, e.span) {
+        (Some(src), Some(span)) => {
+            let (l, c) = src.line_col(span.0);
+            (src.name.as_str(), l as Int, c as Int)
+        }
+        _ => ("", 0, 0),
+    };
+    let mut d = Dict::default();
+    d.set(Value::text("kind")?, Value::text(e.kind.name())?)?;
+    d.set(Value::text("message")?, Value::text(&e.message)?)?;
+    d.set(Value::text("source")?, Value::text(source)?)?;
+    d.set(Value::text("line")?, Value::Int(line))?;
+    d.set(Value::text("col")?, Value::Int(col))?;
+    Ok(Value::dict(d))
+}
+
 /// False as `.fc`, `.tc`, `.module` and `.x` mean it: 0 or something empty.
 pub(crate) fn is_false(v: &Value) -> bool {
     matches!(v, Value::Int(0)) || matches!(v, Value::Flt(f) if *f == 0.0) || v.is_empty()
@@ -291,9 +309,11 @@ impl<P: Platform + 'static> Runtime<P> {
                 }
             }),
         );
-        // .try(f; args) and .err(kind; message): an error as a value, and a value as an error.
-        // A program that speaks for other nodes (the management service) has to
-        // survive their failures and pass them on as what they were.
+        // .try(f; args) and .err(kind; message) or .err(e): an error as a value, and a value as an error (docs/native/management-node.md).
+        // `.try` gives [1 result] or [0 e], where e is a dictionary: "kind" (the name of the kind, a string), "message", "source" (the
+        // name of the program text the error was found in, "" when it has none), "line" and "col" (where, 1-based; 0 when the error has
+        // no position). `.err` takes the kind and the message, or such a dictionary: what `.try` caught is what `.err` raises again. A
+        // program that speaks for other nodes (the management service) has to survive their failures and pass them on as what they were.
         interp.register(
             ".try",
             2,
@@ -311,7 +331,7 @@ impl<P: Platform + 'static> Runtime<P> {
                     v => v.items().map_err(|_| Error::typ(klong_core::msg!(".try: y must be the list of arguments, got {}", v.describe())))?,
                 };
                 let n = args.len().min(255) as u8;
-                let mut r = klong_core::value::try_vec(3)?;
+                let mut r = klong_core::value::try_vec(2)?;
                 match ip.apply(f, args, Some(n)) {
                     Ok(v) => {
                         r.push(Value::Int(1));
@@ -321,8 +341,7 @@ impl<P: Platform + 'static> Runtime<P> {
                     Err(e) if e.kind == klong_core::Kind::Interrupt => return Err(e),
                     Err(e) => {
                         r.push(Value::Int(0));
-                        r.push(Value::text(e.kind.name())?);
-                        r.push(Value::text(&e.message)?);
+                        r.push(error_dict(&e)?);
                     }
                 }
                 Value::from_items(r)
@@ -330,23 +349,30 @@ impl<P: Platform + 'static> Runtime<P> {
         );
         interp.register(
             ".err",
-            2,
+            WILDCARD,
             Rc::new(|ip: &mut Interp, a: &[Value]| {
+                use klong_core::Kind as K;
                 let (k, m) = match a {
-                    [k, m] => (k, m),
-                    _ => return Err(Error::arity(klong_core::msg!(".err takes 2 arguments, got {}", a.len()))),
+                    [Value::Dict(d)] => {
+                        let d = d.borrow();
+                        match (d.get(&Value::text("kind")?), d.get(&Value::text("message")?)) {
+                            (Some(k), Some(m)) => (k.clone(), m.clone()),
+                            _ => return Err(Error::typ(".err: a dictionary needs the entries \"kind\" and \"message\"")),
+                        }
+                    }
+                    [k, m] => (k.clone(), m.clone()),
+                    _ => return Err(Error::arity(klong_core::msg!(".err takes the kind and the message, or an error dictionary, got {} arguments", a.len()))),
                 };
-                let name = match k {
+                let name = match &k {
                     Value::Str(s) => s.as_str(),
                     Value::Sym(s) => ip.syms.name(*s),
                     v => return Err(Error::typ(klong_core::msg!(".err: x must be the name of an error kind, got {}", v.describe()))),
                 };
-                use klong_core::Kind as K;
                 let kind = [K::Syntax, K::Name, K::Arity, K::Type, K::Shape, K::Range, K::System, K::Memory, K::Internal, K::Remote].into_iter().find(|c| c.name() == name);
                 let Some(kind) = kind else {
                     return Err(Error::range(klong_core::msg!(".err: {} is not an error kind", name)));
                 };
-                match m {
+                match &m {
                     Value::Str(s) => Err(Error::new(kind, klong_core::msg!("{}", s.as_str()))),
                     v => Err(Error::typ(klong_core::msg!(".err: y must be the message, a string, got {}", v.describe()))),
                 }
@@ -406,13 +432,29 @@ impl<P: Platform + 'static> Runtime<P> {
                 Ok(Value::Flt(now.saturating_sub(start) as Flt / 1e6))
             }),
         );
+        // `.now()`: seconds since 1970-01-01 00:00:00 UTC, a float, where the platform has a clock that knows the date (a desktop does; a
+        // board that was not told the time does not, and says so). `.pc()` is the clock for measuring: it starts at 0 with the program.
+        let sh = shared.clone();
+        interp.register(
+            ".now",
+            0,
+            Rc::new(move |_: &mut Interp, _: &[Value]| {
+                let wall = sh.platform.try_borrow().map_err(|_| Error::internal("runtime state in use"))?.wall_clock();
+                match wall {
+                    Some(t) => Ok(Value::Flt(t as Flt)),
+                    None => Err(Error::system(klong_core::dmsg!("no wall clock", "this platform has no wall clock: .now() needs one that knows the date (.pc() measures time since the start)"))),
+                }
+            }),
+        );
+        // `.rn()`: xorshift64* (Vigna, 2014), one 64-bit word of state, the same on every target. The float is the top 53 bits of the
+        // output over 2^53 (64-bit floats) or the top 24 over 2^24 (32-bit floats: the 64-bit value cut to 24 bits). `.seed(n)` sets the
+        // state from the integer n through one step of splitmix64, so that the sequence after `.seed(n)` is the same on every target.
         let sh = shared.clone();
         interp.register(
             ".rn",
             0,
             Rc::new(move |_: &mut Interp, _: &[Value]| {
                 let mut io = sh.io.try_borrow_mut().map_err(|_| Error::internal("runtime state in use"))?;
-                // xorshift64*: small, no state beyond one word, good enough for simulations
                 let mut x = io.rng;
                 x ^= x >> 12;
                 x ^= x << 25;
@@ -424,6 +466,25 @@ impl<P: Platform + 'static> Runtime<P> {
                 #[cfg(feature = "float32")]
                 let f = (r >> 40) as Flt / (1u64 << 24) as Flt;
                 Ok(Value::Flt(f))
+            }),
+        );
+        let sh = shared.clone();
+        interp.register(
+            ".seed",
+            1,
+            Rc::new(move |_: &mut Interp, a: &[Value]| {
+                let n = match one(a, ".seed")? {
+                    Value::Int(n) => *n,
+                    v => return Err(Error::typ(klong_core::msg!(".seed: x must be an integer, got {}", v.describe()))),
+                };
+                let mut io = sh.io.try_borrow_mut().map_err(|_| Error::internal("runtime state in use"))?;
+                // splitmix64 of the seed (a negative integer is its 64-bit two's complement on every build); never the all-zero state
+                let mut z = (n as i64 as u64).wrapping_add(0x9e37_79b9_7f4a_7c15);
+                z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+                z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+                z ^= z >> 31;
+                io.rng = if z == 0 { 0x9e37_79b9_7f4a_7c15 } else { z };
+                Ok(Value::Int(n))
             }),
         );
         let sh = shared.clone();

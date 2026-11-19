@@ -51,14 +51,14 @@ Three nodes, a management node in front of them, and a desktop client, all on lo
 
 Start three nodes. Each defines `sq` and serves one port:
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ for i in 1 2 3; do klong -e "sq::{x*x};.srv(\"127.0.0.1:$((8888+i))\")" > n$i.log 2>&1 & echo $! > n$i.pid; done; for i in $(seq 600); do [ -s n1.log ] && [ -s n2.log ] && [ -s n3.log ] && break; sleep 0.1; done
+$ for i in 1 2 3; do kg -e "sq::{x*x};.srv(\"127.0.0.1:$((8888+i))\")" > n$i.log 2>&1 & echo $! > n$i.pid; done; for i in $(seq 600); do [ -s n1.log ] && [ -s n2.log ] && [ -s n3.log ] && break; sleep 0.1; done
 ```
 
 Write the management node's program. It registers the nodes, starts the liveness check every 0.3 seconds, defines one helper, and serves the management port. The ports are the arguments of the program, which a file reads from `.a`:
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release; continue -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release; continue -->
 ```console
 $ cat > mgr.kg <<'EOF'
 > .l("mgmt")
@@ -69,14 +69,14 @@ $ cat > mgr.kg <<'EOF'
 > states::{{(mgmt.nodes?x)?"state"}'mgmt.names()}
 > .srv("127.0.0.1:",.a@3)
 > EOF
-$ klong mgr.kg $((8888+1)) $((8888+2)) $((8888+3)) $((8888+10)) > mgr.log 2>&1 & echo $! > mgr.pid; for i in $(seq 600); do lsof -nP -iTCP:$((8888+10)) -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 0.1; done; cat mgr.log
+$ kg mgr.kg $((8888+1)) $((8888+2)) $((8888+3)) $((8888+10)) > mgr.log 2>&1 & echo $! > mgr.pid; for i in $(seq 600); do lsof -nP -iTCP:$((8888+10)) -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 0.1; done; cat mgr.log
 ```
 
 The management node prints nothing. `klong` stays alive because a timer runs and a server listens.
 
 Now the desktop. A client connects to the management node with `.cli` and sends it requests: a string to evaluate, or a list whose first element is the symbol of a function. The `mgmt` functions are called through the management node, so the list `[:mgmt.call "n2" :sq [7]]` is a request to call `mgmt.call("n2";:sq;[7])` there. The client is another `klong` here; it could be KlongPy.
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release; continue -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release; continue -->
 ```console
 $ cat > desk.kg <<'EOF'
 > m::.cli("127.0.0.1:",.a@0)
@@ -85,7 +85,7 @@ $ cat > desk.kg <<'EOF'
 > .p(m([:mgmt.all :sq [6]]))
 > .p(m("states()"))
 > EOF
-$ klong desk.kg $((8888+10))
+$ kg desk.kg $((8888+10))
 [n1 n2 n3]
 49
 :{[n1 36] [n2 36] [n3 36]}
@@ -98,7 +98,7 @@ $ klong desk.kg $((8888+10))
 
 `mgmt.put` writes a file on a node, and `mgmt.load` has the node load it. All three nodes run in this directory, so the file shows up here:
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release; continue -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release; continue -->
 ```console
 $ cat > deploy.kg <<'EOF'
 > m::.cli("127.0.0.1:",.a@0)
@@ -109,7 +109,7 @@ $ cat > deploy.kg <<'EOF'
 > .p(r?"n2")
 > .p((r?"n1")?"message")
 > EOF
-$ klong deploy.kg $((8888+10))
+$ kg deploy.kg $((8888+10))
 13
 27
 8
@@ -124,9 +124,9 @@ cube::{x*x*x}
 
 An error on a node is raised on the management node as an error of the same kind, with the name of the node in front of the message, and it travels on to the desktop with that kind:
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release; continue -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release; continue -->
 ```console
-$ printf 'm::.cli(%s)\nm([:mgmt.call "n1" "{1+x}" ["a"]])\n' $((8888+10)) | klong 2>&1 | sed -n 2p
+$ printf 'm::.cli(%s)\nm([:mgmt.call "n1" "{1+x}" ["a"]])\n' $((8888+10)) | kg 2>&1 | sed -n 2p
   1:1: type error: n1: cannot apply + (Plus) to integer and string
 ```
 
@@ -142,7 +142,7 @@ Klong has no error type, so a node whose own answer is such a dictionary cannot 
 
 Every interval each node is sent `mgmt.probe` without waiting. An answer makes the node `"up"`. A node that has not answered by the next check is `"down"`, and so is one whose link failed or whose call timed out; the check connects it again at the following check. Kill a node and the check notices:
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release; continue -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release; continue -->
 ```console
 $ kill $(cat n3.pid); sleep 1.2
 $ cat > after.kg <<'EOF'
@@ -152,7 +152,7 @@ $ cat > after.kg <<'EOF'
 > .p(r?"n1")
 > .p(r?"n3")
 > EOF
-$ klong after.kg $((8888+10))
+$ kg after.kg $((8888+10))
 [up up down]
 36
 :{[error system] [node n3] [message n3: not connected]}
@@ -164,52 +164,61 @@ While `mgmt.call` or a fan-out waits, the management node does nothing else: no 
 
 Last, stop what the example started:
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release; continue -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release; continue -->
 ```console
 $ for f in mgr n1 n2; do kill $(cat $f.pid); done
 ```
 
 ## `.try` and `.err`
 
-The library needed two functions that Klong did not have: a way to catch an error and a way to raise one. The native runtime has them, always, and the management library uses them on the management node and on the nodes. KlongPy has neither.
+The library needed two functions that Klong did not have: a way to catch an error and a way to raise one. They are one pair, and they are functions, not statements (a program raises with `.err` and catches with `.try`, and what one catches the other raises again). Both are in `kg`, in `kgpy` and on every board build, from the same runtime.
 
-`.try(f;args)` applies the function `f` to the list `args`. The result is `[1 result]` or, if there was an error, `[0 kind message]` with the kind's name as a string. An interrupt (Ctrl-C, `.x`) is not caught. `.err(kind;message)` raises an error of that kind with that message, for any kind except `interrupt`.
+`.try(f;args)` applies the function `f` to the list `args`. The result is `[1 result]` when it worked and `[0 e]` when it raised an error. `e` is a dictionary, as every collection of named things is in Klong (principle 3 of the [design principles](../design-principles.md)):
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+| Entry | Value |
+|---|---|
+| `"kind"` | the name of the error kind, a string: `syntax`, `name`, `arity`, `type`, `shape`, `range`, `system`, `memory`, `internal` or `remote` (the kinds of [Errors](../errors.md)) |
+| `"message"` | the message, a string |
+| `"source"` | the name of the program text the error was found in (a file name, `<-e>`, `<stdin>`), or `""` |
+| `"line"`, `"col"` | where, counting from 1; 0 when the error has no place |
+
+An interrupt (Ctrl-C, `.x`) is not caught. `.err(kind;message)` raises an error of that kind with that message, for any kind except `interrupt`, and the kind may be a string or a symbol. `.err(e)` raises what `.try` caught, with its kind and its message (the place it reports is that of the `.err`; the place of the first failure is in `e`). A program that wants a category of its own writes it in the message: the kinds are the language's.
+
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e 'f::{x+"a"};.try(f;,1)'
-[0 "type" "cannot apply + (Plus) to integer and string"]
-$ klong -e 'g::{x+1};.try(g;,1)'
+$ kg -e 'f::{x+"a"};.try(f;,1)'
+[0 :{["kind" "type"] ["message" "cannot apply + (Plus) to integer and string"] ["source" "<-e>"] ["line" 1] ["col" 6]}]
+$ kg -e 'g::{x+1};.try(g;,1)'
 [1 2]
-$ klong -e '.err("range";"bad index")'
+$ kg -e 'f::{x+"a"};e::(.try(f;,1))@1;e@"message"'
+"cannot apply + (Plus) to integer and string"
+$ kg -e 'f::{x+"a"};e::(.try(f;,1))@1;.err(e)'
+1:30: type error: cannot apply + (Plus) to integer and string
+  f::{x+"a"};e::(.try(f;,1))@1;.err(e)
+                               ^^^^^^^
+$ kg -e '.err("range";"bad index")'
 1:1: range error: bad index
   .err("range";"bad index")
   ^^^^^^^^^^^^^^^^^^^^^^^^^
-$ klong -e '.err("interrupt";"stop")'
+$ kg -e '.err("interrupt";"stop")'
 1:1: range error: .err: interrupt is not an error kind
   .err("interrupt";"stop")
   ^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-A function literal with no argument, written where a value is expected, is evaluated on the spot: that is the rule of the language, and KlongPy does the same (`f::{x+1};f({41})` gives 42, because `f` receives 41). So `.try({1+"a"};[0])` raises the error while its arguments are evaluated, before `.try` runs, and `.timer("t";1;{0})` hands `.timer` the number 0. To pass such a function, give it a name or an argument:
+A function literal with no argument, written where a value is expected, is evaluated on the spot: that is the rule of the language (`f::{x+1};f({41})` gives 42, because `f` receives 41). So `.try({1+"a"};[0])` raises the error while its arguments are evaluated, before `.try` runs, and `.timer("t";1;{0})` hands `.timer` the number 0. To pass such a function, give it a name or an argument:
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e 'h::{1+"a"};.try(h;[0])'
-[0 "type" "cannot apply + (Plus) to integer and string"]
-$ klong -e '.try({x;1+"a"};[0])'
-[0 "type" "cannot apply + (Plus) to integer and string"]
+$ kg -e 'h::{1+"a"};.try(h;[0])'
+[0 :{["kind" "type"] ["message" "cannot apply + (Plus) to integer and string"] ["source" "<-e>"] ["line" 1] ["col" 6]}]
+$ kg -e '.try({x;1+"a"};[0])'
+[0 :{["kind" "type"] ["message" "cannot apply + (Plus) to integer and string"] ["source" "<-e>"] ["line" 1] ["col" 10]}]
 ```
 
-KlongPy has no `.try` and no `.err`. KlongPy as the management process (next section) therefore works around them:
+The management library keeps the older, flat form on the wire between nodes, `[1 result]` or `[0 kind message]`, so that a node of either age understands another; `mgmt.cfg.trap` says whether the runtime has `.try` (1) or not (0), and it is worked out the first time it is needed.
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
-```console
-$ kgpy -e '.err("range";"x")' 2>&1 | head -1
-<expr>:1:1: name error: undefined function: .err
-```
-
-The two functions cost about 1.7 KB of flash on `thumbv7em-none-eabihf` and 2.3 KB on `riscv32imac-unknown-none-elf`. Whether KlongPy should get them, and under these names, is open.
+The two functions cost about 1.7 KB of flash on `thumbv7em-none-eabihf` and 2.3 KB on `riscv32imac-unknown-none-elf` (older figures); the dictionary of the caught error adds a little code.
 
 ## KlongPy as the management process
 
@@ -227,7 +236,7 @@ What differs:
 * A link that fails or a node that is too slow during a fan-out fails the whole call.
 * The check does not connect a node again; `mgmt.open(name)` does. The reason is that `.cli` in KlongPy blocks for minutes when nobody listens at the address.
 * An error of the management node itself is a `name` error about `mgmt.error`, after the message is printed.
-* At strict level 2 KlongPy cannot be asked whether `.try` exists, so set `mgmt.trap::0` yourself after loading the library.
+* At strict level 2 KlongPy cannot be asked whether `.try` exists, so set `mgmt.cfg.trap::0` yourself after loading the library (`mgmt` is a module and `cfg` is its dictionary of settings).
 
 The nodes behind it are native runtimes in every case.
 

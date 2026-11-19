@@ -12,8 +12,8 @@ echo "== host builds"
 cargo build --release
 cargo build --profile min-size -p klong-cli
 cargo build --profile min-size -p klong-cli --features int32,float32 --target-dir target/narrow
-ls -l target/release/klong target/min-size/klong target/narrow/min-size/klong | awk '{print $5, $9}'
-for f in target/release/klong target/min-size/klong target/narrow/min-size/klong; do
+ls -l target/release/kg target/min-size/kg target/narrow/min-size/kg | awk '{print $5, $9}'
+for f in target/release/kg target/min-size/kg target/narrow/min-size/kg; do
     echo "$f: $(size -m "$f" 2>/dev/null | grep 'Section __text' | tr -d '\t')"
 done
 
@@ -33,12 +33,12 @@ if have wasm32-unknown-unknown; then
         name=${set%%:*}
         opts=$(echo "${set#*:}" | tr '+' ' ')
         (cd klong-probe && cargo +stable build -q --release --target wasm32-unknown-unknown --target-dir ../target/probe-$name $opts)
-        ls -l target/probe-$name/wasm32-unknown-unknown/release/klong_probe.wasm | awk -v n="$name" '{print "  " n ": " $5 " bytes"}'
+        ls -l target/probe-$name/wasm32-unknown-unknown/release/kg_probe.wasm | awk -v n="$name" '{print "  " n ": " $5 " bytes"}'
     done
     if command -v node >/dev/null; then
-        node scripts/probe.mjs target/probe-default/wasm32-unknown-unknown/release/klong_probe.wasm 'f::{:[x<2;x;f(x-1)+f(x-2)]};f(20)'
-        node scripts/probe.mjs target/probe-default/wasm32-unknown-unknown/release/klong_probe.wasm '.l("nstat");mu([1 2 3 4])'
-        node scripts/probe.mjs target/probe-narrow/wasm32-unknown-unknown/release/klong_probe.wasm '2147483647+1'
+        node scripts/probe.mjs target/probe-default/wasm32-unknown-unknown/release/kg_probe.wasm 'f::{:[x<2;x;f(x-1)+f(x-2)]};f(20)'
+        node scripts/probe.mjs target/probe-default/wasm32-unknown-unknown/release/kg_probe.wasm '.l("nstat");mu([1 2 3 4])'
+        node scripts/probe.mjs target/probe-narrow/wasm32-unknown-unknown/release/kg_probe.wasm '2147483647+1'
     fi
 fi
 
@@ -50,11 +50,11 @@ for target in riscv32imac-unknown-none-elf thumbv7em-none-eabihf; do
         opts=$(echo "${set#*:}" | tr '+' ' ')
         (cd klong-probe && cargo +stable build -q --release --target $target --target-dir ../target/probe-$name $opts 2>/dev/null)
         echo "  [$name]"
-        python3 scripts/sections.py target/probe-$name/$target/release/klong-probe --heap 65536 | tail -1
+        python3 scripts/sections.py target/probe-$name/$target/release/kg-probe --heap 65536 | tail -1
     done
     # what the image is made of: the same build with its symbols
     (cd klong-probe && cargo +stable build -q --release --target $target --target-dir ../target/probe-sym --config 'profile.release.strip=false' 2>/dev/null)
-    python3 scripts/sections.py target/probe-sym/$target/release/klong-probe --heap 65536 --top 12
+    python3 scripts/sections.py target/probe-sym/$target/release/kg-probe --heap 65536 --top 12
 done
 
 # The board skeleton with the console, and without it (one fixed program), as

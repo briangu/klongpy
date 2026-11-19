@@ -11,13 +11,13 @@ The functions are the same ones, with the same names and the same wire protocol,
 
 | Where | State |
 |---|---|
-| The `klong` program on the desktop, over TCP | built in and tested: with KlongPy in both directions, native to native, and against PeachQ (a kdb+-compatible q implementation) |
+| The `kg` program on the desktop, over TCP | built in and tested: with KlongPy in both directions, native to native, and against PeachQ (a kdb+-compatible q implementation) |
 | The simulated board `klong-sim` | built in (`.ver()` lists `ipc`), but it has no transport: `.srv` and `.cli` answer `system error: this platform has no tcp transport` |
 | An ESP32-P4 | **not built in.** The firmware has no IPC, and the ESP32-P4 has run no IPC (see [the status table](index.md#status-what-has-and-has-not-been-proven)). The C interface has one transport, the lane (a UART link of 16-byte frames; `klong-ffi --features lane`), and the ESP32-P4 firmware does not use it |
 | The nodes of a packet switch that carries 16-byte frames, `.cli("node:2")` | built in as the `node` transport; proven in the simulator and run on two Picos (2026-11-16): see [two Picos calling each other](pico-bench.md) |
 | Links over a UART, or a lossy packet radio | the code is there and was tested in memory with seeded faults (see [below](#links-that-are-not-tcp)); on a wire it has run only on the UART link between two Picos |
 
-The `klong` program registers one transport, TCP, and the examples on this page use it. The C interface has the `lane` transport (`klong-ffi --features lane`), which carries IPC over a UART link of 16-byte frames and the Pico firmware uses; a board port can supply another.
+The `kg` program registers one transport, TCP, and the examples on this page use it. The C interface has the `lane` transport (`klong-ffi --features lane`), which carries IPC over a UART link of 16-byte frames and the Pico firmware uses; a board port can supply another.
 
 ## The functions
 
@@ -41,7 +41,7 @@ Addresses are as in KlongPy:
 | `"host:8888"` | port 8888 on `host` |
 | `"host:8888:user:password"` | the same, with a user name and password |
 | `"tcp:host:8888"` | the same as `"host:8888"`, with the transport named |
-| `"name:address"` | any other transport that the platform has, with its own address; `.cli("uart:1@921600")` is how the management example in [Management Node](management-node.md) names a UART. The `klong` program has only `tcp` |
+| `"name:address"` | any other transport that the platform has, with its own address; `.cli("uart:1@921600")` is how the management example in [Management Node](management-node.md) names a UART. The `kg` program has only `tcp` |
 
 An address that is not one of these is a `type` error (`bad address a:b: expected a port or "host:port"`). A `.srv` on a port that is taken is a `system` error (`cannot listen on 127.0.0.1:8888: address in use`).
 
@@ -49,9 +49,9 @@ An address that is not one of these is a `type` error (`bad address a:b: expecte
 
 The block starts a native node that serves two functions and prints a line when a client arrives and when it leaves, then runs a small KlongPy client file. `kgpy -l` runs the file and goes on to the REPL; the REPL sees an empty standard input and leaves, and `sed` keeps the first four lines of output, which are the client's. `kgpy FILE`, without `-l`, stays up while the file holds an open connection, until Ctrl-C or `.clic` ([the REPL](../repl.md)), so the example uses `-l`.
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e 'sq::{x*x};total::{+/x};.srv.o::{.p("client connected")};.srv.c::{.p("client left")};.srv("127.0.0.1:8888")' > server.log 2>&1 & echo $! > server.pid; for i in $(seq 600); do [ -s server.log ] && break; sleep 0.1; done
+$ kg -e 'sq::{x*x};total::{+/x};.srv.o::{.p("client connected")};.srv.c::{.p("client left")};.srv("127.0.0.1:8888")' > server.log 2>&1 & echo $! > server.pid; for i in $(seq 600); do [ -s server.log ] && break; sleep 0.1; done
 $ cat > client.kg <<'EOF'
 > c::.cli("127.0.0.1:8888")
 > .p(c(:sq,,7))
@@ -80,15 +80,15 @@ One trap, the same in KlongPy: a symbol that names a function **defined on the c
 
 The other direction. The KlongPy node runs in the background for up to 25 seconds (`sleep 25 |` keeps its REPL from seeing the end of its input, and the file `kgpy.pid` holds its process number so that the last command can stop it), and the native `klong` is the client. `kgpy -s 8888` serves port 8888 and `-l` loads a file first.
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
 $ printf 'sq::{x*x}\nmean::{(+/x)%%#x}\n' > server.kg
 $ sleep 25 2>/dev/null | kgpy -s 8888 -l server.kg > kgpy.log 2>&1 & echo $! > kgpy.pid; for i in $(seq 600); do lsof -nP -iTCP:8888 -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 0.1; done
-$ klong -e 'c::.cli(8888);.p(c(:sq,,7));.p(c(:mean,,[1 2 3 4]));c("1+2")'
+$ kg -e 'c::.cli(8888);.p(c(:sq,,7));.p(c(:mean,,[1 2 3 4]));c("1+2")'
 49
 2.5
 3
-$ printf 'c::.cli(8888)\nc(:nosuch,,1)\n' | klong 2>&1 | grep -v '^ *$'
+$ printf 'c::.cli(8888)\nc(:nosuch,,1)\n' | kg 2>&1 | grep -v '^ *$'
   :monad
   1:1: name error: symbol not found: nosuch
   c(:nosuch,,1)
@@ -103,11 +103,11 @@ An error on the server comes back as an error of the same kind on the caller, an
 
 `.async(f;cb)` sends the request, returns 1, and runs `cb` with the answer when it arrives. Native callbacks run from the event loop, never inside an evaluation that is waiting. With `-e` the program keeps running after the last statement while an answer is still due, so the callback prints:
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
 $ printf 'sq::{x*x}\n' > server.kg
 $ sleep 25 2>/dev/null | kgpy -s 8888 -l server.kg > kgpy.log 2>&1 & echo $! > kgpy.pid; for i in $(seq 600); do lsof -nP -iTCP:8888 -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 0.1; done
-$ klong -e 'c::.cli(8888);g::.async(c(:sq);{.p("got ",$x)});g(6);.p("sent")'
+$ kg -e 'c::.cli(8888);g::.async(c(:sq);{.p("got ",$x)});g(6);.p("sent")'
 sent
 "sent"
 got 36
@@ -120,16 +120,16 @@ The answer to `g(6)` came after `sent`: the call did not wait. An error in an as
 
 A call that takes longer than the connection's timeout fails with a `system` error, and the connection is no longer usable (open a new one). A server that is busy evaluating moves no bytes meanwhile, so it looks dead to its peers for that long.
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e 'wait::{[t];t::.pc()+x;{.pc()<t}{x}:~0;x};.srv("127.0.0.1:8888")' > w.log 2>&1 & echo $! > w.pid; for i in $(seq 600); do [ -s w.log ] && break; sleep 0.1; done
-$ printf 'c::.cli(8888)\n.clit(c;0.5)\nc(:wait,,2)\n' | klong 2>&1 | grep -v '^ *$'
+$ kg -e 'wait::{[t];t::.pc()+x;{.pc()<t}{x}:~0;x};.srv("127.0.0.1:8888")' > w.log 2>&1 & echo $! > w.pid; for i in $(seq 600); do [ -s w.log ] && break; sleep 0.1; done
+$ printf 'c::.cli(8888)\n.clit(c;0.5)\nc(:wait,,2)\n' | kg 2>&1 | grep -v '^ *$'
   :monad
   1
   1:1: system error: call timed out after 0.5s: localhost:8888
   c(:wait,,2)
   ^^^^^^^^^^^
-$ klong -e 'c::.cli(8888);.p(c(:wait,,0.2))'
+$ kg -e 'c::.cli(8888);.p(c(:wait,,0.2))'
 0.2
 "0.2"
 $ kill $(cat w.pid)
@@ -137,15 +137,15 @@ $ kill $(cat w.pid)
 
 A server that defines `.srv.auth` checks the user name and password in the address. A wrong or missing login is refused during the handshake, and the client's error says so:
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e '.srv.auth::{(x~"ann")&y~"pw"};sq::{x*x};.srv("127.0.0.1:8888")' > a.log 2>&1 & echo $! > a.pid; for i in $(seq 600); do [ -s a.log ] && break; sleep 0.1; done
-$ klong -e 'c::.cli("127.0.0.1:8888:ann:pw");c(:sq,,5)'
+$ kg -e '.srv.auth::{(x~"ann")&y~"pw"};sq::{x*x};.srv("127.0.0.1:8888")' > a.log 2>&1 & echo $! > a.pid; for i in $(seq 600); do [ -s a.log ] && break; sleep 0.1; done
+$ kg -e 'c::.cli("127.0.0.1:8888:ann:pw");c(:sq,,5)'
 25
-$ klong -e 'c::.cli("127.0.0.1:8888:bob:no");c(:sq,,5)' 2>&1 | sed -n 1p
+$ kg -e 'c::.cli("127.0.0.1:8888:bob:no");c(:sq,,5)' 2>&1 | sed -n 1p
 1:4: system error: 127.0.0.1:8888 closed the connection during the handshake (bad credentials, or it does not speak the kdb+ protocol)
 $ kill $(cat a.pid); sleep 1
-$ klong -e '.cli(8888)' 2>&1 | sed -n 1p
+$ kg -e '.cli(8888)' 2>&1 | sed -n 1p
 1:1: system error: cannot connect to localhost:8888: connection refused
 ```
 
@@ -155,9 +155,9 @@ $ klong -e '.cli(8888)' 2>&1 | sed -n 1p
 
 `.timer(name;seconds;fn)` starts a repeating timer and returns a handle. `seconds` may be fractional. `fn` is called with no arguments every interval; its result decides what happens: 0 stops the timer, anything else continues. `.timerc(handle)` stops a timer and returns 1, or 0 if it was not running. A callback that fails cancels its timer, and the error is written to the error channel as `timer NAME callback failed; cancelling timer: ...`.
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e 'n::0;cb::{n::n+1;.p(n);:[n<3;1;0]};.timer("count";0.2;cb)'
+$ kg -e 'n::0;cb::{n::n+1;.p(n);:[n<3;1;0]};.timer("count";0.2;cb)'
 :timer
 1
 2
@@ -213,7 +213,7 @@ The error kinds an error takes on the way: each kind of the language arrives as 
 
 ### Links that are not TCP
 
-The IPC code does not do I/O itself. A platform supplies transports, and the runtime puts a reliability layer on any link that is not a reliable stream. For a UART there is a framing with COBS and a CRC-16, and over it a go-back-N layer with a window of 16 packets and a retry budget. These were tested in memory, with seeded loss, duplication and reordering of 1 to 30 percent and with damaged bytes. At 30 percent a stream arrived intact only with a retry budget raised from 8 to 16, and with 100 percent loss the session fails with a timeout after 8 retransmissions. A CRC-16 cannot make "never delivers a corrupted value" absolute: a damaged frame passes with a probability of about 1.5 in 100,000. The COBS and CRC-16 framing has not run on a real UART (the two-Pico link uses the 16-byte frames described below), and the `klong` program cannot reach these transports, so the process tests are all TCP. See [Porting to a Board](porting.md) for what a board supplies.
+The IPC code does not do I/O itself. A platform supplies transports, and the runtime puts a reliability layer on any link that is not a reliable stream. For a UART there is a framing with COBS and a CRC-16, and over it a go-back-N layer with a window of 16 packets and a retry budget. These were tested in memory, with seeded loss, duplication and reordering of 1 to 30 percent and with damaged bytes. At 30 percent a stream arrived intact only with a retry budget raised from 8 to 16, and with 100 percent loss the session fails with a timeout after 8 retransmissions. A CRC-16 cannot make "never delivers a corrupted value" absolute: a damaged frame passes with a probability of about 1.5 in 100,000. The COBS and CRC-16 framing has not run on a real UART (the two-Pico link uses the 16-byte frames described below), and the `kg` program cannot reach these transports, so the process tests are all TCP. See [Porting to a Board](porting.md) for what a board supplies.
 
 ### Links that carry messages, not bytes
 

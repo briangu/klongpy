@@ -139,7 +139,7 @@ jobreq::0
 :"(a string before the result, not a number: a list of two numbers would travel as one vector,"
 :"and the result would take the other's type)"
 .mgmt.run::{[r];r::.try({[f];f:::[~@x;.E(x):|x~*.E("[",($x),"]");.E(1_$x);x];:[(0=#y)&~@x;f;f@y]};(,x),,y);
-           :[r@0;(,""),,r@1;r]}
+           :[r@0;(,""),,r@1;(,0),(,(r@1)@"kind"),,(r@1)@"message"]}
 :"mgmt.job(id;fn;args): the same, kept for the collection that follows"
 .mgmt.job::{.mgmt.r::x,,.mgmt.run(y;z);0}
 .mgmt.r::0
@@ -149,8 +149,8 @@ wr::{[c];c::.oc(x);.tc(c);.d(y);.tc(0);.cc(c);#y}
 :"----- errors -----"
 
 cap::{:[cfg.trap<0;cfg.trap::.E("~.try~*[:.try]");0];1~cfg.trap}
-:"mgmt.try(f;args): [1 result] or [0 kind message]; without .try the error is not caught"
-trycall::{:[cap();.try(x;y);(,1),,x@y]}
+:"trycall(f;args): [1 result] or [0 kind message] (the wire form of what .try gives: .try has [0 e], e a dictionary); without .try the error is not caught"
+trycall::{[r];:[cap();r::.try(x;y);r::(,1),,x@y];:[r@0;r;(,0),(,(r@1)@"kind"),,(r@1)@"message"]}
 fail::{:[cap();.err(x;"mgmt: ",y);nofail("mgmt: ",y)]}
 nofail::{.p(x);mgmterror(x)}
 ev::{[d];d:::{};d,"error",,x;d,"node",,y;d,"message",,z;d}
@@ -207,7 +207,7 @@ calld::{[e h r];e::nodeof(x);h::handle(x);.clit(h;e?"t");r::h(req(y;z));seen(e);
 callt::{[e h r];e::nodeof(x);h::handle(x);.clit(h;e?"t");r::.try(h;,[:.mgmt.run],(,y),,z);
              :[r@0;res(x;e;r@1);gone(x;r)]}
 res::{seen(y);:[0~z@0;.err(z@1;x,": ",z@2);z@1]}
-gone::{lost(x);.err(y@1;x,": ",y@2)}
+gone::{lost(x);.err(((y@1)@"kind");x,": ",(y@1)@"message")}
 
 :"----- fan-out -----"
 

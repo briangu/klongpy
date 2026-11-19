@@ -439,9 +439,13 @@ impl Dict {
 
     /// (entry of the key if present, slot where it is or would go).
     fn probe(&self, k: &Value, h: u32) -> (Option<usize>, usize) {
+        self.probe_by(|q| key_eq(q, k), h)
+    }
+
+    fn probe_by(&self, eq: impl Fn(&Value) -> bool, h: u32) -> (Option<usize>, usize) {
         let n = self.index.slots();
         if n == 0 {
-            return (self.keys.iter().position(|q| key_eq(q, k)), 0);
+            return (self.keys.iter().position(|q| eq(q)), 0);
         }
         let mask = n - 1;
         let mut slot = h as usize & mask;
@@ -449,7 +453,7 @@ impl Dict {
             match self.index.get(slot) {
                 0 => return (None, slot),
                 e => {
-                    if key_eq(&self.keys[e - 1], k) {
+                    if eq(&self.keys[e - 1]) {
                         return (Some(e - 1), slot);
                     }
                 }
@@ -464,6 +468,20 @@ impl Dict {
     }
     pub fn get(&self, k: &Value) -> Option<&Value> {
         self.find(k).map(|i| &self.vals[i])
+    }
+
+    /// The value of the string key `k` (as `get` of `Value::text(k)`, without making the value).
+    pub fn get_str(&self, k: &str) -> Option<&Value> {
+        let h = hash_bytes(k.as_bytes());
+        let eq = |q: &Value| match q {
+            Value::Str(x) => x.as_str() == k,
+            Value::Char(c) => {
+                let mut b = [0u8; 4];
+                c.encode_utf8(&mut b) as &str == k
+            }
+            _ => false,
+        };
+        self.probe_by(eq, h).0.map(|i| &self.vals[i])
     }
 
     /// Build the index for `want` entries (none while the dictionary is small).

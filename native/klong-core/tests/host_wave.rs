@@ -263,3 +263,65 @@ fn read_datum_says_how_much_it_used_and_whether_it_is_whole() {
     assert_eq!((used, whole), (2, true));
     assert!(ip.read_datum_ex("  \n").unwrap().is_none());
 }
+
+/// A host value that stands for a dictionary somewhere else (a remote dictionary): the host answers `x@key`, and records what is put in.
+struct Remote {
+    puts: std::cell::RefCell<Vec<String>>,
+}
+impl Ext for Remote {
+    fn type_name(&self) -> &str {
+        "remote"
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn host_dyad(&self, ip: &mut Interp, glyph: &str, _x: &Value, y: &Value) -> Option<klong_core::error::Result<Value>> {
+        match glyph {
+            "@" => {
+                let key = match y {
+                    Value::Str(s) => s.as_str().to_string(),
+                    _ => return None,
+                };
+                Some(match key.as_str() {
+                    "n" => Ok(Value::Int(42)),
+                    "f" => Ok(Value::Fn(Rc::new(Func::Native { name: ip.syms.intern("remote-f"), arity: 1, f: Rc::new(|_, a| Ok(a[0].clone())) }))),
+                    "inner" => Ok(Value::Dict(Rc::new(std::cell::RefCell::new({
+                        let mut d = Dict::default();
+                        d.set(Value::text("k").unwrap(), Value::Int(7)).unwrap();
+                        d
+                    })))),
+                    _ => Err(klong_core::Error::name(format!("the remote has no entry {key}"))),
+                })
+            }
+            "," => {
+                self.puts.borrow_mut().push(ip.format(y));
+                Some(Ok(Value::Int(0)))
+            }
+            _ => None,
+        }
+    }
+}
+
+#[test]
+fn a_qualified_name_on_a_host_value_asks_the_host_as_at_does() {
+    let _g = lock();
+    let mut ip = interp();
+    let h = Value::Ext(Rc::new(ExtBox(Box::new(Remote { puts: Default::default() }))));
+    ip.define_global("h", h.clone()).unwrap();
+    // h.n is h@"n": the host table's answer
+    assert_eq!(show(&mut ip, "h.n"), "42");
+    assert_eq!(show(&mut ip, "h@\"n\""), "42");
+    // h.f(1) calls what the host gave back
+    assert_eq!(show(&mut ip, "h.f(5)"), "5");
+    // what the host gave back is walked on: a dictionary below a host value
+    assert_eq!(show(&mut ip, "h.inner.k"), "7");
+    // inside a function, through a parameter
+    assert_eq!(show(&mut ip, "g::{[d];d::x;d.n+1};g(h)"), "43");
+    // a write is the pair put to the host
+    assert_eq!(show(&mut ip, "h.k::3"), "3");
+    let Value::Ext(e) = &h else { unreachable!() };
+    let puts = e.0.as_any().downcast_ref::<Remote>().unwrap().puts.borrow().clone();
+    assert_eq!(puts, vec!["[\"k\" 3]".to_string()]);
+    // the host's own error is the error
+    assert_eq!(show(&mut ip, "h.nope"), "!the remote has no entry nope");
+}

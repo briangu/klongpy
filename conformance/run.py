@@ -3,7 +3,7 @@
 Conformance suite runner (format and protocol: conformance/README.md).
 
     python conformance/run.py                         every case against KlongPy, in process
-    python conformance/run.py --cmd "./klong --conformance"
+    python conformance/run.py --cmd "./kg --conformance"
                                                       every case against an external executable
     python conformance/run.py --tags core,strings     only what a runtime that has these tags can run
     python conformance/run.py --list                  list the cases that would run
@@ -29,8 +29,8 @@ GOLDEN_DIR = os.path.join(ROOT, "tests", "golden")
 
 TIERS = ("core", "strings", "dicts", "sysio", "timers", "ipc", "desktop")
 MARKS = ("width64", "bigint", "unicode", "device", "sysio", "device")
-CAPABILITIES = ("float", "string-fmt", "strict1", "strict2", "static", "qualified", "modules")
-IMPLEMENTATION = ("numpy-only", "torch-only", "kgpy-only")
+CAPABILITIES = ("float", "string-fmt", "strict1", "strict2", "static", "qualified", "modules", "clock")
+IMPLEMENTATION = ("numpy-only", "torch-only", "kgpy-only", "kg-only")
 ALL_TAGS = TIERS + MARKS + CAPABILITIES + IMPLEMENTATION
 KINDS = ("syntax", "name", "arity", "type", "shape", "range", "system", "memory", "interrupt")
 META_KEYS = ("reason", "actual", "issue")
@@ -38,10 +38,19 @@ META_KEYS = ("reason", "actual", "issue")
 # What KlongPy (numpy backend) declares. `device` needs a heap limit and a console;
 # the other tiers have no cases in this suite yet.
 KLONGPY_TAGS = frozenset(("core", "strings", "dicts", "float", "string-fmt", "strict1", "strict2",
-                          "width64", "bigint", "unicode", "device", "sysio", "numpy-only", "kgpy-only", "static", "qualified", "modules"))
+                          "width64", "bigint", "unicode", "device", "sysio", "numpy-only", "kgpy-only", "static", "qualified", "modules", "clock"))
 # KlongPy on the torch backend: floats are 32 bits wide by default and a tensor cannot
 # hold :undefined, so it does not declare `numpy-only` (README, "Tags").
 KLONGPY_TORCH_TAGS = (KLONGPY_TAGS - {"numpy-only"}) | {"torch-only"}
+
+
+def default_tags(cmd=None):
+    """The tags a run without --tags declares: KlongPy's; an external executable other than the KlongPy shim is the standalone binary
+    (`kg`), which also declares `kg-only` (what only the standalone binary does: the system functions of the Python-hosted command
+    are a `name` error there)."""
+    if cmd and "kgpy_shim" not in cmd:
+        return KLONGPY_TAGS | {"kg-only"}
+    return KLONGPY_TAGS
 
 
 def klongpy_tags(backend="numpy"):
@@ -416,7 +425,7 @@ def main(argv=None):
         print(f"filled {n} cases in {args.bless}")
         return 0
 
-    tags = set(args.tags.split(",")) if args.tags else set(KLONGPY_TAGS)
+    tags = set(args.tags.split(",")) if args.tags else set(default_tags(args.cmd))
     paths = args.paths or [PENDING_DIR if args.pending else CASES_DIR]
     cases = []
     for p in paths:

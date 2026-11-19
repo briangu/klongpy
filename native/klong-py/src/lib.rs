@@ -1864,7 +1864,7 @@ fn on_big_stack<T: Send + 'static>(py: Python<'_>, f: impl FnOnce() -> T + Send 
     })
 }
 
-/// `kgpy lint`: lint files and print the findings. Returns `(status, stdout, stderr)`; status as `klong lint`'s: 1 when an error was
+/// `kgpy lint`: lint files and print the findings. Returns `(status, stdout, stderr)`; status as `kg lint`'s: 1 when an error was
 /// found, 2 when a file could not be read or an option was wrong, else 0. `select`, `ignore` and `define` are strings or iterables of
 /// codes or names; `lib_dir` is the library directory searched after KLONGPATH (None: the library built in); `extra_builtins` the
 /// system names the Python package binds beyond the runtime's own.
@@ -2795,4 +2795,11 @@ fn klong_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(profile_doc_block, m)?)?;
     m.add_function(wrap_pyfunction!(profile_doc_page, m)?)?;
     Ok(())
+}
+
+/// The same module under the name the Python package imports it by (`klongpy._native`, built by setuptools-rust from this crate's
+/// cdylib). `klong_native` stays for builds by hand with KLONGPY_NATIVE_PATH.
+#[pymodule(name = "_native")]
+fn native_in_package(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    klong_native(m)
 }

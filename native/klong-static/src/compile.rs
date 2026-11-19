@@ -467,7 +467,7 @@ pub fn compile_c_spec(prog: &str) -> crate::argp::Spec {
     s
 }
 
-/// `klong compile c ...`: `args` follow the words `compile c`.
+/// `kg compile c ...`: `args` follow the words `compile c`.
 pub fn compile_c_cli(prog: &str, args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let spec = compile_c_spec(prog);
     let p = match crate::argp::parse(&spec, args, out, err) {

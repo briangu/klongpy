@@ -257,6 +257,6 @@
 > :{ab}
 ! syntax
 
-@ errors.dict-key-char-pair dicts
+@ errors.dict-key-char-pair strings dicts
 > :{"ab"}@"a"
 = "b"

@@ -4,7 +4,7 @@ This section describes the native Klong runtime: a second implementation of the 
 
 The source is in the `native/` directory of the KlongPy repository. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board. Two Raspberry Pi Picos have run it with IPC between them. The [status table](#status-what-has-and-has-not-been-proven) below says what has run where.
 
-The runtime has its own version, 0.0.1. `klong --version` and the banner of a board print it. It is not the version of KlongPy (2.0.0rc1).
+The runtime has its own version, 0.0.1. `kg --version` and the banner of a board print it. It is not the version of KlongPy (2.0.0rc1).
 
 ## What it is for
 
@@ -19,11 +19,11 @@ It is a different thing from [compiling Klong to C](../embedded.md). That path c
 
 A first look, with the program built as described in [Building and Running](building.md):
 
-<!-- check-docs: requires-file native/target/release/klong; path native/target/release -->
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ klong -e '+/{x*x}'"'"'!10'
+$ kg -e '+/{x*x}'"'"'!10'
 285
-$ klong -e '.l("nstat");.p(sd([1 2 3 4]))'
+$ kg -e '.l("nstat");.p(sd([1 2 3 4]))'
 1.1180339889579018
 "1.1180339889579018"
 ```
@@ -36,8 +36,8 @@ These are the differences. All of them follow from having no Python and no numpy
 
 | | KlongPy | Native runtime |
 |---|---|---|
-| Python interop | `.py`, `.pyf`, `.pya`, `.pyc`, `.bkf` | **none**; calling one is `name error: undefined function` |
-| Other desktop functions | `.sys`, `.web`, `.ws`, `.db`, `.bkd`, `.bkp` and others | not available, the same `name` error |
+| Python interop | `.py`, `.pyf`, `.pya`, `.pyc`, `.bkf` | **none**; calling one is a `name` error that says where it is: `.py needs kgpy (the Python-hosted command)` |
+| Other desktop functions | `.sys`, `.rls`, `.web`, `.ws`, `.db`, `.table`, the autograd and FPGA functions, `.bkd`, `.bkp` and others (the whole list is `native/klong-cli/src/kgpy_only.rs`) | not available, the same `name` error |
 | numpy and torch | the array backend | **none**; the arrays are the runtime's own, and the autograd operators (`∇`, `∂`, `:>`) give `name error: operator not available on this build` |
 | Integers | 64 bits, wrapping; a long literal or a long operand is exact for `+ - * < > \| &` | 64 bits, wrapping (32 with the feature `int32`); a long literal or a long operand is exact for `+ - * % :% < > = \| &`, and a scalar `^` of two integers is exact, as in KlongPy (the cargo feature `bigint`, on for the desktop binary, off for boards: there a literal that does not fit is a `syntax` error) |
 | Floats | 64 bits | 64 bits by default, 32 with the feature `float32` |
@@ -45,18 +45,24 @@ These are the differences. All of them follow from having no Python and no numpy
 | Data nesting | a list nested 300 levels works | at most 128 levels of nested lists, by default (a `range` error beyond) |
 | Names and messages | | a name is at most 255 bytes and an error message at most 300 bytes |
 | Recursion | a `range` error at a fixed depth | also a `range` error, at a depth that the build and the native stack set (see [Building and Running](building.md#memory-and-stack)); never a crash |
-| `.try` and `.err` | not there | **native only**: catch an error as a value, and raise one |
+| `.try`, `.err`, `.seed`, `.now` | the same functions, from the same runtime | catch an error as a dictionary and raise one (`.try`, `.err`); make `.rn()` reproducible (`.seed`); seconds since 1970 (`.now`, on a platform with a clock). See [the management node page](management-node.md#try-and-err) and the notes below |
 | `.timer` with a named callback | looked up again at each tick | the function value given is kept |
 | IPC | `.srv .cli .clid .clic .clit .async` | the same functions and the same protocol; see [IPC and Timers](ipc.md) for the differences |
 | Memory | the Python heap | a heap with a limit: going over it is a `memory` error and the interpreter stays usable |
 
-Two more things are worth knowing. The REPL of the desktop `klong` program is simpler than `kgpy`: each line is a program, and a definition has to fit on one line (the serial console of a board does have continuation lines and history). And the numbers are the same only while they fit: a computation that wraps at 32 bits on a narrow build gives KlongPy's 64-bit answer on the desktop. The [KlongPy differences page](../differences.md) describes the differences of KlongPy from classic Klong, which apply to both.
+Two more things are worth knowing. The REPL of the desktop `kg` program is simpler than `kgpy`: each line is a program, and a definition has to fit on one line (the serial console of a board does have continuation lines and history). And the numbers are the same only while they fit: a computation that wraps at 32 bits on a narrow build gives KlongPy's 64-bit answer on the desktop. The [KlongPy differences page](../differences.md) describes the differences of KlongPy from classic Klong, which apply to both.
+
+## Random numbers and the clock
+
+`.rn()` is a pseudo-random generator that is the same on every target. Its state is one 64-bit word, and each draw is a step of xorshift64\* (Vigna, 2014) with the multiplier `0x2545F4914F6CDD1D`. A 64-bit float is the top 53 bits of the output over 2^53, and a 32-bit float (the feature `float32`) is the top 24 bits over 2^24, the 64-bit value cut to 24 bits. `.seed(n)` takes an integer, sets the state to one step of splitmix64 applied to `n` (a negative `n` as its 64-bit two's complement), and returns `n`: after `.seed(42)` the first three draws are `0.1941059175341826`, `0.5626318272656207` and `0.4861061377100522` on the desktop, in compiled C and on a board with 64-bit floats. Without `.seed` the state starts from whatever entropy the platform has.
+
+`.now()` is the time of day as a float: seconds since 1970-01-01 00:00:00 UTC. A desktop has the clock. A board has it only if its port knows the date, and otherwise `.now()` is a `system` error that says the platform has no wall clock; `.pc()` measures time since the program started and works everywhere. With 32-bit floats the value has a resolution of about two minutes, which is all a 24-bit float holds at that size.
 
 ## What exists today
 
 | Piece | What it is | Page |
 |---|---|---|
-| `klong` | the runtime as a desktop program: REPL, `-e`, files, `--conformance` | [Building and Running](building.md) |
+| `kg` | the runtime as a desktop program: REPL, `-e`, files, `--conformance` | [Building and Running](building.md) |
 | `klong-sim` | a simulated board: the real console over a pipe or a pseudo-terminal | [Serial Console and Upload](console.md) |
 | `tools/kgupload.py` | upload, run and reset over a serial port, from Python's standard library alone | [Serial Console and Upload](console.md) |
 | `klong-ffi` | the board runtime as a static library with a C interface, `klong.h` | [Porting to a Board](porting.md) |

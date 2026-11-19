@@ -229,3 +229,104 @@
 > f(a;b)::{a+b}
 > f(1;2;3)
 ! arity
+
+# Lexical scope of a function with named parameters (docs/design-principles.md, principle 4: a name is read from where it was written,
+# not from whoever called). Its body reads its parameters, its declared locals and then the globals of its module; the locals of its caller
+# are not visible. A function without a parameter list ({x+y}) keeps the dynamic scope of Klong.
+
+@ named.reads-the-global-not-the-callers-local core
+> g(a)::{a+b}
+> f::{[b];b::10;g(1)}
+> b::100
+> f()
+= 101
+
+@ named.callers-local-is-not-visible-at-level-1 core strict1
+> g(a)::{a+b}
+> f::{[b];b::10;g(1)}
+> f()
+! name
+
+@ named.callers-local-is-not-visible-at-level-2 core strict2
+> g(a)::{a+b}
+> f::{[b];b::10;g(1)}
+> f()
+! name
+
+@ named.reads-its-own-locals core
+> g(a)::{[t];t::a*2;t+1}
+> g(4)
+= 9
+
+@ named.reads-the-global-it-was-defined-with core
+> k::7
+> g(a)::{a+k}
+> g(1)
+= 8
+
+@ named.a-lambda-inside-reads-the-locals-of-its-function core
+> g(a)::{[t];t::a;{x+t}(1)}
+> g(5)
+= 6
+
+@ named.a-lambda-in-an-adverb-reads-the-locals-of-its-function core
+> g(a)::{[t];t::a;{x+t}'[1 2]}
+> g(5)
+= [6 7]
+
+@ named.parameters-are-visible-to-a-lambda-inside core
+> g(a;b)::{{x+a+b}(1)}
+> g(10;100)
+= 111
+
+@ named.a-callback-reads-the-locals-of-the-function-that-wrote-it core
+> ap(f;a)::{f(a)}
+> h::{[off];off::10;ap({x+off};1)}
+> h()
+= 11
+
+@ named.a-classic-function-keeps-dynamic-scope core
+> g::{x+b}
+> f::{[b];b::10;g(1)}
+> f()
+= 11
+
+@ named.a-classic-function-called-by-a-named-one-sees-the-named-locals core
+> g::{t}
+> n(a)::{[t];t::a*3;g()}
+> n(4)
+= 12
+
+@ named.a-named-function-does-not-see-through-a-classic-caller core
+> g(a)::{a+b}
+> c::{[b];b::10;g(1)}
+> b::0
+> c()
+= 1
+
+@ named.a-named-function-does-not-see-the-locals-of-a-named-caller core
+> g(a)::{a+t}
+> n(a)::{[t];t::50;g(a)}
+> t::1
+> n(1)
+= 2
+
+@ named.recursion-reads-its-own-frames core
+> f(n)::{:[n<2;n;f(n-1)+f(n-2)]}
+> f(10)
+= 55
+
+@ named.a-projection-keeps-the-scope core
+> add(a;b)::{a+b+k}
+> k::100
+> p::add(1;)
+> q::{[k];k::5;p(2)}
+> q()
+= 103
+
+@ named.a-local-assignment-stays-local core
+> g(a)::{[t];t::a;t}
+> t::9
+> g(4)
+> t
+= 9

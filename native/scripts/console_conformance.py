@@ -2,7 +2,7 @@
 """
 The conformance suite through the serial console: every case is sent to
 a board with `^A run` and judged by what comes back over the wire, instead of starting the
-`klong` binary once per case. What a board would run gives the same answers, or this says where
+`kg` binary once per case. What a board would run gives the same answers, or this says where
 it does not.
 
     .venv/bin/python native/scripts/console_conformance.py [--tags a,b] [--jobs N] [FILE.cases ...]

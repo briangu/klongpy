@@ -15,9 +15,9 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SPIKE = "core,float,string-fmt,width64,strict1,strict2,numpy-only,device"
-# Not declared: torch-only and kgpy-only (KlongPy's own), timers, ipc, desktop. The desktop binary has big integers (bigint); a board
+# Not declared: torch-only and kgpy-only (KlongPy's own), timers, ipc, desktop. kg-only is the standalone binary's own. The desktop binary has big integers (bigint); a board
 # build has them off (flash), and the console runs and the 32-bit build do not declare it.
-DECLARED = SPIKE + ",strings,dicts,unicode,sysio,static,bigint"
+DECLARED = SPIKE + ",strings,dicts,unicode,sysio,static,bigint,qualified,modules,clock,kg-only"
 NARROW = "core,strings,dicts,unicode,sysio,static,strict1,strict2,numpy-only,device"
 
 
@@ -35,7 +35,7 @@ def main(argv):
     if "--tags" in argv:
         tags = argv[argv.index("--tags") + 1]
     tags = set(tags.split(","))
-    binary = os.environ.get("KLONG_NATIVE") or os.path.join(ROOT, "native", "target", "release", "klong")
+    binary = os.environ.get("KLONG_NATIVE") or os.path.join(ROOT, "native", "target", "release", "kg")
     spec = importlib.util.spec_from_file_location("conformance_run", os.path.join(ROOT, "conformance", "run.py"))
     conf = importlib.util.module_from_spec(spec)
     sys.modules["conformance_run"] = conf

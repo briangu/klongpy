@@ -1864,7 +1864,7 @@ pub fn fpga_source_spec(prog: &str) -> crate::argp::Spec {
     s
 }
 
-/// `klong fpga source ...`: `args` follow the words `fpga source`.
+/// `kg fpga source ...`: `args` follow the words `fpga source`.
 pub fn fpga_source_cli(prog: &str, args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let spec = fpga_source_spec(prog);
     let p = match crate::argp::parse(&spec, args, out, err) {

@@ -1,4 +1,4 @@
-//! `klong lint FILE...`: the options of `kgpy lint`, the output and the exit status.
+//! `kg lint FILE...`: the options of `kgpy lint`, the output and the exit status.
 use crate::{lint_files, parse_codes, parse_names, Options};
 use std::collections::BTreeSet;
 use std::io::Write;
@@ -162,7 +162,7 @@ fn parse_args(prog: &str, args: &[String], out: &mut dyn Write, err: &mut dyn Wr
     Parsed::Run { files, select, ignore, define, verbose }
 }
 
-/// The body of `klong lint FILE...` (`args` follow the word `lint`). Prints the findings and a summary and returns the
+/// The body of `kg lint FILE...` (`args` follow the word `lint`). Prints the findings and a summary and returns the
 /// exit status: 1 if any E finding was reported, 2 if a file could not be read (and no E finding), else 0.
 pub fn lint_main(prog: &str, args: &[String], lib_dirs: Vec<String>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let (files, select, ignore, define, verbose) = match parse_args(prog, args, out, err) {

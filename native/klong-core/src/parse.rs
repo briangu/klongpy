@@ -486,18 +486,8 @@ impl<'a> Parser<'a> {
             full.push_str(m);
         }
         let s = self.syms.intern(&full);
-        if self.syms.qual(s).is_none() {
-            let mut keys = Vec::new();
-            for k in &segs[1..] {
-                match Value::text(k) {
-                    Ok(t) => keys.push(t),
-                    Err(_) => {
-                        self.syms.oom = true;
-                        return s;
-                    }
-                }
-            }
-            self.syms.set_qual(s, base, keys);
+        if self.syms.qual_base(s).is_none() {
+            self.syms.set_qual(s, base, segs.len() - 1);
         }
         s
     }
@@ -505,7 +495,7 @@ impl<'a> Parser<'a> {
     /// A local or a parameter is a plain name: `d.a` is an entry of `d`, not a variable to declare.
     fn plain_names(&self, ids: &[u32], span: Span) -> Result<()> {
         for &q in ids {
-            if self.syms.qual(SymId(q)).is_some() {
+            if self.syms.qual_base(SymId(q)).is_some() {
                 let e = Error::syntax(crate::msg!("{} is a qualified name; a local or a parameter must be a plain name", self.syms.name(SymId(q)).split('`').next().unwrap_or(""))).with_span(span);
                 #[cfg(feature = "diag")]
                 let e = e.with_hint("declare the dictionary itself, {[d]; ...}, and write d.a in the body");
@@ -880,9 +870,9 @@ impl<'a> Parser<'a> {
             Node::Sym(s) | Node::QSym(s) => {
                 if sym::is_arg(*s) {
                     (s.0 as u8 + 1, false)
-                } else if let Some(q) = self.syms.qual(*s).filter(|q| sym::is_arg(q.base)) {
+                } else if let Some(qb) = self.syms.qual_base(*s).filter(|b| sym::is_arg(*b)) {
                     // x.len is x@"len": it uses x
-                    (q.base.0 as u8 + 1, false)
+                    (qb.0 as u8 + 1, false)
                 } else {
                     (0, *s == sym::DOT_F)
                 }
@@ -1041,7 +1031,7 @@ impl<'a> Parser<'a> {
             _ => return a,
         };
         for t in targets {
-            if !names.contains(&t) && self.syms.qual(SymId(t)).is_none() {
+            if !names.contains(&t) && self.syms.qual_base(SymId(t)).is_none() {
                 names.push(t);
             }
         }

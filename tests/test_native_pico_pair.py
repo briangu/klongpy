@@ -219,17 +219,11 @@ def run_selftest(arena, legacy=False, seconds=40):
     return res
 
 
-MGMT_NAMES = None
 
 
 def mgmt_drop_lines():
-    """What the self-test does to drop the management library: its definitions set to 0, twelve to a line."""
-    global MGMT_NAMES
-    if MGMT_NAMES is None:
-        import re
-        with open(os.path.join(os.path.dirname(HERE), "klongpy", "lib", "mgmt.kg")) as f:
-            MGMT_NAMES = [m.group(1) for line in f for m in [re.match(r"([A-Za-z][A-Za-z0-9._]*)::", line)] if m]
-    return [";".join(n + "::0" for n in MGMT_NAMES[i:i + 12]) for i in range(0, len(MGMT_NAMES), 12)]
+    """What the self-test does to drop the management library: the module is released when its name is cleared."""
+    return ["mgmt::0"]
 
 
 def largest(b, node, hi=400000):
