@@ -144,23 +144,35 @@ class Cli(unittest.TestCase):
         r = self.bridge.cli("repl", "--node", "2", stdin="g::{[t];t::x+1;\n  t*2}\ng(4)\n:q\n")
         self.assertIn("10\n", r.stdout)
 
+    @staticmethod
+    def until(pred, timeout=60):
+        end = time.time() + timeout
+        while time.time() < end:
+            if pred():
+                return True
+            time.sleep(0.2)
+        return False
+
     def test_ctrl_c_interrupts_a_runaway_loop(self):
-        p = subprocess.Popen([sys.executable, CLI, "--host", self.bridge.host, "repl", "--node", "1"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env())
+        p = subprocess.Popen([sys.executable, CLI, "--host", self.bridge.host, "repl", "--node", "1"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env(),
+                             # (SIGINT is the default action again: a test run started in the background of a shell has it ignored, and Python then installs no handler)
+                             preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
         try:
             p.stdin.write("{1}{x+1}:~0\n")
             p.stdin.flush()
-            time.sleep(2.5)
-            nodes = self.bridge.get("/klong/nodes")[1]["nodes"]
-            self.assertEqual(nodes[1]["load"], 100, nodes)  # STATUS load while it evaluates
+            # (what each step waits for is a state of the node, not a time: a loaded machine takes longer to start the client and to
+            # deliver the interrupt, and a node left running the loop would fail the tests after this one)
+            self.assertTrue(self.until(lambda: self.bridge.get("/klong/nodes")[1]["nodes"][1]["load"] == 100), "the loop never started")
             os.kill(p.pid, signal.SIGINT)
-            time.sleep(2.5)
+            self.assertTrue(self.until(lambda: self.bridge.get("/klong/nodes")[1]["nodes"][1]["load"] != 100), "the interrupt never arrived")
             p.stdin.write("3+4\n:q\n")
             p.stdin.flush()
-            out, err = p.communicate(timeout=30)
+            out, err = p.communicate(timeout=90)
         finally:
             if p.poll() is None:
                 p.kill()
                 p.wait()
+                self.bridge.post("/klong/interrupt?node=1")
         self.assertIn("[interrupt sent]", out)
         self.assertIn("interrupt error: interrupted", out)
         self.assertIn("7\n", out)

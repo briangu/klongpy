@@ -212,13 +212,13 @@ $ kg -e '.l("nosuch")' 2>&1 | sed -n '1s/ (looked for.*//p'
 
 (The message goes on to list the places `.l` looked in; the example cuts it after the name.)
 
-(The third line is the value of the expression, which `-e` prints.) Loading costs heap, because parsed code takes 20 to 30 bytes per byte of source, but a load reads one statement at a time, so the peak is about what stays: `.l("csv")` peaks at about 29 KB, `.l("math")` at about 139 KB and `.l("nstat")`, which loads `math`, at about 322 KB (a whole-file load needed 50 KiB, 495 KiB and 1.04 MiB): the functions of a loaded file are kept as the place of their text and parsed when called. `.mem()` returns `[in use, peak, limit]` in bytes. The interpreter itself is about 15 KiB after start-up, and `nstat` takes the peak over 300 KB. The exact numbers change a little from run to run and between builds, so the transcript tests them:
+(The third line is the value of the expression, which `-e` prints.) Loading costs heap, because parsed code takes 20 to 30 bytes per byte of source, but a load reads one statement at a time, so the peak is about what stays: `.l("csv")` peaks at about 35 KB, `.l("math")` at about 141 KB and `.l("nstat")`, which loads `math`, at about 281 KB (a whole-file load needed 50 KiB, 495 KiB and 1.04 MiB): the functions of a loaded file are kept as the place of their text and parsed when called. `.mem()` returns `[in use, peak, limit]` in bytes. The interpreter itself is about 15 KiB after start-up, and `nstat` takes the peak over 250 KB. The exact numbers change a little from run to run and between builds, so the transcript tests them:
 
 <!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
 $ kg -e '(.mem()@0)<20000'
 1
-$ kg -e '.l("nstat");(.mem()@1)>300000'
+$ kg -e '.l("nstat");(.mem()@1)>250000'
 1
 ```
 
@@ -286,9 +286,9 @@ $ kg --max-depth 100000 -e 'f::{:[x<1;0;1+f(x-1)]};f(5000)'
 $ kg --stack-budget 64K -e 'f::{:[x<1;0;1+f(x-1)]};f(20)'
 20
 $ kg --stack-budget 64K -e 'f::{:[x<1;0;1+f(x-1)]};f(40)'
-1:7: range error: expression nested too deeply
+1:17: range error: expression nested too deeply
   f::{:[x<1;0;1+f(x-1)]};f(40)
-        ^^^
+                  ^^^
   hint: the native stack budget of this build is used up
 $ kg --steps 1000 -e '{1}{x+1}:~0'
 1:1: interrupt error: interrupted
@@ -296,17 +296,18 @@ $ kg --steps 1000 -e '{1}{x+1}:~0'
   ^^^^^^^^^^^
 ```
 
-The figures in the stack-budget lines are for this 64-bit host. On a 32-bit board a level of Klong recursion costs about 0.85 KiB: 864 bytes by the frames of the thumbv6m image, against about 0.8 to 2 KiB on the host. The stack budget is used as `bytes` less what is kept below the deepest level (a quarter by default; a board can say, `Config::for_stack_keep`: the Pico keeps 16 KiB of a 108 KiB budget), so 64 KiB gives about 57 levels and 256 KiB about 228 at the default.
+The figures in the stack-budget lines are for this 64-bit host. The span of a stack-budget error marks the evaluation that crossed the limit, and which one that is depends on how much stack each step of the build uses (here the argument `x-1` of the call that overflowed); the span of a `--max-depth` error does not depend on the build. On a 32-bit board a level of Klong recursion costs about 0.85 KiB: 864 bytes by the frames of the thumbv6m image, against about 0.8 to 2 KiB on the host. The stack budget is used as `bytes` less what is kept below the deepest level (a quarter by default; a board can say, `Config::for_stack_keep`: the Pico keeps 16 KiB of a 108 KiB budget), so 64 KiB gives about 57 levels and 256 KiB about 228 at the default.
 
 With `--stats` the program reports what it used, on standard error: the peak heap, the heap in use, the limit and the number of refused allocations (`heap: peak 23174 bytes, in use 15679 bytes, limit 0, refused 0` for the program below; the heap numbers vary a little), the deepest nesting of evaluations and the native stack. The heap figures are bytes requested from the allocator and include the interpreter's own state of about 15 KiB on the desktop.
 
 <!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ kg --stats -e '+/!1000' 2>&1 | grep -v '^heap'
+$ kg --stats -e '+/!1000' 2>&1 | grep -v -e '^heap' -e '^stack'
 499500
 depth: 3 nested evaluations at most
-stack: 752 bytes of native stack at most
 ```
+
+The last line it prints is the native stack, such as `stack: 768 bytes of native stack at most`. The number depends on how `kg` was built.
 
 ## Running the conformance suite
 

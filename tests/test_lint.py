@@ -193,9 +193,6 @@ CASES = [
     # W022 a module imported and never used
     ("W022", 'c::.import("csv")', [(1, 1)]),
     ("W022", 'c::.import("csv");c.split("a")', []),
-    # W023 a function literal with no parameter in .export(:{;...}) is called where it is written
-    ("W023", '.export(:{;"a";{7}})', [(1, 16)]),
-    ("W023", '.export(:{;"a";{x+1}})', []),
     # E003 assignment to an entry of what .import returned
     ("E003", 'c::.import("csv");c.split::1', [(1, 19)]),
     ("E003", 'c::.import("csv");d:::{};d.split::1', []),
@@ -280,7 +277,7 @@ class TestDiagnostic(unittest.TestCase):
                          {"E001": "error", "E002": "error", "E003": "error", "E004": "error"})
         self.assertTrue(all(r.severity == "warning" for c, r in RULES.items() if c[0] == "W"))
         self.assertEqual(set(RULES), {"W001", "W002", "W003", "W010", "W011", "W012", "W013", "W014", "W015",
-                                      "W016", "W017", "W018", "W019", "W020", "W021", "W022", "W023",
+                                      "W016", "W017", "W018", "W019", "W020", "W021", "W022",
                                       "E001", "E002", "E003", "E004"})
 
     def test_sorted_by_position(self):

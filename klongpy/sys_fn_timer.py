@@ -118,7 +118,7 @@ def eval_sys_fn_timer(klong, x, y, z):
         raise KlongRangeError("y must be a non-negative number")
 
     # Wrap the callback - KGFnWrapper now handles dynamic resolution automatically
-    hint = "name the function first, cb::{...}, and pass cb; an inline function is rejected, or run before .timer sees it if it takes no arguments"
+    hint = "name the function first, cb::{...}, and pass cb; an inline function that takes arguments is rejected"
     if isinstance(z, KGCall):
         raise KlongTypeError("z must be a function that takes no arguments", hint=hint)
     if isinstance(z, KGFn):

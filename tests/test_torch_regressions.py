@@ -529,5 +529,23 @@ class TestIpcWireValues(TorchCase):
         self.assertEqual(plain(back[KGSym("a")]), [1, 2, 3])
 
 
+class TestNumericGradientWidth(TorchCase):
+    """The finite differences of a ∇ are computed in float64 on the CPU whatever the device is (MPS has no float64)."""
+
+    def test_scalar_point_is_exact_to_float32(self):
+        self.assertEqual(float(self.k("3.0∇{x^2}")), 6.0)
+        self.assertEqual(float(self.k("3.0∇{x*x*x*x}")), 108.0)
+
+    def test_vector_point(self):
+        g = self.k("[1.5 2.5]∇{+/x^3}")
+        self.assertTrue(_close(g.detach().cpu().flatten().tolist(), [6.75, 18.75]))
+
+    def test_a_tensor_made_before_is_read_on_its_own_device(self):
+        self.k("w::[1.0 2.0]")
+        g = self.k("[3.0 4.0]∇{+/w*x*x}")
+        self.assertTrue(_close(g.detach().cpu().flatten().tolist(), [6.0, 16.0]))
+        self.assertEqual(self.k("s::2.0;3.0∇{s*x*x}"), 12.0)
+
+
 if __name__ == "__main__":
     unittest.main()

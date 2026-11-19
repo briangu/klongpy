@@ -4,6 +4,7 @@ PyTorch backend provider for KlongPy.
 This backend uses PyTorch tensors for array operations, enabling GPU acceleration.
 It does not support object dtype or string operations.
 """
+import contextlib
 import math
 import operator
 import numpy
@@ -756,6 +757,19 @@ class TorchBackendProvider(BackendProvider):
         # an integer beyond int64 is never a tensor: it is a Python integer (or
         # sits in a numpy object array) on this backend too
         return True
+
+    @contextlib.contextmanager
+    def compute_on_cpu(self):
+        """The backend's arrays are made on the CPU while the block runs, where float64 exists. A device without float64 (MPS) can
+        then evaluate a function in float64, as the finite differences of a numeric gradient need. Tensors made before the block stay
+        where they are, and an operation that meets both moves its operand to the device (see `kg_asarray`)."""
+        inner = self._torch_backend
+        was = inner.device
+        inner.device = torch.device('cpu')
+        try:
+            yield
+        finally:
+            inner.device = was
 
     def supports_float64(self) -> bool:
         # MPS device doesn't support float64

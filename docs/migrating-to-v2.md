@@ -411,7 +411,7 @@ The torch backend's `.export(fn;input;path)` is now `.bkx(fn;input;path)`, with 
 
 ## Removed switches
 
-`KLONGPY_ENGINE`, `KLONGPY_PARSER` and `KLONGPY_IPC` do not exist. Setting them has no effect, and the old reading of the text that the parser switch gave is not available. `KlongInterpreter(parser=...)` accepts the argument and ignores it. The program `a::5;[a b]::[1 2];a` is 1 whatever the environment says. Remove these variables from scripts and service files.
+`KLONGPY_ENGINE`, `KLONGPY_PARSER` and `KLONGPY_IPC` do not exist. Setting them has no effect, and the old reading of the text that the parser switch gave is not available. `KlongInterpreter(parser=...)` is a `TypeError`, as any unknown keyword is. The program `a::5;[a b]::[1 2];a` is 1 whatever the environment says. Remove these variables from scripts and service files.
 
 ```console
 $ KLONGPY_PARSER=legacy kgpy -e 'a::5;[a b]::[1 2];a'

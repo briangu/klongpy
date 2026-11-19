@@ -35,6 +35,13 @@ def free_port():
         return s.getsockname()[1]
 
 
+def default_sigint():
+    """In the child, before it runs: SIGINT is the default action again. A test run started in the background of a shell has SIGINT
+    ignored (the shell does that to its background jobs, and children inherit it), and Python then installs no KeyboardInterrupt handler:
+    a Ctrl-C test would wait for a process that never sees the signal."""
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+
 class Proc:
     """A kgpy process: its output is collected on a pipe, it is ended by its handle."""
 
@@ -47,7 +54,8 @@ class Proc:
             f.write(source)
         cmd = [sys.executable, "-W", "ignore", "-m", "klongpy.cli", *EXTRA, *args, path]
         self.p = subprocess.Popen(cmd, cwd=self.dir.name, env=ENV, stdin=subprocess.DEVNULL,
-                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                  preexec_fn=None if WINDOWS else default_sigint)
         self.started = time.monotonic()
         tc.addCleanup(self.stop)
 
@@ -77,8 +85,19 @@ class Proc:
         return self.p.returncode, out
 
     def end_with(self, sig, timeout=20):
-        self.p.send_signal(sig)
-        return self.finish(timeout)
+        """Send `sig` and wait for the process to end. A signal that arrives while CPython runs a weakref or garbage-collection callback
+        has its exception ignored there (a loaded machine hits it now and then), so an unanswered signal is sent again every 3 s;
+        a process that never ends still fails the test."""
+        end = time.monotonic() + timeout
+        while True:
+            self.p.send_signal(sig)
+            try:
+                self.p.wait(timeout=min(3, max(0.1, end - time.monotonic())))
+                break
+            except subprocess.TimeoutExpired:
+                if time.monotonic() >= end:
+                    break
+        return self.finish(max(0.1, end - time.monotonic()) if self.p.poll() is None else 1)
 
 
 class TestWhatKeepsARunUp(unittest.TestCase):

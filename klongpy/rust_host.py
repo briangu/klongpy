@@ -5,7 +5,7 @@ The native interpreter (native/klong-py) holds a value it does not understand as
 array of some size, a torch tensor on any device, a 0-d tensor that requires gradients) and asks a TABLE, supplied here, to do
 what Klong does with it. The extension knows nothing of the backend's array type: it calls the methods below.
 
-    install(engine, backend=None)       the one entry point: RustInterpreter calls it once its extension and backend exist
+    install(engine, backend=None)       the one entry point: KlongInterpreter calls it once its extension and backend exist
 
 The table (`HostTable`; the extension calls these, with the operands as Python values: a native vector is a NumPy array, a
 number a Python number, a host value itself, a Klong function a callable):
@@ -164,14 +164,18 @@ class HostTable:
         T = self._tensor
         if fast is not None and T is not None:
             tx, ty = type(x), type(y)
-            if tx is T:
-                if ty is T:
-                    if x.is_floating_point() and y.is_floating_point() and (x.shape == y.shape or x.ndim == 0 or y.ndim == 0):
+            try:
+                if tx is T:
+                    if ty is T:
+                        if x.is_floating_point() and y.is_floating_point() and (x.shape == y.shape or x.ndim == 0 or y.ndim == 0):
+                            return fast(x, y)
+                    elif (ty is float or ty is int) and x.is_floating_point():
                         return fast(x, y)
-                elif (ty is float or ty is int) and x.is_floating_point():
+                elif ty is T and (tx is float or tx is int) and y.is_floating_point():
                     return fast(x, y)
-            elif ty is T and (tx is float or tx is int) and y.is_floating_point():
-                return fast(x, y)
+            except RuntimeError:
+                # (two devices, in the scope of a numeric gradient on a device without float64: the general path moves the operand)
+                pass
         f = self._dyads.get(g)
         if f is None:
             return NotImplemented
@@ -281,7 +285,7 @@ def result_for(engine, v):
     """A native engine's result as the backend holds it. The Python engine on the torch backend holds every numeric array as a
     tensor; the native engine computes on native vectors and hands them out as NumPy arrays. For a backend whose arrays are not
     NumPy's (`is_backend_array` is not a NumPy test), a numeric NumPy array (also inside a list or dict) leaves as the backend's
-    array. Use it on the engine's results, where RustInterpreter._out converts."""
+    array. Use it on the engine's results, where KlongInterpreter._out converts."""
     if engine._backend.name == "numpy":
         return v
     t = type(v)
@@ -302,7 +306,7 @@ def result_for(engine, v):
 def install(engine, backend=None):
     """Give the engine's extension the backend's table and the gradient operators.
 
-    engine: a RustInterpreter (it has `_k`, the native interpreter, `_backend`, `_in`, `_out`, `apply`)."""
+    engine: a KlongInterpreter (it has `_k`, the native interpreter, `_backend`, `_in`, `_out`, `apply`)."""
     backend = backend or engine._backend
     engine._k.set_host_table(HostTable(engine, backend))
     if backend.name != "numpy":

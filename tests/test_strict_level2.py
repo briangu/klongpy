@@ -18,8 +18,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 LEVELS = (0, 1, 2)
 
 
-def run(level, *lines, parser=None):
-    k = KlongInterpreter(strict=level, parser=parser)
+def run(level, *lines):
+    k = KlongInterpreter(strict=level)
     r = None
     for line in lines:
         r = k(line)

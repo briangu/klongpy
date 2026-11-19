@@ -36,7 +36,6 @@ Rules, by code
     W020  a two-element list joined to a dictionary literal with ,
     W021  a.b::v where a is never a dictionary (a variable named with a dot in Klong 1)
     W022  a module imported by .import and never used
-    W023  a function literal with no parameter in .export(:{;...}) is called where it is written
     E001  anything the parser rejects at strict level 1
     E002  call with more arguments than the callee takes
     E003  assignment to an entry of what .import returned (it is read-only)

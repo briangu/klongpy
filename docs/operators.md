@@ -106,7 +106,7 @@ The dyad `point∇function` (and `.grad(function;point)`) **always** computes th
 [2.000000000279556 3.9999999996709334 6.000000000838668]
 ```
 
-The first result is the derivative of `x^2` at 3 (about 6) and the second the gradient of the sum of squares (about `[2 4 6]`); finite differences leave an error near 1e-9 with float64 (NumPy, or torch on the CPU). On a torch device that computes in float32, such as a GPU, the error is near 1e-2: `3∇f` prints `5.993843`.
+The first result is the derivative of `x^2` at 3 (about 6) and the second the gradient of the sum of squares (about `[2 4 6]`); finite differences leave an error near 1e-9 with float64 (NumPy). The torch backend computes the differences in float64 on the CPU, whatever its device is, and returns the result as float32, so `3∇f` prints `6.0` there.
 
 **ASCII form:** `.grad(function;point)` is the same computation with the function first, for keyboards without `∇`. The point is taken by value.
 

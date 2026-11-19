@@ -66,7 +66,7 @@ demo.kg:1:1: W001 'my_var' reads as my _ var: _ is the Drop operator, names cann
 0 errors, 1 warning in 1 file
 2
 $ echo 'a' | kgpy lint - --select W999 ; echo $?
-kgpy lint: unknown lint code 'W999'; codes are W001, W002, W003, W010, W011, W012, W013, W014, W015, W016, W017, W018, W019, W020, W021, W022, W023, E001, E002, E003, E004
+kgpy lint: unknown lint code 'W999'; codes are W001, W002, W003, W010, W011, W012, W013, W014, W015, W016, W017, W018, W019, W020, W021, W022, E001, E002, E003, E004
 2
 ```
 
@@ -103,7 +103,7 @@ Lint reports from the text what the interpreter reports when it runs. This table
 | `E003` | A `type` error: the value that `.import` returned is read-only. |
 | `E004` | A `name` error: the module has no such entry. |
 | `W021` | A `name` error, or at level 0 a new entry, when the base is not a dictionary: `a.b::v` is `a@"b"` written. |
-| `W022`, `W023` | None. |
+| `W022` | None. |
 | `W001` | None. `my_var` runs as `my _ var`. |
 | `W013` | None. The nested conditional is correct; the chain form is shorter. |
 | `W014` | The parenthesised part is dropped; a space before an adverb is a `syntax` error (also `E001`). |
@@ -283,16 +283,6 @@ $ printf 'q.x::1\n' | kgpy lint -
 ### W022: an import that is never used
 
 A top-level `name::.import(...)` whose `name` is never read in the file. Remove the line, or use a qualified name such as `name.f`.
-
-### W023: a function with no parameter in an export
-
-In `.export(:{;"key";{...}})` a function literal with no parameter is called where it stands, because the evaluated dictionary literal evaluates each value, so the entry is its result and not the function. Name the function, `f::{...}`, and write `"key";f`.
-
-```console
-$ printf '.export(:{;"f";{.p(1)}})\n' | kgpy lint -
-<stdin>:1:16: W023 a function with no parameter inside :{;...} is called there, so the entry is its result
-0 errors, 1 warning in 1 file
-```
 
 ### E001: a syntax error at strict level 1
 

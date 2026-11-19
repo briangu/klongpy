@@ -576,7 +576,7 @@ error: n.cdf: n is not a dictionary (it is integer)
 
 #### Removed switches
 
-**There is no engine switch and no parser switch.** `KLONGPY_ENGINE`, `KLONGPY_PARSER` and `KLONGPY_IPC` do not exist; a program or an environment that sets them is not affected, and they have no effect. `KlongInterpreter(parser=...)` accepts the argument and ignores it. The old reading of the text that the parser switch gave is not available: `a::5;[a b]::[1 2];a` is 1.
+**There is no engine switch and no parser switch.** `KLONGPY_ENGINE`, `KLONGPY_PARSER` and `KLONGPY_IPC` do not exist; a program or an environment that sets them is not affected, and they have no effect. `KlongInterpreter(parser=...)` is a `TypeError`, as any unknown keyword is. The old reading of the text that the parser switch gave is not available: `a::5;[a b]::[1 2];a` is 1.
 
 #### Messages changed
 

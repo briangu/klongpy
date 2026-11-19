@@ -36,22 +36,23 @@ On the CPU, torch pays off only for large arrays and many threads. Sorting and l
 
 | | NumPy | Torch |
 |---|---|---|
-| Float width | float64 | float32 on every device, CPU included |
+| Float width | float64 | float32 on every device, CPU included. A float the engine computes as a scalar is float32 too, so `(0.1+0.2)=0.3` is 1 and a scalar equals the matching element of an array |
 | Gradients (`:>`, `∂`, monad `∇`) | Finite differences | Autograd |
+| Numeric gradients (`point∇function`, `.grad`, `point∂function`) | Finite differences in float64 | Finite differences, computed in float64 on the CPU on every device and returned as float32 |
 | Strings, mixed lists | numpy object arrays | numpy object arrays on the host, not tensors |
 | Results | `numpy.ndarray` | `torch.Tensor` |
 
-Float32 carries about 7 significant decimal digits. `1.5+1e-9` is exactly `1.5` on the torch backend, and sums of many terms lose digits sooner than on NumPy. Autograd has no finite-difference error; float32 rounding still applies.
+Float32 carries about 7 significant decimal digits. `1.5+1e-9` is exactly `1.5` on the torch backend, and sums of many terms lose digits sooner than on NumPy. A value that needs float64 needs the NumPy backend. Autograd has no finite-difference error; float32 rounding still applies.
 
 Tested devices: the CPU, in the automated tests. Apple MPS has been run by hand (arithmetic, gradients and the optimizers) and is not in the automated tests. CUDA has not been tested.
 
-Known limit: MPS has no float64, and `.gradcheck()` needs the CPU. On MPS it raises `.gradcheck() requires CPU device, got 'mps'`; run `kgpy --backend torch --device cpu` for it.
+Known limit: MPS has no float64, so a program that needs it runs on the NumPy backend, and `.gradcheck()` needs the CPU. (The finite differences of `∇` and `∂` do not depend on this: they are computed on the CPU in float64, and only the result goes back to the device.) On MPS `.gradcheck()` raises `.gradcheck() requires CPU device, got 'mps'`; run `kgpy --backend torch --device cpu` for it.
 
 Known limit: some operations on mixed-type or ragged nested data raise "PyTorch backend does not support object dtype". Simple cases work (`["a" 1]` and `[[1 2][3]]` both evaluate). Use the NumPy backend for the failing operation.
 
 ## Gradient operators
 
-`function:>point` is the autograd operator, and so is the monad `∇function`, which returns the gradient as a function. The dyad `point∇function` and `.grad(function;point)` use finite differences on every backend. The table that compares all of them is in the [operator reference](operators.md#comparison); this page shows the torch-only use. The values are those of the torch backend on the CPU.
+`function:>point` is the autograd operator, and so is the monad `∇function`, which returns the gradient as a function. The dyad `point∇function` and `.grad(function;point)` use finite differences on every backend. On torch the function is evaluated in float64 on the CPU whatever the backend's device is (a step of 1e-6 is lost in float32, and MPS has no float64), and the gradient comes back in float32 on the backend's device. The table that compares all of them is in the [operator reference](operators.md#comparison); this page shows the torch-only use. The values are those of the torch backend on the CPU.
 
 ```klong
 f(t)::{t^2}
@@ -120,7 +121,7 @@ $ cat > sgd.kg <<'EOF'
 > EOF
 $ kgpy --backend torch --device cpu sgd.kg
 100
-2.0370366153851167e-08
+2.0370367e-08
 ```
 
 An optimizer works on every device the backend supports: the updated parameters stay on the backend's device (a GPU tensor stays on the GPU).

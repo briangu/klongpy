@@ -14,7 +14,7 @@ PROBE = "import klongpy; print(klongpy.KlongInterpreter.__name__)"
 
 def run(code, **env):
     e = dict(os.environ)
-    for k in ("KLONGPY_ENGINE", "KLONGPY_NATIVE_PATH"):
+    for k in ("KLONGPY_NATIVE_PATH",):
         e.pop(k, None)
     e.update({k: v for k, v in env.items() if v is not None})
     e["PYTHONPATH"] = ROOT + (os.pathsep + os.environ["PYTHONPATH"] if os.environ.get("PYTHONPATH") else "")
@@ -39,7 +39,7 @@ class TestEngineSelection(unittest.TestCase):
         if d is None and not extension_on_the_path():
             self.skipTest("the compiled extension is not available to this session")
         r = run(PROBE, KLONGPY_NATIVE_PATH=d)
-        self.assertEqual((r.returncode, r.stdout.strip()), (0, "RustInterpreter"), r.stderr)
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "KlongInterpreter"), r.stderr)
 
     def test_a_missing_extension_is_an_error_that_says_how_to_build_it(self):
         if extension_on_the_path():
@@ -49,7 +49,7 @@ class TestEngineSelection(unittest.TestCase):
         self.assertIn("ImportError", r.stderr)
         for word in ("compiled extension", "cargo build --release", "KLONGPY_NATIVE_PATH"):
             self.assertIn(word, r.stderr)
-        self.assertNotIn("RustInterpreter", r.stdout)       # and no silent fallback
+        self.assertNotIn("KlongInterpreter", r.stdout)       # and no silent fallback
 
     def test_a_directory_without_the_extension_is_said_so(self):
         if extension_on_the_path():

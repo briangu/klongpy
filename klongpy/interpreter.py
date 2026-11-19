@@ -4,4 +4,4 @@ extension is an ImportError that says how to build it, never a silent fallback.
 """
 from .errors import KlongException  # noqa: F401  (re-exported: klongpy.interpreter.KlongException is where callers import it from)
 from .utils import STRICT_LEVELS, check_strict_level  # noqa: F401
-from .rust_engine import RustInterpreter as KlongInterpreter
+from .rust_engine import KlongInterpreter

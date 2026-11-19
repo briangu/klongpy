@@ -208,8 +208,10 @@ class TestSyntaxErrors(unittest.TestCase):
         e = raised(k, '.comment("END") 1', KlongSyntaxError)
         self.assertEqual(e.span, (0, 15))
 
-    def test_legacy_parser_raises_the_same_classes_and_messages(self):
-        k = KlongInterpreter(parser="legacy")
+    def test_syntax_errors_have_the_same_classes_and_messages(self):
+        k = KlongInterpreter()
+        with self.assertRaises(TypeError):
+            KlongInterpreter(parser="legacy")
         for text, message in [("(1+2", "expected ')' but found end of input"),
                               ("1.2.3", "malformed number '1.2.3'"),
                               ("1+", "missing right operand for +"),

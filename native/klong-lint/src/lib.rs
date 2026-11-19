@@ -50,7 +50,6 @@ pub static RULES: &[Rule] = &[
     Rule { code: "W020", severity: "warning", title: "a two-element list joins into a dictionary with ," },
     Rule { code: "W021", severity: "warning", title: "a.b::v where a is never a dictionary (a variable named with a dot in Klong 1)" },
     Rule { code: "W022", severity: "warning", title: "module imported by .import and never used" },
-    Rule { code: "W023", severity: "warning", title: "a function literal with no parameter in .export(:{;...}) is called where it is written" },
     Rule { code: "E001", severity: "error", title: "the parser rejects this at strict level 1" },
     Rule { code: "E002", severity: "error", title: "call with more arguments than the callee takes" },
     Rule { code: "E003", severity: "error", title: "assignment to an entry of what .import returned (read-only)" },

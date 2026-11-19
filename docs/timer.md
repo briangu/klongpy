@@ -30,7 +30,7 @@ timer:t:1.0
 1:1: type error: z must be a function that takes no arguments, not one of 1
   .timer("t";1;{x+1})
   ^^^^^^^^^^^^^^^^^^^
-  hint: name the function first, cb::{...}, and pass cb; an inline function is rejected, or run before .timer sees it if it takes no arguments
+  hint: name the function first, cb::{...}, and pass cb; an inline function that takes arguments is rejected
 ```
 
 An inline function literal is not a safe argument. One that takes arguments is rejected, as above. A literal with no arguments, `.timer("t";1;{.p("tick");1})`, is a function as well: `.timer` receives it and runs it every interval, as it does a named function, so the call returns a timer handle. (Only a function literal written as the argument of a user function is run where it is written.)

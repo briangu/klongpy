@@ -927,23 +927,6 @@ impl<'a> Linter<'a> {
                 }
             }
         }
-        // W023: a function literal with no parameter written as a value in .export(:{;...}) is called where it stands
-        for i in 0..toks.len() {
-            if !(an.val(i) == ".export" && toks[i].k == K::Name && i + 2 < toks.len() && toks[i + 2].k == K::Dict) {
-                continue;
-            }
-            let Some(&df) = an.open_frame.get(&(i + 2)) else { continue };
-            let Some(close) = an.frames[df].close else { continue };
-            for j in i + 3..close {
-                if toks[j].k == K::LBrace && toks[j - 1].k == K::Semi {
-                    if let Some(&ff) = an.open_frame.get(&j) {
-                        if an.frames[ff].meta.map(|m| m.arity == 0).unwrap_or(false) {
-                            self.add("W023", (toks[j].s, toks[j].e), "a function with no parameter inside :{;...} is called there, so the entry is its result".to_string(), Some("name the function, f::{...}, and write \"key\";f"));
-                        }
-                    }
-                }
-            }
-        }
         for m in &an.mod_imports {
             if m.top && !used.contains(m.alias.as_str()) && aliases.contains_key(m.alias.as_str()) {
                 let t = &toks[m.idx];

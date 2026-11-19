@@ -1,11 +1,11 @@
 """
-The native (Rust) Klong interpreter as KlongPy's evaluation engine, the only one (klongpy/interpreter.py binds the name
-KlongInterpreter to RustInterpreter at import time).
+The native (Rust) Klong interpreter as KlongPy's evaluation engine, the only one (klongpy/interpreter.py exports it as
+klongpy.KlongInterpreter).
 
 Needs the extension module (native/klong-py), found as klongpy._native, as klong_native on the import path, or in the directory
 named by KLONGPY_NATIVE_PATH; without it importing klongpy is an ImportError that says how to build it.
 
-RustInterpreter has the public surface of KlongInterpreter that programs and tests use: __call__, exec, apply, __getitem__,
+KlongInterpreter has the public surface that programs and tests use: __call__, exec, apply, __getitem__,
 __setitem__, __delitem__, __contains__, strict, names, backend, np, console, current_module.
 
 What Python supplies (the rest is the engine's): the system functions that are Python by nature (.py .pyf, .web .ws, .srv .cli
@@ -79,7 +79,7 @@ _scratch_klong = None
 
 
 class _Bound:
-    """A projection's argument that the engine did not report (see RustFn.args)."""
+    """A projection's argument that the engine did not report (see NativeFn.args)."""
 
     def __repr__(self):
         return "<bound>"
@@ -99,7 +99,7 @@ class _Detached:
 
 
 def _detached_fn(text, params):
-    """What unpickling or copying a RustFn gives: the function as a value of a scratch interpreter (its arity, params
+    """What unpickling or copying a NativeFn gives: the function as a value of a scratch interpreter (its arity, params
     and locals can be read), to be rebuilt from its text in the interpreter it is assigned to."""
     global _scratch_klong
     if _scratch_klong is None:
@@ -108,7 +108,7 @@ def _detached_fn(text, params):
     if named:
         text = "fn(%s)::%s" % (";".join(params), text)
     kfn = _build_function(_scratch_klong, text, named)
-    f = (RustCall if kfn.is_projection else RustFn)(kfn, _Detached())
+    f = (NativeCall if kfn.is_projection else NativeFn)(kfn, _Detached())
     f._detached = (text, named)
     return f
 
@@ -117,7 +117,7 @@ def _syms(names):
     return None if names is None else tuple(KGSym(n) for n in names)
 
 
-class RustFn(KGFn):
+class NativeFn(KGFn):
     """A Klong function value of the native engine, with the face of KlongPy's KGFn, built on the accessors of the
     extension's KFn: arity (the holes of a projection), params, locals, the source text of the literal, the bound
     arguments of a projection (args: the value, None for a hole) and what it calls (callee).
@@ -228,11 +228,11 @@ class RustFn(KGFn):
         return (_detached_fn, (text, None if params is None else [str.__str__(p) for p in params]))
 
 
-class RustCall(RustFn, KGCall):
+class NativeCall(NativeFn, KGCall):
     """A projection (`f(1;)`, `{x+y}:(1;)`): what the Python engine holds as a KGCall."""
 
 
-class RustFnWrapper(KGFnWrapper):
+class NativeFnWrapper(KGFnWrapper):
     """`klong["f"]`: the function bound to a name, looked up again at each call so that a redefinition takes effect."""
 
     def __init__(self, klong, fn, sym=None):
@@ -249,7 +249,7 @@ class RustFnWrapper(KGFnWrapper):
         return getattr(self.fn, name)
 
 
-class RustLambdaWrapper(KGFnWrapper):
+class NativeLambdaWrapper(KGFnWrapper):
     """`klong["f"]` for a Python callable that was assigned to a name: calling it calls the Python function, with the arity the
     Python engine checks (a KGLambda is never called from Python as a bare value: it wants a frame)."""
 
@@ -420,19 +420,16 @@ def _program(x):
     return getattr(x, "text", x), getattr(x, "name", None)
 
 
-class RustInterpreter:
-    """KlongInterpreter on the native engine (a drop-in for the parts that do not depend on Python internals)."""
+class KlongInterpreter:
+    """The interpreter on the native engine (a drop-in for the parts that do not depend on Python internals)."""
 
     is_native = True
     DID_YOU_MEAN_CUTOFF = 0.7     # the engine's own rule of "did you mean": a difflib ratio of at least this
 
-    def __init__(self, backend=None, device=None, parser=None, strict=0):
+    def __init__(self, backend=None, device=None, strict=0):
         check_strict_level(strict)
-        if parser not in (None, "token", "legacy"):
-            raise ValueError(f"parser must be 'token' or 'legacy', not {parser!r}")
         self._backend = get_backend(backend, device=device)
         self._k = klong_native.Klong(strict, _TYPES)
-        self._parser = "native"
         from .sys_fn_static import ExternTable
         self.externs = ExternTable(self)
         self._sources = []
@@ -464,20 +461,26 @@ class RustInterpreter:
     def wide_floats(self):
         """Float64 for what the engine computes and the arrays it makes, while the block runs: the finite differences of the numeric
         gradient need a step of 1e-6, which float32 cannot hold (3+1e-6 is not a float32 number). Nothing changes on a backend that
-        computes in float64, or has no float64 (MPS)."""
+        computes in float64. On a device without float64 (MPS) the arrays are made on the CPU for the block."""
         b = self._backend
-        if self._float is None or not b.supports_float64():
+        if self._float is None:
             yield
             return
-        was = b._host_float
-        b._host_float = np.dtype(np.float64)
-        self._k.set_float_width(64)
-        try:
-            yield
-        finally:
-            b._host_float = was
-            self._k.set_float_width(32)
-
+        with contextlib.ExitStack() as stack:
+            if not b.supports_float64():
+                cpu = getattr(b, "compute_on_cpu", None)
+                if cpu is None:
+                    yield
+                    return
+                stack.enter_context(cpu())
+            was = b._host_float
+            b._host_float = np.dtype(np.float64)
+            self._k.set_float_width(64)
+            try:
+                yield
+            finally:
+                b._host_float = was
+                self._k.set_float_width(32)
 
     def _bridge_system_functions(self):
         """KlongPy's Python system functions: those the native runtime does not have (.py .pyf .pya .pyc .sys .bkd ...) and the
@@ -533,7 +536,7 @@ class RustInterpreter:
             return None
         if type(v) is _KFn:
             now = self._wrap_fn(v)
-            if not isinstance(now, RustCall):
+            if not isinstance(now, NativeCall):
                 return now
         return None
 
@@ -587,10 +590,10 @@ class RustInterpreter:
 
     # -- function values and the crossing --------------------------------------------------------------------------
     def _wrap_fn(self, kfn):
-        return RustCall(kfn, self) if kfn.is_projection else RustFn(kfn, self)
+        return NativeCall(kfn, self) if kfn.is_projection else NativeFn(kfn, self)
 
     def _out(self, v):
-        """A native result as KlongPy has it: function values are RustFn (also inside lists and object arrays)."""
+        """A native result as KlongPy has it: function values are NativeFn (also inside lists and object arrays)."""
         if self._backend.name != "numpy":
             v = _result_for(self, v)
         t = type(v)
@@ -642,18 +645,18 @@ class RustInterpreter:
         return v
 
     def _native_fn(self, f):
-        """The native function of a RustFn; a copied or unpickled one is rebuilt from its text here."""
+        """The native function of a NativeFn; a copied or unpickled one is rebuilt from its text here."""
         if f._detached is None:
             return f._kfn
         text, named = f._detached
         return _build_function(self._k, text, named)
 
     def _in(self, v):
-        """A value on its way into the native engine: RustFn and its wrapper give back their native function."""
+        """A value on its way into the native engine: NativeFn and its wrapper give back their native function."""
         t = type(v)
-        if isinstance(v, RustFn):
+        if isinstance(v, NativeFn):
             return self._native_fn(v)
-        if t is RustFnWrapper:
+        if t is NativeFnWrapper:
             return self._native_fn(v.fn)
         if isinstance(v, KGLambda):
             return self._host_lambda(v)
@@ -665,7 +668,7 @@ class RustInterpreter:
             return tuple(self._in(q) for q in v)
         if t is dict:
             return {k: self._in(q) for k, q in v.items()}
-        if t is np.ndarray and v.dtype == object and v.size and any(isinstance(q, (RustFn, RustFnWrapper)) for q in v.ravel()):
+        if t is np.ndarray and v.dtype == object and v.size and any(isinstance(q, (NativeFn, NativeFnWrapper)) for q in v.ravel()):
             r = np.empty(v.shape, dtype=object)
             rr = r.reshape(-1)
             for i, q in enumerate(v.ravel()):
@@ -748,7 +751,7 @@ class RustInterpreter:
             f = f.fn
         if isinstance(f, _Body):
             f = f.fn
-        if isinstance(f, RustFn):
+        if isinstance(f, NativeFn):
             return self._call_value(f._kfn, values)
         if isinstance(f, KGLambda):
             args = [self._out(q) for q in values]
@@ -771,10 +774,10 @@ class RustInterpreter:
         except KeyError:
             raise KeyError(k) from None
         if type(v) is _KFn:
-            return RustFnWrapper(self, self._wrap_fn(v), KGSym(str(k)))
+            return NativeFnWrapper(self, self._wrap_fn(v), KGSym(str(k)))
         if isinstance(v, KGLambda):
             if str(k) in self._wrapped:
-                return RustLambdaWrapper(self, v, KGSym(str(k)))
+                return NativeLambdaWrapper(self, v, KGSym(str(k)))
             return v   # the KGLambda that was put there, as KlongPy hands it back
         return self._result(self._out(v))
 
@@ -782,7 +785,7 @@ class RustInterpreter:
         if type(v) is KGLambda:
             self._register_kglambda(str(k), v)
             return
-        if (callable(v) and not isinstance(v, (KGLambda, RustFn, RustFnWrapper, KGFn, HostLambda)) and type(v) is not _KFn
+        if (callable(v) and not isinstance(v, (KGLambda, NativeFn, NativeFnWrapper, KGFn, HostLambda)) and type(v) is not _KFn
                 and not hasattr(v, "dtype")):
             # a Python function or class assigned to a name is a Klong function, as in the Python engine (context_value)
             kgl = KGLambda(v)

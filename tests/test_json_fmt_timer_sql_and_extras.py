@@ -117,18 +117,17 @@ class TestTimer(unittest.TestCase):
                 self.klong(src)
             self.assertIn("takes no arguments", str(cm.exception))
             self.assertIn("cb::{...}", cm.exception.hint)
+            self.assertNotIn("run before", cm.exception.hint)
         self.klong('cb1::{x}')
         with self.assertRaises(KlongException) as cm:
             self.klong('.timer("t";1;cb1)')
         self.assertIn("takes no arguments, not one of 1", str(cm.exception))
 
-    def test_nilad_literal_is_evaluated_at_the_call_site(self):
+    def test_nilad_literal_stays_a_function(self):
         self.klong('hits::0')
-        with self.assertRaises(KlongException) as cm:
-            self.klong('.timer("t";1;{hits::hits+1;1})')
-        self.assertEqual(str(cm.exception), "z must be a function")
-        self.assertEqual(self.klong['hits'], 1)           # ran before .timer was called
-        self.assertIn("run before .timer sees it", cm.exception.hint)
+        th = self.klong('.timer("t";5;{hits::hits+1;1})')
+        self.assertEqual(self.klong['hits'], 0)           # not run where it is written
+        self.assertEqual(th.cancel(), 1)
 
     def test_named_nilad_is_accepted(self):
         self.klong('cb::{0}')
