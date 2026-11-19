@@ -33,7 +33,7 @@ timer:t:1.0
   hint: name the function first, cb::{...}, and pass cb; an inline function is rejected, or run before .timer sees it if it takes no arguments
 ```
 
-An inline function literal is not a safe argument. One that takes arguments is rejected, as above. A literal with no arguments, `.timer("t";1;{.p("tick");1})`, is run where the call is written, before `.timer` sees it, so `.timer` receives its result (here the number 1, which is not a function). A named function is passed as a function, not run.
+An inline function literal is not a safe argument. One that takes arguments is rejected, as above. A literal with no arguments, `.timer("t";1;{.p("tick");1})`, is a function as well: `.timer` receives it and runs it every interval, as it does a named function, so the call returns a timer handle. (Only a function literal written as the argument of a user function is run where it is written.)
 
 ## The callback's result
 

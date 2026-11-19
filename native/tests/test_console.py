@@ -214,7 +214,7 @@ class TestUploadTool(unittest.TestCase):
     def test_version(self):
         b = self.board(self.sim().path)
         v = b.ver()
-        self.assertEqual((v["ver"], v["platform"], v["fs"]), ("0.0.1", "sim", "1"))
+        self.assertEqual((v["ver"], v["platform"], v["fs"]), ("2.0.0-rc.1", "sim", "1"))
         self.assertIn(v["int"], ("32", "64"))
         self.assertIn("files", v["features"].split(","))
         self.assertGreater(int(v["heap_used"]), 0)
@@ -335,7 +335,7 @@ class TestUploadTool(unittest.TestCase):
         s = self.sim()
         port = kg.Port.open(s.path)
         self.ports.append(port)
-        self.assertEqual(self.read_until(port, b"klong> "), b"Klong 0.0.1 (sim, int64 float64)\nklong> ")
+        self.assertEqual(self.read_until(port, b"klong> "), b"Klong 2.0.0-rc.1 (sim, int64 float64)\nklong> ")
         for key in b"1+3\x7f2\r":
             port.write(bytes([key]))
         self.assertEqual(self.read_until(port, b"klong> "), b"1+3\x08 \x082\n3\nklong> ")
@@ -459,7 +459,7 @@ class TestUploadTool(unittest.TestCase):
         s = self.sim()
         code, out, err = self.tool(s, "ver")
         self.assertEqual(code, 0, err)
-        self.assertIn("ver=0.0.1", out)
+        self.assertIn("ver=2.0.0-rc.1", out)
         self.assertIn("platform=sim", out)
         with tempfile.TemporaryDirectory() as d:
             src = os.path.join(d, "area.kg")

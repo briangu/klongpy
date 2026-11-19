@@ -164,7 +164,7 @@ $ kg -e 'n::0;cb::{n::n+1;.p(n);:[n<3;1;0]};.timer("count";0.2;cb)'
 3
 ```
 
-As with a server, `klong` stays alive while a timer runs, so the program above ended on its own when the callback returned 0. In the REPL, timers and the IPC connections are served while the REPL waits for a line.
+As with a server, `kg` stays alive while a timer runs, so the program above ended on its own when the callback returned 0. In the REPL, timers and the IPC connections are served while the REPL waits for a line.
 
 Time on a native node is cooperative. **Nothing fires while an evaluation or a blocked IPC call runs.** A timer that came due meanwhile fires once afterwards and then at its next multiple of the interval, counted from its start. A timer is not a way to run work at an exact moment.
 

@@ -19,15 +19,11 @@ ROOT = os.path.dirname(HERE)
 
 
 def _native_binary():
-    """The native binary: `kg` (the name it is given), or `klong` while a build still has only that name; KLONG_NATIVE overrides."""
+    """The native binary, `kg`; KLONG_NATIVE overrides."""
     given = os.environ.get("KLONG_NATIVE")
     if given:
         return given
-    release = os.path.join(ROOT, "native", "target", "release")
-    for name in ("kg", "klong"):
-        if os.path.isfile(os.path.join(release, name)):
-            return os.path.join(release, name)
-    return os.path.join(release, "kg")
+    return os.path.join(ROOT, "native", "target", "release", "kg")
 CONF = os.path.join(ROOT, "conformance")
 
 BINARY = _native_binary()
@@ -151,7 +147,7 @@ class TestNativeConformance(unittest.TestCase):
         )
         p = subprocess.run([BINARY, "--memfs", "--conformance"], input=source.encode(), capture_output=True, timeout=60)
         self.assertEqual((p.returncode, p.stdout.decode().strip()), (0, '[49 "sq::{x*x}"]'))
-        p = subprocess.run([BINARY, "--memfs", "--conformance"], input=b'.l("nstat");mu([1 2 3 4])', capture_output=True, timeout=60)
+        p = subprocess.run([BINARY, "--memfs", "--conformance"], input=b'.l("nstat");nstat.mu([1 2 3 4])', capture_output=True, timeout=60)
         self.assertEqual((p.returncode, p.stdout.decode().strip()), (0, "2.5"))
 
     def test_library_and_reference_suites(self):

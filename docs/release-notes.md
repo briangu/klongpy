@@ -563,10 +563,10 @@ error: an operator cannot be a dictionary key
 | `nstat` | `F.pdf.n`, `F.pdf.d` | `Fpdfn`, `Fpdfd` |
 | `help` | `help.add`, `op.db` | `helpadd`, `opdb` |
 
-The distribution families of `nstat` (`n.cdf`, `t.pdf`, `F.pdf` and the rest) are now entries of dictionaries named `ct`, `f`, `u`, `r`, `geo`, `b`, `hyp`, `poi`, `n`, `lnorm`, `x2`, `t` and `F`, which `.l("nstat")` creates in your globals. A program that assigns one of these names after loading `nstat` replaces the dictionary, and the family's functions fail with a type error.
+`nstat` is a module: `.l("nstat")` binds only the name `nstat`. Its functions are `nstat.mu`, `nstat.sd` and the rest, and each distribution family is a dictionary inside it, as in `nstat.n.cdf(x;m;s)`.
 
 ```kgpy
-?> .l("nstat");n.cdf(0;0;1)
+?> .l("nstat");nstat.n.cdf(0;0;1)
 0.5
 ?> n::5
 5

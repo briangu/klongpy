@@ -15,7 +15,7 @@ cd native
 cargo build --release
 ```
 
-This builds the whole workspace, and it produces two programs in `native/target/release/` (the program `kg` is also built under its old name, `klong`, for a while; it is the same program):
+This builds the whole workspace, and it produces two programs in `native/target/release/`:
 
 | Program | What it is |
 |---|---|
@@ -78,7 +78,7 @@ Options (before FILE or -e; sizes accept the suffixes K and M):
   -h, --help            print this text and exit
   --version             print the version and exit
 $ kg --version
-kg 0.0.1
+kg 2.0.0-rc.1
 ```
 
 `klong-sim` has the same two options:
@@ -202,7 +202,7 @@ The twelve library files of `klongpy/lib` (`csv`, `edt`, `eigenv`, `help`, `huff
 
 <!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ kg -e '.l("nstat");.p(mu([1 2 3 4]));.p(sd([1 2 3 4]))'
+$ kg -e '.l("nstat");.p(nstat.mu([1 2 3 4]));.p(nstat.sd([1 2 3 4]))'
 2.5
 1.1180339889579018
 "1.1180339889579018"
@@ -252,7 +252,7 @@ $ kg -e '2147483647+1'
 $ kg -e '9223372036854775807+1'
 -9223372036854775808
 $ kg -e '.ver()'
-:{["version" "0.0.1"] ["int" 64] ["float" 64] ["features" ["files" "lib" "timers" "ipc"]] ["platform" "host"]}
+:{["version" "2.0.0-rc.1"] ["int" 64] ["float" 64] ["features" ["files" "lib" "timers" "ipc"]] ["platform" "host"]}
 ```
 
 The default build is 64 bits wide, as the first two lines show: `2147483647+1` is an ordinary number and `9223372036854775807+1` wraps. In the narrow build `.ver()` reports `["int" 32] ["float" 32]`, `2147483647+1` is `-2147483648`, and `1%3` prints `0.33333334`. (This paragraph is not a checked transcript: only the default build is run for the examples.)
@@ -317,10 +317,10 @@ In the commands below, `python` is the interpreter you use for KlongPy, and the 
 <!-- check-docs: requires-file native/target/release/kg; link native conformance -->
 ```console
 $ python native/scripts/conformance.py | tail -1 | cut -c1-40
-total                         2142  2142
+total                         2155  2155
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 2142 of 2142 on 2026-11-18, in about three seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 2155 of 2155 on 2026-11-18, in about three seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
 KLONG_NATIVE=native/target/narrow/release/kg python native/scripts/conformance.py --narrow

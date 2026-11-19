@@ -394,10 +394,10 @@ The libraries in `klongpy/lib` are loaded with `.l`, as before. Two changed form
 | `nstat` | `F.pdf.n`, `F.pdf.d` | `Fpdfn`, `Fpdfd` |
 | `help` | `help.add`, `op.db` | `helpadd`, `opdb` |
 
-The distribution families of `nstat` (`n.cdf`, `t.pdf`, `F.pdf` and so on) are entries of dictionaries that `.l("nstat")` puts in your globals: `ct`, `f`, `u`, `r`, `geo`, `b`, `hyp`, `poi`, `n`, `lnorm`, `x2`, `t` and `F`. Assigning one of these names after loading `nstat` replaces the dictionary, and the family stops working. Use other names for your variables, or load `nstat` last.
+`nstat` is a module. After `.l("nstat")` its functions are entries of `nstat`: `nstat.mu(v)`, `nstat.sd(v)`. A distribution family is a dictionary inside it: `nstat.n.cdf(x;m;s)`, `nstat.t.pdf(x;v)`.
 
 ```kgpy
-?> .l("nstat");n.cdf(0;0;1)
+?> .l("nstat");nstat.n.cdf(0;0;1)
 0.5
 ?> n::5
 5

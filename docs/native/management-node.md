@@ -6,17 +6,17 @@ This page covers the `mgmt` library (`klongpy/lib/mgmt.kg`), which turns one nod
     Anyone who can reach the management node can run any code on it **and on every node behind it**, and can read and replace the files of each of them. Nothing is encrypted, and `.srv.auth` sees a user name and a password that travel in clear text. Let the management node listen on an isolated or trusted network only, preferably on `127.0.0.1` or a private link. This is the trust model of [IPC and Timers](ipc.md), made larger: one connection to the management node is a connection to all of them.
 
 !!! note "What has been run"
-    Most of this page ran on one computer: the nodes and the management node are `klong` processes that talk over localhost TCP, and a second set of tests runs several runtimes in one thread over simulated lossy and serial links. On hardware, the library has loaded and management-library calls (`mgmt.call`) have run between two Raspberry Pi Picos (see [two Picos calling each other](pico-bench.md)). **Not run on a board**: a management board with nodes on UARTs, and a pulled cable. The hooks `node.reset` and `node.power` (below) are a place for a board to plug into, and no board does yet. The [status table](index.md#status-what-has-and-has-not-been-proven) has the one summary.
+    Most of this page ran on one computer: the nodes and the management node are `kg` processes that talk over localhost TCP, and a second set of tests runs several runtimes in one thread over simulated lossy and serial links. On hardware, the library has loaded and management-library calls (`mgmt.call`) have run between two Raspberry Pi Picos (see [two Picos calling each other](pico-bench.md)). **Not run on a board**: a management board with nodes on UARTs, and a pulled cable. The hooks `node.reset` and `node.power` (below) are a place for a board to plug into, and no board does yet. The [status table](index.md#status-what-has-and-has-not-been-proven) has the one summary.
 
 ## The pieces
 
 ```
-  desktop (KlongPy or klong)  --.cli-->  management node  --.cli-->  node n1
+  desktop (KlongPy or kg)  --.cli-->  management node  --.cli-->  node n1
                                          (mgmt library)   --.cli-->  node n2
                                                           --.cli-->  node n3
 ```
 
-A **node** is any runtime that serves IPC: a native `klong` with `.srv`. A node needs nothing installed. When the management node connects, it defines three names on the node (`mgmt.run`, `mgmt.job` and `mgmt.r`) and nothing else, and it writes nothing to the node's storage unless you ask it to.
+A **node** is any runtime that serves IPC: a native `kg` with `.srv`. A node needs nothing installed. When the management node connects, it defines three names on the node (`mgmt.run`, `mgmt.job` and `mgmt.r`) and nothing else, and it writes nothing to the node's storage unless you ask it to.
 
 The **management node** loads the library with `.l("mgmt")`. The native runtime carries the file in its image when it is built with the `ipc` feature, so no file is needed there. KlongPy finds it on its library path.
 
@@ -72,7 +72,7 @@ $ cat > mgr.kg <<'EOF'
 $ kg mgr.kg $((8888+1)) $((8888+2)) $((8888+3)) $((8888+10)) > mgr.log 2>&1 & echo $! > mgr.pid; for i in $(seq 600); do lsof -nP -iTCP:$((8888+10)) -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 0.1; done; cat mgr.log
 ```
 
-The management node prints nothing. `klong` stays alive because a timer runs and a server listens.
+The management node prints nothing. `kg` stays alive because a timer runs and a server listens.
 
 Now the desktop. A client connects to the management node with `.cli` and sends it requests: a string to evaluate, or a list whose first element is the symbol of a function. The `mgmt` functions are called through the management node, so the list `[:mgmt.call "n2" :sq [7]]` is a request to call `mgmt.call("n2";:sq;[7])` there. The client is another `klong` here; it could be KlongPy.
 
@@ -118,7 +118,7 @@ $ cat cube.kg
 cube::{x*x*x}
 ```
 
-`mgmt.put` returned the 13 characters it wrote. The call of `cube` on `n2` gave 27. `mgmt.all` gave 8 for `n2` and, for the two nodes that never loaded the file, an error value, which does not stop the others: its message starts with the node's name. `mgmt.boot(name;text)` writes `boot.kg` the same way. A board runs its `boot.kg` when it starts; the host `klong` does not, so to bring a node back with it you start it as `klong boot.kg`.
+`mgmt.put` returned the 13 characters it wrote. The call of `cube` on `n2` gave 27. `mgmt.all` gave 8 for `n2` and, for the two nodes that never loaded the file, an error value, which does not stop the others: its message starts with the node's name. `mgmt.boot(name;text)` writes `boot.kg` the same way. A board runs its `boot.kg` when it starts; the host `kg` does not, so to bring a node back with it you start it as `kg boot.kg`.
 
 ### Errors
 
@@ -206,7 +206,7 @@ $ kg -e '.err("interrupt";"stop")'
   ^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-A function literal with no argument, written where a value is expected, is evaluated on the spot: that is the rule of the language (`f::{x+1};f({41})` gives 42, because `f` receives 41). So `.try({1+"a"};[0])` raises the error while its arguments are evaluated, before `.try` runs, and `.timer("t";1;{0})` hands `.timer` the number 0. To pass such a function, give it a name or an argument:
+A function literal with no argument, written as the argument of a user function, is evaluated on the spot: that is the rule of the language (`f::{x+1};f({41})` gives 42, because `f` receives 41). As the function argument of `.try`, `.async` or `.timer` it stays a function, so `.try({1+"a"};[0])` catches the error that the function raises, and `.timer("t";1;{0})` hands `.timer` the function. To pass such a function to a user function, give it a name or an argument:
 
 <!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console

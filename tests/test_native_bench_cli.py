@@ -135,7 +135,7 @@ class Cli(unittest.TestCase):
         r = self.bridge.cli("repl", "--node", "2", stdin='n::41\nn+1\nf::{x*x}\nf(12)\n1+"a"\n3+4\n:q\n')
         self.assertEqual(r.returncode, 0, r.stderr)
         out = r.stdout
-        self.assertIn("klong 0.0.1 node=2", out)
+        self.assertIn("klong 2.0.0-rc.1 node=2", out)
         for want in ["42\n", "144\n", "type error", "7\n"]:
             self.assertIn(want, out)
         self.assertNotIn("klong> ", out)
@@ -273,7 +273,7 @@ class Cli(unittest.TestCase):
         self.assertEqual(len(nodes), 4)
         self.assertEqual(sorted(nodes[1]), ["flags", "info", "klong", "load", "node", "online", "selftest"])
         self.assertEqual(nodes[1]["flags"] & 0x10, 0x10)
-        self.assertTrue(nodes[1]["info"].startswith("klong 0.0.1 node=1 "))
+        self.assertTrue(nodes[1]["info"].startswith("klong 2.0.0-rc.1 node=1 "))
         # the errors and their texts
         self.assertEqual(b.post("/klong/eval?node=7", b"1\n"), (400, {"error": "node=0..3"}))
         self.assertEqual(b.post("/klong/eval?node=1", b""), (400, {"error": "send the lines as the request body"}))

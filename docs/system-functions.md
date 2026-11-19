@@ -22,9 +22,11 @@ An error is shown as `error: message`, without the position the REPL adds; see [
 | `.export(x)` | Export | Name the dictionary a module file gives to `.import`. |
 | `.module(x)` | Module | Mark the start or end of a module; `.module(:name)` opens one and `.module(0)` closes it. |
 | `.pc()` | Process-Clock | Return the process time used so far, in seconds. |
+| `.now()` | Now | Return the time of day in seconds since the start of 1970. |
 | `.rn()` | Random-Number | Return a random real number in 0 <= x < 1. |
+| `.seed(x)` | Seed | Seed the random number generator, so the draws that follow are the same on every machine. |
 | `.sys(x)` | System | Run a shell command and return its exit code. |
-| `.try(x;y)` | Try | Call a function with a list of arguments and give the outcome as a value, `[1 result]` or `[0 kind message]`. |
+| `.try(x;y)` | Try | Call a function with a list of arguments and give the outcome as a value: `[1 result]`, or `[0 e]` where `e` is a dictionary describing the error. |
 | `.err(x;y)` | Error | Fail with an error of a given kind and message (the inverse of `.try`). |
 | `.mem()` | Memory | The memory the native interpreter uses: bytes in use, the most that was in use, the limit. |
 | `.ver()` | Version | A dictionary that describes the interpreter: version, integer and float widths, features, platform. |
@@ -286,6 +288,16 @@ The program {[t0];t0::.pc();x@[];.pc()-t0} measures the process
 time consumed by the nilad passed to it.
 ```
 
+### `.now`
+
+`.now()` [Now]
+
+```text
+Return the time of day as seconds since the start of 1970,
+with a fractional part. On a board without a clock this is
+a system error.
+```
+
 ### `.rn`
 
 `.rn()` [Random-Number]
@@ -297,6 +309,18 @@ Return a random number x, such that 0 <= x < 1.
 ```kgpy
 ?> .rn()<1
 1
+```
+
+### `.seed`
+
+`.seed(x)` [Seed]
+
+```text
+Set the state of the random number generator from the
+integer "x" and return "x". The draws of .rn() that follow
+are the same on every machine and board for the same seed.
+
+Example: .seed(42);.rn()  -->  0.1941059175341826
 ```
 
 ### `.sys`
@@ -332,13 +356,16 @@ The exit code is returned as an integer. Output of the command goes to the termi
 
 ```text
 Call the function "x" with the list of arguments "y" and return the
-outcome as a value: [1 result] when the call worked, or
-[0 kind message] when it failed with a Klong error ("kind" is
-syntax, name, arity, type, shape, range, system, memory, internal
-or remote). An interrupt (Ctrl-C) and .x are not caught.
+outcome as a value: [1 result] when the call worked, or [0 e] when
+it failed with a Klong error. "e" is a dictionary with the entries
+"kind" (syntax, name, arity, type, shape, range, system, memory,
+internal or remote), "message", "source", "line" and "col". An
+interrupt (Ctrl-C) and .x are not caught.
 
-Examples:   .try({x+1};[1])        -->  [1 2]
-            .try({x+1};["a"])      -->  [0 "type" "cannot apply + (Plus) to string and integer"]
+A function written in place needs no name: .try({risky()};[]).
+
+Examples:   .try({x+1};[1])                 -->  [1 2]
+            (.try({x+1};["a"])@1)@"kind"    -->  "type"
 ```
 
 ### `.err`
@@ -348,8 +375,8 @@ Examples:   .try({x+1};[1])        -->  [1 2]
 ```text
 Fail with an error of the kind "x" (a string or symbol: syntax, name,
 arity, type, shape, range, system, memory, internal or remote) and the
-message "y", a string. It is the inverse of .try: a value that was an
-error on another node can be passed on as what it was.
+message "y", a string. With one argument, a dictionary that .try
+caught, .err(e) raises that error again.
 
 Example:   .err("range";"too big")
 ```

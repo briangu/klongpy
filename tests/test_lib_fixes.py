@@ -56,18 +56,18 @@ class TestNstatFreq(unittest.TestCase):
         for level in LEVELS:
             k = load("nstat.kg", level=level)
             with self.subTest(level=level):
-                got = np.asarray(k("freq(ndf;5;[0 4])"), dtype=float)
+                got = np.asarray(k("nstat.freq(nstat.ndf;5;[0 4])"), dtype=float)
                 np.testing.assert_allclose(got, [normal_pdf(x) for x in (0, 1, 2, 3, 4)], rtol=1e-3)
-                got = np.asarray(k("freq(ndf;3;[-1 1])"), dtype=float)
+                got = np.asarray(k("nstat.freq(nstat.ndf;3;[-1 1])"), dtype=float)
                 np.testing.assert_allclose(got, [normal_pdf(x) for x in (-1, 0, 1)], rtol=1e-3)
-                got = np.asarray(k("freq(ndf;4;[0 3])"), dtype=float)
+                got = np.asarray(k("nstat.freq(nstat.ndf;4;[0 3])"), dtype=float)
                 np.testing.assert_allclose(got, [normal_pdf(x) for x in np.linspace(0, 3, 4)], rtol=1e-3)
 
     @requires_object_dtype
     def test_nfreq_is_freq_relative_to_its_maximum(self):
         k = load("nstat.kg")
-        f = np.asarray(k("freq(ndf;5;[0 4])"), dtype=float)
-        np.testing.assert_allclose(np.asarray(k("nfreq(ndf;5;[0 4])"), dtype=float), f / f.max(), rtol=1e-3)
+        f = np.asarray(k("nstat.freq(nstat.ndf;5;[0 4])"), dtype=float)
+        np.testing.assert_allclose(np.asarray(k("nstat.nfreq(nstat.ndf;5;[0 4])"), dtype=float), f / f.max(), rtol=1e-3)
 
 
 class TestSinNegative(unittest.TestCase):

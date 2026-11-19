@@ -4,7 +4,7 @@ The conformance suite is a set of test cases for the Klong language that does no
 
 Each case is a program and the text the REPL prints for its value, or the kind of error it must raise. KlongPy runs the cases in process. The [native runtime](native/index.md) runs the same files through a small command-line protocol, with no Python. KlongPy is the reference: when it fails a case, either KlongPy has a bug (the case goes to the pending list, below) or the case is wrong.
 
-The suite has 2142 cases in 25 files under `conformance/cases/`, 7 pending cases under `conformance/pending/` (that KlongPy fails), and 169 golden parse trees under `tests/golden/`.
+The suite has 2155 cases in 25 files under `conformance/cases/`, 5 pending cases under `conformance/pending/` (that KlongPy fails), and 169 golden parse trees under `tests/golden/`.
 
 ## A case
 
@@ -39,14 +39,14 @@ error: range
 <!-- check-docs: link conformance -->
 ```console
 $ python conformance/run.py
-2121 passed, 0 failed, 21 skipped by tags (KlongPy (in process))
+2134 passed, 0 failed, 21 skipped by tags (KlongPy (in process))
 ```
 
 The in-process run takes about a second. To run KlongPy through the same executable protocol that a native implementation uses, give the reference shim as the command (about 17 seconds with 8 jobs):
 
 ```text
 $ python conformance/run.py --cmd "python -W ignore conformance/shim/kgpy_shim.py" --jobs 8
-2121 passed, 0 failed, 21 skipped by tags (python -W ignore conformance/shim/kgpy_shim.py)
+2134 passed, 0 failed, 21 skipped by tags (python -W ignore conformance/shim/kgpy_shim.py)
 ```
 
 `--tags a,b` is the list of tags the implementation declares; other cases are skipped and counted. `--list` shows what would run. A file or directory argument limits the run. A failure prints the file, the line and the case name with the expected and the actual text.
@@ -56,7 +56,7 @@ $ python conformance/run.py --cmd "python -W ignore conformance/shim/kgpy_shim.p
 $ python conformance/run.py conformance/cases/90-errors.cases
 63 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
 $ python conformance/run.py --list --tags core | wc -l
-     801
+     804
 ```
 
 `python -m pytest tests/test_conformance.py --backend torch --device cpu` runs the in-process cases on the torch backend. The numpy backend declares every tag except `torch-only`, `timers`, `ipc` and `desktop`. The torch backend declares `torch-only` instead of `numpy-only`, because float32 text and `:undefined` inside a list differ there by design.
@@ -70,10 +70,10 @@ $ cd native && cargo build --release
 $ cd ..
 $ python conformance/run.py --cmd "native/target/release/kg --conformance" \
       --jobs 8
-2142 passed, 0 failed, 0 skipped by tags (native/target/release/kg --conformance)
+2155 passed, 0 failed, 0 skipped by tags (native/target/release/kg --conformance)
 ```
 
-Measured on 2026-11-18 on an Apple M2 Ultra: 2142 of 2142 in about 3 seconds with 8 jobs. With `--tags core` alone, 801 cases run. The desktop binary declares `bigint` (it is built with the feature `bigint`, on by default for `klong-cli`), `clock` and `kg-only`; it does not declare `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`. Without `bigint` the run is smaller by the cases of big integers: a board build leaves them out.
+Measured on 2026-11-18 on an Apple M2 Ultra: 2155 of 2155 in about 3 seconds with 8 jobs. With `--tags core` alone, 804 cases run. The desktop binary declares `bigint` (it is built with the feature `bigint`, on by default for `klong-cli`), `clock` and `kg-only`; it does not declare `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`. Without `bigint` the run is smaller by the cases of big integers: a board build leaves them out.
 
 `native/scripts/conformance.py` prints the same run as a table of counts per file. The golden parse trees run the same way:
 
@@ -91,7 +91,7 @@ A board is driven through its serial console, not through the `kg` binary. `nati
 ```text
 $ python native/scripts/console_conformance.py
 ...
-total                         1696  1696   in 3.7 s through console of native/target/release/klong-sim, 8 jobs
+total                         1704  1704   in 3.0 s through console of native/target/release/klong-sim, 8 jobs
 ```
 
 `--narrow` runs the tags of a 32-bit build (1408 cases passed on 2026-11-18). With `--port /dev/ttyUSB0` the same script drives a real board over a serial port, one case at a time. It is the only conformance run on a board; the other hardware results are on the [native status table](native/index.md#status-what-has-and-has-not-been-proven).
@@ -100,16 +100,16 @@ total                         1696  1696   in 3.7 s through console of native/ta
 
 | Implementation and run | Cases run | Passed | Date |
 |---|---|---|---|
-| KlongPy, in process | 2121 (21 `kg-only` skipped) | 2121 | 2026-11-18 |
-| KlongPy through the executable shim | 2121 (21 `kg-only` skipped) | 2121 | 2026-11-18 |
-| Native runtime, desktop, default build | 2142 | 2142 | 2026-11-18 |
-| Native runtime, simulated boards through the console | 1696 | 1696 | 2026-11-18 |
+| KlongPy, in process | 2134 (21 `kg-only` skipped) | 2134 | 2026-11-18 |
+| KlongPy through the executable shim | 2134 (21 `kg-only` skipped) | 2134 | 2026-11-18 |
+| Native runtime, desktop, default build | 2155 | 2155 | 2026-11-18 |
+| Native runtime, simulated boards through the console | 1704 | 1704 | 2026-11-18 |
 | Native runtime, desktop, without `bigint`, and the 32-bit build (`--narrow`) | not run since the suite grew | | 2026-11-18 (1570 and 1408 of an earlier, smaller suite) |
 | Native runtime on an ESP32-P4 over the serial port | 1266 | 1266 | 2026-11-16 |
 
 ### Why the counts differ
 
-KlongPy declares every tag except `kg-only` and a few it cannot have, so it runs 2121 of the 2142 cases. The desktop native runtime declares `bigint` and does not declare `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`; a board build and the simulated console run do not declare `bigint` either, so the 138 cases tagged for big integers (3 older ones and the 135 of `32-bigint.cases`) are skipped there. A 32-bit build declares fewer tags still. The board run is 1266 because the suite had 1266 cases when it was run. The 442 cases added since are mostly of big integers, of exact integer power, of calling a value that is not a function, of the string functions and of the JSON functions. The run takes about 31 minutes and has not been repeated on the board, so the board's count is of a smaller suite, not of a different tag set. Run against the current native binary, that 1266-case suite gives 1265 of 1266: the miss is `functions.fn-as-argument-nilad`, whose expected answer was changed when calling a non-function became an error.
+KlongPy declares every tag except `kg-only` and a few it cannot have, so it runs 2134 of the 2155 cases. The desktop native runtime declares `bigint` and does not declare `torch-only`, `kgpy-only`, `timers`, `ipc` or `desktop`; a board build and the simulated console run do not declare `bigint` either, so the 138 cases tagged for big integers (3 older ones and the 135 of `32-bigint.cases`) are skipped there. A 32-bit build declares fewer tags still. The board run is 1266 because the suite had 1266 cases when it was run. The 442 cases added since are mostly of big integers, of exact integer power, of calling a value that is not a function, of the string functions and of the JSON functions. The run takes about 31 minutes and has not been repeated on the board, so the board's count is of a smaller suite, not of a different tag set. Run against the current native binary, that 1266-case suite gives 1265 of 1266: the miss is `functions.fn-as-argument-nilad`, whose expected answer was changed when calling a non-function became an error.
 
 ## The pending list
 
@@ -118,10 +118,10 @@ KlongPy declares every tag except `kg-only` and a few it cannot have, so it runs
 <!-- check-docs: continue -->
 ```console
 $ python conformance/run.py --pending
-7 of 7 pending cases still fail as expected
+5 of 5 pending cases still fail as expected
 ```
 
-The seven pending cases are KlongPy's known bugs. They are listed once, with examples, in [Differences from Klong](differences.md#known-bugs).
+The five pending cases are KlongPy's known bugs. They are listed once, with examples, in [Differences from Klong](differences.md#known-bugs).
 
 `tests/test_conformance.py` checks that each pending case still fails and prints a warning when one starts to pass. When that happens, move the case to `cases/`. Setting `CONFORMANCE_STRICT_PENDING=1` turns the warning into a failure. A runtime that is not KlongPy does not run the pending list.
 

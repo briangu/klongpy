@@ -31,7 +31,7 @@ MODULES = [
 HEADER = re.compile(r"^(?P<head>.*?)\s{2,}\[(?P<title>[^\]]+)\]\s*$")
 
 GROUPS = [
-    ("Evaluation and output", "", ".E .d .p .pf .fmt .w .bkd .bkp .x .l .import .export .module .pc .rn .sys .try .err .mem .ver"),
+    ("Evaluation and output", "", ".E .d .p .pf .fmt .w .bkd .bkp .x .l .import .export .module .pc .now .rn .seed .sys .try .err .mem .ver"),
     ("Reading and files", "", ".r .rl .rls .rs .mi .ic .oc .ac .cc .fc .tc .fl .df"),
     ("Strings", "", ".split .join .words .trim .num"),
     ("JSON", "See [JSON](language-additions.md#json).", ".json .unjson"),
@@ -68,6 +68,8 @@ DESC = {
     ".module": "Mark the start or end of a module; `.module(:name)` opens one and `.module(0)` closes it.",
     ".pc": "Return the process time used so far, in seconds.",
     ".rn": "Return a random real number in 0 <= x < 1.",
+    ".seed": "Seed the random number generator, so the draws that follow are the same on every machine.",
+    ".now": "Return the time of day in seconds since the start of 1970.",
     ".sys": "Run a shell command and return its exit code.",
     ".split": "Split a string at each occurrence of a separator into a list of strings; empty pieces are kept.",
     ".join": "Join a list of strings with a separator between them (the inverse of `.split`).",
@@ -117,7 +119,7 @@ DESC = {
     ".jacobian": "Jacobian of a function at a point.",
     ".gradcheck": "Check autograd gradients against numeric ones (PyTorch backend).",
     ".bkx": "Export a function's computation graph to a file (PyTorch backend).",
-    ".try": "Call a function with a list of arguments and give the outcome as a value, `[1 result]` or `[0 kind message]`.",
+    ".try": "Call a function with a list of arguments and give the outcome as a value: `[1 result]`, or `[0 e]` where `e` is a dictionary describing the error.",
     ".err": "Fail with an error of a given kind and message (the inverse of `.try`).",
     ".mem": "The memory the native interpreter uses: bytes in use, the most that was in use, the limit.",
     ".ver": "A dictionary that describes the interpreter: version, integer and float widths, features, platform.",

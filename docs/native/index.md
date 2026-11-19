@@ -4,7 +4,7 @@ This section describes the native Klong runtime: a second implementation of the 
 
 The source is in the `native/` directory of the KlongPy repository. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board. Two Raspberry Pi Picos have run it with IPC between them. The [status table](#status-what-has-and-has-not-been-proven) below says what has run where.
 
-The runtime has its own version, 0.0.1. `kg --version` and the banner of a board print it. It is not the version of KlongPy (2.0.0rc1).
+`kg --version` and the banner of a board print the version, 2.0.0-rc.1. It is the version of KlongPy, which Python writes as 2.0.0rc1.
 
 ## What it is for
 
@@ -23,14 +23,14 @@ A first look, with the program built as described in [Building and Running](buil
 ```console
 $ kg -e '+/{x*x}'"'"'!10'
 285
-$ kg -e '.l("nstat");.p(sd([1 2 3 4]))'
+$ kg -e '.l("nstat");.p(nstat.sd([1 2 3 4]))'
 1.1180339889579018
 "1.1180339889579018"
 ```
 
 ## How it relates to KlongPy
 
-It is the **same language**, and that is checked and not only intended. The repository has a conformance suite, `conformance/cases`, of 1708 cases for the desktop build (1570 of them for a build without big integers). Each case is a program, the printed value or the error kind it must produce, and optionally the console output. KlongPy runs the suite and the native runtime runs the same files, through a small command-line protocol, with no Python. KlongPy is the reference: a case that KlongPy fails is either a KlongPy bug, which goes to a pending list, or a wrong case. The 169 golden parse trees of KlongPy's own tests are matched byte for byte as well.
+It is the **same language**, and that is checked and not only intended. The repository has a conformance suite, `conformance/cases`, of 2155 cases for the desktop build (1570 of them for a build without big integers). Each case is a program, the printed value or the error kind it must produce, and optionally the console output. KlongPy runs the suite and the native runtime runs the same files, through a small command-line protocol, with no Python. KlongPy is the reference: a case that KlongPy fails is either a KlongPy bug, which goes to a pending list, or a wrong case. The 169 golden parse trees of KlongPy's own tests are matched byte for byte as well.
 
 These are the differences. All of them follow from having no Python and no numpy, or from running on a small device.
 
@@ -84,10 +84,10 @@ This table is the status of every hardware target. Each row says what ran and it
 
 | Area | Result | Where it ran |
 |---|---|---|
-| The language, default build (64-bit) | 1708 of 1708 conformance cases (2026-11-18); 169 of 169 parse trees | desktop |
+| The language, default build (64-bit) | 2155 of 2155 conformance cases (2026-11-18); 169 of 169 parse trees | desktop |
 | The language, 32-bit build (`int32`, `float32`) | 1408 of 1408 cases that the build declares (2026-11-18) | desktop |
 | The embedded library | all twelve files load, at strict levels 0, 1 and 2 | desktop |
-| The serial console | 1570 of 1570 cases through `^A run` (2026-11-18) | simulated boards |
+| The serial console | 1704 of 1704 cases through `^A run` (2026-11-18) | simulated boards |
 | The serial console | 1266 of 1266 cases over the serial port, in 1877 seconds (the suite had 1266 cases when it was run; see [Conformance](../conformance.md#why-the-counts-differ)) | **an ESP32-P4** |
 | REPL, line editing, Ctrl-C on a runaway loop, the embedded library, uploads | work | **an ESP32-P4** |
 | Speed | `fib(24)` 4.2 s on the board, against about 35 ms on a desktop (Apple M2 Ultra); **the cause is not investigated** | an ESP32-P4 and the desktop |
