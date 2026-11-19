@@ -890,6 +890,24 @@ pub fn try_extend<T: Copy>(v: &mut Vec<T>, xs: &[T]) -> Result<()> {
 }
 
 impl Value {
+    /// A copy of the value: a number is copied where it stands, anything else is `clone` (a call that the common case of the call-heavy programs
+    /// does without).
+    #[cfg(feature = "speed")]
+    #[inline(always)]
+    pub fn dup(&self) -> Value {
+        match self {
+            Value::Int(i) => Value::Int(*i),
+            Value::Flt(f) => Value::Flt(*f),
+            v => v.clone(),
+        }
+    }
+
+    #[cfg(not(feature = "speed"))]
+    #[inline(always)]
+    pub fn dup(&self) -> Value {
+        self.clone()
+    }
+
     /// A host object (a tensor, an array of the embedder) as an ordinary native value, a copy; any other value as it is. For a system
     /// function that works on native values: `what` names it for the embedder's refusal.
     pub fn unhost(&self, what: &str) -> Result<Value> {

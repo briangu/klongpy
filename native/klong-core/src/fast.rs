@@ -64,15 +64,27 @@ pub(crate) fn array(op: Atomic, a: &Value, b: &Value) -> Result<Option<Value>> {
     };
     let n = dims_of(like).3;
     use Atomic::*;
-    if !matches!(op, Add | Sub | Mul | Div | Min | Max | Less | More | Eq) {
+    if !matches!(op, Add | Sub | Mul | Div | Rem | IDiv | Min | Max | Less | More | Eq) {
         return Ok(None);
     }
     // integers against integers
     let ints = matches!((&x, &y), (S::I(_) | S::Ki(_), S::I(_) | S::Ki(_)));
-    if ints {
-        if op == Div {
+    if matches!(op, Rem | IDiv) && !ints {
+        return Ok(None);
+    }
+    // (a zero divisor is the generic loop's, which makes :undefined of it)
+    if ints && matches!(op, Div | Rem | IDiv) {
+        let zero = match &y {
+            S::I(q) => q.iter().any(|v| *v == 0),
+            S::Ki(q) => *q == 0,
+            _ => false,
+        };
+        if zero {
             return Ok(None);
         }
+    }
+    // (integers under `%` are divided as floats, below)
+    if ints && op != Div {
         let mut out: Vec<Int> = try_vec(n)?;
         macro_rules! go {
             ($f:expr) => {
@@ -93,6 +105,8 @@ pub(crate) fn array(op: Atomic, a: &Value, b: &Value) -> Result<Option<Value>> {
             Less => go!(|a: Int, b: Int| (a < b) as Int),
             More => go!(|a: Int, b: Int| (a > b) as Int),
             Eq => go!(|a: Int, b: Int| (a == b) as Int),
+            Rem => go!(|a: Int, b: Int| a.wrapping_rem(b)),
+            IDiv => go!(|a: Int, b: Int| a.wrapping_div(b)),
             _ => return Ok(None),
         }
         return Ok(Some(shaped_like(like, Some(out), None)));
@@ -103,6 +117,9 @@ pub(crate) fn array(op: Atomic, a: &Value, b: &Value) -> Result<Option<Value>> {
             let mut out: Vec<$out> = try_vec(n)?;
             match (&x, &y) {
                 (S::F(p), S::F(q)) => vv(p, q, &mut out, $f),
+                (S::I(p), S::I(q)) => vv(p, q, &mut out, |a: Int, b: Int| $f(a as Flt, b as Flt)),
+                (S::I(p), S::Ki(q)) => vk(p, *q, &mut out, |a: Int, b: Int| $f(a as Flt, b as Flt)),
+                (S::Ki(p), S::I(q)) => kv(*p, q, &mut out, |a: Int, b: Int| $f(a as Flt, b as Flt)),
                 (S::F(p), S::Kf(q)) => vk(p, *q, &mut out, $f),
                 (S::F(p), S::Ki(q)) => vk(p, *q as Flt, &mut out, $f),
                 (S::Kf(p), S::F(q)) => kv(*p, q, &mut out, $f),
@@ -283,4 +300,137 @@ pub(crate) fn array_owned(op: Option<Atomic>, x: Value, y: Value) -> core::resul
         _ => return Err(if left { (a, b) } else { (b, a) }),
     }
     Ok(a)
+}
+
+/// The order-preserving key of a float for sorting runs of equal values together: `-0.0` and `0.0` are one value, and so are all the NaNs
+/// (as `same_key` has them).
+#[inline]
+fn flt_key(f: Flt) -> u64 {
+    let f = f as f64;
+    if f.is_nan() {
+        return u64::MAX;
+    }
+    let b = if f == 0.0 { 0.0f64.to_bits() } else { f.to_bits() };
+    if b >> 63 == 1 {
+        !b
+    } else {
+        b | (1 << 63)
+    }
+}
+
+/// The (key, position) pairs of a flat vector, sorted: the equal values are runs, each in order of position.
+fn runs_of<K: Ord + Copy>(keys: impl Iterator<Item = K>, n: usize) -> Result<Option<Vec<(K, u32)>>> {
+    if n >= u32::MAX as usize {
+        return Ok(None);
+    }
+    let mut p: Vec<(K, u32)> = try_vec(n)?;
+    p.extend(keys.enumerate().map(|(i, k)| (k, i as u32)));
+    p.sort_unstable();
+    Ok(Some(p))
+}
+
+/// `?x` of a flat vector of integers or floats: the values in order of first occurrence, without the repeats (sorting, not a search of what
+/// is kept so far: the generic loop takes time as the square of the length when most values are different).
+pub(crate) fn unique(a: &Value) -> Result<Option<Value>> {
+    macro_rules! go {
+        ($x:expr, $key:expr, $mk:path) => {{
+            let n = $x.data.len();
+            if n < 2 {
+                return Ok(None);
+            }
+            let Some(p) = runs_of($x.data.iter().map($key), n)? else { return Ok(None) };
+            let mut first: Vec<u32> = try_vec(n)?;
+            first.extend(p.iter().enumerate().filter(|(k, q)| *k == 0 || p[*k - 1].0 != q.0).map(|(_, q)| q.1));
+            first.sort_unstable();
+            let mut out = try_vec(first.len())?;
+            out.extend(first.iter().map(|&i| $x.data[i as usize]));
+            Ok(Some($mk(out)))
+        }};
+    }
+    match a {
+        Value::Ints(x) if x.rank() == 1 => go!(x, |&v| v, Value::ints),
+        Value::Flts(x) if x.rank() == 1 => go!(x, |&v| flt_key(v), Value::flts),
+        _ => Ok(None),
+    }
+}
+
+/// `=x` of a flat vector of integers: the positions of each value, the values in order of first occurrence.
+pub(crate) fn group(a: &Value) -> Result<Option<Value>> {
+    let Value::Ints(x) = a else { return Ok(None) };
+    let n = x.data.len();
+    if x.rank() != 1 || n < 2 {
+        return Ok(None);
+    }
+    let Some(p) = runs_of(x.data.iter().copied(), n)? else { return Ok(None) };
+    // (first position, start, end) of each run, in order of first position
+    let mut runs: Vec<(u32, u32, u32)> = Vec::new();
+    let mut s = 0;
+    while s < n {
+        let mut e = s + 1;
+        while e < n && p[e].0 == p[s].0 {
+            e += 1;
+        }
+        crate::value::try_push(&mut runs, (p[s].1, s as u32, e as u32))?;
+        s = e;
+    }
+    runs.sort_unstable();
+    let mut out = try_vec(runs.len())?;
+    for &(_, s, e) in &runs {
+        let mut g: Vec<Int> = try_vec((e - s) as usize)?;
+        g.extend(p[s as usize..e as usize].iter().map(|q| q.1 as Int));
+        out.push(Value::ints(g));
+    }
+    Value::from_items(out).map(Some)
+}
+
+/// `a@b` for a flat vector `a` of integers or floats and a flat vector `b` of integers that are all in range (counting back from the end
+/// when negative): the elements picked, without making each one a value. Any other case, an index out of range included, is the generic
+/// loop's.
+pub(crate) fn gather(a: &Value, b: &Value) -> Result<Option<Value>> {
+    let Value::Ints(ix) = b else { return Ok(None) };
+    if ix.rank() != 1 || ix.data.is_empty() {
+        return Ok(None);
+    }
+    fn pick<T: Copy>(x: &[T], ix: &[Int]) -> Result<Option<Vec<T>>> {
+        let n = x.len() as i128;
+        if n == 0 || ix.iter().any(|&i| (i as i128) < -n || (i as i128) >= n) {
+            return Ok(None);
+        }
+        let mut out: Vec<T> = try_vec(ix.len())?;
+        out.extend(ix.iter().map(|&i| x[if i < 0 { (i as i128 + n) as usize } else { i as usize }]));
+        Ok(Some(out))
+    }
+    Ok(match a {
+        Value::Ints(x) if x.rank() == 1 => pick(&x.data, &ix.data)?.map(Value::ints),
+        Value::Flts(x) if x.rank() == 1 => pick(&x.data, &ix.data)?.map(Value::flts),
+        _ => None,
+    })
+}
+
+/// `k#b` for a flat vector `b` of integers or floats when `k` asks for more elements than there are: the vector repeated, from its start
+/// (`k` positive) or ending at its end (`k` negative).
+pub(crate) fn take_cycle(k: Int, b: &Value) -> Result<Option<Value>> {
+    fn rep<T: Copy>(x: &[T], k: Int) -> Result<Option<Vec<T>>> {
+        let n = x.len();
+        let count = k.unsigned_abs() as usize;
+        if n == 0 || count <= n {
+            return Ok(None);
+        }
+        let start = if k >= 0 { 0 } else { n - count % n };
+        let mut out: Vec<T> = try_vec(count)?;
+        let mut j = start % n;
+        for _ in 0..count {
+            out.push(x[j]);
+            j += 1;
+            if j == n {
+                j = 0;
+            }
+        }
+        Ok(Some(out))
+    }
+    Ok(match b {
+        Value::Ints(x) if x.rank() == 1 => rep(&x.data, k)?.map(Value::ints),
+        Value::Flts(x) if x.rank() == 1 => rep(&x.data, k)?.map(Value::flts),
+        _ => None,
+    })
 }

@@ -838,6 +838,14 @@ fn m_reverse(_: &mut Interp, a: Value) -> Result<Value> {
             return Ok(Value::ints(v));
         }
     }
+    #[cfg(feature = "speed")]
+    if let Value::Flts(x) = &a {
+        if x.rank() == 1 {
+            let mut v = try_vec(x.data.len())?;
+            v.extend(x.data.iter().rev().copied());
+            return Ok(Value::flts(v));
+        }
+    }
     if let Value::Str(t) = &a {
         let mut s = try_string(t.as_str().len())?;
         s.extend(t.as_str().chars().rev());
@@ -852,6 +860,20 @@ fn m_where(_: &mut Interp, a: Value) -> Result<Value> {
     #[cfg(feature = "speed")]
     if let Value::Ints(x) = &a {
         if x.rank() == 1 {
+            // a run of 0 and 1 (a comparison's answer): the indices of the ones, written without a branch on the data (an unpredictable
+            // mask costs a misprediction per element)
+            if x.data.iter().fold(0u64, |m, &c| m | (c as u64 >> 1)) == 0 {
+                let total: usize = x.data.iter().map(|&c| c as usize).sum();
+                let mut out: Vec<Int> = try_vec(total + 1)?;
+                out.resize(total + 1, 0);
+                let mut k = 0usize;
+                for (i, &c) in x.data.iter().enumerate() {
+                    out[k] = i as Int;
+                    k += c as usize;
+                }
+                out.truncate(total);
+                return Ok(Value::ints(out));
+            }
             let mut total: usize = 0;
             for &c in x.data.iter() {
                 if c < 0 {
@@ -949,6 +971,15 @@ fn m_enumerate(_: &mut Interp, a: Value) -> Result<Value> {
 fn m_floor(_: &mut Interp, a: Value) -> Result<Value> {
     if let Value::Ints(_) = a {
         return Ok(a);
+    }
+    #[cfg(feature = "speed")]
+    if let Value::Flts(x) = &a {
+        // (every element finite: otherwise the generic loop, which names the failure)
+        if x.rank() == 1 && x.data.iter().all(|f| f.is_finite()) {
+            let mut v = try_vec(x.data.len())?;
+            v.extend(x.data.iter().map(|f| m::floor(*f) as Int));
+            return Ok(Value::ints(v));
+        }
     }
     map_atoms(&a, &|x| match x {
         Value::Int(i) => Ok(Value::Int(*i)),
@@ -1142,6 +1173,10 @@ fn m_group(_: &mut Interp, a: Value) -> Result<Value> {
     if a.is_empty() {
         return Ok(Value::empty());
     }
+    #[cfg(feature = "speed")]
+    if let Some(v) = crate::fast::group(&a)? {
+        return Ok(v);
+    }
     let n = a.len().unwrap_or(0);
     let mut keys: Vec<Value> = Vec::new();
     let mut groups: Vec<Vec<Int>> = Vec::new();
@@ -1202,6 +1237,10 @@ fn m_not(_: &mut Interp, a: Value) -> Result<Value> {
 fn m_range(_: &mut Interp, a: Value) -> Result<Value> {
     if !a.is_iterable() {
         return Ok(a);
+    }
+    #[cfg(feature = "speed")]
+    if let Some(v) = crate::fast::unique(&a)? {
+        return Ok(v);
     }
     let n = a.len().unwrap_or(0);
     let mut out: Vec<Value> = Vec::new();
@@ -1299,6 +1338,10 @@ fn norm_index(i: Int, n: usize, what: &str) -> Result<usize> {
 }
 
 fn index(a: &Value, b: &Value) -> Result<Value> {
+    #[cfg(feature = "speed")]
+    if let Some(v) = crate::fast::gather(a, b)? {
+        return Ok(v);
+    }
     let n = a.len().unwrap_or(0);
     match b {
         Value::Int(i) => Ok(a.item(norm_index(*i, n, if a.is_str() { "string" } else { "list" })?)),
@@ -2023,6 +2066,10 @@ fn d_take(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
     let count = k.unsigned_abs() as usize;
     if count <= n {
         return if k < 0 { slice(&b, n - count, n) } else { slice(&b, 0, count) };
+    }
+    #[cfg(feature = "speed")]
+    if let Some(v) = crate::fast::take_cycle(k, &b)? {
+        return Ok(v);
     }
     let mut out = try_vec(count)?;
     // the list repeated: forwards from its start, or backwards from its end

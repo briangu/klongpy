@@ -103,6 +103,42 @@ fn pairwise_sum(a: &[Flt]) -> Flt {
 }
 
 impl Interp {
+    /// The condition function `a` of a `\\~` or `:~` applied to `b`: its body is found once (`cond`, from `fast_body`).
+    #[inline]
+    fn apply_cond(&mut self, a: &Value, cond: Option<&Value>, b: Value) -> Result<Value> {
+        #[cfg(feature = "speed")]
+        if let Some(g) = cond {
+            return self.run_body(g.clone(), b, None);
+        }
+        #[cfg(not(feature = "speed"))]
+        let _ = cond;
+        self.apply_fast(a, b, None)
+    }
+
+    /// `a+'b` and the like: when the verb of the adverb is `+ - * & | < > =` itself and both operands are flat vectors of numbers of one
+    /// length, what the kernel of the operator gives for the two vectors, which is the same as the operator on each pair.
+    #[cfg(feature = "speed")]
+    fn prim_pairs(&mut self, ch: &Chain, level: usize, a: &Value, b: &Value) -> Result<Option<Value>> {
+        use crate::ops::Atomic::*;
+        if level != 1 || ch.verb_arity != 2 {
+            return Ok(None);
+        }
+        let Node::OpVal { op, .. } = ch.tree.node(ch.verb) else { return Ok(None) };
+        let Some(at) = crate::ops::by_id(*op).and_then(|d| d.atomic) else { return Ok(None) };
+        if !matches!(at, Add | Sub | Mul | Min | Max | Less | More | Eq) {
+            return Ok(None);
+        }
+        let flat = |v: &Value| match v {
+            Value::Ints(x) => x.rank() == 1,
+            Value::Flts(x) => x.rank() == 1,
+            _ => false,
+        };
+        if !flat(a) || !flat(b) || a.len() != b.len() {
+            return Ok(None);
+        }
+        crate::fast::array(at, a, b)
+    }
+
     fn f1(&mut self, ch: &Chain, level: usize, x: Value) -> Result<Value> {
         self.tick()?;
         self.chain_call(ch, level - 1, x, None)
@@ -159,7 +195,7 @@ impl Interp {
             name,
             arity,
             f: alloc::rc::Rc::new(move |ip: &mut Interp, args: &[Value]| -> Result<Value> {
-                let ch = Chain { tree: &tree, verb, verb_arity, verb_val: verb_val.clone(), advs: &advs, first_arity };
+                let ch = Chain { tree: &tree, verb, verb_arity, verb_val: verb_val.clone(), #[cfg(feature = "speed")] body: None, advs: &advs, first_arity };
                 match args.len() {
                     1 => ip.chain_call(&ch, lv, args[0].clone(), None),
                     2 => ip.chain_call(&ch, lv, args[0].clone(), Some(args[1].clone())),
@@ -232,6 +268,11 @@ impl Interp {
                 if !a.is_iterable() || !b.is_iterable() {
                     return Err(Error::typ("': each-2 needs two lists or two atoms"));
                 }
+                // an operator between two flat vectors of numbers is the operator on the vectors
+                #[cfg(feature = "speed")]
+                if let Some(v) = self.prim_pairs(ch, level, &a, &b)? {
+                    return Ok(v);
+                }
                 let n = a.len().unwrap_or(0).min(b.len().unwrap_or(0));
                 let mut out = try_vec(n)?;
                 for i in 0..n {
@@ -269,7 +310,8 @@ impl Interp {
             "\\~" => {
                 let mut b = b;
                 let mut r = alloc::vec![b.clone()];
-                while self.apply_fast(&a, b.clone(), None)?.truthy() {
+                let cond = self.fast_body(&a, 1);
+                while self.apply_cond(&a, cond.as_ref(), b.clone())?.truthy() {
                     b = self.f1(ch, level, b)?;
                     try_push(&mut r, b.clone())?;
                 }
@@ -321,7 +363,8 @@ impl Interp {
             }
             ":~" => {
                 let mut b = b;
-                while self.apply_fast(&a, b.clone(), None)?.truthy() {
+                let cond = self.fast_body(&a, 1);
+                while self.apply_cond(&a, cond.as_ref(), b.clone())?.truthy() {
                     b = self.f1(ch, level, b)?;
                 }
                 Ok(b)
@@ -446,6 +489,24 @@ impl Interp {
                     }
                     return Ok(Value::ints(out));
                 }
+            }
+        }
+        // the running product, minimum and maximum of integers (the product wraps as the pairs do)
+        #[cfg(feature = "speed")]
+        if let (Value::Ints(x), Some(g @ ("*" | "&" | "|")), 2) = (&a, self.verb_op(ch, level), ch.verb_arity) {
+            if x.rank() == 1 && !x.data.is_empty() {
+                let mut out: Vec<Int> = try_vec(n)?;
+                let mut s = x.data[0];
+                out.push(s);
+                for &v in &x.data[1..] {
+                    s = match g {
+                        "*" => s.wrapping_mul(v),
+                        "&" => s.min(v),
+                        _ => s.max(v),
+                    };
+                    out.push(s);
+                }
+                return Ok(Value::ints(out));
             }
         }
         #[cfg(feature = "speed")]

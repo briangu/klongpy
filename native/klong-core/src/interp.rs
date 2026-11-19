@@ -276,6 +276,9 @@ pub(crate) struct Chain<'a> {
     pub verb: NodeId,
     pub verb_arity: u8,
     pub verb_val: Value,
+    /// The body of the verb when it is a function literal that `apply_fast` runs (found once for the whole chain).
+    #[cfg(feature = "speed")]
+    pub body: Option<Value>,
     pub advs: &'a [u32],
     pub first_arity: u8,
 }
@@ -1314,7 +1317,7 @@ impl Interp {
                 for (k, v) in f.iter() {
                     if *k == s {
                         return match v {
-                            Some(v) => Ok(Some(v.clone())),
+                            Some(v) => Ok(Some(v.dup())),
                             None => Err(Error::name(crate::msg!("local '{}' read before assignment", self.syms.name(s)))),
                         };
                     }
@@ -1323,7 +1326,7 @@ impl Interp {
         }
         if self.cur_mod == 0 {
             if let Some(v) = self.global_ref(s) {
-                return Ok(Some(v.clone()));
+                return Ok(Some(v.dup()));
             }
         } else if let Some(v) = self.module_var(s) {
             return Ok(Some(v));
@@ -1991,6 +1994,43 @@ impl Interp {
         }
     }
 
+    /// `eval` for an operand or an argument: a literal or a name is read without the bookkeeping of `eval` (depth, stack, deferred failures and
+    /// the span of an error), which a leaf needs none of once the deepest evaluation and the deepest stack so far are recorded; anything else,
+    /// and every failure, goes through `eval`.
+    #[cfg(feature = "speed")]
+    #[inline(always)]
+    fn eval_op(&mut self, tree: &Rc<Tree>, id: NodeId, call: bool) -> Result<Value> {
+        #[cfg(feature = "host")]
+        let plain = !self.post;
+        #[cfg(not(feature = "host"))]
+        let plain = true;
+        // (only where `eval` would record nothing: no new deepest evaluation, no new deepest stack; the statistics and the place where a
+        // limit is met are what they are without this)
+        if plain
+            && self.depth < self.cfg.max_depth
+            && self.depth < self.max_depth_seen
+            && self.stack_base.abs_diff(stack_here()) <= self.max_stack_seen
+            && Tree::is_real(id)
+        {
+            match tree.node(id) {
+                Node::Lit(v) => return Ok(v.dup()),
+                Node::Sym(s) => {
+                    if let Ok(Some(v)) = self.lookup(*s) {
+                        return Ok(v);
+                    }
+                }
+                _ => {}
+            }
+        }
+        self.eval(tree, id, call)
+    }
+
+    #[cfg(not(feature = "speed"))]
+    #[inline(always)]
+    fn eval_op(&mut self, tree: &Rc<Tree>, id: NodeId, call: bool) -> Result<Value> {
+        self.eval(tree, id, call)
+    }
+
     /// HOST: `set_float_width(32)` computes floats as float32 does: a float atom is the float32 nearest to what the operation gave
     /// (the host's arrays are float32 and the same numbers must come out of both); 64 is the default and rounds nothing. A flat float
     /// vector that the host did not take over (`adopt`) is rounded too. Applies to what `eval` returns, so each operation of an
@@ -2043,7 +2083,7 @@ impl Interp {
     #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_eval_node")]
     fn eval_node(&mut self, tree: &Rc<Tree>, id: NodeId, call: bool) -> Result<Value> {
         match tree.node(id) {
-            Node::Lit(v) => Ok(v.clone()),
+            Node::Lit(v) => Ok(v.dup()),
             Node::Sym(s) => match self.lookup(*s)? {
                 Some(v) => Ok(v),
                 None => self.undefined(*s),
@@ -2078,8 +2118,8 @@ impl Interp {
             }
             Node::Adv { .. } => self.eval_adv(tree, id),
             Node::Cond(c, t, e) => {
-                let q = self.eval(tree, *c, true)?;
-                self.eval(tree, if q.truthy() { *t } else { *e }, true)
+                let q = self.eval_op(tree, *c, true)?;
+                self.eval_op(tree, if q.truthy() { *t } else { *e }, true)
             }
             Node::EList(r) => self.eval_elist(tree, *r),
             Node::EDict(r) => self.eval_edict(tree, *r),
@@ -2101,7 +2141,7 @@ impl Interp {
             None => return Err(self.unknown_op(op)),
         };
         let f = def.monad.ok_or_else(|| self.unknown_op(op))?;
-        let r = match self.eval(tree, arg, false) {
+        let r = match self.eval_op(tree, arg, false) {
             Ok(x) => match &x {
                 #[cfg(feature = "host")]
                 Value::Ext(e) => match e.0.host_monad(self, def.glyph, &x) {
@@ -2175,7 +2215,7 @@ impl Interp {
         let mut last = Value::empty();
         for k in 0..r.len {
             let q = NodeId(tree.ids(r)[k as usize]);
-            last = self.eval(tree, q, true)?;
+            last = self.eval_op(tree, q, true)?;
         }
         Ok(last)
     }
@@ -2236,7 +2276,7 @@ impl Interp {
         // right to left
         // a right operand that is missing (strict level 0 warned of it): nothing, which is `:undefined` here, as KlongPy has None
         let nothing = !Tree::is_real(r);
-        let y = if nothing { Value::Undefined } else { self.eval(tree, r, false)? };
+        let y = if nothing { Value::Undefined } else { self.eval_op(tree, r, false)? };
         if def.glyph == "::" {
             let v = self.define(tree, l, y).map_err(|e| self.at_operator(tree, id, e));
             if nothing {
@@ -2248,10 +2288,13 @@ impl Interp {
         if self.host_op.is_some() && matches!(def.glyph, "\u{2207}" | ":>") {
             return self.eval_gradient_dyad(tree, id, def.glyph, l, r, y);
         }
-        let x = self.eval(tree, l, false)?;
+        let x = self.eval_op(tree, l, false)?;
         // two numbers (the call-heavy programs): the arithmetic and the comparisons without the pairing routine
         #[cfg(feature = "speed")]
         if let Some(v) = ops::scalar_pair(def.atomic, &x, &y) {
+            // (both are numbers: nothing to release)
+            core::mem::forget(x);
+            core::mem::forget(y);
             return Ok(v);
         }
         // an operand that is a temporary array is the result's buffer
@@ -2488,6 +2531,22 @@ impl Interp {
             }
         }
         Ok(())
+    }
+
+    /// Whether a pass of `resolve` could change `f`: a name, a function literal or projection or a function kept as text. Native functions and
+    /// code whose node is not a call node are what it leaves as they are.
+    #[cfg(feature = "speed")]
+    #[inline(always)]
+    fn resolves_further(f: &Value) -> bool {
+        match f {
+            Value::Sym(_) => true,
+            Value::Fn(func) => match &**func {
+                Func::Code { tree, node } => matches!(tree.node(*node), Node::Fn { .. }),
+                Func::Native { .. } => false,
+                _ => true,
+            },
+            _ => false,
+        }
     }
 
     /// (The lists are as long as a call has arguments, which the program decides.)
@@ -2741,8 +2800,19 @@ impl Interp {
         try_push(layers, if has_args { Layer::Tree(tree.clone(), args) } else { Layer::None })?;
         // three passes as there are at most three arguments: x, y and z
         self.resolve(&mut f, layers, &mut arity, &mut node, calling)?;
-        self.resolve(&mut f, layers, &mut arity, &mut node, calling)?;
-        self.resolve(&mut f, layers, &mut arity, &mut node, calling)?;
+        // (a pass over a function that is its own callee changes nothing: a native function, or code that is not a call node)
+        #[cfg(feature = "speed")]
+        for _ in 0..2 {
+            if !Self::resolves_further(&f) {
+                break;
+            }
+            self.resolve(&mut f, layers, &mut arity, &mut node, calling)?;
+        }
+        #[cfg(not(feature = "speed"))]
+        {
+            self.resolve(&mut f, layers, &mut arity, &mut node, calling)?;
+            self.resolve(&mut f, layers, &mut arity, &mut node, calling)?;
+        }
 
         if layers.len() == 1 {
             // the common case: no projection involved
@@ -2762,7 +2832,7 @@ impl Interp {
                 }
                 let mut frame: Frame = self.new_frame(n + 2)?;
                 for (k, &q) in ids.iter().enumerate() {
-                    let v = self.eval(tree, NodeId(q), true)?;
+                    let v = self.eval_op(tree, NodeId(q), true)?;
                     try_push(&mut frame, (SymId(ptree.ids(params)[k]), Some(v)))?;
                 }
                 return self.run_fn(f, frame);
@@ -2779,7 +2849,7 @@ impl Interp {
             }
             let mut frame: Frame = self.new_frame(n.min(3) + 2)?;
             for (k, &q) in ids.iter().take(3).enumerate() {
-                let v = self.eval(tree, NodeId(q), !self.is_function_slot(tree, &f, k, q))?;
+                let v = self.eval_op(tree, NodeId(q), !self.is_function_slot(tree, &f, k, q))?;
                 try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
             #[cfg(feature = "wide-args")]
@@ -2962,17 +3032,14 @@ impl Interp {
         r
     }
 
-    /// `apply` of one or two values, for the adverbs: a function literal called with as many arguments as it takes (the common call of
-    /// `{x*x}'a`, `{x+y}/a`) skips the argument list, the layers and the three resolutions and runs on a frame from the pool. Anything
-    /// else is `apply` as it was.
-    pub(crate) fn apply_fast(&mut self, f: &Value, x: Value, y: Option<Value>) -> Result<Value> {
-        #[cfg(feature = "speed")]
+    /// The body of the function literal `f` when it is called with `given` arguments the short way: a literal of that arity, whose body needs
+    /// nothing of `resolve` (a body that is a call with no empty argument resolves to itself, any other function literal or a quoted symbol
+    /// under strict 2 is its business), and which has no named parameters.
+    #[cfg(feature = "speed")]
+    pub(crate) fn fast_body(&mut self, f: &Value, given: usize) -> Option<Value> {
         if let Value::Fn(func) = f {
             if let Func::Code { tree, node: id } = &**func {
                 if let Node::Fn { a, has_args: false, arity, .. } = tree.node(*id) {
-                    let given = 1 + y.is_some() as usize;
-                    // (a body that is a call with no empty argument resolves to itself, any other function literal or a quoted symbol under
-                    // strict 2 is `resolve`'s business)
                     let plain = match tree.node(*a) {
                         Node::Fn { has_args, args, .. } => *has_args && !tree.ids(*args).contains(&NONE.0),
                         Node::QSym(_) => self.cfg.strict != 2,
@@ -2983,16 +3050,40 @@ impl Interp {
                     if *arity as usize == given && plain {
                         let g = self.node_value(tree, *a);
                         if Self::params_of(&g).is_none() {
-                            let mut frame: Frame = self.new_frame(given + 2)?;
-                            try_push(&mut frame, (SymId(0), Some(x)))?;
-                            if let Some(y) = y {
-                                try_push(&mut frame, (SymId(1), Some(y)))?;
-                            }
-                            return self.run_fn(g, frame);
+                            return Some(g);
                         }
                     }
                 }
             }
+        }
+        None
+    }
+
+    #[cfg(not(feature = "speed"))]
+    #[inline(always)]
+    pub(crate) fn fast_body(&mut self, _f: &Value, _given: usize) -> Option<Value> {
+        None
+    }
+
+    /// Run the body `g` that `fast_body` found with the argument or arguments bound to `x` and `y`.
+    #[cfg(feature = "speed")]
+    #[inline]
+    pub(crate) fn run_body(&mut self, g: Value, x: Value, y: Option<Value>) -> Result<Value> {
+        let mut frame: Frame = self.new_frame(2 + y.is_some() as usize)?;
+        try_push(&mut frame, (SymId(0), Some(x)))?;
+        if let Some(y) = y {
+            try_push(&mut frame, (SymId(1), Some(y)))?;
+        }
+        self.run_fn(g, frame)
+    }
+
+    /// `apply` of one or two values, for the adverbs: a function literal called with as many arguments as it takes (the common call of
+    /// `{x*x}'a`, `{x+y}/a`) skips the argument list, the layers and the three resolutions and runs on a frame from the pool. Anything
+    /// else is `apply` as it was.
+    pub(crate) fn apply_fast(&mut self, f: &Value, x: Value, y: Option<Value>) -> Result<Value> {
+        #[cfg(feature = "speed")]
+        if let Some(g) = self.fast_body(f, 1 + y.is_some() as usize) {
+            return self.run_body(g, x, y);
         }
         let mut v = try_vec(2)?;
         v.push(x);
@@ -3128,7 +3219,7 @@ impl Interp {
         };
         match &*func {
             Func::Code { tree, node } => {
-                try_push(&mut frame, (sym::DOT_F, Some(f.clone())))?;
+                try_push(&mut frame, (sym::DOT_F, Some(f)))?;
                 let r = match tree.node(*node) {
                     Node::Body { stmts, locals, has_params, .. } => {
                         for &q in tree.ids(*locals) {
@@ -3238,7 +3329,10 @@ impl Interp {
             _ => return Err(Error::internal("not an adverb chain")),
         };
         let advs = tree.ids(advs);
-        let ch = Chain { tree, verb, verb_arity, verb_val: self.node_value(tree, verb), advs, first_arity };
+        let verb_val = self.node_value(tree, verb);
+        #[cfg(feature = "speed")]
+        let body = if matches!(tree.node(verb), Node::OpVal { .. }) { None } else { self.fast_body(&verb_val, verb_arity as usize) };
+        let ch = Chain { tree, verb, verb_arity, verb_val, #[cfg(feature = "speed")] body, advs, first_arity };
         let last_arity = if advs.len() == 1 { first_arity } else { 1 };
         if last_arity == 1 {
             let x = if dyad {
@@ -3347,6 +3441,10 @@ impl Interp {
                 },
                 Node::OpVal { op, .. } => Err(self.unknown_op(*op)),
                 _ => match (ch.verb_arity, y) {
+                    #[cfg(feature = "speed")]
+                    (1, None) if ch.body.is_some() => self.run_body(ch.body.clone().unwrap_or(Value::Undefined), x, None),
+                    #[cfg(feature = "speed")]
+                    (2, Some(y)) if ch.body.is_some() => self.run_body(ch.body.clone().unwrap_or(Value::Undefined), x, Some(y)),
                     (1, None) => self.apply_fast(&ch.verb_val, x, None),
                     (2, Some(y)) => self.apply_fast(&ch.verb_val, x, Some(y)),
                     _ => Err(Error::typ("the verb of an adverb was given the wrong number of operands")),
