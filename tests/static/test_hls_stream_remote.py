@@ -13,7 +13,7 @@ import unittest
 import numpy as np
 
 from klongpy.static import call_entry, fixed as fx, load_program
-from klongpy.static.compile import emit_hls_program
+from klongpy.static.native import emit_hls_program
 from klongpy.hw.reports import stream_summary
 from klongpy.hw.synth import synthesize
 

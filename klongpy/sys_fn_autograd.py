@@ -10,7 +10,7 @@ For optimizers (SGD, Adam), see klongpy/optimizers.py: .pyf("klongpy.optimizers"
 import sys
 
 from .autograd import jacobian_of_fn, _invoke_fn
-from .dyads import eval_dyad_grad
+
 from .errors import KlongTypeError, needs_torch_backend as _needs_torch
 from .types import KGSym
 
@@ -35,6 +35,7 @@ def eval_sys_grad(klong, x, y):
     """
     if isinstance(y, KGSym):
         raise KlongTypeError(".grad: the point must be a number or a list of numbers, not a symbol")
+    from .dyads import eval_dyad_grad     # Engine need: the gradient operator is KlongPy's Python evaluator (dyads.py)
     return eval_dyad_grad(klong, y, x)
 
 

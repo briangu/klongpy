@@ -90,7 +90,7 @@ def main(argv=None):
     ap.add_argument("--numpy-host", action="store_true", help="also run numpy on the card host")
     a = ap.parse_args(argv)
     sizes = [int(s) for s in a.sizes.split(",")]
-    from ..static.compile import emit_hls_program  # noqa: F401  (the key needs the programs)
+    from ..static.native import emit_hls_program  # noqa: F401  (the key needs the programs)
     from .build import find_image
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.normpath(os.path.join(here, "..", ".."))

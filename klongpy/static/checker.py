@@ -453,7 +453,7 @@ def _parse(source):
     reported a second time as undefined.
     """
     from ..interpreter import PyKlongInterpreter as KlongInterpreter     # the parser is the Python engine's
-    from ..lint import _next_boundary, _scan, _tokenize
+    from ..py_lint import _next_boundary, _scan, _tokenize
     klong = KlongInterpreter(strict=2, backend="numpy")  # parse only; literals must be numpy arrays whatever the default backend
     text = source.text
     n = len(text)
@@ -516,7 +516,7 @@ _DEFINES = re.compile(r"[ \t]*([A-Za-z.][A-Za-z0-9.]*)[ \t]*(\([^)\n]*\))?[ \t]*
 
 
 def _find_load(name, base_dir):
-    from ..lint import _find_load as find
+    from ..py_lint import _find_load as find
     return find(name, base_dir)
 
 

@@ -1,4 +1,4 @@
-"""Golden parse-tree snapshots and unit tests of klongpy.dump."""
+"""Golden parse-tree snapshots, and unit tests of the tree the native engine prints (kgpy ast)."""
 import os
 import re
 import sys
@@ -10,10 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "gol
 
 import regen  # noqa: E402
 from klongpy import KlongInterpreter  # noqa: E402
-from klongpy.dump import dump, dump_text, parse_program  # noqa: E402
-from klongpy.types import KGQSym, KGSym  # noqa: E402
+from klongpy.native_ext import native  # noqa: E402
 from tests.backend_compat import is_torch_backend  # noqa: E402
-from tests.backend_compat import on_rust_engine, requires_python_engine
 
 
 _FLOAT_NUM = re.compile(r"\(num (-?(?:\d+\.\d*(?:[eE][-+]?\d+)?|\d+[eE][-+]?\d+))\)")
@@ -58,8 +56,18 @@ class TestGoldenTrees(unittest.TestCase):
                 self.assertEqual(regen.render(src), regen.render(src))
 
 
-def D(text, compat=False):
-    return dump(parse_program(KlongInterpreter(), text), compat).rstrip("\n")
+def T(text):
+    """The tree of a text as `kgpy ast` prints it, or `(error ClassName)` as the golden files record a parse error."""
+    ext = native()
+    try:
+        return ext.ast_text(text, "<string>")
+    except ext.NativeError as e:
+        from klongpy.rust_engine import _error
+        return f"(error {type(_error(e)).__name__})\n"
+
+
+def D(text):
+    return T(text).rstrip("\n")
 
 
 class TestDumpForms(unittest.TestCase):
@@ -73,18 +81,12 @@ class TestDumpForms(unittest.TestCase):
         self.assertEqual(D('"a""b"'), '(str "a\\"b")')  # doubled quote is one quote
         self.assertEqual(D('"a b"'), '(str "a b")')
 
-    def test_str_escapes(self):
-        self.assertEqual(dump('a"b\\'), '(str "a\\"b\\\\")\n')
-
     def test_sym_and_module(self):
         self.assertEqual(D("a"), "(sym a)")
         self.assertEqual(D(".module(:m);a").splitlines()[1], "(sym a`m)")
 
     def test_qsym_and_compat(self):
         self.assertEqual(D(":a"), "(qsym a)")
-        self.assertEqual(D(":a", compat=True), "(sym a)")
-        self.assertEqual(dump(KGQSym("a")), "(qsym a)\n")
-        self.assertEqual(dump(KGSym("a")), "(sym a)\n")
 
     def test_arg(self):
         self.assertEqual(D("x"), "(arg x)")
@@ -117,7 +119,7 @@ class TestDumpForms(unittest.TestCase):
 
     def test_fn_and_locals(self):
         self.assertEqual(D("{x+y}"), '(fn 2 (d "+" (arg x) (arg y)))')
-        self.assertEqual(dump_text("{}"), "(error UnexpectedChar)\n")  # legacy: empty body is a parse error
+        self.assertEqual(T("{}"), "(error UnexpectedChar)\n")  # an empty body is a parse error
         self.assertEqual(D("{[a b];a::x;a}"), "(fn 1 (locals a b) (def (sym a) (arg x)) (sym a))")
         self.assertEqual(D("{[a];1}"), "(fn 0 (locals a) (num 1))")
         self.assertEqual(D("{[a 1];1}"), "(fn 0 (list (sym a) (num 1)) (num 1))")
@@ -157,21 +159,13 @@ class TestDumpForms(unittest.TestCase):
         self.assertEqual(D("x@"), '(d "@" (arg x) (missing))')
 
     def test_program_one_line_per_statement(self):
-        self.assertEqual(dump(parse_program(KlongInterpreter(), "1;2\n3")), "(num 1)\n(num 2)\n(num 3)\n")
+        self.assertEqual(T("1;2\n3"), "(num 1)\n(num 2)\n(num 3)\n")
 
     def test_comment_is_consumed(self):
         self.assertEqual(D('.comment("E")\nfoo\nE\n1'), "(num 1)")
 
-    @requires_python_engine("reads current_module() of the Python parser's state")
-    def test_parse_program_does_not_evaluate_or_leak_module(self):
-        k = KlongInterpreter()
-        parse_program(k, ".module(:m);a::1")
-        self.assertIsNone(k.current_module())
-        with self.assertRaises(KeyError):
-            k["a"]
-
     def test_dump_text_reports_error_class(self):
-        self.assertEqual(dump_text("(1+2"), "(error UnexpectedChar)\n")
+        self.assertEqual(T("(1+2"), "(error UnexpectedChar)\n")
 
 
 if __name__ == "__main__":

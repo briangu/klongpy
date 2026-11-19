@@ -1,0 +1,347 @@
+[
+ {
+  "module": "monads",
+  "name": "eval_monad_atom",
+  "doc": "\n\n        @a                                                        [Atom]\n\n        @ returns 1, if \"a\" is an atom and otherwise 0. All objects\n        except for non-empty lists and non-empty strings are atoms.\n\n        Examples:      @\"\"  -->  1\n                       @[]  -->  1\n                      @123  -->  1\n                  @[1 2 3]  -->  0\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_char",
+  "doc": "\n\n        :#a                                                       [Char]\n\n        Return the character at the code point \"a\".\n\n        Monadic :# is an atomic operator.\n\n        Examples: :#64  -->  0cA\n                  :#10  -->  :\"newline character\"\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_enumerate",
+  "doc": "\n\n        !a                                                   [Enumerate]\n\n        Create a list of integers from 0 to a-1. !0 gives [].\n\n        Examples: !0   -->  []\n                  !1   -->  [1]\n                  !10  -->  [0 1 2 3 4 5 6 7 8 9]\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_expand_where",
+  "doc": "\n\n        &a                                                [Expand/Where]\n\n        Expand \"a\" to a list of subsequent integers X, starting at 0,\n        where each XI is included aI times. When \"a\" is zero or an\n        empty list, return nil. When \"a\" is a positive integer, return\n        a list of that many zeros.\n\n        In combination with predicates this function is also called\n        Where, since it compresses a list of boolean values to indices,\n        e.g.:\n\n         [1 2 3 4 5]=[0 2 0 4 5]  -->  [0 1 0 1 1]\n        &[1 2 3 4 5]=[0 2 0 4 5]  -->  [1 3 4]\n\n        Examples:           &0  -->   []\n                            &5  -->   [0 0 0 0 0]\n                      &[1 2 3]  -->   [0 1 1 2 2 2]\n                  &[0 1 0 1 0]  -->   [1 3]\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_first",
+  "doc": "\n\n        *a                                                       [First]\n\n        Return the first element of \"a\", i.e. the first element of a\n        list or the first character of a string. When \"a\" is an atom,\n        return that atom.\n\n        Examples:  *[1 2 3]  -->  1\n                     *\"abc\"  --> 0ca\n                        *\"\"  -->  \"\"\n                        *[]  -->  []\n                         *1  -->  1\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_floor",
+  "doc": "\n\n        _a                                                       [Floor]\n\n        Return \"a\" rounded toward negative infinity. When \"a\" is an\n        integer, this is an identity operation. If \"a\" can be converted\n        to integer without loss of precision after rounding, it will be\n        converted. Otherwise, a floored real number will be returned.\n\n        Note: loss of precision is predicted by comparing real number\n        precision to the exponent, which is a conservative guess.\n\n        Examples:   _123  -->  123\n                  _123.9  -->  123\n                  _1e100  -->  1.0e+100  :\"if precision < 100 digits\"\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_format",
+  "doc": "\n\n        $a                                                      [Format]\n\n        Write the external representation of \"a\" to a string and return\n        it. The \"external representation\" of an object is the form in\n        which Klong would display it.\n\n        \"$\" is an atomic operator.\n\n        Examples:    $123  -->  \"123\"\n                  $123.45  -->  \"123.45\"\n                  $\"test\"  -->  \"test\"\n                     $0cx  -->  \"x\"\n                    $:foo  -->  \":foo\"\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_grade_up",
+  "doc": "\n\n        <a                                                    [Grade-Up]\n\n        Impose the given order (\"<\" = ascending, \">\" = descending\") onto\n        the elements of \"a\", which must be a list or string. Return a\n        list of indices reflecting the desired order. Elements of \"a\"\n        must be comparable by dyadic \"<\" (Less).\n\n        In addition, \"<\" and \">\" will compare lists by comparing their\n        elements pairwise and recursively. E.g. [1 [2] 3] is considered\n        to be \"less\" than [1 [4] 0], because 1=1 and 2<4 (3>0 does not\n        matter, because 2<4 already finishes the comparison).\n\n        When \"a\" is a string, these operators will grade its characters.\n\n        To sort a list \"a\", use a@<a (\"a\" At Grade-Up \"a\") or a@>a.\n\n        Examples:     <[1 2 3 4 5]  -->  [0 1 2 3 4]\n                      >[1 2 3 4 5]  -->  [4 3 2 1 0]\n                   <\"hello, world\"  -->  [6 5 11 1 0 2 3 10 8 4 9 7]\n                    >[[1] [2] [3]]  -->  [2 1 0]\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_grade_down",
+  "doc": "\n\n        >a                                                  [Grade-Down]\n\n        See [Grade-Up].\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_groupby",
+  "doc": "\n\n        =a                                                       [Group]\n\n        Return a list of lists (\"groups\") where each group contains the\n        index of each occurrence of one element within \"a\". \"a\" must be\n        a list or string. The indices of all elements of \"a\" that are\n        equal according to \"~\" (Match) will appear in the same group in\n        ascending order. The groups are ordered by the first appearance\n        of their value in \"a\".\n\n        =\"\" and =[] will yield [].\n\n        Examples:   =[1 2 3 4]  -->  [[0] [1] [2] [3]]\n                  =\"hello foo\"  -->  [[0] [1] [2 3] [4 7 8] [5] [6]]\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_list",
+  "doc": "\n\n        ,a                                                        [List]\n\n        \",\" packages any object in a single-element list.\n\n        Examples:    ,1  -->  [1]\n                  ,:foo  -->  [:foo]\n                  ,\"xyz\" -->  [\"xyz\"]\n                   ,[1]  -->  [[1]]\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_negate",
+  "doc": "\n\n        -a                                                      [Negate]\n\n        Return 0-a; \"a\" must be a number.\n\n        \"-\" is an atomic operator.\n\n        Examples:    -1  -->  -1\n                  -1.23  -->  -1.23\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_not",
+  "doc": "\n\n        ~a                                                         [Not]\n\n        Return the negative truth value of \"a\", as explained in the\n        section on CONDITIONALS. It will return 1 for 0, [], and \"\",\n        and 0 for all other values.\n\n        Examples:    ~0  -->  1\n                     ~1  -->  0\n                    ~[]  -->  1\n                  ~:foo  -->  0\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_range",
+  "doc": "\n\n        ?a                                                       [Range]\n\n        Return a list containing unique elements from \"a\" in order of\n        appearance. \"a\" may be a list or string.\n\n        Examples:   ?[1 2 3 4]  -->  [1 2 3 4]\n                  ?[1 1 1 2 2]  -->  [1 2]\n                  ?\"aaabbcccd\"  -->  \"abcd\"\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_reciprocal",
+  "doc": "\n\n        %a                                                  [Reciprocal]\n\n        Return 1%a. \"a\" must be a number.\n\n        \"%\" is an atomic operator.\n\n        Examples:    %1  -->  1.0\n                     %2  -->  0.5\n                   %0.1  -->  10.0\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_reverse",
+  "doc": "\n\n        |a                                                     [Reverse]\n\n        Return a new list/string that contains the elements of \"a\" in\n        reverse order. When \"a\" is neither a list nor a string, return\n        it unchanged.\n\n        Examples:       |[1 2 3]  -->  [3 2 1]\n                  |\"hello world\"  -->  \"dlrow olleh\"\n                              |1  -->  1\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_shape",
+  "doc": "\n\n        ^a                                                       [Shape]\n\n        Return the shape of \"a\". The shape of an atom is 0. The shape of\n        a list L of atoms is ,#L. Such a list is also called a 1-array\n        or a vector. The shape of a list of lists of equal length (M) is\n        (#M),#*M. Such a list is called a 2-array or a matrix. A list of\n        lists of unequal length is a vector.\n\n        This principle is extended to higher dimensions. An N-array A is\n        is an array with equal-sized sub-arrays in each dimension. Its\n        shape is (#A),(#*A),...,(#*...*A), where there are N-1 \"*\"\n        operators in the last group of that expression. All shapes are\n        written in row-major notation.\n\n        For example:\n\n        [1 2 3 4 5]    is a vector (shape [5])\n\n        [[1 2]\n         [2 4]\n         [5 6]]        is a matrix (shape [3 2])\n\n        [[[1 2 3 4]\n          [5 6 7 8]]\n         [[9 0 1 2]\n          [3 4 5 6]]\n         [[7 8 9 0]\n          [1 2 3 4]]]  is a 3-array (shape [3 2 4])\n\n        [[1] [2 3]]    is a vector (shape [2])\n\n        The shape of a string S is ,#S. A list of equally-sized strings\n        is a matrix of characters. Strings may form the innermost level\n        of higher-dimensional arrays.\n\n        Examples:        ^1  -->  0\n                      ^:xyz  -->  0\n                       ^[0]  -->  [1]\n                   ^[1 2 3]  -->  [3]\n                   ^\"hello\"  -->  [5]\n                   ^[[1 2]\n                     [3 4]\n                     [5 6]]  -->  [3 2]\n                   ^[1 [2]]  -->  [2]\n                  ^[\"abcd\"\n                    \"efgh\"]  -->  [2 4]\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_size",
+  "doc": "\n\n        #a                                                        [Size]\n\n        Return the size/magnitude of \"a\".\n\n        For lists, the size of \"a\" is the number of its elements.\n        For strings, the size is the number of characters.\n        For numbers, the size is the magnitude (absolute value).\n        For characters, the size is the ASCII code.\n\n        Examples:     #[1 2 3]  -->  3\n                  #[1 [2 3] 4]  -->  3\n                  #\"123456789\"  -->  9\n                         #-123  -->  123\n                          #0cA  -->  65\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_transpose",
+  "doc": "\n\n        +a                                                   [Transpose]\n\n        Return the transpose of the matrix (2-array) \"a\".\n\n        Examples:     +[[1] [2] [3]]  -->  [[1 2 3]]\n                  +[[1 2 3] [4 5 6]]  -->  [[1 4] [2 5] [3 6]]\n                                 +[]  -->  []\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_undefined",
+  "doc": "\n\n        :_a                                                  [Undefined]\n\n        Return truth, if \"a\" is undefined, i.e. the result of an\n        operation that cannot yield any meaningful result, like\n        division by zero or trying to find a non-existent key in\n        a dictionary. Else return 0.\n\n        Examples:        :_1%0  -->  1\n                  :_:{[1 2]}?3  -->  1\n                      :_:valid  -->  0\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_track",
+  "doc": "\n\n        ˙a                                                    [Track]\n\n        Identity: returns \"a\". Internal. It is reserved for marking a value\n        for gradient tracking and currently has no effect. It has no ASCII\n        form.\n\n    "
+ },
+ {
+  "module": "monads",
+  "name": "eval_monad_grad",
+  "doc": "\n\n        ∇a                                                     [Grad]\n\n        Return a function that computes the gradient of ``a``: by\n        automatic differentiation when the backend supports it (PyTorch),\n        by finite differences otherwise. Glyph only; there is no ASCII\n        form (see .grad(f;x) for the point form of x∇f).\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_add",
+  "doc": "\n\n        a+b                                                       [Plus]\n\n        Add \"b\" to \"a\" and return the result. \"a\" and \"b\" must both be\n        numbers.\n\n        Dyadic \"+\" is an atomic operator.\n\n        Integers are 64 bits wide and a sum that does not fit wraps\n        around, but if an operand is an integer outside 64 bits (such\n        as 9223372036854775808) the sum is exact. The same holds for\n        \"-\", \"*\", \"<\", \">\", \"|\" and \"&\".\n\n        Examples:  12+3  -->  15\n                  12+-3  -->  9\n                  1+0.3  -->  1.3\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_amend",
+  "doc": "\n\n        a:=b                                                     [Amend]\n\n        \"a\" must be a list or string and \"b\" must be a list where the\n        first element can have any type and the remaining elements must\n        be integers. It returns a new object of a's type where a@b2\n        through a@bN are replaced by b1. When \"a\" is a string, b1 must\n        be a character or a string. The first element of \"a\" has an\n        index of 0.\n\n        When both \"a\" and b1 are strings, Amend replaces each substring\n        of \"a\" starting at b2..bN by b1. Note that no index b2..bN must\n        be larger than #a or a range error will occur. When b1 is\n        replaced at a position past (#a)-#b1, the amended string will\n        grow by the required amount. For instance:\n\n        \"aa\":=\"bc\",1 --> \"abc\".\n\n        Examples:    \"-----\":=0cx,[1 3]  -->  \"-x-x-\"\n                           [1 2 3]:=0,1  -->  [1 0 3]\n                  \"-------\":=\"xx\",[1 4]  -->  \"-xx-xx-\"\n                         \"abc\":=\"def\",3  -->  \"abcdef\"\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_amend_in_depth",
+  "doc": "\n\n        a:-b                                            [Amend-in-Depth]\n\n        :- is like :=, but \"a\" may be a multi-dimensional array. The :-\n        operator replaces one single element in that array. The sequence\n        of indices b1..bN is used to locate the target element in an\n        N-dimensional array. The number of indices must match the rank\n        of the array.\n\n        Example: [[1 2] [3 4]]:-42,[0 1]  -->  [[1 42] [3 4]]\n                      [[[0]]]:-1,[0 0 0]  -->  [[[1]]]\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_cut",
+  "doc": "\n\n        a:_b                                                       [Cut]\n\n        Cut the list \"b\" before the elements at positions given in \"a\".\n        \"a\" must be an integer or a list of integers. When it is a list\n        of integers, its elements must be in monotonically increasing\n        order. :_ returns a new list containing consecutive segments of\n        \"b\".\n\n        When \"a\" is zero or #b or contains two subsequent equal indices,\n        nil (or an empty string if \"b\" is a string) will be inserted.\n\n        Examples:      2:_[1 2 3 4]  -->  [[1 2] [3 4]]\n                  [2 3 5]:_\"abcdef\"  -->  [\"ab\" \"c\" \"de\" \"f\"]\n                             0:_[1]  -->  [[] [1]]\n                           3:_\"abc\"  -->  [\"abc\" \"\"]\n                       [1 1]:_[1 2]  -->  [[1] [] [2]]\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_at_index",
+  "doc": "\n\n        a@b                                                   [At/Index]\n        a@b                                                   [At/Apply]\n\n        Extract one or multiple elements from \"a\" at (zero-based)\n        positions given in \"b\". In this case \"a\" may be a list or a\n        string.\n\n        When \"b\" is an integer, extract a single element at the given\n        position and return it.\n\n        When \"b\" is a list, return a list containing the extracted\n        elements. All members of \"b\" must be integers in this case.\n        The order of indices in \"b\" does not matter. The same index\n        may occur multiple times.\n\n        Indices -n..n-1 are valid for a list or string of length n; a\n        negative index counts from the end. Any other index is an error.\n\n        When \"a\" is a dictionary, return the value associated with the\n        key \"b\", as a?b does, and :undefined when there is no such key.\n        When \"b\" is a list, return the list of the values of its members.\n\n        When \"a\" is a function, \"b\" (if it is an atom) or the members\n        of \"b\" (if it is a list) will be passed as arguments to the\n        function and the result will be returned.\n\n        Examples:         [1 2 3 4 5]@2  -->  3\n                    [1 2 3 4 5]@[1 2 3]  -->  [2 3 4]\n                    [1 2 3 4 5]@[0 0 0]  -->  [1 1 1]\n                  \"hello world\"@[3 7 2]  -->  \"lol\"\n                         [1 2 3 4 5]@-1  -->  5\n                         {y+x*x}@[2 3]   -->  7\n                        :{[\"k\" 1]}@\"k\"   -->  1\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_define",
+  "doc": "\n\n        a::b                                                    [Define]\n\n        Assign \"b\" to the variable \"a\" and return \"b\". When a variable\n        named \"a\" exists in any scope (a local, or a global), the value\n        is assigned to it there. Otherwise, at top level the variable\n        is created; inside a function the name becomes local to that\n        call, and no global is created (in strict mode, see .strict(),\n        this is an error). To create a global from a function, use .E.\n\n        Note that :: cannot be used to assign values to the function\n        variables \"x\", \"y\", and \"z\" (they are read-only).\n\n        Examples:        a::[1 2 3];a  -->  [1 2 3]\n                  a::1;{[a];a::2}();a  -->  1\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_divide",
+  "doc": "\n\n        a%b                                                     [Divide]\n\n        Return the quotient of \"a\" and \"b\". The result is always a real\n        number, even if the result has a fractional part of 0.\n\n        \"%\" is an atomic operator.\n\n        Examples: 10%2  -->  5.0\n                  10%8  -->  1.25\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_drop",
+  "doc": "\n\n        a_b                                                       [Drop]\n\n        When \"b\" is a list or string, drop \"a\" elements or characters\n        from it, returning the remaining list. Dropping more elements\n        than contained in \"b\" will yield the empty list/string. A\n        negative value for \"a\" will drop elements from the end of \"b\".\n\n        When \"b\" is a dictionary, remove the entry with the key \"a\" from\n        it. Dictionary removal is in situ, i.e. the dictionary will be\n        modified. Other objects will be copied.\n\n        Examples: 3_[1 2 3 4 5]  -->  [4 5]\n                  (-3)_\"abcdef\"  -->  \"abc\"\n                     17_[1 2 3]  -->  []\n                       (-5)_\"x\"  -->  \"\"\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_equal",
+  "doc": "\n\n        a=b                                                      [Equal]\n\n        Return 1, if \"a\" and \"b\" are equal, otherwise return 0.\n\n        Numbers are equal, if they have the same value.\n        Characters are equal, if (#a)=#b.\n        Strings and symbols are equal, if they contain the same\n        characters in the same positions.\n\n        \"=\" is an atomic operator. In particular it means that it\n        cannot compare lists, but only elements of lists. Use \"~\"\n        (Match) to compare lists.\n\n        Real numbers should not be compared with \"=\". Use \"~\" instead.\n\n        Examples:             1=1  -->  1\n                      \"foo\"=\"foo\"  -->  1\n                        :foo=:foo  -->  1\n                          0cx=0cx  -->  1\n                  [1 2 3]=[1 4 3]  -->  [1 0 1]\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_find",
+  "doc": "\n\n        a?b                                                       [Find]\n\n        Find each occurrence of \"b\" in \"a\". \"a\" must be a list, string,\n        or dictionary. When \"a\" is a dictionary, return the value\n        associated with the given key. When \"a\" is a list or string,\n        return a list containing the position of each match.\n\n        When both \"a\" and \"b\" are strings, return a list containing each\n        position of the substring \"b\" inside of \"a\". The empty string \"\"\n        is contained between any two characters of a string, even before\n        the first and after the last character.\n\n        In any case a return value of nil indicates that \"b\" is not\n        contained in \"a\", except when \"a\" is a dictionary. When a key\n        cannot be found in a dictionary, Find will return :undefined.\n        (See [Undefined].)\n\n        Examples: [1 2 3 1 2 1]?1  -->  [0 3 5]\n                        [1 2 3]?4  -->  []\n                      \"hello\"?0cl  -->  [2 3]\n                    \"xyyyyz\"?\"yy\"  -->  [1 2 3]\n                            \"\"?\"\"  -->  [0]\n                      :{[1 []]}?1  -->  []\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_form",
+  "doc": "\n\n        a:$b                                                      [Form]\n\n        Convert string \"b\" to the type of the object of \"a\". When \"b\"\n        can be converted to the desired type, an object of that type\n        will be returned. When such a conversion is not possible, :$\n        will return :undefined.\n\n        When \"a\" is an integer, \"b\" may not represent a real number.\n        When \"a\" is a real number, a real number will be returned, even\n        if \"b\" represents an integer. When \"a\" is a character, \"b\" must\n        contain exactly one character. When \"a\" is a symbol, \"b\" must\n        contain the name of a valid symbol (optionally including a\n        leading \":\" character).\n\n        :$ is an atomic operator.\n\n        Examples:     1:$\"-123\"  -->  -123\n                    1.0:$\"1.23\"  -->  1.23\n                       0c0:$\"x\"  -->  0cx\n                   \"\":$\"string\"  -->  \"string\"\n                   :x:$\"symbol\"  -->  :symbol\n                  :x:$\":symbol\"  -->  :symbol\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_format2",
+  "doc": "\n\n        a$b                                                    [Format2]\n\n        Dyadic \"$\" is like its monadic cousin, but also pads its result\n        with blanks. The minimal size of the output string is specified\n        in \"a\", which must be an integer. \"b\" is the object to format.\n        When the value of \"a\" is negative, the result string is padded\n        to the left, else it is padded to the right.\n\n        When \"a\" is real number of the form n.m and \"b\" is also a real\n        number, the representation of \"b\" will have \"n\" integer digits\n        and \"m\" fractional digits. The integer part will be padded with\n        blanks and the fractional part will be padded with zeros.\n\n        \"$\" is an atomic operator.\n\n        Examples:     0$123  -->  \"123\"\n                  (-5)$-123  -->  \" -123\"\n                    5$\"xyz\"  -->  \"xyz  \"\n                  (-5)$:foo  -->  \" :foo\"\n                 5.3$123.45  -->  \"  123.450\"\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_index_in_depth",
+  "doc": "\n\n        a:@b                                            [Index-in-Depth]\n\n        :@ is like \"@\" but, when applied to an array, extracts a single\n        element from a multi-dimensional array. The indices in \"b\" are\n        used to locate the element. The number of indices must match\n        the rank of the array.\n\n        If \"a\" is a function, :@ is equal to \"@\".\n\n        Examples: [[1 2] [3 4]]:@[0 1]  -->  2\n                      [[[1]]]:@[0 0 0]  -->  1\n                        {y+x*x}:@[2 3]  -->  7\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_integer_divide",
+  "doc": "\n\n        a:%b                                            [Integer-Divide]\n\n        Return the integer part of the quotient of \"a\" and \"b\". Both \"a\"\n        and \"b\" must be integers. The result is always an integer.\n\n        Formally, a = (b*a:%b) + a!b .\n\n        \":%\" is an atomic operator.\n\n        Examples: 10:%2  -->  5\n                  10:%8  -->  1\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_join",
+  "doc": "\n\n        a,b                                                       [Join]\n\n        The \",\" operator joins objects of any type, forming lists or\n        strings.\n\n        If \"a\" and \"b\" are lists, append them.\n        If \"a\" is a list and \"b\" is not, attach \"b\" at the end of \"a\".\n        If \"a\" is a not list and \"b\" is one, attach \"a\" to the front of\n        \"b\".\n        If \"a\" and \"b\" are strings, append them.\n        If \"a\" is a string and \"b\" is a char, attach \"b\" to the end of\n        \"a\".\n        If \"a\" is a char and \"b\" is a string, attach \"a\" to the front of\n        \"b\".\n\n        If \"a\" is a dictionary and \"b\" is a tuple (a list of two members)\n        or vice versa, add the tuple to the dictionary. Any entry with\n        the same key will be replaced by the new entry. The head of the\n        tuple is the key and the second element is the payload.\n\n        If \"a\" and \"b\" are dictionaries, add the entries of \"b\" to \"a\"\n        and return \"a\". An entry of \"b\" replaces an entry of \"a\" with\n        the same key.\n\n        Otherwise, create a tuple containing \"a\" and \"b\" in that order.\n\n        Join always returns a fresh list, but dictionaries will be\n        updated by replacing old entries in situ.\n\n        Examples:  [1 2 3],[4 5 6]  -->  [1 2 3 4 5 6]\n                           1,[2 3]  -->  [1 2 3]\n                           [1 2],3  -->  [1 2 3]\n                       \"abc\",\"def\"  -->  \"abcdef\"\n                          \"ab\",0cc  -->  \"abc\"\n                          0ca,\"bc\"  -->  \"abc\"\n                               1,2  -->  [1 2]\n                             \"a\",1  -->  [\"a\" 1]\n                       [[1 2 3]],4  -->  [[1 2 3] 4]\n                           1,2,3,4  -->  [1 2 3 4]\n                    [1 2],:{[1 0]}  -->  :{[1 2]}\n                    :{[1 0]},[1 2]  -->  :{[1 2]}\n                  :{[1 2]},:{[3 4]}  -->  :{[1 2] [3 4]}\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_less",
+  "doc": "\n\n        a<b                                                       [Less]\n\n        Return 1, if \"a\" is less than \"b\", otherwise return 0.\n\n        Numbers are compared by value.\n        Characters are compared by ASCII code.\n        Strings and symbols are compared lexicographically.\n\n        \"<\" is an atomic operator; it cannot compare lists, but only\n        elements of lists.\n\n        Examples:              1<2  -->  1\n                       \"bar\"<\"foo\"  -->  1\n                         :abc<:xyz  -->  1\n                           0c0<0c9  -->  1\n                   [1 2 3]<[1 4 3]  -->  [0 1 0]\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_match",
+  "doc": "\n\n        a~b                                                      [Match]\n\n        \"~\" is like \"=\", but can also compare lists and real numbers. It\n        uses \"=\" (Equal) to compare integers, characters, symbols and\n        strings.\n\n        Two real numbers \"a\" and \"b\" match, if they are \"sufficiently\n        similar\", where the exact definition of \"sufficiently similar\"\n        is too complex to be discussed here. For the curious reader:\n        the current implementation uses a relative epsilon algorithm.\n        For instance, given\n\n        sq2::{(x+2%x)%2}:~1 :\"square root of 2\"\n\n        the following expression will be true:\n\n        sq2~sq2+10*.e\n\n        although the operands of Match differ by 10 times Epsilon.\n\n        Two lists match if all of their elements match pairwise. \"~\"\n        descends into sublists.\n\n        Examples:                  1~1  -->  1\n                           \"foo\"~\"foo\"  -->  1\n                             :foo~:foo  -->  1\n                               0cx~0cx  -->  1\n                       [1 2 3]~[1 2 3]  -->  1\n                   [1 [2] 3]~[1 [4] 3]  -->  0\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_maximum",
+  "doc": "\n\n        a|b                                                     [Max/Or]\n\n        Return the larger one of two numbers.\n\n        When both \"a\" and \"b\" are in the set {0,1} (booleans), then \"|\"\n        acts as an \"or\" operator, as you can easily prove using a truth\n        table:\n\n        a  b  max/or\n        0  0    0\n        0  1    1\n        1  0    1\n        1  1    1\n\n        Dyadic \"|\" is an atomic operator.\n\n        Examples:       0|1  -->  1\n                   123|-123  -->  123\n                    1.0|1.1  -->  1.1\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_minimum",
+  "doc": "\n\n        a&b                                                    [Min/And]\n\n        Return the smaller one of two numbers.\n\n        When both \"a\" and \"b\" are in the set {0,1} (booleans), then \"&\"\n        acts as an \"and\" operator, as you can easily prove using a truth\n        table:\n\n        a  b  min/and\n        0  0     0\n        0  1     0\n        1  0     0\n        1  1     1\n\n        Dyadic \"&\" is an atomic operator.\n\n        Examples:       0&1  -->  0\n                   123&-123  -->  -123\n                    1.0&1.1  -->  1.0\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_more",
+  "doc": "\n\n        a>b                                                       [More]\n\n        Return 1, if \"a\" is greater than \"b\", otherwise return 0.\n\n        See \"<\" (Less) for details on comparing objects.\n\n        \">\" is an atomic operator; it cannot compare lists, but only\n        elements of lists.\n\n        Examples:              2>1  -->  1\n                       \"foo\">\"bar\"  -->  1\n                         :xyz>:abc  -->  1\n                           0c9>0c0  -->  1\n                   [1 4 3]>[1 2 3]  -->  [0 1 0]\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_multiply",
+  "doc": "\n\n        a*b                                                      [Times]\n\n        Return \"a\" multiplied by \"b\". \"a\" and \"b\" must both be numbers.\n\n        Dyadic \"*\" is an atomic operator.\n\n        Examples:   3*4  -->  12\n                   3*-4  -->  -12\n                  0.3*7  -->  2.1\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_power",
+  "doc": "\n\n        a^b                                                      [Power]\n\n        Compute \"a\" to the power of \"b\" and return the result. Both \"a\"\n        and \"b\" must be numbers. The result of a^b cannot be a complex\n        number.\n\n        Dyadic \"^\" is an atomic operator.\n\n        Examples:   2^0  -->  1\n                    2^1  -->  2\n                    2^8  -->  256\n                   2^-5  -->  0.03125\n                  0.3^3  -->  0.027\n                  2^0.5  -->  1.41421356237309504\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_remainder",
+  "doc": "\n\n        a!b                                                  [Remainder]\n\n        Return the truncated division remainder of \"a\" and \"b\". Both\n        \"a\" and \"b\" must be integers.\n\n        Formally, a = (b*a:%b) + a!b .\n\n        a!0 is :undefined (as is a%0 and a:%0), also element by element.\n\n        Dyadic \"!\" is an atomic operator.\n\n        Examples:    7!5  -->  2\n                    7!-5  -->  2\n                  (-7)!5  --> -2\n                   -7!-5  --> -2\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_reshape",
+  "doc": "\n\n        a:^b                                                   [Reshape]\n\n        :^ reshapes \"b\" to the shape specified in \"a\". The shape is\n        specified in the form returned by the \"^\" (Shape) operator: a\n        list of dimensions in row-major order.\n\n        The operand \"b\" may be in any shape. The elements of the new\n        array will be taken from \"b\" in sequential order:\n\n        [3 3]:^[1 2 3 4 5 6 7 8 9]  -->  [[1 2 3]\n                                          [4 5 6]\n                                          [7 8 9]]\n\n        When the source array contains more elements that can be stored\n        in an array of the shape \"a\", excess elements in \"b\" will be\n        ignored. When the source array contains too few elements, :^\n        will cycle through the source object, repeating the elements\n        found there:\n\n        [3 3]:^[0 1]  -->  [[0 1 0]\n                            [1 0 1]\n                            [0 1 0]\n\n        When the value -1 appears in the shape parameter \"a\", it denotes\n        half the size of the source vector, e.g.:\n\n        [-1 2]:^!10  -->  [[0 1] [2 3] [4 5] [6 7] [8 9]]\n        [2 -1]:^!10  -->  [[0 1 2 3 4] [5 6 7 8 9]]\n\n        Both \"a\" and \"b\" may be atoms:\n\n        5:^1  -->  [1 1 1 1 1]\n\n        but when \"b\" is an atom (or a single-argument vector), then \"a\"\n        may not contain the value -1.\n\n        0:^x is an identity operation returning x.\n\n        Examples:           5:^:x  -->  [:x :x :x :x :x]\n                         [3]:^[1]  -->  [1 1 1]\n                  [2 2 2]:^[1 2 3] -->  [[[1 2] [3 1]] [[2 3] [1 2]]]\n                    [2]:^[[1 2 3]] -->  [[1 2 3] [1 2 3]]\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_rotate",
+  "doc": "\n\n        a:+b                                                    [Rotate]\n\n        Rotate the list or string \"b\" by \"a\" elements. \"a\" must be an\n        integer. When \"a\" is positive, rotate elements to the \"right\",\n        i.e. drop elements from the end of \"b\" and append them to the\n        front. When \"a\" is negative, rotate \"b\" to the left, i.e. drop\n        from the beginning, append to the end.\n\n        \"a\" may be greater than #b. In this case, the number of elements\n        rotated will be a!#b.\n\n        Note that n:+M rotates the rows of a matrix M (i.e. it rotates\n        it vertically); to rotate its columns (horizontally), use n:+:\\M\n        (Rotate-Each-Left).\n\n        Examples:           1:+[1 2 3 4 5]     -->  [5 1 2 3 4]\n                            (-1):+[1 2 3 4 5]  -->  [2 3 4 5 1]\n                       1:+[[1 2] [4 5] [5 6]]  -->  [[1 2] [4 5] [5 6]]\n                   {1:+x}'[[1 2] [4 5] [5 6]]  -->  [[2 1] [5 4] [6 5]]\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_split",
+  "doc": "\n\n        a:#b                                                     [Split]\n\n        Split a list or string \"b\" into segments of the sizes given in\n        \"a\". If \"a\" is an integer, all segments will be of the same size.\n        If \"a\" is a list of more than one element, sizes will be taken\n        from that list. When there are more segments than sizes, :# will\n        cycle through \"a\". The last segment may be shorter than\n        specified.\n\n        Examples:         2:#[1 2 3 4]  -->  [[1 2] [3 4]]\n                          3:#[1 2 3 4]  -->  [[1 2 3] [4]]\n                          3:#\"abcdefg\"  -->  [\"abc\" \"def\" \"g\"]\n                  [1 2]:#[1 2 3 4 5 6]  -->  [[1] [2 3] [4] [5 6]]\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_subtract",
+  "doc": "\n\n        a-b                                                      [Minus]\n\n        Subtract \"b\" from \"a\" and return the result. \"a\" and \"b\" must be\n        numbers.\n\n        \"-\" is an atomic operator.\n\n        Examples:  12-3  -->  9\n                  12--3  -->  15\n                  1-0.3  -->  0.7\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_take",
+  "doc": "\n\n        a#b                                                       [Take]\n\n        Extract \"a\" elements from the front of \"b\". \"a\" must be an\n        integer and \"b\" must be a list or string. If \"a\" is negative,\n        extract elements from the end of \"b\". Extracting more elements\n        than contained in \"b\" will fill the extra slots by cycling\n        through \"b\". Taking 0 elements will result in an empty list\n        or string. If \"b\" is an atom (a number or a symbol), it is\n        repeated: 3#7 --> [7 7 7].\n\n        Examples:     1#[1 2 3]  -->  [1]\n                      2#[1 2 3]  -->  [1 2]\n                      5#[1 2 3]  -->  [1 2 3 1 2]\n                   (-2)#[1 2 3]  -->  [2 3]\n                   (-5)#[1 2 3]  -->  [2 3 1 2 3]\n                     3#\"abcdef\"  -->  \"abc\"\n                  (-3)#\"abcdef\"  -->  \"def\"\n                           0#[]  -->  []\n                           0#\"\"  -->  \"\"\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_grad",
+  "doc": "\n\n        a∇b                                                    [Grad]\n\n        Compute the numeric gradient of the monadic function ``b`` at ``a``\n        using finite differences. Always uses numeric differentiation.\n\n        For automatic differentiation, use the :> operator instead.\n        ASCII form: .grad(b;a).\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_jacobian",
+  "doc": "\n\n        a∂b                                                  [Jacobian]\n\n        Compute Jacobian matrix of function ``b`` at point ``a``.\n        For f: R^n -> R^m, returns m x n matrix where J[i,j] = df_i/dx_j.\n\n        Two modes based on what ``a`` contains:\n        1. Single point: [1 2]∂f -> Jacobian at that point\n        2. List of symbols: [w b]∂f -> [J_w J_b] (multi-param mode)\n\n        In multi-param mode, ``b`` should be a niladic function\n        that references the parameter symbols.\n\n        Examples:\n            [1 2]∂{[x@0^2 x@1^2]}  -->  [[2 0] [0 4]]\n            [w b]∂f               -->  [J_w J_b] (multi-param mode)\n\n    "
+ },
+ {
+  "module": "dyads",
+  "name": "eval_dyad_autograd",
+  "doc": "\n\n        a:>b                                                 [Autograd]\n\n        Compute gradient of function ``a`` with respect to ``b``.\n\n        Two modes based on what ``b`` contains:\n        1. Single param/point: a:>x or a:>[1 2 3] -> gradient at that point\n        2. List of symbols: a:>[w b] -> [grad_w grad_b] (multi-param mode)\n\n        In multi-param mode, ``a`` should be a niladic function (loss)\n        that references the parameter symbols.\n\n        Examples:\n            {x^2}:>3.0       -->  6.0      (derivative of x^2 at x=3)\n            {x^3}:>2.0       -->  12.0     (derivative of x^3 at x=2)\n            {+/x^2}:>[1 2 3] -->  [2 4 6]  (gradient of sum of squares)\n            loss:>[w b]      -->  [grad_w grad_b]  (multi-param mode)\n\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_converge",
+  "doc": "\n        f:~a                                                  [Converge]\n\n        Find the fixpoint of f(a), if any. The fixpoint of \"f\" is a value\n        \"a\" for which f(a) = a. For example,\n\n        {(x+2%x)%2}:~2\n\n        converges toward the square root of two using Newton's method.\n        Starting with x=2:\n\n        (2+2%2)%2              -->  1.5\n        (1.5+2%1.5)%2          -->  1.41666\n        (1.41666+2%1.41666)%2  -->  1.41421  :\"next value is the same\"\n        (1.41421+2%1.41421)%2  -->  1.41421\n\n        (Of course, the precision of the actual implementation will\n         probably be higher.)\n\n        Example: ,/:~[\"f\" [\"l\" \"at\"] \"ten\"]  -->  \"flatten\"\n\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_each",
+  "doc": "\n\n        f'a                                                       [Each]\n\n        If \"a\" is a list, apply \"f\" to each member of \"a\":\n\n        f'a  -->  f(a1),...,f(aN)\n\n        If \"a\" is an atom, return f(a). If \"a\" is [], ignore \"f\" and\n        return [].\n\n        If \"a\" is a dictionary, apply \"f\" to each tuple stored in the\n        dictionary. The resulting list will be in some random order.\n        Applying {x} (the identity function) to a dictionary turns it\n        into a list of tuples.\n\n        Example: -'[1 2 3]  -->  [-1 -2 -3]\n\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_each_index",
+  "doc": "\n\n        f@'a                                                 [Each-Index]\n\n        If \"a\" is a list, apply \"f\" to [index;element] pairs for each\n        member of \"a\":\n\n        f@'a  -->  f([0;a1]),f([1;a2]),...,f([N-1;aN])\n\n        Similar to Python's enumerate(), this gives the function access\n        to both the index and the value at each position.\n\n        Examples:  {x@0}@'[10 20 30]        -->  [0 1 2]\n                   {x@1}@'[10 20 30]        -->  [10 20 30]\n                   {(x@0)*(x@1)}@'[10 20 30]  -->  [0 20 60]\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_each2",
+  "doc": "\n\n        a f'b                                                   [Each-2]\n\n        Each-2 is like each, but applies \"f\" pairwise to elements of \"a\"\n        and \"b\":\n\n        a f'b  -->  f(a1;b1),...,f(aN;bN)\n\n        If both \"a\" and \"b\" are atoms, return f(a;b). If either \"a\" or\n        \"b\" is [], ignore \"f\" and return []. When the lengths of \"a\" and\n        \"b\" differ, ignore any excess elements of the longer list.\n\n        Example: [1 2 3],'[4 5 6]  -->  [[1 4] [2 5] [3 6]]\n\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_each_left",
+  "doc": "\n        a f:\\b                                              [Each-Left]\n        a f:/b                                              [Each-Right]\n\n        If \"b\" is a list, both of these adverbs combine \"a\" with each\n        element of \"b\", where :\\ uses \"a\" as the left operand of \"f\",\n        and :/ uses it as its right operand:\n\n        a f:\\b  -->  f(a;b1),...,f(a;bN)\n        a f:/b  -->  f(b1;a),...,f(bN;a)\n\n        If \"b\" is an atom, then\n\n        a f:\\b  -->  f(a;b)\n        a f:/b  -->  f(b;a)\n\n        When \"b\" is [], ignore \"a\" and \"f\" and return [].\n\n        Examples: 1,:\\[2 3 4]  -->  [[1 2] [1 3] [1 4]]\n                  1,:/[2 3 4]  -->  [[2 1] [3 1] [4 1]]\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_each_right",
+  "doc": "\n    see: eval_dyad_adverb_each_left\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_each_pair",
+  "doc": "\n\n        f:'a                                                 [Each-Pair]\n\n        If \"a\" is a list of more than one element, apply \"f\" to each\n        consecutive pair of \"a\":\n\n        f:'a  -->  f(a1;a2),f(a2;a3),...,f(aN-1;aN)\n\n        If \"a\" is an atom or a single-element list, ignore \"f\" and\n        return \"a\".\n\n        Example: ,:'[1 2 3 4]  -->  [[1 2] [2 3] [3 4]]\n\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_dyad_adverb_iterate",
+  "doc": "\n\n        a f:*b                                                 [Iterate]\n\n        Apply \"f\" recursively to \"b\" \"a\" times. More formally:\n\n        - if \"a\" is zero, return b\n        - else assign b::f(b) and a::a-1 and start over\n\n        Example: 3{1,x}:*[]  -->  [1 1 1]\n\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_over",
+  "doc": "\n        f/a                                                       [Over]\n\n        If \"a\" is a list, fold \"f\" over \"a\":\n\n        f/a  -->  f(...f(f(a1;a2);a3)...;aN))\n        +/a  -->  ((...(a1+a2)+...)+aN)\n\n        If \"a\" is a single-element list, return the single element.\n\n        If \"a\" is an atom, ignore \"f\" and return \"a\".\n\n        Example: +/[1 2 3 4]  -->  10\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_over_neutral",
+  "doc": "\n\n        a f/b                                             [Over-Neutral]\n\n        This is like \"/\", but with a neutral element \"a\" that will be\n        returned when \"b\" is [] or combined with the first element of\n        \"b\" otherwise:\n\n        a f/[]  -->  a\n        a f/b   -->  f(...f(f(a;b1);b2)...;bN)\n\n        For example, +/[] will give [], but 0+/[] will give 0.\n\n        Of course, dyadic \"/\" can also be used to abbreviate an\n        expression by supplying a not-so-neutral \"neutral element\".\n        For instance, a++/b can be abbreviated to a+/b.\n\n        If both \"a\" and \"b\" are atoms, \"a f/b\" will give f(a;b).\n\n        Formally, \"a f/b\" is equal to f/a,b\n\n        Example: 0,/[1 2 3]  -->  [0 1 2 3]\n                 1+/[2 3 4]  -->  10\n\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_scan_over_neutral",
+  "doc": "\n\n        f\\a                                                  [Scan-Over]\n        a f\\b                                        [Scan-Over-Neutral]\n\n        \"\\\" is like \"/\", but collects intermediate results in a list and\n        returns that list. In the resulting list,\n\n        - the first slot will contain a1\n        - the second slot will contain f(a1;a2)\n        - the third slot will contain f(f(a1;a2);a3)\n        - the last slot will contain f(...f(a1;a2)...;aN)\n          (which is the result of f/a)\n\n        If only one single argument is supplied, the argument will be\n        returned in a list, e.g.: +\\1 --> [1].\n\n        \"a f\\b\" is equal to f\\a,b.\n\n        Examples:  ,\\[1 2 3]  -->  [1 [1 2] [1 2 3]]\n                  0,\\[1 2 3]  -->  [0 [0 1] [0 1 2] [0 1 2 3]]\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_scan_over",
+  "doc": "\n        see eval_adverb_scan_over_neutral\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_scan_converging",
+  "doc": "\n\n        f\\~a                                           [Scan-Converging]\n\n        Monadic \\~ is like monadic :~, but returns a list of all\n        intermediate results instead of just the end result. The\n        last element of the list will be same as the result of a\n        corresponding :~ application. For instance:\n\n        {(x+2%x)%2}\\~2\n\n        will produce a list containing a series that converges toward\n        the square root of 2.\n\n        Example: ,/\\~[\"a\" [\"b\"] \"c\"]  -->  [[\"a\" [\"b\"] \"c\"]\n                                            [\"a\" \"b\" \"c\"]\n                                            \"abc\"]\n\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_scan_while",
+  "doc": "\n\n        a f\\~b                                              [Scan-While]\n\n        This adverb is (almost) like is non-scanning counterpart, :~,\n        but it collects intermediate results in a list and returns that\n        list.\n\n        However, \\~ will only collect values of X that satisfy a(X),\n        while :~ will return the first value that does *not* satisfy\n        a(X). E.g.:\n\n        {x<10}{x+1}:~1  -->  10\n        {x<10}{x+1}:\\1  -->  [1 2 3 4 5 6 7 8 9]\n\n        Example: {x<100}{x*2}\\~1  -->  [1 2 4 8 16 32 64]\n\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_scan_iterating",
+  "doc": "\n\n        a f\\*b                                          [Scan-Iterating]\n\n        This adverbs is like its non-scanning counterpart, but collects\n        intermediate results in a list and return that list.\n\n        The count must be a non-negative integer. If \"a\" is zero, \"b\" is\n        returned as it is (not wrapped in a list), as in the Klong\n        reference: 0{1,x}\\*[]  -->  [] and 0,\\*1  -->  1.\n\n        Example: 3{1,x}\\*[]  -->  [[] [1] [1 1] [1 1 1]]\n\n    "
+ },
+ {
+  "module": "adverbs",
+  "name": "eval_adverb_while",
+  "doc": "\n\n        a f:~b                                                   [While]\n\n        Compute b::f(b) while a(b) is true. Formally:\n\n        - if a(b) is false, return b\n        - else assign b::f(b) and start over\n\n        Example: {x<1000}{x*2}:~1  -->  1024\n\n    "
+ }
+]

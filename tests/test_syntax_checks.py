@@ -20,7 +20,8 @@ import numpy as np
 from klongpy import KlongInterpreter, KlongSyntaxError, KlongSyntaxWarning
 from klongpy.dump import dump_text
 from klongpy.errors import UnexpectedChar
-from klongpy.lexer import Lexer, Source
+from klongpy.lexer import Lexer
+from klongpy.source import Source
 from klongpy.types import KGFn
 from tests.backend_compat import on_rust_engine, requires_python_engine, to_numpy
 

@@ -122,7 +122,7 @@ atexit.register(close_all)
 # ---------------------------------------------------------------------------------------
 
 def _program_outputs(files, clock_mhz=DEFAULT_CLOCK, lanes=None):
-    from ..static.compile import emit_hls_program
+    from ..static.native import emit_hls_program
     return [emit_hls_program(f, None, int_bits=32, clock_mhz=clock_mhz, lanes=lanes if lanes and lanes > 1 else None)
             for f in files]
 

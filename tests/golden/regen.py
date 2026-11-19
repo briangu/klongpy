@@ -16,7 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, ROOT)
 
-from klongpy.dump import dump_text  # noqa: E402
+from klongpy.native_ext import native  # noqa: E402
 
 GROUPS = {
     "language": os.path.join(ROOT, "tests", "kgtests", "language"),
@@ -41,7 +41,12 @@ def cases():
 def render(path):
     with open(path, "r", newline="") as f:
         text = f.read()
-    return dump_text(text, parser="token")
+    ext = native()
+    try:
+        return ext.ast_text(text, "<string>")
+    except ext.NativeError as e:
+        from klongpy.rust_engine import _error
+        return f"(error {type(_error(e)).__name__})\n"
 
 
 def main(argv):

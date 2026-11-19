@@ -4,13 +4,11 @@ KlongPy core module.
 This module re-exports public symbols from the split modules.
 New code should import directly from the specific modules:
 - klongpy.types: Type definitions and type checking
-- klongpy.parser: Parsing and lexing functions
 - klongpy.writer: Output formatting functions
 """
 
-# Re-export everything from the split modules
+# Re-export the types and the writer. The reader of Klong text is the native engine's: nothing here parses.
 from .types import *
-from .parser import *
 from .writer import *
 
 # Re-export backend numpy-like module for shared array helpers
@@ -88,36 +86,6 @@ __all__ = [
     'KGBody',
     'KGDestructure',
     'head_destructuring',
-    # Parser - character matching
-    'cmatch',
-    'cmatch2',
-    'cpeek',
-    'cpeek2',
-    'cexpect',
-    'cexpect2',
-    'UnexpectedChar',
-    'UnexpectedEOF',
-    # Parser - skip
-    'skip_space',
-    'skip',
-    # Parser - comment
-    'read_shifted_comment',
-    'read_sys_comment',
-    'read_expr_array',
-    'KGExprArray',
-    # Parser - lexeme readers
-    'read_num',
-    'read_char',
-    'read_sym',
-    'read_op',
-    'read_string',
-    'read_list',
-    'kg_read',
-    'kg_read_array',
-    'read_cond',
-    'list_to_dict',
-    'copy_lambda',
-    'peek_adverb',
     # Writer
     'kg_write_symbol',
     'kg_write_integer',

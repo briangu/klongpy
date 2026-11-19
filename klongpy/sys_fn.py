@@ -15,9 +15,9 @@ import numpy
 
 from .errors import (KlongNameError, KlongRangeError, KlongSystemError, KlongTypeError, compat,
                      describe, python_error)
-from .lexer import Source
+from .source import Source
 from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
-                   KLONG_UNDEFINED, bknp, is_dict, is_empty, is_list, kg_read_array, kg_write,
+                   KLONG_UNDEFINED, bknp, is_dict, is_empty, is_list, kg_write,
                    reserved_fn_args, reserved_fn_symbol_map, safe_eq, safe_inspect)
 
 
@@ -768,27 +768,23 @@ def _import_module(klong, x, from_set=None):
         export_items = module.__dict__.get("klongpy_exports") or module.__dict__
         ffn = (lambda p: p[0] in from_set) if from_set is not None else (lambda p: not p[0].startswith("__"))
 
-        ctx = klong._context.pop()
-        try:
-            for name, item in filter(ffn, export_items.items()):
-                try:
-                    klong[name] = _handle_import(item)
-                except Exception as e:
-                    # TODO: this should be logged
-                    print(f"failed to import function: {name}", e)
+        for name, item in filter(ffn, export_items.items()):
+            try:
+                klong[name] = _handle_import(item)
+            except Exception as e:
+                # TODO: this should be logged
+                print(f"failed to import function: {name}", e)
 
-            # For from_set imports, also check for lazy-loaded attributes not in __dict__
-            # (e.g., numpy.random in numpy 2.x)
-            if from_set is not None:
-                for name in from_set:
-                    if name not in export_items and hasattr(module, name):
-                        try:
-                            item = getattr(module, name)
-                            klong[name] = _handle_import(item)
-                        except Exception as e:
-                            print(f"failed to import function: {name}", e)
-        finally:
-            klong._context.push(ctx)
+        # For from_set imports, also check for lazy-loaded attributes not in __dict__
+        # (e.g., numpy.random in numpy 2.x)
+        if from_set is not None:
+            for name in from_set:
+                if name not in export_items and hasattr(module, name):
+                    try:
+                        item = getattr(module, name)
+                        klong[name] = _handle_import(item)
+                    except Exception as e:
+                        print(f"failed to import function: {name}", e)
 
         return 1
     except ImportError as e:
@@ -998,16 +994,12 @@ def eval_sys_backend_fn(klong, x):
         raise compat(KlongTypeError, RuntimeError)("function name(s) must be a string or list of strings")
 
     backend = klong._backend
-    ctx = klong._context.pop()
-    try:
-        for fn_name in x:
-            if hasattr(backend.np, fn_name):
-                fn = getattr(backend.np, fn_name)
-                klong[fn_name] = _handle_import(fn)
-            else:
-                raise compat(KlongNameError, RuntimeError)(f"Backend does not have function: {fn_name}")
-    finally:
-        klong._context.push(ctx)
+    for fn_name in x:
+        if hasattr(backend.np, fn_name):
+            fn = getattr(backend.np, fn_name)
+            klong[fn_name] = _handle_import(fn)
+        else:
+            raise compat(KlongNameError, RuntimeError)(f"Backend does not have function: {fn_name}")
     return None
 
 
@@ -1034,6 +1026,24 @@ def eval_sys_read(klong):
 
     """
     f = klong['.sys.cin']
+    if getattr(klong, 'is_native', False):
+        # Engine need: .rs that says how much text it consumed. Until then the entry is whole lines, up to the one that
+        # completes an object (klongpy.repl_input.check_text), and the engine's .rs reads it: a second object on the same
+        # line is dropped.
+        from .repl_input import check_text
+        text = ''
+        while True:
+            line = f.raw.readline()
+            if line == '':
+                break
+            text += line
+            if text.strip() and check_text(text) != 'incomplete':
+                break
+        if text.strip() == '':
+            f.at_eof = True
+            return KLONG_UNDEFINED
+        return klong._k.call('.rs', text)
+    from .parser import kg_read_array
     k = f.raw.tell()
     r = f.raw.read()
     if r == '':
@@ -1096,6 +1106,7 @@ def eval_sys_read_string(klong, x):
     from .types import KGChar, KGSym
     if not isinstance(x, str) or isinstance(x, (KGChar, KGSym)):
         raise KlongTypeError(f".rs: x must be a string, got {describe(x)}")
+    from .parser import kg_read_array
     _, a = kg_read_array(x, 0, klong._backend, module=klong.current_module(), read_neg=True)
     # Empty or blank text holds no object: :undefined, like a number that
     # cannot be read from text.
@@ -1213,6 +1224,7 @@ def eval_sys_num(klong, x):
     t = str(_text_arg(".num", "x", x)).strip(_WS)
     if not t or not _NUM_CHARS.issuperset(t):
         return KLONG_UNDEFINED
+    from .parser import kg_read_array
     try:
         i, a = kg_read_array(t, 0, klong._backend, read_neg=True)
     except Exception:

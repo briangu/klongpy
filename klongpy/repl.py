@@ -11,6 +11,10 @@ from typing import Optional
 from . import KlongInterpreter
 from .utils import CallbackEvent
 
+# The names the front end (create_repl here, the kgpy command in cli.py) binds before a program runs, beyond the engine's own system
+# names: a program may use them, so the linter must know them (klongpy.tools.builtin_names).
+FRONT_END_NAMES = ('.system', '.helpdb', '.os.env', '.os.argv', '.help_topic')
+
 
 PENDING_TASK_TIMEOUT = 5.0
 

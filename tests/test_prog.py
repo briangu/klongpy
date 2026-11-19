@@ -1,8 +1,9 @@
 import unittest
 from klongpy import KlongInterpreter
-from klongpy.core import KGSym, read_sys_comment
+from klongpy.core import KGSym
+from klongpy.parser import read_sys_comment   # the Python parser's (to be deleted with it)
 from utils import *
-from backend_compat import requires_strings
+from backend_compat import requires_strings, requires_python_engine
 
 class TestProg(unittest.TestCase):
 
@@ -31,6 +32,7 @@ lin2(1)
             """)
         self.assertEqual(r, 1)
 
+    @requires_python_engine("calls klong.prog / read_sys_comment, the Python parser's tree and readers")
     def test_prog_arr(self):
         klong = KlongInterpreter()
         r = klong.prog("[[]]")[1][0]
@@ -38,6 +40,7 @@ lin2(1)
         self.assertEqual(str(r), "[[]]")
 
     @unittest.skip
+    @requires_python_engine("calls klong.prog / read_sys_comment, the Python parser's tree and readers")
     def test_prog_define(self):
         klong = KlongInterpreter()
         r = klong.prog('t::{:[~y~z;fail(x;y;z);[]]}')[1]
@@ -48,6 +51,7 @@ lin2(1)
         self.assertEqual(len(r[0].args[1][0]), 3)
 
     @unittest.skip
+    @requires_python_engine("calls klong.prog / read_sys_comment, the Python parser's tree and readers")
     def test_prog_fn(self):
         klong = KlongInterpreter()
         r = klong.prog('t("fv()"     ; fv()     ; 1)')[1]
@@ -56,6 +60,7 @@ lin2(1)
         self.assertEqual(len(r[0][1]), 3)
 
     @unittest.skip
+    @requires_python_engine("calls klong.prog / read_sys_comment, the Python parser's tree and readers")
     def test_prog_multi_prog(self):
         klong = KlongInterpreter()
         r = klong.prog('fv::{[a];a::1;a} ; t("fv()"     ; fv()     ; 1)')[1]
@@ -71,6 +76,7 @@ lin2(1)
         self.assertEqual(r[1], 1)
 
     @unittest.skip
+    @requires_python_engine("calls klong.prog / read_sys_comment, the Python parser's tree and readers")
     def test_prog(self):
         klong = KlongInterpreter()
         s = '"{x-y}:(1;)@2"        ; {x-y}:(1;)@2        ; -1'
@@ -83,6 +89,7 @@ lin2(1)
         b = klong.call(p[2])
         self.assertEqual(a, b)
 
+    @requires_python_engine("calls klong.prog / read_sys_comment, the Python parser's tree and readers")
     def test_sys_comment_once(self):
         t = """
 .comment("*****")
@@ -96,6 +103,7 @@ lin2(1)
         i = read_sys_comment(t, t.index(cmd)+len(cmd), "*****")
         assert i == x
 
+    @requires_python_engine("calls klong.prog / read_sys_comment, the Python parser's tree and readers")
     def test_sys_comment_replicated(self):
         t = """
 .comment("*****")

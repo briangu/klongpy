@@ -25,7 +25,7 @@ from .errors import (KlongArityError, KlongError, KlongNameError, KlongShapeErro
                      python_error)
 from .static.signature import (EntryDecl, ExternDecl, Mismatch, SignatureError, Ty, check_entry_name, check_extern_name,
                                conform, fixed_spec, is_fixed, parse_signature, parse_type)
-from .types import KGBody, KGCall, KGFn, KGLambda, KGSym, KLONG_UNDEFINED, fn_metadata
+from .types import KGCall, KGFn, KGLambda, KGSym, KLONG_UNDEFINED
 
 
 class ParamDecl:
@@ -131,18 +131,19 @@ def call_extern(klong, decl, args):
     return r
 
 
-def _bind(decl, native=False):
+def _bind(decl, native=True):
     """The Klong value an extern name is bound to: calling it calls the stand-in."""
     n = decl.signature.arity
     if n <= 3 or native:
-        # x, y, z: a wildcard lambda is handed whichever of them the call supplied (the native engine hands it every argument)
+        # a wildcard lambda is handed whichever of x, y, z the call supplied (the native engine hands it every argument)
         def call(klong, *args):
             return call_extern(klong, decl, args)
         fn = KGLambda(call, wildcard=True)
         fn.name = decl.name
         return fn
-    # more than three parameters: a function with named parameters
-    # whose body reads them from its own frame
+    # Python engine (to be deleted with it): more than three parameters is a function with named parameters whose body reads
+    # them from its own frame
+    from .types import KGBody
     params = tuple(KGSym(f"arg{i + 1}") for i in range(n))
 
     def call(klong):
@@ -153,13 +154,23 @@ def _bind(decl, native=False):
     return KGFn(KGBody([KGCall(inner, [], 0)], (), None, params), None, n)
 
 
+def _defined(klong, sym):
+    if getattr(klong, 'is_native', False):
+        return sym in klong
+    try:
+        klong._context[sym]     # Python engine (to be deleted with it)
+    except KeyError:
+        return False
+    return True
+
+
 def _define_global(klong, sym, value):
-    """
-    Define a global from inside a system function. The call has pushed a
-    frame, and at strict level 1 and above a new name cannot be created
-    from inside a function, so the frames above the global one are set
-    aside for the assignment (as .E does).
-    """
+    """Define a global from inside a system function (the native engine's globals are set directly, whatever the strict level)."""
+    if getattr(klong, 'is_native', False):
+        klong[sym] = value
+        return
+    # Python engine (to be deleted with it): the call has pushed a frame, and at strict level 1 and above a new name cannot be
+    # created from inside a function, so the frames above the global one are set aside for the assignment (as .E does)
     kc = klong._context
     stashed = []
     while len(kc._context) > kc._min_ctx_count + 1:
@@ -218,11 +229,7 @@ def eval_sys_extern(klong, *args):
         if old.signature != sig or old.module != module:
             raise KlongTypeError(f".extern: {name} is already declared \"{old.signature}\" (module {old.module})")
         return str(sig)
-    try:
-        klong._context[sym]
-    except KeyError:
-        pass
-    else:
+    if _defined(klong, sym):
         raise KlongNameError(f".extern: {name} is already defined in the program; an extern cannot replace it")
     table.declared[name] = ExternDecl(name, sig, module)
     _define_global(klong, sym, _bind(table.declared[name], getattr(klong, 'is_native', False)))
@@ -256,17 +263,21 @@ def eval_sys_entry(klong, x, y):
     if bad:
         raise KlongTypeError(f".entry: {bad}")
     try:
-        fn = klong._context[KGSym(x)]
+        fn = klong[x]
     except KeyError:
         raise KlongNameError(f".entry: the function {x} is not defined",
                              hint="define the function before the .entry line") from None
+    fn = getattr(fn, "fn", fn)       # the function behind the wrapper klong[...] gives
     if not isinstance(fn, KGFn) or isinstance(fn, KGCall) or fn.args is not None or isinstance(fn.a, KGLambda):
         raise KlongTypeError(f".entry: {x} is not a function defined in the program",
                              hint="an entry is a function written name::{...} or name(a;b)::{...}")
-    body = fn.a
-    if getattr(body, "params", None) is not None:
-        arity = len(body.params)
+    params = getattr(fn.a, "params", None)
+    if params is not None:
+        arity = len(params)
+    elif getattr(klong, 'is_native', False):
+        arity = fn.arity
     else:
+        from .types import fn_metadata      # Python engine (to be deleted with it): the highest argument the parser found
         arity = fn_metadata(fn).max_arg
         if arity is None:
             arity = fn.arity
@@ -420,11 +431,7 @@ def eval_sys_param(klong, *args):
             raise KlongTypeError(f".param: {name} is already declared as {old.ty}")
         return str(ty)
     sym = KGSym(name)
-    try:
-        klong._context[sym]
-    except KeyError:
-        pass
-    else:
+    if _defined(klong, sym):
         raise KlongNameError(f".param: {name} is already defined in the program",
                              hint="a parameter is defined by .param itself: remove the other definition")
     table.params[name] = ParamDecl(name, ty, default)

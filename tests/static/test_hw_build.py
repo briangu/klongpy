@@ -17,7 +17,7 @@ import unittest
 from klongpy.hw import gate
 from klongpy.hw.build import Builder, Plan, hw_build_main, suggest_clock
 from klongpy.hw.remote import Remote, RemoteError
-from klongpy.static.compile import emit_hls_program
+from klongpy.static.native import emit_hls_program
 
 from .test_ir import EMBEDDED
 

@@ -18,7 +18,7 @@ import time
 import unittest
 import warnings
 
-from klongpy.lexer import Source
+from klongpy.source import Source
 from klongpy.lint import RULES, Diagnostic, lint_file, lint_main, lint_source, parse_codes
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

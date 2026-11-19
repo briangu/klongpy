@@ -18,7 +18,7 @@ from klongpy.errors import (
     KlongStaticError, KlongSyntaxError, KlongSystemError, KlongTypeError, UnexpectedChar,
     UnexpectedEOF, compat,
 )
-from klongpy.lexer import Source
+from klongpy.source import Source
 from klongpy.types import KGCall, KGFn, KGLambda, KGOp, KGSym
 from tests.backend_compat import requires_python_engine
 

@@ -22,7 +22,7 @@ import numpy as np
 from klongpy import KlongInterpreter
 from tests.backend_compat import plain
 from klongpy.dump import dump, dump_text
-from klongpy.lexer import Source
+from klongpy.source import Source
 from klongpy.parser import KGExprArray
 from klongpy.types import (KGAdverb, KGBody, KGCall, KGCond, KGFn, KGFnWrapper, KGOp, KGSym, fn_metadata,
                            get_fn_arity, in_map, is_list, reserved_fn_symbols, split_locals)

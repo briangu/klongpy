@@ -20,7 +20,7 @@ if importlib.util.find_spec("colorama") is None:
 
 from klongpy import cli  # noqa: E402
 from klongpy.errors import KlongInternalError, KlongSyntaxWarning, KlongTypeError  # noqa: E402
-from klongpy.lexer import Source  # noqa: E402
+from klongpy.source import Source  # noqa: E402
 from klongpy.repl import format_error, format_warning, use_color  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))

@@ -10,7 +10,7 @@ import numpy as np
 
 from klongpy.hw.synth import synthesize
 from klongpy.static import fixed as fx
-from klongpy.static.compile import emit_hls_program
+from klongpy.static.native import emit_hls_program
 
 from .test_emit_hls import np_type, pack
 from .test_hls_remote import REMOTE

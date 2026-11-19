@@ -22,7 +22,7 @@ import sys
 import unittest
 
 from klongpy import KlongInterpreter
-from klongpy.lexer import Source
+from klongpy.source import Source
 from klongpy.lint import lint_file
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

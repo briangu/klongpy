@@ -24,8 +24,8 @@ from klongpy import KlongInterpreter, __version__, list_backends
 from klongpy.core import kg_write
 from klongpy.errors import KlongError, KlongSystemError
 from klongpy.help_index import apropos_text, help_text
-from klongpy.lexer import Source
-from klongpy.sys_fn import eval_sys_load
+from klongpy.source import Source
+from klongpy.rust_engine import sys_load as eval_sys_load
 from klongpy.repl import (cleanup_repl, create_repl, format_error, keeps_alive, klong_warnings, use_color,  # noqa: F401
                           wait_while_alive, write_stderr)
 from klongpy.repl_input import Completer, History, check_text, history_path
@@ -291,7 +291,7 @@ async def repl_eval(klong, p, verbose=False, set_it=True):
     """
     Evaluate one REPL entry; the value of a successful non-empty result is also stored in `it`.
 
-    p is the text or a klongpy.lexer.Source. Returns None, the text to print, an
+    p is the text or a klongpy.source.Source. Returns None, the text to print, an
     ExitRequest, or a ReplError (the rendered error; the Python traceback follows
     it when verbose). Klong warnings raised while the entry runs are written to
     stderr as they happen.
@@ -431,7 +431,7 @@ def repl_loop(klong, evaluate, read_line=get_input, sys_cmds=None, history=None,
     """
     The read-eval-print loop, free of any terminal: read_line(prompt) supplies
     the input and evaluate(klong, source) the result; source is a
-    klongpy.lexer.Source named <repl:N> (N counts the entries evaluated), whose
+    klongpy.source.Source named <repl:N> (N counts the entries evaluated), whose
     text is the entry, so an error on the second line of a multi-line entry
     reports line 2. Returns the number of entries that failed when the input
     ends (EOFError) or an ExitRequest comes back; exit_state["failures"] holds the
@@ -721,27 +721,22 @@ def subcommand_main(argv):
     p = _LEAVES[key]()
     args = p.parse_intermixed_args(argv)
     bits = 64 if getattr(args, 'int64', False) else 32
+    from klongpy import tools
     if key == ('ast',):
-        from klongpy.dump import main as _dump_main
-        return _dump_main([args.file])
+        return tools.ast_main(args.file)
     if key == ('lint',):
-        from klongpy.lint import lint_main
-        return lint_main(args.files, args.select, args.ignore, args.verbose, args.define)
+        return tools.lint_main(args.files, args.select, args.ignore, args.verbose, args.define)
     if key == ('check',):
         if args.dump_ir:
-            from klongpy.static.compile import emit_main
-            return emit_main(args.files, None, bits, 32, False, None, True, emit_c=False)
-        from klongpy.static import check_main
-        return check_main(args.files, bits, args.verbose, streamable=args.streamable)
+            return tools.dump_ir_main(args.files, bits)
+        return tools.check_main(args.files, bits, args.verbose, streamable=args.streamable)
     if key == ('compile', 'c'):
-        from klongpy.static.compile import emit_main
-        return emit_main(args.files, args.output, bits, 64 if args.float64 else 32, args.line_directives,
-                         args.prefix, args.dump_ir, emit_c=True)
+        return tools.emit_main(args.files, args.output, bits, 64 if args.float64 else 32, args.line_directives,
+                               args.prefix, args.dump_ir)
     if key == ('fpga', 'source'):
         _check_fpga_options(p, args)
-        from klongpy.static.compile import emit_hls_main
-        return emit_hls_main(args.files, args.output, bits, args.prefix, args.clock_mhz, args.synth,
-                             wrapped=args.wrapped, lanes=args.lanes, reassociate=args.reassociate)
+        return tools.emit_hls_main(args.files, args.output, bits, args.prefix, args.clock_mhz, args.synth,
+                                   wrapped=args.wrapped, lanes=args.lanes, reassociate=args.reassociate)
     _check_fpga_options(p, args)
     from klongpy.hw.build import hw_build_main
     status = key == ('fpga', 'status')

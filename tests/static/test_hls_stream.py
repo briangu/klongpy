@@ -215,7 +215,7 @@ class TestSummaryPair(unittest.TestCase):
             self.assertTrue(np.array_equal(got, want), per)
 
     def test_lanes_of_a_summary_kernel_are_processes_with_a_trap_flag_each(self):
-        from klongpy.static.compile import emit_hls_program
+        from klongpy.static.native import emit_hls_program
         res = emit_hls_program("sm.kg", None, text=SUMMARY, prefix="sm", lanes=3)
         e = res.entries[0]
         self.assertEqual(e["structure"], "lane-processes")
@@ -255,7 +255,7 @@ class TestSummaryPair(unittest.TestCase):
 
     def test_the_rules(self):
         from klongpy.errors import KlongStaticError
-        from klongpy.static.compile import emit_hls_program
+        from klongpy.static.native import emit_hls_program
 
         def emit(text, **kw):
             return emit_hls_program("t.kg", None, text=text, prefix="t", **kw)
@@ -278,7 +278,7 @@ class TestSummaryPair(unittest.TestCase):
 class TestSummaryGolden(unittest.TestCase):
     def test_files(self):
         from .test_ir import golden
-        from klongpy.static.compile import emit_hls_program
+        from klongpy.static.native import emit_hls_program
         res = emit_hls_program("sm.kg", None, text=SUMMARY, prefix="sm", lanes=3)
         golden(self, "hlsb_summary3_step_top.cpp", res.files["sm_step_top.cpp"])
         golden(self, "hlsb_summary3_step_tb.cpp", res.files["sm_step_tb.cpp"])
@@ -438,7 +438,7 @@ class TestTransformations(unittest.TestCase):
 class TestGolden(unittest.TestCase):
     def test_stage_b_files(self):
         from .test_ir import golden
-        from klongpy.static.compile import emit_hls_program
+        from klongpy.static.native import emit_hls_program
         for name, entry, kw, path in (("mavg", "step", {}, program("mavg")), ("fir", "run", {}, program("fir")),
                                       ("firfx", "run", {}, os.path.join(HERE, "hw", "fir_fixed.kg"))):
             res = emit_hls_program(path, None, prefix=name, **kw)

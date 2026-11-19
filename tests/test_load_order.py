@@ -105,7 +105,7 @@ class TestLoadOrder(unittest.TestCase):
     def test_compile_does_not_change_directory(self):
         write(self.base, "prog/q.kg", self.PROGRAM)
         write(self.base, "prog/common.kg", "k::{x+10}\n")
-        code = ("import os,sys; from klongpy.static.compile import compile_program;"
+        code = ("import os,sys; from klongpy.static.native import compile_program;"
                 "c=os.getcwd(); compile_program(sys.argv[1]); assert os.getcwd()==c")
         r = subprocess.run([sys.executable, "-W", "ignore", "-c", code, "../prog/q.kg"], cwd=self.wd, env=self.env,
                            capture_output=True, text=True, timeout=120)

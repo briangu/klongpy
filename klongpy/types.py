@@ -76,7 +76,7 @@ class KGFn:
     # Source positions, recorded by the token parser and by nothing else. They
     # are plain attributes that default to None, so nodes built by hand (or by
     # the legacy parser, or at run time) simply have none. A span is a
-    # (start, end) pair of offsets into the text of a klongpy.lexer.Source.
+    # (start, end) pair of offsets into the text of a klongpy.source.Source.
     #
     #   span        the whole expression
     #   op_span     the operator, the callee, or the verb with its adverbs

@@ -55,7 +55,9 @@ async def execute_server_command(future_loop, result_future, klong, sym, command
     """
     """
     try:
-        klong._context.push({KGSym('.ws.h'): nc})
+        had = '.ws.h' in klong
+        prev = klong['.ws.h'] if had else None
+        klong['.ws.h'] = nc
         r = klong[sym]
         if callable(r):
             response = r(nc, command)
@@ -72,7 +74,10 @@ async def execute_server_command(future_loop, result_future, klong, sym, command
         # import traceback
         # traceback.print_exception(type(e), e, e.__traceback__)
     finally:
-        klong._context.pop()
+        if had:
+            klong['.ws.h'] = prev
+        else:
+            del klong['.ws.h']
 
 
 async def run_command_on_klongloop(klongloop, klong, sym, command, nc):

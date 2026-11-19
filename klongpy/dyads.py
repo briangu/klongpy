@@ -1,4 +1,5 @@
 from .core import *
+from .parser import *  # the Python engine reads its own text; klongpy.core no longer re-exports the parser
 from .autograd import grad_of_fn, numeric_grad, jacobian_of_fn, multi_jacobian_of_fn, multi_grad_of_fn
 import numbers
 import operator

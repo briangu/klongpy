@@ -14,7 +14,7 @@ import numpy as np
 
 from klongpy.errors import KlongStaticError
 from klongpy.static import call_entry, fixed as fx, load_program, set_param
-from klongpy.static.checker import check_source
+from klongpy.static.native import check_source
 
 from .harness import Build, find_cc
 

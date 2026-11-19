@@ -87,7 +87,7 @@ where = ["."]
 include = ["klongpy*"]
 
 [tool.setuptools.package-data]
-"klongpy" = ["lib/*.kg", "static/*.h"]
+"klongpy" = ["lib/*.kg", "static/*.h", "data/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

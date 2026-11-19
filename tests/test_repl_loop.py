@@ -92,7 +92,7 @@ class TestMultiLine(unittest.TestCase):
         out, script, _, k = run("f::{", "", "1+1")
         self.assertEqual(script.prompts, [cli.PROMPT, cli.CONTINUATION_PROMPT, cli.PROMPT, cli.PROMPT])
         self.assertIn("2", out)
-        self.assertNotIn("f", [x for x, _ in k._context])
+        self.assertNotIn("f", k)
 
     def test_ctrl_c_cancels_continuation(self):
         out, script, *_ = run("f::{", KeyboardInterrupt, "1+1")

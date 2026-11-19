@@ -24,13 +24,13 @@ Threads
 import asyncio
 import logging
 import queue
-import re
 import threading
 import time
 from collections import deque
 
 import numpy as np
 
+from ..native_ext import native
 from ..core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
                     KLONG_UNDEFINED, get_fn_arity_str, reserved_fn_args, reserved_fn_symbol_map)
 from ..errors import (ERROR_KINDS, KlongError, KlongInternalError, KlongRemoteError,
@@ -50,8 +50,6 @@ READ_SIZE = 65536
 
 _HANDLE_SYM = KGSym(".cli.h")
 _SET_SYM = KGSym("set")
-_DISPLAY_FORM = re.compile(r"^:(?:(nilad|monad|dyad|triad)|fn/(\d+))$")
-_DISPLAY_ARITY = {"nilad": 0, "monad": 1, "dyad": 2, "triad": 3}
 
 
 # ----------------------------------------------------------------------------
@@ -325,49 +323,21 @@ def _from_wire_array(klong, v):
 
 def display_arity(text):
     """Arity of a display-form lambda text (``:monad``, ``:fn/5``), else None."""
-    m = _DISPLAY_FORM.match(text)
-    if not m:
-        return None
-    return _DISPLAY_ARITY[m.group(1)] if m.group(1) else int(m.group(2))
-
-
-def _named_function(t):
-    """The function literal of a parsed ``fn(a;b)::{...}`` (function_source_text), else None."""
-    if not (isinstance(t, KGFn) and not isinstance(t, KGCall) and t.is_op() and t.a.a == "::"
-            and type(t.args) is list and len(t.args) == 2):
-        return None
-    name, lit = t.args
-    if not (type(name) is KGSym and str.__str__(name).split('`')[0] == _WIRE_NAME
-            and type(lit) is KGFn and lit.args is None and lit.params is not None):
-        return None
-    return lit
+    return native().function_display_arity(text)
 
 
 def parse_function(klong, text):
     """The function a source text defines, or None.
 
-    The text is parsed first (nothing runs) and must be exactly one function
-    literal; only then is it evaluated, which only builds the function.
+    The text must be exactly one function literal, plain (``{x+y}``) or named (``fn(a;b)::{a+b}``): the extension's
+    function_form says so without running anything. Only then is it built (evaluated, which only makes the function).
     """
     try:
-        _, prog = klong.prog(text)
-        if len(prog) != 1:
+        form = native().function_form(text)
+        if form is None:
             return None
-        t = prog[0]
-        native = getattr(klong, '_function_from_text', None)
-        if native is not None:      # the native engine builds the function itself
-            return native(text, t)
-        named = _named_function(t)
-        if named is not None:
-            return named
-        if not isinstance(t, KGFn) or isinstance(t, KGCall) or t.args is not None or t.is_op():
-            return None
-        if t.arity == 0:
-            # Evaluating a nilad literal runs it; an assignment stores the
-            # parsed node as it is, and so do we.
-            return t
-        fn = klong(text)
-        return fn if isinstance(fn, KGFn) else None
+        named = form[0]
+        return klong._function_from_text(text, named)
     except Exception:  # noqa: BLE001 - any failure means "not a function we understand"
         return None
 
@@ -466,7 +436,9 @@ def _apply(klong, callee, args):
             raise KlongTypeError(f"cannot run function text from the peer: {callee.text}")
         target = fn
     elif isinstance(callee, KGSym):
-        target = klong._context[callee]          # KeyError: symbol not found
+        target = klong[callee]          # KeyError: symbol not found
+        if isinstance(target, KGFnWrapper):
+            target = target.fn
         fn = callee
     else:
         target = fn = klong(callee)
@@ -488,7 +460,7 @@ def evaluate_request(klong, value):
         return value
     callee, args = items[0], items[1:]
     if (len(items) == 3 and isinstance(callee, (str, KGSym)) and str(callee) == "set"       # KGSym("set") != "set"
-            and isinstance(args[0], KGSym) and not klong._context.is_defined_sym(_SET_SYM)):
+            and isinstance(args[0], KGSym) and not _SET_SYM in klong):
         klong[args[0]] = lambda_value(klong, args[1])
         return KLONG_UNDEFINED
     return _apply(klong, callee, args)
@@ -728,7 +700,7 @@ class KdbConnectionMixin:
                         pass
                 return
         klong = self.klong
-        ctx = klong._context
+        ctx = klong
         had = True
         try:
             prev = ctx[_HANDLE_SYM]
@@ -951,11 +923,8 @@ def new_connection_state(obj):
 # function source text
 # ----------------------------------------------------------------------------
 
-_WIRE_NAME = "fn"
-
-
 def function_source_text(fn):
-    """Source text of a function literal as the parser recorded it, or None.
+    """Source text of a function literal as the engine recorded it, or None.
 
     A function of x, y and z travels as its literal, ``{x+y}``.  A function with
     named parameters travels as the definition that made it, ``fn(a;b)::{a+b}``
@@ -963,25 +932,16 @@ def function_source_text(fn):
     only the function, it defines nothing).  Locals lists, head destructurings
     and ``.f`` are part of the literal's text.  A projection, an operator or a
     function with no recorded source goes out in its display form.  The receiver
-    parses the text, so names in the body are the receiver's.
+    parses the text, so names in the body are the receiver's.  The wire form is the extension's (function_wire_text).
     """
     if getattr(fn, 'args', None) is not None:
         return None
-    params = getattr(getattr(fn, 'a', None), 'params', None)
     text = getattr(fn, 'source_text', None)     # the native engine keeps the literal's text itself
     if text is None:
-        node = fn if getattr(fn, 'span', None) is not None else getattr(fn, '_origin', None)
-        span = getattr(node, 'span', None)
-        source = getattr(node, 'source', None)
-        if span is None or source is None:
-            return None
-        text = source.text[span[0]:span[1]]
-    if not (text.startswith('{') and text.endswith('}')):
         return None
-    if params is not None:
-        names = ";".join(str.__str__(p).split('`')[0] for p in params)
-        return "%s(%s)::%s" % (_WIRE_NAME, names, text)
-    return text
+    params = getattr(getattr(fn, 'a', None), 'params', None)
+    names = None if params is None else [str.__str__(p).split('`')[0] for p in params]
+    return native().function_wire_text(text, names)
 
 
 set_function_text_hook(function_source_text)

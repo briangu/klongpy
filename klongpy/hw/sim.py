@@ -75,7 +75,7 @@ def _run(cmd):
 
 def build_library(out):
     """
-    Compile one program's HlsOutput ``out`` (klongpy.static.compile.emit_hls_program) to a shared library of its
+    Compile one program's HlsOutput ``out`` (klongpy.static.native.emit_hls_program) to a shared library of its
     kernels, cached by cache key; returns the path of the library.
     """
     key = out.manifest["cache_key"]

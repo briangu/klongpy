@@ -108,7 +108,7 @@ class _SGDOptimizer:
             self.velocities[param] = v
 
             # Update parameter: param = param - lr * v
-            current = self.klong._context[param]
+            current = self.klong[param]
             if backend.is_backend_array(current):
                 current = backend.to_numpy(current)
             new_val = current - self.lr * v
@@ -202,7 +202,7 @@ class _AdamOptimizer:
             v_hat = self.v[param] / (1 - self.beta2 ** self.t)
 
             # Update parameter
-            current = self.klong._context[param]
+            current = self.klong[param]
             if backend.is_backend_array(current):
                 current = backend.to_numpy(current)
             new_val = current - self.lr * m_hat / (np.sqrt(v_hat) + self.eps)

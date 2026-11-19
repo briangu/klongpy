@@ -1,8 +1,7 @@
-"""Table-driven tests for check_complete."""
+"""Table-driven tests for the REPL completeness check (the extension's repl_check)."""
 import unittest
 
-from klongpy.lexer import Source, tokenize
-from klongpy.repl_input import check_complete, check_text
+from klongpy.repl_input import check_text
 
 C, I, E = "complete", "incomplete", "error"
 
@@ -55,21 +54,16 @@ class TestCheckComplete(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(check_text(text), want)
 
-    def test_tokens_only_form(self):
-        # the documented signature works with tokens alone for brackets and strings
+    def test_without_comments_form(self):
+        # comments=False is the check without the two things only the text shows: brackets and strings still count
         for text, want in [("(1", I), ("(1]", E), ('"abc', I), ("1+", C), ("", C)]:
             with self.subTest(text=text):
-                self.assertEqual(check_complete(tokenize(Source("<t>", text))), want)
+                self.assertEqual(check_text(text, comments=False), want)
 
-    def test_tokens_only_cannot_see_comments(self):
-        # comments are trivia and .comment bodies are in the text, so these need `source`
-        toks = tokenize(Source("<t>", '1 :"x'))
-        self.assertEqual(check_complete(toks), C)
-        self.assertEqual(check_complete(toks, '1 :"x'), I)
-
-    def test_source_object_or_text(self):
-        src = Source("<t>", '1 :"x')
-        self.assertEqual(check_complete(tokenize(src), src), I)
+    def test_without_comments_cannot_see_comments(self):
+        # a :" comment or the body of .comment("X") is in the text only
+        self.assertEqual(check_text('1 :"x', comments=False), C)
+        self.assertEqual(check_text('1 :"x'), I)
 
     def test_joined_lines_become_complete(self):
         text = "f::{"

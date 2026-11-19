@@ -1,9 +1,9 @@
 """
-Help index for the REPL, built from the interpreter's own docstrings.
-
-Every ``eval_monad_*``, ``eval_dyad_*``, ``eval_adverb_*``, ``eval_sys_*`` and
-``eval_sys_var_*`` function whose docstring starts with a header line of the
-form ``name   [Title]`` becomes one entry. A few forms that have no function
+Help index for the REPL. The text of the operators and adverbs is data
+(klongpy/data/operator_help.json); that of the system functions and variables
+is the docstring of their ``eval_sys_*`` and ``eval_sys_var_*`` functions.
+Each whose text starts with a header line of the form ``name   [Title]``
+becomes one entry. A few forms that have no function
 (conditional, evaluated list, dictionary literal, comment) are described in a
 small hand-written table.
 """
@@ -11,6 +11,8 @@ small hand-written table.
 import inspect
 import re
 import textwrap
+
+from .operator_help import operator_docs
 
 CATEGORIES = [
     ("operators", "Operators"),
@@ -83,51 +85,56 @@ def _unescape(doc):
     return "".join(_CONTROL.get(c, c) for c in doc)
 
 
-def _modules():
-    from . import adverbs, dyads, monads, sys_fn, sys_var
-    return [("operators", monads, "eval_monad_"),
-            ("operators", dyads, "eval_dyad_"),
-            ("adverbs", adverbs, "eval_adverb_"),
-            ("system functions", sys_fn, "eval_sys_"),
-            ("variables", sys_var, "eval_sys_var_")]
+def _docs():
+    """(category, function name, docstring) of every operator, adverb, system function and variable that has help, in the
+    order of the function names within each group. The operators' and adverbs' text is data (klongpy/data/operator_help.json,
+    read by operator_docs); the system functions' and variables' is the docstring of their eval_* function."""
+    out = []
+    operator_text = operator_docs()
+    for category, module, prefix in (("operators", "monads", "eval_monad_"), ("operators", "dyads", "eval_dyad_"),
+                                     ("adverbs", "adverbs", "eval_adverb_")):
+        out.extend((category, name, doc) for name, doc in sorted(operator_text.get(module, {}).items())
+                   if name.startswith(prefix))
+    from . import sys_fn, sys_var
+    for category, mod, prefix in (("system functions", sys_fn, "eval_sys_"), ("variables", sys_var, "eval_sys_var_")):
+        for name, fn in inspect.getmembers(mod, inspect.isfunction):
+            if name.startswith(prefix) and fn.__module__ == mod.__name__:
+                out.append((category, name, fn.__doc__))
+    return out
 
 
 def build_entries():
-    """Build the list of HelpEntry objects from docstrings and the forms table."""
+    """Build the list of HelpEntry objects from the help text and the forms table."""
     entries = []
     seen = set()
-    for category, mod, prefix in _modules():
-        for name, fn in inspect.getmembers(mod, inspect.isfunction):
-            if not name.startswith(prefix) or fn.__module__ != mod.__name__:
-                continue
-            if category == "system functions" and name.startswith("eval_sys_var_"):
-                continue
-            doc = fn.__doc__
-            if not doc:
-                continue
-            # a few docstrings contain an unescaped backslash that Python reads as an escape
-            doc = _unescape(doc)
-            lines = textwrap.dedent(doc).strip("\n").splitlines()
-            first = next((ln for ln in lines if ln.strip()), "")
-            m = _HEADER.match(first.strip())
-            if not m:
-                continue
-            header, title = m.group("head").strip(), m.group("title")
-            glyph = _glyph(header)
-            body = "\n".join(lines[lines.index(first) + 1:]).strip("\n")
-            body = textwrap.indent(textwrap.dedent(body), "    ") if body else ""
-            if glyph in _EXTENSION_GLYPHS or glyph in _EXTENSION_NAMES:
-                cat = "extensions"
-            else:
-                cat = category
-            keys = [glyph, title.lower()]
-            if glyph.startswith("."):
-                keys.append(glyph[1:])
-            sig = (header, title)
-            if sig in seen:
-                continue
-            seen.add(sig)
-            entries.append(HelpEntry(cat, header, title, body, keys))
+    for category, name, doc in _docs():
+        if category == "system functions" and name.startswith("eval_sys_var_"):
+            continue
+        if not doc:
+            continue
+        # a few docstrings contain an unescaped backslash that Python reads as an escape
+        doc = _unescape(doc)
+        lines = textwrap.dedent(doc).strip("\n").splitlines()
+        first = next((ln for ln in lines if ln.strip()), "")
+        m = _HEADER.match(first.strip())
+        if not m:
+            continue
+        header, title = m.group("head").strip(), m.group("title")
+        glyph = _glyph(header)
+        body = "\n".join(lines[lines.index(first) + 1:]).strip("\n")
+        body = textwrap.indent(textwrap.dedent(body), "    ") if body else ""
+        if glyph in _EXTENSION_GLYPHS or glyph in _EXTENSION_NAMES:
+            cat = "extensions"
+        else:
+            cat = category
+        keys = [glyph, title.lower()]
+        if glyph.startswith("."):
+            keys.append(glyph[1:])
+        sig = (header, title)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        entries.append(HelpEntry(cat, header, title, body, keys))
     for header, title, keys, text in _FORMS:
         entries.append(HelpEntry("forms", header, title,
                                  textwrap.indent(text, "    "),

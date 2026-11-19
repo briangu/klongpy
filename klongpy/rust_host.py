@@ -32,9 +32,6 @@ import operator
 from types import FunctionType as _FunctionType
 
 from .autograd import grad_of_fn
-from .dyads import (create_dyad_functions, eval_dyad_autograd, eval_dyad_grad, eval_dyad_jacobian)
-from .monads import create_monad_functions
-from .adverbs import get_adverb_fn, _converged
 from .errors import KlongError, KlongTypeError, adverb_name, is_passthrough, operator_error, operator_name
 from .types import KGOp, KGSym, KGFn, KLONG_UNDEFINED
 from .autograd import multi_grad_of_fn
@@ -80,8 +77,10 @@ class HostTable:
         self._kfn = _KFn
         self.engine = engine
         self.backend = backend
-        self._dyads = {g: f for g, f in create_dyad_functions(engine).items() if g not in _NOT_PRIMITIVE}
-        self._monads = {g: f for g, f in create_monad_functions(engine).items() if g not in _NOT_PRIMITIVE}
+        # Engine need: the primitives on a backend's own arrays (a torch tensor) and on opaque host objects (the handle of a remote
+        # dictionary, .clid) are still KlongPy's Python evaluators (dyads.py, monads.py, adverbs.py); the native engine has no
+        # counterpart. They are loaded when there is such a value to compute on, so a program that has none never imports them.
+        self._tables = None
         self._is_backend_array = backend.is_backend_array
         self._np = numpy
         self._asarray = backend.kg_asarray
@@ -89,6 +88,22 @@ class HostTable:
         # the backend's array type, when it is not NumPy's: floating arrays meeting numbers or arrays of their own shape take the
         # operator directly (the answer is the same as eval_dyad_* gives: those add the checks Klong's lists need)
         self._tensor = type(probe) if backend.is_backend_array(probe) else None
+
+    @property
+    def _dyads(self):
+        return self._load()[0]
+
+    @property
+    def _monads(self):
+        return self._load()[1]
+
+    def _load(self):
+        if self._tables is None:
+            from .dyads import create_dyad_functions
+            from .monads import create_monad_functions
+            self._tables = ({g: f for g, f in create_dyad_functions(self.engine).items() if g not in _NOT_PRIMITIVE},
+                            {g: f for g, f in create_monad_functions(self.engine).items() if g not in _NOT_PRIMITIVE})
+        return self._tables
 
     # -- what is a host value -----------------------------------------------------------------------------------------
     def is_host(self, o):
@@ -165,6 +180,7 @@ class HostTable:
             raise err from e
 
     def adverb(self, g, f, op, x, y):
+        from .adverbs import get_adverb_fn
         f = self._fn(f)
         try:
             if y is None:
@@ -204,6 +220,7 @@ class HostTable:
         return list(o) if o.ndim > 0 else None
 
     def converged(self, p, q):
+        from .adverbs import _converged
         return bool(_converged(self.backend, p, q))
 
     def format(self, o, display):
@@ -237,6 +254,7 @@ class HostOps:
         self.engine = engine
 
     def __call__(self, glyph, *args):
+        from .dyads import eval_dyad_autograd, eval_dyad_grad, eval_dyad_jacobian
         e = self.engine
         out, into = e._out, e._in
         args = [out(a) for a in args]

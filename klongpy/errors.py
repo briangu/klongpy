@@ -26,7 +26,7 @@ has on the IPC wire.
 ``str(e)`` is the one-line message. ``e.render()`` is the multi-line form with
 the position, the source line and carets under the span. ``e.span`` is a
 ``(start, end)`` pair of offsets into ``e.source.text`` (a
-``klongpy.lexer.Source``); both are None until known. The evaluator fills them
+``klongpy.source.Source``); both are None until known. The evaluator fills them
 in on the way out (see ``KlongInterpreter.eval``): the innermost node that has
 a span wins.
 
@@ -74,7 +74,7 @@ class KlongError(Exception):
         kind      stable short name of the class of error ("type", "range", ...)
         message   one line, no position, no trailing period
         span      (start, end) offsets into source.text, or None
-        source    the klongpy.lexer.Source the span refers to, or None
+        source    the klongpy.source.Source the span refers to, or None
         hint      one optional line of advice
     """
     kind = 'error'
@@ -169,7 +169,7 @@ class KlongSyntaxWarning(Warning):
 
         message   one line, no position (str() of the warning)
         span      (start, end) offsets into source.text
-        source    the klongpy.lexer.Source
+        source    the klongpy.source.Source
         hint      one optional line of advice
         code      short stable name of the condition: "trailing-input",
                   "stray-closer", "missing-operand", "unterminated-string",
@@ -468,19 +468,20 @@ _OP_NAMES = None
 def _operator_names():
     """
     {(glyph, arity): name} for operators and {glyph: {arity: name}} folded in
-    for adverbs, read once from the bracketed names in the docstring headers
-    of klongpy.dyads, klongpy.monads and klongpy.adverbs ("a+b   [Plus]").
+    for adverbs, read once from the bracketed names in the headers of the
+    operator help text (klongpy/data/operator_help.json) ("a+b   [Plus]").
     """
     global _OP_NAMES
     if _OP_NAMES is None:
-        from . import adverbs, dyads, monads
+        from .operator_help import operator_docs
+        docs = operator_docs()
         names = {}
-        for module, prefix, arity in ((dyads, 'eval_dyad_', 2), (monads, 'eval_monad_', 1),
-                                      (adverbs, 'eval_adverb_', 0), (adverbs, 'eval_dyad_adverb_', 0)):
-            for attr, fn in vars(module).items():
-                if not attr.startswith(prefix) or not getattr(fn, '__doc__', None):
+        for module, prefix, arity in (('dyads', 'eval_dyad_', 2), ('monads', 'eval_monad_', 1),
+                                      ('adverbs', 'eval_adverb_', 0), ('adverbs', 'eval_dyad_adverb_', 0)):
+            for attr, doc in docs.get(module, {}).items():
+                if not attr.startswith(prefix):
                     continue
-                for form, name in _HEADER.findall(fn.__doc__):
+                for form, name in _HEADER.findall(doc):
                     if arity == 2 and len(form) > 2 and form[0] == 'a' and form[-1] == 'b':
                         key = (form[1:-1], 2)
                     elif arity == 1 and len(form) > 1 and form[-1] == 'a' and ' ' not in form:

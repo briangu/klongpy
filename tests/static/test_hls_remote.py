@@ -18,7 +18,7 @@ import numpy as np
 from klongpy.hw.remote import Remote, RemoteError, build_target, hls_settings, resolve_root, root_setting
 from klongpy.hw.reports import warning_classes
 from klongpy.hw.synth import synthesize
-from klongpy.static.compile import emit_hls_program
+from klongpy.static.native import emit_hls_program
 from klongpy.static.signature import Ty
 
 from .harness import Host, same

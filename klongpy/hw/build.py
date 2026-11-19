@@ -53,12 +53,11 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 class Plan:
     """What one ``kgpy fpga build`` builds: the HLS outputs of the programs, the key, the image name."""
     def __init__(self, outputs, clock_mhz, target="hw", lanes=1):
-        from ..static.emit_hls import PLATFORM
         self.outputs = outputs
         self.clock_mhz = clock_mhz
         self.target = target
         self.lanes = lanes
-        self.platform = PLATFORM
+        self.platform = outputs[0].manifest["tool"]["platform"]     # the card's platform, from the engine's manifest
         keys = [o.manifest["cache_key"] for o in outputs]
         self.program_keys = keys
         self.key = keys[0] if len(keys) == 1 else hashlib.sha256("\n".join(keys).encode()).hexdigest()
@@ -94,7 +93,7 @@ class StaleImage(RemoteError):
 
 def plan_for(files, int_bits=32, clock_mhz=300, target="hw", wrapped=False, lanes=None, reassociate=False):
     """The Plan (key, image name) of the programs ``files``, without building anything."""
-    from ..static.compile import emit_hls_program
+    from ..static.native import emit_hls_program
     return Plan([emit_hls_program(f, None, int_bits=int_bits, clock_mhz=clock_mhz, wrapped=wrapped, lanes=lanes,
                                   reassociate=reassociate) for f in files], clock_mhz, target=target, lanes=lanes or 1)
 
@@ -372,7 +371,7 @@ def hw_build_main(files, int_bits=32, clock_mhz=300, lanes=None, force=False, st
     refused, 2 on a usage error.
     """
     from ..errors import KlongError
-    from ..static.compile import emit_hls_program
+    from ..static.native import emit_hls_program
     out, err = stdout or sys.stdout, stderr or sys.stderr
     if lanes == 1 and not wrapped:
         lanes = None            # one core, no lane dimension: the kernel without --lanes
