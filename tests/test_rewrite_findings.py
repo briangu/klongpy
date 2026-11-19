@@ -24,7 +24,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def capture(klong):
     buf = io.StringIO()
-    klong['.sys.cout'] = KGChannel(buf, KGChannelDir.OUTPUT)
+    klong.console(write=buf.write)
     return buf
 
 

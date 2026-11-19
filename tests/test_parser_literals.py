@@ -2,10 +2,9 @@
 A string or char literal whose content is a bracket (or another
 piece of punctuation) is that string or char, never the punctuation.
 
-The legacy parser decided what a lexeme was by comparing the value its reader
-returned, so the literal "{" started a function. The token parser knows the
-kind of every token. The legacy parser (parser="legacy") keeps the defect and
-is not tested here.
+The old reader decided what a lexeme was by comparing the value it
+returned, so the literal "{" started a function. The engine knows the
+kind of every token.
 """
 import unittest
 import warnings
@@ -13,16 +12,9 @@ import warnings
 import numpy as np
 
 from klongpy.errors import KlongSyntaxWarning
-from klongpy import KlongInterpreter as _KlongInterpreter
+from klongpy import KlongInterpreter
 from klongpy.core import KGChar, KlongException
-from klongpy.dump import dump_text as _dump_text
-
-def KlongInterpreter():
-    return _KlongInterpreter(parser="token")
-
-
-def dump_text(text):
-    return _dump_text(text, parser="token")
+from tests.treedump import dump_text
 
 
 PUNCT = ["{", "}", "(", ")", "[", "]", ";", ":[", ":(", ":{", ":|"]

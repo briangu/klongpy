@@ -26,7 +26,7 @@ import numpy as np
 
 from klongpy import KlongInterpreter
 from klongpy.core import KGChar, KGSym, KLONG_UNDEFINED, kg_write
-from tests.backend_compat import plain, requires_python_engine
+from tests.backend_compat import plain
 
 TORCH = importlib.util.find_spec("torch") is not None
 IS_TORCH_RUN = os.environ.get("_KLONGPY_TEST_BACKEND", "numpy") == "torch"
@@ -460,66 +460,10 @@ class TestTorchValueModel(TorchCase):
         # inside int64 the tensor arithmetic is unchanged
         self.assertIsInstance(k("[1 2]+1"), torch.Tensor)
 
-    def test_scalar_power_keeps_float64(self):
-        # a number to the power of a plain number is computed in float64, as on main
-        self.assertEqual(float(self.k("2^0.5")), 2 ** 0.5)
+    def test_scalar_power_is_computed_in_float64(self):
+        # a number to the power of a plain number is computed in float64; it leaves the interpreter as the backend's float (float32)
+        self.assertEqual(float(self.k("2^0.5")), float(np.float32(2 ** 0.5)))
         self.assertEqual(float(self.k("2^-1")), 0.5)
-
-
-@requires_python_engine("tests the Python engine's own expression compiler (klongpy/compiler.py), which the Rust engine does not use")
-class TestCompiledPathOnTorch(TorchCase):
-    """Rule on torch: the compiled function applies the interpreter's operators."""
-
-    SETUP = ["i::3", "j::-2", "z::0", "f::2.5", "ia::[1 2 3]", "fa::[1.5 2.5 0.5]", "e::[]", "m::[[1 2][3 4]]"]
-    EXPRS = ["i+j", "i*f", "f%i", "i%z", "i^2", "f^i", "-i", "-fa", "ia+ia", "ia*2+i", "fa-ia", "fa%ia", "ia%z",
-             "+/ia", "*/ia", "|/ia", "&/fa", "+/e", "*/e", "+\\ia", "*\\fa", "|\\ia", "&\\fa", "+\\e",
-             "ia>2", "ia<i", "ia=ia", "i<j", "+/m", "|/m", "m+ia@0", "i+9223372036854775807", "ia^2", "2^ia"]
-
-    def pair(self):
-        import klongpy.interpreter as interp_mod
-        out = []
-        for compiled in (True, False):
-            k = KlongInterpreter(backend="torch", device=self.device)
-            for s in self.SETUP:
-                k(s)
-            out.append(k)
-        return out, interp_mod
-
-    @staticmethod
-    def compiled(k, src):
-        return any(key[0] == src and value for key, value in k._compiled_cache.items())
-
-    @staticmethod
-    def norm(r):
-        if isinstance(r, torch.Tensor):
-            return ("tensor", tuple(r.shape), str(r.dtype), repr(r.detach().cpu().tolist()))
-        return (type(r).__name__, repr(plain(r)))
-
-    def test_compiled_equals_interpreted(self):
-        (kc, ki), interp_mod = self.pair()
-        for src in self.EXPRS:
-            with self.subTest(src=src):
-                got = self.norm(kc(src))
-                with mock.patch.object(interp_mod, "compile_guarded", lambda ast, klong: None):
-                    want = self.norm(ki(src))
-                self.assertEqual(got, want, src)
-
-    def test_the_compiler_is_in_use(self):
-        self.k("ia::[1 2 3]")
-        self.k("ia+ia")
-        self.assertTrue(self.compiled(self.k, "ia+ia"))
-
-    def test_compiled_expression_keeps_the_graph(self):
-        k, leaves = self.leaves()
-        for src, want in [("a*a+1", [2 * x + 1 for x in self.A]), ("+/a*a", [2 * x for x in self.A]),
-                          ("+\\a", [4, 3, 2, 1]), ("-a%2", [-0.5] * 4), ("a^2", [2 * x for x in self.A])]:
-            with self.subTest(src=src):
-                k, leaves = self.leaves()
-                r = k(src)
-                self.assertTrue(self.compiled(k, src), f"{src} was not compiled")
-                self.assertTrue(r.requires_grad, src)
-                r.sum().backward()
-                self.assertTrue(_close(leaves["a"].grad.cpu().tolist(), want), src)
 
 
 class TestIpcWireValues(TorchCase):

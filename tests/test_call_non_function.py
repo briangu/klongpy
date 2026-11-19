@@ -306,17 +306,6 @@ class TestCallableKindsStayCallable(unittest.TestCase):
                 self.assertEqual(run(level, "f::{x+1}", "g:::f", "g(2)"), 3)
                 self.assertEqual(list(run(level, "f::{x+1}", "{x(1)}'[:f]")), [2])
 
-    def test_compiled_function(self):
-        try:
-            import torch  # noqa: F401
-        except ImportError:
-            self.skipTest("torch is not installed")
-        k = KlongInterpreter()
-        if not hasattr(k._backend, "_torch_backend"):
-            self.skipTest("needs the torch backend")
-        k("f::{x+1}")
-        k("g::.compile(f)")
-        k("g(2)")                                      # .compile is a function
 
     def test_ipc_connection(self):
         import sys

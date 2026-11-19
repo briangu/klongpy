@@ -8,9 +8,9 @@ class TestKGFnWrapper(unittest.TestCase):
     def test_find_symbol_skips_reserved(self):
         klong = KlongInterpreter()
         klong("f::{x+1}")
-        fn = klong._context[KGSym("f")]
+        fn = klong["f"].fn
         del klong["f"]
-        klong._context[KGSym("x")] = fn
+        klong["x"] = fn
 
         wrapper = KGFnWrapper(klong, fn)
 

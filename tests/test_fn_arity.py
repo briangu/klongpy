@@ -11,16 +11,19 @@ import numpy as np
 from klongpy import KlongInterpreter
 from klongpy.core import KGCall, KGFn, KGSym, KlongArityError
 from klongpy.sys_fn_ipc import TcpServerConnectionHandler
-from klongpy.types import KGFnWrapper, get_fn_arity
+from klongpy.types import KGFnWrapper
 
 
-def fn(text, parser=None):
-    """The node of the function literal that text is."""
-    return KlongInterpreter(parser=parser).prog(text)[1][0]
+def fn(text):
+    """The function value that the literal text is (the names it calls, f and g, are defined: the engine resolves them)."""
+    k = KlongInterpreter()
+    k("f::{x};g::{x+y+z}")
+    k("h::" + text)
+    return k["h"].fn
 
 
-def run(*lines, parser=None):
-    k = KlongInterpreter(parser=parser)
+def run(*lines):
+    k = KlongInterpreter()
     r = None
     for line in lines:
         r = k(line)
@@ -35,7 +38,6 @@ class TestTheTable(unittest.TestCase):
                             ("{x}", ":monad"), ("{x+y}", ":dyad"), ("{a::#x;a}", ":monad")]:
             with self.subTest(text=text):
                 self.assertEqual(str(run(f"f::{text}", "f")), shown)
-                self.assertEqual(str(run(f"f::{text}", "f", parser="legacy")), shown)
 
     def test_arity_is_max_arg_on_every_literal(self):
         for text, arity in [("{-x}", 1), ("{y}", 2), ("{x,-y}", 2), ("{z}", 3), ("{1}", 0), ("{g(x;z)}", 3),
@@ -44,14 +46,7 @@ class TestTheTable(unittest.TestCase):
                             ("{x{-y}'x}", 1), ("{x'y}", 2), ("{{+/x*y}(z;)'x}", 3), ("{:[#x;y;0]}", 2)]:
             with self.subTest(text=text):
                 f = fn(text)
-                self.assertEqual((f.arity, f.max_arg), (arity, arity))
-                self.assertEqual(fn(text, "legacy").arity, arity)
-
-    def test_get_fn_arity_is_the_same_definition(self):
-        k = KlongInterpreter(parser="legacy")
-        for text, arity in [("{-x}", 1), ("{y}", 2), ("{g(x+1)}", 1), ("{g(1;)}", 1), ("{x+z}", 3), ("{{f}}", 0)]:
-            body = k.prog(text)[1][0].a
-            self.assertEqual(get_fn_arity(body), arity, text)
+                self.assertEqual(f.arity, arity)
 
     def test_python_call(self):
         k = KlongInterpreter()
@@ -96,21 +91,16 @@ class TestTheTable(unittest.TestCase):
 
     def test_a_body_that_is_a_function_value_takes_its_arity(self):
         # Kept as it was: a call of such a function is passed on to the value.
-        for parser in (None, "legacy"):
-            self.assertEqual(run("g::{x+y}", "f::{g(1;)}", "f(5)", parser=parser), 6)
-            self.assertEqual(run("mk::{{x+y}}", "mk(1;2)", parser=parser), 3)
-            self.assertEqual(run("{{x+1}}(5)", parser=parser), 6)
-            self.assertEqual(run("{{-x}}(5)", parser=parser), -5)
-            self.assertEqual(run("f::{{x+1}}", "g::f()", "g(5)", parser=parser), 6)
-            self.assertEqual(run("f::{{x+y}(1;)}", "f(5)", parser=parser), 6)
-            for text, arity, max_arg in [("{g(1;)}", 1, 0), ("{g(;;)}", 3, 0), ("{g(x;)}", 1, 1), ("{g(;y)}", 2, 2),
-                                         ("{{x+y}}", 2, 0), ("{{-x}}", 1, 0), ("{{x+y}(1;)}", 1, 0),
-                                         ("{{x+y}(1;2)}", 0, 0), ("{{1}}", 0, 0)]:
-                with self.subTest(text=text, parser=parser):
-                    f = fn(text, parser)
-                    self.assertEqual(f.arity, arity)
-                    if parser is None:
-                        self.assertEqual(f.max_arg, max_arg)
+        self.assertEqual(run("g::{x+y}", "f::{g(1;)}", "f(5)"), 6)
+        self.assertEqual(run("mk::{{x+y}}", "mk(1;2)"), 3)
+        self.assertEqual(run("{{x+1}}(5)"), 6)
+        self.assertEqual(run("{{-x}}(5)"), -5)
+        self.assertEqual(run("f::{{x+1}}", "g::f()", "g(5)"), 6)
+        self.assertEqual(run("f::{{x+y}(1;)}", "f(5)"), 6)
+        for text, arity in [("{g(1;)}", 1), ("{g(;;)}", 3), ("{g(x;)}", 1), ("{g(;y)}", 2), ("{{x+y}}", 2),
+                            ("{{-x}}", 1), ("{{x+y}(1;)}", 1), ("{{x+y}(1;2)}", 0), ("{{1}}", 0)]:
+            with self.subTest(text=text):
+                self.assertEqual(fn(text).arity, arity)
 
 
 class TestAdverbs(unittest.TestCase):
@@ -160,9 +150,6 @@ class TestDotF(unittest.TestCase):
     def test_dot_f_under_an_adverb(self):
         self.assertEqual(run("f::{[a];a::x;:[x<1;0;a+(+/.f'[0],x-1)]}", "f(3)"), 6)
 
-    def test_legacy_parser(self):
-        self.assertEqual(run("f::{[a];a::x;:[x<2;1;a*.f(x-1)]}", "f(5)", parser="legacy"), 120)
-
 
 class TestCallbacks(unittest.TestCase):
     def test_wrapper_arity(self):
@@ -177,7 +164,7 @@ class TestCallbacks(unittest.TestCase):
         # .timer calls its function with no argument; a function of y is a dyad, and says so
         k = KlongInterpreter()
         k("cb::{y}")
-        w = KGFnWrapper(k, k._context[KGSym("cb")])
+        w = KGFnWrapper(k, k["cb"].fn)
         with self.assertRaises(KlongArityError) as c:
             w()
         self.assertIn("expected 2", str(c.exception))

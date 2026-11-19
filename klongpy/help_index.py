@@ -100,6 +100,9 @@ def _docs():
         for name, fn in inspect.getmembers(mod, inspect.isfunction):
             if name.startswith(prefix) and fn.__module__ == mod.__name__:
                 out.append((category, name, fn.__doc__))
+    # the functions the engine implements: their text is data (klongpy/data/system_function_help.json)
+    from .sysdocs import engine_docs
+    out.extend(("system functions", "eval_sys_" + name[1:].replace(".", "_"), doc) for name, doc in sorted(engine_docs().items()))
     return out
 
 

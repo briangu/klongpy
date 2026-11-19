@@ -14,7 +14,6 @@ import warnings
 from klongpy import KlongInterpreter
 from klongpy.compiler import CACHE_LIMIT, LRUCache, compile_guarded
 from tests.backend_compat import plain
-from tests.backend_compat import on_rust_engine, requires_python_engine
 
 
 def _compiled_entry(klong, source):
@@ -42,27 +41,7 @@ class CountingBackendSpy:
 
 
 class TestCompileOnce(unittest.TestCase):
-    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
-    def test_compile_once_per_function(self):
-        k = KlongInterpreter()
-        spy = CountingBackendSpy(k)
-        self.addCleanup(spy.close)
-        k("a::5")
-        k("g::{a+a}")
-        r = k("g'!1000")
-        self.assertEqual(list(r), [10] * 1000)
-        self.assertEqual(spy.count, 1)
 
-    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
-    def test_compile_once_reduce_body(self):
-        k = KlongInterpreter()
-        spy = CountingBackendSpy(k)
-        self.addCleanup(spy.close)
-        k("v::!100")
-        k("w::{+/v}")
-        r = k("w'!200")
-        self.assertEqual(list(r), [4950] * 200)
-        self.assertEqual(spy.count, 1)
 
     def test_uncompilable_body_not_retried(self):
         k = KlongInterpreter()
@@ -82,94 +61,6 @@ class TestErrorsSurface(unittest.TestCase):
     def setUp(self):
         warnings.simplefilter("ignore")
 
-    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
-    def test_compile_failure_not_run_twice(self):
-        k = KlongInterpreter()
-        k("a::[1 2 3]")
-        k("b::[1 2]")
-        # compile and cache, then count calls of the compiled function
-        with self.assertRaises(ValueError):
-            k("a+b")
-        entry = _compiled_entry(k, "a+b")
-        self.assertTrue(entry)
-        calls = []
-        real = entry.fn
-        entry.fn = lambda *a: calls.append(1) or real(*a)
-
-        interp_calls = []
-        real_add = k._vd['+']
-        k._vd['+'] = lambda x, y: interp_calls.append(1) or real_add(x, y)
-
-        with self.assertRaises(ValueError):
-            k("a+b")
-        self.assertEqual(len(calls), 1)
-        self.assertEqual(interp_calls, [])
-
-    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
-    def test_runtime_error_from_compiled_fn_propagates(self):
-        class Boom(Exception):
-            pass
-
-        k = KlongInterpreter()
-        k("a::[1 2 3]")
-        k("a+1")
-        entry = _compiled_entry(k, "a+1")
-
-        def boom(*args):
-            raise Boom()
-
-        entry.fn = boom
-        with self.assertRaises(Boom):
-            k("a+1")
-
-    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
-    def test_side_effects_in_function_run_once_when_it_raises(self):
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            k = KlongInterpreter()  # binds the Klong stdout at creation
-            k("a::[1 2 3]")
-            k("b::[1 2]")
-            k("n::0")
-            k('f::{n::n+1;.p("effect");a+b}')
-            with self.assertRaises(ValueError):
-                k("f(0)")
-            with self.assertRaises(ValueError):
-                k("f(0)")
-        self.assertEqual(k("n"), 2)
-        self.assertEqual(out.getvalue().count("effect"), 2)
-
-    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
-    def test_side_effect_written_via_dot_d_runs_once(self):
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            k = KlongInterpreter()  # binds the Klong stdout at creation
-            k("a::[1 2 3]")
-            k("b::[1 2]")
-            k('f::{.d("x");a+b}')
-            with self.assertRaises(ValueError):
-                k("f(0)")
-        self.assertEqual(out.getvalue(), "x")
-
-    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
-    def test_signal_exception_not_swallowed(self):
-        k = KlongInterpreter()
-        k("a::[1 2 3]")
-        k("a+1")
-        entry = _compiled_entry(k, "a+1")
-        real = entry.fn
-
-        def handler(signum, frame):
-            raise TimeoutError("alarm")
-
-        def slow(*args):
-            signal.raise_signal(signal.SIGALRM)
-            return real(*args)
-
-        entry.fn = slow
-        old = signal.signal(signal.SIGALRM, handler)
-        self.addCleanup(signal.signal, signal.SIGALRM, old)
-        with self.assertRaises(TimeoutError):
-            k("a+1")
 
     def test_division_by_zero_still_matches_interpreter(self):
         # Python raises ZeroDivisionError for scalar a%0; the interpreter
@@ -244,34 +135,6 @@ class TestRebinding(unittest.TestCase):
                 fresh("f::{a+x}")
                 fresh(rebind)
                 self.assertEqual(got, self._result_of(fresh, "f(1)"))
-
-    @requires_python_engine("reads the compile cache (_compiled_cache) or replaces an operator or a backend compile hook of the Python engine")
-    def test_klong_rebind_does_not_use_stale_compiled_function(self):
-        # Rebinding with ::  clears the top-level cache but not the compiled
-        # function kept on a function body. The operand guard is what keeps
-        # that function from running on a value of another kind.
-        k = KlongInterpreter()
-        calls = []
-        backend = k._backend
-        original = backend.compile_expr_ir
-
-        def counting(ir, var_syms):
-            fn, syms = original(ir, var_syms)
-            return (lambda *a: calls.append(1) or fn(*a)), syms
-
-        backend.compile_expr_ir = counting
-        self.addCleanup(backend.__dict__.pop, 'compile_expr_ir', None)
-        k("a::2")
-        k("f::{a*3}")
-        self.assertEqual(k("f(0)"), 6)
-        self.assertEqual(len(calls), 1)
-        k('a::"ab"')
-        with self.assertRaises(Exception):
-            k("f(0)")
-        self.assertEqual(len(calls), 1)  # compiled function not used
-        k("a::5")
-        self.assertEqual(k("f(0)"), 15)
-        self.assertEqual(len(calls), 2)
 
 
 class TestCachesBounded(unittest.TestCase):

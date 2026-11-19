@@ -11,9 +11,9 @@ The table (`HostTable`; the extension calls these, with the operands as Python v
 number a Python number, a host value itself, a Klong function a callable):
 
     is_host(o)                  is this Python object a host value? (the backend's own array type: a torch tensor)
-    monad(glyph, x)             a primitive monad with a host value as the operand: KlongPy's own eval_monad_* (monads.py)
-    dyad(glyph, x, y)           a primitive dyad with a host value among the operands: KlongPy's eval_dyad_* (dyads.py)
-    adverb(glyph, f, op, x, y)  an adverb applied to a host value: KlongPy's eval_adverb_* (adverbs.py), f being the function the
+    monad(glyph, x)             a primitive monad with a host value as the operand: klongpy/backends/host_ops.py monad_table
+    dyad(glyph, x, y)           a primitive dyad with a host value among the operands: klongpy/backends/host_ops.py dyad_table
+    adverb(glyph, f, op, x, y)  an adverb applied to a host value: klongpy/backends/host_ops.py get_adverb_fn, f being the function the
                                 adverb modifies, op the verb's operator text (or None), y None for a monadic form
     to_native(o, what)          the host value as a NumPy array, to be copied into a native vector. REFUSES (a Klong error that
                                 names the operation) a tensor that requires gradients: a copy cuts the graph
@@ -22,16 +22,16 @@ number a Python number, a host value itself, a Klong function a callable):
 All of them answer NotImplemented (or None) when the backend has nothing to say; the extension then copies the value into a native
 one (and so never silently for a tensor that requires gradients: to_native raises).
 
-The same functions serve the Python engine and this one, so a primitive means the same thing on both (this module has no
-implementation of a primitive of its own). The gradient operators (the glyphs of the Python engine's dyads.py/monads.py, which
-the native core lacks) are one more callable, `HostOps`: monadic and dyadic ∇, dyadic ∂ and :> (with the autograd functions of
-klongpy/autograd.py, which call a Klong function value and the backend's methods).
+The primitives are klongpy/backends/host_ops.py (written on the backend's operations; this module has no implementation of a
+primitive of its own). The gradient operators, which the native core lacks, are one more callable, `HostOps`: monadic and dyadic
+∇, dyadic ∂ and :> (the functions of klongpy/autograd.py, which call a Klong function value and the backend's methods).
 """
 import numpy
 import operator
 from types import FunctionType as _FunctionType
 
-from .autograd import grad_of_fn
+from .autograd import grad_of_fn, eval_dyad_autograd, eval_dyad_grad, eval_dyad_jacobian
+from .backends import host_ops
 from .errors import KlongError, KlongTypeError, adverb_name, is_passthrough, operator_error, operator_name
 from .types import KGOp, KGSym, KGFn, KLONG_UNDEFINED
 from .autograd import multi_grad_of_fn
@@ -50,23 +50,26 @@ class HostObject:
     def __str__(self):
         return str(self.obj)
 
+def host_float(backend):
+    """The NumPy dtype of the backend's own float: float64 for NumPy, float32 for the torch backend (its literals are float32)."""
+    w = getattr(backend, "_host_float", None)
+    if w is None:
+        probe = backend.kg_asarray([0.5])
+        w = backend._host_float = numpy.dtype(str(probe.dtype).replace("torch.", "")) if hasattr(probe, "dtype") else numpy.dtype("float64")
+    return w
+
+
 def _array(backend, a):
     """A NumPy array as the backend holds one. A native vector is float64; the backend's own float (the torch backend's float32:
     its literals are float32) is what a number of the Klong program is there, so the array is made of that width."""
     if a.dtype.kind == "f":
-        w = getattr(backend, "_host_float", None)
-        if w is None:
-            probe = backend.kg_asarray([0.5])
-            w = backend._host_float = numpy.dtype(str(probe.dtype).replace("torch.", "")) if hasattr(probe, "dtype") else numpy.dtype("float64")
+        w = host_float(backend)
         if a.dtype != w:
             a = a.astype(w)
     return backend.kg_asarray(a)
 
 
 _FAST = {"+": operator.add, "-": operator.sub, "*": operator.mul}
-
-# operators that are not primitives of the table: the host operators and `::`
-_NOT_PRIMITIVE = frozenset(("::", "∇", "∂", ":>"))
 
 
 class HostTable:
@@ -77,9 +80,8 @@ class HostTable:
         self._kfn = _KFn
         self.engine = engine
         self.backend = backend
-        # Engine need: the primitives on a backend's own arrays (a torch tensor) and on opaque host objects (the handle of a remote
-        # dictionary, .clid) are still KlongPy's Python evaluators (dyads.py, monads.py, adverbs.py); the native engine has no
-        # counterpart. They are loaded when there is such a value to compute on, so a program that has none never imports them.
+        # the primitives on a backend's own arrays (a torch tensor) and on opaque host objects (the handle of a remote dictionary)
+        # are written on backend operations in klongpy/backends/host_ops.py; the tables are built when there is such a value to compute on
         self._tables = None
         self._is_backend_array = backend.is_backend_array
         self._np = numpy
@@ -99,10 +101,7 @@ class HostTable:
 
     def _load(self):
         if self._tables is None:
-            from .dyads import create_dyad_functions
-            from .monads import create_monad_functions
-            self._tables = ({g: f for g, f in create_dyad_functions(self.engine).items() if g not in _NOT_PRIMITIVE},
-                            {g: f for g, f in create_monad_functions(self.engine).items() if g not in _NOT_PRIMITIVE})
+            self._tables = (host_ops.dyad_table(self.engine), host_ops.monad_table(self.engine))
         return self._tables
 
     # -- what is a host value -----------------------------------------------------------------------------------------
@@ -155,6 +154,12 @@ class HostTable:
             return self.engine._in(self._dyads[g](x.obj, self.engine._out(y))) if g in self._dyads else NotImplemented
         if type(y) is HostObject:
             return self.engine._in(self._dyads[g](self.engine._out(x), y.obj)) if g in self._dyads else NotImplemented
+        if y is KLONG_UNDEFINED and x is not KLONG_UNDEFINED and g not in ("@", "?", "~", "="):
+            # a dyad with nothing after it (`a*`): the engine hands the host :undefined as the missing operand
+            from .errors import KlongSyntaxError
+            e = KlongSyntaxError(f"missing right operand for {g}")
+            e.__cause__ = TypeError(f"missing right operand for {g}")
+            raise e
         fast = _FAST.get(g)
         T = self._tensor
         if fast is not None and T is not None:
@@ -180,14 +185,13 @@ class HostTable:
             raise err from e
 
     def adverb(self, g, f, op, x, y):
-        from .adverbs import get_adverb_fn
         f = self._fn(f)
         try:
             if y is None:
                 x = self._fn(x)
-                return get_adverb_fn(self.engine, g, 1)(f, x, KGOp(op, 2) if op is not None else f)
+                return host_ops.get_adverb_fn(self.engine, g, 1)(f, x, KGOp(op, 2) if op is not None else f)
             x, y = self._lift(self._fn(x), self._fn(y))
-            return get_adverb_fn(self.engine, g, 2)(f, x, y)
+            return host_ops.get_adverb_fn(self.engine, g, 2)(f, x, y)
         except Exception as e:
             if isinstance(e, KlongError) or is_passthrough(e):
                 raise
@@ -220,8 +224,7 @@ class HostTable:
         return list(o) if o.ndim > 0 else None
 
     def converged(self, p, q):
-        from .adverbs import _converged
-        return bool(_converged(self.backend, p, q))
+        return bool(host_ops.converged(self.backend, p, q))
 
     def format(self, o, display):
         return kg_write(o.obj if type(o) is HostObject else o, self.backend, display)
@@ -254,7 +257,6 @@ class HostOps:
         self.engine = engine
 
     def __call__(self, glyph, *args):
-        from .dyads import eval_dyad_autograd, eval_dyad_grad, eval_dyad_jacobian
         e = self.engine
         out, into = e._out, e._in
         args = [out(a) for a in args]

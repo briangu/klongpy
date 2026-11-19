@@ -11,7 +11,6 @@ import unittest
 
 from klongpy import KlongInterpreter
 from klongpy.core import KGSym
-from klongpy.parser import read_num, read_sys_comment
 
 
 class TestBugP1_SiblingModuleImports(unittest.TestCase):
@@ -114,17 +113,10 @@ class TestBugP2_NoneContextLookup(unittest.TestCase):
 
 class TestBugP2_UnterminatedComment(unittest.TestCase):
     """
-    P2: read_sys_comment() returns a RuntimeError instead of raising it
-    when the end marker is missing, causing a downstream TypeError.
+    P2: an unterminated .comment() was a RuntimeError that was returned, not raised,
+    causing a downstream TypeError.
     """
 
-    def test_unterminated_comment_raises_error(self):
-        """An unterminated .comment() should raise RuntimeError, not return one."""
-        # The text after the .comment() call has no end marker
-        text = "some text without end marker"
-        marker = "END"
-        with self.assertRaises(RuntimeError):
-            read_sys_comment(text, 0, marker)
 
     def test_unterminated_comment_via_interpreter(self):
         """Parsing an unterminated .comment() via the interpreter should give
@@ -136,35 +128,9 @@ class TestBugP2_UnterminatedComment(unittest.TestCase):
 
 class TestBugP3_ScientificNotationPlus(unittest.TestCase):
     """
-    P3: read_num() handles 1e3 and 1e-3 but does not handle 1e+3,
-    causing a ValueError.
+    P3: the reader handled 1e3 and 1e-3 but not 1e+3, causing a ValueError.
     """
 
-    def test_parse_1e_plus_3(self):
-        """1e+3 should parse as 1000.0"""
-        i, val = read_num("1e+3", 0)
-        self.assertEqual(val, 1000.0)
-        self.assertEqual(i, 4)  # consumed all 4 chars
-
-    def test_parse_2_5e_plus_2(self):
-        """2.5e+2 should parse as 250.0"""
-        i, val = read_num("2.5e+2", 0)
-        self.assertEqual(val, 250.0)
-        self.assertEqual(i, 6)
-
-    def test_parse_neg_1e_plus_3(self):
-        """-1e+3 should parse as -1000.0"""
-        i, val = read_num("-1e+3", 0)
-        self.assertEqual(val, -1000.0)
-        self.assertEqual(i, 5)
-
-    def test_existing_notation_still_works(self):
-        """Ensure 1e3 and 1e-3 still work after any fix."""
-        i, val = read_num("1e3", 0)
-        self.assertEqual(val, 1000.0)
-
-        i, val = read_num("1e-3", 0)
-        self.assertEqual(val, 0.001)
 
     def test_1e_plus_3_via_interpreter(self):
         """The interpreter should evaluate 1e+3 as 1000.0"""

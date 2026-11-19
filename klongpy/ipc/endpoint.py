@@ -428,6 +428,24 @@ def _arity_of(target):
     return None
 
 
+def _lookup(klong, sym):
+    """The value a symbol names for a peer: a global, or for a dotted name (mgmt.call, which the module system reads as mgmt@"call")
+    the entry of the dictionary the first part names. KeyError: symbol not found."""
+    try:
+        return klong[sym]
+    except KeyError:
+        name = str(sym)
+        parts = name.split(".")
+        if name.startswith(".") or len(parts) < 2 or not all(parts):
+            raise
+        value = klong[parts[0]]
+        for key in parts[1:]:
+            if not isinstance(value, dict) or key not in value:
+                raise KeyError(name) from None
+            value = value[key]
+        return value
+
+
 def _apply(klong, callee, args):
     args = [lambda_value(klong, a) for a in args]
     if isinstance(callee, KdbLambda):
@@ -436,10 +454,10 @@ def _apply(klong, callee, args):
             raise KlongTypeError(f"cannot run function text from the peer: {callee.text}")
         target = fn
     elif isinstance(callee, KGSym):
-        target = klong[callee]          # KeyError: symbol not found
+        target = _lookup(klong, callee)          # KeyError: symbol not found
         if isinstance(target, KGFnWrapper):
             target = target.fn
-        fn = callee
+        fn = callee if callee in klong else target
     else:
         target = fn = klong(callee)
     if not (isinstance(target, (KGFn, KGLambda)) or callable(target)):
@@ -452,7 +470,7 @@ def _apply(klong, callee, args):
 def evaluate_request(klong, value):
     """Do what a request message asks; may raise."""
     if isinstance(value, KGSym):
-        return klong[value]
+        return _lookup(klong, value)
     if _is_text(value):
         return klong(value)
     items = call_items(value)

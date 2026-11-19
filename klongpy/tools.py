@@ -61,71 +61,21 @@ def lint_main(files, select=None, ignore=None, verbose=False, define=None, stdou
 
 
 def check_main(files, int_bits=32, verbose=False, stdout=None, stderr=None, color=False, streamable=False):
-    """The body of ``kgpy check FILE...``: 1 if any file is outside the static profile, 2 if one could not be read, else 0."""
-    files = list(files)
-    if not streamable:
-        return _write(native().check_files(files, int_bits == 64, verbose, library_dir()), stdout, stderr)
-    return _check_streamable(files, int_bits, verbose, stdout, stderr)
-
-
-def _check_streamable(files, int_bits, verbose, stdout, stderr):
-    # Engine need: check_files(..., streamable=True). Until then each file is checked by itself, the streamable findings of those
-    # inside the profile follow, and the closing count of the errors is the sum of the files'.
-    import re
-    from .errors import KlongStaticError
-    from .source import Source
-    out, err = _streams(stdout, stderr)
-    ext = native()
-    count = re.compile(r"(\d+) static errors? in (\d+) files?\n\Z")
-    status = total = bad = 0
-    for path in files:
-        s, o, e = ext.check_files([path], int_bits == 64, verbose, library_dir())
-        m = count.search(e)
-        if m:
-            e = e[:m.start()]
-            total += int(m.group(1))
-            bad += 1
-        out.write(o)
-        err.write(e)
-        status = max(status, s) if status != 1 else 1
-        if s == 0 and path != "-":
-            try:
-                with open(path, "r") as f:
-                    text = f.read()
-            except (OSError, UnicodeDecodeError):
-                continue
-            ok, found, diags, error = ext.streamable_source(path, text, int_bits == 64)
-            if not ok and error is not None:
-                print(error, file=err)
-                bad += 1
-                total += 1
-                status = 1
-            for d in (diags if not ok else found):
-                rule, a, b, line, col, message, hint, function = d
-                e = KlongStaticError(f"{message} [{rule}]", span=(a, b), source=Source(path, text), hint=hint)
-                print(e.render(False), file=err)
-                bad += 1 if ok and d is found[0] else 0
-                total += 1
-                status = 1
-            if ok and not found:
-                print(f"{path}: streamable: nothing keeps a kernel from taking one record per clock cycle", file=out)
-            elif ok:
-                pass
-    if total:
-        print(f"{total} static error{'s' if total != 1 else ''} in {bad} file{'s' if bad != 1 else ''}", file=err)
-    return status
+    """The body of ``kgpy check FILE... [--streamable]``: 1 if any file is outside the static profile, 2 if one could not be
+    read, else 0."""
+    return _write(native().check_files(list(files), int_bits == 64, verbose, library_dir(), streamable), stdout, stderr)
 
 
 def dump_ir_main(files, int_bits=32, stdout=None, stderr=None):
     """The body of ``kgpy check --dump-ir FILE...``: the typed IR of each program."""
-    return _write(native().dump_ir_files(list(files), int_bits == 64), stdout, stderr)
+    return _write(native().dump_ir_files(list(files), int_bits == 64, library_dir()), stdout, stderr)
 
 
 def emit_main(files, out_dir=None, int_bits=32, float_bits=32, line_directives=False, prefix=None, dump_ir=False, stdout=None,
               stderr=None, color=False):
     """The body of ``kgpy compile c FILE... -o DIR`` (and --dump-ir): 0, 1 when a program is outside the profile or fails at
     compile time, 2 when a file cannot be read."""
-    return _write(native().compile_c_files(list(files), out_dir, int_bits == 64, float_bits == 64, line_directives, prefix, dump_ir),
+    return _write(native().compile_c_files(list(files), out_dir, int_bits == 64, float_bits == 64, line_directives, prefix, dump_ir, library_dir()),
                   stdout, stderr)
 
 

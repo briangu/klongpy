@@ -17,7 +17,7 @@ from klongpy.static import fixed as fx
 
 from .harness import find_cc
 from .test_emit_hls import CC, CXX, HERE, HlsBuild, pack, program, special_floats, unpack
-from .test_ir import STUBS
+from .common import STUBS
 
 needs = unittest.skipUnless(CXX and CC, "needs a C and a C++ compiler")
 
@@ -277,7 +277,7 @@ class TestSummaryPair(unittest.TestCase):
 @needs
 class TestSummaryGolden(unittest.TestCase):
     def test_files(self):
-        from .test_ir import golden
+        from .common import golden
         from klongpy.static.native import emit_hls_program
         res = emit_hls_program("sm.kg", None, text=SUMMARY, prefix="sm", lanes=3)
         golden(self, "hlsb_summary3_step_top.cpp", res.files["sm_step_top.cpp"])
@@ -437,7 +437,7 @@ class TestTransformations(unittest.TestCase):
 @needs
 class TestGolden(unittest.TestCase):
     def test_stage_b_files(self):
-        from .test_ir import golden
+        from .common import golden
         from klongpy.static.native import emit_hls_program
         for name, entry, kw, path in (("mavg", "step", {}, program("mavg")), ("fir", "run", {}, program("fir")),
                                       ("firfx", "run", {}, os.path.join(HERE, "hw", "fir_fixed.kg"))):
@@ -455,7 +455,7 @@ class TestCli(unittest.TestCase):
     def cli(self, *args):
         import subprocess
         import sys
-        from .test_ir import ROOT
+        from .common import ROOT
         return subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", *args], capture_output=True, text=True, cwd=ROOT)
 
     def test_flags(self):

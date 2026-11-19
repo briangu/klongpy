@@ -19,7 +19,7 @@ import numpy as np
 from klongpy.hw import binding
 
 from .test_crossover import HAND, PROGRAM, as_float, raw_ticks
-from .test_ir import ROOT
+from .common import ROOT
 
 sys.path.insert(0, os.path.join(ROOT, "examples", "hardware"))
 import crossover_bench as cb          # noqa: E402

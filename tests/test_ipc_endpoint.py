@@ -143,6 +143,16 @@ class TestRequests(IPCCase):
         self.assertEqual(cm.exception.kind, "name")
         self.assertIn("symbol not found", str(cm.exception))
 
+    @unittest.expectedFailure   # engine needs: a.b on a host value (the handle of .clid) asks the host, as a@"b" does (qual_dict: Value::Host)
+    def test_dict_qualified_name_reads_like_at(self):
+        """h.f is h@"f" on a remote dictionary handle: a read of the symbol on the server."""
+        server, client = self.pair()
+        self.kg(server, "bar::42;twice::{2*x}")
+        self.kg(client, "d::.clid(c)")
+        self.assertEqual(self.kg(client, "d.bar"), 42)
+        self.assertEqual(self.kg(client, 'd@"bar"'), self.kg(client, "d.bar"))
+        self.assertEqual(self.kg(client, "d.twice(4)"), 8)
+
     def test_dict_set_symbol_value_stays_a_symbol(self):
         server, client = self.pair()
         self.kg(server, "foo::5")
@@ -976,13 +986,10 @@ class TestExampleFlows(IPCCase):
         server, client = self.repl(), self.repl()
         port = free_port()
         self.load(server, "simple_server.kg", port)
-        chan = client[".sys.cout"]
-        old, chan.raw = chan.raw, io.StringIO()
-        try:
-            self.load(client, "simple_client.kg", port)
-            printed = chan.raw.getvalue()
-        finally:
-            chan.raw = old
+        buf = io.StringIO()
+        client.console(write=buf.write)
+        self.load(client, "simple_client.kg", port)
+        printed = buf.getvalue()
         # the example prints the square of 5 called through a proxy and through the dictionary
         self.assertEqual([l for l in printed.splitlines() if l.strip() == "25"], ["25", "25"])
 
@@ -1003,15 +1010,12 @@ class TestExampleFlows(IPCCase):
         server, client = self.repl(), self.repl()
         port = free_port()
         self.load(server, "srv_broadcast.kg", port)
-        chan = client[".sys.cout"]
-        old, chan.raw = chan.raw, io.StringIO()
-        try:
-            self.load(client, "cli_broadcast.kg", port)
-            self.assertTrue(wait_until(lambda: self.kg(server, "#clients") == 1, 5))
-            self.assertTrue(wait_until(lambda: "hello from server" in chan.raw.getvalue(), 6), chan.raw.getvalue())
-        finally:
-            seen = chan.raw.getvalue()
-            chan.raw = old
+        buf = io.StringIO()
+        client.console(write=buf.write)
+        self.load(client, "cli_broadcast.kg", port)
+        self.assertTrue(wait_until(lambda: self.kg(server, "#clients") == 1, 5))
+        self.assertTrue(wait_until(lambda: "hello from server" in buf.getvalue(), 6), buf.getvalue())
+        seen = buf.getvalue()
         self.assertEqual(self.kg(client, ".clic(cli)"), 1)           # the example hangs up after 10 s; do it now
         self.assertTrue(wait_until(lambda: self.kg(server, "#clients") == 0, 5))
 

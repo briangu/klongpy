@@ -17,8 +17,6 @@ import warnings
 from klongpy import KlongInterpreter
 from klongpy.core import KGLambda, KGSym, KlongException
 from klongpy.errors import KlongError, KlongNameError, KlongSyntaxError
-from tests.backend_compat import on_rust_engine, requires_python_engine
-from klongpy.interpreter import KlongContext
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 LEVELS = (0, 1, 2)
@@ -51,17 +49,14 @@ class TestPlumbing(unittest.TestCase):
 
     def test_defaults_are_zero_and_equal(self):
         self.assertEqual(KlongInterpreter().strict, 0)
-        self.assertEqual(inspect.signature(KlongContext.__init__).parameters["strict_mode"].default, 0)
-        self.assertEqual(KlongInterpreter()._context._strict_mode, 0)
 
     def test_constructor_argument_and_property(self):
         for level in LEVELS:
             k = KlongInterpreter(strict=level)
             self.assertEqual(k.strict, level)
-            self.assertEqual(k._context._strict_mode, level)        # one stored level
         k = KlongInterpreter()
         k.strict = 2
-        self.assertEqual((k.strict, k._context._strict_mode), (2, 2))
+        self.assertEqual(k.strict, 2)
         k.strict = 0
         self.assertEqual(k.strict, 0)
 
@@ -98,8 +93,6 @@ class TestPlumbing(unittest.TestCase):
 
     def test_dot_strict_takes_zero_or_one_argument(self):
         k = KlongInterpreter()
-        if not on_rust_engine():        # the Python engine's system function object
-            self.assertIsInstance(k._context[KGSym(".strict")], KGLambda)
         # inside a function the caller's x is not taken for the level
         self.assertEqual(k("{x;.strict()}(2)"), 1)
         self.assertEqual(k("{.strict(x)}(2)"), 2)
@@ -251,7 +244,7 @@ class TestAssignmentToANonName(unittest.TestCase):
                 self.assertEqual(run(level, "(a)::5;a"), 5)
                 self.assertEqual(run(level, "a::5;a"), 5)
                 self.assertEqual(run(level, "a::b::5;a+b"), 10)
-                self.assertEqual(run(level, "a.b::5;a.b"), 5)
+                self.assertEqual(run(level, "a:::{};a.b::5;a.b"), 5)     # a.b is a@"b" (module system)
                 self.assertEqual(run(level, "f::{[t];t::x;t}", "f(3)"), 3)
                 self.assertEqual(run(level, "d:::{};d"), {})
 
@@ -260,11 +253,6 @@ class TestAssignmentToANonName(unittest.TestCase):
         for level in (1, 2):
             with self.assertRaises(KlongSyntaxError):
                 run(level, "f::{1::5}")
-
-    @requires_python_engine("the legacy parser of the Python engine")
-    def test_legacy_parser_is_frozen(self):
-        for level in LEVELS:
-            self.assertEqual(run(level, "1::5", parser="legacy"), 5)
 
 
 @unittest.skipIf(importlib.util.find_spec("colorama") is None, "colorama not installed")

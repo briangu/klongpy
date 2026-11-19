@@ -26,7 +26,6 @@ from klongpy.types import KGQSym
 from klongpy.sys_fn_ipc import KGAsyncCall
 from klongpy.writer import kg_write
 from tests.backend_compat import to_numpy
-from tests.backend_compat import on_rust_engine, requires_python_engine
 
 FOO = KGSym("foo")
 BAR = KGSym("bar")
@@ -212,7 +211,7 @@ class TestApplyAndProjection(SymbolValueCase):
 
     def test_nilad_value_is_not_invoked_by_apply(self):
         self.klong("n::{7};id::{x}")
-        r = self.klong.apply(self.klong._context[KGSym("id")], [self.klong._context[KGSym("n")]])
+        r = self.klong.apply(self.klong["id"].fn, [self.klong["n"].fn])
         self.assertIsInstance(r, KGFn)
 
     def test_dict_values_passed_to_function(self):
@@ -221,24 +220,13 @@ class TestApplyAndProjection(SymbolValueCase):
         self.check("d:::{[1 :foo] [2 :bar]};{x}'{x@1}'d", [FOO, BAR])
         self.check("d:::{[:foo 1]};{(*x)}'d", [FOO])
 
-    @requires_python_engine("calls klongpy.autograd._invoke_fn with a node of the Python context")
-    def test_grad_helper_does_not_evaluate_value(self):
-        from klongpy.autograd import _invoke_fn
-        f = self.klong._context[KGSym("f")] if self.klong("f::{x};1") else None
-        self.assertIs(_invoke_fn(self.klong, f, [FOO]), FOO)
-        self.assertIs(_invoke_fn(self.klong, KGSym("f"), [FOO]), FOO)
-
 
 class TestApplyApi(SymbolValueCase):
 
     def test_apply_function_value(self):
-        f = self.klong._context[KGSym("f")] if self.klong("f::{x,y};1") else None
+        f = self.klong["f"].fn if self.klong("f::{x,y};1") else None
         self.assertEqual(_plain(self.klong.apply(f, [FOO, BAR])), [FOO, BAR])
 
-    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
-    def test_apply_symbol_naming_function(self):
-        self.klong("f::{x}")
-        self.assertIs(self.klong.apply(KGSym("f"), [FOO]), FOO)
 
     def test_apply_operator(self):
         from klongpy.core import KGOp
@@ -259,38 +247,19 @@ class TestApplyApi(SymbolValueCase):
         self.klong("fact::{:[x<2;1;x*.f(x-1)]}")
         self.assertEqual(self.klong.apply(KGSym("fact"), [5]), 120)
 
-    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
-    def test_apply_locals(self):
-        self.klong("f::{[a];a::x;a}")
-        self.assertIs(self.klong.apply(KGSym("f"), [FOO]), FOO)
 
     def test_apply_too_few_values_returns_function(self):
         self.klong("f::{x,y}")
         self.assertIsInstance(self.klong.apply(KGSym("f"), [1]), KGFn)
 
-    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
-    def test_apply_does_not_run_list_values_as_programs(self):
-        self.klong("f::{x}")
-        v = [KGSym("foo")]
-        self.assertIs(self.klong.apply(KGSym("f"), [v]), v)
-
 
 class TestFnWrapper(SymbolValueCase):
 
-    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
-    def test_wrapper_from_getitem(self):
-        self.klong("f::{x}")
-        self.assertIs(self.klong['f'](FOO), FOO)
 
     def test_wrapper_two_arguments(self):
         self.klong("f::{x,y}")
         self.assertEqual(_plain(self.klong['f'](FOO, BAR)), [FOO, BAR])
 
-    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
-    def test_wrapper_without_symbol(self):
-        fn = self.klong("{x}")
-        w = KGFnWrapper(self.klong, fn)
-        self.assertIs(w(FOO), FOO)
 
     def test_wrapper_string_named_like_variable(self):
         self.klong("f::{x}")
@@ -308,13 +277,6 @@ class TestFnWrapper(SymbolValueCase):
 
 
 class TestQuotedSymbolNode(SymbolValueCase):
-
-    def _parse(self, s):
-        return self.klong.prog(s)[1][0]
-
-    def test_reader_produces_qsym(self):
-        self.assertIs(type(self._parse(":foo")), KGQSym)
-        self.assertIs(type(self._parse("foo")), KGSym)
 
     def test_qsym_equal_and_hash_equal(self):
         q = KGQSym("foo")
@@ -384,8 +346,8 @@ class TestIPC(unittest.IsolatedAsyncioTestCase):
 
     async def test_async_call_passes_symbols(self):
         self.klong("result::0;fn::{x};cb::{result::x}")
-        fn = self.klong._context[KGSym("fn")]
-        cb = self.klong._context[KGSym("cb")]
+        fn = self.klong["fn"].fn
+        cb = self.klong["cb"].fn
         loop = asyncio.get_running_loop()
         call = KGAsyncCall(loop, fn, cb, self.klong)
         await call.acall(self.klong, [FOO])
@@ -395,8 +357,8 @@ class TestIPC(unittest.IsolatedAsyncioTestCase):
         # acall's last branch: a KGFn that was not wrapped
         self.klong("result::0;fn::{x};cb::{result::x}")
         loop = asyncio.get_running_loop()
-        call = KGAsyncCall(loop, self.klong._context[KGSym("fn")], self.klong._context[KGSym("cb")], self.klong)
-        call.fn = self.klong._context[KGSym("fn")]
+        call = KGAsyncCall(loop, self.klong["fn"].fn, self.klong["cb"].fn, self.klong)
+        call.fn = self.klong["fn"].fn
         await call.acall(self.klong, [FOO])
         self.assertEqual(self.klong("result"), FOO)
 

@@ -370,59 +370,6 @@ class BackendProvider(ABC):
         from ..errors import needs_torch_backend
         raise needs_torch_backend(".gradcheck()")
 
-    def interpreter_power(self):
-        """The function a compiled `a^b` applies to a pair of atoms: the interpreter's own."""
-        from ..dyads import _e_dyad_power
-        return lambda a, b: _e_dyad_power(a, b, self)
-
-    def interpreter_negate(self):
-        """The function a compiled `-a` applies: the interpreter's own."""
-        from ..monads import eval_monad_negate
-        return lambda a: eval_monad_negate(a, self)
-
-    def compile_expr_ir(self, ir, var_syms):
-        """Compile a compute IR tree to a callable.
-
-        Args:
-            ir: Tuple-based IR tree from compiler.py.
-                Node types:
-                - ('literal', value)
-                - ('var', param_name)
-                - ('binop', op, left_ir, right_ir)  -- op: '+','-','*','%','^'
-                - ('cmp', op, left_ir, right_ir)     -- op: '=','>','<'
-                - ('negate', child_ir)
-                - ('reduce', op, arg_ir)             -- op: '+','*','|','&'
-                - ('scan', op, arg_ir)               -- op: '+','*','|','&'
-            var_syms: List of KGSym variable references in parameter order.
-
-        Returns:
-            (callable, var_syms) or None. Default returns None (no compilation).
-        """
-        return None
-
-    @staticmethod
-    def _collect_params(ir):
-        """Collect unique parameter names from IR tree in order."""
-        params = []
-        seen = set()
-
-        def _walk(node):
-            if node[0] == 'var':
-                name = node[1]
-                if name not in seen:
-                    seen.add(name)
-                    params.append(name)
-            elif node[0] in ('binop', 'cmp'):
-                _walk(node[2])
-                _walk(node[3])
-            elif node[0] == 'negate':
-                _walk(node[1])
-            elif node[0] in ('reduce', 'scan'):
-                _walk(node[2])  # node[1] is the op char, node[2] is the arg IR
-
-        _walk(ir)
-        return params
-
     def kg_equal(self, a, b):
         """Compare two values or arrays for equality, handling nested arrays and tensors."""
         if a is b:
@@ -624,15 +571,6 @@ def _mismatch_error(message):
 
 
 class AtomicShapeMismatch(ValueError):
-    pass
-
-
-class CompiledDecline(ZeroDivisionError):
-    """Raised inside a compiled expression to hand it to the interpreter.
-
-    A ZeroDivisionError because that is the one exception compiler.run_compiled
-    turns into "evaluate normally" (a compiled expression has no side effect).
-    """
     pass
 
 

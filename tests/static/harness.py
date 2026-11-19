@@ -53,10 +53,8 @@ import numpy as np
 
 from klongpy.errors import KlongError
 from klongpy.static import fixed as fx
-from klongpy.static.compile import emit_program
-from klongpy.static.emit_c import ctype_of
-from klongpy.static.host import call_entry, load_program
-from klongpy.static.signature import is_fixed
+from klongpy.static.native import call_entry, emit_program, ir_json, load_program
+from klongpy.static.signature import Ty, c_identifier, is_fixed, parse_signature
 
 WARN = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic"]
 
@@ -77,6 +75,47 @@ def sanitize_flags():
     if not kinds:
         return []
     return [f"-fsanitize={kinds}", "-fno-sanitize-recover=all", "-g"]
+
+
+def ctype_of(elem):
+    """The C type of an element: kg_float, kg_int, or the integer that holds a fixed-point number."""
+    if elem == "float":
+        return "kg_float"
+    if is_fixed(elem):
+        return "int32_t" if fx.spec_of(elem).W <= 32 else "int64_t"
+    return "kg_int"
+
+
+class _Decl:
+    def __init__(self, name, signature):
+        self.name, self.signature = name, signature
+
+
+class _Entry:
+    def __init__(self, d):
+        self.decl = _Decl(d["name"], parse_signature(d["signature"]))
+        self.c_name = d["c_name"]
+
+
+class _Extern:
+    def __init__(self, d):
+        self.name = d["name"]
+        self.signature = parse_signature(d["signature"])
+        self.c_name = d["c_name"]
+
+
+class _Global:
+    def __init__(self, d):
+        self.name, self.ty, self.state = d["name"], Ty(d["ty"]["elem"], tuple(d["ty"]["shape"])), d["state"]
+
+
+class _Program:
+    """What the typed IR of the extension says about a program: its entries, externs and globals (ir_json)."""
+
+    def __init__(self, ir):
+        self.entries = [_Entry(e) for e in ir["entries"]]
+        self.externs = [_Extern(x) for x in ir["externs"]]
+        self.globals = [_Global(g) for g in ir["globals"]]
 
 
 def _ct(ty, float_bits, int_bits):
@@ -110,7 +149,7 @@ class Build:
         src = path or os.path.join(self.dir, name + ".kg")
         self.emitted = emit_program(src, self.dir, text=text, int_bits=int_bits, float_bits=float_bits, prefix=name,
                                     externs=externs)
-        self.program = self.emitted.compiled.program
+        self.program = _Program(ir_json(src, text=text, int_bits=int_bits, prefix=name))
         self.prefix = P = self.emitted.prefix
         self.externs = dict(externs or {})
         shim = self._shim()

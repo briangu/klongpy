@@ -268,7 +268,7 @@ class TestGradOfFnAPI:
     def test_with_kgfn(self, klong, backend):
         """Test grad_of_fn with a KGFn."""
         klong('f::{+/x^2}')
-        fn = klong._context[KGSym('f')]
+        fn = klong['f'].fn
         result = to_numpy(grad_of_fn(klong, fn, np.array([1.0, 2.0, 3.0])))
         expected = np.array([2.0, 4.0, 6.0])
         np.testing.assert_allclose(result, expected, atol=get_atol(backend))
@@ -508,17 +508,17 @@ class TestGradcheck:
 
 
 class TestExport:
-    """Tests for .export."""
+    """Tests for .bkx."""
 
     def test_export_with_path(self, klong, backend):
-        """Test .export() returns dict with graph info."""
+        """Test .bkx() returns dict with graph info."""
         if backend != 'torch':
             pytest.skip("Requires torch backend")
         klong('f::{x^2}')
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, 'model.pt2')
             try:
-                result = klong(f'.export(f;3.0;"{path}")')
+                result = klong(f'.bkx(f;3.0;"{path}")')
             except Exception:
                 raise
             # Should return a dict
@@ -536,7 +536,7 @@ class TestExport:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, 'model.pt2')
             try:
-                result = klong(f'.export(f;3.0;"{path}")')
+                result = klong(f'.bkx(f;3.0;"{path}")')
             except Exception:
                 raise
             assert not result.get('export_error'), result.get('export_error')
@@ -555,12 +555,12 @@ class TestExport:
                 klong(src)
 
     def test_export_fails_on_numpy(self, klong, backend):
-        """Test that .export() raises error on numpy backend."""
+        """Test that .bkx() raises error on numpy backend."""
         if backend != 'numpy':
             pytest.skip("Test for numpy backend only")
         klong('f::{x^2}')
         with pytest.raises(KlongError):
-            klong('.export(f;3.0;"test.pt2")')
+            klong('.bkx(f;3.0;"test.pt2")')
 
 
 class TestMatrixVectorGradient:

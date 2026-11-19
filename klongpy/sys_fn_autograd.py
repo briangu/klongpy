@@ -3,13 +3,13 @@ Autograd system functions for KlongPy.
 
 Provides .grad() for the numeric gradient (the ASCII form of the nabla operator).
 Provides .jacobian() for Jacobian matrix computation.
-Provides .export() for graph export (torch only).
+Provides .bkx() for graph export (torch only; .export belongs to the module system).
 
 For optimizers (SGD, Adam), see klongpy/optimizers.py: .pyf("klongpy.optimizers";"SGDOptimizer").
 """
 import sys
 
-from .autograd import jacobian_of_fn, _invoke_fn
+from .autograd import jacobian_of_fn, _invoke_fn, eval_dyad_grad
 
 from .errors import KlongTypeError, needs_torch_backend as _needs_torch
 from .types import KGSym
@@ -35,7 +35,6 @@ def eval_sys_grad(klong, x, y):
     """
     if isinstance(y, KGSym):
         raise KlongTypeError(".grad: the point must be a number or a list of numbers, not a symbol")
-    from .dyads import eval_dyad_grad     # Engine need: the gradient operator is KlongPy's Python evaluator (dyads.py)
     return eval_dyad_grad(klong, y, x)
 
 
@@ -56,10 +55,10 @@ def eval_sys_jacobian(klong, x, y):
     return jacobian_of_fn(klong, x, y)
 
 
-def eval_sys_export(klong, x, y, z):
+def eval_sys_backend_export(klong, x, y, z):
     """
 
-        .export(x;y;z)                                          [Export]
+        .bkx(x;y;z)                                          [Backend-Export]
 
         Export a function's computation graph to a file for inspection.
         Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
@@ -77,7 +76,7 @@ def eval_sys_export(klong, x, y, z):
 
         Examples:
             f::{x^2}
-            info::.export(f;3.0;"model.pt2")
+            info::.bkx(f;3.0;"model.pt2")
             .p(info@"graph")              :" Print computation graph
 
         Notes:
@@ -91,7 +90,7 @@ def eval_sys_export(klong, x, y, z):
 
     backend = klong._backend
     if not backend.supports_autograd():
-        raise _needs_torch(".export()")
+        raise _needs_torch(".bkx()")
 
     # Wrap the Klong function for torch
     def wrapped_fn(v):

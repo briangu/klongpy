@@ -5,7 +5,7 @@ Skipped unless the `klong` binary is built:
 
     cd native && cargo build --release
 
-The binary is `native/target/release/klong`, or the path in the environment variable KLONG_NATIVE.
+The binary is `native/target/release/kg` (`klong` while a build has only that name), or the path in the environment variable KLONG_NATIVE.
 The PeachQ part is opt-in as in `test_ipc_peachq.py`: set KLONG_TEST_PEACHQ to the PeachQ `q` executable.
 
 A native node is the `klong` read-eval-print loop in a child process: lines go in on its standard input,
@@ -34,7 +34,19 @@ from klongpy.repl import cleanup_repl, create_repl
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-BINARY = os.environ.get("KLONG_NATIVE") or os.path.join(ROOT, "native", "target", "release", "klong")
+
+
+def _native_binary():
+    """The native binary: `kg` (the name it is given), or `klong` while a build still has only that name; KLONG_NATIVE overrides."""
+    given = os.environ.get("KLONG_NATIVE")
+    if given:
+        return given
+    release = os.path.join(ROOT, "native", "target", "release")
+    for name in ("kg", "klong"):
+        if os.path.isfile(os.path.join(release, name)):
+            return os.path.join(release, name)
+    return os.path.join(release, "kg")
+BINARY = _native_binary()
 BUILT = os.path.isfile(BINARY) and os.access(BINARY, os.X_OK)
 NEED_NATIVE = unittest.skipUnless(BUILT, "native klong binary not built (cd native && cargo build --release)")
 EXE = peachq_exe()

@@ -9,6 +9,133 @@ from klongpy.sys_fn import *
 
 class TestSysFn(unittest.TestCase):
 
+    def run_in(self, klong, **names):
+        for k, v in names.items():
+            klong[k] = v
+        return klong
+
+    def test_channel_integration(self):
+        data = '"hello"'
+        klong = KlongInterpreter()
+        with tempfile.TemporaryDirectory() as td:
+            fname = os.path.join(td, "data.txt")
+            klong["fname"] = fname
+            klong('o::.oc(fname);.tc(o);.d("""hello""");.cc(o)')
+            with open(fname) as f:
+                self.assertEqual(f.read(), data)
+            klong('i::.ic(fname);.fc(i)')
+            self.assertEqual(klong(".rl()"), data)
+            klong(".fc(0);.cc(i)")
+
+    def test_append_channel(self):
+        klong = KlongInterpreter()
+        with tempfile.TemporaryDirectory() as td:
+            fname = os.path.join(td, "data.txt")
+            with open(fname, "w") as f:
+                f.write("123")
+            klong["fname"] = fname
+            klong('a::.ac(fname);.tc(a);.d("456");.cc(a)')
+            with open(fname) as f:
+                self.assertEqual(f.read(), "123456")
+
+    def test_output_channel_truncates(self):
+        klong = KlongInterpreter()
+        with tempfile.TemporaryDirectory() as td:
+            fname = os.path.join(td, "data.txt")
+            with open(fname, "w") as f:
+                f.write("123")
+            klong["fname"] = fname
+            klong('o::.oc(fname);.tc(o);.d("hi");.cc(o)')
+            with open(fname) as f:
+                self.assertEqual(f.read(), "hi")
+
+    def test_delete_file(self):
+        klong = KlongInterpreter()
+        with tempfile.TemporaryDirectory() as td:
+            fname = os.path.join(td, "data.txt")
+            klong["fname"] = fname
+            klong('o::.oc(fname);.tc(o);.d("hello");.cc(o)')
+            self.assertTrue(os.path.exists(fname))
+            klong(".df(fname)")
+            self.assertFalse(os.path.exists(fname))
+            with self.assertRaises(KlongException):
+                klong(".df(fname)")
+
+    def test_evaluate(self):
+        self.assertEqual(KlongInterpreter()('.E("A::1+1;A+2")'), 4)
+
+    def test_from_channel_and_to_channel_give_the_previous_channel(self):
+        klong = KlongInterpreter()
+        with tempfile.TemporaryDirectory() as td:
+            fname = os.path.join(td, "data.txt")
+            with open(fname, "w") as f:
+                f.write("1+1")
+            klong["fname"] = fname
+            klong("i::.ic(fname)")
+            self.assertEqual(str(klong(".fc(i)")), str(klong[".cin"]))
+            self.assertEqual(str(klong(".fc(0)")), str(klong["i"]))
+            self.assertEqual(str(klong(".tc(.cout)")), str(klong[".cout"]))
+
+    def test_input_channel_of_a_missing_file_is_an_error(self):
+        with self.assertRaises(KlongException):
+            KlongInterpreter()('.ic("doesntexist")')
+
+    def test_load(self):
+        with tempfile.TemporaryDirectory() as td:
+            fname = os.path.join(td, "data.txt")
+            with open(fname, "w") as f:
+                f.write("fn::{1+1};fn()")
+            klong = KlongInterpreter()
+            klong["fname"] = fname
+            self.assertEqual(klong(".l(fname)"), 2)
+            self.assertEqual(klong("fn()"), 2)
+
+    def test_more_input_and_read_line(self):
+        with tempfile.TemporaryDirectory() as td:
+            fname = os.path.join(td, "data.txt")
+            with open(fname, "w") as f:
+                f.write("line 1\nline 2\nline 3\n")
+            klong = KlongInterpreter()
+            klong["fname"] = fname
+            klong(".fc(.ic(fname))")
+            got = []
+            while klong(".mi()"):
+                got.append(klong(".rl()"))
+            self.assertEqual(got, ["line 1", "line 2", "line 3", ""])       # .mi stays true until a read meets the end
+
+    def test_read(self):
+        with tempfile.TemporaryDirectory() as td:
+            fname = os.path.join(td, "data.txt")
+            with open(fname, "w") as f:
+                f.write('[1 2 3 4];"hello"')
+            klong = KlongInterpreter()
+            klong["fname"] = fname
+            klong(".fc(.ic(fname))")
+            self.assertTrue(klong._backend.kg_equal(klong(".r()"), [1, 2, 3, 4]))
+            self.assertEqual(klong(".rl()"), ';"hello"')        # .r read one object and left the rest
+
+    def test_read_string(self):
+        klong = KlongInterpreter()
+        self.assertTrue(klong._backend.kg_equal(klong('.rs("[1 2 3 4]")'), [1, 2, 3, 4]))
+
+    def test_print_and_write_go_to_the_channel(self):
+        klong = KlongInterpreter()
+        with tempfile.TemporaryDirectory() as td:
+            fname = os.path.join(td, "data.txt")
+            klong["fname"] = fname
+            klong('o::.oc(fname);.tc(o);.p("hello");.w("hello");.cc(o)')
+            with open(fname) as f:
+                self.assertEqual(f.read(), 'hello\n"hello"')
+
+    def test_random_number(self):
+        klong = KlongInterpreter()
+        r, r2 = klong(".rn()"), klong(".rn()")
+        i = 0
+        while r == r2 and i < 3:
+            i += 1
+            r2 = klong(".rn()")
+        self.assertNotEqual(r, r2)
+
     def test_autoclose_channel(self):
         with tempfile.TemporaryDirectory() as td:
             fname = os.path.join(td, "data.txt")
@@ -18,191 +145,12 @@ class TestSysFn(unittest.TestCase):
             del c
             self.assertTrue(f.closed)
 
-    def test_channel_integration(self):
-        data = '"hello"'
-        klong = KlongInterpreter()
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            with eval_sys_output_channel(fname) as f:
-                o = eval_sys_to_channel(klong, f)
-                self.assertEqual(o, klong['.cout'])
-                self.assertEqual(klong['.sys.cout'], f)
-                eval_sys_display(klong, data)
-            with eval_sys_input_channel(fname) as f:
-                o = eval_sys_from_channel(klong, f)
-                self.assertEqual(o, klong['.cin'])
-                self.assertEqual(klong['.sys.cin'], f)
-                r = f.raw.read()
-                self.assertEqual(r, data)
-                f.raw.seek(0,0)
-                r = eval_sys_read_line(klong)
-                self.assertEqual(r, data)
-                a = eval_sys_read_string(klong, r)
-                self.assertEqual(a, klong(data))
-                f.raw.seek(0,0)
-                r = eval_sys_read(klong)
-                self.assertEqual(r, klong(data))
-
-    def test_eval_sys_append_channel(self):
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            with open(fname, "w") as f:
-                f.write("123")
-            with eval_sys_append_channel(fname) as f:
-                f.raw.write("456")
-            with open(fname, "r") as f:
-                r = f.read()
-                self.assertEqual(r, "123456")
-
-    def test_eval_sys_close_channel(self):
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            f = eval_sys_append_channel(fname)
-            self.assertFalse(f.raw.closed)
-            eval_sys_close_channel(f)
-            self.assertTrue(f.raw.closed)
-
-    def test_eval_sys_display(self):
-        klong = KlongInterpreter()
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            r = "hello"
-            with eval_sys_output_channel(fname) as f:
-                eval_sys_to_channel(klong, f)
-                self.assertEqual(eval_sys_display(klong, r), r)
-            with eval_sys_input_channel(fname) as f:
-                r = f.raw.read()
-                self.assertEqual(r, "hello")
 
     def test_sys_display_result(self):
         klong = KlongInterpreter()
         r = klong(".d(1)")
         self.assertEqual(r,"1")
 
-    def test_eval_sys_delete_file(self):
-        klong = KlongInterpreter()
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            with eval_sys_output_channel(fname) as f:
-                eval_sys_to_channel(klong, f)
-                eval_sys_display(klong, "hello")
-            self.assertTrue(os.path.exists(fname))
-            eval_sys_delete_file(fname)
-            self.assertFalse(os.path.exists(fname))
-
-            with self.assertRaises(RuntimeError):
-                eval_sys_delete_file(fname)
-
-    def test_eval_sys_evaluate(self):
-        klong = KlongInterpreter()
-        r = eval_sys_evaluate(klong, "A::1+1;A+2")
-        self.assertEqual(r, 4)
-
-    def test_eval_sys_from_channel(self):
-        data = '1+1'
-        klong = KlongInterpreter()
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            with open(fname, "w") as f:
-                f.write(data)
-            with eval_sys_input_channel(fname) as f:
-                self.assertEqual(klong['.sys.cin'], klong['.cin'])
-                o = eval_sys_from_channel(klong, f)
-                self.assertEqual(o, klong['.cin'])
-                self.assertEqual(klong['.sys.cin'], f)
-                o = eval_sys_from_channel(klong, 0)
-                self.assertEqual(o, f)
-                self.assertEqual(klong['.sys.cin'], klong['.cin'])
-
-    def test_eval_sys_flush(self):
-        pass
-
-    def test_eval_sys_input_channel(self):
-        data = '1+1'
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            with open(fname, "w") as f:
-                f.write(data)
-            with eval_sys_input_channel(fname) as f:
-                r = f.raw.read()
-                self.assertEqual(r, data)
-        with self.assertRaises(FileNotFoundError):
-            with eval_sys_input_channel("doesntexist"):
-                pass
-
-    def test_eval_sys_load(self):
-        data = '1+1'
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            with open(fname, "w") as f:
-                f.write(data)
-            klong = KlongInterpreter()
-            r = eval_sys_load(klong, fname)
-            self.assertEqual(r, 2)
-            klong = KlongInterpreter()
-            r = klong(f'.l("{fname}")')
-            self.assertEqual(r, 2)
-
-    def test_eval_sys_load_fn(self):
-        data = 'fn::{1+1};fn()'
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            with open(fname, "w") as f:
-                f.write(data)
-            klong = KlongInterpreter()
-            r = eval_sys_load(klong, fname)
-            self.assertEqual(r, 2)
-            self.assertEqual(klong('fn()'), 2)
-            klong = KlongInterpreter()
-            r = klong(f'.l("{fname}")')
-            self.assertEqual(r, 2)
-            self.assertEqual(klong('fn()'), 2)
-
-    def test_eval_sys_more_input(self):
-        data = ' ' * 100
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            with open(fname, "w") as f:
-                f.write(data)
-            with eval_sys_input_channel(fname) as f:
-                klong = KlongInterpreter()
-                eval_sys_from_channel(klong, f)
-                self.assertTrue(eval_sys_more_input(klong))
-                eval_sys_read_line(klong)
-                self.assertTrue(eval_sys_more_input(klong))
-                eval_sys_read_line(klong)
-                self.assertFalse(eval_sys_more_input(klong))
-
-    def test_eval_sys_module(self):
-        pass
-
-    def test_eval_sys_output_channel(self):
-        data = '"hello"'
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            with open(fname, "w") as f:
-                f.write("123")
-            with eval_sys_output_channel(fname) as f:
-                f.raw.write(data)
-            with open(fname, "r") as f:
-                s = f.read()
-                self.assertFalse(s.startswith("123"))
-                self.assertNotEqual(f.read(), data)
-
-    def test_eval_sys_process_clock(self):
-        pass
-
-    def test_eval_sys_print(self):
-        klong = KlongInterpreter()
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            expected = "hello"
-            with eval_sys_output_channel(fname) as f:
-                eval_sys_to_channel(klong, f)
-                self.assertEqual(eval_sys_print(klong, expected), expected)
-            with eval_sys_input_channel(fname) as f:
-                r = f.raw.read()
-                self.assertEqual(r, f"{expected}\n")
 
     def test_sys_print_result(self):
         klong = KlongInterpreter()
@@ -287,85 +235,6 @@ class TestSysFn(unittest.TestCase):
         self.assertEqual(klong(f'.py("{fpath}")'),1)
         self.assertEqual(klong('.hello()'),"hello, world!")
 
-    def test_eval_sys_random_number(self):
-        r = eval_sys_random_number()
-        r2 = eval_sys_random_number()
-        i = 0
-        while r == r2 and i < 3:
-            i += 1
-            r2 = eval_sys_random_number()
-        self.assertNotEqual(r, r2)
-
-    def test_eval_sys_read(self):
-        # TODO: test all variants of kg_read
-        data = '[1 2 3 4];"hello"'
-        klong = KlongInterpreter()
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            with open(fname, "w") as f:
-                f.write(data)
-            with eval_sys_input_channel(fname) as f:
-                eval_sys_from_channel(klong, f)
-                r = eval_sys_read(klong)
-                self.assertTrue(klong._backend.kg_equal(r, [1,2,3,4]))
-                c = f.raw.read(1)
-                self.assertEqual(c,';')
-
-    def test_eval_sys_read_line(self):
-        data = """line 1
-        line 2
-        line 3
-        """
-        klong = KlongInterpreter()
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            with open(fname, "w") as f:
-                f.write(data)
-            with eval_sys_input_channel(fname) as f:
-                eval_sys_from_channel(klong, f)
-                r = eval_sys_read_line(klong)
-                self.assertEqual(r, "line 1")
-                r = eval_sys_read_line(klong)
-                self.assertEqual(r.strip(), "line 2")
-                r = eval_sys_read_line(klong)
-                self.assertEqual(r.strip(), "line 3")
-                r = eval_sys_read_line(klong)
-                self.assertEqual(len(r), 0)
-
-    def test_eval_sys_read_string(self):
-        # TODO:
-        data = '[1 2 3 4]'
-        klong = KlongInterpreter()
-        self.assertTrue(klong._backend.kg_equal(eval_sys_read_string(klong, data), [1,2,3,4]))
-
-    def test_eval_sys_system(self):
-        pass
-
-    def test_eval_sys_to_channel(self):
-        klong = KlongInterpreter()
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            with eval_sys_output_channel(fname) as f:
-                self.assertEqual(klong['.sys.cout'], klong['.cout'])
-                o = eval_sys_to_channel(klong, f)
-                self.assertEqual(o, klong['.cout'])
-                self.assertEqual(f, klong['.sys.cout'])
-                o = eval_sys_to_channel(klong, 0)
-                self.assertEqual(o, f)
-                self.assertEqual(klong['.sys.cout'], klong['.cout'])
-
-    def test_eval_sys_write(self):
-        # TODO: test all variants of kg_write
-        klong = KlongInterpreter()
-        with tempfile.TemporaryDirectory() as td:
-            fname = os.path.join(td, "data.txt")
-            expected = "hello"
-            with eval_sys_output_channel(fname) as f:
-                eval_sys_to_channel(klong, f)
-                self.assertEqual(eval_sys_write(klong, expected), expected)
-            with eval_sys_input_channel(fname) as f:
-                r = f.raw.read()
-                self.assertEqual(r, f'"{expected}"')
 
     def test_sys_write_result(self):
         klong = KlongInterpreter()
@@ -383,8 +252,6 @@ class TestSysFn(unittest.TestCase):
         self.assertEqual(key, 1)
         self.assertEqual(value, 2)
 
-    def test_eval_sys_exit(self):
-        pass
 
     def test_simple_io(self):
         t = """

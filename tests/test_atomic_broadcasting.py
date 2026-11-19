@@ -5,7 +5,6 @@ import numpy as np
 import pytest
 
 from klongpy import KlongInterpreter
-from klongpy.compiler import compile_expr
 
 
 OPS = [
@@ -38,20 +37,6 @@ def test_atomic_vector_matrix(klong, op, fn, reverse):
     klong['b'] = klong._backend.kg_asarray(b)
     result = klong(f'a{op}b')
     np.testing.assert_allclose(klong._backend.to_numpy(result), fn(aa, bb))
-
-
-def test_compiled_expression_rechecks_shapes(klong):
-    klong['a'] = klong._backend.kg_asarray([10, 20])
-    klong['b'] = klong._backend.kg_asarray([1, 2])
-    ast = klong.prog('a+b')[1][0]
-    compiled = compile_expr(ast, klong)
-    assert compiled is not None
-    fn, syms = compiled
-    np.testing.assert_array_equal(klong._backend.to_numpy(fn(*[klong[s] for s in syms])), [11, 22])
-    klong['b'] = klong._backend.kg_asarray([[1, 2, 3], [4, 5, 6]])
-    expected = [[11, 12, 13], [24, 25, 26]]
-    np.testing.assert_array_equal(klong._backend.to_numpy(fn(*[klong[s] for s in syms])), expected)
-    np.testing.assert_array_equal(klong._backend.to_numpy(klong('a+b')), expected)
 
 
 @pytest.mark.parametrize('expr,expected', [

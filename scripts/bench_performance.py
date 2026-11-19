@@ -4,7 +4,7 @@ Performance measurements for docs/performance.md. One process measures one confi
 
     python scripts/bench_performance.py --backend numpy  --out numpy.json
     python scripts/bench_performance.py --backend torch  --out torch.json     # torch CPU
-    python scripts/bench_performance.py --native native/target/release/klong --out native.json
+    python scripts/bench_performance.py --native native/target/release/kg --out native.json
     python scripts/bench_performance.py --baseline --out baseline.json         # plain Python and NumPy
 
 Thread settings are taken from the environment (set OMP_NUM_THREADS=1 and MKL/OPENBLAS likewise
@@ -215,7 +215,7 @@ def main():
     ap = argparse.ArgumentParser(description="Measure one configuration and write the rows as JSON (see the module docstring).")
     ap.add_argument("--backend", choices=["numpy", "torch"], help="time KlongPy on this backend (torch runs on the CPU)")
     ap.add_argument("--baseline", action="store_true", help="time the CPython and NumPy equivalents instead of KlongPy")
-    ap.add_argument("--native", metavar="BINARY", help="time the native runtime binary (native/target/release/klong)")
+    ap.add_argument("--native", metavar="BINARY", help="time the native runtime binary (native/target/release/kg)")
     ap.add_argument("--torch-threads", type=int, default=0, help="torch thread count; 0 keeps the torch default")
     ap.add_argument("--out", required=True, help="JSON file to write")
     args = ap.parse_args()

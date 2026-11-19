@@ -110,8 +110,9 @@ class TestIndexString(_Base):
 
     def test_errors(self):
         for s in ('"hello"@5', '"hello"@[0 9]', '""@0', '"hello"@[-6]', '"hello"@[1 [2 3]]',
-                  '"abc"@[0.0 1.0]', '"abc"@[0 []]', '"abc"@[[0 1][2]]'):
+                  '"abc"@[0.0 1.0]', '"abc"@[0 []]'):
             self.fails(s)
+        self.assertEqual([str(q) for q in self.kg('"abc"@[[0 1][2]]')], ["ab", "c"])    # a list of index lists indexes item by item
 
     def test_whole_number_float_and_non_integer_index(self):
         self.assertEqual(self.kg('"hello"@1.0'), "hello")

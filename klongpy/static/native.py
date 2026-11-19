@@ -9,10 +9,11 @@ has always had (klongpy.static.check_source, compile_program, emit_program, emit
     load_program(path, externs=...) -> LoadedProgram    a program run on the native interpreter at strict level 2
     call_entry(program, name, *args), set_param(program, name, value)
 
-What the extension does not return, and these wrappers therefore do not have (each is an "engine needs" item):
-the typed IR as objects (Compiled.program is its text, `ir_text`), check_source(globals=...) (the values of compile-time
-definitions the caller evaluated), the rule tables as data (RULES), a StaticReport whose functions carry their parse nodes, the
-interpreter error of a compile-time evaluation as an exception of its own kind.
+    check_report(text, name, ...) -> dict              the whole report: statements, function records, sources, spans
+    ir_json(path, ...) -> dict                          the typed IR as a structure (ir_json_source)
+
+What the extension does not return, and these wrappers therefore do not have: the typed IR as Python objects (Compiled.program
+is its text, `ir_text`; `ir_json` gives it as a structure), a StaticReport whose functions carry their parse nodes.
 """
 import os
 import re
@@ -22,9 +23,9 @@ from ..errors import KlongStaticError, KlongSystemError
 from ..native_ext import native
 from ..source import Source
 from .diagnostics import StaticDiagnostic
-from .signature import EntryDecl, ExternDecl, parse_signature
+from .signature import EntryDecl, ExternDecl, parse_signature, parse_type
 
-__all__ = ["check_source", "check_file", "validate_global", "StaticReport", "GlobalInfo", "FunctionInfo", "compile_program",
+__all__ = ["check_source", "check_file", "check_streamable", "check_report", "ir_json", "validate_global", "StaticReport", "GlobalInfo", "FunctionInfo", "compile_program",
            "emit_program", "runtime_header", "Compiled", "Emitted", "emit_hls_program", "HlsOutput", "load_program",
            "call_entry", "set_param", "c_prefix", "emit_main", "emit_hls_main", "check_main"]
 
@@ -47,7 +48,7 @@ class GlobalInfo:
 
 class FunctionInfo:
     """A run-time function: whether an entry reaches it, whether the profile holds for it, and the argument types it was checked
-    with (`specializations`: {tuple of type text or None: result type text or None})."""
+    with (`specializations`: {tuple of Ty or None: result Ty or None})."""
 
     def __init__(self, name, reachable, in_profile, specializations):
         self.name, self.reachable, self.in_profile = name, reachable, in_profile
@@ -65,7 +66,8 @@ class StaticReport:
         self.entries = [EntryDecl(n, parse_signature(s)) for n, s in entries]
         self.externs = {n: ExternDecl(n, parse_signature(s, allow_str=True), m) for n, s, m in externs}
         self.globals = {n: GlobalInfo(n, ty, a, r, p) for n, ty, a, r, p in globals_}
-        self.functions = {n: FunctionInfo(n, r, i, {tuple(a): b for a, b in sp}) for n, r, i, sp in functions}
+        ty = lambda t: None if t is None else parse_type(t)
+        self.functions = {n: FunctionInfo(n, r, i, {tuple(ty(q) for q in a): ty(b) for a, b in sp}) for n, r, i, sp in functions}
 
     @property
     def ok(self):
@@ -101,18 +103,52 @@ class StaticReport:
         return self
 
 
+def _globals(globals):
+    """The values of compile-time definitions the caller evaluated, as the extension takes them ({name: value}; a FixedArray, a
+    tensor or a list of numbers are values the extension reads itself)."""
+    return dict(globals) if globals else None
+
+
 def check_source(text, name="<string>", *, int_bits=32, globals=None, base_dir=None, resolve=True, all_functions=False):
     """Check a program text against the static profile; ``report.ok`` is True when it is inside. Nothing in the program is
-    evaluated and no other file is run. `globals` (values the caller evaluated) is not supported by the extension."""
+    evaluated and no other file is run. `globals` is {name: value}: the values of compile-time definitions the caller
+    evaluated (an int, a float, a list or array of numbers, a FixedArray, a dict, a callable), which decide what a literal
+    cannot."""
     if int_bits not in (32, 64):
         raise ValueError(f"int_bits must be 32 or 64, not {int_bits!r}")
-    if globals:
-        raise NotImplementedError("check_source(globals=...): the extension cannot take the values of compile-time definitions")
     source = text if isinstance(text, Source) else Source(name, text)
     if base_dir is None:
         base_dir = os.path.dirname(os.path.abspath(name)) if os.path.isfile(name) else os.getcwd()
-    diags, info = native().check_source(source.name, source.text, int_bits == 64, base_dir, resolve, _library_dir(), all_functions)
+    diags, info = native().check_source(source.name, source.text, int_bits == 64, base_dir, resolve, _library_dir(), all_functions,
+                                        _globals(globals))
     return StaticReport(source, diags, info)
+
+
+def check_report(text, name="<string>", *, int_bits=32, globals=None, base_dir=None, resolve=True, all_functions=False):
+    """The checker's whole report as a dict (check_report of the extension): diagnostics (as StaticDiagnostic), sources
+    [(name, text)], statements [(kind, name, start, end, src)] in the order they run, functions, globals, externs, entries,
+    params. Spans are (start, end) in characters of sources[src]."""
+    if int_bits not in (32, 64):
+        raise ValueError(f"int_bits must be 32 or 64, not {int_bits!r}")
+    source = text if isinstance(text, Source) else Source(name, text)
+    if base_dir is None:
+        base_dir = os.path.dirname(os.path.abspath(name)) if os.path.isfile(name) else os.getcwd()
+    r = native().check_report(source.name, source.text, int_bits == 64, base_dir, resolve, _library_dir(), all_functions,
+                              _globals(globals))
+    r = dict(r)
+    r["diagnostics"] = _diagnostics(r.get("diagnostics", ()), source)
+    return r
+
+
+def check_streamable(path, *, text=None, int_bits=32, externs=None):
+    """The findings of the streamable tier (kgpy check --streamable) for a program inside the profile, as StaticDiagnostic: the
+    constructs that keep a hardware kernel from taking one record per clock cycle. A program outside the profile gives its
+    profile diagnostics instead; a refusal that is not a diagnostic raises KlongSystemError."""
+    path, text = _read(path, text)
+    ok, found, diags, error = native().streamable_source(path, text, int_bits == 64, _library_dir())
+    if not ok and not diags:
+        raise KlongSystemError(error or "the program cannot be compiled")
+    return _diagnostics(found if ok else diags, Source(path, text))
 
 
 def check_file(path, **options):
@@ -122,8 +158,16 @@ def check_file(path, **options):
     return check_source(text, path, **options)
 
 
-def validate_global(*args, **kwargs):
-    raise NotImplementedError("validate_global: the extension has no counterpart (engine needs it)")
+def validate_global(value, int_bits=32):
+    """Is `value` acceptable as an initialised global of a static program? Returns the Ty of it, or raises KlongStaticError
+    naming the rule and the reason (a string, a ragged list, an integer beyond the range of the int type)."""
+    from .signature import Ty
+    ty, rule, message = native().validate_global(value, int_bits == 64)
+    if ty is None:
+        e = KlongStaticError(f"{message} [{rule}]")
+        e.rule = rule
+        raise e
+    return Ty(ty[0], tuple(ty[1]))
 
 
 def runtime_header():
@@ -131,9 +175,16 @@ def runtime_header():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "klong_rt.h")
 
 
+_C_KEYWORDS = frozenset("""
+auto break case char const continue default do double else enum extern float
+for goto if inline int long register restrict return short signed sizeof
+static struct switch typedef union unsigned void volatile while
+_Bool _Complex _Imaginary main memcpy memset NULL
+""".split())
+
+
 def c_prefix(path):
     """The default C prefix of a program: its file name without the extension, as a C identifier."""
-    from .signature import _C_KEYWORDS
     stem = os.path.splitext(os.path.basename(str(path)))[0]
     stem = re.sub(r"[^A-Za-z0-9_]", "_", stem) or "prog"
     if not stem[0].isalpha():
@@ -155,8 +206,9 @@ class Emitted:
 
     def __init__(self, prefix, c, h, report, text):
         self.prefix, self.c, self.h = prefix, c, h
-        self.report = dict(report[0])
         self.call_chain, self.entries, self.externs, self.need_math = report[1], report[2], report[3], report[4]
+        self.report = dict(report[0])
+        self.report.update(call_chain=list(self.call_chain), need_math=self.need_math)
         self._text = text
 
     def report_text(self):
@@ -184,7 +236,7 @@ def compile_program(path, *, text=None, int_bits=32, externs=None, name=None):
     """Check, evaluate the compile-time definitions, check again and lower. Raises KlongStaticError (the first diagnostic; all of
     them in ``diagnostics``) when the program is outside the profile."""
     path, text = _read(path, text)
-    ok, ir_text, diags, error = native().dump_ir_source(path, text, int_bits == 64, name)
+    ok, ir_text, diags, error = native().dump_ir_source(path, text, int_bits == 64, name, _library_dir())
     if not ok:
         _raise(path, text, diags, error)
     return Compiled(ir_text)
@@ -195,7 +247,8 @@ def emit_program(path, out_dir=None, *, text=None, int_bits=32, float_bits=32, l
     """Compile a program to C. With out_dir, writes <prefix>.c, <prefix>.h and klong_rt.h there."""
     path, text = _read(path, text)
     ext = native()
-    ok, pre, c, h, report, diags, error = ext.compile_c_source(path, text, int_bits == 64, float_bits == 64, line_directives, prefix)
+    ok, pre, c, h, report, diags, error = ext.compile_c_source(path, text, int_bits == 64, float_bits == 64, line_directives, prefix,
+                                                               _library_dir())
     if not ok:
         if not diags and error is not None and not error.startswith(("[", " ")) and ("prefix" in error or "ValueError" in error):
             raise ValueError(error)
@@ -232,16 +285,16 @@ class HlsOutput:
 
 
 class HlsRefusal(KlongStaticError):
-    """The extension refused a program: outside the profile, or an entry that cannot be a kernel. ``text`` is what it rendered; the
-    message, the rule and the hint are read back from it. (Engine need: fpga_source returning the diagnostics as tuples, as
-    compile_c_source does.) A refusal that is not a diagnostic (a bad option) is a ValueError, as it always was."""
+    """The extension refused a program: outside the profile, or an entry that cannot be a kernel (rule hls). ``diagnostics`` are the
+    StaticDiagnostic of it, ``rule`` the first one's rule, ``text`` what they render as. A refusal that is not a diagnostic (a bad
+    option) is a ValueError, as it always was."""
 
-    def __init__(self, text):
-        m = re.search(r"static error: (.*) \[([\w-]+)\]\n", text + "\n")
-        h = re.search(r"\n\s*hint: (.*)", text)
-        KlongStaticError.__init__(self, f"{m.group(1)} [{m.group(2)}]" if m else text, hint=h.group(1) if h else None)
-        self.rule = m.group(2) if m else None
-        self.text = text
+    def __init__(self, diagnostics, text=None):
+        d = diagnostics[0]
+        KlongStaticError.__init__(self, f"{d.message} [{d.rule}]", span=d.span, source=d.source, hint=d.hint)
+        self.rule = d.rule
+        self.diagnostics = list(diagnostics)
+        self.text = text if text is not None else "\n".join(x.render(False) for x in diagnostics)
 
 
 def emit_hls_program(path, out_dir=None, *, text=None, int_bits=32, prefix=None, clock_mhz=None, externs=None,
@@ -251,12 +304,12 @@ def emit_hls_program(path, out_dir=None, *, text=None, int_bits=32, prefix=None,
     path, text = _read(path, text)
     if wrapped and (lanes is not None or reassociate):
         raise ValueError("--lanes and --reassociate belong to the streamable back end, not to --wrapped")
-    ok, files, entries, error = native().fpga_source(path, text, int_bits == 64, prefix, clock_mhz or 300, wrapped, lanes, reassociate)
+    ok, files, entries, diags, error = native().fpga_source(path, text, int_bits == 64, prefix, clock_mhz or 300, wrapped, lanes,
+                                                            reassociate, _library_dir())
     if not ok:
-        error = error or "the program cannot be a kernel"
-        if "static error:" not in error:
-            raise ValueError(error)
-        raise HlsRefusal(error)
+        if diags:
+            raise HlsRefusal(_diagnostics(diags, Source(path, text)))
+        raise ValueError(error or "the program cannot be a kernel")
     files = dict(files)
     manifest = json.loads(files["manifest.json"])
     out = HlsOutput(prefix or manifest.get("prefix") or c_prefix(path), files, manifest)
@@ -265,17 +318,18 @@ def emit_hls_program(path, out_dir=None, *, text=None, int_bits=32, prefix=None,
     return out
 
 
+def ir_json(path, *, text=None, int_bits=32, prefix=None):
+    """The typed IR of a program as a structure (program, globals, externs, entries and functions, every node typed and spanned
+    in characters): ir_json_source of the extension. Raises KlongStaticError when the program is outside the profile."""
+    import json
+    path, text = _read(path, text)
+    ok, ir, diags, error = native().ir_json_source(path, text, int_bits == 64, prefix, _library_dir())
+    if not ok:
+        _raise(path, text, diags, error)
+    return json.loads(ir)
+
+
 # ---- running a static program -----------------------------------------------------------------------------------------------------
-
-_FIXED_USE = re.compile(r"fixed<|\.fixed\(")
-
-
-def uses_fixed(klong):
-    """Does the loaded program use fixed-point numbers? Such a program runs through call_entry on the engine's typed-IR evaluator
-    (StaticProgram): the interpreter has no fixed-point type."""
-    src = getattr(klong, "_static_source", None)
-    return bool(src and _FIXED_USE.search(src[1]))
-
 
 def _host_out(v):
     """A value of the extension as Python has it: a fixed-point (elem, raw) as a FixedArray, nested lists as NumPy arrays."""
@@ -288,12 +342,19 @@ def _host_out(v):
     return v
 
 
+def _host_in(klong, v):
+    """A Python value as the extension takes it: a tensor of the backend as a NumPy array, a list or array as it is."""
+    if klong._backend.is_backend_array(v):
+        return klong._backend.to_numpy(v)
+    return v
+
+
 def _program_of(klong):
-    """The StaticProgram of a loaded program that uses fixed-point numbers (built on first use)."""
+    """The StaticProgram on the interpreter that holds the loaded program: the entries, parameters and globals are the session's."""
     p = getattr(klong, "_static_native", None)
     if p is None:
-        path, text, externs = klong._static_source
-        p = klong._static_native = native().StaticProgram(path, text, externs)
+        path, text, externs = getattr(klong, "_static_source", ("<string>", "", {}))
+        p = klong._static_native = native().StaticProgram(path, text, externs, klong._k)
     return p
 
 
@@ -327,24 +388,32 @@ def call_entry(klong, name, *args, signature=None, raw=False):
     """
     Call the entry ``name`` of a loaded program with Python values, as the host of the compiled program would: one argument per
     parameter of the ``.entry`` signature (numbers, lists or numpy arrays), checked and converted to the declared types; the result
-    is checked the same way and returned as a Python int or float, a numpy array, or None for ``void``.
+    is checked the same way and returned as a Python int or float, a numpy array, or None for ``void``. The call is the engine's
+    (StaticProgram on the interpreter that holds the program).
 
     signature picks one entry when the function has several; otherwise the first whose parameters fit the arguments is used.
 
-    A program that uses fixed-point numbers runs on the engine's typed-IR evaluator (StaticProgram): the interpreter has no
-    fixed-point type. A fixed-point argument is a number, a list or a FixedArray; a fixed-point result is returned as a float (exact
-    up to 53 bits), or with raw=True as the scaled integers (int64) that compiled code works on.
+    A fixed-point argument is a number, a list or a FixedArray; a fixed-point result is returned as a float (exact up to 53
+    bits), or with raw=True as the scaled integers (int64) that compiled code works on.
     """
-    if uses_fixed(klong):
-        r = _native_call(lambda: _program_of(klong).call_entry(name, list(args), signature, raw))
-        return _host_out(r) if not raw else (np_int64(r) if isinstance(r, list) else r)
-    from ..errors import KlongNameError, KlongShapeError, KlongTypeError
+    if klong._backend.name != "numpy":
+        return _call_entry_on_backend(klong, name, args, signature)
+    prog = _program_of(klong)
+    r = _native_call(lambda: prog.call_entry(name, [_host_in(klong, a) for a in args], signature, raw))
+    return _host_out(r) if not raw else (np_int64(r) if isinstance(r, list) else r)
+
+
+def _call_entry_on_backend(klong, name, args, signature):
+    """call_entry on a backend whose arrays are not NumPy's: the engine's entry call cannot read a tensor, so the arguments are
+    checked and converted here (signature.conform), the entry runs on the interpreter and its result is checked the same way.
+    (Engine needs: a call_entry that takes the host value of a backend.)"""
+    from ..errors import KlongArityError, KlongNameError, KlongShapeError, KlongTypeError
     from .signature import Mismatch, conform
     cands = [e for e in klong.externs.entries if e.name == name]
-    if not cands:
-        raise KlongNameError(f"{name} is not an entry of the program", hint=f"declare it: .entry(\"{name}\";\"... -> ...\")")
     if signature is not None:
         cands = [klong.externs.entry(name, signature)]
+    if not cands:
+        raise KlongNameError(f"{name} is not an entry of the program", hint=f'declare it: .entry("{name}";"... -> ...")')
     err = None
     for e in cands:
         sig = e.signature
@@ -383,20 +452,8 @@ def np_int64(r):
 def set_param(klong, name, value):
     """Set the parameter ``name`` (declared with ``.param``) between runs: the value is checked against the declared type and
     converted ("int" takes an int, "float" an int or a float, "fixed<W,I>" an int, a float or a fixed-point value, truncating toward
-    minus infinity)."""
-    from ..errors import KlongNameError, KlongShapeError, KlongTypeError
-    from .signature import Mismatch, conform, is_fixed
-    decl = klong.externs.params.get(name)
-    if decl is None:
-        raise KlongNameError(f"{name} is not a parameter of the program", hint=f'declare it: .param("{name}";"int")')
-    try:
-        v = conform(decl.ty, value, f"the value of parameter {name}")
-    except Mismatch as m:
-        raise (KlongShapeError if m.kind == "shape" else KlongTypeError)(m.message) from None
-    klong[name] = v if is_fixed(decl.ty.elem) else (int(v) if decl.ty.elem == "int" else float(v))
-    if uses_fixed(klong):
-        _native_call(lambda: _program_of(klong).set_param(name, v))
-    return v
+    minus infinity). Returns the value as converted."""
+    return _host_out(_native_call(lambda: klong._k.set_param(name, _host_in(klong, value))))
 
 
 def check_main(*args, **kwargs):

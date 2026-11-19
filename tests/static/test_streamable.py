@@ -8,10 +8,10 @@ import subprocess
 import sys
 import unittest
 
-from klongpy.static.rules import STREAM_RULES
-from klongpy.static.streamable import check_streamable
+from klongpy.static.native import check_streamable
+from klongpy.static.tables import STREAM_RULES
 
-from .test_ir import EMBEDDED, ROOT
+from .common import EMBEDDED, ROOT
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXPECT = re.compile(r':" expect: static line (\d+) (\S+) "')
@@ -45,7 +45,7 @@ class TestRules(unittest.TestCase):
     def test_the_reference_programs(self):
         self.assertEqual(check_streamable(os.path.join(EMBEDDED, "mavg.kg")), [])
         self.assertEqual(check_streamable(os.path.join(EMBEDDED, "fir.kg")), [])           # a sliding window streams
-        got = check_streamable(os.path.join(EMBEDDED, "pid.kg"), externs={"read.adc": lambda c: 0.3, "write.pwm": lambda c, d: 0})
+        got = check_streamable(os.path.join(EMBEDDED, "pid.kg"))
         self.assertEqual({d.rule for d in got}, {"stream-state"})      # integ is read and rewritten through a float add
 
     def test_iterate_with_a_constant_count_is_unrolled_but_a_runtime_count_is_not(self):

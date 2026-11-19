@@ -1,24 +1,25 @@
 """
-The native (Rust) Klong interpreter as KlongPy's evaluation engine: the default engine (klongpy/interpreter.py binds the name
-KlongInterpreter to RustInterpreter at import time; KLONGPY_ENGINE=python selects the Python engine instead).
+The native (Rust) Klong interpreter as KlongPy's evaluation engine, the only one (klongpy/interpreter.py binds the name
+KlongInterpreter to RustInterpreter at import time).
 
 Needs the extension module (native/klong-py), found as klongpy._native, as klong_native on the import path, or in the directory
 named by KLONGPY_NATIVE_PATH; without it importing klongpy is an ImportError that says how to build it.
 
 RustInterpreter has the public surface of KlongInterpreter that programs and tests use: __call__, exec, apply, __getitem__,
-__setitem__, __delitem__, __contains__, strict, names, backend, np.
+__setitem__, __delitem__, __contains__, strict, names, backend, np, console, current_module.
 
 What Python supplies (the rest is the engine's): the system functions that are Python by nature (.py .pyf, .web .ws, .srv .cli
-IPC and timers on asyncio, tables and SQL, FPGA card I/O, the autograd functions), bridged as host functions, and the few of the
-engine's own that stay KlongPy's until the engine does what the tests ask of them (_PYTHON_OWNED); the backend's arrays through the
-host table (rust_host.py). The parse tree is not an interpreter's: `kgpy ast`, lint and the static tools are the extension's (klongpy/tools.py).
+IPC and timers on asyncio, tables and SQL, FPGA card I/O, the autograd functions), bridged as host functions; the backend's arrays
+through the host table (rust_host.py); and the engine's hooks: the live console (.p .d .w .pf .oc .ic .cc .tc .fc .r .rl .mi are the
+engine's own, on sys.stdout and sys.stdin or on what console() names), the warning hook (syntax warnings before the first statement,
+through the warnings module), the stand-in lookup of .extern and .fixed (klong.externs), and one HostLambda for each Python callable.
+The parse tree is not an interpreter's: `kgpy ast`, lint and the static tools are the extension's (klongpy/tools.py).
 """
 import sys
 import os
 import re
 import time
 import warnings
-from types import FunctionType as _FunctionType
 
 import numpy as np
 
@@ -246,33 +247,6 @@ class RustFnWrapper(KGFnWrapper):
             raise AttributeError(name)
         return getattr(self.fn, name)
 
-    def __call__(self, *args, **kwargs):
-        fn = self.fn
-        if self._sym is not None:
-            try:
-                current = self.klong._k[str(self._sym)]
-                if type(current) is _KFn:
-                    now = self.klong._wrap_fn(current)
-                    if not isinstance(now, RustCall):
-                        fn = now        # the current definition of the name (a projection is not taken over)
-            except KeyError:
-                pass
-        if type(fn.args) is list and not kwargs:
-            # a projection: it takes one argument for each empty slot
-            holes = sum(1 for q in fn.args if q is None)
-            if holes:
-                if len(args) != holes:
-                    raise _named_arity_error(f"{self._name()} takes {_count(holes)}, got {len(args)}")
-                return self.klong.apply(fn, self._as_values(args))
-        params = fn.params
-        if kwargs:
-            args = self._with_keywords(fn, params, args, kwargs)
-        if len(args) != fn.arity:
-            if params is not None:
-                raise _named_arity_error(f"{self._name()} takes {_count(fn.arity)}, got {len(args)}")
-            raise _arity_error(len(args), fn.arity)
-        return self.klong._call_value(fn._kfn, self._as_values(args))
-
 
 class RustLambdaWrapper(KGFnWrapper):
     """`klong["f"]` for a Python callable that was assigned to a name: calling it calls the Python function, with the arity the
@@ -332,42 +306,6 @@ class HostLambda:
 
     def __str__(self):
         return str(self.kgl)
-
-
-# System functions the native runtime has and that stay KlongPy's own, because the engine's version lacks something the tests (the
-# specification) ask for; each is in the report as an "engine needs" item:
-#   channels and output  .cc .d .fc .ic .oc .p .pf .r .rl .tc .w .mi  write to and read from the channel at klong['.sys.cout'] /
-#                        ['.sys.cin'], which a program or test sets to any Python file-like object (KGChannel); the engine's own
-#                        write to its console only, and its .mi / .rl read the process's stdin
-#   .l                   the search order of KLONGPATH and the directory of the loading program, the error text that lists the places,
-#                        a path with a directory and an extension
-#   .extern .entry .param  the stand-in is a Python function looked up at each call, and klong.externs.declared / .entries / .params hold
-#                        what the program declared (the static tools' API)
-#   .fixed               fixed-point arrays (the native one is an error)
-_PYTHON_OWNED = frozenset({".cc", ".d", ".entry", ".extern", ".fc", ".fixed", ".ic", ".l", ".mi", ".oc", ".p", ".param", ".pf", ".r", ".rl", ".tc", ".w"})
-
-
-def sys_load(klong, x):
-    """.l as KlongPy's eval_sys_load (the search order of KLONGPATH and the directory of the program that loads, the file
-    as the Source of what runs) without its manoeuvre with the Python engine's context stack."""
-    from .sys_fn import find_load_file, _program_dir
-    from .errors import KlongException, KlongSystemError
-    home = _program_dir(klong)
-    found, tried = find_load_file(x, home)
-    if found is None:
-        where = f", then in the directory of the file that calls .l, {home}" if home else ""
-        raise FileNotFoundError(f"file does not exist: {x} (looked for {', '.join(tried)}; a relative path is "
-                                f"searched in the directories of KLONGPATH, taken from the current directory, "
-                                f"{os.getcwd()}{where})")
-    try:
-        with open(found, "r") as f:
-            return klong(Source(found, f.read()))
-    except IOError as e:
-        if isinstance(e, KlongException):
-            raise
-        print(e)
-        raise compat(KlongSystemError, RuntimeError)(f"file could not be opened: {found}") from e
-
 
 
 def _error_for(f):
@@ -495,43 +433,87 @@ class RustInterpreter:
         self._k = klong_native.Klong(strict, _TYPES)
         self._parser = "native"
         from .sys_fn_static import ExternTable
-        self.externs = ExternTable()
+        self.externs = ExternTable(self)
         self._sources = []
         self._pyfns = {}
         self._wrapped = set()   # names of Python callables that were wrapped as Klong functions on assignment
         self._host_vars = {}   # a Python object the engine cannot hold (a tuple of classes), kept on the Python side
+        self._lambdas = {}      # id of a KGLambda -> (the KGLambda, its HostLambda): a callable is one dictionary key
         self._start_time = time.time()
         self._warn_registry = {}
+        k = self._k
+        k.set_console(True)                         # .p .d .w .pf .oc .ic .cc .tc .fc .r .rl .mi: the engine's, on sys.stdout/stdin
+        k.set_warning_hook(self._issue_warnings)    # syntax warnings, after the parse and before the first statement
+        k.set_stand_in_lookup(self._stand_in)       # the Python function behind an .extern, and .fixed's array maker
         self._bridge_system_functions()
-        self._k.set_converters(self._out, self._in)
+        k.set_converters(self._out, self._in)
         from . import rust_host
         rust_host.install(self, self._backend)
+        # a backend that computes in float32 (torch): floats print as float32 does, and a float that leaves the engine is one
+        self._float = None
+        if self._backend.name != "numpy":
+            w = rust_host.host_float(self._backend)
+            if w == np.float32:
+                k.set_float32_display(True)
+                self._float = np.float32
 
     def _bridge_system_functions(self):
-        """KlongPy's Python system functions that the native runtime does not have (.py .pyf .pya .pyc .sys ...), and
-        those it has but that must be KlongPy's own because Python objects are involved (the channels: _PYTHON_OWNED),
-        as callbacks."""
+        """KlongPy's Python system functions: those the native runtime does not have (.py .pyf .pya .pyc .sys .bkd ...) and the
+        ones that are Python's by nature even though it has one of its own (the events: asyncio loops, the FPGA card), as callbacks."""
         for create, replaces in _system_function_factories():
             for name, kgl in create().items():
-                if name in self._k and not replaces and name not in _PYTHON_OWNED:
+                if name in self._k and not replaces:
                     continue
-                if name == ".l":
-                    kgl = sys_load     # KlongPy's search order and sources, loading through this interpreter
                 if not isinstance(kgl, KGLambda):
                     kgl = KGLambda(kgl)
                 self._register_kglambda(name, kgl)
         from .sys_fn_ipc import create_system_var_ipc
         for name, v in create_system_var_ipc().items():
             self._k[name] = v
-        # the channels are Python objects (KGChannel) wherever they are visible
-        from .sys_var import eval_sys_var_cin, eval_sys_var_cout, eval_sys_var_cerr
-        for name, ch in (("cin", eval_sys_var_cin()), ("cout", eval_sys_var_cout()), ("cerr", eval_sys_var_cerr())):
-            self._k["." + name] = ch
-            self._k[".sys." + name] = ch
+
+    def _warning_objects(self, issued, origin):
+        out = []
+        for code, message, hint, start, end, name, text in issued:
+            source = Source(name if name and name != "<string>" else (origin or "<string>"), text)
+            out.append(KlongSyntaxWarning(message, span=(start, end), source=source, hint=hint, code=code))
+        return out
+
+    def _issue_warnings(self, issued, origin=None):
+        """The syntax warnings the native parser recorded for the program about to run, issued through the warnings module as
+        the Python engine did: the name of the source as file name, the line of the span as line number, once per location. A
+        warning filter set to error raises here and the program does not run."""
+        if origin is None:
+            origin = self._sources[-1].name if self._sources else None
+        regs = self._warn_registry
+        if len(regs) > 256:
+            regs.clear()
+        for w in self._warning_objects(issued, origin):
+            warnings.warn_explicit(w, KlongSyntaxWarning, w.source.name, w.source.line_col(w.span[0])[0], module="klongpy",
+                                   registry=regs.setdefault(w.source, {}))
+
+    def _stand_in(self, name):
+        """The Python callable behind a declared extern (None: there is none), and the maker of fixed-point arrays for .fixed."""
+        if name == ".fixed":
+            from .sys_fn_static import make_fixed
+            return make_fixed
+        return self.externs.get(name)
 
     def names(self):
         """The names of every global that is defined: variables and functions, system functions, the host's variables."""
         return sorted(set(self._k.names()) | set(self._host_vars))
+
+    def current_function(self, sym):
+        """The function the global `sym` is bound to now (not a projection), or None: what KGFnWrapper calls, so that a
+        redefinition of the name takes effect."""
+        try:
+            v = self._k[str(sym)]
+        except KeyError:
+            return None
+        if type(v) is _KFn:
+            now = self._wrap_fn(v)
+            if not isinstance(now, RustCall):
+                return now
+        return None
 
     def name_of(self, fn):
         """The KGSym of the (non-system) global a function value is bound to, or None."""
@@ -579,8 +561,7 @@ class RustInterpreter:
                     raise
                 raise err from e
 
-        host._kgl = kgl
-        self._k.register(name, host, arity)
+        self._k.register(name, host, arity, kgl)
 
     # -- function values and the crossing --------------------------------------------------------------------------
     def _wrap_fn(self, kfn):
@@ -597,8 +578,8 @@ class RustInterpreter:
             return v.kgl
         if t is HostObject:
             return v.obj
-        if t is _FunctionType:
-            return getattr(v, "_kgl", v)   # a system function registered from a KGLambda, handed back
+        if isinstance(v, KGLambda):
+            return v       # a system function registered from a KGLambda, handed back as that object
         if t is np.ndarray:
             if v.dtype == object and v.size:
                 flat = v.ravel()
@@ -613,6 +594,29 @@ class RustInterpreter:
             return [self._out(q) for q in v]
         if t is dict:
             return {k: self._out(q) for k, q in v.items()}
+        return v
+
+    def _host_lambda(self, kgl):
+        """The one HostLambda of a KGLambda: a callable is one dictionary key."""
+        e = self._lambdas.get(id(kgl))
+        if e is None or e[0] is not kgl:
+            e = self._lambdas[id(kgl)] = (kgl, HostLambda(self, kgl))
+        return e[1]
+
+    def _result(self, v):
+        """A value on its way out to the caller of the interpreter, as what a program evaluates to or a variable holds: a float is the
+        backend's float type (float32 on torch). Not for what goes to a Python function the program calls, and not for what apply()
+        gives (the gradient code reads those as they are)."""
+        f = self._float
+        if f is None:
+            return v
+        t = type(v)
+        if t is float:
+            return f(v)
+        if t is list:
+            return [self._result(q) for q in v]
+        if t is dict:
+            return {k: self._result(q) for k, q in v.items()}
         return v
 
     def _native_fn(self, f):
@@ -630,7 +634,7 @@ class RustInterpreter:
         if t is RustFnWrapper:
             return self._native_fn(v.fn)
         if isinstance(v, KGLambda):
-            return HostLambda(self, v)
+            return self._host_lambda(v)
         if t is not dict and isinstance(v, dict) and not hasattr(v, "_h"):
             return HostObject(v)
         if t is list:
@@ -656,43 +660,45 @@ class RustInterpreter:
             raise _place(e)
 
     # -- evaluation ---------------------------------------------------------------------------------------------
-    def _warn(self, origin):
-        """The syntax warnings the native parser recorded, issued through the warnings module as the Python engine does:
-        the name of the source as file name, the line of the span as line number, once per location."""
-        issued = self._k.take_warnings()
-        if not issued:
-            return
-        regs = self._warn_registry
-        if len(regs) > 256:
-            regs.clear()
-        for code, message, hint, start, end, name, text in issued:
-            source = Source(name if name and name != "<string>" else (origin or "<string>"), text)
-            w = KlongSyntaxWarning(message, span=(start, end), source=source, hint=hint, code=code)
-            warnings.warn_explicit(w, KlongSyntaxWarning, source.name, source.line_col(start)[0], module="klongpy",
-                                   registry=regs.setdefault(source, {}))
-
     def _evaluate(self, run, x):
         x, origin = _program(x)
         sources = self._sources
         sources.append(Source(origin or "<string>", x))     # current_source(), and what .l looks next to
         try:
-            r = self._out(run(x, origin) if origin else run(x))
+            r = self._result(self._out(run(x, origin) if origin else run(x)))
         except klong_native.NativeError as e:
-            err = _error(e, origin)
-            if isinstance(err, KlongSyntaxError):
-                self._k.take_warnings()   # a program that did not parse issues none
-            else:
-                self._warn(origin)
-            raise err
+            raise _error(e, origin)
         except KlongError as e:
             raise _place(e, origin)
         finally:
             sources.pop()
-        self._warn(origin)
+        # engine needs: the hook runs for the program at the top level only; the warnings of a program that .E or .l parsed
+        # while it ran are left to take, and are issued here once it has ended
+        left = self._k.take_warnings()
+        if left:
+            self._issue_warnings(left, origin)
         return r
 
+    def console(self, write=None, error=None, read=None):
+        """Point the console channels at Python callables: what the program writes with .p .d .w .pf goes to write(text) (default:
+        sys.stdout.write of that moment), console errors to error(text) (default sys.stderr.write), and .rl .r .mi read from
+        read(n), the next input of at most n characters (default: sys.stdin.readline of that moment)."""
+        self._k.set_console(True, write, error, read)
+
+    def current_module(self):
+        """The name of the module the program is in (`.module(:name)`), or None outside any."""
+        return self._k.module()
+
+    def start_module(self, name):
+        """`.module(:name)` for the host: the programs run from now on are read in the module `name` until stop_module()."""
+        self._k.start_module(str(name))
+
+    def stop_module(self):
+        """`.module(0)` for the host: leave the module."""
+        self._k.stop_module()
+
     def current_source(self):
-        """The klongpy.lexer.Source of the program being run (the innermost one), or None."""
+        """The klongpy.source.Source of the program being run (the innermost one), or None."""
         return self._sources[-1] if self._sources else None
 
     def __call__(self, x):
@@ -744,13 +750,11 @@ class RustInterpreter:
             raise KeyError(k) from None
         if type(v) is _KFn:
             return RustFnWrapper(self, self._wrap_fn(v), KGSym(str(k)))
-        if type(v) is _FunctionType:
-            py = getattr(v, "_kgl", None)
-            if isinstance(py, KGLambda):
-                if str(k) in self._wrapped:
-                    return RustLambdaWrapper(self, py, KGSym(str(k)))
-                return py   # the KGLambda that was put there, as KlongPy hands it back
-        return self._out(v)
+        if isinstance(v, KGLambda):
+            if str(k) in self._wrapped:
+                return RustLambdaWrapper(self, v, KGSym(str(k)))
+            return v   # the KGLambda that was put there, as KlongPy hands it back
+        return self._result(self._out(v))
 
     def __setitem__(self, k, v):
         if type(v) is KGLambda:
@@ -768,8 +772,9 @@ class RustInterpreter:
             self._k[str(k)] = self._in(v)
         except klong_native.NativeError as e:
             raise _error(e)
-        except (TypeError, ValueError):
-            # a Python object the engine cannot hold (a tuple of classes: numpy.ScalarType): kept on the Python side
+        except (TypeError, ValueError, AttributeError):
+            # a Python object the engine cannot hold (a tuple of classes: numpy.ScalarType, whose .dtype is a descriptor the
+            # extension reads .kind of: engine needs, an AttributeError there is "not an array"): kept on the Python side
             self._host_vars[str(k)] = v
             if str(k) in self._k:
                 del self._k[str(k)]

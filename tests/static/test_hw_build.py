@@ -19,7 +19,7 @@ from klongpy.hw.build import Builder, Plan, hw_build_main, suggest_clock
 from klongpy.hw.remote import Remote, RemoteError
 from klongpy.static.native import emit_hls_program
 
-from .test_ir import EMBEDDED
+from .common import EMBEDDED
 
 HEADER = ("    WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  "
           "THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  \n"

@@ -34,8 +34,13 @@ Rules, by code
     W018  number immediately followed by a name (10c, 2x)
     W019  assignment to x, y or z (that is not declared a local)
     W020  a two-element list joined to a dictionary literal with ,
+    W021  a.b::v where a is never a dictionary (a variable named with a dot in Klong 1)
+    W022  a module imported by .import and never used
+    W023  a function literal with no parameter in .export(:{;...}) is called where it is written
     E001  anything the parser rejects at strict level 1
     E002  call with more arguments than the callee takes
+    E003  assignment to an entry of what .import returned (it is read-only)
+    E004  qualified name that the imported module does not export
 
 The notes in docs/lint.md say where a rule is narrower than the table
 and why. Rules that cannot be decided from the text are reduced to the part
@@ -65,26 +70,13 @@ class Rule:
     title: str
 
 
-# Engine needs: the table of rules as data (a lint_rules() of the extension). The codes are checked by the engine itself
-# (parse_codes); this is the text of docs/lint.md.
-RULES = {r.code: r for r in (
-    Rule('W001', 'warning', "_ between name characters: it is the Drop operator"),
-    Rule('W002', 'warning', "name used before its definition, or never defined"),
-    Rule('W003', 'warning', "declared local never used"),
-    Rule('W010', 'warning', "leading - followed by a number and a dyad negates the whole expression"),
-    Rule('W011', 'warning', "function uses y without x, or z without y"),
-    Rule('W012', 'warning', "bare name in a list is the symbol, not the value"),
-    Rule('W013', 'warning', ":[ in the else position of :[ can be the :| chain"),
-    Rule('W014', 'warning', "whitespace between a name or } and ( or an adverb"),
-    Rule('W015', 'warning', "newline after a comment inside a body or conditional acts as ;"),
-    Rule('W016', 'warning', ": directly before a digit is ignored"),
-    Rule('W017', 'warning', "; a bracket or an operator inside a data list is data"),
-    Rule('W018', 'warning', "number immediately followed by a name"),
-    Rule('W019', 'warning', "assignment to x, y or z"),
-    Rule('W020', 'warning', "a two-element list joins into a dictionary with ,"),
-    Rule('E001', 'error', "the parser rejects this at strict level 1"),
-    Rule('E002', 'error', "call with more arguments than the callee takes"),
-)}
+def _rules():
+    from .native_ext import native
+    return {code: Rule(code, severity, title) for code, severity, title in native().lint_rules()}
+
+
+# the rules of the linter, from the engine's own table (lint_rules of the extension); the text of docs/lint.md
+RULES = _rules()
 
 
 @dataclass(frozen=True)

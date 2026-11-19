@@ -49,9 +49,10 @@ A comment on the line before a fenced block changes how it is run::
 Directives combine with ``;`` (``continue; requires duckdb``); a ``skip`` reason runs to the end of the comment. ``requires`` and
 ``requires-cmd`` on a block apply to the blocks that continue it. ``requires-cmd`` names programs (a C compiler, say) that
 must be found on the ``PATH``; the block is skipped, with ``needs clang`` as the reason, where one is missing. ``requires-file``
-names paths relative to the repository root (``native/target/release/klong``, a binary that has to be built first); the
-block is skipped, with ``needs native/target/release/klong`` as the reason, where one does not exist. ``path`` puts the named
-directories of the repository, in front of the ``PATH`` of a console block's commands, so that ``klong`` there is the
+names paths relative to the repository root (``native/target/release/kg``, a binary that has to be built first; where only the old
+name ``klong`` is built, that one stands in for it); the
+block is skipped, with ``needs native/target/release/kg`` as the reason, where one does not exist. ``path`` puts the named
+directories of the repository, in front of the ``PATH`` of a console block's commands, so that ``kg`` there is the
 one that was built; it is given on the block that starts the session, is an error on any other form, and the directory has
 to exist unless the block is skipped. ``link`` makes a
 console block's directory contain a symbolic link to each named path of the repository (``examples`` makes
@@ -99,6 +100,15 @@ DOC_PORT = "8888"
 
 
 DIRECTIVE = re.compile(r"(?:<!--\s*check-docs:(.*?)-->\s*)?```([a-z]*)\n(.*?)```", re.S)
+
+
+def native_binary_alias(name):
+    """The standalone binary is `kg` (native/target/release/kg); a build that has only the old name `klong` still stands in for it."""
+    if os.path.basename(name) == "kg" and not os.path.exists(os.path.join(ROOT, name)):
+        old = os.path.join(os.path.dirname(name), "klong")
+        if os.path.exists(os.path.join(ROOT, old)):
+            return old
+    return name
 
 
 def parse_directives(text):
@@ -282,6 +292,9 @@ class Session:
                     pass
             for name in path:
                 target = os.path.join(ROOT, name)
+                old = os.path.join(target, "klong")
+                if os.path.isdir(target) and not os.path.exists(os.path.join(target, "kg")) and os.path.exists(old):
+                    os.symlink(old, os.path.join(self.bin, "kg"))     # `kg` is the binary's name; only `klong` is built so far
                 if not os.path.isdir(target) or os.path.isabs(name) or ".." in name.split("/"):
                     raise ValueError(f"check-docs: cannot put {name!r} on the PATH: not a directory of the repository")
                 self.path.append(target)
@@ -351,7 +364,7 @@ def check_text(path, text, report, skipped):
             if not reason:
                 missing = [p for p in d["requires"] if not importable(p)]
                 missing += [c for c in d["requires_cmd"] if shutil.which(c) is None]
-                missing += [f for f in d["requires_file"] if not os.path.exists(os.path.join(ROOT, f))]
+                missing += [f for f in d["requires_file"] if not os.path.exists(os.path.join(ROOT, native_binary_alias(f)))]
                 if missing:
                     reason = "needs " + ", ".join(missing)
             if (d["link"] or d["path"]) and kind != "shell":

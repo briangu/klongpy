@@ -1,7 +1,7 @@
 """
 The static profile checker (docs/static-profile.md).
 
-Table-driven. For every rule id in klongpy.static.rules there is one program
+Table-driven. For every rule id of the profile (klongpy.static.tables) there is one program
 inside the profile (tests/static/accept/<id>.kg: the nearest legal form) and
 one outside it (tests/static/reject/<id>.kg, whose first line names the line
 and the rule expected). CASES adds further programs per rule, with the
@@ -14,9 +14,12 @@ import os
 import re
 import unittest
 
-from klongpy import KlongInterpreter
 from klongpy.errors import KlongError, KlongStaticError
-from klongpy.static import RULES, check_file, check_source
+from klongpy.static import RULES as ALL_RULES, check_file, check_report, check_source
+from klongpy.static.tables import STREAM_RULES
+
+# the profile's rules; the streamable tier's (stream-*) are rules of `check --streamable`, tested in test_streamable.py
+RULES = {k: v for k, v in ALL_RULES.items() if k not in STREAM_RULES}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXPECT = re.compile(r':" expect: static line (\d+) (\S+) "')
@@ -309,13 +312,14 @@ class TestStages(unittest.TestCase):
         ])
         r = check_source(text, "t.kg")
         self.assertTrue(r.ok, r.render())
-        self.assertEqual([(k, n) for k, n, *_ in r.statements],
+        self.assertEqual([(k, n) for k, n, *_ in check_report(text, "t.kg")["statements"]],
                          [("global", "tab"), ("function", "f"), ("function", "g"), ("extern", "read.adc"),
                           ("entry", "f"), ("global", "p"), ("global", "q")])
         self.assertEqual(r.externs["read.adc"].module, "io")
         self.assertEqual(str(r.externs["read.adc"].signature), "int -> float")
-        self.assertEqual(r.functions["g"].params, ("a", "b"))
-        self.assertEqual(r.functions["f"].params, ("x",))
+        fns = {f[0]: f for f in check_report(text, "t.kg")["functions"]}
+        self.assertEqual(list(fns["g"][7]), ["a", "b"])         # params
+        self.assertEqual(list(fns["f"][7]), ["x"])
         self.assertEqual(str(r.globals["p"].ty), "int")
         self.assertEqual(str(r.globals["q"].ty), "int")
         self.assertIsNone(r.globals["tab"].ty)
@@ -374,27 +378,14 @@ class TestStages(unittest.TestCase):
         r = check_file(os.path.join(HERE, "accept", "load.kg"))
         self.assertTrue(r.ok, r.render())
         self.assertIn("scale", r.functions)
-        self.assertTrue(r.functions["scale"].source.name.endswith("scale.kg"))
+        with open(os.path.join(HERE, "accept", "load.kg")) as f:
+            rep = check_report(f.read(), os.path.join(HERE, "accept", "load.kg"))
+        scale = next(f for f in rep["functions"] if f[0] == "scale")
+        self.assertTrue(rep["sources"][scale[6]][0].endswith("scale.kg"))     # the file it was defined in
         self.assertEqual(found('.l("support/scale")\nf::{scale(x)}', resolve=False), [(2, "undefined-name")])
 
 
 class TestNeverEvaluates(unittest.TestCase):
-    def test_the_checker_runs_with_the_evaluator_disabled(self):
-        def boom(*a, **k):
-            raise AssertionError("the checker evaluated something")
-        saved = {n: getattr(KlongInterpreter, n) for n in ("__call__", "eval", "call", "exec", "apply") if hasattr(KlongInterpreter, n)}
-        for n in saved:
-            setattr(KlongInterpreter, n, boom)
-        try:
-            for rule in RULES:
-                check_file(os.path.join(HERE, "accept", rule + ".kg"))
-                check_file(os.path.join(HERE, "reject", rule + ".kg"))
-            for rule, text, want in CASES:
-                self.assertEqual(found(text), want)
-        finally:
-            for n, f in saved.items():
-                setattr(KlongInterpreter, n, f)
-
     def test_nothing_in_the_program_happens(self):
         import tempfile
         with tempfile.TemporaryDirectory() as d:

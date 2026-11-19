@@ -4,6 +4,7 @@
 buffers, the info record, the errors, and the same answers as the interpreted program on the numpy and torch backends.
 The card itself is tests/static/test_hw_binding_card.py.
 """
+import numbers
 import os
 import subprocess
 import sys
@@ -193,7 +194,7 @@ class TestSimulator(unittest.TestCase):
         s = self.run_kg("fir.run(256#1.0)@0")
         self.assertAlmostEqual(float(s), 1.0, places=5)
         self.run_kg('.fpga("%s")' % MAVG)
-        self.assertIsInstance(self.run_kg("mavg.step(4.0)"), float)
+        self.assertIsInstance(self.run_kg("mavg.step(4.0)"), numbers.Real)       # the backend's float type (float32 on torch)
         self.run_kg('.fpga("%s")' % TRAP)
         self.assertIsInstance(self.run_kg("trap.g(7;3)"), int)
 

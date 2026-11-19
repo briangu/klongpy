@@ -10,22 +10,21 @@ import warnings
 
 from klongpy import KlongInterpreter
 from klongpy.core import KGSym, KLONG_UNDEFINED
-from klongpy.dump import dump, dump_text, node_spans, parse_program
+from tests.treedump import dump_text
 from klongpy.errors import KlongError, KlongNameError, KlongSyntaxError, KlongSyntaxWarning, KlongTypeError
-from tests.backend_compat import on_rust_engine, requires_python_engine
 
 LEVELS = (0, 1, 2)
 
 
-def interp(level, *lines, parser=None):
-    k = KlongInterpreter(strict=level, parser=parser)
+def interp(level, *lines):
+    k = KlongInterpreter(strict=level)
     for line in lines:
         k(line)
     return k
 
 
-def run(level, *lines, parser=None):
-    k = KlongInterpreter(strict=level, parser=parser)
+def run(level, *lines):
+    k = KlongInterpreter(strict=level)
     r = None
     for line in lines:
         r = k(line)
@@ -142,22 +141,11 @@ class TestEvaluatedLiteral(unittest.TestCase):
             self.assertEqual(k(":{}"), {})
 
     def test_dump(self):
-        D = lambda t: dump(parse_program(KlongInterpreter(), t)).rstrip("\n")
+        D = lambda t: dump_text(t).rstrip("\n")
         self.assertEqual(D(':{;"a";1+1;b;2}'), '(edict (str "a") (d "+" (num 1) (num 1)) (sym b) (num 2))')
         self.assertEqual(D(":{;}"), "(edict)")
         self.assertEqual(D(":{;1;:{;2;3}}"), "(edict (num 1) (edict (num 2) (num 3)))")
         self.assertEqual(D(":{[1 2]}"), "(dict ((num 1) (num 2)))")
-
-    def test_spans(self):
-        tree = parse_program(KlongInterpreter(), 'q;:{;"a";1+1}')[1]
-        self.assertEqual(tree.span, (2, 13))
-        self.assertEqual(tree.arg_spans, ((5, 8), (9, 12)))
-        self.assertEqual([sp for _, sp, _, _ in node_spans(tree)], [(2, 13), (9, 12)])
-
-    @requires_python_engine("the legacy parser of the Python engine")
-    def test_legacy_parser(self):
-        with self.assertRaises(IndexError):
-            KlongInterpreter(parser="legacy")(":{;1;2}")
 
 
 class TestNestedLiterals(unittest.TestCase):
@@ -196,13 +184,6 @@ class TestNestedLiterals(unittest.TestCase):
     def test_dump_is_what_it_was(self):
         self.assertEqual(dump_text(":{[1 :{[2 3]}]}"), "(dict ((num 1) (dict ((num 2) (num 3)))))\n")
         self.assertEqual(dump_text("[:{[1 2]} 3]"), "(list (dict ((num 1) (num 2))) (num 3))\n")
-        for text in (":{[1 :{[2 3]}]}", "[:{[1 2]} 3]", "[1 [:{}]]", "f([:{[1 2]}])"):
-            self.assertEqual(dump_text(text), dump_text(text, parser="legacy"))
-
-    def test_a_list_without_a_dictionary_is_the_array_it_was(self):
-        import numpy as np
-        tree = parse_program(KlongInterpreter(backend="numpy"), "[1 [2 3] 4]")[0]
-        self.assertIsInstance(tree, np.ndarray)
 
 
 class TestMerge(unittest.TestCase):
@@ -213,8 +194,6 @@ class TestMerge(unittest.TestCase):
                 self.assertEqual(plain(k("b,c")), {1: 2, 3: 4})
                 self.assertEqual(plain(k("b")), {1: 2, 3: 4})       # b shows the merge
                 self.assertEqual(plain(k("c")), {3: 4})
-                if not on_rust_engine():    # object identity across the engine boundary
-                    self.assertIs(k("b,c"), k("b"))
 
     def test_right_wins(self):
         for level in LEVELS:
@@ -248,12 +227,6 @@ class TestMerge(unittest.TestCase):
                     e = error(level, "d:::{[1 2]}", text)
                     self.assertIsInstance(e, KlongTypeError)
                     self.assertEqual(e.kind, "type")
-
-    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
-    def test_values_stay_what_they_are(self):
-        # a merged value is the same object: nothing is converted or copied
-        k = interp(0, "v::[1.5 2.5 3.5]", "b:::{}", 'c:::{;"v";v}', "b,c")
-        self.assertIs(k('b?"v"'), k("v"))
 
 
 class TestLookupWithAt(unittest.TestCase):
@@ -297,12 +270,6 @@ class TestLookupWithAt(unittest.TestCase):
         self.assertEqual(num(k("[1 2 3]@1")), 2)
         self.assertEqual(k('"abc"@1'), "b")
         self.assertEqual(num(k("{x+1}@1")), 2)
-
-    @requires_python_engine("object identity of a value across the engine boundary (assertIs): the native engine hands values out as new objects")
-    def test_tensor_and_array_values(self):
-        k = interp(0, "v::[1.5 2.5 3.5]", 'd:::{;"w";v}')
-        self.assertIs(k('d@"w"'), k("v"))
-        self.assertEqual(num(k('+/d@"w"')), 7.5)
 
 
 class TestFormat(unittest.TestCase):

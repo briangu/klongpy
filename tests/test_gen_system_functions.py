@@ -32,12 +32,11 @@ class TestGenerator(unittest.TestCase):
 
     def test_every_registered_system_function_is_collected(self):
         k = KlongInterpreter()
-        registered = {str(n) for n, _ in k._context if str(n).startswith(".")}
+        registered = {n for n in k.names() if n.startswith(".")}
         missing = sorted(registered - set(self.items) - NOT_FUNCTIONS)
         self.assertEqual(missing, [])
 
-    def test_static_module_is_listed(self):
-        self.assertIn("klongpy.sys_fn_static", self.gen.MODULES)
+    def test_static_declarations_are_listed(self):
         self.assertIn(".entry", self.items)
         self.assertIn(".extern", self.items)
 

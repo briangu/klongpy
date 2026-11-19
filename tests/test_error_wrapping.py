@@ -18,7 +18,6 @@ from klongpy.errors import (
     describe, operator_error, operator_name,
 )
 from klongpy.types import KGCall, KGChar, KGLambda, KGOp, KGSym, KLONG_UNDEFINED
-from tests.backend_compat import on_rust_engine, requires_python_engine
 
 
 def raised(klong, text, cls=KlongError):
@@ -122,34 +121,6 @@ class TestOperatorErrors(unittest.TestCase):
         k("f::{x+b}")
         e = raised(k, "f(a)", KlongShapeError)
         self.assertEqual(e.source.text, "f::{x+b}")
-
-    @requires_python_engine("replaces an operator in the Python engine's private dispatch table _vd")
-    def test_exits_and_interrupts_are_not_caught(self):
-        k = KlongInterpreter()
-
-        def boom(exc):
-            def fn(x, y):
-                raise exc
-            return fn
-        for exc in (SystemExit(3), KeyboardInterrupt(), GeneratorExit()):
-            with self.subTest(exc=type(exc).__name__):
-                k._vd["+"] = boom(exc)
-                with self.assertRaises(type(exc)) as cm:
-                    k("1+2")
-                self.assertIs(cm.exception, exc)
-
-    @requires_python_engine("replaces an operator in the Python engine's private dispatch table _vd")
-    def test_timeout_from_a_signal_handler_is_not_relabelled(self):
-        k = KlongInterpreter()
-
-        def handler(signum, frame):
-            raise TimeoutError("alarm")
-        old = signal.signal(signal.SIGALRM, handler)
-        self.addCleanup(signal.signal, signal.SIGALRM, old)
-        k._vd["+"] = lambda x, y: signal.raise_signal(signal.SIGALRM)
-        with self.assertRaises(TimeoutError) as cm:
-            k("1+2")
-        self.assertNotIsInstance(cm.exception, KlongError)
 
 
 class TestClassify(unittest.TestCase):
@@ -259,22 +230,14 @@ class TestDescribe(unittest.TestCase):
 
 
 class TestOperatorNames(unittest.TestCase):
-    def test_every_registered_operator_has_a_name(self):
-        k = KlongInterpreter()
-        for glyph in k._vd:
-            with self.subTest(dyad=glyph):
-                self.assertTrue(operator_name(glyph, 2))
-        for glyph in k._vm:
-            with self.subTest(monad=glyph):
-                self.assertTrue(operator_name(glyph, 1))
-
     def test_names_come_from_the_docstring_headers(self):
-        from klongpy import dyads, monads
+        from klongpy.operator_help import operator_docs
+        dyads, monads = operator_docs()["dyads"], operator_docs()["monads"]
         self.assertEqual(operator_name("+", 2), "Plus")
-        self.assertIn("a+b", dyads.eval_dyad_add.__doc__)
-        self.assertIn("[Plus]", dyads.eval_dyad_add.__doc__)
+        self.assertIn("a+b", dyads["eval_dyad_add"])
+        self.assertIn("[Plus]", dyads["eval_dyad_add"])
         self.assertEqual(operator_name("-", 1), "Negate")
-        self.assertIn("[Negate]", monads.eval_monad_negate.__doc__)
+        self.assertIn("[Negate]", monads["eval_monad_negate"])
         self.assertEqual(operator_name("-", 2), "Minus")
         self.assertEqual(operator_name(":#", 2), "Split")
         self.assertEqual(operator_name(":#", 1), "Char")
@@ -339,9 +302,7 @@ class TestPythonAndSystemFunctions(unittest.TestCase):
     def test_imported_lambdas_are_flagged(self):
         k = KlongInterpreter()
         k('.pyf("math";"sqrt")')
-        self.assertTrue(k._context[KGSym("sqrt")].user)
-        p = k._context[KGSym(".p")]
-        self.assertFalse((p.a if isinstance(p, KGCall) else p).user)
+        self.assertTrue(k["sqrt"].user)
 
     def test_system_function_is_not_a_python_error(self):
         k = KlongInterpreter()
@@ -355,10 +316,6 @@ class TestPythonAndSystemFunctions(unittest.TestCase):
     def test_system_function_error_is_not_relabelled_by_an_operator(self):
         # the failure of a system function called by the verb of an adverb is not "cannot apply f'"
         k = KlongInterpreter()
-        if not on_rust_engine():        # a bug of the Python .fc (an AttributeError escapes); the engine's .fc is a Klong type error
-            with self.assertRaises(AttributeError) as cm:
-                k("{.fc(x)}'[1 2]")
-            self.assertNotIsInstance(cm.exception, KlongError)
         e = raised(k, '{.l("no/such/file/anywhere")}\'[1 2]', KlongSystemError)
         self.assertIn("file does not exist", str(e))
 

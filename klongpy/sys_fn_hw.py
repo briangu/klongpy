@@ -14,7 +14,6 @@ import numpy as np
 
 from .errors import (KlongArityError, KlongError, KlongNameError, KlongRangeError, KlongShapeError, KlongSystemError,
                      KlongTypeError)
-from .sys_fn_static import _define_global
 from .types import KGLambda, KGSym
 
 __all__ = ["KlongHwError", "KlongHwImageError", "KlongHwBusyError", "KlongHwConnectionError", "create_system_functions_hw"]
@@ -229,7 +228,7 @@ def _bind(klong, files, lanes):
         table[be.name if be.name not in table else be.qualified] = fn
         qualified[be.qualified] = fn
     for q, fn in qualified.items():
-        _define_global(klong, KGSym(q), fn)
+        klong[KGSym(q)] = fn
     klong.hw_binding = b
     return table
 

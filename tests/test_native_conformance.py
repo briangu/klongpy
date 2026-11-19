@@ -5,7 +5,7 @@ Skipped unless the `klong` binary is built:
 
     cd native && cargo build --release
 
-The binary is `native/target/release/klong`, or the path in the environment variable KLONG_NATIVE.
+The binary is `native/target/release/kg` (`klong` while a build has only that name), or the path in the environment variable KLONG_NATIVE.
 KLONG_NATIVE_TAGS overrides the tags the binary declares (for a build with the features
 `int32,float32`: core,strings,dicts,unicode,sysio,strict1,strict2,numpy-only,device).
 """
@@ -16,9 +16,21 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+
+
+def _native_binary():
+    """The native binary: `kg` (the name it is given), or `klong` while a build still has only that name; KLONG_NATIVE overrides."""
+    given = os.environ.get("KLONG_NATIVE")
+    if given:
+        return given
+    release = os.path.join(ROOT, "native", "target", "release")
+    for name in ("kg", "klong"):
+        if os.path.isfile(os.path.join(release, name)):
+            return os.path.join(release, name)
+    return os.path.join(release, "kg")
 CONF = os.path.join(ROOT, "conformance")
 
-BINARY = os.environ.get("KLONG_NATIVE") or os.path.join(ROOT, "native", "target", "release", "klong")
+BINARY = _native_binary()
 # What the native runtime declares in the default build (64-bit integers, f64). Not declared:
 # bigint (integers wrap at the build width), torch-only and kgpy-only (KlongPy's own), and the
 # tiers timers, ipc and desktop.

@@ -25,7 +25,7 @@ from klongpy.sys_fn_hw import KlongHwImageError
 from tests.test_hw_binding import close, reference
 from .hostutil import to_np
 from .test_emit_hls import program
-from .test_ir import ROOT
+from .common import ROOT
 
 HOST = os.environ.get("KLONG_FPGA_HOST", "").strip() or None
 TRAP = os.path.join(ROOT, "tests", "static", "hw", "trap.kg")

@@ -12,23 +12,22 @@ import unittest
 import warnings
 
 from klongpy import KlongInterpreter
-from klongpy.core import KGBody, KGCall, KGFn, KGFnWrapper, KGSym
-from klongpy.dump import dump, dump_text, parse_program
+from klongpy.core import KGCall, KGFn, KGFnWrapper, KGSym
+from tests.treedump import dump_text
 from klongpy.errors import (KlongArityError, KlongError, KlongNameError, KlongSyntaxError, KlongSyntaxWarning)
-from tests.backend_compat import on_rust_engine, requires_python_engine
 
 LEVELS = (0, 1, 2)
 
 
-def interp(level, *lines, parser=None):
-    k = KlongInterpreter(strict=level, parser=parser)
+def interp(level, *lines):
+    k = KlongInterpreter(strict=level)
     for line in lines:
         k(line)
     return k
 
 
-def run(level, *lines, parser=None):
-    k = KlongInterpreter(strict=level, parser=parser)
+def run(level, *lines):
+    k = KlongInterpreter(strict=level)
     r = None
     for line in lines:
         r = k(line)
@@ -69,13 +68,9 @@ class TestDefinitionAndCall(unittest.TestCase):
 
     def test_arity_is_the_number_of_parameters(self):
         k = interp(0, "f(a;b;c;d)::{a}", "g()::{1}", "h(a;b)::{1}")
-        self.assertEqual([k._context[KGSym(n)].arity for n in "fgh"], [4, 0, 2])
-        f = k._context[KGSym("f")]
+        self.assertEqual([k[n].arity for n in "fgh"], [4, 0, 2])
+        f = k["f"].fn
         self.assertEqual(f.params, (KGSym("a"), KGSym("b"), KGSym("c"), KGSym("d")))
-        if on_rust_engine():
-            self.skipTest("Python engine only: the rest reads the KGBody of the Python parser")
-        self.assertIsInstance(f.a, KGBody)
-        self.assertEqual(f.a.params, f.params)
 
     def test_the_definition_returns_the_function(self):
         k = KlongInterpreter()
@@ -122,7 +117,7 @@ class TestDefinitionAndCall(unittest.TestCase):
                 else:
                     with self.assertRaises(KlongNameError):
                         k("t")
-                self.assertEqual(tuple(k._context[KGSym("f")].locals), (KGSym("t"),))
+                self.assertEqual(tuple(k["f"].fn.locals), (KGSym("t"),))
 
     def test_a_local_named_like_a_parameter_does_not_hide_the_argument(self):
         for level in LEVELS:
@@ -191,9 +186,9 @@ class TestDefinitionAndCall(unittest.TestCase):
 
     def test_copy_and_pickle(self):
         k = interp(0, "f(a;b;c;d)::{[t];t::a+b;t+c+d}")
-        f = k._context[KGSym("f")]
+        f = k["f"].fn
         for g in (copy.deepcopy(f), pickle.loads(pickle.dumps(f))):
-            k._context[KGSym("g")] = g
+            k["g"] = g
             self.assertEqual(num(k("g(1;2;3;4)")), 10)
             with self.assertRaises(KlongArityError):
                 k("g(1;2;3;4;5)")
@@ -386,13 +381,13 @@ class TestFromPython(unittest.TestCase):
 
     def test_wrapper_without_a_name(self):
         k = interp(0, "f(a;b;c;d)::{a+b+c+d}")
-        w = KGFnWrapper(k, k._context[KGSym("f")], sym=None)
+        w = KGFnWrapper(k, k["f"].fn, sym=None)
         self.assertEqual(num(w(1, 2, 3, d=4)), 10)
 
     def test_apply_with_the_body(self):
         # IPC and timer callbacks hold the body of a function and call apply with it
         k = interp(0, "f(a;b;c;d)::{a+b+c+d}")
-        body = k._context[KGSym("f")].a
+        body = k["f"].fn.a
         self.assertEqual(num(k.apply(body, [1, 2, 3, 4])), 10)
         with self.assertRaises(KlongArityError):
             k.apply(body, [1, 2, 3])
@@ -487,7 +482,7 @@ class TestSyntax(unittest.TestCase):
 
 class TestTree(unittest.TestCase):
     def D(self, text):
-        return dump(parse_program(KlongInterpreter(), text)).rstrip("\n")
+        return dump_text(text).rstrip("\n")
 
     def test_dump(self):
         self.assertEqual(self.D("f(a;b)::{a+b}"), '(def (sym f) (fn 2 (params a b) (d "+" (sym a) (sym b))))')
@@ -505,23 +500,6 @@ class TestTree(unittest.TestCase):
         self.assertEqual(self.D("f(a;b)"), "(call (sym f) (sym a) (sym b))")
         self.assertEqual(self.D("g::f(a;b)"), "(def (sym g) (call (sym f) (sym a) (sym b)))")
         self.assertEqual(self.D("f(a;1)::{a}"), "(def (call (sym f) (sym a) (num 1)) (fn 0 (sym a)))")
-
-    def test_spans(self):
-        k = KlongInterpreter()
-        tree = parse_program(k, "f(a;b)::{a+b}")[0]
-        self.assertEqual(tree.span, (0, 13))
-        self.assertEqual(tree.op_span, (6, 8))
-        self.assertEqual(tree.arg_spans, ((0, 6), (8, 13)))
-        self.assertEqual(tree.args[1].span, (8, 13))
-
-    @requires_python_engine("the legacy parser of the Python engine")
-    def test_legacy_parser_keeps_its_behaviour(self):
-        k = KlongInterpreter(parser="legacy")
-        k("f(a;b)::{a+b}")
-        with self.assertRaises(KlongError):
-            k("f(1;2)")
-        self.assertEqual(dump_text("f(a;b)::{a+b}", parser="legacy"),
-                         '(def (call (sym f) (sym a) (sym b)) (fn 0 (d "+" (sym a) (sym b))))\n')
 
 
 class TestCompiledPath(unittest.TestCase):
@@ -558,13 +536,13 @@ class TestIPCFunctionText(unittest.TestCase):
         k = KlongInterpreter()
         k("f(a;b)::{a+b}")
         k("g::{x+y}")
-        f = k._context[KGSym("f")]
+        f = k["f"].fn
         self.assertEqual(function_source_text(f), "fn(a;b)::{a+b}")
-        self.assertEqual(function_source_text(k._context[KGSym("g")]), "{x+y}")
+        self.assertEqual(function_source_text(k["g"].fn), "{x+y}")
         got = codec.decode(codec.encode(f))
         self.assertEqual(got.text, "fn(a;b)::{a+b}")
         k("h(a;b;c;d;e)::{a}")
-        got = codec.decode(codec.encode(k._context[KGSym("h")]))
+        got = codec.decode(codec.encode(k["h"].fn))
         self.assertEqual(got.text, "fn(a;b;c;d;e)::{a}")
         ref = lambda_value(KlongInterpreter(), got)
         self.assertEqual(ref.arity, 5)

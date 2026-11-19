@@ -18,12 +18,10 @@ import unittest
 
 from klongpy.errors import KlongStaticError
 from klongpy.static import FORMS, OPTABLE
-from klongpy.static.compile import emit_main, emit_program, runtime_header
-from klongpy.static.emit_c import HANDLED
-from klongpy.static.optable import C_EXPANSION
+from klongpy.static.native import emit_main, emit_program, runtime_header
 
 from .harness import WARN, Build, find_cc
-from .test_ir import EMBEDDED, ROOT, STUBS, golden
+from .common import EMBEDDED, ROOT, STUBS, golden
 
 CC = find_cc()
 needs_cc = unittest.skipIf(CC is None, "no C compiler on the path (cc, clang, gcc or $KG_TEST_CC)")
@@ -185,17 +183,6 @@ class TestNames(unittest.TestCase):
 class TestEquivalenceOfCheckerAndEmitter(unittest.TestCase):
     """No operator the checker accepts is missing from the emitter, and none the emitter has is rejected."""
 
-    def test_the_three_sets_are_one(self):
-        allowed = {op.id for op in OPTABLE if op.status == "allowed"}
-        self.assertEqual(allowed, set(C_EXPANSION))
-        self.assertEqual(allowed, set(HANDLED))
-
-    def test_every_expression_row_has_a_form_for_each_type_it_takes(self):
-        for rid, (kind, as_int, as_float) in C_EXPANSION.items():
-            self.assertIn(kind, ("expr", "view", "const", "loop", "stmt"), rid)
-            if kind == "expr":
-                self.assertTrue(as_int or as_float, rid)
-
     def test_every_example_of_every_allowed_row_and_form_is_emitted(self):
         seen = set()
         for op in OPTABLE:
@@ -205,9 +192,9 @@ class TestEquivalenceOfCheckerAndEmitter(unittest.TestCase):
                     self.assertIn("t_f(", e.c)
                     seen.add(op.id)
         for form in FORMS:
-            for prog, sig in form.examples:
+            for ex in form.examples:
                 with self.subTest(form=form.id):
-                    emit_program("t.kg", None, text=f'{prog}\n.entry("f";"{sig}")', externs=STUBS)
+                    emit_program("t.kg", None, text=f'{ex.body}\n.entry("f";"{ex.signature}")', externs=STUBS)
         self.assertEqual({op.id for op in OPTABLE if op.status == "allowed"} - seen, {"define"})
 
     def test_every_accept_fixture_is_emitted(self):

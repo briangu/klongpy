@@ -21,11 +21,10 @@ import timeit
 import colorama
 
 from klongpy import KlongInterpreter, __version__, list_backends
-from klongpy.core import kg_write
+from klongpy.core import KGSym, kg_write
 from klongpy.errors import KlongError, KlongSystemError
 from klongpy.help_index import apropos_text, help_text
 from klongpy.source import Source
-from klongpy.rust_engine import sys_load as eval_sys_load
 from klongpy.repl import (cleanup_repl, create_repl, format_error, keeps_alive, klong_warnings, use_color,  # noqa: F401
                           wait_while_alive, write_stderr)
 from klongpy.repl_input import Completer, History, check_text, history_path
@@ -129,10 +128,8 @@ def sys_cmd_load(klong, cmd):
     if not name:
         return "usage: ]l file"
     try:
-        return eval_sys_load(klong, name) or 1
-    except OSError as e:
-        if isinstance(e, KlongError):
-            raise
+        return klong.apply(KGSym(".l"), [name]) or 1
+    except FileNotFoundError as e:
         return f"cannot load {name}: {e}"
 
 

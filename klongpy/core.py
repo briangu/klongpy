@@ -79,13 +79,6 @@ __all__ = [
     'is_adverb',
     'get_adverb_arity',
     # Function utilities
-    'merge_projections',
-    'get_fn_arity',
-    'fn_metadata',
-    'split_locals',
-    'KGBody',
-    'KGDestructure',
-    'head_destructuring',
     # Writer
     'kg_write_symbol',
     'kg_write_integer',

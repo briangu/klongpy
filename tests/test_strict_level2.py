@@ -13,7 +13,6 @@ import unittest
 from klongpy import KlongInterpreter
 from klongpy.core import KGCall, KGSym, KlongException
 from klongpy.errors import KlongArityError, KlongError, KlongNameError, KlongTypeError
-from tests.backend_compat import requires_python_engine
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 LEVELS = (0, 1, 2)
@@ -197,21 +196,6 @@ class TestLocalReadBeforeAssignment(unittest.TestCase):
                 self.assertEqual(run(level, "{[x];x}(3)"), 3)          # a local named like a parameter
                 self.assertEqual(run(level, "{[a];:[x;a::1;a::2];a}(0)"), 2)
 
-    @requires_python_engine("iterates the context of the Python engine to look for its _Unset sentinel")
-    def test_the_sentinel_is_never_a_value(self):
-        k = KlongInterpreter(strict=2)
-        seen = []
-        k["probe"] = lambda: seen.append(sorted(str(n) for n, _ in k._context)) or 0
-        k["vals"] = lambda: seen.append([v for _, v in k._context]) or 0
-        k("{[a b];b::2;probe();vals();b}()")
-        names, values = seen
-        self.assertNotIn("a", names)                                    # an unassigned local is not listed
-        self.assertIn("b", names)
-        self.assertTrue(all(type(v).__name__ != "_Unset" for v in values))
-        # a dictionary or a list built from a local cannot hold it: the read fails first
-        for text in ("{[a];:{},:k,a}()", "{[a];[;a;1]}()", "{[a];.p(a)}()", "{[a];,a}()"):
-            with self.subTest(text=text):
-                self.assertEqual(str(error(2, text)), "local 'a' read before assignment")
 
     def test_level_change_inside_a_call_does_not_leak(self):
         # the frame of a call made at level 2 keeps its rule after .unsafe(); nothing escapes
@@ -306,7 +290,7 @@ class TestTooManyArguments(unittest.TestCase):
         with self.assertRaises(KlongArityError):
             k["f"](1, 2, 3)                                              # KGFnWrapper checks at every level
         with self.assertRaises(KlongArityError):
-            k.apply(k._context[KGSym("f")], [1, 2, 3])
+            k.apply(k["f"].fn, [1, 2, 3])
         self.assertEqual(KlongInterpreter().apply(KlongInterpreter()("{x+y}"), [1, 2, 3]), 3)
 
 

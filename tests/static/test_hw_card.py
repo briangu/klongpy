@@ -20,7 +20,7 @@ from klongpy.static.signature import Ty
 
 from .harness import Host, same
 from .test_emit_hls import program, special_floats
-from .test_ir import ROOT
+from .common import ROOT
 
 HOST = os.environ.get("KLONG_FPGA_HOST", "").strip() or None
 BAD_ROOT = os.environ.get("KLONG_FPGA_ROOT", "").strip() or "~/klong-hw"      # a root on the card host: only names matter here

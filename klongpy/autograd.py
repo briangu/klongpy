@@ -1,5 +1,5 @@
 import numpy as np
-from .core import KGLambda, KGCall, KGSym, KGFn
+from .core import KGLambda, KGCall, KGSym, KGFn, is_list
 
 
 class AutogradError(Exception):
@@ -303,3 +303,88 @@ def multi_grad_of_fn(klong, fn, param_syms):
                 return call_fn_with_tensors(vals)
             grads.append(numeric_grad(single_param_fn, param_values[i], backend))
         return grads
+
+
+# ---- the gradient operators (what the host table's HostOps calls, and .grad / .jacobian) ----
+
+def eval_dyad_grad(klong, a, b):
+    """
+
+        a∇b                                                    [Grad]
+
+        Compute the numeric gradient of the monadic function ``b`` at ``a``
+        using finite differences. Always uses numeric differentiation.
+
+        For automatic differentiation, use the :> operator instead.
+        ASCII form: .grad(b;a).
+
+    """
+    def call_fn(v):
+        if isinstance(b, (KGSym, KGLambda, KGFn, KGCall)):
+            return klong.apply(b, [v])
+        return b(v)
+
+    if isinstance(a, KGSym):
+        orig = klong[a]
+
+        def func(v):
+            klong[a] = v
+            try:
+                return call_fn(v)
+            finally:
+                klong[a] = orig
+
+        return numeric_grad(func, orig, klong._backend)
+    else:
+        return numeric_grad(call_fn, a, klong._backend)
+
+
+def eval_dyad_jacobian(klong, a, b):
+    """
+
+        a∂b                                                  [Jacobian]
+
+        Compute Jacobian matrix of function ``b`` at point ``a``.
+        For f: R^n -> R^m, returns m x n matrix where J[i,j] = df_i/dx_j.
+
+        Two modes based on what ``a`` contains:
+        1. Single point: [1 2]∂f -> Jacobian at that point
+        2. List of symbols: [w b]∂f -> [J_w J_b] (multi-param mode)
+
+        In multi-param mode, ``b`` should be a niladic function
+        that references the parameter symbols.
+
+        Examples:
+            [1 2]∂{[x@0^2 x@1^2]}  -->  [[2 0] [0 4]]
+            [w b]∂f               -->  [J_w J_b] (multi-param mode)
+
+    """
+    if is_list(a) and len(a) > 0 and all(isinstance(p, KGSym) for p in a):
+        return multi_jacobian_of_fn(klong, b, list(a))
+    return jacobian_of_fn(klong, b, a)  # a is the point, b the function
+
+
+def eval_dyad_autograd(klong, a, b):
+    """
+
+        a:>b                                                 [Autograd]
+
+        Compute gradient of function ``a`` with respect to ``b``.
+
+        Two modes based on what ``b`` contains:
+        1. Single param/point: a:>x or a:>[1 2 3] -> gradient at that point
+        2. List of symbols: a:>[w b] -> [grad_w grad_b] (multi-param mode)
+
+        In multi-param mode, ``a`` should be a niladic function (loss)
+        that references the parameter symbols.
+
+        Examples:
+            {x^2}:>3.0       -->  6.0      (derivative of x^2 at x=3)
+            {x^3}:>2.0       -->  12.0     (derivative of x^3 at x=2)
+            {+/x^2}:>[1 2 3] -->  [2 4 6]  (gradient of sum of squares)
+            loss:>[w b]      -->  [grad_w grad_b]  (multi-param mode)
+
+    """
+    if is_list(b) and len(b) > 0 and all(isinstance(p, KGSym) for p in b):
+        return multi_grad_of_fn(klong, a, list(b))
+    return grad_of_fn(klong, a, b)

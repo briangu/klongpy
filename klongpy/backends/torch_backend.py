@@ -10,7 +10,7 @@ import numpy
 import torch
 import torch.autograd.functional as torch_autograd_functional
 
-from .base import BackendProvider, CompiledDecline, UnsupportedDtypeError, is_jagged_array
+from .base import BackendProvider, UnsupportedDtypeError, is_jagged_array
 from .numpy_backend import KGChar, NumpyBackendProvider, _beyond_int64, _has_big_int
 from ..autograd import AutogradChainBrokenError, NonScalarLossError, _invoke_fn
 from ..errors import KlongSystemError, KlongTypeError
@@ -1315,114 +1315,6 @@ class TorchBackendProvider(BackendProvider):
         result = self.gradcheck(wrapped_fn, (tensor_inputs,))
 
         return 1 if result else 0
-
-    def compile_expr_ir(self, ir, var_syms):
-        """Compile IR tree to a callable using torch tensor operations."""
-        source = self._ir_to_source(ir)
-        if source is None:
-            return None
-
-        param_names = list(self._collect_params(ir))
-        fn_source = f"def _expr({', '.join(param_names)}): return {source}"
-        # The compiled operators are the ones the interpreter applies:
-        # the same ufunc objects through vec_fn2, the interpreter's own ^ and
-        # negate, and reduce/scan with the interpreter's treatment of atoms and
-        # empty lists. Both paths then give the same values, the same types
-        # (tensors, also for two plain numbers) and the same autograd graph.
-        xp = self._torch_backend
-        divide = xp.divide
-
-        def _div(x, y):
-            # the interpreter gives :undefined for atom%0; leave that to it
-            if getattr(y, 'ndim', 0) == 0 and getattr(x, 'ndim', 0) == 0 and y == 0:
-                raise ZeroDivisionError("division by zero")
-            return divide(x, y)
-
-        def _reducing(reduce):
-            def over(x):
-                shape = getattr(x, 'shape', ())
-                if len(shape) and shape[0]:
-                    if not isinstance(x, torch.Tensor):
-                        raise CompiledDecline("not a tensor")  # an object array: the interpreter folds it
-                    return reduce(x)
-                return x
-            return over
-
-        ns = {
-            '_atomic': self.vec_fn2,
-            '_add': xp.add, '_sub': xp.subtract, '_mul': xp.multiply,
-            '_div': _div, '_pow': self.interpreter_power(), '_neg': self.interpreter_negate(),
-            '_eq': self.safe_equal, '_gt': xp.greater, '_lt': xp.less,
-            '_rsum': _reducing(xp.add.reduce), '_rprod': _reducing(xp.multiply.reduce),
-            '_rmax': _reducing(lambda x: x.amax(0)), '_rmin': _reducing(lambda x: x.amin(0)),
-            '_cumsum': _reducing(lambda x: x.cumsum(0)), '_cumprod': _reducing(lambda x: x.cumprod(0)),
-            '_cummax': _reducing(lambda x: x.cummax(0).values), '_cummin': _reducing(lambda x: x.cummin(0).values),
-        }
-        try:
-            exec(fn_source, ns)
-        except Exception:
-            return None
-        return (ns['_expr'], var_syms)
-
-    def _ir_to_source(self, ir):
-        """Convert IR tree to Python source string with torch operations."""
-        node_type = ir[0]
-
-        if node_type == 'literal':
-            return repr(ir[1])
-
-        if node_type == 'var':
-            return ir[1]
-
-        if node_type == 'binop':
-            op, left, right = ir[1], ir[2], ir[3]
-            l = self._ir_to_source(left)
-            r = self._ir_to_source(right)
-            if l is None or r is None:
-                return None
-            py_op = {'+': '_add', '-': '_sub', '*': '_mul', '%': '_div', '^': '_pow'}.get(op)
-            if py_op is None:
-                return None
-            return f'_atomic({l}, {r}, {py_op})'
-
-        if node_type == 'cmp':
-            op, left, right = ir[1], ir[2], ir[3]
-            l = self._ir_to_source(left)
-            r = self._ir_to_source(right)
-            if l is None or r is None:
-                return None
-            py_cmp = {'=': '_eq', '>': '_gt', '<': '_lt'}.get(op)
-            if py_cmp is None:
-                return None
-            return f'(_atomic({l}, {r}, {py_cmp})*1)'
-
-        if node_type == 'negate':
-            child = self._ir_to_source(ir[1])
-            if child is None:
-                return None
-            return f'_neg({child})'
-
-        if node_type == 'reduce':
-            op, arg = ir[1], ir[2]
-            arg_src = self._ir_to_source(arg)
-            if arg_src is None:
-                return None
-            method = {'+': '_rsum', '*': '_rprod', '|': '_rmax', '&': '_rmin'}.get(op)
-            if method is None:
-                return None
-            return f'{method}({arg_src})'
-
-        if node_type == 'scan':
-            op, arg = ir[1], ir[2]
-            arg_src = self._ir_to_source(arg)
-            if arg_src is None:
-                return None
-            method = {'+': '_cumsum', '*': '_cumprod', '|': '_cummax', '&': '_cummin'}.get(op)
-            if method is None:
-                return None
-            return f'{method}({arg_src})'
-
-        return None
 
     def kg_asarray(self, a):
         """

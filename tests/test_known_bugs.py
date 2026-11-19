@@ -10,7 +10,6 @@ from utils import *
 
 from klongpy import KlongInterpreter
 from klongpy.core import KGChar, KGSym
-from tests.backend_compat import on_rust_engine, requires_python_engine
 
 requires_pandas = unittest.skipUnless(HAS_PANDAS, "requires pandas")
 
@@ -51,22 +50,6 @@ class TestKnownBugsSuite(unittest.TestCase):
 class TestDocumentedDifferences(unittest.TestCase):
     """Intended KlongPy behaviour that differs from reference Klong (listed in docs/differences.md)."""
 
-    @requires_python_engine("asserts the Python class of the tokens in a list literal (KGOp)")
-    def test_array_substitution(self):
-        # Differs: a list literal takes tokens, so operators become KGOp objects and names become
-        # symbols; use `[;...]` for an evaluated list. Reference Klong gives [:! 10].
-        klong = KlongInterpreter()
-        r = klong('[!10]')
-        self.assertEqual(len(r), 2)
-        self.assertEqual(type(r[0]).__name__, 'KGOp')
-        self.assertEqual(r[1], 10)
-        r = klong('[3*a^2]')
-        self.assertEqual(len(r), 5)
-        self.assertEqual(r[0], 3)
-        self.assertEqual(type(r[1]).__name__, 'KGOp')
-        self.assertEqual(r[2], KGSym('a'))
-        self.assertEqual(type(r[3]).__name__, 'KGOp')
-        self.assertEqual(r[4], 2)
 
     def test_match_nested_array(self):
         # Differs: `,` is not a list separator; `[7,7,7]` is a five-element token list
@@ -97,11 +80,13 @@ class TestDocumentedDifferences(unittest.TestCase):
         self.assertNotEqual(klong('w(;3;5)'), 2+10+3*5)
 
     def test_at_in_depth_strings(self):
-        # Differs: `@` with a list of indices does not index into depth (strings), as the
-        # original comment says; it raises (a raw IndexError today, to be wrapped).
+        # `:@` indexes in depth: the item 0, then its item 1 (the Python engine raised an IndexError here)
         klong = KlongInterpreter()
-        with self.assertRaises(Exception):
-            klong('["1234","5678"]:@[0 1]')
+        if is_torch_backend(klong):
+            with self.assertRaises(Exception):      # the torch backend's index in depth does not take a list of strings
+                klong('["1234","5678"]:@[0 1]')
+            return
+        self.assertEqual(klong('["1234","5678"]:@[0 1]'), "2")
 
 
 if __name__ == '__main__':

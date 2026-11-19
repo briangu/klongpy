@@ -8,9 +8,8 @@ import os
 import re
 import unittest
 
-from klongpy import KlongInterpreter
+from klongpy.native_ext import native
 from klongpy.static import RULES
-from klongpy.static.rules import STREAM_RULES
 from klongpy.static.profile_doc import generated_block
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -23,11 +22,11 @@ def names(sub):
 
 class TestFixtures(unittest.TestCase):
     def test_every_rule_has_both_fixtures_and_nothing_else_is_there(self):
-        self.assertEqual(names("accept"), sorted(list(RULES) + list(STREAM_RULES)))
-        self.assertEqual(names("reject"), sorted(list(RULES) + list(STREAM_RULES)))
+        self.assertEqual(names("accept"), sorted(RULES))
+        self.assertEqual(names("reject"), sorted(RULES))
 
     def test_every_reject_file_has_a_valid_expect_line(self):
-        for rule in list(RULES) + list(STREAM_RULES):
+        for rule in list(RULES):
             with self.subTest(rule=rule):
                 with open(os.path.join(HERE, "reject", rule + ".kg")) as f:
                     lines = f.readlines()
@@ -38,21 +37,21 @@ class TestFixtures(unittest.TestCase):
                 self.assertTrue(lines[int(m.group(1)) - 1].strip())
 
     def test_every_accept_file_says_what_it_shows(self):
-        for rule in list(RULES) + list(STREAM_RULES):
+        for rule in list(RULES):
             with self.subTest(rule=rule):
                 with open(os.path.join(HERE, "accept", rule + ".kg")) as f:
                     self.assertTrue(f.readline().startswith(f':" accept: {rule} - '))
 
     def test_accept_files_are_valid_klong_at_strict_level_2(self):
-        # parse only: some call externs, which have no stand-in here
-        for rule in list(RULES) + list(STREAM_RULES):
+        # parse only (the engine's reader): some call externs, which have no stand-in here
+        for rule in list(RULES):
             with self.subTest(rule=rule):
                 with open(os.path.join(HERE, "accept", rule + ".kg")) as f:
-                    KlongInterpreter(strict=2).prog(f.read())
+                    native().ast_text(f.read(), rule + ".kg")
 
     def test_every_rule_id_is_printed_in_the_profile_document(self):
         block = generated_block()
-        for rule in list(RULES) + list(STREAM_RULES):
+        for rule in list(RULES):
             self.assertIn(f"`{rule}`", block)
 
     def test_rule_ids_are_short_stable_words(self):

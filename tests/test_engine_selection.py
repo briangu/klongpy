@@ -1,6 +1,6 @@
 """
-Which engine KlongPy evaluates on: the native (Rust) engine by default, the Python engine with KLONGPY_ENGINE=python, and a clear
-ImportError (no silent fallback) when the compiled extension cannot be found.
+Which engine KlongPy evaluates on: the native (Rust) engine, and a clear ImportError (no silent fallback) when the compiled
+extension cannot be found.
 """
 import os
 import subprocess
@@ -34,27 +34,11 @@ def extension_on_the_path():
 
 
 class TestEngineSelection(unittest.TestCase):
-    def test_the_python_engine_is_selected_by_the_environment(self):
-        r = run(PROBE, KLONGPY_ENGINE="python")
-        self.assertEqual((r.returncode, r.stdout.strip()), (0, "KlongInterpreter"), r.stderr)
-
-    def test_an_unknown_engine_is_an_error(self):
-        r = run(PROBE, KLONGPY_ENGINE="fortran")
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn("KLONGPY_ENGINE", r.stderr)
-
-    def test_the_native_engine_is_the_default_when_the_extension_is_found(self):
+    def test_the_native_engine_is_the_interpreter_when_the_extension_is_found(self):
         d = extension_directory()
         if d is None and not extension_on_the_path():
             self.skipTest("the compiled extension is not available to this session")
         r = run(PROBE, KLONGPY_NATIVE_PATH=d)
-        self.assertEqual((r.returncode, r.stdout.strip()), (0, "RustInterpreter"), r.stderr)
-
-    def test_the_native_engine_can_be_named(self):
-        d = extension_directory()
-        if d is None and not extension_on_the_path():
-            self.skipTest("the compiled extension is not available to this session")
-        r = run(PROBE, KLONGPY_ENGINE="rust", KLONGPY_NATIVE_PATH=d)
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "RustInterpreter"), r.stderr)
 
     def test_a_missing_extension_is_an_error_that_says_how_to_build_it(self):
@@ -63,10 +47,9 @@ class TestEngineSelection(unittest.TestCase):
         r = run(PROBE)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("ImportError", r.stderr)
-        for word in ("compiled extension", "cargo build --release", "KLONGPY_NATIVE_PATH", "KLONGPY_ENGINE=python"):
+        for word in ("compiled extension", "cargo build --release", "KLONGPY_NATIVE_PATH"):
             self.assertIn(word, r.stderr)
-        self.assertNotIn("RustInterpreter", r.stdout)       # and no silent fallback to the Python engine
-        self.assertNotIn("KlongInterpreter", r.stdout)
+        self.assertNotIn("RustInterpreter", r.stdout)       # and no silent fallback
 
     def test_a_directory_without_the_extension_is_said_so(self):
         if extension_on_the_path():

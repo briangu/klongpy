@@ -30,8 +30,7 @@ def load_extension():
             "(neither klongpy._native nor klong_native is importable, and KLONGPY_NATIVE_PATH is "
             + (f"set to {ext!r}, which does not hold it" if ext else "not set")
             + "). Build it with `cd native/klong-py && cargo build --release`, copy target/release/libklong_native.dylib (Linux: .so) "
-            "to a directory as klong_native.abi3.so, and put that directory on KLONGPY_NATIVE_PATH (or on PYTHONPATH). "
-            "KLONGPY_ENGINE=python selects the Python engine for now.") from e
+            "to a directory as klong_native.abi3.so, and put that directory on KLONGPY_NATIVE_PATH (or on PYTHONPATH).") from e
     finally:
         if ext:
             try:

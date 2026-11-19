@@ -86,9 +86,9 @@ class _SGDOptimizer:
         """
         # Compute loss before update (for return value)
         if isinstance(loss_fn, KGFn):
-            loss = self.klong.call(loss_fn)
+            loss = self.klong.apply(loss_fn, [])
         elif isinstance(loss_fn, KGSym):
-            loss = self.klong.call(KGCall(loss_fn, [], 0))
+            loss = self.klong.apply(loss_fn, [])
         else:
             loss = loss_fn()
 
@@ -176,9 +176,9 @@ class _AdamOptimizer:
 
         # Compute loss before update
         if isinstance(loss_fn, KGFn):
-            loss = self.klong.call(loss_fn)
+            loss = self.klong.apply(loss_fn, [])
         elif isinstance(loss_fn, KGSym):
-            loss = self.klong.call(KGCall(loss_fn, [], 0))
+            loss = self.klong.apply(loss_fn, [])
         else:
             loss = loss_fn()
 

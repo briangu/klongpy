@@ -1,7 +1,7 @@
 """
 Diagnostics of the static profile checker.
 
-A StaticDiagnostic is one profile violation: the rule id (klongpy.static.rules),
+A StaticDiagnostic is one profile violation: the rule id (klongpy.static.tables.RULES),
 the span and Source it points at, a one-line message and an optional hint.
 ``d.error()`` is the same thing as a KlongStaticError (kind "static"), whose
 ``render()`` prints it like every other KlongPy error:

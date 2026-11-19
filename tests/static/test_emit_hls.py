@@ -19,14 +19,14 @@ import unittest
 import numpy as np
 
 from klongpy.errors import KlongStaticError
-from klongpy.static.compile import emit_hls_program
-from klongpy.static.emit_hls import PART, reachable_externs
+from klongpy.static.native import emit_hls_program, emit_program
 from klongpy.static.signature import Ty
 
 from .harness import Host, find_cc, same
-from .test_ir import EMBEDDED, ROOT, STUBS, golden
+from .common import EMBEDDED, ROOT, STUBS, golden
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+PART = "xcu250-figd2104-2L-e"      # the part of the generated tcl (docs/hardware.md)
 CXX = shutil.which(os.environ.get("KG_TEST_CXX", "")) if os.environ.get("KG_TEST_CXX") else (
     shutil.which("clang++") or shutil.which("g++") or shutil.which("c++"))
 CC = find_cc()
@@ -168,7 +168,6 @@ class TestFiles(unittest.TestCase):
             self.assertEqual(res.files["klong_rt.h"], f.read())
 
     def test_the_c_core_is_the_unchanged_output_of_the_c_emitter(self):
-        from klongpy.static.compile import emit_program
         c = emit_program(program("mavg"), None)
         res = emit("mavg")
         self.assertEqual(res.files["mavg.c"], c.c)
@@ -222,13 +221,6 @@ class TestFiles(unittest.TestCase):
         self.assertIn("no externs", msg)
         self.assertIn("[hls]", msg)
 
-    def test_reachable_externs(self):
-        from klongpy.static.compile import compile_program
-        p = compile_program(program("pid"), externs=STUBS).program
-        self.assertEqual(reachable_externs(p.entries[0]), ["read.adc", "write.pwm"])
-        p = compile_program(program("fir")).program
-        self.assertEqual(reachable_externs(p.entries[0]), [])
-
     def test_entries_that_have_no_record_are_rejected_with_a_reason(self):
         for text, why in (('f::{1}\n.entry("f";"-> int")', "no argument"),):
             with self.subTest(why=why):
@@ -239,13 +231,6 @@ class TestFiles(unittest.TestCase):
         with self.assertRaises(KlongStaticError) as cm:
             emit_hls_program("t.kg", None, text=text, int_bits=64, wrapped=True)
         self.assertIn("--int64", str(cm.exception))
-
-    def test_float64_is_rejected(self):
-        from klongpy.static.emit_hls import emit_hls
-        from klongpy.static.compile import emit_program
-        e = emit_program(program("mavg"), None)
-        with self.assertRaises(ValueError):
-            emit_hls(e.compiled.program, e, float_bits=64)
 
     def test_every_accept_fixture_emits_or_is_rejected_for_a_stated_reason(self):
         emitted, rejected = 0, 0

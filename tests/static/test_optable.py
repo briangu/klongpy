@@ -1,18 +1,16 @@
 """
-The operator table (klongpy/static/optable.py): it covers every operator the
-interpreter has, its vocabularies are closed, and every example of an allowed
-row is inside the profile with the result type the row names, both for the
-checker and, where the design says the two agree, for KlongPy itself.
+The operator table (klongpy/static/tables.py, the engine's own table): its vocabularies are closed, and every example of an
+allowed row is inside the profile with the result type the row names, both for the checker and, where the design says the two
+agree, for KlongPy itself.
 """
+import json
 import unittest
 
 import numpy as np
 
-from klongpy import KlongInterpreter
 from klongpy.static import FORMS, OPTABLE, RULES, check_source, parse_signature
-from klongpy.static.host import call_entry, load_program
-from klongpy.static.optable import BY_ID, OPERAND_KINDS, SHAPE_RULES, TYPE_RULES, lookup
-from klongpy.types import is_adverb
+from klongpy.static.native import call_entry, load_program
+from klongpy.static.tables import BY_ID, OPERAND_KINDS, SHAPE_RULES, TYPE_RULES
 
 from .hostutil import to_np
 
@@ -21,8 +19,6 @@ from .hostutil import to_np
 # whose branches are an int and a float has the type of the branch taken
 # (the profile's type is float; the value is the same).
 HOST_ELEM_DIFFERS = {"pow", "conditional"}
-
-ADVERBS = ["'", ":\\", ":'", ":/", "/", ":~", ":*", "\\", "\\~", "\\*", "@'"]
 
 
 def sample(ty, seed):
@@ -41,29 +37,7 @@ def host_type(v):
     return ("float" if isinstance(v, (float, np.floating)) else "int"), ()
 
 
-class TestCoverage(unittest.TestCase):
-    def test_every_operator_of_the_interpreter_has_a_row(self):
-        klong = KlongInterpreter()
-        for glyph in klong._vm:
-            self.assertIsNotNone(lookup(glyph, "monad"), f"monad {glyph}")
-        for glyph in klong._vd:
-            self.assertIsNotNone(lookup(glyph, "dyad"), f"dyad {glyph}")
-
-    def test_every_adverb_has_a_row(self):
-        for glyph in ADVERBS:
-            self.assertTrue(is_adverb(glyph))
-            self.assertTrue(lookup(glyph, "adverb1") or lookup(glyph, "adverb2"), glyph)
-
-    def test_no_row_for_an_operator_that_does_not_exist(self):
-        klong = KlongInterpreter()
-        for op in OPTABLE:
-            if op.valence == "monad":
-                self.assertIn(op.glyph, klong._vm, op.id)
-            elif op.valence == "dyad":
-                self.assertIn(op.glyph, klong._vd, op.id)
-            else:
-                self.assertIn(op.glyph, ADVERBS, op.id)
-
+class TestVocabularies(unittest.TestCase):
     def test_vocabularies_are_closed(self):
         for op in OPTABLE:
             with self.subTest(row=op.id):
@@ -88,11 +62,10 @@ class TestExamples(unittest.TestCase):
     def programs(self):
         for op in OPTABLE:
             for ex in op.examples:
-                body, sig = ex[0], ex[1]
-                yield op.id, f'f::{{{body}}}\n.entry("f";"{sig}")', sig, (ex[2] if len(ex) > 2 else None)
+                yield op.id, f'f::{{{ex.body}}}\n.entry("f";"{ex.signature}")', ex.signature, json.loads(ex.inputs) if ex.inputs else None
         for form in FORMS:
-            for prog, sig in form.examples:
-                yield form.id, f'{prog}\n.entry("f";"{sig}")', sig, None
+            for ex in form.examples:
+                yield form.id, f'{ex.body}\n.entry("f";"{ex.signature}")', ex.signature, None
 
     def test_the_checker_accepts_each_example_with_the_declared_result_type(self):
         for row, prog, sig, _ in self.programs():

@@ -46,16 +46,20 @@ def evaluate(source, strict=None, backend=None):
 def dump_ast(path):
     if ROOT not in sys.path:
         sys.path.insert(0, ROOT)
-    from klongpy import KlongInterpreter
-    from klongpy.dump import dump, parse_program
+    from klongpy.native_ext import native
+    from klongpy.rust_engine import _error
 
     with open(path, "r", encoding="utf-8", newline="") as f:
         text = f.read()
+    ext = native()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         try:
-            sys.stdout.write(dump(parse_program(KlongInterpreter(parser="token"), text)))
+            sys.stdout.write(ext.ast_text(text, "<string>"))
             return 0
+        except ext.NativeError as e:
+            print(f"error: {_error(e).kind}")
+            return 1
         except BaseException as e:
             print(f"error: {getattr(e, 'kind', 'internal')}")
             return 1

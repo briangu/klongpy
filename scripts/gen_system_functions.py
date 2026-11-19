@@ -25,13 +25,13 @@ from klongpy.writer import kg_write
 
 MODULES = [
     "klongpy.sys_fn", "klongpy.sys_var", "klongpy.sys_fn_autograd", "klongpy.sys_fn_timer",
-    "klongpy.sys_fn_ipc", "klongpy.sys_fn_static", "klongpy.sys_fn_hw", "klongpy.db.sys_fn_db", "klongpy.db.sys_fn_kvs",
+    "klongpy.sys_fn_ipc", "klongpy.sys_fn_hw", "klongpy.db.sys_fn_db", "klongpy.db.sys_fn_kvs",
     "klongpy.web.sys_fn_web", "klongpy.ws.sys_fn_ws",
 ]
 HEADER = re.compile(r"^(?P<head>.*?)\s{2,}\[(?P<title>[^\]]+)\]\s*$")
 
 GROUPS = [
-    ("Evaluation and output", "", ".E .d .p .pf .fmt .w .bkd .bkp .x .l .module .pc .rn .sys"),
+    ("Evaluation and output", "", ".E .d .p .pf .fmt .w .bkd .bkp .x .l .import .export .module .pc .rn .sys .try .err .mem .ver"),
     ("Reading and files", "", ".r .rl .rls .rs .mi .ic .oc .ac .cc .fc .tc .fl .df"),
     ("Strings", "", ".split .join .words .trim .num"),
     ("JSON", "See [JSON](language-additions.md#json).", ".json .unjson"),
@@ -40,9 +40,9 @@ GROUPS = [
     ("System variables", "", ".a .cin .cout .cerr .cols .e .edit .fastpow .h .os.argv .os.env"),
     ("Timers", "Defined in the base interpreter. See [Timers](timer.md).", ".timer .timerc"),
     ("IPC", "Defined in the base interpreter. See [IPC Capabilities](ipc_capabilities.md).",
-     ".srv .cli .clid .clic .async"),
+     ".srv .cli .clid .clic .async .cli.h"),
     ("Autograd", "Defined in the base interpreter; most need the PyTorch backend. See [PyTorch Backend and Autograd](torch_backend.md).",
-     ".jacobian .gradcheck .export"),
+     ".jacobian .gradcheck .bkx"),
     ("Embedded programs", "Defined in the base interpreter. See [Compiling Klong to C](embedded.md).", ".extern .entry .param .fixed .float"),
     ("FPGA (experimental)", "Defined in the base interpreter. See [Klong functions as FPGA hardware](hardware.md).",
      ".fpga .fpga.lanes .fpga.set .fpga.put .fpga.get .fpga.free .fpga.reset .fpga.info"),
@@ -116,7 +116,14 @@ DESC = {
     ".async": "Wrap a function so that it runs asynchronously and calls a completion function.",
     ".jacobian": "Jacobian of a function at a point.",
     ".gradcheck": "Check autograd gradients against numeric ones (PyTorch backend).",
-    ".export": "Export a function's computation graph to a file (PyTorch backend).",
+    ".bkx": "Export a function's computation graph to a file (PyTorch backend).",
+    ".try": "Call a function with a list of arguments and give the outcome as a value, `[1 result]` or `[0 kind message]`.",
+    ".err": "Fail with an error of a given kind and message (the inverse of `.try`).",
+    ".mem": "The memory the native interpreter uses: bytes in use, the most that was in use, the limit.",
+    ".ver": "A dictionary that describes the interpreter: version, integer and float widths, features, platform.",
+    ".cli.h": "The handle of the client whose request is being evaluated.",
+    ".import": "Run a Klong file as a module in its own scope and return the dictionary it exports.",
+    ".export": "Name the dictionary a module file gives to `.import`.",
     ".extern": "Declare a function the host provides, with a typed signature, for a program that is compiled.",
     ".entry": "Mark a function as an entry point of a compiled program and fix its signature.",
     ".param": "Declare a global of a compiled program as a parameter the host sets between runs (a register in hardware).",
@@ -256,6 +263,19 @@ def unescape(doc):
     return "".join(_KLONG_BACKSLASH.get(c, c) for c in doc)
 
 
+def _item(n, text, module):
+    doc = textwrap.dedent(unescape(text or "")).strip("\n")
+    lines = doc.splitlines()
+    first = next((l for l in lines if l.strip()), "")
+    mm = HEADER.match(first.strip())
+    if not mm:
+        raise SystemExit(f"{n}: docstring has no header line")
+    head = mm.group("head").strip()
+    name = re.match(r"\.\w+(?:\.\w+)*", head).group(0)
+    body = "\n".join(lines[lines.index(first) + 1:]).strip("\n")
+    return name, dict(name=name, head=head, title=mm.group("title"), body=body, module=module)
+
+
 def collect():
     items = {}
     for m in MODULES:
@@ -263,16 +283,13 @@ def collect():
         for n, f in inspect.getmembers(mod, inspect.isfunction):
             if not (n.startswith("eval_sys_") and f.__module__ == m):
                 continue
-            doc = textwrap.dedent(unescape(f.__doc__ or "")).strip("\n")
-            lines = doc.splitlines()
-            first = next((l for l in lines if l.strip()), "")
-            mm = HEADER.match(first.strip())
-            if not mm:
-                raise SystemExit(f"{n}: docstring has no header line")
-            head = mm.group("head").strip()
-            name = re.match(r"\.\w+(?:\.\w+)*", head).group(0)
-            body = "\n".join(lines[lines.index(first) + 1:]).strip("\n")
-            items[name] = dict(name=name, head=head, title=mm.group("title"), body=body, module=m)
+            name, it = _item(n, f.__doc__, m)
+            items[name] = it
+    # the functions the engine implements: their text is data (klongpy/data/system_function_help.json)
+    from klongpy.sysdocs import engine_docs
+    for n, text in engine_docs().items():
+        name, it = _item(n, text, "klong_native")
+        items[name] = it
     for name, it in HOST_VARS.items():
         items[name] = dict(name=name, module="kgpy", **it)
     return items

@@ -94,10 +94,6 @@ class TestSingleKGChar(unittest.TestCase):
         self.assertTrue(is_char(KGChar("a")))
         self.assertFalse(is_char("a"))
 
-    def test_no_dead_context_method(self):
-        from klongpy.interpreter import KlongContext
-        self.assertFalse(hasattr(KlongContext, 'current_module'))
-
 
 class TestOperatorNumpyBudget(unittest.TestCase):
     def test_direct_numpy_uses_do_not_grow(self):

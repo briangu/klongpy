@@ -8,7 +8,7 @@ from tests.backend_compat import requires_strings, numeric_only
 
 def _capture(klong):
     buf = io.StringIO()
-    klong['.sys.cout'] = KGChannel(buf, KGChannelDir.OUTPUT)
+    klong.console(write=buf.write)
     return buf
 
 

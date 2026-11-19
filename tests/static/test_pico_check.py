@@ -28,7 +28,7 @@ import unittest
 import numpy as np
 
 from .harness import WARN, Build, find_cc
-from .test_ir import EMBEDDED, ROOT
+from .common import EMBEDDED, ROOT
 
 NATIVE = os.path.join(ROOT, "native")
 BOARD = os.path.join(NATIVE, "boards", "pico-bench")

@@ -5,7 +5,7 @@ import os
 import unittest
 
 from klongpy import KlongInterpreter
-from klongpy.types import KGAdverb, KGFn, KGOp
+from tests.treedump import dump_text
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "cond_chain.kg")
 
@@ -27,19 +27,8 @@ PAIRS = [
 ]
 
 
-def dump(x):
-    """Structural dump of a parse tree."""
-    if isinstance(x, KGFn):
-        return ("KGFn", dump(x.a), dump(x.args), x.arity, tuple(sorted(map(str, x.global_params))))
-    if isinstance(x, (KGOp, KGAdverb)):
-        return (type(x).__name__, x.a, x.arity)
-    if isinstance(x, (list, tuple)):
-        return (type(x).__name__, tuple(dump(i) for i in x))
-    return (type(x).__name__, repr(x))
-
-
 def parse(text):
-    return dump(KlongInterpreter().prog(text)[1])
+    return dump_text(text)
 
 
 class TestExampleCondChain(unittest.TestCase):
@@ -56,7 +45,7 @@ class TestExampleCondChain(unittest.TestCase):
             with self.subTest(rewrite=new):
                 self.assertIn(new, text)
                 self.assertNotIn(old, text)
-        KlongInterpreter().prog(text)
+        self.assertNotIn("(error", dump_text(text))
 
     def test_semantics_of_chain(self):
         k = KlongInterpreter()

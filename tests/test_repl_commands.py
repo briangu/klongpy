@@ -112,21 +112,27 @@ class TestHelpIndex(unittest.TestCase):
     def test_every_documented_eval_function_is_reachable(self):
         import inspect
         import re
-        from klongpy import adverbs, dyads, monads, sys_fn, sys_var
+        from klongpy import sys_fn, sys_var
+        from klongpy.operator_help import operator_docs
+        from klongpy.sysdocs import engine_docs
         header = re.compile(r"^.*?\s{2,}\[([^\]]+)\]\s*$")
         titles = {e.title for e in help_index.entries()}
+        texts = []      # (name, help text): the operators' and the engine's system functions' are data, the others' a docstring
+        for module, prefix in (("monads", "eval_monad_"), ("dyads", "eval_dyad_"), ("adverbs", "eval_adverb_")):
+            texts.extend((n, d) for n, d in operator_docs().get(module, {}).items() if n.startswith(prefix))
+        texts.extend(engine_docs().items())
+        for mod, prefix in ((sys_fn, "eval_sys_"), (sys_var, "eval_sys_var_")):
+            texts.extend((n, f.__doc__) for n, f in inspect.getmembers(mod, inspect.isfunction) if n.startswith(prefix))
         checked = 0
-        for mod, prefix in ((monads, "eval_monad_"), (dyads, "eval_dyad_"), (adverbs, "eval_adverb_"),
-                            (sys_fn, "eval_sys_"), (sys_var, "eval_sys_var_")):
-            for name, fn in inspect.getmembers(mod, inspect.isfunction):
-                if not name.startswith(prefix) or not fn.__doc__:
-                    continue
-                first = next((ln for ln in fn.__doc__.splitlines() if ln.strip()), "").strip()
-                m = header.match(first)
-                if m:
-                    checked += 1
-                    self.assertIn(m.group(1), titles, name)
-                    self.assertIn(f"[{m.group(1)}]", help_index.help_text(m.group(1)), name)
+        for name, doc in texts:
+            if not doc:
+                continue
+            first = next((ln for ln in doc.splitlines() if ln.strip()), "").strip()
+            m = header.match(first)
+            if m:
+                checked += 1
+                self.assertIn(m.group(1), titles, name)
+                self.assertIn(f"[{m.group(1)}]", help_index.help_text(m.group(1)), name)
         self.assertGreater(checked, 100)
 
     def test_no_control_characters(self):

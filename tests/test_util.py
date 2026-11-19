@@ -19,89 +19,6 @@ class TestUtil(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             die("test")
 
-    def test_read_shifted_comment(self):
-        t = ':"hello"'
-        i = 0
-        i = read_shifted_comment(t,i+2)
-        self.assertEqual(i,len(t))
-
-    def test_read_shifted_comment_embedded(self):
-        t = 'this is a :"hello" test'
-        i = t.index(':"')+2
-        i = read_shifted_comment(t,i)
-        self.assertEqual(i,t.index(" test"))
-
-    def test_read_shifted_comment_double_quote_embedded(self):
-        t = 'this is a :"hello""world" test'
-        i = t.index(':"')+2
-        i = read_shifted_comment(t,i)
-        self.assertEqual(i,t.index(" test"))
-
-    def test_read_string(self):
-        t = '"hello"'
-        i = 0
-        i,s = read_string(t,i+1)
-        self.assertEqual(i,len(t))
-        self.assertEqual(s,"hello")
-
-    def test_read_substring(self):
-        t = 'this is "hello" test'
-        i = t.index('"')+1
-        i,s = read_string(t,i)
-        self.assertEqual(i,t.index(" test"))
-        self.assertEqual(s,"hello")
-
-    def test_read_quoted_substring(self):
-        t = 'this is "hello""""world" test'
-        i = t.index('"')+1
-        i,s = read_string(t,i)
-        self.assertEqual(i,t.index(" test"))
-        self.assertEqual(s,'hello""world')
-
-    def test_read_double_quoted_substring(self):
-        t = 'this is "hello""""""world" test'
-        i = t.index('"')+1
-        i,s = read_string(t,i)
-        self.assertEqual(i,t.index(" test"))
-        self.assertEqual(s,'hello"""world')
-
-    def test_read_empty_string(self):
-        t = '""'
-        i = 0
-        i,s = read_string(t,i+1)
-        self.assertEqual(i,len(t))
-        self.assertEqual(s,'')
-
-    def test_read_quoted_empty_string(self):
-        t = '""""'
-        i = 0
-        i,s = read_string(t,i+1)
-        self.assertEqual(i,len(t))
-        # TODO: this seems like a bug in kg parsing strings since it starts on i+1
-        self.assertEqual(s,'"')
-
-    def test_read_double_quoted_empty_string(self):
-        t = '""""""'
-        i = 0
-        i,s = read_string(t,i+1)
-        self.assertEqual(i,len(t))
-        # TODO: this seems like a bug in kg parsing strings since it starts on i+1
-        self.assertEqual(s,'""')
-
-
-    def test_read_quoted_embedded_string(self):
-        t = '":["""";1;2]"'
-        i = 0
-        i,s = read_string(t,i+1)
-        self.assertEqual(i,len(t))
-        self.assertEqual(s,':["";1;2]')
-
-    def test_embedded_string(self):
-        t = '"A::""hello, world!"""'
-        i = 0
-        i,s = read_string(t,i+1)
-        self.assertEqual(i,len(t))
-        self.assertEqual(s,'A::"hello, world!"')
 
     def test_is_list(self):
         self.assertTrue(is_list([]))
@@ -197,41 +114,12 @@ class TestUtil(unittest.TestCase):
         self.assertTrue(is_char(KGChar("a")))
         self.assertFalse(is_char("ab"))
 
-    def test_cmatch(self):
-        arr = "abc"
-        self.assertFalse(cmatch(arr, 4, 'a'))
-        [self.assertFalse(cmatch(arr, i, x)) for i,x in enumerate("def")]
-        [self.assertTrue(cmatch(arr, i, x)) for i,x in enumerate(arr)]
-
-    def test_cexpect(self):
-        arr = "abc"
-        with self.assertRaises(UnexpectedChar) as cm:
-            cexpect(arr, 4, 'a')
-        e = cm.exception
-        self.assertEqual(e.legacy_text, 't: abc pos: 4 char: a')
-        self.assertEqual(str(e), "expected 'a' but found end of input")
-        with self.assertRaises(UnexpectedChar):
-            cexpect(arr, 0, 'e')
-        for i,x in enumerate(arr):
-            self.assertEqual(cexpect(arr, i, x), i+1)
 
     def test_safe_eq(self):
         self.assertFalse(safe_eq(1,[]))
         self.assertTrue(safe_eq(1,1))
 
     @requires_object_dtype
-    def test_merge_projections(self):
-        self.assertEqual(merge_projections([]), [])
-        self.assertEqual(merge_projections([[1]]), [1])
-        r = merge_projections([[10,20,30]])
-        r = r.cpu().numpy() if hasattr(r, 'cpu') else r
-        self.assertTrue(real_np.array_equal(r, [10,20,30]))
-        r = merge_projections([[10,None,None],[20,30]])
-        r = r.cpu().numpy() if hasattr(r, 'cpu') else r
-        self.assertTrue(real_np.array_equal(r, [10,20,30]))
-        r = merge_projections([[10,None,None],[20,None],[30]])
-        r = r.cpu().numpy() if hasattr(r, 'cpu') else r
-        self.assertTrue(real_np.array_equal(r, [10,20,30]))
 
     def test_is_adverb(self):
         a = ["'",':\\',":'",':/','/',':~',':*','\\','\\~','\\*']

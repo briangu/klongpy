@@ -18,17 +18,16 @@ import numpy as np
 
 from klongpy import KlongInterpreter
 from klongpy.core import KGChar, KGSym
-from klongpy.dump import dump, dump_text, node_spans, parse_program
+from tests.treedump import dump_text
 from klongpy.errors import (KlongError, KlongNameError, KlongShapeError, KlongSyntaxError, KlongSyntaxWarning,
                             KlongTypeError)
-from tests.backend_compat import on_rust_engine, requires_python_engine
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 LEVELS = (0, 1, 2)
 
 
-def run(level, *lines, parser=None):
-    k = KlongInterpreter(strict=level, parser=parser)
+def run(level, *lines):
+    k = KlongInterpreter(strict=level)
     r = None
     for line in lines:
         r = k(line)
@@ -269,17 +268,14 @@ class TestInFunctions(unittest.TestCase):
                 k("t::0;s::0;f::{[t];[s u]::x;t::s+u;t*2}")
                 self.assertEqual(num(k("f([1 2])")), 6)
                 self.assertEqual((k("t"), k("s")), (0, 0))
-                self.assertEqual(tuple(k._context[KGSym("f")].locals), (KGSym("t"), KGSym("s"), KGSym("u")))
+                self.assertEqual(tuple(k["f"].fn.locals), (KGSym("t"), KGSym("s"), KGSym("u")))
 
     def test_metadata(self):
         k = KlongInterpreter()
         k("f::{[s k r]::x;s+k+r}")
-        f = k._context[KGSym("f")]
+        f = k["f"].fn
         self.assertEqual(tuple(f.locals), (KGSym("s"), KGSym("k"), KGSym("r")))
         self.assertEqual(f.arity, 1)
-        if on_rust_engine():
-            self.skipTest("Python engine only: max_arg is a field of the Python parser's node")
-        self.assertEqual(f.max_arg, 1)
 
     def test_acceptance_atom_on_the_right_is_a_type_error(self):
         # (at level 2 fn(0) is one argument too many for a function that uses none)
@@ -322,7 +318,7 @@ class TestInFunctions(unittest.TestCase):
 
 class TestTree(unittest.TestCase):
     def D(self, text):
-        return dump(parse_program(KlongInterpreter(), text)).rstrip("\n")
+        return dump_text(text).rstrip("\n")
 
     def test_dump(self):
         self.assertEqual(self.D("[a b c]::v"), "(destructure (a b c) (sym v))")
@@ -344,22 +340,6 @@ class TestTree(unittest.TestCase):
             self.assertEqual(self.D("[a [b]]::v"), "(def (list (sym a) (list (sym b))) (sym v))")
             self.assertEqual(self.D("[a 1]::v"), "(def (list (sym a) (num 1)) (sym v))")
 
-    def test_spans(self):
-        k = KlongInterpreter()
-        tree = parse_program(k, "q;[a b]::v+1")
-        (node, span, op_span, arg_spans), *_ = node_spans(tree)
-        self.assertEqual(span, (2, 12))
-        self.assertEqual(op_span, (7, 9))
-        self.assertEqual(arg_spans, ((2, 7), (9, 12)))
-
-    @requires_python_engine("the legacy parser of the Python engine")
-    def test_legacy_parser_keeps_its_behaviour(self):
-        k = KlongInterpreter(parser="legacy")
-        self.assertEqual(nums(k("[a b]::[1 2]")), [1, 2])
-        self.assertEqual(k("a"), KGSym("a"))
-        self.assertEqual(dump_text("[a b]::[1 2]", parser="legacy"),
-                         "(def (list (sym a) (sym b)) (list (num 1) (num 2)))\n")
-
     def test_compiled_path_is_not_involved(self):
         # a destructuring inside an arithmetic expression, evaluated twice
         k = KlongInterpreter()
@@ -374,9 +354,9 @@ class TestTree(unittest.TestCase):
         import pickle
         k = KlongInterpreter()
         k("f::{[p q]::x;p+q}")
-        f = k._context[KGSym("f")]
+        f = k["f"].fn
         for g in (copy.deepcopy(f), pickle.loads(pickle.dumps(f))):
-            k._context[KGSym("g")] = g
+            k["g"] = g
             self.assertEqual(num(k("g([1 2])")), 3)
             self.assertEqual(k("p"), KGSym("p"))
 
@@ -401,6 +381,7 @@ class TestRepositoryGate(unittest.TestCase):
             "examples/ipc/srv_pubsub.kg",
             "examples/stocks/feed/consumer.kg",
             "examples/stocks/feed/feed.kg",
+            "examples/modules/data/feed.kg",        # selection and rename on import: [reseed noise]::.import(...)@[...]
             "tests/kgtests/language/test_destructuring.kg",
             "tests/golden/fixtures/s2_destructuring_slot.kg",
             # written on purpose by the named-parameter tests

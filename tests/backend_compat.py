@@ -216,24 +216,6 @@ def requires_strings(test_item):
     )(test_item)
 
 
-def on_rust_engine():
-    """True when KlongPy evaluates on the native Rust engine (the default; KLONGPY_ENGINE=python selects the Python engine)."""
-    from klongpy.interpreter import KlongInterpreter
-    return KlongInterpreter.__name__ == 'RustInterpreter'
-
-
-def requires_python_engine(reason):
-    """
-    Skip a test or a test class on the Rust engine (the default engine). Only for a test of the PYTHON engine's
-    internals (its parse tree, private attributes, caches, object identity): a test of behaviour a program or a
-    Python caller can see is not marked. The reason says which internal it inspects.
-
-        @requires_python_engine("reads the parse tree of the Python parser")
-        def test_x(self): ...
-    """
-    return unittest.skipIf(on_rust_engine(), "Python engine only: " + reason)
-
-
 def requires_numpy_backend(test_item):
     """
     Skip test if not using the numpy backend.
