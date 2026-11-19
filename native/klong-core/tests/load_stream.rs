@@ -40,7 +40,10 @@ fn val(ip: &mut Interp, s: &str) -> String {
 }
 
 fn interp() -> Interp {
-    Interp::new(Config::default(), Box::new(NoHooks))
+    let mut ip = Interp::new(Config::default(), Box::new(NoHooks));
+    // (what the runtime's .export does in a file that is not being imported: nothing)
+    ip.register(".export", 1, std::rc::Rc::new(|_, a| Ok(a[0].clone())));
+    ip
 }
 
 /// (peak above the start, what stays) of `f`.

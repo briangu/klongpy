@@ -53,7 +53,7 @@ eigenv::{[tol;neq;v1;w1;sum;count;maxcnt;z1;nd];maxcnt::50;count::0;
          nd::y;all(rndn(;nd);mkvals(diag(*z1);(z1@1)))}
 .module(0)
 
-help.add([
+helpadd([
  ["eigenv(x;y)"
   "eigenvalues and eigenvectors of matrix x with y digits of precision"]
 ])

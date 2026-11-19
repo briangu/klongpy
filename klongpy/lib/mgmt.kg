@@ -29,7 +29,7 @@ mgmt.nodes                 the registry: a dictionary from name to
 mgmt.names()               the names, in the order they were added
 mgmt.status()              name -> :{addr state seen age ver}: the
                            registry without the handles
-mgmt.timeout(name;seconds) the call timeout of one node (mgmt.ct when
+mgmt.timeout(name;seconds) the call timeout of one node (mgmt.cfg.ct when
                            it was added)
 mgmt.start(seconds)        check every node now and then every "seconds"
 mgmt.stop()                stop checking
@@ -69,12 +69,17 @@ mgmt.load(name;path)       have the node load a file now: .l(path) there
 mgmt.reset(name)           node.reset(name), when this board has one
 mgmt.power(name;on)        node.power(name;on), when this board has one
 
-Settings: mgmt.pi, the interval mgmt.start was given; mgmt.ct, the call
+The file is a module: mgmt::.import("mgmt"), and every name below is an entry of
+the dictionary mgmt (mgmt.call, mgmt.add, ...). The helpers and the state
+(the timer, the request counter) are private to the module.
+
+Settings, in the dictionary mgmt.cfg (written as mgmt.cfg.ct::60): mgmt.cfg.pi, the
+interval mgmt.start was given; mgmt.cfg.ct, the call
 timeout a node gets when it is added (30 seconds; this and the interval
-of 5 seconds in the example are provisional); mgmt.probe, the request a
+of 5 seconds in the example are provisional); mgmt.cfg.probe, the request a
 check sends (".ver()").
 
-Liveness. Every interval each node is sent mgmt.probe without waiting.
+Liveness. Every interval each node is sent mgmt.cfg.probe without waiting.
 An answer makes the node "up". A node that has not answered by the next
 check is "down"; so is one whose link failed or whose call timed out,
 and that one is connected again at the following check. A node that is
@@ -85,20 +90,21 @@ says nothing holds the check for the transport's handshake time.
 While mgmt.call or mgmt.each waits for nodes, the management node does
 nothing else: no check runs and other clients wait.
 
-On a node, connecting defines three names: mgmt.run, mgmt.job and
-mgmt.r. Nothing else is installed there and nothing is kept on storage.
+On a node, connecting defines three names: .mgmt.run, .mgmt.job and
+.mgmt.r (names that start with a dot: one name each, in the node's globals). Nothing else is installed there and nothing is kept on storage.
 
 Example configuration (boot.kg of a management node; the addresses are
 this example's, nothing in the library depends on them):
 
-    .l("mgmt")
+    mgmt::.import("mgmt")
     mgmt.add("a";"tcp:10.0.0.11:5000")
     mgmt.add("b";"uart:1@921600")
     mgmt.add("c";"uart:2@921600")
     mgmt.start(5)
     .srv(5000)
 
-From a desktop (KlongPy, or any node):
+From a desktop (KlongPy, or any node; the node has imported mgmt in its boot.kg
+as above, and a request names an entry of the dictionary):
 
     mgmt::.cli("10.0.0.10:5000")
     mgmt(:mgmt.call,"a",:sq,,[7])            --> 49
@@ -109,7 +115,7 @@ From a desktop (KlongPy, or any node):
 Runtimes. The native runtime has .try and .err, which this file uses to
 catch an error and to raise one, on the management node and on the
 nodes. KlongPy has neither. As a management node it loads this file and
-works with these differences (mgmt.trap is 0 there): mgmt.add does not
+works with these differences (mgmt.cfg.trap is 0 there): mgmt.add does not
 connect, the first call does; an error of a node passes through
 mgmt.call with its kind but without the node's name; mgmt.each fails as
 a whole when a link fails or a node is too slow (an error on a node is
@@ -121,120 +127,121 @@ level 2 KlongPy cannot be asked whether .try exists: set mgmt.trap::0
 after loading. The nodes are native runtimes in every case.
 *****
 
-mgmt.nodes:::{}
-mgmt.pi::5
-mgmt.ct::30
-mgmt.probe::".ver()"
-mgmt.trap::-1
-mgmt.th::0
-mgmt.seq::0
-mgmt.j::0
+nodes:::{}
+cfg:::{;"pi";5;"ct";30;"probe";".ver()";"trap";-1}
+thandle::0
+seqno::0
+jobreq::0
 
 :"----- what a node runs; sent to it as source when it is connected -----"
 
 :"mgmt.run(fn;args): the call, with its error as a value: ["" result] or [0 kind message]"
 :"(a string before the result, not a number: a list of two numbers would travel as one vector,"
 :"and the result would take the other's type)"
-mgmt.run::{[r];r::.try({[f];f:::[~@x;.E(x):|x~*.E("[",($x),"]");.E(1_$x);x];:[(0=#y)&~@x;f;f@y]};(,x),,y);
+.mgmt.run::{[r];r::.try({[f];f:::[~@x;.E(x):|x~*.E("[",($x),"]");.E(1_$x);x];:[(0=#y)&~@x;f;f@y]};(,x),,y);
            :[r@0;(,""),,r@1;r]}
 :"mgmt.job(id;fn;args): the same, kept for the collection that follows"
-mgmt.job::{mgmt.r::x,,mgmt.run(y;z);0}
-mgmt.r::0
+.mgmt.job::{.mgmt.r::x,,.mgmt.run(y;z);0}
+.mgmt.r::0
 :"mgmt.wr(path;text): write a file"
-mgmt.wr::{[c];c::.oc(x);.tc(c);.d(y);.tc(0);.cc(c);#y}
+wr::{[c];c::.oc(x);.tc(c);.d(y);.tc(0);.cc(c);#y}
 
 :"----- errors -----"
 
-mgmt.cap::{:[mgmt.trap<0;mgmt.trap::.E("~.try~*[:.try]");0];1~mgmt.trap}
+cap::{:[cfg.trap<0;cfg.trap::.E("~.try~*[:.try]");0];1~cfg.trap}
 :"mgmt.try(f;args): [1 result] or [0 kind message]; without .try the error is not caught"
-mgmt.try::{:[mgmt.cap();.try(x;y);(,1),,x@y]}
-mgmt.fail::{:[mgmt.cap();.err(x;"mgmt: ",y);mgmt.nofail("mgmt: ",y)]}
-mgmt.nofail::{.p(x);mgmt.error(x)}
-mgmt.ev::{[d];d:::{};d,"error",,x;d,"node",,y;d,"message",,z;d}
+trycall::{:[cap();.try(x;y);(,1),,x@y]}
+fail::{:[cap();.err(x;"mgmt: ",y);nofail("mgmt: ",y)]}
+nofail::{.p(x);mgmterror(x)}
+ev::{[d];d:::{};d,"error",,x;d,"node",,y;d,"message",,z;d}
 
 :"----- registry -----"
 
-mgmt.e::{[e];e::mgmt.nodes?x;:[:undefined~e;mgmt.fail("name";"no such node: ",$x);e]}
-mgmt.names::{{x@0}'mgmt.nodes}
-mgmt.add::{[e];:[:undefined~mgmt.nodes?x;0;mgmt.lost(x)];e:::{};e,"addr",,y;e,"h",,0;e,"state",,"down";e,"seen",,-1;e,"ver",,0;e,"wait",,0;e,"t",,mgmt.ct;
-           mgmt.nodes,x,,e;:[mgmt.cap();mgmt.try(mgmt.open;,x);0];x}
-mgmt.timeout::{(mgmt.e(x)),"t",,y;y}
-mgmt.st1::{[e d s];e::x@1;s::e?"seen";d:::{};d,"addr",,e?"addr";d,"state",,e?"state";d,"seen",,s;
+nodeof::{[e];e::nodes?x;:[:undefined~e;fail("name";"no such node: ",$x);e]}
+names::{{x@0}'nodes}
+add::{[e];:[:undefined~nodes?x;0;lost(x)];e:::{};e,"addr",,y;e,"h",,0;e,"state",,"down";e,"seen",,-1;e,"ver",,0;e,"wait",,0;e,"t",,cfg.ct;
+           nodes,x,,e;:[cap();trycall(open;,x);0];x}
+timeout::{(nodeof(x)),"t",,y;y}
+st1::{[e d s];e::x@1;s::e?"seen";d:::{};d,"addr",,e?"addr";d,"state",,e?"state";d,"seen",,s;
            d,"age",,:[s<0;-1;.pc()-s];d,"ver",,e?"ver";(x@0),,d}
-mgmt.mk::{[d];d:::{};{x,y}/(,d),x}
-mgmt.status::{mgmt.mk(mgmt.st1'mgmt.nodes)}
+mk::{[d];d:::{};{x,y}/(,d),x}
+status::{mk(st1'nodes)}
 
 :"----- links -----"
 
 :"mgmt.open(name): connect and give the node its three names; the handle, or an error"
-mgmt.open::{[e h];e::mgmt.e(x);mgmt.lost(x);h::.cli(e?"addr");.clit(h;e?"t");e,"ver",,h(mgmt.probe);
-            h([:set :mgmt.r 0]);h([:set :mgmt.run],,mgmt.run);h([:set :mgmt.job],,mgmt.job);
+open::{[e h];e::nodeof(x);lost(x);h::.cli(e?"addr");.clit(h;e?"t");e,"ver",,h(cfg.probe);
+            h([:set :.mgmt.r 0]);h([:set :.mgmt.run],,.mgmt.run);h([:set :.mgmt.job],,.mgmt.job);
             e,"h",,h;e,"state",,"up";e,"seen",,.pc();h}
 :"mgmt.lost(name): the link is gone"
-mgmt.lost::{[e h];e::mgmt.nodes?x;h::e?"h";e,"h",,0;e,"state",,"down";e,"wait",,0;:[h~0;0;.clic(h)]}
-mgmt.seen::{x,"state",,"up";x,"seen",,.pc();1}
+lost::{[e h];e::nodes?x;h::e?"h";e,"h",,0;e,"state",,"down";e,"wait",,0;:[h~0;0;.clic(h)]}
+seen::{x,"state",,"up";x,"seen",,.pc();1}
 :"mgmt.h(name): the handle, connecting when there is none; errors carry the node's name"
-mgmt.h::{[e h];e::mgmt.e(x);h::e?"h";:[~h~0;h:|~mgmt.cap();mgmt.open(x);mgmt.h2(x;mgmt.try(mgmt.open;,x))]}
-mgmt.h2::{:[y@0;y@1;.err(y@1;x,": ",y@2)]}
+handle::{[e h];e::nodeof(x);h::e?"h";:[~h~0;h:|~cap();open(x);handle2(x;trycall(open;,x))]}
+handle2::{:[y@0;y@1;.err(y@1;x,": ",y@2)]}
 
 :"----- liveness -----"
 
-mgmt.nop::{x}
-mgmt.pong::{[e];e::mgmt.nodes?x;:[:undefined~e;0;mgmt.pong2(e;y)]}
-mgmt.pong2::{x,"wait",,0;x,"ver",,y;mgmt.seen(x)}
+nop::{x}
+pong::{[e];e::nodes?x;:[:undefined~e;0;pong2(e;y)]}
+pong2::{x,"wait",,0;x,"ver",,y;seen(x)}
 :"mgmt.ping(name): send the probe. The entry says down and has no handle while this"
 :"runs, so that an error here leaves the node to be connected again."
-mgmt.ping::{[e h s a];e::mgmt.nodes?x;h::e?"h";s::e?"state";e,"h",,0;e,"state",,"down";
-            .clit(h;e?"t");a::.async(h;mgmt.pong(x;));a(mgmt.probe);
+ping::{[e h s a];e::nodes?x;h::e?"h";s::e?"state";e,"h",,0;e,"state",,"down";
+            .clit(h;e?"t");a::.async(h;pong(x;));a(cfg.probe);
             e,"h",,h;e,"state",,s;e,"wait",,1;1}
-mgmt.chk::{[e h];e::mgmt.nodes?x;h::e?"h";:[1~e?"wait";e,"state",,"down";0];
-           :[h~0;:[mgmt.cap();mgmt.open(x);0];mgmt.ping(x)];1}
-mgmt.chk1::{[r];r::mgmt.try(mgmt.chk;,x);:[r@0;1;mgmt.lost(x)]}
-mgmt.chk2::{[a];a::.async(mgmt.chk1;mgmt.nop);a(x)}
-mgmt.tick::{mgmt.chk2'mgmt.names();1}
-mgmt.tock::{mgmt.tick()}
-mgmt.stop::{[t];t::mgmt.th;mgmt.th::0;:[t~0;0;.timerc(t)]}
-mgmt.start::{mgmt.stop();mgmt.pi::x;mgmt.tick();mgmt.th::.timer("mgmt";x;mgmt.tock);1}
+chk::{[e h];e::nodes?x;h::e?"h";:[1~e?"wait";e,"state",,"down";0];
+           :[h~0;:[cap();open(x);0];ping(x)];1}
+chk1::{[r];r::trycall(chk;,x);:[r@0;1;lost(x)]}
+chk2::{[a];a::.async(chk1;nop);a(x)}
+tick::{chk2'names();1}
+tock::{tick()}
+stop::{[t];t::thandle;thandle::0;:[t~0;0;.timerc(t)]}
+start::{stop();cfg.pi::x;tick();thandle::.timer("mgmt";x;tock);1}
 
 :"----- relay -----"
 
-mgmt.req::{:[(0=#y)&~@x;x;(,x),y]}
-mgmt.call::{:[mgmt.cap();mgmt.callt(x;y;z);mgmt.calld(x;y;z)]}
-mgmt.calld::{[e h r];e::mgmt.e(x);h::mgmt.h(x);.clit(h;e?"t");r::h(mgmt.req(y;z));mgmt.seen(e);r}
-mgmt.callt::{[e h r];e::mgmt.e(x);h::mgmt.h(x);.clit(h;e?"t");r::.try(h;,[:mgmt.run],(,y),,z);
-             :[r@0;mgmt.res(x;e;r@1);mgmt.gone(x;r)]}
-mgmt.res::{mgmt.seen(y);:[0~z@0;.err(z@1;x,": ",z@2);z@1]}
-mgmt.gone::{mgmt.lost(x);.err(y@1;x,": ",y@2)}
+req::{:[(0=#y)&~@x;x;(,x),y]}
+call::{:[cap();callt(x;y;z);calld(x;y;z)]}
+calld::{[e h r];e::nodeof(x);h::handle(x);.clit(h;e?"t");r::h(req(y;z));seen(e);r}
+callt::{[e h r];e::nodeof(x);h::handle(x);.clit(h;e?"t");r::.try(h;,[:.mgmt.run],(,y),,z);
+             :[r@0;res(x;e;r@1);gone(x;r)]}
+res::{seen(y);:[0~z@0;.err(z@1;x,": ",z@2);z@1]}
+gone::{lost(x);.err(y@1;x,": ",y@2)}
 
 :"----- fan-out -----"
 
-mgmt.lose::{mgmt.lost(x);mgmt.ev(y@1;x;x,": ",y@2)}
+lose::{lost(x);ev(y@1;x;x,": ",y@2)}
 :"issue: 1 sent, 0 not connected, or an error value"
-mgmt.snd::{[e h a];e::mgmt.nodes?x;h::e?"h";.clit(h;e?"t");a::.async(h;mgmt.nop);a(mgmt.j);1}
-mgmt.iss::{[r];r::mgmt.try(mgmt.snd;,x);:[r@0;1;mgmt.lose(x;r)]}
-mgmt.is1::{[e];e::mgmt.nodes?x;:[:undefined~e;mgmt.ev("name";"mgmt";"mgmt: no such node: ",$x):|0~e?"h";0;mgmt.iss(x)]}
-mgmt.isc::{[r];r::mgmt.try(mgmt.open;,x);:[r@0;mgmt.iss(x);mgmt.ev(r@1;x;x,": ",r@2)]}
+snd::{[e h a];e::nodes?x;h::e?"h";.clit(h;e?"t");a::.async(h;nop);a(jobreq);1}
+iss::{[r];r::trycall(snd;,x);:[r@0;1;lose(x;r)]}
+is1::{[e];e::nodes?x;:[:undefined~e;ev("name";"mgmt";"mgmt: no such node: ",$x):|0~e?"h";0;iss(x)]}
+isc::{[r];r::trycall(open;,x);:[r@0;iss(x);ev(r@1;x;x,": ",r@2)]}
 :"a node without a link is connected here only when no check is running to do it"
-mgmt.is2::{:[~0~y;y:|mgmt.cap()&mgmt.th~0;mgmt.isc(x);mgmt.ev("system";x;x,": not connected")]}
+is2::{:[~0~y;y:|cap()&thandle~0;isc(x);ev("system";x;x,": not connected")]}
 :"collect"
-mgmt.got::{:[@z;mgmt.ev("system";x;x,": no result");mgmt.got2(x;z@0;z@1)]}
-mgmt.got2::{:[~mgmt.seq~y;mgmt.ev("system";x;x,": no result"):|0~z@0;mgmt.ev(z@1;x;x,": ",z@2);z@1]}
-mgmt.get::{[e h r];e::mgmt.nodes?x;h::e?"h";
-           :[h~0;mgmt.ev("system";x;x,": not connected");mgmt.get2(x;e;mgmt.try(h;[:mgmt.r]))]}
-mgmt.get2::{:[z@0;mgmt.get3(x;y;z@1);mgmt.lose(x;z)]}
-mgmt.get3::{mgmt.seen(y);mgmt.got(x;y;z)}
-mgmt.col::{:[1~y;mgmt.get(x);y]}
-mgmt.each::{[s];mgmt.seq::mgmt.seq+1;mgmt.j::[:mgmt.job],mgmt.seq,(,y),,z;
-            s::mgmt.is1'x;s::x mgmt.is2's;s::x mgmt.col's;mgmt.mk(x{x,,y}'s)}
-mgmt.all::{mgmt.each(mgmt.names();x;y)}
+got::{:[@z;ev("system";x;x,": no result");got2(x;z@0;z@1)]}
+got2::{:[~seqno~y;ev("system";x;x,": no result"):|0~z@0;ev(z@1;x;x,": ",z@2);z@1]}
+get::{[e h r];e::nodes?x;h::e?"h";
+           :[h~0;ev("system";x;x,": not connected");get2(x;e;trycall(h;[:.mgmt.r]))]}
+get2::{:[z@0;get3(x;y;z@1);lose(x;z)]}
+get3::{seen(y);got(x;y;z)}
+col::{:[1~y;get(x);y]}
+each::{[s];seqno::seqno+1;jobreq::[:.mgmt.job],seqno,(,y),,z;
+            s::is1'x;s::x is2's;s::x col's;mk(x{x,,y}'s)}
+all::{each(names();x;y)}
 
 :"----- deploy -----"
 
-mgmt.put::{mgmt.call(x;mgmt.wr;(,y),,z)}
-mgmt.boot::{mgmt.put(x;"boot.kg";y)}
-mgmt.load::{mgmt.call(x;".l(""",y,""")";!0)}
+put::{call(x;wr;(,y),,z)}
+boot::{put(x;"boot.kg";y)}
+load::{call(x;".l(""",y,""")";!0)}
 
 :"----- hooks a board may provide -----"
 
-mgmt.reset::{mgmt.e(x);:[.E("node.reset~*[:node.reset]");mgmt.fail("name";"this board has no node.reset");node.reset(x)]}
-mgmt.power::{mgmt.e(x);:[.E("node.power~*[:node.power]");mgmt.fail("name";"this board has no node.power");node.power(x;y)]}
+hook::{[d f];d::.E("node");f:::[@d;:undefined;d?x];:[:_f;fail("name";"this board has no node.",x);f]}
+reset::{[f];nodeof(x);f::hook("reset");f(x)}
+power::{[f];nodeof(x);f::hook("power");f(x;y)}
+
+.export(:{;"add";add;"nodes";nodes;"cfg";cfg;"names";names;"status";status;"timeout";timeout;"start";start;"stop";stop;
+  "open";open;"call";call;"each";each;"all";all;"put";put;"boot";boot;"load";load;"reset";reset;"power";power})

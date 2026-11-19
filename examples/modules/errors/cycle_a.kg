@@ -1,0 +1,2 @@
+b::.import("./cycle_b")
+.export(:{;"v";1})

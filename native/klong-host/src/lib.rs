@@ -131,6 +131,10 @@ impl Platform for HostPlatform {
         SystemTime::now().duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs_f64())
     }
     fn idle(&mut self) {}
+    fn real_path(&self, path: &str) -> Option<String> {
+        let p = if path.is_empty() { "." } else { path };
+        std::fs::canonicalize(p).ok().and_then(|r| r.to_str().map(String::from))
+    }
     fn console_read(&mut self, _buf: &mut [u8]) -> usize {
         // The host console is line-buffered standard input, read by the CLI between
         // evaluations; nothing is read while one runs (no Ctrl-C byte: the terminal sends a

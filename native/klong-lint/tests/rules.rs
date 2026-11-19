@@ -323,9 +323,9 @@ fn no_resolve_never_reads_files() {
 
 #[test]
 fn the_library_is_found() {
-    // klongpy/lib/csv.kg defines csv.make (a dotted name) and csv.tbl
+    // klongpy/lib/csv.kg exports split, read, make, write and load: .l defines them as plain names
     let d = Dir::new("i");
-    d.write("main.kg", ".l(\"csv\")\ncsv.make(1)\ncsv.nosuch(2)\n");
+    d.write("main.kg", ".l(\"csv\")\nmake(1)\nnosuch(2)\n");
     assert_eq!(d.lint("main.kg"), vec![("W002", 3, 1)]);
     // and from a directory, as the extension passes it
     let lib = format!("{}/../../klongpy/lib", env!("CARGO_MANIFEST_DIR"));

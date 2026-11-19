@@ -1,0 +1,96 @@
+:"main: a backtest of two strategies on two synthetic price series.
+
+   Run it from this directory:   kgpy main.kg
+   It prints what EXPECTED.txt holds. Each comment line that starts with shows: names the part of
+   the module system the next line exercises."
+
+.p("== modules: a backtest ==")
+
+:" shows: relative imports. A path that starts with ./ or ../ is relative to the importing file"
+config::.import("./config")
+rng::.import("./lib/rng")
+feed::.import("./data/feed")
+stats::.import("./lib/stats")
+reg::.import("./strategy/registry")
+:" shows: a diamond. book is already loaded through crossover and meanrev; this is the same instance"
+book::.import("./book/portfolio")
+table::.import("./report/table")
+
+.p("-- configuration")
+cfg::config.defaults()
+:" shows: writing through a.b on an ordinary dictionary, nested; it replaces the entry"
+cfg.run.days::90
+cfg.strategy.params.crossover.fast::4
+:" shows: a.b gives the nested dictionary itself, not a copy: writing through snap changes cfg"
+snap::cfg.run
+snap.seed::11
+.pf("days={} seed={} cash={}";[;$cfg.run.days;$cfg.run.seed;$cfg.run.cash])
+
+.p("-- shared state of rng")
+.pf("draws before the feed: {}";rng.draws())
+feed.restart(cfg)
+quotes::feed.load(cfg)
+:" shows: one instance. feed drew through its own import of rng; this importer sees the count"
+.pf("draws after the feed: {}";rng.draws())
+:" shows: the cache key is the resolved file, so another spelling of the path gives the same module"
+rng2::.import("./lib/../lib/rng")
+rng.uniform(1)
+.pf("same instance by another path: {}";rng2.draws())
+:" shows: a private helper is not reachable: step, state, count and m are not in the exports"
+.pf("exports of rng: {}";#rng)
+.pf("step is missing from the exports: {}";:_(rng@"step"))
+
+.p("-- qualified names")
+v::quotes@"ALPHA"
+r::stats.returns(v)
+:" shows: a qualified call as the verb of an adverb, from the program"
+m5::stats.mean'stats.win(5;r)
+.pf("bars: {}, five-day windows: {}";[;$#v;$#m5])
+.pf("mean of the five-day means, in bps: {:3.2}";,10000*stats.mean(m5))
+:" shows: a projection of a qualified function"
+twice::stats.scale(;2.0)
+.pf("projection: {}";twice(21.0))
+:" shows: a qualified function passed as a value"
+apply(f;a)::{f(a)}
+.pf("as a value: {}";apply(stats.mean;[1.0 2.0 6.0]))
+:" shows: qualified functions stored in a dictionary, called as ops.mean(...)"
+ops:::{;"mean";stats.mean;"std";stats.std}
+.pf("in a dictionary: {:1.4} {:1.4}";[;ops.mean([1.0 2.0 6.0]);ops.std([1.0 2.0 6.0])])
+:" shows: a.b on a parameter, as a call"
+spread(o;a)::{o.std(a)%o.mean(a)}
+.pf("spread: {:1.4}";,spread(ops;[1.0 2.0 6.0]))
+:" shows: the re-exports of table, which are stats functions under other names"
+.pf("avg price {:3.2}, worst drawdown {:2.2}%";[;table.avg(v);100*table.worst(v)])
+:" shows: the same function compiled by the static profile; the interpreter gives the same numbers"
+ramp::1.0+!16
+.pf("ma4 agrees with ma: {}";stats.ma4(ramp)~stats.ma(4;ramp))
+
+.p("-- the strategies, chosen by name at run time")
+:" shows: both strategies are used through one interface: name, signal, step, describe"
+run(strat;cfg;sym;p)::{[sig rows pf0 fin curve ret dd s];
+  sig::strat.signal(cfg;p);
+  rows::+[;p;sig];
+  pf0::book.new(cfg.run.cash);
+  curve::book.equity'pf0 strat.step\rows;
+  fin::pf0 strat.step/rows;
+  ret::100*(((*|curve)%cfg.run.cash)-1);
+  dd::100*stats.maxdd(curve);
+  s::.fmt("{} {} {:1.2}";[;sym;strat.name;*|curve]);
+  :{;"row";table.row(sym;strat.name;*|curve;ret;dd;fin.trades);"csv";s}}
+rowsfor(name)::{[s];s::reg.choose(name);.p(s.describe(cfg));{run(s;cfg;x;quotes@x)}'cfg.feed.symbols}
+results::,/rowsfor'reg.names()
+.p(table.header())
+{.p(x@"row")}'results
+
+.p("-- csv: a classic library used through the new form, and imported lazily by table")
+out::table.csv({x@"csv"}'results)
+.p(out@0)
+csv::.import("csv")
+.pf("fields in the first line: {}";#csv.split(out@0))
+
+.p("-- a classic file beside the modules")
+:" shows: .l puts the names of a classic file in the global scope; they do not touch the modules"
+.l("legacy")
+.pf("legacy mean {:3.2}, stats mean {:3.2}";[;mean(v);stats.mean(v)])
+.pf("bps: {}";bps(0.25))
+.p("== done ==")

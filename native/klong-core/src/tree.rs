@@ -88,6 +88,8 @@ pub struct Tree {
     pub source: Option<Rc<Source>>,
     /// Set by a load: the function literals of this tree are kept as text (`Func::Lazy`), parsed in this context when called.
     pub lazy: Option<Rc<crate::value::LazyCtx>>,
+    /// The module scope this tree was parsed for: the functions of the tree run in it (0 is the program's own scope).
+    pub module: core::cell::Cell<u16>,
     /// The arena could not grow: the tree is incomplete and the parse is a `memory` error.
     pub oom: bool,
     #[cfg(feature = "diag")]
@@ -96,7 +98,7 @@ pub struct Tree {
 
 impl Tree {
     pub fn new(source: Option<Rc<Source>>) -> Tree {
-        Tree { nodes: Vec::new(), spans: Vec::new(), extra: Vec::new(), source, lazy: None, oom: false, #[cfg(feature = "diag")] aux: None }
+        Tree { nodes: Vec::new(), spans: Vec::new(), extra: Vec::new(), source, lazy: None, module: core::cell::Cell::new(0), oom: false, #[cfg(feature = "diag")] aux: None }
     }
     pub fn node(&self, id: NodeId) -> &Node {
         &self.nodes[id.0 as usize]

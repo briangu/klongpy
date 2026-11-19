@@ -34,6 +34,17 @@ pub struct Def {
     pub fnf: Option<usize>,
 }
 
+/// `alias::.import("path")`: what the linter knows of the module an alias names.
+pub struct ModImport {
+    pub alias: String,
+    /// The token of the alias.
+    pub idx: usize,
+    /// At the top level of the file (not in a function).
+    pub top: bool,
+    /// The keys of the module's `.export` when the file was found and its export is a literal dictionary.
+    pub exports: Option<BTreeSet<String>>,
+}
+
 pub struct Analysis {
     pub src: Source,
     pub toks: Vec<Tok>,
@@ -51,6 +62,14 @@ pub struct Analysis {
     pub import_anywhere: HashSet<String>,
     pub unknown: bool,
     pub import_limits: HashMap<String, Option<u32>>,
+    /// The imports of modules by `.import`, in order.
+    pub mod_imports: Vec<ModImport>,
+    /// The entries declared by dotted externs, by dictionary: `.extern("read.adc";...)` gives read: {adc}.
+    pub extern_entries: HashMap<String, HashSet<String>>,
+    /// The keys of this file's own `.export`, when it has one that is a literal dictionary.
+    pub export_keys: Option<BTreeSet<String>>,
+    /// Whether the file calls `.export` at all.
+    pub has_export: bool,
 }
 
 fn merge_limit(a: Option<u32>, b: Option<u32>) -> Option<u32> {
@@ -97,6 +116,10 @@ impl Analysis {
             import_anywhere: HashSet::new(),
             unknown: false,
             import_limits: HashMap::new(),
+            mod_imports: Vec::new(),
+            extern_entries: HashMap::new(),
+            export_keys: None,
+            has_export: false,
         };
         an.parse(full);
         an.definitions(resolve, seen, depth, sess);
@@ -191,6 +214,10 @@ impl Analysis {
             if t.k != K::Name {
                 continue;
             }
+            // (a qualified name defines nothing: a.b::v sets an entry)
+            if t.is_qualified(&self.src.text) {
+                continue;
+            }
             let nm = self.val(i).to_string();
             let nxt = if i + 1 < n { Some(&self.toks[i + 1]) } else { None };
             let mut fn_rhs: Option<usize> = None;
@@ -224,6 +251,10 @@ impl Analysis {
                 self.unknown = true;
             } else if nm == ".bkf" && call_next {
                 self.backend_functions(i, f);
+            } else if nm == ".import" && call_next {
+                self.import_(i, f, resolve, seen, depth, sess);
+            } else if nm == ".export" && call_next {
+                self.export_(i);
             } else if nm == ".l" && call_next {
                 self.load(i, f, resolve, seen, depth, sess);
             } else if (nm == ".extern" || nm == ".param") && call_next {
@@ -256,6 +287,60 @@ impl Analysis {
                 }
             }
         }
+    }
+
+    /// `alias::.import("path")`: the alias, and the module's exports when the file can be read.
+    fn import_(&mut self, i: usize, f: usize, resolve: bool, seen: &[String], depth: usize, sess: &mut Session) {
+        let n = self.toks.len();
+        if i < 2 || !(self.toks[i - 2].k == K::Name && self.is_cop(i - 1, "::")) {
+            return;
+        }
+        let alias = self.val(i - 2).to_string();
+        let mut exports = None;
+        let arg_ok = i + 3 < n && self.toks[i + 2].k == K::Str && !self.toks[i + 2].unt && self.toks[i + 3].k == K::RParen;
+        if arg_ok && resolve {
+            let x = self.val(i + 2).to_string();
+            if let Some(path) = crate::load::find_import(sess, &x, &self.base_dir) {
+                if let Some(info) = sess.load_info(&path, seen, depth + 1) {
+                    exports = info.export_keys.clone();
+                }
+            }
+        }
+        self.mod_imports.push(ModImport { alias, idx: i - 2, top: self.frames[f].fnf.is_none(), exports });
+    }
+
+    /// `.export(:{;"a";x;"b";y})`: the keys, when the dictionary is written as that literal.
+    fn export_(&mut self, i: usize) {
+        self.has_export = true;
+        let n = self.toks.len();
+        if !(i + 2 < n && self.toks[i + 2].k == K::Dict) {
+            return;
+        }
+        let Some(&df) = self.open_frame.get(&(i + 2)) else { return };
+        let Some(close) = self.frames[df].close else { return };
+        let mut elems: Vec<Vec<usize>> = vec![Vec::new()];
+        for j in i + 3..close {
+            if self.ctx[j] != df {
+                continue;
+            }
+            if self.toks[j].k == K::Semi {
+                elems.push(Vec::new());
+            } else if let Some(l) = elems.last_mut() {
+                l.push(j);
+            }
+        }
+        // a leading semicolon, then key; value; key; value
+        if !elems[0].is_empty() || elems.len() % 2 == 0 {
+            return;
+        }
+        let mut keys = BTreeSet::new();
+        for e in elems.iter().skip(1).step_by(2) {
+            if e.len() != 1 || self.toks[e[0]].k != K::Str {
+                return;
+            }
+            keys.insert(self.val(e[0]).to_string());
+        }
+        self.export_keys = Some(keys);
     }
 
     fn backend_functions(&mut self, i: usize, f: usize) {
@@ -305,7 +390,14 @@ impl Analysis {
             self.unknown = true;
             return;
         }
-        let nm = self.val(i + 2).to_string();
+        let mut nm = self.val(i + 2).to_string();
+        // `read.adc` declares the entry adc of the dictionary read: the name defined is read
+        if !nm.starts_with('.') {
+            if let Some((base, entry)) = nm.split_once('.') {
+                self.extern_entries.entry(base.to_string()).or_default().insert(entry.to_string());
+                nm = base.to_string();
+            }
+        }
         if self.frames[f].fnf.is_none() {
             let s = self.stmt_start(i);
             self.add_def(&nm, i, s, None);
@@ -341,7 +433,11 @@ impl Analysis {
         if info.unknown {
             self.unknown = true;
         }
-        let names = info.exported();
+        // a file that exports brings the names it exports (resolution 9)
+        let names = match &info.export_keys {
+            Some(k) => k.clone(),
+            None => info.exported(),
+        };
         for (nm, lim) in info.limits() {
             let merged = match self.import_limits.get(&nm) {
                 Some(old) => merge_limit(*old, lim),

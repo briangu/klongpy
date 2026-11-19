@@ -506,6 +506,21 @@ pub(crate) fn register<P: Platform + 'static>(interp: &mut Interp, shared: &Rc<S
         1,
         Rc::new(move |ip: &mut Interp, a: &[Value]| {
             let (path, text) = load_text(&sh, text_arg(a, ".l")?)?;
+            // a file that calls .export is a module: it runs in a scope of its own (once, whoever asks) and its exported names become
+            // plain names here (resolution 9)
+            let is_module = match &text {
+                Loaded::Owned(t) => crate::modules::calls_export(t),
+                Loaded::Static(t) => crate::modules::calls_export(t),
+            };
+            if is_module {
+                let t = match text {
+                    Loaded::Owned(t) => crate::modules::Text::Owned(t),
+                    Loaded::Static(t) => crate::modules::Text::Static(t),
+                };
+                let d = crate::modules::import_loaded(&sh, ip, &path, t)?;
+                crate::modules::bind_alias(ip, &path, d)?;
+                return Ok(ip.no_value());
+            }
             // while it runs, the directory of this file is where its own .l calls look last
             let dir = match &text {
                 Loaded::Owned(_) => crate::chan_dir(&path),

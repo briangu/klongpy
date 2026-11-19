@@ -1,0 +1,3 @@
+:"a deliberate cycle: cycle_a imports cycle_b, which imports cycle_a"
+a::.import("./cycle_a")
+.p(a.v)

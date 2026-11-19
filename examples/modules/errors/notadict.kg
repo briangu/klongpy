@@ -1,0 +1,3 @@
+:"qualified name on a base that is not a dictionary"
+n::5
+.p(n.f)

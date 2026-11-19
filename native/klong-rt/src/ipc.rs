@@ -678,12 +678,12 @@ impl<P: Platform + 'static> Events<P> {
     }
 
     fn has_hook(ip: &Interp, name: &str) -> bool {
-        matches!(ip.global(name), Some(Value::Fn(_) | Value::Prim(_)))
+        matches!(ip.global_path(name), Some(Value::Fn(_) | Value::Prim(_)))
     }
 
     /// Call a hook (`.srv.o`, `.srv.c`, `.srv.e`) if the program defined it as a function.
     fn hook(&self, ip: &mut Interp, name: &str, args: &[Value]) -> Option<Value> {
-        let f = ip.global(name)?;
+        let f = ip.global_path(name)?;
         if !matches!(f, Value::Fn(_) | Value::Prim(_)) {
             return None;
         }
@@ -853,7 +853,7 @@ impl<P: Platform + 'static> Events<P> {
         match &value {
             Value::Sym(s) => {
                 let name = try_str(ip.syms.name(*s))?;
-                return ip.global(&name).ok_or_else(|| Error::name(klong_core::msg!("symbol not found: {}", name)));
+                return ip.global_path(&name).ok_or_else(|| Error::name(klong_core::msg!("symbol not found: {}", name)));
             }
             Value::Str(text) => {
                 let text = try_str(text.as_str())?;

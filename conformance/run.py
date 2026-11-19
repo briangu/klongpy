@@ -29,7 +29,7 @@ GOLDEN_DIR = os.path.join(ROOT, "tests", "golden")
 
 TIERS = ("core", "strings", "dicts", "sysio", "timers", "ipc", "desktop")
 MARKS = ("width64", "bigint", "unicode", "device", "sysio", "device")
-CAPABILITIES = ("float", "string-fmt", "strict1", "strict2", "static")
+CAPABILITIES = ("float", "string-fmt", "strict1", "strict2", "static", "qualified", "modules")
 IMPLEMENTATION = ("numpy-only", "torch-only", "kgpy-only")
 ALL_TAGS = TIERS + MARKS + CAPABILITIES + IMPLEMENTATION
 KINDS = ("syntax", "name", "arity", "type", "shape", "range", "system", "memory", "interrupt")
@@ -38,7 +38,7 @@ META_KEYS = ("reason", "actual", "issue")
 # What KlongPy (numpy backend) declares. `device` needs a heap limit and a console;
 # the other tiers have no cases in this suite yet.
 KLONGPY_TAGS = frozenset(("core", "strings", "dicts", "float", "string-fmt", "strict1", "strict2",
-                          "width64", "bigint", "unicode", "device", "sysio", "numpy-only", "kgpy-only", "static"))
+                          "width64", "bigint", "unicode", "device", "sysio", "numpy-only", "kgpy-only", "static", "qualified", "modules"))
 # KlongPy on the torch backend: floats are 32 bits wide by default and a tensor cannot
 # hold :undefined, so it does not declare `numpy-only` (README, "Tags").
 KLONGPY_TORCH_TAGS = (KLONGPY_TAGS - {"numpy-only"}) | {"torch-only"}
@@ -372,6 +372,17 @@ def run_tree(cmd, src, want, timeout=20.0):
 
 # ---------------------------------------------------------------------------
 
+def _remove_module_files():
+    """The module cases write their files to /tmp (kgm87-*) and delete them at the end of the program; a case that ends in an error
+    (or fails) leaves them, so the runner removes what is left."""
+    import glob
+    for f in glob.glob("/tmp/kgm87-*"):
+        try:
+            os.remove(f)
+        except OSError:
+            pass
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("paths", nargs="*", help="case files or directories (default: conformance/cases)")
@@ -428,6 +439,7 @@ def main(argv=None):
         print(f"{rest - len(fixed)} of {rest} pending cases still fail as expected"
               + (f"; {len(waiting)} more pass in KlongPy and wait for the native runtime" if waiting else ""))
         return 0
+    _remove_module_files()
     for c, p in failed:
         print(f"FAIL {c.where} {c.name}\n  " + p.replace("\n", "\n  "))
     print(f"{len(rows) - len(failed)} passed, {len(failed)} failed, {len(cases) - len(todo)} skipped by tags "

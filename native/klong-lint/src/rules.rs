@@ -70,7 +70,7 @@ impl<'a> Linter<'a> {
     /// Every rule, in the order of `lint.py`. A rule must never take the linter down: one that panics is reported on
     /// standard error and the others still run.
     pub fn run(&mut self) {
-        let rules: [(&str, fn(&mut Linter<'a>)); 15] = [
+        let rules: [(&str, fn(&mut Linter<'a>)); 16] = [
             ("e001", Linter::e001),
             ("w001", Linter::w001),
             ("w010", Linter::w010),
@@ -86,6 +86,7 @@ impl<'a> Linter<'a> {
             ("w003", Linter::w003),
             ("w002", Linter::w002),
             ("e002", Linter::e002),
+            ("modules", Linter::modules),
         ];
         for (name, rule) in rules {
             let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| rule(self)));
@@ -818,8 +819,19 @@ impl<'a> Linter<'a> {
             if failed_names.contains(nm) || failed_params.contains(&(i, nm)) {
                 continue;
             }
-            if an.is_cop(i + 1, "::") {
+            if an.is_cop(i + 1, "::") && !toks[i].is_qualified(&an.src.text) {
                 continue;
+            }
+            // an entry that no dotted extern declares: the name is not defined (read.dac after .extern("read.adc";...))
+            if toks[i].is_qualified(&an.src.text) {
+                if let Some(entries) = an.extern_entries.get(nm) {
+                    let full = &an.src.text[toks[i].s..toks[i].e];
+                    let key = full.split('.').nth(1).unwrap_or("");
+                    if !entries.contains(key) && f.fnf.is_none() {
+                        let sp = self.span_of(i, None);
+                        self.add("W002", sp, format!("'{}' is never defined in this file", full), Some(&format!("an undefined name evaluates to its own symbol, :{}", full)));
+                    }
+                }
             }
             if i + 1 < n && matches!(toks[i + 1].k, K::LParen | K::CallP) && !toks[i + 1].ws {
                 if let Some(&cf) = an.open_frame.get(&(i + 1)) {
@@ -846,6 +858,96 @@ impl<'a> Linter<'a> {
                 }
                 let sp = self.span_of(i, None);
                 self.add("W002", sp, format!("'{}' is never defined in this file", nm), Some(&format!("an undefined name evaluates to its own symbol, :{}", nm)));
+            }
+        }
+    }
+
+    // -- E003, E004, W021, W022: qualified names and imports ---------------------------------------------------
+    /// `a.b` is `a@"b"`, and `alias::.import("file")` binds a module (docs/design-principles.md, principles 4 and 5):
+    /// E003 writes an entry of an import, E004 reads one the module does not export (when the file and its literal `.export` are
+    /// found), W021 `a.b::v` where `a` is never a dictionary (in version 1 it defined a variable named `a.b`), W022 an import that
+    /// is never used.
+    fn modules(&mut self) {
+        let an = self.an;
+        let toks = &an.toks;
+        let text = &an.src.text;
+        let mut aliases: HashMap<&str, &crate::analysis::ModImport> = HashMap::new();
+        for m in &an.mod_imports {
+            let once = an.defs.get(&m.alias).map_or(0, |d| d.len()) == 1;
+            if m.top && once && !an.local_names.contains(&m.alias) && !an.fn_assigned.contains(&m.alias) {
+                aliases.insert(m.alias.as_str(), m);
+            }
+        }
+        let mut used: HashSet<&str> = HashSet::new();
+        for i in 0..toks.len() {
+            let t = &toks[i];
+            if t.k != K::Name || an.frames[an.ctx[i]].kind.is_data() {
+                continue;
+            }
+            let full = &text[t.s..t.e];
+            if full.starts_with('.') {
+                continue;
+            }
+            let base = an.val(i);
+            let qualified = t.is_qualified(text);
+            let is_alias = aliases.get(base).copied();
+            if let Some(m) = is_alias {
+                if m.idx != i {
+                    used.insert(base);
+                }
+            }
+            if !qualified {
+                continue;
+            }
+            let key = full.split('.').nth(1).unwrap_or("");
+            let write = an.is_cop(i + 1, "::");
+            if let Some(m) = is_alias {
+                if write {
+                    self.add("E003", (t.s, t.e), format!("cannot assign {}: {} holds what .import returned, which is read-only", full, base), Some("copy it with  e:::{};e::e,m  or change the module's file"));
+                } else if let Some(ex) = &m.exports {
+                    if !ex.contains(key) {
+                        let list: Vec<&str> = ex.iter().map(|s| s.as_str()).collect();
+                        self.add("E004", (t.s, t.e), format!("{} has no entry \"{}\"", base, key), Some(&format!("the module exports: {}", list.join(" "))));
+                    }
+                }
+            } else if write {
+                let a_param = an.local_names.contains(base) || an.fn_assigned.contains(base) || is_arg(base);
+                let defs = an.defs.get(base);
+                let never_a_dict = match defs {
+                    None => !a_param,
+                    Some(ds) => !a_param && ds.iter().all(|d| d.idx + 2 < toks.len() && matches!(toks[d.idx + 2].k, K::Num | K::Str | K::Char | K::LBrack | K::LBrace)),
+                };
+                if never_a_dict {
+                    self.add(
+                        "W021",
+                        (t.s, t.e),
+                        format!("{}::... sets the entry \"{}\" of {}, which is not a dictionary here", full, key, base),
+                        Some("in Klong 1 this defined a variable named with a dot; write the name without the dot, or make the base a dictionary"),
+                    );
+                }
+            }
+        }
+        // W023: a function literal with no parameter written as a value in .export(:{;...}) is called where it stands
+        for i in 0..toks.len() {
+            if !(an.val(i) == ".export" && toks[i].k == K::Name && i + 2 < toks.len() && toks[i + 2].k == K::Dict) {
+                continue;
+            }
+            let Some(&df) = an.open_frame.get(&(i + 2)) else { continue };
+            let Some(close) = an.frames[df].close else { continue };
+            for j in i + 3..close {
+                if toks[j].k == K::LBrace && toks[j - 1].k == K::Semi {
+                    if let Some(&ff) = an.open_frame.get(&j) {
+                        if an.frames[ff].meta.map(|m| m.arity == 0).unwrap_or(false) {
+                            self.add("W023", (toks[j].s, toks[j].e), "a function with no parameter inside :{;...} is called there, so the entry is its result".to_string(), Some("name the function, f::{...}, and write \"key\";f"));
+                        }
+                    }
+                }
+            }
+        }
+        for m in &an.mod_imports {
+            if m.top && !used.contains(m.alias.as_str()) && aliases.contains_key(m.alias.as_str()) {
+                let t = &toks[m.idx];
+                self.add("W022", (t.s, t.e), format!("the import {} is never used", m.alias), Some("remove the line, or use a qualified name such as alias.name"));
             }
         }
     }

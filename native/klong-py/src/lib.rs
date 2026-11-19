@@ -1280,6 +1280,9 @@ impl Klong {
         if *last != path {
             let rt = unsafe { &mut *self.rt.get() };
             rt.set_load_path(path.split(':').filter(|d| !d.is_empty()).map(String::from).collect());
+            // (a bare name of .import is searched in KLONGPATH when it is set, never in the working directory by default)
+            let given: Vec<String> = std::env::var("KLONGPATH").ok().filter(|p| !p.is_empty()).map(|p| p.split(':').filter(|d| !d.is_empty()).map(String::from).collect()).unwrap_or_default();
+            rt.set_import_path(given);
             *last = path;
         }
     }
@@ -1355,6 +1358,7 @@ impl Klong {
         let mut rt = Runtime::new(HostPlatform::new(Console::Buffer(Vec::new())), cfg, None);
         let path = std::env::var("KLONGPATH").ok().filter(|p| !p.is_empty()).unwrap_or_else(|| String::from(".:lib"));
         rt.set_load_path(path.split(':').filter(|d| !d.is_empty()).map(String::from).collect());
+        rt.set_import_path(std::env::var("KLONGPATH").ok().filter(|p| !p.is_empty()).map(|p| p.split(':').filter(|d| !d.is_empty()).map(String::from).collect()).unwrap_or_default());
         let me = Py::new(py, Klong { rt: UnsafeCell::new(rt), cur: Cell::new(std::ptr::null_mut()), cur_thread: Cell::new(None), f32_display: Cell::new(false), load_path: RefCell::new(path), me: RefCell::new(None), table: RefCell::new(None), hook_out: RefCell::new(None), adopting: Cell::new(false), hook_in: RefCell::new(None), console_spare: Rc::new(RefCell::new(Vec::new())) })?;
         *me.borrow(py).me.borrow_mut() = Some(me.clone_ref(py));
         Ok(me)
@@ -1576,6 +1580,26 @@ impl Klong {
     fn set_host_threshold(&self, py: Python<'_>, n: usize) -> PyResult<()> {
         host(py)?.threshold.store(n, std::sync::atomic::Ordering::Relaxed);
         Ok(())
+    }
+
+    /// `.import(path)` (or `.import(path;names)`): the module's dictionary as a live, read-only view; the list of the named values with `names`.
+    #[pyo3(signature = (path, names=None))]
+    fn import_module(&self, py: Python<'_>, path: &str, names: Option<Vec<String>>) -> PyResult<PyObject> {
+        self.sync_load_path();
+        let owner = self.owner(py);
+        self.with_ip(py, |ip| -> PyResult<PyObject> {
+            let f = ip.global(".import").ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("this runtime has no .import"))?;
+            let mut args = vec![Value::text(path).map_err(k2py)?];
+            if let Some(ns) = names {
+                let mut items = Vec::new();
+                for n in &ns {
+                    items.push(Value::text(n).map_err(k2py)?);
+                }
+                args.push(Value::from_items(items).map_err(k2py)?);
+            }
+            let v = self.in_source("<import>", |ip| ip.apply(&f, args, None), ip).map_err(k2py)?;
+            Ok(to_py(py, ip, &v, Some(&owner))?.unbind())
+        })
     }
 
     /// Call a global function by name.

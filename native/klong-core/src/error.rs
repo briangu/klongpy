@@ -244,3 +244,19 @@ macro_rules! msg {
         m.finish()
     }};
 }
+
+/// `msg!` where the build has `diag`; the short text where it has not (a board has no room for sentences that name what failed: the
+/// kind of the error and its position remain).
+#[macro_export]
+macro_rules! dmsg {
+    ($short:expr, $($arg:tt)*) => {{
+        #[cfg(feature = "diag")]
+        {
+            $crate::msg!($($arg)*)
+        }
+        #[cfg(not(feature = "diag"))]
+        {
+            $short
+        }
+    }};
+}

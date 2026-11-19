@@ -106,6 +106,23 @@ pub(crate) fn stack_here() -> usize {
     core::hint::black_box(&marker) as *const u8 as usize
 }
 
+/// A module scope made by `.import` (design point 1): the globals of one file. A function of the file runs in it (`Tree::module`).
+#[derive(Default)]
+struct ModScope {
+    /// Sorted by symbol.
+    vars: Vec<(SymId, Value)>,
+    /// The dictionary `.export` fixed.
+    export: Option<Value>,
+    /// A classic `.module` block set a qualified name here: a plain name that is not found is looked for among them.
+    classic: bool,
+    /// What the runtime tells of the file the module came from (cache key and directory, empty once the module is let go), whether it
+    /// is a file of the image's library, and whether its body has finished.
+    key: String,
+    dir: String,
+    lib: bool,
+    done: bool,
+}
+
 /// One global scope (KlongPy's context list): the program's own names, or a module.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Scope {
@@ -199,6 +216,14 @@ pub struct Interp {
     /// High-water mark of native stack used below `stack_base`, in bytes.
     pub max_stack_seen: usize,
     frames: Vec<Frame>,
+    /// The module scope each frame belongs to (parallel to `frames`): a function sees the frames of its own module only.
+    fmods: Vec<u16>,
+    /// The module scope that is running (0: the program's own).
+    cur_mod: u16,
+    /// The scopes made by `.import`, by id minus one.
+    modules: Vec<ModScope>,
+    /// Module ids start after this many (the ids of modules that were all let go are not used again).
+    mod_base: u16,
     /// Per symbol: how many bindings of it are on the frame stack.
     shadow: Vec<u32>,
     hooks: Box<dyn Hooks>,
@@ -267,6 +292,10 @@ impl Interp {
             void: false,
             max_stack_seen: 0,
             frames: Vec::new(),
+            fmods: Vec::new(),
+            cur_mod: 0,
+            modules: Vec::new(),
+            mod_base: 0,
             shadow: Vec::new(),
             hooks,
             depth: 0,
@@ -329,7 +358,43 @@ impl Interp {
 
     pub fn global(&self, name: &str) -> Option<Value> {
         let s = self.syms.lookup(name)?;
-        self.global_ref(s).cloned()
+        self.var(s)
+    }
+
+    /// `global` for a name that may be qualified: `mgmt.call` is looked up as `mgmt.call` is written (a name that starts with a dot is one
+    /// name). For the embedder that calls a function by the name a remote caller sent.
+    pub fn global_path(&self, name: &str) -> Option<Value> {
+
+        if let Some(Ok(segs)) = sym::qual_segments(name) {
+            // a name made of segments is looked up as `a.b` is (the dots of a name that starts with a dot are part of the name)
+            let mut cur = self.var(self.syms.lookup(segs[0])?)?;
+            for k in &segs[1..] {
+                let next = match &cur {
+                    Value::Dict(d) => d.borrow().get(&Value::text(k).ok()?)?.clone(),
+                    _ => return None,
+                };
+                cur = next;
+            }
+            return Some(cur);
+        }
+        let s = self.syms.lookup(name)?;
+        self.var(s)
+    }
+
+    /// The global called exactly `name`, even when the name is made of segments (a host that registered `read.adc` registered that
+    /// name, not the entry `adc` of `read`).
+    pub fn global_plain(&self, name: &str) -> Option<Value> {
+        let s = self.syms.lookup(name)?;
+        self.var(s)
+    }
+
+    /// A global of the running scope by symbol.
+    fn var(&self, s: SymId) -> Option<Value> {
+        if self.cur_mod == 0 {
+            self.global_ref(s).cloned()
+        } else {
+            self.module_var(s)
+        }
     }
 
     /// Define or replace a global by name (for the embedder: `.a`, `fullpath`).
@@ -338,7 +403,188 @@ impl Interp {
         if let Some(e) = self.syms.failure() {
             return Err(e);
         }
-        self.try_set_global(s, v)
+        self.new_global(s, v)
+    }
+
+    // ----- module scopes (design point 1) -----------------------------------------------------
+
+    /// The module that came from the file with this cache key: (its id, whether its body has finished). A module that was let go is not found.
+    pub fn module_find(&self, key: &str) -> Option<(u16, bool)> {
+        let i = self.modules.iter().position(|m| m.key == key)?;
+        Some((self.mod_base + i as u16 + 1, self.modules[i].done))
+    }
+
+    /// The directory of the file module `id` came from, and whether it is a file of the library.
+    pub fn module_dir(&self, id: u16) -> Option<(&str, bool)> {
+        self.mslot(id).and_then(|i| self.modules.get(i)).map(|m| (m.dir.as_str(), m.lib))
+    }
+
+    pub fn module_done(&mut self, id: u16) {
+        if let Some(m) = self.mslot(id).and_then(|i| self.modules.get_mut(i)) {
+            m.done = true;
+        }
+    }
+
+    /// The cache keys of the modules whose bodies are running, outermost first.
+    pub fn module_loading(&self) -> Vec<&str> {
+        self.modules.iter().filter(|m| !m.done && !m.key.is_empty()).map(|m| m.key.as_str()).collect()
+    }
+
+    /// Where module `id` is in `modules`, when it still is.
+    fn mslot(&self, id: u16) -> Option<usize> {
+        (id.checked_sub(self.mod_base)? as usize).checked_sub(1)
+    }
+
+    /// A new module scope, empty; its id is what `module_run` and `Tree::module` take.
+    pub fn module_new(&mut self, key: &str, dir: &str, lib: bool) -> Result<u16> {
+        if self.mod_base as usize + self.modules.len() >= (u16::MAX - 1) as usize {
+            return Err(Error::range("too many modules"));
+        }
+        self.modules.try_reserve(1).map_err(|_| Error::memory())?;
+        if self.modules.is_empty() {
+            // (frames are tagged with their module from now on: the ones that are on the stack belong to the program's own scope)
+            self.fmods.clear();
+            self.fmods.try_reserve(self.frames.len() + 1).map_err(|_| Error::memory())?;
+            self.fmods.resize(self.frames.len(), 0);
+        }
+        let (key, dir) = (crate::value::try_str(key)?, crate::value::try_str(dir)?);
+        self.modules.push(ModScope { key, dir, lib, ..ModScope::default() });
+        Ok(self.mod_base + self.modules.len() as u16)
+    }
+
+    /// Let go of what a module scope holds (a module whose body failed); its id is not used again.
+    pub fn module_drop(&mut self, id: u16) {
+        if let Some(m) = self.mslot(id).and_then(|i| self.modules.get_mut(i)) {
+            *m = ModScope::default();
+        }
+    }
+
+    /// Let go of the modules nothing refers to any more (design point 3 follow-up, principle 4: nothing is held that no value refers to).
+    /// A module is referenced while a value outside it holds its export dictionary or one of the functions it exports. Called between
+    /// the statements of the program at the top level; a library that was dropped with `m::0` is freed then.
+    #[inline(never)]
+    fn sweep_modules(&mut self) {
+        if self.modules.is_empty() || self.running != 1 || !self.frames.is_empty() {
+            return;
+        }
+        // (the recent function bodies are cached as values: they would count as references)
+        if let Ok(mut c) = self.body_cache.try_borrow_mut() {
+            *c = [None, None, None, None, None, None, None, None];
+        }
+        let n = self.modules.len();
+        // the modules that something outside every module scope refers to, then what those refer to
+        let mut live: Vec<bool> = (0..n).map(|i| self.referenced_from_outside(i)).collect();
+        loop {
+            let mut grew = false;
+            for i in 0..n {
+                if !live[i] || self.modules[i].export.is_none() {
+                    continue;
+                }
+                for j in 0..n {
+                    if !live[j] && self.holds_module(i, j) {
+                        live[j] = true;
+                        grew = true;
+                    }
+                }
+            }
+            if !grew {
+                break;
+            }
+        }
+        for i in 0..n {
+            if !live[i] && self.modules[i].export.is_some() {
+                self.modules[i] = ModScope::default();
+            }
+        }
+        // when every module has gone the table goes too (a board gives back what it had; ids start again: a function of a module that was
+        // let go has nothing to run in)
+        if self.modules.iter().all(|m| m.key.is_empty()) && self.fmods.is_empty() {
+            self.mod_base += self.modules.len() as u16;
+            self.modules = Vec::new();
+            self.fmods = Vec::new();
+        }
+    }
+
+    /// The values a module scope holds at its top level: its variables and the entries of its export dictionary.
+    fn scope_values(&self, i: usize) -> Vec<Value> {
+        let m = &self.modules[i];
+        let mut out: Vec<Value> = m.vars.iter().map(|(_, v)| v.clone()).collect();
+        if let Some(Value::Dict(e)) = &m.export {
+            out.extend(e.borrow().vals().iter().cloned());
+        }
+        out
+    }
+
+    /// Does the scope of module `i` hold the dictionary or an exported function of module `j`?
+    fn holds_module(&self, i: usize, j: usize) -> bool {
+        let Some(Value::Dict(ej)) = &self.modules[j].export else { return false };
+        let ej = ej.borrow();
+        self.scope_values(i).iter().any(|v| match v {
+            Value::Dict(d) => core::ptr::eq(d.as_ptr() as *const Dict, &*ej as *const Dict),
+            Value::Fn(f) => ej.vals().iter().any(|x| matches!(x, Value::Fn(g) if Rc::ptr_eq(f, g))),
+            _ => false,
+        })
+    }
+
+    /// Is a value that no module scope holds referring to module `i`: its export dictionary, or a function it exports?
+    fn referenced_from_outside(&self, i: usize) -> bool {
+        let Some(Value::Dict(e)) = &self.modules[i].export else { return false };
+        let mut inside: Vec<Value> = Vec::new();
+        for k in 0..self.modules.len() {
+            inside.extend(self.scope_values(k));
+        }
+        // (the scope's own reference to the dictionary is the one that is counted off: `inside` holds the others, by name or by entry)
+        let held = inside.iter().filter(|v| matches!(v, Value::Dict(d) if Rc::ptr_eq(d, e))).count();
+        // (`inside` holds a clone of each value it lists, so every holder inside counts twice)
+        if Rc::strong_count(e) > 1 + 2 * held {
+            return true;
+        }
+        let d = e.borrow();
+        d.vals().iter().any(|v| match v {
+            Value::Fn(f) => Rc::strong_count(f) > 2 * inside.iter().filter(|x| matches!(x, Value::Fn(g) if Rc::ptr_eq(f, g))).count(),
+            _ => false,
+        })
+    }
+
+    /// The module scope that is running (0: the program's own).
+    pub fn current_module_id(&self) -> u16 {
+        self.cur_mod
+    }
+
+    /// Fix the dictionary a module exports. False when it already has one (`.export` twice).
+    pub fn module_set_export(&mut self, id: u16, d: Value) -> bool {
+        match self.mslot(id).and_then(|i| self.modules.get_mut(i)) {
+            Some(m) if m.export.is_none() => {
+                m.export = Some(d);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn module_export(&self, id: u16) -> Option<Value> {
+        self.mslot(id).and_then(|i| self.modules.get(i)).and_then(|m| m.export.clone())
+    }
+
+    /// Run `text` as the body of module `id`: its top-level names are the module's, its functions run in it. The loader's frames and
+    /// classic `.module` state are not seen and are given back. Streamed, as a load is.
+    pub fn module_run(&mut self, id: u16, text: String, name: &str) -> Result<Option<Value>> {
+        let saved = (self.cur_mod, self.module.take());
+        self.cur_mod = id;
+        let r = self.run_prog_mode(Prog::Owned(text), name, true);
+        self.cur_mod = saved.0;
+        self.module = saved.1;
+        r
+    }
+
+    /// `module_run` of a text that lives for ever.
+    pub fn module_run_static(&mut self, id: u16, text: &'static str, name: &str) -> Result<Option<Value>> {
+        let saved = (self.cur_mod, self.module.take());
+        self.cur_mod = id;
+        let r = self.run_prog_mode(Prog::Static(text), name, true);
+        self.cur_mod = saved.0;
+        self.module = saved.1;
+        r
     }
 
     pub fn format(&self, v: &Value) -> String {
@@ -422,6 +668,7 @@ impl Interp {
 
     fn run_parsed(&mut self, prog: Prog, name: &str) -> Result<Option<Value>> {
         let p = self.parse_prog(prog, name)?;
+        p.tree.module.set(self.cur_mod);
         #[cfg(feature = "host")]
         if self.running == 1 {
             if let Some(h) = self.on_parsed.clone() {
@@ -440,7 +687,10 @@ impl Interp {
                             c.push(v.clone());
                         }
                     }
-                    last = Some(v)
+                    last = Some(v);
+                    if !self.modules.is_empty() {
+                        self.sweep_modules();
+                    }
                 }
                 Err(e) => {
                     // unwind whatever the failed statement left behind
@@ -477,8 +727,8 @@ impl Interp {
         loop {
             let stack = self.stack();
             let mut window = 256usize; // (a statement that needs more finds it: the parser doubles it)
-            if ctx.as_ref().map(|c| (&c.module, c.strict)) != Some((&self.module, self.cfg.strict)) {
-                ctx = Some(Rc::new(crate::value::LazyCtx { module: self.module.clone(), strict: self.cfg.strict }));
+            if ctx.as_ref().map(|c| (&c.module, c.strict, c.mid)) != Some((&self.module, self.cfg.strict, self.cur_mod)) {
+                ctx = Some(Rc::new(crate::value::LazyCtx { module: self.module.clone(), mid: self.cur_mod, strict: self.cfg.strict }));
             }
             let next = parse::parse_next(&source, pos, source.text.len(), &mut window, ctx.clone(), &mut self.syms, &mut self.module, self.cfg.strict, self.cfg.max_depth, stack)?;
             if next.skipped {
@@ -486,10 +736,16 @@ impl Interp {
                 continue;
             }
             let Some(p) = next.parsed else { break };
+            p.tree.module.set(self.cur_mod);
             for &s in &p.stmts {
                 self.void = false;
                 match self.eval(&p.tree, s, true) {
-                    Ok(v) => last = Some(v),
+                    Ok(v) => {
+                        last = Some(v);
+                        if !self.modules.is_empty() {
+                        self.sweep_modules();
+                    }
+                    }
                     Err(e) => {
                         while self.frames.len() > frames {
                             self.pop_frame();
@@ -676,9 +932,11 @@ impl Interp {
     /// callers are set aside, so a definition lands in the globals.
     pub fn run_global(&mut self, text: &str, name: &str) -> Result<Option<Value>> {
         let frames = core::mem::take(&mut self.frames);
+        let fmods = core::mem::take(&mut self.fmods);
         let shadow = core::mem::take(&mut self.shadow);
         let r = self.run(text, name);
         self.frames = frames;
+        self.fmods = fmods;
         self.shadow = shadow;
         r
     }
@@ -736,6 +994,10 @@ impl Interp {
     }
 
     pub fn module_start(&mut self, name: &str) -> Result<()> {
+        if self.cur_mod != 0 {
+            // (in a module file the names of a block belong to the file's scope)
+            return Ok(());
+        }
         let s = self.syms.intern(name);
         if let Some(e) = self.syms.failure() {
             return Err(e);
@@ -761,6 +1023,9 @@ impl Interp {
 
     /// `.module(0)`: a new plain scope on top of the module.
     pub fn module_stop(&mut self) -> Result<()> {
+        if self.cur_mod != 0 {
+            return Ok(());
+        }
         self.push_scope(Scope::Plain)
     }
 
@@ -906,12 +1171,18 @@ impl Interp {
 
     fn push_frame(&mut self, f: Frame) -> Result<()> {
         self.frames.try_reserve(1).map_err(|_| Error::memory())?;
+        if !self.modules.is_empty() {
+            self.fmods.try_reserve(1).map_err(|_| Error::memory())?;
+        }
         let top = f.iter().map(|(s, _)| s.0 as usize).max().unwrap_or(0);
         self.grow_shadow(top)?;
         for (s, _) in &f {
             self.shadow[s.0 as usize] += 1;
         }
         try_push(&mut self.frames, f)?;
+        if !self.modules.is_empty() {
+            try_push(&mut self.fmods, self.cur_mod)?;
+        }
         Ok(())
     }
 
@@ -979,6 +1250,9 @@ impl Interp {
 
     fn pop_frame(&mut self) {
         if let Some(mut f) = self.frames.pop() {
+            if !self.modules.is_empty() {
+                self.fmods.pop();
+            }
             self.unshadow(&f);
             f.clear();
             if self.frame_pool.len() < 32 && f.capacity() <= 16 {
@@ -1000,11 +1274,16 @@ impl Interp {
         }
     }
 
-    /// The value of a name: the innermost frame that binds it, else the global.
+    /// The value of a name: the innermost frame of the running module that binds it, else the module's global, else (a name that starts
+    /// with a dot) the system's; `a.b` is `a@"b"` (design point 4).
     #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_lookup")]
     pub fn lookup(&self, s: SymId) -> Result<Option<Value>> {
         if self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0 {
-            for f in self.frames.iter().rev() {
+            let tagged = !self.modules.is_empty();
+            for (i, f) in self.frames.iter().enumerate().rev() {
+                if tagged && self.fmods[i] != self.cur_mod {
+                    continue;
+                }
                 for (k, v) in f.iter() {
                     if *k == s {
                         return match v {
@@ -1015,15 +1294,177 @@ impl Interp {
                 }
             }
         }
-        Ok(self.global_ref(s).cloned())
+        if self.cur_mod == 0 {
+            if let Some(v) = self.global_ref(s) {
+                return Ok(Some(v.clone()));
+            }
+        } else if let Some(v) = self.module_var(s) {
+            return Ok(Some(v));
+        }
+        if let Some(q) = self.syms.qual(s) {
+            let q = q.clone();
+            return self.qual_get(s, &q).map(Some);
+        }
+        Ok(None)
+    }
+
+    /// The global `s` of the running module (no frames, no qualified names): the module's own, then, for a name that starts with a dot,
+    /// the system's.
+    fn module_var(&self, s: SymId) -> Option<Value> {
+        let m = self.mslot(self.cur_mod).and_then(|i| self.modules.get(i))?;
+        if let Ok(i) = m.vars.binary_search_by_key(&s, |e| e.0) {
+            return Some(m.vars[i].1.clone());
+        }
+        if m.classic {
+            let name = self.syms.name(s);
+            for (k, v) in &m.vars {
+                if self.syms.name(*k).split_once('`').is_some_and(|(b, _)| b == name) {
+                    return Some(v.clone());
+                }
+            }
+        }
+        if self.syms.name(s).starts_with('.') {
+            return self.global_ref(s).cloned();
+        }
+        None
+    }
+
+    fn module_set(&mut self, id: u16, s: SymId, v: Value) -> Result<()> {
+        let classic = self.syms.name(s).contains('`');
+        let Some(m) = self.mslot(id).and_then(|i| self.modules.get_mut(i)) else {
+            return Err(Error::system("the module this function belongs to was let go"));
+        };
+        match m.vars.binary_search_by_key(&s, |e| e.0) {
+            Ok(i) => m.vars[i].1 = v,
+            Err(i) => {
+                m.vars.try_reserve(1).map_err(|_| Error::memory())?;
+                m.vars.insert(i, (s, v));
+            }
+        }
+        if classic {
+            m.classic = true;
+        }
+        Ok(())
+    }
+
+    /// Is `s` a global of the running scope (the module's own for a module, any name of the system's for the program)?
+    fn scope_has(&self, s: SymId) -> bool {
+        if self.cur_mod == 0 {
+            return self.has_global(s);
+        }
+        self.mslot(self.cur_mod).and_then(|i| self.modules.get(i)).is_some_and(|m| m.vars.binary_search_by_key(&s, |e| e.0).is_ok())
+    }
+
+    /// The running code is in a function of its own module (so a new name is that function's local), not at the top level of a file.
+    fn in_fn(&self) -> bool {
+        if self.modules.is_empty() {
+            return !self.frames.is_empty();
+        }
+        self.fmods.last() == Some(&self.cur_mod)
+    }
+
+    /// Create the global `s` in the running scope.
+    fn new_global(&mut self, s: SymId, v: Value) -> Result<()> {
+        if self.cur_mod != 0 && !self.syms.name(s).starts_with('.') {
+            return self.module_set(self.cur_mod, s, v);
+        }
+        self.try_set_global(s, v)
+    }
+
+    #[cold]
+    #[cfg_attr(not(feature = "diag"), allow(unused_variables))]
+    fn not_a_dict(&self, s: SymId, q: &sym::Qual, i: usize, v: &Value) -> Error {
+        Error::typ(crate::dmsg!("not a dictionary", "{}: {} is not a dictionary (it is {})", self.plain(s), self.qual_path(q, i), v.describe()))
+    }
+
+    /// The text of `a.b` up to the segment `n` (the base is segment 0).
+    #[cfg(feature = "diag")]
+    fn qual_path(&self, q: &sym::Qual, n: usize) -> String {
+        let mut p = String::from(self.plain(q.base));
+        for k in q.keys.iter().take(n) {
+            p.push('.');
+            if let Value::Str(t) = k {
+                p.push_str(t.as_str());
+            }
+        }
+        p
+    }
+
+    /// The dictionary at the end of the walk of `q` over `n` of its keys (0: the base itself); an error that names the place when a name
+    /// is not defined, an entry is missing, or the value is not a dictionary.
+    fn qual_dict(&self, s: SymId, q: &sym::Qual, n: usize) -> Result<Rc<core::cell::RefCell<Dict>>> {
+        let mut cur = match self.lookup(q.base)? {
+            // (a declared local that was never assigned holds its own name)
+            Some(Value::Sym(t)) if t == q.base => None,
+            v => v,
+        }
+        .ok_or_else(|| {
+            #[cfg(feature = "diag")]
+            let (b, full) = (self.plain(q.base), self.plain(s));
+            Error::name(crate::dmsg!("undefined", "{} is not defined ({} means {}@\"{}\")", b, full, b, full.split('.').nth(1).unwrap_or("")))
+        })?;
+        for i in 0..=n {
+            match &cur {
+                Value::Dict(d) if i == n => return Ok(d.clone()),
+                Value::Dict(d) => {
+                    let next = d.borrow().get(&q.keys[i]).cloned();
+                    cur = next.ok_or_else(|| self.no_entry(q, i))?;
+                }
+                other => return Err(self.not_a_dict(s, q, i, other)),
+            }
+        }
+        Err(Error::internal("qualified name"))
+    }
+
+    #[cfg_attr(not(feature = "diag"), allow(unused_variables))]
+    fn no_entry(&self, q: &sym::Qual, i: usize) -> Error {
+        #[cfg(feature = "diag")]
+        let key = match &q.keys[i] {
+            Value::Str(t) => t.as_str(),
+            _ => "",
+        };
+        Error::name(crate::dmsg!("no such entry", "{} has no entry \"{}\"", self.qual_path(q, i), key))
+    }
+
+    /// The value of `a.b.c`.
+    #[inline(never)]
+    fn qual_get(&self, s: SymId, q: &sym::Qual) -> Result<Value> {
+        let n = q.keys.len() - 1;
+        let d = self.qual_dict(s, q, n)?;
+        let v = d.borrow().get(&q.keys[n]).cloned();
+        v.ok_or_else(|| self.no_entry(q, n))
+    }
+
+    /// `a.b::v`: the entry `b` of the dictionary `a` is set (a new key is added); `a.b.c::v` needs `a.b` to be there.
+    #[inline(never)]
+    fn qual_set(&mut self, s: SymId, q: &sym::Qual, v: Value) -> Result<()> {
+        let n = q.keys.len() - 1;
+        let d = self.qual_dict(s, q, n)?;
+        let mut d = d.borrow_mut();
+        if d.is_readonly() {
+            let e = Error::typ(crate::dmsg!("read-only dictionary", "cannot assign {}: {} is read-only (it was returned by .import)", self.plain(s), self.qual_path(q, n)));
+            #[cfg(feature = "diag")]
+            let e = e.with_hint("copy it with  e:::{};e::e,m  or change the module's file");
+            return Err(e);
+        }
+        d.set(q.keys[n].clone(), v)
     }
 
     /// `name::value` (KlongPy `KlongContext.__setitem__`): assign where the name lives; a new
     /// name is created in the innermost frame.
     pub fn assign(&mut self, s: SymId, v: Value) -> Result<()> {
+        if let Some(q) = self.syms.qual(s) {
+            let q = q.clone();
+            return self.qual_set(s, &q, v);
+        }
         if !sym::is_arg(s) {
             if self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0 {
-                for f in self.frames.iter_mut().rev() {
+                let cm = self.cur_mod;
+                let tagged = !self.modules.is_empty();
+                for (i, f) in self.frames.iter_mut().enumerate().rev() {
+                    if tagged && self.fmods[i] != cm {
+                        continue;
+                    }
                     for (k, slot) in f.iter_mut() {
                         if *k == s {
                             *slot = Some(v);
@@ -1032,23 +1473,29 @@ impl Interp {
                     }
                 }
             }
-            if self.has_global(s) {
-                if self.journal.is_some() {
-                    return self.try_set_global(s, v);
+            if self.cur_mod == 0 {
+                if self.has_global(s) {
+                    if self.journal.is_some() {
+                        return self.try_set_global(s, v);
+                    }
+                    self.globals[s.0 as usize] = Some(v);
+                    return Ok(());
                 }
-                self.globals[s.0 as usize] = Some(v);
-                return Ok(());
+            } else if self.scope_has(s) {
+                return self.module_set(self.cur_mod, s, v);
+            } else if self.syms.name(s).starts_with('.') && self.has_global(s) {
+                return self.try_set_global(s, v);
             }
         }
         // x, y and z are the arguments of the running function and are assignable like its
         // locals; they are always bound in its own frame
-        if self.cfg.strict >= 1 && !self.frames.is_empty() && !sym::is_arg(s) {
+        if self.cfg.strict >= 1 && self.in_fn() && !sym::is_arg(s) {
             let n = self.syms.name(s);
             return Err(Error::name(crate::msg!("undefined variable: {}", n))
                 .with_hint(crate::msg!("declare it as a local in the parameter list, {{[{}]; ...}}, or define the global before the function is called", n)));
         }
-        if self.frames.is_empty() {
-            return self.try_set_global(s, v);
+        if !self.in_fn() {
+            return self.new_global(s, v);
         }
         let i = s.0 as usize;
         self.grow_shadow(i)?;
@@ -1066,15 +1513,28 @@ impl Interp {
         Ok(())
     }
 
+    /// A name as the program wrote it (without the module a classic `.module` block added).
+    #[cfg_attr(not(feature = "diag"), allow(dead_code))]
+    fn plain(&self, s: SymId) -> &str {
+        let n = self.syms.name(s);
+        match n.find('`') {
+            Some(i) => &n[..i],
+            None => n,
+        }
+    }
+
     fn is_defined(&self, s: SymId) -> bool {
-        self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0 || self.global_ref(s).is_some()
+        self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0
+            || if self.cur_mod == 0 { self.global_ref(s).is_some() } else { self.module_var(s).is_some() }
+            // (a qualified name is looked up when it is used, and says what is missing then)
+            || self.syms.qual(s).is_some()
     }
 
     /// The value of a name that is not defined.
     #[inline(never)]
     fn undefined(&mut self, s: SymId) -> Result<Value> {
         let level = self.cfg.strict;
-        if level == 2 || (level == 1 && !self.frames.is_empty()) {
+        if level == 2 || (level == 1 && self.in_fn()) {
             let e = Error::name(crate::msg!("undefined: {}", self.syms.name(s)));
             #[cfg(feature = "diag")]
             if level == 2 {
@@ -1115,7 +1575,7 @@ impl Interp {
             }
             best + matches(&a[..bi], &b[..bj]) + matches(&a[bi + best..], &b[bj + best..])
         }
-        let name = self.syms.name(s).split('`').next().unwrap_or("");
+        let name = self.plain(s);
         let want: Vec<char> = name.chars().collect();
         let mut best: Option<(f64, String)> = None;
         // the defined names: the globals and the locals of the functions that are running
@@ -1201,9 +1661,16 @@ impl Interp {
     fn run_lazy(&mut self, l: &crate::value::Lazy, f: &Value, mut frame: Frame) -> Result<Value> {
         let (tree, node) = self.materialize(l)?;
         try_push(&mut frame, (sym::DOT_F, Some(f.clone())))?;
-        self.push_frame(frame)?;
-        let r = self.eval(&tree, node, true);
-        self.pop_frame();
+        let saved = core::mem::replace(&mut self.cur_mod, tree.module.get());
+        let r = match self.push_frame(frame) {
+            Ok(()) => {
+                let r = self.eval(&tree, node, true);
+                self.pop_frame();
+                r
+            }
+            Err(e) => Err(e),
+        };
+        self.cur_mod = saved;
         r
     }
 
@@ -1228,6 +1695,7 @@ impl Interp {
         self.module = saved;
         let next = r?;
         let Some(p) = next.parsed else { return Err(Error::syntax("a function kept as text did not parse again")) };
+        p.tree.module.set(l.ctx.mid);
         let node = p.stmts[0];
         if let Ok(mut c) = self.lazy_cache.try_borrow_mut() {
             // (about what the tree holds: a node and its span, the ids of its calls)
@@ -1766,7 +2234,8 @@ impl Interp {
         if self.syms.name(s) == "undefined" {
             return Ok(Value::Undefined);
         }
-        if self.cfg.strict == 2 {
+        if self.cfg.strict == 2 || self.syms.qual(s).is_some() {
+            // (a quoted `a.b` is a symbol: only an expression `a.b` reads an entry)
             return Ok(Value::Sym(s));
         }
         Ok(match self.lookup(s) {
@@ -1783,7 +2252,12 @@ impl Interp {
     #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_resolve")]
     fn resolve(&mut self, f: &mut Value, layers: &mut Vec<Layer>, arity: &mut u8, node: &mut bool, calling: bool) -> Result<()> {
         if let Value::Sym(s) = *f {
-            match self.lookup(s)? {
+            // (`x.a` as the body of a function names an entry of its argument, which is bound only when the body runs: like `x`)
+            let found = match self.lookup(s) {
+                Err(e) if e.kind == Kind::Name && self.syms.qual(s).is_some_and(|q| sym::is_arg(q.base)) => None,
+                r => r?,
+            };
+            match found {
                 Some(v) => {
                     // a call of a name whose value is not a function (KlongPy `_resolve_fn`)
                     if calling && !*node && s != sym::DOT_F && !Self::is_callable(&v) && !self.names_function(&v, s)? {
@@ -1820,7 +2294,7 @@ impl Interp {
                     }
                 }
                 None => {
-                    if !sym::is_arg(s) {
+                    if !sym::is_arg(s) && !self.syms.qual(s).is_some_and(|q| sym::is_arg(q.base)) {
                         let name = self.syms.name(s);
                         let e = Error::name(crate::msg!("undefined function: {}", name));
                         // a system function this build does not have (docs/native/index.md)
@@ -2004,7 +2478,17 @@ impl Interp {
 
     fn eval_arg(&mut self, a: &Arg) -> Result<Value> {
         match a {
-            Arg::Code(tree, id) => self.eval(tree, *id, true),
+            Arg::Code(tree, id) => {
+                // (an argument written in another module, of a projection completed here, is read where it was written)
+                let m = tree.module.get();
+                if m == self.cur_mod {
+                    return self.eval(tree, *id, true);
+                }
+                let saved = core::mem::replace(&mut self.cur_mod, m);
+                let r = self.eval(tree, *id, true);
+                self.cur_mod = saved;
+                r
+            }
             Arg::Val(v) => Ok(v.clone()),
         }
     }
@@ -2211,9 +2695,12 @@ impl Interp {
     /// replaced by what they hold now (they mean something else when it is completed).
     fn projected_callee(&self, a: Value) -> Value {
         if let Value::Sym(s) = a {
-            if sym::is_arg(s) || s == sym::DOT_F {
+            // (a projection made in a module, or of a qualified name, holds the function: it is completed wherever it was passed to)
+            if sym::is_arg(s) || s == sym::DOT_F || self.cur_mod != 0 || self.syms.qual(s).is_some() {
                 if let Ok(Some(v)) = self.lookup(s) {
-                    return v;
+                    if sym::is_arg(s) || s == sym::DOT_F || Self::is_fn_value(&v) {
+                        return v;
+                    }
                 }
             }
         }
@@ -2245,7 +2732,7 @@ impl Interp {
             None => need.saturating_sub(ids.len()),
         };
         let mut slots: Vec<Slot> = try_vec(ids.len() + pad)?;
-        if !self.frames.is_empty() {
+        if !self.frames.is_empty() || self.cur_mod != 0 {
             for &q in ids {
                 let pushed = if q == NONE.0 { Slot::Hole } else { Slot::Val(self.eval(tree, NodeId(q), true)?) };
                 try_push(&mut slots, pushed)?;
@@ -2445,15 +2932,18 @@ impl Interp {
                                 try_push(&mut frame, (s, if self.cfg.strict == 2 { None } else { Some(Value::Sym(s)) }))?;
                             }
                         }
-                        self.push_frame(frame)?;
-                        self.eval_seq(tree, *stmts)
+                        self.enter(tree.module.get(), frame).and_then(|saved| {
+                            let r = self.eval_seq(tree, *stmts);
+                            self.leave(saved);
+                            r
+                        })
                     }
-                    _ => {
-                        self.push_frame(frame)?;
-                        self.eval(tree, *node, true)
-                    }
+                    _ => self.enter(tree.module.get(), frame).and_then(|saved| {
+                        let r = self.eval(tree, *node, true);
+                        self.leave(saved);
+                        r
+                    }),
                 };
-                self.pop_frame();
                 r
             }
             Func::Lazy(l) => self.run_lazy(l, &f, frame),
@@ -2464,6 +2954,26 @@ impl Interp {
             // a projection that was given nothing more is the value it is
             Func::Proj { .. } => Ok(f),
         }
+    }
+
+    /// Make `frame` the running frame of a function of module `m`; what `leave` needs to give the caller back.
+    #[inline]
+    fn enter(&mut self, m: u16, frame: Frame) -> Result<u16> {
+        let saved = self.cur_mod;
+        self.cur_mod = m;
+        match self.push_frame(frame) {
+            Ok(()) => Ok(saved),
+            Err(e) => {
+                self.cur_mod = saved;
+                Err(e)
+            }
+        }
+    }
+
+    #[inline]
+    fn leave(&mut self, saved: u16) {
+        self.pop_frame();
+        self.cur_mod = saved;
     }
 
     /// The arms of `run_fn` that are not on the way of a recursion of Klong code, apart (see `eval_monad`).

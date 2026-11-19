@@ -34,6 +34,12 @@ pub struct Warning {
 #[cfg(feature = "diag")]
 pub const MAX_WARNINGS: usize = 64;
 
+/// A qualified name `a.b.c` (`a@"b"@"c"`): the symbol of its first segment and the keys of the rest, as strings.
+pub struct Qual {
+    pub base: SymId,
+    pub keys: Vec<crate::value::Value>,
+}
+
 pub struct Interner {
     /// The warnings of the parses since they were last taken (`Interp::take_warnings`).
     #[cfg(feature = "diag")]
@@ -46,6 +52,8 @@ pub struct Interner {
     #[cfg(feature = "diag")]
     pub record_spans: bool,
     names: Vec<Rc<str>>,
+    /// The qualified names the parser has read (empty in a program that has none).
+    quals: Vec<(u32, Rc<Qual>)>,
     map: BTreeMap<Rc<str>, u32>,
     /// A name could not be stored (no memory); `x` was returned in its place. The parser
     /// reports it as a `memory` error.
@@ -61,7 +69,7 @@ pub const MAX_NAME: usize = 255;
 
 impl Interner {
     pub fn new() -> Interner {
-        let mut t = Interner { #[cfg(feature = "diag")] warnings: Vec::new(), #[cfg(feature = "diag")] max_warnings: MAX_WARNINGS, #[cfg(feature = "diag")] record_spans: false, names: Vec::new(), map: BTreeMap::new(), oom: false, long: false };
+        let mut t = Interner { #[cfg(feature = "diag")] warnings: Vec::new(), #[cfg(feature = "diag")] max_warnings: MAX_WARNINGS, #[cfg(feature = "diag")] record_spans: false, names: Vec::new(), quals: Vec::new(), map: BTreeMap::new(), oom: false, long: false };
         for n in ["x", "y", "z", ".f"] {
             t.intern(n);
         }
@@ -98,6 +106,27 @@ impl Interner {
         self.names.push(rc.clone());
         self.map.insert(rc, i);
         SymId(i)
+    }
+
+    /// Record that `s` is the qualified name with this base and these keys.
+    pub fn set_qual(&mut self, s: SymId, base: SymId, keys: Vec<crate::value::Value>) {
+        if let Err(i) = self.quals.binary_search_by_key(&s.0, |e| e.0) {
+            if self.quals.try_reserve(1).is_ok() {
+                self.quals.insert(i, (s.0, Rc::new(Qual { base, keys })));
+            }
+        }
+    }
+
+    pub fn has_quals(&self) -> bool {
+        !self.quals.is_empty()
+    }
+
+    /// The parts of `s` when it is a qualified name.
+    pub fn qual(&self, s: SymId) -> Option<&Rc<Qual>> {
+        if self.quals.is_empty() {
+            return None;
+        }
+        self.quals.binary_search_by_key(&s.0, |e| e.0).ok().map(|i| &self.quals[i].1)
     }
 
     /// The failure of the interning since the last call, if any.
@@ -146,4 +175,23 @@ impl Default for Interner {
 /// x, y or z.
 pub fn is_arg(s: SymId) -> bool {
     s.0 < 3
+}
+
+/// The segments of a qualified name (`a.b.c`): `None` for a name that is not qualified (no dot, or one that starts with a dot: `.p`,
+/// `.srv.o` are one whole name); an error text when a segment is not a name (it starts with a digit, or is empty).
+pub fn qual_segments(v: &str) -> Option<Result<Vec<&str>, &'static str>> {
+    if v.starts_with('.') || !v.contains('.') {
+        return None;
+    }
+    let mut out = Vec::new();
+    for seg in v.split('.') {
+        let mut cs = seg.chars();
+        match cs.next() {
+            None => return Some(Err("a qualified name has an empty segment (a trailing or a doubled dot)")),
+            Some(c) if c.is_alphabetic() => {}
+            Some(_) => return Some(Err("a segment of a qualified name cannot start with a digit: write a@5 for the entry 5")),
+        }
+        out.push(seg);
+    }
+    Some(Ok(out))
 }

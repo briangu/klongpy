@@ -32,7 +32,7 @@ tss(s)    compute total sum of squares (TSS) of set s
 r2(s;f)   compute R^2 statistic for given x/y set and regression function
 mse(s;f)  compute mean squared error (MSE) for x/y set and regression fn
 
-rss.set(x;y), rse.set(x;y), mse.set(x;y), r2.set(x;y)
+rssset(x;y), rseset(x;y), mseset(x;y), r2set(x;y)
           These function also compute the RSS, RSE, MSE, and r-squared,
           but by comparing two data sets instead of an x/y set and a model.
 
@@ -102,6 +102,8 @@ T distribution approximation by Zogheib/Elsaheli, max error = 0.0029
 .l("math.kg")
 .l("help.kg")
 .module(:nstat)
+:"the distribution families are dictionaries: n.cdf(x;m;s) is the entry cdf of n"
+ct:::{};f:::{};u:::{};r:::{};geo:::{};b:::{};hyp:::{};poi:::{};n:::{};lnorm:::{};x2:::{};t:::{};F:::{}
 
 kp::{*/(y-x)+1+!x}
 kc::{:[0~x;1;_kp(x;y)%*/1+!x]}
@@ -137,10 +139,10 @@ rse::{sqr(rss(x;y)%(#x)-2)}
 tss::{[mx s];s::{x@1}'x;mx::mu(s);+/{(x-mx)^2}'s}
 r2::{1-rss(x;y)%tss(x)}
 mse::{rss(x;y)%#x}
-rss.set::{+/x{(y-x)^2}'y}
-rse.set::{sqr(rss.set(x;y)%(#x)-2)}
-mse.set::{rss.set(x;y)%#x}
-r2.set::{1-rss.set(x;y)%tss(x)}
+rssset::{+/x{(y-x)^2}'y}
+rseset::{sqr(rssset(x;y)%(#x)-2)}
+mseset::{rssset(x;y)%#x}
+r2set::{1-rssset(x;y)%tss(x)}
 
 hg::{[h];+(,seg((#h)-1;*'y)),,h::hist(x;{x@1}'y)}
 spl::{[s];s::spline(hg(x;y));s:-(y:@((#y)-1),0),((#s)-1),0}
@@ -247,14 +249,14 @@ n.mo::{y;,x}
 n.vapr::{y}
 n.skew::{y;0}
 
-ln.pdf::{:[0=x;0;(%x*sqr(z)*sqr2pi)*exp(-((ln(x)-y)^2)%2*z)]}
-ln.cdf::{:[0=x;0;0.5+0.5*erf((ln(x)-y)%sqr2*sqr(z))]}
-ln.qf::{[m s p];p::x;m::y;s::z;bisect({ln.cdf(x;m;s)-p})}
-ln.mu::{exp(x+y%2)}
-ln.M::{y;exp(x)}
-ln.mo::{,exp(x-y)}
-ln.var::{(exp(y)-1)*exp(y+2*x)}
-ln.skew::{x;(2+exp(y))*sqr(exp(y)-1)}
+lnorm.pdf::{:[0=x;0;(%x*sqr(z)*sqr2pi)*exp(-((ln(x)-y)^2)%2*z)]}
+lnorm.cdf::{:[0=x;0;0.5+0.5*erf((ln(x)-y)%sqr2*sqr(z))]}
+lnorm.qf::{[m s p];p::x;m::y;s::z;bisect({lnorm.cdf(x;m;s)-p})}
+lnorm.mu::{exp(x+y%2)}
+lnorm.M::{y;exp(x)}
+lnorm.mo::{,exp(x-y)}
+lnorm.var::{(exp(y)-1)*exp(y+2*x)}
+lnorm.skew::{x;(2+exp(y))*sqr(exp(y)-1)}
 
 X2::{+/x{((y-x)^2)%x}'y}
 x2.pdf::{:[0~y;0;(%((2^x%2)*gam(x%2)))*(y^(x%2)-1)*e^-y%2]}
@@ -284,9 +286,9 @@ t.var::{:[x>2;x%x-2;%0]}
 t.skew::{x;0}
 
 fscore::{(((*x)^2)*(y@1)^2)%((*y)^2)*(x@1)^2}
-F.pdf.n::{gam((y+z)%2)*((y%z)^y%2)*x^((y%2)-1)}
-F.pdf.d::{gam(y%2)*gam(z%2)*(1+(y*x)%z)^(y+z)%2}
-F.pdf::{:[0=x;0;F.pdf.n(x;y;z)%F.pdf.d(x;y;z)]}
+Fpdfn::{gam((y+z)%2)*((y%z)^y%2)*x^((y%2)-1)}
+Fpdfd::{gam(y%2)*gam(z%2)*(1+(y*x)%z)^(y+z)%2}
+F.pdf::{:[0=x;0;Fpdfn(x;y;z)%Fpdfd(x;y;z)]}
 F.cdf::{1-rbeta(z%z+y*x;z%2;y%2)}
 F.qf::{[n1 n2 p];n1::y;n2::z;p::x;bisect({F.cdf(x;n1;n2)-p})}
 F.mu::{:[y>2;y%y-2;%0]}
@@ -294,7 +296,7 @@ F.mo::{:[x>2;,(y*x-2)%x*y+2;%0]}
 F.var::{:[y>4;(2*(y^2)*(x+y)-2)%x*((y-2)^2)*y-4;%0]}
 F.skew::{:[y>6;(((2*x)+y-2)*sqr(8*y-4))%sqr(x)*(y-6)*sqr(x+y-2);%0]}
 
-help.add([
+helpadd([
  ["F.cdf(nu1;nu2;x)" "CDF of F-distribution F ~ F(nu1,nu2)"]
  ["F.pdf(nu1;nu2;x)" "PDF of F-distribution F ~ F(nu1,nu2)"]
  ["F.mu(nu1;nu2)" "mean of F-distribution F ~ F(nu1,nu2)"]
@@ -352,21 +354,21 @@ help.add([
  ["hyp.var(n;p;N)" "variance of hypergeometric distribution X ~ Hyp(p)"]
  ["kc(k;n)" "k-combinations of set of size n"]
  ["kp(k;n)" "k-permutations of set of size n"]
- ["ln.M(mu;sigma^2)" "median of lognormal distribution ln X ~ N(mu,sigma^2)"]
- ["ln.cdf(x;mu;sigma^2)" "CDF of lognormal distribution ln X ~ N(mu,sigma^2)"]
- ["ln.mo(mu;sigma^2)" "modes of lognormal distribution ln X ~ N(mu,sigma^2)"]
- ["ln.mu(mu;sigma^2)" "mean of lognormal distribution ln X ~ N(mu,sigma^2)"]
- ["ln.pdf(x;mu;sigma^2)" "PDF of lognormal distribution ln X ~ N(mu,sigma^2)"]
- ["ln.qf(x;mu;sigma^2)" "QF of lognormal distribution ln X ~ N(mu,sigma^2)"]
- ["ln.skew(mu;sigma^2)"
+ ["lnorm.M(mu;sigma^2)" "median of lognormal distribution ln X ~ N(mu,sigma^2)"]
+ ["lnorm.cdf(x;mu;sigma^2)" "CDF of lognormal distribution ln X ~ N(mu,sigma^2)"]
+ ["lnorm.mo(mu;sigma^2)" "modes of lognormal distribution ln X ~ N(mu,sigma^2)"]
+ ["lnorm.mu(mu;sigma^2)" "mean of lognormal distribution ln X ~ N(mu,sigma^2)"]
+ ["lnorm.pdf(x;mu;sigma^2)" "PDF of lognormal distribution ln X ~ N(mu,sigma^2)"]
+ ["lnorm.qf(x;mu;sigma^2)" "QF of lognormal distribution ln X ~ N(mu,sigma^2)"]
+ ["lnorm.skew(mu;sigma^2)"
   "skewness of lognormal distribution ln X ~ N(mu,sigma^2)"]
- ["ln.var(mu;sigma^2)"
+ ["lnorm.var(mu;sigma^2)"
   "variance of lognormal distribution ln X ~ N(mu,sigma^2)"]
  ["lr(x;L)" "interpolate y at x using L=a,b of lreg"]
  ["lreg(S)" "linear regression coefficients for x/y set S, gives a,b in ax+b"]
  ["mod(D)" "mode of data set D"]
  ["mse(XY;f)" "mean squared error (MSE) for x/y set and regression fn"]
- ["mse.set(XY;E)" "mean squared error (MSE) for x/y set and expectation E"]
+ ["mseset(XY;E)" "mean squared error (MSE) for x/y set and expectation E"]
  ["mu(D)" "mean of data set D"]
  ["n.M(mu;sigma^2)" "median of normal distribution X ~ N(mu,sigma^2)"]
  ["n.cdf(x;mu;sigma^2)" "CDF of normal distribution X ~ N(mu,sigma^2)"]
@@ -395,13 +397,13 @@ help.add([
  ["r.skew(a;b)" "skewness of continuous uniform distribution X ~ U(a,b)"]
  ["r.var(a;b)" "variance of continuous uniform distribution X ~ U(a,b)"]
  ["r2(XY;f)" "R^2 statistic for x/y set and regression function"]
- ["r2.set(XY;E)" "R^2 statistic for x/y set and expectation E"]
+ ["r2set(XY;E)" "R^2 statistic for x/y set and expectation E"]
  ["rcp(A;B|A;B'|A')" "reverse conditional probability P(A|B) (Bayes' rule)"]
  ["rng(D)" "range of data set D"]
  ["rse(XY;f)" "RSE (res. sq. error) for x/y set and reg. fn. f"]
- ["rse.set(XY;E)" "RSE (res. sq. error) for x/y set and expectation E"]
+ ["rseset(XY;E)" "RSE (res. sq. error) for x/y set and expectation E"]
  ["rss(XY;f)" "RSS for x/y set and regression function f"]
- ["rss.set(XY;E)" "RSS for x/y set and expectation E"]
+ ["rssset(XY;E)" "RSS for x/y set and expectation E"]
  ["sd(D)" "standard deviation of data set D (population)"]
  ["seg(k;D)" "divide data set D into k segments, returning k+1 endpoints"]
  ["shuffle(D)" "randomly arrange the elements of data set D"]

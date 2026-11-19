@@ -1,0 +1,3 @@
+:"a module file with no .export"
+p::.import("./plain")
+.p(p)

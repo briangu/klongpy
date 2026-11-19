@@ -173,8 +173,13 @@ fn runtime(o: &Opts, console: Console) -> Runtime<HostPlatform> {
         platform.fs = klong_host::Files::Mem(fs);
     }
     let mut rt = Runtime::new(platform, cfg, Some(mem_stats));
-    let path = std::env::var("KLONGPATH").ok().filter(|p| !p.is_empty()).unwrap_or_else(|| String::from(".:lib"));
+    let given = std::env::var("KLONGPATH").ok().filter(|p| !p.is_empty());
+    let path = given.clone().unwrap_or_else(|| String::from(".:lib"));
     rt.set_load_path(path.split(':').filter(|d| !d.is_empty()).map(String::from).collect());
+    // (a bare name of .import is looked for in KLONGPATH when it is set and in the library, never in the working directory by default)
+    if let Some(g) = given {
+        rt.set_import_path(g.split(':').filter(|d| !d.is_empty()).map(String::from).collect());
+    }
     // .a: the arguments of the program
     let mut args = Vec::new();
     for a in &o.args {

@@ -1,0 +1,2 @@
+:"qualified name on an undefined base: never the symbol :nosuch.f"
+.p(nosuch.f(1))

@@ -3,7 +3,7 @@
 .l("util.kg")
 .module(:help)
 
-op.db::[
+opdb::[
  [" a:=b" "Amend" "a=vector, b=[x n0 ...]; amend x in a@n0, ..."]
  [" a:=b" "Amend" "a=string, b=[s n0 ...]; amend string s at a@n0, ..."]
  [" a:-b" "Amend-in-Depth" "a=vector, b=[x n0 ...]; amend x in (a@n0)@..."]
@@ -75,7 +75,7 @@ op.db::[
  [" +a" "Transpose" "a=vector; transpose of 'a'; 'a' must be symmetric"]
  [" :_a" "Undefined" "1, if 'a' is :undefined"]]
 
-:[[]~.helpdb;.helpdb::op.db;0]
+:[[]~.helpdb;.helpdb::opdb;0]
 pho::{.d(1_7$*.helpdb@x);.d((.helpdb@x)@2);.p("")}
 phf::{.p(*.helpdb@x);{.p("    ", x)}'1_.helpdb@x}
 ph::{:[0c ~**.helpdb@x;pho(x);phf(x)]}
@@ -83,6 +83,6 @@ fho::{(~[]~(*x)?y)|~[]~(x@1)?y}
 fhf::{(~""~y)&~[]~(*x)?y}
 fh::{:[0c ~**x;fho(x;y);fhf(x;y)]}
 help::{[h];h::x;ph'&{fh(x;h)}'.helpdb;[]}
-help.add::{:[.helpdb?*x;1;.helpdb::.helpdb,x]}
+helpadd::{:[.helpdb?*x;1;.helpdb::.helpdb,x]}
 
 .module(0)

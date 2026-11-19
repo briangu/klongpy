@@ -207,23 +207,8 @@ impl SelfTest {
     /// much in use as the server, for as long as it ran). The library is dropped by naming each of its definitions.
     fn clean_up<P: Platform + 'static>(rt: &mut Runtime<P>) {
         let _ = Self::eval(rt, "big::0;got::0;af::0;h::0");
-        if let Some((_, text)) = crate::library::find("mgmt") {
-            let mut prog = String::new();
-            for line in text.lines() {
-                let end = line.find(|c: char| !(c.is_ascii_alphanumeric() || c == '.' || c == '_')).unwrap_or(line.len());
-                if end > 0 && line.as_bytes()[0].is_ascii_alphabetic() && line[end..].starts_with("::") {
-                    prog.push_str(&line[..end]);
-                    prog.push_str("::0;");
-                    if prog.len() > 600 {
-                        let _ = Self::eval(rt, &prog);
-                        prog.clear();
-                    }
-                }
-            }
-            if !prog.is_empty() {
-                let _ = Self::eval(rt, &prog);
-            }
-        }
+        // (a module nothing refers to is let go whole, between two statements)
+        let _ = Self::eval(rt, "mgmt::0");
         rt.interp.release_lazy();
         rt.interp.release_caches();
     }

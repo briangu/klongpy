@@ -1,0 +1,43 @@
+== modules: a backtest ==
+[config] loaded
+[rng] loaded
+[feed] loaded
+[series] loaded
+[portfolio] loaded
+[crossover] loaded
+[meanrev] loaded
+[registry] loaded
+[table] loaded
+-- configuration
+days=90 seed=11 cash=10000.0
+-- shared state of rng
+draws before the feed: 0
+draws after the feed: 180
+same instance by another path: 181
+exports of rng: 4
+step is missing from the exports: 1
+-- qualified names
+bars: 91, five-day windows: 86
+mean of the five-day means, in bps: -12.94
+projection: 42.0
+as a value: 3.0
+in a dictionary: 3.0000 2.1602
+spread: 0.7201
+avg price  93.58, worst drawdown -14.57%
+ma4 agrees with ma: 1
+-- the strategies, chosen by name at run time
+crossover fast=4 slow=20
+meanrev window=20 band=1.0
+symbol   strategy          equity  return%   maxdd% trades
+ALPHA    crossover        9504.54    -4.95    -5.52      6
+BETA     crossover        9698.53    -3.01    -8.20      8
+ALPHA    meanrev         10150.45     1.50    -3.24     27
+BETA     meanrev          9869.55    -1.30    -4.16     26
+-- csv: a classic library used through the new form, and imported lazily by table
+[table] importing csv
+"ALPHA","crossover","9504.54"
+fields in the first line: 3
+-- a classic file beside the modules
+legacy mean  95.09, stats mean  93.58
+bps: 2500.0
+== done ==

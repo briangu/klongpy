@@ -1,0 +1,13 @@
+:"series: price-series transforms, built on stats (one module importing another)."
+
+:" shows: a module importing another module by a relative path"
+stats::.import("./stats")
+
+sma(n;p)::{stats.ma(n;p)}
+ret(p)::{stats.returns(p)}
+:" shows: a qualified call as the verb of an adverb, on a global"
+vol(n;r)::{stats.std'stats.win(n;r)}
+zscore(n;p)::{[m s a];a::(n-1)_p;m::stats.ma(n;p);s::stats.std'stats.win(n;p);(a-m)%s}
+
+.p("[series] loaded")
+.export(:{;"sma";sma;"returns";ret;"vol";vol;"zscore";zscore})

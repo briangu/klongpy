@@ -152,3 +152,54 @@ pub fn find_load(sess: &Session, x: &str, home: &str) -> Option<String> {
     }
     None
 }
+
+/// The path `.import(x)` would read, or None: `./x` and `../x` from the directory of the linted file, an absolute path as it is,
+/// any other name in the directories of KLONGPATH (when it is set) and then the library; never the working directory.
+pub fn find_import(sess: &Session, x: &str, home: &str) -> Option<String> {
+    if x.is_empty() {
+        return None;
+    }
+    let with_ext = |p: String| if p.rsplit('/').next().is_some_and(|l| l.contains('.')) { p } else { format!("{}.kg", p) };
+    let norm = |p: &str| {
+        let abs = p.starts_with('/');
+        let mut out: Vec<&str> = Vec::new();
+        for seg in p.split('/') {
+            match seg {
+                "" | "." => {}
+                ".." => {
+                    if matches!(out.last(), Some(l) if *l != "..") {
+                        out.pop();
+                    } else if !abs {
+                        out.push("..");
+                    }
+                }
+                s => out.push(s),
+            }
+        }
+        if abs { format!("/{}", out.join("/")) } else { out.join("/") }
+    };
+    if x.starts_with("./") || x.starts_with("../") {
+        let p = norm(&with_ext(py_join(home, x)));
+        return sess.is_file(&p).then_some(p);
+    }
+    if x.starts_with('/') {
+        let p = norm(&with_ext(x.to_string()));
+        return sess.is_file(&p).then_some(p);
+    }
+    if let Ok(kp) = std::env::var("KLONGPATH") {
+        for d in kp.split(':').filter(|d| !d.is_empty()) {
+            let p = norm(&with_ext(py_join(d, x)));
+            if sess.is_file(&p) {
+                return Some(p);
+            }
+        }
+    }
+    let dirs: Vec<String> = if sess.lib_dirs.is_empty() { vec![EMBEDDED_ROOT.to_string()] } else { sess.lib_dirs.clone() };
+    for d in dirs {
+        let p = with_ext(py_join(&d, x));
+        if sess.is_file(&p) {
+            return Some(p);
+        }
+    }
+    None
+}

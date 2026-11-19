@@ -1,0 +1,3 @@
+:"a private helper: sq is a helper of lib/stats.kg and is not exported"
+stats::.import("../lib/stats")
+.p(stats.sq(3))

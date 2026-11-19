@@ -188,8 +188,7 @@ fn the_selftest_leaves_nothing_of_the_library_or_its_variables() {
     until(&b, &mut r, 1, "klong selftest pass ", 60);
     b.spin_ms(500);
     let c = b.node(1);
-    assert_eq!(c.ok("mgmt.nodes"), "0");
-    assert_eq!(c.ok("mgmt.add"), "0");
+    assert_eq!(c.ok("mgmt"), "0");
     assert_eq!(c.ok("big"), "0");
     assert_eq!(c.ok("h"), "0");
     // the library can be loaded again, and works

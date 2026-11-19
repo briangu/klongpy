@@ -1,0 +1,19 @@
+:"stats: pure array functions. Nothing here has state; the helpers sq and cum
+   are private. This file has no top-level side effect, so the static
+   compiler can load it (see ../static/ma4.kg)."
+
+sq(a)::{a*a}
+cum(v)::{+\0.0,v}
+
+mean(v)::{(+/v)%#v}
+var(v)::{mean(sq(v-mean(v)))}
+std(v)::{var(v)^0.5}
+win(n;v)::{{n#x_v}'!1+(#v)-n}
+ma(n;v)::{[c];c::cum(v);((n_c)-(-n)_c)%n}
+ma4(v)::{[c];c::+\0.0,v;((4_c)-(-4)_c)%4}
+returns(p)::{((1_p)%(-1)_p)-1}
+drawdown(p)::{[m];m::|\p;(p-m)%m}
+maxdd(p)::{&/drawdown(p)}
+scale(k;v)::{k*v}
+
+.export(:{;"mean";mean;"std";std;"win";win;"ma";ma;"ma4";ma4;"returns";returns;"drawdown";drawdown;"maxdd";maxdd;"scale";scale})

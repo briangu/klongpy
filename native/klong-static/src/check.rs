@@ -386,7 +386,26 @@ impl Default for Options {
     }
 }
 
+/// What a module offers the compiler: its `.export` table, each value already named as the compiler knows it (the function or the
+/// global `prefix.name`, or a number).
+struct ModInfo {
+    exports: HashMap<String, Rc<Node>>,
+}
+
+/// The module whose file is being read (the program itself is the first): the prefix its names get, the top-level names it defines,
+/// the aliases it has bound, and the `.export` it has made.
+struct ModCtx {
+    prefix: String,
+    names: HashSet<String>,
+    aliases: HashMap<String, Rc<ModInfo>>,
+    bad_aliases: HashSet<String>,
+    export: Option<HashMap<String, Rc<Node>>>,
+}
+
 struct Checker {
+    mods: Vec<ModCtx>,
+    modules: HashMap<String, Option<Rc<ModInfo>>>,
+    prefixes: HashSet<String>,
     r: Report,
     base_dir: String,
     int_bits: u32,
@@ -491,10 +510,270 @@ impl Checker {
                 (Rc::new(c.conv(s.node)), s.span)
             })
             .collect();
+        self.collect_names(&stmts);
         for (n, span) in stmts {
+            if self.module_statement(&n, span, src, base_dir, depth) {
+                continue;
+            }
+            let n = self.rewrite(&n, &mut Vec::new(), span);
             self.statement(&n, span, src, base_dir, depth);
         }
         self.src = saved;
+    }
+
+    // -- modules (design point 11) ------------------------------------------------------
+    //
+    // `alias::.import("file")` at the top level reads the file as a module: its top-level names become the compiler's names
+    // `prefix.name` (the file's own name, so the C name does not depend on the importer's alias), `.export` fixes what `alias.key` means,
+    // and `alias.key` is rewritten to that name before the statement is checked. A function reached through two aliases is one function.
+
+    fn collect_names(&mut self, stmts: &[(Rc<Node>, Sp)]) {
+        let mut found = Vec::new();
+        for (n, _) in stmts {
+            if let Kind::Dyad(op, left, right) = &n.k {
+                if op == "::" && !right.is_missing() {
+                    match &left.k {
+                        Kind::Sym(name) if !ARGS.contains(&name.as_str()) && !Self::is_import(right) => found.push(name.clone()),
+                        Kind::Destructure(names) => found.extend(names.iter().cloned()),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        if let Some(c) = self.mods.last_mut() {
+            c.names.extend(found);
+        }
+    }
+
+    fn is_import(n: &Node) -> bool {
+        matches!(&n.k, Kind::Call { callee, .. } if matches!(&callee.k, Kind::Sym(s) if s == ".import"))
+    }
+
+    /// A statement that is the module system's own: `alias::.import("path")`, `.export(...)`, an `.entry` of a module. True when handled.
+    fn module_statement(&mut self, n: &Rc<Node>, span: Sp, src: usize, base_dir: &str, depth: usize) -> bool {
+        if let Kind::Dyad(op, left, right) = &n.k {
+            if op == "::" && Self::is_import(right) {
+                let lsp = n.arg_span(0, span);
+                let Kind::Sym(alias) = &left.k else {
+                    self.diag("redefinition", lsp, "the result of .import must be assigned to a name".to_string(), None);
+                    return true;
+                };
+                let Kind::Call { args, .. } = &right.k else { return true };
+                self.import_declaration(alias, args, n, span, lsp, base_dir, depth);
+                return true;
+            }
+        }
+        if let Kind::Call { callee, args, kcall: true } = &n.k {
+            if let Kind::Sym(name) = &callee.k {
+                if name == ".export" {
+                    self.export_declaration(args, n, span, src);
+                    return true;
+                }
+                // (a library's entries are not the program's)
+                if name == ".entry" && self.mods.len() > 1 {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn import_declaration(&mut self, alias: &str, args: &[Rc<Node>], n: &Rc<Node>, span: Sp, lsp: Sp, base_dir: &str, depth: usize) {
+        if args.len() != 1 || is_plain_str(&args[0]).is_none() {
+            self.diag("decl-literal", n.arg_span(1, span), ".import in a compiled program takes one string literal: the compiler reads the file when it checks".to_string(), None);
+            self.mods.last_mut().map(|c| c.bad_aliases.insert(alias.to_string()));
+            return;
+        }
+        let spec = is_plain_str(&args[0]).unwrap().to_string();
+        let again = self.mods.last().map(|c| c.aliases.contains_key(alias) || c.bad_aliases.contains(alias) || c.names.contains(alias)).unwrap_or(false);
+        if again {
+            self.diag("redefinition", lsp, format!("{} is assigned more than once; the compiler resolves alias.name only for a name assigned once, by .import", alias), None);
+            return;
+        }
+        self.r.statements.push(Stmt { kind: "load", name: spec.clone(), span, src: self.src });
+        if !self.resolve {
+            return;
+        }
+        let Some(path) = klong_lint::recover::find_import(&self.sess, &spec, base_dir) else {
+            self.diag("load", n.arg_span(1, span), format!("cannot find the file \"{}\" named by .import", spec), Some("a name without ./ or ../ is looked for in KLONGPATH and the library; ./name and ../name are relative to the importing file"));
+            self.mods.last_mut().map(|c| c.bad_aliases.insert(alias.to_string()));
+            return;
+        };
+        let real = std::fs::canonicalize(&path).map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| path.clone());
+        let info = match self.modules.get(&real) {
+            Some(Some(i)) => Some(i.clone()),
+            Some(None) => {
+                self.diag("load", n.arg_span(1, span), format!("import cycle at \"{}\"", spec), None);
+                None
+            }
+            None if depth >= 8 => {
+                self.diag("load", n.arg_span(1, span), format!(".import nests too deeply at \"{}\"", spec), None);
+                None
+            }
+            None => self.read_module(&real, &path, n.arg_span(1, span), depth),
+        };
+        match info {
+            Some(i) => {
+                if let Some(c) = self.mods.last_mut() {
+                    c.aliases.insert(alias.to_string(), i);
+                }
+            }
+            None => {
+                self.mods.last_mut().map(|c| c.bad_aliases.insert(alias.to_string()));
+            }
+        }
+    }
+
+    fn read_module(&mut self, real: &str, path: &str, sp: Sp, depth: usize) -> Option<Rc<ModInfo>> {
+        let text = match self.sess.read_loaded(path) {
+            Ok(t) => t,
+            Err(e) => {
+                self.diag("load", sp, format!("cannot read \"{}\": {}", path, e), None);
+                return None;
+            }
+        };
+        let stem = path.rsplit('/').next().unwrap_or(path).trim_end_matches(".kg").to_string();
+        let mut prefix = stem.clone();
+        let mut k = 2;
+        while self.prefixes.contains(&prefix) {
+            prefix = format!("{}{}", stem, k);
+            k += 1;
+        }
+        self.prefixes.insert(prefix.clone());
+        self.modules.insert(real.to_string(), None);
+        self.mods.push(ModCtx { prefix, names: HashSet::new(), aliases: HashMap::new(), bad_aliases: HashSet::new(), export: None });
+        let dir = klong_lint::recover::py_dirname(path);
+        let nsrc = self.r.sources.len();
+        self.load(path, &text, &dir, depth + 1);
+        let ctx = self.mods.pop()?;
+        match ctx.export {
+            Some(exports) => {
+                let info = Rc::new(ModInfo { exports });
+                self.modules.insert(real.to_string(), Some(info.clone()));
+                Some(info)
+            }
+            None => {
+                let saved = self.src;
+                self.src = nsrc.min(self.r.sources.len().saturating_sub(1));
+                self.diag("load", sp, format!("{} has no .export, so it is not a module", path), None);
+                self.src = saved;
+                self.modules.remove(real);
+                None
+            }
+        }
+    }
+
+    fn export_declaration(&mut self, args: &[Rc<Node>], n: &Rc<Node>, span: Sp, src: usize) {
+        let _ = src;
+        let elems = match args {
+            [a] => match &a.k {
+                Kind::EDict(v) => Some(v.clone()),
+                _ => None,
+            },
+            _ => None,
+        };
+        let Some(elems) = elems.filter(|e| e.len() % 2 == 0) else {
+            self.diag("undefined-name", n.arg_span(0, span), ".export in a compiled program takes a dictionary written :{;\"key\";value;...}".to_string(), None);
+            return;
+        };
+        let mut out = HashMap::new();
+        for pair in elems.chunks(2) {
+            let Some(key) = is_plain_str(&pair[0]) else {
+                self.diag("undefined-name", span, "an export key must be a string literal".to_string(), None);
+                continue;
+            };
+            let v = self.rewrite(&pair[1], &mut Vec::new(), span);
+            match &v.k {
+                Kind::Sym(_) | Kind::Int(_) | Kind::Flt(_) => {
+                    out.insert(key.to_string(), v);
+                }
+                _ => self.diag("undefined-name", span, format!("the value of the export \"{}\" must be a name or a number for the compiler", key), None),
+            }
+        }
+        if let Some(c) = self.mods.last_mut() {
+            c.export = Some(out);
+        }
+    }
+
+    /// The names of `n` as the compiler knows them: the running module's own names get its prefix, `alias.key` is what the module exports.
+    fn rewrite(&mut self, n: &Rc<Node>, shadow: &mut Vec<String>, span: Sp) -> Rc<Node> {
+        let mk = |k: Kind| Rc::new(Node { k, span: n.span, op_span: n.op_span, arg_spans: n.arg_spans.clone() });
+        match &n.k {
+            Kind::Sym(name) => {
+                if shadow.contains(name) || ARGS.contains(&name.as_str()) || name.starts_with('.') {
+                    return n.clone();
+                }
+                if let Some((base, rest)) = name.split_once('.') {
+                    if shadow.iter().any(|s| s == base) {
+                        return n.clone();
+                    }
+                    let found = self.mods.last().and_then(|c| c.aliases.get(base).cloned());
+                    if let Some(info) = found {
+                        return match info.exports.get(rest) {
+                            Some(v) => Rc::new(Node { k: v.k.clone(), span: n.span, op_span: None, arg_spans: Vec::new() }),
+                            None => {
+                                let mut keys: Vec<&str> = info.exports.keys().map(|s| s.as_str()).collect();
+                                keys.sort();
+                                self.diag("undefined-name", span, format!("{} has no export \"{}\"", base, rest), Some(&format!("the module exports: {}", keys.join(" "))));
+                                n.clone()
+                            }
+                        };
+                    }
+                    return n.clone();
+                }
+                match self.mods.last() {
+                    Some(c) if !c.prefix.is_empty() && c.names.contains(name) => mk(Kind::Sym(format!("{}.{}", c.prefix, name))),
+                    _ => n.clone(),
+                }
+            }
+            Kind::Destructure(names) if shadow.is_empty() => match self.mods.last() {
+                Some(c) if !c.prefix.is_empty() => mk(Kind::Destructure(names.iter().map(|x| if c.names.contains(x) { format!("{}.{}", c.prefix, x) } else { x.clone() }).collect())),
+                _ => n.clone(),
+            },
+            Kind::Monad(g, a) => {
+                let a = self.rewrite(a, shadow, span);
+                mk(Kind::Monad(g.clone(), a))
+            }
+            Kind::Dyad(g, l, r) => {
+                let (l, r) = (self.rewrite(l, shadow, span), self.rewrite(r, shadow, span));
+                mk(Kind::Dyad(g.clone(), l, r))
+            }
+            Kind::Call { callee, args, kcall } => {
+                let callee = self.rewrite(callee, shadow, span);
+                let args = args.iter().map(|a| self.rewrite(a, shadow, span)).collect();
+                mk(Kind::Call { callee, args, kcall: *kcall })
+            }
+            Kind::FnLit { stmts, spans, params, locals } => {
+                let mark = shadow.len();
+                shadow.extend(params.iter().cloned());
+                shadow.extend(locals.iter().cloned());
+                let stmts = stmts.iter().map(|s| self.rewrite(s, shadow, span)).collect();
+                shadow.truncate(mark);
+                mk(Kind::FnLit { stmts, spans: spans.clone(), params: params.clone(), locals: locals.clone() })
+            }
+            Kind::Body(v) => {
+                let v = v.iter().map(|s| self.rewrite(s, shadow, span)).collect();
+                mk(Kind::Body(v))
+            }
+            Kind::Chain { verb, advs, dyadic, l, r } => {
+                let (verb, l, r) = (self.rewrite(verb, shadow, span), self.rewrite(l, shadow, span), self.rewrite(r, shadow, span));
+                mk(Kind::Chain { verb, advs: advs.clone(), dyadic: *dyadic, l, r })
+            }
+            Kind::Cond(v) => {
+                let v = v.iter().map(|s| self.rewrite(s, shadow, span)).collect();
+                mk(Kind::Cond(v))
+            }
+            Kind::EList(v) => {
+                let v = v.iter().map(|s| self.rewrite(s, shadow, span)).collect();
+                mk(Kind::EList(v))
+            }
+            Kind::EDict(v) => {
+                let v = v.iter().map(|s| self.rewrite(s, shadow, span)).collect();
+                mk(Kind::EDict(v))
+            }
+            _ => n.clone(),
+        }
     }
 
     fn statement(&mut self, n: &Rc<Node>, span: Sp, src: usize, base_dir: &str, depth: usize) {
@@ -2830,6 +3109,9 @@ pub fn check_source(text: &str, name: &str, opts: &Options) -> Report {
         opts.lib_dirs.clone()
     };
     let mut c = Checker {
+        mods: vec![ModCtx { prefix: String::new(), names: HashSet::new(), aliases: HashMap::new(), bad_aliases: HashSet::new(), export: None }],
+        modules: HashMap::new(),
+        prefixes: HashSet::new(),
         r: Report { statements: Vec::new(), sources: Vec::new(), diagnostics: Vec::new(), functions: Ordered::new(), globals: Ordered::new(), externs: Ordered::new(), entries: Vec::new(), params: Ordered::new() },
         base_dir,
         int_bits: opts.int_bits,

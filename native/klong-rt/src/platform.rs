@@ -42,6 +42,11 @@ pub trait Platform {
     fn cwd(&self) -> Option<alloc::string::String> {
         None
     }
+    /// The real path of an existing file (symbolic links resolved), for the key of the module cache; `None` when the platform cannot
+    /// say (the key is then the path with its dots taken out).
+    fn real_path(&self, _path: &str) -> Option<alloc::string::String> {
+        None
+    }
     /// A short name for `.ver()`: "host", the board's name.
     fn name(&self) -> &str {
         "unknown"

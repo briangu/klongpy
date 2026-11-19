@@ -1,0 +1,5 @@
+:"legacy: a classic file, loaded with .l. Its names go into the global scope of
+   whoever loads it. It has no .export and is not a module."
+
+mean(v)::{((*v)+*|v)%2}
+bps(a)::{10000*a}

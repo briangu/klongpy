@@ -450,6 +450,14 @@ impl<'a> Parser<'a> {
     }
 
     fn sym_for(&mut self, v: &str) -> SymId {
+        if let Some(Ok(segs)) = sym::qual_segments(v) {
+            return self.qual_sym(v, &segs);
+        }
+        self.plain_sym(v)
+    }
+
+    /// The symbol of a name that is not qualified.
+    fn plain_sym(&mut self, v: &str) -> SymId {
         match v {
             "x" => sym::X,
             "y" => sym::Y,
@@ -467,6 +475,55 @@ impl<'a> Parser<'a> {
                 _ => self.syms.intern(v),
             },
         }
+    }
+
+    /// The symbol of `a.b.c` and, recorded with it, the symbol of `a` and the keys `"b"` and `"c"`: `a.b` is `a@"b"` (design point 4).
+    fn qual_sym(&mut self, v: &str, segs: &[&str]) -> SymId {
+        let base = self.plain_sym(segs[0]);
+        let mut full = String::from(v);
+        if let Some(m) = &*self.module {
+            full.push('`');
+            full.push_str(m);
+        }
+        let s = self.syms.intern(&full);
+        if self.syms.qual(s).is_none() {
+            let mut keys = Vec::new();
+            for k in &segs[1..] {
+                match Value::text(k) {
+                    Ok(t) => keys.push(t),
+                    Err(_) => {
+                        self.syms.oom = true;
+                        return s;
+                    }
+                }
+            }
+            self.syms.set_qual(s, base, keys);
+        }
+        s
+    }
+
+    /// A local or a parameter is a plain name: `d.a` is an entry of `d`, not a variable to declare.
+    fn plain_names(&self, ids: &[u32], span: Span) -> Result<()> {
+        for &q in ids {
+            if self.syms.qual(SymId(q)).is_some() {
+                let e = Error::syntax(crate::msg!("{} is a qualified name; a local or a parameter must be a plain name", self.syms.name(SymId(q)).split('`').next().unwrap_or(""))).with_span(span);
+                #[cfg(feature = "diag")]
+                let e = e.with_hint("declare the dictionary itself, {[d]; ...}, and write d.a in the body");
+                return Err(e);
+            }
+        }
+        Ok(())
+    }
+
+    /// A qualified name written as an expression: its segments must be names.
+    fn check_qualified(&self, v: &str, span: Span) -> Result<()> {
+        if let Some(Err(why)) = sym::qual_segments(v) {
+            let e = Error::syntax(crate::msg!("{}: {}", v, why)).with_span(span);
+            #[cfg(feature = "diag")]
+            let e = e.with_hint("a.b means a@\"b\"; a name that starts with a dot (.p, .srv.o) is one name");
+            return Err(e);
+        }
+        Ok(())
     }
 
     /// Something the legacy grammar accepts and should not: an error at strict level 1 and
@@ -823,6 +880,9 @@ impl<'a> Parser<'a> {
             Node::Sym(s) | Node::QSym(s) => {
                 if sym::is_arg(*s) {
                     (s.0 as u8 + 1, false)
+                } else if let Some(q) = self.syms.qual(*s).filter(|q| sym::is_arg(q.base)) {
+                    // x.len is x@"len": it uses x
+                    (q.base.0 as u8 + 1, false)
                 } else {
                     (0, *s == sym::DOT_F)
                 }
@@ -911,6 +971,7 @@ impl<'a> Parser<'a> {
             let r = *r;
             if r.len > 1 {
                 if let Some(names) = self.decl_names(NodeId(self.tree.ids(r)[0])) {
+                    self.plain_names(&names, (st, rbrace_end))?;
                     let locals = self.tree.range(&names);
                     let stmts = Range { start: r.start + 1, len: r.len - 1 };
                     a = self.add(Node::Body { stmts, locals, params: Range::default(), has_params: false }, (0, 0));
@@ -980,7 +1041,7 @@ impl<'a> Parser<'a> {
             _ => return a,
         };
         for t in targets {
-            if !names.contains(&t) {
+            if !names.contains(&t) && self.syms.qual(SymId(t)).is_none() {
                 names.push(t);
             }
         }
@@ -1103,6 +1164,7 @@ impl<'a> Parser<'a> {
                 _ => 0,
             })
             .collect();
+        self.plain_names(&ids, (st, lend))?;
         let mut why = None;
         for (i, &s) in ids.iter().enumerate() {
             if s < 3 {
@@ -1205,7 +1267,7 @@ impl<'a> Parser<'a> {
                     data -= 1;
                 }
             } else if k == K::Name {
-                if fnd == 0 && matches!(self.lx.text_of(tok), "x" | "y" | "z") {
+                if fnd == 0 && matches!(self.lx.text_of(tok).split('.').next(), Some("x" | "y" | "z")) && !self.lx.text_of(tok).starts_with('.') {
                     return Some(tok.clone());
                 }
             } else if k == K::LBrace {
@@ -1729,6 +1791,9 @@ impl<'a> Parser<'a> {
         match tok.k {
             K::Name | K::QName => {
                 let v = self.lx.text_of(&tok);
+                if tok.k == K::Name {
+                    self.check_qualified(v, (tok.start, tok.end))?;
+                }
                 let s = self.sym_for(v);
                 a = self.add(if tok.k == K::QName { Node::QSym(s) } else { Node::Sym(s) }, (tok.start, tok.end));
                 self.lx.pos = j + 1;
@@ -1914,6 +1979,9 @@ impl<'a> Parser<'a> {
                     self.lx.pos = j + 1;
                 }
                 K::Name | K::QName => {
+                    if tok.k == K::Name {
+                        self.check_qualified(self.lx.text_of(&tok), (tok.start, tok.end))?;
+                    }
                     let s = self.sym_for(self.lx.text_of(&tok));
                     aa = self.add(Node::Sym(s), (tok.start, tok.end));
                     self.lx.pos = j + 1;

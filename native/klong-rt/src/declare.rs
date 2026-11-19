@@ -586,7 +586,7 @@ fn extern_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value>
         return Value::text(&canonical);
     }
     // a function the host registered under that name is the one that is called; anything else defined is a conflict
-    let host = match ip.global(name) {
+    let host = match ip.global_plain(name) {
         None => None,
         Some(Value::Fn(f)) => match &*f {
             Func::Native { f: native, .. } => Some(native.clone()),
@@ -614,18 +614,53 @@ fn extern_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value>
     let n = sig.params.len();
     let call = bound(name, sig.clone(), host)?;
     try_push(&mut declared.borrow_mut().externs, Extern { name: try_str(name)?, sig, module: try_str(module)?, call: (n > 3).then(|| call.clone()) })?;
+    // `read.adc` declares the entry `adc` of the dictionary `read` (resolution 10); the C name stays read_adc
+    let entry = match dotted(ip, name) {
+        Ok(e) => e,
+        Err(e) => {
+            declared.borrow_mut().externs.pop();
+            return Err(e);
+        }
+    };
+    let is_entry = entry.is_some();
     if n <= 3 {
         // x, y and z: a wildcard function is given whichever of them the call supplied
         let s = ip.syms.intern(name);
         if let Some(e) = ip.syms.failure() {
             return Err(e);
         }
-        ip.define_global(name, Value::Fn(Rc::new(Func::Native { name: s, arity: WILDCARD, f: call })))?;
+        let f = Value::Fn(Rc::new(Func::Native { name: s, arity: WILDCARD, f: call }));
+        match entry {
+            Some((d, key)) => d.borrow_mut().set(Value::text(key)?, f)?,
+            None => ip.define_global(name, f)?,
+        }
     } else if let Err(e) = define_wide(ip, declared, name, n) {
         declared.borrow_mut().externs.pop();
         return Err(e);
     }
+    if is_entry {
+        // (the host's own registration under the dotted name is not what a program reaches: `read.adc` is the entry of `read`)
+        ip.undefine_global(name);
+    }
     Value::text(&canonical)
+}
+
+/// The dictionary a dotted extern name belongs to (made when the program has none of that name) and the key: `None` for a name
+/// without a dot. A first part that holds something that is not a dictionary is a `type` error.
+fn dotted<'a>(ip: &mut Interp, name: &'a str) -> Result<Option<(Rc<RefCell<klong_core::value::Dict>>, &'a str)>> {
+    let Some((base, key)) = name.split_once('.').filter(|(b, _)| !b.is_empty()) else { return Ok(None) };
+    if key.contains('.') {
+        return Err(Error::typ(klong_core::msg!(".extern: {}: only one dot is supported (a dictionary and its entry)", name)));
+    }
+    match ip.global(base) {
+        Some(Value::Dict(d)) => Ok(Some((d, key))),
+        Some(other) => Err(Error::typ(klong_core::msg!(".extern: {} declares an entry of {}, which holds {}, not a dictionary", name, base, other.describe_long()))),
+        None => {
+            let Value::Dict(d) = Value::dict(klong_core::value::Dict::default()) else { return Ok(None) };
+            ip.define_global(base, Value::Dict(d.clone()))?;
+            Ok(Some((d, key)))
+        }
+    }
 }
 
 fn conflict(name: &str) -> Error {

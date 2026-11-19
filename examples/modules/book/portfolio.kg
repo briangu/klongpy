@@ -1,0 +1,14 @@
+:"portfolio: cash, position and last price as a dictionary, passed through
+   functions. Every function returns a new dictionary; none changes its argument."
+
+new(cash)::{:{;"cash";cash;"pos";0.0;"px";0.0;"trades";0}}
+
+:" shows: a.b read on a parameter"
+equity(pf)::{pf.cash+pf.pos*pf.px}
+
+:" shows: a.b::v written on a local dictionary"
+trade(pf;px;qty)::{[q];q::new(pf.cash-px*qty);q.pos::pf.pos+qty;q.px::px;q.trades::pf.trades+~qty=0;q}
+mark(pf;px)::{trade(pf;px;0.0)}
+
+.p("[portfolio] loaded")
+.export(:{;"new";new;"equity";equity;"trade";trade;"mark";mark})

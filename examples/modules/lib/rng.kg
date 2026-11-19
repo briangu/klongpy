@@ -1,0 +1,20 @@
+:"rng: a seeded linear congruential generator.
+
+   The state (state, count) is private to this module. The only way to move
+   it is through the exported functions, so every module that imports rng
+   draws from the same sequence: the file runs once and everyone gets the
+   same instance."
+
+m::2147483648
+state::1
+count::0
+
+step()::{count::count+1;state::((1103515245*state)+12345)!m;state}
+reset(n)::{state::n!m;count::0;state}
+uniform(n)::{{step()%m}'!n}
+noise(n)::{(uniform(n)-0.5)*3.4641016151377544}
+draws()::{count}
+
+.p("[rng] loaded")
+:" shows: rename on export (reset is exposed as seed); step, state, count, m stay private"
+.export(:{;"seed";reset;"uniform";uniform;"noise";noise;"draws";draws})

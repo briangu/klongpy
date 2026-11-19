@@ -1,0 +1,3 @@
+:"what .import returns cannot be changed from outside"
+stats::.import("../lib/stats")
+stats.scale::{x}

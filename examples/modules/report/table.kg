@@ -1,0 +1,13 @@
+:"table: the text of the report."
+
+stats::.import("../lib/stats")
+
+header()::{.fmt("{:8} {:10} {:-13} {:-8} {:-8} {:-6}";["symbol" "strategy" "equity" "return%" "maxdd%" "trades"])}
+row(sym;strat;eq;ret;dd;n)::{.fmt("{:8} {:10} {:10.2} {:5.2} {:5.2} {:-6}";[;sym;strat;eq;ret;dd;n])}
+
+:" shows: a module imported inside a function. csv is loaded on the first call"
+tocsv(lines)::{[c];.p("[table] importing csv");c::.import("csv");{c.make(.split(x;" "))}'lines}
+
+.p("[table] loaded")
+:" shows: re-export under other names: stats.mean is exposed as avg, stats.maxdd as worst"
+.export(:{;"header";header;"row";row;"csv";tocsv;"avg";stats.mean;"worst";stats.maxdd})

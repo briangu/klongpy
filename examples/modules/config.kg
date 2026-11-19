@@ -1,0 +1,13 @@
+:"config: the nested defaults of a run. defaults() builds a new dictionary on
+   every call, so a program can change its own copy."
+
+defaults()::{:{;
+  "run";:{;"days";120;"seed";7;"cash";10000.0};
+  "feed";:{;"symbols";["ALPHA" "BETA"];"drift";0.0004;"vol";0.012};
+  "strategy";:{;"params";:{;
+    "crossover";:{;"fast";5;"slow";20};
+    "meanrev";:{;"window";20;"band";1.0}}};
+  "report";:{;"title";"backtest"}}}
+
+.p("[config] loaded")
+.export(:{;"defaults";defaults})

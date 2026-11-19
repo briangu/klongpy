@@ -48,11 +48,25 @@ pub struct Tok {
 }
 
 impl Tok {
+    /// Is this a qualified name `a.b` (a name that does not start with a dot, with a dot inside)?
+    pub fn is_qualified(&self, text: &str) -> bool {
+        self.k == K::Name && !text[self.s..self.e].starts_with('.') && text[self.s..self.e].contains('.')
+    }
+
     /// The token's value as the Python lexer gives it: the text, a name or symbol without its colon, a string's body.
     pub fn val<'a>(&'a self, text: &'a str) -> &'a str {
         match self.k {
             K::Str => self.sv.as_ref().map(|s| s.as_str()).unwrap_or(""),
             K::QName => &text[self.s + 1..self.e],
+            // a qualified name a.b.c stands for its base a: the rules that count uses and definitions of names read it so (the whole
+            // text is `full`)
+            K::Name => {
+                let t = &text[self.s..self.e];
+                match t.find('.') {
+                    Some(d) if d > 0 => &t[..d],
+                    _ => t,
+                }
+            }
             _ => &text[self.s..self.e],
         }
     }

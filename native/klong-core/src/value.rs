@@ -307,6 +307,9 @@ pub struct Dict {
     keys: Vec<Value>,
     vals: Vec<Value>,
     index: Index,
+    /// What `.import` returns is read-only from outside: setting or removing a key is a `type` error (design point 5). Shallow: a
+    /// dictionary stored in it is an ordinary shared dictionary.
+    ro: bool,
 }
 
 #[derive(Default)]
@@ -417,6 +420,19 @@ impl Dict {
     pub fn keys(&self) -> &[Value] {
         &self.keys
     }
+    pub fn is_readonly(&self) -> bool {
+        self.ro
+    }
+    /// Freeze the dictionary (see `ro`).
+    pub fn set_readonly(&mut self) {
+        self.ro = true;
+    }
+    fn read_only_error(&self) -> Error {
+        let e = Error::typ(crate::dmsg!("read-only dictionary", "the dictionary is read-only (it was returned by .import)"));
+        #[cfg(feature = "diag")]
+        let e = e.with_hint("copy it with  e:::{};e::e,m  or change the module's file");
+        e
+    }
     pub fn vals(&self) -> &[Value] {
         &self.vals
     }
@@ -480,6 +496,9 @@ impl Dict {
     /// Set a key. A `type` error for a value that cannot be a key, `memory` when the
     /// dictionary cannot grow (it is unchanged then).
     pub fn set(&mut self, k: Value, v: Value) -> Result<()> {
+        if self.ro {
+            return Err(self.read_only_error());
+        }
         let h = key_hash(&k).ok_or_else(|| bad_key(&k))?;
         self.set_hashed(k, v, h)
     }
@@ -511,6 +530,9 @@ impl Dict {
 
     /// Remove a key; the order of the others is kept.
     pub fn remove(&mut self, k: &Value) -> Result<bool> {
+        if self.ro {
+            return Err(self.read_only_error());
+        }
         let i = match self.find(k) {
             Some(i) => i,
             None => return Ok(false),
@@ -672,6 +694,8 @@ pub struct Lazy {
 /// What a text needs to be parsed as it was: the module in force and the strict level.
 pub struct LazyCtx {
     pub module: Option<String>,
+    /// The module scope the text belongs to (0: the program's own; see `Interp::module_new`).
+    pub mid: u16,
     pub strict: u8,
 }
 

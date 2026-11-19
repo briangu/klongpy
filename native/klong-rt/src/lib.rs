@@ -30,6 +30,7 @@ pub mod platform;
 mod chan;
 mod fmtfn;
 mod json;
+mod modules;
 mod strfn;
 #[cfg(feature = "lib")]
 pub mod library;
@@ -67,6 +68,8 @@ pub struct Shared<P: Platform> {
     /// The tick reported the armed Ctrl-C.
     pub armed_hit: core::cell::Cell<bool>,
     pub(crate) io: RefCell<Io>,
+    /// The modules `.import` has made (`modules.rs`).
+    pub(crate) mods: modules::ModsRef,
 }
 
 #[cfg_attr(not(feature = "files"), allow(dead_code))]
@@ -190,6 +193,7 @@ impl<P: Platform + 'static> Runtime<P> {
             ctrl_c_seen: core::cell::Cell::new(false),
             armed_hit: core::cell::Cell::new(false),
             io: RefCell::new(Io { from: Value::Undefined, to: Value::Undefined, cin: Value::Undefined, cout: Value::Undefined, rng, start_us, path, home: Vec::new() }),
+            mods: RefCell::new(modules::Mods::default()),
         });
         let mut interp = Interp::new(cfg, Box::new(RtHooks { shared: shared.clone() }));
 
@@ -435,6 +439,7 @@ impl<P: Platform + 'static> Runtime<P> {
                 Err(Error::interrupt())
             }),
         );
+        modules::register(&mut interp, &shared);
         strfn::register(&mut interp);
         json::register(&mut interp);
         // .e (Epsilon), as KlongPy has it
@@ -448,12 +453,18 @@ impl<P: Platform + 'static> Runtime<P> {
             #[cfg(feature = "lib")]
             {
                 // without files, .l still loads the library that is part of the image
+                let sh = shared.clone();
                 interp.register(
                     ".l",
                     1,
-                    Rc::new(|ip: &mut Interp, a: &[Value]| {
+                    Rc::new(move |ip: &mut Interp, a: &[Value]| {
                         let name = text_arg(a, ".l")?;
                         match library::find(name) {
+                            Some((label, text)) if modules::calls_export(text) => {
+                                let d = modules::import_loaded(&sh, ip, label, modules::Text::Static(text))?;
+                                modules::bind_alias(ip, label, d)?;
+                                Ok(ip.no_value())
+                            }
                             Some((label, text)) => match ip.load_static(text, label)? {
                                 Some(v) => Ok(v),
                                 None => Ok(ip.no_value()),
@@ -489,6 +500,14 @@ impl<P: Platform + 'static> Runtime<P> {
     pub fn set_load_path(&mut self, dirs: Vec<String>) {
         if let Ok(mut io) = self.shared.io.try_borrow_mut() {
             io.path = dirs;
+        }
+    }
+
+    /// The directories a bare name of `.import` is looked for in, before the library of the image (KLONGPATH when it is set; none
+    /// otherwise: the working directory is not searched unless it is named).
+    pub fn set_import_path(&mut self, dirs: Vec<String>) {
+        if let Ok(mut m) = self.shared.mods.try_borrow_mut() {
+            m.import_path = dirs;
         }
     }
 
