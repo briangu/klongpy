@@ -133,7 +133,13 @@ enum Scope {
 const JOURNALED: u16 = 0x8000;
 const NO_LINK: u32 = u32::MAX;
 
-type Frame = Vec<(SymId, Option<Value>)>;
+/// The bindings of one running function (its arguments, `.f`, its locals, what it assigns): `len` entries of `Interp::slots` from `start`.
+/// A frame is the last one registered while it runs, so it grows at the end of the array.
+#[derive(Clone, Copy)]
+struct FrameRef {
+    start: u32,
+    len: u32,
+}
 
 /// One list of arguments on its way to a function: the arguments of a call or of a
 /// projection (expressions of a tree, `NONE` for a hole), or values that are already
@@ -225,7 +231,10 @@ pub struct Interp {
     void: bool,
     /// High-water mark of native stack used below `stack_base`, in bytes.
     pub max_stack_seen: usize,
-    frames: Vec<Frame>,
+    /// The bindings of every running function in one array (a call claims the entries after the last, and gives them back when it returns:
+    /// no allocation per call). Past the end of the last frame there can be arguments on their way to a call, see `arg`.
+    slots: Vec<(SymId, Option<Value>)>,
+    frames: Vec<FrameRef>,
     /// The first frame a name is looked for in by the code that is running: when it is the body of a function with named parameters
     /// (`f(a;b)::{...}`), the frame of that function, which sees its own locals and then the globals of its module and never the locals
     /// of whatever called it (docs/design-principles.md, principle 4). 0 for any other code: a function without a parameter list
@@ -244,9 +253,6 @@ pub struct Interp {
     hooks: Box<dyn Hooks>,
     depth: u32,
     ticks: u64,
-    /// Emptied vectors kept for the next call: a call of a Klong function would otherwise allocate and free
-    /// its argument frame and its list of projection layers (a Cortex-M0+ takes a few hundred cycles for each).
-    frame_pool: Vec<Frame>,
     /// The function values made for a few tree nodes lately (a function literal's body is made into one at every
     /// call: an allocation). Each entry keeps its tree alive, so a tree's address cannot be taken for another's.
     lazy_cache: core::cell::RefCell<Vec<(usize, u32, Rc<Tree>, NodeId, usize)>>,
@@ -315,6 +321,7 @@ impl Interp {
             running: 0,
             void: false,
             max_stack_seen: 0,
+            slots: Vec::new(),
             frames: Vec::new(),
             lex_base: 0,
             fmods: Vec::new(),
@@ -325,7 +332,6 @@ impl Interp {
             hooks,
             depth: 0,
             ticks: 0,
-            frame_pool: Vec::new(),
             lazy_cache: core::cell::RefCell::new(Vec::new()),
             lazy_stats: core::cell::Cell::new((0, 0, 0)),
             body_cache: core::cell::RefCell::new([None, None, None, None, None, None, None, None]),
@@ -1185,32 +1191,120 @@ impl Interp {
 
     // ----- variables: dynamic scope ----------------------------------------------------------
 
+    #[inline(always)]
     fn grow_shadow(&mut self, i: usize) -> Result<()> {
         if self.shadow.len() <= i {
-            let more = i + 1 - self.shadow.len();
-            self.shadow.try_reserve(more).map_err(|_| Error::memory())?;
-            self.shadow.resize(i + 1, 0);
+            return self.grow_shadow_to(i);
         }
         Ok(())
     }
 
-    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_push_frame")]
+    #[cold]
+    #[inline(never)]
+    fn grow_shadow_to(&mut self, i: usize) -> Result<()> {
+        let more = i + 1 - self.shadow.len();
+        self.shadow.try_reserve(more).map_err(|_| Error::memory())?;
+        self.shadow.resize(i + 1, 0);
+        Ok(())
+    }
 
-    fn push_frame(&mut self, f: Frame) -> Result<()> {
+    /// Put the argument `(s, v)` of a call that is being made on the slots, after the `k` that are there already (arguments are evaluated one
+    /// after another, and what they call opens and closes its own frames above them). On failure the `k` are given back.
+    #[inline(always)]
+    fn arg(&mut self, k: usize, s: SymId, v: Value) -> Result<()> {
+        if let Err(e) = try_push(&mut self.slots, (s, Some(v))) {
+            self.drop_args(k);
+            return Err(e);
+        }
+        Ok(())
+    }
+
+    /// Give back the `k` arguments on top of the slots (a call that fails before it runs).
+    #[cold]
+    fn drop_args(&mut self, k: usize) {
+        let n = self.slots.len().saturating_sub(k);
+        self.slots.truncate(n);
+    }
+
+    /// `r`, with the `k` arguments of the call being made given back when it is an error.
+    #[inline(always)]
+    fn args_or<T>(&mut self, k: usize, r: Result<T>) -> Result<T> {
+        if r.is_err() {
+            self.drop_args(k);
+        }
+        r
+    }
+
+    /// The `n` arguments on top of the slots become a new frame, with room for `extra` more bindings. On failure they are given back.
+    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_push_frame")]
+    #[inline]
+    fn open_frame(&mut self, n: usize, extra: usize) -> Result<()> {
+        let r = self.open_frame_in(n, extra);
+        if r.is_err() {
+            self.drop_args(n);
+        }
+        r
+    }
+
+    fn open_frame_in(&mut self, n: usize, extra: usize) -> Result<()> {
+        if self.slots.capacity() - self.slots.len() < extra {
+            self.slots.try_reserve(extra).map_err(|_| Error::memory())?;
+        }
         self.frames.try_reserve(1).map_err(|_| Error::memory())?;
         if !self.modules.is_empty() {
             self.fmods.try_reserve(1).map_err(|_| Error::memory())?;
         }
-        let top = f.iter().map(|(s, _)| s.0 as usize).max().unwrap_or(0);
+        let start = self.slots.len() - n;
+        let top = self.slots[start..].iter().map(|(s, _)| s.0 as usize).max().unwrap_or(0);
         self.grow_shadow(top)?;
-        for (s, _) in &f {
+        for (s, _) in &self.slots[start..] {
             self.shadow[s.0 as usize] += 1;
         }
-        try_push(&mut self.frames, f)?;
+        // (the room was made above)
+        self.frames.push(FrameRef { start: start as u32, len: n as u32 });
         if !self.modules.is_empty() {
-            try_push(&mut self.fmods, self.cur_mod)?;
+            self.fmods.push(self.cur_mod);
         }
         Ok(())
+    }
+
+    /// Bind `s` in the frame that is running (the last, with nothing past it): `open_frame` made room for it.
+    #[inline(always)]
+    fn frame_add(&mut self, s: SymId, v: Option<Value>) -> Result<()> {
+        self.grow_shadow(s.0 as usize)?;
+        try_push(&mut self.slots, (s, v))?;
+        self.shadow[s.0 as usize] += 1;
+        if let Some(f) = self.frames.last_mut() {
+            f.len += 1;
+        }
+        Ok(())
+    }
+
+    /// The frame of a call of the function `f`: its `n` arguments, `.f`, and each of `locals` that is not an argument (an unassigned local is
+    /// its own symbol; at strict level 2 reading it is an error). On failure, nothing is left.
+    fn open_fn_frame(&mut self, n: usize, f: Value, locals: &[u32]) -> Result<()> {
+        self.open_frame(n, locals.len() + 1)?;
+        let r = self.frame_add(sym::DOT_F, Some(f)).and_then(|()| {
+            for &q in locals {
+                let s = SymId(q);
+                let last = self.frames.len() - 1;
+                if !self.slots[self.frame_range(last)].iter().any(|(k, _)| *k == s) {
+                    self.frame_add(s, if self.cfg.strict == 2 { None } else { Some(Value::Sym(s)) })?;
+                }
+            }
+            Ok(())
+        });
+        if r.is_err() {
+            self.pop_frame();
+        }
+        r
+    }
+
+    /// The entries of frame `i`, as a range of the slots.
+    #[inline]
+    fn frame_range(&self, i: usize) -> core::ops::Range<usize> {
+        let f = self.frames[i];
+        f.start as usize..(f.start + f.len) as usize
     }
 
     /// Create or replace the global `s` itself (no module rule: that is for reads).
@@ -1263,41 +1357,20 @@ impl Interp {
         Ok(())
     }
 
-    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_unshadow")]
-
-    fn unshadow(&mut self, f: &Frame) {
-        for (s, _) in f {
-            if let Some(c) = self.shadow.get_mut(s.0 as usize) {
-                *c = c.saturating_sub(1);
-            }
-        }
-    }
-
     #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_pop_frame")]
-
     fn pop_frame(&mut self) {
-        if let Some(mut f) = self.frames.pop() {
+        if let Some(f) = self.frames.pop() {
             if !self.modules.is_empty() {
                 self.fmods.pop();
             }
-            self.unshadow(&f);
-            f.clear();
-            if self.frame_pool.len() < 32 && f.capacity() <= 16 {
-                self.frame_pool.push(f);
+            let start = f.start as usize;
+            debug_assert_eq!(self.slots.len(), start + f.len as usize, "a frame is released from the top");
+            for (s, _) in &self.slots[start..] {
+                if let Some(c) = self.shadow.get_mut(s.0 as usize) {
+                    *c = c.saturating_sub(1);
+                }
             }
-        }
-    }
-
-    /// An empty frame with room for `n` entries, from the pool when there is one.
-    #[inline]
-    #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_new_frame")]
-    fn new_frame(&mut self, n: usize) -> Result<Frame> {
-        match self.frame_pool.pop() {
-            Some(mut f) => {
-                f.try_reserve(n).map_err(|_| Error::memory())?;
-                Ok(f)
-            }
-            None => try_vec(n),
+            self.slots.truncate(start);
         }
     }
 
@@ -1307,14 +1380,11 @@ impl Interp {
     pub fn lookup(&mut self, s: SymId) -> Result<Option<Value>> {
         if self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0 {
             let tagged = !self.modules.is_empty();
-            for (i, f) in self.frames.iter().enumerate().rev() {
-                if i < self.lex_base {
-                    break;
-                }
+            for i in (self.lex_base..self.frames.len()).rev() {
                 if tagged && self.fmods[i] != self.cur_mod {
                     continue;
                 }
-                for (k, v) in f.iter() {
+                for (k, v) in self.slots[self.frame_range(i)].iter() {
                     if *k == s {
                         return match v {
                             Some(v) => Ok(Some(v.dup())),
@@ -1530,14 +1600,12 @@ impl Interp {
                 let cm = self.cur_mod;
                 let tagged = !self.modules.is_empty();
                 let base = self.lex_base;
-                for (i, f) in self.frames.iter_mut().enumerate().rev() {
-                    if i < base {
-                        break;
-                    }
+                for i in (base..self.frames.len()).rev() {
                     if tagged && self.fmods[i] != cm {
                         continue;
                     }
-                    for (k, slot) in f.iter_mut() {
+                    let r = self.frame_range(i);
+                    for (k, slot) in self.slots[r].iter_mut() {
                         if *k == s {
                             *slot = Some(v);
                             return Ok(());
@@ -1571,15 +1639,20 @@ impl Interp {
         }
         let i = s.0 as usize;
         self.grow_shadow(i)?;
-        if let Some(f) = self.frames.last_mut() {
-            for (k, slot) in f.iter_mut() {
+        if let Some(n) = self.frames.len().checked_sub(1) {
+            let r = self.frame_range(n);
+            let end = r.end;
+            for (k, slot) in self.slots[r].iter_mut() {
                 if *k == s {
                     *slot = Some(v);
                     return Ok(());
                 }
             }
-            f.try_reserve(1).map_err(|_| Error::memory())?;
-            try_push(f, (s, Some(v)))?;
+            self.slots.try_reserve(1).map_err(|_| Error::memory())?;
+            // (past the frame there can be arguments on their way to a call, `a::1` written among them: they move up by one, and are
+            // counted from the top by whoever made them)
+            self.slots.insert(end, (s, Some(v)));
+            self.frames[n].len += 1;
             self.shadow[i] += 1;
         }
         Ok(())
@@ -1669,7 +1742,7 @@ impl Interp {
         let mut best: Option<(f64, String)> = None;
         // the defined names: the globals and the locals of the functions that are running
         let globals = self.globals.iter().enumerate().filter(|(_, slot)| slot.is_some()).map(|(i, _)| SymId(i as u32));
-        let locals = self.frames.iter().flat_map(|f| f.iter().map(|(k, _)| *k));
+        let locals = (0..self.frames.len()).flat_map(|i| self.slots[self.frame_range(i)].iter().map(|(k, _)| *k));
         for id in globals.chain(locals) {
             let other = self.syms.name(id).split('`').next().unwrap_or("");
             if other == name || other.is_empty() {
@@ -1747,12 +1820,17 @@ impl Interp {
 
     /// `run_fn` of a function kept as text (apart for the same reason).
     #[inline(never)]
-    fn run_lazy(&mut self, l: &crate::value::Lazy, f: &Value, mut frame: Frame) -> Result<Value> {
-        let (tree, node) = self.materialize(l)?;
-        try_push(&mut frame, (sym::DOT_F, Some(f.clone())))?;
+    fn run_lazy(&mut self, l: &crate::value::Lazy, f: &Value, n: usize) -> Result<Value> {
+        let (tree, node) = match self.materialize(l) {
+            Ok(t) => t,
+            Err(e) => {
+                self.drop_args(n);
+                return Err(e);
+            }
+        };
         let saved = core::mem::replace(&mut self.cur_mod, tree.module.get());
         let base = core::mem::replace(&mut self.lex_base, 0);
-        let r = match self.push_frame(frame) {
+        let r = match self.open_fn_frame(n, f.clone(), &[]) {
             Ok(()) => {
                 let r = self.eval(&tree, node, true);
                 self.pop_frame();
@@ -1843,8 +1921,6 @@ impl Interp {
         }
         self.layer_pool.clear();
         self.layer_pool.shrink_to_fit();
-        self.frame_pool.clear();
-        self.frame_pool.shrink_to_fit();
         // the tables indexed by symbol grow by doubling while a library loads: what a table has beyond its symbols is kept for nothing
         // (and the block it grew into is the last, the one that stays)
         compact(&mut self.globals);
@@ -1853,6 +1929,9 @@ impl Interp {
         self.syms.shrink();
         if self.frames.is_empty() {
             self.frames = Vec::new();
+            if self.slots.is_empty() {
+                self.slots = Vec::new();
+            }
         }
     }
 
@@ -2463,17 +2542,13 @@ impl Interp {
             let cm = self.cur_mod;
             let tagged = !self.modules.is_empty();
             let base = self.lex_base;
-            for (i, f) in self.frames.iter_mut().enumerate().rev() {
-                if i < base {
-                    break;
-                }
+            for i in (base..self.frames.len()).rev() {
                 if tagged && self.fmods[i] != cm {
                     continue;
                 }
-                for (k, slot) in f.iter_mut() {
-                    if *k == s {
-                        return slot.as_mut();
-                    }
+                let r = self.frame_range(i);
+                if let Some(p) = self.slots[r.clone()].iter().position(|(k, _)| *k == s) {
+                    return self.slots[r.start + p].1.as_mut();
                 }
             }
         }
@@ -2991,20 +3066,17 @@ impl Interp {
             if n != params.len as usize {
                 return None;
             }
-            let mut frame: Frame = match self.new_frame(n + 2) {
-                Ok(f) => f,
-                Err(e) => return Some(Err(e)),
-            };
             for (k, &q) in ids.iter().enumerate() {
-                let v = match self.eval_op(tree, NodeId(q), true) {
+                let v = self.eval_op(tree, NodeId(q), true);
+                let v = match self.args_or(k, v) {
                     Ok(v) => v,
                     Err(e) => return Some(Err(e)),
                 };
-                if let Err(e) = try_push(&mut frame, (SymId(ptree.ids(params)[k]), Some(v))) {
+                if let Err(e) = self.arg(k, SymId(ptree.ids(params)[k]), v) {
                     return Some(Err(e));
                 }
             }
-            return Some(self.run_fn(g, frame));
+            return Some(self.run_fn(g, n));
         }
         #[cfg(feature = "wide-args")]
         if n > 3 {
@@ -3014,20 +3086,17 @@ impl Interp {
             return None;
             return None;
         }
-                let mut frame: Frame = match self.new_frame(n.min(3) + 2) {
-            Ok(f) => f,
-            Err(e) => return Some(Err(e)),
-        };
         for (k, &q) in ids.iter().take(3).enumerate() {
-            let v = match self.eval_op(tree, NodeId(q), true) {
+            let v = self.eval_op(tree, NodeId(q), true);
+            let v = match self.args_or(k, v) {
                 Ok(v) => v,
                 Err(e) => return Some(Err(e)),
             };
-            if let Err(e) = try_push(&mut frame, (SymId(k as u32), Some(v))) {
+            if let Err(e) = self.arg(k, SymId(k as u32), v) {
                 return Some(Err(e));
             }
         }
-        Some(self.run_fn(g, frame))
+        Some(self.run_fn(g, n.min(3)))
     }
 
     /// Evaluate a call node (KlongPy `_eval_fn`). The arguments are expressions; they are
@@ -3104,12 +3173,12 @@ impl Interp {
                 if ids.contains(&NONE.0) {
                     return self.projection(tree, id, None, m);
                 }
-                let mut frame: Frame = self.new_frame(n + 2)?;
                 for (k, &q) in ids.iter().enumerate() {
-                    let v = self.eval_op(tree, NodeId(q), true)?;
-                    try_push(&mut frame, (SymId(ptree.ids(params)[k]), Some(v)))?;
+                    let v = self.eval_op(tree, NodeId(q), true);
+                    let v = self.args_or(k, v)?;
+                    self.arg(k, SymId(ptree.ids(params)[k]), v)?;
                 }
-                return self.run_fn(f, frame);
+                return self.run_fn(f, n);
             }
             // `f()`: written with no argument, a function of one to three arguments is called short, which is a projection
             let arity = if n == 0 && calling { arity.max(Self::literal_arity(&f)) } else { arity };
@@ -3121,21 +3190,22 @@ impl Interp {
             if n > arity as usize && self.cfg.strict == 2 && !Self::is_native(&f) {
                 return Err(self.too_many(&self.node_value(tree, a), arity as usize, n));
             }
-            let mut frame: Frame = self.new_frame(n.min(3) + 2)?;
             for (k, &q) in ids.iter().take(3).enumerate() {
-                let v = self.eval_op(tree, NodeId(q), !self.is_function_slot(tree, &f, k, q))?;
-                try_push(&mut frame, (SymId(k as u32), Some(v)))?;
+                let v = self.eval_op(tree, NodeId(q), !self.is_function_slot(tree, &f, k, q));
+                let v = self.args_or(k, v)?;
+                self.arg(k, SymId(k as u32), v)?;
             }
             #[cfg(feature = "wide-args")]
             if n > 3 && Self::is_wild(&f) {
                 // HOST: a system function of any arity is given every argument written
                 let mut extra = Vec::new();
                 for &q in &ids[3..] {
-                    extra.push(self.eval(tree, NodeId(q), true)?);
+                    let v = self.eval(tree, NodeId(q), true);
+                    extra.push(self.args_or(3, v)?);
                 }
                 self.extra_args = extra;
             }
-            return self.run_fn(f, frame);
+            return self.run_fn(f, n.min(3));
         }
 
         let callee = self.node_value(tree, a);
@@ -3170,14 +3240,16 @@ impl Interp {
             if holes > 0 {
                 return self.projection(tree, id, Some(holes), m);
             }
-            let mut frame: Frame = self.new_frame(n + 2)?;
+            let mut c = 0;
             for (k, q) in merged.iter().enumerate() {
                 if let Some(a) = q {
-                    let v = self.eval_arg(a)?;
-                    try_push(&mut frame, (SymId(ptree.ids(params)[k]), Some(v)))?;
+                    let v = self.eval_arg(a);
+                    let v = self.args_or(c, v)?;
+                    self.arg(c, SymId(ptree.ids(params)[k]), v)?;
+                    c += 1;
                 }
             }
-            return self.run_fn(f, frame);
+            return self.run_fn(f, c);
         }
         if n < arity as usize || holes > 0 {
             return self.projection(tree, id, Some(holes), arity as usize);
@@ -3185,22 +3257,25 @@ impl Interp {
         if n > arity as usize && self.cfg.strict == 2 && !Self::is_native(&f) {
             return Err(self.too_many(&callee, arity as usize, n));
         }
-        let mut frame: Frame = self.new_frame(n.min(3) + 2)?;
+        let mut c = 0;
         for (k, q) in merged.iter().take(3).enumerate() {
             if let Some(a) = q {
-                let v = self.eval_arg(a)?;
-                try_push(&mut frame, (SymId(k as u32), Some(v)))?;
+                let v = self.eval_arg(a);
+                let v = self.args_or(c, v)?;
+                self.arg(c, SymId(k as u32), v)?;
+                c += 1;
             }
         }
         #[cfg(feature = "wide-args")]
         if n > 3 && Self::is_wild(&f) {
             let mut extra = Vec::new();
             for a in merged.iter().skip(3).flatten() {
-                extra.push(self.eval_arg(a)?);
+                let v = self.eval_arg(a);
+                extra.push(self.args_or(c, v)?);
             }
             self.extra_args = extra;
         }
-        self.run_fn(f, frame)
+        self.run_fn(f, c)
     }
 
     /// The callee to store in a projection: as written, except that x, y, z and .f are
@@ -3343,12 +3418,13 @@ impl Interp {
     #[cfg(feature = "speed")]
     #[inline]
     pub(crate) fn run_body(&mut self, g: Value, x: Value, y: Option<Value>) -> Result<Value> {
-        let mut frame: Frame = self.new_frame(2 + y.is_some() as usize)?;
-        try_push(&mut frame, (SymId(0), Some(x)))?;
+        self.arg(0, SymId(0), x)?;
+        let mut n = 1;
         if let Some(y) = y {
-            try_push(&mut frame, (SymId(1), Some(y)))?;
+            self.arg(1, SymId(1), y)?;
+            n = 2;
         }
-        self.run_fn(g, frame)
+        self.run_fn(g, n)
     }
 
     /// `apply` of one or two values, for the adverbs: a function literal called with as many arguments as it takes (the common call of
@@ -3395,11 +3471,10 @@ impl Interp {
                 if given != params.len as usize {
                     return Err(self.too_many(f, params.len as usize, given));
                 }
-                let mut frame: Frame = try_vec(given + 2)?;
                 for (k, v) in values.into_iter().enumerate() {
-                    try_push(&mut frame, (SymId(ptree.ids(params)[k]), Some(v)))?;
+                    self.arg(k, SymId(ptree.ids(params)[k]), v)?;
                 }
-                return self.run_fn(g, frame);
+                return self.run_fn(g, given);
             }
             if given < f_arity as usize {
                 // a short call is a projection
@@ -3408,7 +3483,6 @@ impl Interp {
             if given > f_arity as usize && self.cfg.strict == 2 && !Self::is_native(&g) {
                 return Err(self.too_many(f, f_arity as usize, given));
             }
-            let mut frame: Frame = try_vec(given.min(3) + 2)?;
             #[cfg(feature = "wide-args")]
             let mut values = values;
             #[cfg(feature = "wide-args")]
@@ -3416,9 +3490,9 @@ impl Interp {
                 self.extra_args = values.split_off(3);
             }
             for (k, v) in values.into_iter().take(3).enumerate() {
-                try_push(&mut frame, (SymId(k as u32), Some(v)))?;
+                self.arg(k, SymId(k as u32), v)?;
             }
-            return self.run_fn(g, frame);
+            return self.run_fn(g, given.min(3));
         }
 
         let keep: Vec<Value> = match &layers[0] {
@@ -3445,125 +3519,112 @@ impl Interp {
             if holes > 0 {
                 return Err(self.too_many(f, given + holes, given));
             }
-            let mut frame: Frame = try_vec(n + 2)?;
+            let mut c = 0;
             for (k, q) in merged.iter().enumerate() {
                 if let Some(a) = q {
-                    let v = self.eval_arg(a)?;
-                    try_push(&mut frame, (SymId(ptree.ids(params)[k]), Some(v)))?;
+                    let v = self.eval_arg(a);
+                    let v = self.args_or(c, v)?;
+                    self.arg(c, SymId(ptree.ids(params)[k]), v)?;
+                    c += 1;
                 }
             }
-            return self.run_fn(g, frame);
+            return self.run_fn(g, c);
         }
         if n < f_arity as usize || holes > 0 {
             // the values do not fill the projection: a projection over the slots that are left
             return self.value_projection(f, keep, holes);
         }
-        let mut frame: Frame = try_vec(n.min(3) + 2)?;
+        let mut c = 0;
         for (k, q) in merged.iter().take(3).enumerate() {
             if let Some(a) = q {
-                let v = self.eval_arg(a)?;
-                try_push(&mut frame, (SymId(k as u32), Some(v)))?;
+                let v = self.eval_arg(a);
+                let v = self.args_or(c, v)?;
+                self.arg(c, SymId(k as u32), v)?;
+                c += 1;
             }
         }
         #[cfg(feature = "wide-args")]
         if n > 3 && Self::is_wild(&g) {
             let mut extra = Vec::new();
             for a in merged.iter().skip(3).flatten() {
-                extra.push(self.eval_arg(a)?);
+                let v = self.eval_arg(a);
+                extra.push(self.args_or(c, v)?);
             }
             self.extra_args = extra;
         }
-        self.run_fn(g, frame)
+        self.run_fn(g, c)
     }
 
     /// Run a resolved function with its arguments bound in `frame` (KlongPy `_run_fn`): declare
     /// its locals, set `.f`, evaluate the body in a new frame.
     #[inline(never)]
     #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_run_fn")]
-    fn run_fn(&mut self, f: Value, mut frame: Frame) -> Result<Value> {
-        self.tick()?;
-
+    fn run_fn(&mut self, f: Value, n: usize) -> Result<Value> {
+        // (the `n` arguments are on top of the slots: every way out gives them back or makes them the frame, which `pop_frame` gives back)
+        if let Err(e) = self.tick() {
+            self.drop_args(n);
+            return Err(e);
+        }
         let func = match &f {
             Value::Fn(func) => func.clone(),
             Value::Sym(s) => {
                 let s = *s;
-                return self.run_name(f, s, frame);
+                return self.run_name(f, s, n);
             }
-            _ => return Ok(f),
+            _ => {
+                self.drop_args(n);
+                return Ok(f);
+            }
         };
         match &*func {
-            Func::Code { tree, node } => {
-                try_push(&mut frame, (sym::DOT_F, Some(f)))?;
-                let r = match tree.node(*node) {
-                    Node::Body { stmts, locals, has_params, .. } => {
-                        for &q in tree.ids(*locals) {
-                            let s = SymId(q);
-                            if !frame.iter().any(|(k, _)| *k == s) {
-                                // an unassigned local is its own symbol; at strict level 2
-                                // reading it is an error
-                                frame.try_reserve(1).map_err(|_| Error::memory())?;
-                                try_push(&mut frame, (s, if self.cfg.strict == 2 { None } else { Some(Value::Sym(s)) }))?;
-                            }
-                        }
-                        // (a function with named parameters sees its own frame and not the callers': nothing between here and the restore returns early)
-                        let base = core::mem::replace(&mut self.lex_base, if *has_params { self.frames.len() } else { 0 });
-                        let r = self.enter(tree.module.get(), frame).and_then(|saved| {
-                            let r = self.eval_seq(tree, *stmts);
-                            self.leave(saved);
-                            r
-                        });
-                        self.lex_base = base;
-                        r
+            Func::Code { tree, node } => match tree.node(*node) {
+                Node::Body { stmts, locals, has_params, .. } => {
+                    let locals = tree.ids(*locals);
+                    let saved = core::mem::replace(&mut self.cur_mod, tree.module.get());
+                    // (a function with named parameters sees its own frame and not the callers': nothing between here and the restore returns early)
+                    if let Err(e) = self.open_fn_frame(n, f, locals) {
+                        self.cur_mod = saved;
+                        return Err(e);
                     }
-                    _ => {
-                        let base = core::mem::replace(&mut self.lex_base, 0);
-                        let r = self.enter(tree.module.get(), frame).and_then(|saved| {
-                            let r = self.eval(tree, *node, true);
-                            self.leave(saved);
-                            r
-                        });
-                        self.lex_base = base;
-                        r
+                    let base = core::mem::replace(&mut self.lex_base, if *has_params { self.frames.len() - 1 } else { 0 });
+                    let r = self.eval_seq(tree, *stmts);
+                    self.lex_base = base;
+                    self.pop_frame();
+                    self.cur_mod = saved;
+                    r
+                }
+                _ => {
+                    let saved = core::mem::replace(&mut self.cur_mod, tree.module.get());
+                    if let Err(e) = self.open_fn_frame(n, f, &[]) {
+                        self.cur_mod = saved;
+                        return Err(e);
                     }
-                };
-                r
-            }
-            Func::Lazy(l) => self.run_lazy(l, &f, frame),
+                    let base = core::mem::replace(&mut self.lex_base, 0);
+                    let r = self.eval(tree, *node, true);
+                    self.lex_base = base;
+                    self.pop_frame();
+                    self.cur_mod = saved;
+                    r
+                }
+            },
+            Func::Lazy(l) => self.run_lazy(l, &f, n),
             Func::Native { arity, f: native, name } => {
                 let (arity, native, name) = (*arity, native.clone(), *name);
-                self.run_native(frame, arity, native, name)
+                self.run_native(n, arity, native, name)
             }
             // a projection that was given nothing more is the value it is
-            Func::Proj { .. } => Ok(f),
-        }
-    }
-
-    /// Make `frame` the running frame of a function of module `m`; what `leave` needs to give the caller back.
-    #[inline]
-    fn enter(&mut self, m: u16, frame: Frame) -> Result<u16> {
-        let saved = self.cur_mod;
-        self.cur_mod = m;
-        match self.push_frame(frame) {
-            Ok(()) => Ok(saved),
-            Err(e) => {
-                self.cur_mod = saved;
-                Err(e)
+            Func::Proj { .. } => {
+                self.drop_args(n);
+                Ok(f)
             }
         }
-    }
-
-    #[inline]
-    fn leave(&mut self, saved: u16) {
-        self.pop_frame();
-        self.cur_mod = saved;
     }
 
     /// The arms of `run_fn` that are not on the way of a recursion of Klong code, apart (see `eval_monad`).
     /// A symbol in call position that names no function: its value as a name.
     #[inline(never)]
-    fn run_name(&mut self, f: Value, s: SymId, mut frame: Frame) -> Result<Value> {
-        try_push(&mut frame, (sym::DOT_F, Some(f)))?;
-        self.push_frame(frame)?;
+    fn run_name(&mut self, f: Value, s: SymId, n: usize) -> Result<Value> {
+        self.open_fn_frame(n, f, &[])?;
         let r = match self.lookup(s) {
             Ok(Some(v)) => Ok(v),
             Ok(None) => self.undefined(s),
@@ -3573,11 +3634,18 @@ impl Interp {
         r
     }
 
-    /// A native function called with the arguments bound in `frame`.
+    /// A native function called with the `n` arguments on top of the slots (which are given back when it returns).
     #[inline(never)]
-    fn run_native(&mut self, frame: Frame, arity: u8, native: NativeFn, name: SymId) -> Result<Value> {
+    fn run_native(&mut self, n: usize, arity: u8, native: NativeFn, name: SymId) -> Result<Value> {
+        let r = self.run_native_in(n, arity, native, name);
+        self.drop_args(n);
+        r
+    }
+
+    fn run_native_in(&mut self, n: usize, arity: u8, native: NativeFn, name: SymId) -> Result<Value> {
         let mut args: Vec<Value> = Vec::new();
-        for (k, v) in frame.iter() {
+        let start = self.slots.len() - n;
+        for (k, v) in self.slots[start..].iter() {
             if sym::is_arg(*k) {
                 if let Some(v) = v {
                     try_push(&mut args, v.clone())?;

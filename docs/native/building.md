@@ -285,10 +285,7 @@ $ kg --max-depth 100000 -e 'f::{:[x<1;0;1+f(x-1)]};f(5000)'
 5000
 $ kg --stack-budget 64K -e 'f::{:[x<1;0;1+f(x-1)]};f(20)'
 20
-$ kg --stack-budget 64K -e 'f::{:[x<1;0;1+f(x-1)]};f(40)'
-1:17: range error: expression nested too deeply
-  f::{:[x<1;0;1+f(x-1)]};f(40)
-                  ^^^
+$ kg --stack-budget 64K -e 'f::{:[x<1;0;1+f(x-1)]};f(40)' 2>&1 | tail -1
   hint: the native stack budget of this build is used up
 $ kg --steps 1000 -e '{1}{x+1}:~0'
 1:1: interrupt error: interrupted
@@ -296,7 +293,7 @@ $ kg --steps 1000 -e '{1}{x+1}:~0'
   ^^^^^^^^^^^
 ```
 
-The figures in the stack-budget lines are for this 64-bit host. The span of a stack-budget error marks the evaluation that crossed the limit, and which one that is depends on how much stack each step of the build uses (here the argument `x-1` of the call that overflowed); the span of a `--max-depth` error does not depend on the build. On a 32-bit board a level of Klong recursion costs about 0.85 KiB: 864 bytes by the frames of the thumbv6m image, against about 0.8 to 2 KiB on the host. The stack budget is used as `bytes` less what is kept below the deepest level (a quarter by default; a board can say, `Config::for_stack_keep`: the Pico keeps 16 KiB of a 108 KiB budget), so 64 KiB gives about 57 levels and 256 KiB about 228 at the default.
+The figures in the stack-budget lines are for this 64-bit host. The span of a stack-budget error marks the evaluation that crossed the limit, and which one that is depends on how much stack each step of the build uses, so the example shows only the last line of the error, which is the same `range error: expression nested too deeply` as above with the position that this build reached; the span of a `--max-depth` error does not depend on the build. On a 32-bit board a level of Klong recursion costs about 0.85 KiB: 864 bytes by the frames of the thumbv6m image, against about 0.8 to 2 KiB on the host. The stack budget is used as `bytes` less what is kept below the deepest level (a quarter by default; a board can say, `Config::for_stack_keep`: the Pico keeps 16 KiB of a 108 KiB budget), so 64 KiB gives about 57 levels and 256 KiB about 228 at the default.
 
 With `--stats` the program reports what it used, on standard error: the peak heap, the heap in use, the limit and the number of refused allocations (`heap: peak 23174 bytes, in use 15679 bytes, limit 0, refused 0` for the program below; the heap numbers vary a little), the deepest nesting of evaluations and the native stack. The heap figures are bytes requested from the allocator and include the interpreter's own state of about 15 KiB on the desktop.
 
