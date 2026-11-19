@@ -173,7 +173,12 @@ impl Enc {
             Value::Str(s) => self.quoted(s.as_str()),
             Value::Sym(_) => Err(Error::typ(klong_core::msg!(".json: a symbol has no JSON form{}", Path(&self.path)))
                 .with_hint("convert it with $ first")),
-            Value::Fn(_) | Value::Prim(_) | Value::Ext(_) => {
+            // a host array (a tensor) nested in a list or a dictionary is its numbers, as one given to .json itself is
+            Value::Ext(_) => match v.unhost(".json")? {
+                n if !matches!(n, Value::Ext(_)) => self.value(&n, depth),
+                _ => Err(Error::typ(klong_core::msg!(".json: a function has no JSON form{}", Path(&self.path)))),
+            },
+            Value::Fn(_) | Value::Prim(_) => {
                 Err(Error::typ(klong_core::msg!(".json: a function has no JSON form{}", Path(&self.path))))
             }
             Value::Ints(a) => self.array(a, |e, x| e.int(x)),

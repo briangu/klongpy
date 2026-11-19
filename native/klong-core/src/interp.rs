@@ -666,6 +666,12 @@ impl Interp {
         parse::read_datum(text, &mut self.syms, &mut self.module, self.cfg.max_depth, stack)
     }
 
+    /// `read_datum` with whether the object is complete (see `parse::read_datum_ex`); `used` is a byte offset into `text`.
+    pub fn read_datum_ex(&mut self, text: &str) -> Result<Option<(usize, Value, bool)>> {
+        let stack = self.stack();
+        parse::read_datum_ex(text, &mut self.syms, &mut self.module, self.cfg.max_depth, stack)
+    }
+
     /// Run a program at global scope, whatever function is running (`.E`): the frames of the
     /// callers are set aside, so a definition lands in the globals.
     pub fn run_global(&mut self, text: &str, name: &str) -> Result<Option<Value>> {
@@ -735,6 +741,22 @@ impl Interp {
             return Err(e);
         }
         self.push_scope(Scope::Module(s))
+    }
+
+    /// What `.module(:name)` does, for a host that is not running a program: the parser reads the following programs in the module `name` and the
+    /// names assigned at top level belong to it; `None` is `.module(0)`.
+    pub fn set_module(&mut self, name: Option<&str>) -> Result<()> {
+        match name {
+            Some(n) => {
+                self.module_start(n)?;
+                self.module = Some(String::from(n));
+            }
+            None => {
+                self.module_stop()?;
+                self.module = None;
+            }
+        }
+        Ok(())
     }
 
     /// `.module(0)`: a new plain scope on top of the module.

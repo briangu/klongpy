@@ -257,7 +257,17 @@ impl<T> Ordered<T> {
     }
 }
 
+/// A top-level statement of the program in the order the driver evaluates it: `kind` is "function", "global", "extern", "entry", "param" or
+/// "load"; `name` the name defined (the file named, for a load); `span` the statement in the source `src`.
+pub struct Stmt {
+    pub kind: &'static str,
+    pub name: String,
+    pub span: Sp,
+    pub src: usize,
+}
+
 pub struct Report {
+    pub statements: Vec<Stmt>,
     pub sources: Vec<SrcInfo>,
     pub diagnostics: Vec<Diag>,
     pub functions: Ordered<FunctionInfo>,
@@ -556,6 +566,7 @@ impl Checker {
         };
         let f = FunctionInfo { name: name.to_string(), node: node.clone(), span, src, params, calls: Vec::new(), reachable: false, in_profile: true, specializations: Vec::new() };
         self.r.functions.set(name, f);
+        self.r.statements.push(Stmt { kind: "function", name: name.to_string(), span, src });
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -571,6 +582,7 @@ impl Checker {
                 continue;
             }
             self.r.globals.set(name, GlobalInfo::new(name, span, src));
+            self.r.statements.push(Stmt { kind: "global", name: name.clone(), span, src });
             if let Some(v) = &given {
                 self.set_global(name, v, lsp, src);
             } else if let Some(v) = &known {
@@ -592,6 +604,7 @@ impl Checker {
             if !self.kinds.contains_key(&name) && !ARGS.contains(&name.as_str()) && !name.starts_with('.') {
                 self.kinds.insert(name.clone(), TK::Global);
                 self.r.globals.set(&name, GlobalInfo::new(&name, span, src));
+                self.r.statements.push(Stmt { kind: "global", name: name.clone(), span, src });
                 if let Some(v) = self.given.get(&name).cloned() {
                     self.set_global(&name, &v, lsp, src);
                 }
@@ -734,6 +747,7 @@ impl Checker {
                 return;
             }
             self.r.externs.set(&name, ExternDecl { name: name.clone(), signature: sig, module, span, src });
+            self.r.statements.push(Stmt { kind: "extern", name: name.clone(), span, src });
             return;
         }
         if let Some(bad) = sig::check_entry_name(&name) {
@@ -757,6 +771,7 @@ impl Checker {
             self.diag("entry", ssp, format!("{} takes {} but the signature has {}", name, plural(arity, "argument", None), plural(sig.arity(), "parameter", None)), None);
             return;
         }
+        self.r.statements.push(Stmt { kind: "entry", name: name.clone(), span, src });
         self.r.entries.push(EntryDecl { name, signature: sig, span, src });
     }
 
@@ -844,9 +859,11 @@ impl Checker {
         g.param = true;
         self.r.globals.set(&name, g);
         self.r.params.set(&name, ty);
+        self.r.statements.push(Stmt { kind: "param", name, span, src });
     }
 
-    fn load_file(&mut self, name: &str, nsp: Sp, _span: Sp, base_dir: &str, depth: usize) {
+    fn load_file(&mut self, name: &str, nsp: Sp, span: Sp, base_dir: &str, depth: usize) {
+        self.r.statements.push(Stmt { kind: "load", name: name.to_string(), span, src: self.src });
         if !self.resolve {
             return;
         }
@@ -2813,7 +2830,7 @@ pub fn check_source(text: &str, name: &str, opts: &Options) -> Report {
         opts.lib_dirs.clone()
     };
     let mut c = Checker {
-        r: Report { sources: Vec::new(), diagnostics: Vec::new(), functions: Ordered::new(), globals: Ordered::new(), externs: Ordered::new(), entries: Vec::new(), params: Ordered::new() },
+        r: Report { statements: Vec::new(), sources: Vec::new(), diagnostics: Vec::new(), functions: Ordered::new(), globals: Ordered::new(), externs: Ordered::new(), entries: Vec::new(), params: Ordered::new() },
         base_dir,
         int_bits: opts.int_bits,
         resolve: opts.resolve,

@@ -33,3 +33,7 @@ klong-dgram = { path = "../klong-dgram", optional = true }
 [[test]]
 name = "events"
 required-features = ["ipc", "timers"]
+
+[dev-dependencies]
+# a test of what the system functions do with a host array needs the embedder's half of the object trait
+klong-core = { path = "../klong-core", features = ["host"] }

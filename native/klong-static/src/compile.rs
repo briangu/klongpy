@@ -222,10 +222,17 @@ fn abspath(p: &str) -> String {
 
 /// The interpreter of stage one: strict level 2, the files of the operating system, `.fixed` evaluated to raw integers.
 pub fn stage_runtime() -> Runtime<HostPlatform> {
+    stage_runtime_in(&[])
+}
+
+/// `stage_runtime` with library directories searched after KLONGPATH.
+pub fn stage_runtime_in(lib_dirs: &[String]) -> Runtime<HostPlatform> {
     let cfg = Config { strict: 2, stack_limit: Some(192 << 20), ..Config::default() };
     let mut rt = Runtime::new(HostPlatform::new(Console::Stdout), cfg, None);
     let path = std::env::var("KLONGPATH").ok().filter(|p| !p.is_empty()).unwrap_or_else(|| String::from(".:lib"));
-    rt.set_load_path(path.split(':').filter(|d| !d.is_empty()).map(String::from).collect());
+    let mut dirs: Vec<String> = path.split(':').filter(|d| !d.is_empty()).map(String::from).collect();
+    dirs.extend(lib_dirs.iter().cloned());
+    rt.set_load_path(dirs);
     rt.interp.register(".fixed", WILDCARD, Rc::new(fixed_standin));
     rt.interp.register(".float", WILDCARD, Rc::new(float_standin));
     rt
@@ -238,17 +245,22 @@ pub fn compile_program(path: &str, text: Option<&str>, int_bits: u32, name: Opti
 
 /// `compile_program` with host stand-ins for the externs that compile-time code calls.
 pub fn compile_program_with(path: &str, text: Option<&str>, int_bits: u32, name: Option<&str>, externs: HashMap<String, klong_core::value::NativeFn>) -> Result<Compiled, Failure> {
+    compile_program_in(path, text, int_bits, name, externs, &[])
+}
+
+/// `compile_program_with` where a library file `.l` loads is looked up in `lib_dirs` after KLONGPATH (and reported with the path found).
+pub fn compile_program_in(path: &str, text: Option<&str>, int_bits: u32, name: Option<&str>, externs: HashMap<String, klong_core::value::NativeFn>, lib_dirs: &[String]) -> Result<Compiled, Failure> {
     let text: String = match text {
         Some(t) => t.to_string(),
         None => klong_lint::read_text(path).map_err(Failure::Read)?,
     };
     let is_file = std::fs::metadata(path).map(|m| m.is_file()).unwrap_or(false);
-    let opts = Options { int_bits, ..Options::default() };
+    let opts = Options { int_bits, lib_dirs: lib_dirs.to_vec(), ..Options::default() };
     let first = check_source(&text, path, &opts);
     if !first.diagnostics.is_empty() {
         return Err(Failure::Check(first));
     }
-    let mut rt = stage_runtime();
+    let mut rt = stage_runtime_in(lib_dirs);
     for (n, f) in externs {
         rt.interp.register(&n, WILDCARD, f);
     }
@@ -264,7 +276,7 @@ pub fn compile_program_with(path: &str, text: Option<&str>, int_bits: u32, name:
         let v = rt.interp.global(&g.name);
         values.insert(g.name.clone(), stage_value(v, &conv, first.params.items.iter().find(|(k, _)| *k == g.name).map(|(_, t)| t)));
     }
-    let opts = Options { int_bits, globals: values.iter().map(|(k, v)| (k.clone(), v.lit.clone())).collect(), ..Options::default() };
+    let opts = Options { int_bits, lib_dirs: lib_dirs.to_vec(), globals: values.iter().map(|(k, v)| (k.clone(), v.lit.clone())).collect(), ..Options::default() };
     let report = check_source(&text, path, &opts);
     if !report.diagnostics.is_empty() {
         return Err(Failure::Check(report));
@@ -279,9 +291,14 @@ pub fn compile_program_with(path: &str, text: Option<&str>, int_bits: u32, name:
 /// The body of `kgpy check --dump-ir FILE...`: the typed IR of each program. Returns 0, 1 (outside the profile or failing at compile
 /// time) or 2 (a file cannot be read).
 pub fn dump_ir_main(files: &[String], int_bits: u32, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    dump_ir_main_in(files, int_bits, &[], out, err)
+}
+
+/// `dump_ir_main` with library directories.
+pub fn dump_ir_main_in(files: &[String], int_bits: u32, lib_dirs: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let mut status = 0;
     for path in files {
-        match compile_program(path, None, int_bits, None) {
+        match compile_program_in(path, None, int_bits, None, HashMap::new(), lib_dirs) {
             Ok(c) => {
                 let _ = out.write_all(dump(&c.program).as_bytes());
             }
@@ -349,7 +366,13 @@ impl EmitFailure {
 
 /// Compile a program to C. With `out_dir`, writes `<prefix>.c`, `<prefix>.h` and `klong_rt.h` there.
 pub fn emit_program(path: &str, out_dir: Option<&str>, text: Option<&str>, int_bits: u32, float_bits: u32, line_directives: bool, prefix: Option<&str>, hls: Option<crate::emit_c::HlsOptions>) -> Result<Emitting, EmitFailure> {
-    let compiled = compile_program(path, text, int_bits, prefix).map_err(EmitFailure::Compile)?;
+    emit_program_in(path, out_dir, text, int_bits, float_bits, line_directives, prefix, hls, &[])
+}
+
+/// `emit_program` with library directories (see `compile_program_in`).
+#[allow(clippy::too_many_arguments)]
+pub fn emit_program_in(path: &str, out_dir: Option<&str>, text: Option<&str>, int_bits: u32, float_bits: u32, line_directives: bool, prefix: Option<&str>, hls: Option<crate::emit_c::HlsOptions>, lib_dirs: &[String]) -> Result<Emitting, EmitFailure> {
+    let compiled = compile_program_in(path, text, int_bits, prefix, HashMap::new(), lib_dirs).map_err(EmitFailure::Compile)?;
     let emitted = match crate::emit_c::emit(&compiled.program, &compiled.report, prefix, float_bits, line_directives, hls) {
         Ok(e) => e,
         Err(e) => return Err(EmitFailure::Emit(e, compiled.report)),
@@ -371,13 +394,19 @@ pub fn write_files(dir: &str, files: &[(String, String)]) -> Result<(), String> 
 /// The body of `kgpy compile c FILE... -o DIR` (and of `--dump-ir`).
 #[allow(clippy::too_many_arguments)]
 pub fn emit_main(files: &[String], out_dir: Option<&str>, int_bits: u32, float_bits: u32, line_directives: bool, prefix: Option<&str>, dump_ir: bool, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    emit_main_in(files, out_dir, int_bits, float_bits, line_directives, prefix, dump_ir, &[], out, err)
+}
+
+/// `emit_main` with library directories.
+#[allow(clippy::too_many_arguments)]
+pub fn emit_main_in(files: &[String], out_dir: Option<&str>, int_bits: u32, float_bits: u32, line_directives: bool, prefix: Option<&str>, dump_ir: bool, lib_dirs: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let mut status = 0;
     if prefix.is_some() && files.len() > 1 {
         let _ = writeln!(err, "--prefix names one program: give one FILE");
         return 2;
     }
     for path in files {
-        let res = match emit_program(path, Some(out_dir.unwrap_or(".")), None, int_bits, float_bits, line_directives, prefix, None) {
+        let res = match emit_program_in(path, Some(out_dir.unwrap_or(".")), None, int_bits, float_bits, line_directives, prefix, None, lib_dirs) {
             Ok(r) => r,
             Err(f) => {
                 let (lines, st) = f.render(path);

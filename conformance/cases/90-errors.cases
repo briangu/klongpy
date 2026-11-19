@@ -235,3 +235,28 @@
 > |[]
 = []
 
+
+# A key is a number, a string, a char or a symbol: an operator or a function is a syntax error at the literal, not a key that cannot be looked up
+@ errors.err-syntax-dict-key-operator dicts
+> :{[+ 1]}
+! syntax
+
+@ errors.err-syntax-dict-key-operator-define dicts
+> :{[:: 1] [:b 2]}
+! syntax
+
+@ errors.err-syntax-dict-key-function dicts
+> :{[{x} 1]}
+! syntax
+
+@ errors.err-syntax-dict-entry-three dicts
+> :{[:a 1 2]}
+! syntax
+
+@ errors.err-syntax-dict-entry-bare-word dicts
+> :{ab}
+! syntax
+
+@ errors.dict-key-char-pair dicts
+> :{"ab"}@"a"
+= "b"

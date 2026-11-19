@@ -208,7 +208,7 @@ pub fn run_check(prog: &str, files: &[String], int64: bool, verbose: bool, lib_d
 #[allow(clippy::too_many_arguments)]
 pub fn run_check_ex(_prog: &str, files: &[String], int64: bool, verbose: bool, streamable: bool, lib_dirs: Vec<String>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let a = Args { files: files.to_vec(), int64, streamable: false, dump_ir: false, verbose };
-    let opts = Options { int_bits: if a.int64 { 64 } else { 32 }, lib_dirs, ..Options::default() };
+    let opts = Options { int_bits: if a.int64 { 64 } else { 32 }, lib_dirs: lib_dirs.clone(), ..Options::default() };
     let (mut bad, mut unreadable, mut total) = (0usize, 0usize, 0usize);
     for path in &a.files {
         let read = if path == "-" {
@@ -252,7 +252,7 @@ pub fn run_check_ex(_prog: &str, files: &[String], int64: bool, verbose: bool, s
             }
             let _ = writeln!(out, "{}: inside the static profile ({}){}", path, report.summary(), note);
             if streamable && path != "-" {
-                match crate::compile::compile_program(path, None, if a.int64 { 64 } else { 32 }, None) {
+                match crate::compile::compile_program_in(path, None, if a.int64 { 64 } else { 32 }, None, std::collections::HashMap::new(), &lib_dirs) {
                     Err(f) => {
                         for t in f.render() {
                             let _ = writeln!(err, "{}", t);

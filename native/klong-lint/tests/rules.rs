@@ -506,9 +506,12 @@ fn parser_messages_match_the_python_linter() {
     assert_eq!(d[0].2, "expected ';' or '}' but found ')'");
     let d = e001(":{;1;2;3}");
     assert!(d[0].3.as_deref().unwrap().ends_with(": keys and values alternate"));
-    // an operator is a key of a dictionary literal
-    assert!(e001(":{[:: 1] [:b 2]}").is_empty());
-    assert!(e001(":{[_ 1 2] [\"k\" [1 2]] [:a \"v\"]}").is_empty());
+    // a key is a number, a string, a char or a symbol: an operator or a function is an error at the literal (version 1 took it by accident)
+    let d = e001(":{[:: 1] [:b 2]}");
+    assert_eq!(d[0].2, "an operator cannot be a dictionary key");
+    assert_eq!(d[0].3.as_deref(), Some("a key is a number, a string, a char or a symbol"));
+    assert_eq!(e001(":{[{x} 1]}").len(), 1);
+    assert!(e001(":{[\"k\" [1 2]] [:a \"v\"]}").is_empty());
     // a named-parameter definition whose right side is not a function: the span of what was read
     assert_eq!(e001("g(f(a;b)::(30))")[0].1, 11);
     assert_eq!(e001("g(f(a;b)::)")[0].1, 11);

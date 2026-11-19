@@ -101,6 +101,19 @@ fn open<P: Platform + 'static>(sh: &Rc<Shared<P>>, path: &str, mode: Mode) -> Re
     Ok(new_chan(sh, Target::File, mode == Mode::Read, Some(id)))
 }
 
+/// The input the console channel has read from the host and the program has not used (what `.r` or `.rl` left), taken out of the channel: a host
+/// that read it from a stream of its own can put it back there. Bytes, as read.
+pub(crate) fn take_console_unread<P: Platform + 'static>(sh: &Rc<Shared<P>>) -> Vec<u8> {
+    let cin = match sh.io.try_borrow() {
+        Ok(io) => io.cin.clone(),
+        Err(_) => return Vec::new(),
+    };
+    match chan_of::<P>(&cin).and_then(|c| c.buf.try_borrow_mut().ok().map(|mut b| core::mem::take(&mut *b))) {
+        Some(b) => b,
+        None => Vec::new(),
+    }
+}
+
 /// Write to an output channel.
 pub(crate) fn write<P: Platform + 'static>(sh: &Rc<Shared<P>>, to: &Value, mut bytes: &[u8]) -> Result<()> {
     let c = chan_of::<P>(to).ok_or_else(|| Error::typ("not a channel"))?;
@@ -405,26 +418,45 @@ pub(crate) fn register<P: Platform + 'static>(interp: &mut Interp, shared: &Rc<S
         Rc::new(move |ip: &mut Interp, _: &[Value]| {
             let from = sh.io.try_borrow().map_err(|_| busy())?.from.clone();
             let c = chan_of::<P>(&from).ok_or_else(|| Error::typ("no input channel"))?;
-            // an object may span lines: take everything there is
-            while fill(&sh, c)? != 0 {}
-            let mut buf = c.buf.try_borrow_mut().map_err(|_| busy())?;
-            if core::str::from_utf8(&buf).is_err() {
-                let fixed = lossy(&buf)?;
-                *buf = fixed.into_bytes();
-            }
-            let text = core::str::from_utf8(&buf).unwrap_or("");
-            match ip.read_datum(text)? {
-                Some((used, v)) => {
-                    let used = used.min(buf.len());
-                    buf.drain(..used);
-                    Ok(v)
+            // Read as much as the object needs and no more: an object may span lines, so more input is asked for while the text ends inside
+            // it (or where an atom could go on); what follows the object stays in the channel, and in the host's stream when the host has not
+            // been asked for it. At the end of input an object that is not closed is taken as the reader takes it.
+            loop {
+                let mut buf = c.buf.try_borrow_mut().map_err(|_| busy())?;
+                // a chunk may end inside a character: read what is whole, unless nothing more can come
+                let whole = match core::str::from_utf8(&buf) {
+                    Ok(_) => buf.len(),
+                    Err(e) if e.error_len().is_none() => e.valid_up_to(),
+                    Err(_) => {
+                        let fixed = lossy(&buf)?;
+                        *buf = fixed.into_bytes();
+                        buf.len()
+                    }
+                };
+                let text = core::str::from_utf8(&buf[..whole]).unwrap_or("");
+                let step = ip.read_datum_ex(text);
+                drop(buf);
+                let more = match &step {
+                    Ok(Some((_, _, true))) => false,
+                    _ => fill(&sh, c)? != 0,
+                };
+                if more {
+                    continue;
                 }
-                None => {
-                    buf.clear();
-                    c.eof.set(true);
-                    // at the end of input: the value :undefined (as KlongPy; a function that returns nothing has no value, this has one)
-                    Ok(Value::Undefined)
-                }
+                let mut buf = c.buf.try_borrow_mut().map_err(|_| busy())?;
+                return match step? {
+                    Some((used, v, _)) => {
+                        let used = used.min(buf.len());
+                        buf.drain(..used);
+                        Ok(v)
+                    }
+                    None => {
+                        buf.clear();
+                        c.eof.set(true);
+                        // at the end of input: the value :undefined (as KlongPy; a function that returns nothing has no value, this has one)
+                        Ok(Value::Undefined)
+                    }
+                };
             }
         }),
     );

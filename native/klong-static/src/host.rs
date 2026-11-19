@@ -244,9 +244,35 @@ pub fn conform(ty: &Ty, value: &HostValue, what: &str) -> Result<HostValue, Mism
 // Loading
 // ---------------------------------------------------------------------------
 
+/// The runtime of a loaded program: one of its own, or one a host already has (a session whose interpreter the program shares).
+pub enum RtHandle {
+    Owned(Box<Runtime<HostPlatform>>),
+    /// The host keeps the runtime alive for as long as the `Loaded` is used and does not use it at the same time.
+    Shared(*mut Runtime<HostPlatform>),
+}
+
+impl std::ops::Deref for RtHandle {
+    type Target = Runtime<HostPlatform>;
+    fn deref(&self) -> &Runtime<HostPlatform> {
+        match self {
+            RtHandle::Owned(b) => b,
+            RtHandle::Shared(p) => unsafe { &**p },
+        }
+    }
+}
+
+impl std::ops::DerefMut for RtHandle {
+    fn deref_mut(&mut self) -> &mut Runtime<HostPlatform> {
+        match self {
+            RtHandle::Owned(b) => b,
+            RtHandle::Shared(p) => unsafe { &mut **p },
+        }
+    }
+}
+
 /// A loaded program: the interpreter that holds its state, and (for a fixed-point program) the typed-IR evaluator.
 pub struct Loaded {
-    pub rt: Runtime<HostPlatform>,
+    pub rt: RtHandle,
     pub path: String,
     pub text: String,
     pub externs: HashMap<String, HostFn>,
@@ -259,6 +285,14 @@ pub fn uses_fixed(text: &str) -> bool {
 }
 
 impl Loaded {
+    /// A program that a host has already run on `rt` (strict level 2, its declarations made): its entries, parameters and globals are those of the
+    /// runtime, shared with whatever else uses it. Nothing is run. `text` is the program's text (it decides whether the typed-IR evaluator is used).
+    ///
+    /// # Safety
+    /// `rt` must stay valid for as long as the result is used, and nothing else may use it while a function of this module runs.
+    pub unsafe fn attach(rt: *mut Runtime<HostPlatform>, path: &str, text: &str, externs: HashMap<String, HostFn>) -> Loaded {
+        Loaded { rt: RtHandle::Shared(rt), path: path.to_string(), text: text.to_string(), externs, evaluator: None }
+    }
     pub fn uses_fixed(&self) -> bool {
         uses_fixed(&self.text)
     }
@@ -309,7 +343,7 @@ pub fn load_program(path: &str, text: Option<&str>, externs: HashMap<String, Hos
             rt.declarations.bind(&mut rt.interp, &name, f.clone())?;
         }
     }
-    Ok(Loaded { rt, path: path.to_string(), text, externs, evaluator: None })
+    Ok(Loaded { rt: RtHandle::Owned(Box::new(rt)), path: path.to_string(), text, externs, evaluator: None })
 }
 
 /// Python's `Ty` of a declared type of the interpreter.
@@ -321,19 +355,44 @@ fn host_sig(s: &klong_rt::declare::Sig) -> Signature {
     parse_signature(&s.to_string(), false).expect("a declared signature is canonical")
 }
 
+/// A declared parameter: its name, its type, the default it was declared with and its value now.
+pub struct ParamRow {
+    pub name: String,
+    pub ty: Ty,
+    pub default: HostValue,
+    pub value: Option<HostValue>,
+}
+
+/// The parameters a runtime has declared with `.param`, in order of declaration (the registry the host reads and writes between runs).
+pub fn params_of(rt: &Runtime<HostPlatform>) -> Vec<ParamRow> {
+    rt.declarations
+        .params()
+        .into_iter()
+        .map(|(name, ty, default)| {
+            let value = rt.interp.global(&name).map(|v| HostValue::from_value(&v));
+            ParamRow { name, ty: host_ty(&ty), default: HostValue::from_value(&default), value }
+        })
+        .collect()
+}
+
 /// Set the parameter `name` (declared with `.param`) between runs: the host side of the register that the C emitter exposes as
 /// `<prog>_set_<name>` and the hardware as an s_axilite argument. The value is checked against the declared type and converted
 /// ("int" takes an int, "float" an int or a float, "fixed<W,I>" an int, a float or a fixed-point value, truncating toward minus
 /// infinity). Returns the value as converted.
-pub fn set_param(p: &mut Loaded, name: &str, value: &HostValue) -> Result<HostValue, Error> {
-    let decl = p.rt.declarations.params().into_iter().find(|(n, _, _)| n == name);
+pub fn set_param_rt(rt: &mut Runtime<HostPlatform>, name: &str, value: &HostValue) -> Result<HostValue, Error> {
+    let decl = rt.declarations.params().into_iter().find(|(n, _, _)| n == name);
     let Some((_, dty, _)) = decl else {
         return Err(Error::name(format!("{} is not a parameter of the program", name)).with_hint(format!("declare it: .param(\"{}\";\"int\")", name)));
     };
     let ty = host_ty(&dty);
     let v = conform(&ty, value, &format!("the value of parameter {}", name)).map_err(|m| m.error())?;
-    p.rt.interp.define_global(name, v.to_value())?;
+    rt.interp.define_global(name, v.to_value())?;
     Ok(v)
+}
+
+/// `set_param_rt` on a loaded program.
+pub fn set_param(p: &mut Loaded, name: &str, value: &HostValue) -> Result<HostValue, Error> {
+    set_param_rt(&mut p.rt, name, value)
 }
 
 // ---------------------------------------------------------------------------

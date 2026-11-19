@@ -484,15 +484,6 @@ impl Dict {
         self.set_hashed(k, v, h)
     }
 
-    /// `set` for the key of a `:{[key value]}` literal, where an operator written in the text (`[+ 1]`) is a key too.
-    pub fn set_literal(&mut self, k: Value, v: Value) -> Result<()> {
-        let h = match &k {
-            Value::Prim(s) => mix(s.0 ^ 0x2545_f491),
-            _ => key_hash(&k).ok_or_else(|| bad_key(&k))?,
-        };
-        self.set_hashed(k, v, h)
-    }
-
     fn set_hashed(&mut self, k: Value, v: Value, h: u32) -> Result<()> {
         let (found, mut slot) = self.probe(&k, h);
         if let Some(i) = found {
@@ -623,7 +614,6 @@ pub fn key_eq(a: &Value, b: &Value) -> bool {
         (Value::Str(x), Value::Str(y)) => x.as_str() == y.as_str(),
         (Value::Char(c), Value::Str(s)) | (Value::Str(s), Value::Char(c)) => s.len() == 1 && s.char_at(0) == *c,
         (Value::Undefined, Value::Undefined) => true,
-        (Value::Prim(x), Value::Prim(y)) => x == y,
         (Value::Fn(x), Value::Fn(y)) => Rc::ptr_eq(x, y) && matches!(&**x, Func::Native { .. }),
         (Value::Ext(x), Value::Ext(y)) => matches!((x.0.key_identity(), y.0.key_identity()), (Some(p), Some(q)) if p == q),
         #[cfg(feature = "bigint")]
@@ -1128,6 +1118,8 @@ impl Value {
             Value::Flt(f) if !f.is_finite() => ":undefined".to_string(),
             Value::Ints(a) => dims(a.rank(), a.len(), a.row_dims()),
             Value::Flts(a) => dims(a.rank(), a.len(), a.row_dims()),
+            // a list of empty lists is a matrix of no columns (NumPy's shape (n, 0))
+            Value::List(l) if !l.is_empty() && (0..l.len()).all(|i| { let x = self.item(i); x.is_list() && x.is_empty() }) => dims(2, l.len(), &[0]),
             Value::List(l) => dims(1, l.len(), &[]),
             #[cfg(feature = "host")]
             Value::Ext(e) if e.0.host_shape().is_some_and(|d| !d.is_empty()) => {

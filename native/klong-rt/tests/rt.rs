@@ -297,3 +297,31 @@ fn the_current_module_is_named() {
     assert_eq!(run(&mut rt, ".module(0);1"), Ok("1".into()));
     assert_eq!(rt.interp.current_module(), None);
 }
+
+#[test]
+fn read_takes_one_object_and_leaves_the_rest() {
+    let mut rt = rt();
+    // a file: the rest of the line, the next line, an object that spans lines, a number that ends with the file
+    run(&mut rt, ".tc(.oc(\"t\"));.p(\"[1 2 3 4];\"\"hello\"\"\");.p(\"[5\");.p(\" 6] tail\");.p(\"77\");.cc(.tc(0))").unwrap();
+    run(&mut rt, ".fc(.ic(\"t\"))").unwrap();
+    assert_eq!(run(&mut rt, ".r()"), Ok("[1 2 3 4]".into()));
+    // the rest of the stream is unread: the next character is the ;
+    assert_eq!(run(&mut rt, ".rl()"), Ok("\";\"\"hello\"\"\"".into()));
+    assert_eq!(run(&mut rt, ".r()"), Ok("[5 6]".into()));
+    assert_eq!(run(&mut rt, ".rl()"), Ok("\" tail\"".into()));
+    assert_eq!(run(&mut rt, ".r()"), Ok("77".into()));
+    assert_eq!(run(&mut rt, ".r()"), Ok(":undefined".into()));
+    assert_eq!(run(&mut rt, ".mi()"), Ok("0".into()));
+}
+
+#[test]
+fn read_on_the_console_asks_for_no_more_than_the_object_needs() {
+    let mut rt = rt();
+    // typed lines: a closed list, then (on the same line) more; the second read must not wait for input that is not there
+    rt.shared.platform.borrow_mut().input.extend_from_slice("[1 2] [3 4]\nline\n".as_bytes());
+    assert_eq!(run(&mut rt, ".r()"), Ok("[1 2]".into()));
+    assert_eq!(run(&mut rt, ".r()"), Ok("[3 4]".into()));
+    // the rest of the line is what .rl then reads
+    assert_eq!(run(&mut rt, ".rl()"), Ok("\"\"".into()));
+    assert_eq!(run(&mut rt, ".rl()"), Ok("\"line\"".into()));
+}

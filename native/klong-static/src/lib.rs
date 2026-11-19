@@ -12,6 +12,7 @@ mod fixed_ext;
 pub mod host;
 pub mod infer;
 pub mod ir;
+pub mod ir_json;
 pub mod profile_doc;
 pub mod sig;
 pub mod streamable;

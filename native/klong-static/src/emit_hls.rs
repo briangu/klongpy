@@ -3,7 +3,7 @@
 //! program (`emit_c`) is the core, unchanged.
 use crate::cli::render;
 use crate::check::{Diag, Report};
-use crate::compile::{compile_program, write_files, EmitFailure, RUNTIME_HEADER};
+use crate::compile::{write_files, EmitFailure, RUNTIME_HEADER};
 use crate::emit_c::{ctype_of, hls_work, match_window, Emitted, HlsOptions, HLS_WORK_LIMIT};
 use crate::fixed as fx;
 use crate::ir::{dump, Entry, Program, K, V};
@@ -33,6 +33,7 @@ pub mod json {
     /// A JSON value; objects keep the order of their keys.
     #[derive(Clone, Debug)]
     pub enum J {
+        Null,
         Bool(bool),
         Int(i128),
         Flt(f64),
@@ -80,6 +81,7 @@ pub mod json {
 
     fn write(v: &J, level: usize, out: &mut String) {
         match v {
+            J::Null => out.push_str("null"),
             J::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
             J::Int(i) => out.push_str(&i.to_string()),
             J::Flt(f) => out.push_str(&flt(*f)),
@@ -1748,8 +1750,14 @@ pub struct HlsRun {
 /// Compile a program to C and the Vitis HLS files around it. With `out_dir`, writes them there.
 #[allow(clippy::too_many_arguments)]
 pub fn emit_hls_program(path: &str, out_dir: Option<&str>, text: Option<&str>, int_bits: u32, prefix: Option<&str>, clock_mhz: u32, wrapped: bool, lanes: Option<usize>, reassociate: bool) -> Result<HlsRun, HlsFailure> {
+    emit_hls_program_in(path, out_dir, text, int_bits, prefix, clock_mhz, wrapped, lanes, reassociate, &[])
+}
+
+/// `emit_hls_program` with library directories (see `compile::compile_program_in`).
+#[allow(clippy::too_many_arguments)]
+pub fn emit_hls_program_in(path: &str, out_dir: Option<&str>, text: Option<&str>, int_bits: u32, prefix: Option<&str>, clock_mhz: u32, wrapped: bool, lanes: Option<usize>, reassociate: bool, lib_dirs: &[String]) -> Result<HlsRun, HlsFailure> {
     let prefix = prefix.filter(|p| !p.is_empty());
-    let compiled = compile_program(path, text, int_bits, prefix).map_err(|f| HlsFailure::Emit(EmitFailure::Compile(f)))?;
+    let compiled = crate::compile::compile_program_in(path, text, int_bits, prefix, std::collections::HashMap::new(), lib_dirs).map_err(|f| HlsFailure::Emit(EmitFailure::Compile(f)))?;
     let (options, mode): (Option<HlsOptions>, Option<String>) = if wrapped {
         (None, None)
     } else {

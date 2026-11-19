@@ -206,3 +206,60 @@ fn power_of_an_integer_by_a_float_is_the_system_pow() {
     }
     assert_eq!(show(&mut ip, "2^-0.5"), "0.7071067811865476");
 }
+
+#[test]
+fn an_operator_or_a_function_is_not_a_dictionary_key() {
+    let _g = lock();
+    let mut ip = interp();
+    for src in [":{[+ 1]}", ":{[:: 1] [:b 2]}", ":{[{x} 1]}", ":{[:a 1 2]}", ":{ab}", ":{[1]}"] {
+        let e = ip.run(src, "<t>").err().unwrap_or_else(|| panic!("{src} should be a syntax error"));
+        assert_eq!(e.kind, klong_core::Kind::Syntax, "{src}");
+        assert!(e.hint.as_deref().is_some_and(|h| h.contains("a key is a number, a string, a char or a symbol") || h.contains("[key1 value1]")), "{src}: {:?}", e.hint);
+    }
+    assert_eq!(ip.run(":{[+ 1]}", "<t>").err().unwrap().message, "an operator cannot be a dictionary key");
+    // what is a key still is one: a symbol, a string, a char, a number, and the pair as a two-character string
+    assert_eq!(show(&mut ip, ":{[:a 1] [\"b\" 2] [1 3]}@:a"), "1");
+    assert_eq!(show(&mut ip, ":{\"ab\"}@\"a\""), "\"b\"");
+}
+
+#[test]
+fn the_message_names_a_list_of_empty_lists_as_a_matrix() {
+    let _g = lock();
+    let mut ip = interp();
+    let e = ip.run("\"abc\"@[[]]", "<t>").err().unwrap();
+    assert_eq!(e.message, "cannot apply @ (At/Index) to string and 1x0 matrix");
+    let e = ip.run("\"abc\"@[[] []]", "<t>").err().unwrap();
+    assert_eq!(e.message, "cannot apply @ (At/Index) to string and 2x0 matrix");
+    // a list of one is still a list of one
+    let e = ip.run("\"abc\"@[1.5]", "<t>").err().unwrap();
+    assert!(e.message.contains("list of 1"), "{}", e.message);
+}
+
+#[test]
+fn a_host_starts_and_stops_a_module() {
+    let _g = lock();
+    let mut ip = interp();
+    ip.set_module(Some("geo")).unwrap();
+    assert_eq!(ip.current_module(), Some("geo"));
+    ip.run("unit::5", "<t>").unwrap();
+    ip.set_module(None).unwrap();
+    assert_eq!(ip.current_module(), None);
+    // the name belongs to the module, and is found from outside it as the program's own `.module` leaves it
+    assert!(ip.global_names().iter().any(|n| n == "unit`geo"));
+    assert_eq!(show(&mut ip, "unit"), "5");
+}
+
+#[test]
+fn read_datum_says_how_much_it_used_and_whether_it_is_whole() {
+    let _g = lock();
+    let mut ip = interp();
+    let (used, v, whole) = ip.read_datum_ex("[1 2 3] rest").unwrap().unwrap();
+    assert_eq!((used, whole, ip.format(&v).as_str()), (7, true, "[1 2 3]"));
+    let (_, _, whole) = ip.read_datum_ex("[1 2").unwrap().unwrap();
+    assert!(!whole, "an open list is not whole");
+    let (used, _, whole) = ip.read_datum_ex("12").unwrap().unwrap();
+    assert_eq!((used, whole), (2, false));
+    let (used, _, whole) = ip.read_datum_ex("12 ").unwrap().unwrap();
+    assert_eq!((used, whole), (2, true));
+    assert!(ip.read_datum_ex("  \n").unwrap().is_none());
+}

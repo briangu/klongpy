@@ -1622,7 +1622,7 @@ fn d_join(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
                 let e = e.borrow();
                 let mut dm = d.borrow_mut();
                 for i in 0..e.len() {
-                    dm.set_literal(e.keys()[i].clone(), e.vals()[i].clone())?;
+                    dm.set(e.keys()[i].clone(), e.vals()[i].clone())?;
                 }
             }
             return Ok(a);
@@ -2134,7 +2134,7 @@ fn deep_copy_at(v: &Value, depth: u32) -> Result<Value> {
             let d = d.try_borrow().map_err(|_| Error::internal("dictionary in use"))?;
             let mut n = Dict::default();
             for i in 0..d.len() {
-                n.set_literal(d.keys()[i].clone(), deep_copy_at(&d.vals()[i], depth + 1)?)?;
+                n.set(d.keys()[i].clone(), deep_copy_at(&d.vals()[i], depth + 1)?)?;
             }
             Ok(Value::dict(n))
         }

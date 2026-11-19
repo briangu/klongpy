@@ -313,6 +313,12 @@ fn skip_comment(full: &str, start: usize) -> Option<usize> {
 
 /// One data object from the start of `text` (`Interp::read_datum`).
 pub fn read_datum(text: &str, syms: &mut Interner, module: &mut Option<String>, max_depth: u32, stack: Option<(usize, usize)>) -> Result<Option<(usize, Value)>> {
+    Ok(read_datum_ex(text, syms, module, max_depth, stack)?.map(|(used, v, _)| (used, v)))
+}
+
+/// `read_datum` that also says whether the object is complete: false when the text ended inside it (an open `[` or `:{`) or exactly where
+/// an atom could go on (`12` may be the start of `123`). A caller that can get more text reads it and tries again.
+pub fn read_datum_ex(text: &str, syms: &mut Interner, module: &mut Option<String>, max_depth: u32, stack: Option<(usize, usize)>) -> Result<Option<(usize, Value, bool)>> {
     let mut p = Parser { lx: Lexer::new(text, true), tree: Tree::new(None), syms, module, strict: 0, last_list: None, dicts_read: 0, depth: 0, max_depth, stack, last_sp: (0, 0), #[cfg(feature = "diag")] rec: false, #[cfg(feature = "diag")] args_sp: Vec::new(), #[cfg(feature = "diag")] prog_sp: Vec::new() };
     if p.lx.toks.is_empty() || !p.tree.reserve() {
         return Err(Error::memory());
@@ -323,7 +329,7 @@ pub fn read_datum(text: &str, syms: &mut Interner, module: &mut Option<String>, 
         K::Eof => Ok(None),
         K::LBrack | K::Dict => p.read_data(j, true).map(|v| {
             let end = p.tok(p.lx.pos.saturating_sub(1)).end;
-            Some((end as usize, v))
+            Some((end as usize, v, !p.lx.at_end))
         }),
         K::Num | K::Str | K::Char => {
             let v = match &tok.v {
@@ -335,19 +341,19 @@ pub fn read_datum(text: &str, syms: &mut Interner, module: &mut Option<String>, 
                 TV::Char(c) => Value::Char(*c),
                 _ => Value::Undefined,
             };
-            Ok(Some((tok.end as usize, v)))
+            Ok(Some((tok.end as usize, v, tok.k != K::Num || (tok.end as usize) < text.len())))
         }
         K::Name | K::QName => {
             let s = p.sym_for(p.lx.text_of(&tok));
-            Ok(Some((tok.end as usize, Value::Sym(s))))
+            Ok(Some((tok.end as usize, Value::Sym(s), (tok.end as usize) < text.len())))
         }
         K::Op if p.lx.text_of(&tok) == "-" => {
             let nt = p.tok(j + 1).clone();
             match (nt.k, &nt.v, nt.ws) {
-                (K::Num, TV::Int(i), false) => Ok(Some((nt.end as usize, Value::Int(i.wrapping_neg())))),
-                (K::Num, TV::Flt(f), false) => Ok(Some((nt.end as usize, Value::Flt(-*f)))),
+                (K::Num, TV::Int(i), false) => Ok(Some((nt.end as usize, Value::Int(i.wrapping_neg()), (nt.end as usize) < text.len()))),
+                (K::Num, TV::Flt(f), false) => Ok(Some((nt.end as usize, Value::Flt(-*f), (nt.end as usize) < text.len()))),
                 #[cfg(feature = "bigint")]
-                (K::Num, TV::Big(b), false) => Ok(Some((nt.end as usize, crate::big::negate(b)))),
+                (K::Num, TV::Big(b), false) => Ok(Some((nt.end as usize, crate::big::negate(b), (nt.end as usize) < text.len()))),
                 _ => Err(Error::syntax("not a data object").with_span((tok.start, tok.end))),
             }
         }
@@ -1442,22 +1448,20 @@ impl<'a> Parser<'a> {
     fn make_dict(&self, entries: Vec<Value>, span: Span) -> Result<Value> {
         let mut d = Dict::default();
         for e in &entries {
-            let ok = (e.is_list() || e.is_str()) && e.len().unwrap_or(0) >= 2;
+            let ok = (e.is_list() || e.is_str()) && e.len().unwrap_or(0) == 2;
             if !ok {
                 return Err(Error::syntax("each entry of a dictionary literal must be a [key value] pair")
                     .with_span(span)
-                    .with_hint("write :{[key1 value1] [key2 value2]}, or :{;key1;value1;key2;value2} to have the keys and values evaluated"));
+                    .with_hint("write :{[key1 value1] [key2 value2]}, or :{;key1;value1;key2;value2} to have the keys and values evaluated; a key is a number, a string, a char or a symbol"));
             }
             let conv = |v: Value| match v {
                 Value::Char(c) if e.is_str() => Value::char_str(c),
                 v => v,
             };
             let k = conv(e.item(0));
-            if k.is_list() || matches!(k, Value::Dict(_)) {
-                let e = Error::syntax("a list cannot be a dictionary key").with_span(span);
-                #[cfg(feature = "diag")]
-                let e = e.with_hint("write :{[key1 value1] [key2 value2]}, or :{;key1;value1;key2;value2} to have the keys and values evaluated");
-                return Err(e);
+            if k.is_list() || matches!(k, Value::Dict(_) | Value::Prim(_)) {
+                let what = if matches!(k, Value::Prim(_)) { "an operator cannot be a dictionary key" } else { "a list cannot be a dictionary key" };
+                return Err(Error::syntax(what).with_span(span).with_hint("a key is a number, a string, a char or a symbol"));
             }
             let v = conv(e.item(1));
             // a value that is itself a list was read as one and is normalised now
@@ -1465,7 +1469,7 @@ impl<'a> Parser<'a> {
                 Value::List(_) => Value::from_items(v.items()?)?,
                 v => v,
             };
-            d.set_literal(k, v).map_err(|e| if e.kind == crate::error::Kind::Type { Error::syntax("this value cannot be a dictionary key").with_span(span) } else { e })?;
+            d.set(k, v).map_err(|e| if e.kind == crate::error::Kind::Type { Error::syntax("this value cannot be a dictionary key").with_span(span) } else { e })?;
         }
         Ok(Value::dict(d))
     }

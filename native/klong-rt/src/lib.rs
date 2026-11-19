@@ -479,6 +479,12 @@ impl<P: Platform + 'static> Runtime<P> {
         self.interp.run(text, name)
     }
 
+    /// The console input the program has read from the platform and not used, taken out of the channel (see `chan::take_console_unread`).
+    #[cfg(feature = "files")]
+    pub fn take_console_unread(&self) -> Vec<u8> {
+        chan::take_console_unread(&self.shared)
+    }
+
     /// Replace the directories `.l` looks in (the host sets them from KLONGPATH).
     pub fn set_load_path(&mut self, dirs: Vec<String>) {
         if let Ok(mut io) = self.shared.io.try_borrow_mut() {
