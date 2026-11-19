@@ -276,7 +276,7 @@
 > (-2)^-3
 = -0.125
 
-@ arith.pow-fraction-exp core float
+@ arith.pow-fraction-exp core float string-fmt
 > 2^0.5
 = 1.4142135623730951
 

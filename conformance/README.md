@@ -101,7 +101,7 @@ Capability tags:
 | Tag | Meaning |
 |---|---|
 | `float` | needs floating point numbers; the cases expect `f64` (64-bit) results, so a build with 32-bit floats (the native `float32` feature) does not declare it |
-| `string-fmt` | depends on the exact float text (Python `repr`: `1e+22`, `1e-07`, `0.30000000000000004`) |
+| `string-fmt` | depends on the exact float text of a 64-bit float (Python `repr`: `1e+22`, `1e-07`, `0.30000000000000004`, `1.4142135623730951`): a runtime whose floats are 32 bits wide (KlongPy on the torch backend) does not declare it |
 | `strict1`, `strict2` | the runner starts the interpreter at that strict level (`--strict N`) |
 | `static` | the declarations of the static profile run as they stand, `.extern` and `.entry` (docs/static-profile.md); a case runs with no host function, so calling an extern is a `system` error |
 | `qualified` | the qualified name `a.b`, which means `a@"b"` (reading, writing `a.b::v`, calling `a.b(x)`, nesting `a.b.c`); a missing key is a `name` error, a base that is not a dictionary a `type` error |
@@ -112,14 +112,14 @@ Implementation tags: `numpy-only`, `torch-only`, `kgpy-only` mark behaviour
 that belongs to one KlongPy backend, and `kg-only` marks what only the standalone binary `kg` does: a system function that exists only in the
 Python-hosted command (`kgpy`) is a `name` error there that says so (`.py needs kgpy (the Python-hosted command)`). KlongPy does not declare
 `kg-only`; `run.py --cmd CMD` declares it for any executable but the KlongPy shim. `numpy-only` is the result of the
-reference (numpy) backend that the torch backend cannot give by design: text
-of a float64 value (torch computes in float32 by default) and `:undefined`
-inside a list (a tensor cannot hold it and keeps the IEEE `inf`/`nan`). Each such case has a `# numpy-only:` comment with the reason; the
+reference (numpy) backend that the torch backend cannot give by design: `:undefined`
+inside a list (a tensor cannot hold it and keeps the IEEE `inf`/`nan`). The text of a float64
+value is `string-fmt`, not `numpy-only`: torch computes in float32. Each such case has a `# numpy-only:` comment with the reason; the
 expected result stays the reference one, and another runtime that gives it
 declares the tag. No case uses `torch-only` or `kgpy-only` yet. KlongPy on
 the numpy backend declares every tag except `torch-only`, `timers`, `ipc` and
 `desktop` (`KLONGPY_TAGS` in `run.py`); on the torch backend it declares
-`torch-only` instead of `numpy-only` (`KLONGPY_TORCH_TAGS`,
+`torch-only` instead of `numpy-only`, and not `string-fmt` (`KLONGPY_TORCH_TAGS`,
 `klongpy_tags(backend)`).
 
 ## Runner protocol

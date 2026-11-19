@@ -814,6 +814,11 @@ class TorchBackendProvider(BackendProvider):
             if x.dtype == numpy.float32:
                 return float(str(x[()] if isinstance(x, numpy.ndarray) else x))
             return x.item()
+        if type(x) is float and x == x and abs(x) != float('inf'):
+            # a float the engine computed is a float32 (the interpreter's float width is the backend's): it prints as one
+            f = numpy.float32(x)
+            if f == x:
+                return float(str(f))
         return x
 
     def is_scalar_integer(self, x) -> bool:

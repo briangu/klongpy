@@ -39,9 +39,10 @@ META_KEYS = ("reason", "actual", "issue")
 # the other tiers have no cases in this suite yet.
 KLONGPY_TAGS = frozenset(("core", "strings", "dicts", "float", "string-fmt", "strict1", "strict2",
                           "width64", "bigint", "unicode", "device", "sysio", "numpy-only", "kgpy-only", "static", "qualified", "modules", "clock"))
-# KlongPy on the torch backend: floats are 32 bits wide by default and a tensor cannot
-# hold :undefined, so it does not declare `numpy-only` (README, "Tags").
-KLONGPY_TORCH_TAGS = (KLONGPY_TAGS - {"numpy-only"}) | {"torch-only"}
+# KlongPy on the torch backend: its floats are 32 bits wide (a scalar the engine computes is the float32 nearest to the result, as
+# an element of a tensor is) so the text of a float64 value is not what it prints, and a tensor cannot hold :undefined: it declares
+# neither `string-fmt` nor `numpy-only` (README, "Tags").
+KLONGPY_TORCH_TAGS = (KLONGPY_TAGS - {"numpy-only", "string-fmt"}) | {"torch-only"}
 
 
 def default_tags(cmd=None):

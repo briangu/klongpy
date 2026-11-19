@@ -327,7 +327,12 @@ impl<P: Platform + 'static> Runtime<P> {
                 }
                 // y is the list of arguments: `,1` for one argument, `[]` for none. A number or a string is a mistake (a single argument
                 // is written as a list of one), and says so.
-                let args = match args {
+                // (a host array, `,1` under the torch backend, is the list of its elements)
+                let hosted = match args.host_items() {
+                    Some(r) => Some(r?),
+                    None => None,
+                };
+                let args = match hosted.as_ref().unwrap_or(args) {
                     v if !v.is_list() => return Err(Error::typ(klong_core::msg!(".try: y must be the list of arguments (one is ,a), got {}", v.describe()))),
                     v if v.is_empty() => Vec::new(),
                     v => v.items().map_err(|_| Error::typ(klong_core::msg!(".try: y must be the list of arguments, got {}", v.describe())))?,

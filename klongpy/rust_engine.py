@@ -15,6 +15,7 @@ engine's own, on sys.stdout and sys.stdin or on what console() names), the warni
 through the warnings module), the stand-in lookup of .extern and .fixed (klong.externs), and one HostLambda for each Python callable.
 The parse tree is not an interpreter's: `kgpy ast`, lint and the static tools are the extension's (klongpy/tools.py).
 """
+import contextlib
 import sys
 import os
 import re
@@ -449,13 +450,34 @@ class RustInterpreter:
         k.set_converters(self._out, self._in)
         from . import rust_host
         rust_host.install(self, self._backend)
-        # a backend that computes in float32 (torch): floats print as float32 does, and a float that leaves the engine is one
+        # a backend that computes in float32 (torch): the engine computes its floats as float32 too (every float atom is the float32
+        # nearest to what the operation gave), so that a scalar and an element of an array agree: 0.1+0.2 is 0.3 and equals the
+        # element of [0.1]+0.2, and a float that leaves the engine is a float32
         self._float = None
         if self._backend.name != "numpy":
             w = rust_host.host_float(self._backend)
             if w == np.float32:
-                k.set_float32_display(True)
+                k.set_float_width(32)
                 self._float = np.float32
+
+    @contextlib.contextmanager
+    def wide_floats(self):
+        """Float64 for what the engine computes and the arrays it makes, while the block runs: the finite differences of the numeric
+        gradient need a step of 1e-6, which float32 cannot hold (3+1e-6 is not a float32 number). Nothing changes on a backend that
+        computes in float64, or has no float64 (MPS)."""
+        b = self._backend
+        if self._float is None or not b.supports_float64():
+            yield
+            return
+        was = b._host_float
+        b._host_float = np.dtype(np.float64)
+        self._k.set_float_width(64)
+        try:
+            yield
+        finally:
+            b._host_float = was
+            self._k.set_float_width(32)
+
 
     def _bridge_system_functions(self):
         """KlongPy's Python system functions: those the native runtime does not have (.py .pyf .pya .pyc .sys .bkd ...) and the

@@ -910,12 +910,21 @@ def eval_dyad_at_index(klong, a, b):
         fast = _take_by_index(a, b, backend)
         if fast is not None:
             return fast
+    if j and backend.is_array(b) and getattr(b, 'ndim', 0) >= 3:
+        # a string takes a vector of indexes or a matrix of them, no deeper
+        raise KlongTypeError(f"cannot index a string by a list nested {b.ndim} deep")
     a = backend.str_to_chr_arr(a) if j else a
+    if j and backend.is_backend_array(b):
+        b = backend.to_numpy(b)   # the characters are a NumPy array: a tensor on a device cannot index it
     n = None if not hasattr(a, '__len__') else len(a)
     if is_list(b):
         if is_empty(b):
             r = backend.np.asarray([])
         else:
+            for x in b:
+                if not (is_list(x) or backend.is_integer(x)):
+                    # an index vector holds whole numbers (a string, a symbol, a float)
+                    raise KlongRangeError(f"index vector holds {type(x).__name__}, not a whole number")
             if n is not None:
                 b = [_normalize_index(x, n, 'string' if j else 'list') for x in b]
             r = backend.kg_asarray([a[x] for x in b])
@@ -1181,9 +1190,9 @@ def eval_dyad_form(a, b, backend):
 
 
 def __e_dyad_format2(a, b, backend):
-    if hasattr(a, 'ndim') and a.ndim == 0:
+    if type(a) is float or (hasattr(a, 'ndim') and a.ndim == 0):
         a = backend.to_display(a)  # .item(), or the float32 number as it prints: 8.2, not 8.199999809265137
-    if hasattr(b, 'ndim') and b.ndim == 0:
+    if type(b) is float or (hasattr(b, 'ndim') and b.ndim == 0):
         b = backend.to_display(b)
     if isinstance(a, float) and not (isinstance(b, float) and not isinstance(b, bool)):
         raise KlongTypeError(f"$: a real width needs a real number to format, got {b!r}")

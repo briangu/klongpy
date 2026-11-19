@@ -282,7 +282,7 @@ C("bundled-csv-with-l-binds-csv", M, '.l("csv")\ncsv.split("a,b,c")', v='["a" "b
 C("bundled-csv-with-l-defines-no-plain-name", M + " strict2", '.l("csv")\nsplit("a")', err="name", why="principle 4: only the alias csv is defined")
 C("bundled-csv-with-l-keeps-its-helpers-private", M, '.l("csv")\ncsv.unesc("a")', err="name")
 C("bundled-csv-with-l-and-import-share", M, '.l("csv")\nc::.import("csv")\n#c.split(csv.make(["a" "b"]))', v="2")
-C("bundled-nstat-with-l-binds-nstat", M, '.l("nstat")\nnstat.mu([1 2 3 4])', v="2.5", why="nstat is a module: .l(\"nstat\") binds the one name nstat and its functions are entries of it")
+C("bundled-nstat-with-l-binds-nstat", M + " float", '.l("nstat")\nnstat.mu([1 2 3 4])', v="2.5", why="nstat is a module: .l(\"nstat\") binds the one name nstat and its functions are entries of it")
 C("bundled-nstat-with-l-defines-no-plain-name", M + " strict2", '.l("nstat")\nmu([1 2])', err="name", why="principle 4: only the alias nstat is defined")
 C("bundled-nstat-with-l-leaves-the-family-names-alone", M, 'n::5\nt::6\nf::7\n.l("nstat")\n(n+t)+f', v="18", why="the distribution families n t f u r b x2 F ... are entries of nstat, not variables of the program")
 C("bundled-nstat-family-is-a-dictionary-in-the-module", M + " float", '.l("nstat")\nnstat.n.cdf(0;0;1)', v="0.5", why="a family is nstat.n.cdf(x;m;s)")

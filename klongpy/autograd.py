@@ -1,3 +1,5 @@
+import contextlib
+
 import numpy as np
 from .core import KGLambda, KGCall, KGSym, KGFn, is_list
 
@@ -91,8 +93,20 @@ def _invoke_fn(klong, fn, args):
     return klong.apply(inner, list(args))
 
 
-def numeric_grad(func, x, backend, eps=None):
-    """Compute numeric gradient of scalar-valued function."""
+def _wide(klong):
+    """The scope in which a numeric derivative is computed: the interpreter's floats are as wide as the backend's widest (float64
+    on the CPU), whatever its own width is. A step of 1e-6 is lost in float32."""
+    w = getattr(klong, "wide_floats", None)
+    return w() if w is not None else contextlib.nullcontext()
+
+
+def numeric_grad(func, x, backend, eps=None, klong=None):
+    """Compute numeric gradient of scalar-valued function (in float64 where the backend has it, see `_wide`)."""
+    with _wide(klong):
+        return _numeric_grad(func, x, backend, eps)
+
+
+def _numeric_grad(func, x, backend, eps=None):
     # Get appropriate float dtype
     float_dtype = _get_float_dtype(backend)
 
@@ -133,10 +147,10 @@ def grad_of_fn(klong, fn, x):
     if backend.supports_autograd():
         return backend.compute_autograd(call_fn, x)
     else:
-        return numeric_grad(call_fn, x, backend)
+        return numeric_grad(call_fn, x, backend, klong=klong)
 
 
-def numeric_jacobian(func, x, backend, eps=None):
+def numeric_jacobian(func, x, backend, eps=None, klong=None):
     """
     Compute Jacobian matrix of func at point x using finite differences.
 
@@ -151,6 +165,11 @@ def numeric_jacobian(func, x, backend, eps=None):
     Returns:
         Jacobian matrix as numpy array
     """
+    with _wide(klong):
+        return _numeric_jacobian(func, x, backend, eps)
+
+
+def _numeric_jacobian(func, x, backend, eps=None):
     float_dtype = _get_float_dtype(backend)
     if eps is None:
         eps = 1e-4 if float_dtype == np.float32 else 1e-6
@@ -214,9 +233,9 @@ def jacobian_of_fn(klong, fn, x):
             return backend.compute_jacobian(call_fn, x)
         except Exception:
             # Fall back to numeric if torch jacobian fails
-            return numeric_jacobian(call_fn, x, backend=backend)
+            return numeric_jacobian(call_fn, x, backend=backend, klong=klong)
     else:
-        return numeric_jacobian(call_fn, x, backend=backend)
+        return numeric_jacobian(call_fn, x, backend=backend, klong=klong)
 
 
 def multi_jacobian_of_fn(klong, fn, param_syms):
@@ -252,9 +271,9 @@ def multi_jacobian_of_fn(klong, fn, param_syms):
             try:
                 jac = backend.compute_jacobian(single_param_fn, val)
             except Exception:
-                jac = numeric_jacobian(single_param_fn, val, backend=backend)
+                jac = numeric_jacobian(single_param_fn, val, backend=backend, klong=klong)
         else:
-            jac = numeric_jacobian(single_param_fn, val, backend=backend)
+            jac = numeric_jacobian(single_param_fn, val, backend=backend, klong=klong)
 
         # Restore original value after jacobian computation
         klong[sym] = original
@@ -301,7 +320,7 @@ def multi_grad_of_fn(klong, fn, param_syms):
                 vals = list(param_values)
                 vals[idx] = v
                 return call_fn_with_tensors(vals)
-            grads.append(numeric_grad(single_param_fn, param_values[i], backend))
+            grads.append(numeric_grad(single_param_fn, param_values[i], backend, klong=klong))
         return grads
 
 
@@ -334,9 +353,9 @@ def eval_dyad_grad(klong, a, b):
             finally:
                 klong[a] = orig
 
-        return numeric_grad(func, orig, klong._backend)
+        return numeric_grad(func, orig, klong._backend, klong=klong)
     else:
-        return numeric_grad(call_fn, a, klong._backend)
+        return numeric_grad(call_fn, a, klong._backend, klong=klong)
 
 
 def eval_dyad_jacobian(klong, a, b):

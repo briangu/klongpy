@@ -42,6 +42,38 @@ impl Ext for Tensor {
     fn host_native(&self, _what: &str) -> Option<klong_core::error::Result<Value>> {
         Some(Ok(Value::ints(vec![1, 2, 3])))
     }
+    fn host_items(&self) -> Option<klong_core::error::Result<Value>> {
+        Some(Ok(Value::ints(vec![1, 2, 3])))
+    }
+}
+
+fn run_with_tensor(src: &str) -> String {
+    let mut rt = Runtime::new(Board::default(), Config::default(), None);
+    rt.interp.define_global("t", Value::Ext(Rc::new(ExtBox(Box::new(Tensor))))).unwrap();
+    match rt.run(src, "<t>") {
+        Ok(Some(v)) => klong_core::fmt::format_value(&rt.interp.syms, &v, false).unwrap(),
+        Ok(None) => String::new(),
+        Err(e) => format!("!{:?}", e.kind),
+    }
+}
+
+#[test]
+fn a_host_array_is_the_list_of_arguments_of_try_and_the_argument_of_float() {
+    // `,1` under the torch backend is a host array, not a native list
+    assert_eq!(run_with_tensor(".try({x+y+z};t)"), "[1 6]");
+    assert_eq!(run_with_tensor(".float(t)"), "[1.0 2.0 3.0]");
+}
+
+#[test]
+fn a_host_array_matches_inside_a_list_by_what_it_holds() {
+    assert_eq!(run_with_tensor("[;t;4]~[[1 2 3] 4]"), "1");
+    assert_eq!(run_with_tensor("[;t;4]~[[1 2 4] 4]"), "0");
+}
+
+#[test]
+fn a_qualified_name_on_a_host_array_is_a_type_error_as_on_a_native_list() {
+    assert_eq!(run_with_tensor("t.a"), format!("!{:?}", Kind::Type));
+    assert_eq!(run_with_tensor("t.a::1"), format!("!{:?}", Kind::Type));
 }
 
 #[test]

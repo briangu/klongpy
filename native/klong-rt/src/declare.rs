@@ -745,7 +745,12 @@ fn entry_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value> 
 
 #[cfg(feature = "params")]
 fn float_fn(a: &[Value]) -> Result<Value> {
-    match a.first() {
+    // (an array of the host, a torch tensor, is read as the native array it copies to)
+    let arg = match a.first() {
+        Some(v) => Some(v.unhost(".float")?),
+        None => None,
+    };
+    match arg.as_ref() {
         Some(Value::Int(i)) => Ok(Value::Flt(*i as klong_core::Flt)),
         Some(v @ (Value::Flt(_) | Value::Flts(_))) => Ok(v.clone()),
         Some(Value::Ints(a)) => {

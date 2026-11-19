@@ -1450,6 +1450,9 @@ impl Interp {
         })?;
         for i in 0..=n {
             match &cur {
+                // (an array of the host, a tensor, is not a dictionary: `l.a` on one is the error it is on a native list)
+                #[cfg(feature = "host")]
+                Value::Ext(e) if e.0.host_shape().is_some() => return Err(self.not_a_dict(s, i, &cur)),
                 Value::Dict(_) | Value::Ext(_) if i == n => return Ok(cur),
                 Value::Dict(d) => {
                     let next = d.borrow().get_str(self.qseg(s, i + 1)).cloned();

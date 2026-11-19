@@ -52,15 +52,15 @@
 > 9223372036854775807*2
 = -2
 
-@ bigint.add-float core float bigint
+@ bigint.add-float core float bigint string-fmt
 > 18446744073709551616+0.5
 = 1.8446744073709552e+19
 
-@ bigint.mul-float core float bigint
+@ bigint.mul-float core float bigint string-fmt
 > 18446744073709551616*1.5
 = 2.7670116110564327e+19
 
-@ bigint.divide core float bigint
+@ bigint.divide core float bigint string-fmt
 > 18446744073709551616%2
 = 9.223372036854776e+18
 
@@ -72,7 +72,7 @@
 > 18446744073709551616%0
 = :undefined
 
-@ bigint.divide-small-by-large core float bigint
+@ bigint.divide-small-by-large core float bigint string-fmt
 > 3%18446744073709551616
 = 1.6263032587282567e-19
 
@@ -144,7 +144,7 @@
 > -(-9223372036854775808)
 = -9223372036854775808
 
-@ bigint.reciprocal core float bigint
+@ bigint.reciprocal core float bigint string-fmt
 > %18446744073709551616
 = 5.421010862427522e-20
 
@@ -216,7 +216,7 @@
 > 18446744073709551616^1
 = 18446744073709551616
 
-@ bigint.power-negative-exponent core float bigint
+@ bigint.power-negative-exponent core float bigint string-fmt
 > 2^(-70)
 = 8.470329472543003e-22
 
@@ -276,7 +276,7 @@
 > -((2^64),1,3)
 = [-18446744073709551616 -1 -3]
 
-@ bigint.list-divide core float bigint
+@ bigint.list-divide core float bigint string-fmt
 > ((2^64),1,3)%2
 = [9.223372036854776e+18 0.5 1.5]
 
@@ -424,7 +424,7 @@
 > a::2^100;a+a
 = 2535301200456458802993406410752
 
-@ bigint.variable-reuse core float bigint
+@ bigint.variable-reuse core float bigint string-fmt
 > a::2^100;(a*a)%a
 = 1.2676506002282294e+30
 
@@ -456,7 +456,7 @@
 > .num("9223372036854775807")
 = 9223372036854775807
 
-@ bigint.to-float core float bigint
+@ bigint.to-float core float bigint string-fmt
 > 1.0*18446744073709551616
 = 1.8446744073709552e+19
 

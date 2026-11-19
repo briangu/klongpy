@@ -2172,7 +2172,7 @@
 > #c.split(csv.make(["a" "b"]))
 = 2
 
-@ modules.bundled-nstat-with-l-binds-nstat strings dicts sysio qualified modules
+@ modules.bundled-nstat-with-l-binds-nstat strings dicts sysio qualified modules float
 # nstat is a module: .l("nstat") binds the one name nstat and its functions are entries of it
 > .l("nstat")
 > nstat.mu([1 2 3 4])

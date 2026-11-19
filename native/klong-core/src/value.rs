@@ -1310,6 +1310,12 @@ fn matches_at(a: &Value, b: &Value, depth: u32) -> bool {
         (Value::Ints(x), Value::Ints(y)) => same_dims(x, y) && x.data == y.data,
         (Value::Flts(x), Value::Flts(y)) => same_dims(x, y) && x.data == y.data,
         (Value::Ints(x), Value::Flts(y)) | (Value::Flts(y), Value::Ints(x)) => same_dims(x, y) && x.data.iter().zip(y.data.iter()).all(|(&i, &f)| i as Flt == f),
+        // an array of the host (a tensor) inside a list matches by what it holds, as it does on its own
+        #[cfg(feature = "host")]
+        (Value::Ext(e), _) | (_, Value::Ext(e)) if e.0.host_shape().is_some() => match (a.unhost("match"), b.unhost("match")) {
+            (Ok(x), Ok(y)) => !matches!(x, Value::Ext(_)) && !matches!(y, Value::Ext(_)) && matches_at(&x, &y, depth + 1),
+            _ => false,
+        },
         (Value::Dict(x), Value::Dict(y)) => {
             if Rc::ptr_eq(x, y) {
                 return true;

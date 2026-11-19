@@ -271,6 +271,16 @@ fn k2py(e: Error) -> PyErr {
 fn py2k(e: PyErr) -> Error {
     let msg = e.to_string();
     let k = Python::with_gil(|py| {
+        // a KlongPy error (the host's own: an index out of range in a tensor) says its kind
+        let kind = e.value(py).getattr("kind").ok().and_then(|k| k.extract::<String>().ok());
+        match kind.as_deref() {
+            Some("name") => return Error::name(msg.clone()),
+            Some("arity") => return Error::arity(msg.clone()),
+            Some("type") => return Error::typ(msg.clone()),
+            Some("shape") => return Error::shape(msg.clone()),
+            Some("range") => return Error::range(msg.clone()),
+            _ => {}
+        }
         if e.is_instance_of::<pyo3::exceptions::PyValueError>(py) {
             Error::shape(msg)
         } else if e.is_instance_of::<PyTypeError>(py) {
