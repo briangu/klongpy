@@ -179,6 +179,17 @@ impl Text {
     pub fn as_str(&self) -> &str {
         &self.s
     }
+    /// Append `t` (of `count` code points) in place; false, with nothing changed, when memory for it is refused.
+    #[cfg(feature = "speed")]
+    pub fn append(&mut self, t: &str, count: usize) -> bool {
+        let _tag = crate::htag::Scope::new(crate::htag::STRING);
+        if self.s.try_reserve(t.len()).is_err() {
+            return false;
+        }
+        self.s.push_str(t);
+        self.n += count as u32;
+        true
+    }
     /// Length in code points.
     pub fn len(&self) -> usize {
         self.n as usize
@@ -873,6 +884,7 @@ pub fn try_vec<T>(n: usize) -> Result<Vec<T>> {
     Ok(v)
 }
 
+#[cfg(not(feature = "speed"))]
 pub fn try_push<T>(v: &mut Vec<T>, x: T) -> Result<()> {
     if v.len() == v.capacity() {
         let _tag = crate::htag::Scope::new(crate::htag::VECTOR);
@@ -880,6 +892,25 @@ pub fn try_push<T>(v: &mut Vec<T>, x: T) -> Result<()> {
     }
     v.push(x);
     Ok(())
+}
+
+/// (Desktop: the room is there almost always, and the check is in line with the caller; the growth is apart.)
+#[cfg(feature = "speed")]
+#[inline(always)]
+pub fn try_push<T>(v: &mut Vec<T>, x: T) -> Result<()> {
+    if v.len() == v.capacity() {
+        grow_one(v)?;
+    }
+    v.push(x);
+    Ok(())
+}
+
+#[cfg(feature = "speed")]
+#[cold]
+#[inline(never)]
+fn grow_one<T>(v: &mut Vec<T>) -> Result<()> {
+    let _tag = crate::htag::Scope::new(crate::htag::VECTOR);
+    v.try_reserve(1).map_err(|_| Error::memory())
 }
 
 pub fn try_extend<T: Copy>(v: &mut Vec<T>, xs: &[T]) -> Result<()> {

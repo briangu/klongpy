@@ -61,6 +61,12 @@ def scalar_workloads():
             s = s + "ab"
         return s
 
+    def vectors():
+        v = []
+        for i in range(20000):
+            v.append(i)
+        return v
+
     def sq(a):
         return a * a
 
@@ -74,6 +80,8 @@ def scalar_workloads():
         ("each with a lambda, 1e5", "", "{x*x}'!%d" % N, lambda: list(map(lambda x: x * x, range(N)))),
         ("dictionary updates, 5e4", "", "d:::{};{d,x,,x*2}'!50000", dicts),
         ("string building, 2e4", "", 's::"";{s::s,"ab"}\'!20000', strings),
+        ("string append, results dropped, 2e4", "", 's::"";{s::s,"ab";x}\'!20000', strings),
+        ("vector append, results dropped, 2e4", "", "v::!0;{v::v,x;x}'!20000", vectors),
         ("named-parameter calls, 1e5", "sq(a)::{a*a}", "{sq(x)}'!%d" % N, lambda: list(map(lambda x: sq(x), range(N)))),
         ("classic calls, 1e5", "sqc::{x*x}", "{sqc(x)}'!%d" % N, lambda: list(map(lambda x: sq(x), range(N)))),
         ("qualified calls (dictionary), 1e5", "m:::{;\"f\";{x*x}}", "{m.f(x)}'!%d" % N, lambda: list(map(lambda x: ns.f(x), range(N)))),

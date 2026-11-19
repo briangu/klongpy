@@ -943,6 +943,21 @@ fn m_list(_: &mut Interp, a: Value) -> Result<Value> {
     if let Value::Char(c) = a {
         return Ok(Value::char_str(c));
     }
+    // (one number: the vector of one, without the list of values that `from_items` takes apart)
+    #[cfg(feature = "speed")]
+    match &a {
+        Value::Int(i) => {
+            let mut v = try_vec(1)?;
+            v.push(*i);
+            return Ok(Value::ints(v));
+        }
+        Value::Flt(f) => {
+            let mut v = try_vec(1)?;
+            v.push(*f);
+            return Ok(Value::flts(v));
+        }
+        _ => {}
+    }
     Value::from_items(alloc::vec![a])
 }
 
@@ -1786,6 +1801,20 @@ fn d_join(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
         (Value::Ints(x), Value::Ints(y)) if x.rank() == 1 && y.rank() == 1 => {
             let mut v = try_vec(x.data.len() + y.data.len())?;
             v.extend_from_slice(&x.data);
+            v.extend_from_slice(&y.data);
+            return Ok(Value::ints(v));
+        }
+        #[cfg(feature = "speed")]
+        (Value::Int(x), Value::Int(y)) => {
+            let mut v = try_vec(2)?;
+            v.push(*x);
+            v.push(*y);
+            return Ok(Value::ints(v));
+        }
+        #[cfg(feature = "speed")]
+        (Value::Int(x), Value::Ints(y)) if y.rank() == 1 => {
+            let mut v = try_vec(y.data.len() + 1)?;
+            v.push(*x);
             v.extend_from_slice(&y.data);
             return Ok(Value::ints(v));
         }

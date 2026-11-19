@@ -305,3 +305,22 @@ fn load_owned_is_load_without_a_second_copy() {
     let shown = e.render();
     assert!(shown.starts_with("2:") && shown.contains("b::2+)"), "{shown}");
 }
+
+/// `v::v,y` is made in the value where nothing else holds it; every other holder of the value keeps what it had.
+#[test]
+fn append_assign_keeps_other_holders() {
+    ok("a::\"x\";b::a;a::a,\"y\";a,\"|\",b", "\"xy|x\"");
+    ok("v::!3;w::v;v::v,9;(v,-1),w", "[0 1 2 9 -1 0 1 2]");
+    ok("s::\"ab\";s::s,s;s", "\"abab\"");
+    ok("v::1,2;v::v,v;v", "[1 2 1 2]");
+    ok("v::1,2;u::3,4;v::v,u;v::v,5;(v,-1),u", "[1 2 3 4 5 -1 3 4]");
+    // a literal of a function is the same value at every call
+    ok("g::{s::\"ab\";s::s,\"c\";s};g(0);g(0)", "\"abc\"");
+    // the results of a loop are each their own string
+    ok("s::\"\";{s::s,\"ab\"}'!3", "[\"ab\" \"abab\" \"ababab\"]");
+    ok("s::\"é\";s::s,\"ü\";s::s,\"z\";#s", "3");
+    ok("f::{[s];s::\"\";s::s,\"a\";s::s,0c!;s};f(0)", "\"a!\"");
+    // not strings or vectors: the join as it was
+    ok("l::[1 2];l::l,3;l", "[1 2 3]");
+    ok("v::!2;v::v,1.5;v", "[0.0 1.0 1.5]");
+}

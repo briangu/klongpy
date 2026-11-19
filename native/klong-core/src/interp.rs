@@ -2019,10 +2019,54 @@ impl Interp {
                         return Ok(v);
                     }
                 }
+                Node::Dyad { op, l, r, missing: false } => {
+                    if let Some(v) = self.leaf_dyad(tree, *op, *l, *r) {
+                        return Ok(v);
+                    }
+                }
                 _ => {}
             }
         }
         self.eval(tree, id, call)
+    }
+
+    /// An arithmetic or comparison dyad whose operands are literals and names holding numbers, such as `x<2` and `n-1`: its value without the
+    /// evaluation of the node (nothing it would record is new: the operands are read one level deeper than the node and far enough from the
+    /// deepest stack so far for the frames of the node to be within it); `None`, with nothing done that matters, for anything else.
+    #[cfg(feature = "speed")]
+    #[inline(never)]
+    fn leaf_dyad(&mut self, tree: &Rc<Tree>, op: SymId, l: NodeId, r: NodeId) -> Option<Value> {
+        if self.depth + 1 >= self.max_depth_seen
+            || self.depth + 1 >= self.cfg.max_depth
+            || self.stack_base.abs_diff(stack_here()) + 1024 > self.max_stack_seen
+        {
+            return None;
+        }
+        let def = ops::by_id(op)?;
+        def.atomic?;
+        let y = self.leaf_number(tree, r)?;
+        let x = self.leaf_number(tree, l)?;
+        let v = ops::scalar_pair(def.atomic, &x, &y);
+        // (both are numbers: nothing to release)
+        core::mem::forget(x);
+        core::mem::forget(y);
+        v
+    }
+
+    #[cfg(feature = "speed")]
+    #[inline(always)]
+    fn leaf_number(&mut self, tree: &Rc<Tree>, id: NodeId) -> Option<Value> {
+        if !Tree::is_real(id) {
+            return None;
+        }
+        match tree.node(id) {
+            Node::Lit(v @ (Value::Int(_) | Value::Flt(_))) => Some(v.dup()),
+            Node::Sym(s) => match self.lookup(*s) {
+                Ok(Some(v @ (Value::Int(_) | Value::Flt(_)))) => Some(v),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 
     #[cfg(not(feature = "speed"))]
@@ -2268,15 +2312,39 @@ impl Interp {
         None
     }
 
+    /// `l::r`: the right side is evaluated, then bound to the name or names of the left.
+    #[cfg(feature = "speed")]
+    #[inline(never)]
+    fn eval_define(&mut self, tree: &Rc<Tree>, id: NodeId, l: NodeId, r: NodeId) -> Result<Value> {
+        let nothing = !Tree::is_real(r);
+        #[cfg(feature = "speed")]
+        if !nothing {
+            if let Some(v) = self.append_assign(tree, id, l, r) {
+                return v;
+            }
+        }
+        let y = if nothing { Value::Undefined } else { self.eval_op(tree, r, false)? };
+        let v = self.define(tree, l, y).map_err(|e| self.at_operator(tree, id, e));
+        if nothing {
+            self.void = true;
+        }
+        v
+    }
+
     #[inline(never)]
     #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_eval_dyad")]
     fn eval_dyad(&mut self, tree: &Rc<Tree>, id: NodeId, op: SymId, l: NodeId, r: NodeId) -> Result<Value> {
         let def = self.op_def(op)?;
         let f = def.dyad.ok_or_else(|| self.unknown_op(op))?;
+        #[cfg(feature = "speed")]
+        if def.glyph == "::" {
+            return self.eval_define(tree, id, l, r);
+        }
         // right to left
         // a right operand that is missing (strict level 0 warned of it): nothing, which is `:undefined` here, as KlongPy has None
         let nothing = !Tree::is_real(r);
         let y = if nothing { Value::Undefined } else { self.eval_op(tree, r, false)? };
+        #[cfg(not(feature = "speed"))]
         if def.glyph == "::" {
             let v = self.define(tree, l, y).map_err(|e| self.at_operator(tree, id, e));
             if nothing {
@@ -2312,6 +2380,130 @@ impl Interp {
             None => f(self, x, y),
         }
         .map_err(|e| self.at_operator(tree, id, e))
+    }
+
+    /// `v::v,y` where `v` is a name whose value is a string or a flat integer vector that nothing else holds, and `y` a string, a character
+    /// or an integer (or a vector of them): the join is made in the value where it is, and not in a copy (a loop that builds a string or a
+    /// vector by appending is otherwise quadratic). Nothing is evaluated when `None` is the answer. The depth, the order of evaluation
+    /// (the right operand, then the name), the error and the value are as `eval` of the join and `define` give them.
+    #[cfg(feature = "speed")]
+    #[inline(never)]
+    fn append_assign(&mut self, tree: &Rc<Tree>, id: NodeId, l: NodeId, r: NodeId) -> Option<Result<Value>> {
+        let s = match tree.node(l) {
+            Node::Sym(s) if Tree::is_real(l) => *s,
+            _ => return None,
+        };
+        let (op, l2, r2) = match tree.node(r) {
+            Node::Dyad { op, l: l2, r: r2, missing: false } if Tree::is_real(r) && Tree::is_real(*r2) => (*op, *l2, *r2),
+            _ => return None,
+        };
+        if !matches!(tree.node(l2), Node::Sym(t) if *t == s) {
+            return None;
+        }
+        let def = self.op_def(op).ok()?;
+        if def.glyph != "," || sym::is_arg(s) || self.scopes.len() > 1 || self.cur_mod != 0 || self.journal.is_some() {
+            return None;
+        }
+        #[cfg(feature = "host")]
+        if self.post {
+            return None;
+        }
+        // (the evaluation of the join is a level of nesting; where a limit would be met, `eval` is what reports it)
+        if self.depth + 2 >= self.cfg.max_depth || self.check_stack().is_err() {
+            return None;
+        }
+        self.depth += 1;
+        if self.depth > self.max_depth_seen {
+            self.max_depth_seen = self.depth;
+        }
+        let r = self.append_join(tree, id, l, r, l2, r2, s, def);
+        self.depth -= 1;
+        Some(r)
+    }
+
+    #[cfg(feature = "speed")]
+    fn append_join(&mut self, tree: &Rc<Tree>, id: NodeId, l: NodeId, r: NodeId, l2: NodeId, r2: NodeId, s: SymId, def: &'static ops::OpDef) -> Result<Value> {
+        let at_join = |e: Error| -> Error {
+            let mut e = e;
+            if e.span.is_none() {
+                if let Some(sp) = tree.span(r) {
+                    e.span = Some(sp);
+                    e.source = tree.source.clone();
+                }
+            }
+            e
+        };
+        let y = self.eval_op(tree, r2, false)?;
+        if let Some(slot) = self.append_slot(s) {
+            if Self::append_in_place(slot, &y) {
+                return Ok(slot.dup());
+            }
+        }
+        let x = self.eval_op(tree, l2, false)?;
+        let f = def.dyad.ok_or_else(|| Error::internal("join has no dyad"))?;
+        #[cfg(feature = "host")]
+        if let Some(v) = self.ext_dyad(",", &x, &y) {
+            return v.map_err(|e| self.at_operator(tree, r, e)).map_err(&at_join);
+        }
+        let v = f(self, x, y).map_err(|e| self.at_operator(tree, r, e)).map_err(&at_join)?;
+        if let Some(e) = crate::value::take_deferred() {
+            return Err(e);
+        }
+        self.define(tree, l, v).map_err(|e| self.at_operator(tree, id, e))
+    }
+
+    /// Where `assign` of the name `s` would store a value that is already bound: the slot in a frame or the global; `None` where it would do
+    /// anything else, or the slot is unassigned.
+    #[cfg(feature = "speed")]
+    fn append_slot(&mut self, s: SymId) -> Option<&mut Value> {
+        if self.syms.qual_base(s).is_some() {
+            return None;
+        }
+        if self.shadow.get(s.0 as usize).copied().unwrap_or(0) > 0 {
+            let cm = self.cur_mod;
+            let tagged = !self.modules.is_empty();
+            let base = self.lex_base;
+            for (i, f) in self.frames.iter_mut().enumerate().rev() {
+                if i < base {
+                    break;
+                }
+                if tagged && self.fmods[i] != cm {
+                    continue;
+                }
+                for (k, slot) in f.iter_mut() {
+                    if *k == s {
+                        return slot.as_mut();
+                    }
+                }
+            }
+        }
+        self.globals.get_mut(s.0 as usize)?.as_mut()
+    }
+
+    #[cfg(feature = "speed")]
+    fn append_in_place(slot: &mut Value, y: &Value) -> bool {
+        match (slot, y) {
+            (Value::Str(a), Value::Str(b)) => Rc::get_mut(a).map_or(false, |t| t.append(b.as_str(), b.len())),
+            (Value::Str(a), Value::Char(c)) => {
+                let mut buf = [0u8; 4];
+                Rc::get_mut(a).map_or(false, |t| t.append(c.encode_utf8(&mut buf), 1))
+            }
+            (Value::Ints(a), Value::Int(i)) if a.rank() == 1 => match Rc::get_mut(a) {
+                Some(arr) => arr.data.try_reserve(1).is_ok() && {
+                    arr.data.push(*i);
+                    true
+                },
+                None => false,
+            },
+            (Value::Ints(a), Value::Ints(b)) if a.rank() == 1 && b.rank() == 1 && !Rc::ptr_eq(a, b) => match Rc::get_mut(a) {
+                Some(arr) => arr.data.try_reserve(b.data.len()).is_ok() && {
+                    arr.data.extend_from_slice(&b.data);
+                    true
+                },
+                None => false,
+            },
+            _ => false,
+        }
     }
 
     /// An error of an operator itself, as it comes without a position: the position of the operator (KlongPy `op_span`), not of the whole
@@ -2760,11 +2952,93 @@ impl Interp {
         Ok(())
     }
 
+    /// The call `f(a;b)` of a name that holds a function literal, with as many arguments as the function takes: the same call as `eval_call_in`
+    /// makes, without the layers and the passes of `resolve` (what they would do here is to find the body of the literal). `None`, with
+    /// nothing evaluated, for every other call, and for a short or long one, which `eval_call_in` answers.
+    #[cfg(feature = "speed")]
+    #[inline(never)]
+    fn call_named(&mut self, tree: &Rc<Tree>, id: NodeId) -> Option<Result<Value>> {
+        let (a, args) = match tree.node(id) {
+            Node::Fn { a, args, has_args: true, arity, literal: false, .. } if *arity > 0 => (*a, *args),
+            _ => return None,
+        };
+        let s = match tree.node(a) {
+            Node::Sym(s) if !sym::is_arg(*s) && self.syms.qual_base(*s).is_none() => *s,
+            _ => return None,
+        };
+        let f = match self.lookup(s) {
+            Ok(Some(f @ Value::Fn(_))) => f,
+            _ => return None,
+        };
+        let Value::Fn(func) = &f else { return None };
+        let Func::Code { tree: ft, node: fnode } = &**func else { return None };
+        let (body, fa) = match ft.node(*fnode) {
+            // (a body that is a name, a constant or a function literal is resolved further: not here)
+            Node::Fn { a: body, has_args: false, arity: fa, .. }
+                if Tree::is_real(*body) && !matches!(ft.node(*body), Node::Lit(_) | Node::Sym(_) | Node::QSym(_) | Node::OpVal { .. } | Node::Fn { .. }) =>
+            {
+                (*body, *fa)
+            }
+            _ => return None,
+        };
+        let ids = tree.ids(args);
+        let n = ids.len();
+        if ids.contains(&NONE.0) {
+            return None;
+        }
+        let g = self.node_value(ft, body);
+        if let Some((ptree, params)) = Self::params_of(&g) {
+            if n != params.len as usize {
+                return None;
+            }
+            let mut frame: Frame = match self.new_frame(n + 2) {
+                Ok(f) => f,
+                Err(e) => return Some(Err(e)),
+            };
+            for (k, &q) in ids.iter().enumerate() {
+                let v = match self.eval_op(tree, NodeId(q), true) {
+                    Ok(v) => v,
+                    Err(e) => return Some(Err(e)),
+                };
+                if let Err(e) = try_push(&mut frame, (SymId(ptree.ids(params)[k]), Some(v))) {
+                    return Some(Err(e));
+                }
+            }
+            return Some(self.run_fn(g, frame));
+        }
+        #[cfg(feature = "wide-args")]
+        if n > 3 {
+            return None;
+        }
+        if n != fa as usize {
+            return None;
+            return None;
+        }
+                let mut frame: Frame = match self.new_frame(n.min(3) + 2) {
+            Ok(f) => f,
+            Err(e) => return Some(Err(e)),
+        };
+        for (k, &q) in ids.iter().take(3).enumerate() {
+            let v = match self.eval_op(tree, NodeId(q), true) {
+                Ok(v) => v,
+                Err(e) => return Some(Err(e)),
+            };
+            if let Err(e) = try_push(&mut frame, (SymId(k as u32), Some(v))) {
+                return Some(Err(e));
+            }
+        }
+        Some(self.run_fn(g, frame))
+    }
+
     /// Evaluate a call node (KlongPy `_eval_fn`). The arguments are expressions; they are
     /// evaluated here, once, after projections are merged.
     #[inline(never)]
     #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_eval_call")]
     fn eval_call(&mut self, tree: &Rc<Tree>, id: NodeId) -> Result<Value> {
+        #[cfg(feature = "speed")]
+        if let Some(r) = self.call_named(tree, id) {
+            return r;
+        }
         let mut layers = self.layer_pool.pop().unwrap_or_default();
         let r = self.eval_call_in(tree, id, &mut layers);
         layers.clear();
