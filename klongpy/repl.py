@@ -17,6 +17,8 @@ FRONT_END_NAMES = ('.system', '.helpdb', '.os.env', '.os.argv', '.help_topic')
 
 
 PENDING_TASK_TIMEOUT = 5.0
+# how long a task that is still running at exit is given to end by itself before it is reported and cancelled
+FINISHING_TASK_GRACE = 1.0
 
 
 class LoopStopper:
@@ -99,6 +101,12 @@ def cleanup_async_loop(loop: asyncio.AbstractEventLoop, loop_thread: threading.T
     # cancellation cannot hang the caller).
     pending_tasks = asyncio.all_tasks(loop=loop)
     leftovers = [t for t in pending_tasks if t is not stop_event.task]
+    if leftovers:
+        # A task that is already ending (the last steps of a connection that was closed) needs a few more
+        # turns of the loop, which stopped under it: let those finish before calling anything pending.
+        loop.run_until_complete(asyncio.wait(leftovers, timeout=FINISHING_TASK_GRACE))
+        pending_tasks = asyncio.all_tasks(loop=loop)
+        leftovers = [t for t in pending_tasks if t is not stop_event.task]
     if len(pending_tasks) > 0:
         if name and leftovers:
             print(f"WARNING: pending tasks in {name} loop")

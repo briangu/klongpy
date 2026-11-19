@@ -234,6 +234,11 @@ def detect_handshake(buf):
     from 1 to 6, with a ``:`` earlier, is ``"kdb"``; any other zero is ``"pickle"``.
     Returns ``"kdb"``, ``"pickle"``, ``None`` (need more bytes) or ``"bad"`` (256
     bytes with neither: not a handshake of either kind).  Nothing is unpickled.
+
+    The rule is not exact: an id whose first 8 bytes hold a ``:``, later a byte from 1 to
+    6 and then a zero, with no byte of 0x80 or above before them, reads as ``"kdb"``
+    (about one random id in a million).  Such a client is answered as a kdb+ peer and
+    fails there; it is not unpickled either way.
     """
     for i, b in enumerate(buf):
         if b >= 0x80:

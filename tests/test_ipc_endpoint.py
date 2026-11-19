@@ -8,6 +8,7 @@ import io
 import json
 import os
 import pickle
+import random
 import signal
 import socket
 import struct
@@ -849,9 +850,13 @@ class TestOldProtocolRemoved(IPCCase):
         self.assertEqual(d(b"abc\x00"), "pickle")                    # a zero not preceded by 1..6
         self.assertEqual(d(b"ab\x03\x00"), "pickle")                 # no ':' before it
         self.assertEqual(d(b"a" * 300), "bad")
-        # a version-4 UUID always has byte 8 >= 0x80, so 9 bytes decide every old frame
+        # a version-4 UUID always has byte 8 >= 0x80, so 9 bytes decide an old frame. The ids are drawn from a fixed
+        # seed: about one random id in a million has `:`, a byte from 1 to 6 and a zero in its first 8 bytes and
+        # reads as a kdb+ handshake, which a test must not meet by chance.
+        rng = random.Random(0)
         for _ in range(2000):
-            self.assertEqual(d(uuid.uuid4().bytes[:9]), "pickle")
+            self.assertEqual(d(uuid.UUID(int=rng.getrandbits(128), version=4).bytes[:9]), "pickle")
+        self.assertEqual(d(b"a:\x03\x00" + bytes(5)), "kdb")           # the shape such an id would have
 
 
 class TestRawQClient(IPCCase):
