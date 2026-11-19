@@ -218,7 +218,7 @@ def eval_sys_fn_create_table(x):
             t::.table(d)
 
     """
-    if type(x) is dict:
+    if isinstance(x, dict):
         return _table_from_dict(x)
     if backend_np.isarray(x):
         return Table({k:v for k,v in x}, columns=[k for k,_ in x])

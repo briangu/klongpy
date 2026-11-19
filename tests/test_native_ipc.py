@@ -609,7 +609,8 @@ class TestNativeToNative(Case):
         from klongpy import KlongInterpreter
         k = KlongInterpreter()
         k("ping::{x+1000}")
-        self.assertEqual(type(k(":ping")).__name__, "KGFn")
+        from klongpy.types import KGFn
+        self.assertIsInstance(k(":ping"), KGFn)
         self.assertEqual(str(k("[:ping 5]")), "[:ping 5]")
 
     def test_callbacks_two_levels_and_the_nesting_limit(self):

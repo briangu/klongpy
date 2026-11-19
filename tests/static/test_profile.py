@@ -382,7 +382,7 @@ class TestNeverEvaluates(unittest.TestCase):
     def test_the_checker_runs_with_the_evaluator_disabled(self):
         def boom(*a, **k):
             raise AssertionError("the checker evaluated something")
-        saved = {n: getattr(KlongInterpreter, n) for n in ("__call__", "eval", "call", "exec", "apply")}
+        saved = {n: getattr(KlongInterpreter, n) for n in ("__call__", "eval", "call", "exec", "apply") if hasattr(KlongInterpreter, n)}
         for n in saved:
             setattr(KlongInterpreter, n, boom)
         try:

@@ -301,7 +301,7 @@ def to_wire_value(klong, v):
             return be.to_numpy(v)
         if isinstance(v, (list, tuple)):
             return [to_wire_value(klong, x) for x in v]
-        if type(v) is dict:
+        if isinstance(v, dict):
             return {to_wire_value(klong, key): to_wire_value(klong, x) for key, x in v.items()}
         if isinstance(v, np.ndarray) and v.dtype == object:
             out = np.empty(len(v), dtype=object)

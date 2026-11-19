@@ -251,6 +251,10 @@ class KGFnWrapper:
         if not isinstance(fn, KGFn) or isinstance(fn, KGCall):
             return None
 
+        name_of = getattr(self.klong, "name_of", None)
+        if name_of is not None:     # the native engine finds the name itself
+            return name_of(fn)
+
         # Search the context for this function
         # Skip reserved symbols (x, y, z, .f) which are function parameters, not stored callbacks
         for sym, value in self.klong._context:

@@ -1,19 +1,21 @@
 """
-The native (Rust) Klong interpreter as KlongPy's evaluation engine.
+The native (Rust) Klong interpreter as KlongPy's evaluation engine: the default engine (klongpy/interpreter.py binds the name
+KlongInterpreter to RustInterpreter at import time; KLONGPY_ENGINE=python selects the Python engine instead).
 
-Switched on with the environment variable KLONGPY_ENGINE=rust (klongpy/interpreter.py replaces the name
-KlongInterpreter with RustInterpreter at import time). Needs the extension module `klong_native`
-(native/klong-py). RustInterpreter has the public surface of KlongInterpreter that programs and tests use:
-__call__, exec, apply, __getitem__, __setitem__, __delitem__, __contains__, strict, backend, np.
+Needs the extension module (native/klong-py), found as klongpy._native, as klong_native on the import path, or in the directory
+named by KLONGPY_NATIVE_PATH; without it importing klongpy is an ImportError that says how to build it.
 
-What is NOT the same (see the report): everything that KlongPy implements in Python against the interpreter's internals
-(.py/.pyf, .sys, .web ... system functions, IPC, timers, autograd, compiler, lint, REPL) is bridged as host functions
-or served by a Python-engine interpreter that only parses.
+RustInterpreter has the public surface of KlongInterpreter that programs and tests use: __call__, exec, apply, __getitem__,
+__setitem__, __delitem__, __contains__, strict, names, backend, np.
+
+What Python supplies (the rest is the engine's): the system functions that are Python by nature (.py .pyf, .web .ws, .srv .cli
+IPC and timers on asyncio, tables and SQL, FPGA card I/O, the autograd functions), bridged as host functions, and the few of the
+engine's own that stay KlongPy's until the engine does what the tests ask of them (_PYTHON_OWNED); the backend's arrays through the
+host table (rust_host.py). What is about the parse tree (prog, dump, lint) is served by a Python-engine interpreter that only parses.
 """
 import sys
 import os
 import re
-import threading
 import time
 import warnings
 from types import FunctionType as _FunctionType
@@ -25,17 +27,42 @@ from .errors import (compat, ERROR_KINDS, KlongError, KlongInternalError, KlongS
                      system_error)
 from .lexer import Source
 from .types import (KGSym, KGChar, KLONG_UNDEFINED, KGCall, KGFn, KGFnWrapper, KGLambda, KGOp, reserved_fn_args,
-                    _MISSING, _arity_error, _count, _named_arity_error)
+                    _arity_error, _count, _named_arity_error)
 
-try:
-    import klong_native
-except ImportError:  # the extension lives outside the package in the spike
-    _ext = os.environ.get("KLONGPY_NATIVE_PATH")
-    if _ext:
-        sys.path.insert(0, _ext)
-    import klong_native
+def _load_extension():
+    """The compiled extension: KLONGPY_NATIVE_PATH (a directory that holds it) when set, else the module `klongpy._native`, else
+    `klong_native` on the import path."""
+    ext = os.environ.get("KLONGPY_NATIVE_PATH")
+    if ext:
+        sys.path.insert(0, ext)
+    try:
+        if not ext:
+            try:
+                from . import _native as mod
+                return mod
+            except ImportError:
+                pass
+        import klong_native as mod
+        return mod
+    except ImportError as e:
+        raise ImportError(
+            "KlongPy 2 evaluates on the native (Rust) engine and needs its compiled extension, which was not found "
+            "(neither klongpy._native nor klong_native is importable, and KLONGPY_NATIVE_PATH is "
+            + (f"set to {ext!r}, which does not hold it" if ext else "not set")
+            + "). Build it with `cd native/klong-py && cargo build --release`, copy target/release/libklong_native.dylib (Linux: .so) "
+            "to a directory as klong_native.abi3.so, and put that directory on KLONGPY_NATIVE_PATH (or on PYTHONPATH). "
+            "KLONGPY_ENGINE=python selects the Python engine for now.") from e
+    finally:
+        if ext:
+            try:
+                sys.path.remove(ext)
+            except ValueError:
+                pass
 
+
+klong_native = _load_extension()
 _KFn = klong_native.KFn
+from .rust_host import result_for as _result_for, HostObject
 _TYPES = {"KGSym": KGSym, "KGChar": KGChar, "undefined": KLONG_UNDEFINED}
 
 class _Body:
@@ -74,6 +101,16 @@ def _build_function(k, text, named):
 
 
 _scratch_klong = None
+
+
+class _Bound:
+    """A projection's argument that the engine did not report (see RustFn.args)."""
+
+    def __repr__(self):
+        return "<bound>"
+
+
+_BOUND = _Bound()
 
 
 class _Detached:
@@ -115,6 +152,7 @@ class RustFn(KGFn):
     """
     span = None
     source = None
+    user = False        # a function of the engine is never user Python (KGLambda.user)
     _detached = None    # (text, named) for a function that was copied or unpickled
 
     def __init__(self, kfn, owner):
@@ -150,7 +188,13 @@ class RustFn(KGFn):
             return None
         v = self._cache.get("_args")
         if v is None:
-            v = self._cache["_args"] = [self._owner._out(q) for q in self._kfn.bound_args()]
+            v = [self._owner._out(q) for q in self._kfn.bound_args()]
+            holes = self._get("arity")
+            if sum(1 for q in v if q is None) != holes:
+                # engine need: bound_args reports a value written in the call (`r(10)`) as None, like a hole. The holes are the
+                # engine's own count (arity); the bound values are not known, and stand as _BOUND. The holes are taken as the last ones.
+                v = [_BOUND] * (len(v) - holes) + [None] * holes
+            self._cache["_args"] = v
         return v
 
     @property
@@ -257,6 +301,27 @@ class RustFnWrapper(KGFnWrapper):
         return self.klong._call_value(fn._kfn, self._as_values(args))
 
 
+class RustLambdaWrapper(KGFnWrapper):
+    """`klong["f"]` for a Python callable that was assigned to a name: calling it calls the Python function, with the arity the
+    Python engine checks (a KGLambda is never called from Python as a bare value: it wants a frame)."""
+
+    def __init__(self, klong, kgl, sym=None):
+        self.klong = klong
+        self.fn = kgl
+        self._sym = sym
+
+    def __getattr__(self, name):
+        if name in ("fn", "klong", "_sym") or name.startswith("__"):
+            raise AttributeError(name)
+        return getattr(self.fn, name)
+
+    def __call__(self, *args, **kwargs):
+        kgl = self.fn
+        if not kgl._wildcard and not kwargs and len(args) != kgl.get_arity():
+            raise _arity_error(len(args), kgl.get_arity())
+        return self.klong.apply(kgl, list(args)) if not kwargs else kgl.call_with_kwargs(self.klong, _Frame(args), kwargs)
+
+
 class _Frame(dict):
     """The frame a call pushes, as a KGLambda reads its arguments from it: x, y and z (and every argument, when there are more)."""
 
@@ -296,14 +361,17 @@ class HostLambda:
         return str(self.kgl)
 
 
-# system functions that exist natively and are replaced by KlongPy's own: they read and write the channels
-# (klong['.sys.cin'], klong['.sys.cout']), which are Python file objects (KGChannel), so a program can be given any file-like object
-_PYTHON_OWNED = frozenset({".ac", ".bkd", ".bkp", ".cc", ".d", ".fc", ".fixed", ".fl", ".ic", ".l", ".mi", ".oc", ".p", ".pf", ".r", ".rl",
-                           ".rls", ".strict", ".tc", ".unsafe", ".w"})
-
-
-# system functions of the native runtime that KlongPy does not have: a program that uses one gets KlongPy's "undefined function"
-_NATIVE_ONLY = (".err",)
+# System functions the native runtime has and that stay KlongPy's own, because the engine's version lacks something the tests (the
+# specification) ask for; each is in the report as an "engine needs" item:
+#   channels and output  .cc .d .fc .ic .oc .p .pf .r .rl .tc .w .mi  write to and read from the channel at klong['.sys.cout'] /
+#                        ['.sys.cin'], which a program or test sets to any Python file-like object (KGChannel); the engine's own
+#                        write to its console only, and its .mi / .rl read the process's stdin
+#   .l                   the search order of KLONGPATH and the directory of the loading program, the error text that lists the places,
+#                        a path with a directory and an extension
+#   .extern .entry       the stand-in is a Python function looked up at each call, and klong.externs.declared / .entries hold what
+#                        the program declared (the static tools' API)
+#   .fixed               fixed-point arrays (the native one is an error)
+_PYTHON_OWNED = frozenset({".cc", ".d", ".entry", ".extern", ".fc", ".fixed", ".ic", ".l", ".mi", ".oc", ".p", ".pf", ".r", ".rl", ".tc", ".w"})
 
 
 def _sys_load(klong, x):
@@ -327,9 +395,6 @@ def _sys_load(klong, x):
         print(e)
         raise compat(KlongSystemError, RuntimeError)(f"file could not be opened: {found}") from e
 
-
-# variables that hold Python objects the host mutates (the loops, events and registries of .system): kept on the Python side
-_HOST_VARS = frozenset({".system"})
 
 
 def _error_for(f):
@@ -358,6 +423,8 @@ def _compat_base(kind, message, entry=None):
         return FileNotFoundError
     if kind == "syntax" and message.startswith("unknown operator"):
         return KeyError
+    if kind == "syntax" and message.startswith("malformed number"):
+        return ValueError
     if kind == "syntax" and "dictionary" in message:
         # what the reader raised before KlongPy had a syntax error: a bad entry that is a list is an IndexError, an atom a TypeError
         # (the native span is the literal, so `entry` is its text from the opening `:{`: the first entry decides)
@@ -380,9 +447,6 @@ def _with_cause(err, base, message):
     return err
 
 
-_SOURCE_NAMES = {}      # text of a named Source that ran -> its name, for errors in functions it defined (bounded)
-
-
 def _error(e, origin=None):
     err = _make_error(e, origin)
     err.__suppress_context__ = True     # as `raise ... from None`: the native error is not shown as the context
@@ -403,9 +467,8 @@ def _make_error(e, origin=None):
             hint = tk_escaped_quote_hint(Lexer(text))
         except Exception:
             pass
-    if not name or name == "<string>":
-        # the native engine names every text it was given <string>; the text of the error says which program it was
-        name = _SOURCE_NAMES.get(text, origin)
+    if not name:
+        name = origin
     source = Source(name or "<string>", text) if span is not None else None
     if kind == "syntax" and span is not None:
         # the parser's two legacy classes, for code that catches them: "expected 'c' but found ..." is UnexpectedChar
@@ -435,6 +498,16 @@ def _make_error(e, origin=None):
     return err
 
 
+def _place(e, origin=None):
+    """The position of a host function's exception: the engine records on it `_klong_span` = (start, end, source name, source
+    text) of the call, once, innermost. A KlongError that has no position of its own gets it."""
+    sp = getattr(e, "__dict__", {}).get("_klong_span")
+    if sp is not None and isinstance(e, KlongError) and getattr(e, "span", None) is None and sp[0] >= 0 and sp[3]:
+        e.span = (sp[0], sp[1])
+        e.source = Source(sp[2] if sp[2] and sp[2] != "<string>" else (origin or "<string>"), sp[3])
+    return e
+
+
 def _program(x):
     """The text of a program and the name of its source: a str is <string>, a Source is what it says."""
     if isinstance(x, str):
@@ -445,6 +518,7 @@ def _program(x):
 class RustInterpreter:
     """KlongInterpreter on the native engine (a drop-in for the parts that do not depend on Python internals)."""
 
+    is_native = True
     DID_YOU_MEAN_CUTOFF = 0.7     # the engine's own rule of "did you mean": a difflib ratio of at least this
 
     def __init__(self, backend=None, device=None, parser=None, strict=0):
@@ -456,21 +530,19 @@ class RustInterpreter:
         self._k = klong_native.Klong(strict, _TYPES)
         self._parser = "native"
         self._parser_choice = parser   # which parser of the Python engine serves what is about the parse tree (prog, dump)
-        self.externs = {}
+        from .sys_fn_static import ExternTable
+        self.externs = ExternTable()
         self._sources = []
         self._pyfns = {}
         self._wrapped = set()   # names of Python callables that were wrapped as Klong functions on assignment
-        self._host_vars = {}   # variables that are Python objects owned by the host (.system), seen live from Python
+        self._host_vars = {}   # a Python object the engine cannot hold (a tuple of classes), kept on the Python side
         self._py_engine = None
-        self._strict_level = strict
         self._start_time = time.time()
-        self._primed = None
         self._warn_registry = {}
-        for name in _NATIVE_ONLY:
-            if name in self._k:
-                del self._k[name]
-        self._native_strict = self._k[".strict"]    # the native function of the level: `.strict` itself is KlongPy's
         self._bridge_system_functions()
+        self._k.set_converters(self._out, self._in)
+        from . import rust_host
+        rust_host.install(self, self._backend)
 
     def _bridge_system_functions(self):
         """KlongPy's Python system functions that the native runtime does not have (.py .pyf .pya .pyc .sys ...), and
@@ -497,9 +569,28 @@ class RustInterpreter:
     def __getattr__(self, name):
         # Everything that is about the PARSER (prog, _module, _vd, _context, lint, dump, the compiler caches) is served by a
         # Python-engine interpreter, created on first use. It shares no state with the native one: it only parses.
-        if name.startswith("__") or name in ("_py_engine", "_k", "_pyfns", "_strict_level", "_host_vars", "_start_time", "_primed", "_wrapped", "_parser_choice", "_warn_registry", "_native_strict"):
+        if name.startswith("__") or name in ("_py_engine", "_k", "_pyfns", "_host_vars", "_start_time", "_wrapped", "_parser_choice", "_warn_registry"):
             raise AttributeError(name)
         return getattr(self._python_engine(), name)
+
+    def names(self):
+        """The names of every global that is defined: variables and functions, system functions, the host's variables."""
+        return sorted(set(self._k.names()) | set(self._host_vars))
+
+    def name_of(self, fn):
+        """The KGSym of the (non-system) global a function value is bound to, or None."""
+        kfn = getattr(fn, "_kfn", None)
+        if kfn is None:
+            return None
+        for name in self._k.names():
+            if not name.startswith(".") and name not in ("x", "y", "z"):
+                try:
+                    v = self._k[name]
+                except KeyError:
+                    continue
+                if type(v) is _KFn and v == kfn:
+                    return KGSym(name)
+        return None
 
     def process_start_time(self):
         return self._start_time
@@ -507,7 +598,7 @@ class RustInterpreter:
     def _python_engine(self):
         if self._py_engine is None:
             from .interpreter import PyKlongInterpreter
-            self._py_engine = PyKlongInterpreter(strict=self._strict_level, parser=self._parser_choice)
+            self._py_engine = PyKlongInterpreter(strict=self._k.strict, parser=self._parser_choice)
         return self._py_engine
 
     def _register_kglambda(self, name, kgl, wrapped=False):
@@ -547,11 +638,15 @@ class RustInterpreter:
 
     def _out(self, v):
         """A native result as KlongPy has it: function values are RustFn (also inside lists and object arrays)."""
+        if self._backend.name != "numpy":
+            v = _result_for(self, v)
         t = type(v)
         if t is _KFn:
             return self._wrap_fn(v)
         if t is HostLambda:
             return v.kgl
+        if t is HostObject:
+            return v.obj
         if t is _FunctionType:
             return getattr(v, "_kgl", v)   # a system function registered from a KGLambda, handed back
         if t is np.ndarray:
@@ -586,6 +681,8 @@ class RustInterpreter:
             return self._native_fn(v.fn)
         if isinstance(v, KGLambda):
             return HostLambda(self, v)
+        if t is not dict and isinstance(v, dict) and not hasattr(v, "_h"):
+            return HostObject(v)
         if t is list:
             return [self._in(q) for q in v]
         if t is tuple:
@@ -600,21 +697,13 @@ class RustInterpreter:
             return r
         return v
 
-    def _prime(self):
-        """The native stack budget is measured from the point where the last evaluation began (Interp::apply does not set it),
-        so a call from another thread than the last evaluation's must begin with an evaluation of its own: an empty program.
-        Until the extension sets the base in apply (see the report, "engine needs")."""
-        me = threading.get_ident()
-        if self._primed != me:
-            self._k.run("")
-            self._primed = me
-
     def _call_value(self, kfn, args):
         try:
-            self._prime()
             return self._out(kfn(*[self._in(a) for a in args]))
         except klong_native.NativeError as e:
             raise _error(e)
+        except KlongError as e:
+            raise _place(e)
 
     # -- evaluation ---------------------------------------------------------------------------------------------
     def _warn(self, origin):
@@ -634,15 +723,10 @@ class RustInterpreter:
 
     def _evaluate(self, run, x):
         x, origin = _program(x)
-        self._primed = None
         sources = self._sources
         sources.append(Source(origin or "<string>", x))     # current_source(), and what .l looks next to
-        if origin is not None and origin != "<string>":
-            if len(_SOURCE_NAMES) > 512:
-                _SOURCE_NAMES.clear()
-            _SOURCE_NAMES[x] = origin
         try:
-            r = self._out(run(x))
+            r = self._out(run(x, origin) if origin else run(x))
         except klong_native.NativeError as e:
             err = _error(e, origin)
             if isinstance(err, KlongSyntaxError):
@@ -650,6 +734,8 @@ class RustInterpreter:
             else:
                 self._warn(origin)
             raise err
+        except KlongError as e:
+            raise _place(e, origin)
         finally:
             sources.pop()
         self._warn(origin)
@@ -682,8 +768,7 @@ class RustInterpreter:
         operator) with a list of already evaluated arguments."""
         if isinstance(f, KGSym):
             try:
-                self._prime()
-                return self._out(self._k.call_sym(str(f), *[self._in(a) for a in values]))
+                    return self._out(self._k.call_sym(str(f), *[self._in(a) for a in values]))
             except klong_native.NativeError as e:
                 raise _error(e)
         if isinstance(f, KGFnWrapper):
@@ -713,16 +798,16 @@ class RustInterpreter:
         except KeyError:
             raise KeyError(k) from None
         if type(v) is _KFn:
-            py = self._pyfns.get(str(k))
-            if isinstance(py, KGLambda) and str(k) not in self._wrapped:
-                return py   # the KGLambda that was put there, as KlongPy hands it back
             return RustFnWrapper(self, self._wrap_fn(v), KGSym(str(k)))
+        if type(v) is _FunctionType:
+            py = getattr(v, "_kgl", None)
+            if isinstance(py, KGLambda):
+                if str(k) in self._wrapped:
+                    return RustLambdaWrapper(self, py, KGSym(str(k)))
+                return py   # the KGLambda that was put there, as KlongPy hands it back
         return self._out(v)
 
     def __setitem__(self, k, v):
-        if str(k) in _HOST_VARS:
-            self._host_vars[str(k)] = v
-            return
         if type(v) is KGLambda:
             self._register_kglambda(str(k), v)
             return
@@ -761,14 +846,13 @@ class RustInterpreter:
     # -- properties --------------------------------------------------------------------------------------------
     @property
     def strict(self):
-        return self._strict_level
+        return self._k.strict
 
     @strict.setter
     def strict(self, n):
         from .interpreter import check_strict_level
         check_strict_level(n)
-        self._strict_level = n
-        self._native_strict(int(n))
+        self._k.call(".strict", int(n))
 
     @property
     def _context(self):
@@ -806,7 +890,7 @@ class _ContextProxy:
 
     def __getattr__(self, name):
         if name == "_strict_mode":
-            return self._owner._strict_level
+            return self._owner.strict
         return getattr(self._ctx, name)
 
     def __setattr__(self, name, value):
@@ -816,7 +900,8 @@ class _ContextProxy:
             setattr(self._ctx, name, value)
 
     def __getitem__(self, k):
-        return self._owner[k]
+        v = self._owner[k]
+        return v.fn if type(v) is RustFnWrapper else v     # the context holds the function itself, not its wrapper
 
     def __setitem__(self, k, v):
         self._owner[k] = v

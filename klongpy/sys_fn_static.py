@@ -131,11 +131,11 @@ def call_extern(klong, decl, args):
     return r
 
 
-def _bind(decl):
+def _bind(decl, native=False):
     """The Klong value an extern name is bound to: calling it calls the stand-in."""
     n = decl.signature.arity
-    if n <= 3:
-        # x, y, z: a wildcard lambda is handed whichever of them the call supplied
+    if n <= 3 or native:
+        # x, y, z: a wildcard lambda is handed whichever of them the call supplied (the native engine hands it every argument)
         def call(klong, *args):
             return call_extern(klong, decl, args)
         fn = KGLambda(call, wildcard=True)
@@ -225,7 +225,7 @@ def eval_sys_extern(klong, *args):
     else:
         raise KlongNameError(f".extern: {name} is already defined in the program; an extern cannot replace it")
     table.declared[name] = ExternDecl(name, sig, module)
-    _define_global(klong, sym, _bind(table.declared[name]))
+    _define_global(klong, sym, _bind(table.declared[name], getattr(klong, 'is_native', False)))
     return str(sig)
 
 
@@ -264,7 +264,7 @@ def eval_sys_entry(klong, x, y):
         raise KlongTypeError(f".entry: {x} is not a function defined in the program",
                              hint="an entry is a function written name::{...} or name(a;b)::{...}")
     body = fn.a
-    if type(body) is KGBody and body.params is not None:
+    if getattr(body, "params", None) is not None:
         arity = len(body.params)
     else:
         arity = fn_metadata(fn).max_arg

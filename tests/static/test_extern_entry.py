@@ -27,6 +27,8 @@ from klongpy.static import call_entry, check_source, load_program
 from klongpy.sys_fn_static import ExternTable
 from klongpy.types import KLONG_UNDEFINED
 
+from tests.backend_compat import on_rust_engine
+
 from .hostutil import to_np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -229,7 +231,8 @@ class TestExtern(unittest.TestCase):
     def test_export_is_left_alone(self):
         klong = KlongInterpreter()
         self.assertIsNot(klong(".export"), klong(".extern"))
-        self.assertIn("export", klong(".export").a.fn.__name__)
+        if not on_rust_engine():        # the Python engine's function object
+            self.assertIn("export", klong(".export").a.fn.__name__)
 
 
 class TestEntry(unittest.TestCase):

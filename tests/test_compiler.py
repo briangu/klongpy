@@ -1,9 +1,12 @@
 import importlib.util
 import unittest
 
+from tests.backend_compat import requires_python_engine
+
 needs_torch = unittest.skipUnless(importlib.util.find_spec("torch") is not None, "requires torch")
 
 
+@requires_python_engine("tests the Python engine's own expression compiler (klongpy/compiler.py), which the Rust engine does not use")
 class TestCompilerFallback(unittest.TestCase):
     """Test that the compiler returns None for things it can't compile."""
 
@@ -56,6 +59,7 @@ class TestCompilerFallback(unittest.TestCase):
         self.assertIsNone(result)
 
 
+@requires_python_engine("tests the Python engine's own expression compiler (klongpy/compiler.py), which the Rust engine does not use")
 class TestBackendCompileExprIr(unittest.TestCase):
     """Test BackendProvider.compile_expr_ir interface."""
 
@@ -93,6 +97,7 @@ class TestBackendCompileExprIr(unittest.TestCase):
         self.assertIsNotNone(result)
 
 
+@requires_python_engine("tests the Python engine's own expression compiler (klongpy/compiler.py), which the Rust engine does not use")
 class TestAstToIr(unittest.TestCase):
     """Test the AST-to-IR walker on parsed expressions."""
 
@@ -251,6 +256,7 @@ class TestAstToIr(unittest.TestCase):
         )
 
 
+@requires_python_engine("tests the Python engine's own expression compiler (klongpy/compiler.py), which the Rust engine does not use")
 class TestNumpyBackendCompiler(unittest.TestCase):
     """Test numpy backend's compile_expr_ir."""
 
@@ -409,6 +415,7 @@ class TestNumpyBackendCompiler(unittest.TestCase):
 
 
 @needs_torch
+@requires_python_engine("tests the Python engine's own expression compiler (klongpy/compiler.py), which the Rust engine does not use")
 class TestCompileExprCorrectness(unittest.TestCase):
     """Test that compiled functions produce correct results."""
 
@@ -518,6 +525,7 @@ class TestCompileExprCorrectness(unittest.TestCase):
 
 
 @needs_torch
+@requires_python_engine("tests the Python engine's own expression compiler (klongpy/compiler.py), which the Rust engine does not use")
 class TestCompileReductions(unittest.TestCase):
     """Test compilation of reduce (op/) and scan (op\\) expressions."""
 
@@ -628,6 +636,7 @@ class TestCompileReductions(unittest.TestCase):
         self.assertIsNone(result)
 
 
+@requires_python_engine("tests the Python engine's own expression compiler (klongpy/compiler.py), which the Rust engine does not use")
 class TestEvalIntegration(unittest.TestCase):
     """Test that eval() uses the compiler for adverb chains."""
 
@@ -695,6 +704,7 @@ class TestEvalIntegration(unittest.TestCase):
         self.assertAlmostEqual(float(result), 6.0)
 
 
+@requires_python_engine("tests the Python engine's own expression compiler (klongpy/compiler.py), which the Rust engine does not use")
 class TestInterpreterIntegration(unittest.TestCase):
     """Test that __call__ uses the compiler when available."""
 

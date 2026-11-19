@@ -26,7 +26,7 @@ import numpy as np
 
 from klongpy import KlongInterpreter
 from klongpy.core import KGChar, KGSym, KLONG_UNDEFINED, kg_write
-from tests.backend_compat import plain
+from tests.backend_compat import plain, requires_python_engine
 
 TORCH = importlib.util.find_spec("torch") is not None
 IS_TORCH_RUN = os.environ.get("_KLONGPY_TEST_BACKEND", "numpy") == "torch"
@@ -466,6 +466,7 @@ class TestTorchValueModel(TorchCase):
         self.assertEqual(float(self.k("2^-1")), 0.5)
 
 
+@requires_python_engine("tests the Python engine's own expression compiler (klongpy/compiler.py), which the Rust engine does not use")
 class TestCompiledPathOnTorch(TorchCase):
     """Rule on torch: the compiled function applies the interpreter's operators."""
 

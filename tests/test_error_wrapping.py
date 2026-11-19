@@ -18,7 +18,7 @@ from klongpy.errors import (
     describe, operator_error, operator_name,
 )
 from klongpy.types import KGCall, KGChar, KGLambda, KGOp, KGSym, KLONG_UNDEFINED
-from tests.backend_compat import requires_python_engine
+from tests.backend_compat import on_rust_engine, requires_python_engine
 
 
 def raised(klong, text, cls=KlongError):
@@ -355,9 +355,10 @@ class TestPythonAndSystemFunctions(unittest.TestCase):
     def test_system_function_error_is_not_relabelled_by_an_operator(self):
         # the failure of a system function called by the verb of an adverb is not "cannot apply f'"
         k = KlongInterpreter()
-        with self.assertRaises(AttributeError) as cm:
-            k("{.fc(x)}'[1 2]")
-        self.assertNotIsInstance(cm.exception, KlongError)
+        if not on_rust_engine():        # a bug of the Python .fc (an AttributeError escapes); the engine's .fc is a Klong type error
+            with self.assertRaises(AttributeError) as cm:
+                k("{.fc(x)}'[1 2]")
+            self.assertNotIsInstance(cm.exception, KlongError)
         e = raised(k, '{.l("no/such/file/anywhere")}\'[1 2]', KlongSystemError)
         self.assertIn("file does not exist", str(e))
 

@@ -17,7 +17,7 @@ import warnings
 from klongpy import KlongInterpreter
 from klongpy.core import KGLambda, KGSym, KlongException
 from klongpy.errors import KlongError, KlongNameError, KlongSyntaxError
-from tests.backend_compat import requires_python_engine
+from tests.backend_compat import on_rust_engine, requires_python_engine
 from klongpy.interpreter import KlongContext
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
@@ -98,7 +98,8 @@ class TestPlumbing(unittest.TestCase):
 
     def test_dot_strict_takes_zero_or_one_argument(self):
         k = KlongInterpreter()
-        self.assertIsInstance(k._context[KGSym(".strict")], KGLambda)
+        if not on_rust_engine():        # the Python engine's system function object
+            self.assertIsInstance(k._context[KGSym(".strict")], KGLambda)
         # inside a function the caller's x is not taken for the level
         self.assertEqual(k("{x;.strict()}(2)"), 1)
         self.assertEqual(k("{.strict(x)}(2)"), 2)

@@ -121,6 +121,9 @@ class Completer:
 
     def names(self):
         try:
+            names = getattr(self.klong, "names", None)
+            if names is not None:       # the native engine lists its globals itself
+                return [str(n) for n in names()]
             return [str(k) for k, _ in self.klong._context]
         except Exception:
             return []

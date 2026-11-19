@@ -29,15 +29,29 @@ klongpy/autograd.py, which call a Klong function value and the backend's methods
 """
 import numpy
 import operator
+from types import FunctionType as _FunctionType
 
 from .autograd import grad_of_fn
 from .dyads import (create_dyad_functions, eval_dyad_autograd, eval_dyad_grad, eval_dyad_jacobian)
 from .monads import create_monad_functions
 from .adverbs import get_adverb_fn, _converged
-from .errors import KlongTypeError
+from .errors import KlongError, KlongTypeError, adverb_name, is_passthrough, operator_error, operator_name
 from .types import KGOp, KGSym, KGFn, KLONG_UNDEFINED
 from .autograd import multi_grad_of_fn
 from .writer import kg_write
+
+
+class HostObject:
+    """A Python dict subclass with a behaviour of its own (the handle of a remote dictionary, .clid) held by the engine as an opaque
+    value: the engine copies a dict subclass into a native dictionary. The Klong operators on it (`,` `?` ...) go through the
+    host table, which unwraps it. Engine need: leave a dict subclass alone."""
+    __slots__ = ("obj",)
+
+    def __init__(self, obj):
+        self.obj = obj
+
+    def __str__(self):
+        return str(self.obj)
 
 def _array(backend, a):
     """A NumPy array as the backend holds one. A native vector is float64; the backend's own float (the torch backend's float32:
@@ -62,6 +76,8 @@ class HostTable:
     """The callable table of one interpreter's backend (see the module text)."""
 
     def __init__(self, engine, backend):
+        from .rust_engine import _KFn
+        self._kfn = _KFn
         self.engine = engine
         self.backend = backend
         self._dyads = {g: f for g, f in create_dyad_functions(engine).items() if g not in _NOT_PRIMITIVE}
@@ -90,13 +106,40 @@ class HostTable:
         return x, y
 
     # -- primitives ---------------------------------------------------------------------------------------------------
+    def _fn(self, v):
+        """A function value that reaches the table is the engine's raw one (or a Python callable): KlongPy's function object."""
+        t = type(v)
+        if t is self._kfn or t is _FunctionType or t is list:
+            return self.engine._out(v)
+        return v
+
+    def _operator_error(self, e, g, arity, operands):
+        """The Klong error an exception of a backend operation becomes: what the Python engine's _op_error makes."""
+        if isinstance(e, KlongError) or is_passthrough(e):
+            return e
+        return operator_error(e, g, operator_name(g, arity), [self._fn(v) for v in operands])
+
     def monad(self, g, x):
         f = self._monads.get(g)
         if f is None:
             return NotImplemented
-        return f(x)
+        if type(x) is HostObject:
+            x = x.obj
+        x = self._fn(x)
+        try:
+            return f(x)
+        except Exception as e:
+            err = self._operator_error(e, g, 1, (x,))
+            if err is e:
+                raise
+            raise err from e
 
     def dyad(self, g, x, y):
+        if type(x) is HostObject:
+            # a function value on its way to the remote end is KlongPy's; what comes back is the engine's
+            return self.engine._in(self._dyads[g](x.obj, self.engine._out(y))) if g in self._dyads else NotImplemented
+        if type(y) is HostObject:
+            return self.engine._in(self._dyads[g](self.engine._out(x), y.obj)) if g in self._dyads else NotImplemented
         fast = _FAST.get(g)
         T = self._tensor
         if fast is not None and T is not None:
@@ -112,14 +155,29 @@ class HostTable:
         f = self._dyads.get(g)
         if f is None:
             return NotImplemented
-        x, y = self._lift(x, y)
-        return f(x, y)
+        x, y = self._lift(self._fn(x), self._fn(y))
+        try:
+            return f(x, y)
+        except Exception as e:
+            err = self._operator_error(e, g, 2, (x, y))
+            if err is e:
+                raise
+            raise err from e
 
     def adverb(self, g, f, op, x, y):
-        if y is None:
-            return get_adverb_fn(self.engine, g, 1)(f, x, KGOp(op, 2) if op is not None else f)
-        x, y = self._lift(x, y)
-        return get_adverb_fn(self.engine, g, 2)(f, x, y)
+        f = self._fn(f)
+        try:
+            if y is None:
+                x = self._fn(x)
+                return get_adverb_fn(self.engine, g, 1)(f, x, KGOp(op, 2) if op is not None else f)
+            x, y = self._lift(self._fn(x), self._fn(y))
+            return get_adverb_fn(self.engine, g, 2)(f, x, y)
+        except Exception as e:
+            if isinstance(e, KlongError) or is_passthrough(e):
+                raise
+            name = "-".join(n for n in ((operator_name(op, 2) if op is not None else None), adverb_name(g, 1 if y is None else 2)) if n)
+            err = operator_error(e, (op or "f") + g, name, [v for v in (x, y) if v is not None])
+            raise err from e
 
     # -- conversions --------------------------------------------------------------------------------------------------
     def to_native(self, o, what):
@@ -149,11 +207,27 @@ class HostTable:
         return bool(_converged(self.backend, p, q))
 
     def format(self, o, display):
-        return kg_write(o, self.backend, display)
+        return kg_write(o.obj if type(o) is HostObject else o, self.backend, display)
 
     def collect(self, items):
         r = self._asarray(items)
         return r if self._is_backend_array(r) else None
+
+
+class _Gradient:
+    """The function `∇f` is: a callable of one argument that prints as a monad (Klong shows a function by its arity)."""
+
+    def __init__(self, engine, fn):
+        self.engine = engine
+        self.fn = fn
+
+    def __call__(self, x):
+        return grad_of_fn(self.engine, self.fn, x)
+
+    def __str__(self):
+        return ":monad"
+
+    __repr__ = __str__
 
 
 class HostOps:
@@ -168,7 +242,7 @@ class HostOps:
         args = [out(a) for a in args]
         if glyph == "∇" and len(args) == 1:
             fn = args[0]
-            return into(lambda x, fn=fn, k=e: grad_of_fn(k, fn, x))
+            return into(_Gradient(e, fn))
         if glyph == "∇":
             return into(eval_dyad_grad(e, args[0], args[1]))
         if glyph == "∂":

@@ -2492,7 +2492,12 @@ class KlongInterpreter():
             sources.pop()
 
 
-# Engine switch (spike): KLONGPY_ENGINE=rust evaluates through the native Rust interpreter (klongpy/rust_engine.py).
+# The engine. KlongPy 2 evaluates on the native (Rust) engine (klongpy/rust_engine.py) and needs its compiled extension: a missing
+# extension is an ImportError that says how to build it, never a silent fallback. KLONGPY_ENGINE=python selects the Python engine
+# (this module's KlongInterpreter, now the reference implementation until it is removed).
 PyKlongInterpreter = KlongInterpreter  # the Python engine, whatever the switch says (the Rust adapter borrows its parser)
-if os.environ.get('KLONGPY_ENGINE', '').lower() == 'rust':
+_ENGINE = os.environ.get('KLONGPY_ENGINE', 'rust').strip().lower() or 'rust'
+if _ENGINE not in ('rust', 'python'):
+    raise ImportError(f"KLONGPY_ENGINE={_ENGINE!r}: it is 'rust' (the default) or 'python'")
+if _ENGINE == 'rust':
     from .rust_engine import RustInterpreter as KlongInterpreter  # noqa: F811
