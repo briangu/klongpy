@@ -8,6 +8,7 @@ This page is the complete list of changes in version 2 compared with 0.7, the la
 
 * [One interpreter, written in Rust](what-runs-where.md), behind two commands: `kgpy` (hosted in Python) and `kg` (no Python). The same interpreter runs on [microcontroller boards](native/index.md).
 * [Modules](language-additions.md#modules): `.import`, `.export` and qualified names `a.b`.
+* Errors as values: `.try` catches an error and `.err` raises one. `.seed` makes `.rn` repeatable and `.now` gives the time.
 * The [conformance suite](conformance.md): more than 2,000 cases that every build of the interpreter must pass.
 * The [static profile](static-profile.md) and [compiling Klong to C](embedded.md).
 * [FPGA kernels](hardware.md), experimental.
@@ -34,7 +35,7 @@ $ kg -e '.py("math")'
 
 **The tools are in the interpreter.** `lint`, `check`, `compile c`, `fpga source` and `ast` are the same Rust code under `kg` and `kgpy`, and they print the same text.
 
-**There is no pure-Python version of 2.** `import klongpy` needs its compiled extension, and the error says how to get it: a wheel carries it, and a source tree builds it with `pip install -e .`, which needs a Rust toolchain. The Python modules of the old implementation (`klongpy.parser`, `klongpy.lexer`, `klongpy.compiler`, `klongpy.monads`, `klongpy.dyads` and `klongpy.adverbs`) do not exist. The Python API (`KlongInterpreter`, the error classes, the backends) is kept.
+**There is no pure-Python version of 2.** `import klongpy` needs its compiled extension, and the error says how to get it: a wheel carries it, and a source tree builds it with `pip install -e .`, which needs a Rust toolchain. The Python modules of the old implementation (`klongpy.parser`, `klongpy.lexer`, `klongpy.compiler`, `klongpy.monads`, `klongpy.dyads` and `klongpy.adverbs`) do not exist. The Python API (`KlongInterpreter`, the error classes, the backends) is kept. Version 2 needs Python 3.11 to 3.14, where 0.7 accepted 3.9 and later; the wheel is one `abi3` file per platform.
 
 #### Modules
 
@@ -124,6 +125,30 @@ error: the function takes 2 arguments, got 3
 #### Language additions
 
 See [Language additions](language-additions.md) for the forms. These are the changes in behaviour that come with them, apart from the ones in [Syntax that changed meaning](#syntax-that-changed-meaning).
+
+**New: `.try` and `.err`, errors as values.** `.try(f;args)` applies a function to a list of arguments and gives `[1 result]`, or `[0 e]` when it raises an error. `e` is a dictionary with `kind`, `message`, `source`, `line` and `col`. `.err(kind;message)` raises an error of that kind, and `.err(e)` raises again what `.try` caught. They are the same on every target. A function literal with no parameters, `{work()}`, is a function where `.try`, `.async` and `.timer` want one, and inside the evaluated forms `[;...]` and `:{;...}`; a second argument of `.try` that is not a list is a type error. See [`.try`](system-functions.md#try).
+
+```kgpy
+?> .try({x+1};[1])
+[1 2]
+?> ((.try({x+"a"};[1]))@1)@"kind"
+"type"
+```
+
+**New: `.seed` and `.now`.** `.seed(n)` seeds the random number generator, and the draws of `.rn` that follow are the same on every machine and target. In 0.7 `.rn` drew from NumPy's generator, so `np.random.seed` made it repeat; NumPy's seed no longer reaches `.rn`, and `.seed(42);.rn()` is 0.1941059175341826. `.now()` is the time in seconds since 1970.
+
+**A function with named parameters is lexically scoped.** `f(a;b)::{...}` resolves a free name in its own frame and then in the globals of its file or module, never in the locals of its caller. A classic function (`{x+y}`, or one with a `[t]` locals list) keeps dynamic scope, and so does a function it calls. A function that read its caller's local through a named-parameter form must be given the value as an argument.
+
+```kgpy
+?> t::9
+9
+?> g(a)::{t+a}
+:monad
+?> f::{[t];t::5;g(1)}
+:nilad
+?> f()
+10
+```
 
 **New: `.fmt`, `.pf` and `.grad`.** `.fmt(template;args)` and `.pf(template;args)` format text with `{}` placeholders, and `.grad(f;x)` is the ASCII name of `x∇f`. A template with no placeholders needs no arguments, as in `.pf("done")`. A width with a leading zero, such as `{:05}`, is a range error, because a width pads with spaces. See [Language Additions](language-additions.md#formatted-text).
 
@@ -549,7 +574,7 @@ error: an operator cannot be a dictionary key
 
 #### Libraries and modules
 
-**`csv` and `mgmt` are modules.** `.l("csv")` and `.l("mgmt")` bind the module to the file's name, so `csv.read` and `mgmt.add` work as before. Their helper names are private. `mgmt.trap` is `mgmt.cfg.trap`, and the other settings are in the dictionary `mgmt.cfg` (`mgmt.cfg.pi`, `mgmt.cfg.ct`, `mgmt.cfg.probe`). On a node the three names that `mgmt` installs are `.mgmt.run`, `.mgmt.job` and `.mgmt.r`.
+**`csv` and `nstat` are modules, and `mgmt` is a new one.** `.l("csv")` binds the module to the file's name, so `csv.read` works as before; its helper names are private. `.l("nstat")` binds only `nstat`, where 0.7 put `mu`, `sd` and the rest in the global scope, so write `nstat.mu(v)`. `mgmt` is new in version 2: `mgmt.add`, and its settings in the dictionary `mgmt.cfg` (`mgmt.cfg.pi`, `mgmt.cfg.ct`, `mgmt.cfg.probe`, `mgmt.cfg.trap`). On a node the three names that `mgmt` installs are `.mgmt.run`, `.mgmt.job` and `.mgmt.r`.
 
 **Dotted helper names in the other libraries are renamed**, because a dotted name is now a qualified name:
 
@@ -558,12 +583,12 @@ error: an operator cannot be a dictionary key
 | `math` | `pi0.5`, `pi1.5` | `pihalf`, `pi3half` |
 | `math` | `e.tlr`, `ln.tlr`, `ln.apx`, `ln.big` | `etlr`, `lntlr`, `lnapx`, `lnbig` |
 | `math` | `sin.tlr`, `sin.pos`, `gln.c` | `sintlr`, `sinpos`, `glnc` |
-| `nstat` | `rss.set`, `rse.set`, `mse.set`, `r2.set` | `rssset`, `rseset`, `mseset`, `r2set` |
-| `nstat` | the lognormal family `ln.pdf`, `ln.cdf`, `ln.qf`, `ln.mu`, `ln.M`, `ln.mo`, `ln.var`, `ln.skew` | `lnorm.pdf`, `lnorm.cdf`, `lnorm.qf`, `lnorm.mu`, `lnorm.M`, `lnorm.mo`, `lnorm.var`, `lnorm.skew` |
-| `nstat` | `F.pdf.n`, `F.pdf.d` | `Fpdfn`, `Fpdfd` |
+| `nstat` | `rss.set`, `rse.set`, `mse.set`, `r2.set` | `nstat.rssset`, `nstat.rseset`, `nstat.mseset`, `nstat.r2set` |
+| `nstat` | the lognormal family `ln.pdf`, `ln.cdf`, `ln.qf`, `ln.mu`, `ln.M`, `ln.mo`, `ln.var`, `ln.skew` | `nstat.lnorm.pdf`, `nstat.lnorm.cdf`, `nstat.lnorm.qf`, `nstat.lnorm.mu`, `nstat.lnorm.M`, `nstat.lnorm.mo`, `nstat.lnorm.var`, `nstat.lnorm.skew` |
+| `nstat` | `F.pdf.n`, `F.pdf.d` | private helpers `Fpdfn`, `Fpdfd` of `nstat.F.pdf` |
 | `help` | `help.add`, `op.db` | `helpadd`, `opdb` |
 
-`nstat` is a module: `.l("nstat")` binds only the name `nstat`. Its functions are `nstat.mu`, `nstat.sd` and the rest, and each distribution family is a dictionary inside it, as in `nstat.n.cdf(x;m;s)`.
+Its functions are `nstat.mu`, `nstat.sd` and the rest, and each distribution family is a dictionary inside it, as in `nstat.n.cdf(x;m;s)`.
 
 ```kgpy
 ?> .l("nstat");nstat.n.cdf(0;0;1)
@@ -576,7 +601,7 @@ error: n.cdf: n is not a dictionary (it is integer)
 
 #### Removed switches
 
-**There is no engine switch and no parser switch.** `KLONGPY_ENGINE`, `KLONGPY_PARSER` and `KLONGPY_IPC` do not exist; a program or an environment that sets them is not affected, and they have no effect. `KlongInterpreter(parser=...)` is a `TypeError`, as any unknown keyword is. The old reading of the text that the parser switch gave is not available: `a::5;[a b]::[1 2];a` is 1.
+**There is no engine switch and no parser switch.** The Rust interpreter is the only one. `KLONGPY_ENGINE`, `KLONGPY_PARSER` and `KLONGPY_IPC` were switches of pre-releases of version 2 (0.7 had none); they have no effect. `KlongInterpreter(parser=...)` is a `TypeError`, as any unknown keyword is. The old reading of the text that the parser switch gave is not available: `a::5;[a b]::[1 2];a` is 1.
 
 #### Messages changed
 
@@ -608,7 +633,7 @@ $ kgpy -e '1+"a"'
 
 #### IPC
 
-**The pickle protocol is removed.** A 0.7 client connecting to a 2.0 server is closed at once and the server logs the cause; a 2.0 client connecting to a 0.7 server fails after 5 seconds with `handshake timed out`. The environment variable `KLONGPY_IPC` no longer exists and is ignored. A Python object that has no kdb+ form (a set, a complex number, `None`) was carried by pickle and is now a type error on the sending side. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. An integer beyond 64 bits was carried by pickle and is now `range error: integer does not fit 64 bits` on the sending side. See [0.7 peers](ipc_capabilities.md#07-peers).
+**The pickle protocol is removed.** A 0.7 client connecting to a 2.0 server is closed at once and the server logs the cause; a 2.0 client connecting to a 0.7 server fails after 5 seconds with `handshake timed out`. A Python object that has no kdb+ form (a set, a complex number, `None`) was carried by pickle and is now a type error on the sending side. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. An integer beyond 64 bits was carried by pickle and is now `range error: integer does not fit 64 bits` on the sending side. See [0.7 peers](ipc_capabilities.md#07-peers).
 
 **An error on the server comes back as a Klong error and the connection stays open.** It used to drop the connection (`connection lost`), and the next call failed with a Python `AttributeError`.
 
@@ -842,6 +867,8 @@ a b
 
 
 #### Torch backend
+
+**Every float is float32, and numeric gradients are computed in float64 on the CPU.** Under the torch backend a scalar was a float64 and a tensor element a float32. Now every float the interpreter computes is float32, so a scalar equals the matching tensor element and `(0.1+0.2)=0.3` is 1 (it is 0 on NumPy). A value that needs float64 needs the NumPy backend. `point∇function`, `.grad` and `point∂function` evaluate the function in float64 on the CPU, whatever the device, and return float32. `.try` accepts a tensor as its argument list, `.float` converts a tensor, and `a.b` on a tensor is a type error. See [the torch backend](torch_backend.md).
 
 **The optimizers are in the package.** `SGDOptimizer` and `AdamOptimizer` are in `klongpy.optimizers`, so a `pip install` has them, and they work on Apple MPS, where the gradient of `x^2` at 0 is 0 and not NaN. See [Optimizers](torch_backend.md#optimizers).
 

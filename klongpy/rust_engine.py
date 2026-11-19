@@ -25,7 +25,7 @@ import warnings
 import numpy as np
 
 from .backends import get_backend
-from .errors import (compat, ERROR_KINDS, KlongError, KlongInternalError, KlongSyntaxError, KlongSyntaxWarning, UnexpectedChar, UnexpectedEOF, python_error,
+from .errors import (compat, ERROR_KINDS, KlongArityError, KlongError, KlongInternalError, KlongSyntaxError, KlongSyntaxWarning, UnexpectedChar, UnexpectedEOF, python_error,
                      system_error)
 from .source import Source
 from .utils import check_strict_level
@@ -573,6 +573,8 @@ class KlongInterpreter:
         provide = kgl._provide_klong
 
         def host(*a):
+            if n is not None and not user and len(a) < n:
+                raise KlongArityError(f"{name} takes {n} argument{'s' if n != 1 else ''}, got {len(a)}")
             try:
                 args = [out(q) for q in a[:n]]
                 return into(fn(self, *args) if provide else fn(*args))

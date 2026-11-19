@@ -9,9 +9,16 @@ This page is for anyone with code written for KlongPy 0.7, the last pure-Python 
 | There is no pure-Python KlongPy 2; the interpreter is written in Rust | Install a wheel, or build with a Rust toolchain; [see below](#the-interpreter-and-the-commands) |
 | `a.b` is `a@"b"`, not a variable named `a.b` | Use a plain name or a dictionary; [see below](#names-with-a-dot) |
 | An operator or function as a dictionary-literal key, and an entry that is not `[key value]`, are syntax errors | [Write the pair](#dictionary-literals) |
-| The libraries `csv` and `mgmt` are modules, `mgmt.trap` is `mgmt.cfg.trap`, and dotted helper names in `math`, `nstat` and `help` are renamed | [See the table](#libraries) |
-| The torch backend's `.export(fn;input;path)` is `.bkx`; `.compile`, `.compilex` and `.cmodes` are removed | [See below](#torch-export-and-compile) |
-| `KLONGPY_ENGINE`, `KLONGPY_PARSER` and `KLONGPY_IPC` do not exist | Remove them; [see below](#removed-switches) |
+| The libraries `csv` and `nstat` are modules (so is `mgmt`, which is new), and dotted helper names in `math`, `nstat` and `help` are renamed | [See the table](#libraries) |
+| The torch backend's `.export(fn;input;path)` is `.bkx`; `.compile`, `.compilex` and `.cmodes` are removed | [See below](#torch-bkx-and-compile) |
+| `KlongInterpreter(parser=...)` is removed, and there is no engine switch | Remove them; [see below](#removed-switches) (only pre-releases of 2 had them) |
+| Python 3.11 or later | [See below](#python-version) |
+| A function with named parameters does not see its caller's locals | [Pass the value](#named-parameters-are-lexically-scoped) |
+| A function literal with no parameters is a function wherever it is written | [See below](#a-function-literal-with-no-parameters) |
+| `.l("nstat")` binds `nstat` only, `.rn` is seeded with `.seed`, and numpy's seed no longer reaches it | [See below](#libraries) and [random numbers](#random-numbers) |
+| Under torch every float is float32, so `(0.1+0.2)=0.3` is 1 | [See below](#torch-float32-and-numeric-gradients) |
+| `kg` is the Rust binary and `kgpy` the Python-hosted command; Python-only functions under `kg` say they need `kgpy` | [See below](#the-interpreter-and-the-commands) |
+| New names: `.try`, `.err`, `.seed`, `.now`, `.import`, `.export` | [See below](#new-system-functions-that-take-names) |
 | String indexing gives a character; `[:a :b]?:b`, `&/"abc"`, `+/"abc"` and others changed | [See below](#bugs-of-07-that-2-does-not-have) |
 | IPC: 0.7 and 2.0 cannot talk to each other (the pickle protocol is removed) | [Upgrade both ends](#ipc-speaks-the-kdb-protocol) |
 | `[a b]::v` binds; `f(a;b)::{...}` defines | Write the program for the new reading |
@@ -28,7 +35,7 @@ This page is for anyone with code written for KlongPy 0.7, the last pure-Python 
 
 ## The interpreter and the commands
 
-Version 2 evaluates Klong on one interpreter, written in Rust. 0.7 had a Python implementation of the language, and version 2 has none. `pip install klongpy` installs two commands, `kgpy` (the interpreter hosted in Python, which has everything 0.7 had) and `kg` (the same interpreter with no Python). See [What Runs Where](what-runs-where.md).
+Version 2 evaluates Klong on one interpreter, written in Rust. 0.7 had a Python implementation of the language, and version 2 has none. `pip install klongpy` installs two commands, `kgpy` (the interpreter hosted in Python, which has everything 0.7 had) and `kg` (the same interpreter with no Python). See [What Runs Where](what-runs-where.md). 0.7 had only `kgpy`; a script or service that starts the Python-hosted interpreter keeps using `kgpy`. Under `kg`, a function that only Python can provide (`.py`, `.pyf`, `.pyc`, `.web`, `.db` and the others listed in [What Runs Where](what-runs-where.md)) is a name error that says it needs `kgpy`, and the program must run under `kgpy`.
 
 What this changes for your code:
 
@@ -36,6 +43,10 @@ What this changes for your code:
 * **`import klongpy` needs its compiled extension.** A wheel carries it. A source tree builds it with `pip install -e .`, which needs a Rust toolchain. Without it the import fails with a message that says so, and there is no slower fallback.
 * **The tools are Rust.** `kgpy lint`, `check`, `compile c`, `fpga source` and `ast` call the same code as `kg lint`, `kg check` and the rest. Their output is the same text as before except where a message names a new rule. `klongpy.lint.lint_source` still works from Python.
 * **Warnings are issued before the program runs.** The syntax warnings of a file come out after it is parsed and before its first statement, so they appear above the program's output.
+
+## Python version
+
+Version 2 needs Python 3.11 to 3.14. 0.7 accepted Python 3.9 and later. Upgrade the interpreter before you upgrade KlongPy. The wheel is one `abi3` file per platform.
 
 ## Check your code first
 
@@ -281,6 +292,57 @@ Before: a function with optional parameters was called with its required ones on
 5.0
 ```
 
+### Named parameters are lexically scoped
+
+Before: every function was dynamically scoped, so a function saw the locals and parameters of whoever called it. Now a function written with named parameters, `f(a;b)::{...}`, resolves a free name in its own frame and then in the globals of its file or module, and never in the caller's locals. A classic function (`{x+y}`, or `{[t];...}` with a locals list) keeps dynamic scope, and so does a function it calls.
+
+```kgpy
+?> t::9
+9
+?> g(a)::{t+a}
+:monad
+?> f::{[t];t::5;g(1)}
+:nilad
+?> f()
+10
+?> h::{t}
+:nilad
+?> f2::{[t];t::5;h()}
+:nilad
+?> f2()
+5
+```
+
+`f()` is 10 and not 6: `g` has named parameters, so it reads the global `t`, and `h`, a classic function, reads the `t` of `f2` that called it. A program whose named-parameter function read a caller's local must pass the value as an argument. Why: a named-parameter function is the form that [design principle 4](design-principles.md) asks for, and its names are visible where it is written.
+
+### A function literal with no parameters
+
+Before: a function literal that uses none of `x`, `y` and `z`, such as `{work()}`, was evaluated at the place where it was written when it was an argument (see [Calling a value that is not a function](#calling-a-value-that-is-not-a-function)). Now it is a function in the places that want one: the function argument of `.try`, `.async` and `.timer`, and an element of a list or dictionary written with `;`, such as `:{;"on";{work()}}`. A second argument of `.try` that is not a list is a type error.
+
+```kgpy
+?> d:::{;"on";{1}}
+:{["on" :nilad]}
+?> .try({1%0};[])
+[1 :undefined]
+```
+
+### Random numbers
+
+Before: `.rn` drew from NumPy's global generator, so `np.random.seed(7)` made the draws repeat, and there was no `.seed`. Now `.seed(n)` seeds the interpreter's own generator, and the draws that follow are the same on every machine and on every target. NumPy's seed no longer reaches `.rn`, and the sequences differ from the ones NumPy gave: `.seed(42);.rn()` is 0.1941059175341826. A program that wants repeatable draws calls `.seed`.
+
+```kgpy
+?> .seed(42);.rn()
+0.1941059175341826
+```
+
+### Torch: float32 and numeric gradients
+
+Under the torch backend every float is float32, scalars included. Before, a scalar was a Python float (float64) and only tensor elements were float32, so a scalar and the matching element could differ. Now `(0.1+0.2)=0.3` is 1 under torch (it is 0 under NumPy), and a value that needs float64 needs the NumPy backend. The numeric gradient (`point∇function`, `.grad`, `point∂function`) is computed in float64 on the CPU on every device and returned as float32. See [the torch backend](torch_backend.md).
+
+### New system functions that take names
+
+`.try`, `.err`, `.seed`, `.now`, `.import` and `.export` are system functions of version 2, and 0.7 had none of them. A program that defined a variable or function of one of these names keeps the definition but loses the system function. `.export` was the torch export function in 0.7 and is now the module function; see [Torch](#torch-bkx-and-compile). `.try(f;args)` gives `[1 result]` or `[0 e]` and `.err(kind;message)` raises, `.now()` is the time in seconds since 1970. See [System functions](system-functions.md).
+
 ## Input that is now reported
 
 ### Left-over input warns, and is an error under strict
@@ -378,10 +440,11 @@ Write each entry as a pair of one key and one value. To have the keys and values
 
 ## Libraries
 
-The libraries in `klongpy/lib` are loaded with `.l`, as before. Two changed form and the others lost their dotted helper names, because a dotted name is now a qualified name.
+The libraries in `klongpy/lib` are loaded with `.l`, as before. Two are modules now and the others lost their dotted helper names, because a dotted name is now a qualified name.
 
-* **`csv` and `mgmt` are modules.** `.l("csv")` binds the module to the name `csv`, so `csv.read`, `csv.split` and `mgmt.add` work as before. Their helpers are private: `escape` in `csv` is no longer a global.
-* **`mgmt.trap` is `mgmt.cfg.trap`.** The settings are in the dictionary `mgmt.cfg`: `mgmt.cfg.pi`, `mgmt.cfg.ct`, `mgmt.cfg.probe` and `mgmt.cfg.trap`. Write one as `mgmt.cfg.ct::60`. A node gets `.mgmt.run`, `.mgmt.job` and `.mgmt.r`.
+* **`csv` is a module.** `.l("csv")` binds the module to the name `csv`, so `csv.read`, `csv.split`, `csv.make`, `csv.write` and `csv.load` work as before. Its helpers are private: `escape` in `csv` is no longer a global. In 0.7 these were variables whose names contained a dot.
+* **`nstat` is a module.** 0.7 put its functions in the global scope after `.l("nstat")`, as `mu(v)` and `n.cdf(x;m;s)`. Now `.l("nstat")` binds only `nstat`, and a call is `nstat.mu(v)` or `nstat.n.cdf(x;m;s)`. A bare `mu(v)` is an undefined-function error.
+* **`mgmt` is new in version 2** and is a module: `.l("mgmt")` binds `mgmt`, with `mgmt.add` and the settings in the dictionary `mgmt.cfg` (`mgmt.cfg.pi`, `mgmt.cfg.ct`, `mgmt.cfg.probe` and `mgmt.cfg.trap`). Write a setting as `mgmt.cfg.ct::60`. A node gets `.mgmt.run`, `.mgmt.job` and `.mgmt.r`. Release candidates of version 2 had `mgmt.trap`; it is `mgmt.cfg.trap`. 0.7 had no `mgmt`.
 * **The other names changed as follows.**
 
 | Library | 0.7 | Now |
@@ -389,12 +452,12 @@ The libraries in `klongpy/lib` are loaded with `.l`, as before. Two changed form
 | `math` | `pi0.5`, `pi1.5` | `pihalf`, `pi3half` |
 | `math` | `e.tlr`, `ln.tlr`, `ln.apx`, `ln.big` | `etlr`, `lntlr`, `lnapx`, `lnbig` |
 | `math` | `sin.tlr`, `sin.pos`, `gln.c` | `sintlr`, `sinpos`, `glnc` |
-| `nstat` | `rss.set`, `rse.set`, `mse.set`, `r2.set` | `rssset`, `rseset`, `mseset`, `r2set` |
-| `nstat` | `ln.pdf`, `ln.cdf`, `ln.qf`, `ln.mu`, `ln.M`, `ln.mo`, `ln.var`, `ln.skew` | `lnorm.pdf`, `lnorm.cdf`, `lnorm.qf`, `lnorm.mu`, `lnorm.M`, `lnorm.mo`, `lnorm.var`, `lnorm.skew` |
-| `nstat` | `F.pdf.n`, `F.pdf.d` | `Fpdfn`, `Fpdfd` |
+| `nstat` | `rss.set`, `rse.set`, `mse.set`, `r2.set` | `nstat.rssset`, `nstat.rseset`, `nstat.mseset`, `nstat.r2set` |
+| `nstat` | `ln.pdf`, `ln.cdf`, `ln.qf`, `ln.mu`, `ln.M`, `ln.mo`, `ln.var`, `ln.skew` | `nstat.lnorm.pdf`, `nstat.lnorm.cdf`, `nstat.lnorm.qf`, `nstat.lnorm.mu`, `nstat.lnorm.M`, `nstat.lnorm.mo`, `nstat.lnorm.var`, `nstat.lnorm.skew` |
+| `nstat` | `F.pdf.n`, `F.pdf.d` | private helpers `Fpdfn`, `Fpdfd` (use `nstat.F.pdf`) |
 | `help` | `help.add`, `op.db` | `helpadd`, `opdb` |
 
-`nstat` is a module. After `.l("nstat")` its functions are entries of `nstat`: `nstat.mu(v)`, `nstat.sd(v)`. A distribution family is a dictionary inside it: `nstat.n.cdf(x;m;s)`, `nstat.t.pdf(x;v)`.
+`sin` of a negative number works in `math`; `sin(-0.5)` raised an undefined-name error in 0.7.
 
 ```kgpy
 ?> .l("nstat");nstat.n.cdf(0;0;1)
@@ -411,7 +474,7 @@ The torch backend's `.export(fn;input;path)` is now `.bkx(fn;input;path)`, with 
 
 ## Removed switches
 
-`KLONGPY_ENGINE`, `KLONGPY_PARSER` and `KLONGPY_IPC` do not exist. Setting them has no effect, and the old reading of the text that the parser switch gave is not available. `KlongInterpreter(parser=...)` is a `TypeError`, as any unknown keyword is. The program `a::5;[a b]::[1 2];a` is 1 whatever the environment says. Remove these variables from scripts and service files.
+`KlongInterpreter(parser=...)` is a `TypeError`, as any unknown keyword is, and there is no engine switch: the Rust interpreter is the only one. 0.7 had neither, so only a program written against a pre-release of version 2 is affected. `KLONGPY_ENGINE`, `KLONGPY_PARSER` and `KLONGPY_IPC` were switches of those pre-releases and have no effect now; remove them from scripts and service files. The program `a::5;[a b]::[1 2];a` is 1 whatever the environment says.
 
 ```console
 $ KLONGPY_PARSER=legacy kgpy -e 'a::5;[a b]::[1 2];a'
@@ -434,7 +497,7 @@ These gave a wrong or failing result in 0.7. They are listed because a program t
 | `"abc"@1` | `"b"` | `0cb` |
 | `"abc"@-1` | `"c"` | `0cc` |
 
-Indexing a string with an integer gives a character, as in classic Klong, where 0.7 gave a one-character string. `*"abc"` is still the string `"a"`; see [Known bugs](differences.md#known-bugs). Indexing with a list of integers gives a string, as before: `"abc"@[0 1]` is `"ab"`. A program that compares an indexed character with a string needs `0cb` and not `"b"`; the two print differently and compare equal under `~` only in the cases that [Differences from Klong](differences.md#strings) lists.
+Indexing a string with an integer gives a character, as in classic Klong, where 0.7 gave a one-character string. `*"abc"` is still the string `"a"`; see [Known bugs](differences.md#known-bugs). Indexing with a list of integers gives a string, as before: `"abc"@[0 1]` is `"ab"`. A program that compares an indexed character with a string needs `0cb` and not `"b"`; the two print differently and compare equal under `~` only in the cases that [Differences from Klong](differences.md#known-bugs) lists.
 
 ## Strict mode
 
@@ -497,9 +560,8 @@ Now: the kdb+ IPC protocol is the only protocol. A q process can talk to a `.srv
 
 - A 0.7 client connecting to a 2.0 server is closed at once, and the server logs that the client speaks the pickle protocol of 0.7. The client sees `connection lost`.
 - A 2.0 client connecting to a 0.7 server fails at the handshake after 5 seconds with `handshake timed out`.
-- The environment variable `KLONGPY_IPC` no longer exists and is ignored, whatever its value.
 
-What to do: upgrade every KlongPy process that talks IPC to 2.0 or later, then remove `KLONGPY_IPC` from environments if you set it. A Python object with no kdb+ form (a set, a complex number, `None`) used to travel by pickle and is now a type error on the sending side; send a list, a string or a dictionary instead. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. See [the protocol](ipc_capabilities.md#protocol-and-security) and [0.7 peers](ipc_capabilities.md#07-peers).
+What to do: upgrade every KlongPy process that talks IPC to 2.0 or later. A Python object with no kdb+ form (a set, a complex number, `None`) used to travel by pickle and is now a type error on the sending side; send a list, a string or a dictionary instead. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. See [the protocol](ipc_capabilities.md#protocol-and-security) and [0.7 peers](ipc_capabilities.md#07-peers).
 
 Other changes that come with the new protocol:
 

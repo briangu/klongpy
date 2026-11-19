@@ -400,7 +400,7 @@ At the default level (0) the same function runs, and `u` is a hidden local that 
 
 ### Dynamic scoping
 
-A function that reads a name looks for it in its own parameters and locals, then in the functions that called it, and last in the globals. The name means whatever the nearest caller gave it:
+A classic function, one written without named parameters, that reads a name looks for it in its own locals, then in the functions that called it, and last in the globals. The name means whatever the nearest caller gave it:
 
 <!-- check-docs: strict 2 -->
 ```kgpy
@@ -416,7 +416,7 @@ A function that reads a name looks for it in its own parameters and locals, then
 10
 ```
 
-`loss` has no `w` of its own. It finds the `w` of `viaParam`, which called it, so the answer is 9, and the global `w` is still 10. Locals and named parameters are both dynamically scoped, so a function that has a local `w` shows it to everything it calls.
+`loss` has no `w` of its own. It finds the `w` of `viaParam`, which called it, so the answer is 9, and the global `w` is still 10. A function that has a local or a parameter `w` shows it to every classic function it calls. A function with named parameters does not look at its caller: it reads its own parameters and locals, then the globals.
 
 This is useful in one situation: taking the gradient of a loss with respect to one global. The one-argument function `lossW` fixes which name is being varied, and `:>` calls it with the point:
 

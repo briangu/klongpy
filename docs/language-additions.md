@@ -170,7 +170,7 @@ With four inputs and classic Klong, pass a list and take it apart with a head [d
 
 The parameter names are local to the function. They shadow a global of the same name and leave it alone, and they need no locals list at strict level 1 or 2. The body may still start with a locals list, or with a head destructuring.
 
-Parameters and locals are dynamically scoped: a function that is called from the body sees them, before the globals. The tutorial shows it in [Dynamic scoping](tutorial.md#dynamic-scoping), and why to pass arguments instead.
+A classic function (one written without named parameters) that is called from the body sees the parameters and locals, before the globals. A function with named parameters does not: it reads its own parameters and locals, then the globals, and never its caller's names. The tutorial shows it in [Dynamic scoping](tutorial.md#dynamic-scoping), and why to pass arguments instead.
 
 <!-- check-docs: strict 2 -->
 ```kgpy
@@ -488,7 +488,7 @@ The rules:
 
 `.l("name")` on a file that is a module runs it and binds the module to the file's name, as `name::.import("name")` does. That is how the libraries `csv` and `mgmt` are used: `.l("csv")` gives `csv.read`, `csv.split` and the rest. A file without `.export` is a classic file, and `.l` writes its names into the globals as before.
 
-The static checker follows a top-level `.import` with a literal path, so a module can be compiled. [Lint](lint.md#rules) has the rules for imports. `examples/modules` is a program of twelve files that uses all of this.
+The static checker follows a top-level `.import` with a literal path, so a module can be compiled. [Lint](lint.md#codes) has the rules for imports. `examples/modules` is a program of twelve files that uses all of this.
 
 ## Formatted text
 
