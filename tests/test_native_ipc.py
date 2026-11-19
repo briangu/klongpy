@@ -24,6 +24,7 @@ import unittest
 
 import numpy as np
 
+from backend_compat import to_numpy
 from ipc_helpers import bounded, free_port, wait_until
 from peachq_helpers import ENV, Q_PRELUDE, TESTED_VERSION, PeachQServer, parse_results, peachq_exe, run_q
 
@@ -545,7 +546,7 @@ class TestNativeClientKlongPyServer(Case):
         # a 1,000,000-element float array, 8 MB each way
         self.assertEqual(self.client.value("bigf::0.5*!1000000;r::c(:idf,,bigf);(r~bigf),#r", 60), "[1 1000000]")
         self.client.run("d::.clid(c);d,:got,,bigf", 60)
-        np.testing.assert_array_equal(self.server["got"], np.arange(1_000_000) * 0.5)
+        np.testing.assert_array_equal(to_numpy(self.server["got"]), np.arange(1_000_000) * 0.5)
 
     def test_connection_refused_and_server_gone(self):
         c = self.client

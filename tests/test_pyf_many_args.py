@@ -5,6 +5,8 @@ import unittest
 
 import numpy as np
 
+from backend_compat import to_numpy
+
 from klongpy import KlongInterpreter
 from klongpy.errors import KlongPythonError
 
@@ -36,9 +38,9 @@ class TestPyfManyArguments(unittest.TestCase):
         for level in LEVELS:
             with self.subTest(level=level):
                 k = self.klong(level)
-                np.testing.assert_allclose(k("linspace(0;1;4;0)"), [0.0, 0.25, 0.5, 0.75])
-                np.testing.assert_allclose(k("linspace(0;1;4;1)"), [0.0, 1 / 3, 2 / 3, 1.0])
-                np.testing.assert_allclose(k("linspace(0;1;4)"), [0.0, 1 / 3, 2 / 3, 1.0])
+                np.testing.assert_allclose(to_numpy(k("linspace(0;1;4;0)")), [0.0, 0.25, 0.5, 0.75])
+                np.testing.assert_allclose(to_numpy(k("linspace(0;1;4;1)")), [0.0, 1 / 3, 2 / 3, 1.0])
+                np.testing.assert_allclose(to_numpy(k("linspace(0;1;4)")), [0.0, 1 / 3, 2 / 3, 1.0])
 
     def test_more_than_three_required_parameters_keep_the_packed_form(self):
         # a design decision, pinned by tests/test_error_wrapping.py: such a function
