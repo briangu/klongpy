@@ -1,5 +1,7 @@
 [build-system]
-requires = ["setuptools>=77"]
+# setuptools-rust, not maturin: one wheel must carry the abi3 extension (native/klong-py, in its own cargo workspace) AND the `kg`
+# binary (native/klong-cli, in the native workspace). maturin builds one cargo package per wheel and cannot do both.
+requires = ["setuptools>=77", "setuptools-rust>=1.10"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -11,15 +13,16 @@ license = "MIT"
 authors = [
     { name = "Brian Guarraci" }
 ]
-requires-python = ">=3.9,<3.15"
+requires-python = ">=3.11,<3.15"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "Operating System :: OS Independent",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Rust",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -42,7 +45,7 @@ torch = ["torch"]
 # `pip install klongpy[repl]` keeps working.
 repl = ["colorama>=0.4"]
 web = ["aiohttp>=3.9"]
-# pandas 2.x supports Python 3.9/3.10; pandas 3 needs 3.11+ (pip picks the newest that fits).
+# pip picks the newest pandas that fits the interpreter.
 db = ["pandas>=2.0", "duckdb>=1.0"]
 ws = ["websockets>=12"]
 docs = ["mkdocs>=1.6", "mkdocs-material>=9.7", "mike>=2.1"]
@@ -81,6 +84,24 @@ Documentation = "http://klongpy.org"
 
 [project.scripts]
 kgpy = "klongpy.cli:main"
+
+# The compiled extension, importable as klongpy._native (klongpy/native_ext.py). abi3 (cp311+): one wheel per platform.
+[[tool.setuptools-rust.ext-modules]]
+target = "klongpy._native"
+path = "native/klong-py/Cargo.toml"
+binding = "PyO3"
+py-limited-api = true
+strip = "All"
+
+# The pure Rust command, installed on PATH next to `kgpy`; needs no Python at run time.
+[[tool.setuptools-rust.bins]]
+target = "kg"
+path = "native/klong-cli/Cargo.toml"
+strip = "All"
+
+# The wheel tag: cp311-abi3-<platform>, matching pyo3's `abi3-py311` feature in native/klong-py/Cargo.toml.
+[tool.distutils.bdist_wheel]
+py-limited-api = "cp311"
 
 [tool.setuptools.packages.find]
 where = ["."]

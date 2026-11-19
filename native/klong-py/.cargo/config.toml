@@ -1,0 +1,4 @@
+# A Python extension module leaves the interpreter's symbols undefined until it is loaded; the macOS linker needs to be told so
+# (setuptools-rust and maturin pass the same flags; this makes a plain `cargo build --release` here work too).
+[target.'cfg(target_os = "macos")']
+rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]

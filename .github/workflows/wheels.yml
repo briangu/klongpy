@@ -1,0 +1,130 @@
+name: Wheels
+
+# The release build: one abi3 wheel (cp311 and later) per platform and the sdist, each wheel installed into a clean environment and
+# tested there. Runs on a version tag and by hand only; the ordinary test workflow is unittests.yml.
+#
+# Every wheel carries the extension (klongpy._native) and the `kg` binary, both built from native/ by setuptools-rust
+# (pyproject.toml), so each platform builds on a runner of its own architecture.
+#
+# Publishing is the last job and is OFF: it runs only when this workflow is started by hand on a tag with `publish` ticked.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Upload the wheels and the sdist to PyPI (only on a tag ref; needs the pypi environment and trusted publishing)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  sdist:
+    name: Source distribution
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Build the sdist
+      run: |
+        python -m pip install --upgrade pip build twine
+        python -m build --sdist
+        python -m twine check dist/*
+    - name: The sdist holds the Rust sources
+      run: tar tzf dist/*.tar.gz | grep -E '/native/klong-(core|py|cli)/Cargo.toml'
+    - uses: actions/upload-artifact@v4
+      with:
+        name: sdist
+        path: dist/*.tar.gz
+
+  wheels:
+    name: Wheel ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x86_64,   os: ubuntu-latest }
+          - { name: linux-aarch64,  os: ubuntu-24.04-arm }
+          - { name: macos-arm64,    os: macos-14,        deployment: "11.0" }
+          - { name: macos-x86_64,   os: macos-15-intel,  deployment: "10.15" }
+          - { name: windows-x86_64, os: windows-latest }
+    env:
+      # abi3: the cp311 wheel serves every Python from 3.11. No musllinux wheel (see docs).
+      CIBW_BUILD: "cp311-*"
+      CIBW_SKIP: "*-musllinux_*"
+      CIBW_BEFORE_ALL_LINUX: "curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal"
+      CIBW_ENVIRONMENT_LINUX: 'PATH="$HOME/.cargo/bin:$PATH"'
+      CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment }}"
+      # A smoke test inside cibuildwheel's own environment, in a directory that holds no source.
+      CIBW_TEST_COMMAND: 'kg -e "1+1" && kgpy -e "1+1"'
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Build the wheel
+      uses: pypa/cibuildwheel@v3.2
+      with:
+        output-dir: wheelhouse
+    - uses: actions/upload-artifact@v4
+      with:
+        name: wheel-${{ matrix.name }}
+        path: wheelhouse/*.whl
+
+    # The suite against the wheel, not the source tree: install it into a fresh environment and make that installation win over the
+    # checkout on sys.path (PYTHONSAFEPATH keeps the working directory off it, --import-mode=append puts the checkout last). The checkout
+    # stays because some tests read its files (lib, docs, examples, native/boards).
+    - name: Install the wheel into a fresh environment
+      shell: bash
+      run: |
+        python -m venv "$RUNNER_TEMP/venv"
+        VENV_BIN="$RUNNER_TEMP/venv/bin"; [ -d "$VENV_BIN" ] || VENV_BIN="$RUNNER_TEMP/venv/Scripts"
+        echo "$VENV_BIN" >> "$GITHUB_PATH"
+        "$VENV_BIN/python" -m pip install wheelhouse/*.whl pytest pytest-asyncio aiohttp pandas duckdb websockets
+    - name: Installed commands, and the package comes from the wheel
+      shell: bash
+      env:
+        PYTHONSAFEPATH: "1"
+      run: |
+        python -c "import klongpy, sys; print(klongpy.__version__, klongpy.__file__); sys.exit('site-packages' not in klongpy.__file__)"
+        kgpy -e "1+1"
+        kg -e "1+1"
+    - name: Conformance suite through the installed package
+      # conformance/run.py puts its repository root on sys.path, so it runs from a copy that has no package beside it.
+      shell: bash
+      run: |
+        mkdir "$RUNNER_TEMP/cf"
+        cp -R conformance "$RUNNER_TEMP/cf/"
+        python "$RUNNER_TEMP/cf/conformance/run.py"
+    - name: Test suite against the installed wheel
+      env:
+        PYTHONSAFEPATH: "1"
+      # tests/test_compiler.py needs torch, which the wheel matrix does not install.
+      run: pytest tests -v --import-mode=append --ignore=tests/test_compiler.py
+
+  # NOT ENABLED. Runs only for a manual start of this workflow, on a tag, with `publish` ticked.
+  # The owner configures once (nothing here holds a secret):
+  #   1. PyPI: project klongpy > Publishing > add a trusted publisher: owner and repository of this repository, workflow `wheels.yml`,
+  #      environment `pypi`.
+  #   2. GitHub: Settings > Environments > create `pypi`, with required reviewers.
+  publish:
+    name: Publish to PyPI
+    needs: [sdist, wheels]
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        path: dist
+        merge-multiple: true
+    - uses: pypa/gh-action-pypi-publish@release/v1

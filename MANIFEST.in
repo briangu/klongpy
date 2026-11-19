@@ -2,3 +2,22 @@ README.md
 recursive-include klongpy/lib *.kg
 recursive-include klongpy/static *.h
 recursive-include klongpy/data *.json
+# The Rust sources the wheel is built from: the extension (klong-py, its own cargo workspace) and the kg binary (klong-cli, in the native
+# workspace, whose root and every member must be present). The library files above are embedded by klong-rt and klong-lint.
+include native/Cargo.toml native/Cargo.lock
+graft native/klong-board
+graft native/klong-cli
+graft native/klong-console
+graft native/klong-core
+graft native/klong-dgram
+graft native/klong-ffi
+graft native/klong-host
+graft native/klong-ipc
+graft native/klong-lint
+graft native/klong-py
+graft native/klong-rt
+graft native/klong-sim
+graft native/klong-static
+graft native/klong-tools
+prune native/*/target
+global-exclude *.pyc

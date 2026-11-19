@@ -1,5 +1,5 @@
 """
-The compiled extension of the native (Rust) engine, `klong_native` (native/klong-py): the interpreter and the tools (lint, the static
+The compiled extension of the native (Rust) engine (native/klong-py), `klongpy._native` in a wheel or an editable install, `klong_native` when built by hand: the interpreter and the tools (lint, the static
 checker, the C and FPGA-source compiler, the tree dump, REPL input and IPC function text). Importing it is an ImportError that says how
 to build it when it is missing; there is no fallback.
 """
@@ -29,8 +29,10 @@ def load_extension():
             "KlongPy 2 evaluates on the native (Rust) engine and needs its compiled extension, which was not found "
             "(neither klongpy._native nor klong_native is importable, and KLONGPY_NATIVE_PATH is "
             + (f"set to {ext!r}, which does not hold it" if ext else "not set")
-            + "). Build it with `cd native/klong-py && cargo build --release`, copy target/release/libklong_native.dylib (Linux: .so) "
-            "to a directory as klong_native.abi3.so, and put that directory on KLONGPY_NATIVE_PATH (or on PYTHONPATH).") from e
+            + "). An installed wheel carries it as klongpy._native: reinstall with `pip install --force-reinstall klongpy`. "
+            "From a source tree, `pip install -e .` builds it (needs a Rust toolchain, https://rustup.rs); or build it by hand with "
+            "`cd native/klong-py && cargo build --release`, copy target/release/libklong_native.dylib (Linux: .so, Windows: .dll) "
+            "to a directory as klong_native.abi3.so (Windows: klong_native.pyd), and put that directory on KLONGPY_NATIVE_PATH.") from e
     finally:
         if ext:
             try:
