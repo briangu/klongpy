@@ -2,7 +2,7 @@
 
 * importing klongpy must not change process-wide numpy state;
 * one KGChar class;
-* operator modules may not grow new direct numpy uses (the budgets below can
+* the host operations may not grow new direct numpy uses (the budgets below can
   only go down; each remaining use is one the backend mechanism
   could not take over mechanically);
 * torch is imported only by klongpy/backends/torch_backend.py.
@@ -17,11 +17,9 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PKG = os.path.join(ROOT, "klongpy")
 
-# Direct `np.x`, `numpy.x` and `bknp.x` attribute uses (AST walk) left in each operator module.
+# Direct `np.x`, `numpy.x` and `bknp.x` attribute uses (AST walk) left in the host operations for backend arrays.
 NUMPY_BUDGET = {
-    "adverbs.py": 0,
-    "monads.py": 16,
-    "dyads.py": 17,
+    os.path.join("backends", "host_ops.py"): 33,
 }
 NUMPY_NAMES = {"np", "numpy", "bknp"}
 

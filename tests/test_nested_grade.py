@@ -36,8 +36,8 @@ def test_grade_tensor_tracking_gradients(klong_torch):
     backend = klong_torch._backend
     a = backend.create_grad_tensor([[0., 2.], [0., 1.]])
     klong_torch['a'] = a
-    np.testing.assert_array_equal(klong_torch('<a'), [1, 0])
-    np.testing.assert_array_equal(klong_torch('>a'), [0, 1])
+    np.testing.assert_array_equal(backend.to_numpy(klong_torch('<a')), [1, 0])
+    np.testing.assert_array_equal(backend.to_numpy(klong_torch('>a')), [0, 1])
     assert backend.has_gradient(a)
     np.testing.assert_array_equal(backend.to_numpy(a), [[0., 2.], [0., 1.]])
 

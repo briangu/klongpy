@@ -143,7 +143,6 @@ class TestRequests(IPCCase):
         self.assertEqual(cm.exception.kind, "name")
         self.assertIn("symbol not found", str(cm.exception))
 
-    @unittest.expectedFailure   # engine needs: a.b on a host value (the handle of .clid) asks the host, as a@"b" does (qual_dict: Value::Host)
     def test_dict_qualified_name_reads_like_at(self):
         """h.f is h@"f" on a remote dictionary handle: a read of the symbol on the server."""
         server, client = self.pair()
