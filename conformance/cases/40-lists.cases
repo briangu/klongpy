@@ -665,7 +665,6 @@
 > ^["abcd" "efgh"]
 = [2 4]
 
-
 @ lists.amend-in-depth-float-value-joined-to-the-path core float
 > [[1 2][3 4]]:-5.5,[1 1]
 = [[1.0 2.0] [3.0 5.5]]
@@ -717,3 +716,7 @@
 @ lists.index-string-by-a-matrix-of-strings-is-a-range-error strings
 > "abc"@[["a" "b"]]
 ! range
+
+@ lists.find-symbol-in-list core
+> [:a :b]?:b
+= [1]

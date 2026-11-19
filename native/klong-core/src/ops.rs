@@ -382,6 +382,44 @@ pub(crate) fn text_of(v: &Value) -> Option<Txt<'_>> {
     }
 }
 
+/// Two numbers under `+ - * < > =` (and `%` of floats by a divisor that is not zero), the answer the pairing routine gives, without the
+/// routine; `None` for any other pair, which it does.
+#[cfg(feature = "speed")]
+#[inline]
+pub(crate) fn scalar_pair(op: Option<Atomic>, a: &Value, b: &Value) -> Option<Value> {
+    let op = op?;
+    match (a, b) {
+        (Value::Int(x), Value::Int(y)) => Some(match op {
+            Atomic::Add => Value::Int(x.wrapping_add(*y)),
+            Atomic::Sub => Value::Int(x.wrapping_sub(*y)),
+            Atomic::Mul => Value::Int(x.wrapping_mul(*y)),
+            Atomic::Less => Value::Int((x < y) as Int),
+            Atomic::More => Value::Int((x > y) as Int),
+            Atomic::Eq => Value::Int((x == y) as Int),
+            _ => return None,
+        }),
+        (Value::Flt(x), Value::Flt(y)) => flt_pair(op, *x, *y),
+        (Value::Int(x), Value::Flt(y)) => flt_pair(op, *x as Flt, *y),
+        (Value::Flt(x), Value::Int(y)) => flt_pair(op, *x, *y as Flt),
+        _ => None,
+    }
+}
+
+#[cfg(feature = "speed")]
+#[inline]
+fn flt_pair(op: Atomic, x: Flt, y: Flt) -> Option<Value> {
+    Some(match op {
+        Atomic::Add => Value::Flt(x + y),
+        Atomic::Sub => Value::Flt(x - y),
+        Atomic::Mul => Value::Flt(x * y),
+        Atomic::Div if y != 0.0 => Value::Flt(x / y),
+        Atomic::Less => Value::Int((x < y) as Int),
+        Atomic::More => Value::Int((x > y) as Int),
+        Atomic::Eq => Value::Int((x == y) as Int),
+        _ => return None,
+    })
+}
+
 /// One pair of atoms (anything that is not a list).
 // (not inlined: `atomic` recurses once per level of nesting and must stay small on the stack)
 #[inline(never)]
@@ -486,7 +524,7 @@ impl<'a> Operand<'a> {
     }
 }
 
-fn dims_of(v: &Value) -> (usize, usize, &[u32], usize) {
+pub(crate) fn dims_of(v: &Value) -> (usize, usize, &[u32], usize) {
     // (rank, leading length, row dims, total scalars)
     match v {
         Value::Ints(a) => (a.rank(), a.len(), a.row_dims(), a.data.len()),
@@ -495,7 +533,7 @@ fn dims_of(v: &Value) -> (usize, usize, &[u32], usize) {
     }
 }
 
-fn shaped_like(like: &Value, ints: Option<Vec<Int>>, flts: Option<Vec<Flt>>) -> Value {
+pub(crate) fn shaped_like(like: &Value, ints: Option<Vec<Int>>, flts: Option<Vec<Flt>>) -> Value {
     let (rank, len, row, _) = dims_of(like);
     let mut dims = [0u32; crate::value::MAX_RANK];
     dims[0] = len as u32;
@@ -511,6 +549,10 @@ fn shaped_like(like: &Value, ints: Option<Vec<Int>>, flts: Option<Vec<Flt>>) -> 
 /// Numeric array against numeric array or number.
 #[inline(never)]
 fn array_op(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> {
+    #[cfg(feature = "speed")]
+    if let Some(v) = crate::fast::array(op, a, b)? {
+        return Ok(v);
+    }
     let ((x, xa), (y, ya)) = match (Operand::of(a), Operand::of(b)) {
         (Some(x), Some(y)) => (x, y),
         _ => return Err(type_error(op, a, b)),
@@ -807,6 +849,30 @@ fn m_reverse(_: &mut Interp, a: Value) -> Result<Value> {
 }
 
 fn m_where(_: &mut Interp, a: Value) -> Result<Value> {
+    #[cfg(feature = "speed")]
+    if let Value::Ints(x) = &a {
+        if x.rank() == 1 {
+            let mut total: usize = 0;
+            for &c in x.data.iter() {
+                if c < 0 {
+                    return Err(Error::range("&: counts must not be negative"));
+                }
+                total = total.checked_add(c as usize).ok_or_else(Error::memory)?;
+            }
+            let mut out: Vec<Int> = try_vec(total)?;
+            if x.data.iter().all(|&c| c <= 1) {
+                // (a run of 0 and 1: the indices of the ones)
+                out.extend(x.data.iter().enumerate().filter(|(_, &c)| c == 1).map(|(i, _)| i as Int));
+            } else {
+                for (i, &c) in x.data.iter().enumerate() {
+                    for _ in 0..c {
+                        out.push(i as Int);
+                    }
+                }
+            }
+            return Ok(Value::ints(out));
+        }
+    }
     let counts: Vec<Value> = if a.is_list() { a.items()? } else { alloc::vec![a.clone()] };
     let mut total: usize = 0;
     for c in &counts {
@@ -970,6 +1036,12 @@ fn grade(ip: &Interp, a: Value, down: bool) -> Result<Value> {
             idx.sort_unstable_by(|&i, &j| x.data[i].cmp(&x.data[j]).then(i.cmp(&j)));
             true
         }
+        #[cfg(feature = "speed")]
+        Value::Flts(x) if x.rank() == 1 => {
+            idx = crate::fast::grade_flts(&x.data)?;
+            true
+        }
+        #[cfg(not(feature = "speed"))]
         Value::Flts(x) if x.rank() == 1 => {
             // a total order (sort_by may panic without one): NaN last, as numpy sorts
             idx.sort_unstable_by(|&i, &j| x.data[i].partial_cmp(&x.data[j]).unwrap_or_else(|| x.data[i].is_nan().cmp(&x.data[j].is_nan())).then(i.cmp(&j)));
@@ -1593,6 +1665,17 @@ fn d_find(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
             Ok(Value::ints(out))
         }
         Value::Dict(d) => Ok(d.borrow().get(&b).cloned().unwrap_or(Value::Undefined)),
+        #[cfg(feature = "speed")]
+        Value::Ints(x) if x.rank() == 1 && matches!(b, Value::Int(_)) => {
+            let Value::Int(k) = b else { return Ok(Value::empty()) };
+            let mut out: Vec<Int> = Vec::new();
+            for (i, v) in x.data.iter().enumerate() {
+                if *v == k {
+                    try_push(&mut out, i as Int)?;
+                }
+            }
+            Ok(Value::ints(out))
+        }
         _ if a.is_list() => {
             let n = a.len().unwrap_or(0);
             let mut out: Vec<Int> = Vec::new();
@@ -1620,6 +1703,17 @@ fn d_join(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
         let mut v = try_string(x.len() + y.len())?;
         v.push_str(x);
         v.push_str(y);
+        #[cfg(feature = "speed")]
+        {
+            let count = |q: &Value| match q {
+                Value::Str(t) => Some(t.len()),
+                Value::Char(_) => Some(1),
+                _ => None,
+            };
+            if let (Some(n), Some(m)) = (count(&a), count(&b)) {
+                return Ok(Value::Str(Rc::new(crate::value::Text::with_count(v, n + m))));
+            }
+        }
         return Ok(Value::str(v));
     }
     if let Value::Dict(d) = &a {
@@ -1735,8 +1829,49 @@ fn build_shape(flat: &[Value], dims: &[usize], at: &mut usize, is_str: bool) -> 
     Value::from_items(rows)
 }
 
+/// `shape:^b` for a flat numeric `b` and a shape of 2 to MAX_RANK positive integers: the elements fill the shape row by row, cyclically.
+/// `None` for anything else, which the general code does (a -1, a zero, a bigger rank, a source of rank above 1).
+#[cfg(feature = "speed")]
+fn reshape_flat_numbers(b: &Value, shape: &[Int]) -> Option<Value> {
+    if shape.len() < 2 || shape.len() > crate::value::MAX_RANK || shape.iter().any(|&d| d < 1 || d as u64 > u32::MAX as u64) {
+        return None;
+    }
+    let mut dims = [0u32; crate::value::MAX_RANK];
+    let mut total: usize = 1;
+    for (k, &d) in shape.iter().enumerate() {
+        dims[k] = d as u32;
+        total = total.checked_mul(d as usize)?;
+    }
+    let dims = &dims[..shape.len()];
+    fn fill<T: Copy>(src: &[T], total: usize, dims: &[u32]) -> Option<Arr<T>> {
+        if src.is_empty() {
+            return None;
+        }
+        let mut v: Vec<T> = Vec::new();
+        v.try_reserve_exact(total).ok()?;
+        if total <= src.len() {
+            v.extend_from_slice(&src[..total]);
+        } else {
+            v.extend(src.iter().cycle().take(total).copied());
+        }
+        Some(Arr::shaped(v, dims))
+    }
+    match b {
+        Value::Ints(x) if x.rank() == 1 => fill(&x.data, total, dims).map(|a| Value::Ints(Rc::new(a))),
+        Value::Flts(x) if x.rank() == 1 => fill(&x.data, total, dims).map(|a| Value::Flts(Rc::new(a))),
+        _ => None,
+    }
+}
+
 fn d_reshape(_: &mut Interp, a: Value, b: Value) -> Result<Value> {
     let is_str = b.is_str();
+    // a flat numeric vector into an array of rank 2 to MAX_RANK: the numbers are copied, not boxed one by one
+    #[cfg(feature = "speed")]
+    if let (Value::Ints(_) | Value::Flts(_), Value::Ints(sh)) = (&b, &a) {
+        if let Some(v) = reshape_flat_numbers(&b, &sh.data) {
+            return Ok(v);
+        }
+    }
     if a.is_list() {
         let mut dims: Vec<usize> = Vec::new();
         let b_size = if b.is_iterable() { flatten(&b)?.len() } else { 1 };

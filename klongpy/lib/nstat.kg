@@ -2,6 +2,9 @@
 
 .comment("*****")
 
+A module: .l("nstat") binds nstat and nothing else; write nstat.mu(d), nstat.n.cdf(x;m;s) and so on
+for what is named below as mu(d), n.cdf(x;m;s).
+
 A "data set" in this context is a list of data points [x1, ... xN].
 An "x/y set" is a list of x/y pairs [[x1 y1] ... [xN yN]].
 
@@ -101,7 +104,6 @@ T distribution approximation by Zogheib/Elsaheli, max error = 0.0029
 .l("spline.kg")
 .l("math.kg")
 .l("help.kg")
-.module(:nstat)
 :"the distribution families are dictionaries: n.cdf(x;m;s) is the entry cdf of n"
 ct:::{};f:::{};u:::{};r:::{};geo:::{};b:::{};hyp:::{};poi:::{};n:::{};lnorm:::{};x2:::{};t:::{};F:::{}
 
@@ -441,4 +443,8 @@ helpadd([
  ["zscore(x;mu;sigma^2)" "z-score of x given mean mu and variance sigma^2"]
 ])
 
-.module(0)
+.export(:{;"kp";kp;"kc";kc;"rcp";rcp;"mu";mu;"Q";Q;"M";M;"qrt";qrt;"mo";mo;"mod";mod;"rng";rng;"cov";cov;"var";var;"cor";cor;"sd";sd;"svar";svar;"ssd";ssd;
+ "lreg";lreg;"lr";lr;"hist";hist;"seg";seg;"rss";rss;"rse";rse;"tss";tss;"r2";r2;"mse";mse;"rssset";rssset;"rseset";rseset;"mseset";mseset;"r2set";r2set;
+ "spl";spl;"spline";spline;"sp";sp;"sp2";sp2;"cvset";cvset;"cve";cve;"freq";freq;"nfreq";nfreq;"dist";dist;"errdist";errdist;"err";err;"fdist";fdist;"shuffle";shuffle;
+ "erf";erf;"ndf";ndf;"phi";phi;"cdf";cdf;"qf";qf;"X2";X2;"tscore";tscore;"zscore";zscore;"fscore";fscore;
+ "ct";ct;"f";f;"u";u;"r";r;"geo";geo;"b";b;"hyp";hyp;"poi";poi;"n";n;"lnorm";lnorm;"x2";x2;"t";t;"F";F})

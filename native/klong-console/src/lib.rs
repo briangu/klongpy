@@ -22,7 +22,7 @@
 //! with 0x01.
 //!
 //! ```text
-//! ^A ver                              ^A ok ver=0.0.1 int=64 float=64 features=files,lib platform=... heap_free=...
+//! ^A ver                              ^A ok ver=2.0.0-rc.1 int=64 float=64 features=files,lib platform=... heap_free=...
 //! ^A put <path> <length> <crc32-hex>  ^A go, then exactly <length> raw bytes, then ^A ok <length> <crc32> [warn ...]
 //! ^A run <length> <crc32-hex>         ^A go, then the bytes; the program's output; then the value and ^A ok value <n>,
 //!                                     or ^A ok (no value), or ^A err <kind>: <message>

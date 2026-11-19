@@ -190,7 +190,14 @@ pub struct Interp {
     /// HOST: the embedder takes over a numeric vector a primitive or a literal has produced (a torch backend wants its arrays on its
     /// device): called on every value `eval` returns that is a native vector; `None` leaves it as it is.
     #[cfg(feature = "host")]
-    pub adopt: Option<Rc<dyn Fn(&mut Interp, &Value) -> Option<Value>>>,
+    adopt: Option<Rc<dyn Fn(&mut Interp, &Value) -> Option<Value>>>,
+    /// HOST: float atoms are computed and held as float32 (the host's arrays are float32, a torch backend): every float value `eval`
+    /// returns is rounded to float32 (`set_float_width`). Off by default.
+    #[cfg(feature = "host")]
+    f32_floats: bool,
+    /// HOST: `adopt` is set or `f32_floats` is on: what `eval` has to look at in a value it returns (one test, as when there was only `adopt`).
+    #[cfg(feature = "host")]
+    post: bool,
     /// HOST: the arguments beyond the third of the call of a system function that is being made (set just before it runs).
     #[cfg(feature = "wide-args")]
     pub extra_args: Vec<Value>,
@@ -288,6 +295,10 @@ impl Interp {
             extra_args: Vec::new(),
             #[cfg(feature = "host")]
             adopt: None,
+            #[cfg(feature = "host")]
+            f32_floats: false,
+            #[cfg(feature = "host")]
+            post: false,
             #[cfg(feature = "kgpy-only")]
             kgpy_only: None,
             globals: Vec::new(),
@@ -1330,10 +1341,14 @@ impl Interp {
         if let Ok(i) = m.vars.binary_search_by_key(&s, |e| e.0) {
             return Some(m.vars[i].1.clone());
         }
-        if m.classic {
+        // A classic `.module(:x)` block inside this module: a plain name finds the names the block defined (`gauss` finds `gauss`math`), and
+        // a name the block wrote (`gauss`spline`) that the block does not define is the module's own plain name, as it is in the globals.
+        if m.classic || self.syms.name(s).contains('`') {
             let name = self.syms.name(s);
+            let base = name.split_once('`').map_or(name, |(b, _)| b);
             for (k, v) in &m.vars {
-                if self.syms.name(*k).split_once('`').is_some_and(|(b, _)| b == name) {
+                let kn = self.syms.name(*k);
+                if kn == base || kn.split_once('`').is_some_and(|(b, _)| b == base) {
                     return Some(v.clone());
                 }
             }
@@ -1950,8 +1965,14 @@ impl Interp {
         match r {
             Ok(v) => {
                 #[cfg(feature = "host")]
-                if self.adopt.is_some() && matches!(v, Value::Ints(_) | Value::Flts(_)) {
-                    return Ok(self.adopted(v));
+                if self.post {
+                    if self.adopt.is_some() && matches!(v, Value::Ints(_) | Value::Flts(_)) {
+                        return Ok(self.adopted(v));
+                    }
+                    // (a vector that is read from a variable or written in the program is not looked at again: what made it was rounded)
+                    if self.f32_floats && (matches!(v, Value::Flt(_)) || (matches!(v, Value::Flts(_)) && !matches!(tree.node(id), Node::Sym(_) | Node::Lit(_)))) {
+                        return Ok(Self::rounded_f32(v));
+                    }
                 }
                 Ok(v)
             }
@@ -1964,6 +1985,44 @@ impl Interp {
                 }
                 Err(e)
             }
+        }
+    }
+
+    /// HOST: `set_float_width(32)` computes floats as float32 does: a float atom is the float32 nearest to what the operation gave
+    /// (the host's arrays are float32 and the same numbers must come out of both); 64 is the default and rounds nothing. A flat float
+    /// vector that the host did not take over (`adopt`) is rounded too. Applies to what `eval` returns, so each operation of an
+    /// expression is rounded, a literal as well.
+    #[cfg(feature = "host")]
+    pub fn set_float_width(&mut self, bits: u32) {
+        self.f32_floats = bits == 32;
+        self.post = self.f32_floats || self.adopt.is_some();
+    }
+
+    /// HOST: the embedder's takeover of numeric vectors (see `adopt`); `None` switches it off.
+    #[cfg(feature = "host")]
+    pub fn set_adopt(&mut self, h: Option<Rc<dyn Fn(&mut Interp, &Value) -> Option<Value>>>) {
+        self.adopt = h;
+        self.post = self.f32_floats || self.adopt.is_some();
+    }
+
+    #[cfg(feature = "host")]
+    #[cold]
+    #[inline(never)]
+    fn rounded_f32(v: Value) -> Value {
+        match v {
+            Value::Flt(f) => Value::Flt(f as f32 as crate::value::Flt),
+            // (a vector nobody else holds is rounded where it is)
+            Value::Flts(mut a) => match Rc::get_mut(&mut a) {
+                Some(arr) => {
+                    arr.data.iter_mut().for_each(|x| *x = *x as f32 as crate::value::Flt);
+                    Value::Flts(a)
+                }
+                None => match crate::value::rounded_f32(&a) {
+                    Some(r) => Value::Flts(Rc::new(r)),
+                    None => Value::Flts(a),
+                },
+            },
+            v => v,
         }
     }
 
@@ -2085,7 +2144,8 @@ impl Interp {
         let mut out = try_vec(r.len as usize)?;
         for k in 0..r.len {
             let q = NodeId(tree.ids(r)[k as usize]);
-            let pushed = self.eval(tree, q, true)?;
+            // (a function literal without parameters is a value here: [;{...}] is new, it has no classic meaning to keep)
+            let pushed = self.eval(tree, q, !matches!(tree.node(q), Node::Fn { has_args: false, .. }))?;
             try_push(&mut out, pushed)?;
         }
         Value::from_items(out)
@@ -2098,7 +2158,8 @@ impl Interp {
         let mut k = 0;
         while k + 1 < ids.len() {
             let key = self.eval(tree, NodeId(ids[k]), true)?;
-            let val = self.eval(tree, NodeId(ids[k + 1]), true)?;
+            let vn = NodeId(ids[k + 1]);
+            let val = self.eval(tree, vn, !matches!(tree.node(vn), Node::Fn { has_args: false, .. }))?;
             d.set(key, val)?;
             k += 2;
         }
@@ -2185,6 +2246,17 @@ impl Interp {
             return self.eval_gradient_dyad(tree, id, def.glyph, l, r, y);
         }
         let x = self.eval(tree, l, false)?;
+        // two numbers (the call-heavy programs): the arithmetic and the comparisons without the pairing routine
+        #[cfg(feature = "speed")]
+        if let Some(v) = ops::scalar_pair(def.atomic, &x, &y) {
+            return Ok(v);
+        }
+        // an operand that is a temporary array is the result's buffer
+        #[cfg(feature = "speed")]
+        let (x, y) = match crate::fast::array_owned(def.atomic, x, y) {
+            Ok(v) => return Ok(v),
+            Err(p) => p,
+        };
         #[cfg(feature = "host")]
         if let Some(r) = self.ext_dyad(def.glyph, &x, &y) {
             return r.map_err(|e| self.at_operator(tree, id, e));
@@ -2546,6 +2618,25 @@ impl Interp {
         matches!(f, Value::Fn(func) if matches!(&**func, Func::Native { arity, .. } if *arity == WILDCARD))
     }
 
+    /// Argument `k` (written as node `q`) of a call of `f` is a function literal with no parameters, and `f` is a system function that
+    /// takes a function there (`.try`, `.async`, `.timer`): the literal is that function, not its value. Everywhere else a literal
+    /// without parameters is called where it is written, as in classic Klong (`f({41})` hands `f` the number 41); a system function
+    /// that wants a function could never have used that, so this takes a meaning that was an error (docs/language-additions.md).
+    #[inline]
+    fn is_function_slot(&self, tree: &Tree, f: &Value, k: usize, q: u32) -> bool {
+        if !matches!(tree.node(NodeId(q)), Node::Fn { has_args: false, .. }) {
+            return false;
+        }
+        let Value::Fn(func) = f else { return false };
+        let Func::Native { name, .. } = &**func else { return false };
+        match self.syms.name(*name) {
+            ".try" => k == 0,
+            ".async" => k < 2,
+            ".timer" => k == 2,
+            _ => false,
+        }
+    }
+
     fn is_native(f: &Value) -> bool {
         matches!(f, Value::Fn(func) if matches!(&**func, Func::Native { .. }))
     }
@@ -2685,7 +2776,7 @@ impl Interp {
             }
             let mut frame: Frame = self.new_frame(n.min(3) + 2)?;
             for (k, &q) in ids.iter().take(3).enumerate() {
-                let v = self.eval(tree, NodeId(q), true)?;
+                let v = self.eval(tree, NodeId(q), !self.is_function_slot(tree, &f, k, q))?;
                 try_push(&mut frame, (SymId(k as u32), Some(v)))?;
             }
             #[cfg(feature = "wide-args")]
@@ -2866,6 +2957,46 @@ impl Interp {
             self.release_caches();
         }
         r
+    }
+
+    /// `apply` of one or two values, for the adverbs: a function literal called with as many arguments as it takes (the common call of
+    /// `{x*x}'a`, `{x+y}/a`) skips the argument list, the layers and the three resolutions and runs on a frame from the pool. Anything
+    /// else is `apply` as it was.
+    pub(crate) fn apply_fast(&mut self, f: &Value, x: Value, y: Option<Value>) -> Result<Value> {
+        #[cfg(feature = "speed")]
+        if let Value::Fn(func) = f {
+            if let Func::Code { tree, node: id } = &**func {
+                if let Node::Fn { a, has_args: false, arity, .. } = tree.node(*id) {
+                    let given = 1 + y.is_some() as usize;
+                    // (a body that is a call with no empty argument resolves to itself, any other function literal or a quoted symbol under
+                    // strict 2 is `resolve`'s business)
+                    let plain = match tree.node(*a) {
+                        Node::Fn { has_args, args, .. } => *has_args && !tree.ids(*args).contains(&NONE.0),
+                        Node::QSym(_) => self.cfg.strict != 2,
+                        _ => true,
+                    };
+                    #[cfg(feature = "host")]
+                    let plain = plain && self.running != 0;
+                    if *arity as usize == given && plain {
+                        let g = self.node_value(tree, *a);
+                        if Self::params_of(&g).is_none() {
+                            let mut frame: Frame = self.new_frame(given + 2)?;
+                            try_push(&mut frame, (SymId(0), Some(x)))?;
+                            if let Some(y) = y {
+                                try_push(&mut frame, (SymId(1), Some(y)))?;
+                            }
+                            return self.run_fn(g, frame);
+                        }
+                    }
+                }
+            }
+        }
+        let mut v = try_vec(2)?;
+        v.push(x);
+        if let Some(y) = y {
+            v.push(y);
+        }
+        self.apply(f, v, None)
     }
 
     fn apply_in(&mut self, f: &Value, values: Vec<Value>, arity: Option<u8>) -> Result<Value> {
@@ -3173,7 +3304,8 @@ impl Interp {
     /// first i adverbs.
     /// The native stack against `Config::stack_limit`: called wherever the evaluator recurses
     /// (a nested evaluation, a level of an adverb chain).
-    #[inline]
+    #[cfg_attr(feature = "speed", inline(always))]
+    #[cfg_attr(not(feature = "speed"), inline)]
     pub(crate) fn check_stack(&mut self) -> Result<()> {
         let used = self.stack_base.abs_diff(stack_here());
         if used > self.max_stack_seen {
@@ -3212,8 +3344,8 @@ impl Interp {
                 },
                 Node::OpVal { op, .. } => Err(self.unknown_op(*op)),
                 _ => match (ch.verb_arity, y) {
-                    (1, None) => self.apply(&ch.verb_val, alloc::vec![x], None),
-                    (2, Some(y)) => self.apply(&ch.verb_val, alloc::vec![x, y], None),
+                    (1, None) => self.apply_fast(&ch.verb_val, x, None),
+                    (2, Some(y)) => self.apply_fast(&ch.verb_val, x, Some(y)),
                     _ => Err(Error::typ("the verb of an adverb was given the wrong number of operands")),
                 },
             };

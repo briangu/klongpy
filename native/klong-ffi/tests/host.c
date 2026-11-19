@@ -158,7 +158,7 @@ int main(void) {
     if (klong_init(&cfg) != KLONG_ERR_STATE) failures++, puts("!! second init accepted");
 
     /* banner and prompt, as klong-sim prints them (with this board's name) */
-    expect(&b, "", 0, "Klong 0.0.1 (host-c, int64 float64)\r\nklong> ", 0);
+    expect(&b, "", 0, "Klong 2.0.0-rc.1 (host-c, int64 float64)\r\nklong> ", 0);
 
     /* a terminal: echo, value, prompt */
     EXPECT(&b, "1+2\n", "1+2\r\n3\r\nklong> ");
@@ -174,7 +174,7 @@ int main(void) {
     snprintf(want, sizeof want, "\001ok %zu %08x\r\nklong> ", strlen(prog), (unsigned)crc32((const uint8_t *)prog, strlen(prog)));
     EXPECT(&b, prog, want);
     EXPECT(&b, ".l(\"hello\");sq(12)\n", ".l(\"hello\");sq(12)\r\nloaded\r\n144\r\nklong> ");
-    EXPECT(&b, ".l(\"nstat\");mu([1 2 3 4])\n", ".l(\"nstat\");mu([1 2 3 4])\r\n2.5\r\nklong> ");
+    EXPECT(&b, ".l(\"nstat\");nstat.mu([1 2 3 4])\n", ".l(\"nstat\");nstat.mu([1 2 3 4])\r\n2.5\r\nklong> ");
 
     /* a program sent with ^A run */
     const char *run = "sq(7)+1";
@@ -183,7 +183,7 @@ int main(void) {
     EXPECT(&b, run, "50\r\n\001ok value 2\r\nklong> ");
 
     /* ver */
-    const char *ver = EXPECT_PART(&b, "\001ver\n", "\001ok ver=0.0.1 int=64 float=64 features=files,lib");
+    const char *ver = EXPECT_PART(&b, "\001ver\n", "\001ok ver=2.0.0-rc.1 int=64 float=64 features=files,lib");
     /* (in a build of the whole workspace cargo adds the features other crates ask for) */
     if (!strstr(ver, "timers") || !strstr(ver, "platform=host-c") || !strstr(ver, " fs=1 ") || !strstr(ver, "heap_limit=4194304")) {
         puts("!! ver lacks timers, platform, fs or heap_limit");

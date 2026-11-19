@@ -133,7 +133,7 @@ fn a_repl_session() {
         // hello: what is on the node, in the nodes list
         let nodes = r.br.nodes();
         assert_eq!((nodes.len(), nodes[1].online, nodes[1].klong, nodes[1].load), (4, true, true, 0));
-        assert!(nodes[1].info.starts_with("klong 0.0.1 node=1 native int64 float64"), "{}", nodes[1].info);
+        assert!(nodes[1].info.starts_with("klong 2.0.0-rc.1 node=1 native int64 float64"), "{}", nodes[1].info);
         assert!(!nodes[3].online);
     }
 }

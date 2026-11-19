@@ -20,6 +20,9 @@ ram-hot = []
 # allocator reads (`KLONG_ALLOC_TAG`). Off, the calls compile to nothing.
 heap-tags = []
 dicts = []
+# Desktop speed: array kernels the compiler vectorises, shorter paths in the reductions and the primitives, call frames kept for reuse (src/fast.rs and
+# the places that name this feature). More code than a board has room for, and the same answers as the generic loops: off for boards.
+speed = []
 # Integers beyond the build width, exact (KlongPy has them): a value kind used only beyond it.
 bigint = ["dep:num-bigint", "dep:num-traits"]
 # Diagnostics for a desktop host: the parser's warnings and the hints of its errors, the whole-operand text of an operator's error

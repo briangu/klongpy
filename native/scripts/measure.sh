@@ -37,7 +37,7 @@ if have wasm32-unknown-unknown; then
     done
     if command -v node >/dev/null; then
         node scripts/probe.mjs target/probe-default/wasm32-unknown-unknown/release/kg_probe.wasm 'f::{:[x<2;x;f(x-1)+f(x-2)]};f(20)'
-        node scripts/probe.mjs target/probe-default/wasm32-unknown-unknown/release/kg_probe.wasm '.l("nstat");mu([1 2 3 4])'
+        node scripts/probe.mjs target/probe-default/wasm32-unknown-unknown/release/kg_probe.wasm '.l("nstat");nstat.mu([1 2 3 4])'
         node scripts/probe.mjs target/probe-narrow/wasm32-unknown-unknown/release/kg_probe.wasm '2147483647+1'
     fi
 fi

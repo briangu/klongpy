@@ -10,7 +10,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "klong-board"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-console",
  "klong-core",
@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "klong-cli"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-host",
@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "klong-console"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-rt",
@@ -39,7 +39,7 @@ dependencies = [
 
 [[package]]
 name = "klong-core"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "libm",
  "num-bigint",
@@ -48,11 +48,11 @@ dependencies = [
 
 [[package]]
 name = "klong-dgram"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 
 [[package]]
 name = "klong-ffi"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-board",
  "klong-console",
@@ -63,7 +63,7 @@ dependencies = [
 
 [[package]]
 name = "klong-host"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-rt",
@@ -71,14 +71,14 @@ dependencies = [
 
 [[package]]
 name = "klong-ipc"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
 ]
 
 [[package]]
 name = "klong-lint"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-host",
@@ -87,7 +87,7 @@ dependencies = [
 
 [[package]]
 name = "klong-rt"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-dgram",
@@ -96,7 +96,7 @@ dependencies = [
 
 [[package]]
 name = "klong-sim"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-console",
  "klong-core",
@@ -106,7 +106,7 @@ dependencies = [
 
 [[package]]
 name = "klong-static"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-host",
@@ -116,7 +116,7 @@ dependencies = [
 
 [[package]]
 name = "klong-tools"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-host",

@@ -4,7 +4,7 @@ resolver = "2"
 members = ["klong-core", "klong-dgram", "klong-ipc", "klong-rt", "klong-host", "klong-cli", "klong-lint", "klong-tools", "klong-static", "klong-console", "klong-sim", "klong-board", "klong-ffi"]
 
 [workspace.package]
-version = "0.0.1"
+version = "2.0.0-rc.1"
 edition = "2021"
 license = "MIT"
 publish = false
@@ -12,6 +12,9 @@ publish = false
 [profile.release]
 opt-level = 3
 debug = false
+# One code generation unit: the call-heavy programs run 4 to 11 percent faster (docs/performance.md); fat LTO on top adds little and
+# costs 50 percent more build time.
+codegen-units = 1
 
 # Size-optimised build for small targets: cargo build --profile min-size
 [profile.min-size]

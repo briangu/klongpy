@@ -30,6 +30,8 @@ pub mod tree;
 pub mod value;
 
 mod adverbs;
+#[cfg(feature = "speed")]
+mod fast;
 
 pub use error::{Error, Kind, Source, Span};
 pub use interp::{Config, Hooks, Interp, NoHooks};

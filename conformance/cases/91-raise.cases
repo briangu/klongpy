@@ -100,6 +100,38 @@
 > .try(f;"ab")
 ! type
 
+@ raise.try-args-must-not-be-a-number strings dicts
+> .try({x+1};1)
+! type
+
+@ raise.try-literal-without-parameters-is-the-function strings dicts
+# A function literal with no parameters, written as the function of .try, is that function and not its value
+> .try({7};[])
+= [1 7]
+
+@ raise.try-literal-without-parameters-catches-its-error strings dicts
+> r::.try({1+"a"};[])
+> (r@0),(r@1)@"kind"
+= [0 "type"]
+
+@ raise.literal-without-parameters-elsewhere-is-called core
+# Where the callee is not a system function that takes a function, the literal is called where it is written (classic Klong)
+> f::{x+1}
+> f({41})
+= 42
+
+@ raise.literal-without-parameters-in-an-evaluated-list-is-a-function core
+> l::[;{7};2]
+> g::l@0
+> g()
+= 7
+
+@ raise.literal-without-parameters-in-an-evaluated-dict-is-a-function strings dicts
+> d:::{;"h";{7}}
+> g::d@"h"
+> g()
+= 7
+
 @ raise.try-arity core
 > .try({x})
 ! arity

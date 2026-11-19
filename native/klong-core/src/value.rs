@@ -29,6 +29,18 @@ pub type Flt = f32;
 
 pub const MAX_RANK: usize = 4;
 
+/// HOST: the array with every element rounded to float32, or `None` when each one already is (or a vector is empty).
+#[cfg(feature = "host")]
+pub fn rounded_f32(a: &Arr<Flt>) -> Option<Arr<Flt>> {
+    if a.data.iter().all(|&x| x as f32 as Flt == x || x.is_nan()) {
+        return None;
+    }
+    let mut data = Vec::new();
+    data.try_reserve_exact(a.data.len()).ok()?;
+    data.extend(a.data.iter().map(|&x| x as f32 as Flt));
+    Some(Arr { data, rank: a.rank, dims: a.dims })
+}
+
 /// A numeric array: flat data in row-major order plus a shape. Rank 1 is the common case and
 /// its length is `data.len()`; `dims` is only meaningful for rank above 1.
 pub struct Arr<T> {
@@ -123,7 +135,8 @@ pub fn defer_depth() {
     }
 }
 /// The deferred failure, if there is one; it is cleared.
-#[inline]
+#[cfg_attr(feature = "speed", inline(always))]
+#[cfg_attr(not(feature = "speed"), inline)]
 pub fn take_deferred() -> Option<Error> {
     match PENDING.load(Ordering::Relaxed) {
         0 => None,
@@ -157,6 +170,10 @@ pub struct Text {
 impl Text {
     pub fn new(s: String) -> Text {
         let n = if s.is_ascii() { s.len() } else { s.chars().count() };
+        Text { s, n: n as u32, at: Cell::new((0, 0)) }
+    }
+    #[cfg(feature = "speed")]
+    pub fn with_count(s: String, n: usize) -> Text {
         Text { s, n: n as u32, at: Cell::new((0, 0)) }
     }
     pub fn as_str(&self) -> &str {

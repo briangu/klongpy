@@ -92,7 +92,7 @@ fn load_is_all_or_nothing() {
 #[test]
 fn the_library_is_in_the_image() {
     let mut rt = rt();
-    assert_eq!(run(&mut rt, ".l(\"nstat\");mu([1 2 3 4])"), Ok("2.5".into()));
+    assert_eq!(run(&mut rt, ".l(\"nstat\");nstat.mu([1 2 3 4])"), Ok("2.5".into()));
     assert_eq!(run(&mut rt, ".l(\"set\");union([1 2];[2 3])"), Ok("[1 2 3]".into()));
     // a file of the same name on the load path wins
     rt.shared.platform.borrow_mut().fs.put("set.kg", b"union::{0}\n").expect("put");
@@ -125,7 +125,7 @@ fn memfs_seek_gap_reads_zero_and_capacity_is_enforced() {
 #[test]
 fn version_and_misc() {
     let mut rt = rt();
-    assert_eq!(run(&mut rt, "(.ver())?\"version\""), Ok("\"0.0.1\"".into()));
+    assert_eq!(run(&mut rt, "(.ver())?\"version\""), Ok("\"2.0.0-rc.1\"".into()));
     assert_eq!(run(&mut rt, ".rn()<1"), Ok("1".into()));
     assert_eq!(run(&mut rt, ".E(\"zz::5\");zz"), Ok("5".into()));
     assert_eq!(run(&mut rt, ".py(\"math\")"), Err(Kind::Name));
@@ -176,6 +176,15 @@ fn try_gives_errors_as_values_and_err_raises_them() {
     ok(".try({x+y};[1 2])", "[1 3]");
     ok(".try({x};,[1 2 3])", "[1 [1 2 3]]");
     ok("f::{42};.try(f;[])", "[1 42]");
+    // a function literal with no parameters, written as the function, is that function: the error it raises is caught
+    ok(".try({7};[])", "[1 7]");
+    ok("((.try({1+\"a\"};[]))@1)@\"kind\"", "\"type\"");
+    ok("(.try({1+\"a\"};[]))@0", "0");
+    // where a function is not wanted, a literal without parameters is still called where it is written (classic Klong)
+    ok("f::{x+1};f({41})", "42");
+    // the arguments are a list: a number or a string is a type error
+    assert_eq!(run(&mut rt(), ".try({x+1};1)"), Err(Kind::Type));
+    assert_eq!(run(&mut rt(), ".try({7};\"\")"), Err(Kind::Type));
     // the caught error is a dictionary: kind, message, source, line and col
     ok("e::(.try({x+y};[1 \"a\"]))@1;(e@\"kind\"),\"/\",e@\"message\"", "\"type/cannot apply + (Plus) to integer and string\"");
     ok("e::(.try({[1 2 3]@x};,9))@1;(e@\"kind\"),\"/\",e@\"message\"", "\"range/index 9 out of range for list of 3\"");

@@ -545,3 +545,13 @@ fn the_builtin_names_come_from_the_runtime() {
     assert!(lint_source("t.kg", ".mine(1);.p(2)", &o).is_empty());
     assert!(!lint_source("t.kg", ".mine(1)", &Options::default()).is_empty());
 }
+
+/// The hint of W001 offers a name that is one name: a dot is a lookup in a dictionary now, so `my.var` is not a spelling to suggest.
+#[test]
+fn w001_hint_does_not_suggest_a_dotted_name() {
+    let d: Vec<_> = lint("my_var::5").into_iter().filter(|d| d.code == "W001").collect();
+    assert_eq!(d.len(), 1);
+    let hint = d[0].hint.clone().unwrap_or_default();
+    assert!(hint.contains("myVar"), "{hint}");
+    assert!(!hint.contains("my.var"), "{hint}");
+}

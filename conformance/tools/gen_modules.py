@@ -282,6 +282,11 @@ C("bundled-csv-with-l-binds-csv", M, '.l("csv")\ncsv.split("a,b,c")', v='["a" "b
 C("bundled-csv-with-l-defines-no-plain-name", M + " strict2", '.l("csv")\nsplit("a")', err="name", why="principle 4: only the alias csv is defined")
 C("bundled-csv-with-l-keeps-its-helpers-private", M, '.l("csv")\ncsv.unesc("a")', err="name")
 C("bundled-csv-with-l-and-import-share", M, '.l("csv")\nc::.import("csv")\n#c.split(csv.make(["a" "b"]))', v="2")
+C("bundled-nstat-with-l-binds-nstat", M, '.l("nstat")\nnstat.mu([1 2 3 4])', v="2.5", why="nstat is a module: .l(\"nstat\") binds the one name nstat and its functions are entries of it")
+C("bundled-nstat-with-l-defines-no-plain-name", M + " strict2", '.l("nstat")\nmu([1 2])', err="name", why="principle 4: only the alias nstat is defined")
+C("bundled-nstat-with-l-leaves-the-family-names-alone", M, 'n::5\nt::6\nf::7\n.l("nstat")\n(n+t)+f', v="18", why="the distribution families n t f u r b x2 F ... are entries of nstat, not variables of the program")
+C("bundled-nstat-family-is-a-dictionary-in-the-module", M + " float", '.l("nstat")\nnstat.n.cdf(0;0;1)', v="0.5", why="a family is nstat.n.cdf(x;m;s)")
+C("bundled-nstat-classic-module-block-sees-the-modules-names", M + " float", '.l("nstat")\n#nstat.spl(2;[[1 1][2 4][3 9]])', v="3", why="spline.kg is a classic .module block loaded by the module; its free names (gauss, from math) are the module's own")
 
 # ---- R2/R7: a name that starts with a dot is one name, also in a module file; it is a system name
 C("dot-name-in-a-module-file-is-a-system-name", M, 'm::.import("{P}m")\n.hk.f(1)', files={"m": '.hk.f(n)::{n+1}\n.export(:{;"a";1})'}, v="2", why="a name that starts with a dot is one name for the whole program: the server looks hooks up by it (design point 4, principle 7)")

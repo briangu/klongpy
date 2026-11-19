@@ -2,12 +2,6 @@
 # Each has `: reason` and `: actual` (what KlongPy answers now). The expectation is the correct result.
 # `python conformance/run.py --pending` runs them and reports any that now pass: move those to cases/.
 
-@ pending.find-symbol-in-list core
-> [:a :b]?:b
-= [1]
-: reason Find with a symbol in a list of symbols returns [] although `[:a :b]=:b` is `[0 1]`; `[:a :b]?:a` is [] too (the string case `"abc"?:b` answers [1] by converting the symbol to text).
-: actual []
-
 @ pending.first-of-string-is-a-char strings
 > *"abc"
 = 0ca
@@ -19,12 +13,6 @@
 = 0co
 : reason Same as first-of-string-is-a-char.
 : actual "o"
-
-@ pending.scan-join-over-string-first-item-is-a-char strings
-> ,\"abc"
-= [0ca "ab" "abc"]
-: reason The first item of the scan is a char in the reference suite (`t(",\\\"abc\""; ...; [0ca "ab" "abc"])`); KlongPy gives the string "a".
-: actual ["a" "ab" "abc"]
 
 @ pending.index-by-float core float
 > [1 2 3]@1.0

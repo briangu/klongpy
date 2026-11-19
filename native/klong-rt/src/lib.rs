@@ -325,8 +325,10 @@ impl<P: Platform + 'static> Runtime<P> {
                 if !matches!(f, Value::Fn(_) | Value::Prim(_)) {
                     return Err(Error::typ(klong_core::msg!(".try: x must be a function, got {}", f.describe())));
                 }
+                // y is the list of arguments: `,1` for one argument, `[]` for none. A number or a string is a mistake (a single argument
+                // is written as a list of one), and says so.
                 let args = match args {
-                    Value::Str(_) | Value::Dict(_) => return Err(Error::typ(klong_core::msg!(".try: y must be the list of arguments, got {}", args.describe()))),
+                    v if !v.is_list() => return Err(Error::typ(klong_core::msg!(".try: y must be the list of arguments (one is ,a), got {}", v.describe()))),
                     v if v.is_empty() => Vec::new(),
                     v => v.items().map_err(|_| Error::typ(klong_core::msg!(".try: y must be the list of arguments, got {}", v.describe())))?,
                 };

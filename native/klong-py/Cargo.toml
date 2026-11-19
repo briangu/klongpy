@@ -2,7 +2,7 @@
 # the empty [workspace] table below keeps cargo from looking for one above, so native/Cargo.toml is untouched.
 [package]
 name = "klong-py"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 edition = "2021"
 publish = false
 
@@ -11,7 +11,7 @@ name = "klong_native"
 crate-type = ["cdylib"]
 
 [dependencies]
-klong-core = { path = "../klong-core", features = ["bigint", "diag", "host"] }
+klong-core = { path = "../klong-core", features = ["bigint", "diag", "host", "speed"] }
 klong-rt = { path = "../klong-rt", features = ["bigint", "diag"] }
 klong-host = { path = "../klong-host", features = ["bigint", "diag"] }
 klong-lint = { path = "../klong-lint" }
@@ -24,3 +24,4 @@ pyo3 = { version = "0.25", features = ["abi3-py311", "extension-module"] }
 [profile.release]
 opt-level = 3
 debug = false
+codegen-units = 1

@@ -10,17 +10,14 @@ publish.workspace = true
 name = "kg"
 path = "src/main.rs"
 
-# The old name of the binary, built from the same source until the tests that call it are changed.
-[[bin]]
-name = "klong"
-path = "src/klong_old.rs"
-
 [features]
-default = ["bigint", "diag"]
+default = ["bigint", "diag", "speed"]
 bigint = ["klong-rt/bigint", "klong-host/bigint", "klong-core/bigint"]
 diag = ["klong-rt/diag", "klong-host/diag", "klong-core/diag"]
 int32 = ["klong-rt/int32", "klong-host/int32", "klong-core/int32"]
 float32 = ["klong-rt/float32", "klong-host/float32", "klong-core/float32"]
+# Array kernels and shorter paths a desktop has room for (klong-core/src/fast.rs); the same answers without it.
+speed = ["klong-core/speed"]
 
 [dependencies]
 klong-core = { path = "../klong-core", features = ["kgpy-only"] }

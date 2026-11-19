@@ -2172,6 +2172,39 @@
 > #c.split(csv.make(["a" "b"]))
 = 2
 
+@ modules.bundled-nstat-with-l-binds-nstat strings dicts sysio qualified modules
+# nstat is a module: .l("nstat") binds the one name nstat and its functions are entries of it
+> .l("nstat")
+> nstat.mu([1 2 3 4])
+= 2.5
+
+@ modules.bundled-nstat-with-l-defines-no-plain-name strings dicts sysio qualified modules strict2
+# principle 4: only the alias nstat is defined
+> .l("nstat")
+> mu([1 2])
+! name
+
+@ modules.bundled-nstat-with-l-leaves-the-family-names-alone strings dicts sysio qualified modules
+# the distribution families n t f u r b x2 F ... are entries of nstat, not variables of the program
+> n::5
+> t::6
+> f::7
+> .l("nstat")
+> (n+t)+f
+= 18
+
+@ modules.bundled-nstat-family-is-a-dictionary-in-the-module strings dicts sysio qualified modules float
+# a family is nstat.n.cdf(x;m;s)
+> .l("nstat")
+> nstat.n.cdf(0;0;1)
+= 0.5
+
+@ modules.bundled-nstat-classic-module-block-sees-the-modules-names strings dicts sysio qualified modules float
+# spline.kg is a classic .module block loaded by the module; its free names (gauss, from math) are the module's own
+> .l("nstat")
+> #nstat.spl(2;[[1 1][2 4][3 9]])
+= 3
+
 @ modules.dot-name-in-a-module-file-is-a-system-name strings dicts sysio qualified modules
 # a name that starts with a dot is one name for the whole program: the server looks hooks up by it (design point 4, principle 7)
 # m.kg: .hk.f(n)::{n+1}

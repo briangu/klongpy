@@ -255,7 +255,7 @@ int main(int argc, char **argv) {
     put_message(2, 2, 104, "int");
     run(80, 5);
     collect(mark, 2, text2, sizeof text2, NULL, NULL);
-    CHECK(strstr(text2, "done 102 error") != NULL && strstr(text2, "klong 0.0.1 node=2 lane-test int64 float64") != NULL, "error, hello: [%s]", text2);
+    CHECK(strstr(text2, "done 102 error") != NULL && strstr(text2, "klong 2.0.0-rc.1 node=2 lane-test int64 float64") != NULL, "error, hello: [%s]", text2);
     collect(mark, 1, text, sizeof text, NULL, NULL);
     CHECK(strstr(text, "error") != NULL, "the error text is on channel 1: [%s]", text);
 

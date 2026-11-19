@@ -127,7 +127,7 @@ impl<'a> Linter<'a> {
                     "W001",
                     sp,
                     format!("'{}' reads as {}: _ is the Drop operator, names cannot contain underscores", name, parts),
-                    Some("rename it (my.var or myVar), or put spaces around _ if you mean Drop"),
+                    Some("rename it (myVar; a dot is not part of a name, it reads an entry of a dictionary), or put spaces around _ if you mean Drop"),
                 );
                 i = j + 1;
             } else {

@@ -153,7 +153,7 @@ fn a_board_from_parts_runs_the_console() {
     let platform = BoardPlatform::new(wire.clone(), Still, sys.clone(), Some(MemFs::new()));
     let cfg = BoardConfig { stack_bytes: 256 * 1024, console: ConsoleConfig { dumb: true, ..ConsoleConfig::default() }, ..BoardConfig::default() };
     let mut console = start(platform, cfg);
-    assert!(talk(&mut console, &wire, b"").starts_with("Klong 0.0.1 (testboard, int"));
+    assert!(talk(&mut console, &wire, b"").starts_with("Klong 2.0.0-rc.1 (testboard, int"));
     // lines end CR LF on the wire
     assert_eq!(talk(&mut console, &wire, b".p(\"a\");+/!10\r"), "a\r\n45\r\nklong> ");
     let out = talk(&mut console, &wire, b"\x01ver\n");

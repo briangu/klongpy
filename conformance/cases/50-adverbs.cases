@@ -480,3 +480,6 @@
 > 0.5{x+1}:*0
 ! range
 
+@ adverbs.scan-join-over-string-first-item-is-a-char strings
+> ,\"abc"
+= [0ca "ab" "abc"]

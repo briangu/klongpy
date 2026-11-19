@@ -1491,6 +1491,20 @@ impl Klong {
         klong_core::fmt::FLOAT32_DISPLAY.store(on, std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// The width of the floats the engine computes: 32 or 64 (the default). With 32, a float atom is the float32 nearest to what each
+    /// operation gave (a literal as well), and floats print as float32 does (`set_float32_display`), so that a scalar computed by the
+    /// engine agrees with a float32 array of the host: `0.1+0.2` is `0.3`. A flat float vector the engine makes that is not taken over
+    /// by `set_adopt` is rounded too; a float inside a mixed list is not. Anything else is a ValueError.
+    fn set_float_width(&self, py: Python<'_>, bits: u32) -> PyResult<()> {
+        if bits != 32 && bits != 64 {
+            return Err(pyo3::exceptions::PyValueError::new_err("the float width is 32 or 64"));
+        }
+        self.f32_display.set(bits == 32);
+        klong_core::fmt::FLOAT32_DISPLAY.store(bits == 32, std::sync::atomic::Ordering::Relaxed);
+        self.with_ip(py, |ip| ip.set_float_width(bits));
+        Ok(())
+    }
+
     /// Install the backend's callable table (see HOST_PY for its methods).
     fn set_host_table(&self, table: Py<PyAny>) {
         *self.table.borrow_mut() = Some(table);
@@ -1522,7 +1536,7 @@ impl Klong {
     fn set_adopt(&self, py: Python<'_>, min_len: Option<usize>) -> PyResult<()> {
         self.adopting.set(min_len.is_some());
         self.with_ip(py, |ip| {
-            ip.adopt = match min_len {
+            let h: Option<Rc<dyn Fn(&mut Interp, &Value) -> Option<Value>>> = match min_len {
                 None => None,
                 Some(min) => {
                     let cache: RefCell<HashMap<usize, (Value, Value)>> = RefCell::new(HashMap::new());
@@ -1566,6 +1580,7 @@ impl Klong {
                     }) as Rc<dyn Fn(&mut Interp, &Value) -> Option<Value>>)
                 }
             };
+            ip.set_adopt(h);
         });
         Ok(())
     }

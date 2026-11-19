@@ -269,7 +269,7 @@ impl Interp {
             "\\~" => {
                 let mut b = b;
                 let mut r = alloc::vec![b.clone()];
-                while self.apply(&a, alloc::vec![b.clone()], None)?.truthy() {
+                while self.apply_fast(&a, b.clone(), None)?.truthy() {
                     b = self.f1(ch, level, b)?;
                     try_push(&mut r, b.clone())?;
                 }
@@ -321,7 +321,7 @@ impl Interp {
             }
             ":~" => {
                 let mut b = b;
-                while self.apply(&a, alloc::vec![b.clone()], None)?.truthy() {
+                while self.apply_fast(&a, b.clone(), None)?.truthy() {
                     b = self.f1(ch, level, b)?;
                 }
                 Ok(b)
@@ -395,6 +395,12 @@ impl Interp {
                     return Ok(Value::Flt(x.data[1..].iter().fold(x.data[0] as Flt, |s, v| s / *v as Flt)));
                 }
                 (Value::Flts(x), Some("%")) if x.rank() == 1 => return Ok(Value::Flt(x.data[1..].iter().fold(x.data[0], |s, v| s / *v))),
+                #[cfg(feature = "speed")]
+                (Value::Flts(x), Some("&")) if x.rank() == 1 => return Ok(Value::Flt(crate::fast::flt_extreme(&x.data, false))),
+                #[cfg(feature = "speed")]
+                (Value::Flts(x), Some("|")) if x.rank() == 1 => return Ok(Value::Flt(crate::fast::flt_extreme(&x.data, true))),
+                #[cfg(feature = "speed")]
+                (Value::Flts(x), Some("*")) if x.rank() == 1 => return Ok(Value::Flt(x.data[1..].iter().fold(x.data[0], |s, v| s * *v))),
                 (Value::Str(s), Some("&")) => return Ok(Value::Char(s.as_str().chars().min().unwrap_or('\0'))),
                 (Value::Str(s), Some("|")) => return Ok(Value::Char(s.as_str().chars().max().unwrap_or('\0'))),
                 // ,/ over strings: one pass (the fold copies what it has joined at every step)
@@ -440,6 +446,19 @@ impl Interp {
                     }
                     return Ok(Value::ints(out));
                 }
+            }
+        }
+        #[cfg(feature = "speed")]
+        if let (Value::Flts(x), Some("+"), 2) = (&a, self.verb_op(ch, level), ch.verb_arity) {
+            if x.rank() == 1 {
+                let mut out: Vec<Flt> = try_vec(n)?;
+                let mut s = x.data[0];
+                out.push(s);
+                for v in &x.data[1..] {
+                    s += *v;
+                    out.push(s);
+                }
+                return Ok(Value::flts(out));
             }
         }
         let mut out = try_vec(n)?;

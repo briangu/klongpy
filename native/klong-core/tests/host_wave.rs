@@ -325,3 +325,39 @@ fn a_qualified_name_on_a_host_value_asks_the_host_as_at_does() {
     // the host's own error is the error
     assert_eq!(show(&mut ip, "h.nope"), "!the remote has no entry nope");
 }
+
+#[test]
+fn float_width_32_computes_floats_as_float32_and_64_is_the_default() {
+    let _g = lock();
+    let mut ip = interp();
+    // off by default: float64 results, bit for bit
+    assert_eq!(show(&mut ip, "0.1+0.2"), "0.30000000000000004");
+    assert_eq!(show(&mut ip, "(0.1+0.2)=0.3"), "0");
+    ip.set_float_width(32);
+    klong_core::fmt::FLOAT32_DISPLAY.store(true, std::sync::atomic::Ordering::Relaxed);
+    let want = |src: &str| match ip_run(src) {
+        Some(Value::Flt(f)) => f,
+        v => panic!("{src}: {}", v.map(|_| "not a float").unwrap_or("nothing")),
+    };
+    fn ip_run(src: &str) -> Option<Value> {
+        let mut ip = interp();
+        ip.set_float_width(32);
+        ip.run(src, "<t>").ok().flatten()
+    }
+    // each result is the float32 that torch gives for the same float32 operands
+    assert_eq!(want("0.1+0.2"), (0.1f32 + 0.2f32) as f64);
+    assert_eq!(want("1%3"), (1.0f32 / 3.0f32) as f64);
+    assert_eq!(want("0.1*3"), (0.1f32 * 3.0f32) as f64);
+    assert_eq!(want("16777217.0+0"), 16777216.0);
+    assert_eq!(want("a::0.1;a+a+a"), ((0.1f32 + 0.1f32) + 0.1f32) as f64);
+    assert_eq!(show(&mut ip, "0.1+0.2"), "0.3");
+    assert_eq!(show(&mut ip, "(0.1+0.2)=0.3"), "1");
+    assert_eq!(show(&mut ip, "1%3"), "0.33333334");
+    // a flat float vector is rounded too; integers are untouched
+    assert_eq!(show(&mut ip, "+/[0.1 0.2 0.3]"), "0.6");
+    assert_eq!(show(&mut ip, "{x*x}'[1 2 3]"), "[1 4 9]");
+    // back to 64
+    ip.set_float_width(64);
+    klong_core::fmt::FLOAT32_DISPLAY.store(false, std::sync::atomic::Ordering::Relaxed);
+    assert_eq!(show(&mut ip, "0.1+0.2"), "0.30000000000000004");
+}

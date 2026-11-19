@@ -12,7 +12,7 @@ use klong_sim::{Sim, SimBoard, SimOptions, Wire};
 /// One interpreter at a time (statics in klong-core: see klong-core/tests/full.rs).
 static ONE: Mutex<()> = Mutex::new(());
 
-const BANNER: &str = "Klong 0.0.1 (sim, int64 float64)\nklong> ";
+const BANNER: &str = "Klong 2.0.0-rc.1 (sim, int64 float64)\nklong> ";
 const P: &str = "klong> ";
 
 fn lock() -> MutexGuard<'static, ()> {
@@ -149,7 +149,7 @@ fn ctrl_a_in_the_middle_of_a_line_is_input() {
     s.io(b"\x03");
     // at the start of an empty entry it is a command
     let out = s.io(b"\x01ver\n");
-    assert!(out.starts_with("ver\n\x01ok ver=0.0.1 "), "{out:?}");
+    assert!(out.starts_with("ver\n\x01ok ver=2.0.0-rc.1 "), "{out:?}");
     // and after blanks it is not
     let out = s.io(b" \x01ver\n");
     assert!(!out.contains("\x01ok"), "{out:?}");
@@ -356,7 +356,7 @@ fn ver_reports_the_build() {
     let mut s = dumb();
     let out = s.io(b"\x01ver\n");
     // (the features are whatever klong-rt was built with: files and lib, and those of the ipc and timers features)
-    assert!(out.starts_with("\x01ok ver=0.0.1 int=64 float=64 features=files,lib"), "{out:?}");
+    assert!(out.starts_with("\x01ok ver=2.0.0-rc.1 int=64 float=64 features=files,lib"), "{out:?}");
     assert!(out.contains(" platform=sim fs=1 heap_free=unknown max_line=1024 max_run=65536 max_file=16777216\nklong> "), "{out:?}");
     assert!(out.ends_with(P));
     // blanks after the control byte and a carriage return are fine

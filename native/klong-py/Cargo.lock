@@ -25,7 +25,7 @@ dependencies = [
 
 [[package]]
 name = "klong-core"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "libm",
  "num-bigint",
@@ -34,11 +34,11 @@ dependencies = [
 
 [[package]]
 name = "klong-dgram"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 
 [[package]]
 name = "klong-host"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-rt",
@@ -46,14 +46,14 @@ dependencies = [
 
 [[package]]
 name = "klong-ipc"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
 ]
 
 [[package]]
 name = "klong-lint"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-host",
@@ -62,7 +62,7 @@ dependencies = [
 
 [[package]]
 name = "klong-py"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-host",
@@ -75,7 +75,7 @@ dependencies = [
 
 [[package]]
 name = "klong-rt"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-dgram",
@@ -84,7 +84,7 @@ dependencies = [
 
 [[package]]
 name = "klong-static"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-host",
@@ -94,7 +94,7 @@ dependencies = [
 
 [[package]]
 name = "klong-tools"
-version = "0.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
  "klong-core",
  "klong-host",
