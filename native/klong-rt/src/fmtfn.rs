@@ -152,7 +152,11 @@ pub fn render(ip: &mut Interp, a: &[Value], name: &str) -> Result<String> {
         t => return Err(Error::typ(klong_core::msg!(".fmt: template must be a string, got {}", py_type(t)))),
     };
     let template = template.as_str();
-    let args: Vec<Value> = match a.get(1) {
+    let hosted = match a.get(1).and_then(|y| y.host_items()) {
+        Some(r) => Some(r?),
+        None => None,
+    };
+    let args: Vec<Value> = match hosted.as_ref().or(a.get(1)) {
         Some(y) if y.is_list() => y.items()?,
         Some(y) => alloc::vec![y.clone()],
         None => {
@@ -203,7 +207,8 @@ pub fn render(ip: &mut Interp, a: &[Value], name: &str) -> Result<String> {
                 let text = match spec {
                     None => format_value(&ip.syms, v, true)?,
                     Some(s) if s.contains('.') => {
-                        let x = match v {
+                        let u = v.unhost(".fmt")?;
+                        let x = match &u {
                             Value::Int(i) => *i as Flt,
                             Value::Flt(f) => *f,
                             _ => return Err(Error::typ(klong_core::msg!(".fmt: format '{}' needs a number, got {} in template {}", s, v.py_repr(Some(&ip.syms)), py_repr(template)))),

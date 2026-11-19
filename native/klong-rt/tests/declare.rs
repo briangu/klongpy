@@ -266,3 +266,36 @@ fn the_host_reads_the_declarations_and_sets_the_parameters() {
     drop(_one);
     assert_eq!(show(&mut rt, "read.adc(5)"), Ok("2.5".into()));
 }
+
+#[cfg(feature = "diag")]
+#[test]
+fn the_stand_in_is_looked_up_at_each_call() {
+    let mut rt = rt();
+    let which: Rc<RefCell<Option<f64>>> = Rc::new(RefCell::new(None));
+    let w = which.clone();
+    rt.declarations.set_resolver(Some(Rc::new(move |_ip: &mut Interp, name: &str, _args: &[Value]| {
+        assert_eq!(name, "read.adc");
+        w.borrow().map(|x| Ok(Value::Flt(x)))
+    })));
+    assert_eq!(show(&mut rt, ".extern(\"read.adc\";\"int -> float\");f::{read.adc(x)*2}"), Ok(":monad".into()));
+    // no stand-in yet: a system error at the call
+    assert_eq!(show(&mut rt, "f(0)"), Err(Kind::System));
+    *which.borrow_mut() = Some(1.0);
+    assert_eq!(show(&mut rt, "f(0)"), Ok("2.0".into()));
+    *which.borrow_mut() = Some(4.0);
+    assert_eq!(show(&mut rt, "f(0)"), Ok("8.0".into()));
+    *which.borrow_mut() = None;
+    assert_eq!(show(&mut rt, "f(0)"), Err(Kind::System));
+    assert_eq!(rt.declarations.externs().len(), 1);
+}
+
+#[cfg(feature = "diag")]
+#[test]
+fn fixed_is_asked_of_the_host() {
+    let mut rt = rt();
+    assert_eq!(show(&mut rt, ".fixed(\"fixed<8,4>\";1)"), Err(Kind::System));
+    rt.declarations.set_resolver(Some(Rc::new(|_ip: &mut Interp, name: &str, args: &[Value]| {
+        (name == ".fixed").then(|| Ok(args[1].clone()))
+    })));
+    assert_eq!(show(&mut rt, ".fixed(\"fixed<8,4>\";7)"), Ok("7".into()));
+}

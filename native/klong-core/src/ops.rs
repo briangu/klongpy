@@ -172,6 +172,11 @@ mod m {
         libm::fmod(a, b)
     }
     pub fn pow(a: f64, b: f64) -> f64 {
+        // a host build (the Python extension) takes the operating system's `pow`, as Python and NumPy do: the portable one differs in
+        // the last digit for some operands
+        #[cfg(feature = "host")]
+        return a.powf(b);
+        #[cfg(not(feature = "host"))]
         libm::pow(a, b)
     }
 }
@@ -658,7 +663,7 @@ fn reshape_flat(flat: Vec<Value>, like: &Value) -> Result<Value> {
 /// as KlongPy's `operator_error` does: `cannot apply + (Plus) to list of 3 and list of 2`.
 pub fn atomic(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> {
     match atomic_in(syms, op, a, b) {
-        Err(e) if e.generic => Err(whole_error(e, op_glyph(op), &[a, b])),
+        Err(e) if e.generic => Err(whole_error(e, op_glyph(op), &[a, b], Some(syms))),
         r => r,
     }
 }
@@ -667,20 +672,20 @@ pub fn atomic(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value
 #[cold]
 fn apply_err(kind: Kind, g: &str, n: &str, a: &Value, b: &Value) -> Error {
     #[cfg(feature = "diag")]
-    return whole_error(Error::new(kind, ""), (g, n), &[a, b]);
+    return whole_error(Error::new(kind, ""), (g, n), &[a, b], None);
     #[cfg(not(feature = "diag"))]
     Error::new(kind, crate::msg!("cannot apply {} ({}) to {} and {}", g, n, a.describe(), b.describe()))
 }
 
 /// The error of an operator applied to whole operands (KlongPy `operator_error`).
 #[cfg(not(feature = "diag"))]
-pub(crate) fn whole_error(e: Error, _g: (&str, &str), _operands: &[&Value]) -> Error {
+pub(crate) fn whole_error(e: Error, _g: (&str, &str), _operands: &[&Value], _syms: Option<&Interner>) -> Error {
     e
 }
 
 #[cfg(feature = "diag")]
 #[cold]
-pub(crate) fn whole_error(e: Error, g: (&str, &str), operands: &[&Value]) -> Error {
+pub(crate) fn whole_error(e: Error, g: (&str, &str), operands: &[&Value], syms: Option<&Interner>) -> Error {
     let mut m = crate::msg!("cannot apply {} ({}) to ", g.0, g.1);
     for (i, v) in operands.iter().enumerate() {
         if i > 0 {
@@ -690,7 +695,7 @@ pub(crate) fn whole_error(e: Error, g: (&str, &str), operands: &[&Value]) -> Err
     }
     if e.kind == Kind::Type {
         for v in operands {
-            if let Some(odd) = v.odd_member(0) {
+            if let Some(odd) = v.odd_member(0, syms) {
                 m.push_str(": the list holds ");
                 m.push_str(&odd);
                 break;
@@ -1262,6 +1267,31 @@ fn index(a: &Value, b: &Value) -> Result<Value> {
     }
 }
 
+/// How deeply lists are nested in `v`: 0 for an atom.
+fn list_depth(v: &Value) -> usize {
+    if !v.is_list() {
+        return 0;
+    }
+    1 + (0..v.len().unwrap_or(0)).map(|j| list_depth(&v.item(j))).max().unwrap_or(0)
+}
+
+/// A string indexed by a nested list. KlongPy takes a matrix of indexes and gives a matrix of pieces; an index that does not fit
+/// (not whole numbers, out of range, an empty row, more than two levels) is the error of the whole operation, naming the whole index.
+fn index_string_nested(a: &Value, b: &Value) -> Result<Value> {
+    let whole_err = |kind| apply_err(kind, "@", "At/Index", a, b);
+    if list_depth(b) >= 3 {
+        return Err(whole_err(Kind::Type));
+    }
+    if (0..b.len().unwrap_or(0)).any(|j| b.item(j).is_list() && b.item(j).is_empty()) {
+        return Err(whole_err(Kind::Range));
+    }
+    index(a, b).map_err(|e| match e.kind {
+        Kind::Type => whole_err(Kind::Type),
+        Kind::Range => whole_err(Kind::Range),
+        _ => e,
+    })
+}
+
 fn d_at(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
     match &a {
         Value::Fn(_) | Value::Sym(_) => {
@@ -1283,6 +1313,9 @@ fn d_at(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
         _ if a.is_iterable() => {
             if b.is_list() && b.is_empty() {
                 return Ok(if a.is_str() { Value::empty_str() } else { Value::empty() });
+            }
+            if a.is_str() && b.is_list() && (0..b.len().unwrap_or(0)).any(|j| b.item(j).is_list()) {
+                return index_string_nested(&a, &b);
             }
             index(&a, &b)
         }

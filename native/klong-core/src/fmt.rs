@@ -73,6 +73,10 @@ pub fn format_value(syms: &Interner, v: &Value, display: bool) -> crate::error::
     Ok(out.text)
 }
 
+/// HOST: print floats as float32 does (the shortest text that reads back as the same float32): what a torch backend shows.
+#[cfg(feature = "host")]
+pub static FLOAT32_DISPLAY: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
 pub fn write_float<S: Sink>(f: Flt, out: &mut S) {
     if f.is_nan() {
         out.push_str("nan");
@@ -88,7 +92,15 @@ pub fn write_float<S: Sink>(f: Flt, out: &mut S) {
     let a = if f.is_sign_negative() { -f } else { f };
     // `{:e}` gives the shortest round-trip digits: "d.ddde-7", "1e16", "0e0".
     let mut buf = Small::new();
-    let _ = write!(buf, "{:e}", a);
+    #[cfg(feature = "host")]
+    let narrow = FLOAT32_DISPLAY.load(core::sync::atomic::Ordering::Relaxed) && (a as f32).is_finite() && (a == 0.0 || (a as f32) != 0.0);
+    #[cfg(not(feature = "host"))]
+    let narrow = false;
+    if narrow {
+        let _ = write!(buf, "{:e}", a as f32);
+    } else {
+        let _ = write!(buf, "{:e}", a);
+    }
     let s = buf.as_str();
     let (mant, exp) = match s.split_once('e') {
         Some((m, e)) => (m, e.parse::<i32>().unwrap_or(0)),

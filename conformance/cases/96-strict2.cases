@@ -16,3 +16,12 @@
 > f::{x}
 > f(1;2)
 ! arity
+
+@ strict2.function-whose-body-is-a-quoted-symbol core strict2
+> {:x}(1)
+= :x
+
+@ strict2.named-function-whose-body-is-a-quoted-symbol core strict2
+> f::{:x}
+> f(1)
+= :x

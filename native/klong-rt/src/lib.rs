@@ -181,7 +181,7 @@ impl<P: Platform + 'static> Runtime<P> {
         let rng = platform.entropy() | 1;
         let start_us = platform.now_us();
         let mut path = Vec::new();
-        path.push(String::from("."));
+        path.push(String::new()); // the current directory, as the platform names it
         path.push(String::from("lib"));
         let shared = Rc::new(Shared {
             platform: RefCell::new(platform),

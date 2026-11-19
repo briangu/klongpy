@@ -92,3 +92,11 @@
 @ strict1.undefined-name-at-top-level-is-still-a-symbol core strict1
 > foo
 = :foo
+
+@ strict1.missing-right-operand-of-at core strict1
+> [5 6]@
+! syntax
+
+@ strict1.missing-right-operand-of-define core strict1
+> f::
+! syntax

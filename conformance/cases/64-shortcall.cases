@@ -150,3 +150,20 @@
 > s::r(1)
 > s(2;3)
 ! arity
+
+@ shortcall.call-with-no-argument-of-a-monad-is-a-projection core
+> f::{x+1}
+> r::f()
+> r(5)
+= 6
+
+@ shortcall.call-with-no-argument-of-a-dyad-is-a-projection core
+> g::{x*y}
+> r::g()
+> r(3;4)
+= 12
+
+@ shortcall.call-with-no-argument-of-a-nilad-calls-it core
+> h::{7}
+> h()
+= 7

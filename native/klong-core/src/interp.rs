@@ -166,6 +166,10 @@ pub struct Interp {
     /// with the operator's glyph and its operands.
     #[cfg(feature = "host")]
     pub host_op: Option<Rc<HostOp>>,
+    /// HOST: called when the program run at the top level has been parsed and before its first statement runs (its warnings are
+    /// then in `take_warnings`); an error from it ends the run with that error and nothing has run.
+    #[cfg(feature = "host")]
+    pub on_parsed: Option<Rc<dyn Fn(&mut Interp) -> Result<()>>>,
     /// HOST: the embedder takes over a numeric vector a primitive or a literal has produced (a torch backend wants its arrays on its
     /// device): called on every value `eval` returns that is a native vector; `None` leaves it as it is.
     #[cfg(feature = "host")]
@@ -245,6 +249,8 @@ impl Interp {
             collect: None,
             #[cfg(feature = "host")]
             host_op: None,
+            #[cfg(feature = "host")]
+            on_parsed: None,
             #[cfg(feature = "wide-args")]
             extra_args: Vec::new(),
             #[cfg(feature = "host")]
@@ -339,6 +345,23 @@ impl Interp {
         crate::fmt::to_string(&self.syms, v)
     }
 
+    /// Measure the native stack from here, against `limit`, for a thread that re-enters a running interpreter (a callback or a
+    /// loop on another thread: its stack is not the one the outer run started on). Returns what `restore_stack` puts back.
+    pub fn rebase_stack(&mut self, limit: Option<usize>) -> (usize, Option<usize>, usize) {
+        let prev = (self.stack_base, self.cfg.stack_limit, self.max_stack_seen);
+        self.stack_base = stack_here();
+        self.cfg.stack_limit = limit;
+        self.max_stack_seen = 0;
+        prev
+    }
+
+    /// Put back what `rebase_stack` returned (the high-water mark keeps the larger of the two).
+    pub fn restore_stack(&mut self, prev: (usize, Option<usize>, usize)) {
+        self.stack_base = prev.0;
+        self.cfg.stack_limit = prev.1;
+        self.max_stack_seen = self.max_stack_seen.max(prev.2);
+    }
+
     fn stack(&self) -> Option<(usize, usize)> {
         self.cfg.stack_limit.map(|l| (if self.running == 0 { stack_here() } else { self.stack_base }, l))
     }
@@ -399,6 +422,12 @@ impl Interp {
 
     fn run_parsed(&mut self, prog: Prog, name: &str) -> Result<Option<Value>> {
         let p = self.parse_prog(prog, name)?;
+        #[cfg(feature = "host")]
+        if self.running == 1 {
+            if let Some(h) = self.on_parsed.clone() {
+                h(self)?;
+            }
+        }
         let frames = self.frames.len();
         let depth = self.depth;
         let mut last = None;
@@ -550,8 +579,20 @@ impl Interp {
                 for a in args {
                     info.bound.push(match a {
                         Slot::Val(v) => Some(v.clone()),
-                        _ => None,
+                        // a value written in the call (`r::f(10)`): a literal is itself, an expression its text
+                        Slot::Code(t, n) => match (t.node(*n), t.source.as_ref(), t.span(*n)) {
+                            (Node::Lit(v), _, _) => Some(v.clone()),
+                            (_, Some(src), Some((s, e))) => Some(Value::Str(Rc::new(crate::value::Text::new(String::from(&src.text.as_ref()[s as usize..e as usize]))))),
+                            _ => Some(Value::Undefined),
+                        },
+                        Slot::Hole => None,
                     });
+                }
+                // a short call (`f(10)` of a function of three arguments) leaves the arguments it did not reach as holes
+                if let Some(a) = self.fn_info_arity_of(f) {
+                    while info.bound.len() < a as usize {
+                        info.bound.push(None);
+                    }
                 }
                 return Some(info);
             }
@@ -567,7 +608,10 @@ impl Interp {
         let body = match tree.node(node) {
             Node::Fn { a, args, has_args, .. } => {
                 if *has_args {
-                    info.projection = tree.ids(*args).iter().any(|&q| q == NONE.0);
+                    let callee = self.node_value(&tree, *a);
+                    // a short call (`f()` of a function of one argument) is a projection too: the arguments it did not reach are holes
+                    let short = self.fn_info_arity_of(&callee).is_some_and(|n| (tree.ids(*args).len() as u8) < n);
+                    info.projection = short || tree.ids(*args).iter().any(|&q| q == NONE.0);
                     for &q in tree.ids(*args) {
                         info.bound.push(if q == NONE.0 {
                             None
@@ -579,7 +623,12 @@ impl Interp {
                             }
                         });
                     }
-                    info.callee = Some(self.node_value(&tree, *a));
+                    if let Some(n) = self.fn_info_arity_of(&callee) {
+                        while info.bound.len() < n as usize {
+                            info.bound.push(None);
+                        }
+                    }
+                    info.callee = Some(callee);
                 }
                 *a
             }
@@ -595,8 +644,21 @@ impl Interp {
         if let (Some(t), Some((s, e))) = (text, tree.span(node)) {
             info.source = Some(String::from(&t[s as usize..e as usize]));
             info.span = Some((s, e));
+            info.span_chars = Some((t[..s as usize].chars().count(), t[..e as usize].chars().count()));
         }
         Some(info)
+    }
+
+    /// The number of arguments a function value takes (what a short call is short of).
+    #[cfg(feature = "diag")]
+    fn fn_info_arity_of(&self, f: &Value) -> Option<u8> {
+        match f {
+            Value::Fn(func) => match &**func {
+                Func::Proj { .. } => None,
+                other => Some(crate::fmt::func_arity(other)).filter(|&a| a != WILDCARD),
+            },
+            _ => None,
+        }
     }
 
     pub fn read_datum(&mut self, text: &str) -> Result<Option<(usize, Value)>> {
@@ -662,6 +724,11 @@ impl Interp {
 
     /// `.module(:name)` at run time: a module scope. The names assigned at top level while
     /// it is the newest scope belong to it (the parser has already qualified them).
+    /// The name of the module the program is in, `None` outside any.
+    pub fn current_module(&self) -> Option<&str> {
+        self.module.as_deref()
+    }
+
     pub fn module_start(&mut self, name: &str) -> Result<()> {
         let s = self.syms.intern(name);
         if let Some(e) = self.syms.failure() {
@@ -1029,11 +1096,11 @@ impl Interp {
         let name = self.syms.name(s).split('`').next().unwrap_or("");
         let want: Vec<char> = name.chars().collect();
         let mut best: Option<(f64, String)> = None;
-        for (i, slot) in self.globals.iter().enumerate() {
-            if slot.is_none() {
-                continue;
-            }
-            let other = self.syms.name(SymId(i as u32)).split('`').next().unwrap_or("");
+        // the defined names: the globals and the locals of the functions that are running
+        let globals = self.globals.iter().enumerate().filter(|(_, slot)| slot.is_some()).map(|(i, _)| SymId(i as u32));
+        let locals = self.frames.iter().flat_map(|f| f.iter().map(|(k, _)| *k));
+        for id in globals.chain(locals) {
+            let other = self.syms.name(id).split('`').next().unwrap_or("");
             if other == name || other.is_empty() {
                 continue;
             }
@@ -1260,6 +1327,11 @@ impl Interp {
             Value::Undefined => crate::msg!(":undefined"),
             Value::Str(_) => crate::msg!("a string"),
             Value::Dict(_) => crate::msg!("a dict"),
+            #[cfg(feature = "host")]
+            Value::Ext(e) if e.0.host_shape().is_some_and(|d| !d.is_empty()) => {
+                let d = e.0.host_shape().unwrap_or_default();
+                Self::list_kind(d.len(), d[0] as usize, &d[1..])
+            }
             Value::Ext(_) => crate::msg!("a channel"),
             Value::Fn(_) | Value::Prim(_) => crate::msg!("a function"),
             Value::Ints(a) => Self::list_kind(a.rank(), a.len(), a.row_dims()),
@@ -1267,7 +1339,11 @@ impl Interp {
             Value::List(l) => Self::list_kind(1, l.len(), &[]),
         };
         let mut hint = String::from("a function is written {...}");
-        if matches!(v, Value::Ints(_) | Value::Flts(_) | Value::List(_) | Value::Str(_) | Value::Dict(_)) {
+        #[cfg(feature = "host")]
+        let hosted = matches!(v, Value::Ext(e) if e.0.host_shape().is_some_and(|d| !d.is_empty()));
+        #[cfg(not(feature = "host"))]
+        let hosted = false;
+        if hosted || matches!(v, Value::Ints(_) | Value::Flts(_) | Value::List(_) | Value::Str(_) | Value::Dict(_)) {
             hint.push_str(&crate::msg!("; to index, write {}@i", shown));
         }
         Error::typ(crate::msg!("cannot call {}: it is {}, not a function", shown, what)).with_hint(hint)
@@ -1534,9 +1610,15 @@ impl Interp {
         let def = self.op_def(op)?;
         let f = def.dyad.ok_or_else(|| self.unknown_op(op))?;
         // right to left
-        let y = self.eval(tree, r, false)?;
+        // a right operand that is missing (strict level 0 warned of it): nothing, which is `:undefined` here, as KlongPy has None
+        let nothing = !Tree::is_real(r);
+        let y = if nothing { Value::Undefined } else { self.eval(tree, r, false)? };
         if def.glyph == "::" {
-            return self.define(tree, l, y).map_err(|e| self.at_operator(tree, id, e));
+            let v = self.define(tree, l, y).map_err(|e| self.at_operator(tree, id, e));
+            if nothing {
+                self.void = true;
+            }
+            return v;
         }
         #[cfg(feature = "host")]
         if self.host_op.is_some() && matches!(def.glyph, "\u{2207}" | ":>") {
@@ -1545,7 +1627,7 @@ impl Interp {
         let x = self.eval(tree, l, false)?;
         #[cfg(feature = "host")]
         if let Some(r) = self.ext_dyad(def.glyph, &x, &y) {
-            return r;
+            return r.map_err(|e| self.at_operator(tree, id, e));
         }
         match def.atomic {
             Some(a) => ops::atomic(&self.syms, a, &x, &y),
@@ -1732,7 +1814,10 @@ impl Interp {
                     Func::Code { tree, node: id } => {
                         if let Node::Fn { a, args, has_args, arity: fa, .. } = tree.node(*id) {
                             if !*has_args {
-                                next = Some((self.node_value(tree, *a), *fa));
+                                // ({:x} at level 2 is a function whose body is the symbol, not a function that is the symbol's value)
+                                if !(self.cfg.strict == 2 && matches!(tree.node(*a), Node::QSym(_))) {
+                                    next = Some((self.node_value(tree, *a), *fa));
+                                }
                             } else if tree.ids(*args).contains(&NONE.0) {
                                 try_push(layers, Layer::Tree(tree.clone(), *args))?;
                                 next = Some((self.node_value(tree, *a), *fa));
@@ -1872,6 +1957,20 @@ impl Interp {
         None
     }
 
+    /// The arity of a function written as a literal (`{x+y}`): how many arguments it takes; 0 for anything else.
+    fn literal_arity(f: &Value) -> u8 {
+        if let Value::Fn(func) = f {
+            if let Func::Code { tree, node } = &**func {
+                if let Node::Fn { has_args: false, arity, .. } = tree.node(*node) {
+                    return *arity;
+                }
+            } else if let Func::Lazy(l) = &**func {
+                return if l.has_params { 0 } else { l.arity };
+            }
+        }
+        0
+    }
+
     #[cfg(feature = "wide-args")]
     fn is_wild(f: &Value) -> bool {
         matches!(f, Value::Fn(func) if matches!(&**func, Func::Native { arity, .. } if *arity == WILDCARD))
@@ -1945,14 +2044,20 @@ impl Interp {
     #[inline(never)]
     #[cfg_attr(feature = "ram-hot", allow(unsafe_code), link_section = ".time_critical.klong_eval_call_in")]
     fn eval_call_in(&mut self, tree: &Rc<Tree>, id: NodeId, layers: &mut Vec<Layer>) -> Result<Value> {
-        let (a, args, has_args, arity0, calling) = match tree.node(id) {
+        let (a, args, has_args, arity0, calling, literal) = match tree.node(id) {
             // (a written call, not the evaluation of a body that is a bare name, and not the call of a literal)
-            Node::Fn { a, args, has_args, arity, literal, .. } => (*a, *args, *has_args, *arity, *has_args && !*literal),
+            Node::Fn { a, args, has_args, arity, literal, .. } => (*a, *args, *has_args, *arity, *has_args && !*literal, *literal),
             _ => return Err(Error::internal("not a call")),
         };
         if !has_args && self.cfg.strict == 2 {
             if let Node::QSym(s) = tree.node(a) {
                 // {:foo}: the body is a quoted symbol, and this is its evaluation
+                return Ok(Value::Sym(*s));
+            }
+        }
+        if literal && self.cfg.strict == 2 {
+            if let Node::QSym(s) = tree.node(a) {
+                // {:x}(1): a function whose body is the quoted symbol; it gives the symbol (the arguments are not read)
                 return Ok(Value::Sym(*s));
             }
         }
@@ -1988,6 +2093,8 @@ impl Interp {
                 }
                 return self.run_fn(f, frame);
             }
+            // `f()`: written with no argument, a function of one to three arguments is called short, which is a projection
+            let arity = if n == 0 && calling { arity.max(Self::literal_arity(&f)) } else { arity };
             if n < arity as usize || ids.contains(&NONE.0) {
                 // a short call (fewer arguments than the function takes, or an argument left
                 // empty): a projection, at every strict level
@@ -2442,7 +2549,7 @@ impl Interp {
                     name.push_str(n);
                 }
             }
-            e = ops::whole_error(e, (&glyph, &name), operands);
+            e = ops::whole_error(e, (&glyph, &name), operands, Some(&self.syms));
         }
         e
     }
@@ -2521,6 +2628,8 @@ pub struct FnInfo {
     /// The text of the function literal as written, and where.
     pub source: Option<String>,
     pub span: Option<crate::error::Span>,
+    /// The same span in characters of the source text (`span` is in bytes).
+    pub span_chars: Option<(usize, usize)>,
     pub projection: bool,
     /// A projection's arguments in order: a value, or `None` for a hole (an argument written as an expression is its source text).
     pub bound: Vec<Option<Value>>,

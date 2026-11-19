@@ -396,6 +396,9 @@ pub fn key_hash(k: &Value) -> Option<u32> {
         Value::Str(s) => hash_bytes(s.as_str().as_bytes()),
         Value::Sym(s) => mix(s.0 ^ 0x5bd1_e995),
         Value::Undefined => 0x1234_5678,
+        // a system function or a host callable is its own key, by identity
+        Value::Fn(f) if matches!(&**f, Func::Native { .. }) => hash_bytes(&(Rc::as_ptr(f) as usize).to_le_bytes()),
+        Value::Ext(e) => hash_bytes(&e.0.key_identity()?.to_le_bytes()),
         _ => return None,
     })
 }
@@ -621,6 +624,8 @@ pub fn key_eq(a: &Value, b: &Value) -> bool {
         (Value::Char(c), Value::Str(s)) | (Value::Str(s), Value::Char(c)) => s.len() == 1 && s.char_at(0) == *c,
         (Value::Undefined, Value::Undefined) => true,
         (Value::Prim(x), Value::Prim(y)) => x == y,
+        (Value::Fn(x), Value::Fn(y)) => Rc::ptr_eq(x, y) && matches!(&**x, Func::Native { .. }),
+        (Value::Ext(x), Value::Ext(y)) => matches!((x.0.key_identity(), y.0.key_identity()), (Some(p), Some(q)) if p == q),
         #[cfg(feature = "bigint")]
         (Value::Big(x), Value::Big(y)) => x == y,
         #[cfg(feature = "bigint")]
@@ -704,6 +709,10 @@ impl Func {
 pub trait Ext {
     fn type_name(&self) -> &str;
     fn as_any(&self) -> &dyn core::any::Any;
+    /// What makes this object a dictionary key: an identity (two values with the same one are the same key). `None`: not a key.
+    fn key_identity(&self) -> Option<usize> {
+        None
+    }
     /// `x?y` with this object as `x` (a remote dictionary answers a lookup). `None`: the
     /// object is not something Find applies to.
     fn find(&self, _ip: &mut crate::interp::Interp, _y: &Value) -> Option<Result<Value>> {
@@ -752,6 +761,11 @@ pub trait Ext {
     /// destructuring `[a b]::x` takes apart.
     #[cfg(feature = "host")]
     fn host_items(&self) -> Option<Result<Value>> {
+        None
+    }
+    /// The shape of this object when it is an array (a tensor): its dimensions, first to last; `None` for anything else.
+    #[cfg(feature = "host")]
+    fn host_shape(&self) -> Option<Vec<u32>> {
         None
     }
     /// The text of this object as `.p` and `$` show it.
@@ -827,6 +841,28 @@ pub fn try_extend<T: Copy>(v: &mut Vec<T>, xs: &[T]) -> Result<()> {
 }
 
 impl Value {
+    /// A host object (a tensor, an array of the embedder) as an ordinary native value, a copy; any other value as it is. For a system
+    /// function that works on native values: `what` names it for the embedder's refusal.
+    pub fn unhost(&self, what: &str) -> Result<Value> {
+        #[cfg(feature = "host")]
+        if let Value::Ext(e) = self {
+            if let Some(r) = e.0.host_native(what) {
+                return r;
+            }
+        }
+        let _ = what;
+        Ok(self.clone())
+    }
+
+    /// The elements of a host array as a list value (its elements may be host objects); `None` for any other value.
+    pub fn host_items(&self) -> Option<Result<Value>> {
+        #[cfg(feature = "host")]
+        if let Value::Ext(e) = self {
+            return e.0.host_items();
+        }
+        None
+    }
+
     pub fn ints(v: Vec<Int>) -> Value {
         Value::Ints(Rc::new(Arr::vec(v)))
     }
@@ -1094,6 +1130,11 @@ impl Value {
             Value::Flts(a) => dims(a.rank(), a.len(), a.row_dims()),
             Value::List(l) => dims(1, l.len(), &[]),
             #[cfg(feature = "host")]
+            Value::Ext(e) if e.0.host_shape().is_some_and(|d| !d.is_empty()) => {
+                let d = e.0.host_shape().unwrap_or_default();
+                dims(d.len(), d[0] as usize, &d[1..])
+            }
+            #[cfg(feature = "host")]
             Value::Ext(e) if e.0.host_format(false).is_some() => "host array".to_string(),
             Value::Ext(_) => "channel".to_string(),
             v => v.describe().to_string(),
@@ -1102,19 +1143,23 @@ impl Value {
 
     #[cfg(feature = "diag")]
     /// For a type error on a list: what it holds that is not a number (`:undefined`, `a string`), KlongPy `_odd_member`.
-    pub fn odd_member(&self, depth: u32) -> Option<alloc::string::String> {
+    pub fn odd_member(&self, depth: u32, syms: Option<&crate::sym::Interner>) -> Option<alloc::string::String> {
         let items: &[Value] = match self {
             Value::List(l) => l,
             _ => return None,
         };
         for el in items.iter().take(1000) {
             let d = el.describe_long();
+            // `:undefined` written inside a list literal is the symbol of that name, which KlongPy calls the same
+            if matches!(el, Value::Sym(s) if syms.is_some_and(|t| t.name(*s) == "undefined")) {
+                return Some(alloc::string::String::from(":undefined"));
+            }
             if d == ":undefined" || matches!(el, Value::Undefined) {
                 return Some(d);
             }
             if d.starts_with("list of") || d.ends_with("matrix") || d.ends_with("array") {
                 if depth < 3 {
-                    if let Some(o) = el.odd_member(depth + 1) {
+                    if let Some(o) = el.odd_member(depth + 1, syms) {
                         return Some(o);
                     }
                 }

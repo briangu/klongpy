@@ -205,31 +205,31 @@
 
 # .float converts an int or an array of numbers to float; .param declares a tunable input register.
 
-@ static.float-of-an-int strings static
+@ static.float-of-an-int strings float static
 > .float(3)
 = 3.0
 
-@ static.float-of-a-float strings static
+@ static.float-of-a-float strings float static
 > .float(2.5)
 = 2.5
 
-@ static.float-of-an-int-array strings static
+@ static.float-of-an-int-array strings float static
 > .float([1 2 3])
 = [1.0 2.0 3.0]
 
-@ static.float-of-a-float-array strings static
+@ static.float-of-a-float-array strings float static
 > .float([1.5 2.5])
 = [1.5 2.5]
 
-@ static.float-of-a-matrix strings static
+@ static.float-of-a-matrix strings float static
 > .float([[1 2] [3 4]])
 = [[1.0 2.0] [3.0 4.0]]
 
-@ static.float-of-a-string strings static
+@ static.float-of-a-string strings float static
 > .float("a")
 ! type
 
-@ static.float-of-a-symbol strings static
+@ static.float-of-a-symbol strings float static
 > .float(:a)
 ! type
 
@@ -245,23 +245,23 @@
 > .param("n";"int");n
 = 0
 
-@ static.param-float-default-is-zero strings static
+@ static.param-float-default-is-zero strings float static
 > .param("g";"float");g
 = 0.0
 
-@ static.param-float-takes-an-int-default strings static
+@ static.param-float-takes-an-int-default strings float static
 > .param("g";"float";2);g
 = 2.0
 
-@ static.param-float-default strings static
+@ static.param-float-default strings float static
 > .param("g";"float";0.5);g
 = 0.5
 
-@ static.param-int-default-must-be-an-int strings static
+@ static.param-int-default-must-be-an-int strings float static
 > .param("n";"int";0.5)
 ! type
 
-@ static.param-float-default-must-be-a-number strings static
+@ static.param-float-default-must-be-a-number strings float static
 > .param("g";"float";"a")
 ! type
 

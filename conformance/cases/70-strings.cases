@@ -576,3 +576,15 @@
 > .pf("hello");0
 = 0
 ~ hello
+
+@ strings.rs-empty-text-is-undefined strings
+> .rs("")
+= :undefined
+
+@ strings.rs-blank-text-is-undefined strings
+> .rs("   ")
+= :undefined
+
+@ strings.rs-stops-after-the-first-object strings
+> .rs("7 8")
+= 7

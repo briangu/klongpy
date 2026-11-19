@@ -246,6 +246,9 @@ pub fn op(op: crate::ops::Atomic, a: &Value, b: &Value) -> Result<Option<Value>>
                     }
                 }
             }
+            #[cfg(feature = "host")]
+            let r = to_flt(a).powf(to_flt(b));
+            #[cfg(not(feature = "host"))]
             let r = libm::pow(to_flt(a), to_flt(b));
             if r.is_finite() && libm::trunc(r) == r {
                 return Ok(Some(match from_f64(r) {

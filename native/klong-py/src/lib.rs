@@ -136,6 +136,7 @@ class KDict(dict):
 # KlongPy's writer tells a plain dict by its class NAME (writer.py: `d.__class__.__name__ != 'dict'` prints a dict whose __str__ was
 # overridden with str()): the view is written as a dictionary
 KDict.__name__ = KDict.__qualname__ = 'dict'
+KDict.__doc__ = dict.__doc__   # the view is a dict to help() and to inspect
 def mk_obj(items):
     a = np.empty(len(items), dtype=object)
     for i, x in enumerate(items):
@@ -524,10 +525,10 @@ impl KFn {
     fn source(&self, py: Python<'_>) -> Option<String> {
         self.info(py).and_then(|i| i.source)
     }
-    /// (start, end) byte offsets of the literal in its source, or None.
+    /// (start, end) offsets in characters of the literal in its source (as every other position), or None.
     #[getter]
     fn span(&self, py: Python<'_>) -> Option<(i64, i64)> {
-        self.info(py).and_then(|i| i.span).map(|(a, b)| (a as i64, b as i64))
+        self.info(py).and_then(|i| i.span_chars).map(|(a, b)| (a as i64, b as i64))
     }
     #[getter]
     fn is_projection(&self, py: Python<'_>) -> bool {
@@ -602,6 +603,16 @@ impl Ext for HostArr {
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+    fn host_shape(&self) -> Option<Vec<u32>> {
+        if self.opaque {
+            return None;
+        }
+        Python::with_gil(|py| self.obj.bind(py).getattr("shape").ok()?.extract::<Vec<u32>>().ok())
+    }
+    fn key_identity(&self) -> Option<usize> {
+        // a Python object that is not an array is its own key, by identity (as Python hashes a function or a class)
+        if self.opaque { Some(self.obj.as_ptr() as usize) } else { None }
     }
     fn host_native(&self, what: &str) -> Option<klong_core::error::Result<Value>> {
         if self.opaque {
@@ -956,6 +967,10 @@ fn from_py(py: Python<'_>, ip: &mut Interp, o: &Bound<'_, PyAny>) -> PyResult<Va
         let items = t.iter().map(|q| from_py(py, ip, &q)).collect::<PyResult<Vec<_>>>()?;
         return Value::from_items(items).map_err(k2py);
     }
+    if o.is_instance_of::<PyDict>() && !o.is_exact_instance_of::<PyDict>() {
+        // a subclass of dict (an OrderedDict, a defaultdict, a table) has meaning of its own: kept as the object it is, not copied
+        return Ok(Value::Ext(Rc::new(klong_core::value::ExtBox(Box::new(HostArr { obj: o.clone().unbind(), table: current_table(py)?, opaque: true })))));
+    }
     if let Ok(d) = o.downcast::<PyDict>() {
         let mut out = Dict::default();
         for (k, v) in d.iter() {
@@ -971,6 +986,17 @@ fn from_py(py: Python<'_>, ip: &mut Interp, o: &Bound<'_, PyAny>) -> PyResult<Va
     }
     if o.hasattr("dtype")? && o.hasattr("item")? {
         // a NumPy scalar
+        let kind: String = o.getattr("dtype")?.getattr("kind")?.extract()?;
+        if matches!(kind.as_str(), "M" | "m") {
+            // a date or a time span has no native kind: it stays the object it is
+            return Ok(Value::Ext(Rc::new(klong_core::value::ExtBox(Box::new(HostArr { obj: o.clone().unbind(), table: current_table(py)?, opaque: true })))));
+        }
+        if kind == "f" && o.getattr("dtype")?.getattr("itemsize")?.extract::<usize>()? < 8 {
+            // a float32 is its shortest text (68.76, not 68.76000213623047)
+            if let Ok(f) = o.str()?.to_str()?.parse::<f64>() {
+                return Ok(Value::Flt(f));
+            }
+        }
         return from_py(py, ip, &o.call_method0("item")?);
     }
     if o.hasattr("_provide_klong")? && o.hasattr("fn")? {
@@ -1012,6 +1038,7 @@ fn ndarray_to_native(py: Python<'_>, h: &Host, o: &Bound<'_, PyAny>) -> PyResult
             return with_ip_of(|ip| from_py(py, ip, &l));
         }
     };
+    let narrow = floats && o.getattr("dtype")?.getattr("itemsize")?.extract::<usize>()? < 8;
     let a = h.ascontig.bind(py).call1((o, dt))?;
     let ai = a.getattr("__array_interface__")?;
     let ptr: usize = ai.get_item("data")?.get_item(0)?.extract()?;
@@ -1021,7 +1048,9 @@ fn ndarray_to_native(py: Python<'_>, h: &Host, o: &Bound<'_, PyAny>) -> PyResult
     unsafe {
         if floats {
             let s = std::slice::from_raw_parts(ptr as *const f64, n);
-            Ok(Value::Flts(Rc::new(Arr::shaped(s.to_vec(), &dims))))
+            // a float32 member is its shortest text (68.76, not 68.76000213623047)
+            let v = if narrow { s.iter().map(|&x| format!("{}", x as f32).parse::<f64>().unwrap_or(x)).collect() } else { s.to_vec() };
+            Ok(Value::Flts(Rc::new(Arr::shaped(v, &dims))))
         } else {
             let s = std::slice::from_raw_parts(ptr as *const i64, n);
             Ok(Value::Ints(Rc::new(Arr::shaped(s.to_vec(), &dims))))
@@ -1037,6 +1066,16 @@ fn callable_value(ip: &mut Interp, name: &str, f: Py<PyAny>, arity: u8) -> Value
 
 /// `orig` is what `to_py` of the function gives back (the callable that was handed in).
 fn callable_value_of(ip: &mut Interp, name: &str, f: Py<PyAny>, arity: u8, orig: Py<PyAny>) -> Value {
+    // the same Python callable is the same Klong function while one is alive (a dictionary key is compared by identity)
+    let pid = orig.as_ptr() as usize;
+    let known = PYFNS.with(|m| m.borrow().get(&pid).and_then(|w| w.upgrade()));
+    if let Some(k) = known {
+        if let Func::Native { arity: a, .. } = &*k {
+            if *a == arity {
+                return Value::Fn(k);
+            }
+        }
+    }
     let sym = ip.syms.intern(name);
     let reg = Rc::new(Reg(Cell::new(0)));
     let guard = reg.clone();
@@ -1057,7 +1096,20 @@ fn callable_value_of(ip: &mut Interp, name: &str, f: Py<PyAny>, arity: u8, orig:
         g.get_or_insert_with(HashMap::new).insert(key, orig);
         reg.0.set(key);
     }
-    Value::Fn(Rc::new(Func::Native { name: sym, arity, f: nf }))
+    let fv = Rc::new(Func::Native { name: sym, arity, f: nf });
+    PYFNS.with(|m| {
+        let mut m = m.borrow_mut();
+        if m.len() > 64 && m.len().is_power_of_two() {
+            m.retain(|_, w| w.strong_count() > 0);
+        }
+        m.insert(pid, Rc::downgrade(&fv));
+    });
+    Value::Fn(fv)
+}
+
+thread_local! {
+    /// Python callables already made into Klong functions, by the object's address (weak: the function owns the object).
+    static PYFNS: RefCell<HashMap<usize, std::rc::Weak<Func>>> = RefCell::new(HashMap::new());
 }
 
 /// Convert for a callback: functions become `KFn` of the interpreter that is running.
@@ -1075,6 +1127,12 @@ struct Klong {
     rt: UnsafeCell<Runtime<HostPlatform>>,
     /// Set while the interpreter is running: a callback that re-enters (`Klong -> Python -> Klong`) uses it instead of borrowing again.
     cur: Cell<*mut Interp>,
+    /// The thread that holds `cur` (its stack is what the evaluator measures); a re-entry from another thread rebases the stack.
+    cur_thread: Cell<Option<std::thread::ThreadId>>,
+    /// Floats print as float32 does (a torch backend): see `set_float32_display`.
+    f32_display: Cell<bool>,
+    /// The KLONGPATH `.l` was last given.
+    load_path: RefCell<String>,
     me: RefCell<Option<Py<Klong>>>,
     /// The callable table of the backend (see HOST_PY); None: the default NumPy table.
     table: RefCell<Option<Py<PyAny>>>,
@@ -1158,16 +1216,50 @@ fn stack_budget() -> usize {
     avail - (128 * 1024).min(avail / 4)
 }
 
+type WarningTuple = (String, String, Option<String>, i64, i64, String, String);
+
+fn warnings_of(ip: &mut Interp) -> Vec<WarningTuple> {
+    ip.take_warnings()
+        .into_iter()
+        .map(|w| {
+            let msg = match &w.note {
+                Some(n) => format!("{}; {}", w.message, n),
+                None => w.message.clone(),
+            };
+            let (name, text) = match &w.source {
+                Some(s) => (s.name.clone(), s.text.to_string()),
+                None => (String::new(), String::new()),
+            };
+            let (a, b) = char_span(&text, w.span.0 as usize, w.span.1 as usize);
+            (w.code.to_string(), msg, w.hint.clone(), a, b, name, text)
+        })
+        .collect()
+}
+
 impl Klong {
     fn with_ip<R>(&self, py: Python<'_>, f: impl FnOnce(&mut Interp) -> R) -> R {
         let cur = self.cur.get();
         if !cur.is_null() {
             // re-entered from a callback: the outer `&mut Interp` is lent to the callback and not used until it returns
-            return f(unsafe { &mut *cur });
+            let me = std::thread::current().id();
+            if self.cur_thread.get() == Some(me) {
+                return f(unsafe { &mut *cur });
+            }
+            // another thread (a callback's, an IPC loop's): its own stack, its own limit, measured from here
+            let ip = unsafe { &mut *cur };
+            let prev = ip.rebase_stack(Some(stack_budget()));
+            let outer = self.cur_thread.replace(Some(me));
+            let r = f(unsafe { &mut *cur });
+            self.cur_thread.set(outer);
+            unsafe { &mut *cur }.restore_stack(prev);
+            return r;
         }
         let ip: *mut Interp = unsafe { &mut (*self.rt.get()).interp };
         unsafe { (*ip).cfg.stack_limit = Some(stack_budget()) };
         self.cur.set(ip);
+        self.cur_thread.set(Some(std::thread::current().id()));
+        self.sync_load_path();
+        klong_core::fmt::FLOAT32_DISPLAY.store(self.f32_display.get(), std::sync::atomic::Ordering::Relaxed);
         let prev = CURRENT.with(|c| c.replace(ip));
         let prev_owner = OWNER.with(|o| o.replace(self.me.borrow().as_ref().map(|m| m.clone_ref(py))));
         let r = f(unsafe { &mut *ip });
@@ -1176,6 +1268,18 @@ impl Klong {
         self.cur.set(std::ptr::null_mut());
         self.drain(py);
         r
+    }
+
+    /// `.l` looks in the directories of KLONGPATH as it is when the program starts (the environment may have changed since the
+    /// interpreter was made).
+    fn sync_load_path(&self) {
+        let path = std::env::var("KLONGPATH").ok().filter(|p| !p.is_empty()).unwrap_or_else(|| String::from(".:lib"));
+        let mut last = self.load_path.borrow_mut();
+        if *last != path {
+            let rt = unsafe { &mut *self.rt.get() };
+            rt.set_load_path(path.split(':').filter(|d| !d.is_empty()).map(String::from).collect());
+            *last = path;
+        }
     }
 
     /// What the program wrote with `.p` and friends goes to Python's `sys.stdout`.
@@ -1249,7 +1353,7 @@ impl Klong {
         let mut rt = Runtime::new(HostPlatform::new(Console::Buffer(Vec::new())), cfg, None);
         let path = std::env::var("KLONGPATH").ok().filter(|p| !p.is_empty()).unwrap_or_else(|| String::from(".:lib"));
         rt.set_load_path(path.split(':').filter(|d| !d.is_empty()).map(String::from).collect());
-        let me = Py::new(py, Klong { rt: UnsafeCell::new(rt), cur: Cell::new(std::ptr::null_mut()), me: RefCell::new(None), table: RefCell::new(None), hook_out: RefCell::new(None), adopting: Cell::new(false), hook_in: RefCell::new(None) })?;
+        let me = Py::new(py, Klong { rt: UnsafeCell::new(rt), cur: Cell::new(std::ptr::null_mut()), cur_thread: Cell::new(None), f32_display: Cell::new(false), load_path: RefCell::new(path), me: RefCell::new(None), table: RefCell::new(None), hook_out: RefCell::new(None), adopting: Cell::new(false), hook_in: RefCell::new(None) })?;
         *me.borrow(py).me.borrow_mut() = Some(me.clone_ref(py));
         Ok(me)
     }
@@ -1360,12 +1464,25 @@ impl Klong {
     }
 
     /// Register a Python callable as a system function with an explicit arity (255: any number of arguments).
-    fn register(&self, py: Python<'_>, name: &str, f: Py<PyAny>, arity: u8) -> PyResult<()> {
+    /// `orig` (optional) is the object that stands for the function on the Python side: what Python gets back for it, and the identity
+    /// it has as a dictionary key (when `f` is a wrapper of the function the program handed in).
+    #[pyo3(signature = (name, f, arity, orig=None))]
+    fn register(&self, py: Python<'_>, name: &str, f: Py<PyAny>, arity: u8, orig: Option<Py<PyAny>>) -> PyResult<()> {
         self.with_ip(py, |ip| {
-            let v = callable_value(ip, name, f, arity);
+            let v = match orig {
+                Some(o) => callable_value_of(ip, name, f, arity, o),
+                None => callable_value(ip, name, f, arity),
+            };
             ip.define_global(name, v)
         })
         .map_err(k2py)
+    }
+
+    /// Floats print as float32 does: the shortest text that reads back as the same float32 (`0.1+0.2` shows `0.3`, `1%3` shows
+    /// `0.33333334`). For the torch backend, whose floats are float32. Applies to the printing of this interpreter's programs.
+    fn set_float32_display(&self, on: bool) {
+        self.f32_display.set(on);
+        klong_core::fmt::FLOAT32_DISPLAY.store(on, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Install the backend's callable table (see HOST_PY for its methods).
@@ -1466,28 +1583,140 @@ impl Klong {
         self.apply(py, &f, args)
     }
 
+    /// The console channels (`.p .d .w` out, `.cerr`, and `.rl .r .mi` in) on Python file-like objects.
+    ///
+    /// `live=False` (the default of a new interpreter): what a program writes is collected and given to the current `sys.stdout` when the
+    /// call that ran it returns; the console channel reads nothing.
+    /// `live=True`: each write goes at once to `write(text)` (default: the `sys.stdout.write` of that moment, so a test that replaces
+    /// `sys.stdout` is followed), console errors to `error(text)` (default `sys.stderr.write`), and the console channel reads from
+    /// `read(n)`: the next input, at most `n` characters, a `str` or `bytes`, blocking until there is some, empty at the end of input
+    /// (default: `sys.stdin.readline()` of that moment, ignoring `n`). Reading never happens in the background: only a program
+    /// that reads the channel (`.rl`, `.r`, `.mi`) calls it.
+    #[pyo3(signature = (live, write=None, error=None, read=None))]
+    fn set_console(&self, py: Python<'_>, live: bool, write: Option<Py<PyAny>>, error: Option<Py<PyAny>>, read: Option<Py<PyAny>>) {
+        let rt = unsafe { &*self.rt.get() };
+        let mut p = rt.shared.platform.borrow_mut();
+        if !live {
+            p.sink = None;
+            p.source = None;
+            return;
+        }
+        let _ = py;
+        p.sink = Some(Box::new(move |bytes: &[u8], is_err: bool| {
+            let text = String::from_utf8_lossy(bytes).into_owned();
+            Python::with_gil(|py| {
+                let f = if is_err { error.as_ref().or(write.as_ref()) } else { write.as_ref() };
+                let r = match f {
+                    Some(f) => f.bind(py).call1((text,)).map(|_| ()),
+                    None => py.import("sys").and_then(|m| m.getattr(if is_err { "stderr" } else { "stdout" })).and_then(|o| o.call_method1("write", (text,))).map(|_| ()),
+                };
+                if let Err(e) = r {
+                    e.print(py);
+                }
+            })
+        }));
+        let mut spare: Vec<u8> = Vec::new();
+        p.source = Some(Box::new(move |buf: &mut [u8]| {
+            if spare.is_empty() {
+                let got = Python::with_gil(|py| -> PyResult<Vec<u8>> {
+                    let r = match &read {
+                        Some(f) => f.bind(py).call1((buf.len(),))?,
+                        None => py.import("sys")?.getattr("stdin")?.call_method0("readline")?,
+                    };
+                    if let Ok(s) = r.downcast::<PyString>() {
+                        return Ok(s.to_str()?.as_bytes().to_vec());
+                    }
+                    r.extract::<Vec<u8>>()
+                });
+                match got {
+                    Ok(b) => spare = b,
+                    Err(e) => {
+                        Python::with_gil(|py| e.print(py));
+                        return 0;
+                    }
+                }
+            }
+            let n = spare.len().min(buf.len());
+            buf[..n].copy_from_slice(&spare[..n]);
+            spare.drain(..n);
+            n
+        }));
+    }
+
+    /// The module the program is in (`.module(:name)`): its name, or None outside any.
+    fn module(&self) -> Option<String> {
+        let rt = unsafe { &*self.rt.get() };
+        rt.interp.current_module().map(String::from)
+    }
+
+    /// What the program has declared with `.extern`: a list of `(name, signature, module)` in order of declaration, the signature in its
+    /// canonical text.
+    fn declared_externs(&self) -> Vec<(String, String, String)> {
+        let rt = unsafe { &*self.rt.get() };
+        rt.declarations.externs().into_iter().map(|(n, s, m)| (n, s.to_string(), m)).collect()
+    }
+
+    /// What the program has declared with `.entry`: a list of `(name, signature)` in order of declaration.
+    fn declared_entries(&self) -> Vec<(String, String)> {
+        let rt = unsafe { &*self.rt.get() };
+        rt.declarations.entries().into_iter().map(|(n, s)| (n, s.to_string())).collect()
+    }
+
+    /// Install `lookup(name)`: the Python stand-in of a declared extern (a callable, or None when there is none), asked at each call of
+    /// the extern, so a stand-in can be set, replaced or removed after the declaration. The callable gets the checked arguments as Python
+    /// values and its result is checked against the signature. `lookup(".fixed")` is asked when a program calls `.fixed`: its
+    /// callable makes the fixed-point array (the result stays the Python object it is). `None` removes the lookup.
+    fn set_stand_in_lookup(&self, lookup: Option<Py<PyAny>>) {
+        let rt = unsafe { &*self.rt.get() };
+        rt.declarations.set_resolver(lookup.map(|lookup| {
+            let r: klong_rt::declare::Resolver = Rc::new(move |ip: &mut Interp, name: &str, args: &[Value]| {
+                Python::with_gil(|py| -> Option<PyResult<Value>> {
+                    let f = match lookup.bind(py).call1((name,)) {
+                        Ok(f) => f,
+                        Err(e) => return Some(Err(e)),
+                    };
+                    if f.is_none() {
+                        return None;
+                    }
+                    Some((|| {
+                        let mut pa = Vec::with_capacity(args.len());
+                        for a in args {
+                            pa.push(to_py_owner(py, ip, a)?);
+                        }
+                        let r = f.call1(PyTuple::new(py, pa)?)?;
+                        from_py_host(py, ip, &r)
+                    })())
+                })
+                .map(|r| r.map_err(py2k))
+            });
+            r
+        }));
+    }
+
+    /// Install `f(warnings)`, called for every program run at the top level once it has parsed and before its first statement runs, with
+    /// what `take_warnings` gives (nothing is left to take afterwards, and `f` is not called for a program without warnings). When `f`
+    /// raises, the run ends with that exception and no statement has run (a warning filter set to `error`). `None` removes it.
+    fn set_warning_hook(&self, py: Python<'_>, f: Option<Py<PyAny>>) {
+        self.with_ip(py, |ip| {
+            ip.on_parsed = f.map(|f| {
+                let hook: Rc<dyn Fn(&mut Interp) -> klong_core::error::Result<()>> = Rc::new(move |ip: &mut Interp| {
+                    let ws = warnings_of(ip);
+                    if ws.is_empty() {
+                        return Ok(());
+                    }
+                    Python::with_gil(|py| f.bind(py).call1((ws,)).map(|_| ())).map_err(py2k)
+                });
+                hook
+            });
+        });
+    }
+
     /// The syntax warnings the parser recorded since the last call (strict level 0: input the legacy grammar accepts and KlongPy
     /// warns about), in source order: a list of (code, message, hint or None, start, end, source name, source text). `message` is
     /// KlongPy's text of the warning (the condition, then `; ` and what happens to the input); `start` and `end` are offsets in characters
     /// of the source text, the same as an error's span.
-    fn take_warnings(&self, py: Python<'_>) -> Vec<(String, String, Option<String>, i64, i64, String, String)> {
-        self.with_ip(py, |ip| {
-            ip.take_warnings()
-                .into_iter()
-                .map(|w| {
-                    let msg = match &w.note {
-                        Some(n) => format!("{}; {}", w.message, n),
-                        None => w.message.clone(),
-                    };
-                    let (name, text) = match &w.source {
-                        Some(s) => (s.name.clone(), s.text.to_string()),
-                        None => (String::new(), String::new()),
-                    };
-                    let (a, b) = char_span(&text, w.span.0 as usize, w.span.1 as usize);
-                    (w.code.to_string(), msg, w.hint.clone(), a, b, name, text)
-                })
-                .collect()
-        })
+    fn take_warnings(&self, py: Python<'_>) -> Vec<WarningTuple> {
+        self.with_ip(py, warnings_of)
     }
 
     /// Call the function a symbol's value is: `name` is a global; when its value is a symbol, that symbol's value is the function

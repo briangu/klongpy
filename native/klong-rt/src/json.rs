@@ -231,6 +231,7 @@ impl Enc {
 
 fn json(a: &[Value]) -> Result<Value> {
     let x = a.first().ok_or_else(|| Error::arity(".json takes 1 argument, got 0"))?;
+    let x = &x.unhost(".json")?;
     let mut e = Enc { out: try_string(0)?, path: try_vec(0)? };
     e.value(x, 0)?;
     Ok(Value::str(e.out))

@@ -678,7 +678,7 @@
 > [1 2 3]@1.5
 = [1 2 3]
 
-@ lists.index-vector-holds-a-non-integer-is-a-range-error core
+@ lists.index-vector-holds-a-non-integer-is-a-range-error strings
 > [1 2 3]@[1 "a"]
 ! range
 
@@ -697,3 +697,23 @@
 @ lists.grade-up-of-an-empty-string-is-an-empty-list strings
 > <""
 = []
+
+@ lists.index-string-by-a-matrix-with-a-non-integer-is-a-range-error strings float
+> "abc"@[[0.5 1]]
+! range
+
+@ lists.index-string-by-a-matrix-out-of-range-is-a-range-error strings
+> "abc"@[[1 5]]
+! range
+
+@ lists.index-string-by-three-levels-is-a-type-error strings
+> "abc"@[[[0]]]
+! type
+
+@ lists.index-string-by-an-empty-row-is-a-range-error strings
+> "abc"@[[]]
+! range
+
+@ lists.index-string-by-a-matrix-of-strings-is-a-range-error strings
+> "abc"@[["a" "b"]]
+! range

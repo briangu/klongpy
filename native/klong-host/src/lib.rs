@@ -23,6 +23,11 @@ pub struct HostPlatform {
     pub fs: Files,
     /// The networks `.cli` and `.srv` can use: `tcp`, and whatever a test adds.
     pub transports: Vec<Box<dyn klong_rt::link::Transport>>,
+    /// Where console output goes when the embedder takes it: `(bytes, is_error)`, called at each write (`.p .d .w` and `.cerr`).
+    pub sink: Option<Box<dyn FnMut(&[u8], bool)>>,
+    /// Where the console channel's input comes from when the embedder supplies it: fills the buffer, blocks until there is input,
+    /// returns 0 at the end of input. Used by `.rl .r .mi` only.
+    pub source: Option<Box<dyn FnMut(&mut [u8]) -> usize>>,
 }
 
 /// Where the file functions go: the operating system, or a file system in memory (fuzzing
@@ -34,7 +39,7 @@ pub enum Files {
 
 impl HostPlatform {
     pub fn new(console: Console) -> HostPlatform {
-        HostPlatform { start: Instant::now(), console, fs: Files::Host(HostFs::default()), transports: vec![Box::new(net::TcpTransport::new())] }
+        HostPlatform { start: Instant::now(), console, fs: Files::Host(HostFs::default()), transports: vec![Box::new(net::TcpTransport::new())], sink: None, source: None }
     }
 }
 
@@ -132,7 +137,16 @@ impl Platform for HostPlatform {
         // signal instead).
         0
     }
+    fn console_input(&mut self, buf: &mut [u8]) -> usize {
+        match &mut self.source {
+            Some(f) => f(buf),
+            None => 0,
+        }
+    }
     fn console_write(&mut self, bytes: &[u8]) {
+        if let Some(f) = &mut self.sink {
+            return f(bytes, false);
+        }
         match &mut self.console {
             Console::Stdout => {
                 let _ = std::io::stdout().write_all(bytes);
@@ -144,6 +158,9 @@ impl Platform for HostPlatform {
         }
     }
     fn console_error(&mut self, bytes: &[u8]) {
+        if let Some(f) = &mut self.sink {
+            return f(bytes, true);
+        }
         match &mut self.console {
             Console::Buffer(b) => b.extend_from_slice(bytes),
             _ => {
@@ -159,6 +176,9 @@ impl Platform for HostPlatform {
     }
     fn name(&self) -> &str {
         "host"
+    }
+    fn cwd(&self) -> Option<String> {
+        std::env::current_dir().ok().map(|p| p.to_string_lossy().into_owned())
     }
     fn transports(&mut self) -> &mut [Box<dyn klong_rt::link::Transport>] {
         &mut self.transports

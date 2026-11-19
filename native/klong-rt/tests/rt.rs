@@ -269,3 +269,31 @@ fn load_finds_a_file_next_to_the_program() {
     rt.shared.platform.borrow_mut().fs.put("common.kg", b"inc::{x+1000}\n").expect("put");
     assert_eq!(run(&mut rt, ".l(\"common\");inc(1)"), Ok("1001".into()));
 }
+
+#[cfg(feature = "diag")]
+#[test]
+fn load_names_the_places_it_looked() {
+    let mut rt = rt();
+    rt.set_load_path(vec!["other".into(), "sub/".into()]);
+    rt.shared.platform.borrow_mut().fs.put("sub/s.kg", b"sv::5\n").expect("put");
+    // a name with a directory and the extension, a path that ends in a slash
+    assert_eq!(run(&mut rt, ".l(\"s.kg\");sv"), Ok("5".into()));
+    let e = rt.run(".l(\"nothere\")", "<test>").err().expect("an error");
+    assert_eq!(&*e.message, "file does not exist: nothere (looked for other/nothere, other/nothere.kg, sub/nothere, sub/nothere.kg; a relative path is searched in the directories of KLONGPATH, taken from the current directory)");
+    let e = rt.run(".l(\"/nowhere/x\")", "<test>").err().expect("an error");
+    assert_eq!(&*e.message, "file does not exist: /nowhere/x (looked for /nowhere/x, /nowhere/x.kg, /nowhere/x, /nowhere/x.kg; a relative path is searched in the directories of KLONGPATH, taken from the current directory)");
+    rt.set_program("proj/prog.kg");
+    let e = rt.run(".l(\"nothere.kg\")", "<test>").err().expect("an error");
+    assert_eq!(&*e.message, "file does not exist: nothere.kg (looked for other/nothere.kg, sub/nothere.kg, proj/nothere.kg; a relative path is searched in the directories of KLONGPATH, taken from the current directory, then in the directory of the file that calls .l, proj)");
+
+}
+
+#[test]
+fn the_current_module_is_named() {
+    let mut rt = rt();
+    assert_eq!(rt.interp.current_module(), None);
+    assert_eq!(run(&mut rt, ".module(:m);1"), Ok("1".into()));
+    assert_eq!(rt.interp.current_module(), Some("m"));
+    assert_eq!(run(&mut rt, ".module(0);1"), Ok("1".into()));
+    assert_eq!(rt.interp.current_module(), None);
+}

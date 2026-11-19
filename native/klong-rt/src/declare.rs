@@ -425,8 +425,15 @@ fn plural(n: usize, word: &str) -> String {
 /// function that was defined for it calls (a native function takes at most x, y and z).
 type Declared = Rc<RefCell<Tables>>;
 
+/// The host's stand-in for a declared name, looked up at each call: `(interpreter, name, arguments)`, `None` when the host has none
+/// (then the call is the `system` error of an extern with no stand-in).
+#[cfg(feature = "diag")]
+pub type Resolver = Rc<dyn Fn(&mut Interp, &str, &[Value]) -> Option<Result<Value>>>;
+
 #[derive(Default)]
 struct Tables {
+    #[cfg(feature = "diag")]
+    resolver: Option<Resolver>,
     externs: Vec<Extern>,
     entries: Vec<(String, Sig)>,
     #[cfg(feature = "params")]
@@ -459,6 +466,12 @@ impl Declarations {
     /// The declared externs, in order of declaration.
     pub fn externs(&self) -> Vec<(String, Sig, String)> {
         self.0.borrow().externs.iter().map(|e| (e.name.clone(), e.sig.clone(), e.module.clone())).collect()
+    }
+    /// The host's lookup of stand-ins (see [`Resolver`]): asked at every call of a declared extern, so a stand-in may be set, replaced or
+    /// removed after the declaration. Also asked for `.fixed`, which the interpreter has no fixed-point numbers for.
+    #[cfg(feature = "diag")]
+    pub fn set_resolver(&self, r: Option<Resolver>) {
+        self.0.borrow_mut().resolver = r;
     }
     /// The declared entries, (name, signature), in order of declaration.
     pub fn entries(&self) -> Vec<(String, Sig)> {
@@ -580,6 +593,23 @@ fn extern_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value>
             _ => return Err(conflict(name)),
         },
         Some(_) => return Err(conflict(name)),
+    };
+    #[cfg(feature = "diag")]
+    let host = match declared.borrow().resolver.clone() {
+        None => host,
+        Some(r) => {
+            let name = try_str(name)?;
+            let own = host;
+            let f: NativeFn = Rc::new(move |ip: &mut Interp, args: &[Value]| match r(ip, &name, args) {
+                Some(v) => v,
+                None => match &own {
+                    Some(h) => h(ip, args),
+                    None => Err(Error::system(klong_core::msg!("extern {} has no stand-in on the host", name))
+                        .with_hint("the host registers a function of that name before the program declares it (klong_cfun_register in C)")),
+                },
+            });
+            Some(f)
+        }
     };
     let n = sig.params.len();
     let call = bound(name, sig.clone(), host)?;
@@ -810,10 +840,23 @@ pub fn register(ip: &mut Interp) -> Declarations {
     ip.register(".param", WILDCARD, Rc::new(move |ip: &mut Interp, a: &[Value]| param_fn(&d, ip, a)));
     #[cfg(feature = "params")]
     ip.register(".float", 1, Rc::new(|_: &mut Interp, a: &[Value]| float_fn(a)));
+    let d = declared.clone();
     ip.register(
         ".fixed",
         WILDCARD,
-        Rc::new(|_: &mut Interp, _: &[Value]| {
+        Rc::new(move |ip: &mut Interp, a: &[Value]| {
+            // the host may supply fixed-point arrays (see `Declarations::set_resolver`, asked for ".fixed")
+            #[cfg(feature = "diag")]
+            {
+                let r = d.borrow().resolver.clone();
+                if let Some(r) = r {
+                    if let Some(v) = r(ip, ".fixed", a) {
+                        return v;
+                    }
+                }
+            }
+            #[cfg(not(feature = "diag"))]
+            let _ = (&d, ip, a);
             Err::<Value, Error>(
                 Error::system("fixed-point programs are not supported by the native interpreter")
                     .with_hint("run the program with KlongPy (klongpy.static.call_entry) or compile it with kgpy compile"),

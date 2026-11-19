@@ -23,6 +23,12 @@ pub trait Platform {
     fn message_cpu(&mut self) {}
     /// Non-blocking; 0 if nothing is waiting.
     fn console_read(&mut self, buf: &mut [u8]) -> usize;
+    /// What a program reads from the console channel (`.rl`, `.r`, `.mi` on `.cin`): the same as `console_read` by default. A platform
+    /// that can wait for input (a desktop) may block here and return 0 only at the end of its input; the evaluator's own polling of
+    /// the console during a run (Ctrl-C, typed-ahead input) never calls this.
+    fn console_input(&mut self, buf: &mut [u8]) -> usize {
+        self.console_read(buf)
+    }
     fn console_write(&mut self, bytes: &[u8]);
     /// The error channel (`.cerr`); the console unless the platform has a separate one.
     fn console_error(&mut self, bytes: &[u8]) {
@@ -30,6 +36,10 @@ pub trait Platform {
     }
     /// Storage, if the platform has any. Every file function goes through it.
     fn fs(&mut self) -> Option<&mut dyn FileSystem> {
+        None
+    }
+    /// The current directory, for the text of the error of a `.l` that finds nothing; `None` if the platform has none.
+    fn cwd(&self) -> Option<alloc::string::String> {
         None
     }
     /// A short name for `.ver()`: "host", the board's name.

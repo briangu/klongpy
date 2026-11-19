@@ -216,7 +216,7 @@
 > 18446744073709551616^1
 = 18446744073709551616
 
-@ bigint.power-negative-exponent core bigint
+@ bigint.power-negative-exponent core float bigint
 > 2^(-70)
 = 8.470329472543003e-22
 
@@ -525,11 +525,11 @@
 > .unjson("[1,12345678901234567890]")+1
 = [2 12345678901234567891]
 
-@ bigint.json-unjson-big-round-trip strings bigint width64
+@ bigint.json-unjson-big-round-trip strings float bigint width64
 > .json(.unjson("[12345678901234567890,2.5]"))
 = "[12345678901234567890,2.5]"
 
-@ bigint.json-unjson-big-float-mix strings bigint width64
+@ bigint.json-unjson-big-float-mix strings float bigint width64
 > .unjson("[12345678901234567890,2.5]")
 = [12345678901234567890 2.5]
 

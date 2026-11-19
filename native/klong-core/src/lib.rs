@@ -11,6 +11,9 @@
 #![deny(clippy::unwrap_used, clippy::expect_used)]
 
 extern crate alloc;
+// (a host build uses the operating system's libm for `^`)
+#[cfg(feature = "host")]
+extern crate std;
 
 #[cfg(feature = "bigint")]
 pub mod big;

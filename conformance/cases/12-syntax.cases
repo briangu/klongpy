@@ -296,3 +296,15 @@
 @ syntax.monad-on-expression-list core
 > #[;1;2;3]
 = 3
+
+# Level 0 reads a missing right operand as nothing (and warns): `@` gives its left operand, `::` defines nothing
+@ syntax.missing-right-operand-of-at-is-the-left core
+> [5 6]@
+= [5 6]
+
+@ syntax.missing-right-operand-of-at-after-a-number core
+> 5@
+= 5
+
+@ syntax.missing-right-operand-of-define-has-no-value core
+> f::
