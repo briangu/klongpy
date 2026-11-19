@@ -1,6 +1,6 @@
 # Lint: `kgpy lint`
 
-`kgpy lint FILE...` reads Klong programs and reports constructs that parse and run without complaint but usually do not mean what they look like. It tokenises and parses. It never evaluates anything, never starts the REPL or an event loop, never imports a Python module, and never runs a file that `.l` loads. A file that contains `.x(3)` lints with exit status 0.
+`kgpy lint FILE...` reads Klong programs and reports constructs that parse and run without complaint but usually do not mean what they look like. The linter is part of the engine, so `kg lint FILE...` does the same without Python. It tokenises and parses. It never evaluates anything, never starts the REPL or an event loop, never imports a Python module, and never runs a file that `.l` or `.import` loads. A file that contains `.x(3)` lints with exit status 0.
 
 ```console
 $ cat > demo.kg <<'EOF'
@@ -18,9 +18,9 @@ A finding is one line, `file:line:col: CODE message`. The findings of a file com
 
 <!-- check-docs: continue -->
 ```console
-$ echo 'my_var::5' | kgpy lint - -v
-<stdin>:1:1: W001 'my_var' reads as my _ var: _ is the Drop operator, names cannot contain underscores
-  hint: rename it (my.var or myVar), or put spaces around _ if you mean Drop
+$ printf 'total::0\n-1+2\n' | kgpy lint - -v
+<stdin>:2:1: W010 a leading - negates everything to its right: -1+... is -(1+...)
+  hint: write (-1)+... to negate only the number
 0 errors, 1 warning in 1 file
 ```
 
@@ -33,7 +33,7 @@ Lint finds the same sort of mistake as [strict mode](strict.md), but in a file, 
 | Option | Meaning |
 |---|---|
 | `--select W001,W010` | Report only these codes. |
-| `--ignore W002` | Leave these codes out. An ignored error no longer counts toward the exit status. |
+| `--ignore W002` | Leave these codes out. An ignored error does not count toward the exit status. |
 | `--define t,helper` | Names that the host defines before the program runs. W002 accepts them. |
 | `-v` | Print the hint of each finding. |
 
@@ -66,7 +66,7 @@ demo.kg:1:1: W001 'my_var' reads as my _ var: _ is the Drop operator, names cann
 0 errors, 1 warning in 1 file
 2
 $ echo 'a' | kgpy lint - --select W999 ; echo $?
-kgpy lint: unknown lint code 'W999'; codes are W001, W002, W003, W010, W011, W012, W013, W014, W015, W016, W017, W018, W019, W020, E001, E002
+kgpy lint: unknown lint code 'W999'; codes are W001, W002, W003, W010, W011, W012, W013, W014, W015, W016, W017, W018, W019, W020, W021, W022, W023, E001, E002, E003, E004
 2
 ```
 
@@ -100,6 +100,10 @@ Lint reports from the text what the interpreter reports when it runs. This table
 | `E002` | At strict level 2, an `arity` error. Below level 2 the extra arguments are dropped. |
 | `W002` | At strict level 2, a `name` error (`undefined: a`). Below level 2 the name evaluates to its own symbol. |
 | `W003`, `W010`, `W011`, `W012`, `W016`, `W017`, `W018`, `W019`, `W020` | None. The program runs and gives a value that is probably not the one intended. |
+| `E003` | A `type` error: the value that `.import` returned is read-only. |
+| `E004` | A `name` error: the module has no such entry. |
+| `W021` | A `name` error, or at level 0 a new entry, when the base is not a dictionary: `a.b::v` is `a@"b"` written. |
+| `W022`, `W023` | None. |
 | `W001` | None. `my_var` runs as `my _ var`. |
 | `W013` | None. The nested conditional is correct; the chain form is shorter. |
 | `W014` | The parenthesised part is dropped; a space before an adverb is a `syntax` error (also `E001`). |
@@ -111,7 +115,7 @@ Each example below is the whole file, read from standard input.
 
 ### W001: an underscore between name characters
 
-`_` is the Drop operator, so `my_var` is `my _ var`. Write `myVar` or `my.var`, or put spaces around `_` when Drop is meant. A name that is `x`, `y` or `z` next to an underscore (`x_a`) is not reported, because that is how Drop is usually written.
+`_` is the Drop operator, so `my_var` is `my _ var`. Write `myVar`, or put spaces around `_` when Drop is meant. A name that is `x`, `y` or `z` next to an underscore (`x_a`) is not reported, because that is how Drop is usually written.
 
 ```console
 $ echo 'my_var::5' | kgpy lint -
@@ -265,6 +269,31 @@ $ printf 'a::[1 2]\na,:{[3 4]}\n' | kgpy lint -
 0 errors, 1 warning in 1 file
 ```
 
+### W021: `a.b::v` where `a` is not a dictionary
+
+`a.b::v` writes the entry `"b"` of the dictionary `a`. A program that treats `a.b` as a variable name, as a program written for 0.7 does, fails when it runs. The rule reports a write to `a.b` where every definition of `a` in the file is a number, a string, a character, a list or a function, or where `a` is not defined at all. A parameter or a local that can hold a dictionary is not reported. See [Qualified names](language-additions.md#qualified-names).
+
+```console
+$ printf 'q.x::1\n' | kgpy lint -
+<stdin>:1:1: W002 'q' is never defined in this file
+<stdin>:1:1: W021 q.x::... sets the entry "x" of q, which is not a dictionary here
+0 errors, 2 warnings in 1 file
+```
+
+### W022: an import that is never used
+
+A top-level `name::.import(...)` whose `name` is never read in the file. Remove the line, or use a qualified name such as `name.f`.
+
+### W023: a function with no parameter in an export
+
+In `.export(:{;"key";{...}})` a function literal with no parameter is called where it stands, because the evaluated dictionary literal evaluates each value, so the entry is its result and not the function. Name the function, `f::{...}`, and write `"key";f`.
+
+```console
+$ printf '.export(:{;"f";{.p(1)}})\n' | kgpy lint -
+<stdin>:1:16: W023 a function with no parameter inside :{;...} is called there, so the entry is its result
+0 errors, 1 warning in 1 file
+```
+
 ### E001: a syntax error at strict level 1
 
 Everything that [strict level 1](strict.md) rejects, found without running the file: input left over, a missing operand, an unterminated string, a closer with nothing open, and the like. All of a file's problems are listed; parsing resumes after each.
@@ -293,9 +322,31 @@ $ printf 'f(a;b)::{a+b}\nf(1;2;3)\n' | kgpy lint -
 1 error, 0 warnings in 1 file
 ```
 
+### E003: an assignment to what `.import` returned
+
+A module is read-only. Writing `m.name::v`, where `m` was set by `m::.import(...)`, is a type error when it runs.
+
+```console
+$ printf 'm::.import("./geom")\nm.sq::5\nm.sq(2)\n' | kgpy lint -
+<stdin>:2:1: E003 cannot assign m.sq: m holds what .import returned, which is read-only
+1 error, 0 warnings in 1 file
+```
+
+### E004: a qualified name the module does not export
+
+When the imported file is found and its `.export` is a literal dictionary, a read of `m.name` that the export does not list is a name error when it runs. The rule needs the file; with `-v` the hint lists what the module exports.
+
+```console
+$ printf 'sq(v)::{v*v}\ncube(v)::{v*sq(v)}\n.export(:{;"sq";sq;"cube";cube})\n' > geom.kg
+$ printf 'm::.import("./geom")\nm.nope\n' | kgpy lint - -v
+<stdin>:2:1: E004 m has no entry "nope"
+  hint: the module exports: cube sq
+1 error, 0 warnings in 1 file
+```
+
 ## How names are resolved
 
-W002, W012 and E002 use a table of what the file defines: top-level `name::...`, the destructuring targets, the locals and parameters of each function, the names the system defines, and the names that the files it loads define. A file loaded with `.l("file")`, with a literal argument, is looked up as `.l` looks it up: `file` and `file.kg` in each `KLONGPATH` directory (by default `.` and `lib`) taken from the current directory, then in the package library, then in the directory of the file that contains the `.l`. `kgpy`, `kgpy check` and `kgpy compile c` use the same order. It is parsed, not run.
+W002, W012, E002 and E004 use a table of what the file defines: top-level `name::...`, the destructuring targets, the locals and parameters of each function, the names the system defines, and the names that the files it loads define. A file loaded with `.l("file")`, with a literal argument, is looked up as `.l` looks it up: `file` and `file.kg` in each `KLONGPATH` directory (by default `.` and `lib`) taken from the current directory, then in the package library, then in the directory of the file that contains the `.l`. `kgpy`, `kgpy check` and `kgpy compile c` use the same order. It is parsed, not run.
 
 ```console
 $ printf 'inc::{x+1}\n' > inc.kg

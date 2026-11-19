@@ -4,7 +4,7 @@ This page takes you from the first expression to functions, adverbs, dictionarie
 
 All the code on this page is accepted at strict level 2, the strictest setting (see [Strict mode](strict.md)). The few examples that show a mistake say so and run at the default level.
 
-Klong is a small array language by Nils Holm. KlongPy is a Python implementation of it that runs the same programs and adds a few conveniences, which are marked "KlongPy adds" below. Each one is shown beside the classic form, so a program written for any Klong runs here unchanged, apart from the cases in [Differences from Klong](differences.md). The full reference is the [Klong manual](https://t3x.org/klong/klong-ref.txt.html); [Operators](operators.md) lists every operator.
+Klong is a small array language by Nils Holm. KlongPy 2 runs it on an interpreter written in Rust, started as `kg` or, hosted in Python, as `kgpy`. It runs the same programs and adds a few conveniences, which are marked "KlongPy adds" below. Each one is shown beside the classic form, so a program written for any Klong runs here unchanged, apart from the cases in [Differences from Klong](differences.md). The full reference is the [Klong manual](https://t3x.org/klong/klong-ref.txt.html); [Operators](operators.md) lists every operator.
 
 ## 1. Reading right to left
 
@@ -956,18 +956,18 @@ None
 
 ```console
 $ cat > lib.kg <<'EOF'
-> shout.up(s)::{s,"!"}
+> shout(s)::{s,"!"}
 > limit::99
 > EOF
 $ cat lib.kg
-shout.up(s)::{s,"!"}
+shout(s)::{s,"!"}
 limit::99
-$ kgpy -e '.l("lib.kg");.p(limit);shout.up("hey")'
+$ kgpy -e '.l("lib.kg");.p(limit);shout("hey")'
 99
 "hey!"
 ```
 
-`.l` returns the value of the last statement of the file.
+`.l` returns the value of the last statement of the file. It writes the file's names into your globals, so two files that use the same name collide. Section [Modules](#modules) shows the form that does not.
 
 To read the lines of a file, open it with `.ic`, select it as the input with `.fc`, and read all the lines with `.rls()`. Then `.fc(0)` selects standard input again and `.cc` closes the file. This program sums each line of a file of numbers separated by commas:
 
@@ -985,14 +985,42 @@ $ kgpy sums.kg
 [7.5 11.0]
 ```
 
-A library brackets its definitions with `.module(:name)` and `.module(0)`. Inside the module its names refer to the module's own variables, so a program that later assigns the same name does not change what the library's functions use. The names are not hidden, though: after the module is closed they can still be used by their plain names (see [Modules](operators.md#modules)). By convention a library names what it exports `name.function`, as `csv.split` and `csv.read` in `klongpy/lib/csv.kg` do, so that its names do not clash with yours:
+### Modules
 
-```kgpy
-?> .module(:geom);geom.sq(v)::{v*v};geom.cube(v)::{v*geom.sq(v)};.module(0)
-None
-?> geom.cube(3)
+A module is a file that keeps its names to itself and offers a few. `.import("./name")` runs the file in a scope of its own and returns the dictionary that the file passed to `.export`. A file is a module when it ends with `.export`. Save this as `geom.kg`:
+
+```console
+$ cat > geom.kg <<'EOF'
+> sq(v)::{v*v}
+> cube(v)::{v*sq(v)}
+> .export(:{;"sq";sq;"cube";cube})
+> EOF
+$ kgpy -e 'geom::.import("./geom");.p(geom.cube(3));geom.sq(4)'
 27
+16
+$ kgpy -e '[cube]::.import("./geom";["cube"]);cube(2)'
+8
 ```
+
+`./geom` is relative to the file that contains the import, or to the working directory at the REPL. A name without `./` (`.import("csv")`) is looked up in `KLONGPATH` and the library that ships with KlongPy, never in the working directory.
+
+`geom.cube` is a qualified name: `a.b` means `a@"b"`. It works on any dictionary, for reading and for writing, and a name that is missing is an error that names the dictionary and the key:
+
+```console
+$ kgpy -e 'd:::{;"x";1};d.x::5;.p(d.x);.p(d.y)' 2>&1
+5
+<expr>:1:32: name error: d has no entry "y"
+  d:::{;"x";1};d.x::5;.p(d.x);.p(d.y)
+                                 ^^^
+```
+
+A dot therefore is not part of a name: `my.var` is the entry `"var"` of `my`. A module offers what its `.export` lists and nothing else, so a helper the file does not list cannot be reached. What `.import` returns is read-only, so assigning to `geom.sq` is an error. `.import(path;names)` takes some entries and fails on a missing one, and a list of names on the left binds them as plain names. The last command of the `geom` example shows that form.
+
+Importing the same file again gives the same module. A module that nothing refers to is freed, and the next import runs the file again. [Language Additions](language-additions.md#modules) has the full rules, and `examples/modules` in the repository is a program of twelve files.
+
+The libraries `csv` and `mgmt` are modules, and `.l("csv")` binds the module to the name `csv`, so `csv.read` works as before. The other libraries are classic files that `.l` loads into your globals.
+
+`.module(:name)` and `.module(0)` still exist for a classic file. They keep a library's variables apart, but they do not hide its names, and they do not make `name.f` a qualified name. [Operators](operators.md#classic-modules) describes them. New code uses `.import`.
 
 ## 11. Python interop
 
@@ -1096,7 +1124,7 @@ Klong has a few places where text that looks wrong is accepted and means somethi
 error: cannot apply _ (Drop) to symbol and integer
 ```
 
-At level 2 the same line stops earlier, on the undefined name `my`. Use `myVar` or `my.var`. (A dot is part of a name, which is how modules name things.)
+At level 2 the same line stops earlier, on the undefined name `my`. Use `myVar`. (`my.var` is not a name either: it reads the entry `"var"` of `my`, as [Modules](#modules) explains.)
 
 **A leading minus negates everything to its right.** A minus sign joins its number only inside a list literal; anywhere else `-` is the operator, and `-1+2` is `-(1+2)`. Put parentheses around a negative number in an expression:
 
@@ -1177,4 +1205,4 @@ For new code, use level 2 (`kgpy --strict=2`) and run `kgpy lint` on the files. 
 - [Examples](examples.md): short programs.
 - Coming from another tool? [Klong for NumPy users](from-numpy.md) and [Klong for q users](from-kdb.md) map their idioms to Klong.
 - [Start Here](getting-started.md) and [What's new in v2](whats-new-v2.md) for what v2 adds, and [Migrating to v2](migrating-to-v2.md) for existing programs.
-- [Native runtime](native/index.md): the same language on small devices, with no Python.
+- [Native Runtime](native/index.md): the same interpreter on small devices, with no Python.

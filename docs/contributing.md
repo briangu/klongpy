@@ -6,8 +6,8 @@ This page is for someone who has cloned the repository and wants to build it, ru
 
 | Path | What it holds |
 |---|---|
-| `klongpy/` | The Python implementation (package layout below). |
-| `native/` | The Rust implementation of the language, a Cargo workspace (crates below). |
+| `klongpy/` | The Python package: the `kgpy` command, the array backends and the system functions that need Python. It hosts the engine (package layout below). |
+| `native/` | The Rust code: the engine (the interpreter), the tools, the `kg` binary, the Python extension and the board firmware (crates below). |
 | `conformance/` | The implementation-neutral test cases and their runner. See [Conformance suite](conformance.md). |
 | `tests/` | The Python test suite, the golden parse trees and the benchmark scripts (`perf_*.py`). |
 | `scripts/` | `check_docs.py` (the documentation checker) and `gen_system_functions.py` (a generator). |
@@ -20,49 +20,55 @@ This page is for someone who has cloned the repository and wants to build it, ru
 
 | Module or package | Role |
 |---|---|
-| `interpreter.py`, `core.py`, `types.py` | The interpreter, its core types and type checks. |
-| `lexer.py`, `parser.py` | The tokenizer with source spans and the parser. |
-| `monads.py`, `dyads.py`, `adverbs.py` | The operators. |
-| `compiler.py` | The expression compiler that turns operator chains into backend code. See [Expression Compiler Notes](compiler-roadmap.md). |
-| `backends/` | The array backends: `numpy_backend.py`, `torch_backend.py`, the shared `base.py` and the `registry.py`. `backend.py` selects one. |
-| `autograd.py`, `sys_fn_autograd.py` | Gradients and the autograd system functions. |
-| `sys_fn.py`, `sys_var.py`, `sys_fn_timer.py`, `sys_fn_ipc.py`, `sys_fn_static.py` | System functions and variables. `.entry` and `.extern` are in `sys_fn_static.py`. |
-| `errors.py`, `writer.py` | The error classes with positions, and the output formatting. |
-| `lint.py`, `dump.py` | `kgpy lint`, and the canonical parse-tree dump used by the golden trees. |
-| `cli.py`, `repl.py`, `repl_input.py`, `help_index.py` | The `kgpy` command, the REPL and its help. |
+| `interpreter.py`, `rust_engine.py`, `native_ext.py` | `KlongInterpreter`, which is the adapter over the engine, and the loader of the compiled extension. The package has no parser or evaluator of its own. |
+| `rust_host.py`, `backends/` | How the engine sees arrays that Python owns: the table of operations (`rust_host.py`, `backends/host_ops.py`) and the array backends `numpy_backend.py` and `torch_backend.py` with the `registry.py` that selects one. |
+| `core.py`, `types.py`, `utils.py`, `writer.py` | Shared types and checks, and the output formatting. |
+| `errors.py` | The error classes with positions. |
+| `autograd.py`, `optimizers.py`, `sys_fn_autograd.py` | Gradients, the optimizers and the autograd system functions. |
+| `sys_fn.py`, `sys_var.py`, `sys_fn_timer.py`, `sys_fn_ipc.py`, `sys_fn_static.py`, `sys_fn_hw.py` | System functions and variables that run in Python. The console, file and load functions, `.extern` and `.entry` are the engine's own. |
+| `tools.py`, `source.py` | The `kgpy lint`, `check`, `compile c`, `fpga source` and `ast` commands, which parse their arguments and call the Rust tools. |
+| `cli.py`, `repl.py`, `repl_input.py`, `help_index.py`, `operator_help.py`, `sysdocs.py`, `data/` | The `kgpy` command, the REPL and its help, and the help text as data files. |
 | `ipc/` | The kdb+ IPC codec, sessions, compression and endpoints. |
-| `static/` | The static profile: checker, type inference, the IR and the C emitter. |
+| `static/` | The Python interface to the static compiler (`check_source`, `emit_program`, `load_program`, `call_entry`), the signature parser and the fixed-point array type. The checker, the type inference and the emitters are in Rust. |
+| `hw/` | The FPGA flow: build, card server and client, and the simulator. |
 | `db/`, `web/`, `ws/` | The optional database, web server and WebSocket system functions. |
-| `lib/` | Klong libraries (`math.kg`, `mgmt.kg`, ...) loaded with `.l`. |
+| `lib/` | Klong libraries (`math.kg`, `mgmt.kg`, ...), loaded with `.l` or `.import`. |
 
 ### The `native/` workspace
 
 | Crate | Role |
 |---|---|
-| `klong-core` | Lexer, parser, values and evaluator. `no_std` with `alloc`. |
+| `klong-core` | Lexer, parser, values and evaluator: the engine. `no_std` with `alloc`. |
 | `klong-ipc` | The kdb+ IPC codec, session and serial framing, with no I/O. |
-| `klong-rt` | The runtime around the core: the `Platform` trait, system functions, timers, heap accounting. |
+| `klong-dgram` | The datagram layer of the Pico bench: frames, checksums and retry. `no_std`. |
+| `klong-rt` | The runtime around the core: the `Platform` trait, system functions, modules, timers, heap accounting. |
 | `klong-host` | The `Platform` for desktop operating systems. |
-| `klong-cli` | The `klong` binary: file, `-e`, REPL, `--dump-ast` and `--conformance`. |
+| `klong-lint` | The linter behind `kg lint` and `kgpy lint`. |
+| `klong-static` | The static profile: the checker, the typed IR and the C and FPGA emitters behind `check`, `compile c` and `fpga source`. |
+| `klong-tools` | What reads Klong text outside the evaluator: `ast`, the REPL's completeness check, the text of a function sent over IPC. |
+| `klong-cli` | The `kg` binary: file, `-e`, REPL, the tools, `--dump-ast` and `--conformance`. |
 | `klong-console` | The serial console: line editor and the `^A` command mode. |
 | `klong-sim` | A simulated board with the real console on top, used as a test bench. |
 | `klong-board` | The skeleton of a board port, and a linkable image. |
 | `klong-ffi` | The board runtime as a static library with a C ABI (`include/klong.h`). |
+| `klong-py` | The engine as the Python extension `klongpy._native`, with its own Cargo workspace. |
 | `klong-probe` | A size probe, outside the workspace (its own `Cargo.lock`). |
-| `boards/esp32p4/` | The ESP-IDF application for the ESP32-P4. |
+| `boards/` | The board applications: `esp32p4/` (ESP-IDF) and `pico-bench/` (Raspberry Pi Pico). |
 | `scripts/`, `tools/`, `tests/` | Measurement and conformance scripts, `kgupload.py` (upload over a serial port) and the console tests in Python. |
 
 See [Native runtime](native/index.md) for what the crates do together.
 
 ## Setting up an environment
 
-You need Python 3.9 to 3.14.
+You need Python 3.11 to 3.14 and a Rust toolchain ([rustup.rs](https://rustup.rs)), because the package contains the engine as a compiled extension.
 
 ```text
 $ python -m venv .venv
 $ .venv/bin/pip install -e ".[full]"
 $ .venv/bin/pip install pytest-asyncio
 ```
+
+The editable install builds the extension, `klongpy._native`. To build it by hand instead, run `cargo build --release` in `native/klong-py`, copy the library to a directory under the name `klong_native.abi3.so` (Windows: `klong_native.pyd`) and set `KLONGPY_NATIVE_PATH` to that directory. The `kg` binary is built in the Rust workspace, below.
 
 `[full]` includes `pytest`, which the test suite needs (see below); the second line adds `pytest-asyncio`, the other half of the `dev` extra. The extras in `pyproject.toml`:
 
@@ -97,7 +103,7 @@ $ python -m pytest tests -q
 
 The full suite takes several minutes: about 7 minutes with pytest and about 6 with `unittest discover` when torch, pandas, duckdb, aiohttp and websockets are installed and the native binary is built. Single files are much faster; `tests/test_conformance.py` takes about 11 seconds.
 
-Four test modules (`test_atomic_broadcasting`, `test_autograd_parametrized`, `test_nested_grade` and `test_ascii_gradient_names`) import `pytest`, so `unittest discover` needs it installed too; the `full` extra includes it. Without torch installed, the 33 tests of `tests/test_compiler.py` that use torch are skipped.
+Four test modules (`test_atomic_broadcasting`, `test_autograd_parametrized`, `test_nested_grade` and `test_ascii_gradient_names`) import `pytest`, so `unittest discover` needs it installed too; the `full` extra includes it.
 
 pytest also takes the options defined in `tests/conftest.py`, which run every `KlongInterpreter` in the tests on another backend:
 
@@ -119,12 +125,11 @@ $ python -m unittest tests.test_cli_errors.TestInterrupt -v
 
 | Test | Needs | If missing |
 |---|---|---|
-| `tests/test_native_conformance.py`, `tests/test_native_ipc.py`, `tests/test_native_mgmt.py` | The native binary: `cd native && cargo build --release`. `KLONG_NATIVE` names another binary. | Skipped. |
+| `tests/test_native_conformance.py`, `tests/test_native_ipc.py`, `tests/test_native_mgmt.py` | The `kg` binary: `cd native && cargo build --release`. `KLONG_NATIVE` names another binary. | Skipped. |
 | PeachQ interop tests (`tests/test_ipc_peachq.py` and the PeachQ classes in `tests/test_native_ipc.py`) | `KLONG_TEST_PEACHQ` set to the path of a PeachQ `q` executable. | Skipped. They are opt-in. |
 | `native/tests/test_console.py` | The native binaries, including `klong-sim`. | Skipped. |
 | `tests/static/` (the emitted C is compiled and run) | A C compiler: `$KG_TEST_CC`, else `cc`, `clang` or `gcc` on the path. | Skipped. |
 | `tests/test_backend.py` and others that name torch | PyTorch. | Skipped. |
-| `tests/test_compiler.py` | PyTorch, for 33 of its 69 tests. | Those tests are skipped; CI still excludes the file on the legs without torch. |
 | Tests of `.db`, `.web` and `.ws` | `pandas`, `duckdb`, `aiohttp`, `websockets`. | Skipped. |
 | `tests/test_docs_examples.py` | Blocks in the docs that need an optional package or a PeachQ session. | The checker skips those blocks. |
 
@@ -132,16 +137,16 @@ The native tests that need the binary run the conformance suite against it and t
 
 ## The golden parse trees
 
-`tests/golden/` holds one `.sexp` file per source: every `.kg` under `tests/kgtests/language/`, every `klongpy/lib/*.kg`, and the small inputs in `tests/golden/fixtures/`. `tests/test_golden_trees.py` parses each source and requires the canonical dump of `klongpy/dump.py` to match the file byte for byte. The native parser must print the same bytes (`conformance/run.py --trees`).
+`tests/golden/` holds one `.sexp` file per source: every `.kg` under `tests/kgtests/language/`, every `klongpy/lib/*.kg`, and the small inputs in `tests/golden/fixtures/`. `tests/test_golden_trees.py` parses each source with the engine and requires the canonical dump to match the file byte for byte. Another implementation's parser must print the same bytes (`conformance/run.py --trees`).
 
-After an intended change to the parser or the dump:
+After an intended change to the parser or the dump, list the files that differ, then rewrite them and review the diff:
 
 ```text
 $ python tests/golden/regen.py --check
-all golden files match
+$ python tests/golden/regen.py
 ```
 
-`--check` lists the files that differ and exits 1 if any does. Running `python tests/golden/regen.py` without `--check` rewrites every snapshot; review the diff. To see the tree of one file, run `python -m klongpy.dump FILE`. `tests/golden/README.md` lists the intended changes.
+`--check` exits 1 if any file differs. To see the tree of one file, run `kgpy ast FILE` (or `kg ast FILE`). `tests/golden/README.md` lists the intended changes.
 
 ## How documentation examples are checked
 
@@ -194,7 +199,7 @@ Two pages are generated. Do not edit them by hand; edit the source and regenerat
 
 | Page | Generator | Source |
 |---|---|---|
-| `docs/static-profile.md` | `python -m klongpy.static.profile_doc` (`--check` to test, `--write` to refresh) | `klongpy/static/optable.py` and `rules.py` for the tables between the `BEGIN GENERATED` and `END GENERATED` markers; the text around them is `HEAD` and `TAIL` in `klongpy/static/profile_doc.py`. |
+| `docs/static-profile.md` (the tables between the `BEGIN GENERATED` and `END GENERATED` markers) | `python -m klongpy.static.profile_doc` (`--check` to test, `--write` to refresh) | The rule and operator tables of the Rust crate `klong-static`. The text outside the markers is written by hand. |
 | `docs/system-functions.md` | `scripts/gen_system_functions.py` | The `eval_sys_*` docstrings of the modules in `MODULES`, with `DESC` and `GROUPS` in the script. |
 
 ```text
@@ -207,7 +212,7 @@ The system functions generator needs an environment with the extras (`duckdb`, `
 
 ## One rule about torch
 
-Torch is imported only in `klongpy/backends/torch_backend.py`. No other module, including the interpreter, the compiler and the operators, may `import torch`. `tests/test_backend_isolation.py` checks it. Other code detects the backend like this:
+Torch is imported only in `klongpy/backends/torch_backend.py`. No other module, including the adapter over the engine and the system functions, may `import torch`. `tests/test_backend_isolation.py` checks it. Other code detects the backend like this:
 
 * To test for an array or tensor, use `klong._backend.np.ndarray`. It is `torch.Tensor` on the torch backend and `numpy.ndarray` on numpy.
 * To detect the torch backend, use `hasattr(klong._backend, '_torch_backend')`.
@@ -218,7 +223,7 @@ This keeps torch optional and avoids import-time failures where it is not instal
 
 ## The Rust workspace
 
-You need a Rust toolchain (stable; the bare-metal checks below also use the nightly toolchain). Dependencies other than the workspace crates are one crate, `libm`.
+You need a Rust toolchain (stable; the bare-metal checks below also use the nightly toolchain). The core depends on one crate, `libm`; the other crates add a few more, listed in their `Cargo.toml`.
 
 ```text
 $ cd native
@@ -226,7 +231,7 @@ $ cargo build --release
 $ cargo test --release --workspace
 ```
 
-`cargo build --release` produces `native/target/release/klong` (the language), `klong-sim` and `klong-board-image`. The test run takes a few seconds once the build is cached. See [Building and running](native/building.md).
+`cargo build --release` produces `native/target/release/kg` (the language), `klong-sim` and `klong-board-image`. The test run takes a few seconds once the build is cached. See [Building and running](native/building.md).
 
 One test, `data_nesting_is_bounded` in `native/klong-core/tests/full.rs`, fails about one run in ten. If it fails and you did not touch the evaluator, rerun it. See [Roadmap](roadmap.md#known-limits).
 
@@ -252,7 +257,7 @@ The ESP32-P4 firmware is built by `native/boards/esp32p4/build.sh`, which needs 
 
 ### Conformance runs
 
-The native runtime, the console and the shim are all run against the same cases. See [Conformance suite](conformance.md) for the commands and counts.
+The `kg` binary, the console and the shim are all run against the same cases. See [Conformance suite](conformance.md) for the commands and counts.
 
 ## Documentation
 

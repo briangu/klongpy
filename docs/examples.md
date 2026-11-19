@@ -19,6 +19,7 @@ Each directory is under [`examples/`](https://github.com/briangu/klongpy/tree/ma
 | [ipc](https://github.com/briangu/klongpy/tree/main/examples/ipc) | IPC clients and servers, broadcast and publish/subscribe with `.srv`, `.cli` and timers. | |
 | [math](https://github.com/briangu/klongpy/tree/main/examples/math) | NumPy interop for FFT and trigonometry through `.pyf`. | |
 | [ml](https://github.com/briangu/klongpy/tree/main/examples/ml) | K-nearest neighbours, cosine similarity, a transformer and an LSTM. | `torch` for the LSTM only |
+| [modules](https://github.com/briangu/klongpy/tree/main/examples/modules) | A backtest split over twelve files with `.import` and `.export`: private state, qualified names `a.b`, and one program per module error. | |
 | [python](https://github.com/briangu/klongpy/tree/main/examples/python) | Calling Python from Klong and Klong from Python; multiprocessing and threading. | |
 | [stats_logging](https://github.com/briangu/klongpy/tree/main/examples/stats_logging) | Statistics ingested over IPC into table storage, with periodic flush and reporting. | `klongpy[db]`, `pytz` |
 | [stocks](https://github.com/briangu/klongpy/tree/main/examples/stocks) | A simulated market feed published over IPC with VWAP and a moving average, Black-Scholes, and LSTM forecasting on Yahoo Finance data. | `yfinance` for the Yahoo Finance examples only; the feed needs nothing |
@@ -86,7 +87,7 @@ import numpy as np
 
 data = np.array([1, 2, 3, 4, 5])
 klong = KlongInterpreter()
-klong['data'] = data         # the Klong name data now holds the array
+klong['data'] = data         # the Klong name data holds the array
 klong('avg(v)::{(+/v)%#v}')  # define a function in Klong
 r = klong('avg(data)')       # call it on the array
 print(r)                     # 3.0
@@ -232,4 +233,4 @@ Linear regression and neural networks are in the [autograd examples](https://git
 
 - [Start here](getting-started.md) and the [Tutorial](tutorial.md) for the language.
 - [What's new in v2](whats-new-v2.md) for the changes of this release.
-- [Native runtime](native/index.md) for running Klong without Python.
+- [What runs where](what-runs-where.md) and [Native runtime](native/index.md) for running Klong without Python.

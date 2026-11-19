@@ -221,7 +221,7 @@ The two gradient operators take their arguments in opposite orders: `point∇fun
 
 ### Autograd System Functions
 
-Two system functions need the PyTorch backend: `.gradcheck` and `.export`. `.gradcheck` also needs the CPU device. [PyTorch Backend and Autograd](torch_backend.md#graph-export-and-gradient-checks) describes them and has an example.
+Two system functions need the PyTorch backend: `.gradcheck` and `.bkx`. `.gradcheck` also needs the CPU device. [PyTorch Backend and Autograd](torch_backend.md#graph-export-and-gradient-checks) describes them and has an example.
 
 ## Adverbs
 
@@ -354,7 +354,7 @@ To remove a key, use Drop with the key on the left and the dictionary on the rig
 error: cannot apply _ (Drop) to dict and string
 ```
 
-A list cannot be a key, and an odd number of expressions in `:{;...}` is a syntax error. [Language Additions](language-additions.md#dictionaries) has the details with the classic form beside each.
+A list, a dictionary, an operator or a function cannot be a key, an entry of the plain literal must be exactly `[key value]`, and an odd number of expressions in `:{;...}` is a syntax error. [Language Additions](language-additions.md#dictionaries) has the details with the classic form beside each.
 
 ## Language Forms
 
@@ -364,6 +364,9 @@ Two forms bind names with `::`. Both are described with examples, and with the c
 |---|---|
 | `[a b c]::v` | Destructuring. Binds each name to the member of `v` in the same position; the count must match. As the first statement of a function, `{[a b]::x;...}`, the names are local to it. |
 | `f(a;b;c;d)::{...}` | Defines `f` with the named parameters `a b c d`, any number of them. Too many arguments is an arity error; too few is a projection. `x`, `y` and `z` cannot be used in the body. |
+
+| `a.b` | The entry `"b"` of the dictionary `a`, for reading, writing and calling: `a@"b"`. See [Qualified names](language-additions.md#qualified-names). |
+| `.import(path)`, `.export(d)` | A file's exported dictionary, and the call that ends the file and offers it. See [Modules](language-additions.md#modules). |
 
 A function's arity, which the display (`:monad`, `:dyad`, `:triad`, and `:fn/N` for four or more named parameters) shows and an adverb dispatches on, is the highest of `x`, `y` and `z` its body uses, not counting nested function literals, or the number of named parameters. `{-x}` is a monad and `{y}` a dyad.
 
@@ -477,7 +480,7 @@ error: :^: cannot fill a non-empty shape from an empty source
 ?> 5.2$3.0
 "    3.00"
 ?> 5.2$3
-error: $: a real width needs a real number to format, got 3
+error: $: a real width needs a real number to format, got integer
 ```
 
 ### Split and iterate counts
@@ -675,9 +678,9 @@ A projection made inside a function holds the values its arguments had at that p
 
 Three cases are not projections. A function whose whole body is a projection, `g::{add(1;)}`, passes its call on, so `g(5)` is `add(1;5)`. A call through `.f` is never short: `.f(1)` in a function of two arguments runs it with `y` as the caller left it. A function with named parameters applied to too few values by `@` or an adverb is an arity error, as is a call from Python with too few arguments.
 
-### Modules
+### Classic modules
 
-`.module(:name)` opens a module and `.module(0)` closes it. A name assigned between the two belongs to the module, and every use of that name inside the module refers to the module's own variable. This matches Klong, whose test suite KlongPy runs.
+`.module(:name)` opens a classic module and `.module(0)` closes it. A name assigned between the two belongs to the module, and every use of that name inside the module refers to the module's own variable. This matches Klong, whose test suite KlongPy runs. New programs use [modules](language-additions.md#modules) (`.import`, `.export` and `a.b`) instead, which hide the names a file does not offer.
 
 The names are not hidden. After the module is closed, a module name is still reachable by its plain name, as long as the program has no variable of its own with that name:
 
@@ -705,7 +708,7 @@ None
 [2 4]
 ```
 
-A global that exists before the module opens does not stop the module from having its own variable of that name, and afterwards the plain name reads the module's value: `v::1;.module(:m);v::5;.module(0);v` is 5. There is no qualified form such as `geo.unit`; the libraries in `klongpy/lib` name what they export with a prefix (`csv.read`) by convention only, and their helper functions without a prefix (`unesc`, `escape` in `csv.kg`) are reachable by their plain names too. When two modules define the same name, the plain name outside refers to the one loaded last.
+A global that exists before the module opens does not stop the module from having its own variable of that name, and afterwards the plain name reads the module's value: `v::1;.module(:m);v::5;.module(0);v` is 5. A classic module has no qualified names: `geo.unit` is the entry `"unit"` of a dictionary `geo`, which does not exist. When two classic modules define the same name, the plain name outside refers to the one loaded last.
 
 ### The undefined value
 

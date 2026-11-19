@@ -48,7 +48,7 @@ Why: a list literal is data, not code, and `[;...]` is the form that marks its e
 ?> A::A,:{}
 [:{} :{}]
 ?> A::A,:{}
-error: cannot apply , (Join) to list of 2 and dict: the list holds a dict
+error: a dict cannot be a dictionary key
 ```
 
 Write `A,,:{}` to append a dictionary as one element whatever the length of `A`.
@@ -96,21 +96,6 @@ Why: arity is a property of the function that the reader knows from its text, an
 error: cannot call a: it is an integer, not a function
 ```
 
-### Index in depth does not reach into strings
-
-`a:@b` with a list `b` follows the indices down through nested lists. Through a list of strings it is an error. Index one level at a time instead.
-
-```kgpy
-?> [[1 2] [3 4]]:@[0 1]
-2
-?> ["1234" "5678"]:@[0 1]
-error: cannot apply :@ (Index-in-Depth) to list of 2 and list of 2
-?> (["1234" "5678"]@0)@1
-0c2
-```
-
-Why: the depth walk follows lists, and a string is not one.
-
 ### Numbers
 
 Reals are doubles, where Klong's are arbitrary precision. Integers are 64 bits wide and wrap on overflow, as in NumPy. An operand beyond 64 bits (a long literal, or `2^64`) makes `+ - * < > | &` exact. `%` gives a float. `^` of two integers with a non-negative exponent is exact on a scalar (`7^40`, `10^400`) while the operand's bit length times the exponent is at most 2^20 (`2^524288` works, `2^524289` does not); beyond that the answer is a float, which overflows to a range error (`10^100000000`). A negative or fractional exponent gives a float, and a list operand is computed in 64-bit integers like the other operators (`[2 3]^40` wraps), with the exceptions below.
@@ -152,22 +137,21 @@ Use a scalar base and exponent when the result can exceed 64 bits. A list result
 These are not repeated here. Each is a change from classic Klong that is documented where it is used.
 
 - **Function arity.** A function has as many arguments as the highest of `x`, `y` and `z` its body uses, wherever it uses them, so `{-x}` is a monad. See [How many arguments a function takes](language-additions.md#how-many-arguments-a-function-takes).
+- **Names with a dot and modules.** `a.b` is `a@"b"` on any dictionary, and a file that ends with `.export` is a module that `.import` brings in. Classic Klong has neither: its `.l` writes every name of a file into the globals, and a dot is part of a name. See [Modules](language-additions.md#modules).
+- **Dictionary literals.** An operator or a function as a key, and an entry that is not exactly `[key value]`, are syntax errors. See [Dictionaries](language-additions.md#dictionaries).
 - **Calls with too few arguments are projections**, `f(1)` being `f(1;)`, at every strict level. See the [release notes](release-notes.md).
 - **Language additions.** Destructuring `[a b]::v`, named parameters `f(a;b;c;d)::{...}`, evaluated dictionaries, `d@k` on dictionaries, `.fmt`, `.grad`, `.split`, `.join`, `.words`, `.trim`, `.num`. The inputs whose meaning changed are in [Syntax that changed meaning](release-notes.md#syntax-that-changed-meaning). See [Language Additions](language-additions.md).
 - **Strict mode and lint.** Three [strict levels](strict.md) and [`kgpy lint`](lint.md) report or reject silent mistakes. The default is the classic behaviour.
 - **Errors** carry a position and a kind. See [Errors](errors.md).
 - **Python, IPC, autograd and the rest of the system functions**: `.py`, `.pyf`, `.srv`, `.cli`, `:>`, `.db` and others are additions. See [Python Integration](python_integration.md), [IPC](ipc_capabilities.md) and [PyTorch Backend and Autograd](torch_backend.md).
 - **A static subset that compiles to C.** See [Compiling Klong to C](embedded.md).
+- **Which command.** `kg` has no Python, so `.py`, `.pyf`, `.sys`, `.web` and the other functions that need Python are errors there; `kgpy` has them. See [What Runs Where](what-runs-where.md).
 
 ## Known bugs
 
 These are cases where KlongPy's answer is wrong and the right answer is known. Each is a case in `conformance/pending/known-differences.cases`, under the name given, with the expected result; `python conformance/run.py --pending` runs them and reports any that has started to pass. They are not differences to rely on.
 
 ```kgpy
-?> [:a :b]?:b
-[]
-?> [:a :b]=:b
-[0 1]
 ?> "abc"@0
 0ca
 ?> *"abc"
@@ -178,8 +162,7 @@ These are cases where KlongPy's answer is wrong and the right answer is known. E
 error: cannot apply % (Reciprocal) to string
 ```
 
-- `pending.find-symbol-in-list`: `[:a :b]?:b` should be `[1]`; it is `[]`, although `[:a :b]=:b` finds the symbol.
-- `pending.first-of-string-is-a-char`, `pending.first-of-reversed-string-is-a-char`, `pending.scan-join-over-string-first-item-is-a-char`: the first element of a string should be a character (`0ca`, as `"abc"@0` gives), not a one-character string. `*"abc"`, `*|"hello"` and the first item of `,\"abc"` are strings. The reference suite passes only because `~` treats a character and a one-character string as equal.
+- `pending.first-of-string-is-a-char` and `pending.first-of-reversed-string-is-a-char`: the first element of a string should be a character (`0ca`, as `"abc"@0` gives), not a one-character string. `*"abc"` and `*|"hello"` are strings. The reference suite passes only because `~` treats a character and a one-character string as equal.
 - `pending.index-by-float`: `[1 2 3]@1.0` should be a type error (an index must be an integer). It returns the whole list.
 - `pending.reciprocal-of-string` and `pending.where-of-string`: `%"a"` and `&"a"` should be type errors, as `-"a"` is. They are reported as range errors.
 

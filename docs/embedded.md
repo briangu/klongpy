@@ -1,15 +1,15 @@
 # Compiling Klong to C
 
-Status: works for the static profile, a subset of the language. It is tested with desktop C compilers and compile-checked for bare Arm and x86 targets. Three examples have run compiled on two Raspberry Pi Picos, where they agree with the interpreter ([on a Pico](#on-a-pico)); no other microcontroller has run it. For hardware status see the [native runtime table](native/index.md#status-what-has-and-has-not-been-proven).
+Status: works for the static profile, a subset of the language. It is tested with desktop C compilers and compile-checked for bare Arm and x86 targets. Three examples have run compiled on two Raspberry Pi Picos, where they agree with the interpreter ([on a Pico](#on-a-pico)); no other microcontroller has run it. For the status of the interpreter on boards see the [board status table](native/index.md#status-what-has-and-has-not-been-proven).
 
-A small part of Klong, the [static profile](static-profile.md), can be compiled ahead of time to C99 with no heap, no recursion and no C library. A program written in it runs unchanged under KlongPy, which is how it is developed and tested, and the generated C does the same work on a target with no interpreter. The target is a microcontroller or any other place where a small, fixed-size, dependency-free function is wanted: a filter, a controller, a state machine over a few sensors.
+A small part of Klong, the [static profile](static-profile.md), can be compiled ahead of time to C99 with no heap, no recursion and no C library. A program written in it runs unchanged under the interpreter (`kg` or `kgpy`), which is how it is developed and tested, and the generated C does the same work on a target with no interpreter. The target is a microcontroller or any other place where a small, fixed-size, dependency-free function is wanted: a filter, a controller, a state machine over a few sensors.
 
 This page walks through the whole path with two programs from `examples/embedded/`: check the program, run it under the interpreter, emit C, build it for the host and for a bare target, and call it from a `main`. The commands need a C compiler.
 
 The rules of the profile (which operators, adverbs and forms are allowed, the types, the shape rules, the error ids) are on the [static profile page](static-profile.md). This page covers the tools around it.
 
 !!! note "Scope"
-    This page is about the generated C only. The HLS C++ that `kgpy fpga source` writes from the same programs is experimental; see [Klong functions as FPGA hardware](hardware.md). The native (non-Python) runtime is a separate Rust implementation of the language, described under [Native runtime](native/index.md). What was and was not compiled is listed [below](#what-has-not-been-done).
+    This page is about the generated C only. The HLS C++ that `kgpy fpga source` writes from the same programs is experimental; see [Klong functions as FPGA hardware](hardware.md). Running the interpreter itself on a board, without generating C, is described under [Native runtime](native/index.md). What was and was not compiled is listed [below](#what-has-not-been-done).
 
 ## The two programs
 
@@ -51,6 +51,8 @@ step::{[e u];e::x-read.adc(0);integ::clamp(integ+ki*e*dt);u::clamp((kp*e)+integ+
 
 ## Check a program
 
+The tools are in the engine, so `kg check`, `kg compile c` and `kg fpga source` do the same as the `kgpy` commands, with no Python installed; this page writes `kgpy`.
+
 `kgpy check` checks files against the profile without running them. It exits 0 when every file is inside, 1 when one is outside and 2 when one cannot be read.
 
 <!-- check-docs: link examples -->
@@ -82,7 +84,7 @@ bad.kg:1:5: static error: the count of n#a (Take) is not a compile-time constant
 
 ## Run it under the interpreter
 
-The same file runs in KlongPy. `klongpy.static.load_program` loads it at strict level 2 and `call_entry` calls an entry the way compiled code is called: the arguments and the result are checked against the `.entry` signature. An extern is a Python function bound by name; the stand-in is looked up at each call.
+The same file runs under `kgpy`. `klongpy.static.load_program` loads it at strict level 2 and `call_entry` calls an entry the way compiled code is called: the arguments and the result are checked against the `.entry` signature. An extern is a Python function bound by name; the stand-in is looked up at each call.
 
 <!-- check-docs: continue -->
 ```console
@@ -113,7 +115,7 @@ $ python run_pid.py
 0.02015
 ```
 
-A stand-in gets one positional argument per parameter (a Python `int`, a `float`, a `str`, or a numpy array of the declared shape) and returns a value of the declared result type. A wrong type, shape or number of arguments is an error that names the extern. Calling an extern that has no stand-in is a system error. The details are on the [static profile page](static-profile.md#running-a-static-program-under-klongpy).
+A stand-in gets one positional argument per parameter (a Python `int`, a `float`, a `str`, or a numpy array of the declared shape) and returns a value of the declared result type. A wrong type, shape or number of arguments is an error that names the extern. Calling an extern that has no stand-in is a system error. The details are on the [static profile page](static-profile.md#running-a-static-program-under-kgpy).
 
 These results are the ones the compiled code must reproduce. They are the reference side of the differential tests described [below](#differences-from-the-interpreter).
 
@@ -459,6 +461,6 @@ Reference programs, with the results the interpreter gives and the size of the g
 ## See also
 
 - [Static profile](static-profile.md) for the rules of the subset.
-- [Expression Compiler Notes](compiler-roadmap.md) for how this compiler differs from the expression compiler inside KlongPy.
+- [Compiler Notes](compiler-roadmap.md) for what compiles today and what is planned.
 - [Native runtime](native/index.md) and [Porting to a board](native/porting.md) for running Klong itself on a microcontroller, without generating C.
 - [Roadmap](roadmap.md) for what is planned and not available.

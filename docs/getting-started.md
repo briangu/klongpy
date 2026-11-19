@@ -2,7 +2,7 @@
 
 KlongPy runs Klong, a small array language. In an array language you apply an operation to a whole list of numbers at once instead of writing a loop. The sum of the numbers 1 to 5 is written `+/1+!5`. This page takes you from installing KlongPy to writing a small script, then points to the part of the documentation that fits what you want to do.
 
-You need Python 3.9 to 3.14. You do not need to know any other array language.
+You need Python 3.11 to 3.14. You do not need to know any other array language.
 
 ## Install
 
@@ -10,7 +10,16 @@ You need Python 3.9 to 3.14. You do not need to know any other array language.
 pip install klongpy
 ```
 
-That installs the interpreter, the `kgpy` command and its two requirements, NumPy and colorama. It is enough for everything on this page. Extra features have their own packages. Ask for them in square brackets:
+That installs two commands:
+
+| Command | What it is |
+|---|---|
+| `kgpy` | The Klong interpreter hosted in Python. It adds NumPy arrays, PyTorch, calling Python, tables and SQL, the web server, websockets and the FPGA card functions. |
+| `kg` | The same interpreter as one program with no Python in it. It starts in a few milliseconds and runs scripts, `lint`, `check` and `compile`. |
+
+Both run the same language on the same interpreter, which is written in Rust. [What Runs Where](what-runs-where.md) says which part does what. This page uses `kgpy`; replace it with `kg` for any example that does not call Python.
+
+The package also installs NumPy and colorama. That is enough for everything on this page. Extra features have their own packages. Ask for them in square brackets:
 
 | Install | Adds | Use it for |
 |---|---|---|
@@ -36,7 +45,17 @@ $ kgpy -e '1+1'
 2
 ```
 
-`kgpy -e` evaluates one expression, prints the value and exits. `kgpy file.kg` runs a file.
+`kgpy -e` evaluates one expression, prints the value and exits. `kgpy file.kg` runs a file. `kg -e` and `kg file.kg` do the same without Python:
+
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+```console
+$ kg -e '+/1+!5'
+15
+$ kg -e '.py("math")' 2>&1 | head -n 1
+1:1: name error: .py needs kgpy (the Python-hosted command)
+```
+
+A program that calls a function that needs Python, such as `.py`, stops under `kg` with an error that says it needs `kgpy`.
 
 ## Your first five minutes
 
@@ -220,9 +239,13 @@ Other places to look:
 
 **Talking between processes.** `.srv` serves a KlongPy process and `.cli` calls one, over the kdb+ IPC protocol, so a q process can be on either end. See [IPC Capabilities](ipc_capabilities.md).
 
+**Splitting a program into files.** A file that ends with `.export` is a module, and `.import` brings it in under a name you choose. See [Modules](language-additions.md#modules) and the twelve-file program in `examples/modules`.
+
 **Compiling to C for microcontrollers.** A static subset of Klong compiles to C99 with no heap. Three examples have run compiled on two Raspberry Pi Picos, and the C has run on no other device. See [Compiling Klong to C](embedded.md) and [The Static Profile](static-profile.md).
 
-**The native runtime on boards.** A separate implementation in Rust runs the full language without Python, including on an ESP32-P4. See [Native Runtime](native/index.md), [Building and Running](native/building.md), [Serial Console and Upload](native/console.md) and [ESP32-P4](native/esp32-p4.md).
+**The interpreter on boards.** The same interpreter runs the full language without Python on a microcontroller. It has run on an ESP32-P4 and on two Raspberry Pi Picos. See [Native Runtime](native/index.md), [Building and Running](native/building.md), [Serial Console and Upload](native/console.md) and [ESP32-P4](native/esp32-p4.md).
+
+**Which command, and what runs where.** [What Runs Where](what-runs-where.md) says what `kg`, `kgpy`, the torch backend and the compiler each do.
 
 If you used an earlier KlongPy, read [What's New in v2](whats-new-v2.md) and [Migrating to v2](migrating-to-v2.md).
 

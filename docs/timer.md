@@ -27,7 +27,7 @@ timer:t:1.0
 ?> .timerc(th)
 1
 ?> .timer("t";1;{x+1})
-1:1: type error: z must be a function that takes no arguments
+1:1: type error: z must be a function that takes no arguments, not one of 1
   .timer("t";1;{x+1})
   ^^^^^^^^^^^^^^^^^^^
   hint: name the function first, cb::{...}, and pass cb; an inline function is rejected, or run before .timer sees it if it takes no arguments

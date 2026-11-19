@@ -8,6 +8,8 @@ KlongPy adds a few forms to Klong. Each one gives a meaning to input that fails 
 | `{[a b]::x;...}` | The same as the first statement of a function; the names are local | `{[a b];a::x@0;b::x@1;...}` |
 | `f(a;b;c;d)::{...}` | [Named parameters](#named-parameters), and more than three | `f::{...}` with `x y z`, or one list argument |
 | `:{;k1;v1;k2;v2}` | An [evaluated dictionary](#dictionaries) | `:{[k1 v1] [k2 v2]}`, or `d,k,,v` |
+| `d.k`, `d.k::v` | [Qualified names](#qualified-names): `d.k` is `d@"k"`, for reading and writing | `d@"k"`, `d::d,"k",,v` |
+| `.import(path)`, `.export(d)` | [Modules](#modules): a file with private names and a list of exported ones | `.l`, which writes every name of the file into your globals |
 | `d@k`, `d@[k1 k2]`, `d,d2` | Dictionary lookup with `@`, several keys at once, merge | `d?k` |
 | `.fmt(template;args)`, `.pf(...)` | [Formatted text](#formatted-text) | joining strings with `,` and `$` |
 | `.split(s;sep)` | [Strings](#strings): the pieces of `s` between the occurrences of `sep` | a loop over `s?sep`, written for each program |
@@ -323,7 +325,7 @@ The plain literal does not evaluate its entries; `n` in it is the symbol `:n`. C
 :{["n" 7] ["sq" 49]}
 ```
 
-The literal `:{;}` is the empty dictionary too. An odd number of expressions, an empty slot and a trailing `;` are syntax errors. A list cannot be a key.
+The literal `:{;}` is the empty dictionary too. An odd number of expressions, an empty slot and a trailing `;` are syntax errors. A key is a number, a string, a character or a symbol. A list, a dictionary, an operator or a function cannot be one.
 
 ```kgpy
 ?> :{;"a"}
@@ -331,7 +333,16 @@ error: the last key of the dictionary literal has no value
 ?> :{;"a";1;}
 error: missing expression in a dictionary literal
 ?> :{;[1 2];3}
-error: a list of 2 cannot be a dictionary key
+error: a list cannot be a dictionary key
+```
+
+In the plain literal each entry must be exactly `[key value]`: one key and one value, in brackets. An entry of any other shape and an operator as a key are syntax errors, found before the program runs.
+
+```kgpy
+?> :{[1 2 3]}
+error: each entry of a dictionary literal must be a [key value] pair
+?> :{[+ 1]}
+error: an operator cannot be a dictionary key
 ```
 
 A dictionary literal inside a dictionary or list literal is a dictionary:
@@ -405,6 +416,79 @@ error: ,: a dictionary can only be joined with a tuple (a list of two members) o
 ```
 
 `$d` is the written form of the dictionary, as a string.
+
+## Qualified names
+
+`a.b` is `a@"b"`: the entry `"b"` of the dictionary `a`. It reads, it writes and it calls, on any dictionary, and the parts chain.
+
+<!-- check-docs: strict 2 -->
+```kgpy
+?> cfg:::{;"run";:{;"days";30;"seed";7}}
+:{["run" :{["days" 30] ["seed" 7]}]}
+?> cfg.run.days
+30
+?> cfg.run.days::90
+90
+?> cfg.run
+:{["days" 90] ["seed" 7]}
+?> ops:::{;"inc";{x+1}}
+:{["inc" :monad]}
+?> ops.inc(4)
+5
+```
+
+Writing `a.b::v` replaces the entry, or adds it when `a` has no entry `"b"`. In `a.b.c::v` every part before the last must exist. Reading a missing entry is a name error that names the dictionary and the key, and a name that holds something other than a dictionary is a type error:
+
+```kgpy
+?> d:::{;"x";1}
+:{["x" 1]}
+?> d.y
+error: d has no entry "y"
+?> n::5
+5
+?> n.y
+error: n.y: n is not a dictionary (it is integer)
+```
+
+A dot is part of no name. `shout.up` does not name a variable: it reads the entry `"up"` of `shout`, so `shout` must be a dictionary. A program that defined a global named `a.b` needs a plain name, or a dictionary.
+
+## Modules
+
+A module is a Klong file that keeps its names private and offers a list of them. `.import(path)` runs the file in a scope of its own and returns the dictionary that the file passed to `.export`. `.export(dict)` ends the file; its argument is the dictionary of what the file offers.
+
+The file `stats.kg`:
+
+```text
+sq(v)::{v*v}
+mean(v)::{(+/v)%#v}
+var(v)::{mean(sq'v)-sq(mean(v))}
+.export(:{;"mean";mean;"var";var})
+```
+
+A program that uses it:
+
+```text
+stats::.import("./stats")
+stats.mean([1 2 3 4])
+stats.var([1 2 3 4])
+```
+
+The rules:
+
+* A file is a module when it calls `.export`. `.import` of a file that does not is an error. The names in the file, `sq` above, are private to it: the importer cannot reach one that the export does not list, and nothing is written into the importer's globals.
+* The key in the export may differ from the name in the file: `:{;"seed";reset}` offers the function `reset` as `seed`.
+* `./x` and `../x` are relative to the file that holds the import (to the working directory at the REPL). A name without a dot and slash, such as `"csv"`, is searched in the directories of `KLONGPATH` and then in the library that ships with KlongPy, never in the working directory. `.kg` is added when the name has no extension.
+* The module is read-only from outside: `stats.mean::0` is a type error. A dictionary stored inside it is an ordinary dictionary and can be changed.
+* An exported value is its value at the moment of `.export`, so `m.counter` does not follow later changes in the module. An exported function does, because it works on the module's own names. To expose changing state, export functions.
+* `.import(path;names)` takes only the listed entries and fails when one is missing. With a list of names on the left of `::` it binds each as a plain name: `[mean var]::.import("./stats";["mean" "var"])`.
+* Importing a file again gives the same module, identified by the real path of the file. A state that the module keeps is shared by every importer.
+* A module is freed when nothing refers to it: no variable, no function taken from it. The next import then runs the file again. `m::0` lets go of the variable. To keep a module between the calls of a function, hold it in a global.
+* A circular import is an error, and so is a file that does not exist.
+* A module can import modules, and a function can import one when it runs.
+
+`.l("name")` on a file that is a module runs it and binds the module to the file's name, as `name::.import("name")` does. That is how the libraries `csv` and `mgmt` are used: `.l("csv")` gives `csv.read`, `csv.split` and the rest. A file without `.export` is a classic file, and `.l` writes its names into the globals as before.
+
+The static checker follows a top-level `.import` with a literal path, so a module can be compiled. [Lint](lint.md#rules) has the rules for imports. `examples/modules` is a program of twelve files that uses all of this.
 
 ## Formatted text
 

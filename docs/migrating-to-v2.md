@@ -1,24 +1,41 @@
 # Migrating to v2
 
-This page is for anyone with code written for KlongPy 0.7. It lists what behaves differently in v2, with the 0.7 behaviour, the v2 behaviour, why, and a switch to keep the old behaviour where one exists. [Release notes](release-notes.md) has the complete list of changes. Most programs need no change. The risk is in "Results that change without an error", where the same input gives a different result and nothing complains.
+This page is for anyone with code written for KlongPy 0.7, the last pure-Python line. It lists what behaves differently in v2, with the 0.7 behaviour, the v2 behaviour and why. Version 2 has no switch that restores an old behaviour: to stay on 0.7, install `klongpy<2`. [Release notes](release-notes.md) has the complete list of changes. Most programs need no change. The risk is in "Results that change without an error", where the same input gives a different result and nothing complains.
 
 ## Quick list
 
-| Change | Switch to keep the old behaviour |
+| Change | What to do |
 |---|---|
-| IPC: 0.7 and 2.0 cannot talk to each other (the pickle protocol is removed) | None; [upgrade both ends](#ipc-speaks-the-kdb-protocol) |
-| `[a b]::v` binds; `f(a;b)::{...}` defines | `KLONGPY_PARSER=legacy` |
-| Strings such as `"{"`; whitespace before `;` in a conditional | `KLONGPY_PARSER=legacy` |
+| There is no pure-Python KlongPy 2; the interpreter is written in Rust | Install a wheel, or build with a Rust toolchain; [see below](#the-interpreter-and-the-commands) |
+| `a.b` is `a@"b"`, not a variable named `a.b` | Use a plain name or a dictionary; [see below](#names-with-a-dot) |
+| An operator or function as a dictionary-literal key, and an entry that is not `[key value]`, are syntax errors | [Write the pair](#dictionary-literals) |
+| The libraries `csv` and `mgmt` are modules, `mgmt.trap` is `mgmt.cfg.trap`, and dotted helper names in `math`, `nstat` and `help` are renamed | [See the table](#libraries) |
+| The torch backend's `.export(fn;input;path)` is `.bkx`; `.compile`, `.compilex` and `.cmodes` are removed | [See below](#torch-export-and-compile) |
+| `KLONGPY_ENGINE`, `KLONGPY_PARSER` and `KLONGPY_IPC` do not exist | Remove them; [see below](#removed-switches) |
+| String indexing gives a character; `[:a :b]?:b`, `&/"abc"`, `+/"abc"` and others changed | [See below](#bugs-of-07-that-2-does-not-have) |
+| IPC: 0.7 and 2.0 cannot talk to each other (the pickle protocol is removed) | [Upgrade both ends](#ipc-speaks-the-kdb-protocol) |
+| `[a b]::v` binds; `f(a;b)::{...}` defines | Write the program for the new reading |
+| Strings such as `"{"`; whitespace before `;` in a conditional | None needed: the program that worked around them still runs |
 | Left-over input warns (level 0) or fails (strict) | Level 0 is the default; `warnings.filterwarnings("ignore", category=KlongSyntaxWarning)` hides the warning |
-| A call on a number, string, list or dictionary is a `type` error | None |
+| A call on a number, string, list or dictionary is a `type` error | [Name the function](#calling-a-value-that-is-not-a-function) |
 | Arity, projections, `d@k`, `:undefined`, `x%0`, conditional monads, symbols as data, operator results | None |
 | Error classes and messages | None; `except KlongException` and the old Python classes still catch |
 | Errors on stderr, exit statuses | None |
 | Strict levels | `.strict(0)` or `.unsafe()`; the default is 0 |
-| A web handler that returns a dictionary sends a response; a failing handler answers 500, not 400 | None; [see below](#web-handlers) |
-| `.rls()` strips the line end from each line | None; [see below](#other-changes) |
-| The Polygon and Alpaca examples are removed | None; [a simulated feed replaces them](#other-changes) |
-| `.compile`, `.compilex` and `.cmodes` are removed | None; [use `.export`](#other-changes) |
+| A web handler that returns a dictionary sends a response; a failing handler answers 500, not 400 | [See below](#web-handlers) |
+| `.rls()` strips the line end from each line | [See below](#other-changes) |
+| The Polygon and Alpaca examples are removed | [A simulated feed replaces them](#other-changes) |
+
+## The interpreter and the commands
+
+Version 2 evaluates Klong on one interpreter, written in Rust. 0.7 had a Python implementation of the language, and version 2 has none. `pip install klongpy` installs two commands, `kgpy` (the interpreter hosted in Python, which has everything 0.7 had) and `kg` (the same interpreter with no Python). See [What Runs Where](what-runs-where.md).
+
+What this changes for your code:
+
+* **The Python modules of the old implementation are gone.** `import klongpy.parser`, `klongpy.lexer`, `klongpy.compiler`, `klongpy.monads`, `klongpy.dyads` and `klongpy.adverbs` fail with `ModuleNotFoundError`. `KlongInterpreter`, the error classes, `klong['name']`, the backends and `.py`/`.pyf` are kept. Code that built or walked a parse tree needs `kgpy ast` or `kg ast`, which print the tree as text.
+* **`import klongpy` needs its compiled extension.** A wheel carries it. A source tree builds it with `pip install -e .`, which needs a Rust toolchain. Without it the import fails with a message that says so, and there is no slower fallback.
+* **The tools are Rust.** `kgpy lint`, `check`, `compile c`, `fpga source` and `ast` call the same code as `kg lint`, `kg check` and the rest. Their output is the same text as before except where a message names a new rule. `klongpy.lint.lint_source` still works from Python.
+* **Warnings are issued before the program runs.** The syntax warnings of a file come out after it is parsed and before its first statement, so they appear above the program's output.
 
 ## Check your code first
 
@@ -70,7 +87,7 @@ Before: a list of names on the left of `::` evaluated the right side and bound n
 1
 ```
 
-`a::5;[a b]::[1 2];a` was 5 and is 1. Why: binding is what the form is for; it gave a silent no-op before. A list on the left that is not a list of distinct plain names (nested, repeated, empty) still binds nothing at level 0, now with a warning, and is a syntax error at strict levels 1 and 2. To keep the old reading, use the [legacy parser](#keep-the-old-reader).
+`a::5;[a b]::[1 2];a` was 5 and is 1. Why: binding is what the form is for; it gave a silent no-op before. A list on the left that is not a list of distinct plain names (nested, repeated, empty) still binds nothing at level 0, now with a warning, and is a syntax error at strict levels 1 and 2.
 
 ### `f(a;b)::{...}` defines `f`
 
@@ -279,7 +296,7 @@ Before: `1 2 3` evaluated `1` and dropped the rest without a word, and so did a 
 error: unexpected '2' after the end of the expression
 ```
 
-Why: `1 2 3` is nearly always a list written without brackets. To silence the warning from Python, use `warnings.filterwarnings("ignore", category=KlongSyntaxWarning)`. The legacy parser does not warn.
+Why: `1 2 3` is nearly always a list written without brackets. To silence the warning from Python, use `warnings.filterwarnings("ignore", category=KlongSyntaxWarning)`.
 
 ### Strings that look like punctuation are strings
 
@@ -322,6 +339,102 @@ Fix: search your code for a call on a name that holds a value.
 * One idiom relied on the old behaviour: a function literal passed as an argument and then called. `time({work()})` evaluates the literal where it stands, so the callee `x()` called its value. Give the function a name and pass the name: `w::{work()};time(w)`.
 
 There is no switch.
+
+## Names with a dot
+
+`a.b` means `a@"b"`: the entry `"b"` of the dictionary `a`. 0.7 read `a.b` as one variable name, so a program could write `geom.sq(v)::{...}` and `count.total::0`. Now the first is a name error, because `geom` is not a dictionary, and so is the second.
+
+```kgpy
+?> count.total::0
+error: count is not defined (count.total means count@"total")
+?> count:::{}
+:{}
+?> count.total::0
+0
+?> count.total::count.total+1
+1
+```
+
+What to write instead:
+
+* A plain name: `countTotal::0`. The libraries did this, so [their dotted names changed](#libraries).
+* A dictionary, when the dots grouped values: `count:::{;"total";0}` and `count.total`.
+* A module, when the dots grouped functions of a file: `geom::.import("./geom")` and `geom.sq(v)`. See [Modules](language-additions.md#modules).
+
+`kgpy lint` finds the writes (rule W021). A name that starts with a dot and has dots inside, such as `.srv.auth`, is one name, as before. [Qualified names](language-additions.md#qualified-names) has the rules, and `.module(:name)` still exists for a classic file but gives no qualified names.
+
+## Dictionary literals
+
+An operator or a function as a key of a dictionary literal, and an entry of the plain literal that is not exactly `[key value]`, are syntax errors found before the program runs. 0.7 accepted them: `:{[+ 1]}` made a dictionary keyed by the operator, `:{[1 2 3]}` made `1:2`, `:{[{x} 1]}` made a key from the text `{` and `:{[1]}` raised an `IndexError`.
+
+```kgpy
+?> :{[+ 1]}
+error: an operator cannot be a dictionary key
+?> :{[1 2 3]}
+error: each entry of a dictionary literal must be a [key value] pair
+```
+
+Write each entry as a pair of one key and one value. To have the keys and values evaluated, use `:{;key1;value1;key2;value2}`, in which a function is a value and not a key. A key is a number, a string, a character or a symbol.
+
+## Libraries
+
+The libraries in `klongpy/lib` are loaded with `.l`, as before. Two changed form and the others lost their dotted helper names, because a dotted name is now a qualified name.
+
+* **`csv` and `mgmt` are modules.** `.l("csv")` binds the module to the name `csv`, so `csv.read`, `csv.split` and `mgmt.add` work as before. Their helpers are private: `escape` in `csv` is no longer a global.
+* **`mgmt.trap` is `mgmt.cfg.trap`.** The settings are in the dictionary `mgmt.cfg`: `mgmt.cfg.pi`, `mgmt.cfg.ct`, `mgmt.cfg.probe` and `mgmt.cfg.trap`. Write one as `mgmt.cfg.ct::60`. A node gets `.mgmt.run`, `.mgmt.job` and `.mgmt.r`.
+* **The other names changed as follows.**
+
+| Library | 0.7 | Now |
+|---|---|---|
+| `math` | `pi0.5`, `pi1.5` | `pihalf`, `pi3half` |
+| `math` | `e.tlr`, `ln.tlr`, `ln.apx`, `ln.big` | `etlr`, `lntlr`, `lnapx`, `lnbig` |
+| `math` | `sin.tlr`, `sin.pos`, `gln.c` | `sintlr`, `sinpos`, `glnc` |
+| `nstat` | `rss.set`, `rse.set`, `mse.set`, `r2.set` | `rssset`, `rseset`, `mseset`, `r2set` |
+| `nstat` | `ln.pdf`, `ln.cdf`, `ln.qf`, `ln.mu`, `ln.M`, `ln.mo`, `ln.var`, `ln.skew` | `lnorm.pdf`, `lnorm.cdf`, `lnorm.qf`, `lnorm.mu`, `lnorm.M`, `lnorm.mo`, `lnorm.var`, `lnorm.skew` |
+| `nstat` | `F.pdf.n`, `F.pdf.d` | `Fpdfn`, `Fpdfd` |
+| `help` | `help.add`, `op.db` | `helpadd`, `opdb` |
+
+The distribution families of `nstat` (`n.cdf`, `t.pdf`, `F.pdf` and so on) are entries of dictionaries that `.l("nstat")` puts in your globals: `ct`, `f`, `u`, `r`, `geo`, `b`, `hyp`, `poi`, `n`, `lnorm`, `x2`, `t` and `F`. Assigning one of these names after loading `nstat` replaces the dictionary, and the family stops working. Use other names for your variables, or load `nstat` last.
+
+```kgpy
+?> .l("nstat");n.cdf(0;0;1)
+0.5
+?> n::5
+5
+?> n.cdf(0;0;1)
+error: n.cdf: n is not a dictionary (it is integer)
+```
+
+## Torch: `.bkx` and `.compile`
+
+The torch backend's `.export(fn;input;path)` is now `.bkx(fn;input;path)`, with the same arguments and result. `.export` belongs to the [module system](language-additions.md#modules), and a call with three arguments is an arity error. `.compile`, `.compilex` and `.cmodes` are removed; see [Other changes](#other-changes) for what to use.
+
+## Removed switches
+
+`KLONGPY_ENGINE`, `KLONGPY_PARSER` and `KLONGPY_IPC` do not exist. Setting them has no effect, and the old reading of the text that the parser switch gave is not available. `KlongInterpreter(parser=...)` accepts the argument and ignores it. The program `a::5;[a b]::[1 2];a` is 1 whatever the environment says. Remove these variables from scripts and service files.
+
+```console
+$ KLONGPY_PARSER=legacy kgpy -e 'a::5;[a b]::[1 2];a'
+1
+```
+
+## Bugs of 0.7 that 2 does not have
+
+These gave a wrong or failing result in 0.7. They are listed because a program that worked around one now gets the right result and may do the work twice.
+
+| Expression | 0.7 | Now |
+|---|---|---|
+| `[:a :b]?:b` | `[]` | `[1]` |
+| `[:a :b]?:a` | `[]` | `[0]` |
+| `&/"abc"` | an `AttributeError` | `0ca` |
+| `\|/"abc"` | an `AttributeError` | `0cc` |
+| `+/"abc"` | an error from NumPy | a `type` error: `cannot apply +/ (Plus-Over) to string` |
+| `["1234" "5678"]:@[0 1]` | an `IndexError` | `0c2` |
+| `,\"abc"` | `["a" "ab" "abc"]` | `[0ca "ab" "abc"]` |
+| `"abc"@1` | `"b"` | `0cb` |
+| `"abc"@-1` | `"c"` | `0cc` |
+
+Indexing a string with an integer gives a character, as in classic Klong, where 0.7 gave a one-character string. `*"abc"` is still the string `"a"`; see [Known bugs](differences.md#known-bugs). Indexing with a list of integers gives a string, as before: `"abc"@[0 1]` is `"ab"`. A program that compares an indexed character with a string needs `0cb` and not `"b"`; the two print differently and compare equal under `~` only in the cases that [Differences from Klong](differences.md#strings) lists.
 
 ## Strict mode
 
@@ -413,22 +526,9 @@ See [the web server](web_server.md#the-response).
 ## Other changes
 
 - **`.rls()` strips the line end.** It returned each line with its `\n`, and a program that cut it off with `-1_` now loses a real character. Remove that code.
-- **`.compile`, `.compilex` and `.cmodes` are removed.** They wrapped `torch.compile`, which needs a C++ compiler and cannot read a function that runs in the native engine. Use `.export(fn;input;path)`, which records the tensor operations the function executes, and compile the exported program with torch: `torch.compile(torch.export.load(path).module())`. A call to a removed function is an undefined-function error.
+- **`.compile`, `.compilex` and `.cmodes` are removed.** They wrapped `torch.compile`, which needs a C++ compiler and cannot read a function that the interpreter runs. Use `.bkx(fn;input;path)`, which records the tensor operations the function executes, and compile the exported program with torch: `torch.compile(torch.export.load(path).module())`. A call to a removed function is an undefined-function error.
 - **The Polygon and Alpaca examples are removed.** `examples/stocks/feed` is a simulated price feed that needs no account: a seeded random walk, a server with per-symbol subscriptions, and a consumer that computes a VWAP and a moving average.
 
 [Release notes](release-notes.md#system-functions) lists the fixes to system functions (`.sys`, `.timer`, `.webc`, `.kvs`, `.db`), the operators that used to crash, and the libraries that now work.
-
-## Keep the old reader
-
-The reader (the parser) has a switch for the old reading of the text. It is deprecated and kept for one release so the two can be compared, so use it to get a program running and then fix the program.
-
-```console
-$ kgpy -e 'a::5;[a b]::[1 2];a'
-1
-$ KLONGPY_PARSER=legacy kgpy -e 'a::5;[a b]::[1 2];a'
-5
-```
-
-From Python it is `KlongInterpreter(parser="legacy")`. It restores the old reading of the text: `[a b]::v` binds nothing, `f(a;b)::{...}` is a call, `"{"` is a syntax error, whitespace before the `;` of a conditional is an error, and left-over input is dropped without a warning. It does not bring back the old arity, projections, `:undefined`, division, operator or error behaviour, which are in the evaluator. Those have no switch.
 
 The rest of v2 is in [What's New in v2](whats-new-v2.md).

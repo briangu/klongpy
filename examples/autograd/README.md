@@ -416,8 +416,10 @@ The target is hit by two angles, because `sin(2*angle)` is the same for `angle` 
 
 **Run:**
 ```bash
-kgpy --backend torch gradcheck_demo.kg
+kgpy --backend torch --device cpu gradcheck_demo.kg
 ```
+
+`.gradcheck` needs the CPU device, so name it: on a machine with an Apple GPU the torch backend would otherwise select that one.
 
 **Expected output:**
 ```

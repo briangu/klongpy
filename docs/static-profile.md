@@ -380,7 +380,7 @@ not defined on fixed-point numbers; `x|-x` is the absolute value. Reductions and
 the operators they apply; an int constant seed (`0+/x`) converts exactly.
 
 Under KlongPy a program that uses `fixed<..>` runs through `klongpy.static.call_entry`, which evaluates the typed
-program on the scaled integers (`klongpy/static/eval_ir.py`): the interpreter has no fixed-point type. A
+program on the scaled integers: the interpreter has no fixed-point type. A
 fixed-point argument is a number or an array (or a `klongpy.static.fixed.FixedArray`), and the result is a float,
 or with `raw=True` the scaled integers that compiled code works on.
 
@@ -453,9 +453,9 @@ empty) and `result` is a type or `void`. Types: `int`, `float`, `int[N]`,
 - A `str` parameter takes a string literal.
 - The result of a `void` extern cannot be used as a value.
 
-### Running a static program under KlongPy
+### Running a static program under `kgpy`
 
-The same file runs in KlongPy with Python functions standing in for the
+The same file runs under `kgpy` with Python functions standing in for the
 externs:
 
 ```python
@@ -483,9 +483,14 @@ call_entry(klong, "step", 0.31)          # 0.12005, checked against the .entry s
 - Arguments and result are checked against the signature on every call: a float where an int is declared is a type error, a wrong array shape a shape error, a wrong number of arguments an arity error, each naming the extern and positioned at the call. Calling an extern that has no stand-in is a system error naming it. An exception raised by a stand-in is a python error.
 - `.entry` under KlongPy validates the declaration and records it; the function is called as usual. `call_entry` calls it the way compiled code is called, with arguments and result checked against the signature.
 
-### Running a static program in the native interpreter
+### Running a static program under `kg`
 
-The native runtime defines `.extern` and `.entry` with the same checks, the same canonical signature as the result and the same error kinds, so `examples/embedded/*.kg` loads and runs there as it stands. A host supplies an extern by registering a function of that name before the program declares it (`klong_cfun_register` in the C interface, `Interp::register` in Rust); the declared name then checks arguments and result against the signature and calls it. With none, a call is a `system` error. Known limits: a function registered after the `.extern` line replaces the declared name unchecked; a native function receives at most three arguments from a call, so a fourth argument to `.extern` itself is ignored and not an arity error; and `.fixed` is a `system` error that says fixed-point programs are not supported by the native interpreter, because the native values have no fixed-point kind (`fir_fixed.kg` runs under KlongPy or compiled). `.param` and `.float` are not defined natively.
+`kg` is the engine without Python, so it has no Python functions to stand in for externs. It defines `.extern`, `.entry` and `.param` with the same checks, the same canonical signature as the result and the same error kinds as `kgpy`, so `examples/embedded/*.kg` loads there as it stands. A call of an extern that has no stand-in is a `system` error that names it. A program that embeds the engine supplies an extern by registering a function of that name before the program declares it (`klong_cfun_register` in the C interface, `Interp::register` in Rust); the declared name then checks arguments and result against the signature and calls it.
+
+Known limits:
+
+- A function registered after the `.extern` line replaces the declared name unchecked.
+- `.fixed` is a `system` error under `kg`: fixed-point programs need the hosted engine, because the engine's own values have no fixed-point kind. `fir_fixed.kg` runs under `kgpy` or compiled.
 
 ## Differences from KlongPy
 

@@ -2,7 +2,18 @@
 
 This page tours what version 2 adds, from CPU and GPU to FPGA and microcontroller, and then the stable core. Each section is short and links to the page that covers it. If you have code written for 0.7, read [Migrating to v2](migrating-to-v2.md) as well. If you are new, start with [Start Here](getting-started.md).
 
-The status of each target (stable, passes conformance, subset, experimental) is in the table on the [home page](index.md#targets-and-status), and the hardware status is in the [native runtime status table](native/index.md#status-what-has-and-has-not-been-proven).
+## One engine, two commands
+
+KlongPy 2 evaluates Klong on one interpreter, written in Rust. The Python implementation of the language that 0.7 had, with its parser, evaluator, linter and checker, is gone. The same interpreter is in both commands and in the firmware for microcontroller boards, so a program means the same thing in all three.
+
+| Command | What it is |
+|---|---|
+| `kg` | The interpreter as one program with no Python in it. |
+| `kgpy` | The same interpreter hosted in Python: NumPy, PyTorch, calling Python, tables and SQL, the web server, websockets and the FPGA card functions. |
+
+`pip install klongpy` installs both. The tools `lint`, `check`, `compile c`, `fpga source` and `ast` are written in Rust and run from either command. There is no environment variable that selects an engine and there is no pure-Python version of KlongPy 2; the pure-Python line is 0.7. [What Runs Where](what-runs-where.md) lists which part does what for each command, backend and target.
+
+The status of each target (stable, passes conformance, subset, experimental) is in the table on the [home page](index.md#targets-and-status), and the hardware status is in the [status table of the board firmware](native/index.md#status-what-has-and-has-not-been-proven).
 
 ## CPU: the NumPy backend
 
@@ -21,13 +32,13 @@ The torch backend and the `:>` gradient operator are in 0.7. What changes in 2:
 
 A function of the static profile can be built into a kernel for an FPGA card and called from a KlongPy session with ordinary arrays. The same source runs interpreted, as C and on the card. This is experimental: it has run on one Alveo U250. See [Klong functions as FPGA hardware](hardware.md).
 
-## Microcontrollers: the native runtime and compiling to C
+## Microcontrollers: the interpreter and compiling to C
 
 Two routes put Klong on a small device.
 
-**The native runtime** is a second implementation of the language in Rust that runs without Python. It has a serial console and an upload command, kdb+ IPC, timers and a management node library. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board, and two Raspberry Pi Picos have run it with IPC between them. See [Native Runtime](native/index.md) and, for the details of what has run on hardware, its [status table](native/index.md#status-what-has-and-has-not-been-proven).
+**The interpreter on a board** is the same engine, built without Python for a microcontroller. It has a serial console and an upload command, kdb+ IPC, timers and a management node library. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board, and two Raspberry Pi Picos have run it with IPC between them. See [Native Runtime](native/index.md) and, for the details of what has run on hardware, its [status table](native/index.md#status-what-has-and-has-not-been-proven).
 
-**Compiling to C** takes a subset of Klong, the static profile, in which every type, shape and call target is known before the program runs. It compiles to freestanding C99 with no heap, no recursion and no C library. `kgpy check` tells you whether a file is inside the subset, and `kgpy compile c` writes the C. Three examples have run compiled on two Raspberry Pi Picos and agree with the interpreter; the two step functions run about 100 times faster than the interpreter on the same board ([on a Pico](embedded.md#on-a-pico)).
+**Compiling to C** takes a subset of Klong, the static profile, in which every type, shape and call target is known before the program runs. It compiles to freestanding C99 with no heap, no recursion and no C library. `check` tells you whether a file is inside the subset, and `compile c` writes the C; both are commands of `kg` and of `kgpy`. Three examples have run compiled on two Raspberry Pi Picos and agree with the interpreter; the two step functions run about 100 times faster than the interpreter on the same board ([on a Pico](embedded.md#on-a-pico)).
 
 <!-- check-docs: link examples -->
 ```console
@@ -39,12 +50,12 @@ See [Compiling Klong to C](embedded.md) and [The Static Profile](static-profile.
 
 ## One language on every target: the conformance suite
 
-The `conformance/` directory holds about 1,500 test cases that do not depend on any implementation: a program, and the text the REPL prints or the kind of error it raises. KlongPy is the reference, and the native runtime runs the same files with no Python. See [Conformance Suite](conformance.md).
+The `conformance/` directory holds test cases that do not depend on any implementation: a program, and the text the REPL prints or the kind of error it raises. The same files run through `kgpy`, through `kg` and on the board firmware. See [Conformance Suite](conformance.md).
 
 <!-- check-docs: link conformance -->
 ```console
-$ python conformance/run.py | tail -n 1
-1708 passed, 0 failed, 0 skipped by tags (KlongPy (in process))
+$ python conformance/run.py | tail -n 1 | grep -o '[0-9]* failed'
+0 failed
 ```
 
 ## The stable core
@@ -77,7 +88,7 @@ Classic Klong programs run as before. v2 adds forms for things that needed worka
 12
 ```
 
-**Dictionary literals and access.** `:{;k;v;k;v}` builds a dictionary from expressions. `d@k` looks a key up, `d@[k1 k2]` looks up several, and `d,d2` merges.
+**Dictionary literals and access.** `:{;k;v;k;v}` builds a dictionary from expressions. `d@k` looks a key up, `d@[k1 k2]` looks up several, `d.k` is `d@"k"`, and `d,d2` merges.
 
 ```kgpy
 ?> n::7
@@ -99,6 +110,14 @@ Classic Klong programs run as before. v2 adds forms for things that needed worka
 :monad
 ?> inc'[10 20 30]
 [11 21 31]
+```
+
+**Modules.** A file that ends with `.export` is a module. `.import` runs it in a scope of its own and returns what it exported, and `a.b` reads or writes the entry `"b"` of any dictionary. See [Modules](language-additions.md#modules).
+
+```console
+$ printf 'sq(v)::{v*v}\n.export(:{;"sq";sq})\n' > geom.kg
+$ kgpy -e 'geom::.import("./geom");geom.sq(4)'
+16
 ```
 
 **Text functions.** `.split`, `.join`, `.words`, `.trim` and `.num` do what every program otherwise writes for itself, and `.pf` and `.fmt` fill a template. `.num` gives `:undefined` for text that is not a number.

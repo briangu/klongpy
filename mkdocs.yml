@@ -61,7 +61,7 @@ nav:
   - Project:
       - Design Principles: 'design-principles.md'
       - Roadmap: 'roadmap.md'
-      - Expression Compiler Notes: 'compiler-roadmap.md'
+      - Compiler Notes: 'compiler-roadmap.md'
       - Contributing: 'contributing.md'
 
 # Theme configuration

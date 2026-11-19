@@ -5,10 +5,12 @@ A program of twelve files: seeded synthetic prices, two trading strategies behin
 Run it from this directory:
 
 ```
-klong main.kg
+kg main.kg
 ```
 
-It prints the text in `EXPECTED.txt`. Each program in `errors/` stops with the error named for it (`klong errors/readonly.kg`), and `classic_load.kg` shows `.l` on a file that is a module: it binds the module to the file's name, as `name::.import("name")` does.
+`kgpy main.kg` prints the same.
+
+It prints the text in `EXPECTED.txt`. Each program in `errors/` stops with the error named for it (`kg errors/readonly.kg`), and `classic_load.kg` shows `.l` on a file that is a module: it binds the module to the file's name, as `name::.import("name")` does.
 
 ## The module system in four lines
 
@@ -37,7 +39,7 @@ Importing the same file again gives the same module (the cache key is the real p
 | `strategy/*.kg` | two strategies with one interface (`name`, `signal`, `step`, `describe`); a registry holding modules as values |
 | `report/table.kg` | the text of the report; imports `csv` inside a function, so the library loads when the function runs and is let go when it returns; re-exports two functions of `stats` under other names |
 | `legacy.kg` | a classic file, loaded with `.l`: its names are plain globals and do not meet the modules' |
-| `static/ma4.kg` | the static compiler through a module: `klong compile c static/ma4.kg` resolves `stats.ma4` at compile time |
+| `static/ma4.kg` | the static compiler through a module: `kg compile c static/ma4.kg` resolves `stats.ma4` at compile time |
 | `errors/*.kg` | one program per error: read-only import, missing entry, private helper, cycle, no `.export`, undefined name, a name that is not a dictionary |
 
 ## What to copy into your own program

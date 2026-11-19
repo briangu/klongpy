@@ -1,6 +1,6 @@
 # Python Integration
 
-KlongPy runs inside Python: Klong code can call Python functions, Python code can call Klong functions, and both read and write the same variables. This page is for someone embedding the interpreter in a Python program or using Python libraries from Klong.
+The `kgpy` command and the `KlongInterpreter` class host the same Rust engine inside Python. Klong code can call Python functions, Python code can call Klong functions, and both read and write the same variables. This page is for someone embedding the interpreter in a Python program or using Python libraries from Klong.
 
 The interpreter object behaves like a dictionary: `klong['name'] = value` defines a name for Klong code, and `klong['name']` reads one back. A Python function or lambda stored this way is a Klong function.
 

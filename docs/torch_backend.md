@@ -186,16 +186,16 @@ These functions exist only on the torch backend. They export a Klong function's 
 
 | Function | Does |
 |---|---|
-| `.export(fn;input;path)` | Runs `fn` once on `input`, records every tensor operation it executes (`torch.export`, non-strict), saves the exported program to `path` and returns a dictionary with `compiled_fn` (the exported module), `export_path`, `graph` (its text) and `graph_module`. |
+| `.bkx(fn;input;path)` | Runs `fn` once on `input`, records every tensor operation it executes (`torch.export`, non-strict), saves the exported program to `path` and returns a dictionary with `compiled_fn` (the exported module), `export_path`, `graph` (its text) and `graph_module`. |
 | `.gradcheck(fn;input)` | Returns 1 when the autograd gradient of `fn` at `input` matches the numeric one. CPU only. |
 
 ```klong
 f(t)::{t^2}
-info::.export(f;3.0;"model.pt2")
+info::.bkx(f;3.0;"model.pt2")
 .gradcheck(f;3.0)                            :" 1
 ```
 
-`.export` works the same on the Python and the native engine, because it records what the function does and does not read its source. The file is read back with `torch.export.load(path).module()`. To compile the function, compile that module: `torch.compile(torch.export.load("model.pt2").module())`. If torch cannot export the function (a branch on a tensor's value), `export_path` is empty and `export_error` holds the reason.
+`.bkx` records what the function does and does not read its source. (`.export` is not this function: it belongs to the [module system](language-additions.md#modules).) The file is read back with `torch.export.load(path).module()`. To compile the function, compile that module: `torch.compile(torch.export.load("model.pt2").module())`. If torch cannot export the function (a branch on a tensor's value), `export_path` is empty and `export_error` holds the reason.
 
 ## Troubleshooting
 

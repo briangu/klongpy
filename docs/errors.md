@@ -207,7 +207,7 @@ except KlongSyntaxWarning as w:
 
 `warnings.simplefilter("error")`, `python -W error` and `pytest -W error::klongpy.KlongSyntaxWarning` work as well. `python -W error::klongpy.KlongSyntaxWarning` does not, and neither does `PYTHONWARNINGS=error::klongpy.KlongSyntaxWarning`. Python resolves the category name while it starts, before `klongpy` can be imported (importing it needs numpy), so it prints `Invalid -W option ignored: invalid module name: 'klongpy'` and the filter is not installed. Install the filter from code, as above, or use `-W error` for all warnings.
 
-These warnings come from the default parser. The deprecated older parser, selected with `KLONGPY_PARSER=legacy` (see [Migrating to v2](migrating-to-v2.md)), accepts the same input silently at every level.
+The engine issues these warnings after it parses the program and before it runs the first statement, so a program that warns has not yet done anything. There is no switch that turns the warnings off except the Python filter above, and strict levels 1 and 2 make each one an error.
 
 ## Interrupt
 

@@ -18,10 +18,16 @@ An error is shown as `error: message`, without the position the REPL adds; see [
 | `.bkp(x)` | Backend-Print | Print a value in the backend's own format, followed by a newline. |
 | `.x(x)` | Exit | Exit the interpreter with a success or failure status. |
 | `.l(x)` | Load | Load and run a Klong source file, searching `KLONGPATH` and then the directory of the calling file. |
+| `.import(x)` | Import | Run a Klong file as a module in its own scope and return the dictionary it exports. |
+| `.export(x)` | Export | Name the dictionary a module file gives to `.import`. |
 | `.module(x)` | Module | Mark the start or end of a module; `.module(:name)` opens one and `.module(0)` closes it. |
 | `.pc()` | Process-Clock | Return the process time used so far, in seconds. |
 | `.rn()` | Random-Number | Return a random real number in 0 <= x < 1. |
 | `.sys(x)` | System | Run a shell command and return its exit code. |
+| `.try(x;y)` | Try | Call a function with a list of arguments and give the outcome as a value, `[1 result]` or `[0 kind message]`. |
+| `.err(x;y)` | Error | Fail with an error of a given kind and message (the inverse of `.try`). |
+| `.mem()` | Memory | The memory the native interpreter uses: bytes in use, the most that was in use, the limit. |
+| `.ver()` | Version | A dictionary that describes the interpreter: version, integer and float widths, features, platform. |
 
 ### `.E`
 
@@ -222,6 +228,42 @@ or "." character.
 used to load the value of a single expression from a file.
 ```
 
+### `.import`
+
+`.import(x)` [Import]
+
+```text
+.import(x;y)
+
+Run the Klong file "x" (a string) as a module in a scope of its own
+and return the dictionary it passed to .export. The result is
+read-only from outside. A module is run once and kept while anything
+refers to it. "y" is a list of names: only those entries are
+returned, and a missing one is an error.
+
+A bare name is searched in the directories of KLONGPATH, a path with a
+directory is taken as it is, and a relative path is taken from the
+directory of the file that imports. A dictionary entry is read as
+m.name, which is m@"name".
+
+Examples:   m::.import("stats")
+            m.mean([1 2 3])
+            .import("stats";["mean"])
+```
+
+### `.export`
+
+`.export(x)` [Export]
+
+```text
+Name the dictionary "x" as what the file gives to .import: the
+module's interface. A file calls it once, last; the other names of
+the file stay private to it.
+
+Example:   mean::{(+/x)%#x}
+           .export(:{["mean" mean]})
+```
+
 ### `.module`
 
 `.module(x)` [Module]
@@ -282,6 +324,56 @@ The exit code is returned as an integer. Output of the command goes to the termi
 0
 ?> .sys("false")
 1
+```
+
+### `.try`
+
+`.try(x;y)` [Try]
+
+```text
+Call the function "x" with the list of arguments "y" and return the
+outcome as a value: [1 result] when the call worked, or
+[0 kind message] when it failed with a Klong error ("kind" is
+syntax, name, arity, type, shape, range, system, memory, internal
+or remote). An interrupt (Ctrl-C) and .x are not caught.
+
+Examples:   .try({x+1};[1])        -->  [1 2]
+            .try({x+1};["a"])      -->  [0 "type" "cannot apply + (Plus) to string and integer"]
+```
+
+### `.err`
+
+`.err(x;y)` [Error]
+
+```text
+Fail with an error of the kind "x" (a string or symbol: syntax, name,
+arity, type, shape, range, system, memory, internal or remote) and the
+message "y", a string. It is the inverse of .try: a value that was an
+error on another node can be passed on as what it was.
+
+Example:   .err("range";"too big")
+```
+
+### `.mem`
+
+`.mem()` [Memory]
+
+```text
+The memory the native interpreter uses: a list of three integers,
+the bytes in use, the most that was in use, and the limit (0 where
+there is none, as on the desktop and under KlongPy).
+```
+
+### `.ver`
+
+`.ver()` [Version]
+
+```text
+A dictionary that describes the interpreter: "version" (a string),
+"int" and "float" (the widths in bits), "features" (a list of
+strings) and "platform".
+
+Example:   (.ver())@"version"
 ```
 
 ## Reading and files
@@ -1087,6 +1179,7 @@ Defined in the base interpreter. See [IPC Capabilities](ipc_capabilities.md).
 | `.clid(x)` | Create-IPC-dict-client | Connect to a KlongPy IPC server and return a dictionary backed by its variables. |
 | `.clic(x)` | Close-IPC-client | Close a connection opened by `.cli` or `.clid`. |
 | `.async(x;y)` | Async-function-wrapper | Wrap a function so that it runs asynchronously and calls a completion function. |
+| `.cli.h` | Client-Handle | The handle of the client whose request is being evaluated. |
 
 ### `.srv`
 
@@ -1186,6 +1279,15 @@ lost connection is logged and "y" is not called. With a connection the
 wrapper takes the one request argument, as the connection does.
 ```
 
+### `.cli.h`
+
+`.cli.h` [Client-Handle]
+
+```text
+While a request of a client is evaluated, the handle of that client
+(as .srv.o and .srv.c are given it); undefined at any other time.
+```
+
 ## Autograd
 
 Defined in the base interpreter; most need the PyTorch backend. See [PyTorch Backend and Autograd](torch_backend.md).
@@ -1194,7 +1296,7 @@ Defined in the base interpreter; most need the PyTorch backend. See [PyTorch Bac
 |------|-------|-------------|
 | `.jacobian(x;y)` | Jacobian | Jacobian of a function at a point. |
 | `.gradcheck(x;y)` | Gradcheck | Check autograd gradients against numeric ones (PyTorch backend). |
-| `.export(x;y;z)` | Export | Export a function's computation graph to a file (PyTorch backend). |
+| `.bkx(x;y;z)` | Backend-Export | Export a function's computation graph to a file (PyTorch backend). |
 
 ### `.jacobian`
 
@@ -1241,9 +1343,9 @@ Notes:
     - Useful for verifying custom gradient implementations
 ```
 
-### `.export`
+### `.bkx`
 
-`.export(x;y;z)` [Export]
+`.bkx(x;y;z)` [Backend-Export]
 
 ```text
 Export a function's computation graph to a file for inspection.
@@ -1262,7 +1364,7 @@ Returns:
 
 Examples:
     f::{x^2}
-    info::.export(f;3.0;"model.pt2")
+    info::.bkx(f;3.0;"model.pt2")
     .p(info@"graph")              :" Print computation graph
 
 Notes:

@@ -1,29 +1,37 @@
 # KlongPy 2: one array language from CPU and GPU to FPGA and microcontroller
 
-KlongPy is an implementation of [Klong](https://t3x.org/klong), an [array language](https://en.wikipedia.org/wiki/Array_programming), in Python. You write `+/a` for the sum of an array instead of a loop. It is for array and time-series work, for people coming from NumPy or kdb+/q, for gradient-based work, and for small devices. Source code: [briangu/klongpy](https://github.com/briangu/klongpy).
+KlongPy is an implementation of [Klong](https://t3x.org/klong), an [array language](https://en.wikipedia.org/wiki/Array_programming). You write `+/a` for the sum of an array instead of a loop. It is for array and time-series work, for people coming from NumPy or kdb+/q, for gradient-based work, and for small devices. Source code: [briangu/klongpy](https://github.com/briangu/klongpy).
+
+KlongPy 2 runs Klong on one interpreter, written in Rust. Two commands start it:
+
+| Command | What it is |
+|---|---|
+| `kgpy` | The interpreter hosted in Python: NumPy and PyTorch arrays, calling Python, tables and SQL, the web server, websockets and FPGA cards. |
+| `kg` | The same interpreter as one program with no Python. |
+
+The same interpreter is in firmware for microcontroller boards, and the tools `lint`, `check`, `compile c`, `fpga source` and `ast` run from either command. [What Runs Where](what-runs-where.md) says which part does what.
 
 ## Targets and status
 
 | Target | Status | More |
 |---|---|---|
-| CPU (NumPy backend) | stable | [Start Here](getting-started.md) |
+| CPU (`kg`, and `kgpy` with NumPy) | stable; passes the conformance suite | [Start Here](getting-started.md) |
 | GPU (PyTorch backend, autograd) | stable on the CPU, which the automated tests cover; Apple MPS has been run by hand and CUDA not at all, and neither is in the automated tests | [PyTorch Backend and Autograd](torch_backend.md) |
-| Native interpreter (desktop) | passes the conformance suite | [Native Runtime](native/index.md) |
-| Compile to C (static profile) | works for a subset of the language; three examples run on Raspberry Pi Picos | [Compiling Klong to C](embedded.md) |
-| Microcontrollers (native interpreter) | experimental; run on an ESP32-P4 and on two Raspberry Pi Picos | [Native Runtime status](native/index.md#status-what-has-and-has-not-been-proven) |
+| Compile to C (static profile) | works for a subset of the language; compiled C has run with desktop compilers and, for three examples, on two Raspberry Pi Picos | [Compiling Klong to C](embedded.md) |
+| Microcontrollers (the interpreter in firmware) | experimental; the console test suite and the REPL have run on an ESP32-P4, and IPC between two Raspberry Pi Picos; nothing else has run | [Native Runtime status](native/index.md#status-what-has-and-has-not-been-proven) |
 | FPGA kernels | experimental; run on one Alveo U250 | [Klong functions as FPGA hardware](hardware.md) |
 
-KlongPy and the native Rust runtime run a [conformance suite](conformance.md) of about 1,500 cases. The C and FPGA paths compile a subset of the language, and that subset is checked against the interpreter.
+The interpreter runs a [conformance suite](conformance.md) of more than 2,000 cases through `kgpy`, through `kg` and on the board firmware. The C and FPGA paths compile a subset of the language, and that subset is checked against the interpreter.
 
 ## Install
 
 ```bash
-pip install klongpy              # the interpreter and the kgpy command (NumPy backend)
+pip install klongpy              # the kgpy and kg commands (NumPy arrays)
 pip install "klongpy[torch]"     # the torch backend: GPU arrays and gradients
 pip install "klongpy[all]"       # torch, tables, web, WebSockets
 ```
 
-The REPL needs no extra: `kgpy` starts it, and `kgpy --backend torch` selects the torch backend. [Start Here](getting-started.md#install) says what each extra is for.
+KlongPy 2 needs Python 3.11 to 3.14. The REPL needs no extra: `kgpy` or `kg` starts it, and `kgpy --backend torch` selects the torch backend. [Start Here](getting-started.md#install) says what each extra is for.
 
 ## A first session
 
@@ -38,7 +46,7 @@ An expression is read from right to left. `!5` is the list 0 to 4, `+/` sums a l
 499999.5
 ```
 
-From Python, a Klong function is a Python callable:
+`kg` takes the same expressions. From Python, a Klong function is a Python callable:
 
 ```python
 import numpy as np
@@ -54,6 +62,8 @@ print(klong['avg'](np.arange(10.0)))   # 4.5
 * **New to array languages:** [Start Here](getting-started.md), then the [Tutorial](tutorial.md) and [Examples](examples.md).
 * **From NumPy:** [Klong for NumPy Users](from-numpy.md).
 * **From kdb+ or q:** [Klong for q Users](from-kdb.md) and [IPC Capabilities](ipc_capabilities.md).
+* **Which command to run:** [What Runs Where](what-runs-where.md).
+* **Splitting a program into files:** [Modules](language-additions.md#modules).
 * **Upgrading from 0.7:** [What's New in v2](whats-new-v2.md), [Migrating to v2](migrating-to-v2.md) and [Release Notes](release-notes.md).
 * **Embedding in Python:** [Python Integration](python_integration.md) and [PyTorch Backend and Autograd](torch_backend.md).
 * **Small devices and hardware:** [Native Runtime](native/index.md), [Compiling Klong to C](embedded.md) and [Klong functions as FPGA hardware](hardware.md).

@@ -1,13 +1,14 @@
 # Release Notes
 
-This page is the complete list of changes in version 2 compared with 0.7. [What's new in v2](whats-new-v2.md) is the tour of the features, and [Migrating to v2](migrating-to-v2.md) lists what to change in an existing program. In this page "0.7" means KlongPy 0.7.0, and "before" means that version. Where the old behaviour was an unrelated Python error, only its kind is given.
+This page is the complete list of changes in version 2 compared with 0.7, the last pure-Python line. [What's new in v2](whats-new-v2.md) is the tour of the features, and [Migrating to v2](migrating-to-v2.md) lists what to change in an existing program. In this page "0.7" means KlongPy 0.7.0, and "before" means that version. Where the old behaviour was an unrelated Python error, only its kind is given.
 
 ## 2.0.0rc1
 
 ### Headline additions
 
-* The [native runtime](native/index.md): the language in Rust, without Python, for desktops and boards.
-* The [conformance suite](conformance.md): about 1,500 cases that every implementation must pass.
+* [One interpreter, written in Rust](what-runs-where.md), behind two commands: `kgpy` (hosted in Python) and `kg` (no Python). The same interpreter runs on [microcontroller boards](native/index.md).
+* [Modules](language-additions.md#modules): `.import`, `.export` and qualified names `a.b`.
+* The [conformance suite](conformance.md): more than 2,000 cases that every build of the interpreter must pass.
 * The [static profile](static-profile.md) and [compiling Klong to C](embedded.md).
 * [FPGA kernels](hardware.md), experimental.
 * [Strict modes](strict.md), levels 0, 1 and 2.
@@ -18,11 +19,38 @@ This page is the complete list of changes in version 2 compared with 0.7. [What'
 * A [REPL](repl.md) with multi-line entry, history, completion and `it`.
 
 
+#### One interpreter
+
+**New: KlongPy evaluates Klong on an interpreter written in Rust.** 0.7 had a Python implementation of the language. Version 2 has none: the parser, the evaluator, the linter, the static checker and the compilers are Rust, and `kgpy` hosts them in Python. `kgpy` keeps what only Python can give: NumPy and PyTorch arrays, calling Python, tables and SQL, the web server, websockets and the FPGA card functions. See [What Runs Where](what-runs-where.md).
+
+**New: `kg`, the interpreter without Python.** `pip install klongpy` installs it next to `kgpy`. It runs files, expressions and a REPL, and starts in a few milliseconds. A function that needs Python reports that it needs `kgpy`:
+
+```text
+$ kg -e '.py("math")'
+1:1: name error: .py needs kgpy (the Python-hosted command)
+  .py("math")
+  ^^^^^^^^^^^
+```
+
+**The tools are in the interpreter.** `lint`, `check`, `compile c`, `fpga source` and `ast` are the same Rust code under `kg` and `kgpy`, and they print the same text.
+
+**There is no pure-Python version of 2.** `import klongpy` needs its compiled extension, and the error says how to get it: a wheel carries it, and a source tree builds it with `pip install -e .`, which needs a Rust toolchain. The Python modules of the old implementation (`klongpy.parser`, `klongpy.lexer`, `klongpy.compiler`, `klongpy.monads`, `klongpy.dyads` and `klongpy.adverbs`) do not exist. The Python API (`KlongInterpreter`, the error classes, the backends) is kept.
+
+#### Modules
+
+**New: `.import`, `.export` and qualified names.** A file that ends with `.export(dict)` is a module. `m::.import("./name")` runs it in a scope of its own and returns the dictionary it exported, read-only, and `a.b` is `a@"b"` for reading, writing and calling on any dictionary. `.l` of a module binds it to the file's name. See [Modules](language-additions.md#modules); `examples/modules` is a program of twelve files.
+
+```console
+$ printf 'sq(v)::{v*v}\n.export(:{;"sq";sq})\n' > geom.kg
+$ kgpy -e 'geom::.import("./geom");geom.sq(4)'
+16
+```
+
 #### Static Klong and C
 
-**New: a subset of Klong that compiles to C.** [The static profile](static-profile.md) is the part of the language in which every type, shape and call target is known before the program runs. `kgpy check FILE...` checks files against it without running them, and `kgpy compile c FILE... -o DIR` compiles a program inside it to freestanding C99 with no heap, no recursion and no C library. `.extern("name";"int -> float")` declares a function the target provides, and `.entry("name";"float -> float")` declares one the host calls. Under KlongPy an extern is a Python function (`klong.externs["name"] = f`), and `klongpy.static.load_program` and `call_entry` run a program the way the compiled one is called. A program that uses neither is unaffected. See [Compiling Klong to C](embedded.md).
+**New: a subset of Klong that compiles to C.** [The static profile](static-profile.md) is the part of the language in which every type, shape and call target is known before the program runs. `check FILE...` checks files against it without running them, and `compile c FILE... -o DIR` compiles a program inside it to freestanding C99 with no heap, no recursion and no C library. `.extern("name";"int -> float")` declares a function the target provides, and `.entry("name";"float -> float")` declares one the host calls. Under KlongPy an extern is a Python function (`klong.externs["name"] = f`), and `klongpy.static.load_program` and `call_entry` run a program the way the compiled one is called. A program that uses neither is unaffected. See [Compiling Klong to C](embedded.md).
 
-**The native runtime defines `.entry` and `.extern` with the checks and errors of KlongPy.** A program of the static profile loads there unchanged, and an extern resolves to a host function registered under its name. `.fixed` is an error there, because the native interpreter does not support fixed-point programs.
+**`.entry` and `.extern` have the same checks under `kg` and `kgpy`.** A program of the static profile loads unchanged, and an extern resolves to a host function registered under its name. Fixed-point programs (`.fixed`) run under `kgpy`; under `kg` `.fixed` is a system error.
 
 **Compiled C has run on two Raspberry Pi Picos.** `mavg.kg`, `pid.kg` and `fir.kg`, compiled to C and linked into the firmware, agree with the interpreter on both boards. The compiled code runs about 100 times faster than the interpreter on the two step functions, and the interpreter cannot load `fir.kg` on that board. The C has run on no other device. See [On a Pico](embedded.md#on-a-pico).
 
@@ -99,7 +127,7 @@ See [Language additions](language-additions.md) for the forms. These are the cha
 
 **New: `.fmt`, `.pf` and `.grad`.** `.fmt(template;args)` and `.pf(template;args)` format text with `{}` placeholders, and `.grad(f;x)` is the ASCII name of `x∇f`. A template with no placeholders needs no arguments, as in `.pf("done")`. A width with a leading zero, such as `{:05}`, is a range error, because a width pads with spaces. See [Language Additions](language-additions.md#formatted-text).
 
-**New: `.split`, `.join`, `.words`, `.trim` and `.num`.** Five system functions for text, the same in KlongPy and the native runtime: `.split(s;sep)` and its inverse `.join(list;sep)`, `.words(s)`, `.trim(s)`, and `.num(s)`, which reads a number from the whole string and gives `:undefined` for anything else, where `.rs` stops after the first object. See [Language Additions](language-additions.md#strings).
+**New: `.split`, `.join`, `.words`, `.trim` and `.num`.** Five system functions for text, the same under `kg` and `kgpy`: `.split(s;sep)` and its inverse `.join(list;sep)`, `.words(s)`, `.trim(s)`, and `.num(s)`, which reads a number from the whole string and gives `:undefined` for anything else, where `.rs` stops after the first object. See [Language Additions](language-additions.md#strings).
 
 **New: `.json` and `.unjson`.** `.json(x)` is the JSON text of a value and `.unjson(s)` the value of JSON text; neither needs a package. `null` reads as `:undefined`, and text that is not exactly one JSON value is a range error with its position. See [JSON](language-additions.md#json).
 
@@ -495,6 +523,61 @@ Fix: a function literal passed as an argument is evaluated where it stands, so `
 
 
 
+#### Names with a dot, and dictionary literals
+
+**A name with a dot is a qualified name, not a variable.** In 0.7 `a.b::5` defined a variable named `a.b`. Now `a.b` is `a@"b"`, so `a` must be a dictionary, and a program that wrote dotted names as variables fails with a name error that says so. Use a plain name or an entry of a dictionary. [`kgpy lint`](lint.md#w021-abv-where-a-is-not-a-dictionary) finds these writes (W021).
+
+```kgpy
+?> a.b::5
+error: a is not defined (a.b means a@"b")
+?> a:::{}
+:{}
+?> a.b::5
+5
+?> a
+:{["b" 5]}
+```
+
+**The dictionary literal rejects more.** An operator or a function as a key, and an entry of the plain literal that is not exactly `[key value]`, are syntax errors found before the program runs. They were accepted: `:{[1 2 3]}` was the entry `1:2`, and `:{[1]}` was an `IndexError`.
+
+```kgpy
+?> :{[1 2 3]}
+error: each entry of a dictionary literal must be a [key value] pair
+?> :{[+ 1]}
+error: an operator cannot be a dictionary key
+```
+
+#### Libraries and modules
+
+**`csv` and `mgmt` are modules.** `.l("csv")` and `.l("mgmt")` bind the module to the file's name, so `csv.read` and `mgmt.add` work as before. Their helper names are private. `mgmt.trap` is `mgmt.cfg.trap`, and the other settings are in the dictionary `mgmt.cfg` (`mgmt.cfg.pi`, `mgmt.cfg.ct`, `mgmt.cfg.probe`). On a node the three names that `mgmt` installs are `.mgmt.run`, `.mgmt.job` and `.mgmt.r`.
+
+**Dotted helper names in the other libraries are renamed**, because a dotted name is now a qualified name:
+
+| Library | 0.7 | Now |
+|---|---|---|
+| `math` | `pi0.5`, `pi1.5` | `pihalf`, `pi3half` |
+| `math` | `e.tlr`, `ln.tlr`, `ln.apx`, `ln.big` | `etlr`, `lntlr`, `lnapx`, `lnbig` |
+| `math` | `sin.tlr`, `sin.pos`, `gln.c` | `sintlr`, `sinpos`, `glnc` |
+| `nstat` | `rss.set`, `rse.set`, `mse.set`, `r2.set` | `rssset`, `rseset`, `mseset`, `r2set` |
+| `nstat` | the lognormal family `ln.pdf`, `ln.cdf`, `ln.qf`, `ln.mu`, `ln.M`, `ln.mo`, `ln.var`, `ln.skew` | `lnorm.pdf`, `lnorm.cdf`, `lnorm.qf`, `lnorm.mu`, `lnorm.M`, `lnorm.mo`, `lnorm.var`, `lnorm.skew` |
+| `nstat` | `F.pdf.n`, `F.pdf.d` | `Fpdfn`, `Fpdfd` |
+| `help` | `help.add`, `op.db` | `helpadd`, `opdb` |
+
+The distribution families of `nstat` (`n.cdf`, `t.pdf`, `F.pdf` and the rest) are now entries of dictionaries named `ct`, `f`, `u`, `r`, `geo`, `b`, `hyp`, `poi`, `n`, `lnorm`, `x2`, `t` and `F`, which `.l("nstat")` creates in your globals. A program that assigns one of these names after loading `nstat` replaces the dictionary, and the family's functions fail with a type error.
+
+```kgpy
+?> .l("nstat");n.cdf(0;0;1)
+0.5
+?> n::5
+5
+?> n.cdf(0;0;1)
+error: n.cdf: n is not a dictionary (it is integer)
+```
+
+#### Removed switches
+
+**There is no engine switch and no parser switch.** `KLONGPY_ENGINE`, `KLONGPY_PARSER` and `KLONGPY_IPC` do not exist; a program or an environment that sets them is not affected, and they have no effect. `KlongInterpreter(parser=...)` accepts the argument and ignores it. The old reading of the text that the parser switch gave is not available: `a::5;[a b]::[1 2];a` is 1.
+
 #### Messages changed
 
 A program that matches on message text needs the new text.
@@ -506,7 +589,7 @@ error: undefined function: f
 error: malformed number '1.2.3'
 ```
 
-These were `undefined: f` and a `ValueError` from `float()`. The error carries its position, its kind and the source: see [Reading an error](errors.md#reading-an-error).
+These were `undefined: f` and a `ValueError` from `float()`. Some texts name the kind of an operand now, where they gave its value: `5.2$3` reports `got integer`, and a list as a dictionary key reports `a list cannot be a dictionary key`. The error carries its position, its kind and the source: see [Reading an error](errors.md#reading-an-error).
 
 
 #### Command line
@@ -561,7 +644,7 @@ client?> f("1+1")
 
 **`.rls()` strips the line end from each line.** The lines kept their `\n`.
 
-**`.compile`, `.compilex` and `.cmodes` are removed.** They wrapped `torch.compile`, which needs a C++ compiler and cannot read a function that runs in the native engine. `.export(fn;input;path)` stays and now works the same way on both engines: the function is run once and every tensor operation it executes is recorded with `torch.export` (non-strict). To compile a function, export it and compile the exported program with torch: `torch.compile(torch.export.load(path).module())`. Calling a removed function is the ordinary undefined-function error.
+**`.compile`, `.compilex` and `.cmodes` are removed.** They wrapped `torch.compile`, which needs a C++ compiler and cannot read a function that the interpreter runs. Calling a removed function is the ordinary undefined-function error. The torch backend's `.export(fn;input;path)` is now `.bkx(fn;input;path)`: the function is run once and every tensor operation it executes is recorded with `torch.export` (non-strict). To compile a function, export it and compile the exported program with torch: `torch.compile(torch.export.load(path).module())`. `.export` belongs to the [module system](language-additions.md#modules); with three arguments it is an arity error.
 
 **The two broker examples are removed.** `examples/stocks` had a feed from Polygon and one from Alpaca, and both needed an account. A simulated price feed replaces them: a seeded random walk, a server that publishes each trade to the clients subscribed to its symbol, and a consumer that computes a volume-weighted average price and a moving average. It needs only `pip install klongpy`. See [`examples/stocks/feed`](https://github.com/briangu/klongpy/tree/main/examples/stocks/feed).
 
@@ -575,7 +658,7 @@ These were crashes, hangs or wrong results in 0.7 on features that existed then.
 
 #### Operators and the parser
 
-**`&[]` is `[]` on the NumPy backend.** Where of an empty list was a type error, although the manual says it returns nil and the torch backend and the native runtime did. `d_k` on a dictionary, the wrong order for removing a key, now says in a hint that the key goes on the left, `k_d`.
+**`&[]` is `[]` on the NumPy backend.** Where of an empty list was a type error, although the manual says it returns nil and the torch backend and the interpreter on boards did. `d_k` on a dictionary, the wrong order for removing a key, now says in a hint that the key goes on the left, `k_d`.
 
 **An adverb that does not touch its verb is a syntax error when the text is parsed.** It used to fail with a `KeyError` when it was evaluated, so a function that contained one only failed when called.
 
@@ -611,7 +694,7 @@ error: :#: segment sizes must be positive, got 0
 [12 :undefined]
 ```
 
-**Several operators that crashed or looped now return a value or a Klong error.** `$[1 2 3]` recursed until Python stopped it. `|5` was a `TypeError`. `&/"abc"` and `+/"abc"` failed on a string. `[2 2]:^[]` and `5:^[]` raised a `ZeroDivisionError`. A dictionary joined with something that is not a two-member list was silently ignored.
+**Several operators that crashed or looped now return a value or a Klong error.** `$[1 2 3]` recursed until Python stopped it. `|5` was a `TypeError`. `&/"abc"` and `+/"abc"` failed on a string; they now give `0ca` and a type error. `[2 2]:^[]` and `5:^[]` raised a `ZeroDivisionError`. A dictionary joined with something that is not a two-member list was silently ignored.
 
 ```kgpy
 ?> $[1 2 3]
@@ -619,9 +702,9 @@ error: :#: segment sizes must be positive, got 0
 ?> |5
 5
 ?> &/"abc"
-"a"
+0ca
 ?> +/"abc"
-"abc"
+error: cannot apply +/ (Plus-Over) to string
 ?> [2 2]:^[]
 error: :^: cannot fill a non-empty shape from an empty source
 ?> :{[1 2]},[1 2 3]

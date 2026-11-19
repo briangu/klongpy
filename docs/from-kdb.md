@@ -34,7 +34,7 @@ q){x+z}[1;2;3]
 4
 ```
 
-Klong is smaller than q. It has integers, floats (doubles), characters, strings, symbols, lists, dictionaries and functions. It has no boolean, no temporal types, no typed nulls, no q-sql and no namespaces beyond `.module`.
+Klong is smaller than q. It has integers, floats (doubles), characters, strings, symbols, lists, dictionaries and functions. It has no boolean, no temporal types, no typed nulls, no q-sql and no namespaces. A file is a [module](language-additions.md#modules), a dictionary of the names it exports, and `a.b` reads the entry `b` of `a`.
 
 ## What is different
 

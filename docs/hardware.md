@@ -7,7 +7,7 @@ A function of the [static profile](static-profile.md) becomes an FPGA kernel, an
 
 The same source runs three ways: interpreted, as C (see [Compiling Klong to C](embedded.md)) and on the card, with the same answers. Two kinds of kernel exist. A *streaming kernel*, the default, takes one record per clock cycle when the program allows it. A *wrapped kernel* (`--wrapped`) runs the program's C unchanged once per record and is slower.
 
-The tools need no Python packages beyond KlongPy's own. The machine with the card also needs the Xilinx runtime (`pyxrt`, which is not on PyPI), and the build machine needs Vitis.
+`fpga source` is part of the engine and also runs under `kg`; building, the card server and `.fpga` are in `kgpy`. They need no Python packages beyond KlongPy's own. The machine with the card also needs the Xilinx runtime (`pyxrt`, which is not on PyPI), and the build machine needs Vitis.
 
 ## Tested setup
 
@@ -132,7 +132,7 @@ $ KLONG_FPGA=sim kgpy strategy.kg
 ```
 
 Each row is one lane: profit, largest drawdown, number of trades. The first lane is that series
-(`tests/static/test_crossover.py`); the same account comes out of the Python evaluator of the static profile (`klongpy.static.eval_ir`), the emitted C, the kernel in
+(`tests/static/test_crossover.py`); the same account comes out of the evaluator of the static profile (the one `call_entry` uses), the emitted C, the kernel in
 C simulation and this simulator, bit for bit.
 
 ### 5. The summary pattern
@@ -276,7 +276,7 @@ Card: best of 9 calls; CPU: best of 5; 32 lanes. The CPU's processes start toget
 
 ### Correctness
 
-The summary of every lane after the first 100000 ticks equals the Python evaluator's (`klongpy.static.eval_ir`, which `call_entry` uses). After all 10 million ticks it equals the emitted C's, bit for bit, on the card. The hand-checked 20-tick series give the worked results in every lane. `tests/static/test_crossover_card.py` runs the hand series and 200000 ticks against the card. For `fir`, floats agree within 1e-5 relative.
+The summary of every lane after the first 100000 ticks equals the static profile's evaluator's (the one `call_entry` uses). After all 10 million ticks it equals the emitted C's, bit for bit, on the card. The hand-checked 20-tick series give the worked results in every lane. `tests/static/test_crossover_card.py` runs the hand series and 200000 ticks against the card. For `fir`, floats agree within 1e-5 relative.
 
 ## Known limits
 
