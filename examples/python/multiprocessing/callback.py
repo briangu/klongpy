@@ -16,6 +16,11 @@ def use_klongpy(args):
 
 def runit(numbers, fn):
     """Apply the square function in parallel to a list of numbers."""
-    with multiprocessing.Pool(1) as pool:
+    pool = multiprocessing.Pool(1)
+    try:
         results = pool.map(use_klongpy, [(n,fn) for n in numbers])
+    finally:
+        # Let the worker finish and exit, rather than terminating it.
+        pool.close()
+        pool.join()
     return results

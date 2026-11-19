@@ -6,6 +6,11 @@ def square(n):
 
 def runit(numbers):
     """Apply the square function in parallel to a list of numbers."""
-    with mp.Pool() as pool:
+    pool = mp.Pool()
+    try:
         results = pool.map(square, numbers)
+    finally:
+        # Let the workers finish and exit, rather than terminating them.
+        pool.close()
+        pool.join()
     return results
