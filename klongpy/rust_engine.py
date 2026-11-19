@@ -16,6 +16,8 @@ through the warnings module), the stand-in lookup of .extern and .fixed (klong.e
 The parse tree is not an interpreter's: `kgpy ast`, lint and the static tools are the extension's (klongpy/tools.py).
 """
 import contextlib
+import functools
+import types
 import sys
 import os
 import re
@@ -265,7 +267,11 @@ class NativeLambdaWrapper(KGFnWrapper):
 
     def __call__(self, *args, **kwargs):
         kgl = self.fn
-        if not kgl._wildcard and not kwargs and len(args) != kgl.get_arity():
+        if kgl._direct and not kwargs:
+            bad = kgl.count_error(self._sym, len(args))
+            if bad:
+                raise _named_arity_error(bad)     # also a RuntimeError, as a wrong count has always been here
+        elif not kgl._wildcard and not kwargs and len(args) != kgl.get_arity():
             raise _arity_error(len(args), kgl.get_arity())
         return self.klong.apply(kgl, list(args)) if not kwargs else kgl.call_with_kwargs(self.klong, _Frame(args), kwargs)
 
@@ -281,6 +287,9 @@ class _Frame(dict):
         self._context = [self]
 
 
+_PLAIN_CALLABLES = (types.FunctionType, types.MethodType, types.BuiltinFunctionType)
+
+
 class HostLambda:
     """A KGLambda object (a network client, an async call, a database handle) as a callable the native engine can hold.
 
@@ -289,12 +298,41 @@ class HostLambda:
     same object (see the report, "engine needs").
     """
 
-    def __init__(self, owner, kgl):
+    def __init__(self, owner, kgl, bare=None):
         self.owner = owner
         self.kgl = kgl
+        self.bare = bare    # the Python callable this stands for, when a bare callable was handed in (it goes back out as itself)
+
+    # A function given directly declares its arity to the engine through these (the engine reads them off a KGLambda)
+    @property
+    def fn(self):
+        if not self.kgl._direct:
+            raise AttributeError("fn")
+        return self
+
+    @property
+    def _provide_klong(self):
+        if not self.kgl._direct:
+            raise AttributeError("_provide_klong")
+        return False
+
+    @property
+    def _wildcard(self):
+        if not self.kgl._direct:
+            raise AttributeError("_wildcard")
+        return self.kgl._wildcard
+
+    @property
+    def args(self):
+        if not self.kgl._direct:
+            raise AttributeError("args")
+        return self.kgl.args
 
     def __call__(self, *args):
         o = self.owner
+        bad = self.kgl.count_error(self.kgl.name or "the function", len(args))
+        if bad:
+            raise _named_arity_error(bad)
         try:
             return o._in(self.kgl(o, _Frame([o._out(a) for a in args])))
         except KlongError:
@@ -573,6 +611,9 @@ class KlongInterpreter:
         provide = kgl._provide_klong
 
         def host(*a):
+            bad = kgl.count_error(name, len(a))
+            if bad:
+                raise _named_arity_error(bad)
             if n is not None and not user and len(a) < n:
                 raise KlongArityError(f"{name} takes {n} argument{'s' if n != 1 else ''}, got {len(a)}")
             try:
@@ -602,7 +643,7 @@ class KlongInterpreter:
         if t is _KFn:
             return self._wrap_fn(v)
         if t is HostLambda:
-            return v.kgl
+            return v.kgl if v.bare is None else v.bare
         if t is HostObject:
             return v.obj
         if isinstance(v, KGLambda):
@@ -662,6 +703,10 @@ class KlongInterpreter:
             return self._native_fn(v.fn)
         if isinstance(v, KGLambda):
             return self._host_lambda(v)
+        if t in _PLAIN_CALLABLES or (t is functools.partial and not hasattr(v, "dtype")):
+            # a Python function handed in as a value (a callback, a member of a dictionary): it takes the arguments by position,
+            # as a function assigned to a name does
+            return HostLambda(self, KGLambda.from_callable(v), bare=v)
         if t is not dict and isinstance(v, dict) and not hasattr(v, "_h"):
             return HostObject(v)
         if t is list:
@@ -756,6 +801,9 @@ class KlongInterpreter:
         if isinstance(f, NativeFn):
             return self._call_value(f._kfn, values)
         if isinstance(f, KGLambda):
+            bad = f.count_error(f.name, len(values))
+            if bad:
+                raise _named_arity_error(bad)
             args = [self._out(q) for q in values]
             return self._out(f.fn(self, *args) if f._provide_klong else f.fn(*args))
         if isinstance(f, KGOp):
@@ -790,7 +838,7 @@ class KlongInterpreter:
         if (callable(v) and not isinstance(v, (KGLambda, NativeFn, NativeFnWrapper, KGFn, HostLambda)) and type(v) is not _KFn
                 and not hasattr(v, "dtype")):
             # a Python function or class assigned to a name is a Klong function, as in the Python engine (context_value)
-            kgl = KGLambda(v)
+            kgl = KGLambda.from_callable(v)
             kgl.name = str(k)
             self._register_kglambda(str(k), kgl, wrapped=True)
             return

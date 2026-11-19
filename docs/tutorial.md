@@ -1040,7 +1040,7 @@ KlongPy is a Python package, so Klong code and Python code share one interpreter
 5
 ```
 
-Python functions are called with the Klong rules: at most three arguments, and they are named `x`, `y` and `z`.
+Python functions take their arguments by position, with any parameter names and any count; see [Python Integration](python_integration.md#the-parameter-rule).
 
 From Python, the interpreter is an object. Calling it runs Klong code, and indexing it reads and writes the variables. The values are in the comments.
 

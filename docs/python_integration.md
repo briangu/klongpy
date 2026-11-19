@@ -6,11 +6,40 @@ The interpreter object behaves like a dictionary: `klong['name'] = value` define
 
 ## The parameter rule
 
-A Python function called from Klong takes at most three parameters, and they must be named `x`, `y` and `z`. Klong passes its arguments to the parameters with those names. A function defined as `lambda x, y: ...` works; `lambda a, b: ...` does not.
+A Python function called from Klong takes its arguments by position, with any parameter names and any number of parameters. `klong['f'] = lambda a, b, c, d: a+b+c+d` makes `f(1;2;3;4)` run the function. This holds for every way a Python function reaches Klong: assigned to a name, a member of a dictionary given to the interpreter, and a callback passed to a Klong function. Functions brought in by `.py` and `.pyf` are described under [Python library access](#python-library-access).
 
-Known limit: a parameter with another name fails with a raw Python `TypeError` (`<lambda>() missing 2 required positional arguments: 'a' and 'b'`), not a Klong error, and the Python traceback is shown. Rename the parameters, or wrap the function: `klong['f'] = lambda x, y: g(x, y)`.
+A function whose parameters are all among `x`, `y` and `z` follows the rule of 0.7: the call's `x`, `y` and `z` go to the parameters in that order, `lambda x, y: ...` takes two arguments and `lambda: ...` takes none. Its display is `:monad`, `:dyad` or `:triad`, and the same is shown for a function of one to three parameters with other names.
 
-Functions loaded with `.py` and `.pyf` are remapped to this rule for you (see [Python library access](#python-library-access)).
+Other cases:
+
+* A parameter named `klong`, written first, receives the interpreter and is not an argument: `lambda klong, a, b: ...` takes two.
+* A parameter with a default is optional. The function takes from the number of required parameters to the number of positional parameters, and the call gives the optional ones the arguments it writes.
+* `*args` takes all the arguments after the named parameters. `lambda *args: ...` takes any number.
+* A keyword-only parameter is not an argument. It keeps its default.
+* A callable with no signature that Python can read, such as a builtin, takes any number of arguments. A NumPy ufunc takes the number of inputs it has (`nin`).
+* A call with too few or too many arguments is a `KlongArityError` that names the function and the counts, for example `f takes 4 arguments, got 2`. Calling `klong['f']` from Python with the wrong count raises the same error.
+
+A function with more than three parameters, or with optional parameters or `*args`, is shown by `.p` as `:nilad`, and a projection such as `f(1;;3;4)` or an adverb over it passes every argument written, as for a function written in Klong.
+
+```console
+$ python -W ignore <<'EOF'
+> from klongpy import KlongInterpreter
+> klong = KlongInterpreter()
+> klong['f'] = lambda a, b, c, d: a*1000 + b*100 + c*10 + d
+> klong['g'] = lambda a, b, c=100: a + b + c
+> klong['s'] = lambda *args: sum(args)
+> print(klong('f(1;2;3;4)'), klong('g(1;2)'), klong('g(1;2;3)'), klong('s(1;2;3;4;5)'))
+> klong('h::f(1;;3;4)')
+> print(klong('h(2)'))
+> try:
+>     klong('f(1;2)')
+> except Exception as e:
+>     print(type(e).__name__, e)
+> EOF
+1234 103 6 15
+1234
+KlongArityError f takes 4 arguments, got 2
+```
 
 ## Types
 
@@ -121,7 +150,7 @@ ndarray [1 2 3 4 5]
 
 ## Python library access
 
-A function imported with `.py` or `.pyf` that has optional parameters is called with every argument written in the call, however many: `.pyf("numpy";"linspace")` then `linspace(0;1;4;0)` passes the fourth argument too (`endpoint=0`). Too many or too few arguments are the Python `TypeError`, reported as a Klong error of kind `python`. A function with no optional parameters takes its required ones by position, at most three of them, and extra arguments are dropped (an arity error at [strict level 2](strict.md)). One with more than three required parameters is called with a list of the positional arguments and a dictionary of the keyword arguments, `f([1 2 3 4];:{})`, or through `.pyc`.
+A function imported with `.py` or `.pyf` that has optional parameters is called with every argument written in the call, however many: `.pyf("numpy";"linspace")` then `linspace(0;1;4;0)` passes the fourth argument too (`endpoint=0`). A function with no optional parameters takes its required ones by position, and extra arguments are dropped (an arity error at [strict level 2](strict.md)). One with more than three required parameters is called with a list of the positional arguments and a dictionary of the keyword arguments, `f([1 2 3 4];:{})`, or through `.pyc`. A function assigned directly, `klong['f'] = fn`, follows [the parameter rule](#the-parameter-rule) instead and takes any number of positional arguments.
 
 ```console
 $ python -W ignore <<'EOF'

@@ -12,6 +12,7 @@ This module contains all the core types used by the KlongPy interpreter:
 - Type checking utilities
 """
 import inspect
+from inspect import Parameter
 import weakref
 from enum import Enum
 import numpy
@@ -330,7 +331,8 @@ class KGLambda:
 
     Introspection is used to infer which parameters should be collected from the
     current context and passed to the lambda. Parameter names must be x,y, or z
-    according to the klong convention.  The value for these parameters are
+    according to the klong convention; a callable given directly takes any names
+    by position (see from_callable).  The value for these parameters are
     extracted directly from the currentcontext.
 
     If a lambda requires access to klong itself, that must be the first parameter.
@@ -349,6 +351,12 @@ class KGLambda:
     # subclasses that skip __init__ still have it
     user = False
     _wildcard = False
+    # a Python callable given directly (klong['f'] = fn): its arguments are passed by position, whatever the
+    # parameter names are, and a call is checked against _min and _max (None: no upper bound)
+    _positional = False
+    _min = 0
+    _max = None
+    _direct = False
 
     def __init__(self, fn, args=None, provide_klong=False, wildcard=False, user=False):
         self.fn = fn
@@ -361,8 +369,75 @@ class KGLambda:
         self._provide_klong = provide_klong or 'klong' in params
         self._wildcard = wildcard
 
+    @classmethod
+    def from_callable(cls, fn):
+        """The KGLambda of a Python callable given to Klong directly (`klong['f'] = fn`, a value in a dictionary, a callback).
+
+        A function whose positional parameters are all among x, y and z (and that has no `*args`) keeps the 0.7 rule: the
+        call's x, y and z go to the parameters of those names, in the order x, y, z. Any other function takes the
+        arguments of the call by position: a parameter without a default is required, one with a default is optional,
+        `*args` takes the rest, keyword-only parameters are not arguments. A parameter named `klong` (the first) receives
+        the interpreter and is not an argument. A callable with no signature (a builtin) takes whatever the call supplies.
+        """
+        try:
+            params = list(inspect.signature(fn).parameters.values())
+        except (ValueError, TypeError):
+            params = None
+        if params is None:
+            nin = getattr(fn, 'nin', None) if isinstance(fn, numpy.ufunc) else None
+            if nin is not None:
+                return cls._positional_lambda(fn, False, ['a%d' % i for i in range(nin)], nin, nin)
+            return cls._positional_lambda(fn, False, [], 0, None, wildcard=True)
+        names = [p.name for p in params if p.kind in (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD)]
+        provide = bool(names) and names[0] == 'klong'
+        if provide:
+            params = [p for p in params if p.name != 'klong']
+            names = names[1:]
+        var = any(p.kind == Parameter.VAR_POSITIONAL for p in params)
+        if not var and set(names) <= set(reserved_fn_args):
+            kgl = cls(fn, provide_klong=provide)
+            kgl._direct = True
+            kgl._max = len(kgl.args)
+            kgl._min = len(kgl.args)
+            return kgl
+        positional = [p for p in params if p.kind in (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD)]
+        required = [p.name for p in positional if p.default is Parameter.empty]
+        top = None if var else len(positional)
+        if var or len(required) != len(positional):
+            return cls._positional_lambda(fn, provide, required, len(required), top, wildcard=True)
+        # the native engine hands a function of fixed arity above three only three arguments: more are a wildcard function
+        return cls._positional_lambda(fn, provide, required, len(required), top, wildcard=len(required) > len(reserved_fn_args))
+
+    @classmethod
+    def _positional_lambda(cls, fn, provide, shown, lo, hi, wildcard=False):
+        kgl = cls(fn, args=['x'], provide_klong=provide, wildcard=wildcard)
+        # the engine reads the arity from len(args): one entry for each parameter that is required
+        kgl.args = [KGSym(n) for n in shown]
+        kgl._positional = True
+        kgl._direct = True
+        kgl._min = lo
+        kgl._max = hi
+        return kgl
+
+    def count_error(self, name, given):
+        """The message of a call with the wrong number of arguments, or None when the count fits."""
+        if not self._direct:
+            return None
+        lo, hi = self._min, self._max
+        if hi == 0:
+            hi = 1      # a call with no arguments written hands the function its unit argument
+        if given >= lo and (hi is None or given <= hi):
+            return None
+        if hi is None:
+            want = "at least %d argument%s" % (lo, '' if lo == 1 else 's')
+        elif lo == self._max:
+            want = "%d argument%s" % (lo, '' if lo == 1 else 's')
+        else:
+            want = "%d to %d arguments" % (lo, hi)
+        return "%s takes %s, got %d" % (name or "the function", want, given)
+
     def _get_pos_args(self, ctx):
-        if self._wildcard:
+        if self._wildcard or self._positional:
             # Whichever of x, y, z this call supplied: they are in the frame
             # the call pushed. (Looking through the whole context took an
             # enclosing function's x for an argument: {f()}(5) called f(5).)
@@ -378,6 +453,8 @@ class KGLambda:
                     break
         else:
             pos_args = [ctx[x] for x in self.args]
+        if self._direct and self._max is not None:
+            pos_args = pos_args[:self._max]
         return pos_args
 
     def __call__(self, klong, ctx):

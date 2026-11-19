@@ -203,6 +203,8 @@ a b
 
 **Python callers can pass arguments by name, and a named-parameter function takes any number of them.** `KGFnWrapper` ignored keyword arguments. `klong['f'](1, 2, d=4, c=3)` passes parameters by name, for a function written with named parameters or with `x`, `y` and `z`. Too few, too many, an unknown or a repeated name raises `KlongArityError`.
 
+**A Python function given to Klong takes any parameter names and any number of parameters.** Before, a function assigned to a name, held in a dictionary or passed as a callback took at most three parameters, named `x`, `y` and `z`, and any other name failed with a Python `TypeError`. Now `klong['f'] = lambda a, b, c, d: ...` makes `f(1;2;3;4)` call it with the arguments by position. A function whose parameters are all among `x`, `y` and `z` is called as before. Optional parameters, `*args` and callables without a signature are accepted, and a call with the wrong number of arguments is a `KlongArityError`, where an extra argument to an `x`, `y`, `z` function used to be dropped. See [Python Integration](python_integration.md#the-parameter-rule).
+
 
 
 #### Structured errors
