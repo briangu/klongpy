@@ -102,6 +102,17 @@ fn pairwise_sum(a: &[Flt]) -> Flt {
     }
 }
 
+/// The running sum of integers (wrapping), appended to `out`. Its own function, so that the loop is compiled the same whatever
+/// surrounds the call.
+#[inline(never)]
+fn running_sum(x: &[Int], out: &mut Vec<Int>) {
+    let mut s: Int = 0;
+    out.extend(x.iter().map(|v| {
+        s = s.wrapping_add(*v);
+        s
+    }));
+}
+
 impl Interp {
     /// The condition function `a` of a `\\~` or `:~` applied to `b`: its body is found once (`cond`, from `fast_body`).
     #[inline]
@@ -482,11 +493,7 @@ impl Interp {
             if let (Value::Ints(x), Some("+")) = (&a, self.verb_op(ch, level)) {
                 if x.rank() == 1 {
                     let mut out: Vec<Int> = try_vec(n)?;
-                    let mut s: Int = 0;
-                    for v in x.data.iter() {
-                        s = s.wrapping_add(*v);
-                        out.push(s);
-                    }
+                    running_sum(&x.data, &mut out);
                     return Ok(Value::ints(out));
                 }
             }

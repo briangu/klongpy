@@ -177,148 +177,168 @@ On the CPU, NumPy is as fast as torch or faster for this float32 product. Compar
 
 ## The native engine, measured in process on one machine
 
-This section is a second set of measurements, from `native/scripts/bench_engine.py`. It times the engine inside one process, after a warm-up run, with no process launch per timing, and runs the same workloads in CPython and NumPy. It was made to decide what to optimise in the engine, and the "before" columns are the engine as it was before that work (the commit of 2026-11-18, "Packaging: one abi3 wheel with the extension, kgpy and kg"). The tables above come from another machine with another method and are not repeated here.
+This section is a second set of measurements, from `native/scripts/bench_engine.py`. It times the engine inside one process, after a warm-up run, with no process launch per timing, and runs the same workloads in CPython and NumPy. It was made to decide what to optimise in the engine. The "before" columns are the engine as it was before any speed work (the commit of 2026-11-18, "Packaging: one abi3 wheel with the extension, kgpy and kg"), measured on 2026-11-18. The "after" columns are the engine after three rounds of speed work, measured on 2026-11-19, and the CPython and NumPy columns are from the 2026-11-19 runs. The tables above come from another machine with another method and are not repeated here.
 
 | Item | Value |
 |---|---|
-| Date | 2026-11-18 |
+| Date | "before": 2026-11-18. "after": 2026-11-19 |
 | Machine | Apple M2 Ultra, 24 cores, 192 GB of memory, macOS 26.6 |
-| Load | not idle: the machine was shared, and `uptime` showed load averages of 9 to 14 during the runs (13.8, 12.9, 11.0 and 9.1 for the one-minute average at the start of the four runs) |
+| Load | not idle: the machine was shared. "Before": `uptime` showed load averages of 9 to 14 during the runs (13.8, 12.9, 11.0 and 9.1 for the one-minute average at the start of the four runs). "After": the one-minute average was 15.98 at the start of the first run and 15.95 at the start of the second; the runs of the older extension build below started at 10.50 |
 | Python, NumPy | 3.12.9, 2.5.5 |
 | Rust | 1.90.0-nightly, `--release`, one code generation unit |
+| Engine "after" | the commit "Engine speed, third round: append in place, direct calls to named functions, leaf arithmetic" |
+| Engine "before rounds two and three" | the extension built from the commit before the second round, "Migration guide lists every break from 0.7; scope wording corrected; arity error for system functions". It has the first round of speed work and not the second and third. Measured on 2026-11-19, in the extension only |
 | kg | `native/target/release/kg`, timed with `.pc()`, the process CPU time, around a call of the workload |
 | Extension | `klong_native` through `KlongInterpreter` from `klongpy` (NumPy backend), timed with the same Klong function (`.pc()`), so a result is never converted to Python |
 
-Method: a workload runs once to warm up, and that run sizes a batch of at least 3 ms; the figure is the best of 3 to 30 batches (as many as fit in half a second), per run. A run of 2 s or more is timed once. Each cell is the better of two rounds, and the two rounds were run one after the other, "before" and "after" alternating. The machine was loaded by other work, so a ratio of two cells is good to about 10%: in the array rows that the work did not change, "before" divided by "after" is between 0.91 and 1.16. A workload is the body of `wk::{expr;0}`, so what is timed is making the result and dropping it. The CPython column uses lists, loops and the builtins that fit (`sum`, `min`, `sorted`, `itertools.accumulate`); the NumPy column is the vectorised form. The arrays are `ia`, ints 0 to n-1, `ib`, `3+ia`, `fa`, `0.5*ia`, `fb`, `1.5+fa`, `pi`, a permutation of 0 to n-1 (`(7919*ia)!n`) and `pf`, `0.5*pi`.
+Method: a workload runs once to warm up, and that run sizes a batch of at least 3 ms; the figure is the best of 3 to 30 batches (as many as fit in half a second), per run. A run of 2 s or more is timed once. Each cell is the better of two rounds, and the two rounds were run one after the other. "Before" and "after" were measured in different sessions, under the loads stated above, so the rows that the work did not change show the noise between sessions: in the 39 array rows that no change was aimed at (add, multiply, the two chains, dot, sum, max of integers, the grade of integers, take and drop, at the three sizes), "before" divided by "after" is between 0.90 and 1.11 in 37 rows and 0.75 and 0.76 in two (`add float` and `multiply float` at 100,000 elements, discussed below). A ratio of two cells from different sessions is good to about 10%. A workload is the body of `wk::{expr;0}`, so what is timed is making the result and dropping it. The CPython column uses lists, loops and the builtins that fit (`sum`, `min`, `sorted`, `itertools.accumulate`); the NumPy column is the vectorised form. The arrays are `ia`, ints 0 to n-1, `ib`, `3+ia`, `fa`, `0.5*ia`, `fb`, `1.5+fa`, `pi`, a permutation of 0 to n-1 (`(7919*ia)!n`) and `pf`, `0.5*pi`. The two append rows were added to the script after the first measurement, so they have no "before" figure.
 
 ### Programs the interpreter runs
 
-| Program | CPython | kg before | kg after | kg speed-up | extension before | extension after | kg after / CPython |
-|---|---|---|---|---|---|---|---|
-| fib(24) recursive | 4.16 ms | 28.5 ms | 20.8 ms | 1.37x | 27.7 ms | 21.1 ms | 5.01 |
-| loop by while, 1e5 | 1.52 ms | 28.3 ms | 12.3 ms | 2.31x | 28.3 ms | 11.8 ms | 8.05 |
-| loop by converge, 1e5 | 1.53 ms | 18.9 ms | 9.11 ms | 2.07x | 18.6 ms | 9.14 ms | 5.97 |
-| reduce with a lambda, 1e5 | 4.07 ms | 15.3 ms | 7.09 ms | 2.15x | 15.1 ms | 6.86 ms | 1.74 |
-| each with a lambda, 1e5 | 4.12 ms | 15.2 ms | 6.97 ms | 2.18x | 14.4 ms | 6.84 ms | 1.69 |
-| dictionary updates, 5e4 | 1.74 ms | 18.8 ms | 14 ms | 1.34x | 17.2 ms | 13.4 ms | 8.05 |
-| string building, 2e4 | 702 us | 27.1 ms | 19.5 ms | 1.39x | 27.3 ms | 18.9 ms | 27.8 |
-| named-parameter calls, 1e5 | 5.88 ms | 25.3 ms | 16.5 ms | 1.54x | 24.9 ms | 16.3 ms | 2.80 |
-| classic calls, 1e5 | 5.89 ms | 23.4 ms | 14.3 ms | 1.63x | 22.8 ms | 14.2 ms | 2.43 |
-| qualified calls (dictionary), 1e5 | 6.77 ms | 26.5 ms | 17.2 ms | 1.54x | 26 ms | 17 ms | 2.54 |
-| module-qualified calls, 1e5 | 6.84 ms | 29 ms | 19.9 ms | 1.46x | 28.8 ms | 19.6 ms | 2.91 |
+| Program | CPython | kg before | kg after | kg speed-up | extension before | extension, rounds 1 only | extension after | kg after / CPython |
+|---|---|---|---|---|---|---|---|---|
+| fib(24) recursive | 4.17 ms | 28.5 ms | 14.9 ms | 1.92x | 27.7 ms | 21.5 ms | 14.8 ms | 3.56 |
+| loop by while, 1e5 | 1.54 ms | 28.3 ms | 8.85 ms | 3.20x | 28.3 ms | 12 ms | 8.97 ms | 5.75 |
+| loop by converge, 1e5 | 1.54 ms | 18.9 ms | 6.19 ms | 3.05x | 18.6 ms | 9.08 ms | 6.26 ms | 4.02 |
+| reduce with a lambda, 1e5 | 4.06 ms | 15.3 ms | 5.3 ms | 2.89x | 15.1 ms | 6.92 ms | 5.31 ms | 1.31 |
+| each with a lambda, 1e5 | 4.19 ms | 15.2 ms | 5.25 ms | 2.90x | 14.4 ms | 6.94 ms | 5.3 ms | 1.25 |
+| dictionary updates, 5e4 | 1.76 ms | 18.8 ms | 11.3 ms | 1.66x | 17.2 ms | 13.4 ms | 11.1 ms | 6.45 |
+| string building, 2e4 | 713 us | 27.1 ms | 19.4 ms | 1.40x | 27.3 ms | 19.2 ms | 19.1 ms | 27.2 |
+| string append, results dropped, 2e4 | 703 us | - | 2 ms | - | - | 9.06 ms | 1.92 ms | 2.84 |
+| vector append, results dropped, 2e4 | 288 us | - | 1.98 ms | - | - | 88 ms | 1.91 ms | 6.88 |
+| named-parameter calls, 1e5 | 5.91 ms | 25.3 ms | 12.8 ms | 1.98x | 24.9 ms | 16.8 ms | 12.1 ms | 2.16 |
+| classic calls, 1e5 | 5.89 ms | 23.4 ms | 10.6 ms | 2.20x | 22.8 ms | 14.3 ms | 10.5 ms | 1.81 |
+| qualified calls (dictionary), 1e5 | 6.73 ms | 26.5 ms | 14.4 ms | 1.84x | 26 ms | 17.4 ms | 14.6 ms | 2.15 |
+| module-qualified calls, 1e5 | 6.84 ms | 29 ms | 16.2 ms | 1.79x | 28.8 ms | 19.7 ms | 16.8 ms | 2.37 |
 
-* `kg` and the extension run the same engine: over all the rows they differ by 2% at the median and by at most 15% (the sort of floats at 10,000,000 elements).
-* The engine is 1.3 to 2.3 times faster than before, and still 1.7 to 28 times slower than CPython on these programs: 1.7 for a lambda under an adverb (reduce and each), 2.4 to 2.9 for calls, 5 to 8 for recursion, loops and dictionary updates and 28 for building a string by joining.
+* `kg` and the extension run the same engine: over all the rows they differ by 1.6% at the median and by at most 25% (the comparison of integers at 100,000 elements).
+* On the eleven program rows that have a "before", the engine is 1.4 to 3.2 times faster than before: 1.4 for string building, 1.7 to 2.2 for dictionary updates and the four kinds of call, 1.9 for recursion and 2.9 to 3.2 for the loops and the lambdas under adverbs.
+* It is still 1.3 to 27 times slower than CPython on these programs: 1.3 for a lambda under an adverb (reduce and each), 1.8 to 2.4 for calls, 2.8 for the string append, 3.6 for recursion, 4.0 to 5.8 for loops, 6.5 for dictionary updates, 6.9 for the vector append and 27 for building a string by joining while keeping the result.
+* The two append rows drop the result of each step, so the string or vector is held by one name only. Before rounds two and three, the extension took 9.06 ms and 88 ms on them; now it takes 1.92 ms and 1.91 ms.
 
 ### Arrays
 
-The tables have one row per operation. "kg before" is the engine before the work, "kg after" the engine now, in the same units.
+The tables have one row per operation. "kg before" is the engine before any speed work, "kg after" the engine now, in the same units.
 
 **1,000 elements**
 
-| Operation | NumPy | CPython | kg before | kg after | kg speed-up | extension after | kg after / NumPy |
-|---|---|---|---|---|---|---|---|
-| `add int` | 0.477 us | 23.2 us | 0.455 us | 0.449 us | 1.01x | 0.425 us | 0.94 |
-| `multiply int` | 0.771 us | 23.7 us | 0.683 us | 0.715 us | 0.96x | 0.702 us | 0.93 |
-| `add float` | 0.467 us | 24.3 us | 0.444 us | 0.455 us | 0.98x | 0.426 us | 0.97 |
-| `multiply float` | 0.473 us | 24.9 us | 0.468 us | 0.455 us | 1.03x | 0.426 us | 0.96 |
-| `add mixed int/float` | 0.981 us | 30.3 us | 3.36 us | 0.45 us | 7.45x | 0.426 us | 0.46 |
-| `chain (a+b)*b int` | 1.17 us | 32.8 us | 0.884 us | 0.802 us | 1.10x | 0.774 us | 0.69 |
-| `chain (a*b+a)-b float` | 1.34 us | 29.4 us | 0.859 us | 0.739 us | 1.16x | 0.712 us | 0.55 |
-| `dot +/a*b float` | 1.01 us | 26.9 us | 0.659 us | 0.668 us | 0.99x | 0.656 us | 0.66 |
-| `compare int <` | 0.412 us | 18.5 us | 4.11 us | 0.463 us | 8.87x | 0.466 us | 1.12 |
-| `sum int` | 0.483 us | 2.35 us | 0.311 us | 0.315 us | 0.99x | 0.308 us | 0.65 |
-| `sum float` | 0.559 us | 2.04 us | 0.442 us | 0.451 us | 0.98x | 0.447 us | 0.81 |
-| `min float` | 0.464 us | 4.63 us | 17.5 us | 0.443 us | 39.6x | 0.429 us | 0.95 |
-| `max int` | 0.485 us | 6.42 us | 0.398 us | 0.407 us | 0.98x | 0.386 us | 0.84 |
-| `scan +\ int` | 2.22 us | 15.4 us | 0.747 us | 0.728 us | 1.03x | 0.701 us | 0.33 |
-| `grade up int` | 21.8 us | 55.1 us | 11.7 us | 12 us | 0.97x | 11.8 us | 0.55 |
-| `grade up float` | 25.6 us | 52.4 us | 11.5 us | 9.94 us | 1.16x | 9.78 us | 0.39 |
-| `sort float (x@<x)` | 26.2 us | 33.2 us | 22.9 us | 20.4 us | 1.12x | 20.8 us | 0.78 |
-| `take h#a` | 0.306 us | 0.628 us | 0.349 us | 0.355 us | 0.98x | 0.348 us | 1.16 |
-| `drop h_a` | 0.313 us | 0.588 us | 0.356 us | 0.353 us | 1.01x | 0.343 us | 1.13 |
-| `reshape [2 h]:^a` | 0.449 us | 1.2 us | 7 us | 0.516 us | 13.6x | 0.484 us | 1.15 |
-| `find a?(n-1)` | 1.03 us | 26.7 us | 5.97 us | 0.655 us | 9.12x | 0.655 us | 0.64 |
-| `where &(p>h)` | 1.5 us | 22.9 us | 9.51 us | 2.65 us | 3.59x | 2.86 us | 1.76 |
-| `each-pair a{x+y}'b` | 0.485 us | 37.2 us | 161 us | 72.5 us | 2.22x | 72.8 us | 150 |
+| Operation | NumPy | CPython | kg before | kg after | kg speed-up | extension, round 1 only | extension after | kg after / NumPy |
+|---|---|---|---|---|---|---|---|---|
+| `add int` | 0.484 us | 23.2 us | 0.455 us | 0.479 us | 0.95x | 0.448 us | 0.466 us | 0.99 |
+| `multiply int` | 0.798 us | 23.7 us | 0.683 us | 0.726 us | 0.94x | 0.721 us | 0.741 us | 0.91 |
+| `add float` | 0.498 us | 24.4 us | 0.444 us | 0.471 us | 0.94x | 0.429 us | 0.473 us | 0.95 |
+| `multiply float` | 0.487 us | 24.7 us | 0.468 us | 0.467 us | 1.00x | 0.443 us | 0.479 us | 0.96 |
+| `add mixed int/float` | 1.02 us | 30.2 us | 3.36 us | 0.482 us | 6.98x | 0.442 us | 0.476 us | 0.47 |
+| `chain (a+b)*b int` | 1.19 us | 33.4 us | 0.884 us | 0.836 us | 1.06x | 0.789 us | 0.816 us | 0.70 |
+| `chain (a*b+a)-b float` | 1.37 us | 29.2 us | 0.859 us | 0.773 us | 1.11x | 0.72 us | 0.769 us | 0.57 |
+| `dot +/a*b float` | 1.02 us | 27 us | 0.659 us | 0.674 us | 0.98x | 0.661 us | 0.671 us | 0.66 |
+| `compare int <` | 0.419 us | 18.7 us | 4.11 us | 0.468 us | 8.79x | 0.456 us | 0.465 us | 1.12 |
+| `sum int` | 0.49 us | 2.32 us | 0.311 us | 0.342 us | 0.91x | 0.308 us | 0.327 us | 0.70 |
+| `sum float` | 0.562 us | 2.09 us | 0.442 us | 0.467 us | 0.95x | 0.439 us | 0.458 us | 0.83 |
+| `min float` | 0.467 us | 4.59 us | 17.5 us | 0.471 us | 37.2x | 0.437 us | 0.455 us | 1.01 |
+| `max int` | 0.486 us | 6.39 us | 0.398 us | 0.424 us | 0.94x | 0.394 us | 0.403 us | 0.87 |
+| `scan +\ int` | 2.45 us | 15.7 us | 0.747 us | 0.744 us | 1.00x | 0.709 us | 0.729 us | 0.30 |
+| `grade up int` | 23.4 us | 56.3 us | 11.7 us | 12 us | 0.97x | 12 us | 12.3 us | 0.51 |
+| `grade up float` | 25.8 us | 56.4 us | 11.5 us | 9.93 us | 1.16x | 9.99 us | 10 us | 0.39 |
+| `sort float (x@<x)` | 26.8 us | 34.1 us | 22.9 us | 11.2 us | 2.04x | 21 us | 11.3 us | 0.42 |
+| `take h#a` | 0.315 us | 0.637 us | 0.349 us | 0.383 us | 0.91x | 0.346 us | 0.359 us | 1.21 |
+| `drop h_a` | 0.315 us | 0.593 us | 0.356 us | 0.379 us | 0.94x | 0.354 us | 0.353 us | 1.20 |
+| `reshape [2 h]:^a` | 0.484 us | 1.25 us | 7 us | 0.502 us | 13.9x | 0.499 us | 0.495 us | 1.04 |
+| `find a?(n-1)` | 1.04 us | 26.9 us | 5.97 us | 0.685 us | 8.72x | 0.65 us | 0.66 us | 0.66 |
+| `where &(p>h)` | 1.53 us | 23 us | 9.51 us | 1.07 us | 8.91x | 2.91 us | 1.02 us | 0.70 |
+| `each-pair a{x+y}'b` | 0.501 us | 36.8 us | 161 us | 58.1 us | 2.77x | 71.9 us | 59 us | 116 |
 
 **100,000 elements**
 
-| Operation | NumPy | CPython | kg before | kg after | kg speed-up | extension after | kg after / NumPy |
-|---|---|---|---|---|---|---|---|
-| `add int` | 18.3 us | 2.48 ms | 19.2 us | 18.3 us | 1.05x | 20.8 us | 1.00 |
-| `multiply int` | 35.2 us | 2.45 ms | 37.6 us | 37.5 us | 1.00x | 37.5 us | 1.07 |
-| `add float` | 23.8 us | 2.32 ms | 18.2 us | 19.6 us | 0.93x | 18.3 us | 0.83 |
-| `multiply float` | 23.8 us | 2.31 ms | 18.3 us | 19.6 us | 0.93x | 18.4 us | 0.82 |
-| `add mixed int/float` | 55.8 us | 2.91 ms | 301 us | 18.7 us | 16.1x | 19.1 us | 0.33 |
-| `chain (a+b)*b int` | 59.4 us | 3.13 ms | 59.4 us | 53.7 us | 1.11x | 56.3 us | 0.90 |
-| `chain (a*b+a)-b float` | 60.4 us | 2.74 ms | 58 us | 63.3 us | 0.92x | 65.5 us | 1.05 |
-| `dot +/a*b float` | 36.6 us | 2.72 ms | 41.5 us | 41.1 us | 1.01x | 39.4 us | 1.12 |
-| `compare int <` | 18.3 us | 1.6 ms | 380 us | 19.7 us | 19.3x | 18.5 us | 1.08 |
-| `sum int` | 9.2 us | 247 us | 9.02 us | 9.16 us | 0.99x | 8.98 us | 1.00 |
-| `sum float` | 18.1 us | 231 us | 20.7 us | 20.4 us | 1.02x | 20.2 us | 1.13 |
-| `min float` | 9.26 us | 458 us | 1.77 ms | 15.9 us | 111x | 15.9 us | 1.72 |
-| `max int` | 9.27 us | 605 us | 16 us | 16 us | 1.00x | 15.9 us | 1.72 |
-| `scan +\ int` | 182 us | 1.52 ms | 109 us | 42.8 us | 2.56x | 39.8 us | 0.23 |
-| `grade up int` | 5.59 ms | 7.43 ms | 2.26 ms | 2.29 ms | 0.99x | 2.23 ms | 0.41 |
-| `grade up float` | 3.97 ms | 7.54 ms | 7.45 ms | 1.87 ms | 3.99x | 1.83 ms | 0.47 |
-| `sort float (x@<x)` | 4.11 ms | 4.29 ms | 8.64 ms | 3.06 ms | 2.82x | 3.04 ms | 0.74 |
-| `take h#a` | 5.53 us | 96.6 us | 6.39 us | 5.64 us | 1.13x | 5.46 us | 1.02 |
-| `drop h_a` | 5.53 us | 79.6 us | 6.72 us | 5.81 us | 1.16x | 5.44 us | 1.05 |
-| `reshape [2 h]:^a` | 10.5 us | 195 us | 652 us | 11.1 us | 58.8x | 12 us | 1.05 |
-| `find a?(n-1)` | 26.9 us | 2.89 ms | 551 us | 35.4 us | 15.6x | 35.4 us | 1.32 |
-| `where &(p>h)` | 75 us | 2.46 ms | 885 us | 251 us | 3.52x | 232 us | 3.35 |
-| `each-pair a{x+y}'b` | 19.1 us | 3.52 ms | 15.7 ms | 7.43 ms | 2.12x | 7.21 ms | 389 |
+| Operation | NumPy | CPython | kg before | kg after | kg speed-up | extension, round 1 only | extension after | kg after / NumPy |
+|---|---|---|---|---|---|---|---|---|
+| `add int` | 18.9 us | 2.4 ms | 19.2 us | 18.5 us | 1.04x | 18.6 us | 18.7 us | 0.98 |
+| `multiply int` | 35.9 us | 2.46 ms | 37.6 us | 36.5 us | 1.03x | 37.8 us | 37.5 us | 1.02 |
+| `add float` | 24.2 us | 2.3 ms | 18.2 us | 24 us | 0.76x | 23.8 us | 24.2 us | 0.99 |
+| `multiply float` | 19 us | 2.29 ms | 18.3 us | 24.3 us | 0.75x | 24.5 us | 24.3 us | 1.28 |
+| `add mixed int/float` | 54.7 us | 2.87 ms | 301 us | 19.6 us | 15.4x | 18.5 us | 24.2 us | 0.36 |
+| `chain (a+b)*b int` | 55.7 us | 3.2 ms | 59.4 us | 53.6 us | 1.11x | 53.9 us | 58.4 us | 0.96 |
+| `chain (a*b+a)-b float` | 63.4 us | 2.78 ms | 58 us | 60.4 us | 0.96x | 65.5 us | 66.4 us | 0.95 |
+| `dot +/a*b float` | 37.4 us | 2.76 ms | 41.5 us | 39.8 us | 1.04x | 43.8 us | 40.4 us | 1.07 |
+| `compare int <` | 18.5 us | 1.61 ms | 380 us | 19.7 us | 19.3x | 24 us | 24.6 us | 1.07 |
+| `sum int` | 9.19 us | 248 us | 9.02 us | 9.17 us | 0.98x | 9.02 us | 9.27 us | 1.00 |
+| `sum float` | 18.2 us | 230 us | 20.7 us | 20.5 us | 1.01x | 20.4 us | 20.5 us | 1.13 |
+| `min float` | 9.23 us | 451 us | 1.77 ms | 16.2 us | 109x | 15.9 us | 16.2 us | 1.75 |
+| `max int` | 9.31 us | 605 us | 16 us | 16.2 us | 0.99x | 16.1 us | 16.2 us | 1.74 |
+| `scan +\ int` | 199 us | 1.51 ms | 109 us | 37.9 us | 2.88x | 41.3 us | 38.2 us | 0.19 |
+| `grade up int` | 6.04 ms | 7.23 ms | 2.26 ms | 2.26 ms | 1.00x | 2.32 ms | 2.26 ms | 0.37 |
+| `grade up float` | 4.04 ms | 7.67 ms | 7.45 ms | 1.88 ms | 3.96x | 1.84 ms | 1.86 ms | 0.47 |
+| `sort float (x@<x)` | 4.12 ms | 4.35 ms | 8.64 ms | 2.01 ms | 4.30x | 3.04 ms | 2 ms | 0.49 |
+| `take h#a` | 5.52 us | 100 us | 6.39 us | 6.87 us | 0.93x | 5.59 us | 6.66 us | 1.25 |
+| `drop h_a` | 6.84 us | 81.2 us | 6.72 us | 6.91 us | 0.97x | 6.82 us | 6.73 us | 1.01 |
+| `reshape [2 h]:^a` | 13.2 us | 193 us | 652 us | 13.1 us | 49.9x | 13.2 us | 13 us | 0.99 |
+| `find a?(n-1)` | 27 us | 2.86 ms | 551 us | 35.6 us | 15.5x | 35.4 us | 35.9 us | 1.32 |
+| `where &(p>h)` | 76.2 us | 2.47 ms | 885 us | 69 us | 12.8x | 251 us | 68.5 us | 0.90 |
+| `each-pair a{x+y}'b` | 19 us | 3.62 ms | 15.7 ms | 5.81 ms | 2.70x | 7.28 ms | 6.06 ms | 306 |
 
 **10,000,000 elements**
 
-| Operation | NumPy | CPython | kg before | kg after | kg speed-up | extension after | kg after / NumPy |
-|---|---|---|---|---|---|---|---|
-| `add int` | 2.61 ms | 300 ms | 2.6 ms | 2.7 ms | 0.96x | 2.65 ms | 1.03 |
-| `multiply int` | 3.53 ms | 309 ms | 3.7 ms | 3.91 ms | 0.95x | 3.65 ms | 1.11 |
-| `add float` | 2.61 ms | 294 ms | 2.59 ms | 2.71 ms | 0.96x | 2.6 ms | 1.04 |
-| `multiply float` | 2.75 ms | 311 ms | 2.59 ms | 2.79 ms | 0.93x | 2.61 ms | 1.01 |
-| `add mixed int/float` | 6 ms | 373 ms | 30.4 ms | 2.78 ms | 11.0x | 2.62 ms | 0.46 |
-| `chain (a+b)*b int` | 6.72 ms | 383 ms | 6.27 ms | 6.87 ms | 0.91x | 6.47 ms | 1.02 |
-| `chain (a*b+a)-b float` | 7.97 ms | 359 ms | 7.88 ms | 7.91 ms | 1.00x | 7.76 ms | 0.99 |
-| `dot +/a*b float` | 4.46 ms | 282 ms | 4.75 ms | 4.8 ms | 0.99x | 4.7 ms | 1.07 |
-| `compare int <` | 2.58 ms | 173 ms | 38.3 ms | 2.65 ms | 14.4x | 2.6 ms | 1.03 |
-| `sum int` | 1.37 ms | 25.7 ms | 1.35 ms | 1.38 ms | 0.98x | 1.37 ms | 1.01 |
-| `sum float` | 1.86 ms | 23.6 ms | 2.13 ms | 2.16 ms | 0.99x | 2.1 ms | 1.16 |
-| `min float` | 1.38 ms | 46.6 ms | 176 ms | 1.68 ms | 105x | 1.64 ms | 1.21 |
-| `max int` | 1.4 ms | 62 ms | 1.59 ms | 1.68 ms | 0.95x | 1.66 ms | 1.20 |
-| `scan +\ int` | 18.7 ms | 261 ms | 4.83 ms | 5.21 ms | 0.93x | 4.56 ms | 0.28 |
-| `grade up int` | 797 ms | 773 ms | 355 ms | 362 ms | 0.98x | 356 ms | 0.45 |
-| `grade up float` | 409 ms | 767 ms | 894 ms | 242 ms | 3.69x | 243 ms | 0.59 |
-| `sort float (x@<x)` | 436 ms | 346 ms | 1.03 s | 437 ms | 2.36x | 378 ms | 1.00 |
-| `take h#a` | 680 us | 9.55 ms | 675 us | 709 us | 0.95x | 687 us | 1.04 |
-| `drop h_a` | 680 us | 8.79 ms | 672 us | 693 us | 0.97x | 687 us | 1.02 |
-| `reshape [2 h]:^a` | 1.42 ms | 20.3 ms | 67.9 ms | 1.44 ms | 47.2x | 1.42 ms | 1.01 |
-| `find a?(n-1)` | 3.24 ms | 295 ms | 55.8 ms | 3.57 ms | 15.6x | 3.53 ms | 1.10 |
-| `where &(p>h)` | 8.65 ms | 254 ms | 91.6 ms | 20.9 ms | 4.39x | 21.1 ms | 2.41 |
-| `each-pair a{x+y}'b` | 2.67 ms | 409 ms | 1.62 s | 750 ms | 2.16x | 752 ms | 281 |
+| Operation | NumPy | CPython | kg before | kg after | kg speed-up | extension, round 1 only | extension after | kg after / NumPy |
+|---|---|---|---|---|---|---|---|---|
+| `add int` | 2.64 ms | 302 ms | 2.6 ms | 2.88 ms | 0.90x | 2.64 ms | 2.83 ms | 1.09 |
+| `multiply int` | 3.62 ms | 290 ms | 3.7 ms | 3.75 ms | 0.99x | 3.72 ms | 3.75 ms | 1.03 |
+| `add float` | 2.64 ms | 305 ms | 2.59 ms | 2.81 ms | 0.92x | 2.65 ms | 2.64 ms | 1.06 |
+| `multiply float` | 2.68 ms | 310 ms | 2.59 ms | 2.83 ms | 0.91x | 2.64 ms | 2.68 ms | 1.06 |
+| `add mixed int/float` | 6 ms | 364 ms | 30.4 ms | 2.7 ms | 11.2x | 2.61 ms | 2.75 ms | 0.45 |
+| `chain (a+b)*b int` | 6.78 ms | 400 ms | 6.27 ms | 6.95 ms | 0.90x | 6.47 ms | 6.56 ms | 1.03 |
+| `chain (a*b+a)-b float` | 7.86 ms | 357 ms | 7.88 ms | 7.85 ms | 1.00x | 7.83 ms | 7.83 ms | 1.00 |
+| `dot +/a*b float` | 4.5 ms | 281 ms | 4.75 ms | 4.91 ms | 0.97x | 4.77 ms | 4.74 ms | 1.09 |
+| `compare int <` | 2.61 ms | 174 ms | 38.3 ms | 2.64 ms | 14.5x | 2.65 ms | 2.6 ms | 1.01 |
+| `sum int` | 1.38 ms | 25.7 ms | 1.35 ms | 1.38 ms | 0.98x | 1.37 ms | 1.37 ms | 1.00 |
+| `sum float` | 1.88 ms | 23.7 ms | 2.13 ms | 2.12 ms | 1.00x | 2.1 ms | 2.13 ms | 1.13 |
+| `min float` | 1.41 ms | 46.4 ms | 176 ms | 1.67 ms | 105x | 1.68 ms | 1.66 ms | 1.19 |
+| `max int` | 1.41 ms | 60.8 ms | 1.59 ms | 1.67 ms | 0.95x | 1.68 ms | 1.66 ms | 1.18 |
+| `scan +\ int` | 20.3 ms | 248 ms | 4.83 ms | 3.75 ms | 1.29x | 4.49 ms | 3.77 ms | 0.18 |
+| `grade up int` | 907 ms | 818 ms | 355 ms | 370 ms | 0.96x | 374 ms | 365 ms | 0.41 |
+| `grade up float` | 425 ms | 805 ms | 894 ms | 250 ms | 3.58x | 246 ms | 248 ms | 0.59 |
+| `sort float (x@<x)` | 455 ms | 377 ms | 1.03 s | 265 ms | 3.88x | 379 ms | 280 ms | 0.58 |
+| `take h#a` | 697 us | 9.59 ms | 675 us | 679 us | 0.99x | 685 us | 707 us | 0.97 |
+| `drop h_a` | 703 us | 9.66 ms | 672 us | 683 us | 0.98x | 685 us | 711 us | 0.97 |
+| `reshape [2 h]:^a` | 1.43 ms | 19 ms | 67.9 ms | 1.4 ms | 48.4x | 1.41 ms | 1.43 ms | 0.98 |
+| `find a?(n-1)` | 3.1 ms | 294 ms | 55.8 ms | 3.52 ms | 15.8x | 3.5 ms | 3.57 ms | 1.14 |
+| `where &(p>h)` | 8.47 ms | 258 ms | 91.6 ms | 9.45 ms | 9.70x | 21.5 ms | 9.62 ms | 1.12 |
+| `each-pair a{x+y}'b` | 2.62 ms | 432 ms | 1.62 s | 604 ms | 2.68x | 756 ms | 615 ms | 231 |
 
-* Element-wise arithmetic, sums and `take` and `drop` run at the speed of NumPy (0.8 to 1.2 times its time) at every size, and did before. At 10,000,000 elements they are bound by memory: the same number of bytes are read and written as NumPy's.
-* What changed is the operations that went through one boxed value per element: comparisons (8.9 to 19 times faster), mixed integer and float arithmetic (7 to 16 times), the minimum and maximum of floats (40 to 111 times), reshape (14 to 59 times), find (9 to 16 times), where (3.5 to 4.4 times), the grade and sort of floats (2.4 to 4.0 times at 100,000 and 10,000,000 elements). After the work, `kg` takes 0.3 to 1.3 times as long as NumPy on all of these except the ones listed next.
-* Still slower than NumPy: `&/` and `|/` at 1.2 to 1.7 times (eight lanes, not NumPy's SIMD minimum), `where` at 1.8 to 3.4 times, and the each-pair row, which calls a Klong lambda per pair (73 ns per pair here; NumPy does not call a function).
-* The grade of integers takes 0.41 to 0.55 times as long as NumPy's stable argsort, the grade of floats 0.39 to 0.59 times and the sort of floats 0.74 to 1.0 times.
+* Element-wise arithmetic, sums and `take` and `drop` run at the speed of NumPy (0.70 to 1.28 times its time) at every size, and did before. At 10,000,000 elements they are bound by memory: the same number of bytes are read and written as NumPy's.
+* What changed in the first round is the operations that went through one boxed value per element: comparisons (8.8 to 19 times faster than before), mixed integer and float arithmetic (7.0 to 15 times), the minimum of floats (37 to 109 times), reshape (14 to 50 times), find (8.7 to 16 times), the grade of floats (3.6 to 4.0 times at 100,000 and 10,000,000 elements). After the work, `kg` takes 0.36 to 1.3 times as long as NumPy on all of these except the ones listed next.
+* What changed in rounds two and three, between the extension built before them and now, in the same session: `where` 3.7 times faster at 100,000 elements (251 us to 68.5 us), 2.2 times at 10,000,000 and 2.9 times at 1,000; the sort of floats (`x@<x`) 1.9 times at 1,000 elements, 1.5 times at 100,000 and 1.35 times at 10,000,000; each-pair with a lambda 1.2 times (7.28 ms to 6.06 ms at 100,000 elements). Over the three sizes, `where` is now 8.9 to 12.8 times faster than before, the sort of floats 2.0 to 4.3 times.
+* Still slower than NumPy: `&/` and `|/` at 1.2 to 1.8 times at 100,000 and 10,000,000 elements (eight lanes, not NumPy's SIMD minimum), `find` at 1.1 to 1.3 times, `take` and `drop` at 1.2 times at 1,000 elements, and the each-pair row, which calls a Klong lambda per pair (58 to 60 ns per pair here; NumPy does not call a function). `where` is at 0.70 to 1.12 times NumPy's time.
+* The grade of integers takes 0.37 to 0.51 times as long as NumPy's stable argsort, the grade of floats 0.39 to 0.59 times and the sort of floats 0.42 to 0.58 times.
+* Rows that got slower during the work, measured:
+  * `scan +\ int` at 100,000 elements took 108 us after rounds two and three, against 41 to 44 us for the extension built before them. The loop itself had not been edited: the compiler produced slower code for it once the kernels for the other scans were added next to it. The loop is now a function of its own and the row is 37.9 us (3.75 ms at 10,000,000 elements). The two scan rows in the tables are from that later build, measured on its own in the same session.
+  * `add float` and `multiply float` at 100,000 elements take 24 us, against 18.2 us and 18.3 us before (0.76 and 0.75 times the speed). The extension built before rounds two and three took 23.8 to 24.5 us on the same rows in this session, so rounds two and three did not cause it. The rows were 19.6 us in the first table of this section, so this is a difference between sessions or in code layout from the first round; its cause was not found. NumPy's `add float` took 24.2 us in this session and 23.8 us in the first.
 
 ### What the profiles said
 
-Profiles were taken with `sample` (macOS, 1 ms interval, the time at the top of the stack, symbolised from a release build with line tables). They covered the rows with the worst ratios and decided the order of the work:
+Profiles of the first round were taken with `sample` (macOS, 1 ms interval, the time at the top of the stack, symbolised from a release build with line tables). They covered the rows with the worst ratios and decided the order of the work:
 
 * **Calls driven by an adverb** (`{x*x}'a`, `{x+y}/a`, `:~`): about a third of the time was in the allocator (`malloc` and `free`), from the argument vector, the list of layers of a projection and a frame that did not come from the frame pool, made for every call by `apply`. A function literal called with exactly the arguments it takes now skips those and uses the pool: 1.3 to 1.9 times faster.
 * **Recursion** (fib): no single place. `eval_node` 20% of the time itself, `eval_dyad` 11%, name resolution (`resolve` and `lookup`) 13%, copying and dropping values 12%, pushing and popping frames 7%, and the stack check and the deferred-failure check at the head of every evaluation 6%. Two numbers in a dyad now skip the pairing routine (1.13 times) and the two checks are inlined (1.12 times).
-* **String building** (`s::s,"ab"`): 60% in `memmove` (the whole string is copied by every join, as the value semantics of strings say), 20% counting the code points of the result again, 17% in the allocator. The count is now the sum of the two counts (1.38 times). The copy remains.
-* **Dictionary updates**: the allocator, dropping values, and the hash probe; each `d,x,,x*2` builds two small lists. Only the calls part was cut (1.3 times).
+* **String building** (`s::s,"ab"`): 60% in `memmove` (the whole string is copied by every join, as the value semantics of strings say), 20% counting the code points of the result again, 17% in the allocator. The count is now the sum of the two counts (1.38 times). The copy remains when the result is kept.
+* **Dictionary updates**: the allocator, dropping values, and the hash probe; each `d,x,,x*2` builds two small lists. Only the calls part was cut in the first round (1.3 times).
 * **Comparison, mixed arithmetic, float minimum, reshape, find, where**: the loop itself. They went through the generic element loop (a division per element to find the operand, a boxed `Value` per element, dispatch per element), not through the vectorised loops that addition and multiplication have. They now have loops the compiler vectorises, or a path that copies the numbers instead of boxing them.
 * **Grade and sort of floats**: 85% in the sort's comparison, which goes through the index to the number (a cache miss per comparison). Sorting (key, index) pairs, the key an integer that orders as the float does, makes it 3.7 to 4.0 times faster.
 
-What limits the engine now, from the same profiles: the tree walk (dispatch in `eval_node` and `eval_dyad`, `Value` clones and drops, the frame push and pop with its table of shadowed names), the value semantics of strings and of dictionary entries (a new object per join and per entry), the lambda call under an adverb (70 to 80 ns), and, at 10,000,000 elements, memory.
+Rounds two and three were also taken from profiles (their commit messages say so); the profile figures of those rounds were not kept for this page. What the code and the commit messages give as the reason for each:
+
+* **Scalar path** (round two): the operands that are a number or a name are read in place instead of being evaluated as a node, and the call of a function literal is cheaper. The commit message gives 15 to 28 percent faster.
+* **Unique and group** (round two): `?x` of a flat vector of integers or floats searched what it had kept so far, so it took time as the square of the length when most values were different. It now sorts (key, position) pairs and reads the runs. `=x` of integers is done the same way.
+* **Gather** (round two): `a@b` for a flat vector `a` and an in-range integer vector `b` picks the elements without making a value of each.
+* **Cycling take** (round two): `k#b` with `k` larger than the length of a flat vector of numbers repeats the vector without a value per element.
+* **Integer divide and remainder, scan kernels** (round two): the running product, minimum and maximum of integers and the division and remainder of integers have kernels.
+* **Appending in a loop** (round three): `v::v,y` copied the whole value on every append, so building a string or a vector in a loop took time as the square of its length. When nothing else holds the value, the append is now done in place. The commit message says so; the two append rows above are the measurement.
+* **Calls to a named function, arithmetic on leaves, dictionary updates** (round three): a direct call to a function held by a name, arithmetic whose operands are leaves, and a direct join for `d,x,,x*2`. The commit message gives fib 14.5 percent faster and dictionary updates 14.8 percent.
+
+What limits the engine now: the tree walk (dispatch in `eval_node` and `eval_dyad`, `Value` clones and drops, the frame push and pop with its table of shadowed names), the value semantics of strings and of dictionary entries (a new object per join and per entry when the result is kept), the lambda call under an adverb (52 ns per element in the each row, 58 to 60 ns per pair in the each-pair rows), and, at 10,000,000 elements, memory. This is from the profiles of the first round and the per-call times above; the engine was not profiled again after round three.
 
 ### What each change did
 
-Measured alone, on `kg`, the same machine and load, against the engine without that change. Every change but the last two is behind the cargo feature `speed` of `klong-core`, which `kg` and the extension enable and the board images do not.
+The first part of the table was measured alone, on `kg`, the same machine and load, against the engine without that change. Every change but the last two of that part is behind the cargo feature `speed` of `klong-core`, which `kg` and the extension enable and the board images do not. The second part could not be measured alone, because there is no build with one of rounds two and three and not the other; it compares the extension built before round two with the extension now, in the same session, with the load given above (10.50 at the start of the older build's runs, 15.95 at the start of the current build's second run). The commits of rounds two and three are also behind the feature `speed`.
 
 | Change | Effect |
 |---|---|
@@ -332,6 +352,10 @@ Measured alone, on `kg`, the same machine and load, against the engine without t
 | `codegen-units = 1` in the release profile | the programs above 4 to 11% faster, arrays between 0.78 and 1.27 at 100,000 elements (add of floats got slower by 22% at that size, a layout effect that is not there at 1,000 or 10,000,000), the build 10% longer |
 | Fat LTO with `codegen-units = 1` | rejected: the geometric mean over the 55 rows measured with it is 1.027 against 1.017 without it, for 50% more build time |
 | Inlining the stack check and the deferred-failure check everywhere | rejected: kept only under `speed`, so that the board image does not grow |
+| Round two: cheaper leaf operands and calls, and the per-chain adverb body (the body of the verb of an adverb chain is found once) | with round three, on the extension, before rounds two and three to now: fib(24) 1.45 times, loop by while 1.34, converge 1.45, reduce 1.30, each 1.31, named-parameter calls 1.39, classic calls 1.36, qualified calls 1.19, module-qualified calls 1.17. The commit message of round two gives 15 to 28 percent faster for the scalar path |
+| Round two: sort-based unique and group, gather, cycling take, integer divide and remainder, scan kernels | `where` 3.7 times at 100,000 elements, the sort of floats 1.5 times at 100,000 and 1.35 times at 10,000,000, each-pair 1.2 times; not attributed to one change. Unique, group, cycling take and integer divide have no row in the set and no measurement here. The commit message says unique of a flat vector is no longer quadratic |
+| Round three: append in place | string append with the result dropped 4.7 times (9.06 ms to 1.92 ms), vector append 46 times (88 ms to 1.91 ms), 20,000 appends. Building a string while keeping the result (`s::s,"ab"`) is unchanged: 19.2 ms to 19.1 ms |
+| Round three: direct calls to named functions, leaf arithmetic, direct joins for dictionary updates | with round two, as in the row above. The commit message of round three gives fib(24) 14.5 percent faster and dictionary updates 14.8 percent; dictionary updates measured 1.21 times (13.4 ms to 11.1 ms) over both rounds |
 
 Not tried: explicit SIMD kernels (the vectorised loops are at NumPy's speed where memory allows), and a name-lookup cache (`resolve` and `lookup` are 13% of recursion, so the most it could give is a few percent).
 
