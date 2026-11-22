@@ -18,8 +18,6 @@ The parse tree is not an interpreter's: `kgpy ast`, lint and the static tools ar
 import contextlib
 import functools
 import types
-import sys
-import os
 import re
 import time
 import warnings
@@ -33,7 +31,7 @@ from .errors import (compat, ERROR_KINDS, KlongArityError, KlongError, KlongInte
 from .source import Source
 from .utils import check_strict_level
 from .types import (KGSym, KGChar, KLONG_UNDEFINED, KGCall, KGFn, KGFnWrapper, KGLambda, KGOp, reserved_fn_args,
-                    _arity_error, _count, _named_arity_error)
+                    _arity_error, _named_arity_error)
 
 from .native_ext import load_extension as _load_extension
 from .ipc.codec import KdbTable, KdbKeyedTable

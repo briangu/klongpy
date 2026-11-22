@@ -20,9 +20,9 @@ import timeit
 
 import colorama
 
-from klongpy import KlongInterpreter, __version__, list_backends
+from klongpy import __version__, list_backends
 from klongpy.core import KGSym, kg_write
-from klongpy.errors import KlongError, KlongSystemError
+from klongpy.errors import KlongSystemError
 from klongpy.help_index import apropos_text, help_text
 from klongpy.source import Source
 from klongpy.repl import (cleanup_repl, create_repl, format_error, keeps_alive, klong_warnings, use_color,  # noqa: F401

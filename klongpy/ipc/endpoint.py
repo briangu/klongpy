@@ -31,7 +31,7 @@ from collections import deque
 import numpy as np
 
 from ..native_ext import native
-from ..core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
+from ..core import (KGFn, KGFnWrapper, KGLambda, KGSym,
                     KLONG_UNDEFINED, get_fn_arity_str, reserved_fn_args, reserved_fn_symbol_map)
 from ..errors import (ERROR_KINDS, KlongError, KlongInternalError, KlongRemoteError,
                       KlongSystemError, KlongTypeError, classify)
@@ -494,7 +494,7 @@ def evaluate_request(klong, value):
         return value
     callee, args = items[0], items[1:]
     if (len(items) == 3 and isinstance(callee, (str, KGSym)) and str(callee) == "set"       # KGSym("set") != "set"
-            and isinstance(args[0], KGSym) and not _SET_SYM in klong):
+            and isinstance(args[0], KGSym) and _SET_SYM not in klong):
         klong[args[0]] = lambda_value(klong, args[1])
         return KLONG_UNDEFINED
     return _apply(klong, callee, args)

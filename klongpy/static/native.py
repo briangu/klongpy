@@ -17,13 +17,12 @@ is its text, `ir_text`; `ir_json` gives it as a structure), a StaticReport whose
 """
 import os
 import re
-import shutil
 
-from ..errors import KlongStaticError, KlongSystemError
+from ..errors import KlongNameError, KlongShapeError, KlongStaticError, KlongSystemError, KlongTypeError
 from ..native_ext import native
 from ..source import Source
 from .diagnostics import StaticDiagnostic
-from .signature import EntryDecl, ExternDecl, parse_signature, parse_type
+from .signature import EntryDecl, ExternDecl, Mismatch, conform, parse_signature, parse_type
 
 __all__ = ["check_source", "check_file", "check_streamable", "check_report", "ir_json", "validate_global", "StaticReport", "GlobalInfo", "FunctionInfo", "compile_program",
            "emit_program", "runtime_header", "Compiled", "Emitted", "emit_hls_program", "HlsOutput", "load_program",
@@ -407,8 +406,6 @@ def _call_entry_on_backend(klong, name, args, signature):
     """call_entry on a backend whose arrays are not NumPy's: the engine's entry call cannot read a tensor, so the arguments are
     checked and converted here (signature.conform), the entry runs on the interpreter and its result is checked the same way.
     (Engine needs: a call_entry that takes the host value of a backend.)"""
-    from ..errors import KlongArityError, KlongNameError, KlongShapeError, KlongTypeError
-    from .signature import Mismatch, conform
     cands = [e for e in klong.externs.entries if e.name == name]
     if signature is not None:
         cands = [klong.externs.entry(name, signature)]

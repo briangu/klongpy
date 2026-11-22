@@ -1,24 +1,21 @@
 
-import errno
 import importlib
 import importlib.abc
 import importlib.util
 import inspect
 import os
-import re
 import subprocess
 import sys
-import time
 from inspect import Parameter
 
 import numpy
 
-from .errors import (KlongNameError, KlongRangeError, KlongSystemError, KlongTypeError, compat,
-                     describe, python_error)
-from .source import Source
-from .core import (KGChannel, KGChannelDir, KGLambda, KGSym, KlongException,
-                   KLONG_UNDEFINED, bknp, is_dict, is_empty, is_list, kg_write,
-                   reserved_fn_args, reserved_fn_symbol_map, safe_eq, safe_inspect)
+from .errors import (KlongNameError, KlongSystemError, KlongTypeError, compat,
+                     python_error)
+from .core import KGChannel, KGChannelDir  # noqa: F401 (historical channel exports)
+from .core import (KGLambda, KGSym, KlongException,
+                   is_dict, is_list, kg_write,
+                   reserved_fn_args, reserved_fn_symbol_map, safe_inspect)
 
 
 def eval_sys_backend_display(klong, x):
@@ -160,7 +157,8 @@ def _handle_import(item):
                 item = KGLambda(item, args=reserved_fn_args[:n_args])
         else:
             sig_args = safe_inspect(item, follow_wrapped=True)
-            if 'args' in sig_args:
+            # safe_inspect uses this sentinel for builtins without a signature.
+            if sig_args == {"args": []} or any(p.kind == Parameter.VAR_POSITIONAL for p in sig_args.values()):
                 item = KGLambda(item, args=None, wildcard=True)
                 n_args = 3
             else:

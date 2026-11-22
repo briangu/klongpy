@@ -11,7 +11,8 @@ from klongpy.core import KlongException
 from klongpy.ipc import Session
 from klongpy.ipc.endpoint import Waiter
 from klongpy.sys_fn_ipc import (ConnectionProvider, HostPortConnectionProvider,
-                                KGAsyncCall, KlongIPCCreateConnectionException,
+                                KGAsyncCall, KlongIPCConnectionClosedException,
+                                KlongIPCCreateConnectionException,
                                 KlongIPCHandshakeException, NetworkClient,
                                 ReaderWriterConnectionProvider)
 from klongpy.utils import CallbackEvent
@@ -546,7 +547,6 @@ class TestNetworkClient(LoopsBase, unittest.TestCase):
         self.assertEqual(written, [bytes.fromhex("0102000011000000f90200000000000000")])
 
     def test_listen_eof_is_a_clean_close(self):
-        from klongpy.sys_fn_ipc import KlongIPCConnectionClosedException
         cli, _ = self._ready_session("client")
         client = NetworkClient(self.ioloop, self.klongloop, MagicMock(), None)
         client.session = cli
@@ -607,11 +607,15 @@ class TestNetworkClient(LoopsBase, unittest.TestCase):
 
     def test_call_server_fail(self):
         """When the server closes the connection in the middle of a call, the call fails."""
-        peer = self._peer(handler=None, close_after=0.3)
+        peer = self._peer(disconnect_on_request=True)
         client = NetworkClient(self.ioloop, self.klongloop, KlongInterpreter(), self._provider(peer))
         client.run_client()
-        with self.assertRaises(Exception):
-            bounded(lambda: client.call("x"), 8)
+        try:
+            with self.assertRaisesRegex(KlongIPCConnectionClosedException, "connection closed"):
+                bounded(lambda: client.call("x"), 5)
+            self.assertEqual(peer.requests, [("sync", "x")])
+        finally:
+            bounded(client.close)
 
     def test_handshake_refused_raises_from_run_client(self):
         peer = self._peer(reject=True)

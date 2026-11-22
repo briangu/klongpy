@@ -17,7 +17,6 @@ import itertools
 import numpy
 
 from ..core import *
-from ..errors import KlongError
 
 
 # ---- from monads.py ----

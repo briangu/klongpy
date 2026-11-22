@@ -1,7 +1,7 @@
 import asyncio
 import sys
 
-from klongpy.core import KGCall, KGFn, KGFnWrapper, KlongException, KlongRangeError, KlongTypeError
+from klongpy.core import KGCall, KGFn, KGFnWrapper, KlongRangeError, KlongTypeError
 
 
 class KGTimerHandler:

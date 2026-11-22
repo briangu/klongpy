@@ -67,15 +67,16 @@ class FakeKdbServer:
     value to answer a sync request with; raising answers with an error object
     whose text is ``str(exception)``.  ``handler=None`` never answers.
     ``reply_handshake=False`` stays silent after the greeting; ``reject=True``
-    closes after the greeting; ``close_after`` closes each connection after that
-    many seconds.  ``greetings`` and ``requests`` record what arrived.
+    closes after the greeting; ``disconnect_on_request`` closes the connection
+    after decoding a request, before responding. ``greetings`` and ``requests``
+    record what arrived.
     """
 
-    def __init__(self, handler=None, reply_handshake=True, reject=False, close_after=None, capability=3):
+    def __init__(self, handler=None, reply_handshake=True, reject=False, disconnect_on_request=False, capability=3):
         self.handler = handler
         self.reply_handshake = reply_handshake
         self.reject = reject
-        self.close_after = close_after
+        self.disconnect_on_request = disconnect_on_request
         self.capability = capability
         self.greetings = []
         self.requests = []
@@ -92,14 +93,18 @@ class FakeKdbServer:
             while True:
                 c, _ = self.sock.accept()
                 self.conns.append(c)
-                if self.close_after is not None:
-                    threading.Timer(self.close_after, self._close, args=(c,)).start()
                 threading.Thread(target=self._serve, args=(c,), daemon=True).start()
         except OSError:
             pass
 
     @staticmethod
     def _close(c):
+        # Wake a recv running in another thread, which can hold the socket
+        # open even after close() on Linux.
+        try:
+            c.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
         try:
             c.close()
         except OSError:
@@ -133,6 +138,9 @@ class FakeKdbServer:
         if not isinstance(ev, Message) or ev.kind == "response":
             return
         self.requests.append((ev.kind, ev.value))
+        if self.disconnect_on_request:
+            self._close(c)
+            return
         if self.handler is None:
             return
         svc = sess.begin_service(ev)
@@ -148,6 +156,6 @@ class FakeKdbServer:
             sess.end_service(svc)
 
     def stop(self):
+        self._close(self.sock)
         for c in self.conns:
             self._close(c)
-        self.sock.close()

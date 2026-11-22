@@ -14,7 +14,7 @@ import weakref
 from asyncio import StreamReader, StreamWriter
 
 from klongpy.core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
-                          KlongException, KLONG_UNDEFINED, is_list,  # noqa: F401
+                          KLONG_UNDEFINED, is_list,
                           reserved_fn_args, reserved_fn_symbols, reserved_fn_symbol_map)
 
 from klongpy.errors import KlongRangeError, KlongSystemError, KlongTypeError

@@ -16,7 +16,7 @@ call, so it can be bound before or after the ``.extern`` line runs and replaced 
 program declared (``declared``, ``entries``, ``params``: read from the engine). The engine checks arguments and result
 against the signature on every call.
 """
-from .static.signature import EntryDecl, ExternDecl, SignatureError, Ty, is_fixed, parse_signature, parse_type
+from .static.signature import EntryDecl, ExternDecl, SignatureError, is_fixed, parse_signature, parse_type
 from .errors import KlongError, KlongTypeError, python_error
 
 

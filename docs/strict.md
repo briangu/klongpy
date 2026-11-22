@@ -25,8 +25,8 @@ $ kgpy --strict=2 -e 'a'
 <expr>:1:1: name error: undefined: a
   a
   ^
-$ kgpy --strict=3 -e 'a' 2>&1 | tail -1
-kgpy: error: argument --strict: invalid choice: '3' (choose from 0, 1, 2)
+$ kgpy --strict=3 -e 'a' >/dev/null 2>&1; echo $?
+2
 ```
 
 ```python

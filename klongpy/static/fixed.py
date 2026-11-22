@@ -25,7 +25,6 @@ product of two operands of more than 32 bits needs 128 bits; those are done on
 Python integers. ``FixedArray`` is the container that carries (W, I) for the
 values the interpreter produces: ``.fixed("fixed<32,16>";0.5)`` returns one.
 """
-import math
 
 import numpy as np
 

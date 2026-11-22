@@ -15,7 +15,7 @@ Or from Python:
 import numpy as np
 
 from klongpy.autograd import multi_grad_of_fn
-from klongpy.core import KGSym, KGFn, KGCall, KGLambda
+from klongpy.core import KGSym, KGFn, KGLambda
 
 
 def _store(klong, param, new_val):

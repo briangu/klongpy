@@ -4,6 +4,7 @@ a dictionary literal; .pyc passes positional arguments; KGLambda subclasses
 that do not call the constructor have the `user` flag.
 """
 import importlib.util
+from pathlib import Path
 import socket
 import tempfile
 import time
@@ -108,6 +109,21 @@ class TestSiblingLambdas(unittest.TestCase):
 
 
 class TestPyc(unittest.TestCase):
+    def test_builtin_with_variadic_arguments(self):
+        klong = KlongInterpreter()
+        klong('.pyf("math";"hypot")')
+        self.assertEqual(klong('.pyc("hypot";[3 4];:{})'), 5.0)
+        self.assertEqual(klong('hypot(3;4)'), 5.0)
+
+    def test_imported_variadic_argument_can_have_any_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            module = Path(directory) / "variadic.py"
+            module.write_text("def total(first, *rest):\n    return first + sum(rest)\n", encoding="utf-8")
+            klong = KlongInterpreter()
+            klong(f'.pyf("{module.as_posix()}";"total")')
+            self.assertEqual(klong('.pyc("total";[1 2 3 4];:{})'), 10)
+            self.assertEqual(klong('total(1;2;3;4)'), 10)
+
     def test_class_with_positional_and_keyword_arguments(self):
         klong = KlongInterpreter()
         klong('.pyf("datetime";"datetime")')

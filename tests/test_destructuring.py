@@ -381,6 +381,7 @@ class TestRepositoryGate(unittest.TestCase):
             "examples/stocks/feed/feed.kg",
             "examples/modules/data/feed.kg",        # selection and rename on load: [reseed noise]::.l(...)@[...]
             "tests/kgtests/language/test_destructuring.kg",
+            "tests/v2/programs/arrays.kg",
             "tests/golden/fixtures/s2_destructuring_slot.kg",
             # written on purpose by the named-parameter tests
             "tests/golden/fixtures/named_head_destructuring.kg",

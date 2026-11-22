@@ -8,7 +8,7 @@ import weakref
 import numpy as np
 import websockets
 
-from klongpy.core import (KGCall, KGLambda, KGSym, KlongException, KLONG_UNDEFINED,
+from klongpy.core import (KGCall, KGLambda, KlongException, KLONG_UNDEFINED,
                           reserved_fn_args, reserved_fn_symbol_map)
 
 

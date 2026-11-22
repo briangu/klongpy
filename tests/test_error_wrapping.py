@@ -258,8 +258,8 @@ class TestPythonAndSystemFunctions(unittest.TestCase):
         k = KlongInterpreter()
         k('.py("math")')
         e = raised(k, "sqrt(-1)", KlongPythonError)
-        self.assertEqual(str(e), "ValueError: math domain error")
         self.assertIsInstance(e.__cause__, ValueError)
+        self.assertEqual(str(e), f"ValueError: {e.__cause__}")
         self.assertIsInstance(e, ValueError)                        # still catchable as what it was
         self.assertEqual(e.span, (0, 8))
 
@@ -267,7 +267,8 @@ class TestPythonAndSystemFunctions(unittest.TestCase):
         k = KlongInterpreter()
         k('.pyf("math";"sqrt")')
         e = raised(k, "sqrt'[4 -1]", KlongPythonError)
-        self.assertEqual(str(e), "ValueError: math domain error")
+        self.assertIsInstance(e.__cause__, ValueError)
+        self.assertEqual(str(e), f"ValueError: {e.__cause__}")
 
     def test_user_python_through_pyc(self):
         k = KlongInterpreter()

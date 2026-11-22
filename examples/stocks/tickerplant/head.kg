@@ -54,5 +54,5 @@ closeSession()::{[path peer reply problem];need(nextSeq>dayFirst;"empty session"
     reply::.try({live("DELETE FROM rdb.ticks; UPDATE rdb.control SET dayno=dayno+1,firstseq=",(number(nextSeq)),",closing=false; COMMIT")};[]);
     :[reply@0;1;{live("ROLLBACK");problem::reply@1;.err(problem@"kind";problem@"message")}()];
     dayNo::dayNo+1;dayFirst::nextSeq;recentFirst::nextSeq;closing::0;discardTransfer(dayNo-1);nextSeq}
-roll(day)::{:[day~dayNo;closeSession();:[(dayNo>0)&(day~dayNo-1);dayFirst;.err("range";"unexpected trading session")]]}
+roll(day)::{:[day~dayNo;closeSession():|(dayNo>0)&(day~dayNo-1);dayFirst;.err("range";"unexpected trading session")]}
 :[2=#.a;{startHead(.a@1);.srv(.a@0)}();1]

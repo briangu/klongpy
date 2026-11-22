@@ -53,7 +53,6 @@ knows only the functions bound once to a literal ``name::{...}``.
 Suppression: a comment ``:"lint:ignore W012"`` on a line removes that code
 on that line (several codes may follow, separated by spaces or commas).
 """
-import os
 import re
 from dataclasses import dataclass
 

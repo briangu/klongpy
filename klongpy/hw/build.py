@@ -20,7 +20,6 @@ that the slack suggests, and the next build is the caller's decision.
 import hashlib
 import json
 import os
-import posixpath
 import re
 import shlex
 import subprocess

@@ -26,7 +26,7 @@ import threading
 import numpy as np
 
 from ..static.signature import Mismatch, Ty, conform, parse_signature
-from .client import Handle, HwConnectionError, HwError, HwRefused, HwTrap
+from .client import HwConnectionError, HwError
 
 __all__ = ["bind", "choose_mode", "close_all", "Binding", "BoundEntry", "Buffer", "HwNotAvailable", "NoImage", "BadCall",
            "session_for", "find_image_for"]

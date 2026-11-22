@@ -3,7 +3,7 @@ recursive-include klongpy/lib *.kg
 recursive-include klongpy/static *.h
 recursive-include klongpy/data *.json
 # Keep the runnable release contract with the source it verifies. Wheels carry only the runtime.
-include scripts/bench_versions.py tests/__init__.py tests/conftest.py tests/custom_backend.py tests/ipc_helpers.py
+include scripts/bench_versions.py tests/*.py
 recursive-include tests/v2 *.py *.kg *.q *.c *.md
 include examples/db/*.kg examples/db/README.md examples/1brc/par.kg examples/1brc/README.md tests/test_1brc_example.py
 include examples/stocks/tickerplant/*.kg examples/stocks/tickerplant/bench.py examples/stocks/tickerplant/README.md

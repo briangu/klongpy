@@ -7,71 +7,18 @@ instead of hanging the suite.
 import asyncio
 import os
 import socket
-import threading
 import time
 import unittest
 
 from klongpy import KlongInterpreter
 from klongpy.repl import create_repl, cleanup_repl
-from klongpy.sys_fn_ipc import (NetworkClient, KlongIPCException,
+from klongpy.sys_fn_ipc import (NetworkClient, KlongIPCException, KlongIPCConnectionClosedException,
                                 eval_sys_fn_create_ipc_server)
 from klongpy.core import KlongException
 from klongpy.utils import CallbackEvent
 
 
-from ipc_helpers import bounded, free_port  # noqa: E402
-
-
-class SilentServer:
-    """Completes the kdb+ handshake, then never replies. close_after: close each connection after n seconds.
-
-    (A peer that does not even answer the greeting is a handshake timeout, tested in test_ipc_endpoint.)
-    """
-
-    def __init__(self, close_after=None):
-        self.sock = socket.socket()
-        self.sock.bind(("127.0.0.1", 0))
-        self.sock.listen(5)
-        self.port = self.sock.getsockname()[1]
-        self.close_after = close_after
-        self.conns = []
-        self.thread = threading.Thread(target=self._run, daemon=True)
-        self.thread.start()
-
-    def _run(self):
-        try:
-            while True:
-                c, _ = self.sock.accept()
-                self.conns.append(c)
-                if self.close_after is not None:
-                    threading.Timer(self.close_after, c.close).start()
-                threading.Thread(target=self._handshake, args=(c,), daemon=True).start()
-        except OSError:
-            pass
-
-    @staticmethod
-    def _handshake(c):
-        """Read the greeting up to its NUL and answer with capability 3."""
-        try:
-            buf = b""
-            while b"\x00" not in buf:
-                data = c.recv(256)
-                if not data:
-                    return
-                buf += data
-            c.sendall(b"\x03")
-            while c.recv(65536):          # then swallow whatever the client sends
-                pass
-        except OSError:
-            pass
-
-    def stop(self):
-        for c in self.conns:
-            try:
-                c.close()
-            except OSError:
-                pass
-        self.sock.close()
+from ipc_helpers import FakeKdbServer, bounded, free_port  # noqa: E402
 
 
 class ReplCase(unittest.TestCase):
@@ -178,7 +125,7 @@ class TestServerStart(ReplCase):
 class TestTimeouts(ReplCase):
     def test_call_times_out_on_silent_peer(self):
         klong, _ = self.new_repl()
-        srv = SilentServer()
+        srv = FakeKdbServer()
         self.addCleanup(srv.stop)
         bounded(lambda: klong(f"c::.cli({srv.port})"))
         nc = klong['c']
@@ -192,13 +139,12 @@ class TestTimeouts(ReplCase):
 
     def test_connection_close_fails_pending_call(self):
         klong, _ = self.new_repl()
-        srv = SilentServer(close_after=0.3)
+        srv = FakeKdbServer(disconnect_on_request=True)
         self.addCleanup(srv.stop)
         bounded(lambda: klong(f"c::.cli({srv.port})"))
-        t0 = time.time()
-        with self.assertRaises(Exception):
-            bounded(lambda: klong('c("1+1")'), 8)
-        self.assertLess(time.time() - t0, 5)
+        with self.assertRaisesRegex(KlongIPCConnectionClosedException, "connection closed"):
+            bounded(lambda: klong('c("1+1")'), 5)
+        self.assertEqual(srv.requests, [("sync", "1+1")])
 
     def test_cleanup_pending_none_exception(self):
         loop = asyncio.new_event_loop()

@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import sys
 import threading
-import time
 import os
 import warnings
 import importlib.resources

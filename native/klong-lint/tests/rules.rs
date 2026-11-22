@@ -35,6 +35,13 @@ fn set(v: &[&str]) -> BTreeSet<String> {
 }
 
 #[test]
+fn recognizes_both_desktop_script_argument_names() {
+    let src = ".p(.a)\n.p(.os.argv)\n.p(.argvtypo)";
+    let got = lint_source("args.kg", src, &Options::default());
+    assert_eq!(got.iter().map(|d| (d.code, d.line, d.col)).collect::<Vec<_>>(), [("W002", 3, 4)]);
+}
+
+#[test]
 fn every_code_has_a_positive_and_a_negative_case() {
     for r in RULES {
         // (W023 needs a file beside the linted one: `a_local_file_that_shadows_the_library_is_reported`)
