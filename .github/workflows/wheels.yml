@@ -75,6 +75,7 @@ jobs:
       # abi3: the cp311 wheel serves every Python from 3.11. No musllinux wheel (see docs).
       CIBW_BUILD: "cp311-*"
       CIBW_SKIP: "*-musllinux_*"
+      CIBW_ARCHS_WINDOWS: AMD64
       CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
       CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
       CIBW_BEFORE_ALL_LINUX: "curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal"
@@ -135,13 +136,17 @@ jobs:
     - name: Install the wheel into a fresh environment
       shell: bash
       run: |
+        set -- wheelhouse/*.whl
+        [ "$#" -eq 1 ]
+        [ -f "$1" ]
         python -m venv "$RUNNER_TEMP/venv"
         VENV_BIN="$RUNNER_TEMP/venv/bin"; [ -d "$VENV_BIN" ] || VENV_BIN="$RUNNER_TEMP/venv/Scripts"
         echo "$VENV_BIN" >> "$GITHUB_PATH"
-        "$VENV_BIN/python" -m pip install wheelhouse/*.whl pytest pytest-asyncio aiohttp pandas pyarrow duckdb websockets psutil
+        "$VENV_BIN/python" -m pip install "$1" pytest pytest-asyncio aiohttp pandas pyarrow duckdb websockets psutil
         suffix=
         [ "$RUNNER_OS" != Windows ] || suffix=.exe
-        printf 'KLONG_NATIVE=%s\nKLONG_V2_KGPY=%s\n' "$VENV_BIN/kg$suffix" "$VENV_BIN/kgpy$suffix" >> "$GITHUB_ENV"
+        printf 'KLONG_NATIVE=%s\nKLONG_V2_KGPY=%s\nKLONG=%s\n' \
+          "$VENV_BIN/kg$suffix" "$VENV_BIN/kgpy$suffix" "$VENV_BIN/kg$suffix" >> "$GITHUB_ENV"
     - name: Installed commands, and the package comes from the wheel
       shell: bash
       env:
@@ -180,6 +185,11 @@ jobs:
       # tests/test_compiler.py needs torch, which the wheel matrix does not install.
       run: |
         unset PYTHONPATH KLONGPY_NATIVE_PATH
+        # Some checkout test helpers prepend the source root to sys.path or PYTHONPATH.
+        # Keep the source fixtures, while making the installed package win those imports too.
+        checkout_init="$RUNNER_TEMP/klongpy-checkout-init.py"
+        mv klongpy/__init__.py "$checkout_init"
+        trap 'mv "$checkout_init" klongpy/__init__.py' EXIT
         python -m pytest tests -v --import-mode=append --ignore=tests/test_compiler.py
 
   # NOT ENABLED. Runs only for a manual start of this workflow, on a tag, with `publish` ticked.
