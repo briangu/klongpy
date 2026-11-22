@@ -190,7 +190,9 @@ jobs:
         checkout_init="$RUNNER_TEMP/klongpy-checkout-init.py"
         mv klongpy/__init__.py "$checkout_init"
         trap 'mv "$checkout_init" klongpy/__init__.py' EXIT
-        python -m pytest tests -v --import-mode=append --ignore=tests/test_compiler.py
+        # Measure scheduled requests before starting the long-lived test process and its background services.
+        python -m pytest tests/v2/test_performance.py::test_tick_service_under_load -v --import-mode=append
+        python -m pytest tests -v --import-mode=append --ignore=tests/test_compiler.py -k 'not test_tick_service_under_load'
 
   # NOT ENABLED. Runs only for a manual start of this workflow, on a tag, with `publish` ticked.
   # The owner configures once (nothing here holds a secret):

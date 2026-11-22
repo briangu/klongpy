@@ -10,6 +10,8 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 PROBE = "import klongpy; print(klongpy.KlongInterpreter.__name__)"
+# Mask both supported import names in this subprocess, even inside an installed wheel.
+MISSING_EXTENSION = "import sys; sys.modules.update({'klongpy._native': None, 'klong_native': None})\n"
 
 
 def run(code, **env):
@@ -21,30 +23,13 @@ def run(code, **env):
     return subprocess.run([sys.executable, "-W", "ignore", "-c", code], cwd=ROOT, env=e, capture_output=True, text=True, timeout=60)
 
 
-def extension_directory():
-    """The directory the running test session finds the extension in (KLONGPY_NATIVE_PATH), or None."""
-    return os.environ.get("KLONGPY_NATIVE_PATH") or None
-
-
-def extension_on_the_path():
-    """True when the extension is importable without KLONGPY_NATIVE_PATH (installed, or on PYTHONPATH)."""
-    r = run("import importlib.util as u, glob, os\n"
-            "print(u.find_spec('klong_native') is not None or bool(glob.glob(os.path.join('klongpy', '_native*'))))")
-    return r.stdout.strip() == "True"
-
-
 class TestEngineSelection(unittest.TestCase):
     def test_the_native_engine_is_the_interpreter_when_the_extension_is_found(self):
-        d = extension_directory()
-        if d is None and not extension_on_the_path():
-            self.skipTest("the compiled extension is not available to this session")
-        r = run(PROBE, KLONGPY_NATIVE_PATH=d)
+        r = run(PROBE, KLONGPY_NATIVE_PATH=os.environ.get("KLONGPY_NATIVE_PATH"))
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "KlongInterpreter"), r.stderr)
 
     def test_a_missing_extension_is_an_error_that_says_how_to_build_it(self):
-        if extension_on_the_path():
-            self.skipTest("the extension is installed in this environment")
-        r = run(PROBE)
+        r = run(MISSING_EXTENSION + PROBE)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("ImportError", r.stderr)
         for word in ("compiled extension", "cargo build --release", "KLONGPY_NATIVE_PATH"):
@@ -52,9 +37,7 @@ class TestEngineSelection(unittest.TestCase):
         self.assertNotIn("KlongInterpreter", r.stdout)       # and no silent fallback
 
     def test_a_directory_without_the_extension_is_said_so(self):
-        if extension_on_the_path():
-            self.skipTest("the extension is installed in this environment")
-        r = run(PROBE, KLONGPY_NATIVE_PATH=os.path.join(ROOT, "docs"))
+        r = run(MISSING_EXTENSION + PROBE, KLONGPY_NATIVE_PATH=os.path.join(ROOT, "docs"))
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("which does not hold it", r.stderr)
 

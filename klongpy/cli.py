@@ -16,6 +16,8 @@ import os
 import re
 import signal
 import sys
+import threading
+import time
 import timeit
 
 import colorama
@@ -267,11 +269,52 @@ failure = lambda input: f"{colorama.Fore.RED}{input}"
 
 
 class Terminated(BaseException):
-    """SIGTERM arrived (raised by the signal handler of a file run)."""
+    """A file run is handling a recorded SIGTERM."""
 
 
-def _on_sigterm(signum, frame):
-    raise Terminated()
+class _RunSignals:
+    """Record signals so the CLI handles them outside Python callbacks."""
+
+    def __init__(self, *signals):
+        self._signals = signals
+        self._pending = None
+        self._repeated = False
+        self._previous = {}
+
+    def _record(self, signum, frame):
+        if self._pending is None:
+            self._pending = signum
+        else:
+            self._repeated = True
+
+    def install(self):
+        for signum in self._signals:
+            try:
+                self._previous[signum] = signal.signal(signum, self._record)
+            except (ValueError, OSError):
+                pass
+
+    def restore(self):
+        while self._previous:
+            signum, handler = self._previous.popitem()
+            if handler is not None:
+                signal.signal(signum, handler)
+
+    def check(self):
+        if self._pending == signal.SIGINT:
+            raise KeyboardInterrupt
+        if self._pending == signal.SIGTERM:
+            raise Terminated()
+
+    def force_if_needed(self, grace_elapsed):
+        if self._repeated or (grace_elapsed and self._pending == signal.SIGTERM):
+            # The worker is still active. Exit the process without running
+            # Python finalizers concurrently with its native code.
+            terminating = self._pending == signal.SIGTERM
+            try:
+                os.write(2, b"terminated\n" if terminating else b"interrupted\n")
+            finally:
+                os._exit(143 if terminating else 130)
 
 
 class ExitRequest:
@@ -314,31 +357,84 @@ async def repl_eval(klong, p, verbose=False, set_it=True):
 INTERRUPT_GRACE = 2.0
 
 
-def interrupt_evaluation(future, thread, grace=INTERRUPT_GRACE):
-    """
-    Ctrl-C arrived in the main thread while `future` is evaluating in `thread`: raise
-    KeyboardInterrupt there (repl_eval turns it into "interrupted") and wait for the
-    result. Python code stops at its next bytecode; a long numpy call or a sleep
-    finishes first, so after `grace` seconds say so and keep waiting; a second
-    Ctrl-C then quits.
-    """
-    if not future.done() and thread is not None and thread.ident is not None:
-        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(thread.ident), ctypes.py_object(KeyboardInterrupt))
-    try:
-        return future.result(timeout=grace)
-    except concurrent.futures.TimeoutError:
-        write_stderr("interrupt sent, waiting for the evaluation to stop (Ctrl-C again to quit)")
-        return future.result()
+class _Evaluation:
+    """A CLI evaluation and its interruptible interval on the worker thread."""
+
+    def __init__(self, loop, thread, coro):
+        self._thread = thread
+        self._lock = threading.Lock()
+        self._state = "queued"
+        self.future = asyncio.run_coroutine_threadsafe(self._run(coro), loop)
+
+    async def _run(self, coro):
+        try:
+            try:
+                with self._lock:
+                    if self._state == "interrupted":
+                        coro.close()
+                        return ReplError("interrupted")
+                    self._state = "evaluating"
+                return await coro
+            finally:
+                with self._lock:
+                    self._state = "finished"
+        except KeyboardInterrupt:
+            # The interrupt can reach us while entering or leaving the
+            # evaluation, as well as inside the evaluator itself.
+            with self._lock:
+                self._state = "finished"
+            coro.close()
+            return ReplError("interrupted")
+
+    def result(self, signals=None):
+        if signals is not None:
+            while not self.future.done():
+                signals.check()
+                concurrent.futures.wait((self.future,), timeout=0.05)
+        result = self.future.result()
+        if signals is not None:
+            signals.check()
+        return result
+
+    def interrupt(self, *, signals=None):
+        with self._lock:
+            if self._state == "queued":
+                self._state = "interrupted"
+            elif self._state == "evaluating" and self._thread is not None and self._thread.ident is not None:
+                ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                    ctypes.c_ulong(self._thread.ident), ctypes.py_object(KeyboardInterrupt))
+        if signals is not None:
+            deadline = time.monotonic() + INTERRUPT_GRACE
+            warned = False
+            while not concurrent.futures.wait((self.future,), timeout=0.05).done:
+                elapsed = time.monotonic() >= deadline
+                signals.force_if_needed(elapsed)
+                if elapsed and not warned:
+                    write_stderr("interrupt sent, waiting for the evaluation to stop (Ctrl-C again to quit)")
+                    warned = True
+        elif not concurrent.futures.wait((self.future,), timeout=INTERRUPT_GRACE).done:
+            write_stderr("interrupt sent, waiting for the evaluation to stop (Ctrl-C again to quit)")
+        return self.future.result()
 
 
 def make_evaluate(klong_loop, klong_thread, verbose=False):
     """The evaluate(klong, text) for repl_loop: run repl_eval on the klong loop; Ctrl-C interrupts that evaluation."""
     def evaluate(klong, text):
-        future = asyncio.run_coroutine_threadsafe(repl_eval(klong, text, verbose=verbose), klong_loop)
+        signals = _RunSignals(signal.SIGINT)
+        signals.install()
         try:
-            return future.result()
-        except KeyboardInterrupt:
-            return interrupt_evaluation(future, klong_thread)
+            evaluation = _Evaluation(klong_loop, klong_thread, repl_eval(klong, text, verbose=verbose))
+            try:
+                return evaluation.result(signals)
+            except KeyboardInterrupt:
+                result = evaluation.interrupt(signals=signals)
+                if isinstance(result, (ExitRequest, ReplError)):
+                    return result
+                # A native evaluation can finish before the main thread gets
+                # to handle Ctrl-C. Still report that it arrived.
+                return ReplError("interrupted")
+        finally:
+            signals.restore()
     return evaluate
 
 
@@ -379,8 +475,15 @@ def get_input(prompt=PROMPT):
     return input(_prompt_text(prompt, color))
 
 
-def run_in_loop(klong_loop, coro):
-    return asyncio.run_coroutine_threadsafe(coro, klong_loop).result()
+def run_in_loop(klong_loop, coro, *, klong_thread=None, signals=None):
+    if klong_thread is None:
+        return asyncio.run_coroutine_threadsafe(coro, klong_loop).result()
+    evaluation = _Evaluation(klong_loop, klong_thread, coro)
+    try:
+        return evaluation.result(signals)
+    except (KeyboardInterrupt, Terminated):
+        evaluation.interrupt(signals=signals)
+        raise
 
 
 def read_entry(read_line, history=None, cancel_on_blank=True):
@@ -505,9 +608,11 @@ async def run_in_klong(klong, s):
             return klong(s)
     except SystemExit as exc:
         return ExitRequest(exc.code)
+    except KeyboardInterrupt:
+        return ReplError("interrupted")
 
 
-def run_file(klong_loop, klong, fname, verbose=False):
+def run_file(klong_loop, klong, fname, verbose=False, *, klong_thread=None, signals=None):
     """
     Run a Klong file on the klong loop and return its result (an ExitRequest for .x).
     Errors propagate: a KlongError carries the Source named fname, so it renders
@@ -522,7 +627,11 @@ def run_file(klong_loop, klong, fname, verbose=False):
             content = f.read()
     except OSError as e:
         raise KlongSystemError(f"cannot open {fname}: {e.strerror or e}") from e
-    return run_in_loop(klong_loop, run_in_klong(klong, Source(fname, content)))
+    result = run_in_loop(klong_loop, run_in_klong(klong, Source(fname, content)),
+                         klong_thread=klong_thread, signals=signals)
+    if isinstance(result, ReplError):
+        raise KeyboardInterrupt
+    return result
 
 
 def run_test_file(klong, fname, report):
@@ -866,6 +975,7 @@ def main():
 
     run_repl = False
     exit_code = None
+    file_signals = _RunSignals(signal.SIGINT, signal.SIGTERM) if args.filename else None
 
     try:
         if args.server:
@@ -880,11 +990,9 @@ def main():
         if args.filename:
             if args.verbose:
                 print(f"Running: {args.filename}")
-            try:
-                signal.signal(signal.SIGTERM, _on_sigterm)
-            except (ValueError, OSError):   # not the main thread, or no SIGTERM here
-                pass
-            result = run_file(klong_loop, klong, args.filename, verbose=args.verbose)
+            file_signals.install()
+            result = run_file(klong_loop, klong, args.filename, verbose=args.verbose,
+                              klong_thread=klong_thread, signals=file_signals)
             if isinstance(result, ExitRequest):
                 exit_code = result.code
 
@@ -892,23 +1000,16 @@ def main():
                 # the program is over; what it printed must be visible even when the
                 # process now stays up for a server, a connection or a timer
                 sys.stdout.flush()
-                try:
-                    wait_while_alive(klong['.system'])
-                except KeyboardInterrupt:
-                    exit_code = finish_interrupted("interrupted", 130)
-                except Terminated:
-                    exit_code = finish_interrupted("terminated", 143)
-                else:
-                    exit_signal = klong['.system']['exitSignal']
-                    if exit_signal.code is not None:
-                        exit_code = exit_signal.code
+                wait_while_alive(klong['.system'], check_interrupt=file_signals.check)
+                exit_signal = klong['.system']['exitSignal']
+                if exit_signal.code is not None:
+                    exit_code = exit_signal.code
         elif not args.test:
             run_repl = True
     except KeyboardInterrupt:
-        interrupted()
+        exit_code = finish_interrupted("interrupted", 130)
     except Terminated:
-        write_stderr("terminated")
-        sys.exit(143)
+        exit_code = finish_interrupted("terminated", 143)
     except Exception as e:
         report(e)
         exit_code = 1
@@ -924,9 +1025,10 @@ def main():
             if args.verbose:
                 print(f"Loading: {args.load}")
             try:
-                result = run_file(klong_loop, klong, args.load, verbose=args.verbose)
+                result = run_file(klong_loop, klong, args.load, verbose=args.verbose, klong_thread=klong_thread)
             except KeyboardInterrupt:
-                interrupted()
+                exit_code = finish_interrupted("interrupted", 130)
+                run_repl = False
             except Exception as e:
                 # a failing load is rendered and the process exits
                 report(e)
@@ -964,16 +1066,26 @@ def main():
                 exit_state["code"] = 130
             finally:
                 history.save()
-            console_loop.close()
             if exit_state["code"] is not None:
                 exit_code = exit_state["code"]
             elif exit_state["failures"] and not sys.stdin.isatty():
                 # piped input: a failed entry makes the run fail (an interactive session ends 0)
                 exit_code = 1
+        console_loop.close()
 
-    shutdown_event.trigger()
-
-    cleanup_repl(loops, debug=args.debug)
+    try:
+        shutdown_event.trigger()
+        cleanup_repl(loops, debug=args.debug)
+        if file_signals is not None and exit_code is None:
+            try:
+                file_signals.check()
+            except KeyboardInterrupt:
+                exit_code = finish_interrupted("interrupted", 130)
+            except Terminated:
+                exit_code = finish_interrupted("terminated", 143)
+    finally:
+        if file_signals is not None:
+            file_signals.restore()
 
     if exit_code is not None:
         sys.exit(exit_code)

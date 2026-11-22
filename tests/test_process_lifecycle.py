@@ -130,7 +130,9 @@ class TestWhatKeepsARunUp(unittest.TestCase):
         self.assertEqual((status, out), (0, "stopping\n"))
 
     def test_a_timer_ticks_while_a_server_keeps_the_run_up_and_stops_with_it(self):
-        src = (f'.srv({free_port()})\nn::0\ncb::{{n::n+1;.p(n);:[n=4;.srv(0);1]}}\n'
+        # The callback stays armed after closing the listener. A delayed shutdown poll may let it run again before exit.
+        src = (f'.srv({free_port()})\nn::0\n'
+               'cb::{n::n+1;:[n<5;.p(n);0];:[n=4;.srv(0);0];1}\n'
                '.timer("t";0.1;cb)\n')
         status, out = Proc(self, src).finish()
         self.assertEqual((status, out), (0, "1\n2\n3\n4\n"))
@@ -196,15 +198,18 @@ class TestAWebServerKeepsARunUp(unittest.TestCase):
 
     @posix
     def test_sigterm_and_ctrl_c_end_a_web_run_without_a_warning(self):
-        for sig, code, word in ((signal.SIGTERM, 143, "terminated"), (signal.SIGINT, 130, "interrupted")):
-            with self.subTest(sig=sig):
-                p = Proc(self, self.program(free_port()), name="web.kg")
-                self.assertEqual(p.p.stdout.readline(), "ready\n")
-                status, out = p.end_with(sig)
-                self.assertEqual(status, code)
-                self.assertIn(word, out)
-                self.assertNotIn("WARNING", out)
-                self.assertNotIn("Traceback", out)
+        busy = '.pyf("time";"sleep");{1}{sleep(0.01);x+1}:~0\n'
+        for tail in ("", busy):
+            for sig, code, word in ((signal.SIGTERM, 143, "terminated"), (signal.SIGINT, 130, "interrupted")):
+                with self.subTest(sig=sig, evaluating=bool(tail)):
+                    p = Proc(self, self.program(free_port(), tail), name="web.kg")
+                    self.assertEqual(p.p.stdout.readline(), "ready\n")
+                    p.p.send_signal(sig)
+                    status, out = p.finish(timeout=10)
+                    self.assertEqual(status, code, out)
+                    self.assertIn(word, out)
+                    self.assertNotIn("WARNING", out)
+                    self.assertNotIn("Traceback", out)
 
     def test_a_timer_does_not_change_this(self):
         src = f'.py("klongpy.web")\ncb::{{1}}\n.timer("t";0.1;cb)\n.p("end")\n'

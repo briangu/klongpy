@@ -32,8 +32,10 @@ def load(program):
 
 
 def evaluate(command, expression, cwd, *, options=(), extra_env=None, timeout=15):
+    env = environment(PYTHONIOENCODING="utf-8")
+    env.update(extra_env or {})
     proc = subprocess.run([*command, *options, "-e", expression], cwd=cwd,
-                          env=environment(**(extra_env or {})), text=True,
+                          env=env, encoding="utf-8",
                           capture_output=True, timeout=timeout)
     assert proc.returncode == 0, f"{expression}\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
     return proc.stdout.strip()
@@ -41,7 +43,7 @@ def evaluate(command, expression, cwd, *, options=(), extra_env=None, timeout=15
 
 def case_names(program):
     """Discover named, zero-argument .kg acceptance cases, each independently callable."""
-    names = re.findall(r"^(case[A-Z][A-Za-z0-9]*)::\{", (PROGRAMS / program).read_text(), re.M)
+    names = re.findall(r"^(case[A-Z][A-Za-z0-9]*)::\{", (PROGRAMS / program).read_text(encoding="utf-8"), re.M)
     if not names or len(names) != len(set(names)):
         raise ValueError(f"{program} needs unique case functions")
     return names

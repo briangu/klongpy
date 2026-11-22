@@ -171,10 +171,14 @@ def keeps_alive(system) -> Optional[str]:
     return None
 
 
-def wait_while_alive(system, poll: float = 0.05) -> None:
+def wait_while_alive(system, poll: float = 0.05, *, check_interrupt=None) -> None:
     """Block until nothing keeps the process up (see keeps_alive) or a callback asked to exit."""
     signal = system['exitSignal']
-    while signal.code is None and keeps_alive(system) is not None:
+    while True:
+        if check_interrupt is not None:
+            check_interrupt()
+        if signal.code is not None or keeps_alive(system) is None:
+            return
         signal.event.wait(poll)
 
 

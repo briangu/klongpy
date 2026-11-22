@@ -1,9 +1,11 @@
 """Readable errors in the REPL, `-e`, file runs and piped input."""
 import asyncio
+from concurrent.futures import Future
 import contextlib
 import importlib.util
 import io
 import os
+import select
 import signal
 import subprocess
 import sys
@@ -11,6 +13,7 @@ import tempfile
 import textwrap
 import time
 import unittest
+from unittest.mock import Mock, patch
 import warnings
 
 from klongpy import KlongInterpreter
@@ -200,8 +203,9 @@ class TestFileRun(Files):
         main = self.write("main.kg", f'.l("{lib}")\n\ng([1 2])\n')
         r = run_cli(main)
         self.assertEqual(r.returncode, 1)
+        source = lib.replace(os.sep, "/")
         self.assertEqual(r.stderr.splitlines(), [
-            f"{lib}:3:4: range error: index 5 out of range for list of 2",
+            f"{source}:3:4: range error: index 5 out of range for list of 2",
             "    a@5}",
             "     ^",
         ])
@@ -540,7 +544,8 @@ class TestReplLoop(unittest.TestCase):
             with open(path, "w") as f:
                 f.write('1\n3+"a"\n')
             _, err, *_ = repl(f"]l {path}")
-        self.assertTrue(err.startswith(f"{path}:2:2: type error"), err)
+        source = path.replace(os.sep, "/")
+        self.assertTrue(err.startswith(f"{source}:2:2: type error"), err)
 
     def test_it_is_not_set_by_an_error(self):
         _, _, k, _ = repl("7", '1+"a"')
@@ -552,6 +557,54 @@ class TestReplLoop(unittest.TestCase):
 
 
 class TestInterrupt(unittest.TestCase):
+    # Write "evaluating\n" via a host callable so an interruption during the
+    # readiness write propagates through the evaluation.
+    READY = ('.pyf("os";"write");.pyf("base64";"b64decode");'
+             'write(1;b64decode("ZXZhbHVhdGluZwo="));')
+    # This Klong loop stays active indefinitely and crosses into Python between
+    # iterations, where either thread can handle the interrupt.
+    WORK = '.pyf("time";"sleep");' + READY + '{1}{sleep(0.01);x+1}:~0'
+
+    def wait_until_evaluating(self, process):
+        deadline = time.monotonic() + 10
+        output = b""
+        while b"evaluating\n" not in output:
+            readable, _, _ = select.select([process.stdout], [], [], max(0, deadline - time.monotonic()))
+            self.assertTrue(readable, output)
+            data = os.read(process.stdout.fileno(), 4096)
+            self.assertTrue(data, output)
+            output += data
+
+    def test_sigint_reports_interruption_when_the_worker_just_finished(self):
+        class RacingFuture(Future):
+            def __init__(self, value):
+                super().__init__()
+                self.set_result(value)
+                self.interrupted = False
+
+            def result(self, timeout=None):
+                if not self.interrupted:
+                    self.interrupted = True
+                    raise KeyboardInterrupt
+                return super().result(timeout)
+
+        for completed, expected in (("completed result", "interrupted"),
+                                    (cli.ReplError("type error"), "type error")):
+            with self.subTest(completed=completed):
+                finished = RacingFuture(completed)
+
+                def schedule(coro, loop):
+                    with self.assertRaises(StopIteration):
+                        coro.send(None)
+                    return finished
+
+                with patch.object(asyncio, "run_coroutine_threadsafe", schedule), \
+                        patch.object(cli.ctypes.pythonapi, "PyThreadState_SetAsyncExc") as inject:
+                    result = cli.make_evaluate(None, Mock(ident=123))(lambda _: None, "1+1")
+                self.assertIsInstance(result, cli.ReplError)
+                self.assertEqual(result, expected)
+                inject.assert_not_called()
+
     def test_keyboard_interrupt_during_evaluation_is_reported(self):
         k = KlongInterpreter()
 
@@ -564,19 +617,14 @@ class TestInterrupt(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "win32", "needs SIGINT")
     def test_ctrl_c_stops_a_long_evaluation_and_the_repl_goes_on(self):
-        environ = dict(os.environ, KGPY_HISTORY="", PYTHONPATH=ROOT)
+        environ = dict(os.environ, KGPY_HISTORY="", PYTHONPATH=ROOT, PYTHONUNBUFFERED="1")
         p = subprocess.Popen([sys.executable, "-W", "ignore", "-m", "klongpy.cli"], stdin=subprocess.PIPE,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=ROOT, env=environ,
                              preexec_fn=_default_sigint)
         try:
-            p.stdin.write('.p("ready")\n')
+            p.stdin.write(self.WORK + "\n")
             p.stdin.flush()
-            for line in p.stdout:     # the interpreter is up and reading
-                if "ready" in line:
-                    break
-            p.stdin.write("{x+1}/1+!30000000\n")   # about 100 s if it ran to the end
-            p.stdin.flush()
-            time.sleep(1.5)
+            self.wait_until_evaluating(p)
             self.assertIsNone(p.poll())
             started = time.time()
             p.send_signal(signal.SIGINT)
@@ -596,14 +644,14 @@ class TestInterrupt(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "long.kg")
             with open(path, "w") as f:
-                f.write("{x+1}/1+!30000000\n")
-            for args in (["-e", "{x+1}/1+!30000000"], [path]):
-                environ = dict(os.environ, KGPY_HISTORY="", PYTHONPATH=ROOT)
+                f.write(self.WORK + "\n")
+            for args in (["-e", self.WORK], [path]):
+                environ = dict(os.environ, KGPY_HISTORY="", PYTHONPATH=ROOT, PYTHONUNBUFFERED="1")
                 p = subprocess.Popen([sys.executable, "-W", "ignore", "-m", "klongpy.cli"] + args,
                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=ROOT, env=environ,
                                      preexec_fn=_default_sigint)
                 try:
-                    time.sleep(3.0)
+                    self.wait_until_evaluating(p)
                     self.assertIsNone(p.poll())
                     p.send_signal(signal.SIGINT)
                     out, err = p.communicate(timeout=30)
