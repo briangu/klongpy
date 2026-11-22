@@ -30,7 +30,7 @@ LIVE_BATCHES = 256
 INTERVAL = 0.01              # 25,600 ticks/sec offered independently of service time
 QUOTE_STEP = 1024
 QUERY_COUNT = 200            # per query type
-psutil = import_module("psutil") if sys.platform == "win32" and find_spec("psutil") else None
+psutil = import_module("psutil") if sys.platform in ("darwin", "win32") and find_spec("psutil") else None
 
 
 def test_native_vector_time_budget(kg, tmp_path, record_property):
@@ -214,6 +214,12 @@ def percentile(samples, p):
     return sorted(samples)[math.ceil(len(samples) * p) - 1]
 
 
+def sleep_until(deadline):
+    remaining = deadline - time.perf_counter()
+    if remaining > 0:
+        time.sleep(remaining)
+
+
 @dataclass
 class Metrics:
     rows_per_second: float
@@ -222,6 +228,8 @@ class Metrics:
     p99_client_delay_ms: dict
     p99_round_trip_ms: dict
     max_ingest_lag_ms: float
+    max_ingest_lag_client_delay_ms: float
+    max_ingest_lag_round_trip_ms: float
     observed_rss_kib: int
 
 
@@ -230,6 +238,7 @@ class QuerySamples:
     elapsed_ms: list
     client_delay_ms: list
     round_trip_ms: list
+    responses: list
 
 
 def rss_kib(pid):
@@ -240,6 +249,8 @@ def rss_kib(pid):
         if psutil is None:
             required("Install psutil for Windows process memory measurements")
         return psutil.Process(pid).memory_info().peak_wset // 1024
+    if sys.platform == "darwin" and psutil is not None:
+        return psutil.Process(pid).memory_info().rss // 1024
     return int(subprocess.check_output(["ps", "-o", "rss=", "-p", str(pid)], text=True, timeout=3))
 
 
@@ -299,21 +310,24 @@ def measure(kind, command, directory):
             lag = []
             for i in range(LIVE_BATCHES):
                 scheduled = base + i * INTERVAL
-                time.sleep(max(0, scheduled - time.perf_counter()))
+                sleep_until(scheduled)
                 with watermark:
                     submitted = first_live + i
+                sent = time.perf_counter()
                 assert writer.call("ingest", *inputs[first_live + i]) == 1
                 with watermark:
                     acknowledged = first_live + i
-                lag.append(time.perf_counter() - scheduled)
-                assert lag[-1] < 2, f"{kind} ingest fell more than 2 seconds behind"
-            return max(lag) * 1000
+                received = time.perf_counter()
+                elapsed = received - scheduled
+                lag.append((elapsed, sent - scheduled, received - sent))
+                assert elapsed < 2, f"{kind} ingest fell more than 2 seconds behind"
+            return tuple(value * 1000 for value in max(lag))
 
         def query(client, name):
-            samples = QuerySamples([], [], [])
+            samples = QuerySamples([], [], [], [])
             for i in range(QUERY_COUNT):
                 scheduled = base + (i + 0.5) * INTERVAL * LIVE_BATCHES / QUERY_COUNT
-                time.sleep(max(0, scheduled - time.perf_counter()))
+                sleep_until(scheduled)
                 with watermark:
                     lower = acknowledged
                 sent = time.perf_counter()
@@ -326,7 +340,25 @@ def measure(kind, command, directory):
                 samples.elapsed_ms.append(elapsed * 1000)
                 samples.client_delay_ms.append((sent - scheduled) * 1000)
                 samples.round_trip_ms.append((received - sent) * 1000)
-                # Every snapshot must correspond to a complete, committed prefix of the feed.
+                samples.responses.append((lower, upper, values))
+            return samples
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            reads = {name: executor.submit(query, client, name) for name, client in
+                     [("latest", last), ("asofbid", asof)]}
+            writes = executor.submit(ingest)
+            rss = rss_kib(process.pid)
+            while not all(f.done() for f in [writes, *reads.values()]):
+                time.sleep(0.05)
+                rss = max(rss, rss_kib(process.pid))
+            lag, ingest_delay, ingest_round_trip = writes.result()
+            samples = {name: task.result() for name, task in reads.items()}
+
+        assert writer.request("nrows" + suffix) == len(NAMES) + len(inputs) * BATCH
+        for name, query_samples in samples.items():
+            # Keep the watermarks recorded around each request. Check the
+            # snapshots after the traffic so validation cannot delay a sender.
+            for lower, upper, values in query_samples.responses:
                 first = int(values[0])
                 assert expected_query(name, lower)[0] <= first <= expected_query(name, upper)[0]
                 if name == "latest":
@@ -338,21 +370,6 @@ def measure(kind, command, directory):
                     n = quote_time // BATCH
                     assert n < len(inputs)
                 np.testing.assert_array_equal(values, expected_query(name, n))
-            return samples
-
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            reads = {name: executor.submit(query, client, name) for name, client in
-                     [("latest", last), ("asofbid", asof)]}
-            writes = executor.submit(ingest)
-            rss = rss_kib(process.pid)
-            while not all(f.done() for f in [writes, *reads.values()]):
-                time.sleep(0.05)
-                rss = max(rss, rss_kib(process.pid))
-            lag = writes.result()
-            samples = {name: task.result() for name, task in reads.items()}
-
-        assert writer.request("nrows" + suffix) == len(NAMES) + len(inputs) * BATCH
-        for name in samples:
             np.testing.assert_array_equal(writer.request(name + suffix), expected_query(name, len(inputs) - 1))
         return Metrics(
             rows_per_second=capacity,
@@ -361,6 +378,8 @@ def measure(kind, command, directory):
             p99_client_delay_ms={k: percentile(v.client_delay_ms, 0.99) for k, v in samples.items()},
             p99_round_trip_ms={k: percentile(v.round_trip_ms, 0.99) for k, v in samples.items()},
             max_ingest_lag_ms=lag,
+            max_ingest_lag_client_delay_ms=ingest_delay,
+            max_ingest_lag_round_trip_ms=ingest_round_trip,
             observed_rss_kib=rss,
         )
 

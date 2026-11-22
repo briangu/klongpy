@@ -6,7 +6,7 @@ name: Wheels
 # Every wheel carries the extension (klongpy._native) and the `kg` binary, both built from native/ by setuptools-rust
 # (pyproject.toml), so each platform builds on a runner of its own architecture.
 #
-# Publishing is the last job and is OFF: it runs only when this workflow is started by hand on a tag with `publish` ticked.
+# Publishing runs when this workflow is started by hand on a tag with `publish` ticked.
 
 on:
   push:
@@ -18,6 +18,10 @@ on:
         description: "Upload the wheels and the sdist to PyPI (only on a tag ref; needs the pypi environment and trusted publishing)"
         type: boolean
         default: false
+      include_windows:
+        description: "Include the Windows x86_64 wheel in this build and upload"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -26,8 +30,17 @@ jobs:
   sdist:
     name: Source distribution
     runs-on: ubuntu-latest
+    outputs:
+      platforms: ${{ steps.targets.outputs.platforms }}
     steps:
     - uses: actions/checkout@v4
+    - name: Select wheel platforms
+      id: targets
+      env:
+        INCLUDE_WINDOWS: ${{ github.event_name != 'workflow_dispatch' || inputs.include_windows }}
+      run: |
+        targets=$(jq -c --argjson windows "$INCLUDE_WINDOWS" 'map(select(.name != "windows-x86_64" or $windows))' .github/wheel-platforms.json)
+        echo "platforms=$targets" >> "$GITHUB_OUTPUT"
     - uses: actions/setup-python@v5
       with:
         python-version: "3.12"
@@ -60,17 +73,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { name: linux-x86_64,   os: ubuntu-latest }
-          - { name: linux-aarch64,  os: ubuntu-24.04-arm }
-          - { name: macos-arm64,    os: macos-15,        deployment: "11.0" }
-          # Limit template inlining and fold identical functions for a shorter first launch under Rosetta.
-          - name: macos-x86_64
-            os: macos-15-intel
-            deployment: "10.15"
-            cxxflags: "-O3 -mllvm -inline-threshold=50"
-            rustflags: "-C link-arg=-fuse-ld=$(rustc --print target-libdir)/../bin/gcc-ld/ld64.lld -C link-arg=-Wl,--icf=safe"
-          - { name: windows-x86_64, os: windows-latest }
+        include: ${{ fromJSON(needs.sdist.outputs.platforms) }}
     env:
       # abi3: the cp311 wheel serves every Python from 3.11. No musllinux wheel (see docs).
       CIBW_BUILD: "cp311-*"
@@ -178,6 +181,24 @@ jobs:
         unset PYTHONPATH KLONGPY_NATIVE_PATH
         python "$RUNNER_TEMP/cf/conformance/run.py"
         python "$RUNNER_TEMP/cf/conformance/run.py" --cmd "\"$KLONG_NATIVE\" --conformance" --jobs 2
+    - name: Allow the Intel runner to settle before scheduled latency checks
+      if: matrix.name == 'macos-x86_64'
+      shell: bash
+      run: |
+        python - <<'PY'
+        import os
+        import time
+        import psutil
+
+        quiet_samples = 0
+        deadline = time.monotonic() + 360
+        while time.monotonic() < deadline:
+            idle = psutil.cpu_times_percent(interval=5).idle
+            print(f"CPU idle {idle}% on {psutil.cpu_count()} logical CPUs, load {os.getloadavg()}", flush=True)
+            quiet_samples = quiet_samples + 1 if idle >= 80 else 0
+            if quiet_samples >= 3:
+                break
+        PY
     - name: Test suite against the installed wheel
       shell: bash
       env:
@@ -194,7 +215,7 @@ jobs:
         python -m pytest tests/v2/test_performance.py::test_tick_service_under_load -v --import-mode=append
         python -m pytest tests -v --import-mode=append --ignore=tests/test_compiler.py -k 'not test_tick_service_under_load'
 
-  # NOT ENABLED. Runs only for a manual start of this workflow, on a tag, with `publish` ticked.
+  # Upload the selected, tested distributions from this run.
   # The owner configures once (nothing here holds a secret):
   #   1. PyPI: project klongpy > Publishing > add a trusted publisher: owner and repository of this repository, workflow `wheels.yml`,
   #      environment `pypi`.
@@ -210,6 +231,27 @@ jobs:
     steps:
     - uses: actions/download-artifact@v4
       with:
-        path: dist
-        merge-multiple: true
+        path: release-artifacts
+    - name: Verify the selected upload set
+      env:
+        WHEEL_PLATFORMS: ${{ needs.sdist.outputs.platforms }}
+      run: |
+        python - <<'PY'
+        import json
+        import os
+        from pathlib import Path
+        import shutil
+
+        expected = {"sdist": ".tar.gz"}
+        for platform in json.loads(os.environ["WHEEL_PLATFORMS"]):
+            expected["wheel-" + platform["name"]] = ".whl"
+        root = Path("release-artifacts")
+        assert {path.name for path in root.iterdir()} == set(expected), list(root.iterdir())
+        destination = Path("dist")
+        destination.mkdir()
+        for name, suffix in expected.items():
+            package, = (root / name).iterdir()
+            assert package.is_file() and package.name.endswith(suffix), package
+            shutil.move(package, destination / package.name)
+        PY
     - uses: pypa/gh-action-pypi-publish@release/v1

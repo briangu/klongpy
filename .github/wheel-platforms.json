@@ -1,0 +1,13 @@
+[
+  { "name": "linux-x86_64", "os": "ubuntu-latest" },
+  { "name": "linux-aarch64", "os": "ubuntu-24.04-arm" },
+  { "name": "macos-arm64", "os": "macos-15", "deployment": "11.0" },
+  {
+    "name": "macos-x86_64",
+    "os": "macos-15-intel",
+    "deployment": "10.15",
+    "cxxflags": "-O3 -mllvm -inline-threshold=50",
+    "rustflags": "-C link-arg=-fuse-ld=$(rustc --print target-libdir)/../bin/gcc-ld/ld64.lld -C link-arg=-Wl,--icf=safe"
+  },
+  { "name": "windows-x86_64", "os": "windows-latest" }
+]
