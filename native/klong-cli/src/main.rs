@@ -18,7 +18,7 @@
 //! time of N evaluations on stderr), --memfs (the file functions work on an empty file system
 //! in memory instead of the real one: for fuzzing). After FILE, further arguments are the program's (.a).
 //!
-//! `.l` looks in the directories of the environment variable KLONGPATH (default ".:lib"),
+//! `.l` looks in the directories of the environment variable KLONGPATH (default the working directory and "lib"),
 //! then in the library built into the binary, and last in the directory of the file that
 //! is being run or loaded.
 use std::alloc::System;
@@ -27,6 +27,7 @@ use std::process::ExitCode;
 
 mod check;
 mod compile;
+mod gpu;
 mod kgpy_only;
 mod profile_doc;
 mod lint;
@@ -52,6 +53,7 @@ fn mem_pressed() -> bool {
 
 #[derive(Default)]
 struct Opts {
+    capabilities: bool,
     conformance: bool,
     stats: bool,
     strict: u8,
@@ -67,6 +69,7 @@ struct Opts {
     max_nest: Option<u32>,
     bench: u32,
     memfs: bool,
+    device: Option<String>,
     args: Vec<String>,
 }
 
@@ -79,7 +82,17 @@ fn size_arg(s: &str) -> Option<usize> {
     digits.parse::<usize>().ok()?.checked_mul(mult)
 }
 
-const HELP: &str = "\
+#[cfg(all(target_os = "macos", feature = "metal"))]
+macro_rules! device_help {
+    () => { "  --device NAME         numeric device (cpu, or mps[:INDEX] on macOS)\n" };
+}
+
+#[cfg(not(all(target_os = "macos", feature = "metal")))]
+macro_rules! device_help {
+    () => { "  --device NAME         numeric device (cpu)\n" };
+}
+
+const HELP: &str = concat!("\
 usage: kg [OPTIONS] [FILE [ARG ...] | -e EXPR | --conformance | --dump-ast FILE]
 
 Without FILE or -e: a read-eval-print loop on standard input.
@@ -88,8 +101,13 @@ Without FILE or -e: a read-eval-print loop on standard input.
   --conformance         the runner protocol of conformance/README.md (program on stdin)
   --dump-ast FILE       print the canonical parse tree of FILE and exit
 
+  --capabilities        print .ver() as one JSON object and exit
+
+Tools: kg lint, kg ast, kg check, kg compile c, kg fpga source
+
 Options (before FILE or -e; sizes accept the suffixes K and M):
   --strict N            strict level 0, 1 or 2
+", device_help!(), "\
   --heap-limit BYTES    most the program may allocate (default: no limit)
   --max-depth N         most nested evaluations before a range error (default 512)
   --steps N             stop after about N calls and adverb iterations (interrupt)
@@ -102,7 +120,7 @@ Options (before FILE or -e; sizes accept the suffixes K and M):
   --fail-every N        make every Nth large allocation fail (out-of-memory testing)
   -h, --help            print this text and exit
   --version             print the version and exit
-";
+");
 
 fn usage() -> ExitCode {
     eprint!("{}", HELP);
@@ -113,7 +131,12 @@ fn parse_args() -> Option<Opts> {
     let mut o = Opts::default();
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
+        if o.file.is_some() {
+            o.args.push(a);
+            continue;
+        }
         match a.as_str() {
+            "--capabilities" => o.capabilities = true,
             // (before FILE only: after it the arguments are the program's)
             "-h" | "--help" if o.file.is_none() => {
                 print!("{}", HELP);
@@ -126,6 +149,7 @@ fn parse_args() -> Option<Opts> {
             "--conformance" => o.conformance = true,
             "--stats" => o.stats = true,
             "--memfs" => o.memfs = true,
+            "--device" if o.file.is_none() => o.device = Some(it.next()?),
             "--strict" => o.strict = it.next()?.parse().ok().filter(|n| *n <= 2)?,
             "--dump-ast" => o.dump_ast = Some(it.next()?),
             "-e" => o.expr = Some(it.next()?),
@@ -138,8 +162,7 @@ fn parse_args() -> Option<Opts> {
             "--max-nest" => o.max_nest = Some(it.next()?.parse().ok()?),
             "--fail-every" => o.fail_every = it.next()?.parse().ok()?,
             s if s.starts_with('-') && s.len() > 1 && o.file.is_none() => return None,
-            _ if o.file.is_none() => o.file = Some(a),
-            _ => o.args.push(a),
+            _ => o.file = Some(a),
         }
     }
     Some(o)
@@ -148,7 +171,7 @@ fn parse_args() -> Option<Opts> {
 /// The native stack of the evaluating thread unless --stack says otherwise.
 const STACK: usize = 64 * 1024 * 1024;
 
-fn runtime(o: &Opts, console: Console) -> Runtime<HostPlatform> {
+fn runtime(o: &Opts, console: Console, gpu: &gpu::Session) -> Runtime<HostPlatform> {
     // The interpreter gets the limits a board would compute from its task stack
     // (--stack-budget), or the host defaults: max_depth 512, and a stack limit that leaves a
     // quarter of the thread's stack to whatever runs at the bottom of the recursion.
@@ -167,6 +190,11 @@ fn runtime(o: &Opts, console: Console) -> Runtime<HostPlatform> {
         cfg.max_nest = n;
     }
     let mut platform = HostPlatform::new(console);
+    // Bounded or fault-injected sessions charge memory to foreground work.
+    if o.heap_limit == 0 && o.fail_every == 0 && std::env::var("KLONG_SQL_IDLE").as_deref() != Ok("0") {
+        platform.enable_sql_idle(std::env::var("KLONG_SQL_IDLE_TRACE").as_deref() == Ok("1"));
+    }
+    if cfg!(all(target_os = "macos", feature = "metal")) { platform.features.push("metal"); }
     if o.memfs {
         // an empty file system in memory, at most 256 KiB: the real files are out of reach
         let mut fs = klong_rt::memfs::MemFs::new();
@@ -174,15 +202,11 @@ fn runtime(o: &Opts, console: Console) -> Runtime<HostPlatform> {
         platform.fs = klong_host::Files::Mem(fs);
     }
     let mut rt = Runtime::new(platform, cfg, Some(mem_stats));
+    gpu.install(&mut rt.interp);
     rt.interp.kgpy_only = Some(kgpy_only::is);
-    let given = std::env::var("KLONGPATH").ok().filter(|p| !p.is_empty());
-    let path = given.clone().unwrap_or_else(|| String::from(".:lib"));
+    let path = klong_host::load_path_env();
     // (the file system in memory has no directory called `.`: its files are named as they are, so the current directory is the empty name)
-    rt.set_load_path(path.split(':').filter(|d| !d.is_empty()).map(|d| if o.memfs && d == "." { String::new() } else { String::from(d) }).collect());
-    // (a bare name of .import is looked for in KLONGPATH when it is set and in the library, never in the working directory by default)
-    if let Some(g) = given {
-        rt.set_import_path(g.split(':').filter(|d| !d.is_empty()).map(String::from).collect());
-    }
+    rt.set_load_path(klong_host::parse_load_path(&path).map(|d| if o.memfs && d == "." { String::new() } else { d }).collect());
     // .a: the arguments of the program
     let mut args = Vec::new();
     for a in &o.args {
@@ -199,7 +223,7 @@ fn runtime(o: &Opts, console: Console) -> Runtime<HostPlatform> {
 /// The printed form of a result, or the error that printing it is (out of memory, a
 /// dictionary that holds itself).
 fn show(rt: &Runtime<HostPlatform>, v: &klong_core::Value) -> Result<String, Error> {
-    klong_core::fmt::format_value(&rt.interp.syms, v, false)
+    klong_core::fmt::format_value(&rt.interp.syms, &v.unhost("result")?, false)
 }
 
 fn report(e: &Error) {
@@ -213,6 +237,22 @@ fn stats(rt: &Runtime<HostPlatform>) {
 }
 
 fn run(o: Opts) -> ExitCode {
+    let gpu = match gpu::Session::open(o.device.as_deref()) {
+        Ok(gpu) => gpu,
+        Err(e) => {
+            eprintln!("kg: {}", e);
+            return ExitCode::from(1);
+        }
+    };
+    let code = run_with_device(&o, &gpu);
+    if let Err(e) = gpu.write_trace() {
+        eprintln!("kg: KLONG_GPU_TRACE: {}", e);
+        return ExitCode::from(1);
+    }
+    code
+}
+
+fn run_with_device(o: &Opts, gpu: &gpu::Session) -> ExitCode {
     if let Some(path) = &o.dump_ast {
         let text = match std::fs::read(path).map(String::from_utf8) {
             Ok(Ok(t)) => t,
@@ -221,7 +261,7 @@ fn run(o: Opts) -> ExitCode {
                 return ExitCode::from(1);
             }
         };
-        let mut rt = runtime(&o, Console::Stderr);
+        let mut rt = runtime(o, Console::Stderr, gpu);
         return match rt.interp.parse(&text, path) {
             Ok(p) => {
                 let s = klong_core::dump::dump(&p.tree, &rt.interp.syms, &p.stmts);
@@ -244,7 +284,7 @@ fn run(o: Opts) -> ExitCode {
                 return ExitCode::from(1);
             }
         };
-        let mut rt = runtime(&o, Console::Stderr);
+        let mut rt = runtime(o, Console::Stderr, gpu);
         // the limits apply to the program, not to starting up
         HEAP.reset_peak();
         HEAP.set_limit(if o.heap_limit == 0 { 0 } else { HEAP.used() + o.heap_limit }, RESERVE);
@@ -271,7 +311,16 @@ fn run(o: Opts) -> ExitCode {
         return code;
     }
 
-    let mut rt = runtime(&o, Console::Stdout);
+    let mut rt = runtime(o, Console::Stdout, gpu);
+    if o.capabilities {
+        return match rt.run(".p(.json(.ver()))", "<capabilities>") {
+            Ok(_) => ExitCode::SUCCESS,
+            Err(error) => {
+                report(&error);
+                ExitCode::from(1)
+            }
+        };
+    }
     HEAP.reset_peak();
     HEAP.set_limit(if o.heap_limit == 0 { 0 } else { HEAP.used() + o.heap_limit }, RESERVE);
     HEAP.fail_every(o.fail_every);
@@ -304,7 +353,7 @@ fn run(o: Opts) -> ExitCode {
         };
         // timers, queued calls, a server: keep going while there is something to wait for
         let _ = std::io::stdout().flush();
-        rt.run_events();
+        run_desktop_events(&mut rt);
         if o.stats {
             stats(&rt);
         }
@@ -331,7 +380,7 @@ fn run(o: Opts) -> ExitCode {
             }
         };
         let _ = std::io::stdout().flush();
-        rt.run_events();
+        run_desktop_events(&mut rt);
         if o.stats {
             stats(&rt);
         }
@@ -359,6 +408,17 @@ fn run(o: Opts) -> ExitCode {
         let _ = std::io::stdout().flush();
         let line = loop {
             if rt.poll_events() {
+                run_sql_idle(&rt, true);
+                continue;
+            }
+            // A ready line should wait for real events, not for the rest of a
+            // series of optional SQL publication slices.
+            match lines.try_recv() {
+                Ok(line) => break Some(line),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => break None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+            if run_sql_idle(&rt, false) {
                 continue;
             }
             let nap = if rt.events_active() { 1 } else { 50 };
@@ -373,13 +433,33 @@ fn run(o: Opts) -> ExitCode {
         if src == "]q" {
             break;
         }
-        match rt.run(src, "<repl>").and_then(|v| v.map(|v| show(&rt, &v)).transpose()) {
+        let evaluated = rt.run(src, "<repl>");
+        run_sql_idle(&rt, true);
+        match evaluated.and_then(|v| v.map(|v| show(&rt, &v)).transpose()) {
             Ok(Some(s)) => println!("{}", s),
             Ok(None) => {}
             Err(e) => report(&e),
         }
     }
     ExitCode::SUCCESS
+}
+
+fn poll_desktop_events(rt: &mut Runtime<HostPlatform>) -> bool {
+    let event = rt.poll_events();
+    let idle = run_sql_idle(rt, event);
+    event || idle
+}
+
+fn run_sql_idle(rt: &Runtime<HostPlatform>, activity: bool) -> bool {
+    rt.shared.platform.borrow_mut().run_sql_idle(&rt.interp, activity)
+}
+
+fn run_desktop_events(rt: &mut Runtime<HostPlatform>) {
+    while rt.events_active() {
+        if !poll_desktop_events(rt) {
+            rt.events_wait();
+        }
+    }
 }
 
 pub fn main() -> ExitCode {

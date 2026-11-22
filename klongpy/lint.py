@@ -35,11 +35,13 @@ Rules, by code
     W019  assignment to x, y or z (that is not declared a local)
     W020  a two-element list joined to a dictionary literal with ,
     W021  a.b::v where a is never a dictionary (a variable named with a dot in Klong 1)
-    W022  a module imported by .import and never used
+    W022  a module bound by .l and never used
+    W023  a local file that shadows a bundled library file of the same name
     E001  anything the parser rejects at strict level 1
     E002  call with more arguments than the callee takes
-    E003  assignment to an entry of what .import returned (it is read-only)
-    E004  qualified name that the imported module does not export
+    E003  assignment to an entry of a module (it is read-only)
+    E004  qualified name, or .l entry, that the module does not export
+    E005  .extern whose value is discarded
 
 The notes in docs/lint.md say where a rule is narrower than the table
 and why. Rules that cannot be decided from the text are reduced to the part

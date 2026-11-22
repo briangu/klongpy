@@ -7,4 +7,4 @@
 (def (sym make) (fn 1 (adv (verb (fn 2 (d "," (arg x) (d "," (str ",") (arg y))))) (adverbs "/") (adv (verb (fn 1 (d "," (str "\"") (d "," (m "$" (arg x)) (str "\""))))) (adverbs "'") (adv (verb (sym escape)) (adverbs "'") (adv (verb "$") (adverbs "'") (arg x)))))))
 (def (sym write) (fn 1 (call (sym .p) (call (sym make) (arg x)))))
 (def (sym load) (fn 0 (m "|" (d "_" (num 1) (adv2 (verb (fn 1 (d "," (m "," (call (sym read))) (arg x)))) (adverbs ":~") (sym .mi) (m "," (call (sym read))))))))
-(call (sym .export) (edict (str "split") (sym split) (str "read") (sym read) (str "make") (sym make) (str "write") (sym write) (str "load") (sym load)))
+(def (sym export) (edict (str "split") (sym split) (str "read") (sym read) (str "make") (sym make) (str "write") (sym write) (str "load") (sym load)))

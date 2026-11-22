@@ -314,9 +314,12 @@ fn load_finds_a_file_next_to_the_program() {
     // a nested load looks next to the file it is in, not next to the program
     assert_eq!(run(&mut rt, ".l(\"a/outer\");outer(4)"), Ok("41".into()));
     assert_eq!(run(&mut rt, ".l(\"inner\")"), Err(Kind::System));
-    // the load path comes first
+    // the directory of the file that calls .l comes first, then the load path
     rt.shared.platform.borrow_mut().fs.put("common.kg", b"inc::{x+1000}\n").expect("put");
-    assert_eq!(run(&mut rt, ".l(\"common\");inc(1)"), Ok("1001".into()));
+    assert_eq!(run(&mut rt, ".l(\"common\");inc(1)"), Ok("2".into()));
+    rt.set_load_path(vec!["lp".into()]);
+    rt.shared.platform.borrow_mut().fs.put("lp/only.kg", b"inc::{x+7}\n").expect("put");
+    assert_eq!(run(&mut rt, ".l(\"only\");inc(1)"), Ok("8".into()));
 }
 
 #[cfg(feature = "diag")]
@@ -328,13 +331,12 @@ fn load_names_the_places_it_looked() {
     // a name with a directory and the extension, a path that ends in a slash
     assert_eq!(run(&mut rt, ".l(\"s.kg\");sv"), Ok("5".into()));
     let e = rt.run(".l(\"nothere\")", "<test>").err().expect("an error");
-    assert_eq!(&*e.message, "file does not exist: nothere (looked for other/nothere, other/nothere.kg, sub/nothere, sub/nothere.kg; a relative path is searched in the directories of KLONGPATH, taken from the current directory)");
+    assert_eq!(&*e.message, "file does not exist: nothere (looked for nothere, nothere.kg, other/nothere, other/nothere.kg, sub/nothere, sub/nothere.kg, then the bundled library)");
     let e = rt.run(".l(\"/nowhere/x\")", "<test>").err().expect("an error");
-    assert_eq!(&*e.message, "file does not exist: /nowhere/x (looked for /nowhere/x, /nowhere/x.kg, /nowhere/x, /nowhere/x.kg; a relative path is searched in the directories of KLONGPATH, taken from the current directory)");
+    assert_eq!(&*e.message, "file does not exist: /nowhere/x (looked for /nowhere/x, /nowhere/x.kg)");
     rt.set_program("proj/prog.kg");
     let e = rt.run(".l(\"nothere.kg\")", "<test>").err().expect("an error");
-    assert_eq!(&*e.message, "file does not exist: nothere.kg (looked for other/nothere.kg, sub/nothere.kg, proj/nothere.kg; a relative path is searched in the directories of KLONGPATH, taken from the current directory, then in the directory of the file that calls .l, proj)");
-
+    assert_eq!(&*e.message, "file does not exist: nothere.kg (looked for proj/nothere.kg, other/nothere.kg, sub/nothere.kg, then the bundled library)");
 }
 
 #[test]

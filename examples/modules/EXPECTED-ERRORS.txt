@@ -1,50 +1,61 @@
 Each program in errors/ must stop with the error below, run from the example directory:
-    kgpy errors/NAME.kg
+    kg errors/NAME.kg
 The first line is the error as docs/errors.md prints it; the KIND is what the conformance
 cases test. The wording of the message is a proposal; the kind and the position are the contract.
 Exit status 1, nothing on standard output (the programs print only when they succeed).
+In cycle.kg the files are named by their full paths, shown here as <dir>.
+
 
 readonly.kg
-    errors/readonly.kg:3:1: type error: cannot assign stats.scale: the dictionary that .import returned for "../lib/stats" is read-only
+    errors/readonly.kg:3:12: type error: cannot assign stats.scale: stats is read-only (it is a module)
       stats.scale::{x}
-      ^^^^^^^^^^^^^^^^
-      hint: copy it with  e:::{};e::e,stats  or make the change in lib/stats.kg
+                 ^^
+      hint: copy it with  e:::{};e::e,m  or change the module's file
 
 missing.kg
     errors/missing.kg:3:4: name error: stats has no entry "nosuch"
       .p(stats.nosuch(1))
-         ^^^^^^^^^^^^
+         ^^^^^^^^^^^^^^^
 
 private.kg
     errors/private.kg:3:4: name error: stats has no entry "sq"
       .p(stats.sq(3))
-         ^^^^^^^
-      (sq is a helper of lib/stats.kg; the error is the same as for a name that does not exist)
+         ^^^^^^^^^^^
+
+nosuchentry.kg
+    errors/nosuchentry.kg:2:1: name error: ../lib/stats has no entry "nosuch"
+      .l("../lib/stats";["mean" "nosuch"])
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      hint: the module has: mean std win ma ma4 returns drawdown maxdd scale
 
 cycle.kg
-    errors/cycle_b.kg:1:1: system error: import cycle: cycle.kg -> cycle_a.kg -> cycle_b.kg -> cycle_a.kg
-      a::.import("./cycle_a")
-      ^^^^^^^^^^^^^^^^^^^^^^^
-    (the position is the import that closes the cycle; nothing of cycle_a or cycle_b stays defined)
+    <dir>/errors/cycle_b.kg:1:1: system error: import cycle: <dir>/errors/cycle_a.kg -> <dir>/errors/cycle_b.kg -> <dir>/errors/cycle_a.kg
+      .l("./cycle_a";:a)
+      ^^^^^^^^^^^^^^^^^^
+      hint: a module cannot load a module that is loading it; move what they share into a third file
 
 noexport.kg
-    errors/noexport.kg:2:6: system error: errors/plain.kg has no .export, so it is not a module
-      p::.import("./plain")
-           ^^^^^^^^^^^^^^^^
-      hint: load a classic file with .l("./plain"), or end the file with .export(:{;"name";value})
+    errors/noexport.kg:2:1: type error: .l: ./support/plain is not a module (it does not assign export), so there is nothing to bind
+      .l("./support/plain";:p)
+      ^^^^^^^^^^^^^^^^^^^^^^^^
+      hint: write .l("./support/plain") to load it as classic Klong, or make it a module with  export:::{;"name";value}
 
-lmodule.kg
-    errors/lmodule.kg:2:1: system error: ../lib/stats.kg is a module (it calls .export): .l would put its private names in the globals
-      .l("../lib/stats")
-      ^^^^^^^^^^^^^^^^^^
-      hint: stats::.import("../lib/stats")
+badstem.kg
+    errors/badstem.kg:2:1: type error: .l: the module "./support/bad-name" cannot be bound to the name "bad-name"
+      .l("./support/bad-name")
+      ^^^^^^^^^^^^^^^^^^^^^^^^
+      hint: choose the name: .l("./support/bad-name";:name)
+
+discarded.kg
+    type error: .extern returns the host function as a value, and this statement throws it away
+      hint: assign it, in a module file that exports it:  adc::.extern("read_adc";"int -> float")  and  export:::{;"adc";adc}
 
 undefined.kg
     errors/undefined.kg:2:4: name error: nosuch is not defined (nosuch.f means nosuch@"f")
       .p(nosuch.f(1))
-         ^^^^^^^^^^
+         ^^^^^^^^^^^
 
 notadict.kg
-    errors/notadict.kg:3:4: type error: n.f: n is an integer, not a dictionary
+    errors/notadict.kg:3:4: type error: n.f: n is not a dictionary (it is integer)
       .p(n.f)
          ^^^

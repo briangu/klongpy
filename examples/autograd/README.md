@@ -447,7 +447,7 @@ All gradient checks passed!
 
 ### export_demo.kg
 
-**What it does:** Exports a Klong function's computation graph with `.bkx`, prints the graph and runs the exported module.
+**What it does:** Exports a Klong function's computation graph with `.export`, prints the graph and runs the exported module.
 
 **Run:**
 ```bash
@@ -455,7 +455,7 @@ kgpy --backend torch export_demo.kg
 ```
 
 **Key concepts:**
-- `.bkx(fn;input;path)` runs the function once and records the tensor operations it executes (`torch.export`)
+- `.export(fn;input;path)` runs the function once and records the tensor operations it executes (`torch.export`)
 - The result holds `compiled_fn` (the exported module), `export_path`, `graph` and `graph_module`
 - To compile the function, compile the exported program: `torch.compile(torch.export.load(path).module())`
 
@@ -565,7 +565,7 @@ This compares autograd gradients against numeric gradients using `torch.autograd
 Export computation graphs for inspection:
 
 ```klong
-info::.bkx(f;2.0;"model.pt2")
+info::.export(f;2.0;"model.pt2")
 .p(info@"graph")              :" Print graph structure
 ```
 

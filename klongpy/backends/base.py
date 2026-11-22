@@ -5,7 +5,11 @@ All backends must implement the BackendProvider interface to ensure
 consistent behavior across numpy, torch, and any future backends.
 """
 from abc import ABC, abstractmethod
+from operator import index as integer_index
+
 import numpy as np
+
+from ..errors import KlongTypeError
 
 
 def is_jagged_array(x):
@@ -39,6 +43,10 @@ def _as_python_objects(x):
 
 class BackendProvider(ABC):
     """Abstract interface for array backends."""
+
+    # Optional `fast_dyad(glyph, x, y)` for operations with the same semantics
+    # as the general host dispatch. Return NotImplemented to use that dispatch.
+    fast_dyad = None
 
     @property
     @abstractmethod
@@ -249,8 +257,26 @@ class BackendProvider(ABC):
 
     def amend_at(self, a, index, v):
         """Amend-in-Depth: a copy of a with the one element at the index path replaced by v."""
-        r = np.array(a, dtype=object) if isinstance(v, str) else np.array(a)
-        r[tuple(index) if getattr(index, 'ndim', 1) > 0 else index] = v
+        candidates = index if getattr(index, 'ndim', 1) > 0 else (self.scalar_to_python(index),)
+        path = []
+        for i in candidates:
+            # Joining a floating-point replacement and its indices can promote
+            # the entire right operand to floats.
+            if isinstance(i, (float, np.floating)) and i.is_integer():
+                i = int(i)
+            try:
+                path.append(integer_index(i))
+            except TypeError:
+                raise KlongTypeError(f":-: index must be an integer, got {i!r}") from None
+
+        dtype = None
+        if isinstance(v, str):
+            dtype = object
+        elif isinstance(v, (float, np.floating)) and self.get_dtype_kind(a) in ('i', 'u', 'b'):
+            dtype = float
+        array = self.np.array if self.is_backend_array(a) else np.array
+        r = array(a, dtype=dtype, copy=True)
+        r[tuple(path)] = v
         return r
 
     def object_array(self, items):
@@ -262,7 +288,24 @@ class BackendProvider(ABC):
 
     def index_at(self, a, index):
         """Index-in-Depth: the element of a at the index path."""
-        return np.asarray(a)[tuple(index) if isinstance(index, list) or getattr(index, 'ndim', 0) > 0 else index]
+        path = tuple(index) if isinstance(index, list) or getattr(index, 'ndim', 0) > 0 else index
+        hosted = self.is_backend_array(a) or self.is_backend_array(index)
+        nested = hosted and (type(a) is str or self.get_dtype_kind(a) == 'O')
+        if nested and isinstance(path, tuple) and all(isinstance(i, (int, float, np.integer, np.floating)) for i in path):
+            # Object arrays hold strings and nested lists as individual cells.
+            for i in path:
+                if isinstance(i, (float, np.floating)):
+                    if not i.is_integer():
+                        raise IndexError(":@: index must be an integer")
+                    i = int(i)
+                if type(a) is str or isinstance(a, np.str_):
+                    a = self.str_to_char_array(a)[i]
+                elif self.is_array(a) or isinstance(a, (list, tuple)):
+                    a = a[i]
+                else:
+                    raise IndexError(":@: too many indexes")
+            return a
+        return np.asarray(a)[path]
 
     def array_split(self, a, sections):
         """numpy.array_split: a number of sections, or the positions to cut before."""
@@ -490,13 +533,15 @@ class BackendProvider(ABC):
 
         An operand that is an integer outside int64 cannot be put in a numpy
         integer array, so numpy raises OverflowError. Only the operators whose
-        result for such operands is exact on Python integers are redone
-        (`object_safe`: + - * % < > | & ; not ^, which would compute a huge exact
-        power). Anything else, a backend without object arrays, and any error
-        of the second attempt re-raise the original OverflowError, which
-        becomes a KlongRangeError. Nothing here runs unless numpy raised.
+        result for such operands is exact on Python integers are redone.
+        Operators can declare `object_safe`, and provider wrappers can expose
+        a known ufunc through `__wrapped__`. Without exact integer support or
+        when the retry fails, re-raise the original OverflowError.
         """
-        if not (getattr(f, 'object_safe', False) or f in _OBJECT_SAFE_UFUNCS) or not self.supports_exact_integers():
+        kernel = getattr(f, '__wrapped__', f)
+        if not self.supports_exact_integers() or not (
+            getattr(f, 'object_safe', False) or any(kernel is op for op in _OBJECT_SAFE_UFUNCS)
+        ):
             raise error
         try:
             r = f(_as_python_objects(self.to_numpy(a)), _as_python_objects(self.to_numpy(b)))

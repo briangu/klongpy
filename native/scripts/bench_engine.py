@@ -6,10 +6,9 @@ builds its data once, runs every workload once to warm up, and keeps the best of
 
     .venv/bin/python native/scripts/bench_engine.py [--kg PATH] [--ext DIR] [--sizes 1000,100000] [--only SUBSTR] [--json FILE]
 
-  kg    the standalone binary running a Klong script (`--kg`, default native/target/release/kg): time is `.pc()`, the CPU time of the
-        process, around a call of the workload, so (a loaded machine enters it less than wall time)
-  ext   the extension (`--ext DIR` holds klong_native.abi3.so; it is put on KLONGPATH-style `KLONGPY_NATIVE_PATH`): `KlongInterpreter`
-        from klongpy, `time.perf_counter` around the evaluation of `wk(0)` (the workload returns 0, so no result is converted)
+  kg    the standalone binary running a Klong script (`--kg`, default native/target/release/kg). Its `.pc()` clock measures elapsed
+        time around calls to the workload.
+  ext   `KlongInterpreter` using the extension in `--ext DIR`. The same Klong timing function runs inside the interpreter.
   cpy   CPython: lists and loops (the builtins where one does the job: sum, min, sorted, itertools.accumulate)
   np    NumPy: the vectorised form of the array workloads (not defined for the call-heavy ones)
 
@@ -102,7 +101,7 @@ def array_workloads():
     w("multiply float", "fa*fb", lambda d: [x * y for x, y in zip(d.lf, d.lg)], lambda d: d.fa * d.fb)
     w("add mixed int/float", "ia+fb", lambda d: [x + y for x, y in zip(d.li, d.lg)], lambda d: d.ia + d.fb)
     w("chain (a+b)*b int", "(ia+ib)*ib", lambda d: [(x + y) * y for x, y in zip(d.li, d.lb)], lambda d: (d.ia + d.ib) * d.ib)
-    w("chain (a*b+a)-b float", "(fa*fb+fa)-fb", lambda d: [(x * y + x) - y for x, y in zip(d.lf, d.lg)], lambda d: (d.fa * d.fb + d.fa) - d.fb)
+    w("chain (a*b+a)-b float", "((fa*fb)+fa)-fb", lambda d: [(x * y + x) - y for x, y in zip(d.lf, d.lg)], lambda d: (d.fa * d.fb + d.fa) - d.fb)
     w("dot +/a*b float", "+/fa*fb", lambda d: sum(x * y for x, y in zip(d.lf, d.lg)), lambda d: (d.fa * d.fb).sum())
     w("compare int <", "pi<ib", lambda d: [x < y for x, y in zip(d.lp, d.lb)], lambda d: d.pi < d.ib)
     w("sum int", "+/ia", lambda d: sum(d.li), lambda d: d.ia.sum())
@@ -129,7 +128,7 @@ KL_BT = ("tt::{[qf qr q0];qf::x;qr::y;q0::.pc();{qf(0)}'!qr;.pc()-q0}"
          "\nbt::{[qf qr qt qn qb qi];qf::x;qr::1;qt::tt(qf;1);{qt<0.003}{qr::qr*4;qt::tt(qf;qr)}:~0;qb::qt%qr;qn:::[qt>2;0;3|30&_0.5%qt];qi::0;"
          "{qi<qn}{qt::tt(qf;qr);qb::qb&qt%qr;qi::qi+1}:~0;qb,qr}")
 
-MODULE_SRC = "f(a)::{a*a}\n.export(:{;\"f\";f})\n"
+MODULE_SRC = "f(a)::{a*a}\nexport:::{;\"f\";f}\n"
 
 
 # -- the runners --------------------------------------------------------------------------------------------------------------
@@ -143,7 +142,7 @@ def kg_program(sizes, only, modpath):
     for title, defs, body, _py in scalar_workloads():
         if not want(title, only):
             continue
-        defs = defs.replace("@MODULE@", 'mm::.import("%s")' % modpath)
+        defs = defs.replace("@MODULE@", '.l("%s";:mm)' % modpath)
         if defs:
             lines.append(defs)
         lines.append("wk::{%s;0}" % body)
@@ -229,7 +228,7 @@ def worker_ext(sizes, only):
         for title, defs, body, _py in scalar_workloads():
             if not want(title, only):
                 continue
-            defs = defs.replace("@MODULE@", 'mm::.import("%s")' % mod[:-3])
+            defs = defs.replace("@MODULE@", '.l("%s";:mm)' % mod[:-3])
             if defs:
                 k(defs)
             k("wk::{%s;0}" % body)

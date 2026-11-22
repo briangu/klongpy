@@ -81,4 +81,4 @@ tested on the host (`cargo test -p klong-ffi`), and the same `main.c` ran for an
 under QEMU. On the P4 itself (2026-11-16) the REPL, a runaway loop stopped by Ctrl-C (`{1}{x+1}:~0`), the embedded
 library, uploads and the conformance suite over the serial port (1266 of 1266) worked: see
 `docs/native/esp32-p4.md`, which has the measurements. IPC (the firmware has none)
-and flash storage (not done) are not there to check. The firmware prints `Klong 2.0.0-rc.1`: that is the version of the native runtime, not of KlongPy.
+and flash storage (not done) are not there to check. The November 16 firmware reported native runtime version `Klong 2.0.0-rc.1`.

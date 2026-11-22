@@ -28,6 +28,11 @@ use klong_core::tree::{Node, Tree};
 use klong_core::value::{try_push, try_string, try_vec, Arr, Dict, Ext, ExtBox, Func};
 use klong_core::{Flt, Int, Value, INT_BITS};
 
+#[cfg(feature = "tables")]
+mod table;
+#[cfg(feature = "tables")]
+pub use table::table_column_type;
+
 /// Nesting limit for general lists, dictionaries, tables and function objects.
 pub const MAX_DEPTH: usize = 64;
 
@@ -419,6 +424,10 @@ impl Encoder<'_> {
             Value::Prim(_) => self.function(None, 2),
             Value::Ext(e) => {
                 let any = e.0.as_any();
+                #[cfg(feature = "tables")]
+                if let Some(t) = any.downcast_ref::<klong_core::table::Table>() {
+                    return self.table(t, depth);
+                }
                 if let Some(l) = any.downcast_ref::<KdbLambda>() {
                     self.lambda(&l.context, &l.text)
                 } else if let Some(o) = any.downcast_ref::<KdbOpaque>() {
@@ -602,6 +611,10 @@ impl<'a> Decoder<'a> {
 
     fn symbol(&mut self) -> DResult<Value> {
         let raw = self.cstring()?;
+        Ok(Value::Sym(self.intern_symbol(raw)?))
+    }
+
+    fn intern_symbol(&mut self, raw: &[u8]) -> DResult<klong_core::SymId> {
         let s = match core::str::from_utf8(raw) {
             Ok(t) => self.syms.intern(t),
             Err(_) => {
@@ -612,7 +625,35 @@ impl<'a> Decoder<'a> {
         if let Some(e) = self.syms.failure() {
             return Err(DecodeError::Value(e));
         }
-        Ok(Value::Sym(s))
+        Ok(s)
+    }
+
+    /// Keep recently decoded symbols in this vector. Repeated symbols in a feed
+    /// only need byte comparison, while the interner still handles misses.
+    #[cfg(target_pointer_width = "64")]
+    #[inline(never)]
+    fn symbol_vector(&mut self, n: usize) -> DResult<Value> {
+        const CACHE_SIZE: usize = 32;
+        let mut cache: [Option<(&[u8], klong_core::SymId)>; CACHE_SIZE] = [None; CACHE_SIZE];
+        let mut items = try_vec(n)?;
+        for _ in 0..n {
+            let raw = self.cstring()?;
+            let first = raw.first().copied().unwrap_or(0) as usize;
+            let middle = raw.get(raw.len() / 2).copied().unwrap_or(0) as usize;
+            let last = raw.last().copied().unwrap_or(0) as usize;
+            let index = (raw.len() ^ (first * 19 + middle * 11 + last)) & (CACHE_SIZE - 1);
+            let slot = &mut cache[index];
+            let sym = match *slot {
+                Some((bytes, sym)) if bytes == raw => sym,
+                _ => {
+                    let sym = self.intern_symbol(raw)?;
+                    *slot = Some((raw, sym));
+                    sym
+                }
+            };
+            items.push(Value::Sym(sym));
+        }
+        Ok(Value::raw_list(items)?)
     }
 
     fn fit(v: i64) -> DResult<Int> {
@@ -639,7 +680,10 @@ impl<'a> Decoder<'a> {
                 Ok(Value::from_items(items)?)
             }
             1..=19 => self.vector(t),
-            98 => self.table(depth),
+            #[cfg(feature = "tables")]
+            98 => self.table_value(depth, false),
+            #[cfg(not(feature = "tables"))]
+            98 => self.table_dict(depth),
             99 | 127 => self.dict(depth),
             100 => self.lambda(),
             101..=111 => {
@@ -691,6 +735,8 @@ impl<'a> Decoder<'a> {
         };
         let n = self.count(size)?;
         match t {
+            #[cfg(target_pointer_width = "64")]
+            11 if n >= 64 => self.symbol_vector(n),
             11 => {
                 let mut items = try_vec(n)?;
                 for _ in 0..n {
@@ -743,14 +789,16 @@ impl<'a> Decoder<'a> {
                         (if le { i32::from_le_bytes(a) } else { i32::from_be_bytes(a) }) as Int
                     })),
                     _ => {
-                        for c in raw.chunks_exact(8) {
+                        let numbers = raw.chunks_exact(8).map(|c| {
                             let a = [c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]];
-                            let x = if le { i64::from_le_bytes(a) } else { i64::from_be_bytes(a) };
-                            if INT_IS_32 {
+                            if le { i64::from_le_bytes(a) } else { i64::from_be_bytes(a) }
+                        });
+                        if INT_IS_32 {
+                            for x in numbers {
                                 v.push(Int::try_from(x).map_err(|_| DecodeError::Value(Error::range("integer vector does not fit 32 bits")))?);
-                            } else {
-                                v.push(x as Int);
                             }
+                        } else {
+                            v.extend(numbers.map(|x| x as Int));
                         }
                     }
                 }
@@ -793,17 +841,21 @@ impl<'a> Decoder<'a> {
             return perr("nesting deeper than 64");
         }
         if self.peek()? == 98 {
-            // a keyed table: table!table, as the pair of them
-            self.pos += 1;
-            let keys = self.table(depth + 1)?;
-            if self.byte()? != 98 {
-                return perr("keyed table values are not a table");
+            #[cfg(feature = "tables")]
+            return self.table_value(depth, true);
+            #[cfg(not(feature = "tables"))]
+            {
+                self.pos += 1;
+                let keys = self.table_dict(depth + 1)?;
+                if self.byte()? != 98 {
+                    return perr("keyed table values are not a table");
+                }
+                let vals = self.table_dict(depth + 1)?;
+                let mut pair = try_vec(2)?;
+                pair.push(keys);
+                pair.push(vals);
+                return Ok(Value::raw_list(pair)?);
             }
-            let vals = self.table(depth + 1)?;
-            let mut pair = try_vec(2)?;
-            pair.push(keys);
-            pair.push(vals);
-            return Ok(Value::raw_list(pair)?);
         }
         let keys = self.seq_items(depth + 1)?;
         let vals = self.seq_items(depth + 1)?;
@@ -821,7 +873,8 @@ impl<'a> Decoder<'a> {
     }
 
     /// A table whose type byte has been read: a dictionary from column name to column.
-    fn table(&mut self, depth: usize) -> DResult<Value> {
+    #[cfg(not(feature = "tables"))]
+    fn table_dict(&mut self, depth: usize) -> DResult<Value> {
         if depth >= MAX_DEPTH {
             return perr("nesting deeper than 64");
         }

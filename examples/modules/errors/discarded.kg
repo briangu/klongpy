@@ -1,0 +1,2 @@
+:"the old statement form of .extern: the value is thrown away"
+.extern("read_adc";"int -> float")

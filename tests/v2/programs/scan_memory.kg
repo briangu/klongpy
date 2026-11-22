@@ -1,0 +1,7 @@
+.l("./expect.kg")
+expect("running sum of a temporary vector";(+\!1000000)@999999;499999500000)
+v::[8 -3 6 -2]
+alias::v
+expect("running sum of a shared vector";+\v;[8 5 11 9])
+expect("the source is preserved";v;[8 -3 6 -2])
+expect("the alias is preserved";alias;[8 -3 6 -2])

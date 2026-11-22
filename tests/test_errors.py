@@ -4,6 +4,7 @@ One KlongError hierarchy, source positions and rendering.
 import os
 import pickle
 import tempfile
+import traceback
 import unittest
 import warnings
 
@@ -28,6 +29,26 @@ def raised(klong, text, cls=KlongError):
     except cls as e:
         return e
     raise AssertionError(f"{text!r} did not raise {cls.__name__}")
+
+
+class TestCallbackErrors(unittest.TestCase):
+    def test_nested_callback_preserves_exception_and_traceback(self):
+        klong = KlongInterpreter()
+        original = LookupError("callback failed")
+
+        def fail(x):
+            raise original
+
+        def nested(x):
+            return klong("fail(1)")
+
+        klong["fail"] = fail
+        klong["nested"] = nested
+        error = raised(klong, "nested(1)", LookupError)
+        self.assertIs(error, original)
+        frames = [frame.name for frame in traceback.extract_tb(error.__traceback__)]
+        self.assertIn("nested", frames)
+        self.assertEqual(frames[-1], "fail")
 
 
 class TestHierarchy(unittest.TestCase):

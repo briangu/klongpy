@@ -1,0 +1,2 @@
+energy::{+/x*x}
+.entry("energy";"int[4] -> int")

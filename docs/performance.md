@@ -1,8 +1,222 @@
 # Performance
 
-This page says where KlongPy is fast, where it is slow and what to write to stay on the fast side. Read it before you choose a backend or move a loop into a program.
+The release comparisons below describe their workload, baseline, candidate and machine. The older array microbenchmarks that follow describe a separate development build.
 
-KlongPy is fast when one operator works on a whole array: for element-wise arithmetic, reductions and sorting on 100,000 to a million elements the NumPy backend takes at most 1.3 times as long as NumPy, and array power takes 2.1 to 2.3 times as long. KlongPy is slow when the interpreter does the work itself, in loops, recursion, per-element lambdas and dictionaries: the NumPy backend takes 7 to 420 times as long as CPython on the programs below. The [native runtime](native/index.md) is 10 to 63 times faster than the NumPy backend on those programs and 1.8 to 26 times slower than it on array work. The torch backend on the CPU pays off from about a million elements, and mostly with many threads.
+## Native kg and NumPy on resident CPU arrays
+
+The November 21 development build ran 16 array workloads on an Apple M2 Ultra with 192 GiB, using standalone `kg` and NumPy 2.5.5 with Apple Accelerate. Each workload uses matching contiguous 64-bit inputs. The harness checks every output value, shape and inferred numeric dtype against NumPy before timing. Both engines warm up and calibrate a batch of at least 5 ms. The table reports medians of seven batches for 4,096 and one million elements and five batches for eight million. Timing covers the operation on resident data, including result allocation. Input construction, interpreter startup and JSON transfer happen outside the timer. These workloads cover NumPy operations also exercised by the upstream benchmark suite. [NumPy reductions](https://github.com/numpy/numpy/blob/main/benchmarks/benchmarks/bench_reduce.py) · [NumPy sorting workloads](https://github.com/numpy/numpy/blob/main/benchmarks/benchmarks/bench_function_base.py)
+
+The ratio divides NumPy time by `kg` time. A value above one favors `kg`. Matrices have 64 columns. The wide keys form a deterministic strided permutation at the reported sizes. Sorted runs contain 64 copies of each key. Dot uses `numpy.dot`, including its BLAS implementation, and `+/a*b` in Klong.
+
+| Operation | kg at 1M (µs) | NumPy at 1M (µs) | NumPy/kg at 4,096 | At 1M | At 8M |
+|---|---:|---:|---:|---:|---:|
+| float64 add | 282.9 | 259.2 | 1.19× | 0.92× | 1.13× |
+| float64 multiply | 265.4 | 264.5 | 1.11× | 1.00× | 0.97× |
+| float64 sum | 201.8 | 177.8 | 1.44× | 0.88× | 1.24× |
+| float64 min | 158.8 | 92.3 | 1.24× | 0.58× | 0.97× |
+| float64 dot | 450.9 | 110.0 | 0.52× | 0.24× | 0.63× |
+| int64 cumulative sum | 375.1 | 2,032.6 | 4.81× | 5.42× | 6.58× |
+| float64 first differences | 477.8 | 182.8 | 1.08× | 0.38× | 0.57× |
+| float64 gather | 1,596.8 | 920.8 | 0.53× | 0.58× | 1.35× |
+| int64 positive indices | 716.0 | 787.5 | 1.48× | 1.10× | 1.00× |
+| int64 stable argsort, 257 keys | 1,372.0 | 78,441.0 | 21.74× | 57.17× | 79.08× |
+| int64 stable argsort, wide keys | 27,157.0 | 70,399.2 | 2.12× | 2.59× | 3.21× |
+| int64 stable argsort, presorted | 299.9 | 851.3 | 3.25× | 2.84× | 2.71× |
+| int64 stable argsort, sorted runs | 285.0 | 849.1 | 3.48× | 2.98× | 3.12× |
+| int64 stable argsort, uniform | 290.1 | 836.5 | 3.31× | 2.88× | 2.86× |
+| int64 column sums | 169.3 | 481.7 | 3.78× | 2.85× | 2.75× |
+| int64 row sums | 100.3 | 173.8 | 3.31× | 1.73× | 1.12× |
+
+The new stable grade counts keys when the integer span is small relative to the vector, and returns row positions directly for ascending inputs. On one million signed integers cycling through 257 keys, `kg` went from 28.32 ms to 1.37 ms. The equivalent stable NumPy argsort took 78.44 ms. With the order of the engine timing runs reversed, the ratio was again 57×.
+
+Key width matters. A separate run timed `np.argsort(keys.astype(np.int16), kind="stable")`, including the conversion from int64. On the same patterned keys, NumPy took 5.07 ms and `kg` took 1.49 ms, a 3.41× advantage for `kg`. On one million randomly drawn keys in the same range, NumPy took 5.34 ms with conversion and 98.33 ms on int64. The native grade took 1.50 ms. All three implementations returned the same million indices for each distribution.
+
+Reductions over packed integer matrices now visit the rows directly. At one million elements, column sums went from 2.12 ms to 0.169 ms and row sums from 1.18 ms to 0.100 ms. NumPy retained the lead on the float64 dot product and first differences at both large sizes.
+
+To reproduce from the checkout, build the release CLI and run the following commands. The thread settings must be in the environment before starting Python.
+
+```sh
+cargo build --locked --release --manifest-path native/Cargo.toml -p klong-cli
+export VECLIB_MAXIMUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_NUM_THREADS=1
+.venv/bin/python native/scripts/bench_numpy.py --json numpy-comparison.json
+.venv/bin/python native/scripts/bench_numpy.py --sizes 8000000 --samples 5 --json numpy-large.json
+```
+
+## NYC taxi and One Billion Row Challenge
+
+The post-RC1 development build ran the four NYC taxi reports on **1,128,213,169 real trips** on an Apple M2 Ultra. The input was 96 local TLC Parquet files totalling 21.51 GB. It included yellow cabs from January 2009 through June 2015 and green cabs from January 2014 through June 2015. The five published 2013 green links returned HTTP 403. This monthly TLC snapshot differs from the original benchmark author's historical export. [NYC TLC files](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) · [Original benchmark](https://tech.marksblogg.com/duckdb-1b-taxi-rides.html)
+
+The original four queries scan the source for each report. The example reads the required columns together and aggregates trips by cab type, passenger count, pickup year and rounded distance. It builds the four reports from those group counts and fare totals. A separate PyArrow and NumPy scan verified all group keys and counts, row order and the fare averages to floating-point tolerance. The distance report returned 6,806 groups.
+
+With eight DuckDB threads, the original four queries took **19.51 s** and the optimized example took **11.24 s**, a **1.74× speedup**. Times are medians of three paired warm-cache runs in alternating order, including process startup, reading Parquet, aggregation and writing all four JSON results. Median peak resident memory rose from 2.09 GiB to 2.18 GiB.
+
+The weather example ran on **1,000,000,000 measurements** generated by the upstream Java program. With the default thread settings, the median was **4.78 s** for standalone `kg` and **4.89 s** for `kgpy` over three fresh processes each. Both outputs matched the upstream Java reference byte for byte across all 413 stations. The example parses and groups in DuckDB and computes the mean using exact integer tenths. The previous Python worker pipeline lost results across workers, so it provides no valid timing baseline. [One Billion Row Challenge](https://github.com/gunnarmorling/1brc)
+
+Two measurements isolate work in the Klong runtime. Reading 2,964,624 January 2024 yellow-cab fares into one Klong integer vector and summing the cents fell from **134.3 ms to 58.6 ms** across nine paired process runs. Median peak resident memory fell from **140 MiB to 95 MiB**. Matching numeric SQL columns now copy directly into Klong's packed vectors until a null requires a mixed list. Separately, grouping 200,000 resident labels drawn from 413 station strings fell from **161 ms to 4.7 ms**. That operator test exercises the dictionary index used by Klong's `=` on labels. The weather example uses SQL for its grouping.
+
+### Comparisons on the same M2 Ultra
+
+On the same 96 taxi files, `kg` took **11.31 s** and DuckDB 2.0.0 through Python took **11.41 s** to execute the same SQL and print all four reports. In a second paired series, `kg` took **11.25 s** and Polars 2.1.0 took **7.79 s**. Both used eight threads and aggregated once before producing the reports. The Polars streaming plan selected the year directly from historical ISO date strings. The Klong example cast those fields to timestamps. All timings are medians of three fresh-process runs after a warm-up. The independent checker verified the results of every run.
+
+On the same billion weather measurements, the comparison run took **5.22 s** with `kg`, **5.67 s** with DuckDB through Python, and **1.05 s** with the winning Java team's specialized parser running on OpenJDK 27. All three used the machine's default 24 logical CPUs and produced identical output. The official competition measured a GraalVM native binary on eight AMD EPYC cores. [Winning Java source](https://github.com/gunnarmorling/1brc/blob/db064194be375edc02d6dbcd21268ad40f7e2869/src/main/java/dev/morling/onebrc/CalculateAverage_thomaswue.java) · [Competition hardware and timing rules](https://github.com/gunnarmorling/1brc#evaluating-results)
+
+| Runtime operation | `kg` | Comparison |
+|---|---:|---:|
+| Group 200,000 strings across 413 station names | 4.73 ms | 185.52 ms in PeachQ 0.92 |
+| Group 200,000 symbols across 265 zone names | 2.13 ms | 2.21 ms in PeachQ 0.92 |
+| Read and sum 2.96 million fares, including startup | 57.4 ms | 133.3 ms in DuckDB and NumPy |
+| Read and sum the same fares in an open session | 13.7 ms | 15.1 ms in DuckDB and NumPy |
+
+The grouping timer starts after constructing the input and stops before checking every group's row positions. The fresh-process fare timings include imports and connection setup. The open-session figures are medians of 20 scans and host-side reductions per implementation, with an untimed warm-up in each process.
+
+## Ticker plant throughput and rollover
+
+The native ticker plant accepts kdb+ IPC batches, commits them to the RDB and sends each batch to two subscribers. A separate native HDB imports closed sessions. The test used three Kubernetes nodes, with the head on an AMD EPYC node, the HDB on a separate Intel node, and the publisher, subscribers and query clients on a third node. Each pod had a four-CPU limit and 8 GiB of memory. The databases used node-local storage. Only the Parquet handoff crossed the shared filesystem. The Linux servers ran the previously qualified x86-64 RC1 binary with the new Klong example programs.
+
+The feed had 1,024 instrument IDs, integer prices, quantities and nanosecond timestamps. One ordered publisher waited for each batch acknowledgment. Both subscribers checked sequence continuity, returned their processed watermark and had their total volume checked. Independent IPC clients requested the latest live and historical prices at 20 queries per second each. After each rollover the driver checked every stored payload field, distinct sequence coverage and row count.
+
+| Two-subscriber workload | Batch size | Ingest rate | Rate including rollover |
+|---|---:|---:|---:|
+| Alternating feed sizes, two six-second runs | 3,000 / 8,192 / 6,000 / 4,096 | 446k–456k trades/s | 393k–406k trades/s |
+| Saturated publisher, two eight-second runs | 65,536 | 1.42M–1.57M trades/s | 1.12M–1.20M trades/s |
+| Paced at 750k/s for one minute | 32,768 | 750k trades/s | 662k–665k trades/s |
+| Offered 1.6M/s for 15 seconds, including drain | 65,536 | 1.54M trades/s | 1.21M trades/s |
+
+The variable-size feed initially managed 74k–79k trades/s because the head reopened its database when the batch width changed. Reusing power-of-two staging buffers on one connection made the median rate 5.9× higher. A partial batch writes only valid rows. Larger messages can span multiple buffers inside a single transaction.
+
+The run with rollover probes processed 45,023,232 trades in 60.012 seconds. Batch acknowledgment p99 was 108.8 ms. During ingestion, live-query round-trip p99 was 97.4 ms and historical-query p99 was 20.4 ms. The live client missed 101 scheduled query slots. The historical client missed zero. The last batch drained 12 ms after the offer window. Closing this session took 7.99 s. A live query issued during the handoff waited 7.98 s and a historical query waited 3.06 s.
+
+After the load runs, the publisher left 1,048,576 acknowledged trades in an open session. Both database processes were killed. The recovered head returned the same watermark and rolled the open session. After another forced restart, the verifier checked every payload field and sequence for **352,108,704 trades across 43 sessions**. This tests process death with the same storage available.
+
+At an offered 1.6M trades/s, 1,179,648 trades were still awaiting acknowledgment at the end of the 15-second window. Draining the queue took another 0.59 s and the HDB handoff took 4.28 s. The measured arrival schedule begins when a batch is due. A live feed must also budget for the time it takes to fill the batch. [Example and commands](https://github.com/briangu/klongpy/tree/main/examples/stocks/tickerplant)
+
+## Streaming tables and queries
+
+On 2026-11-20 UTC, standalone `kg` from the installed **2.0.0rc1** Linux x86-64 wheel ingested **0.959–0.977 million rows/s** over six controlled trials on an AMD EPYC 7773X. A loopback client loaded 1,048,576 rows into memory in 256-row batches. In a separate phase, a writer offered 25,600 rows/s against 32,768 preloaded rows while two clients queried last price and as-of bid. Each trial checked the query results and final row counts. Query latency runs from the scheduled time to the reply.
+
+The reference was PeachQ 0.92. Both servers used one query-engine thread. Each series contains three paired `kg`/PeachQ trials, alternating which server ran first. In the controlled series, each server ran on CPU 8 and the clients used CPUs 9–12 on the same socket. All processes shared a six-CPU container quota. The source archive SHA-256 starts with `547dd7b9e927`, the Linux wheel's with `9b6fcffb0e85`, the standalone executable's with `c8855a024400`, and the PeachQ executable's with `69a0befb1abc`.
+
+| `kg` / PeachQ 0.92 | Controlled series 1 | Controlled series 2 | Acceptance bound |
+|---|---:|---:|---:|
+| Ingestion throughput | 1.644× | 1.672× | ≥0.80× |
+| Last-price p99 | 0.378× | 0.391× | ≤1.25× |
+| As-of bid p99 | 0.416× | 0.366× | ≤1.25× |
+
+Each table entry is the median of the three paired ratios. Across the six controlled trials, PeachQ ingested 0.572–1.198 million rows/s. Individual throughput ratios ranged from 0.816× to 1.679×.
+
+### PeachQ comparison at default CPU placement
+
+| Unrestricted series | Ingestion throughput ratio | Last-price p99 ratio | As-of bid p99 ratio |
+|---|---:|---:|---:|
+| First series | 1.706× | 0.697× | 1.043× |
+| First repeat | 1.689× | 0.776× | 1.069× |
+| Second repeat | 1.737× | 0.712× | 1.243× |
+
+Each current series met the median bounds. In the second repeat, one pair exceeded the 1.25× as-of bound at 1.353×. Across all nine pairs at default placement, the highest absolute query p99 on either engine was 17.09 ms, and the slowest batch acknowledgement was 22.87 ms.
+
+Before the idle SQL change, four unrestricted series using standalone executable `6306836e445e` recorded median as-of p99 ratios of 1.471×, 1.433×, 1.074× and 1.342×. A separate instrumented run of that executable recorded 1.455×. The first last-price query occupied 8.89–11.45 ms of the 9.40–12.05 ms that the first as-of query waited between send and SQL entry. Linux charged the query thread 18.44–20.85 ms of CPU time across the two SQL calls, at roughly 1 ms resolution. Those calls include both publishing newly appended rows for SQL and executing the queries.
+
+From a source checkout with the candidate installed and the PeachQ executable available, run the reference selection with this command.
+
+```sh
+KLONG_V2_RELEASE=1 KLONG_NATIVE=/path/to/kg KLONG_TEST_PEACHQ=/path/to/q \
+  python -m pytest tests/v2 -m v2_reference -o junit_family=xunit1 --junitxml=reference.xml
+```
+
+### Hosted and standalone feed at default CPU placement
+
+With default CPU placement, the installed RC1 wheel passed the 25,600-row/s qualification feed on both commands while two clients queried last price and as-of bid. The regression budget is 100 ms for each query p99 and for the slowest batch acknowledgement, measured from its scheduled time. Ingestion capacity comes from the separate phase without readers.
+
+| Command | Ingestion capacity | Worst ingest lag | Last-price p99 | As-of bid p99 |
+|---|---:|---:|---:|---:|
+| `kg` | 948,377 rows/s | 15.76 ms | 9.35 ms | 14.49 ms |
+| `kgpy` | 148,809 rows/s | 76.24 ms | 23.22 ms | 19.60 ms |
+
+In a historical set of 12 runs before the idle SQL change, we tested each of three hosted wheels and PeachQ once per round over three rounds, changing the order between rounds. Those measurements used default CPU placement and the same feed.
+
+| Build | Median ingestion capacity | Worst ingest lag across runs | Last-price p99 range | As-of bid p99 range | Runs meeting the 100 ms budget |
+|---|---:|---:|---:|---:|---:|
+| Development `kgpy`, before shared-value ownership | 189,381 rows/s | 27.82–34.16 ms | 16.29–22.98 ms | 16.36–22.99 ms | 3/3 |
+| First RC1 candidate `kgpy` | 146,725 rows/s | 37.05–108.10 ms | 17.47–18.59 ms | 23.42–25.27 ms | 2/3 |
+| Later RC1 candidate `kgpy` | 149,502 rows/s | 46.61–63.49 ms | 15.28–17.76 ms | 24.15–26.70 ms | 3/3 |
+| PeachQ 0.92 | 531,142 rows/s | 11.82–14.67 ms | 12.66–12.97 ms | 12.70–12.88 ms | 3/3 |
+
+The later RC1 candidate ingested about 21% fewer rows per second than the development wheel at the median paired ratio. Relative to the first RC1 candidate, it had lower last-price p99 and higher as-of p99 in every round. The first RC1 candidate missed the ingest budget once in this series. In an earlier three-pair comparison it passed in all three runs, with 146,000 rows/s median and worst ingest lags of 25.61–90.59 ms. The development wheel reached 191,000 rows/s and 16.94–25.33 ms in that comparison. The SHA-256 prefixes for the development, first RC1 and later RC1 wheels are `263fbeabd43e`, `ac24a06efc25` and `b4b3bba8600c`.
+
+An earlier v2 build reached 228 ms worst hosted ingest lag on this workload. The first three runs after the live SQL scan change recorded 24.28, 23.95 and 33.62 ms.
+
+```sh
+KLONG_NATIVE=/path/to/kg KLONG_V2_KGPY=/path/to/kgpy \
+  python -m pytest tests/v2/test_performance.py::test_tick_service_under_load \
+  -o junit_family=xunit1 --junitxml=tick-feed.xml
+```
+
+## Distinct IDs and group counts
+
+A before-and-after comparison on Linux x86-64 used standalone release builds from the same v2 development line, immediately before and after the dense-integer optimization. On an AMD EPYC 7773X, the loopback client requested distinct IDs and group counts from one million resident int64 rows with 64 densely spaced IDs. Input construction ran before timing. Each operation had a warm-up, then seven timed requests whose results were checked.
+
+| Operation | Before, median | After, median | Median paired speedup | Range across five pairs |
+|---|---:|---:|---:|---:|
+| Distinct IDs (`?ids`) | 29.732 ms | 2.800 ms | 10.65× | 10.37–10.97× |
+| Group counts (`#'=ids`) | 30.394 ms | 11.988 ms | 2.54× | 2.52–2.85× |
+
+The build order alternated over five paired trials. The time columns are the medians of their trial medians. A control with 64 widely spaced IDs took 29.709 ms before and 29.824 ms after for distinct IDs. The installed RC1 Linux wheel ran the same 64-dense-ID case in **2.43 ms for distinct IDs and 11.86 ms for group counts** (medians of seven calls).
+
+Run the resident 64-ID workload against each binary separately:
+
+```sh
+KLONG_NATIVE=/path/to/kg python -m pytest \
+  tests/v2/test_performance.py::test_group_resident_integer_ids \
+  -o junit_family=xunit1 --junitxml=group-ids.xml
+```
+
+## Peak heap for an integer running sum
+
+On an Apple M2 Ultra, standalone `kg` used **8.02 MB of peak heap** to generate one million consecutive int64 values, compute their running sum and read its last value. The preceding implementation used **16.02 MB**. The new scan reuses the temporary input buffer. A vector held in a variable or through an alias retains its original contents.
+
+Both builds returned `499999500000`. The new build also completed with a 10 MiB interpreter heap limit. The earlier build reported an out-of-memory error at that limit. These figures come from `kg --stats`, which measures the interpreter heap. In nine alternating local trial pairs, the median runtime was about 0.49 ms on both builds.
+
+```sh
+kg --stats --heap-limit 10485760 -e '(+\!1000000)@999999'
+```
+
+## Python-hosted runtime compared with v1
+
+On 2026-11-20 UTC, we evaluated the same expressions through `KlongInterpreter` on pure-Python 1.0.0 and the installed 2.0.0rc1 Linux x86-64 wheel. The benchmark used CPU 8 of an AMD EPYC 7773X. Both builds used Python 3.11.2, NumPy 2.4.6 and one numeric library thread. Three paired trials alternated the build order, using a fresh process for each side. Each case had three warm-up calls and nine measured calls. Timing covered the interpreter call and the creation of its result. Setup, validation and process startup ran outside the clock. Every result was checked.
+
+| Workload | v1 median | RC1 median | Paired speedup | Range across three pairs |
+|---|---:|---:|---:|---:|
+| Recursive `fib(20)` | 2106.115 ms | 3.274 ms | 643.302× | 627.105–649.182× |
+| While loop, 100,000 steps | 5720.051 ms | 13.635 ms | 419.515× | 405.980–423.309× |
+| Lambda reduction, 100,000 integers | 848.544 ms | 8.217 ms | 103.377× | 101.647–104.239× |
+| Element-wise arithmetic, 1,000,000 integers | 2.172 ms | 1.631 ms | 1.331× | 1.327–1.437× |
+| Sum, 1,000,000 integers | 0.406 ms | 0.279 ms | 1.467× | 1.457–1.477× |
+| Running sum (scan), 1,000,000 integers | 0.753 ms | 1.019 ms | 0.740× | 0.734–0.832× |
+| Sort, 100,000 seeded floats | 16.483 ms | 2.658 ms | 6.201× | 6.185–6.357× |
+| Group counts, 1,000,000 Python-supplied integers with 64 IDs | 35.394 ms | 48.632 ms | 0.728× | 0.725–0.744× |
+
+Time columns give the median of three trial medians for each build. Speedup is the median paired v1/RC1 elapsed-time ratio. The running sum and group counts on IDs supplied as a NumPy array were slower on RC1 in all three pairs. The standalone group-count benchmark operates on resident Klong vectors. The v1 commit begins `9315318cbb03`, the RC1 source archive SHA-256 begins `547dd7b9e927`, the wheel's begins `9b6fcffb0e85`, and its native Python extension's begins `bb2649021452`.
+
+The running sum returns a writable million-element NumPy array to Python. An installed v2 wheel from before the temporary-buffer change measured 3.686 ms on this workload. A later RC1 candidate (`b4b3bba8600c`) measured 0.662 ms. The current wheel measured 1.019 ms. The native heap test above checks buffer reuse independently of the hosted result timing.
+
+From the checkout, run the same workload with the v2 wheel installed in the active Python environment. The output includes all timing samples.
+
+```sh
+python scripts/bench_versions.py --v1-source /path/to/v1-source \
+  --v2-source "$(python -c 'import sysconfig; print(sysconfig.get_path("platlib"))')" --out v1-v2.json
+```
+
+## First launch under Rosetta
+
+On Apple Silicon running macOS 26.6.2, the original Intel Mac RC1 wheel took 10.904 seconds to print `kg --help` after a fresh installation. That exceeded the existing ten-second timeout for automated clients. The release wheel limits C++ inlining in DuckDB and folds identical functions at link time. The package shrank from 37.4 MB to 33.0 MB.
+
+We compared the executables on fresh file copies, alternating the original, release, release and original builds for each workload. Help took 10.55–10.75 seconds on the original and 8.80–8.82 seconds on the release wheel. A Klong script that created a three-row table and queried its sum took 10.41–10.60 seconds on the original and 8.78–8.84 seconds on the release wheel. Three subsequent help calls on the same release executable took 66–70 ms.
+
+We also timed one-thread DuckDB queries on two million resident rows. Across three alternating pairs, the release wheel's median time ratios to the original were 0.990× for an integer sum, 0.975× for counts across 64 groups and 0.977× for a join. Each process took nine checked measurements after warm-up. An alternative build optimized for size started in 5.35 seconds, but those same warm queries took 19–35% longer. These measurements compare Intel binaries under Rosetta. The tested release wheel's SHA-256 starts with `f84de715b399`.
+
+## Earlier CPU microbenchmarks
+
+These figures are for the dated development build in the conditions table. Whole-array NumPy arithmetic, reduction and sorting often approached direct NumPy on 100,000 to a million elements. Dispatch cost was more visible in loops and per-element lambdas. Use the workloads and sample sizes below when comparing your own measurements.
 
 ## Conditions
 
@@ -188,10 +402,12 @@ This section is a second set of measurements, from `native/scripts/bench_engine.
 | Rust | 1.90.0-nightly, `--release`, one code generation unit |
 | Engine "after" | the commit "Engine speed, third round: append in place, direct calls to named functions, leaf arithmetic" |
 | Engine "before rounds two and three" | the extension built from the commit before the second round, "Migration guide lists every break from 0.7; scope wording corrected; arity error for system functions". It has the first round of speed work and not the second and third. Measured on 2026-11-19, in the extension only |
-| kg | `native/target/release/kg`, timed with `.pc()`, the process CPU time, around a call of the workload |
+| kg | `native/target/release/kg`, timed with the monotonic elapsed-time clock `.pc()` around calls to the workload |
 | Extension | `klong_native` through `KlongInterpreter` from `klongpy` (NumPy backend), timed with the same Klong function (`.pc()`), so a result is never converted to Python |
 
 Method: a workload runs once to warm up, and that run sizes a batch of at least 3 ms; the figure is the best of 3 to 30 batches (as many as fit in half a second), per run. A run of 2 s or more is timed once. Each cell is the better of two rounds, and the two rounds were run one after the other. "Before" and "after" were measured in different sessions, under the loads stated above, so the rows that the work did not change show the noise between sessions: in the 39 array rows that no change was aimed at (add, multiply, the two chains, dot, sum, max of integers, the grade of integers, take and drop, at the three sizes), "before" divided by "after" is between 0.90 and 1.11 in 37 rows and 0.75 and 0.76 in two (`add float` and `multiply float` at 100,000 elements, discussed below). A ratio of two cells from different sessions is good to about 10%. A workload is the body of `wk::{expr;0}`, so what is timed is making the result and dropping it. The CPython column uses lists, loops and the builtins that fit (`sum`, `min`, `sorted`, `itertools.accumulate`); the NumPy column is the vectorised form. The arrays are `ia`, ints 0 to n-1, `ib`, `3+ia`, `fa`, `0.5*ia`, `fb`, `1.5+fa`, `pi`, a permutation of 0 to n-1 (`(7919*ia)!n`) and `pf`, `0.5*pi`. The two append rows were added to the script after the first measurement, so they have no "before" figure.
+
+The historical float chain rows below used `(fa*fb+fa)-fb` in Klong. Right-to-left evaluation makes the inner expression `fa*(fb+fa)`, while the Python runners used `(fa*fb)+fa`. The harness now parenthesizes the Klong product explicitly. Those three historical rows timed different arithmetic expressions.
 
 ### Programs the interpreter runs
 

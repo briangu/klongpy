@@ -39,10 +39,11 @@ A program is split by what kind of top-level statement it is.
 |---|---|---|
 | `name::{...}` or `name(p;q)::{...}` | run time | a function to compile, if reachable from an entry |
 | `name::<any other expression>` | compile time | evaluated once by KlongPy on the host; the result becomes an initialised global |
-| `.extern(...)` | compile time | declares a function the target provides |
+| `name::.extern("symbol";"signature")` | compile time | declares a function the target provides, and names it `name` |
+| `export:::{;"key";name;...}` | compile time | the interface of a module file |
 | `.param(...)` | compile time | declares a global that is an input register of the compiled program |
 | `.entry(...)` | compile time | marks a function as a C entry point and fixes its argument types |
-| `.l("file")` | compile time | loads another file under the same rules |
+| `.l("file")`, `.l("file";:alias)`, `.l("file";["a" "b"])` | compile time | loads another file under the same rules: a module (a file that assigns `export`) is bound to a name, a classic file is read into the program |
 | any other expression | error | top-level effects have no meaning on the target |
 
 Compile-time expressions may use the whole language, including the library,
@@ -57,7 +58,7 @@ function, with arguments of unknown type.
 
 The program must parse at strict level 2 (`kgpy --strict=2`).
 
-`kgpy check` and `kgpy compile c` find the file of a `.l` the way the interpreter does: in the directories of `KLONGPATH` (default `.:lib`) from the current directory, then in the package library, then in the directory of the file that contains the `.l`. A file in the current directory wins over one beside the program.
+`kgpy check` and `kgpy compile c` find the file of a `.l` the way the interpreter does: beside the file that contains the `.l`, then in the directories of `KLONGPATH` (default `.:lib` on Unix and `.;lib` on Windows), then in the package library.
 
 ## Types
 
@@ -99,7 +100,7 @@ Rejected, each with a positioned error naming the rule:
 - Strings, chars, symbols, dicts, `:undefined` as run-time values.
 - Functions as values: a function stored in a variable, returned, or passed as an argument other than directly as the verb of an adverb. Projections.
 - Recursion, direct or mutual, including `.f`.
-- `.E`, `.l`, `.py*`, channels and every other system function except `.extern`-declared names.
+- `.E`, `.l` inside a function, `.py*`, channels and every other system function; the top-level `.l` and the externs a program declares are the exceptions.
 - A variable whose type or shape differs between two assignments, or a conditional whose branches have different shapes.
 - Division of an int by zero when both are constants.
 
@@ -174,7 +175,7 @@ The verb `f` is an operator, the name of a function or extern, or a function lit
 | `[a b]::v` | `destructure` | v is an array with exactly one item per name; as the first statement the names are locals |
 | `name::expr` to a top-level name | `global` | the type and shape of a global never change |
 | `g(a;b)`, `a g b` | `call` | a compiled function, with every argument supplied; specialised per argument types |
-| `read.adc(0)` | `extern-call` | a name declared with .extern; a str parameter takes a string literal |
+| `adc(0)` | `extern-call` | a name assigned `.extern(c_symbol;signature)`; a str parameter takes a string literal |
 | `f'a` with f an operator, a function name or `{...}` | `verb` | a function literal is allowed only as the verb of an adverb or the predicate of While; it may read, but not assign, the locals of the function it is written in |
 
 ### Operators and adverbs outside the profile
@@ -430,25 +431,40 @@ Inference is forward and monomorphic. Every expression gets one type from the ty
 - Lists need brackets (`[1 2 3]`, not `1 2 3`), and a name inside brackets is a symbol, not the variable: write `[;a;b]`.
 - `a!b` and `a:%b` are C's `%` and `/`: `(-7):%2` is -3, `(-7)!2` is -1 and `7!-2` is 1. Float remainder is `fmod` (`7.5!2` is 1.5). `_` rounds toward minus infinity (`_(-3.5)` is -4).
 - Evaluation order: the right operand of a dyad is evaluated before the left; call arguments and the elements of `[;a;b]` left to right. Compiled code keeps this order.
-- Names contain letters, digits and `.` but no underscore. A Klong name maps to a C identifier by replacing `.` with `_`, so the extern `read.adc` is C `read_adc`.
+- Names contain letters, digits and `.` but no underscore. A Klong name maps to a C identifier by replacing `.` with `_`. An extern's C name is not derived from its Klong name: it is the C symbol given to `.extern`, which may contain underscores.
 - A function reads its parameters, its locals and the globals. It does not see the locals of its caller (KlongPy's scoping is dynamic; the profile's is not). A function literal used as a verb may read the locals of the function it is written in, but not assign them.
 
 ## Host functions and entry points
 
 ```
-.extern(name; signature)             :" a function the target provides; module defaults to env "
-.extern(name; signature; module)
+adc::.extern(symbol; signature)      :" a function the target provides "
 .entry(name; signature)              :" a function the host calls "
 ```
 
-The name, the signature and the module are string literals. A signature is
+`.extern` returns the host function as a value, so a program assigns it. The symbol and the signature are string literals. The symbol is the C function: a C identifier (letters, digits and underscore, not starting with a digit), not a C keyword and not starting with `kg_`. A signature is
 `params -> result`: `params` is a space-separated list of types (possibly
 empty) and `result` is a type or `void`. Types: `int`, `float`, `int[N]`,
 `float[N,M]`, and `str` (extern parameters only). Examples: `"int -> float"`,
 `"float[64] -> float"`, `"int float -> void"`, `"-> int"` (called as `name()`).
 
-- In C an extern is a prototype under the mapped name (`read.adc` is `read_adc`) and an entry is `prog_<name>`. There is no WebAssembly build yet; it is meant to make an extern an import from `module` and an entry an export.
-- An extern name must not map to a C keyword or start with `kg.`; an entry cannot be called `init`, `t`, `size` or `storage.t` (`prog_init` and the others are generated).
+A target's functions live in an ordinary module file that declares them and exports them, and a program uses the file with `.l`:
+
+```
+:" read.kg "
+adc::.extern("read_adc";"int -> float")
+export:::{;"adc";adc}
+
+:" the program "
+.l("read")
+x::read.adc(0)
+```
+
+The compiler reads `NAME::.extern(...)`, `export:::{...}` and `.l(...)` as top-level statement forms and does not run them. The compiler name of an extern a module declares is `prefix.name` (`read.adc`); the C symbol is separate, and the generated C declares and calls the symbol. A statement that calls `.extern` and discards the value is a compile-time diagnostic (rule `extern`; lint `E005`).
+
+- The same symbol declared twice with the same signature is one declaration (the header has one prototype); with different signatures it is an error.
+- `export` must be written as a dictionary literal, `export:::{;"key";name;...}`, with string-literal keys and values that are names or numbers: the compiler reads the interface without running the file, so a `export` that is a variable or a call is a compile-time diagnostic (rule `decl-literal`). The file argument of `.l` must be a string literal.
+- In C an extern is a prototype under its C symbol and an entry is `prog_<name>`; the comment on the prototype gives the Klong name and the signature (`Klong name read.adc: int -> float`). HLS output rejects externs: the card has nothing to call.
+- An entry cannot be called `init`, `t`, `size` or `storage.t` (`prog_init` and the others are generated).
 - `.entry` needs the function to be defined before it and to take as many arguments as the signature has parameters. A function may have several entries with different shapes.
 - A `str` parameter takes a string literal.
 - The result of a `void` extern cannot be used as a value.
@@ -462,8 +478,8 @@ externs:
 from klongpy import KlongInterpreter
 
 klong = KlongInterpreter(strict=2)
-klong.externs["read.adc"] = lambda channel: 0.3
-klong.externs["write.pwm"] = lambda channel, duty: 0
+klong.externs["read_adc"] = lambda channel: 0.3
+klong.externs["write_pwm"] = lambda channel, duty: 0
 klong('.l("examples/embedded/pid.kg")')
 klong("step(0.31)")                      # 0.12005
 ```
@@ -474,22 +490,21 @@ or, in one call each:
 from klongpy.static import load_program, call_entry
 
 klong = load_program("examples/embedded/pid.kg",
-                     externs={"read.adc": lambda channel: 0.3, "write.pwm": lambda channel, duty: 0})
+                     externs={"read_adc": lambda channel: 0.3, "write_pwm": lambda channel, duty: 0})
 call_entry(klong, "step", 0.31)          # 0.12005, checked against the .entry signature
 ```
 
-- `klong.externs` maps an extern name to a Python callable. It is looked up at each call, so a stand-in can be bound before or after the `.extern` line runs and replaced at any time. `klong.externs.declared` and `klong.externs.entries` hold what the program declared.
+- `klong.externs` maps a C symbol to a Python callable. It is looked up at each call, so a stand-in can be bound before or after the `.extern` line runs and replaced at any time. `klong.externs.declared` (keyed by C symbol) and `klong.externs.entries` hold what the program declared.
 - A stand-in gets one positional argument per parameter: a Python `int` for `int`, a `float` for `float` (an int argument is converted), a `str` for `str`, a numpy `int64` or `float64` array of the declared shape for an array. It returns a value of the result type; for `void` the result is ignored and the call evaluates to `:undefined`.
 - Arguments and result are checked against the signature on every call: a float where an int is declared is a type error, a wrong array shape a shape error, a wrong number of arguments an arity error, each naming the extern and positioned at the call. Calling an extern that has no stand-in is a system error naming it. An exception raised by a stand-in is a python error.
 - `.entry` under KlongPy validates the declaration and records it; the function is called as usual. `call_entry` calls it the way compiled code is called, with arguments and result checked against the signature.
 
 ### Running a static program under `kg`
 
-`kg` is the engine without Python, so it has no Python functions to stand in for externs. It defines `.extern`, `.entry` and `.param` with the same checks, the same canonical signature as the result and the same error kinds as `kgpy`, so `examples/embedded/*.kg` loads there as it stands. A call of an extern that has no stand-in is a `system` error that names it. A program that embeds the engine supplies an extern by registering a function of that name before the program declares it (`klong_cfun_register` in the C interface, `Interp::register` in Rust); the declared name then checks arguments and result against the signature and calls it.
+`kg` is the engine without Python, so it has no Python functions to stand in for externs. It defines `.extern`, `.entry` and `.param` with the same checks, the same canonical signature as the result and the same error kinds as `kgpy`, so `examples/embedded/*.kg` loads there as it stands. A call of an extern that has no stand-in is a `system` error that names it. A program that embeds the engine supplies an extern by providing a function under its C symbol (`klong_extern_register(symbol, fn, ctx, out_cap)` in the C interface, declared in `native/klong-ffi/include/klong.h`; `Declarations::provide` in Rust), before or after the program declares it. The provided function is not a global: a program reaches it only through the function that `.extern` returned, which checks arguments and result against the signature.
 
 Known limits:
 
-- A function registered after the `.extern` line replaces the declared name unchecked.
 - `.fixed` is a `system` error under `kg`: fixed-point programs need the hosted engine, because the engine's own values have no fixed-point kind. `fir_fixed.kg` runs under `kgpy` or compiled.
 
 ## Differences from KlongPy

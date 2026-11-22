@@ -50,17 +50,22 @@
 > .bkp(1)
 ! name
 
-@ kg-only.backend-x core kg-only
-> .bkx(1)
+@ kg-only.export-graph strings kg-only
+# the torch backend's graph export, .export(fn;input;path), needs kgpy like the other Python-hosted functions
+> .export({x};1;"p")
 ! name
 
-@ kg-only.table strings dicts kg-only
-> .table(:{;"a";[1 2]})
-! name
+# Desktop tables and SQL have positive cross-host acceptance cases in tests/v2/.
+# Firmware conformance does not require a database.
 
-@ kg-only.sql strings kg-only
-> .db("x")
-! name
+@ kg-only.python-error-names-host strings dicts kg-only
+> (.try({.py("math")};[])@1)@"message"
+= ".py needs kgpy (the Python-hosted command)"
+
+@ kg-only.recover-and-use-native-arrays strings kg-only
+> result::.try({.py("math")};[])
+> :[result@0;0;+/[3 5 7]]
+= 15
 
 @ kg-only.web strings kg-only
 > .web(8080;"x";"y")

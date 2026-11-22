@@ -1,0 +1,32 @@
+:" Each case runs in a fresh interpreter, including the table-only firmware profile."
+.l("./expect.kg")
+simple::{.table(:{;"z";[10 20];"a";[1 2]})}
+positions::{.table(:{;"acct";[1 2];"lot";[7 7];"qty";[3 4]})}
+keyed::{t::positions();.index(t;["acct" "lot"]);t}
+
+casePairConstructor::{t::.table([["z" [10 20]] ["a" [1 2]]]);expect("ordered pairs";.schema(t);["z" "a"])}
+caseRowCount::{expect("row count";#positions();2)}
+caseZeroRows::{t::.table(:{;"a";[];"b";[]});expect("empty row count";#t;0)}
+caseSingleRow::{t::.table(:{;"a";,42});expect("one row stays a column";t@"a";,42)}
+caseFindColumn::{t::simple();expect("dictionary lookup";t?"z";[10 20])}
+caseUnknownColumn::{t::simple();expect("missing column";t@"missing";:undefined)}
+caseStringColumn::{t::.table(:{;"s";["" "BB" "AA"]});expect("strings including empty";t@"s";["" "BB" "AA"])}
+caseColumnOrder::{t::simple();expect("column order";.schema(t);["z" "a"])}
+caseIndependentTables::{t::simple();u::simple();.insert(t;[30 3]);expect("fresh table";u@"z";[10 20])}
+caseAliasAppend::{t::simple();u::t;.insert(t;[30 3]);expect("alias sees append";u@"a";[1 2 3])}
+caseBatchOrder::{t::simple();.insert(t;[[40 4] [30 3]]);expect("batch preserves input order";t@"a";[1 2 4 3])}
+caseRejectWidth::{t::simple();r::.try({.insert(t;[30 3 0])};[]);expect("refuse wrong width";[;r@0;t@"a"];[;0;[1 2]])}
+caseRejectRagged::{t::simple();r::.try({.insert(t;[[30 3] [40]])};[]);expect("reject entire batch";[;r@0;#t;t@"a"];[;0;2;[1 2]])}
+caseInvalidColumnName::{t::simple();r::.try({.table(:{;:a;[1 2]})};[]);expect("symbol column name";(r@1)@"kind";"type")}
+caseScalarColumn::{t::simple();r::.try({.table(:{;"a";42})};[]);expect("scalar column";(r@1)@"kind";"type")}
+caseLengthMismatch::{t::simple();r::.try({.table(:{;"a";[1 2];"b";[]})};[]);expect("length mismatch";(r@1)@"kind";"shape")}
+caseRejectUnknownKey::{t::simple();r::.try({.index(t;["absent"])};[]);.insert(t;[10 1]);expect("invalid index leaves append semantics";[;r@0;#t];[0 3])}
+caseCompositeKey::{t::keyed();.insert(t;[1 8 9]);expect("same account different lot";[;#t;+/(t@"qty")];[3 16])}
+caseReplayIdempotent::{t::keyed();.insert(t;[2 7 15]);.insert(t;[2 7 15]);expect("keyed replay";[;#t;+/(t@"qty")];[2 18])}
+caseLastWriteWins::{t::keyed();.insert(t;[[2 7 5] [2 7 11]]);expect("duplicate key in batch";[;#t;+/(t@"qty")];[2 14])}
+caseUnkey::{t::keyed();.rindex(t);.insert(t;[2 7 5]);expect("unkey enables append";[;#t;+/(t@"qty")];[3 12])}
+caseKeyedAtomicity::{t::keyed();r::.try({.insert(t;[[1 7 99] [8 9]])};[]);expect("invalid batch preserves old keyed row";[;r@0;#t;+/(t@"qty")];[0 2 7])}
+caseRejectReindexPreservesComposite::{t::keyed();u::t;.insert(t;[1 8 9]);r::.try({.index(u;["acct"])};[]);.insert(u;[1 8 99]);expect("failed re-index preserves composite key through aliases";[;(r@1)@"kind";#t;u@"lot";t@"qty"];[;"type";3;[7 7 8];[3 4 99]])}
+caseRekeyUpdatesByNewIndex::{t::keyed();u::t;a::.rindex(u);b::.rindex(t);k::.index(t;["acct"]);.insert(u;[2 8 5]);expect("reset is idempotent and the new key selects the row";[;a;b;k;#t;t@"lot";u@"qty"];[;1;0;["acct"];2;[7 8];[3 5]])}
+caseRejectDuplicateKeyColumns::{t::positions();u::t;r::.try({.index(u;["acct" "acct"])};[]);k::.index(t;["acct" "lot"]);.insert(u;[1 7 99]);expect("duplicate key columns leave the alias available for indexing";[;(r@1)@"kind";k;#u;t@"qty"];[;"shape";["acct" "lot"];2;[99 4]])}
+caseKeyedBatchPreservesRowOrder::{t::keyed();u::t;.insert(u;[[2 7 11] [3 7 5] [1 7 9] [4 7 6] [3 7 8]]);expect("upserts retain positions and new keys append in order";[;t@"acct";u@"qty"];[;[1 2 3 4];[9 11 8 6]])}

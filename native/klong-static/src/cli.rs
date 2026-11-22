@@ -48,7 +48,7 @@ fn describe(r: &Report, out: &mut dyn Write) {
         let _ = writeln!(out, "  entry   {}: {}", e.name, e.signature);
     }
     for x in r.externs.values() {
-        let _ = writeln!(out, "  extern  {}: {} (module {})", x.name, x.signature, x.module);
+        let _ = writeln!(out, "  extern  {}: {} (C {})", x.name, x.signature, x.c_symbol);
     }
     for g in r.globals.values() {
         let kind = if g.assigned { "state" } else { "const" };

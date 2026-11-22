@@ -1,0 +1,23 @@
+# klongpy-ci: build the Rust engine and the Python package on Linux and run the tests.
+# The queue is taken from KLONGPY_CI_QUEUE, set on the pipeline in Buildkite.
+agents:
+  queue: "${KLONGPY_CI_QUEUE:-default}"
+
+steps:
+  - label: ":rust: Engine tests and conformance"
+    key: engine
+    image: python:3.12-bookworm
+    command: .buildkite/ci.sh engine
+    timeout_in_minutes: 40
+
+  - label: ":python: Package conformance and tests"
+    key: python
+    image: python:3.12-bookworm
+    command: .buildkite/ci.sh python
+    timeout_in_minutes: 60
+
+  - label: ":books: Documentation examples and site"
+    key: docs
+    image: python:3.12-bookworm
+    command: .buildkite/ci.sh docs
+    timeout_in_minutes: 40

@@ -152,6 +152,18 @@ pub struct Ipc {
 }
 
 impl Ipc {
+    pub(crate) fn visit_host_roots(&self, visit: &mut dyn FnMut(&Value)) {
+        for conn in self.conns.borrow().iter() {
+            conn.handle.borrow().iter().for_each(&mut *visit);
+            for request in conn.asyncs.borrow().iter() {
+                visit(&request.cb);
+            }
+            for result in conn.results.borrow().iter().filter_map(|(_, result)| result.as_ref().ok()) {
+                visit(result);
+            }
+        }
+    }
+
     pub(crate) fn new() -> Ipc {
         Ipc { cfg: RefCell::new(IpcConfig::default()), conns: RefCell::new(Vec::new()), listener: RefCell::new(None), handles: RefCell::new(Vec::new()), scratch: RefCell::new(Vec::new()) }
     }
@@ -852,12 +864,11 @@ impl<P: Platform + 'static> Events<P> {
     fn evaluate_request(&self, ip: &mut Interp, value: Value) -> Result<Value> {
         match &value {
             Value::Sym(s) => {
-                let name = try_str(ip.syms.name(*s))?;
-                return ip.global_path(&name).ok_or_else(|| Error::name(klong_core::msg!("symbol not found: {}", name)));
+                let name = ip.syms.name(*s);
+                return ip.global_path(name).ok_or_else(|| Error::name(klong_core::msg!("symbol not found: {}", name)));
             }
             Value::Str(text) => {
-                let text = try_str(text.as_str())?;
-                return Ok(ip.run_global(&text, "<ipc>")?.unwrap_or(Value::Undefined));
+                return Ok(ip.run_global(text.as_str(), "<ipc>")?.unwrap_or(Value::Undefined));
             }
             _ => {}
         }
@@ -874,7 +885,7 @@ impl<P: Platform + 'static> Events<P> {
         if !is_call {
             return Ok(value);
         }
-        let mut items = value.items()?;
+        let mut items = value.into_items()?;
         let callee = items.remove(0);
         // ("set"; name; value) assigns a global unless the program has its own `set`
         if items.len() == 2 {
@@ -894,29 +905,25 @@ impl<P: Platform + 'static> Events<P> {
         }
         let target = match &callee {
             Value::Sym(s) => {
-                let name = try_str(ip.syms.name(*s))?;
+                let name = ip.syms.name(*s);
                 // (a name of segments, `mgmt.call`, is the entry of a dictionary, as it is where a request is a symbol alone)
-                ip.global_path(&name).ok_or_else(|| Error::name(klong_core::msg!("symbol not found: {}", name)))?
+                ip.global_path(name).ok_or_else(|| Error::name(klong_core::msg!("symbol not found: {}", name)))?
             }
-            Value::Str(text) => {
-                let text = try_str(text.as_str())?;
-                ip.run_global(&text, "<ipc>")?.unwrap_or(Value::Undefined)
-            }
+            Value::Str(text) => ip.run_global(text.as_str(), "<ipc>")?.unwrap_or(Value::Undefined),
             other => {
                 let text = ext_ref::<KdbLambda>(other).and_then(|l| l.text_str()).unwrap_or("");
                 parse_function(ip, text).ok_or_else(|| Error::typ(klong_core::msg!("cannot run function text from the peer: {}", text)))?
             }
         };
         let arity = arity_of(&target).ok_or_else(|| Error::typ(klong_core::msg!("not callable: {}", format_value(&ip.syms, &callee, true).unwrap_or_default())))?;
-        let mut args = try_vec(items.len())?;
-        for a in items {
-            args.push(local_function(ip, a));
+        for item in &mut items {
+            *item = local_function(ip, core::mem::replace(item, Value::Undefined));
         }
-        if arity == 0 && args.len() == 1 && matches!(args[0], Value::Undefined) {
-            args.clear(); // q's (`f; ::) calls f with no arguments
+        if arity == 0 && items.len() == 1 && matches!(items[0], Value::Undefined) {
+            items.clear(); // q's (`f; ::) calls f with no arguments
         }
-        let n = args.len().min(255) as u8;
-        ip.apply(&target, args, Some(n))
+        let n = items.len().min(255) as u8;
+        ip.apply(&target, items, Some(n))
     }
 
     // ----- calling -----------------------------------------------------------------------
@@ -1096,7 +1103,7 @@ impl<P: Platform + 'static> Events<P> {
             let req = Self::request_of(one(a, "a connection")?)?;
             ev.call(ip, &c, req)
         });
-        let func = Rc::new(Func::Native { name: ip.syms.intern(".cli.fn"), arity: 1, f });
+        let func = Rc::new(Func::native(ip.syms.intern(".cli.fn"), 1, f));
         let _ = self.remember(&func, conn, None);
         let v = Value::Fn(func);
         if !conn.is_down() {
@@ -1114,7 +1121,7 @@ impl<P: Platform + 'static> Events<P> {
             let ev = w.upgrade().ok_or_else(|| Error::system("no runtime"))?;
             ev.call(ip, &c, Self::proxy_request(sym, a)?)
         });
-        let func = Rc::new(Func::Native { name: ip.syms.intern(".cli.proxy"), arity, f });
+        let func = Rc::new(Func::native(ip.syms.intern(".cli.proxy"), arity, f));
         // (which name it calls is what `.async` needs to know)
         self.remember(&func, conn, Some(sym))?;
         Ok(Value::Fn(func))
@@ -1373,6 +1380,7 @@ pub(crate) fn register<P: Platform + 'static>(interp: &mut Interp, ev: &Rc<Event
             return Err(Error::typ("y must be a function"));
         }
         let arity = arity_of(&x).unwrap_or(1);
+        let captures = alloc::vec![x.clone(), y.clone()];
         let remote = ev.remote_of(&x);
         let w = Rc::downgrade(&ev);
         let f: NativeFn = Rc::new(move |ip: &mut Interp, a: &[Value]| {
@@ -1396,7 +1404,7 @@ pub(crate) fn register<P: Platform + 'static>(interp: &mut Interp, ev: &Rc<Event
             }
             Ok(Value::Int(1))
         });
-        Ok(Value::Fn(Rc::new(Func::Native { name: ip.syms.intern(".async.fn"), arity, f })))
+        Ok(Value::Fn(Rc::new(Func::native_with_captures(ip.syms.intern(".async.fn"), arity, f, captures))))
     });
     for name in [".srv.o", ".srv.c", ".srv.e", ".srv.auth", ".cli.h"] {
         let s = interp.syms.intern(name);

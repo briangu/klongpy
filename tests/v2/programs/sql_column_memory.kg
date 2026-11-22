@@ -1,0 +1,4 @@
+.l("./expect.kg")
+d::.db(:{})
+fares::d("SELECT i::BIGINT FROM range(1000000) AS t(i)")
+expect("one million SQL integers within the Klong heap budget";[;#fares;+/fares];[1000000 499999500000])

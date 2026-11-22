@@ -1,0 +1,8 @@
+.l("./expect.kg")
+n::10000
+ids::!n
+labels::{"station ",$x}'ids
+samples::(8*n)#labels
+wanted::+{ids+x*n}'!8
+expect("first-seen station names";?samples;labels)
+expect("all eight positions for every station";=samples;wanted)

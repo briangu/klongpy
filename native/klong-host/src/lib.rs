@@ -1,4 +1,4 @@
-//! klong-host: the `Platform` of desktop operating systems. Standard library only.
+//! klong-host: the `Platform` of desktop operating systems.
 //!
 //! Time, the console and files. TCP, pseudo-terminal links and the lossy
 //! test link live in klong-rt and klong-ipc.
@@ -7,6 +7,52 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use klong_rt::{FileId, FileSystem, FsError, Mode, Platform};
 
+pub const DEFAULT_LOAD_PATH: &str = if cfg!(windows) { ".;lib" } else { ".:lib" };
+
+pub fn load_path_env() -> String {
+    std::env::var("KLONGPATH").ok().filter(|path| !path.is_empty()).unwrap_or_else(|| String::from(DEFAULT_LOAD_PATH))
+}
+
+pub fn parse_load_path(path: &str) -> impl Iterator<Item = String> + '_ {
+    std::env::split_paths(path)
+        .filter_map(|entry| entry.into_os_string().into_string().ok())
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| module_path(&entry).into_owned())
+}
+
+/// Represent a host path with the separators used by the module search.
+pub fn module_path(path: &str) -> std::borrow::Cow<'_, str> {
+    #[cfg(windows)]
+    if path.contains('\\') {
+        return std::borrow::Cow::Owned(path.replace('\\', "/"));
+    }
+    std::borrow::Cow::Borrowed(path)
+}
+
+// Windows verbatim paths (from canonicalize) require native separators when passed to the OS.
+pub fn os_path(path: &str) -> std::borrow::Cow<'_, str> {
+    #[cfg(windows)]
+    if path.starts_with("//?/") {
+        return std::borrow::Cow::Owned(path.replace('/', "\\"));
+    }
+    std::borrow::Cow::Borrowed(path)
+}
+
+/// An absolute source path for the loader and desktop analysis tools.
+pub fn absolute_module_path(path: &str) -> String {
+    #[cfg(windows)]
+    if let Ok(absolute) = std::path::absolute(os_path(path).as_ref()) {
+        return module_path(&absolute.to_string_lossy()).into_owned();
+    }
+    if klong_core::module::is_absolute(path) {
+        return String::from(path);
+    }
+    let dir = std::env::current_dir().map(|p| module_path(&p.to_string_lossy()).into_owned()).unwrap_or_default();
+    klong_core::module::join(&dir, path)
+}
+
+#[cfg(feature = "duckdb")]
+mod database;
 pub mod net;
 
 /// Where what a program prints with `.p .d .w` goes.
@@ -18,7 +64,10 @@ pub enum Console {
 }
 
 pub struct HostPlatform {
+    pub features: Vec<&'static str>,
     start: Instant,
+    #[cfg(feature = "duckdb")]
+    sql_idle: Option<std::rc::Rc<database::IdlePublication>>,
     pub console: Console,
     pub fs: Files,
     /// The networks `.cli` and `.srv` can use: `tcp`, and whatever a test adds.
@@ -39,7 +88,27 @@ pub enum Files {
 
 impl HostPlatform {
     pub fn new(console: Console) -> HostPlatform {
-        HostPlatform { start: Instant::now(), console, fs: Files::Host(HostFs::default()), transports: vec![Box::new(net::TcpTransport::new())], sink: None, source: None }
+        HostPlatform { features: if cfg!(feature = "duckdb") { vec!["duckdb"] } else { Vec::new() }, start: Instant::now(), #[cfg(feature = "duckdb")] sql_idle: None, console, fs: Files::Host(HostFs::default()), transports: vec![Box::new(net::TcpTransport::new())], sink: None, source: None }
+    }
+
+    pub fn enable_sql_idle(&mut self, trace: bool) {
+        #[cfg(feature = "duckdb")]
+        { self.sql_idle = Some(std::rc::Rc::new(database::IdlePublication::new(trace))); }
+        #[cfg(not(feature = "duckdb"))]
+        let _ = trace;
+    }
+
+    pub fn run_sql_idle(&mut self, ip: &klong_core::Interp, activity: bool) -> bool {
+        #[cfg(feature = "duckdb")]
+        if let Some(idle) = &self.sql_idle {
+            if activity {
+                idle.activity();
+            } else {
+                return idle.step(ip);
+            }
+        }
+        let _ = (ip, activity);
+        false
     }
 }
 
@@ -73,7 +142,7 @@ impl FileSystem for HostFs {
             Mode::Append => o.append(true).create(true),
             Mode::Update => o.read(true).write(true).create(true),
         };
-        let file = o.open(path).map_err(|e| fs_error(&e))?;
+        let file = o.open(os_path(path).as_ref()).map_err(|e| fs_error(&e))?;
         if mode == Mode::Read && file.metadata().map(|m| m.is_dir()).unwrap_or(false) {
             return Err(FsError::Invalid);
         }
@@ -124,6 +193,11 @@ impl FileSystem for HostFs {
 }
 
 impl Platform for HostPlatform {
+    fn features(&self) -> &[&str] { &self.features }
+
+    #[cfg(feature = "duckdb")]
+    fn register(&self, ip: &mut klong_core::Interp) { database::register(ip, self.sql_idle.clone()); }
+
     fn now_us(&self) -> u64 {
         self.start.elapsed().as_micros() as u64
     }
@@ -133,7 +207,11 @@ impl Platform for HostPlatform {
     fn idle(&mut self) {}
     fn real_path(&self, path: &str) -> Option<String> {
         let p = if path.is_empty() { "." } else { path };
-        std::fs::canonicalize(p).ok().and_then(|r| r.to_str().map(String::from))
+        std::fs::canonicalize(os_path(p).as_ref()).ok().and_then(|r| r.to_str().map(|s| self.module_path(s).into_owned()))
+    }
+    #[cfg(windows)]
+    fn module_path<'a>(&self, path: &'a str) -> std::borrow::Cow<'a, str> {
+        module_path(path)
     }
     fn console_read(&mut self, _buf: &mut [u8]) -> usize {
         // The host console is line-buffered standard input, read by the CLI between
@@ -182,16 +260,20 @@ impl Platform for HostPlatform {
         "host"
     }
     fn cwd(&self) -> Option<String> {
-        std::env::current_dir().ok().map(|p| p.to_string_lossy().into_owned())
+        std::env::current_dir().ok().map(|p| self.module_path(&p.to_string_lossy()).into_owned())
     }
     fn transports(&mut self) -> &mut [Box<dyn klong_rt::link::Transport>] {
         &mut self.transports
     }
     fn wait(&mut self, deadline_us: Option<u64>) {
-        // (no readiness notification from the standard library: sleep briefly instead)
         let now = self.now_us();
         let us = deadline_us.map_or(1000, |d| d.saturating_sub(now)).min(5000);
         if us > 0 {
+            if let [transport] = self.transports.as_mut_slice() {
+                if transport.wait_ready(us) {
+                    return;
+                }
+            }
             std::thread::sleep(std::time::Duration::from_micros(us));
         }
     }

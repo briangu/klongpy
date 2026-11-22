@@ -1,0 +1,2 @@
+:"a file whose stem is not a name needs an alias"
+.l("./support/bad-name")

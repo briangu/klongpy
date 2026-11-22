@@ -47,9 +47,11 @@ fn show(rt: &mut Runtime<Board>, text: &str) -> Result<String, Kind> {
 #[test]
 fn declarations_return_the_canonical_signature() {
     let mut rt = rt();
-    assert_eq!(show(&mut rt, ".extern(\"read.adc\";\"int -> float\")"), Ok("\"int -> float\"".into()));
-    assert_eq!(show(&mut rt, ".extern(\"f\";\"int   float[8]->  void\";\"dsp\")"), Ok("\"int float[8] -> void\"".into()));
-    assert_eq!(show(&mut rt, ".extern(\"read.adc\";\"int -> float\")"), Ok("\"int -> float\"".into()), "the same declaration again");
+    // an extern is a function value; calling it with the wrong arity names the canonical signature
+    show(&mut rt, "adc::.extern(\"read_adc\";\"int -> float\")").unwrap();
+    show(&mut rt, "f::.extern(\"dsp_f\";\"int   float[8]->  void\")").unwrap();
+    assert_eq!(show(&mut rt, "f(1)"), Err(Kind::Arity));
+    assert_eq!(show(&mut rt, "adc2::.extern(\"read_adc\";\"int -> float\");adc2=adc"), Ok("1".into()), "the same declaration again is the same function");
     assert_eq!(show(&mut rt, "step::{x*2};.entry(\"step\";\"float -> float\")"), Ok("\"float -> float\"".into()));
     assert_eq!(show(&mut rt, "mul(a;b)::{a*b};.entry(\"mul\";\"int  int -> int\")"), Ok("\"int int -> int\"".into()));
 }
@@ -57,18 +59,20 @@ fn declarations_return_the_canonical_signature() {
 #[test]
 fn declarations_that_are_wrong() {
     let cases: &[(&str, Kind)] = &[
-        (".extern(\"f\")", Kind::Arity),
-        (".extern(1;\"int -> int\")", Kind::Type),
-        (".extern(\"f\";\"int\")", Kind::Type),
-        (".extern(\"f\";\"quux -> int\")", Kind::Type),
-        (".extern(\"f\";\"str -> str\")", Kind::Type),
-        (".extern(\"f\";\"void -> int\")", Kind::Type),
-        (".extern(\"f\";\"int[0] -> int\")", Kind::Type),
-        (".extern(\"x\";\"int -> int\")", Kind::Type),
-        (".extern(\"int\";\"int -> int\")", Kind::Type),
-        (".extern(\"1a\";\"int -> int\")", Kind::Type),
-        (".extern(\"f\";\"int -> int\");.extern(\"f\";\"float -> int\")", Kind::Type),
-        ("f::1;.extern(\"f\";\"int -> int\")", Kind::Name),
+        ("a::.extern(\"f\")", Kind::Arity),
+        ("a::.extern(\"f\";\"int -> int\";\"env\")", Kind::Arity),
+        ("a::.extern(1;\"int -> int\")", Kind::Type),
+        ("a::.extern(\"f\";\"int\")", Kind::Type),
+        ("a::.extern(\"f\";\"quux -> int\")", Kind::Type),
+        ("a::.extern(\"f\";\"str -> str\")", Kind::Type),
+        ("a::.extern(\"f\";\"void -> int\")", Kind::Type),
+        ("a::.extern(\"f\";\"int[0] -> int\")", Kind::Type),
+        ("a::.extern(\"int\";\"int -> int\")", Kind::Type),
+        ("a::.extern(\"1a\";\"int -> int\")", Kind::Type),
+        ("a::.extern(\"read.adc\";\"int -> int\")", Kind::Type),
+        ("a::.extern(\"kg_x\";\"int -> int\")", Kind::Type),
+        ("a::.extern(\"f\";\"int -> int\");b::.extern(\"f\";\"float -> int\")", Kind::Type),
+        (".extern(\"f\";\"int -> int\")", Kind::Type),
         (".entry(\"nope\";\"int -> int\")", Kind::Name),
         ("v::3;.entry(\"v\";\"int -> int\")", Kind::Type),
         ("h::{x+y};p::h(1;);.entry(\"p\";\"int -> int\")", Kind::Type),
@@ -85,17 +89,17 @@ fn declarations_that_are_wrong() {
 #[test]
 fn an_extern_with_no_host_function_is_a_system_error() {
     let mut rt = rt();
-    show(&mut rt, ".extern(\"read.adc\";\"int -> float\");.extern(\"g\";\"int int int int int -> int\")").unwrap();
-    assert_eq!(show(&mut rt, "read.adc(0)"), Err(Kind::System));
-    assert_eq!(show(&mut rt, "read.adc(0;1)"), Err(Kind::Arity));
-    assert_eq!(show(&mut rt, "read.adc()"), Err(Kind::Arity));
+    show(&mut rt, "adc::.extern(\"read_adc\";\"int -> float\");g::.extern(\"gg\";\"int int int int int -> int\")").unwrap();
+    assert_eq!(show(&mut rt, "adc(0)"), Err(Kind::System));
+    assert_eq!(show(&mut rt, "adc(0;1)"), Err(Kind::Arity));
+    assert_eq!(show(&mut rt, "adc()"), Err(Kind::Arity));
     assert_eq!(show(&mut rt, "g(1;2;3;4;5)"), Err(Kind::System));
     assert_eq!(show(&mut rt, "g(1;2;3;4;5;6)"), Err(Kind::Arity));
 }
 
-/// Register a host function as the C interface does (`Interp::register`).
-fn host(rt: &mut Runtime<Board>, name: &str, arity: u8, f: impl Fn(&mut Interp, &[Value]) -> klong_core::error::Result<Value> + 'static) {
-    rt.interp.register(name, arity, Rc::new(f));
+/// Give the host function of a C symbol, as the C interface does.
+fn host(rt: &mut Runtime<Board>, name: &str, _arity: u8, f: impl Fn(&mut Interp, &[Value]) -> klong_core::error::Result<Value> + 'static) {
+    rt.declarations.provide(name, Rc::new(f)).unwrap();
 }
 
 #[test]
@@ -103,29 +107,34 @@ fn a_registered_function_is_what_the_extern_calls_and_its_arguments_and_result_a
     let mut rt = rt();
     let seen = Rc::new(RefCell::new(Vec::<String>::new()));
     let log = seen.clone();
-    host(&mut rt, "h.sum", WILDCARD, move |ip, a| {
+    host(&mut rt, "h_sum", WILDCARD, move |ip, a| {
         log.borrow_mut().push(a.iter().map(|v| ip.format(v)).collect::<Vec<_>>().join(","));
         Ok(match a.first() {
             Some(Value::Int(i)) => Value::Flt(*i as f64 * 2.0),
             _ => Value::Undefined,
         })
     });
-    host(&mut rt, "h.bad", 1, |_, _| Ok(Value::Flt(1.5)));
-    host(&mut rt, "h.many", 8, |_, a| Ok(Value::Int(a.len() as i64)));
-    show(&mut rt, ".extern(\"h.sum\";\"int float[3] -> float\");.extern(\"h.bad\";\"int -> int\");.extern(\"h.many\";\"int int int int int int -> int\")").unwrap();
+    host(&mut rt, "h_bad", 1, |_, _| Ok(Value::Flt(1.5)));
+    host(&mut rt, "h_many", 8, |_, a| Ok(Value::Int(a.len() as i64)));
+    show(&mut rt, "hsum::.extern(\"h_sum\";\"int float[3] -> float\");hbad::.extern(\"h_bad\";\"int -> int\");hmany::.extern(\"h_many\";\"int int int int int int -> int\")").unwrap();
     // an int is converted to a float where the signature says float, and the result is a float
-    assert_eq!(show(&mut rt, "h.sum(4;[1 2 3])"), Ok("8.0".into()));
-    assert_eq!(show(&mut rt, "h.sum(4;[1.5 2 3])"), Ok("8.0".into()));
+    assert_eq!(show(&mut rt, "hsum(4;[1 2 3])"), Ok("8.0".into()));
+    assert_eq!(show(&mut rt, "hsum(4;[1.5 2 3])"), Ok("8.0".into()));
     assert_eq!(seen.borrow().as_slice(), ["4,[1.0 2.0 3.0]", "4,[1.5 2.0 3.0]"]);
-    assert_eq!(show(&mut rt, "h.sum(4.0;[1 2 3])"), Err(Kind::Type), "a float where an int is declared");
-    assert_eq!(show(&mut rt, "h.sum(4;[1 2])"), Err(Kind::Shape), "the wrong length");
-    assert_eq!(show(&mut rt, "h.sum(4;3)"), Err(Kind::Type), "a scalar for an array");
-    assert_eq!(show(&mut rt, "h.sum(4;\"abc\")"), Err(Kind::Type));
-    assert_eq!(show(&mut rt, "h.sum(4)"), Err(Kind::Arity));
-    assert_eq!(show(&mut rt, "h.bad(1)"), Err(Kind::Type), "the result is a float, an int is declared");
-    assert_eq!(show(&mut rt, "h.many(1;2;3;4;5;6)"), Ok("6".into()), "more than three arguments reach the function");
-    // a program that defines the name itself is not allowed to
-    assert_eq!(show(&mut rt, "q::1;.extern(\"q\";\"int -> int\")"), Err(Kind::Name));
+    assert_eq!(show(&mut rt, "hsum(4.0;[1 2 3])"), Err(Kind::Type), "a float where an int is declared");
+    assert_eq!(show(&mut rt, "hsum(4;[1 2])"), Err(Kind::Shape), "the wrong length");
+    assert_eq!(show(&mut rt, "hsum(4;3)"), Err(Kind::Type), "a scalar for an array");
+    assert_eq!(show(&mut rt, "hsum(4;\"abc\")"), Err(Kind::Type));
+    assert_eq!(show(&mut rt, "hsum(4)"), Err(Kind::Arity));
+    assert_eq!(show(&mut rt, "hbad(1)"), Err(Kind::Type), "the result is a float, an int is declared");
+    assert_eq!(show(&mut rt, "hmany(1;2;3;4;5;6)"), Ok("6".into()), "more than three arguments reach the function");
+    // a provided function is not a global: the program reaches it only through its declaration
+    host(&mut rt, "blink", 1, |_, _| Ok(Value::Int(1)));
+    assert_eq!(show(&mut rt, "blink(1)"), Err(Kind::Name));
+    assert_eq!(show(&mut rt, "h_sum(1;2)"), Err(Kind::Name));
+    show(&mut rt, "bl::.extern(\"blink\";\"int -> int\")").unwrap();
+    assert_eq!(show(&mut rt, "bl(1)"), Ok("1".into()));
+    assert_eq!(show(&mut rt, "blink(1)"), Err(Kind::Name));
 }
 
 const WILDCARD: u8 = klong_core::value::WILDCARD;
@@ -157,7 +166,9 @@ fn reference(name: &str) -> Vec<(i64, f64)> {
     let (externs, steps) = expect(name);
     for (n, v) in externs {
         let w = writes.clone();
-        let is_pwm = n == "write.pwm";
+        // (the host registers by C symbol: read.adc of an older expect file is read_adc)
+        let n = n.replace('.', "_");
+        let is_pwm = n == "write_pwm";
         let whole = v.fract() == 0.0;
         host(&mut rt, &n.clone(), WILDCARD, move |_, a| {
             if is_pwm {
@@ -167,6 +178,13 @@ fn reference(name: &str) -> Vec<(i64, f64)> {
             }
             Ok(if whole { Value::Int(v as i64) } else { Value::Flt(v) })
         });
+    }
+    // the target's functions are module files next to the program (`read.kg`, `write.kg`), found by `.l`
+    for m in ["board"] {
+        let path = format!("{}/../../examples/embedded/{m}.kg", env!("CARGO_MANIFEST_DIR"));
+        if let Ok(t) = std::fs::read_to_string(&path) {
+            rt.shared.platform.borrow_mut().fs.put(&format!("{m}.kg"), t.as_bytes()).unwrap();
+        }
     }
     let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
     rt.interp.load(&text("", &format!("{name}.kg")), &format!("{name}.kg")).unwrap_or_else(|e| panic!("{name}.kg: {}", e.message));
@@ -234,18 +252,17 @@ fn param_declares_a_global_with_its_default() {
     assert_eq!(show(&mut rt, ".param(\"a\";\"float\";\"s\")"), Err(Kind::Type));
     assert_eq!(show(&mut rt, ".param(\"x\";\"int\")"), Err(Kind::Type));
     assert_eq!(show(&mut rt, ".param(\"a\")"), Err(Kind::Arity));
-    assert_eq!(show(&mut rt, ".extern(\"window\";\"int -> int\")"), Err(Kind::Name));
 }
 
 #[cfg(feature = "params")]
 #[test]
 fn the_host_reads_the_declarations_and_sets_the_parameters() {
     let mut rt = rt();
-    show(&mut rt, ".extern(\"read.adc\";\"int -> float\");.param(\"n\";\"int\";3);.param(\"g\";\"float\");.param(\"s\";\"fixed<16,8>\")").unwrap();
+    show(&mut rt, "adc::.extern(\"read_adc\";\"int -> float\");.param(\"n\";\"int\";3);.param(\"g\";\"float\");.param(\"s\";\"fixed<16,8>\")").unwrap();
     show(&mut rt, "step::{x*2};.entry(\"step\";\"int -> int\")").unwrap();
     let d = rt.declarations.clone();
     let ex = d.externs();
-    assert_eq!((ex[0].0.as_str(), ex[0].1.to_string().as_str(), ex[0].2.as_str()), ("read.adc", "int -> float", "env"));
+    assert_eq!((ex[0].0.as_str(), ex[0].1.to_string().as_str()), ("read_adc", "int -> float"));
     let en = d.entries();
     assert_eq!((en[0].0.as_str(), en[0].1.to_string().as_str()), ("step", "int -> int"));
     let ps: Vec<(String, String)> = d.params().iter().map(|p| (p.0.clone(), p.1.to_string())).collect();
@@ -261,10 +278,10 @@ fn the_host_reads_the_declarations_and_sets_the_parameters() {
     assert_eq!(show(&mut rt, "g"), Ok("2.0".into()));
     // a host function bound after the declaration is what the extern calls
     let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    d.bind(&mut rt.interp, "read.adc", Rc::new(|_: &mut Interp, a: &[Value]| Ok(Value::Flt(match a[0] { Value::Int(i) => i as f64 * 0.5, _ => 0.0 })))).unwrap();
-    assert!(d.bind(&mut rt.interp, "other", Rc::new(|_: &mut Interp, _: &[Value]| Ok(Value::Undefined))).is_err());
+    d.bind("read_adc", Rc::new(|_: &mut Interp, a: &[Value]| Ok(Value::Flt(match a[0] { Value::Int(i) => i as f64 * 0.5, _ => 0.0 })))).unwrap();
+    assert!(d.bind("other", Rc::new(|_: &mut Interp, _: &[Value]| Ok(Value::Undefined))).is_err());
     drop(_one);
-    assert_eq!(show(&mut rt, "read.adc(5)"), Ok("2.5".into()));
+    assert_eq!(show(&mut rt, "adc(5)"), Ok("2.5".into()));
 }
 
 #[cfg(feature = "diag")]
@@ -274,10 +291,10 @@ fn the_stand_in_is_looked_up_at_each_call() {
     let which: Rc<RefCell<Option<f64>>> = Rc::new(RefCell::new(None));
     let w = which.clone();
     rt.declarations.set_resolver(Some(Rc::new(move |_ip: &mut Interp, name: &str, _args: &[Value]| {
-        assert_eq!(name, "read.adc");
+        assert_eq!(name, "read_adc");
         w.borrow().map(|x| Ok(Value::Flt(x)))
     })));
-    assert_eq!(show(&mut rt, ".extern(\"read.adc\";\"int -> float\");f::{read.adc(x)*2}"), Ok(":monad".into()));
+    assert_eq!(show(&mut rt, "adc::.extern(\"read_adc\";\"int -> float\");f::{adc(x)*2}"), Ok(":monad".into()));
     // no stand-in yet: a system error at the call
     assert_eq!(show(&mut rt, "f(0)"), Err(Kind::System));
     *which.borrow_mut() = Some(1.0);

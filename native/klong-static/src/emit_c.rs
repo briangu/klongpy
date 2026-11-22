@@ -2141,7 +2141,7 @@ impl Em {
         }
         let rtype = if !r.shape.is_empty() || r.elem == "void" { "void" } else { ctype(r) };
         let args = if decl.is_empty() { "void".to_string() } else { decl.join(", ") };
-        format!("{} {}({})", rtype, c_identifier(&x.name), args)
+        format!("{} {}({})", rtype, x.c_symbol, args)
     }
 
     /// The deepest chain of C calls from an entry and an estimate of its stack use.
@@ -2503,8 +2503,14 @@ fn run(em: &mut Em, prog: &Program) -> Result<Emitted, String> {
         h.push(String::new());
         h.push("/* Externs: functions the target must define. */".to_string());
     }
+    let mut declared_syms: Vec<&str> = Vec::new();
     for x in &prog.externs {
-        h.push(format!("{}; /* Klong name {}: {} (module {}) */", em.extern_proto(x), x.name, x.signature, x.module));
+        // (one declaration per C symbol, however many names a program has for it)
+        if declared_syms.contains(&x.c_symbol.as_str()) {
+            continue;
+        }
+        declared_syms.push(&x.c_symbol);
+        h.push(format!("{}; /* Klong name {}: {} */", em.extern_proto(x), x.name, x.signature));
     }
     h.push(String::new());
     h.push(format!("#endif /* {} */", guard));

@@ -194,7 +194,7 @@ What was tested: the codec against 119 shared test vectors (decode, reject, roun
 | Bytes that are not valid UTF-8 in a string | replaced by U+FFFD | replaced by U+FFFD (strings are always valid text) |
 | An error signalled by q with a bare name (`type`, `length`) | kind `remote` | kind `remote` |
 | `.timer` with a named callback | looked up at every tick | the function value given is kept |
-| Python objects, `klongpy.db` tables | sent as tables | not available (no Python, no tables) |
+| Tables | Built-in tables and the Python table adapter can send and receive keyed and unkeyed tables | Desktop builds with tables can send and receive both forms |
 | Connect | blocks, with retries that can take minutes against a host that does not answer | blocks at most 5 seconds |
 | Two interpreters in one process | allowed | not on two threads at once (the nesting bound and a deferred-failure flag are per process) |
 

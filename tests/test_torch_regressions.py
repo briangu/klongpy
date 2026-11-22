@@ -57,6 +57,12 @@ class TorchCase(unittest.TestCase):
         self.device = _device()
         self.k = KlongInterpreter(backend="torch", device=self.device)
 
+    def assert_on_selected_device(self, tensor):
+        family, _, index = self.device.partition(":")
+        self.assertEqual(tensor.device.type, family)
+        if index:
+            self.assertEqual(tensor.device.index, int(index))
+
     def leaves(self):
         """A fresh interpreter with a (vector), m (matrix) and s (scalar) that require grad."""
         k = KlongInterpreter(backend="torch", device=self.device)
@@ -482,7 +488,7 @@ class TestIpcWireValues(TorchCase):
         self.assertEqual(wire.dtype, np.int64)
         self.assertIsInstance(back, torch.Tensor)
         self.assertEqual(back.tolist(), [1, 2, 3])
-        self.assertEqual(str(back.device).split(":")[0], self.device)
+        self.assert_on_selected_device(back)
 
     def test_float_tensor_goes_as_its_own_width(self):
         # a Klong float list on torch is float32: it is sent as a kdb real vector, exactly
@@ -491,6 +497,26 @@ class TestIpcWireValues(TorchCase):
         self.assertIsInstance(back, torch.Tensor)
         self.assertTrue(back.is_floating_point())
         self.assertEqual(back.tolist(), [1.5, 2.5])
+
+    def test_only_real_vectors_can_narrow_on_a_device_without_doubles(self):
+        narrow = np.array([1.5, -0.0], dtype=np.float32)
+        wide = np.array([1 + 2 ** -52, 1e100], dtype=np.float64)
+        backend = self.k.backend
+        has_doubles = backend.supports_float64()
+        for rows, expected, uses_device in (
+            ([narrow, narrow], np.stack([narrow, narrow]), True),
+            ([narrow, wide], np.stack([narrow, wide]), has_doubles),
+            ([wide, narrow], np.stack([wide, narrow]), has_doubles),
+            (wide, wide, has_doubles),
+        ):
+            with self.subTest(rows=rows):
+                _, result = self.roundtrip(rows)
+                self.assertEqual(backend.is_backend_array(result), uses_device)
+                if uses_device:
+                    self.assert_on_selected_device(result)
+                    result = backend.to_numpy(result)
+                self.assertEqual(result.dtype, np.float64 if has_doubles else expected.dtype)
+                np.testing.assert_array_equal(result, expected)
 
     def test_matrix_and_scalar_and_empty(self):
         _, back = self.roundtrip(self.k("[[1 2] [3 4]]"))
@@ -538,7 +564,16 @@ class TestNumericGradientWidth(TorchCase):
 
     def test_vector_point(self):
         g = self.k("[1.5 2.5]∇{+/x^3}")
+        self.assertEqual(g.dtype, self.k("[1.5 2.5]").dtype)
         self.assertTrue(_close(g.detach().cpu().flatten().tolist(), [6.75, 18.75]))
+
+    def test_numeric_jacobian_fallback_returns_to_device(self):
+        with mock.patch.object(self.k.backend, "compute_jacobian", side_effect=NotImplementedError):
+            result = self.k("[1.5 2.5]∂{x^2}")
+        self.assertTrue(self.k.backend.is_backend_array(result))
+        self.assertEqual(result.dtype, self.k("[1.5 2.5]").dtype)
+        self.assert_on_selected_device(result)
+        np.testing.assert_allclose(self.k.backend.to_numpy(result), [[3, 0], [0, 5]], atol=1e-5)
 
     def test_a_tensor_made_before_is_read_on_its_own_device(self):
         self.k("w::[1.0 2.0]")

@@ -157,7 +157,9 @@ A program is split by what kind of top-level statement it is.
 |---|---|---|
 | `name::{...}` or `name(p;q)::{...}` | run time | a function to compile, if reachable from an entry |
 | `name::<any other expression>` | compile time | evaluated once by KlongPy on the host; the result becomes an initialised global |
-| `.extern(...)` | compile time | declares a function the target provides |
+| `name::.extern(...)` | compile time | declares a function the target provides; `name` is the name a program uses |
+| `.l(...)` | compile time | reads a file: a module (it assigns `export`) binds one name, a classic file adds its names |
+| `export:::{;"name";value;...}` | compile time | the interface of a module file; the compiler needs the dictionary written as a literal |
 | `.param(...)` | compile time | declares a global that is an input register of the compiled program |
 | `.entry(...)` | compile time | marks a function as a C entry point and fixes its argument types |
 | `.l("file")` | compile time | loads another file under the same rules |
@@ -318,25 +320,24 @@ Inference is forward and monomorphic. Every expression gets one type from the ty
 - Lists need brackets (`[1 2 3]`, not `1 2 3`), and a name inside brackets is a symbol, not the variable: write `[;a;b]`.
 - `a!b` and `a:%b` are C's `%` and `/`: `(-7):%2` is -3, `(-7)!2` is -1 and `7!-2` is 1. Float remainder is `fmod` (`7.5!2` is 1.5). `_` rounds toward minus infinity (`_(-3.5)` is -4).
 - Evaluation order: the right operand of a dyad is evaluated before the left; call arguments and the elements of `[;a;b]` left to right. Compiled code keeps this order.
-- Names contain letters, digits and `.` but no underscore. A Klong name maps to a C identifier by replacing `.` with `_`, so the extern `read.adc` is C `read_adc`.
+- Names contain letters, digits and `.` but no underscore. A Klong name maps to a C identifier by replacing `.` with `_`. An extern is the exception: its C name is the symbol written in its `.extern`, so `adc::.extern("read_adc";"int -> float")` in the module `read` is called `read.adc` in Klong and `read_adc` in C.
 - A function reads its parameters, its locals and the globals. It does not see the locals of its caller (KlongPy's scoping is dynamic; the profile's is not). A function literal used as a verb may read the locals of the function it is written in, but not assign them.
 
 ## Host functions and entry points
 
 ```
-.extern(name; signature)             :" a function the target provides; module defaults to env "
-.extern(name; signature; module)
+name::.extern(c_symbol; signature)   :" a function the target provides, as a value "
 .entry(name; signature)              :" a function the host calls "
 ```
 
-The name, the signature and the module are string literals. A signature is
+The symbol and the signature are string literals, and the result of `.extern` is assigned to a name (a statement that throws it away is an error). A target's functions live in a module file, `read.kg` with `adc::.extern("read_adc";"int -> float")` and `export:::{;"adc";adc}`, and a program writes `.l("read")` and `read.adc(3)`. A signature is
 `params -> result`: `params` is a space-separated list of types (possibly
 empty) and `result` is a type or `void`. Types: `int`, `float`, `int[N]`,
 `float[N,M]`, and `str` (extern parameters only). Examples: `"int -> float"`,
 `"float[64] -> float"`, `"int float -> void"`, `"-> int"` (called as `name()`).
 
-- In C an extern is a prototype under the mapped name (`read.adc` is `read_adc`) and an entry is `prog_<name>`. There is no WebAssembly build yet; it is meant to make an extern an import from `module` and an entry an export.
-- An extern name must not map to a C keyword or start with `kg.`; an entry cannot be called `init`, `t`, `size` or `storage.t` (`prog_init` and the others are generated).
+- In C an extern is a prototype under its C symbol and an entry is `prog_<name>`. The same symbol declared twice with the same signature is one declaration; with different signatures it is an error.
+- The C symbol is a C identifier (letters, digits and underscore, no dot) that is not a C keyword and does not start with `kg_`; an entry cannot be called `init`, `t`, `size` or `storage.t` (`prog_init` and the others are generated).
 - `.entry` needs the function to be defined before it and to take as many arguments as the signature has parameters. A function may have several entries with different shapes.
 - A `str` parameter takes a string literal.
 - The result of a `void` extern cannot be used as a value.
@@ -350,8 +351,8 @@ externs:
 from klongpy import KlongInterpreter
 
 klong = KlongInterpreter(strict=2)
-klong.externs["read.adc"] = lambda channel: 0.3
-klong.externs["write.pwm"] = lambda channel, duty: 0
+klong.externs["read_adc"] = lambda channel: 0.3
+klong.externs["write_pwm"] = lambda channel, duty: 0
 klong('.l("examples/embedded/pid.kg")')
 klong("step(0.31)")                      # 0.12005
 ```
@@ -362,11 +363,11 @@ or, in one call each:
 from klongpy.static import load_program, call_entry
 
 klong = load_program("examples/embedded/pid.kg",
-                     externs={"read.adc": lambda channel: 0.3, "write.pwm": lambda channel, duty: 0})
+                     externs={"read_adc": lambda channel: 0.3, "write_pwm": lambda channel, duty: 0})
 call_entry(klong, "step", 0.31)          # 0.12005, checked against the .entry signature
 ```
 
-- `klong.externs` maps an extern name to a Python callable. It is looked up at each call, so a stand-in can be bound before or after the `.extern` line runs and replaced at any time. `klong.externs.declared` and `klong.externs.entries` hold what the program declared.
+- `klong.externs` maps a C symbol to a Python callable. It is looked up at each call, so a stand-in can be bound before or after the `.extern` line runs and replaced at any time. `klong.externs.declared` and `klong.externs.entries` hold what the program declared.
 - A stand-in gets one positional argument per parameter: a Python `int` for `int`, a `float` for `float` (an int argument is converted), a `str` for `str`, a numpy `int64` or `float64` array of the declared shape for an array. It returns a value of the result type; for `void` the result is ignored and the call evaluates to `:undefined`.
 - Arguments and result are checked against the signature on every call: a float where an int is declared is a type error, a wrong array shape a shape error, a wrong number of arguments an arity error, each naming the extern and positioned at the call. Calling an extern that has no stand-in is a system error naming it. An exception raised by a stand-in is a python error.
 - `.entry` under KlongPy validates the declaration and records it; the function is called as usual. `call_entry` calls it the way compiled code is called, with arguments and result checked against the signature.

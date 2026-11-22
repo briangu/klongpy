@@ -103,9 +103,9 @@ Capability tags:
 | `float` | needs floating point numbers; the cases expect `f64` (64-bit) results, so a build with 32-bit floats (the native `float32` feature) does not declare it |
 | `string-fmt` | depends on the exact float text of a 64-bit float (Python `repr`: `1e+22`, `1e-07`, `0.30000000000000004`, `1.4142135623730951`): a runtime whose floats are 32 bits wide (KlongPy on the torch backend) does not declare it |
 | `strict1`, `strict2` | the runner starts the interpreter at that strict level (`--strict N`) |
-| `static` | the declarations of the static profile run as they stand, `.extern` and `.entry` (docs/static-profile.md); a case runs with no host function, so calling an extern is a `system` error |
+| `static` | the declarations of the static profile run as they stand, `.extern` (which returns a host function) and `.entry` (docs/static-profile.md); a case runs with no host function, so calling an extern is a `system` error |
 | `qualified` | the qualified name `a.b`, which means `a@"b"` (reading, writing `a.b::v`, calling `a.b(x)`, nesting `a.b.c`); a missing key is a `name` error, a base that is not a dictionary a `type` error |
-| `modules` | `.import` and `.export` (a file is a module and a module is a value). The cases need files: see "Module cases" |
+| `modules` | the `export` variable and `.l` of a module file (a file is a module when it assigns `export`, and `.l` binds it). The cases need files: see "Module cases" |
 | `clock` | the platform has a wall clock that knows the date (`.now()`): a desktop does, a board that was not told the time does not |
 
 Implementation tags: `numpy-only`, `torch-only`, `kgpy-only` mark behaviour
@@ -168,10 +168,12 @@ program (`.oc`, `.tc`, `.p`, `.cc`), runs its own statements, deletes the files 
 statement. The files are `/tmp/kgm87-<case>-<name>.kg`, unique per case; a case that ends in an error or fails cannot delete them, so `run.py` removes what is left when it finishes. In the
 comments of the case file `{P}` is the absolute path of such a file, `{R}` the `./` path (used from one module file to
 another, relative to the importing file), `{U}` the `../tmp/` path (relative, through `..`; written as `/tmp/../tmp/...`
-in the main program, which is read from standard input and has no directory of its own) and `{B}` the bare name (looked
-up in the library path only, never in the importing file's directory or the working directory). The cases that use
-`csv` import the bundled library by its bare name. The runner stops at the first error, so a scenario that needs a
-program to go on after a failed import (a failed import is not cached) is not expressible here.
+in the main program, which is read from standard input and has no directory of its own) and `{B}` the bare name (searched in
+the importing file's directory, then in the KLONGPATH directories, then in the bundled library; a module file reaches its
+neighbours by it, and the main program, which has no file, finds nothing in `/tmp`). The cases that use `csv` load the
+bundled library by its bare name. The warning for a local file that shadows a bundled library goes to the console's error
+stream, which a case cannot observe, so no case covers it. The runner stops at the first error, so a scenario that needs a
+program to go on after a failed load (a failed load is not cached) is not expressible here.
 
 ## Parse trees
 

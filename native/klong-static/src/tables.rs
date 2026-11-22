@@ -166,9 +166,9 @@ pub static FORMS: &[Form] = &[
 f::{acc::acc+x;acc}", signature: "int -> int", inputs: None }] },
     Form { id: "call", form: "`g(a;b)`, `a g b`", note: "a compiled function, with every argument supplied; specialised per argument types", examples: &[Example { body: "sq::{x*x}
 f::{sq(x)+sq(1.5)}", signature: "int -> float", inputs: None }] },
-    Form { id: "extern-call", form: "`read.adc(0)`", note: "a name declared with .extern; a str parameter takes a string literal", examples: &[Example { body: ".extern(\"read.adc\";\"int -> float\")
-f::{read.adc(x)*2}", signature: "int -> float", inputs: None }, Example { body: ".extern(\"log.msg\";\"str int -> void\")
-f::{log.msg(\"tick\";x);x}", signature: "int -> int", inputs: None }] },
+    Form { id: "extern-call", form: "`adc(0)`", note: "a name assigned `.extern(c_symbol;signature)`; a str parameter takes a string literal", examples: &[Example { body: "adc::.extern(\"read_adc\";\"int -> float\")
+f::{adc(x)*2}", signature: "int -> float", inputs: None }, Example { body: "msg::.extern(\"log_msg\";\"str int -> void\")
+f::{msg(\"tick\";x);x}", signature: "int -> int", inputs: None }] },
     Form { id: "verb", form: "`f'a` with f an operator, a function name or `{...}`", note: "a function literal is allowed only as the verb of an adverb or the predicate of While; it may read, but not assign, the locals of the function it is written in", examples: &[Example { body: "sq::{x*x}
 f::{[k];k::2;(sq'x)+{x*k}'x}", signature: "int[3] -> int[3]", inputs: None }] },
 ];

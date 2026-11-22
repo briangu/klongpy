@@ -1,6 +1,6 @@
 //! The analysis of one source: tokens, frames, the parse (for function metadata and E001) and the definition table that
 //! W002, W012 and E002 consult.
-use crate::load::{find_load, Session};
+use crate::load::{find, Session};
 use crate::scan::{scan, Frame, Meta, FK};
 use crate::tok::{tokenize, Source, Tok};
 use klong_core::error::Source as CoreSource;
@@ -34,14 +34,14 @@ pub struct Def {
     pub fnf: Option<usize>,
 }
 
-/// `alias::.import("path")`: what the linter knows of the module an alias names.
+/// A module that `.l` bound to a name (`.l("file")` to the file's stem, `.l("file";:alias)` to the alias): what the linter knows of it.
 pub struct ModImport {
     pub alias: String,
-    /// The token of the alias.
+    /// The token of the `.l` that binds it.
     pub idx: usize,
     /// At the top level of the file (not in a function).
     pub top: bool,
-    /// The keys of the module's `.export` when the file was found and its export is a literal dictionary.
+    /// The keys of the module's `export` when the file was found and its export is a literal dictionary.
     pub exports: Option<BTreeSet<String>>,
 }
 
@@ -62,14 +62,18 @@ pub struct Analysis {
     pub import_anywhere: HashSet<String>,
     pub unknown: bool,
     pub import_limits: HashMap<String, Option<u32>>,
-    /// The imports of modules by `.import`, in order.
+    /// The modules `.l` bound to a name, in order.
     pub mod_imports: Vec<ModImport>,
-    /// The entries declared by dotted externs, by dictionary: `.extern("read.adc";...)` gives read: {adc}.
-    pub extern_entries: HashMap<String, HashSet<String>>,
-    /// The keys of this file's own `.export`, when it has one that is a literal dictionary.
+    /// The keys of this file's own `export`, when it assigns one that is a literal dictionary.
     pub export_keys: Option<BTreeSet<String>>,
-    /// Whether the file calls `.export` at all.
+    /// Whether the file assigns `export` at its top level: it is a module (`klong_core::module`, the decision the interpreter makes).
     pub has_export: bool,
+    /// The statements that call `.extern` and discard the value (span of the statement).
+    pub discarded_externs: Vec<(usize, usize)>,
+    /// `.l` of a module by `.l(path;[names])` for entries the module does not have: (token of the `.l`, the module's spec, the name, the keys it has).
+    pub missing_entries: Vec<(usize, String, String, Vec<String>)>,
+    /// `.l("name")` that finds a file beside the linted file (or in KLONGPATH) with the name of a bundled library file: (token of the string, name, path).
+    pub shadows: Vec<(usize, String, String)>,
 }
 
 fn merge_limit(a: Option<u32>, b: Option<u32>) -> Option<u32> {
@@ -117,10 +121,13 @@ impl Analysis {
             unknown: false,
             import_limits: HashMap::new(),
             mod_imports: Vec::new(),
-            extern_entries: HashMap::new(),
             export_keys: None,
             has_export: false,
+            discarded_externs: Vec::new(),
+            missing_entries: Vec::new(),
+            shadows: Vec::new(),
         };
+        an.read_module_facts();
         an.parse(full);
         an.definitions(resolve, seen, depth, sess);
         an
@@ -251,14 +258,10 @@ impl Analysis {
                 self.unknown = true;
             } else if nm == ".bkf" && call_next {
                 self.backend_functions(i, f);
-            } else if nm == ".import" && call_next {
-                self.import_(i, f, resolve, seen, depth, sess);
-            } else if nm == ".export" && call_next {
-                self.export_(i);
             } else if nm == ".l" && call_next {
                 self.load(i, f, resolve, seen, depth, sess);
-            } else if (nm == ".extern" || nm == ".param") && call_next {
-                self.extern_(i, f);
+            } else if nm == ".param" && call_next {
+                self.param_(i, f);
             }
         }
         // destructuring [a b]::... defines its names
@@ -289,58 +292,25 @@ impl Analysis {
         }
     }
 
-    /// `alias::.import("path")`: the alias, and the module's exports when the file can be read.
-    fn import_(&mut self, i: usize, f: usize, resolve: bool, seen: &[String], depth: usize, sess: &mut Session) {
-        let n = self.toks.len();
-        if i < 2 || !(self.toks[i - 2].k == K::Name && self.is_cop(i - 1, "::")) {
+    /// What the parse tree says of this file as a module, by the shared decision (`klong_core::module`): whether it assigns `export`, the
+    /// keys when that is a literal dictionary, and the top-level statements that call `.extern` and discard the value.
+    fn read_module_facts(&mut self) {
+        let text = self.src.text.as_str();
+        if !text.contains(klong_core::module::EXPORT) && !text.contains(".extern") {
             return;
         }
-        let alias = self.val(i - 2).to_string();
-        let mut exports = None;
-        let arg_ok = i + 3 < n && self.toks[i + 2].k == K::Str && !self.toks[i + 2].unt && self.toks[i + 3].k == K::RParen;
-        if arg_ok && resolve {
-            let x = self.val(i + 2).to_string();
-            if let Some(path) = crate::load::find_import(sess, &x, &self.base_dir) {
-                if let Some(info) = sess.load_info(&path, seen, depth + 1) {
-                    exports = info.export_keys.clone();
+        let rec = crate::recover::parse_recovering(&self.src.name, text, 0);
+        for st in &rec.statements {
+            if self.export_keys.is_none() && !self.has_export {
+                if let Some(i) = klong_core::module::interface(&st.tree, &rec.syms, st.node) {
+                    self.has_export = true;
+                    self.export_keys = i.entries.map(|e| e.into_iter().map(|(k, _)| k).collect());
                 }
             }
-        }
-        self.mod_imports.push(ModImport { alias, idx: i - 2, top: self.frames[f].fnf.is_none(), exports });
-    }
-
-    /// `.export(:{;"a";x;"b";y})`: the keys, when the dictionary is written as that literal.
-    fn export_(&mut self, i: usize) {
-        self.has_export = true;
-        let n = self.toks.len();
-        if !(i + 2 < n && self.toks[i + 2].k == K::Dict) {
-            return;
-        }
-        let Some(&df) = self.open_frame.get(&(i + 2)) else { return };
-        let Some(close) = self.frames[df].close else { return };
-        let mut elems: Vec<Vec<usize>> = vec![Vec::new()];
-        for j in i + 3..close {
-            if self.ctx[j] != df {
-                continue;
-            }
-            if self.toks[j].k == K::Semi {
-                elems.push(Vec::new());
-            } else if let Some(l) = elems.last_mut() {
-                l.push(j);
+            if klong_core::module::discarded_extern(&st.tree, &rec.syms, st.node) {
+                self.discarded_externs.push(st.span);
             }
         }
-        // a leading semicolon, then key; value; key; value
-        if !elems[0].is_empty() || elems.len() % 2 == 0 {
-            return;
-        }
-        let mut keys = BTreeSet::new();
-        for e in elems.iter().skip(1).step_by(2) {
-            if e.len() != 1 || self.toks[e[0]].k != K::Str {
-                return;
-            }
-            keys.insert(self.val(e[0]).to_string());
-        }
-        self.export_keys = Some(keys);
     }
 
     fn backend_functions(&mut self, i: usize, f: usize) {
@@ -378,9 +348,8 @@ impl Analysis {
         }
     }
 
-    /// `.extern("name";"signature")` binds the name (a static-profile program). A first argument that is not a string
-    /// literal binds an unknown name.
-    fn extern_(&mut self, i: usize, f: usize) {
+    /// `.param("name";"type")` binds the name (a static-profile program). A first argument that is not a string literal binds an unknown name.
+    fn param_(&mut self, i: usize, f: usize) {
         let n = self.toks.len();
         let arg_ok = i + 3 < n && {
             let a = &self.toks[i + 2];
@@ -390,14 +359,7 @@ impl Analysis {
             self.unknown = true;
             return;
         }
-        let mut nm = self.val(i + 2).to_string();
-        // `read.adc` declares the entry adc of the dictionary read: the name defined is read
-        if !nm.starts_with('.') {
-            if let Some((base, entry)) = nm.split_once('.') {
-                self.extern_entries.entry(base.to_string()).or_default().insert(entry.to_string());
-                nm = base.to_string();
-            }
-        }
+        let nm = self.val(i + 2).to_string();
         if self.frames[f].fnf.is_none() {
             let s = self.stmt_start(i);
             self.add_def(&nm, i, s, None);
@@ -406,21 +368,51 @@ impl Analysis {
         }
     }
 
+    /// `.l("path")`, `.l("path";:alias)`, `.l("path";["a" "b"])`: what the file brings. A module binds one name (the file's stem, the alias)
+    /// or the entries named; a classic file brings its names.
     fn load(&mut self, i: usize, f: usize, resolve: bool, seen: &[String], depth: usize, sess: &mut Session) {
         let n = self.toks.len();
         let arg_ok = i + 3 < n && {
             let a = &self.toks[i + 2];
-            a.k == K::Str && !a.unt && self.toks[i + 3].k == K::RParen
+            a.k == K::Str && !a.unt && matches!(self.toks[i + 3].k, K::RParen | K::Semi)
         };
         if !arg_ok {
             self.unknown = true;
             return;
         }
+        let spec = self.val(i + 2).to_string();
+        // the second argument, when it is a literal: a symbol, or a list of strings
+        enum Second {
+            None,
+            Alias(String),
+            Names(Vec<String>),
+        }
+        let second = if self.toks[i + 3].k == K::RParen {
+            Some(Second::None)
+        } else if i + 5 < n && self.toks[i + 4].k == K::QName && self.toks[i + 5].k == K::RParen {
+            Some(Second::Alias(self.val(i + 4).to_string()))
+        } else if i + 4 < n && self.toks[i + 4].k == K::LBrack {
+            let mut j = i + 5;
+            let mut names = Vec::new();
+            while j < n && self.toks[j].k == K::Str && !self.toks[j].unt {
+                names.push(self.val(j).to_string());
+                j += 1;
+            }
+            (j + 1 < n && self.toks[j].k == K::RBrack && self.toks[j + 1].k == K::RParen).then_some(Second::Names(names))
+        } else {
+            None
+        };
+        let Some(second) = second else {
+            self.unknown = true;
+            return;
+        };
         let mut info: Option<Rc<Analysis>> = None;
         if resolve {
-            let x = self.val(i + 2).to_string();
-            if let Some(path) = find_load(sess, &x, &self.base_dir) {
-                info = sess.load_info(&path, seen, depth + 1);
+            if let Some(loc) = find(sess, &spec, &self.base_dir) {
+                if loc.shadows {
+                    self.shadows.push((i + 2, spec.clone(), loc.path.clone()));
+                }
+                info = sess.load_info(&loc.path, seen, depth + 1);
             }
         }
         let info = match info {
@@ -430,14 +422,40 @@ impl Analysis {
                 return;
             }
         };
+        let top = self.frames[f].fnf.is_none();
+        if info.has_export {
+            // a module: it brings the names it binds, and nothing else
+            let bound: Vec<String> = match &second {
+                Second::None => vec![klong_core::module::stem(&spec).to_string()],
+                Second::Alias(a) => vec![a.clone()],
+                Second::Names(ns) => ns.clone(),
+            };
+            if let (Second::Names(ns), Some(keys)) = (&second, &info.export_keys) {
+                for nm in ns.iter().filter(|nm| !keys.contains(*nm)) {
+                    self.missing_entries.push((i, spec.clone(), nm.clone(), keys.iter().cloned().collect()));
+                }
+            }
+            for nm in &bound {
+                if !klong_core::module::is_binding_name(nm) {
+                    continue;
+                }
+                if top {
+                    let s = self.stmt_start(i);
+                    self.add_def(nm, i, s, None);
+                } else {
+                    self.import_anywhere.insert(nm.clone());
+                }
+            }
+            if !matches!(second, Second::Names(_)) {
+                if let Some(a) = bound.first() {
+                    self.mod_imports.push(ModImport { alias: a.clone(), idx: i, top, exports: info.export_keys.clone() });
+                }
+            }
+            return;
+        }
         if info.unknown {
             self.unknown = true;
         }
-        // a file that exports brings the names it exports (resolution 9)
-        let names = match &info.export_keys {
-            Some(k) => k.clone(),
-            None => info.exported(),
-        };
         for (nm, lim) in info.limits() {
             let merged = match self.import_limits.get(&nm) {
                 Some(old) => merge_limit(*old, lim),
@@ -445,7 +463,8 @@ impl Analysis {
             };
             self.import_limits.insert(nm, merged);
         }
-        if self.frames[f].fnf.is_none() {
+        let names = info.exported();
+        if top {
             let e = self.stmt_end(i);
             self.imports.push((e, names.into_iter().collect()));
         } else {

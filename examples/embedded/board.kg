@@ -1,0 +1,14 @@
+:" The functions the target provides, as a module: .l(""board"") gives board.adc and board.pwm.
+
+   Each is a host function, declared with .extern(C_SYMBOL;SIGNATURE): the first argument is the
+   symbol the target defines in C (read_adc, write_pwm), and the name a program uses is the key
+   in export. Under KlongPy a Python function stands in for each symbol before the file is loaded:
+
+       klong.externs['read_adc'] = lambda channel: 0.3
+       klong.externs['write_pwm'] = lambda channel, duty: 0
+"
+
+adc::.extern("read_adc";"int -> float")
+pwm::.extern("write_pwm";"int float -> int")
+
+export:::{;"adc";adc;"pwm";pwm}

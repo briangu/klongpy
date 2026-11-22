@@ -1,10 +1,20 @@
 # Columnar tables and SQL
 
-`klongpy.db` adds tables and SQL queries to Klong. It is for programs that keep columns of data and want to select, join and aggregate them with SQL.
+Desktop `kg` and `kgpy` provide `.table` for equal-length named columns and `.db` for SQL. A database opened on a path persists in a DuckDB file. A database opened on a dictionary exposes its Klong tables as live SQL views. A later query sees inserts and keyed updates made through a table alias.
 
-A table is a set of named columns of equal length, stored as a pandas DataFrame. It behaves like a dictionary from column name to column, and key/value updates are column operations. A database is a set of named tables that DuckDB queries with SQL. DuckDB reads the NumPy arrays of the columns directly, and a query returns plain Klong values.
+Standalone `kg` can prepare newly appended rows in a live SQL view while the event loop waits for input. A query always finishes updating its view before it reads. Idle preparation works on one relation at a time and uses an 8 MiB estimate for its extra buffers, including temporary space. Explicit heap limits and allocation fault injection disable it. Set `KLONG_SQL_IDLE=0` to compare with foreground-only updates, or `KLONG_SQL_IDLE_TRACE=1` to record each prepared row range on stderr.
 
-Install the extra, which brings pandas and DuckDB, and load the module with `.py("klongpy.db")`:
+In Python, a Klong function returned by `KlongInterpreter` can keep its database open after the interpreter variable goes out of scope. Once the last handle to that session is released and Python collects it, another process can open the database for writing.
+
+```sh
+kg -e 't::.table(:{;"qty";[2 3 5]});d::.db(:{;"trades";t});d("SELECT sum(qty) FROM trades")'
+```
+
+This prints `10`. A firmware build can enable just the in-memory table operations. Consult `kg --capabilities` on the desktop, or `.ver()` in firmware, for the installed features. [Native build guide](native/building.md)
+
+The built-in SQL interface returns SQL nulls as `:undefined`. On the default desktop build, integers and scale-zero decimals retain their exact values, including 128-bit integers. Decimals with a fractional scale return Klong floats. For timestamps, select `epoch_ns(ts)` to keep nanosecond precision. Use `CAST(value AS VARCHAR)` for a textual date or time.
+
+The examples below use the Python database adapter for pandas operations, table display and key-value stores. Install the extra and load it with `.py("klongpy.db")`.
 
 ```bash
 pip install "klongpy[db]"

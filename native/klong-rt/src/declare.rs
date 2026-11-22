@@ -2,16 +2,17 @@
 //! (`klongpy/sys_fn_static.py`, `klongpy/static/signature.py`, docs/static-profile.md): a program written for the
 //! compiler runs as it stands.
 //!
-//! * `.extern(NAME;SIGNATURE[;MODULE])` declares a function the host provides and defines NAME. Called, NAME checks its
-//!   arguments and its result against the signature and calls the host function of that name: a function the host registered
-//!   before the declaration (`Interp::register`, which is what `klong_cfun_register` does). With none, a call is a `system`
-//!   error. It returns the signature in its canonical form.
+//! * `.extern(C_SYMBOL;SIGNATURE)` declares a function the host provides and returns it as a value: `adc::.extern("read_adc";"int -> float")`.
+//!   Called, it checks its arguments and its result against the signature and calls the host function registered under the C symbol
+//!   before the declaration (`Declarations::provide`, which is what `klong_extern_register` does) or the stand-in the host's resolver gives.
+//!   A host function is kept in the declarations, not among the globals, so the only way to it is through the checks.
+//!   With none, a call is a `system` error. The same symbol declared again with the same signature is the same declaration
+//!   (the same function); with another signature it is an error. A statement that discards the value is an error (`module::discarded_extern`).
 //! * `.entry(NAME;SIGNATURE)` checks a declaration of a function the program defines (its name, its arity against the
 //!   signature) and returns the signature in its canonical form.
 //! * `.fixed` is an error: the interpreter has no fixed-point numbers (see [`register`]).
 //!
-//! Where KlongPy and this differ: the host function is looked up when `.extern` runs and not at each call, so a function
-//! registered later replaces the declared name as it is, unchecked; a type of the form `fixed<W,I>` in a signature is
+//! Where KlongPy and this differ: a type of the form `fixed<W,I>` in a signature is
 //! accepted, and a call that would pass or return such a value is an error.
 use alloc::rc::Rc;
 use alloc::string::String;
@@ -300,16 +301,36 @@ fn check_name(name: &str, what: &str) -> Option<String> {
     None
 }
 
-fn check_extern_name(name: &str) -> Option<String> {
-    if let Some(bad) = check_name(name, "an extern") {
+/// The reason `sym` cannot be the C symbol of an extern: a C identifier (letters, digits and underscore, not starting with a digit), not a
+/// C keyword, not one of the runtime's (`kg_`).
+pub fn check_symbol(sym: &str) -> Option<String> {
+    let b = sym.as_bytes();
+    if sym.contains('.') {
+        return Some(klong_core::msg!("'{}' is not a C symbol: a C identifier has no dot (the name a program uses is the entry's key in its module)", sym));
+    }
+    if !b.first().is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_') || !b.iter().all(|c| c.is_ascii_alphanumeric() || *c == b'_') {
+        return Some(klong_core::msg!("'{}' is not a C identifier: letters, digits and underscore, not starting with a digit", sym));
+    }
+    if C_KEYWORDS.contains(&sym) {
+        return Some(klong_core::msg!("'{}' is reserved in C", sym));
+    }
+    if sym.starts_with("kg_") {
+        return Some(klong_core::msg!("'{}': symbols that start with kg_ belong to the runtime", sym));
+    }
+    None
+}
+
+/// A `.param` name: a Klong name whose C spelling (dots as underscores) is not reserved.
+fn check_param_name(name: &str) -> Option<String> {
+    if let Some(bad) = check_name(name, "a parameter") {
         return Some(bad);
     }
     let c: String = name.chars().map(|c| if c == '.' { '_' } else { c }).collect();
     if C_KEYWORDS.contains(&c.as_str()) {
-        return Some(klong_core::msg!("the C name of extern {} is '{}', which is reserved in C", name, c));
+        return Some(klong_core::msg!("the C name of parameter {} is '{}', which is reserved in C", name, c));
     }
     if c.starts_with("kg_") {
-        return Some(klong_core::msg!("the C name of extern {} is '{}': names that start with kg_ belong to the runtime", name, c));
+        return Some(klong_core::msg!("the C name of parameter {} is '{}': names that start with kg_ belong to the runtime", name, c));
     }
     None
 }
@@ -411,6 +432,18 @@ fn mismatch(m: Mismatch, sig: &Sig) -> Error {
     }
 }
 
+fn conform_extern(ty: &Ty, v: &Value, what: &str, sig: &Sig) -> Result<Value> {
+    // The static signature uses native numeric values, even when the embedding backend owns an array.
+    let native;
+    let v = if matches!(ty.elem, Elem::Int | Elem::Float) && v.host_shape().is_some() {
+        native = v.unhost(what)?;
+        &native
+    } else {
+        v
+    };
+    conform(ty, v, what).map_err(|m| mismatch(m, sig))
+}
+
 fn plural(n: usize, word: &str) -> String {
     if n == 1 {
         klong_core::msg!("{} {}", n, word)
@@ -421,11 +454,10 @@ fn plural(n: usize, word: &str) -> String {
 
 // ----- the functions ----------------------------------------------------------------------------------------------------------
 
-/// What `.extern` has declared: name, signature, module and, for a function of more than three parameters, what the named-parameter
-/// function that was defined for it calls (a native function takes at most x, y and z).
+/// What `.extern` has declared (by C symbol), what `.entry` has declared and, with `params`, the parameters.
 type Declared = Rc<RefCell<Tables>>;
 
-/// The host's stand-in for a declared name, looked up at each call: `(interpreter, name, arguments)`, `None` when the host has none
+/// The host's stand-in for a declared symbol, looked up at each call: `(interpreter, symbol, arguments)`, `None` when the host has none
 /// (then the call is the `system` error of an extern with no stand-in).
 #[cfg(feature = "diag")]
 pub type Resolver = Rc<dyn Fn(&mut Interp, &str, &[Value]) -> Option<Result<Value>>>;
@@ -434,19 +466,24 @@ pub type Resolver = Rc<dyn Fn(&mut Interp, &str, &[Value]) -> Option<Result<Valu
 struct Tables {
     #[cfg(feature = "diag")]
     resolver: Option<Resolver>,
-    externs: Vec<Extern>,
+    externs: Vec<Rc<Extern>>,
+    /// The host functions by C symbol (a slot each, shared with the extern declared under that symbol): provided before or after the declaration.
+    provided: Vec<(String, HostSlot)>,
     entries: Vec<(String, Sig)>,
     #[cfg(feature = "params")]
     params: Vec<Param>,
 }
 
-/// An extern the program declared.
+/// An extern the program declared: the C symbol, the signature, the host function (taken from the registrations when it was declared, or
+/// given later by `Declarations::bind`) and the function value programs call.
 pub struct Extern {
-    pub name: String,
+    pub sym: String,
     pub sig: Sig,
-    pub module: String,
-    call: Option<NativeFn>,
+    host: HostSlot,
+    value: RefCell<Value>,
 }
+
+type HostSlot = Rc<RefCell<Option<NativeFn>>>;
 
 #[cfg(feature = "params")]
 /// A tunable input register the program declared with `.param`: its name, its scalar type and the value it started with. For
@@ -463,12 +500,19 @@ pub struct Param {
 pub struct Declarations(Declared);
 
 impl Declarations {
-    /// The declared externs, in order of declaration.
-    pub fn externs(&self) -> Vec<(String, Sig, String)> {
-        self.0.borrow().externs.iter().map(|e| (e.name.clone(), e.sig.clone(), e.module.clone())).collect()
+    #[cfg(feature = "params")]
+    pub(crate) fn visit_host_roots(&self, visit: &mut dyn FnMut(&Value)) {
+        for param in &self.0.borrow().params {
+            visit(&param.default);
+        }
+    }
+
+    /// The declared externs, (C symbol, signature), in order of declaration.
+    pub fn externs(&self) -> Vec<(String, Sig)> {
+        self.0.borrow().externs.iter().map(|e| (e.sym.clone(), e.sig.clone())).collect()
     }
     /// The host's lookup of stand-ins (see [`Resolver`]): asked at every call of a declared extern, so a stand-in may be set, replaced or
-    /// removed after the declaration. Also asked for `.fixed`, which the interpreter has no fixed-point numbers for.
+    /// removed after the declaration. Also asked for `.fixed`, which the interpreter has no fixed-point arrays for.
     #[cfg(feature = "diag")]
     pub fn set_resolver(&self, r: Option<Resolver>) {
         self.0.borrow_mut().resolver = r;
@@ -482,25 +526,20 @@ impl Declarations {
     pub fn params(&self) -> Vec<(String, Ty, Value)> {
         self.0.borrow().params.iter().map(|p| (p.name.clone(), p.ty.clone(), p.default.clone())).collect()
     }
-    /// Give the declared extern `name` its host function (replacing the one it had, or none): its calls are checked against the
-    /// signature as before. A name that is not a declared extern is a `name` error.
-    pub fn bind(&self, ip: &mut Interp, name: &str, host: NativeFn) -> Result<()> {
-        let (sig, wide) = match self.0.borrow().externs.iter().find(|e| e.name == name) {
-            Some(e) => (e.sig.clone(), e.sig.params.len() > 3),
-            None => return Err(Error::name(klong_core::msg!("{} is not a declared extern", name))),
-        };
-        let call = bound(name, sig, Some(host))?;
-        if wide {
-            if let Some(e) = self.0.borrow_mut().externs.iter_mut().find(|e| e.name == name) {
-                e.call = Some(call);
-            }
-            return Ok(());
+    /// The host function for the C symbol `sym` (replacing the one it had): before the program declares the extern, it is the function the
+    /// declaration takes; after, the function the program already holds calls it from now on. Its calls are checked against the signature.
+    /// The program has no other way to it: it is not a global.
+    pub fn provide(&self, sym: &str, host: NativeFn) -> Result<()> {
+        let slot = slot_of(&mut self.0.borrow_mut(), sym)?;
+        *slot.borrow_mut() = Some(host);
+        Ok(())
+    }
+    /// `provide` for a symbol that is declared: a symbol that is not declared is a `name` error.
+    pub fn bind(&self, sym: &str, host: NativeFn) -> Result<()> {
+        if !self.0.borrow().externs.iter().any(|e| e.sym == sym) {
+            return Err(Error::name(klong_core::msg!("{} is not a declared extern", sym)));
         }
-        let s = ip.syms.intern(name);
-        if let Some(e) = ip.syms.failure() {
-            return Err(e);
-        }
-        ip.define_global(name, Value::Fn(Rc::new(Func::Native { name: s, arity: WILDCARD, f: call })))
+        self.provide(sym, host)
     }
     /// Set the parameter `name` between runs (`klongpy.static.set_param`): the value is checked against the declared type and
     /// converted (`int` takes an int, `float` an int or a float, `fixed<W,I>` an int or a float, kept as the number), assigned to
@@ -531,30 +570,65 @@ impl Declarations {
 /// The arguments `.extern.arg` has collected for the next `.extern.call`.
 type Stash = Rc<RefCell<Vec<Value>>>;
 
-/// The value a declared name is bound to: a check of the arguments, a call of the host function, a check of the result.
-fn bound(name: &str, sig: Sig, host: Option<NativeFn>) -> Result<NativeFn> {
-    let name = try_str(name)?;
-    Ok(Rc::new(move |ip: &mut Interp, a: &[Value]| {
-        if a.len() != sig.params.len() {
-            return Err(Error::arity(klong_core::msg!(
-                "{} is declared \"{}\" and takes {}, got {}",
-                name,
-                sig,
-                plural(sig.params.len(), "argument"),
-                a.len()
-            )));
-        }
-        let Some(host) = &host else {
-            return Err(Error::system(klong_core::msg!("extern {} has no stand-in on the host", name))
-                .with_hint("the host registers a function of that name before the program declares it (klong_cfun_register in C)"));
-        };
-        let mut args = try_vec(a.len())?;
-        for (i, (ty, v)) in sig.params.iter().zip(a).enumerate() {
-            try_push(&mut args, conform(ty, v, &klong_core::msg!("argument {} of {}", i + 1, name)).map_err(|m| mismatch(m, &sig))?)?;
-        }
-        let r = host(ip, &args)?;
-        conform(&sig.result, &r, &klong_core::msg!("the result of {}", name)).map_err(|m| mismatch(m, &sig))
-    }))
+/// The slot of the host function of `sym`, made when there is none.
+fn slot_of(t: &mut Tables, sym: &str) -> Result<HostSlot> {
+    if let Some((_, s)) = t.provided.iter().find(|(n, _)| n == sym) {
+        return Ok(s.clone());
+    }
+    let s: HostSlot = Rc::new(RefCell::new(None));
+    try_push(&mut t.provided, (try_str(sym)?, s.clone()))?;
+    Ok(s)
+}
+
+fn no_stand_in(sym: &str) -> Error {
+    Error::system(klong_core::msg!("extern {} has no stand-in on the host", sym))
+        .with_hint("the host registers a function under that C symbol before the program declares it (klong_cfun_register in C)")
+}
+
+/// A call of a declared extern: a check of the arguments, a call of the host function, a check of the result.
+fn invoke(declared: &Declared, e: &Rc<Extern>, ip: &mut Interp, a: &[Value]) -> Result<Value> {
+    let sig = &e.sig;
+    if a.len() != sig.params.len() {
+        return Err(Error::arity(klong_core::msg!(
+            "{} is declared \"{}\" and takes {}, got {}",
+            e.sym,
+            sig,
+            plural(sig.params.len(), "argument"),
+            a.len()
+        )));
+    }
+    let host = e.host.borrow().clone();
+    #[cfg(feature = "diag")]
+    let resolver = declared.borrow().resolver.clone();
+    #[cfg(not(feature = "diag"))]
+    let _ = declared;
+    #[cfg(feature = "diag")]
+    if host.is_none() && resolver.is_none() {
+        return Err(no_stand_in(&e.sym));
+    }
+    #[cfg(not(feature = "diag"))]
+    if host.is_none() {
+        return Err(no_stand_in(&e.sym));
+    }
+    let mut args = try_vec(a.len())?;
+    for (i, (ty, v)) in sig.params.iter().zip(a).enumerate() {
+        try_push(&mut args, conform_extern(ty, v, &klong_core::msg!("argument {} of {}", i + 1, e.sym), sig)?)?;
+    }
+    #[cfg(feature = "diag")]
+    let stand_in = match resolver {
+        Some(r) => r(ip, &e.sym, &args),
+        None => None,
+    };
+    #[cfg(not(feature = "diag"))]
+    let stand_in: Option<Result<Value>> = None;
+    let r = match stand_in {
+        Some(v) => v?,
+        None => match &host {
+            Some(h) => h(ip, &args)?,
+            None => return Err(no_stand_in(&e.sym)),
+        },
+    };
+    conform_extern(&sig.result, &r, &klong_core::msg!("the result of {}", e.sym), sig)
 }
 
 fn string<'a>(which: &str, v: &'a Value, what: &str) -> Result<&'a str> {
@@ -565,135 +639,68 @@ fn string<'a>(which: &str, v: &'a Value, what: &str) -> Result<&'a str> {
 }
 
 fn extern_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value> {
-    if !(2..=3).contains(&a.len()) {
-        return Err(Error::arity(klong_core::msg!(".extern takes 2 or 3 arguments, got {}", a.len())));
+    if a.len() != 2 {
+        return Err(Error::arity(klong_core::msg!(".extern takes 2 arguments (the C symbol and the signature), got {}", a.len()))
+            .with_hint("the module placeholder, a third argument, is gone; write adc::.extern(\"read_adc\";\"int -> float\")"));
     }
-    let name = string(".extern", &a[0], "name")?;
+    let sym = string(".extern", &a[0], "C symbol")?;
     let text = string(".extern", &a[1], "signature")?;
-    let module = match a.get(2) {
-        Some(m) => string(".extern", m, "module")?,
-        None => "env",
-    };
     let sig = signature(".extern", text, true)?;
-    if let Some(bad) = check_extern_name(name) {
-        return Err(Error::typ(klong_core::msg!(".extern: {}", bad)));
+    if let Some(bad) = check_symbol(sym) {
+        return Err(Error::typ(klong_core::msg!(".extern: {}", bad))
+            .with_hint("the first argument is the C symbol (read_adc); the name a program uses is the key of the module's export"));
     }
-    let canonical = klong_core::msg!("{}", sig);
-    if let Some(old) = declared.borrow().externs.iter().find(|e| e.name == name) {
-        if old.sig != sig || old.module != module {
-            return Err(Error::typ(klong_core::msg!(".extern: {} is already declared \"{}\" (module {})", name, old.sig, old.module)));
+    if let Some(old) = declared.borrow().externs.iter().find(|e| e.sym == sym) {
+        if old.sig != sig {
+            return Err(Error::typ(klong_core::msg!(".extern: {} is already declared \"{}\"; it cannot also be \"{}\"", sym, old.sig, sig)));
         }
-        return Value::text(&canonical);
+        return Ok(old.value.borrow().clone());
     }
-    // a function the host registered under that name is the one that is called; anything else defined is a conflict
-    let host = match ip.global_plain(name) {
-        None => None,
-        Some(Value::Fn(f)) => match &*f {
-            Func::Native { f: native, .. } => Some(native.clone()),
-            _ => return Err(conflict(name)),
-        },
-        Some(_) => return Err(conflict(name)),
-    };
-    #[cfg(feature = "diag")]
-    let host = match declared.borrow().resolver.clone() {
-        None => host,
-        Some(r) => {
-            let name = try_str(name)?;
-            let own = host;
-            let f: NativeFn = Rc::new(move |ip: &mut Interp, args: &[Value]| match r(ip, &name, args) {
-                Some(v) => v,
-                None => match &own {
-                    Some(h) => h(ip, args),
-                    None => Err(Error::system(klong_core::msg!("extern {} has no stand-in on the host", name))
-                        .with_hint("the host registers a function of that name before the program declares it (klong_cfun_register in C)")),
-                },
-            });
-            Some(f)
-        }
-    };
+    // the function the host provided under that symbol is the one that is called, reached only through the checks
+    let host = slot_of(&mut declared.borrow_mut(), sym)?;
     let n = sig.params.len();
-    let call = bound(name, sig.clone(), host)?;
-    try_push(&mut declared.borrow_mut().externs, Extern { name: try_str(name)?, sig, module: try_str(module)?, call: (n > 3).then(|| call.clone()) })?;
-    // `read.adc` declares the entry `adc` of the dictionary `read` (resolution 10); the C name stays read_adc
-    let entry = match dotted(ip, name) {
-        Ok(e) => e,
-        Err(e) => {
-            declared.borrow_mut().externs.pop();
-            return Err(e);
-        }
-    };
-    let is_entry = entry.is_some();
-    if n <= 3 {
+    let e = Rc::new(Extern { sym: try_str(sym)?, sig, host, value: RefCell::new(Value::Undefined) });
+    let value = if n <= 3 {
         // x, y and z: a wildcard function is given whichever of them the call supplied
-        let s = ip.syms.intern(name);
-        if let Some(e) = ip.syms.failure() {
-            return Err(e);
+        let s = ip.syms.intern(sym);
+        if let Some(err) = ip.syms.failure() {
+            return Err(err);
         }
-        let f = Value::Fn(Rc::new(Func::Native { name: s, arity: WILDCARD, f: call }));
-        match entry {
-            Some((d, key)) => d.borrow_mut().set(Value::text(key)?, f)?,
-            None => ip.define_global(name, f)?,
-        }
-    } else if let Err(e) = define_wide(ip, declared, name, n) {
-        declared.borrow_mut().externs.pop();
-        return Err(e);
-    }
-    if is_entry {
-        // (the host's own registration under the dotted name is not what a program reaches: `read.adc` is the entry of `read`)
-        ip.undefine_global(name);
-    }
-    Value::text(&canonical)
-}
-
-/// The dictionary a dotted extern name belongs to (made when the program has none of that name) and the key: `None` for a name
-/// without a dot. A first part that holds something that is not a dictionary is a `type` error.
-fn dotted<'a>(ip: &mut Interp, name: &'a str) -> Result<Option<(Rc<RefCell<klong_core::value::Dict>>, &'a str)>> {
-    let Some((base, key)) = name.split_once('.').filter(|(b, _)| !b.is_empty()) else { return Ok(None) };
-    if key.contains('.') {
-        return Err(Error::typ(klong_core::msg!(".extern: {}: only one dot is supported (a dictionary and its entry)", name)));
-    }
-    match ip.global(base) {
-        Some(Value::Dict(d)) => Ok(Some((d, key))),
-        Some(other) => Err(Error::typ(klong_core::msg!(".extern: {} declares an entry of {}, which holds {}, not a dictionary", name, base, other.describe_long()))),
-        None => {
-            let Value::Dict(d) = Value::dict(klong_core::value::Dict::default()) else { return Ok(None) };
-            ip.define_global(base, Value::Dict(d.clone()))?;
-            Ok(Some((d, key)))
-        }
-    }
-}
-
-fn conflict(name: &str) -> Error {
-    Error::name(klong_core::msg!(".extern: {} is already defined in the program; an extern cannot replace it", name))
+        let (d, ex) = (declared.clone(), e.clone());
+        Value::Fn(Rc::new(Func::native(s, WILDCARD, Rc::new(move |ip: &mut Interp, a: &[Value]| invoke(&d, &ex, ip, a)))))
+    } else {
+        wide(ip, declared, sym, n)?
+    };
+    *e.value.borrow_mut() = value.clone();
+    try_push(&mut declared.borrow_mut().externs, e)?;
+    Ok(value)
 }
 
 /// A function of more than three parameters is one with named parameters whose body hands its parameters to the declaration, three
-/// at a time (`.extern.arg`) and the last ones with the name (`.extern.call`).
-fn define_wide(ip: &mut Interp, declared: &Declared, name: &str, n: usize) -> Result<()> {
+/// at a time (`.extern.arg`) and the last ones with the symbol (`.extern.call`). It is a function value, and nothing is defined.
+fn wide(ip: &mut Interp, declared: &Declared, sym: &str, n: usize) -> Result<Value> {
     register_wide(ip, declared);
     let mut text = String::new();
     let mut put = |t: &str| -> Result<()> { klong_core::value::try_push_str(&mut text, t) };
-    put(name)?;
-    put("(")?;
+    put("f(")?;
     for i in 1..=n {
         put(if i > 1 { ";arg" } else { "arg" })?;
         put(&klong_core::msg!("{}", i))?;
     }
     put(")::{")?;
     let mut i = 1;
-    // (a native function is given at most three arguments: the name and two more go with the call)
+    // (a native function is given at most three arguments: the symbol and two more go with the call)
     while n + 1 - i > 2 {
         put(&klong_core::msg!(".extern.arg(arg{};arg{};arg{});", i, i + 1, i + 2))?;
         i += 3;
     }
-    put(&klong_core::msg!(".extern.call(\"{}\"", name))?;
+    put(&klong_core::msg!(".extern.call(\"{}\"", sym))?;
     while i <= n {
         put(&klong_core::msg!(";arg{}", i))?;
         i += 1;
     }
     put(")}")?;
-    ip.run_global(&text, "<extern>")?;
-    Ok(())
+    ip.function_from_text(&text)
 }
 
 fn entry_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value> {
@@ -788,8 +795,8 @@ fn param_fn(declared: &Declared, ip: &mut Interp, a: &[Value]) -> Result<Value> 
     if !ty.shape.is_empty() || matches!(ty.elem, Elem::Str | Elem::Void) {
         return Err(Error::typ(klong_core::msg!(".param: {} must be a scalar int, float or fixed<W,I>, not {}", name, ty)));
     }
-    if let Some(bad) = check_extern_name(name) {
-        return Err(Error::typ(klong_core::msg!(".param: {}", bad.replace("an extern", "a parameter"))));
+    if let Some(bad) = check_param_name(name) {
+        return Err(Error::typ(klong_core::msg!(".param: {}", bad)));
     }
     let default = match (a.get(2), &ty.elem) {
         (None, Elem::Int) => Value::Int(0),
@@ -844,14 +851,14 @@ fn register_wide(ip: &mut Interp, declared: &Declared) {
         ".extern.call",
         WILDCARD,
         Rc::new(move |ip: &mut Interp, a: &[Value]| {
-            let name = string(".extern.call", a.first().ok_or_else(|| Error::arity(".extern.call takes a name"))?, "name")?;
-            let call = declared.borrow().externs.iter().find(|e| e.name == name).and_then(|e| e.call.clone());
-            let call = call.ok_or_else(|| Error::name(klong_core::msg!("{} is not a declared extern", name)))?;
+            let sym = string(".extern.call", a.first().ok_or_else(|| Error::arity(".extern.call takes a symbol"))?, "symbol")?;
+            let e = declared.borrow().externs.iter().find(|e| e.sym == sym).cloned();
+            let e = e.ok_or_else(|| Error::name(klong_core::msg!("{} is not a declared extern", sym)))?;
             let mut args = core::mem::take(&mut *stash.try_borrow_mut().map_err(|_| Error::system("extern arguments are in use"))?);
             for v in &a[1..] {
                 try_push(&mut args, v.clone())?;
             }
-            call(ip, &args)
+            invoke(&declared, &e, ip, &args)
         }),
     );
 }

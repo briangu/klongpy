@@ -1,7 +1,24 @@
-README.md
+include README.md
 recursive-include klongpy/lib *.kg
 recursive-include klongpy/static *.h
 recursive-include klongpy/data *.json
+# Keep the runnable release contract with the source it verifies. Wheels carry only the runtime.
+include scripts/bench_versions.py tests/__init__.py tests/conftest.py tests/custom_backend.py tests/ipc_helpers.py
+recursive-include tests/v2 *.py *.kg *.q *.c *.md
+include examples/db/*.kg examples/db/README.md examples/1brc/par.kg examples/1brc/README.md tests/test_1brc_example.py
+include examples/stocks/tickerplant/*.kg examples/stocks/tickerplant/bench.py examples/stocks/tickerplant/README.md
+recursive-include conformance *.py *.cases *.md
+recursive-include tests/golden *.py *.kg *.sexp *.md
+recursive-include tests/kgtests/language *.kg
+# Ship the board projects and their compiler inputs without the local SDK build directories.
+include native/boards/pico-bench/*.c native/boards/pico-bench/*.h native/boards/pico-bench/CMakeLists.txt
+include native/boards/pico-bench/build.sh native/boards/pico-bench/README.md
+include native/boards/pico-bench/tools/*.py native/boards/pico-bench/tools/*.c
+include native/boards/esp32p4/CMakeLists.txt native/boards/esp32p4/sdkconfig.defaults
+include native/boards/esp32p4/build.sh native/boards/esp32p4/README.md
+include native/boards/esp32p4/main/*.c native/boards/esp32p4/main/CMakeLists.txt
+include native/tools/*.py examples/embedded/*.kg examples/embedded/*.expect
+include native/scripts/bench_numpy.py native/scripts/bench_numpy.kg
 # The Rust sources the wheel is built from: the extension (klong-py, its own cargo workspace) and the kg binary (klong-cli, in the native
 # workspace, whose root and every member must be present). The library files above are embedded by klong-rt and klong-lint.
 include native/Cargo.toml native/Cargo.lock

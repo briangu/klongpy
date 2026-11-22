@@ -1,12 +1,12 @@
 :"ma4: the static profile through a module.
 
    kgpy compile c static/ma4.kg must resolve stats.ma4 at compile time: stats
-   is bound once to what .import returns, the result cannot be changed, so the
+   is bound once by .l to a module, which cannot be changed, so the
    call names one function in lib/stats.kg. The function is compiled as if
    it were written here, under the name stats.ma4. Nothing else in lib/stats.kg
    is reachable from the entry, so none of it is checked."
 
-stats::.import("../lib/stats")
+.l("../lib/stats")
 
 run(v)::{stats.ma4(v)}
 

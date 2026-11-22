@@ -17,10 +17,14 @@ examples/embedded/ belongs to the embedded-board work and is not covered here.
 """
 import importlib.util
 import os
+from pathlib import Path
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 
+import klongpy
 from klongpy.lint import lint_file
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -45,9 +49,11 @@ FILES = kg_files()
 # Allow-lists: path -> reason. All three are empty: no shipped file needs one.
 # ---------------------------------------------------------------------------
 LINT_ERROR_ALLOW = {
+    "examples/modules/errors/discarded.kg": "the error it is written to show: an .extern whose value is thrown away (E005)",
+    "examples/modules/errors/nosuchentry.kg": "the error it is written to show: an entry named to .l that the module does not export (E004)",
     "examples/modules/errors/missing.kg": "the error it is written to show: a qualified name the module does not export (E004)",
     "examples/modules/errors/private.kg": "the error it is written to show: a private helper of the module (E004)",
-    "examples/modules/errors/readonly.kg": "the error it is written to show: an assignment to what .import returned (E003)",
+    "examples/modules/errors/readonly.kg": "the error it is written to show: an assignment to an entry of a module (E003)",
 }
 SYNTAX_WARNING_ALLOW = {}
 STRICT1_PARSE_ALLOW = {}
@@ -59,7 +65,7 @@ STRICT1_PARSE_ALLOW = {}
 TORCH = (["torch"], ["--backend", "torch", "--device", "cpu"])
 PLAIN = ([], [])
 RUNNABLE = {
-    "examples/1brc/worker.kg": PLAIN,
+    "examples/db/taxi-queries.kg": PLAIN,
     "examples/hardware/crossover.kg": PLAIN,         # a static-profile program: loading it defines its functions and state
     "examples/autograd/basic_gradient.kg": PLAIN,
     "examples/autograd/differentiable_physics.kg": PLAIN,
@@ -70,7 +76,7 @@ RUNNABLE = {
     "examples/autograd/optimizer_demo.kg": PLAIN,
     "examples/autograd/rolling_portfolio_opt_simple.kg": PLAIN,
     "examples/autograd/black_scholes_greeks.kg": TORCH,  # needs erf from the torch backend
-    "examples/autograd/export_demo.kg": TORCH,           # .bkx needs the torch backend
+    "examples/autograd/export_demo.kg": TORCH,           # .export needs the torch backend
     "examples/autograd/gradcheck_demo.kg": TORCH,        # .gradcheck needs the torch backend on cpu
     "examples/math/fft.kg": PLAIN,
     "examples/math/trig.kg": PLAIN,
@@ -96,25 +102,28 @@ RUNNABLE = {
 PORT = "starts a server on the fixed port 8888 (a test must not bind it); loads and exits 0 at strict 2 when run by hand"
 SERVER = "long-running server (binds a fixed port, runs until killed); loaded to its serve point at strict 2 in a timed run"
 CLIENT = "client that waits for a server on port 8888 (timed out at strict 2 after connecting nowhere)"
-MODULE_PART = "a part of the backtest of examples/modules/main.kg (a module it imports, or a classic file it loads): not a program of its own"
+MODULE_PART = "a part of the backtest of examples/modules/main.kg (a module it loads, or a classic file it loads): not a program of its own"
 MODULE_ERROR = "stops with the error named for it in examples/modules/EXPECTED-ERRORS.txt, by design"
 EXCLUDED = {
     **{f"examples/modules/{n}": MODULE_PART for n in (
         "config.kg", "legacy.kg", "lib/rng.kg", "lib/series.kg", "lib/stats.kg", "data/feed.kg", "book/portfolio.kg",
         "strategy/crossover.kg", "strategy/meanrev.kg", "strategy/registry.kg", "report/table.kg")},
     "examples/modules/main.kg": "written for strict level 0 (its output is examples/modules/EXPECTED.txt): lib/rng.kg's `{step()%m}'!n` is an arity error at strict 2",
-    "examples/modules/static/ma4.kg": "a static-profile program that imports a module: checked and compiled by `kgpy check` and `kgpy compile c` (static/ma4.expect)",
+    "examples/modules/static/ma4.kg": "a static-profile program that loads a module: checked and compiled by `kgpy check` and `kgpy compile c` (static/ma4.expect)",
     **{f"examples/modules/errors/{n}.kg": MODULE_ERROR for n in (
-        "cycle", "cycle_a", "cycle_b", "missing", "noexport", "notadict", "plain", "private", "readonly", "undefined")},
+        "badstem", "cycle", "cycle_a", "cycle_b", "discarded", "missing", "noexport", "nosuchentry", "notadict", "private", "readonly",
+        "undefined")},
+    **{f"examples/modules/errors/support/{n}.kg": "a file an error program loads: not a program of its own" for n in ("bad-name", "plain")},
     "examples/stocks/feed/consumer.kg": "needs a running feed.kg (a server on port 8888); tests/test_example_feed.py runs it with demo.kg",
     "examples/stocks/feed/feed.kg": SERVER + "; tests/test_example_feed.py runs it with demo.kg",
     "examples/stocks/feed/demo.kg": "the process stays up after its output, by design; tests/test_example_feed.py runs it and stops it after the last line",
-    "examples/1brc/par.kg": "needs a measurements file as its argument and the par.py worker pool",
+    "examples/1brc/par.kg": "needs a measurements file argument, supplied by tests/test_1brc_example.py",
     "examples/autograd/black_scholes_live.kg": "network: live option data through yfinance (live_options.py)",
     "examples/autograd/portfolio_opt.kg": "network: stock_data.py downloads prices through yfinance",
     "examples/autograd/rolling_portfolio_opt.kg": "network: stock_prices.py downloads prices through yfinance",
     "examples/bench_compiler.kg": "benchmark that takes about 30 s (not worth the time in the suite); run by hand at strict 2 it exits 0",
     "examples/db/dfs.kg": "needs a directory argument and duckdb; serves tables until killed",
+    "examples/db/nyc-taxi.kg": "needs yellow and green taxi Parquet paths",
     "examples/db/server.kg": SERVER + " (needs klongpy.db: duckdb, pandas)",
     "examples/ipc/cli_broadcast.kg": CLIENT,
     "examples/ipc/cli_pubsub.kg": CLIENT,
@@ -203,13 +212,18 @@ class TestEveryKgFileIsClean(unittest.TestCase):
 class TestRunnableExamplesAtStrictLevel2(unittest.TestCase):
 
     def test_run(self):
-        env = dict(os.environ, PYTHONPATH=ROOT, MPLBACKEND="Agg")
+        # Some examples write beside their inputs, including the exported PyTorch model.
+        workspace = self.enterContext(tempfile.TemporaryDirectory())
+        shutil.copytree(os.path.join(ROOT, "examples"), os.path.join(workspace, "examples"))
+        package_root = str(Path(klongpy.__file__).resolve().parents[1])
+        python_path = os.pathsep.join(filter(None, [package_root, os.environ.get("PYTHONPATH")]))
+        env = dict(os.environ, PYTHONPATH=python_path, MPLBACKEND="Agg")
         for rel, (needs, extra) in sorted(RUNNABLE.items()):
             with self.subTest(file=rel):
                 missing = [m for m in needs if importlib.util.find_spec(m) is None]
                 if missing:
                     self.skipTest(f"{rel}: {', '.join(missing)} not installed")
-                path = os.path.join(ROOT, rel)
+                path = os.path.join(workspace, rel)
                 try:
                     p = subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", "--strict=2", *extra, path],
                                        cwd=os.path.dirname(path), env=env, stdin=subprocess.DEVNULL,

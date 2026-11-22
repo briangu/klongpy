@@ -1,0 +1,9 @@
+.l("./expect.kg")
+.l("./arrays.kg")
+expect("sum of squares";energy([2 3 4]);29)
+expect("named function destructures its input";window([3 5]);[8 15])
+scale(factor;values)::{factor*values}
+double::scale(2)
+expect("projection applied to a vector";double([1 2 3]);[2 4 6])
+expect("name errors can be caught";(.try({.err("name";"missing column")};[])@1)@"kind";"name")
+.p("PASS language")

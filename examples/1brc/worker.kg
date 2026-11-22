@@ -1,7 +1,0 @@
-.pyf("numpy";["min" "max" "mean"])
-
-collect::{min(x),max(x),(+/x),#x}
-merge(a;b)::{:[:_a;b;((a@0)&(b@0)),((a@1)|(b@1)),((a@2)+(b@2)),((a@3)+(b@3))]}
-stats(m;chunk)::{[s t]::chunk;{[q];q::s@(x@0);m,q,,merge(m@q;collect(t@x))}'=s;m}
-
-

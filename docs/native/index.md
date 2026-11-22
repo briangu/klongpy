@@ -1,17 +1,17 @@
 # Native Runtime
 
-This section describes the native Klong runtime: a second implementation of the Klong language, written in Rust, that runs on microcontrollers and on a desktop without Python. It is for people who want to run Klong on a small board, or who want to know how that implementation relates to KlongPy and how far it has been tested. This page says what it is, how it relates to KlongPy, what exists today, and what has run on which hardware.
+KlongPy's Rust interpreter runs in the standalone `kg` desktop command, in the Python-hosted `kgpy` command, and in microcontroller firmware. This section covers `kg` and the firmware, including what each target can run and what has been tested on hardware.
 
 The source is in the `native/` directory of the KlongPy repository. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board. Two Raspberry Pi Picos have run it with IPC between them. The [status table](#status-what-has-and-has-not-been-proven) below says what has run where.
 
-`kg --version` and the banner of a board print the version, 2.0.0-rc.1. It is the version of KlongPy, which Python writes as 2.0.0rc1.
+`kg --version` and the board banner print the release version. Python packages and Rust binaries can spell the prerelease suffix differently.
 
 ## What it is for
 
-KlongPy is Python, numpy and optionally torch. That is the right tool on a computer, and the wrong one on a microcontroller with a few hundred kilobytes of RAM. The native runtime is the same language with none of that underneath:
+The firmware uses the same engine as the desktop commands. A board can select the features that fit its RAM and flash budget.
 
 * **The language.** The same parser, the same operators, adverbs, strings, dictionaries, modules and error kinds, the same strict levels, and the twelve library files of `klongpy/lib` (the thirteenth, `mgmt`, is carried by builds with IPC). A program that avoids the differences below gives the same answer.
-* **A small program.** The interpreter is `no_std` Rust with one dependency (`libm`). The linked image for a Cortex-M or RISC-V board with the serial console and the library is between 235 and 330 KB of flash without IPC or timers (IPC adds 42 to 59 KB; the Pico firmware of the [two-Pico test](pico-bench.md), built for speed with IPC and diagnostics, is about 650 KB), and it needs 64 KiB of heap for small programs. See [Building and Running](building.md#sizes-and-speed).
+* **A small program.** The interpreter is `no_std` Rust. See the [size measurements](building.md#sizes-and-speed) for different feature sets. The [RC1 binary tested on the RP2040 Picos](pico-bench.md#rc1-on-two-rp2040-boards) was 809,252 bytes with the lane, heap diagnostics and compiled examples.
 * **A console on a serial line.** A REPL with line editing over a UART, Ctrl-C for a program that does not stop, and a command mode for uploading files and running programs from a desktop, so that you can develop on a board without a debugger. See [Serial Console and Upload](console.md).
 * **Nodes that talk.** The kdb+ IPC protocol, as KlongPy speaks it, timers, and a management library for reaching several nodes from one. See [IPC and Timers](ipc.md) and [Management Node](management-node.md).
 
@@ -30,15 +30,16 @@ $ kg -e '.l("nstat");.p(nstat.sd([1 2 3 4]))'
 
 ## How it relates to KlongPy
 
-It is the **same language**, and that is checked and not only intended. The repository has a conformance suite, `conformance/cases`, of 2155 cases for the desktop build (1570 of them for a build without big integers). Each case is a program, the printed value or the error kind it must produce, and optionally the console output. KlongPy runs the suite and the native runtime runs the same files, through a small command-line protocol, with no Python. KlongPy is the reference: a case that KlongPy fails is either a KlongPy bug, which goes to a pending list, or a wrong case. The 169 golden parse trees of KlongPy's own tests are matched byte for byte as well.
+The conformance suite has 2220 cases for desktop `kg`. Each case pins the printed value or the error kind, and can also check console output. Both desktop commands use the same cases. The runner selects cases based on the features each host or target declares. Golden tests also compare 169 parse trees byte for byte. [Conformance suite](../conformance.md)
 
 These are the differences. All of them follow from having no Python and no numpy, or from running on a small device.
 
 | | KlongPy | Native runtime |
 |---|---|---|
 | Python interop | `.py`, `.pyf`, `.pya`, `.pyc`, `.bkf` | **none**; calling one is a `name` error that says where it is: `.py needs kgpy (the Python-hosted command)` |
-| Other desktop functions | `.sys`, `.rls`, `.web`, `.ws`, `.db`, `.table`, the autograd and FPGA functions, `.bkd`, `.bkp` and others (the whole list is `native/klong-cli/src/kgpy_only.rs`) | not available, the same `name` error |
-| numpy and torch | the array backend | **none**; the arrays are the runtime's own, and the autograd operators (`∇`, `∂`, `:>`) give `name error: operator not available on this build` |
+| Tables and SQL | Built-in `.table` and `.db`, plus pandas and Arrow interchange | Desktop `kg` has the same table and SQL primitives. Firmware can enable in-memory tables. |
+| Other desktop functions | `.sys`, `.rls`, `.web`, `.ws`, FPGA card bindings, `.bkd` and `.bkp` | These functions require `kgpy`. |
+| Arrays and gradients | NumPy arrays, or PyTorch tensors with autograd | Native vectors on CPU. A macOS build with Metal supports device arrays and `:>` for a subset of operations. |
 | Integers | 64 bits, wrapping; a long literal or a long operand is exact for `+ - * < > \| &` | 64 bits, wrapping (32 with the feature `int32`); a long literal or a long operand is exact for `+ - * % :% < > = \| &`, and a scalar `^` of two integers is exact, as in KlongPy (the cargo feature `bigint`, on for the desktop binary, off for boards: there a literal that does not fit is a `syntax` error) |
 | Floats | 64 bits | 64 bits by default, 32 with the feature `float32` |
 | Strings | Unicode code points | Unicode code points, as KlongPy: `#"héllo"` is 5 and indexing counts code points. The runtime stores UTF-8; a string is always valid text |
@@ -62,7 +63,7 @@ Two more things are worth knowing. The REPL of the desktop `kg` program is simpl
 
 | Piece | What it is | Page |
 |---|---|---|
-| `kg` | the runtime as a desktop program: REPL, `-e`, files, `--conformance` | [Building and Running](building.md) |
+| `kg` | desktop REPL, expressions, files, JSON capability discovery, tables, embedded DuckDB and optional Metal | [Building and Running](building.md) |
 | `klong-sim` | a simulated board: the real console over a pipe or a pseudo-terminal | [Serial Console and Upload](console.md) |
 | `tools/kgupload.py` | upload, run and reset over a serial port, from Python's standard library alone | [Serial Console and Upload](console.md) |
 | `klong-ffi` | the board runtime as a static library with a C interface, `klong.h` | [Porting to a Board](porting.md) |
@@ -84,10 +85,10 @@ This table is the status of every hardware target. Each row says what ran and it
 
 | Area | Result | Where it ran |
 |---|---|---|
-| The language, default build (64-bit) | 2155 of 2155 conformance cases (2026-11-18); 169 of 169 parse trees | desktop |
+| The language, default build (64-bit) | 2220 of 2220 conformance cases (2026-11-19); 169 of 169 parse trees | desktop |
 | The language, 32-bit build (`int32`, `float32`) | 1408 of 1408 cases that the build declares (2026-11-18) | desktop |
 | The embedded library | all twelve files load, at strict levels 0, 1 and 2 | desktop |
-| The serial console | 1704 of 1704 cases through `^A run` (2026-11-18) | simulated boards |
+| The serial console | 1716 of 1716 cases through `^A run` (2026-11-19) | simulated boards |
 | The serial console | 1266 of 1266 cases over the serial port, in 1877 seconds (the suite had 1266 cases when it was run; see [Conformance](../conformance.md#why-the-counts-differ)) | **an ESP32-P4** |
 | REPL, line editing, Ctrl-C on a runaway loop, the embedded library, uploads | work | **an ESP32-P4** |
 | Speed | `fib(24)` 4.2 s on the board, against about 35 ms on a desktop (Apple M2 Ultra); **the cause is not investigated** | an ESP32-P4 and the desktop |
@@ -95,12 +96,13 @@ This table is the status of every hardware target. Each row says what ran and it
 | IPC with KlongPy, both directions, every mapped type | passes | desktop, localhost TCP |
 | IPC with PeachQ 0.92.20261115 (a kdb+-compatible q implementation), both directions | passes when the tests are enabled | desktop, localhost TCP |
 | IPC against a KX kdb+ process | not tried | |
-| C compiled from Klong, on a device | three examples run on the Picos beside the interpreter and agree with it (2026-11-18): [on a Pico](../embedded.md#on-a-pico); **no other device** | **two Raspberry Pi Picos** |
-| IPC on a device | passes between two Picos over a UART link (2026-11-16, 17); **not run on the ESP32-P4**, whose firmware has no IPC | **two Raspberry Pi Picos** |
+| C compiled from Klong, on a device | RC1 moving average and PID agreed with the board interpreter. FIR agreed with a flash reference (2026-11-20). The ESP32-P4 diagnostic image has been linked and awaits its device check. [On a Pico](../embedded.md#on-a-pico) | **two RP2040 Picos** |
+| IPC on a device | RC1 passed synchronous and asynchronous calls, echo and a management-library call over the UART lane and switch (2026-11-20). The ESP32-P4 firmware has no IPC. | **two RP2040 Picos** |
+| Direct USB CDC console on the Pico | deferred in the RC1 run. The prompt, upload and Ctrl-T checks are separate from the tested UART lane console. | **two RP2040 Picos** |
 | IPC over a UART or a lossy link | tested in memory with seeded faults; on a wire only the UART link between two Picos | in-process simulation, two Picos |
 | Timers | work | desktop |
 | The management node | works with three native node processes on localhost, and in an in-process test over simulated lossy and serial links | desktop |
-| The management node on boards | the library loads and management-library calls (`mgmt.call`) work on Picos (2026-11-17); a management board with nodes on UARTs and a pulled cable were **not run** | **two Raspberry Pi Picos** |
+| The management node on boards | on RC1, the management library loaded and relayed calls over the shared UART lane switch (2026-11-20). Dedicated UART links to multiple nodes and physical cable-loss recovery remain untested. | **two RP2040 Picos** |
 | Flash storage on a board | **not done**; the file system is RAM and is lost at reset | |
 | Arm Cortex-M4F and M7 (`thumbv7em-none-eabihf`) | the image links; it has no start-up code and was **never booted**. The Picos are Cortex-M0+ (`thumbv6m-none-eabi`) and did boot | |
 | RISC-V without an ESP chip (`riscv32imac-unknown-none-elf`) | the same | |

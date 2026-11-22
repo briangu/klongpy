@@ -36,15 +36,26 @@ jobs:
         python -m pip install --upgrade pip build twine
         python -m build --sdist
         python -m twine check dist/*
-    - name: The sdist holds the Rust sources
-      run: tar tzf dist/*.tar.gz | grep -E '/native/klong-(core|py|cli)/Cargo.toml'
+    - name: Check the sources needed for a wheel build
+      run: |
+        tar -tzf dist/*.tar.gz | cut -d/ -f2- > "$RUNNER_TEMP/sdist-files"
+        for file in README.md native/Cargo.toml native/Cargo.lock native/klong-py/Cargo.toml \
+          native/klong-py/Cargo.lock native/klong-core/Cargo.toml native/klong-cli/Cargo.toml \
+          native/klong-cli/build.rs native/klong-cli/src/gpu.metal native/klong-cli/src/gpu_metal.m \
+          tests/v2/verify_reports.py tests/v2/programs/stream.kg tests/v2/programs/attached/driver.c \
+          conformance/run.py tests/golden/regen.py tests/kgtests/language/test_suite.kg scripts/bench_versions.py \
+          native/boards/pico-bench/build.sh native/boards/esp32p4/build.sh examples/embedded/fir.expect; do
+          grep -Fx "$file" "$RUNNER_TEMP/sdist-files"
+        done
     - uses: actions/upload-artifact@v4
       with:
         name: sdist
         path: dist/*.tar.gz
+        if-no-files-found: error
 
   wheels:
     name: Wheel ${{ matrix.name }}
+    needs: sdist
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -52,16 +63,28 @@ jobs:
         include:
           - { name: linux-x86_64,   os: ubuntu-latest }
           - { name: linux-aarch64,  os: ubuntu-24.04-arm }
-          - { name: macos-arm64,    os: macos-14,        deployment: "11.0" }
-          - { name: macos-x86_64,   os: macos-15-intel,  deployment: "10.15" }
+          - { name: macos-arm64,    os: macos-15,        deployment: "11.0" }
+          # Limit template inlining and fold identical functions for a shorter first launch under Rosetta.
+          - name: macos-x86_64
+            os: macos-15-intel
+            deployment: "10.15"
+            cxxflags: "-O3 -mllvm -inline-threshold=50"
+            rustflags: "-C link-arg=-fuse-ld=$(rustc --print target-libdir)/../bin/gcc-ld/ld64.lld -C link-arg=-Wl,--icf=safe"
           - { name: windows-x86_64, os: windows-latest }
     env:
       # abi3: the cp311 wheel serves every Python from 3.11. No musllinux wheel (see docs).
       CIBW_BUILD: "cp311-*"
       CIBW_SKIP: "*-musllinux_*"
+      CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+      CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
       CIBW_BEFORE_ALL_LINUX: "curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal"
       CIBW_ENVIRONMENT_LINUX: 'PATH="$HOME/.cargo/bin:$PATH"'
-      CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment }}"
+      # Rust diagnostics and DuckDB C++ file macros otherwise embed the build user's home and source paths.
+      CIBW_ENVIRONMENT_MACOS: >-
+        MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment }}
+        RUSTFLAGS="--remap-path-prefix=$HOME=/build/host --remap-path-prefix=$HOME/.cargo/registry/src=/build/cargo-registry --remap-path-prefix=$(pwd -P)=/build/klongpy ${{ matrix.rustflags }}"
+        CFLAGS="-ffile-prefix-map=$HOME=/build/host -ffile-prefix-map=$(pwd -P)=/build/klongpy"
+        CXXFLAGS="$CFLAGS ${{ matrix.cxxflags }}"
       # A smoke test inside cibuildwheel's own environment, in a directory that holds no source.
       CIBW_TEST_COMMAND: 'kg -e "1+1" && kgpy -e "1+1"'
     steps:
@@ -69,14 +92,42 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: "3.12"
-    - name: Build the wheel
-      uses: pypa/cibuildwheel@v3.2
+    - uses: actions/download-artifact@v4
       with:
+        name: sdist
+        path: source-dist
+    - name: Locate the release source distribution
+      id: source
+      shell: bash
+      run: |
+        set -- source-dist/*.tar.gz
+        [ "$#" -eq 1 ]
+        [ -f "$1" ]
+        printf 'path=%s\n' "$1" >> "$GITHUB_OUTPUT"
+    - name: Build the wheel from the release source distribution
+      uses: pypa/cibuildwheel@v3.2.0
+      with:
+        package-dir: ${{ steps.source.outputs.path }}
         output-dir: wheelhouse
+    - name: Check macOS wheel for local build paths
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        python - <<'PY'
+        from pathlib import Path
+        from zipfile import ZipFile
+
+        home = (str(Path.home()) + "/").encode()
+        with ZipFile(next(Path("wheelhouse").glob("*.whl"))) as wheel:
+            leaked = [name for name in wheel.namelist() if home in wheel.read(name)]
+        if leaked:
+            raise SystemExit(f"Build home embedded in wheel members: {leaked}")
+        PY
     - uses: actions/upload-artifact@v4
       with:
         name: wheel-${{ matrix.name }}
         path: wheelhouse/*.whl
+        if-no-files-found: error
 
     # The suite against the wheel, not the source tree: install it into a fresh environment and make that installation win over the
     # checkout on sys.path (PYTHONSAFEPATH keeps the working directory off it, --import-mode=append puts the checkout last). The checkout
@@ -87,27 +138,49 @@ jobs:
         python -m venv "$RUNNER_TEMP/venv"
         VENV_BIN="$RUNNER_TEMP/venv/bin"; [ -d "$VENV_BIN" ] || VENV_BIN="$RUNNER_TEMP/venv/Scripts"
         echo "$VENV_BIN" >> "$GITHUB_PATH"
-        "$VENV_BIN/python" -m pip install wheelhouse/*.whl pytest pytest-asyncio aiohttp pandas duckdb websockets
+        "$VENV_BIN/python" -m pip install wheelhouse/*.whl pytest pytest-asyncio aiohttp pandas pyarrow duckdb websockets psutil
+        suffix=
+        [ "$RUNNER_OS" != Windows ] || suffix=.exe
+        printf 'KLONG_NATIVE=%s\nKLONG_V2_KGPY=%s\n' "$VENV_BIN/kg$suffix" "$VENV_BIN/kgpy$suffix" >> "$GITHUB_ENV"
     - name: Installed commands, and the package comes from the wheel
       shell: bash
       env:
         PYTHONSAFEPATH: "1"
       run: |
-        python -c "import klongpy, sys; print(klongpy.__version__, klongpy.__file__); sys.exit('site-packages' not in klongpy.__file__)"
-        kgpy -e "1+1"
-        kg -e "1+1"
+        cd "$RUNNER_TEMP"
+        unset PYTHONPATH KLONGPY_NATIVE_PATH
+        python -m pip check
+        python -c "from pathlib import Path; import klongpy, sys; print(klongpy.__version__, klongpy.__file__); assert Path(klongpy.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())"
+        "$KLONG_NATIVE" --capabilities
+        sql='t::.table(:{;"n";[1 2]});d::.db(:{;"t";t});.insert(t;[3]);d("SELECT sum(n) FROM t")'
+        python - "$sql" <<'PY'
+        import os
+        import subprocess
+        import sys
+
+        for variable in ("KLONG_NATIVE", "KLONG_V2_KGPY"):
+            command = os.environ[variable]
+            result = subprocess.check_output([command, "-e", sys.argv[1]], text=True).strip()
+            assert result == "6", (command, result)
+        PY
     - name: Conformance suite through the installed package
       # conformance/run.py puts its repository root on sys.path, so it runs from a copy that has no package beside it.
       shell: bash
       run: |
         mkdir "$RUNNER_TEMP/cf"
         cp -R conformance "$RUNNER_TEMP/cf/"
+        cd "$RUNNER_TEMP/cf"
+        unset PYTHONPATH KLONGPY_NATIVE_PATH
         python "$RUNNER_TEMP/cf/conformance/run.py"
+        python "$RUNNER_TEMP/cf/conformance/run.py" --cmd "\"$KLONG_NATIVE\" --conformance" --jobs 2
     - name: Test suite against the installed wheel
+      shell: bash
       env:
         PYTHONSAFEPATH: "1"
       # tests/test_compiler.py needs torch, which the wheel matrix does not install.
-      run: pytest tests -v --import-mode=append --ignore=tests/test_compiler.py
+      run: |
+        unset PYTHONPATH KLONGPY_NATIVE_PATH
+        python -m pytest tests -v --import-mode=append --ignore=tests/test_compiler.py
 
   # NOT ENABLED. Runs only for a manual start of this workflow, on a tag, with `publish` ticked.
   # The owner configures once (nothing here holds a secret):

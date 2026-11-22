@@ -4,7 +4,14 @@ This page describes the console that a board running the native Klong runtime of
 
 The transcripts below use the simulated board, because a serial device is not available to everyone. The console is the same code on a simulated board and on a real one. What has run on real hardware is in the [status table](index.md#status-what-has-and-has-not-been-proven).
 
-Commands are shown as if `klong-sim` is on your `PATH` (see [Building and Running](building.md)) and as run from the root of the repository.
+Run the examples from the repository root with `klong-sim` on your `PATH`. The workspace build includes the diagnostic and wide-argument features used by these examples. To build the simulator by itself with those features:
+
+```sh
+cargo build --locked --release --manifest-path native/Cargo.toml \
+  -p klong-sim --features klong-console/diag,klong-core/wide-args
+```
+
+The transcripts normalize the installed version to `VERSION`. [Building and Running](building.md)
 
 ## The console
 
@@ -23,8 +30,8 @@ The banner is `Klong VERSION (BOARD, int INTWIDTH float FLOATWIDTH)`, and `BOARD
 
 <!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
 ```console
-$ printf '1+2\n+/!10\nf::{x*x}\nf(12)\n1+"a"\n' | klong-sim
-Klong 2.0.0-rc.1 (sim, int64 float64)
+$ printf '1+2\n+/!10\nf::{x*x}\nf(12)\n1+"a"\n' | klong-sim | sed 's/^Klong [^ ]*/Klong VERSION/'
+Klong VERSION (sim, int64 float64)
 klong> 1+2
 3
 klong> +/!10
@@ -48,8 +55,8 @@ When a line leaves a bracket, a string or a comment open, the console does not e
 
 <!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
 ```console
-$ printf 'f::{x+\n   1}\nf(2)\n' | klong-sim
-Klong 2.0.0-rc.1 (sim, int64 float64)
+$ printf 'f::{x+\n   1}\nf(2)\n' | klong-sim | sed 's/^Klong [^ ]*/Klong VERSION/'
+Klong VERSION (sim, int64 float64)
 klong> f::{x+
      >    1}
 :monad
@@ -84,8 +91,8 @@ A program that runs for a long time is stopped with Ctrl-C. The console looks at
 
 <!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
 ```console
-$ (printf '{1}{x+1}:~0\n'; sleep 1; printf '\003'; sleep 1; printf '1+1\n') | klong-sim
-Klong 2.0.0-rc.1 (sim, int64 float64)
+$ (printf '{1}{x+1}:~0\n'; sleep 1; printf '\003'; sleep 1; printf '1+1\n') | klong-sim | sed 's/^Klong [^ ]*/Klong VERSION/'
+Klong VERSION (sim, int64 float64)
 klong> {1}{x+1}:~0
 1:1: interrupt error: interrupted
   {1}{x+1}:~0
@@ -99,8 +106,8 @@ Input that arrives while a program runs is kept, in order, up to 4096 bytes, and
 
 <!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
 ```console
-$ printf '{1}{x+1}:~0\n2+\003\n1+1\n' | klong-sim
-Klong 2.0.0-rc.1 (sim, int64 float64)
+$ printf '{1}{x+1}:~0\n2+\003\n1+1\n' | klong-sim | sed 's/^Klong [^ ]*/Klong VERSION/'
+Klong VERSION (sim, int64 float64)
 klong> {1}{x+1}:~0
 1:1: interrupt error: interrupted
   {1}{x+1}:~0
@@ -141,14 +148,14 @@ A transfer that gets no byte for 5 seconds is abandoned with `^A err system: tra
 
 `hex` takes records of types 00 (data), 01 (end of file), 02 and 04 (addresses); types 03 and 05 are acknowledged and ignored, and any other type is refused. Records may come in any order, and a gap reads as zero, so a binary file of any size can be sent in pieces. `N` in `ack` and `nak` counts the non-blank lines since `go`.
 
-These are the commands on the simulated board. The `--dumb` option turns the echo and the editor off, which is how a tool sees a board. The `cat -v` shows the byte `0x01` as `^A`, and `cut` keeps the stable part of the `ver` line (the rest is heap figures). `crc32 of 1+2` is `644ffa5c`.
+These are the commands on the simulated board. The `--dumb` option turns the echo and the editor off, which is how a tool sees a board. The `cat -v` shows the byte `0x01` as `^A`. The `ver` examples keep the stable fields and the simulator's base features. The full response includes any additional features enabled by the build and the heap figures. `crc32 of 1+2` is `644ffa5c`.
 
 <!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release -->
 ```console
-$ printf '\001ver\n' | klong-sim --dumb | cat -v | grep -a ver= | cut -d' ' -f2-8
-^Aok ver=2.0.0-rc.1 int=64 float=64 features=files,lib,timers,ipc platform=sim fs=1
-$ printf '\001run 3 644ffa5c\n1+2' | klong-sim --dumb | cat -v
-Klong 2.0.0-rc.1 (sim, int64 float64)
+$ printf '\001ver\n' | klong-sim --dumb | cat -v | grep -a ver= | cut -d' ' -f2-8 | sed 's/\(features=files,lib,timers,ipc\),[^ ]*/\1/' | sed 's/ver=[^ ]*/ver=VERSION/'
+^Aok ver=VERSION int=64 float=64 features=files,lib,timers,ipc platform=sim fs=1
+$ printf '\001run 3 644ffa5c\n1+2' | klong-sim --dumb | cat -v | sed 's/^Klong [^ ]*/Klong VERSION/'
+Klong VERSION (sim, int64 float64)
 klong> ^Ago
 3
 ^Aok value 1
@@ -212,8 +219,8 @@ With `--pty` the simulated board shows up as a serial device that any program ca
 ```console
 $ klong-sim --pty > sim.txt 2>&1 & echo $! > sim.pid; sleep 1; sed -n 's/^pty: //p' sim.txt > port; test -s port && echo started
 started
-$ python native/tools/kgupload.py $(cat port) ver | cut -d' ' -f1-6
-ver=2.0.0-rc.1 int=64 float=64 features=files,lib,timers,ipc platform=sim fs=1
+$ python native/tools/kgupload.py $(cat port) ver | cut -d' ' -f1-6 | sed 's/\(features=files,lib,timers,ipc\),[^ ]*/\1/' | sed 's/ver=[^ ]*/ver=VERSION/'
+ver=VERSION int=64 float=64 features=files,lib,timers,ipc platform=sim fs=1
 ```
 
 (The device name differs on every run, `/dev/ttys007` on the machine where this was written, so the commands read it from the file `port`.) This block and the next three share one directory and one running simulation, and the last one stops it.
@@ -287,7 +294,7 @@ $ python -c 'import sys; sys.stdout.buffer.write(bytes(range(256)) * 4)' > blob.
 $ python native/tools/kgupload.py $(cat port) upload blob.bin | sed 's/, [0-9.]* s$//'
 blob.bin: 1024 bytes, crc32 b70b4c26, hex
 $ printf 'sq::{x*x\n' > bad.kg
-$ python native/tools/kgupload.py $(cat port) upload bad.kg 2>&1 | sed 's/, [0-9.]* s$//'
+$ python native/tools/kgupload.py $(cat port) upload bad.kg >upload.out 2>upload.err; cat upload.err upload.out | sed 's/, [0-9.]* s$//'
 kgupload: bad.kg: warn syntax: expected '}' but found end of input at 2:1
 bad.kg: 9 bytes, crc32 f44f241c, put
 $ python native/tools/kgupload.py $(cat port) upload nofile.kg; echo $?
@@ -299,10 +306,10 @@ A `.kg` file that does not parse is stored all the same, with the warning. The f
 
 <!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native; continue -->
 ```console
-$ python native/tools/kgupload.py $(cat port) reset | cut -d' ' -f1-5
-ver=2.0.0-rc.1 int=64 float=64 features=files,lib,timers,ipc platform=sim
+$ python native/tools/kgupload.py $(cat port) reset | cut -d' ' -f1-5 | sed 's/\(features=files,lib,timers,ipc\),[^ ]*/\1/' | sed 's/ver=[^ ]*/ver=VERSION/'
+ver=VERSION int=64 float=64 features=files,lib,timers,ipc platform=sim
 $ python native/tools/kgupload.py $(cat port) run -e '.l("lib.kg")'; echo $?
-error: system: file does not exist: lib.kg (looked for lib.kg, lib/lib.kg; a relative path is searched in the directories of KLONGPATH, taken from the current directory) at 1:1
+error: system: file does not exist: lib.kg (looked for lib.kg, lib/lib.kg, then the bundled library) at 1:1
 1
 ```
 
@@ -340,9 +347,9 @@ Without `--port` it starts simulated boards, one per job, and talks to each thro
 <!-- check-docs: requires-file native/target/release/klong-sim; path native/target/release; link native conformance -->
 ```console
 $ python native/scripts/console_conformance.py | tail -1 | cut -c1-40
-total                         1704  1704
+total                         1716  1716
 ```
 
-That passed 1704 of 1704 on 2026-11-18 in about 3 seconds with 8 simulated boards. To make the simulation as small as a board, add `-- --stack-budget 64K --heap-limit 1M --crlf`; the simulated runs of the project gave 1265 of 1266 (the suite of 2026-11-16; see [why the counts differ](../conformance.md#why-the-counts-differ)) with a 64 KiB stack and 1264 with 32 KiB, because the missing cases recurse deeply and end with a `range` error. The same script ran against a real board, an ESP32-P4: 1266 of 1266 over the serial port in 1877 seconds, see the [ESP32-P4](esp32-p4.md) page.
+That passed 1716 of 1716 on 2026-11-19 in about 3 seconds with 8 simulated boards. To make the simulation as small as a board, add `-- --stack-budget 64K --heap-limit 1M --crlf`; the simulated runs of the project gave 1265 of 1266 (the suite of 2026-11-16; see [why the counts differ](../conformance.md#why-the-counts-differ)) with a 64 KiB stack and 1264 with 32 KiB, because the missing cases recurse deeply and end with a `range` error. The same script ran against a real board, an ESP32-P4: 1266 of 1266 over the serial port in 1877 seconds, see the [ESP32-P4](esp32-p4.md) page.
 
 The runner needs a `System::reset` that really resets, because without it all cases share one interpreter and some fail. It needs a banner within `--timeout`, and a `max_run` of at least the largest case (under 4 KiB). The `sysio` cases write files, and on a board without storage you leave them out with `--tags`. `--narrow` selects the cases of a build with `int32,float32`.

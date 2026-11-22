@@ -1,5 +1,5 @@
 :" accept: string - a string literal passed to a str parameter of an extern "
 
-.extern("log.msg";"str int -> void")
-f::{log.msg("tick";x);x}
+msg::.extern("log_msg";"str int -> void")
+f::{msg("tick";x);x}
 .entry("f";"int -> int")

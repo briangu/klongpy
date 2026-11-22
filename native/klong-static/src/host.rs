@@ -3,7 +3,7 @@
 //!
 //! ```ignore
 //! let mut externs = HashMap::new();
-//! externs.insert("read.adc".to_string(), native_fn(|a| Ok(Value::Flt(0.3))));
+//! externs.insert("read_adc".to_string(), native_fn(|a| Ok(Value::Flt(0.3))));
 //! let mut p = load_program("examples/embedded/pid.kg", None, externs)?;
 //! call_entry(&mut p, "step", &[HostValue::Float(0.31)], None, false)?;     // Float(0.12005)
 //! ```
@@ -191,7 +191,7 @@ fn conform_fixed(ty: &Ty, value: &HostValue, what: &str) -> Result<HostValue, Mi
 
 /// Check `value` against `ty` and return it in the canonical host form: `int` an Int; `float` a Float (an int is accepted and converted);
 /// `int[..]` Ints of exactly that shape; `float[..]` Floats of exactly that shape (ints converted); `fixed<W,I>[..]` Fixed; `str` Str;
-/// `void` Void, whatever the value. `what` names the value in the message ("argument 1 of read.adc").
+/// `void` Void, whatever the value. `what` names the value in the message ("argument 1 of read_adc").
 pub fn conform(ty: &Ty, value: &HostValue, what: &str) -> Result<HostValue, Mismatch> {
     if ty.elem == "void" {
         return Ok(HostValue::Void);
@@ -306,14 +306,6 @@ impl Loaded {
     }
 }
 
-fn abspath(p: &str) -> String {
-    if p.starts_with('/') {
-        return p.to_string();
-    }
-    let cwd = std::env::current_dir().map(|c| c.to_string_lossy().into_owned()).unwrap_or_default();
-    klong_lint::recover::py_join(&cwd, p)
-}
-
 /// Run a program and return what holds its state.
 ///
 /// `path` is the file to run (or, with `text`, the name the text is known by); `externs` are the stand-ins, bound before the program
@@ -327,20 +319,20 @@ pub fn load_program(path: &str, text: Option<&str>, externs: HashMap<String, Hos
     };
     let is_file = std::fs::metadata(path).map(|m| m.is_file()).unwrap_or(false);
     let mut rt = stage_runtime();
-    let run_name = if is_file { abspath(path) } else { path.to_string() };
+    let run_name = if is_file { klong_host::absolute_module_path(path) } else { path.to_string() };
     if is_file {
         rt.set_program(&run_name);
     }
     // a function the host registered before the declaration is what `.extern` binds
     for (name, f) in &externs {
-        rt.interp.register(name, WILDCARD, f.clone());
+        let _ = rt.declarations.provide(name, f.clone());
     }
     rt.run(&text, &run_name)?;
     // an extern declared by a function that ran later (or one whose name the program defined itself) is bound now
-    let declared: Vec<String> = rt.declarations.externs().into_iter().map(|(n, _, _)| n).collect();
+    let declared: Vec<String> = rt.declarations.externs().into_iter().map(|(n, _)| n).collect();
     for name in declared {
         if let Some(f) = externs.get(&name) {
-            rt.declarations.bind(&mut rt.interp, &name, f.clone())?;
+            rt.declarations.bind(&name, f.clone())?;
         }
     }
     Ok(Loaded { rt: RtHandle::Owned(Box::new(rt)), path: path.to_string(), text, externs, evaluator: None })

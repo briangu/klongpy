@@ -238,7 +238,7 @@ class Build:
         fb, ib = self.float_bits, self.int_bits
         for x in self.program.externs:
             sig = x.signature
-            fn = self.externs.get(x.name)
+            fn = self.externs.get(x.c_name)        # stand-ins are keyed by C symbol
             if fn is None:
                 continue
             argtypes = []

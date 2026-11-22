@@ -3,7 +3,7 @@ Autograd system functions for KlongPy.
 
 Provides .grad() for the numeric gradient (the ASCII form of the nabla operator).
 Provides .jacobian() for Jacobian matrix computation.
-Provides .bkx() for graph export (torch only; .export belongs to the module system).
+Provides .export() for graph export (torch only).
 
 For optimizers (SGD, Adam), see klongpy/optimizers.py: .pyf("klongpy.optimizers";"SGDOptimizer").
 """
@@ -55,10 +55,10 @@ def eval_sys_jacobian(klong, x, y):
     return jacobian_of_fn(klong, x, y)
 
 
-def eval_sys_backend_export(klong, x, y, z):
+def eval_sys_export(klong, x, y, z):
     """
 
-        .bkx(x;y;z)                                          [Backend-Export]
+        .export(x;y;z)                                          [Export]
 
         Export a function's computation graph to a file for inspection.
         Requires the torch backend (kgpy --backend torch, or KlongInterpreter(backend="torch")).
@@ -76,7 +76,7 @@ def eval_sys_backend_export(klong, x, y, z):
 
         Examples:
             f::{x^2}
-            info::.bkx(f;3.0;"model.pt2")
+            info::.export(f;3.0;"model.pt2")
             .p(info@"graph")              :" Print computation graph
 
         Notes:
@@ -90,7 +90,7 @@ def eval_sys_backend_export(klong, x, y, z):
 
     backend = klong._backend
     if not backend.supports_autograd():
-        raise _needs_torch(".bkx()")
+        raise _needs_torch(".export()")
 
     # Wrap the Klong function for torch
     def wrapped_fn(v):

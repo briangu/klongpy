@@ -1,7 +1,7 @@
 :" ============================================================"
-:" Graph export with .bkx()"
+:" Graph export with .export()"
 :" ============================================================"
-:" .bkx(fn;input;path) runs a function once, records every tensor"
+:" .export(fn;input;path) runs a function once, records every tensor"
 :" operation it executes (torch.export) and saves the exported program."
 :" Compile the exported program with torch if you want it compiled:"
 :"   torch.compile(torch.export.load(path).module())"
@@ -19,7 +19,7 @@ poly::{(x^4)-(3*x^3)+(2*x^2)-x+1}
 .pf("  poly(3) = {}";poly(3.0))
 .p("")
 
-info::.bkx(f;3.0;"export_demo.pt2")
+info::.export(f;3.0;"export_demo.pt2")
 .pf("  saved to: {}";info@"export_path")
 .p("  graph:")
 .p(info@"graph")

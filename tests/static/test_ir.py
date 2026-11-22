@@ -99,10 +99,10 @@ class TestDriver(unittest.TestCase):
 
     def test_a_compile_time_extern_call_without_a_stand_in_names_the_extern(self):
         # engine needs: compile_program takes no stand-ins, so the program that needs one at compile time cannot be compiled
-        text = '.extern("read.adc";"int -> float")\ncal::read.adc(0)\nf::{x+cal}\n.entry("f";"float -> float")'
+        text = 'adc::.extern("read_adc";"int -> float")\ncal::adc(0)\nf::{x+cal}\n.entry("f";"float -> float")'
         with self.assertRaises(KlongError) as cm:
             compile_text(text)
-        self.assertIn("read.adc", str(cm.exception))
+        self.assertIn("read_adc", str(cm.exception))
 
     def test_the_default_prefix_is_a_c_identifier(self):
         self.assertEqual(c_prefix("examples/embedded/mavg.kg"), "mavg")

@@ -1,6 +1,6 @@
 # Lint: `kgpy lint`
 
-`kgpy lint FILE...` reads Klong programs and reports constructs that parse and run without complaint but usually do not mean what they look like. The linter is part of the engine, so `kg lint FILE...` does the same without Python. It tokenises and parses. It never evaluates anything, never starts the REPL or an event loop, never imports a Python module, and never runs a file that `.l` or `.import` loads. A file that contains `.x(3)` lints with exit status 0.
+`kg lint FILE...` and `kgpy lint FILE...` use the same Rust linter to report likely mistakes before a program runs. The linter parses the source and can read the interface of a file named in a literal `.l` call. Linting a file containing `.x(3)` exits with status 0 because the linter does not execute the program.
 
 ```console
 $ cat > demo.kg <<'EOF'
@@ -60,13 +60,13 @@ $ echo 'my_var::5' | kgpy lint - --select W010 ; echo $?
 $ echo '1+' | kgpy lint - --ignore E001 ; echo $?
 0 errors, 0 warnings in 1 file
 0
-$ kgpy lint nothing.kg demo.kg --select W001 ; echo $?
+$ kgpy lint nothing.kg demo.kg --select W001 >lint.out 2>lint.err; status=$?; cat lint.err lint.out; echo "$status"
 nothing.kg: cannot read: No such file or directory
 demo.kg:1:1: W001 'my_var' reads as my _ var: _ is the Drop operator, names cannot contain underscores
 0 errors, 1 warning in 1 file
 2
 $ echo 'a' | kgpy lint - --select W999 ; echo $?
-kgpy lint: unknown lint code 'W999'; codes are W001, W002, W003, W010, W011, W012, W013, W014, W015, W016, W017, W018, W019, W020, W021, W022, E001, E002, E003, E004
+kgpy lint: unknown lint code 'W999'; codes are W001, W002, W003, W010, W011, W012, W013, W014, W015, W016, W017, W018, W019, W020, W021, W022, W023, E001, E002, E003, E004, E005
 2
 ```
 
@@ -100,10 +100,12 @@ Lint reports from the text what the interpreter reports when it runs. This table
 | `E002` | At strict level 2, an `arity` error. Below level 2 the extra arguments are dropped. |
 | `W002` | At strict level 2, a `name` error (`undefined: a`). Below level 2 the name evaluates to its own symbol. |
 | `W003`, `W010`, `W011`, `W012`, `W016`, `W017`, `W018`, `W019`, `W020` | None. The program runs and gives a value that is probably not the one intended. |
-| `E003` | A `type` error: the value that `.import` returned is read-only. |
-| `E004` | A `name` error: the module has no such entry. |
+| `E003` | A `type` error: a module is read-only. |
+| `E004` | A `name` error: the module has no such entry (also for an entry named in `.l(path;[names])`). |
+| `E005` | A `type` error: `.extern` returns a function, and a statement that discards it declares nothing. |
 | `W021` | A `name` error, or at level 0 a new entry, when the base is not a dictionary: `a.b::v` is `a@"b"` written. |
 | `W022` | None. |
+| `W023` | None. The program gets the local file; the engine adds a warning to its warning list. |
 | `W001` | None. `my_var` runs as `my _ var`. |
 | `W013` | None. The nested conditional is correct; the chain form is shorter. |
 | `W014` | The parenthesised part is dropped; a space before an adverb is a `syntax` error (also `E001`). |
@@ -280,9 +282,20 @@ $ printf 'q.x::1\n' | kgpy lint -
 0 errors, 2 warnings in 1 file
 ```
 
-### W022: an import that is never used
+### W022: a module that is never used
 
-A top-level `name::.import(...)` whose `name` is never read in the file. Remove the line, or use a qualified name such as `name.f`.
+A top-level `.l("file")` or `.l("file";:alias)` of a module whose bound name (the file's name, or the alias) is never read in the file. Remove the line, or use a qualified name such as `name.f`.
+
+```console
+$ printf 'sq(v)::{v*v}\nexport:::{;"sq";sq}\n' > geom.kg
+$ printf '.l("./geom";:g)\n' | kgpy lint -
+<stdin>:1:1: W022 the module g is never used
+0 errors, 1 warning in 1 file
+```
+
+### W023: a local file shadows a bundled library file
+
+A bare name given to `.l` is looked for in the directory of the file that contains the `.l`, then in `KLONGPATH`, then in the bundled library. When a file found in the first two places has the name of a library file (`csv`, `nstat`, `math`, ...) and is not that file, the program gets the local file and the linter says so. Write `./name` to say that the local file is meant, or rename it. The interpreter adds the same finding to its warning list.
 
 ### E001: a syntax error at strict level 1
 
@@ -312,31 +325,46 @@ $ printf 'f(a;b)::{a+b}\nf(1;2;3)\n' | kgpy lint -
 1 error, 0 warnings in 1 file
 ```
 
-### E003: an assignment to what `.import` returned
+### E003: an assignment to an entry of a module
 
-A module is read-only. Writing `m.name::v`, where `m` was set by `m::.import(...)`, is a type error when it runs.
+A module is read-only. Writing `m.name::v`, where `m` was bound by `.l`, is a type error when it runs.
 
 ```console
-$ printf 'm::.import("./geom")\nm.sq::5\nm.sq(2)\n' | kgpy lint -
-<stdin>:2:1: E003 cannot assign m.sq: m holds what .import returned, which is read-only
+$ printf 'sq(v)::{v*v}\ncube(v)::{v*sq(v)}\nexport:::{;"sq";sq;"cube";cube}\n' > geom.kg
+$ printf '.l("./geom")\ngeom.sq::5\ngeom.sq(2)\n' | kgpy lint -
+<stdin>:2:1: E003 cannot assign geom.sq: geom holds a module, which is read-only
 1 error, 0 warnings in 1 file
 ```
 
 ### E004: a qualified name the module does not export
 
-When the imported file is found and its `.export` is a literal dictionary, a read of `m.name` that the export does not list is a name error when it runs. The rule needs the file; with `-v` the hint lists what the module exports.
+When the loaded file is found and its `export` is a literal dictionary, a read of `m.name` that the export does not list is a name error when it runs. So is an entry that `.l(path;[names])` asks for and the module lacks. The rule needs the file; with `-v` the hint lists what the module exports.
+
+<!-- check-docs: continue -->
+```console
+$ printf '.l("./geom")\ngeom.nope\n' | kgpy lint - -v
+<stdin>:2:1: E004 geom has no entry "nope"
+  hint: the module exports: cube sq
+1 error, 0 warnings in 1 file
+$ printf '.l("./geom";["sq" "nope"])\nsq(2)\n' | kgpy lint - -v
+<stdin>:1:1: E004 ./geom has no entry "nope"
+  hint: the module exports: cube sq
+1 error, 0 warnings in 1 file
+```
+
+### E005: an `.extern` whose value is discarded
+
+`.extern(c_symbol;signature)` returns the host function as a value. A statement that only calls it declares nothing a program can use, and it is a `type` error when it runs. Assign it, in a module file that exports it.
 
 ```console
-$ printf 'sq(v)::{v*v}\ncube(v)::{v*sq(v)}\n.export(:{;"sq";sq;"cube";cube})\n' > geom.kg
-$ printf 'm::.import("./geom")\nm.nope\n' | kgpy lint - -v
-<stdin>:2:1: E004 m has no entry "nope"
-  hint: the module exports: cube sq
+$ printf '.extern("read_adc";"int -> float")\n' | kgpy lint -
+<stdin>:1:1: E005 .extern returns the host function as a value, and this statement throws it away
 1 error, 0 warnings in 1 file
 ```
 
 ## How names are resolved
 
-W002, W012, E002 and E004 use a table of what the file defines: top-level `name::...`, the destructuring targets, the locals and parameters of each function, the names the system defines, and the names that the files it loads define. A file loaded with `.l("file")`, with a literal argument, is looked up as `.l` looks it up: `file` and `file.kg` in each `KLONGPATH` directory (by default `.` and `lib`) taken from the current directory, then in the package library, then in the directory of the file that contains the `.l`. `kgpy`, `kgpy check` and `kgpy compile c` use the same order. It is parsed, not run.
+W002, W012, E002 and E004 use a table of what the file defines: top-level `name::...`, the destructuring targets, the locals and parameters of each function, the names the system defines, and the names that the files it loads define. A file loaded with `.l("file")`, with a literal argument, is looked up as `.l` looks it up: `file` and `file.kg` in the directory of the file that contains the `.l` (the working directory for standard input), then in each `KLONGPATH` directory (by default `.` and `lib`), then in the bundled library. The decision whether a file is a module (it assigns `export` at its top level) and the search order are the interpreter's: one implementation, `klong-core`'s `module.rs`, serves the interpreter, the linter and the checker. `kgpy`, `kgpy check` and `kgpy compile c` use the same order. It is parsed, not run.
 
 ```console
 $ printf 'inc::{x+1}\n' > inc.kg

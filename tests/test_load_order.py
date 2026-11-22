@@ -1,6 +1,6 @@
 """One search order for ``.l``: run, ``kgpy lint``, ``kgpy check`` and ``kgpy compile c`` agree.
 
-KLONGPATH directories (default ``.:lib``) from the working directory, then the directory of the program.
+The calling file's directory, KLONGPATH directories, then the bundled library.
 """
 import os
 import subprocess
@@ -44,7 +44,7 @@ class TestLoadOrder(unittest.TestCase):
         self.assertEqual((rc, out.strip()), (0, "1"), err)          # only beside the program
         write(self.wd, "common.kg", "which::{x+2}\n")
         rc, out, err = self.kgpy("../prog/p.kg")
-        self.assertEqual((rc, out.strip()), (0, "2"), err)          # the working directory wins
+        self.assertEqual((rc, out.strip()), (0, "1"), err)
 
     # -- lint ----------------------------------------------------------------------------------------------
     def test_lint(self):
@@ -55,16 +55,50 @@ class TestLoadOrder(unittest.TestCase):
         self.assertEqual(rc, 0, out + err)                          # found beside the program
         write(self.wd, "common.kg", "k::{1}\n")
         rc, out, err = self.kgpy("lint", "../prog/p.kg")
-        self.assertEqual(rc, 1, out + err)                          # the working directory wins: E002
-        self.assertIn("E002", out)
+        self.assertEqual(rc, 0, out + err)
 
-    def test_lint_klongpath_before_program_directory(self):
+    def test_lint_klongpath_after_program_directory(self):
         write(self.base, "prog/common.kg", "k::{x+1}\n")
         write(self.base, "kp/common.kg", "k::{1}\n")
         write(self.base, "prog/p.kg", '.l("common")\n.p(k(1))\n')
         self.env["KLONGPATH"] = os.path.join(self.base, "kp")
         rc, out, err = self.kgpy("lint", "../prog/p.kg")
+        self.assertEqual(rc, 0, out + err)
+        os.remove(os.path.join(self.base, "prog/common.kg"))
+        rc, out, err = self.kgpy("lint", "../prog/p.kg")
+        self.assertEqual(rc, 1, out + err)
         self.assertIn("E002", out)
+
+    def test_native_path_separators_and_spaces(self):
+        library = os.path.join(self.base, "a library with spaces")
+        first = os.path.join(self.base, "empty library")
+        os.makedirs(first)
+        self.env["KLONGPATH"] = os.pathsep.join(("", first, library, ""))
+        self.env["NO_COLOR"] = "1"
+        write(library, "sibling.kg", 'increment::{x+123}\nexport:::{;"increment";increment}\n')
+        write(library, "entry.kg", f'.l(".{os.sep}sibling";:s)\n' 'export:::{;"increment";s.increment}\n')
+        entry = write(self.base, "prog/entrycheck.kg", '.l("entry";:m)\nf::{m.increment(x)}\n.entry("f";"int -> int")\n')
+        script = write(self.base, "prog/run.kg", f'.l(".{os.sep}entrycheck")\n.p(f(0))\n')
+        binary = os.environ.get("KLONG_NATIVE") or os.path.join(
+            ROOT, "native", "target", "release", "kg.exe" if os.name == "nt" else "kg")
+        commands = [[sys.executable, "-W", "ignore", "-m", "klongpy.cli"]]
+        if os.path.isfile(binary):
+            commands.append([os.path.abspath(binary)])
+        for index, command in enumerate(commands):
+            def invoke(*args):
+                result = subprocess.run(command + list(args), cwd=self.wd, env=self.env,
+                                        stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                return result.stdout
+
+            with self.subTest(command=command):
+                self.assertEqual(invoke(script).strip(), "123")
+                invoke("lint", entry)
+                invoke("check", entry)
+                out = os.path.join(self.base, f"compiled-{index}")
+                invoke("compile", "c", entry, "-o", out)
+                with open(os.path.join(out, "entrycheck.c")) as generated:
+                    self.assertIn("123", generated.read())
 
     # -- check and compile ---------------------------------------------------------------------------------
     PROGRAM = '.l("common")\nf::{k(x)}\n.entry("f";"int -> int")\n'
@@ -78,14 +112,17 @@ class TestLoadOrder(unittest.TestCase):
         rc, out, err = self.kgpy("check", "../prog/q.kg")
         self.assertNotEqual(rc, 0)
         self.assertIn("cannot find the file", out + err)
-        self.assertIn("then the directory of the program", out + err)
+        self.assertIn("KLONGPATH", out + err)
         # beside the program a file with an effect at top level; in the working directory a good one
         write(self.base, "prog/common.kg", "k::{x+10}\n.p(1)\n")
         rc, out, err = self.kgpy("check", "../prog/q.kg")
         self.assertNotEqual(rc, 0, out + err)
         write(self.wd, "common.kg", "k::{x+20}\n")
         rc, out, err = self.kgpy("check", "../prog/q.kg")
-        self.assertEqual(rc, 0, out + err)                          # the working directory wins
+        self.assertNotEqual(rc, 0, out + err)
+        os.remove(os.path.join(self.base, "prog/common.kg"))
+        rc, out, err = self.kgpy("check", "../prog/q.kg")
+        self.assertEqual(rc, 0, out + err)
 
     def test_compile_c(self):
         write(self.base, "prog/q.kg", self.PROGRAM)
@@ -100,7 +137,7 @@ class TestLoadOrder(unittest.TestCase):
         rc, out, err = self.kgpy("compile", "c", "../prog/q.kg", "-o", out2)
         self.assertEqual(rc, 0, out + err)
         with open(os.path.join(out2, "q.c")) as f:
-            self.assertIn("kg_iadd(a0_x, 20)", f.read())            # the working directory wins
+            self.assertIn("kg_iadd(a0_x, 10)", f.read())
 
     def test_compile_does_not_change_directory(self):
         write(self.base, "prog/q.kg", self.PROGRAM)

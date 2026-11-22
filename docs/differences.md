@@ -137,7 +137,7 @@ Use a scalar base and exponent when the result can exceed 64 bits. A list result
 These are not repeated here. Each is a change from classic Klong that is documented where it is used.
 
 - **Function arity.** A function has as many arguments as the highest of `x`, `y` and `z` its body uses, wherever it uses them, so `{-x}` is a monad. See [How many arguments a function takes](language-additions.md#how-many-arguments-a-function-takes).
-- **Names with a dot and modules.** `a.b` is `a@"b"` on any dictionary, and a file that ends with `.export` is a module that `.import` brings in. Classic Klong has neither: its `.l` writes every name of a file into the globals, and a dot is part of a name. See [Modules](language-additions.md#modules).
+- **Names with a dot and modules.** `a.b` is `a@"b"` on any dictionary, and a file that assigns the variable `export` is a module that `.l` binds (`.l("geom")`, `.l("geom";:g)`, `.l("geom";["sq"])`). Classic Klong has neither: its `.l` writes every name of a file into the globals, and a dot is part of a name. See [Modules](language-additions.md#modules).
 - **Dictionary literals.** An operator or a function as a key, and an entry that is not exactly `[key value]`, are syntax errors. See [Dictionaries](language-additions.md#dictionaries).
 - **Scope.** A function with named parameters, `f(a;b)::{...}`, is lexically scoped: a free name is found in its own frame and then the globals of its file or module, never in its caller's locals. A classic function keeps Klong's dynamic scope. See [Migrating to v2](migrating-to-v2.md#named-parameters-are-lexically-scoped).
 - **Calls with too few arguments are projections**, `f(1)` being `f(1;)`, at every strict level. See the [release notes](release-notes.md).

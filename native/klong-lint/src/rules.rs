@@ -822,17 +822,6 @@ impl<'a> Linter<'a> {
             if an.is_cop(i + 1, "::") && !toks[i].is_qualified(&an.src.text) {
                 continue;
             }
-            // an entry that no dotted extern declares: the name is not defined (read.dac after .extern("read.adc";...))
-            if toks[i].is_qualified(&an.src.text) {
-                if let Some(entries) = an.extern_entries.get(nm) {
-                    let full = &an.src.text[toks[i].s..toks[i].e];
-                    let key = full.split('.').nth(1).unwrap_or("");
-                    if !entries.contains(key) && f.fnf.is_none() {
-                        let sp = self.span_of(i, None);
-                        self.add("W002", sp, format!("'{}' is never defined in this file", full), Some(&format!("an undefined name evaluates to its own symbol, :{}", full)));
-                    }
-                }
-            }
             if i + 1 < n && matches!(toks[i + 1].k, K::LParen | K::CallP) && !toks[i + 1].ws {
                 if let Some(&cf) = an.open_frame.get(&(i + 1)) {
                     if an.frames[cf].is_header {
@@ -863,10 +852,11 @@ impl<'a> Linter<'a> {
     }
 
     // -- E003, E004, W021, W022: qualified names and imports ---------------------------------------------------
-    /// `a.b` is `a@"b"`, and `alias::.import("file")` binds a module (docs/design-principles.md, principles 4 and 5):
-    /// E003 writes an entry of an import, E004 reads one the module does not export (when the file and its literal `.export` are
-    /// found), W021 `a.b::v` where `a` is never a dictionary (in version 1 it defined a variable named `a.b`), W022 an import that
-    /// is never used.
+    /// `a.b` is `a@"b"`, and `.l` binds a module (docs/design-principles.md, principles 4 and 5):
+    /// E003 writes an entry of a module (it is read-only), E004 reads or binds one the module does not export (when the file and its
+    /// literal `export` are found), W021 `a.b::v` where `a` is never a dictionary (in version 1 it defined a variable named `a.b`),
+    /// W022 a module that `.l` bound and the program never uses, W023 a local file that shadows a bundled library file of the same
+    /// name, E005 a statement that calls `.extern` and throws the function away.
     fn modules(&mut self) {
         let an = self.an;
         let toks = &an.toks;
@@ -903,7 +893,7 @@ impl<'a> Linter<'a> {
             let write = an.is_cop(i + 1, "::");
             if let Some(m) = is_alias {
                 if write {
-                    self.add("E003", (t.s, t.e), format!("cannot assign {}: {} holds what .import returned, which is read-only", full, base), Some("copy it with  e:::{};e::e,m  or change the module's file"));
+                    self.add("E003", (t.s, t.e), format!("cannot assign {}: {} holds a module, which is read-only", full, base), Some("copy it with  e:::{};e::e,m  or change the module's file"));
                 } else if let Some(ex) = &m.exports {
                     if !ex.contains(key) {
                         let list: Vec<&str> = ex.iter().map(|s| s.as_str()).collect();
@@ -930,8 +920,19 @@ impl<'a> Linter<'a> {
         for m in &an.mod_imports {
             if m.top && !used.contains(m.alias.as_str()) && aliases.contains_key(m.alias.as_str()) {
                 let t = &toks[m.idx];
-                self.add("W022", (t.s, t.e), format!("the import {} is never used", m.alias), Some("remove the line, or use a qualified name such as alias.name"));
+                self.add("W022", (t.s, t.e), format!("the module {} is never used", m.alias), Some("remove the line, or use a qualified name such as module.name"));
             }
+        }
+        for (idx, spec, name, have) in &an.missing_entries {
+            let t = &toks[*idx];
+            self.add("E004", (t.s, t.e), format!("{} has no entry \"{}\"", spec, name), Some(&format!("the module exports: {}", have.join(" "))));
+        }
+        for (idx, name, path) in &an.shadows {
+            let t = &toks[*idx];
+            self.add("W023", (t.s, t.e), format!("\"{}\" finds {}, which shadows the bundled library file of the same name", name, path), Some(&format!("rename the file, or write \"./{}\" to say that the local file is meant", name)));
+        }
+        for &sp in &an.discarded_externs {
+            self.add("E005", sp, ".extern returns the host function as a value, and this statement throws it away".to_string(), Some("assign it, in a module file that exports it:  adc::.extern(\"read_adc\";\"int -> float\")  and  export:::{;\"adc\";adc}"));
         }
     }
 

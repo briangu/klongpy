@@ -1,5 +1,5 @@
 :" accept: void-value - a void extern called as a statement "
 
-.extern("led.set";"int -> void")
-f::{led.set(x);x}
+set::.extern("led_set";"int -> void")
+f::{set(x);x}
 .entry("f";"int -> int")

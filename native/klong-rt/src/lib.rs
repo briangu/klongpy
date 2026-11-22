@@ -11,6 +11,9 @@
 
 extern crate alloc;
 
+#[cfg(feature = "tables")]
+pub mod tables;
+
 pub mod declare;
 pub mod events;
 pub mod heap;
@@ -68,8 +71,6 @@ pub struct Shared<P: Platform> {
     /// The tick reported the armed Ctrl-C.
     pub armed_hit: core::cell::Cell<bool>,
     pub(crate) io: RefCell<Io>,
-    /// The modules `.import` has made (`modules.rs`).
-    pub(crate) mods: modules::ModsRef,
 }
 
 #[cfg_attr(not(feature = "files"), allow(dead_code))]
@@ -198,6 +199,17 @@ pub(crate) fn is_false(v: &Value) -> bool {
 }
 
 impl<P: Platform + 'static> Runtime<P> {
+    /// Values owned by the parked runtime apart from the language evaluator.
+    pub fn visit_host_roots(&self, visit: &mut dyn FnMut(&Value)) {
+        let io = self.shared.io.borrow();
+        for value in [&io.from, &io.to, &io.cin, &io.cout] {
+            visit(value);
+        }
+        self.events.visit_host_roots(visit);
+        #[cfg(feature = "params")]
+        self.declarations.visit_host_roots(visit);
+    }
+
     pub fn new(mut platform: P, cfg: Config, mem: Option<MemStats>) -> Runtime<P> {
         let rng = platform.entropy() | 1;
         let start_us = platform.now_us();
@@ -211,7 +223,6 @@ impl<P: Platform + 'static> Runtime<P> {
             ctrl_c_seen: core::cell::Cell::new(false),
             armed_hit: core::cell::Cell::new(false),
             io: RefCell::new(Io { from: Value::Undefined, to: Value::Undefined, cin: Value::Undefined, cout: Value::Undefined, rng, start_us, path, home: Vec::new() }),
-            mods: RefCell::new(modules::Mods::default()),
         });
         let mut interp = Interp::new(cfg, Box::new(RtHooks { shared: shared.clone() }));
 
@@ -413,16 +424,19 @@ impl<P: Platform + 'static> Runtime<P> {
                 d.set(Value::text("int")?, Value::Int(klong_core::INT_BITS as Int))?;
                 d.set(Value::text("float")?, Value::Int(klong_core::FLT_BITS as Int))?;
                 let mut features = Vec::new();
-                for (on, name) in [(cfg!(feature = "files"), "files"), (cfg!(feature = "lib"), "lib"), (cfg!(feature = "int32"), "int32"), (cfg!(feature = "float32"), "float32"), (cfg!(feature = "timers"), "timers"), (cfg!(feature = "ipc"), "ipc")] {
+                for (on, name) in [(cfg!(feature = "files"), "files"), (cfg!(feature = "lib"), "lib"), (cfg!(feature = "int32"), "int32"), (cfg!(feature = "float32"), "float32"), (cfg!(feature = "timers"), "timers"), (cfg!(feature = "ipc"), "ipc"), (cfg!(feature = "tables"), "tables")] {
                     if on {
                         features.push(Value::text(name)?);
                     }
                 }
-                d.set(Value::text("features")?, Value::from_items(features)?)?;
                 let name = match sh.platform.try_borrow() {
-                    Ok(p) => Value::text(p.name())?,
+                    Ok(p) => {
+                        for feature in p.features() { features.push(Value::text(feature)?); }
+                        Value::text(p.name())?
+                    }
                     Err(_) => Value::text("unknown")?,
                 };
+                d.set(Value::text("features")?, Value::from_items(features)?)?;
                 d.set(Value::text("platform")?, name)?;
                 Ok(Value::dict(d))
             }),
@@ -510,39 +524,15 @@ impl<P: Platform + 'static> Runtime<P> {
         modules::register(&mut interp, &shared);
         strfn::register(&mut interp);
         json::register(&mut interp);
+        #[cfg(feature = "tables")]
+        tables::register(&mut interp);
+        shared.platform.borrow().register(&mut interp);
         // .e (Epsilon), as KlongPy has it
         let e = interp.syms.intern(".e");
         interp.set_global(e, Value::Flt(1e-18));
 
         #[cfg(feature = "files")]
         chan::register(&mut interp, &shared);
-        #[cfg(not(feature = "files"))]
-        {
-            #[cfg(feature = "lib")]
-            {
-                // without files, .l still loads the library that is part of the image
-                let sh = shared.clone();
-                interp.register(
-                    ".l",
-                    1,
-                    Rc::new(move |ip: &mut Interp, a: &[Value]| {
-                        let name = text_arg(a, ".l")?;
-                        match library::find(name) {
-                            Some((label, text)) if modules::calls_export(text) => {
-                                let d = modules::import_loaded(&sh, ip, label, modules::Text::Static(text))?;
-                                modules::bind_alias(ip, label, d)?;
-                                Ok(ip.no_value())
-                            }
-                            Some((label, text)) => match ip.load_static(text, label)? {
-                                Some(v) => Ok(v),
-                                None => Ok(ip.no_value()),
-                            },
-                            None => Err(Error::system(klong_core::msg!("file does not exist: {}", name)).with_hint("this build has no file system; .l loads the built-in library only")),
-                        }
-                    }),
-                );
-            }
-        }
         let events = events::Events::new(shared.clone());
         events::register(&mut interp, &events);
         Runtime { interp, shared, events, declarations }
@@ -571,26 +561,17 @@ impl<P: Platform + 'static> Runtime<P> {
         }
     }
 
-    /// The directories a bare name of `.import` is looked for in, before the library of the image (KLONGPATH when it is set; none
-    /// otherwise: the working directory is not searched unless it is named).
-    pub fn set_import_path(&mut self, dirs: Vec<String>) {
-        if let Ok(mut m) = self.shared.mods.try_borrow_mut() {
-            m.import_path = dirs;
-        }
-    }
-
-    /// Tell `.l` which file the program being run comes from: a relative name that is found
-    /// neither in the load path nor in the library is then looked for next to that file.
+    /// Tell `.l` which file the program being run comes from.
     pub fn set_program(&mut self, path: &str) {
         if let Ok(mut io) = self.shared.io.try_borrow_mut() {
             io.home.clear();
-            let dir = chan_dir(path);
+            let path = self.shared.platform.try_borrow().map(|p| p.module_path(path)).unwrap_or(alloc::borrow::Cow::Borrowed(path));
+            let dir = klong_core::module::dir_of(&path);
             io.home.push(dir);
         }
     }
 
-    /// A program from the file in `dir` begins (`""` for the current directory): a relative `.l` that nothing else finds is looked
-    /// for there, until `pop_home`.
+    /// A program from the file in `dir` begins (`""` for the current directory), until `pop_home`.
     pub fn push_home(&self, dir: &str) {
         if let Ok(mut io) = self.shared.io.try_borrow_mut() {
             io.home.push(String::from(dir));
@@ -610,15 +591,6 @@ impl<P: Platform + 'static> Runtime<P> {
             Ok(text) => self.interp.load(&text, "boot.kg").map(|_| true),
             Err(_) => Ok(false),
         }
-    }
-}
-
-/// The directory part of a file name: "" when there is none.
-pub(crate) fn chan_dir(path: &str) -> String {
-    match path.rfind('/') {
-        Some(0) => String::from("/"),
-        Some(i) => String::from(&path[..i]),
-        None => String::new(),
     }
 }
 

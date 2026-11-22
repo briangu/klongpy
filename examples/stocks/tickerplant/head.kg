@@ -1,0 +1,58 @@
+:" IPC head and current trading session. Run from the data directory, with a transfer/ directory.
+   kg head.kg LISTEN-ADDRESS HDB-ADDRESS. Loading without arguments installs the functions."
+live::0;buffers:::{};widths::2^!17;nextSeq::0;dayFirst::0;dayNo::0;closing::0
+histAddr::0;subs:::{};lostSubs::0;recentFirst::0
+need(ok;message)::{:[ok;1;.err("range";message)]}
+number(n)::{need(n~(0:$($n));"integer required");$n}
+part(day)::{"transfer/day-",(number(day)),".parquet"}
+discardTransfer(day)::{.try({.df(part(day))};[]);1}
+cols(ids;ts;sym;px;qty)::{:{;"seq";ids;"ts";ts;"sym";sym;"px";px;"qty";qty}}
+bufferName(width)::{"batch",$width}
+makeBuffer(width)::{[zeros];zeros::width#0;buffers,[;bufferName(width);.table(cols(zeros;zeros;zeros;zeros;zeros))];1}
+insertBlock(first;ts;sym;px;qty)::{[n width name buf ids data sql];n::#ts;width::*widths@&widths>n-1;
+    name::bufferName(width);buf::buffers@name;ids::first+!width;
+    data:::[n=width;cols(ids;ts;sym;px;qty);cols(ids;width#ts;width#sym;width#px;width#qty)];
+    {buf,x}'data;
+    sql::"INSERT INTO rdb.ticks SELECT seq,ts,sym,px,qty FROM ",name;
+    live(:[n=width;sql;sql," WHERE seq<",number(first+n)]);1}
+insertChunk(chunk;first;ts;sym;px;qty)::{[offset which];offset::65536*chunk;
+    which::offset+!65536&(#ts)-offset;insertBlock(first+offset;ts@which;sym@which;px@which;qty@which)}
+insertLarge(first;ts;sym;px;qty)::{[chunks reply problem];chunks::1+((#ts)-1):%65536;live("BEGIN");
+    reply::.try({{insertChunk(x;first;ts;sym;px;qty)}'!chunks;live("COMMIT");1};[]);
+    :[reply@0;1;{live("ROLLBACK");problem::reply@1;.err(problem@"kind";problem@"message")}()]}
+startHead(address)::{[state];histAddr::address;makeBuffer'widths;live::.db(buffers);
+    live("SET threads=1");live("ATTACH 'rdb.duckdb' AS rdb");
+    live("CREATE TABLE IF NOT EXISTS rdb.ticks(seq BIGINT NOT NULL,ts BIGINT NOT NULL,sym BIGINT NOT NULL,px BIGINT NOT NULL,qty BIGINT NOT NULL)");
+    live("CREATE TABLE IF NOT EXISTS rdb.control AS SELECT 0::BIGINT dayno,0::BIGINT firstseq,false closing");
+    state::live("SELECT dayno,firstseq,closing::BIGINT FROM rdb.control");
+    dayNo::state@0;dayFirst::state@1;closing::state@2;recentFirst::dayFirst;
+    :[dayNo>0;discardTransfer(dayNo-1);0];
+    nextSeq::live("SELECT coalesce(max(seq)+1,(SELECT firstseq FROM rdb.control)) FROM rdb.ticks");nextSeq}
+subscribe(dummy)::{.clit(.cli.h;2);subs,[;.cli.h;1];nextSeq}
+deliver(pair;msg;until)::{[handle reply];handle::pair@0;reply::.try({handle(msg)};[]);
+    :[(reply@0)&(until~reply@1);:{;handle;1};{lostSubs::lostSubs+1;:{}}()]}
+fanout(msg;until)::{subs::,/{deliver(x;msg;until)}'subs;1}
+publish(first;ts;sym;px;qty)::{[n];n::#ts;
+    need(~closing;"finish the pending rollover first");need(first~nextSeq;"unexpected first sequence");
+    need((n>0)&((#sym)=n)&((#px)=n)&((#qty)=n);"nonempty equal-length columns required");
+    :[n>65536;insertLarge(first;ts;sym;px;qty);insertBlock(first;ts;sym;px;qty)];
+    recentFirst::first;nextSeq::first+n;:[#subs;fanout([;:onTicks;first;ts;sym;px;qty];nextSeq);0];nextSeq}
+latest(sym)::{[query result];query::"SELECT seq,px FROM rdb.ticks WHERE sym=",number(sym);
+    result::live(query," AND seq>=",(number(recentFirst))," ORDER BY seq DESC LIMIT 1");
+    :[(#result)|recentFirst=dayFirst;result;live(query," ORDER BY seq DESC LIMIT 1")]}
+ticksFrom(first;n)::{need((n>0)&n<65537;"request 1 to 65536 rows");
+    live("SELECT * FROM rdb.ticks WHERE seq>=",(number(first))," ORDER BY seq LIMIT ",number(n))}
+
+liveStats()::{live("SELECT count(*),coalesce(sum(seq),0),coalesce(sum(px),0),coalesce(sum(qty),0) FROM rdb.ticks")}
+closeSession()::{[path peer reply problem];need(nextSeq>dayFirst;"empty session");
+    live("UPDATE rdb.control SET closing=true");closing::1;path::part(dayNo);
+    live("COPY rdb.ticks TO '",path,"' (FORMAT PARQUET)");
+    peer::.cli(histAddr);.clit(peer;180);reply::.try({peer([;:seal;dayNo;dayFirst;nextSeq])};[]);.clic(peer);
+    :[reply@0;1;{problem::reply@1;.err(problem@"kind";problem@"message")}()];
+    need(nextSeq~reply@1;"HDB did not confirm the closing watermark");
+    live("BEGIN");
+    reply::.try({live("DELETE FROM rdb.ticks; UPDATE rdb.control SET dayno=dayno+1,firstseq=",(number(nextSeq)),",closing=false; COMMIT")};[]);
+    :[reply@0;1;{live("ROLLBACK");problem::reply@1;.err(problem@"kind";problem@"message")}()];
+    dayNo::dayNo+1;dayFirst::nextSeq;recentFirst::nextSeq;closing::0;discardTransfer(dayNo-1);nextSeq}
+roll(day)::{:[day~dayNo;closeSession();:[(dayNo>0)&(day~dayNo-1);dayFirst;.err("range";"unexpected trading session")]]}
+:[2=#.a;{startHead(.a@1);.srv(.a@0)}();1]

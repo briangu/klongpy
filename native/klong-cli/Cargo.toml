@@ -11,7 +11,11 @@ name = "kg"
 path = "src/main.rs"
 
 [features]
-default = ["bigint", "diag", "speed"]
+tables = ["klong-rt/tables"]
+duckdb = ["tables", "klong-host/duckdb"]
+default = ["bigint", "diag", "speed", "duckdb", "metal"]
+# Native Metal compute on macOS. Other desktop platforms keep the same CPU defaults.
+metal = []
 bigint = ["klong-rt/bigint", "klong-host/bigint", "klong-core/bigint"]
 diag = ["klong-rt/diag", "klong-host/diag", "klong-core/diag"]
 int32 = ["klong-rt/int32", "klong-host/int32", "klong-core/int32"]
@@ -26,3 +30,6 @@ klong-host = { path = "../klong-host" }
 klong-lint = { path = "../klong-lint" }
 klong-static = { path = "../klong-static" }
 klong-tools = { path = "../klong-tools" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+klong-core = { path = "../klong-core", features = ["host"] }

@@ -1,0 +1,2 @@
+:"plain: a classic file, no export variable. Load it with .l."
+helper(n)::{n+1}

@@ -59,7 +59,7 @@ from .errors import ProtocolError, IPCTypeError, IPCRangeError
 
 __all__ = [
     "encode", "encode_call", "decode", "KdbLambda", "KdbOpaque", "KdbError",
-    "set_function_text_hook", "set_table_factory", "KdbTable", "MAX_DEPTH", "GENERIC_NULL",
+    "set_function_text_hook", "set_table_factory", "KdbTable", "KdbKeyedTable", "MAX_DEPTH", "GENERIC_NULL",
 ]
 
 #: nesting limit for general lists, dictionaries, tables and function objects
@@ -130,7 +130,47 @@ class KdbTable(dict):
 
     It encodes as a table again, so a table passes through unchanged.
     """
-    __slots__ = ()
+    __slots__ = ("_wire",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._wire = None
+
+    def __klong_ipc_columns__(self):
+        return list(self), list(self.values()), 0, self._wire
+
+
+class KdbKeyedTable(np.ndarray):
+    """Keys and values of a keyed table when no database adapter is loaded."""
+
+    def __new__(cls, keys, values, wire):
+        result = np.empty(2, dtype=object).view(cls)
+        result[0], result[1] = keys, values
+        result._wire = wire
+        return result
+
+    def __array_finalize__(self, original):
+        self._wire = getattr(original, "_wire", None)
+
+    def __klong_ipc_columns__(self):
+        if self.shape != (2,) or not all(isinstance(side, KdbTable) for side in self):
+            raise IPCTypeError("keyed table must contain key and value tables")
+        keys, values = self
+        return list(keys) + list(values), list(keys.values()) + list(values.values()), len(keys), self._wire
+
+
+@dataclass(frozen=True)
+class _WireColumn:
+    raw: bytes
+    normalized: bytes
+
+
+@dataclass(frozen=True)
+class _TableWire:
+    body: bytes
+    names: tuple
+    key_count: int
+    columns: tuple
 
 
 _table_factory = None
@@ -141,6 +181,7 @@ def set_table_factory(factory):
 
     ``klongpy.db`` installs one when it is loaded so a table arrives as its
     ``Table``; without it a table is a :class:`KdbTable`.  ``None`` removes it.
+    Factories with ``__klong_ipc_typed__`` also receive ``key_count`` and ``wire``.
     """
     global _table_factory
     _table_factory = factory
@@ -456,31 +497,86 @@ class _Encoder:
         self._seq(list(d.keys()), depth + 1)
         self._seq(list(d.values()), depth + 1)
 
-    def _table(self, names, cols, depth):
-        """A table: 98, attribute byte, then a dictionary of column names to columns."""
+    def _table_column(self, column, depth, wire_type=None):
+        if wire_type == 10:
+            if isinstance(column, str):
+                chars = column
+            elif column.ndim == 1 and all(isinstance(c, str) and len(c) == 1 for c in column):
+                chars = "".join(column)
+            else:
+                chars = None
+            if chars is not None:
+                try:
+                    return self._charvec(chars.encode("latin1"))
+                except UnicodeEncodeError:
+                    pass
+        if isinstance(column, str):
+            return self.obj(column, depth)
+        a = np.asarray(column)
+        if a.ndim == 0:
+            raise IPCTypeError("table column is not a list")
+        if wire_type == 0:
+            return self._general(a, depth)
+        if wire_type == 11 and a.ndim == 1 and all(isinstance(c, KGSym) for c in a):
+            return self._sym_vector(a)
+        if wire_type in _NP_KIND and a.ndim == 1:
+            dtype = np.dtype("<" + _NP_KIND[wire_type])
+            if a.dtype.kind in "biu" and dtype.kind in "iu":
+                low, high = (0, 1) if wire_type == 1 else (np.iinfo(dtype).min, np.iinfo(dtype).max)
+                if not a.size or low <= int(a.min()) <= int(a.max()) <= high:
+                    self.out.append(_VEC_HDR.pack(wire_type, 0, self._count(len(a))))
+                    return self.out.append(np.ascontiguousarray(a, dtype=dtype).tobytes())
+            if a.dtype.kind == dtype.kind == "f":
+                with np.errstate(over="ignore", invalid="ignore"):
+                    converted = a.astype(dtype)
+                if np.array_equal(a, converted, equal_nan=True):
+                    self.out.append(_VEC_HDR.pack(wire_type, 0, self._count(len(a))))
+                    return self.out.append(converted.tobytes())
+        if a.ndim == 1 and a.dtype.kind in "biuf":
+            return self._vector(a)
+        return self.obj(a, depth)
+
+    def _table(self, names, cols, depth, key_count=0, wire=None):
+        """Encode a table or a keyed dictionary of two tables."""
         if depth >= MAX_DEPTH:
             raise IPCRangeError("nesting deeper than %d" % MAX_DEPTH)
+        if len(names) != len(cols) or not 0 <= key_count <= len(names):
+            raise IPCTypeError("table names and columns differ in number")
+        column_depth = depth + (3 if key_count else 2)
         rows = None
-        arrays = []
-        for c in cols:
-            if isinstance(c, str):
-                a = c
-            else:
-                a = np.asarray(c)
-                if a.dtype.kind not in "biufMm":
-                    a = np.asarray(c, dtype=object)
-                if a.ndim != 1:
-                    raise IPCTypeError("table column is not a list")
+        names = tuple(str(n) for n in names)
+        originals = dict(zip(wire.names, wire.columns)) if wire is not None else {}
+        bodies = []
+        unchanged = wire is not None and wire.names == names and wire.key_count == key_count
+        for name, column in zip(names, cols):
+            a = column if isinstance(column, str) else np.asarray(column)
+            if isinstance(column, (Mapping, bytes, bytearray)) or getattr(a, "ndim", 1) == 0:
+                raise IPCTypeError("table column is not a list")
             if rows is None:
                 rows = len(a)
             elif len(a) != rows:
                 raise IPCTypeError("table columns differ in length")
-            arrays.append(a)
+            original = originals.get(name)
+            enc = _Encoder((self.ibits, self.fbits), self.fn_text)
+            enc._table_column(a, column_depth, original.raw[0] if original is not None else None)
+            body = b"".join(enc.out)
+            if original is not None and body == original.normalized:
+                bodies.append(original.raw)
+            else:
+                bodies.append(body)
+                unchanged = False
+        if unchanged:
+            return self.out.append(wire.body)
+        if key_count:
+            self.out.append(b"\x63")
+            self._table_part(names[:key_count], bodies[:key_count])
+        self._table_part(names[key_count:], bodies[key_count:])
+
+    def _table_part(self, names, bodies):
         self.out.append(b"\x62\x00\x63")
-        self._sym_vector([str(n) for n in names])
-        self.out.append(_VEC_HDR.pack(0, 0, self._count(len(arrays))))
-        for a in arrays:
-            self.obj(a, depth + 1)
+        self._sym_vector(names)
+        self.out.append(_VEC_HDR.pack(0, 0, self._count(len(bodies))))
+        self.out.extend(bodies)
 
     def _function(self, fn):
         if isinstance(fn, KGFnWrapper):
@@ -528,13 +624,19 @@ class _Encoder:
             self._float_atom(v)
         elif isinstance(v, np.floating):
             self._numpy_scalar(v)
+        elif hasattr(v, "__klong_ipc_body__"):
+            body = v.__klong_ipc_body__()
+            if not isinstance(body, bytes):
+                raise IPCTypeError("native table IPC body must be bytes")
+            self.out.append(body)
+        elif hasattr(v, "__klong_ipc_columns__"):
+            names, columns, key_count, wire = v.__klong_ipc_columns__()
+            self._table(names, columns, depth, key_count, wire)
         elif isinstance(v, np.ndarray):
             self._array(v, depth)
         elif isinstance(v, (bytes, bytearray)):     # a kdb+ byte vector (type 4), empty included
             self.out.append(_VEC_HDR.pack(4, 0, self._count(len(v))))
             self.out.append(memoryview(v))
-        elif isinstance(v, KdbTable):
-            self._table(list(v.keys()), list(v.values()), depth)
         elif hasattr(v, "get_dataframe") and hasattr(v, "columns"):
             # a klongpy.db Table, recognised by shape so pandas is not imported here
             df = v.get_dataframe()
@@ -598,6 +700,16 @@ _NP_KIND = {1: "u1", 4: "u1", 5: "i2", 6: "i4", 7: "i8", 8: "f4", 9: "f8",
             12: "i8", 13: "i4", 14: "i4", 15: "f8", 16: "i8", 17: "i4",
             18: "i4", 19: "i4"}
 _FLOAT_TYPES = {8, 9, 15}
+
+# Keep a real vector's wire width after the normal float64 promotion. A
+# device without doubles can restore the original width without rounding.
+_PROMOTED_REAL_KEY = "klong.ipc.real"
+_PROMOTED_REAL_DTYPE = np.dtype(np.float64, metadata={_PROMOTED_REAL_KEY: True})
+
+
+def _is_promoted_real(dtype):
+    return dtype.metadata is not None and dtype.metadata.get(_PROMOTED_REAL_KEY) is True
+
 
 _ERR_TRUNC = "message truncated"
 
@@ -739,7 +851,8 @@ class _Decoder:
         # one copy: straight from the receive buffer into the result dtype
         arr = np.frombuffer(self.buf, dtype=wire, count=n, offset=start)
         if t in _FLOAT_TYPES:
-            return arr.astype(self._float_dtype())
+            dtype = _PROMOTED_REAL_DTYPE if t == 8 and self.fbits == 64 else self._float_dtype()
+            return arr.astype(dtype)
         if self.ibits == 32 and size == 8 and n:
             if int(arr.min()) < _INT32_MIN or int(arr.max()) > _INT32_MAX:
                 raise IPCRangeError("integer vector does not fit 32 bits")
@@ -783,7 +896,13 @@ class _Decoder:
                 first = items[0]
                 if first.dtype.kind in "if" and first.ndim >= 1 and all(
                         x.dtype == first.dtype and x.shape == first.shape for x in items):
-                    return np.stack(items)
+                    stacked = np.stack(items)
+                    if first.dtype == np.float64:
+                        # NumPy compares dtypes without metadata. Only a stack
+                        # entirely of reals can return to single precision.
+                        dtype = _PROMOTED_REAL_DTYPE if all(_is_promoted_real(x.dtype) for x in items) else np.float64
+                        return stacked.view(dtype)
+                    return stacked
         out = np.empty(len(items), dtype=object)
         for i, x in enumerate(items):
             out[i] = x
@@ -827,15 +946,25 @@ class _Decoder:
         if self.pos >= self.n:
             raise ProtocolError(_ERR_TRUNC)
         if self.buf[self.pos] == 98:               # keyed table: table!table
+            start = self.pos - 1
             self.pos += 1
-            keys = self._table(depth + 1)
+            key_names, key_cols, key_wire, key_rows = self._table_parts(depth + 1)
             if self._byte() != 98:
                 raise ProtocolError("keyed table values are not a table")
-            vals = self._table(depth + 1)
-            out = np.empty(2, dtype=object)
-            out[0] = keys
-            out[1] = vals
-            return out
+            val_names, val_cols, val_wire, val_rows = self._table_parts(depth + 1)
+            if key_rows is not None and val_rows is not None and key_rows != val_rows:
+                raise ProtocolError("keyed table parts differ in row count")
+            names = key_names + val_names
+            if len(set(names)) != len(names):
+                raise ProtocolError("duplicate table column")
+            cols = key_cols + val_cols
+            wire = _TableWire(self._table_bytes(start, depth), tuple(map(str, names)),
+                              len(key_names), key_wire.columns + val_wire.columns)
+            if getattr(_table_factory, "__klong_ipc_typed__", False):
+                return _table_factory(names, cols, key_count=len(key_names), wire=wire)
+            keys = self._make_table(key_names, key_cols, key_wire, use_factory=False)
+            vals = self._make_table(val_names, val_cols, val_wire, use_factory=False)
+            return KdbKeyedTable(keys, vals, wire)
         keys = self._seq_items(depth + 1)
         vals = self._seq_items(depth + 1)
         if len(keys) != len(vals):
@@ -846,30 +975,72 @@ class _Decoder:
             raise ProtocolError("unhashable dictionary key") from None
 
     def _table(self, depth):
+        names, cols, wire, _ = self._table_parts(depth)
+        return self._make_table(names, cols, wire)
+
+    @staticmethod
+    def _make_table(names, cols, wire, *, use_factory=True):
+        if use_factory and _table_factory is not None:
+            if getattr(_table_factory, "__klong_ipc_typed__", False):
+                return _table_factory(names, cols, key_count=0, wire=wire)
+            return _table_factory(names, cols)
+        table = KdbTable(zip(names, cols))
+        table._wire = wire
+        return table
+
+    def _table_bytes(self, start, depth):
+        if self.little:
+            return bytes(self.buf[start:self.pos])
+        end = self.pos
+        self.pos = start
+        out = []
+        self.copy(out, depth)
+        self.pos = end
+        return b"".join(out)
+
+    def _table_parts(self, depth):
         if depth >= MAX_DEPTH:
             raise ProtocolError("nesting deeper than %d" % MAX_DEPTH)
+        start = self.pos - 1
         self._take(1)                              # attribute byte: ignored
         if self._byte() not in (99, 127):
             raise ProtocolError("table without its dictionary")
         if self._byte() != 11:
             raise ProtocolError("table column names are not a symbol vector")
-        names = self._vector(11)
+        names = list(self._vector(11))
+        if len(set(names)) != len(names):
+            raise ProtocolError("duplicate table column")
         if self._byte() != 0:
             raise ProtocolError("table columns are not a general list")
-        cols = self._general_items(depth + 1)
-        if len(cols) != len(names):
-            raise ProtocolError("table has %d names and %d columns" % (len(names), len(cols)))
+        if depth + 1 >= MAX_DEPTH:
+            raise ProtocolError("nesting deeper than %d" % MAX_DEPTH)
+        self._take(1)
+        count = self._count(2)
+        if count != len(names):
+            raise ProtocolError("table has %d names and %d columns" % (len(names), count))
+        cols = []
+        originals = []
         rows = None
-        for c in cols:
-            if not isinstance(c, (np.ndarray, str)) or (isinstance(c, np.ndarray) and c.ndim == 0):
+        for _ in names:
+            col_start = self.pos
+            c = self.obj(depth + 2)
+            raw = self._table_bytes(col_start, depth + 2)
+            t = raw[0]
+            if t > 19:
                 raise ProtocolError("table column is not a list")
+            if t == 10:
+                c = raw[6:].decode("latin1")  # a char vector has one row per byte
+            n = struct.unpack_from("<i", raw, 2)[0]
             if rows is None:
-                rows = len(c)
-            elif len(c) != rows:
+                rows = n
+            elif n != rows:
                 raise ProtocolError("table columns differ in length")
-        if _table_factory is not None:
-            return _table_factory(list(names), cols)
-        return KdbTable((names[i], cols[i]) for i in range(len(names)))
+            enc = _Encoder((self.ibits, self.fbits), None)
+            enc._table_column(c, depth + 2, t)
+            originals.append(_WireColumn(raw, b"".join(enc.out)))
+            cols.append(c)
+        wire = _TableWire(self._table_bytes(start, depth), tuple(map(str, names)), 0, tuple(originals))
+        return names, cols, wire, rows
 
     def _lambda(self):
         ctx = self._cstring()

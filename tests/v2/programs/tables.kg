@@ -1,0 +1,6 @@
+ledger::.table(:{;"account";[1 2];"lot";[7 7];"qty";[10 20]})
+book::.db(:{;"ledger";ledger})
+rows::{book("SELECT * FROM ledger ORDER BY account, lot")}
+appendrows::{.insert(ledger;[[2 8 30] [3 7 40]]);rows()}
+upsertrows::{.index(ledger;["account" "lot"]);.insert(ledger;[2 7 99]);.insert(ledger;[1 8 5]);rows()}
+unkey::{.index(ledger;["account" "lot"]);.rindex(ledger);.insert(ledger;[2 7 99]);book("SELECT count(*) FROM ledger WHERE account=2 AND lot=7")}

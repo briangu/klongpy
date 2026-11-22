@@ -1,0 +1,15 @@
+.l("./taxi-queries.kg")
+
+sqlPath(path)::{"'",.join(.split(path;"'");"''"),"'"}
+tripSource(cab;path)::{
+    "SELECT '",cab,"' AS cab_type, passenger_count, trip_distance,
+            coalesce(*COLUMNS('(?i)^total_(amt|amount)$')) AS fare,
+            year(coalesce(UNPACK(CAST(COLUMNS('(?i)^(trip_|tpep_|lpep_)?pickup_datetime$') AS TIMESTAMP)))) AS y
+     FROM read_parquet(",(sqlPath(path)),", union_by_name=true)"}
+
+nativeArgs::.try({.a};[])
+args:::[@(nativeArgs@1);.os.argv;nativeArgs@1]
+:[2=#args;1;.err("range";"nyc-taxi.kg needs yellow and green Parquet paths or globs")]
+db::.db(:{})
+db("CREATE VIEW trips AS ",(tripSource("yellow";args@0))," UNION ALL ",tripSource("green";args@1))
+tripReports(db)

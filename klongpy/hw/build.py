@@ -225,8 +225,10 @@ class Builder:
             "echo STARTED=$(cat started 2>/dev/null)\n"
             "echo NOW=$(date +%%s)\n"
             "echo PHASE=$(cat phase 2>/dev/null)\n"
-            "echo EXIT=$(cat exit-code 2>/dev/null)\n"
             "p=$(cat build.pid 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo ALIVE=1; else echo ALIVE=0; fi\n"
+            # The build writes its finish marker before exiting. Read the marker
+            # after probing the PID so finishing during this poll cannot look like a crash.
+            "echo EXIT=$(cat exit-code 2>/dev/null)\n"
             "echo ---TAIL; tail -n 4 build.log 2>/dev/null\n"
             "echo ---JSON; cat build.json 2>/dev/null; exit 0\n" % shlex.quote(B))
         rc, out, err = self.sh(script)
@@ -249,11 +251,11 @@ class Builder:
             except ValueError:
                 meta = None
         st["build"] = meta
-        if kv.get("ALIVE") == "1":
-            st["state"] = "running"
-        elif kv.get("EXIT") not in (None, ""):
+        if kv.get("EXIT") not in (None, ""):
             ok = kv["EXIT"] == "0" and meta and meta.get("passed")
             st["state"] = "passed" if ok else ("emulation" if kv["EXIT"] == "0" and meta and meta.get("emulation") else "failed")
+        elif kv.get("ALIVE") == "1":
+            st["state"] = "running"
         elif st["pid"]:
             st["state"] = "stopped"
         else:

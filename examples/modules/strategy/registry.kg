@@ -1,8 +1,8 @@
 :"registry: the strategies by name, so a program can choose one at run time."
 
 :" shows: modules are values. They are stored in a dictionary like any other value"
-crossover::.import("./crossover")
-meanrev::.import("./meanrev")
+.l("./crossover")
+.l("./meanrev")
 
 all:::{;"crossover";crossover;"meanrev";meanrev}
 
@@ -10,4 +10,4 @@ pick(name)::{all@name}
 names()::{["crossover" "meanrev"]}
 
 .p("[registry] loaded")
-.export(:{;"choose";pick;"names";names})
+export:::{;"choose";pick;"names";names}

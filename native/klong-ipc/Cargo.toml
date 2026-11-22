@@ -7,6 +7,7 @@ license.workspace = true
 publish.workspace = true
 
 [features]
+tables = ["klong-core/tables"]
 default = []
 # The compressor (sending compressed messages). Decompression is always built: a peer that
 # was told capability 3 may compress anything it sends. Off on small devices: it costs flash

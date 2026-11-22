@@ -37,7 +37,10 @@ fn set(v: &[&str]) -> BTreeSet<String> {
 #[test]
 fn every_code_has_a_positive_and_a_negative_case() {
     for r in RULES {
-        assert!(cases::CASES.iter().any(|c| c.0 == r.code && !c.2.is_empty()), "{}: no positive case", r.code);
+        // (W023 needs a file beside the linted one: `a_local_file_that_shadows_the_library_is_reported`)
+        if r.code != "W023" {
+            assert!(cases::CASES.iter().any(|c| c.0 == r.code && !c.2.is_empty()), "{}: no positive case", r.code);
+        }
         assert!(cases::CASES.iter().any(|c| c.0 == r.code && c.2.is_empty()), "{}: no negative case", r.code);
     }
     assert!(cases::CASES.iter().all(|c| RULES.iter().any(|r| r.code == c.0)));
@@ -323,13 +326,24 @@ fn no_resolve_never_reads_files() {
 
 #[test]
 fn the_library_is_found() {
-    // klongpy/lib/csv.kg exports split, read, make, write and load: .l defines them as plain names
+    // klongpy/lib/csv.kg is a module: .l binds csv, and its entries are csv.split, csv.read, ...
     let d = Dir::new("i");
-    d.write("main.kg", ".l(\"csv\")\nmake(1)\nnosuch(2)\n");
-    assert_eq!(d.lint("main.kg"), vec![("W002", 3, 1)]);
+    d.write("main.kg", ".l(\"csv\")\ncsv.make(1)\nnosuch(2)\ncsv.nosuch(3)\n");
+    assert_eq!(d.lint("main.kg"), vec![("W002", 3, 1), ("E004", 4, 1)]);
     // and from a directory, as the extension passes it
     let lib = format!("{}/../../klongpy/lib", env!("CARGO_MANIFEST_DIR"));
-    assert_eq!(d.lint_with("main.kg", &Options { lib_dirs: vec![lib], ..base() }), vec![("W002", 3, 1)]);
+    assert_eq!(d.lint_with("main.kg", &Options { lib_dirs: vec![lib], ..base() }), vec![("W002", 3, 1), ("E004", 4, 1)]);
+}
+
+#[test]
+fn a_local_file_that_shadows_the_library_is_reported() {
+    let d = Dir::new("shadow");
+    d.write("csv.kg", "mine::{x}\nexport:::{;\"mine\";mine}\n");
+    d.write("main.kg", ".l(\"csv\")\ncsv.mine(1)\n");
+    assert_eq!(d.lint("main.kg"), vec![("W023", 1, 4)]);
+    // ./csv says the local file is meant
+    d.write("main2.kg", ".l(\"./csv\")\ncsv.mine(1)\n");
+    assert!(d.lint("main2.kg").is_empty());
 }
 
 #[test]

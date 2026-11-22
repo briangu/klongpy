@@ -6,8 +6,8 @@ KlongPy 2 runs Klong on one interpreter, written in Rust. Two commands start it:
 
 | Command | What it is |
 |---|---|
-| `kgpy` | The interpreter hosted in Python: NumPy and PyTorch arrays, calling Python, tables and SQL, the web server, websockets and FPGA cards. |
-| `kg` | The same interpreter as one program with no Python. |
+| `kg` | The standalone interpreter with column tables, embedded DuckDB and optional Metal compute on macOS. |
+| `kgpy` | The same interpreter hosted in Python, with NumPy and PyTorch arrays, pandas and Arrow interchange, Python callables, web services and FPGA card bindings. |
 
 The same interpreter is in firmware for microcontroller boards, and the tools `lint`, `check`, `compile c`, `fpga source` and `ast` run from either command. [What Runs Where](what-runs-where.md) says which part does what.
 
@@ -16,19 +16,19 @@ The same interpreter is in firmware for microcontroller boards, and the tools `l
 | Target | Status | More |
 |---|---|---|
 | CPU (`kg`, and `kgpy` with NumPy) | stable; passes the conformance suite | [Start Here](getting-started.md) |
-| GPU (PyTorch backend, autograd) | stable on the CPU, which the automated tests cover; Apple MPS has been run by hand and CUDA not at all, and neither is in the automated tests | [PyTorch Backend and Autograd](torch_backend.md) |
+| GPU | Automated acceptance covers native Metal and the Python tensor backend on Apple MPS. The Python backend also has CPU coverage. | [Native Metal](what-runs-where.md#native-metal) · [PyTorch Backend and Autograd](torch_backend.md) |
 | Compile to C (static profile) | works for a subset of the language; compiled C has run with desktop compilers and, for three examples, on two Raspberry Pi Picos | [Compiling Klong to C](embedded.md) |
-| Microcontrollers (the interpreter in firmware) | experimental; the console test suite and the REPL have run on an ESP32-P4, and IPC between two Raspberry Pi Picos; nothing else has run | [Native Runtime status](native/index.md#status-what-has-and-has-not-been-proven) |
+| Microcontrollers (the interpreter in firmware) | experimental; two RP2040 Picos passed the RC1 paired IPC self-test. Earlier firmware ran console tests on an ESP32-P4 | [Native Runtime status](native/index.md#status-what-has-and-has-not-been-proven) |
 | FPGA kernels | experimental; run on one Alveo U250 | [Klong functions as FPGA hardware](hardware.md) |
 
-The interpreter runs a [conformance suite](conformance.md) of more than 2,000 cases through `kgpy`, through `kg` and on the board firmware. The C and FPGA paths compile a subset of the language, and that subset is checked against the interpreter.
+For 2.0.0rc1, the [conformance suite](conformance.md) passed 2,220 cases under standalone `kg` and 2,199 applicable cases under Python-hosted `kgpy`. The serial console simulator passed 1,716 selected cases. Physical boards have [separate test results](native/index.md#status-what-has-and-has-not-been-proven). The C and FPGA compilers support the static subset of Klong.
 
 ## Install
 
 ```bash
 pip install klongpy              # the kgpy and kg commands (NumPy arrays)
 pip install "klongpy[torch]"     # the torch backend: GPU arrays and gradients
-pip install "klongpy[all]"       # torch, tables, web, WebSockets
+pip install "klongpy[all]"       # torch, pandas and DuckDB adapters, web, WebSockets
 ```
 
 KlongPy 2 needs Python 3.11 to 3.14. The REPL needs no extra: `kgpy` or `kg` starts it, and `kgpy --backend torch` selects the torch backend. [Start Here](getting-started.md#install) says what each extra is for.
@@ -64,7 +64,7 @@ print(klong['avg'](np.arange(10.0)))   # 4.5
 * **From kdb+ or q:** [Klong for q Users](from-kdb.md) and [IPC Capabilities](ipc_capabilities.md).
 * **Which command to run:** [What Runs Where](what-runs-where.md).
 * **Splitting a program into files:** [Modules](language-additions.md#modules).
-* **Upgrading from 0.7:** [What's New in v2](whats-new-v2.md), [Migrating to v2](migrating-to-v2.md) and [Release Notes](release-notes.md).
+* **Upgrading from the pure-Python line:** [What's New in v2](whats-new-v2.md), [Migrating to v2](migrating-to-v2.md) and [Release Notes](release-notes.md).
 * **Embedding in Python:** [Python Integration](python_integration.md) and [PyTorch Backend and Autograd](torch_backend.md).
 * **Small devices and hardware:** [Native Runtime](native/index.md), [Compiling Klong to C](embedded.md) and [Klong functions as FPGA hardware](hardware.md).
 * **Performance:** [Performance](performance.md).

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate what the firmware needs of the compiled examples: the C of examples/embedded/{mavg,pid,fir}.kg, their Klong text, and the
-reference results the native host gives for the fixed inputs of the board check.
+reference results standalone kg gives for the fixed inputs of the board check.
 
     gen_c_examples.py OUT_DIR
 
@@ -14,16 +14,17 @@ writes into OUT_DIR (the build directory; nothing here is checked in):
                                                              check, the host's results for them and the values pinned by the
                                                              .expect files
 
-It needs the `kg` binary (`cd native && cargo build --release`; or its path in $KLONG) and the extension of native/klong-py (its
-directory in $KLONGPY_NATIVE_PATH, or klong_native importable) for the expected values, and NumPy, which the extension needs. KlongPy
-itself is not imported. The tool fails, and so the build does, when the host no longer gives the values the .expect files pin, so the
-board is never checked against a stale reference.
+Run with standard-library Python and the `kg` binary (`cd native && cargo build --release`, or set $KLONG).
+The build fails if the standalone interpreter disagrees with a pinned result in the .expect files.
 """
+import json
 import math
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
@@ -39,7 +40,8 @@ def klist(xs):
 
 def expect_lines(name):
     with open(os.path.join(EMBEDDED, name + ".expect")) as f:
-        return [ln.rstrip("\n") for ln in f if ln.strip() and not ln.startswith("#")]
+        # A comment starts with "# ". A Klong expression can start with the count operator, e.g. #run(...).
+        return [line.strip() for line in f if line.strip() and not re.match(r"^\s*#(?:\s|$)", line)]
 
 
 def mavg_case():
@@ -48,17 +50,22 @@ def mavg_case():
     inputs = [4.0 * (i + 1) for i in range(64)]
     assert [p[0] for p in pins] == inputs[:5], "the first inputs are the calls of mavg.expect"
     return dict(name="mavg", prefix="mavg", entry="step", inputs=inputs, setup=".c.in::" + klist(inputs), expr="step'.c.in", prelude="",
-                cleanup="buf::0;pos::0;step::0", pins=[(i, p[1]) for i, p in enumerate(pins)], externs=None)
+                cleanup="buf::0;pos::0;step::0", pins=[(i, p[1]) for i, p in enumerate(pins)])
 
 
 def pid_case():
     pins = [(float(m.group(1)), float(m.group(2))) for m in (re.match(r"step\((.*)\) => (.*)$", ln) for ln in expect_lines("pid")) if m]
     assert len(pins) == 3, pins
     inputs = [p[0] for p in pins] + [PID_TAIL[i % len(PID_TAIL)] for i in range(29)]
-    # the externs of pid.expect: read.adc is 0.3 and write.pwm is 0 (the board registers C stand-ins for the interpreter that give the same as the compiled code's)
+    # the externs of pid.expect: the C symbols read_adc (0.3) and write_pwm (0) (the board registers C stand-ins for the interpreter that give
+    # the same as the compiled code's). pid.kg loads the module board.kg for them: the board has no file system but the one in RAM, so the
+    # prelude writes board.kg there first.
+    with open(os.path.join(EMBEDDED, "board.kg")) as f:
+        board = f.read()
+    prelude = 'c::.oc("board.kg");.tc(c);.d(%s);.tc(.cout);.cc(c)' % klong_str(board)
     return dict(name="pid", prefix="pidc", entry="step", inputs=inputs, setup=".c.in::" + klist(inputs), expr="step'.c.in",
-                prelude="", cleanup="kp::0;ki::0;kd::0;dt::0;lo::0;hi::0;integ::0;prev::0;clamp::0;step::0",
-                pins=[(i, p[1]) for i, p in enumerate(pins)], externs={"read.adc": lambda channel: 0.3, "write.pwm": lambda channel, duty: 0})
+                prelude=prelude, cleanup="kp::0;ki::0;kd::0;dt::0;lo::0;hi::0;integ::0;prev::0;clamp::0;step::0;board::0",
+                pins=[(i, p[1]) for i, p in enumerate(pins)], board=board)
 
 
 def fir_case():
@@ -72,7 +79,28 @@ def fir_case():
             pins.append((int(m.group(1)), float(m.group(2))))
     assert len(pins) == 2, pins
     return dict(name="fir", prefix="fir", entry="run", inputs=[0.5 * i for i in range(256)], setup=".c.in::0.5*!256", expr="run(.c.in)", prelude="",
-                cleanup="raw::0;taps::0;idx::0;run::0", pins=pins, externs=None)
+                cleanup="raw::0;taps::0;idx::0;run::0", pins=pins)
+
+
+def klong_str(text):
+    """A Klong string literal (a quote inside is doubled)."""
+    return '"' + text.replace('"', '""') + '"'
+
+
+def cesc(text):
+    """The inside of a C string literal, on one line."""
+    s = ""
+    for b in text.encode("utf-8"):
+        c = chr(b)
+        if c == "\\" or c == '"':
+            s += "\\" + c
+        elif c == "\n":
+            s += "\\n"
+        elif 32 <= b < 127 and c != "?":
+            s += c
+        else:
+            s += "\\%03o" % b
+    return s
 
 
 def cstr(text):
@@ -98,51 +126,92 @@ def cdoubles(xs):
     return ", ".join(repr(float(x)) for x in xs)
 
 
-def native_extension():
-    """The extension module of native/klong-py: $KLONGPY_NATIVE_PATH (a directory that holds it), else klong_native on the path."""
-    d = os.environ.get("KLONGPY_NATIVE_PATH")
-    if d:
-        sys.path.insert(0, d)
-    try:
-        import klong_native
-    except ImportError:
-        sys.exit("gen_c_examples: the extension klong_native is needed (build native/klong-py and put its directory on KLONGPY_NATIVE_PATH)")
-    return klong_native
-
-
 def klong_binary():
     """The `kg` binary: $KLONG, else native/target/release/kg."""
     path = os.environ.get("KLONG") or os.path.join(ROOT, "native", "target", "release", "kg")
     if not os.access(path, os.X_OK):
-        sys.exit("gen_c_examples: %s is not an executable `klong` (cd native && cargo build --release, or set KLONG)" % path)
-    return path
+        sys.exit("gen_c_examples: %s is not an executable `kg` (cd native && cargo build --release, or set KLONG)" % path)
+    return os.path.abspath(path)
 
 
-def reference(case):
-    """The host's results for the case: the expression the board's interpreter runs, and the entry called point by point."""
-    import numpy as np
+def board_stand_ins(source):
+    """Use the PID externs' documented stand-ins in a private copy of board.kg."""
+    for decl, stand_in in (
+        ('adc::.extern("read_adc";"int -> float")', 'adc(channel)::{0.3}'),
+        ('pwm::.extern("write_pwm";"int float -> int")', 'pwm(channel;duty)::{0}'),
+    ):
+        if source.count(decl) != 1:
+            sys.exit(f"gen_c_examples: cannot find the expected declaration in board.kg: {decl}")
+        source = source.replace(decl, stand_in)
+    return source
 
-    kn = native_extension()
-    path = os.path.join(EMBEDDED, case["name"] + ".kg")
-    with open(path) as f:
-        text = f.read()
-    externs = case["externs"] or {}
-    klong = kn.Klong(2)
-    for name, fn in externs.items():
-        # the stand-ins are bound by the declaration that follows: .extern takes the function registered under its name
-        klong.register(name, fn, fn.__code__.co_argcount)
-    klong.run(text, path)
-    klong.run(case["setup"])
-    got = klong.eval(case["expr"])
-    ref = [float(x) for x in np.asarray(got, dtype=float).ravel()]
-    prog = kn.StaticProgram(path, text, externs)
-    if case["name"] == "fir":
-        again = [float(x) for x in np.asarray(prog.call_entry(case["entry"], [list(case["inputs"])]), dtype=float)]
-    else:
-        again = [float(prog.call_entry(case["entry"], [x])) for x in case["inputs"]]
-    assert len(ref) == len(again) and all(abs(a - b) <= 1e-12 * max(1.0, abs(a)) for a, b in zip(ref, again)), "the expression and call_entry disagree"
-    for i, v in case["pins"]:
-        assert math.isclose(ref[i], v, rel_tol=1e-9, abs_tol=1e-12), "%s: the host gives %r at %d but %s.expect pins %r" % (case["name"], ref[i], i, case["name"], v)
+
+def evaluate(klong, directory, name, expressions, setup=()):
+    """Evaluate the setup and expressions in a fresh strict interpreter."""
+    script = os.path.join(directory, "reference.kg")
+    with open(script, "w") as f:
+        for line in setup:
+            f.write(line + "\n")
+        for expression in expressions:
+            f.write(f".p(.json({expression}))\n")
+    run = subprocess.run([klong, "--strict", "2", script], cwd=directory, capture_output=True, text=True)
+    if run.returncode:
+        sys.exit(f"gen_c_examples: {name}.kg failed in standalone kg\n{run.stdout}{run.stderr}")
+    try:
+        values = [json.loads(line) for line in run.stdout.splitlines()]
+    except json.JSONDecodeError:
+        sys.exit(f"gen_c_examples: unexpected output from {name}.kg\n{run.stdout}")
+    if len(values) != len(expressions):
+        sys.exit(f"gen_c_examples: expected {len(expressions)} results from {name}.kg, got {len(values)}")
+    return values
+
+
+def close_result(actual, expected):
+    if isinstance(expected, list):
+        return isinstance(actual, list) and len(actual) == len(expected) and all(
+            close_result(a, b) for a, b in zip(actual, expected)
+        )
+    if isinstance(expected, float):
+        return isinstance(actual, (int, float)) and math.isclose(actual, expected, rel_tol=1e-9, abs_tol=1e-12)
+    return type(actual) is type(expected) and actual == expected
+
+
+def check_expect(klong, directory, name, load):
+    pairs = []
+    for line in expect_lines(name):
+        actual, separator, expected = line.partition(" => ")
+        if not separator or not actual or not expected:
+            sys.exit(f"gen_c_examples: malformed {name}.expect line: {line}")
+        pairs.append((actual, expected))
+    if not pairs:
+        sys.exit(f"gen_c_examples: no pinned results in {name}.expect")
+    expressions, expected = zip(*pairs)
+    results = evaluate(klong, directory, name, expressions, [load])
+    values = evaluate(klong, directory, name, expected)
+    for expression, actual, expected in zip(expressions, results, values):
+        if not close_result(actual, expected):
+            sys.exit(f"gen_c_examples: {name}.expect: {expression} gave {actual!r}, expected {expected!r}")
+
+
+def reference(klong, case):
+    name = case["name"]
+    load = f'.l("./{name}.kg")'
+    with tempfile.TemporaryDirectory(prefix="klong-pico-example-") as directory:
+        shutil.copyfile(os.path.join(EMBEDDED, name + ".kg"), os.path.join(directory, name + ".kg"))
+        if "board" in case:
+            with open(os.path.join(directory, "board.kg"), "w") as f:
+                f.write(board_stand_ins(case["board"]))
+        ref, = evaluate(klong, directory, name, [case["expr"]], [load, case["setup"]])
+        entry = case["entry"]
+        if name == "fir":
+            again, = evaluate(klong, directory, name, [f"{entry}({klist(case['inputs'])})"], [load])
+        else:
+            calls = [f"{entry}({value!r})" for value in case["inputs"]]
+            again = evaluate(klong, directory, name, calls, [load])
+        if len(ref) != len(again) or not all(math.isfinite(a) and math.isclose(a, b, rel_tol=1e-12, abs_tol=1e-12)
+                                                for a, b in zip(ref, again)):
+            sys.exit(f"gen_c_examples: {name}.kg gives different results from direct entry calls")
+        check_expect(klong, directory, name, load)
     return ref
 
 
@@ -166,7 +235,7 @@ def main(argv):
     cases = [mavg_case(), pid_case(), fir_case()]
     for c in cases:
         c["report"] = emit(klong, os.path.join(EMBEDDED, c["name"] + ".kg"), out, c["prefix"])
-        c["ref"] = reference(c)
+        c["ref"] = reference(klong, c)
         with open(os.path.join(EMBEDDED, c["name"] + ".kg")) as f:
             c["src"] = f.read()
         print(c["report"])
@@ -215,7 +284,7 @@ extern const klong_c_example klong_c_examples[KLONG_C_NEXAMPLES];
         for c in cases:
             n = c["name"]
             f.write('    {"%s", src_%s, sizeof src_%s - 1, "%s", setup_%s, expr_%s, "%s", %d, in_%s, %d, ref_%s, %d, pin_idx_%s, pin_val_%s},\n' % (
-                n, n, n, c["prelude"], n, n, c["cleanup"], len(c["inputs"]), n, len(c["ref"]), n, len(c["pins"]), n, n))
+                n, n, n, cesc(c["prelude"]), n, n, c["cleanup"], len(c["inputs"]), n, len(c["ref"]), n, len(c["pins"]), n, n))
         f.write("};\n")
     return 0
 

@@ -288,6 +288,8 @@ pub struct List {
     items: Vec<Value>,
     depth: u16,
     has_dict: bool,
+    #[cfg(feature = "host")]
+    may_reach_host_values: bool,
 }
 
 impl core::ops::Deref for List {
@@ -297,27 +299,93 @@ impl core::ops::Deref for List {
     }
 }
 
-/// Depth and dictionary flag of a run of values that are about to share a container.
-fn nest_of(items: &[Value]) -> (u16, bool) {
-    let mut depth = 0u16;
-    let mut has_dict = false;
-    for q in items {
-        match q {
-            Value::List(l) => {
-                depth = depth.max(l.depth);
-                has_dict |= l.has_dict;
+#[cfg(feature = "host")]
+impl List {
+    /// False when no element can carry or acquire a host value. A dictionary
+    /// can change through another alias, so it always counts as a possible edge.
+    pub fn may_reach_host_values(&self) -> bool {
+        self.may_reach_host_values
+    }
+}
+
+#[cfg(feature = "tables")]
+impl List {
+    pub(crate) fn reserve_append(&mut self, items: impl ExactSizeIterator<Item = Value>) -> Result<()> {
+        let len = items.len();
+        for item in items {
+            let (depth, _) = nest_of(core::slice::from_ref(&item));
+            if depth as u32 >= max_nest() {
+                return Err(too_deep());
             }
-            Value::Dict(_) => has_dict = true,
-            Value::Fn(f) => {
-                if let Func::Proj { depth: d, has_dict: h, .. } = &**f {
-                    depth = depth.max(*d);
-                    has_dict |= *h;
-                }
-            }
-            _ => {}
+        }
+        self.items.try_reserve(len).map_err(|_| Error::memory())
+    }
+
+    pub(crate) fn append_reserved(&mut self, items: impl Iterator<Item = Value>) {
+        let start = self.items.len();
+        self.items.extend(items);
+        let nesting = Nesting::of(&self.items[start..]);
+        self.depth = self.depth.max(nesting.depth + 1);
+        self.has_dict |= nesting.has_dict;
+        #[cfg(feature = "host")]
+        {
+            self.may_reach_host_values |= nesting.may_reach_host_values;
         }
     }
-    (depth, has_dict)
+}
+
+/// Depth and dictionary flag of a run of values that are about to share a container.
+fn nest_of(items: &[Value]) -> (u16, bool) {
+    let nesting = Nesting::of(items);
+    (nesting.depth, nesting.has_dict)
+}
+
+#[derive(Default)]
+struct Nesting {
+    depth: u16,
+    has_dict: bool,
+    #[cfg(feature = "host")]
+    may_reach_host_values: bool,
+}
+
+impl Nesting {
+    #[inline]
+    fn of(items: &[Value]) -> Self {
+        let mut result = Self::default();
+        for value in items {
+            match value {
+                Value::List(list) => {
+                    result.depth = result.depth.max(list.depth);
+                    result.has_dict |= list.has_dict;
+                    #[cfg(feature = "host")]
+                    {
+                        result.may_reach_host_values |= list.may_reach_host_values;
+                    }
+                }
+                Value::Dict(_) => {
+                    result.has_dict = true;
+                    #[cfg(feature = "host")]
+                    {
+                        result.may_reach_host_values = true;
+                    }
+                }
+                Value::Fn(function) => {
+                    if let Func::Proj { depth, has_dict, .. } = &**function {
+                        result.depth = result.depth.max(*depth);
+                        result.has_dict |= *has_dict;
+                    }
+                    #[cfg(feature = "host")]
+                    {
+                        result.may_reach_host_values = true;
+                    }
+                }
+                #[cfg(feature = "host")]
+                Value::Ext(_) => result.may_reach_host_values = true,
+                _ => {}
+            }
+        }
+        result
+    }
 }
 
 // ---------------------------------------------------------------------------------------
@@ -335,7 +403,7 @@ pub struct Dict {
     keys: Vec<Value>,
     vals: Vec<Value>,
     index: Index,
-    /// What `.import` returns is read-only from outside: setting or removing a key is a `type` error (design point 5). Shallow: a
+    /// A module (what `.l` returns) is read-only from outside: setting or removing a key is a `type` error (design point 5). Shallow: a
     /// dictionary stored in it is an ordinary shared dictionary.
     ro: bool,
 }
@@ -456,7 +524,7 @@ impl Dict {
         self.ro = true;
     }
     fn read_only_error(&self) -> Error {
-        let e = Error::typ(crate::dmsg!("read-only dictionary", "the dictionary is read-only (it was returned by .import)"));
+        let e = Error::typ(crate::dmsg!("read-only dictionary", "the dictionary is read-only (it is a module)"));
         #[cfg(feature = "diag")]
         let e = e.with_hint("copy it with  e:::{};e::e,m  or change the module's file");
         e
@@ -721,7 +789,13 @@ pub enum Func {
     /// `depth` and `has_dict` describe the values it holds, as for a `List`.
     Proj { f: Value, args: Vec<Slot>, depth: u16, has_dict: bool },
     /// A system function. `arity` is `WILDCARD` for one that takes any number of arguments.
-    Native { name: SymId, arity: u8, f: NativeFn },
+    Native {
+        name: SymId,
+        arity: u8,
+        f: NativeFn,
+        #[cfg(feature = "host")]
+        captures: Option<Box<[Value]>>,
+    },
 }
 
 /// A function literal of a loaded program, by its text (see `Func::Lazy`): the text, where the literal lies in it, what parsing it needs
@@ -746,6 +820,21 @@ pub struct LazyCtx {
 }
 
 impl Func {
+    pub fn native(name: SymId, arity: u8, f: NativeFn) -> Self {
+        Self::native_with_captures(name, arity, f, Vec::new())
+    }
+
+    /// Values kept by the native closure, for embedders that trace references through it.
+    pub fn native_with_captures(name: SymId, arity: u8, f: NativeFn, captures: Vec<Value>) -> Self {
+        #[cfg(not(feature = "host"))]
+        let _ = captures;
+        Self::Native {
+            name, arity, f,
+            #[cfg(feature = "host")]
+            captures: (!captures.is_empty()).then(|| captures.into_boxed_slice()),
+        }
+    }
+
     /// A projection of `f` over `args`; a `range` error when it would nest too deeply (a
     /// projection that holds a projection that holds a projection, without end).
     pub fn proj(f: Value, args: Vec<Slot>) -> Result<Func> {
@@ -780,6 +869,16 @@ pub trait Ext {
     }
     /// `x,y` with this object as `x` (a remote dictionary takes a `[key value]` pair).
     fn join(&self, _ip: &mut crate::interp::Interp, _y: &Value) -> Option<Result<Value>> {
+        None
+    }
+    /// Schema of a table or another tabular value.
+    #[cfg(feature = "tables")]
+    fn schema(&self) -> Option<Result<Value>> {
+        None
+    }
+    /// Construct a native table from a host value with its own column representation.
+    #[cfg(all(feature = "host", feature = "tables"))]
+    fn host_table(&self, _ip: &mut crate::interp::Interp) -> Option<Result<Value>> {
         None
     }
     /// HOST VALUES (feature `host`): an object of the embedder that stands for an array the embedder computes with (a NumPy array, a
@@ -961,6 +1060,26 @@ impl Value {
         None
     }
 
+    /// Dimensions of an array owned by an embedding backend, when the value is one.
+    pub fn host_shape(&self) -> Option<Vec<u32>> {
+        #[cfg(feature = "host")]
+        if let Value::Ext(e) = self {
+            return e.0.host_shape();
+        }
+        None
+    }
+
+    /// Ask an embedder's object whether it can supply a native table.
+    #[cfg(feature = "tables")]
+    pub fn host_table(&self, ip: &mut crate::interp::Interp) -> Option<Result<Value>> {
+        #[cfg(feature = "host")]
+        if let Value::Ext(e) = self {
+            return e.0.host_table(ip);
+        }
+        let _ = ip;
+        None
+    }
+
     pub fn ints(v: Vec<Int>) -> Value {
         Value::Ints(Rc::new(Arr::vec(v)))
     }
@@ -995,11 +1114,17 @@ impl Value {
     /// A list of exactly these elements, without normalising. Only for elements known not to
     /// be all numbers. A `range` error when the list would nest too deeply.
     pub fn raw_list(items: Vec<Value>) -> Result<Value> {
-        let (depth, has_dict) = nest_of(&items);
-        if depth as u32 >= max_nest() {
+        let nesting = Nesting::of(&items);
+        if nesting.depth as u32 >= max_nest() {
             return Err(too_deep());
         }
-        Ok(Value::List(Rc::new(List { items, depth: depth + 1, has_dict })))
+        Ok(Value::List(Rc::new(List {
+            items,
+            depth: nesting.depth + 1,
+            has_dict: nesting.has_dict,
+            #[cfg(feature = "host")]
+            may_reach_host_values: nesting.may_reach_host_values,
+        })))
     }
 
     /// The normalising constructor (KlongPy: `kg_asarray`).
@@ -1175,6 +1300,17 @@ impl Value {
             v.push(self.item(i));
         }
         Ok(v)
+    }
+
+    /// Consume a value's leading items, reusing the allocation of an owned mixed list.
+    pub fn into_items(self) -> Result<Vec<Value>> {
+        match self {
+            Value::List(list) => match Rc::try_unwrap(list) {
+                Ok(list) => Ok(list.items),
+                Err(list) => Value::List(list).items(),
+            },
+            value => value.items(),
+        }
     }
     /// True unless the value is the number 0 or an empty list or string (the rule of `:[`).
     pub fn truthy(&self) -> bool {

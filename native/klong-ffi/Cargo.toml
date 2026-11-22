@@ -16,6 +16,7 @@ test = false
 doctest = false
 
 [features]
+tables = ["klong-board/tables"]
 default = ["files", "lib", "timers"]
 files = ["klong-board/files"]
 lib = ["klong-board/lib"]

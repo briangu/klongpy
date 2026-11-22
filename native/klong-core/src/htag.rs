@@ -10,7 +10,7 @@ pub const VECTOR: u8 = 1;
 pub const STRING: u8 = 2;
 /// The table of symbols: names, the map from names, its growth.
 pub const SYMBOLS: u8 = 3;
-/// The tables of globals, indexed by symbol.
+/// The tables of globals, indexed by symbol, and source-backed function objects made directly for them.
 pub const GLOBALS: u8 = 4;
 /// A parse: the tokens, the tree, the copy of the source.
 pub const TREE: u8 = 5;

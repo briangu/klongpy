@@ -1,6 +1,6 @@
 # What's New in v2
 
-This page tours what version 2 adds, from CPU and GPU to FPGA and microcontroller, and then the stable core. Each section is short and links to the page that covers it. If you have code written for 0.7, read [Migrating to v2](migrating-to-v2.md) as well. If you are new, start with [Start Here](getting-started.md).
+Version 2 adds a standalone command, shared desktop tables and SQL, and new language forms. [Start Here](getting-started.md) · [Migrating from the pure-Python line](migrating-to-v2.md)
 
 ## One engine, two commands
 
@@ -8,10 +8,14 @@ KlongPy 2 evaluates Klong on one interpreter, written in Rust. The Python implem
 
 | Command | What it is |
 |---|---|
-| `kg` | The interpreter as one program with no Python in it. |
-| `kgpy` | The same interpreter hosted in Python: NumPy, PyTorch, calling Python, tables and SQL, the web server, websockets and the FPGA card functions. |
+| `kg` | The standalone interpreter with embedded DuckDB, column tables, and native Metal on supported macOS builds. |
+| `kgpy` | The same interpreter hosted in Python, with NumPy and PyTorch arrays, Python callables, pandas and Arrow interchange, web services and FPGA card bindings. |
 
-`pip install klongpy` installs both. The tools `lint`, `check`, `compile c`, `fpga source` and `ast` are written in Rust and run from either command. There is no environment variable that selects an engine and there is no pure-Python version of KlongPy 2; the pure-Python line is 0.7. [What Runs Where](what-runs-where.md) lists which part does what for each command, backend and target.
+A v2 wheel installs both. The Rust tools `lint`, `check`, `compile c`, `fpga source` and `ast` run from either command. `kg --capabilities` reports which features the installed binary has. [What Runs Where](what-runs-where.md)
+
+## Tables and time-series queries
+
+`.table` creates ordered columns and `.index` adds a key for upserts. A later SQL query sees changes made through any reference to the same table. Use `.db("trades.duckdb")` for durable storage or pass named Klong tables to `.db` to query them in memory. Both hosts support the same Klong database code, and the Python host also exchanges tables with pandas and Arrow. [Columnar tables and SQL](fast_columnar_database.md)
 
 The status of each target (stable, passes conformance, subset, experimental) is in the table on the [home page](index.md#targets-and-status), and the hardware status is in the [status table of the board firmware](native/index.md#status-what-has-and-has-not-been-proven).
 
@@ -26,7 +30,7 @@ The torch backend and the `:>` gradient operator are in 0.7. What changes in 2:
 * The conformance suite runs on the torch backend, and passes except the cases tagged as NumPy only (float32 text, and `:undefined` inside a list, which a tensor cannot hold).
 * An integer operand beyond 64 bits makes `+ - * < > | &` exact on both backends; two operands within 64 bits wrap.
 
-`kgpy --backend torch` runs the arrays on PyTorch (CPU, CUDA or Apple MPS; the CPU is tested, MPS has been run by hand and CUDA is untested). Floats are float32, and strings and mixed lists stay NumPy object arrays on the host. See [PyTorch Backend and Autograd](torch_backend.md), and [Performance](performance.md) for what is measured.
+`kg --device mps` selects native Metal for supported array arithmetic and gradients on macOS. `kgpy --backend torch` uses PyTorch. Automated tests cover its CPU backend and an Apple MPS release smoke workload. Default float calculations use float32 under PyTorch, and strings and mixed lists stay NumPy object arrays on the host. [Native Metal](what-runs-where.md#native-metal) · [PyTorch Backend and Autograd](torch_backend.md)
 
 ## FPGA: Klong functions as hardware
 
@@ -36,9 +40,9 @@ A function of the static profile can be built into a kernel for an FPGA card and
 
 Two routes put Klong on a small device.
 
-**The interpreter on a board** is the same engine, built without Python for a microcontroller. It has a serial console and an upload command, kdb+ IPC, timers and a management node library. It passes the conformance suite on a desktop and has run it on one ESP32-P4 board, and two Raspberry Pi Picos have run it with IPC between them. See [Native Runtime](native/index.md) and, for the details of what has run on hardware, its [status table](native/index.md#status-what-has-and-has-not-been-proven).
+**The interpreter on a board** shares the desktop engine and can provide a serial console, uploads, kdb+ IPC, timers and the management library. The RC1 serial simulator passed 1,716 selected language cases. On two physical RP2040 Picos, RC1 passed the paired boot self-test, including a 4 KB echo and a management call. The ESP32-P4 has earlier physical console results. [Board test status](native/index.md#status-what-has-and-has-not-been-proven)
 
-**Compiling to C** takes a subset of Klong, the static profile, in which every type, shape and call target is known before the program runs. It compiles to freestanding C99 with no heap, no recursion and no C library. `check` tells you whether a file is inside the subset, and `compile c` writes the C; both are commands of `kg` and of `kgpy`. Three examples have run compiled on two Raspberry Pi Picos and agree with the interpreter; the two step functions run about 100 times faster than the interpreter on the same board ([on a Pico](embedded.md#on-a-pico)).
+**Compiling to C** takes a subset of Klong, the static profile, in which every type, shape and call target is known before the program runs. It compiles to freestanding C99 with no heap, no recursion and no C library. `check` tells you whether a file is inside the subset, and `compile c` writes the C; both are commands of `kg` and of `kgpy`. Two RP2040 Picos ran the moving average and PID controller both compiled and interpreted. The compiled FIR was checked against a desktop reference stored in flash. [Measurements on a Pico](embedded.md#on-a-pico)
 
 <!-- check-docs: link examples -->
 ```console
@@ -112,11 +116,11 @@ Classic Klong programs run as before. v2 adds forms for things that needed worka
 [11 21 31]
 ```
 
-**Modules.** A file that ends with `.export` is a module. `.import` runs it in a scope of its own and returns what it exported, and `a.b` reads or writes the entry `"b"` of any dictionary. See [Modules](language-additions.md#modules).
+**Modules.** A file that assigns the variable `export` is a module. `.l` runs it in a scope of its own and binds what it exported, and `a.b` reads or writes the entry `"b"` of any dictionary. See [Modules](language-additions.md#modules).
 
 ```console
-$ printf 'sq(v)::{v*v}\n.export(:{;"sq";sq})\n' > geom.kg
-$ kgpy -e 'geom::.import("./geom");geom.sq(4)'
+$ printf 'sq(v)::{v*v}\nexport:::{;"sq";sq}\n' > geom.kg
+$ kgpy -e '.l("geom");geom.sq(4)'
 16
 ```
 
@@ -225,7 +229,7 @@ See [REPL](repl.md).
 
 ### kdb+ IPC
 
-`.srv` and `.cli` speak the kdb+ IPC protocol, so a q process can connect to a KlongPy server and a KlongPy client can call a q process. The wire carries tables (as kdb+ tables), timestamps and timespans, and functions as their source text. It is tested against PeachQ, a kdb+-compatible implementation, not against kdb+ itself. A server can check credentials with `.srv.auth`, a call that gets no answer fails after 30 seconds (change it with `.clit`), and an error on the server comes back as a Klong error while the connection stays open. The pickle protocol of 0.7 is gone, so 0.7 and 2.0 cannot talk to each other. See [Migrating to v2](migrating-to-v2.md#ipc-speaks-the-kdb-protocol).
+`.srv` and `.cli` speak the kdb+ IPC protocol. Both desktop commands tested keyed and unkeyed table round trips with PeachQ. The wire also carries timestamps, timespans and function source text. Upgrade every peer on a pure-Python KlongPy network together because v2 uses a different protocol. [IPC Capabilities](ipc_capabilities.md) · [Migrating to v2](migrating-to-v2.md#ipc-speaks-the-kdb-protocol)
 
 ```kgpy
 server?> .srv.auth(user;pw)::{(user~"bob")&(pw~"secret")}

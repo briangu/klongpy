@@ -1,10 +1,12 @@
 //! The boot self-test of the Pico image (`klong_rt::selftest`, the firmware's own logic) on boards
 //! behind the switch model, with a simulated supervisor that reads the channel-1 reports and the
 //! STATUS flags, at both lane rates.
+use klong_core::{Error, Value};
 use klong_dgram::frame::{Frame, T_APP_DATA, T_STATUS};
 use klong_dgram::lane::{STATUS_SELFTEST_FAIL, STATUS_SELFTEST_PASS, STATUS_SELFTEST_RUNNING};
 use klong_rt::node::LaneIo;
 use klong_sim::bench::*;
+use std::rc::Rc;
 
 static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 const BAUDS: [u32; 2] = [115_200, 4_500_000];
@@ -130,6 +132,38 @@ fn a_broken_peer_fails_with_the_step_and_recovers() {
         b.spin_ms(1500);
         assert_eq!(b.switch.stats().status_flags[1], STATUS_SELFTEST_PASS);
     }
+}
+
+#[test]
+fn an_out_of_memory_management_load_is_not_a_pass() {
+    let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let b = bench(2, BAUDS[1]);
+    let client = b.node(1);
+    client.console.borrow_mut().rt.interp.register(
+        ".l", 1, Rc::new(|_, _| Err(Error::memory())),
+    );
+    let mut reports = Reports(vec![]);
+    until(&b, &mut reports, 1, "klong selftest fail mgmt memory:", 15);
+    assert_eq!(b.node(0).ok("hits"), "4");
+}
+
+#[test]
+fn the_echo_vector_is_released_before_management_load() {
+    let _g = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let b = bench(2, BAUDS[1]);
+    let client = b.node(1);
+    {
+        let mut console = client.console.borrow_mut();
+        let ip = &mut console.rt.interp;
+        let load = ip.global(".l").unwrap();
+        ip.register(".l", 1, Rc::new(move |ip, args| {
+            assert!(!matches!(ip.global("big"), Some(Value::Ints(_))));
+            ip.apply(&load, args.to_vec(), Some(1))
+        }));
+    }
+    let mut reports = Reports(vec![]);
+    until(&b, &mut reports, 1, "klong selftest pass ", 15);
+    assert_eq!(b.node(0).ok("hits"), "5");
 }
 
 #[test]

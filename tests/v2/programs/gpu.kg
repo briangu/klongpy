@@ -1,0 +1,6 @@
+:" Every input and partial sum is exactly representable at float32.
+   The displayed result is the one scalar that must return to the host."
+v::1.0+(!65536)!2
+square::{x*x}
+energy(v)::{+/square(v)}
+cubeSum::{+/x^3}

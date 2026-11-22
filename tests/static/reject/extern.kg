@@ -1,5 +1,5 @@
 :" expect: static line 3 extern "
 
-.extern("kg.read";"int -> float")
+read::.extern("kg_read";"int -> float")
 f::{x}
 .entry("f";"int -> int")

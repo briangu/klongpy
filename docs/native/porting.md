@@ -96,6 +96,10 @@ klong_config cfg = {
 if (klong_init(&cfg) == KLONG_OK) klong_run();
 ```
 
+Two more functions are in the library built with the feature `cfun` (the Pico bench): `klong_cfun_register(name, arity, fn, ctx, out_cap)` defines a system function that runs a C function, and `klong_extern_register(symbol, fn, ctx, out_cap)` provides the C function a program declares with `adc::.extern("read_adc";"int -> float")`. The extern is keyed by its C symbol and is not a global: a program reaches it only through the function `.extern` returned, which checks the arguments and the result against the signature. It may be registered before or after the program declares the symbol.
+
+What a module is and where `.l` looks for a name are decided in one place, `native/klong-core/src/module.rs` (`scan`, `interface`, `search`), which is `no_std` and is part of the core every board links. The runtime (`klong-rt`'s `modules.rs`) calls it with the platform's file system and the library of the image; the linter and the checker call the same functions with the disk.
+
 The C interface has the features `files`, `lib` and `timers`. IPC needs a transport from the platform. The C interface has one, built with `klong-ffi --features lane`: the functions `klong_lane_init`, `klong_lane_pump`, `klong_lane_node` and `klong_lane_stats_get` of `klong.h`. A lane is a UART link that carries 16-byte frames, to a switch or a peer node. Over it the library provides IPC (`.cli("node:2")`, `.srv("node:")`) and a console channel. The Pico firmware is a C application that uses it ([two Picos](pico-bench.md)). The ESP32-P4 firmware does not, and has no IPC. The C interface has no other transport, such as TCP. A port in Rust can provide any transport (`Platform::transports()`) and then calls `poll_events` from its loop.
 
 ## Memory budgets
@@ -119,9 +123,9 @@ The images of the board skeleton, linked with the `min-size` profile (`cargo +st
 |---|---|---|---|
 | `thumbv7em-none-eabihf` | 315,876 | 299,996 | 236,964 |
 | `riscv32imac-unknown-none-elf` | 418,192 | 401,072 | 326,510 |
-| `thumbv7em-none-eabihf` before the module system (`.import`, `.export`, `a.b`) | 300,948 | 285,032 | 226,916 |
+| `thumbv7em-none-eabihf` before the module system (`.l` of a module, `export`, `a.b`) | 300,948 | 285,032 | 226,916 |
 
-The module system costs 12.5 KB on the console image and 7.7 KB on the bare one (the image without files or library has no `.import`: the loader is not built there, which saves 1.4 KB). By part, on `thumbv7em` with the console: the loader and `.import`/`.export` of the runtime 4.0 KB, the module scopes and their release in the core 2.1 KB, qualified names `a.b` 1.1 KB, the lookup and assignment rules 1.4 KB, the parser 0.6 KB, the library files written as modules 1.5 KB of text, the rest in what the other changes pull in. `.try`, `.err` (the error as a dictionary), `.seed`, `.now` and reading a qualified name on a host value add 2.4 KB to the console image, 2.3 KB to the 32-bit one and 2.4 KB to the bare one (1.0 KB net of the loader that the bare image no longer has).
+The module system costs 12.5 KB on the console image and 7.7 KB on the bare one (the image without files or library has no `.l`: the loader is not built there, which saves 1.4 KB). By part, on `thumbv7em` with the console: the loader of the runtime 4.0 KB, the module scopes and their release in the core 2.1 KB, qualified names `a.b` 1.1 KB, the lookup and assignment rules 1.4 KB, the parser 0.6 KB, the library files written as modules 1.5 KB of text, the rest in what the other changes pull in. `.try`, `.err` (the error as a dictionary), `.seed`, `.now` and reading a qualified name on a host value add 2.4 KB to the console image, 2.3 KB to the 32-bit one and 2.4 KB to the bare one (1.0 KB net of the loader that the bare image no longer has).
 
 **RAM.**
 

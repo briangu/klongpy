@@ -1,8 +1,8 @@
 :"meanrev: bet against a stretched price. Same interface as crossover.kg."
 
-stats::.import("../lib/stats")
-series::.import("../lib/series")
-book::.import("../book/portfolio")
+.l("../lib/stats")
+.l("../lib/series")
+.l("../book/portfolio";:book)
 
 name::"meanrev"
 
@@ -17,4 +17,4 @@ step(pf;row)::{[px m q];px::*row;m::book.mark(pf;px);
 describe(cfg)::{.fmt("meanrev window={} band={}";[;$cfg.strategy.params.meanrev.window;$cfg.strategy.params.meanrev.band])}
 
 .p("[meanrev] loaded")
-.export(:{;"name";name;"signal";signal;"step";step;"describe";describe})
+export:::{;"name";name;"signal";signal;"step";step;"describe";describe}

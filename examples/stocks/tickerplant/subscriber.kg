@@ -1,0 +1,7 @@
+:" Subscribe to committed batches on one connection. The listener exposes subStats for monitoring."
+cursor::0;received::0;volume::0
+onTicks(first;ts;sym;px;qty)::{[n];n::#ts;
+    :[(first~cursor)&((#sym)=n)&((#px)=n)&((#qty)=n);1;.err("range";"subscriber sequence gap")];
+    volume::volume+(+/qty);received::received+n;cursor::first+n;cursor}
+subStats()::{[;cursor;received;volume]}
+feed::.cli(.a@1);cursor::feed([;:subscribe;0]);.srv(.a@0)

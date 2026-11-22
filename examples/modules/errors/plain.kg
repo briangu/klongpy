@@ -1,2 +1,0 @@
-:"plain: a classic file, no .export. Load it with .l."
-helper(n)::{n+1}

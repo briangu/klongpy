@@ -7,8 +7,8 @@ global const lo: float = 0.0
 global const hi: float = 1.0
 global state integ: float = 0.0
 global state prev: float = 0.0
-extern read.adc: int -> float (C read_adc, module env)
-extern write.pwm: int float -> int (C write_pwm, module env)
+extern board.adc: int -> float (C read_adc)
+extern board.pwm: int float -> int (C write_pwm)
 entry step: float -> float -> step#1
 
 fn clamp#0 [fn] (x: float) -> float
@@ -18,11 +18,11 @@ fn clamp#0 [fn] (x: float) -> float
 fn step#1 [fn] (x: float) -> float
   local 0 e: float
   local 1 u: float
-  (set:float (local 0 e:float) (sub:float (param 0 x:float) (extern:float read.adc (0:int))))
+  (set:float (local 0 e:float) (sub:float (param 0 x:float) (extern:float board.adc (0:int))))
   (set:float (state integ:float) (call:float <fn clamp#0> (add:float (state integ:float) (mul:float (0.5:float) (mul:float (local 0 e:float) (0.01:float))))))
   (set:float (local 1 u:float) (call:float <fn clamp#0> (add:float (mul:float (2.0:float) (local 0 e:float)) (add:float (state integ:float) (mul:float (0.1:float) (div:float (sub:float (local 0 e:float) (state prev:float)) (0.01:float)))))))
   (set:float (state prev:float) (local 0 e:float))
-  (extern:int write.pwm (0:int) (local 1 u:float))
+  (extern:int board.pwm (0:int) (local 1 u:float))
   (local 1 u:float)
   calls: clamp#0
   effects: yes

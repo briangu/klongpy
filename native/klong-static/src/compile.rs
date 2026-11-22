@@ -49,7 +49,7 @@ impl Failure {
 
 /// The default C prefix of a program: its file name without the extension, as a C identifier.
 pub fn c_prefix(path: &str) -> String {
-    let base = path.rsplit('/').next().unwrap_or(path);
+    let base = klong_core::module::last_part(path);
     let stem = match base.rfind('.') {
         Some(p) if p > 0 => &base[..p],
         _ => base,
@@ -212,14 +212,6 @@ pub fn stage_value(v: Option<Value>, conv: &Conv, param: Option<&Ty>) -> StageVa
     }
 }
 
-fn abspath(p: &str) -> String {
-    if p.starts_with('/') {
-        return p.to_string();
-    }
-    let cwd = std::env::current_dir().map(|c| c.to_string_lossy().into_owned()).unwrap_or_default();
-    klong_lint::recover::py_join(&cwd, p)
-}
-
 /// The interpreter of stage one: strict level 2, the files of the operating system, `.fixed` evaluated to raw integers.
 pub fn stage_runtime() -> Runtime<HostPlatform> {
     stage_runtime_in(&[])
@@ -229,9 +221,9 @@ pub fn stage_runtime() -> Runtime<HostPlatform> {
 pub fn stage_runtime_in(lib_dirs: &[String]) -> Runtime<HostPlatform> {
     let cfg = Config { strict: 2, stack_limit: Some(192 << 20), ..Config::default() };
     let mut rt = Runtime::new(HostPlatform::new(Console::Stdout), cfg, None);
-    let path = std::env::var("KLONGPATH").ok().filter(|p| !p.is_empty()).unwrap_or_else(|| String::from(".:lib"));
-    let mut dirs: Vec<String> = path.split(':').filter(|d| !d.is_empty()).map(String::from).collect();
-    dirs.extend(lib_dirs.iter().cloned());
+    let path = klong_host::load_path_env();
+    let mut dirs: Vec<String> = klong_host::parse_load_path(&path).collect();
+    dirs.extend(lib_dirs.iter().map(|dir| klong_host::module_path(dir).into_owned()));
     rt.set_load_path(dirs);
     rt.interp.register(".fixed", WILDCARD, Rc::new(fixed_standin));
     rt.interp.register(".float", WILDCARD, Rc::new(float_standin));
@@ -262,9 +254,9 @@ pub fn compile_program_in(path: &str, text: Option<&str>, int_bits: u32, name: O
     }
     let mut rt = stage_runtime_in(lib_dirs);
     for (n, f) in externs {
-        rt.interp.register(&n, WILDCARD, f);
+        let _ = rt.declarations.provide(&n, f);
     }
-    let run_name = if is_file { abspath(path) } else { path.to_string() };
+    let run_name = if is_file { klong_host::absolute_module_path(path) } else { path.to_string() };
     if is_file {
         rt.set_program(&run_name);
     }

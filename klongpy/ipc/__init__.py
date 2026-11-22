@@ -13,8 +13,8 @@ documentation and Apache-licensed client code; kdb+ is a trademark of KX.
 """
 from .errors import IPCError, ProtocolError, IPCTypeError, IPCRangeError, IPCStateError
 from .codec import (
-    encode, encode_call, decode, KdbLambda, KdbOpaque, KdbError, set_function_text_hook, set_table_factory, KdbTable,
-    MAX_DEPTH,
+    encode, encode_call, decode, KdbLambda, KdbOpaque, KdbError, set_function_text_hook, set_table_factory,
+    KdbTable, KdbKeyedTable, MAX_DEPTH,
 )
 from .compress import compress, decompress, MAX_MESSAGE
 from .session import (
@@ -25,7 +25,8 @@ from .session import (
 __all__ = [
     "IPCError", "ProtocolError", "IPCTypeError", "IPCRangeError", "IPCStateError",
     "encode", "encode_call", "decode", "KdbLambda", "KdbOpaque", "KdbError",
-    "set_function_text_hook", "set_table_factory", "KdbTable", "MAX_DEPTH", "compress", "decompress", "MAX_MESSAGE",
+    "set_function_text_hook", "set_table_factory", "KdbTable", "KdbKeyedTable", "MAX_DEPTH",
+    "compress", "decompress", "MAX_MESSAGE",
     "Session", "Pending", "Service", "Handshake", "HandshakeAccepted", "HandshakeRejected",
     "Message", "Failure", "Closed", "NestingLimit",
 ]

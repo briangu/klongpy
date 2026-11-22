@@ -556,6 +556,44 @@ mod cfun {
         }
     }
 
+    /// The function a registered C function becomes: its arguments cross as `klong_val`, its result comes back in one.
+    fn host_fn(f: Cfun, ctx: usize, out_cap: usize) -> klong_core::value::NativeFn {
+Rc::new(move |ip: &mut Interp, a: &[Value]| {
+            if a.len() > MAX_ARGS {
+                return Err(Error::arity("too many arguments for a C function"));
+            }
+            let mut args = [Val::NONE; MAX_ARGS];
+            for (slot, v) in args.iter_mut().zip(a) {
+                *slot = describe(v);
+            }
+            // a function that returns a vector gets room for `out_cap` elements for the length of the call, so that it keeps no buffer
+            // of its own (RAM is what a board has least of)
+            let mut scratch: Vec<i64> = Vec::new();
+            let mut out = Val::NONE;
+            if out_cap > 0 {
+                scratch = klong_core::value::try_vec(out_cap)?;
+                scratch.resize(out_cap, 0);
+                out.len = out_cap;
+                out.data = scratch.as_ptr() as *const c_void;
+            }
+            // SAFETY (all three): one task; `CUR` is the interpreter calling, put back to what it was after the call (a C function
+            // may run Klong that calls another); `args` and the values behind them live to the end of the call.
+            let saved = unsafe { *CUR.0.get() };
+            unsafe { *CUR.0.get() = ip as *mut Interp };
+            let code = unsafe { f(ctx as *mut c_void, args.as_ptr(), a.len(), &mut out) };
+            unsafe { *CUR.0.get() = saved };
+            if code != 0 {
+                // SAFETY: the C function's message, NUL-terminated by the contract.
+                return Err(unsafe { error_of(code, out.data) });
+            }
+            if out_cap > 0 && out.data == scratch.as_ptr() as *const c_void && out.len > out_cap {
+                return Err(Error::system("a C function returned more than the room it was given"));
+            }
+            // SAFETY: the C function's result, valid by the contract (and, in the room it was given, checked just above).
+            unsafe { from_val(&out) }
+        })
+    }
+
     /// See klong.h.
     ///
     /// # Safety
@@ -578,45 +616,35 @@ mod cfun {
             return super::KLONG_ERR_STATE;
         }
         let ctx = ctx as usize;
-        s.console.rt.interp.register(
-            name,
-            arity as u8,
-            Rc::new(move |ip: &mut Interp, a: &[Value]| {
-                if a.len() > MAX_ARGS {
-                    return Err(Error::arity("too many arguments for a C function"));
-                }
-                let mut args = [Val::NONE; MAX_ARGS];
-                for (slot, v) in args.iter_mut().zip(a) {
-                    *slot = describe(v);
-                }
-                // a function that returns a vector gets room for `out_cap` elements for the length of the call, so that it keeps no buffer
-                // of its own (RAM is what a board has least of)
-                let mut scratch: Vec<i64> = Vec::new();
-                let mut out = Val::NONE;
-                if out_cap > 0 {
-                    scratch = klong_core::value::try_vec(out_cap)?;
-                    scratch.resize(out_cap, 0);
-                    out.len = out_cap;
-                    out.data = scratch.as_ptr() as *const c_void;
-                }
-                // SAFETY (all three): one task; `CUR` is the interpreter calling, put back to what it was after the call (a C function
-                // may run Klong that calls another); `args` and the values behind them live to the end of the call.
-                let saved = unsafe { *CUR.0.get() };
-                unsafe { *CUR.0.get() = ip as *mut Interp };
-                let code = unsafe { f(ctx as *mut c_void, args.as_ptr(), a.len(), &mut out) };
-                unsafe { *CUR.0.get() = saved };
-                if code != 0 {
-                    // SAFETY: the C function's message, NUL-terminated by the contract.
-                    return Err(unsafe { error_of(code, out.data) });
-                }
-                if out_cap > 0 && out.data == scratch.as_ptr() as *const c_void && out.len > out_cap {
-                    return Err(Error::system("a C function returned more than the room it was given"));
-                }
-                // SAFETY: the C function's result, valid by the contract (and, in the room it was given, checked just above).
-                unsafe { from_val(&out) }
-            }),
-        );
+        s.console.rt.interp.register(name, arity as u8, host_fn(f, ctx, out_cap));
         super::KLONG_OK
+    }
+
+    /// See klong.h.
+    ///
+    /// # Safety
+    /// `symbol` is a NUL-terminated string; `f` keeps the contract of `Cfun`; called on the task of `klong_init`, not from a callback.
+    #[no_mangle]
+    pub unsafe extern "C" fn klong_extern_register(symbol: *const c_char, f: Option<Cfun>, ctx: *mut c_void, out_cap: usize) -> i32 {
+        let Some(f) = f else { return super::KLONG_ERR_ARG };
+        if symbol.is_null() {
+            return super::KLONG_ERR_ARG;
+        }
+        // SAFETY: NUL-terminated by the contract.
+        let symbol = match unsafe { core::ffi::CStr::from_ptr(symbol) }.to_str() {
+            Ok(n) => n,
+            Err(_) => return super::KLONG_ERR_ARG,
+        };
+        let state = super::STATE.0.get();
+        // SAFETY: one task; the console is not borrowed outside `klong_step`, which this is not called from (see above).
+        let Some(s) = (unsafe { &mut *state }).as_mut() else { return super::KLONG_ERR_STATE };
+        if s.stepping {
+            return super::KLONG_ERR_STATE;
+        }
+        match s.console.rt.declarations.provide(symbol, host_fn(f, ctx as usize, out_cap)) {
+            Ok(()) => super::KLONG_OK,
+            Err(_) => super::KLONG_ERR_ARG,
+        }
     }
 
     /// Run `f` on the interpreter that called the C function; `None` outside a call.

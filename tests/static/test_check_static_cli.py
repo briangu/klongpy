@@ -78,7 +78,7 @@ class TestCheckMain(unittest.TestCase):
     def test_verbose_lists_what_was_found(self):
         rc, out, _ = run_main(os.path.join(EMBEDDED, "pid.kg"), verbose=True)
         self.assertEqual(rc, 0)
-        for line in ("  entry   step: float -> float", "  extern  read.adc: int -> float (module env)",
+        for line in ("  entry   step: float -> float", "  extern  board.adc: int -> float (C read_adc)",
                      "  global  kp: float (const)", "  global  integ: float (state)", "  fn      step(float) -> float"):
             self.assertIn(line + "\n", out)
 
@@ -140,7 +140,7 @@ class TestNoOptionalPackages(unittest.TestCase):
             "import klongpy.static as s\n"
             "r = s.check_file('examples/embedded/pid.kg')\n"
             "assert r.ok, r.render()\n"
-            "k = s.load_program('examples/embedded/pid.kg', externs={'read.adc': lambda c: 0.3, 'write.pwm': lambda c, u: 0})\n"
+            "k = s.load_program('examples/embedded/pid.kg', externs={'read_adc': lambda c: 0.3, 'write_pwm': lambda c, u: 0})\n"
             "assert abs(s.call_entry(k, 'step', 0.31) - 0.12005) < 1e-12\n"
             "print('ok')\n"
         )
@@ -163,7 +163,7 @@ class TestShippedFiles(unittest.TestCase):
                     if end > len(d.source.text):
                         # engine needs: a StaticDiag does not say which source its span lies in (check_report's `sources` index);
                         # a diagnostic in a file the program loads has that file's offsets, so it can only be the loading kind
-                        self.assertTrue(".l(" in d.source.text or ".import(" in d.source.text)
+                        self.assertIn(".l(", d.source.text)
                         continue
                     self.assertTrue(0 <= start <= end <= len(d.source.text))
                     d.render()

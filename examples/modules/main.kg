@@ -7,14 +7,14 @@
 .p("== modules: a backtest ==")
 
 :" shows: relative imports. A path that starts with ./ or ../ is relative to the importing file"
-config::.import("./config")
-rng::.import("./lib/rng")
-feed::.import("./data/feed")
-stats::.import("./lib/stats")
-reg::.import("./strategy/registry")
+.l("./config")
+.l("./lib/rng")
+.l("./data/feed")
+.l("./lib/stats")
+.l("./strategy/registry";:reg)
 :" shows: a diamond. book is already loaded through crossover and meanrev; this is the same instance"
-book::.import("./book/portfolio")
-table::.import("./report/table")
+.l("./book/portfolio";:book)
+.l("./report/table")
 
 .p("-- configuration")
 cfg::config.defaults()
@@ -33,7 +33,7 @@ quotes::feed.load(cfg)
 :" shows: one instance. feed drew through its own import of rng; this importer sees the count"
 .pf("draws after the feed: {}";rng.draws())
 :" shows: the cache key is the resolved file, so another spelling of the path gives the same module"
-rng2::.import("./lib/../lib/rng")
+.l("./lib/../lib/rng";:rng2)
 rng.uniform(1)
 .pf("same instance by another path: {}";rng2.draws())
 :" shows: a private helper is not reachable: step, state, count and m are not in the exports"
@@ -85,7 +85,7 @@ results::,/rowsfor'reg.names()
 .p("-- csv: a classic library used through the new form, and imported lazily by table")
 out::table.csv({x@"csv"}'results)
 .p(out@0)
-csv::.import("csv")
+.l("csv")
 .pf("fields in the first line: {}";#csv.split(out@0))
 
 .p("-- a classic file beside the modules")

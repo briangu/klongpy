@@ -1,0 +1,12 @@
+:" Exercise adjacent and outlying staging widths, including partial and single-trade batches."
+sizes::[1 7 3 65 64 63 1025 8192 6000 4096 1]
+put(n)::{[first ids];first::nextSeq;ids::first+!n;publish(first;ids;ids!9;ids+10;1+ids!5)}
+put'sizes
+n::+/sizes;ids::!n
+:[liveStats()~[;n;+/ids;+/(ids+10);+/(1+ids!5)];1;.err("range";"padding leaked into durable rows")]
+big::n+!65537
+bad::(65536#big),,:undefined
+:[0=*.try({publish(nextSeq;big;big;big;bad)};[]);1;.err("range";"invalid second chunk accepted")]
+:[(n=nextSeq)&(n=*liveStats());1;.err("range";"first chunk escaped rollback")]
+:[(n+65537)=publish(n;big;big;big;big);1;.err("range";"wide batch split failed")]
+:[(n+65537)=*liveStats();1;.err("range";"wide batch count")]

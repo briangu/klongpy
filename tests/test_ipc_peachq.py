@@ -23,6 +23,8 @@ import struct
 import sys
 import time
 import unittest
+from functools import partial
+from unittest.mock import patch
 
 import numpy as np
 
@@ -35,7 +37,7 @@ from klongpy.errors import KlongRemoteError, KlongSystemError
 from klongpy.ipc import KdbLambda, KdbOpaque, encode, encode_call, decode
 from klongpy.ipc.codec import KdbTable
 from klongpy.repl import cleanup_repl, create_repl
-from klongpy.sys_fn_ipc import KGRemoteFnProxy, KlongIPCTimeoutException
+from klongpy.sys_fn_ipc import HostPortConnectionProvider, KGRemoteFnProxy, KlongIPCTimeoutException
 
 try:
     import pandas  # noqa: F401
@@ -77,6 +79,8 @@ class Case(unittest.TestCase):
 
     def repl(self):
         klong, loops = create_repl()
+        self.backend = klong.backend
+        self.public_float = klong._float or float
 
         def shutdown():
             bounded(klong['.system']['closeEvent'].trigger, 20)
@@ -87,10 +91,22 @@ class Case(unittest.TestCase):
     def kg(self, klong, text, timeout=TIMEOUT):
         return bounded(lambda: klong(text), timeout)
 
-    def assertSame(self, got, want, msg=None, path="value"):
-        """Equality that looks inside arrays, lists and dicts, treats NaN as equal to NaN and checks the kind of number."""
+    def assertSame(self, got, want, msg=None, path="value", *, host_array=False):
+        """Compare values and their public backend representation, including dtype and device."""
         where = f"{msg or ''} {path}"
         if isinstance(want, np.ndarray):
+            backend = getattr(self, "backend", None)
+            if (want.dtype.kind in "if" and not host_array and backend is not None and backend.name != "numpy"
+                    and (want.dtype != np.float64 or backend.supports_float64())):
+                self.assertTrue(backend.is_backend_array(got), where)
+                device = backend.device
+                if device is not None:
+                    family, separator, index = str(device).partition(":")
+                    self.assertEqual(str(got.device).split(":", 1)[0], family, where)
+                    if separator:
+                        self.assertEqual(str(got.device), f"{family}:{index}", where)
+                got = backend.to_numpy(got)
+                self.assertEqual(got.dtype, want.dtype, where)
             self.assertIsInstance(got, np.ndarray, where)
             self.assertEqual(got.shape, want.shape, where)
             if want.dtype == object:
@@ -110,7 +126,10 @@ class Case(unittest.TestCase):
             for i, (g, w) in enumerate(zip(got, want)):
                 self.assertSame(g, w, msg, f"{path}[{i}]")
         elif isinstance(want, float):
-            self.assertIsInstance(got, float, where)
+            expected_type = getattr(self, "public_float", float) if path == "value" else float
+            self.assertIsInstance(got, expected_type, where)
+            with np.errstate(over="ignore"):
+                want = expected_type(want)
             if math.isnan(want):
                 self.assertTrue(math.isnan(got), where)
             else:
@@ -190,8 +209,20 @@ class TestKlongClientReceives(KlongClientCase):
                     ("enlist 7", np.array([7]))])
 
     def test_float_vectors(self):
-        self.check([("1.5 2.5", np.array([1.5, 2.5])), ("1.5 2.5e", np.array([1.5, 2.5])),
+        real_dtype = np.float64 if self.backend.supports_float64() else np.float32
+        self.check([("1.5 2.5", np.array([1.5, 2.5])), ("1.5 2.5e", np.array([1.5, 2.5], dtype=real_dtype)),
                     ("enlist 1.5", np.array([1.5]))])
+
+    def test_echo_real_and_double_preserve_width_and_device(self):
+        narrow = np.array([1.5, -0.0], dtype=np.float32)
+        wide = np.array([1 + 2 ** -52, 1e100], dtype=np.float64)
+        real_dtype = np.float64 if self.backend.supports_float64() else np.float32
+        self.assertEqual(self.q("{type x}", narrow), 8)
+        self.assertEqual(self.q("{type x}", wide), 9)
+        self.assertSame(self.q("{x}", narrow), narrow.astype(real_dtype))
+        self.assertSame(self.q("{x}", wide), wide)
+        self.assertSame(self.q("(1.5 2.5e;3.5 4.5e)"), np.array([[1.5, 2.5], [3.5, 4.5]], dtype=real_dtype))
+        self.assertSame(self.q("(1.5 2.5e;1.0000000000000002 1e100)"), np.array([[1.5, 2.5], wide]))
 
     def test_chars_strings_symbols(self):
         self.check([('"a"', KGChar("a")), ('"hello"', "hello"), ('""', ""), ('"h\\303\\251llo"', "héllo"),
@@ -227,21 +258,26 @@ class TestKlongClientReceives(KlongClientCase):
         self.assertIsInstance(t, dict)                     # KdbTable, or klongpy.db.Table when that is loaded
         self.assertEqual([str(k) for k in t.keys()] if isinstance(t, KdbTable) else list(t.columns), ["a", "b", "s"])
         get = (lambda k: t[S(k)]) if isinstance(t, KdbTable) else t.get
-        self.assertSame(np.asarray(get("a")), np.array([1, 2, 3]))
-        self.assertSame(np.asarray(get("b")), np.array([1.5, 2.5, 3.5]))
+        self.assertSame(np.asarray(get("a")), np.array([1, 2, 3]), host_array=True)
+        self.assertSame(np.asarray(get("b")), np.array([1.5, 2.5, 3.5]), host_array=True)
         self.assertEqual([str(x) for x in get("s")], ["x", "y", "z"])
 
     def test_empty_table_and_table_with_string_column(self):
-        self.assertEqual(len(self.q("([]a:`long$();b:`symbol$())")), 2)
-        t = self.q('([]a:1 2;c:("ab";"cd"))')
-        self.assertEqual(len(t), 2)
+        empty = self.q("([]a:`long$();b:`symbol$())")
+        names, columns, _, _ = empty.__klong_ipc_columns__()
+        self.assertEqual([str(name) for name in names], ["a", "b"])
+        self.assertEqual([len(column) for column in columns], [0, 0])
+        self.assertEqual(self.q("{(type x[`a]),type x[`b]}", empty).tolist(), [7, 11])
 
-    def test_keyed_table_arrives_as_a_pair(self):
-        # a keyed table (a dict of two tables) is a two-element list of its key and value tables
+        t = self.q('([]a:1 2;c:("ab";"cd"))')
+        names, columns, _, _ = t.__klong_ipc_columns__()
+        self.assertEqual([str(name) for name in names], ["a", "c"])
+        np.testing.assert_array_equal(columns[0], [1, 2])
+        self.assertEqual(list(columns[1]), ["ab", "cd"])
+
+    def test_keyed_table_retains_keys_and_values(self):
         r = self.q("([k:1 2]v:3 4)")
-        self.assertEqual(len(r), 2)
-        self.assertIn("k", [str(x) for x in (r[0].keys() if isinstance(r[0], KdbTable) else r[0].columns)])
-        self.assertIn("v", [str(x) for x in (r[1].keys() if isinstance(r[1], KdbTable) else r[1].columns)])
+        self.assertEqual(self.q("{x~([k:1 2]v:3 4)}", r), 1)
 
     def test_nulls_and_infinities_are_not_translated(self):
         self.check([("0N", -2 ** 63), ("0Nj", -2 ** 63), ("0Nj", -2 ** 63), ("0Wj", 2 ** 63 - 1), ("-0Wj", -(2 ** 63 - 1)),
@@ -304,13 +340,14 @@ class TestKlongClientSends(KlongClientCase):
                     ("non-ascii string", "héllo ☃", 10, None), ("string with NUL", "a\x00b", 10, None)])
 
     def test_vectors(self):
+        real_dtype = np.float64 if self.backend.supports_float64() else np.float32
         self.check([("long vector", np.array([1, 2, 3]), 7, None), ("float vector", np.array([1.5, 2.5]), 9, None),
                     ("float vector with nan", np.array([1.5, NAN]), 9, None),
                     ("int32 vector", np.array([1, 2, 3], dtype=np.int32), 6, np.array([1, 2, 3])),
                     ("int16 vector", np.array([1, 2, 3], dtype=np.int16), 5, np.array([1, 2, 3])),
                     ("uint8 vector", np.array([1, 2, 3], dtype=np.uint8), 4, np.array([1, 2, 3])),
                     ("bool vector", np.array([True, False]), 1, np.array([1, 0])),
-                    ("float32 vector", np.array([1.5, 2.5], dtype=np.float32), 8, np.array([1.5, 2.5])),
+                    ("float32 vector", np.array([1.5, 2.5], dtype=np.float32), 8, np.array([1.5, 2.5], dtype=real_dtype)),
                     ("symbol list", [S("a"), S("b")], 11, np.array([S("a"), S("b")], dtype=object))])
 
     def test_general_lists(self):
@@ -509,10 +546,17 @@ class TestKlongClientRequests(KlongClientCase):
         self.assertEqual(self.kg(self.klong, ".clic(c)"), 1)
         self.assertTrue(self.peachq.alive())
 
-    def test_connection_refused_handshake_is_an_error(self):
-        port = free_port()
-        with self.assertRaises(Exception):
-            self.kg(self.klong, f"x::.cli({port});x(\"1+1\")", 60)
+    def test_connection_refused_returns_a_disconnected_handle(self):
+        with socket.socket() as reserved:
+            reserved.bind(("127.0.0.1", 0))  # Keep the port bound without listening.
+            port = reserved.getsockname()[1]
+            provider = partial(HostPortConnectionProvider, max_retries=1, retry_delay=0)
+            with patch("klongpy.sys_fn_ipc.HostPortConnectionProvider", provider):
+                handle = self.kg(self.klong, f'x::.cli("127.0.0.1:{port}")')
+            self.assertTrue(callable(handle))
+            with self.assertRaises(KlongSystemError) as refused:
+                self.kg(self.klong, 'x("1+1")')
+            self.assertEqual(str(refused.exception), "connection not established")
 
 
 @NEED_PEACHQ
@@ -724,7 +768,8 @@ class TestSharedVectors(KlongClientCase):
                     with self.assertRaises(KlongRemoteError):
                         self.q("rt", np.frombuffer(raw, dtype=np.uint8).copy())
                     continue
-                out = bytes(np.asarray(self.q("rt", np.frombuffer(raw, dtype=np.uint8).copy()), dtype=np.uint8))
+                replay = self.q("rt", np.frombuffer(raw, dtype=np.uint8).copy())
+                out = bytes(np.asarray(self.backend.to_numpy(replay), dtype=np.uint8))
                 if e["mode"] == "roundtrip":
                     self.assertEqual(out[8:].hex(), body.hex())
                 else:
@@ -1008,11 +1053,11 @@ rep["after";"1+1"];
                 else:
                     self.assertEqual(got[2], run_show(e), out)
 
-    def test_keyed_table_sent_by_q_comes_back_as_a_pair(self):
+    def test_keyed_table_sent_by_q_comes_back_keyed(self):
         self.serve()
         r, out = self.run_q('rep["keyed";(`idf;([k:1 2]v:3 4))];')
-        self.assertEqual(r["keyed"][:2], ("ok", 0), out)                     # (key table; value table): not a keyed table
-        self.assertIn("+(,`k)!,1 2;+(,`v)!,3 4", r["keyed"][2], out)
+        self.assertEqual(r["keyed"][:2], ("ok", 99), out)
+        self.assertEqual(r["keyed"][2], run_show("([k:1 2]v:3 4)"), out)
 
     def test_q_table_sent_to_klongpy_comes_back_as_a_table(self):
         self.serve()
@@ -1133,7 +1178,7 @@ x:h`tdt;
         klong["req"] = ["{type x}", np.array(["2000-01-02"], dtype="datetime64[D]")]    # a plain array too
         self.assertEqual(self.kg(klong, "c(req)"), 12)
         klong["req"] = ["{x}", np.array([1, 2], dtype="timedelta64[s]")]
-        np.testing.assert_array_equal(self.kg(klong, "c(req)"), [10 ** 9, 2 * 10 ** 9])
+        self.assertSame(self.kg(klong, "c(req)"), np.array([10 ** 9, 2 * 10 ** 9]))
         klong["req"] = ["{type x}", np.array([1, 2], dtype="timedelta64[s]")]
         self.assertEqual(self.kg(klong, "c(req)"), 16)
 
@@ -1231,6 +1276,57 @@ class TestSetWithASymbolCallee(Case):
         port = free_port()
         self.assertEqual(self.kg(server, f".srv({port})"), 1)
         self.assertEqual(self.call(port, [S("set"), 3, 4]), (2, 7))
+
+
+class TestWireFloatPrecision(PeachQClientCase):
+    def test_forwarding_double_preserves_bits(self):
+        wide = 1.0 + 2 ** -52
+        vector = np.array([wide, 1e100, -0.0], dtype=np.float64)
+        self.serve("last::{[a];a::0;x}", vwide=wide, vwides=vector)
+        expected_atom = struct.pack("<bd", -9, wide)
+        expected_vector = struct.pack("<BBiddd", 9, 0, 3, wide, 1e100, -0.0)
+        conn = raw_connect(self.port)
+        self.addCleanup(conn.close)
+
+        for request, expected in (
+            (encode(S("vwide")), expected_atom),
+            (encode(S("vwides")), expected_vector),
+            (encode_call([S("idf"), wide]), expected_atom),
+            (encode_call([S("idf"), vector]), expected_vector),
+            (encode_call([S("last"), wide]), expected_atom),
+            (encode_call([S("set"), S("from_peer"), wide]), encode(KLONG_UNDEFINED)),
+            (encode(S("from_peer")), expected_atom),
+        ):
+            with self.subTest(request=request):
+                send_msg(conn, 1, request)
+                header, response = read_raw(conn)
+                self.assertEqual(header[1], 2)
+                self.assertEqual(response, expected)
+
+    def test_arithmetic_uses_backend_precision_and_device(self):
+        offset = 2 ** -25
+        self.serve("delta::{x-y}", nearone=1.0 + offset)
+        expected = 0.0 if self.public_float is np.float32 else offset
+        # These are ordinary Klong evaluations with bound inputs, so the
+        # operand reads still obey the configured compute precision.
+        self.assertSame(self.server["nearone"], 1.0 + offset)
+        self.assertSame(self.kg(self.server, "nearone-1.0"), expected)
+        dtype = np.dtype(self.public_float)
+        self.assertSame(
+            self.kg(self.server, "[1.0 1.0]+nearone-1.0"),
+            np.array([1.0 + expected, 1.0 + expected], dtype=dtype),
+        )
+        conn = raw_connect(self.port)
+        self.addCleanup(conn.close)
+        send_msg(conn, 1, encode("nearone-1.0"))
+        header, response = read_raw(conn)
+        self.assertEqual(header[1], 2)
+        fmt, code = ("<bf", -8) if self.public_float is np.float32 else ("<bd", -9)
+        self.assertEqual(response, struct.pack(fmt, code, expected))
+        send_msg(conn, 1, encode_call([S("delta"), 1.0 + offset, 1.0]))
+        header, response = read_raw(conn)
+        self.assertEqual(header[1], 2)
+        self.assertEqual(response, struct.pack("<bd", -9, expected))
 
 
 # ----------------------------------------------------------------------------------------------------------

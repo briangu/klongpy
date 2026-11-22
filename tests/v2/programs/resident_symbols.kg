@@ -1,0 +1,2 @@
+resident::0
+keepSymbols(n)::{resident::.table(:{;"sym";n#[:aa :bb :cc :dd];"px";!n});#resident}

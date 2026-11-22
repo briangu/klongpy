@@ -158,8 +158,8 @@ pub fn kg_files(prefix: &str, klongpath: &str) -> Vec<String> {
         }
     }
     if !prefix.contains('/') {
-        for d in klongpath.split(':') {
-            if d.is_empty() || !is_dir(d) {
+        for d in klong_host::parse_load_path(klongpath) {
+            if !is_dir(&d) {
                 continue;
             }
             if let Ok(rd) = std::fs::read_dir(d) {

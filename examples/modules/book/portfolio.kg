@@ -11,4 +11,4 @@ trade(pf;px;qty)::{[q];q::new(pf.cash-px*qty);q.pos::pf.pos+qty;q.px::px;q.trade
 mark(pf;px)::{trade(pf;px;0.0)}
 
 .p("[portfolio] loaded")
-.export(:{;"new";new;"equity";equity;"trade";trade;"mark";mark})
+export:::{;"new";new;"equity";equity;"trade";trade;"mark";mark}

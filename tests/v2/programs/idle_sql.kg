@@ -1,0 +1,10 @@
+:" The aliases share a table, but their SQL snapshots belong to their views."
+t::.table(:{;"sym";16#[:a :b];"id";!16;"amount";!16})
+db::0
+watch::0
+makeViews(names)::{[views];views:::{};{views,[;x;t]}'names;db::.db(views);1}
+fill(n)::{[ids];ids::16+!n;.insert(t;+[;n#[:a :b];ids;ids]);1}
+readFirst::{db("SELECT count(*), sum(amount) FROM alias0")}
+readLast::{db("SELECT count(*), sum(amount) FROM alias47")}
+quietTick::{.p("idle-window-complete");.timerc(watch);1}
+observeIdle::{watch::.timer("idle-test";0.05;quietTick);1}

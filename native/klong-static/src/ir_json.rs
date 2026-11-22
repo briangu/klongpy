@@ -203,7 +203,7 @@ impl Ctx<'_> {
     }
 
     fn external(&self, x: &ExternDecl) -> J {
-        obj(vec![("name", s(&x.name)), ("signature", s(&x.signature.to_string())), ("module", s(&x.module)), ("c_name", s(&crate::ir::c_name_of(x)))])
+        obj(vec![("name", s(&x.name)), ("signature", s(&x.signature.to_string())), ("c_name", s(&crate::ir::c_name_of(x)))])
     }
 
     fn entry(&self, e: &Entry) -> J {

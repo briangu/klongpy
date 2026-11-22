@@ -100,10 +100,20 @@ def _wide(klong):
     return w() if w is not None else contextlib.nullcontext()
 
 
+def _derivative_result(value, backend, klong):
+    # Return Klong's computed array after wide_floats restores the provider's
+    # device and compute dtype. Direct NumPy helper calls retain float64.
+    if klong is not None and value.ndim and backend.name != "numpy":
+        dtype = getattr(backend, "_host_float", value.dtype)
+        return backend.kg_asarray(value.astype(dtype, copy=False))
+    return value
+
+
 def numeric_grad(func, x, backend, eps=None, klong=None):
     """Compute numeric gradient of scalar-valued function (in float64 where the backend has it, see `_wide`)."""
     with _wide(klong):
-        return _numeric_grad(func, x, backend, eps)
+        result = _numeric_grad(func, x, backend, eps)
+    return _derivative_result(result, backend, klong)
 
 
 def _numeric_grad(func, x, backend, eps=None):
@@ -163,10 +173,11 @@ def numeric_jacobian(func, x, backend, eps=None, klong=None):
         eps: Step size for finite differences (default: 1e-6 or 1e-4 for float32)
 
     Returns:
-        Jacobian matrix as numpy array
+        A NumPy matrix, or the selected provider's array for a Klong call.
     """
     with _wide(klong):
-        return _numeric_jacobian(func, x, backend, eps)
+        result = _numeric_jacobian(func, x, backend, eps)
+    return _derivative_result(result, backend, klong)
 
 
 def _numeric_jacobian(func, x, backend, eps=None):

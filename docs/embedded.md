@@ -1,6 +1,6 @@
 # Compiling Klong to C
 
-Status: works for the static profile, a subset of the language. It is tested with desktop C compilers and compile-checked for bare Arm and x86 targets. Three examples have run compiled on two Raspberry Pi Picos, where they agree with the interpreter ([on a Pico](#on-a-pico)); no other microcontroller has run it. For the status of the interpreter on boards see the [board status table](native/index.md#status-what-has-and-has-not-been-proven).
+The C compiler covers the static profile, a subset of the language. Tests run with desktop C compilers. Two physical RP2040 Picos ran the three compiled examples described [below](#on-a-pico). The [board status table](native/index.md#status-what-has-and-has-not-been-proven) also covers the interpreter.
 
 A small part of Klong, the [static profile](static-profile.md), can be compiled ahead of time to C99 with no heap, no recursion and no C library. A program written in it runs unchanged under the interpreter (`kg` or `kgpy`), which is how it is developed and tested, and the generated C does the same work on a target with no interpreter. The target is a microcontroller or any other place where a small, fixed-size, dependency-free function is wanted: a filter, a controller, a state machine over a few sensors.
 
@@ -24,7 +24,7 @@ step::{buf::buf:=x,pos;pos::(pos+1)!#buf;(+/buf)%#buf}
 .entry("step";"float -> float")
 ```
 
-`pid.kg` is one step of a PID controller. The target provides two functions, declared with `.extern`: `read.adc(channel)` and `write.pwm(channel;duty)`.
+`pid.kg` is one step of a PID controller. The target provides two functions, declared with `.extern` in the module file `board.kg` (`adc::.extern("read_adc";"int -> float")` and `pwm::.extern("write_pwm";"int float -> int")`, exported as `adc` and `pwm`). `pid.kg` loads the module with `.l("board")` and calls `board.adc(channel)` and `board.pwm(channel;duty)`. The first argument of `.extern` is the C symbol; the name a program uses is the key in `export`.
 
 ```
 kp::2.0
@@ -37,12 +37,11 @@ hi::1.0
 integ::0.0
 prev::0.0
 
-.extern("read.adc";"int -> float")
-.extern("write.pwm";"int float -> int")
+.l("board")
 
 clamp::{(x|lo)&hi}
 
-step::{[e u];e::x-read.adc(0);integ::clamp(integ+ki*e*dt);u::clamp((kp*e)+integ+kd*(e-prev)%dt);prev::e;write.pwm(0;u);u}
+step::{[e u];e::x-board.adc(0);integ::clamp(integ+ki*e*dt);u::clamp((kp*e)+integ+kd*(e-prev)%dt);prev::e;board.pwm(0;u);u}
 
 .entry("step";"float -> float")
 ```
@@ -103,8 +102,8 @@ $ python run_mavg.py
 $ cat > run_pid.py <<'EOF'
 > from klongpy.static import load_program, call_entry
 > klong = load_program("examples/embedded/pid.kg", externs={
->     "read.adc": lambda channel: 0.3,
->     "write.pwm": lambda channel, duty: 0,
+>     "read_adc": lambda channel: 0.3,
+>     "write_pwm": lambda channel, duty: 0,
 > })
 > for _ in range(3):
 >     print("%g" % call_entry(klong, "step", 0.31))
@@ -175,11 +174,11 @@ $ grep -n 'pidc_t\|read_adc\|write_pwm' pid-c/pidc.h
 29:void pidc_init(pidc_t *p);
 30:/* sizeof(pidc_t), for a host that allocates the instance itself. */
 34:kg_float pidc_step(pidc_t *p, kg_float x); /* entry step: float -> float */
-37:kg_float read_adc(kg_int a0); /* Klong name read.adc: int -> float (module env) */
-38:kg_int write_pwm(kg_int a0, kg_float a1); /* Klong name write.pwm: int float -> int (module env) */
+37:kg_float read_adc(kg_int a0); /* Klong name board.adc: int -> float */
+38:kg_int write_pwm(kg_int a0, kg_float a1); /* Klong name board.pwm: int float -> int */
 ```
 
-An extern appears in the header as a prototype under its mapped name: `read.adc` is `read_adc`, and the comment gives the Klong name, the signature and the module.
+An extern appears in the header as a prototype under its C symbol (`read_adc`, the first argument of `.extern`), and the comment gives the Klong name (`board.adc`: the module's file name and the key it exports) and the signature.
 
 ### Other options
 
@@ -246,7 +245,7 @@ $ ./pid_host
 0.02015
 ```
 
-Without the two definitions the link fails with undefined `read_adc` and `write_pwm`. The module name of an extern (`env` by default; the third argument of `.extern`) is not used in C. It is the import module of the WebAssembly build that does not exist yet.
+Without the two definitions the link fails with undefined `read_adc` and `write_pwm`. The name a program uses for an extern (`board.adc`) is not used in C: the target defines the C symbol.
 
 ### Freestanding
 
@@ -438,7 +437,17 @@ error: :*: count must not be negative, got -3
 
 ## On a Pico
 
-The Pico firmware of the [native runtime](native/pico-bench.md) links the C compiled from `examples/embedded/mavg.kg`, `pid.kg` and `fir.kg` beside the interpreter, as the functions `.c.mavg`, `.c.pid` and `.c.fir`. `.c.check()` runs each example through the interpreter and through the compiled code on the same inputs, on the board, and gives one row per example: whether they agree, the number of values, the interpreter's time and the compiled code's time in microseconds, and the largest relative difference in parts per billion.
+The [Pico firmware](native/pico-bench.md) links the C compiled from `examples/embedded/mavg.kg`, `pid.kg` and `fir.kg` as `.c.mavg`, `.c.pid` and `.c.fir`. Run `.c.check()` to compare compiled moving average and PID with the board interpreter. FIR's interpreted input exceeds the heap on this image, so the check compares compiled FIR against desktop reference values stored in flash. Each result row contains a pass flag, the number of values, interpreter and compiled times in microseconds, and the largest relative difference in parts per billion. An interpreter time of `-1` marks the use of a reference.
+
+Both boards passed all three checks using the same [sealed RC1 image](native/pico-bench.md#rc1-on-two-rp2040-boards) on November 20, 2026. The ranges show the two board timings.
+
+| Example | Values | Interpreter | Compiled C | Largest difference |
+|---|---|---|---|---|
+| `mavg.kg`, one step per value | 64 | 23,047–23,098 µs | 197–198 µs | 0 ppb |
+| `pid.kg`, one step per value | 32 | 39,484–40,833 µs | 344–345 µs | 101 ppb |
+| `fir.kg`, 256 samples through 16 taps | 241 | Flash reference | 6,395–6,397 µs | 216 ppb |
+
+The earlier November 18, 2026 measurements used a different firmware image on two RP2040 Picos (Cortex-M0+ at 125 MHz).
 
 | Example | Values | Interpreter | Compiled C | Largest difference |
 |---|---|---|---|---|
@@ -446,12 +455,12 @@ The Pico firmware of the [native runtime](native/pico-bench.md) links the C comp
 | `pid.kg`, one step per value | 32 | 34.7 ms | 0.344 ms | 101 parts per billion |
 | `fir.kg`, 256 samples through 16 taps | 241 | does not fit | 6.4 ms | 216 parts per billion |
 
-Conditions: two Raspberry Pi Picos (RP2040, Cortex-M0+ at 125 MHz, no FPU), 2026-11-18, one firmware image; both boards agree on every value and their times are within 2%. The compiled code is about 100 times faster than the interpreter on these two step functions. The differences are float32 in the compiled code against float64 in the interpreter. The interpreter cannot load `fir.kg` on this board: its 256-sample arrays do not fit the heap beside the firmware (`memory error: out of memory`), so the compiled FIR is compared with values computed by KlongPy on a desktop and stored in the image. The compiled FIR needs no heap.
+In that run compiled moving average and PID were about 100 times faster than the corresponding interpreted steps. The output comparisons used single precision in compiled C and double precision in the interpreter.
 
 ## What has not been done
 
-- The C that this tool generates has run on one kind of microcontroller, the RP2040 of a Raspberry Pi Pico (Cortex-M0+, no FPU), and only for the three examples above. It has not run on a Cortex-M4 or M7, RISC-V or Xtensa device, or in an emulator; the other tests run it as a shared library on the host. The HLS C++ of `kgpy fpga source` has run on one Alveo U250 ([Klong functions as FPGA hardware](hardware.md), experimental).
-- Compile-only builds were made with clang (Conditions: Apple clang 21 on an Apple M-series desktop) for `thumbv6m-none-eabi` (no FPU, soft float), `thumbv7em-none-eabihf` (single-precision FPU), `armv7m`, big-endian `armebv7m`, `i386` and `aarch64`, all freestanding with `-Werror`, with `nm -u` limited to the declared externs and compiler-rt helpers. RISC-V and Xtensa were not compile-checked: that clang has no backend for either. `riscv32` is in the list of targets the test tries and is skipped where the compiler cannot build for it; Xtensa is not in the list. Cross builds with GCC toolchains were not made.
+- The three examples were also linked into a separate ESP32-P4 diagnostic image. Its on-device check remains pending.
+- Compile-only checks with Apple clang 21 on an Apple M-series desktop covered `thumbv6m-none-eabi`, `thumbv7em-none-eabihf`, `armv7m`, big-endian `armebv7m`, `i386` and `aarch64`. They used freestanding C with `-Werror` and checked that undefined symbols were limited to declared externs and compiler-rt helpers. The test also attempts `riscv32` when the compiler supports it.
 - There is no WebAssembly build. The emitted C is meant to build with `--target=wasm32 -ffreestanding -nostdlib` and its externs to become imports, but that is not tested.
 - A constant index table is stored as `kg_int`. `fir.kg`'s table is 15.4 KB of its 15.5 KB of constants at 32 bits; storing it in the smallest type that holds it would make it about 3.9 KB. Not done.
 - The tests need a C compiler and skip without one. Set `KG_TEST_CC` to choose it and `KG_TEST_SANITIZE=undefined` to run them under UBSan.

@@ -10,7 +10,7 @@ Each node has one lane, a UART link on GP16 (TX) and GP17 (RX) of `uart0`. The l
 [14..15] CRC-16/CCITT-FALSE over bytes 2..13, little-endian
 ```
 
-The types are PING 1, PONG 2, STATUS 3 and APP_DATA 9. Address 16 is the supervisor, the peer that numbers the nodes and reads their STATUS. The node learns its number from the lane, answers PING, sends STATUS once a second and carries messages of up to 1024 bytes. Above that it runs the kdb+ IPC (`.cli("node:1")`, `.srv("node:")`) and the management library. One image is flashed to every Pico.
+The types are PING 1, PONG 2, STATUS 3 and APP_DATA 9. Address 16 is the supervisor, the peer that numbers the nodes and reads their STATUS. The node learns its number from the lane, answers PING, sends STATUS once a second and carries messages of up to 1024 bytes. Above that it runs the kdb+ IPC (`.cli("node:1")`, `.srv("node:")`) and the management library. The two RP2040 boards use the same image.
 
 ## Requirements
 
@@ -18,6 +18,7 @@ The types are PING 1, PONG 2, STATUS 3 and APP_DATA 9. Address 16 is the supervi
 * CMake and Ninja.
 * The Pico SDK 2.x. Set `PICO_SDK_PATH` to it.
 * The Arm GNU toolchain (`arm-none-eabi-gcc`). Set `ARM_BIN` to its `bin` directory.
+* The default image includes compiled Klong examples. Their generator uses standard-library Python and the desktop `kg` binary (by default `native/target/release/kg`). It runs each example with standalone `kg` and checks the results pinned in its `.expect` file. Set `KLONG` or `KLONG_PYTHON` to select an existing installation. Use `KLONG_C_EXAMPLES=0` to build the interpreter firmware without those examples.
 
 ## Build
 
@@ -29,15 +30,15 @@ The script builds `libklong_ffi.a` for `thumbv6m-none-eabi` with `--features lan
 |---|---|
 | `KLONG_SELFTEST=0` | leaves the boot self-test out |
 | `LANE_BAUD=115200` | builds for a slow lane; the default is 4,500,000 |
-| `KLONG_OPT=z` | the smaller image, about 430 KB instead of 650 KB, at some speed |
-| `KLONG_STACK_KB=96` | gives the interpreter a 96 KB stack and the heap what is left; the default is 112 |
+| `KLONG_OPT=z` | optimizes for code size |
+| `KLONG_STACK_KB=96` | reserves 96 KiB of stack, leaving the remaining RAM after static allocations for the heap. The default is 112 KiB. |
 | `KLONG_HEAP_DIAG=0` | leaves the `.heap` diagnostic out |
 
 `build.sh` prints the RAM map from the linker's symbols and runs `tools/check_layout.py`, which fails the build when the layout is one the firmware cannot run.
 
 ## Flash
 
-Hold BOOTSEL while connecting the Pico over USB and copy `build/klong_pico_bench.uf2` to the drive that appears. Do the same for the second Pico with the same file. The image keeps nothing in flash, so uploads live in RAM and are lost at reset.
+Hold BOOTSEL while connecting the RP2040 Pico over USB and copy `build/klong_pico_bench.uf2` to the drive that appears. Do the same for the second Pico with the same file. The Klong filesystem lives in RAM, so uploaded programs are lost at reset. The November 20 RC1 physical check used SWD for flashing and the lane for console commands. [RC1 run results](../../../docs/native/pico-bench.md#rc1-on-two-rp2040-boards)
 
 ## What it does with the hardware
 
@@ -57,7 +58,7 @@ Ctrl-T (0x14) on the USB console prints the counters instead of passing it to Kl
 
 ## The console
 
-* **USB.** (The USB console has not been tested on the two boards of the two-Pico result.) Open the Pico's USB port with a terminal at any speed and press Enter for the prompt `klong> `. `native/tools/kgupload.py PORT ver` works, and so do `put` and `run`.
+* **USB.** The firmware enables a CDC console. To check it, open the Pico's USB port in a terminal, press Enter for the `klong> ` prompt and try `1+2`. The upload client provides `native/tools/kgupload.py PORT ver`, `put` and `run`. The RC1 physical run deferred the direct USB prompt and Ctrl-T counter checks. It used the lane for console operations.
 * **The lane.** Datagram channel 1 is a console. Input is a datagram with the ACK flag that ends at a line end; output is text sent to the node that last sent input. Channel 2 carries control (`done ID STATUS`, `int`, `hello`) and channel 3 the self-test report. `native/tools/klong_bench.py` is a client; `tools/lane_frames.py send 0 '1+2\n' --ack` prints the frames of an input for any other tool to put on a lane.
 
 ## The boot self-test
@@ -67,7 +68,7 @@ Every node serves. A node that is not number 0 connects to the nearest node belo
 1. `sync`, a synchronous call;
 2. `async`, an asynchronous call, then a synchronous one, then the asynchronous answer;
 3. `echo`, 500 integers (4 KB) there and back, compared;
-4. `mgmt`, the management library calling the peer (skipped if the library is not in the image).
+4. `mgmt`, the management library calling the peer, on builds that include the library.
 
 The verdict goes to address 16 on channel 3 as text, every 3 seconds, and as the flags byte of STATUS:
 
@@ -84,12 +85,12 @@ A node that finds nobody below it reports `serving` and looks again every 10 sec
 
 Without hardware, `cargo test --release --workspace` in `native/` and `python -m unittest tests.test_native_pico_pair` run the pair in the simulator and in a model of the firmware's allocator.
 
-With two flashed Picos on a lane that reaches a numbering source, check in this order:
+With two flashed RP2040 Picos on a lane that reaches a numbering source, check in this order:
 
-1. Both nodes are numbered and alive, with STATUS flags `0x31`.
-2. Within about 10 s the higher node's flags change to `0x51` and its report reads `klong selftest pass ...`. The lower node stays at `0x31` and reports `calls=5`.
-3. If after 30 s no node has left `0x31`, or a flag is `0x91`, read the failing step in the `fail` text. `0x91` repeats the test every 15 s.
-4. On the USB console, Enter gives `klong> ` and `1+2` gives `3`. A plain `.cli` call to the other node takes about 3.4 ms. `f::{:[x;1+f(x-1);0]};f(105)` works and `f(109)` is a `range` error.
-5. `{1}{x+1}:~0` runs until Ctrl-C. Ctrl-T afterwards shows `rx ring overruns 0`.
+1. Check that both nodes have numbers and return a live version from `.ver()?"version"` on the lane. The supervisor can retain an older startup greeting after a reflash.
+2. With the default boot self-test and no extra user requests, look for the higher node's `0x51` pass report and the lower node's `0x31` serving report with five calls. A `0x91` report includes the failed step. If the nodes stay at `0x31`, check numbering and peer availability.
+3. From the lane console on each node, open `.cli` to the other node and evaluate `6*7`. Check for 42. Exercise `.l("mgmt")`, `mgmt.add` and `mgmt.call` on the serving node.
+4. Test recovery on the lane. Interrupt `{1}{x+1}:~0` with Ctrl-C and then evaluate `3+4`. For recursion, try `f::{:[x;1+f(x-1);0]};f(105)`, sample larger inputs until the guard reports a `range` error, then check that another expression works. Record the firmware and the tested inputs with the result.
+5. For a separate direct USB check, try the CDC prompt and upload commands above. Use Ctrl-T to read the UART counters after the lane tests.
 
-Record the `pass` line, the round trip and the counters `rx ring overruns`, `fifo overruns`, `line errors`, `bad crc` and `tx ring full`, all expected to be 0 on a clean lane. For the results of one such run see `docs/native/pico-bench.md`.
+Record the `pass` line, the round trip and any collected counters, including `rx ring overruns`, `fifo overruns`, `line errors`, `bad crc` and `tx ring full`. The counters help diagnose transport faults. The RC1 run and earlier measurements are in [Two Raspberry Pi Picos calling each other](../../../docs/native/pico-bench.md).

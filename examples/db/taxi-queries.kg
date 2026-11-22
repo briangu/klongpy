@@ -1,0 +1,19 @@
+:" SQL returns a flat row for a one-row result. Each report is a JSON array of rows. "
+printTripRows(rows)::{[list];
+    list:::[0=#rows;[]:|@(rows@((#rows)-1));,rows;rows];
+    .p(.json(list))}
+
+tripReports(db)::{
+    db("CREATE OR REPLACE TEMP TABLE trip_bins AS
+        SELECT cab_type, passenger_count, y, round(trip_distance) AS miles,
+               count(*) AS n, count(fare) AS priced, sum(fare) AS amount
+        FROM trips GROUP BY ALL");
+    printTripRows(db("SELECT cab_type, sum(n) FROM trip_bins
+                      GROUP BY cab_type ORDER BY cab_type"));
+    printTripRows(db("SELECT passenger_count, sum(amount) / nullif(sum(priced), 0)
+                      FROM trip_bins GROUP BY passenger_count ORDER BY passenger_count"));
+    printTripRows(db("SELECT passenger_count, y, sum(n) FROM trip_bins
+                      GROUP BY passenger_count, y ORDER BY y, passenger_count"));
+    printTripRows(db("SELECT passenger_count, y, miles, sum(n) AS rides FROM trip_bins
+                      GROUP BY passenger_count, y, miles
+                      ORDER BY y, rides DESC, passenger_count, miles"))}

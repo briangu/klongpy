@@ -1,16 +1,15 @@
 """
 Backend arrays and the gradient operators on the native (Rust) engine.
 
-The native interpreter (native/klong-py) holds a value it does not understand as an opaque Python object (a HOST value: a NumPy
-array of some size, a torch tensor on any device, a 0-d tensor that requires gradients) and asks a TABLE, supplied here, to do
-what Klong does with it. The extension knows nothing of the backend's array type: it calls the methods below.
+The native interpreter (native/klong-py) can hold an array as an opaque Python object and ask this table to run operations on it.
+This preserves the provider's native array types, including device placement and gradient tracking.
 
     install(engine, backend=None)       the one entry point: KlongInterpreter calls it once its extension and backend exist
 
 The table (`HostTable`; the extension calls these, with the operands as Python values: a native vector is a NumPy array, a
 number a Python number, a host value itself, a Klong function a callable):
 
-    is_host(o)                  is this Python object a host value? (the backend's own array type: a torch tensor)
+    is_host(o)                  does the object belong to the provider's native array type?
     monad(glyph, x)             a primitive monad with a host value as the operand: klongpy/backends/host_ops.py monad_table
     dyad(glyph, x, y)           a primitive dyad with a host value among the operands: klongpy/backends/host_ops.py dyad_table
     adverb(glyph, f, op, x, y)  an adverb applied to a host value: klongpy/backends/host_ops.py get_adverb_fn, f being the function the
@@ -27,14 +26,13 @@ primitive of its own). The gradient operators, which the native core lacks, are 
 ∇, dyadic ∂ and :> (the functions of klongpy/autograd.py, which call a Klong function value and the backend's methods).
 """
 import numpy
-import operator
 from types import FunctionType as _FunctionType
 
-from .autograd import grad_of_fn, eval_dyad_autograd, eval_dyad_grad, eval_dyad_jacobian
+from .autograd import grad_of_fn, eval_dyad_autograd, eval_dyad_grad, eval_dyad_jacobian, multi_grad_of_fn
 from .backends import host_ops
-from .errors import KlongError, KlongTypeError, adverb_name, is_passthrough, operator_error, operator_name
+from .errors import KlongError, KlongSyntaxError, KlongTypeError, adverb_name, is_passthrough, operator_error, operator_name
+from .native_ext import native
 from .types import KGOp, KGSym, KGFn, KLONG_UNDEFINED
-from .autograd import multi_grad_of_fn
 from .writer import kg_write
 
 
@@ -51,17 +49,16 @@ class HostObject:
         return str(self.obj)
 
 def host_float(backend):
-    """The NumPy dtype of the backend's own float: float64 for NumPy, float32 for the torch backend (its literals are float32)."""
+    """The NumPy dtype that represents the backend's own floating-point literals."""
     w = getattr(backend, "_host_float", None)
     if w is None:
         probe = backend.kg_asarray([0.5])
-        w = backend._host_float = numpy.dtype(str(probe.dtype).replace("torch.", "")) if hasattr(probe, "dtype") else numpy.dtype("float64")
+        w = backend._host_float = numpy.asarray(backend.to_numpy(probe)).dtype
     return w
 
 
 def _array(backend, a):
-    """A NumPy array as the backend holds one. A native vector is float64; the backend's own float (the torch backend's float32:
-    its literals are float32) is what a number of the Klong program is there, so the array is made of that width."""
+    """Convert a native NumPy array to the provider's array type and floating-point width."""
     if a.dtype.kind == "f":
         w = host_float(backend)
         if a.dtype != w:
@@ -69,27 +66,20 @@ def _array(backend, a):
     return backend.kg_asarray(a)
 
 
-_FAST = {"+": operator.add, "-": operator.sub, "*": operator.mul}
-
-
 class HostTable:
     """The callable table of one interpreter's backend (see the module text)."""
 
     def __init__(self, engine, backend):
-        from .rust_engine import _KFn
-        self._kfn = _KFn
+        self._kfn = native().KFn
         self.engine = engine
         self.backend = backend
-        # the primitives on a backend's own arrays (a torch tensor) and on opaque host objects (the handle of a remote dictionary)
+        # the primitives on a backend's own arrays and on opaque host objects (the handle of a remote dictionary)
         # are written on backend operations in klongpy/backends/host_ops.py; the tables are built when there is such a value to compute on
         self._tables = None
         self._is_backend_array = backend.is_backend_array
         self._np = numpy
         self._asarray = backend.kg_asarray
-        probe = backend.kg_asarray([0.5])
-        # the backend's array type, when it is not NumPy's: floating arrays meeting numbers or arrays of their own shape take the
-        # operator directly (the answer is the same as eval_dyad_* gives: those add the checks Klong's lists need)
-        self._tensor = type(probe) if backend.is_backend_array(probe) else None
+        self._fast_dyad = getattr(backend, "fast_dyad", None)
 
     @property
     def _dyads(self):
@@ -156,26 +146,13 @@ class HostTable:
             return self.engine._in(self._dyads[g](self.engine._out(x), y.obj)) if g in self._dyads else NotImplemented
         if y is KLONG_UNDEFINED and x is not KLONG_UNDEFINED and g not in ("@", "?", "~", "="):
             # a dyad with nothing after it (`a*`): the engine hands the host :undefined as the missing operand
-            from .errors import KlongSyntaxError
             e = KlongSyntaxError(f"missing right operand for {g}")
             e.__cause__ = TypeError(f"missing right operand for {g}")
             raise e
-        fast = _FAST.get(g)
-        T = self._tensor
-        if fast is not None and T is not None:
-            tx, ty = type(x), type(y)
-            try:
-                if tx is T:
-                    if ty is T:
-                        if x.is_floating_point() and y.is_floating_point() and (x.shape == y.shape or x.ndim == 0 or y.ndim == 0):
-                            return fast(x, y)
-                    elif (ty is float or ty is int) and x.is_floating_point():
-                        return fast(x, y)
-                elif ty is T and (tx is float or tx is int) and y.is_floating_point():
-                    return fast(x, y)
-            except RuntimeError:
-                # (two devices, in the scope of a numeric gradient on a device without float64: the general path moves the operand)
-                pass
+        if self._fast_dyad is not None:
+            fast = self._fast_dyad(g, x, y)
+            if fast is not NotImplemented:
+                return fast
         f = self._dyads.get(g)
         if f is None:
             return NotImplemented
@@ -210,7 +187,11 @@ class HostTable:
             raise KlongTypeError(
                 f"{what}: a tensor that requires gradients cannot be copied into a native value (the graph would be cut); "
                 f"the operation has no counterpart on the {b.name} backend")
-        return b.to_numpy(o)
+        value = b.to_numpy(o)
+        if isinstance(value, self._np.ndarray) and type(value) is not self._np.ndarray:
+            # The native converter needs an ordinary ndarray at this boundary.
+            return self._np.asarray(value)
+        return value
 
     def adopt(self, a):
         """A native numeric vector (a NumPy array) as the backend's array: what the Python engine holds every numeric array as."""
@@ -234,6 +215,17 @@ class HostTable:
         return kg_write(o.obj if type(o) is HostObject else o, self.backend, display)
 
     def collect(self, items):
+        # A provider may stack its own arrays and native numeric vectors.
+        # Keep foreign array objects as cells so their dtype and metadata survive.
+        for item in items:
+            if not isinstance(item, numpy.ndarray):
+                continue
+            if item.dtype.kind in "Mm":
+                return None
+            if not self._is_backend_array(item) and (
+                type(item) is not numpy.ndarray or item.dtype not in (numpy.int64, numpy.float64)
+            ):
+                return None
         r = self._asarray(items)
         return r if self._is_backend_array(r) else None
 
@@ -281,25 +273,27 @@ class HostOps:
         raise KlongTypeError(f"operator {glyph} is not available")
 
 
-def result_for(engine, v):
-    """A native engine's result as the backend holds it. The Python engine on the torch backend holds every numeric array as a
-    tensor; the native engine computes on native vectors and hands them out as NumPy arrays. For a backend whose arrays are not
-    NumPy's (`is_backend_array` is not a NumPy test), a numeric NumPy array (also inside a list or dict) leaves as the backend's
-    array. Use it on the engine's results, where KlongInterpreter._out converts."""
-    if engine._backend.name == "numpy":
+def result_for(backend, v):
+    """Convert native numeric arrays to the selected provider's representation."""
+    if backend.name == "numpy":
         return v
     t = type(v)
     if t is numpy.ndarray:
-        if v.dtype.kind in "ifb" and v.ndim >= 1:
-            return _array(engine._backend, v)
+        # The evaluator has already adopted its computed arrays with the
+        # backend's compute dtype. Arrays crossing here can have an explicit
+        # dtype from Python or IPC.
+        if v.dtype in (numpy.int64, numpy.float64) and v.ndim >= 1:
+            if v.dtype == numpy.float64 and not backend.supports_float64():
+                return v
+            return backend.kg_asarray(v if v.flags.writeable else v.copy())
         if v.dtype == object:
             r = numpy.empty(v.shape, dtype=object)
             rr = r.reshape(-1)
             for i, q in enumerate(v.ravel()):
-                rr[i] = result_for(engine, q)
+                rr[i] = result_for(backend, q)
             return r
     elif t is list:
-        return [result_for(engine, q) for q in v]
+        return [result_for(backend, q) for q in v]
     return v
 
 
@@ -310,6 +304,6 @@ def install(engine, backend=None):
     backend = backend or engine._backend
     engine._k.set_host_table(HostTable(engine, backend))
     if backend.name != "numpy":
-        # the torch value model: every numeric vector the engine makes is a tensor on the device, as on the Python engine
+        # Give the selected provider each native numeric vector the engine creates.
         engine._k.set_adopt(1)
     engine._k.set_host_ops(HostOps(engine))

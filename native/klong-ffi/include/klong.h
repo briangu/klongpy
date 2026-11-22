@@ -159,6 +159,12 @@ typedef int32_t (*klong_cfun)(void *ctx, const klong_val *args, size_t nargs, kl
  * rows times that. A function that keeps no buffer of its own costs no static RAM. Call after klong_init, not from a callback. Returns KLONG_OK, KLONG_ERR_ARG or KLONG_ERR_STATE (before klong_init or in a callback). */
 int32_t klong_cfun_register(const char *name, uint32_t arity, klong_cfun fn, void *ctx, size_t out_cap);
 
+/* Provide the C function `symbol` to the programs that declare it: `adc::.extern("read_adc";"int -> float")` returns a function that checks its
+ * arguments and result against the signature and calls `fn` (same contract and `out_cap` as klong_cfun_register). The function is not a global:
+ * a program reaches it only through the declaration. Call after klong_init, before or after the program declares the symbol. Returns KLONG_OK,
+ * KLONG_ERR_ARG or KLONG_ERR_STATE. */
+int32_t klong_extern_register(const char *symbol, klong_cfun fn, void *ctx, size_t out_cap);
+
 /* From inside a C function only (3 is returned elsewhere): run Klong text where the function was called, at global scope, and return
  * the value of its last statement in *out (may be NULL). klong_load_static does what `.l` does: it runs a text that lives for ever
  * (a string in flash) as a load, one statement at a time, without copying it, and undoes its definitions if it fails; `label` names it in errors. */

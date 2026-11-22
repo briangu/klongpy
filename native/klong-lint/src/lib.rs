@@ -49,11 +49,13 @@ pub static RULES: &[Rule] = &[
     Rule { code: "W019", severity: "warning", title: "assignment to x, y or z" },
     Rule { code: "W020", severity: "warning", title: "a two-element list joins into a dictionary with ," },
     Rule { code: "W021", severity: "warning", title: "a.b::v where a is never a dictionary (a variable named with a dot in Klong 1)" },
-    Rule { code: "W022", severity: "warning", title: "module imported by .import and never used" },
+    Rule { code: "W022", severity: "warning", title: "module bound by .l and never used" },
+    Rule { code: "W023", severity: "warning", title: "a local file shadows a bundled library file of the same name" },
     Rule { code: "E001", severity: "error", title: "the parser rejects this at strict level 1" },
     Rule { code: "E002", severity: "error", title: "call with more arguments than the callee takes" },
-    Rule { code: "E003", severity: "error", title: "assignment to an entry of what .import returned (read-only)" },
-    Rule { code: "E004", severity: "error", title: "qualified name that the imported module does not export" },
+    Rule { code: "E003", severity: "error", title: "assignment to an entry of a module (read-only)" },
+    Rule { code: "E004", severity: "error", title: "qualified name, or .l entry, that the module does not export" },
+    Rule { code: "E005", severity: "error", title: ".extern whose value is discarded" },
 ];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -185,6 +187,7 @@ fn ignore_codes(c: &str) -> Option<Vec<String>> {
 }
 
 /// `os.path.abspath`.
+#[cfg(not(windows))]
 fn abspath(p: &str) -> String {
     let joined = if p.starts_with('/') {
         p.to_string()
@@ -210,6 +213,9 @@ fn abspath(p: &str) -> String {
     }
     format!("{}{}", "/".repeat(lead), out.join("/"))
 }
+
+#[cfg(windows)]
+use klong_host::absolute_module_path as abspath;
 
 /// Lint a text with the files that `.l` loads shared through `sess`.
 pub fn lint_source_in(sess: &mut Session, name: &str, text: &str, opts: &Options) -> Vec<Diagnostic> {
@@ -263,7 +269,7 @@ pub struct FileResult {
 
 /// Read a file as Python's `open(path, 'r').read()` does: UTF-8, and `\r\n` and `\r` read as `\n`.
 pub fn read_text(path: &str) -> Result<String, String> {
-    let bytes = std::fs::read(path).map_err(io_text)?;
+    let bytes = std::fs::read(klong_host::os_path(path).as_ref()).map_err(io_text)?;
     decode(&bytes)
 }
 

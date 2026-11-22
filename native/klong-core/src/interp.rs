@@ -106,7 +106,7 @@ pub(crate) fn stack_here() -> usize {
     core::hint::black_box(&marker) as *const u8 as usize
 }
 
-/// A module scope made by `.import` (design point 1): the globals of one file. A function of the file runs in it (`Tree::module`).
+/// A module scope made by `.l` (design point 1): the globals of one file. A function of the file runs in it (`Tree::module`).
 #[derive(Default)]
 struct ModScope {
     /// Sorted by symbol.
@@ -189,6 +189,9 @@ pub struct Interp {
     /// with the operator's glyph and its operands.
     #[cfg(feature = "host")]
     pub host_op: Option<Rc<HostOp>>,
+    /// Optional numeric backend, invoked before evaluating dyads or the direct plus reduction.
+    #[cfg(feature = "host")]
+    pub host_numeric: Option<Rc<HostNumeric>>,
     /// HOST: called when the program run at the top level has been parsed and before its first statement runs (its warnings are
     /// then in `take_warnings`); an error from it ends the run with that error and nothing has run.
     #[cfg(feature = "host")]
@@ -201,6 +204,9 @@ pub struct Interp {
     /// returns is rounded to float32 (`set_float_width`). Off by default.
     #[cfg(feature = "host")]
     f32_floats: bool,
+    /// Typed IPC calls may forward existing scalar values at full wire precision.
+    #[cfg(feature = "host")]
+    ipc_float_reads: bool,
     /// HOST: `adopt` is set or `f32_floats` is on: what `eval` has to look at in a value it returns (one test, as when there was only `adopt`).
     #[cfg(feature = "host")]
     post: bool,
@@ -244,7 +250,7 @@ pub struct Interp {
     fmods: Vec<u16>,
     /// The module scope that is running (0: the program's own).
     cur_mod: u16,
-    /// The scopes made by `.import`, by id minus one.
+    /// The scopes made by `.l`, by id minus one.
     modules: Vec<ModScope>,
     /// Module ids start after this many (the ids of modules that were all let go are not used again).
     mod_base: u16,
@@ -269,6 +275,9 @@ pub struct Interp {
 /// An operator the embedder implements (see `Interp::host_op`).
 #[cfg(feature = "host")]
 pub type HostOp = dyn Fn(&mut Interp, &str, &[Value]) -> Result<Value>;
+
+#[cfg(feature = "host")]
+pub type HostNumeric = dyn Fn(&str, &Value, Option<&Value>) -> Option<Result<Value>>;
 
 struct Journal {
     old: Vec<(SymId, Option<Value>)>,
@@ -299,6 +308,8 @@ impl Interp {
             #[cfg(feature = "host")]
             host_op: None,
             #[cfg(feature = "host")]
+            host_numeric: None,
+            #[cfg(feature = "host")]
             on_parsed: None,
             #[cfg(feature = "wide-args")]
             extra_args: Vec::new(),
@@ -306,6 +317,8 @@ impl Interp {
             adopt: None,
             #[cfg(feature = "host")]
             f32_floats: false,
+            #[cfg(feature = "host")]
+            ipc_float_reads: false,
             #[cfg(feature = "host")]
             post: false,
             #[cfg(feature = "kgpy-only")]
@@ -346,7 +359,7 @@ impl Interp {
     /// of arguments, or `WILDCARD`.
     pub fn register(&mut self, name: &str, arity: u8, f: NativeFn) {
         let s = self.syms.intern(name);
-        self.set_global(s, Value::Fn(Rc::new(Func::Native { name: s, arity, f })));
+        self.set_global(s, Value::Fn(Rc::new(Func::native(s, arity, f))));
     }
 
     /// Define a global from the embedder (a system function, a system variable). Aborts if
@@ -385,6 +398,41 @@ impl Interp {
             }
         }
         out
+    }
+
+    /// The persistent values owned by the evaluator. Call only when it is parked.
+    #[cfg(feature = "host")]
+    pub fn visit_host_roots(&self, visit: &mut dyn FnMut(&Value), visit_tree: &mut dyn FnMut(&Rc<Tree>)) {
+        self.globals.iter().flatten().for_each(&mut *visit);
+        for module in &self.modules {
+            module.vars.iter().for_each(|(_, value)| visit(value));
+            module.export.iter().for_each(&mut *visit);
+        }
+        self.collect.iter().flatten().for_each(&mut *visit);
+        #[cfg(feature = "wide-args")]
+        self.extra_args.iter().for_each(&mut *visit);
+        self.slots.iter().filter_map(|(_, v)| v.as_ref()).for_each(&mut *visit);
+        if let Some(journal) = &self.journal {
+            journal.old.iter().filter_map(|(_, v)| v.as_ref()).for_each(&mut *visit);
+        }
+        self.body_cache.borrow().iter().flatten().for_each(|(_, _, v)| visit(v));
+        self.lazy_cache.borrow().iter().for_each(|(_, _, tree, _, _)| visit_tree(tree));
+        for layer in self.layer_pool.iter().flatten() {
+            match layer {
+                Layer::None => {}
+                Layer::Tree(tree, _) => visit_tree(tree),
+                Layer::Vals(values) => values.iter().for_each(&mut *visit),
+                Layer::Slots(slots) => {
+                    for arg in slots {
+                        match arg {
+                            Slot::Hole => {}
+                            Slot::Val(value) => visit(value),
+                            Slot::Code(tree, _) => visit_tree(tree),
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub fn global(&self, name: &str) -> Option<Value> {
@@ -593,6 +641,37 @@ impl Interp {
         }
     }
 
+    /// The variable `name` of module `id` (`export`, once the body has run).
+    pub fn module_get(&self, id: u16, name: &str) -> Option<Value> {
+        let s = self.syms.lookup(name)?;
+        let m = self.mslot(id).and_then(|i| self.modules.get(i))?;
+        let i = m.vars.binary_search_by_key(&s, |e| e.0).ok()?;
+        Some(m.vars[i].1.clone())
+    }
+
+    /// Take the variable `name` out of module `id` (the interface variable once it has been read: the scope keeps no second copy of
+    /// what the interface holds, so a module nothing refers to can be let go).
+    pub fn module_remove(&mut self, id: u16, name: &str) {
+        let Some(s) = self.syms.lookup(name) else { return };
+        if let Some(m) = self.mslot(id).and_then(|i| self.modules.get_mut(i)) {
+            if let Ok(i) = m.vars.binary_search_by_key(&s, |e| e.0) {
+                m.vars.remove(i);
+            }
+        }
+    }
+
+    /// A function value written as `name(a;b;c;d)::{body}` (named parameters, so any number of them): the function, with nothing defined.
+    /// For a host that builds a function of more arguments than a native one takes.
+    pub fn function_from_text(&mut self, text: &str) -> Result<Value> {
+        let mut module: Option<String> = None;
+        let p = parse::parse(text, "<function>", &mut self.syms, &mut module, 0, self.cfg.max_depth, None)?;
+        p.tree.module.set(self.cur_mod);
+        let [stmt] = p.stmts[..] else { return Err(Error::internal("function_from_text: one statement expected")) };
+        let Node::Dyad { r, .. } = p.tree.node(stmt) else { return Err(Error::internal("function_from_text: an assignment expected")) };
+        let r = *r;
+        self.eval(&p.tree, r, false)
+    }
+
     pub fn module_export(&self, id: u16) -> Option<Value> {
         self.mslot(id).and_then(|i| self.modules.get(i)).and_then(|m| m.export.clone())
     }
@@ -711,6 +790,7 @@ impl Interp {
         let mut last = None;
         for &s in &p.stmts {
             self.void = false;
+            self.check_statement(&p.tree, s)?;
             match self.eval(&p.tree, s, true) {
                 Ok(v) => {
                     if self.running == 1 {
@@ -743,6 +823,24 @@ impl Interp {
     /// `run_parsed` one statement at a time: each is parsed (its tokens from a window of the text, its tree its own), evaluated and
     /// let go before the next is read, so that what a load holds at once is one statement and what it keeps (the function bodies).
     #[inline(never)]
+    /// A top-level statement of a form the language has retired (`module::discarded_extern`).
+    fn check_statement(&self, tree: &Tree, s: NodeId) -> Result<()> {
+        if crate::module::discarded_extern(tree, &self.syms, s) {
+            let e = Error::typ(crate::module::DISCARDED_EXTERN);
+            #[cfg(feature = "diag")]
+            let e = e.with_hint(crate::module::DISCARDED_EXTERN_HINT);
+            return Err(match tree.span(s) {
+                Some(sp) => {
+                    let mut e = e.with_span(sp);
+                    e.source = tree.source.clone();
+                    e
+                }
+                None => e,
+            });
+        }
+        Ok(())
+    }
+
     fn run_streamed(&mut self, prog: Prog, name: &str) -> Result<Option<Value>> {
         let text: alloc::borrow::Cow<'static, str> = match prog {
             Prog::Text(t) => alloc::borrow::Cow::Owned(crate::value::try_str(t)?),
@@ -770,6 +868,7 @@ impl Interp {
             p.tree.module.set(self.cur_mod);
             for &s in &p.stmts {
                 self.void = false;
+                self.check_statement(&p.tree, s)?;
                 match self.eval(&p.tree, s, true) {
                     Ok(v) => {
                         last = Some(v);
@@ -1472,10 +1571,14 @@ impl Interp {
 
     /// Create the global `s` in the running scope.
     fn new_global(&mut self, s: SymId, v: Value) -> Result<()> {
-        if self.cur_mod != 0 && !self.syms.name(s).starts_with('.') {
+        if self.module_private_global(s) {
             return self.module_set(self.cur_mod, s, v);
         }
         self.try_set_global(s, v)
+    }
+
+    fn module_private_global(&self, s: SymId) -> bool {
+        self.cur_mod != 0 && !self.syms.name(s).starts_with('.')
     }
 
     /// The text of the segment `i` of the qualified name `s` (0 is the base, 1 the first key): the text of the name, cut at its dots.
@@ -1581,7 +1684,7 @@ impl Interp {
         };
         let mut d = d.borrow_mut();
         if d.is_readonly() {
-            let e = Error::typ(crate::dmsg!("read-only dictionary", "cannot assign {}: {} is read-only (it was returned by .import)", self.plain(s), self.qual_path(s, n)));
+            let e = Error::typ(crate::dmsg!("read-only dictionary", "cannot assign {}: {} is read-only (it is a module)", self.plain(s), self.qual_path(s, n)));
             #[cfg(feature = "diag")]
             let e = e.with_hint("copy it with  e:::{};e::e,m  or change the module's file");
             return Err(e);
@@ -1793,16 +1896,24 @@ impl Interp {
 
     /// The value of a function literal: in a program that is being loaded, where its text is (`Func::Lazy`), when it is long enough for that to
     /// be less than its tree; otherwise the tree.
-    #[inline(never)]
-    fn literal_value(&self, tree: &Rc<Tree>, id: NodeId) -> Value {
+    #[inline]
+    fn lazy_literal(tree: &Tree, id: NodeId) -> Option<(&Rc<crate::value::LazyCtx>, &Rc<crate::error::Source>, u32, u32, u8)> {
         if let (Some(ctx), Some(src), Node::Fn { a, arity, has_args: false, call: false, .. }) = (&tree.lazy, &tree.source, tree.node(id)) {
             if let Some((s, e)) = tree.span(id) {
                 let has_params = matches!(tree.node(*a), Node::Body { has_params: true, .. });
                 // (a function defined with named parameters, f(a;b)::{...}, has them from the definition, which is not in the text of the literal)
                 if e - s >= LAZY_MIN && Tree::is_real(*a) && !has_params {
-                    return Value::Fn(Rc::new(Func::Lazy(crate::value::Lazy { source: src.clone(), start: s, end: e, ctx: ctx.clone(), arity: *arity, kgfn: tree.is_kgfn(id), has_params })));
+                    return Some((ctx, src, s, e, *arity));
                 }
             }
+        }
+        None
+    }
+
+    #[inline(never)]
+    fn literal_value(&self, tree: &Rc<Tree>, id: NodeId) -> Value {
+        if let Some((ctx, src, start, end, arity)) = Self::lazy_literal(tree, id) {
+            return Value::Fn(Rc::new(Func::Lazy(crate::value::Lazy { source: src.clone(), start, end, ctx: ctx.clone(), arity, kgfn: tree.is_kgfn(id), has_params: false })));
         }
         Value::Fn(Rc::new(Func::Code { tree: tree.clone(), node: id }))
     }
@@ -2024,6 +2135,11 @@ impl Interp {
     /// it a function literal or projection is the value (`eval`).
     #[inline(always)]
     pub fn eval(&mut self, tree: &Rc<Tree>, id: NodeId, call: bool) -> Result<Value> {
+        self.eval_value(tree, id, call, false)
+    }
+
+    #[inline(always)]
+    fn eval_value(&mut self, tree: &Rc<Tree>, id: NodeId, call: bool, _forward_float: bool) -> Result<Value> {
         if !Tree::is_real(id) {
             return Err(Error::syntax("missing operand"));
         }
@@ -2055,7 +2171,7 @@ impl Interp {
                         return Ok(self.adopted(v));
                     }
                     // (a vector that is read from a variable or written in the program is not looked at again: what made it was rounded)
-                    if self.f32_floats && (matches!(v, Value::Flt(_)) || (matches!(v, Value::Flts(_)) && !matches!(tree.node(id), Node::Sym(_) | Node::Lit(_)))) {
+                    if self.f32_floats && ((!_forward_float && matches!(v, Value::Flt(_))) || (matches!(v, Value::Flts(_)) && !matches!(tree.node(id), Node::Sym(_) | Node::Lit(_)))) {
                         return Ok(Self::rounded_f32(v));
                     }
                 }
@@ -2088,7 +2204,7 @@ impl Interp {
         if plain
             && self.depth < self.cfg.max_depth
             && self.depth < self.max_depth_seen
-            && self.stack_base.abs_diff(stack_here()) <= self.max_stack_seen
+            && self.stack_base.abs_diff(stack_here()) <= self.checked_stack_window()
             && Tree::is_real(id)
         {
             match tree.node(id) {
@@ -2117,7 +2233,7 @@ impl Interp {
     fn leaf_dyad(&mut self, tree: &Rc<Tree>, op: SymId, l: NodeId, r: NodeId) -> Option<Value> {
         if self.depth + 1 >= self.max_depth_seen
             || self.depth + 1 >= self.cfg.max_depth
-            || self.stack_base.abs_diff(stack_here()) + 1024 > self.max_stack_seen
+            || self.stack_base.abs_diff(stack_here()) + 1024 > self.checked_stack_window()
         {
             return None;
         }
@@ -2338,9 +2454,18 @@ impl Interp {
         let mut last = Value::empty();
         for k in 0..r.len {
             let q = NodeId(tree.ids(r)[k as usize]);
+            #[cfg(feature = "host")]
+            if k + 1 == r.len && self.forward_ipc_float(tree, q) {
+                return self.eval_value(tree, q, true, true);
+            }
             last = self.eval_op(tree, q, true)?;
         }
         Ok(last)
+    }
+
+    #[cfg(feature = "host")]
+    fn forward_ipc_float(&self, tree: &Tree, id: NodeId) -> bool {
+        self.ipc_float_reads && self.f32_floats && Tree::is_real(id) && matches!(tree.node(id), Node::Sym(_))
     }
 
     fn unknown_op(&self, op: SymId) -> Error {
@@ -2372,6 +2497,10 @@ impl Interp {
         let def = self.op_def(op)?;
         let f = def.dyad.ok_or_else(|| self.unknown_op(op))?;
         #[cfg(feature = "host")]
+        if let Some(r) = self.host_numeric.as_ref().and_then(|h| h(def.glyph, &x, Some(&y))) {
+            return r;
+        }
+        #[cfg(feature = "host")]
         if let Some(r) = self.ext_dyad(def.glyph, &x, &y) {
             return r;
         }
@@ -2392,7 +2521,7 @@ impl Interp {
     }
 
     /// `l::r`: the right side is evaluated, then bound to the name or names of the left.
-    #[cfg(feature = "speed")]
+    #[cfg(any(feature = "speed", feature = "heap-tags"))]
     #[inline(never)]
     fn eval_define(&mut self, tree: &Rc<Tree>, id: NodeId, l: NodeId, r: NodeId) -> Result<Value> {
         let nothing = !Tree::is_real(r);
@@ -2402,7 +2531,23 @@ impl Interp {
                 return v;
             }
         }
-        let y = if nothing { Value::Undefined } else { self.eval_op(tree, r, false)? };
+        let y = if nothing {
+            Value::Undefined
+        } else {
+            // A source-backed global function outlives its transient parse. Place its retained
+            // function object with the global table so it cannot pin the parse's free space.
+            #[cfg(feature = "heap-tags")]
+            let _tag = if Tree::is_real(l)
+                && matches!(tree.node(l), Node::Sym(s) | Node::QSym(s)
+                    if !self.in_fn() && self.syms.qual_base(*s).is_none() && !self.module_private_global(*s))
+                && Self::lazy_literal(tree, r).is_some()
+            {
+                Some(crate::htag::Scope::new(crate::htag::GLOBALS))
+            } else {
+                None
+            };
+            self.eval_op(tree, r, false)?
+        };
         let v = self.define(tree, l, y).map_err(|e| self.at_operator(tree, id, e));
         if nothing {
             self.void = true;
@@ -2415,7 +2560,7 @@ impl Interp {
     fn eval_dyad(&mut self, tree: &Rc<Tree>, id: NodeId, op: SymId, l: NodeId, r: NodeId) -> Result<Value> {
         let def = self.op_def(op)?;
         let f = def.dyad.ok_or_else(|| self.unknown_op(op))?;
-        #[cfg(feature = "speed")]
+        #[cfg(any(feature = "speed", feature = "heap-tags"))]
         if def.glyph == "::" {
             return self.eval_define(tree, id, l, r);
         }
@@ -2423,7 +2568,7 @@ impl Interp {
         // a right operand that is missing (strict level 0 warned of it): nothing, which is `:undefined` here, as KlongPy has None
         let nothing = !Tree::is_real(r);
         let y = if nothing { Value::Undefined } else { self.eval_op(tree, r, false)? };
-        #[cfg(not(feature = "speed"))]
+        #[cfg(not(any(feature = "speed", feature = "heap-tags")))]
         if def.glyph == "::" {
             let v = self.define(tree, l, y).map_err(|e| self.at_operator(tree, id, e));
             if nothing {
@@ -2436,6 +2581,10 @@ impl Interp {
             return self.eval_gradient_dyad(tree, id, def.glyph, l, r, y);
         }
         let x = self.eval_op(tree, l, false)?;
+        #[cfg(feature = "host")]
+        if let Some(r) = self.host_numeric.as_ref().and_then(|h| h(def.glyph, &x, Some(&y))) {
+            return r.map_err(|e| self.at_operator(tree, id, e));
+        }
         // two numbers (the call-heavy programs): the arithmetic and the comparisons without the pairing routine
         #[cfg(feature = "speed")]
         if let Some(v) = ops::scalar_pair(def.atomic, &x, &y) {
@@ -3365,6 +3514,16 @@ impl Interp {
         self.apply_in(f, values, arity)
     }
 
+    /// Apply a typed wire request, forwarding plain name results without
+    /// narrowing scalar values to the host's arithmetic width.
+    #[cfg(feature = "host")]
+    pub fn apply_ipc(&mut self, f: &Value, values: Vec<Value>) -> Result<Value> {
+        let saved = core::mem::replace(&mut self.ipc_float_reads, true);
+        let result = self.apply(f, values, None);
+        self.ipc_float_reads = saved;
+        result
+    }
+
     #[cfg(feature = "host")]
     #[cold]
     #[inline(never)]
@@ -3600,6 +3759,13 @@ impl Interp {
                         return Err(e);
                     }
                     let base = core::mem::replace(&mut self.lex_base, 0);
+                    #[cfg(feature = "host")]
+                    let r = if self.forward_ipc_float(tree, *node) {
+                        self.eval_value(tree, *node, true, true)
+                    } else {
+                        self.eval(tree, *node, true)
+                    };
+                    #[cfg(not(feature = "host"))]
                     let r = self.eval(tree, *node, true);
                     self.lex_base = base;
                     self.pop_frame();
@@ -3608,7 +3774,7 @@ impl Interp {
                 }
             },
             Func::Lazy(l) => self.run_lazy(l, &f, n),
-            Func::Native { arity, f: native, name } => {
+            Func::Native { arity, f: native, name, .. } => {
                 let (arity, native, name) = (*arity, native.clone(), *name);
                 self.run_native(n, arity, native, name)
             }
@@ -3739,25 +3905,27 @@ impl Interp {
         e
     }
 
-    /// Call level `level` of a chain: level 0 is the verb, level i the verb modified by the
-    /// first i adverbs.
+    /// Leaf evaluation may skip bookkeeping only within both the observed peak and the current budget.
+    #[cfg(feature = "speed")]
+    #[inline(always)]
+    fn checked_stack_window(&self) -> usize {
+        self.max_stack_seen.min(self.cfg.stack_limit.unwrap_or(usize::MAX))
+    }
+
     /// The native stack against `Config::stack_limit`: called wherever the evaluator recurses
     /// (a nested evaluation, a level of an adverb chain).
     #[cfg_attr(feature = "speed", inline(always))]
     #[cfg_attr(not(feature = "speed"), inline)]
     pub(crate) fn check_stack(&mut self) -> Result<()> {
         let used = self.stack_base.abs_diff(stack_here());
-        if used > self.max_stack_seen {
-            self.max_stack_seen = used;
-            if let Some(limit) = self.cfg.stack_limit {
-                if used > limit {
-                    return Err(Error::range("expression nested too deeply").with_hint("the native stack budget of this build is used up"));
-                }
-            }
+        self.max_stack_seen = self.max_stack_seen.max(used);
+        if self.cfg.stack_limit.is_some_and(|limit| used > limit) {
+            return Err(Error::range("expression nested too deeply").with_hint("the native stack budget of this build is used up"));
         }
         Ok(())
     }
 
+    /// Call level `level` of a chain. Level zero is the verb and level i applies the first i adverbs.
     pub(crate) fn chain_call(&mut self, ch: &Chain, level: usize, x: Value, y: Option<Value>) -> Result<Value> {
         // a chain of adverbs recurses once per adverb without a nested evaluation
         self.check_stack()?;
@@ -3842,5 +4010,22 @@ impl Kind {
     /// The exit line of the conformance runner protocol.
     pub fn protocol_line(self) -> String {
         crate::msg!("error: {}", self.name())
+    }
+}
+
+#[cfg(test)]
+mod stack_tests {
+    use super::*;
+
+    #[test]
+    fn the_current_stack_budget_is_independent_of_an_earlier_peak() {
+        let mut ip = Interp::new(Config::default(), Box::new(NoHooks));
+        ip.cfg.stack_limit = Some(256);
+        // Synthetic accounting values. No recursion or physical stack allocation is needed.
+        ip.stack_base = stack_here().saturating_sub(16 * 1024);
+        ip.max_stack_seen = usize::MAX;
+        assert_eq!(ip.check_stack().unwrap_err().kind, Kind::Range);
+        #[cfg(feature = "speed")]
+        assert_eq!(ip.checked_stack_window(), 256);
     }
 }

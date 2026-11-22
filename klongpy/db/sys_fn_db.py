@@ -8,6 +8,7 @@ from klongpy.core import (KGCall, KGLambda, KGSym, KlongException, KLONG_UNDEFIN
                           reserved_fn_args, reserved_fn_symbol_map)
 from klongpy.backend import np as backend_np
 from klongpy.errors import KlongShapeError, KlongTypeError
+from klongpy.ipc.codec import set_table_factory
 
 
 class KlongDbException(KlongException):
@@ -94,6 +95,12 @@ class Table(dict):
     def get_dataframe(self):
         self.commit()
         return self._df
+
+    def __klong_ipc_columns__(self):
+        df = self.get_dataframe()
+        keys = self.idx_cols or []
+        names = list(keys) + [name for name in self.columns if name not in keys]
+        return names, [df[name].values for name in names], len(keys), getattr(self, "_ipc_wire", None)
 
     def insert(self, y):
         self.buffer.append(y)
@@ -352,17 +359,27 @@ def create_system_functions_db():
     return registry
 
 
-def _table_from_wire(names, columns):
+def _table_from_wire(names, columns, *, key_count=0, wire=None):
     """A table received over IPC (kdb+ type 98) as a Table."""
     names = [str(n) for n in names]
     data = {}
     for n, c in zip(names, columns):
-        data[n] = np.array(list(c), dtype=object) if isinstance(c, str) else c
-    return Table(data, columns=names)
+        if isinstance(c, str) or c.ndim > 1:
+            cells = np.empty(len(c), dtype=object)
+            for i, cell in enumerate(c):
+                cells[i] = cell
+            c = cells
+        data[n] = c
+    table = Table(data, columns=names)
+    if key_count:
+        keys = names[:key_count]
+        # Index the incoming rows in their wire order.
+        index = pd.MultiIndex.from_frame(table._df[keys], names=[f"{k}_idx" for k in keys])
+        table._df.index = index
+        table.idx_cols = keys
+    table._ipc_wire = wire
+    return table
 
 
-try:
-    from klongpy.ipc.codec import set_table_factory
-    set_table_factory(_table_from_wire)
-except ImportError:  # the IPC package is optional
-    pass
+_table_from_wire.__klong_ipc_typed__ = True
+set_table_factory(_table_from_wire)

@@ -180,31 +180,29 @@ impl SelfTest {
         done(self, rt, "async");
         Self::check(rt, "echo", &format!("big::!500;(h(:stecho{},,big))~big", k), "1")?;
         done(self, rt, "echo");
-        // the connection is closed first: a node has one connection of each kind to a peer, and the
-        // management library opens its own
+        // The management library opens its own connection. Release the echo
+        // vector and callback as well before its parser needs the heap.
         let _ = Self::eval(rt, ".clic(h)");
-        // the management library on the peer, when this build has it
-        match Self::eval(rt, ".l(\"mgmt\")") {
-            Err(_) => {}
-            Ok(_) => {
-                done(self, rt, "load");
-                Self::eval(rt, &format!("mgmt.add(\"p\";\"node:{}\")", self.peer.unwrap_or(0))).map_err(|e| ("mgmt", e))?;
-                done(self, rt, "add");
-                let r = Self::check(rt, "mgmt", &format!("mgmt.call(\"p\";[:stping{}]@0;[9])", k), "9");
-                done(self, rt, "call");
-                // the library's connection to the peer is closed, so that `.cli` to it works afterwards
-                let _ = Self::eval(rt, ".clic((mgmt.nodes?\"p\")?\"h\")");
-                r?;
-                done(self, rt, "mgmt");
-            }
+        Self::eval(rt, "big::0;got::0;af::0;h::0").map_err(|e| ("echo", e))?;
+        #[cfg(feature = "lib")]
+        {
+            // mgmt is bundled whenever both the library and IPC are built.
+            Self::eval(rt, ".l(\"mgmt\");1").map_err(|e| ("mgmt", e))?;
+            done(self, rt, "load");
+            Self::eval(rt, &format!("mgmt.add(\"p\";\"node:{}\")", k)).map_err(|e| ("mgmt", e))?;
+            done(self, rt, "add");
+            let r = Self::check(rt, "mgmt", &format!("mgmt.call(\"p\";[:stping{}]@0;[9])", k), "9");
+            done(self, rt, "call");
+            // Close the management link so later .cli calls can reach the peer.
+            let _ = Self::eval(rt, ".clic((mgmt.nodes?\"p\")?\"h\")");
+            r?;
+            done(self, rt, "mgmt");
         }
         self.total_ms = Self::now_ms(rt) - t0;
         Ok(())
     }
 
-    /// Leave nothing behind: the test's variables, and the management library, whose functions are some 18 KB of the
-    /// board's heap that a user's program would rather have (a board of 264 KB: the client of the test had half again as
-    /// much in use as the server, for as long as it ran). The library is dropped by naming each of its definitions.
+    /// Release the test's values, module and parse cache after a pass or an error.
     fn clean_up<P: Platform + 'static>(rt: &mut Runtime<P>) {
         let _ = Self::eval(rt, "big::0;got::0;af::0;h::0");
         // (a module nothing refers to is let go whole, between two statements)

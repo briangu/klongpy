@@ -54,7 +54,7 @@ def load(name):
 class TestReferencePrograms(unittest.TestCase):
     def test_the_directory_holds_the_three_programs(self):
         have = sorted(os.path.basename(p)[:-3] for p in glob.glob(os.path.join(DIR, "*.kg")))
-        self.assertEqual(have, sorted(PROGRAMS))
+        self.assertEqual(have, sorted(PROGRAMS + ["board"]))         # board.kg: the module of host functions pid.kg loads
         for name in PROGRAMS:
             self.assertTrue(os.path.isfile(os.path.join(DIR, name + ".expect")))
 
@@ -106,29 +106,29 @@ class TestReferencePrograms(unittest.TestCase):
         self.assertEqual({n: g.assigned for n, g in r.globals.items()}, {"buf": True, "pos": True})    # both are state
 
     def test_pid(self):
-        # acceptance: read.adc fixed at 0.3; setpoints 0.31, 0.31, 0.5
+        # acceptance: read_adc fixed at 0.3; setpoints 0.31, 0.31, 0.5
         writes = []
         klong = KlongInterpreter(strict=2)
-        klong.externs["read.adc"] = lambda c: 0.3
-        klong.externs["write.pwm"] = lambda channel, duty: writes.append((channel, duty)) or 0
+        klong.externs["read_adc"] = lambda c: 0.3
+        klong.externs["write_pwm"] = lambda channel, duty: writes.append((channel, duty)) or 0
         klong(f'.l("{os.path.join(DIR, "pid.kg")}")')
         out = [float(to_np(klong, klong(f"step({v})"))) for v in (0.31, 0.31, 0.5)]
         np.testing.assert_allclose(out, [0.12005, 0.0201, 1.0], rtol=host_rtol(), atol=1e-12 if host_rtol() == 0 else 1e-6)
         np.testing.assert_allclose([float(to_np(klong, klong("integ"))), float(to_np(klong, klong("prev")))], [0.0011, 0.2], rtol=host_rtol(), atol=1e-12 if host_rtol() == 0 else 1e-6)
         self.assertEqual([w[0] for w in writes], [0, 0, 0])
         np.testing.assert_allclose([w[1] for w in writes], out, rtol=host_rtol(), atol=1e-12 if host_rtol() == 0 else 1e-6)
-        self.assertEqual(sorted(klong.externs.declared), ["read.adc", "write.pwm"])
+        self.assertEqual(sorted(klong.externs.declared), ["read_adc", "write_pwm"])
         self.assertEqual([(e.name, str(e.signature)) for e in klong.externs.entries], [("step", "float -> float")])
         r = check_file(os.path.join(DIR, "pid.kg"))
         self.assertEqual(sorted(n for n, g in r.globals.items() if g.assigned), ["integ", "prev"])     # the rest is constant
-        self.assertEqual([x.c_name for x in r.externs.values()], ["read_adc", "write_pwm"])
+        self.assertEqual([(x.name, x.c_name) for x in r.externs.values()], [("board.adc", "read_adc"), ("board.pwm", "write_pwm")])
 
     def test_pid_without_stand_ins_names_the_extern(self):
         from klongpy.errors import KlongSystemError
         klong = load_program(os.path.join(DIR, "pid.kg"))
         with self.assertRaises(KlongSystemError) as cm:
             call_entry(klong, "step", 0.31)
-        self.assertIn("read.adc", cm.exception.message)
+        self.assertIn("read_adc", cm.exception.message)
         self.assertEqual(cm.exception.source.name, os.path.join(DIR, "pid.kg"))
 
     def test_fir(self):

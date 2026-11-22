@@ -78,7 +78,7 @@ class TestExamples(unittest.TestCase):
                 self.assertEqual(result, want.result, "the inferred result type is the declared one, exactly")
 
     def test_klongpy_gives_a_value_of_that_type(self):
-        stubs = {"read.adc": lambda ch: 0.5, "log.msg": lambda s, n: None}
+        stubs = {"read_adc": lambda ch: 0.5, "log_msg": lambda s, n: None}
         for row, prog, sig, inputs in self.programs():
             with self.subTest(row=row, prog=prog):
                 want = parse_signature(sig)

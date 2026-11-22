@@ -229,10 +229,10 @@ def run_jit_benchmarks(iterations=20, mode="default", use_eager=False):
 
         # Try to compile with JIT
         try:
-            # .bkx records the function's tensor operations; the exported module is compiled with torch
+            # .export records the function's tensor operations; the exported module is compiled with torch
             import tempfile, os, torch
             with tempfile.TemporaryDirectory() as d:
-                info = klong(f'.bkx(f;{example_input};"{os.path.join(d, "f.pt2")}")')
+                info = klong(f'.export(f;{example_input};"{os.path.join(d, "f.pt2")}")')
             module = info['compiled_fn']
             compiled_fn = module if use_eager else torch.compile(module, mode=mode)
 

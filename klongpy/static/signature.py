@@ -5,7 +5,7 @@ Signatures of host functions and entry points (docs/static-profile.md).
     parse_type("float[16,241]")                -> Ty
     conform(ty, value, what)                   -> value, checked and converted
     c_identifier("read.adc")                   -> "read_adc"
-    check_extern_name(name), check_entry_name(name)
+    check_symbol(symbol), check_entry_name(name)
 
 Grammar
 
@@ -18,7 +18,7 @@ Grammar
 
 ``str`` is a parameter type only, and only of an extern. The parser, the
 canonical text and the name rules are the native engine's (the extension's
-parse_signature, format_signature, check_extern_name, ...): the interpreter's
+parse_signature, format_signature, check_symbol, ...): the interpreter's
 ``.extern``/``.entry``, the static checker and this module cannot disagree
 about a signature. What is Python's here is the shape of the values (Ty,
 Signature, ExternDecl, EntryDecl) and ``conform``, the host half that checks a
@@ -111,22 +111,23 @@ class Signature:
 
 
 class ExternDecl:
-    """``.extern(name; signature[; module])``: a function the target provides."""
-    __slots__ = ("name", "signature", "module", "span", "source")
+    """``name::.extern(c_symbol; signature)``: a function the target provides. ``name`` is what the compiler calls it (``prefix.name``
+    for an extern a module file declares); ``c_symbol`` is the C function, what the host registers and the generated C calls."""
+    __slots__ = ("name", "signature", "c_symbol", "span", "source")
 
-    def __init__(self, name, signature, module="env", span=None, source=None):
+    def __init__(self, name, signature, c_symbol=None, span=None, source=None):
         self.name = name
         self.signature = signature
-        self.module = module
+        self.c_symbol = name if c_symbol is None else c_symbol
         self.span = span
         self.source = source
 
     @property
     def c_name(self):
-        return c_identifier(self.name)
+        return self.c_symbol
 
     def __repr__(self):
-        return f"<extern {self.name}: {self.signature} (module {self.module})>"
+        return f"<extern {self.name}: {self.signature} (C {self.c_symbol})>"
 
 
 class EntryDecl:
@@ -201,9 +202,9 @@ def c_identifier(name):
     return _ext().c_identifier(str(name))
 
 
-def check_extern_name(name):
-    """None if name can be declared with .extern, else the reason as one line."""
-    return _ext().check_extern_name(name) if isinstance(name, str) else f"an extern name must be a Klong name (found {name!r})"
+def check_symbol(symbol):
+    """None if symbol can be the C symbol of an .extern, else the reason as one line."""
+    return _ext().check_symbol(symbol) if isinstance(symbol, str) else f"an extern's C symbol must be a string (found {symbol!r})"
 
 
 def check_entry_name(name):

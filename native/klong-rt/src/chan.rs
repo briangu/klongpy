@@ -1,7 +1,6 @@
 //! Channels and the file functions (feature `files`): `.cin .cout .cerr`, `.ic .oc .ac .cc`,
 //! `.fc .tc .mi .rl .r .rs .fl .df`, and `.l`. Storage is reached only through
 //! [`FileSystem`](crate::FileSystem).
-use alloc::format;
 use alloc::rc::{Rc, Weak};
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -209,103 +208,6 @@ pub(crate) fn read_file<P: Platform + 'static>(sh: &Rc<Shared<P>>, path: &str) -
     }
 }
 
-/// Where `.l(name)` finds its file (KlongPy `eval_sys_load`): `name` and `name.kg` in each
-/// directory of the load path, then `name` as given.
-/// What `.l` found: a file's text (read into memory), or a library of the image, which is read where it is.
-enum Loaded {
-    Owned(String),
-    Static(&'static str),
-}
-
-/// `os.path.join(dir, name)`: `name` alone when it is absolute.
-fn join_path(dir: &str, name: &str) -> String {
-    if name.starts_with('/') || dir.is_empty() {
-        String::from(name)
-    } else if dir.ends_with('/') {
-        format!("{}{}", dir, name)
-    } else {
-        format!("{}/{}", dir, name)
-    }
-}
-
-/// The names `.l(name)` tries in `dir`: `name` and, unless it ends in `.kg`, `name.kg`.
-fn names_in(dir: &str, name: &str, out: &mut Vec<String>) {
-    let joined = join_path(dir, name);
-    let with_kg = if joined.ends_with(".kg") { None } else { Some(format!("{}.kg", joined)) };
-    out.push(joined);
-    out.extend(with_kg);
-}
-
-fn load_text<P: Platform + 'static>(sh: &Rc<Shared<P>>, name: &str) -> Result<(String, Loaded)> {
-    let mut dirs: Vec<String> = sh.io.try_borrow().map_err(|_| busy())?.path.clone();
-    if dirs.is_empty() {
-        // no load path set: the current directory (a platform's own file system has no "./")
-        dirs.push(String::new());
-    }
-    let home = sh.io.try_borrow().map_err(|_| busy())?.home.last().cloned().unwrap_or_default();
-    let mut tried_fs = true;
-    let direct = name.starts_with('/');
-    // KlongPy's order: the directories of KLONGPATH (taken from the current directory), then, for a relative name, the directory of the file
-    // that is being run or loaded
-    let mut candidates: Vec<String> = Vec::new();
-    for d in &dirs {
-        names_in(d, name, &mut candidates);
-    }
-    let from_path = candidates.len();
-    if !home.is_empty() && !direct {
-        names_in(&home, name, &mut candidates);
-    }
-    for (k, c) in candidates.iter().enumerate() {
-        if k == from_path {
-            // the library of the image stands where the library directory is: before the program's own directory
-            #[cfg(feature = "lib")]
-            if let Some((label, text)) = crate::library::find(name) {
-                return Ok((String::from(label), Loaded::Static(text)));
-            }
-        }
-        match read_file(sh, c) {
-            Ok(text) => return Ok((c.clone(), Loaded::Owned(text))),
-            Err(e) if e.kind == klong_core::Kind::Memory => return Err(e),
-            Err(e) => {
-                // a file that is there but is not text is the answer, not a reason to look on
-                if e.message.starts_with("not UTF-8") {
-                    return Err(e);
-                }
-                if e.message.starts_with("this platform") {
-                    tried_fs = false;
-                    break;
-                }
-            }
-        }
-    }
-    #[cfg(feature = "lib")]
-    if candidates.len() <= from_path || !tried_fs {
-        if let Some((label, text)) = crate::library::find(name) {
-            return Ok((String::from(label), Loaded::Static(text)));
-        }
-    }
-    if !tried_fs {
-        return Err(Error::system(klong_core::msg!("file does not exist: {}", name)).with_hint("this platform has no file system"));
-    }
-    #[cfg(not(feature = "diag"))]
-    return Err(Error::system(klong_core::msg!("file does not exist: {}", name)));
-    // the places looked at, as KlongPy names them (a host build: a board has no room for the text)
-    #[cfg(feature = "diag")]
-    {
-        let mut msg = klong_core::msg!("file does not exist: {} (looked for {}; a relative path is searched in the directories of KLONGPATH", name, candidates.join(", "));
-        let cwd = sh.platform.try_borrow().ok().and_then(|p| p.cwd());
-        match cwd {
-            Some(c) => msg.push_str(&klong_core::msg!(", taken from the current directory, {}", c)),
-            None => msg.push_str(", taken from the current directory"),
-        }
-        if !home.is_empty() {
-            msg.push_str(&klong_core::msg!(", then in the directory of the file that calls .l, {}", home));
-        }
-        msg.push(')');
-        Err(Error::system(msg))
-    }
-}
-
 pub(crate) fn register<P: Platform + 'static>(interp: &mut Interp, shared: &Rc<Shared<P>>) {
     let cin = new_chan(shared, Target::ConsoleIn, true, None);
     let cout = new_chan(shared, Target::ConsoleOut, false, None);
@@ -498,49 +400,6 @@ pub(crate) fn register<P: Platform + 'static>(interp: &mut Interp, shared: &Rc<S
             let fs = p.fs().ok_or_else(no_fs)?;
             fs.remove(path).map_err(|e| fs_error(e, path))?;
             Ok(ip.no_value())
-        }),
-    );
-    let sh = shared.clone();
-    interp.register(
-        ".l",
-        1,
-        Rc::new(move |ip: &mut Interp, a: &[Value]| {
-            let (path, text) = load_text(&sh, text_arg(a, ".l")?)?;
-            // a file that calls .export is a module: it runs in a scope of its own (once, whoever asks) and its exported names become
-            // plain names here (resolution 9)
-            let is_module = match &text {
-                Loaded::Owned(t) => crate::modules::calls_export(t),
-                Loaded::Static(t) => crate::modules::calls_export(t),
-            };
-            if is_module {
-                let t = match text {
-                    Loaded::Owned(t) => crate::modules::Text::Owned(t),
-                    Loaded::Static(t) => crate::modules::Text::Static(t),
-                };
-                let d = crate::modules::import_loaded(&sh, ip, &path, t)?;
-                crate::modules::bind_alias(ip, &path, d)?;
-                return Ok(ip.no_value());
-            }
-            // while it runs, the directory of this file is where its own .l calls look last
-            let dir = match &text {
-                Loaded::Owned(_) => crate::chan_dir(&path),
-                Loaded::Static(_) => String::new(),
-            };
-            if let Ok(mut io) = sh.io.try_borrow_mut() {
-                io.home.push(dir);
-            }
-            let r = match text {
-                Loaded::Owned(t) => ip.load_owned(t, &path),
-                Loaded::Static(t) => ip.load_static(t, &path),
-            };
-            if let Ok(mut io) = sh.io.try_borrow_mut() {
-                io.home.pop();
-            }
-            let r = r?;
-            match r {
-                Some(v) => Ok(v),
-                None => Ok(ip.no_value()),
-            }
         }),
     );
 }

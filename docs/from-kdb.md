@@ -482,7 +482,7 @@ The same expressions in KlongPy:
 
 ## Tables and queries
 
-q has tables and q-sql in the core. Klong does not. With the database extras installed (`pip install "klongpy[db]"`), `klongpy.db` provides tables backed by pandas, and queries are SQL strings run by DuckDB over those tables. See [Columnar tables and SQL](fast_columnar_database.md) and [Table and Key-Value Stores](table_and_key_value_stores.md). There is no `select ... by` syntax, no keyed tables, no attributes, and no splayed or partitioned tables.
+Both desktop commands provide column tables and run SQL strings through DuckDB. Use `.index(t;["col"])` to set a key and `.insert` to upsert. Pass named tables to `.db` for live queries, or give `.db` a path to open a persistent DuckDB file. Use SQL `GROUP BY` for q-sql `by`, and translate splayed or partitioned files to a format DuckDB can read. [Columnar tables and SQL](fast_columnar_database.md)
 
 ```q
 q)t:([] sym:`a`b`a`b`a; px:1 2 3 4 5)
@@ -522,7 +522,7 @@ sym px
 15.0
 ```
 
-A query returns plain Klong values, not a table: one column gives a list, several columns give a list of rows, one value gives a number. `t,"qty",,[10 20 30 40 50]` adds a column. DuckDB's `sum` of integers comes back as a float.
+A query returns Klong values. One column can give a list, several columns can give rows, and one cell gives a scalar. `t,"qty",,[10 20 30 40 50]` adds a column. This example uses the legacy Python adapter for table display. The built-in `.db` preserves integer sums exactly.
 
 ## Timers
 
@@ -550,7 +550,7 @@ KlongPy's `.srv`, `.cli`, `.clid`, `.clic`, `.clit` and `.async` speak the kdb+ 
 
 Limits: no TLS, so a user name and password travel in clear text, and a peer that can reach the port can run Klong code in your interpreter, including `.py` and `.sys`. The other limits (message size, compression) are in [IPC Capabilities](ipc_capabilities.md#protocol-and-security).
 
-Tested: KlongPy against PeachQ 0.92 in both directions, and against a protocol-level fake of a kdb+ server; not against a KX kdb+ process, so the behaviours below are those of PeachQ. The tests are in `tests/test_ipc_peachq.py` and run when `KLONG_TEST_PEACHQ` names a PeachQ executable.
+The examples use PeachQ 0.92. Both desktop commands have live PeachQ coverage. Set `KLONG_TEST_PEACHQ` to its executable for the tests in `tests/test_ipc_peachq.py`, `tests/test_native_ipc.py` and `tests/v2`.
 
 ### Addresses
 
@@ -602,7 +602,7 @@ error: length
 2
 ```
 
-A table from q arrives as a table when `klongpy.db` is loaded in the Klong process, and as a dictionary from column symbol to column array otherwise. `.clid` gives the remote context as a dictionary, which sets and gets variables in the q process:
+A table from q stays a table on both desktop hosts. The example loads `klongpy.db` for pandas-backed display. `.clid` gives the remote context as a dictionary for reading and writing q variables.
 
 <!-- check-docs: skip: needs a running q process (PeachQ 0.92) -->
 ```kgpy
@@ -708,8 +708,8 @@ One table for both directions, as observed against PeachQ 0.92. The type numbers
 | dictionary | `99h` | dictionary | dictionary |
 | function | `100h`, lambda; its source text is sent | function other than a lambda | an opaque value, `:kdb-function`, that can be sent back |
 | `:undefined` | `101h`, the generic null | generic null `(::)` | `:undefined` |
-| | | table | `Table` with `klongpy.db` loaded, else a dictionary of column arrays |
-| | | keyed table | a two-element list of the key table and the value table |
+| column table | `98h`, table | table | table with ordered columns |
+| keyed column table | dictionary of key and value tables | keyed table | table with its key columns |
 | | | date, time and other temporal types | the underlying number (`2000.01.01` is `0`) |
 | | | `0N`, `0n`, `0w` | not translated: `-9223372036854775808`, `nan`, `inf` |
 | a Python object, a connection handle | not sent: a type error | | |
@@ -770,7 +770,7 @@ Compared with a q process:
 
 - No q-sql (`select`, `update`, `exec`, `delete`) and no `by` clause; use SQL strings over `klongpy.db` tables.
 - No typed nulls, no boolean, byte, short, int, real or temporal types. Temporal values from q arrive as plain numbers and `0N` is not null.
-- No keyed tables in the q sense (an `.index` on a table makes an insert update the matching row, which is not the same), no attributes, no enumerations, and no splayed or partitioned tables.
+- A Klong table's key drives `.insert` upserts and maps to a keyed table over q IPC. Klong uses DuckDB SQL for table queries. q-sql attributes, enumerations, and q's splayed or partitioned file layout are outside the Klong table API.
 - No `.z.pg`, `.z.ps`, `.z.pi` or other message handlers; see Hooks above.
 - No true asynchronous send from Klong (q's `neg[h]`). `.async(f;cb)` sends a request and calls `cb` with the answer when it arrives; a KlongPy server does accept asynchronous messages from q clients.
 - Nested callbacks through a q process are not supported.

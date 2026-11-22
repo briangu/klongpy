@@ -1,0 +1,3 @@
+:" Report the distinct instrument IDs and the number of observations for each, in first-seen order."
+distinctIds(ids)::{?ids}
+groupCounts(ids)::{#'=ids}

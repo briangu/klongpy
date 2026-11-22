@@ -1,10 +1,10 @@
 # Two Raspberry Pi Picos calling each other
 
-Two Raspberry Pi Pico boards (RP2040, 264 KB of RAM) run the native Klong interpreter and call each other over IPC. This page is for someone who wants to know what a runtime of this size can do on a network of such boards, or who wants to build the firmware and try it. For what has been run where, see the [status table](index.md#status-what-has-and-has-not-been-proven).
+Two Raspberry Pi Pico boards (RP2040, 264 KiB of RAM) ran the native Klong interpreter and called each other over IPC. For other targets, see the [board status table](index.md#status-what-has-and-has-not-been-proven).
 
 ## The setup
 
-Each Pico has one lane: a UART link, GP16 (TX) and GP17 (RX) of `uart0`, 8N1, no flow control, at 4.5 Mbaud. The two lanes are joined through a frame switch that forwards fixed 16-byte frames, 4 bytes of payload each, and a supervisor board numbers the nodes and reads their status. The lane carries 112 KB/s of data at best.
+Each Pico has one UART lane on GP16 (TX) and GP17 (RX) of `uart0`, configured at 4.5 Mbaud, 8N1, with no flow control. The two lanes are joined through a switch that forwards fixed 16-byte frames, each carrying up to 4 bytes of payload. A supervisor board numbers the nodes and reads their status. The framing permits at most 112.5 kB/s of payload before acknowledgements and higher-level protocol overhead.
 
 The two-Pico result used a serial switch of 16-byte frames that is not part of this repository. Its frame format is in `native/boards/pico-bench/README.md` and `klong-sim` models it. The firmware, the simulator and the host tools are in the repository. Without the switch you can run the same runtime and self-test in the simulator and drive a node from your own frame source, but you cannot reproduce the measured two-board numbers. To set up a link of your own:
 
@@ -35,15 +35,34 @@ You need stable Rust with the `thumbv6m-none-eabi` target, CMake, Ninja, the Pic
 
     native/boards/pico-bench/build.sh
 
-The result is `build/klong_pico_bench.uf2` in that directory. One image runs on every Pico. `native/boards/pico-bench/README.md` lists the switches (`KLONG_SELFTEST=0`, `LANE_BAUD=115200`, `KLONG_OPT=z`, `KLONG_STACK_KB`) and the pins.
+The result is `build/klong_pico_bench.uf2` in that directory. The two RP2040 boards used the same image. `native/boards/pico-bench/README.md` lists the build settings and the pins.
 
 At boot every node serves. A node that is not number 0 connects to the nearest node below it that answers and runs a self-test: a call, an asynchronous call, a 4 KB echo, and the management library calling the peer. The verdict is reported to the supervisor as text and as status flags.
 
-## What works
+## RC1 on two RP2040 boards
+
+The November 20, 2026 run used a sealed KlongPy 2.0.0rc1 build (source archive SHA-256 beginning `547dd7b9`). Both boards booted UF2 image SHA-256 `2e89418263b298b8644725a0f238ead6d8c182778f824dfa97bf8abe29bc09f0` and returned `2.0.0-rc.1` from `.ver()` over the lane. The raw firmware binary was 809,252 bytes.
+
+| Check | RC1 observation |
+|---|---|
+| Paired boot | Node 2 served five calls. Node 3 passed in 615 ms, including a 95 ms echo of 500 integers. A controlled reboot passed in 616 ms. |
+| IPC | A plain remote evaluation returned 42 in both directions, with about 5 ms per call after the connection opened. Three management calls returned 2 and took 30, 15 and 14 ms. |
+| Compiled C | Moving average and PID agreed with the interpreter on both boards. FIR agreed with all 241 reference values in flash. See [On a Pico](../embedded.md#on-a-pico) for the workloads and timings. |
+| Interrupt and recovery | Each node reported an interrupt on the lane and then evaluated `3+4` to 7. |
+| Recursion and recovery | For the tested recursive function, both boards returned 113 at depth argument 113 and reported a `range` error at 114. Both evaluated `1+2` after a deeper call failed. |
+| Largest integer vector after reset | After 16 seconds idle, `#!5951` on the self-test client (node 3) and `#!6826` on the serving node (node 2) succeeded. The next size failed on each. |
+| Largest integer vector with management loaded | On node 2, after one successful management call and two seconds idle, `#!5060` succeeded and `#!5061` returned a `memory` error. |
+| Largest integer vector after mixed use | After compiled examples, recursion and IPC, node 2 reached 3,386 and node 3 reached 4,473. |
+
+The physical run exercised the UART lane console. Direct Pico USB CDC prompt and Ctrl-T counter checks were deferred, and this run provides no direct USB upload result. The current checkout's stack-budget fix and boot self-test memory cleanup passed host regressions and built together for RP2040. The follow-up image has not been flashed.
+
+<a id="what-works"></a>
+
+## Earlier measurements
 
 | Measure | Result |
 |---|---|
-| Image | 734 KB of flash on 2026-11-18, with the compiled examples, the string functions and the static-profile declarations; the image the rows below were measured on was about 650 KB (430 KB with `KLONG_OPT=z`) |
+| Image | About 650 KB for the November 17 measurements (430 KB with `KLONG_OPT=z`). The November 18 image with compiled examples, string functions and static-profile declarations used 734 KB of flash. |
 | Boot self-test, both boards started together | 0.52 s |
 | Largest integer vector on the node that ran the self-test | 5,500 |
 | Largest integer vector on the serving node, management library loaded | 5,500 |
@@ -51,18 +70,18 @@ At boot every node serves. A node that is not number 0 connects to the nearest n
 | A call to the other node through the library, first | 26 ms |
 | The same call, repeated in one program | 11 ms for one call; ten calls in one request take 84 ms |
 | A plain `.cli` call, no library | 3.4 ms |
-| A 4 KB echo | 94 ms (87 KB/s of the lane's 112) |
+| A 4 KB echo | 94 ms |
 | `fib(18)`, 8,361 calls | 0.39 s |
 | Recursion depth | 105 levels; the 106th is a `range` error and the node goes on |
-| Compiled C beside the interpreter (`.c.check()`, 2026-11-18) | the three embedded examples agree with the interpreter on both boards and run about 100 times faster: see [on a Pico](../embedded.md#on-a-pico) |
+| Compiled C on both boards (`.c.check()`, November 18) | Moving average and PID were about 100 times faster than their interpreted versions. FIR was checked against reference values from a desktop. See [On a Pico](../embedded.md#on-a-pico). |
 
 Conditions: two boards, 2026-11-17, through the console client, one firmware image (Pico SDK 2.3.1, Arm GNU 15.3.1); the plain `.cli` call was measured on an earlier firmware image. Each vector size is the largest of the sizes tried, in steps of 300 to 500 elements.
 
 ## Memory
 
-The RP2040's RAM is one address range. The firmware gives the top 112 KB to the interpreter's stack, 16 KB to the receive ring, 8 KB to the transmit ring and 16 KB to the evaluator's hot functions, which run from RAM. The rest, about 98 KB, is the heap. A level of recursion costs about 870 bytes of stack.
+The default stack reservation is 112 KiB. The receive and transmit rings use 16 KiB and 8 KiB respectively, and the evaluator's hot functions also run from RAM. The RC1 linker map showed 56,344 bytes for static data and code in RAM, 99,304 bytes between the static area and the stack, and 114,688 bytes for the stack. The runtime's allocation limit reported by `.mem()` was 93,160 bytes.
 
-The runtime manages the heap itself. It keeps one free list, sorted by address, and puts small blocks at the top and vectors and parse trees at the bottom, so a large vector finds free space whole. A request that cannot be met is a `memory` error and not a crash.
+The allocator tends to place small blocks near the top and vectors and parse trees near the bottom. A large vector needs a contiguous block and enough headroom under the runtime's allocation limit. After the controlled management call on RC1, node 2 had 50,368 bytes free in its pool, with a largest free block of 40,480 bytes. The limit also reserves room for the evaluator to report an allocation error.
 
 Functions from a loaded file are kept as text. Calling one parses it again from that text and keeps the tree in a cache of 24 entries. A program that calls many functions pays a parse for each, which is why the first call through the library is slower than the repeated ones.
 
@@ -80,13 +99,11 @@ Functions from a loaded file are kept as text. Calling one parses it again from 
 
 ## Known limits
 
-* About a fifth of the free memory cannot be used for one large vector. Tables that grow during a load leave holes in the heap.
-* A node is deaf for about 160 ms while it looks for a peer at start. It asks each node below it in turn and waits 80 ms for each, and then again every 10 s while it has none.
-* After the self-test drops the management library, its names are integers, not undefined, until `.l("mgmt")` runs again. Calling `mgmt.add` in between is a `type error`.
-* Recursion stops at about 105 levels.
-* The receive ring under sustained traffic in both directions at once has not been measured on the boards. `rx ring overruns` in the console's Ctrl-T output counts losses.
-* Floating-point arithmetic is in software on the RP2040 and has been measured only through integer code (`fib`).
-* The USB console has not been tested.
+* Available contiguous memory depends on what the node has loaded and run. Use `.heap(0)` and `.mem()` to inspect the current pool and the runtime's counted usage.
+* The boot self-test clears its `mgmt` binding. Run `.l("mgmt")` before using `mgmt.add` from the console.
+* The stack budget depends on the build and the call path. The recursion results above describe the tested function.
+* Sustained bidirectional lane traffic still needs measurement. The USB console's Ctrl-T report includes `rx ring overruns` for diagnosing receive losses.
+* The RP2040 performs floating-point arithmetic in software. The compiled workloads above use single precision, and this interpreter build uses double precision.
 
 ## Run the host tools
 

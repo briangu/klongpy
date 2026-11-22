@@ -4,9 +4,9 @@
    exposes the same four, and the program uses either through that interface."
 
 :" shows: a diamond. stats is reached directly and through series; one instance"
-stats::.import("../lib/stats")
-series::.import("../lib/series")
-book::.import("../book/portfolio")
+.l("../lib/stats")
+.l("../lib/series")
+.l("../book/portfolio";:book)
 
 name::"crossover"
 
@@ -20,4 +20,4 @@ step(pf;row)::{[px m q];px::*row;m::book.mark(pf;px);
 describe(cfg)::{.fmt("crossover fast={} slow={}";[;$cfg.strategy.params.crossover.fast;$cfg.strategy.params.crossover.slow])}
 
 .p("[crossover] loaded")
-.export(:{;"name";name;"signal";signal;"step";step;"describe";describe})
+export:::{;"name";name;"signal";signal;"step";step;"describe";describe}

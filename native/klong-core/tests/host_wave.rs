@@ -37,6 +37,52 @@ fn obj(id: usize) -> Value {
     Value::Ext(Rc::new(ExtBox(Box::new(Obj(id)))))
 }
 
+fn list_may_reach_host(value: &Value) -> bool {
+    let Value::List(list) = value else { panic!("expected a mixed list") };
+    list.may_reach_host_values()
+}
+
+#[test]
+fn nested_list_hints_account_for_a_dictionary_that_can_gain_host_values() {
+    let _g = lock();
+    let mut ip = interp();
+    let atoms = Value::raw_list(vec![Value::Sym(ip.syms.intern("name")), Value::text("text").unwrap(), Value::Int(1)]).unwrap();
+    assert!(!list_may_reach_host(&atoms));
+    assert!(!list_may_reach_host(&Value::raw_list(vec![atoms.clone()]).unwrap()));
+
+    let dictionary = Value::dict(Dict::default());
+    let nested = Value::raw_list(vec![atoms, Value::raw_list(vec![dictionary.clone()]).unwrap()]).unwrap();
+    assert!(list_may_reach_host(&nested));
+    let Value::Dict(dictionary) = dictionary else { unreachable!() };
+    dictionary.borrow_mut().set(Value::text("host").unwrap(), obj(1)).unwrap();
+    assert!(list_may_reach_host(&nested));
+    assert!(list_may_reach_host(&nested.item(1)));
+
+    let function = ip.run("{x}", "<t>").unwrap().unwrap();
+    assert!(list_may_reach_host(&Value::raw_list(vec![function]).unwrap()));
+}
+
+#[test]
+#[cfg(feature = "tables")]
+fn an_in_place_table_append_updates_the_columns_host_reachability_hint() {
+    let _g = lock();
+    let mut ip = interp();
+    let symbol = Value::Sym(ip.syms.intern("name"));
+    let column = Value::raw_list(vec![symbol.clone()]).unwrap();
+    let table = klong_core::table::Table::new(vec![(Value::text("cells").unwrap(), column)]).unwrap();
+    let hint = || {
+        let data = table.data();
+        let Value::List(list) = &data.columns()[0].1 else { panic!("expected a mixed column") };
+        (Rc::as_ptr(list), list.may_reach_host_values())
+    };
+    let (initial, may_reach_host) = hint();
+    assert!(!may_reach_host);
+    table.insert(&Value::raw_list(vec![symbol]).unwrap()).unwrap();
+    assert_eq!(hint(), (initial, false));
+    table.insert(&Value::raw_list(vec![obj(1)]).unwrap()).unwrap();
+    assert_eq!(hint(), (initial, true));
+}
+
 #[test]
 fn a_host_object_is_a_key_by_identity() {
     let _g = lock();
@@ -53,7 +99,7 @@ fn a_host_object_is_a_key_by_identity() {
 fn a_native_function_is_a_key_by_identity() {
     let _g = lock();
     let mut ip = interp();
-    let f = Rc::new(Func::Native { name: ip.syms.intern("f"), arity: 1, f: Rc::new(|_, a| Ok(a[0].clone())) });
+    let f = Rc::new(Func::native(ip.syms.intern("f"), 1, Rc::new(|_, a| Ok(a[0].clone()))));
     let mut d = Dict::default();
     d.set(Value::Fn(f.clone()), Value::Int(1)).unwrap();
     d.set(Value::Fn(f.clone()), Value::Int(2)).unwrap();
@@ -284,7 +330,7 @@ impl Ext for Remote {
                 };
                 Some(match key.as_str() {
                     "n" => Ok(Value::Int(42)),
-                    "f" => Ok(Value::Fn(Rc::new(Func::Native { name: ip.syms.intern("remote-f"), arity: 1, f: Rc::new(|_, a| Ok(a[0].clone())) }))),
+                    "f" => Ok(Value::Fn(Rc::new(Func::native(ip.syms.intern("remote-f"), 1, Rc::new(|_, a| Ok(a[0].clone())))))),
                     "inner" => Ok(Value::Dict(Rc::new(std::cell::RefCell::new({
                         let mut d = Dict::default();
                         d.set(Value::text("k").unwrap(), Value::Int(7)).unwrap();

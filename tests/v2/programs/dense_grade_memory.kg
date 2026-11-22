@@ -1,0 +1,5 @@
+.l("./expect.kg")
+keys::262144#[2 -1 2 0]
+grade::<keys
+expect("length of stable grade";#grade;262144)
+expect("first and last index of each key";grade@[0 65535 65536 131071 131072 262143];[1 262141 3 262143 0 262142])

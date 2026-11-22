@@ -1,5 +1,5 @@
 :" accept: extern - an extern whose C name is free "
 
-.extern("adc.read";"int -> float")
-f::{adc.read(x)}
+read::.extern("adc_read";"int -> float")
+f::{read(x)}
 .entry("f";"int -> float")

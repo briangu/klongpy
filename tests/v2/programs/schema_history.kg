@@ -1,0 +1,18 @@
+migrateLedger::{[d];
+    d::.db(x);
+    d("CREATE TABLE ledger(id BIGINT PRIMARY KEY, px BIGINT)");
+    d("INSERT INTO ledger VALUES (1, 9007199254740993), (2, NULL)");
+    d("BEGIN");
+    d("ALTER TABLE ledger RENAME COLUMN px TO price");
+    d("ALTER TABLE ledger ADD COLUMN venue VARCHAR DEFAULT 'XNAS'");
+    d("COMMIT");
+    d("BEGIN");
+    d("UPDATE ledger SET price=0 WHERE id=1");
+    d("ALTER TABLE ledger RENAME TO scratch");
+    d("SELECT count(*) FROM scratch WHERE price=0")}
+
+appendLedger::{[d failed];
+    d::.db(x);
+    failed::.try({d("INSERT INTO ledger(id,price) VALUES (1,0)")};[]);
+    d("INSERT INTO ledger(id,price) VALUES (3,-7)");
+    [;failed@0;d("SELECT count(*) FROM ledger")]}

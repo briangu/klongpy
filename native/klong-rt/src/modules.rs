@@ -1,45 +1,29 @@
-//! Modules: `.import`, `.export`, and `.l` of a file that exports (docs/design-principles.md).
+//! `.l`, the one loader, and the modules it makes (docs/design-principles.md).
 //!
-//! A file is a module and a module is a value (principles 3 and 4): `.import("geo")` runs the file in a scope of its own and gives
-//! back the dictionary the file passed to `.export`. The scope itself, the lookup rule and the read-only dictionary are in the core
-//! (`Interp::module_*`, `Dict::set_readonly`); this file is what needs the platform: finding the file, the cache, the cycle check.
-//!
-//! The rules that were decisions, each in one place:
-//! * `resolve` (path resolution, resolution 8): `./x` and `../x` are relative to the importing file; an absolute path is itself;
-//!   any other name is looked for in the import path (KLONGPATH) and then in the library of the image, never in the working
-//!   directory or the importing file's directory, because a name that depends on where the program was started is a hidden input.
-//! * `key_of` (the cache key): the real path of the file, `.kg` added when the name has no extension.
-//! * `bind_alias` (`.l` of a module, resolution 9): the module is bound to the file's name in the loader's scope, as `.import` would.
-//! * `select` (the two-argument form, resolution 6): the values of the named keys, in that order.
+//! A file is a module exactly when it assigns the variable `export` at its top level (`klong_core::module::scan`: the same decision the
+//! linter and the checker make). `.l(path)` runs a module in a scope of its own, once, and binds it to the file's stem; `.l(path;:name)`
+//! binds it to `name`; `.l(path;["a" "b"])` binds those entries as plain names. A file that is not a module is loaded as classic Klong
+//! loads it: its names go into the globals. The scope itself, the lookup rule and the read-only dictionary are in the core
+//! (`Interp::module_*`, `Dict::set_readonly`); the search order is `klong_core::module::search`; this file is what needs the platform:
+//! reading the file, the cache, the cycle check.
 #[cfg(any(feature = "files", feature = "lib"))]
 use alloc::format;
 use alloc::rc::Rc;
+#[allow(unused_imports)]
 use alloc::string::String;
+#[allow(unused_imports)]
 use alloc::vec::Vec;
-use core::cell::RefCell;
 
 #[allow(unused_imports)]
 use klong_core::error::Result;
+#[allow(unused_imports)]
+use klong_core::module::{self, Env, Place};
+#[allow(unused_imports)]
 use klong_core::value::{Dict, Value, WILDCARD};
 #[allow(unused_imports)]
 use klong_core::{Error, Interp};
 
 use crate::{Platform, Shared};
-
-#[derive(Default)]
-pub(crate) struct Mods {
-    /// The directories a bare name is looked for in (KLONGPATH); none by default.
-    pub import_path: Vec<String>,
-}
-
-pub(crate) type ModsRef = RefCell<Mods>;
-
-/// What an import found: the cached module, or the text of a file that is to run.
-#[cfg(any(feature = "files", feature = "lib"))]
-enum Found {
-    Cached(Value),
-    New { key: String, label: String, dir: String, lib: bool, text: Text },
-}
 
 #[cfg(any(feature = "files", feature = "lib"))]
 pub(crate) enum Text {
@@ -47,13 +31,12 @@ pub(crate) enum Text {
     Static(&'static str),
 }
 
-/// The part of a path after its last slash.
+/// What a search found.
 #[cfg(any(feature = "files", feature = "lib"))]
-fn last_part(p: &str) -> &str {
-    match p.rfind('/') {
-        Some(i) => &p[i + 1..],
-        None => p,
-    }
+enum Found {
+    /// The module of this file is already made.
+    Cached(Value),
+    File { path: String, key: String, text: Text, lib: bool },
 }
 
 #[cfg(any(feature = "files", feature = "lib"))]
@@ -61,64 +44,20 @@ fn busy() -> Error {
     Error::internal("runtime state in use")
 }
 
-#[cfg(any(feature = "files", feature = "lib"))]
-fn join(dir: &str, name: &str) -> String {
-    if name.starts_with('/') || dir.is_empty() {
-        return String::from(name);
-    }
-    let mut out = String::from(dir.trim_end_matches('/'));
-    out.push('/');
-    out.push_str(name);
-    out
-}
-
-/// `x` becomes `x.kg`; a name that has an extension stays (resolution: the cache key and the file are the same for `m` and `m.kg`).
-#[cfg(any(feature = "files", feature = "lib"))]
-fn with_ext(name: &str) -> String {
-    let mut out = String::from(name);
-    if !last_part(name).contains('.') {
-        out.push_str(".kg");
-    }
-    out
-}
-
-/// The path with `.` and `..` removed, lexically (a relative path that climbs above its start keeps its `..`).
-#[cfg(any(feature = "files", feature = "lib"))]
-fn normalize(path: &str) -> String {
-    let mut out = String::new();
-    if path.starts_with('/') {
-        out.push('/');
-    }
-    for seg in path.split('/') {
-        match seg {
-            "" | "." => {}
-            ".." if out == "/" => {}
-            ".." if !out.is_empty() && !out.ends_with("..") => out.truncate(out.rfind('/').map_or(0, |i| i.max((out.starts_with('/')) as usize))),
-            s => {
-                if !out.is_empty() && !out.ends_with('/') {
-                    out.push('/');
-                }
-                out.push_str(s);
-            }
-        }
-    }
-    out
-}
-
 /// The key of the file at `path`: its real path when the platform can say, else the absolute path with the dots taken out.
-#[cfg(any(feature = "files", feature = "lib"))]
+#[cfg(feature = "files")]
 fn key_of<P: Platform + 'static>(sh: &Rc<Shared<P>>, path: &str) -> String {
     if let Ok(p) = sh.platform.try_borrow() {
         if let Some(r) = p.real_path(path) {
             return r;
         }
-        if !path.starts_with('/') {
+        if !module::is_absolute(path) {
             if let Some(c) = p.cwd() {
-                return normalize(&join(&c, path));
+                return module::normalize(&module::join(&c, path));
             }
         }
     }
-    normalize(path)
+    module::normalize(path)
 }
 
 /// Where the code that is running was written: its directory, and whether it is a file of the image's library.
@@ -134,7 +73,7 @@ fn importer<P: Platform + 'static>(sh: &Rc<Shared<P>>, ip: &Interp) -> Result<(S
 
 /// A cached module, or an error when the key is one whose body is running (a cycle). A module the core has let go is not cached.
 #[cfg(any(feature = "files", feature = "lib"))]
-fn cached<P: Platform + 'static>(_sh: &Rc<Shared<P>>, ip: &Interp, key: &str) -> Result<Option<Value>> {
+fn cached(ip: &Interp, key: &str) -> Result<Option<Value>> {
     match ip.module_find(key) {
         None => Ok(None),
         Some((id, true)) => Ok(ip.module_export(id)),
@@ -146,78 +85,141 @@ fn cached<P: Platform + 'static>(_sh: &Rc<Shared<P>>, ip: &Interp, key: &str) ->
             let _ = chain;
             let e = Error::system(klong_core::dmsg!("import cycle", "import cycle: {}", chain.join(" -> ")));
             #[cfg(feature = "diag")]
-            let e = e.with_hint("a module cannot import a module that is importing it; move what they share into a third file");
+            let e = e.with_hint("a module cannot load a module that is loading it; move what they share into a third file");
             Err(e)
         }
     }
 }
 
-/// Find what `spec` names (resolution 8).
 #[cfg(any(feature = "files", feature = "lib"))]
-fn resolve<P: Platform + 'static>(sh: &Rc<Shared<P>>, ip: &Interp, spec: &str) -> Result<Found> {
-    let (dir, from_lib) = importer(sh, ip)?;
-    let relative = spec.starts_with("./") || spec.starts_with("../");
-    let mut files: Vec<String> = Vec::new();
-    let mut libname: Option<&str> = None;
-    if relative && from_lib {
-        // a file of the library reaches another by its name
-        libname = Some(last_part(spec));
-    } else if relative {
-        files.push(normalize(&join(&dir, &with_ext(spec))));
-    } else if spec.starts_with('/') {
-        files.push(normalize(&with_ext(spec)));
-    } else {
-        let m = sh.mods.try_borrow().map_err(|_| busy())?;
-        for d in &m.import_path {
-            files.push(normalize(&join(d, &with_ext(spec))));
-        }
-        libname = Some(spec);
-    }
-    #[cfg(feature = "files")]
-    for c in &files {
-        let key = key_of(sh, c);
-        if let Some(d) = cached(sh, ip, &key)? {
-            return Ok(Found::Cached(d));
-        }
-        match crate::chan::read_file(sh, c) {
-            Ok(text) => {
-                let dir = crate::chan_dir(&key);
-                return Ok(Found::New { key, label: c.clone(), dir, lib: false, text: Text::Owned(text) });
-            }
-            Err(e) if e.kind == klong_core::Kind::Memory => return Err(e),
-            Err(e) => {
-                // a file that is there and is not text is the answer, not a reason to look on
-                if e.message.starts_with("not UTF-8") {
-                    return Err(e);
-                }
-            }
-        }
-    }
+fn library(name: &str) -> Option<&'static str> {
     #[cfg(feature = "lib")]
-    if let Some(n) = libname {
-        if let Some((label, text)) = crate::library::find(n) {
-            let key = format!("lib:{}", label);
-            if let Some(d) = cached(sh, ip, &key)? {
-                return Ok(Found::Cached(d));
-            }
-            return Ok(Found::New { key, label: String::from(label), dir: String::new(), lib: true, text: Text::Static(text) });
-        }
+    {
+        crate::library::find(name).map(|(_, t)| t)
     }
     #[cfg(not(feature = "lib"))]
-    let _ = libname;
-    let e = Error::system(klong_core::dmsg!("file does not exist", "file does not exist: {}", spec));
-    #[cfg(feature = "diag")]
-    let e = if files.is_empty() {
-        e.with_hint("a name without ./ or ../ is looked for in KLONGPATH and the library, not in the working directory: write ./name for a file of your own")
-    } else {
-        e.with_hint(klong_core::dmsg!("module error", "looked for {}", files.join(", ")))
+    {
+        let _ = name;
+        None
+    }
+}
+
+/// Find what `spec` names, by the shared search, and read it (or take the module already made from it).
+#[cfg(any(feature = "files", feature = "lib"))]
+fn locate<P: Platform + 'static>(sh: &Rc<Shared<P>>, ip: &mut Interp, spec: &str) -> Result<Found> {
+    let (dir, from_lib) = importer(sh, ip)?;
+    let klongpath: Vec<String> = sh.io.try_borrow().map_err(|_| busy())?.path.clone();
+    let env = Env { dir: &dir, from_lib, klongpath: &klongpath };
+    // what the probe found: a cached module, the text of a file, or the failure that ends the search
+    #[allow(unused_mut)]
+    let mut got: Option<Result<(String, String, Text)>> = None;
+    #[allow(unused_mut)]
+    let mut hit: Option<Value> = None;
+    let mut tried: Vec<String> = Vec::new();
+    let found = {
+        #[cfg(feature = "files")]
+        let mut probe = |c: &str| -> bool {
+            let key = key_of(sh, c);
+            match cached(ip, &key) {
+                Ok(Some(d)) => {
+                    hit = Some(d);
+                    return true;
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    got = Some(Err(e));
+                    return true;
+                }
+            }
+            match crate::chan::read_file(sh, c) {
+                Ok(text) => {
+                    got = Some(Ok((String::from(c), key, Text::Owned(text))));
+                    true
+                }
+                // a file that is there and is not text is the answer, not a reason to look on
+                Err(e) if e.kind == klong_core::Kind::Memory || e.message.starts_with("not UTF-8") => {
+                    got = Some(Err(e));
+                    true
+                }
+                Err(_) => false,
+            }
+        };
+        #[cfg(not(feature = "files"))]
+        let mut probe = |_: &str| -> bool { false };
+        let mut in_lib = |n: &str| library(n).is_some();
+        module::search(&env, spec, &mut probe, &mut in_lib, &mut tried)
     };
+    if let Some(d) = hit {
+        return Ok(Found::Cached(d));
+    }
+    if let Some(r) = got {
+        let (path, key, text) = r?;
+        if found.as_ref().is_some_and(|f| f.shadows) {
+            shadow_warning(ip, spec, &path, &text);
+        }
+        return Ok(Found::File { path, key, text, lib: false });
+    }
+    if let Some(f) = found {
+        if let Place::Library(name) = f.place {
+            if let Some(text) = library(&name) {
+                let key = format!("lib:{}", name);
+                if let Some(d) = cached(ip, &key)? {
+                    return Ok(Found::Cached(d));
+                }
+                return Ok(Found::File { path: name, key, text: Text::Static(text), lib: true });
+            }
+        }
+    }
+    #[cfg(not(feature = "diag"))]
+    let e = Error::system("file does not exist");
+    #[cfg(feature = "diag")]
+    let e = {
+        let mut msg = klong_core::msg!("file does not exist: {} (looked for {}", spec, tried.join(", "));
+        if !tried.is_empty() && module::is_library_name(spec) {
+            msg.push_str(", then the bundled library");
+        }
+        msg.push(')');
+        Error::system(msg)
+    };
+    #[cfg(not(feature = "diag"))]
+    let _ = tried;
+    #[cfg(feature = "diag")]
+    let e = if !cfg!(feature = "files") { e.with_hint("this platform has no file system; .l loads the built-in library only") } else { e };
     Err(e)
 }
 
-/// Run the file as a module (the scope is made, the body runs, `.export` has fixed the dictionary) and cache it.
+/// A file found in the importing file's directory or in KLONGPATH has the name of a file of the bundled library and is not that file:
+/// the program gets the file it has, and is told (the engine's warning list).
 #[cfg(any(feature = "files", feature = "lib"))]
-fn run_new<P: Platform + 'static>(sh: &Rc<Shared<P>>, ip: &mut Interp, key: String, label: &str, dir: String, lib: bool, text: Text) -> Result<Value> {
+fn shadow_warning(ip: &mut Interp, spec: &str, path: &str, text: &Text) {
+    #[cfg(feature = "diag")]
+    {
+        let name = module::stem(spec);
+        let same = match (library(name), text) {
+            (Some(l), Text::Owned(t)) => l == t.as_str(),
+            (Some(l), Text::Static(t)) => l == *t,
+            (None, _) => true,
+        };
+        if same {
+            return;
+        }
+        ip.syms.warn(klong_core::sym::Warning {
+            code: "shadows-library",
+            message: klong_core::msg!("{} is found at {}, which shadows the bundled library file of the same name", spec, path),
+            note: None,
+            hint: Some(klong_core::msg!("rename the file, or write ./{} to say that the local file is meant", name)),
+            span: (0, 0),
+            source: None,
+        });
+    }
+    #[cfg(not(feature = "diag"))]
+    let _ = (ip, spec, path, text);
+}
+
+/// Run the file as a module (the scope is made, the body runs, the variable `export` is read and frozen) and cache it.
+#[cfg(any(feature = "files", feature = "lib"))]
+fn run_new<P: Platform + 'static>(sh: &Rc<Shared<P>>, ip: &mut Interp, key: String, label: &str, lib: bool, text: Text) -> Result<Value> {
+    let dir = if lib { String::new() } else { module::dir_of(&key) };
     let id = ip.module_new(&key, &dir, lib)?;
     if let Ok(mut io) = sh.io.try_borrow_mut() {
         io.home.push(dir);
@@ -229,188 +231,225 @@ fn run_new<P: Platform + 'static>(sh: &Rc<Shared<P>>, ip: &mut Interp, key: Stri
     if let Ok(mut io) = sh.io.try_borrow_mut() {
         io.home.pop();
     }
-    let r = r.and_then(|_| {
-        ip.module_export(id).ok_or_else(|| {
-            let e = Error::system(klong_core::dmsg!("not a module (no .export)", "{} has no .export, so it is not a module", label));
-            #[cfg(feature = "diag")]
-            let e = e.with_hint("load a classic file with .l, or end the file with .export(:{;\"name\";value})");
-            e
-        })
-    });
+    let r = r.and_then(|_| freeze(ip, id, label));
     match r {
         Ok(d) => {
             ip.module_done(id);
             Ok(d)
         }
         Err(e) => {
-            // a module that failed is not cached: the next import runs the file again
+            // a module that failed is not cached: the next load runs the file again
             ip.module_drop(id);
             Err(e)
         }
     }
 }
 
-/// `.import(spec)`: the module's dictionary.
+/// The interface of module `id`: the dictionary its variable `export` holds, copied (the values are the values now, not variables that
+/// change later) and made read-only.
 #[cfg(any(feature = "files", feature = "lib"))]
-pub(crate) fn import<P: Platform + 'static>(sh: &Rc<Shared<P>>, ip: &mut Interp, spec: &str) -> Result<Value> {
-    match resolve(sh, ip, spec)? {
-        Found::Cached(d) => Ok(d),
-        Found::New { key, label, dir, lib, text } => run_new(sh, ip, key, &label, dir, lib, text),
-    }
-}
-
-/// The module of a file that `.l` found (`path` for a file, `label` for a library file): the same module an `.import` of it gives.
-#[cfg(any(feature = "files", feature = "lib"))]
-pub(crate) fn import_loaded<P: Platform + 'static>(sh: &Rc<Shared<P>>, ip: &mut Interp, path: &str, text: Text) -> Result<Value> {
-    let (key, dir, lib) = match &text {
-        Text::Owned(_) => {
-            let key = key_of(sh, path);
-            let dir = crate::chan_dir(&key);
-            (key, dir, false)
-        }
-        Text::Static(_) => (format!("lib:{}", path), String::new(), true),
+fn freeze(ip: &mut Interp, id: u16, label: &str) -> Result<Value> {
+    #[cfg(not(feature = "diag"))]
+    let _ = label;
+    let Some(v) = ip.module_get(id, module::EXPORT) else {
+        return Err(Error::system(klong_core::dmsg!("export was not assigned", "{} did not assign export", label)));
     };
-    if let Some(d) = cached(sh, ip, &key)? {
-        return Ok(d);
+    let Value::Dict(d) = &v else {
+        return Err(Error::typ(klong_core::dmsg!("export must be a dictionary", "{}: export must be a dictionary of names to values, got {}", label, v.describe_long()))
+            .with_hint("write  export:::{;\"name\";value}"));
+    };
+    let mut copy = Dict::default();
+    {
+        let d = d.borrow();
+        for (k, val) in d.keys().iter().zip(d.vals().iter()) {
+            if !matches!(k, Value::Str(_)) {
+                return Err(Error::typ(klong_core::dmsg!("export keys must be strings", "{}: every key of export must be a string, got {}", label, k.describe_long())));
+            }
+            copy.set(k.clone(), val.clone())?;
+        }
     }
-    run_new(sh, ip, key, path, dir, lib, text)
+    copy.set_readonly();
+    let out = Value::dict(copy);
+    drop(v);
+    ip.module_remove(id, module::EXPORT);
+    if !ip.module_set_export(id, out.clone()) {
+        return Err(Error::internal("the interface was fixed twice"));
+    }
+    Ok(out)
 }
 
-/// `.l` of a module binds the module's dictionary to the file's name in the scope that called `.l`: exactly `name::.import("name")`
-/// (resolution 9, revised), so a program that loaded a library with `.l` and wrote `csv.read(...)` keeps working, and no plain name is defined.
+/// A name `.l` is to bind: a string or a symbol that is a plain variable name.
 #[cfg(any(feature = "files", feature = "lib"))]
-pub(crate) fn bind_alias(ip: &mut Interp, path: &str, dict: Value) -> Result<()> {
-    let stem = last_part(path);
-    let stem = stem.strip_suffix(".kg").unwrap_or(stem);
-    let s = ip.syms.intern(stem);
+fn bind_name(ip: &mut Interp, name: &str, v: Value, what: &str) -> Result<()> {
+    let _ = what;
+    if !module::is_binding_name(name) {
+        return Err(Error::name(klong_core::dmsg!(".l: not a name", ".l: \"{}\" cannot be the name of a variable; {}", name, what)));
+    }
+    let s = ip.syms.intern(name);
     if let Some(e) = ip.syms.failure() {
         return Err(e);
     }
-    ip.assign(s, dict)
+    ip.assign(s, v)
 }
 
-/// Does the text call `.export`? (A word `.export` followed by `(`, outside strings and comments.) `.l` runs such a file as a module.
+/// The second argument of `.l`, checked before anything is loaded.
 #[cfg(any(feature = "files", feature = "lib"))]
-pub(crate) fn calls_export(text: &str) -> bool {
-    let b = text.as_bytes();
-    let mut i = 0;
-    while i < b.len() {
-        match b[i] {
-            b'"' => {
-                // a string: "" inside it is a quote
-                i += 1;
-                while i < b.len() {
-                    if b[i] == b'"' {
-                        if b.get(i + 1) == Some(&b'"') {
-                            i += 2;
-                            continue;
-                        }
-                        break;
+enum Bind {
+    Stem,
+    Alias(String),
+    Names(Vec<String>),
+}
+
+#[cfg(any(feature = "files", feature = "lib"))]
+fn bind_of(ip: &Interp, a: &[Value]) -> Result<Bind> {
+    match a.get(1) {
+        None => Ok(Bind::Stem),
+        Some(Value::Sym(s)) => Ok(Bind::Alias(klong_core::value::try_str(ip.syms.name(*s))?)),
+        Some(v) if v.is_list() => {
+            let n = v.len().unwrap_or(0);
+            let mut out: Vec<String> = Vec::new();
+            for i in 0..n {
+                match v.item(i) {
+                    Value::Str(s) => {
+                        klong_core::value::try_push(&mut out, klong_core::value::try_str(s.as_str())?)?;
                     }
-                    i += 1;
+                    other => {
+                        let _ = &other;
+                        return Err(Error::typ(klong_core::dmsg!(".l: names must be strings", ".l: the entries to bind must be strings, got {}", other.describe_long()))
+                            .with_hint("write .l(\"file\";[\"name1\" \"name2\"])"))
+                    }
                 }
-                i += 1;
             }
-            b'.' if text[i..].starts_with(".export") => {
-                let before = i == 0 || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'.');
-                let mut j = i + ".export".len();
-                while j < b.len() && (b[j] == b' ' || b[j] == b'\t') {
-                    j += 1;
-                }
-                if before && b.get(j) == Some(&b'(') {
-                    return true;
-                }
-                i += 1;
-            }
-            _ => i += 1,
+            Ok(Bind::Names(out))
         }
+        Some(v) => Err(Error::typ({ let _ = v; klong_core::dmsg!(".l: second argument", ".l: the second argument must be a symbol (the name to bind the module to) or a list of strings (the entries to bind), got {}", v.describe_long()) })
+            .with_hint("write .l(\"file\";:name) or .l(\"file\";[\"a\" \"b\"])")),
     }
-    false
 }
 
-/// `.import(path;keys)`: the values of `keys`, in that order; a key the module does not have is a `name` error that says which.
+/// The file's stem is a name to bind, when no name was given: said before the module runs.
 #[cfg(any(feature = "files", feature = "lib"))]
-fn select(dict: &Value, spec: &str, keys: &Value) -> Result<Value> {
-    if !keys.is_list() {
-        return Err(Error::typ(klong_core::dmsg!(".import: names must be a list", ".import: the names to take must be a list of strings, got {}", keys.describe_long())));
+fn check_stem(spec: &str, how: &Bind) -> Result<()> {
+    let stem = module::stem(spec);
+    if matches!(how, Bind::Stem) && !module::is_binding_name(stem) {
+        return Err(Error::typ(klong_core::dmsg!(".l: file name is not a name", ".l: the module \"{}\" cannot be bound to the name \"{}\"", spec, stem))
+            .with_hint(klong_core::msg!("choose the name: .l(\"{}\";:name)", spec)));
     }
-    let Value::Dict(d) = dict else { return Err(Error::internal("a module is not a dictionary")) };
-    let n = keys.len().unwrap_or(0);
-    let mut out: Vec<Value> = klong_core::value::try_vec(n)?;
-    for i in 0..n {
-        let k = keys.item(i);
-        if !matches!(k, Value::Str(_)) {
-            return Err(Error::typ(klong_core::dmsg!(".import: names must be strings", ".import: the names to take must be strings, got {}", k.describe_long())));
+    Ok(())
+}
+
+/// Bind the module `dict` that `spec` loaded as `bind` says; the module is the value of `.l`.
+#[cfg(any(feature = "files", feature = "lib"))]
+fn bind(ip: &mut Interp, spec: &str, dict: &Value, how: Bind) -> Result<()> {
+    match how {
+        Bind::Stem => {
+            check_stem(spec, &Bind::Stem)?;
+            bind_name(ip, module::stem(spec), dict.clone(), "")
         }
-        match d.borrow().get(&k) {
-            Some(v) => out.push(v.clone()),
-            None => {
-                let name = if let Value::Str(s) = &k { s.as_str() } else { "" };
-                return Err(Error::name(klong_core::dmsg!("no such entry", "{} has no entry \"{}\"", spec, name)));
+        Bind::Alias(name) => bind_name(ip, &name, dict.clone(), "a name is letters and digits, starting with a letter"),
+        Bind::Names(names) => {
+            let Value::Dict(d) = dict else { return Err(Error::internal("a module is not a dictionary")) };
+            let mut vals: Vec<Value> = Vec::new();
+            for n in &names {
+                let key = Value::text(n)?;
+                match d.borrow().get(&key) {
+                    Some(v) => klong_core::value::try_push(&mut vals, v.clone())?,
+                    None => {
+                        let e = Error::name(klong_core::dmsg!("no such entry", "{} has no entry \"{}\"", spec, n));
+                        #[cfg(feature = "diag")]
+                        let e = {
+                            let mut have: Vec<String> = Vec::new();
+                            for k in d.borrow().keys() {
+                                if let Value::Str(s) = k {
+                                    have.push(String::from(s.as_str()));
+                                }
+                            }
+                            e.with_hint(klong_core::msg!("the module has: {}", have.join(" ")))
+                        };
+                        return Err(e);
+                    }
+                }
             }
+            for (n, v) in names.iter().zip(vals) {
+                bind_name(ip, n, v, "an entry is bound under its own name, which must be letters and digits")?;
+            }
+            Ok(())
         }
     }
-    Value::from_items(out)
+}
+
+/// `.l(spec)`, `.l(spec;:name)`, `.l(spec;[names])`.
+#[cfg(any(feature = "files", feature = "lib"))]
+fn load<P: Platform + 'static>(sh: &Rc<Shared<P>>, ip: &mut Interp, a: &[Value]) -> Result<Value> {
+    if a.is_empty() || a.len() > 2 {
+        return Err(Error::arity(klong_core::dmsg!(".l: 1 or 2 arguments", ".l takes 1 or 2 arguments, got {}", a.len())));
+    }
+    let spec = crate::text_arg(&a[..1], ".l")?;
+    let spec = sh.platform.try_borrow().map_err(|_| busy())?.module_path(spec);
+    let spec = spec.as_ref();
+    let how = bind_of(ip, a)?;
+    let given = a.len() == 2;
+    let (path, key, text, lib) = match locate(sh, ip, spec)? {
+        Found::Cached(d) => {
+            bind(ip, spec, &d, how)?;
+            return Ok(d);
+        }
+        Found::File { path, key, text, lib } => (path, key, text, lib),
+    };
+    // is it a module? the statements are parsed, not run
+    let (text, is_module) = {
+        let (cow, owned) = match text {
+            Text::Owned(t) => (alloc::borrow::Cow::Owned(t), true),
+            Text::Static(t) => (alloc::borrow::Cow::Borrowed(t), false),
+        };
+        let src = Rc::new(klong_core::error::Source { name: String::new(), text: cow });
+        let m = module::scan(&src, ip.cfg.max_depth);
+        let text = match Rc::try_unwrap(src) {
+            Ok(s) => match (s.text, owned) {
+                (alloc::borrow::Cow::Owned(t), _) => Text::Owned(t),
+                (alloc::borrow::Cow::Borrowed(t), _) => Text::Static(t),
+            },
+            Err(s) => Text::Owned(klong_core::value::try_str(&s.text)?),
+        };
+        (text, m)
+    };
+    if is_module {
+        check_stem(spec, &how)?;
+        let d = run_new(sh, ip, key, &path, lib, text)?;
+        bind(ip, spec, &d, how)?;
+        return Ok(d);
+    }
+    if given {
+        let e = Error::typ(klong_core::dmsg!(".l: not a module", ".l: {} is not a module (it does not assign export), so there is nothing to bind", spec));
+        #[cfg(feature = "diag")]
+        let e = e.with_hint(klong_core::msg!("write .l(\"{}\") to load it as classic Klong, or make it a module with  export:::{{;\"name\";value}}", spec));
+        return Err(e);
+    }
+    // a classic file: while it runs, the directory of this file is where its own .l calls look first
+    let dir = if lib { String::new() } else { module::dir_of(&path) };
+    if let Ok(mut io) = sh.io.try_borrow_mut() {
+        io.home.push(dir);
+    }
+    let r = match text {
+        Text::Owned(t) => ip.load_owned(t, &path),
+        Text::Static(t) => ip.load_static(t, &path),
+    };
+    if let Ok(mut io) = sh.io.try_borrow_mut() {
+        io.home.pop();
+    }
+    match r? {
+        Some(v) => Ok(v),
+        None => Ok(ip.no_value()),
+    }
 }
 
 pub(crate) fn register<P: Platform + 'static>(interp: &mut Interp, shared: &Rc<Shared<P>>) {
-    // (a build with neither files nor the library has nothing to import)
+    // (a build with neither files nor the library has nothing to load)
     #[cfg(any(feature = "files", feature = "lib"))]
     {
-    let sh = shared.clone();
-        interp.register(
-            ".import",
-            WILDCARD,
-            Rc::new(move |ip: &mut Interp, a: &[Value]| {
-                if a.is_empty() || a.len() > 2 {
-                    return Err(Error::arity(klong_core::dmsg!(".import: 1 or 2 arguments", ".import takes 1 or 2 arguments, got {}", a.len())));
-                }
-                let spec = match &a[0] {
-                    Value::Str(s) => s.as_str(),
-                    v => return Err(Error::typ(klong_core::dmsg!(".import: x must be a string", ".import: x must be a string, got {}", v.describe_long()))),
-                };
-                let d = import(&sh, ip, spec)?;
-                match a.get(1) {
-                    Some(keys) => select(&d, spec, keys),
-                    None => Ok(d),
-                }
-            }),
-        );
+        let sh = shared.clone();
+        interp.register(".l", WILDCARD, Rc::new(move |ip: &mut Interp, a: &[Value]| load(&sh, ip, a)));
     }
-    // `.export(dict)`: what the file offers, once. The dictionary is copied, so the exported values are the values now (not variables that
-    // change later), and it is read-only for whoever imports it. In a file that is not being imported it does nothing (a program may be
-    // run directly, as a script).
-    interp.register(
-        ".export",
-        WILDCARD,
-        Rc::new(|ip: &mut Interp, a: &[Value]| {
-            if a.len() != 1 {
-                return Err(Error::arity(klong_core::dmsg!(".export: 1 argument", ".export takes 1 argument (a dictionary), got {}", a.len())));
-            }
-            let arg = crate::one(a, ".export")?;
-            let Value::Dict(d) = arg else {
-                return Err(Error::typ(klong_core::dmsg!(".export: x must be a dictionary", ".export: x must be a dictionary of names to values, got {}", arg.describe_long())));
-            };
-            let mut copy = Dict::default();
-            {
-                let d = d.borrow();
-                for (k, v) in d.keys().iter().zip(d.vals().iter()) {
-                    if !matches!(k, Value::Str(_)) {
-                        return Err(Error::typ(klong_core::dmsg!(".export: keys must be strings", ".export: every key must be a string, got {}", k.describe_long())));
-                    }
-                    copy.set(k.clone(), v.clone())?;
-                }
-            }
-            let id = ip.current_module_id();
-            if id == 0 {
-                return Ok(arg.clone());
-            }
-            copy.set_readonly();
-            let v = Value::dict(copy);
-            if !ip.module_set_export(id, v.clone()) {
-                return Err(Error::system(".export was already called by this file"));
-            }
-            Ok(v)
-        }),
-    );
+    #[cfg(not(any(feature = "files", feature = "lib")))]
+    let _ = (interp, shared, WILDCARD);
 }

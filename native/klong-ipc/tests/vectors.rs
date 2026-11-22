@@ -149,6 +149,91 @@ fn header_consistent(msg: &[u8]) -> bool {
 }
 
 #[test]
+fn ingest_call_decodes_symbols_and_long_vectors_in_both_byte_orders() {
+    let symbols: [(&[u8], &str); 8] = [
+        (b"S00", "S00"),
+        (b"", ""),
+        (b"xyA", "xyA"),
+        (b"xya", "xya"),
+        ("é".as_bytes(), "é"),
+        (b"\xff", "\u{fffd}"),
+        (b"\xfe", "\u{fffd}"),
+        (b"S15", "S15"),
+    ];
+    let count = 256_i32;
+    let bounds = [Int::MIN as i64, -1, 0, Int::MAX as i64];
+    for little in [true, false] {
+        let i32_bytes = |value: i32| if little { value.to_le_bytes() } else { value.to_be_bytes() };
+        let i64_bytes = |value: i64| if little { value.to_le_bytes() } else { value.to_be_bytes() };
+        let mut wire = vec![0, 0];
+        wire.extend(i32_bytes(4));
+        wire.extend(b"\xf5ingest\0");
+        let symbol_vector_start = wire.len();
+        wire.extend([11, 0]);
+        wire.extend(i32_bytes(count));
+        for (raw, _) in symbols.iter().cycle().take(count as usize) {
+            wire.extend_from_slice(raw);
+            wire.push(0);
+        }
+        let symbol_vector_end = wire.len();
+        for values in [bounds, [11, 12, 13, 14]] {
+            wire.extend([7, 0]);
+            wire.extend(i32_bytes(count));
+            for &cell in values.iter().cycle().take(count as usize) {
+                wire.extend(i64_bytes(cell));
+            }
+        }
+
+        let mut ip = interp();
+        let value = codec::decode(&wire, little, &mut ip.syms).unwrap();
+        let Value::List(args) = value else { panic!("expected a call envelope") };
+        assert!(matches!(args[0], Value::Sym(s) if ip.syms.name(s) == "ingest"));
+        let Value::List(col) = &args[1] else { panic!("expected symbols") };
+        assert_eq!(col.len(), count as usize);
+        for (cell, (_, expected)) in col.iter().zip(symbols.iter().cycle()) {
+            assert!(matches!(cell, Value::Sym(s) if ip.syms.name(*s) == *expected));
+        }
+        for (col, values) in args[2..].iter().zip([bounds, [11, 12, 13, 14]]) {
+            let Value::Ints(col) = col else { panic!("expected longs") };
+            assert_eq!(col.data.len(), count as usize);
+            assert!(col.data.iter().copied().map(|v| v as i64).eq(values.into_iter().cycle().take(count as usize)));
+        }
+        let truncated = &wire[symbol_vector_start..symbol_vector_end - 1];
+        assert!(matches!(codec::decode(truncated, little, &mut ip.syms), Err(DecodeError::Protocol(_))));
+    }
+}
+
+fn matches_decoded(value: &Value, expected: &Value, _ip: &Interp) -> bool {
+    #[cfg(feature = "tables")]
+    if let Some(table) = klong_core::table::Table::from_value(value) {
+        let data = table.data();
+        let columns = data.columns();
+        let key_count = data.key_columns().len();
+        if let Value::List(parts) = expected {
+            return parts.len() == 2
+                && data.key_columns().iter().copied().eq(0..key_count)
+                && matches_columns(&columns[..key_count], &parts[0], _ip)
+                && matches_columns(&columns[key_count..], &parts[1], _ip);
+        }
+        return key_count == 0 && matches_columns(columns, expected, _ip);
+    }
+    same(value, expected)
+}
+
+#[cfg(feature = "tables")]
+fn matches_columns(columns: &[(Value, Value)], expected: &Value, ip: &Interp) -> bool {
+    let Value::Dict(expected) = expected else { return false };
+    let expected = expected.borrow();
+    columns.len() == expected.len()
+        && columns.iter().zip(expected.keys().iter().zip(expected.vals())).all(
+            |((name, values), (key, wanted))| {
+                matches!((name, key), (Value::Str(s), Value::Sym(k)) if s.as_str() == ip.syms.name(*k))
+                    && same(values, wanted)
+            }
+        )
+}
+
+#[test]
 fn every_vector_in_its_mode() {
     let wide = INT_BITS == 64 && FLT_BITS == 64;
     let narrow = INT_BITS == 32 && FLT_BITS == 32;
@@ -185,7 +270,7 @@ fn every_vector_in_its_mode() {
                         if kind as u8 != msg[1] || size != msg.len() {
                             fail(format!("session reports kind {:?} size {}", kind, size));
                         }
-                        if !same(&v, &expected) {
+                        if !matches_decoded(&v, &expected, &ip) {
                             fail(format!("session decoded {} but the entry says {}", show(&ip, &v), show(&ip, &expected)));
                         }
                     }
@@ -196,7 +281,15 @@ fn every_vector_in_its_mode() {
                 // the codec alone, on the bytes after the header (uncompressed entries)
                 if msg[2] == 0 {
                     match codec::decode(&msg[8..], msg[0] == 1, &mut ip.syms) {
-                        Ok(v) if same(&v, &expected) => {}
+                        Ok(v) if matches_decoded(&v, &expected, &ip) => {
+                            #[cfg(feature = "tables")]
+                            if msg[0] == 1 && klong_core::table::Table::from_value(&v).is_some() {
+                                let mut out = Vec::new();
+                                if codec::encode(&ip.syms, &v, &mut out).is_err() || out != msg[8..] {
+                                    fail(format!("table encoded {:02x?}, the entry has {:02x?}", out, &msg[8..]));
+                                }
+                            }
+                        }
                         Ok(v) => fail(format!("decoded {} but the entry says {}", show(&ip, &v), show(&ip, &expected))),
                         Err(e) => fail(format!("decode failed: {:?}", e)),
                     }

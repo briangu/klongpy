@@ -3,16 +3,32 @@
 //!
 //! One table, from what the Python package registers (`klongpy/sys_fn*.py`, `klongpy/db`, `klongpy/web`, `klongpy/ws`):
 //! * Python: `.py .pya .pyc .pyf`, `.sys`, `.rls`;
-//! * torch and autograd: `.grad .gradcheck .jacobian .bkx .bkf .bkd .bkp`;
-//! * tables and SQL: `.db .table .tables .insert .index .rindex .schema .kvs`;
+//! * torch and autograd: `.grad .gradcheck .jacobian .export .bkf .bkd .bkp`;
+//! * legacy database helpers: `.kvs .tables`. Native table and SQL functions are listed only if disabled in this build;
 //! * the web and web sockets: `.web .webc .ws .wsc`;
 //! * the FPGA card: `.fpga` and `.fpga.free .fpga.get .fpga.info .fpga.lanes .fpga.put .fpga.reset .fpga.set`.
 //!
 //! A name that `kg` has itself must not be here (the test below checks it against the runtime).
 
 pub const NAMES: &[&str] = &[
-    ".bkd", ".bkf", ".bkp", ".bkx", ".db", ".fpga", ".fpga.free", ".fpga.get", ".fpga.info", ".fpga.lanes", ".fpga.put", ".fpga.reset", ".fpga.set", ".grad", ".gradcheck", ".index",
-    ".insert", ".jacobian", ".kvs", ".py", ".pya", ".pyc", ".pyf", ".rindex", ".rls", ".schema", ".sys", ".table", ".tables", ".web", ".webc", ".ws", ".wsc",
+    ".bkd", ".bkf", ".bkp",
+    #[cfg(not(feature = "duckdb"))]
+    ".db",
+    ".export", ".fpga", ".fpga.free", ".fpga.get", ".fpga.info", ".fpga.lanes", ".fpga.put", ".fpga.reset", ".fpga.set", ".grad", ".gradcheck",
+    #[cfg(not(feature = "tables"))]
+    ".index",
+    #[cfg(not(feature = "tables"))]
+    ".insert",
+    ".jacobian", ".kvs", ".py", ".pya", ".pyc", ".pyf",
+    #[cfg(not(feature = "tables"))]
+    ".rindex",
+    ".rls",
+    #[cfg(not(feature = "tables"))]
+    ".schema",
+    ".sys",
+    #[cfg(not(feature = "tables"))]
+    ".table",
+    ".tables", ".web", ".webc", ".ws", ".wsc",
 ];
 
 pub fn is(name: &str) -> bool {

@@ -1,0 +1,26 @@
+:" Grade-up keeps ties in input order. Numeric grade-down reverses that order. "
+caseSignedGradeTies::{[values ascending];
+    values::1024#[4 -3 2 -3 4 0 2 2];
+    ascending::,/{values?x}'[-3 0 2 4];
+    (ascending~<values)&((|ascending)~>values)}
+caseUniformGrade::{[values positions];values::256#-17;positions::!256;
+    (positions~<values)&((|positions)~>values)}
+caseGradeSortedRuns::{[values positions];positions::!4096;values::positions:%16;
+    (positions~<values)&((|positions)~>values)}
+caseGradeDistantKeys::{[values ascending];
+    values::128#[-9223372036854775808 9223372036854775807 0 -1];
+    ascending::,/{values?x}'[-9223372036854775808 -1 0 9223372036854775807];
+    (ascending~<values)&((|ascending)~>values)}
+caseGradeNearIntegerLimits::{[lo hi pattern ascending a b];
+    lo::-9223372036854775808;hi::9223372036854775807;pattern::128#[1 0 3 2];
+    a::lo+pattern;b::hi-pattern;
+    ascending::,/{pattern?x}'[0 1 2 3];
+    ((<a)~ascending)&((>a)~|ascending)&((<b)~,/{pattern?x}'[3 2 1 0])}
+
+caseMatrixSumAxes::{[m];m::[2 3]:^[4 -1 7 6 3 -2];((+/m)~[10 2 5])&((+/'m)~[10 7])}
+caseMatrixSumOneRow::{[m];m::[1 3]:^[3 -1 8];((+/m)~[3 -1 8])&((+/'m)~,10)}
+caseMatrixSumOneColumn::{[m];m::[3 1]:^[3 -1 8];((+/m)~,10)&((+/'m)~[3 -1 8])}
+caseMatrixSumWraps::{[hi lo m];hi::9223372036854775807;lo::-9223372036854775808;
+    m::[2 2]:^[;hi;1;1;lo];((+/m)~[;lo;lo+1])&((+/'m)~[;lo;lo+1])}
+caseOtherMatrixAdverbs::{[m cube];m::[2 3]:^!6;cube::[2 2 2]:^!8;
+    ((*/'m)~[0 60])&((+/cube)~[[4 6] [8 10]])&((+/'cube)~[[2 4] [10 12]])}

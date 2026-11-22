@@ -1,5 +1,5 @@
 :" expect: static line 4 void-value "
 
-.extern("led.set";"int -> void")
-f::{1+led.set(x)}
+set::.extern("led_set";"int -> void")
+f::{1+set(x)}
 .entry("f";"int -> int")

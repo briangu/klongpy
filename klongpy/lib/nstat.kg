@@ -443,8 +443,8 @@ helpadd([
  ["zscore(x;mu;sigma^2)" "z-score of x given mean mu and variance sigma^2"]
 ])
 
-.export(:{;"kp";kp;"kc";kc;"rcp";rcp;"mu";mu;"Q";Q;"M";M;"qrt";qrt;"mo";mo;"mod";mod;"rng";rng;"cov";cov;"var";var;"cor";cor;"sd";sd;"svar";svar;"ssd";ssd;
+export:::{;"kp";kp;"kc";kc;"rcp";rcp;"mu";mu;"Q";Q;"M";M;"qrt";qrt;"mo";mo;"mod";mod;"rng";rng;"cov";cov;"var";var;"cor";cor;"sd";sd;"svar";svar;"ssd";ssd;
  "lreg";lreg;"lr";lr;"hist";hist;"seg";seg;"rss";rss;"rse";rse;"tss";tss;"r2";r2;"mse";mse;"rssset";rssset;"rseset";rseset;"mseset";mseset;"r2set";r2set;
  "spl";spl;"spline";spline;"sp";sp;"sp2";sp2;"cvset";cvset;"cve";cve;"freq";freq;"nfreq";nfreq;"dist";dist;"errdist";errdist;"err";err;"fdist";fdist;"shuffle";shuffle;
  "erf";erf;"ndf";ndf;"phi";phi;"cdf";cdf;"qf";qf;"X2";X2;"tscore";tscore;"zscore";zscore;"fscore";fscore;
- "ct";ct;"f";f;"u";u;"r";r;"geo";geo;"b";b;"hyp";hyp;"poi";poi;"n";n;"lnorm";lnorm;"x2";x2;"t";t;"F";F})
+ "ct";ct;"f";f;"u";u;"r";r;"geo";geo;"b";b;"hyp";hyp;"poi";poi;"n";n;"lnorm";lnorm;"x2";x2;"t";t;"F";F}

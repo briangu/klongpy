@@ -312,14 +312,14 @@ fn state_persists_between_runs_and_resets() {
 
 #[test]
 fn an_extern_goes_through_the_callback() {
-    let text = ".extern(\"read.adc\";\"int -> float\")\nf::{read.adc(x)*2.0}\n.entry(\"f\";\"int -> float\")\n";
+    let text = "adc::.extern(\"read_adc\";\"int -> float\")\nf::{adc(x)*2.0}\n.entry(\"f\";\"int -> float\")\n";
     let p = compile(text, 32);
     let mut ev = IrEvaluator::new(&p);
     let e = &p.entries[0];
     let err = ev.run(e, &[i(3)]).unwrap_err();
     assert_eq!(err.code, 3);
     ev.extern_cb = Some(Box::new(|name, args| {
-        assert_eq!(name, "read.adc");
+        assert_eq!(name, "adc");
         Ok(Arr::flt(args[0].i64s()[0] as f64 + 0.25))
     }));
     assert_eq!(flts(&ev.run(e, &[i(3)]).unwrap()), vec![6.5]);

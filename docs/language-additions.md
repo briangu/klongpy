@@ -9,7 +9,7 @@ KlongPy adds a few forms to Klong. Each one gives a meaning to input that fails 
 | `f(a;b;c;d)::{...}` | [Named parameters](#named-parameters), and more than three | `f::{...}` with `x y z`, or one list argument |
 | `:{;k1;v1;k2;v2}` | An [evaluated dictionary](#dictionaries) | `:{[k1 v1] [k2 v2]}`, or `d,k,,v` |
 | `d.k`, `d.k::v` | [Qualified names](#qualified-names): `d.k` is `d@"k"`, for reading and writing | `d@"k"`, `d::d,"k",,v` |
-| `.import(path)`, `.export(d)` | [Modules](#modules): a file with private names and a list of exported ones | `.l`, which writes every name of the file into your globals |
+| `export:::{;"k";v}`, `.l(path;...)` | [Modules](#modules): a file with private names and a dictionary of exported ones, bound by `.l` | `.l(path)` of a classic file, which writes every name of the file into your globals |
 | `d@k`, `d@[k1 k2]`, `d,d2` | Dictionary lookup with `@`, several keys at once, merge | `d?k` |
 | `.fmt(template;args)`, `.pf(...)` | [Formatted text](#formatted-text) | joining strings with `,` and `$` |
 | `.split(s;sep)` | [Strings](#strings): the pieces of `s` between the occurrences of `sep` | a loop over `s?sep`, written for each program |
@@ -454,7 +454,7 @@ A dot is part of no name. `shout.up` does not name a variable: it reads the entr
 
 ## Modules
 
-A module is a Klong file that keeps its names private and offers a list of them. `.import(path)` runs the file in a scope of its own and returns the dictionary that the file passed to `.export`. `.export(dict)` ends the file; its argument is the dictionary of what the file offers.
+A module is a Klong file that keeps its names private and offers a dictionary of them. The file states its interface with the top-level variable `export`, which holds a dictionary written as a literal. `.l` runs the file in a scope of its own and binds the module.
 
 The file `stats.kg`:
 
@@ -462,33 +462,54 @@ The file `stats.kg`:
 sq(v)::{v*v}
 mean(v)::{(+/v)%#v}
 var(v)::{mean(sq'v)-sq(mean(v))}
-.export(:{;"mean";mean;"var";var})
+export:::{;"mean";mean;"var";var}
 ```
 
 A program that uses it:
 
 ```text
-stats::.import("./stats")
+.l("stats")
 stats.mean([1 2 3 4])
 stats.var([1 2 3 4])
 ```
 
+`.l` has three forms. Each returns the module when the file is a module, and each is the Klong form of a Python import:
+
+| Klong | Binds | Python |
+|---|---|---|
+| `.l("stats")` | the module to the file's stem, `stats` | `import stats` |
+| `.l("stats";:s)` | the module to `s`, and not to the stem | `import stats as s` |
+| `.l("stats";["mean" "var"])` | the entries `mean` and `var` as plain names, and not the stem | `from stats import mean, var` |
+
 The rules:
 
-* A file is a module when it calls `.export`. `.import` of a file that does not is an error. The names in the file, `sq` above, are private to it: the importer cannot reach one that the export does not list, and nothing is written into the importer's globals.
-* The key in the export may differ from the name in the file: `:{;"seed";reset}` offers the function `reset` as `seed`.
-* `./x` and `../x` are relative to the file that holds the import (to the working directory at the REPL). A name without a dot and slash, such as `"csv"`, is searched in the directories of `KLONGPATH` and then in the library that ships with KlongPy, never in the working directory. `.kg` is added when the name has no extension.
+* A file is a module exactly when it assigns `export` at its top level. A file without that assignment is a classic file: `.l` writes its names into the globals and returns what it returned before. A second argument on a classic file is an error that says to write `.l("name")`.
+* The interface is read and frozen when the file finishes loading. The names in the file, `sq` above, are private to it: the importer cannot reach one that `export` does not list, and nothing is written into the importer's globals.
+* The key may differ from the name in the file: `export:::{;"seed";reset}` offers the function `reset` as `seed`.
+* The second argument is a symbol or a list of strings. Any other value is a type error that says what to write. A missing entry in the names form is a name error that names it. Without an alias the stem must be a valid name, letters and digits starting with a letter; `.l("my-mod")` is an error that says to write `.l("my-mod";:name)`.
+* At strict levels 0 and 1 a quoted symbol `:s` is the value of `s` when `s` is already defined, and at level 2 it is always the symbol. Choose an alias that is not in use.
+* A bare name such as `"csv"` is searched in the directory of the file that contains the `.l` (the working directory at the REPL), then in the directories of `KLONGPATH` (default `.:lib` on Unix and `.;lib` on Windows), then in the library that ships with KlongPy. `./x` and `../x` are relative to the file that contains the `.l`, and an absolute path is itself. `.kg` is added when the name has no extension. Classic files and modules are found in the same order. When a file found beside the program has the name of a library file and is not that file, the program gets the file it has and the engine issues a warning (`kgpy lint` reports it as W023).
 * The module is read-only from outside: `stats.mean::0` is a type error. A dictionary stored inside it is an ordinary dictionary and can be changed.
-* An exported value is its value at the moment of `.export`, so `m.counter` does not follow later changes in the module. An exported function does, because it works on the module's own names. To expose changing state, export functions.
-* `.import(path;names)` takes only the listed entries and fails when one is missing. With a list of names on the left of `::` it binds each as a plain name: `[mean var]::.import("./stats";["mean" "var"])`.
-* Importing a file again gives the same module, identified by the real path of the file. A state that the module keeps is shared by every importer.
-* A module is freed when nothing refers to it: no variable, no function taken from it. The next import then runs the file again. `m::0` lets go of the variable. To keep a module between the calls of a function, hold it in a global.
-* A circular import is an error, and so is a file that does not exist.
-* A module can import modules, and a function can import one when it runs.
+* An exported value is its value when the file finishes loading, so `stats.counter` does not follow later changes in the module. An exported function does, because it works on the module's own names. To expose changing state, export functions.
+* Loading a file again gives the same module, identified by the real path of the file. A state that the module keeps is shared by every loader.
+* A module is freed when nothing refers to it: no variable, no function taken from it. The next `.l` then runs the file again. `stats::0` lets go of the variable. To keep a module between the calls of a function, hold it in a global.
+* A circular load is an error, and so is a file that does not exist.
+* A module can load modules, and a function can load one when it runs.
 
-`.l("name")` on a file that is a module runs it and binds the module to the file's name, as `name::.import("name")` does. That is how the libraries `csv` and `mgmt` are used: `.l("csv")` gives `csv.read`, `csv.split` and the rest. A file without `.export` is a classic file, and `.l` writes its names into the globals as before.
+The libraries `csv`, `nstat` and `mgmt` are modules: `.l("csv")` gives `csv.read`, `csv.split` and the rest.
 
-The static checker follows a top-level `.import` with a literal path, so a module can be compiled. [Lint](lint.md#codes) has the rules for imports. `examples/modules` is a program of twelve files that uses all of this.
+The static checker follows a top-level `.l` with a literal path, so a module can be compiled. It reads `export` without running the file, so the compiler requires the literal form `export:::{;"key";value;...}` with names or numbers as values; any other right side is a diagnostic. [Lint](lint.md#codes) has the rules for modules. `examples/modules` is a program of twelve files that uses all of this.
+
+### Host functions
+
+`.extern(c_symbol;signature)` returns a host function as a value: `adc::.extern("read_adc";"int -> float")`. The first argument is the C symbol, a C identifier (underscore allowed, no dot, not a C keyword, no `kg_` prefix). A target's functions live in an ordinary module file, `read.kg`:
+
+```text
+adc::.extern("read_adc";"int -> float")
+export:::{;"adc";adc}
+```
+
+A program uses it as `.l("read")` and `read.adc(3)`. A statement that discards the value of `.extern`, the old form `.extern("read.adc";"int -> float")`, is an error that names the new form. A host registers its implementation by C symbol, and `klong.externs["read_adc"]` in Python is keyed the same way. Declaring a symbol twice with the same signature gives one function, and with different signatures is an error. A function of more than three parameters works as a value like any other. [Compiling Klong to C](embedded.md) has the rest.
 
 ## Formatted text
 

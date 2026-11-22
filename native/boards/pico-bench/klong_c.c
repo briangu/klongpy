@@ -43,7 +43,7 @@ void kg_trap(int code, int line) {
     }
 }
 
-/* The externs of pid.kg (read.adc and write.pwm in Klong): constants, as in examples/embedded/pid.expect. */
+/* The externs of pid.kg (read_adc and write_pwm, which board.kg declares as board.adc and board.pwm): constants, as in examples/embedded/pid.expect. */
 kg_float read_adc(kg_int channel) {
     (void)channel;
     return (kg_float)0.3;
@@ -177,7 +177,7 @@ static int32_t cf_us(void *ctx, const klong_val *a, size_t n, klong_val *out) {
     return 0;
 }
 
-/* The same stand-ins for the interpreter: pid.kg's `.extern` lines resolve to these, registered under the Klong names. */
+/* The same stand-ins for the interpreter: the `.extern` lines of board.kg (loaded by pid.kg) resolve to these, registered under their C symbols. */
 static int32_t cf_read_adc(void *ctx, const klong_val *a, size_t n, klong_val *out) {
     (void)ctx, (void)a, (void)n;
     out->tag = KLONG_T_FLT;
@@ -309,8 +309,16 @@ int32_t klong_c_register(uint64_t (*now_us)(void)) {
         {".c.load", 1, cf_load, NULL, 0},
         {".c.us", 0, cf_us, NULL, 0},
         {".c.check", 0, cf_check, NULL, NEX * ROW},
-        {"read.adc", 1, cf_read_adc, NULL, 0},
-        {"write.pwm", 2, cf_write_pwm, NULL, 0},
+    };
+    /* the externs of board.kg, by C symbol: the programs reach them only through the declarations' signature checks */
+    static const struct {
+        const char *symbol;
+        klong_cfun fn;
+        void *ctx;
+        size_t out_cap;
+    } externs[] = {
+        {"read_adc", cf_read_adc, NULL, 0},
+        {"write_pwm", cf_write_pwm, NULL, 0},
     };
     g_now = now_us;
     reset_compiled(MAVG);
@@ -318,6 +326,10 @@ int32_t klong_c_register(uint64_t (*now_us)(void)) {
     reset_compiled(FIR);
     for (size_t i = 0; i < sizeof fns / sizeof fns[0]; i++) {
         int32_t r = klong_cfun_register(fns[i].name, fns[i].arity, fns[i].fn, fns[i].ctx, fns[i].out_cap);
+        if (r != KLONG_OK) return r;
+    }
+    for (size_t i = 0; i < sizeof externs / sizeof externs[0]; i++) {
+        int32_t r = klong_extern_register(externs[i].symbol, externs[i].fn, externs[i].ctx, externs[i].out_cap);
         if (r != KLONG_OK) return r;
     }
     return KLONG_OK;

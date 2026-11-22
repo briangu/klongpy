@@ -17,9 +17,7 @@ An error is shown as `error: message`, without the position the REPL adds; see [
 | `.bkd(x)` | Backend-Display | Display a value in the backend's own format (a torch tensor stays a tensor). |
 | `.bkp(x)` | Backend-Print | Print a value in the backend's own format, followed by a newline. |
 | `.x(x)` | Exit | Exit the interpreter with a success or failure status. |
-| `.l(x)` | Load | Load and run a Klong source file, searching `KLONGPATH` and then the directory of the calling file. |
-| `.import(x)` | Import | Run a Klong file as a module in its own scope and return the dictionary it exports. |
-| `.export(x)` | Export | Name the dictionary a module file gives to `.import`. |
+| `.l(x)` | Load | Load a Klong file: a module (a file that assigns `export`) is bound to its name, to an alias or by its entries; any other file is loaded into the globals. |
 | `.module(x)` | Module | Mark the start or end of a module; `.module(:name)` opens one and `.module(0)` closes it. |
 | `.pc()` | Process-Clock | Return the process time used so far, in seconds. |
 | `.now()` | Now | Return the time of day in seconds since the start of 1970. |
@@ -207,63 +205,37 @@ if "x" is not false.
 `.l(x)` [Load]
 
 ```text
-Load the content of the file specified in the string "x" as if
-typed in at the interpreter prompt.
+.l(x;y)
 
-Klong will try the names "x", and a,".kg", in all directories
-specified in the KLONGPATH environment variable. Directory names
-in KLONGPATH are separated by colons.
+Load the Klong file named by the string "x". A file that assigns
+the variable export is a module; any other file is classic Klong.
 
-When KLONGPATH is undefined, it defaults to ".:lib".
+A module runs once, in a scope of its own, and .l returns it: a
+read-only dictionary of what the file gave to export. The other
+names of the file stay private to it. The module is bound in the
+scope that called .l:
 
-When a file is being run or loaded and none of those names is
-found, a relative "x" is looked for last in the directory of that
-file, so that a program can load the files next to it from any
-current directory. In a file loaded by .l this is the directory
-of the loaded file. The directories of KLONGPATH are tried first.
+    .l("nstat")                binds it to the file's name, nstat
+    .l("nstat";:s)             binds it to s instead
+    .l("nstat";["mu" "sd"])    binds those entries as names mu and sd
 
-A program can be loaded from an absolute or relative path
-(without a prefix from KLONGPATH) by starting "x" with a "/"
-or "." character.
+A missing entry is an error that names it. A dictionary entry is
+read as m.name, which is m@"name". The stem must be a name (letters
+and digits, starting with a letter) or an alias is given. At strict
+levels 0 and 1 a quoted symbol :s is the value of s when s is
+defined, so give an alias that is not in use.
 
-.l will return the last expression evaluated, i.e. it can be
-used to load the value of a single expression from a file.
-```
+A classic file is loaded as if typed in at the prompt: its names go
+into the globals, and .l returns the last expression evaluated. A
+second argument on a classic file is an error.
 
-### `.import`
-
-`.import(x)` [Import]
-
-```text
-.import(x;y)
-
-Run the Klong file "x" (a string) as a module in a scope of its own
-and return the dictionary it passed to .export. The result is
-read-only from outside. A module is run once and kept while anything
-refers to it. "y" is a list of names: only those entries are
-returned, and a missing one is an error.
-
-A bare name is searched in the directories of KLONGPATH, a path with a
-directory is taken as it is, and a relative path is taken from the
-directory of the file that imports. A dictionary entry is read as
-m.name, which is m@"name".
-
-Examples:   m::.import("stats")
-            m.mean([1 2 3])
-            .import("stats";["mean"])
-```
-
-### `.export`
-
-`.export(x)` [Export]
-
-```text
-Name the dictionary "x" as what the file gives to .import: the
-module's interface. A file calls it once, last; the other names of
-the file stay private to it.
-
-Example:   mean::{(+/x)%#x}
-           .export(:{["mean" mean]})
+A name without ./ or ../ is searched in the directory of the file
+that contains the .l (the working directory at the prompt), then in
+the directories of KLONGPATH (default ".:lib" on Unix and ".;lib" on
+Windows), then in the bundled library; a file found before the library that has the name of a
+library file is a warning. "x" and "x.kg" are tried in each. ./x and
+../x are taken from the directory of the file that has the .l, and
+an absolute path as it is.
 ```
 
 ### `.module`
@@ -1323,7 +1295,7 @@ Defined in the base interpreter; most need the PyTorch backend. See [PyTorch Bac
 |------|-------|-------------|
 | `.jacobian(x;y)` | Jacobian | Jacobian of a function at a point. |
 | `.gradcheck(x;y)` | Gradcheck | Check autograd gradients against numeric ones (PyTorch backend). |
-| `.bkx(x;y;z)` | Backend-Export | Export a function's computation graph to a file (PyTorch backend). |
+| `.export(x;y;z)` | Export | Export a function's computation graph to a file (PyTorch backend). |
 
 ### `.jacobian`
 
@@ -1370,9 +1342,9 @@ Notes:
     - Useful for verifying custom gradient implementations
 ```
 
-### `.bkx`
+### `.export`
 
-`.bkx(x;y;z)` [Backend-Export]
+`.export(x;y;z)` [Export]
 
 ```text
 Export a function's computation graph to a file for inspection.
@@ -1391,7 +1363,7 @@ Returns:
 
 Examples:
     f::{x^2}
-    info::.bkx(f;3.0;"model.pt2")
+    info::.export(f;3.0;"model.pt2")
     .p(info@"graph")              :" Print computation graph
 
 Notes:
@@ -1407,7 +1379,7 @@ Defined in the base interpreter. See [Compiling Klong to C](embedded.md).
 
 | Name | Title | Description |
 |------|-------|-------------|
-| `.extern(x;y)` | Extern | Declare a function the host provides, with a typed signature, for a program that is compiled. |
+| `.extern(x;y)` | Extern | Declare a function the host provides, with a typed signature, and return it as a value, for a program that is compiled. |
 | `.entry(x;y)` | Entry | Mark a function as an entry point of a compiled program and fix its signature. |
 | `.param(x;y)` | Param | Declare a global of a compiled program as a parameter the host sets between runs (a register in hardware). |
 | `.fixed(x;y)` | Fixed | Convert a number to a fixed-point type, `fixed<W,I>`, in a compiled program. |
@@ -1418,31 +1390,37 @@ Defined in the base interpreter. See [Compiling Klong to C](embedded.md).
 `.extern(x;y)` [Extern]
 
 ```text
-.extern(x;y;z)
-
-Declare a function the host provides. "x" is its name, a
-string; "y" is its signature, a string of the form
-"params -> result"; "z" is the module it is imported from
-when the program is compiled to wasm ("env" when omitted).
+Declare a function the host provides and return it as a value.
+"x" is the C symbol of the function, a string; "y" is its
+signature, a string of the form "params -> result".
 
 A type is int, float, an array of them with fixed dimensions
 (int[8], float[16,241]) or, for a parameter, str. The result
 may also be void. Parameters are separated by spaces and may
 be absent: "-> int" is a function of no arguments.
 
-Under KlongPy the name is bound to the Python function that
-the host program registered as its stand-in,
-klong.externs["name"]. Arguments and result are checked
-against the signature on every call; a call without a
-stand-in is an error. A compiled program calls the C function
-of that name, with "." written as "_" (read.adc is read_adc).
+A target's functions live in an ordinary module file: it assigns
+each declaration to a name and exports them, and a program uses it
+with .l and a qualified name:
 
-Returns the signature in its canonical form.
+    adc::.extern("read_adc";"int -> float")
+    export:::{;"adc";adc}          (in read.kg)
 
-Examples:   .extern("read.adc";"int -> float")
-            .extern("write.pwm";"int float -> void")
-            .extern("fill";"float[64] -> float[64]";"dsp")
-            read.adc(0)
+    .l("read")
+    read.adc(0)
+
+Under KlongPy the function calls the Python function the host
+program registered as its stand-in, klong.externs["read_adc"]: the
+key is the C symbol. Arguments and result are checked against the
+signature on every call; a call without a stand-in is an error. A
+compiled program calls the C function of that name. The same symbol
+declared again with the same signature is the same function; with
+another signature it is an error. A statement that discards the
+value is an error.
+
+Examples:   adc::.extern("read_adc";"int -> float")
+            pwm::.extern("write_pwm";"int float -> void")
+            fill::.extern("fill";"float[64] -> float[64]")
 ```
 
 ### `.entry`

@@ -1,5 +1,5 @@
 :" expect: static line 4 extern-call "
 
-.extern("read.adc";"int -> float")
-f::{read.adc(x)}
+adc::.extern("read_adc";"int -> float")
+f::{adc(x)}
 .entry("f";"float -> float")

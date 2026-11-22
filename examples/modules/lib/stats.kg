@@ -16,4 +16,4 @@ drawdown(p)::{[m];m::|\p;(p-m)%m}
 maxdd(p)::{&/drawdown(p)}
 scale(k;v)::{k*v}
 
-.export(:{;"mean";mean;"std";std;"win";win;"ma";ma;"ma4";ma4;"returns";returns;"drawdown";drawdown;"maxdd";maxdd;"scale";scale})
+export:::{;"mean";mean;"std";std;"win";win;"ma";ma;"ma4";ma4;"returns";returns;"drawdown";drawdown;"maxdd";maxdd;"scale";scale}

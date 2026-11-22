@@ -952,7 +952,7 @@ None
 4
 ```
 
-`.l("file.kg")` loads and runs a Klong file. The name is looked up in the current directory, then in the directories of the `KLONGPATH` environment variable, and `.kg` may be left off. `KLONGPATH` defaults to `.:lib`. When none of those has the file, a relative name is looked up last in the directory of the file that calls `.l`, so a program can load the files next to it from any current directory. The standard library files (`math`, `csv`, `set`, `nstat` and others) are in the `klongpy/lib` directory of the package, which `kgpy` adds to `KLONGPATH` itself, so `.l("nstat")` works in the REPL and in `kgpy -e` without setting anything. A `KlongInterpreter` created from Python does not add it: there, set `KLONGPATH` to that directory, or copy the file you need, before you load one. The next example uses a file `lib.kg` with these two lines, and loads it:
+`.l("file.kg")` loads and runs a Klong file. A name without `./` is looked up in the directory of the file that contains the `.l` (the working directory at the REPL), then in the directories of the `KLONGPATH` environment variable, then in the library that ships with KlongPy, and `.kg` may be left off. `KLONGPATH` defaults to `.:lib` on Unix and `.;lib` on Windows. `./x` and `../x` are relative to the file that contains the `.l`. The standard library files (`math`, `csv`, `set`, `nstat` and others) are in the `klongpy/lib` directory of the package, which `kgpy` adds to `KLONGPATH` itself, and the library is the last place searched, so `.l("nstat")` works in the REPL and in `kgpy -e` without setting anything. A `KlongInterpreter` created from Python does not add it: there, set `KLONGPATH` to that directory, or copy the file you need, before you load one. The next example uses a file `lib.kg` with these two lines, and loads it:
 
 ```console
 $ cat > lib.kg <<'EOF'
@@ -967,7 +967,7 @@ $ kgpy -e '.l("lib.kg");.p(limit);shout("hey")'
 "hey!"
 ```
 
-`.l` returns the value of the last statement of the file. It writes the file's names into your globals, so two files that use the same name collide. Section [Modules](#modules) shows the form that does not.
+`.l` of a classic file returns the value of the last statement of the file. It writes the file's names into your globals, so two files that use the same name collide. Section [Modules](#modules) shows the form that does not.
 
 To read the lines of a file, open it with `.ic`, select it as the input with `.fc`, and read all the lines with `.rls()`. Then `.fc(0)` selects standard input again and `.cc` closes the file. This program sums each line of a file of numbers separated by commas:
 
@@ -987,22 +987,36 @@ $ kgpy sums.kg
 
 ### Modules
 
-A module is a file that keeps its names to itself and offers a few. `.import("./name")` runs the file in a scope of its own and returns the dictionary that the file passed to `.export`. A file is a module when it ends with `.export`. Save this as `geom.kg`:
+A module is a file that keeps its names to itself and offers a few. It states what it offers in the variable `export`, a dictionary written as a literal, and a file is a module exactly when it assigns `export` at its top level. `.l` runs a module in a scope of its own and binds it. Save this as `geom.kg`:
 
 ```console
 $ cat > geom.kg <<'EOF'
 > sq(v)::{v*v}
 > cube(v)::{v*sq(v)}
-> .export(:{;"sq";sq;"cube";cube})
+> export:::{;"sq";sq;"cube";cube}
 > EOF
-$ kgpy -e 'geom::.import("./geom");.p(geom.cube(3));geom.sq(4)'
+$ kgpy -e '.l("geom");.p(geom.cube(3));geom.sq(4)'
 27
 16
-$ kgpy -e '[cube]::.import("./geom";["cube"]);cube(2)'
+```
+
+`.l` has three forms, which correspond to the ways Python imports:
+
+| Klong | Python |
+|---|---|
+| `.l("geom")` binds the module to `geom` | `import geom` |
+| `.l("geom";:g)` binds it to `g` instead | `import geom as g` |
+| `.l("geom";["cube"])` binds the entry as the plain name `cube` | `from geom import cube` |
+
+<!-- check-docs: continue -->
+```console
+$ kgpy -e '.l("geom";:g);g.sq(5)'
+25
+$ kgpy -e '.l("geom";["cube"]);cube(2)'
 8
 ```
 
-`./geom` is relative to the file that contains the import, or to the working directory at the REPL. A name without `./` (`.import("csv")`) is looked up in `KLONGPATH` and the library that ships with KlongPy, never in the working directory.
+A missing entry is an error that names it. At strict levels 0 and 1 a quoted symbol `:g` is the value of `g` when `g` is already defined, so choose an alias that is not in use. A name without `./` is looked up in the directory of the file that contains the `.l`, then in `KLONGPATH`, then in the library that ships with KlongPy.
 
 `geom.cube` is a qualified name: `a.b` means `a@"b"`. It works on any dictionary, for reading and for writing, and a name that is missing is an error that names the dictionary and the key:
 
@@ -1014,13 +1028,13 @@ $ kgpy -e 'd:::{;"x";1};d.x::5;.p(d.x);.p(d.y)' 2>&1
                                  ^^^
 ```
 
-A dot therefore is not part of a name: `my.var` is the entry `"var"` of `my`. A module offers what its `.export` lists and nothing else, so a helper the file does not list cannot be reached. What `.import` returns is read-only, so assigning to `geom.sq` is an error. `.import(path;names)` takes some entries and fails on a missing one, and a list of names on the left binds them as plain names. The last command of the `geom` example shows that form.
+A dot therefore is not part of a name: `my.var` is the entry `"var"` of `my`. A module offers what its `export` lists and nothing else, so a helper the file does not list cannot be reached. The module is read-only from outside, so assigning to `geom.sq` is an error.
 
-Importing the same file again gives the same module. A module that nothing refers to is freed, and the next import runs the file again. [Language Additions](language-additions.md#modules) has the full rules, and `examples/modules` in the repository is a program of twelve files.
+Loading the same file again gives the same module. A module that nothing refers to is freed, and the next `.l` runs the file again. [Language Additions](language-additions.md#modules) has the full rules, and `examples/modules` in the repository is a program of twelve files.
 
-The libraries `csv` and `mgmt` are modules, and `.l("csv")` binds the module to the name `csv`, so `csv.read` works as before. The other libraries are classic files that `.l` loads into your globals.
+The libraries `csv`, `nstat` and `mgmt` are modules, and `.l("csv")` binds the module to the name `csv`, so `csv.read` works as before. The other libraries are classic files that `.l` loads into your globals.
 
-`.module(:name)` and `.module(0)` still exist for a classic file. They keep a library's variables apart, but they do not hide its names, and they do not make `name.f` a qualified name. [Operators](operators.md#classic-modules) describes them. New code uses `.import`.
+`.module(:name)` and `.module(0)` still exist for a classic file. They keep a library's variables apart, but they do not hide its names, and they do not make `name.f` a qualified name. [Operators](operators.md#classic-modules) describes them. New code uses a module file with `export`.
 
 ## 11. Python interop
 

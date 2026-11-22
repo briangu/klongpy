@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 
 use crate::error::Result;
 use crate::ops::{dims_of, shaped_like, Atomic};
-use crate::value::{try_vec, Flt, Int, Value};
+use crate::value::{try_push, try_vec, Dict, Flt, Int, Value};
 
 /// One operand of a pairing: a flat run, or one number repeated.
 enum S<'a> {
@@ -329,8 +329,78 @@ fn runs_of<K: Ord + Copy>(keys: impl Iterator<Item = K>, n: usize) -> Result<Opt
     Ok(Some(p))
 }
 
-/// `?x` of a flat vector of integers or floats: the values in order of first occurrence, without the repeats (sorting, not a search of what
-/// is kept so far: the generic loop takes time as the square of the length when most values are different).
+/// Use direct indexing when the integer span is small compared to the input.
+/// Eight elements per possible key bounds the extra storage even for groups
+/// (one Vec header per slot). Sparse keys keep the sort-based implementation.
+fn dense_int_range(data: &[Int]) -> Option<(Int, usize)> {
+    let &first = data.first()?;
+    let (min, max) = data.iter().fold((first, first), |(lo, hi), &x| (lo.min(x), hi.max(x)));
+    let span = usize::try_from(max.abs_diff(min)).ok()?.checked_add(1)?;
+    (span <= data.len() / 8).then_some((min, span))
+}
+
+/// The row positions for already ordered integers, or a stable counting sort for a small key range.
+pub(crate) fn grade_ints(data: &[Int], down: bool) -> Result<Option<Value>> {
+    let n = data.len();
+    if n < 64 {
+        return Ok(None);
+    }
+    if data.is_sorted() {
+        let mut indices = try_vec(n)?;
+        if down {
+            indices.extend((0..n).rev().map(|i| i as Int));
+        } else {
+            indices.extend((0..n).map(|i| i as Int));
+        }
+        return Ok(Some(Value::ints(indices)));
+    }
+    // These two keys can rule out a small range before scanning for the extrema.
+    if data[0].abs_diff(data[n - 1]) as u128 >= (n / 8) as u128 {
+        return Ok(None);
+    }
+    let Some((min, span)) = dense_int_range(data) else { return Ok(None) };
+    let mut offsets = try_vec(span)?;
+    offsets.resize(span, 0usize);
+    for &key in data {
+        offsets[key.abs_diff(min) as usize] += 1;
+    }
+    let mut start = 0;
+    for slot in &mut offsets {
+        let count = *slot;
+        *slot = start;
+        start += count;
+    }
+    let mut indices = try_vec(n)?;
+    indices.resize(n, 0);
+    for (index, &key) in data.iter().enumerate() {
+        let position = &mut offsets[key.abs_diff(min) as usize];
+        indices[*position] = index as Int;
+        *position += 1;
+    }
+    if down {
+        indices.reverse();
+    }
+    Ok(Some(Value::ints(indices)))
+}
+
+/// For strings and symbols, dictionary equality agrees with grouping equality.
+/// Short lists use the generic loop. Other kinds (including chars alongside
+/// strings) can have different equality rules, so they also use that loop.
+fn label_keys(a: &Value) -> Option<&[Value]> {
+    let Value::List(keys) = a else { return None };
+    (keys.len() >= 32 && keys.iter().all(|k| matches!(k, Value::Str(_) | Value::Sym(_)))).then_some(keys)
+}
+
+#[inline]
+fn label_slot(index: &Dict, key: &Value) -> Option<usize> {
+    // Hashing each label costs more than a short scan when very few recur.
+    if index.len() <= 4 {
+        return index.keys().iter().position(|other| crate::value::key_eq(other, key));
+    }
+    index.find(key)
+}
+
+/// `?x` in order of first occurrence.
 pub(crate) fn unique(a: &Value) -> Result<Option<Value>> {
     macro_rules! go {
         ($x:expr, $key:expr, $mk:path) => {{
@@ -348,18 +418,83 @@ pub(crate) fn unique(a: &Value) -> Result<Option<Value>> {
         }};
     }
     match a {
-        Value::Ints(x) if x.rank() == 1 => go!(x, |&v| v, Value::ints),
+        Value::Ints(x) if x.rank() == 1 => {
+            if let Some((min, span)) = dense_int_range(&x.data) {
+                let mut seen = try_vec(span)?;
+                seen.resize(span, false);
+                let mut out = try_vec(span)?;
+                for &key in x.data.iter() {
+                    let present = &mut seen[key.abs_diff(min) as usize];
+                    if !*present {
+                        *present = true;
+                        out.push(key);
+                    }
+                }
+                return Ok(Some(Value::ints(out)));
+            }
+            go!(x, |&v| v, Value::ints)
+        }
         Value::Flts(x) if x.rank() == 1 => go!(x, |&v| flt_key(v), Value::flts),
-        _ => Ok(None),
+        _ => {
+            let Some(keys) = label_keys(a) else { return Ok(None) };
+            let mut index = Dict::default();
+            for key in keys {
+                if label_slot(&index, key).is_none() {
+                    index.set(key.clone(), Value::Undefined)?;
+                }
+            }
+            let mut out = try_vec(index.len())?;
+            out.extend_from_slice(index.keys());
+            Value::raw_list(out).map(Some)
+        }
     }
 }
 
-/// `=x` of a flat vector of integers: the positions of each value, the values in order of first occurrence.
+/// `=x`: the positions of each value, the values in order of first occurrence.
 pub(crate) fn group(a: &Value) -> Result<Option<Value>> {
+    if let Some(keys) = label_keys(a) {
+        let mut index = Dict::default();
+        let mut groups: Vec<Vec<Int>> = Vec::new();
+        for (position, key) in keys.iter().enumerate() {
+            let slot = match label_slot(&index, key) {
+                Some(slot) => slot,
+                None => {
+                    let slot = index.len();
+                    index.set(key.clone(), Value::Undefined)?;
+                    try_push(&mut groups, Vec::new())?;
+                    slot
+                }
+            };
+            try_push(&mut groups[slot], position as Int)?;
+        }
+        let mut out = try_vec(groups.len())?;
+        out.extend(groups.into_iter().map(Value::ints));
+        return Value::from_items(out).map(Some);
+    }
+
     let Value::Ints(x) = a else { return Ok(None) };
     let n = x.data.len();
     if x.rank() != 1 || n < 2 {
         return Ok(None);
+    }
+    if n < u32::MAX as usize {
+        if let Some((min, span)) = dense_int_range(&x.data) {
+            let mut groups = try_vec(span)?;
+            groups.resize_with(span, Vec::new);
+            let mut order = try_vec(span)?;
+            for (i, &key) in x.data.iter().enumerate() {
+                let slot = key.abs_diff(min) as usize;
+                if groups[slot].is_empty() {
+                    order.push(slot);
+                }
+                crate::value::try_push(&mut groups[slot], i as Int)?;
+            }
+            let mut out = try_vec(order.len())?;
+            for slot in order {
+                out.push(Value::ints(core::mem::take(&mut groups[slot])));
+            }
+            return Value::from_items(out).map(Some);
+        }
     }
     let Some(p) = runs_of(x.data.iter().copied(), n)? else { return Ok(None) };
     // (first position, start, end) of each run, in order of first position

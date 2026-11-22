@@ -1,0 +1,15 @@
+:" Resident CPU inputs shared with bench_numpy.py. The driver sets n before loading this file. "
+positions::!n
+order::(7919*positions)!n
+labels::(((104729*positions)!1000003)!257)-128
+runs::positions:%64
+uniform::n#7
+a::0.25*labels
+b::0.5*((order!113)-56)
+matrix::[;n:%64;64]:^labels
+
+:" Discard each result inside the timed loop so output space stays bounded. "
+timeBatch(op;reps)::{[start];start::.pc();op'!reps;.pc()-start}
+measure(op;samples)::{[reps elapsed];reps::1;elapsed::timeBatch(op;reps);
+    {elapsed<0.005}{reps::2*reps;elapsed::timeBatch(op;reps);0}:~0;
+    [;reps;{timeBatch(op;reps)%reps}'!samples]}

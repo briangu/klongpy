@@ -1,6 +1,6 @@
 # Migrating to v2
 
-This page is for anyone with code written for KlongPy 0.7, the last pure-Python line. It lists what behaves differently in v2, with the 0.7 behaviour, the v2 behaviour and why. Version 2 has no switch that restores an old behaviour: to stay on 0.7, install `klongpy<2`. [Release notes](release-notes.md) has the complete list of changes. Most programs need no change. The risk is in "Results that change without an error", where the same input gives a different result and nothing complains.
+This guide covers upgrades from the pure-Python line, including 0.7 and the source line named v1. The shorter 0.7 examples below describe that line's earlier releases. To stay on the published pure-Python line, install `klongpy<2`. Check [Results that change without an error](#results-that-change-without-an-error) before you upgrade. [Release notes](release-notes.md)
 
 ## Quick list
 
@@ -10,17 +10,20 @@ This page is for anyone with code written for KlongPy 0.7, the last pure-Python 
 | `a.b` is `a@"b"`, not a variable named `a.b` | Use a plain name or a dictionary; [see below](#names-with-a-dot) |
 | An operator or function as a dictionary-literal key, and an entry that is not `[key value]`, are syntax errors | [Write the pair](#dictionary-literals) |
 | The libraries `csv` and `nstat` are modules (so is `mgmt`, which is new), and dotted helper names in `math`, `nstat` and `help` are renamed | [See the table](#libraries) |
-| The torch backend's `.export(fn;input;path)` is `.bkx`; `.compile`, `.compilex` and `.cmodes` are removed | [See below](#torch-bkx-and-compile) |
+| `.l` is the one loader: a file that assigns `export` is a module, and `.l(path)`, `.l(path;:s)` and `.l(path;[names])` bind it; a bare name is searched in the calling file's directory first | [See below](#modules-and-l) |
+| `.extern(c_symbol;signature)` returns a function; a target's functions live in a module file, and stand-ins are keyed by C symbol | [See below](#extern-returns-a-function) |
+| `.compile`, `.compilex` and `.cmodes` are removed; `.export(fn;input;path)` stays | [See below](#torch-compile) |
 | `KlongInterpreter(parser=...)` is removed, and there is no engine switch | Remove them; [see below](#removed-switches) (only pre-releases of 2 had them) |
 | Python 3.11 or later | [See below](#python-version) |
 | A function with named parameters does not see its caller's locals | [Pass the value](#named-parameters-are-lexically-scoped) |
 | A function literal with no parameters is a function wherever it is written | [See below](#a-function-literal-with-no-parameters) |
 | `.l("nstat")` binds `nstat` only, `.rn` is seeded with `.seed`, and numpy's seed no longer reaches it | [See below](#libraries) and [random numbers](#random-numbers) |
-| Under torch every float is float32, so `(0.1+0.2)=0.3` is 1 | [See below](#torch-float32-and-numeric-gradients) |
+| Torch scalar arithmetic uses float32, so `(0.1+0.2)=0.3` is 1 | [See below](#torch-float32-and-numeric-gradients) |
 | `kg` is the Rust binary and `kgpy` the Python-hosted command; Python-only functions under `kg` say they need `kgpy` | [See below](#the-interpreter-and-the-commands) |
-| New names: `.try`, `.err`, `.seed`, `.now`, `.import`, `.export` | [See below](#new-system-functions-that-take-names) |
+| Both desktop commands include tables and DuckDB; importing `klongpy.db` selects the legacy Python adapter in that interpreter | [Check which database API your code uses](#tables-and-sql) |
+| New names: `.try`, `.err`, `.seed`, `.now` | [See below](#new-system-functions-that-take-names) |
 | String indexing gives a character; `[:a :b]?:b`, `&/"abc"`, `+/"abc"` and others changed | [See below](#bugs-of-07-that-2-does-not-have) |
-| IPC: 0.7 and 2.0 cannot talk to each other (the pickle protocol is removed) | [Upgrade both ends](#ipc-speaks-the-kdb-protocol) |
+| IPC: pure-Python and 2.0 peers use incompatible protocols | [Upgrade both ends](#ipc-speaks-the-kdb-protocol) |
 | `[a b]::v` binds; `f(a;b)::{...}` defines | Write the program for the new reading |
 | Strings such as `"{"`; whitespace before `;` in a conditional | None needed: the program that worked around them still runs |
 | Left-over input warns (level 0) or fails (strict) | Level 0 is the default; `warnings.filterwarnings("ignore", category=KlongSyntaxWarning)` hides the warning |
@@ -35,7 +38,7 @@ This page is for anyone with code written for KlongPy 0.7, the last pure-Python 
 
 ## The interpreter and the commands
 
-Version 2 evaluates Klong on one interpreter, written in Rust. 0.7 had a Python implementation of the language, and version 2 has none. `pip install klongpy` installs two commands, `kgpy` (the interpreter hosted in Python, which has everything 0.7 had) and `kg` (the same interpreter with no Python). See [What Runs Where](what-runs-where.md). 0.7 had only `kgpy`; a script or service that starts the Python-hosted interpreter keeps using `kgpy`. Under `kg`, a function that only Python can provide (`.py`, `.pyf`, `.pyc`, `.web`, `.db` and the others listed in [What Runs Where](what-runs-where.md)) is a name error that says it needs `kgpy`, and the program must run under `kgpy`.
+Version 2 evaluates Klong on one interpreter written in Rust. `pip install klongpy` installs `kgpy` for Python-hosted programs and `kg` for standalone programs. A service that calls Python, starts a web server or opens a WebSocket keeps using `kgpy`. A function such as `.py`, `.pyf`, `.pyc` or `.web` raises a name error under `kg` that identifies `kgpy` as the required command. [What Runs Where](what-runs-where.md)
 
 What this changes for your code:
 
@@ -43,6 +46,12 @@ What this changes for your code:
 * **`import klongpy` needs its compiled extension.** A wheel carries it. A source tree builds it with `pip install -e .`, which needs a Rust toolchain. Without it the import fails with a message that says so, and there is no slower fallback.
 * **The tools are Rust.** `kgpy lint`, `check`, `compile c`, `fpga source` and `ast` call the same code as `kg lint`, `kg check` and the rest. Their output is the same text as before except where a message names a new rule. `klongpy.lint.lint_source` still works from Python.
 * **Warnings are issued before the program runs.** The syntax warnings of a file come out after it is parsed and before its first statement, so they appear above the program's output.
+
+## Tables and SQL
+
+Desktop `kg` and `kgpy` include the same `.table`, `.index`, `.insert` and `.db` primitives. `.db("trades.duckdb")` opens a persistent DuckDB file. `.db(:{;"trades";t})` exposes a Klong table as a live SQL view. Start with the built-ins for new Klong code.
+
+Existing Python programs can keep importing `klongpy.db` with the `db` extra for its pandas-backed tables, Python DuckDB interface and key-value stores. That import makes the Python adapter's functions available to the hosted interpreter. When switching a program to the built-in SQL interface, check comparisons and downstream Python conversions for exact integer aggregates and `:undefined` for SQL NULL. Select `epoch_ns(ts)` when reading a timestamp as nanoseconds. [Columnar tables and SQL](fast_columnar_database.md)
 
 ## Python version
 
@@ -337,11 +346,11 @@ Before: `.rn` drew from NumPy's global generator, so `np.random.seed(7)` made th
 
 ### Torch: float32 and numeric gradients
 
-Under the torch backend every float is float32, scalars included. Before, a scalar was a Python float (float64) and only tensor elements were float32, so a scalar and the matching element could differ. Now `(0.1+0.2)=0.3` is 1 under torch (it is 0 under NumPy), and a value that needs float64 needs the NumPy backend. The numeric gradient (`point∇function`, `.grad`, `point∂function`) is computed in float64 on the CPU on every device and returned as float32. See [the torch backend](torch_backend.md).
+The torch backend computes Klong scalars and default floating-point arrays in float32. On the pure-Python line, a scalar was a Python float (float64), so a scalar and the matching tensor element could differ. Now `(0.1+0.2)=0.3` is 1 under torch and 0 under NumPy. Explicit float64 arrays retain their width on devices that support it. A passive float64 IPC echo or symbol lookup keeps its wire precision. Numeric gradients (`point∇function` and `.grad`) use float64 working precision and return arrays on the selected device in its Klong compute dtype. MPS evaluates the perturbations on the CPU. [PyTorch Backend and Autograd](torch_backend.md)
 
 ### New system functions that take names
 
-`.try`, `.err`, `.seed`, `.now`, `.import` and `.export` are system functions of version 2, and 0.7 had none of them. A program that defined a variable or function of one of these names keeps the definition but loses the system function. `.export` was the torch export function in 0.7 and is now the module function; see [Torch](#torch-bkx-and-compile). `.try(f;args)` gives `[1 result]` or `[0 e]` and `.err(kind;message)` raises, `.now()` is the time in seconds since 1970. See [System functions](system-functions.md).
+`.try`, `.err`, `.seed` and `.now` are system functions of version 2, and 0.7 had none of them. A program that defined a variable or function of one of these names keeps the definition but loses the system function. `.try(f;args)` gives `[1 result]` or `[0 e]` and `.err(kind;message)` raises, `.now()` is the time in seconds since 1970. See [System functions](system-functions.md).
 
 ## Input that is now reported
 
@@ -421,7 +430,7 @@ What to write instead:
 
 * A plain name: `countTotal::0`. The libraries did this, so [their dotted names changed](#libraries).
 * A dictionary, when the dots grouped values: `count:::{;"total";0}` and `count.total`.
-* A module, when the dots grouped functions of a file: `geom::.import("./geom")` and `geom.sq(v)`. See [Modules](language-additions.md#modules).
+* A module, when the dots grouped functions of a file: the file ends with `export:::{;"sq";sq}`, and `.l("geom")` gives `geom.sq(v)`. See [Modules](language-additions.md#modules).
 
 `kgpy lint` finds the writes (rule W021). A name that starts with a dot and has dots inside, such as `.srv.auth`, is one name, as before. [Qualified names](language-additions.md#qualified-names) has the rules, and `.module(:name)` still exists for a classic file but gives no qualified names.
 
@@ -440,7 +449,7 @@ Write each entry as a pair of one key and one value. To have the keys and values
 
 ## Libraries
 
-The libraries in `klongpy/lib` are loaded with `.l`, as before. Two are modules now and the others lost their dotted helper names, because a dotted name is now a qualified name.
+The libraries in `klongpy/lib` are loaded with `.l`, as before. Three are modules now and the others lost their dotted helper names, because a dotted name is now a qualified name.
 
 * **`csv` is a module.** `.l("csv")` binds the module to the name `csv`, so `csv.read`, `csv.split`, `csv.make`, `csv.write` and `csv.load` work as before. Its helpers are private: `escape` in `csv` is no longer a global. In 0.7 these were variables whose names contained a dot.
 * **`nstat` is a module.** 0.7 put its functions in the global scope after `.l("nstat")`, as `mu(v)` and `n.cdf(x;m;s)`. Now `.l("nstat")` binds only `nstat`, and a call is `nstat.mu(v)` or `nstat.n.cdf(x;m;s)`. A bare `mu(v)` is an undefined-function error.
@@ -468,9 +477,24 @@ The libraries in `klongpy/lib` are loaded with `.l`, as before. Two are modules 
 error: n.cdf: n is not a dictionary (it is integer)
 ```
 
-## Torch: `.bkx` and `.compile`
+## Modules and `.l`
 
-The torch backend's `.export(fn;input;path)` is now `.bkx(fn;input;path)`, with the same arguments and result. `.export` belongs to the [module system](language-additions.md#modules), and a call with three arguments is an arity error. `.compile`, `.compilex` and `.cmodes` are removed; see [Other changes](#other-changes) for what to use.
+`.l` of a file is still the way to load it, and it is now the only one. A file that assigns the variable `export` at its top level is a module; any other file is classic Klong, and `.l` loads it into the globals as in 0.7 and returns what it returned.
+
+* **The `export` variable.** A module states its interface with a dictionary written as a literal: `export:::{;"mean";mean;"sd";sd}`. The interface is read and frozen when the file finishes loading, and the other top-level names stay private.
+* **Three forms.** `.l("nstat")` binds the module to the file's stem, `nstat`. `.l("nstat";:s)` binds it to `s` instead. `.l("nstat";["mu" "sd"])` binds those entries as plain names, and not the stem; a missing entry is an error that names it. `.l` returns the module. The Python analogues are `import nstat`, `import nstat as s` and `from nstat import mu, sd`.
+* **A bundled library binds one name.** `csv`, `nstat` and `mgmt` are modules, so `.l("csv")` binds `csv` and nothing else; see [Libraries](#libraries).
+* **`a.b` means `a@"b"`.** A module is a dictionary, so `nstat.mu(v)` is `(nstat@"mu")(v)`, and it is read-only from outside. See [Names with a dot](#names-with-a-dot).
+* **Errors.** A second argument on a classic file, a second argument that is not a symbol or a list of strings, and a stem that is not a name (letters and digits, starting with a letter) without an alias are errors that say what to write. At strict levels 0 and 1 `:s` is the value of `s` when `s` is defined, so choose an alias that is not in use.
+* **Search order.** A bare name is searched in the directory of the file that contains the `.l` (the working directory at the REPL), then in the `KLONGPATH` directories (default `.:lib` on Unix and `.;lib` on Windows), then in the bundled library. 0.7 searched `KLONGPATH` first and the calling file's directory last. A file found before the library that has the name of a library file gives a warning, and `kgpy lint` reports it as W023. `./x` and `../x` are relative to the calling file. The order is the same for classic files and modules.
+
+## `.extern` returns a function
+
+`.extern(c_symbol;signature)` returns the host function as a value: `adc::.extern("read_adc";"int -> float")`. The statement form `.extern("read.adc";"int -> float")`, whose value is discarded, is an error that names the new form, and `kgpy lint` reports it as E005. The third argument is gone. A target's functions live in an ordinary module file, `read.kg` with `export:::{;"adc";adc}`, and a program calls `.l("read")` and `read.adc(3)`. The C symbol is a C identifier: underscore allowed, no dot, not a C keyword, no `kg_` prefix. A host registers its implementation under the C symbol, and `klong.externs["read_adc"]` is keyed the same way. See [Compiling Klong to C](embedded.md).
+
+## Torch: `.compile`
+
+`.export(fn;input;path)` is the torch graph export, as in 0.7. `.compile`, `.compilex` and `.cmodes` are removed; see [Other changes](#other-changes) for what to use.
 
 ## Removed switches
 
@@ -556,12 +580,14 @@ $ kgpy -e '1+"a"'; echo $?
 
 Before: `.srv` and `.cli` sent pickled Python objects, and a peer could run code in your process when its message was unpickled. A 0.7 server could only be reached by a 0.7 client.
 
-Now: the kdb+ IPC protocol is the only protocol. A q process can talk to a `.srv`, and nothing is unpickled from the network. A 0.7 process and a 2.0 process cannot exchange IPC messages in either direction:
+Now the listener speaks kdb+ IPC and accepts q peers. The older pickle protocol used by 0.7 and v1 is incompatible in either direction.
 
 - A 0.7 client connecting to a 2.0 server is closed at once, and the server logs that the client speaks the pickle protocol of 0.7. The client sees `connection lost`.
 - A 2.0 client connecting to a 0.7 server fails at the handshake after 5 seconds with `handshake timed out`.
 
 What to do: upgrade every KlongPy process that talks IPC to 2.0 or later. A Python object with no kdb+ form (a set, a complex number, `None`) used to travel by pickle and is now a type error on the sending side; send a list, a string or a dictionary instead. Python `bytes` and `bytearray` cross as a kdb+ byte vector and arrive as an integer array. See [the protocol](ipc_capabilities.md#protocol-and-security) and [0.7 peers](ipc_capabilities.md#07-peers).
+
+Named table keys cross the wire as a kdb+ keyed table. Column order and supported q column types, including typed empty columns and nulls, survive a passive table round trip between desktop peers. [Types across the wire](ipc_capabilities.md#types-across-the-wire)
 
 Other changes that come with the new protocol:
 
@@ -588,7 +614,7 @@ See [the web server](web_server.md#the-response).
 ## Other changes
 
 - **`.rls()` strips the line end.** It returned each line with its `\n`, and a program that cut it off with `-1_` now loses a real character. Remove that code.
-- **`.compile`, `.compilex` and `.cmodes` are removed.** They wrapped `torch.compile`, which needs a C++ compiler and cannot read a function that the interpreter runs. Use `.bkx(fn;input;path)`, which records the tensor operations the function executes, and compile the exported program with torch: `torch.compile(torch.export.load(path).module())`. A call to a removed function is an undefined-function error.
+- **`.compile`, `.compilex` and `.cmodes` are removed.** They wrapped `torch.compile`, which needs a C++ compiler and cannot read a function that the interpreter runs. Use `.export(fn;input;path)`, which records the tensor operations the function executes, and compile the exported program with torch: `torch.compile(torch.export.load(path).module())`. A call to a removed function is an undefined-function error.
 - **The Polygon and Alpaca examples are removed.** `examples/stocks/feed` is a simulated price feed that needs no account: a seeded random walk, a server with per-symbol subscriptions, and a consumer that computes a VWAP and a moving average.
 
 [Release notes](release-notes.md#system-functions) lists the fixes to system functions (`.sys`, `.timer`, `.webc`, `.kvs`, `.db`), the operators that used to crash, and the libraries that now work.

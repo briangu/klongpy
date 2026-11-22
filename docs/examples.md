@@ -10,16 +10,16 @@ Each directory is under [`examples/`](https://github.com/briangu/klongpy/tree/ma
 
 | Directory | What it shows | Needs |
 |---|---|---|
-| [1brc](https://github.com/briangu/klongpy/tree/main/examples/1brc) | A One Billion Row Challenge pipeline: files read in parallel by Python, statistics aggregated by a KlongPy function. | |
+| [1brc](https://github.com/briangu/klongpy/tree/main/examples/1brc) | One Billion Row Challenge weather statistics computed from a UTF-8 file with Klong and built-in SQL. | |
 | [autograd](https://github.com/briangu/klongpy/tree/main/examples/autograd) | Gradients, optimizers, linear regression, neural nets, finance and differentiable physics. | `klongpy[torch]`; `yfinance` for the live options examples |
-| [db](https://github.com/briangu/klongpy/tree/main/examples/db) | DuckDB table interop, a persisted table store, and a web and database server. | `klongpy[db,web]` |
+| [db](https://github.com/briangu/klongpy/tree/main/examples/db) | Four NYC taxi reports from monthly Parquet files, a persisted table store, and a web and database server. | Desktop `kg` or `kgpy` for taxis. The servers use `klongpy[db,web]`. |
 | [embedded](https://github.com/briangu/klongpy/tree/main/examples/embedded) | Static-profile programs (a moving average, a FIR filter, a PID step) with their expected output, compiled to C as in [Compiling Klong to C](embedded.md). | |
 | [hardware](https://github.com/briangu/klongpy/tree/main/examples/hardware) | A moving-average crossover strategy for the FPGA, with the scripts that measure it. See [Klong functions as FPGA hardware](hardware.md). | an FPGA toolchain and card |
 | [deploy](https://github.com/briangu/klongpy/tree/main/examples/deploy) | A Docker image that runs `kgpy` on the script named by `KG_FILE_PATH`, and Kubernetes files. | Docker |
 | [ipc](https://github.com/briangu/klongpy/tree/main/examples/ipc) | IPC clients and servers, broadcast and publish/subscribe with `.srv`, `.cli` and timers. | |
 | [math](https://github.com/briangu/klongpy/tree/main/examples/math) | NumPy interop for FFT and trigonometry through `.pyf`. | |
 | [ml](https://github.com/briangu/klongpy/tree/main/examples/ml) | K-nearest neighbours, cosine similarity, a transformer and an LSTM. | `torch` for the LSTM only |
-| [modules](https://github.com/briangu/klongpy/tree/main/examples/modules) | A backtest split over twelve files with `.import` and `.export`: private state, qualified names `a.b`, and one program per module error. | |
+| [modules](https://github.com/briangu/klongpy/tree/main/examples/modules) | A backtest split over twelve files with `.l` and `export`: private state, qualified names `a.b`, and one program per module error. | |
 | [python](https://github.com/briangu/klongpy/tree/main/examples/python) | Calling Python from Klong and Klong from Python; multiprocessing and threading. | |
 | [stats_logging](https://github.com/briangu/klongpy/tree/main/examples/stats_logging) | Statistics ingested over IPC into table storage, with periodic flush and reporting. | `klongpy[db]`, `pytz` |
 | [stocks](https://github.com/briangu/klongpy/tree/main/examples/stocks) | A simulated market feed published over IPC with VWAP and a moving average, Black-Scholes, and LSTM forecasting on Yahoo Finance data. | `yfinance` for the Yahoo Finance examples only; the feed needs nothing |

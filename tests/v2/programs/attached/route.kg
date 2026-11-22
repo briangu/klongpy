@@ -1,0 +1,3 @@
+ready::.extern("energy4_ready";"-> int")
+accelerate::.extern("fpga_energy4";"int[4] -> int")
+runblock::{:[ready();accelerate(x);energy(x)]}

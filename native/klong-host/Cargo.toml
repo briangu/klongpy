@@ -7,11 +7,14 @@ license.workspace = true
 publish.workspace = true
 
 [features]
+duckdb = ["klong-rt/tables", "dep:libduckdb-sys"]
 int32 = ["klong-rt/int32"]
 float32 = ["klong-rt/float32"]
 bigint = ["klong-rt/bigint", "klong-core/bigint"]
 diag = ["klong-rt/diag", "klong-core/diag"]
 
 [dependencies]
+libduckdb-sys = { version = "=1.20000.2", default-features = false, features = ["bundled", "capi-v1"], optional = true }
 klong-core = { path = "../klong-core", features = ["wide-args"] }
 klong-rt = { path = "../klong-rt", features = ["timers", "ipc", "compress"] }
+rustix = { version = "1.1", features = ["event"] }

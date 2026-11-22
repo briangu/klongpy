@@ -15,7 +15,7 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 
 pub use crate::analysis::{next_boundary, Problem};
-pub use crate::load::{find_import, find_load, py_dirname, py_join, Session};
+pub use crate::load::{find, find_load, py_dirname, py_join, Located, Session};
 pub use crate::scan::{scan, Frame, Scan, FK};
 pub use crate::tok::{tokenize, Source, Tok};
 

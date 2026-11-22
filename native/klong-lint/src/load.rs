@@ -1,9 +1,6 @@
 //! `.l("file")`: where the file is, and what it defines.
 //!
-//! The file is looked up as `.l` does (`x` and `x.kg` in each directory of KLONGPATH, default `.:lib`, taken from the
-//! current directory), then in the library directories (klongpy/lib; for the standalone binary the copy built into it),
-//! and last, for a relative name, in the directory of the linted file. The paths are strings, handled as Python's
-//! `os.path` does, because they end up in nothing but lookups.
+//! A bare name is looked up beside the linted file, then on KLONGPATH, and finally in the library.
 use crate::analysis::{Analysis, MAX_DEPTH};
 use crate::tok::Source;
 use std::collections::HashMap;
@@ -37,6 +34,7 @@ pub struct Session {
 
 impl Session {
     pub fn new(lib_dirs: Vec<String>) -> Session {
+        let lib_dirs = lib_dirs.into_iter().map(|dir| klong_host::module_path(&dir).into_owned()).collect();
         Session { lib_dirs, cache: HashMap::new() }
     }
 
@@ -46,7 +44,7 @@ impl Session {
             let t = EMBEDDED_LIB.iter().find(|(n, _)| *n == rest)?.1;
             (path.to_string(), 0u128, t.len() as u64, Some(t.to_string()))
         } else {
-            let real = std::fs::canonicalize(path).ok()?.to_string_lossy().into_owned();
+            let real = std::fs::canonicalize(klong_host::os_path(path).as_ref()).ok()?.to_string_lossy().into_owned();
             let md = std::fs::metadata(&real).ok()?;
             let mt = md.modified().ok().and_then(|m| m.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_nanos()).unwrap_or(0);
             (real, mt, md.len(), None)
@@ -86,13 +84,13 @@ impl Session {
         if let Some(rest) = p.strip_prefix(EMBEDDED_ROOT).and_then(|r| r.strip_prefix('/')) {
             return EMBEDDED_LIB.iter().any(|(n, _)| *n == rest);
         }
-        std::fs::metadata(p).map(|m| m.is_file()).unwrap_or(false)
+        std::fs::metadata(klong_host::os_path(p).as_ref()).map(|m| m.is_file()).unwrap_or(false)
     }
 }
 
 /// `os.path.join(a, b)`.
 pub fn py_join(a: &str, b: &str) -> String {
-    if b.starts_with('/') || a.is_empty() {
+    if klong_core::module::is_absolute(b) || a.is_empty() {
         return b.to_string();
     }
     if a.ends_with('/') {
@@ -103,6 +101,7 @@ pub fn py_join(a: &str, b: &str) -> String {
 }
 
 /// `os.path.dirname(p)`.
+#[cfg(not(windows))]
 pub fn py_dirname(p: &str) -> String {
     let i = match p.rfind('/') {
         Some(i) => i + 1,
@@ -116,90 +115,71 @@ pub fn py_dirname(p: &str) -> String {
     }
 }
 
-/// The path `.l(x)` would read, or None.
-pub fn find_load(sess: &Session, x: &str, home: &str) -> Option<String> {
-    if x.is_empty() {
-        return None;
-    }
-    let klongpath = std::env::var("KLONGPATH").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| ".:lib".to_string());
-    let mut dirs: Vec<String> = klongpath.split(':').filter(|d| !d.is_empty()).map(String::from).collect();
-    let extra: Vec<String> = if sess.lib_dirs.is_empty() { vec![EMBEDDED_ROOT.to_string()] } else { sess.lib_dirs.clone() };
-    for d in extra {
-        if !dirs.contains(&d) {
-            dirs.push(d);
-        }
-    }
-    let look = |base: &str| -> Option<String> {
-        let cand = py_join(base, x);
-        if sess.is_file(&cand) {
-            return Some(cand);
-        }
-        if !cand.ends_with(".kg") {
-            let c2 = format!("{}.kg", cand);
-            if sess.is_file(&c2) {
-                return Some(c2);
-            }
-        }
-        None
-    };
-    for d in &dirs {
-        if let Some(r) = look(d) {
-            return Some(r);
-        }
-    }
-    if !home.is_empty() && !x.starts_with('/') {
-        return look(home);
-    }
-    None
+#[cfg(windows)]
+pub fn py_dirname(p: &str) -> String {
+    klong_core::module::dir_of(&klong_host::module_path(p))
 }
 
-/// The path `.import(x)` would read, or None: `./x` and `../x` from the directory of the linted file, an absolute path as it is,
-/// any other name in the directories of KLONGPATH (when it is set) and then the library; never the working directory.
-pub fn find_import(sess: &Session, x: &str, home: &str) -> Option<String> {
+/// Where `.l(x)` finds a file: the path, and whether it shadows a file of the bundled library.
+pub struct Located {
+    pub path: String,
+    pub shadows: bool,
+}
+
+/// The directories of KLONGPATH as `.l` reads them.
+fn klongpath() -> Vec<String> {
+    klong_host::parse_load_path(&klong_host::load_path_env()).collect()
+}
+
+impl Session {
+    /// The path of the bundled library file called `name`, when there is one: in the library directories, or the copy built into the binary.
+    fn library_path(&self, name: &str) -> Option<String> {
+        let file = format!("{}.kg", name);
+        if self.lib_dirs.is_empty() {
+            let p = py_join(EMBEDDED_ROOT, &file);
+            return self.is_file(&p).then_some(p);
+        }
+        self.lib_dirs.iter().map(|d| py_join(d, &file)).find(|p| self.is_file(p))
+    }
+}
+
+/// The file `.l(x)` reads, by the order the interpreter and the checker share (`klong_core::module::search`): `./x` and `../x` from the
+/// directory of the linted file, an absolute path as it is, any other name in that directory, then in KLONGPATH, then in the library.
+/// `home` is the directory of the linted file (empty: the working directory).
+pub fn find(sess: &Session, x: &str, home: &str) -> Option<Located> {
     if x.is_empty() {
         return None;
     }
-    let with_ext = |p: String| if p.rsplit('/').next().is_some_and(|l| l.contains('.')) { p } else { format!("{}.kg", p) };
-    let norm = |p: &str| {
-        let abs = p.starts_with('/');
-        let mut out: Vec<&str> = Vec::new();
-        for seg in p.split('/') {
-            match seg {
-                "" | "." => {}
-                ".." => {
-                    if matches!(out.last(), Some(l) if *l != "..") {
-                        out.pop();
-                    } else if !abs {
-                        out.push("..");
-                    }
+    let x = klong_host::module_path(x);
+    let home = klong_host::module_path(home);
+    let from_lib = home == EMBEDDED_ROOT || sess.lib_dirs.iter().any(|d| d == home.as_ref());
+    let kp = klongpath();
+    let env = klong_core::module::Env { dir: &home, from_lib, klongpath: &kp };
+    let mut probe = |p: &str| sess.is_file(p);
+    let mut in_lib = |n: &str| sess.library_path(n).is_some();
+    let mut tried = Vec::new();
+    let found = klong_core::module::search(&env, &x, &mut probe, &mut in_lib, &mut tried)?;
+    match found.place {
+        klong_core::module::Place::File(path) => {
+            let mut shadows = found.shadows;
+            if shadows {
+                // the same file reached through KLONGPATH is not a shadow
+                let lib = sess.library_path(klong_core::module::stem(&x));
+                let same = match lib {
+                    Some(l) => matches!((sess.read_loaded(&l), sess.read_loaded(&path)), (Ok(a), Ok(b)) if a == b),
+                    None => true,
+                };
+                if same {
+                    shadows = false;
                 }
-                s => out.push(s),
             }
+            Some(Located { path, shadows })
         }
-        if abs { format!("/{}", out.join("/")) } else { out.join("/") }
-    };
-    if x.starts_with("./") || x.starts_with("../") {
-        let p = norm(&with_ext(py_join(home, x)));
-        return sess.is_file(&p).then_some(p);
+        klong_core::module::Place::Library(name) => Some(Located { path: sess.library_path(&name)?, shadows: false }),
     }
-    if x.starts_with('/') {
-        let p = norm(&with_ext(x.to_string()));
-        return sess.is_file(&p).then_some(p);
-    }
-    if let Ok(kp) = std::env::var("KLONGPATH") {
-        for d in kp.split(':').filter(|d| !d.is_empty()) {
-            let p = norm(&with_ext(py_join(d, x)));
-            if sess.is_file(&p) {
-                return Some(p);
-            }
-        }
-    }
-    let dirs: Vec<String> = if sess.lib_dirs.is_empty() { vec![EMBEDDED_ROOT.to_string()] } else { sess.lib_dirs.clone() };
-    for d in dirs {
-        let p = with_ext(py_join(&d, x));
-        if sess.is_file(&p) {
-            return Some(p);
-        }
-    }
-    None
+}
+
+/// The path `.l(x)` would read, or None.
+pub fn find_load(sess: &Session, x: &str, home: &str) -> Option<String> {
+    find(sess, x, home).map(|l| l.path)
 }

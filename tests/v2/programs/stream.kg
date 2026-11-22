@@ -1,0 +1,9 @@
+:" One in-memory writer and two readers. All three processes receive the same column batches."
+trades::0
+quotes::0
+db::0
+init(s;qs;qt;qb)::{trades::.table(:{;"sym";s;"ts";(#s)#(-1);"px";(#s)#0});quotes::.table(:{;"sym";qs;"ts";qt;"bid";qb});db::.db(:{;"trades";trades;"quotes";quotes});db("SET threads=1");1}
+ingest(s;t;p)::{.insert(trades;+[;s;t;p]);1}
+latest::{db("SELECT arg_max(px, ts) FROM trades GROUP BY sym ORDER BY sym")}
+asofbid::{db("WITH t AS (SELECT sym, max(ts) AS ts FROM trades GROUP BY sym) SELECT coalesce(q.bid,-1) FROM t ASOF LEFT JOIN quotes q ON t.sym=q.sym AND t.ts>=q.ts ORDER BY t.sym")}
+nrows::{db("SELECT count(*) FROM trades")}

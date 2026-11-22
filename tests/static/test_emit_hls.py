@@ -216,8 +216,8 @@ class TestFiles(unittest.TestCase):
         with self.assertRaises(KlongStaticError) as cm:
             emit("pid")
         msg = str(cm.exception)
-        self.assertIn("read.adc", msg)
-        self.assertIn("write.pwm", msg)
+        self.assertIn("board.adc", msg)
+        self.assertIn("board.pwm", msg)
         self.assertIn("no externs", msg)
         self.assertIn("[hls]", msg)
 

@@ -9,6 +9,10 @@ docs_dir: 'docs'
 # Define the directory for the built HTML files
 site_dir: 'site'
 
+validation:
+  links:
+    anchors: warn
+
 # Navigation structure
 nav:
   - Home: 'index.md'

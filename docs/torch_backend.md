@@ -36,15 +36,15 @@ On the CPU, torch pays off only for large arrays and many threads. Sorting and l
 
 | | NumPy | Torch |
 |---|---|---|
-| Float width | float64 | float32 on every device, CPU included. A float the engine computes as a scalar is float32 too, so `(0.1+0.2)=0.3` is 1 and a scalar equals the matching element of an array |
+| Float width | float64 by default | float32 for Klong scalars and default tensors, including on CPU. Explicit float64 arrays retain their dtype on devices that support it. |
 | Gradients (`:>`, `∂`, monad `∇`) | Finite differences | Autograd |
-| Numeric gradients (`point∇function`, `.grad`, `point∂function`) | Finite differences in float64 | Finite differences, computed in float64 on the CPU on every device and returned as float32 |
+| Numeric gradients (`point∇function`, `.grad`) | Finite differences in float64 | Finite differences use float64 working precision. MPS evaluates the perturbations on the CPU. The result uses the selected device and its Klong compute dtype. |
 | Strings, mixed lists | numpy object arrays | numpy object arrays on the host, not tensors |
 | Results | `numpy.ndarray` | `torch.Tensor` |
 
-Float32 carries about 7 significant decimal digits. `1.5+1e-9` is exactly `1.5` on the torch backend, and sums of many terms lose digits sooner than on NumPy. A value that needs float64 needs the NumPy backend. Autograd has no finite-difference error; float32 rounding still applies.
+Float32 carries about seven significant decimal digits. `1.5+1e-9` is exactly `1.5` for Torch's default scalar arithmetic. Choose NumPy when a Klong calculation needs float64 throughout. An untouched IPC double can be returned to its sender at full wire precision. [IPC Capabilities](ipc_capabilities.md#types-across-the-wire)
 
-Tested devices: the CPU, in the automated tests. Apple MPS has been run by hand (arithmetic, gradients and the optimizers) and is not in the automated tests. CUDA has not been tested.
+RC2 exercised the hosted backend on CPU, Apple M2 Ultra MPS, and NVIDIA GeForce RTX 3090 CUDA. The GPU tests check arithmetic, broadcasting, autograd and finite-difference gradient placement. Standalone `kg` uses Metal on macOS.
 
 Known limit: MPS has no float64, so a program that needs it runs on the NumPy backend, and `.gradcheck()` needs the CPU. (The finite differences of `∇` and `∂` do not depend on this: they are computed on the CPU in float64, and only the result goes back to the device.) On MPS `.gradcheck()` raises `.gradcheck() requires CPU device, got 'mps'`; run `kgpy --backend torch --device cpu` for it.
 
@@ -52,7 +52,7 @@ Known limit: some operations on mixed-type or ragged nested data raise "PyTorch 
 
 ## Gradient operators
 
-`function:>point` is the autograd operator, and so is the monad `∇function`, which returns the gradient as a function. The dyad `point∇function` and `.grad(function;point)` use finite differences on every backend. On torch the function is evaluated in float64 on the CPU whatever the backend's device is (a step of 1e-6 is lost in float32, and MPS has no float64), and the gradient comes back in float32 on the backend's device. The table that compares all of them is in the [operator reference](operators.md#comparison); this page shows the torch-only use. The values are those of the torch backend on the CPU.
+`function:>point` is the autograd operator, and so is the monad `∇function`, which returns the gradient as a function. The dyad `point∇function` and `.grad(function;point)` use finite differences on every backend. The finite differences use float64 working precision. On MPS, the interpreter evaluates the perturbations on the CPU and returns the gradient as a float32 tensor on the original device. The Jacobian operator uses provider autograd when available and falls back to finite differences. The table that compares all of them is in the [operator reference](operators.md#comparison); this page shows the torch-only use. The values are those of the torch backend on the CPU.
 
 ```klong
 f(t)::{t^2}
@@ -187,16 +187,16 @@ These functions exist only on the torch backend. They export a Klong function's 
 
 | Function | Does |
 |---|---|
-| `.bkx(fn;input;path)` | Runs `fn` once on `input`, records every tensor operation it executes (`torch.export`, non-strict), saves the exported program to `path` and returns a dictionary with `compiled_fn` (the exported module), `export_path`, `graph` (its text) and `graph_module`. |
+| `.export(fn;input;path)` | Runs `fn` once on `input`, records every tensor operation it executes (`torch.export`, non-strict), saves the exported program to `path` and returns a dictionary with `compiled_fn` (the exported module), `export_path`, `graph` (its text) and `graph_module`. |
 | `.gradcheck(fn;input)` | Returns 1 when the autograd gradient of `fn` at `input` matches the numeric one. CPU only. |
 
 ```klong
 f(t)::{t^2}
-info::.bkx(f;3.0;"model.pt2")
+info::.export(f;3.0;"model.pt2")
 .gradcheck(f;3.0)                            :" 1
 ```
 
-`.bkx` records what the function does and does not read its source. (`.export` is not this function: it belongs to the [module system](language-additions.md#modules).) The file is read back with `torch.export.load(path).module()`. To compile the function, compile that module: `torch.compile(torch.export.load("model.pt2").module())`. If torch cannot export the function (a branch on a tensor's value), `export_path` is empty and `export_error` holds the reason.
+`.export` records what the function does and does not read its source. It is a function of `kgpy`: `kg` reports that it needs `kgpy`, as it does for the other Python-hosted functions. The file is read back with `torch.export.load(path).module()`. To compile the function, compile that module: `torch.compile(torch.export.load("model.pt2").module())`. If torch cannot export the function (a branch on a tensor's value), `export_path` is empty and `export_error` holds the reason.
 
 ## Troubleshooting
 

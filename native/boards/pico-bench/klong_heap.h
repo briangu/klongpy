@@ -18,10 +18,9 @@
  *     scattered over what the peak had reached and a vector could not pass them (the host model of the boards shows it: the
  *     client of the self-test lost 6% of its largest vector to it with this rule and the next one left out).
  *   The free space between the ends is one span that a vector can have whole.
- * What lives as long as the node (`htag::SYMBOLS`, `htag::GLOBALS`) never takes a block of the cache (below): that is wherever a
- * temporary of an earlier program was, and a name taken from there would stay there for ever. (Both rules need what the runtime
- * says before it allocates, `KLONG_ALLOC_TAG`: they are in the build with KH_TAGS, which KH_DIAG implies, the Pico bench's
- * default; without it every block is placed by its size alone.)
+ * Long-lived allocations (`htag::SYMBOLS`, `htag::GLOBALS`) bypass the small-block cache: a block recycled from a temporary
+ * at the peak of an evaluation can pin the middle of the heap. (Both placement rules use `KLONG_ALLOC_TAG` in the build with
+ * KH_TAGS, which KH_DIAG implies. The Pico bench enables it by default.)
  *
  * THE CACHE. Small blocks (up to 128 bytes, alignment up to 8: what a call of a Klong function allocates) are, when
  * freed, kept on a list of their size class instead of being given back, up to KH_CACHE_MAX bytes in all: a call and a
@@ -89,7 +88,7 @@ static uint32_t kh_grown, kh_grow_missed;     /* blocks resized in place; asked 
 #ifdef KH_TAGS
 extern volatile uint8_t KLONG_ALLOC_TAG; /* set by the runtime (klong-core, feature heap-tags) before it allocates */
 #define KH_TAG_TREE 5u /* htag::TREE */
-#define KH_TENURED(tag) ((tag) == 3u || (tag) == 4u) /* htag::SYMBOLS, htag::GLOBALS: they live as long as the node does */
+#define KH_TENURED(tag) ((tag) == 3u || (tag) == 4u) /* htag::SYMBOLS, htag::GLOBALS */
 #else
 #define KH_TENURED(tag) 0
 #endif
@@ -294,9 +293,8 @@ static void *kh_alloc(void *ctx, size_t size, size_t align) {
     (void)ctx;
     if (size <= KH_SMALL_MAX && align <= 8) {
         size_t c = ((size ? size : 1) + 7u) >> 3;
-        /* What lives as long as the node (the table of symbols and the globals) never takes a cached block: those are wherever a
-         * temporary of an earlier program was, and a name taken from the middle of the heap stays there for ever and pins it. It
-         * comes from the pool, at the highest address that is free. */
+        /* Long-lived allocations take space at the highest free address. Cached blocks can be anywhere a
+         * temporary was, and a global placed there can pin the middle of the heap. */
         void *p = KH_TENURED(KLONG_ALLOC_TAG_NOW) ? NULL : kh_free_list[c];
         if (p) {
             kh_free_list[c] = *(void **)p;

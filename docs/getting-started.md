@@ -2,7 +2,7 @@
 
 KlongPy runs Klong, a small array language. In an array language you apply an operation to a whole list of numbers at once instead of writing a loop. The sum of the numbers 1 to 5 is written `+/1+!5`. This page takes you from installing KlongPy to writing a small script, then points to the part of the documentation that fits what you want to do.
 
-You need Python 3.11 to 3.14. You do not need to know any other array language.
+The Python distribution supports Python 3.11 to 3.14. You can also install standalone `kg` directly from the Rust source. [Native installation](native/building.md#install-for-everyday-use)
 
 ## Install
 
@@ -14,17 +14,17 @@ That installs two commands:
 
 | Command | What it is |
 |---|---|
-| `kgpy` | The Klong interpreter hosted in Python. It adds NumPy arrays, PyTorch, calling Python, tables and SQL, the web server, websockets and the FPGA card functions. |
-| `kg` | The same interpreter as one program with no Python in it. It starts in a few milliseconds and runs scripts, `lint`, `check` and `compile`. |
+| `kgpy` | The Klong interpreter hosted in Python. It adds Python callables, NumPy and PyTorch arrays, pandas and Arrow interchange, the web server, websockets and FPGA card functions. |
+| `kg` | A standalone program for scripts, column tables and DuckDB queries. It also runs `lint`, `check` and `compile`, and can use native Metal on macOS. |
 
-Both run the same language on the same interpreter, which is written in Rust. [What Runs Where](what-runs-where.md) says which part does what. This page uses `kgpy`; replace it with `kg` for any example that does not call Python.
+Both run the same language on the same interpreter, which is written in Rust. This guide uses `kgpy` for the interactive examples. For unattended scripts, `kg --capabilities` reports the installed features as JSON. [Running kg from a coding agent or CI job](native/building.md#running-kg-from-a-coding-agent-or-ci-job) · [What runs where](what-runs-where.md)
 
 The package also installs NumPy and colorama. That is enough for everything on this page. Extra features have their own packages. Ask for them in square brackets:
 
 | Install | Adds | Use it for |
 |---|---|---|
 | `pip install "klongpy[torch]"` | PyTorch | The torch backend: GPU arrays and gradients with `:>`. Start it with `kgpy --backend torch`. See [PyTorch Backend and Autograd](torch_backend.md). |
-| `pip install "klongpy[db]"` | pandas and DuckDB | Tables, SQL on arrays, and the key-value store. See [Columnar tables and SQL](fast_columnar_database.md). |
+| `pip install "klongpy[db]"` | pandas and Python DuckDB | DataFrame conversion and the legacy database and key-value store adapters. Use the built-in `.table` and `.db` directly for Klong tables and SQL. See [Columnar tables and SQL](fast_columnar_database.md). |
 | `pip install "klongpy[web]"` | aiohttp | The `.web` HTTP server. See [Web Server](web_server.md). |
 | `pip install "klongpy[ws]"` | websockets | WebSocket clients; there is no server. See [WebSockets](websockets.md). |
 | `pip install "klongpy[all]"` | Everything above | One command for all of it. `klongpy[full]` adds pytest to that, for running the tests. |
@@ -239,11 +239,19 @@ Other places to look:
 
 **Talking between processes.** `.srv` serves a KlongPy process and `.cli` calls one, over the kdb+ IPC protocol, so a q process can be on either end. See [IPC Capabilities](ipc_capabilities.md).
 
-**Splitting a program into files.** A file that ends with `.export` is a module, and `.import` brings it in under a name you choose. See [Modules](language-additions.md#modules) and the twelve-file program in `examples/modules`.
+**Using a library.** Load a module with `.l` and call its functions by their qualified names. For example, the median function in the bundled statistics library is `nstat.M`.
 
-**Compiling to C for microcontrollers.** A static subset of Klong compiles to C99 with no heap. Three examples have run compiled on two Raspberry Pi Picos, and the C has run on no other device. See [Compiling Klong to C](embedded.md) and [The Static Profile](static-profile.md).
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+```console
+$ kg -e '.l("nstat");nstat.M([7 1 4])'
+4
+```
 
-**The interpreter on boards.** The same interpreter runs the full language without Python on a microcontroller. It has run on an ESP32-P4 and on two Raspberry Pi Picos. See [Native Runtime](native/index.md), [Building and Running](native/building.md), [Serial Console and Upload](native/console.md) and [ESP32-P4](native/esp32-p4.md).
+To split your own program into files, assign the variable `export` in the module and use `.l("name";:alias)` to load it under a name you choose. The twelve-file program in `examples/modules` uses this pattern. [Modules](language-additions.md#modules)
+
+**Compiling to C for microcontrollers.** A static subset of Klong compiles to C99 with no heap. Two RP2040 Picos ran the compiled moving average, PID controller and FIR filter. See [Compiling Klong to C](embedded.md) and [The Static Profile](static-profile.md).
+
+**The interpreter on boards.** RP2040 and ESP32-P4 firmware use the same Rust interpreter as the desktop. Available system functions, numeric widths and memory limits depend on the firmware build. See [Native Runtime](native/index.md), [Building and Running](native/building.md), [Serial Console and Upload](native/console.md) and [ESP32-P4](native/esp32-p4.md).
 
 **Which command, and what runs where.** [What Runs Where](what-runs-where.md) says what `kg`, `kgpy`, the torch backend and the compiler each do.
 

@@ -2,6 +2,8 @@
 
 Market data feeds and finance models.
 
+The [ticker plant](tickerplant/README.md) accepts batched IPC trades, maintains the live RDB, publishes to subscribers and rolls completed sessions into an HDB. Its load driver checks every archived trade.
+
 ## Simulated feed
 
 `feed/` publishes simulated trades over IPC to a consumer that computes VWAP and a moving average. It needs only `pip install klongpy`. See [feed/README.md](feed/README.md).

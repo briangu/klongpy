@@ -4,7 +4,7 @@
 
 KlongPy interpreters, and q processes, can connect to each other, run code and call functions remotely, read and write remote variables, and receive callbacks. This page is for someone who runs a KlongPy server or client and needs the details: an example, the protocol and its security settings, the types that cross the wire, and each function.
 
-The functions are `.srv` (serve), `.cli` (connect and call), `.clid` (connect and treat the remote context as a dictionary), `.clic` (close), `.clit` (call timeout) and `.async` (call without waiting).
+Both desktop commands provide `.srv` (serve), `.cli` (connect and call), `.clid` (connect and treat the remote context as a dictionary), `.clic` (close), `.clit` (call timeout) and `.async` (call without waiting). The examples here run under `kgpy`. [Native IPC options and limits](native/ipc.md)
 
 ## Example
 
@@ -56,9 +56,9 @@ What goes across in each direction:
 | integer beyond 64 bits (`2^64`) | not sent: `range error: integer does not fit 64 bits` (0.7 sent it by pickle) | |
 | anything else (a Python object such as a set, complex number or `None`, a connection handle) | not sent: a type error that names the kind | |
 
-A `klongpy.db` table is sent as a kdb+ table (type 98) of its columns, after any pending inserts are committed. A table received becomes a `Table` when `klongpy.db` is loaded in the receiving process (`.py("klongpy.db")`), and otherwise a dictionary from column symbol to column. The table's index is not carried: the receiver must apply `.index` again. A keyed table from q arrives as a two-element list of the key table and the value table.
+Both desktop hosts send unkeyed tables as type 98 and keyed tables as a dictionary of key and value tables. Column order, key columns and supported q column types survive a passive round trip. Live echo tests cover typed empty columns, timestamps, dates, timespans, symbols and typed nulls. A received table can be queried and a received key can be used for subsequent upserts. In the Python host, loading `klongpy.db` selects a pandas-backed table adapter.
 
-Storing a table on a server and reading it back. This needs the `db` extra, `pip install "klongpy[db]"`. `,,` in `f(:get,,"T")` makes the one argument a list of one; with two arguments, as in `f(:put,"T",T)`, list them separately.
+The following display example uses the pandas adapter from `pip install "klongpy[db]"`. The desktop commands also provide built-in tables. `,,` in `f(:get,,"T")` makes a one-element argument list. With two arguments, list them separately as in `f(:put,"T",T)`. [Columnar tables and SQL](fast_columnar_database.md)
 
 <!-- check-docs: requires duckdb pandas -->
 ```kgpy
@@ -583,7 +583,7 @@ subscription update: [[AM.MSFT 41.134210064419605] [AM.GOOG 42.0242208432845] [A
 
 ## 0.7 peers
 
-KlongPy 0.7 spoke a different protocol, which sent Python pickles. It was removed in 2.0, so a 0.7 process and a 2.0 process cannot exchange IPC messages in either direction. Upgrade both ends to 2.0 or later; see [Migrating to v2](migrating-to-v2.md#ipc-speaks-the-kdb-protocol).
+The pure-Python 0.7 and v1 line used Python pickles. Version 2 uses kdb+ IPC, so upgrade both ends of a KlongPy connection together. [Migrating to v2](migrating-to-v2.md#ipc-speaks-the-kdb-protocol)
 
 - A 0.7 client connecting to a 2.0 server is closed at once, before anything is unpickled, and the server logs that the client speaks the pickle protocol of 0.7. The client sees `connection lost`.
 - A 2.0 client connecting to a 0.7 server waits for the handshake. The 0.7 server answers nothing, so `.cli` raises a system error after 5 seconds: `handshake timed out after 5.0s`, with a note that a 0.7 server does not speak the kdb+ protocol.

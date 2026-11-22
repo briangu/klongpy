@@ -15,11 +15,14 @@ dependency on KlongPy; only the in-process executor imports it.
 """
 import argparse
 import concurrent.futures
+import contextlib
 import importlib.util
 import os
+from pathlib import Path
 import shlex
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -230,7 +233,8 @@ class InProcess:
         self.backend = backend  # None: the interpreter's default
 
     def run(self, case):
-        status, text, out = self.shim.evaluate(case.source, case.strict_level, backend=self.backend)
+        with execution_source(case) as source:
+            status, text, out = self.shim.evaluate(source, case.strict_level, backend=self.backend)
         return Result("value" if status == "result" else "error", text, out)
 
 
@@ -250,7 +254,8 @@ class External:
         if case.strict_level:
             argv += ["--strict", str(case.strict_level)]
         try:
-            p = subprocess.run(argv, input=case.source.encode("utf-8"), capture_output=True, timeout=self.timeout)
+            with execution_source(case) as source:
+                p = subprocess.run(argv, input=source.encode("utf-8"), capture_output=True, timeout=self.timeout)
         except subprocess.TimeoutExpired:
             return Result("crash", f"timeout after {self.timeout}s")
         except OSError as e:
@@ -355,10 +360,19 @@ def bless(path, executor):
 
 def golden_pairs(base=GOLDEN_DIR):
     """Yield (name, source path, golden text) for every tests/golden/<group>/<name>.sexp with its source."""
+    base = Path(base).resolve()
     spec = importlib.util.spec_from_file_location("golden_regen", os.path.join(base, "regen.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    for group, name, src, golden in mod.cases():
+    cases = list(mod.cases())
+    snapshots = set(base.glob("*/*.sexp"))
+    missing_sources = snapshots - {Path(golden) for _, _, _, golden in cases}
+    if missing_sources:
+        names = ", ".join(sorted(path.relative_to(base).as_posix() for path in missing_sources))
+        raise ValueError(f"missing source for golden snapshot(s): {names}")
+    if not cases:
+        raise ValueError("no golden source files found")
+    for group, name, src, golden in cases:
         with open(golden, "r", encoding="utf-8") as f:
             yield f"{group}/{name}", src, f.read()
 
@@ -382,15 +396,23 @@ def run_tree(cmd, src, want, timeout=20.0):
 
 # ---------------------------------------------------------------------------
 
-def _remove_module_files():
-    """The module cases write their files to /tmp (kgm87-*) and delete them at the end of the program; a case that ends in an error
-    (or fails) leaves them, so the runner removes what is left."""
-    import glob
-    for f in glob.glob("/tmp/kgm87-*"):
-        try:
-            os.remove(f)
-        except OSError:
-            pass
+@contextlib.contextmanager
+def execution_source(case):
+    """Give module fixtures a real absolute directory, including on Windows.
+
+    The literal `../tmp/` imports still traverse a parent and reenter the same directory.
+    """
+    source = case.source
+    fixture = '"/tmp/kgm87'
+    if fixture not in source:
+        yield source
+        return
+    with tempfile.TemporaryDirectory(prefix="kgm87-") as root:
+        directory = Path(root, "tmp")
+        directory.mkdir()
+        quoted_path = directory.as_posix().replace('"', '""')
+        yield (source.replace(fixture, f'"{quoted_path}/kgm87')
+                     .replace('"/tmp/../tmp/kgm87', f'"{quoted_path}/../tmp/kgm87'))
 
 
 def main(argv=None):
@@ -413,12 +435,15 @@ def main(argv=None):
         if not args.cmd:
             ap.error("--trees needs --cmd")
         bad = n = 0
-        for name, src, want in golden_pairs():
-            n += 1
-            p = run_tree(args.cmd, src, want, args.timeout)
-            if p:
-                bad += 1
-                print(f"FAIL tree {name}: {p}")
+        try:
+            for name, src, want in golden_pairs():
+                n += 1
+                p = run_tree(args.cmd, src, want, args.timeout)
+                if p:
+                    bad += 1
+                    print(f"FAIL tree {name}: {p}")
+        except (ValueError, OSError) as err:
+            ap.exit(1, f"Cannot check golden trees: {err}\n")
         print(f"{n - bad} of {n} trees match")
         return 1 if bad else 0
     if args.bless:
@@ -449,7 +474,6 @@ def main(argv=None):
         print(f"{rest - len(fixed)} of {rest} pending cases still fail as expected"
               + (f"; {len(waiting)} more pass in KlongPy and wait for the native runtime" if waiting else ""))
         return 0
-    _remove_module_files()
     for c, p in failed:
         print(f"FAIL {c.where} {c.name}\n  " + p.replace("\n", "\n  "))
     print(f"{len(rows) - len(failed)} passed, {len(failed)} failed, {len(cases) - len(todo)} skipped by tags "

@@ -1,0 +1,26 @@
+caseGroupStrings::{[keys rows];
+  keys::[;"z";"α";"";"é";"é";"A";"a";"Station 2";"Station 1";"00";"0";"k"];
+  rows::96#keys;
+  ((?rows)~keys)&((=rows)~{x+12*!8}'!12)
+}
+caseGroupSymbols::{[keys rows groups];
+  keys::[:cd :ab :zy :ba :xx :tt :r :q :cc :aa :t :z];
+  rows::(96#keys),[:cd :ab];
+  groups::=rows;
+  ((?rows)~keys)&((*'groups)~!12)&((#'groups)~[9 9 8 8 8 8 8 8 8 8 8 8])&((groups@0)~12*!9)
+}
+caseGroupMixedKinds::{[rows];
+  rows::40#[;"a";0ca;:a;1;1.0];
+  ((=rows)~{x+5*!8}'!5)&(5~#?rows)
+}
+caseGroupMixedLabels::{[keys rows];
+  keys::[;"a";:a;"b";:b];
+  rows::40#keys;
+  ((=rows)~{x+4*!10}'!4)&((?rows)~keys)
+}
+caseGroupNaNAndZero::{[inf nan rows];
+  inf::1.0e308*1.0e308;
+  nan::inf-inf;
+  rows::[;nan;-0.0;nan;0.0;7.0];
+  ((=rows)~[[0 2] [1 3] [4]])&(.json(?rows)~"[null,-0.0,7.0]")
+}

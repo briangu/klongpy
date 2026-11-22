@@ -1,0 +1,8 @@
+:" The same queries run on the live feed and on the database reopened from disk."
+lastpx::{market("SELECT arg_max(px, (ts, seq)) FROM trades GROUP BY sym ORDER BY sym")}
+minutes::{market("SELECT ts // 60, sum(qty)::BIGINT FROM trades GROUP BY 1 ORDER BY 1")}
+bids::{market("WITH q AS (SELECT sym, ts, arg_max(bid, seq) AS bid FROM quotes GROUP BY sym, ts) SELECT coalesce(q.bid, -1) FROM trades t ASOF LEFT JOIN q ON t.sym = q.sym AND t.ts >= q.ts ORDER BY t.seq")}
+unmatched::{market("SELECT count(*) FROM trades t ASOF LEFT JOIN quotes q ON t.sym = q.sym AND t.ts >= q.ts WHERE q.bid IS NULL")}
+bars::{market("SELECT arg_min(px, (ts, seq)), max(px), min(px), arg_max(px, (ts, seq)) FROM trades GROUP BY ts // 60 ORDER BY ts // 60")}
+bbvwap::{market("SELECT sum(px * qty)::DOUBLE / sum(qty) FROM trades WHERE sym='BB'")}
+rollingqty::{market("SELECT sum(qty) OVER (PARTITION BY sym ORDER BY ts, seq ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)::BIGINT FROM trades ORDER BY seq")}

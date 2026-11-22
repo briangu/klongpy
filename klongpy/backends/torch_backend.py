@@ -20,6 +20,9 @@ from ..errors import KlongSystemError, KlongTypeError
 from numpy.exceptions import VisibleDeprecationWarning as NumpyVisibleDeprecationWarning
 
 
+_DIRECT_ARITHMETIC = {"+": operator.add, "-": operator.sub, "*": operator.mul}
+
+
 class TorchUnsupportedDtypeError(UnsupportedDtypeError):
     """Raised when an operation requires object dtype which is not supported by PyTorch."""
     pass
@@ -704,6 +707,25 @@ class TorchBackend:
 
 class TorchBackendProvider(BackendProvider):
     """PyTorch-based backend provider."""
+
+    def fast_dyad(self, glyph, x, y):
+        fn = _DIRECT_ARITHMETIC.get(glyph)
+        if fn is None:
+            return NotImplemented
+        tx, ty = type(x), type(y)
+        try:
+            if tx is torch.Tensor:
+                if ty is torch.Tensor:
+                    if x.is_floating_point() and y.is_floating_point() and (x.shape == y.shape or x.ndim == 0 or y.ndim == 0):
+                        return fn(x, y)
+                elif (ty is int or ty is float) and x.is_floating_point():
+                    return fn(x, y)
+            elif ty is torch.Tensor and (tx is int or tx is float) and y.is_floating_point():
+                return fn(x, y)
+        except RuntimeError:
+            # The general path can move operands between devices in a numeric gradient.
+            pass
+        return NotImplemented
 
     def __init__(self, device=None):
         if device is not None:

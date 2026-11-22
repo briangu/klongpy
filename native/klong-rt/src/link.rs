@@ -98,6 +98,10 @@ pub trait Transport {
     /// A link a peer opened, and a name for the peer.
     fn accept(&mut self, l: ListenerId) -> Option<(Link, String)>;
     fn unlisten(&mut self, l: ListenerId);
+    /// Wait for input, a pending write, or the timeout. True if this transport waited.
+    fn wait_ready(&mut self, _timeout_us: u64) -> bool {
+        false
+    }
 }
 
 /// A raw byte pipe with no boundaries and no error detection (a UART) as a packet link:

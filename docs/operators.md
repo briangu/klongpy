@@ -221,7 +221,7 @@ The two gradient operators take their arguments in opposite orders: `point∇fun
 
 ### Autograd System Functions
 
-Two system functions need the PyTorch backend: `.gradcheck` and `.bkx`. `.gradcheck` also needs the CPU device. [PyTorch Backend and Autograd](torch_backend.md#graph-export-and-gradient-checks) describes them and has an example.
+Two system functions need the PyTorch backend: `.gradcheck` and `.export`. `.gradcheck` also needs the CPU device. [PyTorch Backend and Autograd](torch_backend.md#graph-export-and-gradient-checks) describes them and has an example.
 
 ## Adverbs
 
@@ -366,7 +366,7 @@ Two forms bind names with `::`. Both are described with examples, and with the c
 | `f(a;b;c;d)::{...}` | Defines `f` with the named parameters `a b c d`, any number of them. Too many arguments is an arity error; too few is a projection. `x`, `y` and `z` cannot be used in the body. |
 
 | `a.b` | The entry `"b"` of the dictionary `a`, for reading, writing and calling: `a@"b"`. See [Qualified names](language-additions.md#qualified-names). |
-| `.import(path)`, `.export(d)` | A file's exported dictionary, and the call that ends the file and offers it. See [Modules](language-additions.md#modules). |
+| `.l(path)`, `.l(path;:s)`, `.l(path;[names])` | Load a file; a file that assigns the variable `export` is a module, and `.l` returns it and binds it, or its entries. See [Modules](language-additions.md#modules). |
 
 A function's arity, which the display (`:monad`, `:dyad`, `:triad`, and `:fn/N` for four or more named parameters) shows and an adverb dispatches on, is the highest of `x`, `y` and `z` its body uses, not counting nested function literals, or the number of named parameters. `{-x}` is a monad and `{y}` a dyad.
 
@@ -680,7 +680,7 @@ Three cases are not projections. A function whose whole body is a projection, `g
 
 ### Classic modules
 
-`.module(:name)` opens a classic module and `.module(0)` closes it. A name assigned between the two belongs to the module, and every use of that name inside the module refers to the module's own variable. This matches Klong, whose test suite KlongPy runs. New programs use [modules](language-additions.md#modules) (`.import`, `.export` and `a.b`) instead, which hide the names a file does not offer.
+`.module(:name)` opens a classic module and `.module(0)` closes it. A name assigned between the two belongs to the module, and every use of that name inside the module refers to the module's own variable. This matches Klong, whose test suite KlongPy runs. New programs use [modules](language-additions.md#modules) (`export`, `.l` and `a.b`) instead, which hide the names a file does not offer.
 
 The names are not hidden. After the module is closed, a module name is still reachable by its plain name, as long as the program has no variable of its own with that name:
 

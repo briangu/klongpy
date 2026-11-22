@@ -64,7 +64,7 @@ class StaticReport:
         self.source = source
         self.diagnostics = _diagnostics(diags, source)
         self.entries = [EntryDecl(n, parse_signature(s)) for n, s in entries]
-        self.externs = {n: ExternDecl(n, parse_signature(s, allow_str=True), m) for n, s, m in externs}
+        self.externs = {n: ExternDecl(n, parse_signature(s, allow_str=True), c) for n, c, s in externs}
         self.globals = {n: GlobalInfo(n, ty, a, r, p) for n, ty, a, r, p in globals_}
         ty = lambda t: None if t is None else parse_type(t)
         self.functions = {n: FunctionInfo(n, r, i, {tuple(ty(q) for q in a): ty(b) for a, b in sp}) for n, r, i, sp in functions}
@@ -363,13 +363,13 @@ def load_program(path, externs=None, *, text=None, strict=2, klong=None, backend
     Run a program and return the interpreter that holds its state.
 
         path      the file to run (or, with text=, the name the text is known by)
-        externs   {name: callable}: the stand-ins, bound before the program runs
+        externs   {c_symbol: callable}: the stand-ins, bound before the program runs
         text      the program text, instead of reading path
         strict    the strict level (2: what the static profile requires)
         klong     an existing KlongInterpreter to run in, instead of a new one
         backend   backend name for a new interpreter
 
-    Top-level definitions are evaluated in order, exactly as kgpy does; ``.extern`` binds each declared name to its stand-in and
+    Top-level definitions are evaluated in order, exactly as kgpy does; ``.extern`` gives each declared C symbol its stand-in and
     ``.entry`` validates each signature. Errors are KlongError, positioned in the file.
     """
     from ..interpreter import KlongInterpreter

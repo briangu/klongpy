@@ -508,17 +508,17 @@ class TestGradcheck:
 
 
 class TestExport:
-    """Tests for .bkx."""
+    """Tests for .export."""
 
     def test_export_with_path(self, klong, backend):
-        """Test .bkx() returns dict with graph info."""
+        """Test .export() returns dict with graph info."""
         if backend != 'torch':
             pytest.skip("Requires torch backend")
         klong('f::{x^2}')
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, 'model.pt2')
             try:
-                result = klong(f'.bkx(f;3.0;"{path}")')
+                result = klong(f'.export(f;3.0;"{path}")')
             except Exception:
                 raise
             # Should return a dict
@@ -536,7 +536,7 @@ class TestExport:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, 'model.pt2')
             try:
-                result = klong(f'.bkx(f;3.0;"{path}")')
+                result = klong(f'.export(f;3.0;"{path}")')
             except Exception:
                 raise
             assert not result.get('export_error'), result.get('export_error')
@@ -555,12 +555,12 @@ class TestExport:
                 klong(src)
 
     def test_export_fails_on_numpy(self, klong, backend):
-        """Test that .bkx() raises error on numpy backend."""
+        """Test that .export() raises error on numpy backend."""
         if backend != 'numpy':
             pytest.skip("Test for numpy backend only")
         klong('f::{x^2}')
         with pytest.raises(KlongError):
-            klong('.bkx(f;3.0;"test.pt2")')
+            klong('.export(f;3.0;"test.pt2")')
 
 
 class TestMatrixVectorGradient:

@@ -1,0 +1,87 @@
+:" SQL shape, type and connection behavior at the public Klong boundary."
+.l("./expect.kg")
+memorydb::{.db(:{})}
+seeddb::{d::memorydb();d("CREATE TABLE ticks (i BIGINT PRIMARY KEY, px BIGINT)");d("INSERT INTO ticks VALUES (1, 11), (2, 13)");d}
+
+caseScalar::{d::memorydb();expect("one cell";d("SELECT 42");42)}
+caseColumn::{d::memorydb();expect("one column";d("SELECT i FROM range(3) t(i) ORDER BY i");[0 1 2])}
+caseSingleColumnAcrossChunks::{[d amounts miles];
+    d::memorydb();
+    amounts::d("SELECT CASE WHEN i IN (2048,4096) THEN NULL ELSE 9007199254740993+i END FROM range(4098) t(i) ORDER BY i");
+    expect("NULL between exact integer pages"; amounts@[2047 2048 4095 4096 4097];
+           [;9007199254743040;:undefined;9007199254745088;:undefined;9007199254745090]);
+    miles::d("SELECT 0.25::DOUBLE+i FROM range(4098) t(i) ORDER BY i");
+    expect("fractional vector across pages"; miles@[0 2048 4097];[0.25 2048.25 4097.25])}
+caseSingleDoubleColumnValidity::{[d v];
+    d::memorydb();
+    expect("empty double vector";d("SELECT 1::DOUBLE WHERE false");[]);
+    expect("negative zero scalar";.json(d("SELECT '-0.0'::DOUBLE"));"-0.0");
+    v::d("SELECT CASE WHEN i IN (2111,2112,4160) THEN NULL ELSE 0.5::DOUBLE+i END FROM range(4161) t(i) ORDER BY i");
+    expect("validity word boundary and last partial word";
+           v@[2110 2111 2112 2113 4159 4160];[;2110.5;:undefined;:undefined;2113.5;4159.5;:undefined])}
+caseRow::{d::memorydb();expect("one row";d("SELECT 'AA', 11");[;"AA";11])}
+caseMatrix::{d::memorydb();expect("rectangular rows";d("SELECT i, 2*i FROM range(3) t(i) ORDER BY i");[[0 0] [1 2] [2 4]])}
+caseEmptyResult::{d::seeddb();expect("empty query";#d("SELECT i, px FROM ticks WHERE i < 0");0)}
+caseBigInteger::{d::memorydb();expect("exact large integer";$d("SELECT 9007199254740993::BIGINT");"9007199254740993")}
+caseMixedNumericPrecision::{d::memorydb();v::d("SELECT 9007199254740993::BIGINT, 0.5::DOUBLE");expect("exact integer beside double";$(v@0);"9007199254740993")}
+caseText::{d::memorydb();expect("empty and quoted text";d("SELECT '', 'a''b'");[;"";"a'b"])}
+caseNull::{d::memorydb();expect("scalar SQL null";d("SELECT NULL::BIGINT");:undefined)}
+caseNullInColumn::{d::memorydb();v::d("SELECT v FROM (VALUES (1, 0), (2, NULL), (3, -1)) t(i,v) ORDER BY i");expect("null distinct from zero";v;[;0;:undefined;-1])}
+caseSelectThenInsert::{d::seeddb();before::d("SELECT sum(px) FROM ticks");d("INSERT INTO ticks VALUES (3, 19)");expect("next query sees insert";[;before;d("SELECT sum(px) FROM ticks")];[24 43])}
+caseRollbackUpdate::{d::seeddb();d("BEGIN");d("UPDATE ticks SET px = 99");d("ROLLBACK");expect("rollback";d("SELECT px FROM ticks ORDER BY i");[11 13])}
+caseRollbackWithUnreadableView::{[t d bad];
+    t::.table(:{;"q";[1 2]});d::.db(:{;"ticks";t});
+    d("CREATE TABLE audit(n INTEGER)");d("BEGIN");d("INSERT INTO audit VALUES (9)");
+    t,[;"q";[[1 2] [3 4]]];d("ROLLBACK");
+    bad::.try({d("SELECT * FROM ticks")};[])@0;
+    t,[;"q";[11 13]];
+    expect("rollback and repair a live view";[;bad;d("SELECT count(*) FROM audit");d("SELECT sum(q) FROM ticks")];[0 0 24])}
+caseCommitDelete::{d::seeddb();d("BEGIN");d("DELETE FROM ticks WHERE i=1");d("COMMIT");expect("committed delete";d("SELECT i FROM ticks");2)}
+caseConstraintAtomicity::{d::seeddb();r::.try({d("INSERT INTO ticks VALUES (3, 99), (1, 88)")};[]);expect("constraint rolls back statement";[;r@0;d("SELECT count(*) FROM ticks")];[0 2])}
+caseRecoverAfterBadSql::{d::seeddb();r::.try({d("SELECT no_such_column FROM ticks")};[]);expect("connection usable after error";[;r@0;d("SELECT min(px) FROM ticks")];[0 11])}
+caseDatabaseIsolation::{d::seeddb();other::memorydb();other("CREATE TABLE ticks(i INTEGER)");expect("private catalogs";[;d("SELECT count(*) FROM ticks");other("SELECT count(*) FROM ticks")];[2 0])}
+caseSharedTableViews::{t::.table(:{;"q";[1 2]});a::.db(:{;"one";t});b::.db(:{;"two";t});.insert(t;,4);expect("two live views";[;a("SELECT sum(q) FROM one");b("SELECT count(*) FROM two")];[7 3])}
+caseQuotedIdentifiers::{t::.table(:{;"price usd";[1 2]});d::.db(:{;"trade book";t});expect("quoted identifiers";d("SELECT sum(""price usd"") FROM ""trade book""");3)}
+caseFullJoin::{d::seeddb();expect("unmatched rows on both sides";d("SELECT coalesce(i,j) FROM ticks FULL JOIN (VALUES (2),(3)) b(j) ON i=j ORDER BY 1");[1 2 3])}
+caseTieRank::{d::memorydb();expect("ties share rank";d("SELECT dense_rank() OVER (ORDER BY px) FROM (VALUES (1,7),(2,7),(3,3)) t(i,px) ORDER BY i");[2 2 1])}
+caseLiveTextPages::{[d t nul long groups scan bad];
+    nul::"a",(:#0),"b";long::"a string longer than twelve bytes";
+    t::.table(:{;"s";6143#[;"aa";nul;:undefined;long];"i";!6143});
+    d::.db(:{;"ticks";t});d("SET threads=4");
+    groups::"SELECT s, count(*) FROM ticks GROUP BY s ORDER BY s NULLS FIRST";
+    scan::"SELECT s FROM ticks WHERE i < 4 ORDER BY i";
+    expect("ordered live text groups";d(groups);[;[;:undefined;1536];[;nul;1536];[;long;1535];[;"aa";1536]]);
+    expect("live text bytes with NULL";d(scan);[;"aa";nul;:undefined;long]);
+    .insert(t;+[;[;long;nul;:undefined];[6143 6144 6145]]);
+    expect("append crosses a scan boundary";d(groups);[;[;:undefined;1537];[;nul;1537];[;long;1536];[;"aa";1536]]);
+    expect("independent scans of one snapshot";d("SELECT count(*) FROM (SELECT s FROM ticks UNION ALL SELECT s FROM ticks)");12292);
+    t,[;"s";(2048#,"left"),($'!2048),(2050#,"right")];
+    expect("scan repeated, distinct, repeated and partial pages";d("SELECT s FROM ticks WHERE i IN (0,2047,2048,4095,4096,6145) ORDER BY i");["left" "left" "0" "2047" "right" "right"]);
+    d("CREATE TABLE audit(n INTEGER)");d("BEGIN");d("INSERT INTO audit VALUES (9)");
+    t,[;"s";6146#,["invalid" "shape"]];d("ROLLBACK");
+    bad::.try({d(groups)};[])@0;
+    expect("rollback while text column is unreadable";[;bad;d("SELECT count(*) FROM audit")];[0 0]);
+    t,[;"s";6146#,""];
+    expect("rewrite to repeated empty strings";d(groups);[;"";6146])}
+
+caseRollbackAfterConstraint::{[d failed];
+    d::seeddb();d("BEGIN");d("UPDATE ticks SET px=55 WHERE i=2");
+    failed::.try({d("INSERT INTO ticks VALUES (3, 17), (1, 99)")};[]);
+    expect("duplicate key rejects the statement";failed@0;0);
+    d("ROLLBACK");
+    d("BEGIN");d("INSERT INTO ticks VALUES (3, 19)");d("COMMIT");
+    expect("rollback restores rows and permits a new commit";
+           d("SELECT i, px FROM ticks ORDER BY i");[[1 11] [2 13] [3 19]])}
+
+caseNumericNullPages::{[t d nulls ints floats];
+    nulls::2048#,:undefined;
+    ints::nulls,(2048#7),[;:undefined;9007199254740993];
+    floats::(2048#0.5),nulls,[;0.25;:undefined];
+    t::.table(:{;"id";!4098;"lots";ints;"px";floats});d::.db(:{;"ticks";t});
+    expect("separate integer and float validity masks";
+           d("SELECT count(*), count(lots), count(px) FROM ticks");[4098 2049 2049]);
+    expect("exact integer after a null page";
+           $d("SELECT lots FROM ticks WHERE id=4097");"9007199254740993");
+    expect("validity and exact values on both sides of scan boundaries";
+           d("SELECT lots, px FROM ticks WHERE id IN (2047,2048,4095,4096,4097) ORDER BY id");
+           [;[;:undefined;0.5];[;7;:undefined];[;7;:undefined];[;:undefined;0.25];[;9007199254740993;:undefined]])}

@@ -1,7 +1,8 @@
 :"feed: synthetic daily prices. Draws from the shared rng instance."
 
-:" shows: selection and rename on import by destructuring: rng.seed becomes reseed"
-[reseed noise]::.import("../lib/rng")@["seed" "noise"]
+:" shows: the names form of .l binds two entries as plain names; reseed is a plain rename of seed"
+.l("../lib/rng";["seed" "noise"])
+reseed::seed
 
 bars(drift;vol;days)::{100.0{x*1+y}\drift+vol*noise(days)}
 
@@ -11,4 +12,4 @@ load(cfg)::{[d v];d::cfg.feed.drift;v::cfg.feed.vol;
 restart(cfg)::{reseed(cfg.run.seed)}
 
 .p("[feed] loaded")
-.export(:{;"load";load;"restart";restart})
+export:::{;"load";load;"restart";restart}

@@ -727,7 +727,7 @@ pub(crate) fn whole_error(e: Error, _g: (&str, &str), _operands: &[&Value], _sym
 
 #[cfg(feature = "diag")]
 #[cold]
-pub(crate) fn whole_error(e: Error, g: (&str, &str), operands: &[&Value], syms: Option<&Interner>) -> Error {
+pub(crate) fn whole_error(mut e: Error, g: (&str, &str), operands: &[&Value], syms: Option<&Interner>) -> Error {
     let mut m = crate::msg!("cannot apply {} ({}) to ", g.0, g.1);
     for (i, v) in operands.iter().enumerate() {
         if i > 0 {
@@ -744,10 +744,9 @@ pub(crate) fn whole_error(e: Error, g: (&str, &str), operands: &[&Value], syms: 
             }
         }
     }
-    let mut out = Error::new(e.kind, m).generic();
-    out.span = e.span;
-    out.source = e.source.clone();
-    out
+    e.message = m.into();
+    e.hint = None;
+    e.generic()
 }
 
 fn atomic_in(syms: &Interner, op: Atomic, a: &Value, b: &Value) -> Result<Value> {
@@ -921,6 +920,18 @@ fn m_transpose(_: &mut Interp, a: Value) -> Result<Value> {
         return Ok(a);
     }
     let rows = a.items()?;
+    #[cfg(feature = "host")]
+    let rows = {
+        let mut rows = rows;
+        for row in &mut rows {
+            if let Value::Ext(e) = row {
+                if e.0.host_shape().is_some_and(|shape| !shape.is_empty()) {
+                    *row = row.unhost("+: transpose")?;
+                }
+            }
+        }
+        rows
+    };
     let width = match rows[0].len() {
         Some(w) if rows[0].is_list() => w,
         _ => return Ok(a),
@@ -1074,6 +1085,14 @@ fn grade(ip: &Interp, a: Value, down: bool) -> Result<Value> {
         return Ok(a);
     }
     let n = a.len().unwrap_or(0);
+    #[cfg(feature = "speed")]
+    if let Value::Ints(x) = &a {
+        if x.rank() == 1 {
+            if let Some(indices) = crate::fast::grade_ints(&x.data, down)? {
+                return Ok(indices);
+            }
+        }
+    }
     let mut idx: Vec<usize> = try_vec(n)?;
     idx.extend(0..n);
     let numeric = match &a {
@@ -1284,6 +1303,10 @@ fn m_reciprocal(_: &mut Interp, a: Value) -> Result<Value> {
 }
 
 fn m_size(ip: &mut Interp, a: Value) -> Result<Value> {
+    #[cfg(feature = "tables")]
+    if let Some(t) = crate::table::Table::from_value(&a) {
+        return Ok(Value::Int(t.data().row_count() as Int));
+    }
     Ok(match &a {
         Value::Int(i) => Value::Int(i.wrapping_abs()),
         Value::Flt(f) => Value::Flt(fabs(*f)),
@@ -1751,6 +1774,11 @@ fn d_find(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
 }
 
 fn d_join(ip: &mut Interp, a: Value, b: Value) -> Result<Value> {
+    #[cfg(feature = "tables")]
+    if let Some(t) = crate::table::Table::from_value(&a) {
+        t.join_column(&b)?;
+        return Ok(a);
+    }
     if let Value::Ext(e) = &a {
         if let Some(r) = e.0.join(ip, &b) {
             return r;

@@ -1,3 +1,3 @@
-:"a module file with no .export"
-p::.import("./plain")
+:"a classic file given an alias: it is not a module"
+.l("./support/plain";:p)
 .p(p)

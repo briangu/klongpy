@@ -57,12 +57,14 @@ CASES = [
     ("W002", "f(a;b)::{a+b};f(1;2)", []),   # named parameters
     ('W002', '.bkf(["exp" "sin"]);exp(1.0)', []),
     ("W002", '.py("m");zz', []),            # .py defines unknown names: W002 is off for the file
-    ("W002", '.extern("read.adc";"int -> float");read.adc(0)', []),        # .extern binds its name
-    ("W002", '.extern("write.pwm";"int float -> void";"hw");write.pwm(0;1.0)', []),
-    ("W002", 'read.adc(0);.extern("read.adc";"int -> float")', [(1, 1)]),   # used before the declaration
-    ("W002", 'setup::{.extern("read.adc";"int -> float")};f::{read.adc(x)}', []),   # declared inside a function
-    ("W002", '.extern("read.adc";"int -> float");read.dac(0)', [(1, 36)]),  # another name is still undefined
-    ("W002", 'n::"a";.extern(n;"int -> float");zz(0)', []),                # a computed name: W002 is off for the file
+    ("W002", 'adc::.extern("read_adc";"int -> float");adc(0)', []),        # .extern gives a value; the assignment defines the name
+    ("W002", 'adc(0);adc::.extern("read_adc";"int -> float")', [(1, 1)]),   # used before the definition
+    ("W002", 'setup::{.extern("read_adc";"int -> float")};adc::setup();f::{adc(x)}', []),
+    ("W002", 'adc::.extern("read_adc";"int -> float");dac(0)', [(1, 41)]),  # another name is still undefined
+    ("W002", '.l("csv");csv.split("a")', []),                              # .l binds the module to the stem of the file,
+    ("W002", '.l("csv";:c);c.split("a")', []),                             # or to the alias,
+    ("W002", '.l("csv";["split"]);split("a")', []),                        # or its entries as plain names
+    ("W002", '.l("csv";["split"]);csv.split("a")', [(1, 21)]),             # and then not the module
     ("W002", 'f::{x};.entry("f";"int -> int");f(1)', []),
     # W003 declared local never used
     ("W003", "f::{[a;b];a::1}", [(1, 8)]),
@@ -190,22 +192,35 @@ CASES = [
     ("W021", "n::5;n.a::6", [(1, 6)]),
     ("W021", "d:::{};d.a::5", []),
     ("W021", "f::{x.a::5}", []),
-    # W022 a module imported and never used
-    ("W022", 'c::.import("csv")', [(1, 1)]),
-    ("W022", 'c::.import("csv");c.split("a")', []),
-    # E003 assignment to an entry of what .import returned
-    ("E003", 'c::.import("csv");c.split::1', [(1, 19)]),
-    ("E003", 'c::.import("csv");d:::{};d.split::1', []),
-    # E004 a qualified name that the imported module does not export
-    ("E004", 'c::.import("csv");c.nosuch(1)', [(1, 19)]),
-    ("E004", 'c::.import("csv");c.split("a")', []),
+    # W022 a module bound by .l and never used
+    ("W022", '.l("csv")', [(1, 1)]),
+    ("W022", '.l("csv";:c)', [(1, 1)]),
+    ("W022", '.l("csv");csv.split("a")', []),
+    ("W022", '.l("csv";:c);c.split("a")', []),
+    ("W022", '.l("csv";["split"])', []),                                   # entries bound as plain names: no module name to use
+    # W023 a local file that shadows a bundled library file (the positive case needs a file: TestCrossFile)
+    ("W023", '.l("csv");csv.split("a")', []),
+    # E003 assignment to an entry of a module
+    ("E003", '.l("csv");csv.split::1', [(1, 11)]),
+    ("E003", '.l("csv";:c);c.split::1', [(1, 14)]),
+    ("E003", '.l("csv");d:::{};d.split::1', []),
+    # E004 a qualified name, or an entry named to .l, that the module does not export
+    ("E004", '.l("csv");csv.nosuch(1)', [(1, 11)]),
+    ("E004", '.l("csv";:c);c.nosuch(1)', [(1, 14)]),
+    ("E004", '.l("csv";["split" "nosuch"])', [(1, 1)]),
+    ("E004", '.l("csv");csv.split("a")', []),
+    ("E004", '.l("csv";["split"]);split("a")', []),
+    # E005 .extern whose value is discarded
+    ("E005", '.extern("read_adc";"int -> float")', [(1, 1)]),
+    ("E005", 'a::1;.extern("read_adc";"int -> float")', [(1, 6)]),
+    ("E005", 'adc::.extern("read_adc";"int -> float");adc(0)', []),
 ]
 
 
 class TestRuleTable(unittest.TestCase):
     def test_every_code_has_a_positive_and_a_negative_case(self):
         for code in RULES:
-            pos = [c for c in CASES if c[0] == code and c[2]]
+            pos = [c for c in CASES if c[0] == code and c[2]] or code == "W023"    # W023 needs a file beside the linted one
             neg = [c for c in CASES if c[0] == code and not c[2]]
             self.assertTrue(pos, f"{code}: no positive case")
             self.assertTrue(neg, f"{code}: no negative case")
@@ -274,11 +289,11 @@ class TestDiagnostic(unittest.TestCase):
 
     def test_severities(self):
         self.assertEqual({c: r.severity for c, r in RULES.items() if c[0] == "E"},
-                         {"E001": "error", "E002": "error", "E003": "error", "E004": "error"})
+                         {"E001": "error", "E002": "error", "E003": "error", "E004": "error", "E005": "error"})
         self.assertTrue(all(r.severity == "warning" for c, r in RULES.items() if c[0] == "W"))
         self.assertEqual(set(RULES), {"W001", "W002", "W003", "W010", "W011", "W012", "W013", "W014", "W015",
-                                      "W016", "W017", "W018", "W019", "W020", "W021", "W022",
-                                      "E001", "E002", "E003", "E004"})
+                                      "W016", "W017", "W018", "W019", "W020", "W021", "W022", "W023",
+                                      "E001", "E002", "E003", "E004", "E005"})
 
     def test_sorted_by_position(self):
         ds = lint_source("[1;2]\nmy_var::5\n-1+2\n", "t.kg")
@@ -423,10 +438,31 @@ class TestCrossFile(unittest.TestCase):
         self.assertEqual(self.lint("main.kg", resolve=False), [])
 
     def test_the_library_is_found(self):
-        # klongpy/lib/nstat.kg defines mu; nosuch is defined nowhere
-        # (engine needs: after .l("csv"), a module, the linter says csv is never defined; mgmt is fine)
-        self.write("main.kg", '.l("nstat")\nmu([1 2])\nnosuch(2)\n')
-        self.assertEqual(self.lint("main.kg"), [("W002", 3, 1)])
+        # klongpy/lib/nstat.kg is a module that exports mu; nosuch is defined nowhere, and nstat has no entry nosuch
+        self.write("main.kg", '.l("nstat")\nnstat.mu([1 2])\nnosuch(2)\nnstat.nosuch(2)\n')
+        self.assertEqual(self.lint("main.kg"), [("W002", 3, 1), ("E004", 4, 1)])
+        self.write("names.kg", '.l("nstat";["mu"])\nmu([1 2])\nnstat.mu([1 2])\n')      # entries as plain names: the module is not bound
+        self.assertEqual(self.lint("names.kg"), [("W002", 3, 1)])
+
+    def test_a_local_file_that_shadows_the_library_is_reported(self):
+        self.write("csv.kg", 'export:::{;"split";{x}}\n')
+        self.write("main.kg", '.l("csv")\ncsv.split("a")\n')
+        self.assertEqual(self.lint("main.kg"), [("W023", 1, 4)])
+        self.write("local.kg", '.l("./csv")\ncsv.split("a")\n')                        # ./ says the local file is meant
+        self.assertEqual(self.lint("local.kg"), [])
+
+    def test_a_module_file_binds_the_stem_the_alias_or_the_entries(self):
+        self.write("lib/geo.kg", 'area::{x*y}\nhelper::{x}\nexport:::{;"area";area}\n')
+        self.write("a.kg", '.l("lib/geo")\ngeo.area(2;3)\n')
+        self.write("b.kg", '.l("lib/geo";:g)\ng.area(2;3)\ngeo.area(2;3)\n')
+        self.write("c.kg", '.l("lib/geo";["area"])\narea(2;3)\nhelper(1)\n')
+        self.write("d.kg", '.l("lib/geo")\ngeo.helper(1)\ngeo.area::1\n')
+        self.write("e.kg", '.l("lib/geo";["area" "helper"])\narea(2;3)\n')
+        self.assertEqual(self.lint("a.kg"), [])
+        self.assertEqual(self.lint("b.kg"), [("W002", 3, 1)])                           # the alias, not the stem
+        self.assertEqual(self.lint("c.kg"), [("W002", 3, 1)])                           # a private name of the module
+        self.assertEqual(self.lint("d.kg"), [("E004", 2, 1), ("E003", 3, 1)])
+        self.assertEqual(self.lint("e.kg"), [("E004", 1, 1)])
 
     def test_a_syntax_error_in_the_loaded_file_is_not_reported_in_the_loader(self):
         self.write("lib.kg", "helper::{x+1}\n1+\n")
@@ -659,9 +695,9 @@ class TestShippedSources(unittest.TestCase):
     # codes that fire on shipped code, each reviewed: W003 unused locals, W012/W018/W020 in the test files that
     # test exactly that, E002 extra arguments in the stock-feed examples
     REVIEWED = {"W003", "W012", "W018", "W020", "E002", "W022"}
-    # W022: the diamond example imports modules it only shows being shared. Per file: (engine needs: after .l of a module the linter
-    # does not know the name it binds) and `n_c` written as a drop on purpose in the stats module of the example
-    REVIEWED_IN = {"examples/modules/classic_load.kg": {"W002"}, "examples/modules/lib/stats.kg": {"W001"}}
+    # W022: the diamond example loads modules it only shows being shared. Per file: `n_c` written as a drop on purpose in the stats
+    # module of the example
+    REVIEWED_IN = {"examples/modules/lib/stats.kg": {"W001"}}
     # the programs that exist to fail, each with the error the rules above find
     EXPECTED_TO_FAIL = "examples/modules/errors/"
 

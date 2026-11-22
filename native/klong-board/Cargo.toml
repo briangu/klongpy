@@ -13,6 +13,7 @@ test = false
 bench = false
 
 [features]
+tables = ["klong-rt/tables"]
 default = ["files", "lib", "console"]
 files = ["klong-rt/files", "klong-console/files"]
 lib = ["klong-rt/lib", "klong-console/lib"]

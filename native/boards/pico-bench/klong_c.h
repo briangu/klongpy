@@ -6,15 +6,15 @@
  * into a program on the desktop.
  *
  * System functions (the `.c.` prefix is the board's; the runtime's own `.entry` and `.extern` let the interpreter load the same
- * text, and `read.adc` and `write.pwm` are registered as C functions so that the externs of pid.kg resolve):
+ * text, and `read_adc` and `write_pwm` are registered with klong_extern_register, by their C symbols, so that the externs of board.kg, which pid.kg loads, resolve):
  *
  *   .c.mavg(x)    one step of mavg.kg (float -> float), the compiled instance keeps the window
- *   .c.pid(x)     one step of pid.kg (float -> float); the externs are stand-ins: read.adc gives 0.3, write.pwm remembers the duty
+ *   .c.pid(x)     one step of pid.kg (float -> float); the externs are stand-ins: read_adc gives 0.3, write_pwm remembers the duty
  *   .c.fir(x)     fir.kg's run: a list of 256 numbers to a list of 241 floats
  *   .c.reset(n)   n is "mavg", "pid" or "fir": the compiled instance starts again
  *   .c.src(n)     the Klong source of that example, as a string
  *   .c.load(n)    reset the compiled instance and load the Klong source into the interpreter (it defines that program's
- *                 globals: buf pos step | kp ki kd dt lo hi integ prev clamp step read.adc write.pwm | raw taps idx run)
+ *                 globals: buf pos step | kp ki kd dt lo hi integ prev clamp step board | raw taps idx run)
  *   .c.us()       the board's clock in microseconds
  *   .c.check()    run every example both ways on fixed inputs; one row per example: [pass n interp_us compiled_us maxerr_ppb]
  *

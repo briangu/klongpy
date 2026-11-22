@@ -18,8 +18,8 @@ KlongPy 2 runs Klong on one interpreter, written in Rust. Two commands start it:
 
 | Command | What it is |
 |---|---|
-| `kgpy` | The interpreter hosted in Python: NumPy and PyTorch arrays, calling Python, tables and SQL, the web server, websockets and FPGA cards. |
-| `kg` | The same interpreter as one program with no Python. |
+| `kg` | A standalone native program with column tables, embedded DuckDB and optional Metal compute on macOS. |
+| `kgpy` | The same engine hosted in Python, with NumPy and PyTorch arrays, pandas and Arrow interchange, Python callables, web services and FPGA card bindings. |
 
 The same interpreter is in firmware for microcontroller boards, and the tools `lint`, `check`, `compile c`, `fpga source` and `ast` run from either command. [What Runs Where](docs/what-runs-where.md) says which part does what.
 
@@ -30,19 +30,30 @@ Full documentation: [https://www.klongpy.org/](https://www.klongpy.org/). New he
 | Target | Status | More |
 |---|---|---|
 | CPU (`kg`, and `kgpy` with NumPy) | stable; passes the conformance suite | [Start Here](docs/getting-started.md) |
-| GPU (PyTorch backend, autograd) | stable on the CPU, which the automated tests cover; Apple MPS has been run by hand and CUDA not at all, and neither is in the automated tests | [PyTorch Backend and Autograd](docs/torch_backend.md) |
+| GPU (Python backend and autograd) | The opt-in GPU acceptance tests have run on Apple MPS. The standalone Metal backend also passes the native MPS cases. | [GPU acceptance tests](tests/v2/README.md) · [PyTorch Backend and Autograd](docs/torch_backend.md) |
 | Compile to C (static profile) | works for a subset of the language; compiled C has run with desktop compilers and, for three examples, on two Raspberry Pi Picos | [Compiling Klong to C](docs/embedded.md) |
-| Microcontrollers (the interpreter in firmware) | experimental; the console test suite and the REPL have run on an ESP32-P4, and IPC between two Raspberry Pi Picos; nothing else has run | [Native Runtime status](docs/native/index.md#status-what-has-and-has-not-been-proven) |
+| Microcontrollers (the interpreter in firmware) | experimental; two RP2040 Picos passed the RC1 paired IPC self-test. Earlier firmware ran console tests on an ESP32-P4 | [Native Runtime status](docs/native/index.md#status-what-has-and-has-not-been-proven) |
 | FPGA kernels | experimental; run on one Alveo U250 | [Klong functions as FPGA hardware](docs/hardware.md) |
 
-The interpreter runs a [conformance suite](docs/conformance.md) of more than 2,000 cases, each a program and its expected output, through `kgpy`, through `kg` and on the board firmware. The C and FPGA paths compile a subset of the language, and that subset is checked against the interpreter.
+For 2.0.0rc1, the [conformance suite](docs/conformance.md) passed 2,220 cases under standalone `kg` and 2,199 applicable cases under Python-hosted `kgpy`. The serial console simulator passed 1,716 selected cases. Physical boards have [separate test results](docs/native/index.md#status-what-has-and-has-not-been-proven). The C and FPGA compilers support the static subset of Klong.
 
 ## Install
+
+For standalone `kg`, run this from the repository root with Rust installed and Cargo's binary directory on your `PATH`.
+
+```sh
+cargo install --locked --path native/klong-cli
+kg -e '+/!100'                   # 4950
+```
+
+Type `kg` for the REPL or `kg trades.kg` to run a script. Tools and coding agents can read `kg --capabilities` as JSON. Firmware builders can select a board and its features separately. [Native build guide](docs/native/building.md)
+
+For the Python distribution, choose the packages you use.
 
 ```bash
 pip install klongpy              # the kgpy and kg commands (NumPy arrays)
 pip install "klongpy[torch]"     # the torch backend: GPU arrays and gradients
-pip install "klongpy[db]"        # tables and SQL on arrays (pandas, DuckDB)
+pip install "klongpy[db]"        # pandas, Python DuckDB, legacy key-value store
 pip install "klongpy[web]"       # the .web HTTP server (aiohttp)
 pip install "klongpy[ws]"        # WebSockets
 pip install "klongpy[all]"       # all of the above
@@ -80,7 +91,7 @@ The other spellings of the gradient and the Unicode operators are in [PyTorch Ba
 
 ## What is new in 2
 
-Version 2 replaces the Python implementation of the language with the Rust interpreter, adds the `kg` command, the conformance suite, compiling to C, experimental FPGA kernels, modules (`.import`, `.export` and `a.b`), strict modes, a linter, errors with positions, language additions (destructuring, named parameters, dictionary literals) and kdb+-protocol IPC. [What's New in v2](docs/whats-new-v2.md) is the tour, and [Migrating to v2](docs/migrating-to-v2.md) lists what changes for existing code.
+Version 2 brings one Rust engine to both commands, built-in tables and DuckDB, kdb+-protocol IPC, and conformance tests across targets. It adds modules, destructuring, named parameters, strict modes, diagnostic tools, compilation to C and experimental FPGA kernels. [What's New in v2](docs/whats-new-v2.md) is the tour, and [Migrating to v2](docs/migrating-to-v2.md) lists what changes for existing code.
 
 ## Staying on 0.7
 

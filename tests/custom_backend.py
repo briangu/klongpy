@@ -28,20 +28,20 @@ def _as_test_array(value):
 
 class TestUfunc:
     def __init__(self, ufunc, wrap_result):
-        self._ufunc = ufunc
+        self.__wrapped__ = ufunc
         self._wrap_result = wrap_result
 
     def __call__(self, *args, **kwargs):
-        return self._wrap_result(self._ufunc(*args, **kwargs))
+        return self._wrap_result(self.__wrapped__(*args, **kwargs))
 
     def reduce(self, *args, **kwargs):
-        return self._wrap_result(self._ufunc.reduce(*args, **kwargs))
+        return self._wrap_result(self.__wrapped__.reduce(*args, **kwargs))
 
     def accumulate(self, *args, **kwargs):
-        return self._wrap_result(self._ufunc.accumulate(*args, **kwargs))
+        return self._wrap_result(self.__wrapped__.accumulate(*args, **kwargs))
 
     def __getattr__(self, name):
-        return getattr(self._ufunc, name)
+        return getattr(self.__wrapped__, name)
 
 
 class TestNumpyModule:

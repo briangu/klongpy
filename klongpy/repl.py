@@ -122,10 +122,13 @@ def append_pkg_resource_path_KLONGPATH() -> None:
     with importlib.resources.as_file(importlib.resources.files('klongpy')) as pkg_path:
         pkg_lib_path = os.path.join(pkg_path, 'lib')
         pkg_lib_path = str(pkg_lib_path)
-        klongpath = os.environ.get('KLONGPATH', '.:lib')
-        if pkg_lib_path in klongpath.split(':'):
+        klongpath = os.environ.get('KLONGPATH', os.pathsep.join(('.', 'lib')))
+        if os.name == 'nt' and os.pathsep in pkg_lib_path:
+            pkg_lib_path = f'"{pkg_lib_path}"'
+        if (klongpath == pkg_lib_path or pkg_lib_path in klongpath.split(os.pathsep)
+                or klongpath.endswith(f"{os.pathsep}{pkg_lib_path}")):
             return
-        os.environ['KLONGPATH'] = f"{klongpath}:{pkg_lib_path}" if klongpath else pkg_lib_path
+        os.environ['KLONGPATH'] = os.pathsep.join(filter(None, (klongpath, pkg_lib_path)))
 
 
 def create_repl(debug: bool = False, backend: Optional[str] = None, device: Optional[str] = None, strict: int = 0):

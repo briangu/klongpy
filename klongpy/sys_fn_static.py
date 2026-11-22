@@ -4,11 +4,14 @@ host calls and its tunable registers (docs/static-profile.md). The functions are
 klongpy/data/system_function_help.json); what is Python's here is the host's side of the declarations:
 
     klong = KlongInterpreter(strict=2)
-    klong.externs["read.adc"] = lambda channel: 0.3      # the stand-in
-    klong('.extern("read.adc";"int -> float")')           # binds the name read.adc
-    klong('read.adc(0)')                                  # 0.3
+    klong.externs["read_adc"] = lambda channel: 0.3       # the stand-in, by C symbol
+    klong('adc::.extern("read_adc";"int -> float")')      # the function value
+    klong('adc(0)')                                       # 0.3
 
-``klong.externs`` is an ExternTable: a dict from extern name to a Python callable (the stand-in, looked up by the engine at each
+A target's functions live in a module file (``adc::.extern("read_adc";"int -> float")`` and ``export:::{;"adc";adc}`` in ``read.kg``),
+used as ``.l("read")`` and ``read.adc(3)``.
+
+``klong.externs`` is an ExternTable: a dict from C symbol to a Python callable (the stand-in, looked up by the engine at each
 call, so it can be bound before or after the ``.extern`` line runs and replaced at any time), which also shows what the
 program declared (``declared``, ``entries``, ``params``: read from the engine). The engine checks arguments and result
 against the signature on every call.
@@ -34,9 +37,9 @@ class ParamDecl:
 
 class ExternTable(dict):
     """
-    ``klong.externs``: extern name -> Python stand-in.
+    ``klong.externs``: C symbol -> Python stand-in.
 
-        declared   {name: ExternDecl}   what .extern has declared (name, signature, module)
+        declared   {symbol: ExternDecl}   what .extern has declared (C symbol, signature)
         entries    [EntryDecl]          what .entry has declared, in order
         params     {name: ParamDecl}    what .param has declared (tunable registers)
 
@@ -55,7 +58,7 @@ class ExternTable(dict):
     @property
     def declared(self):
         k = self._native()
-        return {n: ExternDecl(n, parse_signature(s, allow_str=True), m) for n, s, m in (k.declared_externs() if k else ())}
+        return {n: ExternDecl(n, parse_signature(s, allow_str=True), n) for n, s in (k.declared_externs() if k else ())}
 
     @property
     def entries(self):

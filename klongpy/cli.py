@@ -97,12 +97,11 @@ def sys_cmd_dir(klong, cmd):
 
         List all *.kg files (Klong source programs) in the given
         directory. When no directory is given, it defaults to the first
-        element of the KLONGPATH variable. The ]i command depends on a
-        Unix shell and the "ls" utility (it does "cd dir; ls *.kg").
+        element of the KLONGPATH variable.
 
     """
     cmd = _arg(cmd)
-    dir = cmd if cmd else (os.environ.get("KLONGPATH") or "./").split(":")[0]
+    dir = cmd if cmd else (os.environ.get("KLONGPATH") or "./").split(os.pathsep)[0]
     if not os.path.isdir(dir):
         return f"no such directory: {dir}"
     found = False

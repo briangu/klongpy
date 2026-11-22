@@ -1,0 +1,4 @@
+:" One million prices spread across four trading days and 64 instruments.
+   The reader only needs one column for one instrument on one day."
+history::.db("history.duckdb")
+history("CREATE TABLE trades AS SELECT i // 250000 AS dayno, i % 64 AS sym, 1000 + i % 991 AS px, i AS seq, i % 19 AS qty FROM range(1000000) ticks(i)")

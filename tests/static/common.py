@@ -7,7 +7,7 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 EMBEDDED = os.path.join(ROOT, "examples", "embedded")
 GOLDEN = os.path.join(HERE, "golden")
 EXPECT = re.compile(r':" expect: static line (\d+) ([a-z0-9-]+) "\n')
-STUBS = {"read.adc": lambda ch: 0.5, "log.msg": lambda s, n: None}
+STUBS = {"read_adc": lambda ch: 0.5, "log_msg": lambda s, n: None}      # by C symbol
 
 
 def golden(test, name, text):

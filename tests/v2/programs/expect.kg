@@ -1,0 +1,1 @@
+expect(label;actual;expected)::{:[actual~expected;1;.err("system";.fmt("{} expected {} got {}";[;label;expected;actual]))]}

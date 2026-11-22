@@ -32,16 +32,16 @@ This page is for someone who has cloned the repository and wants to build it, ru
 | `static/` | The Python interface to the static compiler (`check_source`, `emit_program`, `load_program`, `call_entry`), the signature parser and the fixed-point array type. The checker, the type inference and the emitters are in Rust. |
 | `hw/` | The FPGA flow: build, card server and client, and the simulator. |
 | `db/`, `web/`, `ws/` | The optional database, web server and WebSocket system functions. |
-| `lib/` | Klong libraries (`math.kg`, `mgmt.kg`, ...), loaded with `.l` or `.import`. |
+| `lib/` | Klong libraries (`math.kg`, `mgmt.kg`, ...), loaded with `.l` (the three that are modules, `csv`, `mgmt` and `nstat`, state their interface with an `export` variable). |
 
 ### The `native/` workspace
 
 | Crate | Role |
 |---|---|
-| `klong-core` | Lexer, parser, values and evaluator: the engine. `no_std` with `alloc`. |
+| `klong-core` | Lexer, parser, values and evaluator: the engine. `no_std` with `alloc`. `module.rs` is the one place that decides what a module is (a top-level assignment to `export`) and in what order `.l` looks for a name; the runtime, the linter and the checker call it. |
 | `klong-ipc` | The kdb+ IPC codec, session and serial framing, with no I/O. |
 | `klong-dgram` | The datagram layer of the Pico bench: frames, checksums and retry. `no_std`. |
-| `klong-rt` | The runtime around the core: the `Platform` trait, system functions, modules, timers, heap accounting. |
+| `klong-rt` | The runtime around the core: the `Platform` trait, system functions, `.l` and the module cache (`modules.rs`), timers, heap accounting. |
 | `klong-host` | The `Platform` for desktop operating systems. |
 | `klong-lint` | The linter behind `kg lint` and `kgpy lint`. |
 | `klong-static` | The static profile: the checker, the typed IR and the C and FPGA emitters behind `check`, `compile c` and `fpga source`. |
@@ -88,6 +88,8 @@ The editable install builds the extension, `klongpy._native`. To build it by han
 Torch is optional. KlongPy runs without it, and tests and examples that need it skip or are skipped by the documentation checker. To work on the torch backend, install `torch`, and see the rule below on where `torch` may be imported.
 
 ## Running the tests
+
+Run `python -m pytest tests/v2 -q -rs` while developing. In the checkout, `tests/v2/README.md` describes the four release jobs for desktop functionality, the q comparison, GPU execution, and desktop and firmware builds. It gives their prerequisites and performance thresholds.
 
 Run the full suite with:
 

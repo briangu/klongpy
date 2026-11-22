@@ -369,9 +369,7 @@ class TestRepositoryGate(unittest.TestCase):
         """
         allowed = {
             "examples/stocks/options/black-scholes.kg",
-            "examples/1brc/worker.kg",
             # the examples written with destructuring
-            "examples/1brc/par.kg",
             "examples/autograd/black_scholes_live.kg",
             "examples/autograd/gradient_descent.kg",
             "examples/autograd/neural_net.kg",
@@ -381,7 +379,7 @@ class TestRepositoryGate(unittest.TestCase):
             "examples/ipc/srv_pubsub.kg",
             "examples/stocks/feed/consumer.kg",
             "examples/stocks/feed/feed.kg",
-            "examples/modules/data/feed.kg",        # selection and rename on import: [reseed noise]::.import(...)@[...]
+            "examples/modules/data/feed.kg",        # selection and rename on load: [reseed noise]::.l(...)@[...]
             "tests/kgtests/language/test_destructuring.kg",
             "tests/golden/fixtures/s2_destructuring_slot.kg",
             # written on purpose by the named-parameter tests

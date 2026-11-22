@@ -1,0 +1,30 @@
+.l("./expect.kg")
+
+correctionTable(ids)::{.table(:{;"account";ids:%16;"lot";ids!16;"qty";ids})}
+
+:" Time one 256-row correction batch against composite (account, lot) keys.
+   Use a multiple of 2048 so the 128 revised rows fall in separate blocks. "
+keyedUpdateTime(n)::{[t i old fresh replay first keys qty batch started elapsed final wanted];
+    t::correctionTable(!n);
+    .index(t;["account" "lot"]);
+
+    i::!128;
+    old::((n:%128)*i)+i!16;
+    fresh::n+!64;
+    first::old,fresh;
+    replay::(32#old),32#fresh;
+    keys::first,replay;
+    qty::(192#-7),64#301;
+    batch::+[;keys:%16;keys!16;qty];
+
+    started::.pc();
+    .insert(t;batch);
+    elapsed::.pc()-started;
+
+    final::!n+64;
+    wanted::(final:=(-7),first):=301,replay;
+    expect("row count";#t;n+64);
+    expect("account order";t@"account";final:%16);
+    expect("lot order";t@"lot";final!16);
+    expect("last correction for each key";t@"qty";wanted);
+    elapsed}

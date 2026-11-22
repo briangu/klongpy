@@ -23,6 +23,7 @@ import os
 import re
 import time
 import warnings
+from weakref import ref
 
 import numpy as np
 
@@ -35,6 +36,8 @@ from .types import (KGSym, KGChar, KLONG_UNDEFINED, KGCall, KGFn, KGFnWrapper, K
                     _arity_error, _count, _named_arity_error)
 
 from .native_ext import load_extension as _load_extension
+from .ipc.codec import KdbTable, KdbKeyedTable
+from .table_bridge import _WireTableView
 
 
 klong_native = _load_extension()
@@ -290,6 +293,17 @@ class _Frame(dict):
 _PLAIN_CALLABLES = (types.FunctionType, types.MethodType, types.BuiltinFunctionType)
 
 
+def _callback_owner(preferred, retained):
+    if retained is not None:
+        return retained
+    owner = preferred()
+    if owner is None:
+        owner = klong_native.active_host()
+    if owner is None:
+        raise ReferenceError("a Python callback needs a hosted Klong interpreter")
+    return owner
+
+
 class HostLambda:
     """A KGLambda object (a network client, an async call, a database handle) as a callable the native engine can hold.
 
@@ -299,7 +313,12 @@ class HostLambda:
     """
 
     def __init__(self, owner, kgl, bare=None):
-        self.owner = owner
+        self._preferred_owner = ref(owner)
+        # Plain functions need the session only for injection. Call adapters
+        # that implement their own protocol always receive the original session.
+        self._callback_backend = owner._backend
+        uses_owner = type(kgl).__call__ is not KGLambda.__call__ or kgl._provide_klong
+        self._retained_owner = owner if uses_owner else None
         self.kgl = kgl
         self.bare = bare    # the Python callable this stands for, when a bare callable was handed in (it goes back out as itself)
 
@@ -329,12 +348,12 @@ class HostLambda:
         return self.kgl.args
 
     def __call__(self, *args):
-        o = self.owner
+        o = _callback_owner(self._preferred_owner, self._retained_owner)
         bad = self.kgl.count_error(self.kgl.name or "the function", len(args))
         if bad:
             raise _named_arity_error(bad)
         try:
-            return o._in(self.kgl(o, _Frame([o._out(a) for a in args])))
+            return o._in(self.kgl(o, _Frame([o._out(a, self._callback_backend) for a in args])))
         except KlongError:
             raise
         except Exception as e:
@@ -478,6 +497,7 @@ class KlongInterpreter:
         self._start_time = time.time()
         self._warn_registry = {}
         k = self._k
+        k.set_host_owner(self)
         k.set_console(True)                         # .p .d .w .pf .oc .ic .cc .tc .fc .r .rl .mi: the engine's, on sys.stdout/stdin
         k.set_warning_hook(self._issue_warnings)    # syntax warnings, after the parse and before the first statement
         k.set_stand_in_lookup(self._stand_in)       # the Python function behind an .extern, and .fixed's array maker
@@ -604,11 +624,13 @@ class KlongInterpreter:
             self._wrapped.discard(name)
         fn = kgl.fn
         arity = 255 if kgl._wildcard else len(kgl.args)
-        out, into = self._out, self._in
+        preferred = ref(self)
         # the native engine hands a nilad its unit argument: a system function declared without parameters takes none
         n = arity if arity != 255 else None
         user = kgl.user is True
         provide = kgl._provide_klong
+        retained = self if provide else None
+        backend = self._backend
 
         def host(*a):
             bad = kgl.count_error(name, len(a))
@@ -617,8 +639,9 @@ class KlongInterpreter:
             if n is not None and not user and len(a) < n:
                 raise KlongArityError(f"{name} takes {n} argument{'s' if n != 1 else ''}, got {len(a)}")
             try:
-                args = [out(q) for q in a[:n]]
-                return into(fn(self, *args) if provide else fn(*args))
+                owner = _callback_owner(preferred, retained)
+                args = [owner._out(q, backend) for q in a[:n]]
+                return owner._in(fn(owner, *args) if provide else fn(*args))
             except KlongError:
                 raise
             except Exception as e:
@@ -635,10 +658,11 @@ class KlongInterpreter:
     def _wrap_fn(self, kfn):
         return NativeCall(kfn, self) if kfn.is_projection else NativeFn(kfn, self)
 
-    def _out(self, v):
+    def _out(self, v, backend=None):
         """A native result as KlongPy has it: function values are NativeFn (also inside lists and object arrays)."""
-        if self._backend.name != "numpy":
-            v = _result_for(self, v)
+        backend = self._backend if backend is None else backend
+        if backend.name != "numpy":
+            v = _result_for(backend, v)
         t = type(v)
         if t is _KFn:
             return self._wrap_fn(v)
@@ -648,20 +672,20 @@ class KlongInterpreter:
             return v.obj
         if isinstance(v, KGLambda):
             return v       # a system function registered from a KGLambda, handed back as that object
-        if t is np.ndarray:
+        if isinstance(v, np.ndarray) and (t is np.ndarray or backend.is_backend_array(v)):
             if v.dtype == object and v.size:
                 flat = v.ravel()
-                if any(type(q) is _KFn or type(q) in (np.ndarray, list) for q in flat):
-                    r = np.empty(v.shape, dtype=object)
+                if any(type(q) in (_KFn, np.ndarray, list, HostObject) for q in flat):
+                    r = v.copy()
                     rr = r.reshape(-1)
                     for i, q in enumerate(flat):
-                        rr[i] = self._out(q)
+                        rr[i] = self._out(q, backend)
                     return r
             return v
         if t is list:
-            return [self._out(q) for q in v]
+            return [self._out(q, backend) for q in v]
         if t is dict:
-            return {k: self._out(q) for k, q in v.items()}
+            return {k: self._out(q, backend) for k, q in v.items()}
         return v
 
     def _host_lambda(self, kgl):
@@ -701,13 +725,15 @@ class KlongInterpreter:
             return self._native_fn(v)
         if t is NativeFnWrapper:
             return self._native_fn(v.fn)
+        if t is _WireTableView:
+            return v._native_table
         if isinstance(v, KGLambda):
             return self._host_lambda(v)
         if t in _PLAIN_CALLABLES or (t is functools.partial and not hasattr(v, "dtype")):
             # a Python function handed in as a value (a callback, a member of a dictionary): it takes the arguments by position,
             # as a function assigned to a name does
             return HostLambda(self, KGLambda.from_callable(v), bare=v)
-        if t is not dict and isinstance(v, dict) and not hasattr(v, "_h"):
+        if t not in (dict, KdbTable, KdbKeyedTable) and isinstance(v, dict) and not hasattr(v, "_h"):
             return HostObject(v)
         if t is list:
             return [self._in(q) for q in v]
@@ -817,6 +843,10 @@ class KlongInterpreter:
 
     # -- variables ---------------------------------------------------------------------------------------------
     def __getitem__(self, k):
+        return self._get_item(k, public=True)
+
+    def _get_item(self, k, *, public=False):
+        """Read a name before the public scalar conversion when serving a typed lookup."""
         if str(k) in self._host_vars:
             return self._host_vars[str(k)]
         try:
@@ -829,7 +859,13 @@ class KlongInterpreter:
             if str(k) in self._wrapped:
                 return NativeLambdaWrapper(self, v, KGSym(str(k)))
             return v   # the KGLambda that was put there, as KlongPy hands it back
-        return self._result(self._out(v))
+        v = self._out(v)
+        return self._result(v) if public else v
+
+    def _apply_ipc(self, fn, target, args):
+        if self._float is not None and isinstance(target, NativeFn):
+            return self._call_value(self._native_fn(target)._call_ipc, args)
+        return self.apply(fn, args)
 
     def __setitem__(self, k, v):
         if type(v) is KGLambda:

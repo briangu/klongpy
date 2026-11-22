@@ -6,6 +6,12 @@
 
 /// Everything a runtime needs from where it runs.
 pub trait Platform {
+    /// Register the system functions supplied by this embedding.
+    fn register(&self, _interp: &mut klong_core::Interp) {}
+
+    /// Additional compiled capabilities the embedding application supplies.
+    fn features(&self) -> &[&str] { &[] }
+
     /// Monotonic microseconds.
     fn now_us(&self) -> u64;
     /// Seconds since 1970, if known.
@@ -46,6 +52,10 @@ pub trait Platform {
     /// say (the key is then the path with its dots taken out).
     fn real_path(&self, _path: &str) -> Option<alloc::string::String> {
         None
+    }
+    /// Accept native separators on input to the slash-based module loader.
+    fn module_path<'a>(&self, path: &'a str) -> alloc::borrow::Cow<'a, str> {
+        alloc::borrow::Cow::Borrowed(path)
     }
     /// A short name for `.ver()`: "host", the board's name.
     fn name(&self) -> &str {

@@ -10,4 +10,4 @@ defaults()::{:{;
   "report";:{;"title";"backtest"}}}
 
 .p("[config] loaded")
-.export(:{;"defaults";defaults})
+export:::{;"defaults";defaults}

@@ -35,12 +35,12 @@ Details are in [PyTorch Backend and Autograd](torch_backend.md).
 * A tensor cannot hold `:undefined`, so an `:undefined` inside a list differs from the numpy backend.
 * MPS has no float64.
 * `.gradcheck` needs the CPU device and raises on MPS.
-* `.bkx` does not complete for some Klong functions, those that branch on a tensor's value; check the `export_error` entry of its result.
+* `.export` does not complete for some Klong functions, those that branch on a tensor's value; check the `export_error` entry of its result.
 
 ### The interpreter on boards and under `kg`
 
-* **Recursion depth on small stacks.** The interpreter bounds the depth of nested evaluation and the stack it uses, and reports a range error when either is exceeded. `kg` allows 512 nested evaluations (`--max-depth` changes it): `f::{:[x;f(x-1);0]};f(240)` runs and `f(255)` gives a range error. A board with a small stack gets a smaller depth: the Pico firmware, with a 112 KiB stack, reaches 105 levels ([two Picos](native/pico-bench.md#what-works)).
-* **Heap needed to load large libraries.** A load reads one statement at a time and keeps functions as their text. On the 64-bit host the management library (`.l("mgmt")`) needs a heap of about 43 KiB to load; `.l("nstat")` peaks at about 322 KB. On a Pico about 10 KB stay in use once the library has been used ([two Picos calling each other](native/pico-bench.md#what-works)).
+* **Recursion depth on small stacks.** The interpreter bounds the depth of nested evaluation and the stack it uses, and reports a range error when either is exceeded. `kg` allows 512 nested evaluations (`--max-depth` changes it): `f::{:[x;f(x-1);0]};f(240)` runs and `f(255)` gives a range error. The two RP2040 Picos had a 112 KiB stack on RC1. In the board test `f::{:[x;1+f(x-1);0]}`, both returned 113 for `f(113)` and a range error for `f(114)`. [RP2040 measurements](native/pico-bench.md#rc1-on-two-rp2040-boards)
+* **Heap needed to load large libraries.** A load reads one statement at a time and keeps functions as their text. On the 64-bit host the management library (`.l("mgmt")`) needs a heap of about 43 KiB to load; `.l("nstat")` peaks at about 322 KB. On the RC1 serving Pico, the largest contiguous integer vector measured 6,826 elements after boot and 5,060 after a management call followed by two seconds idle. [RP2040 memory measurements](native/pico-bench.md#rc1-on-two-rp2040-boards)
 * **IPC on a device has run only on two Picos.** IPC between nodes and management-library calls have run on two Raspberry Pi Picos. The ESP32-P4 has run the console conformance suite only (the firmware has no IPC). The host build is tested against an open-source q implementation (PeachQ).
 * **One flaky Rust test.** `data_nesting_is_bounded` in `native/klong-core/tests/full.rs` fails in about one run in ten on a desktop. The cause is not known.
 * The default build of `kg` does not declare the conformance tags `bigint`, `timers`, `ipc` or `desktop`, so the suite does not test those areas for it.

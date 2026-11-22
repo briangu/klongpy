@@ -8,7 +8,7 @@ import unittest
 import numpy as np
 
 from klongpy.static import Signature, SignatureError, Ty, c_identifier, parse_signature, parse_type
-from klongpy.static.signature import Mismatch, check_entry_name, check_extern_name, conform
+from klongpy.static.signature import Mismatch, check_entry_name, check_symbol, conform
 from klongpy.types import KGChar, KGSym
 
 GOOD = [
@@ -108,13 +108,13 @@ class TestNames(unittest.TestCase):
         self.assertEqual(c_identifier("step"), "step")
 
     def test_extern_names(self):
-        for ok in ("read.adc", "f", "spi.xfer2", "INIT"):
-            self.assertIsNone(check_extern_name(ok), ok)
-        for bad, word in (("kg.trap", "kg_"), ("int", "reserved"), ("while", "reserved"), ("main", "reserved"),
-                          ("memcpy", "reserved"), ("read_adc", "Klong name"), ("2x", "Klong name"), (".p", "Klong name"),
-                          ("", "Klong name"), ("x", "argument"), ("café", "ASCII"), (3, "Klong name")):
+        for ok in ("read_adc", "f", "spi_xfer2", "INIT", "_x", "x"):
+            self.assertIsNone(check_symbol(ok), ok)
+        for bad, word in (("kg_trap", "kg_"), ("int", "reserved"), ("while", "reserved"), ("main", "reserved"),
+                          ("memcpy", "reserved"), ("read.adc", "no dot"), ("2x", "C identifier"), (".p", "no dot"),
+                          ("", "C identifier"), ("café", "C identifier"), (3, "C symbol must be a string")):
             with self.subTest(name=bad):
-                self.assertIn(word, check_extern_name(bad))
+                self.assertIn(word, check_symbol(bad))
 
     def test_entry_names(self):
         for ok in ("step", "run", "int", "a.b"):       # prog_int is a fine C name

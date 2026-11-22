@@ -109,7 +109,7 @@ class TestFiles(unittest.TestCase):
                      "void pid_init(pid_t *p);", "size_t pid_size(void);",
                      "kg_float pid_step(pid_t *p, kg_float x);",
                      "kg_float read_adc(kg_int a0);", "kg_int write_pwm(kg_int a0, kg_float a1);",
-                     "Klong name read.adc"):
+                     "Klong name board.adc: int -> float"):
             self.assertIn(text, h)
         self.assertNotIn("math.h", h + e.c)
 
@@ -166,7 +166,7 @@ class TestNames(unittest.TestCase):
         self.assertIn("void t_f__i2x3(t_t *p, const kg_int *x /* [2,3] */, kg_int *out /* [3] */);", e.h)
 
     def test_an_extern_that_collides_with_a_generated_name_is_an_error(self):
-        text = '.extern("t.f";"int -> int")\nf::{t.f(x)}\n.entry("f";"int -> int")'
+        text = 'tf::.extern("t_f";"int -> int")\nf::{tf(x)}\n.entry("f";"int -> int")'
         with self.assertRaises(KlongStaticError) as cm:
             emit_program("t.kg", None, text=text, prefix="t")
         self.assertIn("[extern]", str(cm.exception))
@@ -279,7 +279,7 @@ class TestFusionAndStorage(unittest.TestCase):
             self.assertIn("return (kg_int)((kg_uint)a + (kg_uint)b);", f.read())
 
     def test_side_effects_are_statements_in_klong_order(self):
-        text = ('.extern("rd";"int -> int")\nf::{rd(1)-rd(2)*rd(3)}\n.entry("f";"-> int")')
+        text = ('rd::.extern("rd";"int -> int")\nf::{rd(1)-rd(2)*rd(3)}\n.entry("f";"-> int")')
         _, e = emit_dir(text)
         body = function_body(e.c, "kg_f__0")
         order = re.findall(r"= rd\((\d)\);", body)
@@ -332,7 +332,8 @@ class TestSizeReport(unittest.TestCase):
                 with self.subTest(program=name, config=cfg):
                     with open(os.path.join(EMBEDDED, name + ".kg")) as f:
                         b = Build(f.read(), name=name if name != "pid" else "pidc", int_bits=cfg[0], float_bits=cfg[1],
-                                  externs={"read.adc": lambda ch: 0.3, "write.pwm": lambda ch, duty: 0})
+                                  externs={"read_adc": lambda ch: 0.3, "write_pwm": lambda ch, duty: 0},
+                                  path=os.path.join(EMBEDDED, name + ".kg"))
                     self.assertEqual(b.size, b.emitted.report["instance_bytes"])
 
 

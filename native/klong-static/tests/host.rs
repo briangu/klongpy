@@ -13,7 +13,7 @@ use klong_static::sig::parse_type;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-const ADC: &str = ".extern(\"read.adc\";\"int -> float\")\n";
+const ADC: &str = "adc::.extern(\"read_adc\";\"int -> float\")\n";
 
 fn konst(v: HostValue) -> HostFn {
     let f: NativeFn = Rc::new(move |_ip, _a| Ok(v.to_value()));
@@ -79,7 +79,7 @@ fn expect(name: &str) -> (Vec<(String, HostValue)>, Vec<(String, String)>) {
             let (k, v) = rest.split_once('=').unwrap();
             let v = v.trim();
             let hv = if v.contains('.') || v.contains('e') { HostValue::Float(v.parse().unwrap()) } else { HostValue::Int(v.parse().unwrap()) };
-            ext.push((k.trim().to_string(), hv));
+            ext.push((k.trim().replace('.', "_"), hv));
         } else if !line.trim().is_empty() && !line.starts_with('#') {
             let (e, w) = line.split_once(" => ").unwrap();
             steps.push((e.trim().to_string(), w.trim().to_string()));
@@ -109,7 +109,7 @@ fn the_reference_programs_give_the_values_of_their_expect_files() {
 #[test]
 fn call_entry_on_the_reference_programs() {
     // pid: the values of examples/embedded/pid.expect through the entry
-    let mut p = load_program("../../examples/embedded/pid.kg", None, externs(&[("read.adc", fl(0.3)), ("write.pwm", HostValue::Int(0))])).unwrap();
+    let mut p = load_program("../../examples/embedded/pid.kg", None, externs(&[("read_adc", fl(0.3)), ("write_pwm", HostValue::Int(0))])).unwrap();
     let r = call(&mut p, "step", &[fl(0.31)]);
     assert!(matches!(r, HostValue::Float(v) if (v - 0.12005).abs() < 1e-12), "{:?}", r);
     let r = call(&mut p, "step", &[fl(0.31)]);
@@ -135,11 +135,11 @@ fn call_entry_on_the_reference_programs() {
 // tests/static/test_extern_entry.py: TestHostHelpers, TestSameMistakeHostAndChecker
 // ---------------------------------------------------------------------------
 
-const STEP: &str = ".extern(\"read.adc\";\"int -> float\")\nacc::0.0\nstep::{acc::acc+x*read.adc(0);acc}\n.entry(\"step\";\"float -> float\")\n";
+const STEP: &str = "adc::.extern(\"read_adc\";\"int -> float\")\nacc::0.0\nstep::{acc::acc+x*adc(0);acc}\n.entry(\"step\";\"float -> float\")\n";
 
 #[test]
 fn load_program_and_call_entry() {
-    let mut p = load(STEP, &[("read.adc", fl(0.5))]);
+    let mut p = load(STEP, &[("read_adc", fl(0.5))]);
     assert_eq!(call(&mut p, "step", &[HostValue::Int(2)]), fl(1.0)); // the int argument is converted
     assert_eq!(call(&mut p, "step", &[fl(2.0)]), fl(2.0)); // state is kept between calls
     assert_eq!(call(&mut p, "step", &[fl(0.0)]), fl(2.0));
@@ -148,7 +148,7 @@ fn load_program_and_call_entry() {
 
 #[test]
 fn call_entry_checks_arguments_and_result() {
-    let mut p = load(STEP, &[("read.adc", fl(0.5))]);
+    let mut p = load(STEP, &[("read_adc", fl(0.5))]);
     assert_eq!(err(&mut p, "step", &[fv(&[1.0, 2.0])]), (Kind::Type, "argument 1 of entry step must be float, got float[2] (declared \"float -> float\")".into()));
     assert_eq!(err(&mut p, "step", &[]), (Kind::Type, "entry step is declared \"float -> float\" and takes 1 argument(s), got 0".into()));
     assert_eq!(err(&mut p, "step", &[fl(1.0), fl(2.0)]).1, "entry step is declared \"float -> float\" and takes 1 argument(s), got 2");
@@ -160,15 +160,15 @@ fn call_entry_checks_arguments_and_result() {
 
 #[test]
 fn a_missing_stand_in_is_a_system_error_naming_the_extern() {
-    let e = load_program("p.kg", Some(&format!("{}v::read.adc(0)\n", ADC)), HashMap::new()).err().expect("fails");
+    let e = load_program("p.kg", Some(&format!("{}v::adc(0)\n", ADC)), HashMap::new()).err().expect("fails");
     assert_eq!(e.kind, Kind::System);
-    assert_eq!(e.message, "extern read.adc has no stand-in on the host");
+    assert_eq!(e.message, "extern read_adc has no stand-in on the host");
     assert!(e.hint.as_deref().unwrap_or("").contains("klong_cfun_register"));
     // the same file with the stand-in bound before it runs
-    let mut p = load_program("p.kg", Some(&format!("{}v::read.adc(0)\n", ADC)), externs(&[("read.adc", fl(9.0))])).unwrap();
+    let mut p = load_program("p.kg", Some(&format!("{}v::adc(0)\n", ADC)), externs(&[("read_adc", fl(9.0))])).unwrap();
     assert_eq!(p.get("v"), Some(fl(9.0)));
     // a call of the entry without one
-    let mut q = load(&format!("{}step::{{read.adc(x)}}\n.entry(\"step\";\"int -> float\")\n", ADC), &[]);
+    let mut q = load(&format!("{}step::{{adc(x)}}\n.entry(\"step\";\"int -> float\")\n", ADC), &[]);
     assert_eq!(err(&mut q, "step", &[HostValue::Int(1)]).0, Kind::System);
 }
 
@@ -186,7 +186,7 @@ fn several_entries_with_different_shapes() {
     assert_eq!(e.kind, Kind::Name);
 }
 
-const BK: &str = ".extern(\"probe\";\"float[3] -> float[3]\")\n.extern(\"tick\";\"int -> int\")\nw::[1.5 2.5 3.5]\nf::{[a];a::probe(x+w);(a*2.0)+tick(1)}\n.entry(\"f\";\"float[3] -> float[3]\")\ng::{+/x}\n.entry(\"g\";\"int[4] -> int\")\n";
+const BK: &str = "probe::.extern(\"probe\";\"float[3] -> float[3]\")\ntick::.extern(\"tick\";\"int -> int\")\nw::[1.5 2.5 3.5]\nf::{[a];a::probe(x+w);(a*2.0)+tick(1)}\n.entry(\"f\";\"float[3] -> float[3]\")\ng::{+/x}\n.entry(\"g\";\"int[4] -> int\")\n";
 
 #[test]
 fn the_boundary_carries_numbers_and_arrays_of_the_declared_type() {

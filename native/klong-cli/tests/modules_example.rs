@@ -27,7 +27,7 @@ fn each_error_program_stops_with_its_error() {
         ("missing", "name error", "no entry \"nosuch\""),
         ("private", "name error", "no entry \"sq\""),
         ("cycle", "system error", "import cycle"),
-        ("noexport", "system error", "has no .export"),
+        ("noexport", "type error", "is not a module"),
         ("undefined", "name error", "nosuch is not defined"),
         ("notadict", "type error", "not a dictionary"),
     ];

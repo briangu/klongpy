@@ -1,134 +1,221 @@
 # The declarations of the static profile that an interpreter runs as they stand (docs/static-profile.md):
-# .extern declares a function the host provides, .entry declares a function the program defines.
+# .extern returns a function the host provides, .entry declares a function the program defines.
 # A case runs in a fresh interpreter with no host function, so a call of an extern is a system error.
 # Fixed-point values (.fixed) are not part of the suite.
 
-@ static.extern-returns-the-signature strings static
-> .extern("read.adc";"int -> float")
-= "int -> float"
+# .extern(c_symbol;signature) returns a host-function value; the program assigns it (f::.extern("read_adc";"int -> float")). The C symbol
+# names what the host registered; the Klong name is the program's own. A statement that discards the value is an error.
 
-@ static.extern-canonical-form strings static
-> .extern("f";"int   float[8]->  void")
-= "int float[8] -> void"
-
-@ static.extern-array-result strings static
-> .extern("fill";"float[64] -> float[16,4]")
-= "float[64] -> float[16,4]"
-
-@ static.extern-str-parameter strings static
-> .extern("log";"str int -> void")
-= "str int -> void"
-
-@ static.extern-no-parameters strings static
-> .extern("tick";"-> int")
-= "-> int"
-
-@ static.extern-module-argument strings static
-> .extern("fill";"float[64] -> float[64]";"dsp")
-= "float[64] -> float[64]"
-
-@ static.extern-declared-twice-the-same strings static
-> .extern("f";"int -> int");.extern("f";"int -> int")
-= "int -> int"
-
-@ static.extern-declared-twice-differently strings static
-> .extern("f";"int -> int");.extern("f";"float -> int")
-! type
-
-@ static.extern-module-differs strings static
-> .extern("f";"int -> int";"a");.extern("f";"int -> int";"b")
-! type
-
-@ static.extern-defines-its-name strings static
-> .extern("read.adc";"int -> float");(read.adc)~(read.adc)
+@ static.extern-is-a-value strings static
+> f::.extern("read_adc";"int -> float")
+> 1
 = 1
 
+@ static.extern-defines-no-name strings static strict2
+# the C symbol is not a name of the program: only the name the program assigns exists
+> f::.extern("tick";"-> int")
+> tick
+! name
+
+@ static.extern-canonical-form-is-one-declaration strings static
+> a::.extern("f";"int   float[8]->  void")
+> b::.extern("f";"int float[8] -> void")
+> 1
+= 1
+
+@ static.extern-array-result strings static
+> f::.extern("fill";"float[64] -> float[16,4]")
+> 1
+= 1
+
+@ static.extern-str-parameter strings static
+> f::.extern("log";"str int -> void")
+> 1
+= 1
+
+@ static.extern-no-parameters strings static
+> f::.extern("tick";"-> int")
+> 1
+= 1
+
+@ static.extern-the-value-can-be-kept-in-a-dictionary strings dicts static
+> d:::{;"adc";.extern("read_adc";"int -> float")}
+> d.adc(0)
+! system
+
+@ static.extern-statement-form-is-an-error strings static
+# the value must be assigned: the old statement form declared a global
+> .extern("read_adc";"int -> float")
+> 1
+! type
+
+@ static.extern-statement-form-in-a-sequence-is-an-error strings static
+> f::1;.extern("f";"int -> int");f
+! type
+
+@ static.extern-module-argument-is-gone strings static
+> f::.extern("fill";"float[64] -> float[64]";"dsp")
+! arity
+
+@ static.extern-declared-twice-the-same strings static
+> a::.extern("f";"int -> int")
+> b::.extern("f";"int -> int")
+> 1
+= 1
+
+@ static.extern-declared-twice-differently strings static
+> a::.extern("f";"int -> int")
+> b::.extern("f";"float -> int")
+! type
+
 @ static.extern-call-without-a-host-function strings static
-> .extern("read.adc";"int -> float");read.adc(0)
+> f::.extern("read_adc";"int -> float")
+> f(0)
 ! system
 
 @ static.extern-call-with-too-many-arguments strings static
-> .extern("f";"int -> int");f(1;2)
+> f::.extern("f";"int -> int")
+> f(1;2)
 ! arity
 
 @ static.extern-call-with-no-argument strings static
-> .extern("f";"int -> int");f()
+> f::.extern("f";"int -> int")
+> f()
 ! arity
 
 @ static.extern-more-than-three-parameters strings static
-> .extern("g";"int int int int -> int");g(1;2;3;4)
+> g::.extern("g";"int int int int -> int")
+> g(1;2;3;4)
 ! system
 
 @ static.extern-more-than-three-too-many strings static
-> .extern("g";"int int int int -> int");g(1;2;3;4;5)
+> g::.extern("g";"int int int int -> int")
+> g(1;2;3;4;5)
 ! arity
 
-@ static.extern-on-a-defined-name strings static
-> f::1;.extern("f";"int -> int")
-! name
+@ static.extern-more-than-three-fewer-arguments-is-a-projection strings static
+> g::.extern("g";"int int int int -> int")
+> p::g(1;2;3)
+> p(4)
+! system
+
+@ static.extern-six-parameters strings static
+> g::.extern("g";"int int int int int int -> int")
+> g(1;2;3;4;5;6)
+! system
+
+@ static.extern-six-parameters-too-many strings static
+> g::.extern("g";"int int int int int int -> int")
+> g(1;2;3;4;5;6;7)
+! arity
+
+@ static.extern-wide-function-is-a-value-in-a-dictionary strings dicts static
+> d:::{;"g";.extern("g";"int int int int -> int")}
+> d.g(1;2;3;4)
+! system
+
+@ static.extern-wide-function-two-declarations-are-independent strings static
+> g::.extern("g4";"int int int int -> int")
+> h::.extern("h5";"int int int int int -> int")
+> h(1;2;3;4;5;6)
+! arity
+
+@ static.extern-wide-function-passed-as-an-argument strings static
+> g::.extern("g";"int int int int -> int")
+> apply(f)::{f(1;2;3;4)}
+> apply(g)
+! system
 
 @ static.extern-name-is-a-string strings static
-> .extern(1;"int -> int")
+> f::.extern(1;"int -> int")
 ! type
 
 @ static.extern-signature-is-a-string strings static
-> .extern("f";1)
+> f::.extern("f";1)
 ! type
 
 @ static.extern-too-few-arguments strings static
-> .extern("f")
+> f::.extern("f")
 ! arity
 
 @ static.extern-signature-without-arrow strings static
-> .extern("f";"int")
+> f::.extern("f";"int")
 ! type
 
 @ static.extern-signature-two-arrows strings static
-> .extern("f";"int -> int -> int")
+> f::.extern("f";"int -> int -> int")
 ! type
 
 @ static.extern-signature-unknown-type strings static
-> .extern("f";"quux -> int")
+> f::.extern("f";"quux -> int")
 ! type
 
 @ static.extern-signature-no-result strings static
-> .extern("f";"int ->")
+> f::.extern("f";"int ->")
 ! type
 
 @ static.extern-signature-void-parameter strings static
-> .extern("f";"void -> int")
+> f::.extern("f";"void -> int")
 ! type
 
 @ static.extern-signature-str-result strings static
-> .extern("f";"int -> str")
+> f::.extern("f";"int -> str")
 ! type
 
 @ static.extern-signature-zero-dimension strings static
-> .extern("f";"int[0] -> int")
+> f::.extern("f";"int[0] -> int")
 ! type
 
 @ static.extern-signature-five-dimensions strings static
-> .extern("f";"int[1,2,3,4,5] -> int")
+> f::.extern("f";"int[1,2,3,4,5] -> int")
 ! type
 
-@ static.extern-name-with-an-underscore strings static
-> .extern("a_b";"int -> int")
+# the C symbol: a C identifier (letters, digits and underscores, not starting with a digit), not a C keyword, no kg_ prefix, no dot
+
+@ static.extern-symbol-with-an-underscore strings static
+> f::.extern("a_b";"int -> int")
+> 1
+= 1
+
+@ static.extern-symbol-with-a-dot strings static
+> f::.extern("read.adc";"int -> float")
 ! type
 
-@ static.extern-name-starts-with-a-digit strings static
-> .extern("1a";"int -> int")
+@ static.extern-symbol-starts-with-a-digit strings static
+> f::.extern("1a";"int -> int")
 ! type
 
-@ static.extern-name-is-an-argument strings static
-> .extern("x";"int -> int")
+@ static.extern-symbol-is-empty strings static
+> f::.extern("";"int -> int")
 ! type
 
-@ static.extern-name-is-a-c-keyword strings static
-> .extern("int";"int -> int")
+@ static.extern-symbol-with-a-space strings static
+> f::.extern("a b";"int -> int")
 ! type
 
-@ static.extern-name-of-the-runtime strings static
-> .extern("kg.a";"int -> int")
+@ static.extern-symbol-with-a-hyphen strings static
+> f::.extern("a-b";"int -> int")
+! type
+
+@ static.extern-symbol-is-a-c-keyword strings static
+> f::.extern("int";"int -> int")
+! type
+
+@ static.extern-symbol-is-a-c-keyword-while strings static
+> f::.extern("while";"int -> int")
+! type
+
+@ static.extern-symbol-of-the-runtime strings static
+> f::.extern("kg_a";"int -> int")
+! type
+
+@ static.extern-symbol-kg-without-underscore-is-fine strings static
+> f::.extern("kga";"int -> int")
+> 1
+= 1
+
+@ static.extern-symbol-is-a-symbol-value strings static
+> f::.extern(:read_adc;"int -> float")
 ! type
 
 @ static.entry-returns-the-signature strings static
@@ -200,7 +287,7 @@
 ! type
 
 @ static.entry-an-extern-is-not-defined-by-the-program strings static
-> .extern("f";"int -> int");.entry("f";"int -> int")
+> f::.extern("f";"int -> int");.entry("f";"int -> int")
 ! type
 
 # .float converts an int or an array of numbers to float; .param declares a tunable input register.
@@ -281,14 +368,6 @@
 > n::5;.param("n";"int")
 ! name
 
-@ static.param-name-of-an-extern strings static
-> .extern("f";"int -> int");.param("f";"int")
-! name
-
-@ static.extern-name-of-a-param strings static
-> .param("f";"int");.extern("f";"int -> int")
-! name
-
 @ static.param-array-type strings static
 > .param("n";"int[4]")
 ! type
@@ -326,11 +405,11 @@
 ! arity
 
 @ static.extern-too-many-arguments strings static
-> .extern("f";"int -> int";"env";1)
+> f::.extern("f";"int -> int";1)
 ! arity
 
 @ static.extern-five-arguments strings static
-> .extern("f";"int -> int";"env";1;2)
+> f::.extern("f";"int -> int";1;2)
 ! arity
 
 @ static.param-too-many-arguments strings static

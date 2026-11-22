@@ -35,7 +35,7 @@ from ..core import (KGCall, KGFn, KGFnWrapper, KGLambda, KGSym,
                     KLONG_UNDEFINED, get_fn_arity_str, reserved_fn_args, reserved_fn_symbol_map)
 from ..errors import (ERROR_KINDS, KlongError, KlongInternalError, KlongRemoteError,
                       KlongSystemError, KlongTypeError, classify)
-from .codec import KdbError, KdbLambda, set_function_text_hook
+from .codec import KdbError, KdbLambda, _is_promoted_real, set_function_text_hook
 from .errors import (IPCError, IPCStateError, KlongIPCConnectionClosedException,
                      KlongIPCConnectionFailureException, KlongIPCHandshakeException,
                      KlongIPCTimeoutException, ProtocolError)
@@ -299,6 +299,8 @@ def to_wire_value(klong, v):
     be = _backend(klong)
     if be is None or _backend_name(klong) == "numpy":
         return v
+    if hasattr(v, "__klong_ipc_columns__") or hasattr(v, "__klong_ipc_body__"):
+        return v
     try:
         if be.is_backend_array(v):
             return be.to_numpy(v)
@@ -319,8 +321,13 @@ def to_wire_value(klong, v):
 def _from_wire_array(klong, v):
     """Decoded numeric numpy arrays to the backend's array type (tests/test_torch_regressions.py)."""
     if isinstance(v, np.ndarray) and v.dtype.kind in "if" and _backend_name(klong) != "numpy":
+        backend = _backend(klong)
         try:
-            return _backend(klong).kg_asarray(v)
+            if v.dtype == np.float64 and not backend.supports_float64():
+                if not _is_promoted_real(v.dtype):
+                    return v
+                return backend.kg_asarray(v.astype(np.float32))
+            return backend.kg_asarray(v)
         except Exception:  # noqa: BLE001
             return v
     return v
@@ -436,14 +443,15 @@ def _arity_of(target):
 def _lookup(klong, sym):
     """The value a symbol names for a peer: a global, or for a dotted name (mgmt.call, which the module system reads as mgmt@"call")
     the entry of the dictionary the first part names. KeyError: symbol not found."""
+    get_item = getattr(klong, "_get_item", klong.__getitem__)
     try:
-        return klong[sym]
+        return get_item(sym)
     except KeyError:
         name = str(sym)
         parts = name.split(".")
         if name.startswith(".") or len(parts) < 2 or not all(parts):
             raise
-        value = klong[parts[0]]
+        value = get_item(parts[0])
         for key in parts[1:]:
             if not isinstance(value, dict) or key not in value:
                 raise KeyError(name) from None
@@ -469,6 +477,9 @@ def _apply(klong, callee, args):
         raise KlongTypeError(f"not callable: {callee}")
     if len(args) == 1 and args[0] is KLONG_UNDEFINED and _arity_of(target) == 0:
         args = []                                # q's (`f; ::) calls f with no arguments
+    apply_ipc = getattr(klong, "_apply_ipc", None)
+    if apply_ipc is not None:
+        return apply_ipc(fn, target, args)
     return klong.apply(fn, args)
 
 

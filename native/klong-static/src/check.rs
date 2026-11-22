@@ -6,7 +6,7 @@ use crate::ast::{Bad, Conv, Kind, Lit, Node, Scalar, Sp};
 use crate::sig::{self, fixed_spec, int_range, is_fixed, EntryDecl, ExternDecl, Ty, MAX_RANK};
 use crate::tables::{self, lookup, Op};
 use crate::util::plural;
-use klong_lint::recover::{find_load, parse_recovering, Session, Source};
+use klong_lint::recover::{parse_recovering, Session, Source};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::rc::Rc;
 
@@ -399,7 +399,48 @@ struct ModCtx {
     names: HashSet<String>,
     aliases: HashMap<String, Rc<ModInfo>>,
     bad_aliases: HashSet<String>,
+    /// The entries `.l(path;["a" "b"])` bound as plain names.
+    bound: HashMap<String, Rc<Node>>,
     export: Option<HashMap<String, Rc<Node>>>,
+}
+
+/// A statement of a parsed file with what `klong_core::module::interface` said of it: `Some` when it assigns `export` (inside, its keys
+/// and value nodes when written as a literal).
+struct Stmt1 {
+    node: Rc<Node>,
+    span: Sp,
+    export: Option<Option<Vec<(String, Rc<Node>)>>>,
+}
+
+struct Prepared {
+    src: usize,
+    stmts: Vec<Stmt1>,
+}
+
+/// The second argument of `.l`.
+enum Bind {
+    Stem,
+    Alias(String),
+    Names(Vec<String>),
+}
+
+/// A constant of a literal `export` dictionary as a node.
+fn const_node(v: &klong_core::Value) -> Node {
+    let k = match v {
+        klong_core::Value::Int(i) => Kind::Int(*i as i128),
+        klong_core::Value::Flt(f) => Kind::Flt(*f as f64),
+        klong_core::Value::Str(s) => Kind::Str(s.as_str().to_string()),
+        _ => Kind::Missing,
+    };
+    Node { k, span: None, op_span: None, arg_spans: Vec::new() }
+}
+
+/// A data list of string literals, `["a" "b"]`.
+fn string_list(n: &Node) -> Option<Vec<String>> {
+    match &n.k {
+        Kind::Arr(Lit::Bad(_, rows)) => rows.iter().map(|r| match r { Lit::Scalar(Scalar::Str(s)) => Some(s.clone()), _ => None }).collect(),
+        _ => None,
+    }
 }
 
 struct Checker {
@@ -493,6 +534,14 @@ impl Checker {
     }
 
     fn load(&mut self, name: &str, text: &str, base_dir: &str, depth: usize) {
+        let p = self.prepare(name, text);
+        self.process(p, base_dir, depth);
+    }
+
+    /// Parse a file: its statements with what the shared reader (`klong_core::module`, the decision the interpreter and the linter
+    /// make) says of each. A file is a module when one of them is its `export`; a statement that calls `.extern` and discards the value
+    /// is reported here.
+    fn prepare(&mut self, name: &str, text: &str) -> Prepared {
         let src = self.r.sources.len();
         self.r.sources.push(SrcInfo { name: name.to_string(), source: Source::new(name, text.to_string()) });
         let rec = parse_recovering(name, text, 2);
@@ -500,40 +549,64 @@ impl Checker {
             self.diag_in("strict-syntax", d.span, d.message.clone(), d.hint.as_deref(), src);
         }
         self.broken.extend(rec.broken.iter().cloned());
-        let saved = self.src;
-        self.src = src;
-        let stmts: Vec<(Rc<Node>, Sp)> = rec
-            .statements
-            .iter()
-            .map(|s| {
-                let c = Conv { tree: &s.tree, syms: &rec.syms };
-                (Rc::new(c.conv(s.node)), s.span)
-            })
-            .collect();
-        self.collect_names(&stmts);
-        for (n, span) in stmts {
-            if self.module_statement(&n, span, src, base_dir, depth) {
+        let mut stmts: Vec<Stmt1> = Vec::new();
+        for s in &rec.statements {
+            if klong_core::module::discarded_extern(&s.tree, &rec.syms, s.node) {
+                self.diag_in("extern", s.span, klong_core::module::DISCARDED_EXTERN.to_string(), Some(klong_core::module::DISCARDED_EXTERN_HINT), src);
                 continue;
             }
-            let n = self.rewrite(&n, &mut Vec::new(), span);
-            self.statement(&n, span, src, base_dir, depth);
+            let c = Conv { tree: &s.tree, syms: &rec.syms };
+            let export = klong_core::module::interface(&s.tree, &rec.syms, s.node).map(|i| {
+                i.entries.map(|es| {
+                    es.into_iter()
+                        .map(|(k, e)| {
+                            let v = match e {
+                                klong_core::module::Entry::Node(id) => c.conv(id),
+                                klong_core::module::Entry::Const(v) => const_node(&v),
+                            };
+                            (k, Rc::new(v))
+                        })
+                        .collect::<Vec<_>>()
+                })
+            });
+            stmts.push(Stmt1 { node: Rc::new(c.conv(s.node)), span: s.span, export });
+        }
+        Prepared { src, stmts }
+    }
+
+    fn process(&mut self, p: Prepared, base_dir: &str, depth: usize) {
+        let saved = self.src;
+        self.src = p.src;
+        self.collect_names(&p.stmts);
+        for st in p.stmts {
+            if self.module_statement(&st, base_dir, depth) {
+                continue;
+            }
+            let n = self.rewrite(&st.node, &mut Vec::new(), st.span);
+            self.statement(&n, st.span, p.src);
         }
         self.src = saved;
     }
 
     // -- modules (design point 11) ------------------------------------------------------
     //
-    // `alias::.import("file")` at the top level reads the file as a module: its top-level names become the compiler's names
-    // `prefix.name` (the file's own name, so the C name does not depend on the importer's alias), `.export` fixes what `alias.key` means,
-    // and `alias.key` is rewritten to that name before the statement is checked. A function reached through two aliases is one function.
+    // `.l("file")` at the top level reads a file that assigns `export` as a module: its top-level names become the compiler's names
+    // `prefix.name` (the file's own name, so the C name does not depend on the importer's alias), `export` fixes what `alias.key` means,
+    // and `alias.key` is rewritten to that name before the statement is checked. `.l("file";:alias)` binds another alias,
+    // `.l("file";["a" "b"])` binds those entries as plain names. A function reached through two aliases is one function. A file that does
+    // not assign `export` is read into the program as classic `.l` reads it. `NAME::.extern("symbol";"signature")` declares an extern
+    // whose compiler name is `prefix.NAME` and whose C symbol is the first argument.
 
-    fn collect_names(&mut self, stmts: &[(Rc<Node>, Sp)]) {
+    fn collect_names(&mut self, stmts: &[Stmt1]) {
         let mut found = Vec::new();
-        for (n, _) in stmts {
-            if let Kind::Dyad(op, left, right) = &n.k {
+        for st in stmts {
+            if st.export.is_some() {
+                continue;
+            }
+            if let Kind::Dyad(op, left, right) = &st.node.k {
                 if op == "::" && !right.is_missing() {
                     match &left.k {
-                        Kind::Sym(name) if !ARGS.contains(&name.as_str()) && !Self::is_import(right) => found.push(name.clone()),
+                        Kind::Sym(name) if !ARGS.contains(&name.as_str()) => found.push(name.clone()),
                         Kind::Destructure(names) => found.extend(names.iter().cloned()),
                         _ => {}
                     }
@@ -545,28 +618,33 @@ impl Checker {
         }
     }
 
-    fn is_import(n: &Node) -> bool {
-        matches!(&n.k, Kind::Call { callee, .. } if matches!(&callee.k, Kind::Sym(s) if s == ".import"))
+    fn is_extern_call(n: &Node) -> bool {
+        matches!(&n.k, Kind::Call { callee, kcall: true, .. } if matches!(&callee.k, Kind::Sym(s) if s == ".extern"))
     }
 
-    /// A statement that is the module system's own: `alias::.import("path")`, `.export(...)`, an `.entry` of a module. True when handled.
-    fn module_statement(&mut self, n: &Rc<Node>, span: Sp, src: usize, base_dir: &str, depth: usize) -> bool {
+    /// A statement that is the module system's own: `export:::{...}`, `NAME::.extern(...)`, `.l(...)`, an `.entry` of a module. True when handled.
+    fn module_statement(&mut self, st: &Stmt1, base_dir: &str, depth: usize) -> bool {
+        let (n, span) = (&st.node, st.span);
+        if let Some(entries) = &st.export {
+            self.export_declaration(entries.as_deref(), n, span);
+            return true;
+        }
         if let Kind::Dyad(op, left, right) = &n.k {
-            if op == "::" && Self::is_import(right) {
+            if op == "::" && Self::is_extern_call(right) {
                 let lsp = n.arg_span(0, span);
-                let Kind::Sym(alias) = &left.k else {
-                    self.diag("redefinition", lsp, "the result of .import must be assigned to a name".to_string(), None);
+                let Kind::Sym(name) = &left.k else {
+                    self.diag("extern", lsp, "the result of .extern must be assigned to a name".to_string(), None);
                     return true;
                 };
                 let Kind::Call { args, .. } = &right.k else { return true };
-                self.import_declaration(alias, args, n, span, lsp, base_dir, depth);
+                self.extern_declaration(name, args, right, span, lsp);
                 return true;
             }
         }
         if let Kind::Call { callee, args, kcall: true } = &n.k {
             if let Kind::Sym(name) = &callee.k {
-                if name == ".export" {
-                    self.export_declaration(args, n, span, src);
+                if name == ".l" {
+                    self.l_declaration(args, n, span, base_dir, depth);
                     return true;
                 }
                 // (a library's entries are not the program's)
@@ -578,62 +656,192 @@ impl Checker {
         false
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn import_declaration(&mut self, alias: &str, args: &[Rc<Node>], n: &Rc<Node>, span: Sp, lsp: Sp, base_dir: &str, depth: usize) {
-        if args.len() != 1 || is_plain_str(&args[0]).is_none() {
-            self.diag("decl-literal", n.arg_span(1, span), ".import in a compiled program takes one string literal: the compiler reads the file when it checks".to_string(), None);
-            self.mods.last_mut().map(|c| c.bad_aliases.insert(alias.to_string()));
+    /// `NAME::.extern("symbol";"signature")`.
+    fn extern_declaration(&mut self, name: &str, args: &[Rc<Node>], n: &Rc<Node>, span: Sp, lsp: Sp) {
+        let src = self.src;
+        if args.len() != 2 {
+            self.diag("decl-literal", span, format!(".extern takes 2 arguments (the C symbol and the signature), got {}", args.len()), Some("the module placeholder, a third argument, is gone"));
             return;
         }
-        let spec = is_plain_str(&args[0]).unwrap().to_string();
-        let again = self.mods.last().map(|c| c.aliases.contains_key(alias) || c.bad_aliases.contains(alias) || c.names.contains(alias)).unwrap_or(false);
-        if again {
-            self.diag("redefinition", lsp, format!("{} is assigned more than once; the compiler resolves alias.name only for a name assigned once, by .import", alias), None);
+        for (i, a) in args.iter().enumerate() {
+            if is_plain_str(a).is_none() {
+                self.diag("decl-literal", n.arg_span(1, span), format!("argument {} of .extern must be a string literal", i + 1), None);
+                return;
+            }
+        }
+        let (sym, text) = (is_plain_str(&args[0]).unwrap().to_string(), is_plain_str(&args[1]).unwrap().to_string());
+        let ssp = n.arg_span(1, span);
+        let sig = match sig::parse_signature(&text, true) {
+            Ok(s) => s,
+            Err(e) => {
+                let at = self.inside_literal(src, ssp, &text, e.span);
+                self.diag("signature", at, format!(".extern signature: {}", e.message), None);
+                return;
+            }
+        };
+        let ssp0 = n.arg_span(0, span);
+        if let Some(bad) = sig::check_symbol(&sym) {
+            self.diag("extern", ssp0, bad, Some("the first argument is the C symbol (read_adc); the name a program uses is the key of the module's export"));
             return;
         }
+        if ARGS.contains(&name) {
+            self.diag("toplevel-effect", lsp, format!("{} is a function argument; it cannot be defined at top level", name), None);
+            return;
+        }
+        // the C symbol is the identity: the same symbol with the same signature is one declaration, with another signature it is an error
+        let old_sig = self.r.externs.values().find(|x| x.c_symbol == sym).map(|x| x.signature.clone());
+        if let Some(old) = old_sig {
+            if old != sig {
+                let first = old.to_string();
+                self.diag("extern", span, format!("the C symbol {} is declared again with a different signature (first as \"{}\")", sym, first), None);
+                return;
+            }
+        }
+        let cname = match self.mods.last() {
+            Some(c) if !c.prefix.is_empty() => format!("{}.{}", c.prefix, name),
+            _ => name.to_string(),
+        };
+        if !self.taken(&cname, TK::Extern, lsp) {
+            return;
+        }
+        self.r.externs.set(&cname, ExternDecl { name: cname.clone(), c_symbol: sym, signature: sig, span, src });
+        self.r.statements.push(Stmt { kind: "extern", name: cname, span, src });
+    }
+
+    /// `.l("file")`, `.l("file";:alias)`, `.l("file";["a" "b"])`.
+    fn l_declaration(&mut self, args: &[Rc<Node>], n: &Rc<Node>, span: Sp, base_dir: &str, depth: usize) {
+        if args.is_empty() || args.len() > 2 {
+            self.diag("decl-literal", span, format!(".l takes 1 or 2 arguments, got {}", args.len()), None);
+            return;
+        }
+        let Some(spec) = is_plain_str(&args[0]).map(String::from) else {
+            self.diag("decl-literal", n.arg_span(0, span), "argument 1 of .l must be a string literal".to_string(), None);
+            return;
+        };
+        let nsp = n.arg_span(0, span);
+        let how = match args.get(1) {
+            None => Bind::Stem,
+            Some(a) => match &a.k {
+                Kind::QSym(name) => Bind::Alias(name.clone()),
+                _ => match string_list(a) {
+                    Some(names) => Bind::Names(names),
+                    None => {
+                        self.diag("decl-literal", n.arg_span(1, span), "argument 2 of .l must be a symbol or a list of string literals".to_string(), Some("write .l(\"file\";:name) or .l(\"file\";[\"a\" \"b\"])"));
+                        return;
+                    }
+                },
+            },
+        };
         self.r.statements.push(Stmt { kind: "load", name: spec.clone(), span, src: self.src });
         if !self.resolve {
             return;
         }
-        let Some(path) = klong_lint::recover::find_import(&self.sess, &spec, base_dir) else {
-            self.diag("load", n.arg_span(1, span), format!("cannot find the file \"{}\" named by .import", spec), Some("a name without ./ or ../ is looked for in KLONGPATH and the library; ./name and ../name are relative to the importing file"));
-            self.mods.last_mut().map(|c| c.bad_aliases.insert(alias.to_string()));
+        let aliases: Vec<String> = match &how {
+            Bind::Stem => vec![klong_core::module::stem(&spec).to_string()],
+            Bind::Alias(a) => vec![a.clone()],
+            Bind::Names(ns) => ns.clone(),
+        };
+        let bad = |me: &mut Checker, names: &[String]| {
+            if let Some(c) = me.mods.last_mut() {
+                for a in names {
+                    c.bad_aliases.insert(a.clone());
+                }
+            }
+        };
+        let Some(found) = klong_lint::recover::find(&self.sess, &spec, base_dir) else {
+            self.diag("load", nsp, format!("cannot find the file \"{}\" named by .l", spec), Some("a name is looked for in the directory of the file that has the .l, then in KLONGPATH, then in the library; ./name and ../name are relative to that file"));
+            bad(self, &aliases);
             return;
         };
-        let real = std::fs::canonicalize(&path).map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| path.clone());
+        let path = found.path;
+        let real = std::fs::canonicalize(klong_host::os_path(&path).as_ref()).map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| path.clone());
         let info = match self.modules.get(&real) {
             Some(Some(i)) => Some(i.clone()),
             Some(None) => {
-                self.diag("load", n.arg_span(1, span), format!("import cycle at \"{}\"", spec), None);
-                None
-            }
-            None if depth >= 8 => {
-                self.diag("load", n.arg_span(1, span), format!(".import nests too deeply at \"{}\"", spec), None);
-                None
-            }
-            None => self.read_module(&real, &path, n.arg_span(1, span), depth),
-        };
-        match info {
-            Some(i) => {
-                if let Some(c) = self.mods.last_mut() {
-                    c.aliases.insert(alias.to_string(), i);
-                }
+                self.diag("load", nsp, format!("import cycle at \"{}\"", spec), None);
+                bad(self, &aliases);
+                return;
             }
             None => {
-                self.mods.last_mut().map(|c| c.bad_aliases.insert(alias.to_string()));
+                if self.loaded.contains(&real) {
+                    // a classic file that is already read
+                    if !matches!(how, Bind::Stem) {
+                        self.diag("load", n.arg_span(1, span), format!(".l: {} is not a module (it does not assign export), so there is nothing to bind", spec), Some("write .l(\"file\") to load it as classic Klong"));
+                    }
+                    return;
+                }
+                if depth >= 8 {
+                    self.diag("load", nsp, format!(".l nests too deeply at \"{}\"", spec), None);
+                    return;
+                }
+                let text = match self.sess.read_loaded(&path) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        self.diag("load", nsp, format!("cannot read \"{}\": {}", path, e), None);
+                        bad(self, &aliases);
+                        return;
+                    }
+                };
+                let dir = klong_lint::recover::py_dirname(&path);
+                let prepared = self.prepare(&path, &text);
+                if prepared.stmts.iter().any(|s| s.export.is_some()) {
+                    self.read_module(&real, &path, prepared, nsp, depth)
+                } else {
+                    self.loaded.insert(real.clone());
+                    if !matches!(how, Bind::Stem) {
+                        self.diag("load", n.arg_span(1, span), format!(".l: {} is not a module (it does not assign export), so there is nothing to bind", spec), Some("write .l(\"file\") to load it as classic Klong"));
+                        return;
+                    }
+                    self.process(prepared, &dir, depth + 1);
+                    return;
+                }
+            }
+        };
+        let Some(info) = info else {
+            bad(self, &aliases);
+            return;
+        };
+        match how {
+            Bind::Stem | Bind::Alias(_) => {
+                let alias = aliases[0].clone();
+                if !klong_core::module::is_binding_name(&alias) {
+                    self.diag("load", nsp, format!(".l: the module \"{}\" cannot be bound to the name \"{}\"", spec, alias), Some("choose the name: .l(\"file\";:name)"));
+                    bad(self, &aliases);
+                    return;
+                }
+                let again = self.mods.last().map(|c| c.aliases.contains_key(&alias) || c.bad_aliases.contains(&alias) || c.names.contains(&alias)).unwrap_or(false);
+                if again {
+                    self.diag("redefinition", nsp, format!("{} is bound more than once; the compiler resolves alias.name only for a name bound once, by .l", alias), None);
+                    return;
+                }
+                if let Some(c) = self.mods.last_mut() {
+                    c.aliases.insert(alias, info);
+                }
+            }
+            Bind::Names(names) => {
+                for nm in names {
+                    match info.exports.get(&nm) {
+                        Some(v) => {
+                            if let Some(c) = self.mods.last_mut() {
+                                c.bound.insert(nm, v.clone());
+                            }
+                        }
+                        None => {
+                            let mut keys: Vec<&str> = info.exports.keys().map(|s| s.as_str()).collect();
+                            keys.sort();
+                            self.diag("undefined-name", nsp, format!("{} has no entry \"{}\"", spec, nm), Some(&format!("the module exports: {}", keys.join(" "))));
+                            if let Some(c) = self.mods.last_mut() {
+                                c.bad_aliases.insert(nm);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
-    fn read_module(&mut self, real: &str, path: &str, sp: Sp, depth: usize) -> Option<Rc<ModInfo>> {
-        let text = match self.sess.read_loaded(path) {
-            Ok(t) => t,
-            Err(e) => {
-                self.diag("load", sp, format!("cannot read \"{}\": {}", path, e), None);
-                return None;
-            }
-        };
-        let stem = path.rsplit('/').next().unwrap_or(path).trim_end_matches(".kg").to_string();
+    fn read_module(&mut self, real: &str, path: &str, prepared: Prepared, sp: Sp, depth: usize) -> Option<Rc<ModInfo>> {
+        let stem = klong_core::module::stem(path).to_string();
         let mut prefix = stem.clone();
         let mut k = 2;
         while self.prefixes.contains(&prefix) {
@@ -642,10 +850,10 @@ impl Checker {
         }
         self.prefixes.insert(prefix.clone());
         self.modules.insert(real.to_string(), None);
-        self.mods.push(ModCtx { prefix, names: HashSet::new(), aliases: HashMap::new(), bad_aliases: HashSet::new(), export: None });
+        self.mods.push(ModCtx { prefix, names: HashSet::new(), aliases: HashMap::new(), bad_aliases: HashSet::new(), bound: HashMap::new(), export: None });
         let dir = klong_lint::recover::py_dirname(path);
-        let nsrc = self.r.sources.len();
-        self.load(path, &text, &dir, depth + 1);
+        let nsrc = prepared.src;
+        self.process(prepared, &dir, depth + 1);
         let ctx = self.mods.pop()?;
         match ctx.export {
             Some(exports) => {
@@ -654,39 +862,27 @@ impl Checker {
                 Some(info)
             }
             None => {
-                let saved = self.src;
-                self.src = nsrc.min(self.r.sources.len().saturating_sub(1));
-                self.diag("load", sp, format!("{} has no .export, so it is not a module", path), None);
-                self.src = saved;
+                // (the diagnostic of the export that could not be read was given where it is written)
+                let _ = (sp, nsrc);
                 self.modules.remove(real);
                 None
             }
         }
     }
 
-    fn export_declaration(&mut self, args: &[Rc<Node>], n: &Rc<Node>, span: Sp, src: usize) {
-        let _ = src;
-        let elems = match args {
-            [a] => match &a.k {
-                Kind::EDict(v) => Some(v.clone()),
-                _ => None,
-            },
-            _ => None,
-        };
-        let Some(elems) = elems.filter(|e| e.len() % 2 == 0) else {
-            self.diag("undefined-name", n.arg_span(0, span), ".export in a compiled program takes a dictionary written :{;\"key\";value;...}".to_string(), None);
+    /// `export:::{;"key";value;...}`: what `alias.key` means. The compiler reads the dictionary as written; a variable or a call there is a
+    /// diagnostic.
+    fn export_declaration(&mut self, entries: Option<&[(String, Rc<Node>)]>, n: &Rc<Node>, span: Sp) {
+        let Some(entries) = entries else {
+            self.diag("decl-literal", n.arg_span(1, span), "export in a compiled program must be a dictionary written :{;\"key\";value;...}".to_string(), Some("the compiler reads the interface from the file without running it"));
             return;
         };
         let mut out = HashMap::new();
-        for pair in elems.chunks(2) {
-            let Some(key) = is_plain_str(&pair[0]) else {
-                self.diag("undefined-name", span, "an export key must be a string literal".to_string(), None);
-                continue;
-            };
-            let v = self.rewrite(&pair[1], &mut Vec::new(), span);
+        for (key, node) in entries {
+            let v = self.rewrite(node, &mut Vec::new(), span);
             match &v.k {
                 Kind::Sym(_) | Kind::Int(_) | Kind::Flt(_) => {
-                    out.insert(key.to_string(), v);
+                    out.insert(key.clone(), v);
                 }
                 _ => self.diag("undefined-name", span, format!("the value of the export \"{}\" must be a name or a number for the compiler", key), None),
             }
@@ -703,6 +899,9 @@ impl Checker {
             Kind::Sym(name) => {
                 if shadow.contains(name) || ARGS.contains(&name.as_str()) || name.starts_with('.') {
                     return n.clone();
+                }
+                if let Some(v) = self.mods.last().and_then(|c| c.bound.get(name)) {
+                    return Rc::new(Node { k: v.k.clone(), span: n.span, op_span: None, arg_spans: Vec::new() });
                 }
                 if let Some((base, rest)) = name.split_once('.') {
                     if shadow.iter().any(|s| s == base) {
@@ -776,7 +975,7 @@ impl Checker {
         }
     }
 
-    fn statement(&mut self, n: &Rc<Node>, span: Sp, src: usize, base_dir: &str, depth: usize) {
+    fn statement(&mut self, n: &Rc<Node>, span: Sp, src: usize) {
         if let Kind::Dyad(op, left, right) = &n.k {
             if op == "::" && !right.is_missing() {
                 let lsp = n.arg_span(0, span);
@@ -803,9 +1002,9 @@ impl Checker {
         }
         if let Kind::Call { callee, kcall: true, .. } = &n.k {
             if let Kind::Sym(name) | Kind::QSym(name) = &callee.k {
-                if [".extern", ".entry", ".l", ".param"].contains(&name.as_str()) {
+                if [".entry", ".param"].contains(&name.as_str()) {
                     let which = name.clone();
-                    self.declaration(&which, n, span, src, base_dir, depth);
+                    self.declaration(&which, n, span, src);
                     return;
                 }
             }
@@ -968,18 +1167,17 @@ impl Checker {
         }
     }
 
-    fn declaration(&mut self, which: &str, n: &Rc<Node>, span: Sp, src: usize, base_dir: &str, depth: usize) {
+    fn declaration(&mut self, which: &str, n: &Rc<Node>, span: Sp, src: usize) {
         let args: Vec<Rc<Node>> = match &n.k {
             Kind::Call { args, .. } => args.clone(),
             _ => Vec::new(),
         };
         let want = match which {
-            ".extern" | ".param" => (2, 3),
-            ".entry" => (2, 2),
-            _ => (1, 1),
+            ".param" => (2, 3),
+            _ => (2, 2),
         };
         if !(want.0 <= args.len() && args.len() <= want.1) {
-            let takes = if which == ".extern" || which == ".param" { "2 or 3 arguments".to_string() } else { plural(want.0, "argument", None) };
+            let takes = if which == ".param" { "2 or 3 arguments".to_string() } else { plural(want.0, "argument", None) };
             self.diag("decl-literal", span, format!("{} takes {}, got {}", which, takes, args.len()), None);
             return;
         }
@@ -993,15 +1191,10 @@ impl Checker {
                 return;
             }
         }
-        if which == ".l" {
-            let name = is_plain_str(&args[0]).unwrap().to_string();
-            self.load_file(&name, n.arg_span(0, span), span, base_dir, depth);
-            return;
-        }
         let name = is_plain_str(&args[0]).unwrap().to_string();
         let text = is_plain_str(&args[1]).unwrap().to_string();
         let (nsp, ssp) = (n.arg_span(0, span), n.arg_span(1, span));
-        let sig = match sig::parse_signature(&text, which == ".extern") {
+        let sig = match sig::parse_signature(&text, false) {
             Ok(s) => s,
             Err(e) => {
                 let at = self.inside_literal(src, ssp, &text, e.span);
@@ -1009,26 +1202,6 @@ impl Checker {
                 return;
             }
         };
-        if which == ".extern" {
-            if let Some(bad) = sig::check_extern_name(&name) {
-                self.diag("extern", nsp, bad, None);
-                return;
-            }
-            let module = if args.len() == 3 { is_plain_str(&args[2]).unwrap().to_string() } else { "env".to_string() };
-            if let Some(old) = self.r.externs.get(&name) {
-                if old.signature != sig || old.module != module {
-                    let first = old.signature.to_string();
-                    self.diag("extern", span, format!("extern {} is declared again with a different signature (first as \"{}\")", name, first), None);
-                }
-                return;
-            }
-            if !self.taken(&name, TK::Extern, nsp) {
-                return;
-            }
-            self.r.externs.set(&name, ExternDecl { name: name.clone(), signature: sig, module, span, src });
-            self.r.statements.push(Stmt { kind: "extern", name: name.clone(), span, src });
-            return;
-        }
         if let Some(bad) = sig::check_entry_name(&name) {
             self.diag("entry", nsp, bad, None);
             return;
@@ -1139,35 +1312,6 @@ impl Checker {
         self.r.globals.set(&name, g);
         self.r.params.set(&name, ty);
         self.r.statements.push(Stmt { kind: "param", name, span, src });
-    }
-
-    fn load_file(&mut self, name: &str, nsp: Sp, span: Sp, base_dir: &str, depth: usize) {
-        self.r.statements.push(Stmt { kind: "load", name: name.to_string(), span, src: self.src });
-        if !self.resolve {
-            return;
-        }
-        let Some(path) = find_load(&self.sess, name, base_dir) else {
-            self.diag("load", nsp, format!("cannot find the file \"{}\" named by .l", name), Some("it is looked up like .l does: in the KLONGPATH directories (default .:lib) from the current directory, then klongpy/lib, then the directory of the program"));
-            return;
-        };
-        let real = std::fs::canonicalize(&path).map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| path.clone());
-        if self.loaded.contains(&real) {
-            return;
-        }
-        if depth >= 8 {
-            self.diag("load", nsp, format!(".l nests too deeply at \"{}\"", name), None);
-            return;
-        }
-        self.loaded.insert(real.clone());
-        match self.sess.read_loaded(&path) {
-            Ok(text) => {
-                let dir = klong_lint::recover::py_dirname(&path);
-                self.load(&path, &text, &dir, depth + 1);
-            }
-            Err(e) => {
-                self.diag("load", nsp, format!("cannot read \"{}\": {}", path, e), None);
-            }
-        }
     }
 
     // -- call graph --------------------------------------------------------------------
@@ -3097,19 +3241,19 @@ pub fn check_source(text: &str, name: &str, opts: &Options) -> Report {
         Some(b) => b.clone(),
         None => {
             if std::fs::metadata(name).map(|m| m.is_file()).unwrap_or(false) {
-                klong_lint::recover::py_dirname(&abspath(name))
+                klong_lint::recover::py_dirname(&klong_host::absolute_module_path(name))
             } else {
                 std::env::current_dir().map(|c| c.to_string_lossy().into_owned()).unwrap_or_default()
             }
         }
     };
     let lib_dirs: Vec<String> = if opts.lib_dirs.is_empty() {
-        std::env::var("KLONG_LIB_DIRS").map(|v| v.split(':').filter(|d| !d.is_empty()).map(String::from).collect()).unwrap_or_default()
+        std::env::var("KLONG_LIB_DIRS").map(|v| klong_host::parse_load_path(&v).collect()).unwrap_or_default()
     } else {
         opts.lib_dirs.clone()
     };
     let mut c = Checker {
-        mods: vec![ModCtx { prefix: String::new(), names: HashSet::new(), aliases: HashMap::new(), bad_aliases: HashSet::new(), export: None }],
+        mods: vec![ModCtx { prefix: String::new(), names: HashSet::new(), aliases: HashMap::new(), bad_aliases: HashSet::new(), bound: HashMap::new(), export: None }],
         modules: HashMap::new(),
         prefixes: HashSet::new(),
         r: Report { statements: Vec::new(), sources: Vec::new(), diagnostics: Vec::new(), functions: Ordered::new(), globals: Ordered::new(), externs: Ordered::new(), entries: Vec::new(), params: Ordered::new() },
@@ -3133,12 +3277,4 @@ pub fn check_source(text: &str, name: &str, opts: &Options) -> Report {
     };
     c.run(name, text);
     c.r
-}
-
-fn abspath(p: &str) -> String {
-    if p.starts_with('/') {
-        return p.to_string();
-    }
-    let cwd = std::env::current_dir().map(|c| c.to_string_lossy().into_owned()).unwrap_or_default();
-    klong_lint::recover::py_join(&cwd, p)
 }

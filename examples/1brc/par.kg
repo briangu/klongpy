@@ -1,8 +1,77 @@
-.py("par.py")
+sqlPath(path)::{"'",(,/{:[x~0c';"''";,x]}'path),"'"}
 
-:" summarize results "
-stations(m)::{[s];s::{x@0}'m;s@<s}
-result(r)::{[lo hi total n]::r;(1.1$lo),"/",(1.1$(:[n;total%n;0])),"/",(1.1$hi)}
-stats(m)::{[r];r:::{};{r,x,,result(m@x)}'stations(m);r}
+:" Round the exact mean in tenths. Integer division truncates toward zero. "
+:" The sort key places supplementary code points before the upper BMP, like Java UTF-16. "
+render(db;totals)::{
+    db("WITH totals AS (" , totals , "), rounded AS (
+            SELECT station, lo, hi,
+                (CASE WHEN numerator < 0 THEN numerator - denominator + 1 ELSE numerator END)
+                    // denominator AS mean,
+                list_transform(string_split(station, ''), lambda c:
+                    CASE WHEN unicode(c) >= 65536 THEN unicode(c) - 8192
+                         WHEN unicode(c) >= 57344 THEN unicode(c) + 1048576
+                         ELSE unicode(c) END) AS java_order
+            FROM totals
+        )
+        SELECT '{' || coalesce(string_agg(station || '=' ||
+            (lo * 0.1)::DECIMAL(3,1)::VARCHAR || '/' ||
+            (mean::INTEGER * 0.1)::DECIMAL(3,1)::VARCHAR || '/' ||
+            (hi * 0.1)::DECIMAL(3,1)::VARCHAR, ', ' ORDER BY java_order), '') || '}'
+        FROM rounded")
+}
 
-.p(stats(load(.os.argv@0)))
+scan(path)::{
+    render(.db(":memory:");"SELECT station, min(tenths) AS lo, max(tenths) AS hi,
+                2 * sum(tenths) + count(*) AS numerator, 2 * count(*) AS denominator
+            FROM (
+                SELECT station, (temperature * 10)::INTEGER AS tenths
+                FROM read_csv(" , (sqlPath(path)) , ", delim=';', header=false,
+                    auto_detect=false, columns={'station':'VARCHAR', 'temperature':'DECIMAL(3,1)'},
+                    quote='', escape='', new_line='\n')
+            ) GROUP BY station")
+}
+
+:" A station may contain CR or start with U+FEFF. The CSV scanner uses both as file syntax. "
+:" Fall back to LF-delimited Klong input with one running aggregate per station. "
+collect(state)::{
+    [line totals parts name temp stats];
+    line::state@0;totals::state@1;
+    parts::.split(line;";");
+    :[(#parts)~2;0;.err("range";"expected station and temperature")];
+    name::parts@0;
+    temp::0:$ .join(.split(parts@1;".");"");
+    :[:_temp;.err("range";"expected temperature in tenths");0];
+    stats::totals@name;
+    totals,[;name;:[:_stats;[;temp;temp;temp;1];
+        [;(temp&(stats@0));(temp|(stats@1));(temp+(stats@2));1+stats@3]]];
+    [;.rl();totals]
+}
+
+scanLines(first)::{
+    [totals data names sums counts table];
+    totals::({#x@0} collect:~[;first;:{}])@1;
+    names::{x@0}'totals;
+    data::+{x@1}'totals;
+    sums::data@2;counts::data@3;
+    table::.table(:{;"station";names;"lo";data@0;"hi";data@1;
+        "numerator";counts+2*sums;"denominator";2*counts});
+    render(.db(:{;"results";table});"SELECT * FROM results")
+}
+
+weather(path)::{
+    [channel previous first prefix result];
+    channel::.ic(path);previous::.fc(channel);first::.rl();
+    prefix::1#first;
+    result:::[(prefix~.unjson("""\ufeff"""))|prefix~.unjson("""\r""");
+        scanLines(first):|
+        (result::.try(scan;,path))@0;result@1:|
+        (# .split((result@1)@"message";"CSV Parser state machine reached an invalid state"))>1;
+        scanLines(first);.err(result@1)];
+    .fc(previous);.cc(channel);
+    result
+}
+
+:" Standalone kg and the Python CLI expose their file arguments under different names. "
+nativeArgs::.try({.a};[])
+args:::[@(nativeArgs@1);.os.argv;nativeArgs@1]
+.p(weather(args@0))

@@ -75,6 +75,9 @@ pub struct ErrorData {
     /// Raised by an operator on operands it does not take (what NumPy's own exceptions are in KlongPy): the operator's application
     /// rewrites the message to name the whole operands (`cannot apply + (Plus) to list of 3 and list of 2`).
     pub generic: bool,
+    /// The original failure of an embedding callback, kept for the boundary that can raise it again.
+    #[cfg(feature = "host")]
+    host_payload: Option<Box<dyn core::any::Any>>,
 }
 
 /// A Klong error. One pointer wide, so that `Result<Value, Error>` stays small.
@@ -95,7 +98,32 @@ impl core::ops::DerefMut for Error {
 
 impl Error {
     pub fn new(kind: Kind, message: impl Into<Cow<'static, str>>) -> Error {
-        Error(Box::new(ErrorData { kind, message: message.into(), span: None, source: None, hint: None, generic: false }))
+        Error(Box::new(ErrorData {
+            kind,
+            message: message.into(),
+            span: None,
+            source: None,
+            hint: None,
+            generic: false,
+            #[cfg(feature = "host")]
+            host_payload: None,
+        }))
+    }
+    #[cfg(feature = "host")]
+    pub fn with_host_payload<T: 'static>(mut self, payload: T) -> Error {
+        self.0.host_payload = Some(Box::new(payload));
+        self
+    }
+    #[cfg(feature = "host")]
+    pub fn take_host_payload<T: 'static>(&mut self) -> Option<T> {
+        let payload = self.0.host_payload.take()?;
+        match payload.downcast::<T>() {
+            Ok(value) => Some(*value),
+            Err(payload) => {
+                self.0.host_payload = Some(payload);
+                None
+            }
+        }
     }
     pub fn with_span(mut self, span: Span) -> Error {
         if self.0.span.is_none() {

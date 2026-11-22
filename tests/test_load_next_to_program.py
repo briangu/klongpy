@@ -1,4 +1,4 @@
-"""`.l` finds a relative file next to the program that loads it, after the KLONGPATH search."""
+"""`.l` searches beside the calling file first, then KLONGPATH and the bundled library."""
 import os
 import subprocess
 import sys
@@ -40,7 +40,6 @@ class TestLoadNextToProgram(unittest.TestCase):
             rc, out, err = self.kgpy(elsewhere, target)
             self.assertEqual((rc, out.strip()), (0, "42"), err)
 
-    @unittest.expectedFailure   # engine needs: .l("lib2/util.kg") from the program's directory loads the bundled util.kg (matched by file name)
     def test_name_with_extension_and_subdirectory(self):
         write(self.base, "proj/lib2/util.kg", "twice::{2*x}\n")
         write(self.base, "proj/prog.kg", '.l("lib2/util.kg")\n.p(twice(4))\n')
@@ -68,19 +67,22 @@ class TestLoadNextToProgram(unittest.TestCase):
         self.assertNotEqual(rc, 0)
         self.assertIn("file does not exist: only_top", err)
 
-    def test_current_directory_wins(self):
+    def test_program_directory_precedes_current_directory(self):
         write(self.base, "proj/common.kg", "which::{1}\n")
         write(self.base, "here/common.kg", "which::{2}\n")
         write(self.base, "proj/prog.kg", '.l("common")\n.p(which(0))\n')
         rc, out, err = self.kgpy(os.path.join(self.base, "here"), "../proj/prog.kg")
-        self.assertEqual((rc, out.strip()), (0, "2"), err)
+        self.assertEqual((rc, out.strip()), (0, "1"), err)
 
-    def test_klongpath_wins(self):
+    def test_klongpath_is_the_fallback_after_the_program_directory(self):
         write(self.base, "proj/common.kg", "which::{1}\n")
         write(self.base, "kp/common.kg", "which::{3}\n")
         write(self.base, "proj/prog.kg", '.l("common")\n.p(which(0))\n')
         os.makedirs(os.path.join(self.base, "elsewhere"))
         self.env["KLONGPATH"] = os.path.join(self.base, "kp")
+        rc, out, err = self.kgpy(os.path.join(self.base, "elsewhere"), "../proj/prog.kg")
+        self.assertEqual((rc, out.strip()), (0, "1"), err)
+        os.remove(os.path.join(self.base, "proj", "common.kg"))
         rc, out, err = self.kgpy(os.path.join(self.base, "elsewhere"), "../proj/prog.kg")
         self.assertEqual((rc, out.strip()), (0, "3"), err)
 
@@ -91,7 +93,7 @@ class TestLoadNextToProgram(unittest.TestCase):
         self.assertNotEqual(rc, 0)
         self.assertIn("file does not exist: nowhere", err)
         self.assertIn(os.path.join("..", "proj", "nowhere"), err)
-        self.assertIn("directory of the file that calls .l", err)
+        self.assertIn("bundled library", err)
 
     def test_expression_has_no_program_directory(self):
         write(self.base, "common.kg", "inc::{x+1}\n")

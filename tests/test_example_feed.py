@@ -9,6 +9,8 @@ import subprocess
 import sys
 import unittest
 
+from tests.cli_subprocess import cli_command
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FEED = os.path.join(ROOT, "examples", "stocks", "feed")
 
@@ -26,11 +28,11 @@ def free_port():
         return s.getsockname()[1]
 
 
-def run_demo(extra=(), seconds=60):
+def run_demo(seconds=60, *, backend="numpy", device=None):
     """Run the demo to its end; return (output lines, exit status). A run that does not end in time fails."""
     port = free_port()
     env = dict(os.environ, PYTHONPATH=ROOT, PYTHONUNBUFFERED="1")
-    cmd = [sys.executable, "-W", "ignore", "-m", "klongpy.cli", "--strict=2", *extra, "demo.kg", "--", str(port)]
+    cmd = [*cli_command(backend, device), "--strict=2", "demo.kg", "--", str(port)]
     p = subprocess.Popen(cmd, cwd=FEED, env=env, stdin=subprocess.DEVNULL,
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
@@ -45,13 +47,8 @@ def run_demo(extra=(), seconds=60):
 class TestFeedDemo(unittest.TestCase):
 
     def test_output_is_exact(self):
-        backend = os.environ.get("_KLONGPY_TEST_BACKEND", "numpy")
-        extra = []
-        if backend != "numpy":
-            extra = ["--backend", backend]
-            if os.environ.get("_KLONGPY_TEST_DEVICE"):
-                extra += ["--device", os.environ["_KLONGPY_TEST_DEVICE"]]
-        lines, status = run_demo(extra)
+        lines, status = run_demo(backend=os.environ.get("_KLONGPY_TEST_BACKEND", "numpy"),
+                                 device=os.environ.get("_KLONGPY_TEST_DEVICE"))
         self.assertEqual(status, 0, lines)
         banner = "feed on port"
         self.assertTrue(lines and lines[0].startswith(banner), lines)

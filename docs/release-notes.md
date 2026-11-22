@@ -1,13 +1,15 @@
 # Release Notes
 
-This page is the complete list of changes in version 2 compared with 0.7, the last pure-Python line. [What's new in v2](whats-new-v2.md) is the tour of the features, and [Migrating to v2](migrating-to-v2.md) lists what to change in an existing program. In this page "0.7" means KlongPy 0.7.0, and "before" means that version. Where the old behaviour was an unrelated Python error, only its kind is given.
+These notes describe the changes in version 2 from the pure-Python 0.7 and v1 line. The older examples use the 0.7 behavior where stated. [What's New in v2](whats-new-v2.md) · [Migrating to v2](migrating-to-v2.md)
 
-## 2.0.0rc1
+## 2.0
 
 ### Headline additions
 
 * [One interpreter, written in Rust](what-runs-where.md), behind two commands: `kgpy` (hosted in Python) and `kg` (no Python). The same interpreter runs on [microcontroller boards](native/index.md).
-* [Modules](language-additions.md#modules): `.import`, `.export` and qualified names `a.b`.
+* [Column tables and embedded DuckDB](fast_columnar_database.md) in both desktop commands. Tables support compound keys and keyed updates, and SQL can query live Klong tables or a persistent DuckDB file.
+* [Native Metal on macOS](what-runs-where.md#native-metal) for supported array operations and reverse-mode gradients. The Python host also supports device arrays and autograd through its PyTorch backend.
+* [Modules](language-additions.md#modules): the `export` variable, `.l` as the one loader, and qualified names `a.b`.
 * Errors as values: `.try` catches an error and `.err` raises one. `.seed` makes `.rn` repeatable and `.now` gives the time.
 * The [conformance suite](conformance.md): more than 2,000 cases that every build of the interpreter must pass.
 * The [static profile](static-profile.md) and [compiling Klong to C](embedded.md).
@@ -22,9 +24,9 @@ This page is the complete list of changes in version 2 compared with 0.7, the la
 
 #### One interpreter
 
-**New: KlongPy evaluates Klong on an interpreter written in Rust.** 0.7 had a Python implementation of the language. Version 2 has none: the parser, the evaluator, the linter, the static checker and the compilers are Rust, and `kgpy` hosts them in Python. `kgpy` keeps what only Python can give: NumPy and PyTorch arrays, calling Python, tables and SQL, the web server, websockets and the FPGA card functions. See [What Runs Where](what-runs-where.md).
+**One Rust interpreter.** The parser, evaluator, linter, static checker and compilers run in both desktop commands. `kgpy` adds NumPy and PyTorch arrays, Python callables, pandas and Arrow interchange, web services and FPGA card bindings. [What Runs Where](what-runs-where.md)
 
-**New: `kg`, the interpreter without Python.** `pip install klongpy` installs it next to `kgpy`. It runs files, expressions and a REPL, and starts in a few milliseconds. A function that needs Python reports that it needs `kgpy`:
+**The standalone `kg` command.** A v2 wheel installs it next to `kgpy`. It runs files, expressions and a REPL. `kg --capabilities` emits one JSON object for scripts and tools. A function that needs Python reports that it needs `kgpy`.
 
 ```text
 $ kg -e '.py("math")'
@@ -39,25 +41,25 @@ $ kg -e '.py("math")'
 
 #### Modules
 
-**New: `.import`, `.export` and qualified names.** A file that ends with `.export(dict)` is a module. `m::.import("./name")` runs it in a scope of its own and returns the dictionary it exported, read-only, and `a.b` is `a@"b"` for reading, writing and calling on any dictionary. `.l` of a module binds it to the file's name. See [Modules](language-additions.md#modules); `examples/modules` is a program of twelve files.
+**New: modules, `.l` as the one loader and qualified names.** A file that assigns the variable `export`, a dictionary written as a literal, is a module. `.l("geom")` runs it in a scope of its own, once, and binds the read-only dictionary it exported to the file's stem; `.l("geom";:g)` binds it to `g`, and `.l("geom";["sq"])` binds the entries named as plain names. `.l` returns the module. `a.b` is `a@"b"` for reading, writing and calling on any dictionary. A bare name is searched in the directory of the file that contains the `.l`, then in `KLONGPATH`, then in the bundled library, and a local file that shadows a library file gives a warning. See [Modules](language-additions.md#modules); `examples/modules` is a program of twelve files.
 
 ```console
-$ printf 'sq(v)::{v*v}\n.export(:{;"sq";sq})\n' > geom.kg
-$ kgpy -e 'geom::.import("./geom");geom.sq(4)'
+$ printf 'sq(v)::{v*v}\nexport:::{;"sq";sq}\n' > geom.kg
+$ kgpy -e '.l("geom");geom.sq(4)'
 16
 ```
 
 #### Static Klong and C
 
-**New: a subset of Klong that compiles to C.** [The static profile](static-profile.md) is the part of the language in which every type, shape and call target is known before the program runs. `check FILE...` checks files against it without running them, and `compile c FILE... -o DIR` compiles a program inside it to freestanding C99 with no heap, no recursion and no C library. `.extern("name";"int -> float")` declares a function the target provides, and `.entry("name";"float -> float")` declares one the host calls. Under KlongPy an extern is a Python function (`klong.externs["name"] = f`), and `klongpy.static.load_program` and `call_entry` run a program the way the compiled one is called. A program that uses neither is unaffected. See [Compiling Klong to C](embedded.md).
+**New: a subset of Klong that compiles to C.** [The static profile](static-profile.md) is the part of the language in which every type, shape and call target is known before the program runs. `check FILE...` checks files against it without running them, and `compile c FILE... -o DIR` compiles a program inside it to freestanding C99 with no heap, no recursion and no C library. `adc::.extern("read_adc";"int -> float")` returns a function the target provides, kept in a module file and used as `read.adc(3)`, and `.entry("name";"float -> float")` declares one the host calls. Under KlongPy an extern is a Python function (`klong.externs["read_adc"] = f`, keyed by C symbol), and `klongpy.static.load_program` and `call_entry` run a program the way the compiled one is called. A program that uses neither is unaffected. See [Compiling Klong to C](embedded.md).
 
-**`.entry` and `.extern` have the same checks under `kg` and `kgpy`.** A program of the static profile loads unchanged, and an extern resolves to a host function registered under its name. Fixed-point programs (`.fixed`) run under `kgpy`; under `kg` `.fixed` is a system error.
+**`.entry` and `.extern` have the same checks under `kg` and `kgpy`.** A program of the static profile loads unchanged, and an extern resolves to a host function registered under its C symbol. Fixed-point programs (`.fixed`) run under `kgpy`; under `kg` `.fixed` is a system error.
 
-**Compiled C has run on two Raspberry Pi Picos.** `mavg.kg`, `pid.kg` and `fir.kg`, compiled to C and linked into the firmware, agree with the interpreter on both boards. The compiled code runs about 100 times faster than the interpreter on the two step functions, and the interpreter cannot load `fir.kg` on that board. The C has run on no other device. See [On a Pico](embedded.md#on-a-pico).
+**Compiled C on two RP2040 Picos.** On both boards, the compiled moving average and PID controller matched the on-device interpreter across 64 and 32 outputs respectively, within the checks’ numeric tolerance. The interpreted FIR workload exceeded the Pico heap. The compiled FIR matched 241 reference values stored in flash. [On a Pico](embedded.md#on-a-pico)
 
 ```kgpy
-?> .extern("read.adc";"int -> float")
-"int -> float"
+?> adc::.extern("read_adc";"int -> float")
+:nilad
 ?> .entry("f";"-> int")
 error: .entry: the function f is not defined
 ```
@@ -177,7 +179,7 @@ a b
 2 4
 ```
 
-**`.l` also looks next to the file that calls it.** When `.l("common.kg")` finds nothing in the directories of `KLONGPATH`, a file being run or loaded looks in its own directory, so `kgpy path/to/prog.kg` can load its neighbours from any current directory. The search order is unchanged and still wins. See [`.l`](system-functions.md#l).
+**`.l` looks next to the file that calls it first.** `.l("common.kg")` looks in the directory of the file that contains the `.l`, then in the directories of `KLONGPATH`, then in the bundled library, so `kgpy path/to/prog.kg` can load its neighbours from any current directory. See [`.l`](system-functions.md#l).
 
 **A destructuring at the start of a function declares its names as locals.** `{[s k]::x;s+k}` needs no locals list at any strict level, and does not change a global named `s`.
 
@@ -249,7 +251,7 @@ The old messages were NumPy's, such as `ufunc 'add' did not contain a loop with 
 
 **Persistent history and tab completion are built in.** Line editing existed in 0.7; history (`~/.kgpy_history`, or `KGPY_HISTORY`) and tab completion now come from `readline`, so `rlwrap` is not needed. See [the REPL](repl.md).
 
-**`kgpy --version` prints the version.** It is `kgpy 2.0.0rc1`.
+**Both commands report their version.** Run `kg --version` or `kgpy --version`.
 
 **A file run stays up while it serves or is connected.** `kgpy file.kg` ends after its last line unless an IPC server (`.srv`) is listening, a connection opened with `.cli` is open, a web server (`.web`) is listening or a WebSocket connection (`.ws`) is open. A timer alone does not keep it up. `.x` in a callback (a timer, a request or a hook) exits the process with its status. See [the command line](repl.md#options).
 
@@ -260,7 +262,7 @@ The old messages were NumPy's, such as `ufunc 'add' did not contain a loop with 
 
 **The wire protocol is kdb+ IPC.** `.srv` and `.cli` used pickled Python objects, which let a peer run code in your process when a message was unpickled. It is now the kdb+ protocol, and a q client can talk to a `.srv`. The pickle protocol was removed: a 0.7 and a 2.0 process cannot exchange IPC messages, so upgrade both ends. See [the protocol](ipc_capabilities.md#protocol-and-security).
 
-**Tables and functions cross the connection.** A `klongpy.db` table is sent as a kdb+ table and arrives as a table when `klongpy.db` is loaded; an index does not travel. A function literal is sent as its source text. A function with named parameters, locals or a destructuring at its head is sent as text with its parameter list, and arrives with the same names and arity; a KlongPy and a native peer do this in both directions. A projection has no source and is sent as an opaque value that the receiver can hold and send back but not call. See [the protocol](ipc_capabilities.md#protocol-and-security) and [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire).
+**Tables and functions cross the connection.** Both desktop hosts send and receive keyed and unkeyed tables. Echo tests against PeachQ cover typed empty columns, symbols, timestamps and nulls. A function literal travels as source, preserving its parameter names and arity between Klong peers. A projection travels as an opaque value. [Types across the wire](ipc_capabilities.md#types-across-the-wire) · [How functions cross the wire](ipc_capabilities.md#how-functions-cross-the-wire)
 
 **A numpy `datetime64` or `timedelta64` can be sent.** It goes as a kdb+ timestamp or timespan, in nanoseconds (a date is nanoseconds since 2000-01-01), and `NaT` is the null. It used to be a type error on the sending side. It arrives as the integer, as every kdb+ temporal does, so the receiver of `2000-01-02` sees 86400000000000. A numpy unit is converted to nanoseconds, a calendar unit (years, months) of a timedelta is refused, and a value outside the range of a kdb+ temporal is a range error.
 
@@ -671,7 +673,7 @@ client?> f("1+1")
 
 **`.rls()` strips the line end from each line.** The lines kept their `\n`.
 
-**`.compile`, `.compilex` and `.cmodes` are removed.** They wrapped `torch.compile`, which needs a C++ compiler and cannot read a function that the interpreter runs. Calling a removed function is the ordinary undefined-function error. The torch backend's `.export(fn;input;path)` is now `.bkx(fn;input;path)`: the function is run once and every tensor operation it executes is recorded with `torch.export` (non-strict). To compile a function, export it and compile the exported program with torch: `torch.compile(torch.export.load(path).module())`. `.export` belongs to the [module system](language-additions.md#modules); with three arguments it is an arity error.
+**`.compile`, `.compilex` and `.cmodes` are removed.** They wrapped `torch.compile`, which needs a C++ compiler and cannot read a function that the interpreter runs. Calling a removed function is the ordinary undefined-function error. The torch backend's `.export(fn;input;path)` runs the function once and every tensor operation it executes is recorded with `torch.export` (non-strict). To compile a function, export it and compile the exported program with torch: `torch.compile(torch.export.load(path).module())`.
 
 **The two broker examples are removed.** `examples/stocks` had a feed from Polygon and one from Alpaca, and both needed an account. A simulated price feed replaces them: a seeded random walk, a server that publishes each trade to the clients subscribed to its symbol, and a consumer that computes a volume-weighted average price and a moving average. It needs only `pip install klongpy`. See [`examples/stocks/feed`](https://github.com/briangu/klongpy/tree/main/examples/stocks/feed).
 
@@ -784,6 +786,10 @@ error: cannot apply ^ (Power) to integer and integer
 
 #### Performance
 
+On an AMD EPYC 7773X, finding distinct IDs among one million resident integers with 64 dense IDs fell from 29.73 ms to 2.80 ms against the preceding v2 build. Through Python, a 100,000-step Klong loop ran in 13.64 ms on RC1 and 5.72 s on v1. Returning a writable running sum of one million integers took 1.019 ms on RC1 and 0.753 ms on v1. On an Apple M2 Ultra, the native scan used 8.02 MB of peak interpreter heap, down from 16.02 MB. Group counts for a million integers supplied from Python took 48.63 ms on RC1 and 35.39 ms on v1. [Runtime benchmarks](performance.md)
+
+All 232 cases in the strict release acceptance selection passed. On the default-placement Linux feed, the worst batch acknowledgement took 15.76 ms on `kg` and 76.24 ms on `kgpy`, within the 100 ms budget. Against PeachQ 0.92, the Linux wheel passed both controlled-placement series and all three default-placement series on the median bounds. At default placement, median as-of p99 ratios were 1.043×, 1.069× and 1.243× against a 1.25× bound, with one individual pair at 1.353×. [Streaming measurements](performance.md#streaming-tables-and-queries)
+
 **Indexing and appending are faster.** Indexing a vector or a string by an integer vector is a whole-array operation, so `x@<x` sorts in about the time of the grade. Appending a number to a vector and `^` on integer arrays are faster, most of all on the torch backend. [Performance](performance.md) has the measurements and says which rows predate the change.
 
 
@@ -814,7 +820,7 @@ error: y must be a non-negative number
 
 **`.rs` checks its argument.** A value that is not a string is a type error, and empty text gives `:undefined`.
 
-**`.l`, `kgpy lint`, `kgpy check` and `kgpy compile c` look for a file in one order.** The directories of `KLONGPATH` (default `.:lib`) from the current directory, then the package library, then the directory of the file that contains the `.l`. The linter tried the directory of the linted file first, `kgpy compile c` changed to that directory, and a checker message named a third order. A file in the current directory now wins everywhere.
+**`.l`, `kgpy lint`, `kgpy check` and `kgpy compile c` look for a file in one order.** The directory of the file that contains the `.l` (the working directory at the prompt), then the directories of `KLONGPATH` (default `.:lib` on Unix and `.;lib` on Windows), then the package library. A bare name is the same for classic files and modules, and a local file that shadows a library file gives a warning.
 
 **`.unjson` keeps every integer of a list exact.** `.unjson("[9223372036854775808,0.5]")` turned the large integer into a float, because the list became a float array. A list that holds an integer beyond 64 bits is now a list of objects, as it is when it holds only integers.
 
@@ -870,7 +876,7 @@ a b
 
 #### Torch backend
 
-**Every float is float32, and numeric gradients are computed in float64 on the CPU.** Under the torch backend a scalar was a float64 and a tensor element a float32. Now every float the interpreter computes is float32, so a scalar equals the matching tensor element and `(0.1+0.2)=0.3` is 1 (it is 0 on NumPy). A value that needs float64 needs the NumPy backend. `point∇function`, `.grad` and `point∂function` evaluate the function in float64 on the CPU, whatever the device, and return float32. `.try` accepts a tensor as its argument list, `.float` converts a tensor, and `a.b` on a tensor is a type error. See [the torch backend](torch_backend.md).
+**Torch scalar arithmetic uses float32.** A scalar now agrees with the matching element of a default tensor, and `(0.1+0.2)=0.3` is 1 on torch and 0 on NumPy. Explicit float64 arrays keep their width on devices that support it. `point∇function`, `.grad` and `point∂function` evaluate the function in float64 on the CPU and return float32. `.try` accepts a tensor as its argument list, `.float` converts a tensor, and `a.b` on a tensor is a type error. [PyTorch Backend and Autograd](torch_backend.md)
 
 **The optimizers are in the package.** `SGDOptimizer` and `AdamOptimizer` are in `klongpy.optimizers`, so a `pip install` has them, and they work on Apple MPS, where the gradient of `x^2` at 0 is 0 and not NaN. See [Optimizers](torch_backend.md#optimizers).
 

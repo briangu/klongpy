@@ -1,2 +1,2 @@
-b::.import("./cycle_b")
-.export(:{;"v";1})
+.l("./cycle_b";:b)
+export:::{;"v";1}

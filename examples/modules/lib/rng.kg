@@ -17,4 +17,4 @@ draws()::{count}
 
 .p("[rng] loaded")
 :" shows: rename on export (reset is exposed as seed); step, state, count, m stay private"
-.export(:{;"seed";reset;"uniform";uniform;"noise";noise;"draws";draws})
+export:::{;"seed";reset;"uniform";uniform;"noise";noise;"draws";draws}

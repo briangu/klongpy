@@ -111,6 +111,12 @@ include = ["klongpy*"]
 "klongpy" = ["lib/*.kg", "static/*.h", "data/*.json"]
 
 [tool.pytest.ini_options]
+markers = [
+    "v2_reference: acceptance test requiring the q reference executable",
+    "v2_gpu: acceptance test requiring a specific physical GPU",
+    "v2_hosted_gpu: GPU acceptance cases supported by the Python-hosted backend",
+    "v2_build: source installation, portable feature builds and attached FPGA simulation",
+]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 filterwarnings = [

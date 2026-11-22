@@ -8,13 +8,13 @@ use klong_static::sig::{check_entry_name, check_extern_name, parse_signature, pa
 use klong_static::tables;
 use std::collections::HashMap;
 
-const PROG: &str = ".param(\"gain\";\"float\";2.5)\n.extern(\"read.adc\";\"int -> float\")\nacc::0\nf::{acc::acc+x;acc}\n.entry(\"f\";\"int -> int\")\n";
+const PROG: &str = ".param(\"gain\";\"float\";2.5)\nadc::.extern(\"read_adc\";\"int -> float\")\nacc::0\nf::{acc::acc+x;acc}\n.entry(\"f\";\"int -> int\")\n";
 
 #[test]
 fn statements_come_in_the_order_they_run_with_their_spans() {
     let r = klong_static::check_source(PROG, "p.kg", &Options::default());
     let kinds: Vec<(&str, &str)> = r.statements.iter().map(|s| (s.kind, s.name.as_str())).collect();
-    assert_eq!(kinds, [("param", "gain"), ("extern", "read.adc"), ("global", "acc"), ("function", "f"), ("entry", "f")]);
+    assert_eq!(kinds, [("param", "gain"), ("extern", "adc"), ("global", "acc"), ("function", "f"), ("entry", "f")]);
     let f = r.statements.iter().find(|s| s.kind == "function").unwrap();
     assert_eq!(&PROG[f.span.0..f.span.1], "f::{acc::acc+x;acc}");
 }

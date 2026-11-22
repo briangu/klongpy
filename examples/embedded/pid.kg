@@ -1,12 +1,10 @@
 :" One step of a PID controller with clamped output and integrator.
 
    A reference program of the static profile (docs/static-profile.md). The
-   target provides two functions, declared with .extern: read.adc(channel)
-   and write.pwm(channel;duty), which are read_adc and write_pwm in C. Under
-   KlongPy they are Python functions bound before the file is loaded:
-
-       klong.externs['read.adc'] = lambda channel: 0.3
-       klong.externs['write.pwm'] = lambda channel, duty: 0
+   target provides two functions, read_adc(channel) and write_pwm(channel;duty)
+   in C, which board.kg declares and exports as board.adc and board.pwm. Under
+   KlongPy they are Python functions bound by C symbol before the file is loaded
+   (see board.kg).
 
    Check it:   kgpy check examples/embedded/pid.kg
    Expected:   examples/embedded/pid.expect
@@ -22,11 +20,10 @@ hi::1.0
 integ::0.0
 prev::0.0
 
-.extern("read.adc";"int -> float")
-.extern("write.pwm";"int float -> int")
+.l("board")
 
 clamp::{(x|lo)&hi}
 
-step::{[e u];e::x-read.adc(0);integ::clamp(integ+ki*e*dt);u::clamp((kp*e)+integ+kd*(e-prev)%dt);prev::e;write.pwm(0;u);u}
+step::{[e u];e::x-board.adc(0);integ::clamp(integ+ki*e*dt);u::clamp((kp*e)+integ+kd*(e-prev)%dt);prev::e;board.pwm(0;u);u}
 
 .entry("step";"float -> float")

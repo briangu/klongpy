@@ -52,9 +52,11 @@ impl fmt::Display for Signature {
 
 #[derive(Clone, Debug)]
 pub struct ExternDecl {
+    /// The name the compiler knows it by: `prefix.name` for an extern a module declares, `name` in the program itself.
     pub name: String,
+    /// The C symbol (the first argument of `.extern`): what the generated C declares and calls, and what a host registers.
+    pub c_symbol: String,
     pub signature: Signature,
-    pub module: String,
     pub span: (usize, usize),
     pub src: usize,
 }
@@ -365,6 +367,11 @@ pub fn check_extern_name(name: &str) -> Option<String> {
         return Some(format!("the C name of extern {} is '{}': names that start with kg_ belong to the runtime", name, c));
     }
     None
+}
+
+/// The reason `sym` cannot be the C symbol of an extern, or None (the interpreter's rule: `klong_rt::declare::check_symbol`).
+pub fn check_symbol(sym: &str) -> Option<String> {
+    klong_rt::declare::check_symbol(sym)
 }
 
 pub fn check_entry_name(name: &str) -> Option<String> {

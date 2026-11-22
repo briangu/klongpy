@@ -9,7 +9,7 @@ static kg_float kg_step__1(pid_t *p, kg_float a0_x);
 static kg_float kg_clamp__0(pid_t *p, kg_float a0_x) {
     (void)p;
     (void)a0_x;
-    /* pid.kg:28: (x|lo)&hi */
+    /* pid.kg:25: (x|lo)&hi */
     return kg_fmin(kg_fmax(a0_x, ((kg_float)0.0)), ((kg_float)1.0));
 }
 
@@ -21,21 +21,21 @@ static kg_float kg_step__1(pid_t *p, kg_float a0_x) {
     (void)v0_e;
     kg_float v1_u = 0;
     (void)v1_u;
-    /* pid.kg:30: e::x-read.adc(0) */
+    /* pid.kg:27: e::x-board.adc(0) */
     const kg_float t1 = read_adc(0);
     v0_e = (a0_x - t1);
-    /* pid.kg:30: integ::clamp(integ+ki*e*dt) */
+    /* pid.kg:27: integ::clamp(integ+ki*e*dt) */
     const kg_float t2 = kg_clamp__0(p, (p->g_integ + (((kg_float)0.5) * (v0_e * ((kg_float)0.01)))));
     p->g_integ = t2;
-    /* pid.kg:30: u::clamp((kp*e)+integ+kd*(e-prev)%dt) */
-    const kg_float t3 = kg_clamp__0(p, ((((kg_float)2.0) * v0_e) + (p->g_integ + (((kg_float)0.1) * kg_fdiv((v0_e - p->g_prev), ((kg_float)0.01), 30)))));
+    /* pid.kg:27: u::clamp((kp*e)+integ+kd*(e-prev)%dt) */
+    const kg_float t3 = kg_clamp__0(p, ((((kg_float)2.0) * v0_e) + (p->g_integ + (((kg_float)0.1) * kg_fdiv((v0_e - p->g_prev), ((kg_float)0.01), 27)))));
     v1_u = t3;
-    /* pid.kg:30: prev::e */
+    /* pid.kg:27: prev::e */
     p->g_prev = v0_e;
-    /* pid.kg:30: write.pwm(0;u) */
+    /* pid.kg:27: board.pwm(0;u) */
     const kg_int t4 = write_pwm(0, v1_u);
     (void)t4;
-    /* pid.kg:30: u */
+    /* pid.kg:27: u */
     return v1_u;
 }
 

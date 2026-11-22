@@ -65,6 +65,19 @@ pub struct Events<P: Platform + 'static> {
 }
 
 impl<P: Platform + 'static> Events<P> {
+    pub(crate) fn visit_host_roots(&self, visit: &mut dyn FnMut(&Value)) {
+        for work in self.work.borrow().iter() {
+            visit(&work.f);
+            work.args.iter().for_each(&mut *visit);
+            work.then.iter().for_each(&mut *visit);
+        }
+        for timer in self.timers.borrow().iter() {
+            visit(&timer.f);
+        }
+        #[cfg(feature = "ipc")]
+        self.ipc.visit_host_roots(visit);
+    }
+
     pub(crate) fn new(shared: Rc<Shared<P>>) -> Rc<Events<P>> {
         Rc::new(Events {
             shared,

@@ -1,0 +1,11 @@
+:" Run with the head functions loaded in a new data directory."
+tpCheck(ok;message)::{:[ok;1;.err("range";message)]}
+tpCheck(0=nextSeq;"new head must start at zero")
+tpCheck(3=publish(0;[100 102 101];[4 7 4];[990 800 995];[2 1 3]);"ack after three trades")
+tpCheck([2 995]~latest(4);"latest report uses arrival sequence")
+tpCheck(0=*.try({publish(1;[103];[7];[800];[1])};[]);"overlap must fail")
+tpCheck(0=*.try({publish(5;[103];[7];[800];[1])};[]);"gap must fail")
+tpCheck(0=*.try({publish(3;[103];[7];[800 801];[1])};[]);"unequal vectors must fail")
+tpCheck(3=nextSeq;"rejected batches must leave the watermark unchanged")
+tpCheck(4=publish(3;,103;,7;,801;,1);"a short last batch must work")
+tpCheck([4 6 3586 7]~liveStats();"all four rows must be queryable")

@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import time
@@ -171,6 +172,10 @@ class BuildFlowTest(unittest.TestCase):
         os.makedirs(bindir)
         write_exec(os.path.join(bindir, "vitis_hls"), STUB_HLS)
         write_exec(os.path.join(bindir, "v++"), STUB_VPP)
+        # The simulated build machine has its own process list. A stand-in linker
+        # from a concurrently running suite belongs to a different machine.
+        write_exec(os.path.join(bindir, "pgrep"),
+                   '#!/usr/bin/env bash\n[ -s "$STUB_FOREIGN_TOOLS" ] || exit 1\ngrep -E -- "${!#}" "$STUB_FOREIGN_TOOLS"\n')
         # the script runs `python3 gate.py`: make sure a python3 exists on the stand-in PATH
         write_exec(os.path.join(bindir, "python3"), '#!/usr/bin/env bash\nexec "%s" "$@"\n' % sys.executable)
         if not shutil.which("setsid"):
@@ -184,7 +189,7 @@ class BuildFlowTest(unittest.TestCase):
         with open(self.util, "w") as f:
             f.write(UTIL)
         self.env = {"PATH": bindir + os.pathsep + os.environ["PATH"], "STUB_REPORT": self.report, "STUB_UTIL": self.util,
-                    "STUB_HOLD": self.hold}
+                    "STUB_HOLD": self.hold, "STUB_FOREIGN_TOOLS": os.path.join(self.tmp, "foreign-tools")}
         self.saved = {k: os.environ.get(k) for k in self.env}
         os.environ.update(self.env)
         self.addCleanup(self._restore)
@@ -304,8 +309,11 @@ class BuildFlowTest(unittest.TestCase):
         first = self.plan("mavg")
         self.builder.start(first)
         try:
-            time.sleep(1.0)
             st = self.builder.state(first.dirname)
+            deadline = time.monotonic() + 60
+            while st["state"] == "running" and not st["phase"].startswith("link") and time.monotonic() < deadline:
+                time.sleep(0.1)
+                st = self.builder.state(first.dirname)
             self.assertEqual(st["state"], "running", st)
             self.assertTrue(st["phase"].startswith("link"), st["phase"])
             with self.assertRaises(RemoteError) as cm:
@@ -322,16 +330,32 @@ class BuildFlowTest(unittest.TestCase):
         st = self.finish(first.dirname)
         self.assertEqual(st["state"], "passed", st)
 
+    def test_foreign_tool_on_the_build_machine_is_reported(self):
+        with open(self.env["STUB_FOREIGN_TOOLS"], "w") as processes:
+            processes.write("12222 sleep\n12345 vivado\n")
+        self.assertEqual(self.builder.running(), ("", "12345 vivado"))
+        with self.assertRaisesRegex(RemoteError, "12345 vivado"):
+            self.builder.start(self.plan("mavg"))
+
+    def test_finished_build_has_terminal_state_even_if_pid_is_alive(self):
+        plan = self.plan("mavg")
+        directory = self.builder.dir_of(plan.dirname)
+        os.makedirs(directory)
+        for name, value in (("build.pid", str(os.getpid())), ("build.json", '{"passed":true}'), ("exit-code", "0")):
+            with open(os.path.join(directory, name), "w") as f:
+                f.write(value)
+        self.assertEqual(self.builder.state(plan.dirname)["state"], "passed")
+
     def test_script_refuses_when_the_lock_is_held(self):
-        import subprocess
         plan = self.plan("mavg")
         with open(self.report, "w") as f:
             f.write(PASS_RPT)
         # hold the lock the way a running build does, then start the script directly
-        holder = subprocess.Popen(["bash", "-c", 'exec 9>"%s/build.lock"; flock -n 9; sleep 20' % self.root],
-                                  env=dict(os.environ))
-        try:
-            time.sleep(0.5)
+        lock_path = os.path.join(self.root, "build.lock")
+        script = 'exec 9>"$1" && flock -n 9 && echo locked && read -r release'
+        with subprocess.Popen(["bash", "-c", script, "lock-holder", lock_path],
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True) as holder:
+            self.assertEqual(holder.stdout.readline(), "locked\n")
             self.builder.remote._sh("true")
             B = self.builder.dir_of(plan.dirname)
             os.makedirs(B)
@@ -342,9 +366,7 @@ class BuildFlowTest(unittest.TestCase):
             with open(os.path.join(B, "exit-code")) as f:
                 self.assertEqual(f.read().strip(), "75")
             self.assertFalse(os.path.exists(os.path.join(B, "xo", "mavg_step_kernel.xo")))
-        finally:
-            holder.terminate()
-            holder.wait()
+            holder.communicate("done\n", timeout=5)
 
     def test_link_failure_is_reported_with_the_log(self):
         with open(self.report, "w") as f:
@@ -362,7 +384,6 @@ class BuildFlowTest(unittest.TestCase):
 
 class CliTest(unittest.TestCase):
     def test_flags(self):
-        import subprocess
         py = sys.executable
         r = subprocess.run([py, "-W", "ignore", "-m", "klongpy.cli", "fpga", "build", "--lanes", "2", "x.kg"], capture_output=True, text=True,
                            env=dict(os.environ, KLONG_FPGA_BUILD=""))

@@ -60,6 +60,11 @@ def read(name):
         return f.read()
 
 
+def at(name):
+    """The file of a reference program: pid.kg loads board.kg, which is found next to it."""
+    return os.path.join(DIR, name + ".kg")
+
+
 class Adc:
     """Stand-ins for the externs of pid.kg that log every call; one object per world."""
     def __init__(self, samples):
@@ -70,15 +75,15 @@ class Adc:
     def read_adc(self, channel):
         v = self.samples[self.i % len(self.samples)]
         self.i += 1
-        self.log.append(("read.adc", channel, v))
+        self.log.append(("read_adc", channel, v))
         return v
 
     def write_pwm(self, channel, duty):
-        self.log.append(("write.pwm", channel, duty))
+        self.log.append(("write_pwm", channel, duty))
         return len(self.log)
 
     def externs(self):
-        return {"read.adc": self.read_adc, "write.pwm": self.write_pwm}
+        return {"read_adc": self.read_adc, "write_pwm": self.write_pwm}       # by C symbol
 
 
 class TestReferencePrograms(Differential):
@@ -108,8 +113,8 @@ class TestReferencePrograms(Differential):
         setpoints = [rng.randrange(0, 1024) / 1024.0 for _ in range(60)] + [0.0, 0.0, 1.0, -5.0, 1e6, -1e6, 0.5]
         for cfg in CONFIGS:
             ha, ca = Adc(samples), Adc(samples)
-            b = Build(read("pid"), name="pidc", int_bits=cfg[0], float_bits=cfg[1], externs=ca.externs())
-            h = Host(read("pid"), externs=ha.externs())
+            b = Build(read("pid"), name="pidc", int_bits=cfg[0], float_bits=cfg[1], externs=ca.externs(), path=at("pid"))
+            h = Host(read("pid"), externs=ha.externs(), path=at("pid"))
             for i, sp in enumerate(setpoints):
                 self.agree(h, b, "step", (sp,), Ty("float"), rtol=None if cfg[1] == 64 else 2e-4, where=f"{cfg} call {i}: ")
             self.state_agrees(h, b, ("integ", "prev"), rtol=None if cfg[1] == 64 else 2e-4)
@@ -138,8 +143,8 @@ class TestReferencePrograms(Differential):
         for name in ("mavg", "pid", "fir"):
             externs, steps = read_expect(name)
             for cfg in CONFIGS:
-                b = Build(read(name), name=name + "x", int_bits=cfg[0], float_bits=cfg[1], externs=externs)
-                h = Host(read(name), externs=externs)
+                b = Build(read(name), name=name + "x", int_bits=cfg[0], float_bits=cfg[1], externs=externs, path=at(name))
+                h = Host(read(name), externs=externs, path=at(name))
                 checked = 0
                 for expr, want in steps:
                     if expr.startswith(("step(", "run(")) and expr.endswith(")"):
@@ -303,7 +308,7 @@ class TestOperatorRows(Differential):
         self.assertGreater(calls, 3000)
 
     def test_every_form_agrees_with_klongpy(self):
-        stubs = {"read.adc": lambda ch: 0.5 + ch, "log.msg": lambda s, n: None}
+        stubs = {"read_adc": lambda ch: 0.5 + ch, "log_msg": lambda s, n: None}
         for form in FORMS:
             for prog, sigtext, _ in examples_of(form):
                 sig = parse_signature(sigtext)
@@ -808,7 +813,7 @@ ORDER = [
 
 class TestEvaluationOrder(Differential):
     def test_side_effects_happen_in_klongs_order(self):
-        text = ('.extern("tr";"int -> int")\n.extern("note";"str int -> void")\ng::5\nadd::{x+y}\nsetg::{g::g+x;g}\n'
+        text = ('tr::.extern("tr";"int -> int")\nnote::.extern("note";"str int -> void")\ng::5\nadd::{x+y}\nsetg::{g::g+x;g}\n'
                 + "\n".join(f'e{i}::{{{body}}}\n.entry("e{i}";"-> {result}")' for i, (body, result) in enumerate(ORDER)))
         for cfg in CONFIGS:
             ht, ct = Tracer(), Tracer()

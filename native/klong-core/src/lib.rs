@@ -23,9 +23,12 @@ pub mod fmt;
 pub mod htag;
 pub mod interp;
 pub mod lex;
+pub mod module;
 pub mod ops;
 pub mod parse;
 pub mod sym;
+#[cfg(feature = "tables")]
+pub mod table;
 pub mod tree;
 pub mod value;
 

@@ -1,0 +1,16 @@
+:" Historical IPC server. kg hdb.kg LISTEN-ADDRESS. Only completed sessions appear in trades."
+history::.db("history.duckdb")
+history("SET threads=2")
+history("CREATE TABLE IF NOT EXISTS trades(dayno BIGINT,seq BIGINT,ts BIGINT,sym BIGINT,px BIGINT,qty BIGINT)")
+num(n)::{:[n~(0:$($n));$n;.err("range";"integer required")]}
+archived(day)::{history("SELECT count(*),coalesce(min(seq),-1),coalesce(max(seq),-1) FROM trades WHERE dayno=",num(day))}
+historyStats(day)::{history("SELECT count(*),coalesce(sum(seq),0),coalesce(sum(px),0),coalesce(sum(qty),0) FROM trades WHERE dayno=",num(day))}
+historyQuote(day;sym)::{history("SELECT seq,px FROM trades WHERE dayno=",(num(day))," AND sym=",(num(sym))," ORDER BY seq DESC LIMIT 1")}
+historyFrom(day;first;n)::{:[(n>0)&n<65537;1;.err("range";"request 1 to 65536 rows")];
+    history("SELECT seq,ts,sym,px,qty FROM trades WHERE dayno=",(num(day))," AND seq>=",(num(first))," ORDER BY seq LIMIT ",num(n))}
+seal(day;first;stop)::{[span found src];span::[;stop-first;first;stop-1];found::archived(day);
+    :[span~found;stop;{:[0=*found;1;.err("range";"conflicting archived session")];
+        src::"read_parquet('transfer/day-",(num(day)),".parquet')";
+        :[span~history("SELECT count(*),min(seq),max(seq) FROM ",src);1;.err("range";"invalid closing watermark")];
+        history("INSERT INTO trades SELECT ",(num(day)),",seq,ts,sym,px,qty FROM ",src);stop}()]}
+:[1=#.a;.srv(.a@0);1]

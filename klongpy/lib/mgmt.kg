@@ -69,7 +69,7 @@ mgmt.load(name;path)       have the node load a file now: .l(path) there
 mgmt.reset(name)           node.reset(name), when this board has one
 mgmt.power(name;on)        node.power(name;on), when this board has one
 
-The file is a module: mgmt::.import("mgmt"), and every name below is an entry of
+The file is a module: .l("mgmt") binds mgmt, and every name below is an entry of
 the dictionary mgmt (mgmt.call, mgmt.add, ...). The helpers and the state
 (the timer, the request counter) are private to the module.
 
@@ -96,14 +96,14 @@ On a node, connecting defines three names: .mgmt.run, .mgmt.job and
 Example configuration (boot.kg of a management node; the addresses are
 this example's, nothing in the library depends on them):
 
-    mgmt::.import("mgmt")
+    .l("mgmt")
     mgmt.add("a";"tcp:10.0.0.11:5000")
     mgmt.add("b";"uart:1@921600")
     mgmt.add("c";"uart:2@921600")
     mgmt.start(5)
     .srv(5000)
 
-From a desktop (KlongPy, or any node; the node has imported mgmt in its boot.kg
+From a desktop (KlongPy, or any node; the node has loaded mgmt in its boot.kg
 as above, and a request names an entry of the dictionary):
 
     mgmt::.cli("10.0.0.10:5000")
@@ -243,5 +243,5 @@ hook::{[d f];d::.E("node");f:::[@d;:undefined;d?x];:[:_f;fail("name";"this board
 reset::{[f];nodeof(x);f::hook("reset");f(x)}
 power::{[f];nodeof(x);f::hook("power");f(x;y)}
 
-.export(:{;"add";add;"nodes";nodes;"cfg";cfg;"names";names;"status";status;"timeout";timeout;"start";start;"stop";stop;
-  "open";open;"call";call;"each";each;"all";all;"put";put;"boot";boot;"load";load;"reset";reset;"power";power})
+export:::{;"add";add;"nodes";nodes;"cfg";cfg;"names";names;"status";status;"timeout";timeout;"start";start;"stop";stop;
+  "open";open;"call";call;"each";each;"all";all;"put";put;"boot";boot;"load";load;"reset";reset;"power";power}

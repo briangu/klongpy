@@ -1,5 +1,6 @@
 //! Adverbs (KlongPy `klongpy/adverbs.py`). An adverb receives the chain and the level of the
 //! function it modifies; it calls that function with `Interp::chain_call`.
+use alloc::rc::Rc;
 use alloc::vec::Vec;
 
 use crate::error::{Error, Result};
@@ -202,10 +203,10 @@ impl Interp {
         let lv = level - 1;
         let name = self.syms.intern("adverb");
         let arity = if lv == 0 { verb_arity } else if lv == 1 { first_arity } else { 1 };
-        let f = Value::Fn(alloc::rc::Rc::new(crate::value::Func::Native {
+        let captures = alloc::vec![verb_val.clone()];
+        let f = Value::Fn(alloc::rc::Rc::new(crate::value::Func::native_with_captures(
             name,
-            arity,
-            f: alloc::rc::Rc::new(move |ip: &mut Interp, args: &[Value]| -> Result<Value> {
+            arity, alloc::rc::Rc::new(move |ip: &mut Interp, args: &[Value]| -> Result<Value> {
                 let ch = Chain { tree: &tree, verb, verb_arity, verb_val: verb_val.clone(), #[cfg(feature = "speed")] body: None, advs: &advs, first_arity };
                 match args.len() {
                     1 => ip.chain_call(&ch, lv, args[0].clone(), None),
@@ -213,11 +214,20 @@ impl Interp {
                     _ => Err(Error::typ("the function of an adverb was given the wrong number of operands")),
                 }
             }),
-        }));
+            captures,
+        )));
         e.0.host_adverb(self, glyph, &f, verb_op.as_deref(), a, b)
     }
 
     pub(crate) fn adverb1(&mut self, ch: &Chain, level: usize, glyph: SymId, a: Value) -> Result<Value> {
+        #[cfg(feature = "host")]
+        if let Some(h) = &self.host_numeric {
+            if ch.verb_arity == 2 && self.syms.name(glyph) == "/" && self.verb_op(ch, level) == Some("+") {
+                if let Some(r) = h("+/", &a, None) {
+                    return r;
+                }
+            }
+        }
         #[cfg(feature = "host")]
         if matches!(a, Value::Ext(_)) {
             let g = alloc::string::String::from(self.syms.name(glyph));
@@ -389,6 +399,24 @@ impl Interp {
     }
 
     fn each(&mut self, ch: &Chain, level: usize, a: Value) -> Result<Value> {
+        #[cfg(feature = "speed")]
+        if let Value::Ints(m) = &a {
+            // Each row's +/ may be handled by an accelerator when one is installed.
+            #[cfg(feature = "host")]
+            let host_sum = self.host_numeric.is_some();
+            #[cfg(not(feature = "host"))]
+            let host_sum = false;
+            if !host_sum && m.rank() == 2 && !m.data.is_empty() && level == 2 && ch.first_arity == 1
+                && ch.verb_arity == 2 && self.syms.name(SymId(ch.advs[0])) == "/" && self.verb_op(ch, 1) == Some("+")
+            {
+                let mut sums = try_vec(m.len())?;
+                for row in m.data.chunks_exact(m.dim(1)) {
+                    self.tick()?;
+                    sums.push(row.iter().copied().fold(0 as Int, Int::wrapping_add));
+                }
+                return Ok(Value::ints(sums));
+            }
+        }
         if let Value::Dict(d) = &a {
             let pairs: Vec<(Value, Value)> = {
                 let d = d.borrow();
@@ -439,6 +467,19 @@ impl Interp {
         let op = self.verb_op(ch, level);
         if ch.verb_arity == 2 {
             match (&a, op) {
+                #[cfg(feature = "speed")]
+                (Value::Ints(m), Some("+")) if m.rank() == 2 && !m.data.is_empty() => {
+                    let mut rows = m.data.chunks_exact(m.dim(1));
+                    let mut sums = try_vec(m.dim(1))?;
+                    sums.extend_from_slice(rows.next().unwrap());
+                    for row in rows {
+                        self.tick()?;
+                        for (sum, value) in sums.iter_mut().zip(row) {
+                            *sum = sum.wrapping_add(*value);
+                        }
+                    }
+                    return Ok(Value::ints(sums));
+                }
                 (Value::Ints(x), Some("+")) if x.rank() == 1 => return Ok(Value::Int(x.data.iter().fold(0 as Int, |s, v| s.wrapping_add(*v)))),
                 (Value::Ints(x), Some("*")) if x.rank() == 1 => return Ok(Value::Int(x.data.iter().fold(1 as Int, |s, v| s.wrapping_mul(*v)))),
                 (Value::Ints(x), Some("&")) if x.rank() == 1 => return Ok(Value::Int(x.data.iter().copied().min().unwrap_or(0))),
@@ -484,14 +525,22 @@ impl Interp {
         Ok(acc)
     }
 
-    fn scan(&mut self, ch: &Chain, level: usize, a: Value) -> Result<Value> {
+    fn scan(&mut self, ch: &Chain, level: usize, mut a: Value) -> Result<Value> {
         if a.is_atom() {
             return Ok(a);
         }
         let n = a.len().unwrap_or(0);
         if ch.verb_arity == 2 {
-            if let (Value::Ints(x), Some("+")) = (&a, self.verb_op(ch, level)) {
+            if let (Value::Ints(x), Some("+")) = (&mut a, self.verb_op(ch, level)) {
                 if x.rank() == 1 {
+                    if let Some(temporary) = Rc::get_mut(x) {
+                        let mut sum: Int = 0;
+                        for value in &mut temporary.data {
+                            sum = sum.wrapping_add(*value);
+                            *value = sum;
+                        }
+                        return Ok(a);
+                    }
                     let mut out: Vec<Int> = try_vec(n)?;
                     running_sum(&x.data, &mut out);
                     return Ok(Value::ints(out));

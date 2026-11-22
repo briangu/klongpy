@@ -2,10 +2,10 @@
 use std::io::Write;
 use std::process::ExitCode;
 
-/// The library directories to search after KLONGPATH (colon-separated, `KLONG_LIB_DIRS`); none: the library built in.
+/// The library directories to search after KLONGPATH (`KLONG_LIB_DIRS`); none: the library built in.
 pub fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(2).collect();
-    let lib_dirs: Vec<String> = std::env::var("KLONG_LIB_DIRS").map(|v| v.split(':').filter(|d| !d.is_empty()).map(String::from).collect()).unwrap_or_default();
+    let lib_dirs: Vec<String> = std::env::var("KLONG_LIB_DIRS").map(|v| klong_host::parse_load_path(&v).collect()).unwrap_or_default();
     // the parser recurses on the native stack: run on a thread with a stack of known size, as `kg FILE` does
     let h = std::thread::Builder::new().stack_size(256 << 20).spawn(move || {
         let out = std::io::stdout();

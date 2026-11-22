@@ -5,8 +5,8 @@ and what `kgpy check` says about the same mistakes.
 
 Binding API, as specified here:
 
-    klong.externs[name] = callable      a Python stand-in, looked up at each call
-    klong.externs.declared[name]        ExternDecl(name, signature, module), set by .extern
+    klong.externs[symbol] = callable    a Python stand-in under the C symbol, looked up at each call
+    klong.externs.declared[symbol]      ExternDecl(name, signature, c_symbol), set by .extern
     klong.externs.entries               [EntryDecl(name, signature)], appended by .entry
     load_program(path, externs={...})   run a file with stand-ins bound
     call_entry(klong, name, *args)      call an entry with arguments and result checked
@@ -37,12 +37,12 @@ from .hostutil import to_np
 ARRAYS_ON_NUMPY = unittest.skipIf(is_torch_backend(), "engine needs: .extern/.entry check a tensor of the torch backend as an array")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-ADC = '.extern("read.adc";"int -> float")\n'
+ADC = 'adc::.extern("read_adc";"int -> float")\n'
 
 
 def interp(**externs):
     klong = KlongInterpreter(strict=2)
-    klong.externs.update({k.replace("_", "."): v for k, v in externs.items()})
+    klong.externs.update(externs)                           # keyed by C symbol
     return klong
 
 
@@ -50,7 +50,7 @@ class TestExtern(unittest.TestCase):
     def test_the_stand_in_is_called(self):
         seen = []
         klong = interp(read_adc=lambda ch: seen.append(ch) or 0.25)
-        self.assertEqual(klong(ADC + "read.adc(3)"), 0.25)
+        self.assertEqual(klong(ADC + "adc(3)"), 0.25)
         self.assertEqual(seen, [3])
         self.assertIs(type(seen[0]), int)
 
@@ -63,58 +63,73 @@ class TestExtern(unittest.TestCase):
 
     def test_the_declaration_is_recorded(self):
         klong = interp()
-        self.assertEqual(klong(ADC), "int -> float")        # the canonical signature
-        self.assertEqual(klong('.extern("fill";"float[4]->float[4]";"dsp")'), "float[4] -> float[4]")
-        d = klong.externs.declared
-        self.assertEqual(sorted(d), ["fill", "read.adc"])
-        self.assertEqual((d["read.adc"].name, str(d["read.adc"].signature), d["read.adc"].module), ("read.adc", "int -> float", "env"))
-        self.assertEqual(d["fill"].module, "dsp")
-        self.assertEqual(d["read.adc"].c_name, "read_adc")
+        klong(ADC)
+        klong('fill::.extern("dsp_fill";"float[4]->float[4]")')
+        d = klong.externs.declared                          # keyed by C symbol, with the canonical signature
+        self.assertEqual(sorted(d), ["dsp_fill", "read_adc"])
+        self.assertEqual((d["read_adc"].name, str(d["read_adc"].signature), d["read_adc"].c_symbol), ("read_adc", "int -> float", "read_adc"))
+        self.assertEqual(str(d["dsp_fill"].signature), "float[4] -> float[4]")
+        self.assertEqual(d["read_adc"].c_name, "read_adc")
+
+    def test_the_value_is_a_function_and_any_name_can_hold_it(self):
+        klong = interp(read_adc=lambda ch: ch + 0.5)
+        klong(ADC + "probe::adc")
+        self.assertEqual(klong("probe(1)"), 1.5)
+        self.assertEqual(klong('{x(2)}(.extern("read_adc";"int -> float"))'), 2.5)  # used where it stands
+
+    def test_a_declaration_whose_value_is_thrown_away_is_a_type_error(self):
+        with self.assertRaises(KlongTypeError) as cm:
+            interp()('x::1\n.extern("read_adc";"int -> float")')
+        self.assertIn("this statement throws it away", cm.exception.message)
+        self.assertIn('adc::.extern("read_adc";"int -> float")', cm.exception.hint)
+        self.assertEqual(cm.exception.position()[1:], (2, 1))
 
     def test_the_stand_in_is_looked_up_at_each_call(self):
         klong = interp()
-        klong(ADC + "f::{read.adc(x)*2}")                  # declared and used before any stand-in exists
-        klong.externs["read.adc"] = lambda ch: 1.0
+        klong(ADC + "f::{adc(x)*2}")                  # declared and used before any stand-in exists
+        klong.externs["read_adc"] = lambda ch: 1.0
         self.assertEqual(klong("f(0)"), 2.0)
-        klong.externs["read.adc"] = lambda ch: 4.0         # and can be replaced
+        klong.externs["read_adc"] = lambda ch: 4.0         # and can be replaced
         self.assertEqual(klong("f(0)"), 8.0)
 
     def test_missing_stand_in_is_a_system_error_naming_the_extern(self):
         klong = interp()
         with self.assertRaises(KlongSystemError) as cm:
-            klong(ADC + "x::1\nread.adc(0)")
+            klong(ADC + "x::1\nadc(0)")
         e = cm.exception
-        self.assertIn("read.adc", e.message)
-        self.assertIn("registers a function of that name", e.hint)      # the engine's hint (bind klong.externs[name] before the call)
+        self.assertIn("read_adc", e.message)
+        self.assertIn("registers a function under that C symbol", e.hint)   # the engine's hint (bind klong.externs[symbol] before the call)
         self.assertEqual(e.position()[1:], (3, 1))
-        self.assertEqual(e.source.text[e.span[0]:e.span[1]], "read.adc(0)")
+        self.assertEqual(e.source.text[e.span[0]:e.span[1]], "adc(0)")
 
     def test_wrong_argument_type(self):
         klong = interp(read_adc=lambda ch: 0.0)
         with self.assertRaises(KlongTypeError) as cm:
-            klong(ADC + "read.adc(0.5)")
-        self.assertEqual(cm.exception.message, 'argument 1 of read.adc must be int, got a float (declared "int -> float")')
+            klong(ADC + "adc(0.5)")
+        self.assertEqual(cm.exception.message, 'argument 1 of read_adc must be int, got a float (declared "int -> float")')
         self.assertEqual(cm.exception.position()[1:], (2, 1))
         for bad in ('"s"', "[1 2]", ":sym"):
             with self.subTest(arg=bad), self.assertRaises(KlongTypeError):
-                klong(f"read.adc({bad})")
+                klong(f"adc({bad})")
 
     def test_an_int_is_passed_as_a_float_where_a_float_is_declared(self):
         seen = []
         klong = interp(set_duty=lambda v: seen.append(v) or 0)
-        klong('.extern("set.duty";"float -> int")\nset.duty(1)')
+        klong('duty::.extern("set_duty";"float -> int")\nduty(1)')
         self.assertEqual(seen, [1.0])
         self.assertIs(type(seen[0]), float)
 
     @ARRAYS_ON_NUMPY
     def test_wrong_array_shape(self):
         klong = interp(fill=lambda a: a * 2.0)
-        klong('.extern("fill";"float[3] -> float[3]")')
+        klong('fill::.extern("fill";"float[3] -> float[3]")')
         r = to_np(klong, klong("fill([1 2 3])"))
         self.assertEqual((r.dtype.kind, r.tolist()), ("f", [2.0, 4.0, 6.0]))
         with self.assertRaises(KlongShapeError) as cm:
             klong("fill([1 2])")
         self.assertIn("argument 1 of fill must be float[3], got int[2]", cm.exception.message)
+        with self.assertRaises(KlongShapeError):
+            klong("fill([[1 2 3]])")
         with self.assertRaises(KlongTypeError):
             klong("fill(1.0)")
 
@@ -122,18 +137,35 @@ class TestExtern(unittest.TestCase):
     def test_the_stand_in_gets_numpy_arrays_of_the_declared_type(self):
         seen = []
         klong = interp(dot=lambda a, b: seen.append((a, b)) or float(a @ b))
-        klong('.extern("dot";"float[3] int[3] -> float")')
+        klong('dot::.extern("dot";"float[3] int[3] -> float")')
         self.assertEqual(klong("dot([1 2 3];[4 5 6])"), 32.0)
         a, b = seen[0]
         self.assertEqual((type(a), a.dtype, type(b), b.dtype), (np.ndarray, np.float64, np.ndarray, np.int64))
 
+    @ARRAYS_ON_NUMPY
+    def test_provider_array_result_is_checked_for_dtype_and_shape(self):
+        klong = interp()
+        klong('sample::.extern("sample";"-> int[2,2]")')
+        for data, error in (([[1, 2], [3, 4]], None), ([1, 2, 3, 4], KlongShapeError),
+                            ([[1.0, 2.0], [3.0, 4.0]], KlongTypeError)):
+            with self.subTest(data=data):
+                result = klong.backend.kg_asarray(data)
+                klong.externs["sample"] = lambda: result
+                if error is None:
+                    value = to_np(klong, klong("sample()"))
+                    self.assertEqual((value.shape, value.dtype), ((2, 2), np.int64))
+                    np.testing.assert_array_equal(value, data)
+                else:
+                    with self.assertRaises(error):
+                        klong("sample()")
+
     def test_the_result_is_checked_too(self):
         klong = interp(read_adc=lambda ch: "high")
         with self.assertRaises(KlongTypeError) as cm:
-            klong(ADC + "read.adc(0)")
-        self.assertIn("the result of read.adc must be float, got a string", cm.exception.message)
+            klong(ADC + "adc(0)")
+        self.assertIn("the result of read_adc must be float, got a string", cm.exception.message)
         klong = interp(cnt=lambda: 1.5, vec=lambda: [1.0, 2.0])
-        klong('.extern("cnt";"-> int")\n.extern("vec";"-> float[3]")')
+        klong('cnt::.extern("cnt";"-> int")\nvec::.extern("vec";"-> float[3]")')
         with self.assertRaises(KlongTypeError):
             klong("cnt()")
         with self.assertRaises(KlongShapeError):
@@ -141,7 +173,7 @@ class TestExtern(unittest.TestCase):
 
     def test_zero_parameter_extern(self):
         klong = interp(now=lambda: 42)
-        self.assertEqual(klong('.extern("now";"-> int")\nnow()'), 42)
+        self.assertEqual(klong('now::.extern("now";"-> int")\nnow()'), 42)
         with self.assertRaises(KlongArityError) as cm:
             klong("now(1)")
         self.assertEqual(cm.exception.message, 'now is declared "-> int" and takes 0 arguments, got 1')
@@ -149,14 +181,14 @@ class TestExtern(unittest.TestCase):
     def test_wrong_number_of_arguments(self):
         klong = interp(read_adc=lambda ch: 0.0)
         klong(ADC)
-        for call in ("read.adc()", "read.adc(1;2)"):
+        for call in ("adc()", "adc(1;2)"):
             with self.subTest(call=call), self.assertRaises(KlongArityError) as cm:
                 klong(call)
             self.assertIn("takes 1 argument", cm.exception.message)
 
     def test_more_than_three_parameters(self):
         klong = interp(xfer=lambda bus, cs, addr, val: bus * 1000 + cs * 100 + addr * 10 + val)
-        klong('.extern("xfer";"int int int int -> int")')
+        klong('xfer::.extern("xfer";"int int int int -> int")')
         self.assertEqual(klong("xfer(1;2;3;4)"), 1234)
         self.assertEqual(klong("f::{xfer(x;x;x;x)};f(2)"), 2222)
         with self.assertRaises(KlongArityError):
@@ -168,19 +200,19 @@ class TestExtern(unittest.TestCase):
     def test_void_and_str(self):
         seen = []
         klong = interp(log_msg=lambda text, n: seen.append((text, n)))
-        r = klong('.extern("log.msg";"str int -> void")\nlog.msg("tick";3)')
+        r = klong('log::.extern("log_msg";"str int -> void")\nlog("tick";3)')
         self.assertIs(r, KLONG_UNDEFINED)                   # a void extern has no value
         self.assertEqual(seen, [("tick", 3)])
         self.assertIs(type(seen[0][0]), str)
         with self.assertRaises(KlongTypeError):
-            klong("log.msg(:tick;3)")                       # a symbol is not a string
+            klong("log(:tick;3)")                           # a symbol is not a string
 
     def test_an_exception_in_the_stand_in_is_a_python_error(self):
         def broken(ch):
             raise RuntimeError("sensor offline")
         klong = interp(read_adc=broken)
         with self.assertRaises(KlongPythonError) as cm:
-            klong(ADC + "read.adc(0)")
+            klong(ADC + "adc(0)")
         self.assertIn("sensor offline", cm.exception.message)
         self.assertIsInstance(cm.exception.__cause__, RuntimeError)
 
@@ -188,33 +220,32 @@ class TestExtern(unittest.TestCase):
     def test_an_extern_is_a_function_like_any_other_under_klongpy(self):
         klong = interp(read_adc=lambda ch: ch * 0.5)
         klong(ADC)
-        self.assertEqual(klong("read.adc'[0 1 2]").tolist(), [0.0, 0.5, 1.0])
-        self.assertEqual(klong("+/read.adc'!4"), 3.0)
+        self.assertEqual(klong("adc'[0 1 2]").tolist(), [0.0, 0.5, 1.0])
+        self.assertEqual(klong("+/adc'!4"), 3.0)
 
     def test_declaring_twice(self):
         klong = interp()
         klong(ADC)
-        self.assertEqual(klong('.extern("read.adc";"int->float")'), "int -> float")    # the same declaration again
+        klong.externs["read_adc"] = lambda ch: 0.75
+        self.assertEqual(klong('again::.extern("read_adc";"int->float");again(0)'), 0.75)   # the same declaration again, under another name
         with self.assertRaises(KlongTypeError) as cm:
-            klong('.extern("read.adc";"int -> int")')
+            klong('other::.extern("read_adc";"int -> int")')
         self.assertIn('already declared "int -> float"', cm.exception.message)
-        with self.assertRaises(KlongTypeError):
-            klong('.extern("read.adc";"int -> float";"other")')
+        self.assertEqual(sorted(klong.externs.declared), ["read_adc"])
 
     def test_bad_declarations(self):
         cases = [
-            ('.extern("read.adc")', KlongArityError, "2 or 3 arguments"),
-            ('.extern(:a;"int -> int")', KlongTypeError, "name must be a string"),
-            ('.extern("a";1)', KlongTypeError, "signature must be a string"),
-            ('.extern("a";"int -> int";3)', KlongTypeError, "module must be a string"),
-            ('.extern("a";"int => int")', KlongTypeError, "'->'"),
-            ('.extern("a";"int -> flot")', KlongTypeError, "unknown type 'flot'"),
-            ('.extern("a";"int -> str")', KlongTypeError, "str cannot be a result"),
-            ('.extern("kg.read";"int -> int")', KlongTypeError, "kg_"),
-            ('.extern("while";"int -> int")', KlongTypeError, "reserved in C"),
-            ('.extern("a_b";"int -> int")', KlongTypeError, "Klong name"),
-            ('.extern("x";"int -> int")', KlongTypeError, "function argument"),
-            ('taken::1\n.extern("taken";"int -> int")', KlongNameError, "already defined"),
+            ('a::.extern("read_adc")', KlongArityError, "takes 2 arguments"),
+            ('a::.extern("a";"int -> int";"env")', KlongArityError, "takes 2 arguments"),
+            ('a::.extern(:a;"int -> int")', KlongTypeError, "C symbol must be a string"),
+            ('a::.extern("a";1)', KlongTypeError, "signature must be a string"),
+            ('a::.extern("a";"int => int")', KlongTypeError, "'->'"),
+            ('a::.extern("a";"int -> flot")', KlongTypeError, "unknown type 'flot'"),
+            ('a::.extern("a";"int -> str")', KlongTypeError, "str cannot be a result"),
+            ('a::.extern("kg_read";"int -> int")', KlongTypeError, "kg_"),
+            ('a::.extern("while";"int -> int")', KlongTypeError, "reserved in C"),
+            ('a::.extern("read.adc";"int -> int")', KlongTypeError, "has no dot"),
+            ('.extern("a";"int -> int")', KlongTypeError, "throws it away"),
         ]
         for text, cls, word in cases:
             with self.subTest(text=text):
@@ -225,20 +256,16 @@ class TestExtern(unittest.TestCase):
 
     def test_a_signature_error_says_where_in_the_signature(self):
         with self.assertRaises(KlongTypeError) as cm:
-            interp()('.extern("a";"int -> flot")')
+            interp()('a::.extern("a";"int -> flot")')
         self.assertIn('(at column 8 of "int -> flot")', cm.exception.message)
 
     def test_declared_inside_a_function_and_at_strict_levels(self):
         for level in (0, 1, 2):
             with self.subTest(strict=level):
                 klong = KlongInterpreter(strict=level)
-                klong.externs["read.adc"] = lambda ch: 0.5
-                klong('setup::{.extern("read.adc";"int -> float")};setup()')
-                self.assertEqual(klong("read.adc(0)"), 0.5)
-
-    def test_export_is_left_alone(self):
-        klong = KlongInterpreter()
-        self.assertIsNot(klong(".export"), klong(".extern"))
+                klong.externs["read_adc"] = lambda ch: 0.5
+                klong('setup::{.extern("read_adc";"int -> float")};adc::setup()')
+                self.assertEqual(klong("adc(0)"), 0.5)
 
 
 class TestEntry(unittest.TestCase):
@@ -277,8 +304,8 @@ class TestEntry(unittest.TestCase):
             with self.subTest(text=text), self.assertRaises(KlongTypeError) as cm:
                 interp()(text)
             self.assertIn("is not a function defined in the program", cm.exception.message)
-        with self.assertRaises(KlongNameError):         # an extern is no function of the program: the engine says it is not defined
-            interp()(ADC + '.entry("read.adc";"int -> float")')
+        with self.assertRaises(KlongTypeError):         # an extern is no function of the program
+            interp()(ADC + '.entry("adc";"int -> float")')
 
     def test_collision_with_generated_names(self):
         for name in ("init", "t", "size"):
@@ -309,17 +336,17 @@ class TestEntry(unittest.TestCase):
 
 
 class TestHostHelpers(unittest.TestCase):
-    PROG = ADC + 'acc::0.0\nstep::{acc::acc+x*read.adc(0);acc}\n.entry("step";"float -> float")\n'
+    PROG = ADC + 'acc::0.0\nstep::{acc::acc+x*adc(0);acc}\n.entry("step";"float -> float")\n'
 
     def test_load_program_and_call_entry(self):
-        klong = load_program("prog.kg", text=self.PROG, externs={"read.adc": lambda ch: 0.5})
+        klong = load_program("prog.kg", text=self.PROG, externs={"read_adc": lambda ch: 0.5})
         self.assertEqual(klong.strict, 2)
         self.assertEqual(call_entry(klong, "step", 2), 1.0)             # the int argument is converted
         self.assertEqual(call_entry(klong, "step", 2.0), 2.0)           # state is kept between calls
         self.assertIs(type(call_entry(klong, "step", 0.0)), float)
 
     def test_call_entry_checks_arguments_and_result(self):
-        klong = load_program("prog.kg", text=self.PROG, externs={"read.adc": lambda ch: 0.5})
+        klong = load_program("prog.kg", text=self.PROG, externs={"read_adc": lambda ch: 0.5})
         with self.assertRaises(KlongTypeError):
             call_entry(klong, "step", [1.0, 2.0])
         with self.assertRaises(KlongTypeError):
@@ -335,15 +362,15 @@ class TestHostHelpers(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "p.kg")
             with open(path, "w") as f:
-                f.write(ADC + "v::read.adc(0)\n")
+                f.write(ADC + "v::adc(0)\n")
             with self.assertRaises(KlongSystemError) as cm:
                 load_program(path)                          # a compile-time call of an extern without a stand-in
             self.assertEqual(cm.exception.position(), (path, 2, 4))
-            self.assertEqual(load_program(path, externs={"read.adc": lambda ch: 9.0})("v"), 9.0)
+            self.assertEqual(load_program(path, externs={"read_adc": lambda ch: 9.0})("v"), 9.0)
 
     def test_into_an_existing_interpreter(self):
         klong = KlongInterpreter(strict=2)
-        self.assertIs(load_program("prog.kg", text=self.PROG, externs={"read.adc": lambda ch: 1.0}, klong=klong), klong)
+        self.assertIs(load_program("prog.kg", text=self.PROG, externs={"read_adc": lambda ch: 1.0}, klong=klong), klong)
         self.assertEqual(klong("step(3.0)"), 3.0)
 
 
@@ -357,8 +384,8 @@ class TestHostBackends(unittest.TestCase):
     gets Python numbers and numpy int64/float64 arrays, call_entry returns the same,
     and signatures are checked on those, whatever the backend.
     """
-    PROG = ('.extern("probe";"float[3] -> float[3]")\n'
-            '.extern("tick";"int -> int")\n'
+    PROG = ('probe::.extern("probe";"float[3] -> float[3]")\n'
+            'tick::.extern("tick";"int -> int")\n'
             'w::[1.5 2.5 3.5]\n'
             'f::{[a];a::probe(x+w);(a*2.0)+tick(1)}\n'
             '.entry("f";"float[3] -> float[3]")\n'
@@ -433,21 +460,21 @@ class TestHostBackends(unittest.TestCase):
 class TestSameMistakeHostAndChecker(unittest.TestCase):
     """A wrong argument type or a missing stand-in is a positioned error naming the extern on both sides."""
 
-    PROG = ADC + 'step::{read.adc(x)}\n.entry("step";"float -> float")\n'
+    PROG = ADC + 'step::{adc(x)}\n.entry("step";"float -> float")\n'
 
     def test_wrong_argument_type(self):
         r = check_source(self.PROG, "prog.kg")
         (d,) = r.diagnostics
-        self.assertEqual((d.rule, d.line, d.col), ("extern-call", 2, 17))
-        self.assertIn("read.adc", d.message)
-        klong = load_program("prog.kg", text=self.PROG, externs={"read.adc": lambda ch: 0.0})
+        self.assertEqual((d.rule, d.line, d.col), ("extern-call", 2, 12))
+        self.assertIn("adc", d.message)
+        klong = load_program("prog.kg", text=self.PROG, externs={"read_adc": lambda ch: 0.0})
         with self.assertRaises(KlongTypeError) as cm:
             call_entry(klong, "step", 0.5)
-        self.assertIn("read.adc", cm.exception.message)
+        self.assertIn("read_adc", cm.exception.message)
         self.assertEqual(cm.exception.position(), ("prog.kg", 2, 8))
 
     def test_the_checker_and_the_host_read_a_signature_alike(self):
-        bad = '.extern("a";"int -> flot")\n'
+        bad = 'a::.extern("a";"int -> flot")\n'
         (d,) = check_source(bad, "p.kg").diagnostics
         self.assertEqual(d.rule, "signature")
         with self.assertRaises(KlongTypeError) as cm:
@@ -458,11 +485,11 @@ class TestSameMistakeHostAndChecker(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "p.kg")
             with open(path, "w") as f:
-                f.write(ADC + "v::read.adc(0)\n")
+                f.write(ADC + "v::adc(0)\n")
             p = subprocess.run([sys.executable, "-W", "ignore", "-m", "klongpy.cli", path], cwd=ROOT, stdin=subprocess.DEVNULL,
                                capture_output=True, text=True, timeout=120)
             self.assertEqual(p.returncode, 1)
-            self.assertIn("p.kg:2:4: system error: extern read.adc has no stand-in on the host", p.stderr)
+            self.assertIn("p.kg:2:4: system error: extern read_adc has no stand-in on the host", p.stderr)
 
 
 if __name__ == "__main__":

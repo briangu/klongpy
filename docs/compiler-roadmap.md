@@ -18,7 +18,7 @@ The compiler infers every type and shape before it emits code, so a program that
 
 ### Recording a function for torch
 
-On the torch backend, `.bkx(fn;input;path)` runs a function once and records the tensor operations it executes with `torch.export`. It does not read the function's source, and the result is a torch program, not Klong. See [PyTorch Backend and Autograd](torch_backend.md#graph-export-and-gradient-checks).
+On the torch backend, `.export(fn;input;path)` runs a function once and records the tensor operations it executes with `torch.export`. It does not read the function's source, and the result is a torch program, not Klong. See [PyTorch Backend and Autograd](torch_backend.md#graph-export-and-gradient-checks).
 
 ## Planned: compile a function as a unit
 
@@ -26,7 +26,7 @@ Not available. Compile the whole body of a function so that `f::{+/x*y}` becomes
 
 ## Planned: trace function calls
 
-Not available. Record the operations a function performs and compile the resulting graph, as `torch.compile` and JAX's `jit` do, with the interpreter as the fallback for anything that escapes the trace (I/O, assignments, Python calls, conditionals that depend on values). `.bkx` records a trace for torch; compiling it is left to `torch.compile`.
+Not available. Record the operations a function performs and compile the resulting graph, as `torch.compile` and JAX's `jit` do, with the interpreter as the fallback for anything that escapes the trace (I/O, assignments, Python calls, conditionals that depend on values). `.export` records a trace for torch; compiling it is left to `torch.compile`.
 
 ## Related
 

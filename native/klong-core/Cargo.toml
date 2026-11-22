@@ -7,6 +7,7 @@ license.workspace = true
 publish.workspace = true
 
 [features]
+tables = []
 default = ["strings", "dicts"]
 # Narrow builds: 32-bit integers and/or floats.
 int32 = []

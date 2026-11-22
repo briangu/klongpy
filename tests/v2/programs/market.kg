@@ -1,0 +1,6 @@
+:" Out-of-order trades. seq breaks timestamp ties. Time is seconds since midnight.
+   The first BB trade precedes every BB quote. CC has no quotes."
+trades::.table(:{;"seq";[1 2 3 4 5 6];"sym";["AA" "BB" "AA" "CC" "AA" "BB"];"ts";[59 58 60 61 60 59];"px";[100 200 102 300 103 201];"qty";[2 3 4 1 5 2]})
+quotes::.table(:{;"seq";[1 2 3 4 5];"sym";["AA" "BB" "AA" "AA" "BB"];"ts";[58 59 60 60 62];"bid";[98 198 99 101 199]})
+market::.db(:{;"trades";trades;"quotes";quotes})
+.l("./queries.kg")

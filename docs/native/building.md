@@ -4,18 +4,87 @@ This page covers building the native Klong runtime from source on a desktop comp
 
 Conditions for the measured figures: an Apple M2 Ultra desktop, 2026-11-16, `cargo build --release`. Paths are relative to the root of the KlongPy repository.
 
+## Install for everyday use
+
+From the repository root, install the desktop command into Cargo's binary directory (usually `~/.cargo/bin`). With that directory on your `PATH`, the following commands work from any directory.
+
+```sh
+cargo install --locked --path native/klong-cli
+kg -e '+/!100'
+kg
+```
+
+The expression prints `4950`. The last command opens the REPL. Use `kg trades.kg` to run a file. At the prompt, `.ver()` shows the platform, integer and float widths, and the features the runtime advertises. For Python packages, callbacks or data frames, use `kgpy` from your Python environment.
+
+### Build for a board
+
+For the repository's Raspberry Pi Pico (RP2040) firmware, install the Pico SDK and Arm toolchain as described in `native/boards/pico-bench/README.md`, then run one command from the repository root.
+
+```sh
+native/boards/pico-bench/build.sh
+```
+
+The script links the firmware, writes `native/boards/pico-bench/build/klong_pico_bench.uf2`, and reports flash use and the RAM available for the heap.
+
+For your own firmware, build `klong-ffi` for the processor and link the static library into your SDK application. These commands select the Pico and enable its C driver interface.
+
+```sh
+rustup +stable target add thumbv6m-none-eabi
+cargo +stable build --manifest-path native/Cargo.toml --locked --release -p klong-ffi --target thumbv6m-none-eabi --no-default-features --features pico,cfun
+```
+
+The archive is `native/target/thumbv6m-none-eabi/release/libklong_ffi.a`. The board SDK supplies the clock, console and allocator. Other boards provide the same platform interface and select the Rust target for their processor. [Porting guide](porting.md)
+
+### An FPGA attached to a board
+
+The Pico runs Klong and owns its data. A board driver can supply a fixed-shape operation through `klong_extern_register`; a Klong program binds that symbol with `.extern`. The driver knows the physical connection and the bitstream's kernel signatures. A capability probe can select the CPU implementation when the board is alone or the loaded image lacks the kernel. Once the driver submits a request, a completion error must reach the caller before it decides whether retrying is safe.
+
+The executable example in `tests/v2/programs/attached/` routes one four-integer block in `route.kg`. The reduction in `energy.kg` runs on the CPU and compiles to an HLS kernel. The build test links the real board C ABI to the generated kernel in C simulation and counts submissions. A physical deployment supplies the board-specific transport and matching bitstream. The current `cfun` interface in `native/klong-ffi/include/klong.h` requires the default 64-bit Klong numeric widths.
+
+### Choosing features
+
+| Product | Table operations | SQL and persistence | Attached accelerator |
+|---|---|---|---|
+| Desktop `kg` | Included by default | DuckDB included by default | Optional driver and compatible kernel |
+| Table-only build | Portable in-memory columns and keyed updates | Omitted | Independent of tables |
+| Small firmware | Opt in when RAM permits | Omitted | Link only drivers the board uses |
+| FPGA kernel | Fixed-size numeric inputs from the host | Host handles queries | Synthesized entry point |
+
+A desktop install includes `duckdb`, which enables `tables`. Build a portable table CLI from the repository root with `cargo build --locked --manifest-path native/Cargo.toml --release -p klong-cli --no-default-features --features tables`. For a Pico with tables and C driver callbacks, select `--no-default-features --features pico,tables,cfun` on the `klong-ffi` build above. The same column lookup, insertion, and key-update operations run on both targets. On macOS, the desktop default also enables `metal` for native GPU arithmetic. [Other build flags](#feature-flags)
+
+### Running kg from a coding agent or CI job
+
+Run `kg --capabilities` on the executable your job will invoke. It writes one JSON object with the runtime version, platform, numeric widths, and compiled features. In a Klong program, `.ver()` returns the same data as a dictionary. A driver can probe attached devices separately.
+
+Pass a file and its arguments as an argument vector. For example, `["kg", "report.kg", "--date", "2026-11-19"]` makes `.a` equal to `["--date" "2026-11-19"]` in the script. Use `.p(.json(result))` in the file for output a caller can parse. Scripts and `-e` run without a terminal. The process exits with status 0 on success, 1 for a language error, and 2 for an unknown option. Runtime errors with a source location go to standard error.
+
+An editor or agent can send an unsaved buffer to `kg lint -` over standard input. The linter writes findings and a summary to standard output. A warning can accompany exit status 0. Use `kg ast -e EXPR` to see how the parser groups an expression. For example, a leading minus applies to the sum in `-1+2`.
+
+<!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
+```console
+$ printf '%s\n' '-1+2' | kg lint -
+<stdin>:1:1: W010 a leading - negates everything to its right: -1+... is -(1+...)
+0 errors, 1 warning in 1 file
+$ kg ast -e '-1+2'
+(m "-" (d "+" (num 1) (num 2)))
+$ printf '%s\n' '.p(.json(.a))' > args.kg
+$ kg args.kg --date 'two words'
+["--date","two words"]
+```
+
+Use `kg check FILE` when a program needs to compile to C or an FPGA kernel. It checks the static profile. For general Klong code, run the relevant program or test after linting. [Lint rules and exit codes](../lint.md) · [Static profile](../static-profile.md)
+
 ## Prerequisites
 
-You need a Rust toolchain with `cargo`. The host build has been run with a nightly `rustc` 1.90 and also with stable 1.88. The runtime has one dependency, the `libm` crate, which `cargo` fetches. You do not need Python for the build. Python is needed only for the scripts that run the conformance suite and talk to a board, and for the tests that connect the runtime to KlongPy.
+The standalone desktop build needs a Rust toolchain with Cargo, a C++ compiler, and a native linker for the bundled DuckDB build. Cargo resolves the dependencies from the workspace lockfile. Python is used by the conformance runner, the scripts that talk to a board, and the tests that connect the runtime to KlongPy.
 
 ## Build
 
 ```sh
-cd native
-cargo build --release
+cargo build --manifest-path native/Cargo.toml --locked --release
 ```
 
-This builds the whole workspace, and it produces two programs in `native/target/release/`:
+This builds the native workspace. Its programs in `native/target/release/` include the following.
 
 | Program | What it is |
 |---|---|
@@ -27,8 +96,6 @@ The examples on this page, and on the other pages of this section, use `kg` and 
 ```sh
 export PATH="$PWD/native/target/release:$PATH"
 ```
-
-(run from the root of the repository, after `cd ..` if you are still in `native/`).
 
 <!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
@@ -46,7 +113,8 @@ $ kg -e '+/!100'
 |---|---|
 | `kg` | read-eval-print loop on standard input |
 | `kg -e EXPR` | evaluate `EXPR`, print its value |
-| `kg FILE [ARG ...]` | run a file; the arguments are in `.a` |
+| `kg FILE [ARG ...]` | run a file with verbatim arguments available in `.a` |
+| `kg --capabilities` | print the installed features as JSON |
 | `kg --dump-ast FILE` | print the canonical parse tree of a file and exit |
 | `kg --conformance` | the runner protocol of the conformance suite: the program is read from standard input |
 
@@ -54,31 +122,10 @@ $ kg -e '+/!100'
 
 <!-- check-docs: requires-file native/target/release/kg; path native/target/release -->
 ```console
-$ kg --help
+$ kg --help | head -n 1
 usage: kg [OPTIONS] [FILE [ARG ...] | -e EXPR | --conformance | --dump-ast FILE]
-
-Without FILE or -e: a read-eval-print loop on standard input.
-  FILE [ARG ...]        run a file; the arguments are in .a
-  -e EXPR               evaluate EXPR and print its value
-  --conformance         the runner protocol of conformance/README.md (program on stdin)
-  --dump-ast FILE       print the canonical parse tree of FILE and exit
-
-Options (before FILE or -e; sizes accept the suffixes K and M):
-  --strict N            strict level 0, 1 or 2
-  --heap-limit BYTES    most the program may allocate (default: no limit)
-  --max-depth N         most nested evaluations before a range error (default 512)
-  --steps N             stop after about N calls and adverb iterations (interrupt)
-  --stack BYTES         native stack of the evaluating thread (default 64M)
-  --stack-budget BYTES  set the limits as a board with a task stack of this size would
-  --max-nest N          most levels of nested lists (default 128)
-  --stats               print peak heap, nesting and stack figures on standard error
-  --bench N             with -e: best time of N runs on standard error, in nanoseconds
-  --memfs               the file functions work on an empty file system in memory
-  --fail-every N        make every Nth large allocation fail (out-of-memory testing)
-  -h, --help            print this text and exit
-  --version             print the version and exit
-$ kg --version
-kg 2.0.0-rc.1
+$ kg --version | cut -d. -f1
+kg 2
 ```
 
 `klong-sim` has the same two options:
@@ -194,7 +241,7 @@ Options go before `FILE` or `-e`. Sizes accept the suffixes `K` and `M` (1024 an
 | `-h`, `--help` | print the usage and exit with status 0 |
 | `--version` | print the version and exit |
 
-`.l` looks for a file in the directories of the environment variable `KLONGPATH` (default `.:lib`, colon separated), then in the library built into the program, and last in the directory of the file that is being run or loaded.
+`.l` looks first beside the file containing the load, or in the working directory at the prompt. It then searches the directories in `KLONGPATH` followed by the bundled library. `KLONGPATH` defaults to `.:lib` on Unix and `.;lib` on Windows. Separate entries with colons on Unix and semicolons on Windows.
 
 ## The embedded library
 
@@ -251,8 +298,8 @@ $ kg -e '2147483647+1'
 2147483648
 $ kg -e '9223372036854775807+1'
 -9223372036854775808
-$ kg -e '.ver()'
-:{["version" "2.0.0-rc.1"] ["int" 64] ["float" 64] ["features" ["files" "lib" "timers" "ipc"]] ["platform" "host"]}
+$ kg -e '.ver()@"int"'
+64
 ```
 
 The default build is 64 bits wide, as the first two lines show: `2147483647+1` is an ordinary number and `9223372036854775807+1` wraps. In the narrow build `.ver()` reports `["int" 32] ["float" 32]`, `2147483647+1` is `-2147483648`, and `1%3` prints `0.33333334`. (This paragraph is not a checked transcript: only the default build is run for the examples.)
@@ -315,10 +362,10 @@ In the commands below, `python` is the interpreter you use for KlongPy, and the 
 <!-- check-docs: requires-file native/target/release/kg; link native conformance -->
 ```console
 $ python native/scripts/conformance.py | tail -1 | cut -c1-40
-total                         2155  2155
+total                         2220  2220
 ```
 
-Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 2155 of 2155 on 2026-11-18, in about three seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
+Run it without the `tail` to see the files. The two numbers are cases passed and cases run: 2220 of 2220 on 2026-11-19, in about three seconds. `--narrow` runs the cases that a build with `int32,float32` declares, and `KLONG_NATIVE` names the binary to test:
 
 ```sh
 KLONG_NATIVE=native/target/narrow/release/kg python native/scripts/conformance.py --narrow
@@ -359,4 +406,4 @@ Two cargo features of `klong-core` are on for the desktop binary (`klong-cli`, a
 
 These images have no IPC and no timers. IPC adds about 42 KB on `thumbv7em` and 59 KB on `riscv32imac`, timers 1.7 and 2.5 KB, and the `mgmt` library 12.6 KB. The firmware for the [ESP32-P4](esp32-p4.md) is 692 KB (691,328 bytes flashed), but it is built with `opt-level` 3 and carries ESP-IDF.
 
-**Speed.** The native runtime is much faster than KlongPy on interpreter work (recursion, loops, lambdas, dictionaries) and slower on whole-array work that NumPy does in one call. [Performance](../performance.md) has the measured table. `python native/scripts/bench.py` repeats the comparison, and `kg --bench N -e PROGRAM` times one program in process. Starting the program and exiting takes about 4 ms. On the ESP32-P4 `fib(24)` takes 4.2 seconds, against about 35 ms on the desktop; see [ESP32-P4](esp32-p4.md).
+**Speed.** `kg --bench N -e PROGRAM` times repeated execution in one process. The [Performance guide](../performance.md) records the workloads, builds and hardware used in desktop comparisons. On an ESP32-P4 image tested during development, `fib(24)` took 4.2 seconds. [ESP32-P4](esp32-p4.md)

@@ -40,13 +40,21 @@ BACKEND_ENV = "_KLONGPY_TEST_BACKEND"  # set by tests/conftest.py
 _built = {}
 
 
+def run_generator(script, output):
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env.pop("KLONGPY_NATIVE_PATH", None)
+    env["KLONG"] = os.path.abspath(env.get("KLONG") or os.path.join(NATIVE, "target", "release", "kg"))
+    return subprocess.run([sys.executable, "-S", script, output], env=env, capture_output=True, text=True)
+
+
 def setUpModule():
     if not (CC and shutil.which("cargo")):
         raise unittest.SkipTest("needs cargo and a C compiler")
     work = tempfile.mkdtemp(prefix="kgpico_")
     _built["work"] = work
     gen = os.path.join(work, "gen")
-    r = subprocess.run([sys.executable, "-W", "ignore", os.path.join(BOARD, "tools", "gen_c_examples.py"), gen], capture_output=True, text=True)
+    r = run_generator(os.path.join(BOARD, "tools", "gen_c_examples.py"), gen)
     if r.returncode:
         raise AssertionError("gen_c_examples.py failed:\n" + r.stdout + r.stderr)
     _built["gen"] = gen
@@ -111,7 +119,7 @@ def klongpy_results(name):
 
     path = os.path.join(EMBEDDED, name + ".kg")
     xs = inputs(name)
-    externs = {"read.adc": lambda channel: 0.3, "write.pwm": lambda channel, duty: 0} if name == "pid" else None
+    externs = {"read_adc": lambda channel: 0.3, "write_pwm": lambda channel, duty: 0} if name == "pid" else None
     k = load_program(path, externs=externs)
     if name == "fir":
         return np.asarray(call_entry(k, "run", xs), dtype=float)
@@ -126,6 +134,25 @@ def assert_close(test, got, want, tol, what):
     err = np.abs(got - want) / (1.0 + np.abs(want))
     test.assertEqual(len(got), len(want), what)
     test.assertTrue(np.all(err <= tol), "%s: worst relative error %g at %d (%g against %g)" % (what, err.max(), err.argmax(), got[err.argmax()], want[err.argmax()]))
+
+
+class FixtureGeneration(unittest.TestCase):
+    def test_a_wrong_count_pin_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            script = os.path.join(directory, "native", "boards", "pico-bench", "tools", "gen_c_examples.py")
+            os.makedirs(os.path.dirname(script))
+            shutil.copyfile(os.path.join(BOARD, "tools", "gen_c_examples.py"), script)
+            embedded = os.path.join(directory, "examples", "embedded")
+            shutil.copytree(EMBEDDED, embedded)
+            pin = os.path.join(embedded, "fir.expect")
+            with open(pin) as f:
+                text = f.read()
+            self.assertIn("#run(256:^1.0) => 241\n", text)
+            with open(pin, "w") as f:
+                f.write(text.replace("#run(256:^1.0) => 241\n", "#run(256:^1.0) => 242\n"))
+            result = run_generator(script, os.path.join(directory, "generated"))
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("fir.expect: #run(256:^1.0) gave 241, expected 242", result.stderr)
 
 
 class CompiledAgainstKlongPy(unittest.TestCase):
@@ -146,8 +173,8 @@ class CompiledAgainstKlongPy(unittest.TestCase):
         for name, prefix, fn in (("mavg", "mavg", ".c.mavg"), ("pid", "pidc", ".c.pid")):
             with open(os.path.join(EMBEDDED, name + ".kg")) as f:
                 text = f.read()
-            externs = {"read.adc": lambda channel: 0.3, "write.pwm": lambda channel, duty: 0} if name == "pid" else None
-            b = Build(text, name=prefix, externs=externs)
+            externs = {"read_adc": lambda channel: 0.3, "write_pwm": lambda channel, duty: 0} if name == "pid" else None
+            b = Build(text, name=prefix, externs=externs, path=os.path.join(EMBEDDED, name + ".kg"))   # pid.kg loads board.kg next to it
             xs = inputs(name)
             direct = np.array([float(np.float32(b.call("step", float(np.float32(x)))[1])) for x in xs])
             got = floats(run(['.c.reset("%s")' % name, "%s'%s" % (fn, klist(xs))])[1])

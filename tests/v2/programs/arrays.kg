@@ -1,0 +1,2 @@
+energy(v)::{+/v*v}
+window(v)::{[a b]::v;[;(a+b);(a*b)]}

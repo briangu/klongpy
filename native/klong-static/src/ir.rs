@@ -366,7 +366,7 @@ pub struct Program {
 }
 
 pub fn c_name_of(x: &ExternDecl) -> String {
-    crate::sig::c_identifier(&x.name)
+    x.c_symbol.clone()
 }
 
 // ---------------------------------------------------------------------------
@@ -481,7 +481,7 @@ pub fn dump(p: &Program) -> String {
         out.push(format!("global {} {}: {} = {}", kind, g.name, g.ty, shown));
     }
     for x in &p.externs {
-        out.push(format!("extern {}: {} (C {}, module {})", x.name, x.signature, c_name_of(x), x.module));
+        out.push(format!("extern {}: {} (C {})", x.name, x.signature, c_name_of(x)));
     }
     for e in &p.entries {
         out.push(format!("entry {}: {} -> {}", e.c_name, e.decl.signature, e.f.label()));

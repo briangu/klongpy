@@ -42,20 +42,23 @@ CASES = [
     ("toplevel-effect", "f::{x}\nt::{x*2}'!8", []),                 # an adverb applied at top level is a value
     ("toplevel-effect", "x::5", [(1, "toplevel-effect")]),
     ("toplevel-effect", ".module(:m)\nf::{x}", [(1, "toplevel-effect")]),
-    ("decl-literal", '.extern("a.b";"int -> int";3)', [(1, "decl-literal")]),
-    ("decl-literal", '.extern("a.b")', [(1, "decl-literal")]),
+    ("decl-literal", 'a::.extern("a_b";"int -> int";3)', [(1, "decl-literal")]),
+    ("decl-literal", 'a::.extern("a_b")', [(1, "decl-literal")]),
+    ("decl-literal", 'n::"a_b"\na::.extern(n;"int -> int")', [(1, "global-value"), (2, "decl-literal")]),
     ("decl-literal", 'n::"a"\n.l(n)', [(1, "global-value"), (2, "decl-literal")]),
     ("signature", 'f::{x}\n.entry("f";"int -> flot")', [(2, "signature")]),
     ("signature", 'f::{x}\n.entry("f";"str -> int")', [(2, "signature")]),
-    ("signature", '.extern("a.b";"int -> str")', [(1, "signature")]),
-    ("signature", '.extern("a.b";"int[0] -> int")', [(1, "signature")]),
-    ("signature", '.extern("a.b";"int[1,2,3,4,5] -> int")', [(1, "signature")]),
-    ("signature", '.extern("a.b";"str int float[2,3] -> void";"dsp")', []),
-    ("extern", '.extern("while";"int -> int")', [(1, "extern")]),
-    ("extern", '.extern("a_b";"int -> int")', [(1, "extern")]),
-    ("extern", '.extern("x";"int -> int")', [(1, "extern")]),
-    ("extern", '.extern("a.b";"int -> int")\n.extern("a.b";"int -> float")', [(2, "extern")]),
-    ("extern", '.extern("a.b";"int -> int")\n.extern("a.b";"int->int")', []),
+    ("signature", 'a::.extern("a_b";"int -> str")', [(1, "signature")]),
+    ("signature", 'a::.extern("a_b";"int[0] -> int")', [(1, "signature")]),
+    ("signature", 'a::.extern("a_b";"int[1,2,3,4,5] -> int")', [(1, "signature")]),
+    ("signature", 'a::.extern("a_b";"str int float[2,3] -> void")', []),
+    ("extern", 'a::.extern("while";"int -> int")', [(1, "extern")]),              # the C symbol: reserved in C,
+    ("extern", 'a::.extern("kg_b";"int -> int")', [(1, "extern")]),               # the runtime's,
+    ("extern", 'a::.extern("a.b";"int -> int")', [(1, "extern")]),                # or no C identifier (a dot)
+    ("extern", '.extern("a_b";"int -> int")', [(1, "extern")]),                   # the function value is thrown away
+    ("extern", 'a::.extern("a_b";"int -> int")\nb::.extern("a_b";"int -> float")', [(2, "extern")]),
+    ("extern", 'a::.extern("a_b";"int -> int")\nb::.extern("a_b";"int->int")', []),  # one C symbol under two names
+    ("toplevel-effect", 'x::.extern("x";"int -> int")', [(1, "toplevel-effect")]),
     ("entry", '.entry("f";"int -> int")\nf::{x}', [(1, "entry")]),
     ("entry", 'init::{x}\n.entry("init";"int -> int")', [(2, "entry")]),
     ("entry", 'g::3\n.entry("g";"-> int")', [(2, "entry")]),
@@ -66,7 +69,8 @@ CASES = [
     ("entry", "f::{x}" + entry("int -> int") + entry("float[3] -> float[3]"), []),   # several entries
     ("entry", "f(a;b;c;d)::{a+b+c+d}" + entry("int int int int -> int"), []),
     ("redefinition", "f::{x}\nf::3", [(2, "redefinition")]),
-    ("redefinition", 'f::{x}\n.extern("f";"int -> int")', [(2, "redefinition")]),
+    ("redefinition", 'f::{x}\nf::.extern("f";"int -> int")', [(2, "redefinition")]),
+    ("redefinition", 'a::.extern("a_b";"int -> int")\na::3', [(2, "redefinition")]),
     ("redefinition", "a::1\na::a+1\nf::{x+a}", []),                             # a value may be computed in steps
     ("redefinition", "g::{x}\nf::{g::3;x}", [(2, "redefinition")]),
     # -- compile-time values -----------------------------------------------------
@@ -101,9 +105,9 @@ CASES = [
     ("fn-value", "g::{x+1}\nf::{g'x}" + entry("int[3] -> int[3]"), []),         # a function name as a verb
     ("arity", "g::{x+1}\nf::{x g'y}", [(2, "arity")]),
     ("projection", "g::{x+y}\nf::{g(x)}", [(2, "projection")]),
-    ("void-value", '.extern("v";"-> void")\nf::{[a];a::v();x}', [(2, "void-value")]),
-    ("void-value", '.extern("v";"-> void")\nf::{x;v()}' + entry("int -> void"), []),
-    ("entry", '.extern("v";"-> void")\nf::{x;v()}' + entry("int -> int"), [(3, "entry")]),
+    ("void-value", 'v::.extern("v";"-> void")\nf::{[a];a::v();x}', [(2, "void-value")]),
+    ("void-value", 'v::.extern("v";"-> void")\nf::{x;v()}' + entry("int -> void"), []),
+    ("entry", 'v::.extern("v";"-> void")\nf::{x;v()}' + entry("int -> int"), [(3, "entry")]),
     # -- result length -------------------------------------------------------------------
     ("grade", "f::{>x}", [(1, "grade")]),
     ("const-count", "f::{y_x}", [(1, "const-count")]),
@@ -179,11 +183,11 @@ CASES = [
     ("loop-state", "f::{,/x}" + entry("int[3,2] -> int[6]"), [(1, "loop-state")]),
     ("loop-state", "f::{{x<9}{x+0.5}:~0}", [(1, "loop-state")]),
     ("loop-state", "f::{{x+y%2}/x}" + entry("int[4] -> float"), []),            # one promotion is allowed
-    ("extern-call", '.extern("r";"int -> int")\nf::{r(x;1)}', [(2, "extern-call")]),
-    ("extern-call", '.extern("r";"float[3] -> int")\nf::{r(x)}' + entry("float[4] -> int"), [(2, "extern-call")]),
-    ("extern-call", '.extern("r";"float -> int")\nf::{r(x)}' + entry("int -> int"), []),   # an int converts to float
-    ("extern-call", '.extern("r";"str -> int")\nf::{[s];r(x)}', [(2, "extern-call")]),
-    ("extern-call", '.extern("r";"int -> float")\nf::{r\'x}' + entry("int[3] -> float[3]"), []),
+    ("extern-call", 'r::.extern("r";"int -> int")\nf::{r(x;1)}', [(2, "extern-call")]),
+    ("extern-call", 'r::.extern("r";"float[3] -> int")\nf::{r(x)}' + entry("float[4] -> int"), [(2, "extern-call")]),
+    ("extern-call", 'r::.extern("r";"float -> int")\nf::{r(x)}' + entry("int -> int"), []),   # an int converts to float
+    ("extern-call", 'r::.extern("r";"str -> int")\nf::{[s];r(x)}', [(2, "extern-call")]),
+    ("extern-call", 'r::.extern("r";"int -> float")\nf::{r\'x}' + entry("int[3] -> float[3]"), []),
 ]
 
 
@@ -255,7 +259,7 @@ class TestDiagnostics(unittest.TestCase):
             ("g::{x}\nf::{1+g}", "g"),
             ('f::{x;"abc"}', '"abc"'),
             ("f::{x+[1 [2]]}", "[1 [2]]"),
-            ('.extern("r";"int -> flot")', "flot"),
+            ('r::.extern("r";"int -> flot")', "flot"),
             ('f::{x}\n.entry("f";"int int -> int")', '"int int -> int"'),
             ("f::{:[x;1;[1 2]]}", ":[x;1;[1 2]]"),
             ("a::[1 [2]]", "[1 [2]]"),
@@ -306,17 +310,17 @@ class TestStages(unittest.TestCase):
             "tab::{x*x}'!8",                        # a value: the root is an adverb, not a function literal
             "f::{tab@x}",
             "g(a;b)::{a+b}",
-            '.extern("read.adc";"int -> float";"io")',
+            'adc::.extern("read_adc";"int -> float")',
             '.entry("f";"int -> int")',
             "[p q]::[1 2]",
         ])
         r = check_source(text, "t.kg")
         self.assertTrue(r.ok, r.render())
         self.assertEqual([(k, n) for k, n, *_ in check_report(text, "t.kg")["statements"]],
-                         [("global", "tab"), ("function", "f"), ("function", "g"), ("extern", "read.adc"),
+                         [("global", "tab"), ("function", "f"), ("function", "g"), ("extern", "adc"),
                           ("entry", "f"), ("global", "p"), ("global", "q")])
-        self.assertEqual(r.externs["read.adc"].module, "io")
-        self.assertEqual(str(r.externs["read.adc"].signature), "int -> float")
+        self.assertEqual((r.externs["adc"].name, r.externs["adc"].c_symbol), ("adc", "read_adc"))
+        self.assertEqual(str(r.externs["adc"].signature), "int -> float")
         fns = {f[0]: f for f in check_report(text, "t.kg")["functions"]}
         self.assertEqual(list(fns["g"][7]), ["a", "b"])         # params
         self.assertEqual(list(fns["f"][7]), ["x"])

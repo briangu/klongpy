@@ -17,14 +17,11 @@ import threading
 import time
 import unittest
 
+from tests.cli_subprocess import cli_command
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV = dict(os.environ, PYTHONPATH=ROOT, PYTHONUNBUFFERED="1")
-BACKEND = os.environ.get("_KLONGPY_TEST_BACKEND", "numpy")
-EXTRA = []
-if BACKEND != "numpy":
-    EXTRA = ["--backend", BACKEND]
-    if os.environ.get("_KLONGPY_TEST_DEVICE"):
-        EXTRA += ["--device", os.environ["_KLONGPY_TEST_DEVICE"]]
+COMMAND = cli_command(os.environ.get("_KLONGPY_TEST_BACKEND", "numpy"), os.environ.get("_KLONGPY_TEST_DEVICE"))
 WINDOWS = sys.platform == "win32"
 posix = unittest.skipIf(WINDOWS, "needs POSIX signals")
 
@@ -52,7 +49,7 @@ class Proc:
         path = os.path.join(self.dir.name, name)
         with open(path, "w") as f:
             f.write(source)
-        cmd = [sys.executable, "-W", "ignore", "-m", "klongpy.cli", *EXTRA, *args, path]
+        cmd = [*COMMAND, *args, path]
         self.p = subprocess.Popen(cmd, cwd=self.dir.name, env=ENV, stdin=subprocess.DEVNULL,
                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                   preexec_fn=None if WINDOWS else default_sigint)
@@ -398,8 +395,7 @@ class TestCallingYourOwnServer(unittest.TestCase):
     def test_a_call_from_expression_mode_still_works(self):
         # -e evaluates outside the loop thread, so the server is answered
         port = free_port()
-        cmd = [sys.executable, "-W", "ignore", "-m", "klongpy.cli", *EXTRA, "-e",
-               f'.srv({port});c::.cli({port});c("1+1")']
+        cmd = [*COMMAND, "-e", f'.srv({port});c::.cli({port});c("1+1")']
         r = subprocess.run(cmd, env=ENV, capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "2"), r.stderr)
 

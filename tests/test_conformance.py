@@ -11,8 +11,11 @@ The implementation-neutral conformance suite (conformance/README.md).
 """
 import importlib.util
 import os
+from pathlib import Path
 import re
+import shutil
 import sys
+import tempfile
 import unittest
 import warnings
 
@@ -265,6 +268,15 @@ class TestShimProtocol(unittest.TestCase):
             if problem:
                 bad.append(f"{name}: {problem}")
         self.assertEqual(bad, [])
+
+    def test_golden_runner_reports_missing_source_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "tests" / "golden"
+            (base / "language").mkdir(parents=True)
+            shutil.copyfile(Path(conf.GOLDEN_DIR) / "regen.py", base / "regen.py")
+            (base / "language" / "missing.sexp").write_text("(num 1)\n")
+            with self.assertRaisesRegex(ValueError, "language/missing.sexp"):
+                list(conf.golden_pairs(str(base)))
 
 
 class TestPending(unittest.TestCase):

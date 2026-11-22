@@ -39,8 +39,44 @@ struct board {
     int from_board[2];
 };
 
+static int arm_fragment;
+static int plant_fragment;
+static int reused_fragment;
+
+/* Simulate a 64-byte temporary (the size of a function object on this host)
+ * left in the cache from the middle of the largest free span. */
+static void *h_alloc(void *ctx, size_t size, size_t align) {
+    void *fragment = NULL;
+    uint8_t tag = KLONG_ALLOC_TAG;
+    if (plant_fragment && size == 64 && align <= 8 && (tag == 0 || tag == 4)) {
+        uint32_t prev = KH_NIL, span = KH_NIL, span_prev = KH_NIL, bytes = 0;
+        for (uint32_t p = kh_head; p != KH_NIL; prev = p, p = KH_AT(p)->next) {
+            if (KH_AT(p)->size > bytes) {
+                span = p;
+                span_prev = prev;
+                bytes = KH_AT(p)->size;
+            }
+        }
+        if (bytes < 4 * size) abort();
+        uint32_t offset = span + ((bytes / 2) & ~7u);
+        kh_carve(span_prev, span, offset, (uint32_t)size);
+        kh_taken += (uint32_t)size;
+        fragment = kh_base + offset;
+        kh_free(ctx, fragment, size, align);
+        plant_fragment = 0;
+    }
+    void *p = kh_alloc(ctx, size, align);
+    if (fragment) reused_fragment = p == fragment;
+    return p;
+}
+
 static void h_write(void *ctx, const uint8_t *bytes, size_t len) {
     struct board *b = ctx;
+    /* Arm the fragment just before the fixture module's first function definition. */
+    if (arm_fragment && len == 6 && memcmp(bytes, "314159", 6) == 0) {
+        arm_fragment = 0;
+        plant_fragment = 1;
+    }
     while (len > 0) {
         ssize_t n = write(b->from_board[1], bytes, len);
         if (n <= 0) abort();
@@ -146,7 +182,7 @@ int main(void) {
         .abi_version = KLONG_ABI_VERSION,
         .size = sizeof cfg,
         .ctx = &B,
-        .alloc = kh_alloc,
+        .alloc = h_alloc,
         .free = kh_free,
         .grow = kh_grow,
         .stack_bytes = 512u << 10,
@@ -270,6 +306,30 @@ int main(void) {
         check(u && (char *)u > (char *)t, "where it moves to is above, and what it left merges with what is below", NULL);
         kh_free(NULL, u, 2728, 8);
     }
+
+    eval("alias::0;.heap.keep::0");
+    const char *written = eval(
+        "fd::.oc(\"heaptest.kg\");.tc(fd);"
+        ".d(\".p(314159);.heap.keep::{1+2+3+4+5+6+7+8+9+10+11+12+x};local::{x+22};export:::{};.p(local(2))\");"
+        ".tc(0);.cc(fd);0");
+    check(strcmp(written, "0") == 0, "write the module fixture", written);
+    arm_fragment = 1;
+    const char *called = eval(".l(\"heaptest\");0");
+    check(strcmp(called, "314159\r\n24\r\n0") == 0 && !arm_fragment && !plant_fragment, "both function definitions ran", called);
+    check(strcmp(eval("heaptest::0;.heap.keep(2)"), "80") == 0, "the global function outlives its module", NULL);
+    long biggest = largest(), available = (limit - reserve - mem(0)) / 8;
+    snprintf(msg, sizeof msg, "largest %ld of %ld", biggest, available);
+    check(!reused_fragment && biggest * 100 >= 98 * available, "a global function leaves the largest free span available", msg);
+    check(strcmp(eval("alias::.heap.keep;.heap.keep::0;alias(2)"), "80") == 0, "reassigning a global preserves aliases to its function", NULL);
+    eval("alias::0");
+    check(works(98 * available / 100), "dropping the final reference returns the space", NULL);
+
+    eval("runner::{[local];local::{x+22};local(2)}");
+    plant_fragment = 1;
+    called = eval("runner()");
+    check(strcmp(called, "24") == 0 && !plant_fragment && reused_fragment, "a frame-local function can reuse the cache", called);
+    available = (limit - reserve - mem(0)) / 8;
+    check(works(98 * available / 100), "the frame-local allocation is returned on exit", NULL);
 
     printf("-- %s\n", failures ? "FAILED" : "ok");
     return failures ? 1 : 0;
