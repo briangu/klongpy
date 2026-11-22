@@ -7,11 +7,12 @@ instead of hanging the suite.
 import asyncio
 import os
 import socket
+import threading
 import time
 import unittest
 
 from klongpy import KlongInterpreter
-from klongpy.repl import create_repl, cleanup_repl
+from klongpy.repl import create_repl, cleanup_repl, keeps_alive, wait_while_alive
 from klongpy.sys_fn_ipc import (NetworkClient, KlongIPCException, KlongIPCConnectionClosedException,
                                 eval_sys_fn_create_ipc_server)
 from klongpy.core import KlongException
@@ -46,7 +47,70 @@ class TestCallbackEvent(unittest.TestCase):
         self.assertEqual(len(ev.subscribers), 0)
 
 
-class TestShutdown(unittest.TestCase):
+class TestShutdown(ReplCase):
+    def _gate_client_close(self):
+        klong, loops = self.new_repl()
+        peer = FakeKdbServer()
+        self.addCleanup(peer.stop)
+        bounded(lambda: klong(f"c::.cli({peer.port})"))
+        client = klong["c"]
+        provider = client.conn_provider
+        close = provider.close
+        closing = threading.Event()
+        allow_close = asyncio.Event()
+
+        async def gated_close():
+            closing.set()
+            await allow_close.wait()
+            await close()
+
+        def resume():
+            loops[0].call_soon_threadsafe(allow_close.set)
+
+        provider.close = gated_close
+        self.addCleanup(resume)
+        return klong, client, loops[0], closing, resume
+
+    def test_last_connection_keeps_run_alive_while_a_timer_closes_it(self):
+        klong, _, _, closing, resume = self._gate_client_close()
+        system = klong[".system"]
+        finished = threading.Event()
+        results = []
+
+        def closed(result):
+            results.append(result)
+            finished.set()
+
+        klong["markClosed"] = closed
+        bounded(lambda: klong('cb::{markClosed(.clic(c));0};.timer("close";0.01;cb)'))
+        try:
+            self.assertTrue(closing.wait(3), "timer callback did not start closing the connection")
+            self.assertEqual(keeps_alive(system), "connection")
+        finally:
+            resume()
+        self.assertTrue(finished.wait(3), "timer callback did not finish closing the connection")
+        self.assertEqual(results, [1])
+        self.assertIsNone(keeps_alive(system))
+
+    def test_client_close_on_the_io_loop_does_not_block_it(self):
+        klong, client, io_loop, closing, resume = self._gate_client_close()
+        system = klong[".system"]
+        returned = threading.Event()
+
+        def request_close():
+            client.close()
+            returned.set()
+
+        io_loop.call_soon_threadsafe(request_close)
+        try:
+            self.assertTrue(returned.wait(3), "client.close blocked its own I/O loop")
+            self.assertTrue(closing.wait(3), "the I/O loop did not start closing the connection")
+            self.assertEqual(keeps_alive(system), "connection")
+        finally:
+            resume()
+        bounded(lambda: wait_while_alive(system), 3)
+        self.assertFalse(client.is_open())
+
     def test_shutdown_with_two_clients_is_clean(self):
         for _ in range(20):
             klong, loops = create_repl()

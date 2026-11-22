@@ -199,6 +199,7 @@ class NetworkClient(KdbConnectionMixin, KGLambda):
         # outstanding requests: Pending -> waiter
         self.pending_responses = {}
         self.running = False
+        self._closing = False
         self.run_task = None
         self.on_connect = on_connect
         self.on_close = on_close
@@ -449,6 +450,24 @@ class NetworkClient(KdbConnectionMixin, KGLambda):
         else:
             logging.warning(f"timed out waiting for the client to stop: {str(self.conn_provider)}")
 
+    def _finish_closing(self):
+        with self._lock:
+            self._closing = False
+
+    async def _close_on_io_loop(self):
+        try:
+            try:
+                await asyncio.wait_for(self.conn_provider.close(), CLOSE_TIMEOUT)
+            except (asyncio.TimeoutError, OSError, RuntimeError) as e:
+                logging.warning(f"error closing connection {str(self.conn_provider)}: {e}")
+            if self._run_exit_event.is_set():
+                self._run_exit_event.clear()
+            else:
+                # The reader and on_close must finish on this loop.
+                await asyncio.to_thread(self._stop)
+        finally:
+            self._finish_closing()
+
     def cleanup(self):
         """
 
@@ -458,25 +477,28 @@ class NetworkClient(KdbConnectionMixin, KGLambda):
         if self.shutdown_event is not None:
             self.shutdown_event.unsubscribe(self.close)
 
-        if not self.running:
-            return
-
-        # run close in the appropriate context task to avoid deadlock
+        with self._lock:
+            if not self.running:
+                return
+            # Ending a file run must wait until the I/O loop has finished closing its last client.
+            self._closing = True
+            self.running = False
         try:
             loop = asyncio.get_running_loop()
-            if loop == self.ioloop:
-                self.ioloop.call_soon(asyncio.create_task, self.conn_provider.close())
-                self._stop()
-            else:
-                raise RuntimeError()
         except RuntimeError:
-            self.running = False
-            # close the connection first: it wakes a run loop that is blocked reading
+            loop = None
+        if loop is self.ioloop:
+            loop.create_task(self._close_on_io_loop())
+            return
+        try:
+            # Closing the connection wakes the run loop if it is blocked reading.
             try:
                 asyncio.run_coroutine_threadsafe(self.conn_provider.close(), self.ioloop).result(CLOSE_TIMEOUT)
             except (concurrent.futures.TimeoutError, OSError, RuntimeError) as e:
                 logging.warning(f"error closing connection {str(self.conn_provider)}: {e}")
             self._stop()
+        finally:
+            self._finish_closing()
 
     def close(self):
         """
@@ -492,6 +514,10 @@ class NetworkClient(KdbConnectionMixin, KGLambda):
 
     def is_open(self):
         return self.conn_provider.is_open()
+
+    def keeps_process_alive(self):
+        with self._lock:
+            return self._closing or (self.running and self.is_open())
 
     def get_arity(self):
         return 1
