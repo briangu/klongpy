@@ -136,3 +136,7 @@ The first probe used positional script arguments. In `kg`, the first argument is
 ### Closing the last hosted IPC client from a timer
 
 Fixed during RC1 qualification. A timer callback that printed `"closing"` and called `.clic(c)` occasionally took five seconds to exit and printed an IPC timeout. The file runner saw the last connection disappear while the I/O loop was still closing it. Calling `close()` on that I/O loop could also block the loop that needed to finish the close. The regression tests hold the transport open until the test releases it and check that the file runner stays alive until the close completes. The original subprocess example then exited with only `closing` on all 25 runs. [IPC lifecycle tests](../test_ipc_lifecycle.py)
+
+### Receiving a reply as an IPC call times out
+
+Fixed during RC1 qualification. Two Python threads issued blocking calls through the same Klong connection after setting `.clit(c;0.5)`. If both callers resumed after their deadlines, each could raise a distinct timeout. A caller could also discard a reply or disconnect that the I/O thread had already delivered. The regression checks synchronize both calls after registration and delay a caller until a terminal result is available. Both callers now receive the same terminal error on timeout, and a delivered reply survives a scheduling delay. [Blocking-call regressions](../test_ipc_endpoint.py)

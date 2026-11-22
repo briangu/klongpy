@@ -150,18 +150,18 @@ class Waiter:
 
     def __init__(self):
         self.inbox = queue.SimpleQueue()
-        self._done = False
+        self.outcome = None
 
     def done(self):
-        return self._done
+        return self.outcome is not None
 
     def set_result(self, value):
-        self._done = True
-        self.inbox.put(("response", value))
+        self.outcome = ("response", value)
+        self.inbox.put(self.outcome)
 
     def set_exception(self, exc):
-        self._done = True
-        self.inbox.put(("failed", exc))
+        self.outcome = ("failed", exc)
+        self.inbox.put(self.outcome)
 
 
 class CallbackWaiter:
@@ -680,12 +680,12 @@ class KdbConnectionMixin:
     def _on_response(self, ev):
         with self._lock:
             waiter = self.pending_responses.pop(ev.pending, None)
-        if waiter is None or waiter.done():
-            return
-        if ev.error is not None:
-            waiter.set_exception(ERROR_KINDS[ev.error.kind](str(ev.error)))   # a response that did not decode
-        else:
-            waiter.set_result(ev.value)
+            if waiter is None or waiter.done():
+                return
+            if ev.error is not None:
+                waiter.set_exception(ERROR_KINDS[ev.error.kind](str(ev.error)))   # a response that did not decode
+            else:
+                waiter.set_result(ev.value)
 
     def _dispatch_request(self, msg):
         """Hand an incoming request to the innermost blocked caller, else to the klong loop."""
@@ -860,11 +860,12 @@ class KdbConnectionMixin:
             while True:
                 remaining = None if deadline is None else deadline - time.monotonic()
                 if remaining is not None and remaining <= 0:
-                    self._timed_out(timeout)
-                try:
-                    kind, payload = waiter.inbox.get(timeout=remaining)
-                except queue.Empty:
-                    self._timed_out(timeout)
+                    kind, payload = self._timeout_outcome(waiter, timeout)
+                else:
+                    try:
+                        kind, payload = waiter.inbox.get(timeout=remaining)
+                    except queue.Empty:
+                        kind, payload = self._timeout_outcome(waiter, timeout)
                 if kind == "response":
                     return payload
                 if kind == "failed":
@@ -874,10 +875,13 @@ class KdbConnectionMixin:
             self._abort(self._failure(f"interrupted while waiting: {str(self.conn_provider)}"))
             raise
 
-    def _timed_out(self, timeout):
-        err = KlongIPCTimeoutException(f"call timed out after {timeout}s: {str(self.conn_provider)}")
-        self._abort(err)
-        raise err
+    def _timeout_outcome(self, waiter, timeout):
+        # Serialize timeout with response delivery and other connection failures.
+        with self._lock:
+            if not waiter.done():
+                err = KlongIPCTimeoutException(f"call timed out after {timeout}s: {str(self.conn_provider)}")
+                self._abort(err)
+            return waiter.outcome
 
     def call_async(self, msg, on_done, timeout=...):
         """Send ``msg`` as a sync request without blocking; ``on_done(result, error)`` runs on the klong loop.
@@ -921,10 +925,10 @@ class KdbConnectionMixin:
                 return
             ev = sess.check_deadlines(time.monotonic())
             nxt = None if ev is not None else sess.next_deadline()
-        if ev is not None:
-            err = self._failure(f"call timed out after {self.call_timeout}s: {str(self.conn_provider)}")
-            with self._lock:
+            if ev is not None:
+                err = self._failure(f"call timed out after {self.call_timeout}s: {str(self.conn_provider)}")
                 self._cleanup_pending_responses(err)
+        if ev is not None:
             if self.writer is not None:
                 self.writer.close()
         elif nxt is not None:

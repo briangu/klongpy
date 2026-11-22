@@ -28,6 +28,7 @@ from klongpy.core import KGSym, KlongException
 from klongpy.ipc import KdbLambda, Session, decode, encode
 from klongpy.ipc.endpoint import (KlongRemoteException, call_items, display_arity,
                                   lambda_value, wire_error_text)
+from klongpy.ipc.errors import KlongIPCTimeoutException
 from klongpy.repl import cleanup_repl, create_repl
 from klongpy.sys_fn_ipc import (KGRemoteFnCall, KGRemoteFnProxy, KlongIPCException, NetworkClient,
                                 detect_handshake, parse_address)
@@ -432,12 +433,21 @@ class TestAsync(IPCCase):
 
 class TestTimeouts(IPCCase):
     def test_timeout_closes_the_connection_and_fails_pending_requests(self):
-        server, client = self.pair()
-        server["slow"] = lambda x: (time.sleep(2.0), x)[1]
+        peer = FakeKdbServer()
+        self.addCleanup(peer.stop)
+        client = self.repl()
+        self.kg(client, f"c::.cli({peer.port})")
         self.assertEqual(self.kg(client, ".clit(c;0.5)"), 1)
         nc = client["c"]
+        session = nc.session
         self.assertEqual(nc.call_timeout, 0.5)
         errors = []
+        both_registered = threading.Barrier(2)
+        wait = nc._wait
+
+        def expire_together(waiter, _deadline, timeout):
+            both_registered.wait(timeout=3)
+            return wait(waiter, 0, timeout)
 
         def call(i):
             try:
@@ -447,21 +457,46 @@ class TestTimeouts(IPCCase):
 
         t0 = time.monotonic()
         threads = [threading.Thread(target=call, args=(i,), daemon=True) for i in range(2)]
-        for t in threads:
-            t.start()
-            time.sleep(0.05)
-        for t in threads:
-            t.join(8)
-            self.assertFalse(t.is_alive())
+        with patch.object(nc, "_wait", expire_together):
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(8)
+                self.assertFalse(t.is_alive())
         self.assertLess(time.monotonic() - t0, 5)
         self.assertEqual(len(errors), 2)
         self.assertTrue(all("timed out" in str(e) for e in errors), errors)
-        self.assertTrue(all(isinstance(e, KlongIPCException) for e in errors))
+        self.assertIsInstance(errors[0], KlongIPCTimeoutException)
         self.assertIs(errors[0], errors[1])                          # both fail with the same error
+        self.assertTrue(session.closed)
+        self.assertEqual(session.pending(), [])
+        self.assertEqual(nc.pending_responses, {})
         self.assertTrue(wait_until(lambda: not nc.is_open(), 5))
         with self.assertRaises(KlongException):
             self.kg(client, 'c("1+1")')                             # the connection is gone
         self.assertEqual(self.kg(client, ".clic(c)"), 0)
+
+    def test_expired_wait_uses_an_already_delivered_result(self):
+        for disconnect in (False, True):
+            with self.subTest(disconnect=disconnect):
+                peer = FakeKdbServer(handler=lambda _: 42, disconnect_on_request=disconnect)
+                self.addCleanup(peer.stop)
+                client = self.repl()
+                self.kg(client, f"c::.cli({peer.port})")
+                nc = client["c"]
+                wait = nc._wait
+
+                def expire_after_delivery(waiter, _deadline, timeout):
+                    self.assertTrue(wait_until(waiter.done, 3))
+                    return wait(waiter, 0, timeout)
+
+                with patch.object(nc, "_wait", expire_after_delivery):
+                    if disconnect:
+                        with self.assertRaisesRegex(KlongIPCException, "connection closed"):
+                            nc.call("1+1", timeout=1)
+                    else:
+                        self.assertEqual(nc.call("1+1", timeout=1), 42)
+                        self.assertTrue(nc.is_open())
 
     @unittest.skipUnless(threading.current_thread() is threading.main_thread()
                          and signal.getsignal(signal.SIGINT) is signal.default_int_handler,

@@ -229,8 +229,18 @@ jobs:
         latency_status=0
         "${measure[@]}" tests/v2/test_performance.py::test_tick_service_under_load -v --import-mode=append \
           -o junit_family=xunit1 --junitxml="$RUNNER_TEMP/feed-latency.xml" || latency_status=$?
-        python -m pytest tests -v --import-mode=append --ignore=tests/test_compiler.py -k 'not test_tick_service_under_load'
+        python -m pytest tests -v --import-mode=append --ignore=tests/test_compiler.py -k 'not test_tick_service_under_load' \
+          --junitxml="$RUNNER_TEMP/package-tests.xml"
         exit "$latency_status"
+    - name: Save installed-wheel test reports
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: tests-${{ matrix.name }}
+        path: |
+          ${{ runner.temp }}/feed-latency.xml
+          ${{ runner.temp }}/package-tests.xml
+        if-no-files-found: ignore
 
   # Upload the selected, tested distributions from this run.
   # The owner configures once (nothing here holds a secret):
@@ -248,6 +258,11 @@ jobs:
     steps:
     - uses: actions/download-artifact@v4
       with:
+        name: sdist
+        path: release-artifacts/sdist
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: wheel-*
         path: release-artifacts
     - name: Verify the selected upload set
       env:
