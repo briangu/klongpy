@@ -630,6 +630,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#installing-200rc1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installing 2.0.0rc1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#headline-additions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2334,6 +2345,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#installing-200rc1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installing 2.0.0rc1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#headline-additions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2676,6 +2698,9 @@
 <h1 id="release-notes">Release Notes<a class="headerlink" href="#release-notes" title="Permanent link">&para;</a></h1>
 <p>These notes describe the changes in version 2 from the pure-Python 0.7 and v1 line. The older examples use the 0.7 behavior where stated. <a href="../whats-new-v2/">What's New in v2</a> · <a href="../migrating-to-v2/">Migrating to v2</a></p>
 <h2 id="20">2.0<a class="headerlink" href="#20" title="Permanent link">&para;</a></h2>
+<h3 id="installing-200rc1">Installing 2.0.0rc1<a class="headerlink" href="#installing-200rc1" title="Permanent link">&para;</a></h3>
+<p>Install the candidate with <code>python -m pip install klongpy==2.0.0rc1</code>. It supports CPython 3.11–3.14. Linux x86-64 and ARM64 wheels require glibc 2.28 or later. Apple Silicon wheels target macOS 11 or later and Intel wheels target macOS 10.15 or later. The Windows wheel is deferred while the compiler and simulator tests are qualified on Windows. <a href="https://pypi.org/project/klongpy/2.0.0rc1/#files">Source distribution and available wheels</a></p>
+<p>The 25,600-tick/s benchmark missed its 100 ms scheduled latency target on the four-CPU GitHub Intel Mac runner. In one run, <code>kg</code> recorded a 323 ms p99 latest-price query and <code>kgpy</code> a 140 ms p99 as-of query. Both numbers include the time the client waited before sending. <a href="https://github.com/briangu/klongpy/actions/runs/44982548782">Intel qualification run</a></p>
 <h3 id="headline-additions">Headline additions<a class="headerlink" href="#headline-additions" title="Permanent link">&para;</a></h3>
 <ul>
 <li><a href="../what-runs-where/">One interpreter, written in Rust</a>, behind two commands: <code>kgpy</code> (hosted in Python) and <code>kg</code> (no Python). The same interpreter runs on <a href="../native/">microcontroller boards</a>.</li>
