@@ -22,6 +22,10 @@ on:
         description: "Include the Windows x86_64 wheel in this build and upload"
         type: boolean
         default: true
+      include_intel_macos:
+        description: "Include the Intel macOS wheel in this build and upload"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -38,8 +42,11 @@ jobs:
       id: targets
       env:
         INCLUDE_WINDOWS: ${{ github.event_name != 'workflow_dispatch' || inputs.include_windows }}
+        INCLUDE_INTEL_MACOS: ${{ github.event_name != 'workflow_dispatch' || inputs.include_intel_macos }}
       run: |
-        targets=$(jq -c --argjson windows "$INCLUDE_WINDOWS" 'map(select(.name != "windows-x86_64" or $windows))' .github/wheel-platforms.json)
+        targets=$(jq -c --argjson windows "$INCLUDE_WINDOWS" --argjson intel "$INCLUDE_INTEL_MACOS" \
+          'map(select((.name != "windows-x86_64" or $windows) and (.name != "macos-x86_64" or $intel)))' \
+          .github/wheel-platforms.json)
         echo "platforms=$targets" >> "$GITHUB_OUTPUT"
     - uses: actions/setup-python@v5
       with:
@@ -203,6 +210,8 @@ jobs:
       shell: bash
       env:
         PYTHONSAFEPATH: "1"
+        OPENBLAS_NUM_THREADS: "1"
+        OMP_NUM_THREADS: "1"
       # tests/test_compiler.py needs torch, which the wheel matrix does not install.
       run: |
         unset PYTHONPATH KLONGPY_NATIVE_PATH
@@ -212,8 +221,16 @@ jobs:
         mv klongpy/__init__.py "$checkout_init"
         trap 'mv "$checkout_init" klongpy/__init__.py' EXIT
         # Measure scheduled requests before starting the long-lived test process and its background services.
-        python -m pytest tests/v2/test_performance.py::test_tick_service_under_load -v --import-mode=append
+        measure=(python -m pytest)
+        if [[ "$RUNNER_OS" == macOS ]]; then
+          # Apply the same timer policy to the producer, readers and server.
+          measure=(/usr/sbin/taskpolicy -l 0 -t 0 "${measure[@]}")
+        fi
+        latency_status=0
+        "${measure[@]}" tests/v2/test_performance.py::test_tick_service_under_load -v --import-mode=append \
+          -o junit_family=xunit1 --junitxml="$RUNNER_TEMP/feed-latency.xml" || latency_status=$?
         python -m pytest tests -v --import-mode=append --ignore=tests/test_compiler.py -k 'not test_tick_service_under_load'
+        exit "$latency_status"
 
   # Upload the selected, tested distributions from this run.
   # The owner configures once (nothing here holds a secret):

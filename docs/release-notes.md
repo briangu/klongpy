@@ -4,6 +4,12 @@ These notes describe the changes in version 2 from the pure-Python 0.7 and v1 li
 
 ## 2.0
 
+### Installing 2.0.0rc1
+
+Install the candidate with `python -m pip install klongpy==2.0.0rc1`. It supports CPython 3.11–3.14. Linux x86-64 and ARM64 wheels require glibc 2.28 or later. Apple Silicon wheels target macOS 11 or later and Intel wheels target macOS 10.15 or later. The Windows wheel is deferred while the compiler and simulator tests are qualified on Windows. [Source distribution and available wheels](https://pypi.org/project/klongpy/2.0.0rc1/#files)
+
+The 25,600-tick/s benchmark missed its 100 ms scheduled latency target on the four-CPU GitHub Intel Mac runner. In one run, `kg` recorded a 323 ms p99 latest-price query and `kgpy` a 140 ms p99 as-of query. Both numbers include the time the client waited before sending. [Intel qualification run](https://github.com/briangu/klongpy/actions/runs/44982548782)
+
 ### Headline additions
 
 * [One interpreter, written in Rust](what-runs-where.md), behind two commands: `kgpy` (hosted in Python) and `kg` (no Python). The same interpreter runs on [microcontroller boards](native/index.md).
