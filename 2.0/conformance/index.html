@@ -2255,8 +2255,8 @@
 <!-- check-docs: continue -->
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span>python<span class="w"> </span>conformance/run.py<span class="w"> </span>conformance/cases/90-errors.cases
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">63 passed, 0 failed, 0 skipped by tags (KlongPy (in process))</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="gp">$ </span>python<span class="w"> </span>conformance/run.py<span class="w"> </span>--list<span class="w"> </span>--tags<span class="w"> </span>core<span class="w"> </span><span class="p">|</span><span class="w"> </span>wc<span class="w"> </span>-l
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="go">     805</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="gp">$ </span>python<span class="w"> </span>conformance/run.py<span class="w"> </span>--list<span class="w"> </span>--tags<span class="w"> </span>core<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">'END { print NR }'</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="go">805</span>
 </code></pre></div>
 <p><code>python -m pytest tests/test_conformance.py --backend torch --device cpu</code> runs the in-process cases on the torch backend. The numpy backend declares every tag except <code>torch-only</code>, <code>timers</code>, <code>ipc</code> and <code>desktop</code>. The torch backend declares <code>torch-only</code> instead of <code>numpy-only</code>, because float32 text and <code>:undefined</code> inside a list differ there by design.</p>
 <h2 id="running-it-against-the-native-binary">Running it against the native binary<a class="headerlink" href="#running-it-against-the-native-binary" title="Permanent link">&para;</a></h2>
