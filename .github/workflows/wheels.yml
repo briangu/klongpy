@@ -1,289 +1,58 @@
-name: Wheels
+name: Publish qualified RC1 distributions
 
-# The release build: one abi3 wheel (cp311 and later) per platform and the sdist, each wheel installed into a clean environment and
-# tested there. Runs on a version tag and by hand only; the ordinary test workflow is unittests.yml.
-#
-# Every wheel carries the extension (klongpy._native) and the `kg` binary, both built from native/ by setuptools-rust
-# (pyproject.toml), so each platform builds on a runner of its own architecture.
-#
-# Publishing runs when this workflow is started by hand on a tag with `publish` ticked.
-
+# This release record promotes the exact files built by v2.0.0rc1-build.5.
+# Qualification was performed against the downloaded wheels and the source archive.
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       publish:
-        description: "Upload the wheels and the sdist to PyPI (only on a tag ref; needs the pypi environment and trusted publishing)"
+        description: Upload these verified RC1 distributions to PyPI
         type: boolean
         default: false
-      include_windows:
-        description: "Include the Windows x86_64 wheel in this build and upload"
-        type: boolean
-        default: true
-      include_intel_macos:
-        description: "Include the Intel macOS wheel in this build and upload"
-        type: boolean
-        default: true
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
-  sdist:
-    name: Source distribution
+  verify:
+    name: Verify build identity and file checksums
+    if: github.repository == 'briangu/klongpy' && github.ref == 'refs/tags/v2.0.0rc1-build.5-publish.1'
     runs-on: ubuntu-latest
-    outputs:
-      platforms: ${{ steps.targets.outputs.platforms }}
     steps:
     - uses: actions/checkout@v4
-    - name: Select wheel platforms
-      id: targets
+    - name: Verify the original build and its platform jobs
       env:
-        INCLUDE_WINDOWS: ${{ github.event_name != 'workflow_dispatch' || inputs.include_windows }}
-        INCLUDE_INTEL_MACOS: ${{ github.event_name != 'workflow_dispatch' || inputs.include_intel_macos }}
+        GH_TOKEN: ${{ github.token }}
       run: |
-        targets=$(jq -c --argjson windows "$INCLUDE_WINDOWS" --argjson intel "$INCLUDE_INTEL_MACOS" \
-          'map(select((.name != "windows-x86_64" or $windows) and (.name != "macos-x86_64" or $intel)))' \
-          .github/wheel-platforms.json)
-        echo "platforms=$targets" >> "$GITHUB_OUTPUT"
-    - uses: actions/setup-python@v5
+        gh api repos/briangu/klongpy/actions/runs/44990460823 > "$RUNNER_TEMP/run.json"
+        gh api repos/briangu/klongpy/actions/runs/44990460823/jobs > "$RUNNER_TEMP/jobs.json"
+        python .github/rc1/check_origin.py .github/rc1/qualification.json "$RUNNER_TEMP/run.json" "$RUNNER_TEMP/jobs.json"
+    - name: Download the original build artifacts
+      uses: actions/download-artifact@v4
       with:
-        python-version: "3.12"
-    - name: Build the sdist
-      run: |
-        python -m pip install --upgrade pip build twine
-        python -m build --sdist
-        python -m twine check dist/*
-    - name: Check the sources needed for a wheel build
-      run: |
-        tar -tzf dist/*.tar.gz | cut -d/ -f2- > "$RUNNER_TEMP/sdist-files"
-        for file in README.md native/Cargo.toml native/Cargo.lock native/klong-py/Cargo.toml \
-          native/klong-py/Cargo.lock native/klong-core/Cargo.toml native/klong-cli/Cargo.toml \
-          native/klong-cli/build.rs native/klong-cli/src/gpu.metal native/klong-cli/src/gpu_metal.m \
-          tests/v2/verify_reports.py tests/v2/programs/stream.kg tests/v2/programs/attached/driver.c \
-          conformance/run.py tests/golden/regen.py tests/kgtests/language/test_suite.kg scripts/bench_versions.py \
-          native/boards/pico-bench/build.sh native/boards/esp32p4/build.sh examples/embedded/fir.expect; do
-          grep -Fx "$file" "$RUNNER_TEMP/sdist-files"
-        done
+        run-id: 44990460823
+        github-token: ${{ github.token }}
+        path: original
+    - name: Verify the distributions and reference-host measurements
+      run: python .github/rc1/verify.py .github/rc1/qualification.json original dist
     - uses: actions/upload-artifact@v4
       with:
-        name: sdist
-        path: dist/*.tar.gz
+        name: qualified-rc1-distributions
+        path: dist/
         if-no-files-found: error
-
-  wheels:
-    name: Wheel ${{ matrix.name }}
-    needs: sdist
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.sdist.outputs.platforms) }}
-    env:
-      # abi3: the cp311 wheel serves every Python from 3.11. No musllinux wheel (see docs).
-      CIBW_BUILD: "cp311-*"
-      CIBW_SKIP: "*-musllinux_*"
-      CIBW_ARCHS_WINDOWS: AMD64
-      CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
-      CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
-      CIBW_BEFORE_ALL_LINUX: "curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal"
-      CIBW_ENVIRONMENT_LINUX: 'PATH="$HOME/.cargo/bin:$PATH"'
-      # Rust diagnostics and DuckDB C++ file macros otherwise embed the build user's home and source paths.
-      CIBW_ENVIRONMENT_MACOS: >-
-        MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment }}
-        RUSTFLAGS="--remap-path-prefix=$HOME=/build/host --remap-path-prefix=$HOME/.cargo/registry/src=/build/cargo-registry --remap-path-prefix=$(pwd -P)=/build/klongpy ${{ matrix.rustflags }}"
-        CFLAGS="-ffile-prefix-map=$HOME=/build/host -ffile-prefix-map=$(pwd -P)=/build/klongpy"
-        CXXFLAGS="$CFLAGS ${{ matrix.cxxflags }}"
-      # A smoke test inside cibuildwheel's own environment, in a directory that holds no source.
-      CIBW_TEST_COMMAND: 'kg -e "1+1" && kgpy -e "1+1"'
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-    - uses: actions/download-artifact@v4
-      with:
-        name: sdist
-        path: source-dist
-    - name: Locate the release source distribution
-      id: source
-      shell: bash
-      run: |
-        set -- source-dist/*.tar.gz
-        [ "$#" -eq 1 ]
-        [ -f "$1" ]
-        printf 'path=%s\n' "$1" >> "$GITHUB_OUTPUT"
-    - name: Build the wheel from the release source distribution
-      uses: pypa/cibuildwheel@v3.2.0
-      with:
-        package-dir: ${{ steps.source.outputs.path }}
-        output-dir: wheelhouse
-    - name: Check macOS wheel for local build paths
-      if: runner.os == 'macOS'
-      shell: bash
-      run: |
-        python - <<'PY'
-        from pathlib import Path
-        from zipfile import ZipFile
-
-        home = (str(Path.home()) + "/").encode()
-        with ZipFile(next(Path("wheelhouse").glob("*.whl"))) as wheel:
-            leaked = [name for name in wheel.namelist() if home in wheel.read(name)]
-        if leaked:
-            raise SystemExit(f"Build home embedded in wheel members: {leaked}")
-        PY
-    - uses: actions/upload-artifact@v4
-      with:
-        name: wheel-${{ matrix.name }}
-        path: wheelhouse/*.whl
-        if-no-files-found: error
-
-    # The suite against the wheel, not the source tree: install it into a fresh environment and make that installation win over the
-    # checkout on sys.path (PYTHONSAFEPATH keeps the working directory off it, --import-mode=append puts the checkout last). The checkout
-    # stays because some tests read its files (lib, docs, examples, native/boards).
-    - name: Install the wheel into a fresh environment
-      shell: bash
-      run: |
-        set -- wheelhouse/*.whl
-        [ "$#" -eq 1 ]
-        [ -f "$1" ]
-        python -m venv "$RUNNER_TEMP/venv"
-        VENV_BIN="$RUNNER_TEMP/venv/bin"; [ -d "$VENV_BIN" ] || VENV_BIN="$RUNNER_TEMP/venv/Scripts"
-        echo "$VENV_BIN" >> "$GITHUB_PATH"
-        "$VENV_BIN/python" -m pip install "$1" pytest pytest-asyncio aiohttp pandas pyarrow duckdb websockets psutil
-        suffix=
-        [ "$RUNNER_OS" != Windows ] || suffix=.exe
-        printf 'KLONG_NATIVE=%s\nKLONG_V2_KGPY=%s\nKLONG=%s\n' \
-          "$VENV_BIN/kg$suffix" "$VENV_BIN/kgpy$suffix" "$VENV_BIN/kg$suffix" >> "$GITHUB_ENV"
-    - name: Installed commands, and the package comes from the wheel
-      shell: bash
-      env:
-        PYTHONSAFEPATH: "1"
-      run: |
-        cd "$RUNNER_TEMP"
-        unset PYTHONPATH KLONGPY_NATIVE_PATH
-        python -m pip check
-        python -c "from pathlib import Path; import klongpy, sys; print(klongpy.__version__, klongpy.__file__); assert Path(klongpy.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())"
-        "$KLONG_NATIVE" --capabilities
-        sql='t::.table(:{;"n";[1 2]});d::.db(:{;"t";t});.insert(t;[3]);d("SELECT sum(n) FROM t")'
-        python - "$sql" <<'PY'
-        import os
-        import subprocess
-        import sys
-
-        for variable in ("KLONG_NATIVE", "KLONG_V2_KGPY"):
-            command = os.environ[variable]
-            result = subprocess.check_output([command, "-e", sys.argv[1]], text=True).strip()
-            assert result == "6", (command, result)
-        PY
-    - name: Conformance suite through the installed package
-      # conformance/run.py puts its repository root on sys.path, so it runs from a copy that has no package beside it.
-      shell: bash
-      run: |
-        mkdir "$RUNNER_TEMP/cf"
-        cp -R conformance "$RUNNER_TEMP/cf/"
-        cd "$RUNNER_TEMP/cf"
-        unset PYTHONPATH KLONGPY_NATIVE_PATH
-        python "$RUNNER_TEMP/cf/conformance/run.py"
-        python "$RUNNER_TEMP/cf/conformance/run.py" --cmd "\"$KLONG_NATIVE\" --conformance" --jobs 2
-    - name: Allow the Intel runner to settle before scheduled latency checks
-      if: matrix.name == 'macos-x86_64'
-      shell: bash
-      run: |
-        python - <<'PY'
-        import os
-        import time
-        import psutil
-
-        quiet_samples = 0
-        deadline = time.monotonic() + 360
-        while time.monotonic() < deadline:
-            idle = psutil.cpu_times_percent(interval=5).idle
-            print(f"CPU idle {idle}% on {psutil.cpu_count()} logical CPUs, load {os.getloadavg()}", flush=True)
-            quiet_samples = quiet_samples + 1 if idle >= 80 else 0
-            if quiet_samples >= 3:
-                break
-        PY
-    - name: Test suite against the installed wheel
-      shell: bash
-      env:
-        PYTHONSAFEPATH: "1"
-        OPENBLAS_NUM_THREADS: "1"
-        OMP_NUM_THREADS: "1"
-      # tests/test_compiler.py needs torch, which the wheel matrix does not install.
-      run: |
-        unset PYTHONPATH KLONGPY_NATIVE_PATH
-        # Some checkout test helpers prepend the source root to sys.path or PYTHONPATH.
-        # Keep the source fixtures, while making the installed package win those imports too.
-        checkout_init="$RUNNER_TEMP/klongpy-checkout-init.py"
-        mv klongpy/__init__.py "$checkout_init"
-        trap 'mv "$checkout_init" klongpy/__init__.py' EXIT
-        # Measure scheduled requests before starting the long-lived test process and its background services.
-        measure=(python -m pytest)
-        if [[ "$RUNNER_OS" == macOS ]]; then
-          # Apply the same timer policy to the producer, readers and server.
-          measure=(/usr/sbin/taskpolicy -l 0 -t 0 "${measure[@]}")
-        fi
-        latency_status=0
-        "${measure[@]}" tests/v2/test_performance.py::test_tick_service_under_load -v --import-mode=append \
-          -o junit_family=xunit1 --junitxml="$RUNNER_TEMP/feed-latency.xml" || latency_status=$?
-        python -m pytest tests -v --import-mode=append --ignore=tests/test_compiler.py -k 'not test_tick_service_under_load' \
-          --junitxml="$RUNNER_TEMP/package-tests.xml"
-        exit "$latency_status"
-    - name: Save installed-wheel test reports
-      if: ${{ !cancelled() }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: tests-${{ matrix.name }}
-        path: |
-          ${{ runner.temp }}/feed-latency.xml
-          ${{ runner.temp }}/package-tests.xml
-        if-no-files-found: ignore
-
-  # Upload the selected, tested distributions from this run.
-  # The owner configures once (nothing here holds a secret):
-  #   1. PyPI: project klongpy > Publishing > add a trusted publisher: owner and repository of this repository, workflow `wheels.yml`,
-  #      environment `pypi`.
-  #   2. GitHub: Settings > Environments > create `pypi`, with required reviewers.
   publish:
     name: Publish to PyPI
-    needs: [sdist, wheels]
-    if: github.event_name == 'workflow_dispatch' && inputs.publish && startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    needs: verify
+    if: inputs.publish
     environment: pypi
     permissions:
+      actions: read
       id-token: write
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/download-artifact@v4
       with:
-        name: sdist
-        path: release-artifacts/sdist
-    - uses: actions/download-artifact@v4
-      with:
-        pattern: wheel-*
-        path: release-artifacts
-    - name: Verify the selected upload set
-      env:
-        WHEEL_PLATFORMS: ${{ needs.sdist.outputs.platforms }}
-      run: |
-        python - <<'PY'
-        import json
-        import os
-        from pathlib import Path
-        import shutil
-
-        expected = {"sdist": ".tar.gz"}
-        for platform in json.loads(os.environ["WHEEL_PLATFORMS"]):
-            expected["wheel-" + platform["name"]] = ".whl"
-        root = Path("release-artifacts")
-        assert {path.name for path in root.iterdir()} == set(expected), list(root.iterdir())
-        destination = Path("dist")
-        destination.mkdir()
-        for name, suffix in expected.items():
-            package, = (root / name).iterdir()
-            assert package.is_file() and package.name.endswith(suffix), package
-            shutil.move(package, destination / package.name)
-        PY
+        name: qualified-rc1-distributions
+        path: dist
     - uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,0 +1,125 @@
+{
+  "version": "2.0.0rc1",
+  "source_tag": "v2.0.0rc1-build.5",
+  "source_commit": "2ddbabaac94783d2cfb073751d5bfa454cc30049",
+  "github_run": 44990460823,
+  "acceptance": {
+    "desktop": {
+      "passed": 244,
+      "junit_sha256": "8748bc716482966661d0cda74fd44e1b65d1f5cc5e4bcbf625d451e37632fbc4"
+    },
+    "gpu": {
+      "passed": 17,
+      "junit_sha256": "66ccd2bb89fa0b51878a61ded2eaa6d9d6c42cd78ddfa29402f726e0be92e44e"
+    },
+    "reference": {
+      "passed": 20,
+      "junit_sha256": "e592cb66d2e198e2e408061401e34c83fba988775265b840a1eed9ae50f4281a"
+    },
+    "source": {
+      "passed": 18,
+      "junit_sha256": "172b3de851ab68c80acf7a362fa496bc79e0133a8fa230dc50964bfa41996a5b"
+    }
+  },
+  "distributions": [
+    {
+      "artifact": "sdist",
+      "filename": "klongpy-2.0.0rc1.tar.gz",
+      "sha256": "a8fed9a33fd7199a95b75a827efd2f226201ea8993bbc5b0b236547f9d258c54",
+      "github_job": 137110158750,
+      "github_conclusion": "success"
+    },
+    {
+      "artifact": "wheel-linux-aarch64",
+      "filename": "klongpy-2.0.0rc1-cp311-abi3-manylinux_2_28_aarch64.whl",
+      "sha256": "9c47174166e61314c118f9bc1b903212bf0a42d8f3861e956c0af069f55b559f",
+      "github_job": 137110237252,
+      "github_conclusion": "success",
+      "original_test_reports": {
+        "package_junit_sha256": "43bc29614c1f80468fd5b85e2910c924174fa918265e566abcb512f042c916d1",
+        "feed_junit_sha256": "3060cf2ed12ddece1d38d204ce7c800d6603dc84f5b1aea752977fdbfdbe3f25",
+        "package_tests_including_subtests": 9711,
+        "github_feed_ms": {
+          "kg": {
+            "max_ingest_lag_ms": 5.001325999955952,
+            "latest_p99_ms": 5.5395360000147775,
+            "asof_p99_ms": 5.206008999948608
+          },
+          "kgpy": {
+            "max_ingest_lag_ms": 8.67415500010793,
+            "latest_p99_ms": 7.0542380001370475,
+            "asof_p99_ms": 7.240815000159273
+          }
+        }
+      }
+    },
+    {
+      "artifact": "wheel-linux-x86_64",
+      "filename": "klongpy-2.0.0rc1-cp311-abi3-manylinux_2_28_x86_64.whl",
+      "sha256": "dcdd2bda3743ac7593ac367119bcbf5f23451742bbf6917a50bade3c9b135969",
+      "github_job": 137110237309,
+      "github_conclusion": "success",
+      "original_test_reports": {
+        "package_junit_sha256": "8525a8153793592ae05ecbc6adde2ff7ef35712d12489994a0908fd2f38f67e4",
+        "feed_junit_sha256": "cf018da4ff5464211701049e718766fdbdb1dbb8b19686eaea6278bf4b856427",
+        "package_tests_including_subtests": 9711,
+        "github_feed_ms": {
+          "kg": {
+            "max_ingest_lag_ms": 3.829932000144254,
+            "latest_p99_ms": 4.168292000258589,
+            "asof_p99_ms": 4.422883000188449
+          },
+          "kgpy": {
+            "max_ingest_lag_ms": 5.798191000167208,
+            "latest_p99_ms": 5.406321000009484,
+            "asof_p99_ms": 5.360898000162706
+          }
+        }
+      }
+    },
+    {
+      "artifact": "wheel-macos-arm64",
+      "filename": "klongpy-2.0.0rc1-cp311-abi3-macosx_11_0_arm64.whl",
+      "sha256": "9f6c5d0706ffaa77f4ab446a95893532ae4b124bc87088b5ea9e21993a8ec4c7",
+      "github_job": 137110237257,
+      "github_conclusion": "failure",
+      "original_test_reports": {
+        "package_junit_sha256": "aca879e178b5d52aff86742c47b9cf75c4e0e983d80af7e9628481a457dd9c6f",
+        "feed_junit_sha256": "352a59d01c95ec4fb5a657fb0130d2401a93c2909577c779f17e6d4b01f3a750",
+        "package_tests_including_subtests": 9701,
+        "github_feed_ms": {
+          "kg": {
+            "max_ingest_lag_ms": 64.13158400027896,
+            "latest_p99_ms": 71.30208400008087,
+            "asof_p99_ms": 73.25054200009617
+          },
+          "kgpy": {
+            "max_ingest_lag_ms": 88.46741700017446,
+            "latest_p99_ms": 140.0239170000077,
+            "asof_p99_ms": 140.37050000001727
+          }
+        }
+      }
+    }
+  ],
+  "apple_silicon": {
+    "source_archive_sha256": "a8fed9a33fd7199a95b75a827efd2f226201ea8993bbc5b0b236547f9d258c54",
+    "wheel_members": {
+      "klongpy/_native.abi3.so": "23a59bb6ca139d6392efc9d6e5aa7c8986719805f25d3191a39ec6242c0a76ba",
+      "klongpy-2.0.0rc1.data/scripts/kg": "78702fa8d59c7f6a1eca298da571ab0bc9588118645b5a889af2599e7ec4e378"
+    },
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "feed_ms": {
+      "kg": {
+        "max_ingest_lag_ms": 9.14766639471054,
+        "latest_p99_ms": 6.83162547647953,
+        "asof_p99_ms": 7.530417293310165
+      },
+      "kgpy": {
+        "max_ingest_lag_ms": 9.037500247359276,
+        "latest_p99_ms": 8.07425007224083,
+        "asof_p99_ms": 9.304041974246502
+      }
+    }
+  }
+}
